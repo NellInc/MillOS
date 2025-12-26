@@ -1,6 +1,6 @@
 # MillOS Documentation
 
-Welcome to the MillOS Digital Twin Simulator documentation. This directory contains comprehensive documentation for the AI-powered grain mill digital twin.
+Welcome to the MillOS Digital Twin Simulator documentation. This directory contains full documentation for the AI-powered grain mill digital twin.
 
 ## Documentation Index
 

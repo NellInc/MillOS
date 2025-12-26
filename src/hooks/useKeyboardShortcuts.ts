@@ -338,6 +338,18 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig) {
         return;
       }
 
+      // B - Toggle Bilateral Alignment / Management Style panel
+      if (key === 'b') {
+        e.preventDefault();
+        audioManager.playClick();
+        setQualityNotification('MANAGEMENT');
+        setTimeout(() => setQualityNotification(null), 1500);
+        // Import dock mode dynamically to toggle management panel
+        // This broadcasts a custom event that GameInterface can listen for
+        window.dispatchEvent(new CustomEvent('toggleManagementPanel'));
+        return;
+      }
+
       // F - Toggle fullscreen
       if (key === 'f') {
         e.preventDefault();

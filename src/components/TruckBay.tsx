@@ -3210,10 +3210,30 @@ export const TruckBay: React.FC<TruckBayProps> = ({ productionSpeed }) => {
       {/* ========== SHIPPING DOCK (Front of building, z=50) ========== */}
       {/* Wall is at z=48, so dock elements must be at z>=48 to not clip */}
       <group position={[0, 0, 50]}>
-        {/* Dock platform - single truck bay (moved forward to not clip into wall at z=48) */}
-        <mesh position={[0, 1, 1.2]} receiveShadow castShadow>
-          <boxGeometry args={[9, 2, 5.8]} />
+        {/* Dock platform - split into two sections with forklift channel in center */}
+        {/* Left platform section */}
+        <mesh position={[-3.25, 1, 1.2]} receiveShadow castShadow>
+          <boxGeometry args={[2.5, 2, 5.8]} />
           <meshStandardMaterial color="#475569" roughness={0.8} />
+        </mesh>
+        {/* Right platform section */}
+        <mesh position={[3.25, 1, 1.2]} receiveShadow castShadow>
+          <boxGeometry args={[2.5, 2, 5.8]} />
+          <meshStandardMaterial color="#475569" roughness={0.8} />
+        </mesh>
+        {/* Forklift channel floor (sunken slightly for visual distinction) */}
+        <mesh position={[0, 0.15, 1.2]} receiveShadow>
+          <boxGeometry args={[4, 0.3, 5.8]} />
+          <meshStandardMaterial color="#374151" roughness={0.9} />
+        </mesh>
+        {/* Yellow safety stripes on channel edges */}
+        <mesh position={[-1.85, 0.32, 1.2]} rotation={[-Math.PI / 2, 0, 0]}>
+          <planeGeometry args={[0.3, 5.8]} />
+          <meshBasicMaterial color="#fbbf24" />
+        </mesh>
+        <mesh position={[1.85, 0.32, 1.2]} rotation={[-Math.PI / 2, 0, 0]}>
+          <planeGeometry args={[0.3, 5.8]} />
+          <meshBasicMaterial color="#fbbf24" />
         </mesh>
 
         {/* Dock bumpers - centered for single bay (narrower to fit platform) */}
@@ -3390,47 +3410,47 @@ export const TruckBay: React.FC<TruckBayProps> = ({ productionSpeed }) => {
           />
         </mesh>
 
-        {/* Speed bumps */}
-        <OptimizedSpeedBumpInstances bumps={[{ position: [0, 0, 25] }, { position: [0, 0, 45] }]} />
+        {/* Speed bumps - relocated to employee walkways on yard edges */}
+        <OptimizedSpeedBumpInstances bumps={[{ position: [-28, 0, 45] }, { position: [28, 0, 45] }]} />
 
-        {/* Traffic cones - turn guidance */}
+        {/* Traffic cones - relocated to dock edges to not block truck path */}
         <OptimizedTrafficConeInstances
           positions={[
-            [-12, 0, 18],
-            [-10, 0, 20],
-            [-8, 0, 21],
-            [-5, 0, 21],
-            [5, 0, 21],
-            [8, 0, 21],
-            [10, 0, 20],
-            [12, 0, 18],
+            [-8, 0, 5],
+            [-6, 0, 5],
+            [6, 0, 5],
+            [8, 0, 5],
           ]}
         />
 
-        {/* Concrete bollards at yard entrance */}
+        {/* Concrete bollards at yard edges - moved outward to not block trucks */}
         <OptimizedBollardInstances
           positions={[
-            [-22, 0, 55],
-            [22, 0, 55],
+            [-28, 0, 55],
+            [28, 0, 55],
+            [-28, 0, 35],
+            [28, 0, 35],
           ]}
         />
 
-        {/* No idling signs */}
-        <NoIdlingSign position={[-15, 0, 10]} rotation={Math.PI / 2} />
-        <NoIdlingSign position={[15, 0, 10]} rotation={-Math.PI / 2} />
+        {/* No idling signs - relocated near bollards at yard perimeter */}
+        <NoIdlingSign position={[-30, 0, 45]} rotation={Math.PI / 2} />
+        <NoIdlingSign position={[30, 0, 45]} rotation={-Math.PI / 2} />
 
         {[
-          [-25, 35],
-          [25, 35],
-          [-25, 55],
-          [25, 55],
+          [-30, 35],
+          [30, 35],
+          [-30, 55],
+          [30, 55],
         ].map(([x, z], i) => (
           <group key={i} position={[x, 0, z]}>
+            {/* Light pole - 14 units tall, centered at y=7, so top is at y=14 */}
             <mesh position={[0, 7, 0]}>
               <cylinderGeometry args={[0.12, 0.15, 14, 8]} />
               <meshStandardMaterial color="#64748b" metalness={0.7} roughness={0.3} />
             </mesh>
-            <mesh position={[0, 14.5, 0]}>
+            {/* Fixture - positioned at y=14.2 so it sits flush on pole top at y=14 */}
+            <mesh position={[0, 14.2, 0]}>
               <boxGeometry args={[2, 0.4, 1]} />
               <meshStandardMaterial color="#374151" metalness={0.6} roughness={0.4} />
             </mesh>
@@ -3588,10 +3608,30 @@ export const TruckBay: React.FC<TruckBayProps> = ({ productionSpeed }) => {
       {/* ========== RECEIVING DOCK (Back of building, z=-50) ========== */}
       {/* Wall is at z=-48, dock rotated 180deg so local -z = world +z */}
       <group position={[0, 0, -50]} rotation={[0, Math.PI, 0]}>
-        {/* Dock platform - single truck bay (moved forward to not clip into wall) */}
-        <mesh position={[0, 1, 1.2]} receiveShadow>
-          <boxGeometry args={[9, 2, 5.8]} />
+        {/* Dock platform - split into two sections with forklift channel in center */}
+        {/* Left platform section */}
+        <mesh position={[-3.25, 1, 1.2]} receiveShadow>
+          <boxGeometry args={[2.5, 2, 5.8]} />
           <meshStandardMaterial color="#475569" roughness={0.8} />
+        </mesh>
+        {/* Right platform section */}
+        <mesh position={[3.25, 1, 1.2]} receiveShadow>
+          <boxGeometry args={[2.5, 2, 5.8]} />
+          <meshStandardMaterial color="#475569" roughness={0.8} />
+        </mesh>
+        {/* Forklift channel floor (sunken slightly for visual distinction) */}
+        <mesh position={[0, 0.15, 1.2]} receiveShadow>
+          <boxGeometry args={[4, 0.3, 5.8]} />
+          <meshStandardMaterial color="#374151" roughness={0.9} />
+        </mesh>
+        {/* Yellow safety stripes on channel edges */}
+        <mesh position={[-1.85, 0.32, 1.2]} rotation={[-Math.PI / 2, 0, 0]}>
+          <planeGeometry args={[0.3, 5.8]} />
+          <meshBasicMaterial color="#fbbf24" />
+        </mesh>
+        <mesh position={[1.85, 0.32, 1.2]} rotation={[-Math.PI / 2, 0, 0]}>
+          <planeGeometry args={[0.3, 5.8]} />
+          <meshBasicMaterial color="#fbbf24" />
         </mesh>
 
         {/* Dock bumpers - centered for single bay (narrower to fit platform) */}

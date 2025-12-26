@@ -2,6 +2,16 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <!--
+      Content Security Policy (CSP) - Defense against XSS and injection attacks
+      OWASP Reference: A03:2021 - Injection
+
+      Notes:
+      - 'unsafe-inline' required for Vite HMR and inline styles in React
+      - 'unsafe-eval' required for some 3D libraries (Three.js shader compilation)
+      - blob: required for Web Workers and dynamic asset loading
+      - frame-ancestors 'self' prevents clickjacking attacks
+    -->
     <meta http-equiv="Content-Security-Policy" content="
       default-src 'self';
       script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:;
@@ -10,9 +20,19 @@
       img-src 'self' data: blob: https://millos.net;
       connect-src 'self' ws: wss: https://generativelanguage.googleapis.com https://cdn.jsdelivr.net https://fonts.gstatic.com https://fonts.googleapis.com;
       worker-src 'self' blob:;
+      frame-ancestors 'self';
+      base-uri 'self';
+      form-action 'self';
+      object-src 'none';
     " />
+    <!-- Prevent MIME type sniffing attacks -->
     <meta http-equiv="X-Content-Type-Options" content="nosniff" />
+    <!-- Control referrer information leakage -->
     <meta name="referrer" content="strict-origin-when-cross-origin" />
+    <!-- Prevent page from being displayed in frames (clickjacking protection) -->
+    <meta http-equiv="X-Frame-Options" content="SAMEORIGIN" />
+    <!-- Enable XSS filter in older browsers -->
+    <meta http-equiv="X-XSS-Protection" content="1; mode=block" />
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏭</text></svg>" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="description" content="MillOS - AI-Powered Grain Mill Digital Twin Simulator. A browser-based 3D industrial simulation featuring autonomous workers, intelligent forklifts, real-time production metrics, and SCADA integration." />

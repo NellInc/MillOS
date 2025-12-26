@@ -1,6 +1,6 @@
 # Deployment Guide
 
-This guide covers building and deploying MillOS to various hosting platforms.
+Building and deploying MillOS to various hosting platforms.
 
 ## Table of Contents
 

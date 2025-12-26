@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document establishes best practices for importing Zustand stores in the MillOS codebase to prevent state synchronization issues.
+Best practices for importing Zustand stores in the MillOS codebase to prevent state synchronization issues.
 
 ## The Golden Rule
 

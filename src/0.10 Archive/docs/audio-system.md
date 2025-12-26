@@ -1,6 +1,6 @@
 # Audio System
 
-MillOS features a comprehensive audio system using the Web Audio API to create an immersive factory soundscape.
+MillOS uses a detailed audio system built on the Web Audio API to create an immersive factory soundscape.
 
 ## Table of Contents
 

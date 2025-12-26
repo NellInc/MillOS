@@ -1,6 +1,6 @@
 # Zone Architecture Audit
 
-Audit machine positions to ensure they follow the MillOS zone layout:
+Audit machine positions against the MillOS zone layout:
 
 ```
 Zone 1 (z=-22): Silos Alpha-Epsilon     [Raw Material Storage]
@@ -19,4 +19,4 @@ Report:
 - Any machines outside expected zone boundaries
 - Recommendations for corrections
 
-This ensures the factory layout remains logically organized.
+This keeps the factory layout logically organized.

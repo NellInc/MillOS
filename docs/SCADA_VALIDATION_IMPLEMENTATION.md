@@ -2,7 +2,7 @@
 
 ## Overview
 
-Added comprehensive input validation for SCADA protocol adapters to prevent runtime errors from malformed or malicious data. The validation layer uses TypeScript type guards to ensure all incoming messages conform to expected interfaces before processing.
+Added complete input validation for SCADA protocol adapters to prevent runtime errors from malformed or malicious data. The validation layer uses TypeScript type guards to verify all incoming messages conform to expected interfaces before processing.
 
 ## Files Modified/Created
 
@@ -16,7 +16,7 @@ Added comprehensive input validation for SCADA protocol adapters to prevent runt
    - Export: `MessageValidationError` - custom error with protocol context
 
 2. **`/src/scada/adapters/__tests__/messageValidation.test.ts`** (424 lines)
-   - Comprehensive test suite with 39 test cases
+   - Full test suite with 39 test cases
    - 100% coverage of validation logic
    - Tests for valid messages, edge cases, and malformed data
 
@@ -75,7 +75,7 @@ The `isValidMQTTPayload()` function validates:
 
 ### MessageValidationError Class
 
-Custom error class that provides:
+Custom error class with:
 - **message**: Human-readable error description
 - **receivedData**: The actual data that failed validation (for debugging)
 - **protocol**: Either 'WebSocket' or 'MQTT' for context
@@ -115,7 +115,7 @@ Both adapters increment their error counters when validation fails, which can be
 
 ## Test Coverage
 
-39 comprehensive tests covering:
+39 complete tests covering:
 
 **WebSocket Validation (26 tests):**
 - Valid messages for all message types

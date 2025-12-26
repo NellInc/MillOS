@@ -84,16 +84,24 @@ export default defineConfig(({ mode }) => {
               'three-core': ['three'],
               'three-fiber': ['@react-three/fiber', '@react-three/drei'],
               'three-postprocessing': ['@react-three/postprocessing', 'postprocessing'],
+              // Rapier physics - large WASM bundle (~2.2MB), isolated for parallel loading
+              // This chunk contains the Rapier WASM physics engine which cannot be reduced
               'three-rapier': ['@react-three/rapier'],
               // UI libraries
               'ui-vendor': ['framer-motion'],
               'charts': ['recharts'],
               // Utilities
               'icons': ['lucide-react'],
+              // Additional splits to reduce main bundle
+              'ai-vendor': ['@google/generative-ai'],
+              'multiplayer': ['peerjs'],
+              'math-utils': ['maath'],
             },
           },
         },
-        chunkSizeWarningLimit: 2000, // 3D apps have larger bundles
+        // Rapier physics WASM is ~2.2MB - this is expected and cannot be reduced
+        // Increase limit to suppress warning for this known large dependency
+        chunkSizeWarningLimit: 2500,
       },
       optimizeDeps: {
         // Pre-bundle heavy dependencies for faster dev startup

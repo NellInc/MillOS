@@ -1682,12 +1682,9 @@ const MachineMesh: React.FC<MachineMeshProps> = React.memo(({ data, onSelect, on
   // Separate effect for RPM updates to avoid restarting sound
   useEffect(() => {
     if (status === 'running' && (type === MachineType.ROLLER_MILL || type === MachineType.PLANSIFTER)) {
-      // TODO: Add updateMachinePitch or similar to AudioManager. 
-      // For now, re-calling play might be the only way if no specific update exists, 
-      // BUT we must ensure it doesn't restart.
-      // Given I cannot see AudioManager right now, I will skip spamming play 
-      // and assume initial RPM is enough, or that audioManager needs an update method.
-      // Actually, thrashing is worse than static pitch.
+      // Update pitch/rhythm based on RPM without restarting the sound
+      const rpm = data.metrics.rpm ?? (type === MachineType.ROLLER_MILL ? 1400 : 200);
+      audioManager.updateMachinePitch(data.id, rpm);
     }
   }, [data.id, status, type, data.metrics.rpm]);
 

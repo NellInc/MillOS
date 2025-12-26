@@ -112,7 +112,7 @@ The state management has been divided into 5 domain-specific stores:
 
 ## Backwards Compatibility
 
-The original `/src/store.ts` now acts as a **compatibility layer** that re-exports all stores and provides:
+The original `/src/store.ts` now acts as a **compatibility layer** that re-exports all stores and offers:
 
 1. **Combined `useMillStore` hook** - Merges all stores into a single state object
 2. **`useMillStore.getState()`** - Access combined state imperatively

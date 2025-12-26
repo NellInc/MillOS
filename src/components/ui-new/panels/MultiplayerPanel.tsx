@@ -180,15 +180,17 @@ export const MultiplayerPanel: React.FC = () => {
         <div className="space-y-4">
           {/* Name input */}
           <div>
-            <label className="text-xs text-slate-400 uppercase tracking-wider mb-2 block">
+            <label htmlFor="multiplayer-name" className="text-xs text-slate-400 uppercase tracking-wider mb-2 block">
               Your Name
             </label>
             <input
+              id="multiplayer-name"
               type="text"
               value={playerName}
               onChange={(e) => setPlayerName(e.target.value)}
               placeholder="Enter your name"
               maxLength={20}
+              aria-required="true"
               className="w-full bg-slate-800/50 border border-slate-600/50 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500/50"
             />
           </div>
@@ -197,9 +199,11 @@ export const MultiplayerPanel: React.FC = () => {
           <button
             onClick={handleCreateRoom}
             disabled={isConnecting}
+            aria-disabled={isConnecting}
+            title={isConnecting ? 'Connection in progress' : undefined}
             className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 disabled:bg-blue-600/50 text-white text-sm font-medium py-2.5 px-4 rounded-lg transition-colors"
           >
-            <UserPlus className="w-4 h-4" />
+            <UserPlus className="w-4 h-4" aria-hidden="true" />
             Create Room
           </button>
 
@@ -214,17 +218,22 @@ export const MultiplayerPanel: React.FC = () => {
 
           {/* Join room */}
           <div className="flex gap-2">
+            <label htmlFor="room-code" className="sr-only">Room Code</label>
             <input
+              id="room-code"
               type="text"
               value={joinCode}
               onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
               placeholder="ROOM CODE"
               maxLength={6}
+              aria-label="Enter 6-character room code"
               className="flex-1 bg-slate-800/50 border border-slate-600/50 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-green-500/50 font-mono tracking-wider text-center"
             />
             <button
               onClick={handleJoinRoom}
               disabled={isConnecting}
+              aria-disabled={isConnecting}
+              title={isConnecting ? 'Connection in progress' : undefined}
               className="bg-green-600 hover:bg-green-500 disabled:bg-green-600/50 text-white text-sm font-medium py-2 px-4 rounded-lg transition-colors"
             >
               Join
@@ -242,8 +251,8 @@ export const MultiplayerPanel: React.FC = () => {
 
       {/* Connecting state */}
       {connectionState === 'connecting' && (
-        <div className="bg-slate-800/50 rounded-lg p-6 text-center">
-          <Signal className="w-8 h-8 text-yellow-400 animate-pulse mx-auto mb-2" />
+        <div className="bg-slate-800/50 rounded-lg p-6 text-center" role="status" aria-live="polite">
+          <Signal className="w-8 h-8 text-yellow-400 animate-pulse mx-auto mb-2" aria-hidden="true" />
           <div className="text-yellow-400 text-sm">Connecting...</div>
         </div>
       )}
@@ -343,28 +352,30 @@ export const MultiplayerPanel: React.FC = () => {
                 setShowChat(!showChat);
                 if (!showChat) markChatRead();
               }}
+              aria-expanded={showChat}
+              aria-controls="multiplayer-chat-panel"
               className="w-full flex items-center justify-between p-3 hover:bg-slate-700/30 transition-colors"
             >
               <span className="flex items-center gap-2 text-sm text-slate-300">
-                <MessageSquare className="w-4 h-4" />
+                <MessageSquare className="w-4 h-4" aria-hidden="true" />
                 Chat
                 {unreadChatCount > 0 && !showChat && (
-                  <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">
+                  <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full" aria-label={`${unreadChatCount} unread messages`}>
                     {unreadChatCount > 9 ? '9+' : unreadChatCount}
                   </span>
                 )}
               </span>
               {showChat ? (
-                <ChevronUp className="w-4 h-4 text-slate-400" />
+                <ChevronUp className="w-4 h-4 text-slate-400" aria-hidden="true" />
               ) : (
-                <ChevronDown className="w-4 h-4 text-slate-400" />
+                <ChevronDown className="w-4 h-4 text-slate-400" aria-hidden="true" />
               )}
             </button>
 
             {showChat && (
-              <div className="border-t border-slate-700/50">
+              <div id="multiplayer-chat-panel" className="border-t border-slate-700/50">
                 {/* Messages */}
-                <div className="h-48 overflow-y-auto p-3 space-y-2">
+                <div className="h-48 overflow-y-auto p-3 space-y-2" role="log" aria-label="Chat messages" aria-live="polite">
                   {chatMessages.length === 0 ? (
                     <div className="text-center text-slate-500 text-xs py-6">
                       No messages yet. Say hello!
@@ -404,7 +415,9 @@ export const MultiplayerPanel: React.FC = () => {
                 {/* Input */}
                 <div className="p-2 border-t border-slate-700/50">
                   <div className="flex gap-2">
+                    <label htmlFor="chat-message" className="sr-only">Chat message</label>
                     <input
+                      id="chat-message"
                       type="text"
                       value={chatMessage}
                       onChange={(e) => setChatMessage(e.target.value)}
@@ -417,6 +430,7 @@ export const MultiplayerPanel: React.FC = () => {
                       }}
                       placeholder="Type a message..."
                       maxLength={200}
+                      aria-label="Type a chat message"
                       className="flex-1 bg-slate-700/50 border border-slate-600/50 rounded px-2 py-1.5 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-blue-500/50"
                     />
                     <button
@@ -428,9 +442,12 @@ export const MultiplayerPanel: React.FC = () => {
                         }
                       }}
                       disabled={!chatMessage.trim()}
+                      aria-disabled={!chatMessage.trim()}
+                      aria-label="Send message"
+                      title={!chatMessage.trim() ? 'Enter a message to send' : 'Send message'}
                       className="p-1.5 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-700 disabled:text-slate-500 text-white rounded transition-colors"
                     >
-                      <Send className="w-4 h-4" />
+                      <Send className="w-4 h-4" aria-hidden="true" />
                     </button>
                   </div>
                 </div>

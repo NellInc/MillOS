@@ -1,6 +1,6 @@
 # Safety System
 
-MillOS implements a comprehensive safety simulation that demonstrates realistic industrial collision avoidance between workers and forklifts.
+MillOS implements a complete safety simulation demonstrating realistic industrial collision avoidance between workers and forklifts.
 
 ## Table of Contents
 
@@ -298,7 +298,7 @@ if (distance < HORN_DISTANCE && distance > 1 && pathIndexRef.current !== lastHor
 }
 ```
 
-This provides advance warning to workers and other vehicles at busy intersections.
+Workers and other vehicles receive advance warning at busy intersections.
 
 ### Yielding to Other Forklifts
 

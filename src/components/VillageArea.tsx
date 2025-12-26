@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Text } from '@react-three/drei';
 import * as THREE from 'three';
@@ -8,6 +8,7 @@ import Fireflies from './effects/Fireflies';
 import { Cat } from './scenery/Cat';
 import { HeartParticle } from './effects/HeartParticle';
 import { playCritterSound } from '../utils/critterAudio';
+import { audioManager } from '../utils/audioManager';
 
 // ============================================================
 // CHARMING EUROPEAN VILLAGE - West of Canal
@@ -377,6 +378,18 @@ ChurchBuilding.displayName = 'ChurchBuilding';
 // Isolated clock component to prevent full building re-renders
 const TownHallClock: React.FC<{ position: [number, number, number]; isNight: boolean }> = React.memo(({ position, isNight }) => {
     const gameTime = useGameSimulationStore((state) => state.gameTime);
+    const lastChimeHourRef = useRef(-1);
+
+    // Play clock chime on the hour
+    useEffect(() => {
+        const currentHour = Math.floor(gameTime);
+        // Only chime when crossing an hour boundary
+        if (currentHour !== lastChimeHourRef.current && gameTime % 1 < 0.05) {
+            audioManager.playClockChime(currentHour);
+            lastChimeHourRef.current = currentHour;
+        }
+    }, [gameTime]);
+
     // Clock hands: hour hand rotates once per 12 hours, minute hand once per hour
     const hourAngle = ((gameTime / 12) * Math.PI * 2);
     const minuteAngle = (((gameTime % 1) * 60) / 60) * Math.PI * 2;

@@ -5,7 +5,7 @@
  * Majority vote determines the outcome.
  */
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ThumbsUp, ThumbsDown, Bot, Users, Check, X } from 'lucide-react';
 import {
@@ -14,8 +14,9 @@ import {
   useIsHost,
 } from '../../stores/multiplayerStore';
 import { useProductionStore } from '../../stores/productionStore';
-// getMultiplayerManager will be used when multiplayer voting broadcast is implemented
+import { getMultiplayerManager } from '../../multiplayer/MultiplayerManager';
 import { AIDecision } from '../../types';
+import { AIVote } from '../../multiplayer/types';
 
 interface AIDecisionVotingProps {
   decision: AIDecision;
@@ -41,6 +42,28 @@ export const AIDecisionVotingCard: React.FC<AIDecisionVotingProps> = ({ decision
   const approveCount = useMemo(() => Array.from(votes.values()).filter((v) => v).length, [votes]);
   const rejectCount = useMemo(() => Array.from(votes.values()).filter((v) => !v).length, [votes]);
 
+  // Listen for incoming votes from other players
+  useEffect(() => {
+    if (!isActive) return;
+
+    const handleVoteReceived = (event: CustomEvent<AIVote>) => {
+      const vote = event.detail;
+      // Only process votes for this decision
+      if (vote.decisionId !== decision.id) return;
+
+      setVotes((prev) => {
+        const newVotes = new Map(prev);
+        newVotes.set(vote.playerId, vote.approve);
+        return newVotes;
+      });
+    };
+
+    window.addEventListener('multiplayer:ai-vote', handleVoteReceived as EventListener);
+    return () => {
+      window.removeEventListener('multiplayer:ai-vote', handleVoteReceived as EventListener);
+    };
+  }, [isActive, decision.id]);
+
   const handleVote = (approve: boolean) => {
     if (hasVoted) return;
 
@@ -49,11 +72,19 @@ export const AIDecisionVotingCard: React.FC<AIDecisionVotingProps> = ({ decision
     setVotes(newVotes);
     setHasVoted(true);
 
-    // In multiplayer, broadcast the vote
+    // In multiplayer, broadcast the vote to all peers
     if (isActive) {
-      // TODO: The manager would handle broadcasting this to all peers
-      // const manager = getMultiplayerManager();
-      // For now, we just update local state
+      const manager = getMultiplayerManager();
+      const votePayload: AIVote = {
+        decisionId: decision.id,
+        playerId: localPlayerId,
+        approve,
+        timestamp: Date.now(),
+      };
+      manager.broadcast({
+        type: 'AI_VOTE',
+        payload: votePayload,
+      });
     }
   };
 

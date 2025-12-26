@@ -3,7 +3,7 @@
 **Date:** 2025-12-04
 **For:** MillOS Development Team
 
-This document provides detailed recommendations for addressing Medium and Low priority accessibility issues identified in the audit. While these are not blocking issues, implementing them will significantly improve the user experience for all users, including those with disabilities.
+Detailed recommendations for addressing Medium and Low priority accessibility issues identified in the audit. While these are not blocking issues, implementing them will significantly improve the user experience for all users, including those with disabilities.
 
 ---
 

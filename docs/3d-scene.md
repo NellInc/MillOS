@@ -1,6 +1,6 @@
 # 3D Scene System
 
-This document covers the Three.js and React Three Fiber implementation for the MillOS 3D factory visualization.
+Three.js and React Three Fiber implementation for the MillOS 3D factory visualization.
 
 ## Table of Contents
 

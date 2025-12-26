@@ -216,7 +216,7 @@ interface MillStore {
 
 ### Collision System
 
-A custom **PositionRegistry** singleton enables inter-entity awareness:
+A custom **PositionRegistry** singleton coordinates inter-entity awareness:
 - Workers register positions each frame
 - Forklifts check path clearance 5 units ahead
 - Safety radii: 2.5 units (workers), 4 units (forklifts)

@@ -942,3 +942,48 @@ export const WORKER_ROSTER: Omit<WorkerData, 'position' | 'direction'>[] = [
     color: '#a855f7',
   },
 ];
+
+// =============================================================================
+// BILATERAL AUTONOMY SYSTEM (BAS) RE-EXPORTS
+// For convenience, re-export all BAS types from types/bas.ts
+// =============================================================================
+
+export type {
+  FiveAxes,
+  AxisKey,
+  AxisConfig,
+  AxisDescriptor,
+  BASMode,
+  EducationFocus,
+  VoteType,
+  VoteStatus,
+  VoteOption,
+  VoteComment,
+  Vote,
+  VotingRules,
+  WallaceMetrics,
+  ResourceRates,
+  PhaseState,
+  StabilityDataPoint,
+  ValueMetrics,
+  FlourishingDimensionKey,
+  FlourishingDimension,
+  FlourishingEvent,
+  WorkerFlourishing,
+  FactoryFlourishing,
+  SuggestionMode,
+  DecisionThreshold,
+  AISuggestion,
+  AIBehaviorConfig,
+  BASPreset,
+} from './types/bas';
+
+export {
+  BAS_PRESETS,
+  AXIS_DESCRIPTORS,
+  VOTING_RULES,
+  STABILITY_THRESHOLD,
+  WARNING_THRESHOLD,
+  DEFAULT_AXES,
+  DEFAULT_AXIS_CONFIG,
+} from './types/bas';

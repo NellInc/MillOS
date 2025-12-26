@@ -32,6 +32,8 @@ body,
     system-ui,
     -apple-system,
     sans-serif;
+  /* WCAG 2.1 AA: Minimum 16px base font for readability */
+  font-size: 16px;
 }
 
 body {
@@ -157,4 +159,72 @@ input[type='range']::-webkit-slider-thumb:hover {
 
 .fade-in {
   animation-name: fadeIn;
+}
+
+/* =============================================================================
+   ACCESSIBILITY: Focus Indicators (WCAG 2.1 AA)
+   ============================================================================= */
+
+/* Enhanced focus styles for keyboard navigation */
+:focus-visible {
+  outline: 2px solid #22d3ee; /* cyan-400 */
+  outline-offset: 2px;
+}
+
+/* Ensure all interactive elements have visible focus indicators */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+[role="button"]:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid #22d3ee;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgba(34, 211, 238, 0.2);
+}
+
+/* Range input specific focus */
+input[type='range']:focus-visible {
+  outline: none;
+}
+
+input[type='range']:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 4px rgba(34, 211, 238, 0.4), 0 0 10px rgba(249, 115, 22, 0.5);
+}
+
+/* =============================================================================
+   ACCESSIBILITY: Reduced Motion Support (WCAG 2.1 AA)
+   ============================================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .animate-pulse,
+  .animate-pulse-glow,
+  .animate-in {
+    animation: none !important;
+  }
+}
+
+/* =============================================================================
+   ACCESSIBILITY: High Contrast Support
+   ============================================================================= */
+
+@media (prefers-contrast: high) {
+  .glass {
+    background: rgba(15, 23, 42, 0.95);
+    border: 2px solid rgba(255, 255, 255, 0.5);
+  }
+
+  button,
+  [role="button"] {
+    border: 1px solid currentColor;
+  }
 }

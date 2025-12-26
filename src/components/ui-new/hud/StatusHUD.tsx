@@ -107,10 +107,12 @@ export const StatusHUD: React.FC = () => {
   const SafetyIcon = safetyScore > 80 ? ShieldCheck : ShieldAlert;
 
   return (
-    <div
+    <header
       ref={hudRef}
       style={{ left: position.x, top: position.y }}
       className={`fixed flex items-center gap-2 pointer-events-auto z-30 ${isDragging ? 'cursor-grabbing' : ''}`}
+      role="banner"
+      aria-label="System status bar"
     >
       {/* System Status Bar */}
       <div className="flex items-center bg-slate-900/50 backdrop-blur-md border border-white/5 rounded-full overflow-hidden">
@@ -118,31 +120,33 @@ export const StatusHUD: React.FC = () => {
         <div
           onMouseDown={handleMouseDown}
           className="px-2 py-1.5 cursor-grab hover:bg-white/10 transition-colors flex items-center border-r border-white/10"
-          title="Drag to move"
+          role="button"
+          aria-label="Drag to reposition status bar"
+          tabIndex={0}
         >
-          <GripVertical className="w-3 h-3 text-slate-500" />
+          <GripVertical className="w-3 h-3 text-slate-500" aria-hidden="true" />
         </div>
 
-        <div className="flex items-center gap-4 px-3 py-1.5">
+        <div className="flex items-center gap-4 px-3 py-1.5" role="status" aria-live="polite">
           {/* FPS */}
-          <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-mono">
-            <ActivityIcon size={12} />
+          <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-mono" aria-label={`Frame rate: ${fps} FPS`}>
+            <ActivityIcon size={12} aria-hidden="true" />
             <span>{fps} FPS</span>
           </div>
 
-          <div className="w-px h-3 bg-white/10"></div>
+          <div className="w-px h-3 bg-white/10" aria-hidden="true"></div>
 
           {/* Safety Score */}
-          <div className={`flex items-center gap-1.5 text-[10px] font-bold ${safetyColor}`}>
-            <SafetyIcon size={12} />
+          <div className={`flex items-center gap-1.5 text-[10px] font-bold ${safetyColor}`} aria-label={`Safety score: ${safetyScore} percent`}>
+            <SafetyIcon size={12} aria-hidden="true" />
             <span>{safetyScore}% SAFETY</span>
           </div>
 
-          <div className="w-px h-3 bg-white/10"></div>
+          <div className="w-px h-3 bg-white/10" aria-hidden="true"></div>
 
           {/* Network / Connectivity */}
-          <div className="flex items-center gap-1.5 text-[10px] text-cyan-400">
-            <Wifi size={12} />
+          <div className="flex items-center gap-1.5 text-[10px] text-cyan-400" aria-label="Network status: Connected">
+            <Wifi size={12} aria-hidden="true" />
             <span>LINKED</span>
           </div>
         </div>
@@ -245,6 +249,6 @@ export const StatusHUD: React.FC = () => {
           </div>
         )}
       </div>
-    </div>
+    </header>
   );
 };

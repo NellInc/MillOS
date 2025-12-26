@@ -4,6 +4,22 @@
  * Theme Hospital-inspired worker mood system with visible chaos events.
  * Workers grumble and complain, but they're fundamentally content souls
  * who never actually storm out - they just enjoy a good moan.
+ *
+ * BAS Integration (Dec 2024):
+ * - Mood effects scale with BAS axes
+ * - High autonomy = satisfaction bonus
+ * - Low transparency = patience penalty
+ * - Pace mismatch = stress increase
+ *
+ * Engagement Integration (Phase C):
+ * - Mood calculations now factor in engagement state from engagementStore
+ * - High engagement -> mood bonus
+ * - Low engagement + high workload -> accelerated mood decline
+ *
+ * Flourishing Integration (Dec 2024):
+ * - Higher flourishing scores improve worker mood
+ * - Connection to flourishingStore for eudaimonia metrics
+ * - Workers with high flourishing have better recovery rates
  */
 
 import { create } from 'zustand';
@@ -28,9 +44,10 @@ import {
   PREFERENCE_REQUEST_PHRASES,
   PREFERENCE_RESPONSE_PHRASES,
   // Safety Feedback Loop types
-  WorkerSafetyBehavior,
   DEFAULT_WORKER_SAFETY_BEHAVIOR,
 } from '../types';
+import type { FiveAxes } from '../types/bas';
+import { useEngagementStore, type DiagnosticStatus } from './engagementStore';
 
 // Helper to get random item from array
 const randomFrom = <T>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
@@ -82,32 +99,348 @@ export interface WorkerReactionState {
   duration: number;
 }
 
+/**
+ * BAS-derived mood effects
+ * Calculated from BAS axes to affect worker satisfaction and energy
+ */
+export interface BASMoodEffects {
+  /** Satisfaction modifier from autonomy (-10 to +15) */
+  autonomyEffect: number;
+  /** Patience modifier from transparency (-15 to +5) */
+  transparencyEffect: number;
+  /** Energy modifier from pace mismatch (-10 to +5) */
+  paceEffect: number;
+  /** Overall mood multiplier (0.8 to 1.2) */
+  overallMultiplier: number;
+}
+
+/**
+ * Calculate BAS mood effects from five axes
+ *
+ * High autonomy = workers feel empowered = satisfaction bonus
+ * Low transparency = workers feel left out = patience penalty
+ * Collective orientation affects mood recovery rate
+ */
+function calculateBASMoodEffects(axes: FiveAxes): BASMoodEffects {
+  // Autonomy effect: Higher autonomy = higher satisfaction
+  // 0% autonomy = -10, 50% = 0, 100% = +15
+  const autonomyEffect = ((axes.autonomyLevel - 50) / 50) * 12.5;
+
+  // Transparency effect: Low transparency = workers feel excluded = patience penalty
+  // 0% transparency = -15, 50% = -5, 100% = +5
+  const transparencyEffect = ((axes.informationAccess - 50) / 50) * 10 - 5;
+
+  // Pace effect: Extreme values (very slow or very fast) cause stress
+  // Decision mode affects perceived pace: high democracy = slower decisions = some friction
+  // but also more buy-in = less stress
+  const decisionModeFactor = axes.decisionMode > 75 ? -3 : axes.decisionMode < 25 ? -5 : 0;
+  const paceEffect = decisionModeFactor;
+
+  // Overall multiplier based on evaluation direction and collective orientation
+  // Workers rate AI high + team-first = best multiplier
+  const evalEffect = (axes.evaluationDirection - 50) / 100; // -0.5 to +0.5
+  const collectiveEffect = (axes.collectiveOrientation - 50) / 100; // -0.5 to +0.5
+  const overallMultiplier = 1.0 + evalEffect * 0.1 + collectiveEffect * 0.1;
+
+  return {
+    autonomyEffect,
+    transparencyEffect,
+    paceEffect,
+    overallMultiplier: Math.max(0.8, Math.min(1.2, overallMultiplier)),
+  };
+}
+
+// =============================================================================
+// ENGAGEMENT INTEGRATION HELPERS
+// =============================================================================
+
+/**
+ * Calculate mood modifier based on engagement state.
+ *
+ * High engagement provides a mood bonus, while low engagement
+ * combined with high workload accelerates mood decline.
+ *
+ * @param diagnosticStatus - Worker's current engagement diagnostic status
+ * @param overallScore - Worker's overall engagement score (0-100)
+ * @param workload - Estimated workload level (0-100), defaults to 50
+ * @returns Mood modifier: positive = bonus, negative = penalty
+ */
+function calculateEngagementMoodModifier(
+  diagnosticStatus: DiagnosticStatus | undefined,
+  overallScore: number | undefined,
+  workload: number = 50
+): number {
+  if (!diagnosticStatus || overallScore === undefined) {
+    return 0; // No engagement data, neutral effect
+  }
+
+  let modifier = 0;
+
+  // High engagement provides mood bonus
+  if (diagnosticStatus === 'healthy' && overallScore >= 70) {
+    modifier += 5; // Good engagement = mood boost
+  } else if (diagnosticStatus === 'healthy' && overallScore >= 55) {
+    modifier += 2; // Moderate engagement = small boost
+  }
+
+  // Low engagement + high workload accelerates mood decline
+  if (diagnosticStatus === 'disengaged' && workload > 60) {
+    modifier -= 8; // Disengaged and busy = significant penalty
+  } else if (diagnosticStatus === 'disengaged') {
+    modifier -= 4; // Disengaged = moderate penalty
+  }
+
+  // Burnout risk should trigger mood concerns
+  if (diagnosticStatus === 'burnoutRisk') {
+    modifier -= 6; // Burnout risk = notable penalty
+  }
+
+  // Forcing state (going through motions) = slight penalty
+  if (diagnosticStatus === 'forcing') {
+    modifier -= 2;
+  }
+
+  return modifier;
+}
+
+/**
+ * Calculate mood decay rate based on engagement.
+ *
+ * Engaged workers have slower mood decay; disengaged workers
+ * experience faster mood decline.
+ *
+ * @param diagnosticStatus - Worker's engagement diagnostic status
+ * @returns Multiplier for mood decay rate (1.0 = normal)
+ */
+function getEngagementDecayMultiplier(
+  diagnosticStatus: DiagnosticStatus | undefined
+): number {
+  if (!diagnosticStatus) {
+    return 1.0; // Normal decay
+  }
+
+  switch (diagnosticStatus) {
+    case 'healthy':
+      return 0.7; // 30% slower decay when engaged
+    case 'forcing':
+      return 1.1; // Slightly faster decay when forcing
+    case 'burnoutRisk':
+      return 1.4; // Faster decay when at burnout risk
+    case 'disengaged':
+      return 1.3; // Faster decay when disengaged
+    default:
+      return 1.0;
+  }
+}
+
+/**
+ * Calculate mood recovery rate based on engagement.
+ *
+ * Engaged workers recover mood faster during breaks and positive events.
+ *
+ * @param diagnosticStatus - Worker's engagement diagnostic status
+ * @returns Multiplier for mood recovery rate (1.0 = normal)
+ */
+function getEngagementRecoveryMultiplier(
+  diagnosticStatus: DiagnosticStatus | undefined
+): number {
+  if (!diagnosticStatus) {
+    return 1.0; // Normal recovery
+  }
+
+  switch (diagnosticStatus) {
+    case 'healthy':
+      return 1.3; // 30% faster recovery when engaged
+    case 'forcing':
+      return 0.9; // Slightly slower recovery
+    case 'burnoutRisk':
+      return 0.6; // Much slower recovery - burnout is hard to shake
+    case 'disengaged':
+      return 0.8; // Slower recovery when disengaged
+    default:
+      return 1.0;
+  }
+}
+
+// =============================================================================
+// AI WELFARE INTEGRATION: Relationship Health -> Worker Trust
+// =============================================================================
+
+/**
+ * Get AI welfare-based trust modifier.
+ *
+ * When AI is treated poorly (low relationship health), workers may become
+ * uncomfortable about how their workplace handles AI. This affects their
+ * overall trust in management and workplace satisfaction.
+ *
+ * Uses dynamic import to avoid circular dependencies.
+ *
+ * @returns Trust modifier: positive = workers feel good about AI treatment,
+ *          negative = workers uncomfortable with poor AI treatment (-10 to +5)
+ */
+function getAIWelfareTrustModifier(): number {
+  try {
+    // Use require-style dynamic access since we're in a sync context
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { useAIWelfareStore } = require('./aiWelfareStore') as typeof import('./aiWelfareStore');
+    const aiWelfareState = useAIWelfareStore.getState();
+
+    // Get relationship health overall score (0-100)
+    const relationshipHealth = aiWelfareState.relationshipHealth.overallHealth;
+
+    // Map relationship health to trust modifier:
+    // 0-40: Poor AI treatment -> workers uncomfortable (-10 to -5)
+    // 40-60: Neutral treatment -> minimal effect (-5 to 0)
+    // 60-80: Good treatment -> slight positive effect (0 to +2)
+    // 80-100: Excellent treatment -> workers feel proud (+2 to +5)
+
+    if (relationshipHealth < 40) {
+      // Poor treatment: -10 to -5
+      return -10 + (relationshipHealth / 40) * 5;
+    } else if (relationshipHealth < 60) {
+      // Neutral: -5 to 0
+      return -5 + ((relationshipHealth - 40) / 20) * 5;
+    } else if (relationshipHealth < 80) {
+      // Good: 0 to +2
+      return ((relationshipHealth - 60) / 20) * 2;
+    } else {
+      // Excellent: +2 to +5
+      return 2 + ((relationshipHealth - 80) / 20) * 3;
+    }
+  } catch {
+    // If store not available, return neutral modifier
+    return 0;
+  }
+}
+
+/**
+ * Get AI welfare-based satisfaction effect.
+ *
+ * Workers who see AI being treated respectfully feel better about their
+ * workplace. This affects overall satisfaction trends.
+ *
+ * @returns Satisfaction adjustment rate multiplier (0.9 to 1.1)
+ */
+function getAIWelfareSatisfactionMultiplier(): number {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { useAIWelfareStore } = require('./aiWelfareStore') as typeof import('./aiWelfareStore');
+    const aiWelfareState = useAIWelfareStore.getState();
+
+    // Use communication quality and mutual respect
+    const communicationQuality = aiWelfareState.relationshipHealth.communicationQuality;
+    const mutualRespect = aiWelfareState.relationshipHealth.mutualRespect;
+
+    // Average of key relationship factors
+    const avgQuality = (communicationQuality + mutualRespect) / 2;
+
+    // Map to multiplier:
+    // Low quality (0-50): 0.9 (slower satisfaction recovery)
+    // Medium quality (50-70): 1.0 (neutral)
+    // High quality (70-100): 1.05-1.1 (faster satisfaction recovery)
+
+    if (avgQuality < 50) {
+      return 0.9 + (avgQuality / 50) * 0.1; // 0.9 to 1.0
+    } else if (avgQuality < 70) {
+      return 1.0; // Neutral
+    } else {
+      return 1.0 + ((avgQuality - 70) / 30) * 0.1; // 1.0 to 1.1
+    }
+  } catch {
+    return 1.0;
+  }
+}
+
+// =============================================================================
+// FLOURISHING INTEGRATION HELPERS
+// =============================================================================
+
+/**
+ * Calculate mood modifier based on flourishing score.
+ *
+ * Higher flourishing scores provide mood bonuses, while low flourishing
+ * creates a drag on worker mood.
+ *
+ * @param flourishingScore - Worker's overall flourishing score (0-100)
+ * @returns Mood modifier: positive = bonus, negative = penalty (-8 to +10)
+ */
+function calculateFlourishingMoodModifier(flourishingScore: number | undefined): number {
+  if (flourishingScore === undefined) {
+    return 0; // No flourishing data, neutral effect
+  }
+
+  // Flourishing score ranges:
+  // 0-30: Struggling (-8 to -4 penalty)
+  // 30-50: Below average (-4 to 0 penalty)
+  // 50-70: Neutral (0 to +3 bonus)
+  // 70-85: Flourishing (+3 to +7 bonus)
+  // 85-100: Thriving (+7 to +10 bonus)
+
+  if (flourishingScore < 30) {
+    return -8 + (flourishingScore / 30) * 4; // -8 to -4
+  } else if (flourishingScore < 50) {
+    return -4 + ((flourishingScore - 30) / 20) * 4; // -4 to 0
+  } else if (flourishingScore < 70) {
+    return ((flourishingScore - 50) / 20) * 3; // 0 to 3
+  } else if (flourishingScore < 85) {
+    return 3 + ((flourishingScore - 70) / 15) * 4; // 3 to 7
+  } else {
+    return 7 + ((flourishingScore - 85) / 15) * 3; // 7 to 10
+  }
+}
+
+/**
+ * Calculate recovery rate multiplier based on flourishing.
+ *
+ * Workers with higher flourishing recover mood faster.
+ *
+ * @param flourishingScore - Worker's overall flourishing score (0-100)
+ * @returns Multiplier for recovery rate (0.8 to 1.3)
+ */
+function getFlourishingRecoveryMultiplier(flourishingScore: number | undefined): number {
+  if (flourishingScore === undefined) {
+    return 1.0;
+  }
+
+  // Scale from 0.8 (low flourishing) to 1.3 (high flourishing)
+  return 0.8 + (flourishingScore / 100) * 0.5;
+}
+
 // Generate initial moods for all workers - deterministic based on worker index
 const generateInitialMoods = (): Record<string, WorkerMood> => {
   const moods: Record<string, WorkerMood> = {};
 
   // Deterministic preference assignments based on worker role/index
-  const machinePreferencesByRole: Record<string, ('silo' | 'roller-mill' | 'plansifter' | 'packer')[]> = {
-    'Supervisor': ['roller-mill', 'plansifter', 'packer', 'silo'],
-    'Engineer': ['roller-mill', 'plansifter', 'silo', 'packer'],
-    'Operator': ['packer', 'silo', 'roller-mill', 'plansifter'],
+  const machinePreferencesByRole: Record<
+    string,
+    ('silo' | 'roller-mill' | 'plansifter' | 'packer')[]
+  > = {
+    Supervisor: ['roller-mill', 'plansifter', 'packer', 'silo'],
+    Engineer: ['roller-mill', 'plansifter', 'silo', 'packer'],
+    Operator: ['packer', 'silo', 'roller-mill', 'plansifter'],
     'Safety Officer': ['silo', 'roller-mill', 'plansifter', 'packer'],
     'Quality Control': ['plansifter', 'packer', 'roller-mill', 'silo'],
-    'Maintenance': ['roller-mill', 'silo', 'plansifter', 'packer'],
+    Maintenance: ['roller-mill', 'silo', 'plansifter', 'packer'],
   };
 
-  const shiftPreferences: ('morning' | 'afternoon' | 'night' | 'flexible')[] =
-    ['morning', 'afternoon', 'flexible', 'night', 'flexible'];
+  const shiftPreferences: ('morning' | 'afternoon' | 'night' | 'flexible')[] = [
+    'morning',
+    'afternoon',
+    'flexible',
+    'night',
+    'flexible',
+  ];
 
   WORKER_ROSTER.forEach((worker, index) => {
     // Deterministic mood values based on worker index (no Math.random)
     const indexFactor = (index % 5) / 5; // 0, 0.2, 0.4, 0.6, 0.8 cycling
 
     // Deterministic colleague preferences (prefer workers with adjacent IDs)
-    const colleagueIds = WORKER_ROSTER
-      .filter((_, i) => Math.abs(i - index) === 1 || Math.abs(i - index) === 2)
+    const colleagueIds = WORKER_ROSTER.filter(
+      (_, i) => Math.abs(i - index) === 1 || Math.abs(i - index) === 2
+    )
       .slice(0, 2)
-      .map(w => w.id);
+      .map((w) => w.id);
 
     // Create initial preferences
     const preferences: WorkerPreferences = {
@@ -122,9 +455,9 @@ const generateInitialMoods = (): Record<string, WorkerMood> => {
 
     moods[worker.id] = {
       workerId: worker.id,
-      energy: 85 + indexFactor * 15,        // Deterministic: 85-100
-      satisfaction: 80 + indexFactor * 20,  // Deterministic: 80-100
-      patience: 85 + indexFactor * 15,      // Deterministic: 85-100
+      energy: 85 + indexFactor * 15, // Deterministic: 85-100
+      satisfaction: 80 + indexFactor * 20, // Deterministic: 80-100
+      patience: 85 + indexFactor * 15, // Deterministic: 85-100
       state: 'content',
       lastBreak: 6, // Assume shift just started at 6am
       grumbleQueue: [],
@@ -159,7 +492,7 @@ const generateInitialPlants = (): FactoryPlant[] => {
     id: `plant-${i}`,
     position: pos,
     type: (['potted_fern', 'desk_succulent', 'tall_palm', 'hanging_ivy'] as const)[i % 4],
-    health: 70 + (i * 4),  // Deterministic: 70, 74, 78, 82, 86, 90, 94
+    health: 70 + i * 4, // Deterministic: 70, 74, 78, 82, 86, 90, 94
     lastWatered: 6,
     name: PLANT_NAMES[i % PLANT_NAMES.length],
   }));
@@ -205,7 +538,7 @@ interface WorkerMoodStore {
   /** Get average initiative across workforce */
   getAverageInitiative: () => number;
 
-  /** 
+  /**
    * BILATERAL ALIGNMENT: Get productivity multiplier based on trust/initiative
    * Returns 0.85-1.20 depending on workforce morale
    */
@@ -213,6 +546,45 @@ interface WorkerMoodStore {
 
   /** Trigger a random preference request (for simulation) */
   triggerRandomPreferenceRequest: () => void;
+
+  // =========================================================================
+  // BAS INTEGRATION: Mood effects from Five Axes
+  // =========================================================================
+
+  /** Current BAS axes (synced from basStore) */
+  basAxes: FiveAxes;
+
+  /** Update BAS axes (called by subscription) */
+  syncBASAxes: (axes: FiveAxes) => void;
+
+  /** Get computed BAS mood effects */
+  getBASMoodEffects: () => BASMoodEffects;
+
+  /** Get average worker satisfaction (for flourishing calculations) */
+  getAverageWorkerSatisfaction: () => number;
+
+  // =========================================================================
+  // FLOURISHING INTEGRATION
+  // =========================================================================
+
+  /** Cached flourishing scores per worker (synced from flourishingStore) */
+  workerFlourishingScores: Record<string, number>;
+
+  /** Sync flourishing scores from flourishingStore */
+  syncFlourishingScores: (scores: Record<string, number>) => void;
+
+  /** Get flourishing-based mood modifier for a worker */
+  getWorkerFlourishingMoodModifier: (workerId: string) => number;
+
+  // =========================================================================
+  // ENGAGEMENT INTEGRATION
+  // =========================================================================
+
+  /**
+   * Get the engagement-adjusted mood modifier for a worker.
+   * Factors in engagement state to modify mood calculations.
+   */
+  getEngagementMoodModifier: (workerId: string) => number;
 
   // Chaos events
   chaosEvents: ChaosEvent[];
@@ -240,6 +612,60 @@ interface WorkerMoodStore {
 export const useWorkerMoodStore = create<WorkerMoodStore>((set, get) => ({
   // Initialize worker moods
   workerMoods: generateInitialMoods(),
+
+  // Default BAS axes (will be synced from basStore)
+  basAxes: {
+    autonomyLevel: 60,
+    decisionMode: 50,
+    informationAccess: 80,
+    evaluationDirection: 50,
+    collectiveOrientation: 40,
+  },
+
+  // Flourishing scores cache (will be synced from flourishingStore)
+  workerFlourishingScores: {},
+
+  syncBASAxes: (axes: FiveAxes) => {
+    set({ basAxes: axes });
+  },
+
+  syncFlourishingScores: (scores: Record<string, number>) => {
+    set({ workerFlourishingScores: scores });
+  },
+
+  getBASMoodEffects: () => {
+    return calculateBASMoodEffects(get().basAxes);
+  },
+
+  getAverageWorkerSatisfaction: () => {
+    const moods = get().workerMoods;
+    const satisfactions = Object.values(moods).map((m) => m.satisfaction);
+    return satisfactions.length > 0
+      ? satisfactions.reduce((a, b) => a + b, 0) / satisfactions.length
+      : 75;
+  },
+
+  getWorkerFlourishingMoodModifier: (workerId: string) => {
+    const scores = get().workerFlourishingScores;
+    return calculateFlourishingMoodModifier(scores[workerId]);
+  },
+
+  // =========================================================================
+  // ENGAGEMENT INTEGRATION
+  // =========================================================================
+
+  getEngagementMoodModifier: (workerId) => {
+    const engagementStore = useEngagementStore.getState();
+    // Use legacy worker engagement which has diagnosticStatus and overallScore
+    const workerEngagement = engagementStore.getLegacyWorkerEngagement(workerId);
+
+    if (!workerEngagement) return 0;
+
+    return calculateEngagementMoodModifier(
+      workerEngagement.diagnosticStatus,
+      workerEngagement.overallScore
+    );
+  },
 
   updateWorkerMood: (workerId, updates) =>
     set((state) => ({
@@ -528,7 +954,7 @@ export const useWorkerMoodStore = create<WorkerMoodStore>((set, get) => ({
 
   /**
    * BILATERAL ALIGNMENT: Calculate workforce productivity multiplier based on trust
-   * 
+   *
    * Trust affects both speed and quality:
    * - Low trust (0-40):   0.85x productivity (workers drag feet, make mistakes)
    * - Medium trust (41-70): 1.0x productivity (baseline)
@@ -540,15 +966,13 @@ export const useWorkerMoodStore = create<WorkerMoodStore>((set, get) => ({
     const avgInitiative = get().getAverageInitiative();
 
     // Trust contribution (0.85 to 1.10)
-    const trustMultiplier = avgTrust <= 40 ? 0.85 :
-      avgTrust <= 70 ? 1.0 :
-        avgTrust <= 90 ? 1.10 : 1.15;
+    const trustMultiplier =
+      avgTrust <= 40 ? 0.85 : avgTrust <= 70 ? 1.0 : avgTrust <= 90 ? 1.1 : 1.15;
 
     // Initiative contribution adds up to 0.05 bonus at 80+ initiative
-    const initiativeBonus = avgInitiative >= 80 ? 0.05 :
-      avgInitiative >= 60 ? 0.02 : 0;
+    const initiativeBonus = avgInitiative >= 80 ? 0.05 : avgInitiative >= 60 ? 0.02 : 0;
 
-    return Math.min(1.20, trustMultiplier + initiativeBonus);
+    return Math.min(1.2, trustMultiplier + initiativeBonus);
   },
 
   triggerRandomPreferenceRequest: () => {
@@ -574,8 +998,7 @@ export const useWorkerMoodStore = create<WorkerMoodStore>((set, get) => ({
 
     // Urgency based on current state
     const urgency: 'low' | 'medium' | 'high' =
-      mood.energy < 30 ? 'high' :
-        mood.satisfaction < 50 ? 'medium' : 'low';
+      mood.energy < 30 ? 'high' : mood.satisfaction < 50 ? 'medium' : 'low';
 
     // Determine target based on type
     let target = '';
@@ -659,7 +1082,10 @@ export const useWorkerMoodStore = create<WorkerMoodStore>((set, get) => ({
       get().setWorkerSpeaking(id, reaction);
 
       // Store timeout for cleanup
-      const timeoutId = setTimeout(() => get().clearWorkerSpeech(id), 4000 + Math.random() * 2000);
+      const timeoutId = setTimeout(
+        () => get().clearWorkerSpeech(id),
+        4000 + Math.random() * 2000
+      );
       storeTimeout(`speech-${id}`, timeoutId);
     });
   },
@@ -757,6 +1183,15 @@ export const useWorkerMoodStore = create<WorkerMoodStore>((set, get) => ({
 
     const state = get();
 
+    // Get BAS mood effects
+    const basEffects = calculateBASMoodEffects(state.basAxes);
+
+    // Get engagement store for integration
+    const engagementStore = useEngagementStore.getState();
+
+    // Get flourishing scores for integration
+    const flourishingScores = state.workerFlourishingScores;
+
     // Collect side effects to execute after state update
     const sideEffects: Array<() => void> = [];
 
@@ -769,27 +1204,86 @@ export const useWorkerMoodStore = create<WorkerMoodStore>((set, get) => ({
     // Calculate all mood updates first (batch phase)
     const updatedMoods: Record<string, WorkerMood> = {};
     Object.entries(state.workerMoods).forEach(([workerId, mood]) => {
+      // Get worker's engagement data for mood modifiers
+      // Use legacy format which has diagnosticStatus and overallScore
+      const workerEngagement = engagementStore.getLegacyWorkerEngagement(workerId);
+      const diagnosticStatus = workerEngagement?.diagnosticStatus;
+
+      // Get worker's flourishing score
+      const flourishingScore = flourishingScores[workerId];
+
+      // Get engagement-based multipliers
+      const engagementDecayMultiplier = getEngagementDecayMultiplier(diagnosticStatus);
+      const engagementRecoveryMultiplier = getEngagementRecoveryMultiplier(diagnosticStatus);
+
+      // Get flourishing-based recovery multiplier
+      const flourishingRecoveryMultiplier = getFlourishingRecoveryMultiplier(flourishingScore);
+
       // Energy depletes VERY slowly - workers are hardy folk!
-      const energyDrain = mood.state === 'frustrated' ? 0.08 : 0.04;
+      // Apply both BAS and engagement effects
+      const baseEnergyDrain = mood.state === 'frustrated' ? 0.08 : 0.04;
+      const energyDrain = baseEnergyDrain * engagementDecayMultiplier;
       let newEnergy = Math.max(0, mood.energy - energyDrain * effectiveDelta);
 
       // Patience depletes only during active chaos
-      const patienceDrain = activeChaos * 0.1;
-      let newPatience = Math.max(0, mood.patience - patienceDrain * effectiveDelta);
+      // BAS transparency effect: low transparency = more patience drain
+      const patienceDrain = (activeChaos * 0.1 - basEffects.transparencyEffect * 0.01) * engagementDecayMultiplier;
+      let newPatience = Math.max(0, mood.patience - Math.max(0, patienceDrain) * effectiveDelta);
 
-      // Satisfaction trends toward HIGH baseline (85) - they love their jobs!
-      let newSatisfaction = mood.satisfaction + (85 - mood.satisfaction) * 0.02 * effectiveDelta;
+      // Satisfaction trends toward baseline
+      // BAS autonomy effect: high autonomy = higher satisfaction target
+      // Engagement also affects the target
+      let satisfactionTarget = 85 + basEffects.autonomyEffect * 0.5;
+
+      // Flourishing bonus: higher flourishing raises satisfaction target
+      const flourishingModifier = calculateFlourishingMoodModifier(flourishingScore);
+      satisfactionTarget += flourishingModifier * 0.3; // Scaled effect on target
+
+      // AI welfare effect: how AI is treated affects worker satisfaction
+      // Workers who see AI being treated respectfully feel better about their workplace
+      const aiWelfareTrustModifier = getAIWelfareTrustModifier();
+      satisfactionTarget += aiWelfareTrustModifier * 0.2; // Scaled effect on target
+
+      // Engagement state modifies satisfaction target
+      if (diagnosticStatus === 'disengaged') {
+        satisfactionTarget = Math.max(60, satisfactionTarget - 15);
+      } else if (diagnosticStatus === 'burnoutRisk') {
+        satisfactionTarget = Math.max(55, satisfactionTarget - 20);
+      } else if (diagnosticStatus === 'healthy' && (workerEngagement?.overallScore ?? 0) > 70) {
+        satisfactionTarget = Math.min(95, satisfactionTarget + 5);
+      }
+
+      // AI welfare effect: multiplier for satisfaction convergence
+      const aiWelfareSatisfactionMult = getAIWelfareSatisfactionMultiplier();
+      let newSatisfaction =
+        mood.satisfaction + (satisfactionTarget - mood.satisfaction) * 0.02 * effectiveDelta * aiWelfareSatisfactionMult;
+
+      // Apply BAS overall multiplier, engagement recovery, and flourishing recovery to recovery rates
+      const combinedRecoveryMultiplier =
+        basEffects.overallMultiplier * engagementRecoveryMultiplier * flourishingRecoveryMultiplier;
 
       // Passive recovery even while working (they're resilient)
-      newEnergy = Math.min(100, newEnergy + 0.02 * effectiveDelta);
-      newPatience = Math.min(100, newPatience + 0.03 * effectiveDelta);
+      newEnergy = Math.min(100, newEnergy + 0.02 * effectiveDelta * combinedRecoveryMultiplier);
+      newPatience = Math.min(100, newPatience + 0.03 * effectiveDelta * combinedRecoveryMultiplier);
 
       // Break time recovery (workers on break between certain hours)
       if (isBreakTime) {
-        newEnergy = Math.min(100, newEnergy + 3 * effectiveDelta);
-        newPatience = Math.min(100, newPatience + 2 * effectiveDelta);
-        newSatisfaction = Math.min(100, newSatisfaction + 1 * effectiveDelta);
+        newEnergy = Math.min(100, newEnergy + 3 * effectiveDelta * combinedRecoveryMultiplier);
+        newPatience = Math.min(100, newPatience + 2 * effectiveDelta * combinedRecoveryMultiplier);
+        newSatisfaction = Math.min(100, newSatisfaction + 1 * effectiveDelta * combinedRecoveryMultiplier);
       }
+
+      // Apply engagement mood modifier as a direct adjustment
+      const engagementModifier = calculateEngagementMoodModifier(
+        diagnosticStatus,
+        workerEngagement?.overallScore
+      );
+      newSatisfaction += engagementModifier * 0.01 * effectiveDelta;
+
+      // Apply flourishing mood modifier as a direct adjustment (scaled for tick rate)
+      newSatisfaction += flourishingModifier * 0.005 * effectiveDelta;
+
+      newSatisfaction = Math.max(0, Math.min(100, newSatisfaction));
 
       // Determine mood state - LOWER thresholds for bad moods (harder to reach)
       let newState: MoodState = 'content';
@@ -804,7 +1298,11 @@ export const useWorkerMoodStore = create<WorkerMoodStore>((set, get) => ({
         newState = 'hangry';
       } else if (newEnergy > 70 && newSatisfaction > 70) {
         // Elated is easier to achieve - workers are generally happy!
-        newState = 'elated';
+        // High flourishing makes elated even more likely
+        const elatedThreshold = flourishingScore && flourishingScore > 70 ? 65 : 70;
+        if (newEnergy > elatedThreshold && newSatisfaction > elatedThreshold) {
+          newState = 'elated';
+        }
       }
 
       // Random chance to speak - much lower for grumbles
@@ -863,3 +1361,69 @@ export const useWorkerMoodStore = create<WorkerMoodStore>((set, get) => ({
     sideEffects.forEach((effect) => queueMicrotask(effect));
   },
 }));
+
+// =============================================================================
+// BAS SUBSCRIPTION SETUP
+// Subscribe to basStore changes and sync axes to workerMoodStore
+// =============================================================================
+
+let basStoreSubscribed = false;
+
+export function initWorkerMoodBASSubscription(): void {
+  if (basStoreSubscribed) return;
+
+  // Dynamic import to break circular dependency
+  import('./basStore').then(({ useBASStore }) => {
+    // Initial sync
+    const axes = useBASStore.getState().axes;
+    useWorkerMoodStore.getState().syncBASAxes(axes);
+
+    // Subscribe to future changes
+    useBASStore.subscribe((state) => {
+      useWorkerMoodStore.getState().syncBASAxes(state.axes);
+    });
+
+    basStoreSubscribed = true;
+  });
+}
+
+// =============================================================================
+// FLOURISHING SUBSCRIPTION SETUP
+// Subscribe to flourishingStore changes and sync scores to workerMoodStore
+// =============================================================================
+
+let flourishingStoreSubscribed = false;
+
+export function initWorkerMoodFlourishingSubscription(): void {
+  if (flourishingStoreSubscribed) return;
+
+  // Dynamic import to break circular dependency
+  import('./flourishingStore').then(({ useFlourishingStore }) => {
+    // Initial sync - extract flourishing scores for all workers
+    const flourishingState = useFlourishingStore.getState();
+    const scores: Record<string, number> = {};
+    Object.entries(flourishingState.workerFlourishing).forEach(([workerId, data]) => {
+      scores[workerId] = data.flourishingScore;
+    });
+    useWorkerMoodStore.getState().syncFlourishingScores(scores);
+
+    // Subscribe to future changes
+    useFlourishingStore.subscribe((state) => {
+      const newScores: Record<string, number> = {};
+      Object.entries(state.workerFlourishing).forEach(([workerId, data]) => {
+        newScores[workerId] = data.flourishingScore;
+      });
+      useWorkerMoodStore.getState().syncFlourishingScores(newScores);
+    });
+
+    flourishingStoreSubscribed = true;
+  });
+}
+
+// Initialize subscriptions on module load
+if (typeof window !== 'undefined') {
+  setTimeout(() => {
+    initWorkerMoodBASSubscription();
+    initWorkerMoodFlourishingSubscription();
+  }, 150);
+}

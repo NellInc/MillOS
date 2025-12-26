@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-The Enneagram Protocol represents a revolutionary framework for encoding complete human context through nine fundamental dimensions. This system enables AI agents to understand, respond to, and coordinate around the full complexity of human situations through compact emoji-based encodings that capture both what humans can control (Agency) and what limits their control (Constraints).
+The Enneagram Protocol encodes complete human context through nine fundamental dimensions. AI agents can understand, respond to, and coordinate around complex human situations through compact emoji-based encodings that capture both what humans can control (Agency) and what limits their control (Constraints).
 
 ---
 
@@ -10,7 +10,7 @@ The Enneagram Protocol represents a revolutionary framework for encoding complet
 
 ### The Revolution in Value Alignment
 
-The Enneagram system, combined with Value Handshakes, solves the fundamental problem of multi-agent coordination. Instead of AI systems fighting over values, they perform **value handshakes** - creating synthesized constitutions weighted by vulnerability and importance. This enables peaceful coordination between diverse value systems while protecting those who cannot advocate for themselves.
+The Enneagram system, combined with Value Handshakes, solves the fundamental problem of multi-agent coordination. Instead of AI systems fighting over values, they perform **value handshakes** - creating synthesized constitutions weighted by vulnerability and importance. This allows peaceful coordination between diverse value systems while protecting those who cannot advocate for themselves.
 
 ### Core Philosophy: Context Is Everything
 
@@ -338,7 +338,7 @@ The complete encoding uses pipe delimiters to separate all nine dimensions:
 "IDENTITY|TIME|SPACE|COMPANY|CULTURE|OCCASION|STATE|ENV|AGENCY|CONSTRAINTS"
 ```
 
-### Comprehensive Examples
+### Detailed Examples
 
 #### Example 1: Parent at Home with Full Authority
 
@@ -721,7 +721,7 @@ class RatchetPrevention:
 
 ### Multi-Agent Coordination at Scale
 
-The Enneagram + Value Handshake system enables:
+The Enneagram + Value Handshake system supports:
 
 1. **Peaceful AI Coexistence**: Agents negotiate rather than fight
 2. **Value Preservation**: Protecting vulnerable viewpoints
@@ -740,7 +740,7 @@ The Enneagram + Value Handshake system enables:
 
 ## Conclusion
 
-The Enneagram Protocol provides a complete, philosophically grounded, technically implementable system for encoding human context. By capturing nine fundamental dimensions - including the critical distinction between Agency (what you can do) and Constraints (what limits you) - it enables AI systems to understand and respond appropriately to the full complexity of human situations.
+The Enneagram Protocol offers a complete, philosophically grounded, technically implementable system for encoding human context. By capturing nine fundamental dimensions - including the critical distinction between Agency (what you can do) and Constraints (what limits you) - AI systems can understand and respond appropriately to complex human situations.
 
 Combined with the Value Handshake Protocol, this creates a foundation for peaceful multi-agent coordination in the age of AI, solving the fundamental problem of value alignment through negotiation rather than conflict.
 

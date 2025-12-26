@@ -27,6 +27,7 @@ import {
 } from './workers/SharedWorkerMaterials';
 import { RecommendedWorkerRing } from './workers/RecommendedWorkerRing';
 import { FatigueIndicator } from './workers/FatigueIndicator';
+import { AutonomyIndicator } from './workers/AutonomyIndicator';
 
 interface WorkerSystemProps {
   onSelectWorker: (worker: WorkerData) => void;
@@ -2930,6 +2931,9 @@ const Worker: React.FC<{ data: WorkerData; onSelect: () => void }> = React.memo(
 
         {/* Worker Fatigue/Energy Indicator */}
         <FatigueIndicator energy={data.energy || 100} visible={true} />
+
+        {/* BAS Autonomy Level Indicator - Shows worker autonomy based on BAS axes */}
+        <AutonomyIndicator visible={true} workerId={data.id} />
 
         {/* Status indicator above head */}
         <group position={[0, 2.15, 0]}>

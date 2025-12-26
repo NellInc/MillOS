@@ -441,13 +441,32 @@ const App: React.FC = () => {
 
   return (
     <div className="relative w-full h-full bg-slate-950">
-      {/* Skip to main content link for keyboard navigation */}
-      <a
-        href="#main-content"
-        className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2 focus:bg-cyan-600 focus:text-white focus:rounded-lg focus:shadow-lg focus:outline-none focus:ring-2 focus:ring-cyan-400"
+      {/* Skip links for keyboard navigation - WCAG 2.1 AA */}
+      <div className="sr-only focus-within:not-sr-only focus-within:absolute focus-within:top-4 focus-within:left-4 focus-within:z-[100] focus-within:flex focus-within:flex-col focus-within:gap-2">
+        <a
+          href="#main-content"
+          className="px-4 py-2 bg-cyan-600 text-white rounded-lg shadow-lg outline-none ring-2 ring-cyan-400 hover:bg-cyan-500 focus:bg-cyan-500"
+        >
+          Skip to main content
+        </a>
+        <a
+          href="#navigation-dock"
+          className="px-4 py-2 bg-cyan-600 text-white rounded-lg shadow-lg outline-none ring-2 ring-cyan-400 hover:bg-cyan-500 focus:bg-cyan-500"
+        >
+          Skip to navigation
+        </a>
+      </div>
+
+      {/* 3D Canvas keyboard accessibility notice - visible to screen readers */}
+      <div
+        role="note"
+        aria-label="3D visualization keyboard controls"
+        className="sr-only"
       >
-        Skip to main content
-      </a>
+        The 3D factory visualization is interactive. Press V to toggle first-person view mode.
+        Use keyboard shortcuts: I for AI panel, O for SCADA, B for management, Escape to close panels.
+        Press 1-5 to switch camera presets. Arrow keys control camera in first-person mode.
+      </div>
 
       {/* NEW UI INTERFACE Wrapper */}
       <GameInterface

@@ -1,6 +1,6 @@
 # Components Reference
 
-This document provides detailed documentation for all React components in the MillOS application.
+Reference documentation for all React components in the MillOS application.
 
 ## Table of Contents
 

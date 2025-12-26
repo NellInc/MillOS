@@ -59,7 +59,7 @@ The multiplayer system uses a **host-authority model** where:
 | Conflict resolution | Automatic | Complex merging |
 | Debugging | Easy | Hard |
 
-For 2-8 players, host-authority provides the best balance of simplicity and reliability.
+For 2-8 players, host-authority offers the best balance of simplicity and reliability.
 
 ---
 
@@ -260,7 +260,7 @@ if (!canControl) {
 
 ### MultiplayerLobby
 
-Located in the left control panel, provides:
+Located in the left control panel:
 
 - Name input field
 - Create Room button

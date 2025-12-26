@@ -1,6 +1,6 @@
 # Architecture Overview
 
-MillOS is a real-time 3D digital twin simulator for a grain mill factory. This document describes the system architecture, design patterns, and key technical decisions.
+MillOS is a real-time 3D digital twin simulator for a grain mill factory covering system architecture, design patterns, and key technical decisions.
 
 ## Table of Contents
 

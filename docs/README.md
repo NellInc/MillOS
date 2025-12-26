@@ -1,6 +1,6 @@
 # MillOS Documentation
 
-Welcome to the MillOS Digital Twin Simulator documentation. This directory contains comprehensive documentation for the AI-powered grain mill digital twin with industrial SCADA integration.
+Welcome to the MillOS Digital Twin Simulator documentation. This directory contains complete documentation for the AI-powered grain mill digital twin with industrial SCADA integration.
 
 ## Documentation Index
 

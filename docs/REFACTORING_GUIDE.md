@@ -114,7 +114,7 @@ The main `AmbientDetailsGroup` component (starting at line 4162) should NOT be m
 
 ## Recommended Approach
 
-Given the file's massive size (4,689 lines), here's the safest way to refactor:
+Given the file's massive size (4,689 lines), the safest refactoring approach:
 
 ### Option A: Careful Manual Editing
 1. Create a new file `AmbientDetails.new.tsx`
@@ -179,7 +179,7 @@ After completing this refactoring, consider:
 2. Create `AmbientLife.tsx` for wildlife components
 3. Create `PersonalItems.tsx` for micro-details
 4. Create `DecorativeElements.tsx` for storytelling elements
-5. Add comprehensive JSDoc comments to each component
+5. Add complete JSDoc comments to each component
 6. Create Storybook stories for visual testing
 7. Add unit tests for animation logic
 

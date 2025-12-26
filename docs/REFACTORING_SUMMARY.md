@@ -81,5 +81,5 @@ To complete the refactoring:
 2. Remove the old function definitions from those files
 3. Test that keyboard shortcuts still work correctly
 4. Test that all textures still render properly
-5. Run build to ensure no TypeScript errors
+5. Run build to verify no TypeScript errors
 

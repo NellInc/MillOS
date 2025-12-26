@@ -1,6 +1,6 @@
 # AI Integration
 
-MillOS features an AI Command Center that simulates autonomous factory management decisions. This document covers the AI simulation system.
+MillOS includes an AI Command Center that simulates autonomous factory management decisions.
 
 ## Table of Contents
 
@@ -319,7 +319,7 @@ async function generateAIDecision() {
 
 ### SCADA Data Integration
 
-The AI system can leverage real-time SCADA data for more accurate decision-making:
+The AI system can use real-time SCADA data for more accurate decision-making:
 
 ```typescript
 import { useSCADA, useSCADAAlarms } from '../scada';

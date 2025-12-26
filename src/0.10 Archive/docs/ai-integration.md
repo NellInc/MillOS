@@ -1,6 +1,6 @@
 # AI Integration
 
-MillOS features an AI Command Center that simulates autonomous factory management decisions. This document covers the AI simulation system.
+MillOS features an AI Command Center that simulates autonomous factory management decisions.
 
 ## Table of Contents
 

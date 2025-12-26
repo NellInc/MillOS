@@ -1,6 +1,6 @@
 # State Management
 
-MillOS uses Zustand for global state management. This document details the store structure, actions, and state flow patterns.
+MillOS uses Zustand for global state management. The sections below detail the store structure, actions, and state flow patterns.
 
 ## Table of Contents
 

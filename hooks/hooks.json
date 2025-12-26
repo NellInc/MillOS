@@ -1,5 +1,11 @@
 {
   "hooks": {
+    "bash-protection": {
+      "enabled": true,
+      "script": "./hooks/bash-protection.cjs",
+      "description": "Blocks catastrophic commands (rm -rf ~/, git push --force main, etc.)",
+      "blockOnFailure": true
+    },
     "types-ts-guard": {
       "enabled": true,
       "script": "./hooks/types-ts-guard.cjs",

@@ -95,3 +95,53 @@ export {
   isRecord,
   toString,
 } from './typeGuards';
+
+// === Input Sanitization (Security) ===
+export {
+  encodeHtmlEntities,
+  decodeHtmlEntities,
+  sanitizeString,
+  sanitizePlayerName,
+  sanitizeChatMessage,
+  sanitizeRoomCode,
+  sanitizeWorkerName,
+  sanitizeUrl,
+  isUrlSafe,
+  safeJsonParse,
+  sanitizeNumber,
+  validateObject,
+  createStringValidator,
+  createNumberValidator,
+} from './sanitize';
+export type {
+  SanitizeStringOptions,
+  ParseJsonOptions,
+  SanitizeNumberOptions,
+  ValidationResult,
+} from './sanitize';
+
+// === API Security ===
+export {
+  checkRateLimit,
+  rateLimiters,
+  debounce,
+  throttle,
+  decodeTokenPayload,
+  isTokenExpired,
+  getTokenExpiresIn,
+  generateCsrfToken,
+  getOrCreateCsrfToken,
+  clearCsrfToken,
+  validateRequest,
+  secureFetch,
+  maskSensitiveData,
+  clearSensitiveFields,
+} from './apiSecurity';
+export type {
+  RateLimitConfig,
+  TokenPayload,
+  RequestValidationOptions,
+  RequestValidationResult,
+  SecureFetchOptions,
+  AllowedHttpMethod,
+} from './apiSecurity';

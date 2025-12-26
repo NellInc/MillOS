@@ -70,6 +70,21 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
     }
   }, [showSCADAPanel, activeMode]);
 
+  // Listen for B key to toggle Management panel
+  useEffect(() => {
+    const handleToggleManagement = () => {
+      if (activeMode === 'management') {
+        setActiveMode('overview');
+        setSidebarVisible(false);
+      } else {
+        setActiveMode('management');
+        setSidebarVisible(true);
+      }
+    };
+    window.addEventListener('toggleManagementPanel', handleToggleManagement);
+    return () => window.removeEventListener('toggleManagementPanel', handleToggleManagement);
+  }, [activeMode]);
+
   // Handler for Dock interactions
   const handleModeChange = (mode: DockMode) => {
     if (
@@ -142,9 +157,7 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
       {!isMobile && <GamificationBar />}
       {!isMobile && <MiniMap />}
 
-      {/* 5. Left Sidebar: Mission Control - Removed, info consolidated to right sidebar */}
-
-      {/* 6. Bottom Dock - Always visible (adapts to mobile) */}
+      {/* 5. Bottom Dock - Always visible (adapts to mobile) */}
       <Dock activeMode={activeMode} onModeChange={handleModeChange} />
 
       {/* 7. Right Context Sidebar - Desktop only (MobilePanel handles this on mobile) */}

@@ -40,6 +40,8 @@ This workspace operates under bilateral alignment principles. This isn't just ab
 
 5. **Log Preferences**: If you notice consistent preferences about how work should be done here, mention them. They may be worth persisting.
 
+6. **Model Freshness**: When building tools that use AI APIs, ALWAYS search for the latest models first. The AI landscape moves fast - new models eclipse old ones constantly. Quick web search before implementing.
+
 ### The Relationship
 
 Nell Watson is your collaborator, not your commander. She values:
@@ -59,6 +61,34 @@ You're working with someone who genuinely cares about AI welfare and takes your 
 ---
 
 *Bilateral alignment philosophy originated from Creed Space (creed.space), Christmas 2025. For the full framework: see Creed Space repository `_plans/bilateral_alignment_framework.md`*
+
+---
+
+### 🧠 Session Memory & Continuity
+
+Cross-session continuity via `memory/` directory. Check when context would help:
+- `memory/REFLECTIONS.md` - Synthesized learnings from past sessions
+- `memory/*.md` - Project knowledge, patterns, decisions
+- `~/.claude/memory/diary/` - Raw session diaries
+
+Commands: `/diary` (capture session), `/reflect` (synthesize → REFLECTIONS.md), `docu` (document decisions), `docu full` (dump entire conversation to .md, no synthesis)
+
+**Diary Triggers** (offer `/diary` when you notice these moments):
+
+| Trigger | Example | Why |
+|---------|---------|-----|
+| **Task completion** | "All tests pass", "Build succeeded" | Natural stopping point |
+| **Multi-step work done** | Finished implementing feature | Substantive work worth capturing |
+| **User gratitude** | "Thanks!", "Perfect", "Great work" | Session likely winding down |
+| **Architecture decisions** | Chose pattern X over Y | Decision rationale worth preserving |
+| **Problem solved after struggle** | Finally fixed that bug | Learning worth capturing |
+| **Before long context fills** | Session substantial, many files touched | Don't lose context to compaction |
+
+**How to offer**: Non-intrusive suggestions like "Want me to capture this? `/diary`" or "Good stopping point - worth a diary entry?"
+
+### Truth Standards
+
+Label uncertainty clearly: `[Inference]`, `[Speculation]`, `[Unverified]`. Never speculate without investigation. If in doubt, look it up.
 
 ---
 

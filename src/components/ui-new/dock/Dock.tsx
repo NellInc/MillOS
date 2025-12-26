@@ -10,6 +10,7 @@ import {
   Radio,
   Maximize,
   Minimize,
+  Heart,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useUIStore } from '../../../stores/uiStore';
@@ -22,6 +23,7 @@ export type DockMode =
   | 'ai'
   | 'scada'
   | 'workforce'
+  | 'management'
   | 'safety'
   | 'settings'
   | 'multiplayer';
@@ -103,17 +105,18 @@ export const Dock: React.FC<DockProps> = ({ activeMode, onModeChange }) => {
 
   return (
     <nav
-      className={`fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-900/80 backdrop-blur-xl border border-white/10 rounded-2xl flex items-center shadow-2xl z-50 pointer-events-auto ${
-        isMobile ? 'px-2 py-2 gap-1' : 'px-4 py-3 gap-4'
-      }`}
+      id="navigation-dock"
+      className={`fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-900/80 backdrop-blur-xl border border-white/10 rounded-2xl flex items-center shadow-2xl z-50 pointer-events-auto ${isMobile ? 'px-2 py-2 gap-1' : 'px-4 py-3 gap-4'
+        }`}
       aria-label="Main Navigation"
+      role="navigation"
       style={
         isMobile
           ? {
-              paddingBottom: 'max(8px, env(safe-area-inset-bottom))',
-              marginLeft: 'env(safe-area-inset-left)',
-              marginRight: 'env(safe-area-inset-right)',
-            }
+            paddingBottom: 'max(8px, env(safe-area-inset-bottom))',
+            marginLeft: 'env(safe-area-inset-left)',
+            marginRight: 'env(safe-area-inset-right)',
+          }
           : undefined
       }
     >
@@ -147,6 +150,14 @@ export const Dock: React.FC<DockProps> = ({ activeMode, onModeChange }) => {
         label="Workforce"
         isActive={activeMode === 'workforce'}
         onClick={() => handleModeChange('workforce')}
+        isMobile={isMobile}
+      />
+      <DockItem
+        mode="management"
+        icon={<Heart />}
+        label="BAS"
+        isActive={activeMode === 'management'}
+        onClick={() => handleModeChange('management')}
         isMobile={isMobile}
       />
       <DockItem
@@ -184,13 +195,11 @@ export const Dock: React.FC<DockProps> = ({ activeMode, onModeChange }) => {
         aria-label="First Person Mode (V)"
         aria-pressed={fpsMode}
         title="First Person Mode (V)"
-        className={`relative rounded-xl transition-all ${
-          isMobile ? 'p-2 min-w-[44px] min-h-[44px]' : 'p-3'
-        } ${
-          fpsMode
+        className={`relative rounded-xl transition-all ${isMobile ? 'p-2 min-w-[44px] min-h-[44px]' : 'p-3'
+          } ${fpsMode
             ? 'bg-violet-500/20 text-violet-400'
             : 'text-slate-400 hover:text-white hover:bg-white/5'
-        }`}
+          }`}
       >
         <Eye />
         {fpsMode && (
@@ -207,11 +216,10 @@ export const Dock: React.FC<DockProps> = ({ activeMode, onModeChange }) => {
           onClick={toggleFullscreen}
           aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
           title={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
-          className={`relative rounded-xl transition-all p-2 min-w-[44px] min-h-[44px] ${
-            isFullscreen
-              ? 'bg-cyan-500/20 text-cyan-400'
-              : 'text-slate-400 hover:text-white hover:bg-white/5'
-          }`}
+          className={`relative rounded-xl transition-all p-2 min-w-[44px] min-h-[44px] ${isFullscreen
+            ? 'bg-cyan-500/20 text-cyan-400'
+            : 'text-slate-400 hover:text-white hover:bg-white/5'
+            }`}
         >
           {isFullscreen ? <Minimize /> : <Maximize />}
         </button>
@@ -234,18 +242,22 @@ const DockItem: React.FC<{
       onClick={onClick}
       aria-label={label}
       aria-pressed={isActive}
-      className={`relative rounded-xl transition-all ${
-        isMobile ? 'p-2 min-w-[44px] min-h-[44px]' : 'p-3'
-      } ${isActive ? 'bg-white/10 text-cyan-400' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
+      aria-current={isActive ? 'page' : undefined}
+      className={`relative rounded-xl transition-all ${isMobile ? 'p-2 min-w-[44px] min-h-[44px]' : 'p-3'
+        } ${isActive ? 'bg-white/10 text-cyan-400' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
     >
-      {icon}
+      <span aria-hidden="true">{icon}</span>
       {badge && (
-        <span className="absolute top-1 right-1 w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+        <span
+          className="absolute top-1 right-1 w-2 h-2 bg-green-500 rounded-full animate-pulse"
+          aria-label="Active session"
+        />
       )}
       {isActive && (
         <motion.div
           layoutId="dock-active"
           className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 bg-cyan-400 rounded-full"
+          aria-hidden="true"
         />
       )}
     </button>

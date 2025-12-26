@@ -46,7 +46,7 @@ class AudioManager {
   } = {};
 
   // Machine-specific sound nodes
-  private machineNodes: Map<string, { source: AudioBufferSourceNode; gain: GainNode }> = new Map();
+  private machineNodes: Map<string, { source: AudioBufferSourceNode; gain: GainNode; filter?: BiquadFilterNode; lfo?: OscillatorNode }> = new Map();
 
   // Forklift engine sounds
   private forkliftEngines: Map<
@@ -64,6 +64,10 @@ class AudioManager {
     birds?: { source: AudioBufferSourceNode; gain: GainNode };
     wind?: { source: AudioBufferSourceNode; gain: GainNode };
     traffic?: { source: AudioBufferSourceNode; gain: GainNode };
+    water?: { source: AudioBufferSourceNode; gain: GainNode };
+    ducks?: { source: AudioBufferSourceNode; gain: GainNode };
+    pigs?: { source: AudioBufferSourceNode; gain: GainNode };
+    cows?: { source: AudioBufferSourceNode; gain: GainNode };
   } = {};
 
   // Camera position for spatial audio (updated externally)
@@ -71,6 +75,17 @@ class AudioManager {
 
   // Sound source positions for spatial calculation
   private soundPositions: Map<string, { x: number; y: number; z: number }> = new Map();
+
+  // Ambient sound spatial attenuation settings
+  // Factory center and range for distance-based volume attenuation
+  private readonly FACTORY_CENTER = { x: 0, y: 0, z: 0 };
+  private readonly FACTORY_AMBIENT_MAX_DISTANCE = 100; // Units before full attenuation
+  private readonly AMBIENT_BASE_VOLUMES = {
+    machineryHum: 0.08,
+    conveyorNoise: 0.03,
+    ventilation: 0.015,
+    grainFlow: 0.012,
+  };
 
   // Background music
   private musicAudio: HTMLAudioElement | null = null;
@@ -171,9 +186,47 @@ class AudioManager {
   private announcementSafetyTimeout: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
+    // Load persisted settings from localStorage
+    this.loadSettings();
     // Shuffle tracks on initialization using Fisher-Yates algorithm
     this.musicTracks = [...this.allMusicTracks];
     this.shufflePlaylist();
+  }
+
+  // LocalStorage key for audio settings persistence
+  private readonly STORAGE_KEY = 'millos-audio';
+
+  // Save audio settings to localStorage
+  private saveSettings(): void {
+    try {
+      const settings = {
+        muted: this._muted,
+        volume: this._volume,
+        musicEnabled: this._musicEnabled,
+        musicVolume: this._musicVolume,
+        ttsEnabled: this._ttsEnabled,
+      };
+      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(settings));
+    } catch (e) {
+      // Silently fail if localStorage is not available
+    }
+  }
+
+  // Load audio settings from localStorage
+  private loadSettings(): void {
+    try {
+      const stored = localStorage.getItem(this.STORAGE_KEY);
+      if (stored) {
+        const settings = JSON.parse(stored);
+        if (typeof settings.muted === 'boolean') this._muted = settings.muted;
+        if (typeof settings.volume === 'number') this._volume = Math.max(0, Math.min(1, settings.volume));
+        if (typeof settings.musicEnabled === 'boolean') this._musicEnabled = settings.musicEnabled;
+        if (typeof settings.musicVolume === 'number') this._musicVolume = Math.max(0, Math.min(1, settings.musicVolume));
+        if (typeof settings.ttsEnabled === 'boolean') this._ttsEnabled = settings.ttsEnabled;
+      }
+    } catch (e) {
+      // Silently fail if localStorage is not available or data is corrupted
+    }
   }
 
   private shufflePlaylist(): void {
@@ -191,6 +244,7 @@ class AudioManager {
     this._muted = value;
     this.updateMasterVolume();
     this.updateMusicVolume();
+    this.saveSettings();
     this.notifyListeners();
   }
 
@@ -201,6 +255,7 @@ class AudioManager {
   set volume(value: number) {
     this._volume = Math.max(0, Math.min(1, value));
     this.updateMasterVolume();
+    this.saveSettings();
     this.notifyListeners();
   }
 
@@ -215,6 +270,7 @@ class AudioManager {
     } else {
       this.stopMusic();
     }
+    this.saveSettings();
     this.notifyListeners();
   }
 
@@ -225,6 +281,7 @@ class AudioManager {
   set musicVolume(value: number) {
     this._musicVolume = Math.max(0, Math.min(1, value));
     this.updateMusicVolume();
+    this.saveSettings();
     this.notifyListeners();
   }
 
@@ -259,6 +316,7 @@ class AudioManager {
     }
     if (this._musicEnabled && this.musicAudio) {
       this.musicAudio.src = this.currentTrack.file;
+      this.updateMusicVolume(); // Ensure mute state is respected after src change
       this.musicAudio.play().catch(() => { });
     }
     this.notifyListeners();
@@ -269,6 +327,7 @@ class AudioManager {
       (this._currentTrackIndex - 1 + this.musicTracks.length) % this.musicTracks.length;
     if (this._musicEnabled && this.musicAudio) {
       this.musicAudio.src = this.currentTrack.file;
+      this.updateMusicVolume(); // Ensure mute state is respected after src change
       this.musicAudio.play().catch(() => { });
     }
     this.notifyListeners();
@@ -578,6 +637,8 @@ class AudioManager {
       this.musicAudio.src = this.currentTrack.file;
     }
 
+    // Always ensure volume respects mute state before playing
+    this.updateMusicVolume();
     this.musicAudio.play().catch((e) => {
       audioLog.warn('Music playback failed (user interaction required)', e);
     });
@@ -985,7 +1046,7 @@ class AudioManager {
       source.start();
       lfo.start();
 
-      this.machineNodes.set(machineId, { source, gain });
+      this.machineNodes.set(machineId, { source, gain, filter, lfo });
     } catch (e) {
       audioLog.warn('Mill sound initialization failed', { machineId }, e);
     }
@@ -1045,7 +1106,7 @@ class AudioManager {
       source.start();
       lfo.start();
 
-      this.machineNodes.set(machineId, { source, gain });
+      this.machineNodes.set(machineId, { source, gain, filter, lfo });
     } catch (e) {
       audioLog.warn('Sifter sound initialization failed', { machineId }, e);
     }
@@ -1093,7 +1154,7 @@ class AudioManager {
       source.start();
       lfo.start();
 
-      this.machineNodes.set(machineId, { source, gain });
+      this.machineNodes.set(machineId, { source, gain, filter, lfo });
     } catch (e) {
       audioLog.warn('Packer sound initialization failed', { machineId }, e);
     }
@@ -1104,10 +1165,46 @@ class AudioManager {
     if (node) {
       try {
         node.source.stop();
+        // Also stop the LFO if present
+        if (node.lfo) {
+          try {
+            node.lfo.stop();
+          } catch {
+            // LFO may already be stopped
+          }
+        }
       } catch (e) {
         audioLog.warn('Failed to stop machine sound', { machineId }, e);
       }
       this.machineNodes.delete(machineId);
+    }
+  }
+
+  /**
+   * Update the pitch/speed of a running machine sound based on RPM
+   * This allows smooth transitions when machine speed changes without restarting the sound
+   */
+  updateMachinePitch(machineId: string, rpm: number) {
+    const node = this.machineNodes.get(machineId);
+    if (!node || !this.audioContext) return;
+
+    const ctx = this.audioContext;
+    const currentTime = ctx.currentTime;
+
+    // Update filter frequency based on RPM (affects perceived pitch/tone)
+    if (node.filter) {
+      // For mills: filter frequency scales with RPM (200 + rpm/10)
+      // For sifters: filter is fixed at 800Hz, so we don't adjust it
+      // We use a general formula that works reasonably for both
+      const filterFreq = 200 + rpm / 10;
+      node.filter.frequency.setTargetAtTime(filterFreq, currentTime, 0.1);
+    }
+
+    // Update LFO frequency based on RPM (affects rhythmic modulation)
+    if (node.lfo) {
+      // Convert RPM to Hz for the grinding/shaking rhythm
+      const lfoFreq = rpm / 60;
+      node.lfo.frequency.setTargetAtTime(lfoFreq, currentTime, 0.1);
     }
   }
 
@@ -1763,6 +1860,48 @@ class AudioManager {
   // Update camera position for spatial audio calculations
   updateCameraPosition(x: number, y: number, z: number) {
     this.cameraPosition = { x, y, z };
+    // Update ambient factory sounds based on distance from factory
+    this.updateAmbientSpatialVolumes();
+  }
+
+  // Update ambient factory sound volumes based on distance from factory center
+  private updateAmbientSpatialVolumes() {
+    if (!this.audioContext) return;
+
+    // Calculate distance from factory center
+    const dx = this.cameraPosition.x - this.FACTORY_CENTER.x;
+    const dy = this.cameraPosition.y - this.FACTORY_CENTER.y;
+    const dz = this.cameraPosition.z - this.FACTORY_CENTER.z;
+    const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+    // Calculate attenuation factor (1.0 at center, 0.0 at max distance)
+    // Use squared falloff for more natural sound attenuation
+    const attenuation = Math.max(0, 1 - distance / this.FACTORY_AMBIENT_MAX_DISTANCE);
+    const attenuationSquared = attenuation * attenuation;
+
+    const currentTime = this.audioContext.currentTime;
+    const rampTime = 0.3; // Smooth transition over 300ms
+
+    // Apply attenuation to each ambient sound layer
+    if (this.ambientNodes.machineryHum?.gain) {
+      const targetVolume = this.AMBIENT_BASE_VOLUMES.machineryHum * attenuationSquared;
+      this.ambientNodes.machineryHum.gain.gain.setTargetAtTime(targetVolume, currentTime, rampTime);
+    }
+
+    if (this.ambientNodes.conveyorNoise?.gain) {
+      const targetVolume = this.AMBIENT_BASE_VOLUMES.conveyorNoise * attenuationSquared;
+      this.ambientNodes.conveyorNoise.gain.gain.setTargetAtTime(targetVolume, currentTime, rampTime);
+    }
+
+    if (this.ambientNodes.ventilation?.gain) {
+      const targetVolume = this.AMBIENT_BASE_VOLUMES.ventilation * attenuationSquared;
+      this.ambientNodes.ventilation.gain.gain.setTargetAtTime(targetVolume, currentTime, rampTime);
+    }
+
+    if (this.ambientNodes.grainFlow?.gain) {
+      const targetVolume = this.AMBIENT_BASE_VOLUMES.grainFlow * attenuationSquared;
+      this.ambientNodes.grainFlow.gain.gain.setTargetAtTime(targetVolume, currentTime, rampTime);
+    }
   }
 
   // Register a sound source position
@@ -2004,8 +2143,8 @@ class AudioManager {
 
     // Adjust outdoor sounds for day/night
     if (this.outdoorNodes.birds) {
-      // Birds quieter at night
-      const birdVolume = this.currentTimeOfDay === 'night' ? 0.001 : 0.004;
+      // Birds quieter at night (base volume is now 0.002)
+      const birdVolume = this.currentTimeOfDay === 'night' ? 0.0005 : 0.002;
       this.outdoorNodes.birds.gain.gain.setTargetAtTime(birdVolume, currentTime, 2);
     }
 
@@ -2857,7 +2996,7 @@ class AudioManager {
       const masterGain = this.getMasterGain();
       if (!ctx || !masterGain) return;
 
-      // Bird sounds - high frequency chirping (simulated with filtered noise)
+      // Bird sounds - gentle background birdsong (less rhythmic, more natural)
       {
         const buffer = this.createNoiseBuffer(6, 'white');
         if (!buffer) return;
@@ -2870,17 +3009,17 @@ class AudioManager {
         source.buffer = buffer;
         source.loop = true;
 
-        // High frequency for bird-like sounds
+        // Wider bandpass for softer, less piercing bird ambience
         filter.type = 'bandpass';
-        filter.frequency.setValueAtTime(3500, ctx.currentTime);
-        filter.Q.setValueAtTime(8, ctx.currentTime);
+        filter.frequency.setValueAtTime(2800, ctx.currentTime);
+        filter.Q.setValueAtTime(3, ctx.currentTime); // Lower Q = less harsh
 
-        // Modulate to create chirping pattern
+        // Very slow modulation for gentle warbling, not rhythmic chirping
         lfo.type = 'sine';
-        lfo.frequency.setValueAtTime(4 + Math.random() * 2, ctx.currentTime);
-        lfoGain.gain.setValueAtTime(0.005, ctx.currentTime);
+        lfo.frequency.setValueAtTime(0.3 + Math.random() * 0.2, ctx.currentTime); // 0.3-0.5Hz
+        lfoGain.gain.setValueAtTime(0.002, ctx.currentTime); // Subtle modulation
 
-        gain.gain.setValueAtTime(0.004, ctx.currentTime);
+        gain.gain.setValueAtTime(0.002, ctx.currentTime); // Quieter base volume
 
         source.connect(filter);
         filter.connect(gain);
@@ -2957,6 +3096,154 @@ class AudioManager {
 
         this.outdoorNodes.traffic = { source, gain };
       }
+
+      // Water/stream - gentle babbling brook
+      {
+        const buffer = this.createNoiseBuffer(6, 'white');
+        if (!buffer) return;
+        const source = ctx.createBufferSource();
+        const gain = ctx.createGain();
+        const filter = ctx.createBiquadFilter();
+        const lfo = ctx.createOscillator();
+        const lfoGain = ctx.createGain();
+
+        source.buffer = buffer;
+        source.loop = true;
+
+        // Bandpass for water-like frequencies (1-3kHz range)
+        filter.type = 'bandpass';
+        filter.frequency.setValueAtTime(1800, ctx.currentTime);
+        filter.Q.setValueAtTime(1.5, ctx.currentTime);
+
+        // Irregular modulation for natural water gurgling
+        lfo.type = 'sine';
+        lfo.frequency.setValueAtTime(2.5 + Math.random() * 1.5, ctx.currentTime);
+        lfoGain.gain.setValueAtTime(0.003, ctx.currentTime);
+
+        gain.gain.setValueAtTime(0.006, ctx.currentTime); // Quiet stream
+
+        source.connect(filter);
+        filter.connect(gain);
+        lfo.connect(lfoGain);
+        lfoGain.connect(gain.gain);
+        gain.connect(masterGain);
+
+        source.start();
+        lfo.start();
+
+        this.outdoorNodes.water = { source, gain };
+      }
+
+      // Ducks - occasional quacking (higher pitched, rhythmic bursts)
+      {
+        const buffer = this.createNoiseBuffer(4, 'white');
+        if (!buffer) return;
+        const source = ctx.createBufferSource();
+        const gain = ctx.createGain();
+        const filter = ctx.createBiquadFilter();
+        const lfo = ctx.createOscillator();
+        const lfoGain = ctx.createGain();
+
+        source.buffer = buffer;
+        source.loop = true;
+
+        // Nasal, honky quality - mid-high frequencies
+        filter.type = 'bandpass';
+        filter.frequency.setValueAtTime(1200, ctx.currentTime);
+        filter.Q.setValueAtTime(8, ctx.currentTime); // Narrow band for quack character
+
+        // Quick modulation for quacking rhythm (~3-5 quacks per second feel)
+        lfo.type = 'square';
+        lfo.frequency.setValueAtTime(0.4 + Math.random() * 0.3, ctx.currentTime); // Irregular timing
+        lfoGain.gain.setValueAtTime(0.0015, ctx.currentTime);
+
+        gain.gain.setValueAtTime(0.0008, ctx.currentTime); // Very quiet, background
+
+        source.connect(filter);
+        filter.connect(gain);
+        lfo.connect(lfoGain);
+        lfoGain.connect(gain.gain);
+        gain.connect(masterGain);
+
+        source.start();
+        lfo.start();
+
+        this.outdoorNodes.ducks = { source, gain };
+      }
+
+      // Pigs - soft grunting (low frequency, rhythmic)
+      {
+        const buffer = this.createNoiseBuffer(5, 'brown');
+        if (!buffer) return;
+        const source = ctx.createBufferSource();
+        const gain = ctx.createGain();
+        const filter = ctx.createBiquadFilter();
+        const lfo = ctx.createOscillator();
+        const lfoGain = ctx.createGain();
+
+        source.buffer = buffer;
+        source.loop = true;
+
+        // Low, throaty frequencies for grunting
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(250, ctx.currentTime);
+        filter.Q.setValueAtTime(3, ctx.currentTime);
+
+        // Slow, irregular modulation for natural grunt timing
+        lfo.type = 'sine';
+        lfo.frequency.setValueAtTime(0.8 + Math.random() * 0.4, ctx.currentTime);
+        lfoGain.gain.setValueAtTime(0.002, ctx.currentTime);
+
+        gain.gain.setValueAtTime(0.0012, ctx.currentTime); // Quiet background
+
+        source.connect(filter);
+        filter.connect(gain);
+        lfo.connect(lfoGain);
+        lfoGain.connect(gain.gain);
+        gain.connect(masterGain);
+
+        source.start();
+        lfo.start();
+
+        this.outdoorNodes.pigs = { source, gain };
+      }
+
+      // Cows - distant mooing (very low, slow, resonant)
+      {
+        const buffer = this.createNoiseBuffer(8, 'brown');
+        if (!buffer) return;
+        const source = ctx.createBufferSource();
+        const gain = ctx.createGain();
+        const filter = ctx.createBiquadFilter();
+        const lfo = ctx.createOscillator();
+        const lfoGain = ctx.createGain();
+
+        source.buffer = buffer;
+        source.loop = true;
+
+        // Very low, resonant moo frequency
+        filter.type = 'bandpass';
+        filter.frequency.setValueAtTime(150, ctx.currentTime);
+        filter.Q.setValueAtTime(5, ctx.currentTime); // Resonant
+
+        // Very slow modulation - occasional moo (once every few seconds)
+        lfo.type = 'sine';
+        lfo.frequency.setValueAtTime(0.15 + Math.random() * 0.1, ctx.currentTime);
+        lfoGain.gain.setValueAtTime(0.001, ctx.currentTime);
+
+        gain.gain.setValueAtTime(0.0008, ctx.currentTime); // Distant, quiet
+
+        source.connect(filter);
+        filter.connect(gain);
+        lfo.connect(lfoGain);
+        lfoGain.connect(gain.gain);
+        gain.connect(masterGain);
+
+        source.start();
+        lfo.start();
+
+        this.outdoorNodes.cows = { source, gain };
+      }
     } catch (e) {
       audioLog.warn('Outdoor ambient sound start failed', e);
     }
@@ -2973,6 +3260,123 @@ class AudioManager {
       }
     });
     this.outdoorNodes = {};
+  }
+
+  // === TOWN HALL CLOCK CHIME ===
+
+  // Town hall clock position (world coordinates) - at [-190, 12, 20]
+  private readonly TOWN_HALL_CLOCK_POS = { x: -190, y: 12, z: 20 };
+  private readonly CLOCK_CHIME_MAX_DISTANCE = 60; // Units before sound is inaudible
+  private lastClockChimeHour = -1;
+
+  /**
+   * Play a soft, gentle clock bong for the town hall clock.
+   * Distance-attenuated so it doesn't travel far.
+   * @param hour - The game hour (0-23)
+   * @param chimeCount - Number of bongs (1-12, automatically wraps for 24h clock)
+   */
+  playClockChime(hour: number, chimeCount?: number): void {
+    if (this.getEffectiveVolume() === 0) return;
+
+    // Prevent duplicate chimes for same hour
+    const roundedHour = Math.floor(hour);
+    if (roundedHour === this.lastClockChimeHour) return;
+    this.lastClockChimeHour = roundedHour;
+
+    // Calculate distance-based volume attenuation
+    const dx = this.cameraPosition.x - this.TOWN_HALL_CLOCK_POS.x;
+    const dy = this.cameraPosition.y - this.TOWN_HALL_CLOCK_POS.y;
+    const dz = this.cameraPosition.z - this.TOWN_HALL_CLOCK_POS.z;
+    const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+    // If too far away, don't play at all
+    if (distance > this.CLOCK_CHIME_MAX_DISTANCE) return;
+
+    // Squared falloff for natural distance attenuation
+    const attenuation = Math.pow(1 - distance / this.CLOCK_CHIME_MAX_DISTANCE, 2);
+    const baseVolume = 0.15; // Soft, gentle volume
+    const effectiveVolume = baseVolume * attenuation;
+
+    if (effectiveVolume < 0.005) return; // Below audible threshold
+
+    try {
+      const ctx = this.getContext();
+      const masterGain = this.getMasterGain();
+      if (!ctx || !masterGain) return;
+      const currentTime = ctx.currentTime;
+
+      // Number of bongs: 12-hour format (1-12)
+      const bongs = chimeCount ?? ((roundedHour % 12) || 12);
+
+      // Play each bong with slight delay between them
+      for (let i = 0; i < bongs; i++) {
+        const startTime = currentTime + i * 1.8; // 1.8 seconds between bongs
+
+        // Deep, resonant church bell tone
+        // Main fundamental (low, rich)
+        const osc1 = ctx.createOscillator();
+        const gain1 = ctx.createGain();
+        osc1.type = 'sine';
+        osc1.frequency.setValueAtTime(174.6, startTime); // F3 - deep bell fundamental
+
+        // Slight pitch bend down for realistic bell decay
+        osc1.frequency.exponentialRampToValueAtTime(172, startTime + 2.5);
+
+        gain1.gain.setValueAtTime(0, startTime);
+        gain1.gain.linearRampToValueAtTime(effectiveVolume * 0.6, startTime + 0.02);
+        gain1.gain.exponentialRampToValueAtTime(0.001, startTime + 2.5);
+
+        osc1.connect(gain1);
+        gain1.connect(masterGain);
+        osc1.start(startTime);
+        osc1.stop(startTime + 2.6);
+
+        // First overtone (octave + fifth = ~3x fundamental)
+        const osc2 = ctx.createOscillator();
+        const gain2 = ctx.createGain();
+        osc2.type = 'sine';
+        osc2.frequency.setValueAtTime(523, startTime); // C5
+
+        gain2.gain.setValueAtTime(0, startTime);
+        gain2.gain.linearRampToValueAtTime(effectiveVolume * 0.25, startTime + 0.01);
+        gain2.gain.exponentialRampToValueAtTime(0.001, startTime + 1.5);
+
+        osc2.connect(gain2);
+        gain2.connect(masterGain);
+        osc2.start(startTime);
+        osc2.stop(startTime + 1.6);
+
+        // Strike "thud" - gives initial attack character
+        const noiseBuffer = this.createNoiseBuffer(0.1, 'brown');
+        if (noiseBuffer) {
+          const noiseSource = ctx.createBufferSource();
+          const noiseGain = ctx.createGain();
+          const filter = ctx.createBiquadFilter();
+
+          noiseSource.buffer = noiseBuffer;
+          filter.type = 'lowpass';
+          filter.frequency.setValueAtTime(300, startTime);
+
+          noiseGain.gain.setValueAtTime(0, startTime);
+          noiseGain.gain.linearRampToValueAtTime(effectiveVolume * 0.2, startTime + 0.005);
+          noiseGain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.15);
+
+          noiseSource.connect(filter);
+          filter.connect(noiseGain);
+          noiseGain.connect(masterGain);
+
+          noiseSource.start(startTime);
+          noiseSource.stop(startTime + 0.2);
+        }
+      }
+    } catch (e) {
+      audioLog.warn('Clock chime playback failed', e);
+    }
+  }
+
+  // Reset clock chime tracking (call when time is reset or jumped)
+  resetClockChime(): void {
+    this.lastClockChimeHour = -1;
   }
 
   // === SPEED ZONE SOUNDS ===
@@ -4701,6 +5105,7 @@ class AudioManager {
     if (!value) {
       this.stopTTS();
     }
+    this.saveSettings();
     this.notifyListeners();
   }
 

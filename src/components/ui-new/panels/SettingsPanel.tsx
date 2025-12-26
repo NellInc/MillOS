@@ -30,18 +30,19 @@ export const SettingsPanel: React.FC<{
     <div className="p-4 space-y-6 h-full overflow-y-auto custom-scrollbar">
       {/* Simulation Speed */}
       <section>
-        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-          <Gauge size={14} className="text-orange-500" />
+        <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-3 flex items-center gap-2">
+          <Gauge size={14} className="text-orange-500" aria-hidden="true" />
           Simulation Control
         </h3>
         <div className="bg-slate-800/50 p-3 rounded-xl border border-white/5">
           <div className="flex justify-between text-xs mb-2">
-            <span className="text-slate-400">Production Speed</span>
-            <span className="text-orange-400 font-mono font-bold">
+            <label htmlFor="production-speed-slider" className="text-slate-300">Production Speed</label>
+            <span className="text-orange-400 font-mono font-bold" aria-live="polite">
               {(productionSpeed * 100).toFixed(0)}%
             </span>
           </div>
           <input
+            id="production-speed-slider"
             type="range"
             min="0"
             max="2"
@@ -49,30 +50,36 @@ export const SettingsPanel: React.FC<{
             value={productionSpeed}
             onChange={(e) => setProductionSpeed(parseFloat(e.target.value))}
             className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-orange-500"
+            aria-valuemin={0}
+            aria-valuemax={200}
+            aria-valuenow={(productionSpeed * 100)}
+            aria-valuetext={`${(productionSpeed * 100).toFixed(0)} percent`}
           />
         </div>
       </section>
 
       {/* Audio Settings */}
       <section>
-        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-          <Volume2 size={14} className="text-cyan-400" />
+        <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-3 flex items-center gap-2">
+          <Volume2 size={14} className="text-cyan-400" aria-hidden="true" />
           Audio
         </h3>
         <div className="bg-slate-800/50 p-3 rounded-xl border border-white/5 space-y-4">
           {/* Master Volume */}
           <div>
             <div className="flex justify-between items-center mb-2">
-              <span className="text-xs text-slate-300">Master Volume</span>
+              <label htmlFor="master-volume-slider" className="text-xs text-slate-200">Master Volume</label>
               <button
                 onClick={() => audio.setMuted(!audio.muted)}
                 aria-label={audio.muted ? 'Unmute audio' : 'Mute audio'}
+                aria-pressed={audio.muted}
                 className="text-[10px] text-cyan-400 hover:text-cyan-300"
               >
                 {audio.muted ? 'UNMUTE' : 'MUTE'}
               </button>
             </div>
             <input
+              id="master-volume-slider"
               type="range"
               min="0"
               max="1"
@@ -81,6 +88,10 @@ export const SettingsPanel: React.FC<{
               onChange={(e) => audio.setVolume(parseFloat(e.target.value))}
               disabled={audio.muted}
               className="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500 disabled:opacity-50"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={Math.round(audio.volume * 100)}
+              aria-valuetext={`${Math.round(audio.volume * 100)} percent`}
             />
           </div>
 
@@ -88,19 +99,20 @@ export const SettingsPanel: React.FC<{
           <div>
             <div className="flex justify-between items-center mb-2">
               <div className="flex items-center gap-2">
-                <Music size={12} className="text-slate-400" />
-                <span className="text-xs text-slate-300">Music</span>
+                <Music size={12} className="text-slate-300" aria-hidden="true" />
+                <label htmlFor="music-volume-slider" className="text-xs text-slate-200">Music</label>
               </div>
               <button
                 onClick={() => audio.setMusicEnabled(!audio.musicEnabled)}
                 aria-label={audio.musicEnabled ? 'Disable music' : 'Enable music'}
                 aria-pressed={audio.musicEnabled}
-                className={`text-[10px] px-2 py-0.5 rounded ${audio.musicEnabled ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-700 text-slate-400'}`}
+                className={`text-[10px] px-2 py-0.5 rounded ${audio.musicEnabled ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-700 text-slate-300'}`}
               >
                 {audio.musicEnabled ? 'ON' : 'OFF'}
               </button>
             </div>
             <input
+              id="music-volume-slider"
               type="range"
               min="0"
               max="1"
@@ -109,17 +121,21 @@ export const SettingsPanel: React.FC<{
               onChange={(e) => audio.setMusicVolume(parseFloat(e.target.value))}
               disabled={!audio.musicEnabled}
               className="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-emerald-500 disabled:opacity-50"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={Math.round(audio.musicVolume * 100)}
+              aria-valuetext={`${Math.round(audio.musicVolume * 100)} percent`}
             />
           </div>
 
           {/* TTS Toggle */}
           <div className="flex justify-between items-center pt-2 border-t border-white/5">
-            <span className="text-xs text-slate-300">PA Announcements</span>
+            <span className="text-xs text-slate-200">PA Announcements</span>
             <button
               onClick={() => audio.setTtsEnabled(!audio.ttsEnabled)}
               aria-label={audio.ttsEnabled ? 'Disable PA announcements' : 'Enable PA announcements'}
               aria-pressed={audio.ttsEnabled}
-              className={`text-[10px] px-2 py-0.5 rounded ${audio.ttsEnabled ? 'bg-cyan-500/20 text-cyan-400' : 'bg-slate-700 text-slate-400'}`}
+              className={`text-[10px] px-2 py-0.5 rounded ${audio.ttsEnabled ? 'bg-cyan-500/20 text-cyan-400' : 'bg-slate-700 text-slate-300'}`}
             >
               {audio.ttsEnabled ? 'ENABLED' : 'MUTED'}
             </button>
@@ -129,8 +145,8 @@ export const SettingsPanel: React.FC<{
 
       {/* Graphics Settings */}
       <section>
-        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-          <Monitor size={14} className="text-purple-400" />
+        <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-3 flex items-center gap-2">
+          <Monitor size={14} className="text-purple-400" aria-hidden="true" />
           Graphics
         </h3>
 
@@ -141,8 +157,9 @@ export const SettingsPanel: React.FC<{
               <button
                 key={quality}
                 onClick={() => setGraphicsQuality(quality)}
-                aria-label={`Set graphics quality to ${quality}`}
-                aria-pressed={graphics.graphics.quality === quality}
+                role="radio"
+                aria-checked={graphics.graphics.quality === quality}
+                aria-label={`${quality} quality`}
                 className={`py-1.5 rounded text-[10px] font-bold uppercase tracking-wider transition-all ${graphics.graphics.quality === quality
                   ? quality === 'low'
                     ? 'bg-slate-600 text-white'
@@ -151,7 +168,7 @@ export const SettingsPanel: React.FC<{
                       : quality === 'high'
                         ? 'bg-cyan-600 text-white'
                         : 'bg-purple-600 text-white'
-                  : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                  : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
                   }`}
               >
                 {quality}
@@ -193,14 +210,15 @@ export const SettingsPanel: React.FC<{
           <div className="pt-2 border-t border-white/5">
             <div className="flex justify-between items-center mb-2">
               <div className="flex items-center gap-2">
-                <Monitor size={12} className="text-slate-400" />
-                <span className="text-xs text-slate-300">Resolution Scale</span>
+                <Monitor size={12} className="text-slate-300" aria-hidden="true" />
+                <label htmlFor="resolution-scale-slider" className="text-xs text-slate-200">Resolution Scale</label>
               </div>
-              <span className="text-cyan-400 font-mono font-bold text-[10px]">
+              <span className="text-cyan-400 font-mono font-bold text-[10px]" aria-live="polite">
                 {Math.round(graphics.graphics.resolutionScale * 100)}%
               </span>
             </div>
             <input
+              id="resolution-scale-slider"
               type="range"
               min="0.25"
               max="1"
@@ -208,9 +226,13 @@ export const SettingsPanel: React.FC<{
               value={graphics.graphics.resolutionScale}
               onChange={(e) => graphics.setGraphicsSetting('resolutionScale', parseFloat(e.target.value))}
               aria-label="Resolution scale"
+              aria-valuemin={25}
+              aria-valuemax={100}
+              aria-valuenow={Math.round(graphics.graphics.resolutionScale * 100)}
+              aria-valuetext={`${Math.round(graphics.graphics.resolutionScale * 100)} percent`}
               className="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
             />
-            <div className="flex justify-between text-[9px] text-slate-500 mt-1">
+            <div className="flex justify-between text-[9px] text-slate-400 mt-1" aria-hidden="true">
               <span>25%</span>
               <span>50%</span>
               <span>75%</span>
@@ -222,8 +244,8 @@ export const SettingsPanel: React.FC<{
 
       {/* Simulation Reset Section */}
       <section>
-        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-          <RotateCcw size={14} className="text-amber-500" />
+        <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-3 flex items-center gap-2">
+          <RotateCcw size={14} className="text-amber-500" aria-hidden="true" />
           Simulation
         </h3>
         <div className="bg-slate-800/50 p-3 rounded-xl border border-white/5 space-y-2">
@@ -242,7 +264,7 @@ export const SettingsPanel: React.FC<{
             }}
             className="w-full py-2 rounded-lg text-xs font-medium text-red-400 hover:bg-red-900/20 flex items-center justify-center gap-2 transition-colors"
           >
-            <RotateCcw size={12} />
+            <RotateCcw size={12} aria-hidden="true" />
             Reset Simulation
           </button>
         </div>
@@ -261,14 +283,14 @@ const Toggle: React.FC<{
     onClick={() => onChange(!value)}
     aria-label={`${value ? 'Disable' : 'Enable'} ${label}`}
     aria-pressed={value}
-    className={`w-full flex items-center justify-between p-2 rounded-lg transition-colors ${value ? 'bg-slate-700/50 text-white' : 'hover:bg-slate-800 text-slate-400'}`}
+    className={`w-full flex items-center justify-between p-2 rounded-lg transition-colors ${value ? 'bg-slate-700/50 text-white' : 'hover:bg-slate-800 text-slate-300'}`}
   >
     <div className="flex items-center gap-2 text-xs">
-      {icon}
+      <span aria-hidden="true">{icon}</span>
       <span>{label}</span>
     </div>
     <div
-      className={`w-2 h-2 rounded-full ${value ? 'bg-green-400' : 'bg-slate-600'}`}
+      className={`w-2 h-2 rounded-full ${value ? 'bg-green-400' : 'bg-slate-500'}`}
       aria-hidden="true"
     />
   </button>

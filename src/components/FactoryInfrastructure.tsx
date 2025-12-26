@@ -53,9 +53,9 @@ export const FactoryInfrastructure: React.FC<Props> = ({
 
       {/* Dock Forklifts - visible internally and externally */}
       {/* Front Dock (Shipping) */}
-      <DockForklift position={[0, 0, 52]} rotation={[0, 0, 0]} cycleOffset={0} />
+      <DockForklift position={[0, 0, 52]} rotation={[0, 0, 0]} cycleOffset={0} dockType="shipping" />
       {/* Back Dock (Receiving) */}
-      <DockForklift position={[0, 0, -52]} rotation={[0, Math.PI, 0]} cycleOffset={Math.PI} />
+      <DockForklift position={[0, 0, -52]} rotation={[0, Math.PI, 0]} cycleOffset={Math.PI} dockType="receiving" />
     </group>
   );
 };

@@ -71,7 +71,7 @@ export const ShiftHandoverSummary: React.FC = () => {
     const [showSummary, setShowSummary] = useState(false);
     const [summary, setSummary] = useState<ShiftSummary | null>(null);
     const [copied, setCopied] = useState(false);
-    const [countdown, setCountdown] = useState(15); // Auto-dismiss after 15 seconds
+    const [countdown, setCountdown] = useState(5); // Auto-dismiss after 5 seconds
 
     // Detect shift change
     useEffect(() => {
@@ -87,7 +87,7 @@ export const ShiftHandoverSummary: React.FC = () => {
             };
             setSummary(summary);
             setShowSummary(true);
-            setCountdown(15); // Reset countdown when new summary appears
+            setCountdown(5); // Reset countdown when new summary appears
             setPreviousShift(currentShift);
         } else if (currentShift !== previousShift) {
             setPreviousShift(currentShift);

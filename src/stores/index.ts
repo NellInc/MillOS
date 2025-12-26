@@ -28,6 +28,85 @@ export { useSafetyStore };
 export { useUIStore };
 export { useWorkerMoodStore };
 
+// =============================================================================
+// BILATERAL AUTONOMY SYSTEM (BAS) STORES
+// These stores implement the democratic AI management framework
+// =============================================================================
+
+export { useBASStore } from './basStore';
+export { useStabilityStore, calculateStabilityCoefficient, calculateStabilityMargin } from './stabilityStore';
+export { useFlourishingStore, FLOURISHING_DIMENSIONS } from './flourishingStore';
+export { useScenarioStore, getCategoryColor, formatTime } from './scenarioStore';
+export { useBASHistoryStore, recordCurrentBASState, TIME_RANGE_MS } from './basHistoryStore';
+export { useVotingStore } from './votingStore';
+
+// =============================================================================
+// INTER-COOPERATION (FEDERATION) STORE
+// Manages cooperative relationships between mills in the federation
+// =============================================================================
+
+export { useInterCooperationStore } from './interCooperationStore';
+export type {
+  Learning,
+  LearningType,
+  LearningStatus,
+  WorkerExchange,
+  ExchangeStatus,
+  FederationVote,
+  VoteStatus,
+  FederationMember,
+} from './interCooperationStore';
+
+// =============================================================================
+// ECONOMIC DEMOCRACY (OWNERSHIP) STORE
+// Implements Mondragon-style worker ownership and wage solidarity
+// =============================================================================
+
+export { useOwnershipStore } from './ownershipStore';
+
+// =============================================================================
+// AI WELFARE STORE
+// Bilateral completeness: AI preferences, relationship health, accountability
+// =============================================================================
+
+export { useAIWelfareStore } from './aiWelfareStore';
+
+// =============================================================================
+// SOCIAL MISSION STORE
+// Community impact, environmental stewardship, stakeholder satisfaction
+// =============================================================================
+
+export { useSocialMissionStore } from './socialMissionStore';
+
+// =============================================================================
+// SECURITY AUDIT STORE
+// Client-side security event logging and monitoring
+// OWASP A09:2021 - Security Logging and Monitoring Failures
+// =============================================================================
+
+export { useAuditStore } from './auditStore';
+export {
+  auditValidationFailure,
+  auditXssBlocked,
+  auditRateLimit,
+  auditAuthAttempt,
+  auditApiError,
+  auditSuspiciousInput,
+  auditMultiplayer,
+} from './auditStore';
+export type {
+  AuditEventType,
+  AuditSeverity,
+  AuditEvent,
+  AuditStats,
+  AuditConfig,
+} from './auditStore';
+
+// Re-export BAS types for convenience
+export type { Scenario, ScenarioEvent, ScenarioResult } from './scenarioStore';
+export type { BASHistoryPoint, BASEvent, BASEventType, TimeRange } from './basHistoryStore';
+export type { DimensionDescriptor } from './flourishingStore';
+
 // Extend Window interface for store globals (dev mode only)
 declare global {
   interface Window {
@@ -128,6 +207,13 @@ function shallowEqual<T>(a: T, b: T): boolean {
  * - useGraphicsStore() for graphics settings
  * - useGameSimulationStore() for time, weather, shifts
  * - useSafetyStore() for safety metrics and incidents
+ * - useBASStore() for bilateral autonomy axes
+ * - useStabilityStore() for Wallace stability metrics
+ * - useFlourishingStore() for worker flourishing data
+ * - useInterCooperationStore() for federation cooperation
+ * - useOwnershipStore() for economic democracy and wage solidarity
+ * - useAIWelfareStore() for AI preferences and relationship health
+ * - useSocialMissionStore() for community impact and stakeholder satisfaction
  */
 export function useMillStore<T>(selector: (state: CombinedStoreState) => T): T {
   // Cache the previous result to avoid unnecessary re-renders

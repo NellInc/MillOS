@@ -74,6 +74,8 @@ export const SafetyPanel: React.FC = () => {
                 emergencyDrillMode ? endEmergencyDrill() : startEmergencyDrill(workerCount)
               }
               disabled={emergencyActive && !emergencyDrillMode}
+              aria-disabled={emergencyActive && !emergencyDrillMode}
+              title={emergencyActive && !emergencyDrillMode ? 'Cannot start drill during active emergency' : undefined}
               className={`w-full py-2 rounded-lg font-bold text-xs transition-colors flex items-center justify-center gap-2 ${
                 emergencyDrillMode
                   ? 'bg-red-500 hover:bg-red-600 text-white'
@@ -152,6 +154,8 @@ export const SafetyPanel: React.FC = () => {
             <button
               onClick={() => triggerShiftChange()}
               disabled={shiftChangeActive}
+              aria-disabled={shiftChangeActive}
+              title={shiftChangeActive ? 'Shift handover already in progress' : undefined}
               className="w-full bg-slate-700 hover:bg-slate-600 disabled:opacity-50 text-slate-200 py-2 rounded-lg text-xs font-medium"
             >
               {shiftChangeActive ? 'Handover in Progress...' : 'Trigger Shift Handover'}

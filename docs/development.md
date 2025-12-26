@@ -1,6 +1,6 @@
 # Development Guide
 
-This guide covers the development workflow, environment setup, and coding conventions for MillOS.
+Development workflow, environment setup, and coding conventions for MillOS.
 
 ## Table of Contents
 

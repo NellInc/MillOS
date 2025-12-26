@@ -355,7 +355,8 @@ export class MultiplayerManager {
         break;
 
       case 'AI_VOTE':
-        // Handle AI voting (to be implemented)
+        // Dispatch event for UI components to receive the vote
+        window.dispatchEvent(new CustomEvent('multiplayer:ai-vote', { detail: message.payload }));
         break;
     }
   }

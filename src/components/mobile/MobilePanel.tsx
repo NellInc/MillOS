@@ -23,6 +23,7 @@ import {
   Package,
   FastForward,
   Siren,
+  Heart,
 } from 'lucide-react';
 import type { DockMode } from '../ui-new/dock/Dock';
 import { useProductionStore } from '../../stores/productionStore';
@@ -30,6 +31,8 @@ import { useUIStore } from '../../stores/uiStore';
 import { useMultiplayerStore } from '../../stores/multiplayerStore';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { useSafetyStore } from '../../stores/safetyStore';
+import { useAIConfigStore } from '../../stores/aiConfigStore';
+import { useWorkerMoodStore } from '../../stores/workerMoodStore';
 
 interface MobilePanelProps {
   isVisible: boolean;
@@ -73,6 +76,8 @@ const getPanelIcon = (mode: DockMode) => {
       return <Shield className={iconClass} />;
     case 'settings':
       return <Settings className={iconClass} />;
+    case 'management':
+      return <Heart className={iconClass} />;
     default:
       return <Home className={iconClass} />;
   }
@@ -93,6 +98,8 @@ const getPanelTitle = (mode: DockMode) => {
       return 'Safety';
     case 'settings':
       return 'Settings';
+    case 'management':
+      return 'Management';
     case 'multiplayer':
       return 'Multiplayer';
     default:
@@ -128,9 +135,9 @@ const OverviewContent: React.FC = () => {
     Math.min(
       100,
       100 -
-        (safetyMetrics?.nearMisses ?? 0) * 5 -
-        (safetyMetrics?.safetyStops ?? 0) * 2 -
-        (safetyMetrics?.workerEvasions ?? 0)
+      (safetyMetrics?.nearMisses ?? 0) * 5 -
+      (safetyMetrics?.safetyStops ?? 0) * 2 -
+      (safetyMetrics?.workerEvasions ?? 0)
     )
   );
 
@@ -173,35 +180,31 @@ const OverviewContent: React.FC = () => {
         <div className="flex gap-1">
           <button
             onClick={() => setGameSpeed(0)}
-            className={`flex-1 py-1.5 rounded text-[10px] font-bold flex items-center justify-center gap-1 ${
-              gameSpeed === 0 ? 'bg-orange-600 text-white' : 'bg-slate-700 text-slate-400'
-            }`}
+            className={`flex-1 py-1.5 rounded text-[10px] font-bold flex items-center justify-center gap-1 ${gameSpeed === 0 ? 'bg-orange-600 text-white' : 'bg-slate-700 text-slate-400'
+              }`}
           >
             <Pause className="w-3 h-3" />
           </button>
           <button
             onClick={() => setGameSpeed(180)}
-            className={`flex-1 py-1.5 rounded text-[10px] font-bold flex items-center justify-center gap-1 ${
-              gameSpeed === 180 ? 'bg-orange-600 text-white' : 'bg-slate-700 text-slate-400'
-            }`}
+            className={`flex-1 py-1.5 rounded text-[10px] font-bold flex items-center justify-center gap-1 ${gameSpeed === 180 ? 'bg-orange-600 text-white' : 'bg-slate-700 text-slate-400'
+              }`}
           >
             <Play className="w-3 h-3" />
             1x
           </button>
           <button
             onClick={() => setGameSpeed(1800)}
-            className={`flex-1 py-1.5 rounded text-[10px] font-bold flex items-center justify-center gap-1 ${
-              gameSpeed === 1800 ? 'bg-orange-600 text-white' : 'bg-slate-700 text-slate-400'
-            }`}
+            className={`flex-1 py-1.5 rounded text-[10px] font-bold flex items-center justify-center gap-1 ${gameSpeed === 1800 ? 'bg-orange-600 text-white' : 'bg-slate-700 text-slate-400'
+              }`}
           >
             <FastForward className="w-3 h-3" />
             10x
           </button>
           <button
             onClick={() => setGameSpeed(10800)}
-            className={`flex-1 py-1.5 rounded text-[10px] font-bold flex items-center justify-center gap-1 ${
-              gameSpeed === 10800 ? 'bg-orange-600 text-white' : 'bg-slate-700 text-slate-400'
-            }`}
+            className={`flex-1 py-1.5 rounded text-[10px] font-bold flex items-center justify-center gap-1 ${gameSpeed === 10800 ? 'bg-orange-600 text-white' : 'bg-slate-700 text-slate-400'
+              }`}
           >
             <FastForward className="w-3 h-3" />
             60x
@@ -274,13 +277,12 @@ const OverviewContent: React.FC = () => {
           <div className="flex items-center justify-between mb-1">
             <span className="text-[10px] text-slate-500">Safety</span>
             <span
-              className={`text-sm font-bold font-mono ${
-                safetyScore > 90
-                  ? 'text-green-400'
-                  : safetyScore > 70
-                    ? 'text-yellow-400'
-                    : 'text-red-400'
-              }`}
+              className={`text-sm font-bold font-mono ${safetyScore > 90
+                ? 'text-green-400'
+                : safetyScore > 70
+                  ? 'text-yellow-400'
+                  : 'text-red-400'
+                }`}
             >
               {safetyScore}%
             </span>
@@ -451,14 +453,12 @@ const SettingsContent: React.FC = () => {
           </div>
           <button
             onClick={() => setShowZones(!showZones)}
-            className={`w-12 h-6 rounded-full transition-colors ${
-              showZones ? 'bg-cyan-600' : 'bg-slate-600'
-            }`}
+            className={`w-12 h-6 rounded-full transition-colors ${showZones ? 'bg-cyan-600' : 'bg-slate-600'
+              }`}
           >
             <div
-              className={`w-5 h-5 rounded-full bg-white shadow transition-transform ${
-                showZones ? 'translate-x-6' : 'translate-x-0.5'
-              }`}
+              className={`w-5 h-5 rounded-full bg-white shadow transition-transform ${showZones ? 'translate-x-6' : 'translate-x-0.5'
+                }`}
             />
           </button>
         </div>
@@ -708,6 +708,101 @@ const MultiplayerContent: React.FC = () => {
   );
 };
 
+// Management Style panel content (simplified for mobile)
+const ManagementContent: React.FC = () => {
+  const managementGenerosity = useAIConfigStore((s) => s.managementGenerosity);
+  const setManagementGenerosity = useAIConfigStore((s) => s.setManagementGenerosity);
+  const getGrantRate = useAIConfigStore((s) => s.getGrantRate);
+  const averageTrust = useWorkerMoodStore((s) => s.getAverageManagementTrust());
+  const averageInitiative = useWorkerMoodStore((s) => s.getAverageInitiative());
+  const productivityMultiplier = useWorkerMoodStore((s) => s.getWorkforceProductivityMultiplier());
+
+  const grantRate = getGrantRate();
+  const styleLabel = managementGenerosity >= 80 ? 'Generous' :
+    managementGenerosity >= 60 ? 'Kind' :
+      managementGenerosity >= 40 ? 'Balanced' :
+        managementGenerosity >= 20 ? 'Firm' : 'Strict';
+
+  const PRESETS = [
+    { name: 'Strict', value: 10 },
+    { name: 'Balanced', value: 50 },
+    { name: 'Kind', value: 75 },
+    { name: 'Generous', value: 95 },
+  ];
+
+  return (
+    <div className="space-y-3">
+      {/* Current Style */}
+      <div className="flex items-center justify-between bg-slate-800/50 rounded-lg p-3">
+        <div className="flex items-center gap-2">
+          <Heart className={`w-5 h-5 ${managementGenerosity >= 60 ? 'text-green-400' : managementGenerosity >= 40 ? 'text-blue-400' : 'text-amber-400'}`} />
+          <span className="text-sm font-medium text-white">{styleLabel}</span>
+        </div>
+        <span className="text-lg font-bold font-mono text-cyan-400">{managementGenerosity}%</span>
+      </div>
+
+      {/* Preset Buttons */}
+      <div className="grid grid-cols-4 gap-2">
+        {PRESETS.map((preset) => (
+          <button
+            key={preset.name}
+            onClick={() => setManagementGenerosity(preset.value)}
+            className={`py-2 rounded text-xs font-medium transition-colors ${Math.abs(managementGenerosity - preset.value) < 10
+              ? 'bg-cyan-600 text-white'
+              : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+              }`}
+          >
+            {preset.name}
+          </button>
+        ))}
+      </div>
+
+      {/* Slider */}
+      <input
+        id="mobile-management-generosity"
+        type="range"
+        min="0"
+        max="100"
+        value={managementGenerosity}
+        onChange={(e) => setManagementGenerosity(parseInt(e.target.value))}
+        className="w-full h-2 rounded-lg appearance-none cursor-pointer accent-cyan-500 bg-gradient-to-r from-red-600 via-blue-500 to-green-500"
+        aria-label="Management generosity"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={managementGenerosity}
+        aria-valuetext={`${managementGenerosity} percent, ${styleLabel} style`}
+      />
+
+      {/* Key Metrics */}
+      <div className="grid grid-cols-4 gap-2">
+        <div className="bg-slate-800/50 rounded p-2 text-center">
+          <div className="text-sm font-bold text-cyan-400">{(grantRate * 100).toFixed(0)}%</div>
+          <div className="text-[9px] text-slate-500">Grant</div>
+        </div>
+        <div className="bg-slate-800/50 rounded p-2 text-center">
+          <div className="text-sm font-bold text-white">{averageTrust.toFixed(0)}%</div>
+          <div className="text-[9px] text-slate-500">Trust</div>
+        </div>
+        <div className="bg-slate-800/50 rounded p-2 text-center">
+          <div className="text-sm font-bold text-white">{averageInitiative.toFixed(0)}%</div>
+          <div className="text-[9px] text-slate-500">Initiative</div>
+        </div>
+        <div className="bg-slate-800/50 rounded p-2 text-center">
+          <div className={`text-sm font-bold ${productivityMultiplier >= 1.0 ? 'text-green-400' : 'text-amber-400'}`}>
+            {(productivityMultiplier * 100).toFixed(0)}%
+          </div>
+          <div className="text-[9px] text-slate-500">Output</div>
+        </div>
+      </div>
+
+      {/* Info */}
+      <div className="text-[10px] text-slate-500 text-center">
+        Higher generosity builds trust → improves productivity
+      </div>
+    </div>
+  );
+};
+
 // Placeholder content for other panels
 const PlaceholderContent: React.FC<{ mode: DockMode }> = ({ mode }) => {
   return (
@@ -738,6 +833,8 @@ const getPanelContent = (mode: DockMode | null) => {
       return <SafetyContent />;
     case 'settings':
       return <SettingsContent />;
+    case 'management':
+      return <ManagementContent />;
     default:
       return mode ? <PlaceholderContent mode={mode} /> : null;
   }
@@ -772,6 +869,8 @@ export const MobilePanel: React.FC<MobilePanelProps> = ({ isVisible, content, on
               bottom: 'max(100px, calc(env(safe-area-inset-bottom) + 90px))',
               maxHeight: '33vh',
             }}
+            aria-label={`${getPanelTitle(content)} mobile panel`}
+            role="complementary"
           >
             <div className="bg-slate-900/95 backdrop-blur-xl border border-slate-700/50 rounded-2xl overflow-hidden shadow-2xl">
               {/* Header */}

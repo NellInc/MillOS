@@ -2,7 +2,7 @@
 
 ## Status: COMPLETE
 
-All phases of the SCADA integration have been implemented. This document serves as both the original architecture plan and current usage documentation.
+All phases of the SCADA integration have been implemented, serving as both the original architecture plan and current usage documentation.
 
 ---
 

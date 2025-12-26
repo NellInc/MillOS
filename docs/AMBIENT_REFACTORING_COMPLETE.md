@@ -155,7 +155,7 @@ import { AmbientDetailsGroup } from './components/AmbientDetails';
 4. Extract decorative elements into `/src/components/ambient/DecorativeElements.tsx`
 5. Extract control systems into `/src/components/ambient/ControlSystems.tsx`
 6. Update main AmbientDetails.tsx to import all split components
-7. Create comprehensive unit tests for each component module
+7. Create full unit tests for each component module
 
 ## File Structure
 

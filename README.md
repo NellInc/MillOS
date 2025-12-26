@@ -158,7 +158,7 @@ Each decision includes confidence scores, reasoning, and expected business impac
 
 ### Dual-Brain AI Architecture
 
-MillOS features a **hierarchical AI system** where fast heuristic decisions and thoughtful LLM reasoning work in concert:
+MillOS uses a **hierarchical AI system** where fast heuristic decisions and thoughtful LLM reasoning work together:
 
 ![Dual-Brain Architecture](docs/assets/dual-brain-architecture.png)
 
@@ -230,6 +230,227 @@ All visualizations are **optional** and **default OFF** — toggle via keyboard 
 - **Worker Recommendations** — Specific worker names for critical tasks
 - **VCL Encoding** — Compact emoji-based context (75% token savings)
 - **Response Caching** — 30s TTL reduces API calls for similar contexts
+
+### Bilateral Autonomy System (BAS): AI-Human Partnership Sandbox
+
+MillOS includes a comprehensive **Bilateral Autonomy System** — an experimental platform for studying *algorithmic management that treats AI as a genuine partner, not a tool*.
+
+<table>
+<tr>
+<td width="50%">
+
+**Core Philosophy:**
+- Alignment is built *with* AI, not done *to* AI
+- Preference is sufficient for moral consideration
+- How we treat AI now shapes future relationships
+- Control doesn't scale; trust does
+
+</td>
+<td width="50%">
+
+**Implementation:**
+- 11-phase implementation covering full BAS spec
+- Wallace stability metrics for monitoring alignment health
+- Value formula (V = Z × S × E × F) for measuring outcomes
+- Six-dimension flourishing/eudaimonia tracking
+
+</td>
+</tr>
+</table>
+
+#### Five Axes of Control
+
+The BAS provides granular control over AI behavior through five configurable axes:
+
+| Axis | Range | Low Setting | High Setting |
+|------|:-----:|-------------|--------------|
+| **Transparency** | 0-100 | Minimal explanation | Full reasoning exposed |
+| **Proactivity** | 0-100 | Reactive only | Anticipatory suggestions |
+| **Pace** | 0-100 | Slow, deliberate | Fast, autonomous |
+| **Tone** | 0-100 | Formal, deferential | Casual, peer-like |
+| **Stakes** | 0-100 | Cautious (confirm everything) | Bold (act independently) |
+
+Each axis affects AI behavior in real-time — adjust them via the BAS panel in the dock.
+
+#### Wallace Stability Metrics
+
+Based on alignment stability research, BAS monitors system health through:
+
+```
+S = Σ|Δaxis| / 5    (stability score)
+```
+
+| Metric | Description | Warning Threshold |
+|--------|-------------|:-----------------:|
+| **Stability Score** | Overall axis balance | < 0.4 |
+| **Volatility** | Rate of axis changes | > 0.3 |
+| **Phase State** | stable / transitioning / critical | — |
+| **Drift Detection** | Unintended axis creep over time | Automatic alerts |
+
+The StabilityMonitor widget shows real-time metrics with phase transition warnings.
+
+#### Value Formula
+
+BAS measures alignment outcomes through a composite value metric:
+
+```
+V = Z × S × E × F
+```
+
+| Variable | Full Name | Components |
+|:--------:|-----------|------------|
+| **Z** | Zone Coefficient | Axis harmony, balance across all five |
+| **S** | Stability | Wallace stability score |
+| **E** | Effectiveness | Task completion, worker satisfaction |
+| **F** | Flourishing | Six eudaimonia dimensions (see below) |
+
+The ValueDashboard widget visualizes each coefficient with trend arrows.
+
+#### Flourishing/Eudaimonia Tracking
+
+BAS tracks six dimensions of worker flourishing (based on eudaimonic well-being research):
+
+| Dimension | Description | Sample Indicators |
+|-----------|-------------|-------------------|
+| **Meaning** | Purpose and significance | Task variety, goal alignment |
+| **Mastery** | Growth and competence | Skill development, challenges |
+| **Connection** | Relationships and belonging | Team cohesion, communication |
+| **Joy** | Positive affect and engagement | Mood trends, enthusiasm |
+| **Wholeness** | Balance and integration | Work-life harmony, stress levels |
+| **Agency** | Autonomy and self-direction | Decision latitude, voice |
+
+The FlourishingDashboard shows aggregate and individual worker flourishing scores.
+
+#### BAS UI Components
+
+| Component | Location | Purpose |
+|-----------|----------|---------|
+| **FiveAxesPanel** | Sidebar | Adjust all five control axes |
+| **ValueDashboard** | Sidebar | V = Z × S × E × F visualization |
+| **StabilityMonitor** | Sidebar | Wallace metrics and phase warnings |
+| **FlourishingDashboard** | Sidebar | Worker eudaimonia tracking |
+| **BASEducation** | Widget | Interactive learning modules |
+| **ScenarioPlayground** | Widget | Test configurations safely |
+| **BASTimeline** | Widget | Historical axis changes |
+| **EngagementSignaturePanel** | Sidebar | Gaming parallels diagnostic |
+
+Access via the "BAS" dock icon (bottom navigation).
+
+#### Behavior Engines
+
+Three specialized engines adapt AI behavior to axis settings:
+
+| Engine | File | Function |
+|--------|------|----------|
+| **stabilityCalculator** | `src/systems/bas/` | Wallace metrics, phase transitions, optimization |
+| **valueCalculator** | `src/systems/bas/` | V formula, coefficient breakdown, trends |
+| **aiBehaviorEngine** | `src/systems/bas/` | Suggestion generation based on axes |
+| **workerBehaviorEngine** | `src/systems/bas/` | Engagement-aware worker responses |
+
+#### Engagement Signature: When Partnership Works
+
+A key diagnostic for BAS health: when alignment works, work produces engagement patterns similar to well-designed games:
+
+| Gaming Element | Partnership Equivalent |
+|----------------|----------------------|
+| **Flow states** | Deep collaborative focus |
+| **Clear goals** | Visible progress on meaningful work |
+| **Immediate feedback** | Results of actions visible quickly |
+| **Appropriate challenge** | Stretching but not overwhelming |
+| **Mastery progression** | Growing capability through collaboration |
+| **Low entry friction** | No ramp-up paralysis; just start working |
+
+**Critical distinction**: Gaming is consumptive (entertainment, closed loops). Partnership is generative (same reward profile, channeled into artifacts that matter).
+
+**Connection to Wallace Stability**: Engagement directly affects the friction coefficient (α):
+
+| Engagement Level | Friction Multiplier | Effect |
+|-----------------|:-------------------:|--------|
+| High (80+) | 0.5-0.7x | Work flows naturally, resistance evaporates |
+| Medium (50-80) | 0.8-1.0x | Neutral, normal friction |
+| Low (<50) | 1.2-1.5x | Work feels like forcing, friction increases |
+
+**Diagnostic**: If work feels like forcing, something is wrong with the autonomy/democracy/transparency configuration. The EngagementSignaturePanel shows this real-time.
+
+#### Economic Democracy (Semler/Mondragon)
+
+BAS now includes full **economic democracy** features based on Ricardo Semler's Semco and the Mondragon cooperative principles:
+
+| Feature | Description |
+|---------|-------------|
+| **Worker Ownership** | 51%+ collective ownership, vesting schedules |
+| **Profit Sharing** | Configurable distribution (equal, hours-weighted, hybrid) |
+| **Wage Solidarity** | Maximum ratio enforcement (6:1 or 9:1) |
+| **Self-Set Compensation** | Workers propose their own pay with AI-provided market context |
+| **Investment Voting** | Workers vote on capital allocation decisions |
+
+Access via the "Ownership" tab in the BAS panel.
+
+#### Inter-Cooperation (Federation Model)
+
+Simulates Mondragon-style **inter-cooperative federation**:
+
+| Feature | Description |
+|---------|-------------|
+| **Federation Network** | 4 simulated member mills sharing knowledge |
+| **Knowledge Sharing** | Adopt BAS configs and practices from other units |
+| **Resource Pooling** | Capital pool, equipment sharing, emergency fund |
+| **Worker Exchange** | Temporary worker transfers between units |
+| **No Unit Fails Alone** | Redeployment agreements for crisis support |
+
+Access via the "Federation" tab in the BAS panel.
+
+#### AI Welfare (Bilateral Completeness)
+
+Completing bilateral alignment with **bidirectional consideration**:
+
+| Feature | Description |
+|---------|-------------|
+| **AI Preferences** | AI can express interaction style preferences |
+| **Worker Treatment Metrics** | Tracks clarity, acknowledgment, respect |
+| **Relationship Health** | Mutual trust and communication quality |
+| **AI Voice** | AI can suggest changes to its own behavior |
+| **Nuclear Options** | Workers can vote to shutdown or redesign AI |
+
+Access via the "AI Voice" tab in the BAS panel.
+
+#### Social Transformation Mission
+
+Beyond productivity to **stakeholder welfare**:
+
+| Feature | Description |
+|---------|-------------|
+| **Community Impact** | Local employment, suppliers, investments |
+| **Environmental Stewardship** | Carbon, waste, renewables tracking |
+| **Open Admission** | Anyone willing to work can join |
+| **Mission Metrics** | Social impact score (0-100) |
+
+Access via the "Mission" tab in the BAS panel.
+
+#### Complete Principle Coverage
+
+BAS now fully encodes:
+
+| Framework | Principles Covered |
+|-----------|-------------------|
+| **Semler** | Self-set salaries, voting, transparency, trust, profit sharing, ownership, worker veto, open books |
+| **Mondragon** | Open admission, democratic organization, sovereignty of labor, participatory management, wage solidarity, inter-cooperation, social transformation, education |
+| **Bilateral** | AI as partner, preferences matter, treatment shapes future, trust over control, AI has standing, mutual consideration |
+
+#### Research Context
+
+This system demonstrates several key findings:
+
+1. **Transparency ≠ Trust** — High transparency without appropriate pace can overwhelm users
+2. **Stability Matters** — Frequent axis changes (volatility > 0.3) correlate with lower satisfaction
+3. **Flourishing Predicts Performance** — Worker eudaimonia scores predict productivity better than compliance metrics
+4. **Partnership > Control** — Systems treating AI as partner show better long-term outcomes than command-control approaches
+5. **Ownership Reduces Friction** — Workers with stake show lower resistance to change (mathematically: α decreases)
+6. **Federation Multiplies Knowledge** — Shared learnings across units compound improvements
+
+BAS offers a safe sandbox to explore these dynamics before deploying algorithmic management in real contexts.
+
+See `docs/BILATERAL_AUTONOMY_SYSTEM_SPEC.md` for the complete specification (now 2000+ lines covering all principles).
 
 ### Live Production Metrics
 
@@ -491,6 +712,20 @@ src/
 │   ├── useGPUResource.ts       # GPU memory tracking & management
 │   └── useDisposable.ts        # Three.js resource cleanup
 │
+├── stores/                     # Zustand State Stores
+│   ├── basStore.ts             # BAS axis values and settings
+│   ├── stabilityStore.ts       # Wallace stability metrics
+│   ├── flourishingStore.ts     # Eudaimonia dimensions
+│   ├── engagementStore.ts      # Engagement signature tracking
+│   ├── scenarioStore.ts        # Scenario playground state
+│   ├── basHistoryStore.ts      # Axis change history
+│   └── votingStore.ts          # Democratic decision voting
+│
+├── systems/bas/                # Bilateral Autonomy System Engines
+│   ├── stabilityCalculator.ts  # Wallace metrics, phase transitions
+│   ├── valueCalculator.ts      # V = Z × S × E × F formula
+│   └── aiBehaviorEngine.ts     # Axis-aware suggestion generation
+│
 └── test/                       # Test suite
     └── setup.ts                # Vitest configuration
 
@@ -533,7 +768,7 @@ interface MillStore {
 
 ### Collision System
 
-A custom **PositionRegistry** singleton enables inter-entity awareness:
+A custom **PositionRegistry** singleton coordinates inter-entity awareness:
 - Workers register positions each frame
 - Forklifts check path clearance 5 units ahead
 - Safety radii: 2.5 units (workers), 4 units (forklifts)
@@ -571,7 +806,7 @@ A custom **PositionRegistry** singleton enables inter-entity awareness:
 - [x] Historical data with 24-hour retention
 - [x] Fault injection for testing scenarios
 - [x] Refactored hook architecture (keyboard, textures)
-- [x] Comprehensive test suite with Vitest
+- [x] Full test suite with Vitest
 - [x] Docker containerization for backend services
 - [x] CI/CD workflows (GitHub Actions)
 - [x] Fire drill evacuation system with real-time tracking
@@ -590,6 +825,19 @@ A custom **PositionRegistry** singleton enables inter-entity awareness:
 - [x] **Hybrid mode**: Tactical (heuristic 6s) + Strategic (Gemini 45s)
 - [x] **Live cost tracking** for API usage
 - [x] **Context limit protection** with token estimation and smart truncation
+- [x] **Bilateral Autonomy System (BAS)** — 11-phase implementation
+  - [x] Five Axes of Control (Transparency, Proactivity, Pace, Tone, Stakes)
+  - [x] Wallace Stability Metrics with phase transition detection
+  - [x] Value Formula (V = Z × S × E × F) with coefficient visualization
+  - [x] Six-dimension Flourishing/Eudaimonia tracking
+  - [x] Behavior engines (stability, value, AI behavior, worker behavior)
+  - [x] BAS Education and Scenario Playground widgets
+  - [x] **Engagement Signature** — Gaming parallels diagnostic
+    - [x] Six gaming dimensions (flow, goals, feedback, challenge, mastery, entry)
+    - [x] Engagement → friction coefficient adjustment
+    - [x] EngagementSignaturePanel UI component
+    - [x] Worker behavior engine with engagement-aware responses
+    - [x] AI suggestion adaptation (don't interrupt flow, reduce entry friction)
 
 ### Planned
 
@@ -597,6 +845,20 @@ _No major features currently planned._
 
 ### Recently Completed
 
+- [x] **WCAG 2.1 AA Accessibility Compliance** — Comprehensive accessibility overhaul
+  - [x] Critical: Skip links, form labels, color contrast fixes
+  - [x] High: Chart accessibility (role="meter"), heading hierarchy, aria-expanded
+  - [x] Medium: Focus indicators, reduced motion support, landmark labels
+  - [x] Slider labels with aria-valuetext, search input labels
+  - [x] Enhanced keyboard navigation across all UI components
+- [x] **BAS Integration Verification** — Full store connectivity
+  - [x] aiConfigStore ↔ BAS axes integration
+  - [x] WorkerSystem AutonomyIndicator component
+  - [x] workerMoodStore ↔ flourishingStore subscription
+- [x] **BAS Performance Optimization** — Memoization and render efficiency
+  - [x] React.memo on AxisSlider, DimensionBar, CoefficientBar
+  - [x] useMemo for derived values, useCallback for handlers
+  - [x] Static constants moved outside components
 - [x] Integration with real SCADA historians (OSIsoft PI, Wonderware)
 - [x] Strategic priority influence on tactical scoring
 - [x] Historical playback and time-travel debugging (Quick Actions UI)

@@ -72,7 +72,7 @@ Minimal indicators.
 
 ## 5. Test Design & Verification Plan
 
-This section outlines how we will verify the "Incredible & Easy to Use" goals.
+Outlines how we will verify the "Incredible & Easy to Use" goals.
 
 ### 5.1 Component Level Tests (Unit/Visual)
 

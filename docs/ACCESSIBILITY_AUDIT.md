@@ -207,7 +207,7 @@ Tab interfaces lack proper `role="tablist"`, `role="tab"`, `role="tabpanel"`, an
 **Issue:**
 Recharts components provide no text alternative or data table equivalent for screen readers.
 
-**Recommendation:** Add visually hidden data table or comprehensive aria-label with data summary.
+**Recommendation:** Add visually hidden data table or detailed aria-label with data summary.
 
 ---
 

@@ -5,7 +5,7 @@
 
 ## Overview
 
-This document summarizes the accessibility improvements implemented for the MillOS application based on the comprehensive accessibility audit. These fixes address the most critical barriers to keyboard and screen reader users.
+Summarizes the accessibility improvements implemented for the MillOS application based on the detailed accessibility audit. These fixes address the most critical barriers to keyboard and screen reader users.
 
 ---
 

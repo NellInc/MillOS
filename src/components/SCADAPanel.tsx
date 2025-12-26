@@ -335,9 +335,9 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
       return (
         <div className="p-4 space-y-4">
           <div className="text-center py-6">
-            <Database className="w-12 h-12 mx-auto mb-3 text-slate-600" />
+            <Database className="w-12 h-12 mx-auto mb-3 text-slate-500" />
             <h3 className="text-sm font-bold text-white mb-2">SCADA Disabled</h3>
-            <p className="text-xs text-slate-400 mb-4">
+            <p className="text-xs text-slate-300 mb-4">
               SCADA telemetry is disabled on Low/Medium graphics for performance.
             </p>
             <button
@@ -365,8 +365,9 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
             <span className="text-[10px] text-cyan-400">{tags.length} tags</span>
             <button
               onClick={handleToggleSCADA}
-              className="text-[9px] text-slate-500 hover:text-red-400 transition-colors"
+              className="text-[9px] text-slate-400 hover:text-red-400 transition-colors"
               title="Disable SCADA"
+              aria-label="Disable SCADA"
             >
               OFF
             </button>
@@ -382,25 +383,27 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
         )}
 
         {/* Compact Tabs */}
-        <div className="flex gap-1">
+        <div className="flex gap-1" role="tablist" aria-label="SCADA embedded tabs">
           {(['tags', 'alarms'] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
+              role="tab"
+              aria-selected={activeTab === tab}
               className={`flex-1 px-2 py-1.5 rounded text-[10px] font-medium transition-colors ${
                 activeTab === tab
                   ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
-                  : 'bg-slate-800/50 text-slate-400 hover:bg-slate-700/50'
+                  : 'bg-slate-800/50 text-slate-300 hover:bg-slate-700/50'
               }`}
             >
               {tab === 'tags' ? (
                 <>
-                  <Database className="w-3 h-3 inline mr-1" />
+                  <Database className="w-3 h-3 inline mr-1" aria-hidden="true" />
                   Tags ({tags.length})
                 </>
               ) : (
                 <>
-                  <Bell className="w-3 h-3 inline mr-1" />
+                  <Bell className="w-3 h-3 inline mr-1" aria-hidden="true" />
                   Alarms ({alarms.length})
                 </>
               )}
@@ -410,9 +413,9 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
 
         {/* Tags View */}
         {activeTab === 'tags' && (
-          <div className="space-y-2">
+          <div className="space-y-2" role="tabpanel" aria-label="Tags list">
             {machineEntries.length === 0 ? (
-              <div className="text-center text-slate-500 py-6">
+              <div className="text-center text-slate-400 py-6">
                 <Database className="w-8 h-8 mx-auto mb-2 opacity-50" />
                 <p className="text-xs">No SCADA tags configured</p>
               </div>
@@ -432,9 +435,9 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
                       const isStale = value && Date.now() - value.timestamp > 5000;
                       return (
                         <div key={tag.id} className="flex items-center justify-between text-[10px]">
-                          <span className="text-slate-400 truncate flex-1 mr-2">{tag.name}</span>
+                          <span className="text-slate-300 truncate flex-1 mr-2">{tag.name}</span>
                           <span
-                            className={`font-mono tabular-nums ${isStale ? 'text-yellow-500' : 'text-green-400'}`}
+                            className={`font-mono tabular-nums ${isStale ? 'text-yellow-400' : 'text-green-400'}`}
                           >
                             {displayValue}
                           </span>
@@ -450,12 +453,12 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
 
         {/* Alarms View */}
         {activeTab === 'alarms' && (
-          <div className="space-y-2">
+          <div className="space-y-2" role="tabpanel" aria-label="Alarms list">
             {alarms.length === 0 ? (
-              <div className="text-center text-slate-500 py-6">
+              <div className="text-center text-slate-400 py-6">
                 <Check className="w-8 h-8 mx-auto mb-2 text-green-500/50" />
                 <p className="text-xs">All systems nominal</p>
-                <p className="text-[10px] text-slate-600 mt-1">No active alarms</p>
+                <p className="text-[10px] text-slate-400 mt-1">No active alarms</p>
               </div>
             ) : (
               alarms.slice(0, 10).map((alarm) => (
@@ -477,13 +480,14 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
                       <button
                         onClick={() => acknowledge(alarm.id)}
                         className="px-2 py-0.5 bg-cyan-500/20 text-cyan-400 text-[9px] rounded hover:bg-cyan-500/30"
+                        aria-label={`Acknowledge ${alarm.tagName} alarm`}
                       >
                         ACK
                       </button>
                     )}
                   </div>
                   <div className="text-xs text-white font-medium">{alarm.tagName}</div>
-                  <div className="text-[10px] text-slate-400">
+                  <div className="text-[10px] text-slate-300">
                     Value: <span className="text-red-400">{alarm.value.toFixed(1)}</span>
                   </div>
                 </div>
@@ -512,12 +516,16 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
               />
               <h2 className="text-lg font-bold text-white">SCADA Monitor</h2>
             </div>
-            <button onClick={onClose} className="p-1 hover:bg-slate-700/50 rounded">
+            <button
+              onClick={onClose}
+              className="p-1 hover:bg-slate-700/50 rounded"
+              aria-label="Close SCADA panel"
+            >
               <X className="w-5 h-5 text-slate-400" />
             </button>
           </div>
 
-          <div className="flex items-center gap-4 text-xs text-slate-400">
+          <div className="flex items-center gap-4 text-xs text-slate-300">
             <span>
               Mode: <span className="text-cyan-400">{mode}</span>
             </span>
@@ -549,7 +557,7 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
             className={`flex-1 px-4 py-2 text-sm font-medium transition-colors ${
               activeTab === 'tags'
                 ? 'text-cyan-400 border-b-2 border-cyan-400'
-                : 'text-slate-400 hover:text-white'
+                : 'text-slate-300 hover:text-white'
             }`}
           >
             <Database className="w-4 h-4 inline mr-2" aria-hidden="true" />
@@ -565,7 +573,7 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
             className={`flex-1 px-4 py-2 text-sm font-medium transition-colors relative ${
               activeTab === 'alarms'
                 ? 'text-cyan-400 border-b-2 border-cyan-400'
-                : 'text-slate-400 hover:text-white'
+                : 'text-slate-300 hover:text-white'
             }`}
           >
             <Bell className="w-4 h-4 inline mr-2" aria-hidden="true" />
@@ -589,7 +597,7 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
             className={`flex-1 px-4 py-2 text-sm font-medium transition-colors ${
               activeTab === 'trends'
                 ? 'text-cyan-400 border-b-2 border-cyan-400'
-                : 'text-slate-400 hover:text-white'
+                : 'text-slate-300 hover:text-white'
             }`}
           >
             <TrendingUp className="w-4 h-4 inline mr-2" aria-hidden="true" />
@@ -605,7 +613,7 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
             className={`flex-1 px-4 py-2 text-sm font-medium transition-colors ${
               activeTab === 'faults'
                 ? 'text-cyan-400 border-b-2 border-cyan-400'
-                : 'text-slate-400 hover:text-white'
+                : 'text-slate-300 hover:text-white'
             }`}
           >
             <AlertTriangle className="w-4 h-4 inline mr-2" aria-hidden="true" />
@@ -621,7 +629,7 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
             className={`flex-1 px-4 py-2 text-sm font-medium transition-colors ${
               activeTab === 'settings'
                 ? 'text-cyan-400 border-b-2 border-cyan-400'
-                : 'text-slate-400 hover:text-white'
+                : 'text-slate-300 hover:text-white'
             }`}
           >
             <Settings className="w-4 h-4 inline mr-2" aria-hidden="true" />
@@ -647,7 +655,7 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
                     Search tags
                   </label>
                   <Search
-                    className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500"
+                    className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"
                     aria-hidden="true"
                   />
                   <input
@@ -656,16 +664,17 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
                     placeholder="Search tags..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-3 py-2 bg-slate-800/50 border border-slate-700/50 rounded text-sm text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/30"
+                    className="w-full pl-10 pr-3 py-2 bg-slate-800/50 border border-slate-700/50 rounded text-sm text-white placeholder-slate-400 focus:outline-none focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/30"
                   />
                 </div>
-                <div className="flex gap-2 overflow-x-auto pb-1">
+                <div className="flex gap-2 overflow-x-auto pb-1" role="group" aria-label="Filter tags by group">
                   <button
                     onClick={() => setSelectedGroup('ALL')}
+                    aria-pressed={selectedGroup === 'ALL'}
                     className={`px-2 py-1 rounded text-xs whitespace-nowrap ${
                       selectedGroup === 'ALL'
                         ? 'bg-cyan-500/20 text-cyan-400'
-                        : 'bg-slate-800/50 text-slate-400 hover:text-white'
+                        : 'bg-slate-800/50 text-slate-300 hover:text-white'
                     }`}
                   >
                     All
@@ -676,10 +685,11 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
                     <button
                       key={group}
                       onClick={() => setSelectedGroup(group)}
+                      aria-pressed={selectedGroup === group}
                       className={`px-2 py-1 rounded text-xs whitespace-nowrap flex items-center gap-1 ${
                         selectedGroup === group
                           ? 'bg-cyan-500/20 text-cyan-400'
-                          : 'bg-slate-800/50 text-slate-400 hover:text-white'
+                          : 'bg-slate-800/50 text-slate-300 hover:text-white'
                       }`}
                     >
                       {TAG_GROUP_ICONS[group]}
@@ -709,7 +719,7 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
                         }}
                         aria-expanded={isExpanded}
                         aria-controls={`machine-tags-${machineId}`}
-                        className="w-full px-3 py-2 flex items-center justify-between text-sm font-medium text-slate-300 hover:bg-slate-700/30"
+                        className="w-full px-3 py-2 flex items-center justify-between text-sm font-medium text-slate-200 hover:bg-slate-700/30"
                       >
                         <span className="flex items-center gap-2">
                           {isExpanded ? (
@@ -719,7 +729,7 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
                           )}
                           {machineId}
                         </span>
-                        <span className="text-xs text-slate-500">
+                        <span className="text-xs text-slate-400">
                           {filteredMachineTags.length} tags
                         </span>
                       </button>
@@ -744,8 +754,8 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
                                 <div className="flex items-center gap-2 min-w-0">
                                   {TAG_GROUP_ICONS[tag.group]}
                                   <div className="truncate">
-                                    <div className="text-slate-300 truncate">{tag.name}</div>
-                                    <div className="text-slate-500 truncate">{tag.id}</div>
+                                    <div className="text-slate-200 truncate">{tag.name}</div>
+                                    <div className="text-slate-400 truncate">{tag.id}</div>
                                   </div>
                                 </div>
                                 <div className="flex items-center gap-2 ml-2">
@@ -758,6 +768,7 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
                                       </span>
                                       <span
                                         className={`w-2 h-2 rounded-full ${QUALITY_COLORS[value.quality]}`}
+                                        aria-label={`Quality: ${value.quality}`}
                                       />
                                     </>
                                   )}
@@ -783,7 +794,7 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
                   }
                   className="flex-1 px-3 py-2 bg-slate-700/50 hover:bg-slate-600/50 text-white text-sm rounded flex items-center justify-center gap-2"
                 >
-                  <Download className="w-4 h-4" />
+                  <Download className="w-4 h-4" aria-hidden="true" />
                   Export CSV
                 </button>
                 <button
@@ -795,7 +806,7 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
                   }
                   className="flex-1 px-3 py-2 bg-slate-700/50 hover:bg-slate-600/50 text-white text-sm rounded flex items-center justify-center gap-2"
                 >
-                  <Download className="w-4 h-4" />
+                  <Download className="w-4 h-4" aria-hidden="true" />
                   Export JSON
                 </button>
               </div>
@@ -816,21 +827,21 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
                 <div className="grid grid-cols-4 gap-2 text-center">
                   <div className="bg-slate-800/50 rounded p-2">
                     <div className="text-2xl font-bold text-white">{summary.total}</div>
-                    <div className="text-xs text-slate-500">Total</div>
+                    <div className="text-xs text-slate-400">Total</div>
                   </div>
                   <div className="bg-red-500/20 rounded p-2">
                     <div className="text-2xl font-bold text-red-400">{summary.critical}</div>
-                    <div className="text-xs text-red-400/70">Critical</div>
+                    <div className="text-xs text-red-300">Critical</div>
                   </div>
                   <div className="bg-orange-500/20 rounded p-2">
                     <div className="text-2xl font-bold text-orange-400">{summary.high}</div>
-                    <div className="text-xs text-orange-400/70">High</div>
+                    <div className="text-xs text-orange-300">High</div>
                   </div>
                   <div className="bg-yellow-500/20 rounded p-2">
                     <div className="text-2xl font-bold text-yellow-400">
                       {summary.unacknowledged}
                     </div>
-                    <div className="text-xs text-yellow-400/70">Unack</div>
+                    <div className="text-xs text-yellow-300">Unack</div>
                   </div>
                 </div>
               </div>
@@ -838,7 +849,7 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
               {/* Alarm list */}
               <div className="flex-1 overflow-y-auto p-3 space-y-2">
                 {alarms.length === 0 ? (
-                  <div className="text-center text-slate-500 py-8">
+                  <div className="text-center text-slate-400 py-8">
                     <Check className="w-12 h-12 mx-auto mb-2 text-green-500/50" />
                     No active alarms
                   </div>
@@ -859,12 +870,13 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
                           >
                             {alarm.priority}
                           </span>
-                          <span className="text-xs text-slate-500">{alarm.type}</span>
+                          <span className="text-xs text-slate-400">{alarm.type}</span>
                         </div>
                         {(alarm.state === 'UNACK' || alarm.state === 'RTN_UNACK') && (
                           <button
                             onClick={() => acknowledge(alarm.id)}
                             className="px-2 py-1 bg-cyan-500/20 text-cyan-400 text-xs rounded hover:bg-cyan-500/30"
+                            aria-label={`Acknowledge ${alarm.tagName} alarm`}
                           >
                             ACK
                           </button>
@@ -872,10 +884,10 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
                       </div>
                       <div className="mt-2">
                         <div className="text-sm text-white font-medium">{alarm.tagName}</div>
-                        <div className="text-xs text-slate-400 mt-1">
+                        <div className="text-xs text-slate-300 mt-1">
                           Value: {alarm.value.toFixed(2)} | Threshold: {alarm.threshold}
                         </div>
-                        <div className="text-xs text-slate-500 mt-1">
+                        <div className="text-xs text-slate-400 mt-1">
                           {new Date(alarm.timestamp).toLocaleTimeString()}
                           {alarm.acknowledgedBy && ` | ACK by ${alarm.acknowledgedBy}`}
                         </div>
@@ -913,18 +925,19 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
                 {/* Duration selector */}
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Clock className="w-4 h-4 text-slate-400" />
-                    <span className="text-xs text-slate-400">Duration:</span>
+                    <Clock className="w-4 h-4 text-slate-300" aria-hidden="true" />
+                    <span className="text-xs text-slate-300">Duration:</span>
                   </div>
-                  <div className="flex gap-1">
+                  <div className="flex gap-1" role="group" aria-label="Select trend duration">
                     {DURATION_OPTIONS.map((opt) => (
                       <button
                         key={opt.value}
                         onClick={() => setTrendDuration(opt.value)}
+                        aria-pressed={trendDuration === opt.value}
                         className={`px-2 py-1 rounded text-xs ${
                           trendDuration === opt.value
                             ? 'bg-cyan-500/20 text-cyan-400'
-                            : 'bg-slate-800/50 text-slate-400 hover:text-white'
+                            : 'bg-slate-800/50 text-slate-300 hover:text-white'
                         }`}
                       >
                         {opt.label}
@@ -935,11 +948,12 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
 
                 {/* Pause/Play control */}
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-slate-400">
+                  <span className="text-xs text-slate-300">
                     {selectedTrendTags.length}/6 tags selected
                   </span>
                   <button
                     onClick={() => setTrendPaused(!trendPaused)}
+                    aria-pressed={trendPaused}
                     className={`px-3 py-1 rounded text-xs flex items-center gap-1 ${
                       trendPaused
                         ? 'bg-green-500/20 text-green-400'
@@ -948,12 +962,12 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
                   >
                     {trendPaused ? (
                       <>
-                        <Play className="w-3 h-3" />
+                        <Play className="w-3 h-3" aria-hidden="true" />
                         Resume
                       </>
                     ) : (
                       <>
-                        <Pause className="w-3 h-3" />
+                        <Pause className="w-3 h-3" aria-hidden="true" />
                         Pause
                       </>
                     )}
@@ -964,8 +978,8 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
               {/* Chart Area */}
               <div className="flex-1 p-3 min-h-0">
                 {selectedTrendTags.length === 0 ? (
-                  <div className="h-full flex flex-col items-center justify-center text-slate-500">
-                    <TrendingUp className="w-12 h-12 mb-3 opacity-50" />
+                  <div className="h-full flex flex-col items-center justify-center text-slate-400">
+                    <TrendingUp className="w-12 h-12 mb-3 opacity-50" aria-hidden="true" />
                     <p className="text-sm">Select tags below to view trends</p>
                     <p className="text-xs mt-1">Up to 6 tags can be displayed</p>
                   </div>
@@ -980,11 +994,11 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
                         <XAxis
                           dataKey="timestamp"
                           tickFormatter={formatXAxis}
-                          stroke="#64748b"
+                          stroke="#94a3b8"
                           tick={{ fontSize: 10 }}
                           interval="preserveStartEnd"
                         />
-                        <YAxis stroke="#64748b" tick={{ fontSize: 10 }} width={50} />
+                        <YAxis stroke="#94a3b8" tick={{ fontSize: 10 }} width={50} />
                         <Tooltip
                           contentStyle={{
                             backgroundColor: '#1e293b',
@@ -1025,7 +1039,7 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
                       Search tags to add to trend
                     </label>
                     <Search
-                      className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-500"
+                      className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400"
                       aria-hidden="true"
                     />
                     <input
@@ -1034,7 +1048,7 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
                       placeholder="Search tags to add..."
                       value={trendTagSearch}
                       onChange={(e) => setTrendTagSearch(e.target.value)}
-                      className="w-full pl-7 pr-2 py-1 bg-slate-800/50 border border-slate-700/50 rounded text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/30"
+                      className="w-full pl-7 pr-2 py-1 bg-slate-800/50 border border-slate-700/50 rounded text-xs text-white placeholder-slate-400 focus:outline-none focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/30"
                     />
                   </div>
                 </div>
@@ -1051,9 +1065,10 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
                           backgroundColor: `${TREND_COLORS[idx % TREND_COLORS.length]}20`,
                           color: TREND_COLORS[idx % TREND_COLORS.length],
                         }}
+                        aria-label={`Remove ${getTagShortName(tagId)} from trend`}
                       >
                         <span className="truncate max-w-[100px]">{getTagShortName(tagId)}</span>
-                        <X className="w-3 h-3" />
+                        <X className="w-3 h-3" aria-hidden="true" />
                       </button>
                     ))}
                   </div>
@@ -1069,24 +1084,25 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
                         key={tag.id}
                         onClick={() => toggleTrendTag(tag.id)}
                         disabled={!isSelected && selectedTrendTags.length >= 6}
+                        aria-pressed={isSelected}
                         className={`w-full px-2 py-1 rounded text-xs flex items-center justify-between ${
                           isSelected
                             ? 'bg-cyan-500/20 text-cyan-400'
                             : selectedTrendTags.length >= 6
-                              ? 'bg-slate-800/30 text-slate-600 cursor-not-allowed'
-                              : 'bg-slate-800/50 text-slate-300 hover:bg-slate-700/50'
+                              ? 'bg-slate-800/30 text-slate-500 cursor-not-allowed'
+                              : 'bg-slate-800/50 text-slate-200 hover:bg-slate-700/50'
                         }`}
                       >
                         <div className="flex items-center gap-2 min-w-0">
                           {isSelected ? (
-                            <Minus className="w-3 h-3" />
+                            <Minus className="w-3 h-3" aria-hidden="true" />
                           ) : (
-                            <Plus className="w-3 h-3" />
+                            <Plus className="w-3 h-3" aria-hidden="true" />
                           )}
                           <span className="truncate">{tag.name}</span>
                         </div>
                         {value && (
-                          <span className="text-slate-500 ml-2">
+                          <span className="text-slate-400 ml-2">
                             {(value.value as number).toFixed(1)} {tag.engUnit}
                           </span>
                         )}
@@ -1107,7 +1123,7 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
               aria-labelledby="scada-tab-button-faults"
               tabIndex={0}
             >
-              <div className="text-sm text-slate-400 mb-4">
+              <div className="text-sm text-slate-300 mb-4">
                 Inject faults into the simulation for testing alarm detection and anomaly handling.
               </div>
 
@@ -1128,7 +1144,7 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
                     <div className="text-sm font-medium text-white capitalize">
                       {faultType.replace('_', ' ')}
                     </div>
-                    <div className="text-xs text-slate-500">
+                    <div className="text-xs text-slate-400">
                       {faultType === 'sensor_fail' && 'Simulate sensor failure (BAD quality)'}
                       {faultType === 'spike' && 'Sudden value spike to near maximum'}
                       {faultType === 'drift' && 'Accelerated value drift over time'}
@@ -1146,13 +1162,13 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
                     {activeFaults.map((fault, idx) => (
                       <div key={idx} className="px-3 py-2 bg-red-500/20 rounded text-sm">
                         <span className="text-red-400">{fault.faultType}</span>
-                        <span className="text-slate-400 ml-2">on {fault.tagId}</span>
+                        <span className="text-slate-300 ml-2">on {fault.tagId}</span>
                       </div>
                     ))}
                   </div>
                   <button
                     onClick={clearAllFaults}
-                    className="mt-3 w-full px-4 py-2 bg-slate-700/50 text-slate-300 rounded hover:bg-slate-600/50 text-sm"
+                    className="mt-3 w-full px-4 py-2 bg-slate-700/50 text-slate-200 rounded hover:bg-slate-600/50 text-sm"
                   >
                     Clear All Faults
                   </button>
@@ -1178,17 +1194,18 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
                     <span
                       className={`flex items-center gap-1.5 text-xs ${isConnected ? 'text-green-400' : 'text-red-400'}`}
                     >
-                      {isConnected ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
+                      {isConnected ? <Wifi className="w-3 h-3" aria-hidden="true" /> : <WifiOff className="w-3 h-3" aria-hidden="true" />}
                       {isConnected ? 'Connected' : 'Disconnected'}
                     </span>
                   </div>
-                  <div className="text-xs text-slate-400">
+                  <div className="text-xs text-slate-300">
                     Current mode: <span className="text-cyan-400">{mode}</span>
                   </div>
                   <div className="flex items-center justify-between mt-3">
-                    <div className="text-xs text-slate-400">SCADA runtime</div>
+                    <div className="text-xs text-slate-300">SCADA runtime</div>
                     <button
                       onClick={handleToggleSCADA}
+                      aria-pressed={scadaEnabled}
                       className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
                         scadaEnabled
                           ? 'bg-green-500/20 text-green-300 border border-green-500/40'
@@ -1206,8 +1223,8 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
                 </div>
 
                 {/* Connection Type Selector */}
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-white">Connection Type</label>
+                <fieldset className="space-y-2">
+                  <legend className="text-sm font-medium text-white">Connection Type</legend>
                   <div className="grid grid-cols-2 gap-2">
                     {[
                       {
@@ -1239,6 +1256,7 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
                       <button
                         key={type}
                         onClick={() => setConnectionType(type)}
+                        aria-pressed={connectionType === type}
                         className={`p-3 rounded-lg text-left transition-colors ${
                           connectionType === type
                             ? 'bg-cyan-500/20 border border-cyan-500/50'
@@ -1247,7 +1265,8 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
                       >
                         <div className="flex items-center gap-2 mb-1">
                           <Icon
-                            className={`w-4 h-4 ${connectionType === type ? 'text-cyan-400' : 'text-slate-400'}`}
+                            className={`w-4 h-4 ${connectionType === type ? 'text-cyan-400' : 'text-slate-300'}`}
+                            aria-hidden="true"
                           />
                           <span
                             className={`text-sm font-medium ${connectionType === type ? 'text-cyan-400' : 'text-white'}`}
@@ -1255,33 +1274,39 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
                             {label}
                           </span>
                         </div>
-                        <div className="text-xs text-slate-500">{desc}</div>
+                        <div className="text-xs text-slate-400">{desc}</div>
                       </button>
                     ))}
                   </div>
-                </div>
+                </fieldset>
 
                 {/* REST Configuration */}
                 {connectionType === 'rest' && (
-                  <div className="space-y-3 bg-slate-800/30 rounded-lg p-3">
-                    <div className="text-sm font-medium text-white flex items-center gap-2">
-                      <Globe className="w-4 h-4 text-cyan-400" />
+                  <fieldset className="space-y-3 bg-slate-800/30 rounded-lg p-3">
+                    <legend className="text-sm font-medium text-white flex items-center gap-2">
+                      <Globe className="w-4 h-4 text-cyan-400" aria-hidden="true" />
                       REST API Configuration
-                    </div>
+                    </legend>
                     <div className="space-y-2">
-                      <label className="block">
-                        <span className="text-xs text-slate-400">Base URL</span>
+                      <div>
+                        <label htmlFor="rest-base-url" className="block text-xs text-slate-300 mb-1">
+                          Base URL
+                        </label>
                         <input
+                          id="rest-base-url"
                           type="text"
                           value={restUrl}
                           onChange={(e) => setRestUrl(e.target.value)}
                           placeholder="http://localhost:3001"
-                          className="mt-1 w-full px-3 py-2 bg-slate-900/50 border border-slate-700/50 rounded text-sm text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/30"
+                          className="w-full px-3 py-2 bg-slate-900/50 border border-slate-700/50 rounded text-sm text-white placeholder-slate-400 focus:outline-none focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/30"
                         />
-                      </label>
-                      <label className="block">
-                        <span className="text-xs text-slate-400">Poll Interval (ms)</span>
+                      </div>
+                      <div>
+                        <label htmlFor="rest-poll-interval" className="block text-xs text-slate-300 mb-1">
+                          Poll Interval (ms)
+                        </label>
                         <input
+                          id="rest-poll-interval"
                           type="number"
                           value={restPollInterval}
                           onChange={(e) =>
@@ -1292,91 +1317,104 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
                           aria-valuemin={100}
                           aria-valuemax={60000}
                           aria-valuenow={restPollInterval}
-                          className="mt-1 w-full px-3 py-2 bg-slate-900/50 border border-slate-700/50 rounded text-sm text-white focus:outline-none focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/30"
+                          className="w-full px-3 py-2 bg-slate-900/50 border border-slate-700/50 rounded text-sm text-white focus:outline-none focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/30"
                         />
-                      </label>
+                      </div>
                     </div>
-                  </div>
+                  </fieldset>
                 )}
 
                 {/* MQTT Configuration */}
                 {connectionType === 'mqtt' && (
-                  <div className="space-y-3 bg-slate-800/30 rounded-lg p-3">
-                    <div className="text-sm font-medium text-white flex items-center gap-2">
-                      <Radio className="w-4 h-4 text-cyan-400" />
+                  <fieldset className="space-y-3 bg-slate-800/30 rounded-lg p-3">
+                    <legend className="text-sm font-medium text-white flex items-center gap-2">
+                      <Radio className="w-4 h-4 text-cyan-400" aria-hidden="true" />
                       MQTT Configuration
-                    </div>
+                    </legend>
                     <div className="space-y-2">
-                      <label className="block">
-                        <span className="text-xs text-slate-400">Broker URL (WebSocket)</span>
+                      <div>
+                        <label htmlFor="mqtt-broker-url" className="block text-xs text-slate-300 mb-1">
+                          Broker URL (WebSocket)
+                        </label>
                         <input
+                          id="mqtt-broker-url"
                           type="text"
                           value={mqttBrokerUrl}
                           onChange={(e) => setMqttBrokerUrl(e.target.value)}
                           placeholder="ws://localhost:8883"
-                          className="mt-1 w-full px-3 py-2 bg-slate-900/50 border border-slate-700/50 rounded text-sm text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/30"
+                          className="w-full px-3 py-2 bg-slate-900/50 border border-slate-700/50 rounded text-sm text-white placeholder-slate-400 focus:outline-none focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/30"
                         />
-                      </label>
-                      <label className="block">
-                        <span className="text-xs text-slate-400">Topic Prefix</span>
+                      </div>
+                      <div>
+                        <label htmlFor="mqtt-topic-prefix" className="block text-xs text-slate-300 mb-1">
+                          Topic Prefix
+                        </label>
                         <input
+                          id="mqtt-topic-prefix"
                           type="text"
                           value={mqttTopicPrefix}
                           onChange={(e) => setMqttTopicPrefix(e.target.value)}
                           placeholder="scada"
-                          className="mt-1 w-full px-3 py-2 bg-slate-900/50 border border-slate-700/50 rounded text-sm text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/30"
+                          className="w-full px-3 py-2 bg-slate-900/50 border border-slate-700/50 rounded text-sm text-white placeholder-slate-400 focus:outline-none focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/30"
                         />
-                      </label>
+                      </div>
                     </div>
-                  </div>
+                  </fieldset>
                 )}
 
                 {/* WebSocket Configuration */}
                 {connectionType === 'websocket' && (
-                  <div className="space-y-3 bg-slate-800/30 rounded-lg p-3">
-                    <div className="text-sm font-medium text-white flex items-center gap-2">
-                      <Wifi className="w-4 h-4 text-cyan-400" />
+                  <fieldset className="space-y-3 bg-slate-800/30 rounded-lg p-3">
+                    <legend className="text-sm font-medium text-white flex items-center gap-2">
+                      <Wifi className="w-4 h-4 text-cyan-400" aria-hidden="true" />
                       WebSocket Configuration
-                    </div>
-                    <label className="block">
-                      <span className="text-xs text-slate-400">WebSocket URL</span>
+                    </legend>
+                    <div>
+                      <label htmlFor="websocket-url" className="block text-xs text-slate-300 mb-1">
+                        WebSocket URL
+                      </label>
                       <input
+                        id="websocket-url"
                         type="text"
                         value={proxyUrl}
                         onChange={(e) => setProxyUrl(e.target.value)}
                         placeholder="ws://localhost:3001/ws"
-                        className="mt-1 w-full px-3 py-2 bg-slate-900/50 border border-slate-700/50 rounded text-sm text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/30"
+                        className="w-full px-3 py-2 bg-slate-900/50 border border-slate-700/50 rounded text-sm text-white placeholder-slate-400 focus:outline-none focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/30"
                       />
-                    </label>
-                  </div>
+                    </div>
+                  </fieldset>
                 )}
 
                 {/* OPC-UA / Backend Proxy Configuration */}
                 {(connectionType === 'opcua' || connectionType === 'modbus') && (
-                  <div className="space-y-3 bg-slate-800/30 rounded-lg p-3">
-                    <div className="text-sm font-medium text-white flex items-center gap-2">
-                      <Server className="w-4 h-4 text-cyan-400" />
+                  <fieldset className="space-y-3 bg-slate-800/30 rounded-lg p-3">
+                    <legend className="text-sm font-medium text-white flex items-center gap-2">
+                      <Server className="w-4 h-4 text-cyan-400" aria-hidden="true" />
                       Backend Proxy Configuration
-                    </div>
-                    <div className="text-xs text-slate-400 mb-2">
+                    </legend>
+                    <div className="text-xs text-slate-300 mb-2">
                       OPC-UA and Modbus require the scada-proxy backend service.
                     </div>
-                    <label className="block">
-                      <span className="text-xs text-slate-400">Proxy URL</span>
+                    <div>
+                      <label htmlFor="proxy-url" className="block text-xs text-slate-300 mb-1">
+                        Proxy URL
+                      </label>
                       <input
+                        id="proxy-url"
                         type="text"
                         value={proxyUrl}
                         onChange={(e) => setProxyUrl(e.target.value)}
                         placeholder="http://localhost:3001"
-                        className="mt-1 w-full px-3 py-2 bg-slate-900/50 border border-slate-700/50 rounded text-sm text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/30"
+                        className="w-full px-3 py-2 bg-slate-900/50 border border-slate-700/50 rounded text-sm text-white placeholder-slate-400 focus:outline-none focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/30"
                       />
-                    </label>
-                  </div>
+                    </div>
+                  </fieldset>
                 )}
 
                 {/* Settings Message */}
                 {settingsMessage && (
                   <div
+                    role="alert"
                     className={`p-3 rounded-lg text-sm ${
                       settingsMessage.type === 'success'
                         ? 'bg-green-500/20 text-green-400 border border-green-500/30'
@@ -1432,12 +1470,12 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
                 >
                   {isApplyingSettings ? (
                     <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
                       Applying...
                     </>
                   ) : (
                     <>
-                      <Save className="w-4 h-4" />
+                      <Save className="w-4 h-4" aria-hidden="true" />
                       Apply Settings
                     </>
                   )}
@@ -1455,9 +1493,9 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
                     setProxyUrl('http://localhost:3001');
                     setSettingsMessage(null);
                   }}
-                  className="w-full px-4 py-2 bg-slate-700/50 text-slate-300 rounded hover:bg-slate-600/50 text-sm flex items-center justify-center gap-2"
+                  className="w-full px-4 py-2 bg-slate-700/50 text-slate-200 rounded hover:bg-slate-600/50 text-sm flex items-center justify-center gap-2"
                 >
-                  <RotateCcw className="w-4 h-4" />
+                  <RotateCcw className="w-4 h-4" aria-hidden="true" />
                   Reset to Defaults
                 </button>
               </div>

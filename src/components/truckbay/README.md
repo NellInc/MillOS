@@ -152,7 +152,7 @@ To switch to the refactored version:
 
 ### After (Modular)
 - **~2,000 lines** split across 7 focused files
-- Easy to locate specific functionality
+- Easy to locate specific functions
 - Individual components testable in isolation
 - Clear separation of concerns
 - Better IDE performance

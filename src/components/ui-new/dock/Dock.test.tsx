@@ -12,6 +12,9 @@ vi.mock('lucide-react', () => ({
   Settings: () => <span data-testid="icon-settings" />,
   Eye: () => <span data-testid="icon-eye" />,
   Radio: () => <span data-testid="icon-radio" />,
+  Heart: () => <span data-testid="icon-heart" />,
+  Maximize: () => <span data-testid="icon-maximize" />,
+  Minimize: () => <span data-testid="icon-minimize" />,
 }));
 
 describe('Dock Component', () => {
