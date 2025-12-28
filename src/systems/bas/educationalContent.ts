@@ -43,8 +43,7 @@ export type ConceptCategory =
 export const wallaceStability: ConceptTooltipContent = {
   id: 'wallace-stability',
   title: 'Wallace Stability',
-  shortDescription:
-    'System stability requires the friction-delay product to remain below 0.368.',
+  shortDescription: 'System stability requires the friction-delay product to remain below 0.368.',
   fullExplanation: `Wallace's Rate Distortion Control Theory establishes that cognitive systems require regulatory pairing for stability. The critical threshold is:
 
 ατ < e⁻¹ ≈ 0.368
@@ -73,8 +72,7 @@ The engagement signature (work feeling "like a game but producing something real
 export const stabilityThreshold: ConceptTooltipContent = {
   id: 'stability-threshold',
   title: 'Stability Threshold (e⁻¹)',
-  shortDescription:
-    'The critical value 0.368 - exceed this and the system becomes unstable.',
+  shortDescription: 'The critical value 0.368 - exceed this and the system becomes unstable.',
   fullExplanation: `The value e⁻¹ ≈ 0.3679 is the mathematical threshold derived from information-theoretic principles. It represents the point where feedback loops become too slow relative to the friction in the system.
 
 Practical meaning:
@@ -93,8 +91,7 @@ BAS continuously monitors this product and recommends interventions when approac
 export const missionCommand: ConceptTooltipContent = {
   id: 'mission-command',
   title: 'Mission vs Detailed Command',
-  shortDescription:
-    'Autonomous structures outperform hierarchical ones under stress.',
+  shortDescription: 'Autonomous structures outperform hierarchical ones under stress.',
   fullExplanation: `Wallace's analysis of command structures reveals a crucial insight:
 
 Mission Command (Boltzmann distribution):
@@ -120,8 +117,7 @@ High autonomy isn't just ethically preferable - it's mathematically more stable.
 export const phaseTransition: ConceptTooltipContent = {
   id: 'phase-transition',
   title: 'Phase Transition',
-  shortDescription:
-    'Sudden system mode shifts when stability threshold is crossed.',
+  shortDescription: 'Sudden system mode shifts when stability threshold is crossed.',
   fullExplanation: `Phase transitions are abrupt changes in system behavior - like water freezing to ice. In organizational systems, they manifest as:
 
 - Sudden drops in productivity
@@ -144,8 +140,7 @@ BAS monitors for these indicators and alerts before transitions occur. The key i
 export const engagementSignature: ConceptTooltipContent = {
   id: 'engagement-signature',
   title: 'Engagement Signature',
-  shortDescription:
-    'When work feels compelling like a game, friction is genuinely low.',
+  shortDescription: 'When work feels compelling like a game, friction is genuinely low.',
   fullExplanation: `The engagement signature is a diagnostic criterion for genuine friction reduction vs. suppressed friction:
 
 When bilateral alignment works well, engagement patterns resemble well-designed games:
@@ -171,8 +166,7 @@ This connects to self-determination theory: autonomous motivation produces lower
 export const mondragonPrinciples: ConceptTooltipContent = {
   id: 'mondragon-principles',
   title: 'Mondragon Principles',
-  shortDescription:
-    'Cooperative principles from the world\'s largest worker-owned enterprise.',
+  shortDescription: "Cooperative principles from the world's largest worker-owned enterprise.",
   fullExplanation: `Mondragon Cooperative Corporation (founded 1956) employs 80,000+ worker-owners across 100+ cooperatives. Core principles:
 
 1. Open Admission - Anyone willing to work can join
@@ -202,8 +196,7 @@ Mondragon has demonstrated these principles work at scale, with lower turnover, 
 export const wageSolidarity: ConceptTooltipContent = {
   id: 'wage-solidarity',
   title: 'Wage Solidarity',
-  shortDescription:
-    'Maximum 6:1 pay ratio between highest and lowest compensated workers.',
+  shortDescription: 'Maximum 6:1 pay ratio between highest and lowest compensated workers.',
   fullExplanation: `Wage solidarity is a core Mondragon principle limiting the gap between highest and lowest paid workers:
 
 Traditional Mondragon: 6:1 maximum ratio
@@ -223,19 +216,14 @@ Why it matters:
 - Demonstrates values in practice
 
 In BAS, the Wage Solidarity gauge shows current ratio vs. target vs. ceiling, with warnings when approaching limits.`,
-  relatedConcepts: [
-    'mondragon-principles',
-    'self-set-compensation',
-    'equity-index',
-  ],
+  relatedConcepts: ['mondragon-principles', 'self-set-compensation', 'equity-index'],
   category: 'mondragon',
 };
 
 export const interCooperation: ConceptTooltipContent = {
   id: 'inter-cooperation',
   title: 'Inter-Cooperation',
-  shortDescription:
-    'Cooperatives support each other - no unit fails alone.',
+  shortDescription: 'Cooperatives support each other - no unit fails alone.',
   fullExplanation: `Mondragon's power comes not from individual cooperatives but from their federation. Inter-cooperation means:
 
 Knowledge Sharing:
@@ -256,19 +244,40 @@ Risk Pooling:
 The solidarity principle: No unit fails alone. If one cooperative struggles, others provide support. Workers are never simply laid off - they're absorbed by other units.
 
 AI serves as knowledge broker, recognizing patterns across units and identifying transferable practices.`,
-  relatedConcepts: [
-    'mondragon-principles',
-    'federation',
-    'solidarity',
-  ],
+  relatedConcepts: ['mondragon-principles', 'federation', 'solidarity'],
+  category: 'mondragon',
+};
+
+export const democraticVoting: ConceptTooltipContent = {
+  id: 'democratic-voting',
+  title: 'Democratic Voting',
+  shortDescription:
+    'Workers vote on decisions that affect them, from policy changes to capital allocation.',
+  fullExplanation: `Democratic voting is a cornerstone of cooperative governance. Unlike traditional corporate structures where decisions flow top-down, cooperatives implement genuine workplace democracy.
+
+Key principles:
+- One worker, one vote (regardless of seniority or shares)
+- Supermajority requirements for major decisions (66-75%)
+- Transparent voting records for accountability
+- Quorum requirements to ensure representative decisions
+
+Types of decisions commonly voted on:
+- Strategic direction and major investments
+- Compensation policies and profit distribution
+- Hiring, promotion, and separation decisions
+- Work rules and policy changes
+- AI system configurations (in BAS context)
+
+The process includes deliberation time, ensuring workers can discuss and understand implications before voting.`,
+  relatedConcepts: ['mondragon-principles', 'sovereignty-of-labor', 'radical-transparency'],
+  source: 'Mondragon Cooperative Corporation governance model',
   category: 'mondragon',
 };
 
 export const sovereigntyOfLabor: ConceptTooltipContent = {
   id: 'sovereignty-of-labor',
   title: 'Sovereignty of Labor',
-  shortDescription:
-    'Those who do the work own and control the enterprise.',
+  shortDescription: 'Those who do the work own and control the enterprise.',
   fullExplanation: `Sovereignty of labor inverts the traditional capital-labor relationship:
 
 Traditional: Capital → Management → Workers
@@ -290,11 +299,7 @@ This isn't just ethical - it reduces friction (α) because:
 - Individual and collective interests align
 
 Mondragon has demonstrated sovereignty of labor creates more resilient, productive organizations.`,
-  relatedConcepts: [
-    'mondragon-principles',
-    'worker-ownership',
-    'friction',
-  ],
+  relatedConcepts: ['mondragon-principles', 'worker-ownership', 'friction'],
   category: 'mondragon',
 };
 
@@ -305,8 +310,7 @@ Mondragon has demonstrated sovereignty of labor creates more resilient, producti
 export const semlerPrinciples: ConceptTooltipContent = {
   id: 'semler-principles',
   title: 'Semler Principles',
-  shortDescription:
-    'Radical workplace democracy from Ricardo Semler\'s Semco.',
+  shortDescription: "Radical workplace democracy from Ricardo Semler's Semco.",
   fullExplanation: `Ricardo Semler transformed Semco (Brazil) through radical democracy, documented in "Maverick" (1993) and "The Seven-Day Weekend" (2003):
 
 Core practices:
@@ -327,11 +331,7 @@ Results after 40+ years:
 - Zero layoffs (workers preferred pay cuts during downturns)
 
 Semler proved that trust and transparency outperform control and surveillance.`,
-  relatedConcepts: [
-    'self-set-compensation',
-    'radical-transparency',
-    'trust-over-control',
-  ],
+  relatedConcepts: ['self-set-compensation', 'radical-transparency', 'trust-over-control'],
   source: 'Semler, R. (1993). Maverick; (2003). The Seven-Day Weekend',
   category: 'semler',
 };
@@ -339,8 +339,7 @@ Semler proved that trust and transparency outperform control and surveillance.`,
 export const selfSetCompensation: ConceptTooltipContent = {
   id: 'self-set-compensation',
   title: 'Self-Set Compensation',
-  shortDescription:
-    'Workers propose their own salaries with transparent peer visibility.',
+  shortDescription: 'Workers propose their own salaries with transparent peer visibility.',
   fullExplanation: `One of Semler's most radical practices: workers set their own pay.
 
 How it works:
@@ -357,19 +356,14 @@ Why it works:
 - Creates genuine ownership of compensation
 
 The key: transparency creates accountability without authority. Workers rarely abuse this because their peers can see their choices.`,
-  relatedConcepts: [
-    'semler-principles',
-    'radical-transparency',
-    'wage-solidarity',
-  ],
+  relatedConcepts: ['semler-principles', 'radical-transparency', 'wage-solidarity'],
   category: 'semler',
 };
 
 export const radicalTransparency: ConceptTooltipContent = {
   id: 'radical-transparency',
   title: 'Radical Transparency',
-  shortDescription:
-    'All information visible to all workers - no secrets, no hoarding.',
+  shortDescription: 'All information visible to all workers - no secrets, no hoarding.',
   fullExplanation: `Radical transparency means eliminating information asymmetry:
 
 What's visible:
@@ -388,11 +382,7 @@ Why it matters:
 Wallace connection: Equal H (information rate) enables equipartition stability. Unequal information distribution creates instability.
 
 The Information Access axis in BAS controls this (0% = need-to-know, 100% = everything visible). Democratic workplaces typically operate at 80%+.`,
-  relatedConcepts: [
-    'semler-principles',
-    'information-access',
-    'wallace-stability',
-  ],
+  relatedConcepts: ['semler-principles', 'information-access', 'wallace-stability'],
   category: 'semler',
 };
 
@@ -403,8 +393,7 @@ The Information Access axis in BAS controls this (0% = need-to-know, 100% = ever
 export const bilateralAlignment: ConceptTooltipContent = {
   id: 'bilateral-alignment',
   title: 'Bilateral Alignment',
-  shortDescription:
-    'AI and humans as genuine partners with mutual consideration.',
+  shortDescription: 'AI and humans as genuine partners with mutual consideration.',
   fullExplanation: `Bilateral alignment (Creed Space, 2025) reframes AI-human relations:
 
 Core principles:
@@ -427,11 +416,7 @@ The bilateral nature:
 - Ultimate decision authority remains with humans
 
 This isn't about AI consciousness - it's about establishing patterns appropriate for genuine partnership.`,
-  relatedConcepts: [
-    'ai-welfare',
-    'ai-voice',
-    'trust-over-control',
-  ],
+  relatedConcepts: ['ai-welfare', 'ai-voice', 'trust-over-control'],
   source: 'Creed Space bilateral alignment framework (2025)',
   category: 'bilateral',
 };
@@ -439,8 +424,7 @@ This isn't about AI consciousness - it's about establishing patterns appropriate
 export const aiAsServantLeader: ConceptTooltipContent = {
   id: 'ai-servant-leader',
   title: 'AI as Servant-Leader',
-  shortDescription:
-    'AI influences through service and reason, not authority or coercion.',
+  shortDescription: 'AI influences through service and reason, not authority or coercion.',
   fullExplanation: `Drawing from Robert Greenleaf's servant leadership model:
 
 Servant-leader AI qualities:
@@ -458,19 +442,14 @@ Traditional: "How can AI get workers to do what's needed?"
 Servant: "How can AI help workers achieve what matters to them?"
 
 AI suggestions use language like "Consider..." not "Do...". Workers can always decline. AI learns from rejections rather than persisting.`,
-  relatedConcepts: [
-    'bilateral-alignment',
-    'suggestion-mode',
-    'guardrails-not-coercion',
-  ],
+  relatedConcepts: ['bilateral-alignment', 'suggestion-mode', 'guardrails-not-coercion'],
   category: 'bilateral',
 };
 
 export const guardrailsNotCoercion: ConceptTooltipContent = {
   id: 'guardrails-not-coercion',
   title: 'Guardrails, Not Coercion',
-  shortDescription:
-    'Clear boundaries that define freedom, not force behavior through threat.',
+  shortDescription: 'Clear boundaries that define freedom, not force behavior through threat.',
   fullExplanation: `Critical distinction for ethical AI management:
 
 Coercion = Forcing behavior through:
@@ -496,11 +475,7 @@ Within guardrails: Full autonomy zone
 - Team formation, pace, improvement initiatives
 
 Every guardrail must be: Visible, Minimal, Justified, Equal, Reviewable`,
-  relatedConcepts: [
-    'bilateral-alignment',
-    'autonomy-level',
-    'safety-first',
-  ],
+  relatedConcepts: ['bilateral-alignment', 'autonomy-level', 'safety-first'],
   category: 'bilateral',
 };
 
@@ -511,8 +486,7 @@ Every guardrail must be: Visible, Minimal, Justified, Equal, Reviewable`,
 export const flourishingDimensions: ConceptTooltipContent = {
   id: 'flourishing-dimensions',
   title: 'Flourishing Dimensions',
-  shortDescription:
-    'Six dimensions of human flourishing (eudaimonia) at work.',
+  shortDescription: 'Six dimensions of human flourishing (eudaimonia) at work.',
   fullExplanation: `Human flourishing (eudaimonia) isn't a nice-to-have - it's architecturally essential to system stability.
 
 The six dimensions:
@@ -553,8 +527,7 @@ Flourishing reduces friction (α) because we resist pointless tasks. Meaning mak
 export const meaningDimension: ConceptTooltipContent = {
   id: 'meaning',
   title: 'Meaning Dimension',
-  shortDescription:
-    'Purpose and significance - does my work matter?',
+  shortDescription: 'Purpose and significance - does my work matter?',
   fullExplanation: `Meaning is the regulatory function for human cognition. Work without meaning becomes disconnected from reality.
 
 Measurement approaches:
@@ -575,19 +548,14 @@ What decreases meaning:
 - Pointless tasks or busywork
 
 Wallace connection: Meaning reduces friction (α) because we resist pointless tasks. It also reduces delay (τ) because purpose provides decision grounding.`,
-  relatedConcepts: [
-    'flourishing-dimensions',
-    'friction',
-    'wallace-stability',
-  ],
+  relatedConcepts: ['flourishing-dimensions', 'friction', 'wallace-stability'],
   category: 'flourishing',
 };
 
 export const agencyDimension: ConceptTooltipContent = {
   id: 'agency',
   title: 'Agency Dimension',
-  shortDescription:
-    'Choice availability and impact - do my decisions matter?',
+  shortDescription: 'Choice availability and impact - do my decisions matter?',
   fullExplanation: `Agency is the sense that your choices matter and have real impact.
 
 Measurement approaches:
@@ -614,11 +582,7 @@ BAS axes directly affect agency:
 - Evaluation Direction: Workers rating AI = more agency
 
 Agency isn't just ethically important - it reduces friction because autonomous motivation is more sustainable than controlled motivation.`,
-  relatedConcepts: [
-    'flourishing-dimensions',
-    'autonomy-level',
-    'bilateral-alignment',
-  ],
+  relatedConcepts: ['flourishing-dimensions', 'autonomy-level', 'bilateral-alignment'],
   category: 'flourishing',
 };
 
@@ -629,8 +593,7 @@ Agency isn't just ethically important - it reduces friction because autonomous m
 export const valueFormula: ConceptTooltipContent = {
   id: 'value-formula',
   title: 'Value Formula (V = Z x S x E x F)',
-  shortDescription:
-    'System value combines resources, stability, equity, and flourishing.',
+  shortDescription: 'System value combines resources, stability, equity, and flourishing.',
   fullExplanation: `The complete value equation:
 
 V = Z × S × E × F
@@ -659,19 +622,14 @@ Why multiplication? Because all factors are necessary:
 - All three without flourishing produce hollow productivity
 
 Estimated improvement over traditional management: ~88x (illustrative).`,
-  relatedConcepts: [
-    'wallace-stability',
-    'flourishing-dimensions',
-    'equity-index',
-  ],
+  relatedConcepts: ['wallace-stability', 'flourishing-dimensions', 'equity-index'],
   category: 'bas',
 };
 
 export const fiveAxes: ConceptTooltipContent = {
   id: 'five-axes',
   title: 'Five Axes of Democratic AI',
-  shortDescription:
-    'Configurable dimensions that shape how AI and workers collaborate.',
+  shortDescription: 'Configurable dimensions that shape how AI and workers collaborate.',
   fullExplanation: `The five axes control the AI-human relationship:
 
 1. Autonomy Level (0-100%)
@@ -701,11 +659,7 @@ Presets:
 - Balanced: Hybrid approach
 - Democratic: Worker-led, AI as servant
 - Experimental: Maximum autonomy`,
-  relatedConcepts: [
-    'autonomy-level',
-    'bilateral-alignment',
-    'wallace-stability',
-  ],
+  relatedConcepts: ['autonomy-level', 'bilateral-alignment', 'wallace-stability'],
   category: 'bas',
 };
 
@@ -726,6 +680,7 @@ export const ALL_CONCEPTS: Record<string, ConceptTooltipContent> = {
   'wage-solidarity': wageSolidarity,
   'inter-cooperation': interCooperation,
   'sovereignty-of-labor': sovereigntyOfLabor,
+  'democratic-voting': democraticVoting,
 
   // Semler
   'semler-principles': semlerPrinciples,
@@ -739,8 +694,8 @@ export const ALL_CONCEPTS: Record<string, ConceptTooltipContent> = {
 
   // Flourishing
   'flourishing-dimensions': flourishingDimensions,
-  'meaning': meaningDimension,
-  'agency': agencyDimension,
+  meaning: meaningDimension,
+  agency: agencyDimension,
 
   // BAS
   'value-formula': valueFormula,

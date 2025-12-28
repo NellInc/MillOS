@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import * as THREE from 'three';
 import { Instances, Instance } from '@react-three/drei';
 import { useGraphicsStore } from '../../stores/graphicsStore';
+import { PROCEDURAL_TEXTURES } from '../../utils/sharedMaterials';
 
 interface SafetyEquipmentProps {
   floorWidth: number;
@@ -65,7 +66,13 @@ const WarningSign: React.FC<{
       {/* Post */}
       <mesh position={[0, -0.8, 0]} castShadow>
         <cylinderGeometry args={[0.03, 0.03, 1.3, 8]} />
-        <meshStandardMaterial color="#64748b" metalness={0.7} roughness={0.3} />
+        <meshStandardMaterial
+          color="#64748b"
+          metalness={0.7}
+          roughness={0.3}
+          normalMap={PROCEDURAL_TEXTURES.brushedMetal}
+          normalScale={new THREE.Vector2(0.15, 0.15)}
+        />
       </mesh>
     </group>
   );
@@ -115,7 +122,13 @@ const SafetyStation: React.FC<{
       {/* Wall mount or stand */}
       <mesh position={[0, 0.8, 0]} castShadow>
         <cylinderGeometry args={[0.15, 0.2, 1.6, 12]} />
-        <meshStandardMaterial color="#475569" metalness={0.6} roughness={0.4} />
+        <meshStandardMaterial
+          color="#475569"
+          metalness={0.6}
+          roughness={0.4}
+          normalMap={PROCEDURAL_TEXTURES.brushedMetal}
+          normalScale={new THREE.Vector2(0.15, 0.15)}
+        />
       </mesh>
 
       {/* Station box/cabinet */}
@@ -199,10 +212,18 @@ const SafetyStation: React.FC<{
         </group>
       )}
 
-      {/* Warning stripes on floor */}
-      <mesh position={[0, 0.01, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+      {/* Warning stripes on floor - raised with depthWrite for z-fighting prevention */}
+      <mesh position={[0, 0.05, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <ringGeometry args={[0.5, 0.7, 16]} />
-        <meshStandardMaterial color={color} transparent opacity={0.3} />
+        <meshStandardMaterial
+          color={color}
+          transparent
+          opacity={0.3}
+          depthWrite={false}
+          polygonOffset
+          polygonOffsetFactor={-1}
+          polygonOffsetUnits={-1}
+        />
       </mesh>
 
       {/* Glow effect */}
@@ -227,7 +248,12 @@ const PalletStack: React.FC<{
           {[-0.4, 0, 0.4].map((z, i) => (
             <mesh key={`top-${i}`} position={[0, 0.12, z]} castShadow>
               <boxGeometry args={[1.2, 0.025, 0.2]} />
-              <meshStandardMaterial color="#8b5a2b" roughness={0.9} />
+              <meshStandardMaterial
+                color="#8b5a2b"
+                roughness={0.9}
+                normalMap={PROCEDURAL_TEXTURES.panelNormal}
+                normalScale={new THREE.Vector2(0.1, 0.1)}
+              />
             </mesh>
           ))}
           {/* Pallet stringers */}
@@ -297,7 +323,12 @@ const SackStack: React.FC<{
       {sackPositions.map(([x, y, z, rz], i) => (
         <mesh key={i} position={[x, y, z]} rotation={[0, 0, rz]} castShadow>
           <boxGeometry args={[0.4, 0.25, 0.3]} />
-          <meshStandardMaterial color="#e8dcc8" roughness={0.95} />
+          <meshStandardMaterial
+            color="#e8dcc8"
+            roughness={0.95}
+            normalMap={PROCEDURAL_TEXTURES.rubberNormal}
+            normalScale={new THREE.Vector2(0.2, 0.2)}
+          />
         </mesh>
       ))}
     </group>
@@ -370,11 +401,7 @@ const PerimeterFence: React.FC<{
         <boxGeometry args={[0.3, 0.03, 0.03]} />
         <meshStandardMaterial color="#64748b" metalness={0.7} roughness={0.3} />
         {postPositions.map((z, i) => (
-          <Instance
-            key={i}
-            position={[0.15, height + 0.1, z]}
-            rotation={[0, 0, -Math.PI / 4]}
-          />
+          <Instance key={i} position={[0.15, height + 0.1, z]} rotation={[0, 0, -Math.PI / 4]} />
         ))}
       </Instances>
 
@@ -383,11 +410,7 @@ const PerimeterFence: React.FC<{
         <boxGeometry args={[0.3, 0.03, 0.03]} />
         <meshStandardMaterial color="#64748b" metalness={0.7} roughness={0.3} />
         {postPositions.map((z, i) => (
-          <Instance
-            key={i}
-            position={[-0.15, height + 0.1, z]}
-            rotation={[0, 0, Math.PI / 4]}
-          />
+          <Instance key={i} position={[-0.15, height + 0.1, z]} rotation={[0, 0, Math.PI / 4]} />
         ))}
       </Instances>
 

@@ -101,7 +101,12 @@ and meaningful challenge.`,
       'When onboarding new workers, AI reduces initial autonomy and provides more structure, then gradually increases autonomy as the engagement signature strengthens.',
       'AI tracks individual engagement patterns and adjusts suggestion frequency - some workers thrive with frequent check-ins, others prefer longer autonomous stretches.',
     ],
-    relatedConcepts: ['Wallace Stability', 'Flourishing Dimensions', 'Servant Leadership', 'Mission Command'],
+    relatedConcepts: [
+      'Wallace Stability',
+      'Flourishing Dimensions',
+      'Servant Leadership',
+      'Mission Command',
+    ],
   },
 ];
 
@@ -118,14 +123,8 @@ interface AccordionSectionProps {
   children: React.ReactNode;
 }
 
-const AccordionSection: React.FC<AccordionSectionProps> = memo(({
-  title,
-  icon: Icon,
-  iconColor,
-  isOpen,
-  onToggle,
-  children,
-}) => (
+const AccordionSection: React.FC<AccordionSectionProps> = memo(
+  ({ title, icon: Icon, iconColor, isOpen, onToggle, children }) => (
     <div className="border-b border-slate-700/30 last:border-b-0">
       <button
         onClick={onToggle}
@@ -157,7 +156,8 @@ const AccordionSection: React.FC<AccordionSectionProps> = memo(({
         )}
       </AnimatePresence>
     </div>
-));
+  )
+);
 
 AccordionSection.displayName = 'AccordionSection';
 
@@ -227,17 +227,13 @@ const ValueFormulaDiagram: React.FC = memo(() => {
       <div className="text-center mb-3">
         <code className="text-lg font-bold text-white">
           V = Z <span className="text-slate-400">x</span> S{' '}
-          <span className="text-slate-400">x</span> E{' '}
-          <span className="text-slate-400">x</span> F
+          <span className="text-slate-400">x</span> E <span className="text-slate-400">x</span> F
         </code>
       </div>
 
       <div className="grid grid-cols-2 gap-2">
         {components.map((comp) => (
-          <div
-            key={comp.symbol}
-            className={`${comp.bg} rounded p-2 text-center`}
-          >
+          <div key={comp.symbol} className={`${comp.bg} rounded p-2 text-center`}>
             <div className={`text-lg font-bold ${comp.color}`}>{comp.symbol}</div>
             <div className="text-[9px] text-slate-300">{comp.name}</div>
           </div>
@@ -271,16 +267,11 @@ const CommandStructureDiagram: React.FC = memo(() => {
             </div>
             <div className="flex gap-1 mt-1">
               {[1, 2, 3].map((i) => (
-                <div
-                  key={i}
-                  className="w-4 h-4 bg-green-500/20 rounded-full"
-                />
+                <div key={i} className="w-4 h-4 bg-green-500/20 rounded-full" />
               ))}
             </div>
           </div>
-          <div className="text-[8px] text-green-300 text-center mt-2">
-            Flat, autonomous, stable
-          </div>
+          <div className="text-[8px] text-green-300 text-center mt-2">Flat, autonomous, stable</div>
         </div>
 
         {/* Detailed Command */}
@@ -297,16 +288,11 @@ const CommandStructureDiagram: React.FC = memo(() => {
             </div>
             <div className="flex gap-0.5">
               {[1, 2, 3, 4].map((i) => (
-                <div
-                  key={i}
-                  className="w-3 h-3 bg-red-500/10 rounded-full"
-                />
+                <div key={i} className="w-3 h-3 bg-red-500/10 rounded-full" />
               ))}
             </div>
           </div>
-          <div className="text-[8px] text-red-300 text-center mt-2">
-            Hierarchical, fragile
-          </div>
+          <div className="text-[8px] text-red-300 text-center mt-2">Hierarchical, fragile</div>
         </div>
       </div>
     </div>
@@ -339,10 +325,7 @@ const FlourishingHexagon: React.FC = memo(() => {
         {dimensions.map((dim) => {
           const Icon = dim.icon;
           return (
-            <div
-              key={dim.key}
-              className="bg-slate-900/50 rounded p-2 text-center"
-            >
+            <div key={dim.key} className="bg-slate-900/50 rounded p-2 text-center">
               <Icon className={`w-4 h-4 mx-auto mb-1 ${dim.color}`} />
               <div className="text-[9px] text-white">{dim.label}</div>
             </div>
@@ -372,9 +355,7 @@ const EngagementSignatureDiagram: React.FC = memo(() => {
 
   return (
     <div className="bg-slate-800/50 rounded-lg p-3 my-2">
-      <div className="text-[10px] text-slate-400 mb-2 text-center">
-        The Engagement Signature
-      </div>
+      <div className="text-[10px] text-slate-400 mb-2 text-center">The Engagement Signature</div>
 
       {/* Two columns: Gaming elements + Generative outcome */}
       <div className="grid grid-cols-2 gap-3">
@@ -382,9 +363,7 @@ const EngagementSignatureDiagram: React.FC = memo(() => {
         <div className="bg-cyan-500/10 rounded p-2">
           <div className="flex items-center gap-1 mb-2">
             <Gamepad2 className="w-3 h-3 text-cyan-400" />
-            <span className="text-[9px] font-bold text-cyan-400">
-              Game-Like Qualities
-            </span>
+            <span className="text-[9px] font-bold text-cyan-400">Game-Like Qualities</span>
           </div>
           <div className="space-y-1">
             {gameElements.map((el) => (
@@ -399,9 +378,7 @@ const EngagementSignatureDiagram: React.FC = memo(() => {
         <div className="bg-green-500/10 rounded p-2">
           <div className="flex items-center gap-1 mb-2">
             <Sparkles className="w-3 h-3 text-green-400" />
-            <span className="text-[9px] font-bold text-green-400">
-              Generative Output
-            </span>
+            <span className="text-[9px] font-bold text-green-400">Generative Output</span>
           </div>
           <div className="text-[8px] text-slate-300 space-y-1">
             <div>Real value created</div>
@@ -441,15 +418,16 @@ EngagementSignatureDiagram.displayName = 'EngagementSignatureDiagram';
 const WallaceSection: React.FC = () => (
   <div className="space-y-3 text-[10px] text-slate-300">
     <p className="leading-relaxed">
-      <strong className="text-green-400">Rodrick Wallace&apos;s</strong> Rate
-      Distortion Control Theory provides the mathematical foundation for
-      understanding when management systems remain stable or collapse.
+      <strong className="text-green-400">Rodrick Wallace&apos;s</strong> Rate Distortion Control
+      Theory provides the mathematical foundation for understanding when management systems remain
+      stable or collapse.
     </p>
 
     <div className="bg-slate-800/30 rounded p-2">
       <div className="font-bold text-white mb-1">The Critical Threshold</div>
       <p className="text-slate-400 leading-relaxed">
-        System stability requires the product of <strong className="text-orange-400">friction (alpha)</strong> and{' '}
+        System stability requires the product of{' '}
+        <strong className="text-orange-400">friction (alpha)</strong> and{' '}
         <strong className="text-blue-400">delay (tau)</strong> to remain below{' '}
         <strong className="text-cyan-400">e^-1 = {STABILITY_THRESHOLD.toFixed(4)}</strong>.
         Exceeding this causes <em>phase transitions</em> - sudden system failures.
@@ -462,16 +440,16 @@ const WallaceSection: React.FC = () => (
       <div className="font-bold text-white mb-1">Key Terms</div>
       <ul className="space-y-1 text-slate-400">
         <li>
-          <strong className="text-orange-400">Friction (alpha):</strong> Resistance to
-          change, bureaucratic overhead
+          <strong className="text-orange-400">Friction (alpha):</strong> Resistance to change,
+          bureaucratic overhead
         </li>
         <li>
-          <strong className="text-blue-400">Delay (tau):</strong> Feedback loop
-          latency, decision-to-action time
+          <strong className="text-blue-400">Delay (tau):</strong> Feedback loop latency,
+          decision-to-action time
         </li>
         <li>
-          <strong className="text-purple-400">Phase Transition:</strong> Sudden
-          shift between operational modes
+          <strong className="text-purple-400">Phase Transition:</strong> Sudden shift between
+          operational modes
         </li>
       </ul>
     </div>
@@ -479,8 +457,8 @@ const WallaceSection: React.FC = () => (
     <div className="bg-amber-500/10 rounded p-2 border border-amber-500/20">
       <div className="text-[9px] text-amber-400 font-medium">Source</div>
       <p className="text-[9px] text-slate-400 mt-1">
-        Wallace, R. (2025). &quot;Fog, Friction, Delay and the Failure of Bounded
-        Rationality Embodied Cognition&quot;
+        Wallace, R. (2025). &quot;Fog, Friction, Delay and the Failure of Bounded Rationality
+        Embodied Cognition&quot;
       </p>
     </div>
   </div>
@@ -506,8 +484,8 @@ const FiveAxesSection: React.FC = () => {
   return (
     <div className="space-y-3 text-[10px] text-slate-300">
       <p className="leading-relaxed">
-        The Five Axes define the spectrum of AI-human collaboration, from
-        traditional hierarchical control to full democratic self-organization.
+        The Five Axes define the spectrum of AI-human collaboration, from traditional hierarchical
+        control to full democratic self-organization.
       </p>
 
       <div className="space-y-2">
@@ -533,9 +511,8 @@ const FiveAxesSection: React.FC = () => {
 
       <div className="bg-cyan-500/10 rounded p-2 border border-cyan-500/20">
         <p className="text-[9px] text-cyan-300">
-          <strong>Wallace Connection:</strong> Higher autonomy (Mission Command)
-          structures are mathematically more stable under stress than hierarchical
-          (Detailed Command) structures.
+          <strong>Wallace Connection:</strong> Higher autonomy (Mission Command) structures are
+          mathematically more stable under stress than hierarchical (Detailed Command) structures.
         </p>
       </div>
     </div>
@@ -545,9 +522,9 @@ const FiveAxesSection: React.FC = () => {
 const ValueFormulaSection: React.FC = () => (
   <div className="space-y-3 text-[10px] text-slate-300">
     <p className="leading-relaxed">
-      System value is quantified through four multiplicative factors. The
-      multiplication ensures that <em>all factors matter</em> - you cannot
-      compensate for zero equity with infinite resources.
+      System value is quantified through four multiplicative factors. The multiplication ensures
+      that <em>all factors matter</em> - you cannot compensate for zero equity with infinite
+      resources.
     </p>
 
     <ValueFormulaDiagram />
@@ -571,31 +548,24 @@ const ValueFormulaSection: React.FC = () => (
 
       <div className="bg-green-500/10 rounded p-2">
         <div className="font-bold text-green-400 mb-1">S - Stability Coefficient</div>
-        <code className="text-[9px] text-slate-400">
-          S = max(0, 1 - (alpha x tau / e^-1))
-        </code>
+        <code className="text-[9px] text-slate-400">S = max(0, 1 - (alpha x tau / e^-1))</code>
         <p className="mt-1 text-[9px] text-slate-400">
-          Derived from Wallace&apos;s stability conditions. Approaches zero as the
-          system nears instability.
+          Derived from Wallace&apos;s stability conditions. Approaches zero as the system nears
+          instability.
         </p>
       </div>
 
       <div className="bg-violet-500/10 rounded p-2">
         <div className="font-bold text-violet-400 mb-1">E - Equity Index</div>
-        <code className="text-[9px] text-slate-400">
-          E = 1 - Gini(access, voice, benefit)
-        </code>
+        <code className="text-[9px] text-slate-400">E = 1 - Gini(access, voice, benefit)</code>
         <p className="mt-1 text-[9px] text-slate-400">
-          Measures equality in information access, decision participation, and
-          outcome distribution.
+          Measures equality in information access, decision participation, and outcome distribution.
         </p>
       </div>
 
       <div className="bg-amber-500/10 rounded p-2">
         <div className="font-bold text-amber-400 mb-1">F - Flourishing Coefficient</div>
-        <code className="text-[9px] text-slate-400">
-          F = (M x Ma x C x J x W x A)^(1/6)
-        </code>
+        <code className="text-[9px] text-slate-400">F = (M x Ma x C x J x W x A)^(1/6)</code>
         <p className="mt-1 text-[9px] text-slate-400">
           Geometric mean of six eudaimonia dimensions. See Flourishing section.
         </p>
@@ -648,8 +618,8 @@ const FlourishingSection: React.FC = () => {
     <div className="space-y-3 text-[10px] text-slate-300">
       <p className="leading-relaxed">
         Human flourishing (eudaimonia) is not just ethically important - it is{' '}
-        <em>mathematically essential</em> to system stability. Work without
-        meaning increases friction; unclear purpose increases delay.
+        <em>mathematically essential</em> to system stability. Work without meaning increases
+        friction; unclear purpose increases delay.
       </p>
 
       <FlourishingHexagon />
@@ -659,9 +629,7 @@ const FlourishingSection: React.FC = () => {
           <div key={dim.name} className="bg-slate-800/30 rounded p-2">
             <div className="flex items-center justify-between mb-0.5">
               <span className={`font-bold ${dim.color}`}>{dim.name}</span>
-              <span className="text-[9px] text-slate-500 italic">
-                &quot;{dim.question}&quot;
-              </span>
+              <span className="text-[9px] text-slate-500 italic">&quot;{dim.question}&quot;</span>
             </div>
             <p className="text-[9px] text-slate-400">{dim.description}</p>
           </div>
@@ -669,13 +637,11 @@ const FlourishingSection: React.FC = () => {
       </div>
 
       <div className="bg-pink-500/10 rounded p-2 border border-pink-500/20">
-        <div className="font-bold text-pink-400 mb-1 text-[10px]">
-          Why Geometric Mean?
-        </div>
+        <div className="font-bold text-pink-400 mb-1 text-[10px]">Why Geometric Mean?</div>
         <p className="text-[9px] text-slate-400">
-          High meaning with zero connection = isolation. High mastery with zero
-          meaning = virtuosity without purpose. The geometric mean ensures all
-          dimensions must be present - a single zero makes F zero.
+          High meaning with zero connection = isolation. High mastery with zero meaning = virtuosity
+          without purpose. The geometric mean ensures all dimensions must be present - a single zero
+          makes F zero.
         </p>
       </div>
     </div>
@@ -685,8 +651,8 @@ const FlourishingSection: React.FC = () => {
 const MissionCommandSection: React.FC = () => (
   <div className="space-y-3 text-[10px] text-slate-300">
     <p className="leading-relaxed">
-      Wallace&apos;s analysis demonstrates that organizational structure fundamentally
-      affects stability under stress. This insight drives the BAS design philosophy.
+      Wallace&apos;s analysis demonstrates that organizational structure fundamentally affects
+      stability under stress. This insight drives the BAS design philosophy.
     </p>
 
     <CommandStructureDiagram />
@@ -697,7 +663,9 @@ const MissionCommandSection: React.FC = () => (
         <li>- One-step decision process</li>
         <li>- Flatter structure, greater autonomy</li>
         <li>- Workers given objectives, choose methods</li>
-        <li>- <strong className="text-green-300">More stable under noise and stress</strong></li>
+        <li>
+          - <strong className="text-green-300">More stable under noise and stress</strong>
+        </li>
       </ul>
     </div>
 
@@ -707,17 +675,18 @@ const MissionCommandSection: React.FC = () => (
         <li>- Multi-step approval chain</li>
         <li>- Hierarchical structure, less autonomy</li>
         <li>- Workers given step-by-step instructions</li>
-        <li>- <strong className="text-red-300">Highly punctuated failures - sudden collapse</strong></li>
+        <li>
+          - <strong className="text-red-300">Highly punctuated failures - sudden collapse</strong>
+        </li>
       </ul>
     </div>
 
     <div className="bg-slate-800/30 rounded p-2">
       <div className="font-bold text-white mb-1">BAS Implication</div>
       <p className="text-slate-400 leading-relaxed">
-        AI should enable mission command (worker autonomy with objectives) rather
-        than detailed command (step-by-step instructions). The AI serves as a{' '}
-        <strong className="text-cyan-400">servant-catalyst</strong>, not a
-        micromanager.
+        AI should enable mission command (worker autonomy with objectives) rather than detailed
+        command (step-by-step instructions). The AI serves as a{' '}
+        <strong className="text-cyan-400">servant-catalyst</strong>, not a micromanager.
       </p>
     </div>
 
@@ -733,18 +702,16 @@ const MissionCommandSection: React.FC = () => (
 );
 
 const EngagementSignatureSection: React.FC = () => {
-  const engagementModule = EDUCATIONAL_MODULES.find(
-    (m) => m.id === 'engagement-signature'
-  );
+  const engagementModule = EDUCATIONAL_MODULES.find((m) => m.id === 'engagement-signature');
 
   if (!engagementModule) return null;
 
   return (
     <div className="space-y-3 text-[10px] text-slate-300">
       <p className="leading-relaxed">
-        <strong className="text-cyan-400">{engagementModule.shortDescription}</strong> -
-        when partnership works, work shares qualities with well-designed games
-        while producing real, meaningful outcomes.
+        <strong className="text-cyan-400">{engagementModule.shortDescription}</strong> - when
+        partnership works, work shares qualities with well-designed games while producing real,
+        meaningful outcomes.
       </p>
 
       <EngagementSignatureDiagram />
@@ -764,14 +731,11 @@ const EngagementSignatureSection: React.FC = () => {
       </div>
 
       <div className="bg-amber-500/10 rounded p-2 border border-amber-500/20">
-        <div className="font-bold text-amber-400 mb-1 text-[10px]">
-          Diagnostic Principle
-        </div>
+        <div className="font-bold text-amber-400 mb-1 text-[10px]">Diagnostic Principle</div>
         <p className="text-[9px] text-slate-400">
-          If work consistently feels like forcing yourself through resistance,
-          the BAS configuration needs adjustment. The engagement signature should
-          feel natural when autonomy matches readiness, goals are meaningful,
-          feedback loops are short, and entry friction is minimal.
+          If work consistently feels like forcing yourself through resistance, the BAS configuration
+          needs adjustment. The engagement signature should feel natural when autonomy matches
+          readiness, goals are meaningful, feedback loops are short, and entry friction is minimal.
         </p>
       </div>
 
@@ -788,13 +752,11 @@ const EngagementSignatureSection: React.FC = () => {
       </div>
 
       <div className="bg-green-500/10 rounded p-2 border border-green-500/20">
-        <div className="font-bold text-green-400 mb-1 text-[10px]">
-          Wallace Connection
-        </div>
+        <div className="font-bold text-green-400 mb-1 text-[10px]">Wallace Connection</div>
         <p className="text-[9px] text-slate-400">
-          High engagement directly reduces friction (alpha) in the stability equation.
-          When work feels like a game, resistance to action decreases, decision-to-action
-          time shortens, and the system naturally moves toward stability.
+          High engagement directly reduces friction (alpha) in the stability equation. When work
+          feels like a game, resistance to action decreases, decision-to-action time shortens, and
+          the system naturally moves toward stability.
         </p>
       </div>
 
@@ -822,7 +784,14 @@ const EngagementSignatureSection: React.FC = () => {
 type SectionKey = 'wallace' | 'axes' | 'value' | 'flourishing' | 'mission' | 'engagement';
 
 // Static section keys to prevent recreation
-const ALL_SECTIONS: SectionKey[] = ['wallace', 'axes', 'value', 'flourishing', 'mission', 'engagement'];
+const ALL_SECTIONS: SectionKey[] = [
+  'wallace',
+  'axes',
+  'value',
+  'flourishing',
+  'mission',
+  'engagement',
+];
 
 export const BASEducation: React.FC = () => {
   const [openSections, setOpenSections] = useState<Set<SectionKey>>(new Set());
@@ -857,9 +826,7 @@ export const BASEducation: React.FC = () => {
       <div className="p-3 border-b border-slate-700/50">
         <div className="flex items-center gap-2">
           <GraduationCap className="w-4 h-4 text-violet-400" />
-          <span className="text-sm font-bold text-white">
-            BAS Theory &amp; Foundations
-          </span>
+          <span className="text-sm font-bold text-white">BAS Theory &amp; Foundations</span>
         </div>
         <p className="text-[10px] text-slate-400 mt-1">
           Understanding the Bilateral Autonomy System
@@ -888,12 +855,14 @@ export const BASEducation: React.FC = () => {
         <div className="flex items-start gap-2">
           <Lightbulb className="w-4 h-4 text-amber-400 mt-0.5 flex-shrink-0" />
           <div className="text-[10px] text-slate-300 leading-relaxed">
-            <strong className="text-white">The Bilateral Autonomy System</strong>{' '}
-            synthesizes three traditions: <strong className="text-cyan-400">Bilateral Alignment</strong>{' '}
-            (AI-human partnership), <strong className="text-green-400">Democratic Workplace Philosophy</strong>{' '}
-            (Semler/Mondragon), and <strong className="text-violet-400">Information-Theoretic Cognitive Science</strong>{' '}
-            (Wallace). Together, they create a mathematically-grounded framework
-            for AI that serves workers rather than controlling them.
+            <strong className="text-white">The Bilateral Autonomy System</strong> synthesizes three
+            traditions: <strong className="text-cyan-400">Bilateral Alignment</strong> (AI-human
+            partnership),{' '}
+            <strong className="text-green-400">Democratic Workplace Philosophy</strong>{' '}
+            (Semler/Mondragon), and{' '}
+            <strong className="text-violet-400">Information-Theoretic Cognitive Science</strong>{' '}
+            (Wallace). Together, they create a mathematically-grounded framework for AI that serves
+            workers rather than controlling them.
           </div>
         </div>
       </div>
@@ -964,10 +933,9 @@ export const BASEducation: React.FC = () => {
         <div className="flex items-center gap-2 text-[10px]">
           <Target className="w-4 h-4 text-violet-400" />
           <span className="text-slate-300">
-            <strong className="text-white">Core Thesis:</strong> An AI management
-            system that serves workers creates more value, operates more stably,
-            and produces more ethical outcomes than traditional hierarchical
-            management.
+            <strong className="text-white">Core Thesis:</strong> An AI management system that serves
+            workers creates more value, operates more stably, and produces more ethical outcomes
+            than traditional hierarchical management.
           </span>
         </div>
       </div>

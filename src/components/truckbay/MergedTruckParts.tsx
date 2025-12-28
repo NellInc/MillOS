@@ -4,6 +4,7 @@ import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUti
 import { useFrame } from '@react-three/fiber';
 import { TruckAnimState } from './useTruckPhysics';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
+import { PROCEDURAL_TEXTURES } from '../../utils/sharedMaterials';
 import { ExhaustSmoke } from './TruckAudio';
 import {
   LicensePlate,
@@ -278,10 +279,22 @@ export const MergedTruckModel: React.FC<MergedTruckModelProps> = ({
       {/* === CAB === */}
       <group ref={cabGroupRef} position={[0, 0, 2]}>
         <mesh geometry={cabGeos.bodyGeo}>
-          <meshStandardMaterial color={color} metalness={0.4} roughness={0.6} />
+          <meshStandardMaterial
+            color={color}
+            metalness={0.4}
+            roughness={0.6}
+            normalMap={PROCEDURAL_TEXTURES.paintedMetalNormal}
+            normalScale={new THREE.Vector2(0.12, 0.12)}
+          />
         </mesh>
         <mesh geometry={cabGeos.detailGeo}>
-          <meshStandardMaterial color="#374151" metalness={0.6} roughness={0.4} />
+          <meshStandardMaterial
+            color="#374151"
+            metalness={0.6}
+            roughness={0.4}
+            normalMap={PROCEDURAL_TEXTURES.brushedMetal}
+            normalScale={new THREE.Vector2(0.15, 0.15)}
+          />
         </mesh>
         <mesh geometry={cabGeos.glassGeo}>
           <meshStandardMaterial
@@ -295,10 +308,20 @@ export const MergedTruckModel: React.FC<MergedTruckModelProps> = ({
 
         {/* Instanced Wheels (Cab) */}
         <instancedMesh ref={frontWheelsRef} args={[wheelGeo, undefined, 2]} castShadow>
-          <meshStandardMaterial color="#1f2937" roughness={0.7} />
+          <meshStandardMaterial
+            color="#1f2937"
+            roughness={0.7}
+            normalMap={PROCEDURAL_TEXTURES.rubberNormal}
+            normalScale={new THREE.Vector2(0.3, 0.3)}
+          />
         </instancedMesh>
         <instancedMesh ref={rearWheelsRef} args={[wheelGeo, undefined, 8]} castShadow>
-          <meshStandardMaterial color="#1f2937" roughness={0.7} />
+          <meshStandardMaterial
+            color="#1f2937"
+            roughness={0.7}
+            normalMap={PROCEDURAL_TEXTURES.rubberNormal}
+            normalScale={new THREE.Vector2(0.3, 0.3)}
+          />
         </instancedMesh>
 
         {/* Dynamic Cab Parts */}
@@ -333,15 +356,31 @@ export const MergedTruckModel: React.FC<MergedTruckModelProps> = ({
       {/* === TRAILER === */}
       <group ref={trailerGroupRef} position={[0, 0, -5]}>
         <mesh geometry={trailerGeos.bodyGeo}>
-          <meshStandardMaterial color="#e2e8f0" metalness={0.4} roughness={0.4} />
+          <meshStandardMaterial
+            color="#e2e8f0"
+            metalness={0.4}
+            roughness={0.4}
+            normalMap={PROCEDURAL_TEXTURES.panelNormal}
+            normalScale={new THREE.Vector2(0.12, 0.12)}
+          />
         </mesh>
         <mesh geometry={trailerGeos.underGeo}>
-          <meshStandardMaterial color="#1f2937" roughness={0.8} />
+          <meshStandardMaterial
+            color="#1f2937"
+            roughness={0.8}
+            normalMap={PROCEDURAL_TEXTURES.brushedMetal}
+            normalScale={new THREE.Vector2(0.2, 0.2)}
+          />
         </mesh>
 
         {/* Instanced Wheels (Trailer) */}
         <instancedMesh ref={trailerWheelsRef} args={[wheelGeo, undefined, 8]} castShadow>
-          <meshStandardMaterial color="#1f2937" roughness={0.7} />
+          <meshStandardMaterial
+            color="#1f2937"
+            roughness={0.7}
+            normalMap={PROCEDURAL_TEXTURES.rubberNormal}
+            normalScale={new THREE.Vector2(0.3, 0.3)}
+          />
         </instancedMesh>
 
         {/* Dynamic Trailer Parts */}

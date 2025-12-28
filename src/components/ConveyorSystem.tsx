@@ -8,7 +8,12 @@ import { useGraphicsStore } from '../stores/graphicsStore';
 import { useProductionStore } from '../stores/productionStore';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import { GrainQuality } from '../types';
-import { METAL_MATERIALS, SAFETY_MATERIALS, SHARED_GEOMETRIES } from '../utils/sharedMaterials';
+import {
+  METAL_MATERIALS,
+  MACHINE_MATERIALS,
+  SAFETY_MATERIALS,
+  SHARED_GEOMETRIES,
+} from '../utils/sharedMaterials';
 import { shouldRunThisFrame } from '../utils/frameThrottle';
 import { useModelTextures } from '../utils/machineTextures';
 
@@ -427,21 +432,10 @@ const TensionMechanism: React.FC<{ position: [number, number, number] }> = React
 const DRIVE_ROLLER_MAIN_GEOMETRY = new THREE.CylinderGeometry(0.12, 0.12, 1.9, 12);
 const DRIVE_ROLLER_CAP_GEOMETRY = new THREE.CylinderGeometry(0.15, 0.15, 0.05, 12);
 const DRIVE_ROLLER_BEARING_GEOMETRY = new THREE.BoxGeometry(0.15, 0.15, 0.08);
-const DRIVE_ROLLER_MAIN_MATERIAL = new THREE.MeshStandardMaterial({
-  color: '#64748b',
-  metalness: 0.85,
-  roughness: 0.15,
-});
-const DRIVE_ROLLER_CAP_MATERIAL = new THREE.MeshStandardMaterial({
-  color: '#475569',
-  metalness: 0.8,
-  roughness: 0.2,
-});
-const DRIVE_ROLLER_BEARING_MATERIAL = new THREE.MeshStandardMaterial({
-  color: '#334155',
-  metalness: 0.7,
-  roughness: 0.3,
-});
+// Use shared textured materials from sharedMaterials module
+const DRIVE_ROLLER_MAIN_MATERIAL = METAL_MATERIALS.steel;
+const DRIVE_ROLLER_CAP_MATERIAL = METAL_MATERIALS.steelDark;
+const DRIVE_ROLLER_BEARING_MATERIAL = METAL_MATERIALS.paintedSlate;
 
 const ConveyorBelt: React.FC<{
   position: [number, number, number];
@@ -555,7 +549,7 @@ const ConveyorBelt: React.FC<{
       {/* Belt frame */}
       <mesh position={[0, 0, 0]}>
         <boxGeometry args={[length, 0.5, 2.2]} />
-        <meshStandardMaterial color="#374151" metalness={0.6} roughness={0.4} />
+        <primitive object={METAL_MATERIALS.paintedMediumGray} attach="material" />
       </mesh>
 
       {/* Drive rollers at intervals - NO SHADOWS for small rotating parts */}
@@ -603,22 +597,22 @@ const ConveyorBelt: React.FC<{
         <group position={[-length / 2 + 1, -0.1, 1.3]}>
           <mesh castShadow>
             <boxGeometry args={[0.8, 0.6, 0.5]} />
-            <meshStandardMaterial color="#1e3a5f" metalness={0.7} roughness={0.3} />
+            <primitive object={METAL_MATERIALS.industrialBlue} attach="material" />
           </mesh>
           {/* Motor shaft - NO SHADOW for small part */}
           <mesh position={[0, 0.1, -0.3]} rotation={[Math.PI / 2, 0, 0]}>
             <cylinderGeometry args={[0.08, 0.08, 0.3, 8]} />
-            <meshStandardMaterial color="#64748b" metalness={0.9} roughness={0.1} />
+            <primitive object={MACHINE_MATERIALS.shaft} attach="material" />
           </mesh>
           {/* Ventilation grille */}
           <mesh position={[0, 0, 0.26]}>
             <planeGeometry args={[0.5, 0.35]} />
-            <meshStandardMaterial color="#0f172a" metalness={0.5} roughness={0.5} />
+            <primitive object={METAL_MATERIALS.paintedBlack} attach="material" />
           </mesh>
           {/* Warning label */}
           <mesh position={[0.41, 0.1, 0]} rotation={[0, Math.PI / 2, 0]}>
             <planeGeometry args={[0.2, 0.15]} />
-            <meshBasicMaterial color="#fbbf24" />
+            <primitive object={SAFETY_MATERIALS.warningYellow} attach="material" />
           </mesh>
         </group>
       )}

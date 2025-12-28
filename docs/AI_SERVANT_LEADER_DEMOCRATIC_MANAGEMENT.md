@@ -238,6 +238,48 @@ This connects to Deci & Ryan's (2000) self-determination theory: autonomous moti
 
 ---
 
+## Mathematical Foundation: The Wallace Framework
+
+The intuitions above—Mission Command, trust over control, servant leadership—have formal mathematical backing in Wallace's Rate Distortion Control Theory (2025).
+
+### Why Control Doesn't Scale
+
+Wallace proves that control-based management requires:
+
+**α × τ < e⁻¹ ≈ 0.368**
+
+Where α (monitoring friction) and τ (response delay) both increase with system complexity. As organizations grow, the product exceeds the threshold and control fails—not gradually degrades but *fails*. This is a fundamental bound, like the speed of light.
+
+**Implication:** AI can't save hierarchical control. AI increases information flow (reducing τ) but also increases complexity (increasing α). The bound remains.
+
+### The Equipartition Requirement
+
+For stable bilateral relationships:
+
+**R₁/(g₁Z₁) = R₂/(g₂Z₂)**
+
+Balanced investment is *mathematically required*. Unilateral arrangements—where management invests in controlling workers while workers have no stake—violate equipartition and become unstable.
+
+**Implication:** Mondragon's wage solidarity (6:1 ratio) and democratic governance satisfy equipartition. Traditional hierarchies don't.
+
+### Mission Command vs. Detailed Command
+
+Wallace's analysis shows:
+- **Detailed Command** (multi-step approval chains) → "highly punctuated phase transitions" (sudden catastrophic failure)
+- **Mission Command** (autonomous agents with shared principles) → graceful degradation
+
+**Implication:** Semler's "trust over control" is the mathematically stable approach. The AI shouldn't micromanage; it should enable mission command by ensuring shared context.
+
+### Full Mathematical Treatment
+
+See `BILATERAL_AUTONOMY_SYSTEM_SPEC.md` Section 3 for complete Wallace integration, including:
+- Cognition/Regulation Dyad
+- Resource Rate Model
+- Phase Transition Dynamics
+- Stability Monitoring
+
+---
+
 ## Practical Integration Points for MillOS
 
 ### Store Additions

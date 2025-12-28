@@ -23,6 +23,7 @@ import {
 } from './types';
 import { useMultiplayerStore } from '../stores/multiplayerStore';
 import { handleHostDisconnect } from './HostMigration';
+import { logger } from '../utils/logger';
 
 // Broadcast frequencies
 const PLAYER_UPDATE_INTERVAL = 50; // 20Hz for smooth movement
@@ -97,7 +98,7 @@ export class MultiplayerManager {
     setTimeout(() => {
       const currentState = useMultiplayerStore.getState();
       if (currentState.connectionState === 'connecting') {
-        console.error('[MultiplayerManager] Connection timeout - no state sync received');
+        logger.multiplayer.error('Connection timeout - no state sync received');
         currentState.setConnectionState('disconnected');
         this.destroy();
       }
@@ -118,11 +119,11 @@ export class MultiplayerManager {
         this.handlePeerDisconnected(peerId);
       },
       onError: (error) => {
-        console.error('[MultiplayerManager] Signaling error:', error);
+        logger.multiplayer.error('Signaling error:', error);
         store.setConnectionState('disconnected');
       },
       onOpen: () => {
-        console.log('[MultiplayerManager] Signaling service ready');
+        logger.multiplayer.debug('Signaling service ready');
       },
     });
 
@@ -144,7 +145,7 @@ export class MultiplayerManager {
       onMessage: (message) => this.handleMessage(peerId, message),
       onClose: () => this.handlePeerDisconnected(peerId),
       onError: (error) => {
-        console.error(`[MultiplayerManager] Peer ${peerId} error:`, error);
+        logger.multiplayer.error(`Peer ${peerId} error:`, error);
       },
     });
 
@@ -237,7 +238,7 @@ export class MultiplayerManager {
       ); // Exclude the new player
     }
 
-    console.log(`[MultiplayerManager] Player connected: ${playerName} (${playerId})`);
+    logger.multiplayer.info(`Player connected: ${playerName} (${playerId})`);
   }
 
   /**
@@ -262,7 +263,7 @@ export class MultiplayerManager {
         type: 'PLAYER_LEAVE',
         payload: { id: playerId },
       });
-      console.log(`[MultiplayerManager] Player disconnected: ${playerId}`);
+      logger.multiplayer.info(`Player disconnected: ${playerId}`);
     } else {
       // Guest lost connection to host - stop broadcast loops and reset state
       store.removePeer(peerId);
@@ -469,8 +470,8 @@ export class MultiplayerManager {
       for (const [peerId, conn] of this.peerConnections) {
         // Check for stale connections before pinging
         if (conn.isStale()) {
-          console.warn(
-            `[MultiplayerManager] Peer ${peerId} is stale (no messages for ${conn.getTimeSinceLastMessage()}ms), disconnecting`
+          logger.multiplayer.warn(
+            `Peer ${peerId} is stale (no messages for ${conn.getTimeSinceLastMessage()}ms), disconnecting`
           );
           stalePeers.push(peerId);
           continue;
@@ -527,7 +528,7 @@ export class MultiplayerManager {
         });
         // Handle result locally
         if (!result.success) {
-          console.warn('[MultiplayerManager] Local intent failed:', result.error);
+          logger.multiplayer.warn('Local intent failed:', result.error);
         }
       }
     } else {
@@ -648,7 +649,7 @@ export class MultiplayerManager {
       this.signalingService = null;
     }
 
-    console.log('[MultiplayerManager] Destroyed');
+    logger.multiplayer.debug('MultiplayerManager destroyed');
   }
 
   /**

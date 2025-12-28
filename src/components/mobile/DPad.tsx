@@ -129,8 +129,9 @@ export const DPad: React.FC<DPadProps> = ({
       {/* Up button */}
       <button
         type="button"
-        className={`${buttonBaseClass} top-0 left-1/2 -translate-x-1/2 ${dpadMode === 'move' ? 'bg-cyan-500/30' : 'bg-violet-500/30'
-          } border border-slate-600/50 active:bg-opacity-60`}
+        className={`${buttonBaseClass} top-0 left-1/2 -translate-x-1/2 ${
+          dpadMode === 'move' ? 'bg-cyan-500/30' : 'bg-violet-500/30'
+        } border border-slate-600/50 active:bg-opacity-60`}
         style={noCalloutStyle}
         onTouchStart={handleTouchStart('up')}
         onTouchEnd={handleTouchEnd('up')}
@@ -144,8 +145,9 @@ export const DPad: React.FC<DPadProps> = ({
       {/* Down button */}
       <button
         type="button"
-        className={`${buttonBaseClass} bottom-0 left-1/2 -translate-x-1/2 ${dpadMode === 'move' ? 'bg-cyan-500/30' : 'bg-violet-500/30'
-          } border border-slate-600/50 active:bg-opacity-60`}
+        className={`${buttonBaseClass} bottom-0 left-1/2 -translate-x-1/2 ${
+          dpadMode === 'move' ? 'bg-cyan-500/30' : 'bg-violet-500/30'
+        } border border-slate-600/50 active:bg-opacity-60`}
         style={noCalloutStyle}
         onTouchStart={handleTouchStart('down')}
         onTouchEnd={handleTouchEnd('down')}
@@ -159,8 +161,9 @@ export const DPad: React.FC<DPadProps> = ({
       {/* Left button */}
       <button
         type="button"
-        className={`${buttonBaseClass} left-0 top-1/2 -translate-y-1/2 ${dpadMode === 'move' ? 'bg-cyan-500/30' : 'bg-violet-500/30'
-          } border border-slate-600/50 active:bg-opacity-60`}
+        className={`${buttonBaseClass} left-0 top-1/2 -translate-y-1/2 ${
+          dpadMode === 'move' ? 'bg-cyan-500/30' : 'bg-violet-500/30'
+        } border border-slate-600/50 active:bg-opacity-60`}
         style={noCalloutStyle}
         onTouchStart={handleTouchStart('left')}
         onTouchEnd={handleTouchEnd('left')}
@@ -174,8 +177,9 @@ export const DPad: React.FC<DPadProps> = ({
       {/* Right button */}
       <button
         type="button"
-        className={`${buttonBaseClass} right-0 top-1/2 -translate-y-1/2 ${dpadMode === 'move' ? 'bg-cyan-500/30' : 'bg-violet-500/30'
-          } border border-slate-600/50 active:bg-opacity-60`}
+        className={`${buttonBaseClass} right-0 top-1/2 -translate-y-1/2 ${
+          dpadMode === 'move' ? 'bg-cyan-500/30' : 'bg-violet-500/30'
+        } border border-slate-600/50 active:bg-opacity-60`}
         style={noCalloutStyle}
         onTouchStart={handleTouchStart('right')}
         onTouchEnd={handleTouchEnd('right')}
@@ -195,11 +199,12 @@ export const DPad: React.FC<DPadProps> = ({
           flex items-center justify-center
           transition-all duration-200
           touch-none select-none
-          ${fpsMode
-            ? 'bg-cyan-600/80 border-cyan-400' // Always cyan in FPS mode
-            : dpadMode === 'move'
-              ? 'bg-cyan-600/80 border-cyan-400'
-              : 'bg-violet-600/80 border-violet-400'
+          ${
+            fpsMode
+              ? 'bg-cyan-600/80 border-cyan-400' // Always cyan in FPS mode
+              : dpadMode === 'move'
+                ? 'bg-cyan-600/80 border-cyan-400'
+                : 'bg-violet-600/80 border-violet-400'
           }
           border-2
           ${fpsMode ? 'opacity-60' : 'active:scale-95'}

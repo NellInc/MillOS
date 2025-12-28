@@ -97,12 +97,7 @@ export type VoteType =
   | 'emergency' // Emergency decision (fast vote)
   | 'recognition'; // Recognize a worker's contribution
 
-export type VoteStatus =
-  | 'draft'
-  | 'open'
-  | 'closed'
-  | 'implemented'
-  | 'rejected';
+export type VoteStatus = 'draft' | 'open' | 'closed' | 'implemented' | 'rejected';
 
 export interface VoteOption {
   id: string;
@@ -366,8 +361,8 @@ export const BAS_PRESETS: Record<string, BASPreset> = {
       collectiveOrientation: 10,
     },
   },
-  balanced: {
-    name: 'Balanced',
+  transitional: {
+    name: 'Transitional',
     description: 'Hybrid approach with shared responsibility',
     axes: {
       autonomyLevel: 50,
@@ -414,8 +409,7 @@ export const AXIS_DESCRIPTORS: AxisDescriptor[] = [
     highLabel: 'Self-Organized',
     icon: 'Compass',
     color: 'cyan',
-    description:
-      'How much workers control their own task selection and work methods',
+    description: 'How much workers control their own task selection and work methods',
   },
   {
     key: 'decisionMode',
@@ -435,8 +429,7 @@ export const AXIS_DESCRIPTORS: AxisDescriptor[] = [
     highLabel: 'Full Open',
     icon: 'Eye',
     color: 'amber',
-    description:
-      'How much operational data is visible to all workers',
+    description: 'How much operational data is visible to all workers',
   },
   {
     key: 'evaluationDirection',

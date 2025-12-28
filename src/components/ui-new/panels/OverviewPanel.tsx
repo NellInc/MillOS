@@ -43,13 +43,7 @@ const GameClock: React.FC = React.memo(() => {
       <div
         className={`text-[10px] font-bold ${gameSpeed === 0 ? 'text-red-400' : 'text-green-400'}`}
       >
-        {gameSpeed === 0
-          ? 'PAUSED'
-          : gameSpeed === 180
-            ? '1x'
-            : gameSpeed === 1800
-              ? '10x'
-              : '60x'}
+        {gameSpeed === 0 ? 'PAUSED' : gameSpeed === 180 ? '1x' : gameSpeed === 1800 ? '10x' : '60x'}
       </div>
     </div>
   );
@@ -64,20 +58,22 @@ const GameSpeedControls: React.FC = React.memo(() => {
     <div className="flex gap-1">
       <button
         onClick={() => setGameSpeed(0)}
-        className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 ${gameSpeed === 0
-          ? 'bg-orange-600 text-white'
-          : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
-          }`}
+        className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 ${
+          gameSpeed === 0
+            ? 'bg-orange-600 text-white'
+            : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
+        }`}
         title="Pause"
       >
         <Pause className="w-3.5 h-3.5" />
       </button>
       <button
         onClick={() => setGameSpeed(180)}
-        className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 ${gameSpeed === 180
-          ? 'bg-orange-600 text-white'
-          : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
-          }`}
+        className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 ${
+          gameSpeed === 180
+            ? 'bg-orange-600 text-white'
+            : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
+        }`}
         title="Normal (1x - 24hrs in 8min)"
       >
         <Play className="w-3.5 h-3.5" />
@@ -85,10 +81,11 @@ const GameSpeedControls: React.FC = React.memo(() => {
       </button>
       <button
         onClick={() => setGameSpeed(1800)}
-        className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 ${gameSpeed === 1800
-          ? 'bg-orange-600 text-white'
-          : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
-          }`}
+        className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 ${
+          gameSpeed === 1800
+            ? 'bg-orange-600 text-white'
+            : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
+        }`}
         title="Fast (10x)"
       >
         <FastForward className="w-3.5 h-3.5" />
@@ -96,10 +93,11 @@ const GameSpeedControls: React.FC = React.memo(() => {
       </button>
       <button
         onClick={() => setGameSpeed(10800)}
-        className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 ${gameSpeed === 10800
-          ? 'bg-orange-600 text-white'
-          : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
-          }`}
+        className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 ${
+          gameSpeed === 10800
+            ? 'bg-orange-600 text-white'
+            : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
+        }`}
         title="Ultra (60x)"
       >
         <FastForward className="w-3.5 h-3.5" />
@@ -149,9 +147,9 @@ export const OverviewPanel: React.FC = React.memo(() => {
     Math.min(
       100,
       100 -
-      (safetyMetrics?.nearMisses ?? 0) * 5 -
-      (safetyMetrics?.safetyStops ?? 0) * 2 -
-      (safetyMetrics?.workerEvasions ?? 0)
+        (safetyMetrics?.nearMisses ?? 0) * 5 -
+        (safetyMetrics?.safetyStops ?? 0) * 2 -
+        (safetyMetrics?.workerEvasions ?? 0)
     )
   );
 
@@ -212,8 +210,9 @@ export const OverviewPanel: React.FC = React.memo(() => {
           </div>
           <div className="w-full h-2 bg-slate-700 rounded-full overflow-hidden">
             <div
-              className={`h-full transition-all duration-500 ${targetProgress >= 100 ? 'bg-green-500' : 'bg-cyan-500'
-                }`}
+              className={`h-full transition-all duration-500 ${
+                targetProgress >= 100 ? 'bg-green-500' : 'bg-cyan-500'
+              }`}
               style={{ width: `${targetProgress}%` }}
             />
           </div>
@@ -476,10 +475,11 @@ const QuickActionsSection: React.FC = () => {
           {/* Achievements */}
           <button
             onClick={() => setShowAchievements(!showAchievements)}
-            className={`py-2.5 px-3 rounded-lg flex items-center gap-2 transition-colors relative ${showAchievements
+            className={`py-2.5 px-3 rounded-lg flex items-center gap-2 transition-colors relative ${
+              showAchievements
                 ? 'bg-yellow-600 text-white'
                 : 'bg-slate-700/80 text-slate-300 hover:bg-slate-600'
-              }`}
+            }`}
             title="Achievements"
           >
             <Trophy size={16} className={showAchievements ? 'text-white' : 'text-yellow-400'} />
@@ -494,10 +494,11 @@ const QuickActionsSection: React.FC = () => {
           {/* Leaderboard */}
           <button
             onClick={() => setShowLeaderboard(!showLeaderboard)}
-            className={`py-2.5 px-3 rounded-lg flex items-center gap-2 transition-colors ${showLeaderboard
+            className={`py-2.5 px-3 rounded-lg flex items-center gap-2 transition-colors ${
+              showLeaderboard
                 ? 'bg-cyan-600 text-white'
                 : 'bg-slate-700/80 text-slate-300 hover:bg-slate-600'
-              }`}
+            }`}
             title="Leaderboard"
           >
             <TrendingUp size={16} className={showLeaderboard ? 'text-white' : 'text-cyan-400'} />
@@ -507,10 +508,11 @@ const QuickActionsSection: React.FC = () => {
           {/* Replay History */}
           <button
             onClick={handleToggleReplay}
-            className={`py-2.5 px-3 rounded-lg flex items-center gap-2 transition-colors ${isReplaying
+            className={`py-2.5 px-3 rounded-lg flex items-center gap-2 transition-colors ${
+              isReplaying
                 ? 'bg-red-600 text-white'
                 : 'bg-slate-700/80 text-slate-300 hover:bg-slate-600'
-              }`}
+            }`}
             title="Replay History"
           >
             <History size={16} className={isReplaying ? 'text-white' : 'text-red-400'} />
@@ -520,10 +522,11 @@ const QuickActionsSection: React.FC = () => {
           {/* GPS Map */}
           <button
             onClick={() => setShowMiniMap(!showMiniMap)}
-            className={`py-2.5 px-3 rounded-lg flex items-center gap-2 transition-colors ${showMiniMap
+            className={`py-2.5 px-3 rounded-lg flex items-center gap-2 transition-colors ${
+              showMiniMap
                 ? 'bg-green-600 text-white'
                 : 'bg-slate-700/80 text-slate-300 hover:bg-slate-600'
-              }`}
+            }`}
             title="GPS Map"
           >
             <Map size={16} className={showMiniMap ? 'text-white' : 'text-green-400'} />

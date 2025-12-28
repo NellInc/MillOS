@@ -22,15 +22,18 @@ import {
   PhysicsDebug,
 } from './components/physics';
 import ErrorBoundary from './components/ErrorBoundary';
+import { LoadingScreen } from './components/LoadingScreen';
 import { MachineData, WorkerData } from './types';
 import { ForkliftData } from './components/ForkliftSystem';
 import { AnimatePresence, motion } from 'framer-motion';
 import { audioManager } from './utils/audioManager';
 import { gpuResourceManager } from './utils/GPUResourceManager';
 import { initKTX2Loader } from './utils/textureCompression';
+import { preloadGenerativeTexturesOnce } from './utils/texturePreloader';
 import { getGPUSettings } from './utils/resourcePersistence';
 import { initializeGPUTracking, cleanupGPUTracking } from './utils/gpuTrackedResources';
 import { initializeAIEngine } from './utils/aiEngine';
+import { startVCPUpdateLoop, stopVCPUpdateLoop } from './protocols/vcp';
 import { useGraphicsStore } from './stores/graphicsStore';
 import { useUIStore } from './stores/uiStore';
 import { useGameSimulationStore } from './stores/gameSimulationStore';
@@ -62,25 +65,34 @@ import {
 } from './components/mobile/MobileControlsOverlay';
 import { useGeometryNaNDetector } from './components/SafeGeometry';
 import { ProductionTargetWidget } from './components/ProductionTargetWidget';
-import { EnergyDashboard, MultiObjectiveDashboard, ShiftHandoverSummary, CostEstimationOverlay, WeatherEffectsOverlay } from './components/ui';
+import {
+  EnergyDashboard,
+  MultiObjectiveDashboard,
+  ShiftHandoverSummary,
+  CostEstimationOverlay,
+  WeatherEffectsOverlay,
+} from './components/ui';
+import { AudioReactiveProvider } from './components/AudioReactiveProvider';
+// Asset Showcase disabled - uncomment to re-enable with 'B' key
+// import { AssetShowcase } from './components/AssetShowcase';
 
 // Calculate sky background color based on game time (matches SkySystem.tsx logic)
 const getSkyBackgroundColor = (gameTime: number): string => {
   // Keyframes for smooth fog color interpolation (matches sky dome)
   const fogKeyframes: [number, string][] = [
-    [0, '#050810'],   // Midnight - very dark
-    [4, '#050810'],   // Late night
-    [5, '#1a1a2e'],   // Pre-dawn
-    [6, '#7c4a1a'],   // Dawn
-    [7, '#c2410c'],   // Sunrise
-    [8, '#0284c7'],   // Morning
-    [12, '#0284c7'],  // Noon
-    [16, '#0369a1'],  // Afternoon
-    [18, '#92400e'],  // Golden hour - warm amber
-    [19, '#7c2d12'],  // Sunset
-    [20, '#451a03'],  // Dusk - transitioning to dark
-    [21, '#0f172a'],  // Night begins
-    [24, '#050810'],  // Midnight wrap
+    [0, '#050810'], // Midnight - very dark
+    [4, '#050810'], // Late night
+    [5, '#1a1a2e'], // Pre-dawn
+    [6, '#7c4a1a'], // Dawn
+    [7, '#c2410c'], // Sunrise
+    [8, '#0284c7'], // Morning
+    [12, '#0284c7'], // Noon
+    [16, '#0369a1'], // Afternoon
+    [18, '#92400e'], // Golden hour - warm amber
+    [19, '#7c2d12'], // Sunset
+    [20, '#451a03'], // Dusk - transitioning to dark
+    [21, '#0f172a'], // Night begins
+    [24, '#050810'], // Midnight wrap
   ];
 
   // Find keyframes to interpolate between
@@ -196,6 +208,7 @@ const App: React.FC = () => {
   // AI/SCADA panel state - synced bidirectionally with GameInterface via props
   const [showAIPanel, setShowAIPanel] = useState(false);
   const [showSCADAPanel, setShowSCADAPanel] = useState(false);
+  // const [showAssetShowcase, setShowAssetShowcase] = useState(false);
 
   const [audioInitialized, setAudioInitialized] = useState(false);
   const [qualityNotification, setQualityNotification] = useState<string | null>(null);
@@ -355,6 +368,13 @@ const App: React.FC = () => {
     };
   }, [initializeAudio]);
 
+  // Asset Showcase toggle disabled
+  // useEffect(() => {
+  //   const handleToggleAssetShowcase = () => setShowAssetShowcase((prev) => !prev);
+  //   window.addEventListener('toggleAssetShowcase', handleToggleAssetShowcase);
+  //   return () => window.removeEventListener('toggleAssetShowcase', handleToggleAssetShowcase);
+  // }, []);
+
   // Cleanup audio on unmount
   useEffect(() => {
     return () => {
@@ -391,10 +411,21 @@ const App: React.FC = () => {
     };
   }, []);
 
+  // Initialize procedural texture system (agent-generated textures)
+  useEffect(() => {
+    preloadGenerativeTexturesOnce();
+  }, []);
+
   // Initialize AI Engine observers
   useEffect(() => {
     const cleanup = initializeAIEngine();
     return cleanup;
+  }, []);
+
+  // Initialize VCP update loop
+  useEffect(() => {
+    startVCPUpdateLoop();
+    return () => stopVCPUpdateLoop();
   }, []);
 
   // Initialize SCADA system - uses same consolidated subscription
@@ -441,6 +472,12 @@ const App: React.FC = () => {
 
   return (
     <div className="relative w-full h-full bg-slate-950">
+      {/* Loading screen - shown until 3D assets are fully loaded */}
+      <LoadingScreen minimumLoadTimeMs={3000} />
+
+      {/* Audio-reactive visual system - analyzes audio for visual synchronization */}
+      <AudioReactiveProvider />
+
       {/* Skip links for keyboard navigation - WCAG 2.1 AA */}
       <div className="sr-only focus-within:not-sr-only focus-within:absolute focus-within:top-4 focus-within:left-4 focus-within:z-[100] focus-within:flex focus-within:flex-col focus-within:gap-2">
         <a
@@ -458,13 +495,9 @@ const App: React.FC = () => {
       </div>
 
       {/* 3D Canvas keyboard accessibility notice - visible to screen readers */}
-      <div
-        role="note"
-        aria-label="3D visualization keyboard controls"
-        className="sr-only"
-      >
-        The 3D factory visualization is interactive. Press V to toggle first-person view mode.
-        Use keyboard shortcuts: I for AI panel, O for SCADA, B for management, Escape to close panels.
+      <div role="note" aria-label="3D visualization keyboard controls" className="sr-only">
+        The 3D factory visualization is interactive. Press V to toggle first-person view mode. Use
+        keyboard shortcuts: I for AI panel, O for SCADA, B for management, Escape to close panels.
         Press 1-5 to switch camera presets. Arrow keys control camera in first-person mode.
       </div>
 
@@ -552,7 +585,10 @@ const App: React.FC = () => {
               preserveDrawingBuffer: false,
               failIfMajorPerformanceCaveat: false,
             }}
-            dpr={Math.max(0.5, Math.min(window.devicePixelRatio * resolutionScale, canvasQuality === 'low' ? 1 : 2))}
+            dpr={Math.max(
+              0.5,
+              Math.min(window.devicePixelRatio * resolutionScale, canvasQuality === 'low' ? 1 : 2)
+            )}
             onCreated={({ gl }) => {
               glRef.current = gl;
 
@@ -755,6 +791,12 @@ const App: React.FC = () => {
 
       {/* Mobile portrait rotation prompt - blocks interaction until rotated */}
       <RotateDeviceOverlay visible={isMobile && !isLandscape} />
+
+      {/* Asset Showcase overlay - toggle with 'B' key (DISABLED)
+      {showAssetShowcase && (
+        <AssetShowcase onClose={() => setShowAssetShowcase(false)} />
+      )}
+      */}
     </div>
   );
 };

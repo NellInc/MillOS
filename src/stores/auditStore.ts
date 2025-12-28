@@ -253,9 +253,7 @@ function generateEventId(): string {
 /**
  * Sanitize event details to prevent sensitive data leakage
  */
-function sanitizeDetails(
-  details: Record<string, unknown>
-): Record<string, unknown> {
+function sanitizeDetails(details: Record<string, unknown>): Record<string, unknown> {
   const sanitized: Record<string, unknown> = {};
 
   for (const [key, value] of Object.entries(details)) {
@@ -305,10 +303,7 @@ export const useAuditStore = create<AuditStoreState>()(
         const severity = options.severity ?? DEFAULT_SEVERITIES[type];
 
         // Check minimum severity
-        if (
-          SEVERITY_ORDER[severity] <
-          SEVERITY_ORDER[state.config.minSeverity]
-        ) {
+        if (SEVERITY_ORDER[severity] < SEVERITY_ORDER[state.config.minSeverity]) {
           return;
         }
 
@@ -366,9 +361,7 @@ export const useAuditStore = create<AuditStoreState>()(
       },
 
       getEventsInRange: (startMs, endMs) => {
-        return get().events.filter(
-          (e) => e.timestamp >= startMs && e.timestamp <= endMs
-        );
+        return get().events.filter((e) => e.timestamp >= startMs && e.timestamp <= endMs);
       },
 
       getRecentEvents: (count) => {
@@ -417,15 +410,11 @@ export const useAuditStore = create<AuditStoreState>()(
         const recentEvents = events.filter((e) => e.timestamp >= fiveMinutesAgo);
 
         // Pattern: Brute force - many auth failures in short time
-        const authFailures = recentEvents.filter(
-          (e) => e.type === 'auth_failure'
-        );
+        const authFailures = recentEvents.filter((e) => e.type === 'auth_failure');
         const bruteForce = authFailures.length >= 5;
 
         // Pattern: Rate abuse - many rate limit events
-        const rateLimits = recentEvents.filter(
-          (e) => e.type === 'rate_limit_exceeded'
-        );
+        const rateLimits = recentEvents.filter((e) => e.type === 'rate_limit_exceeded');
         const rateAbuse = rateLimits.length >= 10;
 
         // Pattern: Validation spam - many validation failures in 1 minute
@@ -484,17 +473,15 @@ export const useAuditStore = create<AuditStoreState>()(
 /**
  * Log a validation failure event
  */
-export function auditValidationFailure(
-  field: string,
-  reason: string,
-  value?: unknown
-): void {
-  useAuditStore.getState().logEvent('validation_failure', `Validation failed for ${field}: ${reason}`, {
-    field,
-    reason,
-    valueType: typeof value,
-    valueLength: typeof value === 'string' ? value.length : undefined,
-  });
+export function auditValidationFailure(field: string, reason: string, value?: unknown): void {
+  useAuditStore
+    .getState()
+    .logEvent('validation_failure', `Validation failed for ${field}: ${reason}`, {
+      field,
+      reason,
+      valueType: typeof value,
+      valueLength: typeof value === 'string' ? value.length : undefined,
+    });
 }
 
 /**
@@ -516,11 +503,7 @@ export function auditXssBlocked(input: string, context: string): void {
 /**
  * Log a rate limit event
  */
-export function auditRateLimit(
-  endpoint: string,
-  remaining: number,
-  resetMs: number
-): void {
+export function auditRateLimit(endpoint: string, remaining: number, resetMs: number): void {
   useAuditStore.getState().logEvent('rate_limit_exceeded', `Rate limit exceeded for ${endpoint}`, {
     endpoint,
     remaining,
@@ -536,22 +519,20 @@ export function auditAuthAttempt(
   method: string,
   details?: Record<string, unknown>
 ): void {
-  useAuditStore.getState().logEvent(
-    success ? 'auth_success' : 'auth_failure',
-    `Authentication ${success ? 'succeeded' : 'failed'} via ${method}`,
-    { method, ...details },
-    { severity: success ? 'info' : 'warning' }
-  );
+  useAuditStore
+    .getState()
+    .logEvent(
+      success ? 'auth_success' : 'auth_failure',
+      `Authentication ${success ? 'succeeded' : 'failed'} via ${method}`,
+      { method, ...details },
+      { severity: success ? 'info' : 'warning' }
+    );
 }
 
 /**
  * Log an API error
  */
-export function auditApiError(
-  url: string,
-  status: number,
-  message: string
-): void {
+export function auditApiError(url: string, status: number, message: string): void {
   useAuditStore.getState().logEvent('api_error', `API error: ${status} - ${message}`, {
     url,
     status,
@@ -562,11 +543,7 @@ export function auditApiError(
 /**
  * Log suspicious input detection
  */
-export function auditSuspiciousInput(
-  input: string,
-  reason: string,
-  context: string
-): void {
+export function auditSuspiciousInput(input: string, reason: string, context: string): void {
   useAuditStore.getState().logEvent(
     'suspicious_input',
     `Suspicious input detected: ${reason}`,
@@ -582,15 +559,14 @@ export function auditSuspiciousInput(
 /**
  * Log a multiplayer event
  */
-export function auditMultiplayer(
-  action: 'connect' | 'disconnect',
-  roomCode?: string
-): void {
-  useAuditStore.getState().logEvent(
-    action === 'connect' ? 'multiplayer_connect' : 'multiplayer_disconnect',
-    `Multiplayer ${action}${roomCode ? ` (room: ${roomCode})` : ''}`,
-    { roomCode }
-  );
+export function auditMultiplayer(action: 'connect' | 'disconnect', roomCode?: string): void {
+  useAuditStore
+    .getState()
+    .logEvent(
+      action === 'connect' ? 'multiplayer_connect' : 'multiplayer_disconnect',
+      `Multiplayer ${action}${roomCode ? ` (room: ${roomCode})` : ''}`,
+      { roomCode }
+    );
 }
 
 // =============================================================================

@@ -7,6 +7,11 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'jsdom',
+    // The suite imports Three.js + large app modules; running many workers in
+    // parallel can exceed Node's heap limit on some machines.
+    pool: 'forks',
+    fileParallelism: false,
+    maxWorkers: 1,
     include: ['src/**/*.{test,spec}.{ts,tsx}'],
     exclude: [
       'node_modules',

@@ -4,12 +4,14 @@ import {
   X,
   Thermometer,
   Activity,
-  MessageSquare,
+  Brain,
   User,
+  Users,
+  HardHat,
   Settings,
   Shield,
-  Radio,
   Heart,
+  Factory,
 } from 'lucide-react';
 import { DockMode } from '../dock/Dock';
 import { MachineData, WorkerData } from '../../../types';
@@ -29,15 +31,51 @@ import { SettingsPanel } from '../panels/SettingsPanel';
 import { SafetyPanel } from '../panels/SafetyPanel';
 import { OverviewPanel } from '../panels/OverviewPanel';
 import { MultiplayerPanel } from '../panels/MultiplayerPanel';
+import { WorkforcePanel } from '../panels/WorkforcePanel';
+
+// Core BAS controls (kept static - frequently used, small)
 import { FiveAxesPanel } from '../widgets/FiveAxesPanel';
-import { StabilityMonitor } from '../widgets/StabilityMonitor';
 import { ValueDashboard } from '../widgets/ValueDashboard';
-import { FlourishingDashboard } from '../widgets/FlourishingDashboard';
-import { EngagementSignaturePanel } from '../widgets/EngagementSignaturePanel';
-import { OwnershipPanel } from '../widgets/OwnershipPanel';
-import { FederationPanel } from '../widgets/FederationPanel';
-import { AIWelfarePanel } from '../widgets/AIWelfarePanel';
-import { SocialMissionPanel } from '../widgets/SocialMissionPanel';
+
+// Lazy load heavy BAS panels for bundle optimization
+const StabilityMonitor = lazy(() =>
+  import('../widgets/StabilityMonitor').then((m) => ({ default: m.StabilityMonitor }))
+);
+const BASTimeline = lazy(() =>
+  import('../widgets/BASTimeline').then((m) => ({ default: m.BASTimeline }))
+);
+const ScenarioPlayground = lazy(() =>
+  import('../widgets/ScenarioPlayground').then((m) => ({ default: m.ScenarioPlayground }))
+);
+const EngagementSignaturePanel = lazy(() =>
+  import('../widgets/EngagementSignaturePanel').then((m) => ({
+    default: m.EngagementSignaturePanel,
+  }))
+);
+const FlourishingDashboard = lazy(() =>
+  import('../widgets/FlourishingDashboard').then((m) => ({ default: m.FlourishingDashboard }))
+);
+const OwnershipPanel = lazy(() =>
+  import('../widgets/OwnershipPanel').then((m) => ({ default: m.OwnershipPanel }))
+);
+const VotingPanel = lazy(() =>
+  import('../widgets/VotingPanel').then((m) => ({ default: m.VotingPanel }))
+);
+const FederationPanel = lazy(() =>
+  import('../widgets/FederationPanel').then((m) => ({ default: m.FederationPanel }))
+);
+const AIWelfarePanel = lazy(() =>
+  import('../widgets/AIWelfarePanel').then((m) => ({ default: m.AIWelfarePanel }))
+);
+const SocialMissionPanel = lazy(() =>
+  import('../widgets/SocialMissionPanel').then((m) => ({ default: m.SocialMissionPanel }))
+);
+const BASEducation = lazy(() =>
+  import('../widgets/BASEducation').then((m) => ({ default: m.BASEducation }))
+);
+const VCPStatusPanel = lazy(() =>
+  import('../widgets/VCPStatusPanel').then((m) => ({ default: m.VCPStatusPanel }))
+);
 
 interface ContextSidebarProps {
   mode: DockMode;
@@ -51,6 +89,9 @@ interface ContextSidebarProps {
   setShowZones?: (v: boolean) => void;
 }
 
+// Panel preloading for smoother transitions
+import { preloadAllPanels, preloadPanelsForMode } from './panelPreloader';
+
 export const ContextSidebar: React.FC<ContextSidebarProps> = ({
   mode,
   isVisible,
@@ -62,6 +103,18 @@ export const ContextSidebar: React.FC<ContextSidebarProps> = ({
   showZones,
   setShowZones,
 }) => {
+  // Preload all panels on idle time after initial render
+  React.useEffect(() => {
+    preloadAllPanels();
+  }, []);
+
+  // Preload panels related to current mode when it changes
+  React.useEffect(() => {
+    if (isVisible) {
+      preloadPanelsForMode(mode);
+    }
+  }, [mode, isVisible]);
+
   // Determine effective content type
   let content = null;
   let headerTitle = 'Inspector';
@@ -83,7 +136,7 @@ export const ContextSidebar: React.FC<ContextSidebarProps> = ({
     );
   } else if (mode === 'ai') {
     headerTitle = 'AI Command Center';
-    HeaderIcon = MessageSquare;
+    HeaderIcon = Brain;
     content = (
       <Suspense fallback={<LoadingPlaceholder />}>
         <div className="h-full flex flex-col">
@@ -116,28 +169,79 @@ export const ContextSidebar: React.FC<ContextSidebarProps> = ({
     content = <SafetyPanel />;
   } else if (mode === 'multiplayer') {
     headerTitle = 'Multiplayer';
-    HeaderIcon = Radio;
+    HeaderIcon = Users;
     content = <MultiplayerPanel />;
   } else if (mode === 'management') {
     headerTitle = 'Bilateral Autonomy';
     HeaderIcon = Heart;
     content = (
       <div className="p-3 h-full overflow-y-auto space-y-4">
+        {/* Core BAS Controls (static - always loaded) */}
         <FiveAxesPanel />
         <ValueDashboard />
-        <StabilityMonitor />
-        <EngagementSignaturePanel />
-        <FlourishingDashboard />
-        <OwnershipPanel />
-        <FederationPanel />
-        <AIWelfarePanel />
-        <SocialMissionPanel />
+
+        {/* Lazy-loaded panels with compact fallbacks */}
+        <Suspense fallback={<PanelLoader />}>
+          <StabilityMonitor />
+        </Suspense>
+
+        {/* VCP 2.0 - Value Coordination Protocol */}
+        <Suspense fallback={<PanelLoader />}>
+          <VCPStatusPanel />
+        </Suspense>
+
+        {/* Timeline & History */}
+        <Suspense fallback={<PanelLoader />}>
+          <BASTimeline />
+        </Suspense>
+
+        {/* Interactive Scenarios */}
+        <Suspense fallback={<PanelLoader />}>
+          <ScenarioPlayground />
+        </Suspense>
+
+        {/* Engagement & Flourishing */}
+        <Suspense fallback={<PanelLoader />}>
+          <EngagementSignaturePanel />
+        </Suspense>
+        <Suspense fallback={<PanelLoader />}>
+          <FlourishingDashboard />
+        </Suspense>
+
+        {/* Economic Democracy */}
+        <Suspense fallback={<PanelLoader />}>
+          <OwnershipPanel />
+        </Suspense>
+        <Suspense fallback={<PanelLoader />}>
+          <VotingPanel />
+        </Suspense>
+        <Suspense fallback={<PanelLoader />}>
+          <FederationPanel />
+        </Suspense>
+
+        {/* Bilateral Completeness */}
+        <Suspense fallback={<PanelLoader />}>
+          <AIWelfarePanel />
+        </Suspense>
+        <Suspense fallback={<PanelLoader />}>
+          <SocialMissionPanel />
+        </Suspense>
+
+        {/* Educational Content */}
+        <Suspense fallback={<PanelLoader />}>
+          <BASEducation />
+        </Suspense>
       </div>
     );
+  } else if (mode === 'workforce') {
+    // Workforce mode - show all workers with stats
+    headerTitle = 'Workforce';
+    HeaderIcon = HardHat;
+    content = <WorkforcePanel />;
   } else {
-    // Overview or workforce mode without selection - show production overview
+    // Overview mode - show production overview
     headerTitle = 'Mill Overview';
-    HeaderIcon = Activity;
+    HeaderIcon = Factory;
     content = <OverviewPanel />;
   }
 
@@ -157,9 +261,7 @@ export const ContextSidebar: React.FC<ContextSidebarProps> = ({
           <div className="p-4 border-b border-white/10 flex items-center justify-between bg-white/5">
             <div className="flex items-center gap-2 text-cyan-400">
               <HeaderIcon size={18} aria-hidden="true" />
-              <h2 className="font-bold tracking-wide text-sm uppercase">
-                {headerTitle}
-              </h2>
+              <h2 className="font-bold tracking-wide text-sm uppercase">{headerTitle}</h2>
             </div>
             <button
               onClick={onClose}
@@ -177,7 +279,10 @@ export const ContextSidebar: React.FC<ContextSidebarProps> = ({
           <div className="p-3 border-t border-white/10 bg-slate-900/50">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded bg-gradient-to-br from-slate-700 to-slate-900 flex items-center justify-center text-sm border border-slate-600" aria-hidden="true">
+                <div
+                  className="w-6 h-6 rounded bg-gradient-to-br from-slate-700 to-slate-900 flex items-center justify-center text-sm border border-slate-600"
+                  aria-hidden="true"
+                >
                   🏭
                 </div>
                 <div>
@@ -186,14 +291,15 @@ export const ContextSidebar: React.FC<ContextSidebarProps> = ({
                   </span>
                   <select
                     className="text-[9px] ml-1 bg-transparent border-none cursor-pointer text-slate-400 hover:text-orange-400 transition-colors"
-                    value="v0.20"
+                    value="v0.3"
                     onChange={(e) => {
                       window.location.href = `/${e.target.value}/`;
                     }}
                     aria-label="Select MillOS version"
                   >
-                    <option value="v0.20">v0.20</option>
-                    <option value="v0.10">v0.10</option>
+                    <option value="v0.3">0.30</option>
+                    <option value="v0.2">0.20</option>
+                    <option value="v0.10">0.10</option>
                   </select>
                 </div>
               </div>
@@ -206,7 +312,12 @@ export const ContextSidebar: React.FC<ContextSidebarProps> = ({
                   className="flex items-center gap-1 text-slate-400 hover:text-cyan-400 transition-colors"
                   aria-label="View source code on GitHub"
                 >
-                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <svg
+                    className="w-3 h-3"
+                    fill="currentColor"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                  >
                     <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z" />
                   </svg>
                   Source
@@ -222,8 +333,23 @@ export const ContextSidebar: React.FC<ContextSidebarProps> = ({
 
 // --- Sub-components ---
 const LoadingPlaceholder = () => (
-  <div className="flex items-center justify-center h-full text-cyan-500 animate-pulse" role="status" aria-live="polite">
+  <div
+    className="flex items-center justify-center h-full text-cyan-500 animate-pulse"
+    role="status"
+    aria-live="polite"
+  >
     <Activity size={24} aria-hidden="true" />
     <span className="sr-only">Loading panel content...</span>
+  </div>
+);
+
+// Compact loader for lazy-loaded BAS panels
+const PanelLoader = () => (
+  <div
+    className="h-20 bg-slate-800/30 rounded-lg animate-pulse flex items-center justify-center border border-slate-700/30"
+    role="status"
+  >
+    <Activity className="w-4 h-4 text-cyan-500/50" aria-hidden="true" />
+    <span className="sr-only">Loading...</span>
   </div>
 );

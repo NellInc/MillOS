@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import { audioManager } from '../utils/audioManager';
 import { shouldRunThisFrame } from '../utils/frameThrottle';
+import { FLOOR_LAYERS, POLYGON_OFFSET, RENDER_ORDER } from '../constants/renderLayers';
 
 // ==========================================
 // CENTRALIZED ANIMATION MANAGER
@@ -636,9 +637,21 @@ const FireExtinguisherStation: React.FC<{ position: [number, number, number] }> 
       </group>
 
       {/* Floor marking ring */}
-      <mesh position={[0, 0.01, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+      <mesh
+        position={[0, FLOOR_LAYERS.safetyMain, 0]}
+        rotation={[-Math.PI / 2, 0, 0]}
+        renderOrder={RENDER_ORDER.floorMarkings}
+      >
         <ringGeometry args={[0.4, 0.5, 16]} />
-        <meshStandardMaterial color="#ef4444" transparent opacity={0.4} />
+        <meshStandardMaterial
+          color="#ef4444"
+          transparent
+          opacity={0.4}
+          depthWrite={false}
+          polygonOffset
+          polygonOffsetFactor={POLYGON_OFFSET.standard.factor}
+          polygonOffsetUnits={POLYGON_OFFSET.standard.units}
+        />
       </mesh>
     </group>
   );
@@ -736,9 +749,21 @@ export const LoadingDockDoor: React.FC<{
       <WarningLight position={[2.3, doorHeight + 0.5, 0.2]} isActive={warningActive} />
 
       {/* Floor warning stripes */}
-      <mesh position={[0, 0.02, 1.5]} rotation={[-Math.PI / 2, 0, 0]}>
+      <mesh
+        position={[0, FLOOR_LAYERS.safetyMain, 1.5]}
+        rotation={[-Math.PI / 2, 0, 0]}
+        renderOrder={RENDER_ORDER.floorMarkings}
+      >
         <planeGeometry args={[5, 3]} />
-        <meshStandardMaterial color="#eab308" transparent opacity={0.3} />
+        <meshStandardMaterial
+          color="#eab308"
+          transparent
+          opacity={0.3}
+          depthWrite={false}
+          polygonOffset
+          polygonOffsetFactor={POLYGON_OFFSET.standard.factor}
+          polygonOffsetUnits={POLYGON_OFFSET.standard.units}
+        />
       </mesh>
     </group>
   );
@@ -1352,21 +1377,39 @@ const DrainageGrate: React.FC<{ position: [number, number, number]; size?: numbe
   return (
     <group position={position}>
       {/* Grate frame */}
-      <mesh position={[0, 0.01, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+      <mesh position={[0, FLOOR_LAYERS.puddle, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <ringGeometry args={[size * 0.4, size * 0.5, 4]} />
-        <meshStandardMaterial color="#374151" metalness={0.7} roughness={0.4} />
+        <meshStandardMaterial
+          color="#374151"
+          metalness={0.7}
+          roughness={0.4}
+          polygonOffset
+          polygonOffsetFactor={POLYGON_OFFSET.standard.factor}
+          polygonOffsetUnits={POLYGON_OFFSET.standard.units}
+        />
       </mesh>
 
       {/* Grate bars */}
       {Array.from({ length: 5 }).map((_, i) => (
-        <mesh key={i} position={[0, 0.015, (i - 2) * size * 0.15]} rotation={[-Math.PI / 2, 0, 0]}>
+        <mesh
+          key={i}
+          position={[0, FLOOR_LAYERS.puddle + 0.005, (i - 2) * size * 0.15]}
+          rotation={[-Math.PI / 2, 0, 0]}
+        >
           <boxGeometry args={[size * 0.8, 0.02, 0.03]} />
-          <meshStandardMaterial color="#1e293b" metalness={0.8} roughness={0.3} />
+          <meshStandardMaterial
+            color="#1e293b"
+            metalness={0.8}
+            roughness={0.3}
+            polygonOffset
+            polygonOffsetFactor={POLYGON_OFFSET.standard.factor}
+            polygonOffsetUnits={POLYGON_OFFSET.standard.units}
+          />
         </mesh>
       ))}
 
       {/* Dark hole beneath */}
-      <mesh position={[0, -0.01, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+      <mesh position={[0, FLOOR_LAYERS.puddle - 0.01, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <circleGeometry args={[size * 0.4, 8]} />
         <meshBasicMaterial color="#0a0a0a" />
       </mesh>
@@ -2282,7 +2325,15 @@ const CoffeeCup: React.FC<{
           {/* Coffee ring stain */}
           <mesh position={[0.06, 0.001, 0]} rotation={[-Math.PI / 2, 0, 0]}>
             <ringGeometry args={[0.025, 0.04, 12]} />
-            <meshStandardMaterial color="#78350f" transparent opacity={0.3} />
+            <meshStandardMaterial
+              color="#78350f"
+              transparent
+              opacity={0.3}
+              depthWrite={false}
+              polygonOffset
+              polygonOffsetFactor={POLYGON_OFFSET.strong.factor}
+              polygonOffsetUnits={POLYGON_OFFSET.strong.units}
+            />
           </mesh>
         </>
       )}
@@ -3829,13 +3880,27 @@ const FoldedNewspaper: React.FC<{
       {/* Fold crease shadow */}
       <mesh position={[0, 0.011, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <planeGeometry args={[0.25, 0.005]} />
-        <meshBasicMaterial color="#d4d4d4" />
+        <meshBasicMaterial
+          color="#d4d4d4"
+          depthWrite={false}
+          polygonOffset
+          polygonOffsetFactor={POLYGON_OFFSET.subtle.factor}
+          polygonOffsetUnits={POLYGON_OFFSET.subtle.units}
+        />
       </mesh>
       {/* Text impression lines */}
       {[-0.06, -0.02, 0.02, 0.06].map((z, i) => (
         <mesh key={i} position={[-0.05, 0.011, z]} rotation={[-Math.PI / 2, 0, 0]}>
           <planeGeometry args={[0.12, 0.008]} />
-          <meshBasicMaterial color="#a3a3a3" transparent opacity={0.4} />
+          <meshBasicMaterial
+            color="#a3a3a3"
+            transparent
+            opacity={0.4}
+            depthWrite={false}
+            polygonOffset
+            polygonOffsetFactor={POLYGON_OFFSET.subtle.factor}
+            polygonOffsetUnits={POLYGON_OFFSET.subtle.units}
+          />
         </mesh>
       ))}
     </group>
@@ -4104,7 +4169,11 @@ const RoofLeakPuddle: React.FC<{ position: [number, number, number]; size?: numb
   return (
     <group position={position}>
       {/* Puddle on floor */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
+      <mesh
+        rotation={[-Math.PI / 2, 0, 0]}
+        position={[0, FLOOR_LAYERS.puddle, 0]}
+        renderOrder={RENDER_ORDER.floorEffects}
+      >
         <circleGeometry args={[size * 0.5, 24]} />
         <meshStandardMaterial
           color="#60a5fa"
@@ -4112,12 +4181,29 @@ const RoofLeakPuddle: React.FC<{ position: [number, number, number]; size?: numb
           opacity={0.4}
           metalness={0.9}
           roughness={0.1}
+          depthWrite={false}
+          polygonOffset
+          polygonOffsetFactor={POLYGON_OFFSET.subtle.factor}
+          polygonOffsetUnits={POLYGON_OFFSET.subtle.units}
         />
       </mesh>
       {/* Ripple effect */}
-      <mesh ref={rippleRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.015, 0]}>
+      <mesh
+        ref={rippleRef}
+        rotation={[-Math.PI / 2, 0, 0]}
+        position={[0, FLOOR_LAYERS.puddle, 0]}
+        renderOrder={RENDER_ORDER.floorEffects + 1}
+      >
         <ringGeometry args={[0.02, 0.05, 16]} />
-        <meshBasicMaterial color="#93c5fd" transparent opacity={0.3} />
+        <meshBasicMaterial
+          color="#93c5fd"
+          transparent
+          opacity={0.3}
+          depthWrite={false}
+          polygonOffset
+          polygonOffsetFactor={POLYGON_OFFSET.moderate.factor}
+          polygonOffsetUnits={POLYGON_OFFSET.moderate.units}
+        />
       </mesh>
       {/* Falling drop */}
       <mesh ref={dropRef} position={[0, 3, 0]}>

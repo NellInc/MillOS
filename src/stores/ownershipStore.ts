@@ -25,12 +25,7 @@ export interface VestingRule {
 }
 
 export interface DistributionModel {
-  type:
-    | 'equal'
-    | 'hours-weighted'
-    | 'role-weighted'
-    | 'tenure-weighted'
-    | 'hybrid';
+  type: 'equal' | 'hours-weighted' | 'role-weighted' | 'tenure-weighted' | 'hybrid';
   weights?: {
     hours: number;
     role: number;
@@ -131,19 +126,11 @@ interface OwnershipActions {
   processExitPayout: (workerId: string) => number;
 
   // Compensation
-  proposeCompensation: (
-    compensation: Omit<Compensation, 'peerFeedback'>
-  ) => void;
-  addCompensationFeedback: (
-    workerId: string,
-    fromWorkerId: string,
-    feedback: string
-  ) => void;
+  proposeCompensation: (compensation: Omit<Compensation, 'peerFeedback'>) => void;
+  addCompensationFeedback: (workerId: string, fromWorkerId: string, feedback: string) => void;
 
   // Investment
-  createInvestmentProposal: (
-    proposal: Omit<InvestmentProposal, 'id' | 'votes' | 'status'>
-  ) => void;
+  createInvestmentProposal: (proposal: Omit<InvestmentProposal, 'id' | 'votes' | 'status'>) => void;
   voteOnInvestment: (
     proposalId: string,
     workerId: string,
@@ -254,9 +241,7 @@ export const useOwnershipStore = create<OwnershipState & OwnershipActions>()(
           structure: {
             ...s.structure,
             individualShares: Object.fromEntries(
-              Object.entries(s.structure.individualShares).filter(
-                ([id]) => id !== workerId
-              )
+              Object.entries(s.structure.individualShares).filter(([id]) => id !== workerId)
             ),
             reservePool: s.structure.reservePool + share,
           },
@@ -325,19 +310,15 @@ export const useOwnershipStore = create<OwnershipState & OwnershipActions>()(
         set((state) => ({
           capitalDecisions: {
             ...state.capitalDecisions,
-            pendingInvestments: state.capitalDecisions.pendingInvestments.map(
-              (p) => {
-                if (p.id !== proposalId) return p;
-                // Remove existing vote if any, then add new one
-                const filteredVotes = p.votes.filter(
-                  (v) => v.workerId !== workerId
-                );
-                return {
-                  ...p,
-                  votes: [...filteredVotes, { workerId, vote }],
-                };
-              }
-            ),
+            pendingInvestments: state.capitalDecisions.pendingInvestments.map((p) => {
+              if (p.id !== proposalId) return p;
+              // Remove existing vote if any, then add new one
+              const filteredVotes = p.votes.filter((v) => v.workerId !== workerId);
+              return {
+                ...p,
+                votes: [...filteredVotes, { workerId, vote }],
+              };
+            }),
           },
         })),
 
@@ -356,10 +337,9 @@ export const useOwnershipStore = create<OwnershipState & OwnershipActions>()(
           return {
             capitalDecisions: {
               ...state.capitalDecisions,
-              pendingInvestments:
-                state.capitalDecisions.pendingInvestments.filter(
-                  (p) => p.id !== proposalId
-                ),
+              pendingInvestments: state.capitalDecisions.pendingInvestments.filter(
+                (p) => p.id !== proposalId
+              ),
               approvedInvestments: approved
                 ? [
                     ...state.capitalDecisions.approvedInvestments,
@@ -381,9 +361,7 @@ export const useOwnershipStore = create<OwnershipState & OwnershipActions>()(
 
       calculateCurrentRatio: () => {
         const state = get();
-        const compensations = Object.values(
-          state.wageSolidarity.workerCompensation
-        );
+        const compensations = Object.values(state.wageSolidarity.workerCompensation);
         if (compensations.length === 0) return 1;
         const amounts = compensations.map((c) => c.baseAmount);
         const max = Math.max(...amounts);
@@ -411,9 +389,10 @@ export const useOwnershipStore = create<OwnershipState & OwnershipActions>()(
 
       getTotalWorkerOwnership: () => {
         const state = get();
-        const individualTotal = Object.values(
-          state.structure.individualShares
-        ).reduce((sum, share) => sum + share, 0);
+        const individualTotal = Object.values(state.structure.individualShares).reduce(
+          (sum, share) => sum + share,
+          0
+        );
         return state.structure.collectiveShare + individualTotal;
       },
 
@@ -424,14 +403,9 @@ export const useOwnershipStore = create<OwnershipState & OwnershipActions>()(
 
       getAverageCompensation: () => {
         const state = get();
-        const compensations = Object.values(
-          state.wageSolidarity.workerCompensation
-        );
+        const compensations = Object.values(state.wageSolidarity.workerCompensation);
         if (compensations.length === 0) return 0;
-        return (
-          compensations.reduce((sum, c) => sum + c.baseAmount, 0) /
-          compensations.length
-        );
+        return compensations.reduce((sum, c) => sum + c.baseAmount, 0) / compensations.length;
       },
     }),
     {

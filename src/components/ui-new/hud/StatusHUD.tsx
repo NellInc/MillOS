@@ -129,7 +129,10 @@ export const StatusHUD: React.FC = () => {
 
         <div className="flex items-center gap-4 px-3 py-1.5" role="status" aria-live="polite">
           {/* FPS */}
-          <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-mono" aria-label={`Frame rate: ${fps} FPS`}>
+          <div
+            className="flex items-center gap-1.5 text-[10px] text-slate-400 font-mono"
+            aria-label={`Frame rate: ${fps} FPS`}
+          >
             <ActivityIcon size={12} aria-hidden="true" />
             <span>{fps} FPS</span>
           </div>
@@ -137,7 +140,10 @@ export const StatusHUD: React.FC = () => {
           <div className="w-px h-3 bg-white/10" aria-hidden="true"></div>
 
           {/* Safety Score */}
-          <div className={`flex items-center gap-1.5 text-[10px] font-bold ${safetyColor}`} aria-label={`Safety score: ${safetyScore} percent`}>
+          <div
+            className={`flex items-center gap-1.5 text-[10px] font-bold ${safetyColor}`}
+            aria-label={`Safety score: ${safetyScore} percent`}
+          >
             <SafetyIcon size={12} aria-hidden="true" />
             <span>{safetyScore}% SAFETY</span>
           </div>
@@ -145,7 +151,10 @@ export const StatusHUD: React.FC = () => {
           <div className="w-px h-3 bg-white/10" aria-hidden="true"></div>
 
           {/* Network / Connectivity */}
-          <div className="flex items-center gap-1.5 text-[10px] text-cyan-400" aria-label="Network status: Connected">
+          <div
+            className="flex items-center gap-1.5 text-[10px] text-cyan-400"
+            aria-label="Network status: Connected"
+          >
             <Wifi size={12} aria-hidden="true" />
             <span>LINKED</span>
           </div>

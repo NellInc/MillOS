@@ -102,10 +102,7 @@ const DEFAULT_ALLOWED_PATTERN = /[^a-zA-Z0-9\s.,!?@#$%&*()_+=\-[\]{}|;:'"~]/g;
  * sanitizeString('<script>alert(1)</script>', { maxLength: 50 })
  * // Returns: 'scriptalert1script'
  */
-export function sanitizeString(
-  input: unknown,
-  options: SanitizeStringOptions = {}
-): string {
+export function sanitizeString(input: unknown, options: SanitizeStringOptions = {}): string {
   // Type coercion with fallback
   if (input === null || input === undefined) {
     return '';
@@ -184,6 +181,7 @@ export function sanitizeChatMessage(message: unknown): string {
   }
 
   // Remove control characters and null bytes (security)
+  // eslint-disable-next-line no-control-regex -- Intentional: Security pattern to strip dangerous control characters
   let clean = message.replace(/[\x00-\x1F\x7F]/g, '');
 
   // Trim and limit length
@@ -227,7 +225,7 @@ export function sanitizeWorkerName(name: unknown): string {
   return sanitizeString(name, {
     maxLength: 50,
     trim: true,
-    allowedPattern: /[^a-zA-Z0-9\s.,'\-]/g,
+    allowedPattern: /[^a-zA-Z0-9\s.,'-]/g,
     replacementChar: '',
   });
 }
@@ -394,10 +392,7 @@ export interface SanitizeNumberOptions {
  * @param options - Sanitization options
  * @returns Sanitized number
  */
-export function sanitizeNumber(
-  input: unknown,
-  options: SanitizeNumberOptions = {}
-): number {
+export function sanitizeNumber(input: unknown, options: SanitizeNumberOptions = {}): number {
   const {
     min = Number.MIN_SAFE_INTEGER,
     max = Number.MAX_SAFE_INTEGER,

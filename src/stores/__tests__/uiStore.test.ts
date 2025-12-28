@@ -44,7 +44,6 @@ describe('UIStore', () => {
       showMiniMap: false,
       fpsMode: false,
       showSPCCharts: false,
-      showComplianceDashboard: false,
     });
   });
 
@@ -289,30 +288,6 @@ describe('UIStore', () => {
 
       toggleSPCCharts();
       expect(useUIStore.getState().showSPCCharts).toBe(false);
-    });
-  });
-
-  describe('Compliance Dashboard', () => {
-    it('should initialize with compliance dashboard hidden', () => {
-      const { showComplianceDashboard } = useUIStore.getState();
-      expect(showComplianceDashboard).toBe(false);
-    });
-
-    it('should set compliance dashboard visibility', () => {
-      const { setShowComplianceDashboard } = useUIStore.getState();
-
-      setShowComplianceDashboard(true);
-      expect(useUIStore.getState().showComplianceDashboard).toBe(true);
-    });
-
-    it('should toggle compliance dashboard', () => {
-      const { toggleComplianceDashboard } = useUIStore.getState();
-
-      toggleComplianceDashboard();
-      expect(useUIStore.getState().showComplianceDashboard).toBe(true);
-
-      toggleComplianceDashboard();
-      expect(useUIStore.getState().showComplianceDashboard).toBe(false);
     });
   });
 

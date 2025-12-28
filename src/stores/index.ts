@@ -34,7 +34,11 @@ export { useWorkerMoodStore };
 // =============================================================================
 
 export { useBASStore } from './basStore';
-export { useStabilityStore, calculateStabilityCoefficient, calculateStabilityMargin } from './stabilityStore';
+export {
+  useStabilityStore,
+  calculateStabilityCoefficient,
+  calculateStabilityMargin,
+} from './stabilityStore';
 export { useFlourishingStore, FLOURISHING_DIMENSIONS } from './flourishingStore';
 export { useScenarioStore, getCategoryColor, formatTime } from './scenarioStore';
 export { useBASHistoryStore, recordCurrentBASState, TIME_RANGE_MS } from './basHistoryStore';

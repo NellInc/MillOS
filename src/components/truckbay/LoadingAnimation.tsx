@@ -3,6 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { shouldRunThisFrame } from '../../utils/frameThrottle';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
+import { PROCEDURAL_TEXTURES } from '../../utils/sharedMaterials';
 
 interface LoadingAnimationProps {
   dockPosition: [number, number, number];
@@ -95,13 +96,24 @@ export const LoadingAnimation: React.FC<LoadingAnimationProps> = ({
         {/* Body */}
         <mesh position={[0, 0.5, 0]} castShadow>
           <boxGeometry args={[1.2, 1, 1.5]} />
-          <meshStandardMaterial color="#f97316" roughness={0.6} />
+          <meshStandardMaterial
+            color="#f97316"
+            roughness={0.6}
+            normalMap={PROCEDURAL_TEXTURES.paintedMetalNormal}
+            normalScale={new THREE.Vector2(0.12, 0.12)}
+          />
         </mesh>
 
         {/* Mast */}
         <mesh position={[0, 1.5, 0.5]} castShadow>
           <boxGeometry args={[0.8, 2, 0.1]} />
-          <meshStandardMaterial color="#374151" metalness={0.6} roughness={0.4} />
+          <meshStandardMaterial
+            color="#374151"
+            metalness={0.6}
+            roughness={0.4}
+            normalMap={PROCEDURAL_TEXTURES.brushedMetal}
+            normalScale={new THREE.Vector2(0.15, 0.15)}
+          />
         </mesh>
 
         {/* Forks */}
@@ -109,7 +121,13 @@ export const LoadingAnimation: React.FC<LoadingAnimationProps> = ({
           {[-0.2, 0.2].map((x, i) => (
             <mesh key={i} position={[x, 0, 0.5]}>
               <boxGeometry args={[0.12, 0.08, 1]} />
-              <meshStandardMaterial color="#64748b" metalness={0.7} roughness={0.3} />
+              <meshStandardMaterial
+                color="#64748b"
+                metalness={0.7}
+                roughness={0.3}
+                normalMap={PROCEDURAL_TEXTURES.brushedMetal}
+                normalScale={new THREE.Vector2(0.2, 0.2)}
+              />
             </mesh>
           ))}
         </group>
@@ -123,7 +141,12 @@ export const LoadingAnimation: React.FC<LoadingAnimationProps> = ({
         ].map(([x, z], i) => (
           <mesh key={i} position={[x, 0.2, z]} rotation={[0, 0, Math.PI / 2]} castShadow>
             <cylinderGeometry args={[0.2, 0.2, 0.15, 12]} />
-            <meshStandardMaterial color="#1f2937" roughness={0.7} />
+            <meshStandardMaterial
+              color="#1f2937"
+              roughness={0.7}
+              normalMap={PROCEDURAL_TEXTURES.rubberNormal}
+              normalScale={new THREE.Vector2(0.3, 0.3)}
+            />
           </mesh>
         ))}
       </group>

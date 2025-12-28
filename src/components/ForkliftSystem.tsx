@@ -20,7 +20,7 @@ const ForkliftPath: React.FC<{ path: [number, number, number][]; color: string }
 }) => {
   // Create a closed loop by adding the first point at the end
   const points = useMemo(() => {
-    const pts = path.map((p) => new THREE.Vector3(p[0], 0.05, p[2])); // Slightly above floor
+    const pts = path.map((p) => new THREE.Vector3(p[0], 0.1, p[2])); // Above floor to prevent z-fighting
     pts.push(pts[0].clone()); // Close the loop
     return pts;
   }, [path]);
@@ -39,11 +39,19 @@ const ForkliftPath: React.FC<{ path: [number, number, number][]; color: string }
       />
       {/* Waypoint markers */}
       {path.map((point, i) => (
-        <group key={i} position={[point[0], 0.02, point[2]]}>
+        <group key={i} position={[point[0], 0.1, point[2]]}>
           {/* Circle marker */}
           <mesh rotation={[-Math.PI / 2, 0, 0]}>
             <ringGeometry args={[0.3, 0.5, 16]} />
-            <meshBasicMaterial color={color} transparent opacity={0.6} />
+            <meshBasicMaterial
+              color={color}
+              transparent
+              opacity={0.6}
+              depthWrite={false}
+              polygonOffset
+              polygonOffsetFactor={-1}
+              polygonOffsetUnits={-1}
+            />
           </mesh>
           {/* Direction arrow to next point */}
           {i < path.length && (
@@ -56,10 +64,18 @@ const ForkliftPath: React.FC<{ path: [number, number, number][]; color: string }
                   path[(i + 1) % path.length][2] - point[2]
                 ),
               ]}
-              position={[0, 0.01, 0]}
+              position={[0, 0.05, 0]}
             >
               <coneGeometry args={[0.2, 0.4, 3]} />
-              <meshBasicMaterial color={color} transparent opacity={0.4} />
+              <meshBasicMaterial
+                color={color}
+                transparent
+                opacity={0.4}
+                depthWrite={false}
+                polygonOffset
+                polygonOffsetFactor={-1}
+                polygonOffsetUnits={-1}
+              />
             </mesh>
           )}
         </group>
@@ -221,39 +237,71 @@ const CrossingZoneMarkers: React.FC = () => {
 
         return (
           <group key={zone.id}>
-            {/* Hazard stripe markings on floor */}
+            {/* Hazard stripe markings on floor - raised to prevent z-fighting */}
             <mesh
-              position={[(zone.xMin + zone.xMax) / 2, 0.02, zone.zMin]}
+              position={[(zone.xMin + zone.xMax) / 2, 0.08, zone.zMin]}
               rotation={[-Math.PI / 2, 0, 0]}
             >
               <planeGeometry args={[xWidth, 0.3]} />
-              <meshBasicMaterial color="#fbbf24" transparent opacity={0.6} />
+              <meshBasicMaterial
+                color="#fbbf24"
+                transparent
+                opacity={0.6}
+                depthWrite={false}
+                polygonOffset
+                polygonOffsetFactor={-1}
+                polygonOffsetUnits={-1}
+              />
             </mesh>
             <mesh
-              position={[(zone.xMin + zone.xMax) / 2, 0.02, zone.zMax]}
+              position={[(zone.xMin + zone.xMax) / 2, 0.08, zone.zMax]}
               rotation={[-Math.PI / 2, 0, 0]}
             >
               <planeGeometry args={[xWidth, 0.3]} />
-              <meshBasicMaterial color="#fbbf24" transparent opacity={0.6} />
+              <meshBasicMaterial
+                color="#fbbf24"
+                transparent
+                opacity={0.6}
+                depthWrite={false}
+                polygonOffset
+                polygonOffsetFactor={-1}
+                polygonOffsetUnits={-1}
+              />
             </mesh>
             {/* Side markers */}
             <mesh
-              position={[zone.xMin, 0.02, (zone.zMin + zone.zMax) / 2]}
+              position={[zone.xMin, 0.08, (zone.zMin + zone.zMax) / 2]}
               rotation={[-Math.PI / 2, 0, 0]}
             >
               <planeGeometry args={[0.3, zHeight]} />
-              <meshBasicMaterial color="#fbbf24" transparent opacity={0.6} />
+              <meshBasicMaterial
+                color="#fbbf24"
+                transparent
+                opacity={0.6}
+                depthWrite={false}
+                polygonOffset
+                polygonOffsetFactor={-1}
+                polygonOffsetUnits={-1}
+              />
             </mesh>
             <mesh
-              position={[zone.xMax, 0.02, (zone.zMin + zone.zMax) / 2]}
+              position={[zone.xMax, 0.08, (zone.zMin + zone.zMax) / 2]}
               rotation={[-Math.PI / 2, 0, 0]}
             >
               <planeGeometry args={[0.3, zHeight]} />
-              <meshBasicMaterial color="#fbbf24" transparent opacity={0.6} />
+              <meshBasicMaterial
+                color="#fbbf24"
+                transparent
+                opacity={0.6}
+                depthWrite={false}
+                polygonOffset
+                polygonOffsetFactor={-1}
+                polygonOffsetUnits={-1}
+              />
             </mesh>
             {/* Warning text */}
             <Text
-              position={[zone.xMin + 3, 0.03, (zone.zMin + zone.zMax) / 2]}
+              position={[zone.xMin + 3, 0.1, (zone.zMin + zone.zMax) / 2]}
               rotation={[-Math.PI / 2, 0, 0]}
               fontSize={0.5}
               color="#fbbf24"
@@ -263,7 +311,7 @@ const CrossingZoneMarkers: React.FC = () => {
               YIELD
             </Text>
             <Text
-              position={[zone.xMax - 3, 0.03, (zone.zMin + zone.zMax) / 2]}
+              position={[zone.xMax - 3, 0.1, (zone.zMin + zone.zMax) / 2]}
               rotation={[-Math.PI / 2, 0, 0]}
               fontSize={0.5}
               color="#fbbf24"

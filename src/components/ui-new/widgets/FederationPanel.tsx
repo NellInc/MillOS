@@ -64,48 +64,34 @@ interface LearningCardProps {
   onReject: () => void;
 }
 
-const LearningCard: React.FC<LearningCardProps> = ({
-  learning,
-  onAdopt,
-  onReject,
-}) => {
+const LearningCard: React.FC<LearningCardProps> = ({ learning, onAdopt, onReject }) => {
   const config = LEARNING_TYPE_CONFIG[learning.type];
   const Icon = config.icon;
 
   return (
     <div className="bg-slate-800/50 rounded-lg p-2.5 border border-slate-700/50">
       <div className="flex items-start gap-2">
-        <div
-          className={`p-1.5 rounded bg-${config.color}-500/20 flex-shrink-0`}
-        >
+        <div className={`p-1.5 rounded bg-${config.color}-500/20 flex-shrink-0`}>
           <Icon className={`w-3 h-3 text-${config.color}-400`} />
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 mb-0.5">
-            <span className="text-[10px] font-medium text-white truncate">
-              {learning.title}
-            </span>
+            <span className="text-[10px] font-medium text-white truncate">{learning.title}</span>
             <span
               className={`text-[8px] px-1 py-0.5 rounded bg-${config.color}-500/20 text-${config.color}-300 flex-shrink-0`}
             >
               {config.label}
             </span>
           </div>
-          <p className="text-[9px] text-slate-400 line-clamp-2 mb-1.5">
-            {learning.description}
-          </p>
+          <p className="text-[9px] text-slate-400 line-clamp-2 mb-1.5">{learning.description}</p>
           <div className="flex items-center gap-2 text-[8px]">
             <span className="text-slate-500">
               From: <span className="text-slate-400">{learning.sourceUnitName}</span>
             </span>
             <span className="text-slate-600">|</span>
-            <span className="text-green-400">
-              {learning.effectiveness}% effective
-            </span>
+            <span className="text-green-400">{learning.effectiveness}% effective</span>
             <span className="text-slate-600">|</span>
-            <span className="text-amber-400">
-              {learning.applicabilityScore}% applicable
-            </span>
+            <span className="text-amber-400">{learning.applicabilityScore}% applicable</span>
           </div>
         </div>
       </div>
@@ -165,30 +151,23 @@ export const FederationPanel: React.FC = () => {
   const [showResources, setShowResources] = useState(false);
 
   // Store state
-  const {
-    federation,
-    knowledgeSharing,
-    resourceSharing,
-    adoptLearning,
-    rejectLearning,
-  } = useInterCooperationStore(
-    useShallow((state) => ({
-      federation: state.federation,
-      knowledgeSharing: state.knowledgeSharing,
-      resourceSharing: state.resourceSharing,
-      adoptLearning: state.adoptLearning,
-      rejectLearning: state.rejectLearning,
-    }))
-  );
+  const { federation, knowledgeSharing, resourceSharing, adoptLearning, rejectLearning } =
+    useInterCooperationStore(
+      useShallow((state) => ({
+        federation: state.federation,
+        knowledgeSharing: state.knowledgeSharing,
+        resourceSharing: state.resourceSharing,
+        adoptLearning: state.adoptLearning,
+        rejectLearning: state.rejectLearning,
+      }))
+    );
 
   // Filter for available learnings only
   const availableLearnings = knowledgeSharing.receivedLearnings.filter(
     (l) => l.status === 'available' || l.status === 'reviewing'
   );
   const adoptedCount = knowledgeSharing.adoptedLearnings.length;
-  const activeExchanges = resourceSharing.workerExchanges.filter(
-    (e) => e.status === 'active'
-  );
+  const activeExchanges = resourceSharing.workerExchanges.filter((e) => e.status === 'active');
 
   // Format currency
   const formatCurrency = (value: number) => {
@@ -207,9 +186,7 @@ export const FederationPanel: React.FC = () => {
       <div className="p-3 border-b border-slate-700/50">
         <div className="flex items-center gap-2">
           <Network className="w-4 h-4 text-violet-400" />
-          <span className="text-sm font-bold text-white">
-            {federation.federationName}
-          </span>
+          <span className="text-sm font-bold text-white">{federation.federationName}</span>
           <ConceptTooltip conceptId="inter-cooperation" position="bottom" />
           <span className="ml-auto text-[10px] font-medium px-2 py-0.5 rounded bg-violet-500/20 text-violet-300">
             {federation.memberUnits.length} Mills
@@ -225,16 +202,12 @@ export const FederationPanel: React.FC = () => {
         <div className="grid grid-cols-4 gap-2">
           <div className="bg-slate-800/50 rounded p-1.5 text-center">
             <Building2 className="w-3 h-3 mx-auto mb-0.5 text-violet-400" />
-            <div className="text-[10px] font-bold text-white">
-              {federation.memberUnits.length}
-            </div>
+            <div className="text-[10px] font-bold text-white">{federation.memberUnits.length}</div>
             <div className="text-[7px] text-slate-500">Members</div>
           </div>
           <div className="bg-slate-800/50 rounded p-1.5 text-center">
             <Lightbulb className="w-3 h-3 mx-auto mb-0.5 text-amber-400" />
-            <div className="text-[10px] font-bold text-white">
-              {availableLearnings.length}
-            </div>
+            <div className="text-[10px] font-bold text-white">{availableLearnings.length}</div>
             <div className="text-[7px] text-slate-500">Learnings</div>
           </div>
           <div className="bg-slate-800/50 rounded p-1.5 text-center">
@@ -244,9 +217,7 @@ export const FederationPanel: React.FC = () => {
           </div>
           <div className="bg-slate-800/50 rounded p-1.5 text-center">
             <ArrowLeftRight className="w-3 h-3 mx-auto mb-0.5 text-cyan-400" />
-            <div className="text-[10px] font-bold text-white">
-              {activeExchanges.length}
-            </div>
+            <div className="text-[10px] font-bold text-white">{activeExchanges.length}</div>
             <div className="text-[7px] text-slate-500">Exchanges</div>
           </div>
         </div>
@@ -256,9 +227,7 @@ export const FederationPanel: React.FC = () => {
       <div className="p-3 border-b border-slate-700/30">
         <div className="flex items-center gap-1 mb-2">
           <BookOpen className="w-3 h-3 text-amber-400" />
-          <span className="text-[10px] font-medium text-white">
-            Available Learnings
-          </span>
+          <span className="text-[10px] font-medium text-white">Available Learnings</span>
           <ConceptTooltip conceptId="inter-cooperation" position="right" />
           {availableLearnings.length > 0 && (
             <span className="ml-auto text-[9px] text-amber-400">
@@ -299,11 +268,7 @@ export const FederationPanel: React.FC = () => {
             Federation Members
             <ConceptTooltip conceptId="mondragon-principles" position="right" />
           </span>
-          {showMembers ? (
-            <ChevronUp className="w-3 h-3" />
-          ) : (
-            <ChevronDown className="w-3 h-3" />
-          )}
+          {showMembers ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
         </button>
 
         <AnimatePresence>
@@ -326,9 +291,7 @@ export const FederationPanel: React.FC = () => {
                   >
                     <Building2
                       className={`w-3 h-3 flex-shrink-0 ${
-                        unit.id === federation.ourUnitId
-                          ? 'text-violet-400'
-                          : 'text-slate-500'
+                        unit.id === federation.ourUnitId ? 'text-violet-400' : 'text-slate-500'
                       }`}
                     />
                     <div className="flex-1 min-w-0">
@@ -374,11 +337,7 @@ export const FederationPanel: React.FC = () => {
             <Wallet className="w-3 h-3" />
             Resource Pools
           </span>
-          {showResources ? (
-            <ChevronUp className="w-3 h-3" />
-          ) : (
-            <ChevronDown className="w-3 h-3" />
-          )}
+          {showResources ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
         </button>
 
         <AnimatePresence>
@@ -394,9 +353,7 @@ export const FederationPanel: React.FC = () => {
                 <div className="bg-slate-800/30 rounded p-2">
                   <div className="flex items-center gap-1 mb-2">
                     <Wallet className="w-3 h-3 text-green-400" />
-                    <span className="text-[10px] font-medium text-white">
-                      Capital Pool
-                    </span>
+                    <span className="text-[10px] font-medium text-white">Capital Pool</span>
                   </div>
                   <div className="grid grid-cols-3 gap-2">
                     <div>
@@ -424,9 +381,7 @@ export const FederationPanel: React.FC = () => {
                 <div className="bg-slate-800/30 rounded p-2">
                   <div className="flex items-center gap-1 mb-2">
                     <Shield className="w-3 h-3 text-orange-400" />
-                    <span className="text-[10px] font-medium text-white">
-                      Emergency Fund
-                    </span>
+                    <span className="text-[10px] font-medium text-white">Emergency Fund</span>
                     <ConceptTooltip conceptId="inter-cooperation" position="right" />
                   </div>
                   <div className="grid grid-cols-2 gap-2 mb-2">
@@ -458,8 +413,8 @@ export const FederationPanel: React.FC = () => {
                     Solidarity Principle
                   </div>
                   <p className="text-[8px] text-slate-400 mt-1 italic">
-                    &quot;No unit fails alone.&quot; Struggling cooperatives receive
-                    support from the federation.
+                    &quot;No unit fails alone.&quot; Struggling cooperatives receive support from
+                    the federation.
                   </p>
                 </div>
 
@@ -468,9 +423,7 @@ export const FederationPanel: React.FC = () => {
                   <div className="bg-slate-800/30 rounded p-2">
                     <div className="flex items-center gap-1 mb-2">
                       <ArrowLeftRight className="w-3 h-3 text-cyan-400" />
-                      <span className="text-[10px] font-medium text-white">
-                        Active Exchanges
-                      </span>
+                      <span className="text-[10px] font-medium text-white">Active Exchanges</span>
                     </div>
                     <div className="space-y-1.5">
                       {activeExchanges.map((exchange) => (

@@ -4,7 +4,7 @@
  *
  * Displays control charts with UCL/LCL/CL limits and Western Electric rules detection.
  * Monitors process metrics like temperature, vibration, production rate, and quality.
- * 
+ *
  * NOTE: Currently uses generateMockData for historical data visualization.
  * Real-time machine metrics are available via useProductionStore().machines
  * for future enhancement to show actual machine sensor data.
@@ -605,9 +605,9 @@ export const SPCCharts: React.FC<SPCChartsProps> = ({ className = '', embedded =
                           padding: '12px',
                         }}
                         labelStyle={{ color: '#cbd5e1' }}
-                        formatter={(value: any, name: string) => [
-                          typeof value === 'number' ? value.toFixed(2) : value,
-                          name,
+                        formatter={(value, name) => [
+                          typeof value === 'number' ? value.toFixed(2) : String(value ?? ''),
+                          String(name ?? ''),
                         ]}
                       />
                       <Legend wrapperStyle={{ paddingTop: '20px' }} iconType="line" />
@@ -707,8 +707,8 @@ export const SPCCharts: React.FC<SPCChartsProps> = ({ className = '', embedded =
                       <div
                         key={i}
                         className={`flex items-start gap-3 p-3 rounded-lg ${violation.severity === 'critical'
-                          ? 'bg-red-500/10 border border-red-500/30'
-                          : 'bg-yellow-500/10 border border-yellow-500/30'
+                            ? 'bg-red-500/10 border border-red-500/30'
+                            : 'bg-yellow-500/10 border border-yellow-500/30'
                           }`}
                       >
                         {violation.severity === 'critical' ? (

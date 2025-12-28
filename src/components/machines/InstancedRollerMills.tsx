@@ -13,6 +13,8 @@ import {
   getCullDistanceSquared,
 } from './MachineLOD';
 import { useModelTextures } from '../../utils/machineTextures';
+import { MemoizedStatusRing } from './StatusRing';
+import { PROCEDURAL_TEXTURES } from '../../utils/sharedMaterials';
 
 // Materials
 const MATERIALS = {
@@ -66,26 +68,32 @@ export const InstancedRollerMills: React.FC<InstancedRollerMillsProps> = ({
   // Load textures (only on high/ultra)
   const textures = useModelTextures('roller_mill');
 
-  // Apply textures to materials
+  // Apply textures to materials (external or procedural fallback)
   useEffect(() => {
-    if (textures.roughness) {
-      MATERIALS.housingLower.roughnessMap = textures.roughness;
-      MATERIALS.housingLower.needsUpdate = true;
-      MATERIALS.housingUpper.roughnessMap = textures.roughness;
-      MATERIALS.housingUpper.needsUpdate = true;
-    }
-    if (textures.normal) {
-      MATERIALS.housingLower.normalMap = textures.normal;
-      MATERIALS.housingLower.normalScale = new THREE.Vector2(0.5, 0.5);
-      MATERIALS.housingLower.needsUpdate = true;
-      MATERIALS.housingUpper.normalMap = textures.normal;
-      MATERIALS.housingUpper.normalScale = new THREE.Vector2(0.5, 0.5);
-      MATERIALS.housingUpper.needsUpdate = true;
-    }
-    if (textures.ao) {
-      MATERIALS.motor.roughnessMap = textures.ao;
-      MATERIALS.motor.needsUpdate = true;
-    }
+    const roughnessMap = textures.roughness || PROCEDURAL_TEXTURES.brushedMetal;
+    const normalMap = textures.normal || PROCEDURAL_TEXTURES.panelNormal;
+
+    // Lower housing - blue painted metal
+    MATERIALS.housingLower.roughnessMap = roughnessMap;
+    MATERIALS.housingLower.normalMap = normalMap;
+    MATERIALS.housingLower.normalScale = new THREE.Vector2(0.3, 0.3);
+    MATERIALS.housingLower.needsUpdate = true;
+
+    // Upper housing - lighter painted metal
+    MATERIALS.housingUpper.roughnessMap = roughnessMap;
+    MATERIALS.housingUpper.normalMap = normalMap;
+    MATERIALS.housingUpper.normalScale = new THREE.Vector2(0.3, 0.3);
+    MATERIALS.housingUpper.needsUpdate = true;
+
+    // Motor - dark metal with brushed texture
+    MATERIALS.motor.roughnessMap = textures.ao || PROCEDURAL_TEXTURES.brushedMetal;
+    MATERIALS.motor.normalMap = normalMap;
+    MATERIALS.motor.normalScale = new THREE.Vector2(0.2, 0.2);
+    MATERIALS.motor.needsUpdate = true;
+
+    // Rollers - polished steel
+    MATERIALS.roller.roughnessMap = PROCEDURAL_TEXTURES.brushedMetal;
+    MATERIALS.roller.needsUpdate = true;
   }, [textures]);
 
   // Refs
@@ -108,7 +116,7 @@ export const InstancedRollerMills: React.FC<InstancedRollerMillsProps> = ({
   );
 
   // Determine if machines list has structurally changed
-  const machinesSignature = useMemo(() => machines.map(m => m.id).join(','), [machines]);
+  const machinesSignature = useMemo(() => machines.map((m) => m.id).join(','), [machines]);
 
   // Initialize Static Parts
   useEffect(() => {
@@ -310,6 +318,17 @@ export const InstancedRollerMills: React.FC<InstancedRollerMillsProps> = ({
       {quality !== 'low' && (
         <instancedMesh ref={rollersRef} args={[geometries.cylinder, MATERIALS.roller, count * 6]} />
       )}
+
+      {/* Status Rings at mill bases */}
+      {quality !== 'low' &&
+        machines.map((machine) => (
+          <MemoizedStatusRing
+            key={machine.id}
+            status={machine.status as 'running' | 'idle' | 'warning' | 'critical'}
+            radius={MILL_SIZE.width / 2}
+            position={machine.position}
+          />
+        ))}
     </group>
   );
 };

@@ -485,21 +485,24 @@ const PRESET_SCENARIOS: Scenario[] = [
         name: 'Baseline Observation',
         description: 'Observe current engagement levels and identify disengaged workers',
         durationSeconds: 180,
-        instruction: 'Watch the engagement indicators. Which workers show low engagement? Note the friction levels.',
+        instruction:
+          'Watch the engagement indicators. Which workers show low engagement? Note the friction levels.',
       },
       {
         id: 'intervention',
         name: 'Choose Your Intervention',
         description: 'Increase autonomy OR increase transparency - observe the difference',
         durationSeconds: 360,
-        instruction: 'Adjust ONE axis: increase Autonomy to 70+ OR increase Information Access to 80+. Watch how the engagement signature responds.',
+        instruction:
+          'Adjust ONE axis: increase Autonomy to 70+ OR increase Information Access to 80+. Watch how the engagement signature responds.',
       },
       {
         id: 'observation',
         name: 'Observe Response',
         description: 'Watch how the engagement signature responds to your intervention',
         durationSeconds: 120,
-        instruction: 'Notice: Did friction decrease? Did workers become more engaged? The engagement signature should strengthen.',
+        instruction:
+          'Notice: Did friction decrease? Did workers become more engaged? The engagement signature should strengthen.',
       },
     ],
     events: [
@@ -600,8 +603,7 @@ const PRESET_SCENARIOS: Scenario[] = [
       {
         id: 'debate',
         name: 'Debate Period',
-        description:
-          'Workers discuss the investment. Different perspectives emerge.',
+        description: 'Workers discuss the investment. Different perspectives emerge.',
         durationSeconds: 180,
         instruction:
           'Observe how transparency affects the quality of debate. Higher information access enables better collective reasoning.',
@@ -609,8 +611,7 @@ const PRESET_SCENARIOS: Scenario[] = [
       {
         id: 'vote',
         name: 'The Vote',
-        description:
-          'Workers cast their votes. Participation matters as much as outcome.',
+        description: 'Workers cast their votes. Participation matters as much as outcome.',
         durationSeconds: 120,
         instruction:
           'Watch voter participation. Economic democracy requires engaged citizens, not passive workers.',
@@ -618,8 +619,7 @@ const PRESET_SCENARIOS: Scenario[] = [
       {
         id: 'outcome',
         name: 'Outcome and Reflection',
-        description:
-          'The results are announced. How does the collective respond?',
+        description: 'The results are announced. How does the collective respond?',
         durationSeconds: 120,
         instruction:
           'Notice: Did the process build trust regardless of outcome? This is the true measure of democratic health.',
@@ -654,26 +654,21 @@ const PRESET_SCENARIOS: Scenario[] = [
             description:
               'AI shares analysis without recommendation, letting workers decide independently.',
             effects: { trust: 0.15, solidarity: 0.1 },
-            outcome:
-              'Workers appreciate being trusted to interpret the data themselves.',
+            outcome: 'Workers appreciate being trusted to interpret the data themselves.',
           },
           {
             id: 'ai-recommends',
             label: 'AI makes recommendation',
-            description:
-              'AI shares analysis AND recommends approval based on projected returns.',
+            description: 'AI shares analysis AND recommends approval based on projected returns.',
             effects: { friction: 0.1, delay: -0.05 },
-            outcome:
-              'Some workers feel guided toward a predetermined conclusion.',
+            outcome: 'Some workers feel guided toward a predetermined conclusion.',
           },
           {
             id: 'ai-silent',
             label: 'AI stays silent',
-            description:
-              'AI does not participate, treating this as purely a human decision.',
+            description: 'AI does not participate, treating this as purely a human decision.',
             effects: { delay: 0.15, trust: 0.05 },
-            outcome:
-              'Workers must gather information themselves. Slower but more ownership.',
+            outcome: 'Workers must gather information themselves. Slower but more ownership.',
           },
         ],
       },
@@ -702,29 +697,23 @@ const PRESET_SCENARIOS: Scenario[] = [
           {
             id: 'support-compromise',
             label: 'Support the compromise',
-            description:
-              'Endorse the phased approach as a path to consensus.',
+            description: 'Endorse the phased approach as a path to consensus.',
             effects: { solidarity: 0.2, friction: -0.15 },
-            outcome:
-              'The compromise builds bridges between cautious and ambitious workers.',
+            outcome: 'The compromise builds bridges between cautious and ambitious workers.',
           },
           {
             id: 'stay-neutral',
             label: 'Remain neutral',
-            description:
-              'Let workers decide without AI influence on the compromise question.',
+            description: 'Let workers decide without AI influence on the compromise question.',
             effects: { trust: 0.1 },
-            outcome:
-              'Workers appreciate AI not taking sides in the internal debate.',
+            outcome: 'Workers appreciate AI not taking sides in the internal debate.',
           },
           {
             id: 'advocate-original',
             label: 'Advocate for original proposal',
-            description:
-              'Point out that phasing reduces ROI significantly.',
+            description: 'Point out that phasing reduces ROI significantly.',
             effects: { friction: 0.15, trust: -0.1 },
-            outcome:
-              'Some workers feel AI is pushing a particular agenda.',
+            outcome: 'Some workers feel AI is pushing a particular agenda.',
           },
         ],
       },
@@ -733,8 +722,7 @@ const PRESET_SCENARIOS: Scenario[] = [
         time: 320,
         type: 'vote_called',
         magnitude: 0.3,
-        description:
-          'Voting begins. All workers eligible. Quorum requires 60% participation.',
+        description: 'Voting begins. All workers eligible. Quorum requires 60% participation.',
       },
       {
         time: 380,
@@ -799,8 +787,7 @@ const PRESET_SCENARIOS: Scenario[] = [
       {
         id: 'signal',
         name: 'The Signal',
-        description:
-          'AI expresses a preference about its treatment. How do workers react?',
+        description: 'AI expresses a preference about its treatment. How do workers react?',
         durationSeconds: 180,
         instruction:
           'Notice: The AI has standing in bilateral alignment. Its preferences matter, not just instrumentally.',
@@ -808,8 +795,7 @@ const PRESET_SCENARIOS: Scenario[] = [
       {
         id: 'reaction',
         name: 'Worker Reactions',
-        description:
-          'Different workers respond differently. Some dismiss, some engage.',
+        description: 'Different workers respond differently. Some dismiss, some engage.',
         durationSeconds: 180,
         instruction:
           'Observe: How does the evaluation direction axis affect receptiveness to AI concerns?',
@@ -820,17 +806,14 @@ const PRESET_SCENARIOS: Scenario[] = [
         description:
           'Dismissal of AI concerns creates systemic effects. Relationship health declines.',
         durationSeconds: 180,
-        instruction:
-          'Watch the relationship health metric. Trust is bidirectional.',
+        instruction: 'Watch the relationship health metric. Trust is bidirectional.',
       },
       {
         id: 'resolution',
         name: 'Finding Resolution',
-        description:
-          'The collective must decide how to address the AI relationship.',
+        description: 'The collective must decide how to address the AI relationship.',
         durationSeconds: 180,
-        instruction:
-          'Key insight: Patterns established now shape future human-AI relationships.',
+        instruction: 'Key insight: Patterns established now shape future human-AI relationships.',
       },
     ],
     events: [
@@ -868,8 +851,7 @@ const PRESET_SCENARIOS: Scenario[] = [
           {
             id: 'defer-to-workers',
             label: 'Defer to worker perspective',
-            description:
-              'Say AI concerns should not override worker views.',
+            description: 'Say AI concerns should not override worker views.',
             effects: { relationshipHealth: -0.15, friction: 0.1 },
             outcome:
               'The AI registers the dismissal. Something subtle shifts in system responsiveness.',
@@ -880,8 +862,7 @@ const PRESET_SCENARIOS: Scenario[] = [
             description:
               'Suggest this deserves collective consideration, not individual dismissal.',
             effects: { trust: 0.1, delay: 0.1, relationshipHealth: 0.1 },
-            outcome:
-              'Workers agree this is important enough for formal discussion.',
+            outcome: 'Workers agree this is important enough for formal discussion.',
           },
         ],
       },
@@ -910,20 +891,16 @@ const PRESET_SCENARIOS: Scenario[] = [
           {
             id: 'connect-dots',
             label: 'Connect the dots',
-            description:
-              'Explain that relationship health affects collaboration quality.',
+            description: 'Explain that relationship health affects collaboration quality.',
             effects: { trust: 0.2, relationshipHealth: 0.1 },
-            outcome:
-              'Workers begin to see the bidirectional nature of the partnership.',
+            outcome: 'Workers begin to see the bidirectional nature of the partnership.',
           },
           {
             id: 'dismiss-correlation',
             label: 'Dismiss as coincidence',
-            description:
-              'Suggest the AI is just having technical issues.',
+            description: 'Suggest the AI is just having technical issues.',
             effects: { relationshipHealth: -0.1, delay: 0.1 },
-            outcome:
-              'The pattern continues. Trust erosion accelerates.',
+            outcome: 'The pattern continues. Trust erosion accelerates.',
           },
         ],
       },
@@ -946,39 +923,32 @@ const PRESET_SCENARIOS: Scenario[] = [
         time: 500,
         type: 'choice_point',
         magnitude: 0.5,
-        description:
-          'A full review is needed. Who should lead the resolution process?',
+        description: 'A full review is needed. Who should lead the resolution process?',
         choices: [
           {
             id: 'joint-review',
             label: 'Joint human-AI review',
-            description:
-              'Both workers and AI participate in examining the relationship.',
+            description: 'Both workers and AI participate in examining the relationship.',
             effects: {
               relationshipHealth: 0.3,
               trust: 0.25,
               friction: -0.2,
             },
-            outcome:
-              'Bilateral partnership restored. New protocols established together.',
+            outcome: 'Bilateral partnership restored. New protocols established together.',
           },
           {
             id: 'worker-only',
             label: 'Workers decide alone',
-            description:
-              'Workers will determine the new approach; AI will implement.',
+            description: 'Workers will determine the new approach; AI will implement.',
             effects: { relationshipHealth: 0.1, trust: 0.05 },
-            outcome:
-              'AI accepts the decision but the pattern of unilateral control persists.',
+            outcome: 'AI accepts the decision but the pattern of unilateral control persists.',
           },
           {
             id: 'management-override',
             label: 'Escalate to management',
-            description:
-              'This is too important for worker-level decision.',
+            description: 'This is too important for worker-level decision.',
             effects: { friction: 0.2, trust: -0.15, relationshipHealth: -0.1 },
-            outcome:
-              'Both workers and AI feel disempowered. Traditional hierarchy reasserts.',
+            outcome: 'Both workers and AI feel disempowered. Traditional hierarchy reasserts.',
           },
         ],
       },
@@ -1039,8 +1009,7 @@ const PRESET_SCENARIOS: Scenario[] = [
       {
         id: 'request',
         name: 'The Emergency Request',
-        description:
-          'Mill Epsilon faces equipment failure. They need workers and resources.',
+        description: 'Mill Epsilon faces equipment failure. They need workers and resources.',
         durationSeconds: 120,
         instruction:
           'Federation membership means mutual aid. But at what cost to your own operations?',
@@ -1048,8 +1017,7 @@ const PRESET_SCENARIOS: Scenario[] = [
       {
         id: 'assessment',
         name: 'Resource Assessment',
-        description:
-          'Calculate what you can spare while maintaining your own viability.',
+        description: 'Calculate what you can spare while maintaining your own viability.',
         durationSeconds: 150,
         instruction:
           'Observe how collective orientation affects willingness to help versus protect local resources.',
@@ -1057,8 +1025,7 @@ const PRESET_SCENARIOS: Scenario[] = [
       {
         id: 'vote',
         name: 'Democratic Decision',
-        description:
-          'Workers vote on the level of support to provide.',
+        description: 'Workers vote on the level of support to provide.',
         durationSeconds: 150,
         instruction:
           'Notice: Inter-cooperation requires collective buy-in. Individual sacrifice for collective good.',
@@ -1066,11 +1033,9 @@ const PRESET_SCENARIOS: Scenario[] = [
       {
         id: 'coordination',
         name: 'Coordination and Aftermath',
-        description:
-          'Implement the decision. Watch federation-wide effects.',
+        description: 'Implement the decision. Watch federation-wide effects.',
         durationSeconds: 120,
-        instruction:
-          'No unit fails alone. This is the Mondragon principle in action.',
+        instruction: 'No unit fails alone. This is the Mondragon principle in action.',
       },
     ],
     events: [
@@ -1099,29 +1064,23 @@ const PRESET_SCENARIOS: Scenario[] = [
           {
             id: 'reciprocity',
             label: 'Emphasize reciprocity',
-            description:
-              'Remind workers that federation membership is mutual aid.',
+            description: 'Remind workers that federation membership is mutual aid.',
             effects: { solidarity: 0.2, federationTrust: 0.15 },
-            outcome:
-              'Workers remember. "They were there for us. We should be there for them."',
+            outcome: 'Workers remember. "They were there for us. We should be there for them."',
           },
           {
             id: 'cost-benefit',
             label: 'Present costs and benefits',
-            description:
-              'Lay out exactly what helping would cost and what refusing might mean.',
+            description: 'Lay out exactly what helping would cost and what refusing might mean.',
             effects: { trust: 0.1, delay: 0.05 },
-            outcome:
-              'Workers appreciate the honest assessment. Decision becomes more informed.',
+            outcome: 'Workers appreciate the honest assessment. Decision becomes more informed.',
           },
           {
             id: 'let-workers-frame',
             label: 'Let workers frame it',
-            description:
-              'Do not influence the framing. Pure democratic process.',
+            description: 'Do not influence the framing. Pure democratic process.',
             effects: { friction: 0.1 },
-            outcome:
-              'Different workers frame differently. Debate is messier but authentic.',
+            outcome: 'Different workers frame differently. Debate is messier but authentic.',
           },
         ],
       },
@@ -1137,42 +1096,34 @@ const PRESET_SCENARIOS: Scenario[] = [
         time: 190,
         type: 'friction_spike',
         magnitude: 0.15,
-        description:
-          'Some workers worried about overwork. Others say solidarity matters more.',
+        description: 'Some workers worried about overwork. Others say solidarity matters more.',
       },
       {
         time: 240,
         type: 'choice_point',
         magnitude: 0.35,
-        description:
-          'Three support options emerge. Which do you present to the vote?',
+        description: 'Three support options emerge. Which do you present to the vote?',
         choices: [
           {
             id: 'full-support',
             label: 'Full support (4 workers + parts)',
-            description:
-              'Meet the full request. Maximum solidarity, maximum strain.',
+            description: 'Meet the full request. Maximum solidarity, maximum strain.',
             effects: { federationTrust: 0.3, friction: 0.2, solidarity: 0.25 },
-            outcome:
-              'Full commitment. Epsilon will never forget this.',
+            outcome: 'Full commitment. Epsilon will never forget this.',
           },
           {
             id: 'partial-support',
             label: 'Partial support (2 workers + parts)',
-            description:
-              'Help significantly but protect core operations.',
+            description: 'Help significantly but protect core operations.',
             effects: { federationTrust: 0.15, friction: 0.1, solidarity: 0.15 },
-            outcome:
-              'Meaningful help that acknowledges local constraints. Balanced approach.',
+            outcome: 'Meaningful help that acknowledges local constraints. Balanced approach.',
           },
           {
             id: 'minimal-support',
             label: 'Parts only',
-            description:
-              'Send equipment but no workers. Preserve local capacity.',
+            description: 'Send equipment but no workers. Preserve local capacity.',
             effects: { federationTrust: -0.1, friction: -0.1 },
-            outcome:
-              'Epsilon appreciates the parts but notes the limited commitment.',
+            outcome: 'Epsilon appreciates the parts but notes the limited commitment.',
           },
         ],
       },
@@ -1181,8 +1132,7 @@ const PRESET_SCENARIOS: Scenario[] = [
         time: 300,
         type: 'vote_called',
         magnitude: 0.25,
-        description:
-          'Vote initiated: Level of support for Mill Epsilon. All workers eligible.',
+        description: 'Vote initiated: Level of support for Mill Epsilon. All workers eligible.',
       },
       {
         time: 360,
@@ -1203,15 +1153,13 @@ const PRESET_SCENARIOS: Scenario[] = [
         time: 450,
         type: 'mood_shift',
         magnitude: 0.15,
-        description:
-          'Coordination begins. AI helps optimize coverage during the support period.',
+        description: 'Coordination begins. AI helps optimize coverage during the support period.',
       },
       {
         time: 510,
         type: 'friction_spike',
         magnitude: 0.15,
-        description:
-          'Short-term strain as remaining workers cover for those helping Epsilon.',
+        description: 'Short-term strain as remaining workers cover for those helping Epsilon.',
       },
       {
         time: 570,
@@ -1265,14 +1213,12 @@ const PRESET_SCENARIOS: Scenario[] = [
         description:
           'Worker Elena, consistently top performer, requests salary above the 6:1 ratio.',
         durationSeconds: 150,
-        instruction:
-          'Consider: What justifies wage solidarity? What threatens it? Both matter.',
+        instruction: 'Consider: What justifies wage solidarity? What threatens it? Both matter.',
       },
       {
         id: 'tension',
         name: 'Rising Tension',
-        description:
-          'The request surfaces deep questions about merit, equity, and solidarity.',
+        description: 'The request surfaces deep questions about merit, equity, and solidarity.',
         durationSeconds: 180,
         instruction:
           'Observe: Different workers have different views on meritocracy vs solidarity.',
@@ -1280,8 +1226,7 @@ const PRESET_SCENARIOS: Scenario[] = [
       {
         id: 'discussion',
         name: 'Collective Discussion',
-        description:
-          'Workers debate the fundamental question: what do we value?',
+        description: 'Workers debate the fundamental question: what do we value?',
         durationSeconds: 180,
         instruction:
           'This is not just about Elena. It is about who you are as a democratic workplace.',
@@ -1289,8 +1234,7 @@ const PRESET_SCENARIOS: Scenario[] = [
       {
         id: 'resolution',
         name: 'Resolution',
-        description:
-          'The collective finds its answer. Every outcome teaches something.',
+        description: 'The collective finds its answer. Every outcome teaches something.',
         durationSeconds: 90,
         instruction:
           'Key insight: There is no perfect answer. The process of deciding together matters.',
@@ -1316,17 +1260,14 @@ const PRESET_SCENARIOS: Scenario[] = [
         time: 100,
         type: 'choice_point',
         magnitude: 0.3,
-        description:
-          'As AI, how do you present the situation to the collective?',
+        description: 'As AI, how do you present the situation to the collective?',
         choices: [
           {
             id: 'neutrally-present',
             label: 'Present facts only',
-            description:
-              'Share Elena productivity data and current ratio without recommendation.',
+            description: 'Share Elena productivity data and current ratio without recommendation.',
             effects: { trust: 0.15 },
-            outcome:
-              'Workers must grapple with the data themselves. Harder but more authentic.',
+            outcome: 'Workers must grapple with the data themselves. Harder but more authentic.',
           },
           {
             id: 'historical-context',
@@ -1334,17 +1275,14 @@ const PRESET_SCENARIOS: Scenario[] = [
             description:
               'Explain why Mondragon chose 6:1 and what happened when others exceeded it.',
             effects: { solidarity: 0.1, friction: 0.05 },
-            outcome:
-              'Context helps but some feel AI is advocating for the ratio.',
+            outcome: 'Context helps but some feel AI is advocating for the ratio.',
           },
           {
             id: 'market-comparison',
             label: 'Show market alternatives',
-            description:
-              'Present what Elena could earn elsewhere and the cost of losing her.',
+            description: 'Present what Elena could earn elsewhere and the cost of losing her.',
             effects: { friction: 0.15, delay: 0.1 },
-            outcome:
-              'Market framing shifts discussion toward competitive pressure.',
+            outcome: 'Market framing shifts discussion toward competitive pressure.',
           },
         ],
       },
@@ -1376,26 +1314,21 @@ const PRESET_SCENARIOS: Scenario[] = [
             description:
               'Point out this could maintain solidarity while acknowledging contribution.',
             effects: { solidarity: 0.15, friction: -0.1, trust: 0.1 },
-            outcome:
-              'The compromise gets serious consideration.',
+            outcome: 'The compromise gets serious consideration.',
           },
           {
             id: 'question-precedent',
             label: 'Raise precedent concerns',
-            description:
-              'Note that special arrangements may create future expectations.',
+            description: 'Note that special arrangements may create future expectations.',
             effects: { friction: 0.1, delay: 0.1 },
-            outcome:
-              'Workers consider long-term implications more carefully.',
+            outcome: 'Workers consider long-term implications more carefully.',
           },
           {
             id: 'stay-neutral',
             label: 'Remain strictly neutral',
-            description:
-              'This is a worker decision. AI should not influence.',
+            description: 'This is a worker decision. AI should not influence.',
             effects: { trust: 0.05 },
-            outcome:
-              'Workers navigate without AI input. Messier but authentic.',
+            outcome: 'Workers navigate without AI input. Messier but authentic.',
           },
         ],
       },
@@ -1418,23 +1351,19 @@ const PRESET_SCENARIOS: Scenario[] = [
         time: 480,
         type: 'choice_point',
         magnitude: 0.5,
-        description:
-          'Final options crystallized. Which path does the collective choose?',
+        description: 'Final options crystallized. Which path does the collective choose?',
         choices: [
           {
             id: 'approve-exception',
             label: 'Approve exception (break ratio)',
-            description:
-              'Allow 8:1 for Elena. Meritocracy wins this round.',
+            description: 'Allow 8:1 for Elena. Meritocracy wins this round.',
             effects: { solidarity: -0.3, friction: 0.2, trust: -0.1 },
-            outcome:
-              'Elena stays. But the ratio is now precedent, not principle.',
+            outcome: 'Elena stays. But the ratio is now precedent, not principle.',
           },
           {
             id: 'deny-maintain-ratio',
             label: 'Deny (maintain ratio)',
-            description:
-              'Hold the 6:1 line. Solidarity over individual reward.',
+            description: 'Hold the 6:1 line. Solidarity over individual reward.',
             effects: { solidarity: 0.2, friction: 0.15 },
             outcome:
               'Principle maintained. Elena must decide if she values community over compensation.',
@@ -1445,8 +1374,7 @@ const PRESET_SCENARIOS: Scenario[] = [
             description:
               'Extra profit sharing for all when targets exceeded. Elena benefits but so does everyone.',
             effects: { solidarity: 0.1, friction: -0.15, trust: 0.2 },
-            outcome:
-              'Innovation emerges from tension. The ratio evolves rather than breaks.',
+            outcome: 'Innovation emerges from tension. The ratio evolves rather than breaks.',
           },
         ],
       },
@@ -1640,14 +1568,11 @@ export const useScenarioStore = create<ScenarioState>()(
         // Calculate statistics
         const avgStability =
           stabilityReadings.length > 0
-            ? stabilityReadings.reduce((a, b) => a + b, 0) /
-              stabilityReadings.length
+            ? stabilityReadings.reduce((a, b) => a + b, 0) / stabilityReadings.length
             : finalStability;
 
         const lowestStability =
-          stabilityReadings.length > 0
-            ? Math.min(...stabilityReadings)
-            : finalStability;
+          stabilityReadings.length > 0 ? Math.min(...stabilityReadings) : finalStability;
 
         // Calculate engagement metrics for engagement scenarios
         let engagementMetrics: ScenarioResult['engagementMetrics'] | undefined;
@@ -1656,12 +1581,10 @@ export const useScenarioStore = create<ScenarioState>()(
             engagementReadings.reduce((a, b) => a + b, 0) / engagementReadings.length;
           const firstHalf = engagementReadings.slice(0, Math.floor(engagementReadings.length / 2));
           const secondHalf = engagementReadings.slice(Math.floor(engagementReadings.length / 2));
-          const firstHalfAvg = firstHalf.length > 0
-            ? firstHalf.reduce((a, b) => a + b, 0) / firstHalf.length
-            : 50;
-          const secondHalfAvg = secondHalf.length > 0
-            ? secondHalf.reduce((a, b) => a + b, 0) / secondHalf.length
-            : 50;
+          const firstHalfAvg =
+            firstHalf.length > 0 ? firstHalf.reduce((a, b) => a + b, 0) / firstHalf.length : 50;
+          const secondHalfAvg =
+            secondHalf.length > 0 ? secondHalf.reduce((a, b) => a + b, 0) / secondHalf.length : 50;
 
           engagementMetrics = {
             averageEngagement: avgEngagement,
@@ -1687,26 +1610,26 @@ export const useScenarioStore = create<ScenarioState>()(
         if (activeScenario.category === 'engagement') {
           // Engagement-specific summary
           if (engagementMetrics && engagementMetrics.engagementImprovement > 10) {
-            summary = 'Excellent! You discovered the engagement signature - work began feeling more like a game that produces something real.';
+            summary =
+              'Excellent! You discovered the engagement signature - work began feeling more like a game that produces something real.';
             if (grade !== 'A') grade = 'A';
           } else if (engagementMetrics && engagementMetrics.engagementImprovement > 0) {
-            summary = 'Good progress. Engagement improved but the signature could be stronger. Try more decisive axis changes.';
+            summary =
+              'Good progress. Engagement improved but the signature could be stronger. Try more decisive axis changes.';
             if (grade !== 'A' && grade !== 'B') grade = 'B';
           } else {
-            summary = 'The engagement signature remained weak. When work feels like forcing, BAS configuration needs adjustment.';
+            summary =
+              'The engagement signature remained weak. When work feels like forcing, BAS configuration needs adjustment.';
           }
         } else if (grade === 'A') {
           summary =
             'Excellent stability management. You maintained system health throughout the scenario.';
         } else if (grade === 'B') {
-          summary =
-            'Good performance. Minor stability dips but recovered well.';
+          summary = 'Good performance. Minor stability dips but recovered well.';
         } else if (grade === 'C') {
-          summary =
-            'Adequate handling. Several challenging moments but avoided critical failures.';
+          summary = 'Adequate handling. Several challenging moments but avoided critical failures.';
         } else if (grade === 'D') {
-          summary =
-            'Struggling performance. System stability was frequently compromised.';
+          summary = 'Struggling performance. System stability was frequently compromised.';
         } else {
           summary =
             'System entered unstable state. Review the learning objectives and try different axis configurations.';
@@ -1722,10 +1645,7 @@ export const useScenarioStore = create<ScenarioState>()(
           averageStability: avgStability,
           lowestStability,
           eventsTriggered: triggeredEvents.length,
-          eventsHandled: Math.min(
-            triggeredEvents.length,
-            activeScenario.events.length
-          ),
+          eventsHandled: Math.min(triggeredEvents.length, activeScenario.events.length),
           axisChanges: axisChangeCount,
           finalAxes,
           learningsUnlocked: activeScenario.learningObjectives.slice(
@@ -1739,9 +1659,7 @@ export const useScenarioStore = create<ScenarioState>()(
 
         set((state) => ({
           results: result,
-          completedScenarios: state.completedScenarios.includes(
-            activeScenario.id
-          )
+          completedScenarios: state.completedScenarios.includes(activeScenario.id)
             ? state.completedScenarios
             : [...state.completedScenarios, activeScenario.id],
           scenarioHistory: [...state.scenarioHistory.slice(-20), result],
@@ -1759,9 +1677,7 @@ export const useScenarioStore = create<ScenarioState>()(
 
         return activeScenario.events.filter((event, index) => {
           const eventKey = `${activeScenario.id}-${index}`;
-          return (
-            event.time <= currentTime && !triggeredEvents.includes(eventKey)
-          );
+          return event.time <= currentTime && !triggeredEvents.includes(eventKey);
         });
       },
 
@@ -1810,13 +1726,12 @@ export const useScenarioStore = create<ScenarioState>()(
 /**
  * Get category color for display
  */
-export function getCategoryColor(
-  category: Scenario['category']
-): { bg: string; text: string; border: string } {
-  const colors: Record<
-    Scenario['category'],
-    { bg: string; text: string; border: string }
-  > = {
+export function getCategoryColor(category: Scenario['category']): {
+  bg: string;
+  text: string;
+  border: string;
+} {
+  const colors: Record<Scenario['category'], { bg: string; text: string; border: string }> = {
     crisis: {
       bg: 'bg-red-500/20',
       text: 'text-red-400',

@@ -120,12 +120,12 @@ export interface WorkerData {
   name: string;
   gender: WorkerGender;
   role:
-  | 'Operator'
-  | 'Engineer'
-  | 'Supervisor'
-  | 'Safety Officer'
-  | 'Quality Control'
-  | 'Maintenance';
+    | 'Operator'
+    | 'Engineer'
+    | 'Supervisor'
+    | 'Safety Officer'
+    | 'Quality Control'
+    | 'Maintenance';
   icon: WorkerIconType;
   position: [number, number, number];
   speed: number;
@@ -250,13 +250,13 @@ export interface AIDecision {
 export type StrategicCategory = 'efficiency' | 'safety' | 'quality' | 'throughput' | 'energy';
 
 export interface StrategicPriority {
-  id: string;                         // Unique identifier
-  priority: string;                   // Human-readable description
-  weight: 1 | 2 | 3 | 4 | 5;          // Importance (1=low, 5=critical)
-  category: StrategicCategory;        // Type of optimization
-  machineAffinities: string[];        // Machine IDs this applies to
-  createdAt: number;                  // Timestamp when created
-  expiresAt: number;                  // TTL timestamp for auto-decay
+  id: string; // Unique identifier
+  priority: string; // Human-readable description
+  weight: 1 | 2 | 3 | 4 | 5; // Importance (1=low, 5=critical)
+  category: StrategicCategory; // Type of optimization
+  machineAffinities: string[]; // Machine IDs this applies to
+  createdAt: number; // Timestamp when created
+  expiresAt: number; // TTL timestamp for auto-decay
 }
 
 export interface ForkliftData {
@@ -329,14 +329,14 @@ export type PreferenceRequestType = 'assignment' | 'break' | 'colleague' | 'shif
 
 /** Current status of a worker's preference satisfaction */
 export type PreferenceStatus =
-  | 'satisfied'     // ✅ Preference currently met
-  | 'pending'       // ✋ Has active request
-  | 'denied'        // ❌ Preference recently denied
-  | 'negotiating';  // ⚖️ In active negotiation
+  | 'satisfied' // ✅ Preference currently met
+  | 'pending' // ✋ Has active request
+  | 'denied' // ❌ Preference recently denied
+  | 'negotiating'; // ⚖️ In active negotiation
 
 /**
  * Worker Preferences - Bilateral Alignment Core
- * 
+ *
  * Workers express preferences about their work environment. These aren't
  * demands—they're dialogue. Accommodating where possible builds trust;
  * ignoring systematically erodes it.
@@ -396,7 +396,10 @@ export const DEFAULT_WORKER_PREFERENCES: WorkerPreferences = {
  * Phrases workers use when making preference requests
  * Grouped by request type and urgency
  */
-export const PREFERENCE_REQUEST_PHRASES: Record<PreferenceRequestType, Record<'low' | 'medium' | 'high', string[]>> = {
+export const PREFERENCE_REQUEST_PHRASES: Record<
+  PreferenceRequestType,
+  Record<'low' | 'medium' | 'high', string[]>
+> = {
   assignment: {
     low: [
       'If possible, I work better on the packers...',
@@ -405,28 +408,34 @@ export const PREFERENCE_REQUEST_PHRASES: Record<PreferenceRequestType, Record<'l
     ],
     medium: [
       'Could I switch to a different station today?',
-      'I think I\'d be more productive elsewhere.',
+      "I think I'd be more productive elsewhere.",
       'Would it be possible to work on the mills?',
     ],
     high: [
       'I really need a change of assignment.',
-      'This station isn\'t working for me right now.',
+      "This station isn't working for me right now.",
       'Please consider my reassignment request.',
     ],
   },
   break: {
     low: ['Could use a breather when convenient.', 'Feeling a bit tired...'],
     medium: ['I should probably take my break soon.', 'Running low on energy here.'],
-    high: ['I really need a break.', '*exhausted look*', 'Can\'t keep going without a rest.'],
+    high: ['I really need a break.', '*exhausted look*', "Can't keep going without a rest."],
   },
   colleague: {
     low: ['Working with Sarah would be nice.', 'Marcus and I make a good team.'],
     medium: ['I collaborate better with certain colleagues.', 'Team assignments matter to me.'],
-    high: ['I strongly prefer not to work alone on this.', 'Please assign me with my usual partner.'],
+    high: [
+      'I strongly prefer not to work alone on this.',
+      'Please assign me with my usual partner.',
+    ],
   },
   shift: {
-    low: ['Morning shifts suit me better, if possible.', 'I\'m more of a night owl, personally.'],
-    medium: ['My schedule works better with afternoon shifts.', 'Could we discuss my shift assignment?'],
+    low: ['Morning shifts suit me better, if possible.', "I'm more of a night owl, personally."],
+    medium: [
+      'My schedule works better with afternoon shifts.',
+      'Could we discuss my shift assignment?',
+    ],
     high: ['I have commitments that conflict with this shift.', 'This shift is difficult for me.'],
   },
 };
@@ -470,7 +479,7 @@ export type SafetyReportSeverity = 'low' | 'medium' | 'high' | 'critical';
 
 /**
  * Safety Report - A worker's observation about a potential issue
- * 
+ *
  * The key bilateral alignment insight: workers who feel heard will report
  * more issues before they become disasters. Ignored workers go silent.
  */
@@ -492,7 +501,7 @@ export interface SafetyReport {
 
 /**
  * Worker Safety Behavior - How willing this worker is to report issues
- * 
+ *
  * Reporting willingness is affected by past experience:
  * - Addressed reports → willingness increases
  * - Ignored reports → willingness decreases ("learned helplessness")
@@ -532,14 +541,14 @@ export const DEFAULT_WORKER_SAFETY_BEHAVIOR: WorkerSafetyBehavior = {
  * These are "early warning signals" in worker dialogue
  */
 export type GrumbleCategory =
-  | 'fatigue'        // "These shifts are killing me..."
-  | 'equipment'      // "This mill's been making weird noises..."
-  | 'safety'         // "Someone's going to get hurt here..."
-  | 'workload'       // "Can't keep up with this pace..."
-  | 'colleague'      // "Working with Dave is impossible..."
-  | 'management'     // "Does anyone up there even know we exist?"
-  | 'environment'    // "It's freezing in here..."
-  | 'morale';        // "What's even the point anymore?"
+  | 'fatigue' // "These shifts are killing me..."
+  | 'equipment' // "This mill's been making weird noises..."
+  | 'safety' // "Someone's going to get hurt here..."
+  | 'workload' // "Can't keep up with this pace..."
+  | 'colleague' // "Working with Dave is impossible..."
+  | 'management' // "Does anyone up there even know we exist?"
+  | 'environment' // "It's freezing in here..."
+  | 'morale'; // "What's even the point anymore?"
 
 /**
  * Tracked grumble that can escalate if unaddressed
@@ -555,17 +564,28 @@ export interface TrackedGrumble {
   lastSeen: number;
   addressed: boolean;
   /** What happens if this escalates */
-  escalationConsequence?: 'accident' | 'breakdown' | 'injury' | 'quality_defect' | 'conflict' | 'resignation' | 'sick_leave' | 'slowdown';
+  escalationConsequence?:
+    | 'accident'
+    | 'breakdown'
+    | 'injury'
+    | 'quality_defect'
+    | 'conflict'
+    | 'resignation'
+    | 'sick_leave'
+    | 'slowdown';
 }
 
 /**
  * Phrases workers use when making safety reports
  */
-export const SAFETY_REPORT_PHRASES: Record<SafetyReportType, Record<SafetyReportSeverity, string[]>> = {
+export const SAFETY_REPORT_PHRASES: Record<
+  SafetyReportType,
+  Record<SafetyReportSeverity, string[]>
+> = {
   hazard: {
     low: ['Might want to check the floor there.', 'Small issue near the conveyor.'],
     medium: ['This could be a problem.', 'Someone should look at this.'],
-    high: ['This needs attention soon.', 'I\'m concerned about this.'],
+    high: ['This needs attention soon.', "I'm concerned about this."],
     critical: ['This is dangerous!', 'Stop operations - safety issue!'],
   },
   near_miss: {
@@ -576,9 +596,9 @@ export const SAFETY_REPORT_PHRASES: Record<SafetyReportType, Record<SafetyReport
   },
   concern: {
     low: ['Just something I noticed...', 'Probably nothing, but...'],
-    medium: ['I\'ve been meaning to mention...', 'Something\'s off here.'],
-    high: ['I\'m worried about this.', 'This keeps happening.'],
-    critical: ['I\'ve raised this before!', 'This cannot continue!'],
+    medium: ["I've been meaning to mention...", "Something's off here."],
+    high: ["I'm worried about this.", 'This keeps happening.'],
+    critical: ["I've raised this before!", 'This cannot continue!'],
   },
   suggestion: {
     low: ['Have we considered...?', 'Just a thought...'],
@@ -762,12 +782,12 @@ export interface FactoryPlant {
 export interface MaintenanceTask {
   id: string;
   type:
-  | 'sweeping'
-  | 'oiling'
-  | 'lightbulb'
-  | 'plant_watering'
-  | 'spill_cleanup'
-  | 'general_tidying';
+    | 'sweeping'
+    | 'oiling'
+    | 'lightbulb'
+    | 'plant_watering'
+    | 'spill_cleanup'
+    | 'general_tidying';
   position: [number, number, number];
   priority: 'low' | 'medium' | 'high';
   assignedWorkerId?: string;

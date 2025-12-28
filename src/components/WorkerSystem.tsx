@@ -28,6 +28,7 @@ import {
 import { RecommendedWorkerRing } from './workers/RecommendedWorkerRing';
 import { FatigueIndicator } from './workers/FatigueIndicator';
 import { AutonomyIndicator } from './workers/AutonomyIndicator';
+import { FlourishingIndicator } from './workers/FlourishingIndicator';
 
 interface WorkerSystemProps {
   onSelectWorker: (worker: WorkerData) => void;
@@ -2478,13 +2479,13 @@ const Worker: React.FC<{ data: WorkerData; onSelect: () => void }> = React.memo(
         const machineId = activeAlerts[0].machineId?.toLowerCase() ?? '';
         const alertPos =
           machinePositions[
-          machineId.includes('silo')
-            ? 'silo'
-            : machineId.includes('mill') || machineId.includes('rm')
-              ? 'mill'
-              : machineId.includes('packer')
-                ? 'packer'
-                : 'default'
+            machineId.includes('silo')
+              ? 'silo'
+              : machineId.includes('mill') || machineId.includes('rm')
+                ? 'mill'
+                : machineId.includes('packer')
+                  ? 'packer'
+                  : 'default'
           ];
         const dx = alertPos.x - ref.current.position.x;
         const dz = alertPos.z - ref.current.position.z;
@@ -2934,6 +2935,9 @@ const Worker: React.FC<{ data: WorkerData; onSelect: () => void }> = React.memo(
 
         {/* BAS Autonomy Level Indicator - Shows worker autonomy based on BAS axes */}
         <AutonomyIndicator visible={true} workerId={data.id} />
+
+        {/* BAS Flourishing Indicator - Shows worker wellbeing (medium+ quality only) */}
+        <FlourishingIndicator workerId={data.id} />
 
         {/* Status indicator above head */}
         <group position={[0, 2.15, 0]}>

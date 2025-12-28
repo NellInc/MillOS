@@ -173,113 +173,121 @@ interface HoloPanelProps {
   size: [number, number];
 }
 
-const HoloPanel: React.FC<HoloPanelProps> = React.memo(({ position, title, value, subValue, color, size }) => {
-  const groupRef = useRef<THREE.Group>(null);
-  const glowRef = useRef<THREE.Mesh>(null);
-  const graphicsQuality = useGraphicsStore((state) => state.graphics.quality);
-  const isTabVisible = useGameSimulationStore((state) => state.isTabVisible);
+const HoloPanel: React.FC<HoloPanelProps> = React.memo(
+  ({ position, title, value, subValue, color, size }) => {
+    const groupRef = useRef<THREE.Group>(null);
+    const glowRef = useRef<THREE.Mesh>(null);
+    const graphicsQuality = useGraphicsStore((state) => state.graphics.quality);
+    const isTabVisible = useGameSimulationStore((state) => state.isTabVisible);
 
-  // Guard against NaN/invalid dimensions
-  const safeW = Number.isFinite(size[0]) && size[0] > 0 ? size[0] : 2;
-  const safeH = Number.isFinite(size[1]) && size[1] > 0 ? size[1] : 1.5;
+    // Guard against NaN/invalid dimensions
+    const safeW = Number.isFinite(size[0]) && size[0] > 0 ? size[0] : 2;
+    const safeH = Number.isFinite(size[1]) && size[1] > 0 ? size[1] : 1.5;
 
-  // Memoize computed positions to prevent array recreation on each render
-  const topBorderPos = useMemo(() => [0, safeH / 2 - 0.1, 0.03] as const, [safeH]);
-  const titlePos = useMemo(() => [0, safeH / 2 - 0.35, 0.04] as const, [safeH]);
-  const valuePos = useMemo(() => [0, subValue ? 0.1 : 0, 0.04] as const, [subValue]);
-  const cornerPositions = useMemo(
-    () =>
-      [
-        [-1, 1],
-        [1, 1],
-        [-1, -1],
-        [1, -1],
-      ].map(([x, y]) => [x * (safeW / 2 - 0.15), y * (safeH / 2 - 0.15), 0.03] as const),
-    [safeW, safeH]
-  );
+    // Memoize computed positions to prevent array recreation on each render
+    const topBorderPos = useMemo(() => [0, safeH / 2 - 0.1, 0.03] as const, [safeH]);
+    const titlePos = useMemo(() => [0, safeH / 2 - 0.35, 0.04] as const, [safeH]);
+    const valuePos = useMemo(() => [0, subValue ? 0.1 : 0, 0.04] as const, [subValue]);
+    const cornerPositions = useMemo(
+      () =>
+        [
+          [-1, 1],
+          [1, 1],
+          [-1, -1],
+          [1, -1],
+        ].map(([x, y]) => [x * (safeW / 2 - 0.15), y * (safeH / 2 - 0.15), 0.03] as const),
+      [safeW, safeH]
+    );
 
-  useFrame((state) => {
-    // PERFORMANCE: Skip when tab hidden
-    if (!isTabVisible) return;
-    // Use shared throttle utility for consistent performance
-    const throttle = getThrottleLevel(graphicsQuality);
-    if (!shouldRunThisFrame(throttle)) return;
+    useFrame((state) => {
+      // PERFORMANCE: Skip when tab hidden
+      if (!isTabVisible) return;
+      // Use shared throttle utility for consistent performance
+      const throttle = getThrottleLevel(graphicsQuality);
+      if (!shouldRunThisFrame(throttle)) return;
 
-    if (groupRef.current) {
-      groupRef.current.position.y = position[1] + Math.sin(state.clock.elapsedTime * 0.5) * 0.1;
-    }
-    if (glowRef.current) {
-      (glowRef.current.material as THREE.MeshBasicMaterial).opacity =
-        0.1 + Math.sin(state.clock.elapsedTime * 2) * 0.05;
-    }
-  });
+      if (groupRef.current) {
+        groupRef.current.position.y = position[1] + Math.sin(state.clock.elapsedTime * 0.5) * 0.1;
+      }
+      if (glowRef.current) {
+        (glowRef.current.material as THREE.MeshBasicMaterial).opacity =
+          0.1 + Math.sin(state.clock.elapsedTime * 2) * 0.05;
+      }
+    });
 
-  return (
-    <group ref={groupRef} position={position}>
-      <Billboard>
-        {/* Glow background */}
-        <mesh ref={glowRef} position={[0, 0, -0.1]}>
-          <planeGeometry args={[safeW + 1, safeH + 0.5]} />
-          <meshBasicMaterial color={color} transparent opacity={0.1} />
-        </mesh>
+    return (
+      <group ref={groupRef} position={position}>
+        <Billboard>
+          {/* Glow background */}
+          <mesh ref={glowRef} position={[0, 0, -0.1]}>
+            <planeGeometry args={[safeW + 1, safeH + 0.5]} />
+            <meshBasicMaterial color={color} transparent opacity={0.1} />
+          </mesh>
 
-        {/* Main panel */}
-        <RoundedBox args={[safeW, safeH, 0.05]} radius={0.1} smoothness={4}>
-          <meshStandardMaterial
-            color="#0f172a"
-            transparent
-            opacity={0.9}
-            metalness={0.5}
-            roughness={0.5}
-          />
-        </RoundedBox>
+          {/* Main panel */}
+          <RoundedBox args={[safeW, safeH, 0.05]} radius={0.1} smoothness={4}>
+            <meshStandardMaterial
+              color="#0f172a"
+              transparent
+              opacity={0.9}
+              metalness={0.5}
+              roughness={0.5}
+            />
+          </RoundedBox>
 
-        {/* Border glow */}
-        <mesh position={[0, 0, 0.03]}>
-          <planeGeometry args={[safeW - 0.1, safeH - 0.1]} />
-          <meshBasicMaterial color={color} transparent opacity={0.05} />
-        </mesh>
+          {/* Border glow */}
+          <mesh position={[0, 0, 0.03]}>
+            <planeGeometry args={[safeW - 0.1, safeH - 0.1]} />
+            <meshBasicMaterial color={color} transparent opacity={0.05} />
+          </mesh>
 
-        {/* Top border accent */}
-        <mesh position={topBorderPos}>
-          <planeGeometry args={[safeW - 0.2, 0.05]} />
-          <meshBasicMaterial color={color} />
-        </mesh>
+          {/* Top border accent */}
+          <mesh position={topBorderPos}>
+            <planeGeometry args={[safeW - 0.2, 0.05]} />
+            <meshBasicMaterial color={color} />
+          </mesh>
 
-        {/* Title */}
-        <Text position={titlePos} fontSize={0.2} color="#94a3b8" anchorX="center" anchorY="middle">
-          {title}
-        </Text>
-
-        {/* Main value */}
-        <Text position={valuePos} fontSize={0.5} color={color} anchorX="center" anchorY="middle">
-          {value}
-        </Text>
-
-        {/* Sub value */}
-        {subValue && (
+          {/* Title */}
           <Text
-            position={[0, -0.5, 0.04]}
-            fontSize={0.25}
-            color="#64748b"
+            position={titlePos}
+            fontSize={0.2}
+            color="#94a3b8"
             anchorX="center"
             anchorY="middle"
           >
-            {subValue}
+            {title}
           </Text>
-        )}
 
-        {/* Corner accents */}
-        {cornerPositions.map((pos, i) => (
-          <mesh key={i} position={pos}>
-            <circleGeometry args={[0.05, 16]} />
-            <meshBasicMaterial color={color} />
-          </mesh>
-        ))}
-      </Billboard>
-    </group>
-  );
-});
+          {/* Main value */}
+          <Text position={valuePos} fontSize={0.5} color={color} anchorX="center" anchorY="middle">
+            {value}
+          </Text>
+
+          {/* Sub value */}
+          {subValue && (
+            <Text
+              position={[0, -0.5, 0.04]}
+              fontSize={0.25}
+              color="#64748b"
+              anchorX="center"
+              anchorY="middle"
+            >
+              {subValue}
+            </Text>
+          )}
+
+          {/* Corner accents */}
+          {cornerPositions.map((pos, i) => (
+            <mesh key={i} position={pos}>
+              <circleGeometry args={[0.05, 16]} />
+              <meshBasicMaterial color={color} />
+            </mesh>
+          ))}
+        </Billboard>
+      </group>
+    );
+  }
+);
 
 const DataParticles: React.FC = React.memo(() => {
   const particlesRef = useRef<THREE.Points>(null);

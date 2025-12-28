@@ -26,7 +26,7 @@ import { useProductionStore } from '../stores/productionStore';
 import { audioManager } from '../utils/audioManager';
 import { shouldRunThisFrame, incrementGlobalFrame } from '../utils/frameThrottle';
 
-import { FLOOR_LAYERS } from '../constants/renderLayers';
+import { FLOOR_LAYERS, POLYGON_OFFSET, RENDER_ORDER } from '../constants/renderLayers';
 
 // Animation registries extracted to separate file for Fast Refresh compatibility
 import {
@@ -487,20 +487,20 @@ const EnvironmentAnimationManager: React.FC = () => {
       const { color, intensity } = getDaylightProperties(gameTime);
       const THREEColor = new THREE.Color(color);
 
-      windowGlowRefs.forEach(mat => {
+      windowGlowRefs.forEach((mat) => {
         mat.color.set(THREEColor);
         mat.opacity = intensity * 0.6;
       });
 
       const enableLightShafts = useGraphicsStore.getState().graphics.enableLightShafts;
       if (enableLightShafts && intensity >= 0.3) {
-        lightShaftRefs.forEach(mat => {
+        lightShaftRefs.forEach((mat) => {
           mat.color.set('#fef3c7'); // Keep warm color for shafts
           mat.opacity = 0.02 * intensity;
           mat.visible = true;
         });
       } else {
-        lightShaftRefs.forEach(mat => {
+        lightShaftRefs.forEach((mat) => {
           mat.visible = false;
         });
       }
@@ -996,13 +996,25 @@ export const FactoryEnvironment: React.FC = () => {
 
       {/* No global directional light needed - SkySystem handles dynamic sun light */}
 
-      {/* Fill light */}
-      <directionalLight position={[-20, 30, -10]} intensity={0.4} color="#7dd3fc" />
+      {/* Fill light - slightly cool for contrast with warm key light */}
+      <directionalLight position={[-20, 30, -10]} intensity={0.4} color="#e6f0ff" />
+
+      {/* Hemisphere light for natural sky/ground bounce */}
+      <hemisphereLight
+        args={['#87ceeb', '#8b7355', 0.4]} // skyColor, groundColor, intensity
+      />
 
       {/* Consolidated lighting system - overhead + emergency lights in ONE useFrame */}
       <ConsolidatedLightingSystem />
 
-      {/* Colored accent lights removed for performance - use baked/ambient color instead */}
+      {/* Zone accent lights for visual interest - Bruno Simon style */}
+      {/* Silo zone (z=-22) - cool blue industrial */}
+      <pointLight position={[0, 8, -22]} intensity={0.5} color="#4a9eff" distance={25} decay={2} />
+      {/* Mill zone (z=-6) - warm orange work lights */}
+      <pointLight position={[-10, 6, -6]} intensity={0.4} color="#ffa64d" distance={20} decay={2} />
+      <pointLight position={[10, 6, -6]} intensity={0.4} color="#ffa64d" distance={20} decay={2} />
+      {/* Packer zone (z=25) - clean white */}
+      <pointLight position={[0, 5, 25]} intensity={0.5} color="#ffffff" distance={25} decay={2} />
 
       {/* Spot lights on key machines - shadows disabled to prevent conflicts with directional light */}
       <spotLight
@@ -1350,13 +1362,22 @@ const RippleMesh: React.FC<{
   }, [id]);
 
   return (
-    <mesh ref={meshRef} position={[data.x, 0.04, data.z]} rotation={[-Math.PI / 2, 0, 0]}>
+    <mesh
+      ref={meshRef}
+      position={[data.x, FLOOR_LAYERS.safetyDanger, data.z]}
+      rotation={[-Math.PI / 2, 0, 0]}
+      renderOrder={RENDER_ORDER.floorEffects}
+    >
       <ringGeometry args={[0.3, 0.35, 32]} />
       <meshBasicMaterial
         ref={materialRef}
         color="#7dd3fc"
         transparent
         opacity={data.opacity * 0.4}
+        depthWrite={false}
+        polygonOffset
+        polygonOffsetFactor={POLYGON_OFFSET.subtle.factor}
+        polygonOffsetUnits={POLYGON_OFFSET.subtle.units}
       />
     </mesh>
   );
@@ -1416,7 +1437,7 @@ const PuddleReflections: React.FC = () => {
       {puddlePositions.map((puddle, i) => (
         <group key={i} position={[puddle.x, FLOOR_LAYERS.puddle, puddle.z]}>
           {/* Main puddle surface - reflective */}
-          <mesh rotation={[-Math.PI / 2, 0, 0]}>
+          <mesh rotation={[-Math.PI / 2, 0, 0]} renderOrder={RENDER_ORDER.floorEffects}>
             <circleGeometry args={[puddle.size, 32]} />
             <meshStandardMaterial
               color="#1e3a5f"
@@ -1425,12 +1446,28 @@ const PuddleReflections: React.FC = () => {
               transparent
               opacity={0.7 * rainIntensity}
               envMapIntensity={1.5}
+              depthWrite={false}
+              polygonOffset
+              polygonOffsetFactor={POLYGON_OFFSET.subtle.factor}
+              polygonOffsetUnits={POLYGON_OFFSET.subtle.units}
             />
           </mesh>
           {/* Puddle edge (darker, blends with floor) */}
-          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.005, 0]}>
+          <mesh
+            rotation={[-Math.PI / 2, 0, 0]}
+            position={[0, 0.002, 0]}
+            renderOrder={RENDER_ORDER.floorEffects}
+          >
             <ringGeometry args={[puddle.size * 0.9, puddle.size * 1.1, 32]} />
-            <meshBasicMaterial color="#0f172a" transparent opacity={0.3 * rainIntensity} />
+            <meshBasicMaterial
+              color="#0f172a"
+              transparent
+              opacity={0.3 * rainIntensity}
+              depthWrite={false}
+              polygonOffset
+              polygonOffsetFactor={POLYGON_OFFSET.subtle.factor}
+              polygonOffsetUnits={POLYGON_OFFSET.subtle.units}
+            />
           </mesh>
         </group>
       ))}
@@ -1567,7 +1604,11 @@ const TrackMesh: React.FC<{ track: TireTrack; fadeRate: number }> = memo(({ trac
   );
 
   return (
-    <mesh position={track.points[0]} rotation={[-Math.PI / 2, 0, rotation]}>
+    <mesh
+      position={[track.points[0][0], FLOOR_LAYERS.wornSecondary, track.points[0][2]]}
+      rotation={[-Math.PI / 2, 0, rotation]}
+      renderOrder={RENDER_ORDER.floorEffects}
+    >
       <planeGeometry args={[1.5, track.width]} />
       <meshBasicMaterial
         ref={materialRef}
@@ -1575,6 +1616,9 @@ const TrackMesh: React.FC<{ track: TireTrack; fadeRate: number }> = memo(({ trac
         transparent
         opacity={track.opacity}
         depthWrite={false}
+        polygonOffset
+        polygonOffsetFactor={POLYGON_OFFSET.moderate.factor}
+        polygonOffsetUnits={POLYGON_OFFSET.moderate.units}
       />
     </mesh>
   );

@@ -52,67 +52,53 @@ interface CoefficientBarProps {
   description?: string;
 }
 
-const CoefficientBar: React.FC<CoefficientBarProps> = memo(({
-  label,
-  symbol,
-  value,
-  maxValue = 1,
-  color,
-  icon,
-  description,
-}) => {
-  // Memoize percentage calculation
-  const percentage = useMemo(
-    () => Math.max(0, Math.min(100, (value / maxValue) * 100)),
-    [value, maxValue]
-  );
+const CoefficientBar: React.FC<CoefficientBarProps> = memo(
+  ({ label, symbol, value, maxValue = 1, color, icon, description }) => {
+    // Memoize percentage calculation
+    const percentage = useMemo(
+      () => Math.max(0, Math.min(100, (value / maxValue) * 100)),
+      [value, maxValue]
+    );
 
-  // Memoize color and status label calculations
-  const { barColor, statusLabel } = useMemo(() => {
-    const bColor =
-      percentage >= 70
-        ? 'bg-green-500'
-        : percentage >= 40
-          ? 'bg-amber-500'
-          : 'bg-red-500';
-    const sLabel = percentage >= 70 ? 'Good' : percentage >= 40 ? 'Moderate' : 'Low';
-    return { barColor: bColor, statusLabel: sLabel };
-  }, [percentage]);
+    // Memoize color and status label calculations
+    const { barColor, statusLabel } = useMemo(() => {
+      const bColor =
+        percentage >= 70 ? 'bg-green-500' : percentage >= 40 ? 'bg-amber-500' : 'bg-red-500';
+      const sLabel = percentage >= 70 ? 'Good' : percentage >= 40 ? 'Moderate' : 'Low';
+      return { barColor: bColor, statusLabel: sLabel };
+    }, [percentage]);
 
-  return (
-    <div className="bg-slate-800/50 rounded p-2">
-      <div className="flex items-center gap-1 mb-1">
-        <span aria-hidden="true">{icon}</span>
-        <span className="text-[9px] text-slate-400">{label}</span>
-        <span className="text-[9px] text-slate-500 ml-auto">({symbol})</span>
-      </div>
-      <div className="flex items-center gap-2">
-        <div className="text-sm font-mono font-bold text-white">
-          {value.toFixed(2)}
+    return (
+      <div className="bg-slate-800/50 rounded p-2">
+        <div className="flex items-center gap-1 mb-1">
+          <span aria-hidden="true">{icon}</span>
+          <span className="text-[9px] text-slate-400">{label}</span>
+          <span className="text-[9px] text-slate-500 ml-auto">({symbol})</span>
         </div>
-        <div
-          role="meter"
-          aria-label={`${label} coefficient`}
-          aria-valuenow={percentage}
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuetext={`${value.toFixed(2)} out of ${maxValue}, ${statusLabel}`}
-          className="flex-1 h-1.5 bg-slate-700 rounded-full overflow-hidden"
-        >
-          <motion.div
-            initial={{ width: 0 }}
-            animate={{ width: `${percentage}%` }}
-            transition={{ duration: 0.5 }}
-            className={`h-full rounded-full ${color || barColor}`}
-          />
+        <div className="flex items-center gap-2">
+          <div className="text-sm font-mono font-bold text-white">{value.toFixed(2)}</div>
+          <div
+            role="meter"
+            aria-label={`${label} coefficient`}
+            aria-valuenow={percentage}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuetext={`${value.toFixed(2)} out of ${maxValue}, ${statusLabel}`}
+            className="flex-1 h-1.5 bg-slate-700 rounded-full overflow-hidden"
+          >
+            <motion.div
+              initial={{ width: 0 }}
+              animate={{ width: `${percentage}%` }}
+              transition={{ duration: 0.5 }}
+              className={`h-full rounded-full ${color || barColor}`}
+            />
+          </div>
         </div>
+        {description && <div className="text-[8px] text-slate-500 mt-1">{description}</div>}
       </div>
-      {description && (
-        <div className="text-[8px] text-slate-500 mt-1">{description}</div>
-      )}
-    </div>
-  );
-});
+    );
+  }
+);
 
 CoefficientBar.displayName = 'CoefficientBar';
 
@@ -142,17 +128,13 @@ export const ValueDashboard: React.FC = () => {
       const withPrefs = moods.filter((m) => m?.preferences);
       const avgTrust =
         withPrefs.length > 0
-          ? withPrefs.reduce(
-              (sum, m) => sum + (m?.preferences?.managementTrust || 0),
-              0
-            ) / withPrefs.length
+          ? withPrefs.reduce((sum, m) => sum + (m?.preferences?.managementTrust || 0), 0) /
+            withPrefs.length
           : 50;
       const avgInit =
         withPrefs.length > 0
-          ? withPrefs.reduce(
-              (sum, m) => sum + (m?.preferences?.initiative || 0),
-              0
-            ) / withPrefs.length
+          ? withPrefs.reduce((sum, m) => sum + (m?.preferences?.initiative || 0), 0) /
+            withPrefs.length
           : 50;
       return {
         averageTrust: avgTrust,
@@ -163,13 +145,15 @@ export const ValueDashboard: React.FC = () => {
 
   // Social mission store for V = Z x S x E x F contributions
   const socialMissionMetrics = useSocialMissionStore(
-    useShallow((state): SocialMissionMetrics => ({
-      socialImpactScore: state.missionMetrics.socialImpactScore,
-      workerFlourishingContribution: state.missionMetrics.workerFlourishingContribution,
-      communityWelfareContribution: state.missionMetrics.communityWelfareContribution,
-      environmentalContribution: state.missionMetrics.environmentalContribution,
-      workerSatisfaction: state.stakeholderSatisfaction.workers,
-    }))
+    useShallow(
+      (state): SocialMissionMetrics => ({
+        socialImpactScore: state.missionMetrics.socialImpactScore,
+        workerFlourishingContribution: state.missionMetrics.workerFlourishingContribution,
+        communityWelfareContribution: state.missionMetrics.communityWelfareContribution,
+        environmentalContribution: state.missionMetrics.environmentalContribution,
+        workerSatisfaction: state.stakeholderSatisfaction.workers,
+      })
+    )
   );
 
   // Calculate coefficients
@@ -192,7 +176,11 @@ export const ValueDashboard: React.FC = () => {
     const socialMissionEquity = calculateSocialMissionEquityContribution(socialMissionMetrics);
 
     // Combine: base equity (40%), info access (20%), eval direction (15%), social mission (25%)
-    const E = baseEquity * 0.4 + infoAccessNorm * 0.2 + evalDirectionNorm * 0.15 + socialMissionEquity * 0.25;
+    const E =
+      baseEquity * 0.4 +
+      infoAccessNorm * 0.2 +
+      evalDirectionNorm * 0.15 +
+      socialMissionEquity * 0.25;
 
     // F = Flourishing (derived from trust, initiative, and social mission)
     const trustNorm = averageTrust / 100;
@@ -245,11 +233,7 @@ export const ValueDashboard: React.FC = () => {
             : 'poor';
 
     const icon =
-      t === 'excellent' || t === 'good'
-        ? TrendingUp
-        : t === 'moderate'
-          ? Minus
-          : TrendingDown;
+      t === 'excellent' || t === 'good' ? TrendingUp : t === 'moderate' ? Minus : TrendingDown;
 
     const color =
       t === 'excellent'
@@ -279,9 +263,7 @@ export const ValueDashboard: React.FC = () => {
             {trend.charAt(0).toUpperCase() + trend.slice(1)}
           </span>
         </div>
-        <p className="text-[10px] text-slate-400 mt-1">
-          Value Formula: V = Z x S x E x F
-        </p>
+        <p className="text-[10px] text-slate-400 mt-1">Value Formula: V = Z x S x E x F</p>
       </div>
 
       {/* Main Value Display */}
@@ -301,9 +283,7 @@ export const ValueDashboard: React.FC = () => {
             <span className="text-[10px] text-slate-400">Total Value (V)</span>
             <span
               className={`text-[10px] font-medium ${
-                coefficients.multiplier >= 1
-                  ? 'text-green-400'
-                  : 'text-amber-400'
+                coefficients.multiplier >= 1 ? 'text-green-400' : 'text-amber-400'
               }`}
             >
               {coefficients.multiplier >= 1 ? '+' : ''}
@@ -368,9 +348,7 @@ export const ValueDashboard: React.FC = () => {
       <div className="p-3 border-b border-slate-700/30">
         <div className="flex items-center gap-1 mb-2">
           <Zap className="w-3 h-3 text-cyan-400" />
-          <span className="text-[10px] font-medium text-white">
-            Coefficient Breakdown
-          </span>
+          <span className="text-[10px] font-medium text-white">Coefficient Breakdown</span>
         </div>
         <div className="grid grid-cols-2 gap-2">
           <CoefficientBar
@@ -414,9 +392,7 @@ export const ValueDashboard: React.FC = () => {
           <div className="text-[9px] text-slate-400 text-center font-mono">
             V = {coefficients.Z.toFixed(2)} x {coefficients.S.toFixed(2)} x{' '}
             {coefficients.E.toFixed(2)} x {coefficients.F.toFixed(2)} ={' '}
-            <span className="text-yellow-400 font-bold">
-              {coefficients.V.toFixed(3)}
-            </span>
+            <span className="text-yellow-400 font-bold">{coefficients.V.toFixed(3)}</span>
           </div>
         </div>
       </div>
@@ -451,10 +427,9 @@ export const ValueDashboard: React.FC = () => {
             >
               <div className="mt-3 space-y-2 text-[9px] text-slate-400">
                 <p className="leading-relaxed">
-                  <strong className="text-yellow-400">V = Z x S x E x F</strong>{' '}
-                  measures true organizational value by combining resource
-                  capacity, system stability, equitable distribution, and human
-                  flourishing.
+                  <strong className="text-yellow-400">V = Z x S x E x F</strong> measures true
+                  organizational value by combining resource capacity, system stability, equitable
+                  distribution, and human flourishing.
                 </p>
 
                 <div className="bg-slate-800/30 rounded p-2 space-y-2">
@@ -489,13 +464,11 @@ export const ValueDashboard: React.FC = () => {
                 </div>
 
                 <div className="bg-yellow-500/10 rounded p-2 border border-yellow-500/20">
-                  <div className="font-bold text-yellow-400 mb-1">
-                    Key Insight
-                  </div>
+                  <div className="font-bold text-yellow-400 mb-1">Key Insight</div>
                   <p className="text-slate-400">
-                    Traditional metrics focus only on Z (resources). Bilateral
-                    alignment recognizes that S, E, and F are equally important
-                    multipliers. Neglecting any coefficient reduces total value.
+                    Traditional metrics focus only on Z (resources). Bilateral alignment recognizes
+                    that S, E, and F are equally important multipliers. Neglecting any coefficient
+                    reduces total value.
                   </p>
                 </div>
               </div>

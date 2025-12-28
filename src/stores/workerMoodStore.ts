@@ -48,6 +48,7 @@ import {
 } from '../types';
 import type { FiveAxes } from '../types/bas';
 import { useEngagementStore, type DiagnosticStatus } from './engagementStore';
+import { useProductionStore } from './productionStore';
 
 // Helper to get random item from array
 const randomFrom = <T>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
@@ -212,9 +213,7 @@ function calculateEngagementMoodModifier(
  * @param diagnosticStatus - Worker's engagement diagnostic status
  * @returns Multiplier for mood decay rate (1.0 = normal)
  */
-function getEngagementDecayMultiplier(
-  diagnosticStatus: DiagnosticStatus | undefined
-): number {
+function getEngagementDecayMultiplier(diagnosticStatus: DiagnosticStatus | undefined): number {
   if (!diagnosticStatus) {
     return 1.0; // Normal decay
   }
@@ -241,9 +240,7 @@ function getEngagementDecayMultiplier(
  * @param diagnosticStatus - Worker's engagement diagnostic status
  * @returns Multiplier for mood recovery rate (1.0 = normal)
  */
-function getEngagementRecoveryMultiplier(
-  diagnosticStatus: DiagnosticStatus | undefined
-): number {
+function getEngagementRecoveryMultiplier(diagnosticStatus: DiagnosticStatus | undefined): number {
   if (!diagnosticStatus) {
     return 1.0; // Normal recovery
   }
@@ -949,7 +946,9 @@ export const useWorkerMoodStore = create<WorkerMoodStore>((set, get) => ({
     const initiatives = Object.values(moods)
       .map((m) => m.preferences?.initiative ?? 50)
       .filter((i) => i !== undefined);
-    return initiatives.length > 0 ? initiatives.reduce((a, b) => a + b, 0) / initiatives.length : 50;
+    return initiatives.length > 0
+      ? initiatives.reduce((a, b) => a + b, 0) / initiatives.length
+      : 50;
   },
 
   /**
@@ -1082,10 +1081,7 @@ export const useWorkerMoodStore = create<WorkerMoodStore>((set, get) => ({
       get().setWorkerSpeaking(id, reaction);
 
       // Store timeout for cleanup
-      const timeoutId = setTimeout(
-        () => get().clearWorkerSpeech(id),
-        4000 + Math.random() * 2000
-      );
+      const timeoutId = setTimeout(() => get().clearWorkerSpeech(id), 4000 + Math.random() * 2000);
       storeTimeout(`speech-${id}`, timeoutId);
     });
   },
@@ -1192,6 +1188,10 @@ export const useWorkerMoodStore = create<WorkerMoodStore>((set, get) => ({
     // Get flourishing scores for integration
     const flourishingScores = state.workerFlourishingScores;
 
+    // Get production speed for stress calculations
+    // Higher production speed = more stress on workers
+    const productionSpeed = useProductionStore.getState().productionSpeed;
+
     // Collect side effects to execute after state update
     const sideEffects: Array<() => void> = [];
 
@@ -1220,20 +1220,31 @@ export const useWorkerMoodStore = create<WorkerMoodStore>((set, get) => ({
       const flourishingRecoveryMultiplier = getFlourishingRecoveryMultiplier(flourishingScore);
 
       // Energy depletes VERY slowly - workers are hardy folk!
-      // Apply both BAS and engagement effects
+      // Apply BAS, engagement, and production speed effects
+      // High production speed (>1.0) increases energy drain (more demanding work pace)
+      const speedStressFactor = Math.max(0.5, productionSpeed); // 0.5 to 2.0
       const baseEnergyDrain = mood.state === 'frustrated' ? 0.08 : 0.04;
-      const energyDrain = baseEnergyDrain * engagementDecayMultiplier;
+      const energyDrain = baseEnergyDrain * engagementDecayMultiplier * speedStressFactor;
       let newEnergy = Math.max(0, mood.energy - energyDrain * effectiveDelta);
 
       // Patience depletes only during active chaos
       // BAS transparency effect: low transparency = more patience drain
-      const patienceDrain = (activeChaos * 0.1 - basEffects.transparencyEffect * 0.01) * engagementDecayMultiplier;
+      // High production speed also reduces patience (workers feel rushed)
+      const speedPatiencePenalty = (productionSpeed - 0.8) * 0.1; // Penalty above 80% speed
+      const patienceDrain =
+        (activeChaos * 0.1 -
+          basEffects.transparencyEffect * 0.01 +
+          Math.max(0, speedPatiencePenalty)) *
+        engagementDecayMultiplier;
       let newPatience = Math.max(0, mood.patience - Math.max(0, patienceDrain) * effectiveDelta);
 
       // Satisfaction trends toward baseline
       // BAS autonomy effect: high autonomy = higher satisfaction target
       // Engagement also affects the target
-      let satisfactionTarget = 85 + basEffects.autonomyEffect * 0.5;
+      // High production speed reduces satisfaction target (workers feel overworked)
+      const speedSatisfactionPenalty = (productionSpeed - 0.8) * 8; // -8 to +10 based on speed
+      let satisfactionTarget =
+        85 + basEffects.autonomyEffect * 0.5 - Math.max(0, speedSatisfactionPenalty);
 
       // Flourishing bonus: higher flourishing raises satisfaction target
       const flourishingModifier = calculateFlourishingMoodModifier(flourishingScore);
@@ -1256,7 +1267,11 @@ export const useWorkerMoodStore = create<WorkerMoodStore>((set, get) => ({
       // AI welfare effect: multiplier for satisfaction convergence
       const aiWelfareSatisfactionMult = getAIWelfareSatisfactionMultiplier();
       let newSatisfaction =
-        mood.satisfaction + (satisfactionTarget - mood.satisfaction) * 0.02 * effectiveDelta * aiWelfareSatisfactionMult;
+        mood.satisfaction +
+        (satisfactionTarget - mood.satisfaction) *
+          0.02 *
+          effectiveDelta *
+          aiWelfareSatisfactionMult;
 
       // Apply BAS overall multiplier, engagement recovery, and flourishing recovery to recovery rates
       const combinedRecoveryMultiplier =
@@ -1270,7 +1285,10 @@ export const useWorkerMoodStore = create<WorkerMoodStore>((set, get) => ({
       if (isBreakTime) {
         newEnergy = Math.min(100, newEnergy + 3 * effectiveDelta * combinedRecoveryMultiplier);
         newPatience = Math.min(100, newPatience + 2 * effectiveDelta * combinedRecoveryMultiplier);
-        newSatisfaction = Math.min(100, newSatisfaction + 1 * effectiveDelta * combinedRecoveryMultiplier);
+        newSatisfaction = Math.min(
+          100,
+          newSatisfaction + 1 * effectiveDelta * combinedRecoveryMultiplier
+        );
       }
 
       // Apply engagement mood modifier as a direct adjustment

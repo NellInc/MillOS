@@ -62,8 +62,15 @@ export interface GraphicsSettings {
   enableMachineColorVariation: boolean; // Per-instance color variation (medium+)
   enableMachineLOD: boolean; // Geometry LOD for machines (all presets)
   machineLodDistance: number; // Distance threshold for machine LOD switching
+  // Texture filtering options
+  enableTextureFiltering: boolean; // Toggle procedural textures on/off
+  anisotropyLevel: 1 | 4 | 8 | 16; // Anisotropic filtering level
   // Resolution scaling (0.25 to 1.0 multiplier of device pixel ratio)
   resolutionScale: number;
+  // Audio-reactive visual effects - syncs visuals to audio FFT analysis
+  enableAudioReactive: boolean;
+  // Wireframe visualization mode - renders all geometry as wireframe
+  enableWireframe: boolean;
 }
 
 // Default perf debug settings (all systems enabled)
@@ -120,23 +127,27 @@ const GRAPHICS_PRESETS: Record<GraphicsQuality, GraphicsSettings> = {
     enableMachineLOD: true,
     machineLodDistance: 30, // Aggressive LOD for low quality
     resolutionScale: 0.5, // Half resolution for performance
+    enableTextureFiltering: false, // No texture filtering on low
+    anisotropyLevel: 1, // No anisotropic filtering
+    enableAudioReactive: false, // Disabled on low for performance
+    enableWireframe: false, // Wireframe mode off by default
   },
   medium: {
     quality: 'medium',
     enableSCADA: false, // SCADA disabled by default for performance
     perfDebug: { ...DEFAULT_PERF_DEBUG },
-    enableSSAO: false,
-    enableBloom: false,
-    enableVignette: false,
-    enableChromaticAberration: false,
-    enableFilmGrain: false,
-    enableDepthOfField: false,
+    enableSSAO: true, // Adds depth and contact shadows
+    enableBloom: true, // Emissive glow on lights/indicators
+    enableVignette: true, // Cinematic framing
+    enableChromaticAberration: false, // User requested NO
+    enableFilmGrain: false, // User requested NO
+    enableDepthOfField: false, // Keep off for medium (performance)
     enableMachineVibration: true,
     enableProceduralTextures: false,
     enableWeathering: false,
     enableDustParticles: true,
     enableGrainFlow: false,
-    enableAtmosphericHaze: false,
+    enableAtmosphericHaze: false, // KEEP false - causes flickering per CLAUDE.md
     enableLightShafts: false,
     enableContactShadows: true,
     enableHighResShadows: false,
@@ -152,7 +163,7 @@ const GRAPHICS_PRESETS: Record<GraphicsQuality, GraphicsSettings> = {
     enablePhysics: true, // Physics enabled by default
     dustParticleCount: 40,
     shadowMapSize: 2048,
-    ssaoSamples: 12,
+    ssaoSamples: 16, // Increased for better depth perception
     workerLodDistance: 60, // Medium quality: fairly long LOD distance for detailed workers
     // Machine visual enhancements
     enableMachineTextures: false,
@@ -160,6 +171,10 @@ const GRAPHICS_PRESETS: Record<GraphicsQuality, GraphicsSettings> = {
     enableMachineLOD: true,
     machineLodDistance: 50,
     resolutionScale: 0.65, // 65% resolution - good balance of quality and performance
+    enableTextureFiltering: true, // Basic texture filtering
+    anisotropyLevel: 4, // Low anisotropic filtering
+    enableAudioReactive: true, // Audio-reactive visuals on medium+
+    enableWireframe: false, // Wireframe mode off by default
   },
   high: {
     quality: 'high',
@@ -168,15 +183,15 @@ const GRAPHICS_PRESETS: Record<GraphicsQuality, GraphicsSettings> = {
     enableSSAO: true,
     enableBloom: true,
     enableVignette: true,
-    enableChromaticAberration: true,
-    enableFilmGrain: true,
-    enableDepthOfField: false,
+    enableChromaticAberration: false, // User requested NO
+    enableFilmGrain: false, // User requested NO
+    enableDepthOfField: true, // Subtle cinematic focus on high+
     enableMachineVibration: true,
     enableProceduralTextures: true,
     enableWeathering: true,
     enableDustParticles: true,
     enableGrainFlow: true,
-    enableAtmosphericHaze: true,
+    enableAtmosphericHaze: false, // KEEP false - causes flickering per CLAUDE.md
     enableLightShafts: true,
     enableContactShadows: true,
     enableHighResShadows: false,
@@ -192,7 +207,7 @@ const GRAPHICS_PRESETS: Record<GraphicsQuality, GraphicsSettings> = {
     enablePhysics: true, // Physics enabled by default
     dustParticleCount: 400,
     shadowMapSize: 2048,
-    ssaoSamples: 16,
+    ssaoSamples: 24, // Increased for better depth perception
     workerLodDistance: 45, // High quality: moderate LOD distance
     // Machine visual enhancements
     enableMachineTextures: true, // Enable texture maps on high+
@@ -200,6 +215,10 @@ const GRAPHICS_PRESETS: Record<GraphicsQuality, GraphicsSettings> = {
     enableMachineLOD: true,
     machineLodDistance: 80,
     resolutionScale: 1.0, // Full resolution
+    enableTextureFiltering: true, // Full texture filtering
+    anisotropyLevel: 8, // Medium anisotropic filtering
+    enableAudioReactive: true, // Audio-reactive visuals enabled
+    enableWireframe: false, // Wireframe mode off by default
   },
   ultra: {
     quality: 'ultra',
@@ -208,15 +227,15 @@ const GRAPHICS_PRESETS: Record<GraphicsQuality, GraphicsSettings> = {
     enableSSAO: true,
     enableBloom: true,
     enableVignette: true,
-    enableChromaticAberration: true,
-    enableFilmGrain: true,
-    enableDepthOfField: false,
+    enableChromaticAberration: false, // User requested NO
+    enableFilmGrain: false, // User requested NO
+    enableDepthOfField: true, // Subtle cinematic focus
     enableMachineVibration: true,
     enableProceduralTextures: true,
     enableWeathering: true,
     enableDustParticles: true,
     enableGrainFlow: true,
-    enableAtmosphericHaze: true,
+    enableAtmosphericHaze: false, // KEEP false - causes flickering per CLAUDE.md
     enableLightShafts: true,
     enableContactShadows: true,
     enableHighResShadows: true,
@@ -232,7 +251,7 @@ const GRAPHICS_PRESETS: Record<GraphicsQuality, GraphicsSettings> = {
     enablePhysics: true, // Physics enabled by default
     dustParticleCount: 500,
     shadowMapSize: 4096,
-    ssaoSamples: 21,
+    ssaoSamples: 32, // Maximum quality SSAO
     workerLodDistance: 100, // Ultra: very long LOD distance, full detail at most distances
     // Machine visual enhancements
     enableMachineTextures: true,
@@ -240,6 +259,10 @@ const GRAPHICS_PRESETS: Record<GraphicsQuality, GraphicsSettings> = {
     enableMachineLOD: true,
     machineLodDistance: 150, // Very long LOD distance for ultra
     resolutionScale: 1.0, // Full resolution
+    enableTextureFiltering: true, // Full texture filtering
+    anisotropyLevel: 16, // Maximum anisotropic filtering
+    enableAudioReactive: true, // Audio-reactive visuals enabled
+    enableWireframe: false, // Wireframe mode off by default
   },
 };
 
@@ -314,18 +337,27 @@ export const useGraphicsStore = create<GraphicsStore>()(
           return;
         }
 
-        // Validate rehydrated graphics settings
-        if (state) {
-          if (state.graphics && typeof state.graphics.quality === 'string') {
-            const validQualities = ['low', 'medium', 'high', 'ultra'];
-            if (!validQualities.includes(state.graphics.quality)) {
-              console.warn('Invalid graphics quality detected, resetting to low');
-              state.graphics = GRAPHICS_PRESETS.low;
-            }
-          }
-          // Ensure perfDebug exists (for backwards compatibility)
-          if (state.graphics && !state.graphics.perfDebug) {
-            state.graphics.perfDebug = { ...DEFAULT_PERF_DEBUG };
+        // Validate and merge rehydrated graphics settings with defaults
+        if (state && state.graphics) {
+          const quality = state.graphics.quality;
+          const validQualities = ['low', 'medium', 'high', 'ultra'];
+
+          if (typeof quality === 'string' && validQualities.includes(quality)) {
+            // CRITICAL FIX: Merge persisted state with preset defaults
+            // This ensures new settings added to code get their default values
+            // instead of being undefined (which breaks UI toggle display)
+            const presetDefaults = GRAPHICS_PRESETS[quality as GraphicsQuality];
+            state.graphics = {
+              ...presetDefaults, // Start with all preset defaults
+              ...state.graphics, // Overlay with persisted values
+              perfDebug: {
+                ...DEFAULT_PERF_DEBUG,
+                ...(state.graphics.perfDebug || {}),
+              },
+            };
+          } else {
+            console.warn('Invalid graphics quality detected, resetting to medium');
+            state.graphics = GRAPHICS_PRESETS.medium;
           }
         }
       },

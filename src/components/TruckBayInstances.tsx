@@ -246,6 +246,7 @@ export const OptimizedStripeInstances: React.FC<{
           color={color}
           polygonOffset
           polygonOffsetFactor={-10}
+          polygonOffsetUnits={-10}
           depthWrite={false}
         />
       </instancedMesh>

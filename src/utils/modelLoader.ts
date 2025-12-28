@@ -104,7 +104,8 @@ export async function checkModelExists(path: string): Promise<boolean> {
     // File exists and is not HTML - consider it valid
     modelAvailability[path] = true;
     return true;
-  } catch {
+  } catch (error) {
+    console.warn(`[modelLoader] Failed to check model availability for ${path}:`, error);
     modelAvailability[path] = false;
     return false;
   }

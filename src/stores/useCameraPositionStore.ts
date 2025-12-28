@@ -58,7 +58,12 @@ export const useCameraPositionStore = create<CameraPositionStore>((set) => ({
  * Check if a position is inside the factory bounds
  * Includes a small buffer to prevent flickering at boundaries
  */
-export const isPositionInsideFactory = (x: number, y: number, z: number, bufferOverride?: number): boolean => {
+export const isPositionInsideFactory = (
+  x: number,
+  y: number,
+  z: number,
+  bufferOverride?: number
+): boolean => {
   const buffer = bufferOverride ?? 2; // Use override if provided, otherwise default to 2
   return (
     x >= FACTORY_BOUNDS.minX + buffer &&

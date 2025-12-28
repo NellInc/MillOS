@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import * as THREE from 'three';
 import { useGraphicsStore } from '../../stores/graphicsStore';
+import { PROCEDURAL_TEXTURES } from '../../utils/sharedMaterials';
 
 interface UtilityConduitsProps {
   floorWidth: number;
@@ -41,24 +42,47 @@ const CableTray: React.FC<{
       {/* Tray bottom */}
       <mesh position={[0, -0.05, 0]}>
         <boxGeometry args={[width, 0.02, length]} />
-        <meshStandardMaterial color="#374151" metalness={0.7} roughness={0.4} />
+        <meshStandardMaterial
+          color="#374151"
+          metalness={0.7}
+          roughness={0.4}
+          normalMap={PROCEDURAL_TEXTURES.brushedMetal}
+          normalScale={new THREE.Vector2(0.15, 0.15)}
+        />
       </mesh>
 
       {/* Tray sides */}
       <mesh position={[width / 2, 0, 0]}>
         <boxGeometry args={[0.02, 0.12, length]} />
-        <meshStandardMaterial color="#374151" metalness={0.7} roughness={0.4} />
+        <meshStandardMaterial
+          color="#374151"
+          metalness={0.7}
+          roughness={0.4}
+          normalMap={PROCEDURAL_TEXTURES.brushedMetal}
+          normalScale={new THREE.Vector2(0.15, 0.15)}
+        />
       </mesh>
       <mesh position={[-width / 2, 0, 0]}>
         <boxGeometry args={[0.02, 0.12, length]} />
-        <meshStandardMaterial color="#374151" metalness={0.7} roughness={0.4} />
+        <meshStandardMaterial
+          color="#374151"
+          metalness={0.7}
+          roughness={0.4}
+          normalMap={PROCEDURAL_TEXTURES.brushedMetal}
+          normalScale={new THREE.Vector2(0.15, 0.15)}
+        />
       </mesh>
 
       {/* Cables inside (colored bundles) */}
       {[-0.12, 0, 0.12].map((offset, i) => (
         <mesh key={i} position={[offset, -0.02, 0]} rotation={[Math.PI / 2, 0, 0]}>
           <cylinderGeometry args={[0.04, 0.04, length, 8]} />
-          <meshStandardMaterial color={['#3b82f6', '#1e293b', '#f97316'][i]} roughness={0.8} />
+          <meshStandardMaterial
+            color={['#3b82f6', '#1e293b', '#f97316'][i]}
+            roughness={0.8}
+            normalMap={PROCEDURAL_TEXTURES.rubberNormal}
+            normalScale={new THREE.Vector2(0.1, 0.1)}
+          />
         </mesh>
       ))}
     </group>
@@ -98,7 +122,13 @@ const ConduitPipe: React.FC<{
     <group position={midpoint} quaternion={quaternion}>
       <mesh>
         <cylinderGeometry args={[radius, radius, length, 12]} />
-        <meshStandardMaterial color={color} metalness={0.6} roughness={0.4} />
+        <meshStandardMaterial
+          color={color}
+          metalness={0.6}
+          roughness={0.4}
+          normalMap={PROCEDURAL_TEXTURES.brushedMetal}
+          normalScale={new THREE.Vector2(0.1, 0.1)}
+        />
       </mesh>
     </group>
   );

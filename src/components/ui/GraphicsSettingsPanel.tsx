@@ -15,6 +15,8 @@ import {
   Gauge,
   Keyboard,
   RotateCcw,
+  Grid,
+  Triangle,
 } from 'lucide-react';
 import { useGraphicsStore, GraphicsQuality } from '../../stores/graphicsStore';
 import { useUIStore } from '../../stores/uiStore';
@@ -49,98 +51,111 @@ export const GraphicsSettingsPanel: React.FC = () => {
     icon: React.ReactNode;
     category: string;
   }> = [
-      // Post-processing
-      {
-        key: 'enableSSAO',
-        label: 'Ambient Occlusion',
-        icon: <Eye className="w-3 h-3" />,
-        category: 'Post-Processing',
-      },
-      {
-        key: 'enableBloom',
-        label: 'Bloom Glow',
-        icon: <Sparkles className="w-3 h-3" />,
-        category: 'Post-Processing',
-      },
-      {
-        key: 'enableVignette',
-        label: 'Vignette',
-        icon: <Monitor className="w-3 h-3" />,
-        category: 'Post-Processing',
-      },
-      {
-        key: 'enableChromaticAberration',
-        label: 'Chromatic Aberration',
-        icon: <Layers className="w-3 h-3" />,
-        category: 'Post-Processing',
-      },
-      {
-        key: 'enableFilmGrain',
-        label: 'Film Grain',
-        icon: <Wind className="w-3 h-3" />,
-        category: 'Post-Processing',
-      },
-      // Scene effects
-      {
-        key: 'enableDustParticles',
-        label: 'Dust Particles',
-        icon: <Wind className="w-3 h-3" />,
-        category: 'Particles',
-      },
-      {
-        key: 'enableGrainFlow',
-        label: 'Grain Flow',
-        icon: <Wind className="w-3 h-3" />,
-        category: 'Particles',
-      },
-      {
-        key: 'enableAtmosphericHaze',
-        label: 'Atmospheric Haze',
-        icon: <Wind className="w-3 h-3" />,
-        category: 'Particles',
-      },
-      // Machine enhancements
-      {
-        key: 'enableMachineVibration',
-        label: 'Machine Vibration',
-        icon: <Activity className="w-3 h-3" />,
-        category: 'Machines',
-      },
-      {
-        key: 'enableProceduralTextures',
-        label: 'Detailed Textures',
-        icon: <Layers className="w-3 h-3" />,
-        category: 'Machines',
-      },
-      {
-        key: 'enableWeathering',
-        label: 'Weathering Effects',
-        icon: <Wind className="w-3 h-3" />,
-        category: 'Machines',
-      },
-      // Lighting & Shadows
-      {
-        key: 'enableLightShafts',
-        label: 'Light Shafts',
-        icon: <Sun className="w-3 h-3" />,
-        category: 'Lighting',
-      },
-      {
-        key: 'enableContactShadows',
-        label: 'Contact Shadows',
-        icon: <Layers className="w-3 h-3" />,
-        category: 'Lighting',
-      },
-      {
-        key: 'enableHighResShadows',
-        label: 'High-Res Shadows',
-        icon: <Eye className="w-3 h-3" />,
-        category: 'Lighting',
-      },
-    ];
+    // Post-processing
+    {
+      key: 'enableSSAO',
+      label: 'Ambient Occlusion',
+      icon: <Eye className="w-3 h-3" />,
+      category: 'Post-Processing',
+    },
+    {
+      key: 'enableBloom',
+      label: 'Bloom Glow',
+      icon: <Sparkles className="w-3 h-3" />,
+      category: 'Post-Processing',
+    },
+    {
+      key: 'enableVignette',
+      label: 'Vignette',
+      icon: <Monitor className="w-3 h-3" />,
+      category: 'Post-Processing',
+    },
+    {
+      key: 'enableChromaticAberration',
+      label: 'Chromatic Aberration',
+      icon: <Layers className="w-3 h-3" />,
+      category: 'Post-Processing',
+    },
+    {
+      key: 'enableFilmGrain',
+      label: 'Film Grain',
+      icon: <Wind className="w-3 h-3" />,
+      category: 'Post-Processing',
+    },
+    // Scene effects
+    {
+      key: 'enableDustParticles',
+      label: 'Dust Particles',
+      icon: <Wind className="w-3 h-3" />,
+      category: 'Particles',
+    },
+    {
+      key: 'enableGrainFlow',
+      label: 'Grain Flow',
+      icon: <Wind className="w-3 h-3" />,
+      category: 'Particles',
+    },
+    {
+      key: 'enableAtmosphericHaze',
+      label: 'Atmospheric Haze',
+      icon: <Wind className="w-3 h-3" />,
+      category: 'Particles',
+    },
+    // Machine enhancements
+    {
+      key: 'enableMachineVibration',
+      label: 'Machine Vibration',
+      icon: <Activity className="w-3 h-3" />,
+      category: 'Machines',
+    },
+    {
+      key: 'enableProceduralTextures',
+      label: 'Detailed Textures',
+      icon: <Layers className="w-3 h-3" />,
+      category: 'Machines',
+    },
+    {
+      key: 'enableWeathering',
+      label: 'Weathering Effects',
+      icon: <Wind className="w-3 h-3" />,
+      category: 'Machines',
+    },
+    // Lighting & Shadows
+    {
+      key: 'enableLightShafts',
+      label: 'Light Shafts',
+      icon: <Sun className="w-3 h-3" />,
+      category: 'Lighting',
+    },
+    {
+      key: 'enableContactShadows',
+      label: 'Contact Shadows',
+      icon: <Layers className="w-3 h-3" />,
+      category: 'Lighting',
+    },
+    {
+      key: 'enableHighResShadows',
+      label: 'High-Res Shadows',
+      icon: <Eye className="w-3 h-3" />,
+      category: 'Lighting',
+    },
+    // Display options
+    {
+      key: 'enableTextureFiltering',
+      label: 'Textures On',
+      icon: <Grid className="w-3 h-3" />,
+      category: 'Display',
+    },
+    {
+      key: 'enableWireframe',
+      label: 'Wireframe Mode',
+      icon: <Triangle className="w-3 h-3" />,
+      category: 'Display',
+    },
+  ];
 
   // Group settings by category
-  const categories = ['Post-Processing', 'Particles', 'Machines', 'Lighting'];
+  const categories = ['Post-Processing', 'Particles', 'Machines', 'Lighting', 'Display'];
 
   return (
     <div
@@ -148,10 +163,11 @@ export const GraphicsSettingsPanel: React.FC = () => {
     >
       <button
         onClick={() => setExpanded(!expanded)}
-        className={`w-full flex items-center justify-between text-xs font-medium transition-colors py-1 ${theme === 'light'
+        className={`w-full flex items-center justify-between text-xs font-medium transition-colors py-1 ${
+          theme === 'light'
             ? 'text-slate-600 hover:text-slate-800'
             : 'text-slate-300 hover:text-white'
-          }`}
+        }`}
       >
         <span className="flex items-center gap-2">
           <Settings className="w-4 h-4 text-purple-400" />
@@ -177,7 +193,8 @@ export const GraphicsSettingsPanel: React.FC = () => {
                 <button
                   key={quality}
                   onClick={() => setGraphicsQuality(quality)}
-                  className={`flex-1 py-1.5 rounded text-[10px] font-bold uppercase tracking-wider transition-all focus:outline-none focus:ring-2 focus:ring-cyan-500/50 ${graphics.quality === quality
+                  className={`flex-1 py-1.5 rounded text-[10px] font-bold uppercase tracking-wider transition-all focus:outline-none focus:ring-2 focus:ring-cyan-500/50 ${
+                    graphics.quality === quality
                       ? quality === 'low'
                         ? 'bg-slate-600 text-white'
                         : quality === 'medium'
@@ -188,7 +205,7 @@ export const GraphicsSettingsPanel: React.FC = () => {
                       : theme === 'light'
                         ? 'bg-slate-100 text-slate-500 hover:bg-slate-200'
                         : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-                    }`}
+                  }`}
                   aria-label={`Set graphics quality to ${quality}`}
                   aria-pressed={graphics.quality === quality}
                 >
@@ -218,14 +235,15 @@ export const GraphicsSettingsPanel: React.FC = () => {
                               !graphics[key as keyof typeof graphics]
                             )
                           }
-                          className={`w-full flex items-center gap-2 px-2 py-1 rounded text-xs transition-all focus:outline-none focus:ring-2 focus:ring-cyan-500/50 ${graphics[key as keyof typeof graphics]
+                          className={`w-full flex items-center gap-2 px-2 py-1 rounded text-xs transition-all focus:outline-none focus:ring-2 focus:ring-cyan-500/50 ${
+                            graphics[key as keyof typeof graphics]
                               ? theme === 'light'
                                 ? 'bg-slate-200 text-slate-800'
                                 : 'bg-slate-700/50 text-white'
                               : theme === 'light'
                                 ? 'bg-slate-100 text-slate-500 hover:bg-slate-200'
                                 : 'bg-slate-800/30 text-slate-500 hover:bg-slate-800/50'
-                            }`}
+                          }`}
                           role="switch"
                           aria-checked={Boolean(graphics[key as keyof typeof graphics])}
                           aria-label={`${label}: ${graphics[key as keyof typeof graphics] ? 'enabled' : 'disabled'}`}
@@ -244,12 +262,13 @@ export const GraphicsSettingsPanel: React.FC = () => {
                           </span>
                           <span className="flex-1 text-left">{label}</span>
                           <span
-                            className={`w-2 h-2 rounded-full ${graphics[key as keyof typeof graphics]
+                            className={`w-2 h-2 rounded-full ${
+                              graphics[key as keyof typeof graphics]
                                 ? 'bg-green-500'
                                 : theme === 'light'
                                   ? 'bg-slate-300'
                                   : 'bg-slate-600'
-                              }`}
+                            }`}
                             aria-hidden="true"
                           />
                         </button>
@@ -289,8 +308,9 @@ export const GraphicsSettingsPanel: React.FC = () => {
                 aria-valuemax={500}
                 aria-valuenow={graphics.dustParticleCount}
                 aria-valuetext={`${graphics.dustParticleCount} particles`}
-                className={`w-full h-2 rounded-lg appearance-none cursor-pointer accent-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 ${theme === 'light' ? 'bg-slate-200' : 'bg-slate-800'
-                  } ${!graphics.enableDustParticles ? 'opacity-50' : ''}`}
+                className={`w-full h-2 rounded-lg appearance-none cursor-pointer accent-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 ${
+                  theme === 'light' ? 'bg-slate-200' : 'bg-slate-800'
+                } ${!graphics.enableDustParticles ? 'opacity-50' : ''}`}
               />
               <div
                 className={`flex justify-between text-[9px] mt-0.5 ${theme === 'light' ? 'text-slate-400' : 'text-slate-600'}`}
@@ -330,8 +350,9 @@ export const GraphicsSettingsPanel: React.FC = () => {
                 aria-valuemax={100}
                 aria-valuenow={Math.round(graphics.resolutionScale * 100)}
                 aria-valuetext={`${Math.round(graphics.resolutionScale * 100)}% resolution`}
-                className={`w-full h-2 rounded-lg appearance-none cursor-pointer accent-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 ${theme === 'light' ? 'bg-slate-200' : 'bg-slate-800'
-                  }`}
+                className={`w-full h-2 rounded-lg appearance-none cursor-pointer accent-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 ${
+                  theme === 'light' ? 'bg-slate-200' : 'bg-slate-800'
+                }`}
               />
               <div
                 className={`flex justify-between text-[9px] mt-0.5 ${theme === 'light' ? 'text-slate-400' : 'text-slate-600'}`}
@@ -372,8 +393,9 @@ export const GraphicsSettingsPanel: React.FC = () => {
                 aria-valuemax={100}
                 aria-valuenow={graphics.workerLodDistance}
                 aria-valuetext={`${graphics.workerLodDistance} meters`}
-                className={`w-full h-2 rounded-lg appearance-none cursor-pointer accent-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 ${theme === 'light' ? 'bg-slate-200' : 'bg-slate-800'
-                  }`}
+                className={`w-full h-2 rounded-lg appearance-none cursor-pointer accent-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 ${
+                  theme === 'light' ? 'bg-slate-200' : 'bg-slate-800'
+                }`}
               />
               <div
                 className={`flex justify-between text-[9px] mt-0.5 ${theme === 'light' ? 'text-slate-400' : 'text-slate-600'}`}
@@ -399,12 +421,13 @@ export const GraphicsSettingsPanel: React.FC = () => {
                 </div>
                 <button
                   onClick={() => toggleFPSCounter()}
-                  className={`px-2 py-0.5 rounded text-[9px] font-bold transition-all ${showFPSCounter
+                  className={`px-2 py-0.5 rounded text-[9px] font-bold transition-all ${
+                    showFPSCounter
                       ? 'bg-green-600 text-white'
                       : theme === 'light'
                         ? 'bg-slate-200 text-slate-500 hover:bg-slate-300'
                         : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
-                    }`}
+                  }`}
                   title="Toggle FPS counter overlay"
                 >
                   {showFPSCounter ? 'OVERLAY ON' : 'OVERLAY OFF'}
@@ -587,10 +610,11 @@ export const GraphicsSettingsPanel: React.FC = () => {
               <div className="flex gap-2">
                 <button
                   onClick={clearPersistedState}
-                  className={`flex-1 py-1.5 rounded text-[10px] font-medium transition-all flex items-center justify-center gap-1 ${theme === 'light'
+                  className={`flex-1 py-1.5 rounded text-[10px] font-medium transition-all flex items-center justify-center gap-1 ${
+                    theme === 'light'
                       ? 'bg-amber-100 text-amber-700 hover:bg-amber-200'
                       : 'bg-amber-900/50 text-amber-300 hover:bg-amber-800/50'
-                    }`}
+                  }`}
                 >
                   Reset to 10am
                 </button>
@@ -601,10 +625,11 @@ export const GraphicsSettingsPanel: React.FC = () => {
                     setGraphicsQuality('medium');
                     window.location.reload();
                   }}
-                  className={`flex-1 py-1.5 rounded text-[10px] font-medium transition-all flex items-center justify-center gap-1 ${theme === 'light'
+                  className={`flex-1 py-1.5 rounded text-[10px] font-medium transition-all flex items-center justify-center gap-1 ${
+                    theme === 'light'
                       ? 'bg-red-100 text-red-600 hover:bg-red-200'
                       : 'bg-red-900/50 text-red-300 hover:bg-red-800/50'
-                    }`}
+                  }`}
                 >
                   Reset Simulation
                 </button>

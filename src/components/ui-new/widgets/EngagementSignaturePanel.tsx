@@ -158,35 +158,35 @@ interface FrictionEffectIndicatorProps {
   direction: 'reducing' | 'neutral' | 'increasing';
 }
 
-const FrictionEffectIndicator: React.FC<FrictionEffectIndicatorProps> = memo(({
-  multiplier,
-  direction,
-}) => {
-  // Memoize icon and color
-  const { Icon, colorClass, percentage } = useMemo(() => {
-    const icon = direction === 'reducing' ? ArrowDown : direction === 'increasing' ? ArrowUp : Minus;
-    const color =
-      direction === 'reducing'
-        ? 'text-green-400'
-        : direction === 'increasing'
-          ? 'text-red-400'
-          : 'text-slate-400';
-    const pct =
-      direction === 'reducing'
-        ? `-${((1 - multiplier) * 100).toFixed(0)}%`
-        : direction === 'increasing'
-          ? `+${((multiplier - 1) * 100).toFixed(0)}%`
-          : '0%';
-    return { Icon: icon, colorClass: color, percentage: pct };
-  }, [direction, multiplier]);
+const FrictionEffectIndicator: React.FC<FrictionEffectIndicatorProps> = memo(
+  ({ multiplier, direction }) => {
+    // Memoize icon and color
+    const { Icon, colorClass, percentage } = useMemo(() => {
+      const icon =
+        direction === 'reducing' ? ArrowDown : direction === 'increasing' ? ArrowUp : Minus;
+      const color =
+        direction === 'reducing'
+          ? 'text-green-400'
+          : direction === 'increasing'
+            ? 'text-red-400'
+            : 'text-slate-400';
+      const pct =
+        direction === 'reducing'
+          ? `-${((1 - multiplier) * 100).toFixed(0)}%`
+          : direction === 'increasing'
+            ? `+${((multiplier - 1) * 100).toFixed(0)}%`
+            : '0%';
+      return { Icon: icon, colorClass: color, percentage: pct };
+    }, [direction, multiplier]);
 
-  return (
-    <div className={`flex items-center gap-1 ${colorClass}`}>
-      <Icon className="w-3 h-3" />
-      <span className="text-[10px] font-mono">{percentage}</span>
-    </div>
-  );
-});
+    return (
+      <div className={`flex items-center gap-1 ${colorClass}`}>
+        <Icon className="w-3 h-3" />
+        <span className="text-[10px] font-mono">{percentage}</span>
+      </div>
+    );
+  }
+);
 
 FrictionEffectIndicator.displayName = 'FrictionEffectIndicator';
 
@@ -288,9 +288,7 @@ export const EngagementSignaturePanel: React.FC = () => {
             className={`relative w-14 h-14 rounded-full ${scoreBg} flex items-center justify-center`}
           >
             <div className="absolute inset-1 rounded-full border-2 border-current opacity-30" />
-            <span className={`text-lg font-bold ${scoreColor}`}>
-              {overallScore.toFixed(0)}
-            </span>
+            <span className={`text-lg font-bold ${scoreColor}`}>{overallScore.toFixed(0)}</span>
           </div>
 
           {/* Generative Indicator and Friction Effect */}
@@ -426,7 +424,11 @@ export const EngagementSignaturePanel: React.FC = () => {
             <Info className="w-3 h-3" />
             About the Gaming Parallel
           </span>
-          {showEducational ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+          {showEducational ? (
+            <ChevronUp className="w-3 h-3" />
+          ) : (
+            <ChevronDown className="w-3 h-3" />
+          )}
         </button>
 
         <AnimatePresence>

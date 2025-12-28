@@ -1,8 +1,131 @@
-import React, { useState } from 'react';
-import { MachineData } from '../../../types';
+import React, { useState, useMemo } from 'react';
+import { MachineData, MaintenanceRecord, MachineType } from '../../../types';
 import { RotateCcw, FileText, CheckCircle, Loader2 } from 'lucide-react';
 import { useProductionStore } from '../../../stores/productionStore';
 import { useUIStore } from '../../../stores/uiStore';
+
+/**
+ * Generates deterministic maintenance logs based on machine data.
+ * Uses machine.id as a seed for consistent results across re-renders.
+ * Logs are generated relative to the machine's lastMaintenance date.
+ */
+function generateMaintenanceLogs(machine: MachineData): MaintenanceRecord[] {
+  // If machine has actual history, use it
+  if (machine.maintenanceHistory && machine.maintenanceHistory.length > 0) {
+    return machine.maintenanceHistory;
+  }
+
+  // Simple hash function for deterministic "randomness" based on machine ID
+  const hashCode = (str: string): number => {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32bit integer
+    }
+    return Math.abs(hash);
+  };
+
+  const seed = hashCode(machine.id);
+  const seededRandom = (index: number): number => {
+    const x = Math.sin(seed + index) * 10000;
+    return x - Math.floor(x);
+  };
+
+  // Technician pool - deterministically select based on machine
+  const technicians = ['J. Smith', 'M. Chen', 'R. Davis', 'A. Kumar', 'S. Wilson'];
+
+  // Maintenance types by machine type
+  const maintenanceTasksByType: Record<MachineType, string[]> = {
+    [MachineType.SILO]: [
+      'Level sensor calibration',
+      'Aeration fan inspection',
+      'Discharge valve service',
+      'Moisture probe check',
+      'Structural inspection',
+    ],
+    [MachineType.ROLLER_MILL]: [
+      'Roll gap adjustment',
+      'Bearing lubrication',
+      'Belt tension check',
+      'Vibration analysis',
+      'Feed roller service',
+    ],
+    [MachineType.PLANSIFTER]: [
+      'Sieve inspection',
+      'Drive mechanism service',
+      'Frame alignment check',
+      'Brush replacement',
+      'Gasket inspection',
+    ],
+    [MachineType.PACKER]: [
+      'Bag clamp adjustment',
+      'Weighing system calibration',
+      'Conveyor belt check',
+      'Seal heater service',
+      'Dust extraction clean',
+    ],
+    [MachineType.CONTROL_ROOM]: [
+      'System backup verification',
+      'Sensor calibration',
+      'Network diagnostics',
+      'UPS battery check',
+      'Display panel cleaning',
+    ],
+  };
+
+  const tasks = maintenanceTasksByType[machine.type] || [
+    'General inspection',
+    'Lubrication service',
+    'Safety check',
+    'Cleaning service',
+    'Component check',
+  ];
+
+  // Parse lastMaintenance date or use a default
+  let baseDate: Date;
+  try {
+    baseDate = new Date(machine.lastMaintenance);
+    if (isNaN(baseDate.getTime())) {
+      baseDate = new Date();
+    }
+  } catch {
+    baseDate = new Date();
+  }
+
+  // Generate 4 maintenance records going back in time
+  const logs: MaintenanceRecord[] = [];
+  const maintenanceTypes: Array<'preventive' | 'corrective' | 'emergency'> = [
+    'preventive', 'preventive', 'corrective', 'preventive'
+  ];
+
+  for (let i = 0; i < 4; i++) {
+    // Each log is 5-15 days before the previous
+    const daysBack = i === 0 ? 0 : Math.floor(seededRandom(i * 3) * 10) + 5;
+    const logDate = new Date(baseDate);
+    logDate.setDate(logDate.getDate() - (i * 7 + daysBack));
+
+    const taskIndex = Math.floor(seededRandom(i * 7) * tasks.length);
+    const techIndex = Math.floor(seededRandom(i * 11) * technicians.length);
+
+    // Vary maintenance type based on machine status for realism
+    let type = maintenanceTypes[i];
+    if (i === 0 && (machine.status === 'warning' || machine.status === 'critical')) {
+      type = 'corrective';
+    }
+
+    logs.push({
+      id: `${machine.id}-maint-${i}`,
+      date: logDate.toISOString().split('T')[0],
+      type,
+      technician: technicians[techIndex],
+      notes: tasks[taskIndex],
+      duration: Math.floor(seededRandom(i * 13) * 60) + 30, // 30-90 minutes
+    });
+  }
+
+  return logs;
+}
 
 export const MachineInspector: React.FC<{ machine: MachineData }> = ({ machine }) => {
   const metrics = machine.metrics || { rpm: 0, temperature: 0, vibration: 0, load: 0 };
@@ -51,33 +174,12 @@ export const MachineInspector: React.FC<{ machine: MachineData }> = ({ machine }
     });
   };
 
-  // Mock maintenance log data
-  const maintenanceLogs = [
-    {
-      date: '2024-12-10',
-      type: 'Preventive',
-      description: 'Bearing lubrication',
-      technician: 'J. Smith',
-    },
-    {
-      date: '2024-12-05',
-      type: 'Inspection',
-      description: 'Vibration analysis',
-      technician: 'M. Chen',
-    },
-    {
-      date: '2024-11-28',
-      type: 'Corrective',
-      description: 'Belt replacement',
-      technician: 'R. Davis',
-    },
-    {
-      date: '2024-11-15',
-      type: 'Preventive',
-      description: 'Filter cleaning',
-      technician: 'J. Smith',
-    },
-  ];
+  // Generate maintenance logs based on machine data
+  // Uses actual maintenanceHistory if available, otherwise generates plausible logs
+  const maintenanceLogs = useMemo(
+    () => generateMaintenanceLogs(machine),
+    [machine.id, machine.lastMaintenance, machine.status, machine.maintenanceHistory]
+  );
 
   return (
     <div className="p-4 space-y-4 overflow-y-auto h-full custom-scrollbar">
@@ -154,18 +256,18 @@ export const MachineInspector: React.FC<{ machine: MachineData }> = ({ machine }
           <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
             Recent Maintenance
           </h4>
-          {maintenanceLogs.map((log, i) => (
+          {maintenanceLogs.map((log) => (
             <div
-              key={i}
+              key={log.id}
               className="flex items-start gap-2 py-2 border-b border-white/5 last:border-0"
             >
               <CheckCircle size={12} className="text-green-400 mt-0.5 flex-shrink-0" />
               <div className="flex-1 min-w-0">
                 <div className="flex justify-between items-center">
-                  <span className="text-xs text-white font-medium">{log.type}</span>
+                  <span className="text-xs text-white font-medium capitalize">{log.type}</span>
                   <span className="text-[10px] text-slate-500">{log.date}</span>
                 </div>
-                <p className="text-[10px] text-slate-400 truncate">{log.description}</p>
+                <p className="text-[10px] text-slate-400 truncate">{log.notes}</p>
                 <p className="text-[10px] text-slate-500">Tech: {log.technician}</p>
               </div>
             </div>

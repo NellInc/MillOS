@@ -35,6 +35,7 @@ import {
   Shield,
 } from 'lucide-react';
 import { useOwnershipStore } from '../../../stores/ownershipStore';
+import { useLocalPlayerId } from '../../../stores/multiplayerStore';
 import { useShallow } from 'zustand/react/shallow';
 import { ConceptTooltip } from './ConceptTooltip';
 
@@ -87,9 +88,7 @@ const OwnershipChart: React.FC<OwnershipChartProps> = ({
           <div key={seg.label} className="flex items-center gap-1">
             <div className={`w-2 h-2 rounded-full ${seg.color}`} />
             <span className="text-[9px] text-slate-400">{seg.label}</span>
-            <span className="text-[9px] font-mono text-white ml-auto">
-              {seg.value.toFixed(1)}%
-            </span>
+            <span className="text-[9px] font-mono text-white ml-auto">{seg.value.toFixed(1)}%</span>
           </div>
         ))}
       </div>
@@ -107,11 +106,7 @@ interface WageSolidarityGaugeProps {
   ceiling: number;
 }
 
-const WageSolidarityGauge: React.FC<WageSolidarityGaugeProps> = ({
-  current,
-  target,
-  ceiling,
-}) => {
+const WageSolidarityGauge: React.FC<WageSolidarityGaugeProps> = ({ current, target, ceiling }) => {
   // Calculate positions (0-100% of gauge)
   const maxDisplay = ceiling + 2;
   const currentPos = Math.min((current / maxDisplay) * 100, 100);
@@ -137,18 +132,13 @@ const WageSolidarityGauge: React.FC<WageSolidarityGaugeProps> = ({
       {/* Current ratio display */}
       <div className="flex items-center justify-between">
         <span className="text-[10px] text-slate-400">Current Ratio</span>
-        <span className={`text-lg font-mono font-bold ${statusColor}`}>
-          {current.toFixed(1)}:1
-        </span>
+        <span className={`text-lg font-mono font-bold ${statusColor}`}>{current.toFixed(1)}:1</span>
       </div>
 
       {/* Gauge */}
       <div className="relative h-4 bg-slate-700 rounded overflow-hidden">
         {/* Green zone (0 to target) */}
-        <div
-          className="absolute h-full bg-green-500/30"
-          style={{ width: `${targetPos}%` }}
-        />
+        <div className="absolute h-full bg-green-500/30" style={{ width: `${targetPos}%` }} />
         {/* Yellow zone (target to ceiling) */}
         <div
           className="absolute h-full bg-amber-500/30"
@@ -165,9 +155,7 @@ const WageSolidarityGauge: React.FC<WageSolidarityGaugeProps> = ({
           className="absolute top-0 bottom-0 w-0.5 bg-green-400"
           style={{ left: `${targetPos}%` }}
         >
-          <div className="absolute -top-4 -translate-x-1/2 text-[7px] text-green-400">
-            Target
-          </div>
+          <div className="absolute -top-4 -translate-x-1/2 text-[7px] text-green-400">Target</div>
         </div>
 
         {/* Ceiling marker */}
@@ -175,9 +163,7 @@ const WageSolidarityGauge: React.FC<WageSolidarityGaugeProps> = ({
           className="absolute top-0 bottom-0 w-0.5 bg-red-400"
           style={{ left: `${ceilingPos}%` }}
         >
-          <div className="absolute -top-4 -translate-x-1/2 text-[7px] text-red-400">
-            Max
-          </div>
+          <div className="absolute -top-4 -translate-x-1/2 text-[7px] text-red-400">Max</div>
         </div>
 
         {/* Current value indicator */}
@@ -246,12 +232,8 @@ const InvestmentProposalCard: React.FC<InvestmentProposalCardProps> = ({
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <div className="text-[10px] font-medium text-white">
-            {proposal.title}
-          </div>
-          <div className="text-[9px] text-slate-400">
-            ${proposal.amount.toLocaleString()}
-          </div>
+          <div className="text-[10px] font-medium text-white">{proposal.title}</div>
+          <div className="text-[9px] text-slate-400">${proposal.amount.toLocaleString()}</div>
         </div>
         <span
           className={`text-[8px] font-medium px-1.5 py-0.5 rounded ${riskColors[proposal.riskLevel]}`}
@@ -261,9 +243,7 @@ const InvestmentProposalCard: React.FC<InvestmentProposalCardProps> = ({
       </div>
 
       {/* Description */}
-      <p className="text-[8px] text-slate-500 line-clamp-2">
-        {proposal.description}
-      </p>
+      <p className="text-[8px] text-slate-500 line-clamp-2">{proposal.description}</p>
 
       {/* Voting progress */}
       <div className="space-y-1">
@@ -351,11 +331,7 @@ export const OwnershipPanel: React.FC = () => {
 
   // Calculate totals
   const individualTotal = useMemo(
-    () =>
-      Object.values(structure.individualShares).reduce(
-        (sum, share) => sum + share,
-        0
-      ),
+    () => Object.values(structure.individualShares).reduce((sum, share) => sum + share, 0),
     [structure.individualShares]
   );
 
@@ -378,18 +354,13 @@ export const OwnershipPanel: React.FC = () => {
 
   // Wage status
   const wageStatus = useMemo(() => {
-    if (wageSolidarity.currentRatio <= wageSolidarity.targetRatio)
-      return 'optimal';
+    if (wageSolidarity.currentRatio <= wageSolidarity.targetRatio) return 'optimal';
     if (wageSolidarity.currentRatio <= wageSolidarity.ceiling) return 'warning';
     return 'violation';
-  }, [
-    wageSolidarity.currentRatio,
-    wageSolidarity.targetRatio,
-    wageSolidarity.ceiling,
-  ]);
+  }, [wageSolidarity.currentRatio, wageSolidarity.targetRatio, wageSolidarity.ceiling]);
 
-  // Mock current worker ID for voting (in real app, would come from auth)
-  const currentWorkerId = 'current-user';
+  // Get current player ID from multiplayer store for voting attribution
+  const localPlayerId = useLocalPlayerId();
 
   return (
     <motion.div
@@ -409,18 +380,14 @@ export const OwnershipPanel: React.FC = () => {
             {totalWorkerOwnership.toFixed(0)}% Worker-Owned
           </span>
         </div>
-        <p className="text-[10px] text-slate-400 mt-1">
-          Mondragon-style cooperative ownership
-        </p>
+        <p className="text-[10px] text-slate-400 mt-1">Mondragon-style cooperative ownership</p>
       </div>
 
       {/* Ownership Summary */}
       <div className="p-3 border-b border-slate-700/30">
         <div className="flex items-center gap-1 mb-2">
           <PieChart className="w-3 h-3 text-cyan-400" />
-          <span className="text-[10px] font-medium text-white">
-            Ownership Distribution
-          </span>
+          <span className="text-[10px] font-medium text-white">Ownership Distribution</span>
           <ConceptTooltip conceptId="sovereignty-of-labor" position="right" />
           <button
             onClick={() => setShowOwnershipDetails(!showOwnershipDetails)}
@@ -453,9 +420,7 @@ export const OwnershipPanel: React.FC = () => {
                 <div className="grid grid-cols-3 gap-2">
                   <div className="bg-slate-800/50 rounded p-1.5 text-center">
                     <Users className="w-3 h-3 mx-auto mb-0.5 text-cyan-400" />
-                    <div className="text-[10px] font-bold text-white">
-                      {workerCount || 10}
-                    </div>
+                    <div className="text-[10px] font-bold text-white">{workerCount || 10}</div>
                     <div className="text-[7px] text-slate-500">Members</div>
                   </div>
                   <div className="bg-slate-800/50 rounded p-1.5 text-center">
@@ -465,28 +430,19 @@ export const OwnershipPanel: React.FC = () => {
                   </div>
                   <div className="bg-slate-800/50 rounded p-1.5 text-center">
                     <Shield className="w-3 h-3 mx-auto mb-0.5 text-amber-400" />
-                    <div className="text-[10px] font-bold text-white">
-                      {structure.reservePool}%
-                    </div>
+                    <div className="text-[10px] font-bold text-white">{structure.reservePool}%</div>
                     <div className="text-[7px] text-slate-500">Reserve</div>
                   </div>
                 </div>
 
                 {/* Vesting schedule */}
                 <div className="bg-slate-800/30 rounded p-2">
-                  <div className="text-[9px] text-slate-400 mb-1">
-                    Vesting Schedule
-                  </div>
+                  <div className="text-[9px] text-slate-400 mb-1">Vesting Schedule</div>
                   <div className="flex gap-2">
                     {structure.vestingSchedule.map((rule) => (
-                      <div
-                        key={rule.yearsOfService}
-                        className="text-[8px] text-slate-500"
-                      >
-                        <span className="text-white font-medium">
-                          {rule.percentageVested}%
-                        </span>{' '}
-                        @ {rule.yearsOfService}yr
+                      <div key={rule.yearsOfService} className="text-[8px] text-slate-500">
+                        <span className="text-white font-medium">{rule.percentageVested}%</span> @{' '}
+                        {rule.yearsOfService}yr
                       </div>
                     ))}
                   </div>
@@ -501,9 +457,7 @@ export const OwnershipPanel: React.FC = () => {
       <div className="p-3 border-b border-slate-700/30">
         <div className="flex items-center gap-1 mb-2">
           <Scale className="w-3 h-3 text-pink-400" />
-          <span className="text-[10px] font-medium text-white">
-            Wage Solidarity
-          </span>
+          <span className="text-[10px] font-medium text-white">Wage Solidarity</span>
           <ConceptTooltip conceptId="wage-solidarity" position="right" />
           {wageStatus !== 'optimal' && (
             <AlertTriangle
@@ -527,9 +481,7 @@ export const OwnershipPanel: React.FC = () => {
         >
           <span className="flex items-center gap-1">
             <CircleDollarSign className="w-3 h-3 text-amber-400" />
-            <span className="text-[10px] font-medium text-white">
-              Compensation
-            </span>
+            <span className="text-[10px] font-medium text-white">Compensation</span>
             <ConceptTooltip conceptId="self-set-compensation" position="right" />
             {wageSolidarity.compensationTransparency && (
               <span className="text-[8px] text-green-400 ml-1">Transparent</span>
@@ -554,9 +506,7 @@ export const OwnershipPanel: React.FC = () => {
                 {/* Average compensation */}
                 <div className="bg-slate-800/50 rounded p-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-[9px] text-slate-400">
-                      Avg. Compensation
-                    </span>
+                    <span className="text-[9px] text-slate-400">Avg. Compensation</span>
                     <span className="text-[10px] font-mono font-bold text-white">
                       ${(avgCompensation || 50000).toLocaleString()}
                     </span>
@@ -565,15 +515,11 @@ export const OwnershipPanel: React.FC = () => {
 
                 {/* Profit distribution */}
                 <div className="bg-slate-800/30 rounded p-2">
-                  <div className="text-[9px] text-slate-400 mb-2">
-                    Profit Allocation
-                  </div>
+                  <div className="text-[9px] text-slate-400 mb-2">Profit Allocation</div>
                   <div className="space-y-1">
                     <div className="flex justify-between text-[8px]">
                       <span className="text-slate-500">Reinvestment</span>
-                      <span className="text-cyan-400">
-                        {distribution.reinvestmentPercentage}%
-                      </span>
+                      <span className="text-cyan-400">{distribution.reinvestmentPercentage}%</span>
                     </div>
                     <div className="flex justify-between text-[8px]">
                       <span className="text-slate-500">Worker Payouts</span>
@@ -608,8 +554,7 @@ export const OwnershipPanel: React.FC = () => {
                     <ConceptTooltip conceptId="semler-principles" position="top" />
                   </div>
                   <p className="text-[8px] text-slate-400 mt-1">
-                    Workers propose their own compensation with peer visibility
-                    and feedback.
+                    Workers propose their own compensation with peer visibility and feedback.
                   </p>
                 </div>
               </div>
@@ -626,9 +571,7 @@ export const OwnershipPanel: React.FC = () => {
         >
           <span className="flex items-center gap-1">
             <Vote className="w-3 h-3 text-violet-400" />
-            <span className="text-[10px] font-medium text-white">
-              Investment Proposals
-            </span>
+            <span className="text-[10px] font-medium text-white">Investment Proposals</span>
             {capitalDecisions.pendingInvestments.length > 0 && (
               <span className="text-[8px] bg-violet-500/20 text-violet-400 px-1.5 py-0.5 rounded-full ml-1">
                 {capitalDecisions.pendingInvestments.length} pending
@@ -654,23 +597,15 @@ export const OwnershipPanel: React.FC = () => {
                 {capitalDecisions.pendingInvestments.length === 0 ? (
                   <div className="bg-slate-800/30 rounded p-3 text-center">
                     <TrendingUp className="w-6 h-6 mx-auto mb-1 text-slate-600" />
-                    <p className="text-[9px] text-slate-500">
-                      No pending investment proposals
-                    </p>
+                    <p className="text-[9px] text-slate-500">No pending investment proposals</p>
                   </div>
                 ) : (
                   capitalDecisions.pendingInvestments.map((proposal) => (
                     <InvestmentProposalCard
                       key={proposal.id}
                       proposal={proposal}
-                      onVote={(vote) =>
-                        voteOnInvestment(proposal.id, currentWorkerId, vote)
-                      }
-                      canVote={
-                        !proposal.votes.some(
-                          (v) => v.workerId === currentWorkerId
-                        )
-                      }
+                      onVote={(vote) => voteOnInvestment(proposal.id, localPlayerId, vote)}
+                      canVote={!proposal.votes.some((v) => v.workerId === localPlayerId)}
                     />
                   ))
                 )}
@@ -698,11 +633,7 @@ export const OwnershipPanel: React.FC = () => {
             <Info className="w-3 h-3" />
             About Economic Democracy
           </span>
-          {showEducation ? (
-            <ChevronUp className="w-3 h-3" />
-          ) : (
-            <ChevronDown className="w-3 h-3" />
-          )}
+          {showEducation ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
         </button>
 
         <AnimatePresence>
@@ -715,10 +646,9 @@ export const OwnershipPanel: React.FC = () => {
             >
               <div className="mt-3 space-y-2 text-[9px] text-slate-400">
                 <p className="leading-relaxed">
-                  <strong className="text-green-400">Economic Democracy</strong>{' '}
-                  extends workplace democracy to ownership and capital
-                  decisions, based on the Mondragon cooperatives (founded 1956,
-                  80,000+ worker-owners).
+                  <strong className="text-green-400">Economic Democracy</strong> extends workplace
+                  democracy to ownership and capital decisions, based on the Mondragon cooperatives
+                  (founded 1956, 80,000+ worker-owners).
                 </p>
 
                 <div className="bg-slate-800/30 rounded p-2 space-y-2">
@@ -728,8 +658,7 @@ export const OwnershipPanel: React.FC = () => {
                       <ConceptTooltip conceptId="sovereignty-of-labor" position="right" />
                     </span>
                     <p className="text-slate-500 ml-2">
-                      Workers own 51%+ of the enterprise, ensuring democratic
-                      control.
+                      Workers own 51%+ of the enterprise, ensuring democratic control.
                     </p>
                   </div>
                   <div>
@@ -738,17 +667,13 @@ export const OwnershipPanel: React.FC = () => {
                       <ConceptTooltip conceptId="wage-solidarity" position="right" />
                     </span>
                     <p className="text-slate-500 ml-2">
-                      Max 6:1 ratio between highest and lowest pay (vs 300:1+ in
-                      traditional corps).
+                      Max 6:1 ratio between highest and lowest pay (vs 300:1+ in traditional corps).
                     </p>
                   </div>
                   <div>
-                    <span className="text-violet-400 font-bold">
-                      Democratic Capital
-                    </span>
+                    <span className="text-violet-400 font-bold">Democratic Capital</span>
                     <p className="text-slate-500 ml-2">
-                      Major investments require worker-owner approval through
-                      voting.
+                      Major investments require worker-owner approval through voting.
                     </p>
                   </div>
                   <div>
@@ -757,8 +682,7 @@ export const OwnershipPanel: React.FC = () => {
                       <ConceptTooltip conceptId="semler-principles" position="right" />
                     </span>
                     <p className="text-slate-500 ml-2">
-                      Workers propose their own pay with transparent peer
-                      feedback (Semler style).
+                      Workers propose their own pay with transparent peer feedback (Semler style).
                     </p>
                   </div>
                 </div>
@@ -769,8 +693,7 @@ export const OwnershipPanel: React.FC = () => {
                     <ConceptTooltip conceptId="mondragon-principles" position="right" />
                   </div>
                   <p className="text-slate-400 italic">
-                    &quot;Capital is subordinate to labor, not labor to
-                    capital.&quot;
+                    &quot;Capital is subordinate to labor, not labor to capital.&quot;
                   </p>
                 </div>
               </div>

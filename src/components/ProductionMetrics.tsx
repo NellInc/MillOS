@@ -14,11 +14,11 @@ interface MetricsData {
 
 // Energy consumption by machine type (kWh when running)
 const MACHINE_ENERGY_CONSUMPTION: Record<MachineType, { running: number; idle: number }> = {
-  [MachineType.SILO]: { running: 2, idle: 0.5 },           // Ventilation, monitoring, conveyors
-  [MachineType.ROLLER_MILL]: { running: 45, idle: 2 },     // Heavy motors for grinding
-  [MachineType.PLANSIFTER]: { running: 25, idle: 1.5 },    // Sifting vibration motors
-  [MachineType.PACKER]: { running: 15, idle: 1 },          // Packaging line, conveyors
-  [MachineType.CONTROL_ROOM]: { running: 5, idle: 5 },     // Always on - computers, displays
+  [MachineType.SILO]: { running: 2, idle: 0.5 }, // Ventilation, monitoring, conveyors
+  [MachineType.ROLLER_MILL]: { running: 45, idle: 2 }, // Heavy motors for grinding
+  [MachineType.PLANSIFTER]: { running: 25, idle: 1.5 }, // Sifting vibration motors
+  [MachineType.PACKER]: { running: 15, idle: 1 }, // Packaging line, conveyors
+  [MachineType.CONTROL_ROOM]: { running: 5, idle: 5 }, // Always on - computers, displays
 };
 
 // Calculate energy for a single machine based on its current state
@@ -36,7 +36,7 @@ function getMachineEnergy(machine: MachineData): number {
       maintenancePenalty = 1.25; // 25% penalty when overdue
     } else if (machine.maintenanceCountdown < 24) {
       // Linear interpolation from 5% to 25% penalty as maintenance becomes due
-      maintenancePenalty = 1.05 + (1 - machine.maintenanceCountdown / 24) * 0.20;
+      maintenancePenalty = 1.05 + (1 - machine.maintenanceCountdown / 24) * 0.2;
     }
   }
 
@@ -81,11 +81,11 @@ function getFacilityBaseLoad(gameTime: number): { lighting: number; hvac: number
   } else if (hour >= 6 && hour < 8) {
     // Dawn - transitioning
     const progress = (hour - 6) / 2; // 0 to 1
-    lighting = 35 - (progress * 27); // 35 down to 8
+    lighting = 35 - progress * 27; // 35 down to 8
   } else if (hour >= 17 && hour < 19) {
     // Dusk - transitioning
     const progress = (hour - 17) / 2; // 0 to 1
-    lighting = 8 + (progress * 27); // 8 up to 35
+    lighting = 8 + progress * 27; // 8 up to 35
   } else {
     // Night - full artificial lighting
     lighting = 35;

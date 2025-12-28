@@ -13,6 +13,7 @@ import { useFrame } from '@react-three/fiber';
 import { Billboard, Text } from '@react-three/drei';
 import * as THREE from 'three';
 import { RemotePlayer } from '../../multiplayer/types';
+import { FLOOR_LAYERS, POLYGON_OFFSET, RENDER_ORDER } from '../../constants/renderLayers';
 
 interface RemotePlayerAvatarProps {
   player: RemotePlayer;
@@ -164,9 +165,21 @@ export const RemotePlayerAvatar: React.FC<RemotePlayerAvatarProps> = React.memo(
 
       {/* Selection indicator when controlling a machine */}
       {player.selectedMachineId && (
-        <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <mesh
+          position={[0, FLOOR_LAYERS.safetyMain, 0]}
+          rotation={[-Math.PI / 2, 0, 0]}
+          renderOrder={RENDER_ORDER.floorEffects}
+        >
           <ringGeometry args={[0.4, 0.5, 32]} />
-          <meshBasicMaterial color={player.color} transparent opacity={0.6} />
+          <meshBasicMaterial
+            color={player.color}
+            transparent
+            opacity={0.6}
+            depthWrite={false}
+            polygonOffset
+            polygonOffsetFactor={POLYGON_OFFSET.moderate.factor}
+            polygonOffsetUnits={POLYGON_OFFSET.moderate.units}
+          />
         </mesh>
       )}
 

@@ -175,7 +175,7 @@ describe('FlourishingStore', () => {
     });
 
     it('should accept optional reason parameter', () => {
-      const { updateWorkerDimension, workerFlourishing, allEvents } = useFlourishingStore.getState();
+      const { updateWorkerDimension, workerFlourishing } = useFlourishingStore.getState();
       const workerId = Object.keys(workerFlourishing)[0];
 
       updateWorkerDimension(workerId, 'connection', 5, 'Completed team project');
@@ -363,7 +363,7 @@ describe('FlourishingStore', () => {
 
   describe('Flourishing Score Calculation', () => {
     it('should recalculate worker score after update', () => {
-      const { updateWorkerDimension, recalculateWorkerScore, workerFlourishing } = useFlourishingStore.getState();
+      const { recalculateWorkerScore, workerFlourishing } = useFlourishingStore.getState();
       const workerId = Object.keys(workerFlourishing)[0];
 
       // Directly set all dimensions to same value for predictable calculation
@@ -375,7 +375,9 @@ describe('FlourishingStore', () => {
       worker.wholeness.score = 80;
       worker.agency.score = 80;
 
-      useFlourishingStore.setState({ workerFlourishing: { ...workerFlourishing, [workerId]: worker } });
+      useFlourishingStore.setState({
+        workerFlourishing: { ...workerFlourishing, [workerId]: worker },
+      });
       recalculateWorkerScore(workerId);
 
       const { workerFlourishing: updated } = useFlourishingStore.getState();
@@ -396,7 +398,9 @@ describe('FlourishingStore', () => {
       worker.wholeness.score = 100;
       worker.agency.score = 10; // One very low
 
-      useFlourishingStore.setState({ workerFlourishing: { ...workerFlourishing, [workerId]: worker } });
+      useFlourishingStore.setState({
+        workerFlourishing: { ...workerFlourishing, [workerId]: worker },
+      });
       recalculateWorkerScore(workerId);
 
       const { workerFlourishing: updated } = useFlourishingStore.getState();
@@ -405,7 +409,7 @@ describe('FlourishingStore', () => {
     });
 
     it('should recalculate all scores', () => {
-      const { recalculateAllScores, workerFlourishing } = useFlourishingStore.getState();
+      const { recalculateAllScores } = useFlourishingStore.getState();
 
       recalculateAllScores();
 
@@ -613,7 +617,7 @@ describe('FlourishingStore', () => {
     });
 
     it('should apply effects to multiple dimensions', () => {
-      const { applyAxisEffects, workerFlourishing } = useFlourishingStore.getState();
+      const { applyAxisEffects } = useFlourishingStore.getState();
 
       applyAxisEffects({
         meaning: 10,
@@ -755,7 +759,8 @@ describe('FlourishingStore', () => {
 
   describe('Reset to Defaults', () => {
     it('should reset worker flourishing', () => {
-      const { updateWorkerDimension, resetToDefaults, workerFlourishing } = useFlourishingStore.getState();
+      const { updateWorkerDimension, resetToDefaults, workerFlourishing } =
+        useFlourishingStore.getState();
       const workerId = Object.keys(workerFlourishing)[0];
 
       updateWorkerDimension(workerId, 'meaning', 50);
@@ -767,7 +772,8 @@ describe('FlourishingStore', () => {
     });
 
     it('should clear all events', () => {
-      const { addFlourishingEvent, resetToDefaults, workerFlourishing } = useFlourishingStore.getState();
+      const { addFlourishingEvent, resetToDefaults, workerFlourishing } =
+        useFlourishingStore.getState();
       const workerId = Object.keys(workerFlourishing)[0];
 
       addFlourishingEvent({

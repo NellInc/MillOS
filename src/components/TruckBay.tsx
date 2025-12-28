@@ -999,9 +999,6 @@ const TruckWashStation: React.FC<{ position: [number, number, number]; rotation?
   );
 };
 
-
-
-
 // Driver break room/lounge building
 export const DriverBreakRoom: React.FC<{
   position: [number, number, number];
@@ -2058,10 +2055,18 @@ const WeightScale: React.FC<{ position: [number, number, number]; rotation?: num
         WEIGH STATION
       </Text>
 
-      {/* Ground markings */}
-      <mesh position={[0, 0.01, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+      {/* Ground markings - raised with depthWrite for z-fighting prevention */}
+      <mesh position={[0, 0.06, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <ringGeometry args={[1.8, 2, 24]} />
-        <meshStandardMaterial color="#fbbf24" transparent opacity={0.5} />
+        <meshStandardMaterial
+          color="#fbbf24"
+          transparent
+          opacity={0.5}
+          depthWrite={false}
+          polygonOffset
+          polygonOffsetFactor={-1}
+          polygonOffsetUnits={-1}
+        />
       </mesh>
     </group>
   );
@@ -2613,7 +2618,11 @@ const RoadTunnel: React.FC<{
 const PalletStaging: React.FC<{ position: [number, number, number] }> = ({ position }) => (
   <group position={position}>
     {/* Ground marking - raised and with polygon offset to prevent z-fighting */}
-    <mesh position={[0, FLOOR_LAYERS.truckMarkings, 0]} rotation={[-Math.PI / 2, 0, 0]} renderOrder={RENDER_ORDER.floorMarkings}>
+    <mesh
+      position={[0, FLOOR_LAYERS.truckMarkings, 0]}
+      rotation={[-Math.PI / 2, 0, 0]}
+      renderOrder={RENDER_ORDER.floorMarkings}
+    >
       <planeGeometry args={[4, 6]} />
       <meshStandardMaterial
         color="#fbbf24"
@@ -2893,8 +2902,6 @@ const LicensePlate: React.FC<{
     </Text>
   </group>
 );
-
-
 
 // Dock status light component
 const DockStatusLight: React.FC<{
@@ -3316,7 +3323,6 @@ export const TruckBay: React.FC<TruckBayProps> = ({ productionSpeed }) => {
           DOCK 1 - OUTBOUND
         </Text>
 
-
         {/* Pallet staging area - moved outside dock to avoid wall clipping */}
         <PalletStaging position={[12, 0, 5]} />
 
@@ -3411,7 +3417,9 @@ export const TruckBay: React.FC<TruckBayProps> = ({ productionSpeed }) => {
         </mesh>
 
         {/* Speed bumps - relocated to employee walkways on yard edges */}
-        <OptimizedSpeedBumpInstances bumps={[{ position: [-28, 0, 45] }, { position: [28, 0, 45] }]} />
+        <OptimizedSpeedBumpInstances
+          bumps={[{ position: [-28, 0, 45] }, { position: [28, 0, 45] }]}
+        />
 
         {/* Traffic cones - relocated to dock edges to not block truck path */}
         <OptimizedTrafficConeInstances
@@ -3544,7 +3552,6 @@ export const TruckBay: React.FC<TruckBayProps> = ({ productionSpeed }) => {
         {/* <TireInspectionArea position={[25, 0, 35]} rotation={Math.PI / 2} /> */}
 
         {/* Driver break room - MOVED to AMENITY BUILDINGS section below (outside dock offset) */}
-
 
         {/* Employee parking lot - TESTING */}
         {/* <EmployeeParking position={[45, 0, 55]} rotation={0} /> */}
@@ -3714,7 +3721,6 @@ export const TruckBay: React.FC<TruckBayProps> = ({ productionSpeed }) => {
           DOCK 2 - INBOUND
         </Text>
 
-
         {/* Pallet staging area - moved outside dock to avoid wall clipping */}
         <PalletStaging position={[12, 0, 5]} />
 
@@ -3808,49 +3814,49 @@ export const TruckBay: React.FC<TruckBayProps> = ({ productionSpeed }) => {
           />
         </mesh>
 
-        {/* Speed bumps */}
+        {/* Speed bumps - relocated to employee walkways on yard edges */}
         <OptimizedSpeedBumpInstances
-          bumps={[{ position: [0, 0, -25] }, { position: [0, 0, -45] }]}
+          bumps={[{ position: [-28, 0, -45] }, { position: [28, 0, -45] }]}
         />
 
-        {/* Traffic cones - turn guidance */}
+        {/* Traffic cones - relocated to dock edges to not block truck path */}
         <OptimizedTrafficConeInstances
           positions={[
-            [12, 0, -18],
-            [10, 0, -20],
-            [8, 0, -21],
-            [5, 0, -21],
-            [-5, 0, -21],
-            [-8, 0, -21],
-            [-10, 0, -20],
-            [-12, 0, -18],
+            [-8, 0, -5],
+            [-6, 0, -5],
+            [6, 0, -5],
+            [8, 0, -5],
           ]}
         />
 
-        {/* Concrete bollards at yard entrance */}
+        {/* Concrete bollards at yard edges - moved outward to not block trucks */}
         <OptimizedBollardInstances
           positions={[
-            [-22, 0, -55],
-            [22, 0, -55],
+            [-28, 0, -55],
+            [28, 0, -55],
+            [-28, 0, -35],
+            [28, 0, -35],
           ]}
         />
 
-        {/* No idling signs */}
-        <NoIdlingSign position={[-15, 0, -10]} rotation={-Math.PI / 2} />
-        <NoIdlingSign position={[15, 0, -10]} rotation={Math.PI / 2} />
+        {/* No idling signs - relocated near bollards at yard perimeter */}
+        <NoIdlingSign position={[-30, 0, -45]} rotation={-Math.PI / 2} />
+        <NoIdlingSign position={[30, 0, -45]} rotation={Math.PI / 2} />
 
         {[
-          [25, -35],
-          [-25, -35],
-          [25, -55],
-          [-25, -55],
+          [-30, -35],
+          [30, -35],
+          [-30, -55],
+          [30, -55],
         ].map(([x, z], i) => (
           <group key={i} position={[x, 0, z]}>
+            {/* Light pole - 14 units tall, centered at y=7, so top is at y=14 */}
             <mesh position={[0, 7, 0]}>
               <cylinderGeometry args={[0.12, 0.15, 14, 8]} />
               <meshStandardMaterial color="#64748b" metalness={0.7} roughness={0.3} />
             </mesh>
-            <mesh position={[0, 14.5, 0]}>
+            {/* Fixture - positioned at y=14.2 so it sits flush on pole top at y=14 */}
+            <mesh position={[0, 14.2, 0]}>
               <boxGeometry args={[2, 0.4, 1]} />
               <meshStandardMaterial color="#374151" metalness={0.6} roughness={0.4} />
             </mesh>

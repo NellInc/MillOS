@@ -4,6 +4,8 @@ import { useGraphicsStore } from '../../stores/graphicsStore';
 import { ReflectiveFloor } from './ReflectiveFloor';
 import { useModelTextures } from '../../utils/machineTextures';
 import { FLOOR_LAYERS, POLYGON_OFFSET } from '../../constants/renderLayers';
+import { generateConcrete, generateConcreteRoughness } from '../../textures/concrete';
+import { generatePanelNormal } from '../../textures/normalGenerator';
 
 interface FactoryFloorProps {
   floorSize: number; // Legacy: used as fallback
@@ -16,16 +18,24 @@ interface FactoryFloorProps {
 const FLOOR_LAYER_HEIGHTS = FLOOR_LAYERS;
 const FLOOR_POLYGON_OFFSET = POLYGON_OFFSET.standard;
 
+// Procedural concrete textures (generated once, cached)
+const proceduralConcreteColor = generateConcrete(512, 64, true);
+const proceduralConcreteRoughness = generateConcreteRoughness(512);
+const proceduralConcreteNormal = generatePanelNormal(512, 8, 0.03);
 
 // Hook to configure concrete textures for floor tiling
+// Uses external textures on high/ultra, procedural on low/medium
 const useConcreteFloorTextures = (width: number, depth: number) => {
   const concreteTextures = useModelTextures('concrete');
+  const quality = useGraphicsStore((state) => state.graphics.quality);
+  const useProceduralFallback = quality === 'low' || quality === 'medium';
 
   // Configure tiling for floor dimensions
   useMemo(() => {
     const repeatX = Math.max(1, width / 10);
     const repeatY = Math.max(1, depth / 10);
 
+    // Configure external textures if available
     if (concreteTextures.color) {
       concreteTextures.color.wrapS = concreteTextures.color.wrapT = THREE.RepeatWrapping;
       concreteTextures.color.repeat.set(repeatX, repeatY);
@@ -42,7 +52,25 @@ const useConcreteFloorTextures = (width: number, depth: number) => {
       concreteTextures.ao.wrapS = concreteTextures.ao.wrapT = THREE.RepeatWrapping;
       concreteTextures.ao.repeat.set(repeatX, repeatY);
     }
+
+    // Configure procedural textures
+    proceduralConcreteColor.wrapS = proceduralConcreteColor.wrapT = THREE.RepeatWrapping;
+    proceduralConcreteColor.repeat.set(repeatX, repeatY);
+    proceduralConcreteRoughness.wrapS = proceduralConcreteRoughness.wrapT = THREE.RepeatWrapping;
+    proceduralConcreteRoughness.repeat.set(repeatX, repeatY);
+    proceduralConcreteNormal.wrapS = proceduralConcreteNormal.wrapT = THREE.RepeatWrapping;
+    proceduralConcreteNormal.repeat.set(repeatX, repeatY);
   }, [concreteTextures, width, depth]);
+
+  // Return procedural textures as fallback when external not available
+  if (useProceduralFallback || !concreteTextures.color) {
+    return {
+      color: proceduralConcreteColor,
+      normal: proceduralConcreteNormal,
+      roughness: proceduralConcreteRoughness,
+      ao: null,
+    };
+  }
 
   return concreteTextures;
 };
@@ -384,257 +412,274 @@ const WornFootpath: React.FC<{
   );
 });
 
-export const FactoryFloor: React.FC<FactoryFloorProps> = React.memo(({
-  floorSize,
-  floorWidth,
-  floorDepth,
-  showZones,
-}) => {
-  const graphics = useGraphicsStore((state) => state.graphics);
+export const FactoryFloor: React.FC<FactoryFloorProps> = React.memo(
+  ({ floorSize, floorWidth, floorDepth, showZones }) => {
+    const graphics = useGraphicsStore((state) => state.graphics);
 
-  // Use new dimensions if provided, otherwise fall back to legacy square
-  // CRITICAL: Guard against NaN/undefined/zero dimensions which cause
-  // "computeBoundingSphere(): Computed radius is NaN" errors in THREE.js
-  const rawWidth = floorWidth ?? floorSize;
-  const rawDepth = floorDepth ?? floorSize;
-  const actualWidth = Number.isFinite(rawWidth) && rawWidth > 0 ? rawWidth : 120;
-  const actualDepth = Number.isFinite(rawDepth) && rawDepth > 0 ? rawDepth : 160;
+    // Use new dimensions if provided, otherwise fall back to legacy square
+    // CRITICAL: Guard against NaN/undefined/zero dimensions which cause
+    // "computeBoundingSphere(): Computed radius is NaN" errors in THREE.js
+    const rawWidth = floorWidth ?? floorSize;
+    const rawDepth = floorDepth ?? floorSize;
+    const actualWidth = Number.isFinite(rawWidth) && rawWidth > 0 ? rawWidth : 120;
+    const actualDepth = Number.isFinite(rawDepth) && rawDepth > 0 ? rawDepth : 160;
 
-  // Load concrete PBR textures (high/ultra only, returns null on low/medium)
-  const concreteTextures = useConcreteFloorTextures(actualWidth, actualDepth);
-  const graphicsQuality = graphics.quality;
-  const isLowGraphics = graphicsQuality === 'low';
+    // Load concrete PBR textures (high/ultra only, returns null on low/medium)
+    const concreteTextures = useConcreteFloorTextures(actualWidth, actualDepth);
+    const graphicsQuality = graphics.quality;
+    const isLowGraphics = graphicsQuality === 'low';
 
-  // Feature flags from graphics settings
-  const showPuddles = graphics.enableFloorPuddles;
-  const showWornPaths = graphics.enableWornPaths;
+    // Feature flags from graphics settings
+    const showPuddles = graphics.enableFloorPuddles;
+    const showWornPaths = graphics.enableWornPaths;
 
-  // Create optimized grid texture - single mesh instead of 58!
-  const gridTexture = useMemo(() => {
-    const size = 512;
-    const canvas = document.createElement('canvas');
-    canvas.width = size;
-    canvas.height = size;
-    const ctx = canvas.getContext('2d')!;
+    // Create optimized grid texture - single mesh instead of 58!
+    const gridTexture = useMemo(() => {
+      const size = 512;
+      const canvas = document.createElement('canvas');
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext('2d')!;
 
-    // Transparent background
-    ctx.clearRect(0, 0, size, size);
+      // Transparent background
+      ctx.clearRect(0, 0, size, size);
 
-    // Draw grid lines
-    ctx.strokeStyle = 'rgba(51, 65, 85, 0.5)'; // #334155 with 50% opacity
-    ctx.lineWidth = 1;
+      // Draw grid lines
+      ctx.strokeStyle = 'rgba(51, 65, 85, 0.5)'; // #334155 with 50% opacity
+      ctx.lineWidth = 1;
 
-    // Vertical and horizontal lines every 5 units (scaled to texture)
-    const gridSpacing = size / 5; // 5 lines per texture repeat
-    for (let i = 0; i <= 5; i++) {
-      const pos = i * gridSpacing;
-      // Vertical
-      ctx.beginPath();
-      ctx.moveTo(pos, 0);
-      ctx.lineTo(pos, size);
-      ctx.stroke();
-      // Horizontal
-      ctx.beginPath();
-      ctx.moveTo(0, pos);
-      ctx.lineTo(size, pos);
-      ctx.stroke();
-    }
+      // Vertical and horizontal lines every 5 units (scaled to texture)
+      const gridSpacing = size / 5; // 5 lines per texture repeat
+      for (let i = 0; i <= 5; i++) {
+        const pos = i * gridSpacing;
+        // Vertical
+        ctx.beginPath();
+        ctx.moveTo(pos, 0);
+        ctx.lineTo(pos, size);
+        ctx.stroke();
+        // Horizontal
+        ctx.beginPath();
+        ctx.moveTo(0, pos);
+        ctx.lineTo(size, pos);
+        ctx.stroke();
+      }
 
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.wrapS = THREE.RepeatWrapping;
-    texture.wrapT = THREE.RepeatWrapping;
-    texture.repeat.set(actualWidth / 5, actualDepth / 5);
-    return texture;
-  }, [actualWidth, actualDepth]);
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.wrapS = THREE.RepeatWrapping;
+      texture.wrapT = THREE.RepeatWrapping;
+      texture.repeat.set(actualWidth / 5, actualDepth / 5);
+      return texture;
+    }, [actualWidth, actualDepth]);
 
-  return (
-    <group matrixAutoUpdate={false}>
-      {/* Main floor - standard material on low/medium, reflector on high/ultra */}
-      {graphicsQuality === 'high' || graphicsQuality === 'ultra' ? (
-        <ReflectiveFloor width={actualWidth} depth={actualDepth} />
-      ) : (
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow={false}>
-          <planeGeometry args={[actualWidth, actualDepth]} />
-          <meshStandardMaterial
-            color={concreteTextures.color ? '#ffffff' : '#1e293b'}
-            map={concreteTextures.color}
-            normalMap={concreteTextures.normal}
-            normalScale={concreteTextures.normal ? new THREE.Vector2(0.5, 0.5) : undefined}
-            roughnessMap={concreteTextures.roughness}
-            roughness={0.85}
-            metalness={0.15}
-            aoMap={concreteTextures.ao}
-            aoMapIntensity={concreteTextures.ao ? 0.5 : 0}
-          />
-        </mesh>
-      )}
+    return (
+      <group matrixAutoUpdate={false}>
+        {/* Main floor - standard material on low/medium, reflector on high/ultra */}
+        {graphicsQuality === 'high' || graphicsQuality === 'ultra' ? (
+          <ReflectiveFloor width={actualWidth} depth={actualDepth} />
+        ) : (
+          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow={false}>
+            <planeGeometry args={[actualWidth, actualDepth]} />
+            <meshStandardMaterial
+              color={concreteTextures.color ? '#ffffff' : '#1e293b'}
+              map={concreteTextures.color}
+              normalMap={concreteTextures.normal}
+              normalScale={concreteTextures.normal ? new THREE.Vector2(0.5, 0.5) : undefined}
+              roughnessMap={concreteTextures.roughness}
+              roughness={0.85}
+              metalness={0.15}
+              aoMap={concreteTextures.ao}
+              aoMapIntensity={concreteTextures.ao ? 0.5 : 0}
+            />
+          </mesh>
+        )}
 
-      {/* Floor grid lines - OPTIMIZED: Single textured mesh replaces 58 individual meshes */}
-      {/* RESTORED: Now shows on MEDIUM+ (!isLowGraphics) instead of HIGH+ only */}
-      {/* Raised to y=0.045 to prevent z-fighting with SafetyZone stripes and worn paths */}
-      {!isLowGraphics && (
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, FLOOR_LAYER_HEIGHTS.grid, 0]}>
-          <planeGeometry args={[actualWidth, actualDepth]} />
-          <meshBasicMaterial
-            map={gridTexture}
-            transparent
-            depthWrite={false}
-            polygonOffset
-            polygonOffsetFactor={FLOOR_POLYGON_OFFSET.factor}
-            polygonOffsetUnits={FLOOR_POLYGON_OFFSET.units}
-          />
-        </mesh>
-      )}
+        {/* Floor grid lines - OPTIMIZED: Single textured mesh replaces 58 individual meshes */}
+        {/* RESTORED: Now shows on MEDIUM+ (!isLowGraphics) instead of HIGH+ only */}
+        {/* Raised to y=0.045 to prevent z-fighting with SafetyZone stripes and worn paths */}
+        {!isLowGraphics && (
+          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, FLOOR_LAYER_HEIGHTS.grid, 0]}>
+            <planeGeometry args={[actualWidth, actualDepth]} />
+            <meshBasicMaterial
+              map={gridTexture}
+              transparent
+              depthWrite={false}
+              polygonOffset
+              polygonOffsetFactor={FLOOR_POLYGON_OFFSET.factor}
+              polygonOffsetUnits={FLOOR_POLYGON_OFFSET.units}
+            />
+          </mesh>
+        )}
 
-      {/* Safety walkways with industrial hazard stripe markings */}
-      {showZones && (
-        <>
-          {/* Main aisles (vertical) */}
-          <SafetyZone
-            position={[-10, FLOOR_LAYER_HEIGHTS.safetyMain, 0]}
-            size={[3, actualDepth - 10]}
-            type="walkway"
-          />
-          <SafetyZone
-            position={[10, FLOOR_LAYER_HEIGHTS.safetyMain, 0]}
-            size={[3, actualDepth - 10]}
-            type="walkway"
-          />
+        {/* Safety walkways with industrial hazard stripe markings */}
+        {showZones && (
+          <>
+            {/* Main aisles (vertical) */}
+            <SafetyZone
+              position={[-10, FLOOR_LAYER_HEIGHTS.safetyMain, 0]}
+              size={[3, actualDepth - 10]}
+              type="walkway"
+            />
+            <SafetyZone
+              position={[10, FLOOR_LAYER_HEIGHTS.safetyMain, 0]}
+              size={[3, actualDepth - 10]}
+              type="walkway"
+            />
 
-          {/* Cross aisles (horizontal) */}
-          <SafetyZone
-            position={[0, FLOOR_LAYER_HEIGHTS.safetyCross, 10]}
-            size={[actualWidth - 20, 2.5]}
-            type="walkway"
-            rotation={Math.PI / 2}
-          />
-          <SafetyZone
-            position={[0, FLOOR_LAYER_HEIGHTS.safetyCross, -10]}
-            size={[actualWidth - 20, 2.5]}
-            type="walkway"
-            rotation={Math.PI / 2}
-          />
+            {/* Cross aisles (horizontal) */}
+            <SafetyZone
+              position={[0, FLOOR_LAYER_HEIGHTS.safetyCross, 10]}
+              size={[actualWidth - 20, 2.5]}
+              type="walkway"
+              rotation={Math.PI / 2}
+            />
+            <SafetyZone
+              position={[0, FLOOR_LAYER_HEIGHTS.safetyCross, -10]}
+              size={[actualWidth - 20, 2.5]}
+              type="walkway"
+              rotation={Math.PI / 2}
+            />
 
-          {/* Danger zones around machinery */}
-          <SafetyZone
-            position={[0, FLOOR_LAYER_HEIGHTS.safetyDanger, -20]}
-            size={[60, 8]}
-            type="danger"
-            rotation={Math.PI / 2}
-          />
-        </>
-      )}
+            {/* Danger zones around machinery */}
+            <SafetyZone
+              position={[0, FLOOR_LAYER_HEIGHTS.safetyDanger, -20]}
+              size={[60, 8]}
+              type="danger"
+              rotation={Math.PI / 2}
+            />
+          </>
+        )}
 
-      {/* Floor puddles - high/ultra graphics only */}
-      {showPuddles && (
-        <>
-          {/* Near machinery areas */}
-          <FloorPuddle
-            position={[-20, FLOOR_LAYER_HEIGHTS.puddle, -15]}
-            size={[2.5, 1.8]}
-            seed={1}
-          />
-          <FloorPuddle
-            position={[22, FLOOR_LAYER_HEIGHTS.puddle, -18]}
-            size={[1.8, 2.2]}
-            seed={2}
-          />
-          <FloorPuddle position={[-10, FLOOR_LAYER_HEIGHTS.puddle, -25]} size={[3, 2]} seed={3} />
-          {/* Central factory */}
-          <FloorPuddle position={[8, FLOOR_LAYER_HEIGHTS.puddle, 10]} size={[2, 1.5]} seed={4} />
-          <FloorPuddle position={[-30, FLOOR_LAYER_HEIGHTS.puddle, 5]} size={[1.5, 1.2]} seed={5} />
-          <FloorPuddle position={[35, FLOOR_LAYER_HEIGHTS.puddle, -5]} size={[2.2, 1.8]} seed={6} />
-          {/* Near packing zone */}
-          <FloorPuddle position={[-15, FLOOR_LAYER_HEIGHTS.puddle, 28]} size={[2, 1.8]} seed={7} />
-          <FloorPuddle position={[18, FLOOR_LAYER_HEIGHTS.puddle, 32]} size={[1.6, 2]} seed={8} />
-          {/* Near dock staging areas */}
-          <FloorPuddle position={[-38, FLOOR_LAYER_HEIGHTS.puddle, 20]} size={[2.5, 2]} seed={9} />
-          <FloorPuddle position={[40, FLOOR_LAYER_HEIGHTS.puddle, -20]} size={[2, 1.5]} seed={10} />
-        </>
-      )}
+        {/* Floor puddles - high/ultra graphics only */}
+        {showPuddles && (
+          <>
+            {/* Near machinery areas */}
+            <FloorPuddle
+              position={[-20, FLOOR_LAYER_HEIGHTS.puddle, -15]}
+              size={[2.5, 1.8]}
+              seed={1}
+            />
+            <FloorPuddle
+              position={[22, FLOOR_LAYER_HEIGHTS.puddle, -18]}
+              size={[1.8, 2.2]}
+              seed={2}
+            />
+            <FloorPuddle position={[-10, FLOOR_LAYER_HEIGHTS.puddle, -25]} size={[3, 2]} seed={3} />
+            {/* Central factory */}
+            <FloorPuddle position={[8, FLOOR_LAYER_HEIGHTS.puddle, 10]} size={[2, 1.5]} seed={4} />
+            <FloorPuddle
+              position={[-30, FLOOR_LAYER_HEIGHTS.puddle, 5]}
+              size={[1.5, 1.2]}
+              seed={5}
+            />
+            <FloorPuddle
+              position={[35, FLOOR_LAYER_HEIGHTS.puddle, -5]}
+              size={[2.2, 1.8]}
+              seed={6}
+            />
+            {/* Near packing zone */}
+            <FloorPuddle
+              position={[-15, FLOOR_LAYER_HEIGHTS.puddle, 28]}
+              size={[2, 1.8]}
+              seed={7}
+            />
+            <FloorPuddle position={[18, FLOOR_LAYER_HEIGHTS.puddle, 32]} size={[1.6, 2]} seed={8} />
+            {/* Near dock staging areas */}
+            <FloorPuddle
+              position={[-38, FLOOR_LAYER_HEIGHTS.puddle, 20]}
+              size={[2.5, 2]}
+              seed={9}
+            />
+            <FloorPuddle
+              position={[40, FLOOR_LAYER_HEIGHTS.puddle, -20]}
+              size={[2, 1.5]}
+              seed={10}
+            />
+          </>
+        )}
 
-      {/* Worn footpaths - medium+ graphics */}
-      {showWornPaths && (
-        <>
-          {/* Main aisle worn paths */}
-          <WornFootpath
-            path={[
-              [-15, 0, -35],
-              [-15, 0, 0],
-              [-15, 0, 35],
-            ]}
-            width={2.5}
-            height={FLOOR_LAYER_HEIGHTS.wornPrimary}
-          />
-          <WornFootpath
-            path={[
-              [15, 0, -35],
-              [15, 0, 0],
-              [15, 0, 35],
-            ]}
-            width={2.5}
-            height={FLOOR_LAYER_HEIGHTS.wornPrimary}
-          />
-          {/* Cross aisle paths */}
-          <WornFootpath
-            path={[
-              [-45, 0, 10],
-              [0, 0, 10],
-              [45, 0, 10],
-            ]}
-            width={1.8}
-            height={FLOOR_LAYER_HEIGHTS.wornSecondary}
-          />
-          <WornFootpath
-            path={[
-              [-45, 0, -10],
-              [0, 0, -10],
-              [45, 0, -10],
-            ]}
-            width={1.8}
-            height={FLOOR_LAYER_HEIGHTS.wornSecondary}
-          />
-          {/* Path to break rooms (inside factory) */}
-          <WornFootpath
-            path={[
-              [15, 0, 20],
-              [25, 0, 22],
-              [35, 0, 25],
-            ]}
-            width={1.5}
-            height={FLOOR_LAYER_HEIGHTS.wornPrimary}
-          />
-          <WornFootpath
-            path={[
-              [-15, 0, 20],
-              [-25, 0, 22],
-              [-35, 0, 25],
-            ]}
-            width={1.5}
-            height={FLOOR_LAYER_HEIGHTS.wornPrimary}
-          />
-          {/* Path to locker room (inside factory) */}
-          <WornFootpath
-            path={[
-              [-15, 0, 30],
-              [-25, 0, 32],
-              [-35, 0, 35],
-            ]}
-            width={1.8}
-            height={FLOOR_LAYER_HEIGHTS.wornSecondary}
-          />
-          {/* Path to toilet block (inside factory) */}
-          <WornFootpath
-            path={[
-              [15, 0, 30],
-              [25, 0, 32],
-              [35, 0, 35],
-            ]}
-            width={1.8}
-            height={FLOOR_LAYER_HEIGHTS.wornSecondary}
-          />
-        </>
-      )}
-    </group>
-  );
-});
+        {/* Worn footpaths - medium+ graphics */}
+        {showWornPaths && (
+          <>
+            {/* Main aisle worn paths */}
+            <WornFootpath
+              path={[
+                [-15, 0, -35],
+                [-15, 0, 0],
+                [-15, 0, 35],
+              ]}
+              width={2.5}
+              height={FLOOR_LAYER_HEIGHTS.wornPrimary}
+            />
+            <WornFootpath
+              path={[
+                [15, 0, -35],
+                [15, 0, 0],
+                [15, 0, 35],
+              ]}
+              width={2.5}
+              height={FLOOR_LAYER_HEIGHTS.wornPrimary}
+            />
+            {/* Cross aisle paths */}
+            <WornFootpath
+              path={[
+                [-45, 0, 10],
+                [0, 0, 10],
+                [45, 0, 10],
+              ]}
+              width={1.8}
+              height={FLOOR_LAYER_HEIGHTS.wornSecondary}
+            />
+            <WornFootpath
+              path={[
+                [-45, 0, -10],
+                [0, 0, -10],
+                [45, 0, -10],
+              ]}
+              width={1.8}
+              height={FLOOR_LAYER_HEIGHTS.wornSecondary}
+            />
+            {/* Path to break rooms (inside factory) */}
+            <WornFootpath
+              path={[
+                [15, 0, 20],
+                [25, 0, 22],
+                [35, 0, 25],
+              ]}
+              width={1.5}
+              height={FLOOR_LAYER_HEIGHTS.wornPrimary}
+            />
+            <WornFootpath
+              path={[
+                [-15, 0, 20],
+                [-25, 0, 22],
+                [-35, 0, 25],
+              ]}
+              width={1.5}
+              height={FLOOR_LAYER_HEIGHTS.wornPrimary}
+            />
+            {/* Path to locker room (inside factory) */}
+            <WornFootpath
+              path={[
+                [-15, 0, 30],
+                [-25, 0, 32],
+                [-35, 0, 35],
+              ]}
+              width={1.8}
+              height={FLOOR_LAYER_HEIGHTS.wornSecondary}
+            />
+            {/* Path to toilet block (inside factory) */}
+            <WornFootpath
+              path={[
+                [15, 0, 30],
+                [25, 0, 32],
+                [35, 0, 35],
+              ]}
+              width={1.8}
+              height={FLOOR_LAYER_HEIGHTS.wornSecondary}
+            />
+          </>
+        )}
+      </group>
+    );
+  }
+);

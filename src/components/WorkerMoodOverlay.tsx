@@ -510,10 +510,10 @@ export const useMoodSimulation = () => {
 
 /**
  * Bilateral Alignment Simulation Hook
- * 
+ *
  * PERFORMANCE: Uses separate throttling (every 5 seconds) to avoid
  * overloading the render loop with store updates.
- * 
+ *
  * Ticks:
  * - Safety report store (report aging, willingness decay)
  * - Emergent cooperation store (action completion, random triggers)
@@ -551,4 +551,3 @@ export const useBilateralAlignmentSimulation = () => {
 };
 
 export default WorkerMoodOverlay;
-

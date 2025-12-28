@@ -21,18 +21,13 @@ import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import { useUIStore } from '../stores/uiStore';
 import { useAIConfigStore } from '../stores/aiConfigStore';
 import { useShallow } from 'zustand/react/shallow';
-import {
-  applyDecisionEffects,
-  reactToAlert,
-} from '../utils/aiEngine';
+import { applyDecisionEffects, reactToAlert } from '../utils/aiEngine';
 import { GeminiSettingsModal } from './GeminiSettingsModal';
-import {
-  DecisionHistoryPanel,
-  VCLDebugPanel,
-  StrategicPriorityCards,
-  ActionPlanTimeline,
-  VCLDiffPanel
-} from './ui';
+import { ActionPlanTimeline } from './ui/ActionPlanTimeline';
+import { DecisionHistoryPanel } from './ui/DecisionHistoryPanel';
+import { StrategicPriorityCards } from './ui/StrategicPriorityCards';
+import { VCLDebugPanel } from './ui/VCLDebugPanel';
+import { VCLDiffPanel } from './ui/VCLDiffPanel';
 
 interface AICommandCenterProps {
   isOpen: boolean;
@@ -43,12 +38,8 @@ interface AICommandCenterProps {
 // Sparkline component for trend visualization
 // Note: Currently unused but kept for future feature expansion
 
-
-
 // Confidence adjustment indicator component
 // Note: Currently unused but kept for future feature expansion
-
-
 
 export const AICommandCenter: React.FC<AICommandCenterProps> = ({
   isOpen,
@@ -74,11 +65,15 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
 
   const lastAlertCountRef = useRef(0);
 
-
   const alertReactionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Get state from stores using useShallow to prevent unnecessary re-renders
-  const { aiDecisions, machines: _machines, metrics, workerSatisfaction: _workerSatisfaction } = useProductionStore(
+  const {
+    aiDecisions,
+    machines: _machines,
+    metrics,
+    workerSatisfaction: _workerSatisfaction,
+  } = useProductionStore(
     useShallow((state) => ({
       aiDecisions: state.aiDecisions,
       machines: state.machines,
@@ -89,7 +84,12 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
 
   const alerts = useUIStore((state) => state.alerts);
 
-  const { weather, currentShift, gameTime: _gameTime, emergencyDrillMode } = useGameSimulationStore(
+  const {
+    weather,
+    currentShift,
+    gameTime: _gameTime,
+    emergencyDrillMode,
+  } = useGameSimulationStore(
     useShallow((state) => ({
       weather: state.weather,
       currentShift: state.currentShift,
@@ -106,7 +106,6 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
     }))
   );
   const [showGeminiSettings, setShowGeminiSettings] = useState(false);
-
 
   // React to new alerts
   useEffect(() => {
@@ -129,6 +128,13 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
       }
     }
     lastAlertCountRef.current = alerts.length;
+
+    return () => {
+      if (alertReactionTimeoutRef.current) {
+        clearTimeout(alertReactionTimeoutRef.current);
+        alertReactionTimeoutRef.current = null;
+      }
+    };
   }, [alerts, isOpen]);
 
   // Master interval removed - AI logic now runs in background via aiEngine.ts logic
@@ -140,20 +146,20 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
   }, [aiDecisions]);
 
   // Sync isThinking state from store
-  const isTacticalThinking = useAIConfigStore(state => state.isTacticalThinking);
+  const isTacticalThinking = useAIConfigStore((state) => state.isTacticalThinking);
   useEffect(() => {
     setIsThinking(isTacticalThinking);
   }, [isTacticalThinking]);
 
   // Update system status from store instead of local calculation
-  const storeSystemStatus = useAIConfigStore(state => state.systemStatus);
+  const storeSystemStatus = useAIConfigStore((state) => state.systemStatus);
   useEffect(() => {
     // Sync store status to local state for display
-    setSystemStatus(prev => ({
+    setSystemStatus((prev) => ({
       ...prev,
       cpu: storeSystemStatus.cpu,
       memory: storeSystemStatus.memory,
-      decisions: storeSystemStatus.decisions
+      decisions: storeSystemStatus.decisions,
     }));
   }, [storeSystemStatus]);
 
@@ -240,13 +246,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
 
   // Weather icon helper - kept for future UI expansion
 
-
-
   // Time formatter - kept for future UI expansion
-
-
-
-
 
   if (!isOpen) return null;
 
@@ -269,9 +269,11 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
                 onClick={() => setShowGeminiSettings(true)}
                 className="ml-auto flex items-center gap-1.5 px-2 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 border border-slate-700 transition-colors"
                 title={
-                  aiMode === 'gemini' ? 'Gemini AI Active - Click to configure' :
-                    aiMode === 'hybrid' ? 'Hybrid Mode Active - Click to configure' :
-                      'Heuristic Mode - Click to configure Gemini'
+                  aiMode === 'gemini'
+                    ? 'Gemini AI Active - Click to configure'
+                    : aiMode === 'hybrid'
+                      ? 'Hybrid Mode Active - Click to configure'
+                      : 'Heuristic Mode - Click to configure Gemini'
                 }
               >
                 {aiMode === 'gemini' && isGeminiConnected ? (
@@ -311,7 +313,9 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
                 {(aiMode === 'gemini' || aiMode === 'hybrid') && isGeminiConnected ? (
                   <>
                     <span className="text-slate-500">$</span>
-                    <span className="text-emerald-400 ml-1">{useAIConfigStore.getState().getFormattedCost()}</span>
+                    <span className="text-emerald-400 ml-1">
+                      {useAIConfigStore.getState().getFormattedCost()}
+                    </span>
                   </>
                 ) : (
                   <>
@@ -332,7 +336,9 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
             )}
             {/* Context: Weather & Shift */}
             <div className="mt-2 flex items-center justify-between text-[9px] text-slate-500">
-              <span className="capitalize">{weather} | {currentShift} shift</span>
+              <span className="capitalize">
+                {weather} | {currentShift} shift
+              </span>
               <span>Eff: {metrics.efficiency.toFixed(0)}%</span>
             </div>
           </div>
@@ -341,10 +347,11 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
           <div className="px-3 py-2 border-b border-slate-800 flex gap-2">
             <button
               onClick={() => setActiveTab('decisions')}
-              className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-all ${activeTab === 'decisions'
-                ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
-                : 'bg-slate-800/50 text-slate-400 hover:bg-slate-800'
-                }`}
+              className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                activeTab === 'decisions'
+                  ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
+                  : 'bg-slate-800/50 text-slate-400 hover:bg-slate-800'
+              }`}
             >
               <Activity className="w-3 h-3 inline mr-1" />
               Decisions ({aiDecisions.length})
@@ -352,10 +359,11 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
 
             <button
               onClick={() => setActiveTab('strategic')}
-              className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-all ${activeTab === 'strategic'
-                ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-                : 'bg-slate-800/50 text-slate-400 hover:bg-slate-800'
-                }`}
+              className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                activeTab === 'strategic'
+                  ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                  : 'bg-slate-800/50 text-slate-400 hover:bg-slate-800'
+              }`}
             >
               <Target className="w-3 h-3 inline mr-1" />
               Strategic
@@ -369,15 +377,18 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
                 {aiDecisions.slice(0, 15).map((decision: AIDecision) => (
                   <div
                     key={decision.id}
-                    className={`bg-slate-800/50 rounded-lg border p-2 ${decision.status === 'completed'
-                      ? 'border-green-500/20'
-                      : decision.status === 'in_progress'
-                        ? 'border-blue-500/30'
-                        : 'border-slate-700/50'
-                      }`}
+                    className={`bg-slate-800/50 rounded-lg border p-2 ${
+                      decision.status === 'completed'
+                        ? 'border-green-500/20'
+                        : decision.status === 'in_progress'
+                          ? 'border-blue-500/30'
+                          : 'border-slate-700/50'
+                    }`}
                   >
                     <div className="flex items-start gap-2">
-                      <div className={`p-1 rounded bg-gradient-to-br ${getTypeColor(decision.type)}`}>
+                      <div
+                        className={`p-1 rounded bg-gradient-to-br ${getTypeColor(decision.type)}`}
+                      >
                         {getTypeIcon(decision.type)}
                       </div>
                       <div className="flex-1 min-w-0">

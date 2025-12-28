@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { Html } from '@react-three/drei';
 import * as THREE from 'three';
+import { POLYGON_OFFSET } from '../../constants/renderLayers';
 
 interface HistoricalPhotoProps {
   position: [number, number, number];
@@ -153,6 +154,10 @@ export const HistoricalPhoto: React.FC<HistoricalPhotoProps> = ({
           opacity={0.05}
           roughness={0.1}
           metalness={0.8}
+          depthWrite={false}
+          polygonOffset
+          polygonOffsetFactor={POLYGON_OFFSET.strong.factor}
+          polygonOffsetUnits={POLYGON_OFFSET.strong.units}
         />
       </mesh>
 

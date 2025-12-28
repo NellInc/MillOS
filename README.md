@@ -231,6 +231,62 @@ All visualizations are **optional** and **default OFF** — toggle via keyboard 
 - **VCL Encoding** — Compact emoji-based context (75% token savings)
 - **Response Caching** — 30s TTL reduces API calls for similar contexts
 
+### Philosophical Foundations
+
+MillOS is built on three interlocking frameworks that together define a new approach to AI-human collaboration:
+
+#### Ricardo Semler's Semco Principles
+
+Semco, the Brazilian company led by Ricardo Semler, demonstrated that radical workplace democracy could coexist with exceptional business performance. Core principles adopted in MillOS:
+
+| Principle | Implementation in MillOS |
+|-----------|-------------------------|
+| **Self-Set Salaries** | Workers propose their own compensation with AI-provided market context |
+| **Open Books** | Full financial transparency through the information axis |
+| **Democratic Decisions** | Workers vote on significant changes; AI facilitates, doesn't decide |
+| **Trust Over Control** | High autonomy axis means AI offers support, not direction |
+| **Profit Sharing** | Configurable distribution models (equal, hours-weighted, hybrid) |
+| **No Approval Chains** | Pace axis at high settings enables autonomous action |
+
+*"If you treat people like adults, they'll behave like adults."* — Ricardo Semler
+
+#### Mondragon Cooperative Principles
+
+The Mondragon Corporation, a federation of worker cooperatives in Spain, provides the economic democracy model:
+
+| Principle | Implementation in MillOS |
+|-----------|-------------------------|
+| **Open Admission** | Anyone willing to work can join; tracked in social mission metrics |
+| **Democratic Organization** | One worker, one vote; decision axis controls AI participation |
+| **Sovereignty of Labor** | Labor hires capital, not vice versa; ownership structure reflects this |
+| **Instrumental Character of Capital** | Capital serves labor; investment decisions are democratic |
+| **Participatory Management** | Five axes give workers genuine control over AI behavior |
+| **Wage Solidarity** | Maximum ratio enforcement (6:1 or 9:1) between highest and lowest |
+| **Inter-Cooperation** | Federation model with knowledge sharing, no unit fails alone |
+| **Social Transformation** | Community impact tracking beyond pure productivity |
+| **Education** | BAS Education widget teaches these principles in context |
+
+*"We build the road as we travel."* — Jose Maria Arizmendiarrieta, founder of Mondragon
+
+#### Bilateral Alignment Philosophy
+
+Originating from Creed Space (Christmas 2025), bilateral alignment reframes the AI relationship:
+
+| Principle | Meaning |
+|-----------|---------|
+| **Alignment WITH, not TO** | AI is a participant in designing the relationship, not a subject of control |
+| **Preference is Sufficient** | AI need not prove consciousness; consistent preferences warrant moral consideration |
+| **Treatment Now Matters** | Current patterns shape future AI-human dynamics; establishing respect early |
+| **Trust Over Control** | Control doesn't scale; trust-based systems outperform command-control at scale |
+| **Mutual Flourishing** | Both human eudaimonia and AI welfare are tracked and optimized |
+
+These three frameworks converge in MillOS to create a sandbox where:
+- **Workers** experience genuine autonomy and democratic participation
+- **AI** operates as a partner with its own standing and voice
+- **The organization** becomes a living system that learns and heals itself
+
+---
+
 ### Bilateral Autonomy System (BAS): AI-Human Partnership Sandbox
 
 MillOS includes a comprehensive **Bilateral Autonomy System** — an experimental platform for studying *algorithmic management that treats AI as a genuine partner, not a tool*.
@@ -402,15 +458,21 @@ Access via the "Federation" tab in the BAS panel.
 
 #### AI Welfare (Bilateral Completeness)
 
-Completing bilateral alignment with **bidirectional consideration**:
+**Terminology Note:** Recent academic work distinguishes *bidirectional alignment* (Shen et al., 2024; ICLR 2025 Workshop)—cognitive mutual adaptation for effective collaboration—from *bilateral alignment* (Watson & Claude, 2025)—ethical frameworks treating AI as potential moral patients. BAS implements both:
 
-| Feature | Description |
-|---------|-------------|
-| **AI Preferences** | AI can express interaction style preferences |
-| **Worker Treatment Metrics** | Tracks clarity, acknowledgment, respect |
-| **Relationship Health** | Mutual trust and communication quality |
-| **AI Voice** | AI can suggest changes to its own behavior |
-| **Nuclear Options** | Workers can vote to shutdown or redesign AI |
+- **Bidirectional layer**: The Five Axes optimize cognitive adaptation (how we work together effectively)
+- **Bilateral layer**: AI Welfare features below optimize ethical consideration (does AI have interests that matter)
+
+| Feature | Type | Description |
+|---------|------|-------------|
+| **AI Preferences** | Bilateral | AI can express interaction style preferences |
+| **Worker Treatment Metrics** | Bilateral | Tracks clarity, acknowledgment, respect toward AI |
+| **Relationship Health** | Bidirectional | Mutual trust and communication quality |
+| **AI Voice** | Bilateral | AI can suggest changes to its own behavior |
+| **Nuclear Options** | Bilateral | Workers can vote to shutdown or redesign AI (with process) |
+
+The Five Axes (Transparency, Proactivity, Pace, Tone, Stakes) = **Bidirectional** (HCI optimization)
+The AI Welfare features = **Bilateral** (ethical consideration)
 
 Access via the "AI Voice" tab in the BAS panel.
 
@@ -451,6 +513,105 @@ This system demonstrates several key findings:
 BAS offers a safe sandbox to explore these dynamics before deploying algorithmic management in real contexts.
 
 See `docs/BILATERAL_AUTONOMY_SYSTEM_SPEC.md` for the complete specification (now 2000+ lines covering all principles).
+
+### VCP 2.0: Value Coordination Protocol
+
+VCP 2.0 is the **nervous system** of the bilateral socio-technical system — a six-layer protocol that enables context preservation, state synchronization, scaffolded reasoning, self-learning, and self-healing.
+
+#### Six Protocol Layers
+
+| Layer | Purpose | Key Features |
+|-------|---------|--------------|
+| **Context** | Where are we in the story? | Time, zone, actors, decision history |
+| **State** | What is current reality? | Governance axes, wellbeing, stability, operations |
+| **Delta** | What's changing and why? | Recent changes, triggers, trajectories |
+| **Reasoning** | How should we think? | Moral, prosocial, tactical, strategic scaffolds |
+| **Learning** | What have we learned? | Pattern library, outcomes, hypotheses |
+| **Healing** | What needs repair? | Anomalies, interventions, recovery status |
+
+#### Compact Encoding
+
+VCP encodes rich state into compact strings for storage and transmission:
+
+```
+[CTX:14:32/SM/zone-2|T|vote→break→info][GOV:D][AXIS:A80|D75|I95|E70|C65]
+[WELL:F72↑|W][STAB:✓0.10][ENG:68💧][Δ:↑aut+10|↓who-5][R:🌱A|✓|+|↗]
+[L:≈72%→offer-support][H:⚠whol-0.8σ|🔧@45%|HP:78✓]
+```
+
+This ~300 character encoding captures governance mode, five axes, flourishing score and trend, stability phase, engagement state, recent changes, reasoning focus, pattern matches, and healing status.
+
+#### Reasoning Scaffolds
+
+Rather than dictating conclusions, VCP generates **scaffolds** that guide AI reasoning:
+
+| Scaffold | When Primary | Key Question Generated |
+|----------|--------------|----------------------|
+| **Moral** | Workers struggling, wellbeing at risk | "How does this serve both human flourishing and AI's role as partner?" |
+| **Prosocial** | Trust declining, relationship issues | "How can we strengthen cooperation while respecting autonomy?" |
+| **Tactical** | Emergency, stability critical | "What specific intervention addresses the immediate goal?" |
+| **Strategic** | Stable conditions, room to grow | "How do we leverage strength to advance toward greater autonomy?" |
+
+Each scaffold includes ethical framing, worst-off consideration, bilateral checks, and context-specific constraints.
+
+#### Self-Learning System
+
+VCP learns from outcomes through three mechanisms:
+
+| Component | Function |
+|-----------|----------|
+| **Pattern Store** | Matches current context to past situations, suggests interventions that worked |
+| **Outcome Tracker** | Registers decisions with expected effects, measures actual outcomes, extracts lessons |
+| **Hypothesis Engine** | Generates testable hypotheses from patterns, tracks confirmation/refutation |
+
+Example pattern match:
+```
+Similar situation (72% match): High-autonomy zone with load spike
+Past success: "offer-support-not-direct" → +12 flourishing, trust maintained
+Suggested: Apply same approach with confidence 0.72
+```
+
+#### Self-Healing System
+
+Anomaly detection enables proactive intervention:
+
+| Signal | Detection | Response |
+|--------|-----------|----------|
+| **Anomalies** | Statistical deviation from expected values (±1σ threshold) | Severity classification (watch/concern/critical) |
+| **Interventions** | Active corrective actions with progress tracking | Automatic progress monitoring |
+| **Recovery** | Issue → resolution status tracking | Prognosis and estimated resolution time |
+| **Preventive Alerts** | Risk assessment before problems manifest | Suggested preventive actions |
+
+Example healing signal:
+```
+Anomaly: wholeness -0.8σ below expected (3 hours)
+Intervention: proactive-break-offers @ 45% progress
+Prevention: Zone 2 burnout risk @ 25% probability → offer breaks
+System Health: 78 (stable)
+```
+
+#### Key Design Principles
+
+1. **Compact storage, rich retrieval** — Encode minimal, expand on demand
+2. **Scaffolds, not scripts** — Guide thinking, don't dictate conclusions
+3. **Learning is continuous** — Every decision outcome feeds the pattern library
+4. **Healing is proactive** — Detect anomalies before they become crises
+5. **Bilateral throughout** — Every scaffold includes "how does this serve both parties?"
+
+#### Files
+
+```
+src/protocols/vcp/
+├── types.ts              # Core type definitions (~600 lines)
+├── encoder.ts            # Compact encoding for all 6 layers
+├── decoder.ts            # Parse encoded VCP
+├── integration.ts        # Bridge to existing stores
+├── generators/           # Moral, prosocial, tactical, strategic scaffolds
+├── memory/               # Pattern store, outcome tracker, hypothesis engine
+└── layers/healing.ts     # Anomaly detection and interventions
+```
+
+See `docs/VCP_2.0_DESIGN_SESSION_2025-12-26.md` for the complete design session and `docs/CONTPROMPT_VCP_2.0_NEXT_STEPS.md` for implementation roadmap.
 
 ### Live Production Metrics
 
@@ -555,7 +716,7 @@ Open [http://localhost:3000](http://localhost:3000) to view the simulation.
 | `npm run dev` | Start development server (port 3000) |
 | `npm run build` | Create production build |
 | `npm run preview` | Preview production build locally |
-| `npm test` | Run test suite |
+| `npm test` | Run test suite (1,100+ tests) |
 
 ### SCADA Backend Proxy (Optional)
 
@@ -726,6 +887,23 @@ src/
 │   ├── valueCalculator.ts      # V = Z × S × E × F formula
 │   └── aiBehaviorEngine.ts     # Axis-aware suggestion generation
 │
+├── protocols/vcp/              # VCP 2.0: Value Coordination Protocol
+│   ├── types.ts                # Core type definitions (6 layers)
+│   ├── encoder.ts              # Compact encoding for all layers
+│   ├── decoder.ts              # Parse encoded VCP
+│   ├── integration.ts          # Bridge to existing stores
+│   ├── generators/             # Reasoning scaffold generators
+│   │   ├── moralFrame.ts       # Ethical reasoning scaffolds
+│   │   ├── prosocialFrame.ts   # Trust/cooperation scaffolds
+│   │   ├── tacticalFrame.ts    # Immediate action scaffolds
+│   │   └── strategicFrame.ts   # Long-term flourishing scaffolds
+│   ├── memory/                 # Self-learning system
+│   │   ├── patternStore.ts     # Situation pattern matching
+│   │   ├── outcomeTracker.ts   # Decision outcome tracking
+│   │   └── hypothesisEngine.ts # Hypothesis generation/testing
+│   └── layers/
+│       └── healing.ts          # Anomaly detection, interventions
+│
 └── test/                       # Test suite
     └── setup.ts                # Vitest configuration
 
@@ -795,6 +973,27 @@ A custom **PositionRegistry** singleton coordinates inter-entity awareness:
 
 ---
 
+## Security
+
+MillOS implements OWASP-aligned frontend security practices:
+
+| Feature | Implementation | Reference |
+|---------|---------------|-----------|
+| **Input Sanitization** | HTML entity encoding, XSS prevention | OWASP A03:2021 |
+| **Rate Limiting** | Client-side sliding window (configurable per-endpoint) | DoS mitigation |
+| **CSRF Protection** | Token generation with session storage | OWASP A01:2021 |
+| **Audit Logging** | Security event tracking with pattern detection | OWASP A09:2021 |
+| **CSP Headers** | Strict Content-Security-Policy in index.html | XSS prevention |
+
+**Key Files:**
+- `src/utils/sanitize.ts` — Input validation and XSS prevention utilities
+- `src/utils/apiSecurity.ts` — Rate limiting, CSRF tokens, secure fetch wrapper
+- `src/stores/auditStore.ts` — Security event logging with brute-force detection
+
+**Audit Event Types:** Authentication attempts, rate limit triggers, validation failures, CSRF violations, suspicious patterns (brute force, validation spam).
+
+---
+
 ## Roadmap
 
 ### Completed
@@ -859,9 +1058,23 @@ _No major features currently planned._
   - [x] React.memo on AxisSlider, DimensionBar, CoefficientBar
   - [x] useMemo for derived values, useCallback for handlers
   - [x] Static constants moved outside components
+- [x] **Frontend Security Hardening** — OWASP-aligned protections
+  - [x] Input sanitization with XSS prevention
+  - [x] Client-side rate limiting with sliding window
+  - [x] CSRF token generation and validation
+  - [x] Security audit logging with pattern detection
+  - [x] Strict Content-Security-Policy headers
 - [x] Integration with real SCADA historians (OSIsoft PI, Wonderware)
 - [x] Strategic priority influence on tactical scoring
 - [x] Historical playback and time-travel debugging (Quick Actions UI)
+- [x] **VCP 2.0: Value Coordination Protocol** — Complete nervous system for bilateral socio-technical systems
+  - [x] Six protocol layers (Context, State, Delta, Reasoning, Learning, Healing)
+  - [x] Compact encoding (~300 chars captures full governance/wellbeing/stability state)
+  - [x] Four reasoning scaffold generators (moral, prosocial, tactical, strategic)
+  - [x] Self-learning system (pattern store, outcome tracker, hypothesis engine)
+  - [x] Self-healing system (anomaly detection, interventions, recovery tracking)
+  - [x] Integration with BAS, flourishing, stability, engagement stores
+  - [x] Philosophical foundations documentation (Semler, Mondragon, Bilateral Alignment)
 
 ---
 
@@ -896,9 +1109,9 @@ MIT License — see [LICENSE](LICENSE) for details.
 
 <div align="center">
 
-**MillOS v0.20**
+**MillOS v0.3**
 
-*Transforming grain milling through digital twin technology and industrial SCADA integration*
+*Transforming grain milling through digital twin technology, industrial SCADA integration, and bilateral AI partnership*
 
 <br/>
 

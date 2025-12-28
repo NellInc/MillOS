@@ -374,8 +374,9 @@ const QualitySuggestion: React.FC = () => {
 
   return (
     <div
-      className={`mt-2 p-2 rounded-lg border ${isLowering ? 'bg-red-900/30 border-red-500/50' : 'bg-green-900/30 border-green-500/50'
-        }`}
+      className={`mt-2 p-2 rounded-lg border ${
+        isLowering ? 'bg-red-900/30 border-red-500/50' : 'bg-green-900/30 border-green-500/50'
+      }`}
     >
       <div className="flex items-start gap-2">
         <div className={`mt-0.5 ${isLowering ? 'text-red-400' : 'text-green-400'}`}>
@@ -395,10 +396,11 @@ const QualitySuggestion: React.FC = () => {
           <div className="flex gap-1.5 mt-2">
             <button
               onClick={handleAccept}
-              className={`flex-1 py-1 px-2 rounded text-[9px] font-bold transition-all ${isLowering
+              className={`flex-1 py-1 px-2 rounded text-[9px] font-bold transition-all ${
+                isLowering
                   ? 'bg-red-600 hover:bg-red-500 text-white'
                   : 'bg-green-600 hover:bg-green-500 text-white'
-                }`}
+              }`}
             >
               Switch to {pendingSuggestion.targetQuality.toUpperCase()}
             </button>
@@ -481,10 +483,11 @@ export const FPSDisplay: React.FC<FPSDisplayProps> = ({ showDetailed = false }) 
         <span className="text-slate-400">Quality Hints</span>
         <button
           onClick={() => setQualitySuggestionsEnabled(!qualitySuggestionsEnabled)}
-          className={`px-2 py-0.5 rounded text-[9px] font-bold transition-all ${qualitySuggestionsEnabled
+          className={`px-2 py-0.5 rounded text-[9px] font-bold transition-all ${
+            qualitySuggestionsEnabled
               ? 'bg-cyan-600 text-white'
               : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
-            }`}
+          }`}
         >
           {qualitySuggestionsEnabled ? 'ON' : 'OFF'}
         </button>
@@ -529,10 +532,11 @@ export const FPSDisplay: React.FC<FPSDisplayProps> = ({ showDetailed = false }) 
         <span className="text-slate-400">Profiler</span>
         <button
           onClick={() => setProfilingEnabled(!profilingEnabled)}
-          className={`px-2 py-0.5 rounded text-[9px] font-bold transition-all ${profilingEnabled
+          className={`px-2 py-0.5 rounded text-[9px] font-bold transition-all ${
+            profilingEnabled
               ? 'bg-orange-600 text-white'
               : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
-            }`}
+          }`}
         >
           {profilingEnabled ? 'ON' : 'OFF'}
         </button>

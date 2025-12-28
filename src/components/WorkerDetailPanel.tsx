@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Briefcase,
@@ -18,16 +18,24 @@ import {
   Lightbulb,
   Handshake,
   AlertTriangle,
+  ClipboardList,
+  History,
+  Check,
+  X,
 } from 'lucide-react';
 import { WorkerData, PerformanceReview, SkillLevel } from '../types';
 import { toSkillLevel } from '../utils/typeGuards';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 import { useWorkerMoodStore } from '../stores/workerMoodStore';
+import { useProductionStore } from '../stores/productionStore';
+import { getWorkerPortrait } from '../utils/workerPortraits';
 
 interface WorkerDetailPanelProps {
   worker: WorkerData;
   onClose: () => void;
   embedded?: boolean;
+  onAssignTask?: (worker: WorkerData) => void;
+  onViewHistory?: (worker: WorkerData) => void;
 }
 
 // Promotion level configuration
@@ -47,6 +55,22 @@ const SKILL_NAMES: Record<keyof NonNullable<WorkerData['skills']>, string> = {
   troubleshooting: 'Troubleshooting',
   teamwork: 'Teamwork',
 };
+
+// Available tasks for assignment
+const AVAILABLE_TASKS: { task: string; machine?: string; category: string }[] = [
+  { task: 'Overseeing production line', category: 'Supervision' },
+  { task: 'Calibrating Roller Mill', machine: 'roller-mill-1', category: 'Operations' },
+  { task: 'Monitoring Silo levels', machine: 'silo-alpha', category: 'Operations' },
+  { task: 'Testing flour samples', machine: 'qc-lab', category: 'Quality Control' },
+  { task: 'Preventive maintenance', machine: 'packer-1', category: 'Maintenance' },
+  { task: 'Safety inspection', category: 'Safety' },
+  { task: 'Loading grain', machine: 'silo-gamma', category: 'Operations' },
+  { task: 'Optimizing Plansifter', machine: 'plansifter-a', category: 'Operations' },
+  { task: 'Operating Packer', machine: 'packer-2', category: 'Operations' },
+  { task: 'Moisture analysis', machine: 'qc-lab', category: 'Quality Control' },
+  { task: 'Break', category: 'Break' },
+  { task: 'idle', category: 'Other' },
+];
 
 // Cache for generated data - persists across renders
 const reviewCache = new Map<string, PerformanceReview[]>();
@@ -265,14 +289,52 @@ export const WorkerDetailPanel: React.FC<WorkerDetailPanelProps> = ({
   worker,
   onClose,
   embedded = false,
+  onAssignTask,
+  onViewHistory,
 }) => {
-  const [activeTab, setActiveTab] = useState<'overview' | 'skills' | 'reviews' | 'alignment'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'skills' | 'reviews' | 'alignment'>(
+    'overview'
+  );
+  const [showTaskDropdown, setShowTaskDropdown] = useState(false);
   const panelRef = useRef<HTMLDivElement | null>(null);
+
+  // Get worker portrait
+  const portrait = useMemo(() => getWorkerPortrait(worker.id), [worker.id]);
 
   // Bilateral Alignment: Get worker mood/preferences from store
   const workerMood = useWorkerMoodStore((state) => state.workerMoods[worker.id]);
 
+  // Production store for task assignment
+  const updateWorkerTask = useProductionStore((state) => state.updateWorkerTask);
+
   useFocusTrap(panelRef as React.RefObject<HTMLElement>, !embedded, onClose);
+
+  // Button handlers
+  const handleAssignTask = useCallback(() => {
+    if (onAssignTask) {
+      onAssignTask(worker);
+    } else {
+      // Toggle the task dropdown
+      setShowTaskDropdown((prev) => !prev);
+    }
+  }, [worker, onAssignTask]);
+
+  const handleSelectTask = useCallback(
+    (task: string, machine?: string) => {
+      updateWorkerTask(worker.id, task, machine);
+      setShowTaskDropdown(false);
+    },
+    [worker.id, updateWorkerTask]
+  );
+
+  const handleViewHistory = useCallback(() => {
+    if (onViewHistory) {
+      onViewHistory(worker);
+    } else {
+      // Default behavior: switch to reviews tab
+      setActiveTab('reviews');
+    }
+  }, [worker, onViewHistory]);
 
   // Derive promotion level from experience
   const promotionLevel = useMemo(() => {
@@ -337,10 +399,10 @@ export const WorkerDetailPanel: React.FC<WorkerDetailPanelProps> = ({
   const animationProps = embedded
     ? {}
     : {
-      initial: { opacity: 0, y: 20, scale: 0.95 },
-      animate: { opacity: 1, y: 0, scale: 1 },
-      exit: { opacity: 0, y: 20, scale: 0.95 },
-    };
+        initial: { opacity: 0, y: 20, scale: 0.95 },
+        animate: { opacity: 1, y: 0, scale: 1 },
+        exit: { opacity: 0, y: 20, scale: 0.95 },
+      };
 
   return (
     <motion.div
@@ -366,8 +428,17 @@ export const WorkerDetailPanel: React.FC<WorkerDetailPanelProps> = ({
             </button>
           )}
           <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-full bg-white/20 flex items-center justify-center relative">
-              {getWorkerIcon(worker.role)}
+            <div className="w-16 h-16 rounded-full bg-white/20 flex items-center justify-center relative overflow-hidden">
+              {portrait ? (
+                <img
+                  src={portrait}
+                  alt={worker.name}
+                  className="w-full h-full object-cover"
+                  loading="lazy"
+                />
+              ) : (
+                getWorkerIcon(worker.role)
+              )}
               {/* Promotion badge */}
               <div
                 className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white border-2 border-white/30"
@@ -412,10 +483,11 @@ export const WorkerDetailPanel: React.FC<WorkerDetailPanelProps> = ({
               aria-selected={activeTab === tab.id}
               aria-controls={`${tab.id}-panel`}
               onClick={() => setActiveTab(tab.id as typeof activeTab)}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-inset focus:ring-cyan-500 ${activeTab === tab.id
-                ? 'text-cyan-400 border-b-2 border-cyan-400 bg-cyan-500/10'
-                : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
-                }`}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-inset focus:ring-cyan-500 ${
+                activeTab === tab.id
+                  ? 'text-cyan-400 border-b-2 border-cyan-400 bg-cyan-500/10'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+              }`}
             >
               <tab.icon className="w-3.5 h-3.5" aria-hidden="true" />
               {tab.label}
@@ -578,7 +650,9 @@ export const WorkerDetailPanel: React.FC<WorkerDetailPanelProps> = ({
                             <Heart className="w-3 h-3" />
                             Management Trust
                           </span>
-                          <span className={`font-medium ${workerMood.preferences.managementTrust >= 70 ? 'text-green-400' : workerMood.preferences.managementTrust >= 50 ? 'text-amber-400' : 'text-red-400'}`}>
+                          <span
+                            className={`font-medium ${workerMood.preferences.managementTrust >= 70 ? 'text-green-400' : workerMood.preferences.managementTrust >= 50 ? 'text-amber-400' : 'text-red-400'}`}
+                          >
                             {workerMood.preferences.managementTrust}%
                           </span>
                         </div>
@@ -597,7 +671,9 @@ export const WorkerDetailPanel: React.FC<WorkerDetailPanelProps> = ({
                             <Lightbulb className="w-3 h-3" />
                             Initiative
                           </span>
-                          <span className={`font-medium ${workerMood.preferences.initiative >= 70 ? 'text-cyan-400' : workerMood.preferences.initiative >= 50 ? 'text-amber-400' : 'text-red-400'}`}>
+                          <span
+                            className={`font-medium ${workerMood.preferences.initiative >= 70 ? 'text-cyan-400' : workerMood.preferences.initiative >= 50 ? 'text-amber-400' : 'text-red-400'}`}
+                          >
                             {workerMood.preferences.initiative}%
                           </span>
                         </div>
@@ -616,15 +692,24 @@ export const WorkerDetailPanel: React.FC<WorkerDetailPanelProps> = ({
                         Preference Status
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${workerMood.preferenceStatus === 'satisfied' ? 'bg-green-500/20 text-green-300' :
-                          workerMood.preferenceStatus === 'pending' ? 'bg-amber-500/20 text-amber-300' :
-                            workerMood.preferenceStatus === 'denied' ? 'bg-red-500/20 text-red-300' :
-                              'bg-blue-500/20 text-blue-300'
-                          }`}>
-                          {workerMood.preferenceStatus === 'satisfied' ? '✅ Satisfied' :
-                            workerMood.preferenceStatus === 'pending' ? '✋ Request Pending' :
-                              workerMood.preferenceStatus === 'denied' ? '❌ Recently Denied' :
-                                '⚖️ Negotiating'}
+                        <span
+                          className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            workerMood.preferenceStatus === 'satisfied'
+                              ? 'bg-green-500/20 text-green-300'
+                              : workerMood.preferenceStatus === 'pending'
+                                ? 'bg-amber-500/20 text-amber-300'
+                                : workerMood.preferenceStatus === 'denied'
+                                  ? 'bg-red-500/20 text-red-300'
+                                  : 'bg-blue-500/20 text-blue-300'
+                          }`}
+                        >
+                          {workerMood.preferenceStatus === 'satisfied'
+                            ? '✅ Satisfied'
+                            : workerMood.preferenceStatus === 'pending'
+                              ? '✋ Request Pending'
+                              : workerMood.preferenceStatus === 'denied'
+                                ? '❌ Recently Denied'
+                                : '⚖️ Negotiating'}
                         </span>
                       </div>
 
@@ -638,10 +723,13 @@ export const WorkerDetailPanel: React.FC<WorkerDetailPanelProps> = ({
                                 Pending Request
                               </div>
                               <div className="text-xs text-amber-200/80 mt-1">
-                                {workerMood.preferences.activeRequest.type === 'assignment' ? 'Machine assignment preference' :
-                                  workerMood.preferences.activeRequest.type === 'colleague' ? 'Colleague pairing preference' :
-                                    workerMood.preferences.activeRequest.type === 'shift' ? 'Shift timing preference' :
-                                      'Break timing preference'}
+                                {workerMood.preferences.activeRequest.type === 'assignment'
+                                  ? 'Machine assignment preference'
+                                  : workerMood.preferences.activeRequest.type === 'colleague'
+                                    ? 'Colleague pairing preference'
+                                    : workerMood.preferences.activeRequest.type === 'shift'
+                                      ? 'Shift timing preference'
+                                      : 'Break timing preference'}
                               </div>
                             </div>
                           </div>
@@ -679,14 +767,18 @@ export const WorkerDetailPanel: React.FC<WorkerDetailPanelProps> = ({
                         <div>
                           <div className="flex items-center justify-between text-xs mb-1">
                             <span className="text-slate-400">Reporting Willingness</span>
-                            <span className={`font-medium ${workerMood.safetyBehavior.reportingWillingness >= 70 ? 'text-green-400' : workerMood.safetyBehavior.reportingWillingness >= 50 ? 'text-amber-400' : 'text-red-400'}`}>
+                            <span
+                              className={`font-medium ${workerMood.safetyBehavior.reportingWillingness >= 70 ? 'text-green-400' : workerMood.safetyBehavior.reportingWillingness >= 50 ? 'text-amber-400' : 'text-red-400'}`}
+                            >
                               {Math.round(workerMood.safetyBehavior.reportingWillingness)}%
                             </span>
                           </div>
                           <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
                             <div
                               className={`h-full rounded-full transition-all ${workerMood.safetyBehavior.reportingWillingness >= 70 ? 'bg-green-500' : workerMood.safetyBehavior.reportingWillingness >= 50 ? 'bg-amber-500' : 'bg-red-500'}`}
-                              style={{ width: `${workerMood.safetyBehavior.reportingWillingness}%` }}
+                              style={{
+                                width: `${workerMood.safetyBehavior.reportingWillingness}%`,
+                              }}
                             />
                           </div>
                           {workerMood.safetyBehavior.reportingWillingness < 50 && (
@@ -710,13 +802,76 @@ export const WorkerDetailPanel: React.FC<WorkerDetailPanelProps> = ({
         </div>
 
         {/* Actions */}
-        <div className="p-4 border-t border-slate-700/50 flex gap-2 flex-shrink-0">
-          <button className="flex-1 bg-blue-600 hover:bg-blue-500 text-white text-sm py-2 rounded-lg font-medium transition-colors">
-            Assign Task
-          </button>
-          <button className="flex-1 bg-slate-700 hover:bg-slate-600 text-white text-sm py-2 rounded-lg font-medium transition-colors">
-            View History
-          </button>
+        <div className="p-4 border-t border-slate-700/50 flex-shrink-0 relative">
+          {/* Task Assignment Dropdown */}
+          <AnimatePresence>
+            {showTaskDropdown && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 10 }}
+                className="absolute bottom-full left-4 right-4 mb-2 bg-slate-800 border border-slate-600 rounded-lg shadow-xl max-h-64 overflow-y-auto z-10"
+              >
+                <div className="p-2 border-b border-slate-700 flex items-center justify-between">
+                  <span className="text-xs font-medium text-slate-300">
+                    Select Task for {worker.name}
+                  </span>
+                  <button
+                    onClick={() => setShowTaskDropdown(false)}
+                    className="text-slate-400 hover:text-white"
+                    aria-label="Close task dropdown"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+                <div className="p-1">
+                  {AVAILABLE_TASKS.map((item, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => handleSelectTask(item.task, item.machine)}
+                      className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors flex items-center justify-between gap-2 ${
+                        worker.currentTask === item.task
+                          ? 'bg-cyan-500/20 text-cyan-300'
+                          : 'text-slate-300 hover:bg-slate-700/50'
+                      }`}
+                    >
+                      <div>
+                        <div className="font-medium">{item.task}</div>
+                        <div className="text-[10px] text-slate-500">
+                          {item.machine ? `@ ${item.machine}` : item.category}
+                        </div>
+                      </div>
+                      {worker.currentTask === item.task && (
+                        <Check className="w-4 h-4 text-cyan-400 flex-shrink-0" />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <div className="flex gap-2">
+            <button
+              onClick={handleAssignTask}
+              className={`flex-1 text-white text-sm py-2 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 ${
+                showTaskDropdown ? 'bg-cyan-600 hover:bg-cyan-500' : 'bg-blue-600 hover:bg-blue-500'
+              }`}
+              aria-label={`Assign task to ${worker.name}`}
+              aria-expanded={showTaskDropdown}
+            >
+              <ClipboardList className="w-4 h-4" />
+              {showTaskDropdown ? 'Cancel' : 'Assign Task'}
+            </button>
+            <button
+              onClick={handleViewHistory}
+              className="flex-1 bg-slate-700 hover:bg-slate-600 text-white text-sm py-2 rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+              aria-label={`View history for ${worker.name}`}
+            >
+              <History className="w-4 h-4" />
+              View History
+            </button>
+          </div>
         </div>
       </div>
     </motion.div>

@@ -54,7 +54,6 @@ const smoothstep = (t: number): number => t * t * (3 - 2 * t);
 
 const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
 
-
 // =============================================================================
 // SHIPPING DOCK (Front of building, z=50)
 // Uses 90-degree alley dock: Drive past, swing left, back straight in
@@ -542,4 +541,3 @@ export const calculateReceivingTruckState = (cycle: number, time: number): Truck
     doorsOpen: false,
   };
 };
-

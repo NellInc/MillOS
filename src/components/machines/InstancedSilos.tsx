@@ -16,6 +16,8 @@ import {
   getCullDistanceSquared,
 } from './MachineLOD';
 import { useModelTextures } from '../../utils/machineTextures';
+import { MemoizedStatusRing } from './StatusRing';
+import { PROCEDURAL_TEXTURES } from '../../utils/sharedMaterials';
 
 // Shared materials (base - textures applied via hook)
 const MATERIALS = {
@@ -75,12 +77,13 @@ const MaintenanceCountdown: React.FC<{
   return (
     <Html position={position} center distanceFactor={12}>
       <div
-        className={`bg-slate-900/90 backdrop-blur px-2 py-1 rounded border ${isCritical
-          ? 'border-red-500/50 animate-pulse'
-          : isUrgent
-            ? 'border-amber-500/50'
-            : 'border-slate-700'
-          }`}
+        className={`bg-slate-900/90 backdrop-blur px-2 py-1 rounded border ${
+          isCritical
+            ? 'border-red-500/50 animate-pulse'
+            : isUrgent
+              ? 'border-amber-500/50'
+              : 'border-slate-700'
+        }`}
       >
         <div className="text-[8px] text-slate-500 uppercase tracking-wider">Maintenance</div>
         <div className="text-xs font-mono font-bold flex items-center gap-1" style={{ color }}>
@@ -173,26 +176,27 @@ export const InstancedSilos: React.FC<InstancedSilosProps> = ({ machines, onSele
     [quality]
   );
 
-  // Apply textures to materials (high/ultra only)
+  // Apply textures to materials (external or procedural fallback)
   useEffect(() => {
-    if (textures.roughness) {
-      MATERIALS.body.roughnessMap = textures.roughness;
-      MATERIALS.body.needsUpdate = true;
-    }
-    if (textures.normal) {
-      MATERIALS.body.normalMap = textures.normal;
-      MATERIALS.body.normalScale = new THREE.Vector2(0.5, 0.5);
-      MATERIALS.body.needsUpdate = true;
-    }
-    if (textures.ao) {
-      MATERIALS.darkMetal.roughnessMap = textures.ao; // Use AO as roughness variation
-      MATERIALS.darkMetal.needsUpdate = true;
-    }
+    const roughnessMap = textures.roughness || PROCEDURAL_TEXTURES.brushedMetal;
+    const normalMap = textures.normal || PROCEDURAL_TEXTURES.panelNormal;
+
+    // Body - metallic silo surface
+    MATERIALS.body.roughnessMap = roughnessMap;
+    MATERIALS.body.normalMap = normalMap;
+    MATERIALS.body.normalScale = new THREE.Vector2(0.3, 0.3);
+    MATERIALS.body.needsUpdate = true;
+
+    // Dark metal (legs, ladder)
+    MATERIALS.darkMetal.roughnessMap = textures.ao || PROCEDURAL_TEXTURES.brushedMetal;
+    MATERIALS.darkMetal.normalMap = normalMap;
+    MATERIALS.darkMetal.normalScale = new THREE.Vector2(0.2, 0.2);
+    MATERIALS.darkMetal.needsUpdate = true;
   }, [textures]);
 
   // Determine if machines list has structurally changed (added/removed/reordered)
   // This prevents running expensive matrix updates on every SCADA tick (which returns new array references)
-  const machinesSignature = useMemo(() => machines.map(m => m.id).join(','), [machines]);
+  const machinesSignature = useMemo(() => machines.map((m) => m.id).join(','), [machines]);
 
   // Initialize static positions (Body, Cones, Legs, Ladders)
   useEffect(() => {
@@ -447,6 +451,14 @@ export const InstancedSilos: React.FC<InstancedSilosProps> = ({ machines, onSele
       {/* HTML Overlays (Maintenance & Fill Info) */}
       {machines.map((machine) => (
         <group key={machine.id} position={machine.position}>
+          {/* Status Ring at silo base */}
+          {quality !== 'low' && (
+            <MemoizedStatusRing
+              status={machine.status as 'running' | 'idle' | 'warning' | 'critical'}
+              radius={SILO_SIZE.width / 2}
+              position={[0, 0, 0]}
+            />
+          )}
           {machine.maintenanceCountdown !== undefined && (
             <MaintenanceCountdown
               hoursRemaining={machine.maintenanceCountdown}

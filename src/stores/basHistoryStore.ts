@@ -89,11 +89,7 @@ interface BASHistoryState {
   recordPhaseTransition: (fromPhase: PhaseState, toPhase: PhaseState) => void;
 
   // Axis change tracking
-  recordAxisChange: (
-    axis: AxisKey,
-    oldValue: number,
-    newValue: number
-  ) => void;
+  recordAxisChange: (axis: AxisKey, oldValue: number, newValue: number) => void;
 
   // Queries
   getHistoryInRange: (range: TimeRange) => BASHistoryPoint[];
@@ -177,11 +173,7 @@ export const useBASHistoryStore = create<BASHistoryState>((set, get) => ({
 
     get().addEvent({
       type: isCrisis ? 'crisis' : isRecovery ? 'recovery' : 'phase-transition',
-      title: isCrisis
-        ? 'Stability Crisis'
-        : isRecovery
-          ? 'System Recovery'
-          : 'Phase Transition',
+      title: isCrisis ? 'Stability Crisis' : isRecovery ? 'System Recovery' : 'Phase Transition',
       description: `System transitioned from ${fromPhase} to ${toPhase}`,
       metadata: { fromPhase, toPhase },
     });
@@ -219,11 +211,8 @@ export const useBASHistoryStore = create<BASHistoryState>((set, get) => ({
     const lastThird = points.slice(-third);
 
     const firstAvg =
-      firstThird.reduce((sum, p) => sum + (p[metric] as number), 0) /
-      firstThird.length;
-    const lastAvg =
-      lastThird.reduce((sum, p) => sum + (p[metric] as number), 0) /
-      lastThird.length;
+      firstThird.reduce((sum, p) => sum + (p[metric] as number), 0) / firstThird.length;
+    const lastAvg = lastThird.reduce((sum, p) => sum + (p[metric] as number), 0) / lastThird.length;
 
     const delta = lastAvg - firstAvg;
 

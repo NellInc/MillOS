@@ -16,7 +16,12 @@
 import { logger } from './logger';
 
 // Local type definition (auditStore not yet implemented)
-type AuditEventType = 'api_request' | 'api_error' | 'rate_limit' | 'rate_limit_exceeded' | 'security_event';
+type AuditEventType =
+  | 'api_request'
+  | 'api_error'
+  | 'rate_limit'
+  | 'rate_limit_exceeded'
+  | 'security_event';
 
 // =============================================================================
 // RATE LIMITING
@@ -211,10 +216,7 @@ export function debounce<T extends (...args: unknown[]) => unknown>(
  * @param intervalMs - Minimum interval between calls in milliseconds
  * @returns Throttled function
  */
-export function throttle<T extends (...args: unknown[]) => unknown>(
-  fn: T,
-  intervalMs: number
-): T {
+export function throttle<T extends (...args: unknown[]) => unknown>(fn: T, intervalMs: number): T {
   let lastCall = 0;
   let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
@@ -301,12 +303,8 @@ export function decodeTokenPayload(token: unknown): TokenPayload | null {
  * @param bufferSeconds - Buffer time before actual expiration (default: 30)
  * @returns True if token is expired or will expire within buffer
  */
-export function isTokenExpired(
-  token: string | TokenPayload | null,
-  bufferSeconds = 30
-): boolean {
-  const payload =
-    typeof token === 'string' ? decodeTokenPayload(token) : token;
+export function isTokenExpired(token: string | TokenPayload | null, bufferSeconds = 30): boolean {
+  const payload = typeof token === 'string' ? decodeTokenPayload(token) : token;
 
   if (!payload || typeof payload.exp !== 'number') {
     return true;
@@ -323,8 +321,7 @@ export function isTokenExpired(
  * @returns Seconds until expiration, or 0 if expired/invalid
  */
 export function getTokenExpiresIn(token: string | TokenPayload | null): number {
-  const payload =
-    typeof token === 'string' ? decodeTokenPayload(token) : token;
+  const payload = typeof token === 'string' ? decodeTokenPayload(token) : token;
 
   if (!payload || typeof payload.exp !== 'number') {
     return 0;
@@ -347,9 +344,7 @@ export function getTokenExpiresIn(token: string | TokenPayload | null): number {
 export function generateCsrfToken(): string {
   const array = new Uint8Array(32);
   crypto.getRandomValues(array);
-  return Array.from(array, (byte) => byte.toString(16).padStart(2, '0')).join(
-    ''
-  );
+  return Array.from(array, (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
 /**
@@ -444,9 +439,7 @@ export function validateRequest(
   }
 
   // Check required headers
-  const headerKeys = Object.keys(request.headers ?? {}).map((k) =>
-    k.toLowerCase()
-  );
+  const headerKeys = Object.keys(request.headers ?? {}).map((k) => k.toLowerCase());
   for (const required of requiredHeaders) {
     if (!headerKeys.includes(required.toLowerCase())) {
       errors.push(`Missing required header: ${required}`);
@@ -476,9 +469,7 @@ export function validateRequest(
     }
 
     if (bodySize > maxBodySize) {
-      errors.push(
-        `Request body size (${bodySize} bytes) exceeds maximum (${maxBodySize} bytes)`
-      );
+      errors.push(`Request body size (${bodySize} bytes) exceeds maximum (${maxBodySize} bytes)`);
     }
   }
 
@@ -507,10 +498,7 @@ export interface SecureFetchOptions extends RequestInit {
   /** Timeout in milliseconds */
   timeoutMs?: number;
   /** Callback for audit logging */
-  onAuditEvent?: (event: {
-    type: AuditEventType;
-    details: Record<string, unknown>;
-  }) => void;
+  onAuditEvent?: (event: { type: AuditEventType; details: Record<string, unknown> }) => void;
 }
 
 /**
@@ -561,10 +549,7 @@ export async function secureFetch(
   const headers = new Headers(fetchOptions.headers);
 
   // Add CSRF token for state-changing requests
-  if (
-    includeCsrf &&
-    ['POST', 'PUT', 'PATCH', 'DELETE'].includes(fetchOptions.method ?? 'GET')
-  ) {
+  if (includeCsrf && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(fetchOptions.method ?? 'GET')) {
     headers.set('X-CSRF-Token', getOrCreateCsrfToken());
   }
 
@@ -645,10 +630,7 @@ export function maskSensitiveData(value: string, visibleChars = 4): string {
  * @param obj - Object containing sensitive fields
  * @param fields - Field names to clear
  */
-export function clearSensitiveFields(
-  obj: Record<string, unknown>,
-  fields: string[]
-): void {
+export function clearSensitiveFields(obj: Record<string, unknown>, fields: string[]): void {
   for (const field of fields) {
     if (field in obj) {
       // Overwrite with empty value

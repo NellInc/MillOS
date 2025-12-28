@@ -93,7 +93,16 @@ export const PhysicsWorker: React.FC<PhysicsWorkerProps> = ({
     const vel = rigidBodyRef.current.linvel();
 
     // Register with position registry for AI awareness
-    positionRegistry.register(data.id, pos.x, pos.z, 'worker', undefined, undefined, undefined, pos.y);
+    positionRegistry.register(
+      data.id,
+      pos.x,
+      pos.z,
+      'worker',
+      undefined,
+      undefined,
+      undefined,
+      pos.y
+    );
 
     // Notify parent of position update (for UI, heat map, etc.)
     onPositionUpdate?.(pos.x, pos.z);

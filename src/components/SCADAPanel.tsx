@@ -122,7 +122,7 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
   // Trend chart state
   const [selectedTrendTags, setSelectedTrendTags] = useState<string[]>([]);
   const [trendDuration, setTrendDuration] = useState<number>(5 * 60 * 1000); // 5 minutes default
-  const [trendData, setTrendData] = useState<Array<{ timestamp: number; [key: string]: number }>>(
+  const [trendData, setTrendData] = useState<Array<{ timestamp: number;[key: string]: number }>>(
     []
   );
   const [trendPaused, setTrendPaused] = useState(false);
@@ -260,7 +260,7 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
       const historyResults = await Promise.all(historyPromises);
 
       // Merge all history data into a single time series
-      const timeMap = new Map<number, { timestamp: number; [key: string]: number }>();
+      const timeMap = new Map<number, { timestamp: number;[key: string]: number }>();
 
       selectedTrendTags.forEach((tagId, index) => {
         const history = historyResults[index];
@@ -390,11 +390,10 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
               onClick={() => setActiveTab(tab)}
               role="tab"
               aria-selected={activeTab === tab}
-              className={`flex-1 px-2 py-1.5 rounded text-[10px] font-medium transition-colors ${
-                activeTab === tab
+              className={`flex-1 px-2 py-1.5 rounded text-[10px] font-medium transition-colors ${activeTab === tab
                   ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
                   : 'bg-slate-800/50 text-slate-300 hover:bg-slate-700/50'
-              }`}
+                }`}
             >
               {tab === 'tags' ? (
                 <>
@@ -464,11 +463,10 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
               alarms.slice(0, 10).map((alarm) => (
                 <div
                   key={alarm.id}
-                  className={`p-2 rounded-lg border ${
-                    alarm.state === 'UNACK'
+                  className={`p-2 rounded-lg border ${alarm.state === 'UNACK'
                       ? 'border-red-500/50 bg-red-500/10'
                       : 'border-slate-700/50 bg-slate-800/30'
-                  }`}
+                    }`}
                 >
                   <div className="flex items-center justify-between mb-1">
                     <span
@@ -554,11 +552,10 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
             aria-controls="scada-tab-tags"
             id="scada-tab-button-tags"
             tabIndex={activeTab === 'tags' ? 0 : -1}
-            className={`flex-1 px-4 py-2 text-sm font-medium transition-colors ${
-              activeTab === 'tags'
+            className={`flex-1 px-4 py-2 text-sm font-medium transition-colors ${activeTab === 'tags'
                 ? 'text-cyan-400 border-b-2 border-cyan-400'
                 : 'text-slate-300 hover:text-white'
-            }`}
+              }`}
           >
             <Database className="w-4 h-4 inline mr-2" aria-hidden="true" />
             Tags
@@ -570,11 +567,10 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
             aria-controls="scada-tab-alarms"
             id="scada-tab-button-alarms"
             tabIndex={activeTab === 'alarms' ? 0 : -1}
-            className={`flex-1 px-4 py-2 text-sm font-medium transition-colors relative ${
-              activeTab === 'alarms'
+            className={`flex-1 px-4 py-2 text-sm font-medium transition-colors relative ${activeTab === 'alarms'
                 ? 'text-cyan-400 border-b-2 border-cyan-400'
                 : 'text-slate-300 hover:text-white'
-            }`}
+              }`}
           >
             <Bell className="w-4 h-4 inline mr-2" aria-hidden="true" />
             Alarms
@@ -594,11 +590,10 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
             aria-controls="scada-tab-trends"
             id="scada-tab-button-trends"
             tabIndex={activeTab === 'trends' ? 0 : -1}
-            className={`flex-1 px-4 py-2 text-sm font-medium transition-colors ${
-              activeTab === 'trends'
+            className={`flex-1 px-4 py-2 text-sm font-medium transition-colors ${activeTab === 'trends'
                 ? 'text-cyan-400 border-b-2 border-cyan-400'
                 : 'text-slate-300 hover:text-white'
-            }`}
+              }`}
           >
             <TrendingUp className="w-4 h-4 inline mr-2" aria-hidden="true" />
             Trends
@@ -610,11 +605,10 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
             aria-controls="scada-tab-faults"
             id="scada-tab-button-faults"
             tabIndex={activeTab === 'faults' ? 0 : -1}
-            className={`flex-1 px-4 py-2 text-sm font-medium transition-colors ${
-              activeTab === 'faults'
+            className={`flex-1 px-4 py-2 text-sm font-medium transition-colors ${activeTab === 'faults'
                 ? 'text-cyan-400 border-b-2 border-cyan-400'
                 : 'text-slate-300 hover:text-white'
-            }`}
+              }`}
           >
             <AlertTriangle className="w-4 h-4 inline mr-2" aria-hidden="true" />
             Test
@@ -626,11 +620,10 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
             aria-controls="scada-tab-settings"
             id="scada-tab-button-settings"
             tabIndex={activeTab === 'settings' ? 0 : -1}
-            className={`flex-1 px-4 py-2 text-sm font-medium transition-colors ${
-              activeTab === 'settings'
+            className={`flex-1 px-4 py-2 text-sm font-medium transition-colors ${activeTab === 'settings'
                 ? 'text-cyan-400 border-b-2 border-cyan-400'
                 : 'text-slate-300 hover:text-white'
-            }`}
+              }`}
           >
             <Settings className="w-4 h-4 inline mr-2" aria-hidden="true" />
             Config
@@ -667,15 +660,18 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
                     className="w-full pl-10 pr-3 py-2 bg-slate-800/50 border border-slate-700/50 rounded text-sm text-white placeholder-slate-400 focus:outline-none focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/30"
                   />
                 </div>
-                <div className="flex gap-2 overflow-x-auto pb-1" role="group" aria-label="Filter tags by group">
+                <div
+                  className="flex gap-2 overflow-x-auto pb-1"
+                  role="group"
+                  aria-label="Filter tags by group"
+                >
                   <button
                     onClick={() => setSelectedGroup('ALL')}
                     aria-pressed={selectedGroup === 'ALL'}
-                    className={`px-2 py-1 rounded text-xs whitespace-nowrap ${
-                      selectedGroup === 'ALL'
+                    className={`px-2 py-1 rounded text-xs whitespace-nowrap ${selectedGroup === 'ALL'
                         ? 'bg-cyan-500/20 text-cyan-400'
                         : 'bg-slate-800/50 text-slate-300 hover:text-white'
-                    }`}
+                      }`}
                   >
                     All
                   </button>
@@ -686,11 +682,10 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
                       key={group}
                       onClick={() => setSelectedGroup(group)}
                       aria-pressed={selectedGroup === group}
-                      className={`px-2 py-1 rounded text-xs whitespace-nowrap flex items-center gap-1 ${
-                        selectedGroup === group
+                      className={`px-2 py-1 rounded text-xs whitespace-nowrap flex items-center gap-1 ${selectedGroup === group
                           ? 'bg-cyan-500/20 text-cyan-400'
                           : 'bg-slate-800/50 text-slate-300 hover:text-white'
-                      }`}
+                        }`}
                     >
                       {TAG_GROUP_ICONS[group]}
                       {group}
@@ -743,13 +738,12 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
                             return (
                               <div
                                 key={tag.id}
-                                className={`px-2 py-1.5 rounded text-xs flex items-center justify-between ${
-                                  alarmState
+                                className={`px-2 py-1.5 rounded text-xs flex items-center justify-between ${alarmState
                                     ? alarmState === 'hihi' || alarmState === 'lolo'
                                       ? 'bg-red-500/20'
                                       : 'bg-yellow-500/20'
                                     : 'bg-slate-700/30'
-                                }`}
+                                  }`}
                               >
                                 <div className="flex items-center gap-2 min-w-0">
                                   {TAG_GROUP_ICONS[tag.group]}
@@ -857,11 +851,10 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
                   alarms.map((alarm) => (
                     <div
                       key={alarm.id}
-                      className={`p-3 rounded-lg border ${
-                        alarm.state === 'UNACK' || alarm.state === 'RTN_UNACK'
+                      className={`p-3 rounded-lg border ${alarm.state === 'UNACK' || alarm.state === 'RTN_UNACK'
                           ? 'border-red-500/50 bg-red-500/10'
                           : 'border-slate-700/50 bg-slate-800/30'
-                      }`}
+                        }`}
                     >
                       <div className="flex items-start justify-between">
                         <div className="flex items-center gap-2">
@@ -934,11 +927,10 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
                         key={opt.value}
                         onClick={() => setTrendDuration(opt.value)}
                         aria-pressed={trendDuration === opt.value}
-                        className={`px-2 py-1 rounded text-xs ${
-                          trendDuration === opt.value
+                        className={`px-2 py-1 rounded text-xs ${trendDuration === opt.value
                             ? 'bg-cyan-500/20 text-cyan-400'
                             : 'bg-slate-800/50 text-slate-300 hover:text-white'
-                        }`}
+                          }`}
                       >
                         {opt.label}
                       </button>
@@ -954,11 +946,10 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
                   <button
                     onClick={() => setTrendPaused(!trendPaused)}
                     aria-pressed={trendPaused}
-                    className={`px-3 py-1 rounded text-xs flex items-center gap-1 ${
-                      trendPaused
+                    className={`px-3 py-1 rounded text-xs flex items-center gap-1 ${trendPaused
                         ? 'bg-green-500/20 text-green-400'
                         : 'bg-amber-500/20 text-amber-400'
-                    }`}
+                      }`}
                   >
                     {trendPaused ? (
                       <>
@@ -1007,7 +998,7 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
                             fontSize: '12px',
                           }}
                           labelFormatter={(ts) => new Date(ts).toLocaleTimeString()}
-                          formatter={(value: number) => [value.toFixed(2), '']}
+                          formatter={(value) => [typeof value === 'number' ? value.toFixed(2) : String(value ?? ''), '']}
                         />
                         <Legend
                           wrapperStyle={{ fontSize: '10px' }}
@@ -1085,13 +1076,12 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
                         onClick={() => toggleTrendTag(tag.id)}
                         disabled={!isSelected && selectedTrendTags.length >= 6}
                         aria-pressed={isSelected}
-                        className={`w-full px-2 py-1 rounded text-xs flex items-center justify-between ${
-                          isSelected
+                        className={`w-full px-2 py-1 rounded text-xs flex items-center justify-between ${isSelected
                             ? 'bg-cyan-500/20 text-cyan-400'
                             : selectedTrendTags.length >= 6
                               ? 'bg-slate-800/30 text-slate-500 cursor-not-allowed'
                               : 'bg-slate-800/50 text-slate-200 hover:bg-slate-700/50'
-                        }`}
+                          }`}
                       >
                         <div className="flex items-center gap-2 min-w-0">
                           {isSelected ? (
@@ -1194,7 +1184,11 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
                     <span
                       className={`flex items-center gap-1.5 text-xs ${isConnected ? 'text-green-400' : 'text-red-400'}`}
                     >
-                      {isConnected ? <Wifi className="w-3 h-3" aria-hidden="true" /> : <WifiOff className="w-3 h-3" aria-hidden="true" />}
+                      {isConnected ? (
+                        <Wifi className="w-3 h-3" aria-hidden="true" />
+                      ) : (
+                        <WifiOff className="w-3 h-3" aria-hidden="true" />
+                      )}
                       {isConnected ? 'Connected' : 'Disconnected'}
                     </span>
                   </div>
@@ -1206,11 +1200,10 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
                     <button
                       onClick={handleToggleSCADA}
                       aria-pressed={scadaEnabled}
-                      className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
-                        scadaEnabled
+                      className={`px-3 py-1 rounded text-xs font-medium transition-colors ${scadaEnabled
                           ? 'bg-green-500/20 text-green-300 border border-green-500/40'
                           : 'bg-slate-700/50 text-slate-200 border border-slate-600/60'
-                      }`}
+                        }`}
                     >
                       {scadaEnabled ? 'Enabled' : 'Disabled'}
                     </button>
@@ -1257,11 +1250,10 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
                         key={type}
                         onClick={() => setConnectionType(type)}
                         aria-pressed={connectionType === type}
-                        className={`p-3 rounded-lg text-left transition-colors ${
-                          connectionType === type
+                        className={`p-3 rounded-lg text-left transition-colors ${connectionType === type
                             ? 'bg-cyan-500/20 border border-cyan-500/50'
                             : 'bg-slate-800/50 border border-slate-700/50 hover:border-slate-600/50'
-                        }`}
+                          }`}
                       >
                         <div className="flex items-center gap-2 mb-1">
                           <Icon
@@ -1289,7 +1281,10 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
                     </legend>
                     <div className="space-y-2">
                       <div>
-                        <label htmlFor="rest-base-url" className="block text-xs text-slate-300 mb-1">
+                        <label
+                          htmlFor="rest-base-url"
+                          className="block text-xs text-slate-300 mb-1"
+                        >
                           Base URL
                         </label>
                         <input
@@ -1302,7 +1297,10 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
                         />
                       </div>
                       <div>
-                        <label htmlFor="rest-poll-interval" className="block text-xs text-slate-300 mb-1">
+                        <label
+                          htmlFor="rest-poll-interval"
+                          className="block text-xs text-slate-300 mb-1"
+                        >
                           Poll Interval (ms)
                         </label>
                         <input
@@ -1333,7 +1331,10 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
                     </legend>
                     <div className="space-y-2">
                       <div>
-                        <label htmlFor="mqtt-broker-url" className="block text-xs text-slate-300 mb-1">
+                        <label
+                          htmlFor="mqtt-broker-url"
+                          className="block text-xs text-slate-300 mb-1"
+                        >
                           Broker URL (WebSocket)
                         </label>
                         <input
@@ -1346,7 +1347,10 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
                         />
                       </div>
                       <div>
-                        <label htmlFor="mqtt-topic-prefix" className="block text-xs text-slate-300 mb-1">
+                        <label
+                          htmlFor="mqtt-topic-prefix"
+                          className="block text-xs text-slate-300 mb-1"
+                        >
                           Topic Prefix
                         </label>
                         <input
@@ -1415,11 +1419,10 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
                 {settingsMessage && (
                   <div
                     role="alert"
-                    className={`p-3 rounded-lg text-sm ${
-                      settingsMessage.type === 'success'
+                    className={`p-3 rounded-lg text-sm ${settingsMessage.type === 'success'
                         ? 'bg-green-500/20 text-green-400 border border-green-500/30'
                         : 'bg-red-500/20 text-red-400 border border-red-500/30'
-                    }`}
+                      }`}
                   >
                     {settingsMessage.text}
                   </div>

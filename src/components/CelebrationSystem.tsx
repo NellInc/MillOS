@@ -222,8 +222,9 @@ export const CelebrationSystem: React.FC = () => {
       };
 
       const announceUnlock = (achievementId: string, fallbackName: string) => {
-        const messages = achievementMessages[achievementId] ||
-          [`ACHIEVEMENT UNLOCKED: ${fallbackName}! Congratulations, we suppose.`];
+        const messages = achievementMessages[achievementId] || [
+          `ACHIEVEMENT UNLOCKED: ${fallbackName}! Congratulations, we suppose.`,
+        ];
         const message = messages[Math.floor(Math.random() * messages.length)];
         addAnnouncement({
           type: 'production',
@@ -235,7 +236,7 @@ export const CelebrationSystem: React.FC = () => {
       };
 
       // 1. "Getting Started" - bags produced (ID: bags-1k)
-      const bagsAchievement = achievements.find(a => a.id === 'bags-1k');
+      const bagsAchievement = achievements.find((a) => a.id === 'bags-1k');
       if (bagsAchievement && !bagsAchievement.unlockedAt) {
         updateAchievementProgress('bags-1k', totalBagsProduced);
         if (totalBagsProduced >= bagsAchievement.requirement) {
@@ -245,7 +246,7 @@ export const CelebrationSystem: React.FC = () => {
       }
 
       // 2. "Production Pro" - 10,000 bags (ID: bags-10k)
-      const bags10kAchievement = achievements.find(a => a.id === 'bags-10k');
+      const bags10kAchievement = achievements.find((a) => a.id === 'bags-10k');
       if (bags10kAchievement && !bags10kAchievement.unlockedAt) {
         updateAchievementProgress('bags-10k', totalBagsProduced);
         if (totalBagsProduced >= bags10kAchievement.requirement) {
@@ -255,7 +256,7 @@ export const CelebrationSystem: React.FC = () => {
       }
 
       // 3. "Safety First" - days without incident (ID: safety-5)
-      const safetyAchievement = achievements.find(a => a.id === 'safety-5');
+      const safetyAchievement = achievements.find((a) => a.id === 'safety-5');
       if (safetyAchievement && !safetyAchievement.unlockedAt) {
         updateAchievementProgress('safety-5', safetyMetrics.daysSinceIncident);
         if (safetyMetrics.daysSinceIncident >= safetyAchievement.requirement) {
@@ -265,7 +266,7 @@ export const CelebrationSystem: React.FC = () => {
       }
 
       // 4. "Steady Runner" - sustained 90% uptime (ID: efficiency-sustained)
-      const efficiencyAchievement = achievements.find(a => a.id === 'efficiency-sustained');
+      const efficiencyAchievement = achievements.find((a) => a.id === 'efficiency-sustained');
       if (efficiencyAchievement && !efficiencyAchievement.unlockedAt) {
         if (metrics.uptime >= 90) {
           efficiencyStreakRef.current += 1;
@@ -280,7 +281,7 @@ export const CelebrationSystem: React.FC = () => {
       }
 
       // 5. "Quality Streak" - sustained 95% quality (ID: quality-streak)
-      const qualityAchievement = achievements.find(a => a.id === 'quality-streak');
+      const qualityAchievement = achievements.find((a) => a.id === 'quality-streak');
       if (qualityAchievement && !qualityAchievement.unlockedAt) {
         if (metrics.quality >= 95) {
           qualityStreakRef.current += 1;
@@ -295,7 +296,7 @@ export const CelebrationSystem: React.FC = () => {
       }
 
       // 6. "Team Player" - worker collaborations (ID: team-player)
-      const teamAchievement = achievements.find(a => a.id === 'team-player');
+      const teamAchievement = achievements.find((a) => a.id === 'team-player');
       if (teamAchievement && !teamAchievement.unlockedAt) {
         updateAchievementProgress('team-player', workerSatisfaction.conversationCount);
         if (workerSatisfaction.conversationCount >= teamAchievement.requirement) {
@@ -305,7 +306,7 @@ export const CelebrationSystem: React.FC = () => {
       }
 
       // 7. "Night Owl" - complete a night shift (ID: night-owl)
-      const nightAchievement = achievements.find(a => a.id === 'night-owl');
+      const nightAchievement = achievements.find((a) => a.id === 'night-owl');
       if (nightAchievement && !nightAchievement.unlockedAt) {
         // Detect shift change from night to morning
         if (prevShiftRef.current === 'night' && currentShift === 'morning') {
@@ -317,7 +318,7 @@ export const CelebrationSystem: React.FC = () => {
       }
 
       // 8. "Crisis Manager" - handle first emergency (ID: first-emergency)
-      const crisisAchievement = achievements.find(a => a.id === 'first-emergency');
+      const crisisAchievement = achievements.find((a) => a.id === 'first-emergency');
       if (crisisAchievement && !crisisAchievement.unlockedAt) {
         // Track if emergency started
         if (emergencyActive) {

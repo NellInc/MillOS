@@ -115,7 +115,7 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig) {
           // Queue random emergency stop PA announcement
           const announcement =
             EMERGENCY_STOP_ANNOUNCEMENTS[
-            Math.floor(Math.random() * EMERGENCY_STOP_ANNOUNCEMENTS.length)
+              Math.floor(Math.random() * EMERGENCY_STOP_ANNOUNCEMENTS.length)
             ];
           addAnnouncement({
             type: 'emergency',
@@ -338,27 +338,36 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig) {
         return;
       }
 
-      // B - Toggle Bilateral Alignment / Management Style panel
-      if (key === 'b') {
+      // Ctrl+B - Toggle Blueprint Mode (see-through architecture view)
+      if (e.ctrlKey && key === 'b') {
         e.preventDefault();
         audioManager.playClick();
-        setQualityNotification('MANAGEMENT');
+        const current = useUIStore.getState().blueprintMode;
+        useUIStore.getState().toggleBlueprintMode();
+        setQualityNotification(current ? 'NORMAL VIEW' : 'BLUEPRINT MODE');
         setTimeout(() => setQualityNotification(null), 1500);
-        // Import dock mode dynamically to toggle management panel
-        // This broadcasts a custom event that GameInterface can listen for
-        window.dispatchEvent(new CustomEvent('toggleManagementPanel'));
         return;
       }
+
+      // B - Toggle Asset Browser/Showcase (DISABLED per user request)
+      // if (key === 'b' && !e.ctrlKey) {
+      //   e.preventDefault();
+      //   audioManager.playClick();
+      //   setQualityNotification('ASSETS');
+      //   setTimeout(() => setQualityNotification(null), 1500);
+      //   window.dispatchEvent(new CustomEvent('toggleAssetShowcase'));
+      //   return;
+      // }
 
       // F - Toggle fullscreen
       if (key === 'f') {
         e.preventDefault();
         audioManager.playClick();
         if (!document.fullscreenElement) {
-          document.documentElement.requestFullscreen().catch(() => { });
+          document.documentElement.requestFullscreen().catch(() => {});
           setQualityNotification('FULLSCREEN');
         } else {
-          document.exitFullscreen().catch(() => { });
+          document.exitFullscreen().catch(() => {});
           setQualityNotification('WINDOWED');
         }
         setTimeout(() => setQualityNotification(null), 1500);
@@ -386,7 +395,6 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig) {
         setTimeout(() => setQualityNotification(null), 1500);
         return;
       }
-
 
       // 0 - Reset camera to default overview
       if (e.key === '0') {

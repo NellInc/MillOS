@@ -6,7 +6,6 @@
  * - updateDecisionStatus - Updates decision status and outcome
  * - clearOldAnnouncements - Clears expired announcements
  * - Decision array limits (max 50)
- * - Index rebuilding for efficient lookups
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
@@ -16,16 +15,10 @@ import { AIDecision } from '../../types';
 describe('ProductionStore - AI Decision Management', () => {
   beforeEach(() => {
     // Reset store to initial state before each test
-
-    // Clear all state
     useProductionStore.setState({
       aiDecisions: [],
       _indices: {
-        aiDecisionsByMachine: new Map(),
-        aiDecisionsByWorker: new Map(),
         heatMapIndex: new Map(),
-        machinesById: new Map(),
-        workersById: new Map(),
       },
       machines: [],
       workers: [],
@@ -40,11 +33,7 @@ describe('ProductionStore - AI Decision Management', () => {
     useProductionStore.setState({
       aiDecisions: [],
       _indices: {
-        aiDecisionsByMachine: new Map(),
-        aiDecisionsByWorker: new Map(),
         heatMapIndex: new Map(),
-        machinesById: new Map(),
-        workersById: new Map(),
       },
     });
   });
@@ -137,98 +126,6 @@ describe('ProductionStore - AI Decision Management', () => {
       expect(decisions.find((d) => d.id === 'test-decision-0')).toBeUndefined();
     });
 
-    it('should rebuild machine index when adding decisions with machineId', () => {
-      const { addAIDecision } = useProductionStore.getState();
-
-      const decision: AIDecision = {
-        id: 'test-decision-machine',
-        timestamp: new Date(),
-        type: 'maintenance',
-        action: 'Machine maintenance',
-        reasoning: 'High temperature',
-        confidence: 90,
-        impact: 'Prevents shutdown',
-        status: 'pending',
-        priority: 'high',
-        machineId: 'RM-101',
-      };
-
-      addAIDecision(decision);
-
-      const { _indices } = useProductionStore.getState();
-      const machineDecisions = _indices.aiDecisionsByMachine.get('RM-101');
-
-      expect(machineDecisions).toBeDefined();
-      expect(machineDecisions).toHaveLength(1);
-      expect(machineDecisions![0].id).toBe('test-decision-machine');
-    });
-
-    it('should rebuild worker index when adding decisions with workerId', () => {
-      const { addAIDecision } = useProductionStore.getState();
-
-      const decision: AIDecision = {
-        id: 'test-decision-worker',
-        timestamp: new Date(),
-        type: 'assignment',
-        action: 'Assign worker to task',
-        reasoning: 'Best qualified worker',
-        confidence: 85,
-        impact: 'Faster completion',
-        status: 'pending',
-        priority: 'medium',
-        workerId: 'W-001',
-      };
-
-      addAIDecision(decision);
-
-      const { _indices } = useProductionStore.getState();
-      const workerDecisions = _indices.aiDecisionsByWorker.get('W-001');
-
-      expect(workerDecisions).toBeDefined();
-      expect(workerDecisions).toHaveLength(1);
-      expect(workerDecisions![0].id).toBe('test-decision-worker');
-    });
-
-    it('should only index active decisions (pending or in_progress)', () => {
-      const { addAIDecision } = useProductionStore.getState();
-
-      const pendingDecision: AIDecision = {
-        id: 'test-pending',
-        timestamp: new Date(),
-        type: 'maintenance',
-        action: 'Pending action',
-        reasoning: 'Test',
-        confidence: 75,
-        impact: 'Test',
-        status: 'pending',
-        priority: 'medium',
-        machineId: 'RM-101',
-      };
-
-      const completedDecision: AIDecision = {
-        id: 'test-completed',
-        timestamp: new Date(),
-        type: 'maintenance',
-        action: 'Completed action',
-        reasoning: 'Test',
-        confidence: 75,
-        impact: 'Test',
-        status: 'completed',
-        priority: 'medium',
-        machineId: 'RM-101',
-      };
-
-      addAIDecision(pendingDecision);
-      addAIDecision(completedDecision);
-
-      const { _indices } = useProductionStore.getState();
-      const machineDecisions = _indices.aiDecisionsByMachine.get('RM-101');
-
-      // Only pending decision should be indexed
-      expect(machineDecisions).toBeDefined();
-      expect(machineDecisions).toHaveLength(1);
-      expect(machineDecisions![0].status).toBe('pending');
-    });
   });
 
   describe('updateDecisionStatus', () => {
@@ -291,23 +188,6 @@ describe('ProductionStore - AI Decision Management', () => {
       expect(updated!.outcome).toBe('In progress');
     });
 
-    it('should rebuild indices after status update', () => {
-      const { updateDecisionStatus } = useProductionStore.getState();
-
-      // Decision starts as pending (should be in index)
-      let indices = useProductionStore.getState()._indices;
-      expect(indices.aiDecisionsByMachine.get('RM-101')).toHaveLength(1);
-
-      // Update to completed (should be removed from index)
-      updateDecisionStatus('decision-to-update', 'completed');
-
-      indices = useProductionStore.getState()._indices;
-      const machineDecisions = indices.aiDecisionsByMachine.get('RM-101');
-
-      // Completed decisions are not indexed
-      expect(machineDecisions).toBeUndefined();
-    });
-
     it('should handle non-existent decision IDs gracefully', () => {
       const { updateDecisionStatus } = useProductionStore.getState();
 
@@ -319,124 +199,6 @@ describe('ProductionStore - AI Decision Management', () => {
 
       // Should not modify the array
       expect(decisionsAfter).toEqual(decisionsBefore);
-    });
-  });
-
-  describe('getActiveDecisionsForMachine', () => {
-    beforeEach(() => {
-      const { addAIDecision } = useProductionStore.getState();
-
-      // Add active decision
-      addAIDecision({
-        id: 'active-machine-1',
-        timestamp: new Date(),
-        type: 'maintenance',
-        action: 'Active maintenance',
-        reasoning: 'Test',
-        confidence: 80,
-        impact: 'Test',
-        status: 'pending',
-        priority: 'high',
-        machineId: 'RM-101',
-      });
-
-      // Add another active decision
-      addAIDecision({
-        id: 'active-machine-2',
-        timestamp: new Date(),
-        type: 'optimization',
-        action: 'Active optimization',
-        reasoning: 'Test',
-        confidence: 75,
-        impact: 'Test',
-        status: 'in_progress',
-        priority: 'medium',
-        machineId: 'RM-101',
-      });
-
-      // Add completed decision (should not be returned)
-      addAIDecision({
-        id: 'completed-machine',
-        timestamp: new Date(),
-        type: 'maintenance',
-        action: 'Completed maintenance',
-        reasoning: 'Test',
-        confidence: 80,
-        impact: 'Test',
-        status: 'completed',
-        priority: 'medium',
-        machineId: 'RM-101',
-      });
-    });
-
-    it('should return active decisions for a specific machine', () => {
-      const { getActiveDecisionsForMachine } = useProductionStore.getState();
-
-      const activeDecisions = getActiveDecisionsForMachine('RM-101');
-
-      expect(activeDecisions).toHaveLength(2);
-      expect(
-        activeDecisions.every((d) => d.status === 'pending' || d.status === 'in_progress')
-      ).toBe(true);
-    });
-
-    it('should return empty array for machine with no decisions', () => {
-      const { getActiveDecisionsForMachine } = useProductionStore.getState();
-
-      const activeDecisions = getActiveDecisionsForMachine('NONEXISTENT');
-
-      expect(activeDecisions).toEqual([]);
-    });
-  });
-
-  describe('getActiveDecisionsForWorker', () => {
-    beforeEach(() => {
-      const { addAIDecision } = useProductionStore.getState();
-
-      // Add active decision
-      addAIDecision({
-        id: 'active-worker-1',
-        timestamp: new Date(),
-        type: 'assignment',
-        action: 'Worker assignment',
-        reasoning: 'Test',
-        confidence: 85,
-        impact: 'Test',
-        status: 'pending',
-        priority: 'high',
-        workerId: 'W-001',
-      });
-
-      // Add completed decision (should not be returned)
-      addAIDecision({
-        id: 'completed-worker',
-        timestamp: new Date(),
-        type: 'assignment',
-        action: 'Completed assignment',
-        reasoning: 'Test',
-        confidence: 80,
-        impact: 'Test',
-        status: 'completed',
-        priority: 'medium',
-        workerId: 'W-001',
-      });
-    });
-
-    it('should return active decisions for a specific worker', () => {
-      const { getActiveDecisionsForWorker } = useProductionStore.getState();
-
-      const activeDecisions = getActiveDecisionsForWorker('W-001');
-
-      expect(activeDecisions).toHaveLength(1);
-      expect(activeDecisions[0].status).toBe('pending');
-    });
-
-    it('should return empty array for worker with no decisions', () => {
-      const { getActiveDecisionsForWorker } = useProductionStore.getState();
-
-      const activeDecisions = getActiveDecisionsForWorker('NONEXISTENT');
-
-      expect(activeDecisions).toEqual([]);
     });
   });
 
@@ -689,64 +451,6 @@ describe('ProductionStore - AI Decision Management', () => {
       // Should still respect the 50-item limit
       const decisions = useProductionStore.getState().aiDecisions;
       expect(decisions.length).toBe(50);
-    });
-
-    it('should maintain index consistency across multiple operations', () => {
-      const { addAIDecision, updateDecisionStatus } = useProductionStore.getState();
-
-      // Add multiple decisions
-      for (let i = 0; i < 10; i++) {
-        addAIDecision({
-          id: `consistency-${i}`,
-          timestamp: new Date(),
-          type: 'maintenance',
-          action: `Action ${i}`,
-          reasoning: 'Test',
-          confidence: 80,
-          impact: 'Test',
-          status: 'pending',
-          priority: 'medium',
-          machineId: 'RM-101',
-        });
-      }
-
-      // Update some to completed
-      updateDecisionStatus('consistency-0', 'completed');
-      updateDecisionStatus('consistency-5', 'completed');
-
-      const { _indices } = useProductionStore.getState();
-      const machineDecisions = _indices.aiDecisionsByMachine.get('RM-101') || [];
-
-      // Should only have 8 active decisions
-      expect(machineDecisions.length).toBe(8);
-
-      // Completed ones should not be in index
-      expect(machineDecisions.find((d) => d.id === 'consistency-0')).toBeUndefined();
-      expect(machineDecisions.find((d) => d.id === 'consistency-5')).toBeUndefined();
-    });
-
-    it('should handle decisions with both machineId and workerId', () => {
-      const { addAIDecision } = useProductionStore.getState();
-
-      addAIDecision({
-        id: 'dual-index',
-        timestamp: new Date(),
-        type: 'assignment',
-        action: 'Assign worker to machine',
-        reasoning: 'Test',
-        confidence: 85,
-        impact: 'Test',
-        status: 'pending',
-        priority: 'high',
-        machineId: 'RM-101',
-        workerId: 'W-001',
-      });
-
-      const { _indices } = useProductionStore.getState();
-
-      // Should be indexed under both machine and worker
-      expect(_indices.aiDecisionsByMachine.get('RM-101')).toHaveLength(1);
-      expect(_indices.aiDecisionsByWorker.get('W-001')).toHaveLength(1);
     });
   });
 });

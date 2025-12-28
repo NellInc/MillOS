@@ -5,6 +5,7 @@ import { shouldRunThisFrame } from '../../utils/frameThrottle';
 import { audioManager } from '../../utils/audioManager';
 import { WarningLight } from './LightingEffects';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
+import { FLOOR_LAYERS, POLYGON_OFFSET } from '../../constants/renderLayers';
 
 // ============================================================
 // Industrial Animation Manager - Centralized useFrame for all industrial details
@@ -240,17 +241,35 @@ export const DrainageGrate: React.FC<{ position: [number, number, number]; size?
 }) => {
   return (
     <group position={position}>
-      <mesh position={[0, 0.01, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+      <mesh position={[0, FLOOR_LAYERS.puddle, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <ringGeometry args={[size * 0.4, size * 0.5, 4]} />
-        <meshStandardMaterial color="#374151" metalness={0.7} roughness={0.4} />
+        <meshStandardMaterial
+          color="#374151"
+          metalness={0.7}
+          roughness={0.4}
+          polygonOffset
+          polygonOffsetFactor={POLYGON_OFFSET.standard.factor}
+          polygonOffsetUnits={POLYGON_OFFSET.standard.units}
+        />
       </mesh>
       {Array.from({ length: 5 }).map((_, i) => (
-        <mesh key={i} position={[0, 0.015, (i - 2) * size * 0.15]} rotation={[-Math.PI / 2, 0, 0]}>
+        <mesh
+          key={i}
+          position={[0, FLOOR_LAYERS.puddle + 0.005, (i - 2) * size * 0.15]}
+          rotation={[-Math.PI / 2, 0, 0]}
+        >
           <boxGeometry args={[size * 0.8, 0.02, 0.03]} />
-          <meshStandardMaterial color="#1e293b" metalness={0.8} roughness={0.3} />
+          <meshStandardMaterial
+            color="#1e293b"
+            metalness={0.8}
+            roughness={0.3}
+            polygonOffset
+            polygonOffsetFactor={POLYGON_OFFSET.standard.factor}
+            polygonOffsetUnits={POLYGON_OFFSET.standard.units}
+          />
         </mesh>
       ))}
-      <mesh position={[0, -0.01, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+      <mesh position={[0, FLOOR_LAYERS.puddle - 0.01, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <circleGeometry args={[size * 0.4, 8]} />
         <meshBasicMaterial color="#0a0a0a" />
       </mesh>

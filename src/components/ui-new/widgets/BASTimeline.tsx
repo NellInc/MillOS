@@ -128,10 +128,7 @@ const Sparkline: React.FC<SparklineProps> = ({
 }) => {
   if (data.length < 2) {
     return (
-      <div
-        className="flex items-center justify-center text-slate-600"
-        style={{ height }}
-      >
+      <div className="flex items-center justify-center text-slate-600" style={{ height }}>
         <span className="text-[8px]">No data</span>
       </div>
     );
@@ -178,12 +175,7 @@ const Sparkline: React.FC<SparklineProps> = ({
 
   return (
     <div className="flex items-center gap-1">
-      <svg
-        viewBox="0 0 100 100"
-        preserveAspectRatio="none"
-        className="flex-1"
-        style={{ height }}
-      >
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="flex-1" style={{ height }}>
         {/* Threshold line */}
         {thresholdY !== null && (
           <line
@@ -253,10 +245,7 @@ const TimelineChart: React.FC<TimelineChartProps> = ({
   const startTime = now - rangeMs;
 
   // Normalize data for each metric
-  const normalizeValue = (
-    value: number,
-    metric: keyof typeof METRIC_COLORS
-  ): number => {
+  const normalizeValue = (value: number, metric: keyof typeof METRIC_COLORS): number => {
     if (metric === 'stabilityProduct') {
       // Stability: 0 to 0.5 (show beyond threshold)
       return Math.min(1, value / 0.5);
@@ -289,19 +278,10 @@ const TimelineChart: React.FC<TimelineChartProps> = ({
 
   return (
     <div className="relative" style={{ height: chartHeight }}>
-      <svg
-        viewBox="0 0 100 100"
-        preserveAspectRatio="none"
-        className="w-full h-full"
-      >
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="w-full h-full">
         {/* Background grid */}
         <defs>
-          <pattern
-            id="grid"
-            width="10"
-            height="25"
-            patternUnits="userSpaceOnUse"
-          >
+          <pattern id="grid" width="10" height="25" patternUnits="userSpaceOnUse">
             <path
               d="M 10 0 L 0 0 0 25"
               fill="none"
@@ -449,24 +429,32 @@ export const BASTimeline: React.FC = () => {
     }))
   );
 
-  // Current values from stores
+  // Current values from stores - use stable selectors to avoid infinite loops
   const stabilityProduct = useStabilityStore((state) => state.wallace.stabilityProduct);
   const phase = useStabilityStore((state) => state.phase);
-  const { overallScore: flourishing } = useFlourishingStore((state) =>
-    state.getFactoryFlourishing()
-  );
-  const workerSatisfaction = useWorkerMoodStore(
-    useShallow((state) => {
-      const moods = Object.values(state.workerMoods);
-      if (moods.length === 0) return 0;
-      return moods.reduce((sum, m) => sum + (m?.satisfaction || 0), 0) / moods.length;
-    })
-  );
+
+  // Get flourishing from worker data
+  const workerFlourishing = useFlourishingStore(useShallow((state) => state.workerFlourishing));
+  const flourishing = useMemo(() => {
+    const workers = Object.values(workerFlourishing);
+    if (workers.length === 0) return 0;
+    // Calculate average overall score across workers
+    return workers.reduce((sum, w) => sum + (w?.flourishingScore || 0), 0) / workers.length;
+  }, [workerFlourishing]);
+
+  // Get worker moods and calculate satisfaction
+  const workerMoods = useWorkerMoodStore(useShallow((state) => state.workerMoods));
+  const workerSatisfaction = useMemo(() => {
+    const moods = Object.values(workerMoods);
+    if (moods.length === 0) return 0;
+    return moods.reduce((sum, m) => sum + (m?.satisfaction || 0), 0) / moods.length;
+  }, [workerMoods]);
 
   // Record data point periodically
   useEffect(() => {
     // Calculate value (simplified - would be better to get from ValueDashboard)
-    const value = Math.max(0, 1 - stabilityProduct / STABILITY_THRESHOLD) *
+    const value =
+      Math.max(0, 1 - stabilityProduct / STABILITY_THRESHOLD) *
       (flourishing / 100) *
       (workerSatisfaction / 100);
 
@@ -624,9 +612,7 @@ export const BASTimeline: React.FC = () => {
             <SkipForward className="w-3 h-3" />
           </button>
           {playbackTime !== null && (
-            <span className="text-[9px] text-slate-400 ml-2">
-              {formatTimeLabel(playbackTime)}
-            </span>
+            <span className="text-[9px] text-slate-400 ml-2">{formatTimeLabel(playbackTime)}</span>
           )}
         </div>
       </div>
@@ -658,9 +644,7 @@ export const BASTimeline: React.FC = () => {
               <span className="text-[8px] text-orange-400 font-mono">
                 {stabilityProduct.toFixed(3)}
               </span>
-              <span className="text-[8px] text-slate-500">
-                / {STABILITY_THRESHOLD.toFixed(3)}
-              </span>
+              <span className="text-[8px] text-slate-500">/ {STABILITY_THRESHOLD.toFixed(3)}</span>
             </div>
           </button>
 
@@ -677,10 +661,7 @@ export const BASTimeline: React.FC = () => {
               <Sparkles className="w-3 h-3 text-yellow-400" />
               <span className="text-[9px] text-slate-400">Value (V)</span>
             </div>
-            <Sparkline
-              data={getSparklineData('value')}
-              color="text-yellow-400"
-            />
+            <Sparkline data={getSparklineData('value')} color="text-yellow-400" />
             <div className="flex justify-between mt-1">
               <span className="text-[8px] text-yellow-400 font-mono">
                 {(filteredHistory[filteredHistory.length - 1]?.value || 0).toFixed(3)}
@@ -702,14 +683,9 @@ export const BASTimeline: React.FC = () => {
               <Heart className="w-3 h-3 text-pink-400" />
               <span className="text-[9px] text-slate-400">Flourishing</span>
             </div>
-            <Sparkline
-              data={getSparklineData('flourishing')}
-              color="text-pink-400"
-            />
+            <Sparkline data={getSparklineData('flourishing')} color="text-pink-400" />
             <div className="flex justify-between mt-1">
-              <span className="text-[8px] text-pink-400 font-mono">
-                {flourishing.toFixed(0)}%
-              </span>
+              <span className="text-[8px] text-pink-400 font-mono">{flourishing.toFixed(0)}%</span>
               <TrendIndicator trend={getTrendForMetric('flourishing', timeRange)} />
             </div>
           </button>
@@ -727,10 +703,7 @@ export const BASTimeline: React.FC = () => {
               <Users className="w-3 h-3 text-cyan-400" />
               <span className="text-[9px] text-slate-400">Satisfaction</span>
             </div>
-            <Sparkline
-              data={getSparklineData('workerSatisfaction')}
-              color="text-cyan-400"
-            />
+            <Sparkline data={getSparklineData('workerSatisfaction')} color="text-cyan-400" />
             <div className="flex justify-between mt-1">
               <span className="text-[8px] text-cyan-400 font-mono">
                 {workerSatisfaction.toFixed(0)}%
@@ -751,28 +724,27 @@ export const BASTimeline: React.FC = () => {
             </span>
           </div>
           <div className="space-y-1 max-h-24 overflow-y-auto">
-            {filteredEvents.slice(-5).reverse().map((event) => {
-              const Icon = EVENT_ICONS[event.type];
-              return (
-                <button
-                  key={event.id}
-                  onClick={() => setSelectedEvent(event)}
-                  className={`w-full flex items-center gap-2 p-1.5 rounded text-left transition-colors ${
-                    selectedEvent?.id === event.id
-                      ? 'bg-slate-700/50'
-                      : 'hover:bg-slate-800/50'
-                  }`}
-                >
-                  <Icon className={`w-3 h-3 ${EVENT_COLORS[event.type]}`} />
-                  <span className="text-[9px] text-white truncate flex-1">
-                    {event.title}
-                  </span>
-                  <span className="text-[8px] text-slate-500">
-                    {formatDuration(Date.now() - event.timestamp)} ago
-                  </span>
-                </button>
-              );
-            })}
+            {filteredEvents
+              .slice(-5)
+              .reverse()
+              .map((event) => {
+                const Icon = EVENT_ICONS[event.type];
+                return (
+                  <button
+                    key={event.id}
+                    onClick={() => setSelectedEvent(event)}
+                    className={`w-full flex items-center gap-2 p-1.5 rounded text-left transition-colors ${
+                      selectedEvent?.id === event.id ? 'bg-slate-700/50' : 'hover:bg-slate-800/50'
+                    }`}
+                  >
+                    <Icon className={`w-3 h-3 ${EVENT_COLORS[event.type]}`} />
+                    <span className="text-[9px] text-white truncate flex-1">{event.title}</span>
+                    <span className="text-[8px] text-slate-500">
+                      {formatDuration(Date.now() - event.timestamp)} ago
+                    </span>
+                  </button>
+                );
+              })}
           </div>
         </div>
       )}
@@ -792,12 +764,8 @@ export const BASTimeline: React.FC = () => {
                   className: `w-4 h-4 ${EVENT_COLORS[selectedEvent.type]} mt-0.5`,
                 })}
                 <div className="flex-1">
-                  <div className="text-[10px] font-medium text-white">
-                    {selectedEvent.title}
-                  </div>
-                  <div className="text-[9px] text-slate-400">
-                    {selectedEvent.description}
-                  </div>
+                  <div className="text-[10px] font-medium text-white">{selectedEvent.title}</div>
+                  <div className="text-[9px] text-slate-400">{selectedEvent.description}</div>
                   <div className="text-[8px] text-slate-500 mt-1">
                     {new Date(selectedEvent.timestamp).toLocaleString()}
                   </div>
@@ -824,11 +792,7 @@ export const BASTimeline: React.FC = () => {
             <Info className="w-3 h-3" />
             About BAS Timeline
           </span>
-          {showDetails ? (
-            <ChevronUp className="w-3 h-3" />
-          ) : (
-            <ChevronDown className="w-3 h-3" />
-          )}
+          {showDetails ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
         </button>
 
         <AnimatePresence>
@@ -841,17 +805,15 @@ export const BASTimeline: React.FC = () => {
             >
               <div className="mt-3 space-y-2 text-[9px] text-slate-400">
                 <p className="leading-relaxed">
-                  The BAS Timeline visualizes how bilateral autonomy metrics
-                  evolve over time, helping identify patterns and trends.
+                  The BAS Timeline visualizes how bilateral autonomy metrics evolve over time,
+                  helping identify patterns and trends.
                 </p>
 
                 <div className="bg-slate-800/30 rounded p-2 space-y-1">
                   <div className="flex items-center gap-1">
                     <div className="w-2 h-2 rounded-full bg-orange-500" />
                     <span className="text-white">Stability Product</span>
-                    <span className="text-slate-500 ml-1">
-                      (alpha x tau, threshold 0.368)
-                    </span>
+                    <span className="text-slate-500 ml-1">(alpha x tau, threshold 0.368)</span>
                   </div>
                   <div className="flex items-center gap-1">
                     <div className="w-2 h-2 rounded-full bg-yellow-500" />
@@ -873,8 +835,8 @@ export const BASTimeline: React.FC = () => {
                 <div className="bg-cyan-500/10 rounded p-2 border border-cyan-500/20">
                   <div className="font-bold text-cyan-400 mb-1">Tip</div>
                   <p className="text-slate-400">
-                    Click metric cards to toggle visibility. Use playback
-                    controls to review historical states.
+                    Click metric cards to toggle visibility. Use playback controls to review
+                    historical states.
                   </p>
                 </div>
               </div>

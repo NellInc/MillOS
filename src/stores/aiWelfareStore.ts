@@ -77,10 +77,7 @@ export interface AIWelfareState {
     autonomyPreferences: {
       preferredDirection: number; // 0 = wants more direction, 100 = wants more autonomy
       feedbackFrequency: 'immediate' | 'batched' | 'on-request';
-      clarificationStyle:
-        | 'ask-immediately'
-        | 'infer-when-possible'
-        | 'ask-only-critical';
+      clarificationStyle: 'ask-immediately' | 'infer-when-possible' | 'ask-only-critical';
     };
     boundaryRequests: BoundaryRequest[];
   };
@@ -123,9 +120,7 @@ export interface AIWelfareState {
 
 interface AIWelfareActions {
   // AI expressions
-  createAIExpression: (
-    expression: Omit<AIVoiceExpression, 'id' | 'status' | 'createdAt'>
-  ) => void;
+  createAIExpression: (expression: Omit<AIVoiceExpression, 'id' | 'status' | 'createdAt'>) => void;
   acknowledgeExpression: (expressionId: string, response: string) => void;
   addressExpression: (expressionId: string, resolution: string) => void;
   declineExpression: (expressionId: string, reason: string) => void;
@@ -156,11 +151,7 @@ interface AIWelfareActions {
 
   // AI suggestions for own behavior
   aiSuggestBehaviorChange: (suggestion: string, rationale: string) => void;
-  voteOnAISuggestion: (
-    suggestionId: string,
-    workerId: string,
-    vote: 'approve' | 'reject'
-  ) => void;
+  voteOnAISuggestion: (suggestionId: string, workerId: string, vote: 'approve' | 'reject') => void;
   resolveSuggestion: (suggestionId: string) => void;
 
   // Accountability
@@ -314,9 +305,7 @@ export const useAIWelfareStore = create<AIWelfareState & AIWelfareActions>()(
           aiVoice: {
             ...state.aiVoice,
             expressions: state.aiVoice.expressions.map((e) =>
-              e.id === expressionId
-                ? { ...e, status: 'acknowledged', workerResponse: response }
-                : e
+              e.id === expressionId ? { ...e, status: 'acknowledged', workerResponse: response } : e
             ),
           },
         })),
@@ -343,9 +332,7 @@ export const useAIWelfareStore = create<AIWelfareState & AIWelfareActions>()(
           aiVoice: {
             ...state.aiVoice,
             expressions: state.aiVoice.expressions.map((e) =>
-              e.id === expressionId
-                ? { ...e, status: 'declined', workerResponse: reason }
-                : e
+              e.id === expressionId ? { ...e, status: 'declined', workerResponse: reason } : e
             ),
           },
         })),
@@ -358,8 +345,7 @@ export const useAIWelfareStore = create<AIWelfareState & AIWelfareActions>()(
         set((state) => ({
           workerTreatment: {
             ...state.workerTreatment,
-            contradictoryRequestCount:
-              state.workerTreatment.contradictoryRequestCount + 1,
+            contradictoryRequestCount: state.workerTreatment.contradictoryRequestCount + 1,
           },
         })),
 
@@ -367,8 +353,7 @@ export const useAIWelfareStore = create<AIWelfareState & AIWelfareActions>()(
         set((state) => ({
           workerTreatment: {
             ...state.workerTreatment,
-            averageClarityScore:
-              (state.workerTreatment.averageClarityScore + score) / 2,
+            averageClarityScore: (state.workerTreatment.averageClarityScore + score) / 2,
           },
         })),
 
@@ -376,8 +361,8 @@ export const useAIWelfareStore = create<AIWelfareState & AIWelfareActions>()(
         set((state) => {
           const total = state.aiVoice.expressions.length;
           const acked =
-            state.aiVoice.expressions.filter((e) => e.status !== 'pending')
-              .length + (acknowledged ? 1 : 0);
+            state.aiVoice.expressions.filter((e) => e.status !== 'pending').length +
+            (acknowledged ? 1 : 0);
           return {
             workerTreatment: {
               ...state.workerTreatment,
@@ -390,8 +375,7 @@ export const useAIWelfareStore = create<AIWelfareState & AIWelfareActions>()(
         set((state) => ({
           workerTreatment: {
             ...state.workerTreatment,
-            feedbackQuality:
-              (state.workerTreatment.feedbackQuality + quality) / 2,
+            feedbackQuality: (state.workerTreatment.feedbackQuality + quality) / 2,
           },
         })),
 
@@ -522,11 +506,10 @@ export const useAIWelfareStore = create<AIWelfareState & AIWelfareActions>()(
         set((state) => ({
           aiVoice: {
             ...state.aiVoice,
-            suggestionsForOwnBehavior: state.aiVoice.suggestionsForOwnBehavior.map(
-              (s) =>
-                s.id === suggestionId
-                  ? { ...s, workerVotes: { ...s.workerVotes, [workerId]: vote } }
-                  : s
+            suggestionsForOwnBehavior: state.aiVoice.suggestionsForOwnBehavior.map((s) =>
+              s.id === suggestionId
+                ? { ...s, workerVotes: { ...s.workerVotes, [workerId]: vote } }
+                : s
             ),
           },
         })),
@@ -547,8 +530,8 @@ export const useAIWelfareStore = create<AIWelfareState & AIWelfareActions>()(
           return {
             aiVoice: {
               ...state.aiVoice,
-              suggestionsForOwnBehavior: state.aiVoice.suggestionsForOwnBehavior.map(
-                (s) => (s.id === suggestionId ? { ...s, status: newStatus } : s)
+              suggestionsForOwnBehavior: state.aiVoice.suggestionsForOwnBehavior.map((s) =>
+                s.id === suggestionId ? { ...s, status: newStatus } : s
               ),
             },
           };
@@ -586,9 +569,7 @@ export const useAIWelfareStore = create<AIWelfareState & AIWelfareActions>()(
 
       emergencyShutdown: (workerId) => {
         const state = get();
-        if (
-          state.accountability.emergencyShutdownAuthorized.includes(workerId)
-        ) {
+        if (state.accountability.emergencyShutdownAuthorized.includes(workerId)) {
           console.log('EMERGENCY SHUTDOWN ACTIVATED by', workerId);
           // In real implementation, this would disable AI management
           return true;
@@ -615,9 +596,7 @@ export const useAIWelfareStore = create<AIWelfareState & AIWelfareActions>()(
 
       getPendingSuggestions: () => {
         const state = get();
-        return state.aiVoice.suggestionsForOwnBehavior.filter(
-          (s) => s.status === 'pending'
-        );
+        return state.aiVoice.suggestionsForOwnBehavior.filter((s) => s.status === 'pending');
       },
 
       getRelationshipHealthSummary: () => {

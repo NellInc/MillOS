@@ -13,6 +13,8 @@ import {
   getCullDistanceSquared,
 } from './MachineLOD';
 import { useModelTextures } from '../../utils/machineTextures';
+import { MemoizedStatusRing } from './StatusRing';
+import { PROCEDURAL_TEXTURES } from '../../utils/sharedMaterials';
 
 // Materials
 const MATERIALS = {
@@ -53,23 +55,28 @@ export const InstancedPlansifters: React.FC<InstancedPlansiftersProps> = ({
   // Load textures (only on high/ultra)
   const textures = useModelTextures('plansifter');
 
-  // Apply textures to materials
+  // Apply textures to materials (external or procedural fallback)
   useEffect(() => {
-    if (textures.roughness) {
-      MATERIALS.body.roughnessMap = textures.roughness;
-      MATERIALS.body.needsUpdate = true;
-      MATERIALS.frame.roughnessMap = textures.roughness;
-      MATERIALS.frame.needsUpdate = true;
-    }
-    if (textures.normal) {
-      MATERIALS.body.normalMap = textures.normal;
-      MATERIALS.body.normalScale = new THREE.Vector2(0.3, 0.3);
-      MATERIALS.body.needsUpdate = true;
-    }
-    if (textures.ao) {
-      MATERIALS.flywheel.roughnessMap = textures.ao;
-      MATERIALS.flywheel.needsUpdate = true;
-    }
+    const roughnessMap = textures.roughness || PROCEDURAL_TEXTURES.brushedMetal;
+    const normalMap = textures.normal || PROCEDURAL_TEXTURES.panelNormal;
+
+    // Body - cream sifter box
+    MATERIALS.body.roughnessMap = roughnessMap;
+    MATERIALS.body.normalMap = normalMap;
+    MATERIALS.body.normalScale = new THREE.Vector2(0.2, 0.2);
+    MATERIALS.body.needsUpdate = true;
+
+    // Frame - dark metal
+    MATERIALS.frame.roughnessMap = roughnessMap;
+    MATERIALS.frame.normalMap = normalMap;
+    MATERIALS.frame.normalScale = new THREE.Vector2(0.3, 0.3);
+    MATERIALS.frame.needsUpdate = true;
+
+    // Flywheel
+    MATERIALS.flywheel.roughnessMap = textures.ao || PROCEDURAL_TEXTURES.brushedMetal;
+    MATERIALS.flywheel.normalMap = normalMap;
+    MATERIALS.flywheel.normalScale = new THREE.Vector2(0.4, 0.4);
+    MATERIALS.flywheel.needsUpdate = true;
   }, [textures]);
 
   // Refs
@@ -91,7 +98,7 @@ export const InstancedPlansifters: React.FC<InstancedPlansiftersProps> = ({
   );
 
   // Determine if machines list has structurally changed
-  const machinesSignature = useMemo(() => machines.map(m => m.id).join(','), [machines]);
+  const machinesSignature = useMemo(() => machines.map((m) => m.id).join(','), [machines]);
 
   // Initialize Static Parts (Frame)
   useEffect(() => {
@@ -291,6 +298,17 @@ export const InstancedPlansifters: React.FC<InstancedPlansiftersProps> = ({
       {quality !== 'low' && (
         <instancedMesh ref={flywheelRef} args={[geometries.cylinder, MATERIALS.flywheel, count]} />
       )}
+
+      {/* Status Rings at plansifter bases */}
+      {quality !== 'low' &&
+        machines.map((machine) => (
+          <MemoizedStatusRing
+            key={machine.id}
+            status={machine.status as 'running' | 'idle' | 'warning' | 'critical'}
+            radius={SIFTER_SIZE.width / 2}
+            position={machine.position}
+          />
+        ))}
     </group>
   );
 };

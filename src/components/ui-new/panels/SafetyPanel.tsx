@@ -75,7 +75,11 @@ export const SafetyPanel: React.FC = () => {
               }
               disabled={emergencyActive && !emergencyDrillMode}
               aria-disabled={emergencyActive && !emergencyDrillMode}
-              title={emergencyActive && !emergencyDrillMode ? 'Cannot start drill during active emergency' : undefined}
+              title={
+                emergencyActive && !emergencyDrillMode
+                  ? 'Cannot start drill during active emergency'
+                  : undefined
+              }
               className={`w-full py-2 rounded-lg font-bold text-xs transition-colors flex items-center justify-center gap-2 ${
                 emergencyDrillMode
                   ? 'bg-red-500 hover:bg-red-600 text-white'

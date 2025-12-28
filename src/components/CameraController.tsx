@@ -442,8 +442,9 @@ export const CameraPresetIndicator: React.FC = () => {
         {CAMERA_PRESETS.map((_, i) => (
           <div
             key={i}
-            className={`w-4 h-4 rounded text-[9px] font-mono flex items-center justify-center transition-colors ${i === activePreset ? 'bg-cyan-600 text-white' : 'bg-slate-800 text-slate-500'
-              }`}
+            className={`w-4 h-4 rounded text-[9px] font-mono flex items-center justify-center transition-colors ${
+              i === activePreset ? 'bg-cyan-600 text-white' : 'bg-slate-800 text-slate-500'
+            }`}
           >
             {i + 1}
           </div>

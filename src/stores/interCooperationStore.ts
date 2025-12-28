@@ -216,8 +216,7 @@ const INITIAL_RECEIVED_LEARNINGS: Learning[] = [
     sourceUnitName: 'Mill Beta',
     type: 'bas-config',
     title: 'High-Autonomy Night Shift Configuration',
-    description:
-      'BAS settings optimized for night shift with experienced workers',
+    description: 'BAS settings optimized for night shift with experienced workers',
     content: { autonomyLevel: 85, decisionMode: 70, informationAccess: 90 },
     effectiveness: 92,
     applicabilityScore: 78,
@@ -229,8 +228,7 @@ const INITIAL_RECEIVED_LEARNINGS: Learning[] = [
     sourceUnitName: 'Mill Gamma',
     type: 'flourishing',
     title: 'Peer Recognition Program',
-    description:
-      'Simple peer recognition system that boosted Connection dimension by 15%',
+    description: 'Simple peer recognition system that boosted Connection dimension by 15%',
     content: { program: 'weekly-kudos', frequency: 'daily-optional' },
     effectiveness: 88,
     applicabilityScore: 95,
@@ -242,8 +240,7 @@ const INITIAL_RECEIVED_LEARNINGS: Learning[] = [
     sourceUnitName: 'Mill Delta',
     type: 'process',
     title: 'Predictive Maintenance Schedule',
-    description:
-      'AI-assisted maintenance scheduling that reduced downtime by 23%',
+    description: 'AI-assisted maintenance scheduling that reduced downtime by 23%',
     content: {
       schedule: 'weekly-predictive',
       aiAssistance: 'high',
@@ -259,8 +256,7 @@ const INITIAL_RECEIVED_LEARNINGS: Learning[] = [
     sourceUnitName: 'Mill Beta',
     type: 'crisis-response',
     title: 'Supply Chain Disruption Protocol',
-    description:
-      'Democratic decision-making framework for supply emergencies',
+    description: 'Democratic decision-making framework for supply emergencies',
     content: {
       votingThreshold: 'simple-majority',
       timeLimit: '4-hours',
@@ -289,9 +285,7 @@ const EMERGENCY_ACCESS_CRITERIA: string[] = [
 // STORE
 // ============================================================================
 
-export const useInterCooperationStore = create<
-  InterCooperationState & InterCooperationActions
->()(
+export const useInterCooperationStore = create<InterCooperationState & InterCooperationActions>()(
   persist(
     (set, get) => ({
       // Initial state - simulated federation
@@ -353,8 +347,8 @@ export const useInterCooperationStore = create<
         set((state) => ({
           knowledgeSharing: {
             ...state.knowledgeSharing,
-            receivedLearnings: state.knowledgeSharing.receivedLearnings.map(
-              (l) => (l.id === learningId ? { ...l, status: 'reviewing' } : l)
+            receivedLearnings: state.knowledgeSharing.receivedLearnings.map((l) =>
+              l.id === learningId ? { ...l, status: 'reviewing' } : l
             ),
           },
         })),
@@ -368,10 +362,9 @@ export const useInterCooperationStore = create<
           return {
             knowledgeSharing: {
               ...state.knowledgeSharing,
-              receivedLearnings:
-                state.knowledgeSharing.receivedLearnings.filter(
-                  (l) => l.id !== learningId
-                ),
+              receivedLearnings: state.knowledgeSharing.receivedLearnings.filter(
+                (l) => l.id !== learningId
+              ),
               adoptedLearnings: [
                 ...state.knowledgeSharing.adoptedLearnings,
                 { ...learning, status: 'adopted', adoptedAt: Date.now() },
@@ -384,8 +377,8 @@ export const useInterCooperationStore = create<
         set((state) => ({
           knowledgeSharing: {
             ...state.knowledgeSharing,
-            receivedLearnings: state.knowledgeSharing.receivedLearnings.map(
-              (l) => (l.id === learningId ? { ...l, status: 'rejected' } : l)
+            receivedLearnings: state.knowledgeSharing.receivedLearnings.map((l) =>
+              l.id === learningId ? { ...l, status: 'rejected' } : l
             ),
           },
         })),
@@ -441,15 +434,11 @@ export const useInterCooperationStore = create<
 
       getLearningsForType: (type) => {
         const state = get();
-        return state.knowledgeSharing.receivedLearnings.filter(
-          (l) => l.type === type
-        );
+        return state.knowledgeSharing.receivedLearnings.filter((l) => l.type === type);
       },
 
       getActiveExchanges: () => {
-        return get().resourceSharing.workerExchanges.filter(
-          (e) => e.status === 'active'
-        );
+        return get().resourceSharing.workerExchanges.filter((e) => e.status === 'active');
       },
 
       getPendingLearnings: () => {

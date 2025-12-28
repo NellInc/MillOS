@@ -1,5 +1,6 @@
 import React from 'react';
 import * as THREE from 'three';
+import { FLOOR_LAYERS, POLYGON_OFFSET } from '../../constants/renderLayers';
 
 interface OpenPersonnelDoorwayProps {
   position: [number, number, number];
@@ -78,13 +79,16 @@ export const OpenPersonnelDoorway: React.FC<OpenPersonnelDoorwayProps> = ({
       </mesh>
 
       {/* Floor threshold */}
-      <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+      <mesh position={[0, FLOOR_LAYERS.wornPrimary, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <planeGeometry args={[width + 0.3, 0.5]} />
         <meshStandardMaterial
           color="#64748b"
           metalness={0.5}
           roughness={0.6}
           side={THREE.DoubleSide}
+          polygonOffset
+          polygonOffsetFactor={POLYGON_OFFSET.standard.factor}
+          polygonOffsetUnits={POLYGON_OFFSET.standard.units}
         />
       </mesh>
 

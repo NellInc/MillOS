@@ -194,7 +194,13 @@ class PositionRegistry {
       }
       // Also check for other forklifts if forkliftId is provided
       if (forkliftId) {
-        const forkliftsNearby = this.getForkliftsNearby(checkX, checkZ, safetyRadius, forkliftId, y);
+        const forkliftsNearby = this.getForkliftsNearby(
+          checkX,
+          checkZ,
+          safetyRadius,
+          forkliftId,
+          y
+        );
         if (forkliftsNearby.length > 0) {
           return false;
         }
@@ -211,12 +217,7 @@ class PositionRegistry {
   }
 
   // Get the nearest forklift to a position (for workers to detect approaching forklifts)
-  getNearestForklift(
-    x: number,
-    z: number,
-    maxDistance: number,
-    y?: number
-  ): EntityPosition | null {
+  getNearestForklift(x: number, z: number, maxDistance: number, y?: number): EntityPosition | null {
     let nearest: EntityPosition | null = null;
     let nearestDist = maxDistance;
 

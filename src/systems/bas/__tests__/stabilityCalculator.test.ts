@@ -23,7 +23,7 @@ import {
   estimateFrictionDelayFromAxes,
 } from '../stabilityCalculator';
 import { STABILITY_THRESHOLD, WARNING_THRESHOLD } from '../../../types/bas';
-import type { FiveAxes, StabilityDataPoint, PhaseState } from '../../../types/bas';
+import type { FiveAxes, StabilityDataPoint } from '../../../types/bas';
 
 describe('StabilityCalculator', () => {
   describe('calculateStabilityCoefficient', () => {
@@ -355,7 +355,7 @@ describe('StabilityCalculator', () => {
           phase: 'critical',
         });
       }
-      const prediction = predictPhaseTransition(history);
+      predictPhaseTransition(history);
       // transitionLikely should be true if we're close to threshold
     });
   });
@@ -615,11 +615,7 @@ describe('StabilityCalculator', () => {
     it('should calculate resource index quickly', () => {
       const start = performance.now();
       for (let i = 0; i < 10000; i++) {
-        calculateResourceIndex(
-          Math.random() * 100,
-          Math.random() * 100,
-          Math.random() * 100
-        );
+        calculateResourceIndex(Math.random() * 100, Math.random() * 100, Math.random() * 100);
       }
       const duration = performance.now() - start;
       expect(duration).toBeLessThan(100);

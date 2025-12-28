@@ -14,7 +14,7 @@
  * - Phase-based scenarios with engagement metrics
  */
 
-import React, { useEffect, useRef, useMemo, useCallback, memo } from 'react';
+import React, { useEffect, useRef, useMemo, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Play,
@@ -42,11 +42,7 @@ import {
   Eye,
   Compass,
 } from 'lucide-react';
-import {
-  useScenarioStore,
-  getCategoryColor,
-  formatTime,
-} from '../../../stores/scenarioStore';
+import { useScenarioStore, getCategoryColor, formatTime } from '../../../stores/scenarioStore';
 import type { Scenario, ScenarioEvent, ScenarioPhase } from '../../../stores/scenarioStore';
 import { useBASStore } from '../../../stores/basStore';
 import { useStabilityStore } from '../../../stores/stabilityStore';
@@ -76,15 +72,8 @@ interface ScenarioCardProps {
   onSelect: () => void;
 }
 
-const ScenarioCard: React.FC<ScenarioCardProps> = memo(({
-  scenario,
-  isCompleted,
-  onSelect,
-}) => {
-  const categoryColors = useMemo(
-    () => getCategoryColor(scenario.category),
-    [scenario.category]
-  );
+const ScenarioCard: React.FC<ScenarioCardProps> = memo(({ scenario, isCompleted, onSelect }) => {
+  const categoryColors = useMemo(() => getCategoryColor(scenario.category), [scenario.category]);
   const Icon = SCENARIO_ICONS[scenario.icon] || Target;
 
   return (
@@ -100,16 +89,10 @@ const ScenarioCard: React.FC<ScenarioCardProps> = memo(({
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-white truncate">
-              {scenario.name}
-            </span>
-            {isCompleted && (
-              <CheckCircle className="w-3 h-3 text-green-400 flex-shrink-0" />
-            )}
+            <span className="text-sm font-medium text-white truncate">{scenario.name}</span>
+            {isCompleted && <CheckCircle className="w-3 h-3 text-green-400 flex-shrink-0" />}
           </div>
-          <p className="text-[9px] text-slate-400 mt-0.5 line-clamp-2">
-            {scenario.description}
-          </p>
+          <p className="text-[9px] text-slate-400 mt-0.5 line-clamp-2">{scenario.description}</p>
           <div className="flex items-center gap-2 mt-1.5">
             <span
               className={`text-[8px] px-1.5 py-0.5 rounded ${categoryColors.bg} ${categoryColors.text}`}
@@ -148,14 +131,8 @@ interface PlaybackControlsProps {
   onSpeedChange: (speed: number) => void;
 }
 
-const PlaybackControls: React.FC<PlaybackControlsProps> = memo(({
-  isPlaying,
-  speed,
-  onPlay,
-  onPause,
-  onStop,
-  onSpeedChange,
-}) => (
+const PlaybackControls: React.FC<PlaybackControlsProps> = memo(
+  ({ isPlaying, speed, onPlay, onPause, onStop, onSpeedChange }) => (
     <div className="flex items-center gap-2">
       {/* Play/Pause */}
       <button
@@ -173,11 +150,7 @@ const PlaybackControls: React.FC<PlaybackControlsProps> = memo(({
             : 'bg-green-500/20 text-green-400 hover:bg-green-500/30'
         }`}
       >
-        {isPlaying ? (
-          <Pause className="w-4 h-4" />
-        ) : (
-          <Play className="w-4 h-4" />
-        )}
+        {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
       </button>
 
       {/* Stop */}
@@ -212,7 +185,8 @@ const PlaybackControls: React.FC<PlaybackControlsProps> = memo(({
         ))}
       </div>
     </div>
-));
+  )
+);
 
 PlaybackControls.displayName = 'PlaybackControls';
 
@@ -226,77 +200,69 @@ interface PhaseIndicatorProps {
   currentTime: number;
 }
 
-const PhaseIndicator: React.FC<PhaseIndicatorProps> = memo(({
-  phases,
-  currentPhase,
-  currentTime,
-}) => {
-  // Memoize phase progress calculation
-  const phaseProgress = useMemo(() => {
-    let elapsedInPhase = currentTime;
-    for (let i = 0; i < currentPhase; i++) {
-      elapsedInPhase -= phases[i].durationSeconds;
-    }
-    const currentPhaseDuration = phases[currentPhase]?.durationSeconds || 1;
-    return Math.min(100, (elapsedInPhase / currentPhaseDuration) * 100);
-  }, [currentTime, currentPhase, phases]);
+const PhaseIndicator: React.FC<PhaseIndicatorProps> = memo(
+  ({ phases, currentPhase, currentTime }) => {
+    // Memoize phase progress calculation
+    const phaseProgress = useMemo(() => {
+      let elapsedInPhase = currentTime;
+      for (let i = 0; i < currentPhase; i++) {
+        elapsedInPhase -= phases[i].durationSeconds;
+      }
+      const currentPhaseDuration = phases[currentPhase]?.durationSeconds || 1;
+      return Math.min(100, (elapsedInPhase / currentPhaseDuration) * 100);
+    }, [currentTime, currentPhase, phases]);
 
-  return (
-    <div className="bg-slate-800/50 rounded-lg p-2 mb-3">
-      {/* Phase steps */}
-      <div className="flex items-center gap-1 mb-2">
-        {phases.map((phase, index) => (
-          <React.Fragment key={phase.id}>
-            <div
-              className={`flex-1 h-1.5 rounded-full transition-all ${
-                index < currentPhase
-                  ? 'bg-green-500'
-                  : index === currentPhase
-                    ? 'bg-cyan-500'
-                    : 'bg-slate-600'
-              }`}
-            >
-              {index === currentPhase && (
-                <motion.div
-                  className="h-full bg-cyan-400 rounded-full"
-                  animate={{ width: `${phaseProgress}%` }}
-                  transition={{ duration: 0.1 }}
-                />
-              )}
-            </div>
-            {index < phases.length - 1 && (
-              <div className="w-1 h-1 rounded-full bg-slate-600" />
-            )}
-          </React.Fragment>
-        ))}
-      </div>
-
-      {/* Current phase info */}
-      <div className="flex items-center gap-2">
-        <div className="flex items-center gap-1">
-          <span className="text-[10px] font-mono text-cyan-400">
-            Phase {currentPhase + 1}/{phases.length}
-          </span>
+    return (
+      <div className="bg-slate-800/50 rounded-lg p-2 mb-3">
+        {/* Phase steps */}
+        <div className="flex items-center gap-1 mb-2">
+          {phases.map((phase, index) => (
+            <React.Fragment key={phase.id}>
+              <div
+                className={`flex-1 h-1.5 rounded-full transition-all ${
+                  index < currentPhase
+                    ? 'bg-green-500'
+                    : index === currentPhase
+                      ? 'bg-cyan-500'
+                      : 'bg-slate-600'
+                }`}
+              >
+                {index === currentPhase && (
+                  <motion.div
+                    className="h-full bg-cyan-400 rounded-full"
+                    animate={{ width: `${phaseProgress}%` }}
+                    transition={{ duration: 0.1 }}
+                  />
+                )}
+              </div>
+              {index < phases.length - 1 && <div className="w-1 h-1 rounded-full bg-slate-600" />}
+            </React.Fragment>
+          ))}
         </div>
-        <span className="text-[10px] font-medium text-white">
-          {phases[currentPhase]?.name}
-        </span>
-      </div>
 
-      {/* Phase instruction */}
-      {phases[currentPhase]?.instruction && (
-        <div className="mt-2 p-2 bg-cyan-500/10 rounded border border-cyan-500/20">
-          <div className="flex items-start gap-1.5">
-            <Sparkles className="w-3 h-3 text-cyan-400 mt-0.5 flex-shrink-0" />
-            <p className="text-[9px] text-cyan-300">
-              {phases[currentPhase].instruction}
-            </p>
+        {/* Current phase info */}
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
+            <span className="text-[10px] font-mono text-cyan-400">
+              Phase {currentPhase + 1}/{phases.length}
+            </span>
           </div>
+          <span className="text-[10px] font-medium text-white">{phases[currentPhase]?.name}</span>
         </div>
-      )}
-    </div>
-  );
-});
+
+        {/* Phase instruction */}
+        {phases[currentPhase]?.instruction && (
+          <div className="mt-2 p-2 bg-cyan-500/10 rounded border border-cyan-500/20">
+            <div className="flex items-start gap-1.5">
+              <Sparkles className="w-3 h-3 text-cyan-400 mt-0.5 flex-shrink-0" />
+              <p className="text-[9px] text-cyan-300">{phases[currentPhase].instruction}</p>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+);
 
 PhaseIndicator.displayName = 'PhaseIndicator';
 
@@ -318,9 +284,7 @@ const EngagementMetricsDisplay: React.FC<EngagementMetricsDisplayProps> = ({
   isEngagementScenario,
 }) => {
   // Calculate engagement score (simplified heuristic)
-  const engagementScore = Math.round(
-    (autonomy * 0.4 + transparency * 0.3 + stability * 0.3)
-  );
+  const engagementScore = Math.round(autonomy * 0.4 + transparency * 0.3 + stability * 0.3);
 
   const getEngagementColor = (score: number) => {
     if (score >= 70) return 'text-green-400';
@@ -359,9 +323,7 @@ const EngagementMetricsDisplay: React.FC<EngagementMetricsDisplayProps> = ({
             <Activity className="w-3 h-3 text-cyan-400" />
             <span className="text-[9px] text-slate-400">Autonomy</span>
           </div>
-          <div className="text-lg font-mono font-bold text-cyan-400">
-            {autonomy}%
-          </div>
+          <div className="text-lg font-mono font-bold text-cyan-400">{autonomy}%</div>
         </div>
       </div>
     );
@@ -405,23 +367,25 @@ const EngagementMetricsDisplay: React.FC<EngagementMetricsDisplayProps> = ({
         <div className="bg-slate-800/50 rounded p-1.5 text-center">
           <Compass className="w-3 h-3 mx-auto mb-0.5 text-cyan-400" />
           <div className="text-[8px] text-slate-400">Autonomy</div>
-          <div className="text-[11px] font-mono font-bold text-cyan-400">
-            {autonomy}%
-          </div>
+          <div className="text-[11px] font-mono font-bold text-cyan-400">{autonomy}%</div>
         </div>
         <div className="bg-slate-800/50 rounded p-1.5 text-center">
           <Eye className="w-3 h-3 mx-auto mb-0.5 text-amber-400" />
           <div className="text-[8px] text-slate-400">Transparency</div>
-          <div className="text-[11px] font-mono font-bold text-amber-400">
-            {transparency}%
-          </div>
+          <div className="text-[11px] font-mono font-bold text-amber-400">{transparency}%</div>
         </div>
         <div className="bg-slate-800/50 rounded p-1.5 text-center">
           <Gauge className="w-3 h-3 mx-auto mb-0.5 text-green-400" />
           <div className="text-[8px] text-slate-400">Stability</div>
-          <div className={`text-[11px] font-mono font-bold ${
-            stability >= 70 ? 'text-green-400' : stability >= 50 ? 'text-amber-400' : 'text-red-400'
-          }`}>
+          <div
+            className={`text-[11px] font-mono font-bold ${
+              stability >= 70
+                ? 'text-green-400'
+                : stability >= 50
+                  ? 'text-amber-400'
+                  : 'text-red-400'
+            }`}
+          >
             {stability.toFixed(0)}%
           </div>
         </div>
@@ -451,11 +415,7 @@ interface TimelineProps {
   triggeredEvents: string[];
 }
 
-const Timeline: React.FC<TimelineProps> = ({
-  scenario,
-  currentTime,
-  triggeredEvents,
-}) => {
+const Timeline: React.FC<TimelineProps> = ({ scenario, currentTime, triggeredEvents }) => {
   const progress = (currentTime / scenario.duration) * 100;
 
   return (
@@ -465,9 +425,7 @@ const Timeline: React.FC<TimelineProps> = ({
         {/* Event markers */}
         {scenario.events.map((event, index) => {
           const position = (event.time / scenario.duration) * 100;
-          const isTriggered = triggeredEvents.includes(
-            `${scenario.id}-${index}`
-          );
+          const isTriggered = triggeredEvents.includes(`${scenario.id}-${index}`);
           const eventColor =
             event.type === 'friction_spike'
               ? 'bg-orange-500'
@@ -527,11 +485,7 @@ interface EventLogProps {
   scenarioId: string;
 }
 
-const EventLog: React.FC<EventLogProps> = ({
-  events,
-  triggeredEvents,
-  scenarioId,
-}) => {
+const EventLog: React.FC<EventLogProps> = ({ events, triggeredEvents, scenarioId }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll to latest event
@@ -582,9 +536,7 @@ const EventLog: React.FC<EventLogProps> = ({
             className={`text-[9px] p-1.5 rounded ${eventColor}`}
           >
             <div className="flex items-center gap-1">
-              <span className="font-mono text-[8px] opacity-60">
-                {formatTime(event.time)}
-              </span>
+              <span className="font-mono text-[8px] opacity-60">{formatTime(event.time)}</span>
               <span>{event.description}</span>
             </div>
           </motion.div>
@@ -604,11 +556,7 @@ interface ResultsDisplayProps {
   onExit: () => void;
 }
 
-const ResultsDisplay: React.FC<ResultsDisplayProps> = ({
-  results,
-  onRestart,
-  onExit,
-}) => {
+const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ results, onRestart, onExit }) => {
   const gradeColors = {
     A: 'text-green-400 bg-green-500/20',
     B: 'text-cyan-400 bg-cyan-500/20',
@@ -636,23 +584,17 @@ const ResultsDisplay: React.FC<ResultsDisplayProps> = ({
         <div className="bg-slate-800/50 rounded p-2 text-center">
           <Gauge className="w-4 h-4 mx-auto mb-1 text-green-400" />
           <div className="text-[10px] text-slate-400">Avg Stability</div>
-          <div className="text-sm font-bold text-white">
-            {results.averageStability.toFixed(0)}%
-          </div>
+          <div className="text-sm font-bold text-white">{results.averageStability.toFixed(0)}%</div>
         </div>
         <div className="bg-slate-800/50 rounded p-2 text-center">
           <Activity className="w-4 h-4 mx-auto mb-1 text-amber-400" />
           <div className="text-[10px] text-slate-400">Lowest Point</div>
-          <div className="text-sm font-bold text-white">
-            {results.lowestStability.toFixed(0)}%
-          </div>
+          <div className="text-sm font-bold text-white">{results.lowestStability.toFixed(0)}%</div>
         </div>
         <div className="bg-slate-800/50 rounded p-2 text-center">
           <Zap className="w-4 h-4 mx-auto mb-1 text-cyan-400" />
           <div className="text-[10px] text-slate-400">Adjustments</div>
-          <div className="text-sm font-bold text-white">
-            {results.axisChanges}
-          </div>
+          <div className="text-sm font-bold text-white">{results.axisChanges}</div>
         </div>
       </div>
 
@@ -674,11 +616,13 @@ const ResultsDisplay: React.FC<ResultsDisplayProps> = ({
             </div>
             <div className="text-center">
               <div className="text-[9px] text-slate-400">Improvement</div>
-              <div className={`text-sm font-bold ${
-                results.engagementMetrics.engagementImprovement > 0
-                  ? 'text-green-400'
-                  : 'text-red-400'
-              }`}>
+              <div
+                className={`text-sm font-bold ${
+                  results.engagementMetrics.engagementImprovement > 0
+                    ? 'text-green-400'
+                    : 'text-red-400'
+                }`}
+              >
                 {results.engagementMetrics.engagementImprovement > 0 ? '+' : ''}
                 {results.engagementMetrics.engagementImprovement.toFixed(0)}%
               </div>
@@ -698,16 +642,11 @@ const ResultsDisplay: React.FC<ResultsDisplayProps> = ({
         <div className="bg-slate-800/30 rounded p-2">
           <div className="flex items-center gap-1 mb-1.5">
             <BookOpen className="w-3 h-3 text-violet-400" />
-            <span className="text-[10px] font-medium text-white">
-              Learnings Unlocked
-            </span>
+            <span className="text-[10px] font-medium text-white">Learnings Unlocked</span>
           </div>
           <div className="space-y-1">
             {results.learningsUnlocked.map((learning, i) => (
-              <div
-                key={i}
-                className="text-[9px] text-slate-300 flex items-start gap-1"
-              >
+              <div key={i} className="text-[9px] text-slate-300 flex items-start gap-1">
                 <CheckCircle className="w-2.5 h-2.5 text-green-400 mt-0.5 flex-shrink-0" />
                 {learning}
               </div>
@@ -764,7 +703,6 @@ export const ScenarioPlayground: React.FC = () => {
     markEventTriggered,
     calculateResults,
     getPendingEvents,
-    getCurrentPhase,
   } = useScenarioStore();
 
   // BAS Store for applying scenario axes
@@ -833,7 +771,7 @@ export const ScenarioPlayground: React.FC = () => {
     if (activeScenario.category === 'engagement') {
       // Calculate engagement as a function of autonomy + transparency + stability
       const engagement = Math.round(
-        (axes.autonomyLevel * 0.4 + axes.informationAccess * 0.3 + stability * 0.3)
+        axes.autonomyLevel * 0.4 + axes.informationAccess * 0.3 + stability * 0.3
       );
       recordEngagement(engagement);
     }
@@ -926,7 +864,6 @@ export const ScenarioPlayground: React.FC = () => {
   };
 
   const stability = getStabilityPercentage();
-  const phase = getCurrentPhase();
   const isEngagementScenario = activeScenario?.category === 'engagement';
 
   return (
@@ -939,13 +876,9 @@ export const ScenarioPlayground: React.FC = () => {
       <div className="p-3 border-b border-slate-700/50">
         <div className="flex items-center gap-2">
           <Target className="w-4 h-4 text-violet-400" />
-          <span className="text-sm font-bold text-white">
-            Scenario Playground
-          </span>
+          <span className="text-sm font-bold text-white">Scenario Playground</span>
           {activeScenario && (
-            <span className="ml-auto text-[10px] text-slate-400">
-              {activeScenario.name}
-            </span>
+            <span className="ml-auto text-[10px] text-slate-400">{activeScenario.name}</span>
           )}
         </div>
         <p className="text-[10px] text-slate-400 mt-1">
@@ -999,16 +932,11 @@ export const ScenarioPlayground: React.FC = () => {
                 <div className="bg-slate-800/30 rounded p-2">
                   <div className="flex items-center gap-1 mb-1.5">
                     <Award className="w-3 h-3 text-amber-400" />
-                    <span className="text-[10px] font-medium text-white">
-                      Learning Objectives
-                    </span>
+                    <span className="text-[10px] font-medium text-white">Learning Objectives</span>
                   </div>
                   <div className="space-y-0.5">
                     {activeScenario.learningObjectives.map((obj, i) => (
-                      <div
-                        key={i}
-                        className="text-[9px] text-slate-400 flex items-start gap-1"
-                      >
+                      <div key={i} className="text-[9px] text-slate-400 flex items-start gap-1">
                         <span className="text-amber-400">*</span>
                         {obj}
                       </div>
@@ -1036,9 +964,7 @@ export const ScenarioPlayground: React.FC = () => {
               <div className="bg-slate-800/30 rounded p-2">
                 <div className="flex items-center gap-1 mb-1.5">
                   <Zap className="w-3 h-3 text-orange-400" />
-                  <span className="text-[10px] font-medium text-white">
-                    Event Log
-                  </span>
+                  <span className="text-[10px] font-medium text-white">Event Log</span>
                 </div>
                 <EventLog
                   events={activeScenario.events}
@@ -1076,11 +1002,7 @@ export const ScenarioPlayground: React.FC = () => {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
             >
-              <ResultsDisplay
-                results={results}
-                onRestart={handleRestart}
-                onExit={handleExit}
-              />
+              <ResultsDisplay results={results} onRestart={handleRestart} onExit={handleExit} />
             </motion.div>
           )}
         </AnimatePresence>

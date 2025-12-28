@@ -46,7 +46,15 @@ class AudioManager {
   } = {};
 
   // Machine-specific sound nodes
-  private machineNodes: Map<string, { source: AudioBufferSourceNode; gain: GainNode; filter?: BiquadFilterNode; lfo?: OscillatorNode }> = new Map();
+  private machineNodes: Map<
+    string,
+    {
+      source: AudioBufferSourceNode;
+      gain: GainNode;
+      filter?: BiquadFilterNode;
+      lfo?: OscillatorNode;
+    }
+  > = new Map();
 
   // Forklift engine sounds
   private forkliftEngines: Map<
@@ -208,7 +216,8 @@ class AudioManager {
       };
       localStorage.setItem(this.STORAGE_KEY, JSON.stringify(settings));
     } catch (e) {
-      // Silently fail if localStorage is not available
+      // Log warning - localStorage may not be available in some environments
+      console.warn('[AudioManager] Failed to save settings to localStorage:', e);
     }
   }
 
@@ -219,13 +228,16 @@ class AudioManager {
       if (stored) {
         const settings = JSON.parse(stored);
         if (typeof settings.muted === 'boolean') this._muted = settings.muted;
-        if (typeof settings.volume === 'number') this._volume = Math.max(0, Math.min(1, settings.volume));
+        if (typeof settings.volume === 'number')
+          this._volume = Math.max(0, Math.min(1, settings.volume));
         if (typeof settings.musicEnabled === 'boolean') this._musicEnabled = settings.musicEnabled;
-        if (typeof settings.musicVolume === 'number') this._musicVolume = Math.max(0, Math.min(1, settings.musicVolume));
+        if (typeof settings.musicVolume === 'number')
+          this._musicVolume = Math.max(0, Math.min(1, settings.musicVolume));
         if (typeof settings.ttsEnabled === 'boolean') this._ttsEnabled = settings.ttsEnabled;
       }
     } catch (e) {
-      // Silently fail if localStorage is not available or data is corrupted
+      // Log warning - localStorage may not be available or data may be corrupted
+      console.warn('[AudioManager] Failed to load settings from localStorage:', e);
     }
   }
 
@@ -317,7 +329,7 @@ class AudioManager {
     if (this._musicEnabled && this.musicAudio) {
       this.musicAudio.src = this.currentTrack.file;
       this.updateMusicVolume(); // Ensure mute state is respected after src change
-      this.musicAudio.play().catch(() => { });
+      this.musicAudio.play().catch(() => {});
     }
     this.notifyListeners();
   }
@@ -328,7 +340,7 @@ class AudioManager {
     if (this._musicEnabled && this.musicAudio) {
       this.musicAudio.src = this.currentTrack.file;
       this.updateMusicVolume(); // Ensure mute state is respected after src change
-      this.musicAudio.play().catch(() => { });
+      this.musicAudio.play().catch(() => {});
     }
     this.notifyListeners();
   }
@@ -358,7 +370,7 @@ class AudioManager {
     this.victoryAudio.onended = () => {
       if (wasPlaying && this.musicAudio && this._musicEnabled) {
         this.musicAudio.currentTime = currentTime;
-        this.musicAudio.play().catch(() => { });
+        this.musicAudio.play().catch(() => {});
       }
     };
 
@@ -366,7 +378,7 @@ class AudioManager {
       audioLog.warn('Victory fanfare playback failed', e);
       // Resume music if fanfare failed
       if (wasPlaying && this.musicAudio && this._musicEnabled) {
-        this.musicAudio.play().catch(() => { });
+        this.musicAudio.play().catch(() => {});
       }
     });
   }
@@ -485,6 +497,22 @@ class AudioManager {
     return this.masterGain;
   }
 
+  /**
+   * Public accessor for audio context (for audio-reactive visualization)
+   * Returns null if audio not yet initialized
+   */
+  getAudioContext(): AudioContext | null {
+    return this.getContext();
+  }
+
+  /**
+   * Public accessor for master gain node (for audio analyzer connection)
+   * Returns null if audio not yet initialized
+   */
+  getAnalyzerMasterGain(): GainNode | null {
+    return this.getMasterGain();
+  }
+
   private updateMasterVolume(): void {
     if (this.masterGain) {
       const targetVolume = this._muted ? 0 : this._volume;
@@ -600,7 +628,7 @@ class AudioManager {
       this.backgroundMuted = false;
       this.updateMasterVolume();
       if (this._musicEnabled && this.musicAudio && this.musicAudio.paused) {
-        this.musicAudio.play().catch(() => { });
+        this.musicAudio.play().catch(() => {});
       }
     }
   }
@@ -1890,7 +1918,11 @@ class AudioManager {
 
     if (this.ambientNodes.conveyorNoise?.gain) {
       const targetVolume = this.AMBIENT_BASE_VOLUMES.conveyorNoise * attenuationSquared;
-      this.ambientNodes.conveyorNoise.gain.gain.setTargetAtTime(targetVolume, currentTime, rampTime);
+      this.ambientNodes.conveyorNoise.gain.gain.setTargetAtTime(
+        targetVolume,
+        currentTime,
+        rampTime
+      );
     }
 
     if (this.ambientNodes.ventilation?.gain) {
@@ -3306,7 +3338,7 @@ class AudioManager {
       const currentTime = ctx.currentTime;
 
       // Number of bongs: 12-hour format (1-12)
-      const bongs = chimeCount ?? ((roundedHour % 12) || 12);
+      const bongs = chimeCount ?? (roundedHour % 12 || 12);
 
       // Play each bong with slight delay between them
       for (let i = 0; i < bongs; i++) {

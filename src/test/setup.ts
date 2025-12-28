@@ -10,6 +10,59 @@ import * as matchers from '@testing-library/jest-dom/matchers';
 // Extend vitest's expect with jest-dom matchers
 expect.extend(matchers);
 
+function createMemoryStorage(): Storage {
+  let store: Record<string, string> = {};
+
+  return {
+    get length() {
+      return Object.keys(store).length;
+    },
+    clear: () => {
+      store = {};
+    },
+    getItem: (key: string) => {
+      return Object.prototype.hasOwnProperty.call(store, key) ? store[key] : null;
+    },
+    key: (index: number) => {
+      const keys = Object.keys(store);
+      return keys[index] ?? null;
+    },
+    removeItem: (key: string) => {
+      delete store[key];
+    },
+    setItem: (key: string, value: string) => {
+      store[key] = String(value);
+    },
+  };
+}
+
+// Ensure `globalThis.localStorage/sessionStorage` exist for Zustand persist in tests.
+const testLocalStorage =
+  typeof window !== 'undefined' &&
+  window.localStorage &&
+  typeof window.localStorage.getItem === 'function' &&
+  typeof window.localStorage.setItem === 'function'
+    ? window.localStorage
+    : createMemoryStorage();
+
+const testSessionStorage =
+  typeof window !== 'undefined' &&
+  window.sessionStorage &&
+  typeof window.sessionStorage.getItem === 'function' &&
+  typeof window.sessionStorage.setItem === 'function'
+    ? window.sessionStorage
+    : createMemoryStorage();
+
+Object.defineProperty(globalThis, 'localStorage', {
+  value: testLocalStorage,
+  writable: true,
+});
+
+Object.defineProperty(globalThis, 'sessionStorage', {
+  value: testSessionStorage,
+  writable: true,
+});
+
 // Mock window.indexedDB for history storage tests
 // Create a proper mock that triggers callbacks asynchronously
 

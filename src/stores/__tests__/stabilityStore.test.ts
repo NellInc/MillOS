@@ -17,7 +17,7 @@ import {
   calculateStabilityCoefficient,
   calculateStabilityMargin,
 } from '../stabilityStore';
-import { STABILITY_THRESHOLD, WARNING_THRESHOLD } from '../../types/bas';
+import { STABILITY_THRESHOLD } from '../../types/bas';
 
 describe('StabilityStore', () => {
   beforeEach(() => {
@@ -333,7 +333,7 @@ describe('StabilityStore', () => {
       });
       useStabilityStore.getState().recalculateMetrics();
 
-      const { phase, wallace } = useStabilityStore.getState();
+      const { phase } = useStabilityStore.getState();
       // Should be at least approaching (could be critical depending on engagement multiplier)
       expect(['approaching', 'critical', 'transitioning', 'unstable']).toContain(phase);
     });
@@ -347,7 +347,7 @@ describe('StabilityStore', () => {
       });
       useStabilityStore.getState().recalculateMetrics();
 
-      const { phase, wallace } = useStabilityStore.getState();
+      const { phase } = useStabilityStore.getState();
       // Should be critical or higher (unstable)
       expect(['critical', 'transitioning', 'unstable']).toContain(phase);
     });
@@ -508,9 +508,7 @@ describe('StabilityStore', () => {
       const { getRecommendations } = useStabilityStore.getState();
       const recommendations = getRecommendations();
 
-      expect(recommendations).toContain(
-        'System stable - maintain current operational parameters'
-      );
+      expect(recommendations).toContain('System stable - maintain current operational parameters');
     });
 
     it('should recommend friction reduction when friction is high', () => {
@@ -746,10 +744,7 @@ describe('StabilityStore', () => {
     });
 
     it('should recalculate metrics after tick', () => {
-      const { tickStability, recalculateMetrics } = useStabilityStore.getState();
-
-      // Get initial state
-      const initialProduct = useStabilityStore.getState().wallace.stabilityProduct;
+      const { tickStability } = useStabilityStore.getState();
 
       // Force significant changes
       useStabilityStore.setState({

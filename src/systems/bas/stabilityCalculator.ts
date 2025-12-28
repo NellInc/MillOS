@@ -48,10 +48,7 @@ import { mapEngagementToFriction } from '../../stores/engagementStore';
  * // Returns ~0.59 (stable but approaching threshold)
  * ```
  */
-export function calculateStabilityCoefficient(
-  friction: number,
-  delay: number
-): number {
+export function calculateStabilityCoefficient(friction: number, delay: number): number {
   // Guard against invalid inputs
   const safeFriction = Math.max(0, Math.min(1, friction));
   const safeDelay = Math.max(0, Math.min(1, delay));
@@ -202,11 +199,7 @@ export function calculateResourceIndex(C: number, H: number, M: number): number 
  * @param M - Material resource rate (0-100).
  * @returns Complete ResourceRates object.
  */
-export function calculateResourceRates(
-  C: number,
-  H: number,
-  M: number
-): ResourceRates {
+export function calculateResourceRates(C: number, H: number, M: number): ResourceRates {
   return {
     communicationCapacity: Math.max(0, Math.min(100, C)),
     informationRate: Math.max(0, Math.min(100, H)),
@@ -359,12 +352,10 @@ export function predictPhaseTransition(history: StabilityDataPoint[]): {
         'Near critical threshold. Immediate action recommended to reduce friction or delay.';
       break;
     case 'transitioning':
-      recommendation =
-        'Phase transition in progress. Prioritize stabilization measures.';
+      recommendation = 'Phase transition in progress. Prioritize stabilization measures.';
       break;
     case 'unstable':
-      recommendation =
-        'System is unstable. Emergency intervention required to restore stability.';
+      recommendation = 'System is unstable. Emergency intervention required to restore stability.';
       break;
   }
 
@@ -433,8 +424,7 @@ export function getOptimalAxisSettings(
 
   if (currentStability < 0.3) {
     // Critical - prioritize stability over autonomy
-    rationale =
-      'Critical stability state. Recommend temporary reduction in autonomy to stabilize.';
+    rationale = 'Critical stability state. Recommend temporary reduction in autonomy to stabilize.';
 
     if (currentAxes) {
       // Reduce decision mode slightly to reduce friction from consensus delays
@@ -446,10 +436,7 @@ export function getOptimalAxisSettings(
 
       // Increase information access to reduce information delays
       if (currentAxes.informationAccess < 80) {
-        adjustments.informationAccess = Math.min(
-          95,
-          currentAxes.informationAccess + 15
-        );
+        adjustments.informationAccess = Math.min(95, currentAxes.informationAccess + 15);
         priority.push('informationAccess');
         expectedImprovement += 0.08;
       }
@@ -467,20 +454,14 @@ export function getOptimalAxisSettings(
     if (currentAxes) {
       // Focus on information access to reduce delays
       if (currentAxes.informationAccess < 70) {
-        adjustments.informationAccess = Math.min(
-          90,
-          currentAxes.informationAccess + 20
-        );
+        adjustments.informationAccess = Math.min(90, currentAxes.informationAccess + 20);
         priority.push('informationAccess');
         expectedImprovement += 0.1;
       }
 
       // Slight collective orientation adjustment can reduce friction
       if (currentAxes.collectiveOrientation > 70) {
-        adjustments.collectiveOrientation = Math.max(
-          50,
-          currentAxes.collectiveOrientation - 15
-        );
+        adjustments.collectiveOrientation = Math.max(50, currentAxes.collectiveOrientation - 15);
         priority.push('collectiveOrientation');
         expectedImprovement += 0.05;
       }
@@ -491,8 +472,7 @@ export function getOptimalAxisSettings(
     }
   } else {
     // Mild concern - minor tweaks
-    rationale =
-      'Stability is acceptable but could be improved. Minor adjustments suggested.';
+    rationale = 'Stability is acceptable but could be improved. Minor adjustments suggested.';
 
     if (currentAxes && currentAxes.informationAccess < 60) {
       adjustments.informationAccess = currentAxes.informationAccess + 10;
@@ -528,9 +508,9 @@ export function estimateFrictionDelayFromAxes(axes: FiveAxes): {
 } {
   // Higher autonomy = more friction (more coordination overhead)
   // But this is balanced by collective orientation
-  const autonomyFriction = axes.autonomyLevel / 100 * 0.3;
-  const decisionFriction = axes.decisionMode / 100 * 0.4;
-  const collectiveFriction = axes.collectiveOrientation / 100 * 0.2;
+  const autonomyFriction = (axes.autonomyLevel / 100) * 0.3;
+  const decisionFriction = (axes.decisionMode / 100) * 0.4;
+  const collectiveFriction = (axes.collectiveOrientation / 100) * 0.2;
 
   // Information access reduces delay (faster feedback)
   const infoDelayReduction = axes.informationAccess / 100;

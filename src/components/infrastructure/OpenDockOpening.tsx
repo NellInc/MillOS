@@ -1,6 +1,7 @@
 import React from 'react';
 import { Text } from '@react-three/drei';
 import * as THREE from 'three';
+import { FLOOR_LAYERS, POLYGON_OFFSET } from '../../constants/renderLayers';
 
 interface OpenDockOpeningProps {
   position: [number, number, number];
@@ -86,32 +87,48 @@ export const OpenDockOpening: React.FC<OpenDockOpeningProps> = ({
             <meshStandardMaterial color="#eab308" metalness={0.3} roughness={0.6} />
           </mesh>
           {/* Base plate */}
-          <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <mesh position={[0, FLOOR_LAYERS.wornPrimary, 0]} rotation={[-Math.PI / 2, 0, 0]}>
             <circleGeometry args={[0.35, 16]} />
-            <meshStandardMaterial color="#374151" metalness={0.6} roughness={0.4} />
+            <meshStandardMaterial
+              color="#374151"
+              metalness={0.6}
+              roughness={0.4}
+              polygonOffset
+              polygonOffsetFactor={POLYGON_OFFSET.standard.factor}
+              polygonOffsetUnits={POLYGON_OFFSET.standard.units}
+            />
           </mesh>
         </group>
       ))}
 
       {/* Warning stripes at floor level */}
-      <mesh position={[0, 0.03, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+      <mesh position={[0, FLOOR_LAYERS.safetyMain, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <planeGeometry args={[width + 2, 1.5]} />
         <meshStandardMaterial
           color="#eab308"
           emissive="#eab308"
           emissiveIntensity={0.15}
           side={THREE.DoubleSide}
+          polygonOffset
+          polygonOffsetFactor={POLYGON_OFFSET.standard.factor}
+          polygonOffsetUnits={POLYGON_OFFSET.standard.units}
         />
       </mesh>
       {/* Black diagonal stripes on yellow */}
       {[-8, -4, 0, 4, 8].map((x, i) => (
         <mesh
           key={`stripe-${i}`}
-          position={[x, 0.035, 0]}
+          position={[x, FLOOR_LAYERS.safetyMain + 0.005, 0]}
           rotation={[-Math.PI / 2, 0, Math.PI / 4]}
         >
           <planeGeometry args={[0.4, 2]} />
-          <meshStandardMaterial color="#1e293b" side={THREE.DoubleSide} />
+          <meshStandardMaterial
+            color="#1e293b"
+            side={THREE.DoubleSide}
+            polygonOffset
+            polygonOffsetFactor={POLYGON_OFFSET.moderate.factor}
+            polygonOffsetUnits={POLYGON_OFFSET.moderate.units}
+          />
         </mesh>
       ))}
 

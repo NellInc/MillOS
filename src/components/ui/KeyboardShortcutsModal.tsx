@@ -84,16 +84,18 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.9, opacity: 0 }}
-        className={`relative backdrop-blur-xl rounded-2xl shadow-2xl max-w-md w-full mx-4 overflow-hidden ${theme === 'light'
-          ? 'bg-white/95 border border-slate-200'
-          : 'bg-slate-900/95 border border-slate-700/50'
-          }`}
+        className={`relative backdrop-blur-xl rounded-2xl shadow-2xl max-w-md w-full mx-4 overflow-hidden ${
+          theme === 'light'
+            ? 'bg-white/95 border border-slate-200'
+            : 'bg-slate-900/95 border border-slate-700/50'
+        }`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div
-          className={`flex items-center justify-between p-4 border-b ${theme === 'light' ? 'border-slate-200' : 'border-slate-700/50'
-            }`}
+          className={`flex items-center justify-between p-4 border-b ${
+            theme === 'light' ? 'border-slate-200' : 'border-slate-700/50'
+          }`}
         >
           <div className="flex items-center gap-2">
             <Keyboard className="w-5 h-5 text-cyan-500" />
@@ -105,10 +107,11 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({
           </div>
           <button
             onClick={onClose}
-            className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${theme === 'light'
-              ? 'bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-700'
-              : 'bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white'
-              }`}
+            className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
+              theme === 'light'
+                ? 'bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-700'
+                : 'bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white'
+            }`}
           >
             <X className="w-4 h-4" />
           </button>
@@ -119,8 +122,9 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({
           {shortcuts.map((section) => (
             <div key={section.category}>
               <h3
-                className={`text-[10px] font-bold uppercase tracking-wider mb-2 ${theme === 'light' ? 'text-slate-400' : 'text-slate-500'
-                  }`}
+                className={`text-[10px] font-bold uppercase tracking-wider mb-2 ${
+                  theme === 'light' ? 'text-slate-400' : 'text-slate-500'
+                }`}
               >
                 {section.category}
               </h3>
@@ -128,8 +132,9 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({
                 {section.items.map((item) => (
                   <div
                     key={item.key}
-                    className={`flex items-center justify-between py-1.5 px-2 rounded-lg ${theme === 'light' ? 'bg-slate-100' : 'bg-slate-800/50'
-                      }`}
+                    className={`flex items-center justify-between py-1.5 px-2 rounded-lg ${
+                      theme === 'light' ? 'bg-slate-100' : 'bg-slate-800/50'
+                    }`}
                   >
                     <span
                       className={`text-xs ${theme === 'light' ? 'text-slate-600' : 'text-slate-300'}`}
@@ -137,10 +142,11 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({
                       {item.description}
                     </span>
                     <kbd
-                      className={`px-2 py-0.5 text-[10px] font-mono font-bold rounded border ${theme === 'light'
-                        ? 'bg-white text-slate-700 border-slate-300'
-                        : 'bg-slate-700 text-slate-200 border-slate-600'
-                        }`}
+                      className={`px-2 py-0.5 text-[10px] font-mono font-bold rounded border ${
+                        theme === 'light'
+                          ? 'bg-white text-slate-700 border-slate-300'
+                          : 'bg-slate-700 text-slate-200 border-slate-600'
+                      }`}
                     >
                       {item.key}
                     </kbd>
@@ -153,14 +159,16 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({
 
         {/* Footer */}
         <div
-          className={`p-3 border-t text-center ${theme === 'light' ? 'border-slate-200' : 'border-slate-700/50'
-            }`}
+          className={`p-3 border-t text-center ${
+            theme === 'light' ? 'border-slate-200' : 'border-slate-700/50'
+          }`}
         >
           <p className={`text-[10px] ${theme === 'light' ? 'text-slate-400' : 'text-slate-500'}`}>
             Press{' '}
             <kbd
-              className={`px-1.5 py-0.5 rounded text-[9px] font-mono ${theme === 'light' ? 'bg-slate-200 text-slate-600' : 'bg-slate-700 text-slate-300'
-                }`}
+              className={`px-1.5 py-0.5 rounded text-[9px] font-mono ${
+                theme === 'light' ? 'bg-slate-200 text-slate-600' : 'bg-slate-700 text-slate-300'
+              }`}
             >
               ?
             </kbd>{' '}

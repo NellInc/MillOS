@@ -1,8 +1,10 @@
 import React from 'react';
+import * as THREE from 'three';
 import { Text, Instances, Instance } from '@react-three/drei';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { useSafetyStore } from '../../stores/safetyStore';
 import { useGraphicsStore } from '../../stores/graphicsStore';
+import { PROCEDURAL_TEXTURES } from '../../utils/sharedMaterials';
 
 interface FactoryWallsProps {
   floorWidth: number;
@@ -87,10 +89,16 @@ const PersonnelDoor: React.FC<{
         </mesh>
       )}
 
-      {/* Floor mat */}
-      <mesh position={[0, 0.02, 0.3]} rotation={[-Math.PI / 2, 0, 0]}>
+      {/* Floor mat - raised with depthWrite to prevent z-fighting */}
+      <mesh position={[0, 0.06, 0.3]} rotation={[-Math.PI / 2, 0, 0]}>
         <planeGeometry args={[0.6, 0.4]} />
-        <meshBasicMaterial color="#1f2937" />
+        <meshBasicMaterial
+          color="#1f2937"
+          depthWrite={false}
+          polygonOffset
+          polygonOffsetFactor={-1}
+          polygonOffsetUnits={-1}
+        />
       </mesh>
 
       {/* Threshold */}
@@ -106,10 +114,18 @@ const PersonnelDoor: React.FC<{
 const BreakRoom: React.FC<{ position: [number, number, number] }> = React.memo(({ position }) => {
   return (
     <group position={position}>
-      {/* Floor/platform */}
-      <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+      {/* Floor/platform - raised with depthWrite to prevent z-fighting */}
+      <mesh position={[0, 0.06, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <planeGeometry args={[6, 5]} />
-        <meshBasicMaterial color="#22c55e" transparent opacity={0.15} />
+        <meshBasicMaterial
+          color="#22c55e"
+          transparent
+          opacity={0.15}
+          depthWrite={false}
+          polygonOffset
+          polygonOffsetFactor={-1}
+          polygonOffsetUnits={-1}
+        />
       </mesh>
 
       {/* Shelter roof */}
@@ -261,63 +277,65 @@ const WallClock: React.FC<{ position: [number, number, number] }> = React.memo((
 });
 
 // Safety bulletin board with days since incident counter
-const BulletinBoard: React.FC<{ position: [number, number, number] }> = React.memo(({ position }) => {
-  const daysSinceIncident = useSafetyStore((state) => state.safetyMetrics.daysSinceIncident);
+const BulletinBoard: React.FC<{ position: [number, number, number] }> = React.memo(
+  ({ position }) => {
+    const daysSinceIncident = useSafetyStore((state) => state.safetyMetrics.daysSinceIncident);
 
-  return (
-    <group position={position}>
-      {/* Board frame */}
-      <mesh>
-        <boxGeometry args={[1.2, 1, 0.08]} />
-        <meshBasicMaterial color="#78350f" />
-      </mesh>
-      {/* Cork board surface */}
-      <mesh position={[0, 0, 0.045]}>
-        <planeGeometry args={[1.1, 0.9]} />
-        <meshBasicMaterial color="#d4a574" />
-      </mesh>
-      {/* "SAFETY FIRST" header */}
-      <mesh position={[0, 0.35, 0.05]}>
-        <planeGeometry args={[0.9, 0.15]} />
-        <meshBasicMaterial color="#22c55e" />
-      </mesh>
-      {/* Days counter display */}
-      <group position={[0, 0, 0.05]}>
-        {/* Counter background */}
-        <mesh position={[0, 0, 0.01]}>
-          <planeGeometry args={[0.8, 0.35]} />
-          <meshBasicMaterial color="#1e293b" />
+    return (
+      <group position={position}>
+        {/* Board frame */}
+        <mesh>
+          <boxGeometry args={[1.2, 1, 0.08]} />
+          <meshBasicMaterial color="#78350f" />
         </mesh>
-        {/* Number display (simplified as glowing segments) */}
-        <mesh position={[0, 0, 0.02]}>
-          <planeGeometry args={[0.6, 0.25]} />
-          <meshStandardMaterial
-            color="#22c55e"
-            emissive="#22c55e"
-            emissiveIntensity={daysSinceIncident > 100 ? 1 : 0.5}
-          />
+        {/* Cork board surface */}
+        <mesh position={[0, 0, 0.045]}>
+          <planeGeometry args={[1.1, 0.9]} />
+          <meshBasicMaterial color="#d4a574" />
         </mesh>
+        {/* "SAFETY FIRST" header */}
+        <mesh position={[0, 0.35, 0.05]}>
+          <planeGeometry args={[0.9, 0.15]} />
+          <meshBasicMaterial color="#22c55e" />
+        </mesh>
+        {/* Days counter display */}
+        <group position={[0, 0, 0.05]}>
+          {/* Counter background */}
+          <mesh position={[0, 0, 0.01]}>
+            <planeGeometry args={[0.8, 0.35]} />
+            <meshBasicMaterial color="#1e293b" />
+          </mesh>
+          {/* Number display (simplified as glowing segments) */}
+          <mesh position={[0, 0, 0.02]}>
+            <planeGeometry args={[0.6, 0.25]} />
+            <meshStandardMaterial
+              color="#22c55e"
+              emissive="#22c55e"
+              emissiveIntensity={daysSinceIncident > 100 ? 1 : 0.5}
+            />
+          </mesh>
+        </group>
+        {/* "Days Without Incident" label */}
+        <mesh position={[0, -0.28, 0.05]}>
+          <planeGeometry args={[0.9, 0.12]} />
+          <meshBasicMaterial color="#475569" />
+        </mesh>
+        {/* Push pins */}
+        {[
+          [-0.48, 0.38],
+          [0.48, 0.38],
+          [-0.48, -0.38],
+          [0.48, -0.38],
+        ].map(([x, y], i) => (
+          <mesh key={i} position={[x, y, 0.06]}>
+            <sphereGeometry args={[0.025, 8, 8]} />
+            <meshBasicMaterial color={['#ef4444', '#eab308', '#22c55e', '#3b82f6'][i]} />
+          </mesh>
+        ))}
       </group>
-      {/* "Days Without Incident" label */}
-      <mesh position={[0, -0.28, 0.05]}>
-        <planeGeometry args={[0.9, 0.12]} />
-        <meshBasicMaterial color="#475569" />
-      </mesh>
-      {/* Push pins */}
-      {[
-        [-0.48, 0.38],
-        [0.48, 0.38],
-        [-0.48, -0.38],
-        [0.48, -0.38],
-      ].map(([x, y], i) => (
-        <mesh key={i} position={[x, y, 0.06]}>
-          <sphereGeometry args={[0.025, 8, 8]} />
-          <meshBasicMaterial color={['#ef4444', '#eab308', '#22c55e', '#3b82f6'][i]} />
-        </mesh>
-      ))}
-    </group>
-  );
-});
+    );
+  }
+);
 
 // Locker Room component
 const LockerRoom: React.FC<{ position: [number, number, number] }> = React.memo(({ position }) => {
@@ -426,72 +444,70 @@ const LockerRoom: React.FC<{ position: [number, number, number] }> = React.memo(
 });
 
 // Portable toilet (blue porta-potty)
-const PortableToilet: React.FC<{ position: [number, number, number]; rotation?: number }> = React.memo(({
-  position,
-  rotation = 0,
-}) => {
-  return (
-    <group position={position} rotation={[0, rotation, 0]}>
-      {/* Main body */}
-      <mesh position={[0, 1.1, 0]} castShadow>
-        <boxGeometry args={[1.2, 2.2, 1.2]} />
-        <meshBasicMaterial color="#1e40af" />
-      </mesh>
+const PortableToilet: React.FC<{ position: [number, number, number]; rotation?: number }> =
+  React.memo(({ position, rotation = 0 }) => {
+    return (
+      <group position={position} rotation={[0, rotation, 0]}>
+        {/* Main body */}
+        <mesh position={[0, 1.1, 0]} castShadow>
+          <boxGeometry args={[1.2, 2.2, 1.2]} />
+          <meshBasicMaterial color="#1e40af" />
+        </mesh>
 
-      {/* Roof with slight overhang */}
-      <mesh position={[0, 2.3, 0]} castShadow>
-        <boxGeometry args={[1.3, 0.1, 1.3]} />
-        <meshBasicMaterial color="#1e3a5f" />
-      </mesh>
+        {/* Roof with slight overhang */}
+        <mesh position={[0, 2.3, 0]} castShadow>
+          <boxGeometry args={[1.3, 0.1, 1.3]} />
+          <meshBasicMaterial color="#1e3a5f" />
+        </mesh>
 
-      {/* Vent pipe on roof */}
-      <mesh position={[0.4, 2.5, 0]} castShadow>
-        <cylinderGeometry args={[0.06, 0.06, 0.4, 8]} />
-        <meshBasicMaterial color="#1f2937" />
-      </mesh>
+        {/* Vent pipe on roof */}
+        <mesh position={[0.4, 2.5, 0]} castShadow>
+          <cylinderGeometry args={[0.06, 0.06, 0.4, 8]} />
+          <meshBasicMaterial color="#1f2937" />
+        </mesh>
 
-      {/* Door */}
-      <mesh position={[0, 1, 0.61]} castShadow>
-        <boxGeometry args={[0.8, 1.8, 0.02]} />
-        <meshBasicMaterial color="#1e3a5f" />
-      </mesh>
+        {/* Door */}
+        <mesh position={[0, 1, 0.61]} castShadow>
+          <boxGeometry args={[0.8, 1.8, 0.02]} />
+          <meshBasicMaterial color="#1e3a5f" />
+        </mesh>
 
-      {/* Door handle */}
-      <mesh position={[0.3, 1, 0.63]}>
-        <boxGeometry args={[0.08, 0.15, 0.04]} />
-        <meshBasicMaterial color="#64748b" />
-      </mesh>
+        {/* Door handle */}
+        <mesh position={[0.3, 1, 0.63]}>
+          <boxGeometry args={[0.08, 0.15, 0.04]} />
+          <meshBasicMaterial color="#64748b" />
+        </mesh>
 
-      {/* Occupied indicator */}
-      <mesh position={[0.3, 1.5, 0.62]}>
-        <boxGeometry args={[0.15, 0.08, 0.02]} />
-        <meshStandardMaterial color="#22c55e" emissive="#22c55e" emissiveIntensity={0.3} />
-      </mesh>
+        {/* Occupied indicator */}
+        <mesh position={[0.3, 1.5, 0.62]}>
+          <boxGeometry args={[0.15, 0.08, 0.02]} />
+          <meshStandardMaterial color="#22c55e" emissive="#22c55e" emissiveIntensity={0.3} />
+        </mesh>
 
-      {/* Vents on sides */}
-      {[-0.61, 0.61].map((x, i) => (
-        <group
-          key={i}
-          position={[x, 1.8, 0]}
-          rotation={[0, i === 0 ? -Math.PI / 2 : Math.PI / 2, 0]}
-        >
-          {[-0.15, 0, 0.15].map((y, j) => (
-            <mesh key={j} position={[0, y, 0]}>
-              <boxGeometry args={[0.4, 0.04, 0.02]} />
-              <meshBasicMaterial color="#0f172a" />
-            </mesh>
-          ))}
-        </group>
-      ))}
+        {/* Vents on sides */}
+        {[-0.61, 0.61].map((x, i) => (
+          <group
+            key={i}
+            position={[x, 1.8, 0]}
+            rotation={[0, i === 0 ? -Math.PI / 2 : Math.PI / 2, 0]}
+          >
+            {[-0.15, 0, 0.15].map((y, j) => (
+              <mesh key={j} position={[0, y, 0]}>
+                <boxGeometry args={[0.4, 0.04, 0.02]} />
+                <meshBasicMaterial color="#0f172a" />
+              </mesh>
+            ))}
+          </group>
+        ))}
 
-      {/* Base/skid */}
-      <mesh position={[0, 0.02, 0]}>
-        <boxGeometry args={[1.25, 0.04, 1.25]} />
-        <meshBasicMaterial color="#374151" />
-      </mesh>
-    </group>
-  );
-});
+        {/* Base/skid */}
+        <mesh position={[0, 0.02, 0]}>
+          <boxGeometry args={[1.25, 0.04, 1.25]} />
+          <meshBasicMaterial color="#374151" />
+        </mesh>
+      </group>
+    );
+  });
 
 // Indoor toilet block with corridor layout
 // Door on east wall (+X), stalls on west side (-X), sinks on east side (+X)
@@ -638,270 +654,272 @@ const ToiletBlock: React.FC<{ position: [number, number, number] }> = React.memo
 });
 
 // Manager's Office component - glass-fronted office overlooking factory floor
-const ManagerOffice: React.FC<{ position: [number, number, number] }> = React.memo(({ position }) => {
-  return (
-    <group position={position}>
-      {/* Floor - carpet */}
-      <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <planeGeometry args={[8, 6]} />
-        <meshBasicMaterial color="#1e3a5f" />
-      </mesh>
-
-      {/* Back wall */}
-      <mesh position={[0, 1.5, -3]} receiveShadow castShadow>
-        <boxGeometry args={[8, 3, 0.15]} />
-        <meshBasicMaterial color="#f1f5f9" />
-      </mesh>
-
-      {/* Side walls */}
-      <mesh position={[-4, 1.5, 0]} receiveShadow castShadow>
-        <boxGeometry args={[0.15, 3, 6]} />
-        <meshBasicMaterial color="#f1f5f9" />
-      </mesh>
-      <mesh position={[4, 1.5, 0]} receiveShadow castShadow>
-        <boxGeometry args={[0.15, 3, 6]} />
-        <meshBasicMaterial color="#f1f5f9" />
-      </mesh>
-
-      {/* Front wall - glass panels with door gap */}
-      <mesh position={[-2.5, 1.5, 3]} receiveShadow castShadow>
-        <boxGeometry args={[3, 3, 0.1]} />
-        <meshBasicMaterial color="#60a5fa" transparent opacity={0.3} />
-      </mesh>
-      <mesh position={[2.5, 1.5, 3]} receiveShadow castShadow>
-        <boxGeometry args={[3, 3, 0.1]} />
-        <meshBasicMaterial color="#60a5fa" transparent opacity={0.3} />
-      </mesh>
-      <mesh position={[0, 2.7, 3]} receiveShadow castShadow>
-        <boxGeometry args={[2, 0.6, 0.1]} />
-        <meshBasicMaterial color="#60a5fa" transparent opacity={0.3} />
-      </mesh>
-      {/* Glass door frame */}
-      <mesh position={[-1, 1.2, 3]}>
-        <boxGeometry args={[0.08, 2.4, 0.12]} />
-        <meshBasicMaterial color="#374151" />
-      </mesh>
-      <mesh position={[1, 1.2, 3]}>
-        <boxGeometry args={[0.08, 2.4, 0.12]} />
-        <meshBasicMaterial color="#374151" />
-      </mesh>
-
-      {/* Desk */}
-      <group position={[0, 0, -1]}>
-        {/* Desktop */}
-        <mesh position={[0, 0.75, 0]} castShadow>
-          <boxGeometry args={[2.5, 0.08, 1.2]} />
-          <meshBasicMaterial color="#78350f" />
+const ManagerOffice: React.FC<{ position: [number, number, number] }> = React.memo(
+  ({ position }) => {
+    return (
+      <group position={position}>
+        {/* Floor - carpet */}
+        <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+          <planeGeometry args={[8, 6]} />
+          <meshBasicMaterial color="#1e3a5f" />
         </mesh>
-        {/* Front panel */}
-        <mesh position={[0, 0.37, 0.55]} castShadow>
-          <boxGeometry args={[2.5, 0.7, 0.05]} />
-          <meshBasicMaterial color="#78350f" />
+
+        {/* Back wall */}
+        <mesh position={[0, 1.5, -3]} receiveShadow castShadow>
+          <boxGeometry args={[8, 3, 0.15]} />
+          <meshBasicMaterial color="#f1f5f9" />
         </mesh>
-        {/* Desk legs */}
-        {[
-          [-1.15, -0.55],
-          [1.15, -0.55],
-          [-1.15, 0.5],
-          [1.15, 0.5],
-        ].map(([x, z], i) => (
-          <mesh key={i} position={[x, 0.35, z]} castShadow>
-            <boxGeometry args={[0.08, 0.7, 0.08]} />
-            <meshBasicMaterial color="#64748b" />
+
+        {/* Side walls */}
+        <mesh position={[-4, 1.5, 0]} receiveShadow castShadow>
+          <boxGeometry args={[0.15, 3, 6]} />
+          <meshBasicMaterial color="#f1f5f9" />
+        </mesh>
+        <mesh position={[4, 1.5, 0]} receiveShadow castShadow>
+          <boxGeometry args={[0.15, 3, 6]} />
+          <meshBasicMaterial color="#f1f5f9" />
+        </mesh>
+
+        {/* Front wall - glass panels with door gap */}
+        <mesh position={[-2.5, 1.5, 3]} receiveShadow castShadow>
+          <boxGeometry args={[3, 3, 0.1]} />
+          <meshBasicMaterial color="#60a5fa" transparent opacity={0.3} />
+        </mesh>
+        <mesh position={[2.5, 1.5, 3]} receiveShadow castShadow>
+          <boxGeometry args={[3, 3, 0.1]} />
+          <meshBasicMaterial color="#60a5fa" transparent opacity={0.3} />
+        </mesh>
+        <mesh position={[0, 2.7, 3]} receiveShadow castShadow>
+          <boxGeometry args={[2, 0.6, 0.1]} />
+          <meshBasicMaterial color="#60a5fa" transparent opacity={0.3} />
+        </mesh>
+        {/* Glass door frame */}
+        <mesh position={[-1, 1.2, 3]}>
+          <boxGeometry args={[0.08, 2.4, 0.12]} />
+          <meshBasicMaterial color="#374151" />
+        </mesh>
+        <mesh position={[1, 1.2, 3]}>
+          <boxGeometry args={[0.08, 2.4, 0.12]} />
+          <meshBasicMaterial color="#374151" />
+        </mesh>
+
+        {/* Desk */}
+        <group position={[0, 0, -1]}>
+          {/* Desktop */}
+          <mesh position={[0, 0.75, 0]} castShadow>
+            <boxGeometry args={[2.5, 0.08, 1.2]} />
+            <meshBasicMaterial color="#78350f" />
           </mesh>
-        ))}
-        {/* Drawer unit */}
-        <mesh position={[0.8, 0.35, 0]} castShadow>
-          <boxGeometry args={[0.5, 0.65, 0.9]} />
-          <meshBasicMaterial color="#78350f" />
-        </mesh>
-        {/* Drawer handles */}
-        {[0.5, 0.25, 0].map((y, i) => (
-          <mesh key={i} position={[0.8, y, 0.46]}>
-            <boxGeometry args={[0.2, 0.03, 0.03]} />
-            <meshBasicMaterial color="#94a3b8" />
+          {/* Front panel */}
+          <mesh position={[0, 0.37, 0.55]} castShadow>
+            <boxGeometry args={[2.5, 0.7, 0.05]} />
+            <meshBasicMaterial color="#78350f" />
           </mesh>
-        ))}
-      </group>
-
-      {/* Computer monitor */}
-      <group position={[0, 0.79, -1.3]}>
-        {/* Screen */}
-        <mesh position={[0, 0.25, 0]} castShadow>
-          <boxGeometry args={[0.8, 0.5, 0.04]} />
-          <meshBasicMaterial color="#1e293b" />
-        </mesh>
-        {/* Screen glow - keep standard for emissive */}
-        <mesh position={[0, 0.25, 0.025]}>
-          <planeGeometry args={[0.7, 0.4]} />
-          <meshStandardMaterial color="#3b82f6" emissive="#3b82f6" emissiveIntensity={0.3} />
-        </mesh>
-        {/* Stand */}
-        <mesh position={[0, 0, 0]}>
-          <boxGeometry args={[0.15, 0.08, 0.15]} />
-          <meshBasicMaterial color="#374151" />
-        </mesh>
-        {/* Base */}
-        <mesh position={[0, -0.02, 0.05]}>
-          <boxGeometry args={[0.3, 0.03, 0.25]} />
-          <meshBasicMaterial color="#374151" />
-        </mesh>
-      </group>
-
-      {/* Keyboard */}
-      <mesh position={[0, 0.8, -0.7]}>
-        <boxGeometry args={[0.5, 0.02, 0.18]} />
-        <meshBasicMaterial color="#1e293b" />
-      </mesh>
-
-      {/* Mouse */}
-      <mesh position={[0.4, 0.8, -0.7]}>
-        <boxGeometry args={[0.08, 0.02, 0.12]} />
-        <meshBasicMaterial color="#1e293b" />
-      </mesh>
-
-      {/* Office chair */}
-      <group position={[0, 0, 0.2]}>
-        {/* Seat */}
-        <mesh position={[0, 0.45, 0]} castShadow>
-          <boxGeometry args={[0.5, 0.1, 0.5]} />
-          <meshBasicMaterial color="#1e293b" />
-        </mesh>
-        {/* Backrest */}
-        <mesh position={[0, 0.8, 0.2]} castShadow>
-          <boxGeometry args={[0.48, 0.6, 0.08]} />
-          <meshBasicMaterial color="#1e293b" />
-        </mesh>
-        {/* Chair base */}
-        <mesh position={[0, 0.2, 0]}>
-          <cylinderGeometry args={[0.03, 0.03, 0.4, 8]} />
-          <meshBasicMaterial color="#64748b" />
-        </mesh>
-        {/* Chair wheel base */}
-        <mesh position={[0, 0.03, 0]}>
-          <cylinderGeometry args={[0.25, 0.25, 0.03, 5]} />
-          <meshBasicMaterial color="#374151" />
-        </mesh>
-      </group>
-
-      {/* Filing cabinet */}
-      <group position={[-3, 0, -2]}>
-        <mesh position={[0, 0.6, 0]} castShadow>
-          <boxGeometry args={[0.5, 1.2, 0.6]} />
-          <meshBasicMaterial color="#64748b" />
-        </mesh>
-        {/* Drawer fronts */}
-        {[0.9, 0.5, 0.1].map((y, i) => (
-          <group key={i}>
-            <mesh position={[0, y, 0.31]}>
-              <planeGeometry args={[0.45, 0.35]} />
-              <meshBasicMaterial color="#475569" />
+          {/* Desk legs */}
+          {[
+            [-1.15, -0.55],
+            [1.15, -0.55],
+            [-1.15, 0.5],
+            [1.15, 0.5],
+          ].map(([x, z], i) => (
+            <mesh key={i} position={[x, 0.35, z]} castShadow>
+              <boxGeometry args={[0.08, 0.7, 0.08]} />
+              <meshBasicMaterial color="#64748b" />
             </mesh>
-            <mesh position={[0.15, y, 0.32]}>
-              <boxGeometry args={[0.1, 0.03, 0.02]} />
+          ))}
+          {/* Drawer unit */}
+          <mesh position={[0.8, 0.35, 0]} castShadow>
+            <boxGeometry args={[0.5, 0.65, 0.9]} />
+            <meshBasicMaterial color="#78350f" />
+          </mesh>
+          {/* Drawer handles */}
+          {[0.5, 0.25, 0].map((y, i) => (
+            <mesh key={i} position={[0.8, y, 0.46]}>
+              <boxGeometry args={[0.2, 0.03, 0.03]} />
               <meshBasicMaterial color="#94a3b8" />
             </mesh>
-          </group>
-        ))}
-      </group>
+          ))}
+        </group>
 
-      {/* Whiteboard on back wall */}
-      <group position={[2, 1.5, -2.9]}>
-        {/* Board frame */}
-        <mesh>
-          <boxGeometry args={[2, 1.2, 0.05]} />
-          <meshBasicMaterial color="#374151" />
-        </mesh>
-        {/* White surface */}
-        <mesh position={[0, 0, 0.03]}>
-          <planeGeometry args={[1.9, 1.1]} />
-          <meshBasicMaterial color="#f8fafc" />
-        </mesh>
-        {/* Marker tray */}
-        <mesh position={[0, -0.65, 0.08]}>
-          <boxGeometry args={[1.5, 0.08, 0.1]} />
-          <meshBasicMaterial color="#64748b" />
-        </mesh>
-      </group>
+        {/* Computer monitor */}
+        <group position={[0, 0.79, -1.3]}>
+          {/* Screen */}
+          <mesh position={[0, 0.25, 0]} castShadow>
+            <boxGeometry args={[0.8, 0.5, 0.04]} />
+            <meshBasicMaterial color="#1e293b" />
+          </mesh>
+          {/* Screen glow - keep standard for emissive */}
+          <mesh position={[0, 0.25, 0.025]}>
+            <planeGeometry args={[0.7, 0.4]} />
+            <meshStandardMaterial color="#3b82f6" emissive="#3b82f6" emissiveIntensity={0.3} />
+          </mesh>
+          {/* Stand */}
+          <mesh position={[0, 0, 0]}>
+            <boxGeometry args={[0.15, 0.08, 0.15]} />
+            <meshBasicMaterial color="#374151" />
+          </mesh>
+          {/* Base */}
+          <mesh position={[0, -0.02, 0.05]}>
+            <boxGeometry args={[0.3, 0.03, 0.25]} />
+            <meshBasicMaterial color="#374151" />
+          </mesh>
+        </group>
 
-      {/* Wall clock */}
-      <group position={[-2, 2.2, -2.9]}>
-        <mesh>
-          <cylinderGeometry args={[0.25, 0.25, 0.05, 32]} />
+        {/* Keyboard */}
+        <mesh position={[0, 0.8, -0.7]}>
+          <boxGeometry args={[0.5, 0.02, 0.18]} />
           <meshBasicMaterial color="#1e293b" />
         </mesh>
-        <mesh position={[0, 0, 0.03]} rotation={[Math.PI / 2, 0, 0]}>
-          <circleGeometry args={[0.22, 32]} />
-          <meshBasicMaterial color="#f8fafc" />
-        </mesh>
-      </group>
 
-      {/* Potted plant in corner */}
-      <group position={[3, 0, -2]}>
-        {/* Pot */}
-        <mesh position={[0, 0.2, 0]} castShadow>
-          <cylinderGeometry args={[0.2, 0.15, 0.4, 16]} />
-          <meshBasicMaterial color="#78350f" />
+        {/* Mouse */}
+        <mesh position={[0.4, 0.8, -0.7]}>
+          <boxGeometry args={[0.08, 0.02, 0.12]} />
+          <meshBasicMaterial color="#1e293b" />
         </mesh>
-        {/* Plant */}
-        <mesh position={[0, 0.6, 0]}>
-          <sphereGeometry args={[0.3, 8, 8]} />
-          <meshBasicMaterial color="#15803d" />
-        </mesh>
-      </group>
 
-      {/* "MANAGER'S OFFICE" sign - large and prominent above door */}
-      <group position={[0, 3.2, 3.2]}>
-        {/* Sign backing/frame - dark blue */}
-        <mesh>
-          <boxGeometry args={[3, 0.7, 0.1]} />
-          <meshBasicMaterial color="#1e3a5f" />
-        </mesh>
-        {/* Sign face - dark blue background */}
-        <mesh position={[0, 0, 0.06]}>
-          <boxGeometry args={[2.8, 0.55, 0.02]} />
-          <meshBasicMaterial color="#1e40af" />
-        </mesh>
-        {/* Text simulation - GOLD lettering */}
-        <mesh position={[0, 0, 0.08]}>
-          <boxGeometry args={[2.4, 0.22, 0.02]} />
-          <meshStandardMaterial
-            color="#d4af37"
-            metalness={0.8}
-            roughness={0.2}
-            emissive="#b8860b"
-            emissiveIntensity={0.15}
-          />
-        </mesh>
-        {/* Mounting brackets */}
-        <mesh position={[-1.4, 0, -0.1]}>
-          <boxGeometry args={[0.15, 0.5, 0.25]} />
-          <meshBasicMaterial color="#374151" />
-        </mesh>
-        <mesh position={[1.4, 0, -0.1]}>
-          <boxGeometry args={[0.15, 0.5, 0.25]} />
-          <meshBasicMaterial color="#374151" />
-        </mesh>
-      </group>
+        {/* Office chair */}
+        <group position={[0, 0, 0.2]}>
+          {/* Seat */}
+          <mesh position={[0, 0.45, 0]} castShadow>
+            <boxGeometry args={[0.5, 0.1, 0.5]} />
+            <meshBasicMaterial color="#1e293b" />
+          </mesh>
+          {/* Backrest */}
+          <mesh position={[0, 0.8, 0.2]} castShadow>
+            <boxGeometry args={[0.48, 0.6, 0.08]} />
+            <meshBasicMaterial color="#1e293b" />
+          </mesh>
+          {/* Chair base */}
+          <mesh position={[0, 0.2, 0]}>
+            <cylinderGeometry args={[0.03, 0.03, 0.4, 8]} />
+            <meshBasicMaterial color="#64748b" />
+          </mesh>
+          {/* Chair wheel base */}
+          <mesh position={[0, 0.03, 0]}>
+            <cylinderGeometry args={[0.25, 0.25, 0.03, 5]} />
+            <meshBasicMaterial color="#374151" />
+          </mesh>
+        </group>
 
-      {/* Door nameplate on glass door frame - gold on blue */}
-      <group position={[0.7, 1.5, 3.15]}>
-        <mesh>
-          <boxGeometry args={[0.6, 0.2, 0.02]} />
-          <meshBasicMaterial color="#1e3a5f" />
-        </mesh>
-        <mesh position={[0, 0, 0.015]}>
-          <boxGeometry args={[0.5, 0.12, 0.01]} />
-          <meshBasicMaterial color="#d4af37" />
-        </mesh>
-      </group>
+        {/* Filing cabinet */}
+        <group position={[-3, 0, -2]}>
+          <mesh position={[0, 0.6, 0]} castShadow>
+            <boxGeometry args={[0.5, 1.2, 0.6]} />
+            <meshBasicMaterial color="#64748b" />
+          </mesh>
+          {/* Drawer fronts */}
+          {[0.9, 0.5, 0.1].map((y, i) => (
+            <group key={i}>
+              <mesh position={[0, y, 0.31]}>
+                <planeGeometry args={[0.45, 0.35]} />
+                <meshBasicMaterial color="#475569" />
+              </mesh>
+              <mesh position={[0.15, y, 0.32]}>
+                <boxGeometry args={[0.1, 0.03, 0.02]} />
+                <meshBasicMaterial color="#94a3b8" />
+              </mesh>
+            </group>
+          ))}
+        </group>
 
-      {/* Overhead lights */}
-      <pointLight position={[0, 2.8, 0]} color="#f8fafc" intensity={0.5} distance={8} />
-      <pointLight position={[-2, 2.8, -1]} color="#fef3c7" intensity={0.3} distance={5} />
-    </group>
-  );
-});
+        {/* Whiteboard on back wall */}
+        <group position={[2, 1.5, -2.9]}>
+          {/* Board frame */}
+          <mesh>
+            <boxGeometry args={[2, 1.2, 0.05]} />
+            <meshBasicMaterial color="#374151" />
+          </mesh>
+          {/* White surface */}
+          <mesh position={[0, 0, 0.03]}>
+            <planeGeometry args={[1.9, 1.1]} />
+            <meshBasicMaterial color="#f8fafc" />
+          </mesh>
+          {/* Marker tray */}
+          <mesh position={[0, -0.65, 0.08]}>
+            <boxGeometry args={[1.5, 0.08, 0.1]} />
+            <meshBasicMaterial color="#64748b" />
+          </mesh>
+        </group>
+
+        {/* Wall clock */}
+        <group position={[-2, 2.2, -2.9]}>
+          <mesh>
+            <cylinderGeometry args={[0.25, 0.25, 0.05, 32]} />
+            <meshBasicMaterial color="#1e293b" />
+          </mesh>
+          <mesh position={[0, 0, 0.03]} rotation={[Math.PI / 2, 0, 0]}>
+            <circleGeometry args={[0.22, 32]} />
+            <meshBasicMaterial color="#f8fafc" />
+          </mesh>
+        </group>
+
+        {/* Potted plant in corner */}
+        <group position={[3, 0, -2]}>
+          {/* Pot */}
+          <mesh position={[0, 0.2, 0]} castShadow>
+            <cylinderGeometry args={[0.2, 0.15, 0.4, 16]} />
+            <meshBasicMaterial color="#78350f" />
+          </mesh>
+          {/* Plant */}
+          <mesh position={[0, 0.6, 0]}>
+            <sphereGeometry args={[0.3, 8, 8]} />
+            <meshBasicMaterial color="#15803d" />
+          </mesh>
+        </group>
+
+        {/* "MANAGER'S OFFICE" sign - large and prominent above door */}
+        <group position={[0, 3.2, 3.2]}>
+          {/* Sign backing/frame - dark blue */}
+          <mesh>
+            <boxGeometry args={[3, 0.7, 0.1]} />
+            <meshBasicMaterial color="#1e3a5f" />
+          </mesh>
+          {/* Sign face - dark blue background */}
+          <mesh position={[0, 0, 0.06]}>
+            <boxGeometry args={[2.8, 0.55, 0.02]} />
+            <meshBasicMaterial color="#1e40af" />
+          </mesh>
+          {/* Text simulation - GOLD lettering */}
+          <mesh position={[0, 0, 0.08]}>
+            <boxGeometry args={[2.4, 0.22, 0.02]} />
+            <meshStandardMaterial
+              color="#d4af37"
+              metalness={0.8}
+              roughness={0.2}
+              emissive="#b8860b"
+              emissiveIntensity={0.15}
+            />
+          </mesh>
+          {/* Mounting brackets */}
+          <mesh position={[-1.4, 0, -0.1]}>
+            <boxGeometry args={[0.15, 0.5, 0.25]} />
+            <meshBasicMaterial color="#374151" />
+          </mesh>
+          <mesh position={[1.4, 0, -0.1]}>
+            <boxGeometry args={[0.15, 0.5, 0.25]} />
+            <meshBasicMaterial color="#374151" />
+          </mesh>
+        </group>
+
+        {/* Door nameplate on glass door frame - gold on blue */}
+        <group position={[0.7, 1.5, 3.15]}>
+          <mesh>
+            <boxGeometry args={[0.6, 0.2, 0.02]} />
+            <meshBasicMaterial color="#1e3a5f" />
+          </mesh>
+          <mesh position={[0, 0, 0.015]}>
+            <boxGeometry args={[0.5, 0.12, 0.01]} />
+            <meshBasicMaterial color="#d4af37" />
+          </mesh>
+        </group>
+
+        {/* Overhead lights */}
+        <pointLight position={[0, 2.8, 0]} color="#f8fafc" intensity={0.5} distance={8} />
+        <pointLight position={[-2, 2.8, -1]} color="#fef3c7" intensity={0.3} distance={5} />
+      </group>
+    );
+  }
+);
 
 export const FactoryWalls: React.FC<FactoryWallsProps> = () => {
   const graphics = useGraphicsStore((state) => state.graphics);
@@ -976,24 +994,50 @@ export const FactoryWalls: React.FC<FactoryWallsProps> = () => {
               roughness={0.3}
               transparent
               opacity={0.95}
+              normalMap={PROCEDURAL_TEXTURES.brushedMetal}
+              normalScale={new THREE.Vector2(0.15, 0.15)}
             />
           </mesh>
           {/* Railings */}
           <mesh position={[0, 0.6, 1.4]} castShadow>
             <boxGeometry args={[100, 0.05, 0.05]} />
-            <meshStandardMaterial color="#94a3b8" metalness={0.9} roughness={0.2} />
+            <meshStandardMaterial
+              color="#94a3b8"
+              metalness={0.9}
+              roughness={0.2}
+              normalMap={PROCEDURAL_TEXTURES.brushedMetal}
+              normalScale={new THREE.Vector2(0.1, 0.1)}
+            />
           </mesh>
           <mesh position={[0, 0.6, -1.4]} castShadow>
             <boxGeometry args={[100, 0.05, 0.05]} />
-            <meshStandardMaterial color="#94a3b8" metalness={0.9} roughness={0.2} />
+            <meshStandardMaterial
+              color="#94a3b8"
+              metalness={0.9}
+              roughness={0.2}
+              normalMap={PROCEDURAL_TEXTURES.brushedMetal}
+              normalScale={new THREE.Vector2(0.1, 0.1)}
+            />
           </mesh>
           <mesh position={[0, 0.3, 1.4]} castShadow>
             <boxGeometry args={[100, 0.05, 0.05]} />
-            <meshStandardMaterial color="#94a3b8" metalness={0.9} roughness={0.2} />
+            <meshStandardMaterial
+              color="#94a3b8"
+              metalness={0.9}
+              roughness={0.2}
+              normalMap={PROCEDURAL_TEXTURES.brushedMetal}
+              normalScale={new THREE.Vector2(0.1, 0.1)}
+            />
           </mesh>
           <mesh position={[0, 0.3, -1.4]} castShadow>
             <boxGeometry args={[100, 0.05, 0.05]} />
-            <meshStandardMaterial color="#94a3b8" metalness={0.9} roughness={0.2} />
+            <meshStandardMaterial
+              color="#94a3b8"
+              metalness={0.9}
+              roughness={0.2}
+              normalMap={PROCEDURAL_TEXTURES.brushedMetal}
+              normalScale={new THREE.Vector2(0.1, 0.1)}
+            />
           </mesh>
           {/* Vertical posts - INSTANCED (68 posts → 1 draw call) */}
           <Instances limit={68}>

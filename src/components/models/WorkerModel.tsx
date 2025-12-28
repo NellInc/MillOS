@@ -19,6 +19,7 @@ import { useModelAvailable, WorkerVariant, getWorkerVariantPath } from '../../ut
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { shouldRunThisFrame } from '../../utils/frameThrottle';
 import { useGraphicsStore } from '../../stores/graphicsStore';
+import { PROCEDURAL_TEXTURES } from '../../utils/sharedMaterials';
 
 interface WorkerModelProps {
   uniformColor: string;
@@ -192,7 +193,12 @@ const ProceduralWorker: React.FC<WorkerModelProps> = ({
         {/* Chest */}
         <mesh castShadow position={[0, 0.2, 0]}>
           <boxGeometry args={[0.48, 0.45, 0.26]} />
-          <meshStandardMaterial color={uniformColor} roughness={0.75} />
+          <meshStandardMaterial
+            color={uniformColor}
+            roughness={0.75}
+            normalMap={PROCEDURAL_TEXTURES.panelNormal}
+            normalScale={new THREE.Vector2(0.08, 0.08)}
+          />
         </mesh>
 
         {/* Shoulders */}
@@ -208,7 +214,12 @@ const ProceduralWorker: React.FC<WorkerModelProps> = ({
         {/* Waist */}
         <mesh castShadow position={[0, -0.12, 0]}>
           <boxGeometry args={[0.42, 0.28, 0.22]} />
-          <meshStandardMaterial color={uniformColor} roughness={0.8} />
+          <meshStandardMaterial
+            color={uniformColor}
+            roughness={0.8}
+            normalMap={PROCEDURAL_TEXTURES.panelNormal}
+            normalScale={new THREE.Vector2(0.08, 0.08)}
+          />
         </mesh>
 
         {/* Safety vest */}
@@ -325,7 +336,12 @@ const ProceduralWorker: React.FC<WorkerModelProps> = ({
       {/* Hips */}
       <mesh castShadow position={[0, 0.72, 0]}>
         <boxGeometry args={[0.36, 0.12, 0.2]} />
-        <meshStandardMaterial color={pantsColor} roughness={0.8} />
+        <meshStandardMaterial
+          color={pantsColor}
+          roughness={0.8}
+          normalMap={PROCEDURAL_TEXTURES.panelNormal}
+          normalScale={new THREE.Vector2(0.06, 0.06)}
+        />
       </mesh>
 
       {/* Belt */}
@@ -351,7 +367,12 @@ const ProceduralWorker: React.FC<WorkerModelProps> = ({
         {/* Boot */}
         <mesh castShadow position={[0, -0.78, 0.03]}>
           <boxGeometry args={[0.1, 0.1, 0.16]} />
-          <meshStandardMaterial color="#1a1a1a" roughness={0.6} />
+          <meshStandardMaterial
+            color="#1a1a1a"
+            roughness={0.6}
+            normalMap={PROCEDURAL_TEXTURES.rubberNormal}
+            normalScale={new THREE.Vector2(0.15, 0.15)}
+          />
         </mesh>
         <mesh castShadow position={[0, -0.84, 0.03]}>
           <boxGeometry args={[0.11, 0.02, 0.17]} />
@@ -375,7 +396,12 @@ const ProceduralWorker: React.FC<WorkerModelProps> = ({
         </mesh>
         <mesh castShadow position={[0, -0.78, 0.03]}>
           <boxGeometry args={[0.1, 0.1, 0.16]} />
-          <meshStandardMaterial color="#1a1a1a" roughness={0.6} />
+          <meshStandardMaterial
+            color="#1a1a1a"
+            roughness={0.6}
+            normalMap={PROCEDURAL_TEXTURES.rubberNormal}
+            normalScale={new THREE.Vector2(0.15, 0.15)}
+          />
         </mesh>
         <mesh castShadow position={[0, -0.84, 0.03]}>
           <boxGeometry args={[0.11, 0.02, 0.17]} />

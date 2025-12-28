@@ -33,10 +33,7 @@ import {
   Gamepad2,
   type LucideIcon,
 } from 'lucide-react';
-import {
-  useFlourishingStore,
-  FLOURISHING_DIMENSIONS,
-} from '../../../stores/flourishingStore';
+import { useFlourishingStore, FLOURISHING_DIMENSIONS } from '../../../stores/flourishingStore';
 import {
   useEngagementStore,
   getStatusColor,
@@ -86,11 +83,7 @@ interface DimensionBarProps {
   compact?: boolean;
 }
 
-const DimensionBar: React.FC<DimensionBarProps> = memo(({
-  dimension,
-  score,
-  compact = false,
-}) => {
+const DimensionBar: React.FC<DimensionBarProps> = memo(({ dimension, score, compact = false }) => {
   const Icon = DIMENSION_ICONS[dimension];
   const colorClass = DIMENSION_COLORS[dimension];
   const bgColorClass = DIMENSION_BG_COLORS[dimension];
@@ -135,9 +128,7 @@ const DimensionBar: React.FC<DimensionBarProps> = memo(({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1">
           <Icon className={`w-3 h-3 ${colorClass}`} aria-hidden="true" />
-          <span className="text-[10px] font-medium text-white">
-            {label}
-          </span>
+          <span className="text-[10px] font-medium text-white">{label}</span>
         </div>
         <span className={`text-[10px] font-mono ${colorClass}`} aria-hidden="true">
           {score.toFixed(0)}%
@@ -199,8 +190,7 @@ export const FlourishingDashboard: React.FC = () => {
   // Compute factory-level stats using the subscribed state as dependencies
   const factoryFlourishing = useMemo(
     () => getFactoryFlourishing(),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [workerFlourishing, weeklyBaseline]
+    [workerFlourishing, weeklyBaseline, getFactoryFlourishing]
   );
 
   const dimensionDescriptors = useMemo(() => {
@@ -221,11 +211,7 @@ export const FlourishingDashboard: React.FC = () => {
   // Memoize trend indicator values
   const { TrendIcon, trendColor, trendLabel } = useMemo(() => {
     const icon =
-      weeklyTrend === 'improving'
-        ? TrendingUp
-        : weeklyTrend === 'declining'
-          ? TrendingDown
-          : Minus;
+      weeklyTrend === 'improving' ? TrendingUp : weeklyTrend === 'declining' ? TrendingDown : Minus;
     const color =
       weeklyTrend === 'improving'
         ? 'text-green-400'
@@ -278,17 +264,13 @@ export const FlourishingDashboard: React.FC = () => {
       <div className="p-3 border-b border-slate-700/50">
         <div className="flex items-center gap-2">
           <Sparkles className="w-4 h-4 text-amber-400" />
-          <span className="text-sm font-bold text-white">
-            Flourishing (Eudaimonia)
-          </span>
+          <span className="text-sm font-bold text-white">Flourishing (Eudaimonia)</span>
           <div className={`ml-auto flex items-center gap-1 ${trendColor}`}>
             <TrendIcon className="w-3 h-3" />
             <span className="text-[10px] font-medium">{trendLabel}</span>
           </div>
         </div>
-        <p className="text-[9px] text-slate-400 mt-1">
-          Six dimensions of human wellbeing in work
-        </p>
+        <p className="text-[9px] text-slate-400 mt-1">Six dimensions of human wellbeing in work</p>
       </div>
 
       {/* Overall Score */}
@@ -299,9 +281,7 @@ export const FlourishingDashboard: React.FC = () => {
             className={`relative w-14 h-14 rounded-full ${scoreBg} flex items-center justify-center`}
           >
             <div className="absolute inset-1 rounded-full border-2 border-current opacity-30" />
-            <span className={`text-lg font-bold ${scoreColor}`}>
-              {overallScore.toFixed(0)}
-            </span>
+            <span className={`text-lg font-bold ${scoreColor}`}>{overallScore.toFixed(0)}</span>
           </div>
 
           {/* Worker Counts */}
@@ -309,27 +289,21 @@ export const FlourishingDashboard: React.FC = () => {
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-1">
                 <Star className="w-3 h-3 text-green-400" />
-                <span className="text-[10px] text-slate-300">
-                  {flourishingWorkers} flourishing
-                </span>
+                <span className="text-[10px] text-slate-300">{flourishingWorkers} flourishing</span>
               </div>
               <span className="text-[9px] text-slate-500">(&gt;70)</span>
             </div>
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-1">
                 <Minus className="w-3 h-3 text-slate-400" />
-                <span className="text-[10px] text-slate-300">
-                  {neutralWorkers} neutral
-                </span>
+                <span className="text-[10px] text-slate-300">{neutralWorkers} neutral</span>
               </div>
               <span className="text-[9px] text-slate-500">(40-70)</span>
             </div>
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-1">
                 <AlertTriangle className="w-3 h-3 text-red-400" />
-                <span className="text-[10px] text-slate-300">
-                  {strugglingWorkers} struggling
-                </span>
+                <span className="text-[10px] text-slate-300">{strugglingWorkers} struggling</span>
               </div>
               <span className="text-[9px] text-slate-500">(&lt;40)</span>
             </div>
@@ -376,18 +350,11 @@ export const FlourishingDashboard: React.FC = () => {
       <div className="p-3 border-b border-slate-700/30">
         <div className="flex items-center gap-1 mb-2">
           <Heart className="w-3 h-3 text-pink-400" />
-          <span className="text-xs font-medium text-white">
-            Six Dimensions
-          </span>
+          <span className="text-xs font-medium text-white">Six Dimensions</span>
         </div>
         <div className="space-y-1.5">
           {DIMENSION_KEYS.map((dim) => (
-            <DimensionBar
-              key={dim}
-              dimension={dim}
-              score={dimensionScores[dim]}
-              compact
-            />
+            <DimensionBar key={dim} dimension={dim} score={dimensionScores[dim]} compact />
           ))}
         </div>
       </div>
@@ -396,9 +363,7 @@ export const FlourishingDashboard: React.FC = () => {
       <div className="p-3 border-b border-slate-700/30">
         <div className="flex items-center gap-1 mb-2">
           <Gamepad2 className="w-3 h-3 text-cyan-400" />
-          <span className="text-xs font-medium text-white">
-            Engagement Signature
-          </span>
+          <span className="text-xs font-medium text-white">Engagement Signature</span>
         </div>
         <div className="bg-slate-800/30 rounded p-2">
           <div className="flex items-center justify-between">
@@ -495,24 +460,15 @@ export const FlourishingDashboard: React.FC = () => {
                   const colorClass = DIMENSION_COLORS[dim.key];
 
                   return (
-                    <div
-                      key={dim.key}
-                      className="bg-slate-800/30 rounded p-2"
-                    >
+                    <div key={dim.key} className="bg-slate-800/30 rounded p-2">
                       <div className="flex items-center gap-1.5 mb-1">
                         <Icon className={`w-3 h-3 ${colorClass}`} />
-                        <span className="text-[10px] font-bold text-white">
-                          {dim.label}
-                        </span>
-                        <span
-                          className={`ml-auto text-[9px] font-mono ${colorClass}`}
-                        >
+                        <span className="text-[10px] font-bold text-white">{dim.label}</span>
+                        <span className={`ml-auto text-[9px] font-mono ${colorClass}`}>
                           {dimensionScores[dim.key].toFixed(0)}%
                         </span>
                       </div>
-                      <p className="text-[9px] text-slate-400 leading-relaxed">
-                        {dim.description}
-                      </p>
+                      <p className="text-[9px] text-slate-400 leading-relaxed">{dim.description}</p>
                     </div>
                   );
                 })}
@@ -520,12 +476,9 @@ export const FlourishingDashboard: React.FC = () => {
                 {/* Geometric Mean Explanation */}
                 <div className="bg-slate-800/50 rounded p-2 mt-2">
                   <p className="text-[9px] text-slate-400 leading-relaxed">
-                    <strong className="text-amber-400">
-                      Geometric Mean:
-                    </strong>{' '}
-                    The overall score uses geometric mean, not arithmetic
-                    mean. This means one low dimension significantly impacts
-                    the total - true flourishing requires balance across all
+                    <strong className="text-amber-400">Geometric Mean:</strong> The overall score
+                    uses geometric mean, not arithmetic mean. This means one low dimension
+                    significantly impacts the total - true flourishing requires balance across all
                     six dimensions.
                   </p>
                 </div>

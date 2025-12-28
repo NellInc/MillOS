@@ -20,12 +20,7 @@
  */
 
 import { create } from 'zustand';
-import type {
-  WallaceMetrics,
-  ResourceRates,
-  PhaseState,
-  StabilityDataPoint,
-} from '../types/bas';
+import type { WallaceMetrics, ResourceRates, PhaseState, StabilityDataPoint } from '../types/bas';
 import { STABILITY_THRESHOLD, WARNING_THRESHOLD } from '../types/bas';
 import { useEngagementStore, mapEngagementToFriction } from './engagementStore';
 
@@ -240,7 +235,10 @@ export const useStabilityStore = create<StabilityState>((set, get) => ({
     // High engagement (multiplier < 1) reduces effective friction
     // Low engagement (multiplier > 1) increases effective friction
     // High ownership (multiplier < 1) reduces effective friction
-    const effectiveFriction = Math.min(1, baseFriction * engagementMultiplier * ownershipMultiplier);
+    const effectiveFriction = Math.min(
+      1,
+      baseFriction * engagementMultiplier * ownershipMultiplier
+    );
 
     // Sum delay sources (capped at 1)
     const delay = Math.min(
@@ -292,29 +290,28 @@ export const useStabilityStore = create<StabilityState>((set, get) => ({
   getStabilityStatus: () => {
     const { phase } = get();
 
-    const statusMap: Record<PhaseState, { message: string; urgency: number }> =
-      {
-        stable: {
-          message: 'System operating within stable parameters',
-          urgency: 0,
-        },
-        approaching: {
-          message: 'Stability margin decreasing - monitor closely',
-          urgency: 1,
-        },
-        critical: {
-          message: 'Near stability threshold - intervention recommended',
-          urgency: 2,
-        },
-        transitioning: {
-          message: 'Phase transition in progress',
-          urgency: 3,
-        },
-        unstable: {
-          message: 'System unstable - immediate action required',
-          urgency: 4,
-        },
-      };
+    const statusMap: Record<PhaseState, { message: string; urgency: number }> = {
+      stable: {
+        message: 'System operating within stable parameters',
+        urgency: 0,
+      },
+      approaching: {
+        message: 'Stability margin decreasing - monitor closely',
+        urgency: 1,
+      },
+      critical: {
+        message: 'Near stability threshold - intervention recommended',
+        urgency: 2,
+      },
+      transitioning: {
+        message: 'Phase transition in progress',
+        urgency: 3,
+      },
+      unstable: {
+        message: 'System unstable - immediate action required',
+        urgency: 4,
+      },
+    };
 
     return { status: phase, ...statusMap[phase] };
   },
@@ -356,35 +353,25 @@ export const useStabilityStore = create<StabilityState>((set, get) => ({
 
     // High friction recommendations
     if (wallace.friction > 0.5) {
-      const sortedFriction = Object.entries(frictionSources).sort(
-        ([, a], [, b]) => b - a
-      );
+      const sortedFriction = Object.entries(frictionSources).sort(([, a], [, b]) => b - a);
       if (sortedFriction.length > 0) {
         const [source] = sortedFriction[0];
-        recommendations.push(
-          `Reduce friction in "${source}" (currently highest contributor)`
-        );
+        recommendations.push(`Reduce friction in "${source}" (currently highest contributor)`);
       }
     }
 
     // High delay recommendations
     if (wallace.delay > 0.5) {
-      const sortedDelay = Object.entries(delaySources).sort(
-        ([, a], [, b]) => b - a
-      );
+      const sortedDelay = Object.entries(delaySources).sort(([, a], [, b]) => b - a);
       if (sortedDelay.length > 0) {
         const [source] = sortedDelay[0];
-        recommendations.push(
-          `Reduce delay in "${source}" (currently highest contributor)`
-        );
+        recommendations.push(`Reduce delay in "${source}" (currently highest contributor)`);
       }
     }
 
     // General stability recommendations
     if (wallace.stabilityProduct > WARNING_THRESHOLD) {
-      recommendations.push(
-        'Consider increasing autonomy to reduce coordination overhead'
-      );
+      recommendations.push('Consider increasing autonomy to reduce coordination overhead');
       recommendations.push('Enable more real-time feedback to reduce delay');
     }
 
@@ -396,9 +383,7 @@ export const useStabilityStore = create<StabilityState>((set, get) => ({
     }
 
     if (recommendations.length === 0) {
-      recommendations.push(
-        'System stable - maintain current operational parameters'
-      );
+      recommendations.push('System stable - maintain current operational parameters');
     }
 
     return recommendations;
@@ -425,7 +410,7 @@ export const useStabilityStore = create<StabilityState>((set, get) => ({
     const frictionEquity = 1 - wallace.friction;
 
     // Combine for overall equity index (0-1)
-    return (infoEquity * 0.6 + frictionEquity * 0.4);
+    return infoEquity * 0.6 + frictionEquity * 0.4;
   },
 
   getEngagementAdjustedFriction: () => {
@@ -503,10 +488,7 @@ export const useStabilityStore = create<StabilityState>((set, get) => ({
  * Calculate the stability coefficient S for the value formula V = Z × S × E × F
  * S = max(0, 1 - (α × τ / e⁻¹))
  */
-export function calculateStabilityCoefficient(
-  friction: number,
-  delay: number
-): number {
+export function calculateStabilityCoefficient(friction: number, delay: number): number {
   const product = friction * delay;
   return Math.max(0, 1 - product / STABILITY_THRESHOLD);
 }

@@ -15,13 +15,7 @@
 
 import { create } from 'zustand';
 import { WORKER_ROSTER } from '../types';
-import type {
-  Vote,
-  VoteStatus,
-  VoteOption,
-  VoteComment,
-  AxisKey,
-} from '../types/bas';
+import type { Vote, VoteStatus, VoteOption, VoteComment, AxisKey } from '../types/bas';
 import { VOTING_RULES } from '../types/bas';
 
 // =============================================================================
@@ -53,12 +47,7 @@ interface VotingState {
   castVote: (voteId: string, workerId: string, optionId: string) => void;
   closeVote: (voteId: string) => void;
   implementVote: (voteId: string) => void;
-  addComment: (
-    voteId: string,
-    workerId: string,
-    content: string,
-    isAI?: boolean
-  ) => void;
+  addComment: (voteId: string, workerId: string, content: string, isAI?: boolean) => void;
 
   // Queries
   getActiveVotes: () => Vote[];
@@ -166,9 +155,7 @@ export const useVotingStore = create<VotingState>((set, get) => ({
         return {
           ...v,
           options: updatedOptions.map((opt) =>
-            opt.id === optionId
-              ? { ...opt, votes: [...opt.votes, workerId] }
-              : opt
+            opt.id === optionId ? { ...opt, votes: [...opt.votes, workerId] } : opt
           ),
         };
       }),
@@ -180,16 +167,11 @@ export const useVotingStore = create<VotingState>((set, get) => ({
     if (!vote) return;
 
     const totalWorkers = WORKER_ROSTER.length;
-    const totalVotes = vote.options.reduce(
-      (sum, opt) => sum + opt.votes.length,
-      0
-    );
+    const totalVotes = vote.options.reduce((sum, opt) => sum + opt.votes.length, 0);
     const turnout = totalVotes / totalWorkers;
 
     // Find winner (option with most votes)
-    const sortedOptions = [...vote.options].sort(
-      (a, b) => b.votes.length - a.votes.length
-    );
+    const sortedOptions = [...vote.options].sort((a, b) => b.votes.length - a.votes.length);
     const winner = sortedOptions[0];
     const winnerFraction = totalVotes > 0 ? winner.votes.length / totalVotes : 0;
 
@@ -232,9 +214,7 @@ export const useVotingStore = create<VotingState>((set, get) => ({
 
     set((state) => ({
       votes: state.votes.map((v) =>
-        v.id === voteId
-          ? { ...v, discussionThread: [...v.discussionThread, comment] }
-          : v
+        v.id === voteId ? { ...v, discussionThread: [...v.discussionThread, comment] } : v
       ),
     }));
   },
@@ -244,9 +224,7 @@ export const useVotingStore = create<VotingState>((set, get) => ({
   },
 
   getClosedVotes: () => {
-    return get().votes.filter(
-      (v) => v.status === 'closed' || v.status === 'implemented'
-    );
+    return get().votes.filter((v) => v.status === 'closed' || v.status === 'implemented');
   },
 
   getPendingVotesForWorker: (workerId) => {
@@ -278,9 +256,7 @@ export const useVotingStore = create<VotingState>((set, get) => ({
     if (!vote) return;
 
     // Generate neutral AI analysis
-    const optionSummary = vote.options
-      .map((opt) => `"${opt.label}"`)
-      .join(', ');
+    const optionSummary = vote.options.map((opt) => `"${opt.label}"`).join(', ');
 
     const analysis =
       `Analysis of "${vote.title}": This ${vote.type} decision has ${vote.options.length} options (${optionSummary}). ` +
@@ -288,9 +264,7 @@ export const useVotingStore = create<VotingState>((set, get) => ({
       `${vote.deadline ? `Voting closes in ${Math.round((vote.deadline - Date.now()) / 3600000)} hours.` : ''}`;
 
     set((state) => ({
-      votes: state.votes.map((v) =>
-        v.id === voteId ? { ...v, aiAnalysis: analysis } : v
-      ),
+      votes: state.votes.map((v) => (v.id === voteId ? { ...v, aiAnalysis: analysis } : v)),
     }));
   },
 

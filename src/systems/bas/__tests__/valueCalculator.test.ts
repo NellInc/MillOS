@@ -700,34 +700,41 @@ describe('ValueCalculator', () => {
   describe('Edge Cases', () => {
     it('should handle minimum value inputs', () => {
       expect(() => calculateTotalValue(0.001, 0.001, 0.001, 0.001)).not.toThrow();
-      expect(() => calculateEquityIndex({
-        autonomyLevel: 0,
-        decisionMode: 0,
-        informationAccess: 0,
-        evaluationDirection: 0,
-        collectiveOrientation: 0,
-      })).not.toThrow();
+      expect(() =>
+        calculateEquityIndex({
+          autonomyLevel: 0,
+          decisionMode: 0,
+          informationAccess: 0,
+          evaluationDirection: 0,
+          collectiveOrientation: 0,
+        })
+      ).not.toThrow();
     });
 
     it('should handle maximum value inputs', () => {
       expect(() => calculateTotalValue(1, 1, 1, 1)).not.toThrow();
-      expect(() => calculateEquityIndex({
-        autonomyLevel: 100,
-        decisionMode: 100,
-        informationAccess: 100,
-        evaluationDirection: 100,
-        collectiveOrientation: 100,
-      })).not.toThrow();
+      expect(() =>
+        calculateEquityIndex({
+          autonomyLevel: 100,
+          decisionMode: 100,
+          informationAccess: 100,
+          evaluationDirection: 100,
+          collectiveOrientation: 100,
+        })
+      ).not.toThrow();
     });
 
     it('should handle empty worker metrics array', () => {
-      const equity = calculateEquityIndex({
-        autonomyLevel: 50,
-        decisionMode: 50,
-        informationAccess: 50,
-        evaluationDirection: 50,
-        collectiveOrientation: 50,
-      }, []);
+      const equity = calculateEquityIndex(
+        {
+          autonomyLevel: 50,
+          decisionMode: 50,
+          informationAccess: 50,
+          evaluationDirection: 50,
+          collectiveOrientation: 50,
+        },
+        []
+      );
       expect(equity).toBeGreaterThan(0);
     });
 
@@ -742,13 +749,16 @@ describe('ValueCalculator', () => {
           collectiveParticipation: 50,
         },
       ];
-      const equity = calculateEquityIndex({
-        autonomyLevel: 50,
-        decisionMode: 50,
-        informationAccess: 50,
-        evaluationDirection: 50,
-        collectiveOrientation: 50,
-      }, metrics);
+      const equity = calculateEquityIndex(
+        {
+          autonomyLevel: 50,
+          decisionMode: 50,
+          informationAccess: 50,
+          evaluationDirection: 50,
+          collectiveOrientation: 50,
+        },
+        metrics
+      );
       expect(equity).toBeGreaterThan(0);
     });
   });
@@ -757,12 +767,7 @@ describe('ValueCalculator', () => {
     it('should calculate value quickly', () => {
       const start = performance.now();
       for (let i = 0; i < 10000; i++) {
-        calculateTotalValue(
-          Math.random(),
-          Math.random(),
-          Math.random(),
-          Math.random()
-        );
+        calculateTotalValue(Math.random(), Math.random(), Math.random(), Math.random());
       }
       const duration = performance.now() - start;
       expect(duration).toBeLessThan(100);

@@ -1418,139 +1418,139 @@ const DYNAMIC_TEMPLATES: Array<{
   type: 'general' | 'production' | 'safety' | 'emergency';
   chaosWeight: number;
 }> = [
-    // Worker-specific templates
-    {
-      template:
-        '{WORKER} has been spotted near the coffee machine. Again. For the third time this hour.',
-      type: 'general',
-      chaosWeight: 0.3,
-    },
-    {
-      template:
-        '{WORKER} would like everyone to know that {THEIR} area is clean. Suspiciously clean.',
-      type: 'general',
-      chaosWeight: 0.2,
-    },
-    {
-      template:
-        'Would {WORKER} please report to the supervisor office. You are not in trouble. Probably.',
-      type: 'general',
-      chaosWeight: 0.4,
-    },
-    {
-      template:
-        '{WORKER} has volunteered for the late shift. We appreciate {THEIR} sacrifice. Or desperation.',
-      type: 'general',
-      chaosWeight: 0.3,
-    },
-    {
-      template:
-        '{WORKER} has completed {THEIR} safety training. {THEY} only fell asleep twice. This is an improvement.',
-      type: 'safety',
-      chaosWeight: 0.3,
-    },
-    {
-      template:
-        'Happy birthday to {WORKER}. Cake is in the break room. First come, first served. Run.',
-      type: 'general',
-      chaosWeight: 0.2,
-    },
-    {
-      template:
-        '{WORKER} has found the missing clipboard. It was in the obvious place. The obvious place no one checked.',
-      type: 'general',
-      chaosWeight: 0.2,
-    },
-    {
-      template:
-        '{WORKER} is looking for {THEIR} safety goggles. They were last seen on {THEIR} head.',
-      type: 'safety',
-      chaosWeight: 0.3,
-    },
-    {
-      template:
-        'Congratulations to {WORKER} for zero incidents this week. The bar was low. {THEY} cleared it.',
-      type: 'general',
-      chaosWeight: 0.2,
-    },
-    {
-      template: '{WORKER} has submitted 17 maintenance requests today. We admire {THEIR} optimism.',
-      type: 'general',
-      chaosWeight: 0.5,
-    },
+  // Worker-specific templates
+  {
+    template:
+      '{WORKER} has been spotted near the coffee machine. Again. For the third time this hour.',
+    type: 'general',
+    chaosWeight: 0.3,
+  },
+  {
+    template:
+      '{WORKER} would like everyone to know that {THEIR} area is clean. Suspiciously clean.',
+    type: 'general',
+    chaosWeight: 0.2,
+  },
+  {
+    template:
+      'Would {WORKER} please report to the supervisor office. You are not in trouble. Probably.',
+    type: 'general',
+    chaosWeight: 0.4,
+  },
+  {
+    template:
+      '{WORKER} has volunteered for the late shift. We appreciate {THEIR} sacrifice. Or desperation.',
+    type: 'general',
+    chaosWeight: 0.3,
+  },
+  {
+    template:
+      '{WORKER} has completed {THEIR} safety training. {THEY} only fell asleep twice. This is an improvement.',
+    type: 'safety',
+    chaosWeight: 0.3,
+  },
+  {
+    template:
+      'Happy birthday to {WORKER}. Cake is in the break room. First come, first served. Run.',
+    type: 'general',
+    chaosWeight: 0.2,
+  },
+  {
+    template:
+      '{WORKER} has found the missing clipboard. It was in the obvious place. The obvious place no one checked.',
+    type: 'general',
+    chaosWeight: 0.2,
+  },
+  {
+    template:
+      '{WORKER} is looking for {THEIR} safety goggles. They were last seen on {THEIR} head.',
+    type: 'safety',
+    chaosWeight: 0.3,
+  },
+  {
+    template:
+      'Congratulations to {WORKER} for zero incidents this week. The bar was low. {THEY} cleared it.',
+    type: 'general',
+    chaosWeight: 0.2,
+  },
+  {
+    template: '{WORKER} has submitted 17 maintenance requests today. We admire {THEIR} optimism.',
+    type: 'general',
+    chaosWeight: 0.5,
+  },
 
-    // Machine-specific templates
-    {
-      template: '{MACHINE} is performing above expectations. We are suspicious but grateful.',
-      type: 'production',
-      chaosWeight: 0.2,
-    },
-    {
-      template:
-        '{MACHINE} would like a moment of silence for its previous self. The one that broke. R.I.P.',
-      type: 'general',
-      chaosWeight: 0.4,
-    },
-    {
-      template:
-        '{MACHINE} has been running for 72 hours straight. Unlike some of you, it does not complain.',
-      type: 'production',
-      chaosWeight: 0.3,
-    },
-    {
-      template:
-        'Maintenance scheduled for {MACHINE}. Please say your goodbyes. It will return. Changed.',
-      type: 'general',
-      chaosWeight: 0.4,
-    },
-    {
-      template:
-        '{MACHINE} is making the noise again. The concerning one. Engineering has been notified. They sighed.',
-      type: 'production',
-      chaosWeight: 0.6,
-    },
-    {
-      template: '{MACHINE} has achieved peak efficiency. Screenshot it. This will not last.',
-      type: 'production',
-      chaosWeight: 0.1,
-    },
-    {
-      template:
-        'Someone has left a coffee cup on {MACHINE}. {MACHINE} is not a table. {MACHINE} is hurt.',
-      type: 'general',
-      chaosWeight: 0.3,
-    },
-    {
-      template: '{MACHINE} update: Still running. Still reliable. Still underappreciated.',
-      type: 'production',
-      chaosWeight: 0.2,
-    },
+  // Machine-specific templates
+  {
+    template: '{MACHINE} is performing above expectations. We are suspicious but grateful.',
+    type: 'production',
+    chaosWeight: 0.2,
+  },
+  {
+    template:
+      '{MACHINE} would like a moment of silence for its previous self. The one that broke. R.I.P.',
+    type: 'general',
+    chaosWeight: 0.4,
+  },
+  {
+    template:
+      '{MACHINE} has been running for 72 hours straight. Unlike some of you, it does not complain.',
+    type: 'production',
+    chaosWeight: 0.3,
+  },
+  {
+    template:
+      'Maintenance scheduled for {MACHINE}. Please say your goodbyes. It will return. Changed.',
+    type: 'general',
+    chaosWeight: 0.4,
+  },
+  {
+    template:
+      '{MACHINE} is making the noise again. The concerning one. Engineering has been notified. They sighed.',
+    type: 'production',
+    chaosWeight: 0.6,
+  },
+  {
+    template: '{MACHINE} has achieved peak efficiency. Screenshot it. This will not last.',
+    type: 'production',
+    chaosWeight: 0.1,
+  },
+  {
+    template:
+      'Someone has left a coffee cup on {MACHINE}. {MACHINE} is not a table. {MACHINE} is hurt.',
+    type: 'general',
+    chaosWeight: 0.3,
+  },
+  {
+    template: '{MACHINE} update: Still running. Still reliable. Still underappreciated.',
+    type: 'production',
+    chaosWeight: 0.2,
+  },
 
-    // Combined worker + machine templates
-    {
-      template:
-        '{WORKER} has been assigned to {MACHINE}. {THEY} seem nervous. {MACHINE} seems indifferent.',
-      type: 'general',
-      chaosWeight: 0.3,
-    },
-    {
-      template: '{WORKER} and {MACHINE} have formed a bond. H.R. is unsure how to process this.',
-      type: 'general',
-      chaosWeight: 0.2,
-    },
-    {
-      template:
-        '{WORKER} claims {MACHINE} speaks to them. It does not. Unless it does. Please report any machine speech.',
-      type: 'general',
-      chaosWeight: 0.3,
-    },
-    {
-      template:
-        '{WORKER} has fixed {MACHINE} using, quote, "intuition." Maintenance would like a word.',
-      type: 'general',
-      chaosWeight: 0.5,
-    },
-  ];
+  // Combined worker + machine templates
+  {
+    template:
+      '{WORKER} has been assigned to {MACHINE}. {THEY} seem nervous. {MACHINE} seems indifferent.',
+    type: 'general',
+    chaosWeight: 0.3,
+  },
+  {
+    template: '{WORKER} and {MACHINE} have formed a bond. H.R. is unsure how to process this.',
+    type: 'general',
+    chaosWeight: 0.2,
+  },
+  {
+    template:
+      '{WORKER} claims {MACHINE} speaks to them. It does not. Unless it does. Please report any machine speech.',
+    type: 'general',
+    chaosWeight: 0.3,
+  },
+  {
+    template:
+      '{WORKER} has fixed {MACHINE} using, quote, "intuition." Maintenance would like a word.',
+    type: 'general',
+    chaosWeight: 0.5,
+  },
+];
 
 // Capitalize the first letter of a string
 const capitalize = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
@@ -2516,7 +2516,9 @@ export const PAAnnouncementSystem: React.FC = () => {
             exit={{ opacity: 0, y: -20, scale: 0.9 }}
             className={`flex items-start gap-3.5 px-5 py-4 rounded-xl border-2 backdrop-blur-xl shadow-2xl w-full max-w-lg ${getVoiceStyles(announcement.voice, announcement.priority)}`}
           >
-            <div className="flex-shrink-0 mt-0.5">{getVoiceIcon(announcement.voice, announcement.type)}</div>
+            <div className="flex-shrink-0 mt-0.5">
+              {getVoiceIcon(announcement.voice, announcement.type)}
+            </div>
             <div className="flex-1 min-w-0 text-left space-y-2">
               <p className="font-medium text-[15px] leading-relaxed text-balance hyphens-auto">
                 {announcement.message}
@@ -3299,10 +3301,11 @@ export const GamificationBar: React.FC = () => {
           {/* Achievements */}
           <button
             onClick={handleToggleAchievements}
-            className={`w-10 h-10 rounded-lg flex items-center justify-center transition-colors relative ${showAchievements
-              ? 'bg-yellow-600 text-white'
-              : 'bg-slate-800 text-yellow-400 hover:bg-slate-700'
-              }`}
+            className={`w-10 h-10 rounded-lg flex items-center justify-center transition-colors relative ${
+              showAchievements
+                ? 'bg-yellow-600 text-white'
+                : 'bg-slate-800 text-yellow-400 hover:bg-slate-700'
+            }`}
             title="Achievements"
           >
             <Trophy className="w-5 h-5" />
@@ -3316,10 +3319,11 @@ export const GamificationBar: React.FC = () => {
           {/* Leaderboard */}
           <button
             onClick={handleToggleLeaderboard}
-            className={`w-10 h-10 rounded-lg flex items-center justify-center transition-colors ${showLeaderboard
-              ? 'bg-cyan-600 text-white'
-              : 'bg-slate-800 text-cyan-400 hover:bg-slate-700'
-              }`}
+            className={`w-10 h-10 rounded-lg flex items-center justify-center transition-colors ${
+              showLeaderboard
+                ? 'bg-cyan-600 text-white'
+                : 'bg-slate-800 text-cyan-400 hover:bg-slate-700'
+            }`}
             title="Leaderboard"
           >
             <TrendingUp className="w-5 h-5" />
@@ -3335,10 +3339,11 @@ export const GamificationBar: React.FC = () => {
                 playbackStore.enterReplayMode();
               }
             }}
-            className={`w-10 h-10 rounded-lg flex items-center justify-center transition-colors ${useHistoricalPlaybackStore.getState().isReplaying
-              ? 'bg-red-600 text-white'
-              : 'bg-slate-800 text-red-400 hover:bg-slate-700'
-              }`}
+            className={`w-10 h-10 rounded-lg flex items-center justify-center transition-colors ${
+              useHistoricalPlaybackStore.getState().isReplaying
+                ? 'bg-red-600 text-white'
+                : 'bg-slate-800 text-red-400 hover:bg-slate-700'
+            }`}
             title="Replay History"
           >
             <History className="w-5 h-5" />
@@ -3347,10 +3352,11 @@ export const GamificationBar: React.FC = () => {
           {/* Mini-map toggle */}
           <button
             onClick={handleToggleMiniMap}
-            className={`w-10 h-10 rounded-lg flex items-center justify-center transition-colors ${showMiniMap
-              ? 'bg-green-600 text-white'
-              : 'bg-slate-800 text-green-400 hover:bg-slate-700'
-              }`}
+            className={`w-10 h-10 rounded-lg flex items-center justify-center transition-colors ${
+              showMiniMap
+                ? 'bg-green-600 text-white'
+                : 'bg-slate-800 text-green-400 hover:bg-slate-700'
+            }`}
             title="GPS Map"
           >
             <Map className="w-5 h-5" />

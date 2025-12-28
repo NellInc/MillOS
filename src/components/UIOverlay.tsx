@@ -133,11 +133,11 @@ const EmergencyEnvironmentPanel: React.FC = () => {
     label: string;
     icon: string;
   }> = [
-      { value: 'clear', label: 'Clear', icon: 'sun' },
-      { value: 'cloudy', label: 'Cloudy', icon: 'cloud' },
-      { value: 'rain', label: 'Rain', icon: 'rain' },
-      { value: 'storm', label: 'Storm', icon: 'bolt' },
-    ];
+    { value: 'clear', label: 'Clear', icon: 'sun' },
+    { value: 'cloudy', label: 'Cloudy', icon: 'cloud' },
+    { value: 'rain', label: 'Rain', icon: 'rain' },
+    { value: 'storm', label: 'Storm', icon: 'bolt' },
+  ];
 
   return (
     <div className="border-t border-slate-700/50 pt-2 mt-2">
@@ -182,12 +182,13 @@ const EmergencyEnvironmentPanel: React.FC = () => {
                 onClick={() =>
                   emergencyDrillMode ? endEmergencyDrill() : startEmergencyDrill(workerCount)
                 }
-                className={`w-full py-2 px-3 rounded-lg font-bold text-sm transition-all ${emergencyDrillMode
-                  ? 'bg-red-600 hover:bg-red-700 text-white animate-pulse'
-                  : emergencyActive
-                    ? 'bg-orange-600 text-white cursor-not-allowed'
-                    : 'bg-orange-500 hover:bg-orange-600 text-white'
-                  }`}
+                className={`w-full py-2 px-3 rounded-lg font-bold text-sm transition-all ${
+                  emergencyDrillMode
+                    ? 'bg-red-600 hover:bg-red-700 text-white animate-pulse'
+                    : emergencyActive
+                      ? 'bg-orange-600 text-white cursor-not-allowed'
+                      : 'bg-orange-500 hover:bg-orange-600 text-white'
+                }`}
                 disabled={emergencyActive && !emergencyDrillMode}
               >
                 {emergencyDrillMode
@@ -254,12 +255,13 @@ const EmergencyEnvironmentPanel: React.FC = () => {
               </div>
               <button
                 onClick={() => triggerShiftChange()}
-                className={`w-full py-2 px-3 rounded-lg font-bold text-sm transition-all ${shiftChangeActive
-                  ? 'bg-blue-600 text-white animate-pulse cursor-not-allowed'
-                  : emergencyActive
-                    ? 'bg-slate-600 text-slate-400 cursor-not-allowed'
-                    : 'bg-blue-500 hover:bg-blue-600 text-white'
-                  }`}
+                className={`w-full py-2 px-3 rounded-lg font-bold text-sm transition-all ${
+                  shiftChangeActive
+                    ? 'bg-blue-600 text-white animate-pulse cursor-not-allowed'
+                    : emergencyActive
+                      ? 'bg-slate-600 text-slate-400 cursor-not-allowed'
+                      : 'bg-blue-500 hover:bg-blue-600 text-white'
+                }`}
                 disabled={shiftChangeActive || emergencyActive}
               >
                 {shiftChangeActive ? 'SHIFT CHANGE IN PROGRESS...' : 'TRIGGER SHIFT CHANGE'}
@@ -281,10 +283,11 @@ const EmergencyEnvironmentPanel: React.FC = () => {
                   <button
                     key={opt.value}
                     onClick={() => setWeather(opt.value)}
-                    className={`py-1.5 px-2 rounded text-[10px] font-medium transition-all ${weather === opt.value
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-                      }`}
+                    className={`py-1.5 px-2 rounded text-[10px] font-medium transition-all ${
+                      weather === opt.value
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                    }`}
                   >
                     {opt.label}
                   </button>
@@ -304,10 +307,11 @@ const EmergencyEnvironmentPanel: React.FC = () => {
                 <div className="flex gap-1">
                   <button
                     onClick={() => setShowHeatMap(!showHeatMap)}
-                    className={`py-1 px-3 rounded text-[10px] font-medium transition-all ${showHeatMap
-                      ? 'bg-green-600 text-white'
-                      : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-                      }`}
+                    className={`py-1 px-3 rounded text-[10px] font-medium transition-all ${
+                      showHeatMap
+                        ? 'bg-green-600 text-white'
+                        : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                    }`}
                   >
                     {showHeatMap ? 'ON' : 'OFF'}
                   </button>
@@ -351,95 +355,95 @@ const GraphicsOptionsPanel: React.FC = () => {
     icon: React.ReactNode;
     category: string;
   }> = [
-      // Post-processing
-      {
-        key: 'enableSSAO',
-        label: 'Ambient Occlusion',
-        icon: <Eye className="w-3 h-3" />,
-        category: 'Post-Processing',
-      },
-      {
-        key: 'enableBloom',
-        label: 'Bloom Glow',
-        icon: <Sparkles className="w-3 h-3" />,
-        category: 'Post-Processing',
-      },
-      {
-        key: 'enableVignette',
-        label: 'Vignette',
-        icon: <Monitor className="w-3 h-3" />,
-        category: 'Post-Processing',
-      },
-      {
-        key: 'enableChromaticAberration',
-        label: 'Chromatic Aberration',
-        icon: <Layers className="w-3 h-3" />,
-        category: 'Post-Processing',
-      },
-      {
-        key: 'enableFilmGrain',
-        label: 'Film Grain',
-        icon: <Wind className="w-3 h-3" />,
-        category: 'Post-Processing',
-      },
-      // Scene effects
-      {
-        key: 'enableDustParticles',
-        label: 'Dust Particles',
-        icon: <Wind className="w-3 h-3" />,
-        category: 'Particles',
-      },
-      {
-        key: 'enableGrainFlow',
-        label: 'Grain Flow',
-        icon: <Wind className="w-3 h-3" />,
-        category: 'Particles',
-      },
-      {
-        key: 'enableAtmosphericHaze',
-        label: 'Atmospheric Haze',
-        icon: <Wind className="w-3 h-3" />,
-        category: 'Particles',
-      },
-      // Machine enhancements
-      {
-        key: 'enableMachineVibration',
-        label: 'Machine Vibration',
-        icon: <Activity className="w-3 h-3" />,
-        category: 'Machines',
-      },
-      {
-        key: 'enableProceduralTextures',
-        label: 'Detailed Textures',
-        icon: <Layers className="w-3 h-3" />,
-        category: 'Machines',
-      },
-      {
-        key: 'enableWeathering',
-        label: 'Weathering Effects',
-        icon: <Wind className="w-3 h-3" />,
-        category: 'Machines',
-      },
-      // Lighting & Shadows
-      {
-        key: 'enableLightShafts',
-        label: 'Light Shafts',
-        icon: <Sun className="w-3 h-3" />,
-        category: 'Lighting',
-      },
-      {
-        key: 'enableContactShadows',
-        label: 'Contact Shadows',
-        icon: <Layers className="w-3 h-3" />,
-        category: 'Lighting',
-      },
-      {
-        key: 'enableHighResShadows',
-        label: 'High-Res Shadows',
-        icon: <Eye className="w-3 h-3" />,
-        category: 'Lighting',
-      },
-    ];
+    // Post-processing
+    {
+      key: 'enableSSAO',
+      label: 'Ambient Occlusion',
+      icon: <Eye className="w-3 h-3" />,
+      category: 'Post-Processing',
+    },
+    {
+      key: 'enableBloom',
+      label: 'Bloom Glow',
+      icon: <Sparkles className="w-3 h-3" />,
+      category: 'Post-Processing',
+    },
+    {
+      key: 'enableVignette',
+      label: 'Vignette',
+      icon: <Monitor className="w-3 h-3" />,
+      category: 'Post-Processing',
+    },
+    {
+      key: 'enableChromaticAberration',
+      label: 'Chromatic Aberration',
+      icon: <Layers className="w-3 h-3" />,
+      category: 'Post-Processing',
+    },
+    {
+      key: 'enableFilmGrain',
+      label: 'Film Grain',
+      icon: <Wind className="w-3 h-3" />,
+      category: 'Post-Processing',
+    },
+    // Scene effects
+    {
+      key: 'enableDustParticles',
+      label: 'Dust Particles',
+      icon: <Wind className="w-3 h-3" />,
+      category: 'Particles',
+    },
+    {
+      key: 'enableGrainFlow',
+      label: 'Grain Flow',
+      icon: <Wind className="w-3 h-3" />,
+      category: 'Particles',
+    },
+    {
+      key: 'enableAtmosphericHaze',
+      label: 'Atmospheric Haze',
+      icon: <Wind className="w-3 h-3" />,
+      category: 'Particles',
+    },
+    // Machine enhancements
+    {
+      key: 'enableMachineVibration',
+      label: 'Machine Vibration',
+      icon: <Activity className="w-3 h-3" />,
+      category: 'Machines',
+    },
+    {
+      key: 'enableProceduralTextures',
+      label: 'Detailed Textures',
+      icon: <Layers className="w-3 h-3" />,
+      category: 'Machines',
+    },
+    {
+      key: 'enableWeathering',
+      label: 'Weathering Effects',
+      icon: <Wind className="w-3 h-3" />,
+      category: 'Machines',
+    },
+    // Lighting & Shadows
+    {
+      key: 'enableLightShafts',
+      label: 'Light Shafts',
+      icon: <Sun className="w-3 h-3" />,
+      category: 'Lighting',
+    },
+    {
+      key: 'enableContactShadows',
+      label: 'Contact Shadows',
+      icon: <Layers className="w-3 h-3" />,
+      category: 'Lighting',
+    },
+    {
+      key: 'enableHighResShadows',
+      label: 'High-Res Shadows',
+      icon: <Eye className="w-3 h-3" />,
+      category: 'Lighting',
+    },
+  ];
 
   // Group settings by category
   const categories = ['Post-Processing', 'Particles', 'Machines', 'Lighting'];
@@ -458,10 +462,11 @@ const GraphicsOptionsPanel: React.FC = () => {
         }}
         aria-expanded={expanded}
         aria-controls="graphics-options-panel"
-        className={`w-full flex items-center justify-between text-xs font-medium transition-colors py-1 ${theme === 'light'
-          ? 'text-slate-600 hover:text-slate-800'
-          : 'text-slate-300 hover:text-white'
-          }`}
+        className={`w-full flex items-center justify-between text-xs font-medium transition-colors py-1 ${
+          theme === 'light'
+            ? 'text-slate-600 hover:text-slate-800'
+            : 'text-slate-300 hover:text-white'
+        }`}
       >
         <span className="flex items-center gap-2">
           <Settings className="w-4 h-4 text-purple-400" aria-hidden="true" />
@@ -494,18 +499,19 @@ const GraphicsOptionsPanel: React.FC = () => {
                 <button
                   key={quality}
                   onClick={() => setGraphicsQuality(quality)}
-                  className={`flex-1 py-1.5 rounded text-[10px] font-bold uppercase tracking-wider transition-all ${graphics.graphics.quality === quality
-                    ? quality === 'low'
-                      ? 'bg-slate-600 text-white'
-                      : quality === 'medium'
-                        ? 'bg-yellow-600 text-white'
-                        : quality === 'high'
-                          ? 'bg-cyan-600 text-white'
-                          : 'bg-purple-600 text-white'
-                    : theme === 'light'
-                      ? 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-                      : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-                    }`}
+                  className={`flex-1 py-1.5 rounded text-[10px] font-bold uppercase tracking-wider transition-all ${
+                    graphics.graphics.quality === quality
+                      ? quality === 'low'
+                        ? 'bg-slate-600 text-white'
+                        : quality === 'medium'
+                          ? 'bg-yellow-600 text-white'
+                          : quality === 'high'
+                            ? 'bg-cyan-600 text-white'
+                            : 'bg-purple-600 text-white'
+                      : theme === 'light'
+                        ? 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                        : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                  }`}
                 >
                   {quality}
                 </button>
@@ -528,14 +534,15 @@ const GraphicsOptionsPanel: React.FC = () => {
                         <button
                           key={key}
                           onClick={() => setGraphicsSetting(key, !graphics.graphics[key])}
-                          className={`w-full flex items-center gap-2 px-2 py-1 rounded text-xs transition-all ${graphics.graphics[key]
-                            ? theme === 'light'
-                              ? 'bg-slate-200 text-slate-800'
-                              : 'bg-slate-700/50 text-white'
-                            : theme === 'light'
-                              ? 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-                              : 'bg-slate-800/30 text-slate-500 hover:bg-slate-800/50'
-                            }`}
+                          className={`w-full flex items-center gap-2 px-2 py-1 rounded text-xs transition-all ${
+                            graphics.graphics[key]
+                              ? theme === 'light'
+                                ? 'bg-slate-200 text-slate-800'
+                                : 'bg-slate-700/50 text-white'
+                              : theme === 'light'
+                                ? 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                                : 'bg-slate-800/30 text-slate-500 hover:bg-slate-800/50'
+                          }`}
                         >
                           <span
                             className={
@@ -550,12 +557,13 @@ const GraphicsOptionsPanel: React.FC = () => {
                           </span>
                           <span className="flex-1 text-left">{label}</span>
                           <span
-                            className={`w-2 h-2 rounded-full ${graphics[key as keyof typeof graphics]
-                              ? 'bg-green-500'
-                              : theme === 'light'
-                                ? 'bg-slate-300'
-                                : 'bg-slate-600'
-                              }`}
+                            className={`w-2 h-2 rounded-full ${
+                              graphics[key as keyof typeof graphics]
+                                ? 'bg-green-500'
+                                : theme === 'light'
+                                  ? 'bg-slate-300'
+                                  : 'bg-slate-600'
+                            }`}
                           />
                         </button>
                       ))}
@@ -592,8 +600,9 @@ const GraphicsOptionsPanel: React.FC = () => {
                 aria-valuemax={500}
                 aria-valuenow={graphics.graphics.dustParticleCount}
                 aria-valuetext={`${graphics.graphics.dustParticleCount} particles`}
-                className={`w-full h-2 rounded-lg appearance-none cursor-pointer accent-cyan-500 ${theme === 'light' ? 'bg-slate-200' : 'bg-slate-800'
-                  } ${!graphics.graphics.enableDustParticles ? 'opacity-50' : ''}`}
+                className={`w-full h-2 rounded-lg appearance-none cursor-pointer accent-cyan-500 ${
+                  theme === 'light' ? 'bg-slate-200' : 'bg-slate-800'
+                } ${!graphics.graphics.enableDustParticles ? 'opacity-50' : ''}`}
               />
               <div
                 className={`flex justify-between text-[9px] mt-0.5 ${theme === 'light' ? 'text-slate-400' : 'text-slate-600'}`}
@@ -619,12 +628,13 @@ const GraphicsOptionsPanel: React.FC = () => {
                 </div>
                 <button
                   onClick={() => toggleFPSCounter()}
-                  className={`px-2 py-0.5 rounded text-[9px] font-bold transition-all ${showFPSCounter
-                    ? 'bg-green-600 text-white'
-                    : theme === 'light'
-                      ? 'bg-slate-200 text-slate-500 hover:bg-slate-300'
-                      : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
-                    }`}
+                  className={`px-2 py-0.5 rounded text-[9px] font-bold transition-all ${
+                    showFPSCounter
+                      ? 'bg-green-600 text-white'
+                      : theme === 'light'
+                        ? 'bg-slate-200 text-slate-500 hover:bg-slate-300'
+                        : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
+                  }`}
                   title="Toggle FPS counter overlay"
                 >
                   {showFPSCounter ? 'OVERLAY ON' : 'OVERLAY OFF'}
@@ -807,10 +817,11 @@ const GraphicsOptionsPanel: React.FC = () => {
               <div className="flex gap-2">
                 <button
                   onClick={clearPersistedState}
-                  className={`flex-1 py-1.5 rounded text-[10px] font-medium transition-all flex items-center justify-center gap-1 ${theme === 'light'
-                    ? 'bg-amber-100 text-amber-700 hover:bg-amber-200'
-                    : 'bg-amber-900/50 text-amber-300 hover:bg-amber-800/50'
-                    }`}
+                  className={`flex-1 py-1.5 rounded text-[10px] font-medium transition-all flex items-center justify-center gap-1 ${
+                    theme === 'light'
+                      ? 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                      : 'bg-amber-900/50 text-amber-300 hover:bg-amber-800/50'
+                  }`}
                 >
                   Reset to 10am
                 </button>
@@ -821,10 +832,11 @@ const GraphicsOptionsPanel: React.FC = () => {
                     setGraphicsQuality('medium');
                     window.location.reload();
                   }}
-                  className={`flex-1 py-1.5 rounded text-[10px] font-medium transition-all flex items-center justify-center gap-1 ${theme === 'light'
-                    ? 'bg-red-100 text-red-600 hover:bg-red-200'
-                    : 'bg-red-900/50 text-red-300 hover:bg-red-800/50'
-                    }`}
+                  className={`flex-1 py-1.5 rounded text-[10px] font-medium transition-all flex items-center justify-center gap-1 ${
+                    theme === 'light'
+                      ? 'bg-red-100 text-red-600 hover:bg-red-200'
+                      : 'bg-red-900/50 text-red-300 hover:bg-red-800/50'
+                  }`}
                 >
                   Reset Simulation
                 </button>
@@ -856,10 +868,11 @@ const PredictiveMaintenanceCollapsible: React.FC = () => {
         }}
         aria-expanded={expanded}
         aria-controls="predictive-maintenance-panel"
-        className={`w-full flex items-center justify-between text-xs font-medium transition-colors py-1 ${theme === 'light'
-          ? 'text-slate-600 hover:text-slate-800'
-          : 'text-slate-300 hover:text-white'
-          }`}
+        className={`w-full flex items-center justify-between text-xs font-medium transition-colors py-1 ${
+          theme === 'light'
+            ? 'text-slate-600 hover:text-slate-800'
+            : 'text-slate-300 hover:text-white'
+        }`}
       >
         <span className="flex items-center gap-2">
           <Activity className="w-4 h-4 text-blue-400" aria-hidden="true" />
@@ -894,16 +907,15 @@ const CollapsibleLegend: React.FC = () => {
   const [expanded, setExpanded] = useState(true);
   const [isDragging, setIsDragging] = useState(false);
 
-  const { legendPosition, setLegendPosition, theme, showMiniMap, setShowMiniMap } =
-    useUIStore(
-      useShallow((state) => ({
-        legendPosition: state.legendPosition,
-        setLegendPosition: state.setLegendPosition,
-        theme: state.theme,
-        showMiniMap: state.showMiniMap,
-        setShowMiniMap: state.setShowMiniMap,
-      }))
-    );
+  const { legendPosition, setLegendPosition, theme, showMiniMap, setShowMiniMap } = useUIStore(
+    useShallow((state) => ({
+      legendPosition: state.legendPosition,
+      setLegendPosition: state.setLegendPosition,
+      theme: state.theme,
+      showMiniMap: state.showMiniMap,
+      setShowMiniMap: state.setShowMiniMap,
+    }))
+  );
   const achievements = useProductionStore((state) => state.achievements);
   const isReplaying = useHistoricalPlaybackStore((state) => state.isReplaying);
   const [showAchievements, setShowAchievements] = useState(false);
@@ -995,17 +1007,19 @@ const CollapsibleLegend: React.FC = () => {
       <motion.div
         initial={{ opacity: 0, x: 50 }}
         animate={{ opacity: 1, x: 0 }}
-        className={`backdrop-blur-xl rounded-xl border shadow-xl overflow-hidden ${theme === 'light'
-          ? 'bg-white/95 border-slate-200 text-slate-800'
-          : 'bg-slate-950/90 border-slate-700/50 text-white'
-          }`}
+        className={`backdrop-blur-xl rounded-xl border shadow-xl overflow-hidden ${
+          theme === 'light'
+            ? 'bg-white/95 border-slate-200 text-slate-800'
+            : 'bg-slate-950/90 border-slate-700/50 text-white'
+        }`}
       >
         <div className="flex items-center">
           {/* Drag Handle */}
           <div
             onMouseDown={handleMouseDown}
-            className={`px-1.5 py-2.5 cursor-grab transition-colors flex items-center ${theme === 'light' ? 'hover:bg-slate-100' : 'hover:bg-slate-800/50'
-              }`}
+            className={`px-1.5 py-2.5 cursor-grab transition-colors flex items-center ${
+              theme === 'light' ? 'hover:bg-slate-100' : 'hover:bg-slate-800/50'
+            }`}
             title="Drag to move"
           >
             <GripVertical
@@ -1014,8 +1028,9 @@ const CollapsibleLegend: React.FC = () => {
           </div>
           <button
             onClick={() => setExpanded(!expanded)}
-            className={`flex-1 flex items-center justify-between p-2.5 pl-1 transition-colors ${theme === 'light' ? 'hover:bg-slate-100' : 'hover:bg-slate-800/50'
-              }`}
+            className={`flex-1 flex items-center justify-between p-2.5 pl-1 transition-colors ${
+              theme === 'light' ? 'hover:bg-slate-100' : 'hover:bg-slate-800/50'
+            }`}
           >
             <div className="flex items-center gap-2">
               <Layers className="w-3.5 h-3.5 text-cyan-500" />
@@ -1113,12 +1128,13 @@ const CollapsibleLegend: React.FC = () => {
                     {/* Achievements */}
                     <button
                       onClick={() => setShowAchievements(!showAchievements)}
-                      className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors relative ${showAchievements
-                        ? 'bg-yellow-600 text-white'
-                        : theme === 'light'
-                          ? 'bg-slate-100 text-yellow-600 hover:bg-slate-200'
-                          : 'bg-slate-800 text-yellow-400 hover:bg-slate-700'
-                        }`}
+                      className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors relative ${
+                        showAchievements
+                          ? 'bg-yellow-600 text-white'
+                          : theme === 'light'
+                            ? 'bg-slate-100 text-yellow-600 hover:bg-slate-200'
+                            : 'bg-slate-800 text-yellow-400 hover:bg-slate-700'
+                      }`}
                       title="Achievements"
                     >
                       <Trophy className="w-4 h-4" />
@@ -1132,12 +1148,13 @@ const CollapsibleLegend: React.FC = () => {
                     {/* Leaderboard */}
                     <button
                       onClick={() => setShowLeaderboard(!showLeaderboard)}
-                      className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${showLeaderboard
-                        ? 'bg-cyan-600 text-white'
-                        : theme === 'light'
-                          ? 'bg-slate-100 text-cyan-600 hover:bg-slate-200'
-                          : 'bg-slate-800 text-cyan-400 hover:bg-slate-700'
-                        }`}
+                      className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
+                        showLeaderboard
+                          ? 'bg-cyan-600 text-white'
+                          : theme === 'light'
+                            ? 'bg-slate-100 text-cyan-600 hover:bg-slate-200'
+                            : 'bg-slate-800 text-cyan-400 hover:bg-slate-700'
+                      }`}
                       title="Leaderboard"
                     >
                       <TrendingUp className="w-4 h-4" />
@@ -1153,12 +1170,13 @@ const CollapsibleLegend: React.FC = () => {
                           playbackStore.enterReplayMode();
                         }
                       }}
-                      className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${isReplaying
-                        ? 'bg-red-600 text-white'
-                        : theme === 'light'
-                          ? 'bg-slate-100 text-red-500 hover:bg-slate-200'
-                          : 'bg-slate-800 text-red-400 hover:bg-slate-700'
-                        }`}
+                      className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
+                        isReplaying
+                          ? 'bg-red-600 text-white'
+                          : theme === 'light'
+                            ? 'bg-slate-100 text-red-500 hover:bg-slate-200'
+                            : 'bg-slate-800 text-red-400 hover:bg-slate-700'
+                      }`}
                       title="Replay History"
                     >
                       <History className="w-4 h-4" />
@@ -1167,12 +1185,13 @@ const CollapsibleLegend: React.FC = () => {
                     {/* GPS Map */}
                     <button
                       onClick={() => setShowMiniMap(!showMiniMap)}
-                      className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${showMiniMap
-                        ? 'bg-green-600 text-white'
-                        : theme === 'light'
-                          ? 'bg-slate-100 text-green-600 hover:bg-slate-200'
-                          : 'bg-slate-800 text-green-400 hover:bg-slate-700'
-                        }`}
+                      className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
+                        showMiniMap
+                          ? 'bg-green-600 text-white'
+                          : theme === 'light'
+                            ? 'bg-slate-100 text-green-600 hover:bg-slate-200'
+                            : 'bg-slate-800 text-green-400 hover:bg-slate-700'
+                      }`}
                       title="GPS Map"
                     >
                       <Map className="w-4 h-4" />
@@ -1191,10 +1210,11 @@ const CollapsibleLegend: React.FC = () => {
                           link.click();
                         }
                       }}
-                      className={`flex-1 h-7 rounded-lg flex items-center justify-center gap-1 text-[10px] transition-colors ${theme === 'light'
-                        ? 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                        : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-                        }`}
+                      className={`flex-1 h-7 rounded-lg flex items-center justify-center gap-1 text-[10px] transition-colors ${
+                        theme === 'light'
+                          ? 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                          : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                      }`}
                       title="Screenshot"
                     >
                       <Image className="w-3 h-3" />
@@ -1210,16 +1230,19 @@ const CollapsibleLegend: React.FC = () => {
                           totalBagsProduced: store.totalBagsProduced,
                           achievements: store.achievements.filter((a) => a.unlockedAt),
                         };
-                        const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
+                        const blob = new Blob([JSON.stringify(report, null, 2)], {
+                          type: 'application/json',
+                        });
                         const link = document.createElement('a');
                         link.download = `millos-report-${new Date().toISOString().split('T')[0]}.json`;
                         link.href = URL.createObjectURL(blob);
                         link.click();
                       }}
-                      className={`flex-1 h-7 rounded-lg flex items-center justify-center gap-1 text-[10px] transition-colors ${theme === 'light'
-                        ? 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                        : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-                        }`}
+                      className={`flex-1 h-7 rounded-lg flex items-center justify-center gap-1 text-[10px] transition-colors ${
+                        theme === 'light'
+                          ? 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                          : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                      }`}
                       title="Export Report"
                     >
                       <Download className="w-3 h-3" />
@@ -1365,10 +1388,11 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({
           aria-label="Production controls"
           initial={{ opacity: 0, x: -50 }}
           animate={{ opacity: 1, x: 0, width: panelMinimized ? 'auto' : 300 }}
-          className={`relative backdrop-blur-xl rounded-2xl text-white pointer-events-auto border shadow-2xl ${theme === 'light'
-            ? 'bg-white/95 border-slate-300/50 shadow-slate-300/20'
-            : 'bg-slate-950/95 border-cyan-500/20 shadow-cyan-500/10'
-            }`}
+          className={`relative backdrop-blur-xl rounded-2xl text-white pointer-events-auto border shadow-2xl ${
+            theme === 'light'
+              ? 'bg-white/95 border-slate-300/50 shadow-slate-300/20'
+              : 'bg-slate-950/95 border-cyan-500/20 shadow-cyan-500/10'
+          }`}
         >
           {/* Minimized Panel View */}
           {panelMinimized ? (
@@ -1381,22 +1405,24 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({
               {/* Quick Action Icons */}
               <button
                 onClick={() => setPanelMinimized(false)}
-                className={`w-9 h-9 rounded-lg flex items-center justify-center transition-all ${theme === 'light'
-                  ? 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                  }`}
+                className={`w-9 h-9 rounded-lg flex items-center justify-center transition-all ${
+                  theme === 'light'
+                    ? 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                }`}
                 title="Expand panel"
               >
                 <PanelLeft className="w-4 h-4" />
               </button>
               <button
                 onClick={() => setShowAIPanel(!showAIPanel)}
-                className={`w-9 h-9 rounded-lg flex items-center justify-center transition-all ${showAIPanel
-                  ? 'bg-cyan-600 text-white'
-                  : theme === 'light'
-                    ? 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                    : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                  }`}
+                className={`w-9 h-9 rounded-lg flex items-center justify-center transition-all ${
+                  showAIPanel
+                    ? 'bg-cyan-600 text-white'
+                    : theme === 'light'
+                      ? 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                }`}
                 title="AI Command Center"
                 data-testid="ai-panel-toggle"
               >
@@ -1404,34 +1430,37 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({
               </button>
               <button
                 onClick={() => toggleFpsMode()}
-                className={`w-9 h-9 rounded-lg flex items-center justify-center transition-all ${fpsMode
-                  ? 'bg-violet-600 text-white'
-                  : theme === 'light'
-                    ? 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                    : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                  }`}
+                className={`w-9 h-9 rounded-lg flex items-center justify-center transition-all ${
+                  fpsMode
+                    ? 'bg-violet-600 text-white'
+                    : theme === 'light'
+                      ? 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                }`}
                 title="First Person Mode (V)"
               >
                 <Eye className="w-4 h-4" />
               </button>
               <button
                 onClick={() => setShowZones(!showZones)}
-                className={`w-9 h-9 rounded-lg flex items-center justify-center transition-all ${showZones
-                  ? 'bg-orange-600 text-white'
-                  : theme === 'light'
-                    ? 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                    : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                  }`}
+                className={`w-9 h-9 rounded-lg flex items-center justify-center transition-all ${
+                  showZones
+                    ? 'bg-orange-600 text-white'
+                    : theme === 'light'
+                      ? 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                }`}
                 title="Safety Zones"
               >
                 <Shield className="w-4 h-4" />
               </button>
               <button
                 onClick={() => setShowShortcuts(true)}
-                className={`w-9 h-9 rounded-lg flex items-center justify-center transition-all ${theme === 'light'
-                  ? 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                  }`}
+                className={`w-9 h-9 rounded-lg flex items-center justify-center transition-all ${
+                  theme === 'light'
+                    ? 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                }`}
                 title="Keyboard shortcuts"
               >
                 <HelpCircle className="w-4 h-4" />
@@ -1455,14 +1484,15 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({
                       Mill<span className="text-orange-500">OS</span>
                       <select
                         className={`text-[10px] ml-1 bg-transparent border-none cursor-pointer hover:text-orange-400 transition-colors ${theme === 'light' ? 'text-slate-400' : 'text-slate-500'}`}
-                        value="v0.20"
+                        value="v0.3"
                         onChange={(e) => {
                           window.location.href = `/${e.target.value}/`;
                         }}
                         title="Switch version"
                       >
-                        <option value="v0.20">v0.20 (stable)</option>
-                        <option value="v0.10">v0.10 (alpha)</option>
+                        <option value="v0.3">0.30</option>
+                        <option value="v0.2">0.20</option>
+                        <option value="v0.10">0.10</option>
                       </select>
                     </h1>
                     <p
@@ -1477,42 +1507,46 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({
                 <div className="flex items-center gap-1">
                   <button
                     onClick={() => toggleFpsMode()}
-                    className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all ${fpsMode
-                      ? 'bg-violet-600 text-white'
-                      : theme === 'light'
-                        ? 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                        : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-                      }`}
+                    className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all ${
+                      fpsMode
+                        ? 'bg-violet-600 text-white'
+                        : theme === 'light'
+                          ? 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                          : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                    }`}
                     title="First Person Mode (V)"
                   >
                     <Eye className="w-3.5 h-3.5" />
                   </button>
                   <button
                     onClick={() => setShowShortcuts(true)}
-                    className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all ${theme === 'light'
-                      ? 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                      : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-                      }`}
+                    className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all ${
+                      theme === 'light'
+                        ? 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                        : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                    }`}
                     title="Keyboard shortcuts (?)"
                   >
                     <HelpCircle className="w-3.5 h-3.5" />
                   </button>
                   <button
                     onClick={() => setShowAbout(true)}
-                    className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all ${theme === 'light'
-                      ? 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                      : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-                      }`}
+                    className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all ${
+                      theme === 'light'
+                        ? 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                        : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                    }`}
                     title="About MillOS"
                   >
                     <Info className="w-3.5 h-3.5" />
                   </button>
                   <button
                     onClick={() => setPanelMinimized(true)}
-                    className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all ${theme === 'light'
-                      ? 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                      : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-                      }`}
+                    className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all ${
+                      theme === 'light'
+                        ? 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                        : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                    }`}
                     title="Minimize panel (M)"
                   >
                     <PanelLeftClose className="w-3.5 h-3.5" />
@@ -1569,10 +1603,11 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({
                   <span className="text-xs font-medium text-slate-300">Safety Zones</span>
                   <button
                     onClick={() => setShowZones(!showZones)}
-                    className={`px-4 py-1.5 rounded-lg text-xs font-bold tracking-wider transition-all ${showZones
-                      ? 'bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-lg shadow-orange-500/30'
-                      : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-                      }`}
+                    className={`px-4 py-1.5 rounded-lg text-xs font-bold tracking-wider transition-all ${
+                      showZones
+                        ? 'bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-lg shadow-orange-500/30'
+                        : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                    }`}
                   >
                     {showZones ? 'VISIBLE' : 'HIDDEN'}
                   </button>
@@ -1589,36 +1624,39 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({
                   <div className="flex gap-1 mb-2">
                     <button
                       onClick={() => setProductionSpeed(0)}
-                      className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold transition-all flex items-center justify-center gap-1 ${productionSpeed === 0
-                        ? 'bg-orange-600 text-white'
-                        : theme === 'light'
-                          ? 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-                          : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-                        }`}
+                      className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold transition-all flex items-center justify-center gap-1 ${
+                        productionSpeed === 0
+                          ? 'bg-orange-600 text-white'
+                          : theme === 'light'
+                            ? 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                            : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                      }`}
                       title="Pause"
                     >
                       <Pause className="w-3 h-3" />
                     </button>
                     <button
                       onClick={() => setProductionSpeed(0.5)}
-                      className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold transition-all ${productionSpeed === 0.5
-                        ? 'bg-orange-600 text-white'
-                        : theme === 'light'
-                          ? 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-                          : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-                        }`}
+                      className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold transition-all ${
+                        productionSpeed === 0.5
+                          ? 'bg-orange-600 text-white'
+                          : theme === 'light'
+                            ? 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                            : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                      }`}
                       title="Half speed"
                     >
                       0.5x
                     </button>
                     <button
                       onClick={() => setProductionSpeed(1)}
-                      className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold transition-all flex items-center justify-center gap-1 ${productionSpeed === 1
-                        ? 'bg-orange-600 text-white'
-                        : theme === 'light'
-                          ? 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-                          : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-                        }`}
+                      className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold transition-all flex items-center justify-center gap-1 ${
+                        productionSpeed === 1
+                          ? 'bg-orange-600 text-white'
+                          : theme === 'light'
+                            ? 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                            : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                      }`}
                       title="Normal speed"
                     >
                       <Play className="w-3 h-3" />
@@ -1626,12 +1664,13 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({
                     </button>
                     <button
                       onClick={() => setProductionSpeed(2)}
-                      className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold transition-all flex items-center justify-center gap-1 ${productionSpeed === 2
-                        ? 'bg-orange-600 text-white'
-                        : theme === 'light'
-                          ? 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-                          : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-                        }`}
+                      className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold transition-all flex items-center justify-center gap-1 ${
+                        productionSpeed === 2
+                          ? 'bg-orange-600 text-white'
+                          : theme === 'light'
+                            ? 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                            : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                      }`}
                       title="Double speed"
                     >
                       <FastForward className="w-3 h-3" />
@@ -1658,10 +1697,11 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({
                       </span>
                       <button
                         onClick={() => setMuted(!muted)}
-                        className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all ${muted
-                          ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30'
-                          : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                          }`}
+                        className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all ${
+                          muted
+                            ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30'
+                            : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                        }`}
                         title={muted ? 'Unmute' : 'Mute'}
                       >
                         {muted ? (
@@ -1729,10 +1769,11 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({
                           setMusicEnabled(!musicEnabled);
                           if (!musicEnabled) startMusic();
                         }}
-                        className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all ${musicEnabled
-                          ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30'
-                          : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-                          }`}
+                        className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all ${
+                          musicEnabled
+                            ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30'
+                            : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                        }`}
                         title={musicEnabled ? 'Disable Music' : 'Enable Music'}
                       >
                         {musicEnabled ? (
@@ -1808,10 +1849,11 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({
                   </span>
                   <button
                     onClick={() => setTtsEnabled(!ttsEnabled)}
-                    className={`px-3 py-1 rounded text-[10px] font-bold uppercase tracking-wider transition-all ${ttsEnabled
-                      ? 'bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30'
-                      : 'bg-slate-800 text-slate-500 hover:bg-slate-700'
-                      }`}
+                    className={`px-3 py-1 rounded text-[10px] font-bold uppercase tracking-wider transition-all ${
+                      ttsEnabled
+                        ? 'bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30'
+                        : 'bg-slate-800 text-slate-500 hover:bg-slate-700'
+                    }`}
                     title={
                       ttsEnabled
                         ? 'Disable PA voice announcements'
@@ -1824,10 +1866,11 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({
 
                 <button
                   onClick={() => setShowAIPanel(!showAIPanel)}
-                  className={`w-full py-2 px-3 rounded-lg font-bold text-sm transition-all flex items-center justify-between ${showAIPanel
-                    ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-lg shadow-cyan-500/30'
-                    : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                    }`}
+                  className={`w-full py-2 px-3 rounded-lg font-bold text-sm transition-all flex items-center justify-between ${
+                    showAIPanel
+                      ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-lg shadow-cyan-500/30'
+                      : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                  }`}
                   data-testid="ai-panel-toggle-expanded"
                 >
                   <div className="flex items-center gap-2">
@@ -1839,10 +1882,11 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({
 
                 <button
                   onClick={() => toggleFpsMode()}
-                  className={`w-full py-2 px-3 rounded-lg font-bold text-sm transition-all flex items-center justify-between ${fpsMode
-                    ? 'bg-gradient-to-r from-violet-500 to-purple-600 text-white shadow-lg shadow-violet-500/30'
-                    : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                    }`}
+                  className={`w-full py-2 px-3 rounded-lg font-bold text-sm transition-all flex items-center justify-between ${
+                    fpsMode
+                      ? 'bg-gradient-to-r from-violet-500 to-purple-600 text-white shadow-lg shadow-violet-500/30'
+                      : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                  }`}
                 >
                   <div className="flex items-center gap-2">
                     <Eye className="w-5 h-5" />
@@ -1901,10 +1945,11 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  className={`absolute bottom-0 left-0 right-0 h-8 pointer-events-none rounded-b-2xl flex items-end justify-center pb-1 ${theme === 'light'
-                    ? 'bg-gradient-to-t from-white to-transparent'
-                    : 'bg-gradient-to-t from-slate-950 to-transparent'
-                    }`}
+                  className={`absolute bottom-0 left-0 right-0 h-8 pointer-events-none rounded-b-2xl flex items-end justify-center pb-1 ${
+                    theme === 'light'
+                      ? 'bg-gradient-to-t from-white to-transparent'
+                      : 'bg-gradient-to-t from-slate-950 to-transparent'
+                  }`}
                 >
                   <ChevronDown
                     className={`w-4 h-4 animate-bounce ${theme === 'light' ? 'text-slate-400' : 'text-slate-500'}`}
@@ -1946,10 +1991,11 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({
       {showFPSCounter && (
         <div className="fixed top-20 left-4 z-50 pointer-events-auto">
           <div
-            className={`rounded-lg border shadow-lg ${theme === 'light'
-              ? 'bg-white/90 border-slate-200'
-              : 'bg-slate-900/90 border-slate-700'
-              }`}
+            className={`rounded-lg border shadow-lg ${
+              theme === 'light'
+                ? 'bg-white/90 border-slate-200'
+                : 'bg-slate-900/90 border-slate-700'
+            }`}
           >
             <FPSDisplay showDetailed={false} />
           </div>

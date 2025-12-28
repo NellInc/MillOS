@@ -29,6 +29,7 @@ import type {
   FactoryFlourishing,
 } from '../types/bas';
 import { WORKER_ROSTER } from '../types';
+import { useProductionStore } from './productionStore';
 
 // =============================================================================
 // DIMENSION DESCRIPTORS
@@ -125,10 +126,7 @@ function determineTrend(
   dimension: FlourishingDimensionKey
 ): 'improving' | 'stable' | 'declining' {
   const recentEvents = events
-    .filter(
-      (e) =>
-        e.dimension === dimension && Date.now() - e.timestamp < 24 * 60 * 60 * 1000
-    )
+    .filter((e) => e.dimension === dimension && Date.now() - e.timestamp < 24 * 60 * 60 * 1000)
     .slice(-5);
 
   if (recentEvents.length < 2) return 'stable';
@@ -143,9 +141,7 @@ function determineTrend(
 /**
  * Create default flourishing dimension
  */
-function createDefaultDimension(
-  baseScore: number = 65
-): FlourishingDimension {
+function createDefaultDimension(baseScore: number = 65): FlourishingDimension {
   return {
     score: baseScore,
     trend: 'stable',
@@ -158,10 +154,7 @@ function createDefaultDimension(
 /**
  * Create initial flourishing state for a worker
  */
-function createInitialWorkerFlourishing(
-  workerId: string,
-  workerIndex: number
-): WorkerFlourishing {
+function createInitialWorkerFlourishing(workerId: string, workerIndex: number): WorkerFlourishing {
   // Deterministic variation based on worker index
   const indexFactor = (workerIndex % 6) * 5; // 0, 5, 10, 15, 20, 25
 
@@ -240,11 +233,7 @@ interface FlourishingState {
   // BAS/Mood Integration
   applyAxisEffects: (axisImpacts: Record<string, number>) => void;
 
-  applyMoodEffects: (
-    workerId: string,
-    trustDelta: number,
-    initiativeDelta: number
-  ) => void;
+  applyMoodEffects: (workerId: string, trustDelta: number, initiativeDelta: number) => void;
 
   // Simulation tick
   tickFlourishing: (deltaMinutes: number) => void;
@@ -417,28 +406,20 @@ export const useFlourishingStore = create<FlourishingState>()(
         ];
 
         dimensions.forEach((dim) => {
-          dimensionScores[dim] =
-            workers.reduce((sum, w) => sum + w[dim].score, 0) / workers.length;
+          dimensionScores[dim] = workers.reduce((sum, w) => sum + w[dim].score, 0) / workers.length;
         });
 
         // Calculate overall score using geometric mean of dimension averages
         const overallScore = geometricMean(Object.values(dimensionScores));
 
         // Count worker categories
-        const flourishingWorkers = workers.filter(
-          (w) => w.flourishingScore > 70
-        ).length;
-        const strugglingWorkers = workers.filter(
-          (w) => w.flourishingScore < 40
-        ).length;
-        const neutralWorkers =
-          workers.length - flourishingWorkers - strugglingWorkers;
+        const flourishingWorkers = workers.filter((w) => w.flourishingScore > 70).length;
+        const strugglingWorkers = workers.filter((w) => w.flourishingScore < 40).length;
+        const neutralWorkers = workers.length - flourishingWorkers - strugglingWorkers;
 
         // Calculate weekly trend
-        const avgCurrent =
-          Object.values(dimensionScores).reduce((a, b) => a + b, 0) / 6;
-        const avgBaseline =
-          Object.values(weeklyBaseline).reduce((a, b) => a + b, 0) / 6;
+        const avgCurrent = Object.values(dimensionScores).reduce((a, b) => a + b, 0) / 6;
+        const avgBaseline = Object.values(weeklyBaseline).reduce((a, b) => a + b, 0) / 6;
 
         let weeklyTrend: 'improving' | 'stable' | 'declining' = 'stable';
         if (avgCurrent - avgBaseline > 3) weeklyTrend = 'improving';
@@ -475,10 +456,7 @@ export const useFlourishingStore = create<FlourishingState>()(
       },
 
       getDimensionDescriptor: (key) => {
-        return (
-          FLOURISHING_DIMENSIONS.find((d) => d.key === key) ||
-          FLOURISHING_DIMENSIONS[0]
-        );
+        return FLOURISHING_DIMENSIONS.find((d) => d.key === key) || FLOURISHING_DIMENSIONS[0];
       },
 
       applyAxisEffects: (axisImpacts) => {
@@ -500,12 +478,7 @@ export const useFlourishingStore = create<FlourishingState>()(
             if (Math.abs(impact) >= 0.5) {
               // Apply scaled effect (impacts are typically -20 to +20)
               const delta = impact * 0.05; // Scale to reasonable per-tick change
-              get().updateWorkerDimension(
-                workerId,
-                dim,
-                delta,
-                'BAS axis configuration effect'
-              );
+              get().updateWorkerDimension(workerId, dim, delta, 'BAS axis configuration effect');
             }
           });
         });
@@ -514,18 +487,8 @@ export const useFlourishingStore = create<FlourishingState>()(
       applyMoodEffects: (workerId, trustDelta, initiativeDelta) => {
         // Trust affects agency and meaning
         if (Math.abs(trustDelta) >= 1) {
-          get().updateWorkerDimension(
-            workerId,
-            'agency',
-            trustDelta * 0.3,
-            'Trust level change'
-          );
-          get().updateWorkerDimension(
-            workerId,
-            'meaning',
-            trustDelta * 0.2,
-            'Trust level change'
-          );
+          get().updateWorkerDimension(workerId, 'agency', trustDelta * 0.3, 'Trust level change');
+          get().updateWorkerDimension(workerId, 'meaning', trustDelta * 0.2, 'Trust level change');
         }
 
         // Initiative affects mastery and joy
@@ -550,6 +513,12 @@ export const useFlourishingStore = create<FlourishingState>()(
         const state = get();
         const workers = Object.keys(state.workerFlourishing);
 
+        // Get production speed for stress effects on flourishing
+        const productionSpeed = useProductionStore.getState().productionSpeed;
+        // High production speed (>1.0) causes stress that affects wholeness and joy
+        const isHighPressure = productionSpeed > 1.0;
+        const speedPenalty = isHighPressure ? (productionSpeed - 1.0) * 0.01 * deltaMinutes : 0;
+
         // Small natural decay/recovery toward neutral (60)
         const neutralTarget = 60;
         const driftRate = 0.001 * deltaMinutes; // Very slow drift
@@ -572,7 +541,18 @@ export const useFlourishingStore = create<FlourishingState>()(
 
             dimensions.forEach((dim) => {
               const current = worker[dim].score;
-              const drift = (neutralTarget - current) * driftRate;
+              let drift = (neutralTarget - current) * driftRate;
+
+              // Production speed stress effect on specific dimensions
+              // High speed negatively affects wholeness (work-life balance) and joy
+              if (speedPenalty > 0) {
+                if (dim === 'wholeness') {
+                  drift -= speedPenalty * 1.5; // Strongest effect on work-life balance
+                } else if (dim === 'joy') {
+                  drift -= speedPenalty * 1.0; // Reduced enjoyment under pressure
+                }
+              }
+
               worker[dim] = {
                 ...worker[dim],
                 score: Math.max(0, Math.min(100, current + drift)),
@@ -591,8 +571,7 @@ export const useFlourishingStore = create<FlourishingState>()(
           });
 
           // Update weekly baseline every 24 hours (simulated)
-          const hoursSinceBaseline =
-            (Date.now() - prevState.lastBaselineUpdate) / (1000 * 60 * 60);
+          const hoursSinceBaseline = (Date.now() - prevState.lastBaselineUpdate) / (1000 * 60 * 60);
           let newBaseline = prevState.weeklyBaseline;
           let newBaselineUpdate = prevState.lastBaselineUpdate;
 

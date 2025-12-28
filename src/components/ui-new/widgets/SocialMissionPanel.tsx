@@ -45,12 +45,7 @@ interface ScoreRingProps {
   size?: 'sm' | 'md';
 }
 
-const ScoreRing: React.FC<ScoreRingProps> = ({
-  score,
-  label,
-  color,
-  size = 'sm',
-}) => {
+const ScoreRing: React.FC<ScoreRingProps> = ({ score, label, color, size = 'sm' }) => {
   const radius = size === 'md' ? 28 : 20;
   const strokeWidth = size === 'md' ? 4 : 3;
   const circumference = 2 * Math.PI * radius;
@@ -186,11 +181,7 @@ interface SatisfactionMeterProps {
   icon: React.ComponentType<{ className?: string }>;
 }
 
-const SatisfactionMeter: React.FC<SatisfactionMeterProps> = ({
-  label,
-  value,
-  icon: Icon,
-}) => {
+const SatisfactionMeter: React.FC<SatisfactionMeterProps> = ({ label, value, icon: Icon }) => {
   const getColor = (val: number) => {
     if (val >= 80) return 'text-green-400 bg-green-500';
     if (val >= 60) return 'text-amber-400 bg-amber-500';
@@ -206,10 +197,7 @@ const SatisfactionMeter: React.FC<SatisfactionMeterProps> = ({
       <div className="text-[10px] font-mono font-bold text-white">{value}%</div>
       <div className="text-[7px] text-slate-500">{label}</div>
       <div className="h-0.5 bg-slate-700 rounded-full mt-1 overflow-hidden">
-        <div
-          className={`h-full rounded-full ${bgColor}`}
-          style={{ width: `${value}%` }}
-        />
+        <div className={`h-full rounded-full ${bgColor}`} style={{ width: `${value}%` }} />
       </div>
     </div>
   );
@@ -311,8 +299,7 @@ export const SocialMissionPanel: React.FC = () => {
           />
         </div>
         <div className="text-[8px] text-center text-slate-500 mt-2">
-          Social Impact = 30% Workers + 25% Community + 25% Environment + 20%
-          Knowledge
+          Social Impact = 30% Workers + 25% Community + 25% Environment + 20% Knowledge
         </div>
       </div>
 
@@ -320,9 +307,7 @@ export const SocialMissionPanel: React.FC = () => {
       <div className="p-3 border-b border-slate-700/30">
         <div className="flex items-center gap-1 mb-2">
           <Leaf className="w-3 h-3 text-green-400" />
-          <span className="text-[10px] font-medium text-white">
-            Environmental Stewardship
-          </span>
+          <span className="text-[10px] font-medium text-white">Environmental Stewardship</span>
           <span className="ml-auto text-[10px] text-green-400 font-mono">
             {environmentalScore}%
           </span>
@@ -367,16 +352,10 @@ export const SocialMissionPanel: React.FC = () => {
       <div className="p-3 border-b border-slate-700/30">
         <div className="flex items-center gap-1 mb-2">
           <TrendingUp className="w-3 h-3 text-cyan-400" />
-          <span className="text-[10px] font-medium text-white">
-            Stakeholder Satisfaction
-          </span>
+          <span className="text-[10px] font-medium text-white">Stakeholder Satisfaction</span>
         </div>
         <div className="grid grid-cols-4 gap-1">
-          <SatisfactionMeter
-            label="Workers"
-            value={stakeholderSatisfaction.workers}
-            icon={Users}
-          />
+          <SatisfactionMeter label="Workers" value={stakeholderSatisfaction.workers} icon={Users} />
           <SatisfactionMeter
             label="Community"
             value={stakeholderSatisfaction.community}
@@ -399,9 +378,7 @@ export const SocialMissionPanel: React.FC = () => {
       <div className="p-3 border-b border-slate-700/30">
         <div className="flex items-center gap-1 mb-2">
           <DoorOpen className="w-3 h-3 text-purple-400" />
-          <span className="text-[10px] font-medium text-white">
-            Open Admission
-          </span>
+          <span className="text-[10px] font-medium text-white">Open Admission</span>
           <span className="ml-auto text-[10px] text-purple-400 font-mono">
             {acceptanceRate}% rate
           </span>
@@ -459,11 +436,7 @@ export const SocialMissionPanel: React.FC = () => {
             <Building2 className="w-3 h-3" />
             Community Impact
           </span>
-          {showCommunity ? (
-            <ChevronUp className="w-3 h-3" />
-          ) : (
-            <ChevronDown className="w-3 h-3" />
-          )}
+          {showCommunity ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
         </button>
 
         <AnimatePresence>
@@ -510,9 +483,7 @@ export const SocialMissionPanel: React.FC = () => {
                           className="text-[8px] text-slate-400 flex justify-between"
                         >
                           <span>{inv.name}</span>
-                          <span className="text-green-400">
-                            ${inv.amount.toLocaleString()}
-                          </span>
+                          <span className="text-green-400">${inv.amount.toLocaleString()}</span>
                         </div>
                       ))}
                   </div>
@@ -533,11 +504,7 @@ export const SocialMissionPanel: React.FC = () => {
             <BookOpen className="w-3 h-3" />
             Public Knowledge Sharing
           </span>
-          {showKnowledge ? (
-            <ChevronUp className="w-3 h-3" />
-          ) : (
-            <ChevronDown className="w-3 h-3" />
-          )}
+          {showKnowledge ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
         </button>
 
         <AnimatePresence>
@@ -601,11 +568,7 @@ export const SocialMissionPanel: React.FC = () => {
             <Info className="w-3 h-3" />
             About Social Mission
           </span>
-          {showAbout ? (
-            <ChevronUp className="w-3 h-3" />
-          ) : (
-            <ChevronDown className="w-3 h-3" />
-          )}
+          {showAbout ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
         </button>
 
         <AnimatePresence>
@@ -618,39 +581,34 @@ export const SocialMissionPanel: React.FC = () => {
             >
               <div className="mt-3 space-y-2 text-[9px] text-slate-400">
                 <p className="leading-relaxed">
-                  <strong className="text-pink-400">Social Mission</strong> is a
-                  core pillar of Mondragon-style cooperatives. Unlike traditional
-                  corporations that optimize solely for shareholder value,
-                  cooperatives exist to serve their communities.
+                  <strong className="text-pink-400">Social Mission</strong> is a core pillar of
+                  Mondragon-style cooperatives. Unlike traditional corporations that optimize solely
+                  for shareholder value, cooperatives exist to serve their communities.
                 </p>
                 <div className="bg-slate-800/30 rounded p-2">
-                  <div className="font-bold text-white mb-1">
-                    Four Pillars of Social Mission
-                  </div>
+                  <div className="font-bold text-white mb-1">Four Pillars of Social Mission</div>
                   <ul className="space-y-0.5 text-slate-400">
                     <li>
-                      <strong className="text-blue-300">Community Impact</strong> -
-                      Local employment, suppliers, investments
+                      <strong className="text-blue-300">Community Impact</strong> - Local
+                      employment, suppliers, investments
                     </li>
                     <li>
-                      <strong className="text-green-300">
-                        Environmental Stewardship
-                      </strong>{' '}
-                      - Carbon, waste, renewables
+                      <strong className="text-green-300">Environmental Stewardship</strong> -
+                      Carbon, waste, renewables
                     </li>
                     <li>
-                      <strong className="text-purple-300">Knowledge Sharing</strong>{' '}
-                      - Open learnings, research, collaboration
+                      <strong className="text-purple-300">Knowledge Sharing</strong> - Open
+                      learnings, research, collaboration
                     </li>
                     <li>
-                      <strong className="text-amber-300">Open Admission</strong> -
-                      Accessible membership, diversity
+                      <strong className="text-amber-300">Open Admission</strong> - Accessible
+                      membership, diversity
                     </li>
                   </ul>
                 </div>
                 <p className="text-[8px] text-slate-500 italic">
-                  Social mission metrics contribute to overall flourishing through
-                  the meaning and connection dimensions.
+                  Social mission metrics contribute to overall flourishing through the meaning and
+                  connection dimensions.
                 </p>
               </div>
             </motion.div>

@@ -760,12 +760,12 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
         const preEmergencyStatuses = new Map<string, string>();
 
         // Save current statuses before stopping
-        machines.forEach(m => {
+        machines.forEach((m) => {
           preEmergencyStatuses.set(m.id, m.status);
         });
 
         // Set all running/warning machines to idle during emergency
-        machines.forEach(m => {
+        machines.forEach((m) => {
           if (m.status === 'running' || m.status === 'warning') {
             productionStore.updateMachineStatus(m.id, 'idle');
           }
@@ -785,7 +785,7 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
         // Restore machine statuses from before emergency
         state.preEmergencyMachineStatuses.forEach((status, machineId) => {
           // Only restore if machine is currently idle (set by emergency stop)
-          const currentMachine = productionStore.machines.find(m => m.id === machineId);
+          const currentMachine = productionStore.machines.find((m) => m.id === machineId);
           if (currentMachine && currentMachine.status === 'idle') {
             // Restore to original status (running, warning, etc.)
             const validStatus = status as 'running' | 'idle' | 'warning' | 'critical';

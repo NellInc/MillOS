@@ -216,12 +216,19 @@ const MaintenanceAnimationManager: React.FC<{ children: React.ReactNode }> = ({ 
     if (now - lastChaosCheckRef.current >= 500) {
       lastChaosCheckRef.current = now;
 
+      // Get environment state for dust-based reactions
+      const { factoryEnvironment } = useWorkerMoodStore.getState();
+
       chaosEvents.forEach((event) => {
         if (event.resolved) return;
 
         WORKER_ROSTER.forEach((worker) => {
-          if (event.affectedWorkerIds.includes(worker.id) && Math.random() < 0.05) {
-            if (event.type === 'grain_spill') {
+          // Probability increases with severity - more noticeable reactions
+          const baseProbability = event.severity === 'dramatic' ? 0.12 : event.severity === 'moderate' ? 0.08 : 0.05;
+
+          if (event.affectedWorkerIds.includes(worker.id) && Math.random() < baseProbability) {
+            if (event.type === 'grain_spill' || event.type === 'mysterious_puddle') {
+              // Both grain spills and mysterious puddles cause slipping
               triggerWorkerReaction(worker.id, 'slipping', 1500);
             } else if (event.type === 'dust_cloud') {
               triggerWorkerReaction(worker.id, 'coughing', 2000);
@@ -229,6 +236,17 @@ const MaintenanceAnimationManager: React.FC<{ children: React.ReactNode }> = ({ 
           }
         });
       });
+
+      // Environmental dust triggers coughing even without a dust_cloud event
+      // High dust level (>60) has a small chance to make any worker cough
+      if (factoryEnvironment.dustLevel > 60) {
+        const dustCoughProbability = (factoryEnvironment.dustLevel - 60) / 400; // 0.1% at 60, 10% at 100
+        WORKER_ROSTER.forEach((worker) => {
+          if (Math.random() < dustCoughProbability) {
+            triggerWorkerReaction(worker.id, 'coughing', 1500);
+          }
+        });
+      }
     }
   });
 

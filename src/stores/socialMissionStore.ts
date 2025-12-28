@@ -99,10 +99,7 @@ export interface SocialMissionState {
 interface SocialMissionActions {
   // Community
   addCommunityInvestment: (investment: Omit<CommunityInvestment, 'id'>) => void;
-  updateCommunityInvestmentStatus: (
-    id: string,
-    status: CommunityInvestment['status']
-  ) => void;
+  updateCommunityInvestmentStatus: (id: string, status: CommunityInvestment['status']) => void;
   updateLocalEmployment: (count: number) => void;
   updateLocalSourcing: (percentage: number) => void;
   addOutreachProgram: (program: Omit<OutreachProgram, 'id'>) => void;
@@ -131,9 +128,7 @@ interface SocialMissionActions {
     stakeholder: keyof SocialMissionState['stakeholderSatisfaction'],
     score: number
   ) => void;
-  updateMissionMetrics: (
-    metrics: Partial<SocialMissionState['missionMetrics']>
-  ) => void;
+  updateMissionMetrics: (metrics: Partial<SocialMissionState['missionMetrics']>) => void;
 
   // Utility
   getTotalCommunityInvestment: () => number;
@@ -145,9 +140,7 @@ interface SocialMissionActions {
 // STORE
 // =============================================================================
 
-export const useSocialMissionStore = create<
-  SocialMissionState & SocialMissionActions
->()(
+export const useSocialMissionStore = create<SocialMissionState & SocialMissionActions>()(
   persist(
     (set, get) => ({
       // Initial state
@@ -238,8 +231,8 @@ export const useSocialMissionStore = create<
         set((state) => ({
           communityImpact: {
             ...state.communityImpact,
-            communityInvestments: state.communityImpact.communityInvestments.map(
-              (inv) => (inv.id === id ? { ...inv, status } : inv)
+            communityInvestments: state.communityImpact.communityInvestments.map((inv) =>
+              inv.id === id ? { ...inv, status } : inv
             ),
           },
         })),
@@ -310,8 +303,7 @@ export const useSocialMissionStore = create<
         set((state) => ({
           publicKnowledgeSharing: {
             ...state.publicKnowledgeSharing,
-            publicLearningsShared:
-              state.publicKnowledgeSharing.publicLearningsShared + 1,
+            publicLearningsShared: state.publicKnowledgeSharing.publicLearningsShared + 1,
           },
         })),
 
@@ -319,8 +311,7 @@ export const useSocialMissionStore = create<
         set((state) => ({
           publicKnowledgeSharing: {
             ...state.publicKnowledgeSharing,
-            openSourceContributions:
-              state.publicKnowledgeSharing.openSourceContributions + 1,
+            openSourceContributions: state.publicKnowledgeSharing.openSourceContributions + 1,
           },
         })),
 
@@ -328,8 +319,7 @@ export const useSocialMissionStore = create<
         set((state) => ({
           publicKnowledgeSharing: {
             ...state.publicKnowledgeSharing,
-            researchCollaborations:
-              state.publicKnowledgeSharing.researchCollaborations + 1,
+            researchCollaborations: state.publicKnowledgeSharing.researchCollaborations + 1,
           },
         })),
 
@@ -337,8 +327,7 @@ export const useSocialMissionStore = create<
         set((state) => ({
           publicKnowledgeSharing: {
             ...state.publicKnowledgeSharing,
-            industryPresentations:
-              state.publicKnowledgeSharing.industryPresentations + 1,
+            industryPresentations: state.publicKnowledgeSharing.industryPresentations + 1,
           },
         })),
 
@@ -399,16 +388,12 @@ export const useSocialMissionStore = create<
       // Utility actions
       getTotalCommunityInvestment: () => {
         const state = get();
-        return state.communityImpact.communityInvestments.reduce(
-          (sum, inv) => sum + inv.amount,
-          0
-        );
+        return state.communityImpact.communityInvestments.reduce((sum, inv) => sum + inv.amount, 0);
       },
 
       getAcceptanceRate: () => {
         const state = get();
-        const { applicationsReceived, applicationsAccepted } =
-          state.openAdmission;
+        const { applicationsReceived, applicationsAccepted } = state.openAdmission;
         if (applicationsReceived === 0) return 0;
         return Math.round((applicationsAccepted / applicationsReceived) * 100);
       },

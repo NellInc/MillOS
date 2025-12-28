@@ -83,15 +83,17 @@ interface UIStore {
   setShowSPCCharts: (show: boolean) => void;
   toggleSPCCharts: () => void;
 
-  // Compliance Dashboard
-  showComplianceDashboard: boolean;
-  setShowComplianceDashboard: (show: boolean) => void;
-  toggleComplianceDashboard: () => void;
-
   // FPS Counter
   showFPSCounter: boolean;
   setShowFPSCounter: (show: boolean) => void;
   toggleFPSCounter: () => void;
+
+  // Blueprint Mode (Ctrl+B toggle)
+  blueprintMode: boolean;
+  blueprintTransition: number; // 0-1 for animation lerp
+  setBlueprintMode: (enabled: boolean) => void;
+  toggleBlueprintMode: () => void;
+  setBlueprintTransition: (value: number) => void;
 }
 
 export const useUIStore = create<UIStore>()(
@@ -201,16 +203,17 @@ export const useUIStore = create<UIStore>()(
       setShowSPCCharts: (show: boolean) => set({ showSPCCharts: show }),
       toggleSPCCharts: () => set((state) => ({ showSPCCharts: !state.showSPCCharts })),
 
-      // Compliance Dashboard
-      showComplianceDashboard: false,
-      setShowComplianceDashboard: (show: boolean) => set({ showComplianceDashboard: show }),
-      toggleComplianceDashboard: () =>
-        set((state) => ({ showComplianceDashboard: !state.showComplianceDashboard })),
-
       // FPS Counter
       showFPSCounter: false,
       setShowFPSCounter: (show: boolean) => set({ showFPSCounter: show }),
       toggleFPSCounter: () => set((state) => ({ showFPSCounter: !state.showFPSCounter })),
+
+      // Blueprint Mode (Ctrl+B toggle)
+      blueprintMode: false,
+      blueprintTransition: 0,
+      setBlueprintMode: (enabled: boolean) => set({ blueprintMode: enabled }),
+      toggleBlueprintMode: () => set((state) => ({ blueprintMode: !state.blueprintMode })),
+      setBlueprintTransition: (value: number) => set({ blueprintTransition: value }),
     }),
     {
       name: 'millos-ui',
@@ -224,8 +227,8 @@ export const useUIStore = create<UIStore>()(
         showMiniMap: state.showMiniMap,
         fpsMode: state.fpsMode,
         showSPCCharts: state.showSPCCharts,
-        showComplianceDashboard: state.showComplianceDashboard,
         showFPSCounter: state.showFPSCounter,
+        blueprintMode: state.blueprintMode,
       }),
       onRehydrateStorage: () => (state, error) => {
         if (error) {

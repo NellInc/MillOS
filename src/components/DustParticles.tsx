@@ -3,6 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useGraphicsStore } from '../stores/graphicsStore';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
+import { useProductionStore } from '../stores/productionStore';
 import { shouldRunThisFrame, getThrottleLevel } from '../utils/frameThrottle';
 import { useShallow } from 'zustand/react/shallow';
 
@@ -28,6 +29,7 @@ interface GrainFlowEntry {
   velocities: Float32Array;
   count: number;
   throttleLevel: number;
+  speedMultiplier: number; // Production speed multiplier
 }
 
 interface MachineSteamEntry {
@@ -160,12 +162,15 @@ function animateGrainFlow(entry: GrainFlowEntry) {
   if (!entry.particlesRef.current) return;
   const posArray = entry.particlesRef.current.geometry.attributes.position.array as Float32Array;
 
+  // Scale velocity by production speed (higher speed = faster grain flow)
+  const speedScale = entry.speedMultiplier;
+
   for (let i = 0; i < entry.count; i++) {
     const idx = i * 3;
 
-    posArray[idx] += entry.velocities[idx];
-    posArray[idx + 1] += entry.velocities[idx + 1];
-    posArray[idx + 2] += entry.velocities[idx + 2];
+    posArray[idx] += entry.velocities[idx] * speedScale;
+    posArray[idx + 1] += entry.velocities[idx + 1] * speedScale;
+    posArray[idx + 2] += entry.velocities[idx + 2] * speedScale;
 
     if (posArray[idx + 1] < 2) {
       posArray[idx] = (Math.random() - 0.5) * 30;
@@ -353,7 +358,9 @@ export const DustParticles: React.FC<DustParticlesProps> = ({ count }) => {
   const isTabVisible = useGameSimulationStore((state) => state.isTabVisible);
 
   // PERF: Only re-render when daytime status changes, not every tick
-  const isDaytime = useGameSimulationStore(useShallow((state) => state.gameTime >= 7 && state.gameTime < 18));
+  const isDaytime = useGameSimulationStore(
+    useShallow((state) => state.gameTime >= 7 && state.gameTime < 18)
+  );
 
   const { dustParticleCount, enableDustParticles, quality } = useGraphicsStore(
     useShallow((state) => ({
@@ -365,8 +372,6 @@ export const DustParticles: React.FC<DustParticlesProps> = ({ count }) => {
 
   // Use graphics setting for particle count
   const effectiveCount = Math.min(count, dustParticleCount);
-
-
 
   // Create particle pool with max count
   const pool = useMemo(() => new ParticlePool(count), [count]);
@@ -496,6 +501,9 @@ export const GrainFlow: React.FC = () => {
   // Throttle grain flow updates
   const throttleLevel = getThrottleLevel(quality);
 
+  // Get production speed for velocity scaling
+  const productionSpeed = useProductionStore((state) => state.productionSpeed);
+
   // Register with manager if available
   useEffect(() => {
     if (context && isEnabled) {
@@ -505,10 +513,11 @@ export const GrainFlow: React.FC = () => {
         velocities,
         count,
         throttleLevel,
+        speedMultiplier: productionSpeed,
       });
       return () => context.unregister(idRef.current);
     }
-  }, [context, isEnabled, velocities, throttleLevel]);
+  }, [context, isEnabled, velocities, throttleLevel, productionSpeed]);
 
   // Fallback useFrame when not in manager context
   useFrame(() => {
@@ -521,6 +530,7 @@ export const GrainFlow: React.FC = () => {
       velocities,
       count,
       throttleLevel,
+      speedMultiplier: productionSpeed,
     });
   });
 

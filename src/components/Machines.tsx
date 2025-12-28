@@ -10,7 +10,7 @@ import { getStatusColor } from '../utils/statusColors';
 import { useSCADAMachineVisuals, useSCADAAlarmVisuals } from '../scada';
 import { useModelAvailable, MODEL_PATHS } from '../utils/modelLoader';
 import { getThrottleLevel, shouldRunThisFrame } from '../utils/frameThrottle';
-import { MACHINE_MATERIALS, METAL_MATERIALS } from '../utils/sharedMaterials';
+import { MACHINE_MATERIALS, METAL_MATERIALS, PROCEDURAL_TEXTURES } from '../utils/sharedMaterials';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import { useBreakdownStore } from '../stores/breakdownStore';
 import { useProductionStore } from '../stores/productionStore';
@@ -20,6 +20,7 @@ import { InstancedSilos } from './machines/InstancedSilos';
 import { InstancedRollerMills } from './machines/InstancedRollerMills';
 import { InstancedPlansifters } from './machines/InstancedPlansifters';
 import { InstancedPackers } from './machines/InstancedPackers';
+import { useBassLevel } from '../stores/audioAnalyzerStore';
 
 // =============================================================================
 // CENTRALIZED ANIMATION MANAGER
@@ -79,6 +80,8 @@ export const unregisterShader = (id: string) => {
 const MachineAnimationManager: React.FC = () => {
   const isTabVisible = useGameSimulationStore((state) => state.isTabVisible);
   const quality = useGraphicsStore((state) => state.graphics.quality);
+  const enableAudioReactive = useGraphicsStore((state) => state.graphics.enableAudioReactive);
+  const bassLevel = useBassLevel();
 
   useFrame((state, delta) => {
     // Skip if tab not visible or low quality (animations disabled on low)
@@ -128,7 +131,10 @@ const MachineAnimationManager: React.FC = () => {
           const isOff = color === '#1e293b' || (status === 'idle' && color === '#64748b');
           mat.color.set(color);
           mat.emissive.set(color);
-          mat.emissiveIntensity = isOff ? 0 : 0.8;
+          // Base intensity with audio-reactive bass modulation when enabled
+          const baseIntensity = isOff ? 0 : 0.8;
+          const bassBoost = enableAudioReactive ? bassLevel * 0.7 : 0;
+          mat.emissiveIntensity = baseIntensity + (isOff ? 0 : bassBoost);
         });
 
         // Update screen only if status changed (handled by parent prop update mostly, but good to strictly enforce)
@@ -260,8 +266,6 @@ const textureCache = new Map<
   { roughnessMap: THREE.CanvasTexture; normalMap: THREE.CanvasTexture }
 >();
 
-
-
 // Maintenance countdown timer display
 const MaintenanceCountdown: React.FC<{
   hoursRemaining: number;
@@ -290,12 +294,13 @@ const MaintenanceCountdown: React.FC<{
   return (
     <Html position={position} center distanceFactor={12}>
       <div
-        className={`bg-slate-900/90 backdrop-blur px-2 py-1 rounded border ${isCritical
-          ? 'border-red-500/50 animate-pulse'
-          : isUrgent
-            ? 'border-amber-500/50'
-            : 'border-slate-700'
-          }`}
+        className={`bg-slate-900/90 backdrop-blur px-2 py-1 rounded border ${
+          isCritical
+            ? 'border-red-500/50 animate-pulse'
+            : isUrgent
+              ? 'border-amber-500/50'
+              : 'border-slate-700'
+        }`}
       >
         <div className="text-[8px] text-slate-500 uppercase tracking-wider">Maintenance</div>
         <div className="text-xs font-mono font-bold flex items-center gap-1" style={{ color }}>
@@ -344,7 +349,7 @@ const useProceduralMetalTexture = (enabled: boolean, seed: number = 0) => {
     if (textureCache.has(cacheKey)) {
       texturesRef.current = textureCache.get(cacheKey)!;
       // Don't dispose cached textures on cleanup - they're shared
-      return () => { };
+      return () => {};
     }
 
     const random = (s: number) => Math.abs(Math.sin(s * 12.9898 + 78.233) * 43758.5453) % 1;
@@ -570,7 +575,13 @@ const WeldSeams: React.FC<{ radius: number; height: number; enabled: boolean }> 
       {Array.from({ length: seamCount }).map((_, i) => (
         <mesh key={i} position={[0, -height / 2 + (i + 1) * (height / (seamCount + 1)), 0]}>
           <torusGeometry args={[radius + 0.02, 0.015, 8, 32]} />
-          <meshStandardMaterial color="#94a3b8" metalness={0.8} roughness={0.3} />
+          <meshStandardMaterial
+            color="#94a3b8"
+            metalness={0.8}
+            roughness={0.3}
+            normalMap={PROCEDURAL_TEXTURES.brushedMetal}
+            normalScale={new THREE.Vector2(0.15, 0.15)}
+          />
         </mesh>
       ))}
     </group>
@@ -1530,12 +1541,7 @@ const MachinesComponent: React.FC<MachinesProps> = ({ machines, onSelect }) => {
       <InstancedPackers machines={packers} onSelect={onSelect} />
 
       {otherMachines.map((m: MachineData) => (
-        <MachineMesh
-          key={m.id}
-          data={m}
-          onSelect={onSelect}
-          onStateUpdate={updateMachineState}
-        />
+        <MachineMesh key={m.id} data={m} onSelect={onSelect} onStateUpdate={updateMachineState} />
       ))}
 
       {/* Breakdown Effects - sparks, smoke, warning beacons for broken machines */}
@@ -1658,13 +1664,12 @@ const MachineMesh: React.FC<MachineMeshProps> = React.memo(({ data, onSelect, on
       // Just update parameters if already playing
       if (type === MachineType.ROLLER_MILL || type === MachineType.PLANSIFTER) {
         // Assuming audioManager handles parameter updates efficiently or ignores if no change
-        // Ideally we'd have precise update methods, but re-calling play with same ID 
-        // usually acts as update or ignore in well-designed managers. 
+        // Ideally we'd have precise update methods, but re-calling play with same ID
+        // usually acts as update or ignore in well-designed managers.
         // If not, we might need a specific update method.
         // For now, let's assume we shouldn't spam play.
         // Actually, let's rely on the manager's idempotency or add an update method if possible.
         // Checking audioManager.ts would be ideal, but for now preventing mount/unmount is key.
-
         // Better approach: Do nothing here if just RPM changes, rely on a separate effect/ref?
         // No, invalidating this effect on RPM change is what causes the stop/start loop.
         // We need to NOT depend on RPM in the start/stop effect.
@@ -1681,7 +1686,10 @@ const MachineMesh: React.FC<MachineMeshProps> = React.memo(({ data, onSelect, on
 
   // Separate effect for RPM updates to avoid restarting sound
   useEffect(() => {
-    if (status === 'running' && (type === MachineType.ROLLER_MILL || type === MachineType.PLANSIFTER)) {
+    if (
+      status === 'running' &&
+      (type === MachineType.ROLLER_MILL || type === MachineType.PLANSIFTER)
+    ) {
       // Update pitch/rhythm based on RPM without restarting the sound
       const rpm = data.metrics.rpm ?? (type === MachineType.ROLLER_MILL ? 1400 : 200);
       audioManager.updateMachinePitch(data.id, rpm);
@@ -3117,7 +3125,9 @@ export const MachineSimulationController: React.FC = () => {
   const productionSpeed = useProductionStore((state) => state.productionSpeed);
 
   // BILATERAL ALIGNMENT: Workforce productivity multiplier affects production output
-  const workforceProductivity = useWorkerMoodStore((state) => state.getWorkforceProductivityMultiplier());
+  const workforceProductivity = useWorkerMoodStore((state) =>
+    state.getWorkforceProductivityMultiplier()
+  );
 
   // Simulate realistic machine metric changes over time
   // Throttled to check every 30 frames (~0.5s at 60fps) instead of every frame
@@ -3162,7 +3172,7 @@ export const MachineSimulationController: React.FC = () => {
       let targetLoad = machine.metrics.load;
       if (isRunning) {
         // Running machines adjust load toward productionSpeed * 80 * workforce productivity
-        const baseLoad = 50 + (productionSpeed * 30); // 50-80% based on speed
+        const baseLoad = 50 + productionSpeed * 30; // 50-80% based on speed
         targetLoad = baseLoad * workforceProductivity; // Apply trust/initiative multiplier (0.85-1.20x)
       } else if (isIdle) {
         targetLoad = 0; // Idle = no load
@@ -3190,7 +3200,7 @@ export const MachineSimulationController: React.FC = () => {
       if (isRunning) {
         // Vibration based on RPM ratio and load
         const rpmRatio = machine.metrics.rpm / 1200; // Normalize to 1200 RPM base
-        targetVibration = 1.0 + (rpmRatio * 2) + (newLoad / 100);
+        targetVibration = 1.0 + rpmRatio * 2 + newLoad / 100;
         // Warning machines vibrate more (something is wrong)
         if (machine.status === 'warning') targetVibration *= 1.5;
       } else if (isCritical) {
@@ -3208,7 +3218,7 @@ export const MachineSimulationController: React.FC = () => {
           temperature: Math.round(newTemp * 10) / 10,
           vibration: Math.round(newVibration * 100) / 100,
           load: Math.round(newLoad * 10) / 10,
-        }
+        },
       });
 
       // STATUS CHANGES: Based on actual threshold crossings (deterministic)

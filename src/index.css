@@ -176,7 +176,7 @@ button:focus-visible,
 a:focus-visible,
 input:focus-visible,
 select:focus-visible,
-[role="button"]:focus-visible,
+[role='button']:focus-visible,
 [tabindex]:focus-visible {
   outline: 2px solid #22d3ee;
   outline-offset: 2px;
@@ -189,7 +189,9 @@ input[type='range']:focus-visible {
 }
 
 input[type='range']:focus-visible::-webkit-slider-thumb {
-  box-shadow: 0 0 0 4px rgba(34, 211, 238, 0.4), 0 0 10px rgba(249, 115, 22, 0.5);
+  box-shadow:
+    0 0 0 4px rgba(34, 211, 238, 0.4),
+    0 0 10px rgba(249, 115, 22, 0.5);
 }
 
 /* =============================================================================
@@ -224,7 +226,7 @@ input[type='range']:focus-visible::-webkit-slider-thumb {
   }
 
   button,
-  [role="button"] {
+  [role='button'] {
     border: 1px solid currentColor;
   }
 }

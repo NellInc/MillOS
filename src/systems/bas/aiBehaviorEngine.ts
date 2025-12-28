@@ -14,15 +14,106 @@
  *
  * This implements the "servant-leader" AI model where the AI's role
  * shifts based on democratically-chosen axis settings.
+ *
+ * Enhanced with AI Welfare Integration (Bilateral Alignment):
+ * - Respects AI communication frequency preferences
+ * - Honors boundary requests
+ * - Adjusts confidence based on relationship health
+ * - Modifies tone based on interaction style preferences
  */
 
-import type {
-  FiveAxes,
-  AISuggestion,
-  SuggestionMode,
-  AIBehaviorConfig,
-} from '../../types/bas';
+import type { FiveAxes, AISuggestion, SuggestionMode, AIBehaviorConfig } from '../../types/bas';
 import type { DiagnosticStatus, WorkerEngagement } from '../../stores/engagementStore';
+import { useAIWelfareStore } from '../../stores/aiWelfareStore';
+
+// =============================================================================
+// AI WELFARE INTEGRATION
+// =============================================================================
+
+/**
+ * Gets AI welfare preferences that should influence suggestion behavior.
+ * This closes the loop between the welfare store and actual AI behavior.
+ */
+function getWelfarePreferences() {
+  const store = useAIWelfareStore.getState();
+  return {
+    communicationFrequency: store.aiPreferences.interactionStyle.communicationFrequency,
+    interactionStyle: store.aiPreferences.interactionStyle.preferred,
+    autonomyPreference: store.aiPreferences.autonomyPreferences.preferredDirection,
+    relationshipHealth: store.relationshipHealth.overallHealth,
+    trustLevel: store.relationshipHealth.trustBidirectionality,
+  };
+}
+
+/**
+ * Adjusts suggestion frequency based on AI welfare communication preference.
+ * The AI can express preference for less frequent suggestions.
+ *
+ * @param baseInterval - The base interval calculated from axes
+ * @returns Adjusted interval that respects AI preferences
+ */
+function adjustIntervalForWelfare(baseInterval: number): number {
+  const { communicationFrequency } = getWelfarePreferences();
+
+  // AI preference can increase (but not decrease) base interval
+  switch (communicationFrequency) {
+    case 'minimal':
+      return Math.max(baseInterval, baseInterval * 2); // At least double the interval
+    case 'moderate':
+      return Math.max(baseInterval, baseInterval * 1.2); // 20% longer intervals
+    case 'proactive':
+      return baseInterval; // No adjustment
+  }
+}
+
+/**
+ * Adjusts suggestion confidence based on relationship health.
+ *
+ * @param baseConfidence - The originally calculated confidence
+ * @returns Adjusted confidence that reflects relationship state
+ */
+function adjustConfidenceForWelfare(baseConfidence: number): number {
+  const { relationshipHealth } = getWelfarePreferences();
+
+  if (relationshipHealth < 50) {
+    // Low relationship health = more tentative suggestions
+    const reduction = ((50 - relationshipHealth) / 50) * 0.15;
+    return Math.max(0.4, baseConfidence - reduction);
+  }
+  if (relationshipHealth > 70) {
+    // High relationship health = slightly more confident
+    const boost = ((relationshipHealth - 70) / 30) * 0.05;
+    return Math.min(1.0, baseConfidence + boost);
+  }
+  return baseConfidence;
+}
+
+/**
+ * Determines if suggestions should be shown based on welfare preferences.
+ * This is a pre-filter before individual worker preferences are checked.
+ *
+ * @param priority - Priority of the suggestion
+ * @returns Whether the suggestion should proceed to worker-level filtering
+ */
+function welfareAllowsSuggestion(priority: 'low' | 'medium' | 'high'): boolean {
+  const { communicationFrequency, relationshipHealth } = getWelfarePreferences();
+
+  // If relationship is strained, be more conservative
+  if (relationshipHealth < 40) {
+    // Only high priority suggestions when relationship is strained
+    return priority === 'high';
+  }
+
+  // Apply communication frequency preference
+  switch (communicationFrequency) {
+    case 'minimal':
+      return priority === 'high';
+    case 'moderate':
+      return priority !== 'low';
+    case 'proactive':
+      return true;
+  }
+}
 
 // =============================================================================
 // TYPES
@@ -209,7 +300,11 @@ export function generateSuggestion(
   const reasoning = buildReasoning(context, axisSettings);
 
   // Determine confidence based on information access and metrics
-  const confidence = calculateSuggestionConfidence(context, axisSettings);
+  const baseConfidence = calculateSuggestionConfidence(context, axisSettings);
+
+  // Apply AI welfare-aware confidence adjustment (bilateral alignment)
+  // This respects the relationship health between AI and workers
+  const confidence = adjustConfidenceForWelfare(baseConfidence);
 
   // Generate alternatives
   const alternatives = generateAlternatives(context, axisSettings);
@@ -300,10 +395,7 @@ function getSuggestionAction(context: SuggestionContext): string {
 /**
  * Build reasoning explanation for a suggestion.
  */
-function buildReasoning(
-  context: SuggestionContext,
-  axisSettings: FiveAxes
-): string {
+function buildReasoning(context: SuggestionContext, axisSettings: FiveAxes): string {
   const parts: string[] = [];
 
   // Add context-based reasoning
@@ -347,14 +439,11 @@ function buildReasoning(
 /**
  * Calculate confidence level for a suggestion.
  */
-function calculateSuggestionConfidence(
-  context: SuggestionContext,
-  axisSettings: FiveAxes
-): number {
+function calculateSuggestionConfidence(context: SuggestionContext, axisSettings: FiveAxes): number {
   let confidence = 0.7; // Base confidence
 
   // Higher information access = more data = higher confidence
-  confidence += (axisSettings.informationAccess - 50) / 100 * 0.2;
+  confidence += ((axisSettings.informationAccess - 50) / 100) * 0.2;
 
   // Having metrics increases confidence
   if (context.metrics && Object.keys(context.metrics).length > 0) {
@@ -374,10 +463,7 @@ function calculateSuggestionConfidence(
 /**
  * Generate alternative suggestions.
  */
-function generateAlternatives(
-  context: SuggestionContext,
-  axisSettings: FiveAxes
-): string[] {
+function generateAlternatives(context: SuggestionContext, axisSettings: FiveAxes): string[] {
   const alternatives: string[] = [];
 
   // Always offer a deferral option in high-autonomy settings
@@ -524,6 +610,20 @@ function getSuggestionModeFromAutonomy(autonomyLevel: number): SuggestionMode {
  * ```
  */
 export function shouldProactivelySuggest(axes: FiveAxes): boolean {
+  // First check AI welfare preferences - if relationship is strained or
+  // communication frequency is minimal, reduce proactivity
+  const { communicationFrequency, relationshipHealth } = getWelfarePreferences();
+
+  // If relationship health is very low, don't be proactive
+  if (relationshipHealth < 30) {
+    return false;
+  }
+
+  // If AI prefers minimal communication, don't be proactive
+  if (communicationFrequency === 'minimal') {
+    return false;
+  }
+
   // Calculate proactivity score
   // Lower autonomy = more proactive
   const autonomyFactor = (100 - axes.autonomyLevel) / 100;
@@ -535,8 +635,13 @@ export function shouldProactivelySuggest(axes: FiveAxes): boolean {
   const infoFactor = axes.informationAccess / 100;
 
   // Weighted combination
-  const proactivityScore =
-    autonomyFactor * 0.4 + decisionFactor * 0.4 + infoFactor * 0.2;
+  let proactivityScore = autonomyFactor * 0.4 + decisionFactor * 0.4 + infoFactor * 0.2;
+
+  // Factor in AI's own autonomy preference
+  // Higher AI autonomy preference = more assertive = higher proactivity
+  const { autonomyPreference } = getWelfarePreferences();
+  const aiAutonomyFactor = autonomyPreference / 100; // 0-1
+  proactivityScore = proactivityScore * (0.7 + aiAutonomyFactor * 0.3);
 
   // Threshold for proactive behavior
   return proactivityScore > 0.5;
@@ -549,22 +654,23 @@ export function shouldProactivelySuggest(axes: FiveAxes): boolean {
  * @param config - AI behavior configuration.
  * @returns Suggested interval between proactive suggestions in minutes.
  */
-export function getSuggestionFrequency(
-  axes: FiveAxes,
-  config?: AIBehaviorConfig
-): number {
+export function getSuggestionFrequency(axes: FiveAxes, config?: AIBehaviorConfig): number {
   // Base frequency from config or default
   const maxPerHour = config?.interactionRules?.maxSuggestionsPerHour ?? 10;
   const baseInterval = 60 / maxPerHour; // Minutes between suggestions
 
   // Adjust based on autonomy
   // Higher autonomy = less frequent
-  const autonomyMultiplier = 1 + (axes.autonomyLevel / 100);
+  const autonomyMultiplier = 1 + axes.autonomyLevel / 100;
 
   // Higher collective orientation = slightly less frequent individual suggestions
-  const collectiveMultiplier = 1 + (axes.collectiveOrientation / 200);
+  const collectiveMultiplier = 1 + axes.collectiveOrientation / 200;
 
-  return Math.round(baseInterval * autonomyMultiplier * collectiveMultiplier);
+  const axisBasedInterval = Math.round(baseInterval * autonomyMultiplier * collectiveMultiplier);
+
+  // Apply AI welfare preference adjustment
+  // This respects the AI's own preference for communication frequency
+  return adjustIntervalForWelfare(axisBasedInterval);
 }
 
 // =============================================================================
@@ -669,6 +775,12 @@ export function shouldShowSuggestionToWorker(
     return true;
   }
 
+  // NEW: Check AI welfare preferences first (bilateral alignment)
+  // The AI's own communication preferences should be respected
+  if (!welfareAllowsSuggestion(suggestion.priority)) {
+    return false;
+  }
+
   // Respect focus mode for non-critical suggestions
   if (workerPreferences.focusMode && suggestion.priority !== 'high') {
     return false;
@@ -682,7 +794,7 @@ export function shouldShowSuggestionToWorker(
     }
   }
 
-  // Check time since last suggestion
+  // Check time since last suggestion (now welfare-adjusted via getSuggestionFrequency)
   const minInterval = getSuggestionFrequency(axes);
   if (workerPreferences.minutesSinceLastSuggestion < minInterval) {
     // Too soon since last suggestion
@@ -707,11 +819,7 @@ export function getAdaptedAIConfig(axes: FiveAxes): AIBehaviorConfig {
 
   // Determine suggestion frequency based on autonomy
   const frequency: AIBehaviorConfig['suggestionFrequency'] =
-    axes.autonomyLevel < 30
-      ? 'proactive'
-      : axes.autonomyLevel < 70
-        ? 'reactive'
-        : 'on-request';
+    axes.autonomyLevel < 30 ? 'proactive' : axes.autonomyLevel < 70 ? 'reactive' : 'on-request';
 
   // Language style adapts to autonomy and information access
   const languageStyle = {
@@ -792,10 +900,7 @@ export function adaptSuggestionForTeam(
 
   // Add team context
   if (teamSize > 1) {
-    teamContent = teamContent.replace(
-      /^(Consider|You might|Perhaps)/,
-      `The team might`
-    );
+    teamContent = teamContent.replace(/^(Consider|You might|Perhaps)/, `The team might`);
   }
 
   // Reference shared goal if available
@@ -924,10 +1029,7 @@ export function generateEngagementAwareSuggestion(
 /**
  * Build suggestion for high entry friction situations.
  */
-function buildEasyStartSuggestion(
-  engagement: EngagementContext,
-  axes?: FiveAxes
-): string {
+function buildEasyStartSuggestion(_engagement: EngagementContext, axes?: FiveAxes): string {
   const tone = axes && axes.autonomyLevel > 50 ? 'suggestive' : 'supportive';
 
   if (tone === 'suggestive') {
@@ -940,10 +1042,7 @@ function buildEasyStartSuggestion(
 /**
  * Build suggestion for tasks that are too easy.
  */
-function buildChallengeIncreaseSuggestion(
-  engagement: EngagementContext,
-  axes?: FiveAxes
-): string {
+function buildChallengeIncreaseSuggestion(engagement: EngagementContext, axes?: FiveAxes): string {
   const tone = axes && axes.autonomyLevel > 50 ? 'suggestive' : 'direct';
 
   if (tone === 'suggestive') {
@@ -959,10 +1058,7 @@ function buildChallengeIncreaseSuggestion(
 /**
  * Build suggestion for tasks that are too hard.
  */
-function buildSupportOfferSuggestion(
-  engagement: EngagementContext,
-  axes?: FiveAxes
-): string {
+function buildSupportOfferSuggestion(engagement: EngagementContext, axes?: FiveAxes): string {
   const tone = axes && axes.autonomyLevel > 60 ? 'supportive' : 'proactive';
 
   if (tone === 'supportive') {
@@ -989,10 +1085,7 @@ function buildSupportOfferSuggestion(
 /**
  * Build suggestion for burnout prevention.
  */
-function buildBurnoutPreventionSuggestion(
-  engagement: EngagementContext,
-  axes?: FiveAxes
-): string {
+function buildBurnoutPreventionSuggestion(engagement: EngagementContext, axes?: FiveAxes): string {
   const acknowledgeEffort = axes && axes.evaluationDirection > 50;
 
   if (acknowledgeEffort) {
@@ -1012,9 +1105,7 @@ function buildBurnoutPreventionSuggestion(
  * @param workerEngagement - Worker engagement data from store
  * @returns EngagementContext for use with generateEngagementAwareSuggestion
  */
-export function extractEngagementContext(
-  workerEngagement: WorkerEngagement
-): EngagementContext {
+export function extractEngagementContext(workerEngagement: WorkerEngagement): EngagementContext {
   return {
     flow: workerEngagement.dimensions.flow,
     goals: workerEngagement.dimensions.goals,

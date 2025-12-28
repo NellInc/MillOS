@@ -36,7 +36,9 @@ export const SettingsPanel: React.FC<{
         </h3>
         <div className="bg-slate-800/50 p-3 rounded-xl border border-white/5">
           <div className="flex justify-between text-xs mb-2">
-            <label htmlFor="production-speed-slider" className="text-slate-300">Production Speed</label>
+            <label htmlFor="production-speed-slider" className="text-slate-300">
+              Production Speed
+            </label>
             <span className="text-orange-400 font-mono font-bold" aria-live="polite">
               {(productionSpeed * 100).toFixed(0)}%
             </span>
@@ -52,7 +54,7 @@ export const SettingsPanel: React.FC<{
             className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-orange-500"
             aria-valuemin={0}
             aria-valuemax={200}
-            aria-valuenow={(productionSpeed * 100)}
+            aria-valuenow={productionSpeed * 100}
             aria-valuetext={`${(productionSpeed * 100).toFixed(0)} percent`}
           />
         </div>
@@ -68,7 +70,9 @@ export const SettingsPanel: React.FC<{
           {/* Master Volume */}
           <div>
             <div className="flex justify-between items-center mb-2">
-              <label htmlFor="master-volume-slider" className="text-xs text-slate-200">Master Volume</label>
+              <label htmlFor="master-volume-slider" className="text-xs text-slate-200">
+                Master Volume
+              </label>
               <button
                 onClick={() => audio.setMuted(!audio.muted)}
                 aria-label={audio.muted ? 'Unmute audio' : 'Mute audio'}
@@ -100,7 +104,9 @@ export const SettingsPanel: React.FC<{
             <div className="flex justify-between items-center mb-2">
               <div className="flex items-center gap-2">
                 <Music size={12} className="text-slate-300" aria-hidden="true" />
-                <label htmlFor="music-volume-slider" className="text-xs text-slate-200">Music</label>
+                <label htmlFor="music-volume-slider" className="text-xs text-slate-200">
+                  Music
+                </label>
               </div>
               <button
                 onClick={() => audio.setMusicEnabled(!audio.musicEnabled)}
@@ -160,29 +166,33 @@ export const SettingsPanel: React.FC<{
                 role="radio"
                 aria-checked={graphics.graphics.quality === quality}
                 aria-label={`${quality} quality`}
-                className={`py-1.5 rounded text-[10px] font-bold uppercase tracking-wider transition-all ${graphics.graphics.quality === quality
-                  ? quality === 'low'
-                    ? 'bg-slate-600 text-white'
-                    : quality === 'medium'
-                      ? 'bg-yellow-600 text-white'
-                      : quality === 'high'
-                        ? 'bg-cyan-600 text-white'
-                        : 'bg-purple-600 text-white'
-                  : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                  }`}
+                className={`py-1.5 rounded text-[10px] font-bold uppercase tracking-wider transition-all ${
+                  graphics.graphics.quality === quality
+                    ? quality === 'low'
+                      ? 'bg-slate-600 text-white'
+                      : quality === 'medium'
+                        ? 'bg-yellow-600 text-white'
+                        : quality === 'high'
+                          ? 'bg-cyan-600 text-white'
+                          : 'bg-purple-600 text-white'
+                    : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                }`}
               >
                 {quality}
               </button>
             ))}
           </div>
 
-          {/* Toggles */}
+          {/* Post-Processing */}
           <div className="space-y-1">
+            <div className="text-[9px] uppercase tracking-wider text-slate-500 mb-1">
+              Post-Processing
+            </div>
             <Toggle
-              label="Dust Particles"
-              icon={<Wind size={12} />}
-              value={graphics.graphics.enableDustParticles}
-              onChange={(v) => graphics.setGraphicsSetting('enableDustParticles', v)}
+              label="Light Shafts"
+              icon={<Eye size={12} />}
+              value={graphics.graphics.enableLightShafts}
+              onChange={(v) => graphics.setGraphicsSetting('enableLightShafts', v)}
             />
             <Toggle
               label="Ambient Occlusion"
@@ -191,10 +201,102 @@ export const SettingsPanel: React.FC<{
               onChange={(v) => graphics.setGraphicsSetting('enableSSAO', v)}
             />
             <Toggle
+              label="Bloom Glow"
+              icon={<Eye size={12} />}
+              value={graphics.graphics.enableBloom}
+              onChange={(v) => graphics.setGraphicsSetting('enableBloom', v)}
+            />
+            <Toggle
+              label="Vignette"
+              icon={<Monitor size={12} />}
+              value={graphics.graphics.enableVignette}
+              onChange={(v) => graphics.setGraphicsSetting('enableVignette', v)}
+            />
+            <Toggle
+              label="Depth of Field"
+              icon={<Eye size={12} />}
+              value={graphics.graphics.enableDepthOfField}
+              onChange={(v) => graphics.setGraphicsSetting('enableDepthOfField', v)}
+            />
+          </div>
+
+          {/* Particles & Effects */}
+          <div className="space-y-1">
+            <div className="text-[9px] uppercase tracking-wider text-slate-500 mb-1">
+              Particles & Effects
+            </div>
+            <Toggle
+              label="Dust Particles"
+              icon={<Wind size={12} />}
+              value={graphics.graphics.enableDustParticles}
+              onChange={(v) => graphics.setGraphicsSetting('enableDustParticles', v)}
+            />
+            <Toggle
+              label="Grain Flow"
+              icon={<Wind size={12} />}
+              value={graphics.graphics.enableGrainFlow}
+              onChange={(v) => graphics.setGraphicsSetting('enableGrainFlow', v)}
+            />
+            <Toggle
+              label="Atmospheric Haze"
+              icon={<Wind size={12} />}
+              value={graphics.graphics.enableAtmosphericHaze}
+              onChange={(v) => graphics.setGraphicsSetting('enableAtmosphericHaze', v)}
+            />
+          </div>
+
+          {/* Scene & Machines */}
+          <div className="space-y-1">
+            <div className="text-[9px] uppercase tracking-wider text-slate-500 mb-1">
+              Scene & Machines
+            </div>
+            <Toggle
               label="Machine Vibration"
               icon={<Activity size={12} />}
               value={graphics.graphics.enableMachineVibration}
               onChange={(v) => graphics.setGraphicsSetting('enableMachineVibration', v)}
+            />
+            <Toggle
+              label="Wireframe Mode"
+              icon={<Grid3X3 size={12} />}
+              value={graphics.graphics.enableWireframe}
+              onChange={(v) => graphics.setGraphicsSetting('enableWireframe', v)}
+            />
+            <Toggle
+              label="Procedural Textures"
+              icon={<Grid3X3 size={12} />}
+              value={graphics.graphics.enableProceduralTextures}
+              onChange={(v) => graphics.setGraphicsSetting('enableProceduralTextures', v)}
+            />
+            <Toggle
+              label="Textures Enabled"
+              icon={<Grid3X3 size={12} />}
+              value={graphics.graphics.enableTextureFiltering}
+              onChange={(v) => graphics.setGraphicsSetting('enableTextureFiltering', v)}
+            />
+            <Toggle
+              label="Contact Shadows"
+              icon={<Eye size={12} />}
+              value={graphics.graphics.enableContactShadows}
+              onChange={(v) => graphics.setGraphicsSetting('enableContactShadows', v)}
+            />
+            <Toggle
+              label="High-Res Shadows"
+              icon={<Eye size={12} />}
+              value={graphics.graphics.enableHighResShadows}
+              onChange={(v) => graphics.setGraphicsSetting('enableHighResShadows', v)}
+            />
+            <Toggle
+              label="Floor Puddles"
+              icon={<Wind size={12} />}
+              value={graphics.graphics.enableFloorPuddles}
+              onChange={(v) => graphics.setGraphicsSetting('enableFloorPuddles', v)}
+            />
+            <Toggle
+              label="Audio Reactive"
+              icon={<Activity size={12} />}
+              value={graphics.graphics.enableAudioReactive}
+              onChange={(v) => graphics.setGraphicsSetting('enableAudioReactive', v)}
             />
             {setShowZones && (
               <Toggle
@@ -211,10 +313,12 @@ export const SettingsPanel: React.FC<{
             <div className="flex justify-between items-center mb-2">
               <div className="flex items-center gap-2">
                 <Monitor size={12} className="text-slate-300" aria-hidden="true" />
-                <label htmlFor="resolution-scale-slider" className="text-xs text-slate-200">Resolution Scale</label>
+                <label htmlFor="resolution-scale-slider" className="text-xs text-slate-200">
+                  Resolution Scale
+                </label>
               </div>
               <span className="text-cyan-400 font-mono font-bold text-[10px]" aria-live="polite">
-                {Math.round(graphics.graphics.resolutionScale * 100)}%
+                {Math.round((graphics.graphics.resolutionScale ?? 1) * 100)}%
               </span>
             </div>
             <input
@@ -223,13 +327,15 @@ export const SettingsPanel: React.FC<{
               min="0.25"
               max="1"
               step="0.05"
-              value={graphics.graphics.resolutionScale}
-              onChange={(e) => graphics.setGraphicsSetting('resolutionScale', parseFloat(e.target.value))}
+              value={graphics.graphics.resolutionScale ?? 1}
+              onChange={(e) =>
+                graphics.setGraphicsSetting('resolutionScale', parseFloat(e.target.value))
+              }
               aria-label="Resolution scale"
               aria-valuemin={25}
               aria-valuemax={100}
-              aria-valuenow={Math.round(graphics.graphics.resolutionScale * 100)}
-              aria-valuetext={`${Math.round(graphics.graphics.resolutionScale * 100)} percent`}
+              aria-valuenow={Math.round((graphics.graphics.resolutionScale ?? 1) * 100)}
+              aria-valuetext={`${Math.round((graphics.graphics.resolutionScale ?? 1) * 100)} percent`}
               className="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
             />
             <div className="flex justify-between text-[9px] text-slate-400 mt-1" aria-hidden="true">

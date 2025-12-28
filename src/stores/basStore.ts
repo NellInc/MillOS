@@ -26,11 +26,7 @@ import type {
   DecisionThreshold,
   AIBehaviorConfig,
 } from '../types/bas';
-import {
-  DEFAULT_AXES,
-  DEFAULT_AXIS_CONFIG,
-  BAS_PRESETS,
-} from '../types/bas';
+import { DEFAULT_AXES, DEFAULT_AXIS_CONFIG, BAS_PRESETS } from '../types/bas';
 
 // =============================================================================
 // STORE INTERFACE
@@ -174,10 +170,7 @@ export const useBASStore = create<BASState>()(
 
       setAxis: (axis, value) => {
         const config = get().axisConfigs[axis];
-        const clampedValue = Math.max(
-          config.minAllowed,
-          Math.min(config.maxAllowed, value)
-        );
+        const clampedValue = Math.max(config.minAllowed, Math.min(config.maxAllowed, value));
         set((state) => ({
           axes: { ...state.axes, [axis]: clampedValue },
         }));
@@ -248,10 +241,8 @@ export const useBASStore = create<BASState>()(
       // Scenarios
       activeScenario: null,
       scenarioProgress: 0,
-      loadScenario: (scenarioId) =>
-        set({ activeScenario: scenarioId, scenarioProgress: 0 }),
-      advanceScenario: () =>
-        set((s) => ({ scenarioProgress: s.scenarioProgress + 1 })),
+      loadScenario: (scenarioId) => set({ activeScenario: scenarioId, scenarioProgress: 0 }),
+      advanceScenario: () => set((s) => ({ scenarioProgress: s.scenarioProgress + 1 })),
       exitScenario: () => set({ activeScenario: null, scenarioProgress: 0 }),
 
       // Presets
@@ -293,9 +284,7 @@ export const useBASStore = create<BASState>()(
           agency: 0,
         };
 
-        for (const [axisKey, effects] of Object.entries(
-          AXIS_FLOURISHING_EFFECTS
-        )) {
+        for (const [axisKey, effects] of Object.entries(AXIS_FLOURISHING_EFFECTS)) {
           const axisValue = axes[axisKey as AxisKey] / 100; // Normalize to 0-1
 
           for (const [dimension, weight] of Object.entries(effects)) {

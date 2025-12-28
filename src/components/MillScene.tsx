@@ -21,7 +21,12 @@ import { FactoryEnvironment } from './Environment';
 import { HolographicDisplays } from './HolographicDisplays';
 import { CascadeVisualization } from './CascadeVisualization';
 import { StrategicOverlay3D } from './StrategicOverlay3D';
+import { ZoneAccentLights } from './ZoneAccentLights';
+import { ProductionFlowVisualization } from './ProductionFlowVisualization';
 import { useAIConfigStore } from '../stores/aiConfigStore';
+import { BlueprintMode } from './blueprint';
+import { WorkerPersonalityLayer } from './workers/WorkerPersonalityLayer';
+import { PostProcessing } from './PostProcessing';
 
 // Lazy load heavy 3D components to reduce initial bundle
 const TruckBay = React.lazy(() => import('./TruckBay').then((m) => ({ default: m.TruckBay })));
@@ -42,6 +47,35 @@ import { positionRegistry, Obstacle } from '../utils/positionRegistry';
 import { useShallow } from 'zustand/react/shallow';
 import { CameraBoundsTracker } from './CameraController';
 import { useCameraPositionStore } from '../stores/useCameraPositionStore';
+
+/**
+ * WireframeController - Applies wireframe mode to all scene materials when enabled
+ * Reads enableWireframe from graphics store and traverses scene to toggle wireframe
+ */
+const WireframeController: React.FC = () => {
+  const enableWireframe = useGraphicsStore((state) => state.graphics.enableWireframe);
+  const sceneRef = useRef<THREE.Scene | null>(null);
+
+  useFrame(({ scene }) => {
+    if (!sceneRef.current) sceneRef.current = scene;
+
+    scene.traverse((object) => {
+      if (object instanceof THREE.Mesh && object.material) {
+        const materials = Array.isArray(object.material) ? object.material : [object.material];
+        materials.forEach((mat) => {
+          if (mat instanceof THREE.MeshStandardMaterial || mat instanceof THREE.MeshBasicMaterial) {
+            if (mat.wireframe !== enableWireframe) {
+              mat.wireframe = enableWireframe;
+              mat.needsUpdate = true;
+            }
+          }
+        });
+      }
+    });
+  });
+
+  return null;
+};
 
 // Single heat map point with ref-based animation (throttled to reduce CPU load)
 // Memoized to prevent re-renders when parent updates
@@ -124,10 +158,19 @@ const HeatMapPoint = React.memo<{
           opacity={0.3 * intensity}
         />
       </mesh>
-      {/* Outer ring - raised 0.01 to prevent z-fighting with circle */}
-      <mesh rotation={floorRotation} position={[0, 0.01, 0]}>
+      {/* Outer ring - raised and using depthWrite/polygonOffset to prevent z-fighting */}
+      <mesh rotation={floorRotation} position={[0, 0.05, 0]}>
         <ringGeometry args={[radius - 0.1, radius, 32]} />
-        <meshBasicMaterial ref={ringMaterialRef} color={color} transparent opacity={0.6} />
+        <meshBasicMaterial
+          ref={ringMaterialRef}
+          color={color}
+          transparent
+          opacity={0.6}
+          depthWrite={false}
+          polygonOffset
+          polygonOffsetFactor={-1}
+          polygonOffsetUnits={-1}
+        />
       </mesh>
       {/* Rising column for high-intensity spots */}
       {intensity > 0.5 && (
@@ -160,12 +203,17 @@ const IncidentHeatMap: React.FC = () => {
   const showIncidentHeatMap = useSafetyStore((state) => state.showIncidentHeatMap);
 
   // Registry for animated materials
-  const animatedRefs = useRef<Map<string, {
-    circle: THREE.MeshBasicMaterial | null;
-    ring: THREE.MeshBasicMaterial | null;
-    column: THREE.MeshBasicMaterial | null;
-    intensityRef: React.MutableRefObject<number>;
-  }>>(new Map());
+  const animatedRefs = useRef<
+    Map<
+      string,
+      {
+        circle: THREE.MeshBasicMaterial | null;
+        ring: THREE.MeshBasicMaterial | null;
+        column: THREE.MeshBasicMaterial | null;
+        intensityRef: React.MutableRefObject<number>;
+      }
+    >
+  >(new Map());
 
   const registerAnimation = useCallback((id: string, refs: any) => {
     animatedRefs.current.set(id, refs);
@@ -179,7 +227,7 @@ const IncidentHeatMap: React.FC = () => {
   useFrame((state) => {
     if (!showIncidentHeatMap || animatedRefs.current.size === 0) return;
 
-    // Throttle animation update? Maybe not needed for simple opacity pulse, 
+    // Throttle animation update? Maybe not needed for simple opacity pulse,
     // but we can throttle if needed. For now run every frame for smooth pulse.
     const pulse = Math.sin(state.clock.elapsedTime * 2) * 0.3 + 0.7;
 
@@ -248,8 +296,8 @@ const FireDrillExitMarkers: React.FC = () => {
               side={THREE.DoubleSide}
             />
           </mesh>
-          {/* Inner solid circle */}
-          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
+          {/* Inner solid circle - raised with depthWrite=false for z-fighting prevention */}
+          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.05, 0]}>
             <circleGeometry args={[2, 32]} />
             <meshStandardMaterial
               color="#22c55e"
@@ -257,6 +305,10 @@ const FireDrillExitMarkers: React.FC = () => {
               emissiveIntensity={0.5}
               transparent
               opacity={0.4}
+              depthWrite={false}
+              polygonOffset
+              polygonOffsetFactor={-1}
+              polygonOffsetUnits={-1}
             />
           </mesh>
           {/* Exit label */}
@@ -304,14 +356,12 @@ export const MillScene: React.FC<MillSceneProps> = ({
   // PERF DEBUG: Track renders
   // trackRender('MillScene');
 
-  const { setMachines } =
-    useProductionStore(
-      useShallow((state) => ({
-        setMachines: state.setMachines,
-        // Removed subscriptions that cause re-renders
-      }))
-    );
-
+  const { setMachines } = useProductionStore(
+    useShallow((state) => ({
+      setMachines: state.setMachines,
+      // Removed subscriptions that cause re-renders
+    }))
+  );
 
   // Worker mood simulation - Theme Hospital inspired mood system
   useMoodSimulation();
@@ -337,9 +387,9 @@ export const MillScene: React.FC<MillSceneProps> = ({
         status: 'running',
         metrics: {
           rpm: 0,
-          temperature: 20 + idx * 0.4,  // Deterministic: 20-21.6°C
-          vibration: 0.8 + idx * 0.04,   // Deterministic: 0.8-0.96
-          load: 60 + idx * 3,            // Deterministic: 60-72%
+          temperature: 20 + idx * 0.4, // Deterministic: 20-21.6°C
+          vibration: 0.8 + idx * 0.04, // Deterministic: 0.8-0.96
+          load: 60 + idx * 3, // Deterministic: 60-72%
         },
         lastMaintenance: '2024-01-15',
         nextMaintenance: '2024-04-15',
@@ -362,10 +412,10 @@ export const MillScene: React.FC<MillSceneProps> = ({
         rotation: 0,
         status: 'running',
         metrics: {
-          rpm: 1200 + idx * 8,            // Deterministic: 1200-1240
-          temperature: 42 + idx * 0.8,    // Deterministic: 42-46°C
-          vibration: 1.5 + idx * 0.08,    // Deterministic: 1.5-1.9
-          load: 70 + idx * 1.6,           // Deterministic: 70-80%
+          rpm: 1200 + idx * 8, // Deterministic: 1200-1240
+          temperature: 42 + idx * 0.8, // Deterministic: 42-46°C
+          vibration: 1.5 + idx * 0.08, // Deterministic: 1.5-1.9
+          load: 70 + idx * 1.6, // Deterministic: 70-80%
         },
         lastMaintenance: '2024-02-01',
         nextMaintenance: '2024-05-01',
@@ -387,10 +437,10 @@ export const MillScene: React.FC<MillSceneProps> = ({
         rotation: 0,
         status: 'running',
         metrics: {
-          rpm: 200 + idx * 6,             // Deterministic: 200-212
-          temperature: 28 + idx * 1.3,    // Deterministic: 28-30.6°C
-          vibration: 5.5 + idx * 0.3,     // Deterministic: 5.5-6.1
-          load: 75 + idx * 3,             // Deterministic: 75-81%
+          rpm: 200 + idx * 6, // Deterministic: 200-212
+          temperature: 28 + idx * 1.3, // Deterministic: 28-30.6°C
+          vibration: 5.5 + idx * 0.3, // Deterministic: 5.5-6.1
+          load: 75 + idx * 3, // Deterministic: 75-81%
         },
         lastMaintenance: '2024-01-20',
         nextMaintenance: '2024-04-20',
@@ -412,9 +462,9 @@ export const MillScene: React.FC<MillSceneProps> = ({
         status: 'running',
         metrics: {
           rpm: 60,
-          temperature: 28 + idx * 1.6,    // Deterministic: 28-31.2°C
-          vibration: 1 + idx * 0.3,        // Deterministic: 1.0-1.6
-          load: 85 + idx * 3,              // Deterministic: 85-91%
+          temperature: 28 + idx * 1.6, // Deterministic: 28-31.2°C
+          vibration: 1 + idx * 0.3, // Deterministic: 1.0-1.6
+          load: 85 + idx * 3, // Deterministic: 85-91%
         },
         lastMaintenance: '2024-02-10',
         nextMaintenance: '2024-05-10',
@@ -515,10 +565,10 @@ export const MillScene: React.FC<MillSceneProps> = ({
     // Note: Safe aisles at x=±2.5 remain clear for workers to walk beside conveyor
     obs.push({
       id: 'central-conveyor-belt',
-      minX: -1.8,  // Actual belt width (x: -1.5 to 1.5) + small buffer
+      minX: -1.8, // Actual belt width (x: -1.5 to 1.5) + small buffer
       maxX: 1.8,
-      minZ: -20,   // From just past silos
-      maxZ: 18,    // Up to just before the lateral conveyors
+      minZ: -20, // From just past silos
+      maxZ: 18, // Up to just before the lateral conveyors
     });
 
     // LOADING DOCK PLATFORMS - Forklifts must not drive onto elevated docks
@@ -611,7 +661,6 @@ export const MillScene: React.FC<MillSceneProps> = ({
     }
   }, [machines, setMachines]);
 
-
   // Use store machines if available, otherwise use local machines
   // PERFORMANCE: MillScene NO LONGER subscribes to storeMachines updates to prevent full scene re-renders
   // MachinesContainer handles live updates internally
@@ -641,12 +690,25 @@ export const MillScene: React.FC<MillSceneProps> = ({
 
   return (
     <group>
+      {/* Wireframe mode controller - responds to enableWireframe toggle */}
+      <WireframeController />
+
+      {/* Atmospheric fog for depth - Bruno Simon style */}
+      {/* Linear fog with dark blue-gray color, subtle enough not to obscure gameplay */}
+      {!isLowGraphics && <fog attach="fog" args={['#1a1a2e', 80, 250]} />}
+
       {/* Internal Dock Elements - Shipping and Receiving */}
       {/* These large black doors link the interior and exterior visually */}
       {showInterior && !isLowGraphics && (
         <>
           {/* Shipping Dock (Front) */}
-          <OpenDockOpening position={[0, 0, 48]} rotation={0} width={30} height={14} label="SHIPPING" />
+          <OpenDockOpening
+            position={[0, 0, 48]}
+            rotation={0}
+            width={30}
+            height={14}
+            label="SHIPPING"
+          />
           {/* Receiving Dock (Back) */}
           <OpenDockOpening
             position={[0, 0, -48]}
@@ -661,14 +723,17 @@ export const MillScene: React.FC<MillSceneProps> = ({
       {/* HDRI Environment for realistic reflections - disable on low */}
       {/* Uses local HDRI to avoid network dependency on GitHub CDN */}
       {/* CRITICAL: Wrapped in its own Suspense to prevent blocking the entire scene during load */}
+      {/* Intensity increased from 0.55 to 0.8 for better metal reflections */}
       {!isLowGraphics && (
         <Suspense fallback={null}>
-          <Environment files={warehouseHdrUrl} background={false} environmentIntensity={0.55} />
+          <Environment files={warehouseHdrUrl} background={false} environmentIntensity={0.8} />
         </Suspense>
       )}
 
       {/* Environment & Lighting */}
       {!perfDebug?.disableEnvironment && <FactoryEnvironment />}
+      {/* Zone Accent Lights - colored lights for each factory zone */}
+      {!isLowGraphics && <ZoneAccentLights enabled={!perfDebug?.disableEnvironment} />}
 
       {/* Camera bounds tracker for inside/outside detection */}
       <CameraBoundsTracker />
@@ -681,6 +746,8 @@ export const MillScene: React.FC<MillSceneProps> = ({
       {showInterior && !isLowGraphics && !perfDebug?.disableMachines && (
         <SpoutingSystem machines={displayMachines} />
       )}
+      {/* Production Flow Visualization - animated lines between machines (medium+ only) */}
+      {showInterior && !isLowGraphics && <ProductionFlowVisualization />}
       {/* CRITICAL: Wrapped in Suspense to prevent MeshReflectorMaterial from breaking scene on quality change */}
       <Suspense fallback={null}>
         <FactoryInfrastructure
@@ -698,6 +765,10 @@ export const MillScene: React.FC<MillSceneProps> = ({
       )}
       {showInterior && !perfDebug?.disableWorkerSystem && (
         <WorkerSystem onSelectWorker={onSelectWorker} />
+      )}
+      {/* Worker Personality Visualization - mood auras, thoughts, relationships */}
+      {showInterior && (graphicsQuality === 'high' || graphicsQuality === 'ultra') && (
+        <WorkerPersonalityLayer showAuras={true} showThoughts={true} showRelationships={false} />
       )}
       {/* Remote multiplayer players */}
       <RemotePlayersGroup />
@@ -737,6 +808,12 @@ export const MillScene: React.FC<MillSceneProps> = ({
 
       {/* Strategic Overlay 3D - floating priority text above factory (default OFF, toggle with 'J') */}
       <StrategicOverlay3D />
+
+      {/* Blueprint Mode - architectural overlay (toggle with Ctrl+B) */}
+      <BlueprintMode />
+
+      {/* Post-processing effects - Bloom, Vignette, SSAO, DoF (controlled by graphics settings) */}
+      <PostProcessing />
 
       {/* Physics Simulation Controller - Isolated from render tree */}
       <MachineSimulationController />

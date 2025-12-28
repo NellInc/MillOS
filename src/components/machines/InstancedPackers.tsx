@@ -13,6 +13,8 @@ import {
   getCullDistanceSquared,
 } from './MachineLOD';
 import { useModelTextures } from '../../utils/machineTextures';
+import { MemoizedStatusRing } from './StatusRing';
+import { PROCEDURAL_TEXTURES } from '../../utils/sharedMaterials';
 
 // Materials
 const MATERIALS = {
@@ -51,26 +53,33 @@ export const InstancedPackers: React.FC<InstancedPackersProps> = ({ machines, on
   // Load textures (only on high/ultra)
   const textures = useModelTextures('packer');
 
-  // Apply textures to materials
+  // Apply textures to materials (external or procedural fallback)
   useEffect(() => {
-    if (textures.roughness) {
-      MATERIALS.frame.roughnessMap = textures.roughness;
-      MATERIALS.frame.needsUpdate = true;
-      MATERIALS.hopper.roughnessMap = textures.roughness;
-      MATERIALS.hopper.needsUpdate = true;
-    }
-    if (textures.normal) {
-      MATERIALS.frame.normalMap = textures.normal;
-      MATERIALS.frame.normalScale = new THREE.Vector2(0.5, 0.5);
-      MATERIALS.frame.needsUpdate = true;
-      MATERIALS.hopper.normalMap = textures.normal;
-      MATERIALS.hopper.normalScale = new THREE.Vector2(0.5, 0.5);
-      MATERIALS.hopper.needsUpdate = true;
-    }
-    if (textures.ao) {
-      MATERIALS.panel.roughnessMap = textures.ao;
-      MATERIALS.panel.needsUpdate = true;
-    }
+    const roughnessMap = textures.roughness || PROCEDURAL_TEXTURES.brushedMetal;
+    const normalMap = textures.normal || PROCEDURAL_TEXTURES.panelNormal;
+
+    // Frame and hopper - brushed metal texture
+    MATERIALS.frame.roughnessMap = roughnessMap;
+    MATERIALS.frame.normalMap = normalMap;
+    MATERIALS.frame.normalScale = new THREE.Vector2(0.3, 0.3);
+    MATERIALS.frame.needsUpdate = true;
+    MATERIALS.hopper.roughnessMap = roughnessMap;
+    MATERIALS.hopper.normalMap = normalMap;
+    MATERIALS.hopper.normalScale = new THREE.Vector2(0.3, 0.3);
+    MATERIALS.hopper.needsUpdate = true;
+
+    // Panel - control panel texture
+    MATERIALS.panel.roughnessMap = textures.ao || PROCEDURAL_TEXTURES.brushedMetal;
+    MATERIALS.panel.normalMap = normalMap;
+    MATERIALS.panel.normalScale = new THREE.Vector2(0.15, 0.15);
+    MATERIALS.panel.needsUpdate = true;
+
+    // Spout and conveyor
+    MATERIALS.spout.roughnessMap = roughnessMap;
+    MATERIALS.spout.needsUpdate = true;
+    MATERIALS.conveyor.normalMap = PROCEDURAL_TEXTURES.rubberNormal;
+    MATERIALS.conveyor.normalScale = new THREE.Vector2(0.2, 0.2);
+    MATERIALS.conveyor.needsUpdate = true;
   }, [textures]);
 
   // Refs
@@ -93,7 +102,7 @@ export const InstancedPackers: React.FC<InstancedPackersProps> = ({ machines, on
   );
 
   // Determine if machines list has structurally changed
-  const machinesSignature = useMemo(() => machines.map(m => m.id).join(','), [machines]);
+  const machinesSignature = useMemo(() => machines.map((m) => m.id).join(','), [machines]);
 
   // Initialize Static Parts
   useEffect(() => {
@@ -313,6 +322,17 @@ export const InstancedPackers: React.FC<InstancedPackersProps> = ({ machines, on
         args={[geometries.box, MATERIALS.panel, count]}
         onClick={(e) => handleClick(e, 1)}
       />
+
+      {/* Status Rings at packer bases */}
+      {quality !== 'low' &&
+        machines.map((machine) => (
+          <MemoizedStatusRing
+            key={machine.id}
+            status={machine.status as 'running' | 'idle' | 'warning' | 'critical'}
+            radius={PACKER_SIZE.width / 2}
+            position={machine.position}
+          />
+        ))}
     </group>
   );
 };

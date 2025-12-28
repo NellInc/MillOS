@@ -51,7 +51,7 @@ const panelVariants = {
     opacity: 1,
     y: 0,
     scale: 1,
-    transition: { type: 'spring', damping: 25, stiffness: 300 },
+    transition: { type: 'spring' as const, damping: 25, stiffness: 300 },
   },
   exit: {
     opacity: 0,

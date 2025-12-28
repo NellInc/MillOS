@@ -137,14 +137,16 @@ function loadJpgTexture(path: string): Texture | null {
       },
       // On progress (unused)
       undefined,
-      // On error - silently cache null
-      () => {
+      // On error - log warning and cache null to prevent retries
+      (error) => {
+        console.warn(`[machineTextures] Failed to load texture ${path}:`, error);
         textureCache.set(path, null);
       }
     );
     textureCache.set(path, texture);
     return texture;
-  } catch {
+  } catch (error) {
+    console.warn(`[machineTextures] Failed to load JPG texture ${path}:`, error);
     textureCache.set(path, null);
     return null;
   }

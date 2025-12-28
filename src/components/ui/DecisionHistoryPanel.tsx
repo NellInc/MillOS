@@ -1,6 +1,6 @@
 /**
  * DecisionHistoryPanel Component
- * 
+ *
  * Scrollable, paginated history of past strategic AI decisions.
  * Displays in the AI Command Center sidebar.
  */
@@ -8,17 +8,17 @@
 import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-    History,
-    ChevronLeft,
-    ChevronRight,
-    CheckCircle,
-    Clock,
-    AlertTriangle,
-    Zap,
-    Wrench,
-    Users,
-    Target,
-    Shield
+  History,
+  ChevronLeft,
+  ChevronRight,
+  CheckCircle,
+  Clock,
+  AlertTriangle,
+  Zap,
+  Wrench,
+  Users,
+  Target,
+  Shield,
 } from 'lucide-react';
 import { useProductionStore } from '../../stores/productionStore';
 import { DecisionReplayTrigger } from './DecisionReplay';
@@ -27,163 +27,172 @@ import type { AIDecision } from '../../types';
 const ITEMS_PER_PAGE = 5;
 
 const getTypeIcon = (type: AIDecision['type']) => {
-    switch (type) {
-        case 'optimization': return <Zap className="w-3.5 h-3.5 text-cyan-400" />;
-        case 'maintenance': return <Wrench className="w-3.5 h-3.5 text-amber-400" />;
-        case 'assignment': return <Users className="w-3.5 h-3.5 text-green-400" />;
-        case 'prediction': return <Target className="w-3.5 h-3.5 text-purple-400" />;
-        case 'safety': return <Shield className="w-3.5 h-3.5 text-red-400" />;
-        default: return <Zap className="w-3.5 h-3.5 text-slate-400" />;
-    }
+  switch (type) {
+    case 'optimization':
+      return <Zap className="w-3.5 h-3.5 text-cyan-400" />;
+    case 'maintenance':
+      return <Wrench className="w-3.5 h-3.5 text-amber-400" />;
+    case 'assignment':
+      return <Users className="w-3.5 h-3.5 text-green-400" />;
+    case 'prediction':
+      return <Target className="w-3.5 h-3.5 text-purple-400" />;
+    case 'safety':
+      return <Shield className="w-3.5 h-3.5 text-red-400" />;
+    default:
+      return <Zap className="w-3.5 h-3.5 text-slate-400" />;
+  }
 };
 
 const getStatusIcon = (status: AIDecision['status']) => {
-    switch (status) {
-        case 'completed': return <CheckCircle className="w-3.5 h-3.5 text-green-400" />;
-        case 'in_progress': return <Clock className="w-3.5 h-3.5 text-amber-400 animate-pulse" />;
-        case 'pending': return <Clock className="w-3.5 h-3.5 text-slate-400" />;
-        case 'superseded': return <AlertTriangle className="w-3.5 h-3.5 text-red-400" />;
-        default: return <Clock className="w-3.5 h-3.5 text-slate-400" />;
-    }
+  switch (status) {
+    case 'completed':
+      return <CheckCircle className="w-3.5 h-3.5 text-green-400" />;
+    case 'in_progress':
+      return <Clock className="w-3.5 h-3.5 text-amber-400 animate-pulse" />;
+    case 'pending':
+      return <Clock className="w-3.5 h-3.5 text-slate-400" />;
+    case 'superseded':
+      return <AlertTriangle className="w-3.5 h-3.5 text-red-400" />;
+    default:
+      return <Clock className="w-3.5 h-3.5 text-slate-400" />;
+  }
 };
 
 const formatTime = (date: Date): string => {
-    const d = new Date(date);
-    return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+  const d = new Date(date);
+  return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 };
 
 export const DecisionHistoryPanel: React.FC = () => {
-    const [currentPage, setCurrentPage] = useState(0);
-    const [expanded, setExpanded] = useState(true);
+  const [currentPage, setCurrentPage] = useState(0);
+  const [expanded, setExpanded] = useState(true);
 
-    const aiDecisions = useProductionStore((state) => state.aiDecisions);
+  const aiDecisions = useProductionStore((state) => state.aiDecisions);
 
-    // Sort by timestamp descending (most recent first)
-    const sortedDecisions = useMemo(() => {
-        return [...aiDecisions].sort((a, b) =>
-            new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-        );
-    }, [aiDecisions]);
-
-    const totalPages = Math.ceil(sortedDecisions.length / ITEMS_PER_PAGE);
-    const paginatedDecisions = sortedDecisions.slice(
-        currentPage * ITEMS_PER_PAGE,
-        (currentPage + 1) * ITEMS_PER_PAGE
+  // Sort by timestamp descending (most recent first)
+  const sortedDecisions = useMemo(() => {
+    return [...aiDecisions].sort(
+      (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
     );
+  }, [aiDecisions]);
 
-    const goToNextPage = () => {
-        if (currentPage < totalPages - 1) {
-            setCurrentPage(currentPage + 1);
-        }
-    };
+  const totalPages = Math.ceil(sortedDecisions.length / ITEMS_PER_PAGE);
+  const paginatedDecisions = sortedDecisions.slice(
+    currentPage * ITEMS_PER_PAGE,
+    (currentPage + 1) * ITEMS_PER_PAGE
+  );
 
-    const goToPrevPage = () => {
-        if (currentPage > 0) {
-            setCurrentPage(currentPage - 1);
-        }
-    };
+  const goToNextPage = () => {
+    if (currentPage < totalPages - 1) {
+      setCurrentPage(currentPage + 1);
+    }
+  };
 
-    return (
-        <div className="bg-slate-800/50 rounded-lg border border-slate-700/50 overflow-hidden">
-            {/* Header */}
-            <button
-                onClick={() => setExpanded(!expanded)}
-                className="w-full flex items-center justify-between p-3 hover:bg-slate-700/30 transition-colors"
-            >
-                <div className="flex items-center gap-2">
-                    <History className="w-4 h-4 text-cyan-400" />
-                    <span className="text-sm font-medium text-slate-200">Decision History</span>
-                    <span className="text-xs text-slate-500">({sortedDecisions.length})</span>
-                </div>
-                <motion.div
-                    animate={{ rotate: expanded ? 180 : 0 }}
-                    transition={{ duration: 0.2 }}
-                >
-                    <ChevronLeft className="w-4 h-4 text-slate-400 rotate-[-90deg]" />
-                </motion.div>
-            </button>
+  const goToPrevPage = () => {
+    if (currentPage > 0) {
+      setCurrentPage(currentPage - 1);
+    }
+  };
 
-            <AnimatePresence>
-                {expanded && (
-                    <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: 'auto', opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        transition={{ duration: 0.2 }}
-                    >
-                        {/* Decision List */}
-                        <div className="px-3 pb-2 space-y-2 max-h-64 overflow-y-auto">
-                            {paginatedDecisions.length === 0 ? (
-                                <div className="text-center text-slate-500 text-xs py-4">
-                                    No decisions yet
-                                </div>
-                            ) : (
-                                paginatedDecisions.map((decision) => (
-                                    <DecisionReplayTrigger key={decision.id} decision={decision}>
-                                        <div
-                                            className="bg-slate-900/50 rounded-lg p-2 border border-slate-700/30 hover:border-cyan-500/30 hover:bg-slate-800/50 transition-colors cursor-pointer"
-                                        >
-                                            <div className="flex items-start gap-2">
-                                                {getTypeIcon(decision.type)}
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="flex items-center justify-between">
-                                                        <span className="text-xs font-medium text-slate-200 truncate">
-                                                            {decision.action}
-                                                        </span>
-                                                        {getStatusIcon(decision.status)}
-                                                    </div>
-                                                    <p className="text-[10px] text-slate-400 line-clamp-2 mt-0.5">
-                                                        {decision.reasoning}
-                                                    </p>
-                                                    <div className="flex items-center gap-2 mt-1">
-                                                        <span className="text-[9px] text-slate-500">
-                                                            {formatTime(decision.timestamp)}
-                                                        </span>
-                                                        <span className={`text-[9px] px-1.5 py-0.5 rounded ${decision.priority === 'high' ? 'bg-red-500/20 text-red-400' :
-                                                            decision.priority === 'medium' ? 'bg-amber-500/20 text-amber-400' :
-                                                                'bg-slate-600/50 text-slate-400'
-                                                            }`}>
-                                                            {decision.priority}
-                                                        </span>
-                                                        {decision.confidence && (
-                                                            <span className="text-[9px] text-cyan-400">
-                                                                {decision.confidence}%
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </DecisionReplayTrigger>
-                                ))
-                            )}
-                        </div>
-
-                        {/* Pagination */}
-                        {totalPages > 1 && (
-                            <div className="flex items-center justify-between px-3 py-2 border-t border-slate-700/50">
-                                <button
-                                    onClick={goToPrevPage}
-                                    disabled={currentPage === 0}
-                                    className="p-1 rounded hover:bg-slate-700/50 disabled:opacity-30 disabled:cursor-not-allowed"
-                                >
-                                    <ChevronLeft className="w-4 h-4 text-slate-400" />
-                                </button>
-                                <span className="text-[10px] text-slate-500">
-                                    {currentPage + 1} / {totalPages}
-                                </span>
-                                <button
-                                    onClick={goToNextPage}
-                                    disabled={currentPage >= totalPages - 1}
-                                    className="p-1 rounded hover:bg-slate-700/50 disabled:opacity-30 disabled:cursor-not-allowed"
-                                >
-                                    <ChevronRight className="w-4 h-4 text-slate-400" />
-                                </button>
-                            </div>
-                        )}
-                    </motion.div>
-                )}
-            </AnimatePresence>
+  return (
+    <div className="bg-slate-800/50 rounded-lg border border-slate-700/50 overflow-hidden">
+      {/* Header */}
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center justify-between p-3 hover:bg-slate-700/30 transition-colors"
+      >
+        <div className="flex items-center gap-2">
+          <History className="w-4 h-4 text-cyan-400" />
+          <span className="text-sm font-medium text-slate-200">Decision History</span>
+          <span className="text-xs text-slate-500">({sortedDecisions.length})</span>
         </div>
-    );
+        <motion.div animate={{ rotate: expanded ? 180 : 0 }} transition={{ duration: 0.2 }}>
+          <ChevronLeft className="w-4 h-4 text-slate-400 rotate-[-90deg]" />
+        </motion.div>
+      </button>
+
+      <AnimatePresence>
+        {expanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+          >
+            {/* Decision List */}
+            <div className="px-3 pb-2 space-y-2 max-h-64 overflow-y-auto">
+              {paginatedDecisions.length === 0 ? (
+                <div className="text-center text-slate-500 text-xs py-4">No decisions yet</div>
+              ) : (
+                paginatedDecisions.map((decision) => (
+                  <DecisionReplayTrigger key={decision.id} decision={decision}>
+                    <div className="bg-slate-900/50 rounded-lg p-2 border border-slate-700/30 hover:border-cyan-500/30 hover:bg-slate-800/50 transition-colors cursor-pointer">
+                      <div className="flex items-start gap-2">
+                        {getTypeIcon(decision.type)}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-medium text-slate-200 truncate">
+                              {decision.action}
+                            </span>
+                            {getStatusIcon(decision.status)}
+                          </div>
+                          <p className="text-[10px] text-slate-400 line-clamp-2 mt-0.5">
+                            {decision.reasoning}
+                          </p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="text-[9px] text-slate-500">
+                              {formatTime(decision.timestamp)}
+                            </span>
+                            <span
+                              className={`text-[9px] px-1.5 py-0.5 rounded ${
+                                decision.priority === 'high'
+                                  ? 'bg-red-500/20 text-red-400'
+                                  : decision.priority === 'medium'
+                                    ? 'bg-amber-500/20 text-amber-400'
+                                    : 'bg-slate-600/50 text-slate-400'
+                              }`}
+                            >
+                              {decision.priority}
+                            </span>
+                            {decision.confidence && (
+                              <span className="text-[9px] text-cyan-400">
+                                {decision.confidence}%
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </DecisionReplayTrigger>
+                ))
+              )}
+            </div>
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between px-3 py-2 border-t border-slate-700/50">
+                <button
+                  onClick={goToPrevPage}
+                  disabled={currentPage === 0}
+                  className="p-1 rounded hover:bg-slate-700/50 disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                  <ChevronLeft className="w-4 h-4 text-slate-400" />
+                </button>
+                <span className="text-[10px] text-slate-500">
+                  {currentPage + 1} / {totalPages}
+                </span>
+                <button
+                  onClick={goToNextPage}
+                  disabled={currentPage >= totalPages - 1}
+                  className="p-1 rounded hover:bg-slate-700/50 disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                  <ChevronRight className="w-4 h-4 text-slate-400" />
+                </button>
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
 };

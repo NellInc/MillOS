@@ -6,6 +6,7 @@
  */
 
 import Peer, { DataConnection } from 'peerjs';
+import { logger } from '../utils/logger';
 
 export interface SignalingConfig {
   roomCode: string;
@@ -57,7 +58,7 @@ export class SignalingService {
 
         this.peer.on('open', (id) => {
           if (this.isDestroyed) return;
-          console.log(`[SignalingService] Connected to PeerJS server with ID: ${id}`);
+          logger.multiplayer.info(`Connected to PeerJS server with ID: ${id}`);
           this.callbacks.onOpen(id);
 
           // If not host, connect to the host
@@ -75,7 +76,7 @@ export class SignalingService {
 
         this.peer.on('error', (err) => {
           if (this.isDestroyed) return;
-          console.error('[SignalingService] PeerJS error:', err);
+          logger.multiplayer.error('PeerJS error:', err);
 
           // Handle specific error types
           if (err.type === 'unavailable-id') {
@@ -91,9 +92,7 @@ export class SignalingService {
 
         this.peer.on('disconnected', () => {
           if (this.isDestroyed) return;
-          console.log(
-            '[SignalingService] Disconnected from PeerJS server, attempting reconnect...'
-          );
+          logger.multiplayer.warn('Disconnected from PeerJS server, attempting reconnect...');
           // PeerJS will auto-reconnect
         });
 
@@ -116,7 +115,7 @@ export class SignalingService {
     if (!this.peer || this.isDestroyed) return;
 
     const hostPeerId = `millos-${this.config.roomCode}`;
-    console.log(`[SignalingService] Connecting to host: ${hostPeerId}`);
+    logger.multiplayer.debug(`Connecting to host: ${hostPeerId}`);
 
     const conn = this.peer.connect(hostPeerId, {
       reliable: true,
@@ -134,7 +133,7 @@ export class SignalingService {
    */
   private handleIncomingConnection(conn: DataConnection): void {
     const peerId = conn.peer;
-    console.log(`[SignalingService] Incoming connection from: ${peerId}`);
+    logger.multiplayer.debug(`Incoming connection from: ${peerId}`);
     this.setupConnectionHandlers(conn, peerId);
   }
 
@@ -144,21 +143,21 @@ export class SignalingService {
   private setupConnectionHandlers(conn: DataConnection, peerId: string): void {
     conn.on('open', () => {
       if (this.isDestroyed) return;
-      console.log(`[SignalingService] Connection opened with: ${peerId}`);
+      logger.multiplayer.info(`Connection opened with: ${peerId}`);
       this.connections.set(peerId, conn);
       this.callbacks.onPeerConnected(peerId, conn);
     });
 
     conn.on('close', () => {
       if (this.isDestroyed) return;
-      console.log(`[SignalingService] Connection closed with: ${peerId}`);
+      logger.multiplayer.info(`Connection closed with: ${peerId}`);
       this.connections.delete(peerId);
       this.callbacks.onPeerDisconnected(peerId);
     });
 
     conn.on('error', (err) => {
       if (this.isDestroyed) return;
-      console.error(`[SignalingService] Connection error with ${peerId}:`, err);
+      logger.multiplayer.error(`Connection error with ${peerId}:`, err);
       this.connections.delete(peerId);
       this.callbacks.onPeerDisconnected(peerId);
     });
@@ -228,7 +227,7 @@ export class SignalingService {
       this.peer = null;
     }
 
-    console.log('[SignalingService] Destroyed');
+    logger.multiplayer.debug('SignalingService destroyed');
   }
 
   /**

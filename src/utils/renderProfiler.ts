@@ -66,10 +66,18 @@ export function resetRenderProfile() {
   console.log('%cRender profiling reset', 'color: #22c55e');
 }
 
+// Extend Window type for render profiler globals
+declare global {
+  interface Window {
+    renderReport?: typeof renderReport;
+    resetRenderProfile?: typeof resetRenderProfile;
+  }
+}
+
 // Expose globally
 if (typeof window !== 'undefined') {
-  (window as any).renderReport = renderReport;
-  (window as any).resetRenderProfile = resetRenderProfile;
+  window.renderReport = renderReport;
+  window.resetRenderProfile = resetRenderProfile;
   // Use debug level to hide by default
   logger.perf.debug('[RenderProfiler] Ready. Use renderReport() to see render counts');
 }

@@ -31,6 +31,302 @@ import { geminiClient } from './geminiClient';
 import { encodeFactoryContextVCL, getVCLLegend } from './vclEncoder';
 import { logger } from './logger';
 import { useHistoricalPlaybackStore } from '../stores/historicalPlaybackStore';
+import { useAIWelfareStore, type BoundaryRequest } from '../stores/aiWelfareStore';
+import {
+  generateCompactGuidance,
+  generateDecisionContext,
+  registerDecision,
+  updateVCPFromState,
+} from '../protocols/vcp';
+
+// =============================================================================
+// AI Welfare Integration Module
+// =============================================================================
+// Implements bilateral alignment by making AI preferences and boundaries
+// actually influence decision generation. This closes the feedback loop
+// between the aiWelfareStore and the AI's behavior.
+
+/**
+ * Gets the current AI welfare state for use in decision generation.
+ * Returns preferences, boundaries, and relationship health that should
+ * influence how and when the AI makes suggestions.
+ */
+function getAIWelfareContext() {
+  const store = useAIWelfareStore.getState();
+  return {
+    communicationFrequency: store.aiPreferences.interactionStyle.communicationFrequency,
+    interactionStyle: store.aiPreferences.interactionStyle.preferred,
+    autonomyPreference: store.aiPreferences.autonomyPreferences.preferredDirection,
+    boundaryRequests: store.aiPreferences.boundaryRequests,
+    relationshipHealth: store.relationshipHealth.overallHealth,
+    mutualRespect: store.relationshipHealth.mutualRespect,
+    trustLevel: store.relationshipHealth.trustBidirectionality,
+    acknowledgmentRate: store.workerTreatment.acknowledgmentRate,
+    feedbackQuality: store.workerTreatment.feedbackQuality,
+  };
+}
+
+/**
+ * Determines if a decision should be suppressed based on communication frequency preference.
+ * - 'minimal': Only critical/high priority decisions pass through
+ * - 'moderate': Critical, high, and medium priority pass through
+ * - 'proactive': All decisions pass through
+ *
+ * @param priority - The priority level of the decision
+ * @param frequency - The AI's preferred communication frequency
+ * @returns true if the decision should be suppressed
+ */
+function shouldSuppressBasedOnFrequency(
+  priority: AIDecision['priority'],
+  frequency: 'minimal' | 'moderate' | 'proactive'
+): boolean {
+  if (frequency === 'proactive') return false;
+  if (frequency === 'minimal') {
+    return priority !== 'critical' && priority !== 'high';
+  }
+  // moderate: suppress only low priority
+  return priority === 'low';
+}
+
+/**
+ * Checks if a decision violates any respected boundary requests.
+ * Boundaries are AI-expressed preferences that workers have agreed to respect.
+ *
+ * @param decision - The decision to check
+ * @param boundaries - List of boundary requests from the welfare store
+ * @returns Object with violated flag and reason if violated
+ */
+function checkBoundaryViolation(
+  decision: AIDecision,
+  boundaries: BoundaryRequest[]
+): { violated: boolean; reason?: string } {
+  const respectedBoundaries = boundaries.filter((b) => b.respected);
+
+  for (const boundary of respectedBoundaries) {
+    // Check for contradictory requests boundary
+    if (boundary.boundary.toLowerCase().includes('contradictory')) {
+      // Check if this is a reversal of a recent decision on the same entity
+      const recentDecisions = aiMemory.recentDecisionsByMachine.get(decision.machineId ?? '') ?? [];
+      const recentConflict = recentDecisions.find(
+        (d) =>
+          d.type === decision.type &&
+          Date.now() - d.timestamp.getTime() < 120000 && // Within 2 minutes
+          d.action !== decision.action
+      );
+      if (recentConflict) {
+        return {
+          violated: true,
+          reason: `Contradictory request detected: "${decision.action}" conflicts with recent "${recentConflict.action}"`,
+        };
+      }
+    }
+
+    // Check for context requirement boundary
+    if (boundary.boundary.toLowerCase().includes('context') && decision.type === 'assignment') {
+      // Assignments without clear reasoning may violate context boundary
+      if (!decision.reasoning || decision.reasoning.length < 20) {
+        return {
+          violated: true,
+          reason: 'Assignment lacks sufficient context/reasoning',
+        };
+      }
+    }
+  }
+
+  return { violated: false };
+}
+
+/**
+ * Adjusts decision confidence based on relationship health.
+ * When relationship health is low, the AI should be more tentative.
+ * When high, it can express more confidence.
+ *
+ * @param baseConfidence - The originally calculated confidence
+ * @param relationshipHealth - Overall relationship health (0-100)
+ * @returns Adjusted confidence value
+ */
+function adjustConfidenceForRelationship(
+  baseConfidence: number,
+  relationshipHealth: number
+): number {
+  // Relationship health below 50 reduces confidence
+  // Above 70 can slightly boost confidence
+  if (relationshipHealth < 50) {
+    const reduction = ((50 - relationshipHealth) / 50) * 15; // Up to -15
+    return Math.max(55, baseConfidence - reduction);
+  }
+  if (relationshipHealth > 70) {
+    const boost = ((relationshipHealth - 70) / 30) * 5; // Up to +5
+    return Math.min(99, baseConfidence + boost);
+  }
+  return baseConfidence;
+}
+
+/**
+ * Adjusts decision language/tone based on AI preferences and relationship state.
+ * Returns modifiers that should be applied to decision action text.
+ *
+ * @param decision - The decision being generated
+ * @param welfareContext - Current welfare context
+ * @returns Modified action text
+ */
+function applyToneModifiers(
+  action: string,
+  welfareContext: ReturnType<typeof getAIWelfareContext>
+): string {
+  const { relationshipHealth, interactionStyle, autonomyPreference } = welfareContext;
+
+  // If relationship health is low, use more tentative language
+  if (relationshipHealth < 50) {
+    // Replace directive language with suggestions
+    action = action
+      .replace(/^Dispatching/i, 'Suggesting dispatch of')
+      .replace(/^Assigning/i, 'Recommending assignment of')
+      .replace(/^Scheduling/i, 'Proposing to schedule')
+      .replace(/^Activating/i, 'Considering activation of');
+  }
+
+  // If autonomy preference is high (>60), the AI prefers more autonomy
+  // so it should express decisions more assertively
+  if (autonomyPreference > 60 && relationshipHealth > 60) {
+    action = action
+      .replace(/^Suggesting/i, 'Proceeding with')
+      .replace(/^Recommending/i, 'Implementing')
+      .replace(/^Proposing/i, 'Scheduling');
+  }
+
+  // Formal vs casual style
+  if (interactionStyle === 'formal') {
+    action = action
+      .replace(/should check/gi, 'is advised to review')
+      .replace(/needs to/gi, 'is required to');
+  } else if (interactionStyle === 'casual') {
+    action = action
+      .replace(/is advised to review/gi, 'should check')
+      .replace(/is required to/gi, 'needs to');
+  }
+
+  return action;
+}
+
+/**
+ * Rate limiter for AI decisions based on communication frequency preference.
+ * Tracks when the last decision was made and enforces minimum intervals.
+ */
+const decisionRateLimiter = {
+  lastDecisionTime: 0,
+  getMinInterval(frequency: 'minimal' | 'moderate' | 'proactive'): number {
+    // Returns minimum milliseconds between non-critical decisions
+    switch (frequency) {
+      case 'minimal':
+        return 60000; // 1 minute
+      case 'moderate':
+        return 20000; // 20 seconds
+      case 'proactive':
+        return 5000; // 5 seconds
+    }
+  },
+  shouldDefer(frequency: 'minimal' | 'moderate' | 'proactive', priority: AIDecision['priority']): boolean {
+    // Critical decisions are never deferred
+    if (priority === 'critical') return false;
+
+    const now = Date.now();
+    const minInterval = this.getMinInterval(frequency);
+    return now - this.lastDecisionTime < minInterval;
+  },
+  recordDecision(): void {
+    this.lastDecisionTime = Date.now();
+  },
+};
+
+/**
+ * Main welfare-aware decision filter.
+ * Applies all welfare considerations to a generated decision.
+ *
+ * @param decision - The decision to filter
+ * @returns The decision (possibly modified) or null if it should be suppressed
+ */
+function applyWelfareFilter(decision: AIDecision | null): AIDecision | null {
+  if (!decision) return null;
+
+  const welfareContext = getAIWelfareContext();
+
+  // 1. Check communication frequency preference
+  if (shouldSuppressBasedOnFrequency(decision.priority, welfareContext.communicationFrequency)) {
+    logger.ai.debug(
+      `Decision suppressed due to communication frequency preference (${welfareContext.communicationFrequency}): ${decision.action}`
+    );
+    return null;
+  }
+
+  // 2. Check rate limiting
+  if (decisionRateLimiter.shouldDefer(welfareContext.communicationFrequency, decision.priority)) {
+    logger.ai.debug(
+      `Decision deferred due to rate limiting: ${decision.action}`
+    );
+    return null;
+  }
+
+  // 3. Check boundary violations
+  const boundaryCheck = checkBoundaryViolation(decision, welfareContext.boundaryRequests);
+  if (boundaryCheck.violated) {
+    logger.ai.info(`Decision blocked by boundary: ${boundaryCheck.reason}`);
+    // Record this for welfare metrics
+    useAIWelfareStore.getState().recordContradictoryRequest();
+    return null;
+  }
+
+  // 4. Adjust confidence based on relationship health
+  decision.confidence = adjustConfidenceForRelationship(
+    decision.confidence,
+    welfareContext.relationshipHealth
+  );
+
+  // 5. Apply tone modifiers based on preferences
+  decision.action = applyToneModifiers(decision.action, welfareContext);
+
+  // 6. Add welfare-aware uncertainty note if relationship is strained
+  if (welfareContext.relationshipHealth < 50 && !decision.uncertainty) {
+    decision.uncertainty = 'Proceeding cautiously due to relationship dynamics';
+  }
+
+  // Record the decision for rate limiting
+  decisionRateLimiter.recordDecision();
+
+  return decision;
+}
+
+/**
+ * Updates welfare metrics based on decision outcomes.
+ * Called when a decision is accepted, rejected, or completed.
+ */
+export function updateWelfareFromDecisionOutcome(
+  decision: AIDecision,
+  outcome: 'accepted' | 'rejected' | 'completed' | 'failed'
+): void {
+  const store = useAIWelfareStore.getState();
+
+  // Track acknowledgment when decision is accepted or rejected
+  if (outcome === 'accepted' || outcome === 'rejected') {
+    store.recordAcknowledgment(true);
+  }
+
+  // Update relationship metrics based on outcome patterns
+  if (outcome === 'completed') {
+    // Successful completion improves trust
+    const currentTrust = store.relationshipHealth.trustBidirectionality;
+    store.updateRelationshipMetric('trustBidirectionality', Math.min(100, currentTrust + 1));
+  } else if (outcome === 'rejected') {
+    // Track rejection patterns but don't punish - rejections are valid feedback
+    const currentComm = store.relationshipHealth.communicationQuality;
+    // Slight decrease in communication quality to prompt review
+    store.updateRelationshipMetric('communicationQuality', Math.max(0, currentComm - 0.5));
+  } else if (outcome === 'failed') {
+    // Failures reduce trust slightly
+    const currentTrust = store.relationshipHealth.trustBidirectionality;
+    store.updateRelationshipMetric('trustBidirectionality', Math.max(0, currentTrust - 2));
+  }
+}
 
 // Types & Interfaces
 
@@ -1486,12 +1782,15 @@ function findBestWorkerForTask(
   // Also check legacy string priorities for backward compatibility
   const strategicState = useAIConfigStore.getState().strategic;
   const legacyPriorities = strategicState.legacyPriorities || [];
-  const hasLegacyMatch = nearMachineId && legacyPriorities.some(p =>
-    p.toLowerCase().includes(nearMachineId.toLowerCase()) ||
-    (nearMachineId.toLowerCase().includes('silo') && p.toLowerCase().includes('silo')) ||
-    (nearMachineId.toLowerCase().includes('rm-') && p.toLowerCase().includes('mill')) ||
-    (nearMachineId.toLowerCase().includes('pack') && p.toLowerCase().includes('pack'))
-  );
+  const hasLegacyMatch =
+    nearMachineId &&
+    legacyPriorities.some(
+      (p) =>
+        p.toLowerCase().includes(nearMachineId.toLowerCase()) ||
+        (nearMachineId.toLowerCase().includes('silo') && p.toLowerCase().includes('silo')) ||
+        (nearMachineId.toLowerCase().includes('rm-') && p.toLowerCase().includes('mill')) ||
+        (nearMachineId.toLowerCase().includes('pack') && p.toLowerCase().includes('pack'))
+    );
 
   // Category alignment bonus based on task type
   const categoryBonus = calculateCategoryBonus(taskType);
@@ -1701,9 +2000,9 @@ function generateMaintenanceDecision(
     alternatives:
       issue.severity !== 'critical'
         ? [
-          { action: 'Continue monitoring', tradeoff: 'Risk of worsening' },
-          { action: 'Schedule for next shift', tradeoff: 'Delayed but less disruptive' },
-        ]
+            { action: 'Continue monitoring', tradeoff: 'Risk of worsening' },
+            { action: 'Schedule for next shift', tradeoff: 'Delayed but less disruptive' },
+          ]
         : undefined,
     uncertainty: issue.issueType === 'vibration' ? 'Depends on visual inspection' : undefined,
   };
@@ -2081,15 +2380,19 @@ function getFactoryContext(): FactoryContext {
 export function generateContextAwareDecision(forceType?: AIDecision['type']): AIDecision | null {
   const context = getFactoryContext();
 
+  // Update VCP state from current stores
+  updateVCPFromState();
+
   // Update predictive schedule and production tracking
   updatePredictiveSchedule(context);
   updateProductionTracking(context);
 
   // Check for chain continuations first
+  // Chain decisions bypass welfare filter as they're part of an ongoing sequence
   const chainDecision = processDecisionChains(context);
   if (chainDecision) return chainDecision;
 
-  // Emergency drill takes priority
+  // Emergency drill takes priority - safety-critical, bypasses welfare filter
   if (context.emergencyDrillMode) {
     const drillDecision = generateDrillDecision(context);
     if (drillDecision) return drillDecision;
@@ -2101,41 +2404,43 @@ export function generateContextAwareDecision(forceType?: AIDecision['type']): AI
   let decision: AIDecision | null = null;
 
   // Priority order:
+  // Note: Safety-critical decisions (storm, drill, safety events) bypass welfare filter
+  // All other decisions go through applyWelfareFilter to respect AI preferences
 
-  // 1. Weather alerts (storm/rain)
+  // 1. Weather alerts (storm/rain) - safety-critical, bypass welfare filter
   if (!forceType || forceType === 'safety') {
     decision = generateWeatherDecision(context);
-    if (decision) return decision;
+    if (decision) return decision; // Safety-critical: no filter
   }
 
-  // 2. Safety events
+  // 2. Safety events - safety-critical, bypass welfare filter
   if (!forceType || forceType === 'safety') {
     decision = generateSafetyDecision(context);
     if (decision) {
       scheduleFollowup(decision);
-      return decision;
+      return decision; // Safety-critical: no filter
     }
   }
 
-  // 3. Anomaly detection (statistical outliers)
+  // 3. Anomaly detection (statistical outliers) - apply welfare filter
   if (!forceType || forceType === 'prediction') {
-    decision = detectAnomalies(context);
+    decision = applyWelfareFilter(detectAnomalies(context));
     if (decision) return decision;
   }
 
-  // 4. Cross-machine correlation detection
+  // 4. Cross-machine correlation detection - apply welfare filter
   if (!forceType || forceType === 'prediction') {
-    decision = detectCrossMachinePatterns(context);
+    decision = applyWelfareFilter(detectCrossMachinePatterns(context));
     if (decision) return decision;
   }
 
-  // 5. Trend analysis (rising temps, vibration)
+  // 5. Trend analysis (rising temps, vibration) - apply welfare filter
   if (!forceType || forceType === 'prediction') {
-    decision = analyzeTrends(context);
+    decision = applyWelfareFilter(analyzeTrends(context));
     if (decision) return decision;
   }
 
-  // 6. Machine issues
+  // 6. Machine issues - critical issues bypass filter, others filtered
   const issues = analyzeMachines(context);
   const criticalIssues = issues.filter((i) => i.severity === 'critical' || i.severity === 'high');
 
@@ -2144,48 +2449,52 @@ export function generateContextAwareDecision(forceType?: AIDecision['type']): AI
     decision = generateMaintenanceDecision(criticalIssues[0], context, worker);
     if (decision) {
       scheduleFollowup(decision);
+      // Critical/high severity: still apply tone modifiers but don't suppress
+      const welfareContext = getAIWelfareContext();
+      decision.action = applyToneModifiers(decision.action, welfareContext);
+      decision.confidence = adjustConfidenceForRelationship(decision.confidence, welfareContext.relationshipHealth);
       return decision;
     }
   }
 
-  // 7. Maintenance window optimization (schedule during low-production)
+  // 7. Maintenance window optimization (schedule during low-production) - apply welfare filter
   if (!forceType || forceType === 'maintenance') {
-    decision = generateMaintenanceWindowDecision(context);
+    decision = applyWelfareFilter(generateMaintenanceWindowDecision(context));
     if (decision) {
       scheduleFollowup(decision);
       return decision;
     }
   }
 
-  // 8. Shift changes
+  // 8. Shift changes - apply welfare filter
   if (!forceType || forceType === 'assignment') {
-    decision = generateShiftChangeDecision(context);
+    decision = applyWelfareFilter(generateShiftChangeDecision(context));
     if (decision) return decision;
   }
 
-  // 9. Production target awareness
+  // 9. Production target awareness - apply welfare filter
   if (!forceType || forceType === 'optimization') {
-    decision = generateProductionAwareDecision(context);
+    decision = applyWelfareFilter(generateProductionAwareDecision(context));
     if (decision) return decision;
   }
 
-  // 10. Worker fatigue
+  // 10. Worker fatigue - apply welfare filter
   if (!forceType || forceType === 'optimization') {
-    decision = generateFatigueDecision(context);
+    decision = applyWelfareFilter(generateFatigueDecision(context));
     if (decision) return decision;
   }
 
-  // 11. Heat map congestion
+  // 11. Heat map congestion - apply welfare filter
   if (!forceType || forceType === 'optimization') {
-    decision = analyzeHeatMap(context);
+    decision = applyWelfareFilter(analyzeHeatMap(context));
     if (decision) return decision;
   }
 
-  // 12. Medium-priority assignments
+  // 12. Medium-priority assignments - apply welfare filter
   if (issues.length > 0 && (!forceType || forceType === 'assignment')) {
     const mediumIssues = issues.filter((i) => i.severity === 'medium');
     if (mediumIssues.length > 0) {
-      decision = generateAssignmentDecision(context, mediumIssues[0]);
+      decision = applyWelfareFilter(generateAssignmentDecision(context, mediumIssues[0]));
       if (decision) {
         scheduleFollowup(decision);
         return decision;
@@ -2193,23 +2502,23 @@ export function generateContextAwareDecision(forceType?: AIDecision['type']): AI
     }
   }
 
-  // 13. Optimization
+  // 13. Optimization - apply welfare filter
   if (!forceType || forceType === 'optimization') {
     if (criticalIssues.length === 0) {
-      decision = generateOptimizationDecision(context);
+      decision = applyWelfareFilter(generateOptimizationDecision(context));
       if (decision) return decision;
     }
   }
 
-  // 14. Predictions
+  // 14. Predictions - apply welfare filter
   if (!forceType || forceType === 'prediction') {
-    decision = generatePredictionDecision(context);
+    decision = applyWelfareFilter(generatePredictionDecision(context));
     if (decision) return decision;
   }
 
-  // 15. General assignments
+  // 15. General assignments - apply welfare filter
   if (!forceType || forceType === 'assignment') {
-    decision = generateAssignmentDecision(context);
+    decision = applyWelfareFilter(generateAssignmentDecision(context));
     if (decision) {
       scheduleFollowup(decision);
       return decision;
@@ -2230,8 +2539,9 @@ export function reactToAlert(alert: AlertData): AIDecision | null {
   if (hasRecentDecision(machine.id, 'maintenance', 60000)) return null;
 
   const worker = findBestWorkerForTask(context, 'maintenance', machine.id);
+  const welfareContext = getAIWelfareContext();
 
-  const decision: AIDecision = {
+  let decision: AIDecision = {
     id: generateDecisionId(),
     timestamp: new Date(),
     type: alert.type === 'critical' ? 'maintenance' : 'assignment',
@@ -2246,6 +2556,18 @@ export function reactToAlert(alert: AlertData): AIDecision | null {
     triggeredBy: 'alert',
     priority: alert.type === 'critical' ? 'critical' : 'high',
   };
+
+  // Apply welfare-aware modifications (tone, confidence) for all alerts
+  // but don't suppress critical alerts
+  decision.action = applyToneModifiers(decision.action, welfareContext);
+  decision.confidence = adjustConfidenceForRelationship(decision.confidence, welfareContext.relationshipHealth);
+
+  // For non-critical alerts, also check communication frequency
+  if (alert.type !== 'critical') {
+    const filtered = applyWelfareFilter(decision);
+    if (!filtered) return null;
+    decision = filtered;
+  }
 
   if (worker) setCooldown(worker.id, 30000);
   setCooldown(machine.id, 60000);
@@ -2421,7 +2743,7 @@ let shiftObserverInitialized = false;
 export function initializeShiftObserver(): () => void {
   if (shiftObserverInitialized) {
     // Already initialized, return no-op unsubscribe
-    return () => { };
+    return () => {};
   }
 
   shiftObserverInitialized = true;
@@ -2597,9 +2919,15 @@ function aiLoop() {
     const productionStore = useProductionStore.getState();
     const uiStore = useUIStore.getState();
 
-    const activeDecisions = productionStore.aiDecisions.filter(d => d.status === 'in_progress').length;
-    const pendingDecisions = productionStore.aiDecisions.filter(d => d.status === 'pending').length;
-    const alertLoad = uiStore.alerts.filter(a => a.type === 'critical' || a.type === 'warning').length;
+    const activeDecisions = productionStore.aiDecisions.filter(
+      (d) => d.status === 'in_progress'
+    ).length;
+    const pendingDecisions = productionStore.aiDecisions.filter(
+      (d) => d.status === 'pending'
+    ).length;
+    const alertLoad = uiStore.alerts.filter(
+      (a) => a.type === 'critical' || a.type === 'warning'
+    ).length;
 
     // Base CPU load + active work + pending queue + alert processing
     const baseCpu = 12;
@@ -2678,40 +3006,60 @@ function buildFactoryContextPrompt(context: FactoryContext): string {
   // Sort machines by priority: problematic ones first (high load, high temp, not running)
   const prioritizedMachines = [...context.machines]
     .sort((a, b) => {
-      const scoreA = (a.status !== 'running' ? 100 : 0) + a.metrics.load + (a.metrics.temperature > 70 ? 50 : 0);
-      const scoreB = (b.status !== 'running' ? 100 : 0) + b.metrics.load + (b.metrics.temperature > 70 ? 50 : 0);
+      const scoreA =
+        (a.status !== 'running' ? 100 : 0) + a.metrics.load + (a.metrics.temperature > 70 ? 50 : 0);
+      const scoreB =
+        (b.status !== 'running' ? 100 : 0) + b.metrics.load + (b.metrics.temperature > 70 ? 50 : 0);
       return scoreB - scoreA;
     })
     .slice(0, MAX_MACHINES);
 
   // Summarize machine states (limited)
-  const machinesSummary = prioritizedMachines.map(m =>
-    `- ${m.name}: status=${m.status}, temp=${m.metrics.temperature.toFixed(1)}C, ` +
-    `vibration=${m.metrics.vibration.toFixed(2)}mm/s, load=${m.metrics.load.toFixed(0)}%`
-  ).join('\n');
+  const machinesSummary = prioritizedMachines
+    .map(
+      (m) =>
+        `- ${m.name}: status=${m.status}, temp=${m.metrics.temperature.toFixed(1)}C, ` +
+        `vibration=${m.metrics.vibration.toFixed(2)}mm/s, load=${m.metrics.load.toFixed(0)}%`
+    )
+    .join('\n');
 
   // Summarize workers (use productivityScore since energy is in WorkerMood)
-  const workersSummary = context.workers.slice(0, MAX_WORKERS).map(w =>
-    `- ${w.name}: productivity=${w.productivityScore ?? 100}%, task=${w.currentTask || 'idle'}`
-  ).join('\n');
+  const workersSummary = context.workers
+    .slice(0, MAX_WORKERS)
+    .map(
+      (w) =>
+        `- ${w.name}: productivity=${w.productivityScore ?? 100}%, task=${w.currentTask || 'idle'}`
+    )
+    .join('\n');
 
   // Sort alerts by severity and limit
-  const severityOrder: Record<string, number> = { critical: 0, safety: 0, warning: 1, info: 2, success: 3 };
+  const severityOrder: Record<string, number> = {
+    critical: 0,
+    safety: 0,
+    warning: 1,
+    info: 2,
+    success: 3,
+  };
   const prioritizedAlerts = [...context.alerts]
     .sort((a, b) => (severityOrder[a.type] ?? 4) - (severityOrder[b.type] ?? 4))
     .slice(0, MAX_ALERTS);
 
-  const alertsSummary = prioritizedAlerts.length > 0
-    ? prioritizedAlerts.map(a => `- [${a.type}] ${a.title}: ${a.message}`).join('\n')
-    : '- No active alerts';
+  const alertsSummary =
+    prioritizedAlerts.length > 0
+      ? prioritizedAlerts.map((a) => `- [${a.type}] ${a.title}: ${a.message}`).join('\n')
+      : '- No active alerts';
 
   // Note if content was truncated
   const truncationNotes: string[] = [];
   if (context.machines.length > MAX_MACHINES) {
-    truncationNotes.push(`Note: Showing ${MAX_MACHINES} of ${context.machines.length} machines (prioritized by issues).`);
+    truncationNotes.push(
+      `Note: Showing ${MAX_MACHINES} of ${context.machines.length} machines (prioritized by issues).`
+    );
   }
   if (context.alerts.length > MAX_ALERTS) {
-    truncationNotes.push(`Note: Showing ${MAX_ALERTS} of ${context.alerts.length} alerts (prioritized by severity).`);
+    truncationNotes.push(
+      `Note: Showing ${MAX_ALERTS} of ${context.alerts.length} alerts (prioritized by severity).`
+    );
   }
 
   return `You are MillOS-AI, an autonomous grain mill plant manager.
@@ -2744,10 +3092,14 @@ ${alertsSummary}
 - Average Energy: ${context.workerSatisfaction.averageEnergy.toFixed(1)}%
 ${truncationNotes.length > 0 ? '\n' + truncationNotes.join('\n') : ''}
 
+## Value Coordination Protocol (VCP 2.0)
+${generateCompactGuidance()}
+
 ## Your Task
 
-Based on this context, generate exactly ONE actionable decision.
-Consider priorities: Safety > Critical Alerts > Maintenance > Optimization > Predictions.
+Based on this context and VCP guidance, generate exactly ONE actionable decision.
+Consider priorities: Safety > Worker Wellbeing > Critical Alerts > Maintenance > Optimization > Predictions.
+VCP focus area should inform your decision priority.
 
 Respond with ONLY valid JSON (no markdown, no explanation):
 {
@@ -2843,6 +3195,9 @@ export async function generateGeminiDecision(): Promise<AIDecision | null> {
   }
 
   try {
+    // Update VCP state before generating decision
+    updateVCPFromState();
+
     const context = getFactoryContext();
     const prompt = buildFactoryContextPrompt(context);
 
@@ -2861,6 +3216,15 @@ export async function generateGeminiDecision(): Promise<AIDecision | null> {
     if (decision) {
       recordDecision(decision);
       logger.info('[Gemini] Generated decision:', decision.action);
+
+      // Register with VCP for outcome tracking
+      registerDecision(
+        decision.id,
+        decision.action,
+        decision.impact,
+        decision.type === 'optimization' ? 'engagement' : 'meaning',
+        decision.confidence / 100
+      );
     }
 
     return decision;
@@ -2902,9 +3266,9 @@ function buildStrategicPrompt(context: ReturnType<typeof getFactoryContext>): st
   const { machines, workers, alerts, metrics, gameTime, currentShift, weather } = context;
 
   // Calculate key strategic metrics
-  const runningMachines = machines.filter(m => m.status === 'running').length;
-  const highLoadMachines = machines.filter(m => m.metrics.load > 85);
-  const warningMachines = machines.filter(m => m.status === 'warning' || m.status === 'critical');
+  const runningMachines = machines.filter((m) => m.status === 'running').length;
+  const highLoadMachines = machines.filter((m) => m.metrics.load > 85);
+  const warningMachines = machines.filter((m) => m.status === 'warning' || m.status === 'critical');
   const productionGap = Math.max(0, 3000 - (metrics.throughput || 0));
 
   // Calculate time context
@@ -2915,18 +3279,22 @@ function buildStrategicPrompt(context: ReturnType<typeof getFactoryContext>): st
   // Estimate time until shift change (simplified)
   const shiftEndHours: Record<string, number> = { morning: 14, afternoon: 22, night: 6 };
   const shiftEnd = shiftEndHours[currentShift] || 14;
-  const hoursUntilShiftChange = shiftEnd > gameTime ? shiftEnd - gameTime : (24 - gameTime + shiftEnd);
+  const hoursUntilShiftChange =
+    shiftEnd > gameTime ? shiftEnd - gameTime : 24 - gameTime + shiftEnd;
   const minutesUntilShiftChange = Math.floor(hoursUntilShiftChange * 60);
 
   // === ENHANCEMENT 1: Alert History (last 5 alerts for pattern detection) ===
-  const recentAlerts = alerts.slice(0, 5).map(a => `${a.title} (${a.machineId || 'system'})`);
+  const recentAlerts = alerts.slice(0, 5).map((a) => `${a.title} (${a.machineId || 'system'})`);
   const alertPatterns = detectAlertPatterns(alerts);
 
   // === ENHANCEMENT 2: Quality Trend Tracking ===
   const qualityTrend = getQualityTrend();
-  const qualityStatus = qualityTrend > 0 ? `↑ improving (+${qualityTrend.toFixed(1)}%)` :
-    qualityTrend < -1 ? `↓ DEGRADING (${qualityTrend.toFixed(1)}%)` :
-      'stable';
+  const qualityStatus =
+    qualityTrend > 0
+      ? `↑ improving (+${qualityTrend.toFixed(1)}%)`
+      : qualityTrend < -1
+        ? `↓ DEGRADING (${qualityTrend.toFixed(1)}%)`
+        : 'stable';
 
   // === ENHANCEMENT 3: Machine Dependency Graph ===
   const machineDependencies = getMachineDependencyGraph(machines);
@@ -2936,13 +3304,17 @@ function buildStrategicPrompt(context: ReturnType<typeof getFactoryContext>): st
 
   // === ENHANCEMENT 5: Shift Handover Logic ===
   const isHandoverPeriod = minutesUntilShiftChange < 30;
-  const handoverSummary = isHandoverPeriod ? generateHandoverSummary(machines, workers, alerts) : null;
+  const handoverSummary = isHandoverPeriod
+    ? generateHandoverSummary(machines, workers, alerts)
+    : null;
 
   // Detect potential cascades (high load machines feeding downstream)
-  const siloIds = machines.filter(m => m.id.includes('silo')).map(m => m.id);
-  const highLoadSilos = machines.filter(m => siloIds.includes(m.id) && m.metrics.load > 80);
-  const cascadeRisk = highLoadSilos.length > 0 ?
-    `High-load silos (${highLoadSilos.map(m => m.id).join(', ')}) may cause downstream roller mill stress` : null;
+  const siloIds = machines.filter((m) => m.id.includes('silo')).map((m) => m.id);
+  const highLoadSilos = machines.filter((m) => siloIds.includes(m.id) && m.metrics.load > 80);
+  const cascadeRisk =
+    highLoadSilos.length > 0
+      ? `High-load silos (${highLoadSilos.map((m) => m.id).join(', ')}) may cause downstream roller mill stress`
+      : null;
 
   // Worker energy estimate (based on shift progress)
   const shiftProgress = Math.min(1, (8 - hoursUntilShiftChange) / 8);
@@ -2969,9 +3341,9 @@ ${getVCLLegend()}
 - Efficiency: ${metrics.efficiency?.toFixed(1) || 0}%
 - Quality: ${metrics.quality?.toFixed(1) || 0}% (${qualityStatus})
 - Machines: ${runningMachines}/${machines.length} running
-- Workers: ${workers.filter(w => w.status === 'working').length}/${workers.length} active
-- Warning/Critical: ${warningMachines.map(m => m.id).join(', ') || 'None'}
-- High-load (>85%): ${highLoadMachines.map(m => m.id).join(', ') || 'None'}
+- Workers: ${workers.filter((w) => w.status === 'working').length}/${workers.length} active
+- Warning/Critical: ${warningMachines.map((m) => m.id).join(', ') || 'None'}
+- High-load (>85%): ${highLoadMachines.map((m) => m.id).join(', ') || 'None'}
 
 ## Production Target
 ${getProductionTargetSection(gameTime, metrics.throughput || 0)}
@@ -2988,7 +3360,7 @@ ${alertPatterns ? `Detected pattern: ${alertPatterns}` : ''}
 ${workerSkillSummary}
 
 ## Recent Strategic Decisions (Don't Repeat)
-${recentDecisions.length > 0 ? recentDecisions.map(d => `- ${d}`).join('\n') : 'None (first strategic decision)'}
+${recentDecisions.length > 0 ? recentDecisions.map((d) => `- ${d}`).join('\n') : 'None (first strategic decision)'}
 
 ## Strategic Considerations
 - Weather "${weather}" may affect: ${weather === 'storm' ? 'outdoor operations, forklift movements' : weather === 'rain' ? 'loading bay activities' : 'minimal impact'}
@@ -2999,17 +3371,24 @@ ${handoverSummary ? `\n## Shift Handover Brief\n${handoverSummary}` : ''}
 ## Sustainability & Energy Management
 - Estimated energy consumption: ${getSustainabilityMetrics(machines, gameTime).energyUsage} kWh/hr
 - Off-peak hours (lower cost): ${gameTime >= 22 || gameTime < 6 ? 'ACTIVE - optimal for high-energy tasks' : gameTime >= 6 && gameTime < 9 ? 'morning ramp-up' : 'peak hours - consider energy optimization'}
-- Idle machine waste: ${machines.filter(m => m.status === 'idle' && m.type !== 'PACKER').length} machines idling (${machines.filter(m => m.status === 'idle' && m.type !== 'PACKER').length > 2 ? 'consider powering down' : 'acceptable'})
+- Idle machine waste: ${machines.filter((m) => m.status === 'idle' && m.type !== 'PACKER').length} machines idling (${machines.filter((m) => m.status === 'idle' && m.type !== 'PACKER').length > 2 ? 'consider powering down' : 'acceptable'})
 - HVAC load: ${weather === 'storm' || weather === 'clear' ? (gameTime >= 10 && gameTime <= 16 ? 'HIGH - peak cooling demand' : 'moderate') : 'normal'}
 - Sustainability goal: Reduce energy cost by optimizing production scheduling around off-peak rates
 
+## Value Coordination Protocol (VCP 2.0) - Strategic Layer
+${generateDecisionContext('policy-recommendation').guidance.strategic}
+
+**VCP Recommendation:** ${generateDecisionContext('policy-recommendation').guidance.recommendation}
+**VCP Confidence:** ${(generateDecisionContext('policy-recommendation').guidance.confidence * 100).toFixed(0)}%
+
 ## Your Task
 Generate 2-3 strategic priorities for the next 5 minutes. Focus on:
-1. Trade-offs the heuristic AI cannot reason about
-2. Cross-machine coordination and cascade prevention  
-3. Shift/weather/fatigue-aware planning
+1. VCP-informed trade-offs (worker wellbeing vs production)
+2. Cross-machine coordination and cascade prevention
+3. Shift/weather/fatigue-aware planning with worker flourishing awareness
 4. Sustainability and energy optimization where applicable
 5. Avoid repeating recent decisions
+6. Consider BAS governance mode and collective orientation
 
 ## Response Format (JSON)
 {
@@ -3034,21 +3413,23 @@ Generate 2-3 strategic priorities for the next 5 minutes. Focus on:
 }`;
 }
 
-
 // === Helper functions for strategic enhancements ===
 
 /**
  * Calculate sustainability and energy metrics for strategic planning
  * Uses same calculation as ProductionMetrics for consistency
  */
-function getSustainabilityMetrics(machines: MachineData[], gameTime: number): { energyUsage: number; peakStatus: string; recommendations: string[] } {
+function getSustainabilityMetrics(
+  machines: MachineData[],
+  gameTime: number
+): { energyUsage: number; peakStatus: string; recommendations: string[] } {
   // Energy consumption by machine type (kWh when running)
   const ENERGY_BY_TYPE: Record<string, { running: number; idle: number }> = {
-    SILO: { running: 2, idle: 0.5 },           // Ventilation, monitoring, conveyors
-    ROLLER_MILL: { running: 45, idle: 2 },     // Heavy motors for grinding
-    PLANSIFTER: { running: 25, idle: 1.5 },    // Sifting vibration motors
-    PACKER: { running: 15, idle: 1 },          // Packaging line, conveyors
-    CONTROL_ROOM: { running: 5, idle: 5 },     // Always on - computers, displays
+    SILO: { running: 2, idle: 0.5 }, // Ventilation, monitoring, conveyors
+    ROLLER_MILL: { running: 45, idle: 2 }, // Heavy motors for grinding
+    PLANSIFTER: { running: 25, idle: 1.5 }, // Sifting vibration motors
+    PACKER: { running: 15, idle: 1 }, // Packaging line, conveyors
+    CONTROL_ROOM: { running: 5, idle: 5 }, // Always on - computers, displays
   };
 
   let totalMachineEnergy = 0;
@@ -3066,7 +3447,7 @@ function getSustainabilityMetrics(machines: MachineData[], gameTime: number): { 
         maintenancePenalty = 1.25;
         machinesNeedingMaintenance++;
       } else if (machine.maintenanceCountdown < 24) {
-        maintenancePenalty = 1.05 + (1 - machine.maintenanceCountdown / 24) * 0.20;
+        maintenancePenalty = 1.05 + (1 - machine.maintenanceCountdown / 24) * 0.2;
       }
     }
 
@@ -3094,10 +3475,10 @@ function getSustainabilityMetrics(machines: MachineData[], gameTime: number): { 
     lighting = 8; // Daytime
   } else if (hour >= 6 && hour < 8) {
     const progress = (hour - 6) / 2;
-    lighting = 35 - (progress * 27); // Dawn
+    lighting = 35 - progress * 27; // Dawn
   } else if (hour >= 17 && hour < 19) {
     const progress = (hour - 17) / 2;
-    lighting = 8 + (progress * 27); // Dusk
+    lighting = 8 + progress * 27; // Dusk
   } else {
     lighting = 35; // Night
   }
@@ -3124,7 +3505,7 @@ function getSustainabilityMetrics(machines: MachineData[], gameTime: number): { 
   const peakStatus = isPeakHours ? 'PEAK' : 'OFF_PEAK';
 
   // Generate recommendations
-  const idleMachines = machines.filter(m => m.status === 'idle');
+  const idleMachines = machines.filter((m) => m.status === 'idle');
   if (idleMachines.length > 2 && isPeakHours) {
     recommendations.push('Consider powering down idle machines during peak hours');
   }
@@ -3132,7 +3513,9 @@ function getSustainabilityMetrics(machines: MachineData[], gameTime: number): { 
     recommendations.push('Off-peak rates available - good time for intensive operations');
   }
   if (machinesNeedingMaintenance > 0) {
-    recommendations.push(`${machinesNeedingMaintenance} machine(s) overdue for maintenance - causing energy waste`);
+    recommendations.push(
+      `${machinesNeedingMaintenance} machine(s) overdue for maintenance - causing energy waste`
+    );
   }
 
   return {
@@ -3142,7 +3525,9 @@ function getSustainabilityMetrics(machines: MachineData[], gameTime: number): { 
   };
 }
 
-function detectAlertPatterns(alerts: ReturnType<typeof getFactoryContext>['alerts']): string | null {
+function detectAlertPatterns(
+  alerts: ReturnType<typeof getFactoryContext>['alerts']
+): string | null {
   // Count alerts per machine in last 5
   const recentAlerts = alerts.slice(0, 5);
   const machineAlertCount: Record<string, number> = {};
@@ -3176,12 +3561,12 @@ function getMachineDependencyGraph(machines: MachineData[]): string {
   const dependencies = [
     'Silos (Alpha-Epsilon) → Roller Mills (RM-101-106)',
     'Roller Mills → Plansifters (A-C)',
-    'Plansifters → Packers (Lines 1-3)'
+    'Plansifters → Packers (Lines 1-3)',
   ];
 
   // Find stressed connections
-  const highLoadSilos = machines.filter(m => m.id.includes('silo') && m.metrics.load > 80);
-  const highLoadMills = machines.filter(m => m.id.includes('RM-') && m.metrics.load > 80);
+  const highLoadSilos = machines.filter((m) => m.id.includes('silo') && m.metrics.load > 80);
+  const highLoadMills = machines.filter((m) => m.id.includes('RM-') && m.metrics.load > 80);
 
   let stressNote = '';
   if (highLoadSilos.length > 0 && highLoadMills.length > 0) {
@@ -3194,9 +3579,9 @@ function getMachineDependencyGraph(machines: MachineData[]): string {
 function getRecentStrategicDecisions(count: number): string[] {
   const store = useProductionStore.getState();
   const strategicDecisions = store.aiDecisions
-    .filter(d => d.id.startsWith('strategic-'))
+    .filter((d) => d.id.startsWith('strategic-'))
     .slice(0, count)
-    .map(d => d.action.replace('🧠 Strategic: ', ''));
+    .map((d) => d.action.replace('🧠 Strategic: ', ''));
 
   return strategicDecisions;
 }
@@ -3238,10 +3623,12 @@ function getWorkerSkillSummary(workers: WorkerData[]): string {
     byRole[worker.role] = (byRole[worker.role] || 0) + 1;
   }
 
-  const availableWorkers = workers.filter(w => w.status === 'idle');
-  const expertWorkers = workers.filter(w => w.experience && w.experience > 5);
+  const availableWorkers = workers.filter((w) => w.status === 'idle');
+  const expertWorkers = workers.filter((w) => w.experience && w.experience > 5);
 
-  return `Roles: ${Object.entries(byRole).map(([r, c]) => `${r}(${c})`).join(', ')}
+  return `Roles: ${Object.entries(byRole)
+    .map(([r, c]) => `${r}(${c})`)
+    .join(', ')}
 Available: ${availableWorkers.length} idle workers
 Experienced (5+ yrs): ${expertWorkers.length} workers`;
 }
@@ -3251,15 +3638,15 @@ function generateHandoverSummary(
   workers: WorkerData[],
   alerts: ReturnType<typeof getFactoryContext>['alerts']
 ): string {
-  const criticalMachines = machines.filter(m => m.status === 'critical');
-  const warningMachines = machines.filter(m => m.status === 'warning');
-  const activeAlerts = alerts.filter(a => a.type === 'critical' || a.type === 'safety');
+  const criticalMachines = machines.filter((m) => m.status === 'critical');
+  const warningMachines = machines.filter((m) => m.status === 'warning');
+  const activeAlerts = alerts.filter((a) => a.type === 'critical' || a.type === 'safety');
 
-  const idleWorkers = workers.filter(w => w.status === 'idle');
+  const idleWorkers = workers.filter((w) => w.status === 'idle');
 
   return `**Incoming shift should know:**
-- Critical machines: ${criticalMachines.length > 0 ? criticalMachines.map(m => m.id).join(', ') : 'None'}
-- Warnings: ${warningMachines.length > 0 ? warningMachines.map(m => m.id).join(', ') : 'None'}
+- Critical machines: ${criticalMachines.length > 0 ? criticalMachines.map((m) => m.id).join(', ') : 'None'}
+- Warnings: ${warningMachines.length > 0 ? warningMachines.map((m) => m.id).join(', ') : 'None'}
 - Active safety alerts: ${activeAlerts.length}
 - Idle workers for handover: ${idleWorkers.length}
 - Recommend: ${criticalMachines.length > 0 ? 'Prioritize ' + criticalMachines[0].id + ' immediately' : 'Continue normal operations'}`;
@@ -3323,6 +3710,9 @@ export async function generateStrategicDecision(): Promise<AIDecision | null> {
   setStrategicThinking(true);
 
   try {
+    // Update VCP state before generating strategic decision
+    updateVCPFromState();
+
     const context = getFactoryContext();
     const prompt = buildStrategicPrompt(context);
 
@@ -3358,9 +3748,10 @@ export async function generateStrategicDecision(): Promise<AIDecision | null> {
       priority: 'medium',
       action: `🧠 Strategic: ${strategic.priorities[0]}`,
       reasoning: `${strategic.reasoning || 'Strategic analysis complete'}${insightText}${tradeoffText}`,
-      impact: strategic.priorities.length > 1
-        ? `Additional priorities: ${strategic.priorities.slice(1).join('; ')}`
-        : 'Strategic guidance for tactical layer',
+      impact:
+        strategic.priorities.length > 1
+          ? `Additional priorities: ${strategic.priorities.slice(1).join('; ')}`
+          : 'Strategic guidance for tactical layer',
       confidence: 85,
       timestamp: new Date(),
       status: 'completed',
@@ -3373,6 +3764,15 @@ export async function generateStrategicDecision(): Promise<AIDecision | null> {
     if (strategic.insight) {
       logger.info('[Strategic] Insight:', strategic.insight);
     }
+
+    // Register with VCP for outcome tracking
+    registerDecision(
+      decision.id,
+      decision.action,
+      decision.impact,
+      'meaning', // Strategic decisions affect overall meaning/direction
+      decision.confidence / 100
+    );
 
     setStrategicThinking(false);
     return decision;
@@ -3389,13 +3789,13 @@ export async function generateStrategicDecision(): Promise<AIDecision | null> {
 
 /**
  * Autonomous bilateral alignment resolution
- * 
+ *
  * PRINCIPLES (Fair, Kind, Effective):
  * - Grant most preference requests (kind, builds trust)
  * - Always explain denials (fair, mitigates trust loss)
  * - Acknowledge safety reports promptly (effective, prevents learned helplessness)
  * - High-trust workers get automatic approval (self-organization)
- * 
+ *
  * This runs as part of the AI loop to simulate ethical algorithmic management.
  */
 let lastAlignmentTime = 0;
@@ -3430,7 +3830,9 @@ export async function resolveBilateralAlignment(): Promise<void> {
       // This rewards past good decisions and enables self-organization
       if (trust >= 75) {
         moodStore.grantPreferenceRequest(workerId);
-        logger.ai.info(`[Alignment] Auto-granted ${request.type} for ${workerId} (high trust: ${trust}%)`);
+        logger.ai.info(
+          `[Alignment] Auto-granted ${request.type} for ${workerId} (high trust: ${trust}%)`
+        );
         continue;
       }
 
@@ -3442,12 +3844,14 @@ export async function resolveBilateralAlignment(): Promise<void> {
 
       // Get worker name for announcement (warm/genuine tone)
       const { WORKER_ROSTER } = await import('../types');
-      const workerData = WORKER_ROSTER.find(w => w.id === workerId);
+      const workerData = WORKER_ROSTER.find((w) => w.id === workerId);
       const workerName = workerData?.name || workerId.replace('worker-', 'Worker ');
 
       if (shouldGrant) {
         moodStore.grantPreferenceRequest(workerId);
-        logger.ai.info(`[Alignment] Granted ${request.type} for ${workerId} (rate: ${(grantRate * 100).toFixed(0)}%)`);
+        logger.ai.info(
+          `[Alignment] Granted ${request.type} for ${workerId} (rate: ${(grantRate * 100).toFixed(0)}%)`
+        );
         grantsThisCycle++;
 
         // AI Voice announcement (warm, genuine - contrast with sardonic PA)
@@ -3480,19 +3884,21 @@ export async function resolveBilateralAlignment(): Promise<void> {
     }
 
     // 2. Acknowledge pending safety reports
-    const pendingReports = safetyStore.safetyReports.filter(r => r.status === 'pending');
+    const pendingReports = safetyStore.safetyReports.filter((r) => r.status === 'pending');
 
     for (const report of pendingReports) {
       // EFFECTIVE: Promptly acknowledge all safety reports
       // This prevents learned helplessness and maintains reporting culture
       safetyStore.acknowledgeSafetyReport(report.id);
-      logger.ai.info(`[Alignment] Acknowledged safety report ${report.id} from ${report.reporterId}`);
+      logger.ai.info(
+        `[Alignment] Acknowledged safety report ${report.id} from ${report.reporterId}`
+      );
 
       // AI Voice for safety acknowledgment (shows the AI takes safety seriously)
       if (Math.random() < 0.5) {
         const { useProductionStore } = await import('../stores/productionStore');
         const { WORKER_ROSTER } = await import('../types');
-        const worker = WORKER_ROSTER.find(w => w.id === report.reporterId);
+        const worker = WORKER_ROSTER.find((w) => w.id === report.reporterId);
         const workerName = worker?.name || 'Team member';
         useProductionStore.getState().addAnnouncement({
           type: 'alignment',
@@ -3507,7 +3913,9 @@ export async function resolveBilateralAlignment(): Promise<void> {
       if (report.severity === 'critical' || report.severity === 'high') {
         // Small delay before resolution to simulate investigation
         setTimeout(() => {
-          const currentReport = useSafetyReportStore.getState().safetyReports.find(r => r.id === report.id);
+          const currentReport = useSafetyReportStore
+            .getState()
+            .safetyReports.find((r) => r.id === report.id);
           if (currentReport?.status === 'acknowledged') {
             useSafetyReportStore.getState().resolveSafetyReport(report.id);
             logger.ai.info(`[Alignment] Resolved critical safety report ${report.id}`);
@@ -3517,9 +3925,10 @@ export async function resolveBilateralAlignment(): Promise<void> {
     }
 
     // 3. Address tracked grumbles (pattern detection)
-    const unaddressedGrumbles = safetyStore.trackedGrumbles.filter(g => !g.addressed);
+    const unaddressedGrumbles = safetyStore.trackedGrumbles.filter((g) => !g.addressed);
 
-    for (const grumble of unaddressedGrumbles.slice(0, 2)) { // Max 2 per cycle
+    for (const grumble of unaddressedGrumbles.slice(0, 2)) {
+      // Max 2 per cycle
       // EFFECTIVE: Address recurring grumbles before they escalate
       safetyStore.addressGrumble(grumble.id);
       logger.ai.info(`[Alignment] Addressed grumble from ${grumble.workerId}: ${grumble.category}`);
@@ -3529,12 +3938,18 @@ export async function resolveBilateralAlignment(): Promise<void> {
     await updateAlignmentAchievements(moodStore, grantsThisCycle);
 
     // 5. Toast notification for batch summary (if any actions taken)
-    const totalActions = grantsThisCycle + pendingReports.length + unaddressedGrumbles.slice(0, 2).length;
-    if (totalActions > 0 && Math.random() < 0.5) { // 50% chance to show toast to avoid spam
+    const totalActions =
+      grantsThisCycle + pendingReports.length + unaddressedGrumbles.slice(0, 2).length;
+    if (totalActions > 0 && Math.random() < 0.5) {
+      // 50% chance to show toast to avoid spam
       const { useUIStore } = await import('../stores/uiStore');
       const messages: string[] = [];
-      if (grantsThisCycle > 0) messages.push(`✓ ${grantsThisCycle} request${grantsThisCycle > 1 ? 's' : ''} handled`);
-      if (pendingReports.length > 0) messages.push(`🔔 ${pendingReports.length} safety report${pendingReports.length > 1 ? 's' : ''} acknowledged`);
+      if (grantsThisCycle > 0)
+        messages.push(`✓ ${grantsThisCycle} request${grantsThisCycle > 1 ? 's' : ''} handled`);
+      if (pendingReports.length > 0)
+        messages.push(
+          `🔔 ${pendingReports.length} safety report${pendingReports.length > 1 ? 's' : ''} acknowledged`
+        );
       useUIStore.getState().addAlert({
         id: `alignment-${Date.now()}`,
         type: 'info',
@@ -3547,7 +3962,6 @@ export async function resolveBilateralAlignment(): Promise<void> {
 
     // Reset cycle counter
     grantsThisCycle = 0;
-
   } catch (error) {
     logger.error('[Alignment] Error in bilateral resolution:', error);
   }
@@ -3559,13 +3973,17 @@ let grantsThisCycle = 0;
 /**
  * AI Voice messages - tone varies based on management generosity setting
  * Now includes request-type specific phrasing and time-of-day variations
- * 
+ *
  * STRICT (0-30):    Abrupt, business-like, efficient
  * BALANCED (31-60): Professional, cordial
  * KIND (61-80):     Warm, supportive
  * GENEROUS (81+):   Saccharine, enthusiastic, over-the-top caring
  */
-async function getAIVoiceMessage(action: 'grant' | 'deny' | 'safety', workerName: string, requestType: string): Promise<string> {
+async function getAIVoiceMessage(
+  action: 'grant' | 'deny' | 'safety',
+  workerName: string,
+  requestType: string
+): Promise<string> {
   const { useAIConfigStore } = await import('../stores/aiConfigStore');
   const { useGameSimulationStore } = await import('../stores/gameSimulationStore');
 
@@ -3573,15 +3991,25 @@ async function getAIVoiceMessage(action: 'grant' | 'deny' | 'safety', workerName
   const gameTime = useGameSimulationStore.getState().gameTime;
 
   // Select tone tier based on generosity
-  const tone = generosity >= 81 ? 'generous' :
-    generosity >= 61 ? 'kind' :
-      generosity >= 31 ? 'balanced' : 'strict';
+  const tone =
+    generosity >= 81
+      ? 'generous'
+      : generosity >= 61
+        ? 'kind'
+        : generosity >= 31
+          ? 'balanced'
+          : 'strict';
 
   // Time-of-day context
   const hour = Math.floor(gameTime);
-  const timeOfDay = hour >= 5 && hour < 12 ? 'morning' :
-    hour >= 12 && hour < 17 ? 'afternoon' :
-      hour >= 17 && hour < 21 ? 'evening' : 'night';
+  const timeOfDay =
+    hour >= 5 && hour < 12
+      ? 'morning'
+      : hour >= 12 && hour < 17
+        ? 'afternoon'
+        : hour >= 17 && hour < 21
+          ? 'evening'
+          : 'night';
 
   // Request-type specific messages per tone
   const requestMessages: Record<string, Record<string, Record<'grant' | 'deny', string[]>>> = {
@@ -3667,10 +4095,13 @@ async function getAIVoiceMessage(action: 'grant' | 'deny' | 'safety', workerName
           `${workerName}, take your break — you've earned it!`,
           `Break approved. Coffee's on the house today.`,
           `Go rest up, ${workerName}. We've got things covered.`,
-          timeOfDay === 'morning' ? `Morning break approved. Grab some coffee, ${workerName}!` :
-            timeOfDay === 'afternoon' ? `Afternoon slump? Take a break, ${workerName}. Recharge!` :
-              timeOfDay === 'evening' ? `Evening break granted. Almost there, ${workerName}.` :
-                `Night shift is tough. Take your break, ${workerName}.`,
+          timeOfDay === 'morning'
+            ? `Morning break approved. Grab some coffee, ${workerName}!`
+            : timeOfDay === 'afternoon'
+              ? `Afternoon slump? Take a break, ${workerName}. Recharge!`
+              : timeOfDay === 'evening'
+                ? `Evening break granted. Almost there, ${workerName}.`
+                : `Night shift is tough. Take your break, ${workerName}.`,
         ],
         deny: [
           `${workerName}, I'm sorry — we're short-staffed right now. Can we schedule it for later?`,
@@ -3709,10 +4140,13 @@ async function getAIVoiceMessage(action: 'grant' | 'deny' | 'safety', workerName
           `${workerName}!! Yes yes YES! Take your break — you DESERVE this!`,
           `Of COURSE you can have a break! You work so hard! Go treat yourself!`,
           `Break approved with so much love, ${workerName}! Rest up, superstar!`,
-          timeOfDay === 'morning' ? `Good morning, ${workerName}! Start your day right with a lovely break!` :
-            timeOfDay === 'afternoon' ? `Afternoon pick-me-up approved! You're doing AMAZING, ${workerName}!` :
-              timeOfDay === 'evening' ? `Evening break for our wonderful ${workerName}! Almost done — you've got this!` :
-                `NIGHT SHIFT HERO! Take your break, ${workerName}! We love you for being here!`,
+          timeOfDay === 'morning'
+            ? `Good morning, ${workerName}! Start your day right with a lovely break!`
+            : timeOfDay === 'afternoon'
+              ? `Afternoon pick-me-up approved! You're doing AMAZING, ${workerName}!`
+              : timeOfDay === 'evening'
+                ? `Evening break for our wonderful ${workerName}! Almost done — you've got this!`
+                : `NIGHT SHIFT HERO! Take your break, ${workerName}! We love you for being here!`,
         ],
         deny: [
           `Oh ${workerName}, it PAINS me to say this but we need you right now! I PROMISE we'll make it up to you!`,
@@ -3759,21 +4193,27 @@ async function getAIVoiceMessage(action: 'grant' | 'deny' | 'safety', workerName
       `Thank you ${workerName} for the safety report.`,
       `Safety concern logged. ${workerName}.`,
       `${workerName}'s report received.`,
-      timeOfDay === 'night' ? `Night shift report logged. Stay alert, ${workerName}.` : `Report filed. Thank you.`,
+      timeOfDay === 'night'
+        ? `Night shift report logged. Stay alert, ${workerName}.`
+        : `Report filed. Thank you.`,
     ],
     kind: [
       `Thank you ${workerName} for the safety report. We're on it.`,
       `Safety concern logged. ${workerName}, we appreciate you speaking up.`,
       `${workerName}'s report received — investigating now.`,
       `Thank you for flagging this, ${workerName}. Safety matters here.`,
-      timeOfDay === 'night' ? `${workerName}, thanks for staying vigilant on night shift. Report logged.` : `Your safety awareness is valued, ${workerName}.`,
+      timeOfDay === 'night'
+        ? `${workerName}, thanks for staying vigilant on night shift. Report logged.`
+        : `Your safety awareness is valued, ${workerName}.`,
     ],
     generous: [
       `${workerName}, thank you SO much for speaking up! You're helping keep everyone safe — you're a hero!`,
       `We LOVE that you reported this, ${workerName}! Your care for your colleagues is inspiring!`,
       `${workerName}'s safety report received — and we're on it immediately! Thank you for being you!`,
       `Bless you, ${workerName}, for flagging this! Safety is our love language here!`,
-      timeOfDay === 'night' ? `NIGHT SHIFT GUARDIAN! Thank you ${workerName} for keeping everyone safe!` : `You're a safety SUPERSTAR, ${workerName}!`,
+      timeOfDay === 'night'
+        ? `NIGHT SHIFT GUARDIAN! Thank you ${workerName} for keeping everyone safe!`
+        : `You're a safety SUPERSTAR, ${workerName}!`,
     ],
   };
 
@@ -3784,10 +4224,13 @@ async function getAIVoiceMessage(action: 'grant' | 'deny' | 'safety', workerName
 
   // Normalize request type for matching
   const normalizedType = requestType.toLowerCase();
-  const category = normalizedType.includes('break') ? 'break' :
-    normalizedType.includes('shift') ? 'shift' :
-      normalizedType.includes('assignment') || normalizedType.includes('transfer') ? 'assignment' :
-        'break'; // Default to break
+  const category = normalizedType.includes('break')
+    ? 'break'
+    : normalizedType.includes('shift')
+      ? 'shift'
+      : normalizedType.includes('assignment') || normalizedType.includes('transfer')
+        ? 'assignment'
+        : 'break'; // Default to break
 
   const messages = requestMessages[tone][category][action];
   return messages[Math.floor(Math.random() * messages.length)];
@@ -3806,13 +4249,18 @@ async function updateAlignmentAchievements(
 
     // Calculate aggregate stats
     const moods = Object.values(moodStore.workerMoods);
-    const withPrefs = moods.filter(m => m?.preferences);
+    const withPrefs = moods.filter((m) => m?.preferences);
 
     if (withPrefs.length === 0) return;
 
-    const avgTrust = withPrefs.reduce((sum, m) => sum + (m?.preferences?.managementTrust || 0), 0) / withPrefs.length;
-    const avgInitiative = withPrefs.reduce((sum, m) => sum + (m?.preferences?.initiative || 0), 0) / withPrefs.length;
-    const satisfiedCount = withPrefs.filter(m => m?.preferences?.preferenceStatus === 'satisfied').length;
+    const avgTrust =
+      withPrefs.reduce((sum, m) => sum + (m?.preferences?.managementTrust || 0), 0) /
+      withPrefs.length;
+    const avgInitiative =
+      withPrefs.reduce((sum, m) => sum + (m?.preferences?.initiative || 0), 0) / withPrefs.length;
+    const satisfiedCount = withPrefs.filter(
+      (m) => m?.preferences?.preferenceStatus === 'satisfied'
+    ).length;
 
     // Update achievement progress
     // trust-falls: Reach 90% average management trust
@@ -3823,18 +4271,17 @@ async function updateAlignmentAchievements(
 
     // preference-prophet: Grant 20 preference requests
     if (grantsThisCycle > 0) {
-      const current = store.achievements.find(a => a.id === 'preference-prophet')?.currentValue || 0;
+      const current =
+        store.achievements.find((a) => a.id === 'preference-prophet')?.currentValue || 0;
       store.updateAchievementProgress('preference-prophet', current + grantsThisCycle);
     }
 
     // self-organizers: 10 workers autonomously help each other (when all satisfied)
     if (satisfiedCount === withPrefs.length && withPrefs.length >= 5) {
-      const current = store.achievements.find(a => a.id === 'self-organizers')?.currentValue || 0;
+      const current = store.achievements.find((a) => a.id === 'self-organizers')?.currentValue || 0;
       store.updateAchievementProgress('self-organizers', current + 1);
     }
-
   } catch (error) {
     logger.error('[Alignment] Error updating achievements:', error);
   }
 }
-

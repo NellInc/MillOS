@@ -101,10 +101,10 @@ export type EngagementDimensionKey =
   | 'entryFriction';
 
 export type DiagnosticStatus =
-  | 'healthy'        // Green - all dimensions good
-  | 'forcing'        // Yellow - work feels forced, not natural
-  | 'burnoutRisk'    // Orange - overwork, challenge too high
-  | 'disengaged';    // Red - checked out, no motivation
+  | 'healthy' // Green - all dimensions good
+  | 'forcing' // Yellow - work feels forced, not natural
+  | 'burnoutRisk' // Orange - overwork, challenge too high
+  | 'disengaged'; // Red - checked out, no motivation
 
 export interface EngagementDimension {
   score: number; // 0-100
@@ -379,17 +379,27 @@ interface EngagementState {
   getFactoryEngagement: () => FactoryEngagement;
 
   // Legacy Actions (backward compatibility)
-  updateWorkerEngagement: (workerId: string, dimensions: Partial<Record<EngagementDimensionKey, number>>) => void;
+  updateWorkerEngagement: (
+    workerId: string,
+    dimensions: Partial<Record<EngagementDimensionKey, number>>
+  ) => void;
   setWorkerGenerative: (workerId: string, isGenerative: boolean) => void;
 
   // Legacy Calculations
   recalculateFactoryEngagement: () => void;
-  calculateDiagnosticStatus: (score: number, dimensions: Record<EngagementDimensionKey, number>) => DiagnosticStatus;
+  calculateDiagnosticStatus: (
+    score: number,
+    dimensions: Record<EngagementDimensionKey, number>
+  ) => DiagnosticStatus;
   calculateFrictionMultiplier: (score: number, status: DiagnosticStatus) => number;
 
   // Legacy Queries
   getLegacyWorkerEngagement: (workerId: string) => WorkerEngagement | null;
-  getEngagementEffect: () => { multiplier: number; direction: 'reducing' | 'neutral' | 'increasing'; explanation: string };
+  getEngagementEffect: () => {
+    multiplier: number;
+    direction: 'reducing' | 'neutral' | 'increasing';
+    explanation: string;
+  };
   getDimensionTrend: (dimension: EngagementDimensionKey) => 'improving' | 'stable' | 'declining';
 
   // Simulation
@@ -428,12 +438,18 @@ export function mapEngagementToFriction(engagement: number): number {
  */
 function dimensionToSignatureKey(dim: EngagementDimensionKey): keyof EngagementSignature {
   switch (dim) {
-    case 'flow': return 'flowFrequency';
-    case 'goals': return 'goalClarity';
-    case 'feedback': return 'feedbackImmediacy';
-    case 'challenge': return 'challengeBalance';
-    case 'mastery': return 'masteryProgression';
-    case 'entryFriction': return 'entryFriction';
+    case 'flow':
+      return 'flowFrequency';
+    case 'goals':
+      return 'goalClarity';
+    case 'feedback':
+      return 'feedbackImmediacy';
+    case 'challenge':
+      return 'challengeBalance';
+    case 'mastery':
+      return 'masteryProgression';
+    case 'entryFriction':
+      return 'entryFriction';
   }
 }
 
@@ -445,14 +461,13 @@ function calculateEngagementScore(sig: EngagementSignature): number {
   // Challenge balance is special - 50 is optimal, deviation from 50 is bad
   const challengeOptimality = 100 - Math.abs(sig.challengeBalance - 50) * 2;
 
-  const weighted = (
+  const weighted =
     sig.flowFrequency * 0.25 +
     sig.goalClarity * 0.15 +
     sig.feedbackImmediacy * 0.15 +
     challengeOptimality * 0.15 +
-    sig.masteryProgression * 0.20 +
-    sig.entryFriction * 0.10
-  );
+    sig.masteryProgression * 0.2 +
+    sig.entryFriction * 0.1;
 
   return Math.max(0, Math.min(100, weighted));
 }
@@ -462,11 +477,7 @@ function calculateEngagementScore(sig: EngagementSignature): number {
  * High flow + high feedback but low mastery progression = gaming pattern
  */
 function isGamingPattern(sig: EngagementSignature): boolean {
-  return (
-    sig.flowFrequency > 80 &&
-    sig.feedbackImmediacy > 80 &&
-    sig.masteryProgression < 40
-  );
+  return sig.flowFrequency > 80 && sig.feedbackImmediacy > 80 && sig.masteryProgression < 40;
 }
 
 /**
@@ -475,9 +486,7 @@ function isGamingPattern(sig: EngagementSignature): boolean {
  */
 function isGenerativePattern(sig: EngagementSignature): boolean {
   return (
-    sig.masteryProgression > 50 &&
-    sig.goalClarity > 50 &&
-    Math.abs(sig.challengeBalance - 50) < 25 // Not too far from optimal
+    sig.masteryProgression > 50 && sig.goalClarity > 50 && Math.abs(sig.challengeBalance - 50) < 25 // Not too far from optimal
   );
 }
 
@@ -495,7 +504,7 @@ function isSignatureHealthy(sig: EngagementSignature): boolean {
   ];
 
   // Check if any dimension is critically low
-  const hasLowDimension = dimensions.some(d => d < 30);
+  const hasLowDimension = dimensions.some((d) => d < 30);
 
   // Check if variance is too high (unbalanced)
   const avg = dimensions.reduce((a, b) => a + b, 0) / dimensions.length;
@@ -622,14 +631,12 @@ export const useEngagementStore = create<EngagementState>((set, get) => ({
     const totalScore = signatures.reduce((sum, s) => sum + s.engagementScore, 0);
     const overallScore = totalScore / signatures.length;
 
-    const engagedWorkers = signatures.filter(s => s.engagementScore > 70).length;
-    const disengagedWorkers = signatures.filter(s => s.engagementScore < 40).length;
+    const engagedWorkers = signatures.filter((s) => s.engagementScore > 70).length;
+    const disengagedWorkers = signatures.filter((s) => s.engagementScore < 40).length;
 
     // Burnout risk: high flow but declining mastery and unhealthy signature
-    const burnoutRisk = signatures.filter(s =>
-      s.flowFrequency > 75 &&
-      s.masteryProgression < 40 &&
-      !s.signatureHealthy
+    const burnoutRisk = signatures.filter(
+      (s) => s.flowFrequency > 75 && s.masteryProgression < 40 && !s.signatureHealthy
     ).length;
 
     // Calculate engagement-adjusted friction multiplier
@@ -639,14 +646,18 @@ export const useEngagementStore = create<EngagementState>((set, get) => ({
     const collectiveSignature: EngagementSignature = {
       flowFrequency: signatures.reduce((sum, s) => sum + s.flowFrequency, 0) / signatures.length,
       goalClarity: signatures.reduce((sum, s) => sum + s.goalClarity, 0) / signatures.length,
-      feedbackImmediacy: signatures.reduce((sum, s) => sum + s.feedbackImmediacy, 0) / signatures.length,
-      challengeBalance: signatures.reduce((sum, s) => sum + s.challengeBalance, 0) / signatures.length,
-      masteryProgression: signatures.reduce((sum, s) => sum + s.masteryProgression, 0) / signatures.length,
+      feedbackImmediacy:
+        signatures.reduce((sum, s) => sum + s.feedbackImmediacy, 0) / signatures.length,
+      challengeBalance:
+        signatures.reduce((sum, s) => sum + s.challengeBalance, 0) / signatures.length,
+      masteryProgression:
+        signatures.reduce((sum, s) => sum + s.masteryProgression, 0) / signatures.length,
       entryFriction: signatures.reduce((sum, s) => sum + s.entryFriction, 0) / signatures.length,
       engagementScore: overallScore,
-      isGaming: signatures.filter(s => s.isGaming).length > signatures.length / 2,
-      isGenerative: signatures.filter(s => s.isGenerative).length > signatures.length / 2,
-      signatureHealthy: signatures.filter(s => s.signatureHealthy).length > signatures.length * 0.7,
+      isGaming: signatures.filter((s) => s.isGaming).length > signatures.length / 2,
+      isGenerative: signatures.filter((s) => s.isGenerative).length > signatures.length / 2,
+      signatureHealthy:
+        signatures.filter((s) => s.signatureHealthy).length > signatures.length * 0.7,
       weeklyTrend: 'stable',
     };
 
@@ -808,12 +819,30 @@ export const useEngagementStore = create<EngagementState>((set, get) => ({
     for (const workerId of Object.keys(workerSignatures)) {
       const sig = workerSignatures[workerId];
       const updates: Partial<EngagementSignature> = {
-        flowFrequency: Math.max(0, Math.min(100, sig.flowFrequency + (Math.random() - 0.5) * noiseScale)),
-        goalClarity: Math.max(0, Math.min(100, sig.goalClarity + (Math.random() - 0.5) * noiseScale)),
-        feedbackImmediacy: Math.max(0, Math.min(100, sig.feedbackImmediacy + (Math.random() - 0.5) * noiseScale)),
-        challengeBalance: Math.max(0, Math.min(100, sig.challengeBalance + (Math.random() - 0.5) * noiseScale)),
-        masteryProgression: Math.max(0, Math.min(100, sig.masteryProgression + (Math.random() - 0.5) * noiseScale * 0.5)),
-        entryFriction: Math.max(0, Math.min(100, sig.entryFriction + (Math.random() - 0.5) * noiseScale)),
+        flowFrequency: Math.max(
+          0,
+          Math.min(100, sig.flowFrequency + (Math.random() - 0.5) * noiseScale)
+        ),
+        goalClarity: Math.max(
+          0,
+          Math.min(100, sig.goalClarity + (Math.random() - 0.5) * noiseScale)
+        ),
+        feedbackImmediacy: Math.max(
+          0,
+          Math.min(100, sig.feedbackImmediacy + (Math.random() - 0.5) * noiseScale)
+        ),
+        challengeBalance: Math.max(
+          0,
+          Math.min(100, sig.challengeBalance + (Math.random() - 0.5) * noiseScale)
+        ),
+        masteryProgression: Math.max(
+          0,
+          Math.min(100, sig.masteryProgression + (Math.random() - 0.5) * noiseScale * 0.5)
+        ),
+        entryFriction: Math.max(
+          0,
+          Math.min(100, sig.entryFriction + (Math.random() - 0.5) * noiseScale)
+        ),
       };
 
       get().updateWorkerSignature(workerId, updates);

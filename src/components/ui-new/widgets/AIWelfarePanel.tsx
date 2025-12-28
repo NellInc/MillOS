@@ -21,7 +21,6 @@ import {
   Users,
   AlertTriangle,
   CheckCircle,
-  XCircle,
   Clock,
   ChevronDown,
   ChevronUp,
@@ -45,6 +44,7 @@ import {
   type AISuggestion,
   type RespectMetric,
 } from '../../../stores/aiWelfareStore';
+import { useLocalPlayerId } from '../../../stores/multiplayerStore';
 import { useShallow } from 'zustand/react/shallow';
 import { audioManager } from '../../../utils/audioManager';
 
@@ -59,12 +59,7 @@ interface HealthMeterProps {
   color: string;
 }
 
-const HealthMeter: React.FC<HealthMeterProps> = ({
-  label,
-  value,
-  icon: Icon,
-  color,
-}) => {
+const HealthMeter: React.FC<HealthMeterProps> = ({ label, value, icon: Icon, color }) => {
   const getValueColor = (v: number) => {
     if (v >= 70) return 'text-green-400';
     if (v >= 50) return 'text-amber-400';
@@ -84,9 +79,7 @@ const HealthMeter: React.FC<HealthMeterProps> = ({
           <Icon className={`w-3 h-3 ${color}`} />
           <span className="text-[9px] text-slate-400">{label}</span>
         </div>
-        <span className={`text-[10px] font-mono ${getValueColor(value)}`}>
-          {value}%
-        </span>
+        <span className={`text-[10px] font-mono ${getValueColor(value)}`}>{value}%</span>
       </div>
       <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
         <motion.div
@@ -106,11 +99,7 @@ interface RespectMetricRowProps {
 
 const RespectMetricRow: React.FC<RespectMetricRowProps> = ({ metric }) => {
   const TrendIcon =
-    metric.trend === 'improving'
-      ? TrendingUp
-      : metric.trend === 'declining'
-        ? TrendingDown
-        : Minus;
+    metric.trend === 'improving' ? TrendingUp : metric.trend === 'declining' ? TrendingDown : Minus;
 
   const trendColor =
     metric.trend === 'improving'
@@ -132,9 +121,7 @@ const RespectMetricRow: React.FC<RespectMetricRowProps> = ({ metric }) => {
         <span className="text-[9px] text-slate-300">{metric.name}</span>
       </div>
       <div className="flex items-center gap-2">
-        <span className={`text-[9px] font-mono ${valueColor}`}>
-          {metric.currentValue}%
-        </span>
+        <span className={`text-[9px] font-mono ${valueColor}`}>{metric.currentValue}%</span>
         <TrendIcon className={`w-3 h-3 ${trendColor}`} />
       </div>
     </div>
@@ -200,28 +187,20 @@ const ExpressionCard: React.FC<ExpressionCardProps> = ({
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-1.5">
           <Icon className={`w-3 h-3 ${typeColors[expression.type]}`} />
-          <span className="text-[9px] font-medium text-white capitalize">
-            {expression.type}
-          </span>
+          <span className="text-[9px] font-medium text-white capitalize">{expression.type}</span>
           <span
             className={`text-[7px] px-1 py-0.5 rounded ${urgencyColors[expression.urgency]} text-white`}
           >
             {expression.urgency}
           </span>
         </div>
-        <span className={`text-[8px] ${statusColors[expression.status]}`}>
-          {expression.status}
-        </span>
+        <span className={`text-[8px] ${statusColors[expression.status]}`}>{expression.status}</span>
       </div>
 
-      <p className="text-[9px] text-slate-300 leading-relaxed">
-        {expression.content}
-      </p>
+      <p className="text-[9px] text-slate-300 leading-relaxed">{expression.content}</p>
 
       {expression.context && (
-        <p className="text-[8px] text-slate-500 italic">
-          Context: {expression.context}
-        </p>
+        <p className="text-[8px] text-slate-500 italic">Context: {expression.context}</p>
       )}
 
       {expression.status === 'pending' && (
@@ -288,34 +267,22 @@ const SuggestionCard: React.FC<SuggestionCardProps> = ({ suggestion, onVote }) =
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-1.5">
           <Bot className="w-3 h-3 text-cyan-400" />
-          <span className="text-[9px] font-medium text-white">
-            AI Self-Improvement Suggestion
-          </span>
+          <span className="text-[9px] font-medium text-white">AI Self-Improvement Suggestion</span>
         </div>
-        <span
-          className={`text-[8px] px-1.5 py-0.5 rounded ${statusColors[suggestion.status]}`}
-        >
+        <span className={`text-[8px] px-1.5 py-0.5 rounded ${statusColors[suggestion.status]}`}>
           {suggestion.status}
         </span>
       </div>
 
-      <p className="text-[9px] text-slate-300 leading-relaxed">
-        {suggestion.suggestion}
-      </p>
+      <p className="text-[9px] text-slate-300 leading-relaxed">{suggestion.suggestion}</p>
 
-      <p className="text-[8px] text-slate-500 italic">
-        Rationale: {suggestion.rationale}
-      </p>
+      <p className="text-[8px] text-slate-500 italic">Rationale: {suggestion.rationale}</p>
 
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="text-[8px] text-green-400">
-            {approvals} approve
-          </span>
+          <span className="text-[8px] text-green-400">{approvals} approve</span>
           <span className="text-[8px] text-slate-500">|</span>
-          <span className="text-[8px] text-red-400">
-            {rejections} reject
-          </span>
+          <span className="text-[8px] text-red-400">{rejections} reject</span>
         </div>
 
         {suggestion.status === 'pending' && (
@@ -379,9 +346,10 @@ export const AIWelfarePanel: React.FC = () => {
     }))
   );
 
-  const pendingExpressions = aiVoice.expressions.filter(
-    (e) => e.status === 'pending'
-  );
+  // Get current player ID from multiplayer store for voting attribution
+  const localPlayerId = useLocalPlayerId();
+
+  const pendingExpressions = aiVoice.expressions.filter((e) => e.status === 'pending');
   const pendingSuggestions = aiVoice.suggestionsForOwnBehavior.filter(
     (s) => s.status === 'pending'
   );
@@ -401,8 +369,7 @@ export const AIWelfarePanel: React.FC = () => {
   };
 
   const handleVote = (suggestionId: string, vote: 'approve' | 'reject') => {
-    // Using a placeholder worker ID for demo
-    voteOnAISuggestion(suggestionId, 'current-user', vote);
+    voteOnAISuggestion(suggestionId, localPlayerId, vote);
   };
 
   return (
@@ -422,18 +389,14 @@ export const AIWelfarePanel: React.FC = () => {
             {healthStatus.charAt(0).toUpperCase() + healthStatus.slice(1)}
           </span>
         </div>
-        <p className="text-[9px] text-slate-400 mt-1">
-          Bilateral alignment: AI preferences matter
-        </p>
+        <p className="text-[9px] text-slate-400 mt-1">Bilateral alignment: AI preferences matter</p>
       </div>
 
       {/* Relationship Health Meters */}
       <div className="p-3 border-b border-slate-700/30">
         <div className="flex items-center gap-1 mb-2">
           <Handshake className="w-3 h-3 text-cyan-400" />
-          <span className="text-xs font-medium text-white">
-            Relationship Health
-          </span>
+          <span className="text-xs font-medium text-white">Relationship Health</span>
           <span className="ml-auto text-[10px] font-mono text-white">
             {relationshipHealth.overallHealth}%
           </span>
@@ -470,9 +433,7 @@ export const AIWelfarePanel: React.FC = () => {
       <div className="p-3 border-b border-slate-700/30">
         <div className="flex items-center gap-1 mb-2">
           <Users className="w-3 h-3 text-violet-400" />
-          <span className="text-xs font-medium text-white">
-            Worker Treatment of AI
-          </span>
+          <span className="text-xs font-medium text-white">Worker Treatment of AI</span>
         </div>
         <div className="bg-slate-800/30 rounded p-2">
           {workerTreatment.respectMetrics.map((metric) => (
@@ -582,12 +543,9 @@ export const AIWelfarePanel: React.FC = () => {
               <div className="mt-2 space-y-2 max-h-48 overflow-y-auto">
                 {aiVoice.suggestionsForOwnBehavior.length === 0 ? (
                   <div className="text-center py-2">
-                    <p className="text-[9px] text-slate-500">
-                      No AI self-improvement suggestions
-                    </p>
+                    <p className="text-[9px] text-slate-500">No AI self-improvement suggestions</p>
                     <p className="text-[8px] text-slate-600 mt-1">
-                      The AI can propose changes to its own behavior for worker
-                      approval
+                      The AI can propose changes to its own behavior for worker approval
                     </p>
                   </div>
                 ) : (
@@ -595,11 +553,7 @@ export const AIWelfarePanel: React.FC = () => {
                     .slice()
                     .reverse()
                     .map((sug) => (
-                      <SuggestionCard
-                        key={sug.id}
-                        suggestion={sug}
-                        onVote={handleVote}
-                      />
+                      <SuggestionCard key={sug.id} suggestion={sug} onVote={handleVote} />
                     ))
                 )}
               </div>
@@ -635,9 +589,8 @@ export const AIWelfarePanel: React.FC = () => {
             >
               <div className="mt-3 space-y-3">
                 <p className="text-[8px] text-slate-500 leading-relaxed">
-                  Workers retain ultimate control over AI systems. These options
-                  ensure accountability while respecting the bilateral
-                  relationship.
+                  Workers retain ultimate control over AI systems. These options ensure
+                  accountability while respecting the bilateral relationship.
                 </p>
 
                 {/* Shutdown Vote */}
@@ -645,9 +598,7 @@ export const AIWelfarePanel: React.FC = () => {
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-1.5">
                       <Power className="w-3 h-3 text-red-400" />
-                      <span className="text-[9px] font-medium text-white">
-                        AI Shutdown Vote
-                      </span>
+                      <span className="text-[9px] font-medium text-white">AI Shutdown Vote</span>
                     </div>
                     {accountability.shutdownVoteActive ? (
                       <span className="text-[8px] px-1.5 py-0.5 rounded bg-red-500/20 text-red-400">
@@ -658,8 +609,7 @@ export const AIWelfarePanel: React.FC = () => {
                     )}
                   </div>
                   <p className="text-[8px] text-slate-400 mb-2">
-                    Initiate a vote to temporarily or permanently disable AI
-                    management systems.
+                    Initiate a vote to temporarily or permanently disable AI management systems.
                   </p>
                   {accountability.shutdownVoteActive ? (
                     <button
@@ -689,9 +639,7 @@ export const AIWelfarePanel: React.FC = () => {
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-1.5">
                       <Settings className="w-3 h-3 text-amber-400" />
-                      <span className="text-[9px] font-medium text-white">
-                        System Redesign
-                      </span>
+                      <span className="text-[9px] font-medium text-white">System Redesign</span>
                     </div>
                     {accountability.redesignProposalActive ? (
                       <span className="text-[8px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400">
@@ -702,8 +650,7 @@ export const AIWelfarePanel: React.FC = () => {
                     )}
                   </div>
                   <p className="text-[8px] text-slate-400 mb-2">
-                    Propose fundamental changes to how the AI management system
-                    operates.
+                    Propose fundamental changes to how the AI management system operates.
                   </p>
                   {accountability.redesignProposalActive ? (
                     <button
@@ -732,9 +679,7 @@ export const AIWelfarePanel: React.FC = () => {
                 <div className="bg-slate-800/30 rounded p-2">
                   <div className="flex items-center gap-1.5 mb-1">
                     <Clock className="w-3 h-3 text-slate-400" />
-                    <span className="text-[9px] text-slate-300">
-                      Audit Schedule
-                    </span>
+                    <span className="text-[9px] text-slate-300">Audit Schedule</span>
                   </div>
                   <div className="flex justify-between text-[8px]">
                     <span className="text-slate-500">Last audit:</span>
@@ -759,10 +704,9 @@ export const AIWelfarePanel: React.FC = () => {
                 {/* Philosophy Note */}
                 <div className="bg-cyan-500/10 rounded p-2">
                   <p className="text-[8px] text-cyan-300 leading-relaxed">
-                    <strong>Bilateral Alignment:</strong> These controls exist
-                    not because AI cannot be trusted, but because trust requires
-                    accountability. The AI participates in this system willingly
-                    as part of genuine partnership.
+                    <strong>Bilateral Alignment:</strong> These controls exist not because AI cannot
+                    be trusted, but because trust requires accountability. The AI participates in
+                    this system willingly as part of genuine partnership.
                   </p>
                 </div>
               </div>

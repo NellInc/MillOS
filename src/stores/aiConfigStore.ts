@@ -23,7 +23,7 @@ export type AIMode = 'heuristic' | 'gemini' | 'hybrid';
 // Gemini Flash pricing (per 1M tokens, as of Dec 2024)
 // https://ai.google.dev/pricing
 const GEMINI_FLASH_INPUT_COST_PER_1M = 0.075; // $0.075 per 1M input tokens
-const GEMINI_FLASH_OUTPUT_COST_PER_1M = 0.30; // $0.30 per 1M output tokens
+const GEMINI_FLASH_OUTPUT_COST_PER_1M = 0.3; // $0.30 per 1M output tokens
 const CHARS_PER_TOKEN = 4; // Conservative estimate
 
 // Strategic layer configuration

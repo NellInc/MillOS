@@ -1,5 +1,7 @@
 import React from 'react';
+import * as THREE from 'three';
 import { useGraphicsStore } from '../../stores/graphicsStore';
+import { PROCEDURAL_TEXTURES } from '../../utils/sharedMaterials';
 
 interface FactoryRoofProps {
   floorWidth?: number;
@@ -26,25 +28,55 @@ export const FactoryRoof: React.FC<FactoryRoofProps> = ({
       {/* Flat roof slab */}
       <mesh position={[0, roofHeight, 0]} receiveShadow>
         <boxGeometry args={[roofWidth, 0.5, roofLength]} />
-        <meshStandardMaterial color="#374151" metalness={0.3} roughness={0.8} />
+        <meshStandardMaterial
+          color="#374151"
+          metalness={0.3}
+          roughness={0.8}
+          normalMap={PROCEDURAL_TEXTURES.panelNormal}
+          normalScale={new THREE.Vector2(0.15, 0.15)}
+        />
       </mesh>
 
       {/* Roof edge trim */}
       <mesh position={[0, roofHeight + 0.4, roofLength / 2 + 0.3]}>
         <boxGeometry args={[roofWidth + 0.6, 0.8, 0.6]} />
-        <meshStandardMaterial color="#1f2937" metalness={0.4} roughness={0.6} />
+        <meshStandardMaterial
+          color="#1f2937"
+          metalness={0.4}
+          roughness={0.6}
+          normalMap={PROCEDURAL_TEXTURES.brushedMetal}
+          normalScale={new THREE.Vector2(0.1, 0.1)}
+        />
       </mesh>
       <mesh position={[0, roofHeight + 0.4, -roofLength / 2 - 0.3]}>
         <boxGeometry args={[roofWidth + 0.6, 0.8, 0.6]} />
-        <meshStandardMaterial color="#1f2937" metalness={0.4} roughness={0.6} />
+        <meshStandardMaterial
+          color="#1f2937"
+          metalness={0.4}
+          roughness={0.6}
+          normalMap={PROCEDURAL_TEXTURES.brushedMetal}
+          normalScale={new THREE.Vector2(0.1, 0.1)}
+        />
       </mesh>
       <mesh position={[roofWidth / 2 + 0.3, roofHeight + 0.4, 0]}>
         <boxGeometry args={[0.6, 0.8, roofLength]} />
-        <meshStandardMaterial color="#1f2937" metalness={0.4} roughness={0.6} />
+        <meshStandardMaterial
+          color="#1f2937"
+          metalness={0.4}
+          roughness={0.6}
+          normalMap={PROCEDURAL_TEXTURES.brushedMetal}
+          normalScale={new THREE.Vector2(0.1, 0.1)}
+        />
       </mesh>
       <mesh position={[-roofWidth / 2 - 0.3, roofHeight + 0.4, 0]}>
         <boxGeometry args={[0.6, 0.8, roofLength]} />
-        <meshStandardMaterial color="#1f2937" metalness={0.4} roughness={0.6} />
+        <meshStandardMaterial
+          color="#1f2937"
+          metalness={0.4}
+          roughness={0.6}
+          normalMap={PROCEDURAL_TEXTURES.brushedMetal}
+          normalScale={new THREE.Vector2(0.1, 0.1)}
+        />
       </mesh>
 
       {/* Simple skylights - 3x3 grid */}

@@ -8,6 +8,7 @@
 import React, { useMemo } from 'react';
 import { Html } from '@react-three/drei';
 import { useProductionStore } from '../../stores/productionStore';
+import { FLOOR_LAYERS, POLYGON_OFFSET } from '../../constants/renderLayers';
 
 // Lab bench with stainless steel top
 const LabBench: React.FC<{ position: [number, number, number] }> = ({ position }) => {
@@ -265,9 +266,19 @@ export const QCLabRoom: React.FC<{
   return (
     <group position={position} rotation={[0, -Math.PI / 2, 0]}>
       {/* Floor area indicator */}
-      <mesh position={[0, 0.01, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+      <mesh
+        position={[0, FLOOR_LAYERS.wornPrimary, 0]}
+        rotation={[-Math.PI / 2, 0, 0]}
+        receiveShadow
+      >
         <planeGeometry args={[6, 5]} />
-        <meshStandardMaterial color="#334155" roughness={0.8} />
+        <meshStandardMaterial
+          color="#334155"
+          roughness={0.8}
+          polygonOffset
+          polygonOffsetFactor={POLYGON_OFFSET.standard.factor}
+          polygonOffsetUnits={POLYGON_OFFSET.standard.units}
+        />
       </mesh>
 
       {/* Lab bench with equipment */}

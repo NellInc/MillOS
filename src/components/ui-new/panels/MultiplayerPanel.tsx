@@ -180,7 +180,10 @@ export const MultiplayerPanel: React.FC = () => {
         <div className="space-y-4">
           {/* Name input */}
           <div>
-            <label htmlFor="multiplayer-name" className="text-xs text-slate-400 uppercase tracking-wider mb-2 block">
+            <label
+              htmlFor="multiplayer-name"
+              className="text-xs text-slate-400 uppercase tracking-wider mb-2 block"
+            >
               Your Name
             </label>
             <input
@@ -218,7 +221,9 @@ export const MultiplayerPanel: React.FC = () => {
 
           {/* Join room */}
           <div className="flex gap-2">
-            <label htmlFor="room-code" className="sr-only">Room Code</label>
+            <label htmlFor="room-code" className="sr-only">
+              Room Code
+            </label>
             <input
               id="room-code"
               type="text"
@@ -251,8 +256,15 @@ export const MultiplayerPanel: React.FC = () => {
 
       {/* Connecting state */}
       {connectionState === 'connecting' && (
-        <div className="bg-slate-800/50 rounded-lg p-6 text-center" role="status" aria-live="polite">
-          <Signal className="w-8 h-8 text-yellow-400 animate-pulse mx-auto mb-2" aria-hidden="true" />
+        <div
+          className="bg-slate-800/50 rounded-lg p-6 text-center"
+          role="status"
+          aria-live="polite"
+        >
+          <Signal
+            className="w-8 h-8 text-yellow-400 animate-pulse mx-auto mb-2"
+            aria-hidden="true"
+          />
           <div className="text-yellow-400 text-sm">Connecting...</div>
         </div>
       )}
@@ -360,7 +372,10 @@ export const MultiplayerPanel: React.FC = () => {
                 <MessageSquare className="w-4 h-4" aria-hidden="true" />
                 Chat
                 {unreadChatCount > 0 && !showChat && (
-                  <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full" aria-label={`${unreadChatCount} unread messages`}>
+                  <span
+                    className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full"
+                    aria-label={`${unreadChatCount} unread messages`}
+                  >
                     {unreadChatCount > 9 ? '9+' : unreadChatCount}
                   </span>
                 )}
@@ -375,7 +390,12 @@ export const MultiplayerPanel: React.FC = () => {
             {showChat && (
               <div id="multiplayer-chat-panel" className="border-t border-slate-700/50">
                 {/* Messages */}
-                <div className="h-48 overflow-y-auto p-3 space-y-2" role="log" aria-label="Chat messages" aria-live="polite">
+                <div
+                  className="h-48 overflow-y-auto p-3 space-y-2"
+                  role="log"
+                  aria-label="Chat messages"
+                  aria-live="polite"
+                >
                   {chatMessages.length === 0 ? (
                     <div className="text-center text-slate-500 text-xs py-6">
                       No messages yet. Say hello!
@@ -415,7 +435,9 @@ export const MultiplayerPanel: React.FC = () => {
                 {/* Input */}
                 <div className="p-2 border-t border-slate-700/50">
                   <div className="flex gap-2">
-                    <label htmlFor="chat-message" className="sr-only">Chat message</label>
+                    <label htmlFor="chat-message" className="sr-only">
+                      Chat message
+                    </label>
                     <input
                       id="chat-message"
                       type="text"

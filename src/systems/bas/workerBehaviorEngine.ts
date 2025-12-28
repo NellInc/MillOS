@@ -493,10 +493,7 @@ export function getSuggestionFraming(behavior: WorkerBehavior): {
  * @param baseMoodDelta - Base mood change from event
  * @returns Adjusted mood delta
  */
-export function calculateMoodImpact(
-  behavior: WorkerBehavior,
-  baseMoodDelta: number
-): number {
+export function calculateMoodImpact(behavior: WorkerBehavior, baseMoodDelta: number): number {
   return baseMoodDelta * behavior.moodEffectMultiplier;
 }
 

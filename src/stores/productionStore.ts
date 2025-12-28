@@ -56,60 +56,15 @@ export interface QCLabState {
 
 // Performance-optimized indices for O(1) lookups
 interface ProductionIndices {
-  // AI decision indices for fast lookup
-  aiDecisionsByMachine: Map<string, AIDecision[]>;
-  aiDecisionsByWorker: Map<string, AIDecision[]>;
   // Heat map indices for O(1) position lookup
   heatMapIndex: Map<string, { x: number; z: number; intensity: number }>;
-  // Entity indices for fast lookup
-  machinesById: Map<string, MachineData>;
-  workersById: Map<string, WorkerData>;
 }
 
 // Helper functions for index management
 function createEmptyProductionIndices(): ProductionIndices {
   return {
-    aiDecisionsByMachine: new Map(),
-    aiDecisionsByWorker: new Map(),
     heatMapIndex: new Map(),
-    machinesById: new Map(),
-    workersById: new Map(),
   };
-}
-
-function rebuildAIDecisionIndices(
-  decisions: AIDecision[]
-): Pick<ProductionIndices, 'aiDecisionsByMachine' | 'aiDecisionsByWorker'> {
-  const byMachine = new Map<string, AIDecision[]>();
-  const byWorker = new Map<string, AIDecision[]>();
-
-  decisions.forEach((decision) => {
-    const isActive = decision.status === 'pending' || decision.status === 'in_progress';
-    if (!isActive) return;
-
-    if (decision.machineId) {
-      const existing = byMachine.get(decision.machineId) || [];
-      byMachine.set(decision.machineId, [...existing, decision]);
-    }
-    if (decision.workerId) {
-      const existing = byWorker.get(decision.workerId) || [];
-      byWorker.set(decision.workerId, [...existing, decision]);
-    }
-  });
-
-  return { aiDecisionsByMachine: byMachine, aiDecisionsByWorker: byWorker };
-}
-
-function rebuildMachineIndex(machines: MachineData[]): Map<string, MachineData> {
-  const index = new Map<string, MachineData>();
-  machines.forEach((machine) => index.set(machine.id, machine));
-  return index;
-}
-
-function rebuildWorkerIndex(workers: WorkerData[]): Map<string, WorkerData> {
-  const index = new Map<string, WorkerData>();
-  workers.forEach((worker) => index.set(worker.id, worker));
-  return index;
 }
 
 function getGridKey(x: number, z: number, threshold: number): string {
@@ -148,34 +103,30 @@ interface ProductionStore {
     status: AIDecision['status'],
     outcome?: string
   ) => void;
-  getActiveDecisionsForMachine: (machineId: string) => AIDecision[];
-  getActiveDecisionsForWorker: (workerId: string) => AIDecision[];
 
   // Machine management
   setMachines: (machines: MachineData[]) => void;
   updateMachineMetrics: (machineId: string, metrics: Partial<MachineData['metrics']>) => void;
-  batchUpdateMachineMetrics: (updates: { machineId: string; metrics: Partial<MachineData['metrics']> }[]) => void;
-
-  // Memoized selector utilities for performance
-  getMachineById: (machineId: string) => MachineData | undefined;
-  getWorkerById: (workerId: string) => WorkerData | undefined;
+  batchUpdateMachineMetrics: (
+    updates: { machineId: string; metrics: Partial<MachineData['metrics']> }[]
+  ) => void;
 
   // Metrics - now computed from actual simulation state
   metrics: {
-    throughput: number;    // Bags per minute based on packer output
-    efficiency: number;    // Running machines / total machines * 100
-    uptime: number;        // Cumulative running time / elapsed time * 100
-    quality: number;       // Average QC test grade (A=100, B=85, C=70, FAIL=0)
+    throughput: number; // Bags per minute based on packer output
+    efficiency: number; // Running machines / total machines * 100
+    uptime: number; // Cumulative running time / elapsed time * 100
+    quality: number; // Average QC test grade (A=100, B=85, C=70, FAIL=0)
   };
   // Metric tracking for uptime calculation
   _metricTracking: {
-    totalRunningSeconds: number;   // Cumulative time machines spent running
-    totalElapsedSeconds: number;   // Total simulation time elapsed
-    lastRecalcTime: number;        // Timestamp of last recalc
+    totalRunningSeconds: number; // Cumulative time machines spent running
+    totalElapsedSeconds: number; // Total simulation time elapsed
+    lastRecalcTime: number; // Timestamp of last recalc
   };
   updateMetrics: (metrics: Partial<ProductionStore['metrics']>) => void;
-  recalculateMetrics: () => void;  // Recompute all metrics from current state
-  tickMetrics: (deltaSeconds: number) => void;  // Called by game loop to update tracking
+  recalculateMetrics: () => void; // Recompute all metrics from current state
+  tickMetrics: (deltaSeconds: number) => void; // Called by game loop to update tracking
 
   // Heat map data (worker position history)
   heatMapData: Array<{ x: number; z: number; intensity: number }>;
@@ -283,56 +234,21 @@ export const useProductionStore = create<ProductionStore>()(
     workers: [],
     selectedWorker: null,
     setSelectedWorker: (worker) => set({ selectedWorker: worker }),
-    setWorkers: (workers) =>
-      set((state) => ({
-        workers,
-        _indices: {
-          ...state._indices,
-          workersById: rebuildWorkerIndex(workers),
-        },
-      })),
+    setWorkers: (workers) => set({ workers }),
     updateWorkerTask: (workerId, task, targetMachine) =>
-      set((state) => {
-        const updatedWorkers = state.workers.map((w) =>
+      set((state) => ({
+        workers: state.workers.map((w) =>
           w.id === workerId ? { ...w, currentTask: task, targetMachine } : w
-        );
-        // PERFORMANCE FIX: Incremental update instead of full rebuild O(n) -> O(1)
-        const newWorkersById = new Map(state._indices.workersById);
-        const updatedWorker = updatedWorkers.find((w) => w.id === workerId);
-        if (updatedWorker) {
-          newWorkersById.set(workerId, updatedWorker);
-        }
-        return {
-          workers: updatedWorkers,
-          _indices: {
-            ...state._indices,
-            workersById: newWorkersById,
-          },
-        };
-      }),
+        ),
+      })),
 
     machines: [],
     selectedMachine: null,
     setSelectedMachine: (machine) => set({ selectedMachine: machine }),
     updateMachineStatus: (machineId, status) =>
-      set((state) => {
-        const updatedMachines = state.machines.map((m) =>
-          m.id === machineId ? { ...m, status } : m
-        );
-        // PERFORMANCE FIX: Incremental update instead of full rebuild O(n) -> O(1)
-        const newMachinesById = new Map(state._indices.machinesById);
-        const updatedMachine = updatedMachines.find((m) => m.id === machineId);
-        if (updatedMachine) {
-          newMachinesById.set(machineId, updatedMachine);
-        }
-        return {
-          machines: updatedMachines,
-          _indices: {
-            ...state._indices,
-            machinesById: newMachinesById,
-          },
-        };
-      }),
+      set((state) => ({
+        machines: state.machines.map((m) => (m.id === machineId ? { ...m, status } : m)),
+      })),
 
     aiDecisions: [],
     addAIDecision: (decision) =>
@@ -342,81 +258,35 @@ export const useProductionStore = create<ProductionStore>()(
           return state; // No-op if decision already exists
         }
         const updatedDecisions = [decision, ...state.aiDecisions].slice(0, 50);
-        const { aiDecisionsByMachine, aiDecisionsByWorker } =
-          rebuildAIDecisionIndices(updatedDecisions);
 
         // Log decision to historical playback store (fire-and-forget)
         useHistoricalPlaybackStore.getState().logDecision(decision);
 
-        return {
-          aiDecisions: updatedDecisions,
-          _indices: {
-            ...state._indices,
-            aiDecisionsByMachine,
-            aiDecisionsByWorker,
-          },
-        };
+        return { aiDecisions: updatedDecisions };
       }),
     updateDecisionStatus: (decisionId, status, outcome) =>
-      set((state) => {
-        const updatedDecisions = state.aiDecisions.map((d) =>
+      set((state) => ({
+        aiDecisions: state.aiDecisions.map((d) =>
           d.id === decisionId ? { ...d, status, outcome: outcome ?? d.outcome } : d
-        );
-        const { aiDecisionsByMachine, aiDecisionsByWorker } =
-          rebuildAIDecisionIndices(updatedDecisions);
-        return {
-          aiDecisions: updatedDecisions,
-          _indices: {
-            ...state._indices,
-            aiDecisionsByMachine,
-            aiDecisionsByWorker,
-          },
-        };
-      }),
-    getActiveDecisionsForMachine: (machineId: string): AIDecision[] => {
-      const state = get();
-      return state._indices.aiDecisionsByMachine.get(machineId) || [];
-    },
-    getActiveDecisionsForWorker: (workerId: string): AIDecision[] => {
-      const state = get();
-      return state._indices.aiDecisionsByWorker.get(workerId) || [];
-    },
+        ),
+      })),
 
     // Machine management
-    setMachines: (machines: MachineData[]) =>
-      set((state) => ({
-        machines,
-        _indices: {
-          ...state._indices,
-          machinesById: rebuildMachineIndex(machines),
-        },
-      })),
+    setMachines: (machines: MachineData[]) => set({ machines }),
     updateMachineMetrics: (machineId: string, metrics: Partial<MachineData['metrics']>) =>
-      set((state) => {
-        const updatedMachines = state.machines.map((m) =>
+      set((state) => ({
+        machines: state.machines.map((m) =>
           m.id === machineId ? { ...m, metrics: { ...m.metrics, ...metrics } } : m
-        );
-        // PERFORMANCE FIX: Incremental update instead of full rebuild O(n) -> O(1)
-        const newMachinesById = new Map(state._indices.machinesById);
-        const updatedMachine = updatedMachines.find((m) => m.id === machineId);
-        if (updatedMachine) {
-          newMachinesById.set(machineId, updatedMachine);
-        }
-        return {
-          machines: updatedMachines,
-          _indices: {
-            ...state._indices,
-            machinesById: newMachinesById,
-          },
-        };
-      }),
+        ),
+      })),
 
-    batchUpdateMachineMetrics: (updates: { machineId: string; metrics: Partial<MachineData['metrics']> }[]) =>
+    batchUpdateMachineMetrics: (
+      updates: { machineId: string; metrics: Partial<MachineData['metrics']> }[]
+    ) =>
       set((state) => {
         if (updates.length === 0) return state;
 
-        const newMachinesById = new Map(state._indices.machinesById);
-        const machinesMap = new Map(state.machines.map(m => [m.id, m]));
+        const machinesMap = new Map(state.machines.map((m) => [m.id, m]));
         let hasChanges = false;
 
         updates.forEach(({ machineId, metrics }) => {
@@ -424,37 +294,20 @@ export const useProductionStore = create<ProductionStore>()(
           if (machine) {
             const updatedMachine = { ...machine, metrics: { ...machine.metrics, ...metrics } };
             machinesMap.set(machineId, updatedMachine);
-            newMachinesById.set(machineId, updatedMachine);
             hasChanges = true;
           }
         });
 
         if (!hasChanges) return state;
 
-        return {
-          machines: Array.from(machinesMap.values()),
-          _indices: {
-            ...state._indices,
-            machinesById: newMachinesById,
-          },
-        };
+        return { machines: Array.from(machinesMap.values()) };
       }),
 
-    // Memoized selector utilities
-    getMachineById: (machineId: string): MachineData | undefined => {
-      const state = get();
-      return state._indices.machinesById.get(machineId);
-    },
-    getWorkerById: (workerId: string): WorkerData | undefined => {
-      const state = get();
-      return state._indices.workersById.get(workerId);
-    },
-
     metrics: {
-      throughput: 0,     // Will be computed
-      efficiency: 100,   // Will be computed
-      uptime: 100,       // Will be computed
-      quality: 100,      // Will be computed from QC tests
+      throughput: 0, // Will be computed
+      efficiency: 100, // Will be computed
+      uptime: 100, // Will be computed
+      quality: 100, // Will be computed from QC tests
     },
     _metricTracking: {
       totalRunningSeconds: 0,
@@ -467,51 +320,70 @@ export const useProductionStore = create<ProductionStore>()(
       })),
 
     // Recalculate all metrics from current simulation state
-    recalculateMetrics: () => set((state) => {
-      const machines = state.machines;
-      const totalMachines = machines.length || 1;
-      const runningMachines = machines.filter(m => m.status === 'running' || m.status === 'warning').length;
+    recalculateMetrics: () =>
+      set((state) => {
+        const machines = state.machines;
+        const totalMachines = machines.length || 1;
+        const runningMachines = machines.filter(
+          (m) => m.status === 'running' || m.status === 'warning'
+        ).length;
 
-      // Efficiency: percentage of machines that are running
-      const efficiency = Math.round((runningMachines / totalMachines) * 100 * 10) / 10;
+        // Efficiency: percentage of machines that are running
+        const efficiency = Math.round((runningMachines / totalMachines) * 100 * 10) / 10;
 
-      // Uptime: percentage of time machines have been running
-      const tracking = state._metricTracking;
-      const uptime = tracking.totalElapsedSeconds > 0
-        ? Math.round((tracking.totalRunningSeconds / (tracking.totalElapsedSeconds * totalMachines)) * 100 * 10) / 10
-        : 100;
+        // Uptime: percentage of time machines have been running
+        const tracking = state._metricTracking;
+        const uptime =
+          tracking.totalElapsedSeconds > 0
+            ? Math.round(
+                (tracking.totalRunningSeconds / (tracking.totalElapsedSeconds * totalMachines)) *
+                  100 *
+                  10
+              ) / 10
+            : 100;
 
-      // Quality: average from QC test history (A=100, B=85, C=70, FAIL=0)
-      const gradeValues: Record<string, number> = { 'A': 100, 'B': 85, 'C': 70, 'FAIL': 0 };
-      const testHistory = state.qcLab.testHistory;
-      const quality = testHistory.length > 0
-        ? Math.round(testHistory.slice(-10).reduce((sum, t) => sum + (gradeValues[t.grade] || 85), 0) / Math.min(testHistory.length, 10) * 10) / 10
-        : 99.5; // Default before any tests
+        // Quality: average from QC test history (A=100, B=85, C=70, FAIL=0)
+        const gradeValues: Record<string, number> = { A: 100, B: 85, C: 70, FAIL: 0 };
+        const testHistory = state.qcLab.testHistory;
+        const quality =
+          testHistory.length > 0
+            ? Math.round(
+                (testHistory.slice(-10).reduce((sum, t) => sum + (gradeValues[t.grade] || 85), 0) /
+                  Math.min(testHistory.length, 10)) *
+                  10
+              ) / 10
+            : 99.5; // Default before any tests
 
-      // Throughput: bags per minute based on running packers
-      // Each packer at full production speed produces ~12 bags/min
-      const packers = machines.filter(m => m.type.toString() === 'PACKER');
-      const runningPackers = packers.filter(m => m.status === 'running' || m.status === 'warning').length;
-      const throughput = Math.round(runningPackers * 12 * 60 * state.productionSpeed);
+        // Throughput: bags per minute based on running packers
+        // Each packer at full production speed produces ~12 bags/min
+        const packers = machines.filter((m) => m.type.toString() === 'PACKER');
+        const runningPackers = packers.filter(
+          (m) => m.status === 'running' || m.status === 'warning'
+        ).length;
+        const throughput = Math.round(runningPackers * 12 * 60 * state.productionSpeed);
 
-      return {
-        metrics: { efficiency, uptime, quality, throughput },
-      };
-    }),
+        return {
+          metrics: { efficiency, uptime, quality, throughput },
+        };
+      }),
 
     // Tick metrics tracking - called by game simulation loop
-    tickMetrics: (deltaSeconds: number) => set((state) => {
-      const machines = state.machines;
-      const runningMachines = machines.filter(m => m.status === 'running' || m.status === 'warning').length;
+    tickMetrics: (deltaSeconds: number) =>
+      set((state) => {
+        const machines = state.machines;
+        const runningMachines = machines.filter(
+          (m) => m.status === 'running' || m.status === 'warning'
+        ).length;
 
-      return {
-        _metricTracking: {
-          ...state._metricTracking,
-          totalRunningSeconds: state._metricTracking.totalRunningSeconds + (runningMachines * deltaSeconds),
-          totalElapsedSeconds: state._metricTracking.totalElapsedSeconds + deltaSeconds,
-        },
-      };
-    }),
+        return {
+          _metricTracking: {
+            ...state._metricTracking,
+            totalRunningSeconds:
+              state._metricTracking.totalRunningSeconds + runningMachines * deltaSeconds,
+            totalElapsedSeconds: state._metricTracking.totalElapsedSeconds + deltaSeconds,
+          },
+        };
+      }),
 
     // Heat map data
     heatMapData: [],
@@ -641,11 +513,11 @@ export const useProductionStore = create<ProductionStore>()(
       set((state) => ({
         productionTarget: state.productionTarget
           ? {
-            ...state.productionTarget,
-            producedBags: bagsProduced,
-            status:
-              bagsProduced >= state.productionTarget.targetBags ? 'completed' : 'in_progress',
-          }
+              ...state.productionTarget,
+              producedBags: bagsProduced,
+              status:
+                bagsProduced >= state.productionTarget.targetBags ? 'completed' : 'in_progress',
+            }
           : null,
       })),
     totalBagsProduced: 0,
@@ -656,13 +528,13 @@ export const useProductionStore = create<ProductionStore>()(
           totalBagsProduced: newTotal,
           productionTarget: state.productionTarget
             ? {
-              ...state.productionTarget,
-              producedBags: state.productionTarget.producedBags + count,
-              status:
-                state.productionTarget.producedBags + count >= state.productionTarget.targetBags
-                  ? 'completed'
-                  : 'in_progress',
-            }
+                ...state.productionTarget,
+                producedBags: state.productionTarget.producedBags + count,
+                status:
+                  state.productionTarget.producedBags + count >= state.productionTarget.targetBags
+                    ? 'completed'
+                    : 'in_progress',
+              }
             : null,
         };
       }),
@@ -846,10 +718,10 @@ export const useProductionStore = create<ProductionStore>()(
         achievements: state.achievements.map((a) =>
           a.id === achievementId
             ? {
-              ...a,
-              currentValue: progress,
-              progress: Math.min(100, (progress / a.requirement) * 100),
-            }
+                ...a,
+                currentValue: progress,
+                progress: Math.min(100, (progress / a.requirement) * 100),
+              }
             : a
         ),
       })),

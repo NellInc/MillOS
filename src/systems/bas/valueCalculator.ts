@@ -15,11 +15,7 @@
  * The multiplicative relationship means weakness in any area limits total value.
  */
 
-import type {
-  FiveAxes,
-  ValueMetrics,
-  FlourishingDimensionKey,
-} from '../../types/bas';
+import type { FiveAxes, ValueMetrics, FlourishingDimensionKey } from '../../types/bas';
 import { calculateStabilityCoefficient } from './stabilityCalculator';
 
 // =============================================================================
@@ -34,9 +30,9 @@ const MIN_VALUE = 0.001;
 
 /** Weights for equity index calculation from axes */
 const EQUITY_AXIS_WEIGHTS: Record<keyof FiveAxes, number> = {
-  autonomyLevel: 0.20,
-  decisionMode: 0.30,
-  informationAccess: 0.20,
+  autonomyLevel: 0.2,
+  decisionMode: 0.3,
+  informationAccess: 0.2,
   evaluationDirection: 0.15,
   collectiveOrientation: 0.15,
 };
@@ -63,12 +59,7 @@ const EQUITY_AXIS_WEIGHTS: Record<keyof FiveAxes, number> = {
  * // Returns 0.252 (moderate value, equity is limiting factor)
  * ```
  */
-export function calculateTotalValue(
-  Z: number,
-  S: number,
-  E: number,
-  F: number
-): number {
+export function calculateTotalValue(Z: number, S: number, E: number, F: number): number {
   // Clamp all inputs to valid range
   const safeZ = Math.max(MIN_VALUE, Math.min(1, Z));
   const safeS = Math.max(MIN_VALUE, Math.min(1, S));
@@ -91,12 +82,7 @@ export function calculateTotalValue(
  * @param F - Flourishing Coefficient (0-1).
  * @returns Geometric mean of all factors (0-1).
  */
-export function calculateTotalValueGeometric(
-  Z: number,
-  S: number,
-  E: number,
-  F: number
-): number {
+export function calculateTotalValueGeometric(Z: number, S: number, E: number, F: number): number {
   const safeZ = Math.max(MIN_VALUE, Math.min(1, Z));
   const safeS = Math.max(MIN_VALUE, Math.min(1, S));
   const safeE = Math.max(MIN_VALUE, Math.min(1, E));
@@ -183,9 +169,7 @@ export function calculateEquityIndex(
  * Calculate how evenly equity is distributed across workers.
  * Lower variance = higher distribution equity.
  */
-function calculateDistributionEquity(
-  metrics: WorkerEquityMetrics[]
-): number {
+function calculateDistributionEquity(metrics: WorkerEquityMetrics[]): number {
   if (metrics.length < 2) return 1; // Perfect equity with single worker
 
   // Calculate composite score for each worker
@@ -202,8 +186,7 @@ function calculateDistributionEquity(
 
   // Calculate variance
   const mean = scores.reduce((a, b) => a + b, 0) / scores.length;
-  const variance =
-    scores.reduce((sum, s) => sum + Math.pow(s - mean, 2), 0) / scores.length;
+  const variance = scores.reduce((sum, s) => sum + Math.pow(s - mean, 2), 0) / scores.length;
 
   // Convert variance to equity score (lower variance = higher equity)
   // Max variance would be 2500 (scores range 0-100)
@@ -291,7 +274,11 @@ export interface ValueBreakdown {
     flourishingCoefficient: number;
   };
   /** Which factor is the limiting factor */
-  limitingFactor: 'resourceIndex' | 'stabilityCoefficient' | 'equityIndex' | 'flourishingCoefficient';
+  limitingFactor:
+    | 'resourceIndex'
+    | 'stabilityCoefficient'
+    | 'equityIndex'
+    | 'flourishingCoefficient';
   /** Improvement potential if limiting factor reaches average of others */
   improvementPotential: number;
   /** Comparison to baseline */
@@ -318,12 +305,7 @@ export interface ValueBreakdown {
  * // Returns detailed analysis showing equity is the limiting factor
  * ```
  */
-export function getValueBreakdown(
-  Z: number,
-  S: number,
-  E: number,
-  F: number
-): ValueBreakdown {
+export function getValueBreakdown(Z: number, S: number, E: number, F: number): ValueBreakdown {
   const safeZ = Math.max(MIN_VALUE, Math.min(1, Z));
   const safeS = Math.max(MIN_VALUE, Math.min(1, S));
   const safeE = Math.max(MIN_VALUE, Math.min(1, E));
@@ -357,16 +339,16 @@ export function getValueBreakdown(
     flourishingCoefficient: safeF,
   };
 
-  const limitingFactor = (Object.entries(factors) as [keyof typeof factors, number][])
-    .reduce((min, [key, value]) => (value < min[1] ? [key, value] : min))[0];
+  const limitingFactor = (Object.entries(factors) as [keyof typeof factors, number][]).reduce(
+    (min, [key, value]) => (value < min[1] ? [key, value] : min)
+  )[0];
 
   // Calculate improvement potential
   const nonLimitingFactors = Object.entries(factors)
     .filter(([key]) => key !== limitingFactor)
     .map(([, value]) => value);
 
-  const averageOfOthers =
-    nonLimitingFactors.reduce((a, b) => a + b, 0) / nonLimitingFactors.length;
+  const averageOfOthers = nonLimitingFactors.reduce((a, b) => a + b, 0) / nonLimitingFactors.length;
 
   // Calculate potential value if limiting factor improved to average of others
   const potentialValue = calculateTotalValue(
@@ -449,9 +431,7 @@ export interface SocialMissionMetrics {
  * @param metrics - Social mission metrics from socialMissionStore
  * @returns Social mission equity contribution (0-1)
  */
-export function calculateSocialMissionEquityContribution(
-  metrics?: SocialMissionMetrics
-): number {
+export function calculateSocialMissionEquityContribution(metrics?: SocialMissionMetrics): number {
   if (!metrics) return 0.5; // Neutral if no data
 
   // Weighted combination of social mission factors
@@ -474,9 +454,7 @@ export function calculateSocialMissionEquityContribution(
  * @param metrics - Social mission metrics from socialMissionStore
  * @returns Flourishing boost (0-0.15) to add to base flourishing
  */
-export function calculateSocialMissionFlourishingBoost(
-  metrics?: SocialMissionMetrics
-): number {
+export function calculateSocialMissionFlourishingBoost(metrics?: SocialMissionMetrics): number {
   if (!metrics) return 0;
 
   // Higher social impact provides meaning
@@ -518,14 +496,7 @@ export function calculateCompleteValueMetrics(params: {
   /** Flourishing coefficient (from flourishing store) */
   flourishingCoefficient: number;
 }): ValueMetrics {
-  const {
-    resourceIndex,
-    friction,
-    delay,
-    axes,
-    workerMetrics,
-    flourishingCoefficient,
-  } = params;
+  const { resourceIndex, friction, delay, axes, workerMetrics, flourishingCoefficient } = params;
 
   const stabilityCoefficient = calculateStabilityCoefficient(friction, delay);
   const equityIndex = calculateEquityIndex(axes, workerMetrics);
@@ -609,7 +580,12 @@ export interface ValueDataPoint {
 export function analyzeValueTrend(history: ValueDataPoint[]): {
   trend: 'improving' | 'stable' | 'declining';
   rateOfChange: number;
-  dominantDriver: 'resourceIndex' | 'stabilityCoefficient' | 'equityIndex' | 'flourishingCoefficient' | null;
+  dominantDriver:
+    | 'resourceIndex'
+    | 'stabilityCoefficient'
+    | 'equityIndex'
+    | 'flourishingCoefficient'
+    | null;
   recommendation: string;
 } {
   if (history.length < 2) {
@@ -656,7 +632,7 @@ export function analyzeValueTrend(history: ValueDataPoint[]): {
   ] as const;
 
   let maxChange = 0;
-  let dominantDriver: typeof factors[number] | null = null;
+  let dominantDriver: (typeof factors)[number] | null = null;
 
   for (const factor of factors) {
     const start = recent[0][factor];

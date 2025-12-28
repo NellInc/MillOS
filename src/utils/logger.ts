@@ -210,6 +210,15 @@ const perfLogger = new Logger({
 });
 
 /**
+ * Multiplayer subsystem logger for WebRTC/PeerJS
+ */
+const multiplayerLogger = new Logger({
+  prefix: 'Multiplayer',
+  level: isDevelopment ? 'debug' : 'info',
+  enabled: true,
+});
+
+/**
  * Main logger export with namespaced subsystem loggers
  */
 export const logger = {
@@ -228,6 +237,7 @@ export const logger = {
   worker: workerLogger,
   store: storeLogger,
   perf: perfLogger,
+  multiplayer: multiplayerLogger,
 };
 
 /**

@@ -248,8 +248,6 @@ export const unregisterWater = (id: string) => {
   waterRegistry.delete(id);
 };
 
-
-
 export const registerLighting = (id: string, state: LightingAnimationState) => {
   lightingRegistry.set(id, state);
 };
@@ -294,8 +292,12 @@ const duskPalette = {
 const lerpColor = (color1: string, color2: string, t: number): string => {
   const c1 = parseInt(color1.slice(1), 16);
   const c2 = parseInt(color2.slice(1), 16);
-  const r1 = (c1 >> 16) & 0xff, g1 = (c1 >> 8) & 0xff, b1 = c1 & 0xff;
-  const r2 = (c2 >> 16) & 0xff, g2 = (c2 >> 8) & 0xff, b2 = c2 & 0xff;
+  const r1 = (c1 >> 16) & 0xff,
+    g1 = (c1 >> 8) & 0xff,
+    b1 = c1 & 0xff;
+  const r2 = (c2 >> 16) & 0xff,
+    g2 = (c2 >> 8) & 0xff,
+    b2 = c2 & 0xff;
   const r = Math.round(r1 + (r2 - r1) * t);
   const g = Math.round(g1 + (g2 - g1) * t);
   const b = Math.round(b1 + (b2 - b1) * t);
@@ -363,21 +365,24 @@ const SkyAnimationManager: React.FC = () => {
     if (skyDomeRegistry.size > 0) {
       // Sky color keyframes for smooth interpolation
       // Each entry: [hour, {top, bottom, horizon, ground}]
-      const skyKeyframes: [number, { top: string; bottom: string; horizon: string; ground: string }][] = [
-        [0, { top: '#050810', bottom: '#0a1628', horizon: '#1a2744', ground: '#030508' }],   // Midnight - very dark (darker ground)
-        [4, { top: '#050810', bottom: '#0a1628', horizon: '#1a2744', ground: '#030508' }],   // Late night - still dark (darker ground)
-        [5, { top: '#1a1a2e', bottom: '#2d1f3d', horizon: '#3d2952', ground: '#0a0a12' }],   // Pre-dawn - first hint of light
-        [6, { top: '#7c4a1a', bottom: '#d97706', horizon: '#f59e0b', ground: '#451a03' }],   // Dawn - warm orange
-        [7, { top: '#c2410c', bottom: '#fb923c', horizon: '#fcd34d', ground: '#78350f' }],   // Sunrise - golden
-        [8, { top: '#0284c7', bottom: '#7dd3fc', horizon: '#fef3c7', ground: '#4a7c59' }],   // Morning - transitioning to blue
-        [10, { top: '#0369a1', bottom: '#7dd3fc', horizon: '#f0f9ff', ground: '#5a8a5a' }],   // Late morning
-        [12, { top: '#0284c7', bottom: '#38bdf8', horizon: '#f0f9ff', ground: '#6b936b' }],   // Noon - bright blue
-        [16, { top: '#0369a1', bottom: '#67d4fc', horizon: '#fef3c7', ground: '#5a8a5a' }],   // Afternoon
-        [18, { top: '#92400e', bottom: '#ea580c', horizon: '#fbbf24', ground: '#451a03' }],   // Golden hour - warm amber
-        [19, { top: '#7c2d12', bottom: '#c2410c', horizon: '#f97316', ground: '#451a03' }],   // Sunset
-        [20, { top: '#451a03', bottom: '#78350f', horizon: '#92400e', ground: '#1c1917' }],   // Dusk - transitioning to dark
-        [21, { top: '#0f172a', bottom: '#1e293b', horizon: '#334155', ground: '#050a12' }],   // Night begins (darker ground)
-        [24, { top: '#050810', bottom: '#0a1628', horizon: '#1a2744', ground: '#030508' }],   // Midnight wrap (darker ground)
+      const skyKeyframes: [
+        number,
+        { top: string; bottom: string; horizon: string; ground: string },
+      ][] = [
+        [0, { top: '#050810', bottom: '#0a1628', horizon: '#1a2744', ground: '#030508' }], // Midnight - very dark (darker ground)
+        [4, { top: '#050810', bottom: '#0a1628', horizon: '#1a2744', ground: '#030508' }], // Late night - still dark (darker ground)
+        [5, { top: '#1a1a2e', bottom: '#2d1f3d', horizon: '#3d2952', ground: '#0a0a12' }], // Pre-dawn - first hint of light
+        [6, { top: '#7c4a1a', bottom: '#d97706', horizon: '#f59e0b', ground: '#451a03' }], // Dawn - warm orange
+        [7, { top: '#c2410c', bottom: '#fb923c', horizon: '#fcd34d', ground: '#78350f' }], // Sunrise - golden
+        [8, { top: '#0284c7', bottom: '#7dd3fc', horizon: '#fef3c7', ground: '#4a7c59' }], // Morning - transitioning to blue
+        [10, { top: '#0369a1', bottom: '#7dd3fc', horizon: '#f0f9ff', ground: '#5a8a5a' }], // Late morning
+        [12, { top: '#0284c7', bottom: '#38bdf8', horizon: '#f0f9ff', ground: '#6b936b' }], // Noon - bright blue
+        [16, { top: '#0369a1', bottom: '#67d4fc', horizon: '#fef3c7', ground: '#5a8a5a' }], // Afternoon
+        [18, { top: '#92400e', bottom: '#ea580c', horizon: '#fbbf24', ground: '#451a03' }], // Golden hour - warm amber
+        [19, { top: '#7c2d12', bottom: '#c2410c', horizon: '#f97316', ground: '#451a03' }], // Sunset
+        [20, { top: '#451a03', bottom: '#78350f', horizon: '#92400e', ground: '#1c1917' }], // Dusk - transitioning to dark
+        [21, { top: '#0f172a', bottom: '#1e293b', horizon: '#334155', ground: '#050a12' }], // Night begins (darker ground)
+        [24, { top: '#050810', bottom: '#0a1628', horizon: '#1a2744', ground: '#030508' }], // Midnight wrap (darker ground)
       ];
 
       // Find the two keyframes to interpolate between
@@ -421,7 +426,16 @@ const SkyAnimationManager: React.FC = () => {
       };
 
       // Compute cloud density from weather
-      const cloudDensity = weather === 'clear' ? 0.3 : weather === 'cloudy' ? 0.7 : weather === 'rain' ? 0.9 : weather === 'storm' ? 1.0 : 0.5;
+      const cloudDensity =
+        weather === 'clear'
+          ? 0.3
+          : weather === 'cloudy'
+            ? 0.7
+            : weather === 'rain'
+              ? 0.9
+              : weather === 'storm'
+                ? 1.0
+                : 0.5;
 
       // Compute sun angle from smoothGameTime for consistency
       const sunAngle = ((smoothGameTime - 6) / 12) * Math.PI;
@@ -463,21 +477,29 @@ const SkyAnimationManager: React.FC = () => {
     let envColors = dayPalette;
     const hour = smoothGameTime;
 
-    if (hour >= 5 && hour < 6) { // Night -> Dawn
+    if (hour >= 5 && hour < 6) {
+      // Night -> Dawn
       envColors = lerpPalette(nightPalette, dawnPalette, hour - 5);
-    } else if (hour >= 6 && hour < 7) { // Solid Dawn
+    } else if (hour >= 6 && hour < 7) {
+      // Solid Dawn
       envColors = dawnPalette;
-    } else if (hour >= 7 && hour < 8) { // Dawn -> Day
+    } else if (hour >= 7 && hour < 8) {
+      // Dawn -> Day
       envColors = lerpPalette(dawnPalette, dayPalette, hour - 7);
-    } else if (hour >= 8 && hour < 17) { // Solid Day
+    } else if (hour >= 8 && hour < 17) {
+      // Solid Day
       envColors = dayPalette;
-    } else if (hour >= 17 && hour < 18) { // Day -> Dusk
+    } else if (hour >= 17 && hour < 18) {
+      // Day -> Dusk
       envColors = lerpPalette(dayPalette, duskPalette, hour - 17);
-    } else if (hour >= 18 && hour < 19) { // Solid Dusk
+    } else if (hour >= 18 && hour < 19) {
+      // Solid Dusk
       envColors = duskPalette;
-    } else if (hour >= 19 && hour < 20) { // Dusk -> Night
+    } else if (hour >= 19 && hour < 20) {
+      // Dusk -> Night
       envColors = lerpPalette(duskPalette, nightPalette, hour - 19);
-    } else { // Night
+    } else {
+      // Night
       envColors = nightPalette;
     }
 
@@ -520,9 +542,9 @@ const SkyAnimationManager: React.FC = () => {
     // 6. Update Layer colors (15fps)
     if (layerColorRegistry.size > 0 && shouldRunThisFrame(4)) {
       layerColorRegistry.forEach((data) => {
-        // We need a way to map specific layers to colors. 
+        // We need a way to map specific layers to colors.
         // For now, assume 'ground' is the main one used.
-        // Ideally registry should contain type. 
+        // Ideally registry should contain type.
         // fallback: use ground color for all layers for now
         data.material.uniforms.layerColor.value.set(envColors.layerColors.ground);
         data.material.uniforms.opacity.value = data.opacity;
@@ -558,12 +580,14 @@ const SkyAnimationManager: React.FC = () => {
 
       // Sun visibility and intensity
       const smoothSunVisible = smoothSunY > -5;
-      const smoothSunIntensity = smoothSunVisible ? Math.max(0, Math.sin(smoothSunAngle)) * 3.5 + 0.8 : 0;
+      const smoothSunIntensity = smoothSunVisible
+        ? Math.max(0, Math.sin(smoothSunAngle)) * 3.5 + 0.8
+        : 0;
       const smoothMoonVisible = smoothMoonY > -5;
       const smoothMoonIntensity = smoothMoonVisible ? 0.3 : 0;
 
       // Sun color
-      const smoothSunColor = (smoothSunAngle < 0.3 || smoothSunAngle > 2.84) ? '#ff6b35' : '#fff7ed';
+      const smoothSunColor = smoothSunAngle < 0.3 || smoothSunAngle > 2.84 ? '#ff6b35' : '#fff7ed';
 
       lightingRegistry.forEach((data) => {
         if (data.sunLightRef) {
@@ -667,7 +691,13 @@ const SmoothSun: React.FC = () => {
       {/* Mid glow */}
       <mesh renderOrder={-990}>
         <sphereGeometry args={[55, 32, 32]} />
-        <meshBasicMaterial ref={glowMaterialRef} color="#fff7ed" transparent opacity={0.35} depthWrite={false} />
+        <meshBasicMaterial
+          ref={glowMaterialRef}
+          color="#fff7ed"
+          transparent
+          opacity={0.35}
+          depthWrite={false}
+        />
       </mesh>
       {/* Outer glow - large corona */}
       <mesh renderOrder={-990}>
@@ -730,7 +760,11 @@ export const SkySystem: React.FC = () => {
   // PERFORMANCE: Removed subscriptions to prevent re-renders. Animation handled by SkyAnimationManager.
   // const gameTime = useGameSimulationStore((state) => state.gameTime);
   // const weather = useGameSimulationStore((state) => state.weather);
+  // FIX: Select primitives individually to avoid new object references causing infinite loops
   const shadowMapSize = useGraphicsStore((state) => state.graphics.shadowMapSize);
+  const enableHighResShadows = useGraphicsStore((state) => state.graphics.enableHighResShadows);
+  // Use high-res shadow map only when toggle is enabled, otherwise default to 2048
+  const effectiveShadowMapSize = enableHighResShadows ? shadowMapSize : 2048;
   const meshRef = useRef<THREE.Mesh>(null);
   const sunLightRef = useRef<THREE.DirectionalLight>(null);
   const moonLightRef = useRef<THREE.DirectionalLight>(null);
@@ -738,13 +772,16 @@ export const SkySystem: React.FC = () => {
 
   // Enhanced sky colors with horizon color for each time of day
   // Initial values for registry - subsequent updates handled by SkyAnimationManager
-  const skyColors = useMemo(() => ({
-    top: '#0ea5e9',
-    bottom: '#a5d8ff',
-    horizon: '#fff7ed',
-    ambient: '#f0f9ff',
-    ground: '#5a7a5a',
-  }), []);
+  const skyColors = useMemo(
+    () => ({
+      top: '#0ea5e9',
+      bottom: '#a5d8ff',
+      horizon: '#fff7ed',
+      ambient: '#f0f9ff',
+      ground: '#5a7a5a',
+    }),
+    []
+  );
 
   // Cloud density based on weather
   // Initial defaults
@@ -825,7 +862,7 @@ export const SkySystem: React.FC = () => {
       <directionalLight
         ref={sunLightRef}
         castShadow
-        shadow-mapSize={[shadowMapSize, shadowMapSize]}
+        shadow-mapSize={[effectiveShadowMapSize, effectiveShadowMapSize]}
         shadow-camera-far={200}
         shadow-camera-left={-70}
         shadow-camera-right={70}
@@ -1780,8 +1817,10 @@ const HorizonLayer: React.FC<{
       },
       vertexShader: `
       varying vec2 vUv;
+      varying vec3 vWorldPos;
       void main() {
         vUv = uv;
+        vWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;
         gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
       }
     `,
@@ -1789,10 +1828,60 @@ const HorizonLayer: React.FC<{
       uniform vec3 layerColor;
       uniform float opacity;
       varying vec2 vUv;
+      varying vec3 vWorldPos;
+      
+      // Hash function for procedural noise
+      float hash(vec2 p) {
+        return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+      }
+      
+      // 2D noise function
+      float noise(vec2 p) {
+        vec2 i = floor(p);
+        vec2 f = fract(p);
+        vec2 u = f * f * (3.0 - 2.0 * f);
+        return mix(
+          mix(hash(i), hash(i + vec2(1.0, 0.0)), u.x),
+          mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x),
+          u.y
+        );
+      }
+      
+      // FBM for multi-scale variation
+      float fbm(vec2 p) {
+        float v = 0.0;
+        float a = 0.5;
+        for (int i = 0; i < 4; i++) {
+          v += a * noise(p);
+          p *= 2.0;
+          a *= 0.5;
+        }
+        return v;
+      }
+      
       void main() {
+        // Use world position for stable noise (no swimming when camera moves)
+        vec2 noiseCoord = vWorldPos.xz * 0.008;
+        
+        // Multi-scale noise for terrain variation
+        float largeScale = fbm(noiseCoord * 0.5) * 0.15;
+        float mediumScale = fbm(noiseCoord * 2.0) * 0.08;
+        float fineDetail = noise(noiseCoord * 8.0) * 0.05;
+        
+        // Combine noise layers for color variation
+        float variation = largeScale + mediumScale + fineDetail - 0.14;
+        
+        // Create subtle color modulation (darker/lighter patches)
+        vec3 color = layerColor * (1.0 + variation);
+        
+        // Add slight color shift for grass/foliage feel
+        color.g += variation * 0.08; // Greener in lighter areas
+        color.r -= variation * 0.03; // Less red
+        
         // Smooth fade at the peaks to blend into sky
         float peakFade = 1.0 - smoothstep(0.6, 1.0, vUv.y);
-        gl_FragColor = vec4(layerColor, opacity * peakFade);
+        
+        gl_FragColor = vec4(color, opacity * peakFade);
       }
     `,
     }),

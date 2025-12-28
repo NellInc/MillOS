@@ -4,10 +4,12 @@ import { describe, it, expect, vi } from 'vitest';
 
 // Mock Lucide icons to avoid rendering issues in tests
 vi.mock('lucide-react', () => ({
+  Factory: () => <span data-testid="icon-factory" />,
   Home: () => <span data-testid="icon-home" />,
   Brain: () => <span data-testid="icon-brain" />,
   Activity: () => <span data-testid="icon-activity" />,
   Users: () => <span data-testid="icon-users" />,
+  HardHat: () => <span data-testid="icon-hardhat" />,
   Shield: () => <span data-testid="icon-shield" />,
   Settings: () => <span data-testid="icon-settings" />,
   Eye: () => <span data-testid="icon-eye" />,
@@ -18,13 +20,14 @@ vi.mock('lucide-react', () => ({
 }));
 
 describe('Dock Component', () => {
-  it('renders all 7 primary navigation items', () => {
+  it('renders the main navigation items', () => {
     render(<Dock activeMode="overview" onModeChange={() => {}} />);
 
-    expect(screen.getByLabelText('Overview')).toBeInTheDocument();
+    expect(screen.getByLabelText('Mill Overview')).toBeInTheDocument();
     expect(screen.getByLabelText('AI Command')).toBeInTheDocument();
     expect(screen.getByLabelText('SCADA System')).toBeInTheDocument();
     expect(screen.getByLabelText('Workforce')).toBeInTheDocument();
+    expect(screen.getByLabelText('BAS')).toBeInTheDocument();
     expect(screen.getByLabelText('Multiplayer')).toBeInTheDocument();
     expect(screen.getByLabelText('Safety & Emergency')).toBeInTheDocument();
     expect(screen.getByLabelText('Settings')).toBeInTheDocument();
@@ -34,7 +37,7 @@ describe('Dock Component', () => {
     const { rerender } = render(<Dock activeMode="overview" onModeChange={() => {}} />);
 
     // Check overview is active (implementation dependent, e.g., class or aria-current)
-    const overviewBtn = screen.getByLabelText('Overview');
+    const overviewBtn = screen.getByLabelText('Mill Overview');
     expect(overviewBtn).toHaveAttribute('aria-pressed', 'true');
 
     rerender(<Dock activeMode="ai" onModeChange={() => {}} />);

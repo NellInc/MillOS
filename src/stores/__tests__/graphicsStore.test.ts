@@ -52,7 +52,7 @@ describe('GraphicsStore', () => {
       expect(graphics.enableContactShadows).toBe(true);
       expect(graphics.dustParticleCount).toBe(40);
       expect(graphics.shadowMapSize).toBe(2048);
-      expect(graphics.enableSSAO).toBe(false); // Medium has SSAO disabled
+      expect(graphics.enableSSAO).toBe(true); // Medium has SSAO enabled for depth perception
     });
 
     it('should set high quality preset', () => {
@@ -79,7 +79,7 @@ describe('GraphicsStore', () => {
       expect(graphics.enableHighResShadows).toBe(true);
       expect(graphics.dustParticleCount).toBe(500);
       expect(graphics.shadowMapSize).toBe(4096);
-      expect(graphics.ssaoSamples).toBe(21);
+      expect(graphics.ssaoSamples).toBe(32); // Maximum quality SSAO
       expect(graphics.workerLodDistance).toBe(100);
     });
   });
@@ -115,7 +115,7 @@ describe('GraphicsStore', () => {
       expect(preset.enableSCADA).toBe(true);
       expect(preset.enableHighResShadows).toBe(true);
       expect(preset.shadowMapSize).toBe(4096);
-      expect(preset.ssaoSamples).toBe(21);
+      expect(preset.ssaoSamples).toBe(32); // Maximum quality SSAO
     });
 
     it('all presets should have perfDebug defaults', () => {

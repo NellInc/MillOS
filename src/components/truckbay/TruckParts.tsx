@@ -10,7 +10,9 @@
  */
 
 import React from 'react';
+import * as THREE from 'three';
 import { Text } from '@react-three/drei';
+import { PROCEDURAL_TEXTURES } from '../../utils/sharedMaterials';
 
 // Re-export placeholder components
 // In a full refactoring, each of these would be individually extracted
@@ -56,11 +58,23 @@ export const FuelTank: React.FC<{ position: [number, number, number]; side: 'lef
   <group position={position}>
     <mesh rotation={[0, 0, Math.PI / 2]}>
       <cylinderGeometry args={[0.35, 0.35, 1.2, 16]} />
-      <meshStandardMaterial color="#64748b" metalness={0.6} roughness={0.4} />
+      <meshStandardMaterial
+        color="#64748b"
+        metalness={0.6}
+        roughness={0.4}
+        normalMap={PROCEDURAL_TEXTURES.brushedMetal}
+        normalScale={new THREE.Vector2(0.15, 0.15)}
+      />
     </mesh>
     <mesh position={[side === 'right' ? 0.62 : -0.62, 0, 0]}>
       <sphereGeometry args={[0.35, 16, 16, 0, Math.PI * 2, 0, Math.PI / 2]} />
-      <meshStandardMaterial color="#64748b" metalness={0.6} roughness={0.4} />
+      <meshStandardMaterial
+        color="#64748b"
+        metalness={0.6}
+        roughness={0.4}
+        normalMap={PROCEDURAL_TEXTURES.brushedMetal}
+        normalScale={new THREE.Vector2(0.15, 0.15)}
+      />
     </mesh>
     <mesh position={[0, 0.36, 0.15]}>
       <cylinderGeometry args={[0.08, 0.08, 0.05, 12]} />
@@ -236,11 +250,21 @@ export const SlidingTandemAxles: React.FC<{ position: [number, number, number] }
       <group key={i}>
         <mesh position={[x, 0.55, 0.75]} rotation={[0, 0, Math.PI / 2]} castShadow>
           <cylinderGeometry args={[0.55, 0.55, 0.3, 24]} />
-          <meshStandardMaterial color="#1f2937" roughness={0.7} />
+          <meshStandardMaterial
+            color="#1f2937"
+            roughness={0.7}
+            normalMap={PROCEDURAL_TEXTURES.rubberNormal}
+            normalScale={new THREE.Vector2(0.3, 0.3)}
+          />
         </mesh>
         <mesh position={[x, 0.55, -0.75]} rotation={[0, 0, Math.PI / 2]} castShadow>
           <cylinderGeometry args={[0.55, 0.55, 0.3, 24]} />
-          <meshStandardMaterial color="#1f2937" roughness={0.7} />
+          <meshStandardMaterial
+            color="#1f2937"
+            roughness={0.7}
+            normalMap={PROCEDURAL_TEXTURES.rubberNormal}
+            normalScale={new THREE.Vector2(0.3, 0.3)}
+          />
         </mesh>
       </group>
     ))}
@@ -279,11 +303,22 @@ export const MudflapWithLogo: React.FC<{ position: [number, number, number]; com
   <group position={position}>
     <mesh>
       <boxGeometry args={[0.6, 0.7, 0.03]} />
-      <meshStandardMaterial color="#1f2937" roughness={0.95} />
+      <meshStandardMaterial
+        color="#1f2937"
+        roughness={0.95}
+        normalMap={PROCEDURAL_TEXTURES.rubberNormal}
+        normalScale={new THREE.Vector2(0.4, 0.4)}
+      />
     </mesh>
     <mesh position={[0, 0.32, 0.02]}>
       <boxGeometry args={[0.58, 0.06, 0.01]} />
-      <meshStandardMaterial color="#94a3b8" metalness={0.9} roughness={0.1} />
+      <meshStandardMaterial
+        color="#94a3b8"
+        metalness={0.9}
+        roughness={0.1}
+        normalMap={PROCEDURAL_TEXTURES.brushedMetal}
+        normalScale={new THREE.Vector2(0.1, 0.1)}
+      />
     </mesh>
     {company === 'GRAIN CO' ? (
       <>

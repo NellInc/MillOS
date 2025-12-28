@@ -137,6 +137,42 @@ describe('BASStore', () => {
       const { axes } = useBASStore.getState();
       expect(axes.autonomyLevel).toBe(50.5);
     });
+
+    it('should handle exact boundary values 0 and 100', () => {
+      const { setAxis } = useBASStore.getState();
+
+      // Test exact 0 boundary
+      setAxis('autonomyLevel', 0);
+      expect(useBASStore.getState().axes.autonomyLevel).toBe(0);
+
+      // Test exact 100 boundary
+      setAxis('autonomyLevel', 100);
+      expect(useBASStore.getState().axes.autonomyLevel).toBe(100);
+    });
+
+    it('should clamp values just outside bounds', () => {
+      const { setAxis } = useBASStore.getState();
+
+      // Test value just below 0
+      setAxis('autonomyLevel', -0.1);
+      expect(useBASStore.getState().axes.autonomyLevel).toBe(0);
+
+      // Test value just above 100
+      setAxis('autonomyLevel', 100.1);
+      expect(useBASStore.getState().axes.autonomyLevel).toBe(100);
+    });
+
+    it('should handle large negative and positive values', () => {
+      const { setAxis } = useBASStore.getState();
+
+      // Test large negative value
+      setAxis('decisionMode', -1000);
+      expect(useBASStore.getState().axes.decisionMode).toBe(0);
+
+      // Test large positive value
+      setAxis('decisionMode', 1000);
+      expect(useBASStore.getState().axes.decisionMode).toBe(100);
+    });
   });
 
   describe('Axis Configuration', () => {
@@ -193,13 +229,13 @@ describe('BASStore', () => {
       expect(mode).toBe('traditional');
     });
 
-    it('should apply balanced preset', () => {
+    it('should apply transitional preset', () => {
       const { applyPreset } = useBASStore.getState();
 
-      applyPreset('balanced');
+      applyPreset('transitional');
 
       const { axes } = useBASStore.getState();
-      expect(axes).toEqual(BAS_PRESETS.balanced.axes);
+      expect(axes).toEqual(BAS_PRESETS.transitional.axes);
     });
 
     it('should apply democratic preset', () => {
@@ -245,12 +281,12 @@ describe('BASStore', () => {
     it('should match preset within tolerance of 5', () => {
       const { applyPreset, setAxis, getCurrentPresetName } = useBASStore.getState();
 
-      applyPreset('balanced');
+      applyPreset('transitional');
       // Slightly adjust one axis within tolerance
-      setAxis('autonomyLevel', 52); // balanced is 50, tolerance is 5
+      setAxis('autonomyLevel', 52); // transitional is 50, tolerance is 5
 
       const presetName = getCurrentPresetName();
-      expect(presetName).toBe('balanced');
+      expect(presetName).toBe('transitional');
     });
   });
 
@@ -395,7 +431,12 @@ describe('BASStore', () => {
 
       // The store performs deep merging, so we can pass partial nested objects
       updateAIConfig({
-        languageStyle: { useImperatives: true, provideReasoning: true, acknowledgeUncertainty: true, offerAlternatives: true },
+        languageStyle: {
+          useImperatives: true,
+          provideReasoning: true,
+          acknowledgeUncertainty: true,
+          offerAlternatives: true,
+        },
       });
 
       const { aiConfig } = useBASStore.getState();
@@ -408,7 +449,11 @@ describe('BASStore', () => {
 
       // The store performs deep merging, so we can pass partial nested objects
       updateAIConfig({
-        interactionRules: { maxSuggestionsPerHour: 5, quietPeriodAfterRejection: 300, respectDoNotDisturb: true },
+        interactionRules: {
+          maxSuggestionsPerHour: 5,
+          quietPeriodAfterRejection: 300,
+          respectDoNotDisturb: true,
+        },
       });
 
       const { aiConfig } = useBASStore.getState();
@@ -431,7 +476,15 @@ describe('BASStore', () => {
     it('should change education focus', () => {
       const { setEducationFocus } = useBASStore.getState();
 
-      const focuses = ['none', 'semler', 'mondragon', 'wallace', 'bilateral', 'value', 'flourishing'] as const;
+      const focuses = [
+        'none',
+        'semler',
+        'mondragon',
+        'wallace',
+        'bilateral',
+        'value',
+        'flourishing',
+      ] as const;
 
       focuses.forEach((focus) => {
         setEducationFocus(focus);
@@ -580,7 +633,8 @@ describe('BASStore', () => {
 
   describe('Reset to Defaults', () => {
     it('should reset all state to defaults', () => {
-      const { setAxis, setMode, setEducationEnabled, loadScenario, resetToDefaults } = useBASStore.getState();
+      const { setAxis, setMode, setEducationEnabled, loadScenario, resetToDefaults } =
+        useBASStore.getState();
 
       // Modify state
       setAxis('autonomyLevel', 90);
