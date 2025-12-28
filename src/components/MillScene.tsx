@@ -421,14 +421,16 @@ export const MillScene: React.FC<MillSceneProps> = ({
     }
 
     // ZONE 2: Milling Floor (Roller Mills)
-    const millNames = ['RM-101', 'RM-102', 'RM-103', 'RM-104', 'RM-105', 'RM-106'];
+    // Names use "R.M." format for proper TTS pronunciation in PA announcements
+    const millNames = ['R.M. 101', 'R.M. 102', 'R.M. 103', 'R.M. 104', 'R.M. 105', 'R.M. 106'];
+    const millIds = ['101', '102', '103', '104', '105', '106'];
     let millIndex = 0;
     for (let i = -3; i <= 3; i += 1.5) {
       if (Math.abs(i) < 0.5) continue;
       // Deterministic metrics based on mill position
       const idx = millIndex;
       _machines.push({
-        id: `rm-${millNames[millIndex].split('-')[1]}`, // rm-101 to rm-106
+        id: `rm-${millIds[millIndex]}`, // rm-101 to rm-106
         name: millNames[millIndex],
         type: MachineType.ROLLER_MILL,
         position: [i * 5, 0, FACTORY_ZONE_Z.milling],

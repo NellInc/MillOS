@@ -56,7 +56,7 @@ export const mockMachines: MachineData[] = [
   // Zone 2: Roller Mills
   {
     id: 'rm-101',
-    name: 'Roller Mill RM-101',
+    name: 'R.M. 101',
     type: MachineType.ROLLER_MILL,
     position: [-15, 0, -6],
     size: [4, 5, 3],
@@ -82,7 +82,7 @@ export const mockMachines: MachineData[] = [
   },
   {
     id: 'rm-102',
-    name: 'Roller Mill RM-102',
+    name: 'R.M. 102',
     type: MachineType.ROLLER_MILL,
     position: [-5, 0, -6],
     size: [4, 5, 3],

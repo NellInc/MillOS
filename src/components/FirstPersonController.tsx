@@ -62,28 +62,28 @@ const COLLISION_BOXES: Array<{
     maxX: -14,
     minZ: FACTORY_ZONE_Z.milling - 6,
     maxZ: FACTORY_ZONE_Z.milling + 6,
-    name: 'RM-101',
+    name: 'R.M. 101',
   },
   {
     minX: -10,
     maxX: -2,
     minZ: FACTORY_ZONE_Z.milling - 6,
     maxZ: FACTORY_ZONE_Z.milling + 6,
-    name: 'RM-102',
+    name: 'R.M. 102',
   },
   {
     minX: 2,
     maxX: 10,
     minZ: FACTORY_ZONE_Z.milling - 6,
     maxZ: FACTORY_ZONE_Z.milling + 6,
-    name: 'RM-103',
+    name: 'R.M. 103',
   },
   {
     minX: 14,
     maxX: 22,
     minZ: FACTORY_ZONE_Z.milling - 6,
     maxZ: FACTORY_ZONE_Z.milling + 6,
-    name: 'RM-104',
+    name: 'R.M. 104',
   },
 
   // Plansifters (Zone 3, z = 6, elevated platform)
