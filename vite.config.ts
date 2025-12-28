@@ -3,19 +3,22 @@ import fs from 'fs';
 import { defineConfig, loadEnv, Plugin } from 'vite';
 import react from '@vitejs/plugin-react-swc'; // SWC is 20x faster than Babel
 
-// Plugin to serve static v0.10 build during development
+// Plugin to serve static v0.10 and v0.20 builds during development
 function serveStaticVersions(): Plugin {
   return {
     name: 'serve-static-versions',
     configureServer(server) {
       server.middlewares.use((req, res, next) => {
-        if (req.url?.startsWith('/v0.10')) {
+        // Handle both v0.10 and v0.20 static builds
+        const versionMatch = req.url?.match(/^\/(v0\.10|v0\.20)(\/|$)/);
+        if (versionMatch && req.url) {
+          const version = versionMatch[1];
           const urlPath = req.url.replace(/\?.*$/, ''); // Remove query string
           let filePath = path.join(__dirname, 'public', urlPath);
 
           // Serve index.html for directory requests
-          if (urlPath === '/v0.10' || urlPath === '/v0.10/') {
-            filePath = path.join(__dirname, 'public', 'v0.10', 'index.html');
+          if (urlPath === `/${version}` || urlPath === `/${version}/`) {
+            filePath = path.join(__dirname, 'public', version, 'index.html');
           }
 
           if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
@@ -25,6 +28,16 @@ function serveStaticVersions(): Plugin {
               '.js': 'application/javascript',
               '.css': 'text/css',
               '.json': 'application/json',
+              '.mp3': 'audio/mpeg',
+              '.hdr': 'application/octet-stream',
+              '.glb': 'model/gltf-binary',
+              '.gltf': 'model/gltf+json',
+              '.png': 'image/png',
+              '.jpg': 'image/jpeg',
+              '.jpeg': 'image/jpeg',
+              '.ttf': 'font/ttf',
+              '.woff': 'font/woff',
+              '.woff2': 'font/woff2',
             };
             res.setHeader('Content-Type', contentTypes[ext] || 'application/octet-stream');
             res.end(fs.readFileSync(filePath));

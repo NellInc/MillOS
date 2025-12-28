@@ -30,25 +30,25 @@ export const ShiftHandover: React.FC = () => {
 
     const timers: NodeJS.Timeout[] = [];
 
-    // Intro -> Outgoing (2s)
+    // Intro -> Outgoing (1s)
     timers.push(
       setTimeout(() => {
         setPhase('outgoing');
-      }, 2000)
+      }, 1000)
     );
 
-    // Outgoing -> Incoming (5s)
+    // Outgoing -> Incoming (2s)
     timers.push(
       setTimeout(() => {
         setPhase('incoming');
-      }, 7000)
+      }, 3000)
     );
 
-    // Incoming -> Summary (5s)
+    // Incoming -> Summary (2s)
     timers.push(
       setTimeout(() => {
         setPhase('summary');
-      }, 12000)
+      }, 5000)
     );
 
     return () => timers.forEach((t) => clearTimeout(t));
@@ -113,29 +113,22 @@ export const ShiftHandover: React.FC = () => {
   return (
     <AnimatePresence>
       <motion.div
-        initial={{ opacity: 0, x: -20 }}
-        animate={{ opacity: 1, x: 0 }}
-        exit={{ opacity: 0, x: -20 }}
-        className="fixed top-20 left-4 z-50 pointer-events-auto"
+        initial={{ x: '-100%', opacity: 0 }}
+        animate={{ x: 0, opacity: 1 }}
+        exit={{ x: '-100%', opacity: 0 }}
+        transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+        className="fixed top-4 left-4 bottom-24 w-80 bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl z-50 overflow-hidden flex flex-col pointer-events-auto"
       >
-        <motion.div
-          initial={{ scale: 0.95, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          exit={{ scale: 0.95, opacity: 0 }}
-          transition={{ type: 'spring', damping: 25 }}
-          className="bg-slate-900/98 backdrop-blur-xl rounded-xl border border-slate-700/50 shadow-2xl w-80 overflow-hidden"
-        >
-          {/* Header */}
-          <div className="bg-gradient-to-r from-amber-600 to-orange-600 p-3">
-            <div className="flex items-center gap-2 mb-1">
-              <ArrowRightLeft className="w-5 h-5 text-white" />
-              <h2 className="text-base font-bold text-white">Shift Handover</h2>
-            </div>
-            <p className="text-amber-100 text-xs">
-              {shiftData.currentShift.charAt(0).toUpperCase() + shiftData.currentShift.slice(1)}{' '}
-              shift → {getNextShift().charAt(0).toUpperCase() + getNextShift().slice(1)} shift
-            </p>
+        {/* Header */}
+        <div className="p-4 border-b border-white/10 flex items-center justify-between bg-white/5">
+          <div className="flex items-center gap-2 text-amber-400">
+            <ArrowRightLeft size={18} />
+            <h2 className="font-bold tracking-wide text-sm uppercase">Shift Handover</h2>
           </div>
+          <span className="text-xs text-slate-400">
+            {shiftData.currentShift.charAt(0).toUpperCase() + shiftData.currentShift.slice(1)} → {getNextShift().charAt(0).toUpperCase() + getNextShift().slice(1)}
+          </span>
+        </div>
 
           {/* Content */}
           <div className="p-4 max-h-80 overflow-y-auto">
@@ -327,7 +320,6 @@ export const ShiftHandover: React.FC = () => {
             </div>
           </div>
         </motion.div>
-      </motion.div>
     </AnimatePresence>
   );
 };

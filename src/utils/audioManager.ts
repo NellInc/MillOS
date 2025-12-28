@@ -5336,6 +5336,11 @@ class AudioManager {
     this.notifyListeners();
   }
 
+  // Returns true if TTS is currently speaking an announcement
+  get isTTSSpeaking(): boolean {
+    return this.isAnnouncementPlaying;
+  }
+
   // Initialize TTS voice - call after user interaction (browser requirement)
   private initTTSVoice(): void {
     if (this._ttsVoiceLoaded || !('speechSynthesis' in window)) return;

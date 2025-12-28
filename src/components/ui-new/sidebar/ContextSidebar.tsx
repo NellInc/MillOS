@@ -297,8 +297,8 @@ export const ContextSidebar: React.FC<ContextSidebarProps> = ({
                     }}
                     aria-label="Select MillOS version"
                   >
-                    <option value="v0.3">0.30</option>
-                    <option value="v0.2">0.20</option>
+                    <option value="v0.30">0.30</option>
+                    <option value="v0.20">0.20</option>
                     <option value="v0.10">0.10</option>
                   </select>
                 </div>

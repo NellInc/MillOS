@@ -186,60 +186,55 @@ export const ShiftHandoverSummary: React.FC = () => {
     <AnimatePresence>
       {showSummary && summary && (
         <motion.div
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -20, transition: { duration: 0.2 } }}
-          className="fixed top-20 left-4 z-50 pointer-events-auto"
+          initial={{ x: '100%', opacity: 0 }}
+          animate={{ x: 0, opacity: 1 }}
+          exit={{ x: '100%', opacity: 0 }}
+          transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+          className="fixed top-4 right-4 z-50 w-80 bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden pointer-events-auto"
           onClick={(e) => e.stopPropagation()}
         >
-          <motion.div
-            initial={{ scale: 0.95, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.95, opacity: 0, transition: { duration: 0.2 } }}
-            className="bg-slate-900/95 rounded-xl border border-amber-500/30 shadow-2xl w-72 overflow-hidden"
-          >
-            {/* Header */}
-            <div className="flex items-center justify-between px-3 py-2 border-b border-slate-700/50 bg-gradient-to-r from-amber-500/20 to-slate-900">
-              <div className="flex items-center gap-2">
-                <Clipboard className="w-4 h-4 text-amber-400" />
-                <span className="font-medium text-sm text-white">Shift Handover</span>
-                <span className="text-[10px] text-amber-400 uppercase">{summary.shift}</span>
-              </div>
-              <div className="flex items-center gap-1">
-                {/* Countdown indicator */}
-                <div className="relative w-5 h-5 flex items-center justify-center">
-                  <svg className="absolute inset-0 -rotate-90" viewBox="0 0 20 20">
-                    <circle
-                      cx="10"
-                      cy="10"
-                      r="8"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      className="text-slate-700"
-                    />
-                    <circle
-                      cx="10"
-                      cy="10"
-                      r="8"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeDasharray={50}
-                      strokeDashoffset={50 * (1 - countdown / 15)}
-                      className="text-amber-400 transition-all duration-1000 ease-linear"
-                    />
-                  </svg>
-                  <span className="text-[8px] font-mono text-amber-400">{countdown}</span>
-                </div>
-                <button
-                  onClick={() => setShowSummary(false)}
-                  className="p-1 hover:bg-slate-700/50 rounded transition-colors"
-                >
-                  <X className="w-3 h-3 text-slate-400" />
-                </button>
-              </div>
+          {/* Header */}
+          <div className="p-4 border-b border-white/10 flex items-center justify-between bg-white/5">
+            <div className="flex items-center gap-2 text-amber-400">
+              <Clipboard size={18} />
+              <h2 className="font-bold tracking-wide text-sm uppercase">Shift Handover</h2>
             </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-400 uppercase">{summary.shift}</span>
+              {/* Countdown indicator */}
+              <div className="relative w-5 h-5 flex items-center justify-center">
+                <svg className="absolute inset-0 -rotate-90" viewBox="0 0 20 20">
+                  <circle
+                    cx="10"
+                    cy="10"
+                    r="8"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    className="text-slate-700"
+                  />
+                  <circle
+                    cx="10"
+                    cy="10"
+                    r="8"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeDasharray={50}
+                    strokeDashoffset={50 * (1 - countdown / 15)}
+                    className="text-amber-400 transition-all duration-1000 ease-linear"
+                  />
+                </svg>
+                <span className="text-[8px] font-mono text-amber-400">{countdown}</span>
+              </div>
+              <button
+                onClick={() => setShowSummary(false)}
+                className="p-1 hover:bg-white/10 rounded-lg transition-colors text-slate-300 hover:text-white"
+              >
+                <X size={16} />
+              </button>
+            </div>
+          </div>
 
             {/* Content */}
             <div className="p-3 space-y-2 max-h-64 overflow-y-auto">
@@ -311,7 +306,6 @@ export const ShiftHandoverSummary: React.FC = () => {
                 Don't show again
               </button>
             </div>
-          </motion.div>
         </motion.div>
       )}
     </AnimatePresence>

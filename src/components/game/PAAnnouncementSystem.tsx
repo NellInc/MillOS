@@ -7,8 +7,10 @@ import { usePAScheduler, useEventAnnouncementScheduler } from './shared';
 import { useMobileDetection } from '../../hooks/useMobileDetection';
 import { audioManager } from '../../utils/audioManager';
 
-// Auto-dismiss delay in ms (enough time to read/voice the announcement)
-const AUTO_DISMISS_MS = 8000;
+// Fallback timeout - dismiss after this even if TTS hasn't finished
+const FALLBACK_TIMEOUT_MS = 10000;
+// How often to check if TTS is done
+const TTS_CHECK_INTERVAL_MS = 300;
 
 export const PAAnnouncementSystem: React.FC = () => {
   // CRITICAL: Must use useAnnouncementsStore directly for reactivity
@@ -19,7 +21,8 @@ export const PAAnnouncementSystem: React.FC = () => {
 
   // Track which announcement is currently being displayed
   const [currentAnnouncementId, setCurrentAnnouncementId] = useState<string | null>(null);
-  const autoDismissTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const ttsCheckIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Suppress PA announcements for first 10 seconds to let speech synthesis initialize
   const [isStartupSuppressed, setIsStartupSuppressed] = useState(true);
@@ -41,12 +44,16 @@ export const PAAnnouncementSystem: React.FC = () => {
   const activeAnnouncements = announcements.filter((a) => !a.dismissed);
   const currentAnnouncement = activeAnnouncements.length > 0 ? activeAnnouncements[0] : null;
 
-  // Auto-dismiss current announcement after delay
+  // Auto-dismiss: wait for TTS to finish, or fallback after 10s if something goes wrong
   useEffect(() => {
-    // Clear any existing timer
-    if (autoDismissTimerRef.current) {
-      clearTimeout(autoDismissTimerRef.current);
-      autoDismissTimerRef.current = null;
+    // Clear any existing timers
+    if (fallbackTimerRef.current) {
+      clearTimeout(fallbackTimerRef.current);
+      fallbackTimerRef.current = null;
+    }
+    if (ttsCheckIntervalRef.current) {
+      clearInterval(ttsCheckIntervalRef.current);
+      ttsCheckIntervalRef.current = null;
     }
 
     if (!currentAnnouncement || isStartupSuppressed) return;
@@ -61,14 +68,38 @@ export const PAAnnouncementSystem: React.FC = () => {
       audioManager.speakAnnouncement(currentAnnouncement.message);
     }
 
-    // Set auto-dismiss timer
-    autoDismissTimerRef.current = setTimeout(() => {
-      dismissAnnouncement(currentAnnouncement.id);
-    }, AUTO_DISMISS_MS);
+    const announcementId = currentAnnouncement.id;
+
+    // Poll for TTS completion - dismiss when TTS finishes
+    ttsCheckIntervalRef.current = setInterval(() => {
+      if (!audioManager.isTTSSpeaking) {
+        if (ttsCheckIntervalRef.current) {
+          clearInterval(ttsCheckIntervalRef.current);
+          ttsCheckIntervalRef.current = null;
+        }
+        if (fallbackTimerRef.current) {
+          clearTimeout(fallbackTimerRef.current);
+          fallbackTimerRef.current = null;
+        }
+        dismissAnnouncement(announcementId);
+      }
+    }, TTS_CHECK_INTERVAL_MS);
+
+    // Fallback: dismiss after 10s even if TTS hasn't finished (safety net)
+    fallbackTimerRef.current = setTimeout(() => {
+      if (ttsCheckIntervalRef.current) {
+        clearInterval(ttsCheckIntervalRef.current);
+        ttsCheckIntervalRef.current = null;
+      }
+      dismissAnnouncement(announcementId);
+    }, FALLBACK_TIMEOUT_MS);
 
     return () => {
-      if (autoDismissTimerRef.current) {
-        clearTimeout(autoDismissTimerRef.current);
+      if (fallbackTimerRef.current) {
+        clearTimeout(fallbackTimerRef.current);
+      }
+      if (ttsCheckIntervalRef.current) {
+        clearInterval(ttsCheckIntervalRef.current);
       }
     };
   }, [currentAnnouncement?.id, isStartupSuppressed, dismissAnnouncement, currentAnnouncementId]);

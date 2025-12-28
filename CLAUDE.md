@@ -212,6 +212,40 @@ npm run preview      # Preview production build
 - **Styling:** Tailwind CSS
 - **Build:** Vite with React plugin
 
+### Tailwind v4 Recurring Bug: Utilities “Stop Working” (CSS Cascade Layers)
+
+**Symptoms**
+- Tailwind utilities that set spacing/layout appear to do nothing (common: `p-*`, `px-*`, `py-*`, `gap-*`, `mx-auto`).
+- UI looks cramped, flexbox layouts feel “off”, buttons/icons don’t align as expected.
+
+**Root Cause**
+Tailwind v4 emits most output inside CSS cascade layers (`@layer base`, `@layer utilities`, etc). Any **unlayered** CSS rule (normal CSS outside `@layer`) is treated as higher priority than all layered rules, so a low-specificity selector like:
+
+```css
+* { margin: 0; padding: 0; }
+```
+
+can override Tailwind utilities (even `.p-4`, `.mx-auto`, etc.) because layer order is evaluated before selector specificity.
+
+**Where This Keeps Reappearing**
+- `src/index.css` (global stylesheet entrypoint)
+- `index.html` inline `<style>` block (loading screen styles)
+
+**The Fix**
+- Do not use universal margin/padding resets (`* { margin: 0; padding: 0; }`) in `src/index.css` or `index.html`.
+- If you need global base styling, put it inside Tailwind layers in `src/index.css` (prefer `@layer base { ... }`) and avoid `!important`.
+- For the loading screen, use explicit rules only (safe example): `html, body { margin: 0; height: 100%; overflow: hidden; }`.
+
+**How To Confirm Quickly**
+- In DevTools on a broken element with a spacing class (e.g. `p-4`), check “Computed”:
+  - If `padding: 0` comes from a universal selector (`*`) in `index.html` or `src/index.css`, it’s this bug.
+- Fast search:
+  - `rg -n "\\*\\s*\\{[^}]*\\bmargin\\s*:\\s*0;[^}]*\\bpadding\\s*:\\s*0;" src/index.css index.html`
+
+**If It Still Looks Broken After Fixing**
+This app has a service worker (`public/sw.js`) that can serve cached CSS/JS in production. If you’re testing a production build:
+- Hard refresh, and/or unregister the service worker + clear site data in DevTools (Application → Service Workers / Storage).
+
 ### Key Source Files
 
 | File | Purpose |
