@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import { useGraphicsStore } from '../stores/graphicsStore';
 import { shouldRunThisFrame } from '../utils/frameThrottle';
+import { SHADOW_CONFIG } from '../constants/renderLayers';
 
 // Vertex Shader for SkyDome - Ultrathink Sky System
 const skyVertexShader = `
@@ -868,7 +869,8 @@ export const SkySystem: React.FC = () => {
         shadow-camera-right={70}
         shadow-camera-top={90}
         shadow-camera-bottom={-90}
-        shadow-bias={-0.001}
+        shadow-bias={SHADOW_CONFIG.bias}
+        shadow-normalBias={SHADOW_CONFIG.normalBias}
       />
 
       <directionalLight
@@ -886,6 +888,7 @@ export const SkySystem: React.FC = () => {
 
       {/* Sky Dome - renderOrder -1000 ensures it renders behind everything */}
       {/* frustumCulled={false} ensures dome is always rendered even when camera is inside */}
+      {/* depthTest={false} alone is sufficient - depthWrite is redundant when not testing */}
       <mesh ref={meshRef} renderOrder={-1000} frustumCulled={false}>
         <sphereGeometry args={[350, 64, 64]} />
         <shaderMaterial
@@ -901,7 +904,6 @@ export const SkySystem: React.FC = () => {
             sunAngle: { value: sunAngle },
           }}
           side={THREE.BackSide}
-          depthWrite={false}
           depthTest={false}
         />
       </mesh>

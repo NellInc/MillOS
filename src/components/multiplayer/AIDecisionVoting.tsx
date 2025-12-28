@@ -215,10 +215,26 @@ export const AIDecisionVotingCard: React.FC<AIDecisionVotingProps> = ({ decision
       {/* Single player - show action buttons */}
       {!isActive && (
         <div className="border-t border-slate-700/50 pt-3 flex gap-2">
-          <button className="flex-1 bg-green-600 hover:bg-green-500 text-white py-2 rounded text-sm font-medium transition-colors">
+          <button
+            className="flex-1 bg-green-600 hover:bg-green-500 text-white py-2 rounded text-sm font-medium transition-colors"
+            onClick={() => {
+              useProductionStore
+                .getState()
+                .updateDecisionStatus(decision.id, 'completed', 'Applied by player');
+              onClose?.();
+            }}
+          >
             Apply
           </button>
-          <button className="flex-1 bg-slate-700 hover:bg-slate-600 text-white py-2 rounded text-sm font-medium transition-colors">
+          <button
+            className="flex-1 bg-slate-700 hover:bg-slate-600 text-white py-2 rounded text-sm font-medium transition-colors"
+            onClick={() => {
+              useProductionStore
+                .getState()
+                .updateDecisionStatus(decision.id, 'superseded', 'Dismissed by player');
+              onClose?.();
+            }}
+          >
             Dismiss
           </button>
         </div>

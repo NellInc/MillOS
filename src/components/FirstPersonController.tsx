@@ -2,6 +2,7 @@ import React, { useRef, useEffect, useCallback } from 'react';
 import { useThree, useFrame } from '@react-three/fiber';
 import { PointerLockControls } from '@react-three/drei';
 import * as THREE from 'three';
+import { FACTORY_ZONE_Z } from '../constants/factoryLayout';
 import { useUIStore } from '../stores/uiStore';
 
 // Movement configuration
@@ -26,26 +27,110 @@ const COLLISION_BOXES: Array<{
   name: string;
 }> = [
   // Silos (Zone 1, z = -22)
-  { minX: -20, maxX: -12, minZ: -28, maxZ: -16, name: 'Silo Alpha' },
-  { minX: -8, maxX: 0, minZ: -28, maxZ: -16, name: 'Silo Beta' },
-  { minX: 4, maxX: 12, minZ: -28, maxZ: -16, name: 'Silo Gamma' },
-  { minX: 16, maxX: 24, minZ: -28, maxZ: -16, name: 'Silo Delta' },
+  {
+    minX: -20,
+    maxX: -12,
+    minZ: FACTORY_ZONE_Z.silos - 6,
+    maxZ: FACTORY_ZONE_Z.silos + 6,
+    name: 'Silo Alpha',
+  },
+  {
+    minX: -8,
+    maxX: 0,
+    minZ: FACTORY_ZONE_Z.silos - 6,
+    maxZ: FACTORY_ZONE_Z.silos + 6,
+    name: 'Silo Beta',
+  },
+  {
+    minX: 4,
+    maxX: 12,
+    minZ: FACTORY_ZONE_Z.silos - 6,
+    maxZ: FACTORY_ZONE_Z.silos + 6,
+    name: 'Silo Gamma',
+  },
+  {
+    minX: 16,
+    maxX: 24,
+    minZ: FACTORY_ZONE_Z.silos - 6,
+    maxZ: FACTORY_ZONE_Z.silos + 6,
+    name: 'Silo Delta',
+  },
 
   // Roller Mills (Zone 2, z = -6)
-  { minX: -22, maxX: -14, minZ: -12, maxZ: 0, name: 'RM-101' },
-  { minX: -10, maxX: -2, minZ: -12, maxZ: 0, name: 'RM-102' },
-  { minX: 2, maxX: 10, minZ: -12, maxZ: 0, name: 'RM-103' },
-  { minX: 14, maxX: 22, minZ: -12, maxZ: 0, name: 'RM-104' },
+  {
+    minX: -22,
+    maxX: -14,
+    minZ: FACTORY_ZONE_Z.milling - 6,
+    maxZ: FACTORY_ZONE_Z.milling + 6,
+    name: 'RM-101',
+  },
+  {
+    minX: -10,
+    maxX: -2,
+    minZ: FACTORY_ZONE_Z.milling - 6,
+    maxZ: FACTORY_ZONE_Z.milling + 6,
+    name: 'RM-102',
+  },
+  {
+    minX: 2,
+    maxX: 10,
+    minZ: FACTORY_ZONE_Z.milling - 6,
+    maxZ: FACTORY_ZONE_Z.milling + 6,
+    name: 'RM-103',
+  },
+  {
+    minX: 14,
+    maxX: 22,
+    minZ: FACTORY_ZONE_Z.milling - 6,
+    maxZ: FACTORY_ZONE_Z.milling + 6,
+    name: 'RM-104',
+  },
 
   // Plansifters (Zone 3, z = 6, elevated platform)
-  { minX: -18, maxX: -6, minZ: 2, maxZ: 14, name: 'Plansifter A' },
-  { minX: -4, maxX: 8, minZ: 2, maxZ: 14, name: 'Plansifter B' },
-  { minX: 10, maxX: 22, minZ: 2, maxZ: 14, name: 'Plansifter C' },
+  {
+    minX: -18,
+    maxX: -6,
+    minZ: FACTORY_ZONE_Z.sifting - 4,
+    maxZ: FACTORY_ZONE_Z.sifting + 8,
+    name: 'Plansifter A',
+  },
+  {
+    minX: -4,
+    maxX: 8,
+    minZ: FACTORY_ZONE_Z.sifting - 4,
+    maxZ: FACTORY_ZONE_Z.sifting + 8,
+    name: 'Plansifter B',
+  },
+  {
+    minX: 10,
+    maxX: 22,
+    minZ: FACTORY_ZONE_Z.sifting - 4,
+    maxZ: FACTORY_ZONE_Z.sifting + 8,
+    name: 'Plansifter C',
+  },
 
-  // Packers (Zone 4, z = 20)
-  { minX: -20, maxX: -8, minZ: 16, maxZ: 28, name: 'Packer Line 1' },
-  { minX: -4, maxX: 8, minZ: 16, maxZ: 28, name: 'Packer Line 2' },
-  { minX: 12, maxX: 24, minZ: 16, maxZ: 28, name: 'Packer Line 3' },
+  // Packers (Zone 4, z = 25)
+  {
+    minX: -20,
+    maxX: -8,
+    minZ: FACTORY_ZONE_Z.packing - 4,
+    maxZ: FACTORY_ZONE_Z.packing + 8,
+    name: 'Packer Line 1',
+  },
+  {
+    minX: -4,
+    maxX: 8,
+    minZ: FACTORY_ZONE_Z.packing - 4,
+    maxZ: FACTORY_ZONE_Z.packing + 8,
+    name: 'Packer Line 2',
+  },
+  {
+    minX: 12,
+    maxX: 24,
+    minZ: FACTORY_ZONE_Z.packing - 4,
+    maxZ: FACTORY_ZONE_Z.packing + 8,
+    name: 'Packer Line 3',
+  },
 
   // Truck bays
   { minX: -15, maxX: 15, minZ: 45, maxZ: 60, name: 'Shipping Bay' },

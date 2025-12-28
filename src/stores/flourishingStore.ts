@@ -28,7 +28,7 @@ import type {
   WorkerFlourishing,
   FactoryFlourishing,
 } from '../types/bas';
-import { WORKER_ROSTER } from '../types';
+import { DEFAULT_WORKER_PREFERENCES, WORKER_ROSTER } from '../types';
 import { useProductionStore } from './productionStore';
 
 // =============================================================================
@@ -617,3 +617,128 @@ export const useFlourishingStore = create<FlourishingState>()(
     }
   )
 );
+
+// =============================================================================
+// BAS SUBSCRIPTION SETUP
+// Phase 3: Subscribe to BAS axis changes and apply effects to flourishing
+// =============================================================================
+
+let basAxisSubscribed = false;
+let basAxisUnsubscribe: (() => void) | null = null;
+let basAxisDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+export function initFlourishingBASSubscription(): void {
+  if (basAxisSubscribed) return;
+
+  // Dynamic import to break circular dependency
+  import('./basStore').then(({ useBASStore }) => {
+    // Track previous axes to detect changes
+    let prevAxes = { ...useBASStore.getState().axes };
+
+    // Subscribe to BAS changes and store unsubscribe function
+    // PERFORMANCE: Debounce axis changes to prevent cascade storms during slider drags
+    basAxisUnsubscribe = useBASStore.subscribe((state) => {
+      const currentAxes = state.axes;
+
+      // Check if any axis actually changed
+      const axesChanged = Object.keys(currentAxes).some(
+        (key) =>
+          currentAxes[key as keyof typeof currentAxes] !== prevAxes[key as keyof typeof prevAxes]
+      );
+
+      if (axesChanged) {
+        // Clear any pending debounced update
+        if (basAxisDebounceTimer) {
+          clearTimeout(basAxisDebounceTimer);
+        }
+
+        // Debounce: Wait 150ms after last change before applying effects
+        // This prevents cascade storms during slider drags while still being responsive
+        basAxisDebounceTimer = setTimeout(() => {
+          // Get axis flourishing impacts and apply them
+          const impacts = useBASStore.getState().getAxisFlourishingImpact();
+          useFlourishingStore.getState().applyAxisEffects(impacts);
+          basAxisDebounceTimer = null;
+        }, 150);
+
+        // Update previous axes immediately (for next change detection)
+        prevAxes = { ...currentAxes };
+      }
+    });
+
+    basAxisSubscribed = true;
+  });
+}
+
+/** Cleanup function for testing and HMR - unsubscribes from BAS store */
+export function cleanupFlourishingBASSubscription(): void {
+  if (basAxisDebounceTimer) {
+    clearTimeout(basAxisDebounceTimer);
+    basAxisDebounceTimer = null;
+  }
+  if (basAxisUnsubscribe) {
+    basAxisUnsubscribe();
+    basAxisUnsubscribe = null;
+  }
+  basAxisSubscribed = false;
+}
+
+// Worker Mood -> Flourishing subscription
+let flourishingMoodUnsubscribe: (() => void) | null = null;
+let flourishingMoodSubscribed = false;
+
+/** Initialize subscription to worker mood changes for flourishing effects */
+function initFlourishingWorkerMoodSubscription(): void {
+  if (flourishingMoodSubscribed) return;
+
+  const previousValues = new Map<string, { trust: number; initiative: number }>();
+
+  // Dynamic import to avoid circular deps
+  import('./workerMoodStore').then(({ useWorkerMoodStore }) => {
+    flourishingMoodUnsubscribe = useWorkerMoodStore.subscribe((state) => {
+      const workers = state.workerMoods;
+
+      Object.entries(workers).forEach(([workerId, mood]) => {
+        const trust =
+          mood.preferences?.managementTrust ?? DEFAULT_WORKER_PREFERENCES.managementTrust;
+        const initiative = mood.preferences?.initiative ?? DEFAULT_WORKER_PREFERENCES.initiative;
+
+        const prev = previousValues.get(workerId);
+        if (!prev) {
+          previousValues.set(workerId, { trust, initiative });
+          return;
+        }
+
+        const trustDelta = trust - prev.trust;
+        const initiativeDelta = initiative - prev.initiative;
+
+        // Only apply if significant change (>= 3 points)
+        if (Math.abs(trustDelta) >= 3 || Math.abs(initiativeDelta) >= 3) {
+          useFlourishingStore.getState().applyMoodEffects(workerId, trustDelta, initiativeDelta);
+          previousValues.set(workerId, { trust, initiative });
+        }
+      });
+    });
+
+    flourishingMoodSubscribed = true;
+  });
+}
+
+/** Cleanup function for worker mood subscription */
+export function cleanupFlourishingWorkerMoodSubscription(): void {
+  if (flourishingMoodUnsubscribe) {
+    flourishingMoodUnsubscribe();
+    flourishingMoodUnsubscribe = null;
+  }
+  flourishingMoodSubscribed = false;
+}
+
+// Initialize subscriptions on module load (after a short delay to allow stores to initialize)
+if (typeof window !== 'undefined') {
+  setTimeout(() => {
+    initFlourishingBASSubscription();
+  }, 100);
+  setTimeout(() => {
+    initFlourishingWorkerMoodSubscription();
+  }, 200);
+}

@@ -178,12 +178,9 @@ export const useBreakdownStore = create<BreakdownStore>()(
     lastBreakdownTime: 0,
 
     triggerBreakdown: (machineId, machineName, type) => {
-      const state = get();
-
-      // Check if machine already has an active breakdown
-      if (state.activeBreakdowns.some((b) => b.machineId === machineId)) {
-        return null;
-      }
+      // Atomic check-and-create: verify no existing breakdown inside set()
+      // This prevents race conditions where two calls could both pass the check
+      let createdBreakdown: BreakdownEvent | null = null;
 
       // Random type if not specified
       const breakdownType =
@@ -202,25 +199,34 @@ export const useBreakdownStore = create<BreakdownStore>()(
       // Repair time: 30-60 game seconds (10-20 real seconds at 3x game speed)
       const estimatedRepairTime = 30 + Math.floor(Math.random() * 30);
 
-      const breakdown: BreakdownEvent = {
-        id: generateId('breakdown'),
-        machineId,
-        machineName,
-        type: breakdownType,
-        startTime: Date.now(),
-        estimatedRepairTime,
-        severity,
-        repairProgress: 0,
-        resolved: false,
-        description,
-      };
+      set((state) => {
+        // Check if machine already has an active breakdown (inside set for atomicity)
+        if (state.activeBreakdowns.some((b) => b.machineId === machineId)) {
+          createdBreakdown = null;
+          return {};
+        }
 
-      set((state) => ({
-        activeBreakdowns: [...state.activeBreakdowns, breakdown],
-        lastBreakdownTime: Date.now(),
-      }));
+        const breakdown: BreakdownEvent = {
+          id: generateId('breakdown'),
+          machineId,
+          machineName,
+          type: breakdownType,
+          startTime: Date.now(),
+          estimatedRepairTime,
+          severity,
+          repairProgress: 0,
+          resolved: false,
+          description,
+        };
 
-      return breakdown;
+        createdBreakdown = breakdown;
+        return {
+          activeBreakdowns: [...state.activeBreakdowns, breakdown],
+          lastBreakdownTime: Date.now(),
+        };
+      });
+
+      return createdBreakdown;
     },
 
     triggerRandomBreakdown: (machines) => {

@@ -107,16 +107,9 @@ const MachineAnimationManager: React.FC = () => {
       const warningState = Math.sin(time * 6) > 0 ? 1 : 0;
       const criticalState = Math.sin(time * 10) > 0 ? 2 : 3;
 
-      const ledColors = {
-        running: ['#22c55e', '#22c55e', '#3b82f6', '#3b82f6'],
-        idle: ['#64748b', '#64748b', '#64748b', '#64748b'],
-        warning: ['#f59e0b', '#1e293b', '#f59e0b', '#1e293b'],
-        critical: ['#ef4444', '#ef4444', '#1e293b', '#1e293b'],
-      };
-
       panelRegistry.forEach((data) => {
         const status = data.status;
-        const colors = ledColors[status];
+        const colors = LED_COLORS[status];
         let idx = 0;
 
         // Update blink state index
@@ -175,6 +168,19 @@ const QUALITY_LABELS: Record<GrainQuality, string> = {
 
 // Grain types for silos
 const GRAIN_TYPES = ['Wheat', 'Corn', 'Barley', 'Oats', 'Rye'];
+
+// LED colors for machine status panels (moved to module level to avoid 60 allocations/sec in useFrame)
+const LED_COLORS = {
+  running: ['#22c55e', '#22c55e', '#3b82f6', '#3b82f6'],
+  idle: ['#64748b', '#64748b', '#64748b', '#64748b'],
+  warning: ['#f59e0b', '#1e293b', '#f59e0b', '#1e293b'],
+  critical: ['#ef4444', '#ef4444', '#1e293b', '#1e293b'],
+} as const;
+
+// Pre-computed index arrays for static-length iterations (avoid Array.from in render)
+const INDICES_5 = [0, 1, 2, 3, 4] as const;
+const INDICES_6 = [0, 1, 2, 3, 4, 5] as const;
+const INDICES_8 = [0, 1, 2, 3, 4, 5, 6, 7] as const;
 
 const UNIT_CYLINDER = new THREE.CylinderGeometry(1, 1, 1, 32);
 const UNIT_CYLINDER_LOW = new THREE.CylinderGeometry(1, 1, 1, 16);
@@ -2027,7 +2033,7 @@ const MachineMesh: React.FC<MachineMeshProps> = React.memo(({ data, onSelect, on
                 <primitive object={MACHINE_MATERIALS.millBody} attach="material" />
               </mesh>
               {/* Motor fins (cooling) - using shared materials */}
-              {Array.from({ length: 8 }).map((_, i) => (
+              {INDICES_8.map((i) => (
                 <mesh
                   key={i}
                   position={[-0.35 + i * 0.1, 0, 0]}
@@ -2407,7 +2413,7 @@ const MachineMesh: React.FC<MachineMeshProps> = React.memo(({ data, onSelect, on
                     <meshStandardMaterial color="#52525b" metalness={0.6} roughness={0.35} />
                   </mesh>
                   {/* Grille slats */}
-                  {Array.from({ length: 5 }).map((_, gi) => (
+                  {INDICES_5.map((gi) => (
                     <mesh key={gi} position={[compartmentWidth * (-0.15 + gi * 0.075), 0, 0.01]}>
                       <boxGeometry args={[0.02, sh * 0.06, 0.01]} />
                       <meshStandardMaterial color="#27272a" metalness={0.7} roughness={0.3} />
@@ -2558,7 +2564,7 @@ const MachineMesh: React.FC<MachineMeshProps> = React.memo(({ data, onSelect, on
                   <meshStandardMaterial color="#52525b" metalness={0.8} roughness={0.2} />
                 </mesh>
                 {/* Spokes (6) */}
-                {Array.from({ length: 6 }).map((_, si) => (
+                {INDICES_6.map((si) => (
                   <mesh
                     key={si}
                     position={[
@@ -2582,7 +2588,7 @@ const MachineMesh: React.FC<MachineMeshProps> = React.memo(({ data, onSelect, on
                   <meshStandardMaterial color="#1e3a5f" metalness={0.6} roughness={0.35} />
                 </mesh>
                 {/* Motor cooling fins */}
-                {Array.from({ length: 8 }).map((_, fi) => (
+                {INDICES_8.map((fi) => (
                   <mesh
                     key={fi}
                     position={[0, 0, -0.1 - fi * 0.035]}
@@ -2830,7 +2836,7 @@ const MachineMesh: React.FC<MachineMeshProps> = React.memo(({ data, onSelect, on
                 <meshStandardMaterial color="#374151" metalness={0.6} roughness={0.35} />
               </mesh>
               {/* Rollers */}
-              {Array.from({ length: 8 }).map((_, i) => (
+              {INDICES_8.map((i) => (
                 <mesh
                   key={i}
                   position={[-pw * 0.5 + i * (pw * 0.15), 0.06, 0]}

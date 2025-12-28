@@ -27,7 +27,8 @@
 
 /**
  * Floor overlay heights in ascending order.
- * Minimum separation: 0.005 units to ensure depth buffer distinction.
+ * Minimum separation: 0.01 units to ensure robust depth buffer distinction
+ * across all camera angles and distances.
  *
  * Usage: position={[x, FLOOR_LAYERS.puddle, z]}
  */
@@ -41,29 +42,35 @@ export const FLOOR_LAYERS = {
   /** Primary worn footpaths: y = 0.02 */
   wornPrimary: 0.02,
 
-  /** Secondary worn footpaths: y = 0.025 */
-  wornSecondary: 0.025,
+  /** Secondary worn footpaths: y = 0.03 (gap widened from 0.025) */
+  wornSecondary: 0.03,
 
-  /** Safety zone markings (main): y = 0.03 */
-  safetyMain: 0.03,
+  /** Safety zone markings (main): y = 0.04 (gap widened from 0.03) */
+  safetyMain: 0.04,
 
-  /** Safety zone cross-hatching: y = 0.035 */
-  safetyCross: 0.035,
+  /** Safety zone cross-hatching: y = 0.05 (gap widened from 0.035) */
+  safetyCross: 0.05,
 
-  /** Danger zone markings: y = 0.04 */
-  safetyDanger: 0.04,
+  /** Danger zone markings: y = 0.06 (gap widened from 0.04) */
+  safetyDanger: 0.06,
 
-  /** Grid overlay: y = 0.045 */
-  grid: 0.045,
+  /** Grid overlay: y = 0.07 (gap widened from 0.045) */
+  grid: 0.07,
 
-  /** Truck bay floor markings: y = 0.05 */
-  truckMarkings: 0.05,
+  /** Truck bay floor markings: y = 0.08 (gap widened from 0.05) */
+  truckMarkings: 0.08,
 
-  /** Text labels on floor: y = 0.06 */
-  floorText: 0.06,
+  /** Text labels on floor: y = 0.09 (gap widened from 0.06) */
+  floorText: 0.09,
 
-  /** Exit zone indicators: y = 0.1 */
-  exitIndicator: 0.1,
+  /** Heat map overlays: y = 0.10 */
+  heatMap: 0.1,
+
+  /** Exit zone indicators: y = 0.12 (separated from heatMap) */
+  exitIndicator: 0.12,
+
+  /** Dynamic overlays (selection rings, etc.): y = 0.14 */
+  dynamicOverlay: 0.14,
 
   /** Dock leveler lines: y = 0.16 */
   dockLeveler: 0.16,
@@ -131,6 +138,15 @@ export const RENDER_ORDER = {
 
   /** Floor text labels */
   floorText: 11,
+
+  /** Heat map overlays */
+  heatMap: 15,
+
+  /** Exit indicators (fire drill, etc.) */
+  exitIndicator: 20,
+
+  /** Dynamic overlays (selection, highlights) */
+  dynamicOverlay: 25,
 } as const;
 
 /**

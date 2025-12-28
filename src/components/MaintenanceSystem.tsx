@@ -224,7 +224,8 @@ const MaintenanceAnimationManager: React.FC<{ children: React.ReactNode }> = ({ 
 
         WORKER_ROSTER.forEach((worker) => {
           // Probability increases with severity - more noticeable reactions
-          const baseProbability = event.severity === 'dramatic' ? 0.12 : event.severity === 'moderate' ? 0.08 : 0.05;
+          const baseProbability =
+            event.severity === 'dramatic' ? 0.12 : event.severity === 'moderate' ? 0.08 : 0.05;
 
           if (event.affectedWorkerIds.includes(worker.id) && Math.random() < baseProbability) {
             if (event.type === 'grain_spill' || event.type === 'mysterious_puddle') {

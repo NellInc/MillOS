@@ -9,6 +9,7 @@ import { useFrame } from '@react-three/fiber';
 import { Text } from '@react-three/drei';
 import * as THREE from 'three';
 import { PALETTE } from '../../utils/digitalTwinPalette';
+import { FACTORY_ZONE_Z } from '../../constants/factoryLayout';
 
 interface ZoneLabelProps {
   label: string;
@@ -53,17 +54,33 @@ const ZoneLabel: React.FC<ZoneLabelProps> = ({ label, position, color, transitio
       {/* Holographic underline */}
       <mesh position={[0, -1.5, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <planeGeometry args={[label.length * 1.2, 0.15]} />
-        <meshBasicMaterial ref={materialRef} color={color} transparent opacity={transition * 0.7} />
+        <meshBasicMaterial
+          ref={materialRef}
+          color={color}
+          transparent
+          opacity={transition * 0.7}
+          depthWrite={false}
+        />
       </mesh>
 
       {/* Corner brackets for holographic effect */}
       <mesh position={[-label.length * 0.6, 0.8, 0]}>
         <planeGeometry args={[0.3, 0.8]} />
-        <meshBasicMaterial color={color} transparent opacity={transition * 0.5} />
+        <meshBasicMaterial
+          color={color}
+          transparent
+          opacity={transition * 0.5}
+          depthWrite={false}
+        />
       </mesh>
       <mesh position={[label.length * 0.6, 0.8, 0]}>
         <planeGeometry args={[0.3, 0.8]} />
-        <meshBasicMaterial color={color} transparent opacity={transition * 0.5} />
+        <meshBasicMaterial
+          color={color}
+          transparent
+          opacity={transition * 0.5}
+          depthWrite={false}
+        />
       </mesh>
     </group>
   );
@@ -78,25 +95,25 @@ const ZONES = [
   {
     id: 'silos',
     label: 'ZONE 1: STORAGE',
-    position: [0, 20, -22] as [number, number, number],
+    position: [0, 20, FACTORY_ZONE_Z.silos] as [number, number, number],
     color: PALETTE.zones.silos,
   },
   {
     id: 'milling',
     label: 'ZONE 2: MILLING',
-    position: [0, 14, -6] as [number, number, number],
+    position: [0, 14, FACTORY_ZONE_Z.milling] as [number, number, number],
     color: PALETTE.zones.milling,
   },
   {
     id: 'sifting',
     label: 'ZONE 3: SIFTING',
-    position: [0, 20, 6] as [number, number, number],
+    position: [0, 20, FACTORY_ZONE_Z.sifting] as [number, number, number],
     color: PALETTE.zones.sifting,
   },
   {
     id: 'packing',
     label: 'ZONE 4: PACKING',
-    position: [0, 14, 25] as [number, number, number],
+    position: [0, 14, FACTORY_ZONE_Z.packing] as [number, number, number],
     color: PALETTE.zones.packing,
   },
 ];

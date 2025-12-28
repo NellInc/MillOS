@@ -34,26 +34,26 @@ export const WorkforcePanel: React.FC = () => {
     storeWorkers.length > 0
       ? storeWorkers
       : WORKER_ROSTER.map((w) => ({
-        ...w,
-        position: [0, 0, 0] as [number, number, number],
-        direction: 1 as const,
-      }));
+          ...w,
+          position: [0, 0, 0] as [number, number, number],
+          direction: 1 as const,
+        }));
 
   // Calculate workforce stats using mood data
   const activeCount = workers.filter((w) => w.currentTask !== 'idle').length;
   const avgEnergy =
     workers.length > 0
       ? workers.reduce((sum, w) => {
-        const mood = workerMoods[w.id];
-        return sum + (mood?.energy ?? 100);
-      }, 0) / workers.length
+          const mood = workerMoods[w.id];
+          return sum + (mood?.energy ?? 100);
+        }, 0) / workers.length
       : 100;
   const avgSatisfaction =
     workers.length > 0
       ? workers.reduce((sum, w) => {
-        const mood = workerMoods[w.id];
-        return sum + (mood?.satisfaction ?? 80);
-      }, 0) / workers.length
+          const mood = workerMoods[w.id];
+          return sum + (mood?.satisfaction ?? 80);
+        }, 0) / workers.length
       : 80;
 
   // If a worker is selected, show their detail view with back button
@@ -161,12 +161,13 @@ export const WorkforcePanel: React.FC = () => {
                 {/* Energy */}
                 <div className="flex items-center gap-1">
                   <Zap
-                    className={`w-3 h-3 ${energy > 70
+                    className={`w-3 h-3 ${
+                      energy > 70
                         ? 'text-green-400'
                         : energy > 40
                           ? 'text-amber-400'
                           : 'text-red-400'
-                      }`}
+                    }`}
                   />
                   <span className="text-[10px] text-slate-300 w-7">{Math.round(energy)}%</span>
                 </div>
@@ -174,12 +175,13 @@ export const WorkforcePanel: React.FC = () => {
                 {/* Satisfaction */}
                 <div className="flex items-center gap-1">
                   <Heart
-                    className={`w-3 h-3 ${satisfaction > 70
+                    className={`w-3 h-3 ${
+                      satisfaction > 70
                         ? 'text-pink-400'
                         : satisfaction > 40
                           ? 'text-amber-400'
                           : 'text-red-400'
-                      }`}
+                    }`}
                   />
                   <span className="text-[10px] text-slate-300 w-7">
                     {Math.round(satisfaction)}%

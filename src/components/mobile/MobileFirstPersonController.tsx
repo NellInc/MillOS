@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useCallback } from 'react';
 import { useThree, useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
+import { FACTORY_ZONE_Z } from '../../constants/factoryLayout';
 import { useMobileControlStore } from '../../stores/mobileControlStore';
 
 // Movement configuration (same as desktop FPS)
@@ -24,23 +25,23 @@ const COLLISION_BOXES: Array<{
   maxZ: number;
 }> = [
   // Silos (Zone 1)
-  { minX: -20, maxX: -12, minZ: -28, maxZ: -16 },
-  { minX: -8, maxX: 0, minZ: -28, maxZ: -16 },
-  { minX: 4, maxX: 12, minZ: -28, maxZ: -16 },
-  { minX: 16, maxX: 24, minZ: -28, maxZ: -16 },
+  { minX: -20, maxX: -12, minZ: FACTORY_ZONE_Z.silos - 6, maxZ: FACTORY_ZONE_Z.silos + 6 },
+  { minX: -8, maxX: 0, minZ: FACTORY_ZONE_Z.silos - 6, maxZ: FACTORY_ZONE_Z.silos + 6 },
+  { minX: 4, maxX: 12, minZ: FACTORY_ZONE_Z.silos - 6, maxZ: FACTORY_ZONE_Z.silos + 6 },
+  { minX: 16, maxX: 24, minZ: FACTORY_ZONE_Z.silos - 6, maxZ: FACTORY_ZONE_Z.silos + 6 },
   // Roller Mills (Zone 2)
-  { minX: -22, maxX: -14, minZ: -12, maxZ: 0 },
-  { minX: -10, maxX: -2, minZ: -12, maxZ: 0 },
-  { minX: 2, maxX: 10, minZ: -12, maxZ: 0 },
-  { minX: 14, maxX: 22, minZ: -12, maxZ: 0 },
+  { minX: -22, maxX: -14, minZ: FACTORY_ZONE_Z.milling - 6, maxZ: FACTORY_ZONE_Z.milling + 6 },
+  { minX: -10, maxX: -2, minZ: FACTORY_ZONE_Z.milling - 6, maxZ: FACTORY_ZONE_Z.milling + 6 },
+  { minX: 2, maxX: 10, minZ: FACTORY_ZONE_Z.milling - 6, maxZ: FACTORY_ZONE_Z.milling + 6 },
+  { minX: 14, maxX: 22, minZ: FACTORY_ZONE_Z.milling - 6, maxZ: FACTORY_ZONE_Z.milling + 6 },
   // Plansifters (Zone 3)
-  { minX: -18, maxX: -6, minZ: 2, maxZ: 14 },
-  { minX: -4, maxX: 8, minZ: 2, maxZ: 14 },
-  { minX: 10, maxX: 22, minZ: 2, maxZ: 14 },
+  { minX: -18, maxX: -6, minZ: FACTORY_ZONE_Z.sifting - 4, maxZ: FACTORY_ZONE_Z.sifting + 8 },
+  { minX: -4, maxX: 8, minZ: FACTORY_ZONE_Z.sifting - 4, maxZ: FACTORY_ZONE_Z.sifting + 8 },
+  { minX: 10, maxX: 22, minZ: FACTORY_ZONE_Z.sifting - 4, maxZ: FACTORY_ZONE_Z.sifting + 8 },
   // Packers (Zone 4)
-  { minX: -20, maxX: -8, minZ: 16, maxZ: 28 },
-  { minX: -4, maxX: 8, minZ: 16, maxZ: 28 },
-  { minX: 12, maxX: 24, minZ: 16, maxZ: 28 },
+  { minX: -20, maxX: -8, minZ: FACTORY_ZONE_Z.packing - 4, maxZ: FACTORY_ZONE_Z.packing + 8 },
+  { minX: -4, maxX: 8, minZ: FACTORY_ZONE_Z.packing - 4, maxZ: FACTORY_ZONE_Z.packing + 8 },
+  { minX: 12, maxX: 24, minZ: FACTORY_ZONE_Z.packing - 4, maxZ: FACTORY_ZONE_Z.packing + 8 },
   // Truck bays
   { minX: -15, maxX: 15, minZ: 45, maxZ: 60 },
   { minX: -15, maxX: 15, minZ: -60, maxZ: -45 },

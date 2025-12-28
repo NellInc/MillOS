@@ -9,6 +9,7 @@ import { useMemo } from 'react';
 import * as THREE from 'three';
 import { useGraphicsStore } from '../../stores/graphicsStore';
 import { WORLD_RADIUS } from '../../physics/PhysicsConfig';
+import { FACTORY_ZONE_Z } from '../../constants/factoryLayout';
 
 // Obstacle definition for visualization
 interface DebugObstacle {
@@ -33,8 +34,8 @@ function generateDebugObstacles(): DebugObstacle[] {
       id: `silo-${i + 2}`,
       minX: x - 2.25 - WORKER_PADDING,
       maxX: x + 2.25 + WORKER_PADDING,
-      minZ: -22 - 2.25 - WORKER_PADDING,
-      maxZ: -22 + 2.25 + WORKER_PADDING,
+      minZ: FACTORY_ZONE_Z.silos - 2.25 - WORKER_PADDING,
+      maxZ: FACTORY_ZONE_Z.silos + 2.25 + WORKER_PADDING,
       minY: 0,
       maxY: 16,
     });
@@ -47,8 +48,8 @@ function generateDebugObstacles(): DebugObstacle[] {
       id: `mill-${i}`,
       minX: x - 1.75 - WORKER_PADDING,
       maxX: x + 1.75 + WORKER_PADDING,
-      minZ: -6 - 1.75 - WORKER_PADDING,
-      maxZ: -6 + 1.75 + WORKER_PADDING,
+      minZ: FACTORY_ZONE_Z.milling - 1.75 - WORKER_PADDING,
+      maxZ: FACTORY_ZONE_Z.milling + 1.75 + WORKER_PADDING,
       minY: 0,
       maxY: 5,
     });
@@ -61,8 +62,8 @@ function generateDebugObstacles(): DebugObstacle[] {
       id: `packer-${i + 1}`,
       minX: x - 2 - WORKER_PADDING,
       maxX: x + 2 + WORKER_PADDING,
-      minZ: 25 - 2 - WORKER_PADDING,
-      maxZ: 25 + 2 + WORKER_PADDING,
+      minZ: FACTORY_ZONE_Z.packing - 2 - WORKER_PADDING,
+      maxZ: FACTORY_ZONE_Z.packing + 2 + WORKER_PADDING,
       minY: 0,
       maxY: 6,
     });

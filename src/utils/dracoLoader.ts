@@ -21,8 +21,12 @@ import { useGLTF } from '@react-three/drei';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import type { GLTF } from 'three/addons/loaders/GLTFLoader.js';
+import type * as THREE from 'three';
 
-type ObjectMap = Record<string, unknown>;
+export interface DracoGLTFResult extends GLTF {
+  nodes: Record<string, THREE.Object3D>;
+  materials: Record<string, THREE.Material>;
+}
 
 // CDN path for DRACO decoder files
 // For offline support, download and place in public/draco/
@@ -56,7 +60,7 @@ export function createDracoGLTFLoader(): GLTFLoader {
   return loader;
 }
 
-export type DracoGLTFResult = GLTF & ObjectMap;
+// DracoGLTFResult is now defined at the top of the file as an interface
 
 /**
  * Hook to load GLTF models with DRACO support
@@ -94,7 +98,7 @@ export async function loadDracoModel(path: string): Promise<DracoGLTFResult> {
   return new Promise((resolve, reject) => {
     loader.load(
       path,
-      (gltf) => resolve(gltf as unknown as DracoGLTFResult),
+      (gltf) => resolve(gltf as DracoGLTFResult),
       undefined, // onProgress
       (error) => reject(error)
     );

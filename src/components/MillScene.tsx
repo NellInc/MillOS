@@ -29,9 +29,21 @@ import { WorkerPersonalityLayer } from './workers/WorkerPersonalityLayer';
 import { PostProcessing } from './PostProcessing';
 
 // Lazy load heavy 3D components to reduce initial bundle
-const TruckBay = React.lazy(() => import('./TruckBay').then((m) => ({ default: m.TruckBay })));
+const TruckBay = React.lazy(() =>
+  import('./TruckBay')
+    .then((m) => ({ default: m.TruckBay }))
+    .catch((err) => {
+      console.error('Failed to load TruckBay:', err);
+      return { default: () => null };
+    })
+);
 const AmbientDetailsGroup = React.lazy(() =>
-  import('./AmbientDetails').then((m) => ({ default: m.AmbientDetailsGroup }))
+  import('./AmbientDetails')
+    .then((m) => ({ default: m.AmbientDetailsGroup }))
+    .catch((err) => {
+      console.error('Failed to load AmbientDetailsGroup:', err);
+      return { default: () => null };
+    })
 );
 import { VisibleChaos } from './VisibleChaos';
 import { FactoryEnvironmentSystem } from './FactoryEnvironment';
@@ -47,6 +59,8 @@ import { positionRegistry, Obstacle } from '../utils/positionRegistry';
 import { useShallow } from 'zustand/react/shallow';
 import { CameraBoundsTracker } from './CameraController';
 import { useCameraPositionStore } from '../stores/useCameraPositionStore';
+import { FLOOR_LAYERS, RENDER_ORDER, POLYGON_OFFSET } from '../constants/renderLayers';
+import { FACTORY_ZONE_Z } from '../constants/factoryLayout';
 
 /**
  * WireframeController - Applies wireframe mode to all scene materials when enabled
@@ -122,8 +136,9 @@ const HeatMapPoint = React.memo<{
   );
 
   // Memoize position arrays to prevent Three.js re-renders
+  // Use FLOOR_LAYERS.heatMap for consistent z-ordering
   const groupPosition = useMemo<[number, number, number]>(
-    () => [point.x, 0.1, point.z],
+    () => [point.x, FLOOR_LAYERS.heatMap, point.z],
     [point.x, point.z]
   );
   const columnPosition = useMemo<[number, number, number]>(
@@ -147,7 +162,7 @@ const HeatMapPoint = React.memo<{
   }, [id, registerAnimation, unregisterAnimation]); // No intensity dependency!
 
   return (
-    <group position={groupPosition}>
+    <group position={groupPosition} renderOrder={RENDER_ORDER.heatMap}>
       {/* Heat circle on floor */}
       <mesh rotation={floorRotation}>
         <circleGeometry args={[radius, 32]} />
@@ -156,10 +171,11 @@ const HeatMapPoint = React.memo<{
           color={color}
           transparent
           opacity={0.3 * intensity}
+          depthWrite={false}
         />
       </mesh>
-      {/* Outer ring - raised and using depthWrite/polygonOffset to prevent z-fighting */}
-      <mesh rotation={floorRotation} position={[0, 0.05, 0]}>
+      {/* Outer ring - raised slightly for z-separation */}
+      <mesh rotation={floorRotation} position={[0, 0.02, 0]}>
         <ringGeometry args={[radius - 0.1, radius, 32]} />
         <meshBasicMaterial
           ref={ringMaterialRef}
@@ -168,8 +184,8 @@ const HeatMapPoint = React.memo<{
           opacity={0.6}
           depthWrite={false}
           polygonOffset
-          polygonOffsetFactor={-1}
-          polygonOffsetUnits={-1}
+          polygonOffsetFactor={POLYGON_OFFSET.standard.factor}
+          polygonOffsetUnits={POLYGON_OFFSET.standard.units}
         />
       </mesh>
       {/* Rising column for high-intensity spots */}
@@ -280,7 +296,11 @@ const FireDrillExitMarkers: React.FC = () => {
   return (
     <group>
       {FIRE_DRILL_EXITS.map((exit, i) => (
-        <group key={exit.id} position={[exit.position.x, 0.1, exit.position.z]}>
+        <group
+          key={exit.id}
+          position={[exit.position.x, FLOOR_LAYERS.exitIndicator, exit.position.z]}
+          renderOrder={RENDER_ORDER.exitIndicator}
+        >
           {/* Glowing circle on floor */}
           <mesh rotation={[-Math.PI / 2, 0, 0]}>
             <ringGeometry args={[2, 3.5, 32]} />
@@ -294,10 +314,11 @@ const FireDrillExitMarkers: React.FC = () => {
               transparent
               opacity={0.8}
               side={THREE.DoubleSide}
+              depthWrite={false}
             />
           </mesh>
-          {/* Inner solid circle - raised with depthWrite=false for z-fighting prevention */}
-          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.05, 0]}>
+          {/* Inner solid circle - raised slightly for z-separation */}
+          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
             <circleGeometry args={[2, 32]} />
             <meshStandardMaterial
               color="#22c55e"
@@ -307,8 +328,8 @@ const FireDrillExitMarkers: React.FC = () => {
               opacity={0.4}
               depthWrite={false}
               polygonOffset
-              polygonOffsetFactor={-1}
-              polygonOffsetUnits={-1}
+              polygonOffsetFactor={POLYGON_OFFSET.standard.factor}
+              polygonOffsetUnits={POLYGON_OFFSET.standard.units}
             />
           </mesh>
           {/* Exit label */}
@@ -381,7 +402,7 @@ export const MillScene: React.FC<MillSceneProps> = ({
         id: `silo-${idx}`, // silo-0 to silo-4
         name: `Silo ${siloNames[idx]}`,
         type: MachineType.SILO,
-        position: [i * 9, 0, -22],
+        position: [i * 9, 0, FACTORY_ZONE_Z.silos],
         size: [4.5, 16, 4.5],
         rotation: 0,
         status: 'running',
@@ -407,7 +428,7 @@ export const MillScene: React.FC<MillSceneProps> = ({
         id: `rm-${millNames[millIndex].split('-')[1]}`, // rm-101 to rm-106
         name: millNames[millIndex],
         type: MachineType.ROLLER_MILL,
-        position: [i * 5, 0, -6],
+        position: [i * 5, 0, FACTORY_ZONE_Z.milling],
         size: [3.5, 5, 3.5],
         rotation: 0,
         status: 'running',
@@ -432,7 +453,7 @@ export const MillScene: React.FC<MillSceneProps> = ({
         id: `sifter-${['a', 'b', 'c'][idx]}`, // sifter-a, sifter-b, sifter-c
         name: sifterNames[idx],
         type: MachineType.PLANSIFTER,
-        position: [i * 14, 9, 6],
+        position: [i * 14, 9, FACTORY_ZONE_Z.sifting],
         size: [7, 7, 7],
         rotation: 0,
         status: 'running',
@@ -456,7 +477,7 @@ export const MillScene: React.FC<MillSceneProps> = ({
         id: `packer-${idx}`, // packer-0, packer-1, packer-2
         name: packerNames[idx],
         type: MachineType.PACKER,
-        position: [i * 8, 0, 25],
+        position: [i * 8, 0, FACTORY_ZONE_Z.packing],
         size: [4, 6, 4],
         rotation: Math.PI,
         status: 'running',
@@ -487,8 +508,8 @@ export const MillScene: React.FC<MillSceneProps> = ({
         id: `silo-obs-${i}`,
         minX: x - 2.25 - WORKER_PADDING,
         maxX: x + 2.25 + WORKER_PADDING,
-        minZ: -22 - 2.25 - WORKER_PADDING,
-        maxZ: -22 + 2.25 + WORKER_PADDING,
+        minZ: FACTORY_ZONE_Z.silos - 2.25 - WORKER_PADDING,
+        maxZ: FACTORY_ZONE_Z.silos + 2.25 + WORKER_PADDING,
       });
     }
 
@@ -500,8 +521,8 @@ export const MillScene: React.FC<MillSceneProps> = ({
         id: `mill-obs-${i}`,
         minX: x - 1.75 - WORKER_PADDING,
         maxX: x + 1.75 + WORKER_PADDING,
-        minZ: -6 - 1.75 - WORKER_PADDING,
-        maxZ: -6 + 1.75 + WORKER_PADDING,
+        minZ: FACTORY_ZONE_Z.milling - 1.75 - WORKER_PADDING,
+        maxZ: FACTORY_ZONE_Z.milling + 1.75 + WORKER_PADDING,
       });
     }
 
@@ -521,8 +542,8 @@ export const MillScene: React.FC<MillSceneProps> = ({
           id: `sifter-cable-${i}-${idx}`,
           minX: x + dx - 0.3,
           maxX: x + dx + 0.3,
-          minZ: 6 + dz - 0.3,
-          maxZ: 6 + dz + 0.3,
+          minZ: FACTORY_ZONE_Z.sifting + dz - 0.3,
+          maxZ: FACTORY_ZONE_Z.sifting + dz + 0.3,
         });
       });
     }
@@ -535,8 +556,8 @@ export const MillScene: React.FC<MillSceneProps> = ({
         id: `packer-obs-${i}`,
         minX: x - 2 - WORKER_PADDING,
         maxX: x + 2 + WORKER_PADDING,
-        minZ: 25 - 2 - WORKER_PADDING,
-        maxZ: 25 + 2 + WORKER_PADDING,
+        minZ: FACTORY_ZONE_Z.packing - 2 - WORKER_PADDING,
+        maxZ: FACTORY_ZONE_Z.packing + 2 + WORKER_PADDING,
       });
     }
 
@@ -792,8 +813,20 @@ export const MillScene: React.FC<MillSceneProps> = ({
       {showExterior && <VillageArea />}
 
       {/* Theme Hospital-inspired Mood & Chaos Systems */}
-      {/* PERFORMANCE: Interior-only systems, ultra quality only */}
-      {showInterior && graphicsQuality === 'ultra' && <VisibleChaos />}
+      {/* PERFORMANCE: Interior-only, scaled by quality level */}
+      {showInterior && (
+        <VisibleChaos
+          qualityScale={
+            graphicsQuality === 'ultra'
+              ? 1.0
+              : graphicsQuality === 'high'
+                ? 0.75
+                : graphicsQuality === 'medium'
+                  ? 0.5
+                  : 0.25
+          }
+        />
+      )}
       {showInterior && graphicsQuality === 'ultra' && <FactoryEnvironmentSystem />}
       {showInterior && graphicsQuality === 'ultra' && <MaintenanceSystem />}
 

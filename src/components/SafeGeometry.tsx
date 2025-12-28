@@ -5,6 +5,11 @@
  * that would otherwise crash the renderer with "Computed radius is NaN" errors.
  */
 import React, { useMemo, useEffect, useRef } from 'react';
+import type * as THREE from 'three';
+
+interface WindowWithTHREE {
+  THREE?: typeof THREE;
+}
 
 const isDev = import.meta.env.DEV;
 
@@ -125,7 +130,8 @@ export function useGeometryNaNDetector() {
     // Also patch THREE.PlaneGeometry constructor to catch NaN at source
     if (!patchedRef.current && typeof window !== 'undefined') {
       patchedRef.current = true;
-      const THREE = (window as unknown as { THREE?: typeof import('three') }).THREE;
+      const windowWithTHREE = window as unknown as WindowWithTHREE;
+      const THREE = windowWithTHREE.THREE;
       if (THREE?.PlaneGeometry) {
         const OriginalPlaneGeometry = THREE.PlaneGeometry;
         (THREE as Record<string, unknown>).PlaneGeometry = class PatchedPlaneGeometry extends (

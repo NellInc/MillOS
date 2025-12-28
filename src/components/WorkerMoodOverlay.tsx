@@ -537,13 +537,53 @@ export const useBilateralAlignmentSimulation = () => {
       const deltaMinutes = deltaMs / 1000; // Convert to game minutes
 
       // Lazy import to avoid circular deps and reduce initial bundle
-      import('../stores/safetyReportStore').then(({ useSafetyReportStore }) => {
-        useSafetyReportStore.getState().tickSafetySimulation(deltaMinutes);
-      });
+      import('../stores/safetyReportStore')
+        .then(({ useSafetyReportStore }) => {
+          useSafetyReportStore.getState().tickSafetySimulation(deltaMinutes);
+        })
+        .catch((e) => {
+          console.error('[WorkerMoodOverlay] Failed to import safetyReportStore:', e);
+        });
 
-      import('../stores/emergentCooperationStore').then(({ useEmergentCooperationStore }) => {
-        useEmergentCooperationStore.getState().tickEmergentCooperation(deltaMinutes);
-      });
+      import('../stores/emergentCooperationStore')
+        .then(({ useEmergentCooperationStore }) => {
+          useEmergentCooperationStore.getState().tickEmergentCooperation(deltaMinutes);
+        })
+        .catch((e) => {
+          console.error('[WorkerMoodOverlay] Failed to import emergentCooperationStore:', e);
+        });
+
+      // Phase 3: Add breakdown simulation ticking
+      import('../stores/breakdownStore')
+        .then(({ useBreakdownStore }) => {
+          import('../stores/productionStore')
+            .then(({ useProductionStore }) => {
+              import('../stores/gameSimulationStore')
+                .then(({ useGameSimulationStore }) => {
+                  const machines = useProductionStore.getState().machines;
+                  const gameTime = useGameSimulationStore.getState().gameTime;
+                  useBreakdownStore.getState().tickBreakdownSimulation(gameTime, machines);
+                })
+                .catch((e) => {
+                  console.error('[WorkerMoodOverlay] Failed to import gameSimulationStore:', e);
+                });
+            })
+            .catch((e) => {
+              console.error('[WorkerMoodOverlay] Failed to import productionStore:', e);
+            });
+        })
+        .catch((e) => {
+          console.error('[WorkerMoodOverlay] Failed to import breakdownStore:', e);
+        });
+
+      // Phase 3: Add flourishing dimension drift
+      import('../stores/flourishingStore')
+        .then(({ useFlourishingStore }) => {
+          useFlourishingStore.getState().tickFlourishing(deltaMinutes);
+        })
+        .catch((e) => {
+          console.error('[WorkerMoodOverlay] Failed to import flourishingStore:', e);
+        });
 
       lastTickRef.current = now;
     }

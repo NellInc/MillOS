@@ -143,15 +143,18 @@ describe('emergentCooperationStore', () => {
   });
 
   describe('getCooperationScore', () => {
-    it('should return cooperation metrics', () => {
+    it('should return cooperation metrics with valid values', () => {
       const score = useEmergentCooperationStore.getState().getCooperationScore();
 
-      expect(score).toHaveProperty('score');
-      expect(score).toHaveProperty('selfOrganizingWorkers');
-      expect(score).toHaveProperty('totalEmergentActions');
-      expect(score).toHaveProperty('avgInitiative');
-      expect(score).toHaveProperty('avgTrust');
-      expect(typeof score.score).toBe('number');
+      // Phase 3: Verify actual values, not just property existence
+      expect(score.score).toBeGreaterThanOrEqual(0);
+      expect(score.score).toBeLessThanOrEqual(100);
+      expect(score.selfOrganizingWorkers).toBeGreaterThanOrEqual(0);
+      expect(score.totalEmergentActions).toBeGreaterThanOrEqual(0);
+      expect(score.avgInitiative).toBeGreaterThanOrEqual(0);
+      expect(score.avgInitiative).toBeLessThanOrEqual(100);
+      expect(score.avgTrust).toBeGreaterThanOrEqual(0);
+      expect(score.avgTrust).toBeLessThanOrEqual(100);
     });
   });
 

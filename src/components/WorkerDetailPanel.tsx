@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { WorkerData, PerformanceReview, SkillLevel } from '../types';
 import { toSkillLevel } from '../utils/typeGuards';
+import { getWorkerStatusBgClass } from '../utils/statusColors';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 import { useWorkerMoodStore } from '../stores/workerMoodStore';
 import { useProductionStore } from '../stores/productionStore';
@@ -360,18 +361,7 @@ export const WorkerDetailPanel: React.FC<WorkerDetailPanelProps> = ({
     return Math.round((yearsInLevel / 2) * 100);
   }, [worker.experience]);
 
-  const getStatusColor = () => {
-    switch (worker.status) {
-      case 'working':
-        return 'bg-green-500';
-      case 'responding':
-        return 'bg-yellow-500';
-      case 'break':
-        return 'bg-gray-500';
-      default:
-        return 'bg-blue-500';
-    }
-  };
+  const statusBgClass = getWorkerStatusBgClass(worker.status);
 
   const getRoleColor = () => {
     switch (worker.role) {
@@ -457,7 +447,7 @@ export const WorkerDetailPanel: React.FC<WorkerDetailPanelProps> = ({
               </p>
               <div className="flex items-center gap-2 mt-1">
                 <span
-                  className={`w-2 h-2 rounded-full ${getStatusColor()} animate-pulse`}
+                  className={`w-2 h-2 rounded-full ${statusBgClass} animate-pulse`}
                   aria-hidden="true"
                 />
                 <span className="text-white/70 text-xs capitalize">{worker.status}</span>

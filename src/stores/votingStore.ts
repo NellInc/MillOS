@@ -104,7 +104,22 @@ function getWorkerName(workerId: string): string {
 export const useVotingStore = create<VotingState>((set, get) => ({
   votes: [],
 
-  createVote: (voteData) => {
+  createVote: (
+    voteData: Omit<
+      Vote,
+      | 'id'
+      | 'createdAt'
+      | 'status'
+      | 'result'
+      | 'turnout'
+      | 'discussionThread'
+      | 'openedAt'
+      | 'closedAt'
+      | 'deadline'
+      | 'quorumRequired'
+      | 'approvalThreshold'
+    >
+  ) => {
     const rules = VOTING_RULES[voteData.type];
     const vote: Vote = {
       ...voteData,
@@ -166,9 +181,16 @@ export const useVotingStore = create<VotingState>((set, get) => ({
     const vote = get().votes.find((v) => v.id === voteId);
     if (!vote) return;
 
+    // Guard: Empty options array - cannot close a vote with no options
+    if (vote.options.length === 0) {
+      console.warn(`[VotingStore] Cannot close vote ${voteId}: no options defined`);
+      return;
+    }
+
     const totalWorkers = WORKER_ROSTER.length;
     const totalVotes = vote.options.reduce((sum, opt) => sum + opt.votes.length, 0);
-    const turnout = totalVotes / totalWorkers;
+    // Guard: Division by zero - handle edge case of empty worker roster
+    const turnout = totalWorkers > 0 ? totalVotes / totalWorkers : 0;
 
     // Find winner (option with most votes)
     const sortedOptions = [...vote.options].sort((a, b) => b.votes.length - a.votes.length);
@@ -192,9 +214,73 @@ export const useVotingStore = create<VotingState>((set, get) => ({
         };
       }),
     }));
+
+    // Auto-implement if vote passed
+    if (passed) {
+      // Use setTimeout to ensure state update completes before implementation
+      setTimeout(() => {
+        get().implementVote(voteId);
+      }, 0);
+    }
   },
 
   implementVote: (voteId) => {
+    const vote = get().votes.find((v) => v.id === voteId);
+    if (!vote || vote.status !== 'closed' || !vote.result) return;
+
+    // Phase 3: Actually apply the vote results
+    if (vote.type === 'axis-change' && vote.targetAxis && vote.proposedValue !== undefined) {
+      // Check if the winning option was "Accept Change" (first option)
+      const acceptOptionId = vote.options[0]?.id;
+      if (vote.result.id === acceptOptionId) {
+        // Apply the axis change via dynamic import to avoid circular deps
+        import('./basStore').then(({ useBASStore }) => {
+          useBASStore.getState().setAxis(vote.targetAxis!, vote.proposedValue!);
+        });
+      }
+    } else if (vote.type === 'ai-behavior' && vote.result) {
+      // Apply AI behavior change based on winning option
+      import('./basStore').then(({ useBASStore }) => {
+        const config = useBASStore.getState().aiConfig;
+        const winningLabel = vote.result!.label.toLowerCase();
+
+        // Parse common AI behavior options
+        if (winningLabel.includes('suggestive') || winningLabel.includes('proactive')) {
+          useBASStore.getState().updateAIConfig({
+            ...config,
+            suggestionFrequency: 'proactive',
+          });
+        } else if (winningLabel.includes('reactive') || winningLabel.includes('wait')) {
+          useBASStore.getState().updateAIConfig({
+            ...config,
+            suggestionFrequency: 'reactive',
+          });
+        } else if (winningLabel.includes('on-request') || winningLabel.includes('ask')) {
+          useBASStore.getState().updateAIConfig({
+            ...config,
+            suggestionFrequency: 'on-request',
+          });
+        } else if (winningLabel.includes('reasoning') || winningLabel.includes('explain')) {
+          useBASStore.getState().updateAIConfig({
+            ...config,
+            languageStyle: {
+              ...config.languageStyle,
+              provideReasoning: true,
+            },
+          });
+        } else if (winningLabel.includes('concise') || winningLabel.includes('brief')) {
+          useBASStore.getState().updateAIConfig({
+            ...config,
+            languageStyle: {
+              ...config.languageStyle,
+              provideReasoning: false,
+            },
+          });
+        }
+      });
+    }
+
+    // Mark as implemented
     set((state) => ({
       votes: state.votes.map((v) =>
         v.id === voteId ? { ...v, status: 'implemented' as VoteStatus } : v
@@ -292,7 +378,12 @@ export const useVotingStore = create<VotingState>((set, get) => ({
     });
   },
 
-  createAxisChangeVote: (axis, currentValue, proposedValue, proposerId) => {
+  createAxisChangeVote: (
+    axis: AxisKey,
+    currentValue: number,
+    proposedValue: number,
+    proposerId: string
+  ) => {
     const axisLabels: Record<AxisKey, string> = {
       autonomyLevel: 'Autonomy Level',
       decisionMode: 'Decision Mode',
@@ -328,7 +419,11 @@ export const useVotingStore = create<VotingState>((set, get) => ({
     return vote;
   },
 
-  createAIBehaviorVote: (title, description, options) => {
+  createAIBehaviorVote: (
+    title: string,
+    description: string,
+    options: { label: string; description: string }[]
+  ) => {
     const vote = get().createVote({
       type: 'ai-behavior',
       title,

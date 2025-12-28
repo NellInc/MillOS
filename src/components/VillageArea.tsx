@@ -1,5 +1,6 @@
 import React, { useRef, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
+import type { ThreeEvent } from '@react-three/fiber';
 import { Text } from '@react-three/drei';
 import * as THREE from 'three';
 import { useShallow } from 'zustand/react/shallow';
@@ -47,13 +48,24 @@ const FONT_URL = `${import.meta.env.BASE_URL}fonts/MedievalSharp.ttf`;
 // Use OUTDOOR_MATERIALS.grass for consistency with other grass surfaces
 import { OUTDOOR_MATERIALS } from '../utils/sharedMaterials';
 
+// Create village-specific cobble textures with proper world-scale repeat
+// Village ground is 70x130 units, tile every 10 units for consistent cobble size
+const villageCobbleColor = PROCEDURAL_TEXTURES.cobblestoneColor.clone();
+const villageCobbleNormal = PROCEDURAL_TEXTURES.cobblestoneNormal.clone();
+villageCobbleColor.wrapS = villageCobbleColor.wrapT = THREE.RepeatWrapping;
+villageCobbleNormal.wrapS = villageCobbleNormal.wrapT = THREE.RepeatWrapping;
+villageCobbleColor.repeat.set(7, 13); // 70/10, 130/10
+villageCobbleNormal.repeat.set(7, 13);
+villageCobbleColor.needsUpdate = true;
+villageCobbleNormal.needsUpdate = true;
+
 const SM = {
   grass: OUTDOOR_MATERIALS.grass, // Use shared grass material for seamless matching
   cobble: new THREE.MeshStandardMaterial({
     color: '#ffffff', // Let texture provide color
     roughness: 0.85,
-    map: PROCEDURAL_TEXTURES.cobblestoneColor,
-    normalMap: PROCEDURAL_TEXTURES.cobblestoneNormal,
+    map: villageCobbleColor,
+    normalMap: villageCobbleNormal,
     normalScale: new THREE.Vector2(0.4, 0.4),
   }),
   stone: new THREE.MeshStandardMaterial({
@@ -1080,7 +1092,7 @@ const Duck = React.memo<{
     }
   }, [isExcited]);
 
-  const handleClick = (e: any) => {
+  const handleClick = (e: ThreeEvent<MouseEvent>) => {
     e.stopPropagation();
     setIsExcited(true);
     playCritterSound('duck');
@@ -1364,7 +1376,7 @@ const Horse = React.memo<{ position: [number, number, number]; rotation?: number
     const [hearts, setHearts] = React.useState<{ id: number; pos: [number, number, number] }[]>([]);
     const groupRef = React.useRef<THREE.Group>(null);
 
-    const handlePet = (e: any) => {
+    const handlePet = (e: ThreeEvent<MouseEvent>) => {
       e.stopPropagation();
       setIsExcited(true);
       playCritterSound('horse');
@@ -1590,6 +1602,31 @@ const Forge = React.memo<{ position: [number, number, number]; rotation?: number
 );
 Forge.displayName = 'Forge';
 
+// ===== ROUNDED VILLAGE GROUND =====
+// Creates a rounded rectangle shape for naturalistic village boundary
+const createRoundedRectShape = (width: number, height: number, radius: number): THREE.Shape => {
+  const shape = new THREE.Shape();
+  const hw = width / 2;
+  const hh = height / 2;
+  const r = Math.min(radius, hw, hh);
+
+  shape.moveTo(-hw + r, -hh);
+  shape.lineTo(hw - r, -hh);
+  shape.quadraticCurveTo(hw, -hh, hw, -hh + r);
+  shape.lineTo(hw, hh - r);
+  shape.quadraticCurveTo(hw, hh, hw - r, hh);
+  shape.lineTo(-hw + r, hh);
+  shape.quadraticCurveTo(-hw, hh, -hw, hh - r);
+  shape.lineTo(-hw, -hh + r);
+  shape.quadraticCurveTo(-hw, -hh, -hw + r, -hh);
+
+  return shape;
+};
+
+// Memoized rounded ground shape
+const villageGroundShape = createRoundedRectShape(70, 130, 12);
+const villageGroundGeometry = new THREE.ShapeGeometry(villageGroundShape, 24);
+
 // ===== MAIN VILLAGE COMPONENT =====
 export const VillageArea: React.FC = () => {
   // Selector optimization: Only re-render when night status CHANGES
@@ -1597,15 +1634,9 @@ export const VillageArea: React.FC = () => {
 
   return (
     <group position={[-190, 0, 0]}>
-      {/* Ground - raised to avoid z-fighting with world ground */}
+      {/* Rounded cobblestone ground covering the whole village */}
       <mesh position={[0, 0.05, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <planeGeometry args={[70, 130]} />
-        <primitive object={SM.grass} attach="material" />
-      </mesh>
-
-      {/* Cobblestone market square - raised above grass */}
-      <mesh position={[0, 0.1, 10]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <planeGeometry args={[25, 40]} />
+        <primitive object={villageGroundGeometry} attach="geometry" />
         <primitive object={SM.cobble} attach="material" />
       </mesh>
 

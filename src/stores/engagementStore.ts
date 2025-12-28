@@ -870,41 +870,11 @@ export const useEngagementStore = create<EngagementState>((set, get) => ({
 // UTILITY FUNCTIONS (Exported)
 // =============================================================================
 
-/**
- * Get color class for diagnostic status
- */
-export function getStatusColor(status: DiagnosticStatus): string {
-  switch (status) {
-    case 'healthy':
-      return 'text-green-400';
-    case 'forcing':
-      return 'text-amber-400';
-    case 'burnoutRisk':
-      return 'text-orange-400';
-    case 'disengaged':
-      return 'text-red-400';
-    default:
-      return 'text-slate-400';
-  }
-}
-
-/**
- * Get background color class for diagnostic status
- */
-export function getStatusBgColor(status: DiagnosticStatus): string {
-  switch (status) {
-    case 'healthy':
-      return 'bg-green-500/20';
-    case 'forcing':
-      return 'bg-amber-500/20';
-    case 'burnoutRisk':
-      return 'bg-orange-500/20';
-    case 'disengaged':
-      return 'bg-red-500/20';
-    default:
-      return 'bg-slate-500/20';
-  }
-}
+// Re-export diagnostic status color utilities from centralized location
+export {
+  getDiagnosticStatusColor as getStatusColor,
+  getDiagnosticStatusBgColor as getStatusBgColor,
+} from '../utils/statusColors';
 
 /**
  * Get label for diagnostic status

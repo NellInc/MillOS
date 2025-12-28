@@ -135,9 +135,9 @@ const OverviewContent: React.FC = () => {
     Math.min(
       100,
       100 -
-      (safetyMetrics?.nearMisses ?? 0) * 5 -
-      (safetyMetrics?.safetyStops ?? 0) * 2 -
-      (safetyMetrics?.workerEvasions ?? 0)
+        (safetyMetrics?.nearMisses ?? 0) * 5 -
+        (safetyMetrics?.safetyStops ?? 0) * 2 -
+        (safetyMetrics?.workerEvasions ?? 0)
     )
   );
 
@@ -180,31 +180,35 @@ const OverviewContent: React.FC = () => {
         <div className="flex gap-1">
           <button
             onClick={() => setGameSpeed(0)}
-            className={`flex-1 py-1.5 rounded text-[10px] font-bold flex items-center justify-center gap-1 ${gameSpeed === 0 ? 'bg-orange-600 text-white' : 'bg-slate-700 text-slate-400'
-              }`}
+            className={`flex-1 py-1.5 rounded text-[10px] font-bold flex items-center justify-center gap-1 ${
+              gameSpeed === 0 ? 'bg-orange-600 text-white' : 'bg-slate-700 text-slate-400'
+            }`}
           >
             <Pause className="w-3 h-3" />
           </button>
           <button
             onClick={() => setGameSpeed(180)}
-            className={`flex-1 py-1.5 rounded text-[10px] font-bold flex items-center justify-center gap-1 ${gameSpeed === 180 ? 'bg-orange-600 text-white' : 'bg-slate-700 text-slate-400'
-              }`}
+            className={`flex-1 py-1.5 rounded text-[10px] font-bold flex items-center justify-center gap-1 ${
+              gameSpeed === 180 ? 'bg-orange-600 text-white' : 'bg-slate-700 text-slate-400'
+            }`}
           >
             <Play className="w-3 h-3" />
             1x
           </button>
           <button
             onClick={() => setGameSpeed(1800)}
-            className={`flex-1 py-1.5 rounded text-[10px] font-bold flex items-center justify-center gap-1 ${gameSpeed === 1800 ? 'bg-orange-600 text-white' : 'bg-slate-700 text-slate-400'
-              }`}
+            className={`flex-1 py-1.5 rounded text-[10px] font-bold flex items-center justify-center gap-1 ${
+              gameSpeed === 1800 ? 'bg-orange-600 text-white' : 'bg-slate-700 text-slate-400'
+            }`}
           >
             <FastForward className="w-3 h-3" />
             10x
           </button>
           <button
             onClick={() => setGameSpeed(10800)}
-            className={`flex-1 py-1.5 rounded text-[10px] font-bold flex items-center justify-center gap-1 ${gameSpeed === 10800 ? 'bg-orange-600 text-white' : 'bg-slate-700 text-slate-400'
-              }`}
+            className={`flex-1 py-1.5 rounded text-[10px] font-bold flex items-center justify-center gap-1 ${
+              gameSpeed === 10800 ? 'bg-orange-600 text-white' : 'bg-slate-700 text-slate-400'
+            }`}
           >
             <FastForward className="w-3 h-3" />
             60x
@@ -277,12 +281,13 @@ const OverviewContent: React.FC = () => {
           <div className="flex items-center justify-between mb-1">
             <span className="text-[10px] text-slate-500">Safety</span>
             <span
-              className={`text-sm font-bold font-mono ${safetyScore > 90
-                ? 'text-green-400'
-                : safetyScore > 70
-                  ? 'text-yellow-400'
-                  : 'text-red-400'
-                }`}
+              className={`text-sm font-bold font-mono ${
+                safetyScore > 90
+                  ? 'text-green-400'
+                  : safetyScore > 70
+                    ? 'text-yellow-400'
+                    : 'text-red-400'
+              }`}
             >
               {safetyScore}%
             </span>
@@ -453,12 +458,14 @@ const SettingsContent: React.FC = () => {
           </div>
           <button
             onClick={() => setShowZones(!showZones)}
-            className={`w-12 h-6 rounded-full transition-colors ${showZones ? 'bg-cyan-600' : 'bg-slate-600'
-              }`}
+            className={`w-12 h-6 rounded-full transition-colors ${
+              showZones ? 'bg-cyan-600' : 'bg-slate-600'
+            }`}
           >
             <div
-              className={`w-5 h-5 rounded-full bg-white shadow transition-transform ${showZones ? 'translate-x-6' : 'translate-x-0.5'
-                }`}
+              className={`w-5 h-5 rounded-full bg-white shadow transition-transform ${
+                showZones ? 'translate-x-6' : 'translate-x-0.5'
+              }`}
             />
           </button>
         </div>
@@ -718,10 +725,16 @@ const ManagementContent: React.FC = () => {
   const productivityMultiplier = useWorkerMoodStore((s) => s.getWorkforceProductivityMultiplier());
 
   const grantRate = getGrantRate();
-  const styleLabel = managementGenerosity >= 80 ? 'Generous' :
-    managementGenerosity >= 60 ? 'Kind' :
-      managementGenerosity >= 40 ? 'Balanced' :
-        managementGenerosity >= 20 ? 'Firm' : 'Strict';
+  const styleLabel =
+    managementGenerosity >= 80
+      ? 'Generous'
+      : managementGenerosity >= 60
+        ? 'Kind'
+        : managementGenerosity >= 40
+          ? 'Balanced'
+          : managementGenerosity >= 20
+            ? 'Firm'
+            : 'Strict';
 
   const PRESETS = [
     { name: 'Strict', value: 10 },
@@ -735,7 +748,9 @@ const ManagementContent: React.FC = () => {
       {/* Current Style */}
       <div className="flex items-center justify-between bg-slate-800/50 rounded-lg p-3">
         <div className="flex items-center gap-2">
-          <Heart className={`w-5 h-5 ${managementGenerosity >= 60 ? 'text-green-400' : managementGenerosity >= 40 ? 'text-blue-400' : 'text-amber-400'}`} />
+          <Heart
+            className={`w-5 h-5 ${managementGenerosity >= 60 ? 'text-green-400' : managementGenerosity >= 40 ? 'text-blue-400' : 'text-amber-400'}`}
+          />
           <span className="text-sm font-medium text-white">{styleLabel}</span>
         </div>
         <span className="text-lg font-bold font-mono text-cyan-400">{managementGenerosity}%</span>
@@ -747,10 +762,11 @@ const ManagementContent: React.FC = () => {
           <button
             key={preset.name}
             onClick={() => setManagementGenerosity(preset.value)}
-            className={`py-2 rounded text-xs font-medium transition-colors ${Math.abs(managementGenerosity - preset.value) < 10
-              ? 'bg-cyan-600 text-white'
-              : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-              }`}
+            className={`py-2 rounded text-xs font-medium transition-colors ${
+              Math.abs(managementGenerosity - preset.value) < 10
+                ? 'bg-cyan-600 text-white'
+                : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+            }`}
           >
             {preset.name}
           </button>
@@ -788,7 +804,9 @@ const ManagementContent: React.FC = () => {
           <div className="text-[9px] text-slate-500">Initiative</div>
         </div>
         <div className="bg-slate-800/50 rounded p-2 text-center">
-          <div className={`text-sm font-bold ${productivityMultiplier >= 1.0 ? 'text-green-400' : 'text-amber-400'}`}>
+          <div
+            className={`text-sm font-bold ${productivityMultiplier >= 1.0 ? 'text-green-400' : 'text-amber-400'}`}
+          >
             {(productivityMultiplier * 100).toFixed(0)}%
           </div>
           <div className="text-[9px] text-slate-500">Output</div>

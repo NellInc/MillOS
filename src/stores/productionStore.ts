@@ -71,7 +71,7 @@ function getGridKey(x: number, z: number, threshold: number): string {
   return `${Math.round(x / threshold)}_${Math.round(z / threshold)}`;
 }
 
-interface ProductionStore {
+export interface ProductionStore {
   // Performance indices (internal, not directly accessed)
   _indices: ProductionIndices;
 
@@ -264,12 +264,26 @@ export const useProductionStore = create<ProductionStore>()(
 
         return { aiDecisions: updatedDecisions };
       }),
-    updateDecisionStatus: (decisionId, status, outcome) =>
+    updateDecisionStatus: (decisionId, status, outcome) => {
+      // Capture decision before state update for welfare feedback loop
+      const currentState = get();
+      const decision = currentState.aiDecisions.find((d) => d.id === decisionId);
+
+      // Update the state
       set((state) => ({
         aiDecisions: state.aiDecisions.map((d) =>
           d.id === decisionId ? { ...d, status, outcome: outcome ?? d.outcome } : d
         ),
-      })),
+      }));
+
+      // Wire AI welfare feedback loop - update welfare metrics on decision completion
+      if (decision && (status === 'completed' || status === 'superseded')) {
+        import('../utils/aiEngine').then(({ updateWelfareFromDecisionOutcome }) => {
+          const welfareOutcome = status === 'completed' ? 'completed' : 'rejected';
+          updateWelfareFromDecisionOutcome(decision, welfareOutcome);
+        });
+      }
+    },
 
     // Machine management
     setMachines: (machines: MachineData[]) => set({ machines }),

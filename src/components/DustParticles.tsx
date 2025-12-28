@@ -1,6 +1,7 @@
 import React, { useRef, useMemo, createContext, useContext, useCallback, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
+import { FACTORY_ZONE_Z } from '../constants/factoryLayout';
 import { useGraphicsStore } from '../stores/graphicsStore';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import { useProductionStore } from '../stores/productionStore';
@@ -721,42 +722,70 @@ export const MachineSteamVents: React.FC = () => {
   // Machine positions from MillScene zones:
   // Zone 2 (z=-6): Roller Mills - hot grinding process creates steam/heat
   // Zone 3 (z=6, y=9): Plansifters - dust from sifting
-  // Zone 4 (z=20): Packers - dust from packaging
+  // Zone 4 (z=25): Packers - dust from packaging
 
   const steamSources = useMemo(
     () => [
       // Roller mill steam vents (grinding creates heat)
       {
-        position: [-18, 4, -6] as [number, number, number],
+        position: [-18, 4, FACTORY_ZONE_Z.milling] as [number, number, number],
         type: 'steam' as const,
         intensity: 0.8,
       },
       {
-        position: [-10, 4, -6] as [number, number, number],
+        position: [-10, 4, FACTORY_ZONE_Z.milling] as [number, number, number],
         type: 'steam' as const,
         intensity: 0.7,
       },
       {
-        position: [-2, 4, -6] as [number, number, number],
+        position: [-2, 4, FACTORY_ZONE_Z.milling] as [number, number, number],
         type: 'exhaust' as const,
         intensity: 0.6,
       },
-      { position: [6, 4, -6] as [number, number, number], type: 'steam' as const, intensity: 0.9 },
       {
-        position: [14, 4, -6] as [number, number, number],
+        position: [6, 4, FACTORY_ZONE_Z.milling] as [number, number, number],
+        type: 'steam' as const,
+        intensity: 0.9,
+      },
+      {
+        position: [14, 4, FACTORY_ZONE_Z.milling] as [number, number, number],
         type: 'exhaust' as const,
         intensity: 0.7,
       },
 
       // Plansifter dust (sifting creates fine flour dust)
-      { position: [-12, 12, 6] as [number, number, number], type: 'dust' as const, intensity: 1 },
-      { position: [0, 12, 6] as [number, number, number], type: 'dust' as const, intensity: 0.9 },
-      { position: [12, 12, 6] as [number, number, number], type: 'dust' as const, intensity: 0.8 },
+      {
+        position: [-12, 12, FACTORY_ZONE_Z.sifting] as [number, number, number],
+        type: 'dust' as const,
+        intensity: 1,
+      },
+      {
+        position: [0, 12, FACTORY_ZONE_Z.sifting] as [number, number, number],
+        type: 'dust' as const,
+        intensity: 0.9,
+      },
+      {
+        position: [12, 12, FACTORY_ZONE_Z.sifting] as [number, number, number],
+        type: 'dust' as const,
+        intensity: 0.8,
+      },
 
       // Packer dust (packaging creates airborne flour)
-      { position: [-15, 3, 20] as [number, number, number], type: 'dust' as const, intensity: 0.7 },
-      { position: [0, 3, 20] as [number, number, number], type: 'dust' as const, intensity: 0.8 },
-      { position: [15, 3, 20] as [number, number, number], type: 'dust' as const, intensity: 0.6 },
+      {
+        position: [-15, 3, FACTORY_ZONE_Z.packing] as [number, number, number],
+        type: 'dust' as const,
+        intensity: 0.7,
+      },
+      {
+        position: [0, 3, FACTORY_ZONE_Z.packing] as [number, number, number],
+        type: 'dust' as const,
+        intensity: 0.8,
+      },
+      {
+        position: [15, 3, FACTORY_ZONE_Z.packing] as [number, number, number],
+        type: 'dust' as const,
+        intensity: 0.6,
+      },
     ],
     []
   );

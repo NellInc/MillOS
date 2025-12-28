@@ -369,12 +369,16 @@ describe('ProductionMetrics', () => {
     it('should calculate efficiency trend', () => {
       render(<ProductionMetrics />);
 
-      // Trend indicator should be present (+ or -)
-      // Initial trend might be +0.0%
-      const trendElement = document.querySelector(
-        '[class*="text-green-500"], [class*="text-red-500"]'
-      );
-      expect(trendElement || true).toBeTruthy(); // Trend may or may not be visible
+      // The efficiency trend is displayed below the efficiency percentage
+      // Look for the trend text pattern (+X.X% or -X.X%)
+      const efficiencyCards = screen.getAllByText(/Efficiency/i);
+      expect(efficiencyCards.length).toBeGreaterThan(0);
+
+      // The trend should be rendered as part of the efficiency display
+      // It will show something like "+0.0%" or "-0.0%" initially
+      const trendPattern = /[+-]\d+\.\d+%/;
+      const allText = document.body.textContent || '';
+      expect(trendPattern.test(allText)).toBe(true);
     });
   });
 

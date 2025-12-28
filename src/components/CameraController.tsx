@@ -9,6 +9,7 @@ import {
   isPositionInDockZone,
 } from '../stores/useCameraPositionStore';
 import { useMobileControlStore } from '../stores/mobileControlStore';
+import { FACTORY_ZONE_Z } from '../constants/factoryLayout';
 
 // Movement key tracking
 const pressedKeys = new Set<string>();
@@ -38,25 +39,25 @@ export const CAMERA_PRESETS: CameraPreset[] = [
   {
     name: 'Silos',
     position: [0, 18, -45],
-    target: [0, 10, -22],
+    target: [0, 10, FACTORY_ZONE_Z.silos],
     description: 'Raw material storage (Zone 1)',
   },
   {
     name: 'Milling',
-    position: [35, 15, -6],
-    target: [0, 3, -6],
+    position: [35, 15, FACTORY_ZONE_Z.milling],
+    target: [0, 3, FACTORY_ZONE_Z.milling],
     description: 'Roller mills (Zone 2)',
   },
   {
     name: 'Sifting',
     position: [0, 20, 25],
-    target: [0, 9, 6],
+    target: [0, 9, FACTORY_ZONE_Z.sifting],
     description: 'Plansifters (Zone 3)',
   },
   {
     name: 'Packing',
     position: [-35, 12, 35],
-    target: [0, 2, 25],
+    target: [0, 2, FACTORY_ZONE_Z.packing],
     description: 'Packaging lines (Zone 4)',
   },
   {

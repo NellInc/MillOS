@@ -5,6 +5,7 @@
  */
 
 import { MachineData, MachineType } from '../../types';
+import { FACTORY_ZONE_Z } from '../../constants/factoryLayout';
 
 export const mockMachines: MachineData[] = [
   // Zone 1: Silos
@@ -131,7 +132,7 @@ export const mockMachines: MachineData[] = [
     id: 'packer-1',
     name: 'Packer Line 1',
     type: MachineType.PACKER,
-    position: [-10, 0, 20],
+    position: [-10, 0, FACTORY_ZONE_Z.packing],
     size: [4, 3, 3],
     rotation: 0,
     status: 'running',
@@ -148,7 +149,7 @@ export const mockMachines: MachineData[] = [
     id: 'packer-2',
     name: 'Packer Line 2',
     type: MachineType.PACKER,
-    position: [0, 0, 20],
+    position: [0, 0, FACTORY_ZONE_Z.packing],
     size: [4, 3, 3],
     rotation: 0,
     status: 'idle',

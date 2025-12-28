@@ -87,12 +87,42 @@ class AudioManager {
   // Ambient sound spatial attenuation settings
   // Factory center and range for distance-based volume attenuation
   private readonly FACTORY_CENTER = { x: 0, y: 0, z: 0 };
-  private readonly FACTORY_AMBIENT_MAX_DISTANCE = 100; // Units before full attenuation
+  private readonly FACTORY_AMBIENT_MAX_DISTANCE = 80; // Interior distance falloff
   private readonly AMBIENT_BASE_VOLUMES = {
     machineryHum: 0.08,
     conveyorNoise: 0.03,
     ventilation: 0.015,
     grainFlow: 0.012,
+  };
+
+  // Factory physical bounds
+  private readonly FACTORY_BOUNDS = {
+    minX: -60,
+    maxX: 60,
+    minZ: -50,
+    maxZ: 50,
+  };
+
+  // Realistic acoustic physics constants
+  private readonly ACOUSTICS = {
+    // Wall transmission: how much sound passes through solid walls
+    // Industrial walls typically block 20-30 dB = 90-99% reduction
+    wallTransmission: 0.08, // 8% passes through solid wall
+
+    // Dock openings let much more sound through (only partial obstruction)
+    dockTransmission: 0.55, // 55% passes through open dock bay
+
+    // Exponential decay rate outside (per unit distance)
+    // Models inverse-square law: sound drops rapidly with distance
+    exteriorDecayRate: 0.04, // ~50% reduction every 17 units
+
+    // Near-wall behavior inside (sound escaping through walls)
+    wallProximityZone: 10, // Units from wall where leakage starts
+    nearWallMinimum: 0.88, // 12% reduction right at the wall
+
+    // Dock zone detection (matches DOCK_OPENINGS in useCameraPositionStore)
+    dockHalfWidth: 12, // Half-width of dock opening
+    dockTransitionDepth: 20, // How far outside dock zone extends
   };
 
   // Background music
@@ -166,6 +196,7 @@ class AudioManager {
   private _ttsEnabled: boolean = true; // On by default
   private _ttsVoice: SpeechSynthesisVoice | null = null;
   private _ttsVoiceLoaded: boolean = false;
+  private _ttsPrimed: boolean = false; // Prevents repeated priming from canceling speech
 
   // PA tannoy reverb/echo effect chain
   private paReverbChain: {
@@ -329,7 +360,9 @@ class AudioManager {
     if (this._musicEnabled && this.musicAudio) {
       this.musicAudio.src = this.currentTrack.file;
       this.updateMusicVolume(); // Ensure mute state is respected after src change
-      this.musicAudio.play().catch(() => {});
+      this.musicAudio.play().catch((e) => {
+        audioLog.warn('Music playback failed (likely autoplay policy)', e);
+      });
     }
     this.notifyListeners();
   }
@@ -340,7 +373,9 @@ class AudioManager {
     if (this._musicEnabled && this.musicAudio) {
       this.musicAudio.src = this.currentTrack.file;
       this.updateMusicVolume(); // Ensure mute state is respected after src change
-      this.musicAudio.play().catch(() => {});
+      this.musicAudio.play().catch((e) => {
+        audioLog.warn('Music playback failed (likely autoplay policy)', e);
+      });
     }
     this.notifyListeners();
   }
@@ -370,7 +405,9 @@ class AudioManager {
     this.victoryAudio.onended = () => {
       if (wasPlaying && this.musicAudio && this._musicEnabled) {
         this.musicAudio.currentTime = currentTime;
-        this.musicAudio.play().catch(() => {});
+        this.musicAudio.play().catch((e) => {
+          audioLog.warn('Music resume after fanfare failed', e);
+        });
       }
     };
 
@@ -378,7 +415,9 @@ class AudioManager {
       audioLog.warn('Victory fanfare playback failed', e);
       // Resume music if fanfare failed
       if (wasPlaying && this.musicAudio && this._musicEnabled) {
-        this.musicAudio.play().catch(() => {});
+        this.musicAudio.play().catch((e2) => {
+          audioLog.warn('Music resume after fanfare failure failed', e2);
+        });
       }
     });
   }
@@ -628,7 +667,9 @@ class AudioManager {
       this.backgroundMuted = false;
       this.updateMasterVolume();
       if (this._musicEnabled && this.musicAudio && this.musicAudio.paused) {
-        this.musicAudio.play().catch(() => {});
+        this.musicAudio.play().catch((e) => {
+          audioLog.warn('Music resume on tab visibility failed', e);
+        });
       }
     }
   }
@@ -1859,27 +1900,31 @@ class AudioManager {
 
     // Initialize TTS during user gesture (required for mobile browsers)
     // Mobile browsers require speechSynthesis to be "primed" from a user interaction
-    this.initTTSVoice();
+    // Only do this once to avoid canceling ongoing speech
+    if (!this._ttsPrimed) {
+      this._ttsPrimed = true;
+      this.initTTSVoice();
 
-    // iOS Safari workaround: "warm up" speech synthesis with a silent utterance
-    // This ensures the first real announcement can play without gesture restrictions
-    if ('speechSynthesis' in window) {
-      console.log('[MillOS TTS] Priming speechSynthesis for mobile');
+      // iOS Safari workaround: "warm up" speech synthesis with a silent utterance
+      // This ensures the first real announcement can play without gesture restrictions
+      if ('speechSynthesis' in window) {
+        console.log('[MillOS TTS] Priming speechSynthesis (one-time)');
 
-      // Cancel any stuck state (iOS Safari bug)
-      window.speechSynthesis.cancel();
+        // Prime with a near-silent short utterance (empty string doesn't work on all browsers)
+        const primer = new SpeechSynthesisUtterance(' ');
+        primer.volume = 0.01; // Near-silent but not zero (zero might be ignored)
+        primer.rate = 10; // Fastest possible to minimize any audible output
+        window.speechSynthesis.speak(primer);
 
-      // Prime with a near-silent short utterance (empty string doesn't work on all browsers)
-      const primer = new SpeechSynthesisUtterance(' ');
-      primer.volume = 0.01; // Near-silent but not zero (zero might be ignored)
-      primer.rate = 10; // Fastest possible to minimize any audible output
-      window.speechSynthesis.speak(primer);
-
-      // Give iOS a moment to register the speak before canceling
-      setTimeout(() => {
-        window.speechSynthesis.cancel();
-        console.log('[MillOS TTS] Primer cancelled, speechSynthesis should be unlocked');
-      }, 100);
+        // Give iOS a moment to register the speak before canceling
+        setTimeout(() => {
+          // Only cancel if nothing important is playing
+          if (!this.isAnnouncementPlaying) {
+            window.speechSynthesis.cancel();
+          }
+          console.log('[MillOS TTS] Primer done, speechSynthesis should be unlocked');
+        }, 100);
+      }
     }
   }
 
@@ -1892,32 +1937,124 @@ class AudioManager {
     this.updateAmbientSpatialVolumes();
   }
 
-  // Update ambient factory sound volumes based on distance from factory center
+  /**
+   * Calculate signed distance to factory boundary and detect dock proximity
+   * Returns: { signedDistance, isInside, nearDock }
+   * - signedDistance: negative = inside (distance to nearest wall), positive = outside
+   * - nearDock: true if near an open dock bay (sound escapes more easily)
+   */
+  private getFactoryBoundaryInfo(
+    x: number,
+    z: number
+  ): {
+    signedDistance: number;
+    isInside: boolean;
+    nearDock: boolean;
+  } {
+    const { minX, maxX, minZ, maxZ } = this.FACTORY_BOUNDS;
+    const { dockHalfWidth, dockTransitionDepth } = this.ACOUSTICS;
+
+    // Calculate distance to each wall (positive = inside that boundary)
+    const dxMin = x - minX; // Distance from left wall
+    const dxMax = maxX - x; // Distance from right wall
+    const dzMin = z - minZ; // Distance from back wall
+    const dzMax = maxZ - z; // Distance from front wall
+
+    const isInside = dxMin > 0 && dxMax > 0 && dzMin > 0 && dzMax > 0;
+
+    // Check if near a dock opening (front z=50, back z=-50)
+    const nearFrontDock =
+      Math.abs(x) < dockHalfWidth && z > maxZ - 8 && z < maxZ + dockTransitionDepth;
+    const nearBackDock =
+      Math.abs(x) < dockHalfWidth && z < minZ + 8 && z > minZ - dockTransitionDepth;
+    const nearDock = nearFrontDock || nearBackDock;
+
+    if (isInside) {
+      // Inside: return negative distance to nearest wall
+      const distToNearestWall = Math.min(dxMin, dxMax, dzMin, dzMax);
+      return { signedDistance: -distToNearestWall, isInside: true, nearDock };
+    } else {
+      // Outside: calculate Euclidean distance to factory boundary
+      const outsideX = Math.max(0, -dxMin, -dxMax);
+      const outsideZ = Math.max(0, -dzMin, -dzMax);
+      const distance = Math.sqrt(outsideX * outsideX + outsideZ * outsideZ);
+      return { signedDistance: distance, isInside: false, nearDock };
+    }
+  }
+
+  /**
+   * Calculate realistic wall attenuation factor based on acoustic physics
+   * Models: wall transmission, dock openings, distance decay, near-wall leakage
+   */
+  private calculateWallAttenuation(x: number, z: number): number {
+    const { signedDistance, isInside, nearDock } = this.getFactoryBoundaryInfo(x, z);
+    const {
+      wallTransmission,
+      dockTransmission,
+      exteriorDecayRate,
+      wallProximityZone,
+      nearWallMinimum,
+    } = this.ACOUSTICS;
+
+    if (isInside) {
+      // Inside factory: full volume with slight reduction near walls (sound escaping)
+      const distToWall = -signedDistance;
+      if (distToWall < wallProximityZone) {
+        // Smooth interpolation from nearWallMinimum at wall to 1.0 at zone edge
+        const t = distToWall / wallProximityZone;
+        // Use smooth step for natural transition
+        const smoothT = t * t * (3 - 2 * t);
+        return nearWallMinimum + (1 - nearWallMinimum) * smoothT;
+      }
+      return 1.0;
+    } else {
+      // Outside factory: sound must pass through walls/openings then decay with distance
+      // Base transmission depends on proximity to dock openings
+      const baseTransmission = nearDock ? dockTransmission : wallTransmission;
+
+      // Exponential decay with distance from wall (models inverse-square spreading)
+      const distanceDecay = Math.exp(-exteriorDecayRate * signedDistance);
+
+      return baseTransmission * distanceDecay;
+    }
+  }
+
+  // Update ambient factory sound volumes based on position and acoustics
   private updateAmbientSpatialVolumes() {
     if (!this.audioContext) return;
 
-    // Calculate distance from factory center
-    const dx = this.cameraPosition.x - this.FACTORY_CENTER.x;
-    const dy = this.cameraPosition.y - this.FACTORY_CENTER.y;
-    const dz = this.cameraPosition.z - this.FACTORY_CENTER.z;
-    const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+    const { x, y, z } = this.cameraPosition;
 
-    // Calculate attenuation factor (1.0 at center, 0.0 at max distance)
-    // Use squared falloff for more natural sound attenuation
-    const attenuation = Math.max(0, 1 - distance / this.FACTORY_AMBIENT_MAX_DISTANCE);
-    const attenuationSquared = attenuation * attenuation;
+    // Calculate distance from factory center (for interior spatial variation)
+    const dx = x - this.FACTORY_CENTER.x;
+    const dy = y - this.FACTORY_CENTER.y;
+    const dz = z - this.FACTORY_CENTER.z;
+    const distanceFromCenter = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+    // Interior spatial variation (louder near center, quieter at edges)
+    // Uses gentle falloff - sounds are distributed throughout factory
+    const interiorFalloff = Math.max(
+      0.3,
+      1 - distanceFromCenter / this.FACTORY_AMBIENT_MAX_DISTANCE
+    );
+
+    // Wall/boundary attenuation (major effect when outside)
+    const wallAttenuation = this.calculateWallAttenuation(x, z);
+
+    // Combined factor
+    const combinedFactor = interiorFalloff * wallAttenuation;
 
     const currentTime = this.audioContext.currentTime;
-    const rampTime = 0.3; // Smooth transition over 300ms
+    const rampTime = 0.4; // Slightly longer ramp for smoother transitions
 
-    // Apply attenuation to each ambient sound layer
+    // Apply to each ambient sound layer
     if (this.ambientNodes.machineryHum?.gain) {
-      const targetVolume = this.AMBIENT_BASE_VOLUMES.machineryHum * attenuationSquared;
+      const targetVolume = this.AMBIENT_BASE_VOLUMES.machineryHum * combinedFactor;
       this.ambientNodes.machineryHum.gain.gain.setTargetAtTime(targetVolume, currentTime, rampTime);
     }
 
     if (this.ambientNodes.conveyorNoise?.gain) {
-      const targetVolume = this.AMBIENT_BASE_VOLUMES.conveyorNoise * attenuationSquared;
+      const targetVolume = this.AMBIENT_BASE_VOLUMES.conveyorNoise * combinedFactor;
       this.ambientNodes.conveyorNoise.gain.gain.setTargetAtTime(
         targetVolume,
         currentTime,
@@ -1926,12 +2063,12 @@ class AudioManager {
     }
 
     if (this.ambientNodes.ventilation?.gain) {
-      const targetVolume = this.AMBIENT_BASE_VOLUMES.ventilation * attenuationSquared;
+      const targetVolume = this.AMBIENT_BASE_VOLUMES.ventilation * combinedFactor;
       this.ambientNodes.ventilation.gain.gain.setTargetAtTime(targetVolume, currentTime, rampTime);
     }
 
     if (this.ambientNodes.grainFlow?.gain) {
-      const targetVolume = this.AMBIENT_BASE_VOLUMES.grainFlow * attenuationSquared;
+      const targetVolume = this.AMBIENT_BASE_VOLUMES.grainFlow * combinedFactor;
       this.ambientNodes.grainFlow.gain.gain.setTargetAtTime(targetVolume, currentTime, rampTime);
     }
   }
@@ -1941,7 +2078,10 @@ class AudioManager {
     this.soundPositions.set(id, { x, y, z });
   }
 
-  // Calculate volume attenuation based on distance from camera
+  /**
+   * Calculate volume for a point source based on distance and wall occlusion
+   * Uses realistic acoustic physics for both distance falloff and wall attenuation
+   */
   private calculateSpatialVolume(
     sourceId: string,
     baseVolume: number,
@@ -1955,9 +2095,21 @@ class AudioManager {
     const dz = sourcePos.z - this.cameraPosition.z;
     const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
 
-    // Inverse distance falloff with minimum
-    const attenuation = Math.max(0, 1 - distance / maxDistance);
-    return baseVolume * attenuation * attenuation; // Squared for more natural falloff
+    // Distance-based falloff (inverse square approximation)
+    const distanceFactor = Math.max(0, 1 - distance / maxDistance);
+    const distanceAttenuation = distanceFactor * distanceFactor;
+
+    // Check if sound crosses factory boundary (source inside, camera outside)
+    const cameraInfo = this.getFactoryBoundaryInfo(this.cameraPosition.x, this.cameraPosition.z);
+    const sourceInfo = this.getFactoryBoundaryInfo(sourcePos.x, sourcePos.z);
+
+    let wallFactor = 1.0;
+    if (!cameraInfo.isInside && sourceInfo.isInside) {
+      // Sound must pass through wall - use camera's wall attenuation
+      wallFactor = this.calculateWallAttenuation(this.cameraPosition.x, this.cameraPosition.z);
+    }
+
+    return baseVolume * distanceAttenuation * wallFactor;
   }
 
   // Update machine sound volume based on camera distance
@@ -3142,17 +3294,17 @@ class AudioManager {
         source.buffer = buffer;
         source.loop = true;
 
-        // Bandpass for water-like frequencies (1-3kHz range)
-        filter.type = 'bandpass';
-        filter.frequency.setValueAtTime(1800, ctx.currentTime);
-        filter.Q.setValueAtTime(1.5, ctx.currentTime);
+        // Lowpass for softer water sound (less harsh high frequencies)
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(1200, ctx.currentTime);
+        filter.Q.setValueAtTime(0.5, ctx.currentTime);
 
-        // Irregular modulation for natural water gurgling
+        // Very slow, subtle modulation - avoids rhythmic "maraca" effect
         lfo.type = 'sine';
-        lfo.frequency.setValueAtTime(2.5 + Math.random() * 1.5, ctx.currentTime);
-        lfoGain.gain.setValueAtTime(0.003, ctx.currentTime);
+        lfo.frequency.setValueAtTime(0.15 + Math.random() * 0.1, ctx.currentTime); // Much slower
+        lfoGain.gain.setValueAtTime(0.001, ctx.currentTime); // Much subtler
 
-        gain.gain.setValueAtTime(0.006, ctx.currentTime); // Quiet stream
+        gain.gain.setValueAtTime(0.004, ctx.currentTime); // Quieter stream
 
         source.connect(filter);
         filter.connect(gain);
@@ -3337,10 +3489,10 @@ class AudioManager {
       if (!ctx || !masterGain) return;
       const currentTime = ctx.currentTime;
 
-      // Number of bongs: 12-hour format (1-12)
-      const bongs = chimeCount ?? (roundedHour % 12 || 12);
+      // Single dignified bong per hour (not the full hour count)
+      const bongs = chimeCount ?? 1;
 
-      // Play each bong with slight delay between them
+      // Play each bong with slight delay between them (if multiple)
       for (let i = 0; i < bongs; i++) {
         const startTime = currentTime + i * 1.8; // 1.8 seconds between bongs
 
@@ -5202,19 +5354,26 @@ class AudioManager {
         }
       }
 
-      // Third pass (mobile only): fall back to ANY English voice rather than silence
-      if (!this._ttsVoice && isMobile) {
+      // Third pass: fall back to ANY English voice rather than silence
+      if (!this._ttsVoice) {
         const anyEnglishVoice = voices.find((v) => v.lang.startsWith('en'));
         if (anyEnglishVoice) {
           this._ttsVoice = anyEnglishVoice;
-          audioLog.info(`TTS voice selected (mobile English fallback): ${anyEnglishVoice.name}`);
-          console.log(`[MillOS TTS] Mobile fallback voice: ${anyEnglishVoice.name}`);
+          audioLog.info(`TTS voice selected (English fallback): ${anyEnglishVoice.name}`);
+          console.log(`[MillOS TTS] Fallback voice: ${anyEnglishVoice.name}`);
         }
       }
 
+      // Fourth pass: fall back to ANY voice at all
+      if (!this._ttsVoice && voices.length > 0) {
+        this._ttsVoice = voices[0];
+        audioLog.info(`TTS voice selected (any fallback): ${voices[0].name}`);
+        console.log(`[MillOS TTS] Last resort voice: ${voices[0].name}`);
+      }
+
       if (!this._ttsVoice) {
-        audioLog.warn('No suitable voice found - PA announcements will be silent');
-        console.warn('[MillOS TTS] No suitable voice found!');
+        audioLog.warn('No voices available - PA announcements will be silent');
+        console.warn('[MillOS TTS] No voices found in speechSynthesis!');
       }
 
       this._ttsVoiceLoaded = true;
@@ -5261,25 +5420,18 @@ class AudioManager {
       return;
     }
 
-    // Ensure voice is loaded
-    if (!this._ttsVoiceLoaded) {
-      console.log('[MillOS TTS] Voice not loaded, initializing...');
-      this.initTTSVoice();
-    }
-
-    // Only speak if we have a voice selected
-    if (!this._ttsVoice) {
-      console.warn('[MillOS TTS] Blocked: no voice available');
-      audioLog.warn('Blocking announcement - no voice available');
-      return;
-    }
-
-    console.log('[MillOS TTS] Adding to queue, voice:', this._ttsVoice.name);
-
-    // Add to queue
+    // Add to queue first, even if voice isn't ready yet
     this.announcementQueue.push(text);
 
+    // Ensure voice is loaded
+    if (!this._ttsVoiceLoaded) {
+      console.log('[MillOS TTS] Voice not loaded, initializing and queueing...');
+      this.initTTSVoice();
+      // Voice will load async; processAnnouncementQueue will check for voice
+    }
+
     // If nothing is currently playing, start processing the queue
+    // (will check for voice availability inside)
     if (!this.isAnnouncementPlaying) {
       this.processAnnouncementQueue();
     }
@@ -5292,15 +5444,24 @@ class AudioManager {
       this.announcementQueue.length
     );
 
-    // Check if queue is empty or conditions prevent playback
-    if (
-      this.announcementQueue.length === 0 ||
-      !this._ttsEnabled ||
-      this._muted ||
-      !this._ttsVoice
-    ) {
+    // Check if queue is empty
+    if (this.announcementQueue.length === 0) {
       this.isAnnouncementPlaying = false;
-      console.log('[MillOS TTS] Queue processing stopped - empty or blocked');
+      console.log('[MillOS TTS] Queue empty');
+      return;
+    }
+
+    // Check if conditions prevent playback
+    if (!this._ttsEnabled || this._muted) {
+      this.isAnnouncementPlaying = false;
+      console.log('[MillOS TTS] Queue processing stopped - TTS disabled or muted');
+      return;
+    }
+
+    // If voice not loaded yet, retry after a short delay
+    if (!this._ttsVoice) {
+      console.log('[MillOS TTS] Voice not ready, retrying in 500ms...');
+      setTimeout(() => this.processAnnouncementQueue(), 500);
       return;
     }
 

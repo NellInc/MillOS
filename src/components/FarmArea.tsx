@@ -1,5 +1,5 @@
 import React, { useRef, useMemo, useState, useEffect } from 'react';
-import { useFrame } from '@react-three/fiber';
+import { useFrame, ThreeEvent } from '@react-three/fiber';
 import * as THREE from 'three';
 
 import Fireflies from './effects/Fireflies';
@@ -10,6 +10,26 @@ import { PineTree } from './scenery/Tree';
 import { DrainageCulvert } from './scenery/Tunnel';
 import { PROCEDURAL_TEXTURES, OUTDOOR_MATERIALS } from '../utils/sharedMaterials';
 import { FLOOR_LAYERS, POLYGON_OFFSET, RENDER_ORDER } from '../constants/renderLayers';
+
+// Create farm-specific cobble textures with proper world-scale repeat
+// Barnyard is 20x15 units, path is 3x14 units - tile every 10 units
+const farmBarnyardCobbleColor = PROCEDURAL_TEXTURES.cobblestoneColor.clone();
+const farmBarnyardCobbleNormal = PROCEDURAL_TEXTURES.cobblestoneNormal.clone();
+farmBarnyardCobbleColor.wrapS = farmBarnyardCobbleColor.wrapT = THREE.RepeatWrapping;
+farmBarnyardCobbleNormal.wrapS = farmBarnyardCobbleNormal.wrapT = THREE.RepeatWrapping;
+farmBarnyardCobbleColor.repeat.set(2, 1.5); // 20/10, 15/10
+farmBarnyardCobbleNormal.repeat.set(2, 1.5);
+farmBarnyardCobbleColor.needsUpdate = true;
+farmBarnyardCobbleNormal.needsUpdate = true;
+
+const farmPathCobbleColor = PROCEDURAL_TEXTURES.cobblestoneColor.clone();
+const farmPathCobbleNormal = PROCEDURAL_TEXTURES.cobblestoneNormal.clone();
+farmPathCobbleColor.wrapS = farmPathCobbleColor.wrapT = THREE.RepeatWrapping;
+farmPathCobbleNormal.wrapS = farmPathCobbleNormal.wrapT = THREE.RepeatWrapping;
+farmPathCobbleColor.repeat.set(0.3, 1.4); // 3/10, 14/10
+farmPathCobbleNormal.repeat.set(0.3, 1.4);
+farmPathCobbleColor.needsUpdate = true;
+farmPathCobbleNormal.needsUpdate = true;
 
 // ============================================================
 // CUTE FARM AREA - North-West Corner (OPTIMIZED)
@@ -503,7 +523,7 @@ FarmTree.displayName = 'FarmTree';
 const Sheep = React.memo<{
   position: [number, number, number];
   rotation?: number;
-  onClick?: (e: any) => void;
+  onClick?: (e: ThreeEvent<MouseEvent>) => void;
   groupRef?: React.RefObject<THREE.Group | null>;
 }>(({ position, rotation = 0, onClick, groupRef }) => (
   <group
@@ -580,7 +600,7 @@ const Chicken: React.FC<{
   rotation?: number;
   groupRef: React.RefObject<THREE.Group | null>;
   animRef: React.RefObject<THREE.Group | null>;
-  onClick?: (e: any) => void;
+  onClick?: (e: ThreeEvent<MouseEvent>) => void;
 }> = ({ position, rotation = 0, groupRef, animRef, onClick }) => (
   <group
     ref={groupRef}
@@ -635,7 +655,7 @@ const Pig: React.FC<{
   rotation?: number;
   groupRef: React.RefObject<THREE.Group | null>;
   tailRef: React.RefObject<THREE.Mesh | null>;
-  onClick?: (e: any) => void;
+  onClick?: (e: ThreeEvent<MouseEvent>) => void;
 }> = ({ position, rotation = 0, groupRef, tailRef, onClick }) => (
   <group
     ref={groupRef}
@@ -707,7 +727,7 @@ const Cow: React.FC<{
   rotation?: number;
   groupRef: React.RefObject<THREE.Group | null>;
   headRef: React.RefObject<THREE.Group | null>;
-  onClick?: (e: any) => void;
+  onClick?: (e: ThreeEvent<MouseEvent>) => void;
 }> = ({ position, rotation = 0, groupRef, headRef, onClick }) => (
   <group
     ref={groupRef}
@@ -845,7 +865,7 @@ const Horse = React.memo<{
   rotation?: number;
   color?: string;
   isPaint?: boolean;
-  onClick?: (e: any) => void;
+  onClick?: (e: ThreeEvent<MouseEvent>) => void;
 }>(({ position, rotation = 0, color = '#8d6e63', isPaint = false, onClick }) => (
   <group
     position={position}
@@ -1034,7 +1054,7 @@ const Crow = React.memo<{ position: [number, number, number]; rotation?: number 
     const [isExcited, setIsExcited] = useState(false);
     const [hearts, setHearts] = useState<{ id: number; pos: [number, number, number] }[]>([]);
 
-    const handlePet = (e: any) => {
+    const handlePet = (e: ThreeEvent<MouseEvent>) => {
       e.stopPropagation();
       setIsExcited(true);
       playCritterSound('crow');
@@ -1557,11 +1577,15 @@ export const FarmArea: React.FC = () => {
         <primitive object={SM.grass} attach="material" />
       </mesh>
       {/* Cobblestone courtyard in front of barn */}
-      <mesh position={[0, FLOOR_LAYERS.wornPrimary, -10]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+      <mesh
+        position={[0, FLOOR_LAYERS.wornPrimary, -10]}
+        rotation={[-Math.PI / 2, 0, 0]}
+        receiveShadow
+      >
         <planeGeometry args={[20, 15]} />
         <meshStandardMaterial
-          map={PROCEDURAL_TEXTURES.cobblestoneColor}
-          normalMap={PROCEDURAL_TEXTURES.cobblestoneNormal}
+          map={farmBarnyardCobbleColor}
+          normalMap={farmBarnyardCobbleNormal}
           roughness={0.85}
           polygonOffset
           polygonOffsetFactor={POLYGON_OFFSET.standard.factor}
@@ -1576,8 +1600,8 @@ export const FarmArea: React.FC = () => {
       >
         <planeGeometry args={[3, 14]} />
         <meshStandardMaterial
-          map={PROCEDURAL_TEXTURES.cobblestoneColor}
-          normalMap={PROCEDURAL_TEXTURES.cobblestoneNormal}
+          map={farmPathCobbleColor}
+          normalMap={farmPathCobbleNormal}
           roughness={0.85}
           polygonOffset
           polygonOffsetFactor={POLYGON_OFFSET.standard.factor}

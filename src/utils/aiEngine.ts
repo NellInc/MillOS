@@ -226,7 +226,10 @@ const decisionRateLimiter = {
         return 5000; // 5 seconds
     }
   },
-  shouldDefer(frequency: 'minimal' | 'moderate' | 'proactive', priority: AIDecision['priority']): boolean {
+  shouldDefer(
+    frequency: 'minimal' | 'moderate' | 'proactive',
+    priority: AIDecision['priority']
+  ): boolean {
     // Critical decisions are never deferred
     if (priority === 'critical') return false;
 
@@ -261,9 +264,7 @@ function applyWelfareFilter(decision: AIDecision | null): AIDecision | null {
 
   // 2. Check rate limiting
   if (decisionRateLimiter.shouldDefer(welfareContext.communicationFrequency, decision.priority)) {
-    logger.ai.debug(
-      `Decision deferred due to rate limiting: ${decision.action}`
-    );
+    logger.ai.debug(`Decision deferred due to rate limiting: ${decision.action}`);
     return null;
   }
 
@@ -301,7 +302,7 @@ function applyWelfareFilter(decision: AIDecision | null): AIDecision | null {
  * Called when a decision is accepted, rejected, or completed.
  */
 export function updateWelfareFromDecisionOutcome(
-  decision: AIDecision,
+  _decision: AIDecision,
   outcome: 'accepted' | 'rejected' | 'completed' | 'failed'
 ): void {
   const store = useAIWelfareStore.getState();
@@ -2452,7 +2453,10 @@ export function generateContextAwareDecision(forceType?: AIDecision['type']): AI
       // Critical/high severity: still apply tone modifiers but don't suppress
       const welfareContext = getAIWelfareContext();
       decision.action = applyToneModifiers(decision.action, welfareContext);
-      decision.confidence = adjustConfidenceForRelationship(decision.confidence, welfareContext.relationshipHealth);
+      decision.confidence = adjustConfidenceForRelationship(
+        decision.confidence,
+        welfareContext.relationshipHealth
+      );
       return decision;
     }
   }
@@ -2560,7 +2564,10 @@ export function reactToAlert(alert: AlertData): AIDecision | null {
   // Apply welfare-aware modifications (tone, confidence) for all alerts
   // but don't suppress critical alerts
   decision.action = applyToneModifiers(decision.action, welfareContext);
-  decision.confidence = adjustConfidenceForRelationship(decision.confidence, welfareContext.relationshipHealth);
+  decision.confidence = adjustConfidenceForRelationship(
+    decision.confidence,
+    welfareContext.relationshipHealth
+  );
 
   // For non-critical alerts, also check communication frequency
   if (alert.type !== 'critical') {
@@ -2895,6 +2902,9 @@ function aiLoop() {
             applyDecisionEffects(decision);
             store.updateSystemStatus({ decisions: store.systemStatus.decisions + 1 });
           }
+        })
+        .catch((e) => {
+          logger.error('Failed to generate strategic decision', e);
         })
         .finally(() => {
           isGeneratingStrategic = false;

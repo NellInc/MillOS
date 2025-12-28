@@ -8,7 +8,7 @@ import { playCritterSound } from '../utils/critterAudio';
 import { HeartParticle } from './effects/HeartParticle';
 import { useModelTextures } from '../utils/machineTextures';
 import { useProductionStore } from '../stores/productionStore';
-import { FLOOR_LAYERS, POLYGON_OFFSET } from '../constants/renderLayers';
+import { FLOOR_LAYERS, POLYGON_OFFSET, RENDER_ORDER } from '../constants/renderLayers';
 import {
   calculateShippingTruckState,
   calculateReceivingTruckState,
@@ -4026,9 +4026,22 @@ const CuteCar: React.FC<{
       )}
 
       {/* Shadow underneath */}
-      <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+      <mesh
+        position={[0, FLOOR_LAYERS.wornPrimary, 0]}
+        rotation={[-Math.PI / 2, 0, 0]}
+        receiveShadow
+        renderOrder={RENDER_ORDER.floorEffects}
+      >
         <planeGeometry args={[d.bodyLength + 0.5, d.bodyWidth + 0.3]} />
-        <meshBasicMaterial color="#000000" transparent opacity={0.15} />
+        <meshBasicMaterial
+          color="#000000"
+          transparent
+          opacity={0.15}
+          depthWrite={false}
+          polygonOffset
+          polygonOffsetFactor={POLYGON_OFFSET.moderate.factor}
+          polygonOffsetUnits={POLYGON_OFFSET.moderate.units}
+        />
       </mesh>
     </group>
   );
@@ -4109,7 +4122,11 @@ const ParkingLot: React.FC<{
       {Array.from({ length: rows }).map((_, row) => (
         <group
           key={`row-${row}`}
-          position={[0, 0.02, row * (spotDepth + aisleWidth / 2) - totalDepth / 2 + spotDepth / 2]}
+          position={[
+            0,
+            FLOOR_LAYERS.wornPrimary,
+            row * (spotDepth + aisleWidth / 2) - totalDepth / 2 + spotDepth / 2,
+          ]}
         >
           {/* Spot dividers */}
           {Array.from({ length: spotsPerRow + 1 }).map((_, spot) => (
@@ -4117,15 +4134,32 @@ const ParkingLot: React.FC<{
               key={`divider-${row}-${spot}`}
               position={[spot * spotWidth - totalWidth / 2, 0, 0]}
               rotation={[-Math.PI / 2, 0, 0]}
+              renderOrder={RENDER_ORDER.floorMarkings}
             >
               <planeGeometry args={[0.15, spotDepth - 0.5]} />
-              <meshBasicMaterial color="#ffffff" />
+              <meshBasicMaterial
+                color="#ffffff"
+                depthWrite={false}
+                polygonOffset
+                polygonOffsetFactor={POLYGON_OFFSET.moderate.factor}
+                polygonOffsetUnits={POLYGON_OFFSET.moderate.units}
+              />
             </mesh>
           ))}
           {/* Front line of row */}
-          <mesh position={[0, 0, spotDepth / 2 - 0.25]} rotation={[-Math.PI / 2, 0, 0]}>
+          <mesh
+            position={[0, 0, spotDepth / 2 - 0.25]}
+            rotation={[-Math.PI / 2, 0, 0]}
+            renderOrder={RENDER_ORDER.floorMarkings}
+          >
             <planeGeometry args={[totalWidth, 0.15]} />
-            <meshBasicMaterial color="#ffffff" />
+            <meshBasicMaterial
+              color="#ffffff"
+              depthWrite={false}
+              polygonOffset
+              polygonOffsetFactor={POLYGON_OFFSET.moderate.factor}
+              polygonOffsetUnits={POLYGON_OFFSET.moderate.units}
+            />
           </mesh>
         </group>
       ))}
@@ -4771,13 +4805,33 @@ const CheckpointBarrier: React.FC<{
       </group>
 
       {/* Stop lines on road surface (spanning full road width) */}
-      <mesh position={[0, 0.02, 5]} rotation={[-Math.PI / 2, 0, 0]}>
+      <mesh
+        position={[0, FLOOR_LAYERS.wornPrimary, 5]}
+        rotation={[-Math.PI / 2, 0, 0]}
+        renderOrder={RENDER_ORDER.floorMarkings}
+      >
         <planeGeometry args={[roadWidth, 0.5]} />
-        <meshBasicMaterial color="#ffffff" />
+        <meshBasicMaterial
+          color="#ffffff"
+          depthWrite={false}
+          polygonOffset
+          polygonOffsetFactor={POLYGON_OFFSET.moderate.factor}
+          polygonOffsetUnits={POLYGON_OFFSET.moderate.units}
+        />
       </mesh>
-      <mesh position={[0, 0.02, -5]} rotation={[-Math.PI / 2, 0, 0]}>
+      <mesh
+        position={[0, FLOOR_LAYERS.wornPrimary, -5]}
+        rotation={[-Math.PI / 2, 0, 0]}
+        renderOrder={RENDER_ORDER.floorMarkings}
+      >
         <planeGeometry args={[roadWidth, 0.5]} />
-        <meshBasicMaterial color="#ffffff" />
+        <meshBasicMaterial
+          color="#ffffff"
+          depthWrite={false}
+          polygonOffset
+          polygonOffsetFactor={POLYGON_OFFSET.moderate.factor}
+          polygonOffsetUnits={POLYGON_OFFSET.moderate.units}
+        />
       </mesh>
 
       {/* Safety bollards at road edges */}
@@ -5354,9 +5408,15 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = () => {
           <meshStandardMaterial color="#6b7280" metalness={0.6} roughness={0.4} />
         </mesh>
         {/* Yellow hazard stripes on ground */}
-        <mesh position={[0, 0.02, 2]} rotation={[-Math.PI / 2, 0, 0]}>
+        <mesh position={[0, FLOOR_LAYERS.safetyMain, 2]} rotation={[-Math.PI / 2, 0, 0]}>
           <planeGeometry args={[3.5, 2]} />
-          <meshStandardMaterial color="#eab308" roughness={0.8} />
+          <meshStandardMaterial
+            color="#eab308"
+            roughness={0.8}
+            polygonOffset
+            polygonOffsetFactor={POLYGON_OFFSET.standard.factor}
+            polygonOffsetUnits={POLYGON_OFFSET.standard.units}
+          />
         </mesh>
       </group>
 
@@ -5433,9 +5493,15 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = () => {
           <meshStandardMaterial color="#6b7280" metalness={0.6} roughness={0.4} />
         </mesh>
         {/* Yellow hazard stripes on ground */}
-        <mesh position={[0, 0.02, 2]} rotation={[-Math.PI / 2, 0, 0]}>
+        <mesh position={[0, FLOOR_LAYERS.safetyMain, 2]} rotation={[-Math.PI / 2, 0, 0]}>
           <planeGeometry args={[3.5, 2]} />
-          <meshStandardMaterial color="#eab308" roughness={0.8} />
+          <meshStandardMaterial
+            color="#eab308"
+            roughness={0.8}
+            polygonOffset
+            polygonOffsetFactor={POLYGON_OFFSET.standard.factor}
+            polygonOffsetUnits={POLYGON_OFFSET.standard.units}
+          />
         </mesh>
       </group>
 
@@ -5898,11 +5964,23 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = () => {
         {/* Road edge lines - white - raised above road surface */}
         <mesh position={[-7.5, -0.01, 0]} rotation={[-Math.PI / 2, 0, 0]}>
           <planeGeometry args={[0.3, 170]} />
-          <meshBasicMaterial color="#ffffff" />
+          <meshBasicMaterial
+            color="#ffffff"
+            depthWrite={false}
+            polygonOffset
+            polygonOffsetFactor={POLYGON_OFFSET.moderate.factor}
+            polygonOffsetUnits={POLYGON_OFFSET.moderate.units}
+          />
         </mesh>
         <mesh position={[7.5, -0.01, 0]} rotation={[-Math.PI / 2, 0, 0]}>
           <planeGeometry args={[0.3, 170]} />
-          <meshBasicMaterial color="#ffffff" />
+          <meshBasicMaterial
+            color="#ffffff"
+            depthWrite={false}
+            polygonOffset
+            polygonOffsetFactor={POLYGON_OFFSET.moderate.factor}
+            polygonOffsetUnits={POLYGON_OFFSET.moderate.units}
+          />
         </mesh>
         {/* Center dashed line - yellow - raised above road surface */}
         {Array.from({ length: 17 }).map((_, i) => (
@@ -5912,7 +5990,13 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = () => {
             rotation={[-Math.PI / 2, 0, 0]}
           >
             <planeGeometry args={[0.25, 5]} />
-            <meshBasicMaterial color="#f1c40f" />
+            <meshBasicMaterial
+              color="#f1c40f"
+              depthWrite={false}
+              polygonOffset
+              polygonOffsetFactor={POLYGON_OFFSET.moderate.factor}
+              polygonOffsetUnits={POLYGON_OFFSET.moderate.units}
+            />
           </mesh>
         ))}
         {/* Grass shoulders - lowered more to prevent z-fighting with field grass */}
@@ -5948,11 +6032,23 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = () => {
         {/* Road edge lines - white - raised above road surface */}
         <mesh position={[-7.5, -0.01, 0]} rotation={[-Math.PI / 2, 0, 0]}>
           <planeGeometry args={[0.3, 170]} />
-          <meshBasicMaterial color="#ffffff" />
+          <meshBasicMaterial
+            color="#ffffff"
+            depthWrite={false}
+            polygonOffset
+            polygonOffsetFactor={POLYGON_OFFSET.moderate.factor}
+            polygonOffsetUnits={POLYGON_OFFSET.moderate.units}
+          />
         </mesh>
         <mesh position={[7.5, -0.01, 0]} rotation={[-Math.PI / 2, 0, 0]}>
           <planeGeometry args={[0.3, 170]} />
-          <meshBasicMaterial color="#ffffff" />
+          <meshBasicMaterial
+            color="#ffffff"
+            depthWrite={false}
+            polygonOffset
+            polygonOffsetFactor={POLYGON_OFFSET.moderate.factor}
+            polygonOffsetUnits={POLYGON_OFFSET.moderate.units}
+          />
         </mesh>
         {/* Center dashed line - yellow - raised above road surface */}
         {Array.from({ length: 17 }).map((_, i) => (
@@ -5962,7 +6058,13 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = () => {
             rotation={[-Math.PI / 2, 0, 0]}
           >
             <planeGeometry args={[0.25, 5]} />
-            <meshBasicMaterial color="#f1c40f" />
+            <meshBasicMaterial
+              color="#f1c40f"
+              depthWrite={false}
+              polygonOffset
+              polygonOffsetFactor={POLYGON_OFFSET.moderate.factor}
+              polygonOffsetUnits={POLYGON_OFFSET.moderate.units}
+            />
           </mesh>
         ))}
         {/* Grass shoulders - lowered more to prevent z-fighting with field grass */}
@@ -6116,7 +6218,13 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = () => {
         {[0, 1, 2, 3, 4].map((i) => (
           <mesh key={`parking-${i}`} position={[i * 4 - 8, 0, 0]} rotation={[-Math.PI / 2, 0, 0]}>
             <planeGeometry args={[0.15, 5]} />
-            <meshBasicMaterial color="#ffffff" />
+            <meshBasicMaterial
+              color="#ffffff"
+              depthWrite={false}
+              polygonOffset
+              polygonOffsetFactor={POLYGON_OFFSET.moderate.factor}
+              polygonOffsetUnits={POLYGON_OFFSET.moderate.units}
+            />
           </mesh>
         ))}
       </group>

@@ -5,6 +5,7 @@
  * material flow through the factory. Uses the digital twin aesthetic.
  */
 import React, { useMemo } from 'react';
+import { FACTORY_ZONE_Z } from '../constants/factoryLayout';
 import { useProductionStore } from '../stores/productionStore';
 import { useGraphicsStore } from '../stores/graphicsStore';
 import { useShallow } from 'zustand/react/shallow';
@@ -14,29 +15,29 @@ import { PALETTE } from '../utils/digitalTwinPalette';
 // Machine positions in the factory (centers at base height)
 const MACHINE_POSITIONS: Record<string, [number, number, number]> = {
   // Silos (Zone 1, z=-22) - raised for visual connection
-  'silo-alpha': [-18, 4, -22],
-  'silo-beta': [-9, 4, -22],
-  'silo-gamma': [0, 4, -22],
-  'silo-delta': [9, 4, -22],
-  'silo-epsilon': [18, 4, -22],
+  'silo-alpha': [-18, 4, FACTORY_ZONE_Z.silos],
+  'silo-beta': [-9, 4, FACTORY_ZONE_Z.silos],
+  'silo-gamma': [0, 4, FACTORY_ZONE_Z.silos],
+  'silo-delta': [9, 4, FACTORY_ZONE_Z.silos],
+  'silo-epsilon': [18, 4, FACTORY_ZONE_Z.silos],
 
   // Roller Mills (Zone 2, z=-6)
-  'rm-101': [-15, 3, -6],
-  'rm-102': [-7.5, 3, -6],
-  'rm-103': [0, 3, -6],
-  'rm-104': [7.5, 3, -6],
-  'rm-105': [15, 3, -6],
-  'rm-106': [22.5, 3, -6],
+  'rm-101': [-15, 3, FACTORY_ZONE_Z.milling],
+  'rm-102': [-7.5, 3, FACTORY_ZONE_Z.milling],
+  'rm-103': [0, 3, FACTORY_ZONE_Z.milling],
+  'rm-104': [7.5, 3, FACTORY_ZONE_Z.milling],
+  'rm-105': [15, 3, FACTORY_ZONE_Z.milling],
+  'rm-106': [22.5, 3, FACTORY_ZONE_Z.milling],
 
   // Plansifters (Zone 3, z=6, elevated)
-  'plansifter-a': [-14, 6, 6],
-  'plansifter-b': [0, 6, 6],
-  'plansifter-c': [14, 6, 6],
+  'plansifter-a': [-14, 6, FACTORY_ZONE_Z.sifting],
+  'plansifter-b': [0, 6, FACTORY_ZONE_Z.sifting],
+  'plansifter-c': [14, 6, FACTORY_ZONE_Z.sifting],
 
-  // Packers (Zone 4, z=20)
-  'pack-line-1': [-12, 3, 20],
-  'pack-line-2': [0, 3, 20],
-  'pack-line-3': [12, 3, 20],
+  // Packers (Zone 4, z=25)
+  'pack-line-1': [-12, 3, FACTORY_ZONE_Z.packing],
+  'pack-line-2': [0, 3, FACTORY_ZONE_Z.packing],
+  'pack-line-3': [12, 3, FACTORY_ZONE_Z.packing],
 };
 
 // Zone colors for flow lines

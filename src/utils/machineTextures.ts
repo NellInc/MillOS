@@ -94,7 +94,11 @@ function safeLoadTexture(jpgPath: string): Texture | null {
           pendingKtx2Loads.delete(ktx2Path);
           return tex;
         })
-        .catch(() => {
+        .catch((e) => {
+          console.warn(
+            `[machineTextures] KTX2 load failed for ${ktx2Path}, falling back to JPG:`,
+            e
+          );
           pendingKtx2Loads.delete(ktx2Path);
           // Fall back to JPG via standard loader
           return loadJpgTexture(jpgPath);

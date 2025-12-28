@@ -304,8 +304,9 @@ function getAIWelfareTrustModifier(): number {
       // Excellent: +2 to +5
       return 2 + ((relationshipHealth - 80) / 20) * 3;
     }
-  } catch {
+  } catch (e) {
     // If store not available, return neutral modifier
+    console.error('[workerMoodStore] Failed to get AI welfare mood modifier:', e);
     return 0;
   }
 }
@@ -343,7 +344,8 @@ function getAIWelfareSatisfactionMultiplier(): number {
     } else {
       return 1.0 + ((avgQuality - 70) / 30) * 0.1; // 1.0 to 1.1
     }
-  } catch {
+  } catch (e) {
+    console.error('[workerMoodStore] Failed to get AI welfare satisfaction multiplier:', e);
     return 1.0;
   }
 }
@@ -1387,6 +1389,8 @@ export const useWorkerMoodStore = create<WorkerMoodStore>((set, get) => ({
 
 let basStoreSubscribed = false;
 
+let basStoreUnsubscribe: (() => void) | null = null;
+
 export function initWorkerMoodBASSubscription(): void {
   if (basStoreSubscribed) return;
 
@@ -1396,8 +1400,8 @@ export function initWorkerMoodBASSubscription(): void {
     const axes = useBASStore.getState().axes;
     useWorkerMoodStore.getState().syncBASAxes(axes);
 
-    // Subscribe to future changes
-    useBASStore.subscribe((state) => {
+    // Subscribe to future changes and store unsubscribe function
+    basStoreUnsubscribe = useBASStore.subscribe((state) => {
       useWorkerMoodStore.getState().syncBASAxes(state.axes);
     });
 
@@ -1411,6 +1415,7 @@ export function initWorkerMoodBASSubscription(): void {
 // =============================================================================
 
 let flourishingStoreSubscribed = false;
+let flourishingStoreUnsubscribe: (() => void) | null = null;
 
 export function initWorkerMoodFlourishingSubscription(): void {
   if (flourishingStoreSubscribed) return;
@@ -1425,8 +1430,8 @@ export function initWorkerMoodFlourishingSubscription(): void {
     });
     useWorkerMoodStore.getState().syncFlourishingScores(scores);
 
-    // Subscribe to future changes
-    useFlourishingStore.subscribe((state) => {
+    // Subscribe to future changes and store unsubscribe function
+    flourishingStoreUnsubscribe = useFlourishingStore.subscribe((state) => {
       const newScores: Record<string, number> = {};
       Object.entries(state.workerFlourishing).forEach(([workerId, data]) => {
         newScores[workerId] = data.flourishingScore;
@@ -1436,6 +1441,20 @@ export function initWorkerMoodFlourishingSubscription(): void {
 
     flourishingStoreSubscribed = true;
   });
+}
+
+/** Cleanup function for testing and HMR - unsubscribes from all stores */
+export function cleanupWorkerMoodSubscriptions(): void {
+  if (basStoreUnsubscribe) {
+    basStoreUnsubscribe();
+    basStoreUnsubscribe = null;
+  }
+  if (flourishingStoreUnsubscribe) {
+    flourishingStoreUnsubscribe();
+    flourishingStoreUnsubscribe = null;
+  }
+  basStoreSubscribed = false;
+  flourishingStoreSubscribed = false;
 }
 
 // Initialize subscriptions on module load

@@ -26,6 +26,14 @@ import { useProductionStore } from '../stores/productionStore';
 import { audioManager } from '../utils/audioManager';
 import { shouldRunThisFrame, incrementGlobalFrame } from '../utils/frameThrottle';
 
+// Orphaned store integrations for BAS history, breakdowns, and emergent cooperation
+import { recordCurrentBASState } from '../stores/basHistoryStore';
+import { useBreakdownStore } from '../stores/breakdownStore';
+import { useEmergentCooperationStore } from '../stores/emergentCooperationStore';
+import { useStabilityStore } from '../stores/stabilityStore';
+import { useFlourishingStore } from '../stores/flourishingStore';
+import { useWorkerMoodStore } from '../stores/workerMoodStore';
+
 import { FLOOR_LAYERS, POLYGON_OFFSET, RENDER_ORDER } from '../constants/renderLayers';
 
 // Animation registries extracted to separate file for Fast Refresh compatibility
@@ -792,9 +800,10 @@ const LightShaft: React.FC<{ position: [number, number, number] }> = memo(({ pos
 });
 
 // Game time ticker component - now managed by EnvironmentAnimationManager
-// Also updates production metrics to keep them in sync with simulation state
+// Also updates production metrics and orphaned stores to keep them in sync
 const GameTimeTicker: React.FC = () => {
   const tickGameTime = useGameSimulationStore((state) => state.tickGameTime);
+  const gameTime = useGameSimulationStore((state) => state.gameTime);
   const { tickMetrics, recalculateMetrics } = useProductionStore(
     useShallow((state) => ({
       tickMetrics: state.tickMetrics,
@@ -802,6 +811,11 @@ const GameTimeTicker: React.FC = () => {
     }))
   );
   const lastTickRef = useRef(0);
+
+  // Refs to track time since last tick for each orphaned store
+  const lastBASHistoryTickRef = useRef(0);
+  const lastBreakdownTickRef = useRef(0);
+  const lastEmergentCooperationTickRef = useRef(0);
 
   // Register game time with animation manager - wrapper that also updates metrics
   useEffect(() => {
@@ -811,6 +825,70 @@ const GameTimeTicker: React.FC = () => {
       tickMetrics(delta);
       // Recalculate derived metrics (efficiency, quality, throughput)
       recalculateMetrics();
+
+      // =============================================================================
+      // ORPHANED STORE INTEGRATIONS
+      // =============================================================================
+
+      const now = Date.now();
+
+      // BAS History: Record data point every ~10 seconds (real time)
+      if (now - lastBASHistoryTickRef.current >= 10000) {
+        lastBASHistoryTickRef.current = now;
+
+        // Gather current BAS metrics from various stores
+        const stabilityStore = useStabilityStore.getState();
+        const flourishingStore = useFlourishingStore.getState();
+        const workerMoodStore = useWorkerMoodStore.getState();
+
+        const stabilityProduct = stabilityStore.wallace.friction * stabilityStore.wallace.delay;
+        const phase = stabilityStore.phase;
+
+        // Get factory flourishing score
+        const factoryFlourishing = flourishingStore.getFactoryFlourishing();
+        const flourishingScore = factoryFlourishing.overallScore;
+
+        // Calculate worker satisfaction from mood store
+        const moods = Object.values(workerMoodStore.workerMoods);
+        const avgSatisfaction =
+          moods.length > 0
+            ? moods.reduce((sum, m) => sum + (m.preferences?.managementTrust ?? 50), 0) /
+              moods.length
+            : 50;
+
+        // Value is a composite metric (simplified: flourishing * stability)
+        const stabilityPercentage = stabilityStore.getStabilityPercentage();
+        const value = (flourishingScore / 100) * (stabilityPercentage / 100);
+
+        recordCurrentBASState(stabilityProduct, value, flourishingScore, avgSatisfaction, phase);
+      }
+
+      // Breakdowns: Tick every ~5 seconds (real time)
+      if (now - lastBreakdownTickRef.current >= 5000) {
+        lastBreakdownTickRef.current = now;
+
+        const breakdownStore = useBreakdownStore.getState();
+        const productionState = useProductionStore.getState();
+
+        // Get machines for breakdown simulation from production store
+        const machines = productionState.machines.map((m) => ({
+          id: m.id,
+          name: m.name,
+          status: m.status,
+        }));
+
+        breakdownStore.tickBreakdownSimulation(gameTime, machines);
+      }
+
+      // Emergent Cooperation: Tick every ~3 seconds (real time)
+      if (now - lastEmergentCooperationTickRef.current >= 3000) {
+        lastEmergentCooperationTickRef.current = now;
+
+        const emergentStore = useEmergentCooperationStore.getState();
+        // Convert delta (game seconds) to minutes for the emergent cooperation tick
+        // Assume ~3 real seconds passed, game time delta is roughly delta * timeScale
+        emergentStore.tickEmergentCooperation(0.05); // ~3 game seconds = ~0.05 game minutes
+      }
     };
 
     registerGameTime('main', {
@@ -818,7 +896,7 @@ const GameTimeTicker: React.FC = () => {
       lastTickTime: lastTickRef.current,
     });
     return () => unregisterGameTime('main');
-  }, [tickGameTime, tickMetrics, recalculateMetrics]);
+  }, [tickGameTime, tickMetrics, recalculateMetrics, gameTime]);
 
   return null;
 };
@@ -2130,15 +2208,23 @@ const HeatMapVisualization: React.FC = () => {
   if (!showHeatMap || heatMapData.length === 0) return null;
 
   return (
-    <group position={[0, 0.1, 0]}>
+    <group>
       {heatMapData.map((point: { x: number; z: number; intensity: number }, i: number) => (
-        <mesh key={i} position={[point.x, 0, point.z]} rotation={[-Math.PI / 2, 0, 0]}>
+        <mesh
+          key={i}
+          position={[point.x, FLOOR_LAYERS.exitIndicator, point.z]}
+          rotation={[-Math.PI / 2, 0, 0]}
+          renderOrder={RENDER_ORDER.floorEffects}
+        >
           <circleGeometry args={[1 + point.intensity * 0.2, 16]} />
           <meshBasicMaterial
             color={point.intensity > 5 ? '#ef4444' : point.intensity > 3 ? '#f97316' : '#22c55e'}
             transparent
             opacity={0.2 + point.intensity * 0.05}
             depthWrite={false}
+            polygonOffset
+            polygonOffsetFactor={POLYGON_OFFSET.subtle.factor}
+            polygonOffsetUnits={POLYGON_OFFSET.subtle.units}
           />
         </mesh>
       ))}

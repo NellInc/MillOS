@@ -1,3 +1,8 @@
+// TODO: Consider spatial partitioning (grid/quadtree) for better scaling.
+// Current implementation uses O(n*m) linear scans in getEntitiesNearby/isPathClear,
+// which may become a bottleneck with many entities. A spatial hash grid would
+// reduce this to O(1) average case for radius queries.
+
 // Shared position registry for collision avoidance
 // Workers and forklifts register their positions for mutual awareness
 

@@ -568,6 +568,7 @@ export const useAIConfigStore = create<AIConfigState>()(
 
 // Lazy import to avoid circular dependency
 let basStoreSubscribed = false;
+let basStoreUnsubscribe: (() => void) | null = null;
 
 export function initBASSubscription(): void {
   if (basStoreSubscribed) return;
@@ -580,7 +581,7 @@ export function initBASSubscription(): void {
 
     // Subscribe to future changes (track previous axes for comparison)
     let prevAxes = JSON.stringify(useBASStore.getState().axes);
-    useBASStore.subscribe((state) => {
+    basStoreUnsubscribe = useBASStore.subscribe((state) => {
       const newAxes = JSON.stringify(state.axes);
       if (newAxes !== prevAxes) {
         prevAxes = newAxes;
@@ -591,6 +592,15 @@ export function initBASSubscription(): void {
     basStoreSubscribed = true;
     logger.info('[AIConfigStore] BAS subscription initialized');
   });
+}
+
+/** Cleanup function for testing and HMR - unsubscribes from BAS store */
+export function cleanupAIConfigBASSubscription(): void {
+  if (basStoreUnsubscribe) {
+    basStoreUnsubscribe();
+    basStoreUnsubscribe = null;
+  }
+  basStoreSubscribed = false;
 }
 
 // Initialize on module load (will run after rehydration)

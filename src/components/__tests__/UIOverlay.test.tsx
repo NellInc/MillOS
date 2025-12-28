@@ -186,20 +186,32 @@ describe('UIOverlay', () => {
     it('should render the sidebar', () => {
       render(<UIOverlay {...defaultProps} />);
 
-      // Look for sidebar content - the mill logo or header
-      const millHeader = screen.queryByText(/MillOS/i);
-      // The sidebar may have different text content
-      expect(
-        document.querySelector('[class*="sidebar"]') || millHeader !== null || true
-      ).toBeTruthy();
+      // The UIOverlay renders with recognizable UI elements
+      // Check for common sidebar elements like Safety, Graphics, or Emergency sections
+      // Use queryAllByText since these terms may appear multiple times
+      const safetyElements = screen.queryAllByText(/Safety/i);
+      const graphicsElements = screen.queryAllByText(/Graphics/i);
+      const emergencyElements = screen.queryAllByText(/Emergency/i);
+
+      // At least one of these sidebar sections should be present
+      const hasSidebarContent =
+        safetyElements.length > 0 || graphicsElements.length > 0 || emergencyElements.length > 0;
+      expect(hasSidebarContent).toBe(true);
     });
 
     it('should render production controls', () => {
       render(<UIOverlay {...defaultProps} />);
 
-      // Production speed controls should be present
-      // They may be in different UI elements
-      expect(true).toBe(true); // Placeholder - UI structure is complex
+      // Production controls include elements related to production management
+      // Look for production-related text in the UI
+      const productionElements = screen.queryAllByText(/Production/i);
+      const speedElements = screen.queryAllByText(/Speed/i);
+      const metricsElements = screen.queryAllByText(/Throughput|Efficiency|Quality/i);
+
+      // At least one production-related element should be present
+      const hasProductionControls =
+        productionElements.length > 0 || speedElements.length > 0 || metricsElements.length > 0;
+      expect(hasProductionControls).toBe(true);
     });
   });
 
@@ -207,18 +219,23 @@ describe('UIOverlay', () => {
     it('should not show AI panel when showAIPanel is false', () => {
       render(<UIOverlay {...defaultProps} showAIPanel={false} />);
 
-      // AI panel should not be visible by default
-      const _aiPanelButton = screen.queryByLabelText(/AI/i);
-      // The AI panel toggle button exists in the toolbar
-      expect(_aiPanelButton !== undefined || true).toBe(true);
+      // When showAIPanel is false, the AI panel content should not be visible
+      // The setShowAIPanel callback should not have been called during render
+      expect(defaultProps.setShowAIPanel).not.toHaveBeenCalled();
+
+      // Component should render without errors when AI panel is hidden
+      expect(document.body).toBeInTheDocument();
     });
 
     it('should handle showZones prop', () => {
       const setShowZones = vi.fn();
       render(<UIOverlay {...defaultProps} showZones={true} setShowZones={setShowZones} />);
 
-      // Zones toggle should reflect current state
-      expect(true).toBe(true);
+      // The setShowZones callback should be available but not called during render
+      expect(setShowZones).not.toHaveBeenCalled();
+
+      // Component should render successfully with showZones=true
+      expect(document.body).toBeInTheDocument();
     });
   });
 
@@ -233,8 +250,11 @@ describe('UIOverlay', () => {
         />
       );
 
-      // Production speed should be controllable
-      expect(true).toBe(true);
+      // Component should render successfully with custom productionSpeed
+      expect(document.body).toBeInTheDocument();
+
+      // The callback should be available but not auto-called on render
+      expect(setProductionSpeed).not.toHaveBeenCalled();
     });
 
     it('should call setProductionSpeed when speed is changed', () => {
@@ -251,8 +271,11 @@ describe('UIOverlay', () => {
     it('should handle null selectedMachine', () => {
       render(<UIOverlay {...defaultProps} selectedMachine={null} />);
 
-      // Should render without machine details
-      expect(true).toBe(true);
+      // Component should render without errors when no machine is selected
+      expect(document.body).toBeInTheDocument();
+
+      // The onCloseSelection callback should not be called when there's no selection
+      expect(defaultProps.onCloseSelection).not.toHaveBeenCalled();
     });
 
     it('should accept selectedMachine prop', () => {
@@ -271,8 +294,11 @@ describe('UIOverlay', () => {
 
       render(<UIOverlay {...defaultProps} selectedMachine={mockMachine} />);
 
-      // Machine selection should be handled
-      expect(true).toBe(true);
+      // Component should render successfully with a selected machine
+      expect(document.body).toBeInTheDocument();
+
+      // The onCloseSelection callback should be available for use
+      expect(typeof defaultProps.onCloseSelection).toBe('function');
     });
 
     it('should call onCloseSelection when appropriate', () => {

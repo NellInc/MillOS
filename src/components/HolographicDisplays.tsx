@@ -10,6 +10,7 @@ import * as THREE from 'three';
 import { useProductionStore } from '../stores/productionStore';
 import { useGraphicsStore } from '../stores/graphicsStore';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
+import { getDockStatusColor } from '../utils/statusColors';
 import { useShallow } from 'zustand/react/shallow';
 import { shouldRunThisFrame, getThrottleLevel } from '../utils/frameThrottle';
 import { MachineType } from '../types';
@@ -68,19 +69,6 @@ export const HolographicDisplays: React.FC = () => {
         return 'Departing';
       case 'clear':
         return 'Clear';
-    }
-  };
-
-  const getStatusColor = (status: 'arriving' | 'loading' | 'departing' | 'clear') => {
-    switch (status) {
-      case 'arriving':
-        return '#3b82f6'; // blue
-      case 'loading':
-        return '#f97316'; // orange
-      case 'departing':
-        return '#22c55e'; // green
-      case 'clear':
-        return '#64748b'; // gray
     }
   };
 
@@ -145,7 +133,7 @@ export const HolographicDisplays: React.FC = () => {
         title="SHIPPING DOCK"
         value={getStatusDisplay(dockStatus.shipping.status)}
         subValue={getSubValue(dockStatus.shipping.status, dockStatus.shipping.etaMinutes)}
-        color={getStatusColor(dockStatus.shipping.status)}
+        color={getDockStatusColor(dockStatus.shipping.status)}
         size={[5, 2]}
       />
 
@@ -154,7 +142,7 @@ export const HolographicDisplays: React.FC = () => {
         title="RECEIVING DOCK"
         value={getStatusDisplay(dockStatus.receiving.status)}
         subValue={getSubValue(dockStatus.receiving.status, dockStatus.receiving.etaMinutes)}
-        color={getStatusColor(dockStatus.receiving.status)}
+        color={getDockStatusColor(dockStatus.receiving.status)}
         size={[5, 2]}
       />
 

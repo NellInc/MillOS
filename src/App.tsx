@@ -43,14 +43,15 @@ import { useShallow } from 'zustand/react/shallow';
 import { AlertTriangle, RotateCcw } from 'lucide-react';
 
 // Expose stores to window for performance debugging (dev mode only)
+interface DevModeWindow {
+  useGraphicsStore?: typeof useGraphicsStore;
+  useFPSStore?: typeof useFPSStore;
+}
+
 if (import.meta.env.DEV) {
-  (
-    window as unknown as {
-      useGraphicsStore: typeof useGraphicsStore;
-      useFPSStore: typeof useFPSStore;
-    }
-  ).useGraphicsStore = useGraphicsStore;
-  (window as unknown as { useFPSStore: typeof useFPSStore }).useFPSStore = useFPSStore;
+  const devWindow = window as unknown as DevModeWindow;
+  devWindow.useGraphicsStore = useGraphicsStore;
+  devWindow.useFPSStore = useFPSStore;
 }
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { useMultiplayerSync } from './multiplayer';
@@ -758,10 +759,11 @@ const App: React.FC = () => {
             className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 pointer-events-none"
           >
             <div
-              className={`px-6 py-4 rounded-xl backdrop-blur-xl border shadow-2xl ${qualityNotification === 'EMERGENCY STOP'
-                ? 'bg-red-900/95 border-red-500 text-red-100 animate-pulse'
-                : 'bg-slate-800/90 border-slate-600 text-slate-300'
-                }`}
+              className={`px-6 py-4 rounded-xl backdrop-blur-xl border shadow-2xl ${
+                qualityNotification === 'EMERGENCY STOP'
+                  ? 'bg-red-900/95 border-red-500 text-red-100 animate-pulse'
+                  : 'bg-slate-800/90 border-slate-600 text-slate-300'
+              }`}
             >
               <div className="text-center">
                 <div className="text-3xl font-bold uppercase tracking-wider">

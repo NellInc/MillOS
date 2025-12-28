@@ -29,6 +29,7 @@ import { RecommendedWorkerRing } from './workers/RecommendedWorkerRing';
 import { FatigueIndicator } from './workers/FatigueIndicator';
 import { AutonomyIndicator } from './workers/AutonomyIndicator';
 import { FlourishingIndicator } from './workers/FlourishingIndicator';
+import { getWorkerStatusColor } from '../utils/statusColors';
 
 interface WorkerSystemProps {
   onSelectWorker: (worker: WorkerData) => void;
@@ -2436,6 +2437,29 @@ const Worker: React.FC<{ data: WorkerData; onSelect: () => void }> = React.memo(
         // Just do simple walk animation update
         const movementSpeed = 1.5;
 
+        // Throttled forklift safety check (every 10 frames)
+        if ((getGlobalFrameCount() + throttleOffset) % 10 === 0) {
+          const nearestForklift = positionRegistry.getNearestForklift(
+            ref.current.position.x,
+            ref.current.position.z,
+            5 // Check within 5 units
+          );
+          if (nearestForklift) {
+            const dx = nearestForklift.x - ref.current.position.x;
+            const dz = nearestForklift.z - ref.current.position.z;
+            const dist = Math.sqrt(dx * dx + dz * dz);
+            if (dist < 3) {
+              // Forklift very close - reverse direction to get away
+              directionRef.current *= -1;
+              ref.current.rotation.y += Math.PI;
+            } else if (dist < 5) {
+              // Forklift nearby - pause movement this frame
+              walkCycleRef.current += cappedDelta * movementSpeed * 0.5; // Slow walk
+              return;
+            }
+          }
+        }
+
         // Simple back-and-forth walk without collision detection
         ref.current.position.z += directionRef.current * movementSpeed * cappedDelta;
 
@@ -2854,18 +2878,7 @@ const Worker: React.FC<{ data: WorkerData; onSelect: () => void }> = React.memo(
       }
     };
 
-    const getStatusColor = () => {
-      switch (data.status) {
-        case 'working':
-          return '#22c55e';
-        case 'responding':
-          return '#f59e0b';
-        case 'break':
-          return '#6b7280';
-        default:
-          return '#3b82f6';
-      }
-    };
+    const statusColor = getWorkerStatusColor(data.status);
 
     // Visual content for the worker
     const workerContent = (
@@ -2944,8 +2957,8 @@ const Worker: React.FC<{ data: WorkerData; onSelect: () => void }> = React.memo(
           <mesh>
             <sphereGeometry args={[0.055]} />
             <meshStandardMaterial
-              color={getStatusColor()}
-              emissive={getStatusColor()}
+              color={statusColor}
+              emissive={statusColor}
               emissiveIntensity={2.5}
               toneMapped={false}
             />
@@ -2954,8 +2967,8 @@ const Worker: React.FC<{ data: WorkerData; onSelect: () => void }> = React.memo(
           <mesh rotation={[Math.PI / 2, 0, 0]}>
             <ringGeometry args={[0.07, 0.085, 20]} />
             <meshStandardMaterial
-              color={getStatusColor()}
-              emissive={getStatusColor()}
+              color={statusColor}
+              emissive={statusColor}
               emissiveIntensity={1.5}
               transparent
               opacity={0.6}
@@ -2979,7 +2992,7 @@ const Worker: React.FC<{ data: WorkerData; onSelect: () => void }> = React.memo(
                 <div className="flex items-center gap-2">
                   <span
                     className="w-2 h-2 rounded-full animate-pulse"
-                    style={{ backgroundColor: getStatusColor() }}
+                    style={{ backgroundColor: statusColor }}
                   />
                   <span className="text-slate-300">{data.currentTask}</span>
                 </div>

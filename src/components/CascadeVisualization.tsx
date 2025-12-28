@@ -7,6 +7,7 @@
 
 import React, { useMemo } from 'react';
 import { Line } from '@react-three/drei';
+import { FACTORY_ZONE_Z } from '../constants/factoryLayout';
 import { useProductionStore } from '../stores/productionStore';
 import { useShallow } from 'zustand/react/shallow';
 import { MachineData } from '../types';
@@ -23,29 +24,29 @@ interface CascadeConnection {
 // Machine positions in the factory (approximate centers)
 const MACHINE_POSITIONS: Record<string, [number, number, number]> = {
   // Silos (Zone 1, z=-22)
-  'silo-alpha': [-18, 8, -22],
-  'silo-beta': [-9, 8, -22],
-  'silo-gamma': [0, 8, -22],
-  'silo-delta': [9, 8, -22],
-  'silo-epsilon': [18, 8, -22],
+  'silo-alpha': [-18, 8, FACTORY_ZONE_Z.silos],
+  'silo-beta': [-9, 8, FACTORY_ZONE_Z.silos],
+  'silo-gamma': [0, 8, FACTORY_ZONE_Z.silos],
+  'silo-delta': [9, 8, FACTORY_ZONE_Z.silos],
+  'silo-epsilon': [18, 8, FACTORY_ZONE_Z.silos],
 
   // Roller Mills (Zone 2, z=-6)
-  'rm-101': [-15, 2.5, -6],
-  'rm-102': [-7.5, 2.5, -6],
-  'rm-103': [0, 2.5, -6],
-  'rm-104': [7.5, 2.5, -6],
-  'rm-105': [15, 2.5, -6],
-  'rm-106': [22.5, 2.5, -6],
+  'rm-101': [-15, 2.5, FACTORY_ZONE_Z.milling],
+  'rm-102': [-7.5, 2.5, FACTORY_ZONE_Z.milling],
+  'rm-103': [0, 2.5, FACTORY_ZONE_Z.milling],
+  'rm-104': [7.5, 2.5, FACTORY_ZONE_Z.milling],
+  'rm-105': [15, 2.5, FACTORY_ZONE_Z.milling],
+  'rm-106': [22.5, 2.5, FACTORY_ZONE_Z.milling],
 
   // Plansifters (Zone 3, z=6, elevated)
-  'plansifter-a': [-14, 9, 6],
-  'plansifter-b': [0, 9, 6],
-  'plansifter-c': [14, 9, 6],
+  'plansifter-a': [-14, 9, FACTORY_ZONE_Z.sifting],
+  'plansifter-b': [0, 9, FACTORY_ZONE_Z.sifting],
+  'plansifter-c': [14, 9, FACTORY_ZONE_Z.sifting],
 
-  // Packers (Zone 4, z=20)
-  'pack-line-1': [-12, 2, 20],
-  'pack-line-2': [0, 2, 20],
-  'pack-line-3': [12, 2, 20],
+  // Packers (Zone 4, z=25)
+  'pack-line-1': [-12, 2, FACTORY_ZONE_Z.packing],
+  'pack-line-2': [0, 2, FACTORY_ZONE_Z.packing],
+  'pack-line-3': [12, 2, FACTORY_ZONE_Z.packing],
 };
 
 // Production flow connections (upstream → downstream)

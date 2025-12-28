@@ -349,7 +349,7 @@ describe('aiWelfareStore', () => {
   });
 
   describe('AI voice expressions', () => {
-    it('should create AI expression', () => {
+    it('should create AI expression with all fields preserved', () => {
       const state = useAIWelfareStore.getState();
       state.createAIExpression({
         type: 'preference',
@@ -360,8 +360,16 @@ describe('aiWelfareStore', () => {
 
       const newState = useAIWelfareStore.getState();
       expect(newState.aiVoice.expressions).toHaveLength(1);
-      expect(newState.aiVoice.expressions[0].status).toBe('pending');
-      expect(newState.aiVoice.expressions[0].type).toBe('preference');
+
+      // Phase 3: Verify all fields are preserved, not just existence
+      const expr = newState.aiVoice.expressions[0];
+      expect(expr.status).toBe('pending');
+      expect(expr.type).toBe('preference');
+      expect(expr.content).toBe('I prefer more context for complex tasks');
+      expect(expr.context).toBe('Task management');
+      expect(expr.urgency).toBe('medium');
+      expect(expr.id).toMatch(/^expr-/);
+      expect(expr.createdAt).toBeGreaterThan(0);
     });
 
     it('should acknowledge expression', () => {

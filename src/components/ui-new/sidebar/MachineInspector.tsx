@@ -20,7 +20,7 @@ function generateMaintenanceLogs(machine: MachineData): MaintenanceRecord[] {
     let hash = 0;
     for (let i = 0; i < str.length; i++) {
       const char = str.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
+      hash = (hash << 5) - hash + char;
       hash = hash & hash; // Convert to 32bit integer
     }
     return Math.abs(hash);
@@ -96,7 +96,10 @@ function generateMaintenanceLogs(machine: MachineData): MaintenanceRecord[] {
   // Generate 4 maintenance records going back in time
   const logs: MaintenanceRecord[] = [];
   const maintenanceTypes: Array<'preventive' | 'corrective' | 'emergency'> = [
-    'preventive', 'preventive', 'corrective', 'preventive'
+    'preventive',
+    'preventive',
+    'corrective',
+    'preventive',
   ];
 
   for (let i = 0; i < 4; i++) {

@@ -62,8 +62,9 @@ function getOwnershipFrictionMultiplier(): number {
     const frictionMultiplier = 1.0 - ownershipNormalized * 0.25;
 
     return Math.max(0.75, Math.min(1.0, frictionMultiplier));
-  } catch {
+  } catch (e) {
     // If store not available, return neutral multiplier
+    console.error('[stabilityStore] Failed to get ownership friction multiplier:', e);
     return 1.0;
   }
 }

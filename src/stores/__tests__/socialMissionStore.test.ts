@@ -194,10 +194,14 @@ describe('socialMissionStore', () => {
 
       // Test boundary values
       state.updateRenewablePercentage(0);
-      expect(useSocialMissionStore.getState().environmentalStewardship.renewableEnergyPercentage).toBe(0);
+      expect(
+        useSocialMissionStore.getState().environmentalStewardship.renewableEnergyPercentage
+      ).toBe(0);
 
       state.updateRenewablePercentage(100);
-      expect(useSocialMissionStore.getState().environmentalStewardship.renewableEnergyPercentage).toBe(100);
+      expect(
+        useSocialMissionStore.getState().environmentalStewardship.renewableEnergyPercentage
+      ).toBe(100);
     });
 
     it('should update waste reduction', () => {

@@ -32,8 +32,12 @@ const brickColorTexture = generateBrick(512, {
 const brickNormalTexture = generateBrickNormal(512, 32, 16, 2);
 const barkOakTexture = generateBark(256, 'oak');
 const barkNormalTexture = generateBarkNormal(256);
-const cobblestoneColorTexture = generateCobblestone(512, { stoneSize: 8 }); // Tiny cobblestones
-const cobblestoneNormalTexture = generateCobblestoneNormal(512, 8); // Match tiny size
+const cobblestoneColorTexture = generateCobblestone(512, { stoneSize: 14 }); // Medium cobblestones
+const cobblestoneNormalTexture = generateCobblestoneNormal(512, 14); // Match medium size
+
+// Enable wrapping for cobblestone textures (repeat set per-geometry for consistent world-scale)
+cobblestoneColorTexture.wrapS = cobblestoneColorTexture.wrapT = THREE.RepeatWrapping;
+cobblestoneNormalTexture.wrapS = cobblestoneNormalTexture.wrapT = THREE.RepeatWrapping;
 const mudColorTexture = generateMud(512, { wetness: 0.5 });
 const mudRoughnessTexture = generateMudRoughness(512, 0.5);
 

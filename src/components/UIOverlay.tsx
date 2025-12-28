@@ -71,7 +71,18 @@ import { FiveAxesPanel } from './ui-new/widgets/FiveAxesPanel';
 
 // Lazy load ProductionMetrics to reduce initial bundle (Recharts is ~403KB)
 const ProductionMetrics = lazy(() =>
-  import('./ProductionMetrics').then((module) => ({ default: module.ProductionMetrics }))
+  import('./ProductionMetrics')
+    .then((module) => ({ default: module.ProductionMetrics }))
+    .catch((err) => {
+      console.error('Failed to load ProductionMetrics:', err);
+      return {
+        default: () => (
+          <div className="text-red-400 text-xs p-2 bg-red-900/20 rounded border border-red-500/30">
+            Failed to load metrics
+          </div>
+        ),
+      };
+    })
 );
 
 // Import optimized audio hook (uses useSyncExternalStore instead of forceUpdate)

@@ -3,7 +3,16 @@ import * as THREE from 'three';
 import { useGraphicsStore } from '../../stores/graphicsStore';
 import { ReflectiveFloor } from './ReflectiveFloor';
 import { useModelTextures } from '../../utils/machineTextures';
-import { FLOOR_LAYERS, POLYGON_OFFSET } from '../../constants/renderLayers';
+import { FLOOR_LAYERS, POLYGON_OFFSET, RENDER_ORDER } from '../../constants/renderLayers';
+
+// Sub-layer offsets for multi-layer effects (used within rotated groups)
+// These are relative z-offsets that become y-offsets after rotation
+const SUB_LAYER_OFFSETS = {
+  base: 0,
+  middle: 0.003,
+  top: 0.006,
+} as const;
+
 import { generateConcrete, generateConcreteRoughness } from '../../textures/concrete';
 import { generatePanelNormal } from '../../textures/normalGenerator';
 
@@ -189,14 +198,18 @@ const SafetyZone: React.FC<{
   }, [texture, repeatX, repeatY]);
 
   return (
-    <group position={position} rotation={[-Math.PI / 2, 0, rotation]}>
-      {/* Hazard stripe border */}
-      <mesh position={[0, 0, 0.01]}>
-        <planeGeometry args={[safeWidth, safeHeight]} />
+    <group
+      position={position}
+      rotation={[-Math.PI / 2, 0, rotation]}
+      renderOrder={RENDER_ORDER.floorMarkings}
+    >
+      {/* Subtle inner fill - base layer */}
+      <mesh position={[0, 0, SUB_LAYER_OFFSETS.base]}>
+        <planeGeometry args={[innerWidth, innerHeight]} />
         <meshBasicMaterial
-          map={clonedTexture}
+          color={type === 'danger' ? '#7f1d1d' : '#422006'}
           transparent
-          opacity={0.85}
+          opacity={0.15}
           depthWrite={false}
           polygonOffset
           polygonOffsetFactor={FLOOR_POLYGON_OFFSET.factor}
@@ -204,13 +217,13 @@ const SafetyZone: React.FC<{
         />
       </mesh>
 
-      {/* Subtle inner fill */}
-      <mesh position={[0, 0, 0]}>
-        <planeGeometry args={[innerWidth, innerHeight]} />
+      {/* Hazard stripe border - top layer */}
+      <mesh position={[0, 0, SUB_LAYER_OFFSETS.middle]}>
+        <planeGeometry args={[safeWidth, safeHeight]} />
         <meshBasicMaterial
-          color={type === 'danger' ? '#7f1d1d' : '#422006'}
+          map={clonedTexture}
           transparent
-          opacity={0.15}
+          opacity={0.85}
           depthWrite={false}
           polygonOffset
           polygonOffsetFactor={FLOOR_POLYGON_OFFSET.factor}
@@ -260,14 +273,18 @@ const FloorPuddle: React.FC<{
   }, [shape]);
 
   return (
-    <group position={position} rotation={[-Math.PI / 2, 0, random(seed) * Math.PI * 2]}>
-      {/* Wet floor darkening */}
-      <mesh position={[0, 0, -0.001]} geometry={shapeGeometry}>
+    <group
+      position={position}
+      rotation={[-Math.PI / 2, 0, random(seed) * Math.PI * 2]}
+      renderOrder={RENDER_ORDER.floorEffects}
+    >
+      {/* Wet floor darkening - base layer */}
+      <mesh position={[0, 0, SUB_LAYER_OFFSETS.base]} geometry={shapeGeometry}>
         <meshBasicMaterial color="#0f172a" transparent opacity={0.4} depthWrite={false} />
       </mesh>
 
-      {/* Reflective water surface */}
-      <mesh position={[0, 0, 0.001]} geometry={shapeGeometry}>
+      {/* Reflective water surface - middle layer */}
+      <mesh position={[0, 0, SUB_LAYER_OFFSETS.middle]} geometry={shapeGeometry}>
         <meshStandardMaterial
           color="#1e3a5f"
           map={waterTextures.color}
@@ -279,11 +296,12 @@ const FloorPuddle: React.FC<{
           transparent
           opacity={0.6}
           envMapIntensity={2}
+          depthWrite={false}
         />
       </mesh>
 
-      {/* Subtle ripple highlight */}
-      <mesh position={[0, 0, 0.002]} geometry={shapeGeometry}>
+      {/* Subtle ripple highlight - top layer */}
+      <mesh position={[0, 0, SUB_LAYER_OFFSETS.top]} geometry={shapeGeometry}>
         <meshBasicMaterial color="#60a5fa" transparent opacity={0.08} depthWrite={false} />
       </mesh>
     </group>

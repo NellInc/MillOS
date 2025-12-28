@@ -5,9 +5,11 @@
  * Displays control charts with UCL/LCL/CL limits and Western Electric rules detection.
  * Monitors process metrics like temperature, vibration, production rate, and quality.
  *
- * NOTE: Currently uses generateMockData for historical data visualization.
- * Real-time machine metrics are available via useProductionStore().machines
- * for future enhancement to show actual machine sensor data.
+ * Phase 3: Uses real machine metrics from useProductionStore().machines
+ * - Temperature/vibration: Averaged across running machines
+ * - Production rate: From production metrics throughput
+ * - Quality grade: From production metrics quality
+ * - Bag weight: Derived from packer load metrics
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -34,7 +36,8 @@ import {
   AlertOctagon,
 } from 'lucide-react';
 import { useUIStore } from '../stores/uiStore';
-// Note: useProductionStore is available for future enhancement to show actual machine sensor data
+import { useProductionStore } from '../stores/productionStore';
+import type { ProductionStore } from '../stores/productionStore';
 
 // ============================================================================
 // Types & Interfaces
@@ -168,88 +171,135 @@ const calculateControlLimits = (values: number[]): ControlLimits => {
 };
 
 // ============================================================================
-// Deterministic Data Generator (uses time-based patterns instead of random)
-// NOTE: For production, replace with actual machine metric history from store
+// Real Machine Data History Tracker
+// Phase 3: Uses actual machine metrics instead of mock data
 // ============================================================================
 
-const generateMockData = (metricType: MetricType, hours = 24): SPCDataPoint[] => {
-  const points: number[] = [];
-  const now = Date.now();
-  const interval = (hours * 60 * 60 * 1000) / 50; // 50 data points
+// History storage for real-time data accumulation (per metric type)
+const metricHistory: Record<MetricType, { timestamp: number; value: number }[]> = {
+  temperature: [],
+  vibration: [],
+  production_rate: [],
+  quality_grade: [],
+  bag_weight: [],
+};
 
-  // Generate base values based on metric type
-  let baseValue = 0;
-  let noiseLevel = 0;
+const MAX_HISTORY_POINTS = 50;
+
+// Get current real metric value from production store
+const getCurrentMetricValue = (
+  metricType: MetricType,
+  machines: ProductionStore['machines'],
+  metrics: ProductionStore['metrics']
+): number => {
+  const runningMachines = machines.filter((m) => m.status === 'running');
+  if (
+    runningMachines.length === 0 &&
+    metricType !== 'production_rate' &&
+    metricType !== 'quality_grade'
+  ) {
+    // Return baseline values when no machines running
+    switch (metricType) {
+      case 'temperature':
+        return 65;
+      case 'vibration':
+        return 0.2;
+      case 'bag_weight':
+        return 50.0;
+      default:
+        return 0;
+    }
+  }
 
   switch (metricType) {
-    case 'temperature':
-      baseValue = 75;
-      noiseLevel = 3;
-      break;
-    case 'vibration':
-      baseValue = 0.8;
-      noiseLevel = 0.15;
-      break;
-    case 'production_rate':
-      baseValue = 1200;
-      noiseLevel = 80;
-      break;
-    case 'quality_grade':
-      baseValue = 95;
-      noiseLevel = 2;
-      break;
-    case 'bag_weight':
-      baseValue = 50.0;
-      noiseLevel = 0.5;
-      break;
+    case 'temperature': {
+      // Average temperature across all running machines
+      const temps = runningMachines.map((m) => m.metrics.temperature);
+      return temps.length > 0 ? temps.reduce((a, b) => a + b, 0) / temps.length : 65;
+    }
+    case 'vibration': {
+      // Average vibration across all running machines
+      const vibs = runningMachines.map((m) => m.metrics.vibration);
+      return vibs.length > 0 ? vibs.reduce((a, b) => a + b, 0) / vibs.length : 0.2;
+    }
+    case 'production_rate': {
+      // Use throughput from production metrics (bags per hour)
+      return metrics.throughput * 60; // Convert to bags per hour
+    }
+    case 'quality_grade': {
+      // Use quality from production metrics
+      return metrics.quality;
+    }
+    case 'bag_weight': {
+      // Simulated bag weight based on running packers with slight variation
+      const packers = runningMachines.filter((m) => m.type === 'PACKER');
+      if (packers.length === 0) return 50.0;
+      // Use average load as proxy for bag weight consistency
+      const avgLoad = packers.reduce((sum, p) => sum + p.metrics.load, 0) / packers.length;
+      return 50.0 + (avgLoad - 50) * 0.02; // Slight variation based on load
+    }
+  }
+};
+
+// Update history with current reading
+const updateMetricHistory = (
+  metricType: MetricType,
+  machines: ProductionStore['machines'],
+  metrics: ProductionStore['metrics']
+): void => {
+  const value = getCurrentMetricValue(metricType, machines, metrics);
+  const now = Date.now();
+
+  metricHistory[metricType].push({ timestamp: now, value });
+
+  // Keep only last MAX_HISTORY_POINTS
+  if (metricHistory[metricType].length > MAX_HISTORY_POINTS) {
+    metricHistory[metricType] = metricHistory[metricType].slice(-MAX_HISTORY_POINTS);
+  }
+};
+
+// Generate SPC data from real machine metrics
+const generateRealData = (
+  metricType: MetricType,
+  machines: ProductionStore['machines'],
+  metrics: ProductionStore['metrics'],
+  _hours = 24
+): SPCDataPoint[] => {
+  // Update history with current reading
+  updateMetricHistory(metricType, machines, metrics);
+
+  const history = metricHistory[metricType];
+
+  // Need at least 3 points for meaningful SPC
+  if (history.length < 3) {
+    // Bootstrap with current value
+    const currentValue = getCurrentMetricValue(metricType, machines, metrics);
+    const now = Date.now();
+    for (let i = history.length; i < 3; i++) {
+      history.unshift({ timestamp: now - (3 - i) * 5000, value: currentValue });
+    }
   }
 
-  // Generate values with DETERMINISTIC patterns (no Math.random)
-  // Uses sine waves and index-based variation for reproducible charts
-  for (let i = 0; i < 50; i++) {
-    // Base oscillation using sine (creates natural-looking variation)
-    const sineVariation = Math.sin(i * 0.3) * noiseLevel * 0.8;
-    const cosineVariation = Math.cos(i * 0.5) * noiseLevel * 0.4;
-
-    let value = baseValue + sineVariation + cosineVariation;
-
-    // Add deterministic "anomalies" at specific positions (every 7th and 11th point)
-    if (i % 7 === 0) {
-      value += noiseLevel * 1.5;
-    }
-    if (i % 11 === 0) {
-      value -= noiseLevel * 2;
-    }
-
-    // Add trend in middle section (indices 20-30)
-    if (i >= 20 && i <= 30) {
-      value += (i - 20) * (noiseLevel / 4);
-    }
-
-    points.push(value);
-  }
-
-  // Calculate control limits from all data
+  const points = history.map((h) => h.value);
   const limits = calculateControlLimits(points);
 
   // Create data points with status
-  const dataPoints: SPCDataPoint[] = points.map((value, i) => {
-    const timestamp = now - (50 - i) * interval;
+  const dataPoints: SPCDataPoint[] = history.map((h) => {
     let status: 'in-control' | 'warning' | 'out-of-control' = 'in-control';
 
-    if (value > limits.ucl || value < limits.lcl) {
+    if (h.value > limits.ucl || h.value < limits.lcl) {
       status = 'out-of-control';
-    } else if (value > limits.uwl || value < limits.lwl) {
+    } else if (h.value > limits.uwl || h.value < limits.lwl) {
       status = 'warning';
     }
 
     return {
-      timestamp,
-      time: new Date(timestamp).toLocaleTimeString('en-US', {
+      timestamp: h.timestamp,
+      time: new Date(h.timestamp).toLocaleTimeString('en-US', {
         hour: '2-digit',
         minute: '2-digit',
       }),
-      value: Number(value.toFixed(2)),
+      value: Number(h.value.toFixed(2)),
       ucl: limits.ucl,
       lcl: limits.lcl,
       cl: limits.cl,
@@ -287,23 +337,27 @@ export const SPCCharts: React.FC<SPCChartsProps> = ({ className = '', embedded =
   const [data, setData] = useState<SPCDataPoint[]>([]);
   const [_showAnnotations, setShowAnnotations] = useState(true);
 
-  // Stores
+  // Stores - Phase 3: Use real machine data
   const showSPCCharts = useUIStore((state) => state.showSPCCharts ?? false);
   const setShowSPCCharts = useUIStore((state) => state.setShowSPCCharts);
+  const machines = useProductionStore((state) => state.machines);
+  const productionMetrics = useProductionStore((state) => state.metrics);
 
-  // Generate/update data
+  // Generate/update data from real machine metrics
   useEffect(() => {
-    const newData = generateMockData(selectedMetric, timeRange);
+    const newData = generateRealData(selectedMetric, machines, productionMetrics, timeRange);
     setData(newData);
 
-    // Refresh data every 5 seconds if not embedded
+    // Refresh data every 5 seconds to accumulate history
     if (!embedded) {
       const interval = setInterval(() => {
-        setData(generateMockData(selectedMetric, timeRange));
+        const { machines: currentMachines, metrics: currentMetrics } =
+          useProductionStore.getState();
+        setData(generateRealData(selectedMetric, currentMachines, currentMetrics, timeRange));
       }, 5000);
       return () => clearInterval(interval);
     }
-  }, [selectedMetric, timeRange, embedded]);
+  }, [selectedMetric, timeRange, embedded, machines, productionMetrics]);
 
   // Calculate statistics
   const stats = useMemo(() => {
@@ -527,8 +581,9 @@ export const SPCCharts: React.FC<SPCChartsProps> = ({ className = '', embedded =
                   <div className="flex items-end gap-2">
                     <button
                       onClick={() => setShowAnnotations(!_showAnnotations)}
-                      className={`flex-1 text-xs px-3 py-2 rounded transition-colors ${_showAnnotations ? 'bg-cyan-600 text-white' : 'bg-slate-700 text-slate-300'
-                        }`}
+                      className={`flex-1 text-xs px-3 py-2 rounded transition-colors ${
+                        _showAnnotations ? 'bg-cyan-600 text-white' : 'bg-slate-700 text-slate-300'
+                      }`}
                     >
                       Annotations
                     </button>
@@ -557,8 +612,9 @@ export const SPCCharts: React.FC<SPCChartsProps> = ({ className = '', embedded =
                   <div className="text-center">
                     <div className="text-xs text-slate-400 mb-1">Cpk</div>
                     <div
-                      className={`text-lg font-bold font-mono ${stats.processCapable ? 'text-green-400' : 'text-red-400'
-                        }`}
+                      className={`text-lg font-bold font-mono ${
+                        stats.processCapable ? 'text-green-400' : 'text-red-400'
+                      }`}
                     >
                       {stats.cpk}
                     </div>
@@ -706,10 +762,11 @@ export const SPCCharts: React.FC<SPCChartsProps> = ({ className = '', embedded =
                     {violations.map((violation, i) => (
                       <div
                         key={i}
-                        className={`flex items-start gap-3 p-3 rounded-lg ${violation.severity === 'critical'
+                        className={`flex items-start gap-3 p-3 rounded-lg ${
+                          violation.severity === 'critical'
                             ? 'bg-red-500/10 border border-red-500/30'
                             : 'bg-yellow-500/10 border border-yellow-500/30'
-                          }`}
+                        }`}
                       >
                         {violation.severity === 'critical' ? (
                           <AlertTriangle className="w-4 h-4 text-red-400 mt-0.5" />

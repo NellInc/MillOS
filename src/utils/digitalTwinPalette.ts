@@ -104,11 +104,14 @@ export type MachineStatus = 'running' | 'idle' | 'warning' | 'critical' | 'maint
 export type ZoneId = 'silos' | 'milling' | 'sifting' | 'packing';
 
 /**
- * Get status color by status type
+ * Get status color by status type (palette-specific)
  */
-export const getStatusColor = (status: MachineStatus): string => {
+export const getPaletteStatusColor = (status: MachineStatus): string => {
   return PALETTE.status[status] ?? PALETTE.status.idle;
 };
+
+/** @deprecated Use getPaletteStatusColor instead */
+export const getStatusColor = getPaletteStatusColor;
 
 /**
  * Get zone accent color

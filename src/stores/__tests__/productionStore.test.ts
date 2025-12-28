@@ -125,7 +125,6 @@ describe('ProductionStore - AI Decision Management', () => {
       // Oldest decisions should be removed
       expect(decisions.find((d) => d.id === 'test-decision-0')).toBeUndefined();
     });
-
   });
 
   describe('updateDecisionStatus', () => {

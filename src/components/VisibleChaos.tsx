@@ -15,6 +15,7 @@ import * as THREE from 'three';
 import { useWorkerMoodStore } from '../stores/workerMoodStore';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import type { ChaosEvent } from '../types';
+import { FLOOR_LAYERS, POLYGON_OFFSET, RENDER_ORDER } from '../constants/renderLayers';
 
 // =========================================================================
 // ANIMATION MANAGER - Single useFrame for all chaos events
@@ -55,6 +56,9 @@ interface ChaosRefs {
 
 type RegisterFn = (refs: ChaosRefs) => void;
 type UnregisterFn = (eventId: string) => void;
+
+// Quality scale context for particle count scaling
+const QualityScaleContext = createContext<number>(1.0);
 
 const ChaosAnimationContext = createContext<{
   register: RegisterFn;
@@ -310,11 +314,12 @@ const ChaosAnimationManager: React.FC<{ children: React.ReactNode }> = ({ childr
 // =========================================================================
 const GrainSpill: React.FC<{ event: ChaosEvent }> = React.memo(({ event }) => {
   const { register, unregister } = useChaosAnimation();
+  const qualityScale = useContext(QualityScaleContext);
   const groupRef = useRef<THREE.Group>(null);
   const particlesRef = useRef<THREE.InstancedMesh>(null);
   const scaleRef = useRef(0);
 
-  const particleCount = 50;
+  const particleCount = Math.max(10, Math.floor(50 * qualityScale));
   const dummy = useMemo(() => new THREE.Object3D(), []);
   const positions = useMemo(() => {
     return Array.from({ length: particleCount }, () => ({
@@ -323,7 +328,7 @@ const GrainSpill: React.FC<{ event: ChaosEvent }> = React.memo(({ event }) => {
       delay: Math.random() * 0.5,
       scale: 0.05 + Math.random() * 0.1,
     }));
-  }, []);
+  }, [particleCount]);
 
   // Register with animation manager
   React.useEffect(() => {
@@ -381,9 +386,10 @@ GrainSpill.displayName = 'GrainSpill';
 // =========================================================================
 const DustCloud: React.FC<{ event: ChaosEvent }> = React.memo(({ event }) => {
   const { register, unregister } = useChaosAnimation();
+  const qualityScale = useContext(QualityScaleContext);
   const particlesRef = useRef<THREE.Points>(null);
 
-  const particleCount = 100;
+  const particleCount = Math.max(20, Math.floor(100 * qualityScale));
   const positions = useMemo(() => {
     const arr = new Float32Array(particleCount * 3);
     for (let i = 0; i < particleCount; i++) {
@@ -392,7 +398,7 @@ const DustCloud: React.FC<{ event: ChaosEvent }> = React.memo(({ event }) => {
       arr[i * 3 + 2] = (Math.random() - 0.5) * 0.5;
     }
     return arr;
-  }, []);
+  }, [particleCount]);
 
   // Register with animation manager
   React.useEffect(() => {
@@ -627,8 +633,8 @@ const MysteriousPuddle: React.FC<{ event: ChaosEvent }> = React.memo(({ event })
   }, [register, unregister, event.id, event.startTime, event.duration, event.position]);
 
   return (
-    <group position={[event.position[0], 0.01, event.position[2]]}>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+    <group position={[event.position[0], FLOOR_LAYERS.puddle, event.position[2]]}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow renderOrder={RENDER_ORDER.floorEffects}>
         <circleGeometry args={[0.8, 24]} />
         <meshStandardMaterial
           ref={materialRef}
@@ -637,12 +643,28 @@ const MysteriousPuddle: React.FC<{ event: ChaosEvent }> = React.memo(({ event })
           opacity={0.6}
           roughness={0.1}
           metalness={0.3}
+          depthWrite={false}
+          polygonOffset
+          polygonOffsetFactor={POLYGON_OFFSET.subtle.factor}
+          polygonOffsetUnits={POLYGON_OFFSET.subtle.units}
         />
       </mesh>
       {/* Reflection highlight */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0.1, 0.005, -0.1]}>
+      <mesh
+        rotation={[-Math.PI / 2, 0, 0]}
+        position={[0.1, 0, -0.1]}
+        renderOrder={RENDER_ORDER.floorEffects + 1}
+      >
         <circleGeometry args={[0.15, 16]} />
-        <meshBasicMaterial color="#ffffff" transparent opacity={0.3} />
+        <meshBasicMaterial
+          color="#ffffff"
+          transparent
+          opacity={0.3}
+          depthWrite={false}
+          polygonOffset
+          polygonOffsetFactor={POLYGON_OFFSET.moderate.factor}
+          polygonOffsetUnits={POLYGON_OFFSET.moderate.units}
+        />
       </mesh>
 
       {/* Question mark */}
@@ -716,18 +738,20 @@ ConveyorJam.displayName = 'ConveyorJam';
 // =========================================================================
 const TemperatureSpike: React.FC<{ event: ChaosEvent }> = React.memo(({ event }) => {
   const { register, unregister } = useChaosAnimation();
+  const qualityScale = useContext(QualityScaleContext);
   const steamRef = useRef<THREE.Points>(null);
   const glowRef = useRef<THREE.Mesh>(null);
 
+  const particleCount = Math.max(10, Math.floor(50 * qualityScale));
   const steamPositions = useMemo(() => {
-    const arr = new Float32Array(50 * 3);
-    for (let i = 0; i < 50; i++) {
+    const arr = new Float32Array(particleCount * 3);
+    for (let i = 0; i < particleCount; i++) {
       arr[i * 3] = (Math.random() - 0.5) * 0.5;
       arr[i * 3 + 1] = Math.random() * 2;
       arr[i * 3 + 2] = (Math.random() - 0.5) * 0.5;
     }
     return arr;
-  }, []);
+  }, [particleCount]);
 
   // Register with animation manager
   React.useEffect(() => {
@@ -817,17 +841,19 @@ PowerFlicker.displayName = 'PowerFlicker';
 // =========================================================================
 const CoffeeMachineBroken: React.FC<{ event: ChaosEvent }> = React.memo(({ event }) => {
   const { register, unregister } = useChaosAnimation();
+  const qualityScale = useContext(QualityScaleContext);
   const smokeRef = useRef<THREE.Points>(null);
 
+  const particleCount = Math.max(8, Math.floor(30 * qualityScale));
   const smokePositions = useMemo(() => {
-    const arr = new Float32Array(30 * 3);
-    for (let i = 0; i < 30; i++) {
+    const arr = new Float32Array(particleCount * 3);
+    for (let i = 0; i < particleCount; i++) {
       arr[i * 3] = (Math.random() - 0.5) * 0.3;
       arr[i * 3 + 1] = Math.random() * 1;
       arr[i * 3 + 2] = (Math.random() - 0.5) * 0.3;
     }
     return arr;
-  }, []);
+  }, [particleCount]);
 
   // Register with animation manager
   React.useEffect(() => {
@@ -919,20 +945,28 @@ const ChaosEventRenderer: React.FC<{ event: ChaosEvent }> = ({ event }) => {
   }
 };
 
+// Props for quality scaling
+interface VisibleChaosProps {
+  /** Quality scale factor (0.25 = low, 0.5 = medium, 0.75 = high, 1.0 = ultra) */
+  qualityScale?: number;
+}
+
 // Main visible chaos system component
 // PERFORMANCE: Wraps all chaos events in ChaosAnimationManager
 // to consolidate 9 separate useFrame hooks into 1 centralized manager
-export const VisibleChaos: React.FC = () => {
+export const VisibleChaos: React.FC<VisibleChaosProps> = ({ qualityScale = 1.0 }) => {
   const chaosEvents = useWorkerMoodStore((state) => state.chaosEvents);
 
   return (
-    <ChaosAnimationManager>
-      <group>
-        {chaosEvents.map((event) => (
-          <ChaosEventRenderer key={event.id} event={event} />
-        ))}
-      </group>
-    </ChaosAnimationManager>
+    <QualityScaleContext.Provider value={qualityScale}>
+      <ChaosAnimationManager>
+        <group>
+          {chaosEvents.map((event) => (
+            <ChaosEventRenderer key={event.id} event={event} />
+          ))}
+        </group>
+      </ChaosAnimationManager>
+    </QualityScaleContext.Provider>
   );
 };
 

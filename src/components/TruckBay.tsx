@@ -15,8 +15,10 @@ import {
   OptimizedStripeInstances,
 } from './TruckBayInstances';
 import {
-  calculateShippingTruckState as calcShipping,
-  calculateReceivingTruckState as calcReceiving,
+  calculateShippingTruckState,
+  calculateReceivingTruckState,
+  type TruckAnimState,
+  type TruckPhase,
 } from './truckbay/useTruckPhysics';
 // --- Animation Registries ---
 type AnimationType = 'rotation' | 'pulse' | 'lerp' | 'oscillation' | 'custom';
@@ -448,51 +450,8 @@ interface TruckBayProps {
   productionSpeed: number;
 }
 
-// Animation phases for realistic truck docking
-type TruckPhase =
-  | 'entering'
-  | 'slowing'
-  | 'turning_in'
-  | 'straightening'
-  | 'positioning'
-  | 'stopping_to_back'
-  | 'backing'
-  | 'final_adjustment'
-  | 'docked'
-  | 'preparing_to_leave'
-  | 'pulling_out'
-  | 'turning_out'
-  | 'accelerating'
-  | 'leaving';
-
-// Truck animation state with full 2D position and detailed state
-interface TruckAnimState {
-  phase: TruckPhase;
-  x: number;
-  z: number;
-  rotation: number;
-  speed: number;
-  steeringAngle: number;
-  brakeLights: boolean;
-  reverseLights: boolean;
-  leftSignal: boolean;
-  rightSignal: boolean;
-  trailerAngle: number; // Articulation angle relative to cab
-  throttle: number; // 0-1 for exhaust intensity
-  doorsOpen: boolean;
-  cabRoll: number;
-  cabPitch: number;
-}
-
-// Calculate truck state for SHIPPING dock (front of building, z=50)
-const calculateShippingTruckState = (cycle: number, time: number): TruckAnimState => {
-  return calcShipping(cycle, time) as unknown as TruckAnimState;
-};
-
-// Calculate truck state for RECEIVING dock (back of building, z=-50)
-const calculateReceivingTruckState = (cycle: number, time: number): TruckAnimState => {
-  return calcReceiving(cycle, time) as unknown as TruckAnimState;
-};
+// TruckAnimState and TruckPhase types are now imported from './truckbay/useTruckPhysics'
+// calculateShippingTruckState and calculateReceivingTruckState are also imported from there
 
 // Exhaust particle system
 const ExhaustSmoke: React.FC<{
@@ -1116,7 +1075,7 @@ export const EmployeeParking: React.FC<{
 }> = ({ position, rotation = 0 }) => (
   <group position={position} rotation={[0, rotation, 0]} matrixAutoUpdate={false}>
     {/* Parking lot surface */}
-    <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+    <mesh position={[0, FLOOR_LAYERS.wornPrimary, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
       <planeGeometry args={[25, 18]} />
       <meshStandardMaterial color="#2d2d2d" roughness={0.9} />
     </mesh>
@@ -1124,28 +1083,68 @@ export const EmployeeParking: React.FC<{
     {[0, 1, 2, 3, 4, 5, 6, 7].map((_: unknown, i: number) => (
       <group key={i} position={[-10 + i * 3, 0, 0]}>
         {/* Vertical stripe */}
-        <mesh position={[0, 0.03, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <mesh
+          position={[0, FLOOR_LAYERS.safetyMain, 0]}
+          rotation={[-Math.PI / 2, 0, 0]}
+          renderOrder={RENDER_ORDER.floorMarkings}
+        >
           <planeGeometry args={[0.1, 5]} />
-          <meshBasicMaterial color="#fef3c7" />
+          <meshBasicMaterial
+            color="#fef3c7"
+            depthWrite={false}
+            polygonOffset
+            polygonOffsetFactor={POLYGON_OFFSET.moderate.factor}
+            polygonOffsetUnits={POLYGON_OFFSET.moderate.units}
+          />
         </mesh>
         {/* Horizontal stripe at back */}
-        <mesh position={[1.5, 0.03, -2.4]} rotation={[-Math.PI / 2, 0, 0]}>
+        <mesh
+          position={[1.5, FLOOR_LAYERS.safetyMain, -2.4]}
+          rotation={[-Math.PI / 2, 0, 0]}
+          renderOrder={RENDER_ORDER.floorMarkings}
+        >
           <planeGeometry args={[3, 0.1]} />
-          <meshBasicMaterial color="#fef3c7" />
+          <meshBasicMaterial
+            color="#fef3c7"
+            depthWrite={false}
+            polygonOffset
+            polygonOffsetFactor={POLYGON_OFFSET.moderate.factor}
+            polygonOffsetUnits={POLYGON_OFFSET.moderate.units}
+          />
         </mesh>
       </group>
     ))}
     {/* Handicap spaces - 2 at end */}
     {[0, 1].map((_: unknown, i: number) => (
       <group key={i} position={[10 + i * 3.5, 0, 0]}>
-        <mesh position={[0, 0.03, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <mesh
+          position={[0, FLOOR_LAYERS.safetyMain, 0]}
+          rotation={[-Math.PI / 2, 0, 0]}
+          renderOrder={RENDER_ORDER.floorMarkings}
+        >
           <planeGeometry args={[0.15, 5]} />
-          <meshBasicMaterial color="#3b82f6" />
+          <meshBasicMaterial
+            color="#3b82f6"
+            depthWrite={false}
+            polygonOffset
+            polygonOffsetFactor={POLYGON_OFFSET.moderate.factor}
+            polygonOffsetUnits={POLYGON_OFFSET.moderate.units}
+          />
         </mesh>
         {/* Handicap symbol (simplified) */}
-        <mesh position={[1.5, 0.04, -1]} rotation={[-Math.PI / 2, 0, 0]}>
+        <mesh
+          position={[1.5, FLOOR_LAYERS.safetyDanger, -1]}
+          rotation={[-Math.PI / 2, 0, 0]}
+          renderOrder={RENDER_ORDER.floorMarkings}
+        >
           <circleGeometry args={[0.5, 16]} />
-          <meshBasicMaterial color="#3b82f6" />
+          <meshBasicMaterial
+            color="#3b82f6"
+            depthWrite={false}
+            polygonOffset
+            polygonOffsetFactor={POLYGON_OFFSET.moderate.factor}
+            polygonOffsetUnits={POLYGON_OFFSET.moderate.units}
+          />
         </mesh>
         <Text
           position={[1.5, 0.05, -1]}
@@ -5293,14 +5292,24 @@ const TrailerDropYard: React.FC<{ position: [number, number, number]; rotation?:
   rotation = 0,
 }) => (
   <group position={position} rotation={[0, rotation, 0]} matrixAutoUpdate={false}>
-    <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+    <mesh position={[0, FLOOR_LAYERS.wornPrimary, 0]} rotation={[-Math.PI / 2, 0, 0]}>
       <planeGeometry args={[20, 30]} />
       <meshStandardMaterial color="#57534e" roughness={0.95} />
     </mesh>
     {[-6, 0, 6].map((x, i) => (
-      <mesh key={i} position={[x, 0.03, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+      <mesh
+        key={i}
+        position={[x, FLOOR_LAYERS.truckMarkings, 0]}
+        rotation={[-Math.PI / 2, 0, 0]}
+        renderOrder={RENDER_ORDER.floorMarkings}
+      >
         <planeGeometry args={[0.1, 16]} />
-        <meshBasicMaterial color="#fef3c7" />
+        <meshBasicMaterial
+          color="#fef3c7"
+          polygonOffset
+          polygonOffsetFactor={POLYGON_OFFSET.standard.factor}
+          polygonOffsetUnits={POLYGON_OFFSET.standard.units}
+        />
       </mesh>
     ))}
     {[
@@ -5530,7 +5539,11 @@ const DockBumperWithWear: React.FC<{ position: [number, number, number]; wearLev
 // Floor tape/markings inside dock
 const DockFloorMarkings: React.FC<{ position: [number, number, number] }> = ({ position }) => (
   <group position={position}>
-    <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]} renderOrder={10}>
+    <mesh
+      position={[0, FLOOR_LAYERS.truckMarkings, 0]}
+      rotation={[-Math.PI / 2, 0, 0]}
+      renderOrder={RENDER_ORDER.floorMarkings}
+    >
       <planeGeometry args={[3, 10]} />
       <meshBasicMaterial
         color="#22c55e"
@@ -5542,7 +5555,11 @@ const DockFloorMarkings: React.FC<{ position: [number, number, number] }> = ({ p
         depthWrite={false}
       />
     </mesh>
-    <mesh position={[-1.5, 0.03, 0]} rotation={[-Math.PI / 2, 0, 0]} renderOrder={10}>
+    <mesh
+      position={[-1.5, FLOOR_LAYERS.truckMarkings, 0]}
+      rotation={[-Math.PI / 2, 0, 0]}
+      renderOrder={RENDER_ORDER.floorMarkings}
+    >
       <planeGeometry args={[0.1, 10]} />
       <meshBasicMaterial
         color="#22c55e"
@@ -5552,7 +5569,11 @@ const DockFloorMarkings: React.FC<{ position: [number, number, number] }> = ({ p
         depthWrite={false}
       />
     </mesh>
-    <mesh position={[1.5, 0.03, 0]} rotation={[-Math.PI / 2, 0, 0]} renderOrder={10}>
+    <mesh
+      position={[1.5, FLOOR_LAYERS.truckMarkings, 0]}
+      rotation={[-Math.PI / 2, 0, 0]}
+      renderOrder={RENDER_ORDER.floorMarkings}
+    >
       <planeGeometry args={[0.1, 10]} />
       <meshBasicMaterial
         color="#22c55e"
@@ -5562,7 +5583,11 @@ const DockFloorMarkings: React.FC<{ position: [number, number, number] }> = ({ p
         depthWrite={false}
       />
     </mesh>
-    <mesh position={[3, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]} renderOrder={10}>
+    <mesh
+      position={[3, FLOOR_LAYERS.truckMarkings, 0]}
+      rotation={[-Math.PI / 2, 0, 0]}
+      renderOrder={RENDER_ORDER.floorMarkings}
+    >
       <planeGeometry args={[1.5, 10]} />
       <meshBasicMaterial
         color="#3b82f6"
@@ -5574,7 +5599,11 @@ const DockFloorMarkings: React.FC<{ position: [number, number, number] }> = ({ p
         depthWrite={false}
       />
     </mesh>
-    <mesh position={[-4, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]} renderOrder={10}>
+    <mesh
+      position={[-4, FLOOR_LAYERS.truckMarkings, 0]}
+      rotation={[-Math.PI / 2, 0, 0]}
+      renderOrder={RENDER_ORDER.floorMarkings}
+    >
       <planeGeometry args={[4, 5]} />
       <meshBasicMaterial
         color="#fbbf24"
@@ -5590,7 +5619,12 @@ const DockFloorMarkings: React.FC<{ position: [number, number, number] }> = ({ p
       [-6, 0],
       [-2, 0],
     ].map(([x], i) => (
-      <mesh key={i} position={[x, 0.03, 0]} rotation={[-Math.PI / 2, 0, 0]} renderOrder={10}>
+      <mesh
+        key={i}
+        position={[x, FLOOR_LAYERS.truckMarkings, 0]}
+        rotation={[-Math.PI / 2, 0, 0]}
+        renderOrder={RENDER_ORDER.floorMarkings}
+      >
         <planeGeometry args={[0.08, 5]} />
         <meshBasicMaterial
           color="#fbbf24"
@@ -5601,7 +5635,11 @@ const DockFloorMarkings: React.FC<{ position: [number, number, number] }> = ({ p
         />
       </mesh>
     ))}
-    <mesh position={[0, 0.02, -6]} rotation={[-Math.PI / 2, 0, 0]} renderOrder={10}>
+    <mesh
+      position={[0, FLOOR_LAYERS.truckMarkings, -6]}
+      rotation={[-Math.PI / 2, 0, 0]}
+      renderOrder={RENDER_ORDER.floorMarkings}
+    >
       <planeGeometry args={[5, 2]} />
       <meshBasicMaterial
         color="#ef4444"
@@ -5614,12 +5652,12 @@ const DockFloorMarkings: React.FC<{ position: [number, number, number] }> = ({ p
       />
     </mesh>
     <Text
-      position={[0, 0.04, -6]}
+      position={[0, FLOOR_LAYERS.floorText, -6]}
       rotation={[-Math.PI / 2, 0, 0]}
       fontSize={0.4}
       color="#ef4444"
       anchorX="center"
-      renderOrder={11} // Text on top of markings
+      renderOrder={RENDER_ORDER.floorText}
     >
       KEEP CLEAR
     </Text>
@@ -5897,9 +5935,21 @@ const PalletJackChargingStation: React.FC<{
       </group>
 
       {/* Floor marking */}
-      <mesh position={[0, 0.01, 0.8]} rotation={[-Math.PI / 2, 0, 0]}>
+      <mesh
+        position={[0, FLOOR_LAYERS.safetyMain, 0.8]}
+        rotation={[-Math.PI / 2, 0, 0]}
+        renderOrder={RENDER_ORDER.floorMarkings}
+      >
         <planeGeometry args={[1.5, 3]} />
-        <meshStandardMaterial color="#fbbf24" transparent opacity={0.2} />
+        <meshStandardMaterial
+          color="#fbbf24"
+          transparent
+          opacity={0.2}
+          depthWrite={false}
+          polygonOffset
+          polygonOffsetFactor={POLYGON_OFFSET.standard.factor}
+          polygonOffsetUnits={POLYGON_OFFSET.standard.units}
+        />
       </mesh>
 
       {/* Sign */}
@@ -6183,9 +6233,16 @@ const CardboardCompactor: React.FC<{ position: [number, number, number]; rotatio
       </Text>
 
       {/* Floor drain */}
-      <mesh position={[0, 0.01, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+      <mesh position={[0, FLOOR_LAYERS.puddle, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <circleGeometry args={[0.15, 16]} />
-        <meshStandardMaterial color="#1f2937" metalness={0.6} roughness={0.4} />
+        <meshStandardMaterial
+          color="#1f2937"
+          metalness={0.6}
+          roughness={0.4}
+          polygonOffset
+          polygonOffsetFactor={POLYGON_OFFSET.standard.factor}
+          polygonOffsetUnits={POLYGON_OFFSET.standard.units}
+        />
       </mesh>
     </group>
   );

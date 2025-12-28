@@ -136,9 +136,9 @@ export const useMultiplayerStore = create<MultiplayerStore>((set, get) => ({
   ...initialState,
 
   // Connection state
-  setConnectionState: (state) => set({ connectionState: state }),
-  setLocalPlayerName: (name) => set({ localPlayerName: name }),
-  setLocalPlayerColor: (color) => set({ localPlayerColor: color }),
+  setConnectionState: (state: ConnectionState) => set({ connectionState: state }),
+  setLocalPlayerName: (name: string) => set({ localPlayerName: name }),
+  setLocalPlayerColor: (color: PlayerColor) => set({ localPlayerColor: color }),
 
   // Room management
   createRoom: () => {

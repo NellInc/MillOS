@@ -6,6 +6,16 @@ import { GraphicsQuality } from '../stores/graphicsStore';
 import { useGraphicsStore } from '../stores/graphicsStore';
 import { ChevronUp, ChevronDown, X } from 'lucide-react';
 
+interface PerformanceMemory {
+  usedJSHeapSize: number;
+  totalJSHeapSize: number;
+  jsHeapSizeLimit: number;
+}
+
+interface PerformanceWithMemory extends Performance {
+  memory?: PerformanceMemory;
+}
+
 // FPS store for sharing FPS data between 3D scene and UI
 interface FPSStore {
   fps: number;
@@ -90,10 +100,9 @@ const _useFPSStore = create<FPSStore>((set) => ({
 
     // Try to get memory usage if available
     let memoryUsage = 0;
-    if ((performance as unknown as { memory?: { usedJSHeapSize: number } }).memory) {
-      memoryUsage =
-        (performance as unknown as { memory: { usedJSHeapSize: number } }).memory.usedJSHeapSize /
-        (1024 * 1024);
+    const perfWithMemory = performance as PerformanceWithMemory;
+    if (perfWithMemory.memory) {
+      memoryUsage = perfWithMemory.memory.usedJSHeapSize / (1024 * 1024);
     }
 
     set({ fps, avgFps, minFps, maxFps, frameTime, memoryUsage });

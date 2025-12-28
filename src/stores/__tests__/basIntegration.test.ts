@@ -29,18 +29,21 @@ describe('BAS Integration Tests', () => {
   });
 
   describe('BAS Axes to Flourishing Flow', () => {
-    it('should calculate flourishing impact from BAS axes', () => {
+    it('should calculate flourishing impact from BAS axes with valid ranges', () => {
       const { getAxisFlourishingImpact } = useBASStore.getState();
 
       const impact = getAxisFlourishingImpact();
 
-      // Should have all six flourishing dimensions
-      expect(impact).toHaveProperty('meaning');
-      expect(impact).toHaveProperty('mastery');
-      expect(impact).toHaveProperty('connection');
-      expect(impact).toHaveProperty('joy');
-      expect(impact).toHaveProperty('wholeness');
-      expect(impact).toHaveProperty('agency');
+      // Phase 3: Verify values are in valid range, not just that properties exist
+      const dimensions = ['meaning', 'mastery', 'connection', 'joy', 'wholeness', 'agency'];
+      dimensions.forEach((dim) => {
+        expect(impact).toHaveProperty(dim);
+        expect(typeof impact[dim]).toBe('number');
+        expect(Number.isFinite(impact[dim])).toBe(true);
+        // Impacts should be in reasonable range (-50 to +50)
+        expect(impact[dim]).toBeGreaterThanOrEqual(-50);
+        expect(impact[dim]).toBeLessThanOrEqual(50);
+      });
     });
 
     it('should return positive impact when axes are above neutral', () => {
@@ -84,28 +87,36 @@ describe('BAS Integration Tests', () => {
   });
 
   describe('Democratic Voting Flow', () => {
-    it('should create an axis change vote', () => {
+    it('should create an axis change vote with complete structure', () => {
       const { createAxisChangeVote } = useVotingStore.getState();
 
       const vote = createAxisChangeVote('autonomyLevel', 50, 80, 'worker-1');
 
-      expect(vote).toBeDefined();
+      // Phase 3: Verify complete vote structure, not just existence
+      expect(vote.id).toMatch(/^vote-/);
       expect(vote.type).toBe('axis-change');
       expect(vote.targetAxis).toBe('autonomyLevel');
       expect(vote.proposedValue).toBe(80);
       expect(vote.status).toBe('draft');
+      expect(vote.options).toHaveLength(2);
+      expect(vote.options[0].label).toBe('Accept Change');
+      expect(vote.options[1].label).toBe('Keep Current');
+      expect(vote.proposedBy).toBe('worker-1');
+      expect(vote.createdAt).toBeGreaterThan(0);
     });
 
-    it('should open vote for voting', () => {
+    it('should open vote for voting with timestamps', () => {
       const { createAxisChangeVote, openVote } = useVotingStore.getState();
 
+      const beforeOpen = Date.now();
       const vote = createAxisChangeVote('autonomyLevel', 50, 80, 'worker-1');
       openVote(vote.id);
 
       const updatedVote = useVotingStore.getState().votes.find((v) => v.id === vote.id);
       expect(updatedVote?.status).toBe('open');
-      expect(updatedVote?.openedAt).toBeDefined();
-      expect(updatedVote?.deadline).toBeDefined();
+      // Phase 3: Verify timestamps are valid numbers, not just defined
+      expect(updatedVote?.openedAt).toBeGreaterThanOrEqual(beforeOpen);
+      expect(updatedVote?.deadline).toBeGreaterThan(updatedVote?.openedAt ?? 0);
     });
 
     it('should allow workers to cast votes', () => {

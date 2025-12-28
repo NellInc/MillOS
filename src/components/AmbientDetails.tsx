@@ -250,9 +250,17 @@ const RustStain: React.FC<{
   }, []);
 
   return (
-    <mesh position={position} rotation={rotation}>
+    <mesh position={position} rotation={rotation} renderOrder={RENDER_ORDER.floorEffects}>
       <planeGeometry args={[safeSize, safeSize]} />
-      <meshBasicMaterial map={texture} transparent depthWrite={false} side={THREE.DoubleSide} />
+      <meshBasicMaterial
+        map={texture}
+        transparent
+        depthWrite={false}
+        side={THREE.DoubleSide}
+        polygonOffset
+        polygonOffsetFactor={POLYGON_OFFSET.standard.factor}
+        polygonOffsetUnits={POLYGON_OFFSET.standard.units}
+      />
     </mesh>
   );
 };
@@ -314,6 +322,7 @@ const OilPuddle: React.FC<{ position: [number, number, number]; size?: number }>
       position={position}
       rotation={[-Math.PI / 2, 0, Math.random() * Math.PI * 2]}
       geometry={shape}
+      renderOrder={RENDER_ORDER.floorEffects}
     >
       <meshStandardMaterial
         color="#1a1a2e"
@@ -323,6 +332,10 @@ const OilPuddle: React.FC<{ position: [number, number, number]; size?: number }>
         opacity={0.7}
         emissive="#3b82f6"
         emissiveIntensity={0.1}
+        depthWrite={false}
+        polygonOffset
+        polygonOffsetFactor={POLYGON_OFFSET.standard.factor}
+        polygonOffsetUnits={POLYGON_OFFSET.standard.units}
       />
     </mesh>
   );
@@ -385,6 +398,7 @@ const RainPuddle: React.FC<{ position: [number, number, number]; size?: number }
       position={position}
       rotation={[-Math.PI / 2, 0, Math.random() * Math.PI * 2]}
       geometry={shape}
+      renderOrder={RENDER_ORDER.floorEffects}
     >
       <meshStandardMaterial
         color="#1e3a5f"
@@ -394,6 +408,10 @@ const RainPuddle: React.FC<{ position: [number, number, number]; size?: number }
         opacity={0.4}
         emissive="#60a5fa"
         emissiveIntensity={0.05}
+        depthWrite={false}
+        polygonOffset
+        polygonOffsetFactor={POLYGON_OFFSET.standard.factor}
+        polygonOffsetUnits={POLYGON_OFFSET.standard.units}
       />
     </mesh>
   );
@@ -2716,9 +2734,18 @@ const EmergencyShower: React.FC<{ position: [number, number, number] }> = ({ pos
       </group>
 
       {/* Base drain */}
-      <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+      <mesh
+        position={[0, FLOOR_LAYERS.wornPrimary, 0]}
+        rotation={[-Math.PI / 2, 0, 0]}
+        renderOrder={RENDER_ORDER.floorEffects}
+      >
         <ringGeometry args={[0.3, 0.5, 16]} />
-        <meshStandardMaterial color="#fbbf24" />
+        <meshStandardMaterial
+          color="#fbbf24"
+          polygonOffset
+          polygonOffsetFactor={POLYGON_OFFSET.standard.factor}
+          polygonOffsetUnits={POLYGON_OFFSET.standard.units}
+        />
       </mesh>
 
       {/* Sign */}
@@ -4548,33 +4575,33 @@ export const AmbientDetailsGroup: React.FC = () => {
       <RustStain position={[-25, 3, 42]} rotation={[0, Math.PI, 0]} size={0.7} />
 
       {/* Oil puddles on floor - spread across larger area */}
-      <OilPuddle position={[-20, 0.02, -8]} size={1.2} />
-      <OilPuddle position={[12, 0.02, 18]} size={0.8} />
-      <OilPuddle position={[-35, 0.02, 12]} size={1} />
-      <OilPuddle position={[30, 0.02, -18]} size={0.6} />
-      <OilPuddle position={[0, 0.02, 28]} size={1.1} />
-      <OilPuddle position={[-40, 0.02, -20]} size={0.7} />
-      <OilPuddle position={[40, 0.02, 25]} size={0.9} />
+      <OilPuddle position={[-20, FLOOR_LAYERS.puddle, -8]} size={1.2} />
+      <OilPuddle position={[12, FLOOR_LAYERS.puddle, 18]} size={0.8} />
+      <OilPuddle position={[-35, FLOOR_LAYERS.puddle, 12]} size={1} />
+      <OilPuddle position={[30, FLOOR_LAYERS.puddle, -18]} size={0.6} />
+      <OilPuddle position={[0, FLOOR_LAYERS.puddle, 28]} size={1.1} />
+      <OilPuddle position={[-40, FLOOR_LAYERS.puddle, -20]} size={0.7} />
+      <OilPuddle position={[40, FLOOR_LAYERS.puddle, 25]} size={0.9} />
 
       {/* Oil stains in truck yard areas - near where trucks park */}
-      <OilPuddle position={[5, 0.02, 45]} size={1.5} />
-      <OilPuddle position={[-10, 0.02, 40]} size={1.0} />
-      <OilPuddle position={[15, 0.02, 50]} size={0.8} />
-      <OilPuddle position={[-5, 0.02, 55]} size={1.2} />
+      <OilPuddle position={[5, FLOOR_LAYERS.puddle, 45]} size={1.5} />
+      <OilPuddle position={[-10, FLOOR_LAYERS.puddle, 40]} size={1.0} />
+      <OilPuddle position={[15, FLOOR_LAYERS.puddle, 50]} size={0.8} />
+      <OilPuddle position={[-5, FLOOR_LAYERS.puddle, 55]} size={1.2} />
       {/* Back yard oil stains */}
-      <OilPuddle position={[8, 0.02, -65]} size={1.3} />
-      <OilPuddle position={[-12, 0.02, -70]} size={0.9} />
-      <OilPuddle position={[0, 0.02, -60]} size={1.1} />
+      <OilPuddle position={[8, FLOOR_LAYERS.puddle, -65]} size={1.3} />
+      <OilPuddle position={[-12, FLOOR_LAYERS.puddle, -70]} size={0.9} />
+      <OilPuddle position={[0, FLOOR_LAYERS.puddle, -60]} size={1.1} />
 
       {/* Rain puddles in outdoor yard areas (water pooling on pavement) */}
-      <RainPuddle position={[-15, 0.015, 48]} size={2.5} />
-      <RainPuddle position={[20, 0.015, 52]} size={2.0} />
-      <RainPuddle position={[-8, 0.015, 60]} size={1.8} />
-      <RainPuddle position={[10, 0.015, 65]} size={2.2} />
+      <RainPuddle position={[-15, FLOOR_LAYERS.puddle, 48]} size={2.5} />
+      <RainPuddle position={[20, FLOOR_LAYERS.puddle, 52]} size={2.0} />
+      <RainPuddle position={[-8, FLOOR_LAYERS.puddle, 60]} size={1.8} />
+      <RainPuddle position={[10, FLOOR_LAYERS.puddle, 65]} size={2.2} />
       {/* Back yard rain puddles */}
-      <RainPuddle position={[-18, 0.015, -68]} size={2.3} />
-      <RainPuddle position={[15, 0.015, -72]} size={1.9} />
-      <RainPuddle position={[5, 0.015, -80]} size={2.6} />
+      <RainPuddle position={[-18, FLOOR_LAYERS.puddle, -68]} size={2.3} />
+      <RainPuddle position={[15, FLOOR_LAYERS.puddle, -72]} size={1.9} />
+      <RainPuddle position={[5, FLOOR_LAYERS.puddle, -80]} size={2.6} />
 
       {/* Safety signage - walls at x=±60 */}
       <SafetySign position={[-58, 8, 0]} rotation={[0, Math.PI / 2, 0]} type="exit" />
@@ -4743,10 +4770,22 @@ export const AmbientDetailsGroup: React.FC = () => {
       <BulletinBoard position={[52, 5.5, 10]} rotation={[0, -Math.PI / 2, 0]} />
 
       {/* Scorch marks near machinery */}
-      <ScorchMark position={[-18, 0.02, -8]} rotation={[-Math.PI / 2, 0, 0]} size={0.8} />
-      <ScorchMark position={[22, 0.02, -4]} rotation={[-Math.PI / 2, 0, 0]} size={0.6} />
+      <ScorchMark
+        position={[-18, FLOOR_LAYERS.wornPrimary, -8]}
+        rotation={[-Math.PI / 2, 0, 0]}
+        size={0.8}
+      />
+      <ScorchMark
+        position={[22, FLOOR_LAYERS.wornPrimary, -4]}
+        rotation={[-Math.PI / 2, 0, 0]}
+        size={0.6}
+      />
       <ScorchMark position={[-52, 3, 8]} rotation={[0, Math.PI / 2, 0]} size={0.5} />
-      <ScorchMark position={[10, 0.02, 18]} rotation={[-Math.PI / 2, 0, 0]} size={0.7} />
+      <ScorchMark
+        position={[10, FLOOR_LAYERS.wornPrimary, 18]}
+        rotation={[-Math.PI / 2, 0, 0]}
+        size={0.7}
+      />
 
       {/* ==========================================
           MORE PROPS

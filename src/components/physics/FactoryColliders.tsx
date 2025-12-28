@@ -8,6 +8,7 @@
 import { RigidBody, CuboidCollider } from '@react-three/rapier';
 import { useMemo } from 'react';
 import { COLLISION_FILTERS, createCollisionGroups } from '../../physics/PhysicsConfig';
+import { FACTORY_ZONE_Z } from '../../constants/factoryLayout';
 
 // Circular world boundary - matches mountains at radius 260
 const WORLD_RADIUS = 255;
@@ -39,8 +40,8 @@ function generateObstacles(): ObstacleData[] {
       id: `silo-${i + 2}`,
       minX: x - 2.25 - WORKER_PADDING,
       maxX: x + 2.25 + WORKER_PADDING,
-      minZ: -22 - 2.25 - WORKER_PADDING,
-      maxZ: -22 + 2.25 + WORKER_PADDING,
+      minZ: FACTORY_ZONE_Z.silos - 2.25 - WORKER_PADDING,
+      maxZ: FACTORY_ZONE_Z.silos + 2.25 + WORKER_PADDING,
       minY: 0,
       maxY: 16,
     });
@@ -53,8 +54,8 @@ function generateObstacles(): ObstacleData[] {
       id: `mill-${i}`,
       minX: x - 1.75 - WORKER_PADDING,
       maxX: x + 1.75 + WORKER_PADDING,
-      minZ: -6 - 1.75 - WORKER_PADDING,
-      maxZ: -6 + 1.75 + WORKER_PADDING,
+      minZ: FACTORY_ZONE_Z.milling - 1.75 - WORKER_PADDING,
+      maxZ: FACTORY_ZONE_Z.milling + 1.75 + WORKER_PADDING,
       minY: 0,
       maxY: 5,
     });
@@ -74,8 +75,8 @@ function generateObstacles(): ObstacleData[] {
         id: `sifter-cable-${i}-${idx}`,
         minX: x + dx - 0.5,
         maxX: x + dx + 0.5,
-        minZ: 6 + dz - 0.5,
-        maxZ: 6 + dz + 0.5,
+        minZ: FACTORY_ZONE_Z.sifting + dz - 0.5,
+        maxZ: FACTORY_ZONE_Z.sifting + dz + 0.5,
         minY: 0,
         maxY: 9, // Cable runs to elevated sifter
       });
@@ -89,8 +90,8 @@ function generateObstacles(): ObstacleData[] {
       id: `packer-${i + 1}`,
       minX: x - 2 - WORKER_PADDING,
       maxX: x + 2 + WORKER_PADDING,
-      minZ: 25 - 2 - WORKER_PADDING,
-      maxZ: 25 + 2 + WORKER_PADDING,
+      minZ: FACTORY_ZONE_Z.packing - 2 - WORKER_PADDING,
+      maxZ: FACTORY_ZONE_Z.packing + 2 + WORKER_PADDING,
       minY: 0,
       maxY: 6,
     });
