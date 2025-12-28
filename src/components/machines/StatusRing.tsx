@@ -8,7 +8,7 @@ import React, { useRef, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { getStatusColor, getPulseSpeed, getGlowIntensity } from '../../utils/digitalTwinPalette';
-import { FLOOR_LAYERS, POLYGON_OFFSET } from '../../constants/renderLayers';
+import { INDICATOR_HEIGHTS, POLYGON_OFFSET } from '../../constants/renderLayers';
 
 export type StatusType = 'running' | 'idle' | 'warning' | 'critical' | 'maintenance';
 
@@ -108,7 +108,7 @@ export const StatusRing: React.FC<StatusRingProps> = ({
 
   const floorRotation = useMemo<[number, number, number]>(() => [-Math.PI / 2, 0, 0], []);
   const ringPosition = useMemo<[number, number, number]>(
-    () => [position[0], FLOOR_LAYERS.safetyMain, position[2]],
+    () => [position[0], INDICATOR_HEIGHTS.machineRing, position[2]],
     [position]
   );
 

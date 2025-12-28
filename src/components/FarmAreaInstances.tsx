@@ -338,7 +338,7 @@ interface AnimalInstanceData {
   rotation?: number;
 }
 
-const useAnimalInstances = (count: number, data: AnimalInstanceData[]) => {
+const useAnimalInstances = (_count: number, data: AnimalInstanceData[]) => {
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const tempObject = useMemo(() => new THREE.Object3D(), []);
 

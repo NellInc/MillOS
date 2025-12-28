@@ -503,8 +503,8 @@ export const FactoryFloor: React.FC<FactoryFloorProps> = React.memo(
               normalMap={concreteTextures.normal}
               normalScale={concreteTextures.normal ? new THREE.Vector2(0.5, 0.5) : undefined}
               roughnessMap={concreteTextures.roughness}
-              roughness={0.85}
-              metalness={0.15}
+              roughness={0.95}
+              metalness={0.02}
               aoMap={concreteTextures.ao}
               aoMapIntensity={concreteTextures.ao ? 0.5 : 0}
             />

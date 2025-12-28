@@ -15,7 +15,8 @@ import * as THREE from 'three';
 import { useWorkerMoodStore } from '../stores/workerMoodStore';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import { useGraphicsStore } from '../stores/graphicsStore';
-import { FactoryPlant, GraphicsQuality } from '../types';
+import { FactoryPlant } from '../types';
+import type { GraphicsQuality } from '../stores/graphicsStore';
 import { shouldRunThisFrame, getThrottleLevel } from '../utils/frameThrottle';
 import { PLANT_MATERIALS, getHealthMaterial } from '../utils/sharedMaterials';
 

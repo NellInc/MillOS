@@ -147,20 +147,20 @@ export const generateTarmacRoughness = (
         const aggregateNoise = fbmNoise(u * 40, v * 40, 2);
         roughness += aggregateNoise * 0.15;
 
-        // Wear patterns reduce roughness (polished by tires)
+        // Wear patterns reduce roughness slightly (polished by tires)
         const wearNoise = fbmNoise(u * 3 + 50, v * 3, 2);
         if (wearNoise > 1 - wearAmount) {
-          roughness -= (wearNoise - (1 - wearAmount)) * 0.25;
+          roughness -= (wearNoise - (1 - wearAmount)) * 0.1; // Reduced from 0.25
         }
 
-        // Oil stains are smoother
+        // Oil stains are slightly smoother
         const oilNoise = fbmNoise(u * 8 + 200, v * 8, 3);
         if (oilNoise > 0.6) {
-          roughness -= (oilNoise - 0.6) * 0.3;
+          roughness -= (oilNoise - 0.6) * 0.1; // Reduced from 0.3
         }
 
-        // Clamp
-        roughness = Math.max(0.4, Math.min(0.95, roughness));
+        // Clamp - higher minimum for matte appearance
+        roughness = Math.max(0.75, Math.min(0.95, roughness)); // Raised min from 0.4 to 0.75
 
         const val = Math.floor(roughness * 255);
         data[i] = val;

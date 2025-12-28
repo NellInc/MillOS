@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Trophy, TrendingUp, History, Map } from 'lucide-react';
 import { useUIStore } from '../../stores/uiStore';

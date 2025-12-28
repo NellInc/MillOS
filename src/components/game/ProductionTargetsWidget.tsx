@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Target, ChevronUp, ChevronDown } from 'lucide-react';
 import { useProductionStore } from '../../stores/productionStore';

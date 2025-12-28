@@ -505,10 +505,10 @@ export const OUTDOOR_MATERIALS = {
     normalMap: panelNormalTexture,
     normalScale: new THREE.Vector2(0.05, 0.05),
   }),
-  // Tarmac/Asphalt - for roads, parking lots
+  // Tarmac/Asphalt - for roads, parking lots (matte, not wet)
   tarmac: new THREE.MeshStandardMaterial({
     color: '#ffffff',
-    roughness: 0.75,
+    roughness: 0.9,
     metalness: 0.0,
     map: tarmacColorTexture,
     roughnessMap: tarmacRoughnessTexture,
@@ -516,7 +516,7 @@ export const OUTDOOR_MATERIALS = {
   // Worn tarmac (lighter, more weathered)
   tarmacWorn: new THREE.MeshStandardMaterial({
     color: '#3a3c40',
-    roughness: 0.7,
+    roughness: 0.85,
     metalness: 0.0,
     map: tarmacColorTexture,
     roughnessMap: tarmacRoughnessTexture,

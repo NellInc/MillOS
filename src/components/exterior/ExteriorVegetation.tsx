@@ -70,7 +70,7 @@ interface InstanceData {
   scale?: number;
 }
 
-const useInstances = (count: number, data: InstanceData[]) => {
+const useInstances = (_count: number, data: InstanceData[]) => {
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const tempObject = useMemo(() => new THREE.Object3D(), []);
 

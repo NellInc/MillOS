@@ -99,14 +99,14 @@ export const TruckScheduleWidget: React.FC = () => {
       <div className="space-y-1">
         <DockRow
           type="shipping"
-          nextArrival={truckSchedule.nextShippingArrival}
-          isDocked={truckSchedule.truckDocked.shipping}
+          nextArrival={truckSchedule.shipping.nextArrivalMinutes * 60}
+          isDocked={truckSchedule.shipping.truckDocked}
           status={dockStatus.shipping.status}
         />
         <DockRow
           type="receiving"
-          nextArrival={truckSchedule.nextReceivingArrival}
-          isDocked={truckSchedule.truckDocked.receiving}
+          nextArrival={truckSchedule.receiving.nextArrivalMinutes * 60}
+          isDocked={truckSchedule.receiving.truckDocked}
           status={dockStatus.receiving.status}
         />
       </div>

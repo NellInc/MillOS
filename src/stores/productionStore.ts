@@ -290,6 +290,7 @@ export const useProductionStore = create<ProductionStore>()(
 
     // Announcements
     announcements: useAnnouncementsStore.getState().announcements,
+    lastAnnouncementTime: useAnnouncementsStore.getState().lastAnnouncementTime,
     addAnnouncement: (...args: Parameters<AnnouncementsStore['addAnnouncement']>) =>
       useAnnouncementsStore.getState().addAnnouncement(...args),
     dismissAnnouncement: (...args: Parameters<AnnouncementsStore['dismissAnnouncement']>) =>
@@ -561,17 +562,17 @@ export const useProductionStore = create<ProductionStore>()(
         const quality = 99.5; // Default before any tests
 
         // Throughput: Use REAL material flow rate from materialFlowStore
-        // This represents actual kg/min flowing through the system
-        // Convert to bags/hour: (kg/min) / 25 kg/bag * 60 min/hour
+        // This represents actual kg/sec flowing through the system
+        // Convert to bags/hour: (kg/sec) / 25 kg/bag * 3600 sec/hour
         const materialFlowState = useMaterialFlowStore.getState();
-        const flowRateKgPerMin = materialFlowState.totalFlowRate;
-        const BAG_WEIGHT_KG = materialFlowState.bagWeightKg || 25;
+        const flowRateKgPerSec = materialFlowState.currentFlowRate;
+        const BAG_WEIGHT_KG = 25; // Standard bag weight
 
         // If material flow is not initialized yet, fall back to RPM-based calculation
         let throughput: number;
-        if (flowRateKgPerMin > 0) {
+        if (flowRateKgPerSec > 0) {
           // Real throughput from material flow: bags per hour
-          throughput = Math.round((flowRateKgPerMin / BAG_WEIGHT_KG) * 60);
+          throughput = Math.round((flowRateKgPerSec / BAG_WEIGHT_KG) * 3600);
         } else {
           // Fallback: estimate from packer RPM
           const BAGS_PER_RPM_PER_MIN = 0.2;

@@ -26,8 +26,7 @@ export const EmergencyStopButton: React.FC = () => {
       addAnnouncement({
         type: 'emergency',
         message: announcement.message,
-        duration: announcement.duration,
-        priority: 'critical',
+        priority: 4,
       });
       addSafetyIncident({
         type: 'emergency',

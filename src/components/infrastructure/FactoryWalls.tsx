@@ -5,6 +5,7 @@ import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { useSafetyStore } from '../../stores/safetyStore';
 import { useGraphicsStore } from '../../stores/graphicsStore';
 import { PROCEDURAL_TEXTURES } from '../../utils/sharedMaterials';
+import { POLYGON_OFFSET } from '../../constants/renderLayers';
 
 interface FactoryWallsProps {
   floorWidth: number;
@@ -126,8 +127,8 @@ const PersonnelDoor: React.FC<{
           color="#1f2937"
           depthWrite={false}
           polygonOffset
-          polygonOffsetFactor={-1}
-          polygonOffsetUnits={-1}
+          polygonOffsetFactor={POLYGON_OFFSET.standard.factor}
+          polygonOffsetUnits={POLYGON_OFFSET.standard.units}
         />
       </mesh>
 
@@ -227,8 +228,8 @@ const BreakRoom: React.FC<{ position: [number, number, number] }> = React.memo((
           opacity={0.15}
           depthWrite={false}
           polygonOffset
-          polygonOffsetFactor={-1}
-          polygonOffsetUnits={-1}
+          polygonOffsetFactor={POLYGON_OFFSET.standard.factor}
+          polygonOffsetUnits={POLYGON_OFFSET.standard.units}
         />
       </mesh>
 

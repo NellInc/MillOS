@@ -8,6 +8,7 @@ import React, { useMemo } from 'react';
 import { Billboard, Text } from '@react-three/drei';
 import { useMachineLockHolder, useMachineLockedByOther } from '../../multiplayer';
 import { useMultiplayerStore, useIsMultiplayerActive } from '../../stores/multiplayerStore';
+import { INDICATOR_HEIGHTS, POLYGON_OFFSET } from '../../constants/renderLayers';
 
 interface MachineLockIndicatorProps {
   machineId: string;
@@ -48,7 +49,7 @@ export const MachineLockIndicator: React.FC<MachineLockIndicatorProps> = ({
   const isOwnLock = lockHolderId === localPlayerId;
 
   return (
-    <group position={[position[0], 0.05, position[2]]}>
+    <group position={[position[0], INDICATOR_HEIGHTS.machineRing, position[2]]}>
       {/* Lock ring on floor */}
       <mesh rotation={[-Math.PI / 2, 0, 0]}>
         <ringGeometry args={[ringRadius - 0.15, ringRadius, 64]} />
@@ -56,16 +57,24 @@ export const MachineLockIndicator: React.FC<MachineLockIndicatorProps> = ({
           color={lockHolderColor ?? '#ffffff'}
           transparent
           opacity={isOwnLock ? 0.3 : 0.5}
+          depthWrite={false}
+          polygonOffset
+          polygonOffsetFactor={POLYGON_OFFSET.moderate.factor}
+          polygonOffsetUnits={POLYGON_OFFSET.moderate.units}
         />
       </mesh>
 
       {/* Pulsing inner ring */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
         <ringGeometry args={[ringRadius - 0.3, ringRadius - 0.15, 64]} />
         <meshBasicMaterial
           color={lockHolderColor ?? '#ffffff'}
           transparent
           opacity={isOwnLock ? 0.2 : 0.3}
+          depthWrite={false}
+          polygonOffset
+          polygonOffsetFactor={POLYGON_OFFSET.moderate.factor}
+          polygonOffsetUnits={POLYGON_OFFSET.moderate.units}
         />
       </mesh>
 

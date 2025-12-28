@@ -136,16 +136,9 @@ const EnvironmentAnimationManager: React.FC = () => {
       });
     }
 
-    // 3. Update Game Time (runs every 500ms)
-    if (gameTimeRegistry.size > 0) {
-      gameTimeRegistry.forEach((data) => {
-        const now = time;
-        if (now - data.lastTickTime >= 0.5) {
-          data.tickGameTime(0.5);
-          data.lastTickTime = now;
-        }
-      });
-    }
+    // 3. Game Time - REMOVED: Now handled by CoreGameTimeAnimationManager (always-on)
+    // This prevents double-ticking when both managers are mounted.
+    // See CoreGameTimeSystem at the bottom of this file.
 
     // 4. Update Power Flicker (every frame for smooth flicker)
     if (powerFlickerRegistry.size > 0) {
@@ -799,38 +792,20 @@ const LightShaft: React.FC<{ position: [number, number, number] }> = memo(({ pos
   );
 });
 
-// Game time ticker component - now managed by EnvironmentAnimationManager
-// Also updates production metrics and orphaned stores to keep them in sync
-const GameTimeTicker: React.FC = () => {
-  const tickGameTime = useGameSimulationStore((state) => state.tickGameTime);
-  const gameTime = useGameSimulationStore((state) => state.gameTime);
-  const { tickMetrics, recalculateMetrics } = useProductionStore(
-    useShallow((state) => ({
-      tickMetrics: state.tickMetrics,
-      recalculateMetrics: state.recalculateMetrics,
-    }))
-  );
-  const lastTickRef = useRef(0);
-
+// Orphaned store integrations ticker - runs only when FactoryEnvironment is mounted
+// NOTE: Game time and production metrics are now handled by CoreGameTimeSystem (always-on)
+// This component only handles the supplemental orphaned store integrations.
+const OrphanedStoresTicker: React.FC = () => {
   // Refs to track time since last tick for each orphaned store
   const lastBASHistoryTickRef = useRef(0);
   const lastBreakdownTickRef = useRef(0);
   const lastEmergentCooperationTickRef = useRef(0);
 
-  // Register game time with animation manager - wrapper that also updates metrics
+  // Run orphaned store integrations on an interval
   useEffect(() => {
-    const wrappedTickGameTime = (delta: number) => {
-      tickGameTime(delta);
-      // Also tick production metrics to track uptime
-      tickMetrics(delta);
-      // Recalculate derived metrics (efficiency, quality, throughput)
-      recalculateMetrics();
-
-      // =============================================================================
-      // ORPHANED STORE INTEGRATIONS
-      // =============================================================================
-
+    const intervalId = setInterval(() => {
       const now = Date.now();
+      const currentGameTime = useGameSimulationStore.getState().gameTime;
 
       // BAS History: Record data point every ~10 seconds (real time)
       if (now - lastBASHistoryTickRef.current >= 10000) {
@@ -877,7 +852,7 @@ const GameTimeTicker: React.FC = () => {
           status: m.status,
         }));
 
-        breakdownStore.tickBreakdownSimulation(gameTime, machines);
+        breakdownStore.tickBreakdownSimulation(currentGameTime, machines);
       }
 
       // Emergent Cooperation: Tick every ~3 seconds (real time)
@@ -889,17 +864,16 @@ const GameTimeTicker: React.FC = () => {
         // Assume ~3 real seconds passed, game time delta is roughly delta * timeScale
         emergentStore.tickEmergentCooperation(0.05); // ~3 game seconds = ~0.05 game minutes
       }
-    };
+    }, 1000); // Check every second
 
-    registerGameTime('main', {
-      tickGameTime: wrappedTickGameTime,
-      lastTickTime: lastTickRef.current,
-    });
-    return () => unregisterGameTime('main');
-  }, [tickGameTime, tickMetrics, recalculateMetrics, gameTime]);
+    return () => clearInterval(intervalId);
+  }, []);
 
   return null;
 };
+
+// Legacy alias for backwards compatibility
+const GameTimeTicker = OrphanedStoresTicker;
 
 // Global power flicker state for storm effects
 const powerFlickerState: PowerFlickerStateType = {
@@ -2229,5 +2203,93 @@ const HeatMapVisualization: React.FC = () => {
         </mesh>
       ))}
     </group>
+  );
+};
+
+// =============================================================================
+// CORE GAME TIME SYSTEM - Always-on ticker independent of FactoryEnvironment
+// =============================================================================
+// This ensures game time advances even when FactoryEnvironment is disabled for
+// performance debugging. Without this, the sky freezes when disableEnvironment=true.
+// See docs/sky-time-cycle-investigation.md for details.
+
+/**
+ * Minimal animation manager that ONLY handles game time.
+ * This is separate from EnvironmentAnimationManager which handles all the
+ * environment effects (lens flares, power flicker, lighting, etc.)
+ *
+ * NOTE: Does NOT call incrementGlobalFrame() - that's handled by EnvironmentAnimationManager
+ * when it's mounted. The frame counter is only needed for throttling visual effects.
+ */
+const CoreGameTimeAnimationManager: React.FC = () => {
+  const isTabVisible = useGameSimulationStore((state) => state.isTabVisible);
+
+  useFrame((state) => {
+    // Skip if tab not visible
+    if (!isTabVisible) return;
+
+    const time = state.clock.getElapsedTime();
+
+    // Update Game Time (runs every 500ms)
+    // This is the ONLY place that should iterate gameTimeRegistry
+    if (gameTimeRegistry.size > 0) {
+      gameTimeRegistry.forEach((data) => {
+        const now = time;
+        if (now - data.lastTickTime >= 0.5) {
+          data.tickGameTime(0.5);
+          data.lastTickTime = now;
+        }
+      });
+    }
+  });
+
+  return null;
+};
+
+/**
+ * Core game time ticker that registers with the animation manager.
+ * This is a lightweight version of GameTimeTicker that only handles
+ * the essential time advancement, without all the orphaned store updates.
+ */
+const CoreGameTimeTicker: React.FC = () => {
+  const tickGameTime = useGameSimulationStore((state) => state.tickGameTime);
+  const { tickMetrics, recalculateMetrics } = useProductionStore(
+    useShallow((state) => ({
+      tickMetrics: state.tickMetrics,
+      recalculateMetrics: state.recalculateMetrics,
+    }))
+  );
+  const lastTickRef = useRef(0);
+
+  // Register game time with animation manager
+  useEffect(() => {
+    const wrappedTickGameTime = (delta: number) => {
+      tickGameTime(delta);
+      // Also tick production metrics to track uptime
+      tickMetrics(delta);
+      // Recalculate derived metrics (efficiency, quality, throughput)
+      recalculateMetrics();
+    };
+
+    registerGameTime('core', {
+      tickGameTime: wrappedTickGameTime,
+      lastTickTime: lastTickRef.current,
+    });
+    return () => unregisterGameTime('core');
+  }, [tickGameTime, tickMetrics, recalculateMetrics]);
+
+  return null;
+};
+
+/**
+ * CoreGameTimeSystem - Mount this UNCONDITIONALLY in MillScene.tsx
+ * This ensures game time advances even when FactoryEnvironment is disabled.
+ */
+export const CoreGameTimeSystem: React.FC = () => {
+  return (
+    <>
+      <CoreGameTimeAnimationManager />
+      <CoreGameTimeTicker />
+    </>
   );
 };

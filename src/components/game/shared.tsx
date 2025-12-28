@@ -2038,13 +2038,47 @@ const lastMachineStatuses: Record<string, string> = {};
 const lastMachineStatusAnnouncementTime: Record<string, number> = {};
 const MACHINE_STATUS_COOLDOWN_MS = 30000; // 30 second cooldown between same-type announcements
 
+// Map PA announcement types to store types
+const mapAnnouncementType = (
+  type: 'shift_change' | 'safety' | 'production' | 'emergency' | 'general'
+): 'info' | 'warning' | 'success' | 'emergency' => {
+  switch (type) {
+    case 'emergency':
+      return 'emergency';
+    case 'safety':
+      return 'warning';
+    case 'production':
+      return 'success';
+    case 'shift_change':
+    case 'general':
+    default:
+      return 'info';
+  }
+};
+
+// Map priority strings to numeric values
+const mapPriorityToNumber = (priority: 'low' | 'medium' | 'high' | 'critical'): number => {
+  switch (priority) {
+    case 'low':
+      return 1;
+    case 'medium':
+      return 2;
+    case 'high':
+      return 3;
+    case 'critical':
+      return 4;
+    default:
+      return 2;
+  }
+};
+
 // Check for and generate event-triggered announcements
 const checkEventAnnouncements = (
   addAnnouncement: (announcement: {
-    type: 'shift_change' | 'safety' | 'production' | 'emergency' | 'general';
+    type: 'info' | 'warning' | 'success' | 'emergency';
     message: string;
-    duration: number;
-    priority: 'low' | 'medium' | 'high' | 'critical';
+    priority: number;
+    source?: string;
   }) => void
 ): void => {
   const state = useProductionStore.getState();
@@ -2064,10 +2098,10 @@ const checkEventAnnouncements = (
         if (announcements) {
           const announcement = announcements[Math.floor(Math.random() * announcements.length)];
           addAnnouncement({
-            type: announcement.type,
+            type: mapAnnouncementType(announcement.type),
             message: announcement.message,
-            duration: announcement.duration,
-            priority: announcement.priority,
+            priority: mapPriorityToNumber(announcement.priority),
+            source: 'PA',
           });
         }
       }
@@ -2100,10 +2134,10 @@ const checkEventAnnouncements = (
             statusAnnouncements[Math.floor(Math.random() * statusAnnouncements.length)];
           const machineName = machine.name || machine.id;
           addAnnouncement({
-            type: template.type,
+            type: mapAnnouncementType(template.type),
             message: template.template.replace('{MACHINE}', machineName),
-            duration: template.duration,
-            priority: template.priority,
+            priority: mapPriorityToNumber(template.priority),
+            source: 'PA',
           });
           // Update cooldown timer for this status type
           lastMachineStatusAnnouncementTime[currentStatus] = now;
@@ -2269,10 +2303,10 @@ const usePAScheduler = () => {
           // Play shift announcement (once per relevant hour)
           lastShiftAnnouncementRef.current = hourKey;
           addAnnouncement({
-            type: shiftAnnouncement.type,
+            type: mapAnnouncementType(shiftAnnouncement.type),
             message: shiftAnnouncement.message,
-            duration: 16,
-            priority: 'high',
+            priority: mapPriorityToNumber('high'),
+            source: 'PA',
           });
         } else {
           // Enhanced selection: Try dynamic, time-based, then fall back to static
@@ -2316,10 +2350,10 @@ const usePAScheduler = () => {
           }
 
           addAnnouncement({
-            type: announcement.type,
+            type: mapAnnouncementType(announcement.type),
             message: announcement.message,
-            duration: announcement.type === 'emergency' ? 24 : 16,
-            priority,
+            priority: mapPriorityToNumber(priority),
+            source: 'PA',
           });
         }
         timeoutRef = scheduleNext();

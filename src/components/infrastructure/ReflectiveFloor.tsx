@@ -80,7 +80,7 @@ export const ReflectiveFloor: React.FC<ReflectiveFloorProps> = ({ width, depth }
         mirror={0}
         blur={blur as [number, number]}
         mixBlur={10}
-        mixStrength={1.5} // Enhanced for "enormous improvement" - slick industrial floor
+        mixStrength={0.4} // Reduced from 1.5 - concrete should be matte, not slick
         mixContrast={mixContrast}
         depthScale={1}
         minDepthThreshold={0.4}
@@ -90,8 +90,8 @@ export const ReflectiveFloor: React.FC<ReflectiveFloorProps> = ({ width, depth }
         distortionMap={concreteTextures.normal} // Use concrete normal map for realistic surface variation
         reflectorOffset={0.2} // Fix z-fighting
         color="#1e293b" // Base dark slate color
-        metalness={0.4}
-        roughness={0.4} // Concrete roughness
+        metalness={0.1} // Reduced from 0.4 - concrete is not metallic
+        roughness={0.85} // Increased from 0.4 - concrete is rough
       />
     </mesh>
   );

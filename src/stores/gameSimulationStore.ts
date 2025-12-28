@@ -297,42 +297,42 @@ const FIRE_DRILL_ANNOUNCEMENTS = [
     message:
       'Attention all personnel. This is a fire drill. Please proceed to the nearest exit in an orderly fashion. Yes, Dave, that means you too.',
     type: 'emergency' as const,
-    priority: 'critical' as const,
+    priority: 4 as const,
     duration: 20,
   },
   {
     message:
       'Fire drill initiated. Remember, this is practice for if flour becomes sentient and combustible. Stranger things have happened.',
     type: 'emergency' as const,
-    priority: 'critical' as const,
+    priority: 4 as const,
     duration: 20,
   },
   {
     message:
       'Emergency evacuation drill in progress. The last person out does NOT win a prize. Please move with purpose.',
     type: 'emergency' as const,
-    priority: 'critical' as const,
+    priority: 4 as const,
     duration: 20,
   },
   {
     message:
       'Fire drill. Please leave your workstations immediately. The flour will be fine. It has survived worse than your absence.',
     type: 'emergency' as const,
-    priority: 'critical' as const,
+    priority: 4 as const,
     duration: 20,
   },
   {
     message:
       'This is a drill. Repeat, this is a drill. If this were an actual emergency, you would already be running. Take notes.',
     type: 'emergency' as const,
-    priority: 'critical' as const,
+    priority: 4 as const,
     duration: 20,
   },
   {
     message:
       'Evacuation drill commencing. Fun fact: the average worker can exit the building in ninety seconds. Let us see if we can beat that.',
     type: 'emergency' as const,
-    priority: 'critical' as const,
+    priority: 4 as const,
     duration: 22,
   },
 ];
@@ -813,7 +813,6 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
         useProductionStore.getState().addAnnouncement({
           type: announcement.type,
           message: announcement.message,
-          duration: announcement.duration,
           priority: announcement.priority,
         });
 

@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect, useMemo, Suspense } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { MachineData, MachineType } from '../types';
 import * as THREE from 'three';
-import { Text } from '@react-three/drei';
+import { Text, Html } from '@react-three/drei';
 import { audioManager } from '../utils/audioManager';
 import { useGraphicsStore } from '../stores/graphicsStore';
 import { useShallow } from 'zustand/react/shallow';
@@ -20,8 +20,8 @@ import { BreakdownEffects } from './breakdown/BreakdownEffects';
 import {
   GRAIN_TYPES,
   INDICES_5,
+  INDICES_6,
   INDICES_8,
-  MachineAnimationState,
 } from './machines/shared';
 import { SiloFillIndicator, MaintenanceCountdown } from './machines/SiloComponents';
 import {

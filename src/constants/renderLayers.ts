@@ -227,8 +227,95 @@ export const SHADOW_CONFIG = {
   normalBias: 0.02,
 } as const;
 
+/**
+ * Wall and 3D surface overlay offsets.
+ * For decals, labels, or markings on vertical/angled surfaces.
+ * Use these Y-offsets along the surface normal direction.
+ */
+export const SURFACE_LAYERS = {
+  /** Base surface (no offset) */
+  base: 0,
+  /** Subtle decal (stickers, light damage) */
+  decal: 0.005,
+  /** Labels and signage */
+  label: 0.01,
+  /** Selection highlights */
+  selection: 0.02,
+} as const;
+
+/**
+ * Dynamic ring/indicator heights above ground.
+ * Used for selection rings, recommendation halos, status indicators.
+ */
+export const INDICATOR_HEIGHTS = {
+  /** Worker selection/recommendation ring */
+  workerRing: 0.06,
+  /** Machine status ring */
+  machineRing: 0.08,
+  /** Fire drill exit marker */
+  exitMarker: 0.12,
+  /** Forklift path preview */
+  pathPreview: 0.05,
+  /** Conveyor product indicators */
+  conveyorIndicator: 0.04,
+} as const;
+
+/**
+ * Semantic polygon offset presets for specific use cases.
+ * Maps to POLYGON_OFFSET values for self-documenting code.
+ */
+export const DECAL_OFFSET = {
+  /** Decals on walls/machines */
+  wall: POLYGON_OFFSET.standard,
+  /** Labels that must always show */
+  label: POLYGON_OFFSET.moderate,
+  /** Dynamic highlights/selections */
+  selection: POLYGON_OFFSET.moderate,
+  /** Worker recommendation ring */
+  workerRing: POLYGON_OFFSET.moderate,
+  /** Conveyor belt markings */
+  conveyor: POLYGON_OFFSET.standard,
+  /** Forklift decals and markings */
+  forklift: POLYGON_OFFSET.standard,
+  /** Spout/pipe surface details */
+  spout: POLYGON_OFFSET.subtle,
+} as const;
+
+/**
+ * Advanced depth buffer configuration.
+ * Enable these for large-scale scenes or persistent z-fighting issues.
+ */
+export const DEPTH_BUFFER_OPTIONS = {
+  /**
+   * Logarithmic depth buffer.
+   * Enable in Canvas: gl={{ logarithmicDepthBuffer: true }}
+   *
+   * Pros: Even precision distribution across entire range
+   * Cons: Some performance impact, shader compatibility issues
+   */
+  logarithmic: {
+    enabled: false,
+    note: 'Not needed for indoor factory scenes with proper near/far ratio',
+  },
+
+  /**
+   * Reversed-Z technique reference.
+   * See: threejs.org/examples/webgl_reverse_depth_buffer.html
+   *
+   * Pros: Best precision with floating-point depth buffer
+   * Cons: Requires custom projection matrix, WebGL2
+   */
+  reversedZ: {
+    enabled: false,
+    note: 'Reserved for planetary/space-scale scenes',
+  },
+} as const;
+
 // Type exports for consumers
 export type FloorLayer = keyof typeof FLOOR_LAYERS;
 export type ExteriorLayer = keyof typeof EXTERIOR_LAYERS;
 export type PolygonOffsetPreset = keyof typeof POLYGON_OFFSET;
 export type RenderOrderLayer = keyof typeof RENDER_ORDER;
+export type SurfaceLayer = keyof typeof SURFACE_LAYERS;
+export type IndicatorHeight = keyof typeof INDICATOR_HEIGHTS;
+export type DecalOffsetPreset = keyof typeof DECAL_OFFSET;

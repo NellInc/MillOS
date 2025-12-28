@@ -71,6 +71,9 @@ export interface GraphicsSettings {
   enableAudioReactive: boolean;
   // Wireframe visualization mode - renders all geometry as wireframe
   enableWireframe: boolean;
+  // Logarithmic depth buffer - fixes z-fighting in large scenes at slight perf cost
+  // Enable as fallback if z-fighting persists despite proper polygon offset usage
+  enableLogarithmicDepth: boolean;
 }
 
 // Default perf debug settings (all systems enabled)
@@ -131,6 +134,7 @@ const GRAPHICS_PRESETS: Record<GraphicsQuality, GraphicsSettings> = {
     anisotropyLevel: 1, // No anisotropic filtering
     enableAudioReactive: false, // Disabled on low for performance
     enableWireframe: false, // Wireframe mode off by default
+    enableLogarithmicDepth: false, // Off by default - enable if z-fighting persists
   },
   medium: {
     quality: 'medium',
@@ -175,6 +179,7 @@ const GRAPHICS_PRESETS: Record<GraphicsQuality, GraphicsSettings> = {
     anisotropyLevel: 4, // Low anisotropic filtering
     enableAudioReactive: true, // Audio-reactive visuals on medium+
     enableWireframe: false, // Wireframe mode off by default
+    enableLogarithmicDepth: false, // Off by default - enable if z-fighting persists
   },
   high: {
     quality: 'high',
@@ -219,6 +224,7 @@ const GRAPHICS_PRESETS: Record<GraphicsQuality, GraphicsSettings> = {
     anisotropyLevel: 8, // Medium anisotropic filtering
     enableAudioReactive: true, // Audio-reactive visuals enabled
     enableWireframe: false, // Wireframe mode off by default
+    enableLogarithmicDepth: false, // Off by default - enable if z-fighting persists
   },
   ultra: {
     quality: 'ultra',
@@ -263,6 +269,7 @@ const GRAPHICS_PRESETS: Record<GraphicsQuality, GraphicsSettings> = {
     anisotropyLevel: 16, // Maximum anisotropic filtering
     enableAudioReactive: true, // Audio-reactive visuals enabled
     enableWireframe: false, // Wireframe mode off by default
+    enableLogarithmicDepth: false, // Off by default - enable if z-fighting persists
   },
 };
 

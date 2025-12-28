@@ -188,7 +188,7 @@ const ResultsDisplay: React.FC<{ position: [number, number, number] }> = ({ posi
               <div className="text-3xl font-bold" style={{ color: gradeColor }}>
                 {latestTest.grade}
               </div>
-              <div className="text-xs text-gray-500 mt-1">{latestTest.sampleSourceName}</div>
+              <div className="text-xs text-gray-500 mt-1">{latestTest.machineId}</div>
             </>
           ) : (
             <div className="text-lg text-gray-500">NO DATA</div>
@@ -196,9 +196,9 @@ const ResultsDisplay: React.FC<{ position: [number, number, number] }> = ({ posi
           <div className="mt-2 pt-2 border-t border-gray-700">
             <span
               className={`text-xs font-semibold px-2 py-0.5 rounded ${
-                certStatus === 'certified'
+                certStatus === 'valid'
                   ? 'bg-green-500/20 text-green-400'
-                  : certStatus === 'pending'
+                  : certStatus === 'expiring'
                     ? 'bg-amber-500/20 text-amber-400'
                     : 'bg-red-500/20 text-red-400'
               }`}

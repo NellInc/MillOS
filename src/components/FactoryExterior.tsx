@@ -3522,9 +3522,9 @@ const CuteCar: React.FC<{
         </group>
       )}
 
-      {/* Shadow underneath */}
+      {/* Shadow underneath - exteriorOverlay layer */}
       <mesh
-        position={[0, FLOOR_LAYERS.wornPrimary, 0]}
+        position={[0, EXTERIOR_LAYERS.groundOverlay, 0]}
         rotation={[-Math.PI / 2, 0, 0]}
         renderOrder={RENDER_ORDER.floorEffects}
       >
@@ -3535,8 +3535,8 @@ const CuteCar: React.FC<{
           opacity={0.15}
           depthWrite={false}
           polygonOffset
-          polygonOffsetFactor={POLYGON_OFFSET.moderate.factor}
-          polygonOffsetUnits={POLYGON_OFFSET.moderate.units}
+          polygonOffsetFactor={POLYGON_OFFSET.exteriorOverlay.factor}
+          polygonOffsetUnits={POLYGON_OFFSET.exteriorOverlay.units}
         />
       </mesh>
     </group>
@@ -3915,21 +3915,27 @@ const ConnectingRoad: React.FC<{
 
   return (
     <group>
-      {/* Road surface */}
+      {/* Road surface - exteriorTop layer */}
       <mesh
-        position={[midX, FLOOR_LAYERS.puddle, midZ]}
+        position={[midX, EXTERIOR_LAYERS.ground, midZ]}
         rotation={[-Math.PI / 2, 0, angle]}
         receiveShadow
       >
         <planeGeometry args={[width, length]} />
-        <meshStandardMaterial color="#374151" roughness={0.85} />
+        <meshStandardMaterial
+          color="#374151"
+          roughness={0.85}
+          polygonOffset
+          polygonOffsetFactor={POLYGON_OFFSET.exteriorTop.factor}
+          polygonOffsetUnits={POLYGON_OFFSET.exteriorTop.units}
+        />
       </mesh>
 
-      {/* Edge lines */}
+      {/* Edge lines - exteriorOverlay layer */}
       <mesh
         position={[
           midX - Math.cos(angle) * (width / 2 - 0.2),
-          FLOOR_LAYERS.wornPrimary,
+          EXTERIOR_LAYERS.groundOverlay,
           midZ + Math.sin(angle) * (width / 2 - 0.2),
         ]}
         rotation={[-Math.PI / 2, 0, angle]}
@@ -3939,14 +3945,14 @@ const ConnectingRoad: React.FC<{
           color="#ffffff"
           depthWrite={false}
           polygonOffset
-          polygonOffsetFactor={POLYGON_OFFSET.moderate.factor}
-          polygonOffsetUnits={POLYGON_OFFSET.moderate.units}
+          polygonOffsetFactor={POLYGON_OFFSET.exteriorOverlay.factor}
+          polygonOffsetUnits={POLYGON_OFFSET.exteriorOverlay.units}
         />
       </mesh>
       <mesh
         position={[
           midX + Math.cos(angle) * (width / 2 - 0.2),
-          FLOOR_LAYERS.wornPrimary,
+          EXTERIOR_LAYERS.groundOverlay,
           midZ - Math.sin(angle) * (width / 2 - 0.2),
         ]}
         rotation={[-Math.PI / 2, 0, angle]}
@@ -3956,12 +3962,12 @@ const ConnectingRoad: React.FC<{
           color="#ffffff"
           depthWrite={false}
           polygonOffset
-          polygonOffsetFactor={POLYGON_OFFSET.moderate.factor}
-          polygonOffsetUnits={POLYGON_OFFSET.moderate.units}
+          polygonOffsetFactor={POLYGON_OFFSET.exteriorOverlay.factor}
+          polygonOffsetUnits={POLYGON_OFFSET.exteriorOverlay.units}
         />
       </mesh>
 
-      {/* Center dashed line */}
+      {/* Center dashed line - exteriorOverlay layer */}
       {Array.from({ length: Math.floor(length / 4) }).map((_, i) => {
         const t = (i * 4 + 2) / length;
         const x = start[0] + dx * t;
@@ -3969,7 +3975,7 @@ const ConnectingRoad: React.FC<{
         return (
           <mesh
             key={`dash-${i}`}
-            position={[x, FLOOR_LAYERS.wornPrimary, z]}
+            position={[x, EXTERIOR_LAYERS.groundOverlay, z]}
             rotation={[-Math.PI / 2, 0, angle]}
           >
             <planeGeometry args={[0.15, 2]} />
@@ -3977,8 +3983,8 @@ const ConnectingRoad: React.FC<{
               color="#fbbf24"
               depthWrite={false}
               polygonOffset
-              polygonOffsetFactor={POLYGON_OFFSET.moderate.factor}
-              polygonOffsetUnits={POLYGON_OFFSET.moderate.units}
+              polygonOffsetFactor={POLYGON_OFFSET.exteriorOverlay.factor}
+              polygonOffsetUnits={POLYGON_OFFSET.exteriorOverlay.units}
             />
           </mesh>
         );
@@ -4318,9 +4324,9 @@ const CheckpointBarrier: React.FC<{
         </group>
       </group>
 
-      {/* Stop lines on road surface (spanning full road width) */}
+      {/* Stop lines on road surface - exteriorOverlay layer */}
       <mesh
-        position={[0, FLOOR_LAYERS.wornPrimary, 5]}
+        position={[0, EXTERIOR_LAYERS.groundOverlay, 5]}
         rotation={[-Math.PI / 2, 0, 0]}
         renderOrder={RENDER_ORDER.floorMarkings}
       >
@@ -4329,12 +4335,12 @@ const CheckpointBarrier: React.FC<{
           color="#ffffff"
           depthWrite={false}
           polygonOffset
-          polygonOffsetFactor={POLYGON_OFFSET.moderate.factor}
-          polygonOffsetUnits={POLYGON_OFFSET.moderate.units}
+          polygonOffsetFactor={POLYGON_OFFSET.exteriorOverlay.factor}
+          polygonOffsetUnits={POLYGON_OFFSET.exteriorOverlay.units}
         />
       </mesh>
       <mesh
-        position={[0, FLOOR_LAYERS.wornPrimary, -5]}
+        position={[0, EXTERIOR_LAYERS.groundOverlay, -5]}
         rotation={[-Math.PI / 2, 0, 0]}
         renderOrder={RENDER_ORDER.floorMarkings}
       >
@@ -4343,8 +4349,8 @@ const CheckpointBarrier: React.FC<{
           color="#ffffff"
           depthWrite={false}
           polygonOffset
-          polygonOffsetFactor={POLYGON_OFFSET.moderate.factor}
-          polygonOffsetUnits={POLYGON_OFFSET.moderate.units}
+          polygonOffsetFactor={POLYGON_OFFSET.exteriorOverlay.factor}
+          polygonOffsetUnits={POLYGON_OFFSET.exteriorOverlay.units}
         />
       </mesh>
 
@@ -5414,14 +5420,14 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = () => {
       {/* ========== GROUND PLANE EXTENSION ========== */}
       {/* All exterior ground surfaces at same Y (-0.02), layered via polygonOffset */}
 
-      {/* Asphalt area around factory - exteriorMid layer */}
+      {/* Asphalt area around factory - exteriorMid layer (matte, not wet) */}
       <mesh position={[0, EXTERIOR_LAYERS.ground, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <planeGeometry args={[200, 180]} />
         <meshStandardMaterial
           color="#ffffff"
           map={PROCEDURAL_TEXTURES.tarmacColor}
           roughnessMap={PROCEDURAL_TEXTURES.tarmacRoughness}
-          roughness={0.85}
+          roughness={0.95}
           polygonOffset
           polygonOffsetFactor={POLYGON_OFFSET.exteriorMid.factor}
           polygonOffsetUnits={POLYGON_OFFSET.exteriorMid.units}
@@ -5646,8 +5652,8 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = () => {
             color={GRASS_COLORS.park}
             roughness={0.95}
             polygonOffset
-            polygonOffsetFactor={1}
-            polygonOffsetUnits={1}
+            polygonOffsetFactor={POLYGON_OFFSET.exteriorBase.factor}
+            polygonOffsetUnits={POLYGON_OFFSET.exteriorBase.units}
           />
         </mesh>
 

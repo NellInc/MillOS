@@ -92,8 +92,8 @@ export const generateConcreteRoughness = (size: number = 512): THREE.DataTexture
         const nx = x / size;
         const ny = y / size;
 
-        // High roughness with variation
-        const roughness = 0.7 + fbmNoise(nx * 30, ny * 30, 3) * 0.25;
+        // High roughness with variation - matte concrete (0.85-0.95 range)
+        const roughness = 0.85 + fbmNoise(nx * 30, ny * 30, 3) * 0.1;
 
         data[i] = Math.floor(Math.min(1, roughness) * 255);
         data[i + 1] = 0; // Not used

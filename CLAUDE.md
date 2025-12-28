@@ -385,6 +385,163 @@ When adding new 3D effects:
 4. **Shadow-casting lights:** Only use ONE shadow-casting directional light
 5. **Floor overlays:** Position at y >= 0.03 to prevent z-fighting with floor
 
+### Exterior Ground Z-Fighting Prevention
+
+**Problem:** Exterior surfaces (grass, asphalt, roads) fight for depth at high camera angles.
+
+**Solution:** All exterior ground surfaces share the same Y position, layered via `polygonOffset`.
+
+#### Why NOT to use Y-separation for exterior surfaces
+
+```tsx
+// BAD - Creates visible seams at surface boundaries
+<mesh position={[0, -0.25, 0]}> {/* grass */}
+<mesh position={[0, -0.15, 0]}> {/* asphalt */}
+
+// GOOD - Same Y, different polygonOffset
+<mesh position={[0, EXTERIOR_LAYERS.ground, 0]}>
+  <meshStandardMaterial polygonOffsetFactor={POLYGON_OFFSET.exteriorBase.factor} />
+```
+
+#### Layer Constants (`src/constants/renderLayers.ts`)
+
+| Constant | Value | Purpose |
+|----------|-------|---------|
+| `EXTERIOR_LAYERS.ground` | -0.02 | All exterior ground surfaces |
+| `EXTERIOR_LAYERS.groundOverlay` | -0.01 | Markings, lines on ground |
+
+#### PolygonOffset Presets for Exterior Surfaces
+
+| Preset | Factor | Use For |
+|--------|--------|---------|
+| `exteriorBase` | 4 | Grass fields (renders behind) |
+| `exteriorMid` | 2 | Asphalt, parking lots |
+| `exteriorTop` | 0 | Roads (renders on top of grass) |
+| `exteriorOverlay` | -2 | Road markings, lines (always visible) |
+
+#### Adding New Exterior Ground Surfaces
+
+```tsx
+import { EXTERIOR_LAYERS, POLYGON_OFFSET } from '../constants/renderLayers';
+
+// Grass surface (renders behind other surfaces)
+<mesh position={[0, EXTERIOR_LAYERS.ground, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+  <planeGeometry args={[100, 100]} />
+  <meshStandardMaterial
+    color="#4a7c59"
+    polygonOffset
+    polygonOffsetFactor={POLYGON_OFFSET.exteriorBase.factor}
+    polygonOffsetUnits={POLYGON_OFFSET.exteriorBase.units}
+  />
+</mesh>
+
+// Road surface (renders on top of grass)
+<mesh position={[0, EXTERIOR_LAYERS.ground, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+  <planeGeometry args={[10, 100]} />
+  <meshStandardMaterial
+    color="#2d3436"
+    polygonOffset
+    polygonOffsetFactor={POLYGON_OFFSET.exteriorTop.factor}
+    polygonOffsetUnits={POLYGON_OFFSET.exteriorTop.units}
+  />
+</mesh>
+
+// Road markings (always on top)
+<mesh position={[0, EXTERIOR_LAYERS.groundOverlay, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+  <planeGeometry args={[0.3, 100]} />
+  <meshBasicMaterial
+    color="#ffffff"
+    depthWrite={false}
+    polygonOffset
+    polygonOffsetFactor={POLYGON_OFFSET.exteriorOverlay.factor}
+    polygonOffsetUnits={POLYGON_OFFSET.exteriorOverlay.units}
+  />
+</mesh>
+```
+
+#### Key Files Using This System
+
+- `FactoryExterior.tsx` - All exterior surfaces (grass, roads, parking)
+- `VillageArea.tsx` - Village cobblestone ground
+- `FarmArea.tsx` - Farm grass and paths
+
+### Z-Fighting Decision Tree
+
+Use this decision tree when adding any new 3D geometry:
+
+```
+NEW FLOOR-LEVEL GEOMETRY?
+├── Transparent overlay (safety zones, heat maps)?
+│   └── YES → FLOOR_LAYERS.* for Y + depthWrite={false} + renderOrder
+│
+├── Solid surface at floor level?
+│   └── YES → Y=0, no special handling needed
+│
+├── Decal/marking on floor?
+│   └── YES → FLOOR_LAYERS.floorMarkings + POLYGON_OFFSET.standard
+
+NEW WALL/MACHINE SURFACE DECAL?
+├── Label/sign?
+│   └── YES → POLYGON_OFFSET.moderate + depthWrite={false}
+│
+├── Subtle texture overlay?
+│   └── YES → POLYGON_OFFSET.subtle + offset surface by 0.005-0.01
+
+NEW SELECTION/INDICATOR RING?
+├── Floor-level indicator?
+│   └── YES → INDICATOR_HEIGHTS.* + POLYGON_OFFSET.moderate
+
+NEW EXTERIOR GROUND SURFACE?
+├── Base (grass) → EXTERIOR_LAYERS.ground + POLYGON_OFFSET.exteriorBase
+├── Middle (asphalt) → EXTERIOR_LAYERS.ground + POLYGON_OFFSET.exteriorMid
+├── Top (roads) → EXTERIOR_LAYERS.ground + POLYGON_OFFSET.exteriorTop
+└── Overlay (markings) → EXTERIOR_LAYERS.groundOverlay + POLYGON_OFFSET.exteriorOverlay
+
+STILL SEEING Z-FIGHTING?
+├── Check camera near/far ratio (should be < 1200)
+├── Check for multiple shadow-casting lights (should be 1)
+├── Consider logarithmicDepthBuffer for extreme cases
+└── Run /graphics-check to find violations
+```
+
+### Material Factory Utilities
+
+Use `src/utils/depthMaterials.ts` for consistent z-fighting prevention:
+
+```tsx
+import { createFloorOverlayMaterial, createDecalMaterial, createSelectionRingMaterial } from '../utils/depthMaterials';
+
+// Floor overlay - handles depthWrite, polygonOffset automatically
+<meshStandardMaterial {...createFloorOverlayMaterial({
+  color: '#ff0000',
+  opacity: 0.5,
+  preset: 'moderate'
+})} />
+
+// Wall decal
+<meshBasicMaterial {...createDecalMaterial({
+  color: '#ffffff',
+  preset: 'standard'
+})} />
+
+// Selection ring with glow
+<meshStandardMaterial {...createSelectionRingMaterial({
+  color: '#fbbf24',
+  opacity: 0.8
+})} />
+```
+
+#### Available Constants (`src/constants/renderLayers.ts`)
+
+| Constant | Purpose |
+|----------|---------|
+| `FLOOR_LAYERS` | Y-positions for floor overlays (0.01-0.16) |
+| `EXTERIOR_LAYERS` | Y-positions for outdoor ground (-0.02 to -0.01) |
+| `POLYGON_OFFSET` | Presets: subtle, standard, moderate, strong, exterior* |
+| `INDICATOR_HEIGHTS` | Y-positions for rings/indicators (0.04-0.12) |
+| `SURFACE_LAYERS` | Offsets for wall decals (0.005-0.02) |
+| `RENDER_ORDER` | Draw order for transparent objects (-1000 to 25) |
+
 ### PlaneGeometry NaN Prevention
 
 **Error:** `THREE.BufferGeometry.computeBoundingSphere(): Computed radius is NaN`

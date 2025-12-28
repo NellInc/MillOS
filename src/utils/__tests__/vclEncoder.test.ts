@@ -56,6 +56,8 @@ const createMockMachine = (overrides: Partial<MachineData> = {}): MachineData =>
     temperature: 55,
     vibration: 2.0,
     load: 75,
+    wear: 15,
+    efficiency: 92,
   },
   lastMaintenance: new Date().toISOString(),
   nextMaintenance: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
@@ -131,7 +133,7 @@ describe('VCL Encoder', () => {
         id: 'rm-101', // Must contain 'rm-' for mill detection
         type: MachineType.ROLLER_MILL,
         status: 'running',
-        metrics: { rpm: 1200, temperature: 55, vibration: 2.0, load: 65 },
+        metrics: { rpm: 1200, temperature: 55, vibration: 2.0, load: 65, wear: 15, efficiency: 92 },
       });
 
       const encoded = encodeMachineVCL(machine);
@@ -146,7 +148,7 @@ describe('VCL Encoder', () => {
         id: 'silo-alpha', // Must contain 'silo' for detection
         type: MachineType.SILO,
         status: 'warning',
-        metrics: { rpm: 0, temperature: 65, vibration: 3.0, load: 88 },
+        metrics: { rpm: 0, temperature: 65, vibration: 3.0, load: 88, wear: 45, efficiency: 75 },
       });
 
       const encoded = encodeMachineVCL(machine);
@@ -160,7 +162,7 @@ describe('VCL Encoder', () => {
         id: 'packer-line-1', // Must contain 'pack' or 'line' for detection
         type: MachineType.PACKER,
         status: 'critical',
-        metrics: { rpm: 0, temperature: 75, vibration: 4.0, load: 95 },
+        metrics: { rpm: 0, temperature: 75, vibration: 4.0, load: 95, wear: 75, efficiency: 45 },
       });
 
       const encoded = encodeMachineVCL(machine);
@@ -259,7 +261,7 @@ describe('VCL Encoder', () => {
       const fireMachine = createMockMachine({
         id: 'oven-1',
         status: 'critical',
-        metrics: { temperature: 300, vibration: 10, load: 0, rpm: 0 }, // Extreme temp
+        metrics: { temperature: 300, vibration: 10, load: 0, rpm: 0, wear: 95, efficiency: 10 }, // Extreme temp
       });
 
       const encoded = encodeMachineVCL(fireMachine);
@@ -271,7 +273,7 @@ describe('VCL Encoder', () => {
 
     it('should handle negative values gracefully', () => {
       const weirdMachine = createMockMachine({
-        metrics: { load: -50, temperature: -20, rpm: -100, vibration: -1 },
+        metrics: { load: -50, temperature: -20, rpm: -100, vibration: -1, wear: 0, efficiency: 0 },
       });
 
       const encoded = encodeMachineVCL(weirdMachine);

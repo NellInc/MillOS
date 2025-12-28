@@ -38,6 +38,13 @@
         "*.jsx"
       ],
       "blockOnFailure": true
+    },
+    "z-fighting-detector": {
+      "enabled": true,
+      "script": "./hooks/z-fighting-detector.cjs",
+      "description": "Catches hardcoded polygonOffset values - forces use of renderLayers.ts constants",
+      "filePatterns": ["*.tsx"],
+      "blockOnFailure": false
     }
   },
   "settings": {

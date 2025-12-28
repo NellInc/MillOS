@@ -412,7 +412,7 @@ export const generateThatch = (
 
 export const generateThatchNormal = (
   size: number = 512,
-  bundleWidth: number = 40
+  _bundleWidth: number = 40
 ): THREE.DataTexture => {
   return getTexture(`thatch-normal-v9-${size}`, () => {
     const data = new Uint8Array(size * size * 4);
@@ -422,7 +422,7 @@ export const generateThatchNormal = (
         const i = (y * size + x) * 4;
 
         // Vertical strand normals - each strand slightly rounded
-        const strandId = Math.floor(x / 2);
+        // strandId calculation used for posInStrand below
         const posInStrand = (x % 2) / 2;
         const strandNormalX = (posInStrand - 0.5) * 0.15;
 

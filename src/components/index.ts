@@ -19,17 +19,17 @@ export { FactoryInfrastructure } from './FactoryInfrastructure';
 export { TruckBay } from './TruckBay';
 
 // === 3D Detail Components ===
+// Direct imports to avoid barrel export conflicts from duplicate named exports
+export { FactoryWallClock } from './ambient/workplaceCulture';
+export { LoadingDockDoor, CondensationDrip } from './ambient/atmosphere';
 export {
-  FactoryWallClock,
-  LoadingDockDoor,
   ControlPanelLED,
   ControlPanel,
-  CondensationDrip,
   VibrationIndicator,
   PulsingIndicator,
-  AmbientDetailsGroup,
-} from './ambient';
-export { default as AmbientDetails } from './ambient';
+} from './ambient/utilities';
+// Import AmbientDetailsGroup from dedicated file to avoid barrel export conflicts
+export { AmbientDetailsGroup, AmbientDetailsGroup as AmbientDetails } from './ambient/AmbientDetailsGroup';
 
 // === UI Overlay Components ===
 export { UIOverlay } from './UIOverlay';

@@ -120,8 +120,7 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig) {
           addAnnouncement({
             type: 'emergency',
             message: announcement.message,
-            duration: announcement.duration,
-            priority: 'critical',
+            priority: 4,
           });
           addSafetyIncident({
             type: 'emergency',

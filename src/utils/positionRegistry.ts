@@ -41,8 +41,8 @@ function getCellsInRadius(x: number, z: number, radius: number): string[] {
   return keys;
 }
 
-// Spatial hash grid for fast spatial queries
-class SpatialGrid {
+// Spatial hash grid for fast spatial queries (reserved for future optimization)
+export class SpatialGridImpl {
   private cells: Map<string, Set<string>> = new Map();
   private entityCells: Map<string, string> = new Map(); // Track which cell each entity is in
 

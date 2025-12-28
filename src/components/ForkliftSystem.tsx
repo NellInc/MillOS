@@ -7,11 +7,13 @@ import { useSafetyStore } from '../stores/safetyStore';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import { useGraphicsStore } from '../stores/graphicsStore';
 import { useTruckScheduleStore } from '../stores/truckScheduleStore';
+import { useShallow } from 'zustand/react/shallow';
 import { getForkliftWarningColor } from '../utils/statusColors';
 import { ForkliftModel } from './models';
 import { PhysicsForklift } from './physics/PhysicsForklift';
 import { shouldRunThisFrame } from '../utils/frameThrottle';
 import { ForkliftData } from '../types';
+import { POLYGON_OFFSET } from '../constants/renderLayers';
 import * as THREE from 'three';
 
 // Path visualization component - shows forklift routes on the floor
@@ -50,8 +52,8 @@ const ForkliftPath: React.FC<{ path: [number, number, number][]; color: string }
               opacity={0.6}
               depthWrite={false}
               polygonOffset
-              polygonOffsetFactor={-1}
-              polygonOffsetUnits={-1}
+              polygonOffsetFactor={POLYGON_OFFSET.standard.factor}
+              polygonOffsetUnits={POLYGON_OFFSET.standard.units}
             />
           </mesh>
           {/* Direction arrow to next point */}
@@ -74,8 +76,8 @@ const ForkliftPath: React.FC<{ path: [number, number, number][]; color: string }
                 opacity={0.4}
                 depthWrite={false}
                 polygonOffset
-                polygonOffsetFactor={-1}
-                polygonOffsetUnits={-1}
+                polygonOffsetFactor={POLYGON_OFFSET.standard.factor}
+                polygonOffsetUnits={POLYGON_OFFSET.standard.units}
               />
             </mesh>
           )}
@@ -256,8 +258,8 @@ const CrossingZoneMarkers: React.FC = () => {
                 opacity={0.6}
                 depthWrite={false}
                 polygonOffset
-                polygonOffsetFactor={-1}
-                polygonOffsetUnits={-1}
+                polygonOffsetFactor={POLYGON_OFFSET.standard.factor}
+                polygonOffsetUnits={POLYGON_OFFSET.standard.units}
               />
             </mesh>
             <mesh
@@ -271,8 +273,8 @@ const CrossingZoneMarkers: React.FC = () => {
                 opacity={0.6}
                 depthWrite={false}
                 polygonOffset
-                polygonOffsetFactor={-1}
-                polygonOffsetUnits={-1}
+                polygonOffsetFactor={POLYGON_OFFSET.standard.factor}
+                polygonOffsetUnits={POLYGON_OFFSET.standard.units}
               />
             </mesh>
             {/* Side markers */}
@@ -287,8 +289,8 @@ const CrossingZoneMarkers: React.FC = () => {
                 opacity={0.6}
                 depthWrite={false}
                 polygonOffset
-                polygonOffsetFactor={-1}
-                polygonOffsetUnits={-1}
+                polygonOffsetFactor={POLYGON_OFFSET.standard.factor}
+                polygonOffsetUnits={POLYGON_OFFSET.standard.units}
               />
             </mesh>
             <mesh
@@ -302,8 +304,8 @@ const CrossingZoneMarkers: React.FC = () => {
                 opacity={0.6}
                 depthWrite={false}
                 polygonOffset
-                polygonOffsetFactor={-1}
-                polygonOffsetUnits={-1}
+                polygonOffsetFactor={POLYGON_OFFSET.standard.factor}
+                polygonOffsetUnits={POLYGON_OFFSET.standard.units}
               />
             </mesh>
             {/* Warning text */}
@@ -484,7 +486,12 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
   const forkliftEmergencyStop = useSafetyStore((state) => state.forkliftEmergencyStop);
   const isTabVisible = useGameSimulationStore((state) => state.isTabVisible);
   const emergencyDrillMode = useGameSimulationStore((state) => state.emergencyDrillMode);
-  const truckDocked = useTruckScheduleStore((state) => state.truckSchedule.truckDocked);
+  const truckDocked = useTruckScheduleStore(
+    useShallow((state) => ({
+      shipping: state.truckSchedule.shipping.truckDocked,
+      receiving: state.truckSchedule.receiving.truckDocked,
+    }))
+  );
 
   // Physics system toggle
   const enablePhysics = useGraphicsStore((state) => state.graphics.enablePhysics);

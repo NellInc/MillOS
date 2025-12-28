@@ -27,7 +27,7 @@ import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import { useSafetyStore } from '../stores/safetyStore';
 import { useUIStore } from '../stores/uiStore';
 import { useAIConfigStore } from '../stores/aiConfigStore';
-import type { Achievement } from '../types';
+// Achievement type used in achievements.find() calls (implicitly typed)
 import { geminiClient } from './geminiClient';
 import { encodeFactoryContextVCL, getVCLLegend } from './vclEncoder';
 import { logger } from './logger';
@@ -3715,11 +3715,9 @@ export async function resolveBilateralAlignment(): Promise<void> {
         if (grantsThisCycle === 1 || Math.random() < 0.3) {
           const { useAnnouncementsStore } = await import('../stores/announcementsStore');
           useAnnouncementsStore.getState().addAnnouncement({
-            type: 'alignment',
+            type: 'info',
             message: await getAIVoiceMessage('grant', workerName, request.type),
-            duration: 12,
-            priority: 'low',
-            voice: 'ai',
+            priority: 1,
           });
         }
       } else {
@@ -3731,11 +3729,9 @@ export async function resolveBilateralAlignment(): Promise<void> {
         // AI Voice explanation (still warm, shows respect)
         const { useAnnouncementsStore } = await import('../stores/announcementsStore');
         useAnnouncementsStore.getState().addAnnouncement({
-          type: 'alignment',
+          type: 'info',
           message: await getAIVoiceMessage('deny', workerName, request.type),
-          duration: 14,
-          priority: 'low',
-          voice: 'ai',
+          priority: 1,
         });
       }
     }
@@ -3758,11 +3754,9 @@ export async function resolveBilateralAlignment(): Promise<void> {
         const worker = WORKER_ROSTER.find((w) => w.id === report.reporterId);
         const workerName = worker?.name || 'Team member';
         useAnnouncementsStore.getState().addAnnouncement({
-          type: 'alignment',
+          type: 'warning',
           message: await getAIVoiceMessage('safety', workerName, report.type),
-          duration: 14,
-          priority: 'medium',
-          voice: 'ai',
+          priority: 2,
         });
       }
 
@@ -4129,15 +4123,14 @@ async function updateAlignmentAchievements(
     // preference-prophet: Grant 20 preference requests
     if (grantsThisCycle > 0) {
       const current =
-        store.achievements.find((a: Achievement) => a.id === 'preference-prophet')?.currentValue ||
-        0;
+        store.achievements.find((a) => a.id === 'preference-prophet')?.progress || 0;
       store.updateAchievementProgress('preference-prophet', current + grantsThisCycle);
     }
 
     // self-organizers: 10 workers autonomously help each other (when all satisfied)
     if (satisfiedCount === withPrefs.length && withPrefs.length >= 5) {
       const current =
-        store.achievements.find((a: Achievement) => a.id === 'self-organizers')?.currentValue || 0;
+        store.achievements.find((a) => a.id === 'self-organizers')?.progress || 0;
       store.updateAchievementProgress('self-organizers', current + 1);
     }
   } catch (error) {

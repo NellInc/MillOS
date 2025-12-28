@@ -6,6 +6,7 @@ import { audioManager } from '../utils/audioManager';
 import { PIPE_MATERIALS } from '../utils/sharedMaterials';
 import { shouldRunThisFrame } from '../utils/frameThrottle';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
+import { POLYGON_OFFSET } from '../constants/renderLayers';
 
 export const SpoutingSystem = React.memo<{ machines: MachineData[] }>(({ machines }) => {
   const isTabVisible = useGameSimulationStore((state) => state.isTabVisible);
@@ -133,8 +134,8 @@ export const SpoutingSystem = React.memo<{ machines: MachineData[] }>(({ machine
           roughness: 0.3,
           // Enable polygon offset to prevent z-fighting with tube surface
           polygonOffset: true,
-          polygonOffsetFactor: 1,
-          polygonOffsetUnits: 1,
+          polygonOffsetFactor: POLYGON_OFFSET.exteriorBase.factor,
+          polygonOffsetUnits: POLYGON_OFFSET.exteriorBase.units,
         });
 
         geometries.push(flangeGeo);

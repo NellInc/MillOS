@@ -1,5 +1,6 @@
 import React, { useMemo, useLayoutEffect, useRef } from 'react';
 import * as THREE from 'three';
+import { POLYGON_OFFSET } from '../constants/renderLayers';
 
 // Helper to update instance matrices
 const useInstances = (
@@ -245,8 +246,8 @@ export const OptimizedStripeInstances: React.FC<{
         <meshBasicMaterial
           color={color}
           polygonOffset
-          polygonOffsetFactor={-10}
-          polygonOffsetUnits={-10}
+          polygonOffsetFactor={POLYGON_OFFSET.strong.factor}
+          polygonOffsetUnits={POLYGON_OFFSET.strong.units}
           depthWrite={false}
         />
       </instancedMesh>

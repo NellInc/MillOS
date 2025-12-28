@@ -83,10 +83,9 @@ export const CelebrationSystem: React.FC = () => {
         `Milestone alert: ${crossedMilestone.toLocaleString()} bags! Excellent performance!`,
       ];
       addAnnouncement({
-        type: 'production',
+        type: 'success',
         message: messages[Math.floor(Math.random() * messages.length)],
-        duration: 10,
-        priority: 'high',
+        priority: 3,
       });
 
       // Hide milestone display after animation
@@ -137,10 +136,9 @@ export const CelebrationSystem: React.FC = () => {
         `Celebrating ${crossedSafetyMilestone} days of zero incidents. Outstanding safety record!`,
       ];
       addAnnouncement({
-        type: 'safety',
+        type: 'success',
         message: messages[Math.floor(Math.random() * messages.length)],
-        duration: 10,
-        priority: 'high',
+        priority: 3,
       });
 
       setTimeout(() => clearCelebration(), 4000);
@@ -227,10 +225,9 @@ export const CelebrationSystem: React.FC = () => {
         ];
         const message = messages[Math.floor(Math.random() * messages.length)];
         addAnnouncement({
-          type: 'production',
+          type: 'success',
           message,
-          duration: 10,
-          priority: 'high',
+          priority: 3,
         });
         playCelebrationSound('milestone');
       };
@@ -239,7 +236,7 @@ export const CelebrationSystem: React.FC = () => {
       const bagsAchievement = achievements.find((a) => a.id === 'bags-1k');
       if (bagsAchievement && !bagsAchievement.unlockedAt) {
         updateAchievementProgress('bags-1k', totalBagsProduced);
-        if (totalBagsProduced >= bagsAchievement.requirement) {
+        if (totalBagsProduced >= bagsAchievement.target) {
           unlockAchievement('bags-1k');
           announceUnlock('bags-1k', 'Getting Started');
         }
@@ -249,7 +246,7 @@ export const CelebrationSystem: React.FC = () => {
       const bags10kAchievement = achievements.find((a) => a.id === 'bags-10k');
       if (bags10kAchievement && !bags10kAchievement.unlockedAt) {
         updateAchievementProgress('bags-10k', totalBagsProduced);
-        if (totalBagsProduced >= bags10kAchievement.requirement) {
+        if (totalBagsProduced >= bags10kAchievement.target) {
           unlockAchievement('bags-10k');
           announceUnlock('bags-10k', 'Production Pro');
         }
@@ -259,7 +256,7 @@ export const CelebrationSystem: React.FC = () => {
       const safetyAchievement = achievements.find((a) => a.id === 'safety-5');
       if (safetyAchievement && !safetyAchievement.unlockedAt) {
         updateAchievementProgress('safety-5', safetyMetrics.daysSinceIncident);
-        if (safetyMetrics.daysSinceIncident >= safetyAchievement.requirement) {
+        if (safetyMetrics.daysSinceIncident >= safetyAchievement.target) {
           unlockAchievement('safety-5');
           announceUnlock('safety-5', 'Safety First');
         }
@@ -274,7 +271,7 @@ export const CelebrationSystem: React.FC = () => {
           efficiencyStreakRef.current = 0; // Reset if drops below
         }
         updateAchievementProgress('efficiency-sustained', efficiencyStreakRef.current);
-        if (efficiencyStreakRef.current >= efficiencyAchievement.requirement) {
+        if (efficiencyStreakRef.current >= efficiencyAchievement.target) {
           unlockAchievement('efficiency-sustained');
           announceUnlock('efficiency-sustained', 'Steady Runner');
         }
@@ -289,7 +286,7 @@ export const CelebrationSystem: React.FC = () => {
           qualityStreakRef.current = 0; // Reset if drops below
         }
         updateAchievementProgress('quality-streak', qualityStreakRef.current);
-        if (qualityStreakRef.current >= qualityAchievement.requirement) {
+        if (qualityStreakRef.current >= qualityAchievement.target) {
           unlockAchievement('quality-streak');
           announceUnlock('quality-streak', 'Quality Streak');
         }
@@ -299,7 +296,7 @@ export const CelebrationSystem: React.FC = () => {
       const teamAchievement = achievements.find((a) => a.id === 'team-player');
       if (teamAchievement && !teamAchievement.unlockedAt) {
         updateAchievementProgress('team-player', workerSatisfaction.conversationCount);
-        if (workerSatisfaction.conversationCount >= teamAchievement.requirement) {
+        if (workerSatisfaction.conversationCount >= teamAchievement.target) {
           unlockAchievement('team-player');
           announceUnlock('team-player', 'Team Player');
         }
@@ -373,10 +370,9 @@ export const CelebrationSystem: React.FC = () => {
 
         // PA announcement
         addAnnouncement({
-          type: 'production',
+          type: 'success',
           message: 'Daily production target achieved! Fantastic work team!',
-          duration: 10,
-          priority: 'high',
+          priority: 3,
         });
 
         setTimeout(() => clearCelebration(), 4000);

@@ -238,6 +238,8 @@ describe('aiEngine - Core Functions', () => {
               temperature: 85, // Critical temperature
               vibration: 4.5, // High vibration
               load: 95,
+              wear: 75,
+              efficiency: 45,
             },
             lastMaintenance: '2025-10-01',
             nextMaintenance: '2025-11-15',
@@ -290,6 +292,8 @@ describe('aiEngine - Core Functions', () => {
               temperature: 65,
               vibration: 3.2,
               load: 85,
+              wear: 45,
+              efficiency: 75,
             },
             lastMaintenance: '2025-09-01',
             nextMaintenance: '2025-11-15',

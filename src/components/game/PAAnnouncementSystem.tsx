@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X } from 'lucide-react';
+import { X, Volume2, Clock, Shield, AlertTriangle, Package, Heart } from 'lucide-react';
 import { useProductionStore } from '../../stores/productionStore';
 import { usePAScheduler, useEventAnnouncementScheduler } from './shared';
 import { useMobileDetection } from '../../hooks/useMobileDetection';
+import { audioManager } from '../../utils/audioManager';
 
 export const PAAnnouncementSystem: React.FC = () => {
   const announcements = useProductionStore((state) => state.announcements);

@@ -10,6 +10,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { useProductionStore } from '../productionStore';
+import type { Announcement } from '../announcementsStore';
 import { AIDecision } from '../../types';
 
 describe('ProductionStore - AI Decision Management', () => {
@@ -218,10 +219,10 @@ describe('ProductionStore - AI Decision Management', () => {
           {
             id: 'old-announcement',
             message: 'Old message',
-            type: 'general',
-            timestamp: oldTimestamp,
-            duration: 5, // 5 seconds duration (expired)
-            priority: 'low',
+            type: 'info',
+            timestamp: new Date(oldTimestamp),
+            dismissed: false,
+            priority: 1,
           },
         ],
       });
@@ -242,10 +243,10 @@ describe('ProductionStore - AI Decision Management', () => {
           {
             id: 'recent-announcement',
             message: 'Recent message',
-            type: 'general',
-            timestamp: recentTimestamp,
-            duration: 10, // 10 seconds duration (still valid)
-            priority: 'low',
+            type: 'info',
+            timestamp: new Date(recentTimestamp),
+            dismissed: false,
+            priority: 1,
           },
         ],
       });
@@ -267,34 +268,34 @@ describe('ProductionStore - AI Decision Management', () => {
           {
             id: 'recent-1',
             message: 'Recent 1',
-            type: 'general',
-            timestamp: now - 1000,
-            duration: 10, // Valid
-            priority: 'low',
+            type: 'info',
+            timestamp: new Date(now - 1000),
+            dismissed: false,
+            priority: 1,
           },
           {
             id: 'old-1',
             message: 'Old 1',
-            type: 'safety',
-            timestamp: now - 20000,
-            duration: 10, // Expired
-            priority: 'medium',
+            type: 'warning',
+            timestamp: new Date(now - 20000),
+            dismissed: true, // Mark as dismissed (expired)
+            priority: 2,
           },
           {
             id: 'recent-2',
             message: 'Recent 2',
-            type: 'production',
-            timestamp: now - 2000,
-            duration: 15, // Valid
-            priority: 'low',
+            type: 'success',
+            timestamp: new Date(now - 2000),
+            dismissed: false,
+            priority: 1,
           },
           {
             id: 'old-2',
             message: 'Old 2',
-            type: 'general',
-            timestamp: now - 30000,
-            duration: 5, // Expired
-            priority: 'low',
+            type: 'info',
+            timestamp: new Date(now - 30000),
+            dismissed: true, // Mark as dismissed (expired)
+            priority: 1,
           },
         ],
       });
@@ -313,14 +314,14 @@ describe('ProductionStore - AI Decision Management', () => {
       const { clearOldAnnouncements } = useProductionStore.getState();
 
       const recentTimestamp = Date.now() - 1000;
-      const initialAnnouncements = [
+      const initialAnnouncements: Announcement[] = [
         {
           id: 'recent-announcement',
           message: 'Recent',
-          type: 'general' as const,
-          timestamp: recentTimestamp,
-          duration: 10,
-          priority: 'low' as const,
+          type: 'info' as const,
+          timestamp: new Date(recentTimestamp),
+          dismissed: false,
+          priority: 1,
         },
       ];
 
@@ -354,9 +355,8 @@ describe('ProductionStore - AI Decision Management', () => {
 
       addAnnouncement({
         message: 'Test announcement',
-        type: 'general',
-        duration: 5,
-        priority: 'low',
+        type: 'info',
+        priority: 1,
       });
 
       const announcements = useProductionStore.getState().announcements;
@@ -373,9 +373,8 @@ describe('ProductionStore - AI Decision Management', () => {
       for (let i = 0; i < 15; i++) {
         addAnnouncement({
           message: `Announcement ${i}`,
-          type: 'general',
-          duration: 5,
-          priority: 'low',
+          type: 'info',
+          priority: 1,
         });
         // Advance time past the 15-second cooldown between announcements
         vi.advanceTimersByTime(16000);
@@ -392,9 +391,8 @@ describe('ProductionStore - AI Decision Management', () => {
 
       addAnnouncement({
         message: 'Announcement 1',
-        type: 'general',
-        duration: 5,
-        priority: 'low',
+        type: 'info',
+        priority: 1,
       });
 
       // Advance time past the 15-second cooldown between announcements
@@ -402,9 +400,8 @@ describe('ProductionStore - AI Decision Management', () => {
 
       addAnnouncement({
         message: 'Announcement 2',
-        type: 'safety',
-        duration: 5,
-        priority: 'medium',
+        type: 'warning',
+        priority: 2,
       });
 
       const announcementsBefore = useProductionStore.getState().announcements;

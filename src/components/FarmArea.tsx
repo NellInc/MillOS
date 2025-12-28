@@ -9,7 +9,7 @@ import { Cat } from './scenery/Cat';
 import { PineTree } from './scenery/Tree';
 import { DrainageCulvert } from './scenery/Tunnel';
 import { PROCEDURAL_TEXTURES, OUTDOOR_MATERIALS } from '../utils/sharedMaterials';
-import { FLOOR_LAYERS, EXTERIOR_LAYERS, POLYGON_OFFSET, RENDER_ORDER } from '../constants/renderLayers';
+import { EXTERIOR_LAYERS, POLYGON_OFFSET, RENDER_ORDER } from '../constants/renderLayers';
 
 // Create farm-specific cobble textures with proper world-scale repeat
 // Barnyard is 20x15 units, path is 3x14 units - tile every 10 units
@@ -188,6 +188,9 @@ const SM = {
     roughness: 0.9,
     map: PROCEDURAL_TEXTURES.mudColor,
     roughnessMap: PROCEDURAL_TEXTURES.mudRoughness,
+    polygonOffset: true,
+    polygonOffsetFactor: POLYGON_OFFSET.exteriorOverlay.factor,
+    polygonOffsetUnits: POLYGON_OFFSET.exteriorOverlay.units,
   }),
   soil: new THREE.MeshStandardMaterial({ color: '#3e2723', roughness: 1 }),
   stone: new THREE.MeshStandardMaterial({
@@ -1632,8 +1635,9 @@ export const FarmArea: React.FC = () => {
         <FenceSection position={[0, 0, 3]} length={6} />
         <FenceSection position={[-3, 0, 0]} rotation={Math.PI / 2} length={6} />
         <FenceSection position={[3, 0, 0]} rotation={Math.PI / 2} length={6} />
+        {/* Mud puddle - exteriorOverlay layer (on top of grass) */}
         <mesh
-          position={[0, EXTERIOR_LAYERS.ground, 0]}
+          position={[0, EXTERIOR_LAYERS.groundOverlay, 0]}
           rotation={[-Math.PI / 2, 0, 0]}
           renderOrder={RENDER_ORDER.floorEffects}
         >

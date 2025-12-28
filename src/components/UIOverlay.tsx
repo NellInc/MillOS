@@ -2029,6 +2029,8 @@ const MachineDetailPanel: React.FC<{ machine: MachineData; onClose: () => void }
         temperature: machine.metrics.temperature + (Math.random() - 0.5) * 2,
         vibration: machine.metrics.vibration + (Math.random() - 0.5) * 0.5,
         load: Math.min(100, Math.max(0, machine.metrics.load + (Math.random() - 0.5) * 3)),
+        wear: machine.metrics.wear,
+        efficiency: machine.metrics.efficiency,
       });
     }, 500);
     return () => clearInterval(interval);

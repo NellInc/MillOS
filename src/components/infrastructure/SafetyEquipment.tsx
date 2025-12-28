@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { Instances, Instance } from '@react-three/drei';
 import { useGraphicsStore } from '../../stores/graphicsStore';
 import { PROCEDURAL_TEXTURES } from '../../utils/sharedMaterials';
+import { POLYGON_OFFSET } from '../../constants/renderLayers';
 
 interface SafetyEquipmentProps {
   floorWidth: number;
@@ -240,8 +241,8 @@ const SafetyStation: React.FC<{
           opacity={0.3}
           depthWrite={false}
           polygonOffset
-          polygonOffsetFactor={-1}
-          polygonOffsetUnits={-1}
+          polygonOffsetFactor={POLYGON_OFFSET.standard.factor}
+          polygonOffsetUnits={POLYGON_OFFSET.standard.units}
         />
       </mesh>
 

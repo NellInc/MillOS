@@ -17,7 +17,7 @@ import { FarmArea } from './FarmArea';
 import { VillageArea } from './VillageArea';
 import { OpenDockOpening } from './infrastructure/OpenDockOpening';
 import { ForkliftSystem, ForkliftData } from './ForkliftSystem';
-import { FactoryEnvironment } from './Environment';
+import { FactoryEnvironment, CoreGameTimeSystem } from './Environment';
 import { HolographicDisplays } from './HolographicDisplays';
 import { CascadeVisualization } from './CascadeVisualization';
 import { StrategicOverlay3D } from './StrategicOverlay3D';
@@ -759,6 +759,10 @@ export const MillScene: React.FC<MillSceneProps> = ({
           <Environment files={warehouseHdrUrl} background={false} environmentIntensity={0.8} />
         </Suspense>
       )}
+
+      {/* Core Game Time System - ALWAYS runs to prevent sky freeze */}
+      {/* See docs/sky-time-cycle-investigation.md for why this is unconditional */}
+      <CoreGameTimeSystem />
 
       {/* Environment & Lighting */}
       {!perfDebug?.disableEnvironment && <FactoryEnvironment />}

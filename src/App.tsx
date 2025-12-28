@@ -216,11 +216,12 @@ const App: React.FC = () => {
   const [autoRotate, setAutoRotate] = useState(true);
 
   // PERFORMANCE: Consolidated store subscriptions with useShallow to prevent unnecessary re-renders
-  const { currentQuality, enablePhysics, resolutionScale } = useGraphicsStore(
+  const { currentQuality, enablePhysics, resolutionScale, enableLogarithmicDepth } = useGraphicsStore(
     useShallow((state) => ({
       currentQuality: state.graphics.quality,
       enablePhysics: state.graphics.enablePhysics,
       resolutionScale: state.graphics.resolutionScale,
+      enableLogarithmicDepth: state.graphics.enableLogarithmicDepth,
     }))
   );
   // Use currentQuality directly - Canvas key forces remount when quality changes
@@ -585,6 +586,9 @@ const App: React.FC = () => {
               powerPreference: 'high-performance',
               preserveDrawingBuffer: false,
               failIfMajorPerformanceCaveat: false,
+              // Logarithmic depth buffer - runtime fallback for persistent z-fighting
+              // Toggle in graphics settings if z-fighting persists despite proper polygon offset
+              logarithmicDepthBuffer: enableLogarithmicDepth,
             }}
             dpr={Math.max(
               0.5,

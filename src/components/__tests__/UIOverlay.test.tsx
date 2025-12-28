@@ -287,7 +287,7 @@ describe('UIOverlay', () => {
         position: [0, 0, 0] as [number, number, number],
         size: [2, 3, 2] as [number, number, number],
         rotation: 0,
-        metrics: { rpm: 1400, temperature: 45, vibration: 0.3, load: 75 },
+        metrics: { rpm: 1400, temperature: 45, vibration: 0.3, load: 75, wear: 10, efficiency: 95 },
         lastMaintenance: '2024-01-01',
         nextMaintenance: '2024-02-01',
       };

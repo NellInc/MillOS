@@ -17,14 +17,6 @@ import { audioManager } from '../utils/audioManager';
 import { shouldRunThisFrame, getThrottleLevel, getGlobalFrameCount } from '../utils/frameThrottle';
 import { useAIConfigStore } from '../stores/aiConfigStore';
 import * as THREE from 'three';
-import {
-  SHARED_WORKER_MATERIALS,
-  getSkinMaterial,
-  getSkinSoftMaterial,
-  getHairMaterial,
-  getUniformMaterial,
-  getPantsMaterial,
-} from './workers/SharedWorkerMaterials';
 import { SHARED_WORKER_GEOMETRY } from './workers/SharedWorkerGeometries';
 import { RecommendedWorkerRing } from './workers/RecommendedWorkerRing';
 import { FatigueIndicator } from './workers/FatigueIndicator';
@@ -32,18 +24,12 @@ import { AutonomyIndicator } from './workers/AutonomyIndicator';
 import { FlourishingIndicator } from './workers/FlourishingIndicator';
 import { getWorkerStatusColor } from '../utils/statusColors';
 import { getWorkerAppearance } from './workers/WorkerAppearance';
-import { ToolAccessory } from './workers/WorkerTools';
-import { Hair } from './workers/WorkerHair';
 import { HumanModel } from './workers/HumanModel';
 import {
-  TRUCK_EXCLUSION_ZONES,
   SAFE_AISLES,
   isInExclusionZone,
   getSafeZPosition,
   getSafeSpawnZ,
-  ROLE_WORKING_POSES,
-  type IdleAnimationType,
-  type SpecialAction,
 } from './workers/shared';
 
 interface WorkerSystemProps {
@@ -218,9 +204,7 @@ const SimplifiedWorker: React.FC<{
 });
 SimplifiedWorker.displayName = 'SimplifiedWorker';
 
-import { SHARED_WORKER_GEOMETRY } from './workers/SharedWorkerGeometries';
-
-// ... (existing imports)
+// SHARED_WORKER_GEOMETRY already imported above
 
 const WorkerBillboard: React.FC<{
   uniformColor: string;

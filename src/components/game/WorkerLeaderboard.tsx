@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useEffect } from 'react';
+import { motion } from 'framer-motion';
 import { TrendingUp, X, Medal } from 'lucide-react';
 import { useProductionStore } from '../../stores/productionStore';
 

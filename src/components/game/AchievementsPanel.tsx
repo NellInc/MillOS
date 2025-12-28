@@ -1,8 +1,19 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Trophy, X, Star, RotateCcw } from 'lucide-react';
+import React from 'react';
+import { motion } from 'framer-motion';
+import {
+  Trophy,
+  X,
+  Star,
+  RotateCcw,
+  Shield,
+  Package,
+  Award,
+  Users,
+  TrendingUp,
+  Moon,
+  AlertTriangle,
+} from 'lucide-react';
 import { useProductionStore } from '../../stores/productionStore';
-import { getIconComponent, getCategoryColor } from './shared';
 
 export const AchievementsPanel: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const achievements = useProductionStore((state) => state.achievements);

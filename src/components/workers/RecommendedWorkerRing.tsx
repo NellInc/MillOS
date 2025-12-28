@@ -8,6 +8,7 @@
 import React, { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
+import { POLYGON_OFFSET, INDICATOR_HEIGHTS } from '../../constants/renderLayers';
 
 interface RecommendedWorkerRingProps {
   visible: boolean;
@@ -45,7 +46,7 @@ export const RecommendedWorkerRing: React.FC<RecommendedWorkerRingProps> = ({ vi
   if (!visible) return null;
 
   return (
-    <group rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.06, 0]}>
+    <group rotation={[-Math.PI / 2, 0, 0]} position={[0, INDICATOR_HEIGHTS.workerRing, 0]}>
       {/* Inner pulsing ring */}
       <mesh>
         <ringGeometry args={[0.5, 0.65, 32]} />
@@ -59,8 +60,8 @@ export const RecommendedWorkerRing: React.FC<RecommendedWorkerRingProps> = ({ vi
           side={THREE.DoubleSide}
           depthWrite={false}
           polygonOffset
-          polygonOffsetFactor={-1}
-          polygonOffsetUnits={-1}
+          polygonOffsetFactor={POLYGON_OFFSET.moderate.factor}
+          polygonOffsetUnits={POLYGON_OFFSET.moderate.units}
         />
       </mesh>
       {/* Outer glow ring */}
@@ -74,8 +75,8 @@ export const RecommendedWorkerRing: React.FC<RecommendedWorkerRingProps> = ({ vi
           side={THREE.DoubleSide}
           depthWrite={false}
           polygonOffset
-          polygonOffsetFactor={-2}
-          polygonOffsetUnits={-2}
+          polygonOffsetFactor={POLYGON_OFFSET.moderate.factor}
+          polygonOffsetUnits={POLYGON_OFFSET.moderate.units}
         />
       </mesh>
     </group>

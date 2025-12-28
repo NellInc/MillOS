@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useState, useEffect, useCallback } from 'react';
+import { motion } from 'framer-motion';
 import { SkipBack, SkipForward, Play, Pause } from 'lucide-react';
-import { useHistoricalPlaybackStore } from '../../stores/historicalPlaybackStore';
+import { useProductionStore } from '../../stores/productionStore';
+import { useShallow } from 'zustand/react/shallow';
 
 export const IncidentReplayControls: React.FC = () => {
   const {

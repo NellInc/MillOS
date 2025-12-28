@@ -1,8 +1,7 @@
 import React, { useRef, useMemo, useState } from 'react';
 import * as THREE from 'three';
 import { useAmbientAnimation } from './shared';
-import { useGameSimulationStore } from '../../stores/gameSimulationStore';
-import { FLOOR_LAYERS, POLYGON_OFFSET, RENDER_ORDER } from '../../constants/renderLayers';
+import { FLOOR_LAYERS, POLYGON_OFFSET } from '../../constants/renderLayers';
 
 // ==========================================
 // UTILITIES & INFRASTRUCTURE
