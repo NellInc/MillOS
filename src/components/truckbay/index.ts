@@ -11,3 +11,6 @@ export * from './TruckAudio';
 export * from './TruckParts';
 export * from './DockBay';
 export * from './LoadingAnimation';
+export * from './animationSystem';
+export * from './TruckSmallParts';
+export * from './TruckLogos';

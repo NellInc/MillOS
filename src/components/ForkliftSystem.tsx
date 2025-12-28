@@ -6,11 +6,12 @@ import { audioManager } from '../utils/audioManager';
 import { useSafetyStore } from '../stores/safetyStore';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import { useGraphicsStore } from '../stores/graphicsStore';
-import { useProductionStore } from '../stores/productionStore';
+import { useTruckScheduleStore } from '../stores/truckScheduleStore';
 import { getForkliftWarningColor } from '../utils/statusColors';
 import { ForkliftModel } from './models';
 import { PhysicsForklift } from './physics/PhysicsForklift';
 import { shouldRunThisFrame } from '../utils/frameThrottle';
+import { ForkliftData } from '../types';
 import * as THREE from 'three';
 
 // Path visualization component - shows forklift routes on the floor
@@ -39,7 +40,7 @@ const ForkliftPath: React.FC<{ path: [number, number, number][]; color: string }
       />
       {/* Waypoint markers */}
       {path.map((point, i) => (
-        <group key={i} position={[point[0], 0.1, point[2]]}>
+        <group key={`waypoint-${i}-${point[0]}-${point[2]}`} position={[point[0], 0.1, point[2]]}>
           {/* Circle marker */}
           <mesh rotation={[-Math.PI / 2, 0, 0]}>
             <ringGeometry args={[0.3, 0.5, 16]} />
@@ -85,61 +86,67 @@ const ForkliftPath: React.FC<{ path: [number, number, number][]; color: string }
 };
 
 // Warning light component that changes color based on state
-const WarningLight: React.FC<{ isStopped: boolean; isInCrossing: boolean }> = ({
-  isStopped,
-  isInCrossing,
-}) => {
-  // Use ref instead of useState to avoid triggering re-renders in useFrame
-  const flashRef = useRef(false);
-  const materialRef = useRef<THREE.MeshStandardMaterial>(null);
-  const lightRef = useRef<THREE.PointLight>(null);
-  const isTabVisible = useGameSimulationStore((state) => state.isTabVisible);
+// Memoized since props are primitives (cheap comparison)
+const WarningLight = React.memo<{ isStopped: boolean; isInCrossing: boolean }>(
+  ({ isStopped, isInCrossing }) => {
+    // Use ref instead of useState to avoid triggering re-renders in useFrame
+    const flashRef = useRef(false);
+    const materialRef = useRef<THREE.MeshStandardMaterial>(null);
+    const lightRef = useRef<THREE.PointLight>(null);
+    const isTabVisible = useGameSimulationStore((state) => state.isTabVisible);
 
-  useFrame((state) => {
-    // PERFORMANCE: Skip animations when tab hidden
-    if (!isTabVisible) return;
-    // PERFORMANCE: Throttle flash check to every 2nd frame (~30fps is plenty for light flashing)
-    if (!shouldRunThisFrame(2)) return;
-    // Flash faster when stopped (red), medium for crossing (blue), slower when moving (amber)
-    const flashSpeed = isStopped ? 15 : isInCrossing ? 10 : 5;
-    const newFlash = Math.sin(state.clock.elapsedTime * flashSpeed) > 0;
+    useFrame((state) => {
+      // PERFORMANCE: Skip animations when tab hidden
+      if (!isTabVisible) return;
+      // PERFORMANCE: Throttle flash check to every 2nd frame (~30fps is plenty for light flashing)
+      if (!shouldRunThisFrame(2)) return;
+      // Flash faster when stopped (red), medium for crossing (blue), slower when moving (amber)
+      const flashSpeed = isStopped ? 15 : isInCrossing ? 10 : 5;
+      const newFlash = Math.sin(state.clock.elapsedTime * flashSpeed) > 0;
 
-    // Update material directly via ref instead of triggering re-render
-    if (newFlash !== flashRef.current) {
-      flashRef.current = newFlash;
-      if (materialRef.current) {
-        materialRef.current.emissiveIntensity = newFlash ? 3 : 0.5;
+      // Update material directly via ref instead of triggering re-render
+      if (newFlash !== flashRef.current) {
+        flashRef.current = newFlash;
+        if (materialRef.current) {
+          materialRef.current.emissiveIntensity = newFlash ? 3 : 0.5;
+        }
+        if (lightRef.current) {
+          lightRef.current.visible = newFlash && (isStopped || isInCrossing);
+        }
       }
-      if (lightRef.current) {
-        lightRef.current.visible = newFlash && (isStopped || isInCrossing);
-      }
-    }
-  });
+    });
 
-  // Red when stopped, blue when in crossing zone, amber when normal
-  const color = getForkliftWarningColor(isStopped, isInCrossing);
-  const glowColor = getForkliftWarningColor(isStopped, isInCrossing);
+    // Red when stopped, blue when in crossing zone, amber when normal
+    const color = getForkliftWarningColor(isStopped, isInCrossing);
+    const glowColor = getForkliftWarningColor(isStopped, isInCrossing);
 
-  return (
-    <group position={[0, 2.3, -0.3]}>
-      {/* Light housing */}
-      <mesh>
-        <cylinderGeometry args={[0.1, 0.1, 0.15, 8]} />
-        <meshStandardMaterial
-          ref={materialRef}
-          color={color}
-          emissive={color}
-          emissiveIntensity={0.5}
-          toneMapped={false}
-        />
-      </mesh>
-      {/* Glow effect when stopped or in crossing */}
-      {(isStopped || isInCrossing) && (
-        <pointLight ref={lightRef} color={glowColor} intensity={2} distance={5} visible={false} />
-      )}
-    </group>
-  );
-};
+    return (
+      <group position={[0, 2.3, -0.3]}>
+        {/* Light housing */}
+        <mesh>
+          <cylinderGeometry args={[0.1, 0.1, 0.15, 8]} />
+          <meshStandardMaterial
+            ref={materialRef}
+            color={color}
+            emissive={color}
+            emissiveIntensity={0.5}
+            toneMapped={false}
+          />
+        </mesh>
+        {/* Glow effect when stopped or in crossing */}
+        {(isStopped || isInCrossing) && (
+          <pointLight
+            ref={lightRef}
+            color={glowColor}
+            intensity={2}
+            distance={5}
+            visible={false}
+          />
+        )}
+      </group>
+    );
+  }
+);
 
 // Simplified forklift billboard for distant rendering (50+ units away)
 // Uses only 4 meshes instead of ~40+ for massive performance improvement
@@ -327,12 +334,9 @@ const CrossingZoneMarkers: React.FC = () => {
   );
 };
 
-export interface ForkliftData {
-  id: string;
-  operatorName: string;
-  cargo: 'empty' | 'pallet';
-  position: [number, number, number];
-}
+// ForkliftData is now imported from types.ts - use the canonical definition
+// Re-export for backwards compatibility
+export type { ForkliftData } from '../types';
 
 interface ForkliftSystemProps {
   showSpeedZones?: boolean;
@@ -435,10 +439,8 @@ export const ForkliftSystem: React.FC<ForkliftSystemProps> = ({ onSelectForklift
   );
 };
 
-// Reusable vectors at module level to avoid GC pressure (currently unused but reserved for future optimization)
-// const _tempVec1 = new THREE.Vector3();
-// const _tempVec2 = new THREE.Vector3();
-// const _tempVec3 = new THREE.Vector3();
+// Reusable vectors at module level to avoid GC pressure in hot paths
+const _tempWorldPos = new THREE.Vector3();
 
 const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) => void }> = ({
   data,
@@ -482,7 +484,7 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
   const forkliftEmergencyStop = useSafetyStore((state) => state.forkliftEmergencyStop);
   const isTabVisible = useGameSimulationStore((state) => state.isTabVisible);
   const emergencyDrillMode = useGameSimulationStore((state) => state.emergencyDrillMode);
-  const truckDocked = useProductionStore((state) => state.truckSchedule.truckDocked);
+  const truckDocked = useTruckScheduleStore((state) => state.truckSchedule.truckDocked);
 
   // Physics system toggle
   const enablePhysics = useGraphicsStore((state) => state.graphics.enablePhysics);
@@ -540,9 +542,9 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
     // But still update LOD and wheel animations
     if (enablePhysics) {
       // Calculate world distance for LOD (ref.current is local (0,0,0) inside physics body)
-      const worldPos = new THREE.Vector3();
-      ref.current.getWorldPosition(worldPos);
-      cameraDistanceRef.current = state.camera.position.distanceTo(worldPos);
+      // Uses module-level vector to avoid GC pressure
+      ref.current.getWorldPosition(_tempWorldPos);
+      cameraDistanceRef.current = state.camera.position.distanceTo(_tempWorldPos);
 
       const FAR_THRESHOLD = 50;
       const CLOSE_THRESHOLD = 40;
@@ -828,11 +830,21 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
   const handleClick = (e: { stopPropagation: () => void }) => {
     e.stopPropagation();
     if (onSelect && ref.current) {
+      const status =
+        currentOperation === 'loading'
+          ? 'loading'
+          : currentOperation === 'unloading'
+            ? 'unloading'
+            : isStopped
+              ? 'idle'
+              : 'moving';
       onSelect({
         id: data.id,
         operatorName: data.operatorName,
         cargo: hasCargo ? 'pallet' : 'empty',
         position: [ref.current.position.x, ref.current.position.y, ref.current.position.z],
+        rotation: ref.current.rotation.y,
+        status,
       });
     }
   };

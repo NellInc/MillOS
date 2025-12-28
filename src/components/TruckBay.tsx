@@ -1,8 +1,8 @@
 import React, { useRef, useEffect, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { shouldRunThisFrame } from '../utils/frameThrottle';
 import { Text } from '@react-three/drei';
 import * as THREE from 'three';
+import { shouldRunThisFrame } from '../utils/frameThrottle';
 import { audioManager } from '../utils/audioManager';
 import { useProductionStore } from '../stores/productionStore';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
@@ -20,8 +20,32 @@ import {
   type TruckAnimState,
   type TruckPhase,
 } from './truckbay/useTruckPhysics';
-// --- Animation Registries ---
-type AnimationType = 'rotation' | 'pulse' | 'lerp' | 'oscillation' | 'custom';
+// Import animation system
+import {
+  TruckAnimationManager,
+  registerAnimation,
+  unregisterAnimation,
+  registerParticleSystem,
+  unregisterParticleSystem,
+  updateParticleSystem,
+  registerWorker,
+  unregisterWorker,
+  registerTruckComponents,
+  unregisterTruckComponents,
+  type AnimationType,
+} from './truckbay/animationSystem';
+// Import component files
+import {
+  ExhaustSmoke,
+  WheelChock,
+  FuelTank,
+  AirTank,
+  LandingGear,
+  DEFTank,
+  CBAntennaComponent,
+  SunVisor,
+} from './truckbay/TruckSmallParts';
+import { GrainCoLogo, FlourExpressLogo } from './truckbay/TruckLogos';
 
 interface AnimationState {
   type: AnimationType;

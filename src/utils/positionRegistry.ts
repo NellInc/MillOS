@@ -1,7 +1,5 @@
-// TODO: Consider spatial partitioning (grid/quadtree) for better scaling.
-// Current implementation uses O(n*m) linear scans in getEntitiesNearby/isPathClear,
-// which may become a bottleneck with many entities. A spatial hash grid would
-// reduce this to O(1) average case for radius queries.
+// Spatial hash grid for O(1) average case radius queries
+// Grid cells are CELL_SIZE x CELL_SIZE units
 
 // Shared position registry for collision avoidance
 // Workers and forklifts register their positions for mutual awareness
@@ -15,6 +13,98 @@ export interface EntityPosition {
   dirX?: number; // Direction vector for forklifts
   dirZ?: number;
   isStopped?: boolean; // Whether forklift is currently stopped
+}
+
+// Spatial hash grid configuration
+const CELL_SIZE = 10; // 10 units per cell - good balance for typical query radii (2-8 units)
+
+// Convert world coordinates to cell key
+function getCellKey(x: number, z: number): string {
+  const cellX = Math.floor(x / CELL_SIZE);
+  const cellZ = Math.floor(z / CELL_SIZE);
+  return `${cellX},${cellZ}`;
+}
+
+// Get all cell keys that a circle at (x, z) with given radius might touch
+function getCellsInRadius(x: number, z: number, radius: number): string[] {
+  const keys: string[] = [];
+  const minCellX = Math.floor((x - radius) / CELL_SIZE);
+  const maxCellX = Math.floor((x + radius) / CELL_SIZE);
+  const minCellZ = Math.floor((z - radius) / CELL_SIZE);
+  const maxCellZ = Math.floor((z + radius) / CELL_SIZE);
+
+  for (let cx = minCellX; cx <= maxCellX; cx++) {
+    for (let cz = minCellZ; cz <= maxCellZ; cz++) {
+      keys.push(`${cx},${cz}`);
+    }
+  }
+  return keys;
+}
+
+// Spatial hash grid for fast spatial queries
+class SpatialGrid {
+  private cells: Map<string, Set<string>> = new Map();
+  private entityCells: Map<string, string> = new Map(); // Track which cell each entity is in
+
+  insert(id: string, x: number, z: number): void {
+    const key = getCellKey(x, z);
+
+    // Remove from old cell if entity moved
+    const oldKey = this.entityCells.get(id);
+    if (oldKey && oldKey !== key) {
+      const oldCell = this.cells.get(oldKey);
+      if (oldCell) {
+        oldCell.delete(id);
+        if (oldCell.size === 0) {
+          this.cells.delete(oldKey);
+        }
+      }
+    }
+
+    // Insert into new cell
+    let cell = this.cells.get(key);
+    if (!cell) {
+      cell = new Set();
+      this.cells.set(key, cell);
+    }
+    cell.add(id);
+    this.entityCells.set(id, key);
+  }
+
+  remove(id: string): void {
+    const key = this.entityCells.get(id);
+    if (key) {
+      const cell = this.cells.get(key);
+      if (cell) {
+        cell.delete(id);
+        if (cell.size === 0) {
+          this.cells.delete(key);
+        }
+      }
+      this.entityCells.delete(id);
+    }
+  }
+
+  // Get all entity IDs in cells that might contain entities within radius of (x, z)
+  getEntitiesInRadius(x: number, z: number, radius: number): Set<string> {
+    const result = new Set<string>();
+    const cellKeys = getCellsInRadius(x, z, radius);
+
+    for (const key of cellKeys) {
+      const cell = this.cells.get(key);
+      if (cell) {
+        for (const id of cell) {
+          result.add(id);
+        }
+      }
+    }
+    return result;
+  }
+
+  clear(): void {
+    this.cells.clear();
+    this.entityCells.clear();
+  }
 }
 
 // Static obstacle definition (axis-aligned bounding box)

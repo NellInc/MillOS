@@ -399,6 +399,17 @@ export const DustParticles: React.FC<DustParticlesProps> = ({ count }) => {
   // Throttle particle updates based on graphics quality (200+ particles is expensive)
   const throttleLevel = getThrottleLevel(quality);
 
+  // Set proper bounding sphere for frustum culling
+  // Particles span roughly x: [-40, 40], y: [5, 30], z: [-30, 30]
+  useEffect(() => {
+    if (mesh.current && mesh.current.geometry) {
+      mesh.current.geometry.boundingSphere = new THREE.Sphere(
+        new THREE.Vector3(0, 17.5, 0), // Center of particle volume
+        60 // Radius encompassing all possible particle positions
+      );
+    }
+  }, [count]);
+
   // Register with manager if available
   useEffect(() => {
     if (context && isEnabled) {
@@ -445,7 +456,7 @@ export const DustParticles: React.FC<DustParticlesProps> = ({ count }) => {
     <instancedMesh
       ref={mesh}
       args={[undefined, undefined, count]}
-      frustumCulled={false}
+      frustumCulled={true}
       key={`dust-particles-${count}`}
     >
       <dodecahedronGeometry args={[0.04, 0]}>
@@ -715,9 +726,23 @@ const MachineSteamParticle: React.FC<MachineSteamProps> = ({ position, type, int
 };
 
 // Steam vents component - renders multiple steam sources near machines
+// Uses distance-based culling to only render nearby steam sources
 export const MachineSteamVents: React.FC = () => {
   const quality = useGraphicsStore((state) => state.graphics.quality);
   const isEnabled = quality !== 'low';
+  const [cameraX, setCameraX] = React.useState(0);
+  const [cameraZ, setCameraZ] = React.useState(0);
+  const lastUpdateRef = useRef(0);
+
+  // Update camera position for distance culling (throttled to every 500ms)
+  useFrame(({ camera, clock }) => {
+    const now = clock.elapsedTime;
+    if (now - lastUpdateRef.current > 0.5) {
+      lastUpdateRef.current = now;
+      setCameraX(camera.position.x);
+      setCameraZ(camera.position.z);
+    }
+  });
 
   // Machine positions from MillScene zones:
   // Zone 2 (z=-6): Roller Mills - hot grinding process creates steam/heat
@@ -790,9 +815,23 @@ export const MachineSteamVents: React.FC = () => {
     []
   );
 
-  // On medium quality, reduce number of sources
-  const activeSources =
-    quality === 'medium' ? steamSources.filter((_, i) => i % 2 === 0) : steamSources;
+  // Distance threshold for culling steam sources (in world units)
+  const cullDistance = quality === 'ultra' ? 60 : quality === 'high' ? 50 : 40;
+
+  // On medium quality, reduce number of sources; also apply distance culling
+  const activeSources = useMemo(() => {
+    const qualityFiltered =
+      quality === 'medium' ? steamSources.filter((_, i) => i % 2 === 0) : steamSources;
+
+    // Apply distance culling based on camera position
+    const cullDistSq = cullDistance * cullDistance;
+    return qualityFiltered.filter((source) => {
+      const dx = source.position[0] - cameraX;
+      const dz = source.position[2] - cameraZ;
+      const distSq = dx * dx + dz * dz;
+      return distSq < cullDistSq;
+    });
+  }, [steamSources, quality, cullDistance, cameraX, cameraZ]);
 
   // Return null if disabled (after all hooks have been called)
   if (!isEnabled) {
@@ -801,9 +840,9 @@ export const MachineSteamVents: React.FC = () => {
 
   return (
     <group>
-      {activeSources.map((source, i) => (
+      {activeSources.map((source) => (
         <MachineSteamParticle
-          key={i}
+          key={`steam-${source.position[0]}-${source.position[2]}`}
           position={source.position}
           type={source.type}
           intensity={source.intensity}

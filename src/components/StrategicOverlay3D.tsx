@@ -47,16 +47,22 @@ export const StrategicOverlay3D: React.FC = () => {
   return (
     <group position={[0, 18, 0]}>
       <Billboard follow lockX={false} lockY={false} lockZ={false}>
-        {/* Background panel */}
+        {/* Background panel - depthWrite false to prevent z-fighting */}
         <mesh position={[0, 0, -0.1]}>
           <planeGeometry args={[25, 2.5]} />
-          <meshBasicMaterial ref={materialRef} color="#0f172a" transparent opacity={0.85} />
+          <meshBasicMaterial
+            ref={materialRef}
+            color="#0f172a"
+            transparent
+            opacity={0.85}
+            depthWrite={false}
+          />
         </mesh>
 
-        {/* Border glow */}
+        {/* Border glow - depthWrite false to prevent z-fighting */}
         <mesh position={[0, 0, -0.15]}>
           <planeGeometry args={[25.2, 2.7]} />
-          <meshBasicMaterial color="#06b6d4" transparent opacity={0.3} />
+          <meshBasicMaterial color="#06b6d4" transparent opacity={0.3} depthWrite={false} />
         </mesh>
 
         {/* Label */}

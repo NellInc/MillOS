@@ -28,8 +28,8 @@ export {
   VibrationIndicator,
   PulsingIndicator,
   AmbientDetailsGroup,
-} from './AmbientDetails';
-export { default as AmbientDetails } from './AmbientDetails';
+} from './ambient';
+export { default as AmbientDetails } from './ambient';
 
 // === UI Overlay Components ===
 export { UIOverlay } from './UIOverlay';

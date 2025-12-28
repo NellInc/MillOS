@@ -15,6 +15,15 @@ import { generateBrick, generateBrickNormal } from '../textures/brick';
 import { generateBark, generateBarkNormal } from '../textures/bark';
 import { generateCobblestone, generateCobblestoneNormal } from '../textures/cobblestone';
 import { generateMud, generateMudRoughness } from '../textures/mud';
+import {
+  generateClayTiles,
+  generateClayTilesNormal,
+  generateSlate,
+  generateSlateNormal,
+  generateThatch,
+  generateThatchNormal,
+} from '../textures/roofTiles';
+import { generateStucco, generateStuccoNormal, generateStuccoRoughness } from '../textures/stucco';
 
 // Generate procedural textures for metal materials (cached on first call)
 const brushedMetalTexture = generateBrushedMetal(256, 0.4, 'horizontal');
@@ -40,6 +49,19 @@ cobblestoneColorTexture.wrapS = cobblestoneColorTexture.wrapT = THREE.RepeatWrap
 cobblestoneNormalTexture.wrapS = cobblestoneNormalTexture.wrapT = THREE.RepeatWrapping;
 const mudColorTexture = generateMud(512, { wetness: 0.5 });
 const mudRoughnessTexture = generateMudRoughness(512, 0.5);
+
+// Village roof textures - using larger tiles for visible detail
+const clayTilesColorTexture = generateClayTiles(512, { tileWidth: 40, tileHeight: 56 });
+const clayTilesNormalTexture = generateClayTilesNormal(512, 40, 56);
+const slateColorTexture = generateSlate(512, { tileWidth: 44, tileHeight: 32 });
+const slateNormalTexture = generateSlateNormal(512, 44, 32);
+const thatchColorTexture = generateThatch(512, { bundleWidth: 40 });
+const thatchNormalTexture = generateThatchNormal(512, 40);
+
+// Village wall textures - neutral gray for proper tinting
+const stuccoColorTexture = generateStucco(512, { weathering: 0.12, contrast: 0.1 });
+const stuccoNormalTexture = generateStuccoNormal(512, 0.35);
+const stuccoRoughnessTexture = generateStuccoRoughness(512, 0.75);
 
 // === METAL MATERIALS ===
 export const METAL_MATERIALS = {
@@ -532,6 +554,76 @@ export const PROCEDURAL_TEXTURES = {
   cobblestoneNormal: cobblestoneNormalTexture,
   mudColor: mudColorTexture,
   mudRoughness: mudRoughnessTexture,
+  // Village roof textures
+  clayTilesColor: clayTilesColorTexture,
+  clayTilesNormal: clayTilesNormalTexture,
+  slateColor: slateColorTexture,
+  slateNormal: slateNormalTexture,
+  thatchColor: thatchColorTexture,
+  thatchNormal: thatchNormalTexture,
+  // Village wall textures
+  stuccoColor: stuccoColorTexture,
+  stuccoNormal: stuccoNormalTexture,
+  stuccoRoughness: stuccoRoughnessTexture,
+} as const;
+
+// === PLANT MATERIALS ===
+// Materials for factory plants, trees, and vegetation
+export const PLANT_MATERIALS = {
+  pot: new THREE.MeshStandardMaterial({ color: '#8b4513', roughness: 0.9, metalness: 0.0 }),
+  soil: new THREE.MeshStandardMaterial({ color: '#3d2817', roughness: 1.0, metalness: 0.0 }),
+  barkDark: new THREE.MeshStandardMaterial({ color: '#4a3728', roughness: 0.9, metalness: 0.0 }),
+  woodPale: new THREE.MeshStandardMaterial({ color: '#8b7355', roughness: 0.95, metalness: 0.0 }),
+  hay: new THREE.MeshStandardMaterial({ color: '#d4a574', roughness: 0.8, metalness: 0.0 }),
+} as const;
+
+// === HEALTH STATUS MATERIALS ===
+export const HEALTH_MATERIALS = {
+  healthy: new THREE.MeshStandardMaterial({ color: '#22c55e', roughness: 0.7, metalness: 0.0 }),
+  moderate: new THREE.MeshStandardMaterial({ color: '#84cc16', roughness: 0.7, metalness: 0.0 }),
+  poor: new THREE.MeshStandardMaterial({ color: '#a16207', roughness: 0.7, metalness: 0.0 }),
+  healthyEmissive: new THREE.MeshBasicMaterial({ color: '#22c55e' }),
+  criticalEmissive: new THREE.MeshBasicMaterial({ color: '#ef4444' }),
+  activeEmissive: new THREE.MeshBasicMaterial({ color: '#1e40af' }),
+} as const;
+
+export const getHealthMaterial = (health: number): THREE.MeshStandardMaterial => {
+  if (health > 60) return HEALTH_MATERIALS.healthy;
+  if (health > 30) return HEALTH_MATERIALS.moderate;
+  return HEALTH_MATERIALS.poor;
+};
+
+// === CACHED VECTOR2 CONSTANTS ===
+export const NORMAL_SCALES = {
+  low: new THREE.Vector2(0.15, 0.15),
+  medium: new THREE.Vector2(0.2, 0.2),
+  standard: new THREE.Vector2(0.3, 0.3),
+  high: new THREE.Vector2(0.4, 0.4),
+} as const;
+
+// === INSTANCED MACHINE MATERIALS ===
+export const INSTANCED_MACHINE_MATERIALS = {
+  siloBody: new THREE.MeshStandardMaterial({ color: '#cbd5e1', metalness: 0.5, roughness: 0.2 }),
+  siloDarkMetal: new THREE.MeshStandardMaterial({ color: '#475569', metalness: 0.6, roughness: 0.4 }),
+  siloFill: new THREE.MeshStandardMaterial({ color: '#f5d78e', transparent: true, opacity: 0.7, roughness: 0.9 }),
+  siloFillLow: new THREE.MeshBasicMaterial({ color: '#f5d78e', transparent: true, opacity: 0.7 }),
+  millHousingLower: new THREE.MeshStandardMaterial({ color: '#2563eb', metalness: 0.6, roughness: 0.2 }),
+  millHousingUpper: new THREE.MeshStandardMaterial({ color: '#60a5fa', metalness: 0.5, roughness: 0.3 }),
+  millFrame: new THREE.MeshStandardMaterial({ color: '#1f2937', metalness: 0.8, roughness: 0.15 }),
+  millMotor: new THREE.MeshStandardMaterial({ color: '#374151', metalness: 0.7, roughness: 0.25 }),
+  millWindow: new THREE.MeshPhysicalMaterial({ color: '#e0f2fe', metalness: 0.1, roughness: 0.1, transmission: 0.8, thickness: 0.1 }),
+  millRoller: new THREE.MeshStandardMaterial({ color: '#94a3b8', metalness: 0.9, roughness: 0.1 }),
+  sifterFrame: new THREE.MeshStandardMaterial({ color: '#1f2937', metalness: 0.8, roughness: 0.2 }),
+  sifterBody: new THREE.MeshPhysicalMaterial({ color: '#f5f0e6', metalness: 0.1, roughness: 0.25, clearcoat: 0.6, clearcoatRoughness: 0.2 }),
+  sifterDarkMetal: new THREE.MeshStandardMaterial({ color: '#374151', metalness: 0.6, roughness: 0.3 }),
+  sifterFlywheel: new THREE.MeshStandardMaterial({ color: '#1f2937', metalness: 0.85, roughness: 0.15 }),
+  sifterCable: new THREE.MeshStandardMaterial({ color: '#1f2937', metalness: 0.3, roughness: 0.6 }),
+  packerFrame: new THREE.MeshStandardMaterial({ color: '#f97316', metalness: 0.4, roughness: 0.4 }),
+  packerHopper: new THREE.MeshStandardMaterial({ color: '#94a3b8', metalness: 0.7, roughness: 0.2 }),
+  packerSpout: new THREE.MeshStandardMaterial({ color: '#6b7280', metalness: 0.75, roughness: 0.2 }),
+  packerConveyor: new THREE.MeshStandardMaterial({ color: '#374151', metalness: 0.6, roughness: 0.35 }),
+  packerPanel: new THREE.MeshStandardMaterial({ color: '#1e293b', metalness: 0.5, roughness: 0.35 }),
+  packerSafety: new THREE.MeshStandardMaterial({ color: '#fbbf24', metalness: 0.3, roughness: 0.5, transparent: true, opacity: 0.4 }),
 } as const;
 
 // === SHARED GEOMETRIES ===
@@ -575,3 +667,111 @@ export const getHairMaterial = (workerId: string): THREE.MeshStandardMaterial =>
   const index = workerId.charCodeAt(0) % WORKER_MATERIALS.hair.length;
   return WORKER_MATERIALS.hair[index];
 };
+
+// === TUNNEL MATERIALS ===
+// Materials for tunnel/culvert structures (drainage passages and scenic tunnels)
+export const TUNNEL_MATERIALS = {
+  concrete: new THREE.MeshStandardMaterial({
+    color: '#808080',
+    roughness: 0.9,
+    map: concreteColorTexture,
+    roughnessMap: concreteRoughnessTexture,
+  }),
+  brick: new THREE.MeshStandardMaterial({
+    color: '#a08070',
+    roughness: 0.85,
+    map: brickColorTexture,
+    normalMap: brickNormalTexture,
+    normalScale: new THREE.Vector2(0.3, 0.3),
+  }),
+  metal: new THREE.MeshStandardMaterial({
+    color: '#64748b',
+    metalness: 0.7,
+    roughness: 0.4,
+    normalMap: brushedMetalTexture,
+    normalScale: new THREE.Vector2(0.2, 0.2),
+  }),
+  water: new THREE.MeshStandardMaterial({
+    color: '#5c8a6a',
+    roughness: 0.1,
+    metalness: 0.2,
+    transparent: true,
+    opacity: 0.7,
+  }),
+} as const;
+
+// === TREE MATERIALS (Textured) ===
+// Tree materials with procedural textures for detailed scenery trees
+export const TREE_MATERIALS = {
+  trunk: new THREE.MeshStandardMaterial({
+    color: '#5d4037',
+    roughness: 0.9,
+    map: barkOakTexture,
+    normalMap: barkNormalTexture,
+    normalScale: new THREE.Vector2(0.4, 0.4),
+  }),
+  leaves: new THREE.MeshStandardMaterial({
+    color: '#2d5a27',
+    roughness: 0.8,
+  }),
+  pineNeedles: new THREE.MeshStandardMaterial({
+    color: '#1a4a1a',
+    roughness: 0.85,
+  }),
+  birchTrunk: new THREE.MeshStandardMaterial({
+    color: '#e8e8e0',
+    roughness: 0.7,
+    map: barkOakTexture, // Will show through as birch-like
+    normalMap: barkNormalTexture,
+    normalScale: new THREE.Vector2(0.2, 0.2),
+  }),
+} as const;
+
+// === TREE MATERIALS (Simple/Instanced) ===
+// Simpler tree materials for instanced rendering (lower overhead)
+export const SIMPLE_TREE_MATERIALS = {
+  trunk: new THREE.MeshStandardMaterial({ color: '#5d4037', roughness: 0.9 }),
+  foliageLower: new THREE.MeshStandardMaterial({ color: '#2e7d32', roughness: 0.8 }),
+  foliageUpper: new THREE.MeshStandardMaterial({ color: '#388e3c', roughness: 0.8 }),
+} as const;
+
+// === BENCH MATERIALS ===
+// Materials for park benches and outdoor furniture
+export const BENCH_MATERIALS = {
+  wood: new THREE.MeshStandardMaterial({ color: '#8d6e63', roughness: 0.7 }),
+  metal: new THREE.MeshStandardMaterial({ color: '#424242', roughness: 0.6, metalness: 0.3 }),
+} as const;
+
+// === WOOD MATERIALS ===
+// Wood materials for pallets, crates, wooden objects
+export const WOOD_MATERIALS = {
+  pallet: new THREE.MeshStandardMaterial({ color: '#8b5a2b', roughness: 0.9 }),
+  palletDark: new THREE.MeshStandardMaterial({ color: '#6b4423', roughness: 0.9 }),
+  palletMedium: new THREE.MeshStandardMaterial({ color: '#7a4c2a', roughness: 0.9 }),
+  crateLight: new THREE.MeshStandardMaterial({ color: '#d4a574', roughness: 0.8 }),
+} as const;
+
+// === FABRIC MATERIALS ===
+// Fabric materials for sacks, burlap, grain bags
+export const FABRIC_MATERIALS = {
+  burlap: new THREE.MeshStandardMaterial({ color: '#e8dcc8', roughness: 0.95 }),
+  sackGrain: new THREE.MeshStandardMaterial({ color: '#d4c4a8', roughness: 1 }),
+  sackLight: new THREE.MeshStandardMaterial({ color: '#f5f0e6', roughness: 0.95 }),
+} as const;
+
+// === CERAMIC MATERIALS ===
+// Ceramic materials for pots, fixtures
+export const CERAMIC_MATERIALS = {
+  white: new THREE.MeshStandardMaterial({ color: '#e5e5e5', roughness: 0.5 }),
+  terracotta: new THREE.MeshStandardMaterial({ color: '#c45a3b', roughness: 0.7 }),
+} as const;
+
+// === SIGNAGE MATERIALS ===
+// Signage materials for signs and warnings
+export const SIGNAGE_MATERIALS = {
+  warningYellow: new THREE.MeshStandardMaterial({ color: '#ffc107', roughness: 0.3 }),
+  warningRed: new THREE.MeshStandardMaterial({ color: '#dc3545', roughness: 0.3 }),
+  infoBlue: new THREE.MeshStandardMaterial({ color: '#0d6efd', roughness: 0.3 }),
+  white: new THREE.MeshBasicMaterial({ color: '#ffffff' }),
+  black: new THREE.MeshBasicMaterial({ color: '#000000' }),
+} as const;

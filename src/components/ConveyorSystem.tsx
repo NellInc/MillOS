@@ -7,6 +7,7 @@ import { audioManager } from '../utils/audioManager';
 import { useGraphicsStore } from '../stores/graphicsStore';
 import { useProductionStore } from '../stores/productionStore';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
+import { useMaterialFlowStore } from '../stores/materialFlowStore';
 import { GrainQuality } from '../types';
 import {
   METAL_MATERIALS,
@@ -211,6 +212,31 @@ const BagAnimationManager: React.FC<{
 interface ConveyorSystemProps {
   productionSpeed: number;
 }
+
+// =============================================================================
+// MATERIAL FLOW TICKER
+// Processes material flow through the mill network each frame
+// =============================================================================
+const MaterialFlowTicker: React.FC<{ productionSpeed: number }> = ({ productionSpeed }) => {
+  const tickMaterialFlow = useMaterialFlowStore((state) => state.tickMaterialFlow);
+  const isTabVisible = useGameSimulationStore((state) => state.isTabVisible);
+
+  useFrame((_, delta) => {
+    // PERFORMANCE: Skip when tab hidden or production stopped
+    if (!isTabVisible || productionSpeed === 0) return;
+
+    // Throttle to every 2nd frame to reduce computation
+    if (!shouldRunThisFrame(2)) return;
+
+    // Cap delta to prevent huge jumps when tab regains focus (max 100ms)
+    const cappedDelta = Math.min(delta * 2, 0.1);
+
+    // Process material flow through the network
+    tickMaterialFlow(cappedDelta, productionSpeed);
+  });
+
+  return null;
+};
 
 interface FlourBag {
   id: string;
@@ -604,10 +630,10 @@ const ConveyorBelt: React.FC<{
             <cylinderGeometry args={[0.08, 0.08, 0.3, 8]} />
             <primitive object={MACHINE_MATERIALS.shaft} attach="material" />
           </mesh>
-          {/* Ventilation grille */}
-          <mesh position={[0, 0, 0.26]}>
+          {/* Ventilation grille - z offset increased to 0.28 to prevent z-fighting with motor housing front face at z=0.25 */}
+          <mesh position={[0, 0, 0.28]}>
             <planeGeometry args={[0.5, 0.35]} />
-            <primitive object={METAL_MATERIALS.paintedBlack} attach="material" />
+            <meshBasicMaterial color="#1a1a1a" depthWrite={false} polygonOffset polygonOffsetFactor={-1} polygonOffsetUnits={-1} />
           </mesh>
           {/* Warning label */}
           <mesh position={[0.41, 0.1, 0]} rotation={[0, Math.PI / 2, 0]}>
@@ -854,16 +880,16 @@ const FlourBagMesh: React.FC<{ data: FlourBag }> = React.memo(({ data }) => {
         />
       </mesh>
 
-      {/* Quality-colored label stripe */}
-      <mesh position={[0, 0.25, 0.46]}>
+      {/* Quality-colored label stripe - z offset increased to 0.48 to prevent z-fighting with bag front face at z=0.45 */}
+      <mesh position={[0, 0.25, 0.48]}>
         <planeGeometry args={[0.5, 0.3]} />
-        <meshBasicMaterial color={qualityColor} />
+        <meshBasicMaterial color={qualityColor} depthWrite={false} polygonOffset polygonOffsetFactor={-1} polygonOffsetUnits={-1} />
       </mesh>
 
       {/* Batch number text on bag (3D text) */}
       {showDetails && (
         <Text
-          position={[0, 0.25, 0.47]}
+          position={[0, 0.25, 0.49]}
           fontSize={0.06}
           color="white"
           anchorX="center"
@@ -877,7 +903,7 @@ const FlourBagMesh: React.FC<{ data: FlourBag }> = React.memo(({ data }) => {
       {/* Weight indicator */}
       {showDetails && (
         <Text
-          position={[0, 0.15, 0.47]}
+          position={[0, 0.15, 0.49]}
           fontSize={0.04}
           color="white"
           anchorX="center"

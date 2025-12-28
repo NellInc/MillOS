@@ -5,8 +5,7 @@
  */
 
 import React from 'react';
-import * as THREE from 'three';
-import { PROCEDURAL_TEXTURES } from '../../utils/sharedMaterials';
+import { TREE_MATERIALS } from '../../utils/sharedMaterials';
 
 // Tree types with different characteristics
 export type TreeType = 'oak' | 'pine' | 'birch';
@@ -17,32 +16,6 @@ interface TreeProps {
   scale?: number;
   rotation?: number;
 }
-
-// Tree materials using procedural textures
-const TREE_MATERIALS = {
-  trunk: new THREE.MeshStandardMaterial({
-    color: '#5d4037',
-    roughness: 0.9,
-    map: PROCEDURAL_TEXTURES.barkOak,
-    normalMap: PROCEDURAL_TEXTURES.barkNormal,
-    normalScale: new THREE.Vector2(0.4, 0.4),
-  }),
-  leaves: new THREE.MeshStandardMaterial({
-    color: '#2d5a27',
-    roughness: 0.8,
-  }),
-  pineNeedles: new THREE.MeshStandardMaterial({
-    color: '#1a4a1a',
-    roughness: 0.85,
-  }),
-  birchTrunk: new THREE.MeshStandardMaterial({
-    color: '#e8e8e0',
-    roughness: 0.7,
-    map: PROCEDURAL_TEXTURES.barkOak, // Will show through as birch-like
-    normalMap: PROCEDURAL_TEXTURES.barkNormal,
-    normalScale: new THREE.Vector2(0.2, 0.2),
-  }),
-} as const;
 
 /**
  * Oak Tree - Deciduous tree with round canopy

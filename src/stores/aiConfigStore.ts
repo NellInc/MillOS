@@ -574,24 +574,28 @@ export function initBASSubscription(): void {
   if (basStoreSubscribed) return;
 
   // Dynamic import to break circular dependency
-  import('./basStore').then(({ useBASStore }) => {
-    // Initial sync
-    const axes = useBASStore.getState().axes;
-    useAIConfigStore.getState().syncBASAxes(axes);
+  import('./basStore')
+    .then(({ useBASStore }) => {
+      // Initial sync
+      const axes = useBASStore.getState().axes;
+      useAIConfigStore.getState().syncBASAxes(axes);
 
-    // Subscribe to future changes (track previous axes for comparison)
-    let prevAxes = JSON.stringify(useBASStore.getState().axes);
-    basStoreUnsubscribe = useBASStore.subscribe((state) => {
-      const newAxes = JSON.stringify(state.axes);
-      if (newAxes !== prevAxes) {
-        prevAxes = newAxes;
-        useAIConfigStore.getState().syncBASAxes(state.axes);
-      }
+      // Subscribe to future changes (track previous axes for comparison)
+      let prevAxes = JSON.stringify(useBASStore.getState().axes);
+      basStoreUnsubscribe = useBASStore.subscribe((state) => {
+        const newAxes = JSON.stringify(state.axes);
+        if (newAxes !== prevAxes) {
+          prevAxes = newAxes;
+          useAIConfigStore.getState().syncBASAxes(state.axes);
+        }
+      });
+
+      basStoreSubscribed = true;
+      logger.info('[AIConfigStore] BAS subscription initialized');
+    })
+    .catch(() => {
+      // Handle import failure gracefully - subscription is non-critical
     });
-
-    basStoreSubscribed = true;
-    logger.info('[AIConfigStore] BAS subscription initialized');
-  });
 }
 
 /** Cleanup function for testing and HMR - unsubscribes from BAS store */

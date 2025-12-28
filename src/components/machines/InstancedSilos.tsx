@@ -17,19 +17,14 @@ import {
 } from './MachineLOD';
 import { useModelTextures } from '../../utils/machineTextures';
 import { MemoizedStatusRing } from './StatusRing';
-import { PROCEDURAL_TEXTURES } from '../../utils/sharedMaterials';
+import { PROCEDURAL_TEXTURES, NORMAL_SCALES, INSTANCED_MACHINE_MATERIALS } from '../../utils/sharedMaterials';
 
-// Shared materials (base - textures applied via hook)
+// Reference shared materials (textures applied via hook)
 const MATERIALS = {
-  body: new THREE.MeshStandardMaterial({ color: '#cbd5e1', metalness: 0.5, roughness: 0.2 }),
-  darkMetal: new THREE.MeshStandardMaterial({ color: '#475569', metalness: 0.6, roughness: 0.4 }),
-  fill: new THREE.MeshStandardMaterial({
-    color: '#f5d78e',
-    transparent: true,
-    opacity: 0.7,
-    roughness: 0.9,
-  }),
-  fillLow: new THREE.MeshBasicMaterial({ color: '#f5d78e', transparent: true, opacity: 0.7 }),
+  body: INSTANCED_MACHINE_MATERIALS.siloBody,
+  darkMetal: INSTANCED_MACHINE_MATERIALS.siloDarkMetal,
+  fill: INSTANCED_MACHINE_MATERIALS.siloFill,
+  fillLow: INSTANCED_MACHINE_MATERIALS.siloFillLow,
 };
 
 const SILO_SIZE = { width: 4.5, height: 16 };
@@ -184,13 +179,13 @@ export const InstancedSilos: React.FC<InstancedSilosProps> = ({ machines, onSele
     // Body - metallic silo surface
     MATERIALS.body.roughnessMap = roughnessMap;
     MATERIALS.body.normalMap = normalMap;
-    MATERIALS.body.normalScale = new THREE.Vector2(0.3, 0.3);
+    MATERIALS.body.normalScale = NORMAL_SCALES.standard;
     MATERIALS.body.needsUpdate = true;
 
     // Dark metal (legs, ladder)
     MATERIALS.darkMetal.roughnessMap = textures.ao || PROCEDURAL_TEXTURES.brushedMetal;
     MATERIALS.darkMetal.normalMap = normalMap;
-    MATERIALS.darkMetal.normalScale = new THREE.Vector2(0.2, 0.2);
+    MATERIALS.darkMetal.normalScale = NORMAL_SCALES.medium;
     MATERIALS.darkMetal.needsUpdate = true;
   }, [textures]);
 

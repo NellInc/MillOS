@@ -49,6 +49,7 @@ import {
 import type { FiveAxes } from '../types/bas';
 import { useEngagementStore, type DiagnosticStatus } from './engagementStore';
 import { useProductionStore } from './productionStore';
+import { useAIWelfareStore } from './aiWelfareStore';
 
 // Helper to get random item from array
 const randomFrom = <T>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
@@ -277,9 +278,6 @@ function getEngagementRecoveryMultiplier(diagnosticStatus: DiagnosticStatus | un
  */
 function getAIWelfareTrustModifier(): number {
   try {
-    // Use require-style dynamic access since we're in a sync context
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { useAIWelfareStore } = require('./aiWelfareStore') as typeof import('./aiWelfareStore');
     const aiWelfareState = useAIWelfareStore.getState();
 
     // Get relationship health overall score (0-100)
@@ -321,8 +319,6 @@ function getAIWelfareTrustModifier(): number {
  */
 function getAIWelfareSatisfactionMultiplier(): number {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { useAIWelfareStore } = require('./aiWelfareStore') as typeof import('./aiWelfareStore');
     const aiWelfareState = useAIWelfareStore.getState();
 
     // Use communication quality and mutual respect
@@ -1395,18 +1391,22 @@ export function initWorkerMoodBASSubscription(): void {
   if (basStoreSubscribed) return;
 
   // Dynamic import to break circular dependency
-  import('./basStore').then(({ useBASStore }) => {
-    // Initial sync
-    const axes = useBASStore.getState().axes;
-    useWorkerMoodStore.getState().syncBASAxes(axes);
+  import('./basStore')
+    .then(({ useBASStore }) => {
+      // Initial sync
+      const axes = useBASStore.getState().axes;
+      useWorkerMoodStore.getState().syncBASAxes(axes);
 
-    // Subscribe to future changes and store unsubscribe function
-    basStoreUnsubscribe = useBASStore.subscribe((state) => {
-      useWorkerMoodStore.getState().syncBASAxes(state.axes);
+      // Subscribe to future changes and store unsubscribe function
+      basStoreUnsubscribe = useBASStore.subscribe((state) => {
+        useWorkerMoodStore.getState().syncBASAxes(state.axes);
+      });
+
+      basStoreSubscribed = true;
+    })
+    .catch(() => {
+      // Handle import failure gracefully - subscription is non-critical
     });
-
-    basStoreSubscribed = true;
-  });
 }
 
 // =============================================================================
@@ -1416,31 +1416,67 @@ export function initWorkerMoodBASSubscription(): void {
 
 let flourishingStoreSubscribed = false;
 let flourishingStoreUnsubscribe: (() => void) | null = null;
+// Cache previous scores to prevent circular update loops
+let previousFlourishingScores: Record<string, number> = {};
+// Re-entrancy guard to break circular subscription loops
+let isSyncingFlourishingScores = false;
+
+/** Shallow compare two score records - returns true if they differ */
+function flourishingScoresChanged(
+  prev: Record<string, number>,
+  next: Record<string, number>
+): boolean {
+  const prevKeys = Object.keys(prev);
+  const nextKeys = Object.keys(next);
+  if (prevKeys.length !== nextKeys.length) return true;
+  for (const key of nextKeys) {
+    // Only trigger update if score changed by more than 0.5 (avoid float noise)
+    if (Math.abs((prev[key] ?? 0) - (next[key] ?? 0)) > 0.5) return true;
+  }
+  return false;
+}
 
 export function initWorkerMoodFlourishingSubscription(): void {
   if (flourishingStoreSubscribed) return;
 
   // Dynamic import to break circular dependency
-  import('./flourishingStore').then(({ useFlourishingStore }) => {
-    // Initial sync - extract flourishing scores for all workers
-    const flourishingState = useFlourishingStore.getState();
-    const scores: Record<string, number> = {};
-    Object.entries(flourishingState.workerFlourishing).forEach(([workerId, data]) => {
-      scores[workerId] = data.flourishingScore;
-    });
-    useWorkerMoodStore.getState().syncFlourishingScores(scores);
-
-    // Subscribe to future changes and store unsubscribe function
-    flourishingStoreUnsubscribe = useFlourishingStore.subscribe((state) => {
-      const newScores: Record<string, number> = {};
-      Object.entries(state.workerFlourishing).forEach(([workerId, data]) => {
-        newScores[workerId] = data.flourishingScore;
+  import('./flourishingStore')
+    .then(({ useFlourishingStore }) => {
+      // Initial sync - extract flourishing scores for all workers
+      const flourishingState = useFlourishingStore.getState();
+      const scores: Record<string, number> = {};
+      Object.entries(flourishingState.workerFlourishing).forEach(([workerId, data]) => {
+        scores[workerId] = data.flourishingScore;
       });
-      useWorkerMoodStore.getState().syncFlourishingScores(newScores);
-    });
+      previousFlourishingScores = { ...scores };
+      useWorkerMoodStore.getState().syncFlourishingScores(scores);
 
-    flourishingStoreSubscribed = true;
-  });
+      // Subscribe to future changes and store unsubscribe function
+      flourishingStoreUnsubscribe = useFlourishingStore.subscribe((state) => {
+        // Re-entrancy guard - break circular subscription loops
+        if (isSyncingFlourishingScores) return;
+
+        const newScores: Record<string, number> = {};
+        Object.entries(state.workerFlourishing).forEach(([workerId, data]) => {
+          newScores[workerId] = data.flourishingScore;
+        });
+        // Only sync if scores actually changed - prevents circular update loop
+        if (flourishingScoresChanged(previousFlourishingScores, newScores)) {
+          previousFlourishingScores = { ...newScores };
+          isSyncingFlourishingScores = true;
+          try {
+            useWorkerMoodStore.getState().syncFlourishingScores(newScores);
+          } finally {
+            isSyncingFlourishingScores = false;
+          }
+        }
+      });
+
+      flourishingStoreSubscribed = true;
+    })
+    .catch(() => {
+      // Handle import failure gracefully - subscription is non-critical
+    });
 }
 
 /** Cleanup function for testing and HMR - unsubscribes from all stores */

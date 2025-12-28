@@ -355,7 +355,11 @@ export function safeJsonParse<T = unknown>(
 
   // Prevent oversized JSON payloads (DoS protection)
   if (input.length > maxLength) {
-    console.warn('[Security] JSON input exceeds maximum length:', input.length);
+    // Security event logged server-side only - avoid exposing details to console
+    if (typeof process !== 'undefined' && process.env?.NODE_ENV === 'development') {
+      // Only log in development, not production
+      console.warn('[Security] JSON input exceeds maximum length:', input.length);
+    }
     return fallback as T | null;
   }
 

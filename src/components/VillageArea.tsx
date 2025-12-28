@@ -12,6 +12,7 @@ import { HeartParticle } from './effects/HeartParticle';
 import { playCritterSound } from '../utils/critterAudio';
 import { audioManager } from '../utils/audioManager';
 import { PROCEDURAL_TEXTURES } from '../utils/sharedMaterials';
+import { EXTERIOR_LAYERS } from '../constants/renderLayers';
 
 // ============================================================
 // CHARMING EUROPEAN VILLAGE - West of Canal
@@ -48,16 +49,46 @@ const FONT_URL = `${import.meta.env.BASE_URL}fonts/MedievalSharp.ttf`;
 // Use OUTDOOR_MATERIALS.grass for consistency with other grass surfaces
 import { OUTDOOR_MATERIALS } from '../utils/sharedMaterials';
 
-// Create village-specific cobble textures with proper world-scale repeat
-// Village ground is 70x130 units, tile every 10 units for consistent cobble size
+// Create village-specific cobble textures - UVs in geometry handle tiling
+// Clone shared textures (same as farmyard), repeat (1,1) - UV divisor controls stone size
 const villageCobbleColor = PROCEDURAL_TEXTURES.cobblestoneColor.clone();
 const villageCobbleNormal = PROCEDURAL_TEXTURES.cobblestoneNormal.clone();
 villageCobbleColor.wrapS = villageCobbleColor.wrapT = THREE.RepeatWrapping;
 villageCobbleNormal.wrapS = villageCobbleNormal.wrapT = THREE.RepeatWrapping;
-villageCobbleColor.repeat.set(7, 13); // 70/10, 130/10
-villageCobbleNormal.repeat.set(7, 13);
+villageCobbleColor.repeat.set(1, 1);
+villageCobbleNormal.repeat.set(1, 1);
 villageCobbleColor.needsUpdate = true;
 villageCobbleNormal.needsUpdate = true;
+
+// Create roof textures with tiling for building scale (fewer repeats = larger tiles)
+const clayTileColor = PROCEDURAL_TEXTURES.clayTilesColor.clone();
+const clayTileNormal = PROCEDURAL_TEXTURES.clayTilesNormal.clone();
+clayTileColor.wrapS = clayTileColor.wrapT = THREE.RepeatWrapping;
+clayTileNormal.wrapS = clayTileNormal.wrapT = THREE.RepeatWrapping;
+clayTileColor.repeat.set(1.25, 1.25);
+clayTileNormal.repeat.set(1.25, 1.25);
+
+const slateColor = PROCEDURAL_TEXTURES.slateColor.clone();
+const slateNormal = PROCEDURAL_TEXTURES.slateNormal.clone();
+slateColor.wrapS = slateColor.wrapT = THREE.RepeatWrapping;
+slateNormal.wrapS = slateNormal.wrapT = THREE.RepeatWrapping;
+slateColor.repeat.set(1.25, 1.25);
+slateNormal.repeat.set(1.25, 1.25);
+
+const thatchColor = PROCEDURAL_TEXTURES.thatchColor.clone();
+const thatchNormal = PROCEDURAL_TEXTURES.thatchNormal.clone();
+thatchColor.wrapS = thatchColor.wrapT = THREE.RepeatWrapping;
+thatchNormal.wrapS = thatchNormal.wrapT = THREE.RepeatWrapping;
+thatchColor.repeat.set(2, 2);
+thatchNormal.repeat.set(2, 2);
+
+// Create wall stucco textures with tiling for building scale
+const stuccoColorTex = PROCEDURAL_TEXTURES.stuccoColor.clone();
+const stuccoNormalTex = PROCEDURAL_TEXTURES.stuccoNormal.clone();
+stuccoColorTex.wrapS = stuccoColorTex.wrapT = THREE.RepeatWrapping;
+stuccoNormalTex.wrapS = stuccoNormalTex.wrapT = THREE.RepeatWrapping;
+stuccoColorTex.repeat.set(2, 2);
+stuccoNormalTex.repeat.set(2, 2);
 
 const SM = {
   grass: OUTDOOR_MATERIALS.grass, // Use shared grass material for seamless matching
@@ -82,52 +113,60 @@ const SM = {
     normalScale: new THREE.Vector2(0.15, 0.15),
   }),
   roofTile: new THREE.MeshStandardMaterial({
-    color: COLORS.roofTile,
+    color: '#ffffff',
     roughness: 0.7,
-    normalMap: PROCEDURAL_TEXTURES.panelNormal,
-    normalScale: new THREE.Vector2(0.2, 0.2),
+    map: clayTileColor,
+    normalMap: clayTileNormal,
+    normalScale: new THREE.Vector2(0.4, 0.4),
   }),
   roofSlate: new THREE.MeshStandardMaterial({
-    color: COLORS.roofSlate,
-    roughness: 0.6,
-    normalMap: PROCEDURAL_TEXTURES.brushedMetal,
-    normalScale: new THREE.Vector2(0.1, 0.1),
+    color: '#ffffff',
+    roughness: 0.5,
+    map: slateColor,
+    normalMap: slateNormal,
+    normalScale: new THREE.Vector2(0.35, 0.35),
   }),
   thatch: new THREE.MeshStandardMaterial({
-    color: COLORS.thatch,
+    color: '#ffffff',
     roughness: 0.95,
-    normalMap: PROCEDURAL_TEXTURES.rubberNormal,
-    normalScale: new THREE.Vector2(0.3, 0.3),
+    map: thatchColor,
+    normalMap: thatchNormal,
+    normalScale: new THREE.Vector2(0.5, 0.5),
   }),
   cream: new THREE.MeshStandardMaterial({
     color: COLORS.cream,
-    roughness: 0.8,
-    normalMap: PROCEDURAL_TEXTURES.panelNormal,
-    normalScale: new THREE.Vector2(0.05, 0.05),
+    roughness: 0.75,
+    map: stuccoColorTex,
+    normalMap: stuccoNormalTex,
+    normalScale: new THREE.Vector2(0.25, 0.25),
   }),
   yellow: new THREE.MeshStandardMaterial({
     color: COLORS.yellow,
-    roughness: 0.8,
-    normalMap: PROCEDURAL_TEXTURES.panelNormal,
-    normalScale: new THREE.Vector2(0.05, 0.05),
+    roughness: 0.75,
+    map: stuccoColorTex,
+    normalMap: stuccoNormalTex,
+    normalScale: new THREE.Vector2(0.25, 0.25),
   }),
   pink: new THREE.MeshStandardMaterial({
     color: COLORS.pink,
-    roughness: 0.8,
-    normalMap: PROCEDURAL_TEXTURES.panelNormal,
-    normalScale: new THREE.Vector2(0.05, 0.05),
+    roughness: 0.75,
+    map: stuccoColorTex,
+    normalMap: stuccoNormalTex,
+    normalScale: new THREE.Vector2(0.25, 0.25),
   }),
   blue: new THREE.MeshStandardMaterial({
     color: COLORS.blue,
-    roughness: 0.8,
-    normalMap: PROCEDURAL_TEXTURES.panelNormal,
-    normalScale: new THREE.Vector2(0.05, 0.05),
+    roughness: 0.75,
+    map: stuccoColorTex,
+    normalMap: stuccoNormalTex,
+    normalScale: new THREE.Vector2(0.25, 0.25),
   }),
   terracotta: new THREE.MeshStandardMaterial({
     color: COLORS.terracotta,
-    roughness: 0.8,
-    normalMap: PROCEDURAL_TEXTURES.panelNormal,
-    normalScale: new THREE.Vector2(0.1, 0.1),
+    roughness: 0.75,
+    map: stuccoColorTex,
+    normalMap: stuccoNormalTex,
+    normalScale: new THREE.Vector2(0.3, 0.3),
   }),
   shutterGreen: new THREE.MeshStandardMaterial({
     color: COLORS.green,
@@ -138,9 +177,10 @@ const SM = {
   water: new THREE.MeshStandardMaterial({ color: COLORS.water, roughness: 0.2, metalness: 0.3 }),
   white: new THREE.MeshStandardMaterial({
     color: '#ffffff',
-    roughness: 0.65,
-    normalMap: PROCEDURAL_TEXTURES.panelNormal,
-    normalScale: new THREE.Vector2(0.03, 0.03),
+    roughness: 0.75,
+    map: stuccoColorTex,
+    normalMap: stuccoNormalTex,
+    normalScale: new THREE.Vector2(0.25, 0.25),
   }),
   black: new THREE.MeshStandardMaterial({
     color: '#1a1a1a',
@@ -710,7 +750,7 @@ const TownHall = React.memo<{ position: [number, number, number]; rotation?: num
         </mesh>
         {/* Tower roof - proper cone */}
         <mesh position={[0, 16, 0]} castShadow>
-          <coneGeometry args={[2.8, 4, 8]} />
+          <coneGeometry args={[3.6, 4, 8]} />
           <primitive object={SM.roofSlate} attach="material" />
         </mesh>
 
@@ -1623,9 +1663,59 @@ const createRoundedRectShape = (width: number, height: number, radius: number): 
   return shape;
 };
 
-// Memoized rounded ground shape
+// Memoized rounded ground shape with proper UVs for tiling
 const villageGroundShape = createRoundedRectShape(70, 130, 12);
 const villageGroundGeometry = new THREE.ShapeGeometry(villageGroundShape, 24);
+
+// Recompute UVs - scale for texture tiling (1 tile per 25 units for large cobblestones)
+const uvAttr = villageGroundGeometry.attributes.uv;
+const posAttr = villageGroundGeometry.attributes.position;
+const HW = 35, HH = 65;
+const UV_SCALE = 25; // Larger = bigger stones (farmyard-like)
+
+for (let i = 0; i < posAttr.count; i++) {
+  const x = posAttr.getX(i);
+  const y = posAttr.getY(i);
+  uvAttr.setXY(i, (x + HW) / UV_SCALE, (y + HH) / UV_SCALE);
+}
+uvAttr.needsUpdate = true;
+
+// Cobble material with edge feathering via custom shader injection
+// Uses module-level villageCobbleColor and villageCobbleNormal textures
+const villageCobbleMaterial = new THREE.MeshStandardMaterial({
+  map: villageCobbleColor,
+  normalMap: villageCobbleNormal,
+  normalScale: new THREE.Vector2(0.4, 0.4),
+  roughness: 0.85,
+  transparent: true,
+});
+
+// Inject feathering into the shader based on world position
+villageCobbleMaterial.onBeforeCompile = (shader) => {
+  shader.vertexShader = shader.vertexShader.replace(
+    '#include <common>',
+    `#include <common>
+    varying vec2 vLocalPos;`
+  );
+  shader.vertexShader = shader.vertexShader.replace(
+    '#include <worldpos_vertex>',
+    `#include <worldpos_vertex>
+    vLocalPos = worldPosition.xz + vec2(190.0, 0.0);`
+  );
+  shader.fragmentShader = shader.fragmentShader.replace(
+    '#include <common>',
+    `#include <common>
+    varying vec2 vLocalPos;`
+  );
+  shader.fragmentShader = shader.fragmentShader.replace(
+    '#include <dithering_fragment>',
+    `#include <dithering_fragment>
+    vec2 q = abs(vLocalPos) - vec2(23.0, 53.0);
+    float d = 12.0 - min(max(q.x, q.y), 0.0) - length(max(q, 0.0));
+    float feather = clamp(d * 0.16667, 0.0, 1.0);
+    gl_FragColor.a *= mix(feather, 1.0, smoothstep(15.0, 30.0, vLocalPos.x));`
+  );
+};
 
 // ===== MAIN VILLAGE COMPONENT =====
 export const VillageArea: React.FC = () => {
@@ -1634,10 +1724,10 @@ export const VillageArea: React.FC = () => {
 
   return (
     <group position={[-190, 0, 0]}>
-      {/* Rounded cobblestone ground covering the whole village */}
-      <mesh position={[0, 0.05, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+      {/* Rounded cobblestone ground with feathered edges */}
+      <mesh position={[0, EXTERIOR_LAYERS.ground, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <primitive object={villageGroundGeometry} attach="geometry" />
-        <primitive object={SM.cobble} attach="material" />
+        <primitive object={villageCobbleMaterial} attach="material" />
       </mesh>
 
       {/* === CHURCH === */}

@@ -27,17 +27,22 @@ import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import { useSafetyStore } from '../stores/safetyStore';
 import { useUIStore } from '../stores/uiStore';
 import { useAIConfigStore } from '../stores/aiConfigStore';
+import type { Achievement } from '../types';
 import { geminiClient } from './geminiClient';
 import { encodeFactoryContextVCL, getVCLLegend } from './vclEncoder';
 import { logger } from './logger';
 import { useHistoricalPlaybackStore } from '../stores/historicalPlaybackStore';
 import { useAIWelfareStore, type BoundaryRequest } from '../stores/aiWelfareStore';
+import { generateDecisionContext, registerDecision, updateVCPFromState } from '../protocols/vcp';
+import { safeArrayAverage, safeArrayRange, safeArrayMax, safeArrayMin } from './typeGuards';
+
+// BAS Suggestion System Integration
+import { useBASStore } from '../stores/basStore';
 import {
-  generateCompactGuidance,
-  generateDecisionContext,
-  registerDecision,
-  updateVCPFromState,
-} from '../protocols/vcp';
+  shouldProactivelySuggest,
+  generateSuggestion,
+  type SuggestionContext,
+} from '../systems/bas/aiBehaviorEngine';
 
 // =============================================================================
 // AI Welfare Integration Module
@@ -813,8 +818,8 @@ function detectCrossMachinePatterns(context: FactoryContext): AIDecision | null 
     if (typeMachines.length < 2) continue;
 
     const loads = typeMachines.map((m) => m.metrics.load);
-    const avgLoad = loads.reduce((a, b) => a + b, 0) / loads.length;
-    const maxDiff = Math.max(...loads) - Math.min(...loads);
+    const avgLoad = safeArrayAverage(loads, 0);
+    const maxDiff = safeArrayRange(loads, 0);
 
     if (maxDiff > 40 && avgLoad > 60) {
       const overloaded = typeMachines.filter((m) => m.metrics.load > avgLoad + 15);
@@ -2703,8 +2708,9 @@ export function getSparklineData(
 
   // Return last 20 values normalized to 0-1 range for sparkline
   const values = trendData.history.slice(-20).map((h) => h.value);
-  const min = Math.min(...values);
-  const max = Math.max(...values);
+  if (values.length === 0) return [];
+  const min = safeArrayMin(values, 0);
+  const max = safeArrayMax(values, 0);
   const range = max - min || 1;
 
   return values.map((v) => (v - min) / range);
@@ -2848,8 +2854,84 @@ let lastDecisionTime = 0;
 let lastStrategicTime = 0;
 let lastPredictionTime = 0;
 let lastMetricsTime = 0;
+let lastBASSuggestionTime = 0;
 let isGeneratingDecision = false;
 let isGeneratingStrategic = false;
+
+// ============================================================================
+// BAS Suggestion System Integration
+// ============================================================================
+
+/**
+ * Process BAS suggestions based on current axis settings and worker states.
+ * This wires the suggestion system from aiBehaviorEngine into the AI loop,
+ * closing the feedback loop so axis changes actually affect AI behavior.
+ */
+function processBASSuggestions(): void {
+  const basStore = useBASStore.getState();
+  const axes = basStore.axes;
+
+  // Check if AI should proactively suggest based on current axis settings
+  if (!shouldProactivelySuggest(axes)) {
+    return;
+  }
+
+  // Get workers who might benefit from suggestions
+  const productionStore = useProductionStore.getState();
+  const workers = productionStore.workers;
+
+  // Select workers that are idle or have low productivity
+  const candidateWorkers = workers.filter(
+    (w) => w.status === 'idle' || (w.productivityScore !== undefined && w.productivityScore < 70)
+  );
+
+  if (candidateWorkers.length === 0) {
+    return;
+  }
+
+  // Generate suggestion for a random candidate worker
+  const targetWorker = candidateWorkers[Math.floor(Math.random() * candidateWorkers.length)];
+
+  const context: SuggestionContext = {
+    situation: `Worker ${targetWorker.name} is ${targetWorker.status}`,
+    type: targetWorker.status === 'idle' ? 'task' : 'quality',
+    priority: 'medium',
+    workerId: targetWorker.id,
+    currentTask: targetWorker.currentTask,
+    metrics: {
+      efficiency: targetWorker.productivityScore ?? 75,
+      experience: targetWorker.experience ?? 50,
+    },
+  };
+
+  const generated = generateSuggestion(context, axes);
+
+  // Only apply if suggestion should be shown proactively
+  if (generated.showProactively && generated.confidence > 0.6) {
+    // Convert BAS suggestion to AIDecision for consistency with existing system
+    const decision: AIDecision = {
+      id: `bas-${generated.suggestion.id}`,
+      timestamp: new Date(),
+      type: 'assignment',
+      action: generated.suggestion.content,
+      reasoning: generated.rationale,
+      confidence: Math.round(generated.confidence * 100),
+      impact: 'BAS-guided worker engagement suggestion',
+      workerId: targetWorker.id,
+      status: 'pending',
+      triggeredBy: 'schedule',
+      priority: generated.suggestion.priority,
+    };
+
+    // Add to decision stream via existing mechanism
+    recordDecision(decision);
+    productionStore.addAIDecision(decision);
+
+    logger.ai.debug(
+      `BAS Suggestion generated for ${targetWorker.name}: ${generated.suggestion.content}`
+    );
+  }
+}
 
 /**
  * Main AI Execution Loop
@@ -2959,6 +3041,14 @@ function aiLoop() {
   // 5. Bilateral Alignment Resolution (every 10s)
   // Autonomous ethical management: grant preferences, acknowledge safety, address grumbles
   resolveBilateralAlignment();
+
+  // 6. BAS Suggestion System (every 15s)
+  // This wires the aiBehaviorEngine suggestion system into the AI loop
+  // Closes the feedback loop: axes -> shouldProactivelySuggest -> generateSuggestion
+  if (now - lastBASSuggestionTime >= 15000) {
+    lastBASSuggestionTime = now;
+    processBASSuggestions();
+  }
 }
 
 /**
@@ -2975,6 +3065,7 @@ export function initializeAIEngine(): () => void {
     lastStrategicTime = Date.now();
     lastPredictionTime = Date.now();
     lastMetricsTime = Date.now();
+    lastBASSuggestionTime = Date.now();
     loopInterval = setInterval(aiLoop, 1000); // Check every second
     logger.ai.info('AI Engine background loop started');
   }
@@ -2998,250 +3089,6 @@ export function initializeAIEngine(): () => void {
  */
 export function getConfidenceAdjustmentForType(type: AIDecision['type']): number {
   return aiMemory.confidenceAdjustments.get(type) || 0;
-}
-
-// ============================================================================
-// Gemini Flash 3 Integration
-// ============================================================================
-
-/**
- * Build a factory context prompt for Gemini
- */
-function buildFactoryContextPrompt(context: FactoryContext): string {
-  // Context limits to prevent oversized prompts
-  const MAX_MACHINES = 10;
-  const MAX_WORKERS = 8;
-  const MAX_ALERTS = 6;
-
-  // Sort machines by priority: problematic ones first (high load, high temp, not running)
-  const prioritizedMachines = [...context.machines]
-    .sort((a, b) => {
-      const scoreA =
-        (a.status !== 'running' ? 100 : 0) + a.metrics.load + (a.metrics.temperature > 70 ? 50 : 0);
-      const scoreB =
-        (b.status !== 'running' ? 100 : 0) + b.metrics.load + (b.metrics.temperature > 70 ? 50 : 0);
-      return scoreB - scoreA;
-    })
-    .slice(0, MAX_MACHINES);
-
-  // Summarize machine states (limited)
-  const machinesSummary = prioritizedMachines
-    .map(
-      (m) =>
-        `- ${m.name}: status=${m.status}, temp=${m.metrics.temperature.toFixed(1)}C, ` +
-        `vibration=${m.metrics.vibration.toFixed(2)}mm/s, load=${m.metrics.load.toFixed(0)}%`
-    )
-    .join('\n');
-
-  // Summarize workers (use productivityScore since energy is in WorkerMood)
-  const workersSummary = context.workers
-    .slice(0, MAX_WORKERS)
-    .map(
-      (w) =>
-        `- ${w.name}: productivity=${w.productivityScore ?? 100}%, task=${w.currentTask || 'idle'}`
-    )
-    .join('\n');
-
-  // Sort alerts by severity and limit
-  const severityOrder: Record<string, number> = {
-    critical: 0,
-    safety: 0,
-    warning: 1,
-    info: 2,
-    success: 3,
-  };
-  const prioritizedAlerts = [...context.alerts]
-    .sort((a, b) => (severityOrder[a.type] ?? 4) - (severityOrder[b.type] ?? 4))
-    .slice(0, MAX_ALERTS);
-
-  const alertsSummary =
-    prioritizedAlerts.length > 0
-      ? prioritizedAlerts.map((a) => `- [${a.type}] ${a.title}: ${a.message}`).join('\n')
-      : '- No active alerts';
-
-  // Note if content was truncated
-  const truncationNotes: string[] = [];
-  if (context.machines.length > MAX_MACHINES) {
-    truncationNotes.push(
-      `Note: Showing ${MAX_MACHINES} of ${context.machines.length} machines (prioritized by issues).`
-    );
-  }
-  if (context.alerts.length > MAX_ALERTS) {
-    truncationNotes.push(
-      `Note: Showing ${MAX_ALERTS} of ${context.alerts.length} alerts (prioritized by severity).`
-    );
-  }
-
-  return `You are MillOS-AI, an autonomous grain mill plant manager.
-Your role is to make ONE strategic decision to optimize plant operations.
-
-## Current Factory State
-
-**Metrics:**
-- Throughput: ${context.metrics.throughput.toFixed(0)} kg/hr
-- Efficiency: ${context.metrics.efficiency.toFixed(1)}%
-- Quality: ${context.metrics.quality.toFixed(1)}%
-- Uptime: ${context.metrics.uptime.toFixed(1)}%
-
-**Weather:** ${context.weather}
-**Current Shift:** ${context.currentShift}
-**Game Time:** ${context.gameTime.toFixed(2)} hrs
-**Emergency Active:** ${context.emergencyActive}
-
-**Machines (${prioritizedMachines.length}/${context.machines.length}):**
-${machinesSummary}
-
-**Workers (top ${Math.min(MAX_WORKERS, context.workers.length)}):**
-${workersSummary}
-
-**Alerts:**
-${alertsSummary}
-
-**Worker Satisfaction:**
-- Overall Score: ${context.workerSatisfaction.overallScore.toFixed(1)}%
-- Average Energy: ${context.workerSatisfaction.averageEnergy.toFixed(1)}%
-${truncationNotes.length > 0 ? '\n' + truncationNotes.join('\n') : ''}
-
-## Value Coordination Protocol (VCP 2.0)
-${generateCompactGuidance()}
-
-## Your Task
-
-Based on this context and VCP guidance, generate exactly ONE actionable decision.
-Consider priorities: Safety > Worker Wellbeing > Critical Alerts > Maintenance > Optimization > Predictions.
-VCP focus area should inform your decision priority.
-
-Respond with ONLY valid JSON (no markdown, no explanation):
-{
-  "type": "assignment" | "optimization" | "prediction" | "maintenance" | "safety",
-  "action": "specific action to take (max 100 chars)",
-  "reasoning": "why this action is needed now (max 150 chars)",
-  "confidence": 75-99,
-  "impact": "expected positive outcome (max 80 chars)",
-  "priority": "low" | "medium" | "high" | "critical",
-  "machineId": "optional machine ID if relevant",
-  "workerId": "optional worker ID if relevant"
-}`;
-}
-
-/**
- * Parse a Gemini response into an AIDecision
- */
-function parseGeminiDecision(response: string): AIDecision | null {
-  try {
-    // Clean the response - remove any markdown code blocks
-    let cleaned = response.trim();
-    if (cleaned.startsWith('```json')) {
-      cleaned = cleaned.slice(7);
-    } else if (cleaned.startsWith('```')) {
-      cleaned = cleaned.slice(3);
-    }
-    if (cleaned.endsWith('```')) {
-      cleaned = cleaned.slice(0, -3);
-    }
-    cleaned = cleaned.trim();
-
-    const parsed = JSON.parse(cleaned);
-
-    // Validate required fields
-    if (!parsed.type || !parsed.action || !parsed.reasoning) {
-      logger.warn('[Gemini] Invalid decision format - missing required fields');
-      return null;
-    }
-
-    // Validate type
-    const validTypes = ['assignment', 'optimization', 'prediction', 'maintenance', 'safety'];
-    if (!validTypes.includes(parsed.type)) {
-      logger.warn('[Gemini] Invalid decision type:', parsed.type);
-      return null;
-    }
-
-    // Validate priority
-    const validPriorities = ['low', 'medium', 'high', 'critical'];
-    const priority = validPriorities.includes(parsed.priority) ? parsed.priority : 'medium';
-
-    // Clamp confidence
-    const confidence = Math.max(75, Math.min(99, parsed.confidence || 85));
-
-    const decision: AIDecision = {
-      id: generateDecisionId(),
-      timestamp: new Date(),
-      type: parsed.type,
-      action: String(parsed.action).slice(0, 150),
-      reasoning: String(parsed.reasoning).slice(0, 200),
-      confidence,
-      impact: String(parsed.impact || 'Optimizing plant operations').slice(0, 100),
-      status: 'pending',
-      priority,
-      triggeredBy: 'user', // Gemini requests treated as user-initiated
-      machineId: parsed.machineId,
-      workerId: parsed.workerId,
-    };
-
-    return decision;
-  } catch (error) {
-    logger.error('[Gemini] Failed to parse decision:', error);
-    return null;
-  }
-}
-
-/**
- * Generate a decision using Gemini Flash 3
- * Returns null if Gemini is not available or fails (graceful degradation)
- */
-export async function generateGeminiDecision(): Promise<AIDecision | null> {
-  const store = useAIConfigStore.getState();
-  const { aiMode, isGeminiConnected, recordApiUsage } = store;
-
-  // Check if Gemini mode is enabled and connected
-  if (aiMode !== 'gemini' || !isGeminiConnected) {
-    return null;
-  }
-
-  // Check if client is ready
-  if (!geminiClient.isConnected()) {
-    logger.warn('[Gemini] Client not connected');
-    return null;
-  }
-
-  try {
-    // Update VCP state before generating decision
-    updateVCPFromState();
-
-    const context = getFactoryContext();
-    const prompt = buildFactoryContextPrompt(context);
-
-    const response = await geminiClient.generateContent(prompt);
-
-    if (!response) {
-      logger.warn('[Gemini] No response from API');
-      return null;
-    }
-
-    // Record API cost (prompt chars + response chars)
-    recordApiUsage(prompt.length, response.length);
-
-    const decision = parseGeminiDecision(response);
-
-    if (decision) {
-      recordDecision(decision);
-      logger.info('[Gemini] Generated decision:', decision.action);
-
-      // Register with VCP for outcome tracking
-      registerDecision(
-        decision.id,
-        decision.action,
-        decision.impact,
-        decision.type === 'optimization' ? 'engagement' : 'meaning',
-        decision.confidence / 100
-      );
-    }
-
-    return decision;
-  } catch (error) {
-    logger.error('[Gemini] Decision generation failed:', error);
-    return null;
-  }
 }
 
 /**
@@ -3866,8 +3713,8 @@ export async function resolveBilateralAlignment(): Promise<void> {
 
         // AI Voice announcement (warm, genuine - contrast with sardonic PA)
         if (grantsThisCycle === 1 || Math.random() < 0.3) {
-          const { useProductionStore } = await import('../stores/productionStore');
-          useProductionStore.getState().addAnnouncement({
+          const { useAnnouncementsStore } = await import('../stores/announcementsStore');
+          useAnnouncementsStore.getState().addAnnouncement({
             type: 'alignment',
             message: await getAIVoiceMessage('grant', workerName, request.type),
             duration: 12,
@@ -3882,8 +3729,8 @@ export async function resolveBilateralAlignment(): Promise<void> {
         logger.ai.info(`[Alignment] Denied ${request.type} for ${workerId} with explanation`);
 
         // AI Voice explanation (still warm, shows respect)
-        const { useProductionStore } = await import('../stores/productionStore');
-        useProductionStore.getState().addAnnouncement({
+        const { useAnnouncementsStore } = await import('../stores/announcementsStore');
+        useAnnouncementsStore.getState().addAnnouncement({
           type: 'alignment',
           message: await getAIVoiceMessage('deny', workerName, request.type),
           duration: 14,
@@ -3906,11 +3753,11 @@ export async function resolveBilateralAlignment(): Promise<void> {
 
       // AI Voice for safety acknowledgment (shows the AI takes safety seriously)
       if (Math.random() < 0.5) {
-        const { useProductionStore } = await import('../stores/productionStore');
+        const { useAnnouncementsStore } = await import('../stores/announcementsStore');
         const { WORKER_ROSTER } = await import('../types');
         const worker = WORKER_ROSTER.find((w) => w.id === report.reporterId);
         const workerName = worker?.name || 'Team member';
-        useProductionStore.getState().addAnnouncement({
+        useAnnouncementsStore.getState().addAnnouncement({
           type: 'alignment',
           message: await getAIVoiceMessage('safety', workerName, report.type),
           duration: 14,
@@ -4254,8 +4101,8 @@ async function updateAlignmentAchievements(
   grantsThisCycle: number
 ): Promise<void> {
   try {
-    const { useProductionStore } = await import('../stores/productionStore');
-    const store = useProductionStore.getState();
+    const { useAchievementsStore } = await import('../stores/achievementsStore');
+    const store = useAchievementsStore.getState();
 
     // Calculate aggregate stats
     const moods = Object.values(moodStore.workerMoods);
@@ -4282,13 +4129,15 @@ async function updateAlignmentAchievements(
     // preference-prophet: Grant 20 preference requests
     if (grantsThisCycle > 0) {
       const current =
-        store.achievements.find((a) => a.id === 'preference-prophet')?.currentValue || 0;
+        store.achievements.find((a: Achievement) => a.id === 'preference-prophet')?.currentValue ||
+        0;
       store.updateAchievementProgress('preference-prophet', current + grantsThisCycle);
     }
 
     // self-organizers: 10 workers autonomously help each other (when all satisfied)
     if (satisfiedCount === withPrefs.length && withPrefs.length >= 5) {
-      const current = store.achievements.find((a) => a.id === 'self-organizers')?.currentValue || 0;
+      const current =
+        store.achievements.find((a: Achievement) => a.id === 'self-organizers')?.currentValue || 0;
       store.updateAchievementProgress('self-organizers', current + 1);
     }
   } catch (error) {

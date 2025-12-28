@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useEffect, useMemo } from 'react';
 import * as THREE from 'three';
 import { Text, Instances, Instance } from '@react-three/drei';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
@@ -10,6 +10,36 @@ interface FactoryWallsProps {
   floorWidth: number;
   floorDepth: number;
 }
+
+// === SHARED GEOMETRIES (module-level singletons for instancing) ===
+const pillarGeometry = new THREE.CylinderGeometry(0.08, 0.08, 3, 12);
+const benchLegGeometry = new THREE.BoxGeometry(0.1, 0.4, 0.4);
+const tableLegGeometry = new THREE.BoxGeometry(0.08, 0.7, 0.08);
+const vendingButtonGeometry = new THREE.CircleGeometry(0.03, 8);
+const hourMarkerGeometry = new THREE.BoxGeometry(0.02, 0.06, 0.01);
+const lockerHandleGeometry = new THREE.BoxGeometry(0.05, 0.15, 0.05);
+const lockerSupportGeometry = new THREE.BoxGeometry(0.08, 0.35, 0.35);
+const coatHookGeometry = new THREE.CylinderGeometry(0.02, 0.02, 0.15, 8);
+const stallBackWallGeometry = new THREE.BoxGeometry(0.05, 2, 1.4);
+const stallDividerGeometry = new THREE.BoxGeometry(1.5, 2, 0.05);
+const toiletBaseGeometry = new THREE.BoxGeometry(0.5, 0.5, 0.6);
+const toiletTankGeometry = new THREE.BoxGeometry(0.15, 0.5, 0.45);
+const stallDoorGeometry = new THREE.BoxGeometry(0.05, 1.8, 0.8);
+const doorHandleGeometry = new THREE.BoxGeometry(0.04, 0.12, 0.06);
+const sinkBasinGeometry = new THREE.CylinderGeometry(0.25, 0.2, 0.15, 16);
+const faucetVerticalGeometry = new THREE.BoxGeometry(0.08, 0.25, 0.08);
+const faucetHorizontalGeometry = new THREE.BoxGeometry(0.2, 0.06, 0.06);
+
+// === SHARED MATERIALS (module-level singletons for instancing) ===
+const metalGrayMaterial = new THREE.MeshBasicMaterial({ color: '#64748b' });
+const darkMetalMaterial = new THREE.MeshBasicMaterial({ color: '#1e293b' });
+const whiteMaterial = new THREE.MeshBasicMaterial({ color: '#ffffff' });
+const lightGrayMaterial = new THREE.MeshBasicMaterial({ color: '#94a3b8' });
+const vendingButtonMaterial = new THREE.MeshStandardMaterial({
+  color: '#22c55e',
+  emissive: '#22c55e',
+  emissiveIntensity: 0.3,
+});
 
 // Personnel door with frame, signage, and push bar - 50% smaller, bottom at floor level
 const PersonnelDoor: React.FC<{
@@ -110,8 +140,82 @@ const PersonnelDoor: React.FC<{
   );
 });
 
-// Break Room component - a small covered rest area for workers
+// Break Room component - with instanced pillars, bench legs, table legs, and vending buttons
 const BreakRoom: React.FC<{ position: [number, number, number] }> = React.memo(({ position }) => {
+  const pillarsRef = useRef<THREE.InstancedMesh>(null);
+  const benchLegsRef = useRef<THREE.InstancedMesh>(null);
+  const tableLegsRef = useRef<THREE.InstancedMesh>(null);
+  const vendingButtonsRef = useRef<THREE.InstancedMesh>(null);
+
+  const pillarPositions = useMemo(
+    () =>
+      [
+        [-2.7, 1.5, -2.2],
+        [-2.7, 1.5, 2.2],
+        [2.7, 1.5, -2.2],
+        [2.7, 1.5, 2.2],
+      ] as const,
+    []
+  );
+
+  const benchLegPositions = useMemo(
+    () =>
+      [
+        [-1.5, 0.2, 1.5],
+        [1.5, 0.2, 1.5],
+      ] as const,
+    []
+  );
+
+  const tableLegPositions = useMemo(
+    () =>
+      [
+        [-1, 0.35, -0.9],
+        [-1, 0.35, -0.1],
+        [1, 0.35, -0.9],
+        [1, 0.35, -0.1],
+      ] as const,
+    []
+  );
+
+  const vendingButtonYPositions = useMemo(() => [0.6, 0.7, 0.8] as const, []);
+
+  useEffect(() => {
+    const matrix = new THREE.Matrix4();
+
+    if (pillarsRef.current) {
+      pillarPositions.forEach(([x, y, z], i) => {
+        matrix.setPosition(x, y, z);
+        pillarsRef.current!.setMatrixAt(i, matrix);
+      });
+      pillarsRef.current.instanceMatrix.needsUpdate = true;
+    }
+
+    if (benchLegsRef.current) {
+      benchLegPositions.forEach(([x, y, z], i) => {
+        matrix.setPosition(x, y, z);
+        benchLegsRef.current!.setMatrixAt(i, matrix);
+      });
+      benchLegsRef.current.instanceMatrix.needsUpdate = true;
+    }
+
+    if (tableLegsRef.current) {
+      tableLegPositions.forEach(([x, y, z], i) => {
+        matrix.setPosition(x, y, z);
+        tableLegsRef.current!.setMatrixAt(i, matrix);
+      });
+      tableLegsRef.current.instanceMatrix.needsUpdate = true;
+    }
+
+    if (vendingButtonsRef.current) {
+      vendingButtonYPositions.forEach((y, i) => {
+        matrix.setPosition(2.2, y, -1.19);
+        vendingButtonsRef.current!.setMatrixAt(i, matrix);
+      });
+      vendingButtonsRef.current.instanceMatrix.needsUpdate = true;
+    }
+  }, [pillarPositions, benchLegPositions, tableLegPositions, vendingButtonYPositions]);
+
   return (
     <group position={position}>
       {/* Floor/platform - raised with depthWrite to prevent z-fighting */}
@@ -134,54 +238,26 @@ const BreakRoom: React.FC<{ position: [number, number, number] }> = React.memo((
         <meshBasicMaterial color="#334155" />
       </mesh>
 
-      {/* Support pillars */}
-      {[
-        [-2.7, 0, -2.2],
-        [-2.7, 0, 2.2],
-        [2.7, 0, -2.2],
-        [2.7, 0, 2.2],
-      ].map((pos, i) => (
-        <mesh key={i} position={[pos[0], 1.5, pos[2]]} castShadow>
-          <cylinderGeometry args={[0.08, 0.08, 3, 12]} />
-          <meshBasicMaterial color="#64748b" />
-        </mesh>
-      ))}
+      {/* Support pillars - INSTANCED (4 pillars -> 1 draw call) */}
+      <instancedMesh ref={pillarsRef} args={[pillarGeometry, metalGrayMaterial, 4]} castShadow />
 
-      {/* Bench */}
-      <group position={[0, 0, 1.5]}>
-        <mesh position={[0, 0.4, 0]} castShadow>
-          <boxGeometry args={[4, 0.08, 0.5]} />
-          <meshBasicMaterial color="#78350f" />
-        </mesh>
-        {[
-          [-1.5, 0, 0],
-          [1.5, 0, 0],
-        ].map((pos, i) => (
-          <mesh key={i} position={[pos[0], 0.2, pos[2]]} castShadow>
-            <boxGeometry args={[0.1, 0.4, 0.4]} />
-            <meshBasicMaterial color="#64748b" />
-          </mesh>
-        ))}
-      </group>
+      {/* Bench top */}
+      <mesh position={[0, 0.4, 1.5]} castShadow>
+        <boxGeometry args={[4, 0.08, 0.5]} />
+        <meshBasicMaterial color="#78350f" />
+      </mesh>
 
-      {/* Table */}
-      <group position={[0, 0, -0.5]}>
-        <mesh position={[0, 0.7, 0]} castShadow>
-          <boxGeometry args={[2.5, 0.06, 1.2]} />
-          <meshBasicMaterial color="#1e293b" />
-        </mesh>
-        {[
-          [-1, 0, -0.4],
-          [-1, 0, 0.4],
-          [1, 0, -0.4],
-          [1, 0, 0.4],
-        ].map((pos, i) => (
-          <mesh key={i} position={[pos[0], 0.35, pos[2]]} castShadow>
-            <boxGeometry args={[0.08, 0.7, 0.08]} />
-            <meshBasicMaterial color="#374151" />
-          </mesh>
-        ))}
-      </group>
+      {/* Bench legs - INSTANCED (2 legs -> 1 draw call) */}
+      <instancedMesh ref={benchLegsRef} args={[benchLegGeometry, metalGrayMaterial, 2]} castShadow />
+
+      {/* Table top */}
+      <mesh position={[0, 0.7, -0.5]} castShadow>
+        <boxGeometry args={[2.5, 0.06, 1.2]} />
+        <meshBasicMaterial color="#1e293b" />
+      </mesh>
+
+      {/* Table legs - INSTANCED (4 legs -> 1 draw call) */}
+      <instancedMesh ref={tableLegsRef} args={[tableLegGeometry, darkMetalMaterial, 4]} castShadow />
 
       {/* Vending machine (simplified) */}
       <group position={[2.2, 0, -1.5]}>
@@ -194,14 +270,13 @@ const BreakRoom: React.FC<{ position: [number, number, number] }> = React.memo((
           <planeGeometry args={[0.5, 0.4]} />
           <meshStandardMaterial color="#60a5fa" emissive="#60a5fa" emissiveIntensity={0.5} />
         </mesh>
-        {/* Buttons */}
-        {[0.6, 0.7, 0.8].map((y, i) => (
-          <mesh key={i} position={[0, y, 0.31]}>
-            <circleGeometry args={[0.03, 8]} />
-            <meshStandardMaterial color="#22c55e" emissive="#22c55e" emissiveIntensity={0.3} />
-          </mesh>
-        ))}
       </group>
+
+      {/* Vending buttons - INSTANCED (3 buttons -> 1 draw call) */}
+      <instancedMesh
+        ref={vendingButtonsRef}
+        args={[vendingButtonGeometry, vendingButtonMaterial, 3]}
+      />
 
       {/* Break room sign */}
       <group position={[0, 2.8, -2.3]}>
@@ -223,11 +298,36 @@ const BreakRoom: React.FC<{ position: [number, number, number] }> = React.memo((
   );
 });
 
-// Wall clock that syncs with game time
+// Wall clock that syncs with game time - with instanced hour markers
 const WallClock: React.FC<{ position: [number, number, number] }> = React.memo(({ position }) => {
   const gameTime = useGameSimulationStore((state) => state.gameTime);
   const hourAngle = (gameTime / 12) * Math.PI * 2 - Math.PI / 2;
   const minuteAngle = (((gameTime % 1) * 60) / 60) * Math.PI * 2 - Math.PI / 2;
+
+  const hourMarkersRef = useRef<THREE.InstancedMesh>(null);
+
+  const markerData = useMemo(() => {
+    return Array.from({ length: 12 }).map((_, i) => {
+      const angle = (i / 12) * Math.PI * 2;
+      return {
+        x: Math.sin(angle) * 0.28,
+        y: Math.cos(angle) * 0.28,
+        scaleY: i % 3 === 0 ? 1 : 0.5,
+      };
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!hourMarkersRef.current) return;
+    const matrix = new THREE.Matrix4();
+
+    markerData.forEach((marker, i) => {
+      matrix.makeScale(1, marker.scaleY, 1);
+      matrix.setPosition(marker.x, marker.y, 0.03);
+      hourMarkersRef.current!.setMatrixAt(i, matrix);
+    });
+    hourMarkersRef.current.instanceMatrix.needsUpdate = true;
+  }, [markerData]);
 
   return (
     <group position={position}>
@@ -241,16 +341,10 @@ const WallClock: React.FC<{ position: [number, number, number] }> = React.memo((
         <torusGeometry args={[0.35, 0.03, 8, 32]} />
         <meshBasicMaterial color="#1e293b" />
       </mesh>
-      {/* Hour markers */}
-      {Array.from({ length: 12 }).map((_, i) => {
-        const angle = (i / 12) * Math.PI * 2;
-        return (
-          <mesh key={i} position={[Math.sin(angle) * 0.28, Math.cos(angle) * 0.28, 0.03]}>
-            <boxGeometry args={[0.02, i % 3 === 0 ? 0.06 : 0.03, 0.01]} />
-            <meshBasicMaterial color="#1e293b" />
-          </mesh>
-        );
-      })}
+
+      {/* Hour markers - INSTANCED (12 markers -> 1 draw call) */}
+      <instancedMesh ref={hourMarkersRef} args={[hourMarkerGeometry, darkMetalMaterial, 12]} />
+
       {/* Hour hand */}
       <mesh
         position={[Math.cos(hourAngle) * 0.1, Math.sin(hourAngle) * 0.1, 0.04]}
@@ -337,8 +431,64 @@ const BulletinBoard: React.FC<{ position: [number, number, number] }> = React.me
   }
 );
 
-// Locker Room component
+// Locker Room component - with instanced handles, supports, and hooks
 const LockerRoom: React.FC<{ position: [number, number, number] }> = React.memo(({ position }) => {
+  const lockerHandlesRef = useRef<THREE.InstancedMesh>(null);
+  const benchSupportsRef = useRef<THREE.InstancedMesh>(null);
+  const coatHooksRef = useRef<THREE.InstancedMesh>(null);
+
+  const lockerColors = useMemo(
+    () => ['#3b82f6', '#22c55e', '#f97316', '#8b5cf6', '#ef4444', '#06b6d4'],
+    []
+  );
+
+  const lockerXPositions = useMemo(() => [-3, -1.8, -0.6, 0.6, 1.8, 3] as const, []);
+
+  const benchSupportPositions = useMemo(
+    () =>
+      [
+        [-2.5, 0.175, -0.5],
+        [2.5, 0.175, -0.5],
+      ] as const,
+    []
+  );
+
+  const coatHookZPositions = useMemo(() => [-1.2, -0.4, 0.4, 1.2] as const, []);
+
+  useEffect(() => {
+    const matrix = new THREE.Matrix4();
+
+    if (lockerHandlesRef.current) {
+      lockerXPositions.forEach((x, i) => {
+        matrix.setPosition(x + 0.35, 1.2, -2.24);
+        lockerHandlesRef.current!.setMatrixAt(i, matrix);
+      });
+      lockerHandlesRef.current.instanceMatrix.needsUpdate = true;
+    }
+
+    if (benchSupportsRef.current) {
+      benchSupportPositions.forEach(([x, y, z], i) => {
+        matrix.setPosition(x, y, z);
+        benchSupportsRef.current!.setMatrixAt(i, matrix);
+      });
+      benchSupportsRef.current.instanceMatrix.needsUpdate = true;
+    }
+
+    if (coatHooksRef.current) {
+      const rotation = new THREE.Euler(0, 0, Math.PI / 2);
+      const quaternion = new THREE.Quaternion().setFromEuler(rotation);
+      const scale = new THREE.Vector3(1, 1, 1);
+      const pos = new THREE.Vector3();
+
+      coatHookZPositions.forEach((z, i) => {
+        pos.set(-3.9, 1.5, z);
+        matrix.compose(pos, quaternion, scale);
+        coatHooksRef.current!.setMatrixAt(i, matrix);
+      });
+      coatHooksRef.current.instanceMatrix.needsUpdate = true;
+    }
+  }, [lockerXPositions, benchSupportPositions, coatHookZPositions]);
+
   return (
     <group position={position}>
       {/* Floor */}
@@ -377,20 +527,13 @@ const LockerRoom: React.FC<{ position: [number, number, number] }> = React.memo(
         <meshBasicMaterial color="#475569" />
       </mesh>
 
-      {/* Lockers - row of 6 */}
-      {[-3, -1.8, -0.6, 0.6, 1.8, 3].map((x, i) => (
+      {/* Lockers - row of 6 (bodies with unique colors) */}
+      {lockerXPositions.map((x, i) => (
         <group key={i} position={[x, 0, -2.5]}>
           {/* Locker body */}
           <mesh position={[0, 1, 0]} castShadow>
             <boxGeometry args={[1, 2, 0.5]} />
-            <meshBasicMaterial
-              color={['#3b82f6', '#22c55e', '#f97316', '#8b5cf6', '#ef4444', '#06b6d4'][i]}
-            />
-          </mesh>
-          {/* Locker door handle */}
-          <mesh position={[0.35, 1.2, 0.26]}>
-            <boxGeometry args={[0.05, 0.15, 0.05]} />
-            <meshBasicMaterial color="#1e293b" />
+            <meshBasicMaterial color={lockerColors[i]} />
           </mesh>
           {/* Ventilation slots */}
           <mesh position={[0, 0.3, 0.26]}>
@@ -404,32 +547,24 @@ const LockerRoom: React.FC<{ position: [number, number, number] }> = React.memo(
         </group>
       ))}
 
-      {/* Bench in front of lockers */}
-      <group position={[0, 0, -0.5]}>
-        <mesh position={[0, 0.35, 0]} castShadow>
-          <boxGeometry args={[6, 0.08, 0.4]} />
-          <meshBasicMaterial color="#78350f" />
-        </mesh>
-        {[
-          [-2.5, 0, 0],
-          [2.5, 0, 0],
-        ].map((pos, i) => (
-          <mesh key={i} position={[pos[0], 0.175, pos[2]]} castShadow>
-            <boxGeometry args={[0.08, 0.35, 0.35]} />
-            <meshBasicMaterial color="#64748b" />
-          </mesh>
-        ))}
-      </group>
+      {/* Locker handles - INSTANCED (6 handles -> 1 draw call) */}
+      <instancedMesh ref={lockerHandlesRef} args={[lockerHandleGeometry, darkMetalMaterial, 6]} />
 
-      {/* Coat hooks on side wall */}
-      <group position={[-3.9, 1.5, 0]}>
-        {[0, 0.8, 1.6, 2.4].map((z, i) => (
-          <mesh key={i} position={[0, 0, z - 1.2]} rotation={[0, 0, Math.PI / 2]}>
-            <cylinderGeometry args={[0.02, 0.02, 0.15, 8]} />
-            <meshBasicMaterial color="#64748b" />
-          </mesh>
-        ))}
-      </group>
+      {/* Bench top */}
+      <mesh position={[0, 0.35, -0.5]} castShadow>
+        <boxGeometry args={[6, 0.08, 0.4]} />
+        <meshBasicMaterial color="#78350f" />
+      </mesh>
+
+      {/* Bench supports - INSTANCED (2 supports -> 1 draw call) */}
+      <instancedMesh
+        ref={benchSupportsRef}
+        args={[lockerSupportGeometry, metalGrayMaterial, 2]}
+        castShadow
+      />
+
+      {/* Coat hooks - INSTANCED (4 hooks -> 1 draw call) */}
+      <instancedMesh ref={coatHooksRef} args={[coatHookGeometry, metalGrayMaterial, 4]} />
 
       {/* "LOCKER ROOM" sign above entrance */}
       <mesh position={[0, 2.85, 3.1]}>
@@ -509,9 +644,107 @@ const PortableToilet: React.FC<{ position: [number, number, number]; rotation?: 
     );
   });
 
-// Indoor toilet block with corridor layout
-// Door on east wall (+X), stalls on west side (-X), sinks on east side (+X)
+// Indoor toilet block with corridor layout - with instanced stalls and sinks
 const ToiletBlock: React.FC<{ position: [number, number, number] }> = React.memo(({ position }) => {
+  const stallBackWallsRef = useRef<THREE.InstancedMesh>(null);
+  const stallDividersRef = useRef<THREE.InstancedMesh>(null);
+  const toiletBasesRef = useRef<THREE.InstancedMesh>(null);
+  const toiletTanksRef = useRef<THREE.InstancedMesh>(null);
+  const stallDoorsRef = useRef<THREE.InstancedMesh>(null);
+  const stallDoorHandlesRef = useRef<THREE.InstancedMesh>(null);
+  const sinkBasinsRef = useRef<THREE.InstancedMesh>(null);
+  const faucetVerticalsRef = useRef<THREE.InstancedMesh>(null);
+  const faucetHorizontalsRef = useRef<THREE.InstancedMesh>(null);
+
+  const stallZPositions = useMemo(() => [-1.5, 0, 1.5] as const, []);
+  const sinkZPositions = useMemo(() => [-1.2, 0, 1.2] as const, []);
+
+  useEffect(() => {
+    const matrix = new THREE.Matrix4();
+
+    // Stall back walls (3)
+    if (stallBackWallsRef.current) {
+      stallZPositions.forEach((z, i) => {
+        matrix.setPosition(-3.2, 1, z);
+        stallBackWallsRef.current!.setMatrixAt(i, matrix);
+      });
+      stallBackWallsRef.current.instanceMatrix.needsUpdate = true;
+    }
+
+    // Stall dividers (3)
+    if (stallDividersRef.current) {
+      const dividerZPositions = [-2.25, -0.75, 0.75];
+      dividerZPositions.forEach((z, i) => {
+        matrix.setPosition(-2.5, 1, z);
+        stallDividersRef.current!.setMatrixAt(i, matrix);
+      });
+      stallDividersRef.current.instanceMatrix.needsUpdate = true;
+    }
+
+    // Toilet bases (3)
+    if (toiletBasesRef.current) {
+      stallZPositions.forEach((z, i) => {
+        matrix.setPosition(-2.9, 0.3, z);
+        toiletBasesRef.current!.setMatrixAt(i, matrix);
+      });
+      toiletBasesRef.current.instanceMatrix.needsUpdate = true;
+    }
+
+    // Toilet tanks (3)
+    if (toiletTanksRef.current) {
+      stallZPositions.forEach((z, i) => {
+        matrix.setPosition(-3.05, 0.6, z);
+        toiletTanksRef.current!.setMatrixAt(i, matrix);
+      });
+      toiletTanksRef.current.instanceMatrix.needsUpdate = true;
+    }
+
+    // Stall doors (3)
+    if (stallDoorsRef.current) {
+      stallZPositions.forEach((z, i) => {
+        matrix.setPosition(-1.95, 1, z);
+        stallDoorsRef.current!.setMatrixAt(i, matrix);
+      });
+      stallDoorsRef.current.instanceMatrix.needsUpdate = true;
+    }
+
+    // Stall door handles (3)
+    if (stallDoorHandlesRef.current) {
+      stallZPositions.forEach((z, i) => {
+        matrix.setPosition(-1.9, 1, z - 0.3);
+        stallDoorHandlesRef.current!.setMatrixAt(i, matrix);
+      });
+      stallDoorHandlesRef.current.instanceMatrix.needsUpdate = true;
+    }
+
+    // Sink basins (3)
+    if (sinkBasinsRef.current) {
+      sinkZPositions.forEach((z, i) => {
+        matrix.setPosition(3, 0.9, z);
+        sinkBasinsRef.current!.setMatrixAt(i, matrix);
+      });
+      sinkBasinsRef.current.instanceMatrix.needsUpdate = true;
+    }
+
+    // Faucet verticals (3)
+    if (faucetVerticalsRef.current) {
+      sinkZPositions.forEach((z, i) => {
+        matrix.setPosition(3.2, 1.05, z);
+        faucetVerticalsRef.current!.setMatrixAt(i, matrix);
+      });
+      faucetVerticalsRef.current.instanceMatrix.needsUpdate = true;
+    }
+
+    // Faucet horizontals (3)
+    if (faucetHorizontalsRef.current) {
+      sinkZPositions.forEach((z, i) => {
+        matrix.setPosition(3.1, 1.15, z);
+        faucetHorizontalsRef.current!.setMatrixAt(i, matrix);
+      });
+      faucetHorizontalsRef.current.instanceMatrix.needsUpdate = true;
+    }
+  }, [stallZPositions, sinkZPositions]);
+
   return (
     <group position={position}>
       {/* Floor */}
@@ -526,7 +759,7 @@ const ToiletBlock: React.FC<{ position: [number, number, number] }> = React.memo
         <meshBasicMaterial color="#f1f5f9" />
       </mesh>
 
-      {/* Front wall (south, +Z) - with entrance gap in the middle (door moved here, longer wall) */}
+      {/* Front wall (south, +Z) */}
       <mesh position={[-3, 1.5, 2.5]} receiveShadow castShadow>
         <boxGeometry args={[2, 3, 0.15]} />
         <meshBasicMaterial color="#f1f5f9" />
@@ -535,113 +768,71 @@ const ToiletBlock: React.FC<{ position: [number, number, number] }> = React.memo
         <boxGeometry args={[2, 3, 0.15]} />
         <meshBasicMaterial color="#f1f5f9" />
       </mesh>
-      {/* Header above entrance */}
       <mesh position={[0, 2.7, 2.5]} receiveShadow castShadow>
         <boxGeometry args={[4, 0.6, 0.15]} />
         <meshBasicMaterial color="#f1f5f9" />
       </mesh>
 
-      {/* West wall (-X) - solid behind stalls */}
+      {/* West wall (-X) */}
       <mesh position={[-4, 1.5, 0]} receiveShadow castShadow>
         <boxGeometry args={[0.15, 3, 5]} />
         <meshBasicMaterial color="#f1f5f9" />
       </mesh>
 
-      {/* East wall (+X) - solid (moved entrance to south wall) */}
+      {/* East wall (+X) */}
       <mesh position={[4, 1.5, 0]} receiveShadow castShadow>
         <boxGeometry args={[0.15, 3, 5]} />
         <meshBasicMaterial color="#f1f5f9" />
       </mesh>
 
-      {/* Restroom sign above entrance (on south wall) */}
+      {/* Restroom sign */}
       <mesh position={[0, 2.8, 2.6]}>
         <boxGeometry args={[1.5, 0.4, 0.05]} />
         <meshBasicMaterial color="#1e40af" />
       </mesh>
 
-      {/* === TOILET STALLS on west side (-X) === */}
-      {/* 3 stalls arranged along the west wall, facing east (+X) */}
-      {[-1.5, 0, 1.5].map((z, i) => (
-        <group key={i} position={[-2.5, 0, z]}>
-          {/* Stall back wall (against west wall) */}
-          <mesh position={[-0.7, 1, 0]} castShadow>
-            <boxGeometry args={[0.05, 2, 1.4]} />
-            <meshBasicMaterial color="#94a3b8" />
-          </mesh>
-          {/* Stall side dividers */}
-          {i < 2 && (
-            <mesh position={[0, 1, 0.75]} castShadow>
-              <boxGeometry args={[1.5, 2, 0.05]} />
-              <meshBasicMaterial color="#94a3b8" />
-            </mesh>
-          )}
-          {i === 0 && (
-            <mesh position={[0, 1, -0.75]} castShadow>
-              <boxGeometry args={[1.5, 2, 0.05]} />
-              <meshBasicMaterial color="#94a3b8" />
-            </mesh>
-          )}
-          {/* Toilet */}
-          <mesh position={[-0.4, 0.3, 0]}>
-            <boxGeometry args={[0.5, 0.5, 0.6]} />
-            <meshBasicMaterial color="#ffffff" />
-          </mesh>
-          <mesh position={[-0.55, 0.6, 0]}>
-            <boxGeometry args={[0.15, 0.5, 0.45]} />
-            <meshBasicMaterial color="#ffffff" />
-          </mesh>
-          {/* Stall door (facing corridor, +X direction) */}
-          <mesh position={[0.55, 1, 0]}>
-            <boxGeometry args={[0.05, 1.8, 0.8]} />
-            <meshBasicMaterial color="#64748b" />
-          </mesh>
-          {/* Door handle */}
-          <mesh position={[0.6, 1, -0.3]}>
-            <boxGeometry args={[0.04, 0.12, 0.06]} />
-            <meshBasicMaterial color="#1f2937" />
-          </mesh>
-        </group>
-      ))}
+      {/* === TOILET STALLS - INSTANCED === */}
+      <instancedMesh
+        ref={stallBackWallsRef}
+        args={[stallBackWallGeometry, lightGrayMaterial, 3]}
+        castShadow
+      />
+      <instancedMesh
+        ref={stallDividersRef}
+        args={[stallDividerGeometry, lightGrayMaterial, 3]}
+        castShadow
+      />
+      <instancedMesh ref={toiletBasesRef} args={[toiletBaseGeometry, whiteMaterial, 3]} />
+      <instancedMesh ref={toiletTanksRef} args={[toiletTankGeometry, whiteMaterial, 3]} />
+      <instancedMesh ref={stallDoorsRef} args={[stallDoorGeometry, metalGrayMaterial, 3]} />
+      <instancedMesh ref={stallDoorHandlesRef} args={[doorHandleGeometry, darkMetalMaterial, 3]} />
 
-      {/* === SINK AREA on east side (+X), facing stalls === */}
-      <group position={[2.5, 0, 0]}>
-        {/* Sink counter (mounted on east wall, facing west) */}
-        <mesh position={[0.5, 0.85, 0]} castShadow>
-          <boxGeometry args={[0.8, 0.1, 4]} />
-          <meshBasicMaterial color="#475569" />
-        </mesh>
-        {/* Sinks - 3 basins along the counter */}
-        {[-1.2, 0, 1.2].map((z, i) => (
-          <group key={i} position={[0.5, 0.9, z]}>
-            <mesh>
-              <cylinderGeometry args={[0.25, 0.2, 0.15, 16]} />
-              <meshBasicMaterial color="#e2e8f0" />
-            </mesh>
-            {/* Faucet */}
-            <mesh position={[0.2, 0.15, 0]}>
-              <boxGeometry args={[0.08, 0.25, 0.08]} />
-              <meshBasicMaterial color="#94a3b8" />
-            </mesh>
-            <mesh position={[0.1, 0.25, 0]}>
-              <boxGeometry args={[0.2, 0.06, 0.06]} />
-              <meshBasicMaterial color="#94a3b8" />
-            </mesh>
-          </group>
-        ))}
-        {/* Mirror (on east wall, facing west toward corridor) - sheeny reflective surface */}
-        <mesh position={[0.9, 1.6, 0]}>
-          <boxGeometry args={[0.05, 1.2, 3.5]} />
-          <meshStandardMaterial
-            color="#93c5fd"
-            roughness={0.1}
-            metalness={0.6}
-            transparent
-            opacity={0.85}
-          />
-        </mesh>
-      </group>
+      {/* === SINK AREA - INSTANCED === */}
+      <mesh position={[3, 0.85, 0]} castShadow>
+        <boxGeometry args={[0.8, 0.1, 4]} />
+        <meshBasicMaterial color="#475569" />
+      </mesh>
 
-      {/* Hand dryers on south wall (+Z), accessible from corridor */}
+      <instancedMesh ref={sinkBasinsRef} args={[sinkBasinGeometry, whiteMaterial, 3]} />
+      <instancedMesh ref={faucetVerticalsRef} args={[faucetVerticalGeometry, lightGrayMaterial, 3]} />
+      <instancedMesh
+        ref={faucetHorizontalsRef}
+        args={[faucetHorizontalGeometry, lightGrayMaterial, 3]}
+      />
+
+      {/* Mirror */}
+      <mesh position={[3.4, 1.6, 0]}>
+        <boxGeometry args={[0.05, 1.2, 3.5]} />
+        <meshStandardMaterial
+          color="#93c5fd"
+          roughness={0.1}
+          metalness={0.6}
+          transparent
+          opacity={0.85}
+        />
+      </mesh>
+
+      {/* Hand dryers */}
       <mesh position={[0, 1.3, 2.35]}>
         <boxGeometry args={[0.4, 0.35, 0.25]} />
         <meshBasicMaterial color="#e2e8f0" />
@@ -924,55 +1115,41 @@ const ManagerOffice: React.FC<{ position: [number, number, number] }> = React.me
 export const FactoryWalls: React.FC<FactoryWallsProps> = () => {
   const graphics = useGraphicsStore((state) => state.graphics);
   const isLowGraphics = graphics.quality === 'low';
-  // PERFORMANCE: Decorative rooms restored to MEDIUM+ with optimized materials
-  // Changed from isHighGraphics to !isLowGraphics - now available on MEDIUM
 
   return (
     <group matrixAutoUpdate={false}>
-      {/* Break Room Areas - positioned inside factory along side walls, away from truck paths */}
-      {/* PERF: Restored to MEDIUM+ with meshBasicMaterial optimization */}
+      {/* Break Room Areas - INSTANCED for performance */}
       {!isLowGraphics && (
         <>
-          {/* Left break room (inside factory, near back wall) */}
           <group rotation={[0, 0, 0]}>
             <BreakRoom position={[-50, 0, -20]} />
           </group>
-          {/* Right break room (inside factory, near back wall) */}
           <group rotation={[0, 0, 0]}>
             <BreakRoom position={[50, 0, -20]} />
           </group>
         </>
       )}
 
-      {/* Locker Room inside factory - moved to back wall area, away from truck paths */}
-      {/* PERF: Restored to MEDIUM+ with meshBasicMaterial optimization */}
+      {/* Locker Room - INSTANCED for performance */}
       {!isLowGraphics && <LockerRoom position={[-50, 0, -35]} />}
 
-      {/* Toilet Block inside factory (opposite locker room) */}
-      {/* PERF: Restored to MEDIUM+ with meshBasicMaterial optimization */}
+      {/* Toilet Block - INSTANCED for performance */}
       {!isLowGraphics && <ToiletBlock position={[35, 0, 35]} />}
 
-      {/* Manager's Office - near locker room and break room area */}
-      {/* PERF: Restored to MEDIUM+ with meshBasicMaterial optimization */}
+      {/* Manager's Office */}
       {!isLowGraphics && <ManagerOffice position={[-20, 0, 30]} />}
 
-      {/* Personnel doors for entry/exit - on both sides of front and back walls */}
-      {/* PERF: Restored to MEDIUM+ with meshBasicMaterial optimization */}
+      {/* Personnel doors */}
       {!isLowGraphics && (
         <>
-          {/* Front wall - left side */}
           <PersonnelDoor position={[-45, 0, 42]} rotation={0} label="ENTRANCE" />
-          {/* Front wall - right side */}
           <PersonnelDoor position={[45, 0, 42]} rotation={0} label="ENTRANCE" />
-          {/* Back wall - left side */}
           <PersonnelDoor position={[-45, 0, -45]} rotation={Math.PI} label="EXIT" isEmergencyExit />
-          {/* Back wall - right side */}
           <PersonnelDoor position={[45, 0, -45]} rotation={Math.PI} label="EXIT" isEmergencyExit />
         </>
       )}
 
-      {/* Portable toilets near yard areas */}
-      {/* PERF: Restored to MEDIUM+ with meshBasicMaterial optimization */}
+      {/* Portable toilets */}
       {!isLowGraphics && (
         <>
           <PortableToilet position={[-50, 0, 45]} rotation={Math.PI / 4} />
@@ -981,11 +1158,9 @@ export const FactoryWalls: React.FC<FactoryWallsProps> = () => {
         </>
       )}
 
-      {/* Catwalks at elevated level - MEDIUM+ for performance (optimized with instancing) */}
-      {/* PERF: Restored to MEDIUM+ with instancing - now only ~3 draw calls instead of 68 */}
+      {/* Catwalks - already using Instances from drei */}
       {!isLowGraphics && (
         <group position={[0, 6, 0]}>
-          {/* Main catwalk (wider span) */}
           <mesh receiveShadow castShadow>
             <boxGeometry args={[100, 0.15, 3]} />
             <meshStandardMaterial
@@ -998,7 +1173,6 @@ export const FactoryWalls: React.FC<FactoryWallsProps> = () => {
               normalScale={new THREE.Vector2(0.15, 0.15)}
             />
           </mesh>
-          {/* Railings */}
           <mesh position={[0, 0.6, 1.4]} castShadow>
             <boxGeometry args={[100, 0.05, 0.05]} />
             <meshStandardMaterial
@@ -1039,7 +1213,6 @@ export const FactoryWalls: React.FC<FactoryWallsProps> = () => {
               normalScale={new THREE.Vector2(0.1, 0.1)}
             />
           </mesh>
-          {/* Vertical posts - INSTANCED (68 posts → 1 draw call) */}
           <Instances limit={68}>
             <boxGeometry args={[0.05, 0.6, 0.05]} />
             <meshStandardMaterial color="#94a3b8" metalness={0.9} roughness={0.2} />
@@ -1050,7 +1223,6 @@ export const FactoryWalls: React.FC<FactoryWallsProps> = () => {
               </React.Fragment>
             ))}
           </Instances>
-          {/* Grating texture (simplified) */}
           <mesh position={[0, 0.08, 0]}>
             <planeGeometry args={[100, 3]} />
             <meshStandardMaterial
@@ -1064,8 +1236,7 @@ export const FactoryWalls: React.FC<FactoryWallsProps> = () => {
         </group>
       )}
 
-      {/* Catwalk supports - MEDIUM+ for performance (optimized with instancing) */}
-      {/* PERF: Restored to MEDIUM+ with instancing - 6 posts → 1 draw call */}
+      {/* Catwalk supports */}
       {!isLowGraphics && (
         <Instances limit={6}>
           <boxGeometry args={[0.3, 6, 0.3]} />
@@ -1076,11 +1247,9 @@ export const FactoryWalls: React.FC<FactoryWallsProps> = () => {
         </Instances>
       )}
 
-      {/* Stairs to catwalk - left side - MEDIUM+ for performance (optimized with instancing) */}
-      {/* PERF: Restored to MEDIUM+ with instancing - ~29 draw calls → ~3 draw calls */}
+      {/* Stairs - left side */}
       {!isLowGraphics && (
         <group position={[-55.5, 0, 0]} rotation={[0, Math.PI / 2, 0]}>
-          {/* Stair steps - INSTANCED (12 steps → 1 draw call) */}
           <Instances limit={12}>
             <boxGeometry args={[1.5, 0.1, 0.5]} />
             <meshStandardMaterial color="#475569" metalness={0.7} roughness={0.3} />
@@ -1088,7 +1257,6 @@ export const FactoryWalls: React.FC<FactoryWallsProps> = () => {
               <Instance key={i} position={[0, (i + 1) * 0.5, i * 0.5]} castShadow />
             ))}
           </Instances>
-          {/* Handrail posts - INSTANCED (24 posts → 1 draw call) */}
           <Instances limit={24}>
             <boxGeometry args={[0.05, 1, 0.05]} />
             <meshStandardMaterial color="#94a3b8" metalness={0.9} roughness={0.2} />
@@ -1099,9 +1267,8 @@ export const FactoryWalls: React.FC<FactoryWallsProps> = () => {
               </React.Fragment>
             ))}
           </Instances>
-          {/* Handrail tubes - connecting posts */}
           {Array.from({ length: 11 }).map((_, i) => (
-            <group key={`rail-${i}`}>
+            <group key={i}>
               <mesh
                 position={[0.7, (i + 1.5) * 0.5 + 0.75, (i + 0.5) * 0.5]}
                 rotation={[-Math.atan2(0.5, 0.5), 0, 0]}
@@ -1123,11 +1290,9 @@ export const FactoryWalls: React.FC<FactoryWallsProps> = () => {
         </group>
       )}
 
-      {/* Stairs to catwalk - right side - MEDIUM+ for performance (optimized with instancing) */}
-      {/* PERF: Restored to MEDIUM+ with instancing - ~29 draw calls → ~3 draw calls */}
+      {/* Stairs - right side */}
       {!isLowGraphics && (
         <group position={[55.5, 0, 0]} rotation={[0, -Math.PI / 2, 0]}>
-          {/* Stair steps - INSTANCED (12 steps → 1 draw call) */}
           <Instances limit={12}>
             <boxGeometry args={[1.5, 0.1, 0.5]} />
             <meshStandardMaterial color="#475569" metalness={0.7} roughness={0.3} />
@@ -1135,7 +1300,6 @@ export const FactoryWalls: React.FC<FactoryWallsProps> = () => {
               <Instance key={i} position={[0, (i + 1) * 0.5, i * 0.5]} castShadow />
             ))}
           </Instances>
-          {/* Handrail posts - INSTANCED (24 posts → 1 draw call) */}
           <Instances limit={24}>
             <boxGeometry args={[0.05, 1, 0.05]} />
             <meshStandardMaterial color="#94a3b8" metalness={0.9} roughness={0.2} />
@@ -1146,9 +1310,8 @@ export const FactoryWalls: React.FC<FactoryWallsProps> = () => {
               </React.Fragment>
             ))}
           </Instances>
-          {/* Handrail tubes - connecting posts */}
           {Array.from({ length: 11 }).map((_, i) => (
-            <group key={`rail-${i}`}>
+            <group key={i}>
               <mesh
                 position={[0.7, (i + 1.5) * 0.5 + 0.75, (i + 0.5) * 0.5]}
                 rotation={[-Math.atan2(0.5, 0.5), 0, 0]}
@@ -1170,12 +1333,9 @@ export const FactoryWalls: React.FC<FactoryWallsProps> = () => {
         </group>
       )}
 
-      {/* ========== FACTORY SIGNS ========== */}
-      {/* PERF: Restored to MEDIUM+ with meshBasicMaterial optimization */}
+      {/* Factory Signs */}
       {!isLowGraphics && (
         <>
-          {/* Zone identification signs - mounted on catwalk supports */}
-          {/* Zone 1: Silos (Raw Materials) */}
           <group position={[-40, 4.5, 1.8]}>
             <mesh>
               <boxGeometry args={[2.5, 0.6, 0.08]} />
@@ -1187,7 +1347,6 @@ export const FactoryWalls: React.FC<FactoryWallsProps> = () => {
             </mesh>
           </group>
 
-          {/* Zone 2: Milling Floor */}
           <group position={[-10, 4.5, 1.8]}>
             <mesh>
               <boxGeometry args={[2.5, 0.6, 0.08]} />
@@ -1199,7 +1358,6 @@ export const FactoryWalls: React.FC<FactoryWallsProps> = () => {
             </mesh>
           </group>
 
-          {/* Zone 3: Sifting */}
           <group position={[10, 4.5, 1.8]}>
             <mesh>
               <boxGeometry args={[2.5, 0.6, 0.08]} />
@@ -1211,7 +1369,6 @@ export const FactoryWalls: React.FC<FactoryWallsProps> = () => {
             </mesh>
           </group>
 
-          {/* Zone 4: Packing */}
           <group position={[40, 4.5, 1.8]}>
             <mesh>
               <boxGeometry args={[2.5, 0.6, 0.08]} />
@@ -1223,8 +1380,6 @@ export const FactoryWalls: React.FC<FactoryWallsProps> = () => {
             </mesh>
           </group>
 
-          {/* Safety signs - yellow with black text background */}
-          {/* Hard Hat Area - near entrance */}
           <group position={[-42, 2.5, 40]} rotation={[0, Math.PI, 0]}>
             <mesh>
               <boxGeometry args={[1.8, 0.5, 0.05]} />
@@ -1236,8 +1391,7 @@ export const FactoryWalls: React.FC<FactoryWallsProps> = () => {
             </mesh>
           </group>
 
-          {/* Safety First - near milling area */}
-          <group position={[0, 2.5, -10]} rotation={[0, 0, 0]}>
+          <group position={[0, 2.5, -10]}>
             <mesh>
               <boxGeometry args={[2, 0.5, 0.05]} />
               <meshBasicMaterial color="#22c55e" />
@@ -1248,7 +1402,6 @@ export const FactoryWalls: React.FC<FactoryWallsProps> = () => {
             </mesh>
           </group>
 
-          {/* Eye Protection Required - near sifters */}
           <group position={[15, 2.5, 8]} rotation={[0, -Math.PI / 4, 0]}>
             <mesh>
               <boxGeometry args={[2.2, 0.5, 0.05]} />
@@ -1260,7 +1413,6 @@ export const FactoryWalls: React.FC<FactoryWallsProps> = () => {
             </mesh>
           </group>
 
-          {/* Hearing Protection - near roller mills */}
           <group position={[-15, 2.5, -5]} rotation={[0, Math.PI / 6, 0]}>
             <mesh>
               <boxGeometry args={[2.4, 0.5, 0.05]} />
@@ -1272,8 +1424,6 @@ export const FactoryWalls: React.FC<FactoryWallsProps> = () => {
             </mesh>
           </group>
 
-          {/* Forklift Traffic warning signs */}
-          {/* Near loading dock */}
           <group position={[0, 2.2, 42]} rotation={[0, Math.PI, 0]}>
             <mesh>
               <boxGeometry args={[2.5, 0.6, 0.05]} />
@@ -1285,7 +1435,6 @@ export const FactoryWalls: React.FC<FactoryWallsProps> = () => {
             </mesh>
           </group>
 
-          {/* Loading Dock directional sign */}
           <group position={[25, 3, 35]} rotation={[0, -Math.PI / 2, 0]}>
             <mesh>
               <boxGeometry args={[2.2, 0.5, 0.05]} />
@@ -1295,14 +1444,12 @@ export const FactoryWalls: React.FC<FactoryWallsProps> = () => {
               <planeGeometry args={[2, 0.35]} />
               <meshBasicMaterial color="#f8fafc" />
             </mesh>
-            {/* Arrow */}
             <mesh position={[0.85, 0, 0.04]}>
               <boxGeometry args={[0.3, 0.15, 0.02]} />
               <meshBasicMaterial color="#22c55e" />
             </mesh>
           </group>
 
-          {/* Authorized Personnel Only - near silos */}
           <group position={[-35, 2.5, -35]} rotation={[0, Math.PI / 2, 0]}>
             <mesh>
               <boxGeometry args={[2.8, 0.5, 0.05]} />
@@ -1314,7 +1461,6 @@ export const FactoryWalls: React.FC<FactoryWallsProps> = () => {
             </mesh>
           </group>
 
-          {/* No Smoking sign */}
           <group position={[40, 2.2, -20]} rotation={[0, -Math.PI / 3, 0]}>
             <mesh>
               <cylinderGeometry args={[0.35, 0.35, 0.05, 32]} />
@@ -1324,21 +1470,19 @@ export const FactoryWalls: React.FC<FactoryWallsProps> = () => {
               <circleGeometry args={[0.3, 32]} />
               <meshBasicMaterial color="#fef2f2" />
             </mesh>
-            {/* Diagonal line */}
             <mesh position={[0, 0, 0.04]} rotation={[0, 0, Math.PI / 4]}>
               <boxGeometry args={[0.5, 0.06, 0.02]} />
               <meshBasicMaterial color="#dc2626" />
             </mesh>
           </group>
 
-          {/* Fire Extinguisher location signs */}
           {[
             [-50, 2, 20],
             [50, 2, 20],
             [-50, 2, -20],
             [50, 2, -20],
           ].map((pos, i) => (
-            <group key={`fire-sign-${i}`} position={pos as [number, number, number]}>
+            <group key={i} position={pos as [number, number, number]}>
               <mesh>
                 <boxGeometry args={[0.5, 0.6, 0.05]} />
                 <meshBasicMaterial color="#dc2626" />
@@ -1347,7 +1491,6 @@ export const FactoryWalls: React.FC<FactoryWallsProps> = () => {
                 <planeGeometry args={[0.4, 0.5]} />
                 <meshBasicMaterial color="#fef2f2" />
               </mesh>
-              {/* Extinguisher icon (simplified) */}
               <mesh position={[0, 0.05, 0.04]}>
                 <boxGeometry args={[0.15, 0.3, 0.02]} />
                 <meshBasicMaterial color="#dc2626" />
@@ -1355,17 +1498,15 @@ export const FactoryWalls: React.FC<FactoryWallsProps> = () => {
             </group>
           ))}
 
-          {/* First Aid station signs - positioned at same z as First Aid Station (z=35) */}
           {[
             [-35, 2, 35],
             [35, 2, 35],
           ].map((pos, i) => (
-            <group key={`firstaid-${i}`} position={pos as [number, number, number]}>
+            <group key={i} position={pos as [number, number, number]}>
               <mesh>
                 <boxGeometry args={[0.6, 0.6, 0.05]} />
                 <meshBasicMaterial color="#22c55e" />
               </mesh>
-              {/* White cross */}
               <mesh position={[0, 0, 0.03]}>
                 <boxGeometry args={[0.35, 0.12, 0.02]} />
                 <meshBasicMaterial color="#f0fdf4" />
@@ -1377,8 +1518,7 @@ export const FactoryWalls: React.FC<FactoryWallsProps> = () => {
             </group>
           ))}
 
-          {/* Assembly Point sign - positioned flat against wall to prevent protrusion */}
-          <group position={[-48, 2.5, 47.5]} rotation={[0, 0, 0]}>
+          <group position={[-48, 2.5, 47.5]}>
             <mesh>
               <boxGeometry args={[2, 0.6, 0.05]} />
               <meshBasicMaterial color="#22c55e" />
@@ -1387,7 +1527,6 @@ export const FactoryWalls: React.FC<FactoryWallsProps> = () => {
               <planeGeometry args={[1.8, 0.45]} />
               <meshBasicMaterial color="#f0fdf4" />
             </mesh>
-            {/* People icons (simplified) */}
             {[-0.4, 0, 0.4].map((x, i) => (
               <group key={i} position={[x, 0, 0.04]}>
                 <mesh position={[0, 0.12, 0]}>

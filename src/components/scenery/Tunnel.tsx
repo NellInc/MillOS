@@ -5,8 +5,7 @@
  */
 
 import React from 'react';
-import * as THREE from 'three';
-import { PROCEDURAL_TEXTURES } from '../../utils/sharedMaterials';
+import { TUNNEL_MATERIALS, PROCEDURAL_TEXTURES } from '../../utils/sharedMaterials';
 
 interface TunnelProps {
   position: [number, number, number];
@@ -14,37 +13,6 @@ interface TunnelProps {
   length?: number;
   radius?: number;
 }
-
-// Materials for tunnel/culvert structures
-const TUNNEL_MATERIALS = {
-  concrete: new THREE.MeshStandardMaterial({
-    color: '#808080',
-    roughness: 0.9,
-    map: PROCEDURAL_TEXTURES.concreteColor,
-    roughnessMap: PROCEDURAL_TEXTURES.concreteRoughness,
-  }),
-  brick: new THREE.MeshStandardMaterial({
-    color: '#a08070',
-    roughness: 0.85,
-    map: PROCEDURAL_TEXTURES.brickColor,
-    normalMap: PROCEDURAL_TEXTURES.brickNormal,
-    normalScale: new THREE.Vector2(0.3, 0.3),
-  }),
-  metal: new THREE.MeshStandardMaterial({
-    color: '#64748b',
-    metalness: 0.7,
-    roughness: 0.4,
-    normalMap: PROCEDURAL_TEXTURES.brushedMetal,
-    normalScale: new THREE.Vector2(0.2, 0.2),
-  }),
-  water: new THREE.MeshStandardMaterial({
-    color: '#5c8a6a',
-    roughness: 0.1,
-    metalness: 0.2,
-    transparent: true,
-    opacity: 0.7,
-  }),
-} as const;
 
 /**
  * Drainage Culvert - Concrete pipe for water drainage

@@ -33,3 +33,24 @@ export {
   SIMPLIFIED_GEOMETRIES,
   BILLBOARD_GEOMETRIES,
 } from './sharedGeometries';
+
+// New component exports
+export { getWorkerAppearance as getWorkerAppearanceConfig } from './WorkerAppearance';
+export type { WorkerAppearanceConfig } from './WorkerAppearance';
+
+export { ToolAccessory } from './WorkerTools';
+export { Hair } from './WorkerHair';
+export { HumanModel } from './HumanModel';
+
+// Shared constants and utilities
+export {
+  TRUCK_EXCLUSION_ZONES,
+  SAFE_AISLES,
+  isInExclusionZone,
+  getSafeZPosition,
+  getSafeSpawnZ,
+  ROLE_WORKING_POSES,
+} from './shared';
+export type { ExclusionZone, IdleAnimationType, SpecialAction, WorkingPose } from './shared';
+
+export { SHARED_WORKER_GEOMETRY } from './SharedWorkerGeometries';

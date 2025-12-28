@@ -14,31 +14,16 @@ import {
 } from './MachineLOD';
 import { useModelTextures } from '../../utils/machineTextures';
 import { MemoizedStatusRing } from './StatusRing';
-import { PROCEDURAL_TEXTURES } from '../../utils/sharedMaterials';
+import { PROCEDURAL_TEXTURES, NORMAL_SCALES, INSTANCED_MACHINE_MATERIALS } from '../../utils/sharedMaterials';
 
-// Materials
+// Reference shared materials (textures applied via hook)
 const MATERIALS = {
-  housingLower: new THREE.MeshStandardMaterial({
-    color: '#2563eb',
-    metalness: 0.6,
-    roughness: 0.2,
-  }),
-  housingUpper: new THREE.MeshStandardMaterial({
-    color: '#60a5fa',
-    metalness: 0.5,
-    roughness: 0.3,
-  }),
-  frame: new THREE.MeshStandardMaterial({ color: '#1e3a5f', metalness: 0.5, roughness: 0.4 }),
-  motor: new THREE.MeshStandardMaterial({ color: '#334155', metalness: 0.6, roughness: 0.4 }),
-  window: new THREE.MeshPhysicalMaterial({
-    color: '#1e40af',
-    metalness: 0.1,
-    roughness: 0.1,
-    transmission: 0.6,
-    transparent: true,
-    opacity: 0.4,
-  }),
-  roller: new THREE.MeshStandardMaterial({ color: '#94a3b8', metalness: 0.95, roughness: 0.15 }),
+  housingLower: INSTANCED_MACHINE_MATERIALS.millHousingLower,
+  housingUpper: INSTANCED_MACHINE_MATERIALS.millHousingUpper,
+  frame: INSTANCED_MACHINE_MATERIALS.millFrame,
+  motor: INSTANCED_MACHINE_MATERIALS.millMotor,
+  window: INSTANCED_MACHINE_MATERIALS.millWindow,
+  roller: INSTANCED_MACHINE_MATERIALS.millRoller,
 };
 
 // Static geometry (plane doesn't need LOD)
@@ -76,19 +61,19 @@ export const InstancedRollerMills: React.FC<InstancedRollerMillsProps> = ({
     // Lower housing - blue painted metal
     MATERIALS.housingLower.roughnessMap = roughnessMap;
     MATERIALS.housingLower.normalMap = normalMap;
-    MATERIALS.housingLower.normalScale = new THREE.Vector2(0.3, 0.3);
+    MATERIALS.housingLower.normalScale = NORMAL_SCALES.standard;
     MATERIALS.housingLower.needsUpdate = true;
 
     // Upper housing - lighter painted metal
     MATERIALS.housingUpper.roughnessMap = roughnessMap;
     MATERIALS.housingUpper.normalMap = normalMap;
-    MATERIALS.housingUpper.normalScale = new THREE.Vector2(0.3, 0.3);
+    MATERIALS.housingUpper.normalScale = NORMAL_SCALES.standard;
     MATERIALS.housingUpper.needsUpdate = true;
 
     // Motor - dark metal with brushed texture
     MATERIALS.motor.roughnessMap = textures.ao || PROCEDURAL_TEXTURES.brushedMetal;
     MATERIALS.motor.normalMap = normalMap;
-    MATERIALS.motor.normalScale = new THREE.Vector2(0.2, 0.2);
+    MATERIALS.motor.normalScale = NORMAL_SCALES.medium;
     MATERIALS.motor.needsUpdate = true;
 
     // Rollers - polished steel

@@ -62,7 +62,7 @@ const STATUS_CONFIG: Record<VoteStatus, { label: string; color: string; bgColor:
   draft: { label: 'Draft', color: 'text-slate-400', bgColor: 'bg-slate-600/30' },
   open: { label: 'Voting', color: 'text-green-400', bgColor: 'bg-green-600/30' },
   closed: { label: 'Passed', color: 'text-cyan-400', bgColor: 'bg-cyan-600/30' },
-  implemented: { label: 'Done', color: 'text-emerald-400', bgColor: 'bg-emerald-600/30' },
+  implemented: { label: 'Applied', color: 'text-emerald-400', bgColor: 'bg-emerald-600/30' },
   rejected: { label: 'Rejected', color: 'text-red-400', bgColor: 'bg-red-600/30' },
 };
 
@@ -341,8 +341,8 @@ const VoteCard: React.FC<VoteCardProps> = ({
                 </button>
               )}
 
-              {/* Result for closed votes */}
-              {(vote.status === 'closed' || vote.status === 'implemented') && vote.result && (
+              {/* Result for closed votes (passed, awaiting implementation) */}
+              {vote.status === 'closed' && vote.result && (
                 <div className="bg-cyan-500/10 border border-cyan-500/30 rounded p-2">
                   <div className="flex items-center gap-1 text-[10px] text-cyan-400">
                     <CheckCircle className="w-3 h-3" />
@@ -350,6 +350,58 @@ const VoteCard: React.FC<VoteCardProps> = ({
                       Passed: "{vote.result.label}" with {Math.round(vote.turnout * 100)}% turnout
                     </span>
                   </div>
+                  <div className="text-[9px] text-cyan-400/70 mt-1 ml-4">
+                    Implementing changes...
+                  </div>
+                </div>
+              )}
+
+              {/* Result for implemented votes (applied to system) */}
+              {vote.status === 'implemented' && vote.result && (
+                <div className="bg-emerald-500/10 border border-emerald-500/30 rounded p-2">
+                  <div className="flex items-center gap-1 text-[10px] text-emerald-400">
+                    <CheckCircle className="w-3 h-3" />
+                    <span>
+                      Applied: "{vote.result.label}" with {Math.round(vote.turnout * 100)}% turnout
+                    </span>
+                  </div>
+                  {vote.type === 'axis-change' && vote.targetAxis && vote.proposedValue !== undefined && (
+                    <div className="text-[9px] text-emerald-400/70 mt-1 ml-4">
+                      {vote.result.label === 'Accept Change'
+                        ? `${vote.targetAxis.replace(/([A-Z])/g, ' $1').replace(/^./, (s) => s.toUpperCase())} set to ${vote.proposedValue}%`
+                        : 'Current setting retained'}
+                    </div>
+                  )}
+                  {vote.type === 'ai-behavior' && (
+                    <div className="text-[9px] text-emerald-400/70 mt-1 ml-4">
+                      AI behavior updated
+                    </div>
+                  )}
+                  {vote.type === 'policy' && (
+                    <div className="text-[9px] text-emerald-400/70 mt-1 ml-4">
+                      Policy now in effect
+                    </div>
+                  )}
+                  {vote.type === 'schedule' && (
+                    <div className="text-[9px] text-emerald-400/70 mt-1 ml-4">
+                      Schedule change applied
+                    </div>
+                  )}
+                  {vote.type === 'method' && (
+                    <div className="text-[9px] text-emerald-400/70 mt-1 ml-4">
+                      Work method updated
+                    </div>
+                  )}
+                  {vote.type === 'recognition' && (
+                    <div className="text-[9px] text-emerald-400/70 mt-1 ml-4">
+                      Recognition awarded
+                    </div>
+                  )}
+                  {vote.type === 'emergency' && (
+                    <div className="text-[9px] text-emerald-400/70 mt-1 ml-4">
+                      Emergency action executed
+                    </div>
+                  )}
                 </div>
               )}
 

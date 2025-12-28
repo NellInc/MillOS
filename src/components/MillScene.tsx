@@ -65,23 +65,27 @@ import { FACTORY_ZONE_Z } from '../constants/factoryLayout';
 /**
  * WireframeController - Applies wireframe mode to all scene materials when enabled
  * Reads enableWireframe from graphics store and traverses scene to toggle wireframe
+ * OPTIMIZED: Only traverses scene when enableWireframe changes, not every frame
  */
 const WireframeController: React.FC = () => {
   const enableWireframe = useGraphicsStore((state) => state.graphics.enableWireframe);
   const sceneRef = useRef<THREE.Scene | null>(null);
+  const lastWireframeState = useRef<boolean | null>(null);
 
   useFrame(({ scene }) => {
     if (!sceneRef.current) sceneRef.current = scene;
+
+    // Only traverse scene when wireframe state actually changes
+    if (lastWireframeState.current === enableWireframe) return;
+    lastWireframeState.current = enableWireframe;
 
     scene.traverse((object) => {
       if (object instanceof THREE.Mesh && object.material) {
         const materials = Array.isArray(object.material) ? object.material : [object.material];
         materials.forEach((mat) => {
           if (mat instanceof THREE.MeshStandardMaterial || mat instanceof THREE.MeshBasicMaterial) {
-            if (mat.wireframe !== enableWireframe) {
-              mat.wireframe = enableWireframe;
-              mat.needsUpdate = true;
-            }
+            mat.wireframe = enableWireframe;
+            mat.needsUpdate = true;
           }
         });
       }
@@ -91,10 +95,6 @@ const WireframeController: React.FC = () => {
   return null;
 };
 
-// Single heat map point with ref-based animation (throttled to reduce CPU load)
-// Memoized to prevent re-renders when parent updates
-// Single heat map point with ref-based animation (managed centrally)
-// Memoized to prevent re-renders when parent updates
 // Single heat map point with ref-based animation (throttled to reduce CPU load)
 // Memoized to prevent re-renders when parent updates
 const HeatMapPoint = React.memo<{
@@ -273,7 +273,8 @@ const IncidentHeatMap: React.FC = () => {
 };
 
 // Fire Drill Exit Markers - glowing green markers at each exit point
-const FireDrillExitMarkers: React.FC = () => {
+// Memoized since it receives stable props from store selectors
+const FireDrillExitMarkers = React.memo(() => {
   const emergencyDrillMode = useGameSimulationStore((state) => state.emergencyDrillMode);
   const drillMetrics = useGameSimulationStore((state) => state.drillMetrics);
   const materialRefs = useRef<(THREE.MeshStandardMaterial | null)[]>([]);
@@ -353,7 +354,7 @@ const FireDrillExitMarkers: React.FC = () => {
       ))}
     </group>
   );
-};
+});
 
 interface MillSceneProps {
   productionSpeed: number;
@@ -411,6 +412,8 @@ export const MillScene: React.FC<MillSceneProps> = ({
           temperature: 20 + idx * 0.4, // Deterministic: 20-21.6°C
           vibration: 0.8 + idx * 0.04, // Deterministic: 0.8-0.96
           load: 60 + idx * 3, // Deterministic: 60-72%
+          wear: 0, // Start with no wear
+          efficiency: 100, // Start at full efficiency
         },
         lastMaintenance: '2024-01-15',
         nextMaintenance: '2024-04-15',
@@ -437,6 +440,8 @@ export const MillScene: React.FC<MillSceneProps> = ({
           temperature: 42 + idx * 0.8, // Deterministic: 42-46°C
           vibration: 1.5 + idx * 0.08, // Deterministic: 1.5-1.9
           load: 70 + idx * 1.6, // Deterministic: 70-80%
+          wear: 0, // Start with no wear
+          efficiency: 100, // Start at full efficiency
         },
         lastMaintenance: '2024-02-01',
         nextMaintenance: '2024-05-01',
@@ -462,6 +467,8 @@ export const MillScene: React.FC<MillSceneProps> = ({
           temperature: 28 + idx * 1.3, // Deterministic: 28-30.6°C
           vibration: 5.5 + idx * 0.3, // Deterministic: 5.5-6.1
           load: 75 + idx * 3, // Deterministic: 75-81%
+          wear: 0, // Start with no wear
+          efficiency: 100, // Start at full efficiency
         },
         lastMaintenance: '2024-01-20',
         nextMaintenance: '2024-04-20',
@@ -486,6 +493,8 @@ export const MillScene: React.FC<MillSceneProps> = ({
           temperature: 28 + idx * 1.6, // Deterministic: 28-31.2°C
           vibration: 1 + idx * 0.3, // Deterministic: 1.0-1.6
           load: 85 + idx * 3, // Deterministic: 85-91%
+          wear: 0, // Start with no wear
+          efficiency: 100, // Start at full efficiency
         },
         lastMaintenance: '2024-02-10',
         nextMaintenance: '2024-05-10',

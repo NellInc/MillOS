@@ -9,7 +9,7 @@ import { Cat } from './scenery/Cat';
 import { PineTree } from './scenery/Tree';
 import { DrainageCulvert } from './scenery/Tunnel';
 import { PROCEDURAL_TEXTURES, OUTDOOR_MATERIALS } from '../utils/sharedMaterials';
-import { FLOOR_LAYERS, POLYGON_OFFSET, RENDER_ORDER } from '../constants/renderLayers';
+import { FLOOR_LAYERS, EXTERIOR_LAYERS, POLYGON_OFFSET, RENDER_ORDER } from '../constants/renderLayers';
 
 // Create farm-specific cobble textures with proper world-scale repeat
 // Barnyard is 20x15 units, path is 3x14 units - tile every 10 units
@@ -1572,13 +1572,14 @@ export const FarmArea: React.FC = () => {
 
   return (
     <group position={[75, 0, 120]} rotation={[0, Math.PI, 0]}>
-      <mesh position={[0, FLOOR_LAYERS.floor, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+      {/* Farm grass ground - exteriorBase */}
+      <mesh position={[0, EXTERIOR_LAYERS.ground, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <primitive object={SG.farmGround} attach="geometry" />
         <primitive object={SM.grass} attach="material" />
       </mesh>
-      {/* Cobblestone courtyard in front of barn */}
+      {/* Cobblestone courtyard in front of barn - exteriorMid (on top of grass) */}
       <mesh
-        position={[0, FLOOR_LAYERS.wornPrimary, -10]}
+        position={[0, EXTERIOR_LAYERS.ground, -10]}
         rotation={[-Math.PI / 2, 0, 0]}
         receiveShadow
       >
@@ -1588,13 +1589,13 @@ export const FarmArea: React.FC = () => {
           normalMap={farmBarnyardCobbleNormal}
           roughness={0.85}
           polygonOffset
-          polygonOffsetFactor={POLYGON_OFFSET.standard.factor}
-          polygonOffsetUnits={POLYGON_OFFSET.standard.units}
+          polygonOffsetFactor={POLYGON_OFFSET.exteriorMid.factor}
+          polygonOffsetUnits={POLYGON_OFFSET.exteriorMid.units}
         />
       </mesh>
-      {/* Cobblestone path to farmhouse */}
+      {/* Cobblestone path to farmhouse - exteriorTop (on top of courtyard) */}
       <mesh
-        position={[-10, FLOOR_LAYERS.wornSecondary, 5]}
+        position={[-10, EXTERIOR_LAYERS.ground, 5]}
         rotation={[-Math.PI / 2, 0, 0]}
         receiveShadow
       >
@@ -1604,8 +1605,8 @@ export const FarmArea: React.FC = () => {
           normalMap={farmPathCobbleNormal}
           roughness={0.85}
           polygonOffset
-          polygonOffsetFactor={POLYGON_OFFSET.standard.factor}
-          polygonOffsetUnits={POLYGON_OFFSET.standard.units}
+          polygonOffsetFactor={POLYGON_OFFSET.exteriorTop.factor}
+          polygonOffsetUnits={POLYGON_OFFSET.exteriorTop.units}
         />
       </mesh>
       <Barn position={[0, 0, 0]} />
@@ -1632,7 +1633,7 @@ export const FarmArea: React.FC = () => {
         <FenceSection position={[-3, 0, 0]} rotation={Math.PI / 2} length={6} />
         <FenceSection position={[3, 0, 0]} rotation={Math.PI / 2} length={6} />
         <mesh
-          position={[0, FLOOR_LAYERS.puddle, 0]}
+          position={[0, EXTERIOR_LAYERS.ground, 0]}
           rotation={[-Math.PI / 2, 0, 0]}
           renderOrder={RENDER_ORDER.floorEffects}
         >
@@ -1647,7 +1648,6 @@ export const FarmArea: React.FC = () => {
              The fence is at [-12, 0, -5].
         */}
       </group>
-      {/* Pig Rendering moved to main group to allow easier ref movement control */}
       {pigData.map((p, i) => (
         <Pig
           key={`pig-${i}`}
@@ -1671,7 +1671,6 @@ export const FarmArea: React.FC = () => {
         <FenceSection position={[10, 0, 0]} rotation={Math.PI / 2} length={5} />
         <FenceSection position={[10, 0, -4]} rotation={Math.PI / 2} length={5} />
       </group>
-      {/* Cow Rendering moved to main group */}
       {cowData.map((c, i) => (
         <Cow
           key={`cow-${i}`}

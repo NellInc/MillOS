@@ -1,20 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import {
-  Bot,
-  Brain,
-  Shield,
-  User,
-  Wrench,
-  Zap,
-  Eye,
-  CheckCircle,
-  Clock,
-  AlertTriangle,
-  Activity,
-  TrendingUp,
-  Target,
-  Settings,
-} from 'lucide-react';
+import { Bot, Brain, TrendingUp, Target, Settings, Shield, Activity } from 'lucide-react';
 import { AIDecision } from '../types';
 import { useProductionStore } from '../stores/productionStore';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
@@ -28,6 +13,12 @@ import { DecisionHistoryPanel } from './ui/DecisionHistoryPanel';
 import { StrategicPriorityCards } from './ui/StrategicPriorityCards';
 import { VCLDebugPanel } from './ui/VCLDebugPanel';
 import { VCLDiffPanel } from './ui/VCLDiffPanel';
+import {
+  getDecisionTypeIcon,
+  getDecisionStatusIcon,
+  getDecisionTypeColor,
+  getDecisionPriorityBadge,
+} from '../utils/decisionIcons';
 
 interface AICommandCenterProps {
   isOpen: boolean;
@@ -184,65 +175,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
     };
   }, [aiDecisions]);
 
-  const getTypeIcon = (type: string) => {
-    const iconClass = 'w-5 h-5';
-    switch (type) {
-      case 'assignment':
-        return <User className={iconClass} />;
-      case 'optimization':
-        return <Zap className={iconClass} />;
-      case 'prediction':
-        return <Eye className={iconClass} />;
-      case 'maintenance':
-        return <Wrench className={iconClass} />;
-      case 'safety':
-        return <Shield className={iconClass} />;
-      default:
-        return <Bot className={iconClass} />;
-    }
-  };
-
-  const getTypeColor = (type: string) => {
-    switch (type) {
-      case 'assignment':
-        return 'from-blue-500 to-blue-600';
-      case 'optimization':
-        return 'from-green-500 to-green-600';
-      case 'prediction':
-        return 'from-purple-500 to-purple-600';
-      case 'maintenance':
-        return 'from-yellow-500 to-yellow-600';
-      case 'safety':
-        return 'from-red-500 to-red-600';
-      default:
-        return 'from-gray-500 to-gray-600';
-    }
-  };
-
-  const getStatusIcon = (status: AIDecision['status']) => {
-    switch (status) {
-      case 'completed':
-        return <CheckCircle className="w-3 h-3 text-green-400" />;
-      case 'in_progress':
-        return <Activity className="w-3 h-3 text-blue-400 animate-pulse" />;
-      case 'pending':
-        return <Clock className="w-3 h-3 text-yellow-400" />;
-      case 'superseded':
-        return <AlertTriangle className="w-3 h-3 text-slate-400" />;
-      default:
-        return null;
-    }
-  };
-
-  const getPriorityBadge = (priority: AIDecision['priority']) => {
-    const colors = {
-      critical: 'bg-red-500/20 text-red-400 border-red-500/30',
-      high: 'bg-orange-500/20 text-orange-400 border-orange-500/30',
-      medium: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
-      low: 'bg-slate-500/20 text-slate-400 border-slate-500/30',
-    };
-    return colors[priority] || colors.medium;
-  };
+  // Decision icon/color functions now imported from utils/decisionIcons
 
   // Weather icon helper - kept for future UI expansion
 
@@ -387,9 +320,9 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
                   >
                     <div className="flex items-start gap-2">
                       <div
-                        className={`p-1 rounded bg-gradient-to-br ${getTypeColor(decision.type)}`}
+                        className={`p-1 rounded bg-gradient-to-br ${getDecisionTypeColor(decision.type)}`}
                       >
-                        {getTypeIcon(decision.type)}
+                        {getDecisionTypeIcon(decision.type, 'lg')}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5 mb-1 flex-wrap">
@@ -397,12 +330,12 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
                             {decision.type}
                           </span>
                           <span
-                            className={`text-[9px] px-1 py-0.5 rounded border ${getPriorityBadge(decision.priority)}`}
+                            className={`text-[9px] px-1 py-0.5 rounded border ${getDecisionPriorityBadge(decision.priority)}`}
                           >
                             {decision.priority}
                           </span>
                           <div className="flex items-center gap-1 ml-auto">
-                            {getStatusIcon(decision.status)}
+                            {getDecisionStatusIcon(decision.status, 'xs')}
                           </div>
                         </div>
                         <p className="text-xs text-white font-medium">{decision.action}</p>

@@ -293,3 +293,52 @@ export function safeFinite(value: unknown, fallback = 0): number {
   const num = typeof value === 'number' ? value : Number(value);
   return Number.isFinite(num) ? num : fallback;
 }
+
+// ============================================
+// Safe Array Math Utilities
+// ============================================
+
+/**
+ * Safe average - prevents NaN from empty arrays.
+ * @param arr - Array of numbers
+ * @param fallback - Value to return if array is empty (default: 0)
+ * @returns The average or fallback if array is empty
+ */
+export function safeArrayAverage(arr: number[], fallback = 0): number {
+  if (!arr || arr.length === 0) return fallback;
+  const sum = arr.reduce((a, b) => a + b, 0);
+  return sum / arr.length;
+}
+
+/**
+ * Safe Math.max for arrays - prevents -Infinity from empty arrays.
+ * @param arr - Array of numbers
+ * @param fallback - Value to return if array is empty (default: 0)
+ * @returns The maximum value or fallback if array is empty
+ */
+export function safeArrayMax(arr: number[], fallback = 0): number {
+  if (!arr || arr.length === 0) return fallback;
+  return Math.max(...arr);
+}
+
+/**
+ * Safe Math.min for arrays - prevents Infinity from empty arrays.
+ * @param arr - Array of numbers
+ * @param fallback - Value to return if array is empty (default: 0)
+ * @returns The minimum value or fallback if array is empty
+ */
+export function safeArrayMin(arr: number[], fallback = 0): number {
+  if (!arr || arr.length === 0) return fallback;
+  return Math.min(...arr);
+}
+
+/**
+ * Safe range (max - min) for arrays - prevents NaN/Infinity from empty arrays.
+ * @param arr - Array of numbers
+ * @param fallback - Value to return if array is empty (default: 0)
+ * @returns The range (max - min) or fallback if array is empty
+ */
+export function safeArrayRange(arr: number[], fallback = 0): number {
+  if (!arr || arr.length === 0) return fallback;
+  return Math.max(...arr) - Math.min(...arr);
+}

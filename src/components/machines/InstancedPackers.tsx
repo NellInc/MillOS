@@ -14,16 +14,18 @@ import {
 } from './MachineLOD';
 import { useModelTextures } from '../../utils/machineTextures';
 import { MemoizedStatusRing } from './StatusRing';
-import { PROCEDURAL_TEXTURES } from '../../utils/sharedMaterials';
+import { PROCEDURAL_TEXTURES, NORMAL_SCALES, INSTANCED_MACHINE_MATERIALS } from '../../utils/sharedMaterials';
 
-// Materials
+// Reference shared materials
 const MATERIALS = {
-  frame: new THREE.MeshStandardMaterial({ color: '#f97316', metalness: 0.4, roughness: 0.4 }),
-  hopper: new THREE.MeshStandardMaterial({ color: '#94a3b8', metalness: 0.7, roughness: 0.2 }),
-  spout: new THREE.MeshStandardMaterial({ color: '#6b7280', metalness: 0.75, roughness: 0.2 }),
-  conveyor: new THREE.MeshStandardMaterial({ color: '#374151', metalness: 0.6, roughness: 0.35 }),
-  panel: new THREE.MeshStandardMaterial({ color: '#1e293b', metalness: 0.5, roughness: 0.35 }),
-  safety: new THREE.MeshStandardMaterial({
+  frame: INSTANCED_MACHINE_MATERIALS.packerFrame,
+  hopper: INSTANCED_MACHINE_MATERIALS.packerHopper,
+  spout: INSTANCED_MACHINE_MATERIALS.packerSpout,
+  conveyor: INSTANCED_MACHINE_MATERIALS.packerConveyor,
+  panel: INSTANCED_MACHINE_MATERIALS.packerPanel,
+  safety: INSTANCED_MACHINE_MATERIALS.packerSafety,
+  // Legacy fallback keeping inline for backwards compat
+  _legacySafety: new THREE.MeshStandardMaterial({
     color: '#fbbf24',
     metalness: 0.3,
     roughness: 0.5,

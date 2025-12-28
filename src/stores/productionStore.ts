@@ -1,57 +1,117 @@
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
-import {
-  MachineData,
-  WorkerData,
-  AIDecision,
-  ProductionTarget,
-  Achievement,
-  PAnnouncement,
-  IncidentReplayFrame,
-} from '../types';
+import { MachineData, MachineType, WorkerData, AIDecision, ProductionTarget } from '../types';
+import type { WorkerStatus } from '../utils/statusColors';
 import { useHistoricalPlaybackStore } from './historicalPlaybackStore';
+import { useMaterialFlowStore } from './materialFlowStore';
+import { useQCLabStore, type QCLabStore } from './qcLabStore';
+import { useAchievementsStore, type AchievementsStore } from './achievementsStore';
+import { useAnnouncementsStore, type AnnouncementsStore } from './announcementsStore';
+import { useIncidentReplayStore, type IncidentReplayStore } from './incidentReplayStore';
+import { useTruckScheduleStore, type TruckScheduleStore } from './truckScheduleStore';
+
+// Re-export from new focused stores for backward compatibility
+export { useQCLabStore } from './qcLabStore';
+export type { QCGrade, QualityTestResult, QCLabState, QCLabStore } from './qcLabStore';
+
+export { useAchievementsStore } from './achievementsStore';
+export type { AchievementsStore } from './achievementsStore';
+
+export { useAnnouncementsStore } from './announcementsStore';
+export type { AnnouncementsStore } from './announcementsStore';
+
+export { useIncidentReplayStore } from './incidentReplayStore';
+export type { IncidentReplayStore } from './incidentReplayStore';
+
+export { useTruckScheduleStore } from './truckScheduleStore';
+export type { TruckScheduleState, TruckScheduleStore } from './truckScheduleStore';
 
 // =========================================================================
-// TRUCK SCHEDULING SYSTEM
+// CORE PRODUCTION STORE
+// Core production state: workers, machines, metrics, AI decisions
+// Specialized concerns have been extracted to focused stores:
+// - qcLabStore.ts - Quality Control Lab
+// - achievementsStore.ts - Achievements system
+// - announcementsStore.ts - PA announcements
+// - incidentReplayStore.ts - Incident replay
+// - truckScheduleStore.ts - Truck scheduling
 // =========================================================================
 
-export interface TruckScheduleState {
-  nextShippingArrival: number; // Seconds until next shipping truck
-  nextReceivingArrival: number; // Seconds until next receiving truck
-  truckDocked: {
-    shipping: boolean;
-    receiving: boolean;
-  };
-  lastShippingDeparture: number; // Timestamp of last departure
-  lastReceivingDeparture: number;
+// =========================================================================
+// WEAR SYSTEM CONFIGURATION
+// Different machine types wear at different rates based on mechanical stress
+// Wear accumulates during operation and reduces efficiency
+// =========================================================================
+
+interface WearConfig {
+  /** Wear rate per game second when running (0-100 scale) */
+  wearRatePerSecond: number;
+  /** Threshold where machine enters 'warning' state (0-100) */
+  warningThreshold: number;
+  /** Threshold where machine breaks down (0-100) */
+  breakdownThreshold: number;
+  /** How much maintenance reduces wear (0-100) */
+  maintenanceReduction: number;
+  /** Efficiency penalty per point of wear above 50 (percentage) */
+  efficiencyPenaltyRate: number;
 }
 
-// =========================================================================
-// QUALITY CONTROL LAB SYSTEM
-// =========================================================================
+/**
+ * Wear configuration per machine type:
+ * - SILO: Storage, minimal wear (conveyors and hatches)
+ * - ROLLER_MILL: High mechanical stress from grinding
+ * - PLANSIFTER: Medium wear from sifting vibrations
+ * - PACKER: Medium-high wear from continuous packaging motion
+ * - CONTROL_ROOM: Minimal wear (electronics only)
+ */
+const WEAR_CONFIG: Record<MachineType, WearConfig> = {
+  [MachineType.SILO]: {
+    wearRatePerSecond: 0.001, // Very slow - mostly static storage
+    warningThreshold: 70,
+    breakdownThreshold: 95,
+    maintenanceReduction: 40,
+    efficiencyPenaltyRate: 0.3,
+  },
+  [MachineType.ROLLER_MILL]: {
+    wearRatePerSecond: 0.015, // High - mechanical grinding causes stress
+    warningThreshold: 60,
+    breakdownThreshold: 90,
+    maintenanceReduction: 50,
+    efficiencyPenaltyRate: 0.6,
+  },
+  [MachineType.PLANSIFTER]: {
+    wearRatePerSecond: 0.008, // Medium - vibration causes gradual wear
+    warningThreshold: 65,
+    breakdownThreshold: 92,
+    maintenanceReduction: 45,
+    efficiencyPenaltyRate: 0.5,
+  },
+  [MachineType.PACKER]: {
+    wearRatePerSecond: 0.012, // Medium-high - continuous motion wears parts
+    warningThreshold: 62,
+    breakdownThreshold: 88,
+    maintenanceReduction: 48,
+    efficiencyPenaltyRate: 0.55,
+  },
+  [MachineType.CONTROL_ROOM]: {
+    wearRatePerSecond: 0.0005, // Minimal - electronics degrade slowly
+    warningThreshold: 80,
+    breakdownThreshold: 98,
+    maintenanceReduction: 30,
+    efficiencyPenaltyRate: 0.2,
+  },
+};
 
-export type QCGrade = 'A' | 'B' | 'C' | 'FAIL';
-
-export interface QualityTestResult {
-  id: string;
-  timestamp: number;
-  sampleSource: string; // Machine ID
-  sampleSourceName: string;
-  grade: QCGrade;
-  moistureLevel: number; // 12-15% normal
-  proteinContent: number; // 10-13% normal
-  contaminationDetected: boolean;
-  testedBy: string; // Worker ID
-  testedByName: string;
-}
-
-export interface QCLabState {
-  currentTest: QualityTestResult | null;
-  testHistory: QualityTestResult[];
-  certificationStatus: 'certified' | 'pending' | 'expired';
-  certificationExpiry: number; // Game time when certification expires
-  contaminationAlerts: number; // Count of contamination events
-  lastTestTime: number;
+/**
+ * Calculate efficiency based on wear level
+ * Efficiency remains at 100% until wear exceeds 50%, then degrades linearly
+ */
+function calculateEfficiency(wear: number, machineType: MachineType): number {
+  if (wear <= 50) return 100;
+  const config = WEAR_CONFIG[machineType];
+  const wearAboveThreshold = wear - 50;
+  const efficiency = 100 - wearAboveThreshold * config.efficiencyPenaltyRate;
+  return Math.max(0, Math.round(efficiency * 10) / 10);
 }
 
 // Performance-optimized indices for O(1) lookups
@@ -71,7 +131,13 @@ function getGridKey(x: number, z: number, threshold: number): string {
   return `${Math.round(x / threshold)}_${Math.round(z / threshold)}`;
 }
 
-export interface ProductionStore {
+export interface ProductionStore
+  extends
+    QCLabStore,
+    AchievementsStore,
+    AnnouncementsStore,
+    IncidentReplayStore,
+    TruckScheduleStore {
   // Performance indices (internal, not directly accessed)
   _indices: ProductionIndices;
 
@@ -85,6 +151,7 @@ export interface ProductionStore {
   setSelectedWorker: (worker: WorkerData | null) => void;
   setWorkers: (workers: WorkerData[]) => void;
   updateWorkerTask: (workerId: string, task: string, targetMachine?: string) => void;
+  updateWorkerStatus: (workerId: string, status: WorkerStatus) => void;
 
   // Machines
   machines: MachineData[];
@@ -127,6 +194,7 @@ export interface ProductionStore {
   updateMetrics: (metrics: Partial<ProductionStore['metrics']>) => void;
   recalculateMetrics: () => void; // Recompute all metrics from current state
   tickMetrics: (deltaSeconds: number) => void; // Called by game loop to update tracking
+  tickMachineMetrics: (deltaSeconds: number) => void; // Vary machine metrics over time
 
   // Heat map data (worker position history)
   heatMapData: Array<{ x: number; z: number; intensity: number }>;
@@ -153,27 +221,6 @@ export interface ProductionStore {
   updateProductionProgress: (bagsProduced: number) => void;
   totalBagsProduced: number;
   incrementBagsProduced: (count?: number) => void;
-
-  // Achievements
-  achievements: Achievement[];
-  unlockAchievement: (achievementId: string) => void;
-  updateAchievementProgress: (achievementId: string, progress: number) => void;
-  resetAchievements: () => void;
-
-  // PA Announcements
-  announcements: PAnnouncement[];
-  addAnnouncement: (announcement: Omit<PAnnouncement, 'id' | 'timestamp'>) => void;
-  dismissAnnouncement: (id: string) => void;
-  clearOldAnnouncements: () => void;
-
-  // Incident replay
-  replayMode: boolean;
-  replayFrames: IncidentReplayFrame[];
-  currentReplayIndex: number;
-  setReplayMode: (enabled: boolean) => void;
-  recordReplayFrame: (frame: IncidentReplayFrame) => void;
-  setReplayIndex: (index: number) => void;
-  clearReplayFrames: () => void;
 
   // Worker leaderboard
   workerLeaderboard: Array<{
@@ -202,31 +249,88 @@ export interface ProductionStore {
   // SCADA integration state
   scadaLive: boolean;
   setScadaLive: (live: boolean) => void;
-
-  // Truck scheduling state
-  truckSchedule: TruckScheduleState;
-  setTruckDocked: (dock: 'shipping' | 'receiving', docked: boolean) => void;
-  updateNextArrival: (dock: 'shipping' | 'receiving', seconds: number) => void;
-  recordTruckDeparture: (dock: 'shipping' | 'receiving') => void;
-
-  // Quality Control Lab state
-  qcLab: QCLabState;
-  startQCTest: (
-    sampleSource: string,
-    sampleSourceName: string,
-    workerId: string,
-    workerName: string
-  ) => void;
-  completeQCTest: (result: Omit<QualityTestResult, 'id' | 'timestamp'>) => void;
-  triggerContaminationAlert: () => void;
-  updateCertificationStatus: (status: 'certified' | 'pending' | 'expired') => void;
-  getLatestTestResult: () => QualityTestResult | null;
 }
 
 export const useProductionStore = create<ProductionStore>()(
   subscribeWithSelector((set, get) => ({
     // Initialize performance indices
     _indices: createEmptyProductionIndices(),
+
+    // =========================================================================
+    // BACKWARD COMPATIBILITY STATE + ACTIONS
+    // These systems were extracted into focused stores, but many components/tests
+    // still access them via useProductionStore.
+    // =========================================================================
+
+    // QC Lab
+    qcLab: useQCLabStore.getState().qcLab,
+    startQCTest: (...args: Parameters<QCLabStore['startQCTest']>) =>
+      useQCLabStore.getState().startQCTest(...args),
+    completeQCTest: (...args: Parameters<QCLabStore['completeQCTest']>) =>
+      useQCLabStore.getState().completeQCTest(...args),
+    triggerContaminationAlert: () => useQCLabStore.getState().triggerContaminationAlert(),
+    updateCertificationStatus: (...args: Parameters<QCLabStore['updateCertificationStatus']>) =>
+      useQCLabStore.getState().updateCertificationStatus(...args),
+    getLatestTestResult: () => useQCLabStore.getState().getLatestTestResult(),
+
+    // Achievements
+    achievements: useAchievementsStore.getState().achievements,
+    unlockAchievement: (...args: Parameters<AchievementsStore['unlockAchievement']>) =>
+      useAchievementsStore.getState().unlockAchievement(...args),
+    updateAchievementProgress: (
+      ...args: Parameters<AchievementsStore['updateAchievementProgress']>
+    ) => useAchievementsStore.getState().updateAchievementProgress(...args),
+    resetAchievements: () => useAchievementsStore.getState().resetAchievements(),
+    getAchievement: (...args: Parameters<AchievementsStore['getAchievement']>) =>
+      useAchievementsStore.getState().getAchievement(...args),
+    getUnlockedAchievements: () => useAchievementsStore.getState().getUnlockedAchievements(),
+    getAchievementsByCategory: (
+      ...args: Parameters<AchievementsStore['getAchievementsByCategory']>
+    ) => useAchievementsStore.getState().getAchievementsByCategory(...args),
+
+    // Announcements
+    announcements: useAnnouncementsStore.getState().announcements,
+    addAnnouncement: (...args: Parameters<AnnouncementsStore['addAnnouncement']>) =>
+      useAnnouncementsStore.getState().addAnnouncement(...args),
+    dismissAnnouncement: (...args: Parameters<AnnouncementsStore['dismissAnnouncement']>) =>
+      useAnnouncementsStore.getState().dismissAnnouncement(...args),
+    clearOldAnnouncements: () => useAnnouncementsStore.getState().clearOldAnnouncements(),
+    getActiveAnnouncements: () => useAnnouncementsStore.getState().getActiveAnnouncements(),
+    getAnnouncementsByPriority: (
+      ...args: Parameters<AnnouncementsStore['getAnnouncementsByPriority']>
+    ) => useAnnouncementsStore.getState().getAnnouncementsByPriority(...args),
+
+    // Incident replay
+    replayMode: useIncidentReplayStore.getState().replayMode,
+    replayFrames: useIncidentReplayStore.getState().replayFrames,
+    currentReplayIndex: useIncidentReplayStore.getState().currentReplayIndex,
+    setReplayMode: (...args: Parameters<IncidentReplayStore['setReplayMode']>) =>
+      useIncidentReplayStore.getState().setReplayMode(...args),
+    recordReplayFrame: (...args: Parameters<IncidentReplayStore['recordReplayFrame']>) =>
+      useIncidentReplayStore.getState().recordReplayFrame(...args),
+    setReplayIndex: (...args: Parameters<IncidentReplayStore['setReplayIndex']>) =>
+      useIncidentReplayStore.getState().setReplayIndex(...args),
+    clearReplayFrames: () => useIncidentReplayStore.getState().clearReplayFrames(),
+    getCurrentFrame: () => useIncidentReplayStore.getState().getCurrentFrame(),
+    getFrameCount: () => useIncidentReplayStore.getState().getFrameCount(),
+    stepForward: () => useIncidentReplayStore.getState().stepForward(),
+    stepBackward: () => useIncidentReplayStore.getState().stepBackward(),
+    jumpToStart: () => useIncidentReplayStore.getState().jumpToStart(),
+    jumpToEnd: () => useIncidentReplayStore.getState().jumpToEnd(),
+
+    // Truck schedule
+    truckSchedule: useTruckScheduleStore.getState().truckSchedule,
+    setTruckDocked: (...args: Parameters<TruckScheduleStore['setTruckDocked']>) =>
+      useTruckScheduleStore.getState().setTruckDocked(...args),
+    updateNextArrival: (...args: Parameters<TruckScheduleStore['updateNextArrival']>) =>
+      useTruckScheduleStore.getState().updateNextArrival(...args),
+    recordTruckDeparture: (...args: Parameters<TruckScheduleStore['recordTruckDeparture']>) =>
+      useTruckScheduleStore.getState().recordTruckDeparture(...args),
+    isAnyTruckDocked: () => useTruckScheduleStore.getState().isAnyTruckDocked(),
+    getTimeUntilNextArrival: (...args: Parameters<TruckScheduleStore['getTimeUntilNextArrival']>) =>
+      useTruckScheduleStore.getState().getTimeUntilNextArrival(...args),
+    tickArrivals: (...args: Parameters<TruckScheduleStore['tickArrivals']>) =>
+      useTruckScheduleStore.getState().tickArrivals(...args),
 
     productionSpeed: 1,
     setProductionSpeed: (speed) => set({ productionSpeed: speed }),
@@ -240,6 +344,10 @@ export const useProductionStore = create<ProductionStore>()(
         workers: state.workers.map((w) =>
           w.id === workerId ? { ...w, currentTask: task, targetMachine } : w
         ),
+      })),
+    updateWorkerStatus: (workerId: string, status: WorkerStatus) =>
+      set((state) => ({
+        workers: state.workers.map((w) => (w.id === workerId ? { ...w, status } : w)),
       })),
 
     machines: [],
@@ -278,10 +386,14 @@ export const useProductionStore = create<ProductionStore>()(
 
       // Wire AI welfare feedback loop - update welfare metrics on decision completion
       if (decision && (status === 'completed' || status === 'superseded')) {
-        import('../utils/aiEngine').then(({ updateWelfareFromDecisionOutcome }) => {
-          const welfareOutcome = status === 'completed' ? 'completed' : 'rejected';
-          updateWelfareFromDecisionOutcome(decision, welfareOutcome);
-        });
+        import('../utils/aiEngine')
+          .then(({ updateWelfareFromDecisionOutcome }) => {
+            const welfareOutcome = status === 'completed' ? 'completed' : 'rejected';
+            updateWelfareFromDecisionOutcome(decision, welfareOutcome);
+          })
+          .catch(() => {
+            // Silently handle import failure - welfare update is non-critical
+          });
       }
     },
 
@@ -316,6 +428,94 @@ export const useProductionStore = create<ProductionStore>()(
 
         return { machines: Array.from(machinesMap.values()) };
       }),
+
+    // MAINTENANCE SYSTEM - Reduces wear and repairs machines
+    performMaintenance: (machineId: string) => {
+      const state = get();
+      const machine = state.machines.find((m) => m.id === machineId);
+
+      if (!machine) {
+        return { success: false, wearReduced: 0, message: 'Machine not found' };
+      }
+
+      const currentWear = machine.metrics.wear ?? 0;
+      if (currentWear <= 0) {
+        return { success: false, wearReduced: 0, message: 'Machine has no wear to repair' };
+      }
+
+      const wearConfig = WEAR_CONFIG[machine.type];
+      const wearReduced = Math.min(currentWear, wearConfig.maintenanceReduction);
+      const newWear = Math.max(0, currentWear - wearReduced);
+      const newEfficiency = calculateEfficiency(newWear, machine.type);
+
+      // Determine new status based on wear
+      let newStatus: MachineData['status'] = 'running';
+      if (newWear >= wearConfig.breakdownThreshold) {
+        newStatus = 'critical';
+      } else if (newWear >= wearConfig.warningThreshold) {
+        newStatus = 'warning';
+      } else if (machine.status === 'critical') {
+        // If was broken down, set to running after repair
+        newStatus = 'running';
+      } else {
+        newStatus = machine.status === 'idle' ? 'idle' : 'running';
+      }
+
+      // Update machine state
+      set((state) => ({
+        machines: state.machines.map((m) =>
+          m.id === machineId
+            ? {
+                ...m,
+                status: newStatus,
+                lastMaintenance: new Date().toISOString(),
+                metrics: {
+                  ...m.metrics,
+                  wear: Math.round(newWear * 100) / 100,
+                  efficiency: newEfficiency,
+                },
+              }
+            : m
+        ),
+      }));
+
+      // Fire maintenance complete alert
+      import('./uiStore').then(({ useUIStore }) => {
+        useUIStore.getState().addAlert({
+          id: `maintenance-${machineId}-${Date.now()}`,
+          type: 'success',
+          title: 'Maintenance Complete',
+          message: `${machine.name} maintained. Wear reduced by ${wearReduced.toFixed(1)}%, now at ${newWear.toFixed(1)}%. Efficiency: ${newEfficiency}%`,
+          machineId,
+          timestamp: new Date(),
+          acknowledged: false,
+        });
+      });
+
+      return {
+        success: true,
+        wearReduced: Math.round(wearReduced * 10) / 10,
+        message: `Wear reduced from ${currentWear.toFixed(1)}% to ${newWear.toFixed(1)}%`,
+      };
+    },
+
+    getWearStatus: (machineId: string) => {
+      const state = get();
+      const machine = state.machines.find((m) => m.id === machineId);
+
+      if (!machine) return null;
+
+      const wear = machine.metrics.wear ?? 0;
+      const efficiency = machine.metrics.efficiency ?? 100;
+      const wearConfig = WEAR_CONFIG[machine.type];
+
+      return {
+        wear,
+        efficiency,
+        needsMaintenance: wear >= wearConfig.warningThreshold,
+        nearBreakdown: wear >= wearConfig.breakdownThreshold * 0.9,
+      };
+    },
 
     metrics: {
       throughput: 0, // Will be computed
@@ -356,25 +556,35 @@ export const useProductionStore = create<ProductionStore>()(
               ) / 10
             : 100;
 
-        // Quality: average from QC test history (A=100, B=85, C=70, FAIL=0)
-        const gradeValues: Record<string, number> = { A: 100, B: 85, C: 70, FAIL: 0 };
-        const testHistory = state.qcLab.testHistory;
-        const quality =
-          testHistory.length > 0
-            ? Math.round(
-                (testHistory.slice(-10).reduce((sum, t) => sum + (gradeValues[t.grade] || 85), 0) /
-                  Math.min(testHistory.length, 10)) *
-                  10
-              ) / 10
-            : 99.5; // Default before any tests
+        // Quality: Get from QC Lab store - use dynamic import to avoid circular deps
+        // For now, use default value - consumers should use useQCLabStore directly
+        const quality = 99.5; // Default before any tests
 
-        // Throughput: bags per minute based on running packers
-        // Each packer at full production speed produces ~12 bags/min
-        const packers = machines.filter((m) => m.type.toString() === 'PACKER');
-        const runningPackers = packers.filter(
-          (m) => m.status === 'running' || m.status === 'warning'
-        ).length;
-        const throughput = Math.round(runningPackers * 12 * 60 * state.productionSpeed);
+        // Throughput: Use REAL material flow rate from materialFlowStore
+        // This represents actual kg/min flowing through the system
+        // Convert to bags/hour: (kg/min) / 25 kg/bag * 60 min/hour
+        const materialFlowState = useMaterialFlowStore.getState();
+        const flowRateKgPerMin = materialFlowState.totalFlowRate;
+        const BAG_WEIGHT_KG = materialFlowState.bagWeightKg || 25;
+
+        // If material flow is not initialized yet, fall back to RPM-based calculation
+        let throughput: number;
+        if (flowRateKgPerMin > 0) {
+          // Real throughput from material flow: bags per hour
+          throughput = Math.round((flowRateKgPerMin / BAG_WEIGHT_KG) * 60);
+        } else {
+          // Fallback: estimate from packer RPM
+          const BAGS_PER_RPM_PER_MIN = 0.2;
+          const packers = machines.filter((m) => m.type.toString() === 'PACKER');
+          const runningPackers = packers.filter(
+            (m) => m.status === 'running' || m.status === 'warning'
+          );
+          throughput = Math.round(
+            runningPackers.reduce((sum, p) => sum + p.metrics.rpm * BAGS_PER_RPM_PER_MIN, 0) *
+              60 *
+              state.productionSpeed
+          );
+        }
 
         return {
           metrics: { efficiency, uptime, quality, throughput },
@@ -382,7 +592,8 @@ export const useProductionStore = create<ProductionStore>()(
       }),
 
     // Tick metrics tracking - called by game simulation loop
-    tickMetrics: (deltaSeconds: number) =>
+    tickMetrics: (deltaSeconds: number) => {
+      // Update metric tracking
       set((state) => {
         const machines = state.machines;
         const runningMachines = machines.filter(
@@ -397,7 +608,136 @@ export const useProductionStore = create<ProductionStore>()(
             totalElapsedSeconds: state._metricTracking.totalElapsedSeconds + deltaSeconds,
           },
         };
-      }),
+      });
+      // Also tick machine metrics to vary RPM, temperature, load
+      get().tickMachineMetrics(deltaSeconds);
+    },
+
+    // Tick machine metrics - vary RPM, temperature, load, accumulate wear, and update efficiency
+    tickMachineMetrics: (deltaSeconds: number) => {
+      // Track machines that need breakdown alerts (handled outside set() to avoid store recursion)
+      const machinesToBreakdown: Array<{ id: string; name: string; type: string }> = [];
+
+      set((state) => {
+        if (state.machines.length === 0) return state;
+
+        const updatedMachines = state.machines.map((machine) => {
+          const isRunning = machine.status === 'running' || machine.status === 'warning';
+          const isBrokenDown = machine.status === 'critical';
+          const baseRpm = machine.metrics.rpm;
+          const baseLoad = machine.metrics.load;
+          const baseTemp = machine.metrics.temperature;
+          const baseWear = machine.metrics.wear ?? 0;
+          const wearConfig = WEAR_CONFIG[machine.type];
+
+          // Skip updates for broken down machines
+          if (isBrokenDown) {
+            return machine;
+          }
+
+          // RPM variance: +/-2% random variation when running
+          let newRpm = baseRpm;
+          if (isRunning && baseRpm > 0) {
+            const rpmVariance = baseRpm * 0.02 * (Math.random() * 2 - 1);
+            newRpm = Math.max(0, Math.round(baseRpm + rpmVariance));
+          }
+
+          // Temperature: gradually increases when running, decreases when idle
+          let newTemp = baseTemp;
+          if (isRunning) {
+            // Running: temperature rises toward 75C at ~0.5C per second
+            const tempTarget = 75;
+            const tempDelta = (tempTarget - baseTemp) * 0.02 * deltaSeconds;
+            newTemp = Math.round(Math.min(85, baseTemp + Math.max(0.1, tempDelta)));
+          } else {
+            // Idle: temperature falls toward ambient 25C at ~0.3C per second
+            const tempTarget = 25;
+            const tempDelta = (baseTemp - tempTarget) * 0.01 * deltaSeconds;
+            newTemp = Math.round(Math.max(25, baseTemp - Math.max(0.1, tempDelta)));
+          }
+
+          // Load variance: +/-5% based on production speed when running
+          let newLoad = baseLoad;
+          if (isRunning && baseLoad > 0) {
+            const loadVariance = baseLoad * 0.05 * (Math.random() * 2 - 1);
+            const speedFactor = state.productionSpeed;
+            newLoad = Math.round(
+              Math.max(10, Math.min(100, baseLoad * speedFactor * 0.8 + loadVariance))
+            );
+          }
+
+          // WEAR ACCUMULATION: Machines accumulate wear while running
+          // Higher load accelerates wear (load factor: 0.5 at 50% load, 1.5 at 100% load)
+          let newWear = baseWear;
+          if (isRunning) {
+            const loadFactor = 0.5 + newLoad / 100;
+            const wearIncrement = wearConfig.wearRatePerSecond * deltaSeconds * loadFactor;
+            newWear = Math.min(100, baseWear + wearIncrement);
+          }
+
+          // EFFICIENCY CALCULATION: Efficiency decreases as wear increases
+          const newEfficiency = calculateEfficiency(newWear, machine.type);
+
+          // STATUS UPDATE based on wear thresholds
+          let newStatus = machine.status;
+          if (newWear >= wearConfig.breakdownThreshold) {
+            // Machine breaks down!
+            newStatus = 'critical';
+            machinesToBreakdown.push({ id: machine.id, name: machine.name, type: machine.type });
+          } else if (newWear >= wearConfig.warningThreshold && machine.status === 'running') {
+            // Machine needs maintenance soon
+            newStatus = 'warning';
+          }
+
+          // Only create new object if something changed
+          const wearChanged = Math.abs(newWear - baseWear) > 0.0001;
+          const efficiencyChanged = newEfficiency !== (machine.metrics.efficiency ?? 100);
+          if (
+            newRpm === baseRpm &&
+            newTemp === baseTemp &&
+            newLoad === baseLoad &&
+            !wearChanged &&
+            !efficiencyChanged &&
+            newStatus === machine.status
+          ) {
+            return machine;
+          }
+
+          return {
+            ...machine,
+            status: newStatus,
+            metrics: {
+              ...machine.metrics,
+              rpm: newRpm,
+              temperature: newTemp,
+              load: newLoad,
+              wear: Math.round(newWear * 100) / 100, // Round to 2 decimal places
+              efficiency: newEfficiency,
+            },
+          };
+        });
+
+        return { machines: updatedMachines };
+      });
+
+      // Fire breakdown alerts outside of set() to avoid store recursion
+      // Import dynamically to avoid circular dependency
+      if (machinesToBreakdown.length > 0) {
+        import('./uiStore').then(({ useUIStore }) => {
+          machinesToBreakdown.forEach(({ id, name, type }) => {
+            useUIStore.getState().addAlert({
+              id: `breakdown-${id}-${Date.now()}`,
+              type: 'critical',
+              title: 'Machine Breakdown',
+              message: `${name} (${type}) has broken down due to excessive wear. Maintenance required.`,
+              machineId: id,
+              timestamp: new Date(),
+              acknowledged: false,
+            });
+          });
+        });
+      }
+    },
 
     // Heat map data
     heatMapData: [],
@@ -553,257 +893,6 @@ export const useProductionStore = create<ProductionStore>()(
         };
       }),
 
-    // Achievements - balanced goals that require actual play time
-    achievements: [
-      {
-        id: 'safety-5',
-        name: 'Safety First',
-        description: '5 days without incident',
-        icon: 'Shield',
-        category: 'safety',
-        requirement: 5,
-        currentValue: 0,
-        progress: 0,
-      },
-      {
-        id: 'bags-1k',
-        name: 'Getting Started',
-        description: 'Pack 1,000 bags',
-        icon: 'Package',
-        category: 'production',
-        requirement: 1000,
-        currentValue: 0,
-        progress: 0,
-      },
-      {
-        id: 'quality-streak',
-        name: 'Quality Streak',
-        description: 'Maintain 95% quality for 5 minutes',
-        icon: 'Award',
-        category: 'quality',
-        requirement: 5, // 5 consecutive checks at 95%+
-        currentValue: 0,
-        progress: 0,
-      },
-      {
-        id: 'team-player',
-        name: 'Team Player',
-        description: '10 worker collaborations',
-        icon: 'Users',
-        category: 'teamwork',
-        requirement: 10,
-        currentValue: 0,
-        progress: 0,
-      },
-      {
-        id: 'efficiency-sustained',
-        name: 'Steady Runner',
-        description: 'Maintain 90% uptime for 10 minutes',
-        icon: 'TrendingUp',
-        category: 'production',
-        requirement: 10, // 10 consecutive checks at 90%+
-        currentValue: 0,
-        progress: 0,
-      },
-      {
-        id: 'night-owl',
-        name: 'Night Owl',
-        description: 'Complete a night shift',
-        icon: 'Moon',
-        category: 'production',
-        requirement: 1,
-        currentValue: 0,
-        progress: 0,
-      },
-      {
-        id: 'first-emergency',
-        name: 'Crisis Manager',
-        description: 'Handle your first emergency',
-        icon: 'Siren',
-        category: 'safety',
-        requirement: 1,
-        currentValue: 0,
-        progress: 0,
-      },
-      {
-        id: 'bags-10k',
-        name: 'Production Pro',
-        description: 'Pack 10,000 bags',
-        icon: 'Boxes',
-        category: 'production',
-        requirement: 10000,
-        currentValue: 0,
-        progress: 0,
-      },
-      // =====================================================
-      // BILATERAL ALIGNMENT ACHIEVEMENTS
-      // Teaching through gameplay: listening to workers matters
-      // =====================================================
-      {
-        id: 'floor-has-ears',
-        name: 'The Floor Has Ears',
-        description: 'Address 5 safety reports before they escalate',
-        icon: 'Ear',
-        category: 'safety',
-        requirement: 5,
-        currentValue: 0,
-        progress: 0,
-      },
-      {
-        id: 'trust-falls',
-        name: 'Trust Falls',
-        description: 'Reach 90% average management trust',
-        icon: 'Heart',
-        category: 'teamwork',
-        requirement: 90,
-        currentValue: 75, // Start at default trust
-        progress: 0,
-      },
-      {
-        id: 'zero-dismissals',
-        name: 'Zero Dismissals',
-        description: 'Complete a shift without dismissing any requests',
-        icon: 'CheckCircle',
-        category: 'teamwork',
-        requirement: 1,
-        currentValue: 0,
-        progress: 0,
-      },
-      {
-        id: 'self-organizers',
-        name: 'Self Starters',
-        description: '10 workers autonomously help each other',
-        icon: 'Sparkles',
-        category: 'teamwork',
-        requirement: 10,
-        currentValue: 0,
-        progress: 0,
-      },
-      {
-        id: 'preference-prophet',
-        name: 'Preference Prophet',
-        description: 'Grant 20 preference requests',
-        icon: 'Gift',
-        category: 'teamwork',
-        requirement: 20,
-        currentValue: 0,
-        progress: 0,
-      },
-      {
-        id: 'silent-floor',
-        name: 'Silent Floor',
-        description: 'Let 3 workers stop reporting (learned helplessness)',
-        icon: 'VolumeX',
-        category: 'safety',
-        requirement: 3,
-        currentValue: 0,
-        progress: 0,
-        // This is a "failure state" achievement - teaching what NOT to do
-      },
-      {
-        id: 'initiative-engine',
-        name: 'Initiative Engine',
-        description: 'Reach 80% average worker initiative',
-        icon: 'Lightbulb',
-        category: 'production',
-        requirement: 80,
-        currentValue: 60, // Start at default initiative
-        progress: 0,
-      },
-      {
-        id: 'explainer',
-        name: 'The Explainer',
-        description: 'Deny a request with explanation 5 times',
-        icon: 'MessageCircle',
-        category: 'teamwork',
-        requirement: 5,
-        currentValue: 0,
-        progress: 0,
-      },
-    ] as Achievement[],
-    unlockAchievement: (achievementId: string) =>
-      set((state) => ({
-        achievements: state.achievements.map((a) =>
-          a.id === achievementId ? { ...a, unlockedAt: new Date().toISOString(), progress: 100 } : a
-        ),
-      })),
-    updateAchievementProgress: (achievementId: string, progress: number) =>
-      set((state) => ({
-        achievements: state.achievements.map((a) =>
-          a.id === achievementId
-            ? {
-                ...a,
-                currentValue: progress,
-                progress: Math.min(100, (progress / a.requirement) * 100),
-              }
-            : a
-        ),
-      })),
-    resetAchievements: () =>
-      set((state) => ({
-        achievements: state.achievements.map((a) => ({
-          ...a,
-          unlockedAt: undefined,
-          currentValue: 0,
-          progress: 0,
-        })),
-      })),
-
-    // PA Announcements
-    announcements: [],
-    addAnnouncement: (announcement: Omit<PAnnouncement, 'id' | 'timestamp'>) =>
-      set((state) => {
-        const now = Date.now();
-
-        // Deduplicate: don't add if same message exists within last 10 seconds
-        const isDuplicate = state.announcements.some(
-          (a) => a.message === announcement.message && now - a.timestamp < 10000
-        );
-        if (isDuplicate) return state;
-
-        // Global cooldown: don't add ANY announcement within 15 seconds of the last one
-        // This ensures PA messages are spaced out and don't overlap visually or via TTS
-        const mostRecentAnnouncement = state.announcements[0];
-        if (mostRecentAnnouncement && now - mostRecentAnnouncement.timestamp < 15000) {
-          return state;
-        }
-
-        return {
-          announcements: [
-            {
-              ...announcement,
-              id: `pa-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-              timestamp: now,
-            },
-            ...state.announcements,
-          ].slice(0, 10),
-        };
-      }),
-    dismissAnnouncement: (id: string) =>
-      set((state) => ({
-        announcements: state.announcements.filter((a) => a.id !== id),
-      })),
-    clearOldAnnouncements: () =>
-      set((state) => {
-        const now = Date.now();
-        const filtered = state.announcements.filter((a) => now - a.timestamp < a.duration * 1000);
-        // Only update if something actually changed
-        if (filtered.length === state.announcements.length) return state;
-        return { announcements: filtered };
-      }),
-
-    // Incident replay
-    replayMode: false,
-    replayFrames: [],
-    currentReplayIndex: 0,
-    setReplayMode: (enabled: boolean) => set({ replayMode: enabled }),
-    recordReplayFrame: (frame: IncidentReplayFrame) =>
-      set((state) => ({
-        replayFrames: [...state.replayFrames, frame].slice(-600), // Keep last 10 minutes at 1fps
-      })),
-    setReplayIndex: (index: number) => set({ currentReplayIndex: index }),
-    clearReplayFrames: () => set({ replayFrames: [], currentReplayIndex: 0 }),
-
     // Worker leaderboard
     workerLeaderboard: [],
     updateWorkerScore: (workerId: string, name: string, score: number, tasksCompleted: number) =>
@@ -839,129 +928,5 @@ export const useProductionStore = create<ProductionStore>()(
     // SCADA integration
     scadaLive: false,
     setScadaLive: (live: boolean) => set({ scadaLive: live }),
-
-    // Truck scheduling state
-    truckSchedule: {
-      nextShippingArrival: 45, // Seconds
-      nextReceivingArrival: 30,
-      truckDocked: {
-        shipping: false,
-        receiving: false,
-      },
-      lastShippingDeparture: 0,
-      lastReceivingDeparture: 0,
-    },
-
-    setTruckDocked: (dock, docked) =>
-      set((state) => ({
-        truckSchedule: {
-          ...state.truckSchedule,
-          truckDocked: {
-            ...state.truckSchedule.truckDocked,
-            [dock]: docked,
-          },
-        },
-      })),
-
-    updateNextArrival: (dock, seconds) =>
-      set((state) => ({
-        truckSchedule: {
-          ...state.truckSchedule,
-          [dock === 'shipping' ? 'nextShippingArrival' : 'nextReceivingArrival']: seconds,
-        },
-      })),
-
-    recordTruckDeparture: (dock) =>
-      set((state) => {
-        // Add randomness to next arrival: 45-75 seconds base + random(-15, +15)
-        const baseInterval = 45 + Math.floor(Math.random() * 30);
-        const variance = Math.floor(Math.random() * 30) - 15;
-        const nextArrival = baseInterval + variance;
-
-        return {
-          truckSchedule: {
-            ...state.truckSchedule,
-            [dock === 'shipping' ? 'lastShippingDeparture' : 'lastReceivingDeparture']: Date.now(),
-            [dock === 'shipping' ? 'nextShippingArrival' : 'nextReceivingArrival']: nextArrival,
-            truckDocked: {
-              ...state.truckSchedule.truckDocked,
-              [dock]: false,
-            },
-          },
-        };
-      }),
-
-    // Quality Control Lab state
-    qcLab: {
-      currentTest: null,
-      testHistory: [],
-      certificationStatus: 'certified',
-      certificationExpiry: 24, // Game hours until expiry
-      contaminationAlerts: 0,
-      lastTestTime: 0,
-    },
-
-    startQCTest: (sampleSource, sampleSourceName, workerId, workerName) =>
-      set((state) => ({
-        qcLab: {
-          ...state.qcLab,
-          currentTest: {
-            id: `qc-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-            timestamp: Date.now(),
-            sampleSource,
-            sampleSourceName,
-            grade: 'A', // Placeholder, will be set on complete
-            moistureLevel: 0,
-            proteinContent: 0,
-            contaminationDetected: false,
-            testedBy: workerId,
-            testedByName: workerName,
-          },
-        },
-      })),
-
-    completeQCTest: (result) =>
-      set((state) => {
-        const newResult: QualityTestResult = {
-          ...result,
-          id: `qc-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-          timestamp: Date.now(),
-        };
-
-        return {
-          qcLab: {
-            ...state.qcLab,
-            currentTest: null,
-            testHistory: [newResult, ...state.qcLab.testHistory].slice(0, 20), // Keep last 20
-            lastTestTime: Date.now(),
-            contaminationAlerts: result.contaminationDetected
-              ? state.qcLab.contaminationAlerts + 1
-              : state.qcLab.contaminationAlerts,
-          },
-        };
-      }),
-
-    triggerContaminationAlert: () =>
-      set((state) => ({
-        qcLab: {
-          ...state.qcLab,
-          contaminationAlerts: state.qcLab.contaminationAlerts + 1,
-          certificationStatus: 'pending', // Contamination affects certification
-        },
-      })),
-
-    updateCertificationStatus: (status) =>
-      set((state) => ({
-        qcLab: {
-          ...state.qcLab,
-          certificationStatus: status,
-          certificationExpiry: status === 'certified' ? 24 : state.qcLab.certificationExpiry,
-        },
-      })),
-
-    getLatestTestResult: () => {
-      const state = get();
-      return state.qcLab.testHistory[0] || null;
-    },
   }))
 );

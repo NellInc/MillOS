@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Shield, ChevronDown, ChevronUp } from 'lucide-react';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
@@ -7,13 +8,27 @@ import { useUIStore } from '../../stores/uiStore';
 
 export const EmergencyControlPanel: React.FC = () => {
   const [expanded, setExpanded] = useState(false);
-  const emergencyActive = useGameSimulationStore((state) => state.emergencyActive);
-  const emergencyDrillMode = useGameSimulationStore((state) => state.emergencyDrillMode);
-  const startEmergencyDrill = useGameSimulationStore((state) => state.startEmergencyDrill);
-  const endEmergencyDrill = useGameSimulationStore((state) => state.endEmergencyDrill);
-  const shiftChangeActive = useGameSimulationStore((state) => state.shiftChangeActive);
-  const currentShift = useGameSimulationStore((state) => state.currentShift);
-  const triggerShiftChange = useGameSimulationStore((state) => state.triggerShiftChange);
+
+  const {
+    emergencyActive,
+    emergencyDrillMode,
+    startEmergencyDrill,
+    endEmergencyDrill,
+    shiftChangeActive,
+    currentShift,
+    triggerShiftChange,
+  } = useGameSimulationStore(
+    useShallow((state) => ({
+      emergencyActive: state.emergencyActive,
+      emergencyDrillMode: state.emergencyDrillMode,
+      startEmergencyDrill: state.startEmergencyDrill,
+      endEmergencyDrill: state.endEmergencyDrill,
+      shiftChangeActive: state.shiftChangeActive,
+      currentShift: state.currentShift,
+      triggerShiftChange: state.triggerShiftChange,
+    }))
+  );
+
   const workerCount = useProductionStore((state) => state.workers.length);
   const theme = useUIStore((state) => state.theme);
 

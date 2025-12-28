@@ -24,7 +24,8 @@ interface WaypointAction {
   duration: number;
 }
 
-interface ForkliftData {
+// Internal physics-specific forklift data (distinct from types.ts ForkliftData)
+interface PhysicsForkliftInternalData {
   id: string;
   position: [number, number, number];
   rotation: number;
@@ -39,7 +40,7 @@ interface ForkliftData {
 type ForkliftOperation = 'traveling' | 'loading' | 'unloading';
 
 interface PhysicsForkliftProps {
-  data: ForkliftData;
+  data: PhysicsForkliftInternalData;
   children: React.ReactNode;
   onPositionUpdate?: (x: number, z: number, rotation: number) => void;
   onCargoChange?: (hasCargo: boolean) => void;

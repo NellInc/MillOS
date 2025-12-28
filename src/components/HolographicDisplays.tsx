@@ -206,13 +206,13 @@ const HoloPanel: React.FC<HoloPanelProps> = React.memo(
     return (
       <group ref={groupRef} position={position}>
         <Billboard>
-          {/* Glow background */}
+          {/* Glow background - depthWrite false to prevent z-fighting */}
           <mesh ref={glowRef} position={[0, 0, -0.1]}>
             <planeGeometry args={[safeW + 1, safeH + 0.5]} />
-            <meshBasicMaterial color={color} transparent opacity={0.1} />
+            <meshBasicMaterial color={color} transparent opacity={0.1} depthWrite={false} />
           </mesh>
 
-          {/* Main panel */}
+          {/* Main panel - depthWrite false for transparent material */}
           <RoundedBox args={[safeW, safeH, 0.05]} radius={0.1} smoothness={4}>
             <meshStandardMaterial
               color="#0f172a"
@@ -220,13 +220,14 @@ const HoloPanel: React.FC<HoloPanelProps> = React.memo(
               opacity={0.9}
               metalness={0.5}
               roughness={0.5}
+              depthWrite={false}
             />
           </RoundedBox>
 
-          {/* Border glow */}
+          {/* Border glow - depthWrite false to prevent z-fighting */}
           <mesh position={[0, 0, 0.03]}>
             <planeGeometry args={[safeW - 0.1, safeH - 0.1]} />
-            <meshBasicMaterial color={color} transparent opacity={0.05} />
+            <meshBasicMaterial color={color} transparent opacity={0.05} depthWrite={false} />
           </mesh>
 
           {/* Top border accent */}
@@ -320,7 +321,14 @@ const DataParticles: React.FC = React.memo(() => {
       <bufferGeometry>
         <bufferAttribute attach="attributes-position" args={[positions, 3]} />
       </bufferGeometry>
-      <pointsMaterial size={0.1} color="#06b6d4" transparent opacity={0.6} sizeAttenuation />
+      <pointsMaterial
+        size={0.1}
+        color="#06b6d4"
+        transparent
+        opacity={0.6}
+        sizeAttenuation
+        depthWrite={false}
+      />
     </points>
   );
 });

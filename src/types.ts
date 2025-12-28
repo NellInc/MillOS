@@ -38,6 +38,9 @@ export interface MachineData {
     temperature: number;
     vibration: number;
     load: number;
+    // Wear system - accumulates during operation, affects efficiency
+    wear: number; // 0-100: 0=pristine, 100=breakdown threshold
+    efficiency: number; // 0-100: affected by wear level
   };
   lastMaintenance: string;
   nextMaintenance: string;
@@ -264,8 +267,9 @@ export interface ForkliftData {
   position: [number, number, number];
   rotation: number;
   status: 'moving' | 'loading' | 'unloading' | 'idle';
-  cargo: 'empty' | 'grain' | 'flour';
-  targetPosition: [number, number, number];
+  cargo: 'empty' | 'pallet' | 'grain' | 'flour';
+  targetPosition?: [number, number, number];
+  operatorName?: string;
 }
 
 // =========================================================================

@@ -252,10 +252,11 @@ export const DrainageGrate: React.FC<{ position: [number, number, number]; size?
           polygonOffsetUnits={POLYGON_OFFSET.standard.units}
         />
       </mesh>
+      {/* Grate bars - raised to prevent z-fighting with puddle layer */}
       {Array.from({ length: 5 }).map((_, i) => (
         <mesh
           key={i}
-          position={[0, FLOOR_LAYERS.puddle + 0.005, (i - 2) * size * 0.15]}
+          position={[0, FLOOR_LAYERS.puddle + 0.015, (i - 2) * size * 0.15]}
           rotation={[-Math.PI / 2, 0, 0]}
         >
           <boxGeometry args={[size * 0.8, 0.02, 0.03]} />
@@ -269,7 +270,8 @@ export const DrainageGrate: React.FC<{ position: [number, number, number]; size?
           />
         </mesh>
       ))}
-      <mesh position={[0, FLOOR_LAYERS.puddle - 0.01, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+      {/* Dark hole beneath - positioned below floor to prevent z-fighting */}
+      <mesh position={[0, -0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <circleGeometry args={[size * 0.4, 8]} />
         <meshBasicMaterial color="#0a0a0a" />
       </mesh>

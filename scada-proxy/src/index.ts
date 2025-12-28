@@ -32,6 +32,13 @@ const PORT = parseInt(process.env.PORT ?? '3001', 10);
 const POLL_INTERVAL = parseInt(process.env.POLL_INTERVAL ?? '1000', 10);
 const API_KEY = process.env.SCADA_API_KEY;
 
+// Security: Fail fast if API key is not configured in production
+const isProduction = process.env.NODE_ENV === 'production';
+if (isProduction && !API_KEY) {
+  console.error('FATAL: SCADA_API_KEY environment variable is required in production');
+  process.exit(1);
+}
+
 type SafeWebSocket = WebSocket & { isAlive?: boolean };
 
 function auditLog(event: string, detail: Record<string, unknown>) {

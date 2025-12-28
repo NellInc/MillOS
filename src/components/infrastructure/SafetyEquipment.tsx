@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef, useEffect } from 'react';
 import * as THREE from 'three';
 import { Instances, Instance } from '@react-three/drei';
 import { useGraphicsStore } from '../../stores/graphicsStore';
@@ -8,6 +8,25 @@ interface SafetyEquipmentProps {
   floorWidth: number;
   floorDepth: number;
 }
+
+// Shared geometries for instanced pallets and sacks
+const PALLET_GEOMETRIES = {
+  topBoard: new THREE.BoxGeometry(1.2, 0.025, 0.2),
+  stringer: new THREE.BoxGeometry(0.1, 0.1, 1),
+  bottomBoard: new THREE.BoxGeometry(1.2, 0.02, 0.15),
+  crate: new THREE.BoxGeometry(0.8, 0.5, 0.6),
+  crateSlat: new THREE.BoxGeometry(0.82, 0.52, 0.02),
+  sack: new THREE.BoxGeometry(0.4, 0.25, 0.3),
+};
+
+const PALLET_MATERIALS = {
+  wood: new THREE.MeshStandardMaterial({ color: '#8b5a2b', roughness: 0.9 }),
+  woodDark: new THREE.MeshStandardMaterial({ color: '#6b4423', roughness: 0.9 }),
+  woodMedium: new THREE.MeshStandardMaterial({ color: '#7a4c2a', roughness: 0.9 }),
+  crateWood: new THREE.MeshStandardMaterial({ color: '#d4a574', roughness: 0.8 }),
+  crateSlatWood: new THREE.MeshStandardMaterial({ color: '#b8956e', roughness: 0.85 }),
+  sack: new THREE.MeshStandardMaterial({ color: '#e8dcc8', roughness: 0.95 }),
+};
 
 // Warning signage component
 const WarningSign: React.FC<{
@@ -34,31 +53,31 @@ const WarningSign: React.FC<{
         <boxGeometry args={[0.8, 0.6, 0.02]} />
         <meshStandardMaterial color={bg} />
       </mesh>
-      {/* Sign border */}
-      <mesh position={[0, 0, 0.011]}>
+      {/* Sign border - z=0.02 for proper separation from backing */}
+      <mesh position={[0, 0, 0.02]}>
         <planeGeometry args={[0.72, 0.52]} />
         <meshBasicMaterial color={text} />
       </mesh>
-      {/* Inner area */}
-      <mesh position={[0, 0, 0.012]}>
+      {/* Inner area - z=0.03 for proper separation from border */}
+      <mesh position={[0, 0, 0.03]}>
         <planeGeometry args={[0.68, 0.48]} />
         <meshBasicMaterial color={bg} />
       </mesh>
-      {/* Symbol area (simplified) */}
+      {/* Symbol area (simplified) - z=0.04 for proper separation from inner area */}
       {type === 'forklift' && (
-        <mesh position={[0, 0, 0.015]}>
+        <mesh position={[0, 0, 0.04]}>
           <planeGeometry args={[0.3, 0.2]} />
           <meshBasicMaterial color={text} />
         </mesh>
       )}
       {type === 'danger' && (
-        <mesh position={[0, 0.05, 0.015]} rotation={[0, 0, Math.PI]}>
+        <mesh position={[0, 0.05, 0.04]} rotation={[0, 0, Math.PI]}>
           <circleGeometry args={[0.15, 3]} />
           <meshBasicMaterial color="#ffffff" />
         </mesh>
       )}
       {type === 'exit' && (
-        <mesh position={[0.15, 0, 0.015]}>
+        <mesh position={[0.15, 0, 0.04]}>
           <boxGeometry args={[0.15, 0.25, 0.001]} />
           <meshBasicMaterial color="#ffffff" />
         </mesh>
@@ -92,10 +111,10 @@ const WallSign: React.FC<{
         <boxGeometry args={[1.2, 0.4, 0.03]} />
         <meshStandardMaterial color={color} />
       </mesh>
-      {/* Text area (simplified as lighter rectangle) */}
-      <mesh position={[0, 0, 0.016]}>
+      {/* Text area (simplified as lighter rectangle) - z=0.03 for proper separation */}
+      <mesh position={[0, 0, 0.03]}>
         <planeGeometry args={[1.1, 0.3]} />
-        <meshBasicMaterial color="#ffffff" transparent opacity={0.9} />
+        <meshBasicMaterial color="#ffffff" transparent opacity={0.9} depthWrite={false} />
       </mesh>
     </group>
   );
@@ -232,105 +251,172 @@ const SafetyStation: React.FC<{
   );
 });
 
-// Stacked pallets with optional crates
+// Stacked pallets with optional crates - INSTANCED VERSION
 const PalletStack: React.FC<{
   position: [number, number, number];
   layers?: number;
   hasCrates?: boolean;
   rotation?: number;
 }> = React.memo(({ position, layers = 1, hasCrates = false, rotation = 0 }) => {
+  const topBoardsRef = useRef<THREE.InstancedMesh>(null);
+  const stringersRef = useRef<THREE.InstancedMesh>(null);
+  const bottomBoardsRef = useRef<THREE.InstancedMesh>(null);
+
+  const instanceData = useMemo(() => {
+    const topBoards: THREE.Matrix4[] = [];
+    const stringers: THREE.Matrix4[] = [];
+    const bottomBoards: THREE.Matrix4[] = [];
+    const matrix = new THREE.Matrix4();
+
+    for (let layer = 0; layer < layers; layer++) {
+      const y = layer * 0.15;
+
+      // Top boards at z offsets
+      [-0.4, 0, 0.4].forEach((z) => {
+        matrix.setPosition(0, y + 0.12, z);
+        topBoards.push(matrix.clone());
+      });
+
+      // Stringers at x offsets
+      [-0.5, 0, 0.5].forEach((x) => {
+        matrix.setPosition(x, y + 0.05, 0);
+        stringers.push(matrix.clone());
+      });
+
+      // Bottom boards at z offsets
+      [-0.35, 0.35].forEach((z) => {
+        matrix.setPosition(0, y, z);
+        bottomBoards.push(matrix.clone());
+      });
+    }
+
+    return { topBoards, stringers, bottomBoards };
+  }, [layers]);
+
+  useEffect(() => {
+    if (topBoardsRef.current) {
+      instanceData.topBoards.forEach((m, i) => topBoardsRef.current!.setMatrixAt(i, m));
+      topBoardsRef.current.instanceMatrix.needsUpdate = true;
+    }
+    if (stringersRef.current) {
+      instanceData.stringers.forEach((m, i) => stringersRef.current!.setMatrixAt(i, m));
+      stringersRef.current.instanceMatrix.needsUpdate = true;
+    }
+    if (bottomBoardsRef.current) {
+      instanceData.bottomBoards.forEach((m, i) => bottomBoardsRef.current!.setMatrixAt(i, m));
+      bottomBoardsRef.current.instanceMatrix.needsUpdate = true;
+    }
+  }, [instanceData]);
+
+  const topBoardCount = layers * 3;
+  const stringerCount = layers * 3;
+  const bottomBoardCount = layers * 2;
+
   return (
     <group position={position} rotation={[0, rotation, 0]}>
-      {/* Wooden pallet(s) */}
-      {Array.from({ length: layers }).map((_, layer) => (
-        <group key={layer} position={[0, layer * 0.15, 0]}>
-          {/* Pallet top boards */}
-          {[-0.4, 0, 0.4].map((z, i) => (
-            <mesh key={`top-${i}`} position={[0, 0.12, z]} castShadow>
-              <boxGeometry args={[1.2, 0.025, 0.2]} />
-              <meshStandardMaterial
-                color="#8b5a2b"
-                roughness={0.9}
-                normalMap={PROCEDURAL_TEXTURES.panelNormal}
-                normalScale={new THREE.Vector2(0.1, 0.1)}
-              />
-            </mesh>
-          ))}
-          {/* Pallet stringers */}
-          {[-0.5, 0, 0.5].map((x, i) => (
-            <mesh key={`stringer-${i}`} position={[x, 0.05, 0]} castShadow>
-              <boxGeometry args={[0.1, 0.1, 1]} />
-              <meshStandardMaterial color="#6b4423" roughness={0.9} />
-            </mesh>
-          ))}
-          {/* Pallet bottom boards */}
-          {[-0.35, 0.35].map((z, i) => (
-            <mesh key={`bottom-${i}`} position={[0, 0, z]} castShadow>
-              <boxGeometry args={[1.2, 0.02, 0.15]} />
-              <meshStandardMaterial color="#7a4c2a" roughness={0.9} />
-            </mesh>
-          ))}
-        </group>
-      ))}
+      {/* Instanced top boards */}
+      <instancedMesh
+        ref={topBoardsRef}
+        args={[PALLET_GEOMETRIES.topBoard, PALLET_MATERIALS.wood, topBoardCount]}
+        castShadow
+      />
 
-      {/* Crates on top */}
+      {/* Instanced stringers */}
+      <instancedMesh
+        ref={stringersRef}
+        args={[PALLET_GEOMETRIES.stringer, PALLET_MATERIALS.woodDark, stringerCount]}
+        castShadow
+      />
+
+      {/* Instanced bottom boards */}
+      <instancedMesh
+        ref={bottomBoardsRef}
+        args={[PALLET_GEOMETRIES.bottomBoard, PALLET_MATERIALS.woodMedium, bottomBoardCount]}
+        castShadow
+      />
+
+      {/* Crates on top (not instanced since only one per stack) */}
       {hasCrates && (
         <group position={[0, layers * 0.15 + 0.3, 0]}>
-          <mesh castShadow>
-            <boxGeometry args={[0.8, 0.5, 0.6]} />
-            <meshStandardMaterial color="#d4a574" roughness={0.8} />
-          </mesh>
+          <mesh
+            castShadow
+            geometry={PALLET_GEOMETRIES.crate}
+            material={PALLET_MATERIALS.crateWood}
+          />
           {/* Crate slats */}
-          {[-0.2, 0.2].map((z, i) => (
-            <mesh key={i} position={[0, 0, z]} castShadow>
-              <boxGeometry args={[0.82, 0.52, 0.02]} />
-              <meshStandardMaterial color="#b8956e" roughness={0.85} />
-            </mesh>
-          ))}
+          <mesh
+            position={[0, 0, -0.2]}
+            castShadow
+            geometry={PALLET_GEOMETRIES.crateSlat}
+            material={PALLET_MATERIALS.crateSlatWood}
+          />
+          <mesh
+            position={[0, 0, 0.2]}
+            castShadow
+            geometry={PALLET_GEOMETRIES.crateSlat}
+            material={PALLET_MATERIALS.crateSlatWood}
+          />
         </group>
       )}
     </group>
   );
 });
 
-// Sack stack (grain bags)
+// Sack stack (grain bags) - INSTANCED VERSION
 const SackStack: React.FC<{
   position: [number, number, number];
   count?: number;
   rotation?: number;
 }> = React.memo(({ position, count = 3, rotation = 0 }) => {
-  const sackPositions = useMemo(() => {
-    const positions: Array<[number, number, number, number]> = [];
+  const sacksRef = useRef<THREE.InstancedMesh>(null);
+
+  const sackMatrices = useMemo(() => {
+    const matrices: THREE.Matrix4[] = [];
     let y = 0.15;
     let remaining = count;
     let rowSize = Math.min(3, remaining);
 
+    // Use a seeded random for consistent results
+    const seededRandom = (seed: number) => {
+      const x = Math.sin(seed) * 10000;
+      return x - Math.floor(x);
+    };
+
+    let seedIndex = 0;
+
     while (remaining > 0) {
       for (let i = 0; i < rowSize && remaining > 0; i++) {
         const x = (i - (rowSize - 1) / 2) * 0.45;
-        const rz = (Math.random() - 0.5) * 0.1;
-        positions.push([x, y, 0, rz]);
+        const rz = (seededRandom(seedIndex++) - 0.5) * 0.1;
+
+        const matrix = new THREE.Matrix4();
+        // Create rotation quaternion for z-axis rotation
+        const quaternion = new THREE.Quaternion();
+        quaternion.setFromEuler(new THREE.Euler(0, 0, rz));
+        matrix.compose(new THREE.Vector3(x, y, 0), quaternion, new THREE.Vector3(1, 1, 1));
+        matrices.push(matrix);
         remaining--;
       }
       y += 0.25;
       rowSize = Math.max(1, rowSize - 1);
     }
-    return positions;
+    return matrices;
   }, [count]);
+
+  useEffect(() => {
+    if (sacksRef.current) {
+      sackMatrices.forEach((m, i) => sacksRef.current!.setMatrixAt(i, m));
+      sacksRef.current.instanceMatrix.needsUpdate = true;
+    }
+  }, [sackMatrices]);
 
   return (
     <group position={position} rotation={[0, rotation, 0]}>
-      {sackPositions.map(([x, y, z, rz], i) => (
-        <mesh key={i} position={[x, y, z]} rotation={[0, 0, rz]} castShadow>
-          <boxGeometry args={[0.4, 0.25, 0.3]} />
-          <meshStandardMaterial
-            color="#e8dcc8"
-            roughness={0.95}
-            normalMap={PROCEDURAL_TEXTURES.rubberNormal}
-            normalScale={new THREE.Vector2(0.2, 0.2)}
-          />
-        </mesh>
-      ))}
+      <instancedMesh
+        ref={sacksRef}
+        args={[PALLET_GEOMETRIES.sack, PALLET_MATERIALS.sack, count]}
+        castShadow
+      />
     </group>
   );
 });

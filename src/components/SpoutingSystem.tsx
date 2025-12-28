@@ -118,10 +118,12 @@ export const SpoutingSystem = React.memo<{ machines: MachineData[] }>(({ machine
       const flangeCount = Math.floor(length / 6);
 
       if (flangeCount > 0) {
+        // Flange outer radius slightly larger than tube, with small radial offset to prevent z-fighting
+        const flangeOuterRadius = tubeRadius + 0.08; // Slightly larger gap from tube surface
         // Reuse geometry/material for this pipe's flanges
         const flangeGeo = new THREE.CylinderGeometry(
-          tubeRadius + 0.06,
-          tubeRadius + 0.06,
+          flangeOuterRadius,
+          flangeOuterRadius,
           0.12,
           12
         );
@@ -129,6 +131,10 @@ export const SpoutingSystem = React.memo<{ machines: MachineData[] }>(({ machine
           color: '#64748b',
           metalness: 0.9,
           roughness: 0.3,
+          // Enable polygon offset to prevent z-fighting with tube surface
+          polygonOffset: true,
+          polygonOffsetFactor: 1,
+          polygonOffsetUnits: 1,
         });
 
         geometries.push(flangeGeo);
@@ -259,8 +265,8 @@ const PipeSupports: React.FC = React.memo(() => {
             <cylinderGeometry args={[0.1, 0.1, pos[1] * 2]} />
             <primitive object={PIPE_MATERIALS.supportGray} attach="material" />
           </mesh>
-          {/* Cross beam - no shadow for smaller cross members */}
-          <mesh position={[0, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
+          {/* Cross beam - offset slightly on Y axis to prevent z-fighting with vertical support */}
+          <mesh position={[0, 0.02, 0]} rotation={[0, 0, Math.PI / 2]}>
             <cylinderGeometry args={[0.08, 0.08, 3]} />
             <primitive object={PIPE_MATERIALS.supportSlate} attach="material" />
           </mesh>

@@ -77,6 +77,40 @@ export const FLOOR_LAYERS = {
 } as const;
 
 /**
+ * Exterior ground layer heights for outdoor areas.
+ *
+ * DESIGN: Use SAME height for surfaces that should blend seamlessly.
+ * Z-fighting between coplanar surfaces is handled by polygonOffset, NOT y-separation.
+ * Y-separation creates visible seams at surface boundaries.
+ *
+ * LAYER GROUPS (surfaces within each group are coplanar):
+ *   -0.02  ALL GROUND (grass, asphalt, cobblestone) - same height, no seams
+ *   -0.01  OVERLAYS (road markings, parking lines) - slightly above ground
+ *    0.00  [factory floor level]
+ *
+ * Use POLYGON_OFFSET.exterior* presets to layer within coplanar surfaces.
+ */
+export const EXTERIOR_LAYERS = {
+  /** All ground surfaces (grass, asphalt, cobble): y = -0.02 */
+  ground: -0.02,
+
+  /** Overlays on ground (markings, lines): y = -0.01 */
+  groundOverlay: -0.01,
+
+  // Legacy aliases for compatibility - all map to ground level
+  grassField: -0.02,
+  grassVerge: -0.02,
+  asphaltBase: -0.02,
+  roadSurface: -0.02,
+  cobblestone: -0.02,
+  parkingLot: -0.02,
+
+  // Overlay aliases - all map to overlay level
+  roadMarkings: -0.01,
+  parkingMarkings: -0.01,
+} as const;
+
+/**
  * PolygonOffset presets for depth buffer biasing.
  *
  * Formula: offset = factor * DZ + r * units
@@ -97,6 +131,22 @@ export const POLYGON_OFFSET = {
 
   /** Strong offset for critical text/labels */
   strong: { factor: -4, units: -4 },
+
+  // ===== EXTERIOR GROUND PRESETS =====
+  // For coplanar exterior surfaces. Higher values = renders on top.
+  // Use these to layer surfaces that share the same Y position.
+
+  /** Exterior base layer (lowest - grass fields) */
+  exteriorBase: { factor: 4, units: 4 },
+
+  /** Exterior middle layer (asphalt, cobblestone) */
+  exteriorMid: { factor: 2, units: 2 },
+
+  /** Exterior top layer (roads, paths on top of base) */
+  exteriorTop: { factor: 0, units: 0 },
+
+  /** Exterior overlay (markings, lines - always on top) */
+  exteriorOverlay: { factor: -2, units: -2 },
 } as const;
 
 /**
@@ -179,5 +229,6 @@ export const SHADOW_CONFIG = {
 
 // Type exports for consumers
 export type FloorLayer = keyof typeof FLOOR_LAYERS;
+export type ExteriorLayer = keyof typeof EXTERIOR_LAYERS;
 export type PolygonOffsetPreset = keyof typeof POLYGON_OFFSET;
 export type RenderOrderLayer = keyof typeof RENDER_ORDER;

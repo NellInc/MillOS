@@ -7,61 +7,13 @@
 
 import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import {
-  History,
-  ChevronLeft,
-  ChevronRight,
-  CheckCircle,
-  Clock,
-  AlertTriangle,
-  Zap,
-  Wrench,
-  Users,
-  Target,
-  Shield,
-} from 'lucide-react';
+import { History, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useProductionStore } from '../../stores/productionStore';
 import { DecisionReplayTrigger } from './DecisionReplay';
-import type { AIDecision } from '../../types';
+import { getDecisionTypeIcon, getDecisionStatusIcon } from '../../utils/decisionIcons';
+import { formatTime } from '../../utils/timeFormatting';
 
 const ITEMS_PER_PAGE = 5;
-
-const getTypeIcon = (type: AIDecision['type']) => {
-  switch (type) {
-    case 'optimization':
-      return <Zap className="w-3.5 h-3.5 text-cyan-400" />;
-    case 'maintenance':
-      return <Wrench className="w-3.5 h-3.5 text-amber-400" />;
-    case 'assignment':
-      return <Users className="w-3.5 h-3.5 text-green-400" />;
-    case 'prediction':
-      return <Target className="w-3.5 h-3.5 text-purple-400" />;
-    case 'safety':
-      return <Shield className="w-3.5 h-3.5 text-red-400" />;
-    default:
-      return <Zap className="w-3.5 h-3.5 text-slate-400" />;
-  }
-};
-
-const getStatusIcon = (status: AIDecision['status']) => {
-  switch (status) {
-    case 'completed':
-      return <CheckCircle className="w-3.5 h-3.5 text-green-400" />;
-    case 'in_progress':
-      return <Clock className="w-3.5 h-3.5 text-amber-400 animate-pulse" />;
-    case 'pending':
-      return <Clock className="w-3.5 h-3.5 text-slate-400" />;
-    case 'superseded':
-      return <AlertTriangle className="w-3.5 h-3.5 text-red-400" />;
-    default:
-      return <Clock className="w-3.5 h-3.5 text-slate-400" />;
-  }
-};
-
-const formatTime = (date: Date): string => {
-  const d = new Date(date);
-  return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-};
 
 export const DecisionHistoryPanel: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(0);
@@ -128,13 +80,13 @@ export const DecisionHistoryPanel: React.FC = () => {
                   <DecisionReplayTrigger key={decision.id} decision={decision}>
                     <div className="bg-slate-900/50 rounded-lg p-2 border border-slate-700/30 hover:border-cyan-500/30 hover:bg-slate-800/50 transition-colors cursor-pointer">
                       <div className="flex items-start gap-2">
-                        {getTypeIcon(decision.type)}
+                        {getDecisionTypeIcon(decision.type, 'sm')}
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between">
                             <span className="text-xs font-medium text-slate-200 truncate">
                               {decision.action}
                             </span>
-                            {getStatusIcon(decision.status)}
+                            {getDecisionStatusIcon(decision.status, 'sm')}
                           </div>
                           <p className="text-[10px] text-slate-400 line-clamp-2 mt-0.5">
                             {decision.reasoning}

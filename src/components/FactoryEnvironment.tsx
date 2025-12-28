@@ -8,16 +8,16 @@
  * - Coffee machine status
  */
 
-import React, { useRef, useMemo } from 'react';
+import React, { useRef, useMemo, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Billboard, Text } from '@react-three/drei';
 import * as THREE from 'three';
-import { useShallow } from 'zustand/react/shallow';
 import { useWorkerMoodStore } from '../stores/workerMoodStore';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import { useGraphicsStore } from '../stores/graphicsStore';
-import { FactoryPlant } from '../types';
+import { FactoryPlant, GraphicsQuality } from '../types';
 import { shouldRunThisFrame, getThrottleLevel } from '../utils/frameThrottle';
+import { PLANT_MATERIALS, getHealthMaterial } from '../utils/sharedMaterials';
 
 // =========================================================================
 // FACTORY PLANTS - Workers like plants!
@@ -30,17 +30,27 @@ interface PlantProps {
 const PottedFern: React.FC<PlantProps> = React.memo(({ plant }) => {
   const groupRef = useRef<THREE.Group>(null);
   const leavesRef = useRef<THREE.Group>(null);
-  const { isTabVisible, quality } = useGameSimulationStore(
-    useShallow((state) => ({
-      isTabVisible: state.isTabVisible,
-      quality: useGraphicsStore.getState().graphics.quality,
-    }))
-  );
+
+  // Subscribe at component level
+  const isTabVisible = useGameSimulationStore((state) => state.isTabVisible);
+  const quality = useGraphicsStore((state) => state.graphics.quality);
+
+  // Store in refs for useFrame access
+  const isTabVisibleRef = useRef(isTabVisible);
+  const qualityRef = useRef<GraphicsQuality>(quality);
+
+  useEffect(() => {
+    isTabVisibleRef.current = isTabVisible;
+  }, [isTabVisible]);
+
+  useEffect(() => {
+    qualityRef.current = quality;
+  }, [quality]);
 
   useFrame((state) => {
-    if (!isTabVisible) return;
+    if (!isTabVisibleRef.current) return;
     // PERFORMANCE: Throttle plant swaying based on quality - doesn't need 60fps
-    const throttle = getThrottleLevel(quality);
+    const throttle = getThrottleLevel(qualityRef.current);
     if (!shouldRunThisFrame(throttle)) return;
 
     if (leavesRef.current) {
@@ -49,20 +59,19 @@ const PottedFern: React.FC<PlantProps> = React.memo(({ plant }) => {
     }
   });
 
-  const healthColor = plant.health > 60 ? '#22c55e' : plant.health > 30 ? '#84cc16' : '#a16207';
+  // Get cached health material instead of creating inline
+  const healthMaterial = getHealthMaterial(plant.health);
 
   return (
     <group ref={groupRef} position={plant.position}>
       {/* Pot */}
-      <mesh position={[0, 0.1, 0]} castShadow>
+      <mesh position={[0, 0.1, 0]} castShadow material={PLANT_MATERIALS.pot}>
         <cylinderGeometry args={[0.15, 0.12, 0.2, 12]} />
-        <meshStandardMaterial color="#8b4513" roughness={0.9} />
       </mesh>
 
       {/* Soil */}
-      <mesh position={[0, 0.18, 0]}>
+      <mesh position={[0, 0.18, 0]} material={PLANT_MATERIALS.soil}>
         <cylinderGeometry args={[0.13, 0.13, 0.04, 12]} />
-        <meshStandardMaterial color="#3d2817" roughness={1} />
       </mesh>
 
       {/* Fern leaves */}
@@ -76,9 +85,9 @@ const PottedFern: React.FC<PlantProps> = React.memo(({ plant }) => {
               position={[Math.cos(angle) * 0.05, 0.1, Math.sin(angle) * 0.05]}
               rotation={[tilt, angle, 0]}
               castShadow
+              material={healthMaterial}
             >
               <capsuleGeometry args={[0.015, 0.25, 4, 8]} />
-              <meshStandardMaterial color={healthColor} roughness={0.8} />
             </mesh>
           );
         })}
@@ -107,20 +116,19 @@ const PottedFern: React.FC<PlantProps> = React.memo(({ plant }) => {
 PottedFern.displayName = 'PottedFern';
 
 const DeskSucculent: React.FC<PlantProps> = React.memo(({ plant }) => {
-  const healthColor = plant.health > 60 ? '#22c55e' : plant.health > 30 ? '#84cc16' : '#a16207';
+  const healthMaterial = getHealthMaterial(plant.health);
 
   return (
     <group position={plant.position}>
-      {/* Small pot */}
+      {/* Small pot - white ceramic */}
       <mesh position={[0, 0.04, 0]} castShadow>
         <cylinderGeometry args={[0.06, 0.05, 0.08, 8]} />
         <meshStandardMaterial color="#e5e5e5" roughness={0.5} />
       </mesh>
 
       {/* Succulent body */}
-      <mesh position={[0, 0.1, 0]} castShadow>
+      <mesh position={[0, 0.1, 0]} castShadow material={healthMaterial}>
         <sphereGeometry args={[0.05, 8, 8]} />
-        <meshStandardMaterial color={healthColor} roughness={0.7} />
       </mesh>
 
       {/* Succulent leaves */}
@@ -131,9 +139,9 @@ const DeskSucculent: React.FC<PlantProps> = React.memo(({ plant }) => {
             key={i}
             position={[Math.cos(angle) * 0.04, 0.12, Math.sin(angle) * 0.04]}
             rotation={[0.3, angle, 0]}
+            material={healthMaterial}
           >
             <sphereGeometry args={[0.025, 6, 6]} />
-            <meshStandardMaterial color={healthColor} roughness={0.6} />
           </mesh>
         );
       })}
@@ -152,17 +160,27 @@ DeskSucculent.displayName = 'DeskSucculent';
 
 const TallPalm: React.FC<PlantProps> = React.memo(({ plant }) => {
   const leavesRef = useRef<THREE.Group>(null);
-  const { isTabVisible, quality } = useGameSimulationStore(
-    useShallow((state) => ({
-      isTabVisible: state.isTabVisible,
-      quality: useGraphicsStore.getState().graphics.quality,
-    }))
-  );
+
+  // Subscribe at component level
+  const isTabVisible = useGameSimulationStore((state) => state.isTabVisible);
+  const quality = useGraphicsStore((state) => state.graphics.quality);
+
+  // Store in refs for useFrame access
+  const isTabVisibleRef = useRef(isTabVisible);
+  const qualityRef = useRef<GraphicsQuality>(quality);
+
+  useEffect(() => {
+    isTabVisibleRef.current = isTabVisible;
+  }, [isTabVisible]);
+
+  useEffect(() => {
+    qualityRef.current = quality;
+  }, [quality]);
 
   useFrame((state) => {
-    if (!isTabVisible) return;
+    if (!isTabVisibleRef.current) return;
     // PERFORMANCE: Throttle palm rotation based on quality - doesn't need 60fps
-    const throttle = getThrottleLevel(quality);
+    const throttle = getThrottleLevel(qualityRef.current);
     if (!shouldRunThisFrame(throttle)) return;
 
     if (leavesRef.current) {
@@ -170,20 +188,18 @@ const TallPalm: React.FC<PlantProps> = React.memo(({ plant }) => {
     }
   });
 
-  const healthColor = plant.health > 60 ? '#22c55e' : plant.health > 30 ? '#84cc16' : '#a16207';
+  const healthMaterial = getHealthMaterial(plant.health);
 
   return (
     <group position={plant.position}>
       {/* Large pot */}
-      <mesh position={[0, 0.2, 0]} castShadow>
+      <mesh position={[0, 0.2, 0]} castShadow material={PLANT_MATERIALS.barkDark}>
         <cylinderGeometry args={[0.25, 0.2, 0.4, 12]} />
-        <meshStandardMaterial color="#4a3728" roughness={0.9} />
       </mesh>
 
       {/* Trunk */}
-      <mesh position={[0, 0.8, 0]} castShadow>
+      <mesh position={[0, 0.8, 0]} castShadow material={PLANT_MATERIALS.woodPale}>
         <cylinderGeometry args={[0.06, 0.08, 1, 8]} />
-        <meshStandardMaterial color="#8b7355" roughness={0.95} />
       </mesh>
 
       {/* Palm leaves */}
@@ -196,9 +212,9 @@ const TallPalm: React.FC<PlantProps> = React.memo(({ plant }) => {
               position={[Math.cos(angle) * 0.1, 0, Math.sin(angle) * 0.1]}
               rotation={[0.6, angle, 0]}
               castShadow
+              material={healthMaterial}
             >
               <capsuleGeometry args={[0.03, 0.5, 4, 8]} />
-              <meshStandardMaterial color={healthColor} roughness={0.8} />
             </mesh>
           );
         })}
@@ -218,17 +234,27 @@ TallPalm.displayName = 'TallPalm';
 
 const HangingIvy: React.FC<PlantProps> = React.memo(({ plant }) => {
   const vinesRef = useRef<THREE.Group>(null);
-  const { isTabVisible, quality } = useGameSimulationStore(
-    useShallow((state) => ({
-      isTabVisible: state.isTabVisible,
-      quality: useGraphicsStore.getState().graphics.quality,
-    }))
-  );
+
+  // Subscribe at component level
+  const isTabVisible = useGameSimulationStore((state) => state.isTabVisible);
+  const quality = useGraphicsStore((state) => state.graphics.quality);
+
+  // Store in refs for useFrame access
+  const isTabVisibleRef = useRef(isTabVisible);
+  const qualityRef = useRef<GraphicsQuality>(quality);
+
+  useEffect(() => {
+    isTabVisibleRef.current = isTabVisible;
+  }, [isTabVisible]);
+
+  useEffect(() => {
+    qualityRef.current = quality;
+  }, [quality]);
 
   useFrame((state) => {
-    if (!isTabVisible) return;
+    if (!isTabVisibleRef.current) return;
     // PERFORMANCE: Throttle vine swaying based on quality - doesn't need 60fps
-    const throttle = getThrottleLevel(quality);
+    const throttle = getThrottleLevel(qualityRef.current);
     if (!shouldRunThisFrame(throttle)) return;
 
     if (vinesRef.current) {
@@ -238,14 +264,13 @@ const HangingIvy: React.FC<PlantProps> = React.memo(({ plant }) => {
     }
   });
 
-  const healthColor = plant.health > 60 ? '#22c55e' : plant.health > 30 ? '#84cc16' : '#a16207';
+  const healthMaterial = getHealthMaterial(plant.health);
 
   return (
     <group position={plant.position}>
       {/* Hanging pot */}
-      <mesh position={[0, 2.5, 0]} castShadow>
+      <mesh position={[0, 2.5, 0]} castShadow material={PLANT_MATERIALS.hay}>
         <cylinderGeometry args={[0.12, 0.1, 0.15, 8]} />
-        <meshStandardMaterial color="#d4a574" roughness={0.8} />
       </mesh>
 
       {/* Hanging vines */}
@@ -255,15 +280,13 @@ const HangingIvy: React.FC<PlantProps> = React.memo(({ plant }) => {
           const length = 0.5 + Math.random() * 0.5;
           return (
             <group key={i} position={[Math.cos(angle) * 0.08, 0, Math.sin(angle) * 0.08]}>
-              <mesh rotation={[0.2, 0, 0]}>
+              <mesh rotation={[0.2, 0, 0]} material={healthMaterial}>
                 <cylinderGeometry args={[0.008, 0.005, length, 4]} />
-                <meshStandardMaterial color={healthColor} roughness={0.9} />
               </mesh>
               {/* Leaves along vine */}
               {Array.from({ length: 4 }).map((_, j) => (
-                <mesh key={j} position={[0, -0.1 - j * 0.12, 0.02]}>
+                <mesh key={j} position={[0, -0.1 - j * 0.12, 0.02]} material={healthMaterial}>
                   <sphereGeometry args={[0.02, 4, 4]} />
-                  <meshStandardMaterial color={healthColor} roughness={0.8} />
                 </mesh>
               ))}
             </group>
@@ -347,12 +370,22 @@ interface CoffeeMachineProps {
 const CoffeeMachine: React.FC<CoffeeMachineProps> = React.memo(({ position, status }) => {
   const steamRef = useRef<THREE.Points>(null);
   const lightRef = useRef<THREE.Mesh>(null);
-  const { isTabVisible, quality } = useGameSimulationStore(
-    useShallow((state) => ({
-      isTabVisible: state.isTabVisible,
-      quality: useGraphicsStore.getState().graphics.quality,
-    }))
-  );
+
+  // Subscribe at component level
+  const isTabVisible = useGameSimulationStore((state) => state.isTabVisible);
+  const quality = useGraphicsStore((state) => state.graphics.quality);
+
+  // Store in refs for useFrame access
+  const isTabVisibleRef = useRef(isTabVisible);
+  const qualityRef = useRef<GraphicsQuality>(quality);
+
+  useEffect(() => {
+    isTabVisibleRef.current = isTabVisible;
+  }, [isTabVisible]);
+
+  useEffect(() => {
+    qualityRef.current = quality;
+  }, [quality]);
 
   const steamPositions = useMemo(() => {
     const arr = new Float32Array(20 * 3);
@@ -365,9 +398,9 @@ const CoffeeMachine: React.FC<CoffeeMachineProps> = React.memo(({ position, stat
   }, []);
 
   useFrame((state) => {
-    if (!isTabVisible) return;
+    if (!isTabVisibleRef.current) return;
     // PERFORMANCE: Throttle coffee machine animations based on quality
-    const throttle = getThrottleLevel(quality);
+    const throttle = getThrottleLevel(qualityRef.current);
     if (!shouldRunThisFrame(throttle)) return;
 
     if (steamRef.current && status === 'brewing') {

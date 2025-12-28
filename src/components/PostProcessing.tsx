@@ -13,12 +13,25 @@ import { BlendFunction, ToneMappingMode } from 'postprocessing';
 import { Color } from 'three';
 import { useGraphicsStore } from '../stores/graphicsStore';
 import { useTrebleLevel } from '../stores/audioAnalyzerStore';
+import { useShallow } from 'zustand/react/shallow';
 
 // SSAO color constant (dark blue-gray for contact shadows)
 const SSAO_COLOR = new Color(0x1a1a2e);
 
 export const PostProcessing: React.FC = () => {
-  const graphics = useGraphicsStore((state) => state.graphics);
+  // Selective subscription - only re-render when these specific values change
+  const graphics = useGraphicsStore(
+    useShallow((state) => ({
+      enableSSAO: state.graphics.enableSSAO,
+      enableBloom: state.graphics.enableBloom,
+      enableVignette: state.graphics.enableVignette,
+      enableChromaticAberration: state.graphics.enableChromaticAberration,
+      enableFilmGrain: state.graphics.enableFilmGrain,
+      enableDepthOfField: state.graphics.enableDepthOfField,
+      ssaoSamples: state.graphics.ssaoSamples,
+      enableAudioReactive: state.graphics.enableAudioReactive,
+    }))
+  );
   const trebleLevel = useTrebleLevel();
 
   // Audio-reactive vignette darkness boost for alarm response

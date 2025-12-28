@@ -16,7 +16,7 @@ export interface CobblestoneOptions {
 
 const DEFAULT_OPTIONS: Required<CobblestoneOptions> = {
   stoneSize: 24,
-  variation: 0.3,
+  variation: 0.5, // Increased for more irregular placement
   mortarColor: '#3d3d3d',
 };
 
@@ -74,13 +74,21 @@ export const generateCobblestone = (
         // Distance to stone center
         const dx = x - stoneCenterX;
         const dy = y - stoneCenterY;
-        const dist = Math.sqrt(dx * dx + dy * dy);
 
-        // Stone radius with variation
-        const stoneRadius = halfGrid * (0.8 + hash(cellX * 7, cellY * 13) * 0.15);
+        // Make stones irregular by using elliptical shape with rotation
+        const stoneAngle = hash(cellX * 17, cellY * 31) * Math.PI;
+        const stoneStretch = 0.7 + hash(cellX * 23, cellY * 29) * 0.5; // 0.7 to 1.2 aspect ratio
+        const cosA = Math.cos(stoneAngle);
+        const sinA = Math.sin(stoneAngle);
+        const rotDx = dx * cosA + dy * sinA;
+        const rotDy = -dx * sinA + dy * cosA;
+        const dist = Math.sqrt((rotDx * rotDx) / (stoneStretch * stoneStretch) + rotDy * rotDy);
+
+        // Stone radius with more variation (0.65 to 0.95 of half grid)
+        const stoneRadius = halfGrid * (0.65 + hash(cellX * 7, cellY * 13) * 0.3);
 
         // Check if in mortar gap
-        const inMortar = dist > stoneRadius * 0.9;
+        const inMortar = dist > stoneRadius * 0.88;
 
         let r: number, g: number, b: number;
 
@@ -139,28 +147,39 @@ export const generateCobblestoneNormal = (
         const cellX = Math.floor(x / gridSize);
         const cellY = Math.floor(y / gridSize);
 
-        const jitterX = (hash(cellX, cellY) - 0.5) * gridSize * 0.3;
-        const jitterY = (hash(cellX + 100, cellY + 100) - 0.5) * gridSize * 0.3;
+        const jitterX = (hash(cellX, cellY) - 0.5) * gridSize * 0.5;
+        const jitterY = (hash(cellX + 100, cellY + 100) - 0.5) * gridSize * 0.5;
 
         const stoneCenterX = cellX * gridSize + halfGrid + jitterX;
         const stoneCenterY = cellY * gridSize + halfGrid + jitterY;
 
         const dx = x - stoneCenterX;
         const dy = y - stoneCenterY;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        const stoneRadius = halfGrid * 0.9;
+
+        // Match irregular shape from color texture
+        const stoneAngle = hash(cellX * 17, cellY * 31) * Math.PI;
+        const stoneStretch = 0.7 + hash(cellX * 23, cellY * 29) * 0.5;
+        const cosA = Math.cos(stoneAngle);
+        const sinA = Math.sin(stoneAngle);
+        const rotDx = dx * cosA + dy * sinA;
+        const rotDy = -dx * sinA + dy * cosA;
+        const dist = Math.sqrt((rotDx * rotDx) / (stoneStretch * stoneStretch) + rotDy * rotDy);
+
+        const stoneRadius = halfGrid * (0.65 + hash(cellX * 7, cellY * 13) * 0.3) * 0.88;
 
         // Normal based on dome shape (stones are rounded)
         let nx = 0.5;
         let ny = 0.5;
 
         if (dist < stoneRadius) {
-          // Dome-like normal
+          // Dome-like normal with irregular shape
           const normDist = dist / stoneRadius;
-          const domeHeight = Math.sqrt(1 - normDist * normDist);
+          const domeHeight = Math.sqrt(Math.max(0, 1 - normDist * normDist));
 
-          nx = 0.5 - (dx / stoneRadius) * 0.3 * domeHeight;
-          ny = 0.5 - (dy / stoneRadius) * 0.3 * domeHeight;
+          // Use original dx/dy for normal direction (not rotated)
+          const normalStrength = 0.35;
+          nx = 0.5 - (dx / (stoneRadius + 1)) * normalStrength * domeHeight;
+          ny = 0.5 - (dy / (stoneRadius + 1)) * normalStrength * domeHeight;
         }
 
         // Add surface roughness

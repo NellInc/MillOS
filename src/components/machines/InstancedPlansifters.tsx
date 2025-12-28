@@ -14,21 +14,15 @@ import {
 } from './MachineLOD';
 import { useModelTextures } from '../../utils/machineTextures';
 import { MemoizedStatusRing } from './StatusRing';
-import { PROCEDURAL_TEXTURES } from '../../utils/sharedMaterials';
+import { PROCEDURAL_TEXTURES, NORMAL_SCALES, INSTANCED_MACHINE_MATERIALS } from '../../utils/sharedMaterials';
 
-// Materials
+// Reference shared materials (textures applied via hook)
 const MATERIALS = {
-  frame: new THREE.MeshStandardMaterial({ color: '#1f2937', metalness: 0.8, roughness: 0.2 }),
-  body: new THREE.MeshPhysicalMaterial({
-    color: '#f5f0e6',
-    metalness: 0.1,
-    roughness: 0.25,
-    clearcoat: 0.6,
-    clearcoatRoughness: 0.2,
-  }),
-  darkMetal: new THREE.MeshStandardMaterial({ color: '#374151', metalness: 0.6, roughness: 0.3 }),
-  flywheel: new THREE.MeshStandardMaterial({ color: '#1f2937', metalness: 0.85, roughness: 0.15 }),
-  cable: new THREE.MeshStandardMaterial({ color: '#9ca3af', metalness: 0.5, roughness: 0.5 }),
+  frame: INSTANCED_MACHINE_MATERIALS.sifterFrame,
+  body: INSTANCED_MACHINE_MATERIALS.sifterBody,
+  darkMetal: INSTANCED_MACHINE_MATERIALS.sifterDarkMetal,
+  flywheel: INSTANCED_MACHINE_MATERIALS.sifterFlywheel,
+  cable: INSTANCED_MACHINE_MATERIALS.sifterCable,
 };
 
 const SIFTER_SIZE = { width: 7, height: 7, depth: 7 };
@@ -63,19 +57,19 @@ export const InstancedPlansifters: React.FC<InstancedPlansiftersProps> = ({
     // Body - cream sifter box
     MATERIALS.body.roughnessMap = roughnessMap;
     MATERIALS.body.normalMap = normalMap;
-    MATERIALS.body.normalScale = new THREE.Vector2(0.2, 0.2);
+    MATERIALS.body.normalScale = NORMAL_SCALES.medium;
     MATERIALS.body.needsUpdate = true;
 
     // Frame - dark metal
     MATERIALS.frame.roughnessMap = roughnessMap;
     MATERIALS.frame.normalMap = normalMap;
-    MATERIALS.frame.normalScale = new THREE.Vector2(0.3, 0.3);
+    MATERIALS.frame.normalScale = NORMAL_SCALES.standard;
     MATERIALS.frame.needsUpdate = true;
 
     // Flywheel
     MATERIALS.flywheel.roughnessMap = textures.ao || PROCEDURAL_TEXTURES.brushedMetal;
     MATERIALS.flywheel.normalMap = normalMap;
-    MATERIALS.flywheel.normalScale = new THREE.Vector2(0.4, 0.4);
+    MATERIALS.flywheel.normalScale = NORMAL_SCALES.high;
     MATERIALS.flywheel.needsUpdate = true;
   }, [textures]);
 

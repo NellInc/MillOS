@@ -1,13 +1,18 @@
 import React, { useMemo } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { Sun, Sunset, Moon, Pause, Play, FastForward } from 'lucide-react';
 import { useGameSimulationStore } from '../../stores';
 
 // Isolated Mill Clock component - uses store's gameTime for unified time across app
 export const MillClockDisplay: React.FC<{ theme: 'dark' | 'light' }> = React.memo(({ theme }) => {
   // Subscribe to gameTime, throttled to reduce re-renders (updates when integer hour changes or every ~30 game seconds)
-  const gameTime = useGameSimulationStore((state) => state.gameTime);
-  const gameSpeed = useGameSimulationStore((state) => state.gameSpeed);
-  const setGameSpeed = useGameSimulationStore((state) => state.setGameSpeed);
+  const { gameTime, gameSpeed, setGameSpeed } = useGameSimulationStore(
+    useShallow((state) => ({
+      gameTime: state.gameTime,
+      gameSpeed: state.gameSpeed,
+      setGameSpeed: state.setGameSpeed,
+    }))
+  );
 
   const hours = Math.floor(gameTime);
   const minutes = Math.floor((gameTime % 1) * 60);
