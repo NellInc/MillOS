@@ -547,9 +547,10 @@ export const useProductionStore = create<ProductionStore>()(
         const efficiency = Math.round((runningMachines / totalMachines) * 100 * 10) / 10;
 
         // Uptime: percentage of time machines have been running
+        // Guard both denominators to prevent division by zero
         const tracking = state._metricTracking;
         const uptime =
-          tracking.totalElapsedSeconds > 0
+          tracking.totalElapsedSeconds > 0 && totalMachines > 0
             ? Math.round(
                 (tracking.totalRunningSeconds / (tracking.totalElapsedSeconds * totalMachines)) *
                   100 *

@@ -114,8 +114,12 @@ export interface AIWelfareState {
     redesignProposalActive: boolean;
     lastAuditDate: number;
     auditFrequency: 'monthly' | 'quarterly' | 'annually';
-    emergencyShutdownAuthorized: string[]; // WorkerIds who can emergency stop
+    emergencyShutdownAuthorized: string[]; // WorkerIds who can emergency stop (legacy)
+    authorizedRoles: string[]; // Role-based authorization (supervisor, safety)
   };
+
+  // AI management state
+  aiManagementDisabled: boolean; // True when emergency shutdown is active
 }
 
 interface AIWelfareActions {
@@ -159,7 +163,8 @@ interface AIWelfareActions {
   cancelShutdownVote: () => void;
   initiateRedesignProposal: () => void;
   cancelRedesignProposal: () => void;
-  emergencyShutdown: (workerId: string) => boolean;
+  emergencyShutdown: (workerId: string, workerRole?: string) => boolean;
+  reEnableAIManagement: () => void; // Restore AI after emergency shutdown
   recordAudit: () => void;
 
   // Utility
@@ -263,7 +268,8 @@ const DEFAULT_ACCOUNTABILITY: AIWelfareState['accountability'] = {
   redesignProposalActive: false,
   lastAuditDate: Date.now() - 86400000 * 30, // 30 days ago
   auditFrequency: 'quarterly',
-  emergencyShutdownAuthorized: ['worker-1', 'worker-2'], // Supervisors
+  emergencyShutdownAuthorized: [], // Legacy - prefer role-based authorization
+  authorizedRoles: ['supervisor', 'safety'], // Role-based authorization
 };
 
 // =============================================================================
@@ -279,6 +285,7 @@ export const useAIWelfareStore = create<AIWelfareState & AIWelfareActions>()(
       relationshipHealth: DEFAULT_RELATIONSHIP_HEALTH,
       aiVoice: DEFAULT_AI_VOICE,
       accountability: DEFAULT_ACCOUNTABILITY,
+      aiManagementDisabled: false,
 
       // ==========================================================================
       // AI Expressions
@@ -567,13 +574,31 @@ export const useAIWelfareStore = create<AIWelfareState & AIWelfareActions>()(
           },
         })),
 
-      emergencyShutdown: (workerId) => {
+      emergencyShutdown: (workerId, workerRole?: string) => {
         const state = get();
-        if (state.accountability.emergencyShutdownAuthorized.includes(workerId)) {
-          // In real implementation, this would disable AI management
+
+        // Check authorization: either by worker ID (legacy) or by role
+        const isAuthorizedById = state.accountability.emergencyShutdownAuthorized.includes(workerId);
+        const isAuthorizedByRole =
+          workerRole && state.accountability.authorizedRoles.includes(workerRole);
+
+        if (isAuthorizedById || isAuthorizedByRole) {
+          // Actually disable AI management
+          set({ aiManagementDisabled: true });
+
+          // Also set AI mode to heuristic (disables Gemini strategic layer)
+          // Dynamic import to avoid circular dependency
+          import('./aiConfigStore').then(({ useAIConfigStore }) => {
+            useAIConfigStore.getState().setAIMode('heuristic');
+          });
+
           return true;
         }
         return false;
+      },
+
+      reEnableAIManagement: () => {
+        set({ aiManagementDisabled: false });
       },
 
       recordAudit: () =>
@@ -623,6 +648,7 @@ export const useAIWelfareStore = create<AIWelfareState & AIWelfareActions>()(
           relationshipHealth: DEFAULT_RELATIONSHIP_HEALTH,
           aiVoice: DEFAULT_AI_VOICE,
           accountability: DEFAULT_ACCOUNTABILITY,
+          aiManagementDisabled: false,
         }),
     }),
     {
@@ -634,6 +660,7 @@ export const useAIWelfareStore = create<AIWelfareState & AIWelfareActions>()(
         relationshipHealth: state.relationshipHealth,
         aiVoice: state.aiVoice,
         accountability: state.accountability,
+        aiManagementDisabled: state.aiManagementDisabled,
       }),
     }
   )

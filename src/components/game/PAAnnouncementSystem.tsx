@@ -1,14 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Volume2, Clock, Shield, AlertTriangle, Package } from 'lucide-react';
+import { X, Volume2, Shield, AlertTriangle, Package } from 'lucide-react';
 // Use announcementsStore directly - productionStore.announcements is a stale snapshot
-import { useAnnouncementsStore, type Announcement } from '../../stores/announcementsStore';
+import { useAnnouncementsStore } from '../../stores/announcementsStore';
 import { usePAScheduler, useEventAnnouncementScheduler } from './shared';
 import { useMobileDetection } from '../../hooks/useMobileDetection';
 import { audioManager } from '../../utils/audioManager';
 
-// Auto-dismiss delay in ms (enough time to read/voice the announcement)
-const AUTO_DISMISS_MS = 8000;
+// Fallback timeout - dismiss after this even if TTS hasn't finished
+const FALLBACK_TIMEOUT_MS = 10000;
+// How often to check if TTS is done
+const TTS_CHECK_INTERVAL_MS = 300;
 
 export const PAAnnouncementSystem: React.FC = () => {
   // CRITICAL: Must use useAnnouncementsStore directly for reactivity
@@ -19,7 +21,8 @@ export const PAAnnouncementSystem: React.FC = () => {
 
   // Track which announcement is currently being displayed
   const [currentAnnouncementId, setCurrentAnnouncementId] = useState<string | null>(null);
-  const autoDismissTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const ttsCheckIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Suppress PA announcements for first 10 seconds to let speech synthesis initialize
   const [isStartupSuppressed, setIsStartupSuppressed] = useState(true);
@@ -37,16 +40,27 @@ export const PAAnnouncementSystem: React.FC = () => {
   // Schedule event-triggered announcements (milestones, machine status changes)
   useEventAnnouncementScheduler();
 
+  // Cleanup old dismissed announcements periodically to prevent memory leaks
+  const clearOldAnnouncements = useAnnouncementsStore((state) => state.clearOldAnnouncements);
+  useEffect(() => {
+    const interval = setInterval(clearOldAnnouncements, 1000);
+    return () => clearInterval(interval);
+  }, [clearOldAnnouncements]);
+
   // Get the next announcement to display (oldest undismissed one - FIFO queue)
   const activeAnnouncements = announcements.filter((a) => !a.dismissed);
   const currentAnnouncement = activeAnnouncements.length > 0 ? activeAnnouncements[0] : null;
 
-  // Auto-dismiss current announcement after delay
+  // Auto-dismiss: wait for TTS to finish, or fallback after 10s if something goes wrong
   useEffect(() => {
-    // Clear any existing timer
-    if (autoDismissTimerRef.current) {
-      clearTimeout(autoDismissTimerRef.current);
-      autoDismissTimerRef.current = null;
+    // Clear any existing timers
+    if (fallbackTimerRef.current) {
+      clearTimeout(fallbackTimerRef.current);
+      fallbackTimerRef.current = null;
+    }
+    if (ttsCheckIntervalRef.current) {
+      clearInterval(ttsCheckIntervalRef.current);
+      ttsCheckIntervalRef.current = null;
     }
 
     if (!currentAnnouncement || isStartupSuppressed) return;
@@ -61,14 +75,38 @@ export const PAAnnouncementSystem: React.FC = () => {
       audioManager.speakAnnouncement(currentAnnouncement.message);
     }
 
-    // Set auto-dismiss timer
-    autoDismissTimerRef.current = setTimeout(() => {
-      dismissAnnouncement(currentAnnouncement.id);
-    }, AUTO_DISMISS_MS);
+    const announcementId = currentAnnouncement.id;
+
+    // Poll for TTS completion - dismiss when TTS finishes
+    ttsCheckIntervalRef.current = setInterval(() => {
+      if (!audioManager.isTTSSpeaking) {
+        if (ttsCheckIntervalRef.current) {
+          clearInterval(ttsCheckIntervalRef.current);
+          ttsCheckIntervalRef.current = null;
+        }
+        if (fallbackTimerRef.current) {
+          clearTimeout(fallbackTimerRef.current);
+          fallbackTimerRef.current = null;
+        }
+        dismissAnnouncement(announcementId);
+      }
+    }, TTS_CHECK_INTERVAL_MS);
+
+    // Fallback: dismiss after 10s even if TTS hasn't finished (safety net)
+    fallbackTimerRef.current = setTimeout(() => {
+      if (ttsCheckIntervalRef.current) {
+        clearInterval(ttsCheckIntervalRef.current);
+        ttsCheckIntervalRef.current = null;
+      }
+      dismissAnnouncement(announcementId);
+    }, FALLBACK_TIMEOUT_MS);
 
     return () => {
-      if (autoDismissTimerRef.current) {
-        clearTimeout(autoDismissTimerRef.current);
+      if (fallbackTimerRef.current) {
+        clearTimeout(fallbackTimerRef.current);
+      }
+      if (ttsCheckIntervalRef.current) {
+        clearInterval(ttsCheckIntervalRef.current);
       }
     };
   }, [currentAnnouncement?.id, isStartupSuppressed, dismissAnnouncement, currentAnnouncementId]);
@@ -127,16 +165,17 @@ export const PAAnnouncementSystem: React.FC = () => {
     }
   };
 
+  // Maps announcement types to icons
+  // Actual types from Announcement interface: 'info' | 'warning' | 'success' | 'emergency'
   const getTypeIcon = (type: string) => {
     switch (type) {
-      case 'shift_change':
-        return <Clock className="w-5 h-5" />;
-      case 'safety':
-        return <Shield className="w-5 h-5" />;
       case 'emergency':
         return <AlertTriangle className="w-5 h-5" />;
-      case 'production':
+      case 'warning':
+        return <Shield className="w-5 h-5" />;
+      case 'success':
         return <Package className="w-5 h-5" />;
+      case 'info':
       default:
         return <Volume2 className="w-5 h-5" />;
     }

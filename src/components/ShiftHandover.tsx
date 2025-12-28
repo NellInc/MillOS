@@ -30,25 +30,25 @@ export const ShiftHandover: React.FC = () => {
 
     const timers: NodeJS.Timeout[] = [];
 
-    // Intro -> Outgoing (2s)
+    // Intro -> Outgoing (1s)
     timers.push(
       setTimeout(() => {
         setPhase('outgoing');
-      }, 2000)
+      }, 1000)
     );
 
-    // Outgoing -> Incoming (5s)
+    // Outgoing -> Incoming (2s)
     timers.push(
       setTimeout(() => {
         setPhase('incoming');
-      }, 7000)
+      }, 3000)
     );
 
-    // Incoming -> Summary (5s)
+    // Incoming -> Summary (2s)
     timers.push(
       setTimeout(() => {
         setPhase('summary');
-      }, 12000)
+      }, 5000)
     );
 
     return () => timers.forEach((t) => clearTimeout(t));

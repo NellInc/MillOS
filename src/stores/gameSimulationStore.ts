@@ -111,6 +111,12 @@ interface GameSimulationStore {
   resetGameState: () => void; // Reset time to 10am, speed to 60x
   clearPersistedState: () => void; // Clear localStorage and reset to defaults
 
+  // Internal tick throttle state (prevents race conditions vs module-level variables)
+  _tickThrottle: {
+    lastTickTime: number;
+    accumulatedDelta: number;
+  };
+
   // Weather system
   weather: 'clear' | 'cloudy' | 'rain' | 'storm';
   setWeather: (weather: 'clear' | 'cloudy' | 'rain' | 'storm') => void;
@@ -355,9 +361,7 @@ const findNearestExit = (x: number, z: number): FireDrillExit => {
   return nearestExit;
 };
 
-// Throttling for tickGameTime - update every 100ms instead of every frame
-let lastTickTime = 0;
-let accumulatedDelta = 0;
+// Tick interval constant (throttle state moved into store to avoid race conditions)
 const TICK_INTERVAL = 100; // Update every 100ms
 
 export const useGameSimulationStore = create<GameSimulationStore>()(
@@ -366,6 +370,12 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
       // Tab visibility - PERFORMANCE: animations check this to skip when tab hidden
       isTabVisible: true,
       setTabVisible: (visible) => set({ isTabVisible: visible }),
+
+      // Internal tick throttle state (encapsulated to avoid race conditions)
+      _tickThrottle: {
+        lastTickTime: 0,
+        accumulatedDelta: 0,
+      },
 
       // Game time starts at 10am (mid-morning, bright daylight)
       // gameSpeed: seconds of game time per real second (60 = 1 min/sec, 600 = 10 min/sec)
@@ -379,17 +389,30 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
 
       tickGameTime: (deltaSeconds) => {
         // Throttle updates to every 100ms to reduce re-renders
+        // Uses store state instead of module-level variables to prevent race conditions
+        const state = get();
         const now = Date.now();
-        if (now - lastTickTime < TICK_INTERVAL) {
+        if (now - state._tickThrottle.lastTickTime < TICK_INTERVAL) {
           // Accumulate delta for accuracy
-          accumulatedDelta += deltaSeconds;
+          set({
+            _tickThrottle: {
+              ...state._tickThrottle,
+              accumulatedDelta: state._tickThrottle.accumulatedDelta + deltaSeconds,
+            },
+          });
           return;
         }
 
         // Add accumulated delta to current delta
-        const totalDelta = deltaSeconds + accumulatedDelta;
-        accumulatedDelta = 0;
-        lastTickTime = now;
+        const totalDelta = deltaSeconds + state._tickThrottle.accumulatedDelta;
+
+        // Reset throttle state
+        set({
+          _tickThrottle: {
+            lastTickTime: now,
+            accumulatedDelta: 0,
+          },
+        });
 
         set((state) => {
           if (state.gameSpeed === 0) return {}; // Paused

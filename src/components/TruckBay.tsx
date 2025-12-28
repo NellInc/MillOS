@@ -1786,9 +1786,10 @@ const YardJockey: React.FC<{ position: [number, number, number]; rotation?: numb
   useEffect(() => {
     const id = animId.current;
     registerAnimation(id, 'custom', null, { rotation }, (time, _delta, _mesh, data) => {
+      const { rotation: rot } = data as { rotation: number };
       if (jockeyRef.current) {
         jockeyRef.current.position.x = Math.sin(time * 0.15) * 8;
-        jockeyRef.current.rotation.y = Math.cos(time * 0.15) * 0.3 + data.rotation;
+        jockeyRef.current.rotation.y = Math.cos(time * 0.15) * 0.3 + rot;
       }
     });
     return () => unregisterAnimation(id);
@@ -4459,7 +4460,8 @@ const MudflapWithChains: React.FC<{
     const chainsId = `mudflap-chains-${Math.random()}`;
 
     registerAnimation(chainsId, 'custom', null, { chainRefs }, (time, _delta, _mesh, data) => {
-      data.chainRefs.current.forEach((chain: THREE.Mesh | null, i: number) => {
+      const { chainRefs: refs } = data as { chainRefs: React.RefObject<THREE.Mesh[]> };
+      refs.current?.forEach((chain: THREE.Mesh | null, i: number) => {
         if (chain) {
           chain.rotation.x = Math.sin(time * 2 + i * 0.5) * 0.05;
           chain.rotation.z = Math.sin(time * 1.5 + i * 0.3) * 0.03;
@@ -5620,8 +5622,9 @@ const OverheadCrane: React.FC<{ position: [number, number, number]; spanWidth?: 
   useEffect(() => {
     const id = animId.current;
     registerAnimation(id, 'custom', null, { spanWidth }, (time, _delta, _mesh, data) => {
+      const { spanWidth: width } = data as { spanWidth: number };
       if (trolleyRef.current) {
-        trolleyRef.current.position.x = Math.sin(time * 0.2) * (data.spanWidth / 2 - 1);
+        trolleyRef.current.position.x = Math.sin(time * 0.2) * (width / 2 - 1);
       }
       if (hookRef.current) {
         hookRef.current.rotation.z = Math.sin(time * 0.5) * 0.05;

@@ -1670,8 +1670,9 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({
                     }}
                     title="Switch version"
                   >
-                    <option value="v0.10">v0.10 (stable)</option>
-                    <option value="v0.20">v0.20 (alpha)</option>
+                    <option value="v0.10">v0.10</option>
+                    <option value="v0.20">v0.20</option>
+                    <option value="v0.30">v0.30</option>
                   </select>
                 </h1>
                 <p className={`text-[9px] uppercase tracking-widest leading-tight ${theme === 'light' ? 'text-slate-400' : 'text-slate-500'}`}>

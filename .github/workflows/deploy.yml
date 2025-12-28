@@ -29,24 +29,31 @@ jobs:
       - name: Install dependencies
         run: npm ci --force
 
-      # Build v0.20 stable to /v0.20/ subdirectory
-      - name: Build v0.20 stable
-        run: VERSION=v0.20 npm run build
+      # Build v0.30 (current) to /v0.30/ subdirectory
+      - name: Build v0.30 current
+        run: VERSION=v0.30 npm run build
 
-      - name: Setup staging with v0.20 stable
+      - name: Setup staging with v0.30 current
         run: |
-          mkdir -p staging/v0.20
-          cp -r dist/* staging/v0.20/
+          mkdir -p staging/v0.30
+          cp -r dist/* staging/v0.30/
 
-      # v0.10 is pre-built in public/v0.10/ - copy to staging (legacy/alpha)
+      # v0.20 is pre-built in public/v0.20/ - copy to staging
+      - name: Copy v0.20 to staging
+        run: cp -r public/v0.20 staging/v0.20
+
+      # v0.10 is pre-built in public/v0.10/ - copy to staging (legacy)
       - name: Copy v0.10 to staging
         run: cp -r public/v0.10 staging/v0.10
 
-      # Copy music files to v0.10 staging for music backport
+      # Copy music files to legacy versions for music backport
       - name: Copy music files to v0.10
         run: cp public/*.mp3 staging/v0.10/
 
-      # Root redirects to v0.20 (stable)
+      - name: Copy music files to v0.20
+        run: cp public/*.mp3 staging/v0.20/
+
+      # Root redirects to v0.30 (current)
       - name: Create root redirect
         run: |
           cat > staging/index.html << 'EOF'
@@ -54,11 +61,11 @@ jobs:
           <html>
           <head>
             <meta charset="UTF-8">
-            <meta http-equiv="refresh" content="0;url=/v0.20/">
+            <meta http-equiv="refresh" content="0;url=/v0.30/">
             <title>Redirecting to MillOS</title>
           </head>
           <body>
-            <p>Redirecting to <a href="/v0.20/">MillOS v0.20</a>...</p>
+            <p>Redirecting to <a href="/v0.30/">MillOS v0.30</a>...</p>
           </body>
           </html>
           EOF

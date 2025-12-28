@@ -232,11 +232,13 @@ export const useBreakdownStore = create<BreakdownStore>()(
     triggerRandomBreakdown: (machines) => {
       const state = get();
 
-      // Rate limiting: at least 2 real minutes between breakdowns
-      // This gives roughly 1-2 breakdowns per 8-minute game day
-      const timeSinceLastBreakdown = Date.now() - state.lastBreakdownTime;
-      if (timeSinceLastBreakdown < 120000) {
-        // 2 minutes real time
+      // Rate limiting: Use game time with a minimum real-time delay
+      // This ensures consistent simulation behavior regardless of game speed
+      // Minimum 30 seconds real time AND 2 game hours between breakdowns
+      const realTimeSince = Date.now() - state.lastBreakdownTime;
+      const MIN_REAL_TIME_MS = 30000; // 30 seconds real time minimum (prevents rapid-fire)
+
+      if (realTimeSince < MIN_REAL_TIME_MS) {
         return null;
       }
 

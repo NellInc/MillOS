@@ -42,7 +42,14 @@ export function renderReport() {
     .sort((a, b) => b[1] - a[1])
     .slice(0, 20);
 
-  return Object.fromEntries(sorted);
+  const durationMs = Date.now() - profilingStartTime;
+  const durationSec = Math.round(durationMs / 1000);
+
+  return {
+    duration: `${durationSec}s`,
+    totalRenders,
+    components: Object.fromEntries(sorted),
+  };
 }
 
 export function resetRenderProfile() {

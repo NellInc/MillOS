@@ -1500,8 +1500,8 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({
                         }}
                         title="Switch version"
                       >
-                        <option value="v0.3">0.30</option>
-                        <option value="v0.2">0.20</option>
+                        <option value="v0.30">0.30</option>
+                        <option value="v0.20">0.20</option>
                         <option value="v0.10">0.10</option>
                       </select>
                     </h1>

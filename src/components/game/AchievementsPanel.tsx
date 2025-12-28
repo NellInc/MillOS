@@ -87,8 +87,9 @@ export const AchievementsPanel: React.FC<{ onClose: () => void }> = ({ onClose }
         {achievements.map((achievement: Achievement) => {
           const IconComponent = getIconComponent(achievement.icon);
           const isUnlocked = !!achievement.unlockedAt;
-          const progress =
-            achievement.progress ?? (achievement.currentValue / achievement.requirement) * 100;
+          // Calculate progress percentage from progress and target fields
+          const progressPercent =
+            achievement.target > 0 ? (achievement.progress / achievement.target) * 100 : 0;
 
           return (
             <div
@@ -113,13 +114,13 @@ export const AchievementsPanel: React.FC<{ onClose: () => void }> = ({ onClose }
                     <div className="flex justify-between text-[10px] mb-1">
                       <span className="text-slate-500">Progress</span>
                       <span className="text-slate-400">
-                        {achievement.currentValue} / {achievement.requirement}
+                        {achievement.progress} / {achievement.target}
                       </span>
                     </div>
                     <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
                       <div
                         className={`h-full rounded-full transition-all ${isUnlocked ? 'bg-yellow-500' : 'bg-cyan-500'}`}
-                        style={{ width: `${Math.min(100, progress)}%` }}
+                        style={{ width: `${Math.min(100, progressPercent)}%` }}
                       />
                     </div>
                   </div>

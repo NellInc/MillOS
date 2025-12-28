@@ -221,7 +221,7 @@ export const TruckAnimationManager: React.FC = () => {
         // 2. Pulse (Emissive) Animation
         else if (anim.type === 'pulse') {
           const mat = anim.mesh as THREE.MeshStandardMaterial;
-          const { speed = 2, min = 0.5, max = 1.0, offset = 0 } = anim.data;
+          const { speed = 2, min = 0.5, max = 1.0, offset = 0 } = anim.data as PulseAnimData;
           if (mat) {
             mat.emissiveIntensity =
               min + (Math.sin(time * speed + offset) * 0.5 + 0.5) * (max - min);
@@ -236,6 +236,8 @@ export const TruckAnimationManager: React.FC = () => {
             speed = 0.1,
             property = 'position',
             axis = 'x',
+            autoHide,
+            hideThreshold = 0,
           } = anim.data as {
             target: number;
             speed?: number;
@@ -252,8 +254,8 @@ export const TruckAnimationManager: React.FC = () => {
               mesh[property][axis] = newVal;
 
               // Optional visibility toggle for "slide out" effects
-              if (anim.data.autoHide && property === 'position') {
-                mesh.visible = newVal > anim.data.hideThreshold;
+              if (autoHide && property === 'position') {
+                mesh.visible = newVal > hideThreshold;
               }
             }
           }

@@ -38,6 +38,11 @@ export const useAnnouncementsStore = create<AnnouncementsStore>()(
       const state = get();
       const now = Date.now();
 
+      // Validate message is not empty or whitespace-only
+      if (!announcement.message?.trim()) {
+        return; // Skip empty messages
+      }
+
       // Deduplication: Check if same message was recently announced
       const messageKey = `${announcement.type}-${announcement.message}`;
       const lastTime = state.lastAnnouncementTime[messageKey] || 0;
