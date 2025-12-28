@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Volume2, Clock, Shield, AlertTriangle, Package } from 'lucide-react';
 // Use announcementsStore directly - productionStore.announcements is a stale snapshot
-import { useAnnouncementsStore, type Announcement } from '../../stores/announcementsStore';
+import { useAnnouncementsStore } from '../../stores/announcementsStore';
 import { usePAScheduler, useEventAnnouncementScheduler } from './shared';
 import { useMobileDetection } from '../../hooks/useMobileDetection';
 import { audioManager } from '../../utils/audioManager';

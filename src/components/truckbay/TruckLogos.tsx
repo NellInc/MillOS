@@ -389,7 +389,8 @@ const MudflapWithChains: React.FC<{
     const chainsId = `mudflap-chains-${Math.random()}`;
 
     registerAnimation(chainsId, 'custom', null, { chainRefs }, (time, _delta, _mesh, data) => {
-      data.chainRefs.current.forEach((chain: THREE.Mesh | null, i: number) => {
+      const refs = (data as { chainRefs: React.RefObject<THREE.Mesh[]> }).chainRefs;
+      refs.current?.forEach((chain: THREE.Mesh | null, i: number) => {
         if (chain) {
           chain.rotation.x = Math.sin(time * 2 + i * 0.5) * 0.05;
           chain.rotation.z = Math.sin(time * 1.5 + i * 0.3) * 0.03;

@@ -9,7 +9,6 @@ import { logger } from './logger';
 
 const renderCounts: Map<string, number> = new Map();
 const renderTimes: Map<string, number[]> = new Map();
-let profilingStartTime = Date.now();
 let totalRenders = 0;
 
 export function trackRender(componentName: string) {
@@ -48,7 +47,6 @@ export function renderReport() {
 export function resetRenderProfile() {
   renderCounts.clear();
   renderTimes.clear();
-  profilingStartTime = Date.now();
   totalRenders = 0;
 }
 
