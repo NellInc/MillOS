@@ -10,21 +10,63 @@ import * as THREE from 'three';
 import { audioManager } from '../../utils/audioManager';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { useGraphicsStore } from '../../stores/graphicsStore';
+import type { TruckAnimState } from './useTruckPhysics';
 
 // --- Animation Registries ---
 export type AnimationType = 'rotation' | 'pulse' | 'lerp' | 'oscillation' | 'custom';
 
+/** Animation data types for each animation type */
+export interface RotationAnimData {
+  axis?: 'x' | 'y' | 'z';
+  speed?: number;
+}
+
+export interface PulseAnimData {
+  speed?: number;
+  min?: number;
+  max?: number;
+  offset?: number;
+}
+
+export interface LerpAnimData {
+  target: number;
+  speed?: number;
+  property?: 'position' | 'rotation' | 'scale';
+  axis?: 'x' | 'y' | 'z';
+  autoHide?: boolean;
+  hideThreshold?: number;
+}
+
+export interface OscillationAnimData {
+  axis?: 'x' | 'y' | 'z';
+  speed?: number;
+  amplitude?: number;
+  offset?: number;
+  base?: number;
+}
+
+/** Union of all animation data types */
+export type AnimationData =
+  | RotationAnimData
+  | PulseAnimData
+  | LerpAnimData
+  | OscillationAnimData
+  | Record<string, unknown>; // For custom animations
+
+/** Callback signature for custom animations */
+export type AnimationCallback = (
+  time: number,
+  delta: number,
+  mesh: THREE.Object3D | THREE.Material | null,
+  data: AnimationData
+) => void;
+
 export interface AnimationState {
   type: AnimationType;
   mesh: THREE.Object3D | THREE.Material | null;
-  data: any;
+  data: AnimationData;
   // For 'custom' type: a callback function that receives (time, delta, mesh)
-  callback?: (
-    time: number,
-    delta: number,
-    mesh: THREE.Object3D | THREE.Material | null,
-    data: any
-  ) => void;
+  callback?: AnimationCallback;
 }
 
 const animationRegistry = new Map<string, AnimationState>();
@@ -33,13 +75,8 @@ export const registerAnimation = (
   id: string,
   type: AnimationType,
   mesh: THREE.Object3D | THREE.Material | null,
-  data: any,
-  callback?: (
-    time: number,
-    delta: number,
-    mesh: THREE.Object3D | THREE.Material | null,
-    data: any
-  ) => void
+  data: AnimationData,
+  callback?: AnimationCallback
 ) => {
   animationRegistry.set(id, { type, mesh, data, callback });
 };
@@ -133,7 +170,7 @@ export interface TruckComponents {
   steerRightRef?: React.RefObject<THREE.Object3D | null>;
 
   // State getter
-  getTruckState: () => any;
+  getTruckState: () => TruckAnimState;
 }
 
 const truckComponentsRegistry = new Map<string, TruckComponents>();

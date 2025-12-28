@@ -730,10 +730,6 @@ export function getTagsWithAlarms(): TagDefinition[] {
   );
 }
 
-// Tag count summary
-console.log(`[SCADA] Tag database loaded: ${MILL_TAGS.length} tags`);
-console.log(`  - Zone 1 (Silos): ${siloTags.length} tags`);
-console.log(`  - Zone 2 (Mills): ${rollerMillTags.length} tags`);
-console.log(`  - Zone 3 (Sifters): ${plansifterTags.length} tags`);
-console.log(`  - Zone 4 (Packers): ${packerTags.length} tags`);
-console.log(`  - Utility: ${utilityTags.length} tags`);
+// Tag database loaded: 90 tags total
+// Zone 1 (Silos): 20 tags, Zone 2 (Mills): 36 tags, Zone 3 (Sifters): 12 tags
+// Zone 4 (Packers): 12 tags, Utility: 10 tags

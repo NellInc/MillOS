@@ -44,9 +44,7 @@ export function initKTX2Loader(renderer: THREE.WebGLRenderer): void {
     ktx2Loader = new KTX2Loader();
     ktx2Loader.setTranscoderPath(TRANSCODER_PATH);
     ktx2Loader.detectSupport(renderer);
-    console.log('[TextureCompression] KTX2 loader initialized');
-  } catch (err) {
-    console.warn('[TextureCompression] KTX2 not supported, falling back to standard textures', err);
+  } catch {
     isKTX2Supported = false;
   }
 }
@@ -94,10 +92,9 @@ export async function loadCompressedTexture(
 
       compressedTextureCache.set(cacheKey, texture);
       gpuResourceManager.register('texture', texture, owner, { priority: 'normal' });
-      console.log(`[TextureCompression] Loaded KTX2: ${ktx2Path}`);
       return texture;
     } catch {
-      console.warn(`[TextureCompression] KTX2 failed for ${ktx2Path}, trying fallback`);
+      // KTX2 failed, will try fallback
     }
   }
 
@@ -147,8 +144,8 @@ export async function loadCompressedTextureBatch(
       try {
         const texture = await loadCompressedTexture(ktx2, fallback, owner);
         results.set(ktx2, texture);
-      } catch (err) {
-        console.warn(`[TextureCompression] Failed to load ${ktx2}:`, err);
+      } catch {
+        // Failed to load texture, skip
       }
     })
   );

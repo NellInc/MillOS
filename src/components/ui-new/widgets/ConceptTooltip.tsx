@@ -309,7 +309,6 @@ export const ConceptTooltip: React.FC<ConceptTooltipProps> = memo(
 
     // If concept not found, don't render
     if (!concept) {
-      console.warn(`ConceptTooltip: Concept "${conceptId}" not found`);
       return null;
     }
 

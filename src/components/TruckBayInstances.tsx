@@ -75,10 +75,16 @@ export const TrafficConeInstances: React.FC<{
 // However, in R3F/Three, modifying geometry affects all instances.
 // So we should construct specific geometries that are pre-transformed (translated) to the correct relative position.
 
+/** Geometry constructor type for Three.js geometries that accept numeric arguments */
+type GeometryConstructor = new (...args: number[]) => THREE.BufferGeometry;
+
+/** Geometry constructor arguments - varies by type (Box: [w,h,d], Cone: [r,h,seg], etc.) */
+type GeometryArgs = readonly number[];
+
 // Helper to create translated geometry
 const useTranslatedGeometry = (
-  GeometryClass: any,
-  args: any[],
+  GeometryClass: GeometryConstructor,
+  args: GeometryArgs,
   translation: [number, number, number],
   rotation?: [number, number, number]
 ) => {

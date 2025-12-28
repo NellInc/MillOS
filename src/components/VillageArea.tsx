@@ -93,7 +93,7 @@ stuccoNormalTex.repeat.set(2, 2);
 const SM = {
   grass: OUTDOOR_MATERIALS.grass, // Use shared grass material for seamless matching
   cobble: new THREE.MeshStandardMaterial({
-    color: '#ffffff', // Let texture provide color
+    color: '#9a9a9a', // Tint to correct washed-out texture
     roughness: 0.85,
     map: villageCobbleColor,
     normalMap: villageCobbleNormal,
@@ -113,21 +113,21 @@ const SM = {
     normalScale: new THREE.Vector2(0.15, 0.15),
   }),
   roofTile: new THREE.MeshStandardMaterial({
-    color: '#ffffff',
+    color: '#d4a090', // Tint for terracotta tiles
     roughness: 0.7,
     map: clayTileColor,
     normalMap: clayTileNormal,
     normalScale: new THREE.Vector2(0.4, 0.4),
   }),
   roofSlate: new THREE.MeshStandardMaterial({
-    color: '#ffffff',
+    color: '#8090a0', // Tint for slate gray
     roughness: 0.5,
     map: slateColor,
     normalMap: slateNormal,
     normalScale: new THREE.Vector2(0.35, 0.35),
   }),
   thatch: new THREE.MeshStandardMaterial({
-    color: '#ffffff',
+    color: '#c0a080', // Tint for golden straw
     roughness: 0.95,
     map: thatchColor,
     normalMap: thatchNormal,
@@ -176,7 +176,7 @@ const SM = {
   }),
   water: new THREE.MeshStandardMaterial({ color: COLORS.water, roughness: 0.2, metalness: 0.3 }),
   white: new THREE.MeshStandardMaterial({
-    color: '#ffffff',
+    color: '#e8e8e8', // Slight tint for white stucco
     roughness: 0.75,
     map: stuccoColorTex,
     normalMap: stuccoNormalTex,
@@ -1683,6 +1683,7 @@ uvAttr.needsUpdate = true;
 // Cobble material with edge feathering via custom shader injection
 // Uses module-level villageCobbleColor and villageCobbleNormal textures
 const villageCobbleMaterial = new THREE.MeshStandardMaterial({
+  color: '#9a9a9a', // Tint to correct washed-out texture appearance
   map: villageCobbleColor,
   normalMap: villageCobbleNormal,
   normalScale: new THREE.Vector2(0.4, 0.4),

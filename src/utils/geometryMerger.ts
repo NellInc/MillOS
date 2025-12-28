@@ -54,7 +54,6 @@ export function mergeGeometries(
   const { owner = 'geometry-merger', priority = 'normal', computeNormals = false } = options;
 
   if (instances.length === 0) {
-    console.warn('[GeometryMerger] No geometries to merge');
     return null;
   }
 
@@ -71,7 +70,6 @@ export function mergeGeometries(
   const merged = threeJSMerge(transformedGeometries);
 
   if (!merged) {
-    console.error('[GeometryMerger] Failed to merge geometries');
     // Cleanup clones
     transformedGeometries.forEach((g) => g.dispose());
     return null;
@@ -87,10 +85,6 @@ export function mergeGeometries(
 
   // Register with GPU resource manager
   gpuResourceManager.register('geometry', merged, owner, { priority });
-
-  console.log(
-    `[GeometryMerger] Merged ${instances.length} geometries into 1 (${merged.attributes.position?.count || 0} vertices)`
-  );
 
   return merged;
 }
@@ -218,7 +212,6 @@ export function batchMerge(
     }
   }
 
-  console.log(`[GeometryMerger] Batch merged ${results.size}/${groups.length} groups`);
   return results;
 }
 

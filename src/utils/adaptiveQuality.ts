@@ -153,7 +153,7 @@ class AdaptiveQualityManager {
     }
 
     this.isChangingQuality = true;
-    const currentQuality = useGraphicsStore.getState().graphics.quality;
+    // Quality level is read from store when actually applied in scheduleChange callback
 
     // Use requestIdleCallback if available, otherwise setTimeout
     const scheduleChange =
@@ -164,12 +164,9 @@ class AdaptiveQualityManager {
     scheduleChange(() => {
       try {
         useGraphicsStore.getState().setGraphicsQuality(newQuality);
-        console.log(
-          `[AdaptiveQuality] Changed: ${currentQuality} -> ${newQuality} (FPS: ${this.getAverageFps().toFixed(1)})`
-        );
         this.frameTimes = []; // Reset samples after change
-      } catch (error) {
-        console.error('[AdaptiveQuality] Failed to change quality:', error);
+      } catch {
+        // Failed to change quality, ignore
       } finally {
         this.isChangingQuality = false;
 
@@ -253,7 +250,6 @@ class AdaptiveQualityManager {
    */
   initialize(): void {
     this.isInitialized = true;
-    console.log('[AdaptiveQuality] Initialized');
   }
 
   /**

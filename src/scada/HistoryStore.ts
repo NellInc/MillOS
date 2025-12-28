@@ -84,7 +84,6 @@ export class HistoryStore {
 
     // Graceful fallback for environments without IndexedDB (private mode/SSR)
     if (typeof indexedDB === 'undefined') {
-      console.warn('[HistoryStore] IndexedDB not available; running without persistence');
       this.historyDisabled = true;
       this.isInitialized = true;
       return;
@@ -117,8 +116,6 @@ export class HistoryStore {
           store.createIndex('tagId', 'tagId', { unique: false });
           store.createIndex('alarmId', 'alarmId', { unique: false });
         }
-
-        console.log('[HistoryStore] Database schema created/upgraded');
       };
 
       request.onsuccess = () => {
@@ -134,12 +131,10 @@ export class HistoryStore {
         // Initial cleanup
         this.cleanup();
 
-        console.log('[HistoryStore] Initialized successfully');
         resolve();
       };
 
       request.onerror = () => {
-        console.error('[HistoryStore] Failed to open database:', request.error);
         this.historyDisabled = true;
         this.isInitialized = true;
         resolve(); // Continue in disabled mode instead of rejecting
@@ -178,7 +173,6 @@ export class HistoryStore {
     this.isFlushing = false;
     this.flushQueued = false;
     this.isInitialized = false;
-    console.log('[HistoryStore] Closed');
   }
 
   // =========================================================================
@@ -285,8 +279,7 @@ export class HistoryStore {
 
           // Only clear buffer after successful transaction
           this.writeBuffer = this.writeBuffer.filter((r) => !records.includes(r));
-        } catch (err) {
-          console.error('[HistoryStore] Failed to flush tag history:', err);
+        } catch {
           // Records remain in buffer for next attempt
         }
       }
@@ -310,8 +303,7 @@ export class HistoryStore {
 
           // Only clear buffer after successful transaction
           this.alarmBuffer = this.alarmBuffer.filter((r) => !records.includes(r));
-        } catch (err) {
-          console.error('[HistoryStore] Failed to flush alarm history:', err);
+        } catch {
           // Records remain in buffer for next attempt
         }
       }
@@ -668,12 +660,8 @@ export class HistoryStore {
         transaction.oncomplete = () => resolve();
         transaction.onerror = () => reject(transaction.error);
       });
-
-      if (deletedCount > 0) {
-        console.log(`[HistoryStore] Cleaned up ${deletedCount} old tag history records`);
-      }
-    } catch (err) {
-      console.error('[HistoryStore] Cleanup failed:', err);
+    } catch {
+      // Cleanup failed - will retry on next interval
     }
 
     // Cleanup alarm history (keep longer - 7 days)
@@ -700,12 +688,8 @@ export class HistoryStore {
         transaction.oncomplete = () => resolve();
         transaction.onerror = () => reject(transaction.error);
       });
-
-      if (alarmDeletedCount > 0) {
-        console.log(`[HistoryStore] Cleaned up ${alarmDeletedCount} old alarm history records`);
-      }
-    } catch (err) {
-      console.error('[HistoryStore] Alarm cleanup failed:', err);
+    } catch {
+      // Cleanup failed - will retry on next interval
     }
   }
 
@@ -729,7 +713,5 @@ export class HistoryStore {
     };
 
     await Promise.all([clearStore('tagHistory'), clearStore('alarmHistory')]);
-
-    console.log('[HistoryStore] All history cleared');
   }
 }

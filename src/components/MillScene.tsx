@@ -32,16 +32,16 @@ import { PostProcessing } from './PostProcessing';
 const TruckBay = React.lazy(() =>
   import('./TruckBay')
     .then((m) => ({ default: m.TruckBay }))
-    .catch((err) => {
-      console.error('Failed to load TruckBay:', err);
+    .catch(() => {
+      // Failed to load TruckBay - return null component
       return { default: () => null };
     })
 );
 const AmbientDetailsGroup = React.lazy(() =>
   import('./AmbientDetails')
     .then((m) => ({ default: m.AmbientDetailsGroup }))
-    .catch((err) => {
-      console.error('Failed to load AmbientDetailsGroup:', err);
+    .catch(() => {
+      // Failed to load AmbientDetailsGroup - return null component
       return { default: () => null };
     })
 );
@@ -219,19 +219,16 @@ const IncidentHeatMap: React.FC = () => {
   const showIncidentHeatMap = useSafetyStore((state) => state.showIncidentHeatMap);
 
   // Registry for animated materials
-  const animatedRefs = useRef<
-    Map<
-      string,
-      {
-        circle: THREE.MeshBasicMaterial | null;
-        ring: THREE.MeshBasicMaterial | null;
-        column: THREE.MeshBasicMaterial | null;
-        intensityRef: React.MutableRefObject<number>;
-      }
-    >
-  >(new Map());
+  interface AnimatedMaterialRefs {
+    circle: THREE.MeshBasicMaterial | null;
+    ring: THREE.MeshBasicMaterial | null;
+    column: THREE.MeshBasicMaterial | null;
+    intensityRef: React.MutableRefObject<number>;
+  }
 
-  const registerAnimation = useCallback((id: string, refs: any) => {
+  const animatedRefs = useRef<Map<string, AnimatedMaterialRefs>>(new Map());
+
+  const registerAnimation = useCallback((id: string, refs: AnimatedMaterialRefs) => {
     animatedRefs.current.set(id, refs);
   }, []);
 
@@ -316,6 +313,9 @@ const FireDrillExitMarkers = React.memo(() => {
               opacity={0.8}
               side={THREE.DoubleSide}
               depthWrite={false}
+              polygonOffset
+              polygonOffsetFactor={POLYGON_OFFSET.standard.factor}
+              polygonOffsetUnits={POLYGON_OFFSET.standard.units}
             />
           </mesh>
           {/* Inner solid circle - raised slightly for z-separation */}

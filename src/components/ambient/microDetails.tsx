@@ -50,11 +50,11 @@ export const CigaretteButts: React.FC<{ position: [number, number, number]; coun
           )}
         </group>
       ))}
-      {/* Ash scatter around */}
+      {/* Ash scatter around - y=0.03 to prevent z-fighting with floor */}
       {Array.from({ length: 8 }).map((_, i) => (
         <mesh
           key={`ash-${i}`}
-          position={[(Math.random() - 0.5) * 0.5, 0.001, (Math.random() - 0.5) * 0.5]}
+          position={[(Math.random() - 0.5) * 0.5, 0.03, (Math.random() - 0.5) * 0.5]}
           rotation={[-Math.PI / 2, 0, 0]}
         >
           <circleGeometry args={[0.01 + Math.random() * 0.015, 6]} />

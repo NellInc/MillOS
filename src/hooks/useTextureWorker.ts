@@ -59,11 +59,9 @@ export function useTextureWorker() {
       };
 
       workerRef.current.onerror = (e) => {
-        console.error('[TextureWorker] Error:', e);
         setError(e.message);
       };
-    } catch (err) {
-      console.warn('[TextureWorker] Failed to initialize worker:', err);
+    } catch {
       setError('Worker initialization failed');
     }
 

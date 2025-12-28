@@ -261,9 +261,9 @@ useMillStore.getState = (): CombinedStoreState => {
  * This implementation intelligently routes subscriptions to the appropriate store
  * based on which state properties are accessed in the selector.
  */
-useMillStore.subscribe = (
-  selector: (state: CombinedStoreState) => any,
-  callback: (value: any) => void,
+useMillStore.subscribe = <T>(
+  selector: (state: CombinedStoreState) => T,
+  callback: (value: T) => void,
   options?: { fireImmediately?: boolean }
 ) => {
   // Track the previous value to detect changes
@@ -273,11 +273,9 @@ useMillStore.subscribe = (
   const wrappedCallback = () => {
     const newValue = selector(useMillStore.getState());
 
-    // Deep equality check for objects/arrays, reference equality for primitives
-    const hasChanged =
-      typeof newValue === 'object' && newValue !== null
-        ? JSON.stringify(newValue) !== JSON.stringify(previousValue)
-        : newValue !== previousValue;
+    // PERFORMANCE FIX: Use shallow equality instead of expensive JSON.stringify
+    // shallowEqual handles both primitives and objects efficiently
+    const hasChanged = !shallowEqual(newValue, previousValue);
 
     if (hasChanged) {
       previousValue = newValue;

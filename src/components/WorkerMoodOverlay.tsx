@@ -541,16 +541,16 @@ export const useBilateralAlignmentSimulation = () => {
         .then(({ useSafetyReportStore }) => {
           useSafetyReportStore.getState().tickSafetySimulation(deltaMinutes);
         })
-        .catch((e) => {
-          console.error('[WorkerMoodOverlay] Failed to import safetyReportStore:', e);
+        .catch(() => {
+          // Failed to import safetyReportStore - silently continue
         });
 
       import('../stores/emergentCooperationStore')
         .then(({ useEmergentCooperationStore }) => {
           useEmergentCooperationStore.getState().tickEmergentCooperation(deltaMinutes);
         })
-        .catch((e) => {
-          console.error('[WorkerMoodOverlay] Failed to import emergentCooperationStore:', e);
+        .catch(() => {
+          // Failed to import emergentCooperationStore - silently continue
         });
 
       // Phase 3: Add breakdown simulation ticking
@@ -564,16 +564,16 @@ export const useBilateralAlignmentSimulation = () => {
                   const gameTime = useGameSimulationStore.getState().gameTime;
                   useBreakdownStore.getState().tickBreakdownSimulation(gameTime, machines);
                 })
-                .catch((e) => {
-                  console.error('[WorkerMoodOverlay] Failed to import gameSimulationStore:', e);
+                .catch(() => {
+                  // Failed to import gameSimulationStore - silently continue
                 });
             })
-            .catch((e) => {
-              console.error('[WorkerMoodOverlay] Failed to import productionStore:', e);
+            .catch(() => {
+              // Failed to import productionStore - silently continue
             });
         })
-        .catch((e) => {
-          console.error('[WorkerMoodOverlay] Failed to import breakdownStore:', e);
+        .catch(() => {
+          // Failed to import breakdownStore - silently continue
         });
 
       // Phase 3: Add flourishing dimension drift
@@ -581,8 +581,8 @@ export const useBilateralAlignmentSimulation = () => {
         .then(({ useFlourishingStore }) => {
           useFlourishingStore.getState().tickFlourishing(deltaMinutes);
         })
-        .catch((e) => {
-          console.error('[WorkerMoodOverlay] Failed to import flourishingStore:', e);
+        .catch(() => {
+          // Failed to import flourishingStore - silently continue
         });
 
       lastTickRef.current = now;

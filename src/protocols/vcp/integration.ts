@@ -503,8 +503,8 @@ export function startVCPUpdateLoop(): void {
   vcpUpdateInterval = setInterval(() => {
     try {
       updateVCPFromState();
-    } catch (error) {
-      console.error('[VCP] Update loop error:', error);
+    } catch {
+      // VCP update failed - silently continue
     }
   }, VCP_UPDATE_INTERVAL_MS);
 

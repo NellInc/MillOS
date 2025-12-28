@@ -242,8 +242,8 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
       if (config.brokerUrl) setMqttBrokerUrl(config.brokerUrl);
       if (config.topicPrefix) setMqttTopicPrefix(config.topicPrefix);
       if (config.proxyUrl) setProxyUrl(config.proxyUrl);
-    } catch (err) {
-      console.error('[SCADAPanel] Failed to load SCADA connection config', err);
+    } catch {
+      // Failed to load SCADA connection config - use defaults
     }
   }, [isOpen]);
 
@@ -278,8 +278,8 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
       // Convert to sorted array
       const sortedData = Array.from(timeMap.values()).sort((a, b) => a.timestamp - b.timestamp);
       setTrendData(sortedData);
-    } catch (err) {
-      console.error('[TrendChart] Failed to load history:', err);
+    } catch {
+      // Failed to load history - ignore
     }
   }, [selectedTrendTags, trendDuration, getHistory]);
 

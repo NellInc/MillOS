@@ -296,7 +296,7 @@ export const useMultiplayerStore = create<MultiplayerStore>((set, get) => ({
     });
     // If failed, could trigger a notification here
     if (!success && error) {
-      console.warn(`[Multiplayer] Intent ${intentId} failed: ${error}`);
+      // Intent failed - notification would be triggered here
     }
   },
 

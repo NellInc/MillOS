@@ -94,11 +94,7 @@ function safeLoadTexture(jpgPath: string): Texture | null {
           pendingKtx2Loads.delete(ktx2Path);
           return tex;
         })
-        .catch((e) => {
-          console.warn(
-            `[machineTextures] KTX2 load failed for ${ktx2Path}, falling back to JPG:`,
-            e
-          );
+        .catch(() => {
           pendingKtx2Loads.delete(ktx2Path);
           // Fall back to JPG via standard loader
           return loadJpgTexture(jpgPath);
@@ -141,16 +137,14 @@ function loadJpgTexture(path: string): Texture | null {
       },
       // On progress (unused)
       undefined,
-      // On error - log warning and cache null to prevent retries
-      (error) => {
-        console.warn(`[machineTextures] Failed to load texture ${path}:`, error);
+      // On error - cache null to prevent retries
+      () => {
         textureCache.set(path, null);
       }
     );
     textureCache.set(path, texture);
     return texture;
-  } catch (error) {
-    console.warn(`[machineTextures] Failed to load JPG texture ${path}:`, error);
+  } catch {
     textureCache.set(path, null);
     return null;
   }

@@ -98,8 +98,6 @@ export class RESTAdapter implements IProtocolAdapter {
 
       // Do initial poll
       await this.poll();
-
-      console.log(`[RESTAdapter] Connected to ${baseUrl}. Polling every ${interval}ms`);
     } catch (err) {
       this.lastError = err instanceof Error ? err.message : String(err);
       this.stats.errorCount++;
@@ -119,7 +117,6 @@ export class RESTAdapter implements IProtocolAdapter {
     this.connected = false;
     this.lastDisconnectTime = Date.now();
     this.values.clear();
-    console.log('[RESTAdapter] Disconnected');
   }
 
   isConnected(): boolean {
@@ -196,12 +193,10 @@ export class RESTAdapter implements IProtocolAdapter {
   async writeTag(tagId: string, value: number | boolean | string): Promise<boolean> {
     const tag = this.tags.get(tagId);
     if (!tag) {
-      console.warn(`[RESTAdapter] Unknown tag: ${tagId}`);
       return false;
     }
 
     if (tag.accessMode === 'READ') {
-      console.warn(`[RESTAdapter] Cannot write to read-only tag: ${tagId}`);
       return false;
     }
 
@@ -222,9 +217,8 @@ export class RESTAdapter implements IProtocolAdapter {
 
       this.stats.writeCount++;
       return true;
-    } catch (err) {
+    } catch {
       this.stats.errorCount++;
-      console.error(`[RESTAdapter] Write failed for ${tagId}:`, err);
       return false;
     }
   }
@@ -292,8 +286,7 @@ export class RESTAdapter implements IProtocolAdapter {
     try {
       const tagValues = await this.readAllTags();
       this.notifySubscribers(tagValues);
-    } catch (err) {
-      console.error('[RESTAdapter] Poll failed:', err);
+    } catch {
       this.handleConnectionError();
     }
   }
@@ -306,17 +299,15 @@ export class RESTAdapter implements IProtocolAdapter {
     this.lastError = 'Connection lost';
 
     if (this.reconnectAttempts >= 5) {
-      console.error('[RESTAdapter] Max reconnect attempts reached. Disconnecting.');
       this.disconnect();
     } else {
       // Exponential backoff
       const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000);
-      console.log(`[RESTAdapter] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`);
 
       this.reconnectTimeoutId = setTimeout(() => {
         this.reconnectTimeoutId = null;
-        this.connect().catch((err) => {
-          console.error('[RESTAdapter] Reconnection failed:', err);
+        this.connect().catch(() => {
+          // Reconnection failed - will be retried
         });
       }, delay);
     }
@@ -391,8 +382,8 @@ export class RESTAdapter implements IProtocolAdapter {
     this.globalSubscribers.forEach((callback) => {
       try {
         callback(tagValues);
-      } catch (err) {
-        console.error('[RESTAdapter] Subscriber callback error:', err);
+      } catch {
+        // Subscriber callback error - silently ignored in production
       }
     });
 
@@ -414,8 +405,8 @@ export class RESTAdapter implements IProtocolAdapter {
     subscriberUpdates.forEach((values, callback) => {
       try {
         callback(values);
-      } catch (err) {
-        console.error('[RESTAdapter] Subscriber callback error:', err);
+      } catch {
+        // Subscriber callback error - silently ignored in production
       }
     });
   }

@@ -105,8 +105,6 @@ export class SimulationAdapter implements IProtocolAdapter {
     this.simulationInterval = setInterval(() => this.tick(), 1000);
     this.connected = true;
     this.connectTime = Date.now();
-
-    console.log(`[SimulationAdapter] Connected. Simulating ${this.tags.size} tags at 1Hz`);
   }
 
   async disconnect(): Promise<void> {
@@ -117,7 +115,6 @@ export class SimulationAdapter implements IProtocolAdapter {
     this.connected = false;
     this.values.clear();
     this.activeFaults.clear();
-    console.log('[SimulationAdapter] Disconnected');
   }
 
   isConnected(): boolean {
@@ -165,7 +162,6 @@ export class SimulationAdapter implements IProtocolAdapter {
     }
 
     if (tag.accessMode === 'READ') {
-      console.warn(`[SimulationAdapter] Cannot write to read-only tag: ${tagId}`);
       return false;
     }
 
@@ -282,7 +278,6 @@ export class SimulationAdapter implements IProtocolAdapter {
       duration: fault.duration ?? 0,
       severity: fault.severity ?? 1.0,
     });
-    console.log(`[SimulationAdapter] Fault injected: ${fault.faultType} on ${fault.tagId}`);
   }
 
   /**
@@ -290,7 +285,6 @@ export class SimulationAdapter implements IProtocolAdapter {
    */
   clearFault(tagId: string): void {
     this.activeFaults.delete(tagId);
-    console.log(`[SimulationAdapter] Fault cleared: ${tagId}`);
   }
 
   /**
@@ -298,7 +292,6 @@ export class SimulationAdapter implements IProtocolAdapter {
    */
   clearAllFaults(): void {
     this.activeFaults.clear();
-    console.log('[SimulationAdapter] All faults cleared');
   }
 
   /**
@@ -511,8 +504,8 @@ export class SimulationAdapter implements IProtocolAdapter {
     subscriberUpdates.forEach((values, callback) => {
       try {
         callback(values);
-      } catch (err) {
-        console.error('[SimulationAdapter] Subscriber callback error:', err);
+      } catch {
+        // Subscriber callback error - silently ignored in production
       }
     });
   }

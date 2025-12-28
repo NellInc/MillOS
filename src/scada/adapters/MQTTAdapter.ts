@@ -319,8 +319,8 @@ class MQTTWebSocketClient {
         callbacks.forEach((cb) => {
           try {
             cb(topic, payload);
-          } catch (err) {
-            console.error('[MQTTClient] Callback error:', err);
+          } catch {
+            // Callback error - silently ignored in production
           }
         });
       }
@@ -424,16 +424,14 @@ export class MQTTAdapter implements IProtocolAdapter {
       this.client = new MQTTWebSocketClient(brokerUrl, clientId);
 
       this.client.onConnect = () => {
-        console.log('[MQTTAdapter] Connected to broker');
+        // Connected to broker
       };
 
-      this.client.onDisconnect = (reason) => {
-        console.log(`[MQTTAdapter] Disconnected: ${reason}`);
+      this.client.onDisconnect = () => {
         this.handleDisconnect();
       };
 
       this.client.onError = (error) => {
-        console.error('[MQTTAdapter] Error:', error);
         this.lastError = error.message;
         this.stats.errorCount++;
       };
@@ -450,8 +448,6 @@ export class MQTTAdapter implements IProtocolAdapter {
       this.client.subscribe(`${topicPrefix}/tags/+/value`, (topic, payload) => {
         this.handleTagMessage(topic, payload);
       });
-
-      console.log(`[MQTTAdapter] Subscribed to ${topicPrefix}/tags/+/value`);
     } catch (err) {
       this.lastError = err instanceof Error ? err.message : String(err);
       this.stats.errorCount++;
@@ -473,7 +469,6 @@ export class MQTTAdapter implements IProtocolAdapter {
     this.connected = false;
     this.lastDisconnectTime = Date.now();
     this.values.clear();
-    console.log('[MQTTAdapter] Disconnected');
   }
 
   isConnected(): boolean {
@@ -516,18 +511,15 @@ export class MQTTAdapter implements IProtocolAdapter {
 
   async writeTag(tagId: string, value: number | boolean | string): Promise<boolean> {
     if (!this.client || !this.connected) {
-      console.warn('[MQTTAdapter] Cannot write: not connected');
       return false;
     }
 
     const tag = this.tags.get(tagId);
     if (!tag) {
-      console.warn(`[MQTTAdapter] Unknown tag: ${tagId}`);
       return false;
     }
 
     if (tag.accessMode === 'READ') {
-      console.warn(`[MQTTAdapter] Cannot write to read-only tag: ${tagId}`);
       return false;
     }
 
@@ -543,9 +535,8 @@ export class MQTTAdapter implements IProtocolAdapter {
       this.client.publish(topic, payload, 1); // QoS 1 for reliable delivery
       this.stats.writeCount++;
       return true;
-    } catch (err) {
+    } catch {
       this.stats.errorCount++;
-      console.error(`[MQTTAdapter] Write failed for ${tagId}:`, err);
       return false;
     }
   }
@@ -605,7 +596,7 @@ export class MQTTAdapter implements IProtocolAdapter {
   // Message Handling
   // =========================================================================
 
-  private handleTagMessage(topic: string, payload: string): void {
+  private handleTagMessage(_topic: string, payload: string): void {
     try {
       // Parse JSON
       const parsed: unknown = JSON.parse(payload);
@@ -623,16 +614,7 @@ export class MQTTAdapter implements IProtocolAdapter {
 
       // Notify subscribers
       this.notifySubscribers([tagValue]);
-    } catch (err) {
-      if (err instanceof MessageValidationError) {
-        console.error(
-          `[MQTTAdapter] Message validation failed on topic ${topic}: ${err.message}`,
-          'Received data:',
-          err.receivedData
-        );
-      } else {
-        console.error('[MQTTAdapter] Failed to parse message:', err);
-      }
+    } catch {
       this.stats.errorCount++;
     }
   }
@@ -665,20 +647,13 @@ export class MQTTAdapter implements IProtocolAdapter {
       const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000);
       const jitter = Math.random() * 1000;
 
-      console.log(
-        `[MQTTAdapter] Reconnecting in ${delay + jitter}ms (attempt ${this.reconnectAttempts})`
-      );
-
       this.reconnectTimeout = setTimeout(() => {
-        this.connect().catch((err) => {
-          console.error('[MQTTAdapter] Reconnect failed:', err);
+        this.connect().catch(() => {
+          // Reconnect failed - will be retried
         });
       }, delay + jitter);
     } else {
       this.permanentlyDisconnected = true;
-      console.error(
-        '[MQTTAdapter] Max reconnect attempts reached. Adapter permanently disconnected.'
-      );
     }
   }
 
@@ -687,8 +662,8 @@ export class MQTTAdapter implements IProtocolAdapter {
     this.globalSubscribers.forEach((callback) => {
       try {
         callback(tagValues);
-      } catch (err) {
-        console.error('[MQTTAdapter] Subscriber callback error:', err);
+      } catch {
+        // Subscriber callback error - silently ignored in production
       }
     });
 
@@ -710,8 +685,8 @@ export class MQTTAdapter implements IProtocolAdapter {
     subscriberUpdates.forEach((values, callback) => {
       try {
         callback(values);
-      } catch (err) {
-        console.error('[MQTTAdapter] Subscriber callback error:', err);
+      } catch {
+        // Subscriber callback error - silently ignored in production
       }
     });
   }

@@ -165,24 +165,42 @@ export function decodeStateSnapshot(encoded: string): Partial<StateSnapshot> | n
     if (lockStr.includes('C')) lockedAxes.push('collective');
   }
 
+  // Safe parse helpers with bounds checking
+  const safeParseInt = (match: RegExpMatchArray | null, index: number, fallback: number = 50): number => {
+    if (!match || index >= match.length || match[index] === undefined) return fallback;
+    const parsed = parseInt(match[index]);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  };
+
+  const safeParseFloat = (match: RegExpMatchArray | null, index: number, fallback: number = 0): number => {
+    if (!match || index >= match.length || match[index] === undefined) return fallback;
+    const parsed = parseFloat(match[index]);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  };
+
+  const safeGetString = (match: RegExpMatchArray | null, index: number): string | undefined => {
+    if (!match || index >= match.length) return undefined;
+    return match[index];
+  };
+
   return {
     governance: {
-      mode: modeMap[govMatch[1]] || 'traditional',
+      mode: modeMap[safeGetString(govMatch, 1) ?? ''] || 'traditional',
       axes: {
-        autonomy: parseInt(axesMatch[1]),
-        decision: parseInt(axesMatch[2]),
-        information: parseInt(axesMatch[3]),
-        evaluation: parseInt(axesMatch[4]),
-        collective: parseInt(axesMatch[5]),
+        autonomy: safeParseInt(axesMatch, 1),
+        decision: safeParseInt(axesMatch, 2),
+        information: safeParseInt(axesMatch, 3),
+        evaluation: safeParseInt(axesMatch, 4),
+        collective: safeParseInt(axesMatch, 5),
       },
       lockedAxes,
       activePreset: null,
     },
     wellbeing: wellMatch
       ? {
-          flourishingScore: parseInt(wellMatch[1]),
-          flourishingTrend: trendMap[wellMatch[2]] || 'stable',
-          concernDimension: wellMatch[3] ? dimMap[wellMatch[3]] : null,
+          flourishingScore: safeParseInt(wellMatch, 1),
+          flourishingTrend: trendMap[safeGetString(wellMatch, 2) ?? ''] || 'stable',
+          concernDimension: safeGetString(wellMatch, 3) ? dimMap[safeGetString(wellMatch, 3)!] : null,
           gainDimension: null,
           dimensions: {
             meaning: 50,
@@ -197,17 +215,17 @@ export function decodeStateSnapshot(encoded: string): Partial<StateSnapshot> | n
       : undefined,
     stability: stabMatch
       ? {
-          phase: phaseMap[stabMatch[1]] || 'stable',
+          phase: phaseMap[safeGetString(stabMatch, 1) ?? ''] || 'stable',
           alpha: 0.3,
           tau: 0.3,
-          product: parseFloat(stabMatch[2]),
-          marginToThreshold: 0.368 - parseFloat(stabMatch[2]),
+          product: safeParseFloat(stabMatch, 2),
+          marginToThreshold: 0.368 - safeParseFloat(stabMatch, 2),
         }
       : undefined,
     engagement: engMatch
       ? {
-          score: parseInt(engMatch[1]),
-          flowState: flowMap[engMatch[2]] || 'partial',
+          score: safeParseInt(engMatch, 1),
+          flowState: flowMap[safeGetString(engMatch, 2) ?? ''] || 'partial',
           frictionMultiplier: 1.0,
           dimensions: {
             flowFrequency: 50,

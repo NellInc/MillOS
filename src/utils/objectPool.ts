@@ -69,9 +69,7 @@ export class ObjectPool<T> {
     } else if (this.autoExpand && (this.maxSize === 0 || this.totalSize() < this.maxSize)) {
       // Expand pool
       obj = this.factory();
-      console.debug(`[ObjectPool] Expanded pool (total: ${this.totalSize() + 1})`);
     } else {
-      console.warn('[ObjectPool] Pool exhausted');
       return null;
     }
 
@@ -84,7 +82,6 @@ export class ObjectPool<T> {
    */
   release(obj: T): void {
     if (!this.inUse.has(obj)) {
-      console.warn('[ObjectPool] Attempted to release object not from this pool');
       return;
     }
 
@@ -247,7 +244,6 @@ class PoolManager {
     maxSize: number = 500
   ): ObjectPool<T> {
     if (this.pools.has(name)) {
-      console.warn(`[PoolManager] Pool "${name}" already exists, returning existing`);
       return this.pools.get(name) as ObjectPool<T>;
     }
 

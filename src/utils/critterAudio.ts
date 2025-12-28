@@ -215,6 +215,4 @@ export const playCritterSound = (type: CritterType) => {
       gain.disconnect();
       break;
   }
-
-  // console.log(`[Audio] Playing sound for ${type} at volume ${vol}`);
 };

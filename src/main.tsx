@@ -33,12 +33,12 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
 // Set VITE_ENABLE_SW=true in .env to enable during development
 registerServiceWorker({
   onSuccess: () => {
-    console.log('[MillOS] Service worker installed, assets cached for offline use');
+    // Service worker installed successfully
   },
   onUpdate: () => {
-    console.log('[MillOS] New version available! Refresh to update.');
+    // New version available
   },
-  onError: (error) => {
-    console.warn('[MillOS] Service worker registration failed:', error);
+  onError: () => {
+    // Service worker registration failed
   },
 });

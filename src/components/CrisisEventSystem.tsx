@@ -252,7 +252,9 @@ const CrisisActionItems: React.FC = () => {
     });
   };
 
-  const completionRate = (completedActions.size / actionItems.length) * 100;
+  const completionRate = actionItems.length > 0
+    ? (completedActions.size / actionItems.length) * 100
+    : 0;
 
   return (
     <motion.div

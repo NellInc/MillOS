@@ -6,7 +6,7 @@
  * Demonstrates the 95%+ token savings when communicating factory state to Gemini.
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronDown, Copy, Check, Zap, FileText, ArrowRight, Sparkles, Brain } from 'lucide-react';
 import { useAIConfigStore } from '../../stores/aiConfigStore';
@@ -35,6 +35,14 @@ export const VCLDebugPanel: React.FC = () => {
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
   const [showComparison, setShowComparison] = useState(true);
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Cleanup timer on unmount to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+    };
+  }, []);
 
   const workers = useProductionStore((state) => state.workers);
   const machines = useProductionStore((state) => state.machines);
@@ -77,7 +85,8 @@ export const VCLDebugPanel: React.FC = () => {
   const handleCopy = async () => {
     await navigator.clipboard.writeText(vclEncoding);
     setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+    copyTimerRef.current = setTimeout(() => setCopied(false), 2000);
   };
 
   if (!showVCLDebug) return null;

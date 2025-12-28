@@ -73,8 +73,7 @@ import { FiveAxesPanel } from './ui-new/widgets/FiveAxesPanel';
 const ProductionMetrics = lazy(() =>
   import('./ProductionMetrics')
     .then((module) => ({ default: module.ProductionMetrics }))
-    .catch((err) => {
-      console.error('Failed to load ProductionMetrics:', err);
+    .catch(() => {
       return {
         default: () => (
           <div className="text-red-400 text-xs p-2 bg-red-900/20 rounded border border-red-500/30">

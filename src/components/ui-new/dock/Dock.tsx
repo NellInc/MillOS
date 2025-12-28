@@ -86,8 +86,8 @@ export const Dock: React.FC<DockProps> = ({ activeMode, onModeChange }) => {
         }
       }
       if (navigator.vibrate) navigator.vibrate(15);
-    } catch (err) {
-      console.warn('Fullscreen request failed:', err);
+    } catch {
+      // Fullscreen request failed - silently continue
     }
   }, []);
 

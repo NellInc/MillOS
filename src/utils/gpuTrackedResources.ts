@@ -34,8 +34,6 @@ export function initializeGPUTracking(): void {
 
   // Register geometry cache with recreators
   registerGeometryCache();
-
-  console.log('[GPUTracking] Registered shared resources with GPUResourceManager');
 }
 
 /**
@@ -119,7 +117,6 @@ export function cleanupGPUTracking(): void {
   // The GPUResourceManager's disposeAll() will handle them if needed
 
   isInitialized = false;
-  console.log('[GPUTracking] Cleaned up tracked resources');
 }
 
 /**
@@ -132,8 +129,6 @@ export function recreateGeometryCacheAfterContextLoss(): void {
 
   // Re-register with fresh geometries
   registerGeometryCache();
-
-  console.log('[GPUTracking] Recreated geometry cache after context loss');
 }
 
 // Export for context recovery integration

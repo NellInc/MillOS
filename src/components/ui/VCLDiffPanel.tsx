@@ -5,7 +5,7 @@
  * what changed between strategic decision contexts.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowRight, RefreshCw, Copy, Check, GitCompare } from 'lucide-react';
 import { useAIConfigStore } from '../../stores/aiConfigStore';
@@ -18,6 +18,14 @@ export const VCLDiffPanel: React.FC = () => {
   const [previousVCL, setPreviousVCL] = useState<string>('');
   const [currentVCL, setCurrentVCL] = useState<string>('');
   const [copied, setCopied] = useState(false);
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Cleanup timer on unmount to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+    };
+  }, []);
 
   const workers = useProductionStore((state) => state.workers);
   const machines = useProductionStore((state) => state.machines);
@@ -57,7 +65,8 @@ export const VCLDiffPanel: React.FC = () => {
   const handleCopy = async () => {
     await navigator.clipboard.writeText(`Previous:\n${previousVCL}\n\nCurrent:\n${currentVCL}`);
     setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+    copyTimerRef.current = setTimeout(() => setCopied(false), 2000);
   };
 
   // Find differences between VCL strings

@@ -22,18 +22,23 @@ import {
   FlourExpressLogo,
 } from './TruckParts';
 
+/** Geometry constructor arguments - Box: [w,h,d], Cylinder: [rT,rB,h,seg?], Plane: [w,h] */
+type GeometryArgs = readonly number[];
+
+type GeometryConstructor =
+  | typeof THREE.BoxGeometry
+  | typeof THREE.CylinderGeometry
+  | typeof THREE.PlaneGeometry;
+
 // Helper to create transformed geometry
 const createGeo = (
-  GeometryClass:
-    | typeof THREE.BoxGeometry
-    | typeof THREE.CylinderGeometry
-    | typeof THREE.PlaneGeometry,
-  args: any[],
+  GeometryClass: GeometryConstructor,
+  args: GeometryArgs,
   pos: [number, number, number],
   rot?: [number, number, number],
   scale?: [number, number, number]
 ) => {
-  const geo = new GeometryClass(...args);
+  const geo = new GeometryClass(...(args as [number, number, number]));
   if (scale) geo.scale(...scale);
   if (rot) geo.rotateX(rot[0]).rotateY(rot[1]).rotateZ(rot[2]);
   geo.translate(...pos);

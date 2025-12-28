@@ -38,7 +38,6 @@ export async function registerServiceWorker(
   config?: ServiceWorkerConfig
 ): Promise<ServiceWorkerRegistration | null> {
   if (!isServiceWorkerSupported()) {
-    console.log('[SW Registration] Service workers not supported');
     return null;
   }
 
@@ -47,7 +46,6 @@ export async function registerServiceWorker(
   const forceEnable = import.meta.env?.VITE_ENABLE_SW === 'true';
 
   if (isDev && !forceEnable) {
-    console.log('[SW Registration] Skipping in development (set VITE_ENABLE_SW=true to enable)');
     return null;
   }
 
@@ -59,8 +57,6 @@ export async function registerServiceWorker(
       scope: import.meta.env?.BASE_URL || '/',
     });
 
-    console.log('[SW Registration] Service worker registered:', registration.scope);
-
     // Handle updates
     registration.onupdatefound = () => {
       const installingWorker = registration.installing;
@@ -70,11 +66,9 @@ export async function registerServiceWorker(
         if (installingWorker.state === 'installed') {
           if (navigator.serviceWorker.controller) {
             // New service worker available
-            console.log('[SW Registration] New service worker available');
             config?.onUpdate?.(registration);
           } else {
             // First-time install
-            console.log('[SW Registration] Service worker installed successfully');
             config?.onSuccess?.(registration);
           }
         }
@@ -83,7 +77,6 @@ export async function registerServiceWorker(
 
     return registration;
   } catch (error) {
-    console.error('[SW Registration] Registration failed:', error);
     config?.onError?.(error as Error);
     return null;
   }
@@ -102,12 +95,10 @@ export async function unregisterServiceWorker(): Promise<boolean> {
 
     for (const registration of registrations) {
       await registration.unregister();
-      console.log('[SW Registration] Unregistered:', registration.scope);
     }
 
     return true;
-  } catch (error) {
-    console.error('[SW Registration] Unregister failed:', error);
+  } catch {
     return false;
   }
 }
@@ -124,10 +115,9 @@ export async function updateServiceWorker(): Promise<void> {
     const registration = await navigator.serviceWorker.getRegistration();
     if (registration) {
       await registration.update();
-      console.log('[SW Registration] Update check triggered');
     }
-  } catch (error) {
-    console.error('[SW Registration] Update check failed:', error);
+  } catch {
+    // Update check failed - silently continue
   }
 }
 
@@ -144,7 +134,6 @@ export async function clearServiceWorkerCache(): Promise<boolean> {
       await Promise.all(
         cacheNames.filter((name) => name.startsWith('millos-')).map((name) => caches.delete(name))
       );
-      console.log('[SW Registration] Caches cleared via Cache API');
       return true;
     }
     return false;
@@ -155,7 +144,6 @@ export async function clearServiceWorkerCache(): Promise<boolean> {
 
     messageChannel.port1.onmessage = (event) => {
       if (event.data?.success) {
-        console.log('[SW Registration] Caches cleared via service worker');
         resolve(true);
       } else {
         resolve(false);

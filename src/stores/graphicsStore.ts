@@ -340,7 +340,6 @@ export const useGraphicsStore = create<GraphicsStore>()(
       }),
       onRehydrateStorage: () => (state, error) => {
         if (error) {
-          console.error('Failed to rehydrate graphics state:', error);
           return;
         }
 
@@ -363,7 +362,6 @@ export const useGraphicsStore = create<GraphicsStore>()(
               },
             };
           } else {
-            console.warn('Invalid graphics quality detected, resetting to medium');
             state.graphics = GRAPHICS_PRESETS.medium;
           }
         }

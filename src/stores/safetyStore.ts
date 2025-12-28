@@ -286,13 +286,11 @@ export const useSafetyStore = create<SafetyStore>()(
       }),
       onRehydrateStorage: () => (state, error) => {
         if (error) {
-          console.error('Failed to rehydrate safety state:', error);
           return;
         }
 
         // Validate arrays exist
         if (state && state.speedZones && !Array.isArray(state.speedZones)) {
-          console.warn('Invalid speed zones detected, resetting to defaults');
           state.speedZones = [
             { id: 'zone-1', x: 0, z: 0, radius: 5, name: 'Central Area' },
             { id: 'zone-2', x: 0, z: 28, radius: 4, name: 'North Loading' },

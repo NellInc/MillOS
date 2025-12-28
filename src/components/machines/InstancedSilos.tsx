@@ -1,6 +1,6 @@
 import React, { useMemo, useRef, useEffect } from 'react';
 import * as THREE from 'three';
-import { useFrame } from '@react-three/fiber';
+import { useFrame, ThreeEvent } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import { MachineData, GrainQuality } from '../../types';
 import { useGraphicsStore } from '../../stores/graphicsStore';
@@ -392,7 +392,7 @@ export const InstancedSilos: React.FC<InstancedSilosProps> = ({ machines, onSele
     if (ladderRef.current) ladderRef.current.instanceMatrix.needsUpdate = true;
   });
 
-  const handleClick = (e: any, multiplier: number) => {
+  const handleClick = (e: ThreeEvent<MouseEvent>, multiplier: number) => {
     e.stopPropagation();
     const instanceId = e.instanceId!;
     const machineIndex = Math.floor(instanceId / multiplier);

@@ -260,10 +260,6 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
 export function safeDimension(value: unknown, fallback = 1, min = 0.001): number {
   const num = typeof value === 'number' ? value : Number(value);
   if (!Number.isFinite(num) || num < min) {
-    // Debug: Log NaN detection with stack trace (remove in production)
-    if (import.meta.env.DEV && !Number.isFinite(num)) {
-      console.warn('[NaN DETECTED in safeDimension]', { value, fallback }, new Error().stack);
-    }
     return fallback;
   }
   return num;

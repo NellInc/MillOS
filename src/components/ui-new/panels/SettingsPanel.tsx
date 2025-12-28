@@ -9,6 +9,7 @@ import {
   Activity,
   RotateCcw,
   Grid3X3,
+  Cog,
 } from 'lucide-react';
 import { useGraphicsStore, GraphicsQuality } from '../../../stores/graphicsStore';
 import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
@@ -131,6 +132,35 @@ export const SettingsPanel: React.FC<{
               aria-valuemax={100}
               aria-valuenow={Math.round(audio.musicVolume * 100)}
               aria-valuetext={`${Math.round(audio.musicVolume * 100)} percent`}
+            />
+          </div>
+
+          {/* Machine Sounds Volume */}
+          <div>
+            <div className="flex justify-between items-center mb-2">
+              <div className="flex items-center gap-2">
+                <Cog size={12} className="text-slate-300" aria-hidden="true" />
+                <label htmlFor="machine-volume-slider" className="text-xs text-slate-200">
+                  Machine Sounds
+                </label>
+              </div>
+              <span className="text-[10px] text-orange-400 font-mono">
+                {Math.round(audio.machineVolume * 100)}%
+              </span>
+            </div>
+            <input
+              id="machine-volume-slider"
+              type="range"
+              min="0"
+              max="1"
+              step="0.05"
+              value={audio.machineVolume}
+              onChange={(e) => audio.setMachineVolume(parseFloat(e.target.value))}
+              className="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-orange-500"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={Math.round(audio.machineVolume * 100)}
+              aria-valuetext={`${Math.round(audio.machineVolume * 100)} percent`}
             />
           </div>
 

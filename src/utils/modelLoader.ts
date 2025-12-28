@@ -104,8 +104,7 @@ export async function checkModelExists(path: string): Promise<boolean> {
     // File exists and is not HTML - consider it valid
     modelAvailability[path] = true;
     return true;
-  } catch (error) {
-    console.warn(`[modelLoader] Failed to check model availability for ${path}:`, error);
+  } catch {
     modelAvailability[path] = false;
     return false;
   }
@@ -178,9 +177,8 @@ export async function preloadAvailableModels(): Promise<void> {
       try {
         // Use DRACO-aware preloading
         preloadDracoModel(path);
-        console.log(`Preloaded model (DRACO enabled): ${key}`);
-      } catch (e) {
-        console.warn(`Failed to preload ${key}:`, e);
+      } catch {
+        // Preload failed, ignore
       }
     }
   });

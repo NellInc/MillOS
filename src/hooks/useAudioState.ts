@@ -22,6 +22,7 @@ export interface AudioState {
   volume: number;
   musicEnabled: boolean;
   musicVolume: number;
+  machineVolume: number;
 }
 
 export interface AudioTrack {
@@ -37,6 +38,7 @@ export interface AudioStateWithControls extends AudioState {
   setVolume: (v: number) => void;
   setMusicEnabled: (v: boolean) => void;
   setMusicVolume: (v: number) => void;
+  setMachineVolume: (v: number) => void;
   setTtsEnabled: (v: boolean) => void;
   startMusic: () => void;
   nextTrack: () => void;
@@ -49,6 +51,7 @@ let lastMuted: boolean | null = null;
 let lastVolume: number | null = null;
 let lastMusicEnabled: boolean | null = null;
 let lastMusicVolume: number | null = null;
+let lastMachineVolume: number | null = null;
 
 function getSnapshot(): AudioState {
   // Check if any values have changed
@@ -56,6 +59,7 @@ function getSnapshot(): AudioState {
   const currentVolume = audioManager.volume;
   const currentMusicEnabled = audioManager.musicEnabled;
   const currentMusicVolume = audioManager.musicVolume;
+  const currentMachineVolume = audioManager.machineVolume;
 
   // Only create new snapshot if values changed
   if (
@@ -63,18 +67,21 @@ function getSnapshot(): AudioState {
     lastMuted !== currentMuted ||
     lastVolume !== currentVolume ||
     lastMusicEnabled !== currentMusicEnabled ||
-    lastMusicVolume !== currentMusicVolume
+    lastMusicVolume !== currentMusicVolume ||
+    lastMachineVolume !== currentMachineVolume
   ) {
     lastMuted = currentMuted;
     lastVolume = currentVolume;
     lastMusicEnabled = currentMusicEnabled;
     lastMusicVolume = currentMusicVolume;
+    lastMachineVolume = currentMachineVolume;
 
     cachedSnapshot = {
       muted: currentMuted,
       volume: currentVolume,
       musicEnabled: currentMusicEnabled,
       musicVolume: currentMusicVolume,
+      machineVolume: currentMachineVolume,
     };
   }
 
@@ -99,6 +106,7 @@ function getExtendedSnapshot(): AudioState & { currentTrack: AudioTrack; ttsEnab
     cachedExtendedSnapshot.volume !== base.volume ||
     cachedExtendedSnapshot.musicEnabled !== base.musicEnabled ||
     cachedExtendedSnapshot.musicVolume !== base.musicVolume ||
+    cachedExtendedSnapshot.machineVolume !== base.machineVolume ||
     lastCurrentTrackId !== currentTrack.id ||
     lastTtsEnabled !== ttsEnabled
   ) {
@@ -148,6 +156,9 @@ export function useAudioStateWithControls(): AudioStateWithControls {
       setMusicVolume: (v: number) => {
         audioManager.musicVolume = v;
       },
+      setMachineVolume: (v: number) => {
+        audioManager.machineVolume = v;
+      },
       setTtsEnabled: (v: boolean) => {
         audioManager.ttsEnabled = v;
       },
@@ -186,4 +197,9 @@ export function useMusicEnabled(): boolean {
 export function useMusicVolume(): number {
   const selectMusicVolume = useCallback(() => audioManager.musicVolume, []);
   return useSyncExternalStore(subscribe, selectMusicVolume, selectMusicVolume);
+}
+
+export function useMachineVolume(): number {
+  const selectMachineVolume = useCallback(() => audioManager.machineVolume, []);
+  return useSyncExternalStore(subscribe, selectMachineVolume, selectMachineVolume);
 }

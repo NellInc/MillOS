@@ -249,7 +249,6 @@ function packAtlas(payload: AtlasPayload): AtlasResult {
 
     // Check if we've exceeded max height
     if (currentY + paddedHeight > maxSize) {
-      console.warn(`[TextureWorker] Atlas overflow for texture ${tex.id}`);
       continue;
     }
 

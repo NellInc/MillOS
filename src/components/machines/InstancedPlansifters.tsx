@@ -1,6 +1,6 @@
 import React, { useMemo, useRef, useEffect } from 'react';
 import * as THREE from 'three';
-import { useFrame } from '@react-three/fiber';
+import { useFrame, ThreeEvent } from '@react-three/fiber';
 import { MachineData } from '../../types';
 import { useGraphicsStore } from '../../stores/graphicsStore';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
@@ -15,6 +15,7 @@ import {
 import { useModelTextures } from '../../utils/machineTextures';
 import { MemoizedStatusRing } from './StatusRing';
 import { PROCEDURAL_TEXTURES, NORMAL_SCALES, INSTANCED_MACHINE_MATERIALS } from '../../utils/sharedMaterials';
+import { audioManager } from '../../utils/audioManager';
 
 // Reference shared materials (textures applied via hook)
 const MATERIALS = {
@@ -93,6 +94,56 @@ export const InstancedPlansifters: React.FC<InstancedPlansiftersProps> = ({
 
   // Determine if machines list has structurally changed
   const machinesSignature = useMemo(() => machines.map((m) => m.id).join(','), [machines]);
+
+  // Track which machines are currently playing sounds
+  const playingSoundsRef = useRef<Set<string>>(new Set());
+
+  // Machine audio - start/stop based on running status
+  useEffect(() => {
+    const nowRunning = new Set<string>();
+
+    // Determine which machines are running vs stopped
+    machines.forEach((machine) => {
+      if (machine.status === 'running') {
+        nowRunning.add(machine.id);
+        // Start sound if not already playing
+        if (!playingSoundsRef.current.has(machine.id)) {
+          audioManager.playSifterSound(machine.id, machine.metrics.rpm ?? 200);
+          audioManager.registerSoundPosition(
+            machine.id,
+            machine.position[0],
+            machine.position[1] + 3.5,
+            machine.position[2]
+          );
+        }
+      } else {
+        // Stop sound if currently playing
+        if (playingSoundsRef.current.has(machine.id)) {
+          audioManager.stopMachineSound(machine.id);
+        }
+      }
+    });
+
+    // Update tracking ref
+    playingSoundsRef.current = nowRunning;
+
+    // Cleanup on unmount - stop all sounds
+    return () => {
+      playingSoundsRef.current.forEach((id) => {
+        audioManager.stopMachineSound(id);
+      });
+      playingSoundsRef.current.clear();
+    };
+  }, [machines]);
+
+  // Update RPM-based pitch for running machines (separate effect to avoid restart)
+  useEffect(() => {
+    machines.forEach((machine) => {
+      if (machine.status === 'running' && playingSoundsRef.current.has(machine.id)) {
+        audioManager.updateMachinePitch(machine.id, machine.metrics.rpm ?? 200);
+      }
+    });
+  }, [machines.map((m) => `${m.id}:${m.metrics.rpm}`).join(',')]);
 
   // Initialize Static Parts (Frame)
   useEffect(() => {
@@ -257,7 +308,7 @@ export const InstancedPlansifters: React.FC<InstancedPlansiftersProps> = ({
     if (flywheelRef.current) flywheelRef.current.instanceMatrix.needsUpdate = true;
   });
 
-  const handleClick = (e: any, divisor: number) => {
+  const handleClick = (e: ThreeEvent<MouseEvent>, divisor: number) => {
     e.stopPropagation();
     const instanceId = e.instanceId!;
     const machineIndex = Math.floor(instanceId / divisor);

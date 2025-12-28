@@ -507,6 +507,8 @@ function isSignatureHealthy(sig: EngagementSignature): boolean {
   const hasLowDimension = dimensions.some((d) => d < 30);
 
   // Check if variance is too high (unbalanced)
+  // Guard against empty dimensions array (should never happen, but defensive)
+  if (dimensions.length === 0) return true;
   const avg = dimensions.reduce((a, b) => a + b, 0) / dimensions.length;
   const variance = dimensions.reduce((sum, d) => sum + Math.pow(d - avg, 2), 0) / dimensions.length;
   const highVariance = variance > 400; // std dev > 20

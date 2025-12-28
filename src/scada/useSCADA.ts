@@ -178,10 +178,8 @@ async function initializeSharedSCADA(): Promise<void> {
 
       const state = service.getState();
       sharedState = { ...sharedState, isConnected: true, mode: state.mode };
-      console.log('[useSCADA] Service initialized with granular subscriptions');
     } catch (err) {
       initializationPromise = null; // Reset on failure to allow retry
-      console.error('[useSCADA] Failed to initialize:', err);
       throw err;
     }
   })();

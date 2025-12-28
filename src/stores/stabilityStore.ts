@@ -64,7 +64,6 @@ function getOwnershipFrictionMultiplier(): number {
     return Math.max(0.75, Math.min(1.0, frictionMultiplier));
   } catch (e) {
     // If store not available, return neutral multiplier
-    console.error('[stabilityStore] Failed to get ownership friction multiplier:', e);
     return 1.0;
   }
 }
@@ -326,8 +325,12 @@ export const useStabilityStore = create<StabilityState>((set, get) => ({
 
     if (older.length === 0) return 'stable';
 
+    // Guard against empty slices (recent is guaranteed 5+ from slice, but older could be empty)
+    if (recent.length === 0) return 'stable';
     const recentAvg = recent.reduce((s, d) => s + d.product, 0) / recent.length;
-    const olderAvg = older.reduce((s, d) => s + d.product, 0) / older.length;
+    const olderAvg = older.length > 0
+      ? older.reduce((s, d) => s + d.product, 0) / older.length
+      : recentAvg;
 
     const change = recentAvg - olderAvg;
 

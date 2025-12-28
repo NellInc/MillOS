@@ -58,8 +58,7 @@ export function getPersistedResources(): Map<string, ResourceMetadata> {
 
     const parsed = JSON.parse(data) as Record<string, ResourceMetadata>;
     return new Map(Object.entries(parsed));
-  } catch (err) {
-    console.warn('[ResourcePersistence] Failed to load persisted resources:', err);
+  } catch {
     return new Map();
   }
 }
@@ -96,8 +95,8 @@ export function persistResource(metadata: ResourceMetadata): void {
 
     const obj = Object.fromEntries(resources);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(obj));
-  } catch (err) {
-    console.warn('[ResourcePersistence] Failed to persist resource:', err);
+  } catch {
+    // Silently fail - localStorage may be unavailable
   }
 }
 
@@ -111,8 +110,8 @@ export function removePersistedResource(id: string): void {
 
     const obj = Object.fromEntries(resources);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(obj));
-  } catch (err) {
-    console.warn('[ResourcePersistence] Failed to remove resource:', err);
+  } catch {
+    // Silently fail - localStorage may be unavailable
   }
 }
 
@@ -122,8 +121,8 @@ export function removePersistedResource(id: string): void {
 export function clearPersistedResources(): void {
   try {
     localStorage.removeItem(STORAGE_KEY);
-  } catch (err) {
-    console.warn('[ResourcePersistence] Failed to clear resources:', err);
+  } catch {
+    // Silently fail - localStorage may be unavailable
   }
 }
 
@@ -200,8 +199,8 @@ export function saveGPUSettings(settings: Partial<GPUSettings>): void {
     const current = getGPUSettings();
     const updated = { ...current, ...settings };
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(updated));
-  } catch (err) {
-    console.warn('[ResourcePersistence] Failed to save settings:', err);
+  } catch {
+    // Silently fail - localStorage may be unavailable
   }
 }
 

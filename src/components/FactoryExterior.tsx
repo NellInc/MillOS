@@ -1,7 +1,7 @@
 import React, { useMemo, useRef, useEffect, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { Text } from '@react-three/drei';
-import { useFrame } from '@react-three/fiber';
+import { useFrame, ThreeEvent } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import { playCritterSound } from '../utils/critterAudio';
@@ -1250,7 +1250,7 @@ const AnimatedFrog: React.FC<{
   const [isExcited, setIsExcited] = useState(false);
   const [hearts, setHearts] = useState<{ id: number; pos: [number, number, number] }[]>([]);
 
-  const handlePet = (e: any) => {
+  const handlePet = (e: ThreeEvent<MouseEvent>) => {
     e.stopPropagation();
     setIsExcited(true);
     playCritterSound('frog');

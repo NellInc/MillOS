@@ -129,6 +129,7 @@ class AudioManager {
   private musicAudio: HTMLAudioElement | null = null;
   private _musicEnabled: boolean = true;
   private _musicVolume: number = 0.3;
+  private _machineVolume: number = 0.5; // Separate volume for machine sounds
   private _currentTrackIndex: number = 0;
   // Store bound event listener references to properly remove them on cleanup
   private musicEndedHandler: (() => void) | null = null;
@@ -197,6 +198,7 @@ class AudioManager {
   private _ttsVoice: SpeechSynthesisVoice | null = null;
   private _ttsVoiceLoaded: boolean = false;
   private _ttsPrimed: boolean = false; // Prevents repeated priming from canceling speech
+  private _ttsPrimerComplete: boolean = false; // True once primer utterance has finished
 
   // PA tannoy reverb/echo effect chain
   private paReverbChain: {
@@ -243,12 +245,12 @@ class AudioManager {
         volume: this._volume,
         musicEnabled: this._musicEnabled,
         musicVolume: this._musicVolume,
+        machineVolume: this._machineVolume,
         ttsEnabled: this._ttsEnabled,
       };
       localStorage.setItem(this.STORAGE_KEY, JSON.stringify(settings));
-    } catch (e) {
-      // Log warning - localStorage may not be available in some environments
-      console.warn('[AudioManager] Failed to save settings to localStorage:', e);
+    } catch {
+      // localStorage may not be available in some environments
     }
   }
 
@@ -264,11 +266,12 @@ class AudioManager {
         if (typeof settings.musicEnabled === 'boolean') this._musicEnabled = settings.musicEnabled;
         if (typeof settings.musicVolume === 'number')
           this._musicVolume = Math.max(0, Math.min(1, settings.musicVolume));
+        if (typeof settings.machineVolume === 'number')
+          this._machineVolume = Math.max(0, Math.min(1, settings.machineVolume));
         if (typeof settings.ttsEnabled === 'boolean') this._ttsEnabled = settings.ttsEnabled;
       }
-    } catch (e) {
-      // Log warning - localStorage may not be available or data may be corrupted
-      console.warn('[AudioManager] Failed to load settings from localStorage:', e);
+    } catch {
+      // localStorage may not be available or data may be corrupted
     }
   }
 
@@ -287,6 +290,7 @@ class AudioManager {
     this._muted = value;
     this.updateMasterVolume();
     this.updateMusicVolume();
+    this.updateMachineVolumes();
     this.saveSettings();
     this.notifyListeners();
   }
@@ -298,6 +302,7 @@ class AudioManager {
   set volume(value: number) {
     this._volume = Math.max(0, Math.min(1, value));
     this.updateMasterVolume();
+    this.updateMachineVolumes();
     this.saveSettings();
     this.notifyListeners();
   }
@@ -326,6 +331,33 @@ class AudioManager {
     this.updateMusicVolume();
     this.saveSettings();
     this.notifyListeners();
+  }
+
+  get machineVolume(): number {
+    return this._machineVolume;
+  }
+
+  set machineVolume(value: number) {
+    this._machineVolume = Math.max(0, Math.min(1, value));
+    this.updateMachineVolumes();
+    this.saveSettings();
+    this.notifyListeners();
+  }
+
+  // Update volume for all currently playing machine sounds
+  // Note: Each machine type has a different base volume (0.06/0.05/0.045)
+  // We use an average base of 0.05 for volume updates
+  private updateMachineVolumes(): void {
+    const effectiveVolume = this._muted ? 0 : this._machineVolume * 0.05;
+    this.machineNodes.forEach((node) => {
+      if (node.gain) {
+        node.gain.gain.setTargetAtTime(
+          effectiveVolume,
+          this.audioContext?.currentTime ?? 0,
+          0.15
+        );
+      }
+    });
   }
 
   get currentTrack(): { id: string; name: string; file: string } {
@@ -1071,7 +1103,7 @@ class AudioManager {
 
   // === MACHINE-SPECIFIC SOUNDS ===
 
-  // Roller mill grinding sound
+  // Roller mill grinding sound - deep rumble with rhythmic mechanical churning
   playMillSound(machineId: string, rpm: number = 1400) {
     if (this.machineNodes.has(machineId)) return;
     if (this.getEffectiveVolume() === 0) return;
@@ -1081,30 +1113,32 @@ class AudioManager {
       const masterGain = this.getMasterGain();
       if (!ctx || !masterGain) return;
 
-      // Grinding noise with harmonic content based on RPM
-      const buffer = this.createNoiseBuffer(2, 'pink');
+      // Brown noise for deep rumble base
+      const buffer = this.createNoiseBuffer(2, 'brown');
       if (!buffer) return;
       const source = ctx.createBufferSource();
       const gain = ctx.createGain();
       const filter = ctx.createBiquadFilter();
-      const lfo = ctx.createOscillator();
-      const lfoGain = ctx.createGain();
 
       source.buffer = buffer;
       source.loop = true;
 
-      // Filter frequency based on RPM
-      const filterFreq = 200 + rpm / 10;
-      filter.type = 'bandpass';
+      // Low-pass filter with slight resonance for mechanical character
+      const filterFreq = 100 + rpm / 20; // 100-170Hz range
+      filter.type = 'lowpass';
       filter.frequency.setValueAtTime(filterFreq, ctx.currentTime);
-      filter.Q.setValueAtTime(3, ctx.currentTime);
+      filter.Q.setValueAtTime(1.5, ctx.currentTime); // Resonance adds body
 
-      // LFO for grinding rhythm
+      // Subtle LFO for rhythmic swishing/churning (slow, gentle modulation)
+      const lfo = ctx.createOscillator();
+      const lfoGain = ctx.createGain();
       lfo.type = 'sine';
-      lfo.frequency.setValueAtTime(rpm / 60, ctx.currentTime); // Convert RPM to Hz
-      lfoGain.gain.setValueAtTime(0.02, ctx.currentTime);
+      lfo.frequency.setValueAtTime(rpm / 100, ctx.currentTime); // Slow rhythm
+      lfoGain.gain.setValueAtTime(0.012, ctx.currentTime); // Subtle modulation
 
-      gain.gain.setValueAtTime(0.04, ctx.currentTime);
+      // Volume scales with machine volume setting
+      const effectiveVolume = 0.06 * this._machineVolume;
+      gain.gain.setValueAtTime(effectiveVolume, ctx.currentTime);
 
       source.connect(filter);
       filter.connect(gain);
@@ -1133,7 +1167,7 @@ class AudioManager {
     }
   }
 
-  // Sifter shaking sound
+  // Sifter sound - oscillating mechanical swoosh
   playSifterSound(machineId: string, rpm: number = 200) {
     if (this.machineNodes.has(machineId)) return;
     if (this.getEffectiveVolume() === 0) return;
@@ -1143,7 +1177,8 @@ class AudioManager {
       const masterGain = this.getMasterGain();
       if (!ctx || !masterGain) return;
 
-      const buffer = this.createNoiseBuffer(2, 'white');
+      // Brown noise for consistent low rumble
+      const buffer = this.createNoiseBuffer(2, 'brown');
       if (!buffer) return;
       const source = ctx.createBufferSource();
       const gain = ctx.createGain();
@@ -1152,19 +1187,21 @@ class AudioManager {
       source.buffer = buffer;
       source.loop = true;
 
-      // Higher frequency for sifting/shaking sound
-      filter.type = 'bandpass';
-      filter.frequency.setValueAtTime(800, ctx.currentTime);
-      filter.Q.setValueAtTime(4, ctx.currentTime);
+      // Low-pass with moderate resonance for swooshing character
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(140, ctx.currentTime);
+      filter.Q.setValueAtTime(1.8, ctx.currentTime); // Adds swooshy character
 
-      // Modulate gain for rhythmic shaking
+      // LFO for rhythmic swooshing motion (sifters oscillate)
       const lfo = ctx.createOscillator();
       const lfoGain = ctx.createGain();
       lfo.type = 'sine';
-      lfo.frequency.setValueAtTime((rpm / 60) * 2, ctx.currentTime); // Double the shake rate
+      lfo.frequency.setValueAtTime(rpm / 40, ctx.currentTime); // Oscillation rate
       lfoGain.gain.setValueAtTime(0.015, ctx.currentTime);
 
-      gain.gain.setValueAtTime(0.025, ctx.currentTime);
+      // Volume scales with machine volume setting
+      const effectiveVolume = 0.05 * this._machineVolume;
+      gain.gain.setValueAtTime(effectiveVolume, ctx.currentTime);
 
       source.connect(filter);
       filter.connect(gain);
@@ -1181,7 +1218,7 @@ class AudioManager {
     }
   }
 
-  // Packer pneumatic/mechanical sound
+  // Packer sound - rhythmic mechanical thumping
   playPackerSound(machineId: string) {
     if (this.machineNodes.has(machineId)) return;
     if (this.getEffectiveVolume() === 0) return;
@@ -1191,8 +1228,8 @@ class AudioManager {
       const masterGain = this.getMasterGain();
       if (!ctx || !masterGain) return;
 
-      // Pneumatic hiss and mechanical clicks
-      const buffer = this.createNoiseBuffer(3, 'white');
+      // Brown noise for deep mechanical base
+      const buffer = this.createNoiseBuffer(3, 'brown');
       if (!buffer) return;
       const source = ctx.createBufferSource();
       const gain = ctx.createGain();
@@ -1201,18 +1238,21 @@ class AudioManager {
       source.buffer = buffer;
       source.loop = true;
 
-      filter.type = 'highpass';
-      filter.frequency.setValueAtTime(2000, ctx.currentTime);
-      filter.Q.setValueAtTime(1, ctx.currentTime);
+      // Deep low-pass for heavy bass thump
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(70, ctx.currentTime); // Very low for deep bass
+      filter.Q.setValueAtTime(2.5, ctx.currentTime); // Strong resonance for thump
 
-      // Rhythmic pneumatic pulses (simulating packaging cycles)
+      // Slow triangle wave LFO for spaced-out clunking
       const lfo = ctx.createOscillator();
       const lfoGain = ctx.createGain();
-      lfo.type = 'square';
-      lfo.frequency.setValueAtTime(1, ctx.currentTime); // 1 package per second
-      lfoGain.gain.setValueAtTime(0.02, ctx.currentTime);
+      lfo.type = 'triangle';
+      lfo.frequency.setValueAtTime(0.4, ctx.currentTime); // ~24 clunks/min - slow and deliberate
+      lfoGain.gain.setValueAtTime(0.022, ctx.currentTime); // Slightly stronger modulation
 
-      gain.gain.setValueAtTime(0.01, ctx.currentTime);
+      // Volume scales with machine volume setting
+      const effectiveVolume = 0.045 * this._machineVolume;
+      gain.gain.setValueAtTime(effectiveVolume, ctx.currentTime);
 
       source.connect(filter);
       filter.connect(gain);
@@ -1260,20 +1300,11 @@ class AudioManager {
     const ctx = this.audioContext;
     const currentTime = ctx.currentTime;
 
-    // Update filter frequency based on RPM (affects perceived pitch/tone)
+    // Update low-pass filter frequency based on RPM (subtle tonal shift)
+    // Higher RPM = slightly higher cutoff = marginally brighter rumble
     if (node.filter) {
-      // For mills: filter frequency scales with RPM (200 + rpm/10)
-      // For sifters: filter is fixed at 800Hz, so we don't adjust it
-      // We use a general formula that works reasonably for both
-      const filterFreq = 200 + rpm / 10;
-      node.filter.frequency.setTargetAtTime(filterFreq, currentTime, 0.1);
-    }
-
-    // Update LFO frequency based on RPM (affects rhythmic modulation)
-    if (node.lfo) {
-      // Convert RPM to Hz for the grinding/shaking rhythm
-      const lfoFreq = rpm / 60;
-      node.lfo.frequency.setTargetAtTime(lfoFreq, currentTime, 0.1);
+      const filterFreq = 80 + rpm / 25; // 80-136Hz range
+      node.filter.frequency.setTargetAtTime(filterFreq, currentTime, 0.3);
     }
   }
 
@@ -1890,12 +1921,10 @@ class AudioManager {
   async resume() {
     // Mark as initialized - this allows getContext() to create the AudioContext
     this._initialized = true;
-    console.log('[MillOS TTS] resume() called - initializing audio');
 
     const ctx = this.getContext();
     if (ctx && ctx.state === 'suspended') {
       await ctx.resume();
-      console.log('[MillOS TTS] AudioContext resumed');
     }
 
     // Initialize TTS during user gesture (required for mobile browsers)
@@ -1908,22 +1937,36 @@ class AudioManager {
       // iOS Safari workaround: "warm up" speech synthesis with a silent utterance
       // This ensures the first real announcement can play without gesture restrictions
       if ('speechSynthesis' in window) {
-        console.log('[MillOS TTS] Priming speechSynthesis (one-time)');
-
-        // Prime with a near-silent short utterance (empty string doesn't work on all browsers)
-        const primer = new SpeechSynthesisUtterance(' ');
-        primer.volume = 0.01; // Near-silent but not zero (zero might be ignored)
-        primer.rate = 10; // Fastest possible to minimize any audible output
+        // Prime with a truly silent but pronounceable utterance
+        // Using '.' instead of ' ' because a space may not trigger actual synthesis
+        // Volume 0 is truly silent but still "primes" the audio system
+        const primer = new SpeechSynthesisUtterance('.');
+        primer.volume = 0; // Completely silent
+        primer.rate = 2; // Fast but not extreme (rate=10 may cause issues)
+        primer.onend = () => {
+          console.log('[TTS] Primer completed normally');
+          this._ttsPrimerComplete = true;
+        };
+        primer.onerror = (e) => {
+          // Even on error, mark as complete so real announcements can proceed
+          // Note: "canceled" errors are expected if we cancel() before primer finishes
+          console.log('[TTS] Primer error:', e.error, '(proceeding anyway)');
+          this._ttsPrimerComplete = true;
+        };
         window.speechSynthesis.speak(primer);
+        console.log('[TTS] Primer spoken for gesture activation');
 
-        // Give iOS a moment to register the speak before canceling
+        // Safety: if primer doesn't complete within 2s, mark as complete anyway
+        // (Reduced from 3s since primer should be very fast)
         setTimeout(() => {
-          // Only cancel if nothing important is playing
-          if (!this.isAnnouncementPlaying) {
-            window.speechSynthesis.cancel();
+          if (!this._ttsPrimerComplete) {
+            console.log('[TTS] Primer timeout - marking complete');
+            this._ttsPrimerComplete = true;
           }
-          console.log('[MillOS TTS] Primer done, speechSynthesis should be unlocked');
-        }, 100);
+        }, 2000);
+      } else {
+        // No speechSynthesis support - mark as complete to not block
+        this._ttsPrimerComplete = true;
       }
     }
   }
@@ -3897,8 +3940,8 @@ class AudioManager {
         osc.frequency.setValueAtTime(freq, startTime);
 
         gain.gain.setValueAtTime(0, startTime);
-        gain.gain.linearRampToValueAtTime(0.05, startTime + 0.02);
-        gain.gain.setValueAtTime(0.05, startTime + 0.2);
+        gain.gain.linearRampToValueAtTime(0.04, startTime + 0.02);
+        gain.gain.setValueAtTime(0.04, startTime + 0.2);
         gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.6);
 
         osc.connect(gain);
@@ -5301,15 +5344,6 @@ class AudioManager {
       const voices = window.speechSynthesis.getVoices();
       if (voices.length === 0) return;
 
-      // Debug: log available voices on mobile for troubleshooting
-      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-      if (isMobile) {
-        console.log(
-          '[MillOS TTS] Available voices:',
-          voices.map((v) => `${v.name} (${v.lang})`).join(', ')
-        );
-      }
-
       // Use British voices for PA announcements - prefer British, fall back to any English on mobile
       const preferredBritishVoices = [
         'Google UK English Female',
@@ -5332,7 +5366,6 @@ class AudioManager {
         if (found) {
           this._ttsVoice = found;
           audioLog.info(`TTS voice selected (British): ${found.name}`);
-          console.log(`[MillOS TTS] Selected voice: ${found.name} (${found.lang})`);
           break;
         }
       }
@@ -5350,7 +5383,6 @@ class AudioManager {
         if (britishVoice) {
           this._ttsVoice = britishVoice;
           audioLog.info(`TTS voice selected (British fallback): ${britishVoice.name}`);
-          console.log(`[MillOS TTS] Selected voice (GB locale): ${britishVoice.name}`);
         }
       }
 
@@ -5360,7 +5392,6 @@ class AudioManager {
         if (anyEnglishVoice) {
           this._ttsVoice = anyEnglishVoice;
           audioLog.info(`TTS voice selected (English fallback): ${anyEnglishVoice.name}`);
-          console.log(`[MillOS TTS] Fallback voice: ${anyEnglishVoice.name}`);
         }
       }
 
@@ -5368,12 +5399,10 @@ class AudioManager {
       if (!this._ttsVoice && voices.length > 0) {
         this._ttsVoice = voices[0];
         audioLog.info(`TTS voice selected (any fallback): ${voices[0].name}`);
-        console.log(`[MillOS TTS] Last resort voice: ${voices[0].name}`);
       }
 
       if (!this._ttsVoice) {
         audioLog.warn('No voices available - PA announcements will be silent');
-        console.warn('[MillOS TTS] No voices found in speechSynthesis!');
       }
 
       this._ttsVoiceLoaded = true;
@@ -5405,27 +5434,28 @@ class AudioManager {
   // Speak a PA announcement using TTS with tannoy echo effect
   // Messages are queued so they don't cut each other off
   speakAnnouncement(text: string): void {
-    console.log('[MillOS TTS] speakAnnouncement called:', text.substring(0, 50) + '...');
+    console.log('[TTS] speakAnnouncement called:', text.substring(0, 40) + '...');
 
     if (!this._ttsEnabled) {
-      console.log('[MillOS TTS] Blocked: TTS disabled');
+      console.log('[TTS] Blocked: TTS disabled');
       return;
     }
     if (this._muted) {
-      console.log('[MillOS TTS] Blocked: audio muted');
+      console.log('[TTS] Blocked: Audio muted');
       return;
     }
     if (!('speechSynthesis' in window)) {
-      console.log('[MillOS TTS] Blocked: speechSynthesis not supported');
+      console.log('[TTS] Blocked: speechSynthesis not supported');
       return;
     }
 
     // Add to queue first, even if voice isn't ready yet
     this.announcementQueue.push(text);
+    console.log('[TTS] Added to queue, length:', this.announcementQueue.length);
 
     // Ensure voice is loaded
     if (!this._ttsVoiceLoaded) {
-      console.log('[MillOS TTS] Voice not loaded, initializing and queueing...');
+      console.log('[TTS] Voice not loaded, initializing...');
       this.initTTSVoice();
       // Voice will load async; processAnnouncementQueue will check for voice
     }
@@ -5433,41 +5463,54 @@ class AudioManager {
     // If nothing is currently playing, start processing the queue
     // (will check for voice availability inside)
     if (!this.isAnnouncementPlaying) {
+      console.log('[TTS] Starting queue processing');
       this.processAnnouncementQueue();
+    } else {
+      console.log('[TTS] Already playing, queued for later');
     }
   }
 
   // Process the next announcement in the queue
   private processAnnouncementQueue(): void {
-    console.log(
-      '[MillOS TTS] processAnnouncementQueue called, queue length:',
-      this.announcementQueue.length
-    );
+    console.log('[TTS] processAnnouncementQueue called, queue:', this.announcementQueue.length);
 
     // Check if queue is empty
     if (this.announcementQueue.length === 0) {
+      console.log('[TTS] Queue empty, stopping');
       this.isAnnouncementPlaying = false;
-      console.log('[MillOS TTS] Queue empty');
       return;
     }
 
     // Check if conditions prevent playback
     if (!this._ttsEnabled || this._muted) {
+      console.log('[TTS] Blocked in queue processing:', { ttsEnabled: this._ttsEnabled, muted: this._muted });
       this.isAnnouncementPlaying = false;
-      console.log('[MillOS TTS] Queue processing stopped - TTS disabled or muted');
       return;
     }
 
     // If voice not loaded yet, retry after a short delay
     if (!this._ttsVoice) {
-      console.log('[MillOS TTS] Voice not ready, retrying in 500ms...');
+      console.log('[TTS] Voice not ready, retrying in 500ms');
       setTimeout(() => this.processAnnouncementQueue(), 500);
       return;
     }
 
+    // Wait for primer to complete before speaking real announcements
+    // This prevents collision with the "warm up" utterance on Chrome
+    if (!this._ttsPrimerComplete) {
+      console.log('[TTS] Waiting for primer to complete, retrying in 300ms');
+      setTimeout(() => this.processAnnouncementQueue(), 300);
+      return;
+    }
+
+    console.log('[TTS] Voice ready, speaking...');
     this.isAnnouncementPlaying = true;
-    const text = this.announcementQueue.shift()!;
-    console.log('[MillOS TTS] Processing:', text.substring(0, 50) + '...');
+    const text = this.announcementQueue.shift();
+    // Safety check: if shift() returns undefined (queue was emptied between checks), bail out
+    if (text === undefined) {
+      this.isAnnouncementPlaying = false;
+      return;
+    }
 
     // Clear any existing safety timeout
     if (this.announcementSafetyTimeout) {
@@ -5475,10 +5518,11 @@ class AudioManager {
       this.announcementSafetyTimeout = null;
     }
 
-    // Safety timeout: if announcement doesn't complete within 30 seconds, force reset
+    // Safety timeout: if announcement doesn't complete within 10 seconds, force reset
     // This prevents the PA system from getting stuck when speechSynthesis callbacks fail
+    // (Reduced from 30s - if speech hasn't started in 10s, it's not going to)
     this.announcementSafetyTimeout = setTimeout(() => {
-      console.warn('[MillOS TTS] Safety timeout - forcing queue reset');
+      console.log('[TTS] Safety timeout triggered - resetting');
       this.stopSpeechReverb();
       this.isAnnouncementPlaying = false;
       // Cancel any stuck speech
@@ -5487,7 +5531,7 @@ class AudioManager {
       }
       // Continue processing queue
       this.processAnnouncementQueue();
-    }, 30000);
+    }, 10000);
 
     try {
       const utterance = new SpeechSynthesisUtterance(text);
@@ -5508,13 +5552,13 @@ class AudioManager {
 
       // When speech starts, begin continuous reverb simulation
       utterance.onstart = () => {
-        console.log('[MillOS TTS] Speech started');
+        console.log('[TTS] Speech STARTED');
         this.startSpeechReverb();
       };
 
       // When speech ends, stop reverb, play reverberant echo tail, then process next in queue
       utterance.onend = () => {
-        console.log('[MillOS TTS] Speech ended');
+        console.log('[TTS] Speech ENDED');
         clearSafetyTimeout();
         this.stopSpeechReverb();
         this.playPAReverbTail();
@@ -5524,12 +5568,11 @@ class AudioManager {
         }, 1500);
       };
       utterance.onerror = (e) => {
-        // "interrupted" error often happens when cancelling speech (e.g. before new announcement)
-        // This is usually expected behavior, so we log as info instead of error
-        if (e.error === 'interrupted') {
-          console.log('[MillOS TTS] Speech interrupted (expected behavior)');
-        } else {
-          console.error('[MillOS TTS] Speech error:', e.error, e);
+        console.log('[TTS] Speech ERROR:', e.error);
+        // "interrupted" and "canceled" errors happen when cancelling speech
+        // (e.g. before new announcement, or iOS Safari workaround calling cancel())
+        // This is usually expected behavior, so don't log as error
+        if (e.error !== 'interrupted' && e.error !== 'canceled') {
           audioLog.warn('TTS error', e);
         }
 
@@ -5542,23 +5585,44 @@ class AudioManager {
         }, 500);
       };
 
-      // Play PA chime first, then speak after delay
-      console.log('[MillOS TTS] Playing chime, will speak in 1.2s');
+      // Play PA chime first, then speak with slight overlap on chime tail
+      console.log('[TTS] Playing chime, will speak in 0.95s');
       this.playPAChime();
       this.announcementChimeTimeout = setTimeout(() => {
         if (this._ttsEnabled && !this._muted) {
-          // iOS Safari workaround: cancel any stuck state before speaking
-          // This fixes a known bug where speechSynthesis can become unresponsive
+          // CRITICAL: Cancel before speaking to work around Chrome's 15-second pause bug
+          // If speechSynthesis is idle for ~15 seconds, subsequent speak() calls fail silently.
+          // Calling cancel() first resets the internal state and allows speech to proceed.
+          // NOTE: We must wait ~100ms after cancel() for Chrome to fully process it,
+          // otherwise our new utterance may also get cancelled (race condition).
+          console.log('[TTS] Cancelling any stale speech...');
           window.speechSynthesis.cancel();
-          console.log('[MillOS TTS] Calling speechSynthesis.speak()');
-          window.speechSynthesis.speak(utterance);
+
+          // Small delay after cancel() to let Chrome's internal state settle
+          setTimeout(() => {
+            if (!this._ttsEnabled || this._muted) {
+              console.log('[TTS] Conditions changed during cancel delay, skipping');
+              clearSafetyTimeout();
+              this.processAnnouncementQueue();
+              return;
+            }
+
+            console.log('[TTS] Calling speechSynthesis.speak() now, volume:', this._volume);
+            console.log('[TTS] speechSynthesis state:', {
+              speaking: window.speechSynthesis.speaking,
+              pending: window.speechSynthesis.pending,
+              paused: window.speechSynthesis.paused,
+            });
+            window.speechSynthesis.speak(utterance);
+            console.log('[TTS] speak() called, waiting for onstart...');
+          }, 100);
         } else {
-          console.log('[MillOS TTS] Conditions changed, skipping speak');
+          console.log('[TTS] Conditions changed during chime, skipping');
           clearSafetyTimeout();
           // If conditions changed during chime, process next
           this.processAnnouncementQueue();
         }
-      }, 1200); // Match existing PA chime timing
+      }, 950); // Slight overlap with chime tail (~0.25s)
     } catch (e) {
       audioLog.warn('TTS playback failed', e);
       this.isAnnouncementPlaying = false;

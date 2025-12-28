@@ -104,8 +104,7 @@ export const ComplianceDashboard: React.FC<ComplianceDashboardProps> = ({ isOpen
         if (!cancelled) {
           setAlarmHistory(history);
         }
-      } catch (err) {
-        console.error('[ComplianceDashboard] Failed to load alarm history', err);
+      } catch {
         if (!cancelled) {
           // Fallback to current alarms to avoid empty UI
           setAlarmHistory(alarms);

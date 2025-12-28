@@ -5,6 +5,8 @@
  * This demonstrates what the protocol produces.
  */
 
+import { logger } from '../../utils/logger';
+
 import type {
   VCPMessage,
   ContextFrame,
@@ -313,26 +315,24 @@ const exampleHealing: HealingSignals = {
 // =============================================================================
 
 export function generateExampleOutputs(): void {
-  console.log('='.repeat(80));
-  console.log('VCP 2.0 EXAMPLE OUTPUTS');
-  console.log('='.repeat(80));
-  console.log('');
+  const log = logger.child('VCP');
+
+  log.info('='.repeat(80));
+  log.info('VCP 2.0 EXAMPLE OUTPUTS');
+  log.info('='.repeat(80));
 
   // Layer encodings
-  console.log('LAYER 1: CONTEXT FRAME');
-  console.log('-'.repeat(40));
-  console.log(encodeContextFrame(exampleContext));
-  console.log('');
+  log.info('LAYER 1: CONTEXT FRAME');
+  log.info('-'.repeat(40));
+  log.info(encodeContextFrame(exampleContext));
 
-  console.log('LAYER 2: STATE SNAPSHOT');
-  console.log('-'.repeat(40));
-  console.log(encodeStateSnapshot(exampleState));
-  console.log('');
+  log.info('LAYER 2: STATE SNAPSHOT');
+  log.info('-'.repeat(40));
+  log.info(encodeStateSnapshot(exampleState));
 
-  console.log('LAYER 3: DELTA LAYER');
-  console.log('-'.repeat(40));
-  console.log(encodeDeltaLayer(exampleDelta));
-  console.log('');
+  log.info('LAYER 3: DELTA LAYER');
+  log.info('-'.repeat(40));
+  log.info(encodeDeltaLayer(exampleDelta));
 
   // Generate reasoning scaffolds
   const reasoning = generateReasoningScaffolds(
@@ -342,20 +342,17 @@ export function generateExampleOutputs(): void {
     exampleLearning
   );
 
-  console.log('LAYER 4: REASONING SCAFFOLDS');
-  console.log('-'.repeat(40));
-  console.log(encodeReasoningScaffolds(reasoning));
-  console.log('');
+  log.info('LAYER 4: REASONING SCAFFOLDS');
+  log.info('-'.repeat(40));
+  log.info(encodeReasoningScaffolds(reasoning));
 
-  console.log('LAYER 5: LEARNING MEMORY');
-  console.log('-'.repeat(40));
-  console.log(encodeLearningMemory(exampleLearning));
-  console.log('');
+  log.info('LAYER 5: LEARNING MEMORY');
+  log.info('-'.repeat(40));
+  log.info(encodeLearningMemory(exampleLearning));
 
-  console.log('LAYER 6: HEALING SIGNALS');
-  console.log('-'.repeat(40));
-  console.log(encodeHealingSignals(exampleHealing));
-  console.log('');
+  log.info('LAYER 6: HEALING SIGNALS');
+  log.info('-'.repeat(40));
+  log.info(encodeHealingSignals(exampleHealing));
 
   // Full message
   const fullMessage: VCPMessage = {
@@ -370,29 +367,24 @@ export function generateExampleOutputs(): void {
     healing: exampleHealing,
   };
 
-  console.log('='.repeat(80));
-  console.log('FULL VCP MESSAGE (COMPACT)');
-  console.log('='.repeat(80));
+  log.info('='.repeat(80));
+  log.info('FULL VCP MESSAGE (COMPACT)');
+  log.info('='.repeat(80));
   const encoded = encodeVCPMessage(fullMessage);
-  console.log(encoded.full);
-  console.log('');
+  log.info(encoded.full);
 
   // Expanded guidance
-  console.log('='.repeat(80));
-  console.log('EXPANDED REASONING GUIDANCE');
-  console.log('='.repeat(80));
+  log.info('='.repeat(80));
+  log.info('EXPANDED REASONING GUIDANCE');
+  log.info('='.repeat(80));
   const guidance = expandReasoningGuidance(reasoning);
-  console.log(guidance.moral);
-  console.log('');
-  console.log(guidance.prosocial);
-  console.log('');
-  console.log(guidance.tactical);
-  console.log('');
-  console.log(guidance.strategic);
-  console.log('');
-  console.log('PRIMARY RECOMMENDATION:');
-  console.log(guidance.recommendation);
-  console.log(`Confidence: ${(guidance.confidence * 100).toFixed(0)}%`);
+  log.info(guidance.moral);
+  log.info(guidance.prosocial);
+  log.info(guidance.tactical);
+  log.info(guidance.strategic);
+  log.info('PRIMARY RECOMMENDATION:');
+  log.info(guidance.recommendation);
+  log.info(`Confidence: ${(guidance.confidence * 100).toFixed(0)}%`);
 }
 
 // Export example data for testing

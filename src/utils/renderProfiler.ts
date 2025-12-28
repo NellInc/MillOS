@@ -37,23 +37,10 @@ export function trackRender(componentName: string) {
 }
 
 export function renderReport() {
-  const elapsed = (Date.now() - profilingStartTime) / 1000;
-
-  console.log('%c=== RENDER REPORT ===', 'color: #f97316; font-weight: bold; font-size: 14px');
-  console.log(`Profiling duration: ${elapsed.toFixed(1)}s`);
-  console.log(`Total renders: ${totalRenders} (${(totalRenders / elapsed).toFixed(1)}/sec)`);
-
   // Sort by render count
   const sorted = Array.from(renderCounts.entries())
     .sort((a, b) => b[1] - a[1])
     .slice(0, 20);
-
-  console.log('\nTop 20 most-rendered components:');
-  sorted.forEach(([name, count], i) => {
-    const rate = (count / elapsed).toFixed(1);
-    const status = parseFloat(rate) > 60 ? '🔴' : parseFloat(rate) > 30 ? '🟡' : '🟢';
-    console.log(`${status} ${i + 1}. ${name}: ${count} renders (${rate}/sec)`);
-  });
 
   return Object.fromEntries(sorted);
 }
@@ -63,7 +50,6 @@ export function resetRenderProfile() {
   renderTimes.clear();
   profilingStartTime = Date.now();
   totalRenders = 0;
-  console.log('%cRender profiling reset', 'color: #22c55e');
 }
 
 // Extend Window type for render profiler globals

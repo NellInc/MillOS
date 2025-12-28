@@ -13,7 +13,6 @@ export const ScreenshotButton: React.FC = () => {
       // Find the canvas element
       const canvas = document.querySelector('canvas');
       if (!canvas) {
-        console.error('No canvas found');
         return;
       }
 
@@ -22,8 +21,8 @@ export const ScreenshotButton: React.FC = () => {
       link.download = `millos-screenshot-${new Date().toISOString().split('T')[0]}.png`;
       link.href = canvas.toDataURL('image/png');
       link.click();
-    } catch (error) {
-      console.error('Screenshot failed:', error);
+    } catch {
+      // Screenshot failed silently
     } finally {
       setIsExporting(false);
     }

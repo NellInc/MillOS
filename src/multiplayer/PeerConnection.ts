@@ -49,8 +49,8 @@ export class PeerConnection {
         // PeerJS already handles JSON parsing for objects
         const message = data as MultiplayerMessage;
         this.handleMessage(message);
-      } catch (error) {
-        console.error('[PeerConnection] Failed to parse message:', error);
+      } catch {
+        // Failed to parse message - ignore
       }
     });
 
@@ -107,8 +107,7 @@ export class PeerConnection {
     try {
       this.connection.send(message);
       return true;
-    } catch (error) {
-      console.error('[PeerConnection] Failed to send message:', error);
+    } catch {
       return false;
     }
   }

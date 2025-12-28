@@ -24,8 +24,7 @@ export function handleHostDisconnect(): void {
     return;
   }
 
-  // Host disconnected - for now, just reset to disconnected state
-  console.warn('[HostMigration] Host disconnected, ending session');
+  // Host disconnected - reset to disconnected state
 
   // Clear multiplayer session state while preserving the player's name
   store.leaveRoom();

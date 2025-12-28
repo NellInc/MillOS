@@ -210,6 +210,9 @@ export const useBASHistoryStore = create<BASHistoryState>((set, get) => ({
     const firstThird = points.slice(0, third);
     const lastThird = points.slice(-third);
 
+    // Guard against empty slices (can happen if points.length is small)
+    if (firstThird.length === 0 || lastThird.length === 0) return 'stable';
+
     const firstAvg =
       firstThird.reduce((sum, p) => sum + (p[metric] as number), 0) / firstThird.length;
     const lastAvg = lastThird.reduce((sum, p) => sum + (p[metric] as number), 0) / lastThird.length;

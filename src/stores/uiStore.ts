@@ -232,7 +232,6 @@ export const useUIStore = create<UIStore>()(
       }),
       onRehydrateStorage: () => (state, error) => {
         if (error) {
-          console.error('Failed to rehydrate UI state:', error);
           // Set error flag
           if (state) {
             state.rehydrationError = true;
@@ -242,7 +241,6 @@ export const useUIStore = create<UIStore>()(
 
         // Validate theme
         if (state && state.theme && state.theme !== 'dark' && state.theme !== 'light') {
-          console.warn('Invalid theme detected, resetting to dark');
           state.theme = 'dark' as const;
         }
       },

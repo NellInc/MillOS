@@ -60,6 +60,13 @@ interface SPCDataPoint {
   ruleViolations: string[];
 }
 
+/** Recharts custom dot props for SPCDataPoint */
+interface CustomDotProps {
+  cx?: number;
+  cy?: number;
+  payload?: SPCDataPoint;
+}
+
 interface ControlLimits {
   ucl: number; // Mean + 3σ
   lcl: number; // Mean - 3σ
@@ -391,7 +398,7 @@ export const SPCCharts: React.FC<SPCChartsProps> = ({ className = '', embedded =
   }, [data]);
 
   // Custom dot renderer for status colors
-  const customDot = (props: any) => {
+  const customDot = (props: CustomDotProps) => {
     const { cx, cy, payload } = props;
     let fill = '#22c55e'; // green (in-control)
 

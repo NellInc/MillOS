@@ -3,6 +3,8 @@
  * Tracks execution time of key functions to identify bottlenecks
  */
 
+import { logger } from './logger';
+
 const timings: Map<string, number[]> = new Map();
 const frameCounts: Map<string, number> = new Map();
 const MAX_SAMPLES = 100;
@@ -78,17 +80,21 @@ export function perfReport() {
   // Sort by avg time descending
   const sorted = Object.entries(report).sort((a, b) => b[1].avg - a[1].avg);
 
-  console.log('%c=== PERFORMANCE REPORT ===', 'color: #ff6b6b; font-weight: bold; font-size: 14px');
-  console.log(`Samples per metric: up to ${MAX_SAMPLES}`);
-  console.table(Object.fromEntries(sorted));
+  if (import.meta.env.DEV) {
+    logger.perf.info('=== PERFORMANCE REPORT ===');
+    logger.perf.debug(`Samples per metric: up to ${MAX_SAMPLES}`);
+    logger.perf.debug('Timings:', Object.fromEntries(sorted));
+  }
 
   return report;
 }
 
 export function perfCountReport() {
-  console.log('%c=== CALL COUNT REPORT ===', 'color: #4ecdc4; font-weight: bold; font-size: 14px');
   const sorted = Array.from(frameCounts.entries()).sort((a, b) => b[1] - a[1]);
-  console.table(Object.fromEntries(sorted));
+  if (import.meta.env.DEV) {
+    logger.perf.info('=== CALL COUNT REPORT ===');
+    logger.perf.debug('Call counts:', Object.fromEntries(sorted));
+  }
   return Object.fromEntries(sorted);
 }
 
@@ -96,7 +102,9 @@ export function perfReset() {
   timings.clear();
   frameCounts.clear();
   frameCount = 0;
-  console.log('%cPerformance data reset', 'color: #95e1d3');
+  if (import.meta.env.DEV) {
+    logger.perf.info('Performance data reset');
+  }
 }
 
 // Heavy operation detector - logs if operation takes more than threshold
@@ -108,8 +116,8 @@ export function perfWarn(label: string, thresholdMs: number = 1) {
       try {
         performance.measure(`${label}-warn`, `${label}-warn-start`, `${label}-warn-end`);
         const measure = performance.getEntriesByName(`${label}-warn`).pop();
-        if (measure && measure.duration > thresholdMs) {
-          console.warn(
+        if (import.meta.env.DEV && measure && measure.duration > thresholdMs) {
+          logger.perf.warn(
             `[SLOW] ${label}: ${measure.duration.toFixed(2)}ms (threshold: ${thresholdMs}ms)`
           );
         }
@@ -167,14 +175,14 @@ let autoReportInterval: ReturnType<typeof setInterval> | null = null;
 export function startAutoReport(intervalMs: number = 10000) {
   if (autoReportInterval) clearInterval(autoReportInterval);
   autoReportInterval = setInterval(() => {
-    console.log('\n');
     perfReport();
     perfCountReport();
   }, intervalMs);
-  console.log(
-    `%cAuto-report started (every ${intervalMs / 1000}s). Call perfReport() manually anytime.`,
-    'color: #95e1d3'
-  );
+  if (import.meta.env.DEV) {
+    logger.perf.info(
+      `Auto-report started (every ${intervalMs / 1000}s). Call perfReport() manually anytime.`
+    );
+  }
 }
 
 export function stopAutoReport() {
@@ -189,8 +197,4 @@ if (typeof window !== 'undefined' && import.meta.env?.DEV) {
   // Don't auto-start, let user control it
   window.startAutoReport = startAutoReport;
   window.stopAutoReport = stopAutoReport;
-  console.log(
-    '%c[PerfMonitor] Ready. Use perfReport(), startAutoReport(), stopAutoReport()',
-    'color: #95e1d3'
-  );
 }

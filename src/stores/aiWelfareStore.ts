@@ -570,7 +570,6 @@ export const useAIWelfareStore = create<AIWelfareState & AIWelfareActions>()(
       emergencyShutdown: (workerId) => {
         const state = get();
         if (state.accountability.emergencyShutdownAuthorized.includes(workerId)) {
-          console.log('EMERGENCY SHUTDOWN ACTIVATED by', workerId);
           // In real implementation, this would disable AI management
           return true;
         }

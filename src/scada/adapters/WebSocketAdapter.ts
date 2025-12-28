@@ -109,7 +109,6 @@ export class WebSocketAdapter implements IProtocolAdapter {
             tagIds: Array.from(this.tags.keys()),
           });
 
-          console.log(`[WebSocketAdapter] Connected to ${url}`);
           resolve();
         };
 
@@ -151,7 +150,6 @@ export class WebSocketAdapter implements IProtocolAdapter {
     this.connected = false;
     this.lastDisconnectTime = Date.now();
     this.values.clear();
-    console.log('[WebSocketAdapter] Disconnected');
   }
 
   isConnected(): boolean {
@@ -192,18 +190,15 @@ export class WebSocketAdapter implements IProtocolAdapter {
 
   async writeTag(tagId: string, value: number | boolean | string): Promise<boolean> {
     if (!this.ws || !this.connected) {
-      console.warn('[WebSocketAdapter] Cannot write: not connected');
       return false;
     }
 
     const tag = this.tags.get(tagId);
     if (!tag) {
-      console.warn(`[WebSocketAdapter] Unknown tag: ${tagId}`);
       return false;
     }
 
     if (tag.accessMode === 'READ') {
-      console.warn(`[WebSocketAdapter] Cannot write to read-only tag: ${tagId}`);
       return false;
     }
 
@@ -215,9 +210,8 @@ export class WebSocketAdapter implements IProtocolAdapter {
       });
       this.stats.writeCount++;
       return true;
-    } catch (err) {
+    } catch {
       this.stats.errorCount++;
-      console.error(`[WebSocketAdapter] Write failed for ${tagId}:`, err);
       return false;
     }
   }
@@ -327,7 +321,6 @@ export class WebSocketAdapter implements IProtocolAdapter {
           break;
 
         case 'error':
-          console.error('[WebSocketAdapter] Server error:', msg.error);
           this.stats.errorCount++;
           break;
 
@@ -336,16 +329,7 @@ export class WebSocketAdapter implements IProtocolAdapter {
           // No action needed for heartbeat messages
           break;
       }
-    } catch (err) {
-      if (err instanceof MessageValidationError) {
-        console.error(
-          `[WebSocketAdapter] Message validation failed: ${err.message}`,
-          'Received data:',
-          err.receivedData
-        );
-      } else {
-        console.error('[WebSocketAdapter] Failed to parse message:', err);
-      }
+    } catch {
       this.stats.errorCount++;
     }
   }
@@ -374,13 +358,11 @@ export class WebSocketAdapter implements IProtocolAdapter {
     }
   }
 
-  private handleDisconnect(reason: string): void {
+  private handleDisconnect(_reason: string): void {
     this.stopHeartbeat();
     this.connected = false;
     this.lastDisconnectTime = Date.now();
     this.ws = null;
-
-    console.log(`[WebSocketAdapter] Disconnected: ${reason}`);
 
     // Attempt reconnection
     if (this.reconnectAttempts < 10) {
@@ -388,17 +370,11 @@ export class WebSocketAdapter implements IProtocolAdapter {
       const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000);
       const jitter = Math.random() * 1000;
 
-      console.log(
-        `[WebSocketAdapter] Reconnecting in ${delay + jitter}ms (attempt ${this.reconnectAttempts})`
-      );
-
       this.reconnectTimeout = setTimeout(() => {
-        this.connect().catch((err) => {
-          console.error('[WebSocketAdapter] Reconnect failed:', err);
+        this.connect().catch(() => {
+          // Reconnect failed - will be retried
         });
       }, delay + jitter);
-    } else {
-      console.error('[WebSocketAdapter] Max reconnect attempts reached');
     }
   }
 
@@ -430,12 +406,11 @@ export class WebSocketAdapter implements IProtocolAdapter {
     globalCallbacksCopy.forEach((callback) => {
       try {
         callback(tagValues);
-      } catch (err) {
-        console.error('[WebSocketAdapter] Global subscriber callback error:', err);
+      } catch {
         // Remove faulty callback to prevent repeated errors
         try {
           this.globalSubscribers.delete(callback);
-        } catch (deleteErr) {
+        } catch {
           // Ignore cleanup errors
         }
       }
@@ -461,14 +436,13 @@ export class WebSocketAdapter implements IProtocolAdapter {
       subscriberUpdates.forEach((values, callback) => {
         try {
           callback(values);
-        } catch (err) {
-          console.error('[WebSocketAdapter] Tag subscriber callback error:', err);
+        } catch {
           // Remove faulty callback from all tag subscriptions
           try {
             this.subscribers.forEach((callbackSet) => {
               callbackSet.delete(callback);
             });
-          } catch (deleteErr) {
+          } catch {
             // Ignore cleanup errors
           }
         }

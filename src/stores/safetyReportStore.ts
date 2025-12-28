@@ -97,9 +97,6 @@ export const useSafetyReportStore = create<SafetyReportStore>((set, get) => ({
     const willReport = Math.random() * 100 < behavior.reportingWillingness;
     if (!willReport) {
       // Worker stays silent - learned helplessness in action
-      console.log(
-        `[Safety] Worker ${reporterId} chose not to report (willingness: ${behavior.reportingWillingness}%)`
-      );
       return null;
     }
 

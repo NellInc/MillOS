@@ -188,9 +188,6 @@ const SM = {
     roughness: 0.9,
     map: PROCEDURAL_TEXTURES.mudColor,
     roughnessMap: PROCEDURAL_TEXTURES.mudRoughness,
-    polygonOffset: true,
-    polygonOffsetFactor: POLYGON_OFFSET.exteriorOverlay.factor,
-    polygonOffsetUnits: POLYGON_OFFSET.exteriorOverlay.units,
   }),
   soil: new THREE.MeshStandardMaterial({ color: '#3e2723', roughness: 1 }),
   stone: new THREE.MeshStandardMaterial({
@@ -1371,8 +1368,6 @@ export const FarmArea: React.FC = () => {
       if (type === 'cow') cowJumpStates.current[index] = 1.0;
       if (type === 'sheep') sheepJumpStates.current[index] = 1.0;
 
-      // Debug log to confirm click
-      console.log(`[FarmArea] Petting ${type} at index ${index}`);
       playCritterSound(type);
     },
     []
@@ -1635,9 +1630,9 @@ export const FarmArea: React.FC = () => {
         <FenceSection position={[0, 0, 3]} length={6} />
         <FenceSection position={[-3, 0, 0]} rotation={Math.PI / 2} length={6} />
         <FenceSection position={[3, 0, 0]} rotation={Math.PI / 2} length={6} />
-        {/* Mud puddle - exteriorOverlay layer (on top of grass) */}
+        {/* Mud puddle */}
         <mesh
-          position={[0, EXTERIOR_LAYERS.groundOverlay, 0]}
+          position={[0, EXTERIOR_LAYERS.ground, 0]}
           rotation={[-Math.PI / 2, 0, 0]}
           renderOrder={RENDER_ORDER.floorEffects}
         >

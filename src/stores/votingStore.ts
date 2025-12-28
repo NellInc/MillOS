@@ -183,7 +183,6 @@ export const useVotingStore = create<VotingState>((set, get) => ({
 
     // Guard: Empty options array - cannot close a vote with no options
     if (vote.options.length === 0) {
-      console.warn(`[VotingStore] Cannot close vote ${voteId}: no options defined`);
       return;
     }
 
@@ -246,8 +245,7 @@ export const useVotingStore = create<VotingState>((set, get) => ({
           });
         })
         .catch(() => {
-          // Fallback: log to console if UI store unavailable
-          console.log(`[Voting] ${title}: ${message}`);
+          // UI store unavailable - notification skipped
         });
     };
 
@@ -273,13 +271,8 @@ export const useVotingStore = create<VotingState>((set, get) => ({
               `${axisLabel} changed to ${vote.proposedValue}% by democratic vote.`
             );
           })
-          .catch((err) => {
-            console.error('[VotingStore] Failed to apply axis change:', err);
-            sendNotification(
-              'Vote Implementation Failed',
-              `Could not apply axis change: ${err.message}`,
-              'info'
-            );
+          .catch(() => {
+            sendNotification('Vote Implementation Failed', `Could not apply axis change`, 'info');
           });
       } else {
         // "Keep Current" won - notify but don't change
@@ -341,11 +334,10 @@ export const useVotingStore = create<VotingState>((set, get) => ({
             `${changeDescription} (voted: "${vote.result!.label}").`
           );
         })
-        .catch((err) => {
-          console.error('[VotingStore] Failed to apply AI behavior change:', err);
+        .catch(() => {
           sendNotification(
             'Vote Implementation Failed',
-            `Could not apply AI behavior change: ${err.message}`,
+            `Could not apply AI behavior change`,
             'info'
           );
         });

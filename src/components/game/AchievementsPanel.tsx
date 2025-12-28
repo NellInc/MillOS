@@ -14,6 +14,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { useProductionStore } from '../../stores/productionStore';
+import type { Achievement } from '../../stores/achievementsStore';
 
 export const AchievementsPanel: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const achievements = useProductionStore((state) => state.achievements);
@@ -83,7 +84,7 @@ export const AchievementsPanel: React.FC<{ onClose: () => void }> = ({ onClose }
 
       {/* Achievement list */}
       <div className="flex-1 overflow-y-auto p-3 space-y-2">
-        {achievements.map((achievement: any) => {
+        {achievements.map((achievement: Achievement) => {
           const IconComponent = getIconComponent(achievement.icon);
           const isUnlocked = !!achievement.unlockedAt;
           const progress =

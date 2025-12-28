@@ -95,8 +95,6 @@ export class SCADAService {
    * Start the SCADA service
    */
   async start(): Promise<void> {
-    console.log(`[SCADAService] Starting in ${this.config.mode} mode...`);
-
     // Initialize history store
     await this.historyStore.init();
 
@@ -114,8 +112,6 @@ export class SCADAService {
       if (this.config.alarmsEnabled) {
         this.alarmUnsubscribe = this.alarmManager.subscribe(this.handleAlarmUpdates.bind(this));
       }
-
-      console.log(`[SCADAService] Started. Monitoring ${allTagIds.length} tags.`);
     }
   }
 
@@ -123,8 +119,6 @@ export class SCADAService {
    * Stop the SCADA service
    */
   async stop(): Promise<void> {
-    console.log('[SCADAService] Stopping...');
-
     if (this.adapterUnsubscribe) {
       this.adapterUnsubscribe();
       this.adapterUnsubscribe = null;
@@ -145,8 +139,6 @@ export class SCADAService {
 
     await this.historyStore.close();
     this.currentValues.clear();
-
-    console.log('[SCADAService] Stopped.');
   }
 
   /**
@@ -195,32 +187,20 @@ export class SCADAService {
     switch (config.type) {
       case 'rest':
         if (!config.baseUrl) {
-          console.warn('[SCADAService] REST adapter requires baseUrl. Falling back to simulation.');
           return new SimulationAdapter(MILL_TAGS);
         }
-        console.log(`[SCADAService] Creating REST adapter for ${config.baseUrl}`);
         return new RESTAdapter(MILL_TAGS, config);
 
       case 'mqtt':
         if (!config.brokerUrl) {
-          console.warn(
-            '[SCADAService] MQTT adapter requires brokerUrl. Falling back to simulation.'
-          );
           return new SimulationAdapter(MILL_TAGS);
         }
-        console.log(`[SCADAService] Creating MQTT adapter for ${config.brokerUrl}`);
         return new MQTTAdapter(MILL_TAGS, config);
 
       case 'websocket':
         if (!config.proxyUrl && !config.baseUrl) {
-          console.warn(
-            '[SCADAService] WebSocket adapter requires proxyUrl or baseUrl. Falling back to simulation.'
-          );
           return new SimulationAdapter(MILL_TAGS);
         }
-        console.log(
-          `[SCADAService] Creating WebSocket adapter for ${config.proxyUrl ?? config.baseUrl}`
-        );
         return new WebSocketAdapter(MILL_TAGS, config);
 
       case 'opcua':
@@ -228,9 +208,6 @@ export class SCADAService {
         // OPC-UA and Modbus require the backend proxy
         // Use REST adapter to connect to the proxy
         if (!config.proxyUrl && !config.baseUrl) {
-          console.warn(
-            `[SCADAService] ${config.type} requires backend proxy. Falling back to simulation.`
-          );
           return new SimulationAdapter(MILL_TAGS);
         }
         const proxyConfig: ConnectionConfig = {
@@ -238,9 +215,6 @@ export class SCADAService {
           type: 'rest',
           baseUrl: config.proxyUrl ?? config.baseUrl,
         };
-        console.log(
-          `[SCADAService] Creating REST adapter for ${config.type} proxy at ${proxyConfig.baseUrl}`
-        );
         return new RESTAdapter(MILL_TAGS, proxyConfig);
       }
 
@@ -309,8 +283,8 @@ export class SCADAService {
     this.valueListeners.forEach((cb) => {
       try {
         cb(values);
-      } catch (err) {
-        console.error('[SCADAService] Value listener error:', err);
+      } catch {
+        // Listener error - silently ignored in production
       }
     });
   }
@@ -327,8 +301,8 @@ export class SCADAService {
     this.alarmListeners.forEach((cb) => {
       try {
         cb(alarms);
-      } catch (err) {
-        console.error('[SCADAService] Alarm listener error:', err);
+      } catch {
+        // Listener error - silently ignored in production
       }
     });
   }
@@ -394,17 +368,14 @@ export class SCADAService {
   async writeSetpoint(tagId: string, value: number): Promise<boolean> {
     const tag = this.tagRegistry.get(tagId);
     if (!tag) {
-      console.warn(`[SCADAService] Tag not found: ${tagId}`);
       return false;
     }
 
     if (tag.accessMode === 'READ') {
-      console.warn(`[SCADAService] Cannot write to read-only tag: ${tagId}`);
       return false;
     }
 
     if (!this.adapter) {
-      console.warn('[SCADAService] No adapter connected');
       return false;
     }
 
@@ -623,8 +594,6 @@ export class SCADAService {
   injectFault(fault: FaultInjection): void {
     if (this.adapter instanceof SimulationAdapter) {
       this.adapter.injectFault(fault);
-    } else {
-      console.warn('[SCADAService] Fault injection only available in simulation mode');
     }
   }
 

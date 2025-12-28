@@ -195,7 +195,6 @@ export class LODManager {
   private handleMemoryPressure(usage: MemoryUsage): void {
     this.memoryPressure = usage.total.budgetPercent > 80;
     if (this.memoryPressure) {
-      console.warn('[LODManager] Memory pressure detected, reducing LOD distances');
       this.updateAllLODs();
     }
   }

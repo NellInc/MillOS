@@ -112,10 +112,10 @@ export class AlarmManager {
       priority = 'CRITICAL';
     } else if (tag.alarmHi !== undefined && numValue >= tag.alarmHi) {
       // Apply deadband for returning from higher alarm
-      if (lastState?.type === 'HIHI') {
+      if (lastState?.type === 'HIHI' && tag.alarmHiHi !== undefined) {
         if (numValue >= tag.alarmHi - deadband) {
           alarmType = 'HIHI';
-          threshold = tag.alarmHiHi!;
+          threshold = tag.alarmHiHi;
           priority = 'CRITICAL';
         } else {
           alarmType = 'HI';
@@ -133,10 +133,10 @@ export class AlarmManager {
       priority = 'CRITICAL';
     } else if (tag.alarmLo !== undefined && numValue <= tag.alarmLo) {
       // Apply deadband for returning from lower alarm
-      if (lastState?.type === 'LOLO') {
+      if (lastState?.type === 'LOLO' && tag.alarmLoLo !== undefined) {
         if (numValue <= tag.alarmLo + deadband) {
           alarmType = 'LOLO';
-          threshold = tag.alarmLoLo!;
+          threshold = tag.alarmLoLo;
           priority = 'CRITICAL';
         } else {
           alarmType = 'LO';
@@ -291,7 +291,6 @@ export class AlarmManager {
   acknowledge(alarmId: string, operator: string): boolean {
     const alarm = this.activeAlarms.get(alarmId);
     if (!alarm) {
-      console.warn(`[AlarmManager] Cannot acknowledge: alarm not found: ${alarmId}`);
       return false;
     }
 
@@ -509,8 +508,8 @@ export class AlarmManager {
     listenersCopy.forEach((cb) => {
       try {
         cb(alarms);
-      } catch (err) {
-        console.error('[AlarmManager] Listener callback error:', err);
+      } catch {
+        // Listener callback error - silently continue
       }
     });
   }

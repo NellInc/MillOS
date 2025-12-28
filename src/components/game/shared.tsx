@@ -1512,7 +1512,7 @@ const DYNAMIC_TEMPLATES: Array<{
   },
   {
     template:
-      '{WORKER} claims {MACHINE} speaks to them. It does not. Unless it does. Please report any machine speech.',
+      '{WORKER} claims {MACHINE} speaks to {THEM}. It does not. Unless it does. Please report any machine speech.',
     type: 'general',
     chaosWeight: 0.3,
   },

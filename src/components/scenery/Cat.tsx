@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
 import * as THREE from 'three';
-import { useFrame } from '@react-three/fiber';
+import { useFrame, ThreeEvent } from '@react-three/fiber';
 import { HeartParticle } from '../effects/HeartParticle';
 import { playCritterSound } from '../../utils/critterAudio';
 
@@ -19,7 +19,7 @@ export const Cat = React.memo<CatProps>(
     const [hearts, setHearts] = useState<{ id: number; pos: [number, number, number] }[]>([]);
 
     // Handle Petting
-    const handlePet = (e: any) => {
+    const handlePet = (e: ThreeEvent<MouseEvent>) => {
       e.stopPropagation();
       playCritterSound('cat');
       setIsExcited(true);

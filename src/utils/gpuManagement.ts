@@ -101,8 +101,6 @@ export async function initializeGPUManagement(renderer: THREE.WebGLRenderer): Pr
   // Load saved settings
   const settings = getGPUSettings();
   gpuResourceManager.setBudget({ total: settings.memoryBudget });
-
-  console.log('[GPUManagement] Initialized with settings:', settings);
 }
 
 /**
@@ -119,8 +117,6 @@ export async function cleanupGPUManagement(): Promise<void> {
   lodManager.dispose();
   disposeCompressedTextures();
   disposeKTX2Loader();
-
-  console.log('[GPUManagement] Cleaned up');
 }
 
 // Import THREE for type reference

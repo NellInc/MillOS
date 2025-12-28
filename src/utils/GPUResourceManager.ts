@@ -276,7 +276,6 @@ class GPUResourceManager {
    */
   handleContextLost(): void {
     this.isContextLost = true;
-    console.warn('[GPUResourceManager] WebGL context lost - preparing for recovery');
     this.contextLostCallbacks.forEach((cb) => cb());
   }
 
@@ -284,7 +283,6 @@ class GPUResourceManager {
    * Call when WebGL context is restored
    */
   handleContextRestored(): void {
-    console.log('[GPUResourceManager] WebGL context restored - recreating resources');
     this.isContextLost = false;
 
     // Recreate resources that have recreator functions
@@ -293,9 +291,8 @@ class GPUResourceManager {
       if (tracked) {
         try {
           tracked.resource = recreator();
-          console.log(`[GPUResourceManager] Recreated resource: ${id}`);
-        } catch (err) {
-          console.error(`[GPUResourceManager] Failed to recreate: ${id}`, err);
+        } catch {
+          // Silently fail - resource recreation errors handled elsewhere
         }
       }
     });
@@ -320,27 +317,10 @@ class GPUResourceManager {
   }
 
   /**
-   * Log current resource status to console
+   * Get current resource status (for debugging tools/UI)
    */
-  debugLog(): void {
-    const usage = this.getMemoryUsage();
-    console.group('[GPUResourceManager] Resource Status');
-    console.log(
-      `Geometries: ${usage.geometries.count} (${this.formatBytes(usage.geometries.bytes)}, ${usage.geometries.budgetPercent.toFixed(1)}%)`
-    );
-    console.log(
-      `Textures: ${usage.textures.count} (${this.formatBytes(usage.textures.bytes)}, ${usage.textures.budgetPercent.toFixed(1)}%)`
-    );
-    console.log(
-      `Materials: ${usage.materials.count} (${this.formatBytes(usage.materials.bytes)}, ${usage.materials.budgetPercent.toFixed(1)}%)`
-    );
-    console.log(
-      `RenderTargets: ${usage.renderTargets.count} (${this.formatBytes(usage.renderTargets.bytes)}, ${usage.renderTargets.budgetPercent.toFixed(1)}%)`
-    );
-    console.log(
-      `TOTAL: ${usage.total.count} resources (${this.formatBytes(usage.total.bytes)}, ${usage.total.budgetPercent.toFixed(1)}% of budget)`
-    );
-    console.groupEnd();
+  debugLog(): MemoryUsage {
+    return this.getMemoryUsage();
   }
 
   // Private methods
@@ -365,8 +345,8 @@ class GPUResourceManager {
       if ('dispose' in resource && typeof resource.dispose === 'function') {
         resource.dispose();
       }
-    } catch (err) {
-      console.warn('[GPUResourceManager] Disposal error:', err);
+    } catch {
+      // Silently fail - disposal errors are non-critical
     }
   }
 
@@ -385,17 +365,11 @@ class GPUResourceManager {
 
     if (shouldWarn) {
       this.lastWarningTime = now;
-      console.warn(
-        `[GPUResourceManager] High memory usage: ${this.formatBytes(usage.total.bytes)} (${usage.total.budgetPercent.toFixed(1)}% of budget)`
-      );
       this.memoryWarningCallbacks.forEach((cb) => cb(usage));
 
       // Auto-prune if over 90%
       if (usage.total.budgetPercent > 90) {
-        const freed = this.pruneUnused(30000); // Prune resources unused for 30s
-        if (freed > 0) {
-          console.log(`[GPUResourceManager] Auto-pruned ${this.formatBytes(freed)}`);
-        }
+        this.pruneUnused(30000); // Prune resources unused for 30s
       }
     }
   }

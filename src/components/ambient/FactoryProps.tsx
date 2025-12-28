@@ -35,7 +35,6 @@ export const OilPuddle: React.FC<{ position: [number, number, number]; size?: nu
         roughness={0.1}
         transparent
         opacity={0.7}
-        depthWrite={false}
         emissive="#3b82f6"
         emissiveIntensity={0.1}
       />
@@ -73,7 +72,6 @@ export const RainPuddle: React.FC<{ position: [number, number, number]; size?: n
         roughness={0.05}
         transparent
         opacity={0.4}
-        depthWrite={false}
         emissive="#60a5fa"
         emissiveIntensity={0.05}
       />

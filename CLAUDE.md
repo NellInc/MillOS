@@ -607,3 +607,52 @@ function App() {
   // ...
 }
 ```
+
+### Z-Fighting Audit Log (2025-12-28)
+
+Comprehensive audit of z-fighting issues across the codebase. Key findings and fixes:
+
+#### Files Modified
+
+| File | Issue | Fix |
+|------|-------|-----|
+| `MillScene.tsx` | Exit marker ring missing `polygonOffset` | Added polygonOffset with standard preset |
+| `TruckBay.tsx` | EmployeeParking used interior `FLOOR_LAYERS` for exterior surface | Changed to `EXTERIOR_LAYERS.ground` with exteriorMid offset |
+| `StatusRing.tsx` | Used `FLOOR_LAYERS.safetyMain` for machine indicator | Changed to `INDICATOR_HEIGHTS.machineRing` |
+| `MachineLockIndicator.tsx` | Hardcoded Y, missing depthWrite/polygonOffset | Added layer constants, depthWrite={false}, polygonOffset |
+
+#### Reverted Changes (Caused Issues)
+
+| File | Change | Why Reverted |
+|------|--------|--------------|
+| `VillageArea.tsx` | Added polygonOffset to villageCobbleMaterial | Caused z-fighting (cobbles fighting with grass) |
+| `FarmArea.tsx` | Changed mud position to groundOverlay, added polygonOffset | Not related to brightness issue |
+| `FactoryProps.tsx` | Added depthWrite={false} to puddles | Not related to brightness issue |
+
+#### Village Cobble Brightness Issue
+
+**Symptom:** Village cobblestones appeared washed out/bright gray instead of proper dark gray texture.
+
+**Root Cause:** The `villageCobbleMaterial` had no `color` property (defaulting to white #ffffff). When the texture's colors appeared washed out (possibly due to colorspace handling or HMR cache issues), there was no tint to compensate.
+
+**Fix:** Added `color: '#9a9a9a'` to `villageCobbleMaterial` to tint the texture darker:
+
+```typescript
+const villageCobbleMaterial = new THREE.MeshStandardMaterial({
+  color: '#9a9a9a', // Tint to correct washed-out texture appearance
+  map: villageCobbleColor,
+  normalMap: villageCobbleNormal,
+  normalScale: new THREE.Vector2(0.4, 0.4),
+  roughness: 0.85,
+  transparent: true,
+});
+```
+
+**Note:** The farm barnyard uses similar cobblestone texture without color tint and appears correct. The difference is the village material has `transparent: true` (needed for edge feathering shader) and uses a module-level material instance vs inline JSX material. This may affect how Three.js handles color management.
+
+#### Lessons Learned
+
+1. **Don't add polygonOffset to materials that already work** - VillageArea cobbles were stable before adding polygonOffset
+2. **transparent: true affects rendering** - Materials with transparency may need color tinting to compensate
+3. **Module-level materials vs inline JSX** - Can behave differently with textures
+4. **Test exterior changes visually** - Z-fighting fixes can introduce new visual issues

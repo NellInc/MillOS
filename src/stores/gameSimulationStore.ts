@@ -457,7 +457,6 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
           },
           crisisState: createDefaultCrisisState(),
         });
-        console.log('[GameSimulation] Persisted state cleared, reset to 10am');
       },
 
       // Weather system
@@ -973,7 +972,6 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
       }),
       onRehydrateStorage: () => (state, error) => {
         if (error) {
-          console.error('Failed to rehydrate game simulation state:', error);
           return;
         }
 
@@ -981,7 +979,6 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
         if (state && state.weather) {
           const validWeather = ['clear', 'cloudy', 'rain', 'storm'];
           if (!validWeather.includes(state.weather)) {
-            console.warn('Invalid weather detected, resetting to clear');
             state.weather = 'clear' as const;
           }
         }
@@ -993,9 +990,6 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
 
           // If shift doesn't match game time, sync it
           if (state.currentShift !== expectedShift) {
-            console.log(
-              `[GameSimulation] Syncing shift: ${state.currentShift} -> ${expectedShift} (gameTime: ${state.gameTime.toFixed(1)})`
-            );
             state.currentShift = expectedShift;
 
             // Also sync shiftData.currentShift if it exists

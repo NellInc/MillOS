@@ -309,8 +309,9 @@ export class PIAdapter implements IHistorian {
 
   private async getWebId(tagId: string): Promise<string | null> {
     // Check cache first
-    if (this.webIdCache.has(tagId)) {
-      return this.webIdCache.get(tagId)!;
+    const cachedWebId = this.webIdCache.get(tagId);
+    if (cachedWebId !== undefined) {
+      return cachedWebId;
     }
 
     // Look up by path

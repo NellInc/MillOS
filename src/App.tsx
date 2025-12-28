@@ -74,8 +74,6 @@ import {
   WeatherEffectsOverlay,
 } from './components/ui';
 import { AudioReactiveProvider } from './components/AudioReactiveProvider';
-// Asset Showcase disabled - uncomment to re-enable with 'B' key
-// import { AssetShowcase } from './components/AssetShowcase';
 
 // Calculate sky background color based on game time (matches SkySystem.tsx logic)
 const getSkyBackgroundColor = (gameTime: number): string => {
@@ -209,7 +207,6 @@ const App: React.FC = () => {
   // AI/SCADA panel state - synced bidirectionally with GameInterface via props
   const [showAIPanel, setShowAIPanel] = useState(false);
   const [showSCADAPanel, setShowSCADAPanel] = useState(false);
-  // const [showAssetShowcase, setShowAssetShowcase] = useState(false);
 
   const [audioInitialized, setAudioInitialized] = useState(false);
   const [qualityNotification, setQualityNotification] = useState<string | null>(null);
@@ -294,7 +291,6 @@ const App: React.FC = () => {
       } catch {
         // Orientation lock not supported or not allowed
         // This is expected on iOS and some desktop browsers
-        console.debug('[Mobile] Orientation lock not available');
       }
     };
 
@@ -353,8 +349,7 @@ const App: React.FC = () => {
           audioManager.startMusic(); // Background music (respects musicEnabled setting)
           setAudioInitialized(true);
         })
-        .catch((error) => {
-          console.warn('[Audio] Failed to initialize:', error);
+        .catch(() => {
           setAudioInitialized(true); // Continue without audio
         });
     }
@@ -369,13 +364,6 @@ const App: React.FC = () => {
       window.removeEventListener('keydown', handleInteraction);
     };
   }, [initializeAudio]);
-
-  // Asset Showcase toggle disabled
-  // useEffect(() => {
-  //   const handleToggleAssetShowcase = () => setShowAssetShowcase((prev) => !prev);
-  //   window.addEventListener('toggleAssetShowcase', handleToggleAssetShowcase);
-  //   return () => window.removeEventListener('toggleAssetShowcase', handleToggleAssetShowcase);
-  // }, []);
 
   // Cleanup audio on unmount
   useEffect(() => {
@@ -604,25 +592,20 @@ const App: React.FC = () => {
                 gpuResourceManager.setBudget({ total: settings.memoryBudget });
                 // Register shared resources (geometries, materials) with tracker
                 initializeGPUTracking();
-                console.log('[GPU] Management initialized');
-              } catch (err) {
-                console.warn('[GPU] Management initialization failed:', err);
+              } catch {
+                // GPU management initialization failed - continue without it
               }
 
               const handleContextLost = (event: Event) => {
                 event.preventDefault();
-                console.error('[WebGL] Context lost - notifying GPUResourceManager');
                 gpuResourceManager.handleContextLost();
-                // Log current resource state for debugging
                 gpuResourceManager.debugLog();
               };
               const handleContextRestored = () => {
-                console.log('[WebGL] Context restored - attempting resource recreation');
                 gpuResourceManager.handleContextRestored();
                 // Only reload if resource recreation fails
                 const usage = gpuResourceManager.getMemoryUsage();
                 if (usage.total.count === 0) {
-                  console.warn('[WebGL] No resources recovered, reloading page');
                   window.location.reload();
                 }
               };
@@ -797,12 +780,6 @@ const App: React.FC = () => {
 
       {/* Mobile portrait rotation prompt - blocks interaction until rotated */}
       <RotateDeviceOverlay visible={isMobile && !isLandscape} />
-
-      {/* Asset Showcase overlay - toggle with 'B' key (DISABLED)
-      {showAssetShowcase && (
-        <AssetShowcase onClose={() => setShowAssetShowcase(false)} />
-      )}
-      */}
     </div>
   );
 };

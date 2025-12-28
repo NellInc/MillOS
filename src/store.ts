@@ -71,8 +71,10 @@ export function initializeSCADASync(): () => void {
 
       // 1. STORE → SCADA: Sync machine states to simulation adapter
       // This ensures SCADA values reflect machine operational status
+      // PERFORMANCE FIX: Use selector that returns stable reference (machines array)
+      // and let the shallow comparison check if individual machine objects changed
       const unsubMachines = useProductionStore.subscribe(
-        (state) => state.machines.map((m) => ({ id: m.id, status: m.status, metrics: m.metrics })),
+        (state) => state.machines,
         (machines) => {
           const now = Date.now();
           if (now - lastMachineSyncTime < MACHINE_SYNC_DEBOUNCE_MS) return;
@@ -83,8 +85,8 @@ export function initializeSCADASync(): () => void {
               id: m.id,
               status: m.status,
               metrics: {
-                load: m.metrics.load ?? 50,
-                rpm: m.metrics.rpm ?? 450,
+                load: m.metrics?.load ?? 50,
+                rpm: m.metrics?.rpm ?? 450,
               },
             }));
             service.updateMachineStates(machineStates);

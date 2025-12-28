@@ -137,8 +137,8 @@ export function useAudioReactive() {
 
       // Start animation loop
       rafIdRef.current = requestAnimationFrame(animate);
-    } catch (error) {
-      console.warn('[AudioReactive] Failed to initialize analyzer:', error);
+    } catch {
+      // AudioReactive analyzer init failed - fallback to simulated mode
       setFallbackMode(true);
       rafIdRef.current = requestAnimationFrame(animate);
     }

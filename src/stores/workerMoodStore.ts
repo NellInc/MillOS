@@ -304,7 +304,6 @@ function getAIWelfareTrustModifier(): number {
     }
   } catch (e) {
     // If store not available, return neutral modifier
-    console.error('[workerMoodStore] Failed to get AI welfare mood modifier:', e);
     return 0;
   }
 }
@@ -341,7 +340,7 @@ function getAIWelfareSatisfactionMultiplier(): number {
       return 1.0 + ((avgQuality - 70) / 30) * 0.1; // 1.0 to 1.1
     }
   } catch (e) {
-    console.error('[workerMoodStore] Failed to get AI welfare satisfaction multiplier:', e);
+    // If store not available, return neutral multiplier
     return 1.0;
   }
 }

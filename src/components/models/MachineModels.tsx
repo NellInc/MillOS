@@ -68,7 +68,7 @@ const ProceduralSilo: React.FC<MachineModelProps> = ({
         <meshStandardMaterial color={color} metalness={0.6} roughness={0.4} />
       </mesh>
       {/* Support legs */}
-      {[0, 1, 2, 3].map((i: any) => (
+      {[0, 1, 2, 3].map((i: number) => (
         <mesh
           key={i}
           castShadow

@@ -7,7 +7,7 @@ import { audioManager } from '../utils/audioManager';
 import { useProductionStore } from '../stores/productionStore';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import { useGraphicsStore } from '../stores/graphicsStore';
-import { FLOOR_LAYERS, POLYGON_OFFSET, RENDER_ORDER } from '../constants/renderLayers';
+import { FLOOR_LAYERS, EXTERIOR_LAYERS, POLYGON_OFFSET, RENDER_ORDER } from '../constants/renderLayers';
 import {
   OptimizedTrafficConeInstances,
   OptimizedBollardInstances,
@@ -662,10 +662,16 @@ export const EmployeeParking: React.FC<{
   rotation?: number;
 }> = ({ position, rotation = 0 }) => (
   <group position={position} rotation={[0, rotation, 0]} matrixAutoUpdate={false}>
-    {/* Parking lot surface */}
-    <mesh position={[0, FLOOR_LAYERS.wornPrimary, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+    {/* Parking lot surface - exteriorMid layer (above grass, below roads) */}
+    <mesh position={[0, EXTERIOR_LAYERS.ground, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
       <planeGeometry args={[25, 18]} />
-      <meshStandardMaterial color="#2d2d2d" roughness={0.9} />
+      <meshStandardMaterial
+        color="#2d2d2d"
+        roughness={0.9}
+        polygonOffset
+        polygonOffsetFactor={POLYGON_OFFSET.exteriorMid.factor}
+        polygonOffsetUnits={POLYGON_OFFSET.exteriorMid.units}
+      />
     </mesh>
     {/* Parking stripes - 8 spaces */}
     {[0, 1, 2, 3, 4, 5, 6, 7].map((_: unknown, i: number) => (
