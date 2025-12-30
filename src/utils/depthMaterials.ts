@@ -141,9 +141,7 @@ export function createSelectionRingMaterial(options: SelectionRingOptions) {
  * Creates material properties for conveyor belt markings.
  * Uses standard offset preset.
  */
-export function createConveyorMarkingMaterial(
-  color: THREE.ColorRepresentation
-) {
+export function createConveyorMarkingMaterial(color: THREE.ColorRepresentation) {
   const offset = DECAL_OFFSET.conveyor;
 
   return {
@@ -159,10 +157,7 @@ export function createConveyorMarkingMaterial(
  * Creates material properties for forklift decals.
  * Uses standard offset preset.
  */
-export function createForkliftDecalMaterial(
-  color: THREE.ColorRepresentation,
-  opacity = 1
-) {
+export function createForkliftDecalMaterial(color: THREE.ColorRepresentation, opacity = 1) {
   const offset = DECAL_OFFSET.forklift;
 
   return {

@@ -188,4 +188,3 @@ export const ScatteredPens: React.FC<{ position: [number, number, number]; count
 // ==========================================
 
 // Jacket on hook
-

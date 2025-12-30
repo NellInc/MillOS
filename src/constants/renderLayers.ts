@@ -111,6 +111,29 @@ export const EXTERIOR_LAYERS = {
 } as const;
 
 /**
+ * Water feature layer heights.
+ *
+ * DESIGN: Water surfaces must be ABOVE terrain (y=-0.02) to prevent z-fighting.
+ * Deep channel effects can be below terrain for depth illusion.
+ *
+ * Water uses transparent materials with depthWrite={false} and renderOrder
+ * to ensure proper layering with terrain and other surfaces.
+ */
+export const WATER_LAYERS = {
+  /** Deep channel/bed effect (below terrain for depth illusion) */
+  deepChannel: -0.5,
+
+  /** Main water surface (above TerrainGround at y=0.05) */
+  surface: 0.08,
+
+  /** Floating objects (lily pads, debris) */
+  floating: 0.09,
+
+  /** Water foam/highlights overlay */
+  foam: 0.1,
+} as const;
+
+/**
  * PolygonOffset presets for depth buffer biasing.
  *
  * Formula: offset = factor * DZ + r * units
@@ -133,20 +156,21 @@ export const POLYGON_OFFSET = {
   strong: { factor: -4, units: -4 },
 
   // ===== EXTERIOR GROUND PRESETS =====
-  // For coplanar exterior surfaces. Higher values = renders on top.
+  // For coplanar exterior surfaces. Higher values = renders behind (pushed back).
+  // Lower/negative values = renders on top (pushed toward camera).
   // Use these to layer surfaces that share the same Y position.
 
-  /** Exterior base layer (lowest - grass fields) */
-  exteriorBase: { factor: 4, units: 4 },
+  /** Exterior base layer (lowest - grass fields, pushed back) */
+  exteriorBase: { factor: 6, units: 6 },
 
-  /** Exterior middle layer (asphalt, cobblestone) */
-  exteriorMid: { factor: 2, units: 2 },
+  /** Exterior middle layer (parking lots, asphalt areas) */
+  exteriorMid: { factor: 3, units: 3 },
 
-  /** Exterior top layer (roads, paths on top of base) */
-  exteriorTop: { factor: 0, units: 0 },
+  /** Exterior top layer (roads, paths - pushed forward) */
+  exteriorTop: { factor: -1, units: -1 },
 
   /** Exterior overlay (markings, lines - always on top) */
-  exteriorOverlay: { factor: -2, units: -2 },
+  exteriorOverlay: { factor: -4, units: -4 },
 } as const;
 
 /**
@@ -197,6 +221,12 @@ export const RENDER_ORDER = {
 
   /** Dynamic overlays (selection, highlights) */
   dynamicOverlay: 25,
+
+  /** Water surfaces - render after terrain but before UI */
+  waterSurface: 8,
+
+  /** Water floating objects (lily pads, etc.) */
+  waterFloating: 9,
 } as const;
 
 /**
@@ -319,3 +349,4 @@ export type RenderOrderLayer = keyof typeof RENDER_ORDER;
 export type SurfaceLayer = keyof typeof SURFACE_LAYERS;
 export type IndicatorHeight = keyof typeof INDICATOR_HEIGHTS;
 export type DecalOffsetPreset = keyof typeof DECAL_OFFSET;
+export type WaterLayer = keyof typeof WATER_LAYERS;

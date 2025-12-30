@@ -91,6 +91,11 @@ import {
 // CENTRALIZED ENVIRONMENT ANIMATION MANAGER
 // =============================================================================
 
+// Reusable Vector3 objects for lens flare calculations (avoid GC pressure)
+const _cameraDir = new THREE.Vector3();
+const _lightPos = new THREE.Vector3();
+const _toCamera = new THREE.Vector3();
+
 // Manager component to handle all environment animations in a single consolidated loop
 const EnvironmentAnimationManager: React.FC = () => {
   const isTabVisible = useGameSimulationStore((state) => state.isTabVisible);
@@ -106,24 +111,20 @@ const EnvironmentAnimationManager: React.FC = () => {
 
     // 2. Update Lens Flares (30fps - throttled to every 2nd frame)
     if (lensFlareRegistry.size > 0 && shouldRunThisFrame(2)) {
+      // Compute camera direction once per frame (reuse _cameraDir)
+      _cameraDir.set(0, 0, -1).applyQuaternion(state.camera.quaternion);
+
       lensFlareRegistry.forEach((data) => {
         if (!data.isDaytime) return;
-
-        const cameraDir = new THREE.Vector3(0, 0, -1).applyQuaternion(state.camera.quaternion);
 
         data.flares.forEach((flare) => {
           if (!flare.ref.current) return;
 
-          const lightPos = new THREE.Vector3(
-            flare.position[0],
-            flare.position[1],
-            flare.position[2]
-          );
-          const toCamera = new THREE.Vector3()
-            .subVectors(state.camera.position, lightPos)
-            .normalize();
+          // Reuse _lightPos and _toCamera instead of creating new Vector3 each iteration
+          _lightPos.set(flare.position[0], flare.position[1], flare.position[2]);
+          _toCamera.subVectors(state.camera.position, _lightPos).normalize();
 
-          const dot = toCamera.dot(cameraDir);
+          const dot = _toCamera.dot(_cameraDir);
           const angleFade = Math.max(0, -dot);
           flare.ref.current.visible = angleFade > 0.3;
 
@@ -136,9 +137,9 @@ const EnvironmentAnimationManager: React.FC = () => {
       });
     }
 
-    // 3. Game Time - REMOVED: Now handled by CoreGameTimeAnimationManager (always-on)
-    // This prevents double-ticking when both managers are mounted.
-    // See CoreGameTimeSystem at the bottom of this file.
+    // 3. Game Time - REMOVED: Now handled by CentralTickProvider + UnifiedGameTick
+    // The old CoreGameTimeAnimationManager and gameTimeRegistry are deprecated.
+    // See src/systems/CentralTickProvider.tsx and src/systems/UnifiedGameTick.ts
 
     // 4. Update Power Flicker (every frame for smooth flicker)
     if (powerFlickerRegistry.size > 0) {
@@ -793,8 +794,9 @@ const LightShaft: React.FC<{ position: [number, number, number] }> = memo(({ pos
 });
 
 // Orphaned store integrations ticker - runs only when FactoryEnvironment is mounted
-// NOTE: Game time and production metrics are now handled by CoreGameTimeSystem (always-on)
-// This component only handles the supplemental orphaned store integrations.
+// NOTE: Game time and production metrics are now handled by CentralTickProvider + UnifiedGameTick.
+// This component only handles supplemental store integrations (BAS history, breakdowns, etc.)
+// that are specific to when FactoryEnvironment is mounted.
 const OrphanedStoresTicker: React.FC = () => {
   // Refs to track time since last tick for each orphaned store
   const lastBASHistoryTickRef = useRef(0);
@@ -864,7 +866,7 @@ const OrphanedStoresTicker: React.FC = () => {
         // Assume ~3 real seconds passed, game time delta is roughly delta * timeScale
         emergentStore.tickEmergentCooperation(0.05); // ~3 game seconds = ~0.05 game minutes
       }
-    }, 1000); // Check every second
+    }, 4000); // Check every 4 seconds (was 2s, then 1s - reduced for better perf)
 
     return () => clearInterval(intervalId);
   }, []);
@@ -1092,7 +1094,7 @@ export const FactoryEnvironment: React.FC = () => {
         />
       )}
 
-      {/* Enhanced Sky System with Day/Night Cycle, Clouds, and Horizon */}
+      {/* Enhanced Sky System with mountains and dynamic sky */}
       <React.Suspense fallback={null}>
         <SkySystem />
       </React.Suspense>
@@ -1438,8 +1440,12 @@ const RippleMesh: React.FC<{
 // Puddle reflections on floor during rain
 const PuddleReflections: React.FC = () => {
   const weather = useGameSimulationStore((state) => state.weather);
-  const quality = useGraphicsStore((state) => state.graphics.quality);
-  const enableFloorPuddles = useGraphicsStore((state) => state.graphics.enableFloorPuddles);
+  const { quality, enableFloorPuddles } = useGraphicsStore(
+    useShallow((state) => ({
+      quality: state.graphics.quality,
+      enableFloorPuddles: state.graphics.enableFloorPuddles,
+    }))
+  );
   const puddleRef = useRef<THREE.Group>(null);
   // Use a ref for ripple data and only re-render when adding new ripples
   const [rippleKeys, setRippleKeys] = useState<number[]>([]);
@@ -1841,7 +1847,7 @@ const SplashMesh: React.FC<{ data: SplashParticle }> = memo(({ data }) => {
 // Ceiling drips during/after rain with splash effects
 const CeilingDrips: React.FC = () => {
   const weather = useGameSimulationStore((state) => state.weather);
-  const quality = useGraphicsStore((state) => state.graphics.quality);
+  const quality = useGraphicsStore((state) => state.graphics.quality); // Single value - no useShallow needed
   const [dripKeys, setDripKeys] = useState<number[]>([]);
   const [splashKeys, setSplashKeys] = useState<number[]>([]);
   const dripDataRef = useRef<Map<number, { x: number; z: number }>>(new Map());
@@ -2176,8 +2182,12 @@ const LightningFlash: React.FC = () => {
 
 // Heat map visualization
 const HeatMapVisualization: React.FC = () => {
-  const heatMapData = useProductionStore((state) => state.heatMapData);
-  const showHeatMap = useProductionStore((state) => state.showHeatMap);
+  const { heatMapData, showHeatMap } = useProductionStore(
+    useShallow((state) => ({
+      heatMapData: state.heatMapData,
+      showHeatMap: state.showHeatMap,
+    }))
+  );
 
   if (!showHeatMap || heatMapData.length === 0) return null;
 
@@ -2207,19 +2217,24 @@ const HeatMapVisualization: React.FC = () => {
 };
 
 // =============================================================================
-// CORE GAME TIME SYSTEM - Always-on ticker independent of FactoryEnvironment
+// DEPRECATED: CORE GAME TIME SYSTEM
 // =============================================================================
-// This ensures game time advances even when FactoryEnvironment is disabled for
-// performance debugging. Without this, the sky freezes when disableEnvironment=true.
-// See docs/sky-time-cycle-investigation.md for details.
+// IMPORTANT: This system is DEPRECATED and DISABLED in MillScene.tsx.
+//
+// Game time is now advanced by the CentralTickProvider + UnifiedGameTick system:
+//   - CentralTickProvider (src/systems/CentralTickProvider.tsx) - React component that drives ticks
+//   - UnifiedGameTick (src/systems/UnifiedGameTick.ts) - Registered tick callback that advances game time
+//
+// The gameTimeRegistry is NO LONGER USED for game time advancement.
+// These components are kept for reference but should not be mounted.
+//
+// Migration (Dec 2024):
+// - OLD: CoreGameTimeSystem -> gameTimeRegistry -> tickGameTime()
+// - NEW: CentralTickProvider -> centralTick -> UnifiedGameTick -> direct setState()
 
 /**
- * Minimal animation manager that ONLY handles game time.
- * This is separate from EnvironmentAnimationManager which handles all the
- * environment effects (lens flares, power flicker, lighting, etc.)
- *
- * NOTE: Does NOT call incrementGlobalFrame() - that's handled by EnvironmentAnimationManager
- * when it's mounted. The frame counter is only needed for throttling visual effects.
+ * @deprecated Use CentralTickProvider + UnifiedGameTick instead.
+ * This component is kept for reference but should not be mounted.
  */
 const CoreGameTimeAnimationManager: React.FC = () => {
   const isTabVisible = useGameSimulationStore((state) => state.isTabVisible);
@@ -2230,13 +2245,13 @@ const CoreGameTimeAnimationManager: React.FC = () => {
 
     const time = state.clock.getElapsedTime();
 
-    // Update Game Time (runs every 500ms)
-    // This is the ONLY place that should iterate gameTimeRegistry
+    // DEPRECATED: This was the old game time advancement mechanism.
+    // It's still here in case gameTimeRegistry has entries, but should not be used.
     if (gameTimeRegistry.size > 0) {
       gameTimeRegistry.forEach((data) => {
         const now = time;
-        if (now - data.lastTickTime >= 0.5) {
-          data.tickGameTime(0.5);
+        if (now - data.lastTickTime >= 2.0) {
+          data.tickGameTime(2.0);
           data.lastTickTime = now;
         }
       });
@@ -2247,16 +2262,14 @@ const CoreGameTimeAnimationManager: React.FC = () => {
 };
 
 /**
- * Core game time ticker that registers with the animation manager.
- * This is a lightweight version of GameTimeTicker that only handles
- * the essential time advancement, without all the orphaned store updates.
+ * @deprecated Use CentralTickProvider + UnifiedGameTick instead.
+ * This component is kept for reference but should not be mounted.
  */
 const CoreGameTimeTicker: React.FC = () => {
   const tickGameTime = useGameSimulationStore((state) => state.tickGameTime);
-  const { tickMetrics, recalculateMetrics } = useProductionStore(
+  const { tickMetrics } = useProductionStore(
     useShallow((state) => ({
       tickMetrics: state.tickMetrics,
-      recalculateMetrics: state.recalculateMetrics,
     }))
   );
   const lastTickRef = useRef(0);
@@ -2265,10 +2278,7 @@ const CoreGameTimeTicker: React.FC = () => {
   useEffect(() => {
     const wrappedTickGameTime = (delta: number) => {
       tickGameTime(delta);
-      // Also tick production metrics to track uptime
       tickMetrics(delta);
-      // Recalculate derived metrics (efficiency, quality, throughput)
-      recalculateMetrics();
     };
 
     registerGameTime('core', {
@@ -2276,16 +2286,22 @@ const CoreGameTimeTicker: React.FC = () => {
       lastTickTime: lastTickRef.current,
     });
     return () => unregisterGameTime('core');
-  }, [tickGameTime, tickMetrics, recalculateMetrics]);
+  }, [tickGameTime, tickMetrics]);
 
   return null;
 };
 
 /**
- * CoreGameTimeSystem - Mount this UNCONDITIONALLY in MillScene.tsx
- * This ensures game time advances even when FactoryEnvironment is disabled.
+ * @deprecated Use CentralTickProvider instead.
+ *
+ * This component is DISABLED in MillScene.tsx. Game time is now advanced by:
+ *   <CentralTickProvider /> + useUnifiedGameTick()
+ *
+ * See src/systems/CentralTickProvider.tsx and src/systems/UnifiedGameTick.ts
  */
 export const CoreGameTimeSystem: React.FC = () => {
+  // This component should NOT be mounted - it's kept for backwards compatibility
+  // and to prevent import errors in case any code still references it.
   return (
     <>
       <CoreGameTimeAnimationManager />

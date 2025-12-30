@@ -146,7 +146,7 @@ export const AssetShowcase: React.FC<AssetShowcaseProps> = ({ onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/95 flex flex-col">
+    <div className="fixed inset-0 z-[1000] bg-slate-900/95 flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-slate-700">
         <div className="flex items-center gap-3">

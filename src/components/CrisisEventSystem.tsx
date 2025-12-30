@@ -252,9 +252,8 @@ const CrisisActionItems: React.FC = () => {
     });
   };
 
-  const completionRate = actionItems.length > 0
-    ? (completedActions.size / actionItems.length) * 100
-    : 0;
+  const completionRate =
+    actionItems.length > 0 ? (completedActions.size / actionItems.length) * 100 : 0;
 
   return (
     <motion.div
@@ -399,19 +398,20 @@ export const CrisisEventSystem: React.FC = () => {
 
   // Get affected machine position for smoke/fire effects
   const getAffectedPosition = (): [number, number, number] | null => {
-    if (crisisState.type === 'fire' && crisisState.affectedMachineId) {
-      // Map machine IDs to approximate positions (from MillScene zones)
-      const machinePositions: Record<string, [number, number, number]> = {
-        'RM-101': [-18, 4, -6],
-        'RM-102': [-10, 4, -6],
-        'RM-103': [-2, 4, -6],
-        'RM-104': [6, 4, -6],
-        'RM-105': [14, 4, -6],
-        'RM-106': [22, 4, -6],
-      };
-      return machinePositions[crisisState.affectedMachineId] || [0, 4, -6];
-    }
-    return null;
+    // Guard against null crisis type
+    if (!crisisState.type || crisisState.type !== 'fire') return null;
+    if (!crisisState.affectedMachineId) return null;
+
+    // Map machine IDs to approximate positions (from MillScene zones)
+    const machinePositions: Record<string, [number, number, number]> = {
+      'RM-101': [-18, 4, -6],
+      'RM-102': [-10, 4, -6],
+      'RM-103': [-2, 4, -6],
+      'RM-104': [6, 4, -6],
+      'RM-105': [14, 4, -6],
+      'RM-106': [22, 4, -6],
+    };
+    return machinePositions[crisisState.affectedMachineId] || [0, 4, -6];
   };
 
   const firePosition = getAffectedPosition();
@@ -482,7 +482,7 @@ export const CrisisControlPanel: React.FC<{ show: boolean; onClose: () => void }
       initial={{ opacity: 0, scale: 0.9 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.9 }}
-      className="fixed inset-4 md:inset-auto md:left-1/2 md:top-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-[500px] bg-slate-900/98 backdrop-blur-xl rounded-2xl border border-slate-700/50 shadow-2xl z-50 pointer-events-auto"
+      className="fixed inset-4 md:inset-auto md:left-1/2 md:top-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-[500px] bg-slate-900/98 backdrop-blur-xl rounded-2xl border border-slate-700/50 shadow-2xl z-[1000] pointer-events-auto"
     >
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-slate-800">

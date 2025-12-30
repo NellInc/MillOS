@@ -54,6 +54,7 @@ export class WebSocketAdapter implements IProtocolAdapter {
   private lastError: string | undefined;
   private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
   private heartbeatInterval: ReturnType<typeof setInterval> | null = null;
+  private isDisconnecting = false; // Prevents reconnection after deliberate disconnect
 
   // Statistics
   private stats = {
@@ -75,6 +76,9 @@ export class WebSocketAdapter implements IProtocolAdapter {
 
   async connect(): Promise<void> {
     if (this.connected) return;
+
+    // Reset the disconnecting flag when connecting
+    this.isDisconnecting = false;
 
     const wsUrl = this.config.proxyUrl ?? this.config.baseUrl;
     if (!wsUrl) {
@@ -139,6 +143,9 @@ export class WebSocketAdapter implements IProtocolAdapter {
   }
 
   async disconnect(): Promise<void> {
+    // Set flag to prevent reconnection attempts after deliberate disconnect
+    this.isDisconnecting = true;
+
     this.stopReconnect();
     this.stopHeartbeat();
 
@@ -150,6 +157,9 @@ export class WebSocketAdapter implements IProtocolAdapter {
     this.connected = false;
     this.lastDisconnectTime = Date.now();
     this.values.clear();
+    // Clear subscribers to prevent memory leaks across reconnects
+    this.subscribers.clear();
+    this.globalSubscribers.clear();
   }
 
   isConnected(): boolean {
@@ -363,6 +373,11 @@ export class WebSocketAdapter implements IProtocolAdapter {
     this.connected = false;
     this.lastDisconnectTime = Date.now();
     this.ws = null;
+
+    // Don't attempt reconnection if this was a deliberate disconnect
+    if (this.isDisconnecting) {
+      return;
+    }
 
     // Attempt reconnection
     if (this.reconnectAttempts < 10) {

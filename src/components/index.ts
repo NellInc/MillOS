@@ -29,7 +29,10 @@ export {
   PulsingIndicator,
 } from './ambient/utilities';
 // Import AmbientDetailsGroup from dedicated file to avoid barrel export conflicts
-export { AmbientDetailsGroup, AmbientDetailsGroup as AmbientDetails } from './ambient/AmbientDetailsGroup';
+export {
+  AmbientDetailsGroup,
+  AmbientDetailsGroup as AmbientDetails,
+} from './ambient/AmbientDetailsGroup';
 
 // === UI Overlay Components ===
 export { UIOverlay } from './UIOverlay';

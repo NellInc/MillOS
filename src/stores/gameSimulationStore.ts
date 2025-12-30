@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware';
 import { safeJSONStorage } from './storage';
 import { audioManager } from '../utils/audioManager';
 import { useProductionStore } from './productionStore';
+import { useSafetyStore } from './safetyStore';
 
 export type CelebrationType = 'milestone' | 'zero_incident' | 'target_met' | 'shift_complete';
 
@@ -104,6 +105,7 @@ interface GameSimulationStore {
 
   // Game Time (24-hour cycle)
   gameTime: number; // 0-24 representing hour of day
+  gameDay: number; // Counter for total simulation days elapsed
   gameSpeed: number; // 0 = paused, 60 = 1 real sec = 1 game min, 600 = 1 real sec = 10 game mins
   setGameTime: (time: number) => void;
   setGameSpeed: (speed: number) => void;
@@ -355,10 +357,16 @@ const findNearestExit = (x: number, z: number): FireDrillExit => {
   return nearestExit;
 };
 
-// Throttling for tickGameTime - update every 100ms instead of every frame
+// LEGACY: tickGameTime throttling
+// NOTE: Game time is now primarily advanced by UnifiedGameTick (via CentralTickProvider)
+// which directly sets gameTime and gameDay. This tickGameTime function is kept for
+// backwards compatibility but should not be called in the main tick path.
+//
+// If this is called, we still need safety limits to prevent runaway time jumps.
 let lastTickTime = 0;
 let accumulatedDelta = 0;
 const TICK_INTERVAL = 100; // Update every 100ms
+const MAX_ACCUMULATED_DELTA = 0.5; // Cap accumulation to prevent huge time jumps
 
 export const useGameSimulationStore = create<GameSimulationStore>()(
   persist(
@@ -371,6 +379,7 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
       // gameSpeed: seconds of game time per real second (60 = 1 min/sec, 600 = 10 min/sec)
       // 180 = 1 game day = 8 real minutes (24 hours in 480 seconds)
       gameTime: 10,
+      gameDay: 0, // Days elapsed since simulation start
       gameSpeed: 180, // Default: 1 game day = 8 real minutes
 
       setGameTime: (time) => set({ gameTime: ((time % 24) + 24) % 24 }), // Handle negative wrap
@@ -378,16 +387,22 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
       setGameSpeed: (speed) => set({ gameSpeed: speed }),
 
       tickGameTime: (deltaSeconds) => {
+        // LEGACY: This function is kept for backwards compatibility.
+        // Primary game time advancement is now done by UnifiedGameTick.
+
+        // Cap incoming delta to prevent huge time jumps
+        const cappedDelta = Math.min(deltaSeconds, 0.1);
+
         // Throttle updates to every 100ms to reduce re-renders
         const now = Date.now();
         if (now - lastTickTime < TICK_INTERVAL) {
-          // Accumulate delta for accuracy
-          accumulatedDelta += deltaSeconds;
+          // Accumulate delta for accuracy, but cap to prevent runaway accumulation
+          accumulatedDelta = Math.min(accumulatedDelta + cappedDelta, MAX_ACCUMULATED_DELTA);
           return;
         }
 
-        // Add accumulated delta to current delta
-        const totalDelta = deltaSeconds + accumulatedDelta;
+        // Add accumulated delta to current delta (both already capped)
+        const totalDelta = Math.min(cappedDelta + accumulatedDelta, MAX_ACCUMULATED_DELTA);
         accumulatedDelta = 0;
         lastTickTime = now;
 
@@ -403,6 +418,10 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
           if (newTime >= 24) newTime = 0;
           if (Object.is(newTime, -0)) newTime = 0;
 
+          // Detect midnight crossover (old time was late evening, new time is early morning)
+          const crossedMidnight = state.gameTime >= 20 && newTime < 4;
+          const newGameDay = crossedMidnight ? state.gameDay + 1 : state.gameDay;
+
           // Calculate expected shift based on new time (handles midnight crossover correctly)
           const expectedShift = getShiftForHour(newTime);
 
@@ -410,6 +429,7 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
           if (expectedShift !== state.currentShift) {
             return {
               gameTime: newTime,
+              gameDay: newGameDay,
               currentShift: expectedShift,
               shiftStartTime: Date.now(),
               shiftData: {
@@ -423,13 +443,14 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
             };
           }
 
-          return { gameTime: newTime };
+          return { gameTime: newTime, gameDay: newGameDay };
         });
       },
 
       resetGameState: () =>
         set({
           gameTime: 10,
+          gameDay: 0,
           gameSpeed: 180,
           shiftData: createDefaultShiftData(),
           currentShift: 'morning',
@@ -443,6 +464,7 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
         // Reset to defaults
         set({
           gameTime: 10,
+          gameDay: 0,
           gameSpeed: 180,
           weather: 'clear',
           shiftData: createDefaultShiftData(),
@@ -781,6 +803,9 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
         const state = get();
         const productionStore = useProductionStore.getState();
 
+        // Preserve drill state if drill is active (resolving emergency shouldn't end drill)
+        const isDrillActive = state.emergencyDrillMode && state.drillMetrics.active;
+
         // Restore machine statuses from before emergency
         state.preEmergencyMachineStatuses.forEach((status, machineId) => {
           // Only restore if machine is currently idle (set by emergency stop)
@@ -793,9 +818,10 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
         });
 
         set({
-          emergencyActive: false,
-          emergencyMachineId: null,
-          emergencyDrillMode: false,
+          // Preserve emergency state if drill is active
+          emergencyActive: isDrillActive ? state.emergencyActive : false,
+          emergencyMachineId: isDrillActive ? state.emergencyMachineId : null,
+          emergencyDrillMode: isDrillActive ? state.emergencyDrillMode : false,
           preEmergencyMachineStatuses: new Map(),
         });
       },
@@ -804,6 +830,12 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
       drillMetrics: createDefaultDrillMetrics(),
 
       startEmergencyDrill: (totalWorkers: number) => {
+        // Mutual exclusion: cannot start drill during active crisis
+        if (get().crisisState.active) {
+          console.warn('Cannot start drill during active crisis');
+          return;
+        }
+
         // Start alarm sound and queue funny PA announcement
         audioManager.startEmergencyAlarm();
         // Add fire drill announcement to PA system
@@ -831,6 +863,10 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
       },
 
       endEmergencyDrill: () => {
+        // FIX: Add idempotency guard to prevent double-end calls
+        // This prevents issues when cleanup is called multiple times
+        if (!get().emergencyDrillMode) return;
+
         // Stop alarm sound
         audioManager.stopEmergencyAlarm();
 
@@ -840,6 +876,8 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
           emergencyDrillMode: false,
           drillMetrics: createDefaultDrillMetrics(),
         });
+        // Reset forklift emergency stop so they can move again (stored in safetyStore)
+        useSafetyStore.getState().setForkliftEmergencyStop(false);
       },
 
       markWorkerEvacuated: (workerId: string) =>
@@ -874,28 +912,36 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
       // Crisis system
       crisisState: createDefaultCrisisState(),
 
-      triggerCrisis: (type, severity, metadata = {}) =>
-        set((state) => {
-          // Only allow one crisis at a time
-          if (state.crisisState.active) return {};
+      triggerCrisis: (type, severity, metadata = {}) => {
+        const state = get();
+        // Mutual exclusion: cannot trigger crisis during active drill
+        if (state.emergencyDrillMode || state.drillMetrics.active) {
+          console.warn('Cannot trigger crisis during active drill');
+          return;
+        }
+        // Only allow one crisis at a time
+        if (state.crisisState.active) return;
 
-          return {
-            crisisState: {
-              active: true,
-              type,
-              severity,
-              startTime: Date.now(),
-              affectedMachineId: metadata.affectedMachineId as string | undefined,
-              metadata,
-            },
-          };
-        }),
+        set({
+          crisisState: {
+            active: true,
+            type,
+            severity,
+            startTime: Date.now(),
+            affectedMachineId: metadata.affectedMachineId as string | undefined,
+            metadata,
+          },
+        });
+      },
 
       resolveCrisis: () =>
         set((state) => ({
           crisisState: {
             ...state.crisisState,
             active: false,
+            type: null, // Clear crisis type to prevent stale state
+            affectedMachineId: undefined, // Clear affected machine
+            severity: 'medium', // Reset to default severity
           },
         })),
 
@@ -1017,8 +1063,97 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
           state.shiftData = createDefaultShiftData();
         }
 
-        // Initialize crisis state if missing
-        if (state && !state.crisisState) {
+        // FIX: Add validation for shiftData nested properties
+        // Validate supervisor names, shift values, and incident types
+        if (state && state.shiftData) {
+          const shiftData = state.shiftData;
+
+          // Validate currentShift is a valid value
+          const validShifts: Array<'morning' | 'afternoon' | 'night'> = [
+            'morning',
+            'afternoon',
+            'night',
+          ];
+          if (!validShifts.includes(shiftData.currentShift)) {
+            shiftData.currentShift = getShiftForHour(state.gameTime ?? 10);
+          }
+
+          // Validate supervisor names are strings (could be corrupted)
+          if (typeof shiftData.outgoingSupervisor !== 'string') {
+            shiftData.outgoingSupervisor = '';
+          }
+          if (typeof shiftData.incomingSupervisor !== 'string') {
+            shiftData.incomingSupervisor = getSupervisorForShift(shiftData.currentShift);
+          }
+
+          // Validate handoverPhase is a valid value
+          const validPhases: Array<'idle' | 'briefing' | 'handover' | 'summary'> = [
+            'idle',
+            'briefing',
+            'handover',
+            'summary',
+          ];
+          if (!validPhases.includes(shiftData.handoverPhase)) {
+            shiftData.handoverPhase = 'idle';
+          }
+
+          // Validate shiftIncidents array - filter out invalid entries
+          if (Array.isArray(shiftData.shiftIncidents)) {
+            const validIncidentTypes = [
+              'machine_failure',
+              'safety_alert',
+              'quality_issue',
+              'efficiency_drop',
+            ];
+            const validSeverities = ['low', 'medium', 'high', 'critical'];
+            shiftData.shiftIncidents = shiftData.shiftIncidents.filter(
+              (inc) =>
+                inc &&
+                typeof inc === 'object' &&
+                validIncidentTypes.includes(inc.type) &&
+                validSeverities.includes(inc.severity) &&
+                typeof inc.description === 'string' &&
+                typeof inc.timestamp === 'number' &&
+                typeof inc.resolved === 'boolean'
+            );
+          } else {
+            shiftData.shiftIncidents = [];
+          }
+
+          // Validate shiftProduction has valid numeric values
+          if (!shiftData.shiftProduction || typeof shiftData.shiftProduction !== 'object') {
+            shiftData.shiftProduction = { target: 1200, actual: 0, efficiency: 0 };
+          } else {
+            const prod = shiftData.shiftProduction;
+            if (typeof prod.target !== 'number' || prod.target < 0) prod.target = 1200;
+            if (typeof prod.actual !== 'number' || prod.actual < 0) prod.actual = 0;
+            if (typeof prod.efficiency !== 'number' || prod.efficiency < 0) prod.efficiency = 0;
+          }
+
+          // Ensure arrays exist and are valid
+          if (!Array.isArray(shiftData.priorities)) {
+            shiftData.priorities = getShiftPriorities(shiftData.currentShift);
+          }
+          if (!Array.isArray(shiftData.previousShiftNotes)) {
+            shiftData.previousShiftNotes = [];
+          }
+          if (!Array.isArray(shiftData.workerAssignments)) {
+            shiftData.workerAssignments = [];
+          }
+          if (!Array.isArray(shiftData.clockedInWorkerIds)) {
+            shiftData.clockedInWorkerIds = [];
+          }
+          if (!Array.isArray(shiftData.clockedOutWorkerIds)) {
+            shiftData.clockedOutWorkerIds = [];
+          }
+          if (!Array.isArray(shiftData.handoffConversations)) {
+            shiftData.handoffConversations = [];
+          }
+        }
+
+        // Initialize crisis state if missing OR clear stale active crisis
+        // (crises should not persist across sessions - always start fresh)
+        if (state && (!state.crisisState || state.crisisState.active)) {
           state.crisisState = createDefaultCrisisState();
         }
       },

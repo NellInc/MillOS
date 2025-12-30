@@ -328,9 +328,8 @@ export const useStabilityStore = create<StabilityState>((set, get) => ({
     // Guard against empty slices (recent is guaranteed 5+ from slice, but older could be empty)
     if (recent.length === 0) return 'stable';
     const recentAvg = recent.reduce((s, d) => s + d.product, 0) / recent.length;
-    const olderAvg = older.length > 0
-      ? older.reduce((s, d) => s + d.product, 0) / older.length
-      : recentAvg;
+    const olderAvg =
+      older.length > 0 ? older.reduce((s, d) => s + d.product, 0) / older.length : recentAvg;
 
     const change = recentAvg - olderAvg;
 

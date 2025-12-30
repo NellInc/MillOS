@@ -236,76 +236,76 @@ export const ShiftHandoverSummary: React.FC = () => {
             </div>
           </div>
 
-            {/* Content */}
-            <div className="p-3 space-y-2 max-h-64 overflow-y-auto">
-              {/* Time range */}
-              <div className="flex items-center gap-2 text-xs text-slate-400">
-                <Clock className="w-3 h-3" />
-                <span>{summary.startTime}:00</span>
-                <ArrowRight className="w-2 h-2" />
-                <span>{summary.endTime.toFixed(0)}:00</span>
-              </div>
+          {/* Content */}
+          <div className="p-3 space-y-2 max-h-64 overflow-y-auto">
+            {/* Time range */}
+            <div className="flex items-center gap-2 text-xs text-slate-400">
+              <Clock className="w-3 h-3" />
+              <span>{summary.startTime}:00</span>
+              <ArrowRight className="w-2 h-2" />
+              <span>{summary.endTime.toFixed(0)}:00</span>
+            </div>
 
-              {/* Accomplishments */}
-              <div>
-                <h3 className="text-[10px] font-medium text-green-400 uppercase mb-1">
-                  Accomplishments
-                </h3>
-                <div className="space-y-0.5">
-                  {summary.accomplishments.slice(0, 2).map((item, i) => (
-                    <div key={i} className="flex items-start gap-1 text-xs text-slate-300">
-                      <CheckCircle className="w-3 h-3 text-green-400 mt-0.5 flex-shrink-0" />
-                      <span className="line-clamp-1">{item}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Issues */}
-              {summary.issues.length > 0 && (
-                <div>
-                  <h3 className="text-[10px] font-medium text-red-400 uppercase mb-1">Issues</h3>
-                  <div className="space-y-0.5">
-                    {summary.issues.slice(0, 2).map((item, i) => (
-                      <div key={i} className="flex items-start gap-1 text-xs text-slate-300">
-                        <AlertTriangle className="w-3 h-3 text-red-400 mt-0.5 flex-shrink-0" />
-                        <span className="line-clamp-1">{item}</span>
-                      </div>
-                    ))}
+            {/* Accomplishments */}
+            <div>
+              <h3 className="text-[10px] font-medium text-green-400 uppercase mb-1">
+                Accomplishments
+              </h3>
+              <div className="space-y-0.5">
+                {summary.accomplishments.slice(0, 2).map((item, i) => (
+                  <div key={i} className="flex items-start gap-1 text-xs text-slate-300">
+                    <CheckCircle className="w-3 h-3 text-green-400 mt-0.5 flex-shrink-0" />
+                    <span className="line-clamp-1">{item}</span>
                   </div>
-                </div>
-              )}
+                ))}
+              </div>
+            </div>
 
-              {/* Handover Notes */}
+            {/* Issues */}
+            {summary.issues.length > 0 && (
               <div>
-                <h3 className="text-[10px] font-medium text-amber-400 uppercase mb-1">Notes</h3>
+                <h3 className="text-[10px] font-medium text-red-400 uppercase mb-1">Issues</h3>
                 <div className="space-y-0.5">
-                  {summary.handoverNotes.slice(0, 2).map((item, i) => (
+                  {summary.issues.slice(0, 2).map((item, i) => (
                     <div key={i} className="flex items-start gap-1 text-xs text-slate-300">
-                      <ArrowRight className="w-3 h-3 text-amber-400 mt-0.5 flex-shrink-0" />
+                      <AlertTriangle className="w-3 h-3 text-red-400 mt-0.5 flex-shrink-0" />
                       <span className="line-clamp-1">{item}</span>
                     </div>
                   ))}
                 </div>
               </div>
-            </div>
+            )}
 
-            {/* Footer */}
-            <div className="px-3 py-2 border-t border-slate-700/50 space-y-1">
-              <button
-                onClick={() => setShowSummary(false)}
-                className="w-full py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 rounded text-xs font-medium transition-colors"
-              >
-                Acknowledge
-              </button>
-              <button
-                onClick={handleNeverShow}
-                className="w-full py-1 flex items-center justify-center gap-1 text-slate-500 hover:text-slate-300 text-[10px] transition-colors"
-              >
-                <EyeOff className="w-2.5 h-2.5" />
-                Don't show again
-              </button>
+            {/* Handover Notes */}
+            <div>
+              <h3 className="text-[10px] font-medium text-amber-400 uppercase mb-1">Notes</h3>
+              <div className="space-y-0.5">
+                {summary.handoverNotes.slice(0, 2).map((item, i) => (
+                  <div key={i} className="flex items-start gap-1 text-xs text-slate-300">
+                    <ArrowRight className="w-3 h-3 text-amber-400 mt-0.5 flex-shrink-0" />
+                    <span className="line-clamp-1">{item}</span>
+                  </div>
+                ))}
+              </div>
             </div>
+          </div>
+
+          {/* Footer */}
+          <div className="px-3 py-2 border-t border-slate-700/50 space-y-1">
+            <button
+              onClick={() => setShowSummary(false)}
+              className="w-full py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 rounded text-xs font-medium transition-colors"
+            >
+              Acknowledge
+            </button>
+            <button
+              onClick={handleNeverShow}
+              className="w-full py-1 flex items-center justify-center gap-1 text-slate-500 hover:text-slate-300 text-[10px] transition-colors"
+            >
+              <EyeOff className="w-2.5 h-2.5" />
+              Don't show again
+            </button>
+          </div>
         </motion.div>
       )}
     </AnimatePresence>

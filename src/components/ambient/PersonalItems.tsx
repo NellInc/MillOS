@@ -328,4 +328,3 @@ export const CoffeeCup: React.FC<{
 };
 
 // First aid kit wall box
-

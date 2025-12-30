@@ -556,4 +556,3 @@ export const AccidentBoard: React.FC<{
 };
 
 // Employee of the month photo frame
-

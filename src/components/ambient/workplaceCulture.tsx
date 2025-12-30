@@ -189,7 +189,9 @@ export const WallCalendar: React.FC<{
 
 // Forgotten birthday decorations
 
-export const BirthdayDecorations: React.FC<{ position: [number, number, number] }> = ({ position }) => {
+export const BirthdayDecorations: React.FC<{ position: [number, number, number] }> = ({
+  position,
+}) => {
   const balloonRef = useRef<THREE.Group>(null);
   const streamersRef = useRef<THREE.Group>(null);
 
@@ -647,4 +649,3 @@ export const FactoryWallClock: React.FC<{
 };
 
 // Fire extinguisher station with animated inspection tag
-

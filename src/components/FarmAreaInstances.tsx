@@ -750,7 +750,10 @@ export const InstancedSheep: React.FC<{
         args={[SHEEP_GEO.earRight, ANIMAL_MATERIALS.sheepFace, count]}
         castShadow
       />
-      <instancedMesh ref={eyeLeftRef} args={[SHEEP_GEO.eyeLeft, ANIMAL_MATERIALS.sheepEye, count]} />
+      <instancedMesh
+        ref={eyeLeftRef}
+        args={[SHEEP_GEO.eyeLeft, ANIMAL_MATERIALS.sheepEye, count]}
+      />
       <instancedMesh
         ref={eyeRightRef}
         args={[SHEEP_GEO.eyeRight, ANIMAL_MATERIALS.sheepEye, count]}

@@ -9,7 +9,7 @@ import { Cat } from './scenery/Cat';
 import { PineTree } from './scenery/Tree';
 import { DrainageCulvert } from './scenery/Tunnel';
 import { PROCEDURAL_TEXTURES, OUTDOOR_MATERIALS } from '../utils/sharedMaterials';
-import { EXTERIOR_LAYERS, POLYGON_OFFSET, RENDER_ORDER } from '../constants/renderLayers';
+import { RENDER_ORDER } from '../constants/renderLayers';
 
 // Create farm-specific cobble textures with proper world-scale repeat
 // Barnyard is 20x15 units, path is 3x14 units - tile every 10 units
@@ -1428,6 +1428,8 @@ export const FarmArea: React.FC = () => {
 
   // SINGLE useFrame - THROTTLED/BATCHED
   useFrame((state, delta) => {
+    // Cap delta for tab-switch recovery (prevents large jumps after tab is inactive)
+    const cappedDelta = Math.min(delta, 0.1);
     frameCountRef.current++;
     const time = state.clock.elapsedTime;
 
@@ -1439,7 +1441,7 @@ export const FarmArea: React.FC = () => {
     // Animals: every 2nd frame for smooth movement (30 FPS)
     // We update movement slightly more often than the body animations (pecking/wagging)
     if (frameCountRef.current % 2 === 0) {
-      const adjustDelta = delta * 2; // Compensate for skipping frames
+      const adjustDelta = cappedDelta * 2; // Compensate for skipping frames
 
       // Chickens
       chickenRefs.forEach((ref, i) => {
@@ -1480,7 +1482,7 @@ export const FarmArea: React.FC = () => {
       chickenJumpStates.current.forEach((val, i) => {
         if (val > 0 && chickenRefs[i].current) {
           chickenRefs[i].current.position.y = Math.sin(val * Math.PI) * 0.5;
-          chickenJumpStates.current[i] = Math.max(0, val - delta * 3);
+          chickenJumpStates.current[i] = Math.max(0, val - cappedDelta * 3);
           if (chickenJumpStates.current[i] === 0) chickenRefs[i].current.position.y = 0;
         }
       });
@@ -1489,7 +1491,7 @@ export const FarmArea: React.FC = () => {
         if (val > 0 && pigRefs[i].current) {
           // Pigs wiggle
           pigRefs[i].current.rotation.z = Math.sin(val * 20) * 0.1;
-          pigJumpStates.current[i] = Math.max(0, val - delta * 2);
+          pigJumpStates.current[i] = Math.max(0, val - cappedDelta * 2);
           if (pigJumpStates.current[i] === 0) pigRefs[i].current.rotation.z = 0;
         }
       });
@@ -1498,7 +1500,7 @@ export const FarmArea: React.FC = () => {
       cowJumpStates.current.forEach((val, i) => {
         if (val > 0 && cowHeadRefs[i].current) {
           cowHeadRefs[i].current.rotation.z = Math.sin(val * 15) * 0.2;
-          cowJumpStates.current[i] = Math.max(0, val - delta * 2);
+          cowJumpStates.current[i] = Math.max(0, val - cappedDelta * 2);
           if (cowJumpStates.current[i] === 0) cowHeadRefs[i].current.rotation.z = 0;
         }
       });
@@ -1507,7 +1509,7 @@ export const FarmArea: React.FC = () => {
       sheepJumpStates.current.forEach((val, i) => {
         if (val > 0 && sheepRefs[i].current) {
           sheepRefs[i].current.position.y = Math.sin(val * Math.PI) * 0.5;
-          sheepJumpStates.current[i] = Math.max(0, val - delta * 3);
+          sheepJumpStates.current[i] = Math.max(0, val - cappedDelta * 3);
           if (sheepJumpStates.current[i] === 0) sheepRefs[i].current.position.y = 0;
         }
       });
@@ -1570,41 +1572,18 @@ export const FarmArea: React.FC = () => {
 
   return (
     <group position={[75, 0, 120]} rotation={[0, Math.PI, 0]}>
-      {/* Farm grass ground - exteriorBase */}
-      <mesh position={[0, EXTERIOR_LAYERS.ground, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <primitive object={SG.farmGround} attach="geometry" />
-        <primitive object={SM.grass} attach="material" />
-      </mesh>
-      {/* Cobblestone courtyard in front of barn - exteriorMid (on top of grass) */}
-      <mesh
-        position={[0, EXTERIOR_LAYERS.ground, -10]}
-        rotation={[-Math.PI / 2, 0, 0]}
-        receiveShadow
-      >
+      {/* Barnyard cobblestone ground */}
+      <mesh position={[0, 0.08, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <planeGeometry args={[20, 15]} />
         <meshStandardMaterial
+          color="#9a9a9a"
           map={farmBarnyardCobbleColor}
           normalMap={farmBarnyardCobbleNormal}
+          normalScale={new THREE.Vector2(0.4, 0.4)}
           roughness={0.85}
           polygonOffset
-          polygonOffsetFactor={POLYGON_OFFSET.exteriorMid.factor}
-          polygonOffsetUnits={POLYGON_OFFSET.exteriorMid.units}
-        />
-      </mesh>
-      {/* Cobblestone path to farmhouse - exteriorTop (on top of courtyard) */}
-      <mesh
-        position={[-10, EXTERIOR_LAYERS.ground, 5]}
-        rotation={[-Math.PI / 2, 0, 0]}
-        receiveShadow
-      >
-        <planeGeometry args={[3, 14]} />
-        <meshStandardMaterial
-          map={farmPathCobbleColor}
-          normalMap={farmPathCobbleNormal}
-          roughness={0.85}
-          polygonOffset
-          polygonOffsetFactor={POLYGON_OFFSET.exteriorTop.factor}
-          polygonOffsetUnits={POLYGON_OFFSET.exteriorTop.units}
+          polygonOffsetFactor={-2}
+          polygonOffsetUnits={-2}
         />
       </mesh>
       <Barn position={[0, 0, 0]} />
@@ -1630,14 +1609,25 @@ export const FarmArea: React.FC = () => {
         <FenceSection position={[0, 0, 3]} length={6} />
         <FenceSection position={[-3, 0, 0]} rotation={Math.PI / 2} length={6} />
         <FenceSection position={[3, 0, 0]} rotation={Math.PI / 2} length={6} />
-        {/* Mud puddle */}
+        {/* Mud puddle - raised above TerrainGround (y=0.05) to prevent z-fighting */}
         <mesh
-          position={[0, EXTERIOR_LAYERS.ground, 0]}
+          position={[0, 0.08, 0]}
           rotation={[-Math.PI / 2, 0, 0]}
           renderOrder={RENDER_ORDER.floorEffects}
         >
           <primitive object={SG.mudPuddle} attach="geometry" />
-          <primitive object={SM.mud} attach="material" />
+          <meshStandardMaterial
+            color="#5c4d3d"
+            map={PROCEDURAL_TEXTURES.mudColor}
+            roughnessMap={PROCEDURAL_TEXTURES.mudRoughness}
+            roughness={0.9}
+            transparent
+            opacity={0.95}
+            depthWrite={false}
+            polygonOffset
+            polygonOffsetFactor={-2}
+            polygonOffsetUnits={-2}
+          />
         </mesh>
         {/** Pigs are now positioned at top level relative to FarmArea, not inside this group, 
              so that they can move freely within the fence bounds defined in world/farm space.

@@ -93,7 +93,7 @@ Label uncertainty clearly: `[Inference]`, `[Speculation]`, `[Unverified]`. Never
 ---
 
 ## Quick Navigation
-[Sacred Rules](#-sacred-rules-never-violate) | [Quality Standards](#️-quality-standards-zero-tolerance) | [Geoffrey Pattern](#-geoffrey-pattern-workflow-mandatory) | [TypeScript Cascade Prevention](#-typescript-cascade-prevention) | [Development Workflow](#development-workflow-three-phases)
+[Sacred Rules](#-sacred-rules-never-violate) | [Quality Standards](#️-quality-standards-zero-tolerance) | [Geoffrey Pattern](#-geoffrey-pattern-workflow-mandatory) | [TypeScript Cascade Prevention](#-typescript-cascade-prevention) | [Development Workflow](#development-workflow-three-phases) | [React State Sync](#react-state-synchronization-patterns)
 
 ---
 
@@ -387,6 +387,31 @@ Available icon imports from `lucide-react`:
 - Workers: `User`, `Briefcase`, `HardHat`, `Wrench`, `FlaskConical`, `Shield`
 
 ## Known Graphics Issues
+
+### Shader Cache Key Bug (Fixed 2025-12-29)
+
+**Symptom:** App "sticks" or stutters approximately every second, regardless of graphics quality.
+
+**Root Cause:** Using `Date.now()` in `customProgramCacheKey` forces shader recompilation every frame.
+
+```typescript
+// BAD - Forces shader recompile 60 times per second!
+mat.customProgramCacheKey = () => `terrain_v9_${Date.now()}`;
+
+// GOOD - Stable cache key based on actual config
+mat.customProgramCacheKey = () => `terrain_v10_${hasDisplacement ? 'disp' : 'nodisp'}`;
+```
+
+**Why It Matters:** Three.js uses `customProgramCacheKey` to determine if a shader needs recompilation. If the key changes every frame, WebGL recompiles the shader program continuously, causing severe performance degradation.
+
+**Prevention Rules:**
+1. **NEVER use `Date.now()`, `Math.random()`, or any non-deterministic value in `customProgramCacheKey`**
+2. Cache keys should only change when the shader's actual configuration changes
+3. If debugging shader injection, use a version number you manually increment, not a timestamp
+
+**Related GC Pressure Fixes (same session):**
+- `SmartForklift.tsx`: Replaced `new THREE.Vector3()` in useFrame with module-level reusable vectors
+- `Environment.tsx`: Replaced per-frame Vector3 allocations in lens flare updates with reusable `_cameraDir`, `_lightPos`, `_toCamera`
 
 ### Flickering on Medium+ Quality Settings
 
@@ -690,3 +715,63 @@ const villageCobbleMaterial = new THREE.MeshStandardMaterial({
 2. **transparent: true affects rendering** - Materials with transparency may need color tinting to compensate
 3. **Module-level materials vs inline JSX** - Can behave differently with textures
 4. **Test exterior changes visually** - Z-fighting fixes can introduce new visual issues
+
+## React State Synchronization Patterns
+
+### useSyncExternalStore Race Conditions (Fixed 2025-12-30)
+
+**Symptom:** UI elements flash briefly despite state checks. Example: PA announcements appearing momentarily when muted.
+
+**Root Cause:** `useSyncExternalStore` notifications can lag behind direct property changes. When external state changes:
+
+1. Property is set (e.g., `audioManager.muted = true`)
+2. `notifyListeners()` is called
+3. React schedules re-render
+4. Meanwhile, other events trigger renders with stale hook values
+5. Brief flash before updated value propagates
+
+**The Pattern: Multi-Layer Defense**
+
+When a React hook wraps external state and timing matters, use belt-and-suspenders:
+
+```tsx
+// Layer 1: PREVENTION - Don't create events when condition is true
+// In scheduler/producer code:
+if (audioManager.muted) return; // Skip creation entirely
+
+// Layer 2: RENDER GATE - Check BOTH hook AND direct property
+const isMuted = useAudioMuted(); // Reactive hook
+if (isMuted || audioManager.muted) return null; // Synchronous backup
+
+// Layer 3: EFFECT GATE - Same dual check in effects
+useEffect(() => {
+  if (isMuted || audioManager.muted) return;
+  // ... effect logic
+}, [isMuted, /* other deps */]);
+
+// Layer 4: CLEANUP - Dismiss/clear anything that slips through
+useEffect(() => {
+  if (isMuted && currentItem) {
+    dismissItem(currentItem.id);
+  }
+}, [isMuted, currentItem]);
+```
+
+**Key Files Using This Pattern:**
+
+| File | Purpose |
+|------|---------|
+| `src/components/game/PAAnnouncementSystem.tsx` | Multi-layer muted checks |
+| `src/components/game/shared.tsx` | Scheduler muted prevention |
+
+**When to Apply This Pattern:**
+
+- External state (audio, WebSocket, localStorage) wrapped in React hooks
+- UI that must respond immediately to state changes (no flicker tolerance)
+- Time-sensitive features where even one-frame delays are noticeable
+
+**When NOT Needed:**
+
+- Pure React state (useState, useReducer) - already synchronous
+- State where brief inconsistency is acceptable
+- Read-only displays that don't need immediate sync

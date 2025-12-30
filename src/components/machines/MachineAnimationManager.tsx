@@ -4,12 +4,7 @@ import { useGraphicsStore } from '../../stores/graphicsStore';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { shouldRunThisFrame } from '../../utils/frameThrottle';
 import { useBassLevel } from '../../stores/audioAnalyzerStore';
-import {
-  rollerRegistry,
-  panelRegistry,
-  shaderRegistry,
-  LED_COLORS,
-} from './shared';
+import { rollerRegistry, panelRegistry, shaderRegistry, LED_COLORS } from './shared';
 
 // Manager component to handle all animations in a single consolidated loop
 export const MachineAnimationManager: React.FC = () => {

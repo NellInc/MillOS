@@ -5,6 +5,7 @@ import { X, Volume2, Clock, Shield, AlertTriangle, Package } from 'lucide-react'
 import { useAnnouncementsStore } from '../../stores/announcementsStore';
 import { usePAScheduler, useEventAnnouncementScheduler } from './shared';
 import { useMobileDetection } from '../../hooks/useMobileDetection';
+import { useAudioMuted } from '../../hooks/useAudioState';
 import { audioManager } from '../../utils/audioManager';
 
 // Fallback timeout - dismiss after this even if TTS hasn't finished
@@ -12,12 +13,35 @@ const FALLBACK_TIMEOUT_MS = 10000;
 // How often to check if TTS is done
 const TTS_CHECK_INTERVAL_MS = 300;
 
+/**
+ * Muted State Handling (Multi-Layer Defense)
+ * ------------------------------------------
+ * Race condition prevention: useSyncExternalStore notifications can lag behind
+ * direct property changes, causing brief visual flashes. We use belt-and-suspenders:
+ *
+ * Layer 1 - PREVENTION (shared.tsx schedulers):
+ *   Schedulers check audioManager.muted before creating announcements at all.
+ *
+ * Layer 2 - RENDER GATE (this component):
+ *   Check BOTH isMuted hook AND audioManager.muted directly (synchronous).
+ *
+ * Layer 3 - TTS GATE (this component):
+ *   TTS effect checks both hook and direct property before processing.
+ *   Extra guard right before speakAnnouncement call.
+ *
+ * Layer 4 - CLEANUP:
+ *   Dismiss effect clears any announcements that slip through.
+ *
+ * This ensures no visual flash even during React state propagation delays.
+ */
+
 export const PAAnnouncementSystem: React.FC = () => {
   // CRITICAL: Must use useAnnouncementsStore directly for reactivity
   // productionStore.announcements is a static snapshot from store creation
   const announcements = useAnnouncementsStore((state) => state.announcements);
   const dismissAnnouncement = useAnnouncementsStore((state) => state.dismissAnnouncement);
   const { isMobile } = useMobileDetection();
+  const isMuted = useAudioMuted();
 
   // Track which announcement is currently being displayed
   const [currentAnnouncementId, setCurrentAnnouncementId] = useState<string | null>(null);
@@ -44,6 +68,13 @@ export const PAAnnouncementSystem: React.FC = () => {
   const activeAnnouncements = announcements.filter((a) => !a.dismissed);
   const currentAnnouncement = activeAnnouncements.length > 0 ? activeAnnouncements[0] : null;
 
+  // When muted, immediately dismiss any active announcement to prevent visual flash
+  useEffect(() => {
+    if (isMuted && currentAnnouncement) {
+      dismissAnnouncement(currentAnnouncement.id);
+    }
+  }, [isMuted, currentAnnouncement, dismissAnnouncement]);
+
   // Auto-dismiss: wait for TTS to finish, or fallback after 10s if something goes wrong
   useEffect(() => {
     // Clear any existing timers
@@ -56,11 +87,20 @@ export const PAAnnouncementSystem: React.FC = () => {
       ttsCheckIntervalRef.current = null;
     }
 
-    if (!currentAnnouncement || isStartupSuppressed) return;
+    // Don't process when muted - dismiss effect handles cleanup, avoid wasteful TTS/timer setup
+    // Check BOTH hook AND direct property for synchronous muted detection
+    if (!currentAnnouncement || isStartupSuppressed || isMuted || audioManager.muted) return;
 
     // Track current announcement and trigger TTS when it changes
     if (currentAnnouncement.id !== currentAnnouncementId) {
-      console.log('[PA] New announcement:', currentAnnouncement.id, currentAnnouncement.message.substring(0, 40));
+      // Final muted gate before TTS - synchronous check
+      if (audioManager.muted) return;
+
+      console.log(
+        '[PA] New announcement:',
+        currentAnnouncement.id,
+        currentAnnouncement.message.substring(0, 40)
+      );
       setCurrentAnnouncementId(currentAnnouncement.id);
 
       // Speak this announcement via TTS
@@ -102,10 +142,13 @@ export const PAAnnouncementSystem: React.FC = () => {
         clearInterval(ttsCheckIntervalRef.current);
       }
     };
-  }, [currentAnnouncement?.id, isStartupSuppressed, dismissAnnouncement, currentAnnouncementId]);
+  }, [currentAnnouncement?.id, isStartupSuppressed, isMuted, dismissAnnouncement, currentAnnouncementId]);
 
   // Suppress display during startup period to let speech synthesis initialize
   if (isStartupSuppressed) return null;
+  // Don't show visual announcement when muted - TTS won't play anyway
+  // Check BOTH hook (reactive) AND direct property (synchronous) to prevent race condition flash
+  if (isMuted || audioManager.muted) return null;
   if (!currentAnnouncement) return null;
 
   // Mobile: Show compact ticker

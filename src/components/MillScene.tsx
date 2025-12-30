@@ -13,11 +13,14 @@ import { FactoryInfrastructure } from './FactoryInfrastructure';
 import { SpoutingSystem } from './SpoutingSystem';
 import { DustParticles, GrainFlow, MachineSteamVents, DustAnimationManager } from './DustParticles';
 import { FactoryExterior } from './FactoryExterior';
+import { FairytaleCastle } from './scenery/FairytaleCastle';
 import { FarmArea } from './FarmArea';
 import { VillageArea } from './VillageArea';
+import { TerrainGround } from './terrain';
 import { OpenDockOpening } from './infrastructure/OpenDockOpening';
 import { ForkliftSystem, ForkliftData } from './ForkliftSystem';
-import { FactoryEnvironment, CoreGameTimeSystem } from './Environment';
+import { FactoryEnvironment } from './Environment';
+import { CentralTickProvider, useUnifiedGameTick } from '../systems';
 import { HolographicDisplays } from './HolographicDisplays';
 import { CascadeVisualization } from './CascadeVisualization';
 import { StrategicOverlay3D } from './StrategicOverlay3D';
@@ -391,6 +394,10 @@ export const MillScene: React.FC<MillSceneProps> = ({
   // Bilateral Alignment simulation - preference requests, safety reports, emergent cooperation
   useBilateralAlignmentSimulation();
 
+  // CENTRALIZED TICK SYSTEM - Single source of truth for all game ticks
+  // Replaces scattered tickGameTime, tickMetrics, and various intervals
+  useUnifiedGameTick();
+
   const machines = useMemo(() => {
     const _machines: MachineData[] = [];
 
@@ -706,6 +713,19 @@ export const MillScene: React.FC<MillSceneProps> = ({
     }))
   );
   const isLowGraphics = graphicsQuality === 'low';
+  const terrainResolution =
+    graphicsQuality === 'ultra' || graphicsQuality === 'high'
+      ? 1024
+      : graphicsQuality === 'medium'
+        ? 512
+        : 256;
+  const terrainSegments =
+    graphicsQuality === 'ultra' || graphicsQuality === 'high'
+      ? 128
+      : graphicsQuality === 'medium'
+        ? 64
+        : 1;
+  const terrainEnableRiverChannel = graphicsQuality !== 'low';
 
   // Camera-based visibility culling - hide interior when outside, hide exterior when inside
   // Exception: In dock zones (near open dock openings), show BOTH interior and exterior
@@ -727,7 +747,7 @@ export const MillScene: React.FC<MillSceneProps> = ({
 
       {/* Atmospheric fog for depth - Bruno Simon style */}
       {/* Linear fog with dark blue-gray color, subtle enough not to obscure gameplay */}
-      {!isLowGraphics && <fog attach="fog" args={['#1a1a2e', 80, 250]} />}
+      {!isLowGraphics && <fog attach="fog" args={['#1a1a2e', 150, 550]} />}
 
       {/* Internal Dock Elements - Shipping and Receiving */}
       {/* These large black doors link the interior and exterior visually */}
@@ -762,9 +782,11 @@ export const MillScene: React.FC<MillSceneProps> = ({
         </Suspense>
       )}
 
-      {/* Core Game Time System - ALWAYS runs to prevent sky freeze */}
-      {/* See docs/sky-time-cycle-investigation.md for why this is unconditional */}
-      <CoreGameTimeSystem />
+      {/* CENTRALIZED TICK SYSTEM - Replaces CoreGameTimeSystem */}
+      {/* Single source of truth for game time, machine metrics, and all periodic updates */}
+      {/* See src/systems/CentralTickSystem.ts for architecture */}
+      <CentralTickProvider />
+      {/* OLD: <CoreGameTimeSystem /> - disabled, replaced by CentralTickProvider */}
 
       {/* Environment & Lighting */}
       {!perfDebug?.disableEnvironment && <FactoryEnvironment />}
@@ -811,7 +833,7 @@ export const MillScene: React.FC<MillSceneProps> = ({
       {showInterior && !perfDebug?.disableForkliftSystem && (
         <ForkliftSystem showSpeedZones={showZones} onSelectForklift={onSelectForklift} />
       )}
-      {/* PERFORMANCE: TruckBay renders when camera is outside OR in dock zone (to see trucks through openings) */}
+      {/* TruckBay - exterior loading/unloading area */}
       {showExterior &&
         (graphicsQuality === 'medium' ||
           graphicsQuality === 'high' ||
@@ -822,9 +844,25 @@ export const MillScene: React.FC<MillSceneProps> = ({
           </Suspense>
         )}
 
-      {/* Factory exterior walls and signage - renders when camera is outside or in dock zone */}
+      {/* Exterior terrain */}
+      <group visible={showExterior}>
+        <TerrainGround
+          debug={false}
+          resolution={terrainResolution}
+          segments={terrainSegments}
+          enableRiverChannel={terrainEnableRiverChannel}
+        />
+      </group>
+
+      {/* Factory exterior walls and signage */}
       {showExterior && <FactoryExterior />}
+
+      {/* Fairytale Castle - Global Landmark (Always Rendered to prevent culling issues) */}
+      {/* Positioned near the tunnel entrance, sunken into terrain */}
+      <FairytaleCastle position={[45, 0, -200]} scale={1.5} rotation={[0, -Math.PI / 4, 0]} />
+
       {showExterior && <FarmArea />}
+      {/* Full-detail village with all charming features */}
       {showExterior && <VillageArea />}
 
       {/* Theme Hospital-inspired Mood & Chaos Systems */}

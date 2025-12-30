@@ -28,6 +28,9 @@ import * as THREE from 'three';
 import { useModelAvailable, MODEL_PATHS } from '../../utils/modelLoader';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 
+// Cargo fade-in duration in seconds (fast for smooth but minimal overhead)
+const CARGO_FADE_DURATION = 0.25;
+
 interface ForkliftModelProps {
   hasCargo: boolean;
   isMoving: boolean;
@@ -46,6 +49,11 @@ const GLTFForklift: React.FC<ForkliftModelProps> = ({
   const modelRef = useRef<THREE.Group>(null);
   const cargoRef = useRef<THREE.Group>(null);
   const isTabVisible = useGameSimulationStore((state) => state.isTabVisible);
+
+  // Cargo fade-in refs (no re-renders)
+  const cargoOpacityRef = useRef(hasCargo ? 1 : 0);
+  const prevHasCargoRef = useRef(hasCargo);
+  const cargoMaterialsRef = useRef<THREE.MeshStandardMaterial[]>([]);
 
   // Clone the scene and enable shadows
   const clonedScene = React.useMemo(() => {
@@ -69,6 +77,29 @@ const GLTFForklift: React.FC<ForkliftModelProps> = ({
       cargoRef.current.position.y = 1.2 + forkHeightRef.current;
     }
 
+    // Cargo fade-in animation (ref-based, no re-renders)
+    if (hasCargo && !prevHasCargoRef.current) {
+      cargoOpacityRef.current = 0;
+    }
+    prevHasCargoRef.current = hasCargo;
+
+    const targetOpacity = hasCargo ? 1 : 0;
+    if (cargoOpacityRef.current !== targetOpacity) {
+      const fadeSpeed = 1 / CARGO_FADE_DURATION;
+      if (hasCargo) {
+        cargoOpacityRef.current = Math.min(1, cargoOpacityRef.current + delta * fadeSpeed);
+      } else {
+        cargoOpacityRef.current = 0;
+      }
+      const opacity = cargoOpacityRef.current;
+      cargoMaterialsRef.current.forEach((mat) => {
+        if (mat) {
+          mat.opacity = opacity;
+          mat.visible = opacity > 0.01;
+        }
+      });
+    }
+
     if (!isMoving) return;
 
     // Find wheel meshes and rotate them
@@ -89,19 +120,27 @@ const GLTFForklift: React.FC<ForkliftModelProps> = ({
         position={[0, 0.3, 0]}
         rotation={[0, Math.PI, 0]}
       />
-      {/* Add cargo on top if needed - position animated via useFrame */}
-      {hasCargo && (
-        <group ref={cargoRef} position={[0, 1.2, 1.5]}>
-          <mesh castShadow>
-            <boxGeometry args={[1, 0.15, 1]} />
-            <meshStandardMaterial color="#a16207" />
-          </mesh>
-          <mesh castShadow position={[0, 0.4, 0]}>
-            <boxGeometry args={[0.9, 0.6, 0.9]} />
-            <meshStandardMaterial color="#fef3c7" />
-          </mesh>
-        </group>
-      )}
+      {/* Add cargo on top if needed - always mounted, opacity animated */}
+      <group ref={cargoRef} position={[0, 1.2, 1.5]} visible={hasCargo || cargoOpacityRef.current > 0.01}>
+        <mesh castShadow>
+          <boxGeometry args={[1, 0.15, 1]} />
+          <meshStandardMaterial
+            ref={(mat) => { if (mat) cargoMaterialsRef.current[0] = mat; }}
+            color="#a16207"
+            transparent
+            opacity={cargoOpacityRef.current}
+          />
+        </mesh>
+        <mesh castShadow position={[0, 0.4, 0]}>
+          <boxGeometry args={[0.9, 0.6, 0.9]} />
+          <meshStandardMaterial
+            ref={(mat) => { if (mat) cargoMaterialsRef.current[1] = mat; }}
+            color="#fef3c7"
+            transparent
+            opacity={cargoOpacityRef.current}
+          />
+        </mesh>
+      </group>
     </group>
   );
 };
@@ -121,6 +160,11 @@ const ProceduralForklift: React.FC<ForkliftModelProps> = ({
   const cargoRef = useRef<THREE.Group>(null);
   const isTabVisible = useGameSimulationStore((state) => state.isTabVisible);
 
+  // Cargo fade-in refs (no re-renders)
+  const cargoOpacityRef = useRef(hasCargo ? 1 : 0);
+  const prevHasCargoRef = useRef(hasCargo);
+  const cargoMaterialsRef = useRef<THREE.MeshStandardMaterial[]>([]);
+
   useFrame((_, delta) => {
     if (!isTabVisible) return;
 
@@ -131,6 +175,32 @@ const ProceduralForklift: React.FC<ForkliftModelProps> = ({
     }
     if (cargoRef.current) {
       cargoRef.current.position.y = 0.6 + forkHeight;
+    }
+
+    // Cargo fade-in animation (ref-based, no re-renders)
+    if (hasCargo && !prevHasCargoRef.current) {
+      // Cargo just spawned - start fade from 0
+      cargoOpacityRef.current = 0;
+    }
+    prevHasCargoRef.current = hasCargo;
+
+    // Animate opacity towards target
+    const targetOpacity = hasCargo ? 1 : 0;
+    if (cargoOpacityRef.current !== targetOpacity) {
+      const fadeSpeed = 1 / CARGO_FADE_DURATION;
+      if (hasCargo) {
+        cargoOpacityRef.current = Math.min(1, cargoOpacityRef.current + delta * fadeSpeed);
+      } else {
+        cargoOpacityRef.current = 0; // Instant hide on unload
+      }
+      // Update all cargo materials directly
+      const opacity = cargoOpacityRef.current;
+      cargoMaterialsRef.current.forEach((mat) => {
+        if (mat) {
+          mat.opacity = opacity;
+          mat.visible = opacity > 0.01;
+        }
+      });
     }
 
     if (!isMoving) return;
@@ -365,37 +435,63 @@ const ProceduralForklift: React.FC<ForkliftModelProps> = ({
         </group>
       ))}
 
-      {/* Cargo (pallet with boxes) - animated via useFrame */}
-      {hasCargo && (
-        <group ref={cargoRef} position={[0, 0.6, 2]}>
-          {/* Pallet */}
-          <mesh castShadow>
-            <boxGeometry args={[1, 0.12, 1]} />
-            <meshStandardMaterial color="#a16207" roughness={0.8} />
+      {/* Cargo (pallet with boxes) - always mounted, opacity animated via useFrame */}
+      <group ref={cargoRef} position={[0, 0.6, 2]} visible={hasCargo || cargoOpacityRef.current > 0.01}>
+        {/* Pallet */}
+        <mesh castShadow>
+          <boxGeometry args={[1, 0.12, 1]} />
+          <meshStandardMaterial
+            ref={(mat) => { if (mat) cargoMaterialsRef.current[0] = mat; }}
+            color="#a16207"
+            roughness={0.8}
+            transparent
+            opacity={cargoOpacityRef.current}
+          />
+        </mesh>
+        {/* Pallet slats */}
+        {[-0.35, 0, 0.35].map((z, i) => (
+          <mesh key={i} position={[0, -0.05, z]}>
+            <boxGeometry args={[1, 0.02, 0.15]} />
+            <meshStandardMaterial
+              ref={(mat) => { if (mat) cargoMaterialsRef.current[1 + i] = mat; }}
+              color="#92400e"
+              roughness={0.9}
+              transparent
+              opacity={cargoOpacityRef.current}
+            />
           </mesh>
-          {/* Pallet slats */}
-          {[-0.35, 0, 0.35].map((z, i) => (
-            <mesh key={i} position={[0, -0.05, z]}>
-              <boxGeometry args={[1, 0.02, 0.15]} />
-              <meshStandardMaterial color="#92400e" roughness={0.9} />
-            </mesh>
-          ))}
-          {/* Stacked boxes */}
-          <mesh castShadow position={[0, 0.38, 0]}>
-            <boxGeometry args={[0.85, 0.5, 0.85]} />
-            <meshStandardMaterial color="#fef3c7" roughness={0.7} />
-          </mesh>
-          {/* Box strapping */}
-          <mesh position={[0, 0.38, 0.43]}>
-            <boxGeometry args={[0.86, 0.05, 0.01]} />
-            <meshStandardMaterial color="#3b82f6" />
-          </mesh>
-          <mesh position={[0, 0.38, -0.43]}>
-            <boxGeometry args={[0.86, 0.05, 0.01]} />
-            <meshStandardMaterial color="#3b82f6" />
-          </mesh>
-        </group>
-      )}
+        ))}
+        {/* Stacked boxes */}
+        <mesh castShadow position={[0, 0.38, 0]}>
+          <boxGeometry args={[0.85, 0.5, 0.85]} />
+          <meshStandardMaterial
+            ref={(mat) => { if (mat) cargoMaterialsRef.current[4] = mat; }}
+            color="#fef3c7"
+            roughness={0.7}
+            transparent
+            opacity={cargoOpacityRef.current}
+          />
+        </mesh>
+        {/* Box strapping */}
+        <mesh position={[0, 0.38, 0.43]}>
+          <boxGeometry args={[0.86, 0.05, 0.01]} />
+          <meshStandardMaterial
+            ref={(mat) => { if (mat) cargoMaterialsRef.current[5] = mat; }}
+            color="#3b82f6"
+            transparent
+            opacity={cargoOpacityRef.current}
+          />
+        </mesh>
+        <mesh position={[0, 0.38, -0.43]}>
+          <boxGeometry args={[0.86, 0.05, 0.01]} />
+          <meshStandardMaterial
+            ref={(mat) => { if (mat) cargoMaterialsRef.current[6] = mat; }}
+            color="#3b82f6"
+            transparent
+            opacity={cargoOpacityRef.current}
+          />
+        </mesh>
+      </group>
     </group>
   );
 };

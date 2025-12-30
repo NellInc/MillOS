@@ -260,6 +260,38 @@ useMillStore.getState = (): CombinedStoreState => {
  *
  * This implementation intelligently routes subscriptions to the appropriate store
  * based on which state properties are accessed in the selector.
+ *
+ * **IMPORTANT: Subscription Cleanup**
+ *
+ * This function creates 5 internal subscriptions (one per store). The returned
+ * unsubscribe function MUST be called to prevent memory leaks.
+ *
+ * Example usage with manual cleanup:
+ * ```typescript
+ * // In a class or module:
+ * const unsubscribe = useMillStore.subscribe(
+ *   (state) => state.machines,
+ *   (machines) => console.log('Machines changed:', machines)
+ * );
+ *
+ * // On cleanup (e.g., component unmount, module unload):
+ * unsubscribe();
+ * ```
+ *
+ * Example usage in React (prefer individual store hooks instead):
+ * ```typescript
+ * useEffect(() => {
+ *   const unsubscribe = useMillStore.subscribe(
+ *     (state) => state.gameTime,
+ *     (time) => externalSystem.updateTime(time)
+ *   );
+ *   return unsubscribe; // Cleanup on unmount
+ * }, []);
+ * ```
+ *
+ * **Performance Note**: For new code, prefer using individual store hooks
+ * (useProductionStore, useGameSimulationStore, etc.) which provide automatic
+ * cleanup and better performance through selective subscriptions.
  */
 useMillStore.subscribe = <T>(
   selector: (state: CombinedStoreState) => T,
@@ -300,6 +332,7 @@ useMillStore.subscribe = <T>(
   }
 
   // Return combined unsubscribe function
+  // IMPORTANT: Callers MUST invoke this function to clean up all 5 subscriptions
   return () => {
     unsubscribers.forEach((unsub) => unsub());
   };

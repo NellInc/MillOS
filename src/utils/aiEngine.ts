@@ -45,6 +45,122 @@ import {
 } from '../systems/bas/aiBehaviorEngine';
 
 // =============================================================================
+// AI Engine Timing Configuration
+// =============================================================================
+// All timing values in milliseconds for easy tuning.
+// Centralizing these prevents magic numbers scattered throughout the codebase.
+
+export const AI_ENGINE_TIMING = {
+  // === Decision Generation Intervals ===
+  /** Tactical decision generation interval (ms) - lower priority decisions */
+  tacticalDecisionInterval: 6000,
+  /** Strategic decision generation interval (ms) - high-level planning */
+  strategicDecisionInterval: 45000,
+  /** Prediction update interval (ms) */
+  predictionUpdateInterval: 5000,
+  /** System metrics update interval (ms) */
+  metricsUpdateInterval: 1500,
+  /** BAS suggestion system interval (ms) */
+  basSuggestionInterval: 15000,
+  /** Bilateral alignment resolution interval (ms) */
+  alignmentInterval: 10000,
+  /** Main AI loop tick interval (ms) */
+  loopInterval: 2000,
+
+  // === Analysis Cooldowns ===
+  /** Trend analysis cooldown (ms) */
+  trendAnalysisCooldown: 60000,
+  /** Cross-machine correlation analysis cooldown (ms) */
+  correlationAnalysisCooldown: 45000,
+  /** Anomaly detection cooldown (ms) */
+  anomalyDetectionCooldown: 30000,
+  /** Heat map analysis cooldown (ms) */
+  heatmapAnalysisCooldown: 90000,
+  /** Worker fatigue analysis cooldown (ms) */
+  fatigueAnalysisCooldown: 60000,
+  /** Optimization analysis cooldown (ms) */
+  optimizationAnalysisCooldown: 45000,
+  /** Prediction analysis cooldown (ms) */
+  predictionAnalysisCooldown: 90000,
+  /** Safety analysis cooldown (ms) */
+  safetyAnalysisCooldown: 30000,
+  /** Weather-aware decision cooldown (ms) */
+  weatherAnalysisCooldown: 120000,
+  /** Production analysis cooldown (ms) */
+  productionAnalysisCooldown: 60000,
+  /** Maintenance window analysis cooldown (ms) */
+  maintenanceWindowCooldown: 120000,
+
+  // === Entity Cooldowns ===
+  /** Default cooldown after making a decision about a machine (ms) */
+  machineCooldown: 60000,
+  /** Default cooldown after making a decision about a worker (ms) */
+  workerCooldown: 30000,
+  /** Safety officer cooldown after safety decision (ms) */
+  safetyOfficerCooldown: 45000,
+  /** Recent decision check window (ms) */
+  recentDecisionWindow: 60000,
+
+  // === Duplicate Prevention Windows ===
+  /** Temperature trend decision duplicate window (ms) */
+  tempTrendDuplicateWindow: 120000,
+  /** Vibration trend decision duplicate window (ms) */
+  vibTrendDuplicateWindow: 180000,
+  /** Assignment decision duplicate window (ms) */
+  assignmentDuplicateWindow: 30000,
+  /** Maintenance decision duplicate window (ms) */
+  maintenanceDuplicateWindow: 120000,
+
+  // === Pattern Detection Expiry ===
+  /** Temperature cluster pattern expiry (ms) */
+  tempClusterExpiry: 180000,
+  /** Vibration cluster pattern expiry (ms) */
+  vibClusterExpiry: 300000,
+  /** Load imbalance pattern expiry (ms) */
+  loadImbalanceExpiry: 120000,
+  /** Cross-machine pattern max age (ms) */
+  crossMachinePatternMaxAge: 600000,
+  /** Anomaly history max age (ms) */
+  anomalyHistoryMaxAge: 300000,
+  /** Duplicate anomaly check window (ms) */
+  duplicateAnomalyWindow: 60000,
+
+  // === Communication Rate Limiting ===
+  /** Minimal communication frequency interval (ms) */
+  minimalCommInterval: 60000,
+  /** Moderate communication frequency interval (ms) */
+  moderateCommInterval: 20000,
+  /** Proactive communication frequency interval (ms) */
+  proactiveCommInterval: 5000,
+
+  // === Boundary/Conflict Detection ===
+  /** Contradictory request detection window (ms) */
+  contradictoryRequestWindow: 120000,
+
+  // === Drill Phase Timing ===
+  /** Fire drill alert to evacuation transition (ms) */
+  drillAlertDuration: 10000,
+  /** Fire drill evacuation to assembly transition (ms) */
+  drillEvacuationDuration: 25000,
+  /** Fire drill assembly to review transition (ms) */
+  drillAssemblyDuration: 40000,
+
+  // === Metric History ===
+  /** How long to keep metric history data (ms) */
+  metricHistoryWindow: 5 * 60 * 1000, // 5 minutes
+
+  // === Resolution/Followup Delays ===
+  /** Base delay for scheduling followup decisions (ms) */
+  followupDelayBase: 8000,
+  /** Random jitter range for resolution timing (ms) */
+  resolutionJitterMax: 10000,
+
+  // === Debounce/Throttle ===
+  /** Debounce for decision effect application (ms) */
+  decisionEffectDebounce: 50,
+} as const;
+
+// =============================================================================
 // AI Welfare Integration Module
 // =============================================================================
 // Implements bilateral alignment by making AI preferences and boundaries
@@ -115,7 +231,7 @@ function checkBoundaryViolation(
       const recentConflict = recentDecisions.find(
         (d) =>
           d.type === decision.type &&
-          Date.now() - d.timestamp.getTime() < 120000 && // Within 2 minutes
+          Date.now() - d.timestamp.getTime() < AI_ENGINE_TIMING.contradictoryRequestWindow && // Within 2 minutes
           d.action !== decision.action
       );
       if (recentConflict) {
@@ -224,11 +340,11 @@ const decisionRateLimiter = {
     // Returns minimum milliseconds between non-critical decisions
     switch (frequency) {
       case 'minimal':
-        return 60000; // 1 minute
+        return AI_ENGINE_TIMING.minimalCommInterval;
       case 'moderate':
-        return 20000; // 20 seconds
+        return AI_ENGINE_TIMING.moderateCommInterval;
       case 'proactive':
-        return 5000; // 5 seconds
+        return AI_ENGINE_TIMING.proactiveCommInterval;
     }
   },
   shouldDefer(
@@ -277,8 +393,11 @@ function applyWelfareFilter(decision: AIDecision | null): AIDecision | null {
   const boundaryCheck = checkBoundaryViolation(decision, welfareContext.boundaryRequests);
   if (boundaryCheck.violated) {
     logger.ai.info(`Decision blocked by boundary: ${boundaryCheck.reason}`);
-    // Record this for welfare metrics
-    useAIWelfareStore.getState().recordContradictoryRequest();
+    // FIX: Use queueMicrotask to batch the state update and prevent concurrent modification
+    // This ensures the store update happens after the current sync execution completes
+    queueMicrotask(() => {
+      useAIWelfareStore.getState().recordContradictoryRequest();
+    });
     return null;
   }
 
@@ -545,7 +664,7 @@ function recordDecision(decision: AIDecision): void {
 function hasRecentDecision(
   entityId: string,
   type: AIDecision['type'],
-  withinMs: number = 60000
+  withinMs: number = AI_ENGINE_TIMING.recentDecisionWindow
 ): boolean {
   const machineDecisions = aiMemory.recentDecisionsByMachine.get(entityId) || [];
   const workerDecisions = aiMemory.recentDecisionsByWorker.get(entityId) || [];
@@ -594,7 +713,7 @@ function updateMetricHistory(machine: MachineData): void {
     trendData.history.push({ timestamp: now, value });
 
     // Keep only last 5 minutes of data AND enforce max count for memory safety
-    const fiveMinutesAgo = now - 5 * 60 * 1000;
+    const fiveMinutesAgo = now - AI_ENGINE_TIMING.metricHistoryWindow;
     trendData.history = trendData.history.filter((h) => h.timestamp > fiveMinutesAgo);
     // Additional hard limit to prevent memory leaks
     if (trendData.history.length > MAX_METRIC_HISTORY_POINTS) {
@@ -633,7 +752,7 @@ function getTrend(
 
 function analyzeTrends(context: FactoryContext): AIDecision | null {
   const now = Date.now();
-  if (now - (aiMemory.lastAnalysisTime.trends || 0) < 60000) return null;
+  if (now - (aiMemory.lastAnalysisTime.trends || 0) < AI_ENGINE_TIMING.trendAnalysisCooldown) return null;
   aiMemory.lastAnalysisTime.trends = now;
 
   // Update history for all machines
@@ -648,7 +767,7 @@ function analyzeTrends(context: FactoryContext): AIDecision | null {
 
     // Rising temperature trend
     if (tempTrend && tempTrend.trend === 'rising' && tempTrend.rateOfChange > 1.0) {
-      if (hasRecentDecision(machine.id, 'prediction', 120000)) continue;
+      if (hasRecentDecision(machine.id, 'prediction', AI_ENGINE_TIMING.tempTrendDuplicateWindow)) continue;
 
       const minutesUntilCritical = (70 - machine.metrics.temperature) / tempTrend.rateOfChange;
 
@@ -675,7 +794,7 @@ function analyzeTrends(context: FactoryContext): AIDecision | null {
 
     // Rising vibration trend (bearing wear indicator)
     if (vibTrend && vibTrend.trend === 'rising' && vibTrend.rateOfChange > 0.1) {
-      if (hasRecentDecision(machine.id, 'prediction', 180000)) continue;
+      if (hasRecentDecision(machine.id, 'prediction', AI_ENGINE_TIMING.vibTrendDuplicateWindow)) continue;
 
       const decision: AIDecision = {
         id: generateDecisionId(),
@@ -706,7 +825,7 @@ function analyzeTrends(context: FactoryContext): AIDecision | null {
 
 function detectCrossMachinePatterns(context: FactoryContext): AIDecision | null {
   const now = Date.now();
-  if (now - (aiMemory.lastAnalysisTime.correlation || 0) < 45000) return null;
+  if (now - (aiMemory.lastAnalysisTime.correlation || 0) < AI_ENGINE_TIMING.correlationAnalysisCooldown) return null;
   aiMemory.lastAnalysisTime.correlation = now;
 
   const { machines } = context;
@@ -730,7 +849,7 @@ function detectCrossMachinePatterns(context: FactoryContext): AIDecision | null 
 
     // Check if this is a new pattern
     const existingPattern = aiMemory.crossMachinePatterns.find(
-      (p) => p.pattern === 'temperature_cluster' && now - p.timestamp < 180000
+      (p) => p.pattern === 'temperature_cluster' && now - p.timestamp < AI_ENGINE_TIMING.tempClusterExpiry
     );
 
     if (!existingPattern) {
@@ -745,7 +864,7 @@ function detectCrossMachinePatterns(context: FactoryContext): AIDecision | null 
 
       // Clean old patterns with hard count limit for memory safety
       aiMemory.crossMachinePatterns = aiMemory.crossMachinePatterns.filter(
-        (p) => now - p.timestamp < 600000
+        (p) => now - p.timestamp < AI_ENGINE_TIMING.crossMachinePatternMaxAge
       );
       if (aiMemory.crossMachinePatterns.length > MAX_CROSS_MACHINE_PATTERNS) {
         aiMemory.crossMachinePatterns = aiMemory.crossMachinePatterns.slice(
@@ -782,7 +901,7 @@ function detectCrossMachinePatterns(context: FactoryContext): AIDecision | null 
   );
   if (highVibrationMachines.length >= 2) {
     const existingPattern = aiMemory.crossMachinePatterns.find(
-      (p) => p.pattern === 'vibration_cluster' && now - p.timestamp < 300000
+      (p) => p.pattern === 'vibration_cluster' && now - p.timestamp < AI_ENGINE_TIMING.vibClusterExpiry
     );
 
     if (!existingPattern) {
@@ -827,7 +946,7 @@ function detectCrossMachinePatterns(context: FactoryContext): AIDecision | null 
 
       if (overloaded.length > 0 && underloaded.length > 0) {
         const existingPattern = aiMemory.crossMachinePatterns.find(
-          (p) => p.pattern === 'load_imbalance' && now - p.timestamp < 120000
+          (p) => p.pattern === 'load_imbalance' && now - p.timestamp < AI_ENGINE_TIMING.loadImbalanceExpiry
         );
 
         if (!existingPattern) {
@@ -868,7 +987,7 @@ function detectCrossMachinePatterns(context: FactoryContext): AIDecision | null 
 
 function detectAnomalies(context: FactoryContext): AIDecision | null {
   const now = Date.now();
-  if (now - (aiMemory.lastAnalysisTime.anomaly || 0) < 30000) return null;
+  if (now - (aiMemory.lastAnalysisTime.anomaly || 0) < AI_ENGINE_TIMING.anomalyDetectionCooldown) return null;
   aiMemory.lastAnalysisTime.anomaly = now;
 
   const { machines } = context;
@@ -902,7 +1021,7 @@ function detectAnomalies(context: FactoryContext): AIDecision | null {
       if (zScore > 2.5) {
         // Check if we already flagged this recently
         const recentAnomaly = aiMemory.anomalyHistory.find(
-          (a) => a.machineId === machine.id && a.metric === key && now - a.timestamp < 60000
+          (a) => a.machineId === machine.id && a.metric === key && now - a.timestamp < AI_ENGINE_TIMING.duplicateAnomalyWindow
         );
 
         if (recentAnomaly) continue;
@@ -919,7 +1038,7 @@ function detectAnomalies(context: FactoryContext): AIDecision | null {
         aiMemory.anomalyHistory.push(anomaly);
 
         // Keep only recent anomalies with hard count limit for memory safety
-        aiMemory.anomalyHistory = aiMemory.anomalyHistory.filter((a) => now - a.timestamp < 300000);
+        aiMemory.anomalyHistory = aiMemory.anomalyHistory.filter((a) => now - a.timestamp < AI_ENGINE_TIMING.anomalyHistoryMaxAge);
         if (aiMemory.anomalyHistory.length > MAX_ANOMALY_HISTORY) {
           aiMemory.anomalyHistory = aiMemory.anomalyHistory.slice(-MAX_ANOMALY_HISTORY);
         }
@@ -1032,7 +1151,7 @@ function updateProductionTracking(context: FactoryContext): void {
 
 function generateProductionAwareDecision(context: FactoryContext): AIDecision | null {
   const now = Date.now();
-  if (now - (aiMemory.lastAnalysisTime.production || 0) < 60000) return null;
+  if (now - (aiMemory.lastAnalysisTime.production || 0) < AI_ENGINE_TIMING.productionAnalysisCooldown) return null;
   aiMemory.lastAnalysisTime.production = now;
 
   const { shift, current } = {
@@ -1096,7 +1215,7 @@ function isLowProductionPeriod(gameTime: number): boolean {
 
 function generateMaintenanceWindowDecision(context: FactoryContext): AIDecision | null {
   const now = Date.now();
-  if (now - (aiMemory.lastAnalysisTime.maintenanceWindow || 0) < 120000) return null;
+  if (now - (aiMemory.lastAnalysisTime.maintenanceWindow || 0) < AI_ENGINE_TIMING.maintenanceWindowCooldown) return null;
 
   // Check if we're in or approaching a low production window
   const gameHour = Math.floor(context.gameTime);
@@ -1169,7 +1288,7 @@ function generateMaintenanceWindowDecision(context: FactoryContext): AIDecision 
 
 function generateWeatherDecision(context: FactoryContext): AIDecision | null {
   const now = Date.now();
-  if (now - (aiMemory.lastAnalysisTime.weather || 0) < 120000) return null;
+  if (now - (aiMemory.lastAnalysisTime.weather || 0) < AI_ENGINE_TIMING.weatherAnalysisCooldown) return null;
 
   const { weather } = context;
 
@@ -1265,7 +1384,7 @@ function generateDrillDecision(context: FactoryContext): AIDecision | null {
   // Progress through drill phases
   const elapsed = now - (aiMemory.drillStartTime || now);
 
-  if (aiMemory.drillPhase === 'alert' && elapsed > 10000) {
+  if (aiMemory.drillPhase === 'alert' && elapsed > AI_ENGINE_TIMING.drillAlertDuration) {
     aiMemory.drillPhase = 'evacuation';
 
     const decision: AIDecision = {
@@ -1285,7 +1404,7 @@ function generateDrillDecision(context: FactoryContext): AIDecision | null {
     return decision;
   }
 
-  if (aiMemory.drillPhase === 'evacuation' && elapsed > 25000) {
+  if (aiMemory.drillPhase === 'evacuation' && elapsed > AI_ENGINE_TIMING.drillEvacuationDuration) {
     aiMemory.drillPhase = 'assembly';
 
     const decision: AIDecision = {
@@ -1305,7 +1424,7 @@ function generateDrillDecision(context: FactoryContext): AIDecision | null {
     return decision;
   }
 
-  if (aiMemory.drillPhase === 'assembly' && elapsed > 40000) {
+  if (aiMemory.drillPhase === 'assembly' && elapsed > AI_ENGINE_TIMING.drillAssemblyDuration) {
     aiMemory.drillPhase = 'review';
 
     const evacuationTime = Math.round((elapsed - 15000) / 1000);
@@ -1339,7 +1458,7 @@ function generateDrillDecision(context: FactoryContext): AIDecision | null {
 
 function analyzeHeatMap(context: FactoryContext): AIDecision | null {
   const now = Date.now();
-  if (now - (aiMemory.lastAnalysisTime.heatmap || 0) < 90000) return null;
+  if (now - (aiMemory.lastAnalysisTime.heatmap || 0) < AI_ENGINE_TIMING.heatmapAnalysisCooldown) return null;
 
   const { heatMapData } = context;
   if (heatMapData.length < 10) return null;
@@ -1503,7 +1622,7 @@ function generateShiftChangeDecision(context: FactoryContext): AIDecision | null
 
 function generateFatigueDecision(context: FactoryContext): AIDecision | null {
   const now = Date.now();
-  if (now - (aiMemory.lastAnalysisTime.fatigue || 0) < 60000) return null;
+  if (now - (aiMemory.lastAnalysisTime.fatigue || 0) < AI_ENGINE_TIMING.fatigueAnalysisCooldown) return null;
 
   const { workerSatisfaction } = context;
 
@@ -1736,7 +1855,7 @@ function findBestWorkerForTask(
 
   if (availableWorkers.length === 0) {
     const rosterWorkers = WORKER_ROSTER.filter((w) => {
-      const recentAssignment = hasRecentDecision(w.id, 'assignment', 30000);
+      const recentAssignment = hasRecentDecision(w.id, 'assignment', AI_ENGINE_TIMING.assignmentDuplicateWindow);
       return !recentAssignment;
     });
 
@@ -1973,7 +2092,7 @@ function generateMaintenanceDecision(
   worker: WorkerData | null
 ): AIDecision | null {
   if (isOnCooldown(issue.machine.id)) return null;
-  if (hasRecentDecision(issue.machine.id, 'maintenance', 120000)) return null;
+  if (hasRecentDecision(issue.machine.id, 'maintenance', AI_ENGINE_TIMING.maintenanceDuplicateWindow)) return null;
 
   const actionMap: Record<MachineIssue['issueType'], string> = {
     temperature: `Dispatching ${worker?.name || 'maintenance team'} to inspect cooling on ${issue.machine.name}`,
@@ -2006,21 +2125,21 @@ function generateMaintenanceDecision(
     alternatives:
       issue.severity !== 'critical'
         ? [
-            { action: 'Continue monitoring', tradeoff: 'Risk of worsening' },
-            { action: 'Schedule for next shift', tradeoff: 'Delayed but less disruptive' },
-          ]
+          { action: 'Continue monitoring', tradeoff: 'Risk of worsening' },
+          { action: 'Schedule for next shift', tradeoff: 'Delayed but less disruptive' },
+        ]
         : undefined,
     uncertainty: issue.issueType === 'vibration' ? 'Depends on visual inspection' : undefined,
   };
 
-  setCooldown(issue.machine.id, 60000);
+  setCooldown(issue.machine.id, AI_ENGINE_TIMING.machineCooldown);
   recordDecision(decision);
   return decision;
 }
 
 function generateOptimizationDecision(context: FactoryContext): AIDecision | null {
   const now = Date.now();
-  if (now - (aiMemory.lastAnalysisTime.optimization || 0) < 45000) return null;
+  if (now - (aiMemory.lastAnalysisTime.optimization || 0) < AI_ENGINE_TIMING.optimizationAnalysisCooldown) return null;
   aiMemory.lastAnalysisTime.optimization = now;
 
   const { efficiency, throughput, quality } = context.metrics;
@@ -2099,7 +2218,7 @@ function generateOptimizationDecision(context: FactoryContext): AIDecision | nul
 
 function generatePredictionDecision(context: FactoryContext): AIDecision | null {
   const now = Date.now();
-  if (now - (aiMemory.lastAnalysisTime.prediction || 0) < 90000) return null;
+  if (now - (aiMemory.lastAnalysisTime.prediction || 0) < AI_ENGINE_TIMING.predictionAnalysisCooldown) return null;
   aiMemory.lastAnalysisTime.prediction = now;
 
   const predictions: { machine: MachineData; reason: string; timeframe: string; impact: string }[] =
@@ -2158,7 +2277,7 @@ function generatePredictionDecision(context: FactoryContext): AIDecision | null 
 function generateSafetyDecision(context: FactoryContext): AIDecision | null {
   if (context.safetyMetrics.safetyStops > 0) {
     const now = Date.now();
-    if (now - (aiMemory.lastAnalysisTime.safety || 0) < 30000) return null;
+    if (now - (aiMemory.lastAnalysisTime.safety || 0) < AI_ENGINE_TIMING.safetyAnalysisCooldown) return null;
     aiMemory.lastAnalysisTime.safety = now;
 
     const safetyOfficer = findBestWorkerForTask(context, 'safety');
@@ -2179,7 +2298,7 @@ function generateSafetyDecision(context: FactoryContext): AIDecision | null {
       priority: 'high',
     };
 
-    if (safetyOfficer) setCooldown(safetyOfficer.id, 45000);
+    if (safetyOfficer) setCooldown(safetyOfficer.id, AI_ENGINE_TIMING.safetyOfficerCooldown);
     recordDecision(decision);
     return decision;
   }
@@ -2232,7 +2351,7 @@ function generateAssignmentDecision(
     priority: issue?.severity === 'critical' ? 'high' : 'medium',
   };
 
-  setCooldown(worker.id, 30000);
+  setCooldown(worker.id, AI_ENGINE_TIMING.workerCooldown);
   recordDecision(decision);
   return decision;
 }
@@ -2295,7 +2414,7 @@ function processDecisionChains(_context: FactoryContext): AIDecision | null {
           };
 
           // Schedule resolution based on calculated ETA
-          const resolutionDelay = etaSeconds * 1000 + Math.random() * 10000;
+          const resolutionDelay = etaSeconds * 1000 + Math.random() * AI_ENGINE_TIMING.resolutionJitterMax;
           aiMemory.pendingChains.set(followupDecision.id, {
             parentId: followupDecision.id,
             nextStep: 'resolution',
@@ -2347,7 +2466,7 @@ function processDecisionChains(_context: FactoryContext): AIDecision | null {
   return null;
 }
 
-function scheduleFollowup(decision: AIDecision, delayMs: number = 8000): void {
+function scheduleFollowup(decision: AIDecision, delayMs: number = AI_ENGINE_TIMING.followupDelayBase): void {
   if (decision.type === 'assignment' || decision.type === 'maintenance') {
     aiMemory.pendingChains.set(decision.id, {
       parentId: decision.id,
@@ -2545,7 +2664,7 @@ export function reactToAlert(alert: AlertData): AIDecision | null {
     : undefined;
 
   if (!machine) return null;
-  if (hasRecentDecision(machine.id, 'maintenance', 60000)) return null;
+  if (hasRecentDecision(machine.id, 'maintenance', AI_ENGINE_TIMING.recentDecisionWindow)) return null;
 
   const worker = findBestWorkerForTask(context, 'maintenance', machine.id);
   const welfareContext = getAIWelfareContext();
@@ -2581,8 +2700,8 @@ export function reactToAlert(alert: AlertData): AIDecision | null {
     decision = filtered;
   }
 
-  if (worker) setCooldown(worker.id, 30000);
-  setCooldown(machine.id, 60000);
+  if (worker) setCooldown(worker.id, AI_ENGINE_TIMING.workerCooldown);
+  setCooldown(machine.id, AI_ENGINE_TIMING.machineCooldown);
   recordDecision(decision);
   scheduleFollowup(decision);
 
@@ -2748,15 +2867,23 @@ export function shouldTriggerAudioCue(decision: AIDecision): boolean {
 
 let lastObservedShift: 'morning' | 'afternoon' | 'night' | null = null;
 let shiftObserverInitialized = false;
+// FIX: Track the actual cleanup function to properly handle HMR and re-initialization
+let shiftObserverCleanup: (() => void) | null = null;
 
 /**
  * Initialize the shift change observer
  * Call this once when the AI engine starts to enable automatic shift stat resets
+ *
+ * FIX: Properly handles HMR by:
+ * 1. Returning the existing cleanup function if already initialized
+ * 2. Tracking the cleanup function at module level
+ * 3. Resetting the flag properly in the cleanup function
  */
 export function initializeShiftObserver(): () => void {
-  if (shiftObserverInitialized) {
-    // Already initialized, return no-op unsubscribe
-    return () => {};
+  if (shiftObserverInitialized && shiftObserverCleanup) {
+    // FIX: Return the actual cleanup function, not a no-op
+    // This allows proper cleanup even on duplicate calls
+    return shiftObserverCleanup;
   }
 
   shiftObserverInitialized = true;
@@ -2780,11 +2907,15 @@ export function initializeShiftObserver(): () => void {
   // Initialize lastObservedShift on first call
   lastObservedShift = useGameSimulationStore.getState().currentShift;
 
-  return () => {
+  // FIX: Store cleanup function at module level for proper HMR handling
+  shiftObserverCleanup = () => {
     unsubscribe();
     shiftObserverInitialized = false;
+    shiftObserverCleanup = null;
     lastObservedShift = null;
   };
+
+  return shiftObserverCleanup;
 }
 
 // ============================================================================
@@ -2800,7 +2931,7 @@ export function initializeDecisionOutcomeTracking(): () => void {
   const processedDecisions = new Set<string>();
 
   // Issue 2 Fix: Add debounce to prevent race conditions in status updates
-  let debounceTimeout: ReturnType<typeof setTimeout> | null = null;
+  let debounceTimeout: NodeJS.Timeout | null = null;
 
   const unsubscribe = useProductionStore.subscribe(
     (state) => state.aiDecisions,
@@ -2836,7 +2967,7 @@ export function initializeDecisionOutcomeTracking(): () => void {
             }
           }
         }
-      }, 50); // 50ms debounce
+      }, AI_ENGINE_TIMING.decisionEffectDebounce); // 50ms debounce
     }
   );
 
@@ -2849,7 +2980,7 @@ export function initializeDecisionOutcomeTracking(): () => void {
 }
 
 // Loop control state
-let loopInterval: ReturnType<typeof setInterval> | null = null;
+let loopInterval: NodeJS.Timeout | null = null;
 let lastDecisionTime = 0;
 let lastStrategicTime = 0;
 let lastPredictionTime = 0;
@@ -2857,6 +2988,85 @@ let lastMetricsTime = 0;
 let lastBASSuggestionTime = 0;
 let isGeneratingDecision = false;
 let isGeneratingStrategic = false;
+
+// FIX: Exponential backoff state for API failures
+// Tracks consecutive failures and adjusts retry delay accordingly
+interface BackoffState {
+  consecutiveFailures: number;
+  currentDelayMs: number;
+  lastFailureTime: number;
+}
+
+const apiBackoff: BackoffState = {
+  consecutiveFailures: 0,
+  currentDelayMs: 2000, // Start at 2 seconds
+  lastFailureTime: 0,
+};
+
+const BACKOFF_CONFIG = {
+  baseDelayMs: 2000,      // Initial delay: 2 seconds
+  maxDelayMs: 60000,      // Maximum delay: 60 seconds
+  multiplier: 2,          // Double delay on each failure
+  resetAfterMs: 120000,   // Reset backoff if no failures for 2 minutes
+} as const;
+
+/**
+ * Record an API failure and update backoff state.
+ */
+function recordApiFailure(): void {
+  const now = Date.now();
+  apiBackoff.consecutiveFailures++;
+  apiBackoff.lastFailureTime = now;
+
+  // Exponential backoff: 2s, 4s, 8s, 16s, 32s, 60s (capped)
+  apiBackoff.currentDelayMs = Math.min(
+    BACKOFF_CONFIG.baseDelayMs * Math.pow(BACKOFF_CONFIG.multiplier, apiBackoff.consecutiveFailures - 1),
+    BACKOFF_CONFIG.maxDelayMs
+  );
+
+  logger.ai.warn(
+    `[Backoff] API failure #${apiBackoff.consecutiveFailures}, next retry in ${apiBackoff.currentDelayMs / 1000}s`
+  );
+}
+
+/**
+ * Record a successful API call and reset backoff state.
+ */
+function recordApiSuccess(): void {
+  if (apiBackoff.consecutiveFailures > 0) {
+    logger.ai.info(`[Backoff] API recovered after ${apiBackoff.consecutiveFailures} failures`);
+  }
+  apiBackoff.consecutiveFailures = 0;
+  apiBackoff.currentDelayMs = BACKOFF_CONFIG.baseDelayMs;
+}
+
+/**
+ * Check if we should skip this cycle due to backoff.
+ * Also resets backoff if enough time has passed since last failure.
+ */
+function shouldBackoff(): boolean {
+  const now = Date.now();
+
+  // Reset backoff if no recent failures
+  if (
+    apiBackoff.consecutiveFailures > 0 &&
+    now - apiBackoff.lastFailureTime > BACKOFF_CONFIG.resetAfterMs
+  ) {
+    logger.ai.info('[Backoff] Reset after quiet period');
+    recordApiSuccess();
+    return false;
+  }
+
+  // Check if we're still in backoff period
+  if (apiBackoff.consecutiveFailures > 0) {
+    const timeSinceFailure = now - apiBackoff.lastFailureTime;
+    if (timeSinceFailure < apiBackoff.currentDelayMs) {
+      return true; // Still in backoff period
+    }
+  }
+
+  return false;
+}
 
 // ============================================================================
 // BAS Suggestion System Integration
@@ -2867,6 +3077,9 @@ let isGeneratingStrategic = false;
  * This wires the suggestion system from aiBehaviorEngine into the AI loop,
  * closing the feedback loop so axis changes actually affect AI behavior.
  */
+// Track last BAS suggestion to prevent duplicates
+let lastBASSuggestionWorkerId: string | null = null;
+
 function processBASSuggestions(): void {
   const basStore = useBASStore.getState();
   const axes = basStore.axes;
@@ -2880,17 +3093,37 @@ function processBASSuggestions(): void {
   const productionStore = useProductionStore.getState();
   const workers = productionStore.workers;
 
-  // Select workers that are idle or have low productivity
-  const candidateWorkers = workers.filter(
-    (w) => w.status === 'idle' || (w.productivityScore !== undefined && w.productivityScore < 70)
+  // Check if there's already a pending BAS suggestion to prevent duplicates
+  const hasPendingBASSuggestion = productionStore.aiDecisions.some(
+    (d) => d.id.startsWith('bas-') && d.status === 'pending'
   );
+  if (hasPendingBASSuggestion) {
+    return;
+  }
+
+  // Select workers that are idle or have low productivity
+  // Guard against NaN: use Number.isFinite to check productivity score
+  const candidateWorkers = workers.filter((w) => {
+    if (w.status === 'idle') return true;
+    const score = w.productivityScore;
+    // Check for undefined, null, NaN, and valid low value
+    return score !== undefined && Number.isFinite(score) && score < 70;
+  });
 
   if (candidateWorkers.length === 0) {
     return;
   }
 
-  // Generate suggestion for a random candidate worker
-  const targetWorker = candidateWorkers[Math.floor(Math.random() * candidateWorkers.length)];
+  // Generate suggestion for a random candidate worker, avoiding the last one
+  let targetWorker;
+  if (candidateWorkers.length === 1) {
+    targetWorker = candidateWorkers[0];
+  } else {
+    // Filter out last suggested worker if possible
+    const filtered = candidateWorkers.filter((w) => w.id !== lastBASSuggestionWorkerId);
+    const pool = filtered.length > 0 ? filtered : candidateWorkers;
+    targetWorker = pool[Math.floor(Math.random() * pool.length)];
+  }
 
   const context: SuggestionContext = {
     situation: `Worker ${targetWorker.name} is ${targetWorker.status}`,
@@ -2899,8 +3132,8 @@ function processBASSuggestions(): void {
     workerId: targetWorker.id,
     currentTask: targetWorker.currentTask,
     metrics: {
-      efficiency: targetWorker.productivityScore ?? 75,
-      experience: targetWorker.experience ?? 50,
+      efficiency: Number.isFinite(targetWorker.productivityScore) ? targetWorker.productivityScore! : 75,
+      experience: Number.isFinite(targetWorker.experience) ? targetWorker.experience! : 50,
     },
   };
 
@@ -2908,6 +3141,9 @@ function processBASSuggestions(): void {
 
   // Only apply if suggestion should be shown proactively
   if (generated.showProactively && generated.confidence > 0.6) {
+    // Track this worker to avoid duplicates
+    lastBASSuggestionWorkerId = targetWorker.id;
+
     // Convert BAS suggestion to AIDecision for consistency with existing system
     const decision: AIDecision = {
       id: `bas-${generated.suggestion.id}`,
@@ -2941,8 +3177,12 @@ function aiLoop() {
   const now = Date.now();
   const store = useAIConfigStore.getState();
 
+  // FIX: Check exponential backoff before attempting API calls
+  const inBackoff = shouldBackoff();
+
   // 1. Tactical Decision Generation (every 6 seconds)
-  if (isTacticalLayerActive() && now - lastDecisionTime >= 6000) {
+  // Skip if in backoff period to avoid hammering a failing API
+  if (isTacticalLayerActive() && now - lastDecisionTime >= AI_ENGINE_TIMING.tacticalDecisionInterval && !inBackoff) {
     if (!isGeneratingDecision) {
       lastDecisionTime = now;
       isGeneratingDecision = true;
@@ -2955,6 +3195,8 @@ function aiLoop() {
           if (decision) {
             applyDecisionEffects(decision);
             store.updateSystemStatus({ decisions: store.systemStatus.decisions + 1 });
+            // FIX: Record success to reset backoff
+            recordApiSuccess();
 
             if (shouldTriggerAudioCue(decision)) {
               // Audio handled by audioManager based on priority/type
@@ -2964,6 +3206,8 @@ function aiLoop() {
           }
         } catch (e) {
           logger.error('Failed to generate tactical decision', e);
+          // FIX: Record failure for exponential backoff
+          recordApiFailure();
         } finally {
           isGeneratingDecision = false;
           store.setTacticalThinking(false);
@@ -2973,29 +3217,36 @@ function aiLoop() {
   }
 
   // 2. Strategic Decision Generation (every 45s)
-  if (isStrategicLayerActive() && now - lastStrategicTime >= 45000) {
+  // FIX: Use async IIFE with try/finally like tactical decisions to prevent race conditions
+  // Skip if in backoff period
+  if (isStrategicLayerActive() && now - lastStrategicTime >= AI_ENGINE_TIMING.strategicDecisionInterval && !inBackoff) {
     if (!isGeneratingStrategic) {
       lastStrategicTime = now;
       isGeneratingStrategic = true;
 
-      generateStrategicDecision()
-        .then((decision) => {
+      // Async wrapper with proper try/finally pattern (matches tactical decision handling)
+      (async () => {
+        try {
+          const decision = await generateStrategicDecision();
           if (decision) {
             applyDecisionEffects(decision);
             store.updateSystemStatus({ decisions: store.systemStatus.decisions + 1 });
+            // FIX: Record success to reset backoff
+            recordApiSuccess();
           }
-        })
-        .catch((e) => {
+        } catch (e) {
           logger.error('Failed to generate strategic decision', e);
-        })
-        .finally(() => {
+          // FIX: Record failure for exponential backoff
+          recordApiFailure();
+        } finally {
           isGeneratingStrategic = false;
-        });
+        }
+      })();
     }
   }
 
   // 3. Update Predictions (every 5s)
-  if (now - lastPredictionTime >= 5000) {
+  if (now - lastPredictionTime >= AI_ENGINE_TIMING.predictionUpdateInterval) {
     lastPredictionTime = now;
     // getPredictedEvents updates internal state, UI reads from store or hook
     // We might want to persist these to a store if they aren't already
@@ -3004,7 +3255,7 @@ function aiLoop() {
   }
 
   // 4. Update Metrics & System Status (every 1.5s)
-  if (now - lastMetricsTime >= 1500) {
+  if (now - lastMetricsTime >= AI_ENGINE_TIMING.metricsUpdateInterval) {
     lastMetricsTime = now;
 
     // Update CPU/Mem estimates based on activity
@@ -3045,7 +3296,7 @@ function aiLoop() {
   // 6. BAS Suggestion System (every 15s)
   // This wires the aiBehaviorEngine suggestion system into the AI loop
   // Closes the feedback loop: axes -> shouldProactivelySuggest -> generateSuggestion
-  if (now - lastBASSuggestionTime >= 15000) {
+  if (now - lastBASSuggestionTime >= AI_ENGINE_TIMING.basSuggestionInterval) {
     lastBASSuggestionTime = now;
     processBASSuggestions();
   }
@@ -3066,7 +3317,7 @@ export function initializeAIEngine(): () => void {
     lastPredictionTime = Date.now();
     lastMetricsTime = Date.now();
     lastBASSuggestionTime = Date.now();
-    loopInterval = setInterval(aiLoop, 1000); // Check every second
+    loopInterval = setInterval(aiLoop, AI_ENGINE_TIMING.loopInterval); // Check every 2 seconds (was 1s - caused perf issues)
     logger.ai.info('AI Engine background loop started');
   }
 
@@ -3656,20 +3907,51 @@ export async function generateStrategicDecision(): Promise<AIDecision | null> {
  * This runs as part of the AI loop to simulate ethical algorithmic management.
  */
 let lastAlignmentTime = 0;
-const ALIGNMENT_INTERVAL_MS = 10000; // Check every 10 seconds
+const ALIGNMENT_INTERVAL_MS = AI_ENGINE_TIMING.alignmentInterval; // Check every 10 seconds
+
+// FIX: Track active safety report resolution timeouts for proper cleanup
+// Key: report.id, Value: timeout handle
+const activeResolutionTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
+
+/**
+ * Cancel all pending safety report resolution timeouts.
+ * Call this on cleanup/unmount to prevent memory leaks.
+ */
+export function cancelPendingResolutionTimeouts(): void {
+  for (const [reportId, timeoutId] of activeResolutionTimeouts) {
+    clearTimeout(timeoutId);
+    logger.ai.debug(`[Alignment] Cancelled pending resolution for report ${reportId}`);
+  }
+  activeResolutionTimeouts.clear();
+}
 
 export async function resolveBilateralAlignment(): Promise<void> {
   const now = Date.now();
   if (now - lastAlignmentTime < ALIGNMENT_INTERVAL_MS) return;
   lastAlignmentTime = now;
 
+  // FIX: Reset grantsThisCycle at START of function to handle early returns/errors
+  // This prevents stale values from previous cycles affecting announcements
+  grantsThisCycle = 0;
+
+  // FIX: Wrap core imports in separate try/catch for graceful fallback
+  let useWorkerMoodStore: typeof import('../stores/workerMoodStore').useWorkerMoodStore;
+  let useSafetyReportStore: typeof import('../stores/safetyReportStore').useSafetyReportStore;
+
   try {
     // Lazy import to prevent circular dependencies
-    const [{ useWorkerMoodStore }, { useSafetyReportStore }] = await Promise.all([
+    const [workerMoodModule, safetyReportModule] = await Promise.all([
       import('../stores/workerMoodStore'),
       import('../stores/safetyReportStore'),
     ]);
+    useWorkerMoodStore = workerMoodModule.useWorkerMoodStore;
+    useSafetyReportStore = safetyReportModule.useSafetyReportStore;
+  } catch (importError) {
+    logger.error('[Alignment] Failed to import core stores - skipping alignment cycle:', importError);
+    return; // Exit gracefully without crashing the AI loop
+  }
 
+  try {
     const moodStore = useWorkerMoodStore.getState();
     const safetyStore = useSafetyReportStore.getState();
 
@@ -3762,8 +4044,17 @@ export async function resolveBilateralAlignment(): Promise<void> {
 
       // For high-severity reports, resolve immediately
       if (report.severity === 'critical' || report.severity === 'high') {
+        // FIX: Track the timeout for proper cleanup
+        // Skip if we already have a pending resolution for this report
+        if (activeResolutionTimeouts.has(report.id)) {
+          continue;
+        }
+
         // Small delay before resolution to simulate investigation
-        setTimeout(() => {
+        const timeoutId = setTimeout(() => {
+          // Remove from tracking map when executed
+          activeResolutionTimeouts.delete(report.id);
+
           const currentReport = useSafetyReportStore
             .getState()
             .safetyReports.find((r) => r.id === report.id);
@@ -3772,6 +4063,9 @@ export async function resolveBilateralAlignment(): Promise<void> {
             logger.ai.info(`[Alignment] Resolved critical safety report ${report.id}`);
           }
         }, 5000);
+
+        // Track the timeout
+        activeResolutionTimeouts.set(report.id, timeoutId);
       }
     }
 
@@ -3811,14 +4105,17 @@ export async function resolveBilateralAlignment(): Promise<void> {
       });
     }
 
-    // Reset cycle counter
-    grantsThisCycle = 0;
+    // Note: grantsThisCycle is reset at START of function (line 3712) to handle early returns.
+    // This end-of-cycle reset is kept for clarity but is technically redundant.
   } catch (error) {
     logger.error('[Alignment] Error in bilateral resolution:', error);
+    // Note: grantsThisCycle was already reset at function start, so no cleanup needed here
   }
 }
 
 // Track grants for batched announcements
+// FIX: This is now reset at the START of resolveBilateralAlignment() to prevent
+// memory leaks from stale values when the function exits early or errors
 let grantsThisCycle = 0;
 
 /**
@@ -4122,15 +4419,13 @@ async function updateAlignmentAchievements(
 
     // preference-prophet: Grant 20 preference requests
     if (grantsThisCycle > 0) {
-      const current =
-        store.achievements.find((a) => a.id === 'preference-prophet')?.progress || 0;
+      const current = store.achievements.find((a) => a.id === 'preference-prophet')?.progress || 0;
       store.updateAchievementProgress('preference-prophet', current + grantsThisCycle);
     }
 
     // self-organizers: 10 workers autonomously help each other (when all satisfied)
     if (satisfiedCount === withPrefs.length && withPrefs.length >= 5) {
-      const current =
-        store.achievements.find((a) => a.id === 'self-organizers')?.progress || 0;
+      const current = store.achievements.find((a) => a.id === 'self-organizers')?.progress || 0;
       store.updateAchievementProgress('self-organizers', current + 1);
     }
   } catch (error) {

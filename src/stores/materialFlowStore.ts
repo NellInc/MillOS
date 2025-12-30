@@ -156,7 +156,7 @@ function createInitialMachineBuffers(): Map<string, MachineBuffer> {
           outputs: [
             { type: 'flour', ratio: 0.72 }, // 72% flour extraction
             { type: 'bran', ratio: 0.18 }, // 18% bran
-            { type: 'middlings', ratio: 0.10 }, // 10% middlings
+            { type: 'middlings', ratio: 0.1 }, // 10% middlings
           ],
         },
         {
@@ -164,7 +164,7 @@ function createInitialMachineBuffers(): Map<string, MachineBuffer> {
           outputs: [
             { type: 'semolina', ratio: 0.65 }, // 65% semolina from corn
             { type: 'bran', ratio: 0.25 },
-            { type: 'middlings', ratio: 0.10 },
+            { type: 'middlings', ratio: 0.1 },
           ],
         },
       ],
@@ -370,7 +370,11 @@ export const useMaterialFlowStore = create<MaterialFlowState>()(
             }
           });
 
-          instantFlowRate += toProcess / deltaSeconds;
+          // Defensive check: avoid division by zero (early return already guards this,
+          // but add explicit check at point of use for safety)
+          if (deltaSeconds > 0) {
+            instantFlowRate += toProcess / deltaSeconds;
+          }
         });
       });
 

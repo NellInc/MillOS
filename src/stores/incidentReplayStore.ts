@@ -49,8 +49,7 @@ export const useIncidentReplayStore = create<IncidentReplayStore>()(
     replayFrames: [],
     currentReplayIndex: 0,
 
-    setReplayMode: (mode: boolean) =>
-      set({ replayMode: mode }),
+    setReplayMode: (mode: boolean) => set({ replayMode: mode }),
 
     recordReplayFrame: (frame: ReplayFrame) =>
       set((state) => {
@@ -67,8 +66,7 @@ export const useIncidentReplayStore = create<IncidentReplayStore>()(
         currentReplayIndex: Math.max(0, Math.min(index, state.replayFrames.length - 1)),
       })),
 
-    clearReplayFrames: () =>
-      set({ replayFrames: [], currentReplayIndex: 0 }),
+    clearReplayFrames: () => set({ replayFrames: [], currentReplayIndex: 0 }),
 
     getCurrentFrame: () => {
       const { replayFrames, currentReplayIndex } = get();
@@ -87,8 +85,7 @@ export const useIncidentReplayStore = create<IncidentReplayStore>()(
         currentReplayIndex: Math.max(state.currentReplayIndex - 1, 0),
       })),
 
-    jumpToStart: () =>
-      set({ currentReplayIndex: 0 }),
+    jumpToStart: () => set({ currentReplayIndex: 0 }),
 
     jumpToEnd: () =>
       set((state) => ({

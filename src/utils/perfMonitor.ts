@@ -147,6 +147,240 @@ export function resetFrameBudget() {
   frameBudget = { useFrame: 0, render: 0, store: 0, idle: 0 };
 }
 
+// =============================================================================
+// Stutter Monitor (DEV-only, opt-in)
+// =============================================================================
+
+export interface StutterMonitorOptions {
+  frameThresholdMs?: number;
+  longTaskThresholdMs?: number;
+  ignoreAfterHiddenMs?: number;
+  minLogIntervalMs?: number;
+  maxEvents?: number;
+}
+
+type StutterEventType = 'frame' | 'longtask';
+
+export interface StutterEvent {
+  type: StutterEventType;
+  timestamp: number;
+  durationMs: number;
+  startTime?: number;
+  detail?: Record<string, unknown>;
+}
+
+interface StutterMonitorState {
+  running: boolean;
+  frameThresholdMs: number;
+  longTaskThresholdMs: number;
+  ignoreAfterHiddenMs: number;
+  minLogIntervalMs: number;
+  maxEvents: number;
+  events: StutterEvent[];
+  rafId: number | null;
+  lastRafTime: number;
+  lastLogTime: number;
+  worstFrameGapMs: number;
+  frameStutterCount: number;
+  longTaskCount: number;
+  longTaskObserver: PerformanceObserver | null;
+}
+
+const stutterState: StutterMonitorState = {
+  running: false,
+  frameThresholdMs: 32,
+  longTaskThresholdMs: 50,
+  ignoreAfterHiddenMs: 250,
+  minLogIntervalMs: 1000,
+  maxEvents: 200,
+  events: [],
+  rafId: null,
+  lastRafTime: 0,
+  lastLogTime: 0,
+  worstFrameGapMs: 0,
+  frameStutterCount: 0,
+  longTaskCount: 0,
+  longTaskObserver: null,
+};
+
+function pushStutterEvent(event: StutterEvent) {
+  stutterState.events.push(event);
+  if (stutterState.events.length > stutterState.maxEvents) {
+    stutterState.events.splice(0, stutterState.events.length - stutterState.maxEvents);
+  }
+}
+
+export function getStutterEvents(): StutterEvent[] {
+  return stutterState.events.slice();
+}
+
+export function resetStutterEvents(): void {
+  stutterState.events = [];
+  stutterState.worstFrameGapMs = 0;
+  stutterState.frameStutterCount = 0;
+  stutterState.longTaskCount = 0;
+}
+
+export function getStutterSummary(): {
+  running: boolean;
+  frameThresholdMs: number;
+  longTaskThresholdMs: number;
+  worstFrameGapMs: number;
+  frameStutterCount: number;
+  longTaskCount: number;
+  recentEvents: StutterEvent[];
+} {
+  return {
+    running: stutterState.running,
+    frameThresholdMs: stutterState.frameThresholdMs,
+    longTaskThresholdMs: stutterState.longTaskThresholdMs,
+    worstFrameGapMs: Math.round(stutterState.worstFrameGapMs * 100) / 100,
+    frameStutterCount: stutterState.frameStutterCount,
+    longTaskCount: stutterState.longTaskCount,
+    recentEvents: getStutterEvents(),
+  };
+}
+
+function stopLongTaskObserver() {
+  if (stutterState.longTaskObserver) {
+    try {
+      stutterState.longTaskObserver.disconnect();
+    } catch {
+      // Ignore
+    }
+    stutterState.longTaskObserver = null;
+  }
+}
+
+function startLongTaskObserver() {
+  if (typeof window === 'undefined') return;
+  if (typeof PerformanceObserver === 'undefined') return;
+
+  const supported = PerformanceObserver.supportedEntryTypes;
+  if (!supported || !supported.includes('longtask')) return;
+
+  stopLongTaskObserver();
+
+  try {
+    stutterState.longTaskObserver = new PerformanceObserver((list) => {
+      const entries = list.getEntries();
+      for (const entry of entries) {
+        if (entry.duration < stutterState.longTaskThresholdMs) continue;
+
+        stutterState.longTaskCount++;
+        const anyEntry = entry as PerformanceEntry & {
+          attribution?: Array<{
+            name?: string;
+            containerType?: string;
+            containerSrc?: string;
+            containerId?: string;
+          }>;
+        };
+
+        pushStutterEvent({
+          type: 'longtask',
+          timestamp: Date.now(),
+          durationMs: entry.duration,
+          startTime: entry.startTime,
+          detail: {
+            name: entry.name,
+            attribution: anyEntry.attribution?.slice(0, 1)?.[0] ?? undefined,
+          },
+        });
+
+        const now = Date.now();
+        if (now - stutterState.lastLogTime >= stutterState.minLogIntervalMs) {
+          stutterState.lastLogTime = now;
+          logger.perf.warn(`[Stutter] Long task: ${entry.duration.toFixed(1)}ms`, {
+            name: entry.name,
+            startTime: Math.round(entry.startTime * 10) / 10,
+            attribution: anyEntry.attribution?.slice(0, 1)?.[0] ?? undefined,
+          });
+        }
+      }
+    });
+
+    stutterState.longTaskObserver.observe({ entryTypes: ['longtask'] });
+  } catch {
+    stopLongTaskObserver();
+  }
+}
+
+function rafTick(time: number) {
+  if (!stutterState.running) return;
+
+  // If tab is hidden, reset baseline and keep monitoring without recording spikes.
+  if (typeof document !== 'undefined' && document.hidden) {
+    stutterState.lastRafTime = time;
+    stutterState.rafId = requestAnimationFrame(rafTick);
+    return;
+  }
+
+  if (stutterState.lastRafTime > 0) {
+    const deltaMs = time - stutterState.lastRafTime;
+
+    // Ignore huge gaps (common after tab restore / debugger pauses).
+    if (deltaMs <= stutterState.ignoreAfterHiddenMs && deltaMs >= stutterState.frameThresholdMs) {
+      stutterState.frameStutterCount++;
+      stutterState.worstFrameGapMs = Math.max(stutterState.worstFrameGapMs, deltaMs);
+
+      pushStutterEvent({
+        type: 'frame',
+        timestamp: Date.now(),
+        durationMs: deltaMs,
+      });
+
+      const now = Date.now();
+      if (now - stutterState.lastLogTime >= stutterState.minLogIntervalMs) {
+        stutterState.lastLogTime = now;
+        logger.perf.warn(`[Stutter] Long frame gap: ${deltaMs.toFixed(1)}ms`);
+      }
+    }
+  }
+
+  stutterState.lastRafTime = time;
+  stutterState.rafId = requestAnimationFrame(rafTick);
+}
+
+export function startStutterMonitor(options: StutterMonitorOptions = {}): void {
+  if (!import.meta.env?.DEV) return;
+  if (typeof window === 'undefined') return;
+  if (stutterState.running) return;
+
+  stutterState.frameThresholdMs = options.frameThresholdMs ?? stutterState.frameThresholdMs;
+  stutterState.longTaskThresholdMs =
+    options.longTaskThresholdMs ?? stutterState.longTaskThresholdMs;
+  stutterState.ignoreAfterHiddenMs =
+    options.ignoreAfterHiddenMs ?? stutterState.ignoreAfterHiddenMs;
+  stutterState.minLogIntervalMs = options.minLogIntervalMs ?? stutterState.minLogIntervalMs;
+  stutterState.maxEvents = options.maxEvents ?? stutterState.maxEvents;
+
+  stutterState.running = true;
+  stutterState.lastRafTime = 0;
+  stutterState.lastLogTime = 0;
+
+  startLongTaskObserver();
+  stutterState.rafId = requestAnimationFrame(rafTick);
+
+  logger.perf.info('[Stutter] Monitor started', {
+    frameThresholdMs: stutterState.frameThresholdMs,
+    longTaskThresholdMs: stutterState.longTaskThresholdMs,
+  });
+}
+
+export function stopStutterMonitor(): void {
+  if (!stutterState.running) return;
+
+  stutterState.running = false;
+  if (stutterState.rafId !== null) {
+    cancelAnimationFrame(stutterState.rafId);
+    stutterState.rafId = null;
+  }
+
+  stopLongTaskObserver();
+  logger.perf.info('[Stutter] Monitor stopped');
+}
+
 // Extend Window interface for perf monitor globals
 declare global {
   interface Window {
@@ -157,6 +391,10 @@ declare global {
     perfCounts?: typeof frameCounts;
     startAutoReport?: typeof startAutoReport;
     stopAutoReport?: typeof stopAutoReport;
+    startStutterMonitor?: typeof startStutterMonitor;
+    stopStutterMonitor?: typeof stopStutterMonitor;
+    getStutterSummary?: typeof getStutterSummary;
+    resetStutterEvents?: typeof resetStutterEvents;
   }
 }
 
@@ -167,6 +405,10 @@ if (typeof window !== 'undefined') {
   window.perfReset = perfReset;
   window.perfTimings = timings;
   window.perfCounts = frameCounts;
+  window.startStutterMonitor = startStutterMonitor;
+  window.stopStutterMonitor = stopStutterMonitor;
+  window.getStutterSummary = getStutterSummary;
+  window.resetStutterEvents = resetStutterEvents;
 }
 
 // Auto-report every 10 seconds in development
@@ -197,4 +439,18 @@ if (typeof window !== 'undefined' && import.meta.env?.DEV) {
   // Don't auto-start, let user control it
   window.startAutoReport = startAutoReport;
   window.stopAutoReport = stopAutoReport;
+
+  // Optional auto-start for stutter monitoring:
+  // - `?stutter=1` in the URL
+  // - `localStorage.setItem('millos.stutterMonitor', '1')`
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const enabledByQuery = params.get('stutter') === '1';
+    const enabledByStorage = localStorage.getItem('millos.stutterMonitor') === '1';
+    if (enabledByQuery || enabledByStorage) {
+      startStutterMonitor();
+    }
+  } catch {
+    // Ignore
+  }
 }

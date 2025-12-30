@@ -99,10 +99,11 @@ export class SimulationAdapter implements IProtocolAdapter {
       });
     });
 
-    // PERFORMANCE FIX: Reduced from 100ms (10Hz) to 1000ms (1Hz)
-    // 10Hz was causing 900 tag updates/second - way too much overhead
+    // PERFORMANCE FIX: Reduced from 100ms (10Hz) to 3000ms (0.33Hz)
+    // 1Hz was still causing stuttering with React DevTools overhead
+    // 3 second interval is plenty for a simulation - values change slowly anyway
     this.tick(); // Force immediate update to apply machine states (prevents 0-value alarms)
-    this.simulationInterval = setInterval(() => this.tick(), 1000);
+    this.simulationInterval = setInterval(() => this.tick(), 3000);
     this.connected = true;
     this.connectTime = Date.now();
   }
@@ -115,6 +116,10 @@ export class SimulationAdapter implements IProtocolAdapter {
     this.connected = false;
     this.values.clear();
     this.activeFaults.clear();
+    // Clear subscribers to prevent memory leaks across reconnects
+    this.subscribers.clear();
+    // Clear machine states so next connect starts fresh
+    this.machineStates.clear();
   }
 
   isConnected(): boolean {

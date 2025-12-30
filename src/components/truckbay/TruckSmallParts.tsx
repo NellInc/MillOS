@@ -267,7 +267,9 @@ export const DEFTank: React.FC<{ position: [number, number, number]; side: 'left
 );
 
 // CB Antenna on cab roof
-export const CBAntennaComponent: React.FC<{ position: [number, number, number] }> = ({ position }) => (
+export const CBAntennaComponent: React.FC<{ position: [number, number, number] }> = ({
+  position,
+}) => (
   <group position={position}>
     <mesh>
       <cylinderGeometry args={[0.04, 0.05, 0.06, 8]} />

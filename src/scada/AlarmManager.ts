@@ -27,6 +27,10 @@ export class AlarmManager {
   private tagThresholds: Map<string, TagDefinition> = new Map();
   private listeners: Set<(alarms: Alarm[]) => void> = new Set();
 
+  // Suppression cleanup throttling (avoid per-tag work when evaluating large batches)
+  private lastSuppressionCleanup = 0;
+  private static SUPPRESSION_CLEANUP_INTERVAL_MS = 1000;
+
   // Track last alarm state per tag to handle deadband
   private lastAlarmStates: Map<
     string,
@@ -56,8 +60,8 @@ export class AlarmManager {
   /**
    * Check if we're still in the startup warmup period
    */
-  private isInWarmup(): boolean {
-    return Date.now() - this.startupTime < AlarmManager.WARMUP_PERIOD_MS;
+  private isInWarmup(now: number): boolean {
+    return now - this.startupTime < AlarmManager.WARMUP_PERIOD_MS;
   }
 
   // =========================================================================
@@ -69,14 +73,15 @@ export class AlarmManager {
    * Call this for every SCADA value update.
    */
   evaluate(tagValue: TagValue): void {
+    const now = Date.now();
     const tag = this.tagThresholds.get(tagValue.tagId);
     if (!tag) return;
 
     // Clean expired suppressions periodically
-    this.cleanExpiredSuppressions();
+    this.maybeCleanExpiredSuppressions(now);
 
     // Skip alarm evaluation during startup warmup
-    if (this.isInWarmup()) {
+    if (this.isInWarmup(now)) {
       // Still update the last known value for proper state tracking
       const lastState = this.lastAlarmStates.get(tag.id);
       if (lastState) {
@@ -465,8 +470,13 @@ export class AlarmManager {
   /**
    * Clean expired alarm suppressions
    */
-  private cleanExpiredSuppressions(): void {
-    const now = Date.now();
+  private maybeCleanExpiredSuppressions(now: number): void {
+    if (now - this.lastSuppressionCleanup < AlarmManager.SUPPRESSION_CLEANUP_INTERVAL_MS) return;
+    this.lastSuppressionCleanup = now;
+    this.cleanExpiredSuppressions(now);
+  }
+
+  private cleanExpiredSuppressions(now: number): void {
     this.suppressions.forEach((sup, tagId) => {
       if (sup.expiresAt && now >= sup.expiresAt) {
         this.suppressions.delete(tagId);
@@ -479,7 +489,7 @@ export class AlarmManager {
    */
   getSuppressedTags(): AlarmSuppression[] {
     // Clean up expired suppressions first
-    this.cleanExpiredSuppressions();
+    this.cleanExpiredSuppressions(Date.now());
     return Array.from(this.suppressions.values());
   }
 
@@ -508,8 +518,10 @@ export class AlarmManager {
     listenersCopy.forEach((cb) => {
       try {
         cb(alarms);
-      } catch {
-        // Listener callback error - silently continue
+      } catch (e) {
+        // Listener callback error - remove faulty listener to prevent memory leak
+        console.error('Listener callback error, removing listener:', e);
+        this.listeners.delete(cb);
       }
     });
   }

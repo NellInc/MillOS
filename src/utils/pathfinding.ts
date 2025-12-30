@@ -3,6 +3,11 @@
  *
  * Provides grid-based A* pathfinding for worker navigation in the factory.
  * Supports 8-directional movement with octile distance heuristic.
+ *
+ * TODO: DEAD CODE - This file has no imports anywhere in the codebase.
+ * The worker navigation system uses simpler direct movement instead.
+ * Consider deleting this file if the A* pathfinding feature is not planned.
+ * Verified 2025-12-30 via: grep -r "pathfinding" src/ (no imports found)
  */
 
 import * as THREE from 'three';
@@ -370,10 +375,7 @@ export class AStarPathfinder {
   /**
    * Find nearest walkable cell to a given cell
    */
-  private findNearestWalkable(
-    gridX: number,
-    gridZ: number
-  ): { x: number; z: number } | null {
+  private findNearestWalkable(gridX: number, gridZ: number): { x: number; z: number } | null {
     const maxRadius = 20;
 
     for (let radius = 1; radius <= maxRadius; radius++) {
@@ -400,9 +402,7 @@ export class AStarPathfinder {
    * Smooth path using line-of-sight checks
    * Removes unnecessary waypoints while ensuring path stays clear
    */
-  private smoothPath(
-    path: Array<{ x: number; z: number }>
-  ): Array<{ x: number; z: number }> {
+  private smoothPath(path: Array<{ x: number; z: number }>): Array<{ x: number; z: number }> {
     if (path.length <= 2) return path;
 
     const smoothed: Array<{ x: number; z: number }> = [path[0]];
@@ -430,10 +430,7 @@ export class AStarPathfinder {
    * Check if there's a clear line of sight between two points
    * Uses Bresenham's line algorithm on the grid
    */
-  private hasLineOfSight(
-    from: { x: number; z: number },
-    to: { x: number; z: number }
-  ): boolean {
+  private hasLineOfSight(from: { x: number; z: number }, to: { x: number; z: number }): boolean {
     const fromGrid = this.grid.worldToGrid(from.x, from.z);
     const toGrid = this.grid.worldToGrid(to.x, to.z);
 

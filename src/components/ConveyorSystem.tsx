@@ -5,7 +5,8 @@ import * as THREE from 'three';
 import { useShallow } from 'zustand/react/shallow';
 import { audioManager } from '../utils/audioManager';
 import { useGraphicsStore } from '../stores/graphicsStore';
-import { useProductionStore } from '../stores/productionStore';
+// Note: Production counting moved to App.tsx interval-based system (scales with gameSpeed)
+// Conveyor animation is now purely visual - no bag counting here
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import { GrainQuality } from '../types';
 import {
@@ -161,10 +162,11 @@ const ConveyorAudioManager: React.FC<{ productionSpeed: number }> = ({ productio
 };
 
 // Centralized bag animation manager - updates all bags in ONE useFrame (15-60 bags → 1 call)
+// NOTE: This is purely visual animation - production counting is handled by App.tsx
+// interval-based system which scales with gameSpeed for proper game-time production
 const BagAnimationManager: React.FC<{
   productionSpeed: number;
-  incrementBagsProduced: (count: number) => void;
-}> = ({ productionSpeed, incrementBagsProduced }) => {
+}> = ({ productionSpeed }) => {
   const isTabVisible = useGameSimulationStore((state) => state.isTabVisible);
   const quality = useGraphicsStore(useShallow((state) => state.graphics.quality));
 
@@ -182,23 +184,17 @@ const BagAnimationManager: React.FC<{
     // Cap delta to prevent huge jumps when tab regains focus (max 100ms)
     const cappedDelta = Math.min(delta * movementThrottle, 0.1);
 
-    // Update all bags in a single pass
+    // Update all bags in a single pass (visual only - no production counting)
     bagAnimationRegistry.forEach((state) => {
       if (!state.ref) return;
 
       state.currentX += state.speed * productionSpeed * cappedDelta;
 
-      // Track when bag crosses the boundary (simulating packed bag)
+      // Wrap bag when it crosses the boundary (visual continuity)
       if (state.currentX > BAG_BOUNDARY) {
         // Preserve overflow to prevent stuttering/bunching
         const overflow = state.currentX - BAG_BOUNDARY;
         state.currentX = -BAG_BOUNDARY + overflow;
-        if (!state.crossedBoundary) {
-          incrementBagsProduced(1);
-          state.crossedBoundary = true;
-        }
-      } else {
-        state.crossedBoundary = false;
       }
 
       // Apply position to mesh
@@ -244,7 +240,7 @@ const getRandomQuality = (): GrainQuality => {
 
 export const ConveyorSystem = React.memo<ConveyorSystemProps>(({ productionSpeed }) => {
   const graphicsQuality = useGraphicsStore(useShallow((state) => state.graphics.quality));
-  const incrementBagsProduced = useProductionStore((state) => state.incrementBagsProduced);
+  // PERF: Removed incrementBagsProduced selector - now using throttledIncrementBags directly
   const bagCount = graphicsQuality === 'low' ? 15 : graphicsQuality === 'medium' ? 30 : 60;
 
   const bags = useMemo(() => {
@@ -270,10 +266,7 @@ export const ConveyorSystem = React.memo<ConveyorSystemProps>(({ productionSpeed
       <ConveyorAudioManager productionSpeed={productionSpeed} />
 
       {/* Centralized bag animation manager - updates all bags in ONE useFrame */}
-      <BagAnimationManager
-        productionSpeed={productionSpeed}
-        incrementBagsProduced={incrementBagsProduced}
-      />
+      <BagAnimationManager productionSpeed={productionSpeed} />
 
       {/* Main conveyor belt structure - moved to z=24 to align with packers at z=25 */}
       <MemoizedConveyorBelt position={[0, 0.5, 24]} length={55} productionSpeed={productionSpeed} />
@@ -608,7 +601,13 @@ const ConveyorBelt: React.FC<{
           {/* Ventilation grille - z offset increased to 0.28 to prevent z-fighting with motor housing front face at z=0.25 */}
           <mesh position={[0, 0, 0.28]}>
             <planeGeometry args={[0.5, 0.35]} />
-            <meshBasicMaterial color="#1a1a1a" depthWrite={false} polygonOffset polygonOffsetFactor={POLYGON_OFFSET.standard.factor} polygonOffsetUnits={POLYGON_OFFSET.standard.units} />
+            <meshBasicMaterial
+              color="#1a1a1a"
+              depthWrite={false}
+              polygonOffset
+              polygonOffsetFactor={POLYGON_OFFSET.standard.factor}
+              polygonOffsetUnits={POLYGON_OFFSET.standard.units}
+            />
           </mesh>
           {/* Warning label */}
           <mesh position={[0.41, 0.1, 0]} rotation={[0, Math.PI / 2, 0]}>
@@ -858,7 +857,13 @@ const FlourBagMesh: React.FC<{ data: FlourBag }> = React.memo(({ data }) => {
       {/* Quality-colored label stripe - z offset increased to 0.48 to prevent z-fighting with bag front face at z=0.45 */}
       <mesh position={[0, 0.25, 0.48]}>
         <planeGeometry args={[0.5, 0.3]} />
-        <meshBasicMaterial color={qualityColor} depthWrite={false} polygonOffset polygonOffsetFactor={POLYGON_OFFSET.standard.factor} polygonOffsetUnits={POLYGON_OFFSET.standard.units} />
+        <meshBasicMaterial
+          color={qualityColor}
+          depthWrite={false}
+          polygonOffset
+          polygonOffsetFactor={POLYGON_OFFSET.standard.factor}
+          polygonOffsetUnits={POLYGON_OFFSET.standard.units}
+        />
       </mesh>
 
       {/* Batch number text on bag (3D text) */}

@@ -76,7 +76,6 @@ export const TrafficConeInstances: React.FC<{
 // So we should construct specific geometries that are pre-transformed (translated) to the correct relative position.
 
 /** Geometry constructor type for Three.js geometries (supports numeric and boolean args like openEnded) */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type GeometryConstructor = new (...args: any[]) => THREE.BufferGeometry;
 
 /** Geometry constructor arguments - varies by type (Box: [w,h,d], Cone: [r,h,seg], etc.) */

@@ -7,6 +7,7 @@ import { useUIStore } from '../../stores/uiStore';
 import { useSafetyStore } from '../../stores/safetyStore';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { WorkerGender, getPronouns } from '../../types';
+import { audioManager } from '../../utils/audioManager';
 
 // ============================================================================
 // CAMERA FEED CONTEXT
@@ -1358,7 +1359,7 @@ const WORKERS: WorkerInfo[] = [
 const MACHINE_IDS = {
   silos: ['Silo Alpha', 'Silo Beta', 'Silo Gamma', 'Silo Delta', 'Silo Epsilon'],
   mills: ['R.M. 101', 'R.M. 102', 'R.M. 103', 'R.M. 104', 'R.M. 105', 'R.M. 106'],
-  sifters: ['Sifter A', 'Sifter B', 'Sifter C'],
+  sifters: ['Sifter A.', 'Sifter B.', 'Sifter C.'],
   packers: ['Packer Line 1', 'Packer Line 2', 'Packer Line 3'],
 };
 
@@ -2156,6 +2157,8 @@ const useEventAnnouncementScheduler = () => {
   useEffect(() => {
     // Check for events every 5 seconds
     const interval = setInterval(() => {
+      // Skip when muted - prevents queue buildup and race conditions
+      if (audioManager.muted) return;
       checkEventAnnouncements(addAnnouncement);
     }, 5000);
 
@@ -2293,6 +2296,12 @@ const usePAScheduler = () => {
     const scheduleNext = () => {
       const delay = getNextDelay();
       return setTimeout(() => {
+        // Skip announcement creation entirely when muted - prevents queue buildup and race conditions
+        if (audioManager.muted) {
+          timeoutRef = scheduleNext();
+          return;
+        }
+
         const gameTime = useGameSimulationStore.getState().gameTime;
 
         // Check if we should play a shift announcement

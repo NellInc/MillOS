@@ -175,8 +175,8 @@ export const FPSTracker: React.FC = () => {
 
   // Track frame times for profiling
   const frameTimes = useRef<number[]>([]);
-  const SAMPLE_INTERVAL_DEFAULT = 0.5; // seconds
-  const SAMPLE_INTERVAL_PROFILING = 0.1; // seconds
+  const SAMPLE_INTERVAL_DEFAULT = 2.0; // seconds (was 0.5 - reduced for perf)
+  const SAMPLE_INTERVAL_PROFILING = 0.5; // seconds (was 0.1)
 
   useFrame((_, delta) => {
     const sampleInterval = profilingEnabled ? SAMPLE_INTERVAL_PROFILING : SAMPLE_INTERVAL_DEFAULT;
@@ -206,6 +206,11 @@ export const FPSTracker: React.FC = () => {
         textures: info.memory.textures,
         programs: info.programs?.length || 0,
       });
+
+      // PERF DEBUG: Disabled - was running every 0.5s
+      // console.log(
+      //   `[PERF] FPS: ${fps} | Draws: ${info.render.calls} | Tris: ${(info.render.triangles / 1000).toFixed(0)}k | Geos: ${info.memory.geometries}`
+      // );
 
       // Profiling data estimation
       if (profilingEnabled && frameTimes.current.length > 0) {

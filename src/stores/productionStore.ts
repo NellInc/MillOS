@@ -38,6 +38,71 @@ export type { TruckScheduleState, TruckScheduleStore } from './truckScheduleStor
 // =========================================================================
 
 // =========================================================================
+// PERF: Throttled bag production accumulator
+// Batches multiple incrementBagsProduced calls into fewer store updates
+// This prevents cascade re-renders when conveyor bags cross boundaries
+// =========================================================================
+let pendingBagIncrement = 0;
+let bagFlushTimer: ReturnType<typeof setTimeout> | null = null;
+const BAG_FLUSH_INTERVAL_MS = 500; // Flush accumulated bags every 500ms
+
+function flushPendingBags() {
+  if (pendingBagIncrement > 0) {
+    const toFlush = pendingBagIncrement;
+    pendingBagIncrement = 0;
+    // Direct store update - bypasses the throttled wrapper
+    useProductionStore.getState()._directIncrementBags(toFlush);
+  }
+  bagFlushTimer = null;
+}
+
+/**
+ * Throttled bag increment - accumulates calls and flushes periodically
+ * Use this instead of store.incrementBagsProduced for high-frequency updates
+ */
+export function throttledIncrementBags(count: number) {
+  pendingBagIncrement += count;
+  if (!bagFlushTimer) {
+    bagFlushTimer = setTimeout(flushPendingBags, BAG_FLUSH_INTERVAL_MS);
+  }
+}
+
+/**
+ * Cleanup function for throttled bag increment system.
+ * FIX: Provides cleanup mechanism for HMR and testing to prevent memory leaks
+ * and stale state from persisting across module reloads.
+ *
+ * Call this on component unmount or test teardown to:
+ * - Clear any pending flush timer
+ * - Flush any accumulated bag increments immediately
+ * - Reset module-level state to initial values
+ */
+export function cleanupThrottledBags() {
+  if (bagFlushTimer) {
+    clearTimeout(bagFlushTimer);
+    bagFlushTimer = null;
+  }
+  // Flush any pending increments before cleanup
+  if (pendingBagIncrement > 0) {
+    const toFlush = pendingBagIncrement;
+    pendingBagIncrement = 0;
+    useProductionStore.getState()._directIncrementBags(toFlush);
+  }
+}
+
+/**
+ * Reset throttled bag state without flushing (for testing).
+ * Use cleanupThrottledBags() for production cleanup.
+ */
+export function resetThrottledBagState() {
+  if (bagFlushTimer) {
+    clearTimeout(bagFlushTimer);
+    bagFlushTimer = null;
+  }
+  pendingBagIncrement = 0;
+}
+
+// =========================================================================
 // WEAR SYSTEM CONFIGURATION
 // Different machine types wear at different rates based on mechanical stress
 // Wear accumulates during operation and reduces efficiency
@@ -112,6 +177,114 @@ function calculateEfficiency(wear: number, machineType: MachineType): number {
   const wearAboveThreshold = wear - 50;
   const efficiency = 100 - wearAboveThreshold * config.efficiencyPenaltyRate;
   return Math.max(0, Math.round(efficiency * 10) / 10);
+}
+
+function updateMachinesForTick(
+  machines: MachineData[],
+  productionSpeed: number,
+  deltaSeconds: number,
+  machinesToBreakdown: Array<{ id: string; name: string; type: string }>
+): MachineData[] {
+  if (machines.length === 0) return machines;
+
+  let hasAnyChanges = false;
+  const updatedMachines = machines.map((machine) => {
+    const isRunning = machine.status === 'running' || machine.status === 'warning';
+    const isBrokenDown = machine.status === 'critical';
+    const baseRpm = machine.metrics.rpm;
+    const baseLoad = machine.metrics.load;
+    const baseTemp = machine.metrics.temperature;
+    const baseWear = machine.metrics.wear ?? 0;
+    const wearConfig = WEAR_CONFIG[machine.type];
+
+    // Skip updates for broken down machines
+    if (isBrokenDown) {
+      return machine;
+    }
+
+    // RPM variance: +/-2% random variation when running
+    let newRpm = baseRpm;
+    if (isRunning && baseRpm > 0) {
+      const rpmVariance = baseRpm * 0.02 * (Math.random() * 2 - 1);
+      newRpm = Math.max(0, Math.round(baseRpm + rpmVariance));
+    }
+
+    // Temperature: gradually increases when running, decreases when idle
+    let newTemp = baseTemp;
+    if (isRunning) {
+      // Running: temperature rises toward 75C at ~0.5C per second
+      const tempTarget = 75;
+      const tempDelta = (tempTarget - baseTemp) * 0.02 * deltaSeconds;
+      newTemp = Math.round(Math.min(85, baseTemp + Math.max(0.1, tempDelta)));
+    } else {
+      // Idle: temperature falls toward ambient 25C at ~0.3C per second
+      const tempTarget = 25;
+      const tempDelta = (baseTemp - tempTarget) * 0.01 * deltaSeconds;
+      newTemp = Math.round(Math.max(25, baseTemp - Math.max(0.1, tempDelta)));
+    }
+
+    // Load variance: +/-5% based on production speed when running
+    let newLoad = baseLoad;
+    if (isRunning && baseLoad > 0) {
+      const loadVariance = baseLoad * 0.05 * (Math.random() * 2 - 1);
+      newLoad = Math.round(
+        Math.max(10, Math.min(100, baseLoad * productionSpeed * 0.8 + loadVariance))
+      );
+    }
+
+    // WEAR ACCUMULATION: Machines accumulate wear while running
+    // Higher load accelerates wear (load factor: 0.5 at 50% load, 1.5 at 100% load)
+    let newWear = baseWear;
+    if (isRunning) {
+      const loadFactor = 0.5 + newLoad / 100;
+      const wearIncrement = wearConfig.wearRatePerSecond * deltaSeconds * loadFactor;
+      newWear = Math.min(100, baseWear + wearIncrement);
+    }
+
+    // EFFICIENCY CALCULATION: Efficiency decreases as wear increases
+    const newEfficiency = calculateEfficiency(newWear, machine.type);
+
+    // STATUS UPDATE based on wear thresholds
+    let newStatus = machine.status;
+    if (newWear >= wearConfig.breakdownThreshold) {
+      // Machine breaks down!
+      newStatus = 'critical';
+      machinesToBreakdown.push({ id: machine.id, name: machine.name, type: machine.type });
+    } else if (newWear >= wearConfig.warningThreshold && machine.status === 'running') {
+      // Machine needs maintenance soon
+      newStatus = 'warning';
+    }
+
+    // Only create new object if something changed
+    const wearChanged = Math.abs(newWear - baseWear) > 0.0001;
+    const efficiencyChanged = newEfficiency !== (machine.metrics.efficiency ?? 100);
+    if (
+      newRpm === baseRpm &&
+      newTemp === baseTemp &&
+      newLoad === baseLoad &&
+      !wearChanged &&
+      !efficiencyChanged &&
+      newStatus === machine.status
+    ) {
+      return machine;
+    }
+
+    hasAnyChanges = true;
+    return {
+      ...machine,
+      status: newStatus,
+      metrics: {
+        ...machine.metrics,
+        rpm: newRpm,
+        temperature: newTemp,
+        load: newLoad,
+        wear: Math.round(newWear * 100) / 100, // Round to 2 decimal places
+        efficiency: newEfficiency,
+      },
+    };
+  });
+
+  return hasAnyChanges ? updatedMachines : machines;
 }
 
 // Performance-optimized indices for O(1) lookups
@@ -221,6 +394,8 @@ export interface ProductionStore
   updateProductionProgress: (bagsProduced: number) => void;
   totalBagsProduced: number;
   incrementBagsProduced: (count?: number) => void;
+  /** @internal Direct increment - use throttledIncrementBags() for high-frequency updates */
+  _directIncrementBags: (count: number) => void;
 
   // Worker leaderboard
   workerLeaderboard: Array<{
@@ -263,7 +438,11 @@ export const useProductionStore = create<ProductionStore>()(
     // =========================================================================
 
     // QC Lab
-    qcLab: useQCLabStore.getState().qcLab,
+    // FIX: Use getter pattern to always return fresh state from source store
+    // This prevents stale data issues when the source store updates
+    get qcLab() {
+      return useQCLabStore.getState().qcLab;
+    },
     startQCTest: (...args: Parameters<QCLabStore['startQCTest']>) =>
       useQCLabStore.getState().startQCTest(...args),
     completeQCTest: (...args: Parameters<QCLabStore['completeQCTest']>) =>
@@ -274,7 +453,10 @@ export const useProductionStore = create<ProductionStore>()(
     getLatestTestResult: () => useQCLabStore.getState().getLatestTestResult(),
 
     // Achievements
-    achievements: useAchievementsStore.getState().achievements,
+    // FIX: Use getter pattern for fresh state
+    get achievements() {
+      return useAchievementsStore.getState().achievements;
+    },
     unlockAchievement: (...args: Parameters<AchievementsStore['unlockAchievement']>) =>
       useAchievementsStore.getState().unlockAchievement(...args),
     updateAchievementProgress: (
@@ -289,8 +471,13 @@ export const useProductionStore = create<ProductionStore>()(
     ) => useAchievementsStore.getState().getAchievementsByCategory(...args),
 
     // Announcements
-    announcements: useAnnouncementsStore.getState().announcements,
-    lastAnnouncementTime: useAnnouncementsStore.getState().lastAnnouncementTime,
+    // FIX: Use getter pattern for fresh state
+    get announcements() {
+      return useAnnouncementsStore.getState().announcements;
+    },
+    get lastAnnouncementTime() {
+      return useAnnouncementsStore.getState().lastAnnouncementTime;
+    },
     addAnnouncement: (...args: Parameters<AnnouncementsStore['addAnnouncement']>) =>
       useAnnouncementsStore.getState().addAnnouncement(...args),
     dismissAnnouncement: (...args: Parameters<AnnouncementsStore['dismissAnnouncement']>) =>
@@ -302,9 +489,16 @@ export const useProductionStore = create<ProductionStore>()(
     ) => useAnnouncementsStore.getState().getAnnouncementsByPriority(...args),
 
     // Incident replay
-    replayMode: useIncidentReplayStore.getState().replayMode,
-    replayFrames: useIncidentReplayStore.getState().replayFrames,
-    currentReplayIndex: useIncidentReplayStore.getState().currentReplayIndex,
+    // FIX: Use getter pattern for fresh state
+    get replayMode() {
+      return useIncidentReplayStore.getState().replayMode;
+    },
+    get replayFrames() {
+      return useIncidentReplayStore.getState().replayFrames;
+    },
+    get currentReplayIndex() {
+      return useIncidentReplayStore.getState().currentReplayIndex;
+    },
     setReplayMode: (...args: Parameters<IncidentReplayStore['setReplayMode']>) =>
       useIncidentReplayStore.getState().setReplayMode(...args),
     recordReplayFrame: (...args: Parameters<IncidentReplayStore['recordReplayFrame']>) =>
@@ -320,7 +514,10 @@ export const useProductionStore = create<ProductionStore>()(
     jumpToEnd: () => useIncidentReplayStore.getState().jumpToEnd(),
 
     // Truck schedule
-    truckSchedule: useTruckScheduleStore.getState().truckSchedule,
+    // FIX: Use getter pattern for fresh state
+    get truckSchedule() {
+      return useTruckScheduleStore.getState().truckSchedule;
+    },
     setTruckDocked: (...args: Parameters<TruckScheduleStore['setTruckDocked']>) =>
       useTruckScheduleStore.getState().setTruckDocked(...args),
     updateNextArrival: (...args: Parameters<TruckScheduleStore['updateNextArrival']>) =>
@@ -374,10 +571,6 @@ export const useProductionStore = create<ProductionStore>()(
         return { aiDecisions: updatedDecisions };
       }),
     updateDecisionStatus: (decisionId, status, outcome) => {
-      // Capture decision before state update for welfare feedback loop
-      const currentState = get();
-      const decision = currentState.aiDecisions.find((d) => d.id === decisionId);
-
       // Update the state
       set((state) => ({
         aiDecisions: state.aiDecisions.map((d) =>
@@ -386,11 +579,16 @@ export const useProductionStore = create<ProductionStore>()(
       }));
 
       // Wire AI welfare feedback loop - update welfare metrics on decision completion
-      if (decision && (status === 'completed' || status === 'superseded')) {
+      // FIX: Re-fetch decision from fresh state inside async callback to avoid stale closure
+      if (decisionId && (status === 'completed' || status === 'superseded')) {
         import('../utils/aiEngine')
           .then(({ updateWelfareFromDecisionOutcome }) => {
-            const welfareOutcome = status === 'completed' ? 'completed' : 'rejected';
-            updateWelfareFromDecisionOutcome(decision, welfareOutcome);
+            // Get fresh decision state after async import resolves
+            const freshDecision = get().aiDecisions.find((d) => d.id === decisionId);
+            if (freshDecision) {
+              const welfareOutcome = status === 'completed' ? 'completed' : 'rejected';
+              updateWelfareFromDecisionOutcome(freshDecision, welfareOutcome);
+            }
           })
           .catch(() => {
             // Silently handle import failure - welfare update is non-critical
@@ -557,9 +755,15 @@ export const useProductionStore = create<ProductionStore>()(
               ) / 10
             : 100;
 
-        // Quality: Get from QC Lab store - use dynamic import to avoid circular deps
-        // For now, use default value - consumers should use useQCLabStore directly
-        const quality = 99.5; // Default before any tests
+        // Quality: Get from QC Lab store - fetch latest test result for quality score
+        // Grade mapping: A=100, B=85, C=70, FAIL=0
+        const qcLabState = useQCLabStore.getState();
+        const latestTest = qcLabState.qcLab.testHistory[qcLabState.qcLab.testHistory.length - 1];
+        let quality = 99.5; // Default before any tests
+        if (latestTest) {
+          const gradeScores: Record<string, number> = { A: 100, B: 85, C: 70, FAIL: 0 };
+          quality = gradeScores[latestTest.grade] ?? 99.5;
+        }
 
         // Throughput: Use REAL material flow rate from materialFlowStore
         // This represents actual kg/sec flowing through the system
@@ -594,24 +798,111 @@ export const useProductionStore = create<ProductionStore>()(
 
     // Tick metrics tracking - called by game simulation loop
     tickMetrics: (deltaSeconds: number) => {
-      // Update metric tracking
+      const machinesToBreakdown: Array<{ id: string; name: string; type: string }> = [];
+
       set((state) => {
-        const machines = state.machines;
-        const runningMachines = machines.filter(
+        // 1) Update machine state (wear/metrics/status) AND metric tracking in one write.
+        const nextMachines = updateMachinesForTick(
+          state.machines,
+          state.productionSpeed,
+          deltaSeconds,
+          machinesToBreakdown
+        );
+
+        const totalMachines = nextMachines.length || 1;
+        const runningMachines = nextMachines.filter(
           (m) => m.status === 'running' || m.status === 'warning'
         ).length;
 
+        const nextMetricTracking = {
+          ...state._metricTracking,
+          totalRunningSeconds:
+            state._metricTracking.totalRunningSeconds + runningMachines * deltaSeconds,
+          totalElapsedSeconds: state._metricTracking.totalElapsedSeconds + deltaSeconds,
+        };
+
+        // 2) Recompute derived metrics here to avoid a second store update.
+        const efficiency = Math.round((runningMachines / totalMachines) * 100 * 10) / 10;
+        const uptime =
+          nextMetricTracking.totalElapsedSeconds > 0
+            ? Math.round(
+                (nextMetricTracking.totalRunningSeconds /
+                  (nextMetricTracking.totalElapsedSeconds * totalMachines)) *
+                  100 *
+                  10
+              ) / 10
+            : 100;
+
+        // Quality: Get from QC Lab store - fetch latest test result for quality score
+        // Grade mapping: A=100, B=85, C=70, FAIL=0
+        const qcLabState = useQCLabStore.getState();
+        const latestTest = qcLabState.qcLab.testHistory[qcLabState.qcLab.testHistory.length - 1];
+        let quality = 99.5; // Default before any tests
+        if (latestTest) {
+          const gradeScores: Record<string, number> = { A: 100, B: 85, C: 70, FAIL: 0 };
+          quality = gradeScores[latestTest.grade] ?? 99.5;
+        }
+
+        const materialFlowState = useMaterialFlowStore.getState();
+        const flowRateKgPerSec = materialFlowState.currentFlowRate;
+        const BAG_WEIGHT_KG = 25;
+
+        let throughput: number;
+        if (flowRateKgPerSec > 0) {
+          throughput = Math.round((flowRateKgPerSec / BAG_WEIGHT_KG) * 3600);
+        } else {
+          const BAGS_PER_RPM_PER_MIN = 0.2;
+          const packers = nextMachines.filter((m) => m.type.toString() === 'PACKER');
+          const runningPackers = packers.filter(
+            (m) => m.status === 'running' || m.status === 'warning'
+          );
+          throughput = Math.round(
+            runningPackers.reduce((sum, p) => sum + p.metrics.rpm * BAGS_PER_RPM_PER_MIN, 0) *
+              60 *
+              state.productionSpeed
+          );
+        }
+
+        const nextMetrics =
+          state.metrics.efficiency === efficiency &&
+          state.metrics.uptime === uptime &&
+          state.metrics.throughput === throughput &&
+          state.metrics.quality === quality
+            ? state.metrics
+            : { efficiency, uptime, quality, throughput };
+
+        // Update production target's actualThroughput if we have an active target
+        const nextProductionTarget = state.productionTarget
+          ? {
+              ...state.productionTarget,
+              actualThroughput: throughput,
+            }
+          : null;
+
         return {
-          _metricTracking: {
-            ...state._metricTracking,
-            totalRunningSeconds:
-              state._metricTracking.totalRunningSeconds + runningMachines * deltaSeconds,
-            totalElapsedSeconds: state._metricTracking.totalElapsedSeconds + deltaSeconds,
-          },
+          machines: nextMachines,
+          _metricTracking: nextMetricTracking,
+          metrics: nextMetrics,
+          productionTarget: nextProductionTarget,
         };
       });
-      // Also tick machine metrics to vary RPM, temperature, load
-      get().tickMachineMetrics(deltaSeconds);
+
+      // Fire breakdown alerts outside of set() to avoid store recursion
+      if (machinesToBreakdown.length > 0) {
+        import('./uiStore').then(({ useUIStore }) => {
+          machinesToBreakdown.forEach(({ id, name, type }) => {
+            useUIStore.getState().addAlert({
+              id: `breakdown-${id}-${Date.now()}`,
+              type: 'critical',
+              title: 'Machine Breakdown',
+              message: `${name} (${type}) has broken down due to excessive wear. Maintenance required.`,
+              machineId: id,
+              timestamp: new Date(),
+              acknowledged: false,
+            });
+          });
+        });
+      }
     },
 
     // Tick machine metrics - vary RPM, temperature, load, accumulate wear, and update efficiency
@@ -620,105 +911,13 @@ export const useProductionStore = create<ProductionStore>()(
       const machinesToBreakdown: Array<{ id: string; name: string; type: string }> = [];
 
       set((state) => {
-        if (state.machines.length === 0) return state;
-
-        const updatedMachines = state.machines.map((machine) => {
-          const isRunning = machine.status === 'running' || machine.status === 'warning';
-          const isBrokenDown = machine.status === 'critical';
-          const baseRpm = machine.metrics.rpm;
-          const baseLoad = machine.metrics.load;
-          const baseTemp = machine.metrics.temperature;
-          const baseWear = machine.metrics.wear ?? 0;
-          const wearConfig = WEAR_CONFIG[machine.type];
-
-          // Skip updates for broken down machines
-          if (isBrokenDown) {
-            return machine;
-          }
-
-          // RPM variance: +/-2% random variation when running
-          let newRpm = baseRpm;
-          if (isRunning && baseRpm > 0) {
-            const rpmVariance = baseRpm * 0.02 * (Math.random() * 2 - 1);
-            newRpm = Math.max(0, Math.round(baseRpm + rpmVariance));
-          }
-
-          // Temperature: gradually increases when running, decreases when idle
-          let newTemp = baseTemp;
-          if (isRunning) {
-            // Running: temperature rises toward 75C at ~0.5C per second
-            const tempTarget = 75;
-            const tempDelta = (tempTarget - baseTemp) * 0.02 * deltaSeconds;
-            newTemp = Math.round(Math.min(85, baseTemp + Math.max(0.1, tempDelta)));
-          } else {
-            // Idle: temperature falls toward ambient 25C at ~0.3C per second
-            const tempTarget = 25;
-            const tempDelta = (baseTemp - tempTarget) * 0.01 * deltaSeconds;
-            newTemp = Math.round(Math.max(25, baseTemp - Math.max(0.1, tempDelta)));
-          }
-
-          // Load variance: +/-5% based on production speed when running
-          let newLoad = baseLoad;
-          if (isRunning && baseLoad > 0) {
-            const loadVariance = baseLoad * 0.05 * (Math.random() * 2 - 1);
-            const speedFactor = state.productionSpeed;
-            newLoad = Math.round(
-              Math.max(10, Math.min(100, baseLoad * speedFactor * 0.8 + loadVariance))
-            );
-          }
-
-          // WEAR ACCUMULATION: Machines accumulate wear while running
-          // Higher load accelerates wear (load factor: 0.5 at 50% load, 1.5 at 100% load)
-          let newWear = baseWear;
-          if (isRunning) {
-            const loadFactor = 0.5 + newLoad / 100;
-            const wearIncrement = wearConfig.wearRatePerSecond * deltaSeconds * loadFactor;
-            newWear = Math.min(100, baseWear + wearIncrement);
-          }
-
-          // EFFICIENCY CALCULATION: Efficiency decreases as wear increases
-          const newEfficiency = calculateEfficiency(newWear, machine.type);
-
-          // STATUS UPDATE based on wear thresholds
-          let newStatus = machine.status;
-          if (newWear >= wearConfig.breakdownThreshold) {
-            // Machine breaks down!
-            newStatus = 'critical';
-            machinesToBreakdown.push({ id: machine.id, name: machine.name, type: machine.type });
-          } else if (newWear >= wearConfig.warningThreshold && machine.status === 'running') {
-            // Machine needs maintenance soon
-            newStatus = 'warning';
-          }
-
-          // Only create new object if something changed
-          const wearChanged = Math.abs(newWear - baseWear) > 0.0001;
-          const efficiencyChanged = newEfficiency !== (machine.metrics.efficiency ?? 100);
-          if (
-            newRpm === baseRpm &&
-            newTemp === baseTemp &&
-            newLoad === baseLoad &&
-            !wearChanged &&
-            !efficiencyChanged &&
-            newStatus === machine.status
-          ) {
-            return machine;
-          }
-
-          return {
-            ...machine,
-            status: newStatus,
-            metrics: {
-              ...machine.metrics,
-              rpm: newRpm,
-              temperature: newTemp,
-              load: newLoad,
-              wear: Math.round(newWear * 100) / 100, // Round to 2 decimal places
-              efficiency: newEfficiency,
-            },
-          };
-        });
-
-        return { machines: updatedMachines };
+        const nextMachines = updateMachinesForTick(
+          state.machines,
+          state.productionSpeed,
+          deltaSeconds,
+          machinesToBreakdown
+        );
+        return nextMachines === state.machines ? state : { machines: nextMachines };
       });
 
       // Fire breakdown alerts outside of set() to avoid store recursion
@@ -878,15 +1077,62 @@ export const useProductionStore = create<ProductionStore>()(
     totalBagsProduced: 0,
     incrementBagsProduced: (count = 1) =>
       set((state) => {
-        const newTotal = state.totalBagsProduced + count;
+        // Validate input: ensure non-negative integer count
+        const safeCount = Math.max(0, Math.round(count));
+        if (safeCount === 0) return state;
+
+        // Safety cap: prevent counter from exceeding MAX_SAFE_INTEGER
+        const newTotal = Math.min(
+          Number.MAX_SAFE_INTEGER,
+          state.totalBagsProduced + safeCount
+        );
+        const actualIncrement = newTotal - state.totalBagsProduced;
+        if (actualIncrement === 0) return state;
+
         return {
           totalBagsProduced: newTotal,
           productionTarget: state.productionTarget
             ? {
                 ...state.productionTarget,
-                producedBags: state.productionTarget.producedBags + count,
+                producedBags: Math.min(
+                  Number.MAX_SAFE_INTEGER,
+                  state.productionTarget.producedBags + actualIncrement
+                ),
                 status:
-                  state.productionTarget.producedBags + count >= state.productionTarget.targetBags
+                  state.productionTarget.producedBags + actualIncrement >= state.productionTarget.targetBags
+                    ? 'completed'
+                    : 'in_progress',
+              }
+            : null,
+        };
+      }),
+
+    // Direct increment - same as incrementBagsProduced but called by throttled wrapper
+    _directIncrementBags: (count: number) =>
+      set((state) => {
+        // Validate input: ensure non-negative integer count
+        const safeCount = Math.max(0, Math.round(count));
+        if (safeCount === 0) return state;
+
+        // Safety cap: prevent counter from exceeding MAX_SAFE_INTEGER
+        const newTotal = Math.min(
+          Number.MAX_SAFE_INTEGER,
+          state.totalBagsProduced + safeCount
+        );
+        const actualIncrement = newTotal - state.totalBagsProduced;
+        if (actualIncrement === 0) return state;
+
+        return {
+          totalBagsProduced: newTotal,
+          productionTarget: state.productionTarget
+            ? {
+                ...state.productionTarget,
+                producedBags: Math.min(
+                  Number.MAX_SAFE_INTEGER,
+                  state.productionTarget.producedBags + actualIncrement
+                ),
+                status:
+                  state.productionTarget.producedBags + actualIncrement >= state.productionTarget.targetBags
                     ? 'completed'
                     : 'in_progress',
               }

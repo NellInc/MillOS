@@ -12,7 +12,7 @@ import { shouldRunThisFrame } from '../utils/frameThrottle';
  */
 export const SpatialAudioTracker: React.FC = () => {
   const { camera } = useThree();
-  const gameTime = useGameSimulationStore((state) => state.gameTime);
+  // PERF FIX: Use getState() instead of subscription to avoid re-renders on gameTime change
   const lastCameraPosRef = useRef<[number, number, number]>([Infinity, Infinity, Infinity]);
   const lastGameTimeRef = useRef<number | null>(null);
 
@@ -31,7 +31,9 @@ export const SpatialAudioTracker: React.FC = () => {
       lastCameraPosRef.current = [x, y, z];
     }
 
-    // Update time-of-day audio only when the store value changes (ticks every 0.5s)
+    // Update time-of-day audio only when the store value changes
+    // PERF FIX: Read from getState() instead of subscription
+    const gameTime = useGameSimulationStore.getState().gameTime;
     if (lastGameTimeRef.current !== gameTime) {
       audioManager.updateTimeOfDay(gameTime);
       lastGameTimeRef.current = gameTime;

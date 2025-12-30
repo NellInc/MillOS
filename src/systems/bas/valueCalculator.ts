@@ -210,7 +210,7 @@ function calculateExperienceEquity(metrics: WorkerEquityMetrics[]): number {
           m.informationAccess +
           m.evaluationQuality +
           m.collectiveParticipation) /
-          5
+        5
       );
     }, 0) / metrics.length;
 
@@ -275,10 +275,10 @@ export interface ValueBreakdown {
   };
   /** Which factor is the limiting factor */
   limitingFactor:
-    | 'resourceIndex'
-    | 'stabilityCoefficient'
-    | 'equityIndex'
-    | 'flourishingCoefficient';
+  | 'resourceIndex'
+  | 'stabilityCoefficient'
+  | 'equityIndex'
+  | 'flourishingCoefficient';
   /** Improvement potential if limiting factor reaches average of others */
   improvementPotential: number;
   /** Comparison to baseline */
@@ -315,21 +315,38 @@ export function getValueBreakdown(Z: number, S: number, E: number, F: number): V
   const geometricValue = calculateTotalValueGeometric(safeZ, safeS, safeE, safeF);
 
   // Calculate log contributions for percentage breakdown
+  // When a factor is 1.0, its log is 0, meaning it contributes nothing to limiting value.
+  // We use log because V = product, so log(V) = sum of logs.
   const logZ = Math.log(safeZ);
   const logS = Math.log(safeS);
   const logE = Math.log(safeE);
   const logF = Math.log(safeF);
   const totalLog = logZ + logS + logE + logF;
 
-  // Handle edge case where total log is 0
-  const safeLogTotal = totalLog !== 0 ? totalLog : -4;
-
-  const contributions = {
-    resourceIndex: (logZ / safeLogTotal) * 100,
-    stabilityCoefficient: (logS / safeLogTotal) * 100,
-    equityIndex: (logE / safeLogTotal) * 100,
-    flourishingCoefficient: (logF / safeLogTotal) * 100,
-  };
+  // Handle edge cases:
+  // 1. If totalLog is ~0, all factors are near 1.0 - use equal contributions
+  // 2. If totalLog > 0 (impossible with valid inputs), clamp to safe value
+  // Note: log of values < 1 is negative, so totalLog should always be <= 0
+  let contributions;
+  if (Math.abs(totalLog) < 0.001) {
+    // All factors are nearly 1.0, so each contributes equally
+    contributions = {
+      resourceIndex: 25,
+      stabilityCoefficient: 25,
+      equityIndex: 25,
+      flourishingCoefficient: 25,
+    };
+  } else {
+    // Normal case: contribution is proportional to how much each factor limits total value
+    // Invert sign since logs are negative, so larger negative = more limiting = higher contribution
+    const absTotal = Math.abs(totalLog);
+    contributions = {
+      resourceIndex: (Math.abs(logZ) / absTotal) * 100,
+      stabilityCoefficient: (Math.abs(logS) / absTotal) * 100,
+      equityIndex: (Math.abs(logE) / absTotal) * 100,
+      flourishingCoefficient: (Math.abs(logF) / absTotal) * 100,
+    };
+  }
 
   // Find limiting factor (lowest value)
   const factors = {
@@ -581,11 +598,11 @@ export function analyzeValueTrend(history: ValueDataPoint[]): {
   trend: 'improving' | 'stable' | 'declining';
   rateOfChange: number;
   dominantDriver:
-    | 'resourceIndex'
-    | 'stabilityCoefficient'
-    | 'equityIndex'
-    | 'flourishingCoefficient'
-    | null;
+  | 'resourceIndex'
+  | 'stabilityCoefficient'
+  | 'equityIndex'
+  | 'flourishingCoefficient'
+  | null;
   recommendation: string;
 } {
   if (history.length < 2) {

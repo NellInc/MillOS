@@ -7,7 +7,11 @@ import { audioManager } from '../utils/audioManager';
 import { useProductionStore } from '../stores/productionStore';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import { useGraphicsStore } from '../stores/graphicsStore';
-import { FLOOR_LAYERS, EXTERIOR_LAYERS, POLYGON_OFFSET, RENDER_ORDER } from '../constants/renderLayers';
+import {
+  FLOOR_LAYERS,
+  POLYGON_OFFSET,
+  RENDER_ORDER,
+} from '../constants/renderLayers';
 import {
   OptimizedTrafficConeInstances,
   OptimizedBollardInstances,
@@ -662,48 +666,41 @@ export const EmployeeParking: React.FC<{
   rotation?: number;
 }> = ({ position, rotation = 0 }) => (
   <group position={position} rotation={[0, rotation, 0]} matrixAutoUpdate={false}>
-    {/* Parking lot surface - exteriorMid layer (above grass, below roads) */}
-    <mesh position={[0, EXTERIOR_LAYERS.ground, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+    {/* Parking lot surface - raised above TerrainGround (y=0.05) */}
+    <mesh position={[0, 0.08, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
       <planeGeometry args={[25, 18]} />
       <meshStandardMaterial
         color="#2d2d2d"
         roughness={0.9}
+        depthWrite={false}
         polygonOffset
-        polygonOffsetFactor={POLYGON_OFFSET.exteriorMid.factor}
-        polygonOffsetUnits={POLYGON_OFFSET.exteriorMid.units}
+        polygonOffsetFactor={-2}
+        polygonOffsetUnits={-2}
       />
     </mesh>
     {/* Parking stripes - 8 spaces */}
     {[0, 1, 2, 3, 4, 5, 6, 7].map((_: unknown, i: number) => (
       <group key={i} position={[-10 + i * 3, 0, 0]}>
         {/* Vertical stripe */}
-        <mesh
-          position={[0, FLOOR_LAYERS.safetyMain, 0]}
-          rotation={[-Math.PI / 2, 0, 0]}
-          renderOrder={RENDER_ORDER.floorMarkings}
-        >
+        <mesh position={[0, 0.09, 0]} rotation={[-Math.PI / 2, 0, 0]} renderOrder={RENDER_ORDER.floorMarkings}>
           <planeGeometry args={[0.1, 5]} />
           <meshBasicMaterial
             color="#fef3c7"
             depthWrite={false}
             polygonOffset
-            polygonOffsetFactor={POLYGON_OFFSET.moderate.factor}
-            polygonOffsetUnits={POLYGON_OFFSET.moderate.units}
+            polygonOffsetFactor={-3}
+            polygonOffsetUnits={-3}
           />
         </mesh>
         {/* Horizontal stripe at back */}
-        <mesh
-          position={[1.5, FLOOR_LAYERS.safetyMain, -2.4]}
-          rotation={[-Math.PI / 2, 0, 0]}
-          renderOrder={RENDER_ORDER.floorMarkings}
-        >
+        <mesh position={[1.5, 0.09, -2.4]} rotation={[-Math.PI / 2, 0, 0]} renderOrder={RENDER_ORDER.floorMarkings}>
           <planeGeometry args={[3, 0.1]} />
           <meshBasicMaterial
             color="#fef3c7"
             depthWrite={false}
             polygonOffset
-            polygonOffsetFactor={POLYGON_OFFSET.moderate.factor}
-            polygonOffsetUnits={POLYGON_OFFSET.moderate.units}
+            polygonOffsetFactor={-3}
+            polygonOffsetUnits={-3}
           />
         </mesh>
       </group>
@@ -711,42 +708,16 @@ export const EmployeeParking: React.FC<{
     {/* Handicap spaces - 2 at end */}
     {[0, 1].map((_: unknown, i: number) => (
       <group key={i} position={[10 + i * 3.5, 0, 0]}>
-        <mesh
-          position={[0, FLOOR_LAYERS.safetyMain, 0]}
-          rotation={[-Math.PI / 2, 0, 0]}
-          renderOrder={RENDER_ORDER.floorMarkings}
-        >
+        <mesh position={[0, 0.09, 0]} rotation={[-Math.PI / 2, 0, 0]} renderOrder={RENDER_ORDER.floorMarkings}>
           <planeGeometry args={[0.15, 5]} />
-          <meshBasicMaterial
-            color="#3b82f6"
-            depthWrite={false}
-            polygonOffset
-            polygonOffsetFactor={POLYGON_OFFSET.moderate.factor}
-            polygonOffsetUnits={POLYGON_OFFSET.moderate.units}
-          />
+          <meshBasicMaterial color="#3b82f6" depthWrite={false} polygonOffset polygonOffsetFactor={-3} polygonOffsetUnits={-3} />
         </mesh>
         {/* Handicap symbol (simplified) */}
-        <mesh
-          position={[1.5, FLOOR_LAYERS.safetyDanger, -1]}
-          rotation={[-Math.PI / 2, 0, 0]}
-          renderOrder={RENDER_ORDER.floorMarkings}
-        >
+        <mesh position={[1.5, 0.10, -1]} rotation={[-Math.PI / 2, 0, 0]} renderOrder={RENDER_ORDER.floorMarkings}>
           <circleGeometry args={[0.5, 16]} />
-          <meshBasicMaterial
-            color="#3b82f6"
-            depthWrite={false}
-            polygonOffset
-            polygonOffsetFactor={POLYGON_OFFSET.moderate.factor}
-            polygonOffsetUnits={POLYGON_OFFSET.moderate.units}
-          />
+          <meshBasicMaterial color="#3b82f6" depthWrite={false} polygonOffset polygonOffsetFactor={-4} polygonOffsetUnits={-4} />
         </mesh>
-        <Text
-          position={[1.5, 0.05, -1]}
-          rotation={[-Math.PI / 2, 0, 0]}
-          fontSize={0.6}
-          color="#ffffff"
-          anchorX="center"
-        >
+        <Text position={[1.5, 0.11, -1]} rotation={[-Math.PI / 2, 0, 0]} fontSize={0.6} color="#ffffff" anchorX="center">
           P
         </Text>
       </group>
@@ -1788,7 +1759,8 @@ const YardJockey: React.FC<{ position: [number, number, number]; rotation?: numb
     registerAnimation(id, 'custom', null, { rotation }, (time, _delta, _mesh, data) => {
       if (jockeyRef.current) {
         jockeyRef.current.position.x = Math.sin(time * 0.15) * 8;
-        jockeyRef.current.rotation.y = Math.cos(time * 0.15) * 0.3 + (data as { rotation: number }).rotation;
+        jockeyRef.current.rotation.y =
+          Math.cos(time * 0.15) * 0.3 + (data as { rotation: number }).rotation;
       }
     });
     return () => unregisterAnimation(id);
@@ -5622,7 +5594,8 @@ const OverheadCrane: React.FC<{ position: [number, number, number]; spanWidth?: 
     const id = animId.current;
     registerAnimation(id, 'custom', null, { spanWidth }, (time, _delta, _mesh, data) => {
       if (trolleyRef.current) {
-        trolleyRef.current.position.x = Math.sin(time * 0.2) * ((data as { spanWidth: number }).spanWidth / 2 - 1);
+        trolleyRef.current.position.x =
+          Math.sin(time * 0.2) * ((data as { spanWidth: number }).spanWidth / 2 - 1);
       }
       if (hookRef.current) {
         hookRef.current.rotation.z = Math.sin(time * 0.5) * 0.05;

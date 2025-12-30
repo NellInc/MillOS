@@ -25,12 +25,7 @@ import { FlourishingIndicator } from './workers/FlourishingIndicator';
 import { getWorkerStatusColor } from '../utils/statusColors';
 import { getWorkerAppearance } from './workers/WorkerAppearance';
 import { HumanModel } from './workers/HumanModel';
-import {
-  SAFE_AISLES,
-  isInExclusionZone,
-  getSafeZPosition,
-  getSafeSpawnZ,
-} from './workers/shared';
+import { SAFE_AISLES, isInExclusionZone, getSafeZPosition, getSafeSpawnZ } from './workers/shared';
 
 interface WorkerSystemProps {
   onSelectWorker: (worker: WorkerData) => void;
@@ -83,6 +78,32 @@ export const WorkerSystem: React.FC<WorkerSystemProps> = ({ onSelectWorker }) =>
 };
 
 // Worker appearance, tools, hair, animation types, and HumanModel are now imported from ./workers/*
+
+// Shared LOD calculation with hysteresis to prevent flickering
+// Uses consistent thresholds across physics and legacy modes
+// High: < 25 units (exit at 30), Medium: 25-55 units, Low: > 55 units (exit at 45)
+const LOD_THRESHOLDS = {
+  highToMedium: 30, // Distance to switch from high to medium
+  mediumToHigh: 25, // Distance to switch from medium to high
+  mediumToLow: 55, // Distance to switch from medium to low
+  lowToMedium: 45, // Distance to switch from low to medium
+} as const;
+
+function calculateLodTier(
+  currentLod: 'high' | 'medium' | 'low',
+  distance: number
+): 'high' | 'medium' | 'low' {
+  if (currentLod === 'high' && distance > LOD_THRESHOLDS.highToMedium) {
+    return 'medium';
+  } else if (currentLod === 'medium' && distance < LOD_THRESHOLDS.mediumToHigh) {
+    return 'high';
+  } else if (currentLod === 'medium' && distance > LOD_THRESHOLDS.mediumToLow) {
+    return 'low';
+  } else if (currentLod === 'low' && distance < LOD_THRESHOLDS.lowToMedium) {
+    return 'medium';
+  }
+  return currentLod;
+}
 
 const SimplifiedWorker: React.FC<{
   walkCycleRef: React.MutableRefObject<number>;
@@ -268,6 +289,8 @@ const Worker: React.FC<{ data: WorkerData; onSelect: () => void }> = React.memo(
     >('none');
     const pointDirectionRef = useRef(0);
     const celebrationTimerRef = useRef(0); // Timer for celebration duration
+    // Track previous behavior mode to reset walk cycle on transitions
+    const prevBehaviorModeRef = useRef<'normal' | 'evacuation' | 'shift_change' | 'breakdown_repair'>('normal');
     const recordWorkerEvasion = useSafetyStore((state) => state.recordWorkerEvasion);
     const alerts = useUIStore((state) => state.alerts);
 
@@ -296,6 +319,27 @@ const Worker: React.FC<{ data: WorkerData; onSelect: () => void }> = React.memo(
 
     // Physics system toggle
     const enablePhysics = useGraphicsStore((state) => state.graphics.enablePhysics);
+    const prevEnablePhysicsRef = useRef(enablePhysics); // Track previous physics state for sync
+
+    // Synchronize position when toggling between physics and legacy mode
+    useEffect(() => {
+      if (enablePhysics !== prevEnablePhysicsRef.current) {
+        // Physics mode changed - sync position from ref to ensure consistency
+        // When physics is disabled, the ref position should be preserved
+        // When physics is enabled, the PhysicsWorker will read initial position from ref
+        if (ref.current) {
+          // Update baseXRef to current position to prevent return-to-spawn behavior
+          baseXRef.current = ref.current.position.x;
+          // Reset any ongoing avoidance states
+          isEvadingRef.current = false;
+          isAvoidingObstacleRef.current = false;
+          currentObstacleRef.current = null;
+          obstacleAvoidanceStartRef.current = null;
+          evadeCooldownRef.current = 0;
+        }
+        prevEnablePhysicsRef.current = enablePhysics;
+      }
+    }, [enablePhysics]);
 
     // Track if this worker has been marked as evacuated (to prevent multiple calls)
     const hasEvacuatedRef = useRef(false);
@@ -303,20 +347,22 @@ const Worker: React.FC<{ data: WorkerData; onSelect: () => void }> = React.memo(
     // Track repair assignment for maintenance worker
     const currentRepairIdRef = useRef<string | null>(null);
 
-    // Reset evacuation status when drill ends
+    // Reset evacuation status when drill ends (only reset when BOTH flags are false)
     useEffect(() => {
-      if (!emergencyDrillMode) {
+      if (!emergencyDrillMode && !drillMetrics.active) {
         hasEvacuatedRef.current = false;
       }
-    }, [emergencyDrillMode]);
+    }, [emergencyDrillMode, drillMetrics.active]);
 
     // Obstacle avoidance state
     const isAvoidingObstacleRef = useRef(false);
     const avoidanceTargetXRef = useRef(0);
     const currentObstacleRef = useRef<string | null>(null);
+    const obstacleAvoidanceStartRef = useRef<number | null>(null); // Track when avoidance started
     const OBSTACLE_DETECTION_RANGE = 5; // How far ahead to look for obstacles
     const AVOIDANCE_SPEED = 2.5; // Speed when moving sideways to avoid
     const OBSTACLE_PADDING = 0.8; // Extra clearance around obstacles
+    const MAX_AVOIDANCE_TIME = 3000; // Max time in ms for obstacle avoidance before reset
 
     // Track when evasion starts and ends
     // Note: This effect intentionally runs on every render to track ref changes
@@ -398,16 +444,11 @@ const Worker: React.FC<{ data: WorkerData; onSelect: () => void }> = React.memo(
         walkCycleRef.current += cappedDelta * 5.5;
         ref.current.position.y = Math.abs(Math.sin(walkCycleRef.current)) * 0.025;
 
-        // Update LOD based on camera distance
+        // Update LOD based on camera distance using shared calculation
         // Distribute LOD checks using the offset (check every 10 frames)
         if ((getGlobalFrameCount() + throttleOffset) % 10 === 0) {
           cameraDistanceRef.current = state.camera.position.distanceTo(ref.current.position);
-          const dist = cameraDistanceRef.current;
-          let newLod = lodRef.current;
-          if (lodRef.current === 'high' && dist > 30) newLod = 'medium';
-          else if (lodRef.current === 'medium' && dist < 25) newLod = 'high';
-          else if (lodRef.current === 'medium' && dist > 55) newLod = 'low';
-          else if (lodRef.current === 'low' && dist < 45) newLod = 'medium';
+          const newLod = calculateLodTier(lodRef.current, cameraDistanceRef.current);
           if (newLod !== lodRef.current) {
             lodRef.current = newLod;
             setLod(newLod);
@@ -422,6 +463,11 @@ const Worker: React.FC<{ data: WorkerData; onSelect: () => void }> = React.memo(
       // === SHIFT CHANGE BEHAVIOR ===
       // When shift change is active, workers walk toward exit
       if (shiftChangeActive && shiftChangePhase === 'leaving') {
+        // Reset walk cycle on mode transition for smooth animation start
+        if (prevBehaviorModeRef.current !== 'shift_change') {
+          walkCycleRef.current = 0;
+          prevBehaviorModeRef.current = 'shift_change';
+        }
         const cappedDelta = Math.min(delta, 0.1);
         const exitZ = -50; // Exit toward receiving dock
         const exitSpeed = 3.0; // Faster walk to exit
@@ -455,6 +501,11 @@ const Worker: React.FC<{ data: WorkerData; onSelect: () => void }> = React.memo(
       // === FIRE DRILL EVACUATION BEHAVIOR ===
       // When fire drill is active, workers run to nearest exit
       if (emergencyDrillMode && drillMetrics.active && !hasEvacuatedRef.current) {
+        // Reset walk cycle on mode transition for smooth running animation start
+        if (prevBehaviorModeRef.current !== 'evacuation') {
+          walkCycleRef.current = 0;
+          prevBehaviorModeRef.current = 'evacuation';
+        }
         const cappedDelta = Math.min(delta, 0.1);
         const EVACUATION_SPEED = 6.0; // Running speed
         const EVACUATION_THRESHOLD = 3.0; // Distance to exit to be considered evacuated
@@ -510,6 +561,11 @@ const Worker: React.FC<{ data: WorkerData; onSelect: () => void }> = React.memo(
       // === BREAKDOWN REPAIR BEHAVIOR (Maintenance Worker Only) ===
       // David Kim (w5) is the maintenance technician who repairs breakdowns
       if (data.id === 'w5' && activeBreakdowns.length > 0) {
+        // Reset walk cycle on mode transition for smooth animation start
+        if (prevBehaviorModeRef.current !== 'breakdown_repair') {
+          walkCycleRef.current = 0;
+          prevBehaviorModeRef.current = 'breakdown_repair';
+        }
         const cappedDelta = Math.min(delta, 0.1);
         const REPAIR_SPEED = 4.0; // Walking speed to machine
         const REPAIR_DISTANCE = 2.5; // Distance to start repairing
@@ -587,6 +643,13 @@ const Worker: React.FC<{ data: WorkerData; onSelect: () => void }> = React.memo(
         }
       }
 
+      // === NORMAL BEHAVIOR MODE ===
+      // Reset walk cycle if transitioning back to normal from any special mode
+      if (prevBehaviorModeRef.current !== 'normal') {
+        walkCycleRef.current = 0;
+        prevBehaviorModeRef.current = 'normal';
+      }
+
       // Update cached settings every 60 frames (~1 second at 60fps)
       // Use offset to distribute this check across frames for different workers
       workerSettingsCacheFrameRef.current++;
@@ -611,21 +674,9 @@ const Worker: React.FC<{ data: WorkerData; onSelect: () => void }> = React.memo(
       if (!isLowQuality) {
         cameraDistanceRef.current = state.camera.position.distanceTo(ref.current.position);
 
-        // Update LOD tier for rendering (with hysteresis to prevent flickering)
-        // High: < 25 units, Medium: 25-55 units, Low: > 55 units
+        // Update LOD tier for rendering using shared calculation (with hysteresis to prevent flickering)
         // Use ref to avoid re-renders every frame, only update state when LOD changes
-        const dist = cameraDistanceRef.current;
-        let newLod = lodRef.current;
-
-        if (lodRef.current === 'high' && dist > 30) {
-          newLod = 'medium';
-        } else if (lodRef.current === 'medium' && dist < 25) {
-          newLod = 'high';
-        } else if (lodRef.current === 'medium' && dist > 55) {
-          newLod = 'low';
-        } else if (lodRef.current === 'low' && dist < 45) {
-          newLod = 'medium';
-        }
+        const newLod = calculateLodTier(lodRef.current, cameraDistanceRef.current);
 
         // Only trigger re-render when LOD actually changes
         if (newLod !== lodRef.current) {
@@ -909,6 +960,9 @@ const Worker: React.FC<{ data: WorkerData; onSelect: () => void }> = React.memo(
         if (isEvadingRef.current) {
           evadeCooldownRef.current = EVADE_COOLDOWN_TIME; // Start cooldown when we stop evading
           isEvadingRef.current = false;
+          // Update baseXRef to current position after successful evasion
+          // This prevents workers from trying to return to original spawn position
+          baseXRef.current = ref.current.position.x;
         }
 
         // Count down the cooldown timer
@@ -939,8 +993,12 @@ const Worker: React.FC<{ data: WorkerData; onSelect: () => void }> = React.memo(
       }
 
       // === OBSTACLE AVOIDANCE ===
-      // Check for obstacles ahead (only when not evading forklift and not idle)
+      // Priority system: evading forklift > obstacle avoidance > normal movement
+      // When evasion is active, pause obstacle avoidance
+      // When evasion ends, check for obstacles before resuming normal movement
       if (!isEvadingRef.current && !isIdleRef.current) {
+        // Clear obstacle avoidance state if we were evading (evasion takes priority)
+        // This ensures a clean state transition after evasion completes
         const obstacleAhead = positionRegistry.getObstacleAhead(
           ref.current.position.x,
           ref.current.position.z,
@@ -954,6 +1012,7 @@ const Worker: React.FC<{ data: WorkerData; onSelect: () => void }> = React.memo(
           if (!isAvoidingObstacleRef.current || currentObstacleRef.current !== obstacleAhead.id) {
             isAvoidingObstacleRef.current = true;
             currentObstacleRef.current = obstacleAhead.id;
+            obstacleAvoidanceStartRef.current = Date.now(); // Track when avoidance started
             // Calculate which side to go around
             avoidanceTargetXRef.current = positionRegistry.findClearPath(
               ref.current.position.x,
@@ -961,6 +1020,21 @@ const Worker: React.FC<{ data: WorkerData; onSelect: () => void }> = React.memo(
               obstacleAhead.id,
               OBSTACLE_PADDING + 0.5
             );
+          }
+
+          // Timeout check: if stuck avoiding for too long, reset and try different direction
+          if (
+            obstacleAvoidanceStartRef.current !== null &&
+            Date.now() - obstacleAvoidanceStartRef.current > MAX_AVOIDANCE_TIME
+          ) {
+            isAvoidingObstacleRef.current = false;
+            obstacleAvoidanceStartRef.current = null;
+            currentObstacleRef.current = null;
+            // Try reversing direction to find another path
+            directionRef.current *= -1;
+            ref.current.rotation.y += Math.PI;
+            // Update baseXRef to current position to prevent return-to-spawn behavior
+            baseXRef.current = ref.current.position.x;
           }
         } else if (isAvoidingObstacleRef.current) {
           // No obstacle ahead, clear avoidance state
@@ -973,6 +1047,9 @@ const Worker: React.FC<{ data: WorkerData; onSelect: () => void }> = React.memo(
           if (!stillNearObstacle) {
             isAvoidingObstacleRef.current = false;
             currentObstacleRef.current = null;
+            obstacleAvoidanceStartRef.current = null;
+            // Update baseXRef to current position after successful obstacle avoidance
+            baseXRef.current = ref.current.position.x;
           }
         }
       }
@@ -1025,17 +1102,19 @@ const Worker: React.FC<{ data: WorkerData; onSelect: () => void }> = React.memo(
       ref.current.position.y = bobHeight;
       ref.current.rotation.y = directionRef.current > 0 ? 0 : Math.PI;
 
-      // Register position for collision avoidance
-      positionRegistry.register(
-        data.id,
-        ref.current.position.x,
-        ref.current.position.z,
-        'worker',
-        undefined,
-        undefined,
-        undefined,
-        ref.current.position.y
-      );
+      // Register position for collision avoidance (throttled to every 3 frames for performance)
+      if ((getGlobalFrameCount() + throttleOffset) % 3 === 0) {
+        positionRegistry.register(
+          data.id,
+          ref.current.position.x,
+          ref.current.position.z,
+          'worker',
+          undefined,
+          undefined,
+          undefined,
+          ref.current.position.y
+        );
+      }
 
       // Record heat map point (throttled to every 60 frames ~1sec to avoid performance issues)
       if (frameCountRef.current % 60 === 0) {

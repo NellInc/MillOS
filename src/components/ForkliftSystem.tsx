@@ -21,11 +21,23 @@ const ForkliftPath: React.FC<{ path: [number, number, number][]; color: string }
   path,
   color,
 }) => {
-  // Create a closed loop by adding the first point at the end
+  // PERF: Reuse Vector3 objects instead of allocating new ones each path change
+  const pointsRef = useRef<THREE.Vector3[]>([]);
   const points = useMemo(() => {
-    const pts = path.map((p) => new THREE.Vector3(p[0], 0.1, p[2])); // Above floor to prevent z-fighting
-    pts.push(pts[0].clone()); // Close the loop
-    return pts;
+    const pts = pointsRef.current;
+    const targetLength = path.length + 1; // +1 for closing the loop
+    // Resize array if needed (only grows, never shrinks to avoid allocation churn)
+    while (pts.length < targetLength) {
+      pts.push(new THREE.Vector3());
+    }
+    // Update point values
+    for (let i = 0; i < path.length; i++) {
+      pts[i].set(path[i][0], 0.1, path[i][2]); // Above floor to prevent z-fighting
+    }
+    // Close the loop
+    pts[path.length].copy(pts[0]);
+    // Return only the slice we need (in case array is larger from previous path)
+    return pts.slice(0, targetLength);
   }, [path]);
 
   return (
@@ -137,22 +149,49 @@ const WarningLight = React.memo<{ isStopped: boolean; isInCrossing: boolean }>(
         </mesh>
         {/* Glow effect when stopped or in crossing */}
         {(isStopped || isInCrossing) && (
-          <pointLight
-            ref={lightRef}
-            color={glowColor}
-            intensity={2}
-            distance={5}
-            visible={false}
-          />
+          <pointLight ref={lightRef} color={glowColor} intensity={2} distance={5} visible={false} />
         )}
       </group>
     );
   }
 );
 
+// Cargo fade-in duration for billboard (matches detailed model)
+const BILLBOARD_CARGO_FADE_DURATION = 0.25;
+
 // Simplified forklift billboard for distant rendering (50+ units away)
 // Uses only 4 meshes instead of ~40+ for massive performance improvement
 const ForkliftBillboard: React.FC<{ hasCargo: boolean }> = ({ hasCargo }) => {
+  // Cargo fade-in refs (no re-renders, minimal overhead)
+  const cargoOpacityRef = useRef(hasCargo ? 1 : 0);
+  const prevHasCargoRef = useRef(hasCargo);
+  const cargoMaterialRef = useRef<THREE.MeshStandardMaterial>(null);
+  const isTabVisible = useGameSimulationStore((state) => state.isTabVisible);
+
+  useFrame((_, delta) => {
+    if (!isTabVisible) return;
+
+    // Detect cargo spawn
+    if (hasCargo && !prevHasCargoRef.current) {
+      cargoOpacityRef.current = 0;
+    }
+    prevHasCargoRef.current = hasCargo;
+
+    // Animate opacity (only when needed)
+    const targetOpacity = hasCargo ? 1 : 0;
+    if (cargoOpacityRef.current !== targetOpacity) {
+      if (hasCargo) {
+        cargoOpacityRef.current = Math.min(1, cargoOpacityRef.current + delta / BILLBOARD_CARGO_FADE_DURATION);
+      } else {
+        cargoOpacityRef.current = 0;
+      }
+      if (cargoMaterialRef.current) {
+        cargoMaterialRef.current.opacity = cargoOpacityRef.current;
+        cargoMaterialRef.current.visible = cargoOpacityRef.current > 0.01;
+      }
+    }
+  });
+
   return (
     <group>
       {/* Simple body - single box */}
@@ -170,13 +209,17 @@ const ForkliftBillboard: React.FC<{ hasCargo: boolean }> = ({ hasCargo }) => {
         <boxGeometry args={[0.8, 2, 0.15]} />
         <meshStandardMaterial color="#374151" roughness={0.4} />
       </mesh>
-      {/* Cargo if present */}
-      {hasCargo && (
-        <mesh position={[0, 1.4, 1.8]} castShadow>
-          <boxGeometry args={[0.9, 0.7, 0.9]} />
-          <meshStandardMaterial color="#fef3c7" roughness={0.7} />
-        </mesh>
-      )}
+      {/* Cargo - always mounted, opacity animated */}
+      <mesh position={[0, 1.4, 1.8]} castShadow visible={hasCargo || cargoOpacityRef.current > 0.01}>
+        <boxGeometry args={[0.9, 0.7, 0.9]} />
+        <meshStandardMaterial
+          ref={cargoMaterialRef}
+          color="#fef3c7"
+          roughness={0.7}
+          transparent
+          opacity={cargoOpacityRef.current}
+        />
+      </mesh>
     </group>
   );
 };

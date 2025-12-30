@@ -33,6 +33,16 @@ interface HistoryStoreConfig {
   changeDeadband: number;
 }
 
+/** Internal record with unique ID for safe concurrent flush handling */
+interface BufferedTagRecord extends TagHistoryRecord {
+  _bufferId: number;
+}
+
+/** Internal alarm record with unique ID for safe concurrent flush handling */
+interface BufferedAlarmRecord extends AlarmHistoryRecord {
+  _bufferId: number;
+}
+
 const DEFAULT_CONFIG: HistoryStoreConfig = {
   retentionMs: 24 * 60 * 60 * 1000, // 24 hours
   batchIntervalMs: 1000,
@@ -56,14 +66,17 @@ export class HistoryStore {
   private readonly DB_NAME = 'MillOS_SCADA';
   private readonly DB_VERSION = 1;
   private config: HistoryStoreConfig;
-  private writeBuffer: TagHistoryRecord[] = [];
-  private alarmBuffer: AlarmHistoryRecord[] = [];
+  private writeBuffer: BufferedTagRecord[] = [];
+  private alarmBuffer: BufferedAlarmRecord[] = [];
   private batchInterval: ReturnType<typeof setInterval> | null = null;
   private cleanupInterval: ReturnType<typeof setInterval> | null = null;
   private isInitialized = false;
   private isFlushing = false;
   private flushQueued = false;
   private historyDisabled = false;
+
+  // Monotonically increasing ID for buffer entries to ensure safe concurrent removal
+  private nextBufferId = 0;
 
   // OPT-5: Track last written values for change detection
   private lastWrittenValues: Map<string, number> = new Map();
@@ -206,6 +219,7 @@ export class HistoryStore {
       timestamp: tagValue.timestamp,
       value: numValue,
       quality: tagValue.quality,
+      _bufferId: this.nextBufferId++,
     });
 
     // OPT-13: Bounded buffer - force flush if buffer exceeds max size
@@ -240,6 +254,7 @@ export class HistoryStore {
       acknowledgedAt: alarm.acknowledgedAt,
       clearedAt: alarm.clearedAt,
       acknowledgedBy: alarm.acknowledgedBy,
+      _bufferId: this.nextBufferId++,
     });
   }
 
@@ -263,13 +278,17 @@ export class HistoryStore {
       // Flush tag history
       if (this.writeBuffer.length > 0) {
         const records = [...this.writeBuffer];
+        // Track the IDs of records we're flushing for safe removal
+        const flushedIds = new Set(records.map((r) => r._bufferId));
 
         try {
           const transaction = db.transaction('tagHistory', 'readwrite');
           const store = transaction.objectStore('tagHistory');
 
+          // Strip internal _bufferId before writing to IndexedDB
           records.forEach((record) => {
-            store.add(record);
+            const { _bufferId: _, ...dbRecord } = record;
+            store.add(dbRecord);
           });
 
           await new Promise<void>((resolve, reject) => {
@@ -277,8 +296,9 @@ export class HistoryStore {
             transaction.onerror = () => reject(transaction.error);
           });
 
-          // Only clear buffer after successful transaction
-          this.writeBuffer = this.writeBuffer.filter((r) => !records.includes(r));
+          // Remove only the exact records we flushed by ID, not by count
+          // This prevents race conditions where concurrent writes could be missed
+          this.writeBuffer = this.writeBuffer.filter((r) => !flushedIds.has(r._bufferId));
         } catch {
           // Records remain in buffer for next attempt
         }
@@ -287,13 +307,17 @@ export class HistoryStore {
       // Flush alarm history
       if (this.alarmBuffer.length > 0) {
         const records = [...this.alarmBuffer];
+        // Track the IDs of records we're flushing for safe removal
+        const flushedIds = new Set(records.map((r) => r._bufferId));
 
         try {
           const transaction = db.transaction('alarmHistory', 'readwrite');
           const store = transaction.objectStore('alarmHistory');
 
+          // Strip internal _bufferId before writing to IndexedDB
           records.forEach((record) => {
-            store.add(record);
+            const { _bufferId: _, ...dbRecord } = record;
+            store.add(dbRecord);
           });
 
           await new Promise<void>((resolve, reject) => {
@@ -301,8 +325,9 @@ export class HistoryStore {
             transaction.onerror = () => reject(transaction.error);
           });
 
-          // Only clear buffer after successful transaction
-          this.alarmBuffer = this.alarmBuffer.filter((r) => !records.includes(r));
+          // Remove only the exact records we flushed by ID, not by count
+          // This prevents race conditions where concurrent writes could be missed
+          this.alarmBuffer = this.alarmBuffer.filter((r) => !flushedIds.has(r._bufferId));
         } catch {
           // Records remain in buffer for next attempt
         }

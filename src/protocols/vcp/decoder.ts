@@ -166,13 +166,21 @@ export function decodeStateSnapshot(encoded: string): Partial<StateSnapshot> | n
   }
 
   // Safe parse helpers with bounds checking
-  const safeParseInt = (match: RegExpMatchArray | null, index: number, fallback: number = 50): number => {
+  const safeParseInt = (
+    match: RegExpMatchArray | null,
+    index: number,
+    fallback: number = 50
+  ): number => {
     if (!match || index >= match.length || match[index] === undefined) return fallback;
     const parsed = parseInt(match[index]);
     return Number.isFinite(parsed) ? parsed : fallback;
   };
 
-  const safeParseFloat = (match: RegExpMatchArray | null, index: number, fallback: number = 0): number => {
+  const safeParseFloat = (
+    match: RegExpMatchArray | null,
+    index: number,
+    fallback: number = 0
+  ): number => {
     if (!match || index >= match.length || match[index] === undefined) return fallback;
     const parsed = parseFloat(match[index]);
     return Number.isFinite(parsed) ? parsed : fallback;
@@ -200,7 +208,9 @@ export function decodeStateSnapshot(encoded: string): Partial<StateSnapshot> | n
       ? {
           flourishingScore: safeParseInt(wellMatch, 1),
           flourishingTrend: trendMap[safeGetString(wellMatch, 2) ?? ''] || 'stable',
-          concernDimension: safeGetString(wellMatch, 3) ? dimMap[safeGetString(wellMatch, 3)!] : null,
+          concernDimension: safeGetString(wellMatch, 3)
+            ? dimMap[safeGetString(wellMatch, 3)!]
+            : null,
           gainDimension: null,
           dimensions: {
             meaning: 50,

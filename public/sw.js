@@ -18,7 +18,7 @@
  */
 
 // Cache version - bump this to invalidate all caches on deploy
-const CACHE_VERSION = 'v2';
+const CACHE_VERSION = 'v4';
 const STATIC_CACHE = `millos-static-${CACHE_VERSION}`;
 const AUDIO_CACHE = `millos-audio-${CACHE_VERSION}`;
 const MODEL_CACHE = `millos-models-${CACHE_VERSION}`;

@@ -589,4 +589,3 @@ export const WindowCondensation: React.FC<{
 };
 
 // Water stain on ceiling
-

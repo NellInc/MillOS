@@ -17,12 +17,7 @@ import { useWorkerMoodStore } from '../stores/workerMoodStore';
 import { BreakdownEffects } from './breakdown/BreakdownEffects';
 
 // Import machine subcomponents
-import {
-  GRAIN_TYPES,
-  INDICES_5,
-  INDICES_6,
-  INDICES_8,
-} from './machines/shared';
+import { GRAIN_TYPES, INDICES_5, INDICES_6, INDICES_8 } from './machines/shared';
 import { SiloFillIndicator, MaintenanceCountdown } from './machines/SiloComponents';
 import {
   useProceduralMetalTexture,
@@ -70,27 +65,35 @@ interface MachineAnimationState {
 
 const MachinesComponent: React.FC<MachinesProps> = ({ machines, onSelect }) => {
   // Filter machines for optimization
-  const silos = useMemo(() => machines.filter((m) => m.type === MachineType.SILO), [machines]);
-  const rollerMills = useMemo(
-    () => machines.filter((m) => m.type === MachineType.ROLLER_MILL),
-    [machines]
-  );
-  const plansifters = useMemo(
-    () => machines.filter((m) => m.type === MachineType.PLANSIFTER),
-    [machines]
-  );
-  const packers = useMemo(() => machines.filter((m) => m.type === MachineType.PACKER), [machines]);
-  const otherMachines = useMemo(
-    () =>
-      machines.filter(
-        (m) =>
-          m.type !== MachineType.SILO &&
-          m.type !== MachineType.ROLLER_MILL &&
-          m.type !== MachineType.PLANSIFTER &&
-          m.type !== MachineType.PACKER
-      ),
-    [machines]
-  );
+  // PERF: Single pass filter instead of 5 separate filters
+  const { silos, rollerMills, plansifters, packers, otherMachines } = useMemo(() => {
+    const result = {
+      silos: [] as typeof machines,
+      rollerMills: [] as typeof machines,
+      plansifters: [] as typeof machines,
+      packers: [] as typeof machines,
+      otherMachines: [] as typeof machines,
+    };
+    for (const m of machines) {
+      switch (m.type) {
+        case MachineType.SILO:
+          result.silos.push(m);
+          break;
+        case MachineType.ROLLER_MILL:
+          result.rollerMills.push(m);
+          break;
+        case MachineType.PLANSIFTER:
+          result.plansifters.push(m);
+          break;
+        case MachineType.PACKER:
+          result.packers.push(m);
+          break;
+        default:
+          result.otherMachines.push(m);
+      }
+    }
+    return result;
+  }, [machines]);
   // PERFORMANCE: Centralized animation state for all machines
   // This eliminates 17 separate useFrame hooks, reducing per-frame overhead
   const machineStatesRef = useRef<Map<string, MachineAnimationState>>(new Map());

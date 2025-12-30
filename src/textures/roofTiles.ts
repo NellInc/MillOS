@@ -391,7 +391,7 @@ export const generateThatch = (
 
         // Some strands darker (aged) or lighter (fresh)
         const strandType = hash(strandId * 7, 0);
-        const ageVar = strandType > 0.9 ? -0.07 : (strandType < 0.1 ? 0.05 : 0);
+        const ageVar = strandType > 0.9 ? -0.07 : strandType < 0.1 ? 0.05 : 0;
 
         const shade = strandColor + alongStrand + grain + ageVar;
 

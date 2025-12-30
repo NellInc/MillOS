@@ -18,6 +18,7 @@ import { useFrame, type RootState } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useWorkerMoodStore } from '../stores/workerMoodStore';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
+import { useShallow } from 'zustand/react/shallow';
 import { WORKER_ROSTER } from '../types';
 
 // =========================================================================
@@ -174,8 +175,12 @@ const MaintenanceAnimationManager: React.FC<{ children: React.ReactNode }> = ({ 
   const frameCountRef = useRef(0);
   const lastChaosCheckRef = useRef(0);
   const isTabVisible = useGameSimulationStore((state) => state.isTabVisible);
-  const chaosEvents = useWorkerMoodStore((state) => state.chaosEvents);
-  const triggerWorkerReaction = useWorkerMoodStore((state) => state.triggerWorkerReaction);
+  const { chaosEvents, triggerWorkerReaction } = useWorkerMoodStore(
+    useShallow((state) => ({
+      chaosEvents: state.chaosEvents,
+      triggerWorkerReaction: state.triggerWorkerReaction,
+    }))
+  );
 
   const register = useCallback<RegisterMaintenanceFn>((refs) => {
     maintenanceRefsMap.current.set(refs.id, refs);
@@ -658,10 +663,14 @@ CoughEffect.displayName = 'CoughEffect';
 // to consolidate 6 separate useFrame hooks into 1 centralized manager
 // =========================================================================
 export const MaintenanceSystem: React.FC = () => {
-  const maintenanceTasks = useWorkerMoodStore((state) => state.maintenanceTasks);
-  const factoryEnvironment = useWorkerMoodStore((state) => state.factoryEnvironment);
-  const addMaintenanceTask = useWorkerMoodStore((state) => state.addMaintenanceTask);
-  const cleanDust = useWorkerMoodStore((state) => state.cleanDust);
+  const { maintenanceTasks, factoryEnvironment, addMaintenanceTask, cleanDust } = useWorkerMoodStore(
+    useShallow((state) => ({
+      maintenanceTasks: state.maintenanceTasks,
+      factoryEnvironment: state.factoryEnvironment,
+      addMaintenanceTask: state.addMaintenanceTask,
+      cleanDust: state.cleanDust,
+    }))
+  );
 
   // Auto-spawn maintenance tasks when needed
   useEffect(() => {

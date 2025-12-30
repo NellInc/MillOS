@@ -459,4 +459,3 @@ export const CondensationDrip: React.FC<{ position: [number, number, number] }> 
 };
 
 // Audio-reactive equipment vibration
-

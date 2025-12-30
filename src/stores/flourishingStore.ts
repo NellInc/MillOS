@@ -726,7 +726,9 @@ function initFlourishingWorkerMoodSubscription(): void {
           if (Math.abs(trustDelta) >= 3 || Math.abs(initiativeDelta) >= 3) {
             isApplyingMoodEffects = true;
             try {
-              useFlourishingStore.getState().applyMoodEffects(workerId, trustDelta, initiativeDelta);
+              useFlourishingStore
+                .getState()
+                .applyMoodEffects(workerId, trustDelta, initiativeDelta);
             } finally {
               isApplyingMoodEffects = false;
             }

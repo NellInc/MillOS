@@ -10,12 +10,12 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { useProductionStore } from '../productionStore';
-import type { Announcement } from '../announcementsStore';
+import { useAnnouncementsStore, type Announcement } from '../announcementsStore';
 import { AIDecision } from '../../types';
 
 describe('ProductionStore - AI Decision Management', () => {
   beforeEach(() => {
-    // Reset store to initial state before each test
+    // Reset production store to initial state before each test
     useProductionStore.setState({
       aiDecisions: [],
       _indices: {
@@ -25,7 +25,11 @@ describe('ProductionStore - AI Decision Management', () => {
       workers: [],
       selectedWorker: null,
       selectedMachine: null,
+    });
+    // Reset announcements store (productionStore delegates to this)
+    useAnnouncementsStore.setState({
       announcements: [],
+      lastAnnouncementTime: {},
     });
   });
 
@@ -36,6 +40,11 @@ describe('ProductionStore - AI Decision Management', () => {
       _indices: {
         heatMapIndex: new Map(),
       },
+    });
+    // Clean up announcements store
+    useAnnouncementsStore.setState({
+      announcements: [],
+      lastAnnouncementTime: {},
     });
   });
 
@@ -204,17 +213,17 @@ describe('ProductionStore - AI Decision Management', () => {
 
   describe('clearOldAnnouncements', () => {
     beforeEach(() => {
-      // Clear announcements first
-      useProductionStore.setState({ announcements: [] });
+      // Clear announcements first (use announcementsStore - productionStore delegates to it)
+      useAnnouncementsStore.setState({ announcements: [], lastAnnouncementTime: {} });
     });
 
-    it('should remove announcements older than their duration', () => {
+    it('should remove announcements older than 5 minutes', () => {
       const { clearOldAnnouncements } = useProductionStore.getState();
 
-      // Add an old announcement (timestamp in the past, short duration)
-      const oldTimestamp = Date.now() - 10000; // 10 seconds ago
+      // Add an old announcement (older than 5 minutes to be removed)
+      const oldTimestamp = Date.now() - 6 * 60 * 1000; // 6 minutes ago
 
-      useProductionStore.setState({
+      useAnnouncementsStore.setState({
         announcements: [
           {
             id: 'old-announcement',
@@ -229,16 +238,17 @@ describe('ProductionStore - AI Decision Management', () => {
 
       clearOldAnnouncements();
 
-      const announcements = useProductionStore.getState().announcements;
+      const announcements = useAnnouncementsStore.getState().announcements;
       expect(announcements).toHaveLength(0);
     });
 
-    it('should keep recent announcements', () => {
+    it('should keep recent announcements (less than 5 minutes old)', () => {
       const { clearOldAnnouncements } = useProductionStore.getState();
 
-      const recentTimestamp = Date.now() - 1000; // 1 second ago
+      // Add a recent announcement (less than 5 minutes old - should be kept)
+      const recentTimestamp = Date.now() - 60 * 1000; // 1 minute ago
 
-      useProductionStore.setState({
+      useAnnouncementsStore.setState({
         announcements: [
           {
             id: 'recent-announcement',
@@ -253,7 +263,7 @@ describe('ProductionStore - AI Decision Management', () => {
 
       clearOldAnnouncements();
 
-      const announcements = useProductionStore.getState().announcements;
+      const announcements = useAnnouncementsStore.getState().announcements;
       expect(announcements).toHaveLength(1);
       expect(announcements[0].id).toBe('recent-announcement');
     });
@@ -263,13 +273,13 @@ describe('ProductionStore - AI Decision Management', () => {
 
       const now = Date.now();
 
-      useProductionStore.setState({
+      useAnnouncementsStore.setState({
         announcements: [
           {
             id: 'recent-1',
             message: 'Recent 1',
             type: 'info',
-            timestamp: new Date(now - 1000),
+            timestamp: new Date(now - 60 * 1000), // 1 minute ago - should be kept
             dismissed: false,
             priority: 1,
           },
@@ -285,7 +295,7 @@ describe('ProductionStore - AI Decision Management', () => {
             id: 'recent-2',
             message: 'Recent 2',
             type: 'success',
-            timestamp: new Date(now - 2000),
+            timestamp: new Date(now - 2 * 60 * 1000), // 2 minutes ago - should be kept
             dismissed: false,
             priority: 1,
           },
@@ -302,7 +312,7 @@ describe('ProductionStore - AI Decision Management', () => {
 
       clearOldAnnouncements();
 
-      const announcements = useProductionStore.getState().announcements;
+      const announcements = useAnnouncementsStore.getState().announcements;
       expect(announcements).toHaveLength(2);
       expect(announcements.find((a) => a.id === 'recent-1')).toBeDefined();
       expect(announcements.find((a) => a.id === 'recent-2')).toBeDefined();
@@ -313,7 +323,7 @@ describe('ProductionStore - AI Decision Management', () => {
     it('should not update state if no announcements expired', () => {
       const { clearOldAnnouncements } = useProductionStore.getState();
 
-      const recentTimestamp = Date.now() - 1000;
+      const recentTimestamp = Date.now() - 60 * 1000; // 1 minute ago
       const initialAnnouncements: Announcement[] = [
         {
           id: 'recent-announcement',
@@ -325,13 +335,13 @@ describe('ProductionStore - AI Decision Management', () => {
         },
       ];
 
-      useProductionStore.setState({
+      useAnnouncementsStore.setState({
         announcements: initialAnnouncements,
       });
 
       clearOldAnnouncements();
 
-      const announcements = useProductionStore.getState().announcements;
+      const announcements = useAnnouncementsStore.getState().announcements;
 
       // State should not have changed (same reference)
       expect(announcements.length).toBe(1);
@@ -340,16 +350,21 @@ describe('ProductionStore - AI Decision Management', () => {
     it('should handle empty announcements array', () => {
       const { clearOldAnnouncements } = useProductionStore.getState();
 
-      useProductionStore.setState({ announcements: [] });
+      useAnnouncementsStore.setState({ announcements: [] });
 
       expect(() => clearOldAnnouncements()).not.toThrow();
 
-      const announcements = useProductionStore.getState().announcements;
+      const announcements = useAnnouncementsStore.getState().announcements;
       expect(announcements).toEqual([]);
     });
   });
 
   describe('Announcement Management', () => {
+    beforeEach(() => {
+      // Reset announcements store before each test
+      useAnnouncementsStore.setState({ announcements: [], lastAnnouncementTime: {} });
+    });
+
     it('should add announcements with auto-generated ID and timestamp', () => {
       const { addAnnouncement } = useProductionStore.getState();
 
@@ -359,18 +374,19 @@ describe('ProductionStore - AI Decision Management', () => {
         priority: 1,
       });
 
-      const announcements = useProductionStore.getState().announcements;
+      const announcements = useAnnouncementsStore.getState().announcements;
       expect(announcements).toHaveLength(1);
       expect(announcements[0]).toHaveProperty('id');
       expect(announcements[0]).toHaveProperty('timestamp');
       expect(announcements[0].message).toBe('Test announcement');
     });
 
-    it('should limit announcements to 10 items', () => {
+    it('should limit announcements to MAX_ANNOUNCEMENTS items', () => {
       vi.useFakeTimers();
       const { addAnnouncement } = useProductionStore.getState();
 
-      for (let i = 0; i < 15; i++) {
+      // Add 55 announcements (MAX_ANNOUNCEMENTS is 50)
+      for (let i = 0; i < 55; i++) {
         addAnnouncement({
           message: `Announcement ${i}`,
           type: 'info',
@@ -380,8 +396,8 @@ describe('ProductionStore - AI Decision Management', () => {
         vi.advanceTimersByTime(16000);
       }
 
-      const announcements = useProductionStore.getState().announcements;
-      expect(announcements.length).toBe(10);
+      const announcements = useAnnouncementsStore.getState().announcements;
+      expect(announcements.length).toBe(50); // MAX_ANNOUNCEMENTS
       vi.useRealTimers();
     });
 
@@ -404,14 +420,17 @@ describe('ProductionStore - AI Decision Management', () => {
         priority: 2,
       });
 
-      const announcementsBefore = useProductionStore.getState().announcements;
+      const announcementsBefore = useAnnouncementsStore.getState().announcements;
+      expect(announcementsBefore).toHaveLength(2);
       const idToDismiss = announcementsBefore[0].id;
 
       dismissAnnouncement(idToDismiss);
 
-      const announcementsAfter = useProductionStore.getState().announcements;
-      expect(announcementsAfter).toHaveLength(1);
-      expect(announcementsAfter[0].id).not.toBe(idToDismiss);
+      // dismissAnnouncement marks as dismissed, doesn't remove
+      const announcementsAfter = useAnnouncementsStore.getState().announcements;
+      expect(announcementsAfter).toHaveLength(2);
+      const dismissed = announcementsAfter.find((a) => a.id === idToDismiss);
+      expect(dismissed?.dismissed).toBe(true);
       vi.useRealTimers();
     });
   });

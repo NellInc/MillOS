@@ -188,7 +188,9 @@ export const HardHatHook: React.FC<{ position: [number, number, number]; color?:
 
 // Cleaning equipment - broom and mop bucket
 
-export const CleaningEquipment: React.FC<{ position: [number, number, number] }> = ({ position }) => {
+export const CleaningEquipment: React.FC<{ position: [number, number, number] }> = ({
+  position,
+}) => {
   const broomRef = useRef<THREE.Mesh>(null);
 
   return (
@@ -464,4 +466,3 @@ export const TrashBin: React.FC<{ position: [number, number, number] }> = ({ pos
 };
 
 // Coffee cup / thermos on surfaces
-

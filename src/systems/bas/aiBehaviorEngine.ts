@@ -56,11 +56,12 @@ function adjustIntervalForWelfare(baseInterval: number): number {
   const { communicationFrequency } = getWelfarePreferences();
 
   // AI preference can increase (but not decrease) base interval
+  // Multipliers >= 1.0 naturally enforce this constraint
   switch (communicationFrequency) {
     case 'minimal':
-      return Math.max(baseInterval, baseInterval * 2); // At least double the interval
+      return baseInterval * 2; // Double the interval
     case 'moderate':
-      return Math.max(baseInterval, baseInterval * 1.2); // 20% longer intervals
+      return baseInterval * 1.2; // 20% longer intervals
     case 'proactive':
       return baseInterval; // No adjustment
   }

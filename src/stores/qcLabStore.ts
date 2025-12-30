@@ -118,9 +118,7 @@ export const useQCLabStore = create<QCLabStore>()(
 
     getLatestTestResult: () => {
       const { qcLab } = get();
-      return qcLab.testHistory.length > 0
-        ? qcLab.testHistory[qcLab.testHistory.length - 1]
-        : null;
+      return qcLab.testHistory.length > 0 ? qcLab.testHistory[qcLab.testHistory.length - 1] : null;
     },
   }))
 );

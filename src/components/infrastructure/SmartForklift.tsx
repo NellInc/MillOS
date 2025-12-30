@@ -51,6 +51,10 @@ const COLLISION_RADIUS = 3;
 const PICKUP_DURATION = 1.5;
 const DROPOFF_DURATION = 1.5;
 
+// Reusable Vector3 objects to avoid GC pressure in useFrame
+const _targetPos = new THREE.Vector3();
+const _direction = new THREE.Vector3();
+
 export const SmartForklift: React.FC<SmartForkliftProps> = ({
   id,
   startPosition,
@@ -73,7 +77,7 @@ export const SmartForklift: React.FC<SmartForkliftProps> = ({
     if (!groupRef.current || !forkRef.current) return;
 
     const currentWaypoint = waypoints[currentWaypointRef.current];
-    const targetPos = new THREE.Vector3(...currentWaypoint.position);
+    _targetPos.set(...currentWaypoint.position);
 
     // Handle pickup/dropoff actions
     if (isPerformingActionRef.current) {
@@ -98,9 +102,9 @@ export const SmartForklift: React.FC<SmartForkliftProps> = ({
       return;
     }
 
-    // Calculate direction to waypoint
-    const direction = targetPos.clone().sub(positionRef.current);
-    const distance = direction.length();
+    // Calculate direction to waypoint (reuse _direction to avoid GC)
+    _direction.copy(_targetPos).sub(positionRef.current);
+    const distance = _direction.length();
 
     if (distance < 0.5) {
       // Reached waypoint
@@ -113,7 +117,7 @@ export const SmartForklift: React.FC<SmartForkliftProps> = ({
       }
     } else {
       // Move towards waypoint
-      direction.normalize();
+      _direction.normalize();
 
       // Check for collisions with other forklifts
       let speedMultiplier = 1;
@@ -128,12 +132,18 @@ export const SmartForklift: React.FC<SmartForkliftProps> = ({
         }
       }
 
-      // Update velocity with collision avoidance
+      // Update velocity with collision avoidance (reuse _direction, avoid clone)
       velocityRef.current.lerp(
-        direction.multiplyScalar(FORKLIFT_SPEED * speedMultiplier),
+        _direction.multiplyScalar(FORKLIFT_SPEED * speedMultiplier),
         delta * 3
       );
-      positionRef.current.add(velocityRef.current.clone().multiplyScalar(delta));
+      // Add scaled velocity without clone - scale in place then undo
+      const scaledX = velocityRef.current.x * delta;
+      const scaledY = velocityRef.current.y * delta;
+      const scaledZ = velocityRef.current.z * delta;
+      positionRef.current.x += scaledX;
+      positionRef.current.y += scaledY;
+      positionRef.current.z += scaledZ;
 
       // Update group position
       groupRef.current.position.copy(positionRef.current);
@@ -148,9 +158,14 @@ export const SmartForklift: React.FC<SmartForkliftProps> = ({
         );
       }
 
-      // Register position for collision detection
+      // Register position for collision detection (copy instead of clone)
       if (otherForklifts?.current) {
-        otherForklifts.current.set(id, positionRef.current.clone());
+        const existing = otherForklifts.current.get(id);
+        if (existing) {
+          existing.copy(positionRef.current);
+        } else {
+          otherForklifts.current.set(id, positionRef.current.clone());
+        }
       }
     }
   });

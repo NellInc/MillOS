@@ -169,8 +169,8 @@ export const SteamVent: React.FC<{ position: [number, number, number]; intensity
   });
 
 // Sparks effect for grinding/milling machinery
-export const Sparks: React.FC<{ position: [number, number, number]; active: boolean }> =
-  React.memo(({ position, active }) => {
+export const Sparks: React.FC<{ position: [number, number, number]; active: boolean }> = React.memo(
+  ({ position, active }) => {
     const graphicsQuality = useGraphicsStore.getState().graphics.quality;
     const isLowQuality = graphicsQuality === 'low';
 
@@ -246,7 +246,8 @@ export const Sparks: React.FC<{ position: [number, number, number]; active: bool
         <pointsMaterial size={0.08} color="#fcd34d" transparent opacity={0.9} sizeAttenuation />
       </points>
     );
-  });
+  }
+);
 
 // Rotating fan for machine ventilation
 export const RotatingFan: React.FC<{

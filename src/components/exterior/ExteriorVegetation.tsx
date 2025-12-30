@@ -233,15 +233,15 @@ export const MAIN_EXTERIOR_BENCHES: BenchInstanceData[] = [
 // ============================================================
 
 export const PARKLAND_TREES: TreeInstanceData[] = [
-  // Group position [-85, 0, -110] + relative positions
-  { position: [-90, 0, -107], scale: 1.0 }, // [-5, 0, 3] relative
-  { position: [-81, 0, -112], scale: 0.9 }, // [4, 0, -2] relative
-  { position: [-85, 0, -104], scale: 1.1 }, // [0, 0, 6] relative
+  // Group position [-85, 0, -95] - moved further from river bank
+  { position: [-90, 0, -92], scale: 1.0 },
+  { position: [-81, 0, -97], scale: 0.9 },
+  { position: [-85, 0, -89], scale: 1.1 },
 ];
 
 export const PARKLAND_BENCHES: BenchInstanceData[] = [
-  // Group position [-85, 0, -110] + relative position
-  { position: [-85, 0, -110], rotation: 0 }, // [0, 0, 0] relative
+  // Moved further from riverbank (was z=-110, now z=-90)
+  { position: [-85, 0, -90], rotation: 0 },
 ];
 
 // ============================================================

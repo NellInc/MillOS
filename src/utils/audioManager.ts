@@ -351,11 +351,7 @@ class AudioManager {
     const effectiveVolume = this._muted ? 0 : this._machineVolume * 0.05;
     this.machineNodes.forEach((node) => {
       if (node.gain) {
-        node.gain.gain.setTargetAtTime(
-          effectiveVolume,
-          this.audioContext?.currentTime ?? 0,
-          0.15
-        );
+        node.gain.gain.setTargetAtTime(effectiveVolume, this.audioContext?.currentTime ?? 0, 0.15);
       }
     });
   }
@@ -5454,7 +5450,7 @@ class AudioManager {
       return;
     }
 
-    // Add to queue first, even if voice isn't ready yet
+    // Add to queue
     this.announcementQueue.push(text);
     console.log('[TTS] Added to queue, length:', this.announcementQueue.length);
 
@@ -5488,7 +5484,10 @@ class AudioManager {
 
     // Check if conditions prevent playback
     if (!this._ttsEnabled || this._muted) {
-      console.log('[TTS] Blocked in queue processing:', { ttsEnabled: this._ttsEnabled, muted: this._muted });
+      console.log('[TTS] Blocked in queue processing:', {
+        ttsEnabled: this._ttsEnabled,
+        muted: this._muted,
+      });
       this.isAnnouncementPlaying = false;
       return;
     }
@@ -5523,9 +5522,9 @@ class AudioManager {
       this.announcementSafetyTimeout = null;
     }
 
-    // Safety timeout: if announcement doesn't complete within 10 seconds, force reset
+    // Safety timeout: if announcement doesn't complete within 30 seconds, force reset
     // This prevents the PA system from getting stuck when speechSynthesis callbacks fail
-    // (Reduced from 30s - if speech hasn't started in 10s, it's not going to)
+    // At rate 0.85, longer announcements can take 15-20 seconds to speak
     this.announcementSafetyTimeout = setTimeout(() => {
       console.log('[TTS] Safety timeout triggered - resetting');
       this.stopSpeechReverb();
@@ -5536,7 +5535,7 @@ class AudioManager {
       }
       // Continue processing queue
       this.processAnnouncementQueue();
-    }, 10000);
+    }, 30000);
 
     try {
       const utterance = new SpeechSynthesisUtterance(text);

@@ -1,5 +1,4 @@
 import React, { useRef, useEffect } from 'react';
-import { useFrame } from '@react-three/fiber';
 import type { ThreeEvent } from '@react-three/fiber';
 import { Text } from '@react-three/drei';
 import * as THREE from 'three';
@@ -12,7 +11,7 @@ import { HeartParticle } from './effects/HeartParticle';
 import { playCritterSound } from '../utils/critterAudio';
 import { audioManager } from '../utils/audioManager';
 import { PROCEDURAL_TEXTURES } from '../utils/sharedMaterials';
-import { EXTERIOR_LAYERS } from '../constants/renderLayers';
+import { InstancedLamps } from './village/InstancedVillageComponents';
 
 // ============================================================
 // CHARMING EUROPEAN VILLAGE - West of Canal
@@ -206,28 +205,34 @@ const SM = {
 };
 
 // ===== CHIMNEY SMOKE =====
+// PERF FIX: Pre-create smoke materials at module level to avoid clone() in render
+const smokeMaterials = [
+  SM.smoke.clone(),
+  SM.smoke.clone(),
+  SM.smoke.clone(),
+];
+
 const ChimneySmoke: React.FC<{ position: [number, number, number]; offset?: number }> = ({
   position,
-  offset = 0,
 }) => {
   const smokeRefs = useRef<(THREE.Mesh | null)[]>([]);
-  const frameCount = useRef(0);
 
-  useFrame((state) => {
-    // Throttle smoke animation to every 3rd frame (~20 FPS)
-    frameCount.current++;
-    if (frameCount.current % 3 !== 0) return;
-
-    const time = state.clock.elapsedTime + offset;
-    smokeRefs.current.forEach((mesh, i) => {
-      if (mesh) {
-        const phase = (time * 0.5 + i * 0.3) % 2;
-        mesh.position.y = phase * 2;
-        mesh.scale.setScalar(0.3 + phase * 0.4);
-        (mesh.material as THREE.MeshBasicMaterial).opacity = Math.max(0, 0.5 - phase * 0.25);
-      }
-    });
-  });
+  // PERF TEST: Disable animation completely
+  // useFrame((state) => {
+  //   // Throttle smoke animation to every 3rd frame (~20 FPS)
+  //   frameCount.current++;
+  //   if (frameCount.current % 3 !== 0) return;
+  //
+  //   const time = state.clock.elapsedTime + offset;
+  //   smokeRefs.current.forEach((mesh, i) => {
+  //     if (mesh) {
+  //       const phase = (time * 0.5 + i * 0.3) % 2;
+  //       mesh.position.y = phase * 2;
+  //       mesh.scale.setScalar(0.3 + phase * 0.4);
+  //       (mesh.material as THREE.MeshBasicMaterial).opacity = Math.max(0, 0.5 - phase * 0.25);
+  //     }
+  //   });
+  // });
 
   return (
     <group position={position}>
@@ -239,7 +244,7 @@ const ChimneySmoke: React.FC<{ position: [number, number, number]; offset?: numb
           }}
         >
           <sphereGeometry args={[0.3, 8, 6]} />
-          <primitive object={SM.smoke.clone()} attach="material" />
+          <primitive object={smokeMaterials[i]} attach="material" />
         </mesh>
       ))}
     </group>
@@ -1101,28 +1106,28 @@ const Duck = React.memo<{
   position: [number, number, number];
   delay: number;
   onClick: (pos: [number, number, number]) => void;
-}>(({ position, delay, onClick }) => {
+}>(({ position, delay: _delay, onClick }) => {
   const groupRef = useRef<THREE.Group>(null);
   const [isExcited, setIsExcited] = React.useState(false);
 
-  // Animation loop
-  useFrame((state) => {
-    if (!groupRef.current) return;
-    const time = state.clock.elapsedTime;
-
-    // Base bobbing
-    let yOffset = Math.sin(time * 2 + delay) * 0.02;
-    let rotOffset = Math.sin(time * 0.5 + delay) * 0.1;
-
-    // Excitement override
-    if (isExcited) {
-      yOffset += Math.abs(Math.sin(time * 15)) * 0.1; // Rapid hop
-      rotOffset += Math.sin(time * 20) * 0.2; // Wiggle
-    }
-
-    groupRef.current.position.y = position[1] + yOffset;
-    groupRef.current.rotation.y = rotOffset;
-  });
+  // PERF TEST: Disable animation
+  // useFrame((state) => {
+  //   if (!groupRef.current) return;
+  //   const time = state.clock.elapsedTime;
+  //
+  //   // Base bobbing
+  //   let yOffset = Math.sin(time * 2 + delay) * 0.02;
+  //   let rotOffset = Math.sin(time * 0.5 + delay) * 0.1;
+  //
+  //   // Excitement override
+  //   if (isExcited) {
+  //     yOffset += Math.abs(Math.sin(time * 15)) * 0.1; // Rapid hop
+  //     rotOffset += Math.sin(time * 20) * 0.2; // Wiggle
+  //   }
+  //
+  //   groupRef.current.position.y = position[1] + yOffset;
+  //   groupRef.current.rotation.y = rotOffset;
+  // });
 
   // Reset excitement
   React.useEffect(() => {
@@ -1175,23 +1180,36 @@ const DuckPond = React.memo<{ position: [number, number, number] }>(({ position 
 
   return (
     <group position={position}>
-      {/* Shore ring */}
-      <mesh position={[0, 0.1, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+      {/* Shore ring - raised above village cobbles (y=0.12) */}
+      <mesh position={[0, 0.15, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <ringGeometry args={[5.5, 7, 24]} />
-        <meshStandardMaterial color="#a89f91" roughness={0.9} />
+        <meshStandardMaterial
+          color="#a89f91"
+          roughness={0.9}
+          polygonOffset
+          polygonOffsetFactor={-2}
+          polygonOffsetUnits={-2}
+        />
       </mesh>
-      {/* Water */}
-      <mesh position={[0, 0.12, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <circleGeometry args={[6, 24]} />
-        <primitive object={SM.water} attach="material" />
+      {/* Water pond - thin disc that fits nicely */}
+      <mesh position={[0, 0.15, 0]}>
+        <cylinderGeometry args={[5.5, 5.5, 0.08, 32]} />
+        <meshStandardMaterial
+          color="#3b82f6"
+          roughness={0.1}
+          metalness={0.6}
+          polygonOffset
+          polygonOffsetFactor={-4}
+          polygonOffsetUnits={-4}
+        />
       </mesh>
-      {/* Ducks */}
+      {/* Ducks - floating on water surface */}
       <group>
         {[
-          [2, 0.2, 1],
-          [-1, 0.2, -2],
-          [0, 0.2, 2],
-          [1.5, 0.2, -1.5],
+          [2, 0.35, 1],
+          [-1, 0.35, -2],
+          [0, 0.35, 2],
+          [1.5, 0.35, -1.5],
         ].map(([x, y, z], i) => (
           <Duck
             key={i}
@@ -1201,11 +1219,11 @@ const DuckPond = React.memo<{ position: [number, number, number] }>(({ position 
           />
         ))}
       </group>
-      {/* Lily pads */}
+      {/* Lily pads - floating on water surface */}
       {[
-        [-2, 0.13, 0],
-        [1, 0.13, -1.5],
-        [-0.5, 0.13, 2.5],
+        [-2, 0.33, 0],
+        [1, 0.33, -1.5],
+        [-0.5, 0.33, 2.5],
       ].map(([x, y, z], i) => (
         <mesh
           key={`lily-${i}`}
@@ -1213,7 +1231,7 @@ const DuckPond = React.memo<{ position: [number, number, number] }>(({ position 
           rotation={[-Math.PI / 2, 0, i]}
         >
           <circleGeometry args={[0.4, 12]} />
-          <meshStandardMaterial color="#22c55e" roughness={0.9} />
+          <meshStandardMaterial color="#22c55e" roughness={0.9} depthWrite={false} />
         </mesh>
       ))}
       {/* Render Active Hearts */}
@@ -1428,17 +1446,17 @@ const Horse = React.memo<{ position: [number, number, number]; rotation?: number
       setHearts((prev) => prev.filter((h) => h.id !== id));
     };
 
-    // Animation
-    useFrame((state) => {
-      if (groupRef.current && isExcited) {
-        const t = state.clock.elapsedTime * 15;
-        groupRef.current.rotation.z = Math.sin(t) * 0.05; // Shake
-        groupRef.current.position.y = Math.abs(Math.sin(t * 0.5)) * 0.1; // Rear up slightly
-      } else if (groupRef.current) {
-        groupRef.current.rotation.z = 0;
-        groupRef.current.position.y = 0;
-      }
-    });
+    // PERF TEST: Disable animation
+    // useFrame((state) => {
+    //   if (groupRef.current && isExcited) {
+    //     const t = state.clock.elapsedTime * 15;
+    //     groupRef.current.rotation.z = Math.sin(t) * 0.05; // Shake
+    //     groupRef.current.position.y = Math.abs(Math.sin(t * 0.5)) * 0.1; // Rear up slightly
+    //   } else if (groupRef.current) {
+    //     groupRef.current.rotation.z = 0;
+    //     groupRef.current.position.y = 0;
+    //   }
+    // });
 
     React.useEffect(() => {
       if (isExcited) {
@@ -1670,7 +1688,8 @@ const villageGroundGeometry = new THREE.ShapeGeometry(villageGroundShape, 24);
 // Recompute UVs - scale for texture tiling (1 tile per 25 units for large cobblestones)
 const uvAttr = villageGroundGeometry.attributes.uv;
 const posAttr = villageGroundGeometry.attributes.position;
-const HW = 35, HH = 65;
+const HW = 35,
+  HH = 65;
 const UV_SCALE = 25; // Larger = bigger stones (farmyard-like)
 
 for (let i = 0; i < posAttr.count; i++) {
@@ -1682,6 +1701,7 @@ uvAttr.needsUpdate = true;
 
 // Cobble material with edge feathering via custom shader injection
 // Uses module-level villageCobbleColor and villageCobbleNormal textures
+// polygonOffset with NEGATIVE values pushes toward camera, preventing z-fighting with TerrainGround
 const villageCobbleMaterial = new THREE.MeshStandardMaterial({
   color: '#9a9a9a', // Tint to correct washed-out texture appearance
   map: villageCobbleColor,
@@ -1689,6 +1709,9 @@ const villageCobbleMaterial = new THREE.MeshStandardMaterial({
   normalScale: new THREE.Vector2(0.4, 0.4),
   roughness: 0.85,
   transparent: true,
+  polygonOffset: true,
+  polygonOffsetFactor: -2,
+  polygonOffsetUnits: -2,
 });
 
 // Inject feathering into the shader based on world position
@@ -1725,8 +1748,8 @@ export const VillageArea: React.FC = () => {
 
   return (
     <group position={[-190, 0, 0]}>
-      {/* Rounded cobblestone ground with feathered edges */}
-      <mesh position={[0, EXTERIOR_LAYERS.ground, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+      {/* Rounded cobblestone ground - positioned well above TerrainGround (y=0.05) to prevent z-fighting */}
+      <mesh position={[0, 0.12, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <primitive object={villageGroundGeometry} attach="geometry" />
         <primitive object={villageCobbleMaterial} attach="material" />
       </mesh>
@@ -1827,19 +1850,8 @@ export const VillageArea: React.FC = () => {
       {/* === DUCK POND === */}
       <DuckPond position={[20, 0, 25]} />
 
-      {/* === STREET LAMPS === */}
-      {[
-        [-15, 20],
-        [15, 20],
-        [-15, -20],
-        [15, -20],
-        [-15, -45],
-        [15, -45],
-        [-15, 45],
-        [15, 50],
-      ].map(([x, z], i) => (
-        <VillageLamp key={i} position={[x, 0, z]} isNight={isNight} />
-      ))}
+      {/* === STREET LAMPS (Instanced for performance) === */}
+      <InstancedLamps isNight={isNight} />
 
       {/* === POSTBOX === */}
       <Postbox position={[12, 0, 25]} rotation={-Math.PI / 2} />

@@ -451,4 +451,3 @@ export const Cockroach: React.FC<{ position: [number, number, number]; pathLengt
 };
 
 // Main ambient details group component
-

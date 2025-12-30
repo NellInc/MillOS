@@ -127,15 +127,23 @@ export const ProductionMetrics: React.FC = () => {
 
   // Calculate real-time metrics based on actual store data
   const liveMetrics = React.useMemo(() => {
-    // Calculate active machines for efficiency
-    const runningMachines = machines.filter((m) => m.status === 'running').length;
-    const totalMachines = machines.length || 1;
+    // Filter to only productive machines for efficiency calculation
+    // Silos and control room don't contribute to production throughput
+    const productiveMachineTypes = [MachineType.ROLLER_MILL, MachineType.PLANSIFTER, MachineType.PACKER];
+    const productiveMachines = machines.filter(m => productiveMachineTypes.includes(m.type));
+    const runningMachines = productiveMachines.filter((m) => m.status === 'running').length;
+    const totalMachines = productiveMachines.length || 1;
     const machineEfficiency = (runningMachines / totalMachines) * 100;
 
     // Base throughput scales with production speed and machine efficiency
+    // Maximum realistic throughput is 5000 t/hr for this mill
+    const MAX_REALISTIC_THROUGHPUT = 5000;
     const baseThroughput = 1000;
-    const actualThroughput = Math.round(
-      baseThroughput * productionSpeed * (machineEfficiency / 100) + 200
+    const actualThroughput = Math.min(
+      MAX_REALISTIC_THROUGHPUT,
+      Math.max(0, Math.round(
+        baseThroughput * productionSpeed * (machineEfficiency / 100) + 200
+      ))
     );
 
     // Bags per minute from production speed

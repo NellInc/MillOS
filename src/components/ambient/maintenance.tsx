@@ -229,4 +229,3 @@ export const OpenedPanel: React.FC<{
 // ==========================================
 
 // Puddle from roof leak
-

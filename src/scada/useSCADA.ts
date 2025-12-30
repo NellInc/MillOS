@@ -136,6 +136,10 @@ function getAlarmSnapshot(): Alarm[] {
 let scadaRefCount = 0;
 let initializationPromise: Promise<void> | null = null;
 
+// Track unsubscribe functions for cleanup on error
+let valueUnsubscribe: (() => void) | null = null;
+let alarmUnsubscribeShared: (() => void) | null = null;
+
 // Initialize shared SCADA subscriptions (called once globally)
 async function initializeSharedSCADA(): Promise<void> {
   if (initializationPromise) return initializationPromise;
@@ -145,7 +149,7 @@ async function initializeSharedSCADA(): Promise<void> {
       const service = await initializeSCADA();
 
       // Subscribe to value updates with granular notifications
-      service.subscribeToValues((newValues) => {
+      valueUnsubscribe = service.subscribeToValues((newValues) => {
         const next = new Map(sharedState.values);
         const updatedTagIds: string[] = [];
         const affectedMachines = new Set<string>();
@@ -170,7 +174,7 @@ async function initializeSharedSCADA(): Promise<void> {
       });
 
       // Subscribe to alarm updates (separate from tag values)
-      service.subscribeToAlarms((newAlarms) => {
+      alarmUnsubscribeShared = service.subscribeToAlarms((newAlarms) => {
         sharedState = { ...sharedState, alarms: newAlarms };
         notifyAlarmListeners(); // Only alarm listeners
         notifyListeners(); // Global listeners
@@ -179,6 +183,15 @@ async function initializeSharedSCADA(): Promise<void> {
       const state = service.getState();
       sharedState = { ...sharedState, isConnected: true, mode: state.mode };
     } catch (err) {
+      // Clean up any partial subscriptions created before the error
+      if (valueUnsubscribe) {
+        valueUnsubscribe();
+        valueUnsubscribe = null;
+      }
+      if (alarmUnsubscribeShared) {
+        alarmUnsubscribeShared();
+        alarmUnsubscribeShared = null;
+      }
       initializationPromise = null; // Reset on failure to allow retry
       throw err;
     }
@@ -190,6 +203,17 @@ async function initializeSharedSCADA(): Promise<void> {
 // Shutdown shared SCADA
 function shutdownSharedSCADA(): void {
   if (!initializationPromise) return;
+
+  // Clean up subscriptions
+  if (valueUnsubscribe) {
+    valueUnsubscribe();
+    valueUnsubscribe = null;
+  }
+  if (alarmUnsubscribeShared) {
+    alarmUnsubscribeShared();
+    alarmUnsubscribeShared = null;
+  }
+
   shutdownSCADA();
   sharedState = {
     isConnected: false,

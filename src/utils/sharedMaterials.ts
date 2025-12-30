@@ -604,26 +604,85 @@ export const NORMAL_SCALES = {
 // === INSTANCED MACHINE MATERIALS ===
 export const INSTANCED_MACHINE_MATERIALS = {
   siloBody: new THREE.MeshStandardMaterial({ color: '#cbd5e1', metalness: 0.5, roughness: 0.2 }),
-  siloDarkMetal: new THREE.MeshStandardMaterial({ color: '#475569', metalness: 0.6, roughness: 0.4 }),
-  siloFill: new THREE.MeshStandardMaterial({ color: '#f5d78e', transparent: true, opacity: 0.7, roughness: 0.9 }),
+  siloDarkMetal: new THREE.MeshStandardMaterial({
+    color: '#475569',
+    metalness: 0.6,
+    roughness: 0.4,
+  }),
+  siloFill: new THREE.MeshStandardMaterial({
+    color: '#f5d78e',
+    transparent: true,
+    opacity: 0.7,
+    roughness: 0.9,
+  }),
   siloFillLow: new THREE.MeshBasicMaterial({ color: '#f5d78e', transparent: true, opacity: 0.7 }),
-  millHousingLower: new THREE.MeshStandardMaterial({ color: '#2563eb', metalness: 0.6, roughness: 0.2 }),
-  millHousingUpper: new THREE.MeshStandardMaterial({ color: '#60a5fa', metalness: 0.5, roughness: 0.3 }),
+  millHousingLower: new THREE.MeshStandardMaterial({
+    color: '#2563eb',
+    metalness: 0.6,
+    roughness: 0.2,
+  }),
+  millHousingUpper: new THREE.MeshStandardMaterial({
+    color: '#60a5fa',
+    metalness: 0.5,
+    roughness: 0.3,
+  }),
   millFrame: new THREE.MeshStandardMaterial({ color: '#1f2937', metalness: 0.8, roughness: 0.15 }),
   millMotor: new THREE.MeshStandardMaterial({ color: '#374151', metalness: 0.7, roughness: 0.25 }),
-  millWindow: new THREE.MeshPhysicalMaterial({ color: '#e0f2fe', metalness: 0.1, roughness: 0.1, transmission: 0.8, thickness: 0.1 }),
+  millWindow: new THREE.MeshPhysicalMaterial({
+    color: '#e0f2fe',
+    metalness: 0.1,
+    roughness: 0.1,
+    transmission: 0.8,
+    thickness: 0.1,
+  }),
   millRoller: new THREE.MeshStandardMaterial({ color: '#94a3b8', metalness: 0.9, roughness: 0.1 }),
   sifterFrame: new THREE.MeshStandardMaterial({ color: '#1f2937', metalness: 0.8, roughness: 0.2 }),
-  sifterBody: new THREE.MeshPhysicalMaterial({ color: '#f5f0e6', metalness: 0.1, roughness: 0.25, clearcoat: 0.6, clearcoatRoughness: 0.2 }),
-  sifterDarkMetal: new THREE.MeshStandardMaterial({ color: '#374151', metalness: 0.6, roughness: 0.3 }),
-  sifterFlywheel: new THREE.MeshStandardMaterial({ color: '#1f2937', metalness: 0.85, roughness: 0.15 }),
+  sifterBody: new THREE.MeshPhysicalMaterial({
+    color: '#f5f0e6',
+    metalness: 0.1,
+    roughness: 0.25,
+    clearcoat: 0.6,
+    clearcoatRoughness: 0.2,
+  }),
+  sifterDarkMetal: new THREE.MeshStandardMaterial({
+    color: '#374151',
+    metalness: 0.6,
+    roughness: 0.3,
+  }),
+  sifterFlywheel: new THREE.MeshStandardMaterial({
+    color: '#1f2937',
+    metalness: 0.85,
+    roughness: 0.15,
+  }),
   sifterCable: new THREE.MeshStandardMaterial({ color: '#1f2937', metalness: 0.3, roughness: 0.6 }),
   packerFrame: new THREE.MeshStandardMaterial({ color: '#f97316', metalness: 0.4, roughness: 0.4 }),
-  packerHopper: new THREE.MeshStandardMaterial({ color: '#94a3b8', metalness: 0.7, roughness: 0.2 }),
-  packerSpout: new THREE.MeshStandardMaterial({ color: '#6b7280', metalness: 0.75, roughness: 0.2 }),
-  packerConveyor: new THREE.MeshStandardMaterial({ color: '#374151', metalness: 0.6, roughness: 0.35 }),
-  packerPanel: new THREE.MeshStandardMaterial({ color: '#1e293b', metalness: 0.5, roughness: 0.35 }),
-  packerSafety: new THREE.MeshStandardMaterial({ color: '#fbbf24', metalness: 0.3, roughness: 0.5, transparent: true, opacity: 0.4 }),
+  packerHopper: new THREE.MeshStandardMaterial({
+    color: '#94a3b8',
+    metalness: 0.7,
+    roughness: 0.2,
+  }),
+  packerSpout: new THREE.MeshStandardMaterial({
+    color: '#6b7280',
+    metalness: 0.75,
+    roughness: 0.2,
+  }),
+  packerConveyor: new THREE.MeshStandardMaterial({
+    color: '#374151',
+    metalness: 0.6,
+    roughness: 0.35,
+  }),
+  packerPanel: new THREE.MeshStandardMaterial({
+    color: '#1e293b',
+    metalness: 0.5,
+    roughness: 0.35,
+  }),
+  packerSafety: new THREE.MeshStandardMaterial({
+    color: '#fbbf24',
+    metalness: 0.3,
+    roughness: 0.5,
+    transparent: true,
+    opacity: 0.4,
+  }),
 } as const;
 
 // === SHARED GEOMETRIES ===

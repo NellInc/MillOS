@@ -17,7 +17,11 @@ import {
 } from './MachineLOD';
 import { useModelTextures } from '../../utils/machineTextures';
 import { MemoizedStatusRing } from './StatusRing';
-import { PROCEDURAL_TEXTURES, NORMAL_SCALES, INSTANCED_MACHINE_MATERIALS } from '../../utils/sharedMaterials';
+import {
+  PROCEDURAL_TEXTURES,
+  NORMAL_SCALES,
+  INSTANCED_MACHINE_MATERIALS,
+} from '../../utils/sharedMaterials';
 
 // Reference shared materials (textures applied via hook)
 const MATERIALS = {

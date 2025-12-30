@@ -86,8 +86,7 @@ export const useTruckScheduleStore = create<TruckScheduleStore>()(
       return truckSchedule.receiving.truckDocked || truckSchedule.shipping.truckDocked;
     },
 
-    getTimeUntilNextArrival: (dock) =>
-      get().truckSchedule[dock].nextArrivalMinutes,
+    getTimeUntilNextArrival: (dock) => get().truckSchedule[dock].nextArrivalMinutes,
 
     tickArrivals: (deltaMinutes: number) =>
       set((state) => {
@@ -96,14 +95,20 @@ export const useTruckScheduleStore = create<TruckScheduleStore>()(
 
         // Tick down arrival timers
         if (!newReceiving.truckDocked) {
-          newReceiving.nextArrivalMinutes = Math.max(0, newReceiving.nextArrivalMinutes - deltaMinutes);
+          newReceiving.nextArrivalMinutes = Math.max(
+            0,
+            newReceiving.nextArrivalMinutes - deltaMinutes
+          );
           if (newReceiving.nextArrivalMinutes <= 0) {
             newReceiving.truckDocked = true;
           }
         }
 
         if (!newShipping.truckDocked) {
-          newShipping.nextArrivalMinutes = Math.max(0, newShipping.nextArrivalMinutes - deltaMinutes);
+          newShipping.nextArrivalMinutes = Math.max(
+            0,
+            newShipping.nextArrivalMinutes - deltaMinutes
+          );
           if (newShipping.nextArrivalMinutes <= 0) {
             newShipping.truckDocked = true;
           }

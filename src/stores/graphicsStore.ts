@@ -174,7 +174,7 @@ const GRAPHICS_PRESETS: Record<GraphicsQuality, GraphicsSettings> = {
     enableMachineColorVariation: true, // Enable color variation on medium+
     enableMachineLOD: true,
     machineLodDistance: 50,
-    resolutionScale: 0.65, // 65% resolution - good balance of quality and performance
+    resolutionScale: 0.5, // 50% resolution - consistent default across all presets
     enableTextureFiltering: true, // Basic texture filtering
     anisotropyLevel: 4, // Low anisotropic filtering
     enableAudioReactive: true, // Audio-reactive visuals on medium+
@@ -219,7 +219,7 @@ const GRAPHICS_PRESETS: Record<GraphicsQuality, GraphicsSettings> = {
     enableMachineColorVariation: true,
     enableMachineLOD: true,
     machineLodDistance: 80,
-    resolutionScale: 1.0, // Full resolution
+    resolutionScale: 0.5, // 50% resolution - consistent default across all presets
     enableTextureFiltering: true, // Full texture filtering
     anisotropyLevel: 8, // Medium anisotropic filtering
     enableAudioReactive: true, // Audio-reactive visuals enabled
@@ -264,7 +264,7 @@ const GRAPHICS_PRESETS: Record<GraphicsQuality, GraphicsSettings> = {
     enableMachineColorVariation: true,
     enableMachineLOD: true,
     machineLodDistance: 150, // Very long LOD distance for ultra
-    resolutionScale: 1.0, // Full resolution
+    resolutionScale: 0.5, // 50% resolution - consistent default across all presets
     enableTextureFiltering: true, // Full texture filtering
     anisotropyLevel: 16, // Maximum anisotropic filtering
     enableAudioReactive: true, // Audio-reactive visuals enabled

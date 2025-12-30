@@ -4,6 +4,7 @@ import { Trophy, Star, Award, Target } from 'lucide-react';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import { useProductionStore } from '../stores/productionStore';
 import { useSafetyStore } from '../stores/safetyStore';
+import { useShallow } from 'zustand/react/shallow';
 import { ConfettiBurst } from './ConfettiBurst';
 import { audioManager } from '../utils/audioManager';
 
@@ -20,10 +21,14 @@ export const CelebrationSystem: React.FC = () => {
   } | null>(null);
 
   const { celebrations, triggerCelebration, clearCelebration } = useGameSimulationStore();
-  const totalBagsProduced = useProductionStore((state) => state.totalBagsProduced);
-  const productionTarget = useProductionStore((state) => state.productionTarget);
+  const { totalBagsProduced, productionTarget, addAnnouncement } = useProductionStore(
+    useShallow((state) => ({
+      totalBagsProduced: state.totalBagsProduced,
+      productionTarget: state.productionTarget,
+      addAnnouncement: state.addAnnouncement,
+    }))
+  );
   const safetyMetrics = useSafetyStore((state) => state.safetyMetrics);
-  const addAnnouncement = useProductionStore((state) => state.addAnnouncement);
   const playCelebrationSound = useCallback((type: 'milestone' | 'safety' | 'target') => {
     if (type === 'milestone') {
       audioManager.playAISuccess();
@@ -157,13 +162,27 @@ export const CelebrationSystem: React.FC = () => {
   // ========================================
   // ACHIEVEMENT PROGRESS TRACKING
   // ========================================
-  const updateAchievementProgress = useProductionStore((state) => state.updateAchievementProgress);
-  const unlockAchievement = useProductionStore((state) => state.unlockAchievement);
-  const achievements = useProductionStore((state) => state.achievements);
-  const metrics = useProductionStore((state) => state.metrics);
-  const workerSatisfaction = useProductionStore((state) => state.workerSatisfaction);
-  const currentShift = useGameSimulationStore((state) => state.currentShift);
-  const emergencyActive = useGameSimulationStore((state) => state.emergencyActive);
+  const {
+    updateAchievementProgress,
+    unlockAchievement,
+    achievements,
+    metrics,
+    workerSatisfaction,
+  } = useProductionStore(
+    useShallow((state) => ({
+      updateAchievementProgress: state.updateAchievementProgress,
+      unlockAchievement: state.unlockAchievement,
+      achievements: state.achievements,
+      metrics: state.metrics,
+      workerSatisfaction: state.workerSatisfaction,
+    }))
+  );
+  const { currentShift, emergencyActive } = useGameSimulationStore(
+    useShallow((state) => ({
+      currentShift: state.currentShift,
+      emergencyActive: state.emergencyActive,
+    }))
+  );
 
   // Refs to track sustained performance (persists between renders)
   const qualityStreakRef = React.useRef(0);

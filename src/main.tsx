@@ -4,6 +4,14 @@ import ErrorBoundary from './components/ErrorBoundary';
 import './index.css';
 import { registerServiceWorker } from './utils/serviceWorkerRegistration';
 
+// Pre-warm Rapier WASM - starts loading immediately instead of blocking on first Physics render
+// This runs in parallel with React initialization, reducing perceived startup time
+import('@dimforge/rapier3d-compat').then((RAPIER) => {
+  RAPIER.init().catch(() => {
+    // Silently ignore - will be initialized again when Physics mounts
+  });
+});
+
 // Suppress harmless warnings from third-party libraries
 const originalWarn = console.warn;
 console.warn = (...args: unknown[]): void => {

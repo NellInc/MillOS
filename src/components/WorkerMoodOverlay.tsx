@@ -465,9 +465,11 @@ WorkerMoodOverlay.displayName = 'WorkerMoodOverlay';
 // PERFORMANCE: This triggers Zustand store updates every second
 // which can cause re-renders on subscribers. Disabled on low quality or via perfDebug.
 export const useMoodSimulation = () => {
-  const tickMoodSimulation = useWorkerMoodStore((state) => state.tickMoodSimulation);
-  const triggerRandomPreferenceRequest = useWorkerMoodStore(
-    (state) => state.triggerRandomPreferenceRequest
+  const { tickMoodSimulation, triggerRandomPreferenceRequest } = useWorkerMoodStore(
+    useShallow((state) => ({
+      tickMoodSimulation: state.tickMoodSimulation,
+      triggerRandomPreferenceRequest: state.triggerRandomPreferenceRequest,
+    }))
   );
   const lastTickRef = useRef(Date.now());
   const preferenceTickRef = useRef(0); // Counter for throttled preference requests
@@ -491,8 +493,14 @@ export const useMoodSimulation = () => {
 
     // Tick every 1 second of real time (simulating ~1 game minute)
     if (deltaMs >= 1000) {
-      const deltaMinutes = deltaMs / 1000; // 1 real second = 1 game minute
-      const gameTime = (Date.now() / 1000 / 60) % 24; // Simple game time based on real time
+      // Cap deltaMs to prevent huge time jumps after tab becomes visible
+      const cappedDeltaMs = Math.min(deltaMs, 2000);
+      const deltaMinutes = cappedDeltaMs / 1000; // 1 real second = 1 game minute
+
+      // Use the store's game time (the single source of truth) instead of
+      // recalculating from wall clock. This ensures mood simulation uses
+      // the same time as everything else in the game.
+      const gameTime = useGameSimulationStore.getState().gameTime;
       tickMoodSimulation(gameTime, deltaMinutes);
 
       // BILATERAL ALIGNMENT: Trigger random preference requests (throttled)

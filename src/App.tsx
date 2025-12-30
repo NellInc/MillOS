@@ -6,6 +6,7 @@ import { Physics } from '@react-three/rapier';
 import * as THREE from 'three';
 import { MillScene } from './components/MillScene';
 import { trackRender } from './utils/renderProfiler';
+import './utils/perfMonitor';
 import { GameInterface } from './components/ui-new/GameInterface';
 import { SpatialAudioTracker } from './components/SpatialAudioTracker';
 import { FPSTracker, useFPSStore } from './components/FPSMonitor';
@@ -23,7 +24,7 @@ import {
 } from './components/physics';
 import ErrorBoundary from './components/ErrorBoundary';
 import { LoadingScreen } from './components/LoadingScreen';
-import { MachineData, WorkerData } from './types';
+import { MachineData, MachineType, WorkerData, WORKER_ROSTER } from './types';
 import { ForkliftData } from './components/ForkliftSystem';
 import { AnimatePresence, motion } from 'framer-motion';
 import { audioManager } from './utils/audioManager';
@@ -54,6 +55,7 @@ if (import.meta.env.DEV) {
   devWindow.useFPSStore = useFPSStore;
 }
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
+import { useSafetySimulation } from './hooks/useSafetySimulation';
 import { useMultiplayerSync } from './multiplayer';
 import { MultiplayerChat, AIDecisionVotingPanel } from './components/multiplayer';
 import { useMobileDetection } from './hooks/useMobileDetection';
@@ -213,14 +215,15 @@ const App: React.FC = () => {
   const [autoRotate, setAutoRotate] = useState(true);
 
   // PERFORMANCE: Consolidated store subscriptions with useShallow to prevent unnecessary re-renders
-  const { currentQuality, enablePhysics, resolutionScale, enableLogarithmicDepth } = useGraphicsStore(
-    useShallow((state) => ({
-      currentQuality: state.graphics.quality,
-      enablePhysics: state.graphics.enablePhysics,
-      resolutionScale: state.graphics.resolutionScale,
-      enableLogarithmicDepth: state.graphics.enableLogarithmicDepth,
-    }))
-  );
+  const { currentQuality, enablePhysics, resolutionScale, enableLogarithmicDepth } =
+    useGraphicsStore(
+      useShallow((state) => ({
+        currentQuality: state.graphics.quality,
+        enablePhysics: state.graphics.enablePhysics,
+        resolutionScale: state.graphics.resolutionScale,
+        enableLogarithmicDepth: state.graphics.enableLogarithmicDepth,
+      }))
+    );
   // Use currentQuality directly - Canvas key forces remount when quality changes
   const canvasQuality = currentQuality;
   const fpsMode = useUIStore((state) => state.fpsMode);
@@ -333,6 +336,9 @@ const App: React.FC = () => {
   // Initialize multiplayer state synchronization
   useMultiplayerSync();
 
+  // Safety simulation - syncs game days to safety metrics & generates random events
+  useSafetySimulation();
+
   // Initialize audio on first user interaction (required by Web Audio API)
   const initializeAudio = useCallback(() => {
     if (!audioInitialized) {
@@ -417,6 +423,74 @@ const App: React.FC = () => {
     startVCPUpdateLoop();
     return () => stopVCPUpdateLoop();
   }, []);
+
+  // Initialize workers at app startup (not tied to 3D scene rendering)
+  // This ensures workers are available in the store for UI even when camera is outside factory
+  useEffect(() => {
+    const store = useProductionStore.getState();
+    if (store.workers.length === 0) {
+      const aisles = [10, -10, 0];
+      const workers = WORKER_ROSTER.map((roster, i) => ({
+        ...roster,
+        position: [
+          aisles[i % aisles.length] + (Math.random() - 0.5) * 4,
+          0,
+          Math.random() * 40 - 20,
+        ] as [number, number, number],
+        direction: (Math.random() > 0.5 ? 1 : -1) as 1 | -1,
+      }));
+      store.setWorkers(workers);
+    }
+  }, []);
+
+  // Headless production simulation - runs regardless of camera position
+  // This ensures bags are counted even when ConveyorSystem isn't rendering
+  // PERF: Reduced from 1s to 5s interval to minimize store update cascades
+  //
+  // GAME TIME SCALING: Production now scales with gameSpeed so that
+  // the daily target (15,000 bags) is achievable within a game day.
+  // At gameSpeed=180 (default), 1 game day = 8 real minutes.
+  useEffect(() => {
+    // Base production: 12 bags/sec at productionSpeed=1.0, gameSpeed=60
+    // This yields ~15,000 bags/game-day at default settings (gameSpeed=180, productionSpeed~0.9)
+    const BAGS_PER_SECOND_BASE = 12;
+    const INTERVAL_SECONDS = 5;
+    const BAGS_PER_TICK = BAGS_PER_SECOND_BASE * INTERVAL_SECONDS;
+
+    const interval = setInterval(() => {
+      const store = useProductionStore.getState();
+      const gameStore = useGameSimulationStore.getState();
+
+      // Skip if tab is hidden or game is paused
+      if (!gameStore.isTabVisible) return;
+      if (gameStore.gameSpeed === 0) return;
+
+      // Scale by game speed: at 180x, production is 3x faster than at 60x
+      // This makes production happen in "game time" not "real time"
+      const gameSpeedFactor = gameStore.gameSpeed / 60;
+
+      // Calculate bags based on production speed and game speed
+      // productionSpeed is typically 0.8-1.2
+      const bagsThisTick = BAGS_PER_TICK * productionSpeed * gameSpeedFactor;
+
+      // Only produce if we have running machines (packers)
+      const runningPackers = store.machines.filter(
+        (m) => m.type === MachineType.PACKER && (m.status === 'running' || m.status === 'warning')
+      ).length;
+
+      if (runningPackers > 0) {
+        // Scale by number of running packers (3 packers at full = 100%)
+        const packerScale = runningPackers / 3;
+        const finalBags = Math.round(bagsThisTick * packerScale * 10) / 10;
+
+        if (finalBags > 0) {
+          store.incrementBagsProduced(finalBags);
+        }
+      }
+    }, INTERVAL_SECONDS * 1000); // Run every 5 seconds
+
+    return () => clearInterval(interval);
+  }, [productionSpeed]);
 
   // Initialize SCADA system - uses same consolidated subscription
   const enableSCADA = useGraphicsStore((state) => state.graphics.enableSCADA);
@@ -562,7 +636,7 @@ const App: React.FC = () => {
             key={`canvas-${canvasQuality}-${resolutionScale}`} // Force remount when quality or resolution changes
             shadows={canvasQuality !== 'low' ? { type: THREE.PCFShadowMap } : false}
             camera={{
-              position: [70, 40, 70],
+              position: [35, 25, 20], // Start inside factory so workers/production initialize
               fov: 65,
               near: 0.5,
               far: 600,

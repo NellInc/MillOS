@@ -12,6 +12,7 @@
 
 import { logger } from './utils/logger';
 import { scadaToStoreMetrics } from './scada/SCADABridge';
+import type { MachineData } from './types';
 
 // Re-export everything from the new stores
 export {
@@ -155,32 +156,69 @@ export function initializeSCADASync(): () => void {
 
       // 4. SCADA → STORE: Sync real machine metrics for visualization
       // Throttled to 1Hz to avoid extra renders
+      // PERFORMANCE FIX: Use batch updates to prevent multiple re-renders per second
       let lastMachineUpdate = 0;
       const unsubValueSync = service.subscribeToValues((values) => {
         const now = Date.now();
         if (now - lastMachineUpdate < 1000) return;
         lastMachineUpdate = now;
 
-        const machines = useProductionStore.getState().machines;
+        const store = useProductionStore.getState();
+        const machines = store.machines;
         if (machines.length === 0) return;
 
         const valueMap = new Map(values.map((v) => [v.tagId, v]));
         const alarms = service.getActiveAlarms();
+
+        // Collect all updates first, then apply as a single store write.
+        const metricsByMachineId = new Map<string, Partial<MachineData['metrics']>>();
+        const statusByMachineId = new Map<string, MachineData['status']>();
+        let hasAnyChanges = false;
 
         machines.forEach((machine) => {
           const sync = scadaToStoreMetrics(machine.id, valueMap, alarms, machine.name);
           if (!sync) return;
 
           if (sync.metrics && Object.keys(sync.metrics).length > 0) {
-            useProductionStore.getState().updateMachineMetrics(machine.id, sync.metrics);
+            const nextMetrics: Partial<MachineData['metrics']> = {};
+            (Object.keys(sync.metrics) as Array<keyof typeof sync.metrics>).forEach((k) => {
+              const nextValue = sync.metrics[k];
+              if (typeof nextValue !== 'number') return;
+              if (machine.metrics[k] !== nextValue) {
+                (nextMetrics as Record<string, number>)[k] = nextValue;
+              }
+            });
+            if (Object.keys(nextMetrics).length > 0) {
+              metricsByMachineId.set(machine.id, nextMetrics);
+              hasAnyChanges = true;
+            }
           }
 
           if (sync.status && sync.status !== machine.status) {
-            useProductionStore.getState().updateMachineStatus(machine.id, sync.status);
+            statusByMachineId.set(machine.id, sync.status);
+            hasAnyChanges = true;
           }
         });
 
-        useProductionStore.getState().setScadaLive(true);
+        if (hasAnyChanges) {
+          useProductionStore.setState((state) => ({
+            machines: state.machines.map((m) => {
+              const statusUpdate = statusByMachineId.get(m.id);
+              const metricsUpdate = metricsByMachineId.get(m.id);
+              if (!statusUpdate && !metricsUpdate) return m;
+
+              return {
+                ...m,
+                ...(statusUpdate ? { status: statusUpdate } : null),
+                ...(metricsUpdate ? { metrics: { ...m.metrics, ...metricsUpdate } } : null),
+              };
+            }),
+          }));
+        }
+
+        if (!store.scadaLive) {
+          store.setScadaLive(true);
+        }
       });
       cleanupFunctions.push(unsubValueSync);
 

@@ -21,6 +21,8 @@ interface SafetyStore {
   };
   recordSafetyStop: () => void;
   recordWorkerEvasion: () => void;
+  incrementDaysSafe: () => void;
+  recordNearMiss: () => void;
 
   // Safety incident history
   safetyIncidents: Array<{
@@ -91,7 +93,7 @@ export const useSafetyStore = create<SafetyStore>()(
         safetyStops: 0,
         workerEvasions: 0,
         lastIncidentTime: null,
-        daysSinceIncident: 127,
+        daysSinceIncident: 0,
       },
       recordSafetyStop: () =>
         set((state) => ({
@@ -108,6 +110,22 @@ export const useSafetyStore = create<SafetyStore>()(
           safetyMetrics: {
             ...state.safetyMetrics,
             workerEvasions: state.safetyMetrics.workerEvasions + 1,
+          },
+        })),
+      incrementDaysSafe: () =>
+        set((state) => ({
+          safetyMetrics: {
+            ...state.safetyMetrics,
+            daysSinceIncident: state.safetyMetrics.daysSinceIncident + 1,
+          },
+        })),
+      recordNearMiss: () =>
+        set((state) => ({
+          safetyMetrics: {
+            ...state.safetyMetrics,
+            nearMisses: state.safetyMetrics.nearMisses + 1,
+            lastIncidentTime: Date.now(),
+            daysSinceIncident: 0,
           },
         })),
 
@@ -206,8 +224,8 @@ export const useSafetyStore = create<SafetyStore>()(
 
           const existing = newIndex.get(gridKey);
           if (existing) {
-            // Update existing point
-            const updated = { ...existing, intensity: Math.min(existing.intensity + 1, 10) };
+            // Update existing point (guard against undefined intensity)
+            const updated = { ...existing, intensity: Math.min((existing.intensity ?? 0) + 1, 10) };
             newIndex.set(gridKey, updated);
             return {
               incidentHeatMap: Array.from(newIndex.values()),

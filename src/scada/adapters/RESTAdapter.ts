@@ -117,6 +117,9 @@ export class RESTAdapter implements IProtocolAdapter {
     this.connected = false;
     this.lastDisconnectTime = Date.now();
     this.values.clear();
+    // Clear subscribers to prevent memory leaks across reconnects
+    this.subscribers.clear();
+    this.globalSubscribers.clear();
   }
 
   isConnected(): boolean {

@@ -57,7 +57,7 @@ float fbm(vec2 st) {
     float a = 0.5;
     vec2 shift = vec2(100.0);
     mat2 rot = mat2(cos(0.5), sin(0.5), -sin(0.5), cos(0.5));
-    for (int i = 0; i < 6; ++i) {
+    for (int i = 0; i < 4; ++i) {
         v += a * noise(st);
         st = rot * st * 2.0 + shift;
         a *= 0.5;
@@ -66,7 +66,8 @@ float fbm(vec2 st) {
 }
 
 void main() {
-    float h = normalize(vWorldPosition).y;
+    vec3 dir = normalize(vWorldPosition);
+    float h = dir.y;
 
     // Multi-layer sky gradient with horizon band
     vec3 skyColor;
@@ -87,14 +88,16 @@ void main() {
         skyColor = mix(mix(bottomColor, topColor, 0.5), topColor, smoothstep(0.0, 1.0, t));
     }
 
-    // Procedural clouds with drift animation
-    vec2 cloudUV = vUv * 3.0;
-    cloudUV.x += time * 0.015;
-    cloudUV.y += time * 0.005;
+    // Procedural clouds using spherical coords (avoids UV seam)
+    // Use atan for seamless wrapping around the sphere
+    float theta = atan(dir.z, dir.x); // -PI to PI
+    float phi = acos(dir.y); // 0 to PI
+    vec2 cloudUV = vec2(theta * 0.5 + time * 0.015, phi * 1.5 + time * 0.005);
 
     float n = fbm(cloudUV);
-    float n2 = fbm(cloudUV * 2.0 + vec2(time * 0.01, 0.0));
-    float cloudShape = (n + n2 * 0.5) / 1.5;
+    // Secondary layer: cheaper single-noise detail to avoid a second fbm() pass
+    float n2 = noise(cloudUV * 3.0 + vec2(time * 0.02, time * 0.01));
+    float cloudShape = (n + n2 * 0.35) / 1.35;
 
     // Cloud mask - only show clouds in upper sky, fade near horizon
     float cloudMask = smoothstep(0.1, 0.4, h) * (1.0 - smoothstep(0.85, 1.0, h));
@@ -305,6 +308,151 @@ const lerpColor = (color1: string, color2: string, t: number): string => {
   return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`;
 };
 
+type SkyColorKeyframe = {
+  hour: number;
+  colors: {
+    top: THREE.Color;
+    bottom: THREE.Color;
+    horizon: THREE.Color;
+    ground: THREE.Color;
+  };
+};
+
+const SKY_COLOR_KEYFRAMES: SkyColorKeyframe[] = [
+  {
+    hour: 0,
+    colors: {
+      top: new THREE.Color('#050810'),
+      bottom: new THREE.Color('#0a1628'),
+      horizon: new THREE.Color('#1a2744'),
+      ground: new THREE.Color('#030508'),
+    },
+  },
+  {
+    hour: 4,
+    colors: {
+      top: new THREE.Color('#050810'),
+      bottom: new THREE.Color('#0a1628'),
+      horizon: new THREE.Color('#1a2744'),
+      ground: new THREE.Color('#030508'),
+    },
+  },
+  {
+    hour: 5,
+    colors: {
+      top: new THREE.Color('#1a1a2e'),
+      bottom: new THREE.Color('#2d1f3d'),
+      horizon: new THREE.Color('#3d2952'),
+      ground: new THREE.Color('#0a0a12'),
+    },
+  },
+  {
+    hour: 6,
+    colors: {
+      top: new THREE.Color('#7c4a1a'),
+      bottom: new THREE.Color('#d97706'),
+      horizon: new THREE.Color('#f59e0b'),
+      ground: new THREE.Color('#451a03'),
+    },
+  },
+  {
+    hour: 7,
+    colors: {
+      top: new THREE.Color('#c2410c'),
+      bottom: new THREE.Color('#fb923c'),
+      horizon: new THREE.Color('#fcd34d'),
+      ground: new THREE.Color('#78350f'),
+    },
+  },
+  {
+    hour: 8,
+    colors: {
+      top: new THREE.Color('#0284c7'),
+      bottom: new THREE.Color('#7dd3fc'),
+      horizon: new THREE.Color('#fef3c7'),
+      ground: new THREE.Color('#4a7c59'),
+    },
+  },
+  {
+    hour: 10,
+    colors: {
+      top: new THREE.Color('#0369a1'),
+      bottom: new THREE.Color('#7dd3fc'),
+      horizon: new THREE.Color('#f0f9ff'),
+      ground: new THREE.Color('#5a8a5a'),
+    },
+  },
+  {
+    hour: 12,
+    colors: {
+      top: new THREE.Color('#0284c7'),
+      bottom: new THREE.Color('#38bdf8'),
+      horizon: new THREE.Color('#f0f9ff'),
+      ground: new THREE.Color('#6b936b'),
+    },
+  },
+  {
+    hour: 16,
+    colors: {
+      top: new THREE.Color('#0369a1'),
+      bottom: new THREE.Color('#67d4fc'),
+      horizon: new THREE.Color('#fef3c7'),
+      ground: new THREE.Color('#5a8a5a'),
+    },
+  },
+  {
+    hour: 18,
+    colors: {
+      top: new THREE.Color('#92400e'),
+      bottom: new THREE.Color('#ea580c'),
+      horizon: new THREE.Color('#fbbf24'),
+      ground: new THREE.Color('#451a03'),
+    },
+  },
+  {
+    hour: 19,
+    colors: {
+      top: new THREE.Color('#7c2d12'),
+      bottom: new THREE.Color('#c2410c'),
+      horizon: new THREE.Color('#f97316'),
+      ground: new THREE.Color('#451a03'),
+    },
+  },
+  {
+    hour: 20,
+    colors: {
+      top: new THREE.Color('#451a03'),
+      bottom: new THREE.Color('#78350f'),
+      horizon: new THREE.Color('#92400e'),
+      ground: new THREE.Color('#1c1917'),
+    },
+  },
+  {
+    hour: 21,
+    colors: {
+      top: new THREE.Color('#0f172a'),
+      bottom: new THREE.Color('#1e293b'),
+      horizon: new THREE.Color('#334155'),
+      ground: new THREE.Color('#050a12'),
+    },
+  },
+  {
+    hour: 24,
+    colors: {
+      top: new THREE.Color('#050810'),
+      bottom: new THREE.Color('#0a1628'),
+      horizon: new THREE.Color('#1a2744'),
+      ground: new THREE.Color('#030508'),
+    },
+  },
+];
+
+// Reusable colors to avoid per-frame allocations in SkyAnimationManager.
+const _skyTop = new THREE.Color();
+const _skyBottom = new THREE.Color();
+const _skyHorizon = new THREE.Color();
+const _skyGround = new THREE.Color();
+
 const lerpPalette = (p1: typeof nightPalette, p2: typeof nightPalette, t: number) => ({
   layerColors: {
     far: lerpColor(p1.layerColors.far, p2.layerColors.far, t),
@@ -364,67 +512,30 @@ const SkyAnimationManager: React.FC = () => {
     const time = state.clock.getElapsedTime();
 
     if (skyDomeRegistry.size > 0) {
-      // Sky color keyframes for smooth interpolation
-      // Each entry: [hour, {top, bottom, horizon, ground}]
-      const skyKeyframes: [
-        number,
-        { top: string; bottom: string; horizon: string; ground: string },
-      ][] = [
-        [0, { top: '#050810', bottom: '#0a1628', horizon: '#1a2744', ground: '#030508' }], // Midnight - very dark (darker ground)
-        [4, { top: '#050810', bottom: '#0a1628', horizon: '#1a2744', ground: '#030508' }], // Late night - still dark (darker ground)
-        [5, { top: '#1a1a2e', bottom: '#2d1f3d', horizon: '#3d2952', ground: '#0a0a12' }], // Pre-dawn - first hint of light
-        [6, { top: '#7c4a1a', bottom: '#d97706', horizon: '#f59e0b', ground: '#451a03' }], // Dawn - warm orange
-        [7, { top: '#c2410c', bottom: '#fb923c', horizon: '#fcd34d', ground: '#78350f' }], // Sunrise - golden
-        [8, { top: '#0284c7', bottom: '#7dd3fc', horizon: '#fef3c7', ground: '#4a7c59' }], // Morning - transitioning to blue
-        [10, { top: '#0369a1', bottom: '#7dd3fc', horizon: '#f0f9ff', ground: '#5a8a5a' }], // Late morning
-        [12, { top: '#0284c7', bottom: '#38bdf8', horizon: '#f0f9ff', ground: '#6b936b' }], // Noon - bright blue
-        [16, { top: '#0369a1', bottom: '#67d4fc', horizon: '#fef3c7', ground: '#5a8a5a' }], // Afternoon
-        [18, { top: '#92400e', bottom: '#ea580c', horizon: '#fbbf24', ground: '#451a03' }], // Golden hour - warm amber
-        [19, { top: '#7c2d12', bottom: '#c2410c', horizon: '#f97316', ground: '#451a03' }], // Sunset
-        [20, { top: '#451a03', bottom: '#78350f', horizon: '#92400e', ground: '#1c1917' }], // Dusk - transitioning to dark
-        [21, { top: '#0f172a', bottom: '#1e293b', horizon: '#334155', ground: '#050a12' }], // Night begins (darker ground)
-        [24, { top: '#050810', bottom: '#0a1628', horizon: '#1a2744', ground: '#030508' }], // Midnight wrap (darker ground)
-      ];
-
       // Find the two keyframes to interpolate between
       let fromIdx = 0;
       let toIdx = 1;
-      for (let i = 0; i < skyKeyframes.length - 1; i++) {
-        if (smoothGameTime >= skyKeyframes[i][0] && smoothGameTime < skyKeyframes[i + 1][0]) {
+      for (let i = 0; i < SKY_COLOR_KEYFRAMES.length - 1; i++) {
+        if (
+          smoothGameTime >= SKY_COLOR_KEYFRAMES[i].hour &&
+          smoothGameTime < SKY_COLOR_KEYFRAMES[i + 1].hour
+        ) {
           fromIdx = i;
           toIdx = i + 1;
           break;
         }
       }
 
-      const fromTime = skyKeyframes[fromIdx][0];
-      const toTime = skyKeyframes[toIdx][0];
-      const fromColors = skyKeyframes[fromIdx][1];
-      const toColors = skyKeyframes[toIdx][1];
-
       // Calculate lerp factor (0-1)
-      const t = (smoothGameTime - fromTime) / (toTime - fromTime);
+      const fromKeyframe = SKY_COLOR_KEYFRAMES[fromIdx];
+      const toKeyframe = SKY_COLOR_KEYFRAMES[toIdx];
+      const timeSpan = Math.max(0.0001, toKeyframe.hour - fromKeyframe.hour);
+      const t = (smoothGameTime - fromKeyframe.hour) / timeSpan;
 
-      // Helper to lerp hex colors
-      const lerpColor = (from: string, to: string, factor: number): string => {
-        const fromR = parseInt(from.slice(1, 3), 16);
-        const fromG = parseInt(from.slice(3, 5), 16);
-        const fromB = parseInt(from.slice(5, 7), 16);
-        const toR = parseInt(to.slice(1, 3), 16);
-        const toG = parseInt(to.slice(3, 5), 16);
-        const toB = parseInt(to.slice(5, 7), 16);
-        const r = Math.round(fromR + (toR - fromR) * factor);
-        const g = Math.round(fromG + (toG - fromG) * factor);
-        const b = Math.round(fromB + (toB - fromB) * factor);
-        return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
-      };
-
-      const skyColors = {
-        top: lerpColor(fromColors.top, toColors.top, t),
-        bottom: lerpColor(fromColors.bottom, toColors.bottom, t),
-        horizon: lerpColor(fromColors.horizon, toColors.horizon, t),
-        ground: lerpColor(fromColors.ground, toColors.ground, t),
-      };
+      _skyTop.copy(fromKeyframe.colors.top).lerp(toKeyframe.colors.top, t);
+      _skyBottom.copy(fromKeyframe.colors.bottom).lerp(toKeyframe.colors.bottom, t);
+      _skyHorizon.copy(fromKeyframe.colors.horizon).lerp(toKeyframe.colors.horizon, t);
+      _skyGround.copy(fromKeyframe.colors.ground).lerp(toKeyframe.colors.ground, t);
 
       // Compute cloud density from weather
       const cloudDensity =
@@ -446,10 +557,10 @@ const SkyAnimationManager: React.FC = () => {
         if (!data.material?.uniforms) return;
 
         data.material.uniforms.time.value = time;
-        data.material.uniforms.topColor.value.set(skyColors.top);
-        data.material.uniforms.bottomColor.value.set(skyColors.bottom);
-        data.material.uniforms.horizonColor.value.set(skyColors.horizon);
-        data.material.uniforms.groundColor.value.set(skyColors.ground);
+        data.material.uniforms.topColor.value.copy(_skyTop);
+        data.material.uniforms.bottomColor.value.copy(_skyBottom);
+        data.material.uniforms.horizonColor.value.copy(_skyHorizon);
+        data.material.uniforms.groundColor.value.copy(_skyGround);
         data.material.uniforms.cloudDensity.value = cloudDensity;
         data.material.uniforms.sunAngle.value = sunAngle;
       });
@@ -564,31 +675,33 @@ const SkyAnimationManager: React.FC = () => {
     // 8. Update Sun/Moon/Ambient lights (60fps - smooth position updates)
     // SMOOTH SUN/MOON: Compute positions directly from smoothGameTime for 60fps movement
     if (lightingRegistry.size > 0) {
-      // Compute sun angle from smooth game time (not discrete store time)
-      const smoothSunAngle = ((smoothGameTime - 6) / 12) * Math.PI;
+      // Compute sun angle from smooth game time - full 24-hour cycle
+      const smoothSunAngle = (smoothGameTime / 24) * Math.PI * 2 - Math.PI / 2;
 
-      // Compute sun position (same formula as SkySystem but using smooth time)
+      // Compute sun position
       const radius = 340;
-      const heightMultiplier = 1.3;
+      const heightMultiplier = 1.0;
       const smoothSunX = Math.cos(smoothSunAngle) * -radius;
-      const smoothSunY = Math.sin(smoothSunAngle) * radius * heightMultiplier + 60;
+      const smoothSunY = Math.sin(smoothSunAngle) * radius * heightMultiplier;
       const smoothSunZ = Math.cos(smoothSunAngle) * 50;
 
-      // Moon position is opposite to sun
-      const smoothMoonX = -smoothSunX;
-      const smoothMoonY = -smoothSunY;
-      const smoothMoonZ = -smoothSunZ;
+      // Moon position is 12 hours offset from sun
+      const smoothMoonAngle = ((smoothGameTime + 12) / 24) * Math.PI * 2 - Math.PI / 2;
+      const smoothMoonX = Math.cos(smoothMoonAngle) * -radius;
+      const smoothMoonY = Math.sin(smoothMoonAngle) * radius * heightMultiplier;
+      const smoothMoonZ = Math.cos(smoothMoonAngle) * 50;
 
       // Sun visibility and intensity
-      const smoothSunVisible = smoothSunY > -5;
+      const smoothSunVisible = smoothSunY > -50;
       const smoothSunIntensity = smoothSunVisible
-        ? Math.max(0, Math.sin(smoothSunAngle)) * 3.5 + 0.8
+        ? Math.max(0, smoothSunY / radius + 0.15) * 3.5 + 0.5
         : 0;
-      const smoothMoonVisible = smoothMoonY > -5;
+      const smoothMoonVisible = smoothMoonY > -50;
       const smoothMoonIntensity = smoothMoonVisible ? 0.3 : 0;
 
-      // Sun color
-      const smoothSunColor = smoothSunAngle < 0.3 || smoothSunAngle > 2.84 ? '#ff6b35' : '#fff7ed';
+      // Sun color - orange near horizon, white when high
+      const sunElevation = smoothSunY / radius;
+      const smoothSunColor = sunElevation < 0.2 ? '#ff6b35' : '#fff7ed';
 
       lightingRegistry.forEach((data) => {
         if (data.sunLightRef) {
@@ -647,69 +760,331 @@ const SkyDomeFollower: React.FC<SkyDomeFollowerProps> = ({ meshRef }) => {
   return null;
 };
 
+// Sun lens flare sprite component - faces camera
+// renderOrder -500 puts lens flares in front of mountains/sky but behind scene geometry
+const SunLensFlare: React.FC<{
+  offset: [number, number, number];
+  scale: number;
+  color: string;
+  opacity: number;
+}> = ({ offset, scale, color, opacity }) => {
+  return (
+    <sprite position={offset} scale={[scale, scale, 1]} renderOrder={-500}>
+      <spriteMaterial
+        color={color}
+        transparent
+        opacity={opacity}
+        depthWrite={false}
+        depthTest={false}
+      />
+    </sprite>
+  );
+};
+
+// Reusable vectors for lens flare calculations (avoid GC pressure)
+const _sunPos = new THREE.Vector3();
+const _cameraDir = new THREE.Vector3();
+const _toSun = new THREE.Vector3();
+
 // Smooth Sun visual component - updates position every frame for perceptually smooth movement
+// Uses HDR overbright emissive values to trigger bloom effect + lens flares
 const SmoothSun: React.FC = () => {
   const groupRef = useRef<THREE.Group>(null);
-  const glowMaterialRef = useRef<THREE.MeshBasicMaterial>(null);
+  const lensFlareGroupRef = useRef<THREE.Group>(null);
+  const coreMaterialRef = useRef<THREE.MeshStandardMaterial>(null);
+  const innerGlowMaterialRef = useRef<THREE.MeshStandardMaterial>(null);
+  const midGlowMaterialRef = useRef<THREE.MeshBasicMaterial>(null);
+  const coronaMaterialRef = useRef<THREE.MeshBasicMaterial>(null);
   const isTabVisible = useGameSimulationStore((state) => state.isTabVisible);
 
-  useFrame(() => {
+  useFrame(({ camera }) => {
     if (!isTabVisible || !groupRef.current) return;
 
     // Compute sun position from smoothGameTime (set by SkyAnimationManager)
-    const smoothSunAngle = ((smoothGameTime - 6) / 12) * Math.PI;
+    // Use full 24-hour cycle: angle goes from 0 to 2*PI over 24 hours
+    const smoothSunAngle = (smoothGameTime / 24) * Math.PI * 2 - Math.PI / 2;
     const radius = 340;
-    const heightMultiplier = 1.3;
+    const heightMultiplier = 1.0;
     const smoothSunX = Math.cos(smoothSunAngle) * -radius;
-    const smoothSunY = Math.sin(smoothSunAngle) * radius * heightMultiplier + 60;
+    const smoothSunY = Math.sin(smoothSunAngle) * radius * heightMultiplier;
     const smoothSunZ = Math.cos(smoothSunAngle) * 50;
 
     groupRef.current.position.set(smoothSunX, smoothSunY, smoothSunZ);
 
-    // Toggle visibility based on height
-    groupRef.current.visible = smoothSunY > -5;
+    // Toggle visibility based on height (sun rises at ~6am, sets at ~18pm)
+    const sunVisible = smoothSunY > -50;
+    groupRef.current.visible = sunVisible;
 
-    // Update color for sunset/sunrise
-    if (glowMaterialRef.current) {
-      // Orange at sunrise/sunset (< 0.3 rad or > 2.84 rad)
-      const isGoldenHour = smoothSunAngle < 0.3 || smoothSunAngle > 2.84;
-      glowMaterialRef.current.color.set(isGoldenHour ? '#ff6b35' : '#fff7ed');
+    // Update colors for sunset/sunrise - orange at golden hour, white otherwise
+    // Golden hour when sun is near horizon (low elevation)
+    const sunElevation = smoothSunY / radius;
+    const isGoldenHour = sunElevation < 0.25 && sunElevation > -0.15;
+    const coreColor = isGoldenHour ? '#ffcc00' : '#ffffff';
+    const glowColor = isGoldenHour ? '#ff6b35' : '#fff7ed';
+
+    if (coreMaterialRef.current) {
+      coreMaterialRef.current.emissive.set(coreColor);
+    }
+    if (innerGlowMaterialRef.current) {
+      innerGlowMaterialRef.current.emissive.set(isGoldenHour ? '#ff8c00' : '#fffde7');
+    }
+    if (midGlowMaterialRef.current) {
+      midGlowMaterialRef.current.color.set(glowColor);
+    }
+    if (coronaMaterialRef.current) {
+      coronaMaterialRef.current.color.set(isGoldenHour ? '#ff9500' : '#fffef0');
+    }
+
+    // Lens flare follows camera orientation and fades based on view angle
+    if (lensFlareGroupRef.current && sunVisible) {
+      // Reuse vectors to avoid GC pressure
+      _sunPos.set(smoothSunX, smoothSunY, smoothSunZ);
+      _cameraDir.set(0, 0, -1).applyQuaternion(camera.quaternion);
+      _toSun.copy(_sunPos).sub(camera.position).normalize();
+      const dot = _cameraDir.dot(_toSun);
+
+      // Fade lens flares based on how directly we're looking at the sun
+      const viewFactor = Math.max(0, dot);
+      const flareIntensity = Math.pow(viewFactor, 0.5); // Less aggressive falloff
+
+      lensFlareGroupRef.current.visible = flareIntensity > 0.1;
+
+      if (flareIntensity > 0.1) {
+        // Scale flares based on view angle
+        lensFlareGroupRef.current.scale.setScalar(flareIntensity);
+        // Billboard - face camera
+        lensFlareGroupRef.current.quaternion.copy(camera.quaternion);
+      }
     }
   });
 
   return (
     <group ref={groupRef}>
-      {/* Core sun - bright white */}
-      <mesh renderOrder={-990}>
+      {/* Core sun - MAXIMUM HDR overbright for intense bloom */}
+      {/* renderOrder -996 ensures sun renders BEFORE mountains (-950 to -800) */}
+      {/* depthWrite={false} so sun doesn't interfere with mountain depth testing */}
+      <mesh renderOrder={-996}>
         <sphereGeometry args={[22, 32, 32]} />
-        <meshBasicMaterial color="#ffffff" />
-      </mesh>
-      {/* Inner glow */}
-      <mesh renderOrder={-990}>
-        <sphereGeometry args={[36, 32, 32]} />
-        <meshBasicMaterial color="#fffde7" transparent opacity={0.6} />
-      </mesh>
-      {/* Mid glow */}
-      <mesh renderOrder={-990}>
-        <sphereGeometry args={[55, 32, 32]} />
-        <meshBasicMaterial
-          ref={glowMaterialRef}
-          color="#fff7ed"
-          transparent
-          opacity={0.35}
+        <meshStandardMaterial
+          ref={coreMaterialRef}
+          color="#000000"
+          emissive="#ffffff"
+          emissiveIntensity={25}
+          toneMapped={false}
           depthWrite={false}
         />
       </mesh>
-      {/* Outer glow - large corona */}
-      <mesh renderOrder={-990}>
-        <sphereGeometry args={[85, 32, 32]} />
-        <meshBasicMaterial color="#fff8e1" transparent opacity={0.15} depthWrite={false} />
+      {/* Inner nuclear glow - extreme HDR */}
+      <mesh renderOrder={-996}>
+        <sphereGeometry args={[32, 32, 32]} />
+        <meshStandardMaterial
+          ref={innerGlowMaterialRef}
+          color="#000000"
+          emissive="#fffde7"
+          emissiveIntensity={15}
+          transparent
+          opacity={0.85}
+          toneMapped={false}
+          depthWrite={false}
+        />
       </mesh>
+      {/* Hot corona layer */}
+      <mesh renderOrder={-996}>
+        <sphereGeometry args={[45, 32, 32]} />
+        <meshStandardMaterial
+          color="#000000"
+          emissive="#fff5e0"
+          emissiveIntensity={8}
+          transparent
+          opacity={0.6}
+          toneMapped={false}
+          depthWrite={false}
+        />
+      </mesh>
+      {/* Mid glow - sheen layer */}
+      <mesh renderOrder={-996}>
+        <sphereGeometry args={[65, 32, 32]} />
+        <meshBasicMaterial
+          ref={midGlowMaterialRef}
+          color="#fff7ed"
+          transparent
+          opacity={0.4}
+          depthWrite={false}
+        />
+      </mesh>
+      {/* Outer corona */}
+      <mesh renderOrder={-996}>
+        <sphereGeometry args={[95, 32, 32]} />
+        <meshBasicMaterial
+          ref={coronaMaterialRef}
+          color="#fffef0"
+          transparent
+          opacity={0.2}
+          depthWrite={false}
+        />
+      </mesh>
+      {/* Massive outer haze */}
+      <mesh renderOrder={-997}>
+        <sphereGeometry args={[140, 32, 32]} />
+        <meshBasicMaterial color="#fff8e8" transparent opacity={0.08} depthWrite={false} />
+      </mesh>
+
+      {/* Lens Flare System - subtle camera-facing sprites */}
+      <group ref={lensFlareGroupRef}>
+        {/* Main flare burst - very subtle */}
+        <SunLensFlare offset={[0, 0, 0]} scale={100} color="#ffffff" opacity={0.035} />
+        {/* Horizontal streak - barely visible */}
+        <sprite scale={[200, 3, 1]} renderOrder={-500}>
+          <spriteMaterial
+            color="#fff8e0"
+            transparent
+            opacity={0.025}
+            depthWrite={false}
+            depthTest={false}
+          />
+        </sprite>
+        {/* Diagonal streaks - whisper thin */}
+        <sprite scale={[150, 2, 1]} rotation={[0, 0, Math.PI / 4]} renderOrder={-500}>
+          <spriteMaterial
+            color="#ffe4c0"
+            transparent
+            opacity={0.015}
+            depthWrite={false}
+            depthTest={false}
+          />
+        </sprite>
+        <sprite scale={[150, 2, 1]} rotation={[0, 0, -Math.PI / 4]} renderOrder={-500}>
+          <spriteMaterial
+            color="#ffe4c0"
+            transparent
+            opacity={0.015}
+            depthWrite={false}
+            depthTest={false}
+          />
+        </sprite>
+        {/* Secondary flare artifacts - very subtle colored spots */}
+        <SunLensFlare offset={[50, 25, 0]} scale={12} color="#ffaa77" opacity={0.03} />
+        <SunLensFlare offset={[-70, -35, 0]} scale={18} color="#77bbff" opacity={0.025} />
+        <SunLensFlare offset={[100, -50, 0]} scale={10} color="#ffcc88" opacity={0.02} />
+      </group>
     </group>
   );
 };
 
+// Procedural Moon Shader - generates realistic lunar surface
+const moonVertexShader = `
+varying vec3 vNormal;
+varying vec3 vPosition;
+
+void main() {
+  vNormal = normalize(normalMatrix * normal);
+  vPosition = position;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}
+`;
+
+const moonFragmentShader = `
+precision highp float;
+
+varying vec3 vNormal;
+varying vec3 vPosition;
+
+// Hash function for noise
+float hash(vec3 p) {
+  p = fract(p * 0.3183099 + 0.1);
+  p *= 17.0;
+  return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
+}
+
+// 3D noise
+float noise(vec3 x) {
+  vec3 i = floor(x);
+  vec3 f = fract(x);
+  f = f * f * (3.0 - 2.0 * f);
+
+  return mix(mix(mix(hash(i + vec3(0,0,0)), hash(i + vec3(1,0,0)), f.x),
+                 mix(hash(i + vec3(0,1,0)), hash(i + vec3(1,1,0)), f.x), f.y),
+             mix(mix(hash(i + vec3(0,0,1)), hash(i + vec3(1,0,1)), f.x),
+                 mix(hash(i + vec3(0,1,1)), hash(i + vec3(1,1,1)), f.x), f.y), f.z);
+}
+
+// Fractal Brownian Motion
+float fbm(vec3 p) {
+  float value = 0.0;
+  float amplitude = 0.5;
+  for (int i = 0; i < 5; i++) {
+    value += amplitude * noise(p);
+    p *= 2.0;
+    amplitude *= 0.5;
+  }
+  return value;
+}
+
+// Crater function
+float crater(vec3 pos, vec3 center, float radius) {
+  float d = length(pos - center);
+  float rim = smoothstep(radius * 0.85, radius, d) * (1.0 - smoothstep(radius, radius * 1.2, d));
+  float floor_val = 1.0 - smoothstep(0.0, radius * 0.6, d);
+  return rim * 0.5 - floor_val * 0.35;
+}
+
+void main() {
+  vec3 pos = normalize(vPosition);
+
+  // Base colors
+  vec3 highland = vec3(0.72, 0.70, 0.68);  // Light grey highlands
+  vec3 maria = vec3(0.32, 0.30, 0.28);      // Dark grey maria
+
+  // Maria (dark regions) - large scale noise
+  float mariaPattern = fbm(pos * 1.2);
+  mariaPattern = smoothstep(0.4, 0.6, mariaPattern);
+
+  // Mix base colors
+  vec3 baseColor = mix(highland, maria, mariaPattern);
+
+  // Surface texture detail
+  float detail = fbm(pos * 20.0) * 0.15;
+  detail += fbm(pos * 40.0) * 0.08;
+
+  // Add craters
+  float craterEffect = 0.0;
+
+  // Large craters
+  craterEffect += crater(pos, normalize(vec3(0.3, 0.2, 0.92)), 0.14);
+  craterEffect += crater(pos, normalize(vec3(-0.5, 0.4, 0.76)), 0.17);
+  craterEffect += crater(pos, normalize(vec3(0.7, -0.3, 0.65)), 0.11);
+  craterEffect += crater(pos, normalize(vec3(-0.2, -0.6, 0.77)), 0.19);
+  craterEffect += crater(pos, normalize(vec3(0.4, 0.7, 0.59)), 0.13);
+
+  // Medium craters
+  craterEffect += crater(pos, normalize(vec3(0.8, 0.15, 0.58)), 0.08) * 0.7;
+  craterEffect += crater(pos, normalize(vec3(-0.7, -0.25, 0.67)), 0.09) * 0.7;
+  craterEffect += crater(pos, normalize(vec3(0.15, -0.8, 0.58)), 0.07) * 0.7;
+  craterEffect += crater(pos, normalize(vec3(-0.45, 0.6, 0.66)), 0.10) * 0.7;
+  craterEffect += crater(pos, normalize(vec3(0.6, -0.55, 0.58)), 0.085) * 0.7;
+
+  // Small craters from noise
+  craterEffect += crater(pos, normalize(vec3(0.9, 0.3, 0.32)), 0.05) * 0.5;
+  craterEffect += crater(pos, normalize(vec3(-0.85, 0.35, 0.39)), 0.045) * 0.5;
+  craterEffect += crater(pos, normalize(vec3(0.25, 0.9, 0.36)), 0.055) * 0.5;
+  craterEffect += crater(pos, normalize(vec3(-0.3, -0.88, 0.37)), 0.04) * 0.5;
+
+  // Final color
+  float brightness = 0.55 + detail + craterEffect * 0.25;
+  vec3 color = baseColor * brightness;
+
+  // Subtle rim lighting
+  float rim = 1.0 - max(0.0, dot(vNormal, vec3(0.0, 0.0, 1.0)));
+  rim = pow(rim, 3.0) * 0.12;
+  color += vec3(0.85, 0.88, 0.92) * rim;
+
+  // Output
+  gl_FragColor = vec4(clamp(color, 0.0, 1.0), 1.0);
+}
+`;
+
 // Smooth Moon visual component - updates position every frame for perceptually smooth movement
+// Uses procedural shader for realistic lunar surface with craters and maria
 const SmoothMoon: React.FC = () => {
   const groupRef = useRef<THREE.Group>(null);
   const isTabVisible = useGameSimulationStore((state) => state.isTabVisible);
@@ -718,40 +1093,33 @@ const SmoothMoon: React.FC = () => {
     if (!isTabVisible || !groupRef.current) return;
 
     // Compute moon position (opposite to sun) from smoothGameTime
-    const smoothSunAngle = ((smoothGameTime - 6) / 12) * Math.PI;
+    // Moon is 12 hours offset from sun
+    const smoothMoonAngle = ((smoothGameTime + 12) / 24) * Math.PI * 2 - Math.PI / 2;
     const radius = 340;
-    const heightMultiplier = 1.3;
-    const smoothSunX = Math.cos(smoothSunAngle) * -radius;
-    const smoothSunY = Math.sin(smoothSunAngle) * radius * heightMultiplier + 60;
-    const smoothSunZ = Math.cos(smoothSunAngle) * 50;
-
-    // Moon is opposite
-    const smoothMoonX = -smoothSunX;
-    const smoothMoonY = -smoothSunY;
-    const smoothMoonZ = -smoothSunZ;
+    const heightMultiplier = 1.0;
+    const smoothMoonX = Math.cos(smoothMoonAngle) * -radius;
+    const smoothMoonY = Math.sin(smoothMoonAngle) * radius * heightMultiplier;
+    const smoothMoonZ = Math.cos(smoothMoonAngle) * 50;
 
     groupRef.current.position.set(smoothMoonX, smoothMoonY, smoothMoonZ);
 
-    // Toggle visibility based on height
-    groupRef.current.visible = smoothMoonY > -5;
+    // Toggle visibility based on height (moon rises at ~18pm, sets at ~6am)
+    groupRef.current.visible = smoothMoonY > -50;
   });
 
   return (
     <group ref={groupRef}>
-      {/* Moon surface */}
-      <mesh renderOrder={-990}>
-        <sphereGeometry args={[15, 32, 32]} />
-        <meshStandardMaterial
-          color="#e2e8f0"
-          emissive="#94a3b8"
-          emissiveIntensity={0.3}
+      {/* Moon surface - procedural shader texture */}
+      {/* renderOrder -996 ensures moon renders BEFORE mountains */}
+      {/* depthWrite={false} so moon doesn't interfere with mountain depth testing */}
+      <mesh renderOrder={-996}>
+        <sphereGeometry args={[15, 64, 64]} />
+        <shaderMaterial
+          vertexShader={moonVertexShader}
+          fragmentShader={moonFragmentShader}
           fog={false}
+          depthWrite={false}
         />
-      </mesh>
-      {/* Moon glow */}
-      <mesh renderOrder={-990}>
-        <sphereGeometry args={[22, 32, 32]} />
-        <meshBasicMaterial color="#a5f3fc" transparent opacity={0.15} depthWrite={false} />
       </mesh>
     </group>
   );
@@ -881,8 +1249,9 @@ export const SkySystem: React.FC = () => {
 
       {/* Ground Plane - Infinite Environment */}
       {/* fog={false} prevents dark artifacts at far distances */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.5, 0]}>
-        <circleGeometry args={[400, 64]} />
+      {/* Lowered to y=-15 to not cover terrain canyon (which goes to y=-12) */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -15, 0]}>
+        <circleGeometry args={[650, 64]} />
         <meshStandardMaterial color={skyColors.ground} roughness={1} metalness={0} fog={false} />
       </mesh>
 
@@ -905,6 +1274,7 @@ export const SkySystem: React.FC = () => {
           }}
           side={THREE.BackSide}
           depthTest={false}
+          depthWrite={false}
         />
       </mesh>
 
@@ -1018,8 +1388,8 @@ const Stars: React.FC<{ visible: boolean }> = React.memo(({ visible }) => {
 
   return (
     <group>
-      {/* Main star field - renderOrder -995 ensures stars are behind mountains and sun/moon */}
-      <points ref={starsRef} renderOrder={-995}>
+      {/* Main star field - renders AFTER mountains so depthTest occludes them behind peaks */}
+      <points ref={starsRef} renderOrder={-550}>
         <bufferGeometry>
           <bufferAttribute attach="attributes-position" args={[starPositions, 3]} />
           <bufferAttribute attach="attributes-color" args={[starColors, 3]} />
@@ -1032,11 +1402,12 @@ const Stars: React.FC<{ visible: boolean }> = React.memo(({ visible }) => {
           opacity={0.85}
           sizeAttenuation={false}
           depthWrite={false}
+          depthTest={true}
         />
       </points>
 
       {/* Bright prominent stars */}
-      <points ref={brightStarsRef} renderOrder={-995}>
+      <points ref={brightStarsRef} renderOrder={-550}>
         <bufferGeometry>
           <bufferAttribute attach="attributes-position" args={[brightStarPositions, 3]} />
         </bufferGeometry>
@@ -1047,6 +1418,7 @@ const Stars: React.FC<{ visible: boolean }> = React.memo(({ visible }) => {
           opacity={0.95}
           sizeAttenuation={false}
           depthWrite={false}
+          depthTest={true}
         />
       </points>
     </group>
@@ -1730,7 +2102,8 @@ const SnowCappedMountainLayer: React.FC<{
           {...shaderMaterial}
           transparent
           side={THREE.DoubleSide}
-          depthWrite={false}
+          depthWrite={true}
+          depthTest={true}
         />
       </mesh>
     );
@@ -1898,7 +2271,8 @@ const HorizonLayer: React.FC<{
         {...shaderMaterial}
         transparent
         side={THREE.DoubleSide}
-        depthWrite={false}
+        depthWrite={true}
+        depthTest={true}
       />
     </mesh>
   );
@@ -2143,7 +2517,7 @@ export const HorizonRing: React.FC = () => {
         snowColor={mountainColors.snow}
         atmosphereColor={atmosphereColor}
         atmosphereStrength={0.6} // Heavy atmospheric haze for distant mountains
-        opacity={0.9}
+        opacity={1.0}
         renderOrder={-950}
       />
 
@@ -2249,13 +2623,14 @@ export const HorizonRing: React.FC = () => {
       />
 
       {/* Solid ground plane below horizon */}
+      {/* Lowered to y=-15 to not cover terrain canyon (which goes to y=-12) */}
       <mesh
-        position={[0, -1, 0]}
+        position={[0, -15, 0]}
         rotation={[-Math.PI / 2, 0, 0]}
         frustumCulled={false}
         renderOrder={-750}
       >
-        <ringGeometry args={[0, 260, 64]} />
+        <ringGeometry args={[0, 650, 64]} />
         <meshBasicMaterial color={layerColors.ground} side={THREE.DoubleSide} />
       </mesh>
     </group>

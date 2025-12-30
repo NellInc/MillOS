@@ -344,9 +344,14 @@ const EmergencyEnvironmentPanel: React.FC = () => {
 // Graphics Options Panel Component
 const GraphicsOptionsPanel: React.FC = () => {
   const [expanded, setExpanded] = useState(false);
-  const graphics = useGraphicsStore();
-  const setGraphicsQuality = useGraphicsStore((state) => state.setGraphicsQuality);
-  const setGraphicsSetting = useGraphicsStore((state) => state.setGraphicsSetting);
+  // Consolidated store subscription - only re-renders when graphics settings change
+  const { graphics, setGraphicsQuality, setGraphicsSetting } = useGraphicsStore(
+    useShallow((state) => ({
+      graphics: state.graphics,
+      setGraphicsQuality: state.setGraphicsQuality,
+      setGraphicsSetting: state.setGraphicsSetting,
+    }))
+  );
   const theme = useUIStore((state) => state.theme);
   const showFPSCounter = useUIStore((state) => state.showFPSCounter);
   const toggleFPSCounter = useUIStore((state) => state.toggleFPSCounter);
@@ -482,9 +487,9 @@ const GraphicsOptionsPanel: React.FC = () => {
           <Settings className="w-4 h-4 text-purple-400" aria-hidden="true" />
           Graphics Quality
           <span
-            className={`text-[10px] font-bold uppercase ${qualityColors[graphics.graphics.quality]}`}
+            className={`text-[10px] font-bold uppercase ${qualityColors[graphics.quality]}`}
           >
-            {graphics.graphics.quality}
+            {graphics.quality}
           </span>
         </span>
         {expanded ? (
@@ -510,7 +515,7 @@ const GraphicsOptionsPanel: React.FC = () => {
                   key={quality}
                   onClick={() => setGraphicsQuality(quality)}
                   className={`flex-1 py-1.5 rounded text-[10px] font-bold uppercase tracking-wider transition-all ${
-                    graphics.graphics.quality === quality
+                    graphics.quality === quality
                       ? quality === 'low'
                         ? 'bg-slate-600 text-white'
                         : quality === 'medium'
@@ -543,9 +548,9 @@ const GraphicsOptionsPanel: React.FC = () => {
                       .map(({ key, label, icon }) => (
                         <button
                           key={key}
-                          onClick={() => setGraphicsSetting(key, !graphics.graphics[key])}
+                          onClick={() => setGraphicsSetting(key, !graphics[key as keyof typeof graphics])}
                           className={`w-full flex items-center gap-2 px-2 py-1 rounded text-xs transition-all ${
-                            graphics.graphics[key]
+                            graphics[key as keyof typeof graphics]
                               ? theme === 'light'
                                 ? 'bg-slate-200 text-slate-800'
                                 : 'bg-slate-700/50 text-white'
@@ -556,7 +561,7 @@ const GraphicsOptionsPanel: React.FC = () => {
                         >
                           <span
                             className={
-                              graphics.graphics[key]
+                              graphics[key as keyof typeof graphics]
                                 ? 'text-green-500'
                                 : theme === 'light'
                                   ? 'text-slate-400'
@@ -568,7 +573,7 @@ const GraphicsOptionsPanel: React.FC = () => {
                           <span className="flex-1 text-left">{label}</span>
                           <span
                             className={`w-2 h-2 rounded-full ${
-                              graphics[key as keyof typeof graphics]
+                              graphics[key]
                                 ? 'bg-green-500'
                                 : theme === 'light'
                                   ? 'bg-slate-300'
@@ -594,7 +599,7 @@ const GraphicsOptionsPanel: React.FC = () => {
                   Particle Count
                 </span>
                 <span className="text-cyan-500 font-mono font-bold">
-                  {graphics.graphics.dustParticleCount}
+                  {graphics.dustParticleCount}
                 </span>
               </div>
               <input
@@ -602,17 +607,17 @@ const GraphicsOptionsPanel: React.FC = () => {
                 min="0"
                 max="500"
                 step="25"
-                value={graphics.graphics.dustParticleCount}
+                value={graphics.dustParticleCount}
                 onChange={(e) => setGraphicsSetting('dustParticleCount', parseInt(e.target.value))}
-                disabled={!graphics.graphics.enableDustParticles}
+                disabled={!graphics.enableDustParticles}
                 aria-label="Dust particle count"
                 aria-valuemin={0}
                 aria-valuemax={500}
-                aria-valuenow={graphics.graphics.dustParticleCount}
-                aria-valuetext={`${graphics.graphics.dustParticleCount} particles`}
+                aria-valuenow={graphics.dustParticleCount}
+                aria-valuetext={`${graphics.dustParticleCount} particles`}
                 className={`w-full h-2 rounded-lg appearance-none cursor-pointer accent-cyan-500 ${
                   theme === 'light' ? 'bg-slate-200' : 'bg-slate-800'
-                } ${!graphics.graphics.enableDustParticles ? 'opacity-50' : ''}`}
+                } ${!graphics.enableDustParticles ? 'opacity-50' : ''}`}
               />
               <div
                 className={`flex justify-between text-[9px] mt-0.5 ${theme === 'light' ? 'text-slate-400' : 'text-slate-600'}`}

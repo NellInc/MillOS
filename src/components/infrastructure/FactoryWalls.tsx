@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useMemo } from 'react';
 import * as THREE from 'three';
+import { useFrame } from '@react-three/fiber';
 import { Text, Instances, Instance } from '@react-three/drei';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { useSafetyStore } from '../../stores/safetyStore';
@@ -249,7 +250,11 @@ const BreakRoom: React.FC<{ position: [number, number, number] }> = React.memo((
       </mesh>
 
       {/* Bench legs - INSTANCED (2 legs -> 1 draw call) */}
-      <instancedMesh ref={benchLegsRef} args={[benchLegGeometry, metalGrayMaterial, 2]} castShadow />
+      <instancedMesh
+        ref={benchLegsRef}
+        args={[benchLegGeometry, metalGrayMaterial, 2]}
+        castShadow
+      />
 
       {/* Table top */}
       <mesh position={[0, 0.7, -0.5]} castShadow>
@@ -258,7 +263,11 @@ const BreakRoom: React.FC<{ position: [number, number, number] }> = React.memo((
       </mesh>
 
       {/* Table legs - INSTANCED (4 legs -> 1 draw call) */}
-      <instancedMesh ref={tableLegsRef} args={[tableLegGeometry, darkMetalMaterial, 4]} castShadow />
+      <instancedMesh
+        ref={tableLegsRef}
+        args={[tableLegGeometry, darkMetalMaterial, 4]}
+        castShadow
+      />
 
       {/* Vending machine (simplified) */}
       <group position={[2.2, 0, -1.5]}>
@@ -300,11 +309,10 @@ const BreakRoom: React.FC<{ position: [number, number, number] }> = React.memo((
 });
 
 // Wall clock that syncs with game time - with instanced hour markers
+// PERF FIX: Uses useFrame + refs instead of gameTime subscription to avoid re-renders
 const WallClock: React.FC<{ position: [number, number, number] }> = React.memo(({ position }) => {
-  const gameTime = useGameSimulationStore((state) => state.gameTime);
-  const hourAngle = (gameTime / 12) * Math.PI * 2 - Math.PI / 2;
-  const minuteAngle = (((gameTime % 1) * 60) / 60) * Math.PI * 2 - Math.PI / 2;
-
+  const hourHandRef = useRef<THREE.Mesh>(null);
+  const minuteHandRef = useRef<THREE.Mesh>(null);
   const hourMarkersRef = useRef<THREE.InstancedMesh>(null);
 
   const markerData = useMemo(() => {
@@ -330,6 +338,24 @@ const WallClock: React.FC<{ position: [number, number, number] }> = React.memo((
     hourMarkersRef.current.instanceMatrix.needsUpdate = true;
   }, [markerData]);
 
+  // PERF FIX: Update hands via useFrame + getState() instead of subscription
+  useFrame(() => {
+    const gameTime = useGameSimulationStore.getState().gameTime;
+    const hourAngle = (gameTime / 12) * Math.PI * 2 - Math.PI / 2;
+    const minuteAngle = (((gameTime % 1) * 60) / 60) * Math.PI * 2 - Math.PI / 2;
+
+    if (hourHandRef.current) {
+      hourHandRef.current.position.x = Math.cos(hourAngle) * 0.1;
+      hourHandRef.current.position.y = Math.sin(hourAngle) * 0.1;
+      hourHandRef.current.rotation.z = -hourAngle;
+    }
+    if (minuteHandRef.current) {
+      minuteHandRef.current.position.x = Math.cos(minuteAngle) * 0.12;
+      minuteHandRef.current.position.y = Math.sin(minuteAngle) * 0.12;
+      minuteHandRef.current.rotation.z = -minuteAngle;
+    }
+  });
+
   return (
     <group position={position}>
       {/* Clock face */}
@@ -347,18 +373,12 @@ const WallClock: React.FC<{ position: [number, number, number] }> = React.memo((
       <instancedMesh ref={hourMarkersRef} args={[hourMarkerGeometry, darkMetalMaterial, 12]} />
 
       {/* Hour hand */}
-      <mesh
-        position={[Math.cos(hourAngle) * 0.1, Math.sin(hourAngle) * 0.1, 0.04]}
-        rotation={[0, 0, -hourAngle]}
-      >
+      <mesh ref={hourHandRef} position={[0, 0, 0.04]}>
         <boxGeometry args={[0.2, 0.025, 0.01]} />
         <meshBasicMaterial color="#1e293b" />
       </mesh>
       {/* Minute hand */}
-      <mesh
-        position={[Math.cos(minuteAngle) * 0.12, Math.sin(minuteAngle) * 0.12, 0.05]}
-        rotation={[0, 0, -minuteAngle]}
-      >
+      <mesh ref={minuteHandRef} position={[0, 0, 0.05]}>
         <boxGeometry args={[0.25, 0.015, 0.01]} />
         <meshBasicMaterial color="#374151" />
       </mesh>
@@ -815,7 +835,10 @@ const ToiletBlock: React.FC<{ position: [number, number, number] }> = React.memo
       </mesh>
 
       <instancedMesh ref={sinkBasinsRef} args={[sinkBasinGeometry, whiteMaterial, 3]} />
-      <instancedMesh ref={faucetVerticalsRef} args={[faucetVerticalGeometry, lightGrayMaterial, 3]} />
+      <instancedMesh
+        ref={faucetVerticalsRef}
+        args={[faucetVerticalGeometry, lightGrayMaterial, 3]}
+      />
       <instancedMesh
         ref={faucetHorizontalsRef}
         args={[faucetHorizontalGeometry, lightGrayMaterial, 3]}

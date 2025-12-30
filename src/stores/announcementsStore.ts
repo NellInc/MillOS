@@ -79,8 +79,7 @@ export const useAnnouncementsStore = create<AnnouncementsStore>()(
       }));
     },
 
-    getActiveAnnouncements: () =>
-      get().announcements.filter((a) => !a.dismissed),
+    getActiveAnnouncements: () => get().announcements.filter((a) => !a.dismissed),
 
     getAnnouncementsByPriority: (minPriority: number) =>
       get().announcements.filter((a) => !a.dismissed && a.priority >= minPriority),

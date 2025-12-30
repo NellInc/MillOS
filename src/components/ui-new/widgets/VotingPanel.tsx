@@ -365,13 +365,15 @@ const VoteCard: React.FC<VoteCardProps> = ({
                       Applied: "{vote.result.label}" with {Math.round(vote.turnout * 100)}% turnout
                     </span>
                   </div>
-                  {vote.type === 'axis-change' && vote.targetAxis && vote.proposedValue !== undefined && (
-                    <div className="text-[9px] text-emerald-400/70 mt-1 ml-4">
-                      {vote.result.label === 'Accept Change'
-                        ? `${vote.targetAxis.replace(/([A-Z])/g, ' $1').replace(/^./, (s) => s.toUpperCase())} set to ${vote.proposedValue}%`
-                        : 'Current setting retained'}
-                    </div>
-                  )}
+                  {vote.type === 'axis-change' &&
+                    vote.targetAxis &&
+                    vote.proposedValue !== undefined && (
+                      <div className="text-[9px] text-emerald-400/70 mt-1 ml-4">
+                        {vote.result.label === 'Accept Change'
+                          ? `${vote.targetAxis.replace(/([A-Z])/g, ' $1').replace(/^./, (s) => s.toUpperCase())} set to ${vote.proposedValue}%`
+                          : 'Current setting retained'}
+                      </div>
+                    )}
                   {vote.type === 'ai-behavior' && (
                     <div className="text-[9px] text-emerald-400/70 mt-1 ml-4">
                       AI behavior updated

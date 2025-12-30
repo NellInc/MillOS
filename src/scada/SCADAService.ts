@@ -104,6 +104,16 @@ export class SCADAService {
     if (this.adapter) {
       await this.adapter.connect();
 
+      // Guard against double subscription - clean up existing subscriptions first
+      if (this.adapterUnsubscribe) {
+        this.adapterUnsubscribe();
+        this.adapterUnsubscribe = null;
+      }
+      if (this.alarmUnsubscribe) {
+        this.alarmUnsubscribe();
+        this.alarmUnsubscribe = null;
+      }
+
       // Subscribe to all tags
       const allTagIds = Array.from(this.tagRegistry.keys());
       this.adapterUnsubscribe = this.adapter.subscribe(allTagIds, this.handleTagUpdates.bind(this));

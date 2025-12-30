@@ -8,12 +8,18 @@ import { playCritterSound } from '../utils/critterAudio';
 import { HeartParticle } from './effects/HeartParticle';
 import { useModelTextures } from '../utils/machineTextures';
 import { useProductionStore } from '../stores/productionStore';
-import { FLOOR_LAYERS, EXTERIOR_LAYERS, POLYGON_OFFSET, RENDER_ORDER } from '../constants/renderLayers';
+import {
+  FLOOR_LAYERS,
+  POLYGON_OFFSET,
+  RENDER_ORDER,
+  WATER_LAYERS,
+} from '../constants/renderLayers';
 import {
   calculateShippingTruckState,
   calculateReceivingTruckState,
 } from './truckbay/useTruckPhysics';
-import { PROCEDURAL_TEXTURES, OUTDOOR_MATERIALS } from '../utils/sharedMaterials';
+import { PROCEDURAL_TEXTURES } from '../utils/sharedMaterials';
+// OUTDOOR_MATERIALS removed - grass plane now handled by TerrainGround
 import { GasStation } from './GasStationInstanced';
 import {
   SimpleTreeInstances,
@@ -103,10 +109,10 @@ const SmallOffice: React.FC<{
       <boxGeometry args={[size[0] + 0.5, 0.6, size[2] + 0.5]} />
       <meshStandardMaterial color="#546e7a" roughness={0.6} />
     </mesh>
-    {/* Windows - front */}
+    {/* Windows - front (raised to avoid overlap with door) */}
     {[-3, 0, 3].map((x, i) => (
-      <mesh key={`front-${i}`} position={[x, size[1] / 2, size[2] / 2 + 0.05]}>
-        <planeGeometry args={[2, 3]} />
+      <mesh key={`front-${i}`} position={[x, size[1] / 2 + 0.8, size[2] / 2 + 0.05]}>
+        <planeGeometry args={[2, 2.5]} />
         <meshStandardMaterial color="#90caf9" metalness={0.3} roughness={0.2} />
       </mesh>
     ))}
@@ -378,14 +384,29 @@ const StillCanalWater: React.FC<{
   const safeWidth = Number.isFinite(width) && width > 0 ? width : 10;
   const safeLength = Number.isFinite(length) && length > 0 ? length : 10;
 
+  // Canal water must be well above TerrainGround (y=0.05) to avoid z-fighting
+  // Use 0.15 for clear separation
+  const waterY = 0.15;
+
   return (
-    <mesh position={position} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+    <mesh
+      position={[position[0], waterY, position[2]]}
+      rotation={[-Math.PI / 2, 0, 0]}
+      receiveShadow
+      renderOrder={RENDER_ORDER.waterSurface}
+    >
       <planeGeometry args={[safeWidth, safeLength]} />
       <meshStandardMaterial
         color={WATER_COLORS.shallow}
         metalness={0.3}
         roughness={0.1}
         envMapIntensity={1.5}
+        transparent
+        opacity={0.9}
+        depthWrite={false}
+        polygonOffset
+        polygonOffsetFactor={-4}
+        polygonOffsetUnits={-4}
       />
     </mesh>
   );
@@ -514,8 +535,16 @@ const AnimatedRiverWater: React.FC<{
     uniforms.current.time.value = state.clock.elapsedTime;
   });
 
+  // Honor explicit Y position - allows water to be placed in carved channels
+  const adjustedPosition: [number, number, number] = [position[0], position[1], position[2]];
+
   return (
-    <mesh position={position} rotation={rotation} receiveShadow>
+    <mesh
+      position={adjustedPosition}
+      rotation={rotation}
+      receiveShadow
+      renderOrder={RENDER_ORDER.waterSurface}
+    >
       <planeGeometry args={[safeWidth, safeLength, 32, 32]} />
       <shaderMaterial
         uniforms={uniforms.current}
@@ -564,10 +593,17 @@ const Canal: React.FC<{
         <planeGeometry args={[safeWidth, safeLength]} />
         <meshStandardMaterial color="#2c3e50" roughness={0.95} />
       </mesh>
-      {/* Towpath along left side - lowered to prevent z-fighting with paths at y=0.1 */}
-      <mesh position={[-safeWidth / 2 - 2, -0.02, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+      {/* Towpath along left side - raised above TerrainGround (y=0.05) to prevent z-fighting */}
+      <mesh position={[-safeWidth / 2 - 2, 0.08, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <planeGeometry args={[3, safeLength]} />
-        <meshStandardMaterial color="#7d6d5e" roughness={0.9} />
+        <meshStandardMaterial
+          color="#7d6d5e"
+          roughness={0.9}
+          depthWrite={false}
+          polygonOffset
+          polygonOffsetFactor={POLYGON_OFFSET.exteriorTop.factor}
+          polygonOffsetUnits={POLYGON_OFFSET.exteriorTop.units}
+        />
       </mesh>
       {/* Mooring posts */}
       {[-safeLength / 3, 0, safeLength / 3].map((z, i) => (
@@ -815,7 +851,7 @@ const Lake: React.FC<{
   position: [number, number, number];
   size: [number, number];
   depth?: number;
-}> = ({ position, size, depth = 0.5 }) => {
+}> = ({ position, size, depth: _depth = 0.5 }) => {
   // CRITICAL: Guard against NaN/undefined/zero dimensions which cause
   // "computeBoundingSphere(): Computed radius is NaN" errors in THREE.js
   const safeW = Number.isFinite(size?.[0]) && size[0] > 0 ? size[0] : 20;
@@ -826,12 +862,35 @@ const Lake: React.FC<{
   const mainRadius = Math.max(0.1, maxDim / 2 - 1);
   const deepRadius = Math.max(0.1, maxDim / 3);
   const shoreRadius = Math.max(0.1, maxDim / 2 + 2);
-  const grassRadius = Math.max(0.1, maxDim / 2 + 6);
+  // grassRadius removed - grass now handled by TerrainGround system
 
   return (
     <group position={position}>
-      {/* Main water surface */}
-      <mesh position={[0, -depth / 2, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+      {/* Grass around lake - REMOVED: now handled by TerrainGround system */}
+      {/* Sandy shoreline - raised above TerrainGround (y=0.05) */}
+      <mesh position={[0, 0.08, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+        <circleGeometry args={[shoreRadius, 32]} />
+        <meshStandardMaterial
+          color="#c9b896"
+          roughness={0.95}
+          depthWrite={false}
+          polygonOffset
+          polygonOffsetFactor={-2}
+          polygonOffsetUnits={-2}
+        />
+      </mesh>
+      {/* Deep center - below terrain for depth illusion */}
+      <mesh position={[0, WATER_LAYERS.deepChannel, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <circleGeometry args={[deepRadius, 24]} />
+        <meshBasicMaterial color="#1d4ed8" transparent opacity={0.9} />
+      </mesh>
+      {/* Main water surface - must be above TerrainGround (y=0.05) */}
+      <mesh
+        position={[0, 0.15, 0]}
+        rotation={[-Math.PI / 2, 0, 0]}
+        receiveShadow
+        renderOrder={RENDER_ORDER.waterSurface}
+      >
         <circleGeometry args={[mainRadius, 32]} />
         <meshStandardMaterial
           color={WATER_COLORS.pond}
@@ -839,27 +898,10 @@ const Lake: React.FC<{
           roughness={0.15}
           transparent
           opacity={0.85}
-        />
-      </mesh>
-      {/* Deep center */}
-      <mesh position={[0, -depth, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <circleGeometry args={[deepRadius, 24]} />
-        <meshBasicMaterial color="#1d4ed8" transparent opacity={0.9} />
-      </mesh>
-      {/* Sandy shoreline */}
-      <mesh position={[0, -0.02, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <circleGeometry args={[shoreRadius, 32]} />
-        <meshStandardMaterial color="#c9b896" roughness={0.95} />
-      </mesh>
-      {/* Grass around lake - exteriorBase */}
-      <mesh position={[0, EXTERIOR_LAYERS.ground, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <circleGeometry args={[grassRadius, 32]} />
-        <meshStandardMaterial
-          color={GRASS_COLORS.park}
-          roughness={0.95}
+          depthWrite={false}
           polygonOffset
-          polygonOffsetFactor={POLYGON_OFFSET.exteriorBase.factor}
-          polygonOffsetUnits={POLYGON_OFFSET.exteriorBase.units}
+          polygonOffsetFactor={-4}
+          polygonOffsetUnits={-4}
         />
       </mesh>
       {/* Reeds/vegetation patches */}
@@ -943,8 +985,9 @@ const RiverTunnel: React.FC<{
   return (
     <group position={position} rotation={[0, rotation, 0]}>
       {/* Earthen embankment/hill that the tunnel goes through */}
-      <mesh position={[0, 4, zDir * 10]} castShadow receiveShadow>
-        <boxGeometry args={[width + 24, 10, 18]} />
+      {/* Made slightly larger (+2 width, +0.5 height) to overhang slope blocks and prevent z-fighting */}
+      <mesh position={[0, 4.25, zDir * 10]} castShadow receiveShadow>
+        <boxGeometry args={[width + 26, 10.5, 18]} />
         <meshStandardMaterial color="#4a5d3a" roughness={0.95} />
       </mesh>
       {/* Sloped front of embankment - left */}
@@ -957,9 +1000,9 @@ const RiverTunnel: React.FC<{
         <boxGeometry args={[10, 6, 12]} />
         <meshStandardMaterial color="#5a6d4a" roughness={0.95} />
       </mesh>
-      {/* Grass top of embankment */}
-      <mesh position={[0, 9.05, zDir * 10]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <planeGeometry args={[width + 26, 20]} />
+      {/* Grass top of embankment - positioned on top of enlarged embankment */}
+      <mesh position={[0, 9.55, zDir * 10]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+        <planeGeometry args={[width + 28, 20]} />
         <meshStandardMaterial color={GRASS_COLORS.meadow} roughness={0.9} />
       </mesh>
 
@@ -1094,11 +1137,11 @@ const RiverTunnel: React.FC<{
         </mesh>
       </group>
 
-      {/* Water surface transitioning into tunnel */}
+      {/* Water surface transitioning into tunnel - at terrain level */}
       <AnimatedRiverWater
         width={width}
         length={4}
-        position={[0, -0.08, zDir * -1.5]}
+        position={[0, WATER_LAYERS.surface, zDir * -1.5]}
         flowSpeed={1.2}
       />
 
@@ -1164,40 +1207,14 @@ const River: React.FC<{
             position={[midX, 0, midZ]}
             rotation={[0, -angle + Math.PI / 2, 0]}
           >
-            {/* Riverbank grass - exteriorBase */}
-            <mesh position={[0, EXTERIOR_LAYERS.ground, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-              <planeGeometry args={[avgWidth + 6, segLength + 2]} />
-              <meshStandardMaterial
-                color={GRASS_COLORS.verge}
-                roughness={0.95}
-                polygonOffset
-                polygonOffsetFactor={POLYGON_OFFSET.exteriorBase.factor}
-                polygonOffsetUnits={POLYGON_OFFSET.exteriorBase.units}
-              />
-            </mesh>
-            {/* Narrow pebbly shore - exteriorMid (on top of grass) */}
-            <mesh position={[0, EXTERIOR_LAYERS.ground, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-              <planeGeometry args={[avgWidth + 1.5, segLength + 0.5]} />
-              <meshStandardMaterial
-                color="#2a4a5a"
-                roughness={0.9}
-                polygonOffset
-                polygonOffsetFactor={POLYGON_OFFSET.exteriorMid.factor}
-                polygonOffsetUnits={POLYGON_OFFSET.exteriorMid.units}
-              />
-            </mesh>
-            {/* Animated flowing water surface */}
+            {/* Riverbank grass and shore planes REMOVED - now handled by TerrainGround displacement */}
+            {/* Animated flowing water surface - deep in canyon (canyon is 12 units deep) */}
             <AnimatedRiverWater
               width={avgWidth}
               length={segLength + 0.5}
-              position={[0, -0.08, 0]}
+              position={[0, -10, 0]}
               flowSpeed={1.2}
             />
-            {/* Deep channel bed */}
-            <mesh position={[0, -0.5, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-              <planeGeometry args={[avgWidth * 0.6, segLength]} />
-              <meshBasicMaterial color={WATER_COLORS.deep} transparent opacity={0.7} />
-            </mesh>
           </group>
         );
       })}
@@ -1206,32 +1223,79 @@ const River: React.FC<{
       {/* Deck raised to y=2.0 to prevent water wave clipping (waves can reach ~y=1.0 from base at y=-0.08) */}
       <group position={[0, 0, 0]}>
         {/* Bridge deck - raised to y=2.0 for clearance above wave amplitude */}
+        {/* Doubled length to span the wider canyon */}
         <mesh position={[0, 2.0, 0]} castShadow receiveShadow>
-          <boxGeometry args={[6.375, 0.8, width + 14.375]} />
+          <boxGeometry args={[6.375, 0.8, width * 2 + 30]} />
           <meshStandardMaterial color="#6b7280" roughness={0.8} />
         </mesh>
-        {/* Bridge arch (simplified) - raised proportionally */}
-        <mesh position={[0, 1.0, 0]} castShadow>
-          <boxGeometry args={[5.1, 1.5, width - 2]} />
-          <meshStandardMaterial color="#5b6470" roughness={0.85} />
-        </mesh>
-        {/* Bridge railings - raised proportionally */}
+        {/* Bridge railings */}
         {[-1, 1].map((side, i) => (
           <mesh key={`railing-${i}`} position={[side * 3.1875, 2.7, 0]} castShadow>
-            <boxGeometry args={[0.3, 1, width + 14.375]} />
+            <boxGeometry args={[0.3, 1, width * 2 + 30]} />
             <meshStandardMaterial color="#4b5563" roughness={0.7} />
           </mesh>
         ))}
+        {/* Bridge support structure - extends down into canyon */}
+        {/* Main longitudinal beams under the deck */}
+        {[-2, 0, 2].map((xOff, i) => (
+          <mesh key={`main-beam-${i}`} position={[xOff, 1.2, 0]} castShadow>
+            <boxGeometry args={[0.4, 1.2, width * 2 + 28]} />
+            <meshStandardMaterial color="#374151" roughness={0.6} metalness={0.3} />
+          </mesh>
+        ))}
+        {/* Cross beams connecting the main beams */}
+        {Array.from({ length: 9 }, (_, i) => {
+          const zPos = -32 + i * 8;
+          return (
+            <mesh key={`cross-beam-${i}`} position={[0, 1.2, zPos]} castShadow>
+              <boxGeometry args={[5.5, 0.3, 0.4]} />
+              <meshStandardMaterial color="#374151" roughness={0.6} metalness={0.3} />
+            </mesh>
+          );
+        })}
+        {/* Vertical pier columns extending down to canyon floor */}
+        {/* Canyon is 12 units deep, water at -10, so piers go to about -9 */}
+        {Array.from({ length: 5 }, (_, i) => {
+          const zPos = -28 + i * 14; // 5 piers spread across the span
+          return (
+            <group key={`pier-${i}`}>
+              {/* Left pier */}
+              <mesh position={[-2.2, -4, zPos]} castShadow>
+                <boxGeometry args={[0.8, 12, 0.8]} />
+                <meshStandardMaterial color="#4b5563" roughness={0.7} metalness={0.2} />
+              </mesh>
+              {/* Right pier */}
+              <mesh position={[2.2, -4, zPos]} castShadow>
+                <boxGeometry args={[0.8, 12, 0.8]} />
+                <meshStandardMaterial color="#4b5563" roughness={0.7} metalness={0.2} />
+              </mesh>
+              {/* Cross brace between piers */}
+              <mesh position={[0, -2, zPos]} castShadow>
+                <boxGeometry args={[4, 0.4, 0.4]} />
+                <meshStandardMaterial color="#374151" roughness={0.6} metalness={0.3} />
+              </mesh>
+              {/* Diagonal bracing */}
+              <mesh position={[-1, -5, zPos]} rotation={[0, 0, Math.PI / 4]} castShadow>
+                <boxGeometry args={[0.2, 6, 0.2]} />
+                <meshStandardMaterial color="#374151" roughness={0.6} metalness={0.3} />
+              </mesh>
+              <mesh position={[1, -5, zPos]} rotation={[0, 0, -Math.PI / 4]} castShadow>
+                <boxGeometry args={[0.2, 6, 0.2]} />
+                <meshStandardMaterial color="#374151" roughness={0.6} metalness={0.3} />
+              </mesh>
+            </group>
+          );
+        })}
       </group>
-      {/* Tunnel entrances at river ends - water flows from left tunnel, through river, into right tunnel */}
+      {/* Tunnel entrances at river ends - lowered into canyon (canyon is 12 units deep) */}
       <RiverTunnel
-        position={[-length / 2 - 2, 0, riverSegments[0].z]}
+        position={[-length / 2 - 2, -10, riverSegments[0].z]}
         width={width}
         rotation={-Math.PI / 2}
         flowDirection="out"
       />
       <RiverTunnel
-        position={[length / 2 + 2, 0, riverSegments[riverSegments.length - 1].z]}
+        position={[length / 2 + 2, -10, riverSegments[riverSegments.length - 1].z]}
         width={width}
         rotation={-Math.PI / 2}
         flowDirection="in"
@@ -1461,65 +1525,70 @@ const Pond: React.FC<{
 
   return (
     <group position={position}>
-      {/* Surrounding grass - exteriorBase */}
-      <mesh position={[0, EXTERIOR_LAYERS.ground, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <circleGeometry args={[radius + 3, 24]} />
-        <meshStandardMaterial
-          color={GRASS_COLORS.lawn}
-          roughness={0.95}
-          polygonOffset
-          polygonOffsetFactor={POLYGON_OFFSET.exteriorBase.factor}
-          polygonOffsetUnits={POLYGON_OFFSET.exteriorBase.units}
-        />
-      </mesh>
-      {/* Stone edge - exteriorTop */}
-      <mesh position={[0, EXTERIOR_LAYERS.ground, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+      {/* Surrounding grass - REMOVED: now handled by TerrainGround system */}
+      {/* Stone edge - raised above TerrainGround (y=0.05) */}
+      <mesh position={[0, 0.08, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <ringGeometry args={[radius - 0.3, radius + 0.5, 24]} />
         <meshStandardMaterial
           color="#7d8590"
           roughness={0.85}
+          depthWrite={false}
           polygonOffset
-          polygonOffsetFactor={POLYGON_OFFSET.exteriorTop.factor}
-          polygonOffsetUnits={POLYGON_OFFSET.exteriorTop.units}
+          polygonOffsetFactor={-2}
+          polygonOffsetUnits={-2}
         />
       </mesh>
-      {/* Water surface - exteriorMid */}
-      <mesh position={[0, EXTERIOR_LAYERS.ground, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+      {/* Water surface - must be above TerrainGround (y=0.05) */}
+      <mesh
+        position={[0, 0.15, 0]}
+        rotation={[-Math.PI / 2, 0, 0]}
+        receiveShadow
+        renderOrder={RENDER_ORDER.waterSurface}
+      >
         <circleGeometry args={[radius - 0.5, 24]} />
         <meshStandardMaterial
           color={WATER_COLORS.pond}
           metalness={0.7}
           roughness={0.15}
           transparent
-          polygonOffset
-          polygonOffsetFactor={POLYGON_OFFSET.exteriorMid.factor}
-          polygonOffsetUnits={POLYGON_OFFSET.exteriorMid.units}
           opacity={0.9}
+          depthWrite={false}
+          polygonOffset
+          polygonOffsetFactor={-4}
+          polygonOffsetUnits={-4}
         />
       </mesh>
       {/* Lily pads with frogs */}
       {lilyPads.map((pad, i) => (
         <group key={`lilypad-${i}`}>
-          {/* Lily pad */}
-          <mesh position={[pad.x, -0.12, pad.z]} rotation={[-Math.PI / 2, pad.rot, 0]}>
+          {/* Lily pad - floating on water surface */}
+          <mesh
+            position={[pad.x, 0.16, pad.z]}
+            rotation={[-Math.PI / 2, pad.rot, 0]}
+            renderOrder={RENDER_ORDER.waterFloating}
+          >
             <circleGeometry args={[0.5, 12]} />
             <meshStandardMaterial color="#3d6b4f" roughness={0.7} side={THREE.DoubleSide} />
           </mesh>
           {/* Lily pad notch effect - darker center */}
-          <mesh position={[pad.x, -0.115, pad.z]} rotation={[-Math.PI / 2, pad.rot, 0]}>
+          <mesh
+            position={[pad.x, 0.165, pad.z]}
+            rotation={[-Math.PI / 2, pad.rot, 0]}
+            renderOrder={RENDER_ORDER.waterFloating + 1}
+          >
             <ringGeometry args={[0.1, 0.25, 12]} />
             <meshStandardMaterial color="#2d5a3f" roughness={0.8} side={THREE.DoubleSide} />
           </mesh>
           {/* Frog on the lily pad */}
           <AnimatedFrog
-            position={[pad.x, -0.05, pad.z]}
+            position={[pad.x, 0.21, pad.z]}
             rotation={pad.frogRot}
             hopOffset={pad.hopOffset}
           />
         </group>
       ))}
-      {/* Cupid/Eros statue in center */}
-      <CupidStatue position={[0, -0.15, 0]} />
+      {/* Cupid/Eros statue in center - raised to stand on pond bottom */}
+      <CupidStatue position={[0, 0.15, 0]} />
       {/* Bench nearby */}
       <ParkBench position={[radius + 2, 0, 0]} rotation={-Math.PI / 2} />
     </group>
@@ -2167,22 +2236,39 @@ const GravelPath: React.FC<{
     cobble: '#78716c',
   };
 
+  // Paths must be ABOVE TerrainGround (y=0.05) to prevent z-fighting
+  const pathY = 0.08;
+
   return (
-    <group position={[midX, 0.15, midZ]} rotation={[0, -angle, 0]}>
-      {/* Path surface - raised to y=0.15 to prevent z-fighting with grass and other surfaces */}
+    <group position={[midX, pathY, midZ]} rotation={[0, -angle, 0]}>
+      {/* Path surface - raised above terrain with negative polygonOffset to push toward camera */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <planeGeometry args={[safeWidth, safeLength]} />
-        <meshStandardMaterial color={colors[type]} roughness={0.95} />
+        <meshStandardMaterial
+          color={colors[type]}
+          roughness={0.95}
+          depthWrite={false}
+          polygonOffset
+          polygonOffsetFactor={-2}
+          polygonOffsetUnits={-2}
+        />
       </mesh>
-      {/* Path borders - raised above path surface */}
+      {/* Path borders - slightly above path surface */}
       {[-1, 1].map((side, i) => (
         <mesh
           key={i}
-          position={[side * (safeWidth / 2 + 0.1), 0.02, 0]}
+          position={[side * (safeWidth / 2 + 0.1), 0.01, 0]}
           rotation={[-Math.PI / 2, 0, 0]}
         >
           <planeGeometry args={[0.15, safeLength]} />
-          <meshStandardMaterial color="#57534e" roughness={0.9} />
+          <meshStandardMaterial
+            color="#57534e"
+            roughness={0.9}
+            depthWrite={false}
+            polygonOffset
+            polygonOffsetFactor={-3}
+            polygonOffsetUnits={-3}
+          />
         </mesh>
       ))}
     </group>
@@ -2210,8 +2296,11 @@ const CurvedPath: React.FC<{
     paved: '#6b7280',
   };
 
+  // Paths must be ABOVE TerrainGround (y=0.05) to prevent z-fighting
+  const pathY = 0.08;
+
   return (
-    <group position={position}>
+    <group position={[position[0], pathY, position[2]]}>
       {Array.from({ length: segments }).map((_, i) => {
         const angle1 = startAngle + i * angleStep;
         const angle2 = startAngle + (i + 1) * angleStep;
@@ -2229,12 +2318,19 @@ const CurvedPath: React.FC<{
         return (
           <mesh
             key={i}
-            position={[midX, 0.17, midZ]}
+            position={[midX, 0, midZ]}
             rotation={[-Math.PI / 2, 0, -segAngle]}
             receiveShadow
           >
             <planeGeometry args={[safeWidth, safeSegLength + 0.1]} />
-            <meshStandardMaterial color={colors[type]} roughness={0.95} />
+            <meshStandardMaterial
+              color={colors[type]}
+              roughness={0.95}
+              depthWrite={false}
+              polygonOffset
+              polygonOffsetFactor={-2}
+              polygonOffsetUnits={-2}
+            />
           </mesh>
         );
       })}
@@ -3337,10 +3433,34 @@ const CuteCar: React.FC<{
   // Memoize dimensions lookup
   const { d, cabinX, cabinY } = useMemo(() => {
     const dimensions = {
-      sedan: { bodyLength: 3.2, bodyWidth: 1.4, bodyHeight: 0.7, cabinLength: 1.8, cabinHeight: 0.65 },
-      hatchback: { bodyLength: 2.6, bodyWidth: 1.3, bodyHeight: 0.65, cabinLength: 1.4, cabinHeight: 0.6 },
-      suv: { bodyLength: 3.4, bodyWidth: 1.6, bodyHeight: 0.9, cabinLength: 2.2, cabinHeight: 0.75 },
-      pickup: { bodyLength: 3.8, bodyWidth: 1.5, bodyHeight: 0.75, cabinLength: 1.2, cabinHeight: 0.7 },
+      sedan: {
+        bodyLength: 3.2,
+        bodyWidth: 1.4,
+        bodyHeight: 0.7,
+        cabinLength: 1.8,
+        cabinHeight: 0.65,
+      },
+      hatchback: {
+        bodyLength: 2.6,
+        bodyWidth: 1.3,
+        bodyHeight: 0.65,
+        cabinLength: 1.4,
+        cabinHeight: 0.6,
+      },
+      suv: {
+        bodyLength: 3.4,
+        bodyWidth: 1.6,
+        bodyHeight: 0.9,
+        cabinLength: 2.2,
+        cabinHeight: 0.75,
+      },
+      pickup: {
+        bodyLength: 3.8,
+        bodyWidth: 1.5,
+        bodyHeight: 0.75,
+        cabinLength: 1.2,
+        cabinHeight: 0.7,
+      },
     };
     const dim = dimensions[style];
     return {
@@ -3370,12 +3490,20 @@ const CuteCar: React.FC<{
       {/* Window pillars - A and C combined per side */}
       {[-1, 1].map((side) => (
         <group key={`pillars-${side}`}>
-          <mesh position={[cabinX + d.cabinLength / 2 - 0.06, cabinY, side * (d.bodyWidth / 2 - 0.04)]}>
+          <mesh
+            position={[cabinX + d.cabinLength / 2 - 0.06, cabinY, side * (d.bodyWidth / 2 - 0.04)]}
+          >
             <boxGeometry args={[0.08, d.cabinHeight + 0.02, 0.06]} />
             <meshStandardMaterial color={darkColor} roughness={0.6} />
           </mesh>
           {style !== 'pickup' && (
-            <mesh position={[cabinX - d.cabinLength / 2 + 0.06, cabinY, side * (d.bodyWidth / 2 - 0.04)]}>
+            <mesh
+              position={[
+                cabinX - d.cabinLength / 2 + 0.06,
+                cabinY,
+                side * (d.bodyWidth / 2 - 0.04),
+              ]}
+            >
               <boxGeometry args={[0.08, d.cabinHeight + 0.02, 0.06]} />
               <meshStandardMaterial color={darkColor} roughness={0.6} />
             </mesh>
@@ -3391,7 +3519,10 @@ const CuteCar: React.FC<{
       {/* Roof rails for SUV only */}
       {style === 'suv' &&
         [-1, 1].map((side) => (
-          <mesh key={`roof-rail-${side}`} position={[cabinX, cabinY + d.cabinHeight / 2 + 0.03, side * (d.bodyWidth / 2 - 0.12)]}>
+          <mesh
+            key={`roof-rail-${side}`}
+            position={[cabinX, cabinY + d.cabinHeight / 2 + 0.03, side * (d.bodyWidth / 2 - 0.12)]}
+          >
             <boxGeometry args={[d.cabinLength - 0.3, 0.04, 0.05]} />
             <meshStandardMaterial color="#718096" roughness={0.4} metalness={0.6} />
           </mesh>
@@ -3400,12 +3531,24 @@ const CuteCar: React.FC<{
       {/* Windows - front and back */}
       <mesh position={[cabinX + d.cabinLength / 2 - 0.05, cabinY, 0]}>
         <boxGeometry args={[0.02, d.cabinHeight - 0.18, d.bodyWidth - 0.3]} />
-        <meshStandardMaterial color="#a8d4e6" transparent opacity={0.75} metalness={0.7} roughness={0.05} />
+        <meshStandardMaterial
+          color="#a8d4e6"
+          transparent
+          opacity={0.75}
+          metalness={0.7}
+          roughness={0.05}
+        />
       </mesh>
       {style !== 'pickup' && (
         <mesh position={[cabinX - d.cabinLength / 2 + 0.05, cabinY, 0]}>
           <boxGeometry args={[0.02, d.cabinHeight - 0.18, d.bodyWidth - 0.3]} />
-          <meshStandardMaterial color="#a8d4e6" transparent opacity={0.75} metalness={0.7} roughness={0.05} />
+          <meshStandardMaterial
+            color="#a8d4e6"
+            transparent
+            opacity={0.75}
+            metalness={0.7}
+            roughness={0.05}
+          />
         </mesh>
       )}
 
@@ -3413,7 +3556,13 @@ const CuteCar: React.FC<{
       {[-1, 1].map((side) => (
         <mesh key={`side-window-${side}`} position={[cabinX, cabinY, side * (d.bodyWidth / 2)]}>
           <boxGeometry args={[d.cabinLength - 0.25, d.cabinHeight - 0.18, 0.02]} />
-          <meshStandardMaterial color="#a8d4e6" transparent opacity={0.75} metalness={0.7} roughness={0.05} />
+          <meshStandardMaterial
+            color="#a8d4e6"
+            transparent
+            opacity={0.75}
+            metalness={0.7}
+            roughness={0.05}
+          />
         </mesh>
       ))}
 
@@ -3435,7 +3584,14 @@ const CuteCar: React.FC<{
 
       {/* Side mirrors - simplified to single mesh per side */}
       {[-1, 1].map((side) => (
-        <mesh key={`mirror-${side}`} position={[cabinX + d.cabinLength / 2 - 0.15, cabinY - 0.15, side * (d.bodyWidth / 2 + 0.15)]}>
+        <mesh
+          key={`mirror-${side}`}
+          position={[
+            cabinX + d.cabinLength / 2 - 0.15,
+            cabinY - 0.15,
+            side * (d.bodyWidth / 2 + 0.15),
+          ]}
+        >
           <boxGeometry args={[0.1, 0.07, 0.06]} />
           <meshStandardMaterial color={color} roughness={0.4} metalness={0.3} />
         </mesh>
@@ -3510,7 +3666,11 @@ const CuteCar: React.FC<{
             <meshStandardMaterial color={color} roughness={0.5} />
           </mesh>
           {[-1, 1].map((side) => (
-            <mesh key={`bed-wall-${side}`} position={[0.9, 0.7, side * (d.bodyWidth / 2 - 0.08)]} castShadow>
+            <mesh
+              key={`bed-wall-${side}`}
+              position={[0.9, 0.7, side * (d.bodyWidth / 2 - 0.08)]}
+              castShadow
+            >
               <boxGeometry args={[1.4, 0.4, 0.08]} />
               <meshStandardMaterial color={color} roughness={0.5} />
             </mesh>
@@ -3522,12 +3682,8 @@ const CuteCar: React.FC<{
         </group>
       )}
 
-      {/* Shadow underneath - exteriorOverlay layer */}
-      <mesh
-        position={[0, EXTERIOR_LAYERS.groundOverlay, 0]}
-        rotation={[-Math.PI / 2, 0, 0]}
-        renderOrder={RENDER_ORDER.floorEffects}
-      >
+      {/* Shadow underneath - just above the surface the car sits on */}
+      <mesh position={[0, 0.01, 0]} rotation={[-Math.PI / 2, 0, 0]} renderOrder={RENDER_ORDER.floorEffects}>
         <planeGeometry args={[d.bodyLength + 0.5, d.bodyWidth + 0.3]} />
         <meshBasicMaterial
           color="#000000"
@@ -3535,8 +3691,8 @@ const CuteCar: React.FC<{
           opacity={0.15}
           depthWrite={false}
           polygonOffset
-          polygonOffsetFactor={POLYGON_OFFSET.exteriorOverlay.factor}
-          polygonOffsetUnits={POLYGON_OFFSET.exteriorOverlay.units}
+          polygonOffsetFactor={-4}
+          polygonOffsetUnits={-4}
         />
       </mesh>
     </group>
@@ -3606,17 +3762,22 @@ const ParkingLot: React.FC<{
   const totalWidth = spotsPerRow * spotWidth;
   const totalDepth = rows * spotDepth + (rows > 1 ? aisleWidth : 0);
 
+  // Surface Y positions - must be ABOVE TerrainGround (y=0.05) to prevent z-fighting
+  const asphaltY = 0.08;
+  const markingsY = 0.09;
+
   return (
     <group position={position} rotation={[0, rotation, 0]}>
-      {/* Asphalt surface - exteriorMid */}
-      <mesh position={[0, EXTERIOR_LAYERS.ground, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+      {/* Asphalt surface - raised above terrain */}
+      <mesh position={[0, asphaltY, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <planeGeometry args={[totalWidth + 4, totalDepth + 4]} />
         <meshStandardMaterial
           color="#374151"
           roughness={0.9}
+          depthWrite={false}
           polygonOffset
-          polygonOffsetFactor={POLYGON_OFFSET.exteriorMid.factor}
-          polygonOffsetUnits={POLYGON_OFFSET.exteriorMid.units}
+          polygonOffsetFactor={-2}
+          polygonOffsetUnits={-2}
         />
       </mesh>
 
@@ -3626,7 +3787,7 @@ const ParkingLot: React.FC<{
           key={`row-${row}`}
           position={[
             0,
-            EXTERIOR_LAYERS.groundOverlay,
+            markingsY,
             row * (spotDepth + aisleWidth / 2) - totalDepth / 2 + spotDepth / 2,
           ]}
         >
@@ -3745,10 +3906,16 @@ const TunnelEntrance: React.FC<{
   return (
     <group position={position} rotation={[0, rotation, 0]}>
       {/* ===== TUNNEL INTERIOR ===== */}
-      {/* Road surface inside tunnel */}
-      <mesh position={[0, 0.05, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+      {/* Road surface inside tunnel - raised to prevent z-fighting with terrain */}
+      <mesh position={[0, 0.15, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <planeGeometry args={[tunnelWidth - 1, length + 2]} />
-        <meshStandardMaterial color="#292524" roughness={0.9} />
+        <meshStandardMaterial
+          color="#292524"
+          roughness={0.9}
+          polygonOffset
+          polygonOffsetFactor={-2}
+          polygonOffsetUnits={-2}
+        />
       </mesh>
 
       {/* Tunnel Lining (Dark Brick) - Tilted away from map center */}
@@ -3913,29 +4080,30 @@ const ConnectingRoad: React.FC<{
   const midX = (start[0] + end[0]) / 2;
   const midZ = (start[2] + end[2]) / 2;
 
+  // Roads must be ABOVE TerrainGround (y=0.05) to prevent z-fighting
+  const roadY = 0.08;
+  const linesY = 0.09;
+
   return (
     <group>
-      {/* Road surface - exteriorTop layer */}
-      <mesh
-        position={[midX, EXTERIOR_LAYERS.ground, midZ]}
-        rotation={[-Math.PI / 2, 0, angle]}
-        receiveShadow
-      >
+      {/* Road surface - raised above terrain */}
+      <mesh position={[midX, roadY, midZ]} rotation={[-Math.PI / 2, 0, angle]} receiveShadow>
         <planeGeometry args={[width, length]} />
         <meshStandardMaterial
           color="#374151"
           roughness={0.85}
+          depthWrite={false}
           polygonOffset
-          polygonOffsetFactor={POLYGON_OFFSET.exteriorTop.factor}
-          polygonOffsetUnits={POLYGON_OFFSET.exteriorTop.units}
+          polygonOffsetFactor={-2}
+          polygonOffsetUnits={-2}
         />
       </mesh>
 
-      {/* Edge lines - exteriorOverlay layer */}
+      {/* Edge lines - slightly above road surface */}
       <mesh
         position={[
           midX - Math.cos(angle) * (width / 2 - 0.2),
-          EXTERIOR_LAYERS.groundOverlay,
+          linesY,
           midZ + Math.sin(angle) * (width / 2 - 0.2),
         ]}
         rotation={[-Math.PI / 2, 0, angle]}
@@ -3945,14 +4113,14 @@ const ConnectingRoad: React.FC<{
           color="#ffffff"
           depthWrite={false}
           polygonOffset
-          polygonOffsetFactor={POLYGON_OFFSET.exteriorOverlay.factor}
-          polygonOffsetUnits={POLYGON_OFFSET.exteriorOverlay.units}
+          polygonOffsetFactor={-3}
+          polygonOffsetUnits={-3}
         />
       </mesh>
       <mesh
         position={[
           midX + Math.cos(angle) * (width / 2 - 0.2),
-          EXTERIOR_LAYERS.groundOverlay,
+          linesY,
           midZ - Math.sin(angle) * (width / 2 - 0.2),
         ]}
         rotation={[-Math.PI / 2, 0, angle]}
@@ -3962,71 +4130,30 @@ const ConnectingRoad: React.FC<{
           color="#ffffff"
           depthWrite={false}
           polygonOffset
-          polygonOffsetFactor={POLYGON_OFFSET.exteriorOverlay.factor}
-          polygonOffsetUnits={POLYGON_OFFSET.exteriorOverlay.units}
+          polygonOffsetFactor={-3}
+          polygonOffsetUnits={-3}
         />
       </mesh>
 
-      {/* Center dashed line - exteriorOverlay layer */}
+      {/* Center dashed line - above road surface */}
       {Array.from({ length: Math.floor(length / 4) }).map((_, i) => {
         const t = (i * 4 + 2) / length;
         const x = start[0] + dx * t;
         const z = start[2] + dz * t;
         return (
-          <mesh
-            key={`dash-${i}`}
-            position={[x, EXTERIOR_LAYERS.groundOverlay, z]}
-            rotation={[-Math.PI / 2, 0, angle]}
-          >
+          <mesh key={`dash-${i}`} position={[x, linesY, z]} rotation={[-Math.PI / 2, 0, angle]}>
             <planeGeometry args={[0.15, 2]} />
             <meshBasicMaterial
               color="#fbbf24"
               depthWrite={false}
               polygonOffset
-              polygonOffsetFactor={POLYGON_OFFSET.exteriorOverlay.factor}
-              polygonOffsetUnits={POLYGON_OFFSET.exteriorOverlay.units}
+              polygonOffsetFactor={-3}
+              polygonOffsetUnits={-3}
             />
           </mesh>
         );
       })}
-
-      {/* Grass verges on sides - exteriorBase */}
-      <mesh
-        position={[
-          midX - Math.cos(angle) * (width / 2 + 2),
-          EXTERIOR_LAYERS.ground,
-          midZ + Math.sin(angle) * (width / 2 + 2),
-        ]}
-        rotation={[-Math.PI / 2, 0, angle]}
-        receiveShadow
-      >
-        <planeGeometry args={[3, length]} />
-        <meshStandardMaterial
-          color={GRASS_COLORS.verge}
-          roughness={0.95}
-          polygonOffset
-          polygonOffsetFactor={POLYGON_OFFSET.exteriorBase.factor}
-          polygonOffsetUnits={POLYGON_OFFSET.exteriorBase.units}
-        />
-      </mesh>
-      <mesh
-        position={[
-          midX + Math.cos(angle) * (width / 2 + 2),
-          EXTERIOR_LAYERS.ground,
-          midZ - Math.sin(angle) * (width / 2 + 2),
-        ]}
-        rotation={[-Math.PI / 2, 0, angle]}
-        receiveShadow
-      >
-        <planeGeometry args={[3, length]} />
-        <meshStandardMaterial
-          color={GRASS_COLORS.verge}
-          roughness={0.95}
-          polygonOffset
-          polygonOffsetFactor={POLYGON_OFFSET.exteriorBase.factor}
-          polygonOffsetUnits={POLYGON_OFFSET.exteriorBase.units}
-        />
-      </mesh>
+      {/* Grass verges REMOVED - now handled by TerrainGround system */}
     </group>
   );
 };
@@ -4324,33 +4451,25 @@ const CheckpointBarrier: React.FC<{
         </group>
       </group>
 
-      {/* Stop lines on road surface - exteriorOverlay layer */}
-      <mesh
-        position={[0, EXTERIOR_LAYERS.groundOverlay, 5]}
-        rotation={[-Math.PI / 2, 0, 0]}
-        renderOrder={RENDER_ORDER.floorMarkings}
-      >
+      {/* Stop lines on road surface - raised above TerrainGround (y=0.05) */}
+      <mesh position={[0, 0.09, 5]} rotation={[-Math.PI / 2, 0, 0]} renderOrder={RENDER_ORDER.floorMarkings}>
         <planeGeometry args={[roadWidth, 0.5]} />
         <meshBasicMaterial
           color="#ffffff"
           depthWrite={false}
           polygonOffset
-          polygonOffsetFactor={POLYGON_OFFSET.exteriorOverlay.factor}
-          polygonOffsetUnits={POLYGON_OFFSET.exteriorOverlay.units}
+          polygonOffsetFactor={-3}
+          polygonOffsetUnits={-3}
         />
       </mesh>
-      <mesh
-        position={[0, EXTERIOR_LAYERS.groundOverlay, -5]}
-        rotation={[-Math.PI / 2, 0, 0]}
-        renderOrder={RENDER_ORDER.floorMarkings}
-      >
+      <mesh position={[0, 0.09, -5]} rotation={[-Math.PI / 2, 0, 0]} renderOrder={RENDER_ORDER.floorMarkings}>
         <planeGeometry args={[roadWidth, 0.5]} />
         <meshBasicMaterial
           color="#ffffff"
           depthWrite={false}
           polygonOffset
-          polygonOffsetFactor={POLYGON_OFFSET.exteriorOverlay.factor}
-          polygonOffsetUnits={POLYGON_OFFSET.exteriorOverlay.units}
+          polygonOffsetFactor={-3}
+          polygonOffsetUnits={-3}
         />
       </mesh>
 
@@ -4419,12 +4538,15 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = () => {
   return (
     <group>
       {/* ========== EXTERIOR GRASS GROUND ========== */}
-      {/* Size 600x600 ensures full coverage beyond the r=400 circular sky ground plane */}
-      {/* Uses shared OUTDOOR_MATERIALS.grass for seamless matching with Village/Farm areas */}
+      {/* DISABLED: Replaced by TerrainGround unified terrain system */}
+      {/* This plane at y=-0.2 was occluding the river channel displacement (y=-2.52) */}
+      {/*
       <mesh position={[0, -0.2, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <planeGeometry args={[600, 600]} />
-        <primitive object={OUTDOOR_MATERIALS.grass} attach="material" />
+        <meshStandardMaterial color="#4a7c59" />
       </mesh>
+      */}
+
       {/* ========== FRONT WALL (Z+) with single centered dock opening ========== */}
       {/* Left section - FULL HEIGHT - extends PAST side wall for clean corner */}
       <mesh
@@ -5418,212 +5540,106 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = () => {
       </group>
 
       {/* ========== GROUND PLANE EXTENSION ========== */}
-      {/* All exterior ground surfaces at same Y (-0.02), layered via polygonOffset */}
-
-      {/* Asphalt area around factory - exteriorMid layer (matte, not wet) */}
-      <mesh position={[0, EXTERIOR_LAYERS.ground, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <planeGeometry args={[200, 180]} />
-        <meshStandardMaterial
-          color="#ffffff"
-          map={PROCEDURAL_TEXTURES.tarmacColor}
-          roughnessMap={PROCEDURAL_TEXTURES.tarmacRoughness}
-          roughness={0.95}
-          polygonOffset
-          polygonOffsetFactor={POLYGON_OFFSET.exteriorMid.factor}
-          polygonOffsetUnits={POLYGON_OFFSET.exteriorMid.units}
-        />
-      </mesh>
-
-      {/* Grass areas outside fence - exteriorBase layer (behind asphalt) */}
-      <mesh position={[0, EXTERIOR_LAYERS.ground, 110]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <planeGeometry args={[220, 50]} />
-        <meshStandardMaterial
-          color={GRASS_COLORS.field}
-          roughness={0.95}
-          polygonOffset
-          polygonOffsetFactor={POLYGON_OFFSET.exteriorBase.factor}
-          polygonOffsetUnits={POLYGON_OFFSET.exteriorBase.units}
-        />
-      </mesh>
-      <mesh position={[0, EXTERIOR_LAYERS.ground, -110]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <planeGeometry args={[220, 50]} />
-        <meshStandardMaterial
-          color={GRASS_COLORS.field}
-          roughness={0.95}
-          polygonOffset
-          polygonOffsetFactor={POLYGON_OFFSET.exteriorBase.factor}
-          polygonOffsetUnits={POLYGON_OFFSET.exteriorBase.units}
-        />
-      </mesh>
-      {/* Side grass verges */}
-      <mesh position={[115, EXTERIOR_LAYERS.ground, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <planeGeometry args={[30, 180]} />
-        <meshStandardMaterial
-          color={GRASS_COLORS.verge}
-          roughness={0.95}
-          polygonOffset
-          polygonOffsetFactor={POLYGON_OFFSET.exteriorBase.factor}
-          polygonOffsetUnits={POLYGON_OFFSET.exteriorBase.units}
-        />
-      </mesh>
-      <mesh position={[-115, EXTERIOR_LAYERS.ground, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <planeGeometry args={[30, 180]} />
-        <meshStandardMaterial
-          color={GRASS_COLORS.verge}
-          roughness={0.95}
-          polygonOffset
-          polygonOffsetFactor={POLYGON_OFFSET.exteriorBase.factor}
-          polygonOffsetUnits={POLYGON_OFFSET.exteriorBase.units}
-        />
-      </mesh>
+      {/* DISABLED: Now handled by unified TerrainGround system above */}
+      {/* Old polygon-offset surfaces removed to eliminate z-fighting */}
 
       {/* ========== ACCESS ROADS FOR TRUCKS ========== */}
       {/* Front road (shipping trucks) - extends from z=135 to z=280 */}
       <group position={[20, 0, 195]}>
-        {/* Road surface - exteriorTop (renders on top of grass) */}
-        <mesh position={[0, EXTERIOR_LAYERS.ground, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-          <planeGeometry args={[16, 170]} />
-          <meshStandardMaterial
-            color="#2d3436"
-            roughness={0.85}
-            polygonOffset
-            polygonOffsetFactor={POLYGON_OFFSET.exteriorTop.factor}
-            polygonOffsetUnits={POLYGON_OFFSET.exteriorTop.units}
-          />
-        </mesh>
-        {/* Road edge lines - white - exteriorOverlay */}
-        <mesh position={[-7.5, EXTERIOR_LAYERS.groundOverlay, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        {/* Road surface - DISABLED: handled by TerrainGround */}
+        {/* Road edge lines - white - raised above terrain */}
+        <mesh position={[-7.5, 0.09, 0]} rotation={[-Math.PI / 2, 0, 0]}>
           <planeGeometry args={[0.3, 170]} />
-          <meshBasicMaterial
-            color="#ffffff"
-            depthWrite={false}
-            polygonOffset
-            polygonOffsetFactor={POLYGON_OFFSET.exteriorOverlay.factor}
-            polygonOffsetUnits={POLYGON_OFFSET.exteriorOverlay.units}
-          />
+          <meshBasicMaterial color="#ffffff" depthWrite={false} polygonOffset polygonOffsetFactor={-3} polygonOffsetUnits={-3} />
         </mesh>
-        <mesh position={[7.5, EXTERIOR_LAYERS.groundOverlay, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <mesh position={[7.5, 0.09, 0]} rotation={[-Math.PI / 2, 0, 0]}>
           <planeGeometry args={[0.3, 170]} />
-          <meshBasicMaterial
-            color="#ffffff"
-            depthWrite={false}
-            polygonOffset
-            polygonOffsetFactor={POLYGON_OFFSET.exteriorOverlay.factor}
-            polygonOffsetUnits={POLYGON_OFFSET.exteriorOverlay.units}
-          />
+          <meshBasicMaterial color="#ffffff" depthWrite={false} polygonOffset polygonOffsetFactor={-3} polygonOffsetUnits={-3} />
         </mesh>
         {/* Center dashed line - yellow */}
         {Array.from({ length: 17 }).map((_, i) => (
-          <mesh
-            key={`front-dash-${i}`}
-            position={[0, EXTERIOR_LAYERS.groundOverlay, -75 + i * 10]}
-            rotation={[-Math.PI / 2, 0, 0]}
-          >
+          <mesh key={`front-dash-${i}`} position={[0, 0.09, -75 + i * 10]} rotation={[-Math.PI / 2, 0, 0]}>
             <planeGeometry args={[0.25, 5]} />
-            <meshBasicMaterial
-              color="#f1c40f"
-              depthWrite={false}
-              polygonOffset
-              polygonOffsetFactor={POLYGON_OFFSET.exteriorOverlay.factor}
-              polygonOffsetUnits={POLYGON_OFFSET.exteriorOverlay.units}
-            />
+            <meshBasicMaterial color="#f1c40f" depthWrite={false} polygonOffset polygonOffsetFactor={-3} polygonOffsetUnits={-3} />
           </mesh>
         ))}
-        {/* Grass shoulders - exteriorBase */}
-        <mesh position={[-14, EXTERIOR_LAYERS.ground, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-          <planeGeometry args={[12, 170]} />
-          <meshStandardMaterial
-            color={GRASS_COLORS.field}
-            roughness={0.95}
-            polygonOffset
-            polygonOffsetFactor={POLYGON_OFFSET.exteriorBase.factor}
-            polygonOffsetUnits={POLYGON_OFFSET.exteriorBase.units}
-          />
-        </mesh>
-        <mesh position={[14, EXTERIOR_LAYERS.ground, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-          <planeGeometry args={[12, 170]} />
-          <meshStandardMaterial
-            color={GRASS_COLORS.field}
-            roughness={0.95}
-            polygonOffset
-            polygonOffsetFactor={POLYGON_OFFSET.exteriorBase.factor}
-            polygonOffsetUnits={POLYGON_OFFSET.exteriorBase.units}
-          />
-        </mesh>
+        {/* Grass shoulders - DISABLED: handled by TerrainGround */}
       </group>
 
       {/* Back road (receiving trucks) - extends from z=-135 to z=-280 */}
       <group position={[-20, 0, -195]}>
-        {/* Road surface - exteriorTop (renders on top of grass) */}
-        <mesh position={[0, EXTERIOR_LAYERS.ground, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-          <planeGeometry args={[16, 170]} />
-          <meshStandardMaterial
-            color="#2d3436"
-            roughness={0.85}
-            polygonOffset
-            polygonOffsetFactor={POLYGON_OFFSET.exteriorTop.factor}
-            polygonOffsetUnits={POLYGON_OFFSET.exteriorTop.units}
-          />
-        </mesh>
-        {/* Road edge lines - white - exteriorOverlay */}
-        <mesh position={[-7.5, EXTERIOR_LAYERS.groundOverlay, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        {/* Road surface - DISABLED: handled by TerrainGround */}
+        {/* Road edge lines - white - raised above terrain */}
+        <mesh position={[-7.5, 0.09, 0]} rotation={[-Math.PI / 2, 0, 0]}>
           <planeGeometry args={[0.3, 170]} />
-          <meshBasicMaterial
-            color="#ffffff"
-            depthWrite={false}
-            polygonOffset
-            polygonOffsetFactor={POLYGON_OFFSET.exteriorOverlay.factor}
-            polygonOffsetUnits={POLYGON_OFFSET.exteriorOverlay.units}
-          />
+          <meshBasicMaterial color="#ffffff" depthWrite={false} polygonOffset polygonOffsetFactor={-3} polygonOffsetUnits={-3} />
         </mesh>
-        <mesh position={[7.5, EXTERIOR_LAYERS.groundOverlay, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <mesh position={[7.5, 0.09, 0]} rotation={[-Math.PI / 2, 0, 0]}>
           <planeGeometry args={[0.3, 170]} />
-          <meshBasicMaterial
-            color="#ffffff"
-            depthWrite={false}
-            polygonOffset
-            polygonOffsetFactor={POLYGON_OFFSET.exteriorOverlay.factor}
-            polygonOffsetUnits={POLYGON_OFFSET.exteriorOverlay.units}
-          />
+          <meshBasicMaterial color="#ffffff" depthWrite={false} polygonOffset polygonOffsetFactor={-3} polygonOffsetUnits={-3} />
         </mesh>
         {/* Center dashed line - yellow */}
         {Array.from({ length: 17 }).map((_, i) => (
-          <mesh
-            key={`back-dash-${i}`}
-            position={[0, EXTERIOR_LAYERS.groundOverlay, -75 + i * 10]}
-            rotation={[-Math.PI / 2, 0, 0]}
-          >
+          <mesh key={`back-dash-${i}`} position={[0, 0.09, -75 + i * 10]} rotation={[-Math.PI / 2, 0, 0]}>
             <planeGeometry args={[0.25, 5]} />
-            <meshBasicMaterial
-              color="#f1c40f"
-              depthWrite={false}
-              polygonOffset
-              polygonOffsetFactor={POLYGON_OFFSET.exteriorOverlay.factor}
-              polygonOffsetUnits={POLYGON_OFFSET.exteriorOverlay.units}
-            />
+            <meshBasicMaterial color="#f1c40f" depthWrite={false} polygonOffset polygonOffsetFactor={-3} polygonOffsetUnits={-3} />
           </mesh>
         ))}
-        {/* Grass shoulders - exteriorBase */}
-        <mesh position={[-14, EXTERIOR_LAYERS.ground, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-          <planeGeometry args={[12, 170]} />
-          <meshStandardMaterial
-            color={GRASS_COLORS.field}
-            roughness={0.95}
-            polygonOffset
-            polygonOffsetFactor={POLYGON_OFFSET.exteriorBase.factor}
-            polygonOffsetUnits={POLYGON_OFFSET.exteriorBase.units}
-          />
+        {/* Grass shoulders - DISABLED: handled by TerrainGround */}
+      </group>
+
+      {/* ========== ROAD BRIDGE OVER RIVER CANYON ========== */}
+      {/* Back road crosses river at z=-145, road centered at x=-20 */}
+      <group position={[-20, 0, -145]}>
+        {/* Road deck - spans the canyon */}
+        <mesh position={[0, 0.3, 0]} castShadow receiveShadow>
+          <boxGeometry args={[18, 0.6, 70]} />
+          <meshStandardMaterial color="#4b5563" roughness={0.85} />
         </mesh>
-        <mesh position={[14, EXTERIOR_LAYERS.ground, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-          <planeGeometry args={[12, 170]} />
-          <meshStandardMaterial
-            color={GRASS_COLORS.field}
-            roughness={0.95}
-            polygonOffset
-            polygonOffsetFactor={POLYGON_OFFSET.exteriorBase.factor}
-            polygonOffsetUnits={POLYGON_OFFSET.exteriorBase.units}
-          />
+        {/* Road surface markings */}
+        <mesh position={[0, 0.61, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <planeGeometry args={[16, 68]} />
+          <meshStandardMaterial color="#374151" roughness={0.9} />
         </mesh>
+        {/* Guard rails */}
+        {[-1, 1].map((side, i) => (
+          <mesh key={`road-rail-${i}`} position={[side * 8.5, 1.2, 0]} castShadow>
+            <boxGeometry args={[0.3, 1.5, 70]} />
+            <meshStandardMaterial color="#6b7280" roughness={0.7} metalness={0.2} />
+          </mesh>
+        ))}
+        {/* Vertical pier columns - similar to footbridge */}
+        {Array.from({ length: 5 }, (_, i) => {
+          const zPos = -28 + i * 14;
+          return (
+            <group key={`road-pier-${i}`}>
+              {/* Left pier */}
+              <mesh position={[-6, -5, zPos]} castShadow>
+                <boxGeometry args={[1.2, 12, 1.2]} />
+                <meshStandardMaterial color="#4b5563" roughness={0.7} metalness={0.2} />
+              </mesh>
+              {/* Right pier */}
+              <mesh position={[6, -5, zPos]} castShadow>
+                <boxGeometry args={[1.2, 12, 1.2]} />
+                <meshStandardMaterial color="#4b5563" roughness={0.7} metalness={0.2} />
+              </mesh>
+              {/* Cross brace */}
+              <mesh position={[0, -3, zPos]} castShadow>
+                <boxGeometry args={[11, 0.6, 0.6]} />
+                <meshStandardMaterial color="#374151" roughness={0.6} metalness={0.3} />
+              </mesh>
+              {/* Diagonal bracing */}
+              <mesh position={[-3, -6, zPos]} rotation={[0, 0, Math.PI / 4]} castShadow>
+                <boxGeometry args={[0.3, 7, 0.3]} />
+                <meshStandardMaterial color="#374151" roughness={0.6} metalness={0.3} />
+              </mesh>
+              <mesh position={[3, -6, zPos]} rotation={[0, 0, -Math.PI / 4]} castShadow>
+                <boxGeometry args={[0.3, 7, 0.3]} />
+                <meshStandardMaterial color="#374151" roughness={0.6} metalness={0.3} />
+              </mesh>
+            </group>
+          );
+        })}
       </group>
 
       {/* ========== CHECKPOINT BARRIERS AT TRUCK BAY ENTRANCES ========== */}
@@ -5878,7 +5894,8 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = () => {
       <ParkBenchInstances benches={MAIN_EXTERIOR_BENCHES} />
 
       {/* Second parkland area - back left (trees/benches use instanced versions) */}
-      <group position={[-85, 0, -110]}>
+      {/* Moved further from riverbank (was z=-110, now z=-90) */}
+      <group position={[-85, 0, -90]}>
         <mesh position={[0, -0.1, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
           <circleGeometry args={[12, 12]} />
           <meshStandardMaterial color={GRASS_COLORS.lawn} roughness={0.95} />
@@ -5932,20 +5949,31 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = () => {
       {/* Upturned shopping trolley abandoned in the canal - classic British waterway decor */}
       <group position={[-143, 0.1, 36.5]} rotation={[Math.PI * 0.85, 0.35, 0.2]}>
         {/* Top rim frame */}
-        {[[-0.24, 0.24, 0], [0.24, 0.24, 0]].map(([x, y, z], i) => (
+        {[
+          [-0.24, 0.24, 0],
+          [0.24, 0.24, 0],
+        ].map(([x, y, z], i) => (
           <mesh key={`rim-long-${i}`} position={[x, y, z]} castShadow>
             <boxGeometry args={[0.025, 0.025, 1.0]} />
             <meshStandardMaterial color="#6b7280" roughness={0.5} metalness={0.7} />
           </mesh>
         ))}
-        {[[0, 0.24, -0.5], [0, 0.24, 0.5]].map(([x, y, z], i) => (
+        {[
+          [0, 0.24, -0.5],
+          [0, 0.24, 0.5],
+        ].map(([x, y, z], i) => (
           <mesh key={`rim-short-${i}`} position={[x, y, z]} castShadow>
             <boxGeometry args={[0.5, 0.025, 0.025]} />
             <meshStandardMaterial color="#6b7280" roughness={0.5} metalness={0.7} />
           </mesh>
         ))}
         {/* Corner posts */}
-        {[[-0.24, 0, -0.5], [0.24, 0, -0.5], [-0.24, 0, 0.5], [0.24, 0, 0.5]].map(([x, y, z], i) => (
+        {[
+          [-0.24, 0, -0.5],
+          [0.24, 0, -0.5],
+          [-0.24, 0, 0.5],
+          [0.24, 0, 0.5],
+        ].map(([x, y, z], i) => (
           <mesh key={`corner-${i}`} position={[x, y, z]} castShadow>
             <boxGeometry args={[0.025, 0.5, 0.025]} />
             <meshStandardMaterial color="#5b6370" roughness={0.5} metalness={0.7} />
@@ -5996,13 +6024,19 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = () => {
           </group>
         ))}
         {/* Bottom mesh - frame */}
-        {[[-0.24, -0.24, 0], [0.24, -0.24, 0]].map(([x, y, z], i) => (
+        {[
+          [-0.24, -0.24, 0],
+          [0.24, -0.24, 0],
+        ].map(([x, y, z], i) => (
           <mesh key={`bot-long-${i}`} position={[x, y, z]} castShadow>
             <boxGeometry args={[0.02, 0.02, 0.98]} />
             <meshStandardMaterial color="#5b6370" roughness={0.5} metalness={0.7} />
           </mesh>
         ))}
-        {[[0, -0.24, -0.5], [0, -0.24, 0.5]].map(([x, y, z], i) => (
+        {[
+          [0, -0.24, -0.5],
+          [0, -0.24, 0.5],
+        ].map(([x, y, z], i) => (
           <mesh key={`bot-short-${i}`} position={[x, y, z]} castShadow>
             <boxGeometry args={[0.5, 0.02, 0.02]} />
             <meshStandardMaterial color="#5b6370" roughness={0.5} metalness={0.7} />
@@ -6163,10 +6197,15 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = () => {
       <KioskCafe position={[-108, 0, 105]} rotation={Math.PI} />
 
       {/* Canal branch connecting main canal to the river */}
+      {/* Canal branch connecting main canal to the river */}
       <Canal position={[-145, 0, -110]} length={70} width={8} rotation={Math.PI / 2} />
 
-      {/* Additional smaller pond near back parkland */}
-      <Pond position={[115, 0, -115]} radius={6} />
+      {/* Additional smaller pond near back parkland - moved away from river canyon */}
+      <Pond position={[115, 0, -80]} radius={6} />
+
+      {/* ========== LANDMARKS ========== */}
+
+      {/* Fairytale Castle moved to MillScene (Global Landmark) */}
 
       {/* ========== INDUSTRIAL STRUCTURES ========== */}
 
@@ -6275,10 +6314,10 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = () => {
       <PathLamp position={[142, 0, 120]} style="victorian" />
       <PathLamp position={[120, 0, 142]} style="victorian" />
 
-      {/* Lamps along river path */}
-      <PathLamp position={[-60, 0, -135]} style="modern" />
-      <PathLamp position={[0, 0, -135]} style="modern" />
-      <PathLamp position={[60, 0, -135]} style="modern" />
+      {/* Lamps along river path - moved back from canyon edge */}
+      <PathLamp position={[-60, 0, -110]} style="modern" />
+      <PathLamp position={[0, 0, -110]} style="modern" />
+      <PathLamp position={[60, 0, -110]} style="modern" />
 
       {/* Bollards along canal edge */}
       <Bollard position={[-137, 0, -25]} type="wood" />

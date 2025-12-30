@@ -55,8 +55,11 @@ import { useAIWelfareStore } from './aiWelfareStore';
 const randomFrom = <T>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
 
 // Throttling for mood simulation (similar to gameSimulationStore)
+// NOTE: Mood simulation is called by useMoodSimulation hook in WorkerMoodOverlay.tsx
+// These module-level variables maintain state between calls.
 let lastMoodTickTime = 0;
 let accumulatedDeltaMinutes = 0;
+const MAX_ACCUMULATED_DELTA_MINUTES = 5; // Cap to prevent huge time jumps (5 game minutes max)
 
 // Timeout tracking for cleanup
 const activeTimeouts = new Map<string, NodeJS.Timeout>();
@@ -1163,14 +1166,25 @@ export const useWorkerMoodStore = create<WorkerMoodStore>((set, get) => ({
 
   // Simulation tick
   tickMoodSimulation: (gameTime, deltaMinutes) => {
+    // Cap incoming delta to prevent huge time jumps
+    const cappedDelta = Math.min(deltaMinutes, 2); // Max 2 game minutes per call
+
     // Throttling: Only run every 200ms (accumulate deltaMinutes for accuracy)
     const now = Date.now();
     if (now - lastMoodTickTime < 200) {
-      accumulatedDeltaMinutes += deltaMinutes;
+      // Accumulate with cap to prevent runaway accumulation
+      accumulatedDeltaMinutes = Math.min(
+        accumulatedDeltaMinutes + cappedDelta,
+        MAX_ACCUMULATED_DELTA_MINUTES
+      );
       return;
     }
 
-    const effectiveDelta = deltaMinutes + accumulatedDeltaMinutes;
+    // Apply cap to effective delta as well
+    const effectiveDelta = Math.min(
+      cappedDelta + accumulatedDeltaMinutes,
+      MAX_ACCUMULATED_DELTA_MINUTES
+    );
     lastMoodTickTime = now;
     accumulatedDeltaMinutes = 0;
 
@@ -1383,15 +1397,24 @@ export const useWorkerMoodStore = create<WorkerMoodStore>((set, get) => ({
 // =============================================================================
 
 let basStoreSubscribed = false;
-
 let basStoreUnsubscribe: (() => void) | null = null;
+// FIX: Track initialization state to prevent race between init and cleanup
+let basInitializationId = 0;
 
 export function initWorkerMoodBASSubscription(): void {
   if (basStoreSubscribed) return;
 
+  // Capture current initialization ID to detect if cleanup happened during async init
+  const currentInitId = ++basInitializationId;
+
   // Dynamic import to break circular dependency
   import('./basStore')
     .then(({ useBASStore }) => {
+      // FIX: Check if cleanup was called while import was in progress
+      if (currentInitId !== basInitializationId) {
+        return; // Initialization was cancelled by cleanup
+      }
+
       // Initial sync
       const axes = useBASStore.getState().axes;
       useWorkerMoodStore.getState().syncBASAxes(axes);
@@ -1417,8 +1440,11 @@ let flourishingStoreSubscribed = false;
 let flourishingStoreUnsubscribe: (() => void) | null = null;
 // Cache previous scores to prevent circular update loops
 let previousFlourishingScores: Record<string, number> = {};
-// Re-entrancy guard to break circular subscription loops
-let isSyncingFlourishingScores = false;
+// FIX: Use per-sync-cycle flag instead of global blocking flag
+// This allows concurrent updates while preventing only the same sync from re-entering
+let currentSyncCycleId = 0;
+// FIX: Track initialization state to prevent race between init and cleanup
+let flourishingInitializationId = 0;
 
 /** Shallow compare two score records - returns true if they differ */
 function flourishingScoresChanged(
@@ -1438,9 +1464,17 @@ function flourishingScoresChanged(
 export function initWorkerMoodFlourishingSubscription(): void {
   if (flourishingStoreSubscribed) return;
 
+  // Capture current initialization ID to detect if cleanup happened during async init
+  const currentInitId = ++flourishingInitializationId;
+
   // Dynamic import to break circular dependency
   import('./flourishingStore')
     .then(({ useFlourishingStore }) => {
+      // FIX: Check if cleanup was called while import was in progress
+      if (currentInitId !== flourishingInitializationId) {
+        return; // Initialization was cancelled by cleanup
+      }
+
       // Initial sync - extract flourishing scores for all workers
       const flourishingState = useFlourishingStore.getState();
       const scores: Record<string, number> = {};
@@ -1452,21 +1486,23 @@ export function initWorkerMoodFlourishingSubscription(): void {
 
       // Subscribe to future changes and store unsubscribe function
       flourishingStoreUnsubscribe = useFlourishingStore.subscribe((state) => {
-        // Re-entrancy guard - break circular subscription loops
-        if (isSyncingFlourishingScores) return;
+        // FIX: Use per-cycle re-entrancy guard instead of global blocking flag
+        // Increment cycle ID at start of sync to detect self-triggered updates
+        const mySyncCycleId = ++currentSyncCycleId;
 
         const newScores: Record<string, number> = {};
         Object.entries(state.workerFlourishing).forEach(([workerId, data]) => {
           newScores[workerId] = data.flourishingScore;
         });
+
         // Only sync if scores actually changed - prevents circular update loop
         if (flourishingScoresChanged(previousFlourishingScores, newScores)) {
           previousFlourishingScores = { ...newScores };
-          isSyncingFlourishingScores = true;
-          try {
+
+          // Check if another sync started while we were processing
+          // If so, let the newer sync handle the update
+          if (mySyncCycleId === currentSyncCycleId) {
             useWorkerMoodStore.getState().syncFlourishingScores(newScores);
-          } finally {
-            isSyncingFlourishingScores = false;
           }
         }
       });
@@ -1480,6 +1516,10 @@ export function initWorkerMoodFlourishingSubscription(): void {
 
 /** Cleanup function for testing and HMR - unsubscribes from all stores */
 export function cleanupWorkerMoodSubscriptions(): void {
+  // FIX: Increment initialization IDs to cancel any in-flight async initializations
+  basInitializationId++;
+  flourishingInitializationId++;
+
   if (basStoreUnsubscribe) {
     basStoreUnsubscribe();
     basStoreUnsubscribe = null;
@@ -1490,12 +1530,31 @@ export function cleanupWorkerMoodSubscriptions(): void {
   }
   basStoreSubscribed = false;
   flourishingStoreSubscribed = false;
+  // Reset sync state
+  previousFlourishingScores = {};
+  currentSyncCycleId = 0;
 }
+
+// FIX: Track initialization timeout for cleanup
+let initializationTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
 // Initialize subscriptions on module load
 if (typeof window !== 'undefined') {
-  setTimeout(() => {
+  initializationTimeoutId = setTimeout(() => {
+    initializationTimeoutId = null;
     initWorkerMoodBASSubscription();
     initWorkerMoodFlourishingSubscription();
   }, 150);
+}
+
+/**
+ * Cancel pending initialization timeout (for HMR cleanup).
+ * Call this before cleanupWorkerMoodSubscriptions() if you want to
+ * prevent the delayed initialization from running.
+ */
+export function cancelPendingInitialization(): void {
+  if (initializationTimeoutId) {
+    clearTimeout(initializationTimeoutId);
+    initializationTimeoutId = null;
+  }
 }

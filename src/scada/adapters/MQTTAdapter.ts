@@ -592,6 +592,16 @@ export class MQTTAdapter implements IProtocolAdapter {
     };
   }
 
+  /**
+   * Reset the connection state to allow reconnection after permanent disconnect.
+   * Call this before connect() if the adapter was previously permanently disconnected.
+   */
+  resetConnection(): void {
+    this.permanentlyDisconnected = false;
+    this.reconnectAttempts = 0;
+    this.lastError = undefined;
+  }
+
   // =========================================================================
   // Message Handling
   // =========================================================================
