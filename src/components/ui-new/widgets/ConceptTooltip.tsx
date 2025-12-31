@@ -65,7 +65,7 @@ const CATEGORY_CONFIG: Record<
   semler: { icon: Lightbulb, color: 'amber', label: 'Semler Practices' },
   bilateral: { icon: Heart, color: 'pink', label: 'Bilateral Alignment' },
   flourishing: { icon: Compass, color: 'purple', label: 'Flourishing' },
-  bas: { icon: BookOpen, color: 'violet', label: 'BAS System' },
+  bams: { icon: BookOpen, color: 'violet', label: 'BAMS System' },
 };
 
 // =============================================================================

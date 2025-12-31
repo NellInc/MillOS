@@ -216,7 +216,7 @@ const INITIAL_RECEIVED_LEARNINGS: Learning[] = [
     sourceUnitName: 'Mill Beta',
     type: 'bas-config',
     title: 'High-Autonomy Night Shift Configuration',
-    description: 'BAS settings optimized for night shift with experienced workers',
+    description: 'BAMS settings optimized for night shift with experienced workers',
     content: { autonomyLevel: 85, decisionMode: 70, informationAccess: 90 },
     effectiveness: 92,
     applicabilityScore: 78,

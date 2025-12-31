@@ -30,6 +30,9 @@ import { useFocusTrap } from '../hooks/useFocusTrap';
 import { useWorkerMoodStore } from '../stores/workerMoodStore';
 import { useProductionStore } from '../stores/productionStore';
 import { getWorkerPortrait } from '../utils/workerPortraits';
+import { getWorkerComment } from '../stores/workerDialogueStore';
+import { FEATURE_FLAGS } from '../config/featureFlags';
+import { useKnowledgeStore } from '../stores/knowledgeStore';
 
 interface WorkerDetailPanelProps {
   worker: WorkerData;
@@ -310,6 +313,29 @@ export const WorkerDetailPanel: React.FC<WorkerDetailPanelProps> = ({
 
   useFocusTrap(panelRef as React.RefObject<HTMLElement>, !embedded, onClose);
 
+  // Worker dialogue - get a random philosophical comment
+  const workerDialogue = useMemo(() => {
+    if (!FEATURE_FLAGS.WORKER_DIALOGUE_ENABLED) return null;
+    // Get context-appropriate dialogue based on worker state
+    const context: Parameters<typeof getWorkerComment>[0] = {};
+    if (workerMood) {
+      // Use satisfaction as a proxy for flourishing
+      if (workerMood.satisfaction > 70) context.highFlourishing = true;
+      if (workerMood.satisfaction < 40) context.lowFlourishing = true;
+    }
+    if (worker.experience >= 3) context.veteranWorker = true;
+    if (worker.experience < 1) context.newWorker = true;
+    return getWorkerComment(context);
+  }, [worker.id, worker.experience, workerMood?.satisfaction]);
+
+  // Link to related knowledge entry
+  const { unlockEntry } = useKnowledgeStore();
+  const handleDialogueLearnMore = useCallback(() => {
+    if (workerDialogue?.relatedEntry) {
+      unlockEntry(workerDialogue.relatedEntry);
+    }
+  }, [workerDialogue, unlockEntry]);
+
   // Button handlers
   const handleAssignTask = useCallback(() => {
     if (onAssignTask) {
@@ -538,6 +564,30 @@ export const WorkerDetailPanel: React.FC<WorkerDetailPanelProps> = ({
                     ))}
                   </div>
                 </div>
+
+                {/* Worker Dialogue - philosophical comment */}
+                {workerDialogue && FEATURE_FLAGS.WORKER_DIALOGUE_ENABLED && (
+                  <div className="px-4 pb-4">
+                    <div className="bg-gradient-to-r from-amber-500/10 to-transparent border-l-2 border-amber-500/50 rounded-r-lg p-3">
+                      <div className="flex items-start gap-2">
+                        <MessageSquare className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+                        <div className="flex-1">
+                          <p className="text-sm text-slate-300 italic leading-relaxed">
+                            "{workerDialogue.content}"
+                          </p>
+                          {workerDialogue.relatedEntry && (
+                            <button
+                              onClick={handleDialogueLearnMore}
+                              className="mt-2 text-[10px] text-amber-400 hover:text-amber-300 underline underline-offset-2"
+                            >
+                              Learn more in Library →
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </motion.div>
             )}
 

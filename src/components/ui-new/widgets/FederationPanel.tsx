@@ -47,7 +47,7 @@ const LEARNING_TYPE_CONFIG: Record<
   LearningType,
   { label: string; color: string; icon: React.ComponentType<{ className?: string }> }
 > = {
-  'bas-config': { label: 'BAS Config', color: 'cyan', icon: RefreshCw },
+  'bas-config': { label: 'BAMS Config', color: 'cyan', icon: RefreshCw },
   process: { label: 'Process', color: 'blue', icon: TrendingUp },
   'ai-improvement': { label: 'AI Improvement', color: 'violet', icon: Lightbulb },
   'crisis-response': { label: 'Crisis Response', color: 'orange', icon: AlertCircle },

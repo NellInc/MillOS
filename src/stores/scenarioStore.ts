@@ -560,7 +560,7 @@ const PRESET_SCENARIOS: Scenario[] = [
     ],
     duration: 660, // 11 minutes (leaving buffer for the 15 min display)
     learningObjectives: [
-      'Engagement is a diagnostic - forcing work signals misconfigured BAS',
+      'Engagement is a diagnostic - forcing work signals misconfigured BAMS',
       'Reducing friction enables natural engagement to emerge',
       'Gaming feel + generative output = healthy engagement signature',
       'Autonomy and transparency both reduce entry friction differently',
@@ -1619,7 +1619,7 @@ export const useScenarioStore = create<ScenarioState>()(
             if (grade !== 'A' && grade !== 'B') grade = 'B';
           } else {
             summary =
-              'The engagement signature remained weak. When work feels like forcing, BAS configuration needs adjustment.';
+              'The engagement signature remained weak. When work feels like forcing, BAMS configuration needs adjustment.';
           }
         } else if (grade === 'A') {
           summary =

@@ -1,7 +1,7 @@
 /**
- * BAS Education Component
+ * BAMS Education Component
  *
- * Educational component explaining the theory behind the Bilateral Autonomy System.
+ * Educational component explaining the theory behind the Bilateral Alignment Management System.
  * Covers Wallace Stability Theory, Five Axes of Democratic AI, Value Formula,
  * Flourishing Dimensions, and the Mission vs Detailed Command paradigm.
  *
@@ -41,6 +41,8 @@ import {
   AXIS_DESCRIPTORS,
   type FlourishingDimensionKey,
 } from '../../../types/bas';
+import { PortraitRow } from './PortraitCard';
+import { PORTRAITS } from '../../../config/portraits';
 
 // =============================================================================
 // EDUCATIONAL MODULE TYPES
@@ -77,7 +79,7 @@ means your work has the flow and satisfaction of a well-designed game, but produ
 real outcomes that matter to you and others.
 
 DIAGNOSTIC PRINCIPLE: If work consistently feels like forcing yourself through
-resistance, this is a signal that the BAS configuration needs adjustment. The
+resistance, this is a signal that the BAMS configuration needs adjustment. The
 engagement signature should feel natural when:
 - Autonomy matches your readiness (not too much, not too little)
 - Goals are meaningful to you, not just assigned
@@ -682,7 +684,7 @@ const MissionCommandSection: React.FC = () => (
     </div>
 
     <div className="bg-slate-800/30 rounded p-2">
-      <div className="font-bold text-white mb-1">BAS Implication</div>
+      <div className="font-bold text-white mb-1">BAMS Implication</div>
       <p className="text-slate-400 leading-relaxed">
         AI should enable mission command (worker autonomy with objectives) rather than detailed
         command (step-by-step instructions). The AI serves as a{' '}
@@ -733,7 +735,7 @@ const EngagementSignatureSection: React.FC = () => {
       <div className="bg-amber-500/10 rounded p-2 border border-amber-500/20">
         <div className="font-bold text-amber-400 mb-1 text-[10px]">Diagnostic Principle</div>
         <p className="text-[9px] text-slate-400">
-          If work consistently feels like forcing yourself through resistance, the BAS configuration
+          If work consistently feels like forcing yourself through resistance, the BAMS configuration
           needs adjustment. The engagement signature should feel natural when autonomy matches
           readiness, goals are meaningful, feedback loops are short, and entry friction is minimal.
         </p>
@@ -781,7 +783,7 @@ const EngagementSignatureSection: React.FC = () => {
 // MAIN COMPONENT
 // =============================================================================
 
-type SectionKey = 'wallace' | 'axes' | 'value' | 'flourishing' | 'mission' | 'engagement';
+type SectionKey = 'wallace' | 'axes' | 'value' | 'flourishing' | 'mission' | 'engagement' | 'contributors';
 
 // Static section keys to prevent recreation
 const ALL_SECTIONS: SectionKey[] = [
@@ -791,6 +793,7 @@ const ALL_SECTIONS: SectionKey[] = [
   'flourishing',
   'mission',
   'engagement',
+  'contributors',
 ];
 
 export const BASEducation: React.FC = () => {
@@ -826,10 +829,10 @@ export const BASEducation: React.FC = () => {
       <div className="p-3 border-b border-slate-700/50">
         <div className="flex items-center gap-2">
           <GraduationCap className="w-4 h-4 text-violet-400" />
-          <span className="text-sm font-bold text-white">BAS Theory &amp; Foundations</span>
+          <span className="text-sm font-bold text-white">BAMS Theory &amp; Foundations</span>
         </div>
         <p className="text-[10px] text-slate-400 mt-1">
-          Understanding the Bilateral Autonomy System
+          Understanding the Bilateral Alignment Management System
         </p>
 
         {/* Expand/Collapse controls */}
@@ -855,7 +858,7 @@ export const BASEducation: React.FC = () => {
         <div className="flex items-start gap-2">
           <Lightbulb className="w-4 h-4 text-amber-400 mt-0.5 flex-shrink-0" />
           <div className="text-[10px] text-slate-300 leading-relaxed">
-            <strong className="text-white">The Bilateral Autonomy System</strong> synthesizes three
+            <strong className="text-white">The Bilateral Alignment Management System (BAMS)</strong> synthesizes three
             traditions: <strong className="text-cyan-400">Bilateral Alignment</strong> (AI-human
             partnership),{' '}
             <strong className="text-green-400">Democratic Workplace Philosophy</strong>{' '}
@@ -926,6 +929,22 @@ export const BASEducation: React.FC = () => {
         onToggle={() => toggleSection('engagement')}
       >
         <EngagementSignatureSection />
+      </AccordionSection>
+
+      <AccordionSection
+        title="Key Contributors"
+        icon={Users}
+        iconColor="text-pink-400"
+        isOpen={openSections.has('contributors')}
+        onToggle={() => toggleSection('contributors')}
+      >
+        <div className="space-y-4">
+          <p className="text-[10px] text-slate-400 leading-relaxed">
+            BAMS synthesizes insights from these key thinkers across systems theory,
+            democratic management, and AI ethics.
+          </p>
+          <PortraitRow portraits={PORTRAITS} size="medium" />
+        </div>
       </AccordionSection>
 
       {/* Footer with key insight */}

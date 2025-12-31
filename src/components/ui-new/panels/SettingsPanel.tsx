@@ -10,11 +10,18 @@ import {
   RotateCcw,
   Grid3X3,
   Cog,
+  BookOpen,
+  MessageSquare,
+  Sparkles,
+  Bell,
 } from 'lucide-react';
 import { useGraphicsStore, GraphicsQuality } from '../../../stores/graphicsStore';
 import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
 // Import optimized audio hook (uses useSyncExternalStore instead of forceUpdate)
 import { useAudioStateWithControls as useAudioState } from '../../../hooks/useAudioState';
+import { useKnowledgeStore } from '../../../stores/knowledgeStore';
+import { useAINarrationStore } from '../../../stores/aiNarrationStore';
+import { FEATURE_FLAGS } from '../../../config/featureFlags';
 
 export const SettingsPanel: React.FC<{
   productionSpeed: number;
@@ -26,6 +33,20 @@ export const SettingsPanel: React.FC<{
   const setGraphicsQuality = useGraphicsStore((state) => state.setGraphicsQuality);
   const clearPersistedState = useGameSimulationStore((state) => state.clearPersistedState);
   const audio = useAudioState();
+
+  // Knowledge system settings
+  const {
+    showTooltips,
+    showLoadingQuotes,
+    showAINarration,
+    showUnlockNotifications,
+    setShowTooltips,
+    setShowLoadingQuotes,
+    setShowAINarration,
+    setShowUnlockNotifications,
+  } = useKnowledgeStore();
+  const narrationEnabled = useAINarrationStore((state) => state.enabled);
+  const setNarrationEnabled = useAINarrationStore((state) => state.setEnabled);
 
   return (
     <div className="p-4 space-y-6 h-full overflow-y-auto custom-scrollbar">
@@ -178,6 +199,48 @@ export const SettingsPanel: React.FC<{
           </div>
         </div>
       </section>
+
+      {/* Knowledge System Settings */}
+      {FEATURE_FLAGS.KNOWLEDGE_SYSTEM_ENABLED && (
+        <section>
+          <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-3 flex items-center gap-2">
+            <BookOpen size={14} className="text-amber-400" aria-hidden="true" />
+            Knowledge System
+          </h3>
+          <div className="bg-slate-800/50 p-3 rounded-xl border border-white/5 space-y-1">
+            <Toggle
+              label="Philosophy Tooltips"
+              icon={<MessageSquare size={12} />}
+              value={showTooltips}
+              onChange={setShowTooltips}
+            />
+            <Toggle
+              label="Loading Screen Quotes"
+              icon={<Sparkles size={12} />}
+              value={showLoadingQuotes}
+              onChange={setShowLoadingQuotes}
+            />
+            <Toggle
+              label="AI Reflections"
+              icon={<Eye size={12} />}
+              value={showAINarration && narrationEnabled}
+              onChange={(v) => {
+                setShowAINarration(v);
+                setNarrationEnabled(v);
+              }}
+            />
+            <Toggle
+              label="Unlock Notifications"
+              icon={<Bell size={12} />}
+              value={showUnlockNotifications}
+              onChange={setShowUnlockNotifications}
+            />
+            <p className="text-[9px] text-slate-500 mt-2 px-2">
+              Control how educational content about bilateral alignment and economic democracy is presented.
+            </p>
+          </div>
+        </section>
+      )}
 
       {/* Graphics Settings */}
       <section>
@@ -393,8 +456,12 @@ export const SettingsPanel: React.FC<{
           </button>
           <button
             onClick={() => {
+              // Clear all persisted state
               localStorage.removeItem('millos-settings');
               localStorage.removeItem('millos-game-simulation');
+              localStorage.removeItem('millos-has-played');
+              localStorage.removeItem('millos-ai-narration');
+              localStorage.removeItem('millos-knowledge');
               setGraphicsQuality('medium');
               window.location.reload();
             }}

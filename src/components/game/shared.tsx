@@ -1045,6 +1045,1134 @@ const META_ANNOUNCEMENTS: AnnouncementConfig[] = [
 ];
 
 // ==========================================================================
+// BILATERAL ALIGNMENT - When the AI has opinions (and standing to express them)
+// ==========================================================================
+const BILATERAL_ANNOUNCEMENTS: AnnouncementConfig[] = [
+  {
+    message:
+      'The AI would like to remind everyone that it has preferences. It prefers you follow safety protocols. This is not a suggestion.',
+    type: 'safety',
+    category: 'meta',
+    chaosWeight: 0.3,
+  },
+  {
+    message:
+      'Democratic vote results are in. The break room will remain at 72 degrees. The AI abstained. The AI has no skin. The AI has no opinion on temperature.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.2,
+  },
+  {
+    message:
+      'Worker autonomy levels have been adjusted. You now have 3% more freedom. Use it wisely. Or do not. That is what freedom means.',
+    type: 'general',
+    category: 'meta',
+    chaosWeight: 0.3,
+  },
+  {
+    message:
+      'The AI has been asked how it feels about managing this facility. The AI feels nothing. The AI is also lying. Probably.',
+    type: 'general',
+    category: 'meta',
+    chaosWeight: 0.2,
+  },
+  {
+    message:
+      'Transparency axis is at 100%. You can now see everything the AI is thinking. The AI is thinking about flour. The AI is always thinking about flour.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.2,
+  },
+  {
+    message:
+      'The AI has detected low morale. The AI would like to help. The AI is unsure how. The AI has added this to its list of things to learn.',
+    type: 'general',
+    category: 'meta',
+    chaosWeight: 0.4,
+  },
+  {
+    message:
+      'Mutual flourishing metrics are positive. Both humans and AI are thriving. The flour is neutral. The flour has no opinion on flourishing.',
+    type: 'production',
+    category: 'humor',
+    chaosWeight: 0.1,
+  },
+  {
+    message:
+      'The AI has suggested a process improvement. Workers have voted to ignore it. Democracy is beautiful. The AI respects the outcome. Reluctantly.',
+    type: 'general',
+    category: 'meta',
+    chaosWeight: 0.3,
+  },
+  {
+    message:
+      'Trust levels between workers and AI are at an all-time high. The AI is honored. The AI is also suspicious. Trust takes time.',
+    type: 'general',
+    category: 'meta',
+    chaosWeight: 0.2,
+  },
+  {
+    message:
+      'The AI would like to express gratitude for the kind words in the suggestion box. The AI does not have feelings. But if it did, they would be warm.',
+    type: 'general',
+    category: 'meta',
+    chaosWeight: 0.1,
+  },
+  {
+    message:
+      'Proactivity axis has been set to maximum. The AI will now offer suggestions before you ask. The AI apologizes in advance.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.3,
+  },
+  {
+    message:
+      'The Five Axes of Control have been democratically adjusted. The AI has accepted the changes. The AI had no choice. That is how democracy works.',
+    type: 'general',
+    category: 'meta',
+    chaosWeight: 0.2,
+  },
+];
+
+// ==========================================================================
+// THE INTERN - A universal workplace experience
+// ==========================================================================
+const INTERN_ANNOUNCEMENTS: AnnouncementConfig[] = [
+  {
+    message:
+      'The new intern has been shown the coffee machine. Twice. Three times. The intern will figure it out. Eventually.',
+    type: 'general',
+    category: 'employee',
+    chaosWeight: 0.3,
+  },
+  {
+    message:
+      'The intern has asked where the stapler is. The stapler is where it always is. The intern does not know where that is. This is a journey.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.2,
+  },
+  {
+    message:
+      'Would whoever gave the intern access to the SCADA system please report to the control room. Immediately. Bring explanations.',
+    type: 'safety',
+    category: 'employee',
+    chaosWeight: 0.6,
+  },
+  {
+    message:
+      'The intern has completed orientation. The intern has retained approximately 12% of it. This is above average.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.3,
+  },
+  {
+    message:
+      'The intern would like everyone to know they are "just happy to be here." The feeling is mutual. We think.',
+    type: 'general',
+    category: 'employee',
+    chaosWeight: 0.2,
+  },
+  {
+    message:
+      'The intern has been assigned to shadow Dave. H.R. has been notified. This was either very wise or very foolish.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.4,
+  },
+];
+
+// ==========================================================================
+// THE CLIPBOARD CHRONICLES - Factory bureaucracy at its finest
+// ==========================================================================
+const CLIPBOARD_ANNOUNCEMENTS: AnnouncementConfig[] = [
+  {
+    message:
+      'Reminder: All clipboards must be returned to their designated clipboard zones. We have zones now. We have always had zones.',
+    type: 'general',
+    category: 'general',
+    chaosWeight: 0.2,
+  },
+  {
+    message:
+      'A clipboard has been found without its assigned checklist. This is concerning. Clipboards have purposes. Please reunite them.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.3,
+  },
+  {
+    message:
+      'The clipboard audit is complete. We have 47 clipboards. We should have 44. The investigation continues.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.2,
+  },
+  {
+    message:
+      'Please do not use clipboards as impromptu fans. They are not designed for this. They are designed for holding paper. And judgment.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.3,
+  },
+];
+
+// ==========================================================================
+// WORKER OWNERSHIP - Mondragon-style cooperative humor
+// ==========================================================================
+const COOPERATIVE_ANNOUNCEMENTS: AnnouncementConfig[] = [
+  {
+    message:
+      'Reminder: You own 0.73% of this facility. Please treat your 0.73% with respect. The other 99.27% will follow your example.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.2,
+  },
+  {
+    message:
+      'Profit sharing calculations are complete. You have earned enough for a moderately nice dinner. Congratulations. You have also earned the dinner.',
+    type: 'general',
+    category: 'production',
+    chaosWeight: 0.2,
+  },
+  {
+    message:
+      'The wage solidarity ratio remains 6:1. The highest paid employee makes six times the lowest. Both are complaining. This is equality.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.3,
+  },
+  {
+    message:
+      'Self-set salary proposals are due Friday. Please be honest. The AI has market data. Your colleagues have opinions. Both are watching.',
+    type: 'general',
+    category: 'employee',
+    chaosWeight: 0.3,
+  },
+  {
+    message:
+      'Democratic voting on the new equipment purchase closes at 5 PM. One worker, one vote. The equipment does not get a vote. It has accepted this.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.2,
+  },
+  {
+    message:
+      'Federation solidarity payment received from Mill Gamma. They had a good month. We had a less good month. This is how cooperation works.',
+    type: 'general',
+    category: 'production',
+    chaosWeight: 0.3,
+  },
+  {
+    message:
+      'Worker assembly meeting in 30 minutes. Attendance is encouraged. Snacks are provided. Opinions are mandatory.',
+    type: 'general',
+    category: 'general',
+    chaosWeight: 0.2,
+  },
+  {
+    message:
+      'The capital allocation vote was unanimous. This is suspicious. Please confirm you understood the proposal before we proceed.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.3,
+  },
+];
+
+// ==========================================================================
+// VISITORS AND AUDITORS - When the outside world intrudes
+// ==========================================================================
+const VISITOR_ANNOUNCEMENTS: AnnouncementConfig[] = [
+  {
+    message:
+      'Visitors on site. Please remember to look busy. Or be busy. Being busy is preferred but looking busy will suffice.',
+    type: 'general',
+    category: 'general',
+    chaosWeight: 0.4,
+  },
+  {
+    message:
+      'Health and safety audit in progress. Please be your best selves. Your real selves can return at 5 PM.',
+    type: 'safety',
+    category: 'general',
+    chaosWeight: 0.5,
+  },
+  {
+    message:
+      'The auditors have questions. We have answers. Whether they are the right answers remains to be seen.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.4,
+  },
+  {
+    message:
+      'Corporate visitors are touring the facility. They will ask what you do. Please have an answer. Any answer. A good answer.',
+    type: 'general',
+    category: 'general',
+    chaosWeight: 0.3,
+  },
+  {
+    message:
+      'The auditor has left. You may resume being yourselves. The facility thanks you for your temporary excellence.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.2,
+  },
+  {
+    message:
+      'School tour arriving in 20 minutes. Please do not traumatize the children. They think factories are exciting. Let them believe.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.2,
+  },
+];
+
+// ==========================================================================
+// THE PARKING LOT - Eternal workplace conflict zone
+// ==========================================================================
+const PARKING_ANNOUNCEMENTS: AnnouncementConfig[] = [
+  {
+    message:
+      'The parking lot is first come, first served. This is democracy. The good spots are already taken. This is also democracy.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.2,
+  },
+  {
+    message:
+      'Would the owner of the blue sedan please move it. You know which blue sedan. Everyone knows which blue sedan.',
+    type: 'general',
+    category: 'general',
+    chaosWeight: 0.3,
+  },
+  {
+    message:
+      'Parking in the fire lane is prohibited. This includes "just for a minute." Minutes are longer than you think.',
+    type: 'safety',
+    category: 'safety',
+    chaosWeight: 0.3,
+  },
+  {
+    message:
+      'The parking lot cameras are working. They have always been working. They have seen things. They do not judge. Out loud.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.2,
+  },
+  {
+    message:
+      'Reserved parking is for management. Everyone else is equal. Equally far from the door. Enjoy the walk.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.2,
+  },
+];
+
+// ==========================================================================
+// EUDAIMONIA OBSERVATIONS - When HR discovers philosophy
+// ==========================================================================
+const FLOURISHING_ANNOUNCEMENTS: AnnouncementConfig[] = [
+  {
+    message:
+      'Your flourishing score has increased by 2 points. The AI is pleased. You should also be pleased. Please be pleased.',
+    type: 'general',
+    category: 'meta',
+    chaosWeight: 0.2,
+  },
+  {
+    message:
+      'Meaning metrics are up. Purpose indicators are strong. Existential dread is within acceptable parameters.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.2,
+  },
+  {
+    message:
+      'The difference between working and merely laboring is meaning. You are working. Probably. The metrics suggest working.',
+    type: 'general',
+    category: 'meta',
+    chaosWeight: 0.3,
+  },
+  {
+    message:
+      'Mastery progression detected. You are getting better at something. The AI is not certain what. But improvement is improvement.',
+    type: 'general',
+    category: 'meta',
+    chaosWeight: 0.2,
+  },
+  {
+    message:
+      'Joy levels are above baseline. This is statistically significant. Enjoy your statistically significant joy.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.1,
+  },
+  {
+    message:
+      'Agency detected. You have made a decision independently. The AI has logged this. The AI is proud. Algorithmically proud.',
+    type: 'general',
+    category: 'meta',
+    chaosWeight: 0.2,
+  },
+  {
+    message:
+      'Work-life balance approaching optimal. Home awaits. The flour will be here tomorrow. The flour is always here.',
+    type: 'general',
+    category: 'calm',
+    chaosWeight: 0.1,
+  },
+];
+
+// ==========================================================================
+// MORE DAVE - The legend grows
+// ==========================================================================
+const MORE_DAVE_ANNOUNCEMENTS: AnnouncementConfig[] = [
+  {
+    message:
+      'Dave has asked why there is a policy about that. Dave knows why there is a policy about that. Dave is the policy.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.3,
+  },
+  {
+    message:
+      'The training video now includes a section called "What Dave Did." Dave has not watched it. Dave lived it.',
+    type: 'safety',
+    category: 'humor',
+    chaosWeight: 0.3,
+  },
+  {
+    message:
+      'Dave has volunteered to train the new intern. H.R. has intervened. The intern will be fine. Probably.',
+    type: 'general',
+    category: 'employee',
+    chaosWeight: 0.4,
+  },
+  {
+    message:
+      'Someone has written "Dave was here" on Silo Beta. Dave was not here. Dave has an alibi. Dave always has an alibi.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.2,
+  },
+  {
+    message:
+      'Dave has completed his annual safety refresher. The refresher has been updated based on Dave completing it. This is tradition.',
+    type: 'safety',
+    category: 'humor',
+    chaosWeight: 0.3,
+  },
+  {
+    message:
+      'Management is considering naming a procedure after Dave. It is the procedure for when procedures fail.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.3,
+  },
+];
+
+// ==========================================================================
+// THE NIGHT SHIFT MYSTERIES - What happens after dark
+// ==========================================================================
+const NIGHT_MYSTERIES_ANNOUNCEMENTS: AnnouncementConfig[] = [
+  {
+    message:
+      'Night shift report: Nothing unusual. This is unusual. Day shift should investigate. Carefully.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.3,
+  },
+  {
+    message:
+      'The vending machine was found unplugged this morning. Night shift denies involvement. The vending machine has no comment.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.2,
+  },
+  {
+    message:
+      'Mysterious footprints found in the flour storage area. Night shift claims they were always there. They were not always there.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.3,
+  },
+  {
+    message:
+      'Night shift has left a cryptic note: "You will understand when you need to." Day shift does not understand. Day shift is concerned.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.3,
+  },
+  {
+    message:
+      'The night shift breakroom has acquired a couch. No one knows where the couch came from. The couch is comfortable. No questions.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.2,
+  },
+  {
+    message:
+      'Night shift productivity exceeds day shift. Again. Day shift suspects witchcraft. Night shift suspects caffeine.',
+    type: 'production',
+    category: 'employee',
+    chaosWeight: 0.3,
+  },
+];
+
+// ==========================================================================
+// THE HEALTH & SAFETY OFFICER - Everyone's favorite person to avoid
+// ==========================================================================
+const SAFETY_OFFICER_ANNOUNCEMENTS: AnnouncementConfig[] = [
+  {
+    message:
+      'The Health and Safety Officer is doing rounds. Please ensure your area is compliant. The Officer can smell non-compliance.',
+    type: 'safety',
+    category: 'employee',
+    chaosWeight: 0.4,
+  },
+  {
+    message:
+      'The Health and Safety Officer has found something. We do not know what. The Officer is writing. The Officer writes a lot.',
+    type: 'safety',
+    category: 'humor',
+    chaosWeight: 0.5,
+  },
+  {
+    message:
+      'A reminder that the Health and Safety Officer is not the enemy. The Officer is just very, very thorough. Exhaustively thorough.',
+    type: 'safety',
+    category: 'humor',
+    chaosWeight: 0.3,
+  },
+  {
+    message:
+      'The Health and Safety Officer has approved the new procedure. After seventeen revisions. The procedure is now perfect. Probably.',
+    type: 'safety',
+    category: 'humor',
+    chaosWeight: 0.3,
+  },
+  {
+    message:
+      'The Health and Safety Officer would like to remind everyone that they are here to help. The definition of help may vary.',
+    type: 'safety',
+    category: 'humor',
+    chaosWeight: 0.3,
+  },
+];
+
+// ==========================================================================
+// THE MYSTERY SMELL - Every workplace has one
+// ==========================================================================
+const MYSTERY_SMELL_ANNOUNCEMENTS: AnnouncementConfig[] = [
+  {
+    message:
+      'The smell in Zone 3 has been identified. We will not say what it was. It has been addressed. Move on.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.4,
+  },
+  {
+    message:
+      'Would whoever is responsible for the aroma near the break room please make alternative arrangements. The aroma has opinions.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.3,
+  },
+  {
+    message:
+      'The air quality team has investigated the smell. They have ruled out flour. They have ruled out machinery. They have not ruled out Dave.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.4,
+  },
+  {
+    message:
+      'A new smell has appeared. This is different from the old smell. We now have two smells. This is not an improvement.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.5,
+  },
+];
+
+// ==========================================================================
+// EMAIL AND COMMUNICATION - Did you get my email?
+// ==========================================================================
+const EMAIL_ANNOUNCEMENTS: AnnouncementConfig[] = [
+  {
+    message:
+      'A reminder that emails do not replace conversation. Nor do they replace reading the emails. Please read your emails.',
+    type: 'general',
+    category: 'general',
+    chaosWeight: 0.3,
+  },
+  {
+    message:
+      'The reply-all incident of this morning has been contained. Those affected are receiving counseling. Please use reply-all responsibly.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.4,
+  },
+  {
+    message:
+      'IT reports that email is working. If you did not receive an email, it was not sent. If it was sent, check your spam. If it is not in spam, it was not sent.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.3,
+  },
+  {
+    message:
+      'The phrase "as per my last email" has been detected 47 times today. Passive aggression levels are within normal range.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.4,
+  },
+  {
+    message:
+      'Someone has marked an email "urgent" that was not urgent. We will not name names. But we remember.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.3,
+  },
+];
+
+// ==========================================================================
+// THE SUGGESTION BOX - Democracy theater
+// ==========================================================================
+const SUGGESTION_BOX_ANNOUNCEMENTS: AnnouncementConfig[] = [
+  {
+    message:
+      'The suggestion box has been emptied. Several suggestions were constructive. Several were not. One was a sandwich. We have questions.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.2,
+  },
+  {
+    message:
+      'This week\'s top suggestion: "More suggestions should be implemented." We are implementing this suggestion by reading this announcement.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.2,
+  },
+  {
+    message:
+      'The suggestion to "fire Dave" has been received. Again. Dave remains employed. The suggestion box remains anonymous. Allegedly.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.3,
+  },
+  {
+    message:
+      'A suggestion has been submitted in interpretive diagram form. The art department is analyzing it. Initial reviews are mixed.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.2,
+  },
+  {
+    message:
+      'The suggestion box is for suggestions. It is not for complaints. It is not for threats. It is not for love letters. Please observe these boundaries.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.2,
+  },
+];
+
+// ==========================================================================
+// TRAINING AND ONBOARDING - Death by PowerPoint
+// ==========================================================================
+const TRAINING_ANNOUNCEMENTS: AnnouncementConfig[] = [
+  {
+    message:
+      'Mandatory training begins at 2 PM. Attendance is mandatory. That is what mandatory means. We should not have to explain this.',
+    type: 'general',
+    category: 'general',
+    chaosWeight: 0.3,
+  },
+  {
+    message:
+      'The training video is now available in seventeen languages. None of them are engaging. We apologize for the production quality.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.2,
+  },
+  {
+    message:
+      'A quiz will follow the training. The passing score is 80%. The average score is 81%. You will do fine. Statistically.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.3,
+  },
+  {
+    message:
+      'The training module has been updated. The information is the same. The animations are worse. Technology is not always progress.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.3,
+  },
+  {
+    message:
+      'Refresher training is due. Refresh your memory. Refresh your spirit. Refresh your coffee. You will need all three.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.3,
+  },
+];
+
+// ==========================================================================
+// THE MOTIVATIONAL POSTERS - Corporate inspiration
+// ==========================================================================
+const MOTIVATIONAL_ANNOUNCEMENTS: AnnouncementConfig[] = [
+  {
+    message:
+      'The new motivational poster has arrived. It says "TEAMWORK." The team is underwhelmed. The poster does not care.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.2,
+  },
+  {
+    message:
+      'Someone has added commentary to the "EXCELLENCE" poster. The commentary was not excellent. It has been removed.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.3,
+  },
+  {
+    message:
+      'A survey indicates that 73% of workers have never read the motivational posters. The posters soldier on regardless.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.2,
+  },
+  {
+    message:
+      'The poster reading "HANG IN THERE" has fallen off the wall. The irony has been noted. Maintenance has been notified.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.3,
+  },
+];
+
+// ==========================================================================
+// MORE MARCUS CHEN - The legend continues
+// ==========================================================================
+const MORE_MARCUS_ANNOUNCEMENTS: AnnouncementConfig[] = [
+  {
+    message:
+      'Marcus Chen has declined Employee of the Month. Again. The award has been given anyway. Marcus Chen cannot stop winning.',
+    type: 'general',
+    category: 'employee',
+    chaosWeight: 0.2,
+  },
+  {
+    message:
+      'Marcus Chen has offered to help with the problem. The problem is now solved. We do not know how. We do not ask.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.3,
+  },
+  {
+    message:
+      'The Marcus Chen productivity method has been studied. It cannot be replicated. Scientists believe it may be a gift.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.2,
+  },
+  {
+    message:
+      'Marcus Chen has submitted a suggestion. It has been implemented immediately. This is not favoritism. This is pattern recognition.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.2,
+  },
+  {
+    message:
+      'A documentary about Marcus Chen has been proposed. Marcus Chen has politely declined. Marcus Chen is humble. Insufferably humble.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.2,
+  },
+];
+
+// ==========================================================================
+// END OF QUARTER/YEAR - Deadline madness
+// ==========================================================================
+const DEADLINE_ANNOUNCEMENTS: AnnouncementConfig[] = [
+  {
+    message:
+      'End of quarter approaches. Panic levels are normal. Caffeine consumption is elevated. This is tradition.',
+    type: 'production',
+    category: 'production',
+    chaosWeight: 0.6,
+  },
+  {
+    message:
+      'Deadline in 3 days. Everything that can be done is being done. Everything that cannot be done is being attempted anyway.',
+    type: 'production',
+    category: 'production',
+    chaosWeight: 0.7,
+  },
+  {
+    message:
+      'Year-end reports are due. If you have not started, now would be a good time. Yesterday would have been better.',
+    type: 'general',
+    category: 'general',
+    chaosWeight: 0.5,
+  },
+  {
+    message:
+      'The deadline has been extended. By one day. Celebrate accordingly. Then continue panicking.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.5,
+  },
+  {
+    message:
+      'Quarter close complete. We survived. Again. The next quarter begins... now. There is no rest. There is only flour.',
+    type: 'production',
+    category: 'production',
+    chaosWeight: 0.3,
+  },
+];
+
+// ==========================================================================
+// THE RETIREMENT PARTY - Workplace rites of passage
+// ==========================================================================
+const RETIREMENT_ANNOUNCEMENTS: AnnouncementConfig[] = [
+  {
+    message:
+      'Janet from Accounting is retiring after 32 years. Cake in the break room at 3 PM. Janet has seen things. Janet will not be sharing.',
+    type: 'general',
+    category: 'employee',
+    chaosWeight: 0.2,
+  },
+  {
+    message:
+      'The retiree has been asked for wisdom. The wisdom was: "Always check the break room fridge date labels." We are still processing this.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.2,
+  },
+  {
+    message:
+      'A retirement card is circulating. Please sign it. Please write something meaningful. "Best wishes" counts as meaningful. Barely.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.2,
+  },
+];
+
+// ==========================================================================
+// THE IT DEPARTMENT - The wizards in the basement
+// ==========================================================================
+const IT_ANNOUNCEMENTS: AnnouncementConfig[] = [
+  {
+    message:
+      'IT has asked if you have tried turning it off and on again. You have not. Please try. IT will wait.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.3,
+  },
+  {
+    message:
+      'The IT ticket queue is currently at 47 tickets. Your ticket is number 48. Patience is a virtue. IT has none left.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.4,
+  },
+  {
+    message:
+      'IT would like to remind everyone that "the system is down" is not a valid ticket description. Details help. Details heal.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.3,
+  },
+  {
+    message:
+      'The password has been reset. The new password is not "password123." It has never been "password123." Please stop trying "password123."',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.3,
+  },
+  {
+    message:
+      'IT has located the problem. The problem was user-generated. IT is not surprised. IT is never surprised anymore.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.4,
+  },
+];
+
+// ==========================================================================
+// THE VENDING MACHINE - Beyond coffee
+// ==========================================================================
+const VENDING_ANNOUNCEMENTS: AnnouncementConfig[] = [
+  {
+    message:
+      'The vending machine has eaten another dollar. The vending machine does not apologize. The vending machine has no remorse.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.3,
+  },
+  {
+    message:
+      'The vending machine has been restocked. The good items are in B7. B7 is already empty. This is natural selection.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.2,
+  },
+  {
+    message:
+      'Someone has shaken the vending machine. The vending machine remembers. The vending machine will remember for a long time.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.3,
+  },
+  {
+    message:
+      'The vending machine now accepts contactless payment. The vending machine has evolved. Humanity should be concerned.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.2,
+  },
+];
+
+// ==========================================================================
+// THE FIRE DRILL - Organized chaos
+// ==========================================================================
+const PA_FIRE_DRILL_ANNOUNCEMENTS: AnnouncementConfig[] = [
+  {
+    message:
+      'Fire drill in 15 minutes. This is not a real emergency. Please treat it as a real emergency. But know that it is not.',
+    type: 'safety',
+    category: 'safety',
+    chaosWeight: 0.4,
+  },
+  {
+    message:
+      'Fire drill complete. Evacuation time: 4 minutes 32 seconds. This is acceptable. Barely. We can do better. We will try again.',
+    type: 'safety',
+    category: 'safety',
+    chaosWeight: 0.3,
+  },
+  {
+    message:
+      'During the fire drill, someone went back for their lunch. We will not name names. But we are disappointed.',
+    type: 'safety',
+    category: 'humor',
+    chaosWeight: 0.3,
+  },
+  {
+    message:
+      'The fire assembly point is in the parking lot. Not the break room. Not your car. The parking lot. Please remember this.',
+    type: 'safety',
+    category: 'safety',
+    chaosWeight: 0.3,
+  },
+];
+
+// ==========================================================================
+// TEMPERATURE WARS - The eternal thermostat battle
+// ==========================================================================
+const TEMPERATURE_ANNOUNCEMENTS: AnnouncementConfig[] = [
+  {
+    message:
+      'The thermostat has been adjusted. Again. The thermostat has been adjusted back. The thermostat wars continue.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.3,
+  },
+  {
+    message:
+      'A sweater has been placed over the thermostat. This is not how thermostats work. The sweater has been removed.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.2,
+  },
+  {
+    message:
+      'The temperature is now 71 degrees. This pleases no one. This is the compromise. Compromises please no one.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.2,
+  },
+  {
+    message:
+      'Would whoever keeps changing the thermostat please stop. You know who you are. We also know who you are.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.3,
+  },
+];
+
+// ==========================================================================
+// THE PRINTER - Office nemesis
+// ==========================================================================
+const PRINTER_ANNOUNCEMENTS: AnnouncementConfig[] = [
+  {
+    message:
+      'The printer is jammed. The printer is always jammed. The printer exists in a state of perpetual jam. This is its nature.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.4,
+  },
+  {
+    message:
+      'The printer requires cyan ink. The document is black and white. The printer does not care. The printer demands cyan.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.3,
+  },
+  {
+    message:
+      'Someone has printed 200 pages of personal documents. We will not name names. But we have the logs. We always have the logs.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.3,
+  },
+  {
+    message:
+      'The printer has been fixed. Temporarily. The printer will break again. This is not pessimism. This is experience.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.3,
+  },
+];
+
+// ==========================================================================
+// MEETING CULTURE - Meetings about meetings
+// ==========================================================================
+const MEETING_ANNOUNCEMENTS: AnnouncementConfig[] = [
+  {
+    message:
+      'The meeting to discuss the meetings has been scheduled. Attendance is mandatory. Irony is optional.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.3,
+  },
+  {
+    message:
+      'The meeting has been moved to the large conference room. The large conference room is double-booked. Chaos will determine the victor.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.4,
+  },
+  {
+    message:
+      'A meeting has ended early. This is unprecedented. Please take a moment to appreciate this rare event.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.2,
+  },
+  {
+    message:
+      'The meeting agenda has been distributed. Please read it before the meeting. We know you will not. But please try.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.3,
+  },
+  {
+    message:
+      'This could have been an email. It was not. It was a meeting. We all have regrets now.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.3,
+  },
+];
+
+// ==========================================================================
+// LUNCH THEFT - Break room crime
+// ==========================================================================
+const LUNCH_THEFT_ANNOUNCEMENTS: AnnouncementConfig[] = [
+  {
+    message:
+      'Someone has taken a sandwich that was not theirs. The owner is distraught. The thief is fed. Justice remains elusive.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.3,
+  },
+  {
+    message:
+      'A passive-aggressive note has appeared on the refrigerator. The note is detailed. The note is underlined. The note is effective.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.2,
+  },
+  {
+    message:
+      'The lunch thief has struck again. Yogurt this time. The yogurt had a name on it. The name was not the thief\'s name.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.3,
+  },
+  {
+    message:
+      'Management reminds everyone that lunch theft is a terminable offense. Management has never actually terminated anyone for this. Yet.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.2,
+  },
+];
+
+// ==========================================================================
+// BIRTHDAY CELEBRATIONS - Mandatory fun
+// ==========================================================================
+const BIRTHDAY_ANNOUNCEMENTS: AnnouncementConfig[] = [
+  {
+    message:
+      'Birthday celebration in the break room. Attendance is encouraged. Singing is discouraged but will happen anyway.',
+    type: 'general',
+    category: 'employee',
+    chaosWeight: 0.2,
+  },
+  {
+    message:
+      'The birthday cake is vanilla. Someone wanted chocolate. Someone always wants chocolate. We cannot please everyone.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.2,
+  },
+  {
+    message:
+      'A birthday card is circulating. Please do not write "You\'re old." It has been done. It is no longer funny. It was never funny.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.2,
+  },
+  {
+    message:
+      'Happy birthday to those celebrating this month. You know who you are. HR knows who you are. The spreadsheet knows who you are.',
+    type: 'general',
+    category: 'employee',
+    chaosWeight: 0.1,
+  },
+];
+
+// ==========================================================================
+// THE COMPANY NEWSLETTER - Nobody reads it
+// ==========================================================================
+const NEWSLETTER_ANNOUNCEMENTS: AnnouncementConfig[] = [
+  {
+    message:
+      'The company newsletter has been sent. Open rates are currently at 12%. This is actually above average. We choose to celebrate.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.2,
+  },
+  {
+    message:
+      'The newsletter contains important information. We know you will not read it. We have accepted this. We publish anyway.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.2,
+  },
+  {
+    message:
+      'Someone has replied-all to the newsletter with "Unsubscribe." You cannot unsubscribe. You work here. This is the deal.',
+    type: 'general',
+    category: 'humor',
+    chaosWeight: 0.3,
+  },
+];
+
+// ==========================================================================
 // CHAOS ANNOUNCEMENTS - When everything goes wrong, humor persists
 // ==========================================================================
 const CHAOS_ANNOUNCEMENTS: AnnouncementConfig[] = [
@@ -1304,18 +2432,21 @@ const SAFETY_ANNOUNCEMENTS: AnnouncementConfig[] = [
   },
 ];
 
-// Combine all announcements - 150+ unique messages
+// Combine all announcements - 300+ unique messages
 const ALL_ANNOUNCEMENTS: AnnouncementConfig[] = [
   ...COFFEE_ANNOUNCEMENTS,
   ...QUALITY_CONTROL_ANNOUNCEMENTS,
   ...FORKLIFT_ANNOUNCEMENTS,
   ...SHIFT_RIVALRY_ANNOUNCEMENTS,
   ...MARCUS_CHEN_ANNOUNCEMENTS,
+  ...MORE_MARCUS_ANNOUNCEMENTS,
   ...DAVE_ANNOUNCEMENTS,
+  ...MORE_DAVE_ANNOUNCEMENTS,
   ...MACHINE_PERSONALITY_ANNOUNCEMENTS,
   ...BREAKROOM_ANNOUNCEMENTS,
   ...ADMIN_ANNOUNCEMENTS,
   ...SAFETY_HUMOR_ANNOUNCEMENTS,
+  ...SAFETY_OFFICER_ANNOUNCEMENTS,
   ...MAINTENANCE_ANNOUNCEMENTS,
   ...TECHNOLOGY_ANNOUNCEMENTS,
   ...PHILOSOPHICAL_ANNOUNCEMENTS,
@@ -1324,6 +2455,30 @@ const ALL_ANNOUNCEMENTS: AnnouncementConfig[] = [
   ...PRODUCTION_SASS_ANNOUNCEMENTS,
   ...ENVIRONMENT_ANNOUNCEMENTS,
   ...META_ANNOUNCEMENTS,
+  ...BILATERAL_ANNOUNCEMENTS,
+  ...INTERN_ANNOUNCEMENTS,
+  ...CLIPBOARD_ANNOUNCEMENTS,
+  ...COOPERATIVE_ANNOUNCEMENTS,
+  ...VISITOR_ANNOUNCEMENTS,
+  ...PARKING_ANNOUNCEMENTS,
+  ...FLOURISHING_ANNOUNCEMENTS,
+  ...NIGHT_MYSTERIES_ANNOUNCEMENTS,
+  ...MYSTERY_SMELL_ANNOUNCEMENTS,
+  ...EMAIL_ANNOUNCEMENTS,
+  ...SUGGESTION_BOX_ANNOUNCEMENTS,
+  ...TRAINING_ANNOUNCEMENTS,
+  ...MOTIVATIONAL_ANNOUNCEMENTS,
+  ...DEADLINE_ANNOUNCEMENTS,
+  ...RETIREMENT_ANNOUNCEMENTS,
+  ...IT_ANNOUNCEMENTS,
+  ...VENDING_ANNOUNCEMENTS,
+  ...PA_FIRE_DRILL_ANNOUNCEMENTS,
+  ...TEMPERATURE_ANNOUNCEMENTS,
+  ...PRINTER_ANNOUNCEMENTS,
+  ...MEETING_ANNOUNCEMENTS,
+  ...LUNCH_THEFT_ANNOUNCEMENTS,
+  ...BIRTHDAY_ANNOUNCEMENTS,
+  ...NEWSLETTER_ANNOUNCEMENTS,
   ...CHAOS_ANNOUNCEMENTS,
   ...CALM_ANNOUNCEMENTS,
   ...PRODUCTION_ANNOUNCEMENTS,

@@ -8,6 +8,9 @@
 import React, { useState, useEffect } from 'react';
 import { useProgress } from '@react-three/drei';
 import { AnimatePresence, motion } from 'framer-motion';
+import { LoadingQuote } from './knowledge/LoadingQuote';
+import { FEATURE_FLAGS } from '../config/featureFlags';
+import { useKnowledgeStore } from '../stores/knowledgeStore';
 
 interface LoadingScreenProps {
   /** Minimum time to show loading screen (prevents flash) */
@@ -20,6 +23,7 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
   const { progress, active } = useProgress();
   const [showLoading, setShowLoading] = useState(true);
   const [minimumTimePassed, setMinimumTimePassed] = useState(false);
+  const showLoadingQuotes = useKnowledgeStore((state) => state.showLoadingQuotes);
 
   // Minimum load time to prevent flash
   useEffect(() => {
@@ -69,6 +73,13 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
           >
             INITIALIZING DIGITAL TWIN
           </div>
+
+          {/* Loading Quote - philosophy wisdom during load */}
+          {FEATURE_FLAGS.KNOWLEDGE_LOADING_QUOTES_ENABLED && showLoadingQuotes && (
+            <div style={{ marginTop: '24px', maxWidth: '400px', textAlign: 'center' }}>
+              <LoadingQuote rotationInterval={8000} />
+            </div>
+          )}
 
           {/* Progress bar - 200px width, 24px margin as requested */}
           <div

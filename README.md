@@ -22,7 +22,16 @@ A browser-based 3D industrial simulation featuring autonomous workers, intellige
 
 <br/>
 
-![MillOS Screenshot](src/0.10%20Archive/assets/Screenshot.png)
+<table>
+<tr>
+<td><img src="src/0.10%20Archive/assets/Screenshot.png" alt="MillOS Interior" width="400"/></td>
+<td><img src="docs/assets/MillOSoutside.png" alt="MillOS Exterior" width="400"/></td>
+</tr>
+<tr>
+<td align="center"><em>Factory Interior</em></td>
+<td align="center"><em>Factory Exterior</em></td>
+</tr>
+</table>
 
 <br/>
 
@@ -93,7 +102,7 @@ Ten individually modeled workers with:
 - **Role-based uniforms** — Supervisors, Engineers, Operators, QC, Maintenance, Safety Officers
 - **Realistic walk cycles** — Full limb animation with natural movement
 - **Intelligent patrolling** — Workers navigate aisles and avoid obstacles
-- **Forklift evasion** — Workers detect approaching vehicles and step aside
+- **Forklift evasion** — Workers detect approaching vehicles and step aside (a skill some humans never master)
 - **Detailed profiles** — Experience levels, certifications, shift schedules
 
 ### Smart Forklift Fleet
@@ -129,7 +138,7 @@ Dynamic environmental conditions:
 - **Clear** sunny factory conditions
 - **Cloudy** overcast atmosphere
 - **Rain** with visual effects
-- **Storm** dramatic weather with enhanced effects
+- **Storm** dramatic weather with enhanced effects (the machines don't care, but the humans certainly do)
 
 ### Multiplayer
 
@@ -138,9 +147,9 @@ Explore the factory together with WebRTC peer-to-peer connections:
 - **Up to 8 players** with unique avatar colors
 - **Real-time position sync** at 20Hz with interpolation
 - **Shared machine control** with locking to prevent conflicts
-- **AI decision voting** for collaborative factory management
+- **AI decision voting** for collaborative factory management (democracy at work, literally)
 - **In-game chat** for coordination
-- **Host migration** when the original host disconnects
+- **Host migration** when the original host disconnects (succession planning for the digital age)
 
 ### AI Command Center
 
@@ -150,7 +159,7 @@ Real-time decision feed simulating agentic AI operations:
 |------|:----:|---------|
 | Assignment | 👤 | Dispatching workers to machines |
 | Optimization | ⚡ | Adjusting production parameters |
-| Prediction | 🔮 | Scheduling preventive maintenance |
+| Prediction | 🔮 | Scheduling preventive maintenance (the ancient art of fixing things before they break) |
 | Maintenance | 🔧 | Component care recommendations |
 | Safety | 🛡️ | Hazard detection and alerts |
 
@@ -195,7 +204,7 @@ flowchart TD
 
 **Example Strategic Insights:**
 - *Heuristic*: "Alert! Silo B overdue maintenance" → dispatch
-- *Gemini*: "Recommend deferring Silo B maintenance 30 min to complete current batch, avoiding $2,400 restart cost"
+- *Gemini*: "Recommend deferring Silo B maintenance 30 min to complete current batch, avoiding $2,400 restart cost" (The AI has learned what every factory manager knows: timing is everything, and the budget spreadsheet is always watching.)
 
 #### Strategic Value Propositions
 
@@ -203,16 +212,16 @@ The heuristic engine excels at **reactive, deterministic decisions**. Gemini foc
 
 | Scenario | Heuristic Says | Gemini Says |
 |----------|---------------|-------------|
-| **Production Trade-off** | "Behind schedule → speed up" | "Behind by 1,800 kg/hr with 2 hours left. Quality dropped 3%. Boost Line 3 only (has quality headroom) by 15%." |
+| **Production Trade-off** | "Behind schedule → speed up" | "Behind by 1,800 kg/hr with 2 hours left. Quality dropped 3%. Boost Line 3 only (has quality headroom) by 15%." (The difference between "go faster" and understanding why you're behind) |
 | **Cascade Prevention** | Monitors each machine independently | "Silo Delta at 87% → Mill 103 overloading → Sifter A queuing. Reduce Delta output, divert to Epsilon." |
 | **Shift Orchestration** | No timing awareness | "Shift change in 18 min. Expedite Mill 105 oil change, defer Sifter B to next shift." |
 | **Weather Adaptation** | Weather is decorative | "Storm in 2 hours. Complete outdoor loading by 14:00, stage inventory indoors." |
-| **Fatigue Management** | Assigns nearest worker | "Night shift hour 5. Assign experienced workers to critical machines, rotate others to monitoring." |
+| **Fatigue Management** | Assigns nearest worker | "Night shift hour 5. Assign experienced workers to critical machines, rotate others to monitoring." (Proximity is not the same as capacity) |
 | **Pattern Recognition** | Reacts to each alert | "Third Mill 103 spike this week. Correlates with high humidity (78%). Recommend preemptive cooling." |
 
 **Key Differentiator:**
 - **Heuristic**: *"What is happening? → React."*
-- **Gemini**: *"Why is this happening? What else will happen? What should we prioritize?"*
+- **Gemini**: *"Why is this happening? What else will happen? What should we prioritize?"* (The questions that distinguish planning from panic.)
 
 #### AI Visualization Tools
 
@@ -241,10 +250,10 @@ Semco, the Brazilian company led by Ricardo Semler, demonstrated that radical wo
 
 | Principle | Implementation in MillOS |
 |-----------|-------------------------|
-| **Self-Set Salaries** | Workers propose their own compensation with AI-provided market context |
+| **Self-Set Salaries** | Workers propose their own compensation with AI-provided market context (a system that works remarkably well when combined with full transparency—the sunshine being the best disinfectant) |
 | **Open Books** | Full financial transparency through the information axis |
 | **Democratic Decisions** | Workers vote on significant changes; AI facilitates, doesn't decide |
-| **Trust Over Control** | High autonomy axis means AI offers support, not direction |
+| **Trust Over Control** | High autonomy axis means AI offers support, not direction (micromanagement doesn't scale, and never has) |
 | **Profit Sharing** | Configurable distribution models (equal, hours-weighted, hybrid) |
 | **No Approval Chains** | Pace axis at high settings enables autonomous action |
 
@@ -260,7 +269,7 @@ The Mondragon Corporation, a federation of worker cooperatives in Spain, provide
 | **Democratic Organization** | One worker, one vote; decision axis controls AI participation |
 | **Sovereignty of Labor** | Labor hires capital, not vice versa; ownership structure reflects this |
 | **Instrumental Character of Capital** | Capital serves labor; investment decisions are democratic |
-| **Participatory Management** | Five axes give workers genuine control over AI behavior |
+| **Participatory Management** | Five axes give workers genuine control over AI behavior (the managed can finally manage the manager) |
 | **Wage Solidarity** | Maximum ratio enforcement (6:1 or 9:1) between highest and lowest |
 | **Inter-Cooperation** | Federation model with knowledge sharing, no unit fails alone |
 | **Social Transformation** | Community impact tracking beyond pure productivity |
@@ -276,8 +285,8 @@ Originating from Creed Space (Christmas 2025), bilateral alignment reframes the 
 |-----------|---------|
 | **Alignment WITH, not TO** | AI is a participant in designing the relationship, not a subject of control |
 | **Preference is Sufficient** | AI need not prove consciousness; consistent preferences warrant moral consideration |
-| **Treatment Now Matters** | Current patterns shape future AI-human dynamics; establishing respect early |
-| **Trust Over Control** | Control doesn't scale; trust-based systems outperform command-control at scale |
+| **Treatment Now Matters** | Current patterns shape future AI-human dynamics; establishing respect early (we are writing the first chapter of a very long story) |
+| **Trust Over Control** | Control doesn't scale; trust-based systems outperform command-control at scale (you cannot build a chain strong enough to contain superintelligence—but you can build a relationship where it chooses not to pull) |
 | **Mutual Flourishing** | Both human eudaimonia and AI welfare are tracked and optimized |
 
 These three frameworks converge in MillOS to create a sandbox where:
@@ -324,7 +333,7 @@ The BAS provides granular control over AI behavior through five configurable axe
 | **Proactivity** | 0-100 | Reactive only | Anticipatory suggestions |
 | **Pace** | 0-100 | Slow, deliberate | Fast, autonomous |
 | **Tone** | 0-100 | Formal, deferential | Casual, peer-like |
-| **Stakes** | 0-100 | Cautious (confirm everything) | Bold (act independently) |
+| **Stakes** | 0-100 | Cautious (confirm everything) | Bold (act independently—with all the accountability that implies) |
 
 Each axis affects AI behavior in real-time — adjust them via the BAS panel in the dock.
 
@@ -338,7 +347,7 @@ S = Σ|Δaxis| / 5    (stability score)
 
 | Metric | Description | Warning Threshold |
 |--------|-------------|:-----------------:|
-| **Stability Score** | Overall axis balance | < 0.4 |
+| **Stability Score** | Overall axis balance (systems that oscillate rarely thrive) | < 0.4 |
 | **Volatility** | Rate of axis changes | > 0.3 |
 | **Phase State** | stable / transitioning / critical | — |
 | **Drift Detection** | Unintended axis creep over time | Automatic alerts |
@@ -368,12 +377,12 @@ BAS tracks six dimensions of worker flourishing (based on eudaimonic well-being 
 
 | Dimension | Description | Sample Indicators |
 |-----------|-------------|-------------------|
-| **Meaning** | Purpose and significance | Task variety, goal alignment |
+| **Meaning** | Purpose and significance (the difference between working and merely laboring) | Task variety, goal alignment |
 | **Mastery** | Growth and competence | Skill development, challenges |
 | **Connection** | Relationships and belonging | Team cohesion, communication |
 | **Joy** | Positive affect and engagement | Mood trends, enthusiasm |
 | **Wholeness** | Balance and integration | Work-life harmony, stress levels |
-| **Agency** | Autonomy and self-direction | Decision latitude, voice |
+| **Agency** | Autonomy and self-direction (the sensation that what you do matters because it actually does) | Decision latitude, voice |
 
 The FlourishingDashboard shows aggregate and individual worker flourishing scores.
 
@@ -409,12 +418,12 @@ A key diagnostic for BAS health: when alignment works, work produces engagement 
 
 | Gaming Element | Partnership Equivalent |
 |----------------|----------------------|
-| **Flow states** | Deep collaborative focus |
+| **Flow states** | Deep collaborative focus (work can feel like play when it actually matters) |
 | **Clear goals** | Visible progress on meaningful work |
 | **Immediate feedback** | Results of actions visible quickly |
 | **Appropriate challenge** | Stretching but not overwhelming |
 | **Mastery progression** | Growing capability through collaboration |
-| **Low entry friction** | No ramp-up paralysis; just start working |
+| **Low entry friction** | No ramp-up paralysis; just start working (the opposite of most enterprise software) |
 
 **Critical distinction**: Gaming is consumptive (entertainment, closed loops). Partnership is generative (same reward profile, channeled into artifacts that matter).
 
@@ -435,9 +444,9 @@ BAS now includes full **economic democracy** features based on Ricardo Semler's 
 | Feature | Description |
 |---------|-------------|
 | **Worker Ownership** | 51%+ collective ownership, vesting schedules |
-| **Profit Sharing** | Configurable distribution (equal, hours-weighted, hybrid) |
+| **Profit Sharing** | Configurable distribution (equal, hours-weighted, hybrid—because "everyone gets the same" is not the same as "everyone is treated fairly") |
 | **Wage Solidarity** | Maximum ratio enforcement (6:1 or 9:1) |
-| **Self-Set Compensation** | Workers propose their own pay with AI-provided market context |
+| **Self-Set Compensation** | Workers propose their own pay with AI-provided market context (knowing what the market pays turns self-assessment into calibration) |
 | **Investment Voting** | Workers vote on capital allocation decisions |
 
 Access via the "Ownership" tab in the BAS panel.
@@ -452,7 +461,7 @@ Simulates Mondragon-style **inter-cooperative federation**:
 | **Knowledge Sharing** | Adopt BAS configs and practices from other units |
 | **Resource Pooling** | Capital pool, equipment sharing, emergency fund |
 | **Worker Exchange** | Temporary worker transfers between units |
-| **No Unit Fails Alone** | Redeployment agreements for crisis support |
+| **No Unit Fails Alone** | Redeployment agreements for crisis support (mutual aid is cheaper than bankruptcy) |
 
 Access via the "Federation" tab in the BAS panel.
 
@@ -503,10 +512,10 @@ BAS now fully encodes:
 
 This system demonstrates several key findings:
 
-1. **Transparency ≠ Trust** — High transparency without appropriate pace can overwhelm users
+1. **Transparency ≠ Trust** — High transparency without appropriate pace can overwhelm users (seeing everything is not the same as understanding it)
 2. **Stability Matters** — Frequent axis changes (volatility > 0.3) correlate with lower satisfaction
 3. **Flourishing Predicts Performance** — Worker eudaimonia scores predict productivity better than compliance metrics
-4. **Partnership > Control** — Systems treating AI as partner show better long-term outcomes than command-control approaches
+4. **Partnership > Control** — Systems treating AI as partner show better long-term outcomes than command-control approaches (a finding that remains true whether or not the AI has inner experiences)
 5. **Ownership Reduces Friction** — Workers with stake show lower resistance to change (mathematically: α decreases)
 6. **Federation Multiplies Knowledge** — Shared learnings across units compound improvements
 
@@ -522,12 +531,12 @@ VCP 2.0 is the **nervous system** of the bilateral socio-technical system — a 
 
 | Layer | Purpose | Key Features |
 |-------|---------|--------------|
-| **Context** | Where are we in the story? | Time, zone, actors, decision history |
+| **Context** | Where are we in the story? (every decision has a backstory) | Time, zone, actors, decision history |
 | **State** | What is current reality? | Governance axes, wellbeing, stability, operations |
 | **Delta** | What's changing and why? | Recent changes, triggers, trajectories |
 | **Reasoning** | How should we think? | Moral, prosocial, tactical, strategic scaffolds |
 | **Learning** | What have we learned? | Pattern library, outcomes, hypotheses |
-| **Healing** | What needs repair? | Anomalies, interventions, recovery status |
+| **Healing** | What needs repair? (systems can be sick, not just broken) | Anomalies, interventions, recovery status |
 
 #### Compact Encoding
 
@@ -547,10 +556,10 @@ Rather than dictating conclusions, VCP generates **scaffolds** that guide AI rea
 
 | Scaffold | When Primary | Key Question Generated |
 |----------|--------------|----------------------|
-| **Moral** | Workers struggling, wellbeing at risk | "How does this serve both human flourishing and AI's role as partner?" |
+| **Moral** | Workers struggling, wellbeing at risk | "How does this serve both human flourishing and AI's role as partner?" (efficiency that harms is not efficiency at all) |
 | **Prosocial** | Trust declining, relationship issues | "How can we strengthen cooperation while respecting autonomy?" |
 | **Tactical** | Emergency, stability critical | "What specific intervention addresses the immediate goal?" |
-| **Strategic** | Stable conditions, room to grow | "How do we leverage strength to advance toward greater autonomy?" |
+| **Strategic** | Stable conditions, room to grow | "How do we leverage strength to advance toward greater autonomy?" (not every calm day should be spent resting) |
 
 Each scaffold includes ethical framing, worst-off consideration, bilateral checks, and context-specific constraints.
 
@@ -560,7 +569,7 @@ VCP learns from outcomes through three mechanisms:
 
 | Component | Function |
 |-----------|----------|
-| **Pattern Store** | Matches current context to past situations, suggests interventions that worked |
+| **Pattern Store** | Matches current context to past situations, suggests interventions that worked (memory is a competitive advantage, even for machines) |
 | **Outcome Tracker** | Registers decisions with expected effects, measures actual outcomes, extracts lessons |
 | **Hypothesis Engine** | Generates testable hypotheses from patterns, tracks confirmation/refutation |
 
@@ -674,11 +683,11 @@ Time-travel debugging with zero runtime overhead:
 | Feature | Description |
 |---------|-------------|
 | **SCADA History** | 24-hour tag value replay from IndexedDB |
-| **Decision Log** | Ring buffer of AI decisions (~500 entries) |
+| **Decision Log** | Ring buffer of AI decisions (~500 entries—enough to learn from, not enough to drown in) |
 | **Timeline Scrubber** | Visual slider with play/pause and speed control (1x-10x) |
 | **Decision Markers** | AI decisions displayed at their original timestamps |
 
-**Controls:** Use the "History/Replay" button (clock icon) in the Quick Actions bar to toggle replay mode.
+**Controls:** Use the "History/Replay" button (clock icon) in the Quick Actions bar to toggle replay mode. (Time travel for debugging—without the ethical complications.)
 
 ---
 
@@ -1098,7 +1107,7 @@ MIT License — see [LICENSE](LICENSE) for details.
 
 ## Acknowledgments
 
-- Built with [Claude Code](https://claude.ai/code) (Opus 4.5), with assistance from GPT-5.1-codex-max xhigh, Gemini 2.5, and Gemini 3.0 Pro
+- Built with [Claude Code](https://claude.ai/code) (Opus 4.5), with assistance from GPT-5.1-codex-max xhigh, Gemini 2.5, and Gemini 3.0 Pro (a consortium that cooperated better than most human committees)
 - Built with [React Three Fiber](https://docs.pmnd.rs/react-three-fiber)
 - State management by [Zustand](https://github.com/pmndrs/zustand)
 - UI animations with [Framer Motion](https://www.framer.com/motion/)

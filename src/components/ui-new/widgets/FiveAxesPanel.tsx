@@ -430,7 +430,7 @@ export const FiveAxesPanel: React.FC = () => {
         >
           <span className="flex items-center gap-1">
             <Info className="w-3 h-3" aria-hidden="true" />
-            About BAS
+            About BAMS
           </span>
           {showEducation ? (
             <ChevronUp className="w-3 h-3" aria-hidden="true" />
@@ -450,7 +450,7 @@ export const FiveAxesPanel: React.FC = () => {
             >
               <div className="mt-3 space-y-2 text-[9px] text-slate-400">
                 <p className="leading-relaxed">
-                  <strong className="text-cyan-400">Bilateral Autonomy System</strong> is a
+                  <strong className="text-cyan-400">Bilateral Alignment Management System (BAMS)</strong> is a
                   framework for democratic AI-human collaboration, inspired by Ricardo Semler&apos;s
                   radical workplace democracy and Mondragon&apos;s cooperative principles.
                 </p>

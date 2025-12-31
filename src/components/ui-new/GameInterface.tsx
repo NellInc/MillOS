@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Dock, DockMode } from './dock/Dock';
 import { ContextSidebar } from './sidebar/ContextSidebar';
 import { StatusHUD } from './hud/StatusHUD';
@@ -7,6 +7,11 @@ import { AlertSystem } from '../AlertSystem';
 import { MachineData, WorkerData } from '../../types';
 import { PAAnnouncementSystem, GamificationBar, MiniMap } from '../GameFeatures';
 import { useMobileDetection } from '../../hooks/useMobileDetection';
+import { Datalinks, AINarrationModal, UnlockNotificationContainer } from '../knowledge';
+import { FEATURE_FLAGS } from '../../config/featureFlags';
+import { useAINarrationStore } from '../../stores/aiNarrationStore';
+import { useKnowledgeStore } from '../../stores/knowledgeStore';
+import { useKnowledgeIntegration } from '../../hooks/useKnowledgeIntegration';
 
 interface GameInterfaceProps {
   productionSpeed: number;
@@ -42,6 +47,37 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
   // Local state for the Dock
   const [activeMode, setActiveMode] = React.useState<DockMode>('overview');
   const [sidebarVisible, setSidebarVisible] = React.useState(true);
+
+  // Datalinks modal state
+  const [datalinksOpen, setDatalinksOpen] = useState(false);
+
+  // AI Narration - get current narration to display
+  const { getNarration, markShown } = useAINarrationStore();
+  const { unlockEntry } = useKnowledgeStore();
+  const [currentNarration, setCurrentNarration] = useState<ReturnType<typeof getNarration>>(null);
+
+  // Knowledge system integration - handles unlock conditions and narrations
+  const knowledgeIntegration = useKnowledgeIntegration((narration) => {
+    // When the integration hook triggers a narration, show it
+    setCurrentNarration(narration);
+  });
+
+  // Handle Datalinks opened event - trigger narration and unlock
+  const handleDatalinksOpen = () => {
+    setDatalinksOpen(true);
+    knowledgeIntegration.triggerNarration('library-opened');
+  };
+
+  // Handle narration dismissal
+  const handleNarrationDismiss = () => {
+    if (currentNarration) {
+      markShown(currentNarration.id);
+      if (currentNarration.unlocksEntry) {
+        unlockEntry(currentNarration.unlocksEntry);
+      }
+    }
+    setCurrentNarration(null);
+  };
 
   // Sync external selection with Dock/Sidebar state
   useEffect(() => {
@@ -146,11 +182,17 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
       {/* 1. Top HUD Layer - Desktop only (draggable, complex interactions) */}
       {!isMobile && <StatusHUD />}
 
+
       {/* 2. Emergency Flasher - Always visible */}
       <EmergencyOverlay />
 
       {/* 3. Toast Notifications - Always visible */}
       <AlertSystem />
+
+      {/* 3b. Knowledge Unlock Notifications */}
+      {FEATURE_FLAGS.KNOWLEDGE_UNLOCK_TOASTS_ENABLED && (
+        <UnlockNotificationContainer onOpenLibrary={handleDatalinksOpen} />
+      )}
 
       {/* 4. Immersion Overlays - PA announcements work on mobile, others are desktop only */}
       <PAAnnouncementSystem />
@@ -158,7 +200,11 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
       {!isMobile && <MiniMap />}
 
       {/* 5. Bottom Dock - Always visible (adapts to mobile) */}
-      <Dock activeMode={activeMode} onModeChange={handleModeChange} />
+      <Dock
+        activeMode={activeMode}
+        onModeChange={handleModeChange}
+        onDatalinksOpen={FEATURE_FLAGS.KNOWLEDGE_LIBRARY_ENABLED ? handleDatalinksOpen : undefined}
+      />
 
       {/* 7. Right Context Sidebar - Desktop only (MobilePanel handles this on mobile) */}
       {!isMobile && (
@@ -173,6 +219,16 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
           showZones={showZones}
           setShowZones={setShowZones}
         />
+      )}
+
+      {/* 8. Datalinks Modal */}
+      {FEATURE_FLAGS.KNOWLEDGE_LIBRARY_ENABLED && (
+        <Datalinks isOpen={datalinksOpen} onClose={() => setDatalinksOpen(false)} />
+      )}
+
+      {/* 9. AI Narration Modal */}
+      {FEATURE_FLAGS.AI_NARRATION_ENABLED && currentNarration && (
+        <AINarrationModal narration={currentNarration} onDismiss={handleNarrationDismiss} />
       )}
     </div>
   );

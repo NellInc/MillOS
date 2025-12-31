@@ -539,7 +539,7 @@ export const BASTimeline: React.FC = () => {
       <div className="p-3 border-b border-slate-700/50">
         <div className="flex items-center gap-2">
           <History className="w-4 h-4 text-cyan-400" />
-          <span className="text-sm font-bold text-white">BAS Timeline</span>
+          <span className="text-sm font-bold text-white">BAMS Timeline</span>
           <span className="ml-auto text-[10px] text-slate-400">
             {filteredHistory.length} data points
           </span>
@@ -790,7 +790,7 @@ export const BASTimeline: React.FC = () => {
         >
           <span className="flex items-center gap-1">
             <Info className="w-3 h-3" />
-            About BAS Timeline
+            About BAMS Timeline
           </span>
           {showDetails ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
         </button>

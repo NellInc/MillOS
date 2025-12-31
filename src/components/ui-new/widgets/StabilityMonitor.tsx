@@ -268,7 +268,20 @@ export const StabilityMonitor: React.FC = () => {
             {trend.charAt(0).toUpperCase() + trend.slice(1)}
           </span>
         </div>
-        <p className="text-[10px] text-slate-400 mt-1">Wallace Stability Metrics (ατ &lt; 0.368)</p>
+        <p className="text-[10px] text-slate-400 mt-1">
+          Prof. Dr. Rodrick Wallace&apos;s Stability Metrics (ατ &lt; 0.368)
+        </p>
+        <p className="text-[9px] text-slate-500">
+          <a
+            href="https://www.researchgate.net/profile/Rodrick-Wallace"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-cyan-400 underline"
+          >
+            NY State Psychiatric Institute / Columbia
+          </a>{' '}
+          — Preprint (2025)
+        </p>
       </div>
 
       {/* Phase Indicator */}
@@ -494,9 +507,12 @@ export const StabilityMonitor: React.FC = () => {
             >
               <div className="mt-3 space-y-2 text-[9px] text-slate-400">
                 <p className="leading-relaxed">
-                  <strong className="text-green-400">Wallace&apos;s Stability Theory</strong> from
-                  Rate Distortion Control demonstrates that cognitive systems require regulatory
-                  pairing for stability.
+                  <strong className="text-green-400">
+                    Prof. Dr. Rodrick Wallace&apos;s Stability Theory
+                  </strong>{' '}
+                  from Rate Distortion Control demonstrates that cognitive systems require
+                  regulatory pairing for stability. Dr. Wallace is a Research Scientist at the New
+                  York State Psychiatric Institute (Columbia University).
                 </p>
                 <div className="bg-slate-800/30 rounded p-2">
                   <div className="flex items-center gap-1 font-bold text-white mb-1">
@@ -519,6 +535,34 @@ export const StabilityMonitor: React.FC = () => {
                     hierarchical (Detailed Command) structures. AI should enable worker autonomy,
                     not micromanage.
                   </p>
+                </div>
+                {/* References */}
+                <div className="bg-slate-800/30 rounded p-2 mt-2">
+                  <div className="font-bold text-white mb-1 text-[9px]">References</div>
+                  <p className="text-slate-400 italic leading-relaxed">
+                    Wallace, R. (2025). &quot;Fog, Friction, Delay and the Failure of Bounded
+                    Rationality Embodied Cognition: A formal study of generalized
+                    psychopathology.&quot; Preprint submitted to Elsevier. New York State
+                    Psychiatric Institute.
+                  </p>
+                  <div className="mt-1.5 flex flex-wrap gap-2">
+                    <a
+                      href="https://www.researchgate.net/profile/Rodrick-Wallace"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-cyan-400 hover:text-cyan-300 underline"
+                    >
+                      ResearchGate
+                    </a>
+                    <a
+                      href="https://scholar.google.com/citations?user=uI4FInkAAAAJ"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-cyan-400 hover:text-cyan-300 underline"
+                    >
+                      Google Scholar
+                    </a>
+                  </div>
                 </div>
               </div>
             </motion.div>

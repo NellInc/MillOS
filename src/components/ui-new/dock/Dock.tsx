@@ -11,6 +11,7 @@ import {
   Maximize,
   Minimize,
   Heart,
+  Database,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useUIStore } from '../../../stores/uiStore';
@@ -31,9 +32,10 @@ export type DockMode =
 interface DockProps {
   activeMode: DockMode;
   onModeChange: (mode: DockMode) => void;
+  onDatalinksOpen?: () => void;
 }
 
-export const Dock: React.FC<DockProps> = ({ activeMode, onModeChange }) => {
+export const Dock: React.FC<DockProps> = ({ activeMode, onModeChange, onDatalinksOpen }) => {
   const fpsMode = useUIStore((state) => state.fpsMode);
   const toggleFpsMode = useUIStore((state) => state.toggleFpsMode);
   const isMultiplayerActive = useIsMultiplayerActive();
@@ -153,7 +155,7 @@ export const Dock: React.FC<DockProps> = ({ activeMode, onModeChange }) => {
       <DockItem
         mode="management"
         icon={<Heart />}
-        label="BAS"
+        label="BAMS"
         isActive={activeMode === 'management'}
         onClick={() => handleModeChange('management')}
         isMobile={isMobile}
@@ -186,6 +188,20 @@ export const Dock: React.FC<DockProps> = ({ activeMode, onModeChange }) => {
 
       {/* Divider */}
       <div className="w-px h-6 bg-white/10" />
+
+      {/* Datalinks Button */}
+      {onDatalinksOpen && (
+        <button
+          onClick={onDatalinksOpen}
+          aria-label="Datalinks (L)"
+          title="Datalinks (L)"
+          className={`relative rounded-xl transition-all ${
+            isMobile ? 'p-2 min-w-[44px] min-h-[44px]' : 'p-3'
+          } text-slate-400 hover:text-white hover:bg-white/5`}
+        >
+          <Database />
+        </button>
+      )}
 
       {/* First Person Mode Toggle */}
       <button

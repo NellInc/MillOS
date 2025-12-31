@@ -1,7 +1,7 @@
 /**
- * Educational Content System for Bilateral Autonomy System
+ * Educational Content System for Bilateral Alignment Management System (BAMS)
  *
- * Provides tooltip definitions for key BAS concepts including:
+ * Provides tooltip definitions for key BAMS concepts including:
  * - Wallace Stability (mathematical foundations)
  * - Mondragon Principles (cooperative ownership)
  * - Semler Practices (radical workplace democracy)
@@ -34,7 +34,7 @@ export type ConceptCategory =
   | 'semler'
   | 'bilateral'
   | 'flourishing'
-  | 'bas';
+  | 'bams';
 
 // =============================================================================
 // WALLACE STABILITY CONCEPTS
@@ -44,7 +44,7 @@ export const wallaceStability: ConceptTooltipContent = {
   id: 'wallace-stability',
   title: 'Wallace Stability',
   shortDescription: 'System stability requires the friction-delay product to remain below 0.368.',
-  fullExplanation: `Wallace's Rate Distortion Control Theory establishes that cognitive systems require regulatory pairing for stability. The critical threshold is:
+  fullExplanation: `Prof. Dr. Rodrick Wallace's Rate Distortion Control Theory establishes that cognitive systems require regulatory pairing for stability. The critical threshold is:
 
 ατ < e⁻¹ ≈ 0.368
 
@@ -58,14 +58,16 @@ AI reduces both factors:
 - Friction drops through automated coordination
 - Delay drops through real-time feedback
 
-The engagement signature (work feeling "like a game but producing something real") is diagnostic of genuinely low friction, not suppressed friction.`,
+The engagement signature (work feeling "like a game but producing something real") is diagnostic of genuinely low friction, not suppressed friction.
+
+Dr. Wallace is a Research Scientist at the New York State Psychiatric Institute (Division of Epidemiology), affiliated with Columbia University's Department of Psychiatry. His interdisciplinary work spans information theory, control theory, and cognitive science.`,
   relatedConcepts: [
     'stability-threshold',
     'mission-command',
     'engagement-signature',
     'phase-transition',
   ],
-  source: 'Wallace, R. (2025). Fog, Friction, Delay and the Failure of Bounded Rationality',
+  source: 'Wallace, R. (2025). Fog, Friction, Delay and the Failure of Bounded Rationality Embodied Cognition. Preprint, New York State Psychiatric Institute. [researchgate.net/profile/Rodrick-Wallace]',
   category: 'wallace',
 };
 
@@ -82,9 +84,9 @@ Practical meaning:
 
 This isn't a gradual degradation. Systems that cross this threshold experience sudden mode shifts - like ice melting to water. The transition can be catastrophic.
 
-BAS continuously monitors this product and recommends interventions when approaching the threshold.`,
+BAMS continuously monitors this product and recommends interventions when approaching the threshold.`,
   relatedConcepts: ['wallace-stability', 'phase-transition', 'friction', 'delay'],
-  source: 'Wallace stability condition (Eq. 20)',
+  source: 'Wallace, R. (2025). Fog, Friction, Delay... Preprint (Eq. 20)',
   category: 'wallace',
 };
 
@@ -92,7 +94,7 @@ export const missionCommand: ConceptTooltipContent = {
   id: 'mission-command',
   title: 'Mission vs Detailed Command',
   shortDescription: 'Autonomous structures outperform hierarchical ones under stress.',
-  fullExplanation: `Wallace's analysis of command structures reveals a crucial insight:
+  fullExplanation: `Prof. Dr. Rodrick Wallace's analysis of command structures reveals a crucial insight:
 
 Mission Command (Boltzmann distribution):
 - One-step decision process
@@ -110,7 +112,7 @@ The message is clear: AI should enable mission command (workers with clear objec
 
 High autonomy isn't just ethically preferable - it's mathematically more stable.`,
   relatedConcepts: ['wallace-stability', 'autonomy-level', 'friction'],
-  source: 'Wallace Figure 3 analysis',
+  source: 'Wallace, R. (2025). Fog, Friction, Delay... Preprint (Figure 3)',
   category: 'wallace',
 };
 
@@ -132,7 +134,7 @@ Unlike gradual degradation, phase transitions happen quickly once the threshold 
 - Divergence between structure and perception stabilization
 - Approach to the ατ = 0.368 threshold
 
-BAS monitors for these indicators and alerts before transitions occur. The key is intervention BEFORE crossing the threshold, not after.`,
+BAMS monitors for these indicators and alerts before transitions occur. The key is intervention BEFORE crossing the threshold, not after.`,
   relatedConcepts: ['wallace-stability', 'stability-threshold'],
   category: 'wallace',
 };
@@ -155,7 +157,7 @@ Diagnostic: If workers report "it feels like a game but produces something real,
 
 This connects to self-determination theory: autonomous motivation produces lower friction than controlled motivation.`,
   relatedConcepts: ['wallace-stability', 'friction', 'bilateral-alignment'],
-  source: 'BAS Spec Section 6.4 - The Engagement Effect on α',
+  source: 'BAMS Spec Section 6.4 - The Engagement Effect on α',
   category: 'wallace',
 };
 
@@ -215,7 +217,7 @@ Why it matters:
 - Creates genuine stake in collective success
 - Demonstrates values in practice
 
-In BAS, the Wage Solidarity gauge shows current ratio vs. target vs. ceiling, with warnings when approaching limits.`,
+In BAMS, the Wage Solidarity gauge shows current ratio vs. target vs. ceiling, with warnings when approaching limits.`,
   relatedConcepts: ['mondragon-principles', 'self-set-compensation', 'equity-index'],
   category: 'mondragon',
 };
@@ -229,7 +231,7 @@ export const interCooperation: ConceptTooltipContent = {
 Knowledge Sharing:
 - Best practices propagate across units
 - AI learnings transfer between mills
-- BAS configurations can be adopted from similar successful units
+- BAMS configurations can be adopted from similar successful units
 
 Resource Sharing:
 - Capital pools for collective investment
@@ -381,7 +383,7 @@ Why it matters:
 
 Wallace connection: Equal H (information rate) enables equipartition stability. Unequal information distribution creates instability.
 
-The Information Access axis in BAS controls this (0% = need-to-know, 100% = everything visible). Democratic workplaces typically operate at 80%+.`,
+The Information Access axis in BAMS controls this (0% = need-to-know, 100% = everything visible). Democratic workplaces typically operate at 80%+.`,
   relatedConcepts: ['semler-principles', 'information-access', 'wallace-stability'],
   category: 'semler',
 };
@@ -576,7 +578,7 @@ What decreases agency:
 - No visibility into impact
 - Micromanagement and surveillance
 
-BAS axes directly affect agency:
+BAMS axes directly affect agency:
 - Autonomy Level: More autonomy = more agency
 - Decision Mode: More democracy = more agency
 - Evaluation Direction: Workers rating AI = more agency
@@ -587,7 +589,7 @@ Agency isn't just ethically important - it reduces friction because autonomous m
 };
 
 // =============================================================================
-// BAS SYSTEM CONCEPTS
+// BAMS SYSTEM CONCEPTS
 // =============================================================================
 
 export const valueFormula: ConceptTooltipContent = {
@@ -623,7 +625,7 @@ Why multiplication? Because all factors are necessary:
 
 Estimated improvement over traditional management: ~88x (illustrative).`,
   relatedConcepts: ['wallace-stability', 'flourishing-dimensions', 'equity-index'],
-  category: 'bas',
+  category: 'bams',
 };
 
 export const fiveAxes: ConceptTooltipContent = {
@@ -660,7 +662,7 @@ Presets:
 - Democratic: Worker-led, AI as servant
 - Experimental: Maximum autonomy`,
   relatedConcepts: ['autonomy-level', 'bilateral-alignment', 'wallace-stability'],
-  category: 'bas',
+  category: 'bams',
 };
 
 // =============================================================================

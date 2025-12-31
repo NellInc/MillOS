@@ -27,7 +27,7 @@ describe('Dock Component', () => {
     expect(screen.getByLabelText('AI Command')).toBeInTheDocument();
     expect(screen.getByLabelText('SCADA System')).toBeInTheDocument();
     expect(screen.getByLabelText('Workforce')).toBeInTheDocument();
-    expect(screen.getByLabelText('BAS')).toBeInTheDocument();
+    expect(screen.getByLabelText('BAMS')).toBeInTheDocument();
     expect(screen.getByLabelText('Multiplayer')).toBeInTheDocument();
     expect(screen.getByLabelText('Safety & Emergency')).toBeInTheDocument();
     expect(screen.getByLabelText('Settings')).toBeInTheDocument();
