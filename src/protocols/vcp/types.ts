@@ -545,6 +545,59 @@ export interface VCPMessage {
 }
 
 // =============================================================================
+// CROSS-SYSTEM TYPES (Universal VCP header interop)
+// =============================================================================
+
+/** Signal source provenance — how this state was obtained. */
+export type SignalSource =
+  | 'sensor'       // IoT/wearable device data (maps to VCP 'measured')
+  | 'supervisor'   // Manual supervisor override (maps to VCP 'declared')
+  | 'self_report'  // Worker self-reported via form (maps to VCP 'elicitation')
+  | 'system'       // System analysis/inference (maps to VCP 'inferred')
+  | 'preset';      // Shift template/default (maps to VCP 'preset')
+
+/** Maps source codes from universal headers to MillOS sources. */
+export const UNIVERSAL_SOURCE_MAP: Record<string, SignalSource> = {
+  E: 'self_report',  // elicitation → worker self-report
+  D: 'supervisor',   // declared → supervisor override
+  I: 'system',       // inferred → system analysis
+  M: 'sensor',       // measured → IoT/wearable sensor
+  P: 'preset',       // preset → shift template
+  S: 'preset',       // stale → treat as default/preset
+};
+
+/** Maps MillOS sources to universal header source codes. */
+export const SOURCE_TO_UNIVERSAL: Record<SignalSource, string> = {
+  sensor: 'M',       // sensor → measured (VCP 3.1.2)
+  supervisor: 'D',   // supervisor → declared
+  self_report: 'E',  // worker self-report → elicitation
+  system: 'I',       // system → inferred
+  preset: 'P',       // preset → preset
+};
+
+/** Subject types from the universal VCP header. */
+export type UniversalSubject = 'I' | 'U' | 'H' | 'M' | 'W';
+
+/**
+ * Cross-system VCP state from a universal header.
+ * Parsed from: [SUBJECT:AVGL|Y:agency|F:freshness|P:pref|S:source|C:conf%|T:timestamp]
+ */
+export interface UniversalVCPHeader {
+  subject: UniversalSubject;
+  activation: number;     // 1-9
+  valence: number;        // 1-9
+  groundedness: number;   // 1-9
+  presence: number;       // 1-9
+  agency: number;         // 1-9
+  freshness: number;      // 1-9 (inverse fatigue)
+  preferenceMarker: string; // ✅/✋/❌
+  source?: SignalSource;  // Provenance (from S: segment)
+  sourceCode?: string;    // Raw source code (E/D/I/P/S)
+  confidence: number;     // 0-100
+  timestamp: string;      // ISO 8601 (truncated to 19 chars)
+}
+
+// =============================================================================
 // ENCODED FORMS (Compact representations)
 // =============================================================================
 

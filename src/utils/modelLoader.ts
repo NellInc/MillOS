@@ -67,9 +67,6 @@ export type ModelType = keyof typeof MODEL_PATHS;
 // All models disabled - using procedural fallback geometry instead
 // This prevents 404 floods on GitHub Pages where models aren't deployed
 const DISABLED_MODELS: ModelType[] = [
-  'forklift', // Using procedural fallback
-  'worker', // Using procedural fallback
-  'silo', // Using procedural fallback
   'rollerMill', // Using procedural fallback
   'plansifter', // Using procedural fallback
   'packer', // Using procedural fallback

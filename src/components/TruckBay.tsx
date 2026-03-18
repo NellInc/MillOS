@@ -7,11 +7,7 @@ import { audioManager } from '../utils/audioManager';
 import { useProductionStore } from '../stores/productionStore';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import { useGraphicsStore } from '../stores/graphicsStore';
-import {
-  FLOOR_LAYERS,
-  POLYGON_OFFSET,
-  RENDER_ORDER,
-} from '../constants/renderLayers';
+import { FLOOR_LAYERS, POLYGON_OFFSET, RENDER_ORDER } from '../constants/renderLayers';
 import {
   OptimizedTrafficConeInstances,
   OptimizedBollardInstances,
@@ -682,7 +678,11 @@ export const EmployeeParking: React.FC<{
     {[0, 1, 2, 3, 4, 5, 6, 7].map((_: unknown, i: number) => (
       <group key={i} position={[-10 + i * 3, 0, 0]}>
         {/* Vertical stripe */}
-        <mesh position={[0, 0.09, 0]} rotation={[-Math.PI / 2, 0, 0]} renderOrder={RENDER_ORDER.floorMarkings}>
+        <mesh
+          position={[0, 0.09, 0]}
+          rotation={[-Math.PI / 2, 0, 0]}
+          renderOrder={RENDER_ORDER.floorMarkings}
+        >
           <planeGeometry args={[0.1, 5]} />
           <meshBasicMaterial
             color="#fef3c7"
@@ -693,7 +693,11 @@ export const EmployeeParking: React.FC<{
           />
         </mesh>
         {/* Horizontal stripe at back */}
-        <mesh position={[1.5, 0.09, -2.4]} rotation={[-Math.PI / 2, 0, 0]} renderOrder={RENDER_ORDER.floorMarkings}>
+        <mesh
+          position={[1.5, 0.09, -2.4]}
+          rotation={[-Math.PI / 2, 0, 0]}
+          renderOrder={RENDER_ORDER.floorMarkings}
+        >
           <planeGeometry args={[3, 0.1]} />
           <meshBasicMaterial
             color="#fef3c7"
@@ -708,16 +712,42 @@ export const EmployeeParking: React.FC<{
     {/* Handicap spaces - 2 at end */}
     {[0, 1].map((_: unknown, i: number) => (
       <group key={i} position={[10 + i * 3.5, 0, 0]}>
-        <mesh position={[0, 0.09, 0]} rotation={[-Math.PI / 2, 0, 0]} renderOrder={RENDER_ORDER.floorMarkings}>
+        <mesh
+          position={[0, 0.09, 0]}
+          rotation={[-Math.PI / 2, 0, 0]}
+          renderOrder={RENDER_ORDER.floorMarkings}
+        >
           <planeGeometry args={[0.15, 5]} />
-          <meshBasicMaterial color="#3b82f6" depthWrite={false} polygonOffset polygonOffsetFactor={-3} polygonOffsetUnits={-3} />
+          <meshBasicMaterial
+            color="#3b82f6"
+            depthWrite={false}
+            polygonOffset
+            polygonOffsetFactor={-3}
+            polygonOffsetUnits={-3}
+          />
         </mesh>
         {/* Handicap symbol (simplified) */}
-        <mesh position={[1.5, 0.10, -1]} rotation={[-Math.PI / 2, 0, 0]} renderOrder={RENDER_ORDER.floorMarkings}>
+        <mesh
+          position={[1.5, 0.1, -1]}
+          rotation={[-Math.PI / 2, 0, 0]}
+          renderOrder={RENDER_ORDER.floorMarkings}
+        >
           <circleGeometry args={[0.5, 16]} />
-          <meshBasicMaterial color="#3b82f6" depthWrite={false} polygonOffset polygonOffsetFactor={-4} polygonOffsetUnits={-4} />
+          <meshBasicMaterial
+            color="#3b82f6"
+            depthWrite={false}
+            polygonOffset
+            polygonOffsetFactor={-4}
+            polygonOffsetUnits={-4}
+          />
         </mesh>
-        <Text position={[1.5, 0.11, -1]} rotation={[-Math.PI / 2, 0, 0]} fontSize={0.6} color="#ffffff" anchorX="center">
+        <Text
+          position={[1.5, 0.11, -1]}
+          rotation={[-Math.PI / 2, 0, 0]}
+          fontSize={0.6}
+          color="#ffffff"
+          anchorX="center"
+        >
           P
         </Text>
       </group>
@@ -2180,7 +2210,7 @@ const RoadTunnel: React.FC<{
 };
 
 // Pallet staging area with stacked pallets
-const PalletStaging: React.FC<{ position: [number, number, number] }> = ({ position }) => (
+export const PalletStaging: React.FC<{ position: [number, number, number] }> = ({ position }) => (
   <group position={position}>
     {/* Ground marking - raised and with polygon offset to prevent z-fighting */}
     <mesh
@@ -2243,7 +2273,7 @@ const PalletStaging: React.FC<{ position: [number, number, number] }> = ({ posit
 );
 
 // Roll-up dock door component
-const RollUpDoor: React.FC<{
+export const RollUpDoor: React.FC<{
   position: [number, number, number];
   isOpen: boolean;
 }> = ({ position, isOpen }) => {
@@ -2308,7 +2338,7 @@ const RollUpDoor: React.FC<{
 };
 
 // Dock shelter (compresses against trailer)
-const DockShelter: React.FC<{
+export const DockShelter: React.FC<{
   position: [number, number, number];
   isCompressed: boolean;
 }> = ({ position, isCompressed }) => {
@@ -3555,7 +3585,7 @@ export const TruckBay: React.FC<TruckBayProps> = ({ productionSpeed }) => {
 };
 
 // Realistic truck with all the bells and whistles
-const RealisticTruck: React.FC<{
+export const RealisticTruck: React.FC<{
   color: string;
   company: string;
   plateNumber: string;

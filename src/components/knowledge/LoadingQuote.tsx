@@ -54,12 +54,8 @@ export function LoadingQuote({
         transition={{ duration: 0.5 }}
         className={`text-center ${className}`}
       >
-        {showIcon && (
-          <Quote className="w-6 h-6 text-amber-500/50 mx-auto mb-3" />
-        )}
-        <p className="text-lg text-slate-300 italic mb-2 max-w-lg mx-auto">
-          "{quote.text}"
-        </p>
+        {showIcon && <Quote className="w-6 h-6 text-amber-500/50 mx-auto mb-3" />}
+        <p className="text-lg text-slate-300 italic mb-2 max-w-lg mx-auto">"{quote.text}"</p>
         <p className="text-sm text-slate-500">— {quote.author}</p>
       </motion.div>
     </AnimatePresence>
@@ -85,9 +81,7 @@ export function StaticQuote({ quote, size = 'md', className = '' }: StaticQuoteP
   return (
     <div className={`${className}`}>
       <Quote className="w-5 h-5 text-amber-500/50 mb-2" />
-      <p className={`text-slate-300 italic mb-1 ${sizeClasses[size]}`}>
-        "{quote.text}"
-      </p>
+      <p className={`text-slate-300 italic mb-1 ${sizeClasses[size]}`}>"{quote.text}"</p>
       <p className="text-sm text-slate-500">— {quote.author}</p>
     </div>
   );

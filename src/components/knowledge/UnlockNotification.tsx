@@ -73,9 +73,7 @@ export function UnlockNotification({
                 <BookOpen className="w-5 h-5 text-amber-400" />
               </div>
               <div className="flex-1">
-                <p className="text-xs text-amber-400 font-medium">
-                  New Knowledge Unlocked
-                </p>
+                <p className="text-xs text-amber-400 font-medium">New Knowledge Unlocked</p>
                 <p className="text-sm text-white font-semibold truncate">
                   {entry.icon} {entry.title}
                 </p>
@@ -90,9 +88,7 @@ export function UnlockNotification({
 
             {/* Content */}
             <div className="px-4 py-3">
-              {reason && (
-                <p className="text-xs text-slate-400 mb-2">{reason}</p>
-              )}
+              {reason && <p className="text-xs text-slate-400 mb-2">{reason}</p>}
               <p className="text-sm text-slate-300 line-clamp-2">{entry.tooltip}</p>
             </div>
 
@@ -167,11 +163,7 @@ export function useUnlockNotifications() {
  * Auto-managing unlock notification container
  * Listens for new entries and shows notifications
  */
-export function UnlockNotificationContainer({
-  onOpenLibrary,
-}: {
-  onOpenLibrary?: () => void;
-}) {
+export function UnlockNotificationContainer({ onOpenLibrary }: { onOpenLibrary?: () => void }) {
   const { newEntries, getEntry, clearNewBadge, showUnlockNotifications } = useKnowledgeStore();
   const [current, setCurrent] = useState<KnowledgeEntry | null>(null);
   const [queue, setQueue] = useState<string[]>([]);
@@ -181,9 +173,7 @@ export function UnlockNotificationContainer({
   useEffect(() => {
     if (!showUnlockNotifications) return;
 
-    const newIds = Array.from(newEntries).filter(
-      (id) => !processedRef.has(id)
-    );
+    const newIds = Array.from(newEntries).filter((id) => !processedRef.has(id));
 
     if (newIds.length > 0) {
       newIds.forEach((id) => processedRef.add(id));
@@ -222,11 +212,5 @@ export function UnlockNotificationContainer({
     return null;
   }
 
-  return (
-    <UnlockNotification
-      entry={current}
-      onReadNow={handleReadNow}
-      onDismiss={handleDismiss}
-    />
-  );
+  return <UnlockNotification entry={current} onReadNow={handleReadNow} onDismiss={handleDismiss} />;
 }

@@ -13,6 +13,11 @@ import { useShallow } from 'zustand/react/shallow';
 import { useWorkerMoodStore } from '../stores/workerMoodStore';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import { useGraphicsStore } from '../stores/graphicsStore';
+import { useSafetyReportStore } from '../stores/safetyReportStore';
+import { useEmergentCooperationStore } from '../stores/emergentCooperationStore';
+import { useBreakdownStore } from '../stores/breakdownStore';
+import { useProductionStore } from '../stores/productionStore';
+import { useFlourishingStore } from '../stores/flourishingStore';
 import type { MoodState } from '../types';
 import { Heart, Frown, Smile, Moon, Utensils } from 'lucide-react';
 
@@ -527,7 +532,6 @@ export const useMoodSimulation = () => {
  * - Emergent cooperation store (action completion, random triggers)
  */
 export const useBilateralAlignmentSimulation = () => {
-  // Import stores lazily to avoid circular dependencies
   const lastTickRef = useRef(Date.now());
   const isTabVisible = useGameSimulationStore((state) => state.isTabVisible);
   const graphicsQuality = useGraphicsStore((state) => state.graphics.quality);
@@ -544,54 +548,14 @@ export const useBilateralAlignmentSimulation = () => {
     if (deltaMs >= 5000) {
       const deltaMinutes = deltaMs / 1000; // Convert to game minutes
 
-      // Lazy import to avoid circular deps and reduce initial bundle
-      import('../stores/safetyReportStore')
-        .then(({ useSafetyReportStore }) => {
-          useSafetyReportStore.getState().tickSafetySimulation(deltaMinutes);
-        })
-        .catch(() => {
-          // Failed to import safetyReportStore - silently continue
-        });
+      useSafetyReportStore.getState().tickSafetySimulation(deltaMinutes);
+      useEmergentCooperationStore.getState().tickEmergentCooperation(deltaMinutes);
 
-      import('../stores/emergentCooperationStore')
-        .then(({ useEmergentCooperationStore }) => {
-          useEmergentCooperationStore.getState().tickEmergentCooperation(deltaMinutes);
-        })
-        .catch(() => {
-          // Failed to import emergentCooperationStore - silently continue
-        });
+      const machines = useProductionStore.getState().machines;
+      const gameTime = useGameSimulationStore.getState().gameTime;
+      useBreakdownStore.getState().tickBreakdownSimulation(gameTime, machines);
 
-      // Phase 3: Add breakdown simulation ticking
-      import('../stores/breakdownStore')
-        .then(({ useBreakdownStore }) => {
-          import('../stores/productionStore')
-            .then(({ useProductionStore }) => {
-              import('../stores/gameSimulationStore')
-                .then(({ useGameSimulationStore }) => {
-                  const machines = useProductionStore.getState().machines;
-                  const gameTime = useGameSimulationStore.getState().gameTime;
-                  useBreakdownStore.getState().tickBreakdownSimulation(gameTime, machines);
-                })
-                .catch(() => {
-                  // Failed to import gameSimulationStore - silently continue
-                });
-            })
-            .catch(() => {
-              // Failed to import productionStore - silently continue
-            });
-        })
-        .catch(() => {
-          // Failed to import breakdownStore - silently continue
-        });
-
-      // Phase 3: Add flourishing dimension drift
-      import('../stores/flourishingStore')
-        .then(({ useFlourishingStore }) => {
-          useFlourishingStore.getState().tickFlourishing(deltaMinutes);
-        })
-        .catch(() => {
-          // Failed to import flourishingStore - silently continue
-        });
+      useFlourishingStore.getState().tickFlourishing(deltaMinutes);
 
       lastTickRef.current = now;
     }

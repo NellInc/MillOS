@@ -83,9 +83,19 @@ export type {
   DecisionContext,
   ExpandedGuidance,
   DecisionType,
+
+  // Cross-system interop
+  SignalSource,
+  UniversalSubject,
+  UniversalVCPHeader,
 } from './types';
 
-export { DECISION_LAYER_MAP, VCP_SYMBOLS } from './types';
+export {
+  DECISION_LAYER_MAP,
+  VCP_SYMBOLS,
+  UNIVERSAL_SOURCE_MAP,
+  SOURCE_TO_UNIVERSAL,
+} from './types';
 
 // =============================================================================
 // GENERATOR EXPORTS
@@ -136,6 +146,7 @@ export {
   encodeHealingSignals,
   encodeVCPMessage,
   encodeForDecisionType,
+  encodeUniversalHeader,
 } from './encoder';
 
 export {
@@ -145,6 +156,8 @@ export {
   decodeReasoningScaffolds,
   decodeVCPMessage,
   validateEncodedVCP,
+  decodeUniversalHeader,
+  hasUniversalHeader,
 } from './decoder';
 
 // =============================================================================

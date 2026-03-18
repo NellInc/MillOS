@@ -967,6 +967,20 @@ export const WORKER_ROSTER: Omit<WorkerData, 'position' | 'direction'>[] = [
   },
 ];
 
+export function createInitialWorkers(): WorkerData[] {
+  const aisles = [10, -10, 0];
+
+  return WORKER_ROSTER.map((roster, i) => ({
+    ...roster,
+    position: [
+      aisles[i % aisles.length] + (Math.random() - 0.5) * 4,
+      0,
+      Math.random() * 40 - 20,
+    ] as [number, number, number],
+    direction: (Math.random() > 0.5 ? 1 : -1) as 1 | -1,
+  }));
+}
+
 // =============================================================================
 // BILATERAL AUTONOMY SYSTEM (BAS) RE-EXPORTS
 // For convenience, re-export all BAS types from types/bas.ts

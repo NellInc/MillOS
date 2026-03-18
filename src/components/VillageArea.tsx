@@ -206,11 +206,7 @@ const SM = {
 
 // ===== CHIMNEY SMOKE =====
 // PERF FIX: Pre-create smoke materials at module level to avoid clone() in render
-const smokeMaterials = [
-  SM.smoke.clone(),
-  SM.smoke.clone(),
-  SM.smoke.clone(),
-];
+const smokeMaterials = [SM.smoke.clone(), SM.smoke.clone(), SM.smoke.clone()];
 
 const ChimneySmoke: React.FC<{ position: [number, number, number]; offset?: number }> = ({
   position,
@@ -252,7 +248,7 @@ const ChimneySmoke: React.FC<{ position: [number, number, number]; offset?: numb
 };
 
 // ===== COTTAGE =====
-const Cottage = React.memo<{
+export const Cottage = React.memo<{
   position: [number, number, number];
   rotation?: number;
   wallColor?: keyof typeof SM;
@@ -686,7 +682,7 @@ const TownHallClock: React.FC<{ position: [number, number, number]; isNight: boo
 TownHallClock.displayName = 'TownHallClock';
 
 // ===== TOWN HALL =====
-const TownHall = React.memo<{ position: [number, number, number]; rotation?: number }>(
+export const TownHall = React.memo<{ position: [number, number, number]; rotation?: number }>(
   ({ position, rotation = 0 }) => {
     // PERF: Use shallow equality to only re-render on day/night switch, not every tick
     const isNight = useGameSimulationStore(

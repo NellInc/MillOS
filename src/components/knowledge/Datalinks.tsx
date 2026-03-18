@@ -50,27 +50,27 @@ import {
 
 // Icon mapping from KnowledgeIcon to Lucide component
 const ICON_MAP: Record<KnowledgeIcon, LucideIcon> = {
-  'handshake': Handshake,
+  handshake: Handshake,
   'heart-handshake': HeartHandshake,
-  'vote': Vote,
+  vote: Vote,
   'flower-2': Flower2,
-  'sparkles': Sparkles,
-  'user': User,
-  'settings': Settings,
-  'sliders': Sliders,
+  sparkles: Sparkles,
+  user: User,
+  settings: Settings,
+  sliders: Sliders,
   'chart-bar': BarChart3,
   'refresh-cw': RefreshCw,
-  'network': Network,
-  'heart': Heart,
-  'factory': Factory,
+  network: Network,
+  heart: Heart,
+  factory: Factory,
   'book-open': BookOpen,
-  'scale': Scale,
-  'brain': Brain,
+  scale: Scale,
+  brain: Brain,
   'gamepad-2': Gamepad2,
-  'sprout': Sprout,
-  'users': Users,
-  'cog': Settings,
-  'library': Library,
+  sprout: Sprout,
+  users: Users,
+  cog: Settings,
+  library: Library,
 };
 
 import { KnowledgeEntryCard } from './KnowledgeEntryCard';
@@ -95,8 +95,7 @@ export function Datalinks({ isOpen, onClose }: DatalinksProps) {
     new Set(['principles', 'pioneers', 'systems', 'case-studies'])
   );
 
-  const { isNew, clearNewBadge, markAsRead, getUnlockedCount, getTotalCount } =
-    useKnowledgeStore();
+  const { isNew, clearNewBadge, markAsRead, getUnlockedCount, getTotalCount } = useKnowledgeStore();
 
   // Filter entries based on search and category
   const filteredEntries = useMemo(() => {
@@ -182,7 +181,9 @@ export function Datalinks({ isOpen, onClose }: DatalinksProps) {
                 <Database className="w-6 h-6 text-slate-400" />
                 <div>
                   <h2 className="text-xl font-semibold text-white tracking-wide">DATALINKS</h2>
-                  <p className="text-[10px] text-slate-500 uppercase tracking-widest">Bilateral Alignment Management System Database</p>
+                  <p className="text-[10px] text-slate-500 uppercase tracking-widest">
+                    Bilateral Alignment Management System Database
+                  </p>
                 </div>
                 <span className="px-2 py-0.5 text-xs bg-slate-700 rounded-full text-slate-300 ml-2">
                   {getUnlockedCount()} / {getTotalCount()} entries
@@ -260,13 +261,14 @@ export function Datalinks({ isOpen, onClose }: DatalinksProps) {
                           ) : (
                             <ChevronRight className="w-4 h-4 text-slate-500" />
                           )}
-                          <KnowledgeIconComponent icon={getCategoryIcon(category)} className="w-4 h-4 text-slate-400" />
+                          <KnowledgeIconComponent
+                            icon={getCategoryIcon(category)}
+                            className="w-4 h-4 text-slate-400"
+                          />
                           <span className="font-medium text-slate-200">
                             {getCategoryLabel(category)}
                           </span>
-                          <span className="ml-auto text-xs text-slate-500">
-                            {entries.length}
-                          </span>
+                          <span className="ml-auto text-xs text-slate-500">{entries.length}</span>
                         </button>
 
                         {isExpanded && (
@@ -292,7 +294,10 @@ export function Datalinks({ isOpen, onClose }: DatalinksProps) {
                                       className="w-6 h-6 rounded-full object-cover border border-slate-600"
                                     />
                                   ) : (
-                                    <KnowledgeIconComponent icon={entry.icon} className="w-4 h-4 text-slate-400" />
+                                    <KnowledgeIconComponent
+                                      icon={entry.icon}
+                                      className="w-4 h-4 text-slate-400"
+                                    />
                                   )}
                                   <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-2">
@@ -325,7 +330,7 @@ export function Datalinks({ isOpen, onClose }: DatalinksProps) {
                     entry={selectedEntry}
                     onClose={() => setSelectedEntry(null)}
                     onNavigate={(entryId) => {
-                      const entry = KNOWLEDGE_ENTRIES.find(e => e.id === entryId);
+                      const entry = KNOWLEDGE_ENTRIES.find((e) => e.id === entryId);
                       if (entry) {
                         setSelectedEntry(entry);
                         markAsRead(entry.id);

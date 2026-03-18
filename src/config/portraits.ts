@@ -130,9 +130,7 @@ export function getPortrait(id: string): PortraitConfig | undefined {
 /**
  * Get portraits by category
  */
-export function getPortraitsByCategory(
-  category: PortraitConfig['category']
-): PortraitConfig[] {
+export function getPortraitsByCategory(category: PortraitConfig['category']): PortraitConfig[] {
   return PORTRAITS.filter((p) => p.category === category);
 }
 

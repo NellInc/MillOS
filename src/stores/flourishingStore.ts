@@ -29,7 +29,9 @@ import type {
   FactoryFlourishing,
 } from '../types/bas';
 import { DEFAULT_WORKER_PREFERENCES, WORKER_ROSTER } from '../types';
+import { useBASStore } from './basStore';
 import { useProductionStore } from './productionStore';
+import { useWorkerMoodStore } from './workerMoodStore';
 
 // =============================================================================
 // DIMENSION DESCRIPTORS
@@ -123,10 +125,11 @@ function geometricMean(values: number[]): number {
  */
 function determineTrend(
   events: FlourishingEvent[],
-  dimension: FlourishingDimensionKey
+  dimension: FlourishingDimensionKey,
+  now: number = Date.now()
 ): 'improving' | 'stable' | 'declining' {
   const recentEvents = events
-    .filter((e) => e.dimension === dimension && Date.now() - e.timestamp < 24 * 60 * 60 * 1000)
+    .filter((e) => e.dimension === dimension && now - e.timestamp < 24 * 60 * 60 * 1000)
     .slice(-5);
 
   if (recentEvents.length < 2) return 'stable';
@@ -171,6 +174,17 @@ function createInitialWorkerFlourishing(workerId: string, workerIndex: number): 
   };
 }
 
+function calculateWorkerFlourishingScore(worker: WorkerFlourishing): number {
+  return geometricMean([
+    worker.meaning.score,
+    worker.mastery.score,
+    worker.connection.score,
+    worker.joy.score,
+    worker.wholeness.score,
+    worker.agency.score,
+  ]);
+}
+
 /**
  * Generate initial flourishing data for all workers
  */
@@ -180,14 +194,7 @@ function generateInitialFlourishing(): Record<string, WorkerFlourishing> {
   WORKER_ROSTER.forEach((worker, index) => {
     const workerFlourishing = createInitialWorkerFlourishing(worker.id, index);
     // Calculate initial flourishing score
-    workerFlourishing.flourishingScore = geometricMean([
-      workerFlourishing.meaning.score,
-      workerFlourishing.mastery.score,
-      workerFlourishing.connection.score,
-      workerFlourishing.joy.score,
-      workerFlourishing.wholeness.score,
-      workerFlourishing.agency.score,
-    ]);
+    workerFlourishing.flourishingScore = calculateWorkerFlourishingScore(workerFlourishing);
     flourishing[worker.id] = workerFlourishing;
   });
 
@@ -265,65 +272,85 @@ export const useFlourishingStore = create<FlourishingState>()(
         const current = get().workerFlourishing[workerId];
         if (!current) return;
 
-        const currentDim = current[dimension];
-        const newScore = Math.max(0, Math.min(100, currentDim.score + delta));
+        set((state) => {
+          const worker = state.workerFlourishing[workerId];
+          if (!worker) return state;
 
-        // Create event if significant change
-        if (Math.abs(delta) >= 2) {
-          get().addFlourishingEvent({
-            workerId,
-            dimension,
-            type: delta > 0 ? 'positive' : 'negative',
-            description: reason || `${dimension} ${delta > 0 ? 'improved' : 'declined'}`,
-            impact: delta,
-          });
-        }
+          const now = Date.now();
+          const currentDim = worker[dimension];
+          const newScore = Math.max(0, Math.min(100, currentDim.score + delta));
+          const shouldCreateEvent = Math.abs(delta) >= 2;
+          const newEvent: FlourishingEvent | null = shouldCreateEvent
+            ? {
+                workerId,
+                dimension,
+                type: delta > 0 ? 'positive' : 'negative',
+                description: reason || `${dimension} ${delta > 0 ? 'improved' : 'declined'}`,
+                impact: delta,
+                id: `fe-${now}-${Math.random().toString(36).slice(2, 7)}`,
+                timestamp: now,
+              }
+            : null;
+          const recentEvents = newEvent
+            ? [...worker.recentEvents, newEvent].slice(-10)
+            : worker.recentEvents;
+          const updatedDimension: FlourishingDimension = {
+            ...currentDim,
+            score: newScore,
+            lastUpdated: now,
+            trend: newEvent ? determineTrend(recentEvents, dimension, now) : currentDim.trend,
+          };
+          const updatedWorker: WorkerFlourishing = {
+            ...worker,
+            [dimension]: updatedDimension,
+            recentEvents,
+          };
+          updatedWorker.flourishingScore = calculateWorkerFlourishingScore(updatedWorker);
 
-        set((state) => ({
-          workerFlourishing: {
-            ...state.workerFlourishing,
-            [workerId]: {
-              ...state.workerFlourishing[workerId],
-              [dimension]: {
-                ...currentDim,
-                score: newScore,
-                lastUpdated: Date.now(),
-                trend: determineTrend(state.allEvents, dimension),
-              },
+          return {
+            workerFlourishing: {
+              ...state.workerFlourishing,
+              [workerId]: updatedWorker,
             },
-          },
-        }));
-
-        // Recalculate composite score
-        get().recalculateWorkerScore(workerId);
+            allEvents: newEvent ? [...state.allEvents, newEvent].slice(-100) : state.allEvents,
+          };
+        });
       },
 
       addFlourishingEvent: (event) => {
+        const now = Date.now();
         const newEvent: FlourishingEvent = {
           ...event,
-          id: `fe-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-          timestamp: Date.now(),
+          id: `fe-${now}-${Math.random().toString(36).slice(2, 7)}`,
+          timestamp: now,
         };
 
         set((state) => {
-          // Update worker's recent events
-          const workerFlourishing = { ...state.workerFlourishing };
-          if (workerFlourishing[event.workerId]) {
-            const recentEvents = [
-              ...workerFlourishing[event.workerId].recentEvents,
-              newEvent,
-            ].slice(-10); // Keep last 10 events
-
-            workerFlourishing[event.workerId] = {
-              ...workerFlourishing[event.workerId],
-              recentEvents,
+          const worker = state.workerFlourishing[event.workerId];
+          if (!worker) {
+            return {
+              allEvents: [...state.allEvents, newEvent].slice(-100),
             };
           }
 
-          // Add to global events (keep last 100)
-          const allEvents = [...state.allEvents, newEvent].slice(-100);
+          const recentEvents = [...worker.recentEvents, newEvent].slice(-10);
+          const currentDimension = worker[event.dimension];
+          const updatedWorker: WorkerFlourishing = {
+            ...worker,
+            recentEvents,
+            [event.dimension]: {
+              ...currentDimension,
+              trend: determineTrend(recentEvents, event.dimension, now),
+            },
+          };
 
-          return { workerFlourishing, allEvents };
+          return {
+            workerFlourishing: {
+              ...state.workerFlourishing,
+              [event.workerId]: updatedWorker,
+            },
+            allEvents: [...state.allEvents, newEvent].slice(-100),
+          };
         });
       },
 
@@ -332,21 +359,12 @@ export const useFlourishingStore = create<FlourishingState>()(
           const worker = state.workerFlourishing[workerId];
           if (!worker) return state;
 
-          const scores = [
-            worker.meaning.score,
-            worker.mastery.score,
-            worker.connection.score,
-            worker.joy.score,
-            worker.wholeness.score,
-            worker.agency.score,
-          ];
-
           return {
             workerFlourishing: {
               ...state.workerFlourishing,
               [workerId]: {
                 ...worker,
-                flourishingScore: geometricMean(scores),
+                flourishingScore: calculateWorkerFlourishingScore(worker),
               },
             },
           };
@@ -560,14 +578,7 @@ export const useFlourishingStore = create<FlourishingState>()(
             });
 
             // Recalculate composite score
-            worker.flourishingScore = geometricMean([
-              worker.meaning.score,
-              worker.mastery.score,
-              worker.connection.score,
-              worker.joy.score,
-              worker.wholeness.score,
-              worker.agency.score,
-            ]);
+            worker.flourishingScore = calculateWorkerFlourishingScore(worker);
           });
 
           // Update weekly baseline every 24 hours (simulated)
@@ -630,48 +641,41 @@ let basAxisDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 export function initFlourishingBASSubscription(): void {
   if (basAxisSubscribed) return;
 
-  // Dynamic import to break circular dependency
-  import('./basStore')
-    .then(({ useBASStore }) => {
-      // Track previous axes to detect changes
-      let prevAxes = { ...useBASStore.getState().axes };
+  // Track previous axes to detect changes
+  let prevAxes = { ...useBASStore.getState().axes };
 
-      // Subscribe to BAS changes and store unsubscribe function
-      // PERFORMANCE: Debounce axis changes to prevent cascade storms during slider drags
-      basAxisUnsubscribe = useBASStore.subscribe((state) => {
-        const currentAxes = state.axes;
+  // Subscribe to BAS changes and store unsubscribe function
+  // PERFORMANCE: Debounce axis changes to prevent cascade storms during slider drags
+  basAxisUnsubscribe = useBASStore.subscribe((state) => {
+    const currentAxes = state.axes;
 
-        // Check if any axis actually changed
-        const axesChanged = Object.keys(currentAxes).some(
-          (key) =>
-            currentAxes[key as keyof typeof currentAxes] !== prevAxes[key as keyof typeof prevAxes]
-        );
+    // Check if any axis actually changed
+    const axesChanged = Object.keys(currentAxes).some(
+      (key) =>
+        currentAxes[key as keyof typeof currentAxes] !== prevAxes[key as keyof typeof prevAxes]
+    );
 
-        if (axesChanged) {
-          // Clear any pending debounced update
-          if (basAxisDebounceTimer) {
-            clearTimeout(basAxisDebounceTimer);
-          }
+    if (axesChanged) {
+      // Clear any pending debounced update
+      if (basAxisDebounceTimer) {
+        clearTimeout(basAxisDebounceTimer);
+      }
 
-          // Debounce: Wait 150ms after last change before applying effects
-          // This prevents cascade storms during slider drags while still being responsive
-          basAxisDebounceTimer = setTimeout(() => {
-            // Get axis flourishing impacts and apply them
-            const impacts = useBASStore.getState().getAxisFlourishingImpact();
-            useFlourishingStore.getState().applyAxisEffects(impacts);
-            basAxisDebounceTimer = null;
-          }, 150);
+      // Debounce: Wait 150ms after last change before applying effects
+      // This prevents cascade storms during slider drags while still being responsive
+      basAxisDebounceTimer = setTimeout(() => {
+        // Get axis flourishing impacts and apply them
+        const impacts = useBASStore.getState().getAxisFlourishingImpact();
+        useFlourishingStore.getState().applyAxisEffects(impacts);
+        basAxisDebounceTimer = null;
+      }, 150);
 
-          // Update previous axes immediately (for next change detection)
-          prevAxes = { ...currentAxes };
-        }
-      });
+      // Update previous axes immediately (for next change detection)
+      prevAxes = { ...currentAxes };
+    }
+  });
 
-      basAxisSubscribed = true;
-    })
-    .catch(() => {
-      // Handle import failure gracefully - subscription is non-critical
-    });
+  basAxisSubscribed = true;
 }
 
 /** Cleanup function for testing and HMR - unsubscribes from BAS store */
@@ -699,49 +703,39 @@ function initFlourishingWorkerMoodSubscription(): void {
 
   const previousValues = new Map<string, { trust: number; initiative: number }>();
 
-  // Dynamic import to avoid circular deps
-  import('./workerMoodStore')
-    .then(({ useWorkerMoodStore }) => {
-      flourishingMoodUnsubscribe = useWorkerMoodStore.subscribe((state) => {
-        // Re-entrancy guard - break circular subscription loops
-        if (isApplyingMoodEffects) return;
+  flourishingMoodUnsubscribe = useWorkerMoodStore.subscribe((state) => {
+    // Re-entrancy guard - break circular subscription loops
+    if (isApplyingMoodEffects) return;
 
-        const workers = state.workerMoods;
+    const workers = state.workerMoods;
 
-        Object.entries(workers).forEach(([workerId, mood]) => {
-          const trust =
-            mood.preferences?.managementTrust ?? DEFAULT_WORKER_PREFERENCES.managementTrust;
-          const initiative = mood.preferences?.initiative ?? DEFAULT_WORKER_PREFERENCES.initiative;
+    Object.entries(workers).forEach(([workerId, mood]) => {
+      const trust = mood.preferences?.managementTrust ?? DEFAULT_WORKER_PREFERENCES.managementTrust;
+      const initiative = mood.preferences?.initiative ?? DEFAULT_WORKER_PREFERENCES.initiative;
 
-          const prev = previousValues.get(workerId);
-          if (!prev) {
-            previousValues.set(workerId, { trust, initiative });
-            return;
-          }
+      const prev = previousValues.get(workerId);
+      if (!prev) {
+        previousValues.set(workerId, { trust, initiative });
+        return;
+      }
 
-          const trustDelta = trust - prev.trust;
-          const initiativeDelta = initiative - prev.initiative;
+      const trustDelta = trust - prev.trust;
+      const initiativeDelta = initiative - prev.initiative;
 
-          // Only apply if significant change (>= 3 points)
-          if (Math.abs(trustDelta) >= 3 || Math.abs(initiativeDelta) >= 3) {
-            isApplyingMoodEffects = true;
-            try {
-              useFlourishingStore
-                .getState()
-                .applyMoodEffects(workerId, trustDelta, initiativeDelta);
-            } finally {
-              isApplyingMoodEffects = false;
-            }
-            previousValues.set(workerId, { trust, initiative });
-          }
-        });
-      });
-
-      flourishingMoodSubscribed = true;
-    })
-    .catch(() => {
-      // Handle import failure gracefully - subscription is non-critical
+      // Only apply if significant change (>= 3 points)
+      if (Math.abs(trustDelta) >= 3 || Math.abs(initiativeDelta) >= 3) {
+        isApplyingMoodEffects = true;
+        try {
+          useFlourishingStore.getState().applyMoodEffects(workerId, trustDelta, initiativeDelta);
+        } finally {
+          isApplyingMoodEffects = false;
+        }
+        previousValues.set(workerId, { trust, initiative });
+      }
     });
+  });
+
+  flourishingMoodSubscribed = true;
 }
 
 /** Cleanup function for worker mood subscription */

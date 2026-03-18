@@ -2097,7 +2097,7 @@ const LUNCH_THEFT_ANNOUNCEMENTS: AnnouncementConfig[] = [
   },
   {
     message:
-      'The lunch thief has struck again. Yogurt this time. The yogurt had a name on it. The name was not the thief\'s name.',
+      "The lunch thief has struck again. Yogurt this time. The yogurt had a name on it. The name was not the thief's name.",
     type: 'general',
     category: 'humor',
     chaosWeight: 0.3,
@@ -2514,7 +2514,7 @@ const WORKERS: WorkerInfo[] = [
 const MACHINE_IDS = {
   silos: ['Silo Alpha', 'Silo Beta', 'Silo Gamma', 'Silo Delta', 'Silo Epsilon'],
   mills: ['R.M. 101', 'R.M. 102', 'R.M. 103', 'R.M. 104', 'R.M. 105', 'R.M. 106'],
-  sifters: ['Sifter A.', 'Sifter B.', 'Sifter C.'],
+  sifters: ["Sifter 'A'.", "Sifter 'B'.", "Sifter 'C'."],
   packers: ['Packer Line 1', 'Packer Line 2', 'Packer Line 3'],
 };
 

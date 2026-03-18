@@ -236,7 +236,8 @@ export const SettingsPanel: React.FC<{
               onChange={setShowUnlockNotifications}
             />
             <p className="text-[9px] text-slate-500 mt-2 px-2">
-              Control how educational content about bilateral alignment and economic democracy is presented.
+              Control how educational content about bilateral alignment and economic democracy is
+              presented.
             </p>
           </div>
         </section>

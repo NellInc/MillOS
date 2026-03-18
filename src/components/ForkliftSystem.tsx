@@ -181,7 +181,10 @@ const ForkliftBillboard: React.FC<{ hasCargo: boolean }> = ({ hasCargo }) => {
     const targetOpacity = hasCargo ? 1 : 0;
     if (cargoOpacityRef.current !== targetOpacity) {
       if (hasCargo) {
-        cargoOpacityRef.current = Math.min(1, cargoOpacityRef.current + delta / BILLBOARD_CARGO_FADE_DURATION);
+        cargoOpacityRef.current = Math.min(
+          1,
+          cargoOpacityRef.current + delta / BILLBOARD_CARGO_FADE_DURATION
+        );
       } else {
         cargoOpacityRef.current = 0;
       }
@@ -210,7 +213,11 @@ const ForkliftBillboard: React.FC<{ hasCargo: boolean }> = ({ hasCargo }) => {
         <meshStandardMaterial color="#374151" roughness={0.4} />
       </mesh>
       {/* Cargo - always mounted, opacity animated */}
-      <mesh position={[0, 1.4, 1.8]} castShadow visible={hasCargo || cargoOpacityRef.current > 0.01}>
+      <mesh
+        position={[0, 1.4, 1.8]}
+        castShadow
+        visible={hasCargo || cargoOpacityRef.current > 0.01}
+      >
         <boxGeometry args={[0.9, 0.7, 0.9]} />
         <meshStandardMaterial
           ref={cargoMaterialRef}

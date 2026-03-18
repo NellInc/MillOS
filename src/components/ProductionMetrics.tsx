@@ -129,8 +129,12 @@ export const ProductionMetrics: React.FC = () => {
   const liveMetrics = React.useMemo(() => {
     // Filter to only productive machines for efficiency calculation
     // Silos and control room don't contribute to production throughput
-    const productiveMachineTypes = [MachineType.ROLLER_MILL, MachineType.PLANSIFTER, MachineType.PACKER];
-    const productiveMachines = machines.filter(m => productiveMachineTypes.includes(m.type));
+    const productiveMachineTypes = [
+      MachineType.ROLLER_MILL,
+      MachineType.PLANSIFTER,
+      MachineType.PACKER,
+    ];
+    const productiveMachines = machines.filter((m) => productiveMachineTypes.includes(m.type));
     const runningMachines = productiveMachines.filter((m) => m.status === 'running').length;
     const totalMachines = productiveMachines.length || 1;
     const machineEfficiency = (runningMachines / totalMachines) * 100;
@@ -141,9 +145,7 @@ export const ProductionMetrics: React.FC = () => {
     const baseThroughput = 1000;
     const actualThroughput = Math.min(
       MAX_REALISTIC_THROUGHPUT,
-      Math.max(0, Math.round(
-        baseThroughput * productionSpeed * (machineEfficiency / 100) + 200
-      ))
+      Math.max(0, Math.round(baseThroughput * productionSpeed * (machineEfficiency / 100) + 200))
     );
 
     // Bags per minute from production speed

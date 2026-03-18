@@ -99,13 +99,10 @@ export class SimulationAdapter implements IProtocolAdapter {
       });
     });
 
-    // PERFORMANCE FIX: Reduced from 100ms (10Hz) to 3000ms (0.33Hz)
-    // 1Hz was still causing stuttering with React DevTools overhead
-    // 3 second interval is plenty for a simulation - values change slowly anyway
-    this.tick(); // Force immediate update to apply machine states (prevents 0-value alarms)
-    this.simulationInterval = setInterval(() => this.tick(), 3000);
     this.connected = true;
     this.connectTime = Date.now();
+    this.tick(); // Force immediate update to apply machine states and populate subscribers
+    this.simulationInterval = setInterval(() => this.tick(), 1000);
   }
 
   async disconnect(): Promise<void> {
@@ -175,12 +172,14 @@ export class SimulationAdapter implements IProtocolAdapter {
       tag.simulation.baseValue = value as number;
     }
 
-    this.values.set(tagId, {
+    const tagValue: TagValue = {
       tagId,
       value,
       quality: 'GOOD',
       timestamp: Date.now(),
-    });
+    };
+    this.values.set(tagId, tagValue);
+    this.notifySubscribers([tagValue]);
 
     return true;
   }
@@ -196,6 +195,15 @@ export class SimulationAdapter implements IProtocolAdapter {
       }
       this.subscribers.get(id)!.add(callback);
     });
+
+    const currentValues = tagIds
+      .map((id) => this.values.get(id))
+      .filter((value): value is TagValue => value !== undefined)
+      .map((value) => ({ ...value }));
+
+    if (currentValues.length > 0) {
+      callback(currentValues);
+    }
 
     // Return unsubscribe function
     return () => {
@@ -283,6 +291,10 @@ export class SimulationAdapter implements IProtocolAdapter {
       duration: fault.duration ?? 0,
       severity: fault.severity ?? 1.0,
     });
+
+    if (this.connected) {
+      this.tick();
+    }
   }
 
   /**
@@ -290,6 +302,10 @@ export class SimulationAdapter implements IProtocolAdapter {
    */
   clearFault(tagId: string): void {
     this.activeFaults.delete(tagId);
+
+    if (this.connected) {
+      this.tick();
+    }
   }
 
   /**
@@ -297,6 +313,10 @@ export class SimulationAdapter implements IProtocolAdapter {
    */
   clearAllFaults(): void {
     this.activeFaults.clear();
+
+    if (this.connected) {
+      this.tick();
+    }
   }
 
   /**

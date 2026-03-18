@@ -450,9 +450,12 @@ export const FiveAxesPanel: React.FC = () => {
             >
               <div className="mt-3 space-y-2 text-[9px] text-slate-400">
                 <p className="leading-relaxed">
-                  <strong className="text-cyan-400">Bilateral Alignment Management System (BAMS)</strong> is a
-                  framework for democratic AI-human collaboration, inspired by Ricardo Semler&apos;s
-                  radical workplace democracy and Mondragon&apos;s cooperative principles.
+                  <strong className="text-cyan-400">
+                    Bilateral Alignment Management System (BAMS)
+                  </strong>{' '}
+                  is a framework for democratic AI-human collaboration, inspired by Ricardo
+                  Semler&apos;s radical workplace democracy and Mondragon&apos;s cooperative
+                  principles.
                 </p>
                 <div className="bg-slate-800/30 rounded p-2">
                   <div className="font-bold text-white mb-1">Value Formula: V = Z × S × E × F</div>

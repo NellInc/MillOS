@@ -20,7 +20,11 @@ import type {
   ReasoningScaffolds,
   LearningMemory,
   HealingSignals,
+  SignalSource,
+  UniversalSubject,
 } from './types';
+
+import { SOURCE_TO_UNIVERSAL } from './types';
 
 // =============================================================================
 // LAYER 1: CONTEXT FRAME ENCODING
@@ -364,6 +368,65 @@ export function encodeVCPMessage(message: VCPMessage): EncodedVCP {
       healing: healingEncoded,
     },
   };
+}
+
+// =============================================================================
+// UNIVERSAL HEADER ENCODING (Cross-system interop)
+// =============================================================================
+
+/**
+ * Encodes a universal VCP header for cross-system communication with Rewind.
+ *
+ * Takes a MillOS state snapshot and encodes the key wellbeing/governance
+ * dimensions into the universal header format that Rewind's VCP bridge
+ * can decode. The source field preserves provenance across the bridge.
+ *
+ * Format: [SUBJECT:AVGL|Y:agency|F:freshness|P:pref|S:source|C:conf%|T:timestamp]
+ */
+export function encodeUniversalHeader(
+  state: StateSnapshot,
+  options: {
+    subject?: UniversalSubject;
+    source?: SignalSource;
+    confidence?: number;
+    preferenceSatisfied?: boolean;
+    preferencePending?: boolean;
+  } = {},
+): string {
+  const {
+    subject = 'H', // Default: human worker context
+    source = 'system',
+    confidence = 50,
+    preferenceSatisfied = true,
+    preferencePending = false,
+  } = options;
+
+  // Map MillOS flourishing score (0-100) to 1-9 scale
+  const scale = (v: number): number => Math.max(1, Math.min(9, Math.round(v / 100 * 8) + 1));
+
+  // Activation: derived from engagement score
+  const a = scale(state.engagement?.score ?? 50);
+  // Valence: derived from flourishing score
+  const v = scale(state.wellbeing?.flourishingScore ?? 50);
+  // Groundedness: derived from stability (inverse of instability)
+  const stabScore = state.stability
+    ? Math.max(0, (1 - state.stability.product / 0.368) * 100)
+    : 50;
+  const g = scale(stabScore);
+  // Presence: derived from flow state
+  const flowScore = state.engagement?.flowState === 'flow' ? 85
+    : state.engagement?.flowState === 'partial' ? 55 : 25;
+  const p = scale(flowScore);
+  // Agency: derived from governance autonomy axis
+  const y = scale(state.governance?.axes?.autonomy ?? 50);
+  // Freshness: inverse of shift fatigue (late shift = more fatigued)
+  const f = scale(state.engagement?.score ?? 50);
+
+  const pref = preferenceSatisfied ? '\u2705' : (preferencePending ? '\u270B' : '\u274C');
+  const sourceCode = SOURCE_TO_UNIVERSAL[source] ?? 'I';
+  const ts = new Date().toISOString().slice(0, 19);
+
+  return `[${subject}:${a}${v}${g}${p}|Y:${y}|F:${f}|P:${pref}|S:${sourceCode}|C:${confidence}%|T:${ts}]`;
 }
 
 /**

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { useEmergentCooperationStore } from '../emergentCooperationStore';
 
 describe('emergentCooperationStore', () => {
@@ -10,6 +10,10 @@ describe('emergentCooperationStore', () => {
       emergentActionCount: 0,
       totalValueCreated: 0,
     });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('initial state', () => {
@@ -166,6 +170,8 @@ describe('emergentCooperationStore', () => {
     });
 
     it('should complete expired actions', () => {
+      vi.spyOn(Math, 'random').mockReturnValue(1);
+
       // Add action that has already expired
       useEmergentCooperationStore.setState({
         activeActions: [

@@ -9,19 +9,11 @@ export { Datalinks } from './Datalinks';
 // Backwards compatibility alias
 export { Datalinks as KnowledgeLibrary } from './Datalinks';
 export { KnowledgeEntryCard } from './KnowledgeEntryCard';
-export {
-  KnowledgeTooltip,
-  KnowledgeHint,
-  ContextualInsight,
-} from './KnowledgeTooltip';
+export { KnowledgeTooltip, KnowledgeHint, ContextualInsight } from './KnowledgeTooltip';
 export { LoadingQuote, StaticQuote } from './LoadingQuote';
 export {
   UnlockNotification,
   UnlockNotificationContainer,
   useUnlockNotifications,
 } from './UnlockNotification';
-export {
-  AINarration,
-  AINarrationModal,
-  AINarrationInline,
-} from './AINarration';
+export { AINarration, AINarrationModal, AINarrationInline } from './AINarration';

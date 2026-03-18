@@ -663,14 +663,15 @@ CoughEffect.displayName = 'CoughEffect';
 // to consolidate 6 separate useFrame hooks into 1 centralized manager
 // =========================================================================
 export const MaintenanceSystem: React.FC = () => {
-  const { maintenanceTasks, factoryEnvironment, addMaintenanceTask, cleanDust } = useWorkerMoodStore(
-    useShallow((state) => ({
-      maintenanceTasks: state.maintenanceTasks,
-      factoryEnvironment: state.factoryEnvironment,
-      addMaintenanceTask: state.addMaintenanceTask,
-      cleanDust: state.cleanDust,
-    }))
-  );
+  const { maintenanceTasks, factoryEnvironment, addMaintenanceTask, cleanDust } =
+    useWorkerMoodStore(
+      useShallow((state) => ({
+        maintenanceTasks: state.maintenanceTasks,
+        factoryEnvironment: state.factoryEnvironment,
+        addMaintenanceTask: state.addMaintenanceTask,
+        cleanDust: state.cleanDust,
+      }))
+    );
 
   // Auto-spawn maintenance tasks when needed
   useEffect(() => {

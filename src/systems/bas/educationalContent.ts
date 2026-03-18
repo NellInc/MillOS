@@ -67,7 +67,8 @@ Dr. Wallace is a Research Scientist at the New York State Psychiatric Institute 
     'engagement-signature',
     'phase-transition',
   ],
-  source: 'Wallace, R. (2025). Fog, Friction, Delay and the Failure of Bounded Rationality Embodied Cognition. Preprint, New York State Psychiatric Institute. [researchgate.net/profile/Rodrick-Wallace]',
+  source:
+    'Wallace, R. (2025). Fog, Friction, Delay and the Failure of Bounded Rationality Embodied Cognition. Preprint, New York State Psychiatric Institute. [researchgate.net/profile/Rodrick-Wallace]',
   category: 'wallace',
 };
 

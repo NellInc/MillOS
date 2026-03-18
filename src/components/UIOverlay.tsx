@@ -486,9 +486,7 @@ const GraphicsOptionsPanel: React.FC = () => {
         <span className="flex items-center gap-2">
           <Settings className="w-4 h-4 text-purple-400" aria-hidden="true" />
           Graphics Quality
-          <span
-            className={`text-[10px] font-bold uppercase ${qualityColors[graphics.quality]}`}
-          >
+          <span className={`text-[10px] font-bold uppercase ${qualityColors[graphics.quality]}`}>
             {graphics.quality}
           </span>
         </span>
@@ -548,7 +546,9 @@ const GraphicsOptionsPanel: React.FC = () => {
                       .map(({ key, label, icon }) => (
                         <button
                           key={key}
-                          onClick={() => setGraphicsSetting(key, !graphics[key as keyof typeof graphics])}
+                          onClick={() =>
+                            setGraphicsSetting(key, !graphics[key as keyof typeof graphics])
+                          }
                           className={`w-full flex items-center gap-2 px-2 py-1 rounded text-xs transition-all ${
                             graphics[key as keyof typeof graphics]
                               ? theme === 'light'

@@ -16,7 +16,7 @@ import { Html, Billboard, Text } from '@react-three/drei';
 import { Briefcase, FlaskConical, HardHat, Shield, User, Wrench as WrenchIcon } from 'lucide-react';
 
 // Types
-import { WorkerData, WORKER_ROSTER } from '../types';
+import { WorkerData } from '../types';
 
 // Store
 import { useProductionStore } from '../stores/productionStore';
@@ -368,31 +368,7 @@ export const WorkerSystemNew: React.FC<WorkerSystemProps> = ({ onSelectWorker })
     markWorkerEvacuated
   );
 
-  // Get setWorkers from production store
-  const setWorkers = useProductionStore((state) => state.setWorkers);
-
-  // Generate worker data
-  const workers = useMemo(() => {
-    const aisles = [10, -10, 0];
-    return WORKER_ROSTER.map((roster, i) => ({
-      ...roster,
-      position: [
-        aisles[i % aisles.length] + (Math.random() - 0.5) * 4,
-        0,
-        Math.random() * 40 - 20,
-      ] as [number, number, number],
-      direction: (Math.random() > 0.5 ? 1 : -1) as 1 | -1,
-    }));
-  }, []);
-
-  // Sync workers to production store for UI display
-  // Only set workers if store is empty (prevents overwriting on remount)
-  // Don't clear on unmount - workers should persist for UI even when camera is outside
-  useEffect(() => {
-    if (useProductionStore.getState().workers.length === 0) {
-      setWorkers(workers);
-    }
-  }, [workers, setWorkers]);
+  const workers = useProductionStore((state) => state.workers);
 
   // Stable callback for worker selection
   const handleSelectWorker = useCallback(

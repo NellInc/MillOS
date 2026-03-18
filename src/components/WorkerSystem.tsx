@@ -290,7 +290,9 @@ const Worker: React.FC<{ data: WorkerData; onSelect: () => void }> = React.memo(
     const pointDirectionRef = useRef(0);
     const celebrationTimerRef = useRef(0); // Timer for celebration duration
     // Track previous behavior mode to reset walk cycle on transitions
-    const prevBehaviorModeRef = useRef<'normal' | 'evacuation' | 'shift_change' | 'breakdown_repair'>('normal');
+    const prevBehaviorModeRef = useRef<
+      'normal' | 'evacuation' | 'shift_change' | 'breakdown_repair'
+    >('normal');
     const recordWorkerEvasion = useSafetyStore((state) => state.recordWorkerEvasion);
     const alerts = useUIStore((state) => state.alerts);
 

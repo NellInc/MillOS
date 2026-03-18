@@ -42,14 +42,19 @@ import { useEngagementStore, mapEngagementToFriction } from './engagementStore';
  *
  * @returns Friction multiplier (0.75-1.0) based on average ownership
  */
+let ownershipStoreAccessor: typeof import('./ownershipStore').useOwnershipStore | null = null;
+
 function getOwnershipFrictionMultiplier(): number {
   // Dynamic import pattern - get store state synchronously
   // The store must be imported lazily to avoid circular deps
   try {
-    // Use require-style dynamic access since we're in a sync context
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { useOwnershipStore } = require('./ownershipStore') as typeof import('./ownershipStore');
-    const ownershipState = useOwnershipStore.getState();
+    if (!ownershipStoreAccessor) {
+      // Use require-style dynamic access since we're in a sync context
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      ownershipStoreAccessor = (require('./ownershipStore') as typeof import('./ownershipStore'))
+        .useOwnershipStore;
+    }
+    const ownershipState = ownershipStoreAccessor.getState();
 
     // Get total worker ownership percentage (0-100)
     const totalWorkerOwnership = ownershipState.getTotalWorkerOwnership();
@@ -153,6 +158,71 @@ function getEngagementMultiplier(): number {
   return factoryEngagement.engagementAdjustedAlpha;
 }
 
+type StabilityComputationState = Pick<
+  StabilityState,
+  'frictionSources' | 'delaySources' | 'history' | 'wallace'
+>;
+
+function computeStabilityUpdate(
+  state: StabilityComputationState,
+  overrides?: Partial<Pick<StabilityState, 'frictionSources' | 'delaySources'>>
+): Pick<
+  StabilityState,
+  'frictionSources' | 'delaySources' | 'wallace' | 'phase' | 'engagementAdjustedAlpha' | 'history'
+> {
+  const frictionSources = overrides?.frictionSources ?? state.frictionSources;
+  const delaySources = overrides?.delaySources ?? state.delaySources;
+
+  const baseFriction = Math.min(
+    1,
+    Object.values(frictionSources).reduce((sum, val) => sum + val, 0)
+  );
+  const engagementMultiplier = getEngagementMultiplier();
+  const ownershipMultiplier = getOwnershipFrictionMultiplier();
+  const effectiveFriction = Math.min(1, baseFriction * engagementMultiplier * ownershipMultiplier);
+  const delay = Math.min(
+    1,
+    Object.values(delaySources).reduce((sum, val) => sum + val, 0)
+  );
+  const stabilityProduct = effectiveFriction * delay;
+  const margin = STABILITY_THRESHOLD - stabilityProduct;
+
+  let phase: PhaseState = 'stable';
+  if (stabilityProduct >= STABILITY_THRESHOLD) {
+    phase = 'unstable';
+  } else if (stabilityProduct >= STABILITY_THRESHOLD * 0.95) {
+    phase = 'critical';
+  } else if (stabilityProduct >= WARNING_THRESHOLD) {
+    phase = 'approaching';
+  }
+
+  const wallace: WallaceMetrics = {
+    friction: effectiveFriction,
+    delay,
+    stabilityProduct,
+    stabilityThreshold: STABILITY_THRESHOLD,
+    margin,
+    noise: state.wallace.noise,
+  };
+
+  const dataPoint: StabilityDataPoint = {
+    timestamp: Date.now(),
+    friction: effectiveFriction,
+    delay,
+    product: stabilityProduct,
+    phase,
+  };
+
+  return {
+    frictionSources,
+    delaySources,
+    wallace,
+    phase,
+    engagementAdjustedAlpha: engagementMultiplier,
+    history: [...state.history.slice(-99), dataPoint],
+  };
+}
+
 // =============================================================================
 // STORE IMPLEMENTATION
 // =============================================================================
@@ -184,23 +254,23 @@ export const useStabilityStore = create<StabilityState>((set, get) => ({
   engagementAdjustedAlpha: 0.9, // Default slight reduction from engagement
 
   updateFriction: (source, value) => {
-    set((state) => ({
-      frictionSources: {
+    set((state) => {
+      const frictionSources = {
         ...state.frictionSources,
         [source]: Math.max(0, Math.min(1, value)),
-      },
-    }));
-    get().recalculateMetrics();
+      };
+      return computeStabilityUpdate(state, { frictionSources });
+    });
   },
 
   updateDelay: (source, value) => {
-    set((state) => ({
-      delaySources: {
+    set((state) => {
+      const delaySources = {
         ...state.delaySources,
         [source]: Math.max(0, Math.min(1, value)),
-      },
-    }));
-    get().recalculateMetrics();
+      };
+      return computeStabilityUpdate(state, { delaySources });
+    });
   },
 
   updateResourceRates: (rates) => {
@@ -216,75 +286,7 @@ export const useStabilityStore = create<StabilityState>((set, get) => ({
   },
 
   recalculateMetrics: () => {
-    const state = get();
-
-    // Sum friction sources (capped at 1)
-    const baseFriction = Math.min(
-      1,
-      Object.values(state.frictionSources).reduce((sum, val) => sum + val, 0)
-    );
-
-    // Get engagement-adjusted friction multiplier
-    const engagementMultiplier = getEngagementMultiplier();
-
-    // Get ownership-based friction reduction
-    // Workers with ownership stakes have lower resistance to change
-    const ownershipMultiplier = getOwnershipFrictionMultiplier();
-
-    // Apply both engagement and ownership adjustments to friction
-    // High engagement (multiplier < 1) reduces effective friction
-    // Low engagement (multiplier > 1) increases effective friction
-    // High ownership (multiplier < 1) reduces effective friction
-    const effectiveFriction = Math.min(
-      1,
-      baseFriction * engagementMultiplier * ownershipMultiplier
-    );
-
-    // Sum delay sources (capped at 1)
-    const delay = Math.min(
-      1,
-      Object.values(state.delaySources).reduce((sum, val) => sum + val, 0)
-    );
-
-    // Calculate stability product (α × τ) with engagement-adjusted friction
-    const stabilityProduct = effectiveFriction * delay;
-    const margin = STABILITY_THRESHOLD - stabilityProduct;
-
-    // Determine phase based on stability product
-    let phase: PhaseState = 'stable';
-    if (stabilityProduct >= STABILITY_THRESHOLD) {
-      phase = 'unstable';
-    } else if (stabilityProduct >= STABILITY_THRESHOLD * 0.95) {
-      phase = 'critical';
-    } else if (stabilityProduct >= WARNING_THRESHOLD) {
-      phase = 'approaching';
-    }
-
-    // Update Wallace metrics
-    const newWallace: WallaceMetrics = {
-      friction: effectiveFriction, // Use engagement-adjusted friction
-      delay,
-      stabilityProduct,
-      stabilityThreshold: STABILITY_THRESHOLD,
-      margin,
-      noise: state.wallace.noise,
-    };
-
-    // Add to history for trend analysis
-    const dataPoint: StabilityDataPoint = {
-      timestamp: Date.now(),
-      friction: effectiveFriction,
-      delay,
-      product: stabilityProduct,
-      phase,
-    };
-
-    set((s) => ({
-      wallace: newWallace,
-      phase,
-      engagementAdjustedAlpha: engagementMultiplier,
-      history: [...s.history.slice(-99), dataPoint], // Keep last 100 (99 + 1 new)
-    }));
+    set((state) => computeStabilityUpdate(state));
   },
 
   getStabilityStatus: () => {
@@ -428,34 +430,25 @@ export const useStabilityStore = create<StabilityState>((set, get) => ({
   },
 
   tickStability: (deltaMinutes) => {
-    const state = get();
-    const { frictionSources, delaySources } = state;
+    set((state) => {
+      const noiseScale = state.wallace.noise * 0.01 * deltaMinutes;
+      const frictionSources = { ...state.frictionSources };
+      const delaySources = { ...state.delaySources };
 
-    // Small random fluctuations in friction/delay (simulates real-world variance)
-    const noiseScale = state.wallace.noise * 0.01 * deltaMinutes;
+      for (const key of Object.keys(frictionSources)) {
+        const current = frictionSources[key];
+        const drift = (Math.random() - 0.5) * noiseScale;
+        frictionSources[key] = Math.max(0, Math.min(1, current + drift));
+      }
 
-    // Apply small drift to friction sources
-    const updatedFriction = { ...frictionSources };
-    for (const key of Object.keys(updatedFriction)) {
-      const current = updatedFriction[key];
-      const drift = (Math.random() - 0.5) * noiseScale;
-      updatedFriction[key] = Math.max(0, Math.min(1, current + drift));
-    }
+      for (const key of Object.keys(delaySources)) {
+        const current = delaySources[key];
+        const drift = (Math.random() - 0.5) * noiseScale;
+        delaySources[key] = Math.max(0, Math.min(1, current + drift));
+      }
 
-    // Apply small drift to delay sources
-    const updatedDelay = { ...delaySources };
-    for (const key of Object.keys(updatedDelay)) {
-      const current = updatedDelay[key];
-      const drift = (Math.random() - 0.5) * noiseScale;
-      updatedDelay[key] = Math.max(0, Math.min(1, current + drift));
-    }
-
-    set({
-      frictionSources: updatedFriction,
-      delaySources: updatedDelay,
+      return computeStabilityUpdate(state, { frictionSources, delaySources });
     });
-
-    get().recalculateMetrics();
   },
 
   resetToDefaults: () => {

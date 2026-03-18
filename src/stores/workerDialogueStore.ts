@@ -169,7 +169,7 @@ export const WORKER_DIALOGUES: WorkerDialogue[] = [
     id: 'ownership-4',
     category: 'ownership',
     content:
-      "The wage ratio here is 6:1. That means the highest-paid person makes at most six times what I do. At my old job it was probably 300:1. This feels more... honest.",
+      'The wage ratio here is 6:1. That means the highest-paid person makes at most six times what I do. At my old job it was probably 300:1. This feels more... honest.',
     relatedEntry: 'mondragon',
   },
   {
@@ -208,7 +208,7 @@ export const WORKER_DIALOGUES: WorkerDialogue[] = [
     id: 'flourishing-4',
     category: 'flourishing',
     content:
-      "Meaning. Mastery. Connection. Joy. Wholeness. Agency. Six words that describe what this place tries to give us. Most jobs give you a paycheck and call it even.",
+      'Meaning. Mastery. Connection. Joy. Wholeness. Agency. Six words that describe what this place tries to give us. Most jobs give you a paycheck and call it even.',
     relatedEntry: 'flourishing',
   },
   {
@@ -222,7 +222,7 @@ export const WORKER_DIALOGUES: WorkerDialogue[] = [
     id: 'flourishing-low-1',
     category: 'flourishing',
     content:
-      "Rough week. The AI noticed before I did—my scores were dropping. It offered support options instead of just... noting the productivity dip. That matters.",
+      'Rough week. The AI noticed before I did—my scores were dropping. It offered support options instead of just... noting the productivity dip. That matters.',
     triggers: { lowFlourishing: true },
   },
 
@@ -239,14 +239,14 @@ export const WORKER_DIALOGUES: WorkerDialogue[] = [
     id: 'comparison-2',
     category: 'comparison',
     content:
-      "I used to get written up for being two minutes late. Here I set my own schedule. The AI just helps coordinate coverage. Trust instead of surveillance.",
+      'I used to get written up for being two minutes late. Here I set my own schedule. The AI just helps coordinate coverage. Trust instead of surveillance.',
     relatedEntry: 'ricardo-semler',
   },
   {
     id: 'comparison-3',
     category: 'comparison',
     content:
-      "Old job: suggestions went into a box and disappeared. Here: suggestions get voted on, and the results are binding. Actual power versus performative participation.",
+      'Old job: suggestions went into a box and disappeared. Here: suggestions get voted on, and the results are binding. Actual power versus performative participation.',
   },
   {
     id: 'comparison-4',
@@ -269,7 +269,7 @@ export const WORKER_DIALOGUES: WorkerDialogue[] = [
     id: 'federation-1',
     category: 'federation',
     content:
-      "Mill Gamma sent us help last month when we were overwhelmed. No contracts, no negotiation—just solidarity. The federation takes care of its own.",
+      'Mill Gamma sent us help last month when we were overwhelmed. No contracts, no negotiation—just solidarity. The federation takes care of its own.',
     relatedEntry: 'federation',
     triggers: { afterFederationTrade: true },
   },
@@ -410,7 +410,7 @@ export const WORKER_DIALOGUES: WorkerDialogue[] = [
     id: 'training-1',
     category: 'flourishing',
     content:
-      "Finished the roller mill certification today. Three weeks of learning. The AI kept adjusting the pace based on how I was doing—slower when I struggled, faster when I was ready. Felt... respected.",
+      'Finished the roller mill certification today. Three weeks of learning. The AI kept adjusting the pace based on how I was doing—slower when I struggled, faster when I was ready. Felt... respected.',
     relatedEntry: 'flourishing',
   },
   {
@@ -488,9 +488,7 @@ interface WorkerDialogueState {
     category?: DialogueCategory,
     context?: Partial<WorkerDialogue['triggers']>
   ) => WorkerDialogue | null;
-  getDialogueForContext: (
-    context: Partial<WorkerDialogue['triggers']>
-  ) => WorkerDialogue | null;
+  getDialogueForContext: (context: Partial<WorkerDialogue['triggers']>) => WorkerDialogue | null;
 }
 
 const DEFAULT_COOLDOWN = 5 * 60 * 1000; // 5 minutes between showing same dialogue

@@ -176,13 +176,28 @@ export function useMachineDisplayValues(
 
     // Apply interpolation + variance
     valuesRef.current.rpm = getSmoothedDisplayValue(
-      machineId, 'rpm', metrics.rpm, elapsed, 0.15, 0.02
+      machineId,
+      'rpm',
+      metrics.rpm,
+      elapsed,
+      0.15,
+      0.02
     );
     valuesRef.current.load = getSmoothedDisplayValue(
-      machineId, 'load', metrics.load, elapsed, 0.1, 0.05
+      machineId,
+      'load',
+      metrics.load,
+      elapsed,
+      0.1,
+      0.05
     );
     valuesRef.current.temp = getSmoothedDisplayValue(
-      machineId, 'temp', metrics.temperature, elapsed, 0.08, 0.01
+      machineId,
+      'temp',
+      metrics.temperature,
+      elapsed,
+      0.08,
+      0.01
     );
   });
 
@@ -200,7 +215,11 @@ let _lastRealGameTime = 0;
  * Get smoothed game time for display
  * Interpolates between store updates so sky/lighting looks continuous
  */
-export function getSmoothedGameTime(storeGameTime: number, deltaSeconds: number, gameSpeed: number): number {
+export function getSmoothedGameTime(
+  storeGameTime: number,
+  deltaSeconds: number,
+  gameSpeed: number
+): number {
   // If store time jumped (new tick), reset
   if (Math.abs(storeGameTime - _lastRealGameTime) > 0.01) {
     _smoothedGameTime = storeGameTime;

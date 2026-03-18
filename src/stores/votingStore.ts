@@ -17,6 +17,8 @@ import { create } from 'zustand';
 import { WORKER_ROSTER } from '../types';
 import type { Vote, VoteStatus, VoteOption, VoteComment, AxisKey } from '../types/bas';
 import { VOTING_RULES } from '../types/bas';
+import { useBASStore } from './basStore';
+import { useUIStore } from './uiStore';
 
 // =============================================================================
 // STORE INTERFACE
@@ -233,20 +235,14 @@ export const useVotingStore = create<VotingState>((set, get) => ({
       message: string,
       type: 'success' | 'info' = 'success'
     ) => {
-      import('./uiStore')
-        .then(({ useUIStore }) => {
-          useUIStore.getState().addAlert({
-            id: `vote-impl-${Date.now()}`,
-            type,
-            title,
-            message,
-            timestamp: new Date(),
-            acknowledged: false,
-          });
-        })
-        .catch(() => {
-          // UI store unavailable - notification skipped
-        });
+      useUIStore.getState().addAlert({
+        id: `vote-impl-${Date.now()}`,
+        type,
+        title,
+        message,
+        timestamp: new Date(),
+        acknowledged: false,
+      });
     };
 
     // Phase 3: Actually apply the vote results
@@ -254,26 +250,19 @@ export const useVotingStore = create<VotingState>((set, get) => ({
       // Check if the winning option was "Accept Change" (first option)
       const acceptOptionId = vote.options[0]?.id;
       if (vote.result.id === acceptOptionId) {
-        // Apply the axis change via dynamic import to avoid circular deps
-        import('./basStore')
-          .then(({ useBASStore }) => {
-            const axisLabels: Record<AxisKey, string> = {
-              autonomyLevel: 'Autonomy Level',
-              decisionMode: 'Decision Mode',
-              informationAccess: 'Information Access',
-              evaluationDirection: 'Evaluation Direction',
-              collectiveOrientation: 'Collective Orientation',
-            };
-            const axisLabel = axisLabels[vote.targetAxis!] || vote.targetAxis;
-            useBASStore.getState().setAxis(vote.targetAxis!, vote.proposedValue!);
-            sendNotification(
-              'Vote Implemented',
-              `${axisLabel} changed to ${vote.proposedValue}% by democratic vote.`
-            );
-          })
-          .catch(() => {
-            sendNotification('Vote Implementation Failed', `Could not apply axis change`, 'info');
-          });
+        const axisLabels: Record<AxisKey, string> = {
+          autonomyLevel: 'Autonomy Level',
+          decisionMode: 'Decision Mode',
+          informationAccess: 'Information Access',
+          evaluationDirection: 'Evaluation Direction',
+          collectiveOrientation: 'Collective Orientation',
+        };
+        const axisLabel = axisLabels[vote.targetAxis!] || vote.targetAxis;
+        useBASStore.getState().setAxis(vote.targetAxis!, vote.proposedValue!);
+        sendNotification(
+          'Vote Implemented',
+          `${axisLabel} changed to ${vote.proposedValue}% by democratic vote.`
+        );
       } else {
         // "Keep Current" won - notify but don't change
         sendNotification(
@@ -284,63 +273,53 @@ export const useVotingStore = create<VotingState>((set, get) => ({
       }
     } else if (vote.type === 'ai-behavior' && vote.result) {
       // Apply AI behavior change based on winning option
-      import('./basStore')
-        .then(({ useBASStore }) => {
-          const config = useBASStore.getState().aiConfig;
-          const winningLabel = vote.result!.label.toLowerCase();
-          let changeDescription = vote.result!.label;
+      const config = useBASStore.getState().aiConfig;
+      const winningLabel = vote.result!.label.toLowerCase();
+      let changeDescription = vote.result!.label;
 
-          // Parse common AI behavior options
-          if (winningLabel.includes('suggestive') || winningLabel.includes('proactive')) {
-            useBASStore.getState().updateAIConfig({
-              ...config,
-              suggestionFrequency: 'proactive',
-            });
-            changeDescription = 'AI will now provide proactive suggestions';
-          } else if (winningLabel.includes('reactive') || winningLabel.includes('wait')) {
-            useBASStore.getState().updateAIConfig({
-              ...config,
-              suggestionFrequency: 'reactive',
-            });
-            changeDescription = 'AI will now wait for issues before suggesting';
-          } else if (winningLabel.includes('on-request') || winningLabel.includes('ask')) {
-            useBASStore.getState().updateAIConfig({
-              ...config,
-              suggestionFrequency: 'on-request',
-            });
-            changeDescription = 'AI will now only respond when asked';
-          } else if (winningLabel.includes('reasoning') || winningLabel.includes('explain')) {
-            useBASStore.getState().updateAIConfig({
-              ...config,
-              languageStyle: {
-                ...config.languageStyle,
-                provideReasoning: true,
-              },
-            });
-            changeDescription = 'AI will now explain its reasoning';
-          } else if (winningLabel.includes('concise') || winningLabel.includes('brief')) {
-            useBASStore.getState().updateAIConfig({
-              ...config,
-              languageStyle: {
-                ...config.languageStyle,
-                provideReasoning: false,
-              },
-            });
-            changeDescription = 'AI will now provide concise responses';
-          }
-
-          sendNotification(
-            'AI Behavior Changed',
-            `${changeDescription} (voted: "${vote.result!.label}").`
-          );
-        })
-        .catch(() => {
-          sendNotification(
-            'Vote Implementation Failed',
-            `Could not apply AI behavior change`,
-            'info'
-          );
+      // Parse common AI behavior options
+      if (winningLabel.includes('suggestive') || winningLabel.includes('proactive')) {
+        useBASStore.getState().updateAIConfig({
+          ...config,
+          suggestionFrequency: 'proactive',
         });
+        changeDescription = 'AI will now provide proactive suggestions';
+      } else if (winningLabel.includes('reactive') || winningLabel.includes('wait')) {
+        useBASStore.getState().updateAIConfig({
+          ...config,
+          suggestionFrequency: 'reactive',
+        });
+        changeDescription = 'AI will now wait for issues before suggesting';
+      } else if (winningLabel.includes('on-request') || winningLabel.includes('ask')) {
+        useBASStore.getState().updateAIConfig({
+          ...config,
+          suggestionFrequency: 'on-request',
+        });
+        changeDescription = 'AI will now only respond when asked';
+      } else if (winningLabel.includes('reasoning') || winningLabel.includes('explain')) {
+        useBASStore.getState().updateAIConfig({
+          ...config,
+          languageStyle: {
+            ...config.languageStyle,
+            provideReasoning: true,
+          },
+        });
+        changeDescription = 'AI will now explain its reasoning';
+      } else if (winningLabel.includes('concise') || winningLabel.includes('brief')) {
+        useBASStore.getState().updateAIConfig({
+          ...config,
+          languageStyle: {
+            ...config.languageStyle,
+            provideReasoning: false,
+          },
+        });
+        changeDescription = 'AI will now provide concise responses';
+      }
+
+      sendNotification(
+        'AI Behavior Changed',
+        `${changeDescription} (voted: "${vote.result!.label}").`
+      );
     } else if (vote.type === 'policy') {
       // Policy votes are informational - just notify
       sendNotification(

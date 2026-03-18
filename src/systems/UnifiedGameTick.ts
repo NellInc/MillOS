@@ -15,6 +15,7 @@ import { centralTick, TICK_PRIORITY } from './CentralTickSystem';
 import type { TickContext } from './CentralTickSystem';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import { useProductionStore } from '../stores/productionStore';
+import { useUIStore } from '../stores/uiStore';
 import type { MachineData } from '../types';
 
 // Machine status type (matches MachineData.status)
@@ -44,13 +45,21 @@ const _metricTrackingUpdate = {
 
 // Reusable arrays for machine change tracking (cleared each tick, never reallocated)
 const _changedIndices: number[] = [];
-const _changedData: Array<{ newStatus: MachineStatus; newWear: number; newEfficiency: number; newTemp: number }> = [];
+const _changedData: Array<{
+  newStatus: MachineStatus;
+  newWear: number;
+  newEfficiency: number;
+  newTemp: number;
+}> = [];
 
 // ============================================================
 // WEAR CONFIGURATION (static, never changes)
 // ============================================================
 
-const WEAR_CONFIG: Record<string, { wearRatePerSecond: number; warningThreshold: number; breakdownThreshold: number }> = {
+const WEAR_CONFIG: Record<
+  string,
+  { wearRatePerSecond: number; warningThreshold: number; breakdownThreshold: number }
+> = {
   SILO: { wearRatePerSecond: 0.0001, warningThreshold: 70, breakdownThreshold: 95 },
   ROLLER_MILL: { wearRatePerSecond: 0.0005, warningThreshold: 60, breakdownThreshold: 90 },
   PLANSIFTER: { wearRatePerSecond: 0.0003, warningThreshold: 65, breakdownThreshold: 92 },
@@ -83,7 +92,14 @@ function calculateEfficiency(wear: number, machineType: string): number {
 function updateMachineTruth(
   machine: MachineData,
   deltaSeconds: number
-): { changed: boolean; newStatus: MachineStatus; newWear: number; newEfficiency: number; newTemp: number; breakdown: boolean } {
+): {
+  changed: boolean;
+  newStatus: MachineStatus;
+  newWear: number;
+  newEfficiency: number;
+  newTemp: number;
+  breakdown: boolean;
+} {
   const isRunning = machine.status === 'running' || machine.status === 'warning';
   const isBrokenDown = machine.status === 'critical';
 
@@ -248,14 +264,15 @@ function unifiedGameTick(ctx: TickContext): void {
     prodStore._metricTracking.totalElapsedSeconds + deltaSeconds;
 
   // Uptime: percentage of time machines have been running
-  _metricsUpdate.uptime = _metricTrackingUpdate.totalElapsedSeconds > 0
-    ? Math.round(
-      (_metricTrackingUpdate.totalRunningSeconds /
-        (_metricTrackingUpdate.totalElapsedSeconds * totalMachines)) *
-      100 *
-      10
-    ) / 10
-    : 100;
+  _metricsUpdate.uptime =
+    _metricTrackingUpdate.totalElapsedSeconds > 0
+      ? Math.round(
+          (_metricTrackingUpdate.totalRunningSeconds /
+            (_metricTrackingUpdate.totalElapsedSeconds * totalMachines)) *
+            100 *
+            10
+        ) / 10
+      : 100;
 
   // Throughput: actual production rate in bags per game-hour
   // Based on App.tsx production formula: 12 bags/sec base × productionSpeed × gameSpeedFactor × packerScale
@@ -309,7 +326,8 @@ function unifiedGameTick(ctx: TickContext): void {
   }
 
   // 4. Update game time only if changed
-  const timeChanged = Math.abs(newGameTime - gameStore.gameTime) > 0.0001 || newGameDay !== gameStore.gameDay;
+  const timeChanged =
+    Math.abs(newGameTime - gameStore.gameTime) > 0.0001 || newGameDay !== gameStore.gameDay;
   if (timeChanged) {
     useGameSimulationStore.setState({
       gameTime: newGameTime,
@@ -320,18 +338,16 @@ function unifiedGameTick(ctx: TickContext): void {
   // 5. Handle breakdowns (async, outside main path)
   if (_breakdowns.length > 0) {
     // Copy breakdowns before async (since we reuse the array)
-    const breakdownsCopy = _breakdowns.map(b => ({ ...b }));
-    import('../stores/uiStore').then(({ useUIStore }) => {
-      breakdownsCopy.forEach(({ id, name, type }) => {
-        useUIStore.getState().addAlert({
-          id: `breakdown-${id}-${Date.now()}`,
-          type: 'critical',
-          title: 'Machine Breakdown',
-          message: `${name} (${type}) has broken down due to excessive wear. Maintenance required.`,
-          machineId: id,
-          timestamp: new Date(),
-          acknowledged: false,
-        });
+    const breakdownsCopy = _breakdowns.map((b) => ({ ...b }));
+    breakdownsCopy.forEach(({ id, name, type }) => {
+      useUIStore.getState().addAlert({
+        id: `breakdown-${id}-${Date.now()}`,
+        type: 'critical',
+        title: 'Machine Breakdown',
+        message: `${name} (${type}) has broken down due to excessive wear. Maintenance required.`,
+        machineId: id,
+        timestamp: new Date(),
+        acknowledged: false,
       });
     });
   }

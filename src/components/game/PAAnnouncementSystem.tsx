@@ -142,7 +142,13 @@ export const PAAnnouncementSystem: React.FC = () => {
         clearInterval(ttsCheckIntervalRef.current);
       }
     };
-  }, [currentAnnouncement?.id, isStartupSuppressed, isMuted, dismissAnnouncement, currentAnnouncementId]);
+  }, [
+    currentAnnouncement?.id,
+    isStartupSuppressed,
+    isMuted,
+    dismissAnnouncement,
+    currentAnnouncementId,
+  ]);
 
   // Suppress display during startup period to let speech synthesis initialize
   if (isStartupSuppressed) return null;

@@ -182,7 +182,6 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
       {/* 1. Top HUD Layer - Desktop only (draggable, complex interactions) */}
       {!isMobile && <StatusHUD />}
 
-
       {/* 2. Emergency Flasher - Always visible */}
       <EmergencyOverlay />
 

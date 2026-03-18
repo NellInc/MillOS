@@ -24,7 +24,7 @@ import {
 } from './components/physics';
 import ErrorBoundary from './components/ErrorBoundary';
 import { LoadingScreen } from './components/LoadingScreen';
-import { MachineData, MachineType, WorkerData, WORKER_ROSTER } from './types';
+import { MachineData, MachineType, WorkerData, createInitialWorkers } from './types';
 import { ForkliftData } from './components/ForkliftSystem';
 import { AnimatePresence, motion } from 'framer-motion';
 import { audioManager } from './utils/audioManager';
@@ -33,8 +33,6 @@ import { initKTX2Loader } from './utils/textureCompression';
 import { preloadGenerativeTexturesOnce } from './utils/texturePreloader';
 import { getGPUSettings } from './utils/resourcePersistence';
 import { initializeGPUTracking, cleanupGPUTracking } from './utils/gpuTrackedResources';
-import { initializeAIEngine } from './utils/aiEngine';
-import { startVCPUpdateLoop, stopVCPUpdateLoop } from './protocols/vcp';
 import { useGraphicsStore } from './stores/graphicsStore';
 import { useUIStore } from './stores/uiStore';
 import { useGameSimulationStore } from './stores/gameSimulationStore';
@@ -414,14 +412,43 @@ const App: React.FC = () => {
 
   // Initialize AI Engine observers
   useEffect(() => {
-    const cleanup = initializeAIEngine();
-    return cleanup;
+    let active = true;
+    let cleanup: (() => void) | undefined;
+
+    import('./utils/aiEngine')
+      .then(({ initializeAIEngine }) => {
+        if (!active) return;
+        cleanup = initializeAIEngine();
+      })
+      .catch(() => {
+        cleanup = undefined;
+      });
+
+    return () => {
+      active = false;
+      cleanup?.();
+    };
   }, []);
 
   // Initialize VCP update loop
   useEffect(() => {
-    startVCPUpdateLoop();
-    return () => stopVCPUpdateLoop();
+    let active = true;
+    let stopLoop: (() => void) | undefined;
+
+    import('./protocols/vcp')
+      .then(({ startVCPUpdateLoop, stopVCPUpdateLoop }) => {
+        if (!active) return;
+        startVCPUpdateLoop();
+        stopLoop = stopVCPUpdateLoop;
+      })
+      .catch(() => {
+        stopLoop = undefined;
+      });
+
+    return () => {
+      active = false;
+      stopLoop?.();
+    };
   }, []);
 
   // Initialize workers at app startup (not tied to 3D scene rendering)
@@ -429,17 +456,7 @@ const App: React.FC = () => {
   useEffect(() => {
     const store = useProductionStore.getState();
     if (store.workers.length === 0) {
-      const aisles = [10, -10, 0];
-      const workers = WORKER_ROSTER.map((roster, i) => ({
-        ...roster,
-        position: [
-          aisles[i % aisles.length] + (Math.random() - 0.5) * 4,
-          0,
-          Math.random() * 40 - 20,
-        ] as [number, number, number],
-        direction: (Math.random() > 0.5 ? 1 : -1) as 1 | -1,
-      }));
-      store.setWorkers(workers);
+      store.setWorkers(createInitialWorkers());
     }
   }, []);
 

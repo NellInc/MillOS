@@ -8,7 +8,10 @@ import { shouldRunThisFrame } from '../utils/frameThrottle';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import { POLYGON_OFFSET } from '../constants/renderLayers';
 
-export const SpoutingSystem = React.memo<{ machines: MachineData[] }>(({ machines }) => {
+export const SpoutingSystem = React.memo<{
+  machines: MachineData[];
+  enableAudio?: boolean;
+}>(({ machines, enableAudio = true }) => {
   const isTabVisible = useGameSimulationStore((state) => state.isTabVisible);
   // Extract stable machine data to prevent unnecessary re-renders
   // Only recompute when machine IDs or positions actually change
@@ -60,6 +63,7 @@ export const SpoutingSystem = React.memo<{ machines: MachineData[] }>(({ machine
 
   // Start spouting sounds on mount
   useEffect(() => {
+    if (!enableAudio) return;
     spoutPositions.forEach((pos) => {
       audioManager.startSpoutingSound(pos.id, pos.x, pos.y, pos.z);
     });
@@ -69,10 +73,11 @@ export const SpoutingSystem = React.memo<{ machines: MachineData[] }>(({ machine
         audioManager.stopSpoutingSound(pos.id);
       });
     };
-  }, [spoutPositions]);
+  }, [enableAudio, spoutPositions]);
 
   // Update spatial audio volumes each frame
   useFrame(() => {
+    if (!enableAudio) return;
     if (!isTabVisible) return;
     // Spatial volume is fine at ~30fps; throttle to reduce per-frame audio work
     if (!shouldRunThisFrame(2)) return;

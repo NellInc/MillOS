@@ -35,9 +35,7 @@ interface KnowledgeIntegrationState {
   sessionStartTime: number;
 }
 
-export function useKnowledgeIntegration(
-  onNarration?: (narration: NarrationEntry) => void
-) {
+export function useKnowledgeIntegration(onNarration?: (narration: NarrationEntry) => void) {
   const stateRef = useRef<KnowledgeIntegrationState>({
     hasTriggeredFirstPlay: false,
     axesAdjusted: new Set(),
@@ -54,7 +52,12 @@ export function useKnowledgeIntegration(
 
   // Store hooks
   const { checkUnlockConditions, unlockEntry } = useKnowledgeStore();
-  const { getNarration, markShown, hasBeenShown, enabled: narrationEnabled } = useAINarrationStore();
+  const {
+    getNarration,
+    markShown,
+    hasBeenShown,
+    enabled: narrationEnabled,
+  } = useAINarrationStore();
 
   // Game state hooks - use selectors for performance
   const votes = useVotingStore((s) => s.votes);

@@ -100,27 +100,21 @@ export function isKnowledgeEnabled(): boolean {
  * Check if AI narration is available
  */
 export function isNarrationEnabled(): boolean {
-  return (
-    FEATURE_FLAGS.KNOWLEDGE_SYSTEM_ENABLED && FEATURE_FLAGS.AI_NARRATION_ENABLED
-  );
+  return FEATURE_FLAGS.KNOWLEDGE_SYSTEM_ENABLED && FEATURE_FLAGS.AI_NARRATION_ENABLED;
 }
 
 /**
  * Check if worker dialogue is available
  */
 export function isWorkerDialogueEnabled(): boolean {
-  return (
-    FEATURE_FLAGS.KNOWLEDGE_SYSTEM_ENABLED && FEATURE_FLAGS.WORKER_DIALOGUE_ENABLED
-  );
+  return FEATURE_FLAGS.KNOWLEDGE_SYSTEM_ENABLED && FEATURE_FLAGS.WORKER_DIALOGUE_ENABLED;
 }
 
 /**
  * Check if tooltips are available
  */
 export function isTooltipsEnabled(): boolean {
-  return (
-    FEATURE_FLAGS.KNOWLEDGE_SYSTEM_ENABLED && FEATURE_FLAGS.KNOWLEDGE_TOOLTIPS_ENABLED
-  );
+  return FEATURE_FLAGS.KNOWLEDGE_SYSTEM_ENABLED && FEATURE_FLAGS.KNOWLEDGE_TOOLTIPS_ENABLED;
 }
 
 /**
@@ -213,10 +207,7 @@ export function logFeatureFlags(): void {
  * Temporarily override a feature flag (for testing)
  * Returns a cleanup function to restore original value
  */
-export function overrideFlag(
-  flag: keyof typeof FEATURE_FLAGS,
-  value: boolean
-): () => void {
+export function overrideFlag(flag: keyof typeof FEATURE_FLAGS, value: boolean): () => void {
   const original = FEATURE_FLAGS[flag];
   FEATURE_FLAGS[flag] = value;
   console.log(`[FeatureFlags] Overriding ${flag}: ${original} → ${value}`);

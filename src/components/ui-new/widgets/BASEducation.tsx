@@ -735,9 +735,10 @@ const EngagementSignatureSection: React.FC = () => {
       <div className="bg-amber-500/10 rounded p-2 border border-amber-500/20">
         <div className="font-bold text-amber-400 mb-1 text-[10px]">Diagnostic Principle</div>
         <p className="text-[9px] text-slate-400">
-          If work consistently feels like forcing yourself through resistance, the BAMS configuration
-          needs adjustment. The engagement signature should feel natural when autonomy matches
-          readiness, goals are meaningful, feedback loops are short, and entry friction is minimal.
+          If work consistently feels like forcing yourself through resistance, the BAMS
+          configuration needs adjustment. The engagement signature should feel natural when autonomy
+          matches readiness, goals are meaningful, feedback loops are short, and entry friction is
+          minimal.
         </p>
       </div>
 
@@ -783,7 +784,14 @@ const EngagementSignatureSection: React.FC = () => {
 // MAIN COMPONENT
 // =============================================================================
 
-type SectionKey = 'wallace' | 'axes' | 'value' | 'flourishing' | 'mission' | 'engagement' | 'contributors';
+type SectionKey =
+  | 'wallace'
+  | 'axes'
+  | 'value'
+  | 'flourishing'
+  | 'mission'
+  | 'engagement'
+  | 'contributors';
 
 // Static section keys to prevent recreation
 const ALL_SECTIONS: SectionKey[] = [
@@ -858,9 +866,9 @@ export const BASEducation: React.FC = () => {
         <div className="flex items-start gap-2">
           <Lightbulb className="w-4 h-4 text-amber-400 mt-0.5 flex-shrink-0" />
           <div className="text-[10px] text-slate-300 leading-relaxed">
-            <strong className="text-white">The Bilateral Alignment Management System (BAMS)</strong> synthesizes three
-            traditions: <strong className="text-cyan-400">Bilateral Alignment</strong> (AI-human
-            partnership),{' '}
+            <strong className="text-white">The Bilateral Alignment Management System (BAMS)</strong>{' '}
+            synthesizes three traditions:{' '}
+            <strong className="text-cyan-400">Bilateral Alignment</strong> (AI-human partnership),{' '}
             <strong className="text-green-400">Democratic Workplace Philosophy</strong>{' '}
             (Semler/Mondragon), and{' '}
             <strong className="text-violet-400">Information-Theoretic Cognitive Science</strong>{' '}
@@ -940,8 +948,8 @@ export const BASEducation: React.FC = () => {
       >
         <div className="space-y-4">
           <p className="text-[10px] text-slate-400 leading-relaxed">
-            BAMS synthesizes insights from these key thinkers across systems theory,
-            democratic management, and AI ethics.
+            BAMS synthesizes insights from these key thinkers across systems theory, democratic
+            management, and AI ethics.
           </p>
           <PortraitRow portraits={PORTRAITS} size="medium" />
         </div>

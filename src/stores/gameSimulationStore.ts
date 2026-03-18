@@ -357,17 +357,6 @@ const findNearestExit = (x: number, z: number): FireDrillExit => {
   return nearestExit;
 };
 
-// LEGACY: tickGameTime throttling
-// NOTE: Game time is now primarily advanced by UnifiedGameTick (via CentralTickProvider)
-// which directly sets gameTime and gameDay. This tickGameTime function is kept for
-// backwards compatibility but should not be called in the main tick path.
-//
-// If this is called, we still need safety limits to prevent runaway time jumps.
-let lastTickTime = 0;
-let accumulatedDelta = 0;
-const TICK_INTERVAL = 100; // Update every 100ms
-const MAX_ACCUMULATED_DELTA = 0.5; // Cap accumulation to prevent huge time jumps
-
 export const useGameSimulationStore = create<GameSimulationStore>()(
   persist(
     (set, get) => ({
@@ -387,30 +376,13 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
       setGameSpeed: (speed) => set({ gameSpeed: speed }),
 
       tickGameTime: (deltaSeconds) => {
-        // LEGACY: This function is kept for backwards compatibility.
-        // Primary game time advancement is now done by UnifiedGameTick.
-
-        // Cap incoming delta to prevent huge time jumps
-        const cappedDelta = Math.min(deltaSeconds, 0.1);
-
-        // Throttle updates to every 100ms to reduce re-renders
-        const now = Date.now();
-        if (now - lastTickTime < TICK_INTERVAL) {
-          // Accumulate delta for accuracy, but cap to prevent runaway accumulation
-          accumulatedDelta = Math.min(accumulatedDelta + cappedDelta, MAX_ACCUMULATED_DELTA);
-          return;
-        }
-
-        // Add accumulated delta to current delta (both already capped)
-        const totalDelta = Math.min(cappedDelta + accumulatedDelta, MAX_ACCUMULATED_DELTA);
-        accumulatedDelta = 0;
-        lastTickTime = now;
+        const safeDeltaSeconds = Math.max(0, deltaSeconds);
 
         set((state) => {
           if (state.gameSpeed === 0) return {}; // Paused
           // Convert: deltaSeconds * gameSpeed = game seconds elapsed
           // Then convert to hours: / 3600
-          const hoursElapsed = (totalDelta * state.gameSpeed) / 3600;
+          const hoursElapsed = (safeDeltaSeconds * state.gameSpeed) / 3600;
           // Handle modulo edge case: ensure time stays in [0, 24) range with proper negative wrapping
           // Use ((value % 24) + 24) % 24 to handle negative values correctly
           let newTime = (((state.gameTime + hoursElapsed) % 24) + 24) % 24;

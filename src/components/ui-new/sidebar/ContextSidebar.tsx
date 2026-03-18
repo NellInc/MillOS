@@ -90,7 +90,7 @@ interface ContextSidebarProps {
 }
 
 // Panel preloading for smoother transitions
-import { preloadAllPanels, preloadPanelsForMode } from './panelPreloader';
+import { preloadPanelsForMode } from './panelPreloader';
 
 export const ContextSidebar: React.FC<ContextSidebarProps> = ({
   mode,
@@ -103,11 +103,6 @@ export const ContextSidebar: React.FC<ContextSidebarProps> = ({
   showZones,
   setShowZones,
 }) => {
-  // Preload all panels on idle time after initial render
-  React.useEffect(() => {
-    preloadAllPanels();
-  }, []);
-
   // Preload panels related to current mode when it changes
   React.useEffect(() => {
     if (isVisible) {

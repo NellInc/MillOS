@@ -42,18 +42,18 @@ export function idToSeed(id: string): number {
   let hash = 0;
   for (let i = 0; i < id.length; i++) {
     const char = id.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
+    hash = (hash << 5) - hash + char;
     hash = hash & hash; // Convert to 32bit integer
   }
   return Math.abs(hash);
 }
 
 export interface TickContext {
-  deltaSeconds: number;      // Real time since last tick
-  gameTime: number;          // Current game time (0-24)
-  gameSpeed: number;         // Game speed multiplier
-  elapsedTime: number;       // Total elapsed real time
-  tickCount: number;         // Total ticks since start
+  deltaSeconds: number; // Real time since last tick
+  gameTime: number; // Current game time (0-24)
+  gameSpeed: number; // Game speed multiplier
+  elapsedTime: number; // Total elapsed real time
+  tickCount: number; // Total ticks since start
 }
 
 export type TickCallback = (ctx: TickContext) => void;
@@ -61,17 +61,17 @@ export type TickCallback = (ctx: TickContext) => void;
 interface RegisteredCallback {
   id: string;
   callback: TickCallback;
-  priority: number;          // Lower = runs first
+  priority: number; // Lower = runs first
   enabled: boolean;
 }
 
 // Tick priorities - lower numbers run first
 export const TICK_PRIORITY = {
-  CRITICAL: 0,       // Time advancement, core game state
-  HIGH: 10,          // Machine status, production metrics
-  NORMAL: 50,        // Worker updates, AI decisions
-  LOW: 100,          // Ambient effects, non-critical updates
-  BACKGROUND: 200,   // Analytics, history recording
+  CRITICAL: 0, // Time advancement, core game state
+  HIGH: 10, // Machine status, production metrics
+  NORMAL: 50, // Worker updates, AI decisions
+  LOW: 100, // Ambient effects, non-critical updates
+  BACKGROUND: 200, // Analytics, history recording
 } as const;
 
 class CentralTickSystemImpl {
@@ -192,8 +192,9 @@ class CentralTickSystemImpl {
 
     // Sort callbacks if needed
     if (this.needsSort) {
-      this.sortedCallbacks = Array.from(this.callbacks.values())
-        .sort((a, b) => a.priority - b.priority);
+      this.sortedCallbacks = Array.from(this.callbacks.values()).sort(
+        (a, b) => a.priority - b.priority
+      );
       this.needsSort = false;
     }
 

@@ -121,11 +121,17 @@ const GLTFForklift: React.FC<ForkliftModelProps> = ({
         rotation={[0, Math.PI, 0]}
       />
       {/* Add cargo on top if needed - always mounted, opacity animated */}
-      <group ref={cargoRef} position={[0, 1.2, 1.5]} visible={hasCargo || cargoOpacityRef.current > 0.01}>
+      <group
+        ref={cargoRef}
+        position={[0, 1.2, 1.5]}
+        visible={hasCargo || cargoOpacityRef.current > 0.01}
+      >
         <mesh castShadow>
           <boxGeometry args={[1, 0.15, 1]} />
           <meshStandardMaterial
-            ref={(mat) => { if (mat) cargoMaterialsRef.current[0] = mat; }}
+            ref={(mat) => {
+              if (mat) cargoMaterialsRef.current[0] = mat;
+            }}
             color="#a16207"
             transparent
             opacity={cargoOpacityRef.current}
@@ -134,7 +140,9 @@ const GLTFForklift: React.FC<ForkliftModelProps> = ({
         <mesh castShadow position={[0, 0.4, 0]}>
           <boxGeometry args={[0.9, 0.6, 0.9]} />
           <meshStandardMaterial
-            ref={(mat) => { if (mat) cargoMaterialsRef.current[1] = mat; }}
+            ref={(mat) => {
+              if (mat) cargoMaterialsRef.current[1] = mat;
+            }}
             color="#fef3c7"
             transparent
             opacity={cargoOpacityRef.current}
@@ -436,12 +444,18 @@ const ProceduralForklift: React.FC<ForkliftModelProps> = ({
       ))}
 
       {/* Cargo (pallet with boxes) - always mounted, opacity animated via useFrame */}
-      <group ref={cargoRef} position={[0, 0.6, 2]} visible={hasCargo || cargoOpacityRef.current > 0.01}>
+      <group
+        ref={cargoRef}
+        position={[0, 0.6, 2]}
+        visible={hasCargo || cargoOpacityRef.current > 0.01}
+      >
         {/* Pallet */}
         <mesh castShadow>
           <boxGeometry args={[1, 0.12, 1]} />
           <meshStandardMaterial
-            ref={(mat) => { if (mat) cargoMaterialsRef.current[0] = mat; }}
+            ref={(mat) => {
+              if (mat) cargoMaterialsRef.current[0] = mat;
+            }}
             color="#a16207"
             roughness={0.8}
             transparent
@@ -453,7 +467,9 @@ const ProceduralForklift: React.FC<ForkliftModelProps> = ({
           <mesh key={i} position={[0, -0.05, z]}>
             <boxGeometry args={[1, 0.02, 0.15]} />
             <meshStandardMaterial
-              ref={(mat) => { if (mat) cargoMaterialsRef.current[1 + i] = mat; }}
+              ref={(mat) => {
+                if (mat) cargoMaterialsRef.current[1 + i] = mat;
+              }}
               color="#92400e"
               roughness={0.9}
               transparent
@@ -465,7 +481,9 @@ const ProceduralForklift: React.FC<ForkliftModelProps> = ({
         <mesh castShadow position={[0, 0.38, 0]}>
           <boxGeometry args={[0.85, 0.5, 0.85]} />
           <meshStandardMaterial
-            ref={(mat) => { if (mat) cargoMaterialsRef.current[4] = mat; }}
+            ref={(mat) => {
+              if (mat) cargoMaterialsRef.current[4] = mat;
+            }}
             color="#fef3c7"
             roughness={0.7}
             transparent
@@ -476,7 +494,9 @@ const ProceduralForklift: React.FC<ForkliftModelProps> = ({
         <mesh position={[0, 0.38, 0.43]}>
           <boxGeometry args={[0.86, 0.05, 0.01]} />
           <meshStandardMaterial
-            ref={(mat) => { if (mat) cargoMaterialsRef.current[5] = mat; }}
+            ref={(mat) => {
+              if (mat) cargoMaterialsRef.current[5] = mat;
+            }}
             color="#3b82f6"
             transparent
             opacity={cargoOpacityRef.current}
@@ -485,7 +505,9 @@ const ProceduralForklift: React.FC<ForkliftModelProps> = ({
         <mesh position={[0, 0.38, -0.43]}>
           <boxGeometry args={[0.86, 0.05, 0.01]} />
           <meshStandardMaterial
-            ref={(mat) => { if (mat) cargoMaterialsRef.current[6] = mat; }}
+            ref={(mat) => {
+              if (mat) cargoMaterialsRef.current[6] = mat;
+            }}
             color="#3b82f6"
             transparent
             opacity={cargoOpacityRef.current}

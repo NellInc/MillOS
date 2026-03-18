@@ -101,9 +101,7 @@ export const PortraitRow: React.FC<PortraitRowProps> = memo(
     return (
       <div className="space-y-2">
         {title && (
-          <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">
-            {title}
-          </div>
+          <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">{title}</div>
         )}
         <div className="flex flex-wrap gap-4 justify-center">
           {portraits.map((portrait) => (

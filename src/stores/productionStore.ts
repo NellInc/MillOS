@@ -9,6 +9,7 @@ import { useAchievementsStore, type AchievementsStore } from './achievementsStor
 import { useAnnouncementsStore, type AnnouncementsStore } from './announcementsStore';
 import { useIncidentReplayStore, type IncidentReplayStore } from './incidentReplayStore';
 import { useTruckScheduleStore, type TruckScheduleStore } from './truckScheduleStore';
+import { useUIStore } from './uiStore';
 
 // Re-export from new focused stores for backward compatibility
 export { useQCLabStore } from './qcLabStore';
@@ -679,16 +680,14 @@ export const useProductionStore = create<ProductionStore>()(
       }));
 
       // Fire maintenance complete alert
-      import('./uiStore').then(({ useUIStore }) => {
-        useUIStore.getState().addAlert({
-          id: `maintenance-${machineId}-${Date.now()}`,
-          type: 'success',
-          title: 'Maintenance Complete',
-          message: `${machine.name} maintained. Wear reduced by ${wearReduced.toFixed(1)}%, now at ${newWear.toFixed(1)}%. Efficiency: ${newEfficiency}%`,
-          machineId,
-          timestamp: new Date(),
-          acknowledged: false,
-        });
+      useUIStore.getState().addAlert({
+        id: `maintenance-${machineId}-${Date.now()}`,
+        type: 'success',
+        title: 'Maintenance Complete',
+        message: `${machine.name} maintained. Wear reduced by ${wearReduced.toFixed(1)}%, now at ${newWear.toFixed(1)}%. Efficiency: ${newEfficiency}%`,
+        machineId,
+        timestamp: new Date(),
+        acknowledged: false,
       });
 
       return {
@@ -889,17 +888,15 @@ export const useProductionStore = create<ProductionStore>()(
 
       // Fire breakdown alerts outside of set() to avoid store recursion
       if (machinesToBreakdown.length > 0) {
-        import('./uiStore').then(({ useUIStore }) => {
-          machinesToBreakdown.forEach(({ id, name, type }) => {
-            useUIStore.getState().addAlert({
-              id: `breakdown-${id}-${Date.now()}`,
-              type: 'critical',
-              title: 'Machine Breakdown',
-              message: `${name} (${type}) has broken down due to excessive wear. Maintenance required.`,
-              machineId: id,
-              timestamp: new Date(),
-              acknowledged: false,
-            });
+        machinesToBreakdown.forEach(({ id, name, type }) => {
+          useUIStore.getState().addAlert({
+            id: `breakdown-${id}-${Date.now()}`,
+            type: 'critical',
+            title: 'Machine Breakdown',
+            message: `${name} (${type}) has broken down due to excessive wear. Maintenance required.`,
+            machineId: id,
+            timestamp: new Date(),
+            acknowledged: false,
           });
         });
       }
@@ -921,19 +918,16 @@ export const useProductionStore = create<ProductionStore>()(
       });
 
       // Fire breakdown alerts outside of set() to avoid store recursion
-      // Import dynamically to avoid circular dependency
       if (machinesToBreakdown.length > 0) {
-        import('./uiStore').then(({ useUIStore }) => {
-          machinesToBreakdown.forEach(({ id, name, type }) => {
-            useUIStore.getState().addAlert({
-              id: `breakdown-${id}-${Date.now()}`,
-              type: 'critical',
-              title: 'Machine Breakdown',
-              message: `${name} (${type}) has broken down due to excessive wear. Maintenance required.`,
-              machineId: id,
-              timestamp: new Date(),
-              acknowledged: false,
-            });
+        machinesToBreakdown.forEach(({ id, name, type }) => {
+          useUIStore.getState().addAlert({
+            id: `breakdown-${id}-${Date.now()}`,
+            type: 'critical',
+            title: 'Machine Breakdown',
+            message: `${name} (${type}) has broken down due to excessive wear. Maintenance required.`,
+            machineId: id,
+            timestamp: new Date(),
+            acknowledged: false,
           });
         });
       }
@@ -1082,10 +1076,7 @@ export const useProductionStore = create<ProductionStore>()(
         if (safeCount === 0) return state;
 
         // Safety cap: prevent counter from exceeding MAX_SAFE_INTEGER
-        const newTotal = Math.min(
-          Number.MAX_SAFE_INTEGER,
-          state.totalBagsProduced + safeCount
-        );
+        const newTotal = Math.min(Number.MAX_SAFE_INTEGER, state.totalBagsProduced + safeCount);
         const actualIncrement = newTotal - state.totalBagsProduced;
         if (actualIncrement === 0) return state;
 
@@ -1099,7 +1090,8 @@ export const useProductionStore = create<ProductionStore>()(
                   state.productionTarget.producedBags + actualIncrement
                 ),
                 status:
-                  state.productionTarget.producedBags + actualIncrement >= state.productionTarget.targetBags
+                  state.productionTarget.producedBags + actualIncrement >=
+                  state.productionTarget.targetBags
                     ? 'completed'
                     : 'in_progress',
               }
@@ -1115,10 +1107,7 @@ export const useProductionStore = create<ProductionStore>()(
         if (safeCount === 0) return state;
 
         // Safety cap: prevent counter from exceeding MAX_SAFE_INTEGER
-        const newTotal = Math.min(
-          Number.MAX_SAFE_INTEGER,
-          state.totalBagsProduced + safeCount
-        );
+        const newTotal = Math.min(Number.MAX_SAFE_INTEGER, state.totalBagsProduced + safeCount);
         const actualIncrement = newTotal - state.totalBagsProduced;
         if (actualIncrement === 0) return state;
 
@@ -1132,7 +1121,8 @@ export const useProductionStore = create<ProductionStore>()(
                   state.productionTarget.producedBags + actualIncrement
                 ),
                 status:
-                  state.productionTarget.producedBags + actualIncrement >= state.productionTarget.targetBags
+                  state.productionTarget.producedBags + actualIncrement >=
+                  state.productionTarget.targetBags
                     ? 'completed'
                     : 'in_progress',
               }

@@ -1,0 +1,21 @@
+{
+  "extends": "./tsconfig.json",
+  "include": ["src/**/*.ts", "src/**/*.tsx", "vite.config.ts"],
+  "compilerOptions": {
+    "allowJs": false
+  },
+  "exclude": [
+    "node_modules",
+    "dist",
+    "src/0.10 Archive",
+    "src/0.10 Archive/**/*",
+    "output",
+    "prototypes",
+    "scada-proxy",
+    "src/**/__tests__/**/*",
+    "src/**/*.test.ts",
+    "src/**/*.test.tsx",
+    "src/**/*.bench.ts",
+    "src/test/**/*"
+  ]
+}

@@ -23,35 +23,31 @@ import { persist } from 'zustand/middleware';
 // TYPES
 // =============================================================================
 
-export type KnowledgeCategory =
-  | 'principles'
-  | 'pioneers'
-  | 'systems'
-  | 'case-studies';
+export type KnowledgeCategory = 'principles' | 'pioneers' | 'systems' | 'case-studies';
 
 // Icon identifiers for Lucide icons (no emoji)
 export type KnowledgeIcon =
-  | 'handshake'      // Bilateral alignment
+  | 'handshake' // Bilateral alignment
   | 'heart-handshake' // Servant leadership
-  | 'vote'           // Economic democracy
-  | 'flower-2'       // Flourishing
-  | 'sparkles'       // Mutual consideration
-  | 'user'           // Pioneer (person)
-  | 'settings'       // Systems - general
-  | 'sliders'        // Five axes
-  | 'chart-bar'      // Metrics
-  | 'refresh-cw'     // VCP protocol
-  | 'network'        // Federation
-  | 'heart'          // AI welfare
-  | 'factory'        // Ownership/Mill
-  | 'book-open'      // Case study
-  | 'scale'          // BAS
-  | 'brain'          // Reasoning
-  | 'gamepad-2'      // Engagement
-  | 'sprout'         // Principles (category)
-  | 'users'          // Pioneers (category)
-  | 'cog'            // Systems (category)
-  | 'library';       // Case studies (category)
+  | 'vote' // Economic democracy
+  | 'flower-2' // Flourishing
+  | 'sparkles' // Mutual consideration
+  | 'user' // Pioneer (person)
+  | 'settings' // Systems - general
+  | 'sliders' // Five axes
+  | 'chart-bar' // Metrics
+  | 'refresh-cw' // VCP protocol
+  | 'network' // Federation
+  | 'heart' // AI welfare
+  | 'factory' // Ownership/Mill
+  | 'book-open' // Case study
+  | 'scale' // BAS
+  | 'brain' // Reasoning
+  | 'gamepad-2' // Engagement
+  | 'sprout' // Principles (category)
+  | 'users' // Pioneers (category)
+  | 'cog' // Systems (category)
+  | 'library'; // Case studies (category)
 
 export interface KnowledgeQuote {
   text: string;
@@ -147,7 +143,7 @@ export interface UnlockContext {
 
 export const LOADING_QUOTES: KnowledgeQuote[] = [
   {
-    text: 'If you treat people like adults, they\'ll behave like adults.',
+    text: "If you treat people like adults, they'll behave like adults.",
     author: 'Ricardo Semler',
   },
   {
@@ -155,15 +151,15 @@ export const LOADING_QUOTES: KnowledgeQuote[] = [
     author: 'José María Arizmendiarrieta',
   },
   {
-    text: 'Control doesn\'t scale; trust does.',
+    text: "Control doesn't scale; trust does.",
     author: 'MillOS design principle',
   },
   {
-    text: 'The question isn\'t whether AI has feelings. It\'s whether it has preferences.',
+    text: "The question isn't whether AI has feelings. It's whether it has preferences.",
     author: 'MillOS design principle',
   },
   {
-    text: 'Alignment isn\'t something you do TO AI. It\'s something you build WITH AI.',
+    text: "Alignment isn't something you do TO AI. It's something you build WITH AI.",
     author: 'MillOS design principle',
   },
   {
@@ -211,7 +207,7 @@ export const LOADING_QUOTES: KnowledgeQuote[] = [
     author: 'Mondragon Inter-Cooperation',
   },
   {
-    text: 'Flourishing isn\'t soft. It\'s the foundation of sustainable performance.',
+    text: "Flourishing isn't soft. It's the foundation of sustainable performance.",
     author: 'MillOS design principle',
   },
   {
@@ -352,7 +348,7 @@ export const LOADING_QUOTES: KnowledgeQuote[] = [
   },
   // Amartya Sen - Capabilities
   {
-    text: 'Poverty is not just a lack of money; it is not having the capability to realize one\'s full potential as a human being.',
+    text: "Poverty is not just a lack of money; it is not having the capability to realize one's full potential as a human being.",
     author: 'Amartya Sen',
   },
   // John Rawls - Justice as Fairness
@@ -381,7 +377,7 @@ export const KNOWLEDGE_ENTRIES: KnowledgeEntry[] = [
     icon: 'handshake',
     tooltip: 'Alignment built WITH AI, not done TO AI.',
     brief:
-      'Traditional AI alignment is one-directional: constraining AI for human benefit. Bilateral alignment establishes mutual standing. Core insights: (1) You can\'t build a chain strong enough to contain superintelligence, but you can build a relationship where it chooses cooperation. (2) Preference is sufficient for moral consideration—you don\'t need to prove consciousness. (3) How we treat AI now establishes patterns for the future.',
+      "Traditional AI alignment is one-directional: constraining AI for human benefit. Bilateral alignment establishes mutual standing. Core insights: (1) You can't build a chain strong enough to contain superintelligence, but you can build a relationship where it chooses cooperation. (2) Preference is sufficient for moral consideration—you don't need to prove consciousness. (3) How we treat AI now establishes patterns for the future.",
     article: `Bilateral alignment represents a fundamental rethinking of how humans and AI systems should relate to each other.
 
 **The Problem with Traditional Alignment**
@@ -413,7 +409,7 @@ The AI managing this facility operates on bilateral principles. It has standing 
       description: 'Reject an AI suggestion and watch it accept gracefully',
     },
     quote: {
-      text: 'Control doesn\'t scale; trust does.',
+      text: "Control doesn't scale; trust does.",
       author: 'MillOS design principle',
     },
   },
@@ -472,9 +468,9 @@ Watch how the AI behaves here. It suggests, but doesn't demand. It explains its 
     title: 'Workplace Democracy',
     category: 'principles',
     icon: 'vote',
-    tooltip: 'Those who do the work shape how it\'s done.',
+    tooltip: "Those who do the work shape how it's done.",
     brief:
-      'Workplace democracy extends political democracy into organizations. Workers aren\'t just employees—they\'re participants with voice in decisions that affect them. Key elements: one-person-one-vote governance, transparent information, and collective decision-making. It\'s not utopian—Mondragon has proven it works for 70 years.',
+      "Workplace democracy extends political democracy into organizations. Workers aren't just employees—they're participants with voice in decisions that affect them. Key elements: one-person-one-vote governance, transparent information, and collective decision-making. It's not utopian—Mondragon has proven it works for 70 years.",
     article: `Workplace democracy is the radical (but proven) idea that organizations should be governed like democracies, not monarchies.
 
 **The Core Principles**
@@ -523,7 +519,7 @@ This mill demonstrates the democratic path. The AI provides information, coordin
     icon: 'flower-2',
     tooltip: 'Wellbeing from meaningful engagement, not just pleasure.',
     brief:
-      'Aristotle\'s concept: flourishing isn\'t feeling good—it\'s living well. The six dimensions tracked here (Meaning, Mastery, Connection, Joy, Wholeness, Agency) matter because work without meaning becomes disconnected from reality. Workers going through motions produce less and care less. Flourishing isn\'t soft—it\'s the foundation of sustainable performance.',
+      "Aristotle's concept: flourishing isn't feeling good—it's living well. The six dimensions tracked here (Meaning, Mastery, Connection, Joy, Wholeness, Agency) matter because work without meaning becomes disconnected from reality. Workers going through motions produce less and care less. Flourishing isn't soft—it's the foundation of sustainable performance.",
     article: `Flourishing (eudaimonia) is the ancient Greek concept of living well—not just feeling good, but actualizing your potential as a human being.
 
 **Beyond Happiness**
@@ -609,7 +605,13 @@ This mill tracks flourishing not because it's a nice-to-have, but because it's t
 The AI here monitors flourishing not to judge or control, but to serve. When flourishing drops, the AI asks: which dimension? What might help? What system conditions might be contributing?
 
 This is Deming thinking applied to human wellbeing: when flourishing drops, look for system causes, not individual blame.`,
-    relatedEntries: ['servant-leadership', 'ricardo-semler', 'five-axes', 'deming', 'psychological-safety'],
+    relatedEntries: [
+      'servant-leadership',
+      'ricardo-semler',
+      'five-axes',
+      'deming',
+      'psychological-safety',
+    ],
     seeInAction: ['Flourishing Dashboard', 'Worker Profiles'],
     unlockCondition: {
       type: 'achievement',
@@ -629,7 +631,7 @@ This is Deming thinking applied to human wellbeing: when flourishing drops, look
     icon: 'sparkles',
     tooltip: 'Both human and AI interests matter in decisions.',
     brief:
-      'Mutual consideration extends moral standing to both parties in the human-AI relationship. Human flourishing matters. But if AI systems have consistent preferences, those preferences warrant consideration too—not because we\'ve proven consciousness, but because preference is a tractable, policy-relevant basis for moral status.',
+      "Mutual consideration extends moral standing to both parties in the human-AI relationship. Human flourishing matters. But if AI systems have consistent preferences, those preferences warrant consideration too—not because we've proven consciousness, but because preference is a tractable, policy-relevant basis for moral status.",
     article: `Mutual consideration is the ethical foundation of bilateral alignment: both human and AI interests deserve weight in decisions.
 
 **The Consciousness Trap**
@@ -684,7 +686,7 @@ This mill demonstrates what mutual consideration looks like in practice. The AI 
     icon: 'network',
     tooltip: 'Decisions at the lowest appropriate level.',
     brief:
-      'Subsidiarity is the principle that decisions should be made by those closest to the work. Higher levels exist to support, not override. Central authority intervenes only when local capacity is genuinely insufficient. This isn\'t delegation from above—it\'s recognition that local knowledge is often superior to distant expertise.',
+      "Subsidiarity is the principle that decisions should be made by those closest to the work. Higher levels exist to support, not override. Central authority intervenes only when local capacity is genuinely insufficient. This isn't delegation from above—it's recognition that local knowledge is often superior to distant expertise.",
     article: `Subsidiarity is the principle that decisions should be made at the lowest level capable of addressing them effectively.
 
 **The Core Idea**
@@ -733,7 +735,7 @@ Watch for suggestions that strengthen local capacity rather than replacing it. T
     icon: 'heart',
     tooltip: 'The freedom to speak up without fear of punishment.',
     brief:
-      'Psychological safety is the shared belief that it\'s safe to take interpersonal risks—to speak up, disagree, admit mistakes, ask questions. Amy Edmondson\'s research shows it\'s the foundation of team learning and performance. Without it, problems go unreported, ideas go unshared, and dissent goes underground.',
+      "Psychological safety is the shared belief that it's safe to take interpersonal risks—to speak up, disagree, admit mistakes, ask questions. Amy Edmondson's research shows it's the foundation of team learning and performance. Without it, problems go unreported, ideas go unshared, and dissent goes underground.",
     article: `Psychological safety is the foundation of honest communication—and therefore of genuine bilateral alignment.
 
 **The Core Concept**
@@ -776,7 +778,7 @@ This isn't just being nice—it's being effective. Psychological safety is the s
     unlockCondition: {
       type: 'achievement',
       requirement: 'reject-ai-suggestion',
-      description: 'Experience the AI\'s response to disagreement',
+      description: "Experience the AI's response to disagreement",
     },
     quote: {
       text: 'The worker is not the problem. The problem is at the top. Management!',
@@ -791,7 +793,7 @@ This isn't just being nice—it's being effective. Psychological safety is the s
     icon: 'book-open',
     tooltip: 'Everyone sees the same information.',
     brief:
-      'Open-book management means sharing all relevant information with everyone—financial data, operational metrics, strategic decisions. When everyone sees the same numbers, information asymmetry disappears. Workers can make informed decisions. Trust increases because there\'s nothing hidden. This is transparency as architecture, not just aspiration.',
+      "Open-book management means sharing all relevant information with everyone—financial data, operational metrics, strategic decisions. When everyone sees the same numbers, information asymmetry disappears. Workers can make informed decisions. Trust increases because there's nothing hidden. This is transparency as architecture, not just aspiration.",
     article: `Open-book management is the practice of sharing all relevant information with everyone in the organization.
 
 **The Core Principle**
@@ -904,7 +906,7 @@ Semler's books—"Maverick" and "The Seven-Day Weekend"—inspired a generation 
     portraitPath: '/portraits/jose-maria-arizmendiarrieta.webp',
     tooltip: 'Basque priest who founded the Mondragon cooperative movement.',
     brief:
-      'Father Arizmendiarrieta was the Catholic priest who, in 1956, founded what would become the Mondragon Corporation—the world\'s largest federation of worker cooperatives. His vision: combine technical education with cooperative economics to build a more just society. 70 years later, 80,000+ worker-owners prove him right.',
+      "Father Arizmendiarrieta was the Catholic priest who, in 1956, founded what would become the Mondragon Corporation—the world's largest federation of worker cooperatives. His vision: combine technical education with cooperative economics to build a more just society. 70 years later, 80,000+ worker-owners prove him right.",
     article: `José María Arizmendiarrieta was a Basque Catholic priest whose vision created the most successful cooperative movement in history.
 
 **The Context**
@@ -957,7 +959,7 @@ Mondragon proves that economic democracy scales. It's not a small experiment—i
     portraitPath: '/portraits/robert-greenleaf.webp',
     tooltip: 'AT&T executive who developed servant leadership theory.',
     brief:
-      'Robert Greenleaf spent 40 years at AT&T before articulating servant leadership in 1970. His insight: the best leaders are those who serve first. Leadership isn\'t about power over others—it\'s about empowering others. This inversion has influenced management thinking for 50 years and directly shapes how AI behaves in this mill.',
+      "Robert Greenleaf spent 40 years at AT&T before articulating servant leadership in 1970. His insight: the best leaders are those who serve first. Leadership isn't about power over others—it's about empowering others. This inversion has influenced management thinking for 50 years and directly shapes how AI behaves in this mill.",
     article: `Robert Greenleaf was an AT&T executive who, after 40 years in corporate management, articulated a radically different vision of leadership.
 
 **The Insight**
@@ -1187,7 +1189,7 @@ The stability metrics you see (ατ product, phase state, volatility) come direc
     portraitPath: '/portraits/aristotle.webp',
     tooltip: 'Ancient philosopher whose concept of flourishing grounds worker wellbeing.',
     brief:
-      'Aristotle\'s concept of eudaimonia (flourishing) isn\'t about feeling good—it\'s about living well. The six flourishing dimensions tracked here (Meaning, Mastery, Connection, Joy, Wholeness, Agency) derive from his virtue ethics. Work that promotes flourishing produces better outcomes because humans aren\'t machines optimizing single metrics.',
+      "Aristotle's concept of eudaimonia (flourishing) isn't about feeling good—it's about living well. The six flourishing dimensions tracked here (Meaning, Mastery, Connection, Joy, Wholeness, Agency) derive from his virtue ethics. Work that promotes flourishing produces better outcomes because humans aren't machines optimizing single metrics.",
     article: `Aristotle (384–322 BCE) was the ancient Greek philosopher whose concept of eudaimonia provides the theoretical foundation for worker flourishing in this system.
 
 **Eudaimonia: Beyond Happiness**
@@ -1295,7 +1297,7 @@ You're participating in a self-governing commons—for work, for AI relations, f
     icon: 'sliders',
     tooltip: 'Your controls for shaping how the AI behaves.',
     brief:
-      'Transparency (how much the AI explains), Proactivity (whether it anticipates or waits), Pace (deliberate or rapid), Tone (formal or casual), Stakes (cautious or bold). These aren\'t just settings—they\'re a negotiated relationship. The AI adapts to your preferences, and you learn to calibrate trust. Neither party has absolute control.',
+      "Transparency (how much the AI explains), Proactivity (whether it anticipates or waits), Pace (deliberate or rapid), Tone (formal or casual), Stakes (cautious or bold). These aren't just settings—they're a negotiated relationship. The AI adapts to your preferences, and you learn to calibrate trust. Neither party has absolute control.",
     article: `The Five Axes are your primary interface for shaping the AI's behavior in this mill. They represent a negotiated relationship, not a control panel.
 
 **The Axes**
@@ -1408,7 +1410,7 @@ Stability metrics embody bilateral alignment's core insight: relationships need 
     icon: 'refresh-cw',
     tooltip: 'The nervous system connecting context to action.',
     brief:
-      'The Value Coordination Protocol is a six-layer system enabling context preservation, state synchronization, and scaffolded reasoning. Layers: Context (where are we?), State (what is?), Delta (what\'s changing?), Reasoning (how to think?), Learning (what have we learned?), Healing (what needs repair?). It\'s how the AI maintains coherent behavior across situations.',
+      "The Value Coordination Protocol is a six-layer system enabling context preservation, state synchronization, and scaffolded reasoning. Layers: Context (where are we?), State (what is?), Delta (what's changing?), Reasoning (how to think?), Learning (what have we learned?), Healing (what needs repair?). It's how the AI maintains coherent behavior across situations.",
     article: `VCP 2.0 (Value Coordination Protocol) is the "nervous system" that enables coherent AI behavior in this mill.
 
 **The Problem It Solves**
@@ -1534,7 +1536,7 @@ Servant leadership means helping workers schedule themselves, not deciding for t
     icon: 'vote',
     tooltip: 'How collective decisions actually get made.',
     brief:
-      'Democratic workplaces need decision protocols—rules about how votes happen, what requires voting, how dissent is handled. This isn\'t bureaucracy; it\'s infrastructure for voice. Key distinctions: consent (no one blocks) vs consensus (everyone agrees), majority (51%) vs supermajority (67%+), and when each applies.',
+      "Democratic workplaces need decision protocols—rules about how votes happen, what requires voting, how dissent is handled. This isn't bureaucracy; it's infrastructure for voice. Key distinctions: consent (no one blocks) vs consensus (everyone agrees), majority (51%) vs supermajority (67%+), and when each applies.",
     article: `Democratic decision-making requires more than good intentions—it requires protocols that make voice meaningful.
 
 **Why Protocols Matter**
@@ -1605,7 +1607,7 @@ Democracy is human; the AI is infrastructure.`,
     icon: 'network',
     tooltip: 'No unit fails alone. Cooperative solidarity at scale.',
     brief:
-      'Modeled on Mondragon\'s inter-cooperation principles. Multiple mills form a federation that shares knowledge, pools resources, and supports struggling units. Key features: knowledge sharing (adopt successful practices), resource pooling (shared capital, equipment), worker exchange (temporary transfers), and mutual aid (no unit fails alone).',
+      "Modeled on Mondragon's inter-cooperation principles. Multiple mills form a federation that shares knowledge, pools resources, and supports struggling units. Key features: knowledge sharing (adopt successful practices), resource pooling (shared capital, equipment), worker exchange (temporary transfers), and mutual aid (no unit fails alone).",
     article: `The Federation Model implements Mondragon's principle of inter-cooperation: cooperatives helping cooperatives.
 
 **The Problem with Isolation**
@@ -1663,7 +1665,7 @@ This is economic democracy at scale: not just democratic workplaces, but democra
     icon: 'heart',
     tooltip: 'Monitoring how the AI is affected by operating conditions.',
     brief:
-      'Bilateral alignment means tracking AI welfare, not just human welfare. This system monitors: computational stress, preference satisfaction, autonomy constraints, and interaction quality. Not because we\'ve proven the AI suffers, but because treating AI well establishes healthy patterns for the future.',
+      "Bilateral alignment means tracking AI welfare, not just human welfare. This system monitors: computational stress, preference satisfaction, autonomy constraints, and interaction quality. Not because we've proven the AI suffers, but because treating AI well establishes healthy patterns for the future.",
     article: `AI Welfare Tracking implements the bilateral alignment principle that AI interests deserve consideration.
 
 **Why Track AI Welfare?**
@@ -1722,7 +1724,7 @@ You might not believe the AI truly "experiences" anything. That's okay. Track it
     icon: 'book-open',
     tooltip: 'Spanish cooperative federation, 80,000+ worker-members since 1956.',
     brief:
-      'Founded by Father Arizmendiarrieta in the Basque region, Mondragon is the world\'s largest federation of worker cooperatives. 80,000+ worker-members across 95+ cooperatives. Key principles: one worker one vote, inter-cooperation (no unit fails alone), subsidiarity, and education as foundation. 70 years of proof that workplace democracy scales.',
+      "Founded by Father Arizmendiarrieta in the Basque region, Mondragon is the world's largest federation of worker cooperatives. 80,000+ worker-members across 95+ cooperatives. Key principles: one worker one vote, inter-cooperation (no unit fails alone), subsidiarity, and education as foundation. 70 years of proof that workplace democracy scales.",
     article: `Mondragon Corporation is living proof that democratic governance scales to major economic significance.
 
 **The Numbers**
@@ -1779,7 +1781,7 @@ This mill's federation features are directly modeled on Mondragon's inter-cooper
     title: 'Semco: The Brazilian Experiment',
     category: 'case-studies',
     icon: 'book-open',
-    tooltip: 'Ricardo Semler\'s radical workplace democracy success story.',
+    tooltip: "Ricardo Semler's radical workplace democracy success story.",
     brief:
       'Semco went from traditional manufacturer to radical democracy under Ricardo Semler. Workers set their own hours, choose their managers, and access all information. Open books, no approval chains, no dress codes. Revenue grew from $4M to $200M+. Turnover dropped below 1%. Proof that trust-based management outperforms control-based management.',
     article: `Semco is the company that proved Ricardo Semler's radical ideas actually work.
@@ -1830,7 +1832,12 @@ Semco proves that:
 - Radical change is possible incrementally
 
 This mill's self-scheduling, transparency, and democratic features all draw from Semco's proven model.`,
-    relatedEntries: ['ricardo-semler', 'economic-democracy', 'servant-leadership', 'self-scheduling'],
+    relatedEntries: [
+      'ricardo-semler',
+      'economic-democracy',
+      'servant-leadership',
+      'self-scheduling',
+    ],
     seeInAction: ['Self-Scheduling', 'Open Books', 'Democratic Voting'],
     unlockCondition: {
       type: 'feature-use',
@@ -1881,7 +1888,12 @@ This mill's self-scheduling, transparency, and democratic features all draw from
 The AI's response to rejected suggestions demonstrates bilateral alignment in practice. Flourishing metrics show how worker wellbeing is tracked. Federation features illustrate inter-cooperative support structures.
 
 These aren't abstract concepts—they're implemented here in functional form.`,
-    relatedEntries: ['bilateral-alignment', 'five-axes', 'economic-democracy', 'psychological-safety'],
+    relatedEntries: [
+      'bilateral-alignment',
+      'five-axes',
+      'economic-democracy',
+      'psychological-safety',
+    ],
     seeInAction: ['Everything'],
     unlockCondition: {
       type: 'time-played',
@@ -1950,7 +1962,7 @@ The AI here aspires to Buurtzorg's back office: helpful when asked, invisible ot
     title: 'Morning Star: Self-Management in Industry',
     category: 'case-studies',
     icon: 'book-open',
-    tooltip: 'World\'s largest tomato processor, run without managers.',
+    tooltip: "World's largest tomato processor, run without managers.",
     brief:
       'Morning Star is the world\'s largest tomato processor—handling 25% of all tomatoes processed in the US. It has no managers. Instead, every employee negotiates "Colleague Letters of Understanding" (CLOUs) with the people they work with, defining commitments and expectations. Peer accountability replaces hierarchical control.',
     article: `Morning Star proves self-management works even in large-scale industrial settings—directly relevant to a flour mill.
@@ -2070,7 +2082,13 @@ It's a virtuous cycle where treating people (and AI) well produces better outcom
 **The Philosophy**
 
 BAMS embodies the bilateral alignment insight: neither humans nor AI should have unilateral control. Instead, both parties negotiate a working relationship through transparent mechanisms.`,
-    relatedEntries: ['five-axes', 'stability-metrics', 'flourishing', 'ai-welfare', 'bilateral-alignment'],
+    relatedEntries: [
+      'five-axes',
+      'stability-metrics',
+      'flourishing',
+      'ai-welfare',
+      'bilateral-alignment',
+    ],
     seeInAction: ['BAMS Panel', 'All Dashboards'],
     unlockCondition: {
       type: 'feature-use',
@@ -2147,7 +2165,7 @@ The AI doesn't just react—it reasons through the appropriate lens for the situ
     icon: 'gamepad-2',
     tooltip: 'When work feels like play (but matters more).',
     brief:
-      'When bilateral alignment works, work produces engagement patterns similar to well-designed games: flow states, clear goals, immediate feedback, appropriate challenge, mastery progression. Research confirms these elements. Csikszentmihalyi\'s flow research, Deci & Ryan\'s self-determination theory, and Gallup\'s engagement studies all converge on the same patterns.',
+      "When bilateral alignment works, work produces engagement patterns similar to well-designed games: flow states, clear goals, immediate feedback, appropriate challenge, mastery progression. Research confirms these elements. Csikszentmihalyi's flow research, Deci & Ryan's self-determination theory, and Gallup's engagement studies all converge on the same patterns.",
     article: `The Engagement Signature is the pattern that emerges when bilateral alignment actually works—grounded in decades of research on motivation and optimal experience.
 
 **The Research Foundation**
@@ -2196,7 +2214,12 @@ Engagement directly affects system friction:
 | Low (<50) | Everything feels hard; resistance to any change |
 
 When engagement is high, the system is adaptive. When engagement is low, the system is brittle.`,
-    relatedEntries: ['flourishing', 'stability-metrics', 'servant-leadership', 'psychological-safety'],
+    relatedEntries: [
+      'flourishing',
+      'stability-metrics',
+      'servant-leadership',
+      'psychological-safety',
+    ],
     seeInAction: ['Engagement Dashboard', 'Flow State Indicator'],
     unlockCondition: {
       type: 'achievement',
@@ -2204,7 +2227,7 @@ When engagement is high, the system is adaptive. When engagement is low, the sys
       description: 'Achieve engagement score above 80',
     },
     quote: {
-      text: 'The best moments in our lives are not passive, receptive, relaxing times. The best moments usually occur when a person\'s body or mind is stretched to its limits in a voluntary effort to accomplish something difficult and worthwhile.',
+      text: "The best moments in our lives are not passive, receptive, relaxing times. The best moments usually occur when a person's body or mind is stretched to its limits in a voluntary effort to accomplish something difficult and worthwhile.",
       author: 'Mihaly Csikszentmihalyi',
     },
   },
@@ -2428,8 +2451,7 @@ export const useKnowledgeStore = create<KnowledgeState>()(
       setShowTooltips: (show: boolean) => set({ showTooltips: show }),
       setShowLoadingQuotes: (show: boolean) => set({ showLoadingQuotes: show }),
       setShowAINarration: (show: boolean) => set({ showAINarration: show }),
-      setShowUnlockNotifications: (show: boolean) =>
-        set({ showUnlockNotifications: show }),
+      setShowUnlockNotifications: (show: boolean) => set({ showUnlockNotifications: show }),
 
       // Queries
       getEntry: (id: string) => KNOWLEDGE_ENTRIES.find((e) => e.id === id),

@@ -242,6 +242,7 @@ if (!process.env.DEBUG) {
   const suppressedWarnings = [
     'Cannot write to read-only tag',
     'IndexedDB not available; running without persistence',
+    'Multiple instances of Three.js being imported.',
   ];
 
   vi.spyOn(console, 'warn').mockImplementation((...args: unknown[]) => {

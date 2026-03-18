@@ -93,7 +93,7 @@ const ParkBench: React.FC<{ position: [number, number, number]; rotation?: numbe
 );
 
 // Small office building
-const SmallOffice: React.FC<{
+export const SmallOffice: React.FC<{
   position: [number, number, number];
   size?: [number, number, number];
   rotation?: number;
@@ -617,7 +617,7 @@ const Canal: React.FC<{
 };
 
 // English Narrowboat - cute traditional canal boat with roses and castles style
-const CanalBoat: React.FC<{
+export const CanalBoat: React.FC<{
   position: [number, number, number];
   rotation?: number;
   hullColor?: string;
@@ -3018,7 +3018,7 @@ const BusStop: React.FC<{
   );
 };
 
-const GrainSilo: React.FC<{
+export const GrainSilo: React.FC<{
   position: [number, number, number];
   radius?: number;
   height?: number;
@@ -3089,7 +3089,7 @@ const GrainSilo: React.FC<{
 );
 
 // Grain elevator tower - iconic tall structure for flour mills
-const GrainElevator: React.FC<{
+export const GrainElevator: React.FC<{
   position: [number, number, number];
 }> = ({ position }) => {
   const towerWidth = 8;
@@ -3204,7 +3204,7 @@ const GrainElevator: React.FC<{
 };
 
 // Connecting conveyor bridge between structures
-const ConveyorBridge: React.FC<{
+export const ConveyorBridge: React.FC<{
   start: [number, number, number];
   end: [number, number, number];
 }> = ({ start, end }) => {
@@ -3235,7 +3235,7 @@ const ConveyorBridge: React.FC<{
 };
 
 // Loading dock canopy for trucks
-const LoadingDockCanopy: React.FC<{
+export const LoadingDockCanopy: React.FC<{
   position: [number, number, number];
   width?: number;
   depth?: number;
@@ -3288,7 +3288,7 @@ const LoadingDockCanopy: React.FC<{
 );
 
 // Industrial storage tank - horizontal cylindrical tank with legs
-const StorageTank: React.FC<{
+export const StorageTank: React.FC<{
   position: [number, number, number];
   length?: number;
   radius?: number;
@@ -3368,7 +3368,7 @@ const StorageTank: React.FC<{
 );
 
 // Propane tank - smaller vertical cylindrical tank
-const PropaneTank: React.FC<{
+export const PropaneTank: React.FC<{
   position: [number, number, number];
   height?: number;
   radius?: number;
@@ -3424,7 +3424,7 @@ const PropaneTank: React.FC<{
 
 // Optimized car component - good looks with efficient rendering
 // Uses React.memo, reduced geometry segments, consolidated meshes
-const CuteCar: React.FC<{
+export const CuteCar: React.FC<{
   position: [number, number, number];
   rotation?: number;
   color?: string;
@@ -3683,7 +3683,11 @@ const CuteCar: React.FC<{
       )}
 
       {/* Shadow underneath - just above the surface the car sits on */}
-      <mesh position={[0, 0.01, 0]} rotation={[-Math.PI / 2, 0, 0]} renderOrder={RENDER_ORDER.floorEffects}>
+      <mesh
+        position={[0, 0.01, 0]}
+        rotation={[-Math.PI / 2, 0, 0]}
+        renderOrder={RENDER_ORDER.floorEffects}
+      >
         <planeGeometry args={[d.bodyLength + 0.5, d.bodyWidth + 0.3]} />
         <meshBasicMaterial
           color="#000000"
@@ -4452,7 +4456,11 @@ const CheckpointBarrier: React.FC<{
       </group>
 
       {/* Stop lines on road surface - raised above TerrainGround (y=0.05) */}
-      <mesh position={[0, 0.09, 5]} rotation={[-Math.PI / 2, 0, 0]} renderOrder={RENDER_ORDER.floorMarkings}>
+      <mesh
+        position={[0, 0.09, 5]}
+        rotation={[-Math.PI / 2, 0, 0]}
+        renderOrder={RENDER_ORDER.floorMarkings}
+      >
         <planeGeometry args={[roadWidth, 0.5]} />
         <meshBasicMaterial
           color="#ffffff"
@@ -4462,7 +4470,11 @@ const CheckpointBarrier: React.FC<{
           polygonOffsetUnits={-3}
         />
       </mesh>
-      <mesh position={[0, 0.09, -5]} rotation={[-Math.PI / 2, 0, 0]} renderOrder={RENDER_ORDER.floorMarkings}>
+      <mesh
+        position={[0, 0.09, -5]}
+        rotation={[-Math.PI / 2, 0, 0]}
+        renderOrder={RENDER_ORDER.floorMarkings}
+      >
         <planeGeometry args={[roadWidth, 0.5]} />
         <meshBasicMaterial
           color="#ffffff"
@@ -5550,17 +5562,39 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = () => {
         {/* Road edge lines - white - raised above terrain */}
         <mesh position={[-7.5, 0.09, 0]} rotation={[-Math.PI / 2, 0, 0]}>
           <planeGeometry args={[0.3, 170]} />
-          <meshBasicMaterial color="#ffffff" depthWrite={false} polygonOffset polygonOffsetFactor={-3} polygonOffsetUnits={-3} />
+          <meshBasicMaterial
+            color="#ffffff"
+            depthWrite={false}
+            polygonOffset
+            polygonOffsetFactor={-3}
+            polygonOffsetUnits={-3}
+          />
         </mesh>
         <mesh position={[7.5, 0.09, 0]} rotation={[-Math.PI / 2, 0, 0]}>
           <planeGeometry args={[0.3, 170]} />
-          <meshBasicMaterial color="#ffffff" depthWrite={false} polygonOffset polygonOffsetFactor={-3} polygonOffsetUnits={-3} />
+          <meshBasicMaterial
+            color="#ffffff"
+            depthWrite={false}
+            polygonOffset
+            polygonOffsetFactor={-3}
+            polygonOffsetUnits={-3}
+          />
         </mesh>
         {/* Center dashed line - yellow */}
         {Array.from({ length: 17 }).map((_, i) => (
-          <mesh key={`front-dash-${i}`} position={[0, 0.09, -75 + i * 10]} rotation={[-Math.PI / 2, 0, 0]}>
+          <mesh
+            key={`front-dash-${i}`}
+            position={[0, 0.09, -75 + i * 10]}
+            rotation={[-Math.PI / 2, 0, 0]}
+          >
             <planeGeometry args={[0.25, 5]} />
-            <meshBasicMaterial color="#f1c40f" depthWrite={false} polygonOffset polygonOffsetFactor={-3} polygonOffsetUnits={-3} />
+            <meshBasicMaterial
+              color="#f1c40f"
+              depthWrite={false}
+              polygonOffset
+              polygonOffsetFactor={-3}
+              polygonOffsetUnits={-3}
+            />
           </mesh>
         ))}
         {/* Grass shoulders - DISABLED: handled by TerrainGround */}
@@ -5572,17 +5606,39 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = () => {
         {/* Road edge lines - white - raised above terrain */}
         <mesh position={[-7.5, 0.09, 0]} rotation={[-Math.PI / 2, 0, 0]}>
           <planeGeometry args={[0.3, 170]} />
-          <meshBasicMaterial color="#ffffff" depthWrite={false} polygonOffset polygonOffsetFactor={-3} polygonOffsetUnits={-3} />
+          <meshBasicMaterial
+            color="#ffffff"
+            depthWrite={false}
+            polygonOffset
+            polygonOffsetFactor={-3}
+            polygonOffsetUnits={-3}
+          />
         </mesh>
         <mesh position={[7.5, 0.09, 0]} rotation={[-Math.PI / 2, 0, 0]}>
           <planeGeometry args={[0.3, 170]} />
-          <meshBasicMaterial color="#ffffff" depthWrite={false} polygonOffset polygonOffsetFactor={-3} polygonOffsetUnits={-3} />
+          <meshBasicMaterial
+            color="#ffffff"
+            depthWrite={false}
+            polygonOffset
+            polygonOffsetFactor={-3}
+            polygonOffsetUnits={-3}
+          />
         </mesh>
         {/* Center dashed line - yellow */}
         {Array.from({ length: 17 }).map((_, i) => (
-          <mesh key={`back-dash-${i}`} position={[0, 0.09, -75 + i * 10]} rotation={[-Math.PI / 2, 0, 0]}>
+          <mesh
+            key={`back-dash-${i}`}
+            position={[0, 0.09, -75 + i * 10]}
+            rotation={[-Math.PI / 2, 0, 0]}
+          >
             <planeGeometry args={[0.25, 5]} />
-            <meshBasicMaterial color="#f1c40f" depthWrite={false} polygonOffset polygonOffsetFactor={-3} polygonOffsetUnits={-3} />
+            <meshBasicMaterial
+              color="#f1c40f"
+              depthWrite={false}
+              polygonOffset
+              polygonOffsetFactor={-3}
+              polygonOffsetUnits={-3}
+            />
           </mesh>
         ))}
         {/* Grass shoulders - DISABLED: handled by TerrainGround */}

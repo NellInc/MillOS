@@ -1,5 +1,6 @@
 import ReactDOM from 'react-dom/client';
 import App from './App';
+import AssetPrototypePage from './prototypes/AssetPrototypePage';
 import ErrorBoundary from './components/ErrorBoundary';
 import './index.css';
 import { registerServiceWorker } from './utils/serviceWorkerRegistration';
@@ -31,9 +32,26 @@ console.warn = (...args: unknown[]): void => {
 
 // StrictMode disabled for 3D app - causes double-renders that tank performance in dev
 // Production builds are unaffected (StrictMode only runs in development)
+const isPrototypeRoute = (): boolean => {
+  const url = new URL(window.location.href);
+  const normalizedPath = url.pathname.replace(/\/+$/, '') || '/';
+  const normalizedBase = import.meta.env.BASE_URL.replace(/\/+$/, '') || '/';
+  const prototypePath = normalizedBase === '/' ? '/prototypes' : `${normalizedBase}/prototypes`;
+  const prototypeIndexPath = `${prototypePath}/index.html`;
+
+  return (
+    normalizedPath === prototypePath ||
+    normalizedPath === prototypeIndexPath ||
+    url.searchParams.get('view') === 'prototypes' ||
+    url.hash === '#prototypes'
+  );
+};
+
+const RootComponent = isPrototypeRoute() ? AssetPrototypePage : App;
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <ErrorBoundary>
-    <App />
+    <RootComponent />
   </ErrorBoundary>
 );
 

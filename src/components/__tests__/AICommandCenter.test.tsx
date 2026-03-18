@@ -60,6 +60,7 @@ vi.mock('lucide-react', () => ({
   Brain: () => null,
   Shield: () => null,
   User: () => null,
+  Users: () => null,
   Wrench: () => null,
   Zap: () => null,
   Eye: () => null,

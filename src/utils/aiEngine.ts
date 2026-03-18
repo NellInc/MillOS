@@ -27,6 +27,9 @@ import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import { useSafetyStore } from '../stores/safetyStore';
 import { useUIStore } from '../stores/uiStore';
 import { useAIConfigStore } from '../stores/aiConfigStore';
+import { useAnnouncementsStore } from '../stores/announcementsStore';
+import { useSafetyReportStore } from '../stores/safetyReportStore';
+import { useWorkerMoodStore } from '../stores/workerMoodStore';
 // Achievement type used in achievements.find() calls (implicitly typed)
 import { geminiClient } from './geminiClient';
 import { encodeFactoryContextVCL, getVCLLegend } from './vclEncoder';
@@ -752,7 +755,8 @@ function getTrend(
 
 function analyzeTrends(context: FactoryContext): AIDecision | null {
   const now = Date.now();
-  if (now - (aiMemory.lastAnalysisTime.trends || 0) < AI_ENGINE_TIMING.trendAnalysisCooldown) return null;
+  if (now - (aiMemory.lastAnalysisTime.trends || 0) < AI_ENGINE_TIMING.trendAnalysisCooldown)
+    return null;
   aiMemory.lastAnalysisTime.trends = now;
 
   // Update history for all machines
@@ -767,7 +771,8 @@ function analyzeTrends(context: FactoryContext): AIDecision | null {
 
     // Rising temperature trend
     if (tempTrend && tempTrend.trend === 'rising' && tempTrend.rateOfChange > 1.0) {
-      if (hasRecentDecision(machine.id, 'prediction', AI_ENGINE_TIMING.tempTrendDuplicateWindow)) continue;
+      if (hasRecentDecision(machine.id, 'prediction', AI_ENGINE_TIMING.tempTrendDuplicateWindow))
+        continue;
 
       const minutesUntilCritical = (70 - machine.metrics.temperature) / tempTrend.rateOfChange;
 
@@ -794,7 +799,8 @@ function analyzeTrends(context: FactoryContext): AIDecision | null {
 
     // Rising vibration trend (bearing wear indicator)
     if (vibTrend && vibTrend.trend === 'rising' && vibTrend.rateOfChange > 0.1) {
-      if (hasRecentDecision(machine.id, 'prediction', AI_ENGINE_TIMING.vibTrendDuplicateWindow)) continue;
+      if (hasRecentDecision(machine.id, 'prediction', AI_ENGINE_TIMING.vibTrendDuplicateWindow))
+        continue;
 
       const decision: AIDecision = {
         id: generateDecisionId(),
@@ -825,7 +831,11 @@ function analyzeTrends(context: FactoryContext): AIDecision | null {
 
 function detectCrossMachinePatterns(context: FactoryContext): AIDecision | null {
   const now = Date.now();
-  if (now - (aiMemory.lastAnalysisTime.correlation || 0) < AI_ENGINE_TIMING.correlationAnalysisCooldown) return null;
+  if (
+    now - (aiMemory.lastAnalysisTime.correlation || 0) <
+    AI_ENGINE_TIMING.correlationAnalysisCooldown
+  )
+    return null;
   aiMemory.lastAnalysisTime.correlation = now;
 
   const { machines } = context;
@@ -849,7 +859,9 @@ function detectCrossMachinePatterns(context: FactoryContext): AIDecision | null 
 
     // Check if this is a new pattern
     const existingPattern = aiMemory.crossMachinePatterns.find(
-      (p) => p.pattern === 'temperature_cluster' && now - p.timestamp < AI_ENGINE_TIMING.tempClusterExpiry
+      (p) =>
+        p.pattern === 'temperature_cluster' &&
+        now - p.timestamp < AI_ENGINE_TIMING.tempClusterExpiry
     );
 
     if (!existingPattern) {
@@ -901,7 +913,8 @@ function detectCrossMachinePatterns(context: FactoryContext): AIDecision | null 
   );
   if (highVibrationMachines.length >= 2) {
     const existingPattern = aiMemory.crossMachinePatterns.find(
-      (p) => p.pattern === 'vibration_cluster' && now - p.timestamp < AI_ENGINE_TIMING.vibClusterExpiry
+      (p) =>
+        p.pattern === 'vibration_cluster' && now - p.timestamp < AI_ENGINE_TIMING.vibClusterExpiry
     );
 
     if (!existingPattern) {
@@ -946,7 +959,9 @@ function detectCrossMachinePatterns(context: FactoryContext): AIDecision | null 
 
       if (overloaded.length > 0 && underloaded.length > 0) {
         const existingPattern = aiMemory.crossMachinePatterns.find(
-          (p) => p.pattern === 'load_imbalance' && now - p.timestamp < AI_ENGINE_TIMING.loadImbalanceExpiry
+          (p) =>
+            p.pattern === 'load_imbalance' &&
+            now - p.timestamp < AI_ENGINE_TIMING.loadImbalanceExpiry
         );
 
         if (!existingPattern) {
@@ -987,7 +1002,8 @@ function detectCrossMachinePatterns(context: FactoryContext): AIDecision | null 
 
 function detectAnomalies(context: FactoryContext): AIDecision | null {
   const now = Date.now();
-  if (now - (aiMemory.lastAnalysisTime.anomaly || 0) < AI_ENGINE_TIMING.anomalyDetectionCooldown) return null;
+  if (now - (aiMemory.lastAnalysisTime.anomaly || 0) < AI_ENGINE_TIMING.anomalyDetectionCooldown)
+    return null;
   aiMemory.lastAnalysisTime.anomaly = now;
 
   const { machines } = context;
@@ -1021,7 +1037,10 @@ function detectAnomalies(context: FactoryContext): AIDecision | null {
       if (zScore > 2.5) {
         // Check if we already flagged this recently
         const recentAnomaly = aiMemory.anomalyHistory.find(
-          (a) => a.machineId === machine.id && a.metric === key && now - a.timestamp < AI_ENGINE_TIMING.duplicateAnomalyWindow
+          (a) =>
+            a.machineId === machine.id &&
+            a.metric === key &&
+            now - a.timestamp < AI_ENGINE_TIMING.duplicateAnomalyWindow
         );
 
         if (recentAnomaly) continue;
@@ -1038,7 +1057,9 @@ function detectAnomalies(context: FactoryContext): AIDecision | null {
         aiMemory.anomalyHistory.push(anomaly);
 
         // Keep only recent anomalies with hard count limit for memory safety
-        aiMemory.anomalyHistory = aiMemory.anomalyHistory.filter((a) => now - a.timestamp < AI_ENGINE_TIMING.anomalyHistoryMaxAge);
+        aiMemory.anomalyHistory = aiMemory.anomalyHistory.filter(
+          (a) => now - a.timestamp < AI_ENGINE_TIMING.anomalyHistoryMaxAge
+        );
         if (aiMemory.anomalyHistory.length > MAX_ANOMALY_HISTORY) {
           aiMemory.anomalyHistory = aiMemory.anomalyHistory.slice(-MAX_ANOMALY_HISTORY);
         }
@@ -1151,7 +1172,11 @@ function updateProductionTracking(context: FactoryContext): void {
 
 function generateProductionAwareDecision(context: FactoryContext): AIDecision | null {
   const now = Date.now();
-  if (now - (aiMemory.lastAnalysisTime.production || 0) < AI_ENGINE_TIMING.productionAnalysisCooldown) return null;
+  if (
+    now - (aiMemory.lastAnalysisTime.production || 0) <
+    AI_ENGINE_TIMING.productionAnalysisCooldown
+  )
+    return null;
   aiMemory.lastAnalysisTime.production = now;
 
   const { shift, current } = {
@@ -1215,7 +1240,11 @@ function isLowProductionPeriod(gameTime: number): boolean {
 
 function generateMaintenanceWindowDecision(context: FactoryContext): AIDecision | null {
   const now = Date.now();
-  if (now - (aiMemory.lastAnalysisTime.maintenanceWindow || 0) < AI_ENGINE_TIMING.maintenanceWindowCooldown) return null;
+  if (
+    now - (aiMemory.lastAnalysisTime.maintenanceWindow || 0) <
+    AI_ENGINE_TIMING.maintenanceWindowCooldown
+  )
+    return null;
 
   // Check if we're in or approaching a low production window
   const gameHour = Math.floor(context.gameTime);
@@ -1288,7 +1317,8 @@ function generateMaintenanceWindowDecision(context: FactoryContext): AIDecision 
 
 function generateWeatherDecision(context: FactoryContext): AIDecision | null {
   const now = Date.now();
-  if (now - (aiMemory.lastAnalysisTime.weather || 0) < AI_ENGINE_TIMING.weatherAnalysisCooldown) return null;
+  if (now - (aiMemory.lastAnalysisTime.weather || 0) < AI_ENGINE_TIMING.weatherAnalysisCooldown)
+    return null;
 
   const { weather } = context;
 
@@ -1458,7 +1488,8 @@ function generateDrillDecision(context: FactoryContext): AIDecision | null {
 
 function analyzeHeatMap(context: FactoryContext): AIDecision | null {
   const now = Date.now();
-  if (now - (aiMemory.lastAnalysisTime.heatmap || 0) < AI_ENGINE_TIMING.heatmapAnalysisCooldown) return null;
+  if (now - (aiMemory.lastAnalysisTime.heatmap || 0) < AI_ENGINE_TIMING.heatmapAnalysisCooldown)
+    return null;
 
   const { heatMapData } = context;
   if (heatMapData.length < 10) return null;
@@ -1622,7 +1653,8 @@ function generateShiftChangeDecision(context: FactoryContext): AIDecision | null
 
 function generateFatigueDecision(context: FactoryContext): AIDecision | null {
   const now = Date.now();
-  if (now - (aiMemory.lastAnalysisTime.fatigue || 0) < AI_ENGINE_TIMING.fatigueAnalysisCooldown) return null;
+  if (now - (aiMemory.lastAnalysisTime.fatigue || 0) < AI_ENGINE_TIMING.fatigueAnalysisCooldown)
+    return null;
 
   const { workerSatisfaction } = context;
 
@@ -1855,7 +1887,11 @@ function findBestWorkerForTask(
 
   if (availableWorkers.length === 0) {
     const rosterWorkers = WORKER_ROSTER.filter((w) => {
-      const recentAssignment = hasRecentDecision(w.id, 'assignment', AI_ENGINE_TIMING.assignmentDuplicateWindow);
+      const recentAssignment = hasRecentDecision(
+        w.id,
+        'assignment',
+        AI_ENGINE_TIMING.assignmentDuplicateWindow
+      );
       return !recentAssignment;
     });
 
@@ -2092,7 +2128,10 @@ function generateMaintenanceDecision(
   worker: WorkerData | null
 ): AIDecision | null {
   if (isOnCooldown(issue.machine.id)) return null;
-  if (hasRecentDecision(issue.machine.id, 'maintenance', AI_ENGINE_TIMING.maintenanceDuplicateWindow)) return null;
+  if (
+    hasRecentDecision(issue.machine.id, 'maintenance', AI_ENGINE_TIMING.maintenanceDuplicateWindow)
+  )
+    return null;
 
   const actionMap: Record<MachineIssue['issueType'], string> = {
     temperature: `Dispatching ${worker?.name || 'maintenance team'} to inspect cooling on ${issue.machine.name}`,
@@ -2125,9 +2164,9 @@ function generateMaintenanceDecision(
     alternatives:
       issue.severity !== 'critical'
         ? [
-          { action: 'Continue monitoring', tradeoff: 'Risk of worsening' },
-          { action: 'Schedule for next shift', tradeoff: 'Delayed but less disruptive' },
-        ]
+            { action: 'Continue monitoring', tradeoff: 'Risk of worsening' },
+            { action: 'Schedule for next shift', tradeoff: 'Delayed but less disruptive' },
+          ]
         : undefined,
     uncertainty: issue.issueType === 'vibration' ? 'Depends on visual inspection' : undefined,
   };
@@ -2139,7 +2178,11 @@ function generateMaintenanceDecision(
 
 function generateOptimizationDecision(context: FactoryContext): AIDecision | null {
   const now = Date.now();
-  if (now - (aiMemory.lastAnalysisTime.optimization || 0) < AI_ENGINE_TIMING.optimizationAnalysisCooldown) return null;
+  if (
+    now - (aiMemory.lastAnalysisTime.optimization || 0) <
+    AI_ENGINE_TIMING.optimizationAnalysisCooldown
+  )
+    return null;
   aiMemory.lastAnalysisTime.optimization = now;
 
   const { efficiency, throughput, quality } = context.metrics;
@@ -2218,7 +2261,11 @@ function generateOptimizationDecision(context: FactoryContext): AIDecision | nul
 
 function generatePredictionDecision(context: FactoryContext): AIDecision | null {
   const now = Date.now();
-  if (now - (aiMemory.lastAnalysisTime.prediction || 0) < AI_ENGINE_TIMING.predictionAnalysisCooldown) return null;
+  if (
+    now - (aiMemory.lastAnalysisTime.prediction || 0) <
+    AI_ENGINE_TIMING.predictionAnalysisCooldown
+  )
+    return null;
   aiMemory.lastAnalysisTime.prediction = now;
 
   const predictions: { machine: MachineData; reason: string; timeframe: string; impact: string }[] =
@@ -2277,7 +2324,8 @@ function generatePredictionDecision(context: FactoryContext): AIDecision | null 
 function generateSafetyDecision(context: FactoryContext): AIDecision | null {
   if (context.safetyMetrics.safetyStops > 0) {
     const now = Date.now();
-    if (now - (aiMemory.lastAnalysisTime.safety || 0) < AI_ENGINE_TIMING.safetyAnalysisCooldown) return null;
+    if (now - (aiMemory.lastAnalysisTime.safety || 0) < AI_ENGINE_TIMING.safetyAnalysisCooldown)
+      return null;
     aiMemory.lastAnalysisTime.safety = now;
 
     const safetyOfficer = findBestWorkerForTask(context, 'safety');
@@ -2414,7 +2462,8 @@ function processDecisionChains(_context: FactoryContext): AIDecision | null {
           };
 
           // Schedule resolution based on calculated ETA
-          const resolutionDelay = etaSeconds * 1000 + Math.random() * AI_ENGINE_TIMING.resolutionJitterMax;
+          const resolutionDelay =
+            etaSeconds * 1000 + Math.random() * AI_ENGINE_TIMING.resolutionJitterMax;
           aiMemory.pendingChains.set(followupDecision.id, {
             parentId: followupDecision.id,
             nextStep: 'resolution',
@@ -2466,7 +2515,10 @@ function processDecisionChains(_context: FactoryContext): AIDecision | null {
   return null;
 }
 
-function scheduleFollowup(decision: AIDecision, delayMs: number = AI_ENGINE_TIMING.followupDelayBase): void {
+function scheduleFollowup(
+  decision: AIDecision,
+  delayMs: number = AI_ENGINE_TIMING.followupDelayBase
+): void {
   if (decision.type === 'assignment' || decision.type === 'maintenance') {
     aiMemory.pendingChains.set(decision.id, {
       parentId: decision.id,
@@ -2664,7 +2716,8 @@ export function reactToAlert(alert: AlertData): AIDecision | null {
     : undefined;
 
   if (!machine) return null;
-  if (hasRecentDecision(machine.id, 'maintenance', AI_ENGINE_TIMING.recentDecisionWindow)) return null;
+  if (hasRecentDecision(machine.id, 'maintenance', AI_ENGINE_TIMING.recentDecisionWindow))
+    return null;
 
   const worker = findBestWorkerForTask(context, 'maintenance', machine.id);
   const welfareContext = getAIWelfareContext();
@@ -3004,10 +3057,10 @@ const apiBackoff: BackoffState = {
 };
 
 const BACKOFF_CONFIG = {
-  baseDelayMs: 2000,      // Initial delay: 2 seconds
-  maxDelayMs: 60000,      // Maximum delay: 60 seconds
-  multiplier: 2,          // Double delay on each failure
-  resetAfterMs: 120000,   // Reset backoff if no failures for 2 minutes
+  baseDelayMs: 2000, // Initial delay: 2 seconds
+  maxDelayMs: 60000, // Maximum delay: 60 seconds
+  multiplier: 2, // Double delay on each failure
+  resetAfterMs: 120000, // Reset backoff if no failures for 2 minutes
 } as const;
 
 /**
@@ -3020,7 +3073,8 @@ function recordApiFailure(): void {
 
   // Exponential backoff: 2s, 4s, 8s, 16s, 32s, 60s (capped)
   apiBackoff.currentDelayMs = Math.min(
-    BACKOFF_CONFIG.baseDelayMs * Math.pow(BACKOFF_CONFIG.multiplier, apiBackoff.consecutiveFailures - 1),
+    BACKOFF_CONFIG.baseDelayMs *
+      Math.pow(BACKOFF_CONFIG.multiplier, apiBackoff.consecutiveFailures - 1),
     BACKOFF_CONFIG.maxDelayMs
   );
 
@@ -3132,7 +3186,9 @@ function processBASSuggestions(): void {
     workerId: targetWorker.id,
     currentTask: targetWorker.currentTask,
     metrics: {
-      efficiency: Number.isFinite(targetWorker.productivityScore) ? targetWorker.productivityScore! : 75,
+      efficiency: Number.isFinite(targetWorker.productivityScore)
+        ? targetWorker.productivityScore!
+        : 75,
       experience: Number.isFinite(targetWorker.experience) ? targetWorker.experience! : 50,
     },
   };
@@ -3182,7 +3238,11 @@ function aiLoop() {
 
   // 1. Tactical Decision Generation (every 6 seconds)
   // Skip if in backoff period to avoid hammering a failing API
-  if (isTacticalLayerActive() && now - lastDecisionTime >= AI_ENGINE_TIMING.tacticalDecisionInterval && !inBackoff) {
+  if (
+    isTacticalLayerActive() &&
+    now - lastDecisionTime >= AI_ENGINE_TIMING.tacticalDecisionInterval &&
+    !inBackoff
+  ) {
     if (!isGeneratingDecision) {
       lastDecisionTime = now;
       isGeneratingDecision = true;
@@ -3219,7 +3279,11 @@ function aiLoop() {
   // 2. Strategic Decision Generation (every 45s)
   // FIX: Use async IIFE with try/finally like tactical decisions to prevent race conditions
   // Skip if in backoff period
-  if (isStrategicLayerActive() && now - lastStrategicTime >= AI_ENGINE_TIMING.strategicDecisionInterval && !inBackoff) {
+  if (
+    isStrategicLayerActive() &&
+    now - lastStrategicTime >= AI_ENGINE_TIMING.strategicDecisionInterval &&
+    !inBackoff
+  ) {
     if (!isGeneratingStrategic) {
       lastStrategicTime = now;
       isGeneratingStrategic = true;
@@ -3934,23 +3998,6 @@ export async function resolveBilateralAlignment(): Promise<void> {
   // This prevents stale values from previous cycles affecting announcements
   grantsThisCycle = 0;
 
-  // FIX: Wrap core imports in separate try/catch for graceful fallback
-  let useWorkerMoodStore: typeof import('../stores/workerMoodStore').useWorkerMoodStore;
-  let useSafetyReportStore: typeof import('../stores/safetyReportStore').useSafetyReportStore;
-
-  try {
-    // Lazy import to prevent circular dependencies
-    const [workerMoodModule, safetyReportModule] = await Promise.all([
-      import('../stores/workerMoodStore'),
-      import('../stores/safetyReportStore'),
-    ]);
-    useWorkerMoodStore = workerMoodModule.useWorkerMoodStore;
-    useSafetyReportStore = safetyReportModule.useSafetyReportStore;
-  } catch (importError) {
-    logger.error('[Alignment] Failed to import core stores - skipping alignment cycle:', importError);
-    return; // Exit gracefully without crashing the AI loop
-  }
-
   try {
     const moodStore = useWorkerMoodStore.getState();
     const safetyStore = useSafetyReportStore.getState();
@@ -3977,12 +4024,10 @@ export async function resolveBilateralAlignment(): Promise<void> {
 
       // Grant rate is configurable via Management Generosity slider
       // Formula: 50% (strict) to 95% (generous), default 75% (balanced)
-      const { useAIConfigStore } = await import('../stores/aiConfigStore');
       const grantRate = useAIConfigStore.getState().getGrantRate();
       const shouldGrant = Math.random() < grantRate;
 
       // Get worker name for announcement (warm/genuine tone)
-      const { WORKER_ROSTER } = await import('../types');
       const workerData = WORKER_ROSTER.find((w) => w.id === workerId);
       const workerName = workerData?.name || workerId.replace('worker-', 'Worker ');
 
@@ -3995,7 +4040,6 @@ export async function resolveBilateralAlignment(): Promise<void> {
 
         // AI Voice announcement (warm, genuine - contrast with sardonic PA)
         if (grantsThisCycle === 1 || Math.random() < 0.3) {
-          const { useAnnouncementsStore } = await import('../stores/announcementsStore');
           useAnnouncementsStore.getState().addAnnouncement({
             type: 'info',
             message: await getAIVoiceMessage('grant', workerName, request.type),
@@ -4009,7 +4053,6 @@ export async function resolveBilateralAlignment(): Promise<void> {
         logger.ai.info(`[Alignment] Denied ${request.type} for ${workerId} with explanation`);
 
         // AI Voice explanation (still warm, shows respect)
-        const { useAnnouncementsStore } = await import('../stores/announcementsStore');
         useAnnouncementsStore.getState().addAnnouncement({
           type: 'info',
           message: await getAIVoiceMessage('deny', workerName, request.type),
@@ -4031,8 +4074,6 @@ export async function resolveBilateralAlignment(): Promise<void> {
 
       // AI Voice for safety acknowledgment (shows the AI takes safety seriously)
       if (Math.random() < 0.5) {
-        const { useAnnouncementsStore } = await import('../stores/announcementsStore');
-        const { WORKER_ROSTER } = await import('../types');
         const worker = WORKER_ROSTER.find((w) => w.id === report.reporterId);
         const workerName = worker?.name || 'Team member';
         useAnnouncementsStore.getState().addAnnouncement({
@@ -4087,7 +4128,6 @@ export async function resolveBilateralAlignment(): Promise<void> {
       grantsThisCycle + pendingReports.length + unaddressedGrumbles.slice(0, 2).length;
     if (totalActions > 0 && Math.random() < 0.5) {
       // 50% chance to show toast to avoid spam
-      const { useUIStore } = await import('../stores/uiStore');
       const messages: string[] = [];
       if (grantsThisCycle > 0)
         messages.push(`✓ ${grantsThisCycle} request${grantsThisCycle > 1 ? 's' : ''} handled`);
@@ -4132,9 +4172,6 @@ async function getAIVoiceMessage(
   workerName: string,
   requestType: string
 ): Promise<string> {
-  const { useAIConfigStore } = await import('../stores/aiConfigStore');
-  const { useGameSimulationStore } = await import('../stores/gameSimulationStore');
-
   const generosity = useAIConfigStore.getState().managementGenerosity;
   const gameTime = useGameSimulationStore.getState().gameTime;
 

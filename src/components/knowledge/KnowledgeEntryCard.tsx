@@ -31,31 +31,36 @@ import {
   Library,
   LucideIcon,
 } from 'lucide-react';
-import { KnowledgeEntry, KnowledgeIcon, getCategoryLabel, useKnowledgeStore } from '../../stores/knowledgeStore';
+import {
+  KnowledgeEntry,
+  KnowledgeIcon,
+  getCategoryLabel,
+  useKnowledgeStore,
+} from '../../stores/knowledgeStore';
 
 // Icon mapping from KnowledgeIcon to Lucide component
 const ICON_MAP: Record<KnowledgeIcon, LucideIcon> = {
-  'handshake': Handshake,
+  handshake: Handshake,
   'heart-handshake': HeartHandshake,
-  'vote': Vote,
+  vote: Vote,
   'flower-2': Flower2,
-  'sparkles': Sparkles,
-  'user': User,
-  'settings': Settings,
-  'sliders': Sliders,
+  sparkles: Sparkles,
+  user: User,
+  settings: Settings,
+  sliders: Sliders,
   'chart-bar': BarChart3,
   'refresh-cw': RefreshCw,
-  'network': Network,
-  'heart': Heart,
-  'factory': Factory,
+  network: Network,
+  heart: Heart,
+  factory: Factory,
   'book-open': BookOpen,
-  'scale': Scale,
-  'brain': Brain,
+  scale: Scale,
+  brain: Brain,
   'gamepad-2': Gamepad2,
-  'sprout': Sprout,
-  'users': Users,
-  'cog': Settings,
-  'library': Library,
+  sprout: Sprout,
+  users: Users,
+  cog: Settings,
+  library: Library,
 };
 
 // Render a Lucide icon from its identifier
@@ -114,10 +119,7 @@ export function KnowledgeEntryCard({ entry, onClose, onNavigate }: KnowledgeEntr
               <thead>
                 <tr className="border-b border-slate-700">
                   {tableRows[0]?.map((cell, i) => (
-                    <th
-                      key={i}
-                      className="text-left py-2 px-3 text-slate-300 font-medium"
-                    >
+                    <th key={i} className="text-left py-2 px-3 text-slate-300 font-medium">
                       {cell.replace(/\*\*/g, '')}
                     </th>
                   ))}
@@ -243,9 +245,7 @@ export function KnowledgeEntryCard({ entry, onClose, onNavigate }: KnowledgeEntr
 
         {/* Brief / Summary */}
         <div className="mb-6 p-4 bg-slate-800/50 rounded-lg border border-slate-700">
-          <h4 className="text-xs text-slate-500 uppercase tracking-wide mb-2">
-            In Brief
-          </h4>
+          <h4 className="text-xs text-slate-500 uppercase tracking-wide mb-2">In Brief</h4>
           <p className="text-slate-300 leading-relaxed">{entry.brief}</p>
         </div>
 

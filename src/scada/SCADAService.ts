@@ -118,6 +118,14 @@ export class SCADAService {
       const allTagIds = Array.from(this.tagRegistry.keys());
       this.adapterUnsubscribe = this.adapter.subscribe(allTagIds, this.handleTagUpdates.bind(this));
 
+      // Backfill the cache for adapters that do not replay current values on subscribe.
+      if (this.currentValues.size === 0) {
+        const initialValues = await this.adapter.readAllTags();
+        if (initialValues.length > 0) {
+          this.handleTagUpdates(initialValues);
+        }
+      }
+
       // Subscribe to alarm updates
       if (this.config.alarmsEnabled) {
         this.alarmUnsubscribe = this.alarmManager.subscribe(this.handleAlarmUpdates.bind(this));
@@ -389,7 +397,24 @@ export class SCADAService {
       return false;
     }
 
-    return this.adapter.writeTag(tagId, value);
+    const success = await this.adapter.writeTag(tagId, value);
+    if (!success) {
+      return false;
+    }
+
+    try {
+      const updatedValue = await this.adapter.readTag(tagId);
+      this.handleTagUpdates([updatedValue]);
+    } catch {
+      this.currentValues.set(tagId, {
+        tagId,
+        value,
+        quality: 'GOOD',
+        timestamp: Date.now(),
+      });
+    }
+
+    return true;
   }
 
   // =========================================================================

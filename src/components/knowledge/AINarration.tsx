@@ -85,7 +85,6 @@ export function AINarration({ narration, onDismiss }: AINarrationProps) {
             Continue reading...
           </button>
         )}
-
       </div>
     </motion.div>
   );
@@ -99,10 +98,7 @@ interface AINarrationModalProps {
   onDismiss?: () => void;
 }
 
-export function AINarrationModal({
-  narration,
-  onDismiss,
-}: AINarrationModalProps) {
+export function AINarrationModal({ narration, onDismiss }: AINarrationModalProps) {
   if (!narration) return null;
 
   return (
@@ -121,10 +117,7 @@ export function AINarrationModal({
           className="w-full max-w-lg"
           onClick={(e) => e.stopPropagation()}
         >
-          <AINarration
-            narration={narration}
-            onDismiss={onDismiss}
-          />
+          <AINarration narration={narration} onDismiss={onDismiss} />
         </motion.div>
       </motion.div>
     </AnimatePresence>
@@ -140,11 +133,7 @@ interface AINarrationInlineProps {
   maxLines?: number;
 }
 
-export function AINarrationInline({
-  narration,
-  onDismiss,
-  maxLines = 3,
-}: AINarrationInlineProps) {
+export function AINarrationInline({ narration, onDismiss, maxLines = 3 }: AINarrationInlineProps) {
   const { markShown } = useAINarrationStore();
   const paragraphs = parseNarrationContent(narration.content);
 

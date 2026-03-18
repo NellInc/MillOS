@@ -151,25 +151,20 @@ export const InstancedLamps: React.FC<{ isNight: boolean }> = React.memo(({ isNi
         args={[lampPostGeometry, blackMetalMaterial, count]}
         castShadow
       />
-      <instancedMesh
-        ref={housingsRef}
-        args={[lampHousingGeometry, blackMetalMaterial, count]}
-      />
-      <instancedMesh
-        ref={glassRef}
-        args={[lampGlassGeometry, glassMaterial, count]}
-      />
+      <instancedMesh ref={housingsRef} args={[lampHousingGeometry, blackMetalMaterial, count]} />
+      <instancedMesh ref={glassRef} args={[lampGlassGeometry, glassMaterial, count]} />
       {/* Point lights only at night - limit to reduce draw calls */}
-      {isNight && LAMP_POSITIONS.slice(0, 4).map(([x, z], i) => (
-        <pointLight
-          key={i}
-          position={[x, 4.3, z]}
-          color="#ffaa00"
-          intensity={0.5}
-          distance={15}
-          decay={2}
-        />
-      ))}
+      {isNight &&
+        LAMP_POSITIONS.slice(0, 4).map(([x, z], i) => (
+          <pointLight
+            key={i}
+            position={[x, 4.3, z]}
+            color="#ffaa00"
+            intensity={0.5}
+            distance={15}
+            decay={2}
+          />
+        ))}
     </group>
   );
 });
@@ -207,22 +202,14 @@ export const InstancedBenches: React.FC = React.memo(() => {
       seatsRef.current?.setMatrixAt(i, dummy.matrix);
 
       // Back
-      dummy.position.set(
-        x + Math.sin(rotation) * -0.2,
-        0.25,
-        z + Math.cos(rotation) * -0.2
-      );
+      dummy.position.set(x + Math.sin(rotation) * -0.2, 0.25, z + Math.cos(rotation) * -0.2);
       dummy.rotation.set(0, rotation, 0);
       dummy.updateMatrix();
       backsRef.current?.setMatrixAt(i, dummy.matrix);
 
       // Legs (2 per bench)
       [-0.6, 0.6].forEach((lx, li) => {
-        dummy.position.set(
-          x + Math.cos(rotation) * lx,
-          0.2,
-          z - Math.sin(rotation) * lx
-        );
+        dummy.position.set(x + Math.cos(rotation) * lx, 0.2, z - Math.sin(rotation) * lx);
         dummy.rotation.set(0, rotation, 0);
         dummy.updateMatrix();
         legsRef.current?.setMatrixAt(i * 2 + li, dummy.matrix);
@@ -236,16 +223,8 @@ export const InstancedBenches: React.FC = React.memo(() => {
 
   return (
     <group>
-      <instancedMesh
-        ref={seatsRef}
-        args={[benchSeatGeometry, timberMaterial, count]}
-        castShadow
-      />
-      <instancedMesh
-        ref={backsRef}
-        args={[benchBackGeometry, timberMaterial, count]}
-        castShadow
-      />
+      <instancedMesh ref={seatsRef} args={[benchSeatGeometry, timberMaterial, count]} castShadow />
+      <instancedMesh ref={backsRef} args={[benchBackGeometry, timberMaterial, count]} castShadow />
       <instancedMesh
         ref={legsRef}
         args={[benchLegGeometry, blackMetalMaterial, legCount]}

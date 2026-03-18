@@ -431,11 +431,12 @@ const DRIVE_ROLLER_MAIN_MATERIAL = METAL_MATERIALS.steel;
 const DRIVE_ROLLER_CAP_MATERIAL = METAL_MATERIALS.steelDark;
 const DRIVE_ROLLER_BEARING_MATERIAL = METAL_MATERIALS.paintedSlate;
 
-const ConveyorBelt: React.FC<{
+export const ConveyorBelt: React.FC<{
   position: [number, number, number];
   length: number;
   productionSpeed: number;
-}> = ({ position, length, productionSpeed }) => {
+  enableAudio?: boolean;
+}> = ({ position, length, productionSpeed, enableAudio = true }) => {
   const beltRef = useRef<THREE.Mesh>(null);
   const driveRollerRef = useRef<THREE.Group>(null);
   const posX = position[0];
@@ -480,13 +481,14 @@ const ConveyorBelt: React.FC<{
 
   // Start conveyor sound and register for centralized audio updates
   useEffect(() => {
+    if (!enableAudio) return;
     audioManager.startConveyorSound(conveyorId, posX, posY, posZ);
     registerConveyorAudio(conveyorId, positionVec, true);
     return () => {
       audioManager.stopConveyorSound(conveyorId);
       unregisterConveyorAudio(conveyorId);
     };
-  }, [conveyorId, posX, posY, posZ, positionVec]);
+  }, [conveyorId, enableAudio, posX, posY, posZ, positionVec]);
 
   useFrame((_, delta) => {
     // PERFORMANCE: Skip animations when tab hidden or production stopped
@@ -632,10 +634,11 @@ const ROLLER_COUNT = 25;
 const _tempEuler = new THREE.Euler();
 
 // Instanced roller conveyor - 25 rollers rendered in 1 draw call
-const RollerConveyor: React.FC<{ position: [number, number, number]; productionSpeed: number }> = ({
-  position,
-  productionSpeed,
-}) => {
+export const RollerConveyor: React.FC<{
+  position: [number, number, number];
+  productionSpeed: number;
+  enableAudio?: boolean;
+}> = ({ position, productionSpeed, enableAudio = true }) => {
   const rollersRef = useRef<THREE.InstancedMesh>(null);
   const axlesRef = useRef<THREE.InstancedMesh>(null);
   const posX = position[0];
@@ -699,13 +702,14 @@ const RollerConveyor: React.FC<{ position: [number, number, number]; productionS
 
   // Start roller conveyor sound and register for centralized audio updates
   useEffect(() => {
+    if (!enableAudio) return;
     audioManager.startConveyorSound(conveyorId, posX, posY, posZ);
     registerConveyorAudio(conveyorId, positionVec, true);
     return () => {
       audioManager.stopConveyorSound(conveyorId);
       unregisterConveyorAudio(conveyorId);
     };
-  }, [conveyorId, posX, posY, posZ, positionVec]);
+  }, [conveyorId, enableAudio, posX, posY, posZ, positionVec]);
 
   useFrame((_, delta) => {
     // PERFORMANCE: Skip animations when tab hidden or production stopped

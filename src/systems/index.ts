@@ -28,15 +28,9 @@ export {
   type CentralTickSystem,
 } from './CentralTickSystem';
 
-export {
-  CentralTickProvider,
-  useCentralTick,
-} from './CentralTickProvider';
+export { CentralTickProvider, useCentralTick } from './CentralTickProvider';
 
-export {
-  useUnifiedGameTick,
-  unifiedGameTick,
-} from './UnifiedGameTick';
+export { useUnifiedGameTick, unifiedGameTick } from './UnifiedGameTick';
 
 export {
   // Display variance

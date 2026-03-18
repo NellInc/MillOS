@@ -50,6 +50,8 @@ import type { FiveAxes } from '../types/bas';
 import { useEngagementStore, type DiagnosticStatus } from './engagementStore';
 import { useProductionStore } from './productionStore';
 import { useAIWelfareStore } from './aiWelfareStore';
+import { useBASStore } from './basStore';
+import { useFlourishingStore } from './flourishingStore';
 
 // Helper to get random item from array
 const randomFrom = <T>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
@@ -1407,28 +1409,21 @@ export function initWorkerMoodBASSubscription(): void {
   // Capture current initialization ID to detect if cleanup happened during async init
   const currentInitId = ++basInitializationId;
 
-  // Dynamic import to break circular dependency
-  import('./basStore')
-    .then(({ useBASStore }) => {
-      // FIX: Check if cleanup was called while import was in progress
-      if (currentInitId !== basInitializationId) {
-        return; // Initialization was cancelled by cleanup
-      }
+  // FIX: Check if cleanup was called while init was in progress
+  if (currentInitId !== basInitializationId) {
+    return;
+  }
 
-      // Initial sync
-      const axes = useBASStore.getState().axes;
-      useWorkerMoodStore.getState().syncBASAxes(axes);
+  // Initial sync
+  const axes = useBASStore.getState().axes;
+  useWorkerMoodStore.getState().syncBASAxes(axes);
 
-      // Subscribe to future changes and store unsubscribe function
-      basStoreUnsubscribe = useBASStore.subscribe((state) => {
-        useWorkerMoodStore.getState().syncBASAxes(state.axes);
-      });
+  // Subscribe to future changes and store unsubscribe function
+  basStoreUnsubscribe = useBASStore.subscribe((state) => {
+    useWorkerMoodStore.getState().syncBASAxes(state.axes);
+  });
 
-      basStoreSubscribed = true;
-    })
-    .catch(() => {
-      // Handle import failure gracefully - subscription is non-critical
-    });
+  basStoreSubscribed = true;
 }
 
 // =============================================================================
@@ -1467,51 +1462,44 @@ export function initWorkerMoodFlourishingSubscription(): void {
   // Capture current initialization ID to detect if cleanup happened during async init
   const currentInitId = ++flourishingInitializationId;
 
-  // Dynamic import to break circular dependency
-  import('./flourishingStore')
-    .then(({ useFlourishingStore }) => {
-      // FIX: Check if cleanup was called while import was in progress
-      if (currentInitId !== flourishingInitializationId) {
-        return; // Initialization was cancelled by cleanup
-      }
+  // FIX: Check if cleanup was called while init was in progress
+  if (currentInitId !== flourishingInitializationId) {
+    return;
+  }
 
-      // Initial sync - extract flourishing scores for all workers
-      const flourishingState = useFlourishingStore.getState();
-      const scores: Record<string, number> = {};
-      Object.entries(flourishingState.workerFlourishing).forEach(([workerId, data]) => {
-        scores[workerId] = data.flourishingScore;
-      });
-      previousFlourishingScores = { ...scores };
-      useWorkerMoodStore.getState().syncFlourishingScores(scores);
+  // Initial sync - extract flourishing scores for all workers
+  const flourishingState = useFlourishingStore.getState();
+  const scores: Record<string, number> = {};
+  Object.entries(flourishingState.workerFlourishing).forEach(([workerId, data]) => {
+    scores[workerId] = data.flourishingScore;
+  });
+  previousFlourishingScores = { ...scores };
+  useWorkerMoodStore.getState().syncFlourishingScores(scores);
 
-      // Subscribe to future changes and store unsubscribe function
-      flourishingStoreUnsubscribe = useFlourishingStore.subscribe((state) => {
-        // FIX: Use per-cycle re-entrancy guard instead of global blocking flag
-        // Increment cycle ID at start of sync to detect self-triggered updates
-        const mySyncCycleId = ++currentSyncCycleId;
+  // Subscribe to future changes and store unsubscribe function
+  flourishingStoreUnsubscribe = useFlourishingStore.subscribe((state) => {
+    // FIX: Use per-cycle re-entrancy guard instead of global blocking flag
+    // Increment cycle ID at start of sync to detect self-triggered updates
+    const mySyncCycleId = ++currentSyncCycleId;
 
-        const newScores: Record<string, number> = {};
-        Object.entries(state.workerFlourishing).forEach(([workerId, data]) => {
-          newScores[workerId] = data.flourishingScore;
-        });
-
-        // Only sync if scores actually changed - prevents circular update loop
-        if (flourishingScoresChanged(previousFlourishingScores, newScores)) {
-          previousFlourishingScores = { ...newScores };
-
-          // Check if another sync started while we were processing
-          // If so, let the newer sync handle the update
-          if (mySyncCycleId === currentSyncCycleId) {
-            useWorkerMoodStore.getState().syncFlourishingScores(newScores);
-          }
-        }
-      });
-
-      flourishingStoreSubscribed = true;
-    })
-    .catch(() => {
-      // Handle import failure gracefully - subscription is non-critical
+    const newScores: Record<string, number> = {};
+    Object.entries(state.workerFlourishing).forEach(([workerId, data]) => {
+      newScores[workerId] = data.flourishingScore;
     });
+
+    // Only sync if scores actually changed - prevents circular update loop
+    if (flourishingScoresChanged(previousFlourishingScores, newScores)) {
+      previousFlourishingScores = { ...newScores };
+
+      // Check if another sync started while we were processing
+      // If so, let the newer sync handle the update
+      if (mySyncCycleId === currentSyncCycleId) {
+        useWorkerMoodStore.getState().syncFlourishingScores(newScores);
+      }
+    }
+  });
+
+  flourishingStoreSubscribed = true;
 }
 
 /** Cleanup function for testing and HMR - unsubscribes from all stores */

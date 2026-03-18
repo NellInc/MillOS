@@ -263,7 +263,7 @@ const SM = {
 };
 
 // Static components with React.memo
-const Barn = React.memo<{ position: [number, number, number] }>(({ position }) => (
+export const Barn = React.memo<{ position: [number, number, number] }>(({ position }) => (
   <group position={position}>
     <mesh position={[0, 3, 0]} castShadow receiveShadow>
       <boxGeometry args={[10, 6, 8]} />
@@ -453,7 +453,7 @@ const GardenBed = React.memo<{ position: [number, number, number] }>(({ position
 ));
 GardenBed.displayName = 'GardenBed';
 
-const Farmhouse = React.memo<{ position: [number, number, number] }>(({ position }) => (
+export const Farmhouse = React.memo<{ position: [number, number, number] }>(({ position }) => (
   <group position={position}>
     <mesh position={[0, 2, 0]} castShadow receiveShadow>
       <boxGeometry args={[6, 4, 5]} />
@@ -820,7 +820,7 @@ const Cow: React.FC<{
   </group>
 );
 
-const WindmillComp: React.FC<{
+export const WindmillComp: React.FC<{
   position: [number, number, number];
   scale?: number;
   bladesRef: React.RefObject<THREE.Group | null>;
