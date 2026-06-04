@@ -1,0 +1,366 @@
+# Still-Deferred Findings by Lane (working reference for final FLAGS)
+
+
+## L1 (16)
+- **[high]** src/components/CelebrationSystem.tsx:195 — Achievement-tracking setInterval is starved by churning effect deps and never fires
+    - FIX: Pin the interval to stable deps (empty array or only the stable action callbacks). Read live values inside the callback via useProductionStore.getState()/useGameSimulationStore.getState() (or refs synced by separate effects) instead of closing over the changing state values, so the 60s timer is crea
+- **[high]** src/components/machines/InstancedPlansifters.tsx:224 — Plansifter bodies and hanger rods never render on LOW quality (useFrame bails on null flywheelRef)
+    - FIX: Remove the `!flywheelRef.current ||` clause from the line-224 guard so the loop runs on LOW. Flywheel writes are already quality!=='low'-gated (lines 248, 298) and line 312 null-checks flywheelRef before needsUpdate, so dropping it from the guard is safe.
+- **[high]** src/components/workers/MoodAura.tsx:53 — MoodAura never registers material when first render has no worker state (auras frozen)
+    - FIX: Drive registration off the actual material instead of a render-time ref guard. Register in a useEffect with deps [workerId, material]: registerMoodAura(workerId, material as any) once the mesh exists, OR attach the material via a callback ref that registers/unregisters when set/cleared. Simplest: re
+- **[medium]** src/components/DataFlowLine.tsx:114 — Inline new THREE.Line(geometry, material) recreated on render with no disposal of prior imperative resources
+    - FIX: Memoize the THREE.Line object (useMemo over [geometry, material]) so it is not rebuilt every render, and add a useEffect cleanup that calls geometry.dispose() and material.dispose() (and disposes the previous instances on dep change). Alternatively render with drei <Line>/<line> primitives that R3F 
+- **[medium]** src/scada/SCADAService.ts:313 — Duplicate alarm-history writes for every active RTN_UNACK alarm on each notify
+    - FIX: Track which alarmIds have already been archived (e.g. a Set), and only call historyStore.writeAlarm(alarm) the first time an alarm transitions to a cleared/archived state. Alternatively archive only on the explicit clear/ack transition inside AlarmManager via a dedicated 'archived' callback, instead
+- **[medium]** src/components/WorkerSystem.tsx:384 — Worker evade effect is dead: deps [recordWorkerEvasion] never re-run, so evasion telemetry + wave never fire
+    - FIX: Move this transition-detection logic into the worker's useFrame loop (where isEvadingRef is actually mutated): compare isEvadingRef.current vs wasEvadingRef.current each frame, call recordWorkerEvasion() and setIsWaving(true) on the rising/falling edges, then update wasEvadingRef.current. Remove the
+- **[medium]** src/components/ambient/wearDamage.tsx:400 — RoofLeakPuddle calls setDropY inside the per-frame animation callback, forcing constant React re-renders
+    - FIX: Mirror the sibling CondensationDrip pattern: store drop Y in a useRef (dropYRef) and mutate it inside the callback instead of useState. Replace setDropY(prev => ...) with dropYRef.current update logic, and read dropYRef.current when assigning dropRef.current.position.y. Remove the useState entirely.
+- **[medium]** src/components/effects/HeartParticle.tsx:31 — onComplete in useEffect deps resets the removal timer every parent render
+    - FIX: Run the timer once on mount with an empty dep array and read onComplete via a ref: store `onComplete` in a ref updated each render, then `useEffect(() => { const t = setTimeout(() => onCompleteRef.current(), 1000); return () => clearTimeout(t); }, []);`.
+- **[medium]** src/components/workers/FocusIndicator.tsx:53 — FocusIndicator line never created/re-added because mount-once effect runs before group mounts
+    - FIX: Decouple line lifecycle from focus visibility. Render <group ref={groupRef}> unconditionally and toggle line.visible (and groupRef visibility) instead of returning null; or attach the line via a callback ref on the group so it is added whenever the group node is set; or add groupRef presence to the 
+- **[medium]** src/stores/stabilityStore.ts:54 — CommonJS require() in ESM/Vite browser bundle silently disables ownership->friction integration
+    - FIX: Replace the require() lazy accessor with a static ESM import of useOwnershipStore and call useOwnershipStore.getState() directly (as is already done for useEngagementStore at line 25/156). If a static import introduces a circular dependency with ownershipStore, instead use an async dynamic import() 
+- **[low]** src/components/MaintenanceSystem.tsx:527 — Dead/broken standalone fallback: useMaintenanceAnimation throws before the `if (ctx) return` guard in SlipEffect/CoughEffect
+    - FIX: Make useMaintenanceAnimation return null on missing context instead of throwing (so the fallback branch actually works), OR delete the dead fallback useFrame + misleading comment and document that a MaintenanceAnimationManager is required. Design decision required.
+- **[low]** src/hooks/useDisposable.ts:37 — useDisposable returns null on first render and never updates the consumer
+    - FIX: Hold the resource in state so a render is triggered when it is created, e.g. const [res, setRes] = useState<T|null>(null); useEffect(() => { const r = factory(); setRes(r); return () => { r.dispose(); setRes(null); }; }, deps); return res; (apply the same pattern to useDisposableArray). Alternativel
+- **[low]** src/protocols/vcp/encoder.ts:112 — encodeStateSnapshot dereferences wellbeing/stability/engagement without the guards its sibling uses
+    - FIX: Guard the three optional-in-practice layers with optional chaining + defaults (mirror encodeUniversalHeader): emit the [WELL]/[STAB]/[ENG] segments only when the layer is present, e.g. `if (state.wellbeing) { ... }`.
+- **[low]** src/protocols/vcp/decoder.ts:154 — decode dimMap loses 'mastery' concern dimension (decodes to 'meaning')
+    - FIX: Disambiguation requires a distinct encoder symbol for mastery (e.g. 'K' or 'Y'); minimally, document the lossy collision. If full fidelity is wanted, change encoder to map mastery->a unique char and add it to the decoder dimMap and the regex char class.
+- **[low]** src/components/ambient/wildlife.tsx:137 — Mouse body sphereGeometry has invalid scale prop (silently ignored), so it renders round not elongated
+    - FIX: Move scale to the parent mesh: <mesh scale={[1.5,1,1]}><sphereGeometry args={[0.06,8,6]} /> ... </mesh>. The same root-cause bug exists at microDetails.tsx:76.
+- **[low]** src/components/ambient/microDetails.tsx:76 — StuckGum sphereGeometry has invalid scale prop (silently ignored), so gum renders as full sphere not flat blob
+    - FIX: Move scale to the parent: wrap in <mesh position={position} scale={[1,0.4,1]}><sphereGeometry args={[...]} /> ... </mesh>.
+
+## L2 (3)
+- **[medium]** index.html:7 — CSP script-src allows 'unsafe-inline', defeating XSS mitigation
+    - FIX: Remove 'unsafe-inline' from script-src. First verify the production Vite build emits no inline executable <script> tags (preload/module scripts are external 'self'); if any are emitted, switch to a per-build hash or nonce ('sha256-...'/nonce-) instead of blanket 'unsafe-inline'. Keep 'unsafe-eval' o
+- **[low]** scada-proxy/src/index.ts:135 — API key compared with non-constant-time === (timing side channel)
+    - FIX: Compare with crypto.timingSafeEqual over fixed-length buffers. e.g. import { timingSafeEqual } from 'crypto'; const a = Buffer.from(provided ?? ''); const b = Buffer.from(API_KEY); const ok = a.length === b.length && timingSafeEqual(a, b); Apply the same helper at line 191 for queryKey/providedKey.
+- **[low]** scada-proxy/src/index.ts:183 — API key accepted via URL query string (apiKey) leaks into logs
+    - FIX: Carry the key via the Sec-WebSocket-Protocol subprotocol header instead of the query string, or issue a short-lived single-use connect token (via an authenticated REST call) and accept only that token in the query string, validated with timingSafeEqual. Avoid placing the long-lived SCADA_API_KEY in 
+
+## L3 (1)
+- **[high]** src/multiplayer/SignalingService.ts:58 — Multiplayer routes peer discovery + player metadata to third-party PeerJS cloud with no consent/disclosure
+    - FIX: Self-host a PeerServer instance and pass its host/port/key in PEERJS_CONFIG so signaling stays on a first-party endpoint, OR add an explicit consent/disclosure step in the multiplayer lobby stating that joining shares the user's IP address and chosen name with the PeerJS cloud and other players. Min
+
+## L4 (6)
+- **[medium]** src/scada/adapters/MQTTAdapter.ts:94 — MQTT connect() Promise never rejects on clean close before CONNACK
+    - FIX: Track a 'settled' flag in the connect Promise; in onclose, if still connecting, clearTimeout and reject(new Error(`Closed before CONNACK: ${reason}`)) instead of (or in addition to) calling handleDisconnect. Ensure the temporary onmessage and onclose both reference the same reject.
+- **[medium]** src/multiplayer/MultiplayerManager.ts:552 — Guest intents leak in pendingIntents forever; no timeout, dropped silently if no host conn
+    - FIX: When hostConn is missing, resolve the intent locally as failed (store.resolveIntent(fullIntent.id, false, 'Not connected to host')). Add a timeout-based sweep that resolves any pendingIntent older than e.g. 5s as failed so the UI can surface the failure and the array does not grow unbounded.
+- **[low]** src/scada/adapters/MQTTAdapter.ts:351 — handlePublish parses untrusted topic/payload offsets without bounds checks
+    - FIX: After computing topicLength and packetEnd, validate offset+2+topicLength <= packetEnd && packetEnd <= bytes.length before slicing; if invalid, increment stats.errorCount and return early.
+- **[low]** src/scada/adapters/WebSocketAdapter.ts:180 — Inconsistent IProtocolAdapter.readTag contract: WS returns STALE placeholder, Simulation throws
+    - FIX: Align the contract: either have WonderwareAdapter/SimulationAdapter return a STALE placeholder for unknown tags, or have WebSocketAdapter throw, matching whatever SCADAService expects. Document the chosen contract on IProtocolAdapter.readTag in types.ts.
+- **[low]** src/scada/adapters/WebSocketAdapter.ts:394 — Reconnect abandoned after 10 attempts but connection-state change is never pushed to subscribers
+    - FIX: Add a connection-state listener channel (e.g. onConnectionChange callback) fired from handleDisconnect when reconnection is abandoned and on reconnect success, or surface a final 'error' state through the value-subscriber path so consumers can react.
+- **[low]** src/multiplayer/SignalingService.ts:94 — Signaling-server disconnect only logs; never sets 'reconnecting' state or calls reconnect()
+    - FIX: In the 'disconnected' handler, set connectionState to 'reconnecting' (via a callback / store), attempt this.peer.reconnect(), and surface a failure to the UI if reconnection does not succeed within a timeout. At minimum, propagate the disconnect through onError so the UI reflects it.
+
+## L5 (15)
+- **[medium]** src/components/GeminiSettingsModal.tsx:401 — Inline Gemini-mode confirmation is an unannounced dialog with no focus move
+    - FIX: Wrap the confirmation block in a container with role="alertdialog", aria-modal="true", aria-labelledby pointing at the 'Consider Hybrid Mode?' heading, and move focus to it on mount (e.g. ref + useEffect focus, or autoFocus on the first action button).
+- **[medium]** src/components/knowledge/Datalinks.tsx:184 — Datalinks subtitle microcopy fails 1.4.3 contrast
+    - FIX: Use a lighter token (text-slate-300 / #cbd5e1 reaches >7:1) for the 'Bilateral Alignment Management System Database' subtitle, or increase weight/size. Same fix applies to the slate-600 CTA at line 355.
+- **[medium]** src/components/ui-new/widgets/FiveAxesPanel.tsx:152 — text-slate-600 micro-labels fail 1.4.3 contrast (~2.35:1)
+    - FIX: Raise these labels to at least text-slate-400 (#94a3b8, ~7:1 on slate-900) or text-slate-500 plus a larger size/bold to meet 4.5:1. Apply to both spans at lines 152-153.
+- **[medium]** src/components/ui-new/widgets/FederationPanel.tsx:206 — text-slate-500 stat captions fail 1.4.3 contrast (~3.75:1)
+    - FIX: Use text-slate-400 (~7:1) for these captions, or darken not the text but increase to a non-micro size and treat as large text (then 3:1 suffices, but 7px is not large). Simplest: change text-slate-500 to text-slate-400 on lines 206/211/216/221.
+- **[medium]** src/components/ui/CostEstimationOverlay.tsx:96 — text-slate-500 small text fails 4.5:1 contrast on dark panel
+    - FIX: Use text-slate-400 (or lighter) for these secondary labels instead of text-slate-500, or increase font weight/size to qualify as large text. Same swap applies to the line 144 pricing note.
+- **[medium]** src/components/ui/DecisionHistoryPanel.tsx:97 — text-slate-500 timestamp/counter text fails 4.5:1 contrast
+    - FIX: Replace text-slate-500 with text-slate-400 for these informational labels to reach ~6:1 contrast on the dark panels.
+- **[medium]** src/components/ui/EnergyDashboard.tsx:173 — text-slate-500 labels fail 4.5:1 contrast on dark panel
+    - FIX: Switch these secondary captions from text-slate-500 to text-slate-400 (passes at ~6:1) on the dark theme.
+- **[low]** src/components/knowledge/Datalinks.tsx:355 — Datalinks 'Select an entry' CTA fails 1.4.3 contrast
+    - FIX: Raise to at least text-slate-400 (#94a3b8 ~5.5:1 on slate-900) or text-slate-300 for the 'Select an entry to begin' line.
+- **[low]** src/components/knowledge/KnowledgeEntryCard.tsx:147 — Article list items rendered without a list parent
+    - FIX: Group consecutive bullet/numbered lines and wrap them in a single <ul> (or <ol> for numbered) before pushing to elements, so each run of list items has a proper list parent.
+- **[low]** src/components/ui-new/hud/StatusHUD.tsx:120 — Drag handle is role=button + tabIndex=0 but has no keyboard handler
+    - FIX: Either remove role="button"/tabIndex from the grip (treating drag as a mouse-only convenience and leaving the HUD non-focusable at a fixed default), or add an onKeyDown handler that nudges position via arrow keys.
+- **[low]** src/components/ui-new/sidebar/MissionControl.tsx:25 — Heading order skips a level (h1 followed by h3)
+    - FIX: Use sequential heading levels (h2 for the section titles under the h1), or if these widgets are not the page's primary heading context, drop the h1 to an appropriate level so no level is skipped.
+- **[low]** src/components/ui-new/widgets/OwnershipPanel.tsx:424 — text-slate-500 metric captions fail 1.4.3 contrast (~3.75:1)
+    - FIX: Change the text-[7px] text-slate-500 caption spans to text-slate-400 (~7:1 contrast) on lines 424, 429, 434.
+- **[low]** src/components/ui-new/widgets/VotingPanel.tsx:335 — Simulate-voting button relies on low-contrast slate-500 text
+    - FIX: Raise the default text color to at least text-slate-400 (#94a3b8) or text-slate-300 to meet 4.5:1 against the dark card, keeping the hover:text-slate-300 brighter still.
+- **[low]** src/components/ui-new/widgets/ScenarioPlayground.tsx:443 — Timeline event markers convey info only via title attribute
+    - FIX: If these markers are meaningful, expose them via the EventLog only and mark the visual markers aria-hidden="true"; alternatively give each marker role="img" with aria-label={event.description} so the info is programmatically available, not title-only.
+- **[low]** src/components/ui/MultiObjectiveDashboard.tsx:130 — Dashboard panel has no accessible region label / live updates unannounced
+    - FIX: Add role="region" aria-label="Multi-objective dashboard" to the root at L130. Consider aria-live="polite" on the overall-score badge (L140) or trade-off block (L195) if these updates should be announced.
+
+## L6 (21)
+- **[medium]** src/components/GeminiSettingsModal.tsx:470 — 'Clear Config' deletes saved API key with no confirmation
+    - FIX: Add an inline confirmation before clearing: a useState flag that turns the first click into a 'Confirm clear?' state with Confirm/Cancel buttons, calling clearGeminiConfig() only on explicit confirm. Reuse the showGeminiConfirmation inline-confirm pattern already in this file.
+- **[medium]** src/components/mobile/MobilePanel.tsx:649 — Mobile multiplayer panel shows 'connected' room view with no connecting/error state
+    - FIX: Add an explicit connectionState === 'connecting' branch showing a 'Connecting...' indicator, and surface connection errors (e.g. an error string) the way MultiplayerLobby does, instead of treating any non-disconnected state as fully connected.
+- **[medium]** src/components/ui/ZoneCustomizationPanel.tsx:76 — Remove speed-zone deletes immediately with no confirmation or undo
+    - FIX: Add a lightweight confirm step before deleting: require a second click (button morphs to a red 'Confirm?' state that reverts after ~3s) or show a small inline 'Remove <name>? Yes/No' control. Keep it inline (no heavy modal) so the flow stays fast.
+- **[medium]** src/components/ui/ZoneCustomizationPanel.tsx:77 — Delete control is invisible yet active on touch devices
+    - FIX: Make the delete button visible by default on touch/small viewports instead of hover-gated. E.g. add an opacity-100 base for coarse-pointer/small screens (Tailwind: 'opacity-100 md:opacity-0 md:group-hover:opacity-100'), or always render it visible.
+- **[low]** src/components/game/MiniMap.tsx:50 — MiniMap and ProductionTargetWidget spawn stacked in the same corner
+    - FIX: Offset the default positions so they do not collide (e.g. MiniMap bottom-4 right-4, ProductionTargetWidget bottom-4 left-4 or a higher bottom offset), or stack them deterministically with distinct anchor points.
+- **[low]** src/components/game/IncidentReplayControls.tsx:128 — 'Exit Replay' discards all captured frames without confirmation
+    - FIX: Separate concerns: leave clearReplayFrames() to an explicit discard action, and on plain Exit only setReplayMode(false) so the buffer is retained for re-entry; or add a brief confirm before clearing frames.
+- **[low]** src/components/knowledge/Datalinks.tsx:158 — Datalinks full-screen modal cannot be closed with Escape key
+    - FIX: Add a useEffect that, while isOpen, attaches a window 'keydown' listener calling onClose() on event.key === 'Escape', removed on cleanup. Guard so it only runs when isOpen is true.
+- **[low]** src/components/mobile/CameraPresetMenu.tsx:82 — Mobile camera pop-out menu has no outside-tap or Escape dismiss
+    - FIX: Add a transparent full-screen backdrop element (pointer-events-auto, behind the menu) rendered only while isOpen, with onClick={() => setIsOpen(false)}, so tapping anywhere outside dismisses the menu. Alternatively add a document pointerdown listener that closes when the target is outside the menu r
+- **[low]** src/components/mobile/MobilePanel.tsx:708 — Mobile 'Leave Room' is a destructive action with no confirmation
+    - FIX: Add a lightweight confirm step before leaving (e.g. require a second tap / a small confirm prompt) for this destructive action.
+- **[low]** src/components/multiplayer/MultiplayerLobby.tsx:341 — Lobby 'Leave Room' is a destructive action with no confirmation
+    - FIX: Add a confirmation step before leaving (a second-tap confirm or inline 'Are you sure?' state), particularly when isHost is true since leaving ends the session for everyone.
+- **[low]** src/components/ui-new/hud/StatusHUD.tsx:120 — Drag handle is keyboard-focusable but has no keyboard action (dead end)
+    - FIX: Either add keyboard repositioning (onKeyDown arrow handling to nudge position.x/y) or remove tabIndex/role='button' from the handle so it is not advertised as an interactive control to keyboard/AT users.
+- **[low]** src/components/ui-new/widgets/FederationPanel.tsx:250 — Reject reason hardcoded to 'Not applicable' with no way for user to give a reason
+    - FIX: Either prompt for an optional short reason on reject, or drop the hardcoded reason and let the store record 'no reason given'. At minimum, do not present a fabricated reason that the user never chose.
+- **[low]** src/components/ui-new/widgets/PreferenceRequestWidget.tsx:112 — Trust-eroding Dismiss action is an icon-only button with no visible label and no confirmation
+    - FIX: Give the Dismiss button a visible label (e.g. 'Dismiss') matching the other two buttons, or move its trust consequence inline next to the button rather than only in the bottom hint, so the negative outcome is discoverable before the click.
+- **[low]** src/components/ui-new/widgets/BASTimeline.tsx:585 — Jump-to-start scrub control gives no visible feedback when not playing
+    - FIX: Either wire playbackTime into TimelineChart so the chart marker/cursor moves when scrubbing, or have SkipBack also begin playback (set isPlaying true) so the user sees motion. At minimum, show the playback cursor on the chart so the jump is visibly reflected.
+- **[low]** src/components/ui/CostEstimationOverlay.tsx:20 — Overlay exit animation never plays (rendered without AnimatePresence)
+    - FIX: Either wrap the render site in <AnimatePresence> and let the parent control mounting (remove the internal `return null` early-exit), or drop the unused `exit` prop to avoid implying an animation that never runs.
+- **[low]** src/components/ui/ActionPlanTimeline.tsx:29 — Auto-running action-plan countdown has no pause/stop/restart control
+    - FIX: Add a small pause/resume and restart control in the header (toggling `isRunning` and resetting `activeStep`/`countdown`). Keep it optional/non-intrusive so the default auto-advance behavior is preserved.
+- **[low]** src/components/ui/GraphicsSettingsPanel.tsx:612 — 'Reset to 10am' wipes saved progress with no confirmation (inconsistent)
+    - FIX: Either add a confirm prompt to 'Reset to 10am' for consistency, or relabel it to make the data loss explicit (e.g. 'Restart Day (clears today's progress)'). Match the confirmation pattern already used by the neighbouring Reset Simulation button.
+- **[low]** src/components/ui/IncidentHistoryPanel.tsx:106 — 'Clear history' deletes incident log with no confirmation
+    - FIX: Gate clearSafetyIncidents behind a confirmation (window.confirm or an inline 'Confirm clear?' two-step button) so the destructive log wipe is intentional.
+- **[low]** src/components/ui/SafetyAnalyticsPanel.tsx:198 — Forklift 'Reset' and heatmap 'Clear' wipe data with no confirmation
+    - FIX: Add a confirmation step (window.confirm or a two-step inline confirm) before resetForkliftMetrics and clearIncidentHeatMap so these data wipes require deliberate intent.
+- **[low]** src/components/ui/ShiftHandoverSummary.tsx:227 — Countdown ring divisor mismatched to countdown duration (misleading feedback)
+    - FIX: Replace the hardcoded 15 with the actual countdown duration (5), ideally via a shared COUNTDOWN_SECONDS constant used both in the useState initializer and the strokeDashoffset expression, so the ring fully fills at start and empties at 0.
+- **[low]** src/components/ui/ZoneCustomizationPanel.tsx:154 — Radius input accepts negative values, producing a degenerate zone
+    - FIX: Clamp radius to a sensible minimum on input/add (e.g. Math.max(0.5, parseFloat(value)) || 4), and/or add min='0.5' to the input plus inline validation so out-of-range radii are corrected or flagged.
+
+## L7 (8)
+- **[medium]** src/components/AboutModal.tsx:145 — Stale version string: About dialog shows 'Version 2.0.0' but app is 0.30.0
+    - FIX: Replace the hardcoded 'Version 2.0.0' with the real version. Prefer importing from package.json via Vite (e.g. import.meta.env or a build-injected __APP_VERSION__) so it never drifts again; at minimum update the literal to '0.30.0'.
+- **[medium]** src/components/HolographicDisplays.tsx:107 — Inconsistent throughput units: HUD shows kg/hr while panels show t/hr
+    - FIX: Standardize on one unit for throughput display. Since the other two panels use t/hr, convert the Zone 2 value to tonnes/hr (divide by 1000) and change the label to 'Output: {n} t/hr', or convert all panels to kg/hr. Pick one and apply consistently.
+- **[medium]** src/components/WorkerDetailPanel.tsx:748 — Emoji status labels violate project no-emoji rule (Alignment tab)
+    - FIX: Replace each emoji with the matching Lucide icon already used elsewhere in this file: CheckCircle/Check for Satisfied, AlertTriangle or Clock for Request Pending, X for Recently Denied, Handshake (already imported) for Negotiating. Render icon + text, e.g. <Check className="w-3 h-3" /> Satisfied.
+- **[medium]** src/components/ui-new/widgets/ScenarioPlayground.tsx:992 — Hint points users to a "BAMS panel" that does not exist under that name
+    - FIX: Change "the BAMS panel" to match the actual panel title the user sees, e.g. "the Bilateral Autonomy panel" (or whatever single canonical name the owner standardizes on). Apply the same name to line 401's "BAMS configuration" for consistency.
+- **[low]** src/components/WorkerDetailPanel.tsx:76 — Lowercase 'idle' task label amid title-cased siblings in assignment dropdown
+    - FIX: Change the task label to 'Idle' (and update the matching string used by updateWorkerTask if it must stay 'idle' internally, e.g. keep an internal value 'idle' but display 'Idle').
+- **[low]** src/components/mobile/MobilePanel.tsx:831 — Stale "Coming soon" placeholder copy for panels that are all implemented
+    - FIX: Either remove the unreachable PlaceholderContent path, or replace "Coming soon" with neutral copy such as "This panel is unavailable on mobile." to avoid implying the feature itself is incomplete.
+- **[low]** src/components/ui-new/widgets/BASTimeline.tsx:808 — Same panel names itself both "BAMS Timeline" and "BAS Timeline"
+    - FIX: Standardize the about-body text on line 808 to use the same product name shown in the header/toggle ("BAMS Timeline"), or pick one canonical name and apply it across all three strings.
+- **[low]** src/components/ui-new/widgets/FiveAxesPanel.tsx:265 — Same panel labels the system both "Bilateral Autonomy" and "BAMS"
+    - FIX: Standardize on one product name and expansion across the header (line 265), the toggle (line 433), and the body (line 454) so the panel refers to the system consistently.
+
+## L8 (17)
+- **[medium]** src/components/WorkerDetailPanel.tsx:748 — Emoji glyphs used for preference-status pills break Lucide icon design system
+    - FIX: Replace the emoji with Lucide icons matching status: CheckCircle (satisfied), Clock/Hand (pending), XCircle (denied), Scale (negotiating), each sized w-3 h-3 and colored via the existing pill text class, e.g. <CheckCircle className='w-3 h-3' /> Satisfied. Add the imports to the existing lucide-react
+- **[medium]** src/components/game/WorkerLeaderboard.tsx:87 — AchievementsPanel and WorkerLeaderboard overlap at the same z-index with near-identical anchors
+    - FIX: Give the two panels distinct default anchor positions (e.g. stagger horizontally, or offset one further down so it does not sit under the other), or assign them distinct z-index values so the active/last-opened panel reliably sits on top.
+- **[medium]** src/components/knowledge/AINarration.tsx:45 — Knowledge subsystem mixes cyan and amber accent tokens
+    - FIX: Pick one accent for the knowledge subsystem. Either switch AINarration's cyan-* classes to amber-* to match the knowledge palette, or document cyan as the deliberate 'AI voice' accent and apply it consistently. Centralize as a shared token if reused.
+- **[medium]** src/components/knowledge/Datalinks.tsx:222 — Datalinks active-state uses neutral white tint, diverging from amber knowledge accent
+    - FIX: Use the amber accent for active/selected states (e.g. bg-amber-500/20 text-amber-300, border-amber-500) to match KnowledgeEntryCard's emphasis color, or define one shared 'selected' token applied across the subsystem.
+- **[medium]** src/components/ui-new/widgets/FiveAxesPanel.tsx:129 — Slider accent-color and value-indicator dot broken for violet/pink axes
+    - FIX: Use the same static per-axis class lookup as the track fix (include accent-violet-500, bg-violet-500, text-violet-400 etc. as literal strings) so every axis renders its intended color.
+- **[low]** src/components/ProductionTargetWidget.tsx:109 — Non-Lucide glyph used as drag handle, inconsistent with icon system
+    - FIX: Import GripVertical from lucide-react and render <GripVertical className='w-3.5 h-3.5 text-slate-500' aria-hidden='true' /> in place of the {'⋮⋮'} span at line 109.
+- **[low]** src/components/ProductionMetrics.tsx:345 — Inline Heroicons shield SVG mixed into a Lucide-based icon system
+    - FIX: Import Shield (or ShieldCheck) from lucide-react and replace the inline <svg>...</svg> block with <Shield className='w-2.5 h-2.5 text-green-400' aria-hidden='true' /> to match the project's icon system.
+- **[low]** src/components/AICommandCenter.tsx:271 — Ad-hoc sub-10px font sizes create inconsistent micro-typography scale
+    - FIX: Define a small set of HUD type tokens (e.g. .text-hud-xs = 9px, .text-hud-sm = 10px) in index.css @layer utilities, or standardize equivalent metadata rows to a single size. At minimum align the weather/shift line (line 271) with the status grid's text-[10px] so sibling rows share one scale step.
+- **[low]** src/components/game/AchievementsPanel.tsx:69 — Border-radius scale split between modal panels (rounded-2xl) and bar/widget overlays (rounded-xl)
+    - FIX: If the modal-vs-bar radius distinction is intentional, codify it (a comment or a shared class for each tier); otherwise unify on a single panel border-radius token across the game overlays.
+- **[low]** src/components/knowledge/Datalinks.tsx:175 — Datalinks modal uses hardcoded magic pixel dimensions
+    - FIX: Extract a shared modal-size token/util (e.g. a 'large dialog' size constant or Tailwind theme value) and reuse it across modals, instead of literal w-[900px]/h-[700px].
+- **[low]** src/components/mobile/MobilePanel.tsx:658 — Mobile multiplayer surface breaks the feature's blue accent (uses cyan)
+    - FIX: Align the mobile multiplayer surface to the feature's blue accent: change bg-cyan-600 hover:bg-cyan-500 on the Create Room button (line 658) to bg-blue-600 hover:bg-blue-500, matching MultiplayerChat/AIDecisionVoting. (Or, if cyan is intentionally the canonical multiplayer accent, retint the multipl
+- **[low]** src/components/ui-new/widgets/AIWelfarePanel.tsx:192 — Three different micro-font sizes co-visible in one ExpressionCard header row
+    - FIX: Normalize the row to a 2-step scale: keep the type label at text-[9px] and set both the urgency badge and status to text-[8px] (or use text-[9px] for both and reserve [7px] only for sub-labels under a value, matching how other BAS widgets use [7px] strictly as caption text).
+- **[low]** src/components/ui-new/widgets/AIWelfarePanel.tsx:379 — BAS widget cards use a different card-token set than the inspector column they nest in
+    - FIX: Align the BAS widget top-level card to the inspector token set: bg-slate-800/50, border-white/5 (or white/10), and rounded-xl, so cards inside the sidebar share one surface system. Apply the same change to BASEducation:834 and BASTimeline:536.
+- **[low]** src/components/ui-new/widgets/FederationPanel.tsx:206 — Sub-legible font sizes (text-[7px]) break typography scale
+    - FIX: Introduce a defined smallest step (e.g. a text-2xs token at 10px) and replace text-[7px]/text-[8px] with it for consistency, or raise these to text-[9px] minimum to match sibling widgets.
+- **[low]** src/components/ui-new/widgets/PortraitCard.tsx:20 — Portrait detail text uses arbitrary text-[8px] below the type scale
+    - FIX: Use a shared smallest type token (>=10px) for portrait captions, or bump small-size text to text-[9px]/text-[10px] to align with the FederationPanel/other widget minimums.
+- **[low]** src/components/ui/AlertAcknowledgmentFlow.tsx:65 — Toast region shares z-40 with ContextSidebar, ambiguous stacking on overlap
+    - FIX: Assign distinct, intentional z-index values: e.g. raise toasts to z-50 (notifications should sit above panels) or document the intended layering, so stacking is deterministic rather than DOM-order dependent.
+- **[low]** src/components/ui/MultiObjectiveDashboard.tsx:130 — MultiObjectiveDashboard and ShiftHandoverSummary both anchor at left-4 near top and can overlap
+    - FIX: Offset one panel so they do not stack at the same corner, e.g. move MultiObjectiveDashboard down (top-40 or top-44) or anchor it right-4 instead of left-4, so it never sits under the transient ShiftHandover summary.
+
+## L9 (16)
+- **[medium]** src/components/DataFlowLine.tsx:114 — DataFlowLine constructs new THREE.Line every render; old geometry/material never disposed
+    - FIX: Memoize the THREE.Line object alongside geometry/material (useMemo with [geometry, material]) so it is stable, and add a useEffect cleanup that calls geometry.dispose() and material.dispose() on unmount and when deps change. E.g. const line = useMemo(() => new THREE.Line(geometry, material), [geomet
+- **[medium]** src/components/SkySystem.tsx:594 — lerpPalette allocates deep nested object + ~14 hex-string lerps per frame in useFrame during day/night transitions
+    - FIX: Hoist a module-level reusable envColors object and have lerpPalette/lerpColor write into preallocated THREE.Color or string buffers instead of returning fresh objects/strings each call; or compute only waterColors every frame (the sole 60fps consumer) and gate the full lerpPalette behind shouldRunTh
+- **[medium]** src/components/ambient/wearDamage.tsx:400 — RoofLeakPuddle calls setDropY inside the per-frame animation callback
+    - FIX: Mirror CondensationDrip: replace the dropY useState with a useRef (dropYRef) updated inside the callback, and write dropRef.current.position.y / rippleRef directly from the ref. Remove the setDropY call so the component never re-renders during animation.
+- **[medium]** src/components/ambient/index.tsx:100 — AmbientDetailsGroup setState re-renders the entire ambient tree on each door toggle
+    - FIX: Lift door state into a small dedicated child (e.g. a DoorController that owns doorStates and renders only the 3 LoadingDockDoor instances), or store doorStates in a Zustand/ref the doors subscribe to, so a toggle re-renders only the doors. Use a stable interval (deps [] with a functional updater) re
+- **[medium]** src/components/machines/UtilityComponents.tsx:13 — GLTFSiloBase deep-clones entire GLTF scene on every hover/SCADA temperature change
+    - FIX: Clone the scene only once (useMemo deps [scene]). Apply emissive color/intensity in a separate useEffect that traverses the already-cloned scene's materials when matProps.emissive/emissiveIntensity change, rather than rebuilding the whole clone. This avoids re-cloning geometry/materials on every hov
+- **[medium]** src/stores/productionStore.ts:942 — recordHeatMapPoint clones 500-entry Map + rebuilds array on every call, even when heat map is off
+    - FIX: Short-circuit when the data is not in use: at the top of recordHeatMapPoint, `const { showHeatMap } = get(); if (!showHeatMap) return;` (heat map history starts fresh when toggled on — acceptable for a live overlay). Alternatively gate the call site in WorkerSystem behind showHeatMap. Avoid rebuildi
+- **[medium]** src/utils/positionRegistry.ts:271 — isPathClear allocates fresh arrays per check-point in per-frame collision hot path
+    - FIX: Add an internal anyEntityWithin(x,z,radius,type,excludeId,y) that returns boolean by short-circuiting inside the positions.forEach (return true on first hit) without pushing to an array, and have isPathClear use it instead of getWorkersNearby/getForkliftsNearby. Keeps the public array-returning meth
+- **[low]** src/components/DataFlowLine.tsx:106 — DataFlowLine useFrame runs unconditionally with no tab-visibility or off-screen guard
+    - FIX: Gate the uniform update on useGameSimulationStore isTabVisible (read once, store in a ref) and skip the update when active is false and time uniform is no longer visually changing, or register lines with a single shared animation manager that updates all line time uniforms in one useFrame.
+- **[low]** src/components/FactoryEnvironment.tsx:51 — Per-plant useFrame hooks instead of centralized manager (PottedFern/TallPalm/HangingIvy/CoffeeMachine)
+    - FIX: Migrate the plant/coffee-machine sway animations to the existing useAmbientAnimation registry in AmbientDetails.tsx (or a small local registry), so all of them run inside one throttled useFrame instead of one hook per instance.
+- **[low]** src/components/FactoryExterior.tsx:534 — Water/frog/checkpoint useFrame hooks lack tab-visibility guards
+    - FIX: Read useGameSimulationStore((s) => s.isTabVisible) into a ref in each component and early-return from the useFrame when not visible. For the checkpoint barrier, additionally throttle the truck-state recompute with shouldRunThisFrame() since barrier motion does not need 60fps.
+- **[low]** src/components/ambient/TimeClock.tsx:59 — TimeClock subscribes to raw gameTime, re-rendering every tick instead of per game-minute
+    - FIX: Select a coarse value in the selector: useGameSimulationStore((s) => Math.floor(s.gameTime * 60)) (whole game-minutes), derive the float only when needed, so the component re-renders only when the displayed minute actually changes.
+- **[low]** src/components/ambient/microDetails.tsx:57 — Math.random() in render bodies re-rolls geometry/transforms on each parent re-render
+    - FIX: Move the random values into useMemo([]) (or a stable seed) so they are computed once at mount. Fixing the AmbientDetailsGroup re-render (index.tsx finding) eliminates the re-roll trigger; doing both is best.
+- **[low]** src/components/blueprint/BlueprintMode.tsx:52 — Blueprint transition writes Zustand store every frame during the 0.5s transition
+    - FIX: Drive the transition value through a ref/MutableRefObject (or animate the children directly in their own useFrame reading a shared ref) instead of a per-frame store write, and only commit to the store at the transition endpoints (0 and 1).
+- **[low]** src/stores/scenarioStore.ts:1525 — recordStability/recordEngagement rebuild a 500-element array at 10Hz during active scenarios
+    - FIX: Append in place with bounded trim instead of full re-slice each tick, e.g. push to a mutable ring/array and trim only when length exceeds the cap, or batch readings and commit less frequently (e.g. every 1s) since the readings feed averages, not per-tick display.
+- **[low]** src/stores/aiConfigStore.ts:583 — Whole-store BAS subscription JSON.stringifies axes on every BAS mutation
+    - FIX: Use Zustand's selector subscription so the listener only runs when axes actually change and skip JSON.stringify: `useBASStore.subscribe((s) => s.axes, (axes) => useAIConfigStore.getState().syncBASAxes(axes));` (with the subscribeWithSelector middleware if not already enabled). This removes per-mutat
+- **[low]** src/utils/positionRegistry.ts:236 — Spatial queries are O(n) linear scans while unused SpatialGridImpl spatial hash exists
+    - FIX: Maintain a SpatialGridImpl inside PositionRegistry: update it in register()/unregister(), and in getEntitiesNearby/getNearestForklift/getNearestWorker query getEntitiesInRadius first to restrict the distance test to candidate cells instead of scanning every entity.
+
+## L10 (7)
+- **[high]** _audit/legal_drafts/PRIVACY_NOTICE_DRAFT.md:59 — Missing disclosure: SCADA mode can open WebSocket/MQTT/REST connections to a user-supplied external endpoint -- absent from both privacy notice and cookies assessment
+    - FIX: Add a Section 4 subsection (e.g. 4.4 SCADA / industrial-connection mode) to the privacy notice: if the user enters an external SCADA endpoint (OPC-UA/Modbus/MQTT/REST/WebSocket URL or broker) in the SCADA panel, their browser connects directly to that user-specified server and exchanges tag data wit
+- **[medium]** _audit/legal_drafts/PRIVACY_NOTICE_DRAFT.md:70 — DRACO (gstatic) misfiled as opt-in but fires on EVERY visit, breaking the notice's core every-visit-vs-opt-in claim
+    - FIX: Move the DRACO/gstatic connection from Section 4.3 (opt-in) into Section 3 (EVERY-visit third parties), alongside Google Fonts, since getDracoLoader().preload() fires on default scene load. Keep the self-host recommendation. Note: the decoder fetch happens regardless of whether any loaded model is a
+- **[medium]** _audit/legal_drafts/COOKIES_ASSESSMENT.md:36 — Cookies assessment misclassifies DRACO (gstatic) and jsdelivr as opt-in, not every-visit
+    - FIX: In Section 3, add gstatic (DRACO decoder, fires via eager preload on default-scene models) and cdn.jsdelivr.net (troika 3D-text glyph data for unstyled <Text>) to the 'every visit, before any interaction' connections. Remove the qualifiers 'when a compressed 3D asset needs decoding' and 'possibly' f
+- **[medium]** _audit/legal_drafts/PRIVACY_NOTICE_DRAFT.md:79 — Privacy notice falsely claims all stored items are prefixed 'millos-'; vcp-* keys are auto-created every visit
+    - FIX: Amend line 79 to state stored items are mostly prefixed millos- but also include vcp-* keys (vcp-outcome-tracker, vcp-pattern-store, vcp-hypothesis-engine) created automatically by the in-app analysis loop, plus a debug-only millos.stutterMonitor key. In the cleanup steps (84-89), keep 'Clear site d
+- **[medium]** _audit/legal_drafts/PRIVACY_NOTICE_DRAFT.md:70 — Privacy notice miscategorizes DRACO/gstatic as opt-in; it actually fires on every visit at boot
+    - FIX: Move the DRACO/gstatic decoder from Section 4.3 (opt-in) to Section 3 (every-visit) alongside Google Fonts, noting the decoder is preloaded at app start when the default scene mounts. The same self-hosting recommendation already in the cookies assessment applies.
+- **[low]** _audit/legal_drafts/PRIVACY_NOTICE_DRAFT.md:26 — 'Verified in code' claims attached to statements that are now partly inaccurate (DRACO/jsdelivr timing)
+    - FIX: After correcting the DRACO and jsdelivr classifications (the three findings above), re-confirm the every-visit table against code before adding any 'Verified in code' badge to Section 3. Do not extend 'Verified in code' wording to the connection-timing claims until they match dracoLoader.ts and the 
+- **[low]** _audit/legal_drafts/COOKIES_ASSESSMENT.md:36 — Cookies assessment lists DRACO as opt-in ('not on a plain visit'); it actually fires on every visit
+    - FIX: Move DRACO/gstatic from the opt-in list (line 36) to the every-visit table (Section 3) with Google Fonts, and update the line-44 'only unconditional Google IP transfer' wording to acknowledge both the fonts and the DRACO decoder. The self-host recommendation in Section 4 already covers DRACO.
+
+## L11 (49)
+- **[high]** src/components/infrastructure/SmartForklift.tsx:58 — SmartForklift component is orphaned (zero external imports)
+    - FIX: Delete src/components/infrastructure/SmartForklift.tsx after confirming no tests reference it. If retained for a planned feature, move it out of the shipped src tree or guard behind an explicit dev import. Owner should confirm it is not a planned-soon feature before deletion.
+- **[high]** src/components/truckbay/index.ts:12 — truckbay barrel + truck model/parts cluster is fully orphaned (~1500 LOC dead)
+    - FIX: Delete src/components/truckbay/index.ts and the orphaned re-exported files (TruckModel.tsx, MergedTruckParts.tsx, TruckParts.tsx, TruckSmallParts.tsx, TruckLogos.tsx, TruckAudio.tsx). Keep useTruckPhysics.ts, animationSystem.ts, DockBay.tsx, LoadingAnimation.tsx (verify each independently). Confirm 
+- **[high]** src/components/truckbay/MergedTruckParts.tsx:185 — MergedTruckModel orphaned: no consumer renders it
+    - FIX: Remove MergedTruckParts.tsx together with the truckbay barrel/model cluster after confirming TruckBay.tsx is the sole live truck renderer and `npm run build` passes.
+- **[high]** src/components/truckbay/TruckModel.tsx:15 — TruckModel wrapper orphaned (thin <MergedTruckModel> pass-through)
+    - FIX: Delete TruckModel.tsx along with the truckbay barrel/model cluster after build verification.
+- **[high]** src/components/truckbay/TruckParts.tsx:1 — TruckParts.tsx orphaned + self-described stub duplicating TruckSmallParts
+    - FIX: Delete TruckParts.tsx with the truckbay model/parts cluster. Verify LicensePlate/HeadlightBeam have no live importer outside the orphaned barrel before removal, then `npm run build`.
+- **[high]** src/components/truckbay/TruckSmallParts.tsx:18 — TruckSmallParts.tsx orphaned despite 'canonical' comment
+    - FIX: Delete TruckSmallParts.tsx with the truckbay cluster after confirming via grep that no live file imports './TruckSmallParts' (only index.ts does) and `npm run build` passes.
+- **[high]** src/components/truckbay/TruckAudio.tsx:13 — TruckAudio.tsx orphaned (ExhaustSmoke only used by orphaned MergedTruckParts)
+    - FIX: Delete TruckAudio.tsx together with MergedTruckParts.tsx and the rest of the orphaned truck-model cluster, then `npm run build`.
+- **[high]** src/components/truckbay/TruckLogos.tsx:382 — Four dead truck components silenced with @ts-ignore 'kept for future use'
+    - FIX: Delete MudflapWithChains, TPMSSensor, TrailerLockRods, ReeferUnit and their @ts-ignore comments. Since the file is orphaned, prefer deleting the whole TruckLogos.tsx with the truckbay cluster. Verify GrainCoLogo/FlourExpressLogo have no live consumer (they don't outside the orphaned barrel) before f
+- **[medium]** src/components/SPCCharts.tsx:339 — Orphaned component SPCCharts (813 LOC) — no importers anywhere
+    - FIX: Confirm with owner whether SPC charts are planned UI. If not, delete src/components/SPCCharts.tsx. If intended, wire it into a panel (e.g. ProductionMetrics or a quality tab) so the dead-code state is resolved.
+- **[medium]** src/components/FarmAreaInstances.tsx:369 — Orphaned file FarmAreaInstances (815 LOC) — instanced animals never wired up
+    - FIX: Either integrate these instanced components into FarmArea.tsx (replacing per-animal meshes for the intended perf win) or delete src/components/FarmAreaInstances.tsx. Owner decision on whether the optimization is still wanted.
+- **[medium]** src/components/ComplianceDashboard.tsx:74 — Orphaned component ComplianceDashboard (749 LOC) — no importers
+    - FIX: Confirm with owner whether the compliance dashboard is a shelved feature. If abandoned, delete src/components/ComplianceDashboard.tsx. If planned, mount it from UIOverlay/App with a toggle so it is reachable.
+- **[medium]** src/components/CrisisEventSystem.tsx:327 — Orphaned file CrisisEventSystem (539 LOC) — both exports unused
+    - FIX: Owner decision: if the crisis-event game feature is shelved, delete src/components/CrisisEventSystem.tsx. If intended, wire CrisisEventSystem into MillScene/App and CrisisControlPanel into the UI.
+- **[medium]** src/components/CelebrationSystem.tsx:14 — Orphaned component CelebrationSystem (528 LOC) — no importers
+    - FIX: Confirm with owner whether celebration effects are a planned feature. If abandoned, delete src/components/CelebrationSystem.tsx; otherwise mount it where milestones/achievements fire.
+- **[medium]** src/components/village/VillageAreaOptimized.tsx:520 — VillageAreaOptimized (608 LOC) is an orphaned alternative component
+    - FIX: Delete VillageAreaOptimized.tsx (and its default export). If the intent was to adopt it, wire it into MillScene/VillageArea instead and remove the old VillageArea path — but that is an owner architecture call, not auto-fixable.
+- **[medium]** src/components/ui-new/widgets/PreferenceRequestWidget.tsx:28 — Orphaned component: PreferenceRequestWidget never mounted/imported
+    - FIX: Either (a) wire it into the UI by importing and rendering <PreferenceRequestWidget /> in the appropriate overlay/panel (e.g. alongside WorkerMoodOverlay) if the feature is intended to be visible, or (b) delete src/components/ui-new/widgets/PreferenceRequestWidget.tsx if superseded. Owner decision ne
+- **[medium]** src/stores/auditStore.ts:476 — Seven audit convenience functions are exported but never called anywhere
+    - FIX: Either wire these helpers into the actual validation/XSS/rate-limit/auth/API/multiplayer code paths (preferred, fulfills the stated security-logging intent), or delete the unused wrappers plus their re-exports in stores/index.ts (93-99). Do not just delete if the security-logging feature is intended
+- **[medium]** src/systems/bas/workerBehaviorEngine.ts:173 — Orphaned module: workerBehaviorEngine.ts has zero importers
+    - FIX: Delete src/systems/bas/workerBehaviorEngine.ts entirely. If any export is intended for future use, leave a one-line note; otherwise remove. Confirm no test file imports it before deletion.
+- **[medium]** src/utils/gpuManagement.ts:23 — Orphaned barrel: gpuManagement.ts has zero importers anywhere in the app
+    - FIX: Delete src/utils/gpuManagement.ts. Verify the underlying modules it re-exports (textureCompression, resourcePersistence, GPUResourceManager) are still imported directly where needed (they are, by App.tsx/machineTextures).
+- **[medium]** src/utils/geometryMerger.ts:50 — Orphaned file: geometryMerger.ts only referenced by the dead gpuManagement barrel
+    - FIX: Delete src/utils/geometryMerger.ts together with gpuManagement.ts. Confirm no remaining importer (only gpuManagement references it).
+- **[medium]** src/utils/lodIntegration.ts:48 — Orphaned file: lodIntegration.ts (LODManager) only referenced by the dead gpuManagement barrel
+    - FIX: Delete src/utils/lodIntegration.ts along with gpuManagement.ts. If LOD is wanted later, re-introduce wired to an actual consumer. Confirm no other importer (only gpuManagement).
+- **[medium]** src/utils/objectPool.ts:27 — Orphaned file: objectPool.ts has no real consumers
+    - FIX: Delete src/utils/objectPool.ts. If pooling is desired, wire DustParticles (which has its own pool) to this shared implementation instead of leaving both.
+- **[medium]** src/utils/pathfinding.ts:56 — Orphaned file: pathfinding.ts (A* system) is self-documented dead code
+    - FIX: Delete src/utils/pathfinding.ts. If A* navigation is a planned feature, track it in an issue rather than carrying ~660 lines of unused code.
+- **[medium]** src/utils/truckPath.ts:236 — Orphaned file: truckPath.ts (truck docking path calculator) has zero importers
+    - FIX: Delete src/utils/truckPath.ts, or wire it into the TruckBay/truck animation if the buttonhook docking maneuver is intended to ship. Confirm zero importers first.
+- **[medium]** src/scada/HistorianRouter.ts:44 — Unwired subsystem: HistorianRouter (and PIAdapter) re-exported but never instantiated
+    - FIX: Either wire HistorianRouter into the SCADA history path (e.g. behind a feature flag in SCADAService/HistoryStore usage) or remove the barrel re-exports in src/scada/index.ts and delete the unwired adapters. Decide with owner since it is a designed-but-unconnected feature.
+- **[low]** src/components/ShiftHandover.tsx:16 — Orphaned component ShiftHandover (322 LOC) — no importers
+    - FIX: Owner decision: mount ShiftHandover in the UI if the shift-handover panel is intended, or delete src/components/ShiftHandover.tsx. Do NOT touch the store actions; they are used elsewhere.
+- **[low]** src/components/ShiftBriefing.tsx:18 — Orphaned component ShiftBriefing (222 LOC) — no importers
+    - FIX: Owner decision: mount ShiftBriefing in the UI if intended, or delete src/components/ShiftBriefing.tsx. Leave store actions untouched.
+- **[low]** src/components/AssetShowcase.tsx:128 — Orphaned component AssetShowcase — only ref is a disabled keyboard toggle
+    - FIX: If the asset browser is permanently retired, remove src/components/AssetShowcase.tsx AND the dead commented toggle block in useKeyboardShortcuts.ts together. If it may return, leave a single clear note rather than the half-wired commented dispatch.
+- **[low]** src/components/MillSceneMinimal.tsx:48 — Orphaned component MillSceneMinimal (106 LOC) — no importers
+    - FIX: Owner decision: if it served as a debug/perf-fallback scene that is no longer used, delete src/components/MillSceneMinimal.tsx. If it is meant as a low-spec fallback, wire it behind a quality/feature flag.
+- **[low]** src/components/GPUMemoryMonitor.tsx:40 — Unmounted debug overlay GPUMemoryMonitor (156 LOC) — no importers
+    - FIX: Leave as-is if it is a kept dev tool. If wanted on demand, gate it behind a dev/debug flag (e.g. import.meta.env.DEV or a query param) and mount it so it is reachable. Do not delete without confirming the doc's intent.
+- **[low]** src/components/FirstPersonController.tsx:149 — any-typed ref: controlsRef = useRef<any>(null)
+    - FIX: Type as the drei/three PointerLockControls impl, e.g. useRef<import('three-stdlib').PointerLockControls>(null) (or the type drei re-exports). Verify all ref.current usages typecheck before committing — typing it may surface latent property-access errors.
+- **[low]** src/components/TruckBay.tsx:3153 — Commented-out JSX render block (6 lines) leaves 3 exported components dead
+    - FIX: Delete the commented-out render lines for EmployeeParking, PropaneTankCage, and DriverRestroom; then remove the now-unreferenced EmployeeParking (667), PropaneTankCage (838), and DriverRestroom (4841) component definitions. Leave FuelIsland/TireInspectionArea/DumpsterArea comment lines or restore th
+- **[low]** src/components/WorkerMoodOverlay.tsx:443 — Dead component export WorkerMoodOverlay (live file, but component unused by live scene)
+    - FIX: Either render WorkerMoodOverlay inside WorkerSystemNew (if the mood-bubble visual is intended) or remove the WorkerMoodOverlay component export (and its default export) while keeping the two simulation hooks. Decide with the owner since it is a visible feature.
+- **[low]** src/components/VillageArea.tsx:216 — Three commented-out useFrame 'PERF TEST' animation blocks
+    - FIX: Delete the three commented-out useFrame blocks. If the animations are intentionally disabled for perf permanently, also drop the now-write-only smokeRefs ref and its assignment at line 239; otherwise restore the animation. Document the decision in code if perf-disabling is intentional.
+- **[low]** src/components/infrastructure/SafetyEquipment.tsx:107 — WallSign 'text' prop is required but never destructured or used
+    - FIX: Either render the text via a <Text> drei element (matching DockBay/OpenDockOpening signs) or, if labels are intentionally decorative-only, remove the required 'text' field from the interface and strip it from the call sites to make the dead intent explicit.
+- **[low]** src/components/terrain/TerrainMaterial.tsx:345 — Exported useTerrainMaterial hook has zero consumers
+    - FIX: Remove the useTerrainMaterial export from TerrainMaterial.tsx (lines 345-403) and from terrain/index.ts after confirming no external/test consumers. Keep only the TerrainMaterial component which is the live path used by TerrainGround.
+- **[low]** src/components/physics/PhysicsDebug.tsx:26 — generateDebugObstacles duplicates FactoryColliders obstacle data
+    - FIX: Extract the obstacle-generation logic (or at least the shared zone/size constants) into a single module imported by both FactoryColliders.tsx and PhysicsDebug.tsx, so the debug wireframes always match the live colliders.
+- **[low]** src/components/village/InstancedVillageComponents.tsx:191 — InstancedBenches/Trees/MarketStalls only consumed by orphaned VillageAreaOptimized
+    - FIX: After removing VillageAreaOptimized, delete InstancedBenches/InstancedTrees/InstancedMarketStalls and their now-unused geometries/materials/exports. Retain InstancedLamps, whiteMaterial, smokeMaterial. Run `npm run build` to confirm.
+- **[low]** src/components/ui-new/sidebar/MissionControl.tsx:7 — MissionControl is an orphaned component (zero importers)
+    - FIX: Delete src/components/ui-new/sidebar/MissionControl.tsx after a final grep confirms no dynamic/string reference. If intentionally kept for future use, add a one-line comment noting it is currently unmounted so future readers do not assume it renders.
+- **[low]** src/components/ui-new/widgets/ManagementStylePanel.tsx:50 — ManagementStylePanel orphaned; duplicates MobilePanel ManagementContent
+    - FIX: Remove src/components/ui-new/widgets/ManagementStylePanel.tsx, or wire it into ContextSidebar's management mode and delete MobilePanel's inline ManagementContent in favor of it. Confirm no dynamic reference first.
+- **[low]** src/components/knowledge/AINarration.tsx:136 — AINarrationInline exported but never consumed
+    - FIX: Delete the AINarrationInline component from AINarration.tsx and remove it from the knowledge/index.ts export list, after confirming no dynamic reference. Keep AINarration and AINarrationModal.
+- **[low]** src/stores/flourishingStore.ts:682 — Two flourishing cleanup functions and aiConfig cleanup are dead 'HMR/test' helpers
+    - FIX: Either add the cleanup calls to a vitest setup/teardown and an import.meta.hot.dispose HMR handler (fulfills stated intent), or remove the three unused exports. Don't half-remove: pick wire-up or deletion consistently across all three stores.
+- **[low]** src/systems/bas/aiBehaviorEngine.ts:818 — Unused export getAdaptedAIConfig (no internal or external callers)
+    - FIX: Remove getAdaptedAIConfig, or document why it is retained. Same applies to other zero-caller exports in this file (see related findings).
+- **[low]** src/systems/bas/aiBehaviorEngine.ts:888 — Unused export adaptSuggestionForTeam (no callers)
+    - FIX: Remove adaptSuggestionForTeam or wire it into generateSuggestion's team-context branch if intended. If kept, mark clearly as future scaffolding.
+- **[low]** src/systems/bas/aiBehaviorEngine.ts:769 — Unused export shouldShowSuggestionToWorker (no callers)
+    - FIX: Remove shouldShowSuggestionToWorker, or integrate it where suggestions are surfaced to workers if the gating logic is desired.
+- **[low]** src/systems/bas/aiBehaviorEngine.ts:959 — Unused engagement-aware suggestion API (generateEngagementAwareSuggestion + helpers)
+    - FIX: Either wire generateEngagementAwareSuggestion into the AI loop where worker engagement is evaluated, or remove the engagement-aware block (function + its 4 build* helpers + extractEngagementContext + shouldDeferSuggestion). Decide intent before deleting; this looks like unfinished integration.
+- **[low]** src/utils/environmentRegistry.ts:87 — `any` type in TireTrackSpawnAnimationState.trackDataRef
+    - FIX: Replace `any` with the concrete track-data shape, e.g. Map<number, { x: number; z: number; opacity: number; angle?: number }> matching how Environment.tsx populates it (inspect the producer to get exact fields).
+- **[low]** src/utils/perfMonitor.ts:21 — All named perfMonitor exports unused; module is side-effect-imported only
+    - FIX: Keep the side-effect window-globals setup if used for in-browser debugging, but drop the unused named exports (or document them as debug-console-only API). At minimum remove exports with no caller and no window binding.
+- **[low]** src/protocols/vcp/encoder.ts:386 — Orphaned cross-system Rewind bridge: universal-header encode/decode/has trio wired to nothing
+    - FIX: If the Rewind bridge is on the roadmap, add a test exercising encode→decode round-trip so the code is at least pinned and not silently rotting. Otherwise remove the three functions and their index.ts re-exports (lines 149, 159-160) plus the related Universal* types/maps in types.ts that nothing else
+- **[low]** src/protocols/vcp/decoder.ts:462 — Unused decoder API: decodeVCPMessage + validateEncodedVCP (and transitive-only decodeReasoningScaffolds)
+    - FIX: Add a decoder round-trip test covering decodeVCPMessage/validateEncodedVCP (which also covers decodeReasoningScaffolds), or remove these three plus encodeForDecisionType and their index.ts re-exports. If encodeForDecisionType is kept, have it read DECISION_LAYER_MAP from types.ts instead of redefini
+
+## L12 (11)
+- **[high]** package.json:33 — @rollup/rollup-darwin-arm64 declared as direct dependency breaks clean install on Linux CI/deploy
+    - FIX: Remove the '@rollup/rollup-darwin-arm64' line from dependencies in package.json, then run 'npm install' to regenerate package-lock.json so the binary is resolved only through rollup's optionalDependencies (auto-selected per platform). After that, drop the '--force' from 'npm ci' in deploy.yml/ci.yml
+- **[high]** .github/workflows/deploy.yml:33 — Pages deploy has no typecheck/test/lint gate; broken builds publish to production
+    - FIX: Add `npm run typecheck` and `npm test` steps before the build step in the deploy build job, OR gate deploy.yml on CI via a `workflow_run` trigger (run deploy only after the CI workflow concludes successfully on main).
+- **[medium]** .github/workflows/release.yml:38 — release.yml references nonexistent cliff.toml, breaking tag-triggered GitHub Releases
+    - FIX: Either add a cliff.toml at repo root with a valid git-cliff config, or remove the `config: cliff.toml` line (lines 37-38) so git-cliff-action uses its built-in default config. Verify against a test tag before relying on it for a release.
+- **[medium]** .github/workflows/deploy.yml:39 — Deploy nests duplicate version dirs and mp3s inside /v0.30/ via cp -r dist/*
+    - FIX: Exclude the version dirs and mp3s when staging the current build, e.g. `rsync -a --exclude 'v0.10' --exclude 'v0.20' --exclude 'v0.30' --exclude '*.mp3' dist/ staging/v0.30/`, or set publicDir handling so versioned snapshots are not copied into dist during the VERSION build.
+- **[medium]** tailwind.config.js:2 — Orphaned Tailwind v4 JS config: never loaded, silent-failure trap
+    - FIX: Delete tailwind.config.js (and the duplicate src/0.10 Archive/tailwind.config.js). All tokens it defines are already in src/index.css @theme; sr-only is already a real CSS rule there. If any token must live in JS for tooling reasons, add `@config './tailwind.config.js';` to src/index.css to actually
+- **[low]** index.html:20 — No PWA web app manifest despite service worker + theme-color
+    - FIX: Add public/manifest.webmanifest with name, short_name, start_url ('./' to stay base-relative), display 'standalone', background_color/theme_color '#0a0f1a', and an icons array (at least 192px + 512px PNG). Reference it in index.html <head>: <link rel="manifest" href="manifest.webmanifest"> (relative
+- **[low]** public/sw.js:115 — Activate handler deletes all millos-* caches, evicting other deployed versions
+    - FIX: Namespace caches per deployment base so versions don't collide and don't evict each other: derive a prefix from the SW scope/base, e.g. const SCOPE = self.registration.scope; and use cache names like `millos-static-${VERSION}-${new URL(SCOPE).pathname}`. Then in activate, only delete caches matching
+- **[low]** vite.config.ts:91 — Internal 'Asset Prototype Deck' shipped as production rollup input
+    - FIX: If the prototype deck is not meant to be a public launch surface, remove the prototypes input from rollupOptions.input (keep only main) so it is not built/deployed. If it must ship, give it its own entry script (not /src/main.tsx) and bring its CSP to parity with index.html (add object-src 'none', b
+- **[low]** .github/workflows/deploy.yml:30 — Production deploy uses `npm ci --force`, masking peer-dep conflicts
+    - FIX: Resolve the underlying peer-dependency conflict in package.json/lockfile and drop `--force` (use plain `npm ci`). If a specific peer must be overridden, encode it via the `overrides` field in package.json rather than a blanket --force at install time.
+- **[low]** postcss.config.js:4 — Redundant autoprefixer in PostCSS chain under Tailwind v4
+    - FIX: Remove the `autoprefixer: {}` entry so the config is just `{ plugins: { '@tailwindcss/postcss': {} } }`, and drop autoprefixer from devDependencies if nothing else uses it. Confirm prefixed output is unchanged with `npm run build` against the existing browserslist.
+- **[low]** metadata.json:1 — Stray AI Studio metadata.json at repo root is unused build scaffolding
+    - FIX: Delete the root metadata.json (and the archived duplicate) since neither ships nor is consumed by the build; the canonical site metadata already lives in index.html. If kept for AI Studio re-import, add a one-line comment/README note that it is non-shipping scaffolding.

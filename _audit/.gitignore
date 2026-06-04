@@ -1,0 +1,12 @@
+# The _audit/ directory is the launch-audit workspace. Most of it is machine
+# scratch (raw findings JSON, per-lane agent outputs, fix-assignment manifests,
+# workflow scripts, temp files). Only the curated human hand-off deliverables are
+# tracked; everything else is ignored to keep the working tree clean.
+*
+!.gitignore
+!FLAGS_FOR_NELL.md
+!SUMMARY.md
+!LANE_INVENTORY.md
+!_deferred_by_lane.md
+!legal_drafts/
+!legal_drafts/**
