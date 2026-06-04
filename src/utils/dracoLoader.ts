@@ -13,8 +13,9 @@
  *   // To preload:
  *   preloadDracoModel('/model.glb');
  *
- * Note: The DRACO decoder files are loaded from the CDN automatically.
- * For offline support, copy the decoder files to public/draco/ and update DECODER_PATH.
+ * Note: The DRACO decoder files are self-hosted from public/draco/ (copied from
+ * the bundled three.js decoder). This removes the runtime dependency on
+ * gstatic.com — no third-party connection is made to decode compressed models.
  */
 
 import { useGLTF } from '@react-three/drei';
@@ -28,12 +29,11 @@ export interface DracoGLTFResult extends GLTF {
   materials: Record<string, THREE.Material>;
 }
 
-// CDN path for DRACO decoder files
-// For offline support, download and place in public/draco/
-const DRACO_DECODER_PATH = 'https://www.gstatic.com/draco/versioned/decoders/1.5.7/';
-
-// Local fallback path (copy decoder files here for offline use)
-// const DRACO_DECODER_PATH = '/draco/';
+// Self-hosted DRACO decoder path (files live in public/draco/, copied from the
+// bundled three.js decoder). BASE_URL keeps this correct under the versioned
+// deploy base (e.g. '/v0.30/'), where a bare '/draco/' would resolve to the
+// origin root and 404. No gstatic / CDN connection is made.
+const DRACO_DECODER_PATH = `${import.meta.env.BASE_URL}draco/`;
 
 // Singleton DRACO loader instance
 let dracoLoaderInstance: DRACOLoader | null = null;

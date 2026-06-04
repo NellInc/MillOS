@@ -1,4 +1,7 @@
 @import 'tailwindcss';
+/* Self-hosted Inter + JetBrains Mono (removes the Google Fonts third-party
+   connection — GDPR). Must precede non-@import rules per the CSS spec. */
+@import './fonts.css';
 
 /* Explicit source paths for Tailwind v4 content detection */
 @source "../index.html";
