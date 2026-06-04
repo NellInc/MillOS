@@ -20,6 +20,7 @@ import express, { Request, Response } from 'express';
 import cors from 'cors';
 import { WebSocketServer, WebSocket } from 'ws';
 import { createServer } from 'http';
+import { timingSafeEqual } from 'node:crypto';
 import dotenv from 'dotenv';
 import rateLimit from 'express-rate-limit';
 import { OPCUAAdapter } from './adapters/OPCUAAdapter';
@@ -30,13 +31,25 @@ dotenv.config();
 
 const PORT = parseInt(process.env.PORT ?? '3001', 10);
 const POLL_INTERVAL = parseInt(process.env.POLL_INTERVAL ?? '1000', 10);
-const API_KEY = process.env.SCADA_API_KEY;
+// Accept either SCADA_API_KEY (preferred) or API_KEY: k8s/docker manifests inject
+// API_KEY, while the code historically read SCADA_API_KEY — the mismatch caused a
+// prod crash-loop (fail-fast below) and silent auth-disable. Read both.
+const API_KEY = process.env.SCADA_API_KEY ?? process.env.API_KEY;
 
 // Security: Fail fast if API key is not configured in production
 const isProduction = process.env.NODE_ENV === 'production';
 if (isProduction && !API_KEY) {
   console.error('FATAL: SCADA_API_KEY environment variable is required in production');
   process.exit(1);
+}
+
+// Constant-time API-key comparison to avoid a timing side-channel that a plain
+// === would leak. Returns false on any length mismatch or missing value.
+function safeKeyEqual(provided: string | undefined | null, expected: string | undefined): boolean {
+  if (!provided || !expected) return false;
+  const a = Buffer.from(provided);
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
 }
 
 type SafeWebSocket = WebSocket & { isAlive?: boolean };
@@ -132,7 +145,7 @@ app.use((req, res, next) => {
   if (!API_KEY || req.method === 'OPTIONS') return next();
   const headerKey = req.headers['x-api-key'];
   const provided = Array.isArray(headerKey) ? headerKey[0] : headerKey;
-  if (provided === API_KEY) return next();
+  if (safeKeyEqual(provided, API_KEY)) return next();
   return res.status(401).json({ error: 'Unauthorized' });
 });
 
@@ -188,7 +201,7 @@ wss.on('connection', (ws, req) => {
   const headerKey = req.headers['x-api-key'];
   const providedKey = Array.isArray(headerKey) ? headerKey[0] : headerKey;
 
-  if (API_KEY && queryKey !== API_KEY && providedKey !== API_KEY) {
+  if (API_KEY && !safeKeyEqual(queryKey, API_KEY) && !safeKeyEqual(providedKey, API_KEY)) {
     ws.close(1008, 'Unauthorized');
     return;
   }
