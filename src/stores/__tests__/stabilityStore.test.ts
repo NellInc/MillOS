@@ -17,12 +17,19 @@ import {
   calculateStabilityCoefficient,
   calculateStabilityMargin,
 } from '../stabilityStore';
+import { useOwnershipStore } from '../ownershipStore';
 import { STABILITY_THRESHOLD } from '../../types/bas';
 
 describe('StabilityStore', () => {
   beforeEach(() => {
     // Reset store to initial state
     useStabilityStore.getState().resetToDefaults();
+    // Isolate the friction-math tests from the ownership->friction integration:
+    // zero out worker ownership so getOwnershipFrictionMultiplier() is neutral
+    // (1.0). The integration itself is covered by its own describe block below.
+    useOwnershipStore.setState((s) => ({
+      structure: { ...s.structure, collectiveShare: 0, individualShares: {} },
+    }));
   });
 
   afterEach(() => {

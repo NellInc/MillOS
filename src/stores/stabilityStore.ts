@@ -23,6 +23,7 @@ import { create } from 'zustand';
 import type { WallaceMetrics, ResourceRates, PhaseState, StabilityDataPoint } from '../types/bas';
 import { STABILITY_THRESHOLD, WARNING_THRESHOLD } from '../types/bas';
 import { useEngagementStore, mapEngagementToFriction } from './engagementStore';
+import { useOwnershipStore } from './ownershipStore';
 
 // =============================================================================
 // CROSS-STORE INTEGRATION: Ownership -> Friction
@@ -38,23 +39,16 @@ import { useEngagementStore, mapEngagementToFriction } from './engagementStore';
  * - 50% worker ownership: 0.9 (10% reduction)
  * - 100% worker ownership: 0.75 (25% reduction)
  *
- * Uses dynamic import to avoid circular dependencies.
+ * Reads the ownership store synchronously via getState(). A static ESM import is
+ * safe here: ownershipStore does not import stabilityStore, so there is no
+ * circular dependency. (The previous require() form silently failed in the
+ * ESM/Vite browser bundle, leaving this integration dead — now activated.)
  *
  * @returns Friction multiplier (0.75-1.0) based on average ownership
  */
-let ownershipStoreAccessor: typeof import('./ownershipStore').useOwnershipStore | null = null;
-
 function getOwnershipFrictionMultiplier(): number {
-  // Dynamic import pattern - get store state synchronously
-  // The store must be imported lazily to avoid circular deps
   try {
-    if (!ownershipStoreAccessor) {
-      // Use require-style dynamic access since we're in a sync context
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      ownershipStoreAccessor = (require('./ownershipStore') as typeof import('./ownershipStore'))
-        .useOwnershipStore;
-    }
-    const ownershipState = ownershipStoreAccessor.getState();
+    const ownershipState = useOwnershipStore.getState();
 
     // Get total worker ownership percentage (0-100)
     const totalWorkerOwnership = ownershipState.getTotalWorkerOwnership();
