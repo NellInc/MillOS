@@ -29,6 +29,15 @@ jobs:
       - name: Install dependencies
         run: npm ci --force
 
+      # Gate: never publish a broken build to production. Mirrors CI's checks so
+      # a push to main that fails typecheck/lint/tests stops here instead of
+      # deploying. (deploy.yml runs independently of ci.yml, so it must re-gate.)
+      - name: Validate (typecheck + lint + test)
+        run: |
+          npm run typecheck
+          npm run lint
+          npm test
+
       # Build v0.30 (current) to /v0.30/ subdirectory
       - name: Build v0.30 current
         run: VERSION=v0.30 npm run build
