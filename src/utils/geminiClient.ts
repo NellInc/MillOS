@@ -19,9 +19,12 @@ interface CircuitBreakerState {
 }
 
 // Context limit protection
-const MAX_PROMPT_CHARS = 28000; // ~7k tokens, safe for 32k context window
+const MAX_PROMPT_CHARS = 24000; // ~6.8k tokens, safe for 32k context window
 const MAX_PROMPT_TOKENS_ESTIMATE = 7000; // Leave headroom for response
-const CHARS_PER_TOKEN_ESTIMATE = 4; // Conservative estimate
+// Conservative estimate: Gemini tokenizers vary 2.5-5.5 chars/token depending on
+// content (code/structured ~2.5-3, English prose ~4, whitespace-heavy ~5+). 3.5
+// adds margin so estimated token counts under-shoot less often than 4 would.
+const CHARS_PER_TOKEN_ESTIMATE = 3.5;
 
 const CIRCUIT_BREAKER_THRESHOLD = 3;
 const CIRCUIT_BREAKER_RESET_MS = 30000; // 30 seconds
@@ -296,6 +299,13 @@ class GeminiClient {
       const result = await this.model.generateContent(safePrompt);
       const response = result.response;
       const text = response.text();
+
+      // Guard against empty/null model output before caching, so a transient
+      // empty response is not cached and silently returned for future prompts
+      if (!text) {
+        logger.warn('[GeminiClient] Empty response from model');
+        return null;
+      }
 
       // Reset failures and overflow state on success
       this.circuitBreaker.failures = 0;

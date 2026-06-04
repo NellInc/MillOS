@@ -355,7 +355,7 @@ const VoteCard: React.FC<VoteCardProps> = ({
               {vote.status === 'open' && (
                 <button
                   onClick={() => onSimulate(vote.id)}
-                  className="flex items-center gap-1 text-[9px] text-slate-500 hover:text-slate-300 transition-colors"
+                  className="flex items-center gap-1 text-[9px] text-slate-500 hover:text-slate-300 focus:text-slate-200 focus:outline-none focus:ring-1 focus:ring-cyan-500 transition-colors"
                 >
                   <Play className="w-3 h-3" />
                   <span>Simulate worker voting</span>

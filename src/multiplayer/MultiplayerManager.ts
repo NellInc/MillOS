@@ -22,6 +22,7 @@ import {
   RemotePlayer,
 } from './types';
 import { useMultiplayerStore } from '../stores/multiplayerStore';
+import { useProductionStore } from '../stores/productionStore';
 import { handleHostDisconnect } from './HostMigration';
 import { logger } from '../utils/logger';
 import { sanitizeChatMessage, sanitizePlayerName } from '../utils/sanitize';
@@ -315,8 +316,20 @@ export class MultiplayerManager {
 
         if (Number.isFinite(p.rotation)) update.rotation = p.rotation;
 
-        if (typeof p.selectedMachineId === 'string' || p.selectedMachineId === null) {
-          update.selectedMachineId = p.selectedMachineId;
+        if (p.selectedMachineId === null) {
+          update.selectedMachineId = null;
+        } else if (typeof p.selectedMachineId === 'string') {
+          // Validate the peer-supplied machine id against the real machine registry
+          // (seeded locally on every client when MillScene mounts) so a peer can't
+          // inject fabricated/non-existent ids into remote player state. The list is
+          // empty only during the brief window before the scene seeds it; accept
+          // rather than falsely null during that initial-sync race, then reject
+          // unknown ids once the registry is populated.
+          const machines = useProductionStore.getState().machines;
+          update.selectedMachineId =
+            machines.length === 0 || machines.some((m) => m.id === p.selectedMachineId)
+              ? p.selectedMachineId
+              : null;
         }
         if (typeof p.isInFpsMode === 'boolean') update.isInFpsMode = p.isInFpsMode;
 
@@ -393,7 +406,17 @@ export class MultiplayerManager {
         break;
 
       case 'MACHINE_LOCK':
-        store.setMachineLock(message.payload.machineId, message.payload.playerId);
+        // Host-authoritative broadcast: only guests apply a MACHINE_LOCK, and only
+        // from the trusted host connection. The host must NOT accept lock changes
+        // from untrusted guests — guests request locks via INTENT (submitIntent in
+        // requestMachineLock/releaseMachineLock), which the host validates before
+        // setting and broadcasting the lock itself. Trusting a guest's MACHINE_LOCK
+        // here would let a malicious peer spoof arbitrary/other-player playerIds.
+        if (!store.isHost) {
+          store.setMachineLock(message.payload.machineId, message.payload.playerId);
+        } else {
+          logger.multiplayer.warn('Dropped host-only MACHINE_LOCK from peer', peerId);
+        }
         break;
 
       case 'CHAT':

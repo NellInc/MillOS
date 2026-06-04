@@ -2,6 +2,20 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <!--
+      CSP connect-src third-party domains and their runtime consumers:
+      - https://0.peerjs.com                      PeerJS multiplayer signalling
+      - https://generativelanguage.googleapis.com Gemini cloud AI (GeminiSettingsModal)
+      - https://cdn.jsdelivr.net                  asset/CDN fetches
+      - https://huggingface.co + https://*.hf.co  @mlc-ai/web-llm model weights
+                                                  (Qwen3-4B-q4f16_1-MLC); HF LFS blobs
+                                                  are served from *.hf.co
+      - https://raw.githubusercontent.com         @mlc-ai/web-llm WASM model libs
+                                                  (mlc-ai/binary-mlc-llm-libs/web-llm-models)
+      These are NOT dead trust surface: they back the on-device WebGPU neural core
+      (src/utils/webgpuClient.ts, webgpuWorker.ts). The references live inside the
+      web-llm dependency's appConfig, so a grep of src/ alone will not surface them.
+    -->
     <meta http-equiv="Content-Security-Policy" content="
       default-src 'self';
       script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:;

@@ -80,6 +80,8 @@ const getPanelIcon = (mode: DockMode) => {
       return <Settings className={iconClass} />;
     case 'management':
       return <Heart className={iconClass} />;
+    case 'multiplayer':
+      return <Users className={iconClass} />;
     default:
       return <Home className={iconClass} />;
   }

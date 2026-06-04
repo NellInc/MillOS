@@ -4,7 +4,7 @@
  * Animated status ring at machine base that indicates operational status.
  * Uses shader-based animation for performance.
  */
-import React, { useRef, useMemo } from 'react';
+import React, { useRef, useMemo, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { getStatusColor, getPulseSpeed, getGlowIntensity } from '../../utils/digitalTwinPalette';
@@ -98,7 +98,7 @@ export const StatusRing: React.FC<StatusRingProps> = ({
   });
 
   // Update uniforms when status changes
-  useMemo(() => {
+  useEffect(() => {
     if (materialRef.current) {
       materialRef.current.uniforms.color.value.set(color);
       materialRef.current.uniforms.opacity.value = opacity;

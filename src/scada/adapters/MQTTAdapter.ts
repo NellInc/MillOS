@@ -349,6 +349,11 @@ class MQTTWebSocketClient {
 
     // Topic length
     const topicLength = (bytes[offset] << 8) | bytes[offset + 1];
+    // Reject malformed frames before slicing: ensure the topic-length prefix and
+    // declared topic bytes both fit within the buffer and the declared packet end.
+    if (offset + 2 + topicLength > bytes.length || offset + 2 + topicLength > packetEnd) {
+      return;
+    }
     offset += 2;
 
     // Topic
