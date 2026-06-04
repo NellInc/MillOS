@@ -4459,65 +4459,6 @@ const FlourExpressLogo: React.FC<{ side: 'left' | 'right' }> = ({ side }) => {
   );
 };
 
-// Mudflap with chains/weights (enhanced version)
-// @ts-ignore - unused component kept for future use
-const MudflapWithChains: React.FC<{
-  position: [number, number, number];
-}> = ({ position }) => {
-  const chainRefs = useRef<THREE.Mesh[]>([]);
-
-  useEffect(() => {
-    const chainsId = `mudflap-chains-${Math.random()}`;
-
-    registerAnimation(chainsId, 'custom', null, { chainRefs }, (time, _delta, _mesh, data) => {
-      const refs = (data as { chainRefs: React.RefObject<THREE.Mesh[]> }).chainRefs;
-      refs.current?.forEach((chain: THREE.Mesh | null, i: number) => {
-        if (chain) {
-          chain.rotation.x = Math.sin(time * 2 + i * 0.5) * 0.05;
-          chain.rotation.z = Math.sin(time * 1.5 + i * 0.3) * 0.03;
-        }
-      });
-    });
-
-    return () => {
-      unregisterAnimation(chainsId);
-    };
-  }, []);
-
-  return (
-    <group position={position}>
-      <mesh>
-        <boxGeometry args={[0.6, 0.7, 0.02]} />
-        <meshStandardMaterial color="#1f2937" roughness={0.95} />
-      </mesh>
-      <mesh position={[0, -0.32, 0.02]}>
-        <boxGeometry args={[0.55, 0.06, 0.04]} />
-        <meshStandardMaterial color="#94a3b8" metalness={0.9} roughness={0.1} />
-      </mesh>
-      {[-0.2, 0, 0.2].map((x, i) => (
-        <group key={i} position={[x, -0.38, 0.02]}>
-          {[0, 1, 2, 3].map((j) => (
-            <mesh
-              key={j}
-              ref={(el) => {
-                if (el) chainRefs.current[i * 4 + j] = el;
-              }}
-              position={[0, -j * 0.04, 0]}
-            >
-              <torusGeometry args={[0.015, 0.004, 6, 8]} />
-              <meshStandardMaterial color="#64748b" metalness={0.8} roughness={0.2} />
-            </mesh>
-          ))}
-          <mesh position={[0, -0.18, 0]}>
-            <sphereGeometry args={[0.025, 8, 8]} />
-            <meshStandardMaterial color="#374151" metalness={0.7} roughness={0.3} />
-          </mesh>
-        </group>
-      ))}
-    </group>
-  );
-};
-
 // Tire Pressure Monitoring System sensor
 // @ts-ignore - unused component kept for future use
 const TPMSSensor: React.FC<{

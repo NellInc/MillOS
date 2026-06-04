@@ -36,6 +36,8 @@ export const ProductionTargetsWidget: React.FC = () => {
     >
       <button
         onClick={() => setExpanded(!expanded)}
+        aria-expanded={expanded}
+        aria-controls="production-target-details"
         className="w-full flex items-center justify-between p-3 hover:bg-slate-800/50 transition-colors"
       >
         <div className="flex items-center gap-2">
@@ -69,6 +71,7 @@ export const ProductionTargetsWidget: React.FC = () => {
       <AnimatePresence>
         {expanded && (
           <motion.div
+            id="production-target-details"
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
@@ -83,7 +86,7 @@ export const ProductionTargetsWidget: React.FC = () => {
                 </span>
               </div>
               <div className="flex justify-between text-xs">
-                <span className="text-slate-400">Total Ever</span>
+                <span className="text-slate-400">All-Time Total</span>
                 <span className="text-cyan-400 font-mono">
                   {totalBagsProduced.toLocaleString()}
                 </span>

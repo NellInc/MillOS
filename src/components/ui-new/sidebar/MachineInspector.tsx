@@ -203,7 +203,13 @@ export const MachineInspector: React.FC<{ machine: MachineData }> = ({ machine }
           </span>
         </div>
         <div className="text-sm text-slate-300">
-          Operating normally. No faults detected in the last 24 hours.
+          {machine.status === 'critical'
+            ? 'Critical fault detected. Immediate attention required - review metrics below.'
+            : machine.status === 'warning'
+              ? 'Fault detected. Inspect the metrics and maintenance logs below.'
+              : machine.status === 'idle'
+                ? 'Unit is idle. No faults detected in the last 24 hours.'
+                : 'Operating normally. No faults detected in the last 24 hours.'}
         </div>
       </div>
 
@@ -229,6 +235,8 @@ export const MachineInspector: React.FC<{ machine: MachineData }> = ({ machine }
       <div className="space-y-2 pt-2">
         <button
           onClick={() => setShowLogs(!showLogs)}
+          aria-expanded={showLogs}
+          aria-controls="machine-maintenance-logs"
           className="w-full bg-cyan-600 hover:bg-cyan-500 text-white py-2 rounded-lg font-medium text-xs transition-colors shadow-lg shadow-cyan-900/20 flex items-center justify-center gap-2"
         >
           <FileText size={14} />
@@ -237,6 +245,11 @@ export const MachineInspector: React.FC<{ machine: MachineData }> = ({ machine }
         <button
           onClick={handleRestart}
           disabled={isRestarting || machine.status === 'critical'}
+          title={
+            machine.status === 'critical'
+              ? 'Critical faults must be cleared via Safety controls before this unit can be restarted.'
+              : undefined
+          }
           className="w-full bg-slate-800 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed text-white py-2 rounded-lg font-medium text-xs transition-colors flex items-center justify-center gap-2"
         >
           {isRestarting ? (
@@ -255,7 +268,10 @@ export const MachineInspector: React.FC<{ machine: MachineData }> = ({ machine }
 
       {/* Maintenance Logs Panel */}
       {showLogs && (
-        <div className="bg-slate-800/30 border border-white/5 rounded-xl p-3 space-y-2">
+        <div
+          id="machine-maintenance-logs"
+          className="bg-slate-800/30 border border-white/5 rounded-xl p-3 space-y-2"
+        >
           <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
             Recent Maintenance
           </h4>

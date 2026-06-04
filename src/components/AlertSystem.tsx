@@ -9,13 +9,13 @@ const getSampleAlerts = (): Omit<AlertData, 'id' | 'timestamp' | 'acknowledged'>
   {
     type: 'success',
     title: 'Maintenance Complete',
-    message: 'Roller Mill #3 back online',
+    message: 'Roller Mill RM-103 back online',
     machineId: 'rm-103',
   },
   {
     type: 'warning',
     title: 'Temperature Rising',
-    message: 'Plansifter #2 bearing temperature elevated',
+    message: 'Plansifter B bearing temperature elevated',
     machineId: 'sifter-b',
   },
   { type: 'info', title: 'Quality Check', message: 'Hourly sample collection in progress' },

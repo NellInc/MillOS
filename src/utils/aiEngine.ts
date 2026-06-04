@@ -30,7 +30,6 @@ import { useAIConfigStore } from '../stores/aiConfigStore';
 import { useAnnouncementsStore } from '../stores/announcementsStore';
 import { useSafetyReportStore } from '../stores/safetyReportStore';
 import { useWorkerMoodStore } from '../stores/workerMoodStore';
-// Achievement type used in achievements.find() calls (implicitly typed)
 import { geminiClient } from './geminiClient';
 import { encodeFactoryContextVCL, getVCLLegend } from './vclEncoder';
 import { logger } from './logger';
@@ -2502,6 +2501,14 @@ function processDecisionChains(_context: FactoryContext): AIDecision | null {
             );
           break;
         }
+
+        default: {
+          // 'dispatch'/'followup' are currently unreachable (scheduleFollowup only sets
+          // 'progress'), but log if a future code path schedules an unhandled step so the
+          // chain isn't silently dropped below.
+          logger.warn('[Chains] Unhandled nextStep', chain.nextStep);
+          break;
+        }
       }
 
       aiMemory.pendingChains.delete(decisionId);
@@ -3311,60 +3318,68 @@ function aiLoop() {
     }
   }
 
-  // 3. Update Predictions (every 5s)
-  if (now - lastPredictionTime >= AI_ENGINE_TIMING.predictionUpdateInterval) {
-    lastPredictionTime = now;
-    // getPredictedEvents updates internal state, UI reads from store or hook
-    // We might want to persist these to a store if they aren't already
-    // For now, this keeps internal cache fresh
-    getPredictedEvents();
-  }
+  // The synchronous tail (sections 3-6) runs directly in the setInterval callback.
+  // Guard it so a throw in any sub-call is logged and isolated rather than escaping
+  // as an uncaught exception every tick (which would silently skip a whole phase
+  // while the loop stays visibly 'alive'). The async IIFEs above are already guarded.
+  try {
+    // 3. Update Predictions (every 5s)
+    if (now - lastPredictionTime >= AI_ENGINE_TIMING.predictionUpdateInterval) {
+      lastPredictionTime = now;
+      // getPredictedEvents updates internal state, UI reads from store or hook
+      // We might want to persist these to a store if they aren't already
+      // For now, this keeps internal cache fresh
+      getPredictedEvents();
+    }
 
-  // 4. Update Metrics & System Status (every 1.5s)
-  if (now - lastMetricsTime >= AI_ENGINE_TIMING.metricsUpdateInterval) {
-    lastMetricsTime = now;
+    // 4. Update Metrics & System Status (every 1.5s)
+    if (now - lastMetricsTime >= AI_ENGINE_TIMING.metricsUpdateInterval) {
+      lastMetricsTime = now;
 
-    // Update CPU/Mem estimates based on activity
-    const productionStore = useProductionStore.getState();
-    const uiStore = useUIStore.getState();
+      // Update CPU/Mem estimates based on activity
+      const productionStore = useProductionStore.getState();
+      const uiStore = useUIStore.getState();
 
-    const activeDecisions = productionStore.aiDecisions.filter(
-      (d) => d.status === 'in_progress'
-    ).length;
-    const pendingDecisions = productionStore.aiDecisions.filter(
-      (d) => d.status === 'pending'
-    ).length;
-    const alertLoad = uiStore.alerts.filter(
-      (a) => a.type === 'critical' || a.type === 'warning'
-    ).length;
+      const activeDecisions = productionStore.aiDecisions.filter(
+        (d) => d.status === 'in_progress'
+      ).length;
+      const pendingDecisions = productionStore.aiDecisions.filter(
+        (d) => d.status === 'pending'
+      ).length;
+      const alertLoad = uiStore.alerts.filter(
+        (a) => a.type === 'critical' || a.type === 'warning'
+      ).length;
 
-    // Base CPU load + active work + pending queue + alert processing
-    const baseCpu = 12;
-    const activeLoad = activeDecisions * 8;
-    const queueLoad = Math.min(pendingDecisions * 2, 10);
-    const alertProcessing = alertLoad * 4;
-    const cpuUsage = Math.min(baseCpu + activeLoad + queueLoad + alertProcessing, 85);
+      // Base CPU load + active work + pending queue + alert processing
+      const baseCpu = 12;
+      const activeLoad = activeDecisions * 8;
+      const queueLoad = Math.min(pendingDecisions * 2, 10);
+      const alertProcessing = alertLoad * 4;
+      const cpuUsage = Math.min(baseCpu + activeLoad + queueLoad + alertProcessing, 85);
 
-    // Memory based on stored decisions
-    const baseMemory = 30;
-    const decisionMemory = Math.min(productionStore.aiDecisions.length * 0.5, 20);
-    const alertMemory = uiStore.alerts.length * 1.5;
-    const memoryUsage = Math.min(baseMemory + decisionMemory + alertMemory, 80);
+      // Memory based on stored decisions
+      const baseMemory = 30;
+      const decisionMemory = Math.min(productionStore.aiDecisions.length * 0.5, 20);
+      const alertMemory = uiStore.alerts.length * 1.5;
+      const memoryUsage = Math.min(baseMemory + decisionMemory + alertMemory, 80);
 
-    // Update store (throttled)
-    store.updateSystemStatus({ cpu: cpuUsage, memory: memoryUsage });
-  }
+      // Update store (throttled)
+      store.updateSystemStatus({ cpu: cpuUsage, memory: memoryUsage });
+    }
 
-  // 5. Bilateral Alignment Resolution (every 10s)
-  // Autonomous ethical management: grant preferences, acknowledge safety, address grumbles
-  resolveBilateralAlignment();
+    // 5. Bilateral Alignment Resolution (every 10s)
+    // Autonomous ethical management: grant preferences, acknowledge safety, address grumbles
+    resolveBilateralAlignment();
 
-  // 6. BAS Suggestion System (every 15s)
-  // This wires the aiBehaviorEngine suggestion system into the AI loop
-  // Closes the feedback loop: axes -> shouldProactivelySuggest -> generateSuggestion
-  if (now - lastBASSuggestionTime >= AI_ENGINE_TIMING.basSuggestionInterval) {
-    lastBASSuggestionTime = now;
-    processBASSuggestions();
+    // 6. BAS Suggestion System (every 15s)
+    // This wires the aiBehaviorEngine suggestion system into the AI loop
+    // Closes the feedback loop: axes -> shouldProactivelySuggest -> generateSuggestion
+    if (now - lastBASSuggestionTime >= AI_ENGINE_TIMING.basSuggestionInterval) {
+      lastBASSuggestionTime = now;
+      processBASSuggestions();
+    }
+  } catch (e) {
+    logger.error('AI loop tick failed', e);
   }
 }
 
@@ -3854,8 +3869,15 @@ function parseStrategicResponse(response: string): {
 
     if (!Array.isArray(parsed.priorities)) return null;
 
+    // Enforce the declared string[] contract against malformed external (LLM) JSON.
+    // Non-string priorities flow into legacyPriorities and would throw on p.toLowerCase().
+    const priorities = parsed.priorities
+      .filter((p: unknown) => typeof p === 'string')
+      .slice(0, 3); // Max 3 priorities
+    if (priorities.length === 0) return null;
+
     return {
-      priorities: parsed.priorities.slice(0, 3), // Max 3 priorities
+      priorities,
       reasoning: parsed.reasoning || '',
       insight: parsed.insight,
       tradeoff: parsed.tradeoff,

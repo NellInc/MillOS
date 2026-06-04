@@ -76,6 +76,7 @@ export const AchievementsPanel: React.FC<{ onClose: () => void }> = ({ onClose }
         </div>
         <button
           onClick={onClose}
+          aria-label="Close achievements"
           className="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition-colors flex-shrink-0"
         >
           <X className="w-4 h-4" />

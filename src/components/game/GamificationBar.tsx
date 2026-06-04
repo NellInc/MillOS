@@ -21,6 +21,7 @@ export const GamificationBar: React.FC = () => {
     }))
   );
   const achievements = useProductionStore((state) => state.achievements);
+  const isReplaying = useHistoricalPlaybackStore((s) => s.isReplaying);
 
   const unlockedCount = achievements.filter((a) => a.unlockedAt).length;
 
@@ -48,7 +49,7 @@ export const GamificationBar: React.FC = () => {
         dragElastic={0}
         className="fixed right-4 top-1/2 -translate-y-1/2 z-30 pointer-events-auto cursor-move"
       >
-        <div className="flex flex-col gap-2 bg-slate-900/90 backdrop-blur-xl rounded-xl border border-slate-700/50 p-2">
+        <div className="flex flex-col gap-2 bg-slate-900/95 backdrop-blur-xl rounded-xl border border-slate-700/50 p-2">
           {/* Close button */}
           <button
             onClick={handleHideBar}
@@ -62,6 +63,7 @@ export const GamificationBar: React.FC = () => {
           {/* Achievements */}
           <button
             onClick={handleToggleAchievements}
+            aria-expanded={showAchievements}
             className={`w-10 h-10 rounded-lg flex items-center justify-center transition-colors relative ${
               showAchievements
                 ? 'bg-yellow-600 text-white'
@@ -80,6 +82,7 @@ export const GamificationBar: React.FC = () => {
           {/* Leaderboard */}
           <button
             onClick={handleToggleLeaderboard}
+            aria-expanded={showLeaderboard}
             className={`w-10 h-10 rounded-lg flex items-center justify-center transition-colors ${
               showLeaderboard
                 ? 'bg-cyan-600 text-white'
@@ -101,7 +104,7 @@ export const GamificationBar: React.FC = () => {
               }
             }}
             className={`w-10 h-10 rounded-lg flex items-center justify-center transition-colors ${
-              useHistoricalPlaybackStore.getState().isReplaying
+              isReplaying
                 ? 'bg-red-600 text-white'
                 : 'bg-slate-800 text-red-400 hover:bg-slate-700'
             }`}
@@ -113,12 +116,13 @@ export const GamificationBar: React.FC = () => {
           {/* Mini-map toggle */}
           <button
             onClick={handleToggleMiniMap}
+            aria-pressed={showMiniMap}
             className={`w-10 h-10 rounded-lg flex items-center justify-center transition-colors ${
               showMiniMap
                 ? 'bg-green-600 text-white'
                 : 'bg-slate-800 text-green-400 hover:bg-slate-700'
             }`}
-            title="GPS Map"
+            title="GPS Tracking"
           >
             <Map className="w-5 h-5" />
           </button>

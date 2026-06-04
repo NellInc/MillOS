@@ -430,18 +430,25 @@ export const SocialMissionPanel: React.FC = () => {
       <div className="p-3 border-b border-slate-700/30">
         <button
           onClick={() => setShowCommunity(!showCommunity)}
+          aria-expanded={showCommunity}
+          aria-controls="social-community-content"
           className="w-full flex items-center justify-between text-xs text-slate-400 hover:text-white transition-colors"
         >
           <span className="flex items-center gap-1">
             <Building2 className="w-3 h-3" />
             Community Impact
           </span>
-          {showCommunity ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+          {showCommunity ? (
+            <ChevronUp className="w-3 h-3" aria-hidden="true" />
+          ) : (
+            <ChevronDown className="w-3 h-3" aria-hidden="true" />
+          )}
         </button>
 
         <AnimatePresence>
           {showCommunity && (
             <motion.div
+              id="social-community-content"
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
@@ -498,18 +505,25 @@ export const SocialMissionPanel: React.FC = () => {
       <div className="p-3 border-b border-slate-700/30">
         <button
           onClick={() => setShowKnowledge(!showKnowledge)}
+          aria-expanded={showKnowledge}
+          aria-controls="social-knowledge-content"
           className="w-full flex items-center justify-between text-xs text-slate-400 hover:text-white transition-colors"
         >
           <span className="flex items-center gap-1">
             <BookOpen className="w-3 h-3" />
             Public Knowledge Sharing
           </span>
-          {showKnowledge ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+          {showKnowledge ? (
+            <ChevronUp className="w-3 h-3" aria-hidden="true" />
+          ) : (
+            <ChevronDown className="w-3 h-3" aria-hidden="true" />
+          )}
         </button>
 
         <AnimatePresence>
           {showKnowledge && (
             <motion.div
+              id="social-knowledge-content"
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
@@ -562,18 +576,25 @@ export const SocialMissionPanel: React.FC = () => {
       <div className="p-3">
         <button
           onClick={() => setShowAbout(!showAbout)}
+          aria-expanded={showAbout}
+          aria-controls="social-about-content"
           className="w-full flex items-center justify-between text-xs text-slate-400 hover:text-white transition-colors"
         >
           <span className="flex items-center gap-1">
             <Info className="w-3 h-3" />
             About Social Mission
           </span>
-          {showAbout ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+          {showAbout ? (
+            <ChevronUp className="w-3 h-3" aria-hidden="true" />
+          ) : (
+            <ChevronDown className="w-3 h-3" aria-hidden="true" />
+          )}
         </button>
 
         <AnimatePresence>
           {showAbout && (
             <motion.div
+              id="social-about-content"
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}

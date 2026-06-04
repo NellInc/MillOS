@@ -7,6 +7,7 @@ import { usePAScheduler, useEventAnnouncementScheduler } from './shared';
 import { useMobileDetection } from '../../hooks/useMobileDetection';
 import { useAudioMuted } from '../../hooks/useAudioState';
 import { audioManager } from '../../utils/audioManager';
+import { logger } from '../../utils/logger';
 
 // Fallback timeout - dismiss after this even if TTS hasn't finished
 const FALLBACK_TIMEOUT_MS = 10000;
@@ -96,7 +97,7 @@ export const PAAnnouncementSystem: React.FC = () => {
       // Final muted gate before TTS - synchronous check
       if (audioManager.muted) return;
 
-      console.log(
+      logger.debug(
         '[PA] New announcement:',
         currentAnnouncement.id,
         currentAnnouncement.message.substring(0, 40)
@@ -104,7 +105,7 @@ export const PAAnnouncementSystem: React.FC = () => {
       setCurrentAnnouncementId(currentAnnouncement.id);
 
       // Speak this announcement via TTS
-      console.log('[PA] Calling speakAnnouncement...');
+      logger.debug('[PA] Calling speakAnnouncement...');
       audioManager.speakAnnouncement(currentAnnouncement.message);
     }
 
@@ -252,7 +253,7 @@ export const PAAnnouncementSystem: React.FC = () => {
             {getAnnouncementIcon(currentAnnouncement.type)}
           </div>
           <div className="flex-1 min-w-0 text-left space-y-2">
-            <p className="font-medium text-[15px] leading-relaxed text-balance hyphens-auto">
+            <p className="font-medium text-base leading-relaxed text-balance hyphens-auto">
               {currentAnnouncement.message}
             </p>
             <div className="flex items-center gap-2.5 opacity-50">
@@ -264,6 +265,7 @@ export const PAAnnouncementSystem: React.FC = () => {
           </div>
           <button
             onClick={() => dismissAnnouncement(currentAnnouncement.id)}
+            aria-label="Dismiss announcement"
             className="flex-shrink-0 w-6 h-6 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors"
           >
             <X className="w-4 h-4" />

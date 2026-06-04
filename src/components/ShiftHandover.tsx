@@ -14,7 +14,8 @@ import { useProductionStore } from '../stores/productionStore';
 import { audioManager } from '../utils/audioManager';
 
 export const ShiftHandover: React.FC = () => {
-  const { shiftData, completeShiftHandover } = useGameSimulationStore();
+  const shiftData = useGameSimulationStore((s) => s.shiftData);
+  const completeShiftHandover = useGameSimulationStore((s) => s.completeShiftHandover);
   const machines = useProductionStore((state) => state.machines);
   const [phase, setPhase] = useState<'intro' | 'outgoing' | 'incoming' | 'summary'>('intro');
   const [handoverPoints, setHandoverPoints] = useState<string[]>([]);
@@ -22,6 +23,10 @@ export const ShiftHandover: React.FC = () => {
   // Auto-progress through handover phases
   useEffect(() => {
     if (shiftData.handoverPhase !== 'handover') return;
+
+    // Restart from the intro phase on each (re-)entry so a second+ handover
+    // does not briefly flash the previous handover's summary.
+    setPhase('intro');
 
     // Play shift change bell
     if (audioManager.initialized) {
@@ -56,6 +61,10 @@ export const ShiftHandover: React.FC = () => {
 
   // Generate handover points
   useEffect(() => {
+    // Only recompute while the handover panel is active; avoids a periodic
+    // setState on every ~2s machine-metric tick when the panel is hidden.
+    if (shiftData.handoverPhase !== 'handover') return;
+
     const points: string[] = [];
 
     // Production status

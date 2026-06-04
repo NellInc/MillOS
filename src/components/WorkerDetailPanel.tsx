@@ -485,6 +485,7 @@ export const WorkerDetailPanel: React.FC<WorkerDetailPanelProps> = ({
         {/* Tab Navigation */}
         <div
           role="tablist"
+          aria-label="Worker detail views"
           className="flex border-b border-slate-700/50 flex-shrink-0 bg-slate-900/50"
         >
           {[

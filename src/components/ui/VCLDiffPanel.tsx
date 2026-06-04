@@ -7,7 +7,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowRight, RefreshCw, Copy, Check, GitCompare } from 'lucide-react';
+import { ArrowRight, RefreshCw, Copy, Check, X, GitCompare } from 'lucide-react';
 import { useAIConfigStore } from '../../stores/aiConfigStore';
 import { useProductionStore } from '../../stores/productionStore';
 import { useGameSimulationStore, useUIStore } from '../../stores';
@@ -18,6 +18,7 @@ export const VCLDiffPanel: React.FC = () => {
   const [previousVCL, setPreviousVCL] = useState<string>('');
   const [currentVCL, setCurrentVCL] = useState<string>('');
   const [copied, setCopied] = useState(false);
+  const [copyFailed, setCopyFailed] = useState(false);
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Cleanup timer on unmount to prevent memory leaks
@@ -63,10 +64,19 @@ export const VCLDiffPanel: React.FC = () => {
   }, [machines, workers, currentShift, weather, gameTime, alerts, currentVCL]);
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(`Previous:\n${previousVCL}\n\nCurrent:\n${currentVCL}`);
-    setCopied(true);
     if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
-    copyTimerRef.current = setTimeout(() => setCopied(false), 2000);
+    try {
+      await navigator.clipboard.writeText(
+        `Previous:\n${previousVCL}\n\nCurrent:\n${currentVCL}`
+      );
+      setCopyFailed(false);
+      setCopied(true);
+      copyTimerRef.current = setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setCopied(false);
+      setCopyFailed(true);
+      copyTimerRef.current = setTimeout(() => setCopyFailed(false), 2000);
+    }
   };
 
   // Find differences between VCL strings
@@ -121,12 +131,21 @@ export const VCLDiffPanel: React.FC = () => {
           </div>
           <button
             onClick={handleCopy}
+            aria-label={
+              copied
+                ? 'Copied VCP diff to clipboard'
+                : copyFailed
+                  ? 'Failed to copy VCP diff to clipboard'
+                  : 'Copy VCP diff to clipboard'
+            }
             className="p-1 hover:bg-indigo-500/20 rounded transition-colors"
           >
             {copied ? (
-              <Check className="w-3.5 h-3.5 text-green-400" />
+              <Check className="w-3.5 h-3.5 text-green-400" aria-hidden="true" />
+            ) : copyFailed ? (
+              <X className="w-3.5 h-3.5 text-red-400" aria-hidden="true" />
             ) : (
-              <Copy className="w-3.5 h-3.5 text-indigo-400" />
+              <Copy className="w-3.5 h-3.5 text-indigo-400" aria-hidden="true" />
             )}
           </button>
         </div>
@@ -173,7 +192,7 @@ export const VCLDiffPanel: React.FC = () => {
           ) : (
             <div className="text-center py-4">
               <RefreshCw className="w-5 h-5 text-slate-500 mx-auto mb-2" />
-              <p className="text-[10px] text-slate-500">Waiting for VCP change...</p>
+              <p className="text-[10px] text-slate-400">Waiting for VCP change...</p>
               <div className="font-mono text-[10px] text-slate-400 bg-slate-800/50 rounded p-2 mt-2 break-all">
                 {currentVCL || 'No VCP yet'}
               </div>

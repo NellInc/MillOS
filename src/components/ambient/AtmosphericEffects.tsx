@@ -1,4 +1,4 @@
-import React, { useRef, useMemo } from 'react';
+import React, { useRef, useMemo, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { shouldRunThisFrame } from '../../utils/frameThrottle';
@@ -57,6 +57,9 @@ export const Cobweb: React.FC<{
     geo.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
     return geo;
   }, [scale]);
+
+  // Dispose the memoized geometry on unmount / regeneration to avoid GPU leaks
+  useEffect(() => () => geometry.dispose(), [geometry]);
 
   // Subtle swaying animation
   useFrame((state) => {
@@ -131,6 +134,9 @@ export const RustStain: React.FC<{
     return tex;
   }, []);
 
+  // Dispose the memoized canvas texture on unmount to avoid GPU leaks
+  useEffect(() => () => texture.dispose(), [texture]);
+
   // Guard against NaN/invalid size for PlaneGeometry
   const safeSize = Number.isFinite(size) && size > 0.01 ? size : 0.5;
 
@@ -147,6 +153,9 @@ export const DustBunny: React.FC<{ position: [number, number, number] }> = ({ po
   const bunnyRef = useRef<THREE.Mesh>(null);
   const isTabVisible = useGameSimulationStore((state) => state.isTabVisible);
 
+  // Stabilize the random radius so geometry is not recreated on every re-render
+  const radius = useMemo(() => 0.03 + Math.random() * 0.02, []);
+
   // Very occasional drift
   useFrame((state) => {
     if (!isTabVisible) return;
@@ -161,7 +170,7 @@ export const DustBunny: React.FC<{ position: [number, number, number] }> = ({ po
 
   return (
     <mesh ref={bunnyRef} position={position}>
-      <icosahedronGeometry args={[0.03 + Math.random() * 0.02, 0]} />
+      <icosahedronGeometry args={[radius, 0]} />
       <meshStandardMaterial color="#9ca3af" roughness={1} transparent opacity={0.7} />
     </mesh>
   );

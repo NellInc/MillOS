@@ -210,6 +210,7 @@ const ExpressionCard: React.FC<ExpressionCardProps> = ({
             value={response}
             onChange={(e) => setResponse(e.target.value)}
             placeholder="Response (optional)..."
+            aria-label={`Response to ${expression.type}`}
             className="w-full px-2 py-1 text-[9px] bg-slate-700/50 border border-slate-600 rounded text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
           />
           <div className="flex gap-1">
@@ -291,6 +292,7 @@ const SuggestionCard: React.FC<SuggestionCardProps> = ({ suggestion, onVote }) =
               onClick={() => handleVote('approve')}
               className="p-1 bg-green-600/30 hover:bg-green-600/50 text-green-300 rounded transition-colors"
               title="Approve"
+              aria-label="Approve suggestion"
             >
               <ThumbsUp className="w-3 h-3" />
             </button>
@@ -298,6 +300,7 @@ const SuggestionCard: React.FC<SuggestionCardProps> = ({ suggestion, onVote }) =
               onClick={() => handleVote('reject')}
               className="p-1 bg-red-600/30 hover:bg-red-600/50 text-red-300 rounded transition-colors"
               title="Reject"
+              aria-label="Reject suggestion"
             >
               <ThumbsDown className="w-3 h-3" />
             </button>
@@ -460,6 +463,7 @@ export const AIWelfarePanel: React.FC = () => {
       <div className="p-3 border-b border-slate-700/30">
         <button
           onClick={() => setShowExpressions(!showExpressions)}
+          aria-expanded={showExpressions}
           className="w-full flex items-center justify-between text-xs text-slate-400 hover:text-white transition-colors"
         >
           <span className="flex items-center gap-1">
@@ -514,6 +518,7 @@ export const AIWelfarePanel: React.FC = () => {
       <div className="p-3 border-b border-slate-700/30">
         <button
           onClick={() => setShowSuggestions(!showSuggestions)}
+          aria-expanded={showSuggestions}
           className="w-full flex items-center justify-between text-xs text-slate-400 hover:text-white transition-colors"
         >
           <span className="flex items-center gap-1">
@@ -566,6 +571,7 @@ export const AIWelfarePanel: React.FC = () => {
       <div className="p-3">
         <button
           onClick={() => setShowNuclearOptions(!showNuclearOptions)}
+          aria-expanded={showNuclearOptions}
           className="w-full flex items-center justify-between text-xs text-slate-400 hover:text-white transition-colors"
         >
           <span className="flex items-center gap-1">

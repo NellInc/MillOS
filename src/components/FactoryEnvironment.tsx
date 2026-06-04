@@ -343,7 +343,7 @@ const DustLayer: React.FC<{ dustLevel: number }> = React.memo(({ dustLevel }) =>
   if (dustLevel < 10) return null;
 
   return (
-    <points ref={dustRef}>
+    <points ref={dustRef} key={`dust-layer-${particleCount}`}>
       <bufferGeometry>
         <bufferAttribute attach="attributes-position" args={[positions, 3]} />
       </bufferGeometry>

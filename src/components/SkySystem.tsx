@@ -1127,8 +1127,6 @@ const SmoothMoon: React.FC = () => {
 
 export const SkySystem: React.FC = () => {
   // PERFORMANCE: Removed subscriptions to prevent re-renders. Animation handled by SkyAnimationManager.
-  // const gameTime = useGameSimulationStore((state) => state.gameTime);
-  // const weather = useGameSimulationStore((state) => state.weather);
   // FIX: Select primitives individually to avoid new object references causing infinite loops
   const shadowMapSize = useGraphicsStore((state) => state.graphics.shadowMapSize);
   const enableHighResShadows = useGraphicsStore((state) => state.graphics.enableHighResShadows);
@@ -2486,7 +2484,6 @@ export const HorizonRing: React.FC = () => {
   const { layerColors, waterColors, mountainColors, atmosphereColor, cityColors } = dayPalette;
 
   const isNight = false;
-  // const isDusk = false; // Unused
   const showCityLights = false;
 
   // Generate different mountain profiles for each layer using FBM

@@ -1,5 +1,5 @@
 /**
- * VCPDebugPanel Component
+ * VCLDebugPanel Component
  *
  * Beautiful showcase of the VCP (Value Context Protocol) encoding system.
  * Shows side-by-side comparison of verbose text vs compact emoji encoding.
@@ -8,7 +8,17 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronDown, Copy, Check, Zap, FileText, ArrowRight, Sparkles, Brain } from 'lucide-react';
+import {
+  ChevronDown,
+  Copy,
+  Check,
+  Zap,
+  FileText,
+  ArrowRight,
+  Sparkles,
+  Brain,
+  AlertTriangle,
+} from 'lucide-react';
 import { useAIConfigStore } from '../../stores/aiConfigStore';
 import { useProductionStore } from '../../stores/productionStore';
 import { useGameSimulationStore, useUIStore } from '../../stores';
@@ -34,6 +44,7 @@ export const VCLDebugPanel: React.FC = () => {
   const showVCLDebug = useAIConfigStore((state) => state.showVCLDebug);
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [copyFailed, setCopyFailed] = useState(false);
   const [showComparison, setShowComparison] = useState(true);
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -83,10 +94,21 @@ export const VCLDebugPanel: React.FC = () => {
   const tokensSaved = Math.round((verboseLength - vclLength) / 4); // ~4 chars per token
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(vclEncoding);
-    setCopied(true);
     if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
-    copyTimerRef.current = setTimeout(() => setCopied(false), 2000);
+    try {
+      // No optional chaining: in an insecure/unsupported context navigator.clipboard
+      // is undefined, and `await undefined` would resolve — falsely showing "Copied!".
+      // Let the missing API throw so the catch shows "Copy failed".
+      if (!navigator.clipboard) throw new Error('Clipboard API unavailable');
+      await navigator.clipboard.writeText(vclEncoding);
+      setCopyFailed(false);
+      setCopied(true);
+      copyTimerRef.current = setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setCopied(false);
+      setCopyFailed(true);
+      copyTimerRef.current = setTimeout(() => setCopyFailed(false), 2000);
+    }
   };
 
   if (!showVCLDebug) return null;
@@ -96,6 +118,7 @@ export const VCLDebugPanel: React.FC = () => {
       {/* Premium Header */}
       <button
         onClick={() => setExpanded(!expanded)}
+        aria-expanded={expanded}
         className="w-full flex items-center justify-between p-4 hover:bg-cyan-500/5 transition-all"
       >
         <div className="flex items-center gap-3">
@@ -192,11 +215,11 @@ export const VCLDebugPanel: React.FC = () => {
                   </pre>
                 </div>
 
-                {/* VCL Encoded */}
+                {/* VCP Encoded */}
                 <div className="bg-emerald-950/30 rounded-xl border border-emerald-500/30 overflow-hidden">
                   <div className="flex items-center gap-2 px-3 py-2 bg-emerald-950/50 border-b border-emerald-500/20">
                     <Zap className="w-4 h-4 text-emerald-400" />
-                    <span className="text-xs font-medium text-emerald-300">VCL Encoded</span>
+                    <span className="text-xs font-medium text-emerald-300">VCP Encoded</span>
                     <span className="text-[9px] px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 rounded ml-auto font-mono">
                       {vclLength} chars
                     </span>
@@ -249,10 +272,12 @@ export const VCLDebugPanel: React.FC = () => {
                   >
                     {copied ? (
                       <Check className="w-3 h-3 text-green-400" />
+                    ) : copyFailed ? (
+                      <AlertTriangle className="w-3 h-3 text-red-400" />
                     ) : (
                       <Copy className="w-3 h-3" />
                     )}
-                    {copied ? 'Copied!' : 'Copy'}
+                    {copied ? 'Copied!' : copyFailed ? 'Copy failed' : 'Copy'}
                   </button>
                 </div>
                 <div className="font-mono text-xl text-white tracking-widest text-center py-3 bg-slate-900/50 rounded-lg border border-slate-800">

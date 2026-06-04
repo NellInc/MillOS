@@ -14,7 +14,6 @@ import { SignalingService, SignalingConfig } from './SignalingService';
 import { PeerConnection } from './PeerConnection';
 import {
   MultiplayerMessage,
-  RemotePlayer as _RemotePlayer,
   GameStateDiff,
   FullGameState,
   MachineIntent,
@@ -298,19 +297,25 @@ export class MultiplayerManager {
         store.updateRemotePlayer(message.payload.id, message.payload);
         break;
 
-      case 'PLAYER_JOIN':
+      case 'PLAYER_JOIN': {
+        // Validate the peer-supplied color against the allow-list before it
+        // reaches Three.js materials / CSS swatches (untrusted peer input).
+        const joinColor: PlayerColor = PLAYER_COLORS.includes(message.payload.color)
+          ? message.payload.color
+          : PLAYER_COLORS[0];
         store.addRemotePlayer({
           id: message.payload.id,
           name: sanitizePlayerName(message.payload.name) || 'Player',
           position: [0, 1.7, 0],
           rotation: 0,
           velocity: [0, 0, 0],
-          color: message.payload.color,
+          color: joinColor,
           selectedMachineId: null,
           isInFpsMode: true,
           lastUpdate: Date.now(),
         });
         break;
+      }
 
       case 'PLAYER_LEAVE':
         store.removeRemotePlayer(message.payload.id);
@@ -371,9 +376,29 @@ export class MultiplayerManager {
         });
         break;
 
-      case 'AI_VOTE':
+      case 'AI_VOTE': {
+        // Validate the untrusted-peer vote shape before forwarding it onto the
+        // app event bus (mirrors the PING/PONG payload guards in PeerConnection).
+        const vote = message.payload;
+        if (
+          !vote ||
+          typeof vote.decisionId !== 'string' ||
+          typeof vote.playerId !== 'string' ||
+          typeof vote.approve !== 'boolean'
+        ) {
+          logger.multiplayer.warn('Dropped malformed AI_VOTE from peer', peerId);
+          break;
+        }
         // Dispatch event for UI components to receive the vote
-        window.dispatchEvent(new CustomEvent('multiplayer:ai-vote', { detail: message.payload }));
+        window.dispatchEvent(new CustomEvent('multiplayer:ai-vote', { detail: vote }));
+        break;
+      }
+
+      default:
+        logger.multiplayer.warn(
+          'Unhandled multiplayer message type',
+          (message as { type?: string }).type
+        );
         break;
     }
   }

@@ -168,7 +168,7 @@ export const MultiplayerLobby: React.FC = () => {
           Multiplayer
           {isActive && (
             <span className="bg-green-500/20 text-green-400 text-[10px] px-1.5 py-0.5 rounded">
-              {remotePlayers.length + 1} players
+              {remotePlayers.length + 1} player{remotePlayers.length + 1 !== 1 ? 's' : ''}
             </span>
           )}
         </span>
@@ -188,10 +188,14 @@ export const MultiplayerLobby: React.FC = () => {
               <div className="bg-slate-800/50 rounded-lg p-3 space-y-3">
                 {/* Name input */}
                 <div>
-                  <label className="text-[10px] text-slate-400 uppercase tracking-wider mb-1 block">
+                  <label
+                    htmlFor="lobby-player-name"
+                    className="text-[10px] text-slate-400 uppercase tracking-wider mb-1 block"
+                  >
                     Your Name
                   </label>
                   <input
+                    id="lobby-player-name"
                     type="text"
                     value={playerName}
                     onChange={(e) => setPlayerName(e.target.value)}
@@ -230,6 +234,7 @@ export const MultiplayerLobby: React.FC = () => {
                     value={joinCode}
                     onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
                     placeholder="ROOM CODE"
+                    aria-label="Enter 6-character room code"
                     maxLength={6}
                     className="flex-1 bg-slate-700/50 border border-slate-600/50 rounded px-2 py-1.5 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-green-500/50 font-mono tracking-wider text-center"
                   />
@@ -243,7 +248,11 @@ export const MultiplayerLobby: React.FC = () => {
                 </div>
 
                 {/* Error message */}
-                {error && <div className="text-red-400 text-[10px] text-center">{error}</div>}
+                {error && (
+                  <div role="alert" className="text-red-400 text-[10px] text-center">
+                    {error}
+                  </div>
+                )}
               </div>
             )}
 

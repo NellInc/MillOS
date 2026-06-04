@@ -2513,7 +2513,7 @@ const WORKERS: WorkerInfo[] = [
 const MACHINE_IDS = {
   silos: ['Silo Alpha', 'Silo Beta', 'Silo Gamma', 'Silo Delta', 'Silo Epsilon'],
   mills: ['R.M. 101', 'R.M. 102', 'R.M. 103', 'R.M. 104', 'R.M. 105', 'R.M. 106'],
-  sifters: ["Sifter 'A'.", "Sifter 'B'.", "Sifter 'C'."],
+  sifters: ['Sifter A', 'Sifter B', 'Sifter C'],
   packers: ['Packer Line 1', 'Packer Line 2', 'Packer Line 3'],
 };
 

@@ -142,7 +142,7 @@ export const GraphicsSettingsPanel: React.FC = () => {
     // Display options
     {
       key: 'enableTextureFiltering',
-      label: 'Textures On',
+      label: 'Texture Filtering',
       icon: <Grid className="w-3 h-3" />,
       category: 'Display',
     },
@@ -163,6 +163,7 @@ export const GraphicsSettingsPanel: React.FC = () => {
     >
       <button
         onClick={() => setExpanded(!expanded)}
+        aria-expanded={expanded}
         className={`w-full flex items-center justify-between text-xs font-medium transition-colors py-1 ${
           theme === 'light'
             ? 'text-slate-600 hover:text-slate-800'
@@ -616,7 +617,7 @@ export const GraphicsSettingsPanel: React.FC = () => {
                       : 'bg-amber-900/50 text-amber-300 hover:bg-amber-800/50'
                   }`}
                 >
-                  Reset to 10am
+                  Reset to 10:00
                 </button>
                 <button
                   onClick={() => {

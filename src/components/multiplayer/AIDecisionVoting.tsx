@@ -8,11 +8,7 @@
 import React, { useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ThumbsUp, ThumbsDown, Bot, Users, Check, X } from 'lucide-react';
-import {
-  useMultiplayerStore,
-  useIsMultiplayerActive,
-  useIsHost,
-} from '../../stores/multiplayerStore';
+import { useMultiplayerStore, useIsMultiplayerActive } from '../../stores/multiplayerStore';
 import { useProductionStore } from '../../stores/productionStore';
 import { getMultiplayerManager } from '../../multiplayer/MultiplayerManager';
 import { AIDecision } from '../../types';
@@ -28,8 +24,6 @@ interface AIDecisionVotingProps {
  */
 export const AIDecisionVotingCard: React.FC<AIDecisionVotingProps> = ({ decision, onClose }) => {
   const isActive = useIsMultiplayerActive();
-  // isHost will be used for host-specific voting controls
-  useIsHost();
   const localPlayerId = useMultiplayerStore((s) => s.localPlayerId);
   const remotePlayers = useMultiplayerStore((s) => s._remotePlayersArray);
 
@@ -116,7 +110,11 @@ export const AIDecisionVotingCard: React.FC<AIDecisionVotingProps> = ({ decision
           <span className="text-sm font-medium text-white">AI Recommendation</span>
         </div>
         {onClose && (
-          <button onClick={onClose} className="p-1 hover:bg-slate-700/50 rounded transition-colors">
+          <button
+            onClick={onClose}
+            aria-label="Dismiss recommendation"
+            className="p-1 hover:bg-slate-700/50 rounded transition-colors"
+          >
             <X className="w-4 h-4 text-slate-400" />
           </button>
         )}
@@ -146,7 +144,10 @@ export const AIDecisionVotingCard: React.FC<AIDecisionVotingProps> = ({ decision
       {isActive && !votingComplete && (
         <div className="border-t border-slate-700/50 pt-3">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs text-slate-400 flex items-center gap-1">
+            <span
+              className="text-xs text-slate-400 flex items-center gap-1"
+              aria-live="polite"
+            >
               <Users className="w-3 h-3" />
               {approveCount + rejectCount} / {totalPlayers} voted
             </span>
@@ -176,7 +177,10 @@ export const AIDecisionVotingCard: React.FC<AIDecisionVotingProps> = ({ decision
           )}
 
           {/* Vote progress bar */}
-          <div className="mt-2 h-1.5 bg-slate-700 rounded-full overflow-hidden flex">
+          <div
+            className="mt-2 h-1.5 bg-slate-700 rounded-full overflow-hidden flex"
+            aria-hidden="true"
+          >
             <div
               className="bg-green-500 transition-all duration-300"
               style={{ width: `${(approveCount / totalPlayers) * 100}%` }}
@@ -191,7 +195,7 @@ export const AIDecisionVotingCard: React.FC<AIDecisionVotingProps> = ({ decision
 
       {/* Vote result */}
       {votingComplete && (
-        <div className="border-t border-slate-700/50 pt-3">
+        <div className="border-t border-slate-700/50 pt-3" aria-live="polite">
           <div
             className={`flex items-center justify-center gap-2 py-2 rounded ${
               isApproved ? 'bg-green-600/20 text-green-400' : 'bg-red-600/20 text-red-400'

@@ -278,7 +278,13 @@ const TimelineChart: React.FC<TimelineChartProps> = ({
 
   return (
     <div className="relative" style={{ height: chartHeight }}>
-      <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="w-full h-full">
+      <svg
+        viewBox="0 0 100 100"
+        preserveAspectRatio="none"
+        className="w-full h-full"
+        role="img"
+        aria-label={`Timeline of ${Array.from(selectedMetrics).join(', ')} over the last ${timeRange}`}
+      >
         {/* Background grid */}
         <defs>
           <pattern id="grid" width="10" height="25" patternUnits="userSpaceOnUse">
@@ -556,6 +562,8 @@ export const BASTimeline: React.FC = () => {
             <button
               key={range.value}
               onClick={() => setTimeRange(range.value)}
+              aria-pressed={timeRange === range.value}
+              aria-label={`Show ${range.label} time range`}
               className={`px-2 py-1 text-[9px] rounded transition-colors ${
                 timeRange === range.value
                   ? 'bg-cyan-500/20 text-cyan-400 font-medium'
@@ -590,6 +598,7 @@ export const BASTimeline: React.FC = () => {
             }}
             className="p-1.5 rounded bg-slate-800/50 text-slate-400 hover:text-white hover:bg-slate-700/50 transition-colors"
             title="Jump to start"
+            aria-label="Jump to start"
           >
             <SkipBack className="w-3 h-3" />
           </button>
@@ -601,6 +610,7 @@ export const BASTimeline: React.FC = () => {
                 : 'bg-slate-800/50 text-slate-400 hover:text-white hover:bg-slate-700/50'
             }`}
             title={isPlaying ? 'Pause' : 'Play'}
+            aria-label={isPlaying ? 'Pause playback' : 'Play playback'}
           >
             {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
           </button>
@@ -608,6 +618,7 @@ export const BASTimeline: React.FC = () => {
             onClick={() => setPlaybackTime(null)}
             className="p-1.5 rounded bg-slate-800/50 text-slate-400 hover:text-white hover:bg-slate-700/50 transition-colors"
             title="Jump to live"
+            aria-label="Jump to live"
           >
             <SkipForward className="w-3 h-3" />
           </button>
@@ -623,6 +634,8 @@ export const BASTimeline: React.FC = () => {
           {/* Stability Product */}
           <button
             onClick={() => toggleMetric('stabilityProduct')}
+            aria-pressed={selectedMetrics.has('stabilityProduct')}
+            aria-label="Toggle Stability metric on chart"
             className={`p-2 rounded transition-colors ${
               selectedMetrics.has('stabilityProduct')
                 ? 'bg-orange-500/10 border border-orange-500/30'
@@ -651,6 +664,8 @@ export const BASTimeline: React.FC = () => {
           {/* Value */}
           <button
             onClick={() => toggleMetric('value')}
+            aria-pressed={selectedMetrics.has('value')}
+            aria-label="Toggle Value metric on chart"
             className={`p-2 rounded transition-colors ${
               selectedMetrics.has('value')
                 ? 'bg-yellow-500/10 border border-yellow-500/30'
@@ -673,6 +688,8 @@ export const BASTimeline: React.FC = () => {
           {/* Flourishing */}
           <button
             onClick={() => toggleMetric('flourishing')}
+            aria-pressed={selectedMetrics.has('flourishing')}
+            aria-label="Toggle Flourishing metric on chart"
             className={`p-2 rounded transition-colors ${
               selectedMetrics.has('flourishing')
                 ? 'bg-pink-500/10 border border-pink-500/30'
@@ -693,6 +710,8 @@ export const BASTimeline: React.FC = () => {
           {/* Worker Satisfaction */}
           <button
             onClick={() => toggleMetric('workerSatisfaction')}
+            aria-pressed={selectedMetrics.has('workerSatisfaction')}
+            aria-label="Toggle Satisfaction metric on chart"
             className={`p-2 rounded transition-colors ${
               selectedMetrics.has('workerSatisfaction')
                 ? 'bg-cyan-500/10 border border-cyan-500/30'

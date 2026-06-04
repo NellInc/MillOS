@@ -86,6 +86,7 @@ const VisualizationToggles: React.FC = () => {
           <button
             key={toggle.label}
             onClick={() => toggle.setEnabled(!toggle.enabled)}
+            aria-pressed={toggle.enabled}
             className={`p-2 rounded-lg border text-left transition-all ${
               toggle.enabled
                 ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-400'
@@ -350,6 +351,7 @@ export function GeminiSettingsModal({ isOpen, onClose }: GeminiSettingsModalProp
                 <div className="grid grid-cols-3 gap-2">
                   <button
                     onClick={() => setAIMode('heuristic')}
+                    aria-pressed={aiMode === 'heuristic'}
                     className={`p-2 rounded-lg border text-center transition-all ${
                       aiMode === 'heuristic'
                         ? 'bg-amber-500/20 border-amber-500/50 text-amber-400'
@@ -362,6 +364,7 @@ export function GeminiSettingsModal({ isOpen, onClose }: GeminiSettingsModalProp
                   </button>
                   <button
                     onClick={() => setAIMode('hybrid')}
+                    aria-pressed={aiMode === 'hybrid'}
                     className={`p-2 rounded-lg border text-center transition-all ${
                       aiMode === 'hybrid'
                         ? 'bg-purple-500/20 border-purple-500/50 text-purple-400'
@@ -378,6 +381,7 @@ export function GeminiSettingsModal({ isOpen, onClose }: GeminiSettingsModalProp
                         setShowGeminiConfirmation(true);
                       }
                     }}
+                    aria-pressed={aiMode === 'gemini'}
                     className={`p-2 rounded-lg border text-center transition-all ${
                       aiMode === 'gemini'
                         ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-400'

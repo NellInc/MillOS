@@ -20,12 +20,11 @@ export const WeatherControlPanel: React.FC = () => {
   const weatherOptions: Array<{
     value: 'clear' | 'cloudy' | 'rain' | 'storm';
     label: string;
-    icon: string;
   }> = [
-    { value: 'clear', label: 'Clear', icon: 'sun' },
-    { value: 'cloudy', label: 'Cloudy', icon: 'cloud' },
-    { value: 'rain', label: 'Rain', icon: 'rain' },
-    { value: 'storm', label: 'Storm', icon: 'bolt' },
+    { value: 'clear', label: 'Clear' },
+    { value: 'cloudy', label: 'Cloudy' },
+    { value: 'rain', label: 'Rain' },
+    { value: 'storm', label: 'Storm' },
   ];
 
   return (
@@ -76,6 +75,8 @@ export const WeatherControlPanel: React.FC = () => {
                   <button
                     key={opt.value}
                     onClick={() => setWeather(opt.value)}
+                    aria-pressed={weather === opt.value}
+                    aria-label={`${opt.label} weather`}
                     className={`py-1.5 px-2 rounded text-[10px] font-medium transition-all ${
                       weather === opt.value
                         ? 'bg-blue-600 text-white'
@@ -113,6 +114,8 @@ export const WeatherControlPanel: React.FC = () => {
                 </div>
                 <button
                   onClick={() => setGraphicsSetting('enableFloorPuddles', !enableFloorPuddles)}
+                  aria-pressed={enableFloorPuddles}
+                  aria-label="Floor puddles"
                   className={`py-1 px-3 rounded text-[10px] font-medium transition-all ${
                     enableFloorPuddles
                       ? 'bg-blue-600 text-white'
@@ -143,6 +146,8 @@ export const WeatherControlPanel: React.FC = () => {
                 <div className="flex gap-1">
                   <button
                     onClick={() => setShowHeatMap(!showHeatMap)}
+                    aria-pressed={showHeatMap}
+                    aria-label="Worker heat map"
                     className={`py-1 px-3 rounded text-[10px] font-medium transition-all ${
                       showHeatMap
                         ? 'bg-green-600 text-white'

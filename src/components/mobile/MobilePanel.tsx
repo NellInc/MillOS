@@ -19,6 +19,7 @@ import {
   WifiOff,
   UserPlus,
   Copy,
+  Check,
   Gauge,
   Package,
   FastForward,
@@ -180,6 +181,8 @@ const OverviewContent: React.FC = () => {
         <div className="flex gap-1">
           <button
             onClick={() => setGameSpeed(0)}
+            aria-label="Pause simulation"
+            aria-pressed={gameSpeed === 0}
             className={`flex-1 py-1.5 rounded text-[10px] font-bold flex items-center justify-center gap-1 ${
               gameSpeed === 0 ? 'bg-orange-600 text-white' : 'bg-slate-700 text-slate-400'
             }`}
@@ -458,6 +461,9 @@ const SettingsContent: React.FC = () => {
           </div>
           <button
             onClick={() => setShowZones(!showZones)}
+            role="switch"
+            aria-checked={showZones}
+            aria-label="Safety Zones"
             className={`w-12 h-6 rounded-full transition-colors ${
               showZones ? 'bg-cyan-600' : 'bg-slate-600'
             }`}
@@ -640,9 +646,31 @@ const MultiplayerContent: React.FC = () => {
   const createRoom = useMultiplayerStore((s) => s.createRoom);
   const leaveRoom = useMultiplayerStore((s) => s.leaveRoom);
 
+  const [copied, setCopied] = React.useState(false);
+  const copyTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  React.useEffect(() => {
+    return () => {
+      if (copyTimeoutRef.current) {
+        clearTimeout(copyTimeoutRef.current);
+      }
+    };
+  }, []);
+
   const copyRoomCode = () => {
     if (roomCode) {
-      navigator.clipboard.writeText(roomCode);
+      navigator.clipboard
+        ?.writeText(roomCode)
+        .then(() => {
+          setCopied(true);
+          if (copyTimeoutRef.current) {
+            clearTimeout(copyTimeoutRef.current);
+          }
+          copyTimeoutRef.current = setTimeout(() => setCopied(false), 2000);
+        })
+        .catch(() => {
+          /* clipboard write failed; leave UI unchanged */
+        });
     }
   };
 
@@ -677,9 +705,13 @@ const MultiplayerContent: React.FC = () => {
         <button
           onClick={copyRoomCode}
           className="p-1.5 rounded bg-slate-700 hover:bg-slate-600 transition-colors"
-          aria-label="Copy room code"
+          aria-label={copied ? 'Room code copied' : 'Copy room code'}
         >
-          <Copy className="w-4 h-4 text-slate-300" />
+          {copied ? (
+            <Check className="w-4 h-4 text-green-400" />
+          ) : (
+            <Copy className="w-4 h-4 text-slate-300" />
+          )}
         </button>
       </div>
 

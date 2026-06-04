@@ -80,12 +80,15 @@ export const IncidentReplayControls: React.FC = () => {
           <div className="flex items-center gap-2">
             <button
               onClick={handleSkipBack}
+              aria-label="Skip back 10 frames"
               className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-white flex items-center justify-center"
             >
               <SkipBack className="w-4 h-4" />
             </button>
             <button
               onClick={handleTogglePlay}
+              aria-label={isPlaying ? 'Pause replay' : 'Play replay'}
+              aria-pressed={isPlaying}
               className="w-10 h-10 rounded-lg bg-red-600 hover:bg-red-500 text-white flex items-center justify-center"
             >
               {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}

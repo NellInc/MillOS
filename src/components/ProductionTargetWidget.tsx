@@ -93,6 +93,8 @@ export const ProductionTargetWidget: React.FC = () => {
   return (
     <AnimatePresence>
       <motion.div
+        role="region"
+        aria-label="Production target tracker"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: 20 }}
@@ -117,7 +119,14 @@ export const ProductionTargetWidget: React.FC = () => {
         </div>
 
         {/* Progress bar */}
-        <div className="h-3 bg-slate-700 rounded-full overflow-hidden mb-3">
+        <div
+          role="progressbar"
+          aria-valuenow={Math.round(targetData.progress)}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-label="Daily production target progress"
+          className="h-3 bg-slate-700 rounded-full overflow-hidden mb-3"
+        >
           <motion.div
             className={`h-full ${colors.bar} rounded-full`}
             initial={{ width: 0 }}

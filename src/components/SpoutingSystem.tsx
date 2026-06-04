@@ -25,7 +25,7 @@ export const SpoutingSystem = React.memo<{
           MachineType.PACKER,
         ].includes(m.type)
       )
-      .map((m) => `${m.id}:${m.position.join(',')}`)
+      .map((m) => `${m.id}:${m.position.join(',')}:${m.size.join(',')}`)
       .join('|');
   }, [machines]);
 
