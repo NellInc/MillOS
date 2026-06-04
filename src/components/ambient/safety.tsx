@@ -1,4 +1,4 @@
-import React, { useRef, useMemo, useState } from 'react';
+import React, { useRef, useMemo, useState, useEffect } from 'react';
 import * as THREE from 'three';
 import { useAmbientAnimation } from './shared';
 import { FLOOR_LAYERS, POLYGON_OFFSET, RENDER_ORDER } from '../../constants/renderLayers';
@@ -498,6 +498,9 @@ export const ChalkOutline: React.FC<{ position: [number, number, number] }> = ({
     tex.needsUpdate = true;
     return tex;
   }, []);
+
+  // Dispose the CanvasTexture (GPU resource) when this component unmounts
+  useEffect(() => () => texture.dispose(), [texture]);
 
   return (
     <mesh position={position} rotation={[-Math.PI / 2, 0, 0]}>

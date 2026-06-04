@@ -249,6 +249,9 @@ const RustStain: React.FC<{
     return tex;
   }, []);
 
+  // Dispose canvas texture on unmount to avoid GPU leak
+  useEffect(() => () => texture?.dispose?.(), [texture]);
+
   return (
     <mesh position={position} rotation={rotation} renderOrder={RENDER_ORDER.floorEffects}>
       <planeGeometry args={[safeSize, safeSize]} />
@@ -1931,6 +1934,9 @@ const Graffiti: React.FC<{
     return tex;
   }, [type]);
 
+  // Dispose canvas texture on unmount to avoid GPU leak
+  useEffect(() => () => texture?.dispose?.(), [texture]);
+
   return (
     <mesh position={position} rotation={rotation}>
       <planeGeometry args={[0.8, 0.4]} />
@@ -2101,6 +2107,9 @@ const ScorchMark: React.FC<{
     tex.needsUpdate = true;
     return tex;
   }, []);
+
+  // Dispose canvas texture on unmount to avoid GPU leak
+  useEffect(() => () => texture?.dispose?.(), [texture]);
 
   return (
     <mesh position={position} rotation={rotation}>
@@ -2523,6 +2532,9 @@ const ChalkOutline: React.FC<{ position: [number, number, number] }> = ({ positi
     tex.needsUpdate = true;
     return tex;
   }, []);
+
+  // Dispose canvas texture on unmount to avoid GPU leak
+  useEffect(() => () => texture?.dispose?.(), [texture]);
 
   return (
     <mesh position={position} rotation={[-Math.PI / 2, 0, 0]}>
@@ -4289,6 +4301,9 @@ const WindowCondensation: React.FC<{
     return tex;
   }, []);
 
+  // Dispose canvas texture on unmount to avoid GPU leak
+  useEffect(() => () => texture?.dispose?.(), [texture]);
+
   return (
     <mesh position={position} rotation={rotation}>
       <planeGeometry args={[2, 1.5]} />
@@ -4347,6 +4362,9 @@ const CeilingWaterStain: React.FC<{ position: [number, number, number]; size?: n
     tex.needsUpdate = true;
     return tex;
   }, []);
+
+  // Dispose canvas texture on unmount to avoid GPU leak
+  useEffect(() => () => texture?.dispose?.(), [texture]);
 
   return (
     <mesh position={position} rotation={[Math.PI / 2, 0, 0]}>

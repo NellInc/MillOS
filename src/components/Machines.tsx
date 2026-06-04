@@ -44,6 +44,10 @@ import { InstancedRollerMills } from './machines/InstancedRollerMills';
 import { InstancedPlansifters } from './machines/InstancedPlansifters';
 import { InstancedPackers } from './machines/InstancedPackers';
 
+// Module-level read-only temporary to avoid per-render allocation (CLAUDE.md convention).
+// Value identical to the previous inline `new THREE.Vector2(0.3, 0.3)`; never mutated.
+const SILO_NORMAL_SCALE = new THREE.Vector2(0.3, 0.3);
+
 interface MachinesProps {
   machines: MachineData[];
   onSelect: (data: MachineData) => void;
@@ -337,6 +341,17 @@ const MachineMesh: React.FC<MachineMeshProps> = React.memo(({ data, onSelect, on
   );
   const legCylinderGeometry = useMemo(() => new THREE.CylinderGeometry(0.15, 0.2, 4), []);
 
+  // Dispose useMemo'd geometries on unmount/replacement so their GPU buffers are released.
+  // These are attached via the `geometry={...}` prop, so R3F does not own or auto-dispose them.
+  useEffect(
+    () => () => {
+      motorFinGeometry.dispose();
+      legCylinderGeometry.dispose();
+    },
+    [motorFinGeometry, legCylinderGeometry]
+  );
+  useEffect(() => () => conveyorRollerGeometry.dispose(), [conveyorRollerGeometry]);
+
   // Machine-specific sounds based on type and status
   // Machine-specific sounds - Optimized to avoid thrashing
   const soundRef = useRef<string | null>(null);
@@ -366,19 +381,7 @@ const MachineMesh: React.FC<MachineMeshProps> = React.memo(({ data, onSelect, on
           break;
       }
     } else {
-      // Just update parameters if already playing
-      if (type === MachineType.ROLLER_MILL || type === MachineType.PLANSIFTER) {
-        // Assuming audioManager handles parameter updates efficiently or ignores if no change
-        // Ideally we'd have precise update methods, but re-calling play with same ID
-        // usually acts as update or ignore in well-designed managers.
-        // If not, we might need a specific update method.
-        // For now, let's assume we shouldn't spam play.
-        // Actually, let's rely on the manager's idempotency or add an update method if possible.
-        // Checking audioManager.ts would be ideal, but for now preventing mount/unmount is key.
-        // Better approach: Do nothing here if just RPM changes, rely on a separate effect/ref?
-        // No, invalidating this effect on RPM change is what causes the stop/start loop.
-        // We need to NOT depend on RPM in the start/stop effect.
-      }
+      // RPM updates handled by the dedicated effect below to avoid restarting the sound.
     }
 
     return () => {
@@ -487,7 +490,7 @@ const MachineMesh: React.FC<MachineMeshProps> = React.memo(({ data, onSelect, on
                   roughness={0.2}
                   roughnessMap={roughnessMap}
                   normalMap={normalMap}
-                  normalScale={normalMap ? new THREE.Vector2(0.3, 0.3) : undefined}
+                  normalScale={normalMap ? SILO_NORMAL_SCALE : undefined}
                   {...matProps}
                 />
               </mesh>

@@ -31,6 +31,9 @@ farmPathCobbleNormal.repeat.set(0.3, 1.4);
 farmPathCobbleColor.needsUpdate = true;
 farmPathCobbleNormal.needsUpdate = true;
 
+// Module-level reusable temp to avoid per-animal Vector3 allocation in useFrame (GC pressure)
+const _animDir = new THREE.Vector3();
+
 // ============================================================
 // CUTE FARM AREA - North-West Corner (OPTIMIZED)
 // Position: Center at [75, 0, 120] - by the lake
@@ -1053,12 +1056,13 @@ const Crow = React.memo<{ position: [number, number, number]; rotation?: number 
   ({ position, rotation = 0 }) => {
     const [isExcited, setIsExcited] = useState(false);
     const [hearts, setHearts] = useState<{ id: number; pos: [number, number, number] }[]>([]);
+    const nextHeartId = useRef(0);
 
     const handlePet = (e: ThreeEvent<MouseEvent>) => {
       e.stopPropagation();
       setIsExcited(true);
       playCritterSound('crow');
-      const id = Date.now();
+      const id = nextHeartId.current++;
       setHearts((prev) => [...prev, { id, pos: [0, 1.0, 0] }]);
     };
 
@@ -1407,7 +1411,7 @@ export const FarmArea: React.FC = () => {
     } else {
       // Move towards target
       const currentPos = ref.position;
-      const direction = new THREE.Vector3().subVectors(state.target, currentPos);
+      const direction = _animDir.subVectors(state.target, currentPos);
       const dist = direction.length();
 
       if (dist < 0.1) {

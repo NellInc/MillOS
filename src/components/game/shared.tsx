@@ -1,7 +1,6 @@
 // Shared utilities, types, contexts, hooks, and announcement data for game features
 
 import { createContext, useContext, useEffect, useRef } from 'react';
-import { Target, Trophy, Medal, Users, TrendingUp, Package, Shield, Award } from 'lucide-react';
 import { useProductionStore } from '../../stores/productionStore';
 import { useUIStore } from '../../stores/uiStore';
 import { useSafetyStore } from '../../stores/safetyStore';
@@ -2657,7 +2656,7 @@ const DYNAMIC_TEMPLATES: Array<{
   // Combined worker + machine templates
   {
     template:
-      '{WORKER} has been assigned to {MACHINE}. {THEY} seem nervous. {MACHINE} seems indifferent.',
+      '{WORKER} has been assigned to {MACHINE}. {WORKER} seems nervous. {MACHINE} seems indifferent.',
     type: 'general',
     chaosWeight: 0.3,
   },
@@ -3241,7 +3240,7 @@ const checkEventAnnouncements = (
 
   // Check production milestones
   const productionTarget = state.productionTarget;
-  if (productionTarget) {
+  if (productionTarget && productionTarget.targetBags > 0) {
     const progressPercent = Math.floor(
       (productionTarget.producedBags / productionTarget.targetBags) * 100
     );
@@ -3535,30 +3534,3 @@ const usePAScheduler = () => {
 
 // Export hooks
 export { usePAScheduler, useEventAnnouncementScheduler };
-
-// Helper for icon components
-export function getIconComponent(iconName: string) {
-  const iconMap: Record<string, any> = {
-    Target,
-    Trophy,
-    Medal,
-    Users,
-    TrendingUp,
-    Package,
-    Shield,
-    Award,
-  };
-  return iconMap[iconName] || Trophy;
-}
-
-// Helper for category colors
-export function getCategoryColor(category: string) {
-  const colorMap: Record<string, string> = {
-    production: 'bg-cyan-600/50',
-    safety: 'bg-amber-600/50',
-    quality: 'bg-green-600/50',
-    efficiency: 'bg-purple-600/50',
-    teamwork: 'bg-blue-600/50',
-  };
-  return colorMap[category] || 'bg-slate-600/50';
-}

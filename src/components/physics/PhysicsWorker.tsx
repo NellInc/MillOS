@@ -86,6 +86,13 @@ export const PhysicsWorker: React.FC<PhysicsWorkerProps> = ({
     }
   }, [drillMetrics.active]);
 
+  // Cleanup: unregister from position registry on unmount (mirrors PhysicsForklift)
+  useEffect(() => {
+    return () => {
+      positionRegistry.unregister(data.id);
+    };
+  }, [data.id]);
+
   // Position and direction update callback
   const updatePosition = useCallback(() => {
     if (!rigidBodyRef.current) return;

@@ -4,7 +4,7 @@
 
 <p>
   <img src="https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=white" alt="React 19" />
-  <img src="https://img.shields.io/badge/Three.js-R169-black?style=for-the-badge&logo=three.js&logoColor=white" alt="Three.js" />
+  <img src="https://img.shields.io/badge/Three.js-r182-black?style=for-the-badge&logo=three.js&logoColor=white" alt="Three.js" />
   <img src="https://img.shields.io/badge/TypeScript-5.6-3178C6?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript" />
   <img src="https://img.shields.io/badge/Vite-6.0-646CFF?style=for-the-badge&logo=vite&logoColor=white" alt="Vite" />
   <img src="https://img.shields.io/badge/SCADA-ISA--18.2-00A86B?style=for-the-badge" alt="SCADA" />
@@ -702,7 +702,7 @@ Time-travel debugging with zero runtime overhead:
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-username/millos.git
+git clone https://github.com/NellWatson/MillOS.git
 cd millos
 
 # Install dependencies
@@ -1122,7 +1122,7 @@ MIT License — see [LICENSE](LICENSE) for details.
 
 <div align="center">
 
-**MillOS v0.3**
+**MillOS v0.30**
 
 *Transforming grain milling through digital twin technology, industrial SCADA integration, and bilateral AI partnership*
 

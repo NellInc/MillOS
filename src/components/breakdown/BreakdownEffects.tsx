@@ -87,8 +87,8 @@ const BreakdownSparks: React.FC<{
         );
         spark.life = spark.maxLife;
       } else {
-        // Update position
-        spark.position.add(spark.velocity.clone().multiplyScalar(delta));
+        // Update position (addScaledVector mutates in place, no per-frame allocation)
+        spark.position.addScaledVector(spark.velocity, delta);
         // Apply gravity
         spark.velocity.y -= 15 * delta;
       }
@@ -161,8 +161,8 @@ const BreakdownSmoke: React.FC<{
         smoke.life = smoke.maxLife;
         smoke.scale = 0.5 + Math.random() * 0.5;
       } else {
-        // Update position - rise and drift
-        smoke.position.add(smoke.velocity.clone().multiplyScalar(delta));
+        // Update position - rise and drift (addScaledVector mutates in place, no per-frame allocation)
+        smoke.position.addScaledVector(smoke.velocity, delta);
         // Expand as it rises
         smoke.scale += delta * 0.3;
       }
@@ -254,7 +254,12 @@ const BreakdownOverlay: React.FC<{
       lockZ={false}
     >
       <Html center>
-        <div className="bg-red-900/90 border-2 border-red-500 rounded-lg p-3 min-w-[150px] text-center">
+        <div
+          role="alert"
+          aria-live="assertive"
+          aria-label={`Machine fault: ${breakdown.description}`}
+          className="bg-red-900/90 border-2 border-red-500 rounded-lg p-3 min-w-[150px] text-center"
+        >
           <div className="text-red-400 font-bold text-sm mb-1">FAULT</div>
           <div className="text-white text-xs mb-2">{breakdown.description}</div>
           {breakdown.assignedWorkerName ? (
@@ -267,7 +272,14 @@ const BreakdownOverlay: React.FC<{
           )}
           {/* Progress bar */}
           {breakdown.repairProgress > 0 && (
-            <div className="mt-2">
+            <div
+              className="mt-2"
+              role="progressbar"
+              aria-label="Repair progress"
+              aria-valuenow={Math.round(breakdown.repairProgress)}
+              aria-valuemin={0}
+              aria-valuemax={100}
+            >
               <div className="bg-gray-700 rounded-full h-2 overflow-hidden">
                 <div
                   className="bg-green-500 h-full transition-all duration-300"

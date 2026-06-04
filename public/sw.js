@@ -217,7 +217,7 @@ async function networkFirst(request) {
 
     // For navigation, return cached index.html (SPA fallback)
     if (request.mode === 'navigate') {
-      const indexResponse = await caches.match('/index.html');
+      const indexResponse = await caches.match('./index.html');
       if (indexResponse) return indexResponse;
     }
 
@@ -229,7 +229,11 @@ async function networkFirst(request) {
  * Message handler - cache management commands from main thread
  */
 self.addEventListener('message', (event) => {
+  // Ignore malformed messages; only act on known command shapes
+  if (!event.data || typeof event.data !== 'object') return;
+
   const { type } = event.data;
+  if (type !== 'CLEAR_CACHE' && type !== 'GET_CACHE_SIZE') return;
 
   if (type === 'CLEAR_CACHE') {
     event.waitUntil(

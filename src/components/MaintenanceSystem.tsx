@@ -25,13 +25,7 @@ import { WORKER_ROSTER } from '../types';
 // ANIMATION MANAGER - Single useFrame for all maintenance animations
 // =========================================================================
 
-type MaintenanceRefType =
-  | 'sweeping'
-  | 'watering'
-  | 'oiling'
-  | 'slip_effect'
-  | 'cough_effect'
-  | 'chaos_reactions';
+type MaintenanceRefType = 'sweeping' | 'watering' | 'oiling' | 'slip_effect' | 'cough_effect';
 
 interface MaintenanceRefs {
   type: MaintenanceRefType;

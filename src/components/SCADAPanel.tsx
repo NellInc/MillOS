@@ -50,7 +50,14 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { useSCADA, useSCADAAlarms, getSCADAService } from '../scada';
-import type { TagValue, TagDefinition, TagGroup, ConnectionConfig } from '../scada/types';
+import type {
+  TagValue,
+  TagDefinition,
+  TagGroup,
+  ConnectionConfig,
+  Quality,
+  AlarmPriority,
+} from '../scada/types';
 import { useGraphicsStore } from '../stores/graphicsStore';
 
 interface SCADAPanelProps {
@@ -78,7 +85,7 @@ const TAG_GROUP_ICONS: Record<TagGroup, React.ReactNode> = {
 };
 
 // Quality indicator colors
-const QUALITY_COLORS: Record<string, string> = {
+const QUALITY_COLORS: Record<Quality, string> = {
   GOOD: 'bg-green-500',
   UNCERTAIN: 'bg-yellow-500',
   BAD: 'bg-red-500',
@@ -86,7 +93,7 @@ const QUALITY_COLORS: Record<string, string> = {
 };
 
 // Alarm priority colors
-const ALARM_PRIORITY_COLORS: Record<string, string> = {
+const ALARM_PRIORITY_COLORS: Record<AlarmPriority, string> = {
   CRITICAL: 'bg-red-600 text-white',
   HIGH: 'bg-orange-500 text-white',
   MEDIUM: 'bg-yellow-500 text-black',
@@ -472,7 +479,7 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
                 >
                   <div className="flex items-center justify-between mb-1">
                     <span
-                      className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${ALARM_PRIORITY_COLORS[alarm.priority]}`}
+                      className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${ALARM_PRIORITY_COLORS[alarm.priority] ?? 'bg-slate-600 text-white'}`}
                     >
                       {alarm.priority}
                     </span>
@@ -771,7 +778,7 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
                                         {formatValue(value, tag)}
                                       </span>
                                       <span
-                                        className={`w-2 h-2 rounded-full ${QUALITY_COLORS[value.quality]}`}
+                                        className={`w-2 h-2 rounded-full ${QUALITY_COLORS[value.quality] ?? 'bg-slate-600'}`}
                                         aria-label={`Quality: ${value.quality}`}
                                       />
                                     </>
@@ -870,7 +877,7 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
                       <div className="flex items-start justify-between">
                         <div className="flex items-center gap-2">
                           <span
-                            className={`px-2 py-0.5 rounded text-xs ${ALARM_PRIORITY_COLORS[alarm.priority]}`}
+                            className={`px-2 py-0.5 rounded text-xs ${ALARM_PRIORITY_COLORS[alarm.priority] ?? 'bg-slate-600 text-white'}`}
                           >
                             {alarm.priority}
                           </span>
@@ -1112,7 +1119,9 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
                         </div>
                         {value && (
                           <span className="text-slate-400 ml-2">
-                            {(value.value as number).toFixed(1)} {tag.engUnit}
+                            {typeof value.value === 'number'
+                              ? `${value.value.toFixed(1)} ${tag.engUnit}`
+                              : String(value.value)}
                           </span>
                         )}
                       </button>

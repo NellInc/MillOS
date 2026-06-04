@@ -735,10 +735,17 @@ export const MillScene: React.FC<MillSceneProps> = ({
   // AI Visualization toggles (all default OFF)
   const showCascadeVisualization = useAIConfigStore((state) => state.showCascadeVisualization);
 
+  // Fire drill: workers must stay mounted (and visible) while a drill is active,
+  // even with the camera outside — otherwise markWorkerEvacuated never fires and
+  // the drill can never self-complete (and evacuating workers vanish mid-run).
+  const drillActive = useGameSimulationStore((state) => state.drillMetrics.active);
+
   // Show interior when inside OR in dock transition zone
   const showInterior = isCameraInside || isCameraInDockZone;
   // Show exterior when outside OR in dock transition zone
   const showExterior = !isCameraInside || isCameraInDockZone;
+  // Workers render under the interior gate, but must persist through an active drill
+  const showWorkers = showInterior || drillActive;
 
   return (
     <group>
@@ -821,7 +828,7 @@ export const MillScene: React.FC<MillSceneProps> = ({
       {showInterior && !perfDebug?.disableConveyorSystem && (
         <ConveyorSystem productionSpeed={productionSpeed} />
       )}
-      {showInterior && !perfDebug?.disableWorkerSystem && (
+      {showWorkers && !perfDebug?.disableWorkerSystem && (
         <WorkerSystem onSelectWorker={onSelectWorker} />
       )}
       {/* Worker Personality Visualization - mood auras, thoughts, relationships */}

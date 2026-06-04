@@ -26,6 +26,10 @@ interface MaterialState {
 
 const originalStates = new Map<THREE.Material, MaterialState>();
 
+// Hoisted to avoid per-frame allocation inside applyWireframeToScene's
+// transitioning branch (called from useFrame across every scene material).
+const BLUEPRINT_EMISSIVE = new THREE.Color(0x38bdf8);
+
 /**
  * Traverse scene and apply wireframe effect to all meshes
  */
@@ -90,7 +94,7 @@ function applyWireframeToScene(scene: THREE.Scene, transition: number) {
 
           if ('emissive' in mat && mat instanceof THREE.MeshStandardMaterial) {
             if (original.emissive) {
-              mat.emissive.lerpColors(original.emissive, new THREE.Color(0x38bdf8), transition);
+              mat.emissive.lerpColors(original.emissive, BLUEPRINT_EMISSIVE, transition);
             } else {
               mat.emissive.setHex(0x38bdf8);
             }

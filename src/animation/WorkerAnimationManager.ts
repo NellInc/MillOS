@@ -7,7 +7,7 @@
  * Based on v0.10.0 simple patterns with maath for smooth interpolation.
  */
 
-import { useRef, useCallback, useMemo } from 'react';
+import { useRef, useCallback, useMemo, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { damp } from 'maath/easing';
 import * as THREE from 'three';
@@ -838,8 +838,8 @@ export function useWorkerAnimationManager(
     markWorkerEvacuated
   );
 
-  // Reset evacuation when drill ends
-  useMemo(() => {
+  // Reset evacuation when drill ends (side effect runs at commit, not render)
+  useEffect(() => {
     if (!emergencyDrillMode) {
       manager.resetEvacuation();
     }
