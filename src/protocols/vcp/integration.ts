@@ -403,14 +403,25 @@ export function registerDecision(
 ): void {
   const state = assembleStateSnapshot();
 
+  // Resolve baseline using the same dimension semantics as getDimensionValue in
+  // outcomeTracker.ts (the source of truth for the measured currentValue). Both
+  // sides must lowercase the key and cover the same dimension set, otherwise
+  // baseline=0 vs a real measured value yields a garbage delta into the learning
+  // loop. Unknown dims fall through to 0 here; getDimensionValue returns null for
+  // them so checkPendingDecisions never measures them (the 0 baseline is unused).
+  const lowerDim = expectedDimension.toLowerCase();
   let baselineValue = 0;
-  if (expectedDimension in state.wellbeing.dimensions) {
+  if (lowerDim in state.wellbeing.dimensions) {
     baselineValue =
-      state.wellbeing.dimensions[expectedDimension as keyof typeof state.wellbeing.dimensions];
-  } else if (expectedDimension === 'engagement') {
+      state.wellbeing.dimensions[lowerDim as keyof typeof state.wellbeing.dimensions];
+  } else if (lowerDim === 'flourishing' || lowerDim === 'wellbeing') {
+    baselineValue = state.wellbeing.flourishingScore;
+  } else if (lowerDim === 'engagement') {
     baselineValue = state.engagement.score;
-  } else if (expectedDimension === 'stability') {
+  } else if (lowerDim === 'stability') {
     baselineValue = (1 - state.stability.product / 0.368) * 100;
+  } else if (lowerDim in state.governance.axes) {
+    baselineValue = state.governance.axes[lowerDim as keyof typeof state.governance.axes];
   }
 
   useOutcomeTracker

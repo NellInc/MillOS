@@ -256,10 +256,15 @@ export const AIDecisionVotingPanel: React.FC = () => {
   const isActive = useIsMultiplayerActive();
   const aiDecisions = useProductionStore((s) => s.aiDecisions);
 
-  // Filter to pending decisions only
+  // Locally dismissed decision IDs so a stalled vote (peers never vote) can be
+  // cleared from this player's view without mutating shared/synced store state.
+  const [dismissedIds, setDismissedIds] = React.useState<Set<string>>(new Set());
+
+  // Filter to pending decisions only, then drop any the local player dismissed.
+  // Filter dismissed before slicing so a freed slot backfills with the next decision.
   const pendingDecisions = useMemo(
-    () => aiDecisions.filter((d) => d.status === 'pending'),
-    [aiDecisions]
+    () => aiDecisions.filter((d) => d.status === 'pending' && !dismissedIds.has(d.id)),
+    [aiDecisions, dismissedIds]
   );
 
   if (!isActive || pendingDecisions.length === 0) {
@@ -270,7 +275,17 @@ export const AIDecisionVotingPanel: React.FC = () => {
     <div className="fixed top-20 right-4 z-40 space-y-2">
       <AnimatePresence>
         {pendingDecisions.slice(0, 3).map((decision) => (
-          <AIDecisionVotingCard key={decision.id} decision={decision} />
+          <AIDecisionVotingCard
+            key={decision.id}
+            decision={decision}
+            onClose={() =>
+              setDismissedIds((prev) => {
+                const next = new Set(prev);
+                next.add(decision.id);
+                return next;
+              })
+            }
+          />
         ))}
       </AnimatePresence>
     </div>

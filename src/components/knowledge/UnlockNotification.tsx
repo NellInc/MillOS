@@ -7,8 +7,64 @@
 
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BookOpen, X, ChevronRight } from 'lucide-react';
-import { KnowledgeEntry, useKnowledgeStore } from '../../stores/knowledgeStore';
+import {
+  X,
+  ChevronRight,
+  Handshake,
+  HeartHandshake,
+  Vote,
+  Flower2,
+  Sparkles,
+  User,
+  Settings,
+  Sliders,
+  BarChart3,
+  RefreshCw,
+  Network,
+  Heart,
+  Factory,
+  BookOpen,
+  Scale,
+  Brain,
+  Gamepad2,
+  Sprout,
+  Users,
+  Library,
+  LucideIcon,
+} from 'lucide-react';
+import { KnowledgeEntry, KnowledgeIcon, useKnowledgeStore } from '../../stores/knowledgeStore';
+
+// Icon mapping from KnowledgeIcon to Lucide component
+const ICON_MAP: Record<KnowledgeIcon, LucideIcon> = {
+  handshake: Handshake,
+  'heart-handshake': HeartHandshake,
+  vote: Vote,
+  'flower-2': Flower2,
+  sparkles: Sparkles,
+  user: User,
+  settings: Settings,
+  sliders: Sliders,
+  'chart-bar': BarChart3,
+  'refresh-cw': RefreshCw,
+  network: Network,
+  heart: Heart,
+  factory: Factory,
+  'book-open': BookOpen,
+  scale: Scale,
+  brain: Brain,
+  'gamepad-2': Gamepad2,
+  sprout: Sprout,
+  users: Users,
+  cog: Settings,
+  library: Library,
+};
+
+// Render a Lucide icon from its identifier
+function KnowledgeIconComponent({ icon, className }: { icon: KnowledgeIcon; className?: string }) {
+  const IconComponent = ICON_MAP[icon];
+  if (!IconComponent) return null;
+  return <IconComponent className={className} />;
+}
 
 interface UnlockNotificationProps {
   entry: KnowledgeEntry;
@@ -73,13 +129,11 @@ export function UnlockNotification({
             {/* Header with gradient */}
             <div className="bg-gradient-to-r from-amber-500/20 to-transparent px-4 py-3 flex items-center gap-3">
               <div className="w-10 h-10 rounded-lg bg-amber-500/20 flex items-center justify-center">
-                <BookOpen className="w-5 h-5 text-amber-400" />
+                <KnowledgeIconComponent icon={entry.icon} className="w-5 h-5 text-amber-400" />
               </div>
               <div className="flex-1">
                 <p className="text-xs text-amber-400 font-medium">New Knowledge Unlocked</p>
-                <p className="text-sm text-white font-semibold truncate">
-                  {entry.icon} {entry.title}
-                </p>
+                <p className="text-sm text-white font-semibold truncate">{entry.title}</p>
               </div>
               <button
                 onClick={handleDismiss}

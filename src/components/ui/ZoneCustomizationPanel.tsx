@@ -170,10 +170,18 @@ export const ZoneCustomizationPanel: React.FC = () => {
                     />
                   </div>
                 </div>
+                {!newZone.name.trim() && (
+                  <p
+                    className={`text-[9px] ${theme === 'light' ? 'text-slate-400' : 'text-slate-500'}`}
+                  >
+                    Enter a zone name to add.
+                  </p>
+                )}
                 <div className="flex gap-1">
                   <button
                     onClick={handleAddZone}
-                    className="flex-1 bg-amber-600 hover:bg-amber-500 text-white py-1 rounded text-xs font-medium transition-colors"
+                    disabled={!newZone.name.trim()}
+                    className="flex-1 bg-amber-600 hover:bg-amber-500 disabled:bg-amber-600/40 disabled:cursor-not-allowed disabled:hover:bg-amber-600/40 text-white py-1 rounded text-xs font-medium transition-colors"
                   >
                     Add Zone
                   </button>

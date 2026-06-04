@@ -264,17 +264,44 @@ export const MobileFPSInstructions: React.FC<{ visible: boolean; onDismiss: () =
   visible,
   onDismiss,
 }) => {
+  const dismissButtonRef = useRef<HTMLButtonElement | null>(null);
+  const previouslyFocusedRef = useRef<HTMLElement | null>(null);
+
+  // Focus management: move focus into the dialog on open, restore on close.
+  useEffect(() => {
+    if (!visible) return;
+    previouslyFocusedRef.current = (document.activeElement as HTMLElement) ?? null;
+    dismissButtonRef.current?.focus();
+    return () => {
+      previouslyFocusedRef.current?.focus?.();
+    };
+  }, [visible]);
+
   if (!visible) return null;
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'Escape') {
+      e.stopPropagation();
+      onDismiss();
+    }
+  };
 
   return (
     <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="mobile-fps-instructions-title"
       className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center pointer-events-auto"
       onClick={onDismiss}
+      onKeyDown={handleKeyDown}
     >
       <div
         className="bg-slate-900/95 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-4 max-w-xs text-center shadow-2xl mx-4"
         onClick={(e) => e.stopPropagation()}
       >
+        <h2 id="mobile-fps-instructions-title" className="text-white text-sm font-semibold mb-3">
+          First-Person Controls
+        </h2>
         <div className="flex gap-3 mb-4">
           <div className="flex-1 bg-slate-800/50 rounded-lg p-3 flex flex-col items-center gap-1">
             <div className="w-8 h-8 bg-slate-700 rounded-lg flex items-center justify-center text-base">
@@ -292,6 +319,7 @@ export const MobileFPSInstructions: React.FC<{ visible: boolean; onDismiss: () =
         </div>
 
         <button
+          ref={dismissButtonRef}
           onClick={onDismiss}
           className="w-full py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg font-medium transition-colors text-sm"
         >

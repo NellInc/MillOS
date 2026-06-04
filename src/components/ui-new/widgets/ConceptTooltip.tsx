@@ -56,16 +56,83 @@ interface ConceptTooltipProps {
 // CATEGORY ICONS & COLORS
 // =============================================================================
 
+// NOTE: Tailwind v4 only emits classes it finds as complete literal strings in
+// source. Interpolated fragments like `text-${color}-400` are NOT generated, so
+// every color variant below is written out in full. Do not collapse these back
+// into a single `color` string.
 const CATEGORY_CONFIG: Record<
   ConceptCategory,
-  { icon: React.ComponentType<{ className?: string }>; color: string; label: string }
+  {
+    icon: React.ComponentType<{ className?: string }>;
+    label: string;
+    headerBg: string;
+    iconColor: string;
+    labelColor: string;
+    pill: string;
+    triggerIcon: string;
+    link: string;
+  }
 > = {
-  wallace: { icon: Scale, color: 'green', label: 'Wallace Stability' },
-  mondragon: { icon: Users, color: 'cyan', label: 'Mondragon Principles' },
-  semler: { icon: Lightbulb, color: 'amber', label: 'Semler Practices' },
-  bilateral: { icon: Heart, color: 'pink', label: 'Bilateral Alignment' },
-  flourishing: { icon: Compass, color: 'purple', label: 'Flourishing' },
-  bams: { icon: BookOpen, color: 'violet', label: 'BAMS System' },
+  wallace: {
+    icon: Scale,
+    label: 'Wallace Stability',
+    headerBg: 'bg-green-500/10',
+    iconColor: 'text-green-400',
+    labelColor: 'text-green-400',
+    pill: 'bg-green-500/20 text-green-300 hover:bg-green-500/30',
+    triggerIcon: 'text-green-400 hover:text-green-300',
+    link: 'border-green-400/50 text-green-400 hover:text-green-300',
+  },
+  mondragon: {
+    icon: Users,
+    label: 'Mondragon Principles',
+    headerBg: 'bg-cyan-500/10',
+    iconColor: 'text-cyan-400',
+    labelColor: 'text-cyan-400',
+    pill: 'bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30',
+    triggerIcon: 'text-cyan-400 hover:text-cyan-300',
+    link: 'border-cyan-400/50 text-cyan-400 hover:text-cyan-300',
+  },
+  semler: {
+    icon: Lightbulb,
+    label: 'Semler Practices',
+    headerBg: 'bg-amber-500/10',
+    iconColor: 'text-amber-400',
+    labelColor: 'text-amber-400',
+    pill: 'bg-amber-500/20 text-amber-300 hover:bg-amber-500/30',
+    triggerIcon: 'text-amber-400 hover:text-amber-300',
+    link: 'border-amber-400/50 text-amber-400 hover:text-amber-300',
+  },
+  bilateral: {
+    icon: Heart,
+    label: 'Bilateral Alignment',
+    headerBg: 'bg-pink-500/10',
+    iconColor: 'text-pink-400',
+    labelColor: 'text-pink-400',
+    pill: 'bg-pink-500/20 text-pink-300 hover:bg-pink-500/30',
+    triggerIcon: 'text-pink-400 hover:text-pink-300',
+    link: 'border-pink-400/50 text-pink-400 hover:text-pink-300',
+  },
+  flourishing: {
+    icon: Compass,
+    label: 'Flourishing',
+    headerBg: 'bg-purple-500/10',
+    iconColor: 'text-purple-400',
+    labelColor: 'text-purple-400',
+    pill: 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/30',
+    triggerIcon: 'text-purple-400 hover:text-purple-300',
+    link: 'border-purple-400/50 text-purple-400 hover:text-purple-300',
+  },
+  bams: {
+    icon: BookOpen,
+    label: 'BAMS System',
+    headerBg: 'bg-violet-500/10',
+    iconColor: 'text-violet-400',
+    labelColor: 'text-violet-400',
+    pill: 'bg-violet-500/20 text-violet-300 hover:bg-violet-500/30',
+    triggerIcon: 'text-violet-400 hover:text-violet-300',
+    link: 'border-violet-400/50 text-violet-400 hover:text-violet-300',
+  },
 };
 
 // =============================================================================
@@ -133,16 +200,16 @@ const TooltipContent: React.FC<TooltipContentProps> = memo(
       >
         <div className="bg-slate-900/95 backdrop-blur-md border border-slate-600/50 rounded-lg shadow-xl overflow-hidden">
           {/* Header */}
-          <div className={`p-3 border-b border-slate-700/50 bg-${categoryConfig.color}-500/10`}>
+          <div className={`p-3 border-b border-slate-700/50 ${categoryConfig.headerBg}`}>
             <div className="flex items-start justify-between gap-2">
               <div className="flex items-center gap-2 flex-1 min-w-0">
                 <CategoryIcon
-                  className={`w-4 h-4 text-${categoryConfig.color}-400 flex-shrink-0`}
+                  className={`w-4 h-4 ${categoryConfig.iconColor} flex-shrink-0`}
                   aria-hidden="true"
                 />
                 <div className="min-w-0">
                   <h4 className="text-sm font-bold text-white truncate">{concept.title}</h4>
-                  <span className={`text-[9px] text-${categoryConfig.color}-400`}>
+                  <span className={`text-[9px] ${categoryConfig.labelColor}`}>
                     {categoryConfig.label}
                   </span>
                 </div>
@@ -211,7 +278,7 @@ const TooltipContent: React.FC<TooltipContentProps> = memo(
                           <button
                             key={related.id}
                             onClick={() => onNavigate?.(related.id)}
-                            className={`text-[9px] px-2 py-0.5 rounded bg-${CATEGORY_CONFIG[related.category].color}-500/20 text-${CATEGORY_CONFIG[related.category].color}-300 hover:bg-${CATEGORY_CONFIG[related.category].color}-500/30 transition-colors`}
+                            className={`text-[9px] px-2 py-0.5 rounded ${CATEGORY_CONFIG[related.category].pill} transition-colors`}
                           >
                             {related.title}
                           </button>
@@ -341,7 +408,7 @@ export const ConceptTooltip: React.FC<ConceptTooltipProps> = memo(
         >
           {children || (
             <Info
-              className={`w-3.5 h-3.5 text-${categoryConfig.color}-400 hover:text-${categoryConfig.color}-300 transition-colors`}
+              className={`w-3.5 h-3.5 ${categoryConfig.triggerIcon} transition-colors`}
             />
           )}
         </span>
@@ -393,7 +460,7 @@ export const InlineConceptLink: React.FC<ConceptLinkProps> = memo(
     return (
       <ConceptTooltip conceptId={conceptId} position="bottom" onNavigate={onNavigate}>
         <span
-          className={`border-b border-dashed border-${categoryConfig.color}-400/50 text-${categoryConfig.color}-400 hover:text-${categoryConfig.color}-300 cursor-help transition-colors ${className}`}
+          className={`border-b border-dashed ${categoryConfig.link} cursor-help transition-colors ${className}`}
         >
           {children}
         </span>

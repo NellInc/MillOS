@@ -5,7 +5,7 @@
  * Can link to knowledge entries and be dismissed
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Bot, X } from 'lucide-react';
 import {
@@ -99,6 +99,18 @@ interface AINarrationModalProps {
 }
 
 export function AINarrationModal({ narration, onDismiss }: AINarrationModalProps) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!narration) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onDismiss?.();
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    dialogRef.current?.querySelector('button')?.focus();
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [narration, onDismiss]);
+
   if (!narration) return null;
 
   return (
@@ -111,6 +123,10 @@ export function AINarrationModal({ narration, onDismiss }: AINarrationModalProps
         onClick={onDismiss}
       >
         <motion.div
+          ref={dialogRef}
+          role="dialog"
+          aria-modal="true"
+          aria-label="AI Reflection"
           initial={{ scale: 0.9, y: 20 }}
           animate={{ scale: 1, y: 0 }}
           exit={{ scale: 0.9, y: 20 }}

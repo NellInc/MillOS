@@ -103,6 +103,14 @@ export const SafetyPanel: React.FC = () => {
                 useGameSimulationStore.getState().resolveEmergency();
                 audioManager.stopEmergencyStopAlarm();
               } else if (!emergencyActive) {
+                // Confirm before this facility-wide halt (most disruptive action).
+                if (
+                  !window.confirm(
+                    'Trigger a facility-wide emergency stop? All machines will halt and the alarm will sound.'
+                  )
+                ) {
+                  return;
+                }
                 // Trigger emergency stop on all machines
                 useGameSimulationStore.getState().triggerEmergency('E-STOP');
                 audioManager.playEmergencyStop();

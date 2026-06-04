@@ -34,6 +34,7 @@ import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { useSafetyStore } from '../../stores/safetyStore';
 import { useAIConfigStore } from '../../stores/aiConfigStore';
 import { useWorkerMoodStore } from '../../stores/workerMoodStore';
+import { EmergencyStopButton } from '../ui/EmergencyStopButton';
 
 interface MobilePanelProps {
   isVisible: boolean;
@@ -385,10 +386,7 @@ const SafetyContent: React.FC = () => {
   return (
     <div className="space-y-3">
       {/* Emergency Stop */}
-      <button className="w-full p-3 bg-red-600 hover:bg-red-500 rounded-lg flex items-center justify-center gap-2 text-white font-bold transition-colors">
-        <AlertTriangle className="w-5 h-5" />
-        EMERGENCY STOP
-      </button>
+      <EmergencyStopButton />
 
       {/* Fire Drill Section */}
       <div className="bg-slate-800/50 rounded-lg p-3">
@@ -895,6 +893,30 @@ const getPanelContent = (mode: DockMode | null) => {
  * Shows simplified versions of sidebar content
  */
 export const MobilePanel: React.FC<MobilePanelProps> = ({ isVisible, content, onClose }) => {
+  const closeButtonRef = React.useRef<HTMLButtonElement>(null);
+
+  // Modal behavior: Escape to dismiss, move focus into the panel on open,
+  // and restore focus to the previously-focused element on close.
+  React.useEffect(() => {
+    if (!isVisible || !content) return;
+
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    closeButtonRef.current?.focus();
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      previouslyFocused?.focus?.();
+    };
+  }, [isVisible, content, onClose]);
+
   return (
     <AnimatePresence>
       {isVisible && content && (
@@ -920,7 +942,8 @@ export const MobilePanel: React.FC<MobilePanelProps> = ({ isVisible, content, on
               maxHeight: '33vh',
             }}
             aria-label={`${getPanelTitle(content)} mobile panel`}
-            role="complementary"
+            role="dialog"
+            aria-modal="true"
           >
             <div className="flex flex-col max-h-[33vh] bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
               {/* Header */}
@@ -930,6 +953,7 @@ export const MobilePanel: React.FC<MobilePanelProps> = ({ isVisible, content, on
                   <span className="font-medium">{getPanelTitle(content)}</span>
                 </div>
                 <button
+                  ref={closeButtonRef}
                   onClick={onClose}
                   className="p-2 rounded-lg hover:bg-slate-700/50 transition-colors"
                   aria-label="Close panel"

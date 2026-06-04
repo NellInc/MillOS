@@ -59,6 +59,9 @@ export const SafetyMetricsDisplay: React.FC = () => {
           Safety Stats
         </span>
       </div>
+      <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+        Safety stops: {safetyMetrics.safetyStops}, Worker evasions: {safetyMetrics.workerEvasions}
+      </div>
       <div className="grid grid-cols-3 gap-2">
         <div
           className={`text-center p-1.5 rounded transition-all ${flashStop ? 'bg-red-500/30 scale-105' : cardBg}`}

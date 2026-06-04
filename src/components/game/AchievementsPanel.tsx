@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   Trophy,
@@ -14,11 +14,15 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { useProductionStore } from '../../stores/productionStore';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
 import type { Achievement } from '../../stores/achievementsStore';
 
 export const AchievementsPanel: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const achievements = useProductionStore((state) => state.achievements);
   const resetAchievements = useProductionStore((state) => state.resetAchievements);
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  const [confirmReset, setConfirmReset] = useState(false);
+  useFocusTrap(panelRef as React.RefObject<HTMLElement>, true, onClose);
 
   const getCategoryColor = (category: string) => {
     switch (category) {
@@ -60,6 +64,10 @@ export const AchievementsPanel: React.FC<{ onClose: () => void }> = ({ onClose }
 
   return (
     <motion.div
+      ref={panelRef}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="achievements-panel-title"
       initial={{ opacity: 0, scale: 0.9 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.9 }}
@@ -72,7 +80,9 @@ export const AchievementsPanel: React.FC<{ onClose: () => void }> = ({ onClose }
       <div className="flex items-center justify-between p-3 border-b border-slate-800 cursor-move">
         <div className="flex items-center gap-2">
           <Trophy className="w-5 h-5 text-yellow-400 flex-shrink-0" />
-          <h2 className="text-base font-bold text-white">Achievements</h2>
+          <h2 id="achievements-panel-title" className="text-base font-bold text-white">
+            Achievements
+          </h2>
         </div>
         <button
           onClick={onClose}
@@ -132,15 +142,39 @@ export const AchievementsPanel: React.FC<{ onClose: () => void }> = ({ onClose }
       </div>
 
       {/* Footer with reset button */}
-      <div className="p-2 border-t border-slate-800 flex justify-end">
-        <button
-          onClick={resetAchievements}
-          className="flex items-center gap-1.5 px-2 py-1 text-xs text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors"
-          title="Reset all achievements"
-        >
-          <RotateCcw className="w-3 h-3" />
-          Reset
-        </button>
+      <div className="p-2 border-t border-slate-800 flex justify-end items-center gap-2">
+        {confirmReset ? (
+          <>
+            <span className="text-xs text-red-400">Reset all achievements?</span>
+            <button
+              onClick={() => {
+                resetAchievements();
+                setConfirmReset(false);
+              }}
+              className="flex items-center gap-1.5 px-2 py-1 text-xs text-white bg-red-500/80 hover:bg-red-500 rounded transition-colors"
+              title="Confirm reset of all achievements"
+            >
+              <RotateCcw className="w-3 h-3" />
+              Confirm
+            </button>
+            <button
+              onClick={() => setConfirmReset(false)}
+              className="px-2 py-1 text-xs text-slate-400 hover:text-white hover:bg-slate-700 rounded transition-colors"
+              title="Cancel reset"
+            >
+              Cancel
+            </button>
+          </>
+        ) : (
+          <button
+            onClick={() => setConfirmReset(true)}
+            className="flex items-center gap-1.5 px-2 py-1 text-xs text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors"
+            title="Reset all achievements"
+          >
+            <RotateCcw className="w-3 h-3" />
+            Reset
+          </button>
+        )}
       </div>
     </motion.div>
   );

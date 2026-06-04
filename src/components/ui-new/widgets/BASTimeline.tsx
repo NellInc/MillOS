@@ -345,7 +345,7 @@ const TimelineChart: React.FC<TimelineChartProps> = ({
         {eventPositions
           .filter((ep) => ep.x >= 0 && ep.x <= 100)
           .map((ep) => (
-            <g key={ep.event.id}>
+            <g key={ep.event.id} aria-hidden="true">
               <line
                 x1={ep.x}
                 y1="0"

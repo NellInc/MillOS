@@ -345,7 +345,7 @@ export const VCPStatusPanel: React.FC<VCPStatusPanelProps> = memo(
     if (compact) {
       return (
         <div
-          className={`bg-slate-900/90 backdrop-blur-sm rounded-lg border border-slate-700/50 p-3 ${className}`}
+          className={`bg-slate-900/90 backdrop-blur-md rounded-lg border border-slate-600/50 shadow-lg p-3 ${className}`}
         >
           <div className="flex items-center gap-2 mb-2">
             <Brain className="w-4 h-4 text-purple-400" />
@@ -378,8 +378,10 @@ export const VCPStatusPanel: React.FC<VCPStatusPanelProps> = memo(
     }
 
     return (
-      <div
-        className={`bg-slate-900/90 backdrop-blur-sm rounded-lg border border-slate-700/50 overflow-hidden ${className}`}
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className={`bg-slate-900/90 backdrop-blur-md rounded-lg border border-slate-600/50 shadow-lg overflow-hidden ${className}`}
       >
         {/* Header */}
         <div className="flex items-center gap-2 p-3 border-b border-slate-700/50">
@@ -499,7 +501,7 @@ export const VCPStatusPanel: React.FC<VCPStatusPanelProps> = memo(
             Last update: {new Date(vcpMessage?.generatedAt || Date.now()).toLocaleTimeString()}
           </span>
         </div>
-      </div>
+      </motion.div>
     );
   }
 );

@@ -128,10 +128,12 @@ export const StatusHUD: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-4 px-3 py-1.5" role="status" aria-live="polite">
-          {/* FPS */}
+          {/* FPS - excluded from the live region so the constantly-changing
+              value does not flood screen readers; aria-label keeps it readable on demand */}
           <div
             className="flex items-center gap-1.5 text-[10px] text-slate-400 font-mono"
             aria-label={`Frame rate: ${fps} FPS`}
+            aria-hidden="true"
           >
             <ActivityIcon size={12} aria-hidden="true" />
             <span>{fps} FPS</span>

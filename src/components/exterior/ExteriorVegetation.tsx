@@ -104,7 +104,6 @@ export const SimpleTreeInstances: React.FC<{
   trees: TreeInstanceData[];
 }> = React.memo(({ trees }) => {
   const count = trees.length;
-  if (count === 0) return null;
 
   const data = useMemo(
     () => trees.map((t) => ({ position: t.position, scale: t.scale ?? 1 })),
@@ -114,6 +113,8 @@ export const SimpleTreeInstances: React.FC<{
   const trunkRef = useInstances(count, data);
   const foliageLowerRef = useInstances(count, data);
   const foliageUpperRef = useInstances(count, data);
+
+  if (count === 0) return null;
 
   return (
     <group>
@@ -150,7 +151,6 @@ export const ParkBenchInstances: React.FC<{
   benches: BenchInstanceData[];
 }> = React.memo(({ benches }) => {
   const count = benches.length;
-  if (count === 0) return null;
 
   const data = useMemo(
     () => benches.map((b) => ({ position: b.position, rotation: b.rotation ?? 0 })),
@@ -161,6 +161,8 @@ export const ParkBenchInstances: React.FC<{
   const backrestRef = useInstances(count, data);
   const leftLegRef = useInstances(count, data);
   const rightLegRef = useInstances(count, data);
+
+  if (count === 0) return null;
 
   return (
     <group>

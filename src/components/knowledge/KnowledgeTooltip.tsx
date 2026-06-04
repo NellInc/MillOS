@@ -7,8 +7,65 @@
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Lightbulb, ChevronRight, X } from 'lucide-react';
-import { useKnowledgeStore } from '../../stores/knowledgeStore';
+import {
+  Lightbulb,
+  ChevronRight,
+  X,
+  Handshake,
+  HeartHandshake,
+  Vote,
+  Flower2,
+  Sparkles,
+  User,
+  Settings,
+  Sliders,
+  BarChart3,
+  RefreshCw,
+  Network,
+  Heart,
+  Factory,
+  BookOpen,
+  Scale,
+  Brain,
+  Gamepad2,
+  Sprout,
+  Users,
+  Library,
+  LucideIcon,
+} from 'lucide-react';
+import { KnowledgeIcon, useKnowledgeStore } from '../../stores/knowledgeStore';
+
+// Icon mapping from KnowledgeIcon to Lucide component
+const ICON_MAP: Record<KnowledgeIcon, LucideIcon> = {
+  handshake: Handshake,
+  'heart-handshake': HeartHandshake,
+  vote: Vote,
+  'flower-2': Flower2,
+  sparkles: Sparkles,
+  user: User,
+  settings: Settings,
+  sliders: Sliders,
+  'chart-bar': BarChart3,
+  'refresh-cw': RefreshCw,
+  network: Network,
+  heart: Heart,
+  factory: Factory,
+  'book-open': BookOpen,
+  scale: Scale,
+  brain: Brain,
+  'gamepad-2': Gamepad2,
+  sprout: Sprout,
+  users: Users,
+  cog: Settings,
+  library: Library,
+};
+
+// Render a Lucide icon from its identifier
+function KnowledgeIconComponent({ icon, className }: { icon: KnowledgeIcon; className?: string }) {
+  const IconComponent = ICON_MAP[icon];
+  if (!IconComponent) return null;
+  return <IconComponent className={className} />;
+}
 
 interface KnowledgeTooltipProps {
   entryId: string;
@@ -45,8 +102,14 @@ export function KnowledgeTooltip({
   return (
     <div
       className="relative inline-block"
+      tabIndex={0}
       onMouseEnter={() => setIsVisible(true)}
       onMouseLeave={() => setIsVisible(false)}
+      onFocus={() => setIsVisible(true)}
+      onBlur={() => setIsVisible(false)}
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') setIsVisible(false);
+      }}
     >
       {children}
       <AnimatePresence>
@@ -109,8 +172,17 @@ export function KnowledgeHint({ entryId, onOpenLibrary }: KnowledgeHintProps) {
       className="relative inline-block ml-1"
       onMouseEnter={() => setIsVisible(true)}
       onMouseLeave={() => setIsVisible(false)}
+      onFocus={() => setIsVisible(true)}
+      onBlur={() => setIsVisible(false)}
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') setIsVisible(false);
+      }}
     >
-      <button className="w-4 h-4 rounded-full bg-slate-700 text-slate-400 text-xs hover:bg-slate-600 hover:text-slate-300 transition-colors">
+      <button
+        type="button"
+        aria-label={`Learn more about ${entry.title}`}
+        className="w-4 h-4 rounded-full bg-slate-700 text-slate-400 text-xs hover:bg-slate-600 hover:text-slate-300 transition-colors"
+      >
         ?
       </button>
       <AnimatePresence>
@@ -124,7 +196,7 @@ export function KnowledgeHint({ entryId, onOpenLibrary }: KnowledgeHintProps) {
           >
             <div className="bg-slate-800 rounded-lg border border-slate-600 shadow-xl p-3">
               <div className="flex items-center gap-2 mb-2">
-                <span>{entry.icon}</span>
+                <KnowledgeIconComponent icon={entry.icon} className="w-4 h-4 text-amber-400" />
                 <span className="text-sm font-medium text-white">{entry.title}</span>
               </div>
               <p className="text-xs text-slate-400 mb-2">{entry.tooltip}</p>

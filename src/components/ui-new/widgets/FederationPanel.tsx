@@ -43,15 +43,54 @@ import { ConceptTooltip } from './ConceptTooltip';
 // CONSTANTS
 // ============================================================================
 
+// Full static Tailwind classes (no string interpolation) so the JIT compiler
+// always generates them and this file does not depend on the same literals
+// happening to exist in other scanned files.
 const LEARNING_TYPE_CONFIG: Record<
   LearningType,
-  { label: string; color: string; icon: React.ComponentType<{ className?: string }> }
+  {
+    label: string;
+    iconBg: string;
+    iconText: string;
+    badge: string;
+    icon: React.ComponentType<{ className?: string }>;
+  }
 > = {
-  'bas-config': { label: 'BAMS Config', color: 'cyan', icon: RefreshCw },
-  process: { label: 'Process', color: 'blue', icon: TrendingUp },
-  'ai-improvement': { label: 'AI Improvement', color: 'violet', icon: Lightbulb },
-  'crisis-response': { label: 'Crisis Response', color: 'orange', icon: AlertCircle },
-  flourishing: { label: 'Flourishing', color: 'green', icon: Star },
+  'bas-config': {
+    label: 'BAMS Config',
+    iconBg: 'bg-cyan-500/20',
+    iconText: 'text-cyan-400',
+    badge: 'bg-cyan-500/20 text-cyan-300',
+    icon: RefreshCw,
+  },
+  process: {
+    label: 'Process',
+    iconBg: 'bg-blue-500/20',
+    iconText: 'text-blue-400',
+    badge: 'bg-blue-500/20 text-blue-300',
+    icon: TrendingUp,
+  },
+  'ai-improvement': {
+    label: 'AI Improvement',
+    iconBg: 'bg-violet-500/20',
+    iconText: 'text-violet-400',
+    badge: 'bg-violet-500/20 text-violet-300',
+    icon: Lightbulb,
+  },
+  'crisis-response': {
+    label: 'Crisis Response',
+    iconBg: 'bg-orange-500/20',
+    iconText: 'text-orange-400',
+    badge: 'bg-orange-500/20 text-orange-300',
+    icon: AlertCircle,
+  },
+  flourishing: {
+    label: 'Flourishing',
+    iconBg: 'bg-green-500/20',
+    iconText: 'text-green-400',
+    badge: 'bg-green-500/20 text-green-300',
+    icon: Star,
+  },
 };
 
 // ============================================================================
@@ -71,14 +110,14 @@ const LearningCard: React.FC<LearningCardProps> = ({ learning, onAdopt, onReject
   return (
     <div className="bg-slate-800/50 rounded-lg p-2.5 border border-slate-700/50">
       <div className="flex items-start gap-2">
-        <div className={`p-1.5 rounded bg-${config.color}-500/20 flex-shrink-0`}>
-          <Icon className={`w-3 h-3 text-${config.color}-400`} />
+        <div className={`p-1.5 rounded ${config.iconBg} flex-shrink-0`}>
+          <Icon className={`w-3 h-3 ${config.iconText}`} />
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 mb-0.5">
             <span className="text-[10px] font-medium text-white truncate">{learning.title}</span>
             <span
-              className={`text-[8px] px-1 py-0.5 rounded bg-${config.color}-500/20 text-${config.color}-300 flex-shrink-0`}
+              className={`text-[8px] px-1 py-0.5 rounded ${config.badge} flex-shrink-0`}
             >
               {config.label}
             </span>

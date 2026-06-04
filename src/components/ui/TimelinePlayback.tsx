@@ -130,29 +130,36 @@ export const TimelinePlayback: React.FC<TimelinePlaybackProps> = ({ className = 
           </button>
         </div>
 
-        {/* Current Time Display */}
-        <div className="text-center mb-3">
-          <div className="text-2xl font-mono text-white">
-            {playbackTime ? formatTime(playbackTime) : '--:--:--'}
+        {/* Empty state: replay entered but no telemetry recorded yet */}
+        {!availableRange ? (
+          <div className="text-center py-6 px-2 text-sm text-slate-400">
+            No history recorded yet &mdash; run the simulation to capture timeline data.
           </div>
-          {playbackTime && availableRange && (
-            <div className="text-xs text-slate-400">
-              {formatDuration(Date.now() - playbackTime)}
+        ) : (
+          <>
+            {/* Current Time Display */}
+            <div className="text-center mb-3">
+              <div className="text-2xl font-mono text-white">
+                {playbackTime ? formatTime(playbackTime) : '--:--:--'}
+              </div>
+              {playbackTime && availableRange && (
+                <div className="text-xs text-slate-400">
+                  {formatDuration(Date.now() - playbackTime)}
+                </div>
+              )}
             </div>
-          )}
-        </div>
 
-        {/* Timeline Slider */}
-        {availableRange && (
-          <div className="mb-3">
-            <input
-              type="range"
-              aria-label="Playback timeline"
-              min={availableRange.start}
-              max={availableRange.end}
-              value={playbackTime ?? availableRange.end}
-              onChange={handleSliderChange}
-              className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer
+            {/* Timeline Slider */}
+            {availableRange && (
+              <div className="mb-3">
+                <input
+                  type="range"
+                  aria-label="Playback timeline"
+                  min={availableRange.start}
+                  max={availableRange.end}
+                  value={playbackTime ?? availableRange.end}
+                  onChange={handleSliderChange}
+                  className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer
                 [&::-webkit-slider-thumb]:appearance-none
                 [&::-webkit-slider-thumb]:w-4
                 [&::-webkit-slider-thumb]:h-4
@@ -160,92 +167,94 @@ export const TimelinePlayback: React.FC<TimelinePlaybackProps> = ({ className = 
                 [&::-webkit-slider-thumb]:bg-cyan-500
                 [&::-webkit-slider-thumb]:shadow-lg
                 [&::-webkit-slider-thumb]:cursor-pointer"
-            />
-            <div className="flex justify-between text-[10px] text-slate-400 mt-1">
-              <span>{formatTime(availableRange.start)}</span>
-              <span>{formatTime(availableRange.end)}</span>
-            </div>
-          </div>
-        )}
-
-        {/* Playback Controls */}
-        <div className="flex items-center justify-center gap-3 mb-3">
-          <button
-            onClick={jumpToStart}
-            className="p-2 hover:bg-slate-700/50 rounded-lg transition-colors"
-            aria-label="Jump to start"
-            title="Jump to start"
-          >
-            <SkipBack className="w-5 h-5 text-slate-300" aria-hidden="true" />
-          </button>
-          <button
-            onClick={() => setIsPlaying(!isPlaying)}
-            aria-label={isPlaying ? 'Pause playback' : 'Play playback'}
-            aria-pressed={isPlaying}
-            className="p-2 hover:bg-slate-700/50 rounded-lg transition-colors"
-          >
-            {isPlaying ? (
-              <PauseCircle className="w-8 h-8 text-cyan-400" aria-hidden="true" />
-            ) : (
-              <PlayCircle className="w-8 h-8 text-cyan-400" aria-hidden="true" />
-            )}
-          </button>
-          <select
-            value={playbackSpeed}
-            onChange={(e) => setPlaybackSpeed(Number(e.target.value))}
-            aria-label="Playback speed"
-            className="bg-slate-700 text-slate-200 text-xs rounded px-2 py-1 border border-slate-600"
-          >
-            <option value={1}>1x</option>
-            <option value={2}>2x</option>
-            <option value={5}>5x</option>
-            <option value={10}>10x</option>
-          </select>
-        </div>
-
-        {/* Decision Markers */}
-        {nearbyDecisions.length > 0 && (
-          <div className="border-t border-slate-700/50 pt-3">
-            <div className="flex items-center gap-1.5 mb-2">
-              <Brain className="w-3 h-3 text-purple-400" />
-              <span className="text-[10px] text-purple-300 uppercase tracking-wider">
-                AI Decisions ({nearbyDecisions.length})
-              </span>
-            </div>
-            <div className="space-y-1.5 max-h-24 overflow-y-auto">
-              {nearbyDecisions.slice(0, 3).map((d) => (
-                <div
-                  key={d.id}
-                  className="flex items-start gap-2 text-xs bg-slate-800/50 rounded px-2 py-1.5"
-                >
-                  <Activity className="w-3 h-3 text-cyan-400 mt-0.5 flex-shrink-0" />
-                  <div className="min-w-0">
-                    <div className="text-slate-200 truncate">{d.action}</div>
-                    <div className="text-[10px] text-slate-500">
-                      {formatTime(d.timestamp)} · {d.type}
-                    </div>
-                  </div>
+                />
+                <div className="flex justify-between text-[10px] text-slate-400 mt-1">
+                  <span>{formatTime(availableRange.start)}</span>
+                  <span>{formatTime(availableRange.end)}</span>
                 </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Stats */}
-        <div className="flex items-center justify-center gap-4 mt-3 pt-3 border-t border-slate-700/50">
-          <div className="text-center">
-            <div className="text-lg font-mono text-cyan-400">{decisionHistory.length}</div>
-            <div className="text-[9px] text-slate-400 uppercase">Decisions</div>
-          </div>
-          {availableRange && (
-            <div className="text-center">
-              <div className="text-lg font-mono text-cyan-400">
-                {Math.round((availableRange.end - availableRange.start) / 3600000)}h
               </div>
-              <div className="text-[9px] text-slate-400 uppercase">History</div>
+            )}
+
+            {/* Playback Controls */}
+            <div className="flex items-center justify-center gap-3 mb-3">
+              <button
+                onClick={jumpToStart}
+                className="p-2 hover:bg-slate-700/50 rounded-lg transition-colors"
+                aria-label="Jump to start"
+                title="Jump to start"
+              >
+                <SkipBack className="w-5 h-5 text-slate-300" aria-hidden="true" />
+              </button>
+              <button
+                onClick={() => setIsPlaying(!isPlaying)}
+                aria-label={isPlaying ? 'Pause playback' : 'Play playback'}
+                aria-pressed={isPlaying}
+                className="p-2 hover:bg-slate-700/50 rounded-lg transition-colors"
+              >
+                {isPlaying ? (
+                  <PauseCircle className="w-8 h-8 text-cyan-400" aria-hidden="true" />
+                ) : (
+                  <PlayCircle className="w-8 h-8 text-cyan-400" aria-hidden="true" />
+                )}
+              </button>
+              <select
+                value={playbackSpeed}
+                onChange={(e) => setPlaybackSpeed(Number(e.target.value))}
+                aria-label="Playback speed"
+                className="bg-slate-700 text-slate-200 text-xs rounded px-2 py-1 border border-slate-600"
+              >
+                <option value={1}>1x</option>
+                <option value={2}>2x</option>
+                <option value={5}>5x</option>
+                <option value={10}>10x</option>
+              </select>
             </div>
-          )}
-        </div>
+
+            {/* Decision Markers */}
+            {nearbyDecisions.length > 0 && (
+              <div className="border-t border-slate-700/50 pt-3">
+                <div className="flex items-center gap-1.5 mb-2">
+                  <Brain className="w-3 h-3 text-purple-400" />
+                  <span className="text-[10px] text-purple-300 uppercase tracking-wider">
+                    AI Decisions ({nearbyDecisions.length})
+                  </span>
+                </div>
+                <div className="space-y-1.5 max-h-24 overflow-y-auto">
+                  {nearbyDecisions.slice(0, 3).map((d) => (
+                    <div
+                      key={d.id}
+                      className="flex items-start gap-2 text-xs bg-slate-800/50 rounded px-2 py-1.5"
+                    >
+                      <Activity className="w-3 h-3 text-cyan-400 mt-0.5 flex-shrink-0" />
+                      <div className="min-w-0">
+                        <div className="text-slate-200 truncate">{d.action}</div>
+                        <div className="text-[10px] text-slate-500">
+                          {formatTime(d.timestamp)} · {d.type}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Stats */}
+            <div className="flex items-center justify-center gap-4 mt-3 pt-3 border-t border-slate-700/50">
+              <div className="text-center">
+                <div className="text-lg font-mono text-cyan-400">{decisionHistory.length}</div>
+                <div className="text-[9px] text-slate-400 uppercase">Decisions</div>
+              </div>
+              {availableRange && (
+                <div className="text-center">
+                  <div className="text-lg font-mono text-cyan-400">
+                    {Math.round((availableRange.end - availableRange.start) / 3600000)}h
+                  </div>
+                  <div className="text-[9px] text-slate-400 uppercase">History</div>
+                </div>
+              )}
+            </div>
+          </>
+        )}
       </motion.div>
     </AnimatePresence>
   );

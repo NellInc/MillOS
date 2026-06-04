@@ -5,7 +5,7 @@
  * Uses showProductionTarget toggle from aiConfigStore (default OFF).
  */
 
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useAIConfigStore } from '../stores/aiConfigStore';
 import { useProductionStore } from '../stores/productionStore';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
@@ -58,6 +58,31 @@ export const ProductionTargetWidget: React.FC = () => {
     };
   }, [metrics.throughput, totalBagsProduced, gameTime]);
 
+  // Keep the draggable widget within the viewport so it can never be dragged
+  // off-screen (its only re-show path is a hidden keyboard shortcut). The widget
+  // rests at bottom-4 right-4 and is w-72 (288px) wide; dragConstraints values
+  // are pixel offsets allowed from that rest position. Height is conservatively
+  // over-estimated so it can't quite reach the top edge (safe direction).
+  const WIDGET_WIDTH = 288; // w-72
+  const WIDGET_HEIGHT_ESTIMATE = 280; // conservative over-estimate
+  const REST_INSET = 16; // bottom-4 / right-4
+  const computeConstraints = () => {
+    const vw = typeof window !== 'undefined' ? window.innerWidth : WIDGET_WIDTH;
+    const vh = typeof window !== 'undefined' ? window.innerHeight : WIDGET_HEIGHT_ESTIMATE;
+    return {
+      right: REST_INSET,
+      bottom: REST_INSET,
+      left: -Math.max(0, vw - WIDGET_WIDTH - REST_INSET),
+      top: -Math.max(0, vh - REST_INSET - WIDGET_HEIGHT_ESTIMATE),
+    };
+  };
+  const [dragConstraints, setDragConstraints] = useState(computeConstraints);
+  useEffect(() => {
+    const handleResize = () => setDragConstraints(computeConstraints());
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   if (!showProductionTarget) return null;
 
   const statusColors = {
@@ -101,6 +126,7 @@ export const ProductionTargetWidget: React.FC = () => {
         drag
         dragMomentum={false}
         dragElastic={0.1}
+        dragConstraints={dragConstraints}
         className={`fixed bottom-4 right-4 w-72 ${colors.bg} ${colors.border} border rounded-lg p-4 backdrop-blur-sm z-50`}
       >
         {/* Header - Drag Handle */}

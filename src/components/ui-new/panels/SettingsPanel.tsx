@@ -450,7 +450,16 @@ export const SettingsPanel: React.FC<{
         </h3>
         <div className="bg-slate-800/50 p-3 rounded-xl border border-white/5 space-y-2">
           <button
-            onClick={clearPersistedState}
+            onClick={() => {
+              if (
+                !window.confirm(
+                  'Reset the simulation back to 10am? Current progress will be lost.'
+                )
+              ) {
+                return;
+              }
+              clearPersistedState();
+            }}
             className="w-full py-2 rounded-lg text-xs font-medium bg-amber-900/30 text-amber-400 hover:bg-amber-900/50 flex items-center justify-center gap-2 transition-colors"
           >
             Reset to 10am

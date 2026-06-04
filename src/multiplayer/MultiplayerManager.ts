@@ -19,6 +19,7 @@ import {
   MachineIntent,
   PLAYER_COLORS,
   PlayerColor,
+  RemotePlayer,
 } from './types';
 import { useMultiplayerStore } from '../stores/multiplayerStore';
 import { handleHostDisconnect } from './HostMigration';
@@ -293,9 +294,35 @@ export class MultiplayerManager {
     const store = useMultiplayerStore.getState();
 
     switch (message.type) {
-      case 'PLAYER_UPDATE':
-        store.updateRemotePlayer(message.payload.id, message.payload);
+      case 'PLAYER_UPDATE': {
+        // PLAYER_UPDATE arrives 20Hz from an untrusted peer and is spread over the
+        // existing player by the store. Validate-or-omit each field so a malicious
+        // peer can't push NaN/Infinity coords (which crash PlayerInterpolation's
+        // new THREE.Vector3(...) / RemotePlayerAvatar geometry) or clobber a good
+        // name/identity. Omitted fields preserve the last-good value via the store's
+        // partial spread. Identity (color) is fixed at PLAYER_JOIN, so it is ignored
+        // here; id stays the lookup key; lastUpdate is set by the store.
+        const p = message.payload;
+        const update: Partial<RemotePlayer> = {};
+
+        const cleanName = sanitizePlayerName(p.name);
+        if (cleanName) update.name = cleanName;
+
+        const isFiniteTriple = (v: unknown): v is [number, number, number] =>
+          Array.isArray(v) && v.length === 3 && v.every((n) => Number.isFinite(n));
+        if (isFiniteTriple(p.position)) update.position = p.position;
+        if (isFiniteTriple(p.velocity)) update.velocity = p.velocity;
+
+        if (Number.isFinite(p.rotation)) update.rotation = p.rotation;
+
+        if (typeof p.selectedMachineId === 'string' || p.selectedMachineId === null) {
+          update.selectedMachineId = p.selectedMachineId;
+        }
+        if (typeof p.isInFpsMode === 'boolean') update.isInFpsMode = p.isInFpsMode;
+
+        store.updateRemotePlayer(p.id, update);
         break;
+      }
 
       case 'PLAYER_JOIN': {
         // Validate the peer-supplied color against the allow-list before it

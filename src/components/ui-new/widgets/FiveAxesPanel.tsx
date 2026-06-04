@@ -56,6 +56,17 @@ const AXIS_COLORS: Record<AxisKey, string> = {
   collectiveOrientation: 'green',
 };
 
+// Static, fully-spelled Tailwind class strings for the slider track gradient + accent.
+// Interpolated names like `via-${color}-500/30` are never emitted by Tailwind's JIT
+// (the literal must appear in source), so these are precomputed per axis color.
+const AXIS_SLIDER_TRACK_CLASSES: Record<AxisKey, string> = {
+  autonomyLevel: 'from-slate-700 via-cyan-500/30 to-cyan-500 accent-cyan-500',
+  decisionMode: 'from-slate-700 via-violet-500/30 to-violet-500 accent-violet-500',
+  informationAccess: 'from-slate-700 via-amber-500/30 to-amber-500 accent-amber-500',
+  evaluationDirection: 'from-slate-700 via-pink-500/30 to-pink-500 accent-pink-500',
+  collectiveOrientation: 'from-slate-700 via-green-500/30 to-green-500 accent-green-500',
+};
+
 // =============================================================================
 // AXIS SLIDER COMPONENT
 // =============================================================================
@@ -125,8 +136,7 @@ const AxisSlider: React.FC<AxisSliderProps> = memo(
             aria-valuetext={`${value} percent, ${modeLabel}`}
             aria-describedby={`${axisKey}-description`}
             className={`w-full h-1.5 rounded-lg appearance-none cursor-pointer
-            bg-gradient-to-r from-slate-700 via-${color}-500/30 to-${color}-500
-            accent-${color}-500
+            bg-gradient-to-r ${AXIS_SLIDER_TRACK_CLASSES[axisKey]}
             ${lockedByVote ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-90'}
           `}
             style={{

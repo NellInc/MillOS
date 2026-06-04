@@ -50,13 +50,13 @@ function getQualityIcon(
 
   switch (quality) {
     case 'excellent':
-      return <SignalHigh className={className} />;
-    case 'good':
-      return <SignalMedium className={className} />;
-    case 'fair':
-      return <SignalLow className={className} />;
-    case 'poor':
       return <Signal className={className} />;
+    case 'good':
+      return <SignalHigh className={className} />;
+    case 'fair':
+      return <SignalMedium className={className} />;
+    case 'poor':
+      return <SignalLow className={className} />;
   }
 }
 

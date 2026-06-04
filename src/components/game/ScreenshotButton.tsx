@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Image, Download } from 'lucide-react';
 import { useProductionStore } from '../../stores/productionStore';
 import { useSafetyStore } from '../../stores/safetyStore';
+import { useUIStore } from '../../stores/uiStore';
 
 export const ScreenshotButton: React.FC = () => {
   const [isExporting, setIsExporting] = useState(false);
@@ -13,6 +14,14 @@ export const ScreenshotButton: React.FC = () => {
       // Find the canvas element
       const canvas = document.querySelector('canvas');
       if (!canvas) {
+        useUIStore.getState().addAlert({
+          id: `screenshot-fail-${Date.now()}`,
+          type: 'warning',
+          title: 'Screenshot Failed',
+          message: 'Rendering surface unavailable. Try again in a moment.',
+          timestamp: new Date(),
+          acknowledged: false,
+        });
         return;
       }
 
@@ -21,8 +30,16 @@ export const ScreenshotButton: React.FC = () => {
       link.download = `millos-screenshot-${new Date().toISOString().split('T')[0]}.png`;
       link.href = canvas.toDataURL('image/png');
       link.click();
-    } catch {
-      // Screenshot failed silently
+    } catch (error) {
+      console.warn('Screenshot capture failed:', error);
+      useUIStore.getState().addAlert({
+        id: `screenshot-fail-${Date.now()}`,
+        type: 'warning',
+        title: 'Screenshot Failed',
+        message: 'Could not capture the scene. Try again in a moment.',
+        timestamp: new Date(),
+        acknowledged: false,
+      });
     } finally {
       setIsExporting(false);
     }

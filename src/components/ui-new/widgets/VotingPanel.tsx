@@ -204,8 +204,18 @@ const VoteCard: React.FC<VoteCardProps> = ({
     >
       {/* Header */}
       <div
+        role="button"
+        tabIndex={0}
+        aria-expanded={expanded}
+        aria-controls={`vote-card-content-${vote.id}`}
         className="p-2 cursor-pointer hover:bg-slate-700/30 transition-colors"
         onClick={() => setExpanded(!expanded)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setExpanded(!expanded);
+          }
+        }}
       >
         <div className="flex items-start gap-2">
           {/* Type icon */}
@@ -247,6 +257,7 @@ const VoteCard: React.FC<VoteCardProps> = ({
       <AnimatePresence>
         {expanded && (
           <motion.div
+            id={`vote-card-content-${vote.id}`}
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
@@ -275,6 +286,7 @@ const VoteCard: React.FC<VoteCardProps> = ({
                   const percentage =
                     totalVotes > 0 ? Math.round((option.votes.length / totalVotes) * 100) : 0;
                   const isSelected = option.id === votedOption?.id;
+                  const isSelectable = vote.status === 'open' && !isSelected;
                   const colors = [
                     'border-green-500 bg-green-500/10',
                     'border-amber-500 bg-amber-500/10',
@@ -285,20 +297,29 @@ const VoteCard: React.FC<VoteCardProps> = ({
                   return (
                     <div
                       key={option.id}
+                      role={isSelectable ? 'button' : undefined}
+                      tabIndex={isSelectable ? 0 : undefined}
+                      aria-label={isSelectable ? `Vote for ${option.label}` : undefined}
                       className={`rounded border p-1.5 ${
                         isSelected
                           ? colors[idx % colors.length]
                           : 'border-slate-600/50 bg-slate-700/30'
-                      } ${
-                        vote.status === 'open' && !isSelected
-                          ? 'cursor-pointer hover:bg-slate-700/50'
-                          : ''
-                      }`}
+                      } ${isSelectable ? 'cursor-pointer hover:bg-slate-700/50' : ''}`}
                       onClick={() => {
-                        if (vote.status === 'open' && !isSelected) {
+                        if (isSelectable) {
                           onCastVote(vote.id, option.id);
                         }
                       }}
+                      onKeyDown={
+                        isSelectable
+                          ? (e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                onCastVote(vote.id, option.id);
+                              }
+                            }
+                          : undefined
+                      }
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
@@ -484,8 +505,18 @@ export const VotingPanel: React.FC<VotingPanelProps> = ({ defaultExpanded = true
     <div className="bg-slate-800/50 rounded-lg border border-slate-700/50 overflow-hidden">
       {/* Header */}
       <div
+        role="button"
+        tabIndex={0}
+        aria-expanded={expanded}
+        aria-controls="voting-panel-content"
         className="flex items-center justify-between p-2 cursor-pointer hover:bg-slate-700/30 transition-colors"
         onClick={() => setExpanded(!expanded)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setExpanded(!expanded);
+          }
+        }}
       >
         <div className="flex items-center gap-2">
           <VoteIcon className="w-4 h-4 text-green-400" />
@@ -510,6 +541,7 @@ export const VotingPanel: React.FC<VotingPanelProps> = ({ defaultExpanded = true
       <AnimatePresence>
         {expanded && (
           <motion.div
+            id="voting-panel-content"
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}

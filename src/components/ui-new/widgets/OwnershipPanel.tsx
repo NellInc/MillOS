@@ -204,12 +204,14 @@ interface InvestmentProposalCardProps {
   };
   onVote: (vote: 'approve' | 'reject' | 'abstain') => void;
   canVote: boolean;
+  userVote?: 'approve' | 'reject' | 'abstain' | null;
 }
 
 const InvestmentProposalCard: React.FC<InvestmentProposalCardProps> = ({
   proposal,
   onVote,
   canVote,
+  userVote = null,
 }) => {
   const approvals = proposal.votes.filter((v) => v.vote === 'approve').length;
   const rejections = proposal.votes.filter((v) => v.vote === 'reject').length;
@@ -290,6 +292,30 @@ const InvestmentProposalCard: React.FC<InvestmentProposalCardProps> = ({
             <X className="w-3 h-3" />
             Reject
           </button>
+        </div>
+      )}
+
+      {/* Cast-vote confirmation chip */}
+      {!canVote && userVote && (
+        <div className="pt-1">
+          <div
+            className={`flex items-center justify-center gap-1 px-2 py-1 rounded text-[9px] ${
+              userVote === 'approve'
+                ? 'bg-green-500/10 text-green-400'
+                : userVote === 'reject'
+                  ? 'bg-red-500/10 text-red-400'
+                  : 'bg-slate-700/40 text-slate-400'
+            }`}
+          >
+            {userVote === 'approve' ? (
+              <Check className="w-3 h-3" />
+            ) : userVote === 'reject' ? (
+              <X className="w-3 h-3" />
+            ) : (
+              <Clock className="w-3 h-3" />
+            )}
+            You voted: {userVote.charAt(0).toUpperCase() + userVote.slice(1)}
+          </div>
         </div>
       )}
     </div>
@@ -615,6 +641,9 @@ export const OwnershipPanel: React.FC = () => {
                       proposal={proposal}
                       onVote={(vote) => voteOnInvestment(proposal.id, localPlayerId, vote)}
                       canVote={!proposal.votes.some((v) => v.workerId === localPlayerId)}
+                      userVote={
+                        proposal.votes.find((v) => v.workerId === localPlayerId)?.vote ?? null
+                      }
                     />
                   ))
                 )}
