@@ -81,7 +81,9 @@ export const preloadGenerativeTextures = (): Promise<void> => {
       }
 
       const elapsed = performance.now() - startTime;
-      logger.info(`[Textures] Generated ${totalTasks} procedural textures in ${elapsed.toFixed(1)}ms`);
+      logger.info(
+        `[Textures] Generated ${totalTasks} procedural textures in ${elapsed.toFixed(1)}ms`
+      );
       resolve();
     };
 

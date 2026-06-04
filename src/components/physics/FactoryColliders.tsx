@@ -7,7 +7,11 @@
 
 import { RigidBody, CuboidCollider } from '@react-three/rapier';
 import { useMemo } from 'react';
-import { COLLISION_FILTERS, createCollisionGroups, WORLD_RADIUS } from '../../physics/PhysicsConfig';
+import {
+  COLLISION_FILTERS,
+  createCollisionGroups,
+  WORLD_RADIUS,
+} from '../../physics/PhysicsConfig';
 import { FACTORY_ZONE_Z } from '../../constants/factoryLayout';
 
 // Circular world boundary - matches mountains at radius 260 (WORLD_RADIUS from PhysicsConfig)

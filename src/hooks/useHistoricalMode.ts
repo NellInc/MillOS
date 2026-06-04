@@ -115,12 +115,9 @@ export function useHistoricalMode(): UseHistoricalModeReturn {
   );
 
   // Get decisions near a timestamp
-  const getDecisionsAt = useCallback(
-    (timestamp: number): DecisionHistoryEntry[] => {
-      return useHistoricalPlaybackStore.getState().getDecisionsAt(timestamp, 60000); // 1 min window
-    },
-    []
-  );
+  const getDecisionsAt = useCallback((timestamp: number): DecisionHistoryEntry[] => {
+    return useHistoricalPlaybackStore.getState().getDecisionsAt(timestamp, 60000); // 1 min window
+  }, []);
 
   // Load bulk history for charts
   const loadTagHistory = useCallback(

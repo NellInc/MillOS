@@ -160,7 +160,8 @@ export const PAAnnouncementSystem: React.FC = () => {
     (currentAnnouncement.type === 'emergency' || currentAnnouncement.priority >= 4);
 
   // Whether an announcement should currently be surfaced (visually + to SR).
-  const isShowing = !!currentAnnouncement && !isStartupSuppressed && !isMuted && !audioManager.muted;
+  const isShowing =
+    !!currentAnnouncement && !isStartupSuppressed && !isMuted && !audioManager.muted;
 
   // Persistent screen-reader live region. Always mounted (even when no visible
   // announcement) so insertions are announced; visually hidden via sr-only.
@@ -209,9 +210,7 @@ export const PAAnnouncementSystem: React.FC = () => {
               <Volume2 className="w-3.5 h-3.5 text-cyan-400 flex-shrink-0" aria-hidden="true" />
               <div className="flex-1 min-w-0 overflow-hidden" aria-hidden="true">
                 {prefersReducedMotion ? (
-                  <p className="text-xs text-slate-200 truncate">
-                    {currentAnnouncement.message}
-                  </p>
+                  <p className="text-xs text-slate-200 truncate">{currentAnnouncement.message}</p>
                 ) : (
                   <motion.p
                     initial={{ x: '100%' }}

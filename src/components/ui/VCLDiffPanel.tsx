@@ -66,9 +66,7 @@ export const VCLDiffPanel: React.FC = () => {
   const handleCopy = async () => {
     if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
     try {
-      await navigator.clipboard.writeText(
-        `Previous:\n${previousVCL}\n\nCurrent:\n${currentVCL}`
-      );
+      await navigator.clipboard.writeText(`Previous:\n${previousVCL}\n\nCurrent:\n${currentVCL}`);
       setCopyFailed(false);
       setCopied(true);
       copyTimerRef.current = setTimeout(() => setCopied(false), 2000);

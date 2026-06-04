@@ -91,7 +91,10 @@ export const TimeClockStation: React.FC<{
   });
 
   // Stabilize time-card visibility so cards do not pop in/out on re-render
-  const cardVisible = useMemo(() => [-0.1, -0.05, 0, 0.05, 0.1].map(() => Math.random() > 0.3), [position]);
+  const cardVisible = useMemo(
+    () => [-0.1, -0.05, 0, 0.05, 0.1].map(() => Math.random() > 0.3),
+    [position]
+  );
 
   return (
     <group position={position} rotation={rotation}>

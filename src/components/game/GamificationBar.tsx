@@ -104,9 +104,7 @@ export const GamificationBar: React.FC = () => {
               }
             }}
             className={`w-10 h-10 rounded-lg flex items-center justify-center transition-colors ${
-              isReplaying
-                ? 'bg-red-600 text-white'
-                : 'bg-slate-800 text-red-400 hover:bg-slate-700'
+              isReplaying ? 'bg-red-600 text-white' : 'bg-slate-800 text-red-400 hover:bg-slate-700'
             }`}
             title="Replay History"
           >

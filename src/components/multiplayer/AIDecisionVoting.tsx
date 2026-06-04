@@ -144,10 +144,7 @@ export const AIDecisionVotingCard: React.FC<AIDecisionVotingProps> = ({ decision
       {isActive && !votingComplete && (
         <div className="border-t border-slate-700/50 pt-3">
           <div className="flex items-center justify-between mb-2">
-            <span
-              className="text-xs text-slate-400 flex items-center gap-1"
-              aria-live="polite"
-            >
+            <span className="text-xs text-slate-400 flex items-center gap-1" aria-live="polite">
               <Users className="w-3 h-3" />
               {approveCount + rejectCount} / {totalPlayers} voted
             </span>

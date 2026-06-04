@@ -116,9 +116,7 @@ const LearningCard: React.FC<LearningCardProps> = ({ learning, onAdopt, onReject
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 mb-0.5">
             <span className="text-[10px] font-medium text-white truncate">{learning.title}</span>
-            <span
-              className={`text-[8px] px-1 py-0.5 rounded ${config.badge} flex-shrink-0`}
-            >
+            <span className={`text-[8px] px-1 py-0.5 rounded ${config.badge} flex-shrink-0`}>
               {config.label}
             </span>
           </div>

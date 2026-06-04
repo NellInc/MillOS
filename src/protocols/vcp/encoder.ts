@@ -391,7 +391,7 @@ export function encodeUniversalHeader(
     confidence?: number;
     preferenceSatisfied?: boolean;
     preferencePending?: boolean;
-  } = {},
+  } = {}
 ): string {
   const {
     subject = 'H', // Default: human worker context
@@ -402,27 +402,29 @@ export function encodeUniversalHeader(
   } = options;
 
   // Map MillOS flourishing score (0-100) to 1-9 scale
-  const scale = (v: number): number => Math.max(1, Math.min(9, Math.round(v / 100 * 8) + 1));
+  const scale = (v: number): number => Math.max(1, Math.min(9, Math.round((v / 100) * 8) + 1));
 
   // Activation: derived from engagement score
   const a = scale(state.engagement?.score ?? 50);
   // Valence: derived from flourishing score
   const v = scale(state.wellbeing?.flourishingScore ?? 50);
   // Groundedness: derived from stability (inverse of instability)
-  const stabScore = state.stability
-    ? Math.max(0, (1 - state.stability.product / 0.368) * 100)
-    : 50;
+  const stabScore = state.stability ? Math.max(0, (1 - state.stability.product / 0.368) * 100) : 50;
   const g = scale(stabScore);
   // Presence: derived from flow state
-  const flowScore = state.engagement?.flowState === 'flow' ? 85
-    : state.engagement?.flowState === 'partial' ? 55 : 25;
+  const flowScore =
+    state.engagement?.flowState === 'flow'
+      ? 85
+      : state.engagement?.flowState === 'partial'
+        ? 55
+        : 25;
   const p = scale(flowScore);
   // Agency: derived from governance autonomy axis
   const y = scale(state.governance?.axes?.autonomy ?? 50);
   // Freshness: inverse of shift fatigue (late shift = more fatigued)
   const f = scale(state.engagement?.score ?? 50);
 
-  const pref = preferenceSatisfied ? '\u2705' : (preferencePending ? '\u270B' : '\u274C');
+  const pref = preferenceSatisfied ? '\u2705' : preferencePending ? '\u270B' : '\u274C';
   const sourceCode = SOURCE_TO_UNIVERSAL[source] ?? 'I';
   const ts = new Date().toISOString().slice(0, 19);
 

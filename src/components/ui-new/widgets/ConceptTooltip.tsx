@@ -407,9 +407,7 @@ export const ConceptTooltip: React.FC<ConceptTooltipProps> = memo(
           aria-label={`Learn about ${concept.title}`}
         >
           {children || (
-            <Info
-              className={`w-3.5 h-3.5 ${categoryConfig.triggerIcon} transition-colors`}
-            />
+            <Info className={`w-3.5 h-3.5 ${categoryConfig.triggerIcon} transition-colors`} />
           )}
         </span>
 

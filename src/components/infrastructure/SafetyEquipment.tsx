@@ -590,10 +590,7 @@ const PerimeterFence: React.FC<{
           const z = -length / 2 + i * 0.5 + 0.25;
           return (
             <React.Fragment key={i}>
-              <Instance
-                position={[-0.2, height + 0.35, z]}
-                rotation={[rot.left, 0, Math.PI / 4]}
-              />
+              <Instance position={[-0.2, height + 0.35, z]} rotation={[rot.left, 0, Math.PI / 4]} />
               <Instance
                 position={[0.2, height + 0.35, z]}
                 rotation={[rot.right, 0, -Math.PI / 4]}

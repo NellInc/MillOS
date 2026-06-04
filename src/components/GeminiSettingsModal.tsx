@@ -277,7 +277,11 @@ const WebGPUModelPanel: React.FC = () => {
               className="w-full flex items-center justify-center gap-2 py-2 px-4 bg-emerald-600/20 border border-emerald-600/50 rounded-lg text-emerald-400 text-sm font-medium hover:bg-emerald-600/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               <Download className="w-4 h-4" aria-hidden="true" />
-              {webgpuError ? 'Try again' : cacheInfo.cached ? 'Load model' : 'Download & load model'}
+              {webgpuError
+                ? 'Try again'
+                : cacheInfo.cached
+                  ? 'Load model'
+                  : 'Download & load model'}
             </button>
           )}
 
@@ -314,10 +318,10 @@ const WebGPUModelPanel: React.FC = () => {
       )}
 
       <p className="text-[10px] text-slate-500 leading-relaxed">
-        The model ({DEFAULT_WEBGPU_MODEL_LABEL}, ~2.7GB) downloads automatically when you select this
-        backend, once, from the Hugging Face CDN, and is cached in your browser. After that all
-        inference runs on your GPU and your simulation data never leaves your device — no API key, no
-        cost. Use “Delete downloaded model” any time to remove it and free the space.
+        The model ({DEFAULT_WEBGPU_MODEL_LABEL}, ~2.7GB) downloads automatically when you select
+        this backend, once, from the Hugging Face CDN, and is cached in your browser. After that all
+        inference runs on your GPU and your simulation data never leaves your device — no API key,
+        no cost. Use “Delete downloaded model” any time to remove it and free the space.
       </p>
     </div>
   );
@@ -533,7 +537,10 @@ export function GeminiSettingsModal({ isOpen, onClose }: GeminiSettingsModalProp
             {/* Gemini API key flow */}
             {!isLocal && (
               <div className="space-y-2">
-                <label htmlFor="gemini-api-key" className="block text-sm font-medium text-slate-300">
+                <label
+                  htmlFor="gemini-api-key"
+                  className="block text-sm font-medium text-slate-300"
+                >
                   Google API Key
                 </label>
                 <div className="relative">
@@ -694,7 +701,9 @@ export function GeminiSettingsModal({ isOpen, onClose }: GeminiSettingsModalProp
                       the best of both worlds{isLocal ? '.' : ' at lower API cost.'}
                     </p>
                     <p className="text-xs text-slate-400 mt-2">
-                      <strong className="text-cyan-400">{isLocal ? 'Local Only' : 'Gemini Only'}</strong>{' '}
+                      <strong className="text-cyan-400">
+                        {isLocal ? 'Local Only' : 'Gemini Only'}
+                      </strong>{' '}
                       routes all decisions through the LLM, which may be slower
                       {isLocal ? ' and heavier on your GPU.' : ' and more expensive.'}
                     </p>

@@ -306,4 +306,3 @@ export function sanitizeNumber(input: unknown, options: SanitizeNumberOptions = 
 
   return num;
 }
-

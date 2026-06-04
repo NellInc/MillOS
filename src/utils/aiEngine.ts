@@ -3435,7 +3435,10 @@ export function getConfidenceAdjustmentForType(type: AIDecision['type']): number
  * the same { generateContent, isConnected } contract, so the strategic layer is
  * backend-agnostic.
  */
-function getActiveLLM(): { generateContent: (p: string) => Promise<string | null>; isConnected: () => boolean } {
+function getActiveLLM(): {
+  generateContent: (p: string) => Promise<string | null>;
+  isConnected: () => boolean;
+} {
   return useAIConfigStore.getState().llmBackend === 'webgpu' ? webgpuClient : geminiClient;
 }
 
@@ -3882,9 +3885,7 @@ function parseStrategicResponse(response: string): {
 
     // Enforce the declared string[] contract against malformed external (LLM) JSON.
     // Non-string priorities flow into legacyPriorities and would throw on p.toLowerCase().
-    const priorities = parsed.priorities
-      .filter((p: unknown) => typeof p === 'string')
-      .slice(0, 3); // Max 3 priorities
+    const priorities = parsed.priorities.filter((p: unknown) => typeof p === 'string').slice(0, 3); // Max 3 priorities
     if (priorities.length === 0) return null;
 
     return {

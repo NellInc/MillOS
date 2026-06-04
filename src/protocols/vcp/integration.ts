@@ -412,8 +412,7 @@ export function registerDecision(
   const lowerDim = expectedDimension.toLowerCase();
   let baselineValue = 0;
   if (lowerDim in state.wellbeing.dimensions) {
-    baselineValue =
-      state.wellbeing.dimensions[lowerDim as keyof typeof state.wellbeing.dimensions];
+    baselineValue = state.wellbeing.dimensions[lowerDim as keyof typeof state.wellbeing.dimensions];
   } else if (lowerDim === 'flourishing' || lowerDim === 'wellbeing') {
     baselineValue = state.wellbeing.flourishingScore;
   } else if (lowerDim === 'engagement') {

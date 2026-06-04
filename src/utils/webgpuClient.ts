@@ -7,13 +7,15 @@
  * the operator wants on-device inference with no API key and zero cost.
  *
  * Mirrors the CABAL workspace WebGPU brain (src/experts/webgpu-client.ts):
- * - Lazy dynamic import — @mlc-ai/web-llm is never evaluated until the operator
- *   explicitly loads the model (keeps the ~5MB runtime + WASM out of the main
- *   bundle and off the critical path).
+ * - The engine runs in a dedicated Web Worker (see webgpuWorker.ts) so the heavy
+ *   WASM / WebGPU work stays off the main thread (the 3D scene stays responsive)
+ *   and an in-flight download can be HARD-cancelled via worker.terminate().
+ * - Lazy: @mlc-ai/web-llm (and the worker chunk) are only fetched when the
+ *   operator opts into local inference — kept off the eager app bundle.
  * - Circuit breaker guards against cascading WebGPU / OOM failures.
- * - Qwen3 is a reasoning model: we append `/no_think` and strip any
- *   `<think>...</think>` block so the strategic JSON parser stays robust and the
- *   45s strategic cadence is not blown by a multi-second reasoning pass.
+ * - Qwen3 reasoning is disabled via enable_thinking:false; stripReasoning() is a
+ *   backstop so the strategic JSON parser stays robust and the 45s strategic
+ *   cadence is not blown by a multi-second reasoning pass.
  *
  * GPU NOTE: MillOS renders a heavy React Three Fiber scene every frame, so the
  * LLM shares the physical GPU with rendering. Qwen3-4B (~2.7GB VRAM) is the
@@ -21,7 +23,7 @@
  * up-front warning when the adapter's limits suggest the device may struggle.
  */
 
-import type { MLCEngine, InitProgressReport } from '@mlc-ai/web-llm';
+import type { WebWorkerMLCEngine, InitProgressReport } from '@mlc-ai/web-llm';
 import { logger } from './logger';
 
 // ============================================================================
@@ -164,10 +166,13 @@ export async function checkWebGPUAdapter(): Promise<WebGPUAdapterReport> {
 // ============================================================================
 
 class WebGPUClient {
-  private engine: MLCEngine | null = null;
+  private engine: WebWorkerMLCEngine | null = null;
+  private worker: Worker | null = null;
   private loadingPromise: Promise<boolean> | null = null;
   private modelId: string = DEFAULT_WEBGPU_MODEL_ID;
   private cancelled = false;
+  // Resolver for the in-flight load's cancellation race (see initEngine).
+  private cancelResolve: (() => void) | null = null;
   private circuitBreaker: CircuitBreakerState = {
     failures: 0,
     lastFailure: 0,
@@ -239,13 +244,27 @@ class WebGPUClient {
   }
 
   /**
-   * Request cancellation of an in-flight load. The download cannot be aborted
-   * mid-flight by web-llm, but once the engine resolves it is immediately
-   * unloaded so no GPU memory is retained. Safe to call any time.
+   * Hard-cancel an in-flight load. Terminating the worker kills its in-flight
+   * model fetches immediately (web-llm exposes no load-time AbortSignal on the
+   * main-thread API), and resolving the cancellation race lets the pending
+   * load() settle — otherwise the awaited CreateWebWorkerMLCEngine would hang
+   * forever, since the terminated worker never posts its result back. Safe any
+   * time; a subsequent load() spins a fresh worker.
    */
   cancelLoad(): void {
     this.cancelled = true;
-    logger.info('[WebGPU] Load cancellation requested');
+    this.teardownWorker();
+    this.cancelResolve?.();
+    logger.info('[WebGPU] Load cancelled; worker terminated');
+  }
+
+  /** Terminate the worker and drop the engine handle. Idempotent. */
+  private teardownWorker(): void {
+    if (this.worker) {
+      this.worker.terminate();
+      this.worker = null;
+    }
+    this.engine = null;
   }
 
   private async initEngine(
@@ -257,43 +276,58 @@ class WebGPUClient {
       return false;
     }
 
+    // Spin up the engine's worker. The static new URL() literal lets Vite bundle
+    // the worker (and web-llm's runtime) as its own lazy chunk.
+    const worker = new Worker(new URL('./webgpuWorker.ts', import.meta.url), {
+      type: 'module',
+    });
+    this.worker = worker;
+
+    // Cancellation race: cancelLoad() terminates the worker AND resolves this,
+    // so the load settles even though the dead worker never posts a result.
+    const cancelSignal = new Promise<'cancelled'>((resolve) => {
+      this.cancelResolve = () => resolve('cancelled');
+    });
+
     try {
-      // Dynamic import keeps @mlc-ai/web-llm (and its WASM) out of the main
-      // bundle; it is only fetched when the operator opts into local inference.
-      const { CreateMLCEngine } = await import('@mlc-ai/web-llm');
-      const engine = await CreateMLCEngine(modelId, {
+      // Dynamic import keeps the main-thread web-llm proxy off the eager bundle.
+      const { CreateWebWorkerMLCEngine } = await import('@mlc-ai/web-llm');
+      const enginePromise = CreateWebWorkerMLCEngine(worker, modelId, {
         initProgressCallback: (report: InitProgressReport) => {
-          onProgress?.({ text: report.text, progress: report.progress });
+          if (!this.cancelled) {
+            onProgress?.({ text: report.text, progress: report.progress });
+          }
         },
       });
+      // Swallow a late rejection if we cancel mid-handshake (the worker dies, so
+      // this promise may reject after the race has already resolved).
+      enginePromise.catch(() => undefined);
 
-      if (this.cancelled) {
-        // User cancelled during download/compile — free the GPU, stay offline.
-        try {
-          await engine.unload();
-        } catch {
-          /* best-effort */
-        }
-        this.engine = null;
-        logger.info('[WebGPU] Load cancelled; engine unloaded');
+      const result = await Promise.race([enginePromise, cancelSignal]);
+
+      if (result === 'cancelled' || this.cancelled) {
+        this.teardownWorker();
+        logger.info('[WebGPU] Load cancelled during init; worker terminated');
         return false;
       }
 
-      this.engine = engine;
+      this.engine = result;
       this.modelId = modelId;
       this.resetCircuitBreaker();
-      logger.info(`[WebGPU] Model ${modelId} loaded successfully`);
+      logger.info(`[WebGPU] Model ${modelId} loaded successfully (worker)`);
       return true;
     } catch (error) {
-      this.engine = null;
+      this.teardownWorker();
       // Count load failures toward the breaker so OOM / device-lost loops back off.
       this.recordFailure();
       logger.error(`[WebGPU] Failed to load model ${modelId}:`, error);
       return false;
+    } finally {
+      this.cancelResolve = null;
     }
   }
 
-  /** Unload the engine and free GPU memory. */
+  /** Unload the engine and free GPU memory (terminates the worker). */
   async disconnect(): Promise<void> {
     const engine = this.engine;
     this.engine = null;
@@ -304,6 +338,10 @@ class WebGPUClient {
       } catch (error) {
         logger.warn('[WebGPU] Engine unload failed:', error);
       }
+    }
+    if (this.worker) {
+      this.worker.terminate();
+      this.worker = null;
     }
     logger.info('[WebGPU] Disconnected');
   }
@@ -397,15 +435,18 @@ class WebGPUClient {
     const safePrompt = this.truncatePrompt(prompt);
 
     try {
+      // NOTE: response_format:{type:'json_object'} is intentionally NOT used.
+      // web-llm 0.2.84's WASM grammar binding throws "Cannot pass non-string to
+      // std::string" at inference for this model (verified via the real-GPU E2E;
+      // matches the long-standing limitation CABAL documented). JSON reliability
+      // instead comes from: enable_thinking:false (no chain-of-thought to derail
+      // the output) + stripReasoning() + a tolerant {...}-extracting parser, all
+      // verified to yield clean parseable JSON. Truncation is surfaced below.
       const response = await this.engine.chat.completions.create({
         messages: [{ role: 'user', content: safePrompt }],
         temperature: GENERATION_CONFIG.temperature,
         top_p: GENERATION_CONFIG.top_p,
         max_tokens: GENERATION_CONFIG.max_tokens,
-        // Grammar-constrained JSON mode: the engine guarantees syntactically
-        // valid JSON, so a malformed/partial generation can't slip past the
-        // strategic parser. The prompt still specifies the desired shape.
-        response_format: { type: 'json_object' },
         // enable_thinking:false is the typed, engine-enforced way to skip Qwen3's
         // chain-of-thought pass — survives model swaps and prompt truncation,
         // unlike a `/no_think` text suffix. stripReasoning() remains a backstop.
@@ -476,7 +517,11 @@ class WebGPUClient {
 
   static async getCacheStorageSize(): Promise<{ bytes: number; formatted: string } | null> {
     try {
-      if (typeof navigator === 'undefined' || !('storage' in navigator) || !navigator.storage.estimate) {
+      if (
+        typeof navigator === 'undefined' ||
+        !('storage' in navigator) ||
+        !navigator.storage.estimate
+      ) {
         return null;
       }
       const estimate = await navigator.storage.estimate();

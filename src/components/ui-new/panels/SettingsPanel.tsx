@@ -452,9 +452,7 @@ export const SettingsPanel: React.FC<{
           <button
             onClick={() => {
               if (
-                !window.confirm(
-                  'Reset the simulation back to 10am? Current progress will be lost.'
-                )
+                !window.confirm('Reset the simulation back to 10am? Current progress will be lost.')
               ) {
                 return;
               }
