@@ -49,15 +49,18 @@ export const MoodAura: React.FC<MoodAuraProps> = React.memo(
       materialRef.current.uniforms.energy.value = workerState.energy;
     }, [workerState?.mood, workerState?.moodIntensity, workerState?.energy]);
 
-    // Register with animation manager for time updates
+    // The mesh (and thus materialRef) only mounts once the aura is active. Gate
+    // registration on that active state so it re-runs when worker state arrives
+    // AFTER a null first render — otherwise the [workerId]-only effect ran once
+    // with a null ref and the aura never registered (frozen, no time updates).
+    const isActive = visible && !!workerState;
     useEffect(() => {
-      if (materialRef.current) {
-        registerMoodAura(workerId, materialRef.current);
-        return () => unregisterMoodAura(workerId);
-      }
-    }, [workerId]);
+      if (!isActive || !materialRef.current) return;
+      registerMoodAura(workerId, materialRef.current);
+      return () => unregisterMoodAura(workerId);
+    }, [workerId, isActive]);
 
-    if (!visible || !workerState) return null;
+    if (!isActive) return null;
 
     return (
       <mesh

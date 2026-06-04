@@ -228,7 +228,13 @@ export const InstancedPlansifters: React.FC<InstancedPlansiftersProps> = ({
 
   // Animate Dynamic Parts with distance culling
   useFrame((state) => {
-    if (!bodyRef.current || !flywheelRef.current || !hangersRef.current || !isTabVisible) return;
+    // The flywheel instancedMesh is only rendered on medium+ (see JSX below), so
+    // its ref is legitimately null on LOW. Requiring it here bailed the whole
+    // frame on LOW, leaving sifter bodies + hanger rods unrendered. All flywheel
+    // writes inside are already guarded by `quality !== 'low'`, so it is safe to
+    // proceed without the flywheel ref on LOW.
+    if (!bodyRef.current || !hangersRef.current || !isTabVisible) return;
+    if (quality !== 'low' && !flywheelRef.current) return;
     if (!shouldRunThisFrame(quality === 'low' ? 4 : 2)) return;
 
     const time = state.clock.elapsedTime;

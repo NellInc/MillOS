@@ -190,181 +190,176 @@ export const CelebrationSystem: React.FC = () => {
   const prevShiftRef = React.useRef(currentShift);
   const hadEmergencyRef = React.useRef(false);
 
-  // Track achievement progress based on game state
+  // Achievement-check logic kept in a ref so the 60s interval reads the LATEST
+  // game state without re-creating the interval each time those values churn.
+  // (Previously the effect deps included totalBagsProduced/metrics.* etc., which
+  // change far more often than every 60s — the interval was cleared + recreated
+  // before it could ever fire, so the whole achievement-tracking path was dead.)
+  const achievementTickRef = React.useRef<() => void>(() => {});
+  achievementTickRef.current = () => {
+    // Achievement-specific dry humor announcements (with clear prefix)
+    const achievementMessages: Record<string, string[]> = {
+      'bags-1k': [
+        'ACHIEVEMENT UNLOCKED: Getting Started! A thousand bags. Only 999,000 more until we can call ourselves "prolific."',
+        'ACHIEVEMENT UNLOCKED: Getting Started! The machines barely noticed. Neither did management. But here is a badge anyway.',
+        'ACHIEVEMENT UNLOCKED: Getting Started! Yes, we set the bar low on purpose. You are welcome.',
+        'ACHIEVEMENT UNLOCKED: Getting Started! At this rate, we will fill the warehouse by... eventually.',
+      ],
+      'bags-10k': [
+        'ACHIEVEMENT UNLOCKED: Production Pro! Ten thousand bags. The warehouse is starting to look like a bag convention.',
+        'ACHIEVEMENT UNLOCKED: Production Pro! Our packing machines are now questioning their life choices.',
+        'ACHIEVEMENT UNLOCKED: Production Pro! That is a lot of flour. Like, a concerning amount.',
+      ],
+      'safety-5': [
+        'ACHIEVEMENT UNLOCKED: Safety First! Five whole days without anyone tripping over their own shoelaces. Remarkable.',
+        'ACHIEVEMENT UNLOCKED: Safety First! The safety inspector is crying tears of joy. Or disbelief. Hard to tell.',
+        'ACHIEVEMENT UNLOCKED: Safety First! We have officially gone a work week without disaster.',
+      ],
+      'efficiency-sustained': [
+        'ACHIEVEMENT UNLOCKED: Steady Runner! Ten minutes of 90% uptime. The machines are impressed with themselves.',
+        'ACHIEVEMENT UNLOCKED: Steady Runner! Consistent performance for a whole 10 minutes. A new record around here.',
+        'ACHIEVEMENT UNLOCKED: Steady Runner! The equipment decided to take its job seriously. Temporarily.',
+      ],
+      'quality-streak': [
+        'ACHIEVEMENT UNLOCKED: Quality Streak! Five minutes of 95% quality. Our flour is officially "pretty good."',
+        'ACHIEVEMENT UNLOCKED: Quality Streak! The lab is proud. The bar was low, but we cleared it with enthusiasm.',
+        'ACHIEVEMENT UNLOCKED: Quality Streak! Consistent quality for 5 whole minutes. Customer complaints at an all-time low.',
+      ],
+      'team-player': [
+        'ACHIEVEMENT UNLOCKED: Team Player! Ten whole conversations. HR is thrilled. The introverts are exhausted.',
+        'ACHIEVEMENT UNLOCKED: Team Player! Workers talked to each other instead of the machines. Progress.',
+        'ACHIEVEMENT UNLOCKED: Team Player! Proof that our staff can communicate without email. Barely.',
+      ],
+      'night-owl': [
+        'ACHIEVEMENT UNLOCKED: Night Owl! Survived a night shift. Coffee sales have spiked accordingly.',
+        'ACHIEVEMENT UNLOCKED: Night Owl! The graveyard shift is complete. The ghosts say hello.',
+        'ACHIEVEMENT UNLOCKED: Night Owl! Working while sensible people sleep. Management approves.',
+      ],
+      'first-emergency': [
+        'ACHIEVEMENT UNLOCKED: Crisis Manager! Handled your first emergency. The panic was entirely professional.',
+        'ACHIEVEMENT UNLOCKED: Crisis Manager! When everything went wrong, you were there. Mostly.',
+        'ACHIEVEMENT UNLOCKED: Crisis Manager! Emergency survived. Stress levels returning to merely "high."',
+      ],
+    };
+
+    const announceUnlock = (achievementId: string, fallbackName: string) => {
+      const messages = achievementMessages[achievementId] || [
+        `ACHIEVEMENT UNLOCKED: ${fallbackName}! Congratulations, we suppose.`,
+      ];
+      const message = messages[Math.floor(Math.random() * messages.length)];
+      addAnnouncement({
+        type: 'success',
+        message,
+        priority: 3,
+      });
+      playCelebrationSound('milestone');
+    };
+
+    // 1. "Getting Started" - bags produced (ID: bags-1k)
+    const bagsAchievement = achievements.find((a) => a.id === 'bags-1k');
+    if (bagsAchievement && !bagsAchievement.unlockedAt) {
+      updateAchievementProgress('bags-1k', totalBagsProduced);
+      if (totalBagsProduced >= bagsAchievement.target) {
+        unlockAchievement('bags-1k');
+        announceUnlock('bags-1k', 'Getting Started');
+      }
+    }
+
+    // 2. "Production Pro" - 10,000 bags (ID: bags-10k)
+    const bags10kAchievement = achievements.find((a) => a.id === 'bags-10k');
+    if (bags10kAchievement && !bags10kAchievement.unlockedAt) {
+      updateAchievementProgress('bags-10k', totalBagsProduced);
+      if (totalBagsProduced >= bags10kAchievement.target) {
+        unlockAchievement('bags-10k');
+        announceUnlock('bags-10k', 'Production Pro');
+      }
+    }
+
+    // 3. "Safety First" - days without incident (ID: safety-5)
+    const safetyAchievement = achievements.find((a) => a.id === 'safety-5');
+    if (safetyAchievement && !safetyAchievement.unlockedAt) {
+      updateAchievementProgress('safety-5', safetyMetrics.daysSinceIncident);
+      if (safetyMetrics.daysSinceIncident >= safetyAchievement.target) {
+        unlockAchievement('safety-5');
+        announceUnlock('safety-5', 'Safety First');
+      }
+    }
+
+    // 4. "Steady Runner" - sustained 90% uptime (ID: efficiency-sustained)
+    const efficiencyAchievement = achievements.find((a) => a.id === 'efficiency-sustained');
+    if (efficiencyAchievement && !efficiencyAchievement.unlockedAt) {
+      if (metrics.uptime >= 90) {
+        efficiencyStreakRef.current += 1;
+      } else {
+        efficiencyStreakRef.current = 0; // Reset if drops below
+      }
+      updateAchievementProgress('efficiency-sustained', efficiencyStreakRef.current);
+      if (efficiencyStreakRef.current >= efficiencyAchievement.target) {
+        unlockAchievement('efficiency-sustained');
+        announceUnlock('efficiency-sustained', 'Steady Runner');
+      }
+    }
+
+    // 5. "Quality Streak" - sustained 95% quality (ID: quality-streak)
+    const qualityAchievement = achievements.find((a) => a.id === 'quality-streak');
+    if (qualityAchievement && !qualityAchievement.unlockedAt) {
+      if (metrics.quality >= 95) {
+        qualityStreakRef.current += 1;
+      } else {
+        qualityStreakRef.current = 0; // Reset if drops below
+      }
+      updateAchievementProgress('quality-streak', qualityStreakRef.current);
+      if (qualityStreakRef.current >= qualityAchievement.target) {
+        unlockAchievement('quality-streak');
+        announceUnlock('quality-streak', 'Quality Streak');
+      }
+    }
+
+    // 6. "Team Player" - worker collaborations (ID: team-player)
+    const teamAchievement = achievements.find((a) => a.id === 'team-player');
+    if (teamAchievement && !teamAchievement.unlockedAt) {
+      updateAchievementProgress('team-player', workerSatisfaction.conversationCount);
+      if (workerSatisfaction.conversationCount >= teamAchievement.target) {
+        unlockAchievement('team-player');
+        announceUnlock('team-player', 'Team Player');
+      }
+    }
+
+    // 7. "Night Owl" - complete a night shift (ID: night-owl)
+    const nightAchievement = achievements.find((a) => a.id === 'night-owl');
+    if (nightAchievement && !nightAchievement.unlockedAt) {
+      // Detect shift change from night to morning
+      if (prevShiftRef.current === 'night' && currentShift === 'morning') {
+        updateAchievementProgress('night-owl', 1);
+        unlockAchievement('night-owl');
+        announceUnlock('night-owl', 'Night Owl');
+      }
+      prevShiftRef.current = currentShift;
+    }
+
+    // 8. "Crisis Manager" - handle first emergency (ID: first-emergency)
+    const crisisAchievement = achievements.find((a) => a.id === 'first-emergency');
+    if (crisisAchievement && !crisisAchievement.unlockedAt) {
+      // Track if emergency started
+      if (emergencyActive) {
+        hadEmergencyRef.current = true;
+      }
+      // Unlock when emergency ends
+      if (hadEmergencyRef.current && !emergencyActive) {
+        updateAchievementProgress('first-emergency', 1);
+        unlockAchievement('first-emergency');
+        announceUnlock('first-emergency', 'Crisis Manager');
+        hadEmergencyRef.current = false;
+      }
+    }
+  };
+
+  // Stable 60s tick — empty deps so the interval is created once; it invokes the
+  // ref, which always holds the latest logic + current game-state closure.
   useEffect(() => {
-    const interval = setInterval(() => {
-      // Achievement-specific dry humor announcements (with clear prefix)
-      const achievementMessages: Record<string, string[]> = {
-        'bags-1k': [
-          'ACHIEVEMENT UNLOCKED: Getting Started! A thousand bags. Only 999,000 more until we can call ourselves "prolific."',
-          'ACHIEVEMENT UNLOCKED: Getting Started! The machines barely noticed. Neither did management. But here is a badge anyway.',
-          'ACHIEVEMENT UNLOCKED: Getting Started! Yes, we set the bar low on purpose. You are welcome.',
-          'ACHIEVEMENT UNLOCKED: Getting Started! At this rate, we will fill the warehouse by... eventually.',
-        ],
-        'bags-10k': [
-          'ACHIEVEMENT UNLOCKED: Production Pro! Ten thousand bags. The warehouse is starting to look like a bag convention.',
-          'ACHIEVEMENT UNLOCKED: Production Pro! Our packing machines are now questioning their life choices.',
-          'ACHIEVEMENT UNLOCKED: Production Pro! That is a lot of flour. Like, a concerning amount.',
-        ],
-        'safety-5': [
-          'ACHIEVEMENT UNLOCKED: Safety First! Five whole days without anyone tripping over their own shoelaces. Remarkable.',
-          'ACHIEVEMENT UNLOCKED: Safety First! The safety inspector is crying tears of joy. Or disbelief. Hard to tell.',
-          'ACHIEVEMENT UNLOCKED: Safety First! We have officially gone a work week without disaster.',
-        ],
-        'efficiency-sustained': [
-          'ACHIEVEMENT UNLOCKED: Steady Runner! Ten minutes of 90% uptime. The machines are impressed with themselves.',
-          'ACHIEVEMENT UNLOCKED: Steady Runner! Consistent performance for a whole 10 minutes. A new record around here.',
-          'ACHIEVEMENT UNLOCKED: Steady Runner! The equipment decided to take its job seriously. Temporarily.',
-        ],
-        'quality-streak': [
-          'ACHIEVEMENT UNLOCKED: Quality Streak! Five minutes of 95% quality. Our flour is officially "pretty good."',
-          'ACHIEVEMENT UNLOCKED: Quality Streak! The lab is proud. The bar was low, but we cleared it with enthusiasm.',
-          'ACHIEVEMENT UNLOCKED: Quality Streak! Consistent quality for 5 whole minutes. Customer complaints at an all-time low.',
-        ],
-        'team-player': [
-          'ACHIEVEMENT UNLOCKED: Team Player! Ten whole conversations. HR is thrilled. The introverts are exhausted.',
-          'ACHIEVEMENT UNLOCKED: Team Player! Workers talked to each other instead of the machines. Progress.',
-          'ACHIEVEMENT UNLOCKED: Team Player! Proof that our staff can communicate without email. Barely.',
-        ],
-        'night-owl': [
-          'ACHIEVEMENT UNLOCKED: Night Owl! Survived a night shift. Coffee sales have spiked accordingly.',
-          'ACHIEVEMENT UNLOCKED: Night Owl! The graveyard shift is complete. The ghosts say hello.',
-          'ACHIEVEMENT UNLOCKED: Night Owl! Working while sensible people sleep. Management approves.',
-        ],
-        'first-emergency': [
-          'ACHIEVEMENT UNLOCKED: Crisis Manager! Handled your first emergency. The panic was entirely professional.',
-          'ACHIEVEMENT UNLOCKED: Crisis Manager! When everything went wrong, you were there. Mostly.',
-          'ACHIEVEMENT UNLOCKED: Crisis Manager! Emergency survived. Stress levels returning to merely "high."',
-        ],
-      };
-
-      const announceUnlock = (achievementId: string, fallbackName: string) => {
-        const messages = achievementMessages[achievementId] || [
-          `ACHIEVEMENT UNLOCKED: ${fallbackName}! Congratulations, we suppose.`,
-        ];
-        const message = messages[Math.floor(Math.random() * messages.length)];
-        addAnnouncement({
-          type: 'success',
-          message,
-          priority: 3,
-        });
-        playCelebrationSound('milestone');
-      };
-
-      // 1. "Getting Started" - bags produced (ID: bags-1k)
-      const bagsAchievement = achievements.find((a) => a.id === 'bags-1k');
-      if (bagsAchievement && !bagsAchievement.unlockedAt) {
-        updateAchievementProgress('bags-1k', totalBagsProduced);
-        if (totalBagsProduced >= bagsAchievement.target) {
-          unlockAchievement('bags-1k');
-          announceUnlock('bags-1k', 'Getting Started');
-        }
-      }
-
-      // 2. "Production Pro" - 10,000 bags (ID: bags-10k)
-      const bags10kAchievement = achievements.find((a) => a.id === 'bags-10k');
-      if (bags10kAchievement && !bags10kAchievement.unlockedAt) {
-        updateAchievementProgress('bags-10k', totalBagsProduced);
-        if (totalBagsProduced >= bags10kAchievement.target) {
-          unlockAchievement('bags-10k');
-          announceUnlock('bags-10k', 'Production Pro');
-        }
-      }
-
-      // 3. "Safety First" - days without incident (ID: safety-5)
-      const safetyAchievement = achievements.find((a) => a.id === 'safety-5');
-      if (safetyAchievement && !safetyAchievement.unlockedAt) {
-        updateAchievementProgress('safety-5', safetyMetrics.daysSinceIncident);
-        if (safetyMetrics.daysSinceIncident >= safetyAchievement.target) {
-          unlockAchievement('safety-5');
-          announceUnlock('safety-5', 'Safety First');
-        }
-      }
-
-      // 4. "Steady Runner" - sustained 90% uptime (ID: efficiency-sustained)
-      const efficiencyAchievement = achievements.find((a) => a.id === 'efficiency-sustained');
-      if (efficiencyAchievement && !efficiencyAchievement.unlockedAt) {
-        if (metrics.uptime >= 90) {
-          efficiencyStreakRef.current += 1;
-        } else {
-          efficiencyStreakRef.current = 0; // Reset if drops below
-        }
-        updateAchievementProgress('efficiency-sustained', efficiencyStreakRef.current);
-        if (efficiencyStreakRef.current >= efficiencyAchievement.target) {
-          unlockAchievement('efficiency-sustained');
-          announceUnlock('efficiency-sustained', 'Steady Runner');
-        }
-      }
-
-      // 5. "Quality Streak" - sustained 95% quality (ID: quality-streak)
-      const qualityAchievement = achievements.find((a) => a.id === 'quality-streak');
-      if (qualityAchievement && !qualityAchievement.unlockedAt) {
-        if (metrics.quality >= 95) {
-          qualityStreakRef.current += 1;
-        } else {
-          qualityStreakRef.current = 0; // Reset if drops below
-        }
-        updateAchievementProgress('quality-streak', qualityStreakRef.current);
-        if (qualityStreakRef.current >= qualityAchievement.target) {
-          unlockAchievement('quality-streak');
-          announceUnlock('quality-streak', 'Quality Streak');
-        }
-      }
-
-      // 6. "Team Player" - worker collaborations (ID: team-player)
-      const teamAchievement = achievements.find((a) => a.id === 'team-player');
-      if (teamAchievement && !teamAchievement.unlockedAt) {
-        updateAchievementProgress('team-player', workerSatisfaction.conversationCount);
-        if (workerSatisfaction.conversationCount >= teamAchievement.target) {
-          unlockAchievement('team-player');
-          announceUnlock('team-player', 'Team Player');
-        }
-      }
-
-      // 7. "Night Owl" - complete a night shift (ID: night-owl)
-      const nightAchievement = achievements.find((a) => a.id === 'night-owl');
-      if (nightAchievement && !nightAchievement.unlockedAt) {
-        // Detect shift change from night to morning
-        if (prevShiftRef.current === 'night' && currentShift === 'morning') {
-          updateAchievementProgress('night-owl', 1);
-          unlockAchievement('night-owl');
-          announceUnlock('night-owl', 'Night Owl');
-        }
-        prevShiftRef.current = currentShift;
-      }
-
-      // 8. "Crisis Manager" - handle first emergency (ID: first-emergency)
-      const crisisAchievement = achievements.find((a) => a.id === 'first-emergency');
-      if (crisisAchievement && !crisisAchievement.unlockedAt) {
-        // Track if emergency started
-        if (emergencyActive) {
-          hadEmergencyRef.current = true;
-        }
-        // Unlock when emergency ends
-        if (hadEmergencyRef.current && !emergencyActive) {
-          updateAchievementProgress('first-emergency', 1);
-          unlockAchievement('first-emergency');
-          announceUnlock('first-emergency', 'Crisis Manager');
-          hadEmergencyRef.current = false;
-        }
-      }
-    }, 60000); // Check every 60 seconds (1 minute) for sustained metrics
-
+    const interval = setInterval(() => achievementTickRef.current(), 60000);
     return () => clearInterval(interval);
-  }, [
-    totalBagsProduced,
-    safetyMetrics.daysSinceIncident,
-    metrics.uptime,
-    metrics.quality,
-    workerSatisfaction.conversationCount,
-    currentShift,
-    emergencyActive,
-    achievements,
-    updateAchievementProgress,
-    unlockAchievement,
-    addAnnouncement,
-    playCelebrationSound,
-  ]);
+  }, []);
 
   // Check for daily target completion
   useEffect(() => {
