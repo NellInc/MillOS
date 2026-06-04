@@ -8,11 +8,16 @@
       style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
       font-src 'self' https://fonts.gstatic.com;
       img-src 'self' data: blob: https://millos.net;
-      connect-src 'self' ws: wss: https://generativelanguage.googleapis.com https://cdn.jsdelivr.net https://fonts.gstatic.com https://fonts.googleapis.com;
+      connect-src 'self' ws: wss: https://0.peerjs.com https://generativelanguage.googleapis.com https://www.gstatic.com https://cdn.jsdelivr.net https://fonts.gstatic.com https://fonts.googleapis.com;
       worker-src 'self' blob:;
+      object-src 'none';
+      base-uri 'self';
+      form-action 'self';
+      upgrade-insecure-requests;
     " />
     <meta http-equiv="X-Content-Type-Options" content="nosniff" />
     <meta name="referrer" content="strict-origin-when-cross-origin" />
+    <meta name="theme-color" content="#0a0f1a" />
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏭</text></svg>" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="description" content="MillOS - AI-Powered Grain Mill Digital Twin Simulator. A browser-based 3D industrial simulation featuring autonomous workers, intelligent forklifts, real-time production metrics, and SCADA integration." />
@@ -40,6 +45,25 @@
     <!-- Additional SEO -->
     <link rel="canonical" href="https://millos.net/" />
 
+    <!-- Structured data -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "MillOS",
+        "description": "AI-Powered Grain Mill Digital Twin Simulator. A browser-based 3D industrial simulation featuring autonomous workers, intelligent forklifts, real-time production metrics, and SCADA integration.",
+        "applicationCategory": "SimulationApplication",
+        "operatingSystem": "Any (Web)",
+        "browserRequirements": "Requires a WebGL-capable browser",
+        "url": "https://millos.net/",
+        "image": "https://millos.net/og-image.png",
+        "author": {
+          "@type": "Person",
+          "name": "Nell Watson"
+        }
+      }
+    </script>
+
     <title>MillOS | Grain Mill Digital Twin</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -64,7 +88,7 @@
         z-index: 9999;
       }
       .loading-logo { font-size: 3rem; margin-bottom: 1rem; }
-      .loading-text { color: #64748b; font-family: 'Inter', sans-serif; font-size: 0.875rem; letter-spacing: 0.1em; }
+      .loading-text { color: #64748b; font-family: 'Inter', system-ui, -apple-system, sans-serif; font-size: 0.875rem; letter-spacing: 0.1em; }
       .loading-bar { width: 200px; height: 2px; background: #1e293b; margin-top: 1.5rem; border-radius: 1px; overflow: hidden; }
       .loading-bar::after { content: ''; display: block; width: 50%; height: 100%; background: linear-gradient(90deg, #f97316, #3b82f6); animation: loading 1.5s ease-in-out infinite; }
       @keyframes loading { 0% { transform: translateX(-100%); } 100% { transform: translateX(300%); } }

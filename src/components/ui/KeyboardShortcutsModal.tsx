@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Keyboard, X } from 'lucide-react';
 import { useUIStore } from '../../stores/uiStore';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
 
 interface KeyboardShortcutsModalProps {
   isOpen: boolean;
@@ -13,6 +14,9 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({
   onClose,
 }) => {
   const theme = useUIStore((state) => state.theme);
+
+  const modalRef = useRef<HTMLDivElement | null>(null);
+  useFocusTrap(modalRef as React.RefObject<HTMLElement>, isOpen, onClose);
 
   if (!isOpen) return null;
 
@@ -81,6 +85,10 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({
         className={`absolute inset-0 backdrop-blur-sm ${theme === 'light' ? 'bg-black/40' : 'bg-black/60'}`}
       />
       <motion.div
+        ref={modalRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="kbd-shortcuts-title"
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.9, opacity: 0 }}
@@ -100,6 +108,7 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({
           <div className="flex items-center gap-2">
             <Keyboard className="w-5 h-5 text-cyan-500" />
             <h2
+              id="kbd-shortcuts-title"
               className={`text-lg font-bold ${theme === 'light' ? 'text-slate-800' : 'text-white'}`}
             >
               Keyboard Shortcuts
@@ -107,13 +116,14 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({
           </div>
           <button
             onClick={onClose}
+            aria-label="Close keyboard shortcuts"
             className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
               theme === 'light'
                 ? 'bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-700'
                 : 'bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white'
             }`}
           >
-            <X className="w-4 h-4" />
+            <X className="w-4 h-4" aria-hidden="true" />
           </button>
         </div>
 

@@ -9,6 +9,7 @@ import {
   ChatMessage,
   PeerInfo,
 } from '../multiplayer/types';
+import { sanitizePlayerName, sanitizeRoomCode } from '../utils/sanitize';
 
 // Generate a simple 6-character room code
 function generateRoomCode(): string {
@@ -137,7 +138,11 @@ export const useMultiplayerStore = create<MultiplayerStore>((set, get) => ({
 
   // Connection state
   setConnectionState: (state: ConnectionState) => set({ connectionState: state }),
-  setLocalPlayerName: (name: string) => set({ localPlayerName: name }),
+  setLocalPlayerName: (name: string) =>
+    // Defense-in-depth: sanitize at the store boundary so every caller
+    // (lobby, panels) gets XSS-safe names broadcast to peers. Idempotent for
+    // callers that already sanitize. Fall back to 'Player' if input is empty.
+    set({ localPlayerName: sanitizePlayerName(name) || 'Player' }),
   setLocalPlayerColor: (color: PlayerColor) => set({ localPlayerColor: color }),
 
   // Room management
@@ -153,8 +158,13 @@ export const useMultiplayerStore = create<MultiplayerStore>((set, get) => ({
   },
 
   joinRoom: (code) => {
+    // Defense-in-depth: validate/normalize the room code at the store boundary.
+    // sanitizeRoomCode upper-cases, strips non-alphanumerics, and requires
+    // exactly 6 chars (returns '' otherwise). Fall back to a plain upper-case
+    // of the raw input so a malformed code still produces a (non-matching)
+    // value rather than silently blanking, preserving prior behavior.
     set({
-      roomCode: code.toUpperCase(),
+      roomCode: sanitizeRoomCode(code) || code.toUpperCase(),
       isHost: false,
       connectionState: 'connecting',
       localPlayerId: generatePlayerId(),

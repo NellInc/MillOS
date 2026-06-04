@@ -286,7 +286,7 @@ export const ContextSidebar: React.FC<ContextSidebarProps> = ({
                   </span>
                   <select
                     className="text-[9px] ml-1 bg-transparent border-none cursor-pointer text-slate-400 hover:text-orange-400 transition-colors"
-                    value="v0.3"
+                    value="v0.30"
                     onChange={(e) => {
                       window.location.href = `/${e.target.value}/`;
                     }}

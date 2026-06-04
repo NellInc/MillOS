@@ -34,6 +34,7 @@ export const WeatherControlPanel: React.FC = () => {
     >
       <button
         onClick={() => setExpanded(!expanded)}
+        aria-expanded={expanded}
         className={`w-full flex items-center justify-between text-xs font-medium transition-colors py-1 ${
           theme === 'light'
             ? 'text-slate-600 hover:text-slate-800'
@@ -41,10 +42,14 @@ export const WeatherControlPanel: React.FC = () => {
         }`}
       >
         <span className="flex items-center gap-2">
-          <Wind className="w-4 h-4 text-blue-400" />
+          <Wind className="w-4 h-4 text-blue-400" aria-hidden="true" />
           Weather & Heat Map
         </span>
-        {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+        {expanded ? (
+          <ChevronUp className="w-4 h-4" aria-hidden="true" />
+        ) : (
+          <ChevronDown className="w-4 h-4" aria-hidden="true" />
+        )}
       </button>
 
       <AnimatePresence>

@@ -890,9 +890,9 @@ export const MobilePanel: React.FC<MobilePanelProps> = ({ isVisible, content, on
             aria-label={`${getPanelTitle(content)} mobile panel`}
             role="complementary"
           >
-            <div className="bg-slate-900/95 backdrop-blur-xl border border-slate-700/50 rounded-2xl overflow-hidden shadow-2xl">
+            <div className="flex flex-col max-h-[33vh] bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
               {/* Header */}
-              <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700/50">
+              <div className="flex shrink-0 items-center justify-between px-4 py-3 border-b border-slate-700/50">
                 <div className="flex items-center gap-2 text-slate-200">
                   {getPanelIcon(content)}
                   <span className="font-medium">{getPanelTitle(content)}</span>
@@ -907,9 +907,7 @@ export const MobilePanel: React.FC<MobilePanelProps> = ({ isVisible, content, on
               </div>
 
               {/* Content */}
-              <div className="p-4 overflow-y-auto" style={{ maxHeight: 'calc(33vh - 56px)' }}>
-                {getPanelContent(content)}
-              </div>
+              <div className="flex-1 min-h-0 p-4 overflow-y-auto">{getPanelContent(content)}</div>
             </div>
           </motion.aside>
         </>

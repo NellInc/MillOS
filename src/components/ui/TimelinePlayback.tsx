@@ -123,9 +123,10 @@ export const TimelinePlayback: React.FC<TimelinePlaybackProps> = ({ className = 
           </div>
           <button
             onClick={exitReplay}
+            aria-label="Exit replay mode"
             className="p-1 hover:bg-slate-700/50 rounded transition-colors"
           >
-            <X className="w-4 h-4 text-slate-400 hover:text-white" />
+            <X className="w-4 h-4 text-slate-400 hover:text-white" aria-hidden="true" />
           </button>
         </div>
 
@@ -146,6 +147,7 @@ export const TimelinePlayback: React.FC<TimelinePlaybackProps> = ({ className = 
           <div className="mb-3">
             <input
               type="range"
+              aria-label="Playback timeline"
               min={availableRange.start}
               max={availableRange.end}
               value={playbackTime ?? availableRange.end}
@@ -171,18 +173,21 @@ export const TimelinePlayback: React.FC<TimelinePlaybackProps> = ({ className = 
           <button
             onClick={jumpToStart}
             className="p-2 hover:bg-slate-700/50 rounded-lg transition-colors"
+            aria-label="Jump to start"
             title="Jump to start"
           >
-            <SkipBack className="w-5 h-5 text-slate-300" />
+            <SkipBack className="w-5 h-5 text-slate-300" aria-hidden="true" />
           </button>
           <button
             onClick={() => setIsPlaying(!isPlaying)}
+            aria-label={isPlaying ? 'Pause playback' : 'Play playback'}
+            aria-pressed={isPlaying}
             className="p-2 hover:bg-slate-700/50 rounded-lg transition-colors"
           >
             {isPlaying ? (
-              <PauseCircle className="w-8 h-8 text-cyan-400" />
+              <PauseCircle className="w-8 h-8 text-cyan-400" aria-hidden="true" />
             ) : (
-              <PlayCircle className="w-8 h-8 text-cyan-400" />
+              <PlayCircle className="w-8 h-8 text-cyan-400" aria-hidden="true" />
             )}
           </button>
           <select

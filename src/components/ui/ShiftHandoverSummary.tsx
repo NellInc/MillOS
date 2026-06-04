@@ -192,6 +192,9 @@ export const ShiftHandoverSummary: React.FC = () => {
           transition={{ type: 'spring', stiffness: 300, damping: 30 }}
           className="fixed top-16 left-4 z-50 w-80 bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden pointer-events-auto"
           onClick={(e) => e.stopPropagation()}
+          role="status"
+          aria-live="polite"
+          aria-label={`Shift handover summary for ${summary.shift} shift`}
         >
           {/* Header */}
           <div className="p-4 border-b border-white/10 flex items-center justify-between bg-white/5">
@@ -230,8 +233,9 @@ export const ShiftHandoverSummary: React.FC = () => {
               <button
                 onClick={() => setShowSummary(false)}
                 className="p-1 hover:bg-white/10 rounded-lg transition-colors text-slate-300 hover:text-white"
+                aria-label="Close shift handover"
               >
-                <X size={16} />
+                <X size={16} aria-hidden="true" />
               </button>
             </div>
           </div>

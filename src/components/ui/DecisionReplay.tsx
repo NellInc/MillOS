@@ -5,7 +5,7 @@
  * Allows users to understand what the factory looked like when AI made a decision.
  */
 
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X,
@@ -19,6 +19,7 @@ import {
   CheckCircle,
 } from 'lucide-react';
 import { AIDecision } from '../../types';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
 
 interface DecisionReplayProps {
   decision: AIDecision | null;
@@ -26,6 +27,9 @@ interface DecisionReplayProps {
 }
 
 export const DecisionReplay: React.FC<DecisionReplayProps> = ({ decision, onClose }) => {
+  const modalRef = useRef<HTMLDivElement | null>(null);
+  useFocusTrap(modalRef as React.RefObject<HTMLElement>, !!decision, onClose);
+
   if (!decision) return null;
 
   const formatTime = (date: Date) => {
@@ -76,6 +80,10 @@ export const DecisionReplay: React.FC<DecisionReplayProps> = ({ decision, onClos
         onClick={onClose}
       >
         <motion.div
+          ref={modalRef}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Decision replay"
           initial={{ scale: 0.95, opacity: 0, y: 15 }}
           animate={{
             scale: 1,
@@ -94,10 +102,12 @@ export const DecisionReplay: React.FC<DecisionReplayProps> = ({ decision, onClos
               <span className="font-medium text-white">Decision Replay</span>
             </div>
             <button
+              type="button"
               onClick={onClose}
+              aria-label="Close"
               className="p-1 hover:bg-slate-700/50 rounded transition-colors"
             >
-              <X className="w-5 h-5 text-slate-400" />
+              <X className="w-5 h-5 text-slate-400" aria-hidden="true" />
             </button>
           </div>
 
@@ -198,9 +208,14 @@ export const DecisionReplayTrigger: React.FC<{
 
   return (
     <>
-      <div onClick={() => setShowReplay(true)} className="cursor-pointer">
+      <button
+        type="button"
+        onClick={() => setShowReplay(true)}
+        aria-label="View decision details"
+        className="cursor-pointer w-full text-left bg-transparent border-0 p-0 m-0"
+      >
         {children}
-      </div>
+      </button>
       <DecisionReplay
         decision={showReplay ? decision : null}
         onClose={() => setShowReplay(false)}

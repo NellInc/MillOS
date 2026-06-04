@@ -143,6 +143,9 @@ export class RESTAdapter implements IProtocolAdapter {
       }
 
       const data: RESTTagResponse = await response.json();
+      if (!this.isValidTagResponse(data)) {
+        throw new Error('Malformed tag response: missing required fields');
+      }
       const tagValue = this.parseTagResponse(data);
 
       this.values.set(tagId, tagValue);
@@ -171,7 +174,12 @@ export class RESTAdapter implements IProtocolAdapter {
       }
 
       const data: RESTBatchResponse = await response.json();
-      const tagValues = data.tags.map((t) => this.parseTagResponse(t));
+      if (!data || !Array.isArray(data.tags)) {
+        throw new Error('Malformed batch response: missing tags array');
+      }
+      const tagValues = data.tags
+        .filter((t) => this.isValidTagResponse(t))
+        .map((t) => this.parseTagResponse(t));
 
       tagValues.forEach((tv) => this.values.set(tv.tagId, tv));
       this.stats.readCount += tagIds.length;
@@ -355,6 +363,26 @@ export class RESTAdapter implements IProtocolAdapter {
     }
 
     return this.fetchWithTimeout(url, { ...options, headers });
+  }
+
+  /**
+   * Validates a raw REST tag entry has the required shape before parsing.
+   * Guards against malformed 200 responses (e.g. `{}`, `{error:...}`, null entries)
+   * that would otherwise throw inside poll() and be misclassified as a lost connection.
+   */
+  private isValidTagResponse(data: unknown): data is RESTTagResponse {
+    if (!data || typeof data !== 'object') {
+      return false;
+    }
+    const d = data as Record<string, unknown>;
+    return (
+      typeof d.tagId === 'string' &&
+      (typeof d.value === 'number' ||
+        typeof d.value === 'boolean' ||
+        typeof d.value === 'string') &&
+      typeof d.quality === 'string' &&
+      typeof d.timestamp === 'number'
+    );
   }
 
   private parseTagResponse(data: RESTTagResponse): TagValue {

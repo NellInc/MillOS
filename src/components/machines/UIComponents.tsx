@@ -1,4 +1,4 @@
-import React, { useRef, useMemo, useEffect } from 'react';
+import React, { useRef, useMemo, useEffect, useId } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { Html } from '@react-three/drei';
@@ -21,6 +21,9 @@ export const ControlPanel: React.FC<{
 
   const ledMaterials = useRef<THREE.MeshStandardMaterial[]>([]);
   const screenMaterial = useRef<THREE.MeshStandardMaterial>(null);
+  // Stable panel identity for the registry, kept constant across status changes
+  // (previously a fresh Math.random() id was generated on every status transition).
+  const panelId = useId();
 
   // Initialize material refs array
   if (ledMaterials.current.length === 0) {
@@ -40,7 +43,7 @@ export const ControlPanel: React.FC<{
   // Register with manager
   useEffect(() => {
     if (!enabled) return;
-    const id = `panel-${Math.random()}`;
+    const id = `panel-${panelId}`;
 
     // Ensure screen material is ready
     if (screenMaterial.current) {
@@ -52,7 +55,7 @@ export const ControlPanel: React.FC<{
     }
 
     return () => unregisterPanel(id);
-  }, [enabled, status]);
+  }, [enabled, status, panelId]);
 
   if (!enabled) return null;
 

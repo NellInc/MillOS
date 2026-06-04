@@ -309,12 +309,13 @@ describe('AICommandCenter', () => {
   it('should switch between decisions and strategic tabs', () => {
     render(<AICommandCenter isOpen={true} onClose={vi.fn()} embedded />);
 
-    // Initially on decisions tab - check for the decisions button showing selected state
-    const decisionsButton = screen.getByRole('button', { name: /decisions/i });
+    // Initially on decisions tab - check for the decisions tab showing selected state
+    // (tabs now expose role="tab" inside the role="tablist" group for WCAG conformance)
+    const decisionsButton = screen.getByRole('tab', { name: /decisions/i });
     expect(decisionsButton).toHaveClass('bg-cyan-500/20');
 
     // Click strategic tab
-    const strategicButton = screen.getByRole('button', { name: /strategic/i });
+    const strategicButton = screen.getByRole('tab', { name: /strategic/i });
     fireEvent.click(strategicButton);
 
     // Strategic tab should now be selected

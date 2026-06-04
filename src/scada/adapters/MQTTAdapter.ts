@@ -164,6 +164,26 @@ class MQTTWebSocketClient {
     }
   }
 
+  /**
+   * Encode an MQTT "Remaining Length" value using the variable-length-integer
+   * (continuation-bit) scheme defined by MQTT 3.1.1 (1-4 bytes). Values up to
+   * 268435455 are supported; anything larger is not representable in MQTT.
+   */
+  private static encodeRemainingLength(length: number): number[] {
+    const bytes: number[] = [];
+    let value = length;
+    do {
+      let encodedByte = value % 128;
+      value = Math.floor(value / 128);
+      // Set the continuation bit if there is more data to encode.
+      if (value > 0) {
+        encodedByte |= 0x80;
+      }
+      bytes.push(encodedByte);
+    } while (value > 0);
+    return bytes;
+  }
+
   publish(topic: string, payload: string, qos = 0): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       throw new Error('Not connected');
@@ -175,12 +195,15 @@ class MQTTWebSocketClient {
     // PUBLISH packet
     const fixedHeader = 0x30 | (qos << 1); // PUBLISH with QoS
     const remainingLength = 2 + topicBytes.length + payloadBytes.length + (qos > 0 ? 2 : 0);
+    const lengthBytes = MQTTWebSocketClient.encodeRemainingLength(remainingLength);
 
-    const packet = new Uint8Array(2 + remainingLength);
+    const packet = new Uint8Array(1 + lengthBytes.length + remainingLength);
     let offset = 0;
 
     packet[offset++] = fixedHeader;
-    packet[offset++] = remainingLength;
+    for (const lengthByte of lengthBytes) {
+      packet[offset++] = lengthByte;
+    }
 
     // Topic length (MSB, LSB)
     packet[offset++] = (topicBytes.length >> 8) & 0xff;
@@ -228,12 +251,17 @@ class MQTTWebSocketClient {
     ]);
 
     const remainingLength = variableHeader.length + payload.length;
+    const lengthBytes = MQTTWebSocketClient.encodeRemainingLength(remainingLength);
 
-    const packet = new Uint8Array(2 + remainingLength);
-    packet[0] = 0x10; // CONNECT
-    packet[1] = remainingLength;
-    packet.set(variableHeader, 2);
-    packet.set(payload, 2 + variableHeader.length);
+    const packet = new Uint8Array(1 + lengthBytes.length + remainingLength);
+    let offset = 0;
+    packet[offset++] = 0x10; // CONNECT
+    for (const lengthByte of lengthBytes) {
+      packet[offset++] = lengthByte;
+    }
+    packet.set(variableHeader, offset);
+    offset += variableHeader.length;
+    packet.set(payload, offset);
 
     this.ws.send(packet);
   }
@@ -245,11 +273,14 @@ class MQTTWebSocketClient {
     const msgId = ++this.messageId;
 
     const remainingLength = 2 + 2 + topicBytes.length + 1;
-    const packet = new Uint8Array(2 + remainingLength);
+    const lengthBytes = MQTTWebSocketClient.encodeRemainingLength(remainingLength);
+    const packet = new Uint8Array(1 + lengthBytes.length + remainingLength);
     let offset = 0;
 
     packet[offset++] = 0x82; // SUBSCRIBE
-    packet[offset++] = remainingLength;
+    for (const lengthByte of lengthBytes) {
+      packet[offset++] = lengthByte;
+    }
     packet[offset++] = (msgId >> 8) & 0xff;
     packet[offset++] = msgId & 0xff;
     packet[offset++] = (topicBytes.length >> 8) & 0xff;
@@ -268,11 +299,14 @@ class MQTTWebSocketClient {
     const msgId = ++this.messageId;
 
     const remainingLength = 2 + 2 + topicBytes.length;
-    const packet = new Uint8Array(2 + remainingLength);
+    const lengthBytes = MQTTWebSocketClient.encodeRemainingLength(remainingLength);
+    const packet = new Uint8Array(1 + lengthBytes.length + remainingLength);
     let offset = 0;
 
     packet[offset++] = 0xa2; // UNSUBSCRIBE
-    packet[offset++] = remainingLength;
+    for (const lengthByte of lengthBytes) {
+      packet[offset++] = lengthByte;
+    }
     packet[offset++] = (msgId >> 8) & 0xff;
     packet[offset++] = msgId & 0xff;
     packet[offset++] = (topicBytes.length >> 8) & 0xff;
@@ -299,8 +333,19 @@ class MQTTWebSocketClient {
   private handlePublish(bytes: Uint8Array): void {
     let offset = 1;
 
-    // Remaining length (simplified - assumes single byte)
-    const remainingLength = bytes[offset++];
+    // Remaining length: MQTT variable-length integer (1-4 bytes, continuation-bit scheme)
+    let remainingLength = 0;
+    let multiplier = 1;
+    let lengthByte: number;
+    do {
+      lengthByte = bytes[offset++];
+      remainingLength += (lengthByte & 0x7f) * multiplier;
+      multiplier *= 128;
+    } while ((lengthByte & 0x80) !== 0 && offset < bytes.length && multiplier <= 128 * 128 * 128);
+
+    // The variable header starts immediately after the remaining-length bytes;
+    // the payload occupies the rest of the declared remaining length.
+    const packetEnd = offset + remainingLength;
 
     // Topic length
     const topicLength = (bytes[offset] << 8) | bytes[offset + 1];
@@ -311,7 +356,7 @@ class MQTTWebSocketClient {
     offset += topicLength;
 
     // Payload
-    const payload = new TextDecoder().decode(bytes.slice(offset, 2 + remainingLength));
+    const payload = new TextDecoder().decode(bytes.slice(offset, packetEnd));
 
     // Notify subscribers
     this.subscriptions.forEach((callbacks, pattern) => {

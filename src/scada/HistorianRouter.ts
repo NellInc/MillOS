@@ -212,6 +212,16 @@ export class HistorianRouter implements IHistorian {
     const startMs = startTime.getTime();
     const endMs = endTime.getTime();
 
+    // Validate the time range before delegating to any adapter.
+    // Guards against Invalid Date (.toISOString() throws inside adapters),
+    // reversed ranges (start > end), and non-finite interval/intervalMs options.
+    if (Number.isNaN(startMs) || Number.isNaN(endMs) || endMs < startMs) {
+      logger.warn(
+        `[HistorianRouter] Invalid time range for ${tagId}: ${startTime.toString()} -> ${endTime.toString()}`
+      );
+      return [];
+    }
+
     // Case 1: All data within local retention window
     if (startMs >= cutoffTime) {
       const localData = await this.localStore.getHistory(tagId, startMs, endMs);
@@ -300,6 +310,12 @@ export class HistorianRouter implements IHistorian {
     intervalMs: number
   ): TagHistoryPoint[] {
     if (points.length === 0) return [];
+
+    // A non-positive interval would make the loop below never advance (infinite loop).
+    if (!Number.isFinite(intervalMs) || intervalMs <= 0) {
+      logger.warn(`[HistorianRouter] Invalid interpolation interval: ${intervalMs}`);
+      return [];
+    }
 
     const result: TagHistoryPoint[] = [];
     const startMs = startTime.getTime();

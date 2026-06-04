@@ -214,9 +214,13 @@ export function calculateMachineVisuals(
   machineId: string,
   values: Map<string, TagValue>,
   alarms: Alarm[],
-  machineStatus: 'running' | 'idle' | 'warning' | 'critical' = 'running'
+  machineStatus: 'running' | 'idle' | 'warning' | 'critical' = 'running',
+  machineName?: string
 ): MachineVisualProperties {
-  const prefix = getMachineTagPrefix(machineId);
+  // Thread machineName to getMachineTagPrefix so name-only machines resolve a
+  // prefix here too, matching scadaToStoreMetrics (avoids blank visuals while
+  // store metrics sync for machines whose id misses the prefix patterns).
+  const prefix = getMachineTagPrefix(machineId, machineName);
   const machineTags = getTagsByMachine(machineId);
   const machineAlarms = alarms.filter((a) => a.machineId === machineId);
 

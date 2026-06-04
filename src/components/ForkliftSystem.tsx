@@ -836,6 +836,15 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
 
     if (distance < 0.5) {
       // Arrived at waypoint - check for action
+      // Defensive: pathActions may be shorter than path if the two arrays ever
+      // diverge (e.g. a route edited in one array only). Without this guard,
+      // an out-of-range action is undefined and action.type below would throw
+      // inside useFrame, killing the render loop.
+      if (pathIndexRef.current >= data.pathActions.length) {
+        pathIndexRef.current = (pathIndexRef.current + 1) % data.path.length;
+        currentTarget.current.set(...data.path[pathIndexRef.current]);
+        return;
+      }
       const action = data.pathActions[pathIndexRef.current];
       const currentlyHasCargo = hasCargoRef.current; // Use ref for immediate value
 

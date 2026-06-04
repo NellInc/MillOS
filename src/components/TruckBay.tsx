@@ -41,6 +41,13 @@ interface TruckBayProps {
   productionSpeed: number;
 }
 
+// Stable module-level work-area bounds for warehouse workers. Hoisted out of
+// the JSX so their object identity is constant across renders; passing inline
+// object literals would churn WarehouseWorkerWithPalletJack's registration
+// effect (deps include workAreaBounds) on every parent re-render.
+const SHIPPING_WORKER_BOUNDS = { minX: -8, maxX: 8, minZ: -5, maxZ: 8 } as const;
+const RECEIVING_WORKER_BOUNDS = { minX: -8, maxX: 8, minZ: -8, maxZ: 5 } as const;
+
 // Exhaust particle system
 const ExhaustSmoke: React.FC<{
   position: [number, number, number];
@@ -2771,28 +2778,30 @@ export const TruckBay: React.FC<TruckBayProps> = ({ productionSpeed }) => {
         lastDockUpdateRef.current.receiving = receivingKey;
         updateDockStatus('receiving', { status: receivingStatus, etaMinutes: receivingEta });
       }
+    }
 
-      // Shipping truck phases: 0-34 arriving, 34-50 docked/loading, 50-60 departing
-      const shippingCycle = adjustedTime % CYCLE_LENGTH;
-      let shippingStatus: 'arriving' | 'loading' | 'departing' | 'clear';
-      let shippingEta: number;
+    // Shipping dock status for HolographicDisplays (independent of the receiving
+    // truck ref; uses only top-level adjustedTime/CYCLE_LENGTH).
+    // Shipping truck phases: 0-34 arriving, 34-50 docked/loading, 50-60 departing
+    const shippingCycle = adjustedTime % CYCLE_LENGTH;
+    let shippingStatus: 'arriving' | 'loading' | 'departing' | 'clear';
+    let shippingEta: number;
 
-      if (shippingCycle < 34) {
-        shippingStatus = 'arriving';
-        shippingEta = Math.ceil((34 - shippingCycle) / 3);
-      } else if (shippingCycle < 50) {
-        shippingStatus = 'loading';
-        shippingEta = Math.ceil((50 - shippingCycle) / 3);
-      } else {
-        shippingStatus = 'departing';
-        shippingEta = 0;
-      }
+    if (shippingCycle < 34) {
+      shippingStatus = 'arriving';
+      shippingEta = Math.ceil((34 - shippingCycle) / 3);
+    } else if (shippingCycle < 50) {
+      shippingStatus = 'loading';
+      shippingEta = Math.ceil((50 - shippingCycle) / 3);
+    } else {
+      shippingStatus = 'departing';
+      shippingEta = 0;
+    }
 
-      const shippingKey = `${shippingStatus}-${shippingEta}`;
-      if (shippingKey !== lastDockUpdateRef.current.shipping) {
-        lastDockUpdateRef.current.shipping = shippingKey;
-        updateDockStatus('shipping', { status: shippingStatus, etaMinutes: shippingEta });
-      }
+    const shippingKey = `${shippingStatus}-${shippingEta}`;
+    if (shippingKey !== lastDockUpdateRef.current.shipping) {
+      lastDockUpdateRef.current.shipping = shippingKey;
+      updateDockStatus('shipping', { status: shippingStatus, etaMinutes: shippingEta });
     }
   });
 
@@ -3113,7 +3122,7 @@ export const TruckBay: React.FC<TruckBayProps> = ({ productionSpeed }) => {
             <WarehouseWorkerWithPalletJack
               position={[10, 0, 5]}
               isActive={shippingDoorsOpenRef.current}
-              workAreaBounds={{ minX: -8, maxX: 8, minZ: -5, maxZ: 8 }}
+              workAreaBounds={SHIPPING_WORKER_BOUNDS}
             />
 
             {/* Time clock station */}
@@ -3517,7 +3526,7 @@ export const TruckBay: React.FC<TruckBayProps> = ({ productionSpeed }) => {
             <WarehouseWorkerWithPalletJack
               position={[10, 0, -5]}
               isActive={receivingDoorsOpenRef.current}
-              workAreaBounds={{ minX: -8, maxX: 8, minZ: -8, maxZ: 5 }}
+              workAreaBounds={RECEIVING_WORKER_BOUNDS}
             />
 
             {/* Time clock station for receiving area - moved to yard */}

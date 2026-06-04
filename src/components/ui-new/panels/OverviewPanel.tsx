@@ -58,6 +58,8 @@ const GameSpeedControls: React.FC = React.memo(() => {
     <div className="flex gap-1">
       <button
         onClick={() => setGameSpeed(0)}
+        aria-label="Pause"
+        aria-pressed={gameSpeed === 0}
         className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 ${
           gameSpeed === 0
             ? 'bg-orange-600 text-white'
@@ -65,10 +67,11 @@ const GameSpeedControls: React.FC = React.memo(() => {
         }`}
         title="Pause"
       >
-        <Pause className="w-3.5 h-3.5" />
+        <Pause className="w-3.5 h-3.5" aria-hidden="true" />
       </button>
       <button
         onClick={() => setGameSpeed(180)}
+        aria-pressed={gameSpeed === 180}
         className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 ${
           gameSpeed === 180
             ? 'bg-orange-600 text-white'
@@ -76,11 +79,12 @@ const GameSpeedControls: React.FC = React.memo(() => {
         }`}
         title="Normal (1x - 24hrs in 8min)"
       >
-        <Play className="w-3.5 h-3.5" />
+        <Play className="w-3.5 h-3.5" aria-hidden="true" />
         1x
       </button>
       <button
         onClick={() => setGameSpeed(1800)}
+        aria-pressed={gameSpeed === 1800}
         className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 ${
           gameSpeed === 1800
             ? 'bg-orange-600 text-white'
@@ -88,11 +92,12 @@ const GameSpeedControls: React.FC = React.memo(() => {
         }`}
         title="Fast (10x)"
       >
-        <FastForward className="w-3.5 h-3.5" />
+        <FastForward className="w-3.5 h-3.5" aria-hidden="true" />
         10x
       </button>
       <button
         onClick={() => setGameSpeed(10800)}
+        aria-pressed={gameSpeed === 10800}
         className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 ${
           gameSpeed === 10800
             ? 'bg-orange-600 text-white'
@@ -100,7 +105,7 @@ const GameSpeedControls: React.FC = React.memo(() => {
         }`}
         title="Ultra (60x)"
       >
-        <FastForward className="w-3.5 h-3.5" />
+        <FastForward className="w-3.5 h-3.5" aria-hidden="true" />
         60x
       </button>
     </div>

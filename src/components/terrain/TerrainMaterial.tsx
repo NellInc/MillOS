@@ -331,6 +331,10 @@ export function TerrainMaterial(props: TerrainMaterialProps) {
     }
   }, [material]);
 
+  // Dispose the material (and its compiled shader program) when it is replaced
+  // or the terrain unmounts, preventing a GPU resource leak on quality toggles.
+  useEffect(() => () => material.dispose(), [material]);
+
   return <primitive object={material} attach="material" />;
 }
 
@@ -390,6 +394,10 @@ export function useTerrainMaterial(props: TerrainMaterialProps) {
     }
     material.needsUpdate = true;
   }, [props.splatMap, props.heightmap, props.displacementDepth, material]);
+
+  // Dispose the material (and its compiled shader program) on unmount,
+  // preventing a GPU resource leak.
+  useEffect(() => () => material.dispose(), [material]);
 
   return material;
 }

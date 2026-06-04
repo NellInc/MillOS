@@ -206,9 +206,11 @@ export const StatusHUD: React.FC = () => {
                             ? 'bg-red-500'
                             : alert.type === 'warning'
                               ? 'bg-amber-500'
-                              : alert.type === 'success'
-                                ? 'bg-green-500'
-                                : 'bg-blue-500'
+                              : alert.type === 'safety'
+                                ? 'bg-orange-500'
+                                : alert.type === 'success'
+                                  ? 'bg-green-500'
+                                  : 'bg-blue-500'
                         }`}
                       />
                       <div className="flex-1 min-w-0">

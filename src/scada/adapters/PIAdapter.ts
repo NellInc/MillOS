@@ -149,7 +149,8 @@ export class PIAdapter implements IHistorian {
     }
 
     const data: PIStreamValuesResponse = await response.json();
-    return this.mapPIValuesToHistoryPoints(data.Items);
+    const items = Array.isArray(data?.Items) ? data.Items : [];
+    return this.mapPIValuesToHistoryPoints(items);
   }
 
   async getInterpolatedValues(
@@ -177,7 +178,8 @@ export class PIAdapter implements IHistorian {
     }
 
     const data: PIStreamValuesResponse = await response.json();
-    return this.mapPIValuesToHistoryPoints(data.Items);
+    const items = Array.isArray(data?.Items) ? data.Items : [];
+    return this.mapPIValuesToHistoryPoints(items);
   }
 
   async getPlotValues(
@@ -203,7 +205,8 @@ export class PIAdapter implements IHistorian {
     }
 
     const data: PIStreamValuesResponse = await response.json();
-    return this.mapPIValuesToHistoryPoints(data.Items);
+    const items = Array.isArray(data?.Items) ? data.Items : [];
+    return this.mapPIValuesToHistoryPoints(items);
   }
 
   async getLatestValue(tagId: string): Promise<TagHistoryPoint | null> {
@@ -217,6 +220,9 @@ export class PIAdapter implements IHistorian {
     }
 
     const data: PIValue = await response.json();
+    if (!data || typeof data !== 'object' || data.Timestamp === undefined) {
+      return null;
+    }
     const points = this.mapPIValuesToHistoryPoints([data]);
     return points[0] ?? null;
   }
@@ -327,6 +333,11 @@ export class PIAdapter implements IHistorian {
       }
 
       const data: PIPointResponse = await response.json();
+      // Validate before caching so a transient/malformed lookup is not cached
+      // as a permanent failure (the cache hit check uses `!== undefined`).
+      if (!data || typeof data.WebId !== 'string') {
+        return null;
+      }
       this.webIdCache.set(tagId, data.WebId);
       return data.WebId;
     } catch (error) {
@@ -392,8 +403,11 @@ export class PIAdapter implements IHistorian {
   }
 
   private msToIsoDuration(ms: number): string {
-    // Convert milliseconds to ISO 8601 duration
-    const seconds = Math.floor(ms / 1000);
+    // Convert milliseconds to ISO 8601 duration.
+    // Guard against sub-second/negative/NaN input: PI Web API rejects PT0S and
+    // malformed durations, so clamp to a minimum valid interval of 1 second.
+    const safeMs = Number.isFinite(ms) && ms > 0 ? ms : 1000;
+    const seconds = Math.max(1, Math.floor(safeMs / 1000));
     if (seconds < 60) return `PT${seconds}S`;
     const minutes = Math.floor(seconds / 60);
     if (minutes < 60) return `PT${minutes}M`;

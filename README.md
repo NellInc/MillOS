@@ -708,15 +708,19 @@ cd millos
 # Install dependencies
 npm install
 
-# Configure environment
+# (Optional) Configure local environment
 cp .env.local.example .env.local
-# Add your GEMINI_API_KEY to .env.local
 
 # Start development server
 npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) to view the simulation.
+
+> **Gemini API key:** there is no build-time key. Open the in-app AI / Gemini
+> settings, paste your key, and it is stored only in your browser's localStorage
+> (it is never embedded in the bundle). Data sent to Gemini goes directly from
+> your browser to Google. Without a key, MillOS runs in local heuristic mode.
 
 ### Scripts
 

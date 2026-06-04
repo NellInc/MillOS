@@ -43,10 +43,15 @@ export const StrategicPriorityCards: React.FC<StrategicPriorityCardsProps> = ({
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
+            role="status"
+            aria-live="polite"
             className="bg-slate-800/90 backdrop-blur-sm rounded-lg p-3 border border-cyan-500/30"
           >
             <div className="flex items-center gap-2">
-              <div className="w-4 h-4 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" />
+              <div
+                aria-hidden="true"
+                className="w-4 h-4 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin"
+              />
               <span className="text-sm text-cyan-400">Gemini analyzing...</span>
             </div>
           </motion.div>
@@ -99,9 +104,13 @@ export const StrategicPriorityCards: React.FC<StrategicPriorityCardsProps> = ({
                 </div>
                 <button
                   onClick={() => dismissPriority(index)}
+                  aria-label="Dismiss priority"
                   className="p-1 hover:bg-slate-700/50 rounded transition-colors"
                 >
-                  <X className="w-3.5 h-3.5 text-slate-500 hover:text-slate-300" />
+                  <X
+                    aria-hidden="true"
+                    className="w-3.5 h-3.5 text-slate-500 hover:text-slate-300"
+                  />
                 </button>
               </div>
 
@@ -139,9 +148,10 @@ export const StrategicPriorityCards: React.FC<StrategicPriorityCardsProps> = ({
               </div>
               <button
                 onClick={() => setDismissedPriorities((prev) => new Set([...prev, -1]))}
+                aria-label="Dismiss insight"
                 className="p-1 hover:bg-purple-800/30 rounded transition-colors ml-auto"
               >
-                <X className="w-3 h-3 text-purple-400" />
+                <X aria-hidden="true" className="w-3 h-3 text-purple-400" />
               </button>
             </div>
           </motion.div>
@@ -165,9 +175,10 @@ export const StrategicPriorityCards: React.FC<StrategicPriorityCardsProps> = ({
               </div>
               <button
                 onClick={() => setDismissedPriorities((prev) => new Set([...prev, -2]))}
+                aria-label="Dismiss trade-off"
                 className="p-1 hover:bg-amber-800/30 rounded transition-colors ml-auto"
               >
-                <X className="w-3 h-3 text-amber-400" />
+                <X aria-hidden="true" className="w-3 h-3 text-amber-400" />
               </button>
             </div>
           </motion.div>

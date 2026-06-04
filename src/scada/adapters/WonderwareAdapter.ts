@@ -54,7 +54,11 @@ interface WWTagInfo {
 
 /**
  * Map OPC quality codes to our Quality type.
- * OPC quality is 16-bit: high 8 bits = major, low 8 bits = substatus
+ *
+ * This handles the standard 8-bit OPC DA quality byte, where the top two
+ * bits (>>6 & 0x3) are the major quality field (Good/Uncertain/Bad) and the
+ * lower bits are substatus. If a deployment's REST API ever returns the full
+ * 16-bit OPC quality word, the Quality field would need normalising first.
  */
 function mapOpcQuality(opcQuality: number): Quality {
   const major = (opcQuality >> 6) & 0x3;
@@ -88,8 +92,11 @@ export class WonderwareAdapter implements IHistorian {
     this.protocol = config.protocol;
     this.timeout = config.timeout ?? 30000;
 
-    // Build base URL for REST API
-    this.baseUrl = `http://${this.serverHost}:${this.serverPort}/Historian/v1`;
+    // Build base URL for REST API.
+    // Default to https:// so Basic-auth credentials (potentially Windows
+    // domain creds) are sent over TLS, not in cleartext. http:// requests
+    // are also blocked as mixed content when MillOS is served over https.
+    this.baseUrl = `https://${this.serverHost}:${this.serverPort}/Historian/v1`;
 
     // Build authorization header
     if (config.authMode === 'windows' && config.domain && config.username && config.password) {
@@ -164,7 +171,8 @@ export class WonderwareAdapter implements IHistorian {
     }
 
     const data: WWHistoryResponse = await response.json();
-    return this.mapWWValuesToHistoryPoints(data.Data);
+    const rows = Array.isArray(data?.Data) ? data.Data : [];
+    return this.mapWWValuesToHistoryPoints(rows);
   }
 
   async getInterpolatedValues(
@@ -189,7 +197,8 @@ export class WonderwareAdapter implements IHistorian {
     }
 
     const data: WWHistoryResponse = await response.json();
-    return this.mapWWValuesToHistoryPoints(data.Data);
+    const rows = Array.isArray(data?.Data) ? data.Data : [];
+    return this.mapWWValuesToHistoryPoints(rows);
   }
 
   async getPlotValues(
@@ -208,14 +217,18 @@ export class WonderwareAdapter implements IHistorian {
 
     const response = await this.fetchWithAuth(url);
     if (!response.ok) {
-      // Fall back to interpolated if TrendData not available
-      const durationMs = endTime.getTime() - startTime.getTime();
-      const intervalMs = Math.floor(durationMs / intervals);
+      // Fall back to interpolated if TrendData not available.
+      // Guard against intervals <= 0 (Infinity) and negative durations
+      // (startTime > endTime) producing a malformed historian request.
+      const safeIntervals = intervals > 0 ? intervals : 100;
+      const durationMs = Math.max(0, endTime.getTime() - startTime.getTime());
+      const intervalMs = Math.max(1, Math.floor(durationMs / safeIntervals));
       return this.getInterpolatedValues(tagId, startTime, endTime, intervalMs);
     }
 
     const data: WWHistoryResponse = await response.json();
-    return this.mapWWValuesToHistoryPoints(data.Data);
+    const rows = Array.isArray(data?.Data) ? data.Data : [];
+    return this.mapWWValuesToHistoryPoints(rows);
   }
 
   async getLatestValue(tagId: string): Promise<TagHistoryPoint | null> {
@@ -226,6 +239,9 @@ export class WonderwareAdapter implements IHistorian {
     }
 
     const data: WWHistoryValue = await response.json();
+    if (!data || data.TimeStamp === undefined) {
+      return null;
+    }
     const points = this.mapWWValuesToHistoryPoints([data]);
     return points[0] ?? null;
   }

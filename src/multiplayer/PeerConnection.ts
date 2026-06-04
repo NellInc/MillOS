@@ -6,6 +6,7 @@
 
 import { DataConnection } from 'peerjs';
 import { MultiplayerMessage } from './types';
+import { logger } from '../utils/logger';
 
 export interface PeerConnectionCallbacks {
   onMessage: (message: MultiplayerMessage) => void;
@@ -46,11 +47,20 @@ export class PeerConnection {
     // Handle incoming data
     this.connection.on('data', (data) => {
       try {
-        // PeerJS already handles JSON parsing for objects
-        const message = data as MultiplayerMessage;
-        this.handleMessage(message);
-      } catch {
-        // Failed to parse message - ignore
+        // PeerJS already deserialized the object; validate the shape of this
+        // untrusted-peer payload before dispatching it to message handlers.
+        if (
+          !data ||
+          typeof data !== 'object' ||
+          typeof (data as { type?: unknown }).type !== 'string'
+        ) {
+          logger.multiplayer.warn('Dropped malformed message from peer', this.connection.peer);
+          return;
+        }
+        this.handleMessage(data as MultiplayerMessage);
+      } catch (err) {
+        // Handler error (not a parse error) - log instead of swallowing silently
+        logger.multiplayer.warn('Error handling peer message', err);
       }
     });
 
@@ -72,11 +82,15 @@ export class PeerConnection {
 
     // Handle ping/pong for latency measurement
     if (message.type === 'PING') {
-      // Respond with pong
+      // Respond with pong (guard against a malformed/absent payload timestamp)
+      const timestamp = message.payload?.timestamp;
+      if (typeof timestamp !== 'number' || !Number.isFinite(timestamp)) {
+        return;
+      }
       this.send({
         type: 'PONG',
         payload: {
-          timestamp: message.payload.timestamp,
+          timestamp,
           hostTime: Date.now(),
         },
       });
@@ -84,8 +98,12 @@ export class PeerConnection {
     }
 
     if (message.type === 'PONG') {
-      // Calculate latency
-      const roundTrip = Date.now() - message.payload.timestamp;
+      // Calculate latency (ignore malformed payloads that would yield NaN)
+      const timestamp = message.payload?.timestamp;
+      if (typeof timestamp !== 'number' || !Number.isFinite(timestamp)) {
+        return;
+      }
+      const roundTrip = Date.now() - timestamp;
       this.latencyMs = Math.round(roundTrip / 2);
       return;
     }

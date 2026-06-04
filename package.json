@@ -1,7 +1,7 @@
 {
   "name": "grain-mill-simulator",
   "private": true,
-  "version": "0.20.0",
+  "version": "0.30.0",
   "type": "module",
   "scripts": {
     "dev": "vite --port 3000",

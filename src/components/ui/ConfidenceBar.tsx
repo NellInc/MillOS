@@ -54,7 +54,14 @@ export const ConfidenceBar: React.FC<ConfidenceBarProps> = ({
           )}
         </div>
       )}
-      <div className={`w-full ${heights[size]} bg-slate-700/50 rounded-full overflow-hidden`}>
+      <div
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={clampedConfidence}
+        aria-label={`${label || 'AI confidence'}: ${clampedConfidence.toFixed(0)}%`}
+        className={`w-full ${heights[size]} bg-slate-700/50 rounded-full overflow-hidden`}
+      >
         <motion.div
           initial={{ width: 0 }}
           animate={{ width: `${clampedConfidence}%` }}

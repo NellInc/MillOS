@@ -126,9 +126,10 @@ export const PhysicsForklift: React.FC<PhysicsForkliftProps> = ({
       const pos = rigidBodyRef.current.translation();
       const dir = directionRef.current;
 
-      // isStopped should include emergency drill mode AND loading/unloading operations
-      // This ensures workers treat halted forklifts (during operations) correctly
-      const isStopped = emergencyDrillMode || operationRef.current !== 'traveling';
+      // isStopped should include emergency drill mode, standalone E-stop, AND loading/unloading operations
+      // This ensures workers treat halted forklifts (during operations or E-stop) correctly
+      const isStopped =
+        emergencyDrillMode || forkliftEmergencyStop || operationRef.current !== 'traveling';
 
       // Register with position registry for collision avoidance
       positionRegistry.register(data.id, pos.x, pos.z, 'forklift', dir.x, dir.z, isStopped);
@@ -136,7 +137,7 @@ export const PhysicsForklift: React.FC<PhysicsForkliftProps> = ({
       // Notify parent of position update
       onPositionUpdate?.(pos.x, pos.z, rotation);
     },
-    [data.id, emergencyDrillMode, onPositionUpdate]
+    [data.id, emergencyDrillMode, forkliftEmergencyStop, onPositionUpdate]
   );
 
   useFrame((_state, delta) => {

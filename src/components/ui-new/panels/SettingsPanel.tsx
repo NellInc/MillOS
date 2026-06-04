@@ -457,12 +457,19 @@ export const SettingsPanel: React.FC<{
           </button>
           <button
             onClick={() => {
-              // Clear all persisted state
-              localStorage.removeItem('millos-settings');
-              localStorage.removeItem('millos-game-simulation');
-              localStorage.removeItem('millos-has-played');
-              localStorage.removeItem('millos-ai-narration');
-              localStorage.removeItem('millos-knowledge');
+              if (
+                !window.confirm(
+                  'Reset the simulation and clear all saved data? This clears saved progress, graphics settings, and your Gemini API key, then reloads. This cannot be undone.'
+                )
+              ) {
+                return;
+              }
+              // Clear every persisted MillOS store (keys are namespaced "millos-*").
+              // This includes millos-graphics and millos-ai-config (the plaintext
+              // Gemini API key), which a full reset should remove.
+              Object.keys(localStorage)
+                .filter((key) => key.startsWith('millos-'))
+                .forEach((key) => localStorage.removeItem(key));
               setGraphicsQuality('medium');
               window.location.reload();
             }}

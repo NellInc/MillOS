@@ -24,6 +24,7 @@ import {
 import { useMultiplayerStore } from '../stores/multiplayerStore';
 import { handleHostDisconnect } from './HostMigration';
 import { logger } from '../utils/logger';
+import { sanitizeChatMessage, sanitizePlayerName } from '../utils/sanitize';
 
 // Broadcast frequencies
 const PLAYER_UPDATE_INTERVAL = 50; // 20Hz for smooth movement
@@ -138,7 +139,7 @@ export class MultiplayerManager {
     const metadata = connection.metadata as { playerName?: string; playerId?: string } | undefined;
     const isHost = store.isHost;
     const playerId = metadata?.playerId || peerId;
-    const playerName = metadata?.playerName || 'Player';
+    const playerName = sanitizePlayerName(metadata?.playerName) || 'Player';
 
     // Create peer connection wrapper
     const peerConn = new PeerConnection(connection, {
@@ -245,6 +246,10 @@ export class MultiplayerManager {
    * Handle peer disconnection
    */
   private handlePeerDisconnected(peerId: string): void {
+    // Guard against running twice for the same peer (onClose + stale sweep can
+    // both fire). Store removals are idempotent but the PLAYER_LEAVE broadcast is not.
+    if (!this.peerConnections.has(peerId)) return;
+
     const store = useMultiplayerStore.getState();
 
     const peerConn = this.peerConnections.get(peerId);
@@ -271,6 +276,10 @@ export class MultiplayerManager {
       handleHostDisconnect();
     }
 
+    // Close the wrapper before dropping it. On the stale-sweep path the underlying
+    // DataConnection is still open, so without this the connection/handlers leak.
+    // PeerConnection.close() guards isOpen, so the normal 'close' path is a no-op here.
+    peerConn?.close();
     this.peerConnections.delete(peerId);
   }
 
@@ -288,7 +297,7 @@ export class MultiplayerManager {
       case 'PLAYER_JOIN':
         store.addRemotePlayer({
           id: message.payload.id,
-          name: message.payload.name,
+          name: sanitizePlayerName(message.payload.name) || 'Player',
           position: [0, 1.7, 0],
           rotation: 0,
           velocity: [0, 0, 0],
@@ -352,7 +361,10 @@ export class MultiplayerManager {
         break;
 
       case 'CHAT':
-        store.addChatMessage(message.payload);
+        store.addChatMessage({
+          ...message.payload,
+          message: sanitizeChatMessage(message.payload.message),
+        });
         break;
 
       case 'AI_VOTE':
@@ -596,11 +608,14 @@ export class MultiplayerManager {
   sendChat(message: string): void {
     const store = useMultiplayerStore.getState();
 
+    const cleanMessage = sanitizeChatMessage(message);
+    if (!cleanMessage) return;
+
     const chatMessage = {
       id: `chat_${Date.now()}`,
       from: store.localPlayerId,
       fromName: store.localPlayerName,
-      message,
+      message: cleanMessage,
       timestamp: Date.now(),
     };
 

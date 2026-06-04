@@ -61,7 +61,12 @@ export const AlertAcknowledgmentFlow: React.FC<AlertAcknowledgmentFlowProps> = (
   };
 
   return (
-    <div className="fixed bottom-4 right-4 z-40 space-y-2 max-w-sm">
+    <div
+      className="fixed bottom-4 right-4 z-40 space-y-2 max-w-sm"
+      role="region"
+      aria-live="polite"
+      aria-label="Notifications"
+    >
       {/* Acknowledge All button */}
       {visibleAlerts.length > 1 && (
         <motion.button
@@ -83,6 +88,8 @@ export const AlertAcknowledgmentFlow: React.FC<AlertAcknowledgmentFlowProps> = (
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, x: 50 }}
           transition={{ delay: index * 0.05 }}
+          role={alert.type === 'critical' ? 'alert' : 'status'}
+          aria-live={alert.type === 'critical' ? 'assertive' : 'polite'}
           className={`rounded-lg border p-3 backdrop-blur-sm ${getAlertStyles(alert.type)}`}
         >
           <div className="flex items-start gap-2">
@@ -95,8 +102,9 @@ export const AlertAcknowledgmentFlow: React.FC<AlertAcknowledgmentFlowProps> = (
               onClick={() => handleAcknowledge(alert.id)}
               className="p-1 hover:bg-slate-700/50 rounded transition-colors flex-shrink-0"
               title="Acknowledge"
+              aria-label={`Acknowledge alert: ${alert.title}`}
             >
-              <X className="w-3.5 h-3.5 text-slate-400 hover:text-white" />
+              <X className="w-3.5 h-3.5 text-slate-400 hover:text-white" aria-hidden="true" />
             </button>
           </div>
         </motion.div>

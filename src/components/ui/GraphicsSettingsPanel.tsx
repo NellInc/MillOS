@@ -517,7 +517,7 @@ export const GraphicsSettingsPanel: React.FC = () => {
                   <kbd
                     className={`px-1.5 py-0.5 rounded font-mono ${theme === 'light' ? 'bg-slate-200 text-slate-600' : 'bg-slate-700 text-slate-300'}`}
                   >
-                    A
+                    I
                   </kbd>
                   <span className={theme === 'light' ? 'text-slate-500' : 'text-slate-400'}>
                     AI Panel
@@ -620,7 +620,13 @@ export const GraphicsSettingsPanel: React.FC = () => {
                 </button>
                 <button
                   onClick={() => {
-                    localStorage.removeItem('millos-settings');
+                    if (
+                      !window.confirm(
+                        'Reset the entire simulation? This clears saved progress and graphics settings, then reloads.'
+                      )
+                    )
+                      return;
+                    localStorage.removeItem('millos-graphics');
                     localStorage.removeItem('millos-game-simulation');
                     setGraphicsQuality('medium');
                     window.location.reload();

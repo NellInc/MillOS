@@ -83,20 +83,24 @@ export const CollapsibleLegend: React.FC = () => {
       }`}
     >
       <div className="flex items-center">
-        {/* Drag Handle */}
+        {/* Drag Handle (mouse-only reposition; hidden from assistive tech to avoid a keyboard focus dead-end) */}
         <div
           onMouseDown={handleMouseDown}
           className={`px-1.5 py-2.5 cursor-grab transition-colors flex items-center ${
             theme === 'light' ? 'hover:bg-slate-100' : 'hover:bg-slate-800/50'
           }`}
-          title="Drag to move"
+          title="Drag to move (mouse only)"
+          aria-hidden="true"
         >
           <GripVertical
             className={`w-3.5 h-3.5 ${theme === 'light' ? 'text-slate-400' : 'text-slate-500'}`}
           />
         </div>
         <button
+          type="button"
           onClick={() => setExpanded(!expanded)}
+          aria-expanded={expanded}
+          aria-controls="collapsible-legend-content"
           className={`flex-1 flex items-center justify-between p-2.5 pl-1 transition-colors ${
             theme === 'light' ? 'hover:bg-slate-100' : 'hover:bg-slate-800/50'
           }`}
@@ -124,6 +128,7 @@ export const CollapsibleLegend: React.FC = () => {
       <AnimatePresence>
         {expanded && (
           <motion.div
+            id="collapsible-legend-content"
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}

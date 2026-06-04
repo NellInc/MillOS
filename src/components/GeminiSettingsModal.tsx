@@ -5,11 +5,12 @@
  * plant management decisions.
  */
 
-import { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Key, CheckCircle, AlertTriangle, Loader2, Zap, Brain, Trash2 } from 'lucide-react';
 import { useAIConfigStore } from '../stores/aiConfigStore';
 import { geminiClient } from '../utils/geminiClient';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 
 // Visualization Toggles Component
 const VisualizationToggles: React.FC = () => {
@@ -28,7 +29,14 @@ const VisualizationToggles: React.FC = () => {
   const setShowCostOverlay = useAIConfigStore((s) => s.setShowCostOverlay);
   const setShowShiftHandover = useAIConfigStore((s) => s.setShowShiftHandover);
 
-  const toggles = [
+  // `key` is the actual keyboard shortcut wired in useKeyboardShortcuts.ts.
+  // Toggles without a registered key handler omit `key` (button-only).
+  const toggles: Array<{
+    label: string;
+    key?: string;
+    enabled: boolean;
+    setEnabled: (v: boolean) => void;
+  }> = [
     {
       label: 'Cascade Visualization',
       key: 'K',
@@ -55,14 +63,14 @@ const VisualizationToggles: React.FC = () => {
     },
     {
       label: 'API Cost Tracker',
-      key: 'C',
+      key: '$',
       enabled: showCostOverlay,
       setEnabled: setShowCostOverlay,
     },
-    { label: 'VCL Context', key: 'V', enabled: showVCLDebug, setEnabled: setShowVCLDebug },
+    // No keyboard handler registered: button-only toggle.
+    { label: 'VCL Context', enabled: showVCLDebug, setEnabled: setShowVCLDebug },
     {
       label: 'Shift Handover',
-      key: 'H',
       enabled: showShiftHandover,
       setEnabled: setShowShiftHandover,
     },
@@ -86,7 +94,9 @@ const VisualizationToggles: React.FC = () => {
           >
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium">{toggle.label}</span>
-              <kbd className="px-1.5 py-0.5 text-[9px] bg-slate-600 rounded">{toggle.key}</kbd>
+              {toggle.key && (
+                <kbd className="px-1.5 py-0.5 text-[9px] bg-slate-600 rounded">{toggle.key}</kbd>
+              )}
             </div>
           </button>
         ))}
@@ -117,6 +127,9 @@ export function GeminiSettingsModal({ isOpen, onClose }: GeminiSettingsModalProp
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const [showGeminiConfirmation, setShowGeminiConfirmation] = useState(false);
+
+  const modalRef = useRef<HTMLDivElement | null>(null);
+  useFocusTrap(modalRef as React.RefObject<HTMLElement>, isOpen, onClose);
 
   const handleTestConnection = useCallback(async () => {
     if (!inputKey.trim()) {
@@ -183,6 +196,10 @@ export function GeminiSettingsModal({ isOpen, onClose }: GeminiSettingsModalProp
         onClick={onClose}
       >
         <motion.div
+          ref={modalRef}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="gemini-settings-title"
           initial={{ scale: 0.9, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           exit={{ scale: 0.9, opacity: 0 }}
@@ -192,14 +209,17 @@ export function GeminiSettingsModal({ isOpen, onClose }: GeminiSettingsModalProp
           {/* Header */}
           <div className="flex items-center justify-between p-4 border-b border-slate-700">
             <div className="flex items-center gap-2">
-              <Brain className="w-5 h-5 text-cyan-400" />
-              <h2 className="text-lg font-semibold text-white">Gemini AI Settings</h2>
+              <Brain className="w-5 h-5 text-cyan-400" aria-hidden="true" />
+              <h2 id="gemini-settings-title" className="text-lg font-semibold text-white">
+                Gemini AI Settings
+              </h2>
             </div>
             <button
               onClick={onClose}
+              aria-label="Close settings"
               className="p-1 rounded-lg hover:bg-slate-800 transition-colors"
             >
-              <X className="w-5 h-5 text-slate-400" />
+              <X className="w-5 h-5 text-slate-400" aria-hidden="true" />
             </button>
           </div>
 
@@ -239,8 +259,8 @@ export function GeminiSettingsModal({ isOpen, onClose }: GeminiSettingsModalProp
               )}
 
               {connectionError && (
-                <div className="mt-2 flex items-center gap-2 text-sm text-red-400">
-                  <AlertTriangle className="w-4 h-4" />
+                <div role="alert" className="mt-2 flex items-center gap-2 text-sm text-red-400">
+                  <AlertTriangle className="w-4 h-4" aria-hidden="true" />
                   <span>{connectionError}</span>
                 </div>
               )}
@@ -248,10 +268,16 @@ export function GeminiSettingsModal({ isOpen, onClose }: GeminiSettingsModalProp
 
             {/* API Key Input */}
             <div className="space-y-2">
-              <label className="block text-sm font-medium text-slate-300">Google API Key</label>
+              <label htmlFor="gemini-api-key" className="block text-sm font-medium text-slate-300">
+                Google API Key
+              </label>
               <div className="relative">
-                <Key className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                <Key
+                  className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500"
+                  aria-hidden="true"
+                />
                 <input
+                  id="gemini-api-key"
                   type="password"
                   value={inputKey}
                   onChange={(e) => setInputKey(e.target.value)}
@@ -274,11 +300,26 @@ export function GeminiSettingsModal({ isOpen, onClose }: GeminiSettingsModalProp
                   Google AI Studio
                 </a>
               </p>
+              <p className="text-[10px] text-slate-500 leading-relaxed">
+                Your API key is stored only in this browser (localStorage) and is never sent to a
+                MillOS server. In Gemini and Hybrid modes, your key and simulation state are sent
+                directly to Google&rsquo;s Gemini API, where they are handled under{' '}
+                <a
+                  href="https://policies.google.com/privacy"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-cyan-400 hover:underline"
+                >
+                  Google&rsquo;s Privacy Policy
+                </a>
+                . Heuristic mode runs locally and sends nothing to Google.
+              </p>
             </div>
 
             {/* Test Result */}
             {testResult && (
               <motion.div
+                role="alert"
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
                 className={`p-3 rounded-lg flex items-center gap-2 ${

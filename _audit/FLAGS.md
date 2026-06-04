@@ -1,0 +1,520 @@
+# MillOS Launch Audit — Owner Decisions & Flags
+
+_172 items needing your call or verification. Sorted by severity._
+
+- **[CRITICAL]** `src/utils/geminiClient.ts:135` · L4 API/Errors
+  - Gemini model 'gemini-3-flash-preview' likely invalid for the legacy @google/generative-ai SDK — live AI silently dead at launch
+  - _Recommend:_ Owner decision: confirm the exact model ID the user's API key + @google/generative-ai 0.24.1 actually serves (live smoke test). If Gemini 3 is intended, migrate to @google/genai and set a verified ID; otherwise set a known-served ID (e.g. a current 2.0/2.5-Flash). In the SAME change, fix the stale '2.0 Flash'/'Flash 3' log+comment strings and re-check the GEMINI_FLASH_*_COST constants against the chosen model's published pricing.
+- **[CRITICAL]** `public/v0.20/` · L9 Performance
+  - 418MB duplicate v0.20/ asset tree ships to GitHub Pages in the build
+  - _Recommend:_ Remove public/v0.20/ from the deployed tree (move out of public/ or exclude in a build step). It is a stale snapshot of a prior published build; runtime paths use import.meta.env.BASE_URL ('/').
+- **[HIGH]** `index.html:27` · L7 Copy
+  - OG/Twitter image is a reused 3456x1993 screenshot but meta declares 1200x630
+  - _Recommend:_ Replace public/og-image.png with a real 1200x630 social card, OR correct the og:image:width/height meta to the true 3456x1993 (and accept the larger upload). Owner decision on whether to author a proper card vs adjust metadata.
+- **[HIGH]** `README.md:711` · L7 Copy
+  - Quick Start env setup is stale: .env.local.example missing and GEMINI_API_KEY build-injection is disabled
+  - _Recommend:_ Rewrite the env step to describe the real flow: run the app, open AI/Gemini settings, paste the key (stored in browser localStorage). Remove the `cp .env.local.example` line or add an actual .env.local.example. Owner should confirm intended onboarding UX.
+- **[HIGH]** `src/stores/gameSimulationStore.ts:830 (with src/components/MillScene.tsx:824 and src/components/WorkerSystemNew.tsx:383-385)` · L1 Correctness/Bugs
+  - Fire-drill evacuation metrics never complete when camera is outside the factory
+  - _Recommend:_ Product decision among: (a) cap totalWorkers to the count of currently-registered/mounted workers at drill start; (b) drive evacuation headlessly from the store so it completes regardless of camera; or (c) keep WorkerSystemNew (or a headless evacuation tick) mounted while a drill is active. Do not pick blindly; this changes drill UX/semantics.
+- **[HIGH]** `index.html:28` · L12 Config
+  - og:image declared 1200x630 but public/og-image.png is actually 3456x1993
+  - _Recommend:_ Re-export og-image.png at exactly 1200x630 (or update the width/height meta to the true 3456x1993 and compress under ~1MB). Preferred: regenerate a 1200x630 <300KB PNG/JPG to match the declared dims.
+- **[HIGH]** `.github/workflows/deploy.yml:79` · L12 Config
+  - CNAME file never copied into the deployed Pages artifact
+  - _Recommend:_ Add a step before upload: `cp CNAME staging/CNAME` (and ideally also into staging/v0.30/ if subpaths are served directly). Resolve the apex/www question first (see related finding).
+- **[HIGH]** `src/components/ui/GraphicsSettingsPanel.tsx:621` · L6 UX
+  - Destructive 'Reset Simulation' wipes localStorage and reloads with NO confirmation
+  - _Recommend:_ Wrap the handler in a confirmation: `if (!window.confirm('Reset the entire simulation? This clears saved progress and reloads.')) return;` before the removeItem calls, or gate behind a two-step confirm UI like the existing showGeminiConfirmation pattern in GeminiSettingsModal.
+- **[HIGH]** `src/components/ui-new/panels/SettingsPanel.tsx:458` · L6 UX
+  - Second 'Reset Simulation' button (active new-UI panel) also wipes localStorage + reloads without confirmation
+  - _Recommend:_ Add `if (!window.confirm('Reset the simulation and clear all saved data? This cannot be undone.')) return;` at the top of the onClick handler.
+- **[HIGH]** `src/multiplayer/MultiplayerManager.ts:284-285` · L1 Correctness/Bugs - Integration (SCADA+multiplayer+protocols)
+  - Host never relays PLAYER_UPDATE → remote players frozen at spawn in 3+ player sessions
+  - _Recommend:_ In the host branch of the PLAYER_UPDATE case, after updating the store, rebroadcast the update to all other peers excluding the sender: `if (store.isHost) this.broadcast(message, peerId);`. Verify against the message contract before shipping.
+- **[HIGH]** `src/multiplayer/MultiplayerManager.ts:98-105` · L1 Correctness/Bugs - Integration (SCADA+multiplayer+protocols)
+  - Join-timeout destroys singleton without nulling it → subsequent multiplayer attempts use a poisoned manager
+  - _Recommend:_ Have internal teardown null the singleton: call the module-level destroyMultiplayerManager() from the joinRoom timeout instead of this.destroy(), or add an isDestroyed reset/recreate guard in getMultiplayerManager() so a destroyed instance is replaced. Confirm no double-destroy regression first.
+- **[HIGH]** `src/multiplayer/SignalingService.ts:85-90` · L6 UX
+  - Room-not-found error never reaches join UI
+  - _Recommend:_ Reject initialize() on peer-unavailable or set store error field.
+- **[HIGH]** `src/components/multiplayer/MultiplayerLobby.tsx:34` · L6 UX
+  - Lobby has no host-disconnect feedback
+  - _Recommend:_ Add host-disconnected listener to Lobby.
+- **[HIGH]** `SettingsPanel.tsx:458-468` · L3
+  - Reset clears 5 of 16 keys; plaintext Gemini key survives
+  - _Recommend:_ Add Clear all data removing every millos key or a Forget API key button.
+- **[HIGH]** `GeminiSettingsModal.tsx:266-277` · L3
+  - No disclosure plant data sent to Google Gemini
+  - _Recommend:_ Add notice MillOS sends simulation state to Google Gemini under Google Privacy Policy.
+- **[HIGH]** `src/components/ui/KeyboardShortcutsModal.tsx:72` · L5 A11y
+  - Modal lacks dialog role, aria-modal, focus trap, and ESC-to-close
+  - _Recommend:_ On the inner panel add role="dialog" aria-modal="true" aria-labelledby="kbd-shortcuts-title" (give the h2 that id); add a useEffect keydown listener calling onClose() on 'Escape'; move initial focus into the dialog and restore on close (or trap focus). UX adds ESC behavior, so owner should confirm.
+- **[HIGH]** `src/components/ui/DecisionReplay.tsx:71` · L5 A11y
+  - Decision-replay modal lacks dialog role/aria-modal/ESC/focus management
+  - _Recommend:_ Add role="dialog" aria-modal="true" aria-label="Decision replay" to the panel; add Escape keydown -> onClose; add aria-label="Close" to the X button + aria-hidden on the icon; manage initial/return focus. ESC behavior is a UX addition.
+- **[HIGH]** `src/multiplayer/MultiplayerManager.ts:280` · L4 API/Errors
+  - Host trusts unvalidated, spoofable fields from untrusted guest messages (no payload validation, no default case)
+  - _Recommend:_ Add a validateMessage(peerId, message) guard at the top of handleMessage: assert message.type is a known literal, assert payload exists and required fields are correct primitive types (finite numbers for positions/rotation, string ids), and reject any message whose payload.id/from does not match the authenticated sender peerId for PLAYER_UPDATE/CHAT (host should derive identity from the connection, not the payload). Add a `default:` that logs+drops. Keep it in MultiplayerManager; payload type literals already exist in multiplayer/types.ts.
+- **[HIGH]** `index.html:11` · L2 Security
+  - CSP connect-src omits www.gstatic.com → DRACO decoder fetch blocked, breaks 3D models in production
+  - _Recommend:_ Add 'https://www.gstatic.com' to the connect-src directive in index.html (line 11), e.g. '...generativelanguage.googleapis.com https://www.gstatic.com https://cdn.jsdelivr.net...'. Alternatively switch dracoLoader.ts to the local '/draco/' decoder path (commented at line 36) and vendor the decoder into public/draco/ to avoid any third-party connect entirely.
+- **[HIGH]** `public/textures/machines/downloads/` · L9 Performance
+  - 173MB of texture SOURCE cruft (.blend/.zip/.usdc/.tres/.mtlx) ships in public/
+  - _Recommend:_ Delete public/textures/machines/downloads/ (or move to a non-public source folder). Keep only the runtime-referenced JPG/KTX2 maps. Verify against texture load paths in src before deleting.
+- **[HIGH]** `public/models/forklift/forklift-original.glb + forklift.glb.backup.glb` · L9 Performance
+  - 144MB of unreferenced GLB backups/originals shipped (35MB each x2 + worker backups)
+  - _Recommend:_ Delete *-original.glb and *.backup.glb under public/models/ (and v0.20). Only forklift.glb (1.6M) and worker.glb (136K) are referenced.
+- **[HIGH]** `src/main.tsx:3,50` · L9 Performance
+  - 4200-line AssetPrototypePage statically imported into main entry, parsed on every visit
+  - _Recommend:_ Lazy-load: `const AssetPrototypePage = React.lazy(() => import('./prototypes/AssetPrototypePage'))` rendered under Suspense only when isPrototypeRoute() is true. Behavior-changing (adds Suspense on the prototype route), so flag for owner.
+- **[HIGH]** `src/components/ui-new/sidebar/ContextSidebar.tsx:33` · L9 Performance
+  - MultiplayerPanel imported EAGERLY, pulling peerjs into the boot path
+  - _Recommend:_ Make MultiplayerPanel lazy to match siblings: `const MultiplayerPanel = lazy(() => import('../panels/MultiplayerPanel').then(m => ({ default: m.MultiplayerPanel })));` and wrap its render at line 168 in the existing Suspense. Defers peerjs to first panel open.
+- **[HIGH]** `public/Fuzzball Parade.mp3 (+ 25 more)` · L9 Performance
+  - 26 high-bitrate MP3s total ~140MB; several 9-12MB single tracks
+  - _Recommend:_ Re-encode music to ~96-128kbps (target <2MB/track) via ffmpeg; background loops don't need high bitrate. Owner decision on quality/size. Cuts ~100MB+ from worst-case cached/transferred audio.
+- **[HIGH]** `src/components/TruckBay.tsx:2877-2946,3274-3551` · L1 Correctness/Bugs
+  - Dock-equipment animations driven by ref reads in render never react to docking cycle
+  - _Recommend:_ Lift the truck dock/door/phase state that drives equipment into React state (or subscribe the equipment to the production store dock-status values that useFrame already writes via setTruckDocked/updateDockStatus), so prop changes re-render the equipment. Minimal version: replace the docked/doorsOpen/phase refs that feed JSX props with useState updated in useFrame (throttled to state transitions only, which the code already detects). All edits stay inside TruckBay.tsx.
+- **[HIGH]** `src/scada/adapters/WonderwareAdapter.ts:92` · L4 API/Errors
+  - Wonderware historian base URL hardcoded to plaintext http:// — Basic-auth credentials sent in clear
+  - _Recommend:_ Add an optional `useSsl?: boolean` (or `baseUrlOverride`) to WonderwareConnectionConfig in HistorianInterface.ts and derive scheme (`https://` default) instead of hardcoding `http://`. Defaulting to https is the safe posture for SCADA credentials.
+- **[HIGH]** `src/scada/adapters/RESTAdapter.ts:304` · L4 API/Errors
+  - After 5 reconnect failures REST adapter silently disconnects and clears all subscribers with no consumer notification
+  - _Recommend:_ On terminal failure, set a distinct lastError (e.g. 'Reconnect limit reached') and emit a connection-status change rather than silently clearing subscribers; or do not clear subscribers in the auto-disconnect path so a later manual reconnect can resume. Needs a product call on desired reconnect ceiling/UX.
+- **[HIGH]** `.github/workflows/ci.yml:17,32,41,57` · L12 Config
+  - CI cannot fail on lint or test — green CI does not gate regressions
+  - _Recommend:_ Remove `exit 0` (revert to `npm run lint`) and `|| true` from the test step, and drop `continue-on-error: true` once flakiness is addressed; if Vitest worker crashes are the real concern, scope the tolerance to that specific exit condition rather than swallowing all failures. Requires owner sign-off (changes what CI blocks on).
+- **[HIGH]** `.github/workflows/release.yml:58-95` · L12 Config
+  - release.yml deploys a SECOND, conflicting GitHub Pages site on tag push
+  - _Recommend:_ Remove the `deploy-ghpages` job from release.yml (let deploy.yml own all Pages deploys), OR make it mirror deploy.yml's versioned staging. Owner decision: which workflow owns Pages.
+- **[HIGH]** `src/multiplayer/SignalingService.ts:26-30` · L3 Privacy/GDPR — Multiplayer data sharing
+  - WebRTC exposes every peer's public IP address to untrusted peers with no consent or disclosure
+  - _Recommend:_ Owner decision required. Mitigations: (a) display a clear pre-join disclosure in MultiplayerLobby that joining a room reveals your IP address to other participants and routes signaling through a third-party broker; (b) optionally configure a TURN relay with `iceTransportPolicy: 'relay'` to hide peer IPs (cost/perf tradeoff); (c) publish a privacy policy covering this. Do not hardcode a specific STUN host as a 'fact'.
+- **[HIGH]** `src/components/ui-new/dock/Dock.tsx:106` · L8 Visual
+  - Mobile bottom Dock overflows screen width - no wrap/scroll/max-w guard
+  - _Recommend:_ On mobile add a width cap + horizontal scroll or wrap: e.g. add 'max-w-[100vw] overflow-x-auto no-scrollbar' (with safe-area-aware padding) to the nav when isMobile, OR reduce the mobile dock to a core subset and move secondary actions (Datalinks/FPS/Fullscreen) into an overflow menu. Which items to drop vs scroll is a product decision.
+- **[HIGH]** `src/utils/geminiClient.ts:146` · L7 Copy
+  - Model name Gemini 3 vs 2.0 contradiction
+  - _Recommend:_ Set 146 and 3866 to 'Gemini 3 Flash'.
+- **[HIGH]** `src/components/GeminiSettingsModal.tsx:266` · L7 Copy
+  - API-key field has no privacy note
+  - _Recommend:_ Add note: stored only in this browser, sent direct to Google, MillOS never receives it.
+- **[HIGH]** `src/stores/aiConfigStore.ts:558` · L2 Security
+  - Gemini API key persisted in plaintext localStorage with no user warning
+  - _Recommend:_ Product decision needed: either (a) add a one-line caution under the API key input in GeminiSettingsModal.tsx ('Your key is stored unencrypted in this browser only and never sent to our servers'), or (b) move geminiApiKey to sessionStorage (cleared on tab close) by giving the persist config a separate storage, or (c) drop geminiApiKey from partialize so it lives only in memory for the session. Each changes UX/persistence behavior.
+- **[HIGH]** `src/multiplayer/PeerConnection.ts:47-55` · L2 Security
+  - Untrusted peer DataChannel payload passed to handlers with zero validation
+  - _Recommend:_ Add a validateMultiplayerMessage(data): data is MultiplayerMessage type-guard (mirroring messageValidation.ts/isValidWSMessage): check data is an object, type is one of the known string literals, and the payload shape matches per-type (e.g. PLAYER_JOIN requires id:string,name:string,color in PLAYER_COLORS). Reject (return without dispatch, increment an error counter) on failure. Wire it at the top of PeerConnection.handleMessage before any branch.
+- **[HIGH]** `src/multiplayer/MultiplayerManager.ts:323-340` · L2 Security
+  - Host trusts client-supplied playerId in INTENT (player impersonation / authority bypass)
+  - _Recommend:_ On the host, override the trusted identity: build the effective intent from the connection's authenticated peerId rather than the payload, e.g. const trustedPlayerId = this.peerIdToPlayerId.get(peerId); this.onMachineIntent({...message.payload, playerId: trustedPlayerId}). For PLAYER_LEAVE, ignore the payload id when isHost and use the peerId mapping. Maintain a peerId->playerId map populated from the verified connection at join time.
+- **[HIGH]** `src/scada/adapters/WonderwareAdapter.ts:92` · L2 Security
+  - Wonderware adapter forces plaintext HTTP, sending Basic-auth credentials in cleartext
+  - _Recommend:_ Default the scheme to https:// and make it configurable (e.g. add a `secure`/`scheme` field to WonderwareConnectionConfig, defaulting to https). Refuse to send Basic-auth credentials over a plain-http URL (throw, or warn-and-strip) unless the host is explicitly localhost. Mirror the same guard in any other adapter that builds a base URL.
+- **[HIGH]** `src/hooks/useAdaptiveQuality.ts:23` · L9 Performance
+  - Adaptive-quality system is dead code
+  - _Recommend:_ Wire the hook into an always-mounted Canvas component with a non-destructive merge, or delete as dead code.
+- **[MEDIUM]** `tailwind.config.js:1` · L8 Visual
+  - Stale v3-style tailwind.config.js is silently ignored under Tailwind v4 (no @config directive)
+  - _Recommend:_ Either (a) delete tailwind.config.js since v4 reads @theme/@source from CSS and the file's unique tokens are unused, or (b) if the team wants to keep the JS config, add `@config '../tailwind.config.js';` to src/index.css AND move the pulse-slow/spin-slow keyframes into @theme. Recommend (a) delete — the CSS @theme is already the source of truth. Verify no future code relies on the config-only tokens first.
+- **[MEDIUM]** `src/index.css:28` · L8 Visual
+  - Type-scale fragmentation: text-xs override to 14px forces 1089 arbitrary sub-12px font sizes across 82 files
+  - _Recommend:_ Product/design decision: either revert --text-xs to 12px (0.75rem) and --text-sm to 0.875rem so the scale covers the small sizes devs actually need (reduces need for text-[10px]/[9px]), OR add named scale steps (e.g. `--text-2xs: 0.625rem` for 10px, `--text-3xs: 0.5625rem` for 9px) in @theme and migrate the arbitrary values to them. Do NOT auto-mass-edit: changing text-xs to 12px shifts 573 existing text-xs usages smaller and is a visible UX change requiring owner sign-off and visual review.
+- **[MEDIUM]** `src/components/ui-new/widgets/FederationPanel.tsx:206` · L8 Visual
+  - Sub-9px text (7px/8px) across 27 files is below legible/accessible minimums
+  - _Recommend:_ Bump the smallest labels to at least 10px and raise contrast (slate-400 or lighter on dark). Best handled as part of the type-scale remediation above. Per-file change is low-blast but touches visual layout in dense widgets, so verify each panel still fits after enlarging.
+- **[MEDIUM]** `src/types.ts:841` · L7 Copy
+  - Roster targetMachine 'mill-1.5' references a nonexistent machine
+  - _Recommend:_ Change to a valid mill id, e.g. `targetMachine: 'rm-102'` (matches her 'Calibrating Roller Mill #2' task). Touches the shared WORKER_ROSTER in types.ts.
+- **[MEDIUM]** `src/types.ts:931` · L7 Copy
+  - Roster targetMachine 'sifter-0' references a nonexistent machine
+  - _Recommend:_ Change to a valid sifter id, e.g. `targetMachine: 'sifter-c'` (a/b already taken by other workers). Touches shared WORKER_ROSTER.
+- **[MEDIUM]** `README.md:97` · L7 Copy
+  - Packer throughput copy '42 bags/minute' contradicts code (~60 bags/min)
+  - _Recommend:_ Change '42 bags/minute' to '60 bags/minute' (or whatever the canonical rate should be — confirm with owner since it's a stated spec number).
+- **[MEDIUM]** `src/utils/audioManager.ts:289` · L1 Correctness/Bugs
+  - Muting does not stop an in-flight TTS PA announcement
+  - _Recommend:_ Call `this.stopTTS()` inside the muted setter when value===true (stopTTS already cancels speechSynthesis, clears the queue, and clears the chime timeout). This changes mute semantics, so it needs owner sign-off.
+- **[MEDIUM]** `CNAME:1` · L12 Config
+  - CNAME is www.millos.net but every SEO/OG/canonical URL uses apex millos.net
+  - _Recommend:_ Decide on one canonical host. If apex millos.net is canonical (as the meta implies), set CNAME to `millos.net` and configure GH Pages apex + www->apex redirect. Otherwise change all meta URLs and img-src to www.millos.net.
+- **[MEDIUM]** `.github/workflows/deploy.yml:59` · L12 Config
+  - Site root entry point (millos.net/) is a bare meta-refresh redirect with zero SEO
+  - _Recommend:_ Either copy the full SEO <head> (canonical, description, OG/Twitter) into the root redirect page, or set canonical/og:url to https://millos.net/v0.30/ so the rich page is the indexed URL. Best: serve the real app at root and drop the redirect for the launch version.
+- **[MEDIUM]** `public/sw.js:21` · L12 Config
+  - PWA scaffolding present (service worker + caches) but no web app manifest -> not installable
+  - _Recommend:_ Add public/manifest.webmanifest (name, short_name, start_url '.', display 'standalone', background_color #0a0f1a, theme_color, 192/512 icons) and link it: <link rel="manifest" href="manifest.webmanifest">. Use relative href to survive versioned base paths.
+- **[MEDIUM]** `public/` · L12 Config
+  - No robots.txt and no sitemap.xml for a public launch
+  - _Recommend:_ Add public/robots.txt (`User-agent: *` / `Allow: /` / `Sitemap: https://millos.net/sitemap.xml`) and a minimal public/sitemap.xml listing https://millos.net/ with lastmod. Vite copies public/* to dist root automatically.
+- **[MEDIUM]** `src/utils/apiSecurity.ts:1-642` · L11 DeadCode
+  - Entire apiSecurity module (CSRF/JWT/secureFetch) is dead — intentional 'future auth' scaffolding in a no-backend app
+  - _Recommend:_ Owner decision: either (a) keep as a deliberately-documented library and add a top-of-file banner '// UNUSED: scaffolding for future server-side auth — not wired into any runtime path', or (b) delete src/utils/apiSecurity.ts and its barrel re-export block (utils/index.ts:123-147) to shed 642 dead lines. Do NOT delete without the product/security call since it advertises a security posture.
+- **[MEDIUM]** `src/components/UIOverlay.tsx:1296` · L11 DeadCode
+  - UIOverlay (the entire old top-level UI, ~2000 lines / 89KB) is superseded by ui-new/GameInterface and no longer rendered
+  - _Recommend:_ Owner decision (migration completeness): if the ui-new migration is final, retire UIOverlay.tsx, delete its dedicated test, and clean up the 5 panels it solely consumes. Removal cascades into the test suite (breaks GREEN baseline) so it must be a coordinated change, not an isolated delete.
+- **[MEDIUM]** `eslint.config.js:56-57` · L11 DeadCode
+  - Lint disables no-unused-vars entirely — per-file dead imports/locals/params go undetected in the GREEN baseline
+  - _Recommend:_ Owner decision: re-enable @typescript-eslint/no-unused-vars at 'warn' with `argsIgnorePattern: '^_'` / `varsIgnorePattern: '^_'` to surface dead imports/locals without breaking the build. Do NOT flip to 'error' in one shot — it would likely break the GREEN baseline given accumulated unused vars; introduce as 'warn' first, then burn down.
+- **[MEDIUM]** `src/components/ui-new/panels/SettingsPanel.tsx:461` · L6 UX
+  - 'Reset Simulation' removes a nonexistent key ('millos-settings') and leaves graphics + plaintext Gemini API key persisted
+  - _Recommend:_ Replace 'millos-settings' with 'millos-graphics' and add 'millos-ai-config' (plus other millos-* persist keys: millos-bas, millos-safety, millos-ui, etc.) to the removeItem list, or iterate `Object.keys(localStorage).filter(k => k.startsWith('millos-')).forEach(k => localStorage.removeItem(k))`.
+- **[MEDIUM]** `src/components/GeminiSettingsModal.tsx:67` · L6 UX
+  - Modal lists wrong keyboard shortcuts (H/V/C) that do something else entirely
+  - _Recommend:_ Remove the incorrect `key` chips for Shift Handover, VCL Context, and API Cost Tracker (or wire real handlers). For API Cost Tracker change the chip to '$' to match useKeyboardShortcuts.ts:284. Verify each remaining chip against the actual handler keys.
+- **[MEDIUM]** `src/App.tsx:581` · L6 UX
+  - Screen-reader keyboard notice advertises 'B for management' but B has no handler
+  - _Recommend:_ Remove 'B for management' from the notice (management is reached via the Dock, not a key), or wire a real 'B' handler. Keep the I/O/V/1-5 entries which are accurate.
+- **[MEDIUM]** `src/components/GeminiSettingsModal.tsx:254` · L6 UX
+  - No disclosure that the Gemini API key is stored in plaintext localStorage
+  - _Recommend:_ Add a short note under the input, e.g. 'Your key is stored in this browser only (localStorage), in plain text. Use "Clear Config" to remove it.' Optionally offer a session-only (non-persisted) toggle.
+- **[MEDIUM]** `src/components/ui-new/panels/SettingsPanel.tsx:26` · L6 UX
+  - Active Settings panel has no entry point to AI / Gemini configuration
+  - _Recommend:_ Add an 'AI Assistant' section to SettingsPanel with a button that opens GeminiSettingsModal (or deep-links to the AI Command Center), mirroring the existing button in AICommandCenter.tsx:200.
+- **[MEDIUM]** `src/hooks/useKnowledgeIntegration.ts:88` · L6 UX
+  - First-run welcome flag is set even when narration is disabled, silently burning the only first-play moment
+  - _Recommend:_ Move the `localStorage.setItem('millos-has-played','true')` and `hasTriggeredFirstPlay=true` writes inside the success path (after a narration is actually returned/shown), or gate the whole first-play effect on narration being enabled so the flag isn't consumed while disabled.
+- **[MEDIUM]** `src/protocols/vcp/decoder.ts:36` · L1 Correctness/Bugs - Integration (SCADA+multiplayer+protocols)
+  - VCP encoder/decoder roundtrip collision: 'mastery' encodes to 'M' and decodes to 'meaning'
+  - _Recommend:_ Pick a distinct wire symbol for 'mastery' (e.g. 'Y' or lowercase 'm') and update all three places in lockstep: encoder mapping, the WELL/R decode regex char classes, and the decoder dimMaps. This touches the encoded wire format (ripple) and any persisted VCP strings; owner decision on the symbol.
+- **[MEDIUM]** `src/scada/adapters/MQTTAdapter.ts:183` · L1 Correctness/Bugs - Integration (SCADA+multiplayer+protocols)
+  - MQTT packets use single-byte remaining-length; payloads >127 bytes are malformed (encode + decode)
+  - _Recommend:_ Implement proper MQTT variable-length-integer encoding/decoding (continuation-bit scheme) for both the writer (packet[1]...) and handlePublish's remaining-length read. Behavior-changing protocol work — owner decision.
+- **[MEDIUM]** `src/multiplayer/MultiplayerManager.ts:350-351` · L1 Correctness/Bugs - Integration (SCADA+multiplayer+protocols)
+  - Host applies untrusted peer MACHINE_LOCK/PLAYER_JOIN/PLAYER_LEAVE without authority validation → desync vector
+  - _Recommend:_ On the host, gate MACHINE_LOCK/PLAYER_JOIN/PLAYER_LEAVE to host-authored broadcasts only: ignore inbound MACHINE_LOCK from guests (require it to flow via INTENT/handleMachineIntent), and ignore guest-originated PLAYER_JOIN/LEAVE. Validate payload.playerId matches the sender's connection identity. Behavior/contract change — owner decision.
+- **[MEDIUM]** `src/multiplayer/types.ts:20` · L6 UX
+  - reconnecting styled but never set
+  - _Recommend:_ Set in reconnect path or remove dead branches.
+- **[MEDIUM]** `src/App.tsx:533-552` · L6 UX
+  - No WebGL-unsupported detection; misleading error
+  - _Recommend:_ getContext('webgl') check before Canvas; unsupported-browser screen.
+- **[MEDIUM]** `src/main.tsx:33` · L11 DeadCode
+  - prototype eagerly bundled in shared entry
+  - _Recommend:_ React.lazy + Suspense.
+- **[MEDIUM]** `src/utils/audioManager.ts:5438` · L11 DeadCode
+  - 29 ungated console.log in TTS in prod
+  - _Recommend:_ Use logger.audio.debug.
+- **[MEDIUM]** `index.html:44-46` · L3
+  - Google Fonts leaks visitor IP to Google
+  - _Recommend:_ Self-host woff2, remove googleapis links and CSP font hosts.
+- **[MEDIUM]** `src/components/ui/KeyboardShortcutsModal.tsx:17` · L8 Visual
+  - Internal `if (!isOpen) return null` defeats the AnimatePresence exit animation
+  - _Recommend:_ Remove the internal `if (!isOpen) return null;` and instead wrap the returned JSX in `<AnimatePresence>{isOpen && (...)}</AnimatePresence>` inside the component (mirroring AboutModal), and drop the redundant outer AnimatePresence/`showShortcuts &&` gating in UIOverlay.tsx:1389-1393. Restructure, so verify the close path still mounts/unmounts.
+- **[MEDIUM]** `src/components/ui/ZoneCustomizationPanel.tsx:72` · L5 A11y
+  - Remove-zone button only visible on hover (not focus-visible) and unlabeled
+  - _Recommend:_ Add focus-visible:opacity-100 (and group-focus-within:opacity-100 on the row) so the control becomes visible on keyboard focus; add aria-label="Remove zone".
+- **[MEDIUM]** `src/components/ui/KeyboardShortcutsModal.tsx:166` · L5 A11y
+  - Secondary text color text-slate-500 fails WCAG AA contrast on dark panels
+  - _Recommend:_ Owner decision: raise dark-theme secondary text from slate-500/600 to slate-400 (or lighter) for body/label text on slate-800/900 surfaces, or reserve slate-500/600 only for decorative/non-essential text. Verify each change visually (3D/visual posture). Do not bulk auto-replace.
+- **[MEDIUM]** `src/stores/aiConfigStore.ts:497` · L4 API/Errors
+  - Runtime Gemini failures (429/quota/network) never surface to the user — connectionError set only at setup time
+  - _Recommend:_ On runtime failure in generateStrategicDecision (and/or in geminiClient.generateContent), categorize the error (rate-limit/quota vs auth vs network) and surface it: call a new aiConfigStore action to set connectionError (e.g. 'Gemini rate limit reached — AI paused, retrying in 30s') so GeminiSettingsModal/AICommandCenter can show it. Behavior change — flag for owner.
+- **[MEDIUM]** `index.html:11` · L2 Security
+  - connect-src allows wildcard ws:/wss: to any host
+  - _Recommend:_ Replace bare 'ws: wss:' with the specific signaling host, e.g. 'wss://0.peerjs.com' (and the user's SCADA host if applicable). If a self-hosted PeerServer is later used, add that exact host. Keep 'ws:' only if local-dev SCADA over plain ws is required, scoped to localhost.
+- **[MEDIUM]** `index.html:11` · L2 Security
+  - cdn.jsdelivr.net in connect-src enables remote font-data fetch from third party (supply-chain surface)
+  - _Recommend:_ Acceptable to keep if 3D text glyph coverage for non-Latin scripts is needed. To eliminate the dependency, self-host the unicode-font-resolver data and pass a local dataUrl to troika's font resolver (or restrict to the Latin subset shipped locally), then remove cdn.jsdelivr.net from connect-src. Product decision on whether non-Latin glyph coverage is required.
+- **[MEDIUM]** `public/sw.js:99-100,124-126` · L2 Security
+  - Service worker uses skipWaiting()+clients.claim() unconditionally → mixed-version asset serving on deploy
+  - _Recommend:_ Gate skipWaiting behind an explicit SKIP_WAITING postMessage triggered only after the user accepts an update prompt, and implement the onUpdate handler in main.tsx to surface a 'new version available — reload' toast that posts SKIP_WAITING then reloads. This is a UX/behavior change so it needs owner sign-off; minimum safe step is to keep skipWaiting but make onUpdate force a one-time location.reload() after activation to avoid mixed-chunk states.
+- **[MEDIUM]** `public/sw.js:204-206` · L2 Security
+  - network-first caches ALL 200 responses including HTML/dynamic, risking stale-serve of stale SPA shell
+  - _Recommend:_ In networkFirst, only cache navigations/HTML into a dedicated short-lived cache and skip caching responses whose Cache-Control is no-store, or restrict network-first caching to known same-origin document/manifest requests. Add a Date-stamp check or rely on CACHE_VERSION + the SW update flow above. Behavior change → owner review.
+- **[MEDIUM]** `src/components/mobile/RotateDeviceOverlay.tsx:25` · L5 A11y
+  - No prefers-reduced-motion guard anywhere in scope; indefinite looping animations run unconditionally
+  - _Recommend:_ Gate looping animations on reduced-motion: e.g. wrap framer-motion app region in `<MotionConfig reducedMotion="user">`, and for the CSS loops add a `motion-reduce:animate-none` Tailwind variant to the animate-pulse (line 25) / animate-bounce (line 32) / any animate-spin elements. Changes motion behavior under user preference, so owner should confirm scope.
+- **[MEDIUM]** `src/components/AICommandCenter.tsx:307` · L5 A11y
+  - AI decision feed has no live region; new AI decisions are not announced to screen readers
+  - _Recommend:_ Add an sr-only `role="status" aria-live="polite"` element that updates with a concise summary of the newest decision (e.g. `New AI decision: ${decision.action}`), rather than making the entire list a live region. UX/behavior change — recommend product sign-off on verbosity.
+- **[MEDIUM]** `src/utils/dracoLoader.ts:33,47` · L9 Performance
+  - DRACO decoder loaded from gstatic CDN at runtime — cross-origin dep + offline-cache miss + possible CSP block
+  - _Recommend:_ Vendor the DRACO decoder into public/draco/ and set DRACO_DECODER_PATH = `${import.meta.env.BASE_URL}draco/` so it is same-origin, SW-cacheable, CSP-allowed, offline-capable.
+- **[MEDIUM]** `src/hooks/useTextureWorker.ts + src/workers/textureWorker.ts` · L9 Performance
+  - Entire texture Web Worker subsystem (~500 lines) is dead code — never imported
+  - _Recommend:_ Delete src/hooks/useTextureWorker.ts and src/workers/textureWorker.ts (dead-code removal, no runtime change). Confirm no test imports first.
+- **[MEDIUM]** `public/og-image.png` · L9 Performance
+  - Social og-image is 3456x1993 / 2.1MB but declared 1200x630 in meta tags
+  - _Recommend:_ Downscale og-image.png to 1200x630 (matching declared meta) and re-export; should drop to <200KB. Pure asset swap, no code change.
+- **[MEDIUM]** `src/main.tsx:10-14` · L9 Performance
+  - Rapier ~2.2MB WASM eagerly pre-warmed at module top-level on every page load
+  - _Recommend:_ Gate the pre-warm behind requestIdleCallback or first-interaction so the visible app boot finishes before fetching/instantiating physics WASM. Behavior-sensitive (slight delay before first Physics mount), flag for owner.
+- **[MEDIUM]** `src/scada/adapters/WebSocketAdapter.ts:95` · L4 API/Errors
+  - Timed-out WebSocket connect still schedules background reconnects after the connect promise rejects
+  - _Recommend:_ Set `this.isDisconnecting = true` (or a dedicated `connectAborted` flag) before calling `this.ws?.close()` in the timeout handler so onclose does not start a reconnect for a connect that the caller already saw fail.
+- **[MEDIUM]** `.github/workflows/deploy-k8s.yml + docker.yml` · L12 Config
+  - Backend k8s/docker CI workflows present for a 'frontend-only, NO backend' launch
+  - _Recommend:_ Owner decision: confirm whether scada-proxy is an intended shipped component. If yes, document it in README as separate infra; if it is a non-shipped reference/demo, gate these workflows behind workflow_dispatch only or move scada-proxy to its own repo to avoid implying a backend exists.
+- **[MEDIUM]** `GEMINI.md:1-3` · L12 Config
+  - GEMINI.md is a stale copy of CLAUDE.md, not Gemini-specific guidance
+  - _Recommend:_ Either replace GEMINI.md content with Gemini-specific guidance and correct the title, or delete GEMINI.md and rely on AGENTS.md/CLAUDE.md. Owner decision on which agent docs to keep.
+- **[MEDIUM]** `src/multiplayer/SignalingService.ts:25-30` · L3 Privacy/GDPR — Multiplayer data sharing
+  - Signaling (peer IDs embedding room code + player name/id metadata) routed through default PeerJS cloud broker, a third party, undisclosed
+  - _Recommend:_ Owner decision: disclose the third-party broker in a privacy notice, and/or self-host peerjs-server (link already in the file comment) to keep signaling under the operator's control. Do not transmit the player name as broker metadata if it can be exchanged post-connection over the DataChannel instead.
+- **[MEDIUM]** `src/multiplayer/SignalingService.ts:53 / src/multiplayer/MultiplayerManager.ts:196-225` · L3 Privacy/GDPR — Multiplayer data sharing
+  - Guessable 6-char room code + auto-FULL_STATE_SYNC discloses all players' names/colors to an uninvited peer
+  - _Recommend:_ Owner decision (UX/behavior change): add a host approval gate before sending PLAYER_JOIN/FULL_STATE_SYNC to a new connection, and/or a longer/secret room code or join PIN. Do not broadcast existing players' names to a peer until the host accepts them.
+- **[MEDIUM]** `src/multiplayer/SignalingService.ts:134-138` · L3 Privacy/GDPR — Multiplayer data sharing
+  - No consent gate: host auto-accepts any incoming peer and existing players never approve new participants
+  - _Recommend:_ Owner decision (UX/behavior): add an approval prompt for incoming peers and/or a one-line disclosure at name entry in MultiplayerLobby ('Your name, chat, and in-game position will be shared with other players in this room.').
+- **[MEDIUM]** `src/components/ui-new/sidebar/ContextSidebar.tsx:289` · L8 Visual
+  - Version <select> controlled value 'v0.3' matches no <option> (React warning + blank/mismatched display)
+  - _Recommend:_ Set value to an existing option (likely value="v0.30") so the control reflects the live build; verify the option values map to real millos.net subpaths before relying on the navigation onChange.
+- **[MEDIUM]** `public/models/forklift/forklift.glb.backup.glb` · L11 DeadCode
+  - 71MB of unreferenced glb.backup.glb files are tracked AND shipped to production
+  - _Recommend:_ git rm the four public glb.backup.glb files. Real GLBs untouched so 3D rendering unaffected.
+- **[MEDIUM]** `src/multiplayer/MultiplayerManager.ts:284-285` · L2 Security
+  - PLAYER_UPDATE/PLAYER_JOIN let any peer mutate arbitrary remote-player entries by id
+  - _Recommend:_ When isHost, derive the player id from the connection's peerId map and ignore payload.id for PLAYER_UPDATE from guests; only accept updates where payload.id maps to that peer. Treat PLAYER_JOIN/PLAYER_LEAVE as host-authoritative: guests must not be able to inject them (drop these message types when received from a non-host peer).
+- **[MEDIUM]** `src/multiplayer/PeerConnection.ts:47-113` · L2 Security
+  - No inbound message-size or rate bound on WebRTC DataChannel (untrusted-peer DoS)
+  - _Recommend:_ In PeerConnection.handleMessage, reject messages whose serialized JSON length exceeds a sane cap (e.g. 64KB for control msgs); enforce a max CHAT.message length (e.g. 500 chars) in validation; add a simple per-peer token-bucket rate limit (drop+count when exceeded). Cap chat history length in store.addChatMessage.
+- **[MEDIUM]** `src/stores/multiplayerStore.ts:14-21` · L2 Security
+  - Room codes are low-entropy and brute-forceable via PeerJS public server
+  - _Recommend:_ Add an admission step: host should require a join secret (the host-displayed code can stay short, but gate actual acceptance on a longer shared token passed in conn.metadata and verified before calling onPeerConnected/addPeer). Reject connections whose metadata token does not match. Longer term, self-host peerjs-server (already noted as a TODO in SignalingService PEERJS_CONFIG comment) and randomize the host peer-id instead of deriving it from the room code.
+- **[MEDIUM]** `src/scada/adapters/RESTAdapter.ts:343-358` · L2 Security
+  - Bearer token attached to any URL with no scheme/host allowlist (token leak to untrusted endpoints)
+  - _Recommend:_ In fetchWithAuth, only attach the Authorization header when url.protocol === 'https:' (or host is localhost), and assert the request URL's origin matches the configured baseUrl origin before sending the token. Apply the same origin/scheme guard in PIAdapter.fetchWithAuth.
+- **[MEDIUM]** `src/scada/adapters/WebSocketAdapter.ts:83-93` · L2 Security
+  - WebSocket adapter silently downgrades https->ws (insecure) instead of wss
+  - _Recommend:_ Warn or refuse when the resolved url is ws:// (non-wss) unless host is localhost. Add an auth token (from config) to the WS handshake (query param or first 'subscribe' message) so the proxy can reject unauthenticated clients. Confirm the https->wss replacement intent with an explicit scheme map rather than a regex on 'http'.
+- **[MEDIUM]** `src/components/terrain/TerrainGround.tsx:127` · L9 Performance
+  - Terrain geometry (+ splatMap/heightmap DataTextures) leak GPU memory on every graphics-quality change
+  - _Recommend:_ Add a useEffect cleanup that disposes the previous geometry/textures, e.g. capture geometry/splatMap/heightmap in refs and on change/unmount call geometry.dispose(), splatMap.dispose(), heightmapTexture.dispose(). Simplest: `useEffect(() => () => geometry.dispose(), [geometry]);` plus equivalents for the splatMap and heightmap DataTextures. Verify visually after a quality toggle (3D, not test-covered).
+- **[MEDIUM]** `src/components/terrain/TerrainMaterial.tsx:264` · L9 Performance
+  - TerrainMaterial MeshStandardMaterial created in useMemo is never disposed
+  - _Recommend:_ Add `useEffect(() => () => material.dispose(), [material]);` in both useTerrainMaterial and the component path so the GPU program/material is released when it is replaced or the terrain unmounts. Visual regression risk is low (dispose only fires on replacement/unmount) but it is a 3D path — confirm terrain still renders after a quality toggle.
+- **[LOW]** `src/components/mobile/RotateDeviceOverlay.tsx:48` · L8 Visual
+  - Mill emoji used outside the three CLAUDE.md-sanctioned branding spots
+  - _Recommend:_ Replace the 🏭 span with a Lucide icon (e.g. `import { Factory } from 'lucide-react';` then `<Factory className="w-4 h-4" />`), matching the no-emoji-use-icons rule. Pure local change, no behavior impact, but it is a visual swap so flag for owner aesthetic approval.
+- **[LOW]** `src/components/LoadingScreen.tsx:63` · L8 Visual
+  - React LoadingScreen uses 🏭 emoji; CLAUDE.md sanctions the loading-screen emoji only in index.html
+  - _Recommend:_ Acceptable to leave as-is (matches the loading-screen exception intent). If strict compliance is desired, replace with a Lucide Factory icon to match the rest of the UI. Owner decision; no functional impact.
+- **[LOW]** `src/components/App.tsx:1` · L8 Visual
+  - Palette inconsistency: 69 stray gray-* utilities amid 3901 slate-* (slate is the established standard)
+  - _Recommend:_ Migrate the 69 gray-{n} classes to the equivalent slate-{n} (gray-400 -> slate-400, etc.) for palette consistency. Low-risk find-and-replace per-occurrence, but it is a visible color shift, so do it deliberately with visual spot-check rather than a blind global sed. Not auto-fixable without UX review.
+- **[LOW]** `src/index.css:53` · L8 Visual
+  - Focus-visible outline and scrollbar use hardcoded hex instead of theme tokens
+  - _Recommend:_ Optionally align the focus-visible outline to a defined token (either add a --color-focus-ring token or reuse cyan-400 consistently) so the focus accent matches the brand accent system. Cosmetic; safe to leave for launch.
+- **[LOW]** `src/components/ui/VCLDebugPanel.tsx:277` · L8 Visual
+  - Emoji legend rendered in VCLDebugPanel UI (debug surface, mirrors vclEncoder protocol)
+  - _Recommend:_ Acceptable to leave — this is a debug panel documenting an emoji-based protocol. If strict no-emoji compliance is wanted even in debug surfaces, gate the panel behind a dev flag (it may already be) and/or note the exception. No launch-blocking action.
+- **[LOW]** `README.md:27` · L7 Copy
+  - README screenshot links into excluded src/0.10 Archive path
+  - _Recommend:_ Copy Screenshot.png to docs/assets/ (alongside MillOSoutside.png) and update the src to `docs/assets/Screenshot.png` so the README no longer depends on the archive dir.
+- **[LOW]** `src/systems/bas/educationalContent.ts:2` · L7 Copy
+  - Educational content names the system 'BAMS' while README/UI call it 'BAS'
+  - _Recommend:_ Standardize on one acronym. If BAS is canonical (README uses it), replace BAMS->BAS in educationalContent.ts user-visible strings. Because the term spans ~15 files and a source citation ('BAMS Spec Section 6.4'), owner should decide the canonical name before a global rename.
+- **[LOW]** `README.md:705` · L7 Copy
+  - Quick Start clone URL is an unfilled placeholder
+  - _Recommend:_ Replace with the real clone URL, e.g. `git clone https://github.com/nellwatson/millos.git` (confirm exact repo slug with owner).
+- **[LOW]** `README.md:1110` · L7 Copy
+  - Acknowledgments cite 'Opus 4.5' which may be stale relative to current build models
+  - _Recommend:_ Owner to confirm/update the Claude model version in the acknowledgments if it has changed since authoring.
+- **[LOW]** `src/components/ForkliftSystem.tsx:874-878` · L1 Correctness/Bugs
+  - Legacy forklift wheel refs go stale after a close→far→close LOD cycle (wheels stop spinning)
+  - _Recommend:_ Reset wheelRefsRef.current to [] when distanceTier transitions back to 'close' (e.g. in a useEffect on distanceTier), or re-capture when the cached mesh is no longer parented to ref.current. Visual change — verify in-app.
+- **[LOW]** `src/components/AmbientDetails.tsx:4174` · L1 Correctness/Bugs
+  - Roof-leak drip uses setState every animation frame (stale read, re-render churn)
+  - _Recommend:_ Convert dropY to a useRef (e.g. dropYRef.current) updated/read inside the callback, matching the condensation-drip pattern, eliminating per-frame setState and the stale read. Visual/3D change — verify the drip still animates; prefer owner review.
+- **[LOW]** `index.html:16` · L12 Config
+  - Only an inline SVG-emoji favicon; no PNG/ICO favicon, theme-color, or apple-touch-icon
+  - _Recommend:_ Add <meta name="theme-color" content="#0a0f1a">, a public/apple-touch-icon.png (180x180) with <link rel="apple-touch-icon">, and a public/favicon-32x32.png/favicon.ico fallback.
+- **[LOW]** `index.html:5` · L12 Config
+  - CSP lacks upgrade-insecure-requests / object-src / base-uri / form-action hardening
+  - _Recommend:_ Add `object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests;` to the CSP. Also consider `frame-ancestors 'none'` since X-Frame-Options can't be set on GH-Pages.
+- **[LOW]** `public/sw.js:100` · L12 Config
+  - SW calls skipWaiting()+clients.claim() unconditionally while update flow expects a waiting worker
+  - _Recommend:_ Either remove skipWaiting()/clients.claim() and drive activation from the onUpdate prompt (postMessage SKIP_WAITING on user confirm), or accept auto-update but document that the onUpdate callback is informational only. This changes update UX timing, so it needs an owner decision.
+- **[LOW]** `index.html:18` · L12 Config
+  - No JSON-LD structured data despite a well-defined product (missed SEO opportunity)
+  - _Recommend:_ Add a JSON-LD block describing a WebApplication (name MillOS, applicationCategory, operatingSystem 'Any (Web)', author, url https://millos.net/, image og-image.png). Pure additive metadata, no runtime effect.
+- **[LOW]** `public/sw.js:142` · L12 Config
+  - SW caches cross-origin DRACO decoder but CSP/connect-src do not list gstatic.com
+  - _Recommend:_ If DRACO is loaded from gstatic CDN, add https://www.gstatic.com to connect-src; if DRACO is self-hosted under public/libs, the sw.js gstatic special-case is dead and can be removed. Confirm DRACOLoader.setDecoderPath before changing.
+- **[LOW]** `src/components/index.ts:1-90` · L11 DeadCode
+  - components/index.ts barrel has zero importers — and is the only thing (besides a test) keeping orphaned UIOverlay 'reachable'
+  - _Recommend:_ Delete src/components/index.ts (zero runtime impact). Confirmed no test imports it.
+- **[LOW]** `src/components/ui/AlertAcknowledgmentFlow.tsx` · L11 DeadCode
+  - ui/AlertAcknowledgmentFlow.tsx is orphaned — referenced only by the dead ui/index.ts barrel
+  - _Recommend:_ Remove the AlertAcknowledgmentFlow export from ui/index.ts and delete src/components/ui/AlertAcknowledgmentFlow.tsx. Confirm via grep no string-keyed/lazy loader references it (none found).
+- **[LOW]** `src/components/ui/EmergencyControlPanel.tsx` · L11 DeadCode
+  - ui/EmergencyControlPanel.tsx is orphaned — referenced only by the dead ui/index.ts barrel
+  - _Recommend:_ Remove the EmergencyControlPanel export from ui/index.ts and delete src/components/ui/EmergencyControlPanel.tsx after confirming no dynamic/string reference.
+- **[LOW]** `src/components/ui/GraphicsSettingsPanel.tsx` · L11 DeadCode
+  - ui/GraphicsSettingsPanel.tsx is orphaned — referenced only by the dead ui/index.ts barrel (note: ui-new has SettingsPanel)
+  - _Recommend:_ Remove the GraphicsSettingsPanel export from ui/index.ts and delete the file, after the owner confirms ui-new/panels/SettingsPanel supersedes it.
+- **[LOW]** `src/components/ui/WeatherControlPanel.tsx` · L11 DeadCode
+  - ui/WeatherControlPanel.tsx is orphaned — referenced only by the dead ui/index.ts barrel
+  - _Recommend:_ Remove the WeatherControlPanel export from ui/index.ts and delete the file after confirming no string-keyed reference.
+- **[LOW]** `src/components/ui-new/widgets/ManagementStylePanel.tsx` · L11 DeadCode
+  - ui-new/widgets/ManagementStylePanel.tsx is a half-finished-migration orphan — zero references anywhere
+  - _Recommend:_ Delete src/components/ui-new/widgets/ManagementStylePanel.tsx, or wire it into ContextSidebar/panelPreloader if it was meant to ship. Owner decides intended-but-unwired vs abandoned.
+- **[LOW]** `src/components/ui-new/widgets/PreferenceRequestWidget.tsx` · L11 DeadCode
+  - ui-new/widgets/PreferenceRequestWidget.tsx component is orphaned — its backing data/store IS used, the widget is not
+  - _Recommend:_ Delete src/components/ui-new/widgets/PreferenceRequestWidget.tsx if the feature is surfaced via WorkerMoodOverlay, or wire it into the sidebar if it was meant to be the canonical UI. Do NOT touch the PreferenceRequest type/store — those are actively used.
+- **[LOW]** `src/stores/aiConfigStore.ts:330` · L6 UX
+  - Debug overlays default ON for end users (VCL Context + Shift Handover)
+  - _Recommend:_ Set showVCLDebug to false (and reconsider showShiftHandover) so the launch experience is clean; let users opt in via the toggles. Confirm with owner whether Shift Handover is intended-on.
+- **[LOW]** `src/components/ui/GraphicsSettingsPanel.tsx:611` · L6 UX
+  - 'Reset to 10am' and 'Reset Simulation' sit adjacent with near-identical styling — easy mis-click between mild and destructive action
+  - _Recommend:_ Visually separate the destructive action (own row, more padding, an explicit 'Danger zone' subheading) and/or require confirmation. Pair this with the confirmation-dialog fix.
+- **[LOW]** `src/components/UIOverlay.tsx:1993` · L6 UX
+  - FiveAxesPanel (z-40, top-20 right-4, w-80) can overlap the forklift info panel (z-50, top-20 right-4)
+  - _Recommend:_ Offset one panel vertically (e.g. give the forklift panel a different top, or collapse/hide FiveAxesPanel when a forklift is selected). Confirm visually since 3D-adjacent overlays aren't test-covered.
+- **[LOW]** `src/components/GeminiSettingsModal.tsx:148` · L6 UX
+  - Save button validates+saves silently; no persistence-success feedback for the no-key path and no plaintext-storage acknowledgement
+  - _Recommend:_ Keep a persistent 'Connected • <masked key> (saved in this browser)' status (the masked-key line at modal lines 234-239 already exists for the connected state — ensure it remains visible and mentions local persistence) rather than relying on the auto-dismissing toast.
+- **[LOW]** `src/hooks/useKeyboardShortcuts.ts:284` · L6 UX
+  - Cost-overlay shortcut '$' (Shift+4) collides with the F4 'ultra' quality intent and is undiscoverable
+  - _Recommend:_ Either document '$' consistently across the GeminiModal toggle chip (currently 'C', line 59) and the cheat-sheet, or rebind to an unused letter and update all three help surfaces together.
+- **[LOW]** `src/multiplayer/hooks/useMultiplayerSync.ts:110-151` · L1 Correctness/Bugs - Integration (SCADA+multiplayer+protocols)
+  - applyStateDiff treats the host's full STATE_SYNC as a diff; sequence number is ignored and emergencyActive is never applied on guests
+  - _Recommend:_ Implement the emergencyActive propagation on guests (call the gameSimulation emergency trigger) and rename/treat STATE_SYNC honestly as a snapshot. Behavior change — owner decision on the emergency-sync semantics.
+- **[LOW]** `src/prototypes/AssetPrototypePage.tsx:1` · L11 DeadCode
+  - Internal deck public at /prototypes
+  - _Recommend:_ Owner: keep/gate/remove.
+- **[LOW]** `src/utils/pathfinding.ts:7` · L11 DeadCode
+  - Dead A-star module, zero importers
+  - _Recommend:_ Delete or convert TODO to issue.
+- **[LOW]** `src/components/GeminiSettingsModal.tsx:174` · L8 Visual
+  - GeminiSettingsModal exit animation never plays (early return before AnimatePresence)
+  - _Recommend:_ Move the early return out: keep `<AnimatePresence>` always rendered and gate its child with `{isOpen && (<motion.div ...>...)}` so the exit animation can run, matching AboutModal.tsx.
+- **[LOW]** `src/components/AboutModal.tsx:30` · L8 Visual
+  - Centered-modal backdrop opacity is inconsistent across modals (50/60/70)
+  - _Recommend:_ Pick one canonical scrim (e.g. `bg-black/60 backdrop-blur-sm`) and apply it to all centered modals; ideally extract a shared <ModalBackdrop> or constant. Low-risk visual standardization.
+- **[LOW]** `src/components/SCADAPanel.tsx:1006-1013` · L8 Visual
+  - SCADA trend Tooltip sets dark contentStyle but no label text color (low-contrast label row)
+  - _Recommend:_ Add `labelStyle={{ color: '#e2e8f0' }}` (and optionally `itemStyle={{ color: '#cbd5e1' }}`) to the Tooltip so the timestamp label is legible on the dark background. Verify visually after change.
+- **[LOW]** `src/components/WorkerDetailPanel.tsx:426-443` · L8 Visual
+  - Non-embedded WorkerDetailPanel claims aria-modal but is a bare floating panel with a literal × close glyph (dead path)
+  - _Recommend:_ Since the path is unused, either delete the non-embedded branch (dead-code) or, if kept, drop aria-modal for the floating variant and replace `×` with `<X className="w-4 h-4" />`. Confirm with owner whether non-embedded mode is intended to ship.
+- **[LOW]** `src/components/GeminiSettingsModal.tsx:177` · L8 Visual
+  - Centered modals lack focus trap / Escape-to-close that the reference AboutModal has
+  - _Recommend:_ Apply the existing `useFocusTrap` hook to GeminiSettingsModal and KeyboardShortcutsModal (passing modalRef + isOpen + onClose), matching AboutModal. Adds Escape-close and focus containment with no visual change.
+- **[LOW]** `src/components/SCADAPanel.tsx:156` · L8 Visual
+  - Trend line palette pairs deuteranopia-confusable green/red series
+  - _Recommend:_ Optional: swap to a color-blind-safe categorical palette (e.g. Okabe-Ito) for the 6 trend series. Low priority given legend labels already disambiguate.
+- **[LOW]** `src/components/ProductionMetrics.tsx:278-294` · L8 Visual
+  - Throughput AreaChart has no empty/initial-data state (renders blank area on first paint)
+  - _Recommend:_ Render a subtle placeholder (e.g. a faint baseline or 'Collecting data…') when `data.length === 0`, or seed the first data point synchronously. Low risk; verify it doesn't disturb the sr-only data table.
+- **[LOW]** `src/components/UIOverlay.tsx.original:1` · L8 Visual
+  - Stale duplicate UIOverlay.tsx.original (2194 lines) shipped in src/ (dead-code, out of L8 scope)
+  - _Recommend:_ Delete src/components/UIOverlay.tsx.original (dead-code lane). Confirm no tooling references the .original extension before removal.
+- **[LOW]** `src/components/ui/CollapsibleLegend.tsx:87` · L5 A11y
+  - Legend drag handle is a non-keyboard div; toggle lacks aria-expanded
+  - _Recommend:_ Add aria-expanded={expanded} to the toggle button. For the drag handle, either provide a keyboard reposition affordance or mark it aria-hidden with an accessible note that dragging is mouse-only; at minimum it should not be a focus dead-end.
+- **[LOW]** `src/multiplayer/types.ts:20` · L4 API/Errors
+  - ConnectionState 'reconnecting' is defined but never set — dead UI state / misleading reconnect contract
+  - _Recommend:_ Either wire setConnectionState('reconnecting') into the SignalingService 'disconnected' handler (and back to 'connected' on reopen) so the UI reflects the auto-reconnect, or remove the unused literal from the union. First option changes UX — flag for owner if chosen.
+- **[LOW]** `src/utils/aiEngine.ts:3921` · L4 API/Errors
+  - Emoji in user-facing AI decision text violates project No-Emoji rule
+  - _Recommend:_ Replace the emoji prefixes with Lucide icons in the rendering component (per CLAUDE.md), or drop the inline emoji and keep the label plain ('Strategic: ...', 'Insight: ...', 'Trade-off: ...'). Changes displayed text — flag for owner.
+- **[LOW]** `index.html:7` · L2 Security
+  - script-src 'unsafe-inline' is broader than needed and is silently negated by the absence of nonces/hashes
+  - _Recommend:_ Attempt removing 'unsafe-inline' from script-src and verify the build still runs (R3F/Vite emit external modules, not inline scripts). If a bundler-injected inline bootstrap exists, switch to a hashed/nonce'd inline script instead. Keep 'unsafe-eval' and 'blob:' (WASM requirement). Verify in a CSP-enforced browser before shipping → flag for owner since it touches runtime behavior.
+- **[LOW]** `package.json:38` · L2 Security
+  - PeerJS 1.5.5 + default public signaling server: untrusted-peer trust boundary unhardened
+  - _Recommend:_ Add entropy to host peer IDs (append a random nonce shared out-of-band with the room code) so IDs are unguessable, and/or self-host peerjs-server (referenced at SignalingService.ts:28) with the connect-src locked to that host. Validate/authorize incoming DataConnections at the application layer before trusting peer-sent state. Product decision (changes multiplayer UX/join flow).
+- **[LOW]** `src/utils/dracoLoader.ts:33,48` · L2 Security
+  - DRACO JS decoder executed as third-party code from www.gstatic.com (remote-code dependency)
+  - _Recommend:_ Vendor the DRACO 1.5.7 decoder into public/draco/ and switch DRACO_DECODER_PATH to '/draco/' (the commented local path), removing the runtime third-party code fetch entirely and fixing the CSP gap in the same stroke. This also makes DRACO models work offline via the existing SW MODEL_CACHE. Behavior-neutral if the local decoder matches the bundled three version.
+- **[LOW]** `index.html:5-15` · L2 Security
+  - CSP delivered only via meta tag (no enforcement of frame-ancestors/Report-Only/upgrade-insecure)
+  - _Recommend:_ Document that GitHub Pages cannot serve security headers and decide whether to front millos.net with a header-injecting CDN (Cloudflare/Netlify) to add HSTS + frame-ancestors + a header-delivered CSP. If staying on GH Pages, keep the meta CSP but acknowledge frame-ancestors/HSTS gaps in the launch risk register. Product/infra decision.
+- **[LOW]** `src/components/UIOverlay.tsx:2043` · L5 A11y
+  - MachineInfoPanel popup lacks dialog role / labelled region
+  - _Recommend:_ Owner decision: either (a) treat as non-modal and add `role="region" aria-labelledby` pointing at the h2 (give the h2 an id), or (b) make it a proper dialog with role="dialog"/aria-modal + focus trap mirroring WorkerDetailPanel. Do not add dialog role without the focus-trap.
+- **[LOW]** `src/components/TruckBay.tsx:3206,3580,3658` · L1 Correctness/Bugs
+  - Inline getTruckState arrow defeats RealisticTruck registration effect, causing register/unregister churn
+  - _Recommend:_ Wrap getShippingState/getReceivingState (or the inline arrows passed at 3206/3580) in useCallback so identity is stable, OR remove getTruckState from the effect dependency array at line 3658 since it is only used to register a stable accessor. Verify visually that trucks still animate.
+- **[LOW]** `src/components/FactoryExterior.tsx:424-434` · L1 Correctness/Bugs
+  - AnimatedRiverWater ignores later flowSpeed prop changes (useRef init-once)
+  - _Recommend:_ Add a small useEffect that syncs `uniforms.current.flowSpeed.value = flowSpeed` when the prop changes, or document that flowSpeed is mount-only. Low risk; keep behind owner sign-off since it touches shader visuals.
+- **[LOW]** `src/scada/adapters/RESTAdapter.ts:286` · L4 API/Errors
+  - poll() swallows all errors as 'connection lost' — distinguishes neither HTTP status nor parse failures
+  - _Recommend:_ In readTags/readTag surface the HTTP status on the thrown error, and in poll's catch distinguish auth/4xx (terminal, set lastError and stop) from 5xx/network (retry).
+- **[LOW]** `src/scada/adapters/WonderwareAdapter.ts:59` · L4 API/Errors
+  - OPC quality mask comment says 16-bit but math assumes 8-bit; values >0xFF mis-classified
+  - _Recommend:_ Confirm the WW REST API's Quality field width. If 8-bit, fix the comment to say 8-bit. If 16-bit is possible, normalize first: `const q8 = opcQuality > 0xff ? (opcQuality >> 8) : opcQuality; const major = (q8 >> 6) & 0x3;`
+- **[LOW]** `src/scada/adapters/RESTAdapter.ts:270` · L4 API/Errors
+  - REST getStatistics readsPerSecond/uptime computed from connectTime even across reconnect churn; no avgReadLatency reset
+  - _Recommend:_ Either reset the stats object in connect()/disconnect(), or track a separate `statsWindowStart` independent of connectTime so rate denominators match the counter accumulation window.
+- **[LOW]** `package.json:4` · L12 Config
+  - Version inconsistency: package.json 0.20.0 vs deployed v0.30 'current'
+  - _Recommend:_ Bump package.json version to 0.30.0 to match the deployed current build, and standardize tag format. Low-risk metadata change.
+- **[LOW]** `public/v0.30/` · L12 Config
+  - public/v0.30/ is stale cruft — contains only assets/, no index.html, and is not used by deploy
+  - _Recommend:_ Delete public/v0.30/ (it is regenerated by the deploy build). Confirm with owner the v0.20 snapshot is still intentionally shipped as a selectable legacy version before touching that.
+- **[LOW]** `.github/workflows/deploy.yml:79 + CNAME` · L12 Config
+  - deploy.yml does not include CNAME in the Pages artifact (hardening note, NOT a break)
+  - _Recommend:_ Optional hardening: add a step to `cp CNAME staging/CNAME` before upload-pages-artifact so the custom domain survives a Settings change. Verify against the live working deploy before changing anything — do not 'fix' a working deploy.
+- **[LOW]** `src/components/multiplayer/MultiplayerLobby.tsx:166-178` · L3 Privacy/GDPR — Multiplayer data sharing
+  - Player-name entry has no data-sharing disclosure before broadcasting the name to peers and broker
+  - _Recommend:_ Owner decision (UX copy): add a short helper line under the name input noting the name is visible to other players in the room. Optionally suggest a nickname. No runtime-default behavior change required for the copy itself.
+- **[LOW]** `src/stores/multiplayerStore.ts:331-337` · L3 Privacy/GDPR — Multiplayer data sharing
+  - Other users' chat and names held in volatile memory only — good minimization, but no notice; chat is plaintext over the channel
+  - _Recommend:_ Owner decision: include chat in the same pre-join disclosure ('chat is visible to everyone in the room'). No code change needed for the minimization aspect, which is already sound.
+- **[LOW]** `src/components/ui/CostEstimationOverlay.tsx:61` · L8 Visual
+  - Floating-panel chrome drift: rounded-xl + colored borders vs design-system rounded-2xl + border-white/10
+  - _Recommend:_ Standardize corner radius to rounded-2xl across all floating glass panels to match Dock/Sidebar. If the accent border colors are deliberate, keep them but align radius and border-opacity; otherwise unify on border-white/10.
+- **[LOW]** `src/components/ui/MultiObjectiveDashboard.tsx:130` · L8 Visual
+  - Top-left anchor collision: MultiObjectiveDashboard, ShiftHandoverSummary, and StatusHUD all stack at left-4/top
+  - _Recommend:_ Offset ShiftHandoverSummary's top anchor when MultiObjectiveDashboard is visible, or move one panel to a different corner so the two cannot overlap.
+- **[LOW]** `src/components/truckbay/useTruckPhysics.ts:1` · L9 Performance - useFrame allocations
+  - Truck-state functions allocate large object literals every frame (called 4x/frame)
+  - _Recommend:_ Hoist the frame-invariant waypoint literals (TUNNEL/APPROACH/SETUP/DOCK/PULLOUT_END/EXIT_ROAD and the per-style dimension tables) to module-level const. Optionally have each function mutate-and-return a single module-level TruckAnimState object instead of a fresh literal, since callers consume it synchronously within the same frame and do not retain it. Verify visually that truck animation is unchanged.
+- **[LOW]** `src/components/Environment.tsx:670` · L9 Performance - useFrame allocations
+  - getDaylightProperties returns a fresh object literal per call, invoked from 3 per-frame blocks
+  - _Recommend:_ Either memoize the last result keyed on the rounded hour (the function is a pure step-function of gameTime), or have it write into a module-level reusable object the callers read. Low risk; values unchanged. Prefer flagging since it touches an exported helper used by multiple call sites.
+- **[LOW]** `src/components/multiplayer/MultiplayerLobby.tsx:63` · L2 Security
+  - Local player name & room code entered without sanitizePlayerName/sanitizeRoomCode
+  - _Recommend:_ Replace `.trim()` with `sanitizePlayerName(playerName)` at the setLocalPlayerName/host/join call sites in both MultiplayerLobby.tsx and MultiplayerPanel.tsx, and gate join with `const code = sanitizeRoomCode(joinCode); if (!code) return;`. Import from '@/utils'. Two-file change but each edit is intra-file.
+- **[LOW]** `src/utils/apiSecurity.ts:512` · L2 Security
+  - secureFetch() exported but never used; RESTAdapter uses raw fetch instead
+  - _Recommend:_ Either delete secureFetch + its SecureFetchOptions type and remove from the barrel (dead-code cleanup), or have RESTAdapter adopt it. For launch, removing the unused export is the low-risk path; adopting it in RESTAdapter changes runtime request behavior and needs an owner call.
+- **[LOW]** `src/utils/apiSecurity.ts:344` · L2 Security
+  - CSRF helpers (generate/getOrCreate/clearCsrfToken) exported but never used — dead scaffolding
+  - _Recommend:_ Remove the three CSRF exports from utils/index.ts and delete the unused functions (and CSRF_TOKEN_KEY) once secureFetch is also removed. Pure dead-code deletion; no runtime behavior depends on them.
+- **[LOW]** `src/utils/apiSecurity.ts:268` · L2 Security
+  - JWT helpers (decodeTokenPayload/isTokenExpired/getTokenExpiresIn) exported but never used
+  - _Recommend:_ Remove these three exports + TokenPayload from utils/index.ts and delete the unused functions, or move to a clearly-marked future/ stub. Dead-code cleanup, no runtime impact.
+- **[LOW]** `src/utils/apiSecurity.ts:106` · L2 Security
+  - rateLimiters (gemini/chat/connect) exported but never wired — no rate limiting active
+  - _Recommend:_ Wire rateLimiters.chat around sendChat() in MultiplayerManager.ts and rateLimiters.gemini around geminiClient.generateContent calls, OR remove the unused exports. Wiring changes runtime behavior (messages/requests can now be dropped) so it needs an owner decision; the removal path is the safe launch option.
+- **[LOW]** `src/utils/apiSecurity.ts:612` · L2 Security
+  - maskSensitiveData / clearSensitiveFields exported but never used; key masking done ad hoc
+  - _Recommend:_ Either have getMaskedApiKey() delegate to maskSensitiveData (de-dupe), or remove maskSensitiveData/clearSensitiveFields from the barrel as dead code. Consolidation is low-risk but touches geminiClient output format slightly; removal is cleanest for launch.
+- **[LOW]** `src/utils/sanitize.ts:224` · L2 Security
+  - sanitizeWorkerName / sanitizeUrl / isUrlSafe / decodeHtmlEntities exported but never used
+  - _Recommend:_ After wiring the chat/name sanitizers (the genuinely needed ones), prune the remaining unused sanitize exports from utils/index.ts or wire sanitizeWorkerName where custom worker names are accepted. Dead-code cleanup, no runtime impact.
+- **[LOW]** `src/utils/geminiClient.ts:146` · L2 Security
+  - Misleading log: 'Initialized with Gemini 2.0 Flash' while model is 'gemini-3-flash-preview'
+  - _Recommend:_ Change the log string at line 146 to match the actual model id, e.g. `logger.info('[GeminiClient] Initialized with gemini-3-flash-preview')`.
+- **[LOW]** `src/utils/geminiClient.ts:130` · L2 Security
+  - API key retained on GeminiClient instance and never cleared from response cache scope
+  - _Recommend:_ No code change strictly required; if hardening, route key clearing through clearSensitiveFields in disconnect() for consistency. Primarily reinforces the plaintext-localStorage finding above — fix that one first.
+- **[LOW]** `src/scada/adapters/RESTAdapter.ts:354` · L2 Security
+  - RESTAdapter sets Bearer token via raw fetch, bypassing secureFetch timeout/validation wrapper
+  - _Recommend:_ Owner decision: either standardize RESTAdapter on secureFetch (gains timeout/audit, but changes request semantics), or document that raw fetch is intentional and remove the unused secureFetch. Adapter behavior change needs validation against the 1199-test baseline.
+- **[LOW]** `src/multiplayer/MultiplayerManager.ts:354-355` · L2 Security
+  - CHAT message stored from untrusted payload with attacker-controlled 'from'/'fromName' and no length bound
+  - _Recommend:_ Validate CHAT payload shape and cap message length (e.g. 500 chars). On the host, overwrite from/fromName with the sender's authenticated peer identity before re-broadcasting, so guests cannot forge sender identity.
+- **[LOW]** `src/multiplayer/MultiplayerManager.ts:313-321` · L2 Security
+  - Guest accepts FULL_STATE_SYNC/STATE_SYNC from any connected peer, not verified-as-host
+  - _Recommend:_ Record the host's peerId on join and, in these branches, verify the originating peerId matches the known host before applying. Drop state-sync messages from any non-host peer.
+- **[LOW]** `src/scada/adapters/PIAdapter.ts:76-79` · L2 Security
+  - PI Basic-auth credentials base64-encoded with no TLS enforcement on baseUrl
+  - _Recommend:_ Before sending Authorization, assert this.baseUrl uses https:// (or host is localhost); otherwise throw a clear configuration error. Add `new URL()` validation to PIAdapter.fetchWithAuth to match RESTAdapter's guard.
+- **[LOW]** `src/multiplayer/SignalingService.ts:53-57` · L2 Security
+  - Host peer-id squatting: predictable id enables room hijack/denial before host registers
+  - _Recommend:_ Bind room ownership to a secret: host generates a random host token, derives a non-guessable peer-id (e.g. include a high-entropy suffix not shown to guests until they prove the join code), and guests verify a host-signed value in metadata. Minimum: self-host the signaling server so id allocation can be authenticated.
+- **[LOW]** `src/multiplayer/PeerConnection.ts:176-178` · L2 Security
+  - Connection metadata trusted for playerId without validation (disconnect/eviction targeting)
+  - _Recommend:_ On the host, map peerId->playerId at verified join time and use that map for disconnect cleanup; never trust metadata.playerId for destructive store operations. Treat metadata as a display hint only.
+- **[LOW]** `src/components/VillageArea.tsx:1714` · L9 Performance
+  - Module-level villageCobbleMaterial uses onBeforeCompile without a customProgramCacheKey
+  - _Recommend:_ Add a stable explicit key: `villageCobbleMaterial.customProgramCacheKey = () => 'villageCobble_feather_v1';` to guarantee the injected variant gets its own compiled program. No runtime UX change.

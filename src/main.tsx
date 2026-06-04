@@ -4,6 +4,7 @@ import AssetPrototypePage from './prototypes/AssetPrototypePage';
 import ErrorBoundary from './components/ErrorBoundary';
 import './index.css';
 import { registerServiceWorker } from './utils/serviceWorkerRegistration';
+import { logger } from './utils/logger';
 
 // Pre-warm Rapier WASM - starts loading immediately instead of blocking on first Physics render
 // This runs in parallel with React initialization, reducing perceived startup time
@@ -29,6 +30,17 @@ console.warn = (...args: unknown[]): void => {
   }
   originalWarn.apply(console, args);
 };
+
+// Global async error logging. React's ErrorBoundary only catches render-phase
+// errors; it does NOT see unhandled promise rejections (e.g. the Rapier prewarm
+// above, dynamic imports, audio resume) or errors thrown outside the React tree.
+// Without these listeners such failures are completely silent in the field.
+window.addEventListener('unhandledrejection', (event: PromiseRejectionEvent): void => {
+  logger.error('[unhandledrejection]', event.reason);
+});
+window.addEventListener('error', (event: ErrorEvent): void => {
+  logger.error('[window.error]', event.error ?? event.message);
+});
 
 // StrictMode disabled for 3D app - causes double-renders that tank performance in dev
 // Production builds are unaffected (StrictMode only runs in development)

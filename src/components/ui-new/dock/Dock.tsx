@@ -122,7 +122,7 @@ export const Dock: React.FC<DockProps> = ({ activeMode, onModeChange, onDatalink
     >
       <DockItem
         mode="overview"
-        icon={<Factory />}
+        icon={<Factory size={24} />}
         label="Mill Overview"
         isActive={activeMode === 'overview'}
         onClick={() => handleModeChange('overview')}
@@ -130,7 +130,7 @@ export const Dock: React.FC<DockProps> = ({ activeMode, onModeChange, onDatalink
       />
       <DockItem
         mode="ai"
-        icon={<Brain />}
+        icon={<Brain size={24} />}
         label="AI Command"
         isActive={activeMode === 'ai'}
         onClick={() => handleModeChange('ai')}
@@ -138,7 +138,7 @@ export const Dock: React.FC<DockProps> = ({ activeMode, onModeChange, onDatalink
       />
       <DockItem
         mode="scada"
-        icon={<Activity />}
+        icon={<Activity size={24} />}
         label="SCADA System"
         isActive={activeMode === 'scada'}
         onClick={() => handleModeChange('scada')}
@@ -146,7 +146,7 @@ export const Dock: React.FC<DockProps> = ({ activeMode, onModeChange, onDatalink
       />
       <DockItem
         mode="workforce"
-        icon={<HardHat />}
+        icon={<HardHat size={24} />}
         label="Workforce"
         isActive={activeMode === 'workforce'}
         onClick={() => handleModeChange('workforce')}
@@ -154,7 +154,7 @@ export const Dock: React.FC<DockProps> = ({ activeMode, onModeChange, onDatalink
       />
       <DockItem
         mode="management"
-        icon={<Heart />}
+        icon={<Heart size={24} />}
         label="BAMS"
         isActive={activeMode === 'management'}
         onClick={() => handleModeChange('management')}
@@ -162,7 +162,7 @@ export const Dock: React.FC<DockProps> = ({ activeMode, onModeChange, onDatalink
       />
       <DockItem
         mode="multiplayer"
-        icon={<Users />}
+        icon={<Users size={24} />}
         label="Multiplayer"
         isActive={activeMode === 'multiplayer'}
         onClick={() => handleModeChange('multiplayer')}
@@ -171,7 +171,7 @@ export const Dock: React.FC<DockProps> = ({ activeMode, onModeChange, onDatalink
       />
       <DockItem
         mode="safety"
-        icon={<Shield />}
+        icon={<Shield size={24} />}
         label="Safety & Emergency"
         isActive={activeMode === 'safety'}
         onClick={() => handleModeChange('safety')}
@@ -179,7 +179,7 @@ export const Dock: React.FC<DockProps> = ({ activeMode, onModeChange, onDatalink
       />
       <DockItem
         mode="settings"
-        icon={<Settings />}
+        icon={<Settings size={24} />}
         label="Settings"
         isActive={activeMode === 'settings'}
         onClick={() => handleModeChange('settings')}
@@ -199,7 +199,7 @@ export const Dock: React.FC<DockProps> = ({ activeMode, onModeChange, onDatalink
             isMobile ? 'p-2 min-w-[44px] min-h-[44px]' : 'p-3'
           } text-slate-400 hover:text-white hover:bg-white/5`}
         >
-          <Database />
+          <Database size={24} />
         </button>
       )}
 
@@ -217,7 +217,7 @@ export const Dock: React.FC<DockProps> = ({ activeMode, onModeChange, onDatalink
             : 'text-slate-400 hover:text-white hover:bg-white/5'
         }`}
       >
-        <Eye />
+        <Eye size={24} />
         {fpsMode && (
           <motion.div
             layoutId="fps-active"
@@ -238,7 +238,7 @@ export const Dock: React.FC<DockProps> = ({ activeMode, onModeChange, onDatalink
               : 'text-slate-400 hover:text-white hover:bg-white/5'
           }`}
         >
-          {isFullscreen ? <Minimize /> : <Maximize />}
+          {isFullscreen ? <Minimize size={24} /> : <Maximize size={24} />}
         </button>
       )}
     </nav>

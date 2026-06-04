@@ -53,7 +53,7 @@ export const ZoneCustomizationPanel: React.FC = () => {
               {speedZones.map((zone) => (
                 <div
                   key={zone.id}
-                  className={`flex items-center justify-between rounded px-2 py-1 text-xs group ${
+                  className={`flex items-center justify-between rounded px-2 py-1 text-xs group focus-within:ring-1 focus-within:ring-amber-500 ${
                     theme === 'light' ? 'bg-slate-100' : 'bg-slate-800/50'
                   }`}
                 >
@@ -71,14 +71,15 @@ export const ZoneCustomizationPanel: React.FC = () => {
                   </div>
                   <button
                     onClick={() => removeSpeedZone(zone.id)}
-                    className={`opacity-0 group-hover:opacity-100 p-1 transition-all ${
+                    className={`opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 focus-visible:outline-none p-1 transition-all ${
                       theme === 'light'
                         ? 'text-red-500 hover:text-red-600'
                         : 'text-red-400 hover:text-red-300'
                     }`}
                     title="Remove zone"
+                    aria-label={`Remove zone ${zone.name}`}
                   >
-                    <Trash2 className="w-3 h-3" />
+                    <Trash2 className="w-3 h-3" aria-hidden="true" />
                   </button>
                 </div>
               ))}

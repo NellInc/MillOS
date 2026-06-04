@@ -1,6 +1,6 @@
 import path from 'path';
 import fs from 'fs';
-import { defineConfig, loadEnv, Plugin } from 'vite';
+import { defineConfig, Plugin, UserConfig } from 'vite';
 import react from '@vitejs/plugin-react-swc'; // SWC is 20x faster than Babel
 
 // Plugin to serve static v0.10 and v0.20 builds during development
@@ -50,8 +50,7 @@ function serveStaticVersions(): Plugin {
   };
 }
 
-export default defineConfig(({ mode }) => {
-  loadEnv(mode, '.', '');
+export default defineConfig((): UserConfig => {
   // Support versioned deployments: VERSION=v0.10 -> base=/v0.10/
   const version = process.env.VERSION;
   const basePath = version ? `/${version}/` : '/';

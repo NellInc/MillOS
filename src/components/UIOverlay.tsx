@@ -34,6 +34,7 @@ import {
   Map,
   Image,
   Download,
+  X,
 } from 'lucide-react';
 import { MachineData } from '../types';
 import { GraphicsQuality, GraphicsSettings } from '../stores/graphicsStore';
@@ -1499,11 +1500,12 @@ export const UIOverlay: React.FC<UIOverlayProps> = ({
                       Mill<span className="text-orange-500">OS</span>
                       <select
                         className={`text-[10px] ml-1 bg-transparent border-none cursor-pointer hover:text-orange-400 transition-colors ${theme === 'light' ? 'text-slate-400' : 'text-slate-500'}`}
-                        value="v0.3"
+                        value="v0.30"
                         onChange={(e) => {
                           window.location.href = `/${e.target.value}/`;
                         }}
                         title="Switch version"
+                        aria-label="Switch app version"
                       >
                         <option value="v0.30">0.30</option>
                         <option value="v0.20">0.20</option>
@@ -2056,6 +2058,8 @@ const MachineDetailPanel: React.FC<{ machine: MachineData; onClose: () => void }
           <div className="flex items-center justify-between mb-2 sm:mb-3">
             <div className="flex items-center gap-2 sm:gap-3">
               <div
+                role="img"
+                aria-label={`Status: ${machine.status}`}
                 className={`w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full ${machine.status === 'running' ? 'bg-green-500 animate-pulse' : machine.status === 'warning' ? 'bg-yellow-500' : 'bg-red-500'}`}
               />
               <div>
@@ -2070,9 +2074,10 @@ const MachineDetailPanel: React.FC<{ machine: MachineData; onClose: () => void }
             </div>
             <button
               onClick={onClose}
+              aria-label="Close machine details"
               className="text-slate-500 hover:text-white w-6 h-6 flex items-center justify-center rounded hover:bg-slate-800 transition-colors"
             >
-              ×
+              <X className="w-4 h-4" aria-hidden="true" />
             </button>
           </div>
 

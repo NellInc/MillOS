@@ -26,7 +26,8 @@ export interface SignalingCallbacks {
 const PEERJS_CONFIG = {
   // Uses default PeerJS cloud server (free tier, good for small projects)
   // For production, consider self-hosting: https://github.com/peers/peerjs-server
-  debug: process.env.NODE_ENV === 'development' ? 2 : 0,
+  // Use Vite's import.meta.env.DEV (browser-safe); process.env is undefined in the browser bundle.
+  debug: import.meta.env?.DEV ? 2 : 0,
 };
 
 export class SignalingService {

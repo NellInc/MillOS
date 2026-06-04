@@ -89,6 +89,13 @@ export function useKnowledgeIntegration(onNarration?: (narration: NarrationEntry
     if (!FEATURE_FLAGS.FIRST_PLAY_WELCOME_ENABLED) return;
     if (stateRef.current.hasTriggeredFirstPlay) return;
 
+    // Don't consume the one-time first-play moment while narration is disabled.
+    // triggerNarration early-returns when narration is off, so writing the
+    // 'millos-has-played' flag here would permanently suppress the welcome even
+    // after the user later enables AI Reflections. Gate the whole effect instead;
+    // it re-runs when narrationEnabled flips back on.
+    if (!FEATURE_FLAGS.AI_NARRATION_ENABLED || !narrationEnabled) return;
+
     // Belt-and-suspenders: check both localStorage AND the persisted store
     const hasPlayedBefore = localStorage.getItem('millos-has-played');
     const welcomeAlreadyShown = hasBeenShown('welcome');
@@ -106,7 +113,7 @@ export function useKnowledgeIntegration(onNarration?: (narration: NarrationEntry
       // Sync localStorage if store says already shown
       localStorage.setItem('millos-has-played', 'true');
     }
-  }, [triggerNarration, hasBeenShown]);
+  }, [triggerNarration, hasBeenShown, narrationEnabled]);
 
   // =========================================================================
   // VOTING DETECTION

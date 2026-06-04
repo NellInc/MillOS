@@ -3,6 +3,9 @@ import { logger } from './logger';
 
 // Use centralized audio logger
 const audioLog = {
+  debug: (message: string, ...args: unknown[]) => {
+    logger.audio.debug(message, ...args);
+  },
   info: (message: string, ...args: unknown[]) => {
     logger.audio.info(message, ...args);
   },
@@ -1940,23 +1943,23 @@ class AudioManager {
         primer.volume = 0; // Completely silent
         primer.rate = 2; // Fast but not extreme (rate=10 may cause issues)
         primer.onend = () => {
-          console.log('[TTS] Primer completed normally');
+          audioLog.debug('[TTS] Primer completed normally');
           this._ttsPrimerComplete = true;
         };
         primer.onerror = (e) => {
           // Even on error, mark as complete so real announcements can proceed
           // Note: "canceled" errors are expected if we cancel() before primer finishes
-          console.log('[TTS] Primer error:', e.error, '(proceeding anyway)');
+          audioLog.debug('[TTS] Primer error:', e.error, '(proceeding anyway)');
           this._ttsPrimerComplete = true;
         };
         window.speechSynthesis.speak(primer);
-        console.log('[TTS] Primer spoken for gesture activation');
+        audioLog.debug('[TTS] Primer spoken for gesture activation');
 
         // Safety: if primer doesn't complete within 2s, mark as complete anyway
         // (Reduced from 3s since primer should be very fast)
         setTimeout(() => {
           if (!this._ttsPrimerComplete) {
-            console.log('[TTS] Primer timeout - marking complete');
+            audioLog.debug('[TTS] Primer timeout - marking complete');
             this._ttsPrimerComplete = true;
           }
         }, 2000);
@@ -5435,28 +5438,28 @@ class AudioManager {
   // Speak a PA announcement using TTS with tannoy echo effect
   // Messages are queued so they don't cut each other off
   speakAnnouncement(text: string): void {
-    console.log('[TTS] speakAnnouncement called:', text.substring(0, 40) + '...');
+    audioLog.debug('[TTS] speakAnnouncement called:', text.substring(0, 40) + '...');
 
     if (!this._ttsEnabled) {
-      console.log('[TTS] Blocked: TTS disabled');
+      audioLog.debug('[TTS] Blocked: TTS disabled');
       return;
     }
     if (this._muted) {
-      console.log('[TTS] Blocked: Audio muted');
+      audioLog.debug('[TTS] Blocked: Audio muted');
       return;
     }
     if (!('speechSynthesis' in window)) {
-      console.log('[TTS] Blocked: speechSynthesis not supported');
+      audioLog.debug('[TTS] Blocked: speechSynthesis not supported');
       return;
     }
 
     // Add to queue
     this.announcementQueue.push(text);
-    console.log('[TTS] Added to queue, length:', this.announcementQueue.length);
+    audioLog.debug('[TTS] Added to queue, length:', this.announcementQueue.length);
 
     // Ensure voice is loaded
     if (!this._ttsVoiceLoaded) {
-      console.log('[TTS] Voice not loaded, initializing...');
+      audioLog.debug('[TTS] Voice not loaded, initializing...');
       this.initTTSVoice();
       // Voice will load async; processAnnouncementQueue will check for voice
     }
@@ -5464,27 +5467,27 @@ class AudioManager {
     // If nothing is currently playing, start processing the queue
     // (will check for voice availability inside)
     if (!this.isAnnouncementPlaying) {
-      console.log('[TTS] Starting queue processing');
+      audioLog.debug('[TTS] Starting queue processing');
       this.processAnnouncementQueue();
     } else {
-      console.log('[TTS] Already playing, queued for later');
+      audioLog.debug('[TTS] Already playing, queued for later');
     }
   }
 
   // Process the next announcement in the queue
   private processAnnouncementQueue(): void {
-    console.log('[TTS] processAnnouncementQueue called, queue:', this.announcementQueue.length);
+    audioLog.debug('[TTS] processAnnouncementQueue called, queue:', this.announcementQueue.length);
 
     // Check if queue is empty
     if (this.announcementQueue.length === 0) {
-      console.log('[TTS] Queue empty, stopping');
+      audioLog.debug('[TTS] Queue empty, stopping');
       this.isAnnouncementPlaying = false;
       return;
     }
 
     // Check if conditions prevent playback
     if (!this._ttsEnabled || this._muted) {
-      console.log('[TTS] Blocked in queue processing:', {
+      audioLog.debug('[TTS] Blocked in queue processing:', {
         ttsEnabled: this._ttsEnabled,
         muted: this._muted,
       });
@@ -5494,7 +5497,7 @@ class AudioManager {
 
     // If voice not loaded yet, retry after a short delay
     if (!this._ttsVoice) {
-      console.log('[TTS] Voice not ready, retrying in 500ms');
+      audioLog.debug('[TTS] Voice not ready, retrying in 500ms');
       setTimeout(() => this.processAnnouncementQueue(), 500);
       return;
     }
@@ -5502,12 +5505,12 @@ class AudioManager {
     // Wait for primer to complete before speaking real announcements
     // This prevents collision with the "warm up" utterance on Chrome
     if (!this._ttsPrimerComplete) {
-      console.log('[TTS] Waiting for primer to complete, retrying in 300ms');
+      audioLog.debug('[TTS] Waiting for primer to complete, retrying in 300ms');
       setTimeout(() => this.processAnnouncementQueue(), 300);
       return;
     }
 
-    console.log('[TTS] Voice ready, speaking...');
+    audioLog.debug('[TTS] Voice ready, speaking...');
     this.isAnnouncementPlaying = true;
     const text = this.announcementQueue.shift();
     // Safety check: if shift() returns undefined (queue was emptied between checks), bail out
@@ -5526,7 +5529,7 @@ class AudioManager {
     // This prevents the PA system from getting stuck when speechSynthesis callbacks fail
     // At rate 0.85, longer announcements can take 15-20 seconds to speak
     this.announcementSafetyTimeout = setTimeout(() => {
-      console.log('[TTS] Safety timeout triggered - resetting');
+      audioLog.debug('[TTS] Safety timeout triggered - resetting');
       this.stopSpeechReverb();
       this.isAnnouncementPlaying = false;
       // Cancel any stuck speech
@@ -5556,13 +5559,13 @@ class AudioManager {
 
       // When speech starts, begin continuous reverb simulation
       utterance.onstart = () => {
-        console.log('[TTS] Speech STARTED');
+        audioLog.debug('[TTS] Speech STARTED');
         this.startSpeechReverb();
       };
 
       // When speech ends, stop reverb, play reverberant echo tail, then process next in queue
       utterance.onend = () => {
-        console.log('[TTS] Speech ENDED');
+        audioLog.debug('[TTS] Speech ENDED');
         clearSafetyTimeout();
         this.stopSpeechReverb();
         this.playPAReverbTail();
@@ -5572,7 +5575,7 @@ class AudioManager {
         }, 1500);
       };
       utterance.onerror = (e) => {
-        console.log('[TTS] Speech ERROR:', e.error);
+        audioLog.debug('[TTS] Speech ERROR:', e.error);
         // "interrupted" and "canceled" errors happen when cancelling speech
         // (e.g. before new announcement, or iOS Safari workaround calling cancel())
         // This is usually expected behavior, so don't log as error
@@ -5590,7 +5593,7 @@ class AudioManager {
       };
 
       // Play PA chime first, then speak with slight overlap on chime tail
-      console.log('[TTS] Playing chime, will speak in 0.95s');
+      audioLog.debug('[TTS] Playing chime, will speak in 0.95s');
       this.playPAChime();
       this.announcementChimeTimeout = setTimeout(() => {
         if (this._ttsEnabled && !this._muted) {
@@ -5599,29 +5602,29 @@ class AudioManager {
           // Calling cancel() first resets the internal state and allows speech to proceed.
           // NOTE: We must wait ~100ms after cancel() for Chrome to fully process it,
           // otherwise our new utterance may also get cancelled (race condition).
-          console.log('[TTS] Cancelling any stale speech...');
+          audioLog.debug('[TTS] Cancelling any stale speech...');
           window.speechSynthesis.cancel();
 
           // Small delay after cancel() to let Chrome's internal state settle
           setTimeout(() => {
             if (!this._ttsEnabled || this._muted) {
-              console.log('[TTS] Conditions changed during cancel delay, skipping');
+              audioLog.debug('[TTS] Conditions changed during cancel delay, skipping');
               clearSafetyTimeout();
               this.processAnnouncementQueue();
               return;
             }
 
-            console.log('[TTS] Calling speechSynthesis.speak() now, volume:', this._volume);
-            console.log('[TTS] speechSynthesis state:', {
+            audioLog.debug('[TTS] Calling speechSynthesis.speak() now, volume:', this._volume);
+            audioLog.debug('[TTS] speechSynthesis state:', {
               speaking: window.speechSynthesis.speaking,
               pending: window.speechSynthesis.pending,
               paused: window.speechSynthesis.paused,
             });
             window.speechSynthesis.speak(utterance);
-            console.log('[TTS] speak() called, waiting for onstart...');
+            audioLog.debug('[TTS] speak() called, waiting for onstart...');
           }, 100);
         } else {
-          console.log('[TTS] Conditions changed during chime, skipping');
+          audioLog.debug('[TTS] Conditions changed during chime, skipping');
           clearSafetyTimeout();
           // If conditions changed during chime, process next
           this.processAnnouncementQueue();

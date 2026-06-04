@@ -143,7 +143,7 @@ class GeminiClient {
       // Reset circuit breaker on successful init
       this.resetCircuitBreaker();
 
-      logger.info('[GeminiClient] Initialized with Gemini 2.0 Flash');
+      logger.info('[GeminiClient] Initialized with Gemini 3 Flash');
       return true;
     } catch (error) {
       logger.error('[GeminiClient] Failed to initialize:', error);

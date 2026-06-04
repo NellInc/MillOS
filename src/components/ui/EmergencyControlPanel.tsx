@@ -38,6 +38,8 @@ export const EmergencyControlPanel: React.FC = () => {
     >
       <button
         onClick={() => setExpanded(!expanded)}
+        aria-expanded={expanded}
+        aria-controls="emergency-shift-controls-content"
         className={`w-full flex items-center justify-between text-xs font-medium transition-colors py-1 ${
           theme === 'light'
             ? 'text-slate-600 hover:text-slate-800'
@@ -54,6 +56,7 @@ export const EmergencyControlPanel: React.FC = () => {
       <AnimatePresence>
         {expanded && (
           <motion.div
+            id="emergency-shift-controls-content"
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}

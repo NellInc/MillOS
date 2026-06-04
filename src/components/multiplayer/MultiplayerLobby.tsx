@@ -9,7 +9,7 @@
  * - Connection status
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Users,
@@ -30,6 +30,7 @@ import {
   useIsHost,
 } from '../../stores/multiplayerStore';
 import { getMultiplayerManager, destroyMultiplayerManager } from '../../multiplayer';
+import { sanitizePlayerName, sanitizeRoomCode } from '../../utils/sanitize';
 
 export const MultiplayerLobby: React.FC = () => {
   const [expanded, setExpanded] = useState(false);
@@ -50,8 +51,29 @@ export const MultiplayerLobby: React.FC = () => {
   const isActive = useIsMultiplayerActive();
   const isHost = useIsHost();
 
+  // Listen for host disconnect so a guest is informed (not silently dumped to the join form)
+  useEffect(() => {
+    const handleHostDisconnected = (event: CustomEvent<{ message: string }>) => {
+      setError(event.detail?.message ?? 'The host has left the session.');
+      destroyMultiplayerManager();
+    };
+
+    window.addEventListener(
+      'multiplayer:host-disconnected',
+      handleHostDisconnected as EventListener
+    );
+
+    return () => {
+      window.removeEventListener(
+        'multiplayer:host-disconnected',
+        handleHostDisconnected as EventListener
+      );
+    };
+  }, []);
+
   const handleCreateRoom = useCallback(async () => {
-    if (!playerName.trim()) {
+    const name = sanitizePlayerName(playerName);
+    if (!name) {
       setError('Please enter your name');
       return;
     }
@@ -60,9 +82,9 @@ export const MultiplayerLobby: React.FC = () => {
     setIsConnecting(true);
 
     try {
-      setLocalPlayerName(playerName.trim());
+      setLocalPlayerName(name);
       const manager = getMultiplayerManager();
-      await manager.hostRoom(playerName.trim());
+      await manager.hostRoom(name);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create room');
     } finally {
@@ -71,11 +93,13 @@ export const MultiplayerLobby: React.FC = () => {
   }, [playerName, setLocalPlayerName]);
 
   const handleJoinRoom = useCallback(async () => {
-    if (!playerName.trim()) {
+    const name = sanitizePlayerName(playerName);
+    if (!name) {
       setError('Please enter your name');
       return;
     }
-    if (!joinCode.trim() || joinCode.trim().length !== 6) {
+    const code = sanitizeRoomCode(joinCode);
+    if (!code) {
       setError('Please enter a valid 6-character room code');
       return;
     }
@@ -84,9 +108,9 @@ export const MultiplayerLobby: React.FC = () => {
     setIsConnecting(true);
 
     try {
-      setLocalPlayerName(playerName.trim());
+      setLocalPlayerName(name);
       const manager = getMultiplayerManager();
-      await manager.joinRoom(joinCode.trim().toUpperCase(), playerName.trim());
+      await manager.joinRoom(code, name);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to join room');
     } finally {
@@ -175,6 +199,9 @@ export const MultiplayerLobby: React.FC = () => {
                     maxLength={20}
                     className="w-full bg-slate-700/50 border border-slate-600/50 rounded px-2 py-1.5 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-blue-500/50"
                   />
+                  <p className="text-[10px] text-slate-500 mt-1">
+                    Visible to other players in the room. A nickname is fine.
+                  </p>
                 </div>
 
                 {/* Create room button */}

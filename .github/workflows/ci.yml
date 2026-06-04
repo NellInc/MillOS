@@ -14,7 +14,6 @@ jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
-    continue-on-error: true  # Lint is advisory, don't block build
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -29,8 +28,7 @@ jobs:
         run: npm ci --force
 
       - name: Run ESLint
-        run: npm run lint --if-present; exit 0
-        # TypeScript provides comprehensive type checking
+        run: npm run lint
 
       - name: Check TypeScript
         run: npm run typecheck --if-present || npx tsc --noEmit
@@ -38,7 +36,6 @@ jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
-    continue-on-error: true  # Vitest worker crashes don't affect actual test results
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -53,8 +50,7 @@ jobs:
         run: npm ci --force
 
       - name: Run tests
-        # Exit 0 even if Vitest worker crashes (known issue) - actual test failures are in output
-        run: npm test -- --coverage --reporter=verbose || true
+        run: npm test -- --coverage --reporter=verbose
 
       - name: Upload coverage
         uses: codecov/codecov-action@v4

@@ -93,6 +93,10 @@ export class WebSocketAdapter implements IProtocolAdapter {
         this.ws = new WebSocket(url);
 
         const timeout = setTimeout(() => {
+          // Mark as deliberately closing so the onclose handler does not
+          // schedule a background reconnect for a connect the caller already
+          // saw fail (otherwise an orphaned reconnect loop runs after reject).
+          this.isDisconnecting = true;
           reject(new Error('Connection timeout'));
           this.ws?.close();
         }, 10000);
@@ -309,7 +313,9 @@ export class WebSocketAdapter implements IProtocolAdapter {
 
       switch (msg.type) {
         case 'update':
-          if (msg.tagId) {
+          // Only accept values for known tags so a compromised/MITM proxy
+          // cannot inject arbitrary tagIds into the value store.
+          if (msg.tagId && this.tags.has(msg.tagId)) {
             const tagValue = this.parseTagValue(msg);
             this.values.set(msg.tagId, tagValue);
             this.notifySubscribers([tagValue]);
@@ -319,12 +325,15 @@ export class WebSocketAdapter implements IProtocolAdapter {
         case 'batch':
         case 'snapshot':
           if (msg.tags) {
-            const tagValues = msg.tags.map((t) => ({
-              tagId: t.tagId,
-              value: t.value,
-              quality: this.parseQuality(t.quality),
-              timestamp: t.timestamp,
-            }));
+            const tagValues = msg.tags
+              // Drop tags that are not part of the known TagDefinition set.
+              .filter((t) => this.tags.has(t.tagId))
+              .map((t) => ({
+                tagId: t.tagId,
+                value: t.value ?? 0,
+                quality: this.parseQuality(t.quality),
+                timestamp: t.timestamp ?? Date.now(),
+              }));
             tagValues.forEach((tv) => this.values.set(tv.tagId, tv));
             this.notifySubscribers(tagValues);
           }
@@ -353,8 +362,10 @@ export class WebSocketAdapter implements IProtocolAdapter {
     };
   }
 
-  private parseQuality(quality: string): Quality {
-    const q = quality.toUpperCase();
+  private parseQuality(quality: string | undefined): Quality {
+    // Null-safe: tolerate undefined/empty quality so a relaxed validator or
+    // missing field cannot throw on `.toUpperCase()`.
+    const q = String(quality ?? '').toUpperCase();
     if (q === 'GOOD' || q === 'UNCERTAIN' || q === 'BAD' || q === 'STALE') {
       return q as Quality;
     }

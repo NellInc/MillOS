@@ -1736,6 +1736,10 @@ villageCobbleMaterial.onBeforeCompile = (shader) => {
     gl_FragColor.a *= mix(feather, 1.0, smoothstep(15.0, 30.0, vLocalPos.x));`
   );
 };
+// Stable cache key so the feathering-injected variant gets its own compiled
+// program and never shares a cache slot with a plain MeshStandardMaterial of
+// identical params (which would render without the edge feathering).
+villageCobbleMaterial.customProgramCacheKey = () => 'villageCobble_feather_v1';
 
 // ===== MAIN VILLAGE COMPONENT =====
 export const VillageArea: React.FC = () => {

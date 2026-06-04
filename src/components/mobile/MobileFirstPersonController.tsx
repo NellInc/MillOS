@@ -17,6 +17,10 @@ const LOOK_SMOOTHING = 0.15; // Lerp factor for smooth camera movement
 // World boundary
 const WORLD_RADIUS = 255;
 
+// Module-level reusable vectors to avoid per-frame allocation (GC pressure on mobile)
+const _forward = new THREE.Vector3();
+const _right = new THREE.Vector3();
+
 // Collision boxes (same as desktop FPS)
 const COLLISION_BOXES: Array<{
   minX: number;
@@ -211,20 +215,20 @@ export const MobileFirstPersonController: React.FC = () => {
     // Calculate speed based on sprint state
     const speed = isSprinting ? SPRINT_SPEED : MOVE_SPEED;
 
-    // Get forward and right vectors from camera
-    const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
-    const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+    // Get forward and right vectors from camera (reuse module-level vectors)
+    _forward.set(0, 0, -1).applyQuaternion(camera.quaternion);
+    _right.set(1, 0, 0).applyQuaternion(camera.quaternion);
 
     // Keep movement horizontal
-    forward.y = 0;
-    right.y = 0;
-    forward.normalize();
-    right.normalize();
+    _forward.y = 0;
+    _right.y = 0;
+    _forward.normalize();
+    _right.normalize();
 
     // Calculate desired movement
     velocity.current.set(0, 0, 0);
-    velocity.current.addScaledVector(forward, -direction.current.z * speed * delta);
-    velocity.current.addScaledVector(right, direction.current.x * speed * delta);
+    velocity.current.addScaledVector(_forward, -direction.current.z * speed * delta);
+    velocity.current.addScaledVector(_right, direction.current.x * speed * delta);
 
     // Calculate new position
     const newX = camera.position.x + velocity.current.x;

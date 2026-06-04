@@ -534,8 +534,16 @@ export const VotingPanel: React.FC<VotingPanelProps> = ({ defaultExpanded = true
               </div>
 
               {/* Tab toggle */}
-              <div className="flex rounded bg-slate-700/30 p-0.5">
+              <div
+                role="tablist"
+                aria-label="Voting views"
+                className="flex rounded bg-slate-700/30 p-0.5"
+              >
                 <button
+                  role="tab"
+                  id="voting-tab-active"
+                  aria-selected={activeTab === 'active'}
+                  aria-controls="voting-tabpanel"
                   className={`flex-1 text-[10px] py-1 rounded transition-colors ${
                     activeTab === 'active'
                       ? 'bg-slate-600 text-white'
@@ -546,6 +554,10 @@ export const VotingPanel: React.FC<VotingPanelProps> = ({ defaultExpanded = true
                   Active ({openCount})
                 </button>
                 <button
+                  role="tab"
+                  id="voting-tab-history"
+                  aria-selected={activeTab === 'history'}
+                  aria-controls="voting-tabpanel"
                   className={`flex-1 text-[10px] py-1 rounded transition-colors ${
                     activeTab === 'history'
                       ? 'bg-slate-600 text-white'
@@ -558,7 +570,14 @@ export const VotingPanel: React.FC<VotingPanelProps> = ({ defaultExpanded = true
               </div>
 
               {/* Vote list */}
-              <div className="space-y-2 max-h-64 overflow-y-auto">
+              <div
+                role="tabpanel"
+                id="voting-tabpanel"
+                aria-labelledby={
+                  activeTab === 'active' ? 'voting-tab-active' : 'voting-tab-history'
+                }
+                className="space-y-2 max-h-64 overflow-y-auto"
+              >
                 {activeTab === 'active' ? (
                   activeVotes.length > 0 ? (
                     activeVotes.map((vote) => (

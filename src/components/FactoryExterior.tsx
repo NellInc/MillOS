@@ -1311,6 +1311,7 @@ const AnimatedFrog: React.FC<{
   hopOffset?: number;
 }> = ({ position, rotation = 0, hopOffset = 0 }) => {
   const frogRef = useRef<THREE.Group>(null);
+  const heartCounter = useRef(0);
   const [isExcited, setIsExcited] = useState(false);
   const [hearts, setHearts] = useState<{ id: number; pos: [number, number, number] }[]>([]);
 
@@ -1318,7 +1319,7 @@ const AnimatedFrog: React.FC<{
     e.stopPropagation();
     setIsExcited(true);
     playCritterSound('frog');
-    const id = Date.now();
+    const id = ++heartCounter.current;
     setHearts((prev: { id: number; pos: [number, number, number] }[]) => [
       ...prev,
       { id, pos: [0, 0.5, 0] },

@@ -55,41 +55,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  deploy-ghpages:
-    name: Deploy to GitHub Pages
-    runs-on: ubuntu-latest
-    needs: release
-    permissions:
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build
-        run: npm run build
-
-      - name: Setup Pages
-        uses: actions/configure-pages@v4
-
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: 'dist'
-
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+  # NOTE: GitHub Pages deployment is owned solely by deploy.yml (on push to main),
+  # which publishes the versioned /v0.30/, /v0.20/, /v0.10/ layout with a root
+  # redirect. A previous deploy-ghpages job here built a flat base-"/" site and
+  # deployed it to the same github-pages environment on every tag push, clobbering
+  # that versioned layout. It was removed; release.yml now only cuts the GitHub
+  # Release (changelog + archive).

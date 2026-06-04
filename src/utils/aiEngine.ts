@@ -3394,6 +3394,12 @@ export function initializeAIEngine(): () => void {
       clearInterval(loopInterval);
       loopInterval = null;
     }
+    // FIX: Clear any pending safety-report resolution timeouts so they don't
+    // fire against a torn-down session (lifecycle leak).
+    for (const timeoutId of activeResolutionTimeouts.values()) {
+      clearTimeout(timeoutId);
+    }
+    activeResolutionTimeouts.clear();
     logger.ai.info('AI Engine stopped and cleaned up');
   };
 }
@@ -3896,6 +3902,16 @@ export async function generateStrategicDecision(): Promise<AIDecision | null> {
       return null;
     }
 
+    // FIX: The client may have been disconnected (key cleared / disconnect())
+    // while this request was in flight. Without an AbortController the awaited
+    // promise still resolves; re-check connection before charging cost or
+    // recording priorities for a now-disconnected client.
+    if (!geminiClient.isConnected()) {
+      logger.warn('[Strategic] Client disconnected during request; discarding response');
+      setStrategicThinking(false);
+      return null;
+    }
+
     // Record cost
     recordApiUsage(prompt.length, response.length);
 
@@ -3950,6 +3966,11 @@ export async function generateStrategicDecision(): Promise<AIDecision | null> {
     return decision;
   } catch (error) {
     logger.error('[Strategic] Decision generation failed:', error);
+    // FIX: Strategic errors are swallowed here (null is returned, not rethrown),
+    // so the AI-loop caller never sees a throw and never records the failure.
+    // Record it here so genuine Gemini failures on the strategic path drive
+    // API exponential backoff like the tactical path does.
+    recordApiFailure();
     setStrategicThinking(false);
     return null;
   }

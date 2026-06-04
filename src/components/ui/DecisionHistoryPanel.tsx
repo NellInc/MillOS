@@ -51,6 +51,8 @@ export const DecisionHistoryPanel: React.FC = () => {
       {/* Header */}
       <button
         onClick={() => setExpanded(!expanded)}
+        aria-expanded={expanded}
+        aria-label="Toggle decision history"
         className="w-full flex items-center justify-between p-3 hover:bg-slate-700/30 transition-colors"
       >
         <div className="flex items-center gap-2">
@@ -59,7 +61,7 @@ export const DecisionHistoryPanel: React.FC = () => {
           <span className="text-xs text-slate-500">({sortedDecisions.length})</span>
         </div>
         <motion.div animate={{ rotate: expanded ? 180 : 0 }} transition={{ duration: 0.2 }}>
-          <ChevronLeft className="w-4 h-4 text-slate-400 rotate-[-90deg]" />
+          <ChevronLeft className="w-4 h-4 text-slate-400 rotate-[-90deg]" aria-hidden="true" />
         </motion.div>
       </button>
 
@@ -126,9 +128,10 @@ export const DecisionHistoryPanel: React.FC = () => {
                 <button
                   onClick={goToPrevPage}
                   disabled={currentPage === 0}
+                  aria-label="Previous page"
                   className="p-1 rounded hover:bg-slate-700/50 disabled:opacity-30 disabled:cursor-not-allowed"
                 >
-                  <ChevronLeft className="w-4 h-4 text-slate-400" />
+                  <ChevronLeft className="w-4 h-4 text-slate-400" aria-hidden="true" />
                 </button>
                 <span className="text-[10px] text-slate-500">
                   {currentPage + 1} / {totalPages}
@@ -136,9 +139,10 @@ export const DecisionHistoryPanel: React.FC = () => {
                 <button
                   onClick={goToNextPage}
                   disabled={currentPage >= totalPages - 1}
+                  aria-label="Next page"
                   className="p-1 rounded hover:bg-slate-700/50 disabled:opacity-30 disabled:cursor-not-allowed"
                 >
-                  <ChevronRight className="w-4 h-4 text-slate-400" />
+                  <ChevronRight className="w-4 h-4 text-slate-400" aria-hidden="true" />
                 </button>
               </div>
             )}

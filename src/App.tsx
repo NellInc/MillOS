@@ -578,8 +578,8 @@ const App: React.FC = () => {
       {/* 3D Canvas keyboard accessibility notice - visible to screen readers */}
       <div role="note" aria-label="3D visualization keyboard controls" className="sr-only">
         The 3D factory visualization is interactive. Press V to toggle first-person view mode. Use
-        keyboard shortcuts: I for AI panel, O for SCADA, B for management, Escape to close panels.
-        Press 1-5 to switch camera presets. Arrow keys control camera in first-person mode.
+        keyboard shortcuts: I for AI panel, O for SCADA, Escape to close panels. Press 1-5 to switch
+        camera presets. Arrow keys control camera in first-person mode.
       </div>
 
       {/* NEW UI INTERFACE Wrapper */}

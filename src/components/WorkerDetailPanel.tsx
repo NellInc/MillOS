@@ -440,7 +440,7 @@ export const WorkerDetailPanel: React.FC<WorkerDetailPanelProps> = ({
               aria-label={`Close ${worker.name} details`}
               className="absolute top-2 right-2 w-6 h-6 bg-white/20 rounded-full flex items-center justify-center text-white hover:bg-white/30 transition-colors focus:outline-none focus:ring-2 focus:ring-white"
             >
-              ×
+              <X className="w-4 h-4" />
             </button>
           )}
           <div className="flex items-center gap-4">
@@ -495,6 +495,7 @@ export const WorkerDetailPanel: React.FC<WorkerDetailPanelProps> = ({
           ].map((tab) => (
             <button
               key={tab.id}
+              id={`${tab.id}-tab`}
               role="tab"
               aria-selected={activeTab === tab.id}
               aria-controls={`${tab.id}-panel`}

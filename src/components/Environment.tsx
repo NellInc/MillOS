@@ -96,6 +96,9 @@ const _cameraDir = new THREE.Vector3();
 const _lightPos = new THREE.Vector3();
 const _toCamera = new THREE.Vector3();
 
+// Reusable Color for the throttled daylight update (avoid per-tick allocation)
+const _daylightColor = new THREE.Color();
+
 // Manager component to handle all environment animations in a single consolidated loop
 const EnvironmentAnimationManager: React.FC = () => {
   const isTabVisible = useGameSimulationStore((state) => state.isTabVisible);
@@ -487,10 +490,10 @@ const EnvironmentAnimationManager: React.FC = () => {
       // Calculate daylight properties once per frame
       const gameTime = useGameSimulationStore.getState().gameTime;
       const { color, intensity } = getDaylightProperties(gameTime);
-      const THREEColor = new THREE.Color(color);
+      _daylightColor.set(color);
 
       windowGlowRefs.forEach((mat) => {
-        mat.color.set(THREEColor);
+        mat.color.copy(_daylightColor);
         mat.opacity = intensity * 0.6;
       });
 

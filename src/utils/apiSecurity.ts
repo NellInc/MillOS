@@ -1,6 +1,12 @@
 /**
  * API Security Utilities
  *
+ * UNUSED AT RUNTIME: nothing in src/ imports this module. It is scaffolding
+ * for a possible future server-side auth integration and is NOT wired into any
+ * active code path. The CSRF/JWT/secureFetch helpers below do not establish an
+ * auth or CSRF posture for the current frontend-only app; they validate nothing
+ * until a backend exists. Treat as a library stub, not as active protection.
+ *
  * Client-side security utilities for API interactions including:
  * - Rate limiting (debounce/throttle)
  * - Request validation
