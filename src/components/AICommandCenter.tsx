@@ -89,13 +89,19 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
     }))
   );
 
-  // Gemini AI configuration
-  const { aiMode, isGeminiConnected } = useAIConfigStore(
+  // AI backend configuration (Gemini API or local WebGPU neural core)
+  const { aiMode, isGeminiConnected, llmBackend, webgpuModelReady } = useAIConfigStore(
     useShallow((state) => ({
       aiMode: state.aiMode,
       isGeminiConnected: state.isGeminiConnected,
+      llmBackend: state.llmBackend,
+      webgpuModelReady: state.webgpuModelReady,
     }))
   );
+  // The ACTIVE backend's readiness drives the badges — not "either backend".
+  // (Gemini connected while backend=webgpu-not-loaded must NOT read as ready.)
+  const isLocalBackend = llmBackend === 'webgpu';
+  const llmReady = isLocalBackend ? webgpuModelReady : isGeminiConnected;
   const [showGeminiSettings, setShowGeminiSettings] = useState(false);
 
   // React to new alerts
@@ -191,7 +197,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
           {/* Compact Header for embedded mode */}
           <div className="p-3 border-b border-cyan-500/20">
             <div className="flex items-center gap-2 text-cyan-400 mb-2">
-              <Brain className="w-5 h-5" />
+              <Brain className="w-5 h-5" aria-hidden="true" />
               <span className="font-bold text-sm">AI Engine</span>
               {/* Fixed width container prevents layout jitter */}
               <span className={`text-xs ml-1 w-16 ${isThinking ? 'animate-pulse' : 'invisible'}`}>
@@ -203,18 +209,20 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
                 className="ml-auto flex items-center gap-1.5 px-2 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 border border-slate-700 transition-colors"
                 title={
                   aiMode === 'gemini'
-                    ? 'Gemini AI Active - Click to configure'
+                    ? `${isLocalBackend ? 'Local AI' : 'Gemini AI'} Active - Click to configure`
                     : aiMode === 'hybrid'
                       ? 'Hybrid Mode Active - Click to configure'
-                      : 'Heuristic Mode - Click to configure Gemini'
+                      : 'Heuristic Mode - Click to configure AI backend'
                 }
               >
-                {aiMode === 'gemini' && isGeminiConnected ? (
+                {aiMode === 'gemini' && llmReady ? (
                   <>
                     <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-                    <span className="text-[10px] text-green-400 font-medium">Gemini</span>
+                    <span className="text-[10px] text-green-400 font-medium">
+                      {isLocalBackend ? 'Local' : 'Gemini'}
+                    </span>
                   </>
-                ) : aiMode === 'hybrid' && isGeminiConnected ? (
+                ) : aiMode === 'hybrid' && llmReady ? (
                   <>
                     <span className="w-2 h-2 rounded-full bg-purple-400 animate-pulse" />
                     <span className="text-[10px] text-purple-400 font-medium">Hybrid</span>
@@ -225,7 +233,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
                     <span className="text-[10px] text-amber-400 font-medium">Heuristic</span>
                   </>
                 )}
-                <Settings className="w-3 h-3 text-slate-400" />
+                <Settings className="w-3 h-3 text-slate-400" aria-hidden="true" />
               </button>
             </div>
             {/* System Status - compact */}
@@ -243,7 +251,9 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
                 <span className="text-purple-400 ml-1">{systemStatus.decisions}</span>
               </div>
               <div className="bg-slate-800/50 rounded px-2 py-1">
-                {(aiMode === 'gemini' || aiMode === 'hybrid') && isGeminiConnected ? (
+                {(aiMode === 'gemini' || aiMode === 'hybrid') &&
+                !isLocalBackend &&
+                isGeminiConnected ? (
                   <>
                     <span className="text-slate-500">$</span>
                     <span className="text-emerald-400 ml-1">
@@ -253,6 +263,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
                 ) : (
                   <>
                     <span className="text-slate-500">$</span>
+                    {/* Local WebGPU inference and heuristic mode are both free. */}
                     <span className="text-emerald-400 ml-1">FREE</span>
                   </>
                 )}

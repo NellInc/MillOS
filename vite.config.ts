@@ -122,8 +122,12 @@ export default defineConfig((): UserConfig => {
     optimizeDeps: {
       // Pre-bundle heavy dependencies for faster dev startup
       include: ['three', '@react-three/fiber', '@react-three/drei', 'framer-motion'],
-      // Exclude troika to prevent ES6 class transpilation issues
-      exclude: ['troika-three-text'],
+      // Exclude troika to prevent ES6 class transpilation issues.
+      // Exclude @mlc-ai/web-llm: it is dynamically imported only (loaded on demand
+      // when the operator opts into the local WebGPU brain), ships a large WASM
+      // runtime, and uses require() inside ESM that breaks esbuild pre-bundling.
+      // Rollup auto-splits the dynamic import into its own lazy chunk for prod.
+      exclude: ['troika-three-text', '@mlc-ai/web-llm'],
       esbuildOptions: {
         target: 'esnext',
         supported: {

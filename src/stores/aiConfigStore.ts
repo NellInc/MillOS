@@ -14,12 +14,31 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { safeJSONStorage } from './storage';
 import { geminiClient } from '../utils/geminiClient';
+import {
+  webgpuClient,
+  WebGPUClient,
+  checkWebGPUAdapter,
+  DEFAULT_WEBGPU_MODEL_ID,
+} from '../utils/webgpuClient';
 import { logger } from '../utils/logger';
 import type { StrategicPriority } from '../types';
 import type { FiveAxes, SuggestionMode } from '../types/bas';
 import { useBASStore } from './basStore';
 
 export type AIMode = 'heuristic' | 'gemini' | 'hybrid';
+
+/** Which LLM backend powers the strategic layer (orthogonal to AIMode). */
+export type LLMBackend = 'gemini' | 'webgpu';
+
+/** Lifecycle status of the local WebGPU neural core. */
+export type WebGPUStatus =
+  | 'idle'
+  | 'checking'
+  | 'unsupported'
+  | 'loading'
+  | 'compiling'
+  | 'ready'
+  | 'error';
 
 // Gemini Flash pricing (per 1M tokens, as of Dec 2024)
 // https://ai.google.dev/pricing
@@ -80,6 +99,29 @@ interface AIConfigState {
   geminiApiKey: string | null;
   isGeminiConnected: boolean;
   connectionError: string | null;
+
+  // LLM backend selection (Gemini API vs local WebGPU neural core)
+  llmBackend: LLMBackend;
+  setLLMBackend: (backend: LLMBackend) => void;
+
+  // Local WebGPU neural core state
+  webgpuStatus: WebGPUStatus;
+  webgpuProgress: number; // 0..1 download/compile progress
+  webgpuMessage: string; // human-readable status line
+  webgpuError: string | null;
+  webgpuModelReady: boolean; // engine loaded & serving inference
+  webgpuModelId: string;
+  webgpuAdapterWarning: string | null; // advisory OOM/perf warning from adapter probe
+  /** Load the local model. `promote` (default true) mirrors the Gemini
+   *  connect-time switch to Hybrid; the silent startup prewarm passes false so
+   *  it never overrides a returning operator's persisted aiMode. */
+  loadWebGPUModel: (promote?: boolean) => Promise<boolean>;
+  cancelWebGPUModelLoad: () => void;
+  unloadWebGPUModel: () => Promise<void>;
+  deleteWebGPUCache: () => Promise<void>;
+
+  /** True when the active LLM backend is ready to serve strategic decisions. */
+  isLLMReady: () => boolean;
 
   // Strategic layer state
   strategic: StrategicState;
@@ -202,6 +244,11 @@ function computeBASBehavior(axes: FiveAxes): BASAIBehavior {
   };
 }
 
+// Transient (non-reactive, non-persisted) flag coordinating an in-flight model
+// load with a cancellation request. Module-scoped so it survives across the
+// loadWebGPUModel/cancelWebGPUModelLoad closures without polluting store state.
+let webgpuCancelRequested = false;
+
 export const useAIConfigStore = create<AIConfigState>()(
   persist(
     (set, get) => ({
@@ -216,6 +263,186 @@ export const useAIConfigStore = create<AIConfigState>()(
       geminiApiKey: null,
       isGeminiConnected: false,
       connectionError: null,
+
+      // LLM backend selection — default to Gemini API (existing behavior).
+      llmBackend: 'gemini',
+      setLLMBackend: (backend: LLMBackend) => {
+        set({ llmBackend: backend });
+        logger.info(`[AIConfigStore] LLM backend set to: ${backend}`);
+        // Auto-download/load the local model the moment the operator picks it
+        // (idempotent — loadWebGPUModel() no-ops if already loading or ready).
+        if (backend === 'webgpu') {
+          void get().loadWebGPUModel();
+        } else {
+          // Switched to a cloud backend — free the local model's GPU memory so
+          // it stops competing with the 3D scene. Weights stay browser-cached,
+          // so switching back re-loads from cache (no re-download).
+          const s = get();
+          if (
+            s.webgpuStatus === 'checking' ||
+            s.webgpuStatus === 'loading' ||
+            s.webgpuStatus === 'compiling'
+          ) {
+            s.cancelWebGPUModelLoad();
+          } else if (s.webgpuModelReady) {
+            void s.unloadWebGPUModel();
+          }
+        }
+      },
+
+      // Local WebGPU neural core — starts idle; the engine is memory-only and
+      // must be (re)loaded each session even though weights are browser-cached.
+      webgpuStatus: 'idle',
+      webgpuProgress: 0,
+      webgpuMessage: '',
+      webgpuError: null,
+      webgpuModelReady: false,
+      webgpuModelId: DEFAULT_WEBGPU_MODEL_ID,
+      webgpuAdapterWarning: null,
+
+      loadWebGPUModel: async (promote: boolean = true): Promise<boolean> => {
+        // Idempotent: skip if already online or a load is already in flight, so
+        // the auto-triggers (backend select + startup prewarm) and a manual
+        // click can't stack duplicate downloads.
+        const current = get();
+        if (current.webgpuModelReady) {
+          return true;
+        }
+        if (
+          current.webgpuStatus === 'checking' ||
+          current.webgpuStatus === 'loading' ||
+          current.webgpuStatus === 'compiling'
+        ) {
+          return false;
+        }
+
+        set({
+          webgpuStatus: 'checking',
+          webgpuError: null,
+          webgpuProgress: 0,
+          webgpuMessage: 'Checking WebGPU compatibility...',
+        });
+
+        const report = await checkWebGPUAdapter();
+        if (!report.supported) {
+          set({
+            webgpuStatus: 'unsupported',
+            webgpuModelReady: false,
+            webgpuError:
+              report.warning ??
+              'WebGPU is unavailable in this browser. Use a WebGPU-capable browser or the Gemini API backend.',
+          });
+          logger.warn('[AIConfigStore] WebGPU unsupported:', report.warning);
+          return false;
+        }
+
+        webgpuCancelRequested = false;
+        set({
+          webgpuAdapterWarning: report.warning ?? null,
+          webgpuStatus: 'loading',
+          webgpuProgress: 0,
+          webgpuMessage: 'Initializing model download...',
+        });
+
+        const ok = await webgpuClient.load((p) => {
+          if (webgpuCancelRequested) return; // stop reflecting progress once cancelled
+          const lower = p.text.toLowerCase();
+          const status: WebGPUStatus =
+            lower.includes('compil') || lower.includes('shader') ? 'compiling' : 'loading';
+          set({ webgpuStatus: status, webgpuProgress: p.progress, webgpuMessage: p.text });
+        });
+
+        // Cancellation wins over the load result (which resolves false on cancel).
+        if (webgpuCancelRequested) {
+          webgpuCancelRequested = false;
+          set({
+            webgpuStatus: 'idle',
+            webgpuModelReady: false,
+            webgpuProgress: 0,
+            webgpuMessage: '',
+            webgpuError: null,
+          });
+          return false;
+        }
+
+        if (ok) {
+          set((state) => ({
+            webgpuStatus: 'ready',
+            webgpuModelReady: true,
+            webgpuProgress: 1,
+            webgpuMessage: 'Local neural core online',
+            webgpuError: null,
+            // Mirror the Gemini auto-switch: a fresh local core lights up the
+            // strategic layer via Hybrid mode (keeps fast heuristic tactical).
+            // Promote from BOTH heuristic and gemini — pure 'gemini' (LLM-only)
+            // would leave tactical AND strategic gated off (a silent dead state),
+            // so only an already-'hybrid' mode is left untouched. Skipped on the
+            // silent startup prewarm (promote=false) to respect persisted aiMode.
+            aiMode: promote && state.aiMode !== 'hybrid' ? 'hybrid' : state.aiMode,
+          }));
+          logger.info('[AIConfigStore] WebGPU model ready');
+          return true;
+        }
+
+        set({
+          webgpuStatus: 'error',
+          webgpuModelReady: false,
+          webgpuError: 'The model could not be loaded. Try again or use the Gemini API backend.',
+        });
+        return false;
+      },
+
+      cancelWebGPUModelLoad: (): void => {
+        // Best-effort: web-llm cannot abort an in-flight fetch, so the current
+        // request may still complete in the background, but the engine is freed
+        // on completion and the UI returns to idle immediately.
+        webgpuCancelRequested = true;
+        webgpuClient.cancelLoad();
+        set({
+          webgpuStatus: 'idle',
+          webgpuProgress: 0,
+          webgpuMessage: '',
+          webgpuError: null,
+        });
+        logger.info('[AIConfigStore] WebGPU model load cancelled');
+      },
+
+      unloadWebGPUModel: async (): Promise<void> => {
+        await webgpuClient.disconnect();
+        set({
+          webgpuModelReady: false,
+          webgpuStatus: 'idle',
+          webgpuProgress: 0,
+          webgpuMessage: '',
+          webgpuError: null,
+        });
+        logger.info('[AIConfigStore] WebGPU model unloaded');
+      },
+
+      deleteWebGPUCache: async (): Promise<void> => {
+        await webgpuClient.disconnect();
+        try {
+          await WebGPUClient.deleteModelCache(get().webgpuModelId);
+        } catch (error) {
+          logger.warn('[AIConfigStore] Failed to delete WebGPU model cache:', error);
+        }
+        set({
+          webgpuModelReady: false,
+          webgpuStatus: 'idle',
+          webgpuProgress: 0,
+          webgpuMessage: '',
+          webgpuError: null,
+        });
+        logger.info('[AIConfigStore] WebGPU model cache deleted');
+      },
+
+      isLLMReady: (): boolean => {
+        const state = get();
+        return (
+          (state.llmBackend === 'gemini' && state.isGeminiConnected) ||
+          (state.llmBackend === 'webgpu' && state.webgpuModelReady)
+        );
+      },
 
       // Strategic layer state
       strategic: {
@@ -557,6 +784,9 @@ export const useAIConfigStore = create<AIConfigState>()(
         aiMode: state.aiMode,
         geminiApiKey: state.geminiApiKey,
         managementGenerosity: state.managementGenerosity,
+        // Persist the chosen backend; webgpuModelReady is intentionally NOT
+        // persisted (the engine is memory-only and must be reloaded each session).
+        llmBackend: state.llmBackend,
       }),
     }
   )
@@ -609,4 +839,15 @@ if (typeof window !== 'undefined') {
     // Initialize BAS subscription after stores are ready
     initBASSubscription();
   }, 100);
+
+  // Prewarm the local model if the operator left the backend on WebGPU.
+  // Deferred so the heavy 3D scene boots first; idempotent + fire-and-forget.
+  // After the one-time download the weights are browser-cached, so this is a
+  // fast cache load on subsequent sessions (the "download automatically" path).
+  setTimeout(() => {
+    if (useAIConfigStore.getState().llmBackend === 'webgpu') {
+      // promote=false: a silent reload must not override the persisted aiMode.
+      void useAIConfigStore.getState().loadWebGPUModel(false);
+    }
+  }, 2500);
 }

@@ -31,6 +31,7 @@ import { useAnnouncementsStore } from '../stores/announcementsStore';
 import { useSafetyReportStore } from '../stores/safetyReportStore';
 import { useWorkerMoodStore } from '../stores/workerMoodStore';
 import { geminiClient } from './geminiClient';
+import { webgpuClient } from './webgpuClient';
 import { encodeFactoryContextVCL, getVCLLegend } from './vclEncoder';
 import { logger } from './logger';
 import { useHistoricalPlaybackStore } from '../stores/historicalPlaybackStore';
@@ -3430,19 +3431,29 @@ export function getConfidenceAdjustmentForType(type: AIDecision['type']): number
 }
 
 /**
- * Check if Gemini mode is currently active (either 'gemini' or 'hybrid' mode)
+ * Resolve the active LLM brain for the selected backend. Both clients expose
+ * the same { generateContent, isConnected } contract, so the strategic layer is
+ * backend-agnostic.
  */
-export function isGeminiModeActive(): boolean {
-  const { aiMode, isGeminiConnected } = useAIConfigStore.getState();
-  return (aiMode === 'gemini' || aiMode === 'hybrid') && isGeminiConnected;
+function getActiveLLM(): { generateContent: (p: string) => Promise<string | null>; isConnected: () => boolean } {
+  return useAIConfigStore.getState().llmBackend === 'webgpu' ? webgpuClient : geminiClient;
 }
 
 /**
- * Check if strategic layer should run (hybrid mode only)
+ * Check if LLM mode is currently active (either 'gemini' or 'hybrid' mode) with
+ * a ready backend (Gemini API connected OR local WebGPU model loaded).
+ */
+export function isGeminiModeActive(): boolean {
+  const { aiMode, isLLMReady } = useAIConfigStore.getState();
+  return (aiMode === 'gemini' || aiMode === 'hybrid') && isLLMReady();
+}
+
+/**
+ * Check if strategic layer should run (hybrid mode only) with a ready backend.
  */
 export function isStrategicLayerActive(): boolean {
-  const { aiMode, isGeminiConnected } = useAIConfigStore.getState();
-  return aiMode === 'hybrid' && isGeminiConnected;
+  const { aiMode, isLLMReady } = useAIConfigStore.getState();
+  return aiMode === 'hybrid' && isLLMReady();
 }
 
 /**
@@ -3898,18 +3909,24 @@ function parseStrategicResponse(response: string): {
  */
 export async function generateStrategicDecision(): Promise<AIDecision | null> {
   const store = useAIConfigStore.getState();
-  const { isGeminiConnected, recordApiUsage, setStrategicPriorities, setStrategicThinking } = store;
+  const { llmBackend, isLLMReady, recordApiUsage, setStrategicPriorities, setStrategicThinking } =
+    store;
 
-  if (!isStrategicLayerActive() || !isGeminiConnected) {
+  if (!isStrategicLayerActive() || !isLLMReady()) {
     return null;
   }
 
-  if (!geminiClient.isConnected()) {
-    logger.warn('[Strategic] Gemini client not connected');
+  // Backend-agnostic brain: Gemini API or local WebGPU neural core.
+  const llm = getActiveLLM();
+  if (!llm.isConnected()) {
+    logger.warn(`[Strategic] LLM backend (${llmBackend}) not connected`);
     return null;
   }
 
   setStrategicThinking(true);
+  // Track whether the model call itself succeeded, so a later synchronous error
+  // (parsing, store writes) is not mis-counted as an API failure driving backoff.
+  let llmCallSucceeded = false;
 
   try {
     // Update VCP state before generating strategic decision
@@ -3918,26 +3935,32 @@ export async function generateStrategicDecision(): Promise<AIDecision | null> {
     const context = getFactoryContext();
     const prompt = buildStrategicPrompt(context);
 
-    const response = await geminiClient.generateContent(prompt);
+    const response = await llm.generateContent(prompt);
 
     if (!response) {
-      logger.warn('[Strategic] No response from API');
+      logger.warn('[Strategic] No response from LLM backend');
       setStrategicThinking(false);
       return null;
     }
 
-    // FIX: The client may have been disconnected (key cleared / disconnect())
+    // FIX: The client may have been disconnected (key cleared / model unloaded)
     // while this request was in flight. Without an AbortController the awaited
     // promise still resolves; re-check connection before charging cost or
     // recording priorities for a now-disconnected client.
-    if (!geminiClient.isConnected()) {
-      logger.warn('[Strategic] Client disconnected during request; discarding response');
+    if (!llm.isConnected()) {
+      logger.warn('[Strategic] Backend disconnected during request; discarding response');
       setStrategicThinking(false);
       return null;
     }
 
-    // Record cost
-    recordApiUsage(prompt.length, response.length);
+    // The model call returned a usable response — past here, any throw is a
+    // local processing error, not an API failure.
+    llmCallSucceeded = true;
+
+    // Record cost — only the Gemini API incurs USD cost; local WebGPU is free.
+    if (llmBackend === 'gemini') {
+      recordApiUsage(prompt.length, response.length);
+    }
 
     const strategic = parseStrategicResponse(response);
 
@@ -3990,11 +4013,14 @@ export async function generateStrategicDecision(): Promise<AIDecision | null> {
     return decision;
   } catch (error) {
     logger.error('[Strategic] Decision generation failed:', error);
-    // FIX: Strategic errors are swallowed here (null is returned, not rethrown),
-    // so the AI-loop caller never sees a throw and never records the failure.
-    // Record it here so genuine Gemini failures on the strategic path drive
-    // API exponential backoff like the tactical path does.
-    recordApiFailure();
+    // Strategic errors are swallowed here (null is returned, not rethrown), so
+    // the AI-loop caller never sees a throw and never records the failure.
+    // Record it here so genuine model-call failures on the strategic path drive
+    // API exponential backoff — but only if the model call itself failed, not a
+    // post-success local error (which must not back off a healthy backend).
+    if (!llmCallSucceeded) {
+      recordApiFailure();
+    }
     setStrategicThinking(false);
     return null;
   }

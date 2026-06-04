@@ -26,6 +26,7 @@
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
+    "@mlc-ai/web-llm": "^0.2.84",
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.4.2",
     "@react-three/postprocessing": "^3.0.4",

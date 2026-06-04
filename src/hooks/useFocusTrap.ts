@@ -13,35 +13,40 @@ export const useFocusTrap = (ref: RefObject<HTMLElement>, isOpen: boolean, onClo
     if (!isOpen || !ref.current) return;
 
     const modalElement = ref.current;
-    const focusableElements = modalElement.querySelectorAll<HTMLElement>(
-      'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
-    );
+    const FOCUSABLE_SELECTOR =
+      'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
-    const firstFocusable = focusableElements[0];
-    const lastFocusable = focusableElements[focusableElements.length - 1];
+    // Query live on demand — modal contents can change while open (e.g. the AI
+    // settings backend toggle adds/removes the key input and footer buttons), so
+    // a NodeList snapshotted at mount would point at detached nodes after a switch.
+    const getFocusable = () =>
+      Array.from(modalElement.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR));
 
     // Store the element that had focus before opening modal
     const previouslyFocusedElement = document.activeElement as HTMLElement;
 
     // Focus first element when modal opens
-    if (firstFocusable) {
-      firstFocusable.focus();
-    }
+    getFocusable()[0]?.focus();
 
     const handleTabKey = (e: KeyboardEvent) => {
       if (e.key !== 'Tab') return;
+
+      const focusable = getFocusable();
+      if (focusable.length === 0) return;
+      const firstFocusable = focusable[0];
+      const lastFocusable = focusable[focusable.length - 1];
 
       if (e.shiftKey) {
         // Shift + Tab
         if (document.activeElement === firstFocusable) {
           e.preventDefault();
-          lastFocusable?.focus();
+          lastFocusable.focus();
         }
       } else {
         // Tab
         if (document.activeElement === lastFocusable) {
           e.preventDefault();
-          firstFocusable?.focus();
+          firstFocusable.focus();
         }
       }
     };
