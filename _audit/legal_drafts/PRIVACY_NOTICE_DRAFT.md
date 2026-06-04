@@ -112,7 +112,7 @@ The practical position for MillOS is:
 - **Against third parties:** for data they receive as independent controllers — **GitHub** (hosting/IP), **Google** (Gemini, only if you supply your own API key and use it), **jsDelivr** (3D-text font glyphs/IP on every visit), **SCADA endpoint operators** (if you configure one) — please exercise your rights with them directly via the policies linked above.
 - **International transfers:** GitHub and Google are US-based; connections to them involve transfers outside the UK/EU, governed by their own safeguards and policies.
 
-If you have a question, you may contact: [OWNER DECISION — contact email]. You also have the right to complain to your data-protection authority (in the UK, the **ICO**, https://ico.org.uk).
+This notice is governed by **UK data protection law (UK GDPR and the Data Protection Act 2018)**. If you have a question, you may contact: **nell@ethicsnet.com**. You also have the right to complain to your data-protection authority (in the UK, the **ICO**, https://ico.org.uk).
 
 ---
 

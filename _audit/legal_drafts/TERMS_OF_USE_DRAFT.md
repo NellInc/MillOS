@@ -91,13 +91,13 @@ The operator may modify or discontinue MillOS, or update these terms, at any tim
 
 ## 10. Governing law and disputes
 
-[OWNER DECISION — governing law and jurisdiction/venue. The operator is understood to be UK-based; common choices would be the law of England and Wales (or the relevant UK nation) and the courts of that jurisdiction, but this is the owner's decision and may be affected by where users are located.]
+These terms and any dispute arising out of them are governed by the **law of England and Wales**, and the **courts of England and Wales** have jurisdiction. Nothing in this clause removes any mandatory protection you have under the law of the country where you live.
 
 ---
 
 ## 11. Contact
 
-Questions about these terms: [OWNER DECISION — contact email].
+Questions about these terms: **nell@ethicsnet.com**.
 
 ---
 

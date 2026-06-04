@@ -8,13 +8,17 @@
 | `TERMS_OF_USE_DRAFT.md` | Short, honest ToS: fictional/educational simulator, **not** real SCADA/industrial-control/safety software; MIT licence (code) vs hosted-app terms; user bears own Gemini API costs; no warranty; liability limitation. |
 | `COOKIES_ASSESSMENT.md` | Assessment: **no cookie banner needed** (app sets no cookies; `localStorage` is strictly-necessary/functional). The real GDPR point is three unconditional IP transfers on load: Google Fonts, DRACO decoder (gstatic), and jsDelivr font glyphs — recommends self-hosting all three. |
 
-**Remaining [OWNER DECISION] items (collected):**
-- Legal identity of controller (individual vs. company) + rights-contact email.
-- Governing law and jurisdiction/venue (owner is UK-based; left open).
-- Liability-cap approach.
-- Effective date / version handling.
-- Self-host Google Fonts + DRACO decoder + `<Text>` local font (recommended): yes/no.
-- Optional minimum-age statement.
+**Decided (filled in this pass):**
+- Governing law / jurisdiction: **England and Wales** (UK GDPR + Data Protection Act 2018).
+- Rights-contact email: **nell@ethicsnet.com**.
+- Google Fonts + DRACO decoder: **self-hosted** (done in code); only the `<Text>` jsDelivr glyph fetch remains optional.
+
+**Still [CONFIRM] (need your input — I did not invent these):**
+- Legal identity of the controller: "Nell Watson" as an individual, or a registered company name/number?
+- Liability-cap approach (an aggregate cap figure, or rely on the mandatory-law carve-out only).
+- Effective date / version handling (the "Last updated" date).
+- Self-host the `<Text>` 3D-text font to remove the jsDelivr connection: yes/no.
+- Optional minimum-age statement (e.g. "intended for users aged 13+").
 
 **Verification basis:** factual claims were checked against the repo at time of drafting (no analytics/cookies; `millos-ai-config` plaintext key; PeerJS public signaling; DRACO from `www.gstatic.com`; CSP host list; service worker present; `vcp-*` localStorage keys; troika `<Text>` jsdelivr fetch). Re-verify if the code changes before publishing; connection-timing claims in particular depend on default-scene component rendering and library internals.
 
