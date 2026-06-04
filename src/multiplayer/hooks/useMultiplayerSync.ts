@@ -14,6 +14,14 @@ import { useMultiplayerStore } from '../../stores/multiplayerStore';
 import { getMultiplayerManager } from '../MultiplayerManager';
 import { FullGameState, GameStateDiff, MachineIntent } from '../types';
 
+type WeatherType = 'clear' | 'cloudy' | 'rain' | 'storm';
+const VALID_WEATHER: readonly WeatherType[] = ['clear', 'cloudy', 'rain', 'storm'];
+
+/** Validates a wire-sourced weather string against the allowed union before applying. */
+function isValidWeather(value: string): value is WeatherType {
+  return (VALID_WEATHER as readonly string[]).includes(value);
+}
+
 /**
  * Hook to synchronize game state with multiplayer system
  * Should be called once in App.tsx when multiplayer is active
@@ -133,11 +141,10 @@ export function useMultiplayerSync(): void {
       }
     }
 
-    // Apply weather
-    if (diff.weather !== undefined) {
-      const weather = diff.weather as 'clear' | 'cloudy' | 'rain' | 'storm';
-      if (gameStore.weather !== weather) {
-        gameStore.setWeather(weather);
+    // Apply weather (validate against allowed set before applying)
+    if (diff.weather !== undefined && isValidWeather(diff.weather)) {
+      if (gameStore.weather !== diff.weather) {
+        gameStore.setWeather(diff.weather);
       }
     }
 
@@ -164,7 +171,9 @@ export function useMultiplayerSync(): void {
 
     // Apply game state
     gameStore.setGameTime(state.gameTime);
-    gameStore.setWeather(state.weather as 'clear' | 'cloudy' | 'rain' | 'storm');
+    if (isValidWeather(state.weather)) {
+      gameStore.setWeather(state.weather);
+    }
 
     // Apply machine locks
     for (const [machineId, playerId] of Object.entries(state.machineLocks)) {

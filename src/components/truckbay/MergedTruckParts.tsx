@@ -155,9 +155,10 @@ const useWheelInstances = (
   steeringAngle?: number
 ) => {
   const dummy = useMemo(() => new THREE.Object3D(), []);
+  const isTabVisible = useGameSimulationStore((s) => s.isTabVisible);
 
   useFrame(() => {
-    if (!meshRef.current) return;
+    if (!meshRef.current || !isTabVisible) return;
     positions.forEach((pos, i) => {
       dummy.position.set(...pos);
       // Roll X, Steer Y (if applicable)
@@ -214,6 +215,7 @@ export const MergedTruckModel: React.FC<MergedTruckModelProps> = ({
   // Hook up wheel animations
   const steeringAngle = useRef(0);
   useFrame(() => {
+    if (!isTabVisible) return;
     steeringAngle.current = getTruckState().steeringAngle;
   });
 

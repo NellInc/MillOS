@@ -137,6 +137,8 @@ export const SafetyPanel: React.FC = () => {
                 <button
                   key={opt.value}
                   onClick={() => setWeather(opt.value)}
+                  aria-pressed={weather === opt.value}
+                  aria-label={`Set weather to ${opt.label}`}
                   className={`px-2 py-1.5 rounded text-xs font-medium transition-colors ${
                     weather === opt.value
                       ? 'bg-blue-600 text-white'
@@ -192,6 +194,8 @@ export const SafetyPanel: React.FC = () => {
               )}
               <button
                 onClick={() => setShowHeatMap(!showHeatMap)}
+                aria-pressed={showHeatMap}
+                aria-label="Toggle worker heatmap"
                 className={`px-3 py-1 rounded-full text-[10px] font-bold transition-colors ${
                   showHeatMap ? 'bg-purple-600 text-white' : 'bg-slate-700 text-slate-400'
                 }`}

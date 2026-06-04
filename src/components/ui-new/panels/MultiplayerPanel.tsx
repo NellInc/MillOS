@@ -251,7 +251,10 @@ export const MultiplayerPanel: React.FC = () => {
 
           {/* Error message */}
           {error && (
-            <div className="text-red-400 text-xs text-center bg-red-500/10 rounded-lg p-2">
+            <div
+              role="alert"
+              className="text-red-400 text-xs text-center bg-red-500/10 rounded-lg p-2"
+            >
               {error}
             </div>
           )}

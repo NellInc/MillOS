@@ -213,7 +213,7 @@ export const Dock: React.FC<DockProps> = ({ activeMode, onModeChange, onDatalink
           isMobile ? 'p-2 min-w-[44px] min-h-[44px]' : 'p-3'
         } ${
           fpsMode
-            ? 'bg-violet-500/20 text-violet-400'
+            ? 'bg-cyan-500/20 text-cyan-400'
             : 'text-slate-400 hover:text-white hover:bg-white/5'
         }`}
       >
@@ -221,7 +221,7 @@ export const Dock: React.FC<DockProps> = ({ activeMode, onModeChange, onDatalink
         {fpsMode && (
           <motion.div
             layoutId="fps-active"
-            className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 bg-violet-400 rounded-full"
+            className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 bg-cyan-400 rounded-full"
           />
         )}
       </button>

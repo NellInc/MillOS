@@ -507,6 +507,10 @@ export const FactoryFloor: React.FC<FactoryFloorProps> = React.memo(
       return texture;
     }, [actualWidth, actualDepth]);
 
+    // Dispose the grid CanvasTexture on unmount / dimension change to avoid
+    // orphaning GPU textures, matching the other CanvasTextures in this file.
+    useEffect(() => () => gridTexture.dispose(), [gridTexture]);
+
     return (
       <group matrixAutoUpdate={false}>
         {/* Main floor - standard material on low/medium, reflector on high/ultra */}

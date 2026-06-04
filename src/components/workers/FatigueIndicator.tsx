@@ -14,6 +14,10 @@ interface FatigueIndicatorProps {
   visible: boolean;
 }
 
+// Module-level constant so <edgesGeometry> sees a stable reference: R3F builds
+// the EdgesGeometry once and no temporary PlaneGeometry is leaked per render.
+const BORDER_PLANE = new THREE.PlaneGeometry(0.7, 0.08);
+
 export const FatigueIndicator: React.FC<FatigueIndicatorProps> = ({ energy, visible }) => {
   const barRef = useRef<THREE.Mesh>(null);
   const glowRef = useRef<THREE.Mesh>(null);
@@ -67,7 +71,7 @@ export const FatigueIndicator: React.FC<FatigueIndicatorProps> = ({ energy, visi
 
       {/* Border */}
       <lineSegments position={[0, 0, 0.002]}>
-        <edgesGeometry args={[new THREE.PlaneGeometry(0.7, 0.08)]} />
+        <edgesGeometry args={[BORDER_PLANE]} />
         <lineBasicMaterial color="#475569" />
       </lineSegments>
     </group>

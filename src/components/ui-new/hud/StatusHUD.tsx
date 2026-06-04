@@ -184,6 +184,8 @@ export const StatusHUD: React.FC = () => {
               <button
                 onClick={() => setShowNotifications(false)}
                 className="text-slate-400 hover:text-white p-1"
+                aria-label="Close notifications"
+                title="Close notifications"
               >
                 <X size={14} />
               </button>

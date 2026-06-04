@@ -21,6 +21,11 @@ import type {
   ContextFrame,
 } from '../types';
 
+// In-memory fallback used when localStorage is unavailable (SSR, privacy mode,
+// some test runners). Declared before create(persist(...)) so it is initialized
+// before zustand invokes storage.getItem synchronously during hydration.
+const memoryFallback = new Map<string, unknown>();
+
 // =============================================================================
 // CONTEXT SIGNATURE GENERATION
 // =============================================================================
@@ -387,7 +392,14 @@ export const usePatternStore = create<PatternStoreState>()(
           }
 
           const str = webStorage.getItem(name);
-          return str ? JSON.parse(str) : null;
+          if (!str) return null;
+          try {
+            return JSON.parse(str);
+          } catch {
+            // Corrupt persisted entry: fall back to default empty patterns
+            // instead of throwing during hydration.
+            return null;
+          }
         },
         setItem: (name, value) => {
           const webStorage =
@@ -421,5 +433,3 @@ export const usePatternStore = create<PatternStoreState>()(
     }
   )
 );
-
-const memoryFallback = new Map<string, unknown>();

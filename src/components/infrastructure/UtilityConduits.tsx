@@ -24,18 +24,19 @@ const CableTray: React.FC<{
     (start[2] + end[2]) / 2,
   ];
 
-  // Calculate rotation to point from start to end
-  const direction = new THREE.Vector3(
-    end[0] - start[0],
-    end[1] - start[1],
-    end[2] - start[2]
-  ).normalize();
-
+  // Calculate rotation to point from start to end. The direction Vector3 is
+  // built inside the memo (keyed on the primitive endpoints) so the allocation
+  // and quaternion recompute only run when start/end actually change.
   const quaternion = useMemo(() => {
+    const direction = new THREE.Vector3(
+      end[0] - start[0],
+      end[1] - start[1],
+      end[2] - start[2]
+    ).normalize();
     const q = new THREE.Quaternion();
     q.setFromUnitVectors(new THREE.Vector3(0, 0, 1), direction);
     return q;
-  }, [direction]);
+  }, [start, end]);
 
   return (
     <group position={midpoint} quaternion={quaternion}>
@@ -106,17 +107,19 @@ const ConduitPipe: React.FC<{
     (start[2] + end[2]) / 2,
   ];
 
-  const direction = new THREE.Vector3(
-    end[0] - start[0],
-    end[1] - start[1],
-    end[2] - start[2]
-  ).normalize();
-
+  // Build the direction Vector3 inside the memo (keyed on the primitive
+  // endpoints) so the allocation and quaternion recompute only run when
+  // start/end actually change.
   const quaternion = useMemo(() => {
+    const direction = new THREE.Vector3(
+      end[0] - start[0],
+      end[1] - start[1],
+      end[2] - start[2]
+    ).normalize();
     const q = new THREE.Quaternion();
     q.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction);
     return q;
-  }, [direction]);
+  }, [start, end]);
 
   return (
     <group position={midpoint} quaternion={quaternion}>

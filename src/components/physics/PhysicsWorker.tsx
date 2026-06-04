@@ -67,7 +67,11 @@ export const PhysicsWorker: React.FC<PhysicsWorkerProps> = ({
 
   // Game state
   const getNearestExit = useGameSimulationStore((s) => s.getNearestExit);
-  const drillMetrics = useGameSimulationStore((s) => s.drillMetrics);
+  // Narrow selector: subscribe only to the boolean, not the whole drillMetrics
+  // object (which gets a fresh reference on every worker evacuation). Avoids
+  // N-squared re-renders across mounted workers during a drill. Mirrors
+  // ExitZoneSensors.tsx.
+  const drillActive = useGameSimulationStore((s) => s.drillMetrics.active);
   const emergencyDrillMode = useGameSimulationStore((s) => s.emergencyDrillMode);
   const markWorkerEvacuated = useGameSimulationStore((s) => s.markWorkerEvacuated);
   const isTabVisible = useGameSimulationStore((s) => s.isTabVisible);
@@ -81,10 +85,10 @@ export const PhysicsWorker: React.FC<PhysicsWorkerProps> = ({
 
   // Reset evacuation state when drill ends
   useEffect(() => {
-    if (!drillMetrics.active) {
+    if (!drillActive) {
       hasEvacuatedRef.current = false;
     }
-  }, [drillMetrics.active]);
+  }, [drillActive]);
 
   // Cleanup: unregister from position registry on unmount (mirrors PhysicsForklift)
   useEffect(() => {
@@ -136,7 +140,7 @@ export const PhysicsWorker: React.FC<PhysicsWorkerProps> = ({
     frameCountRef.current++;
 
     // === FIRE DRILL EVACUATION ===
-    if (emergencyDrillMode && drillMetrics.active && !hasEvacuatedRef.current) {
+    if (emergencyDrillMode && drillActive && !hasEvacuatedRef.current) {
       const nearestExit = getNearestExit(pos.x, pos.z);
       const targetX = nearestExit.position.x;
       const targetZ = nearestExit.position.z;

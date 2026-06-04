@@ -370,7 +370,6 @@ export const InstancedChickens: React.FC<{
   chickens: ChickenInstanceData[];
 }> = React.memo(({ chickens }) => {
   const count = chickens.length;
-  if (count === 0) return null;
 
   const data = useMemo(
     () => chickens.map((c) => ({ position: c.position, rotation: c.rotation ?? 0 })),
@@ -385,6 +384,8 @@ export const InstancedChickens: React.FC<{
   const tailRef = useAnimalInstances(count, data);
   const legLeftRef = useAnimalInstances(count, data);
   const legRightRef = useAnimalInstances(count, data);
+
+  if (count === 0) return null;
 
   return (
     <group>
@@ -446,7 +447,6 @@ export const InstancedPigs: React.FC<{
   pigs: PigInstanceData[];
 }> = React.memo(({ pigs }) => {
   const count = pigs.length;
-  if (count === 0) return null;
 
   const data = useMemo(
     () => pigs.map((p) => ({ position: p.position, rotation: p.rotation ?? 0 })),
@@ -467,6 +467,8 @@ export const InstancedPigs: React.FC<{
   const leg2Ref = useAnimalInstances(count, data);
   const leg3Ref = useAnimalInstances(count, data);
   const tailRef = useAnimalInstances(count, data);
+
+  if (count === 0) return null;
 
   return (
     <group>
@@ -548,7 +550,6 @@ export const InstancedCows: React.FC<{
   cows: CowInstanceData[];
 }> = React.memo(({ cows }) => {
   const count = cows.length;
-  if (count === 0) return null;
 
   const data = useMemo(
     () => cows.map((c) => ({ position: c.position, rotation: c.rotation ?? 0 })),
@@ -575,6 +576,8 @@ export const InstancedCows: React.FC<{
   const udderRef = useAnimalInstances(count, data);
   const tailRef = useAnimalInstances(count, data);
   const tailTuftRef = useAnimalInstances(count, data);
+
+  if (count === 0) return null;
 
   return (
     <group>
@@ -686,7 +689,6 @@ export const InstancedSheep: React.FC<{
   sheep: SheepInstanceData[];
 }> = React.memo(({ sheep }) => {
   const count = sheep.length;
-  if (count === 0) return null;
 
   const data = useMemo(
     () => sheep.map((s) => ({ position: s.position, rotation: s.rotation ?? 0 })),
@@ -707,6 +709,8 @@ export const InstancedSheep: React.FC<{
   const leg1Ref = useAnimalInstances(count, data);
   const leg2Ref = useAnimalInstances(count, data);
   const leg3Ref = useAnimalInstances(count, data);
+
+  if (count === 0) return null;
 
   return (
     <group>

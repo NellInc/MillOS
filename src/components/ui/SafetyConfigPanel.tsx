@@ -16,6 +16,7 @@ export const SafetyConfigPanel: React.FC = () => {
     >
       <button
         onClick={() => setExpanded(!expanded)}
+        aria-expanded={expanded}
         className={`w-full flex items-center justify-between text-xs font-medium transition-colors py-1 ${
           theme === 'light'
             ? 'text-slate-600 hover:text-slate-800'
@@ -26,7 +27,11 @@ export const SafetyConfigPanel: React.FC = () => {
           <Shield className="w-4 h-4 text-green-500" />
           Safety Configuration
         </span>
-        {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+        {expanded ? (
+          <ChevronUp className="w-4 h-4" aria-hidden="true" />
+        ) : (
+          <ChevronDown className="w-4 h-4" aria-hidden="true" />
+        )}
       </button>
 
       <AnimatePresence>
@@ -49,6 +54,7 @@ export const SafetyConfigPanel: React.FC = () => {
               </div>
               <input
                 type="range"
+                aria-label="Worker detection radius (meters)"
                 min="1"
                 max="5"
                 step="0.5"
@@ -74,6 +80,7 @@ export const SafetyConfigPanel: React.FC = () => {
               </div>
               <input
                 type="range"
+                aria-label="Forklift spacing (meters)"
                 min="2"
                 max="8"
                 step="0.5"
@@ -99,6 +106,7 @@ export const SafetyConfigPanel: React.FC = () => {
               </div>
               <input
                 type="range"
+                aria-label="Look-ahead distance (meters)"
                 min="2"
                 max="10"
                 step="0.5"
@@ -122,6 +130,7 @@ export const SafetyConfigPanel: React.FC = () => {
               </div>
               <input
                 type="range"
+                aria-label="Speed zone rate (percent)"
                 min="0.2"
                 max="0.8"
                 step="0.1"

@@ -124,6 +124,11 @@ export const RelationshipLines: React.FC<RelationshipLinesProps> = React.memo(
       []
     );
 
+    // Dispose the ShaderMaterial on unmount. R3F does not auto-dispose objects
+    // supplied via <primitive>, so without this the material's GPU program and
+    // uniforms leak when the component unmounts (e.g. toggling relationships off).
+    useEffect(() => () => material.dispose(), [material]);
+
     // Animate time uniform
     useFrame((state) => {
       if (!isTabVisible) return;

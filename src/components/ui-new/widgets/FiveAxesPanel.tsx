@@ -283,6 +283,7 @@ export const FiveAxesPanel: React.FC = () => {
             <button
               key={preset}
               onClick={() => handlePresetClick(preset)}
+              aria-pressed={currentPreset === preset}
               className={`px-2 py-1 rounded text-[9px] font-medium border transition-all hover:scale-105 ${
                 currentPreset === preset
                   ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50 ring-1 ring-cyan-500/30'

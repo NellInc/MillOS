@@ -397,6 +397,8 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
               onClick={() => setActiveTab(tab)}
               role="tab"
               aria-selected={activeTab === tab}
+              id={`scada-embedded-tab-button-${tab}`}
+              aria-controls={`scada-embedded-tab-${tab}`}
               className={`flex-1 px-2 py-1.5 rounded text-[10px] font-medium transition-colors ${
                 activeTab === tab
                   ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
@@ -420,7 +422,13 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
 
         {/* Tags View */}
         {activeTab === 'tags' && (
-          <div className="space-y-2" role="tabpanel" aria-label="Tags list">
+          <div
+            className="space-y-2"
+            role="tabpanel"
+            id="scada-embedded-tab-tags"
+            aria-labelledby="scada-embedded-tab-button-tags"
+            aria-label="Tags list"
+          >
             {machineEntries.length === 0 ? (
               <div className="text-center text-slate-400 py-6">
                 <Database className="w-8 h-8 mx-auto mb-2 opacity-50" />
@@ -460,7 +468,13 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({ isOpen, onClose, embedde
 
         {/* Alarms View */}
         {activeTab === 'alarms' && (
-          <div className="space-y-2" role="tabpanel" aria-label="Alarms list">
+          <div
+            className="space-y-2"
+            role="tabpanel"
+            id="scada-embedded-tab-alarms"
+            aria-labelledby="scada-embedded-tab-button-alarms"
+            aria-label="Alarms list"
+          >
             {alarms.length === 0 ? (
               <div className="text-center text-slate-400 py-6">
                 <Check className="w-8 h-8 mx-auto mb-2 text-green-500/50" />

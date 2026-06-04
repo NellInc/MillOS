@@ -476,6 +476,18 @@ const PerimeterFence: React.FC<{
     });
   }, [length, postCount]);
 
+  // Pre-calculate per-barb random tilt once so the barbs do not visibly jitter
+  // on every re-render (Math.random() in the render path re-rolls each frame).
+  const barbCount = Math.floor(length / 0.5);
+  const barbRotations = useMemo(
+    () =>
+      Array.from({ length: barbCount }).map(() => ({
+        left: Math.random() * 0.5,
+        right: Math.random() * 0.5,
+      })),
+    [barbCount]
+  );
+
   return (
     <group position={midpoint} rotation={[0, angle, 0]}>
       {/* INSTANCED: Main posts */}
@@ -574,17 +586,17 @@ const PerimeterFence: React.FC<{
       <Instances limit={Math.floor(length / 0.5) * 2}>
         <boxGeometry args={[0.04, 0.008, 0.008]} />
         <meshStandardMaterial color="#374151" metalness={0.8} />
-        {Array.from({ length: Math.floor(length / 0.5) }).map((_, i) => {
+        {barbRotations.map((rot, i) => {
           const z = -length / 2 + i * 0.5 + 0.25;
           return (
             <React.Fragment key={i}>
               <Instance
                 position={[-0.2, height + 0.35, z]}
-                rotation={[Math.random() * 0.5, 0, Math.PI / 4]}
+                rotation={[rot.left, 0, Math.PI / 4]}
               />
               <Instance
                 position={[0.2, height + 0.35, z]}
-                rotation={[Math.random() * 0.5, 0, -Math.PI / 4]}
+                rotation={[rot.right, 0, -Math.PI / 4]}
               />
             </React.Fragment>
           );

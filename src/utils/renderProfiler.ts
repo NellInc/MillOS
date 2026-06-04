@@ -9,10 +9,8 @@ import { logger } from './logger';
 
 const renderCounts: Map<string, number> = new Map();
 const renderTimes: Map<string, number[]> = new Map();
-let totalRenders = 0;
 
 export function trackRender(componentName: string) {
-  totalRenders++;
   const count = (renderCounts.get(componentName) || 0) + 1;
   renderCounts.set(componentName, count);
 
@@ -47,7 +45,6 @@ export function renderReport() {
 export function resetRenderProfile() {
   renderCounts.clear();
   renderTimes.clear();
-  totalRenders = 0;
 }
 
 // Extend Window type for render profiler globals

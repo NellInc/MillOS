@@ -475,34 +475,3 @@ export const useMaterialFlowStore = create<MaterialFlowState>()(
     },
   }))
 );
-
-// =============================================================================
-// SELECTOR HELPERS
-// =============================================================================
-
-/**
- * Get the total amount of material currently on all conveyors
- */
-export function getTotalConveyorLoad(): number {
-  const state = useMaterialFlowStore.getState();
-  return state.network.segments.reduce((sum, seg) => sum + seg.currentLoad, 0);
-}
-
-/**
- * Get the flour production rate in bags per minute
- * Assumes 25kg bags
- */
-export function getFlourBagsPerMinute(): number {
-  const state = useMaterialFlowStore.getState();
-  // currentFlowRate is kg/sec, convert to bags/min
-  // Packer output is what becomes bags
-  let packerThroughput = 0;
-  state.machineBuffers.forEach((buffer) => {
-    if (buffer.machineType === 'packer') {
-      // Approximate packer throughput from its processing rate
-      packerThroughput += buffer.processingRate;
-    }
-  });
-  // kg/sec * 60 sec/min / 25 kg/bag = bags/min
-  return (packerThroughput * 60) / 25;
-}

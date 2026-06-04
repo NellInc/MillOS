@@ -85,7 +85,7 @@ export const ConnectionQuality: React.FC<ConnectionQualityProps> = ({
     return (
       <div className="flex items-center gap-1">
         <Wifi className={`${sizeClass} text-yellow-400 animate-pulse`} />
-        {showLatency && <span className={`${textSize} text-yellow-400`}>Waiting...</span>}
+        {showLatency && <span className={`${textSize} text-yellow-400`}>Waiting for players</span>}
       </div>
     );
   }
@@ -93,7 +93,11 @@ export const ConnectionQuality: React.FC<ConnectionQualityProps> = ({
   const quality = getQualityLevel(averageLatency);
 
   return (
-    <div className="flex items-center gap-1">
+    <div
+      className="flex items-center gap-1"
+      role="img"
+      aria-label={`Connection ${quality}, ${averageLatency}ms`}
+    >
       {getQualityIcon(quality, sizeClass)}
       {showLatency && (
         <span className={`${textSize} ${getQualityColor(quality)} font-mono`}>

@@ -373,6 +373,8 @@ export const EngagementSignaturePanel: React.FC = () => {
       <div className="p-3 border-b border-slate-700/30">
         <button
           onClick={() => setShowDetails(!showDetails)}
+          aria-expanded={showDetails}
+          aria-controls="engagement-dimension-details"
           className="w-full flex items-center justify-between text-xs text-slate-400 hover:text-white transition-colors"
         >
           <span className="flex items-center gap-1">
@@ -385,6 +387,7 @@ export const EngagementSignaturePanel: React.FC = () => {
         <AnimatePresence>
           {showDetails && (
             <motion.div
+              id="engagement-dimension-details"
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
@@ -418,6 +421,8 @@ export const EngagementSignaturePanel: React.FC = () => {
       <div className="p-3">
         <button
           onClick={() => setShowEducational(!showEducational)}
+          aria-expanded={showEducational}
+          aria-controls="engagement-education"
           className="w-full flex items-center justify-between text-xs text-slate-400 hover:text-white transition-colors"
         >
           <span className="flex items-center gap-1">
@@ -434,6 +439,7 @@ export const EngagementSignaturePanel: React.FC = () => {
         <AnimatePresence>
           {showEducational && (
             <motion.div
+              id="engagement-education"
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}

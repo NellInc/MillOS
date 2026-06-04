@@ -234,7 +234,7 @@ export const StrategicPriorityCards: React.FC<StrategicPriorityCardsProps> = ({
                           {worker.role}
                         </div>
                         <div className="px-1.5 py-0.5 rounded bg-slate-700/50 text-[9px] text-slate-300">
-                          {worker.experience} yrs exp
+                          {worker.experience} yrs experience
                         </div>
                       </div>
                     );

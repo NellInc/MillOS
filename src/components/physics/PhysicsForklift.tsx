@@ -166,7 +166,7 @@ export const PhysicsForklift: React.FC<PhysicsForkliftProps> = ({
       const progress = Math.min(1, operationTimerRef.current / duration);
 
       // Toggle cargo at midpoint
-      if (progress >= 0.5 && progress < 0.5 + cappedDelta / operationDurationRef.current) {
+      if (progress >= 0.5 && progress < 0.5 + cappedDelta / duration) {
         if (operationRef.current === 'loading') {
           setHasCargo(true);
         } else if (operationRef.current === 'unloading') {
@@ -204,6 +204,15 @@ export const PhysicsForklift: React.FC<PhysicsForkliftProps> = ({
 
     // Check if arrived at waypoint
     if (distance < 0.5) {
+      // Defensive: pathActions may be shorter than path if the two arrays ever
+      // diverge (e.g. a route edited in one array only). Without this guard,
+      // an out-of-range action is undefined and action.type below would throw
+      // inside useFrame, killing the render loop. Mirrors ForkliftSystem.tsx.
+      if (pathIndexRef.current >= data.pathActions.length) {
+        pathIndexRef.current = (pathIndexRef.current + 1) % data.path.length;
+        currentTargetRef.current.set(...data.path[pathIndexRef.current]);
+        return;
+      }
       // Check for action at this waypoint
       const action = data.pathActions[pathIndexRef.current];
       const currentlyHasCargo = hasCargoRef.current;

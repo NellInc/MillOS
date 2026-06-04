@@ -294,20 +294,25 @@ export const useSafetyReportStore = create<SafetyReportStore>((set, get) => ({
       return report;
     });
 
-    // Decay willingness for workers with unaddressed reports
+    // Decay willingness for workers with unaddressed reports.
+    // Dedupe reporter IDs first so a reporter with multiple stale reports is
+    // penalized once per tick, not once per report (which compounded the decay).
     const updatedBehaviors = { ...state.workerSafetyBehaviors };
-    updatedReports
-      .filter((r) => r.status === 'pending' && r.shiftsUnaddressed >= 2)
-      .forEach((report) => {
-        const behavior = updatedBehaviors[report.reporterId];
-        if (behavior) {
-          // Slow decay in willingness for ignored reports
-          updatedBehaviors[report.reporterId] = {
-            ...behavior,
-            reportingWillingness: Math.max(0, behavior.reportingWillingness - 0.5 * deltaMinutes),
-          };
-        }
-      });
+    const reportersWithStaleReports = new Set(
+      updatedReports
+        .filter((r) => r.status === 'pending' && r.shiftsUnaddressed >= 2)
+        .map((r) => r.reporterId)
+    );
+    reportersWithStaleReports.forEach((reporterId) => {
+      const behavior = updatedBehaviors[reporterId];
+      if (behavior) {
+        // Slow decay in willingness for ignored reports
+        updatedBehaviors[reporterId] = {
+          ...behavior,
+          reportingWillingness: Math.max(0, behavior.reportingWillingness - 0.5 * deltaMinutes),
+        };
+      }
+    });
 
     // Escalate intense grumbles
     const updatedGrumbles = state.trackedGrumbles.map((grumble) => {

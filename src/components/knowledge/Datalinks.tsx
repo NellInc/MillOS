@@ -191,6 +191,7 @@ export function Datalinks({ isOpen, onClose }: DatalinksProps) {
               </div>
               <button
                 onClick={onClose}
+                aria-label="Close"
                 className="p-2 rounded-lg hover:bg-slate-700 transition-colors"
               >
                 <X className="w-5 h-5 text-slate-400" />
@@ -203,10 +204,14 @@ export function Datalinks({ isOpen, onClose }: DatalinksProps) {
                 {/* Search */}
                 <div className="p-4 border-b border-slate-700">
                   <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                    <Search
+                      aria-hidden="true"
+                      className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500"
+                    />
                     <input
                       type="text"
                       placeholder="Search..."
+                      aria-label="Search knowledge entries"
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       className="w-full pl-10 pr-4 py-2 bg-slate-800 border border-slate-600 rounded-lg text-sm text-white placeholder-slate-500 focus:outline-none focus:border-slate-400"

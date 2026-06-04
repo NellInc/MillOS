@@ -200,7 +200,14 @@ export const InstancedRollerMills: React.FC<InstancedRollerMillsProps> = ({
       });
       playingSoundsRef.current.clear();
     };
-  }, [machines]);
+    // Only fire on add/remove/status-change, not every SCADA tick (machines is a new ref each tick)
+  }, [machines.map((m) => `${m.id}:${m.status}`).join(',')]);
+
+  // Signature of per-machine rpm; recomputed once per render and reused as the pitch-effect dep
+  const rpmSignature = useMemo(
+    () => machines.map((m) => `${m.id}:${m.metrics.rpm}`).join(','),
+    [machines]
+  );
 
   // Update RPM-based pitch for running machines (separate effect to avoid restart)
   useEffect(() => {
@@ -209,7 +216,7 @@ export const InstancedRollerMills: React.FC<InstancedRollerMillsProps> = ({
         audioManager.updateMachinePitch(machine.id, machine.metrics.rpm ?? 1400);
       }
     });
-  }, [machines.map((m) => `${m.id}:${m.metrics.rpm}`).join(',')]);
+  }, [rpmSignature]);
 
   // Apply per-instance color variation (medium+ quality)
   useEffect(() => {

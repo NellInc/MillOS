@@ -47,6 +47,8 @@ export function handleHostDisconnect(): void {
  * For the MVP, we simply end the session when the host leaves.
  */
 export function attemptHostMigration(): boolean {
-  // Not implemented in MVP - return false to indicate migration failed
+  // TODO(roadmap): not implemented in MVP and currently has no callers.
+  // Kept as an intentional placeholder for future host-migration support.
+  // Return false to indicate migration failed.
   return false;
 }

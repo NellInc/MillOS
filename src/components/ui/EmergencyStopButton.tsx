@@ -46,7 +46,7 @@ export const EmergencyStopButton: React.FC = () => {
           ? 'Release emergency stop - resume forklift operations'
           : 'Activate emergency stop - halt all forklifts immediately'
       }
-      aria-pressed={forkliftEmergencyStop}
+      aria-checked={forkliftEmergencyStop}
       role="switch"
       className={`w-full py-2.5 rounded-lg font-bold text-sm transition-all flex items-center justify-center gap-2 ${
         forkliftEmergencyStop

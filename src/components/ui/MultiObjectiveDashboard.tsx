@@ -24,6 +24,16 @@ interface ObjectiveMetric {
   trend: 'up' | 'down' | 'stable';
 }
 
+// Static class lookup so Tailwind's JIT scanner sees full literal class strings.
+// Interpolated classes (text-${color}-400) are not detectable and silently break.
+const OBJECTIVE_COLORS: Record<string, { text: string; bar: string }> = {
+  cyan: { text: 'text-cyan-400', bar: 'bg-cyan-500' },
+  green: { text: 'text-green-400', bar: 'bg-green-500' },
+  amber: { text: 'text-amber-400', bar: 'bg-amber-500' },
+  emerald: { text: 'text-emerald-400', bar: 'bg-emerald-500' },
+};
+const DEFAULT_OBJECTIVE_COLOR = { text: 'text-cyan-400', bar: 'bg-cyan-500' };
+
 export const MultiObjectiveDashboard: React.FC = () => {
   const showMultiObjective = useAIConfigStore((state) => state.showMultiObjective);
   const metrics = useProductionStore((state) => state.metrics);
@@ -158,10 +168,12 @@ export const MultiObjectiveDashboard: React.FC = () => {
               ? Math.max(0, Math.min(100, 100 - ((obj.value - obj.target) / obj.target) * 100))
               : Math.min(100, (obj.value / obj.target) * 100);
 
+          const colorClasses = OBJECTIVE_COLORS[obj.color] ?? DEFAULT_OBJECTIVE_COLOR;
+
           return (
             <div key={obj.label} className="bg-slate-800/50 rounded-lg p-2">
               <div className="flex items-center justify-between mb-1.5">
-                <div className={`text-${obj.color}-400`}>{obj.icon}</div>
+                <div className={colorClasses.text}>{obj.icon}</div>
                 {obj.trend === 'up' ? (
                   <TrendingUp className="w-3 h-3 text-green-400" />
                 ) : obj.trend === 'down' ? (
@@ -169,7 +181,7 @@ export const MultiObjectiveDashboard: React.FC = () => {
                 ) : null}
               </div>
               <p className="text-[10px] text-slate-400 uppercase">{obj.label}</p>
-              <p className={`text-sm font-mono font-bold text-${obj.color}-400`}>
+              <p className={`text-sm font-mono font-bold ${colorClasses.text}`}>
                 {obj.value.toLocaleString()}
                 <span className="text-[9px] font-normal text-slate-500 ml-0.5">{obj.unit}</span>
               </p>
@@ -179,7 +191,7 @@ export const MultiObjectiveDashboard: React.FC = () => {
                   initial={{ width: 0 }}
                   animate={{ width: `${percentage}%` }}
                   transition={{ duration: 0.5 }}
-                  className={`h-full bg-${obj.color}-500 rounded-full`}
+                  className={`h-full ${colorClasses.bar} rounded-full`}
                 />
               </div>
               <p className="text-[8px] text-slate-500 mt-0.5">

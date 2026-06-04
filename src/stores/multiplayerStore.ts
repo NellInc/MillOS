@@ -363,11 +363,6 @@ export const useIsMultiplayerActive = () =>
 
 export const useIsHost = () => useMultiplayerStore((s) => s.isHost);
 
-export const useRoomCode = () => useMultiplayerStore((s) => s.roomCode);
-
 export const useRemotePlayersArray = () => useMultiplayerStore((s) => s._remotePlayersArray);
 
 export const useLocalPlayerId = () => useMultiplayerStore((s) => s.localPlayerId);
-
-export const useMachineLock = (machineId: string) =>
-  useMultiplayerStore((s) => s.machineLocks.get(machineId) ?? null);

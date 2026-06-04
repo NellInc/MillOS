@@ -83,7 +83,7 @@ function calculateDirection(delta: number): ChangeDirection {
 
 function calculateVelocity(delta: number, timeMs: number): ChangeVelocity {
   const timeMinutes = timeMs / 60000;
-  if (timeMinutes === 0) return 'stable' as ChangeVelocity;
+  if (timeMinutes === 0) return 'slow';
 
   const rate = Math.abs(delta) / timeMinutes;
   if (rate < VELOCITY_THRESHOLD_SLOW) return 'slow';

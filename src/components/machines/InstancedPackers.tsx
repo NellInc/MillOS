@@ -24,15 +24,6 @@ const MATERIALS = {
   spout: INSTANCED_MACHINE_MATERIALS.packerSpout,
   conveyor: INSTANCED_MACHINE_MATERIALS.packerConveyor,
   panel: INSTANCED_MACHINE_MATERIALS.packerPanel,
-  safety: INSTANCED_MACHINE_MATERIALS.packerSafety,
-  // Legacy fallback keeping inline for backwards compat
-  _legacySafety: new THREE.MeshStandardMaterial({
-    color: '#fbbf24',
-    metalness: 0.3,
-    roughness: 0.5,
-    transparent: true,
-    opacity: 0.9,
-  }),
 };
 
 const PACKER_SIZE = { width: 4, height: 6, depth: 4 };
@@ -146,7 +137,8 @@ export const InstancedPackers: React.FC<InstancedPackersProps> = ({ machines, on
       });
       playingSoundsRef.current.clear();
     };
-  }, [machines]);
+    // Only fire on add/remove/status-change, not every SCADA tick (machines is a new ref each tick)
+  }, [machines.map((m) => `${m.id}:${m.status}`).join(',')]);
 
   // Initialize Static Parts
   useEffect(() => {

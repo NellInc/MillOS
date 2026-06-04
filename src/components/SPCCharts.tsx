@@ -379,7 +379,10 @@ export const SPCCharts: React.FC<SPCChartsProps> = ({ className = '', embedded =
     const warning = data.filter((d) => d.status === 'warning').length;
     const outOfControl = data.filter((d) => d.status === 'out-of-control').length;
 
-    const cpk = Math.min((data[0].ucl - mean) / (3 * stdDev), (mean - data[0].lcl) / (3 * stdDev));
+    const cpk =
+      stdDev > 0
+        ? Math.min((data[0].ucl - mean) / (3 * stdDev), (mean - data[0].lcl) / (3 * stdDev))
+        : 0;
 
     return {
       mean: mean.toFixed(2),

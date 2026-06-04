@@ -586,10 +586,3 @@ export function getWorkerComment(
   // Fall back to random
   return store.getRandomDialogue();
 }
-
-/**
- * Format worker dialogue for display
- */
-export function formatWorkerDialogue(dialogue: WorkerDialogue): string {
-  return `"${dialogue.content}"`;
-}

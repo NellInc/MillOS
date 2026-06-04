@@ -389,7 +389,7 @@ const MiniStat: React.FC<{ label: string; value: number; color: string }> = ({
   return (
     <div className={`${colorClasses[color]} rounded-lg p-2 text-center`}>
       <div className="text-lg font-bold">{value}</div>
-      <div className="text-[9px] uppercase tracking-wider opacity-70">{label}</div>
+      <div className="text-[10px] uppercase tracking-wider opacity-70">{label}</div>
     </div>
   );
 };

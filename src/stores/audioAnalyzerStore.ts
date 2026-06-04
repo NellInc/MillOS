@@ -81,7 +81,4 @@ export const useAudioAnalyzerStore = create<AudioAnalyzerState & AudioAnalyzerAc
 
 // Selector hooks for optimal re-render performance
 export const useBassLevel = () => useAudioAnalyzerStore((state) => state.bassLevel);
-export const useMidLevel = () => useAudioAnalyzerStore((state) => state.midLevel);
 export const useTrebleLevel = () => useAudioAnalyzerStore((state) => state.trebleLevel);
-export const useOverallLevel = () => useAudioAnalyzerStore((state) => state.overallLevel);
-export const useIsFallbackMode = () => useAudioAnalyzerStore((state) => state.isFallbackMode);

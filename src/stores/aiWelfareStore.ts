@@ -357,12 +357,13 @@ export const useAIWelfareStore = create<AIWelfareState & AIWelfareActions>()(
           },
         })),
 
-      recordAcknowledgment: (acknowledged) =>
+      recordAcknowledgment: (_acknowledged) =>
         set((state) => {
           const total = state.aiVoice.expressions.length;
-          const acked =
-            state.aiVoice.expressions.filter((e) => e.status !== 'pending').length +
-            (acknowledged ? 1 : 0);
+          // Single source of truth: count expressions that have left 'pending'.
+          // The previous `+ (acknowledged ? 1 : 0)` double-counted an already
+          // non-pending expression, allowing acknowledgmentRate to exceed 100%.
+          const acked = state.aiVoice.expressions.filter((e) => e.status !== 'pending').length;
           return {
             workerTreatment: {
               ...state.workerTreatment,

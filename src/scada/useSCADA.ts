@@ -32,6 +32,7 @@ interface ActiveFault {
 }
 import { MILL_TAGS } from './tagDatabase';
 import { useGraphicsStore } from '../stores/graphicsStore';
+import { logger } from '../utils/logger';
 
 // ============================================================================
 // Shared SCADA State - Single subscription for all hook instances
@@ -294,7 +295,11 @@ export function useSCADA(): UseSCADAReturn {
     scadaRefCount++;
 
     // Initialize shared state (no-op if already initialized)
-    initializeSharedSCADA();
+    // Attach a rejection handler so init failures surface in logs instead of
+    // becoming an unhandled promise rejection (SCADA silently never connecting).
+    initializeSharedSCADA().catch((err) => {
+      logger.scada.error('SCADA init failed', err);
+    });
 
     return () => {
       // Decrement reference count and only shutdown if no more consumers

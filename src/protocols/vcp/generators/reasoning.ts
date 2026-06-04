@@ -187,6 +187,15 @@ function generatePrimaryRecommendation(scaffolds: ReasoningScaffolds): string {
         `Key question: ${s.keyQuestion}`
       );
     }
+    default: {
+      // Exhaustiveness guard: a future primaryFocus member or out-of-union
+      // decoded/corrupt value would otherwise return undefined despite the
+      // declared `string` contract. This keeps the contract true at runtime
+      // and turns a union addition into a compile error.
+      const _exhaustive: never = primaryFocus;
+      void _exhaustive;
+      return 'No specific recommendation available';
+    }
   }
 }
 

@@ -149,8 +149,13 @@ const PlaybackControls: React.FC<PlaybackControlsProps> = memo(
             ? 'bg-amber-500/20 text-amber-400 hover:bg-amber-500/30'
             : 'bg-green-500/20 text-green-400 hover:bg-green-500/30'
         }`}
+        aria-label={isPlaying ? 'Pause scenario' : 'Play scenario'}
       >
-        {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+        {isPlaying ? (
+          <Pause className="w-4 h-4" aria-hidden="true" />
+        ) : (
+          <Play className="w-4 h-4" aria-hidden="true" />
+        )}
       </button>
 
       {/* Stop */}
@@ -160,8 +165,9 @@ const PlaybackControls: React.FC<PlaybackControlsProps> = memo(
           audioManager.playClick?.();
         }}
         className="p-2 rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all"
+        aria-label="Stop scenario"
       >
-        <Square className="w-4 h-4" />
+        <Square className="w-4 h-4" aria-hidden="true" />
       </button>
 
       {/* Speed controls */}

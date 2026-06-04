@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { safeJSONStorage } from './storage';
 import { audioManager } from '../utils/audioManager';
+import { logger } from '../utils/logger';
 import { useProductionStore } from './productionStore';
 import { useSafetyStore } from './safetyStore';
 
@@ -804,7 +805,7 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
       startEmergencyDrill: (totalWorkers: number) => {
         // Mutual exclusion: cannot start drill during active crisis
         if (get().crisisState.active) {
-          console.warn('Cannot start drill during active crisis');
+          logger.warn('Cannot start drill during active crisis');
           return;
         }
 
@@ -888,7 +889,7 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
         const state = get();
         // Mutual exclusion: cannot trigger crisis during active drill
         if (state.emergencyDrillMode || state.drillMetrics.active) {
-          console.warn('Cannot trigger crisis during active drill');
+          logger.warn('Cannot trigger crisis during active drill');
           return;
         }
         // Only allow one crisis at a time

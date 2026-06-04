@@ -713,13 +713,6 @@ export function getConcept(id: string): ConceptTooltipContent | undefined {
 }
 
 /**
- * Get concepts by category
- */
-export function getConceptsByCategory(category: ConceptCategory): ConceptTooltipContent[] {
-  return Object.values(ALL_CONCEPTS).filter((c) => c.category === category);
-}
-
-/**
  * Get related concepts for a given concept ID
  */
 export function getRelatedConcepts(id: string): ConceptTooltipContent[] {

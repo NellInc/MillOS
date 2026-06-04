@@ -276,6 +276,7 @@ export const useVotingStore = create<VotingState>((set, get) => ({
       const config = useBASStore.getState().aiConfig;
       const winningLabel = vote.result!.label.toLowerCase();
       let changeDescription = vote.result!.label;
+      let changeApplied = false;
 
       // Parse common AI behavior options
       if (winningLabel.includes('suggestive') || winningLabel.includes('proactive')) {
@@ -284,18 +285,21 @@ export const useVotingStore = create<VotingState>((set, get) => ({
           suggestionFrequency: 'proactive',
         });
         changeDescription = 'AI will now provide proactive suggestions';
+        changeApplied = true;
       } else if (winningLabel.includes('reactive') || winningLabel.includes('wait')) {
         useBASStore.getState().updateAIConfig({
           ...config,
           suggestionFrequency: 'reactive',
         });
         changeDescription = 'AI will now wait for issues before suggesting';
+        changeApplied = true;
       } else if (winningLabel.includes('on-request') || winningLabel.includes('ask')) {
         useBASStore.getState().updateAIConfig({
           ...config,
           suggestionFrequency: 'on-request',
         });
         changeDescription = 'AI will now only respond when asked';
+        changeApplied = true;
       } else if (winningLabel.includes('reasoning') || winningLabel.includes('explain')) {
         useBASStore.getState().updateAIConfig({
           ...config,
@@ -305,6 +309,7 @@ export const useVotingStore = create<VotingState>((set, get) => ({
           },
         });
         changeDescription = 'AI will now explain its reasoning';
+        changeApplied = true;
       } else if (winningLabel.includes('concise') || winningLabel.includes('brief')) {
         useBASStore.getState().updateAIConfig({
           ...config,
@@ -314,12 +319,23 @@ export const useVotingStore = create<VotingState>((set, get) => ({
           },
         });
         changeDescription = 'AI will now provide concise responses';
+        changeApplied = true;
       }
 
-      sendNotification(
-        'AI Behavior Changed',
-        `${changeDescription} (voted: "${vote.result!.label}").`
-      );
+      if (changeApplied) {
+        sendNotification(
+          'AI Behavior Changed',
+          `${changeDescription} (voted: "${vote.result!.label}").`
+        );
+      } else {
+        // Winning label matched no known behavior pattern - no config changed,
+        // so report a neutral conclusion instead of a misleading change notice.
+        sendNotification(
+          'Vote Concluded',
+          `Workers selected "${vote.result!.label}" for ${vote.title}.`,
+          'info'
+        );
+      }
     } else if (vote.type === 'policy') {
       // Policy votes are informational - just notify
       sendNotification(

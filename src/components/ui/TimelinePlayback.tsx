@@ -161,7 +161,7 @@ export const TimelinePlayback: React.FC<TimelinePlaybackProps> = ({ className = 
                 [&::-webkit-slider-thumb]:shadow-lg
                 [&::-webkit-slider-thumb]:cursor-pointer"
             />
-            <div className="flex justify-between text-[10px] text-slate-500 mt-1">
+            <div className="flex justify-between text-[10px] text-slate-400 mt-1">
               <span>{formatTime(availableRange.start)}</span>
               <span>{formatTime(availableRange.end)}</span>
             </div>
@@ -193,6 +193,7 @@ export const TimelinePlayback: React.FC<TimelinePlaybackProps> = ({ className = 
           <select
             value={playbackSpeed}
             onChange={(e) => setPlaybackSpeed(Number(e.target.value))}
+            aria-label="Playback speed"
             className="bg-slate-700 text-slate-200 text-xs rounded px-2 py-1 border border-slate-600"
           >
             <option value={1}>1x</option>
@@ -234,14 +235,14 @@ export const TimelinePlayback: React.FC<TimelinePlaybackProps> = ({ className = 
         <div className="flex items-center justify-center gap-4 mt-3 pt-3 border-t border-slate-700/50">
           <div className="text-center">
             <div className="text-lg font-mono text-cyan-400">{decisionHistory.length}</div>
-            <div className="text-[9px] text-slate-500 uppercase">Decisions</div>
+            <div className="text-[9px] text-slate-400 uppercase">Decisions</div>
           </div>
           {availableRange && (
             <div className="text-center">
               <div className="text-lg font-mono text-cyan-400">
                 {Math.round((availableRange.end - availableRange.start) / 3600000)}h
               </div>
-              <div className="text-[9px] text-slate-500 uppercase">History</div>
+              <div className="text-[9px] text-slate-400 uppercase">History</div>
             </div>
           )}
         </div>

@@ -285,8 +285,8 @@ export const useEmergentCooperationStore = create<EmergentCooperationStore>((set
     const moodStore = useWorkerMoodStore.getState();
     const moods = Object.values(moodStore.workerMoods);
 
-    const initiatives = moods.map((m) => m.preferences?.initiative ?? 50).filter(Boolean);
-    const trusts = moods.map((m) => m.preferences?.managementTrust ?? 50).filter(Boolean);
+    const initiatives = moods.map((m) => m.preferences?.initiative ?? 50);
+    const trusts = moods.map((m) => m.preferences?.managementTrust ?? 50);
 
     const avgInitiative =
       initiatives.length > 0 ? initiatives.reduce((a, b) => a + b, 0) / initiatives.length : 50;

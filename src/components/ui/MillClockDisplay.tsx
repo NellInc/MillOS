@@ -87,8 +87,10 @@ export const MillClockDisplay: React.FC<{ theme: 'dark' | 'light' }> = React.mem
                 : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
           }`}
           title="Pause"
+          aria-label="Pause simulation"
+          aria-pressed={gameSpeed === 0}
         >
-          <Pause className="w-3 h-3" />
+          <Pause className="w-3 h-3" aria-hidden="true" />
         </button>
         <button
           onClick={() => setGameSpeed(180)}

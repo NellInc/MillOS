@@ -31,7 +31,9 @@ let isKTX2Supported = true;
 const compressedTextureCache = new Map<string, THREE.CompressedTexture | THREE.Texture | null>();
 
 // Transcoder path (Basis Universal WASM files)
-const TRANSCODER_PATH = '/libs/basis/';
+// Built from BASE_URL so versioned/subpath deploys resolve the WASM correctly
+// (matches the convention in machineTextures.ts / modelLoader.ts).
+const TRANSCODER_PATH = `${import.meta.env.BASE_URL}libs/basis/`;
 
 /**
  * Initialize the KTX2 loader with WebGL renderer

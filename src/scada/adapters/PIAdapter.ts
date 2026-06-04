@@ -236,35 +236,42 @@ export class PIAdapter implements IHistorian {
   ): Promise<Record<string, TagHistoryPoint[]>> {
     const result: Record<string, TagHistoryPoint[]> = {};
 
-    // Fetch in parallel for better performance
+    // Fetch in parallel for better performance. A single tag's failure must
+    // not poison the whole batch, so each tag's body is guarded and rejected
+    // tags resolve to [].
     const promises = tagIds.map(async (tagId) => {
-      let points: TagHistoryPoint[];
-      switch (mode) {
-        case 'interpolated':
-          points = await this.getInterpolatedValues(
-            tagId,
-            startTime,
-            endTime,
-            options?.intervalMs ?? 60000,
-            options
-          );
-          break;
-        case 'plot':
-          points = await this.getPlotValues(
-            tagId,
-            startTime,
-            endTime,
-            options?.intervals ?? 100,
-            options
-          );
-          break;
-        default:
-          points = await this.getRecordedValues(tagId, startTime, endTime, options);
+      try {
+        let points: TagHistoryPoint[];
+        switch (mode) {
+          case 'interpolated':
+            points = await this.getInterpolatedValues(
+              tagId,
+              startTime,
+              endTime,
+              options?.intervalMs ?? 60000,
+              options
+            );
+            break;
+          case 'plot':
+            points = await this.getPlotValues(
+              tagId,
+              startTime,
+              endTime,
+              options?.intervals ?? 100,
+              options
+            );
+            break;
+          default:
+            points = await this.getRecordedValues(tagId, startTime, endTime, options);
+        }
+        result[tagId] = points;
+      } catch (error) {
+        logger.warn(`[PIAdapter] Failed to get history for ${tagId}:`, error);
+        result[tagId] = [];
       }
-      result[tagId] = points;
     });
 
-    await Promise.all(promises);
+    await Promise.allSettled(promises);
     return result;
   }
 

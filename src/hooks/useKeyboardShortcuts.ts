@@ -348,16 +348,6 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig) {
         return;
       }
 
-      // B - Toggle Asset Browser/Showcase (DISABLED per user request)
-      // if (key === 'b' && !e.ctrlKey) {
-      //   e.preventDefault();
-      //   audioManager.playClick();
-      //   setQualityNotification('ASSETS');
-      //   setTimeout(() => setQualityNotification(null), 1500);
-      //   window.dispatchEvent(new CustomEvent('toggleAssetShowcase'));
-      //   return;
-      // }
-
       // F - Toggle fullscreen
       if (key === 'f') {
         e.preventDefault();

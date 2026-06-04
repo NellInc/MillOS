@@ -395,9 +395,15 @@ export class HistoryStore {
 
     const result: Record<string, TagHistoryPoint[]> = {};
 
+    // Per-tag isolation: a single tag's IDB timeout/error must not reject the
+    // whole batch and discard every other tag's data (Record partial-result contract).
     await Promise.all(
       tagIds.map(async (tagId) => {
-        result[tagId] = await this.getHistory(tagId, startTime, endTime);
+        try {
+          result[tagId] = await this.getHistory(tagId, startTime, endTime);
+        } catch {
+          result[tagId] = [];
+        }
       })
     );
 

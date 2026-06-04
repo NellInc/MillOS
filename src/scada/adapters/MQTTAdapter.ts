@@ -703,6 +703,7 @@ export class MQTTAdapter implements IProtocolAdapter {
       const jitter = Math.random() * 1000;
 
       this.reconnectTimeout = setTimeout(() => {
+        this.reconnectTimeout = null;
         this.connect().catch(() => {
           // Reconnect failed - will be retried
         });

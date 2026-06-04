@@ -59,7 +59,7 @@ export class SignalingService {
 
         this.peer.on('open', (id) => {
           if (this.isDestroyed) return;
-          logger.multiplayer.info(`Connected to PeerJS server with ID: ${id}`);
+          logger.multiplayer.debug(`Connected to PeerJS server with ID: ${id}`);
           this.callbacks.onOpen(id);
 
           // If not host, connect to the host
@@ -144,21 +144,21 @@ export class SignalingService {
   private setupConnectionHandlers(conn: DataConnection, peerId: string): void {
     conn.on('open', () => {
       if (this.isDestroyed) return;
-      logger.multiplayer.info(`Connection opened with: ${peerId}`);
+      logger.multiplayer.debug(`Connection opened with: ${peerId}`);
       this.connections.set(peerId, conn);
       this.callbacks.onPeerConnected(peerId, conn);
     });
 
     conn.on('close', () => {
       if (this.isDestroyed) return;
-      logger.multiplayer.info(`Connection closed with: ${peerId}`);
+      logger.multiplayer.debug(`Connection closed with: ${peerId}`);
       this.connections.delete(peerId);
       this.callbacks.onPeerDisconnected(peerId);
     });
 
     conn.on('error', (err) => {
       if (this.isDestroyed) return;
-      logger.multiplayer.error(`Connection error with ${peerId}:`, err);
+      logger.multiplayer.debug(`Connection error with ${peerId}:`, err);
       this.connections.delete(peerId);
       this.callbacks.onPeerDisconnected(peerId);
     });

@@ -82,6 +82,8 @@ export const SafetyAnalyticsPanel: React.FC = () => {
     >
       <button
         onClick={() => setExpanded(!expanded)}
+        aria-expanded={expanded}
+        aria-controls="safety-analytics-content"
         className={`w-full flex items-center justify-between text-xs font-medium transition-colors py-1 ${
           theme === 'light'
             ? 'text-slate-600 hover:text-slate-800'
@@ -89,15 +91,20 @@ export const SafetyAnalyticsPanel: React.FC = () => {
         }`}
       >
         <span className="flex items-center gap-2">
-          <TrendingUp className="w-4 h-4 text-cyan-500" />
+          <TrendingUp className="w-4 h-4 text-cyan-500" aria-hidden="true" />
           Safety Analytics
         </span>
-        {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+        {expanded ? (
+          <ChevronUp className="w-4 h-4" aria-hidden="true" />
+        ) : (
+          <ChevronDown className="w-4 h-4" aria-hidden="true" />
+        )}
       </button>
 
       <AnimatePresence>
         {expanded && (
           <motion.div
+            id="safety-analytics-content"
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}

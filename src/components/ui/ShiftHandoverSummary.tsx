@@ -25,6 +25,9 @@ interface ShiftSummary {
 
 import { useShallow } from 'zustand/react/shallow';
 
+// Auto-dismiss countdown duration (seconds). Used by the timer and the SVG progress ring.
+const COUNTDOWN_SECONDS = 5;
+
 // ...
 
 export const ShiftHandoverSummary: React.FC = () => {
@@ -62,7 +65,7 @@ export const ShiftHandoverSummary: React.FC = () => {
   const [previousShift, setPreviousShift] = useState<string>(currentShift);
   const [showSummary, setShowSummary] = useState(false);
   const [summary, setSummary] = useState<ShiftSummary | null>(null);
-  const [countdown, setCountdown] = useState(5); // Auto-dismiss after 5 seconds
+  const [countdown, setCountdown] = useState(COUNTDOWN_SECONDS); // Auto-dismiss after COUNTDOWN_SECONDS
 
   // Detect shift change
   useEffect(() => {
@@ -78,7 +81,7 @@ export const ShiftHandoverSummary: React.FC = () => {
       };
       setSummary(summary);
       setShowSummary(true);
-      setCountdown(5); // Reset countdown when new summary appears
+      setCountdown(COUNTDOWN_SECONDS); // Reset countdown when new summary appears
       setPreviousShift(currentShift);
     } else if (currentShift !== previousShift) {
       setPreviousShift(currentShift);
@@ -224,7 +227,7 @@ export const ShiftHandoverSummary: React.FC = () => {
                     stroke="currentColor"
                     strokeWidth="2"
                     strokeDasharray={50}
-                    strokeDashoffset={50 * (1 - countdown / 15)}
+                    strokeDashoffset={50 * (1 - countdown / COUNTDOWN_SECONDS)}
                     className="text-amber-400 transition-all duration-1000 ease-linear"
                   />
                 </svg>

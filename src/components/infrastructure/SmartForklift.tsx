@@ -5,7 +5,7 @@
  * Uses A* style pathfinding and checks for other forklifts.
  */
 
-import React, { useRef, useMemo } from 'react';
+import React, { useRef, useMemo, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { PROCEDURAL_TEXTURES } from '../../utils/sharedMaterials';
@@ -19,7 +19,6 @@ interface SmartForkliftProps {
   id: string;
   startPosition: [number, number, number];
   route: 'dock-to-storage' | 'storage-to-packing' | 'packing-to-dock';
-  cycleOffset?: number;
   otherForklifts?: React.MutableRefObject<Map<string, THREE.Vector3>>;
 }
 
@@ -72,6 +71,16 @@ export const SmartForklift: React.FC<SmartForkliftProps> = ({
   const isPerformingActionRef = useRef(false);
   const velocityRef = useRef(new THREE.Vector3());
   const positionRef = useRef(new THREE.Vector3(...startPosition));
+
+  // Remove this forklift's entry from the shared collision map on unmount so
+  // a removed/route-changed forklift does not leave a stale, frozen position
+  // that perpetually triggers the COLLISION_RADIUS slowdown for others.
+  useEffect(() => {
+    const fl = otherForklifts;
+    return () => {
+      fl?.current?.delete(id);
+    };
+  }, [id, otherForklifts]);
 
   useFrame((_state, delta) => {
     if (!groupRef.current || !forkRef.current) return;

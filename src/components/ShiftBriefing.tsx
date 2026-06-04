@@ -16,7 +16,8 @@ import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import { useProductionStore } from '../stores/productionStore';
 
 export const ShiftBriefing: React.FC = () => {
-  const { shiftData, completeShiftBriefing } = useGameSimulationStore();
+  const shiftData = useGameSimulationStore((s) => s.shiftData);
+  const completeShiftBriefing = useGameSimulationStore((s) => s.completeShiftBriefing);
   const machines = useProductionStore((state) => state.machines);
   const workers = useProductionStore((state) => state.workers);
 

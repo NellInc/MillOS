@@ -95,6 +95,7 @@ export const ZoneCustomizationPanel: React.FC = () => {
               >
                 <input
                   type="text"
+                  aria-label="Zone name"
                   placeholder="Zone name"
                   value={newZone.name}
                   onChange={(e) => setNewZone({ ...newZone, name: e.target.value })}
@@ -107,11 +108,13 @@ export const ZoneCustomizationPanel: React.FC = () => {
                 <div className="grid grid-cols-3 gap-1">
                   <div>
                     <label
+                      htmlFor="zone-x"
                       className={`text-[9px] ${theme === 'light' ? 'text-slate-400' : 'text-slate-500'}`}
                     >
                       X
                     </label>
                     <input
+                      id="zone-x"
                       type="number"
                       value={newZone.x}
                       onChange={(e) =>
@@ -126,11 +129,13 @@ export const ZoneCustomizationPanel: React.FC = () => {
                   </div>
                   <div>
                     <label
+                      htmlFor="zone-z"
                       className={`text-[9px] ${theme === 'light' ? 'text-slate-400' : 'text-slate-500'}`}
                     >
                       Z
                     </label>
                     <input
+                      id="zone-z"
                       type="number"
                       value={newZone.z}
                       onChange={(e) =>
@@ -145,11 +150,13 @@ export const ZoneCustomizationPanel: React.FC = () => {
                   </div>
                   <div>
                     <label
+                      htmlFor="zone-radius"
                       className={`text-[9px] ${theme === 'light' ? 'text-slate-400' : 'text-slate-500'}`}
                     >
                       Radius
                     </label>
                     <input
+                      id="zone-radius"
                       type="number"
                       value={newZone.radius}
                       onChange={(e) =>

@@ -51,7 +51,7 @@ const DockRow: React.FC<DockRowProps> = ({ type, nextArrival, isDocked, status }
         <div className={`p-1.5 rounded ${getStatusColor()}`}>
           <Icon className="w-4 h-4" />
         </div>
-        <span className="text-sm font-medium text-gray-300">{label}</span>
+        <span className="text-sm font-medium text-slate-300">{label}</span>
       </div>
 
       <div className="flex items-center gap-3">
@@ -59,7 +59,7 @@ const DockRow: React.FC<DockRowProps> = ({ type, nextArrival, isDocked, status }
         <span
           className={`
             text-xs font-semibold px-2 py-0.5 rounded
-            ${isDocked ? 'bg-red-500/30 text-red-300' : 'bg-gray-700 text-gray-400'}
+            ${isDocked ? 'bg-red-500/30 text-red-300' : 'bg-slate-700 text-slate-400'}
           `}
         >
           {getStatusText()}
@@ -71,7 +71,7 @@ const DockRow: React.FC<DockRowProps> = ({ type, nextArrival, isDocked, status }
             <Truck className="w-4 h-4" />
           </div>
         ) : (
-          <div className="flex items-center gap-1 text-gray-400 min-w-[50px] justify-end">
+          <div className="flex items-center gap-1 text-slate-400 min-w-[50px] justify-end">
             <Clock className="w-3 h-3" />
             <span className={`text-sm font-mono ${nextArrival < 15 ? 'text-amber-400' : ''}`}>
               {formatTime(nextArrival)}
@@ -88,11 +88,11 @@ export const TruckScheduleWidget: React.FC = () => {
   const dockStatus = useProductionStore((state) => state.dockStatus);
 
   return (
-    <div className="bg-gray-800/90 backdrop-blur-sm rounded-lg border border-gray-700 p-3">
+    <div className="bg-slate-800/90 backdrop-blur-sm rounded-lg border border-slate-700 p-3">
       {/* Header */}
-      <div className="flex items-center gap-2 mb-2 pb-2 border-b border-gray-700">
-        <Package className="w-4 h-4 text-blue-400" />
-        <h3 className="text-sm font-semibold text-gray-200">Truck Schedule</h3>
+      <div className="flex items-center gap-2 mb-2 pb-2 border-b border-slate-700">
+        <Package className="w-4 h-4 text-cyan-400" />
+        <h3 className="text-sm font-semibold text-slate-200">Truck Schedule</h3>
       </div>
 
       {/* Dock rows */}

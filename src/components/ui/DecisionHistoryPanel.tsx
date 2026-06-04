@@ -5,7 +5,7 @@
  * Displays in the AI Command Center sidebar.
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { History, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useProductionStore } from '../../stores/productionStore';
@@ -29,6 +29,15 @@ export const DecisionHistoryPanel: React.FC = () => {
   }, [aiDecisions]);
 
   const totalPages = Math.ceil(sortedDecisions.length / ITEMS_PER_PAGE);
+
+  // Clamp the page when the decision list shrinks so the user is never stranded
+  // on an out-of-range (empty) page with the pagination controls hidden.
+  useEffect(() => {
+    if (currentPage > totalPages - 1) {
+      setCurrentPage(Math.max(0, totalPages - 1));
+    }
+  }, [currentPage, totalPages]);
+
   const paginatedDecisions = sortedDecisions.slice(
     currentPage * ITEMS_PER_PAGE,
     (currentPage + 1) * ITEMS_PER_PAGE

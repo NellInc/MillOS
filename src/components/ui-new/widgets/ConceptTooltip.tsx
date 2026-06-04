@@ -127,6 +127,7 @@ const TooltipContent: React.FC<TooltipContentProps> = memo(
         exit={{ opacity: 0, scale: 0.95 }}
         transition={{ duration: 0.15 }}
         className={`absolute ${getPositionStyles()} z-50 w-80 max-w-[90vw]`}
+        id={`tooltip-${concept.id}`}
         role="tooltip"
         aria-label={`Information about ${concept.title}`}
       >
@@ -327,6 +328,9 @@ export const ConceptTooltip: React.FC<ConceptTooltipProps> = memo(
             if (e.key === 'Enter' || e.key === ' ') {
               e.preventDefault();
               handleClick();
+            } else if (e.key === 'Escape' && isVisible) {
+              e.preventDefault();
+              handleClose();
             }
           }}
           onFocus={handleMouseEnter}

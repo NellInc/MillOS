@@ -26,6 +26,7 @@ import {
   Gauge,
   Server,
   Shield,
+  GripVertical,
 } from 'lucide-react';
 import { useProductionStore } from '../../stores/productionStore';
 import { useGameSimulationStore } from '../../stores';
@@ -133,7 +134,7 @@ export const EnergyDashboard: React.FC = () => {
             <Zap className="w-4 h-4 text-emerald-400" />
           </div>
           <span className="text-sm font-medium text-white">Energy Dashboard</span>
-          <span className="text-[9px] text-slate-500">⋮⋮</span>
+          <GripVertical className="w-3 h-3 text-slate-500" aria-hidden="true" />
         </div>
         <div className="flex items-center gap-2">
           <span className="text-[10px] text-slate-400 font-mono">{formatTime(metrics.hour)}</span>
@@ -211,10 +212,18 @@ export const EnergyDashboard: React.FC = () => {
             <table className="w-full text-[10px]">
               <thead>
                 <tr className="border-b border-slate-700/50">
-                  <th className="text-left py-1.5 px-2 text-slate-400 font-normal">Type</th>
-                  <th className="text-center py-1.5 px-1 text-green-400 font-normal">Running</th>
-                  <th className="text-center py-1.5 px-1 text-slate-500 font-normal">Idle</th>
-                  <th className="text-right py-1.5 px-2 text-cyan-400 font-normal">Now</th>
+                  <th scope="col" className="text-left py-1.5 px-2 text-slate-400 font-normal">
+                    Type
+                  </th>
+                  <th scope="col" className="text-center py-1.5 px-1 text-green-400 font-normal">
+                    Running
+                  </th>
+                  <th scope="col" className="text-center py-1.5 px-1 text-slate-500 font-normal">
+                    Idle
+                  </th>
+                  <th scope="col" className="text-right py-1.5 px-2 text-cyan-400 font-normal">
+                    Now
+                  </th>
                 </tr>
               </thead>
               <tbody>

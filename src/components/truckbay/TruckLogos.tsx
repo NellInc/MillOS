@@ -592,6 +592,4 @@ const ReeferUnit: React.FC<{
   );
 };
 
-// Aerodynamic trailer skirts
-
 export { GrainCoLogo, FlourExpressLogo };

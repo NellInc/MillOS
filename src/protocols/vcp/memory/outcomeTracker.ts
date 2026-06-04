@@ -16,6 +16,11 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { OutcomeRecord, StateSnapshot } from '../types';
 
+// In-memory fallback used when localStorage is unavailable (SSR, privacy mode,
+// some test runners). Declared before create(persist(...)) so it is initialized
+// before zustand invokes storage.getItem synchronously during hydration.
+const memoryFallback = new Map<string, unknown>();
+
 // =============================================================================
 // PENDING DECISION TRACKING
 // =============================================================================
@@ -257,7 +262,14 @@ export const useOutcomeTracker = create<OutcomeTrackerState>()(
           }
 
           const str = webStorage.getItem(name);
-          return str ? JSON.parse(str) : null;
+          if (!str) return null;
+          try {
+            return JSON.parse(str);
+          } catch {
+            // Corrupt persisted entry: fall back to default empty state
+            // instead of throwing during hydration.
+            return null;
+          }
         },
         setItem: (name, value) => {
           const webStorage =
@@ -291,8 +303,6 @@ export const useOutcomeTracker = create<OutcomeTrackerState>()(
     }
   )
 );
-
-const memoryFallback = new Map<string, unknown>();
 
 // =============================================================================
 // HELPER FUNCTIONS

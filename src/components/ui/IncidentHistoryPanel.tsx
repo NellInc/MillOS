@@ -54,6 +54,8 @@ export const IncidentHistoryPanel: React.FC = () => {
     >
       <button
         onClick={() => setExpanded(!expanded)}
+        aria-expanded={expanded}
+        aria-controls="incident-log-content"
         className={`w-full flex items-center justify-between text-xs font-medium transition-colors py-1 ${
           theme === 'light'
             ? 'text-slate-600 hover:text-slate-800'
@@ -70,6 +72,7 @@ export const IncidentHistoryPanel: React.FC = () => {
       <AnimatePresence>
         {expanded && (
           <motion.div
+            id="incident-log-content"
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}

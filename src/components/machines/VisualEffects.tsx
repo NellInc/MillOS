@@ -353,6 +353,13 @@ export const AnisotropicRoller: React.FC<{
     return texture;
   }, [enabled]);
 
+  // Dispose the generated CanvasTexture when it is replaced or on unmount (avoids GPU texture leak)
+  useEffect(() => {
+    return () => {
+      normalMap?.dispose();
+    };
+  }, [normalMap]);
+
   // Register for centralized rotation update
   useEffect(() => {
     if (!meshRef.current || rpm <= 0) return;

@@ -138,7 +138,14 @@ export const InstancedPlansifters: React.FC<InstancedPlansiftersProps> = ({
       });
       playingSoundsRef.current.clear();
     };
-  }, [machines]);
+    // Only fire on add/remove/status-change, not every SCADA tick (machines is a new ref each tick)
+  }, [machines.map((m) => `${m.id}:${m.status}`).join(',')]);
+
+  // Signature of per-machine rpm; recomputed once per render and reused as the pitch-effect dep
+  const rpmSignature = useMemo(
+    () => machines.map((m) => `${m.id}:${m.metrics.rpm}`).join(','),
+    [machines]
+  );
 
   // Update RPM-based pitch for running machines (separate effect to avoid restart)
   useEffect(() => {
@@ -147,7 +154,7 @@ export const InstancedPlansifters: React.FC<InstancedPlansiftersProps> = ({
         audioManager.updateMachinePitch(machine.id, machine.metrics.rpm ?? 200);
       }
     });
-  }, [machines.map((m) => `${m.id}:${m.metrics.rpm}`).join(',')]);
+  }, [rpmSignature]);
 
   // Initialize Static Parts (Frame)
   useEffect(() => {

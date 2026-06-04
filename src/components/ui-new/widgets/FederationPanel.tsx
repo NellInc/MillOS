@@ -262,6 +262,8 @@ export const FederationPanel: React.FC = () => {
             audioManager.playClick?.();
           }}
           className="w-full flex items-center justify-between text-xs text-slate-400 hover:text-white transition-colors"
+          aria-expanded={showMembers}
+          aria-controls="federation-members"
         >
           <span className="flex items-center gap-1">
             <Building2 className="w-3 h-3" />
@@ -274,6 +276,7 @@ export const FederationPanel: React.FC = () => {
         <AnimatePresence>
           {showMembers && (
             <motion.div
+              id="federation-members"
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
@@ -332,6 +335,8 @@ export const FederationPanel: React.FC = () => {
             audioManager.playClick?.();
           }}
           className="w-full flex items-center justify-between text-xs text-slate-400 hover:text-white transition-colors"
+          aria-expanded={showResources}
+          aria-controls="federation-resources"
         >
           <span className="flex items-center gap-1">
             <Wallet className="w-3 h-3" />
@@ -343,6 +348,7 @@ export const FederationPanel: React.FC = () => {
         <AnimatePresence>
           {showResources && (
             <motion.div
+              id="federation-resources"
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}

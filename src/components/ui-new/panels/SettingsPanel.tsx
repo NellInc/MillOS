@@ -194,7 +194,7 @@ export const SettingsPanel: React.FC<{
               aria-pressed={audio.ttsEnabled}
               className={`text-[10px] px-2 py-0.5 rounded ${audio.ttsEnabled ? 'bg-cyan-500/20 text-cyan-400' : 'bg-slate-700 text-slate-300'}`}
             >
-              {audio.ttsEnabled ? 'ENABLED' : 'MUTED'}
+              {audio.ttsEnabled ? 'ON' : 'OFF'}
             </button>
           </div>
         </div>

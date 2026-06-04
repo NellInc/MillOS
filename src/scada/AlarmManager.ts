@@ -520,7 +520,7 @@ export class AlarmManager {
         cb(alarms);
       } catch (e) {
         // Listener callback error - remove faulty listener to prevent memory leak
-        console.error('Listener callback error, removing listener:', e);
+        logger.scada.error('Listener callback error, removing listener:', e);
         this.listeners.delete(cb);
       }
     });

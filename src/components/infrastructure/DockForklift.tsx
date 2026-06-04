@@ -42,39 +42,11 @@ export const DockForklift: React.FC<DockForkliftProps> = React.memo(
     const cargoMaterialsRef = useRef<THREE.MeshStandardMaterial[]>([]); // Cargo on forks
     const currentOpacityRef = useRef(1); // For smooth fade transitions
 
-    // Forklift geometry constants
-    // Fork group is at z=1.2 relative to forklift, cargo sits at z=0.6 within fork group
-    // So when forklift is at zPos, the cargo sits at zPos + 1.2 + 0.6 = zPos + 1.8
-    // At pickup (zPos=2), cargo world z = 2 + 1.8 = 3.8
-    // Dock crate should be at z=3.8 in forklift local space (since forklift starts offset)
-    // But the forklift group position starts at z=-10, and zPos is applied to that
-    // So at zPos=2, forklift is actually at z = -10 + 2 = -8 in the outer group
-    // Forks tip at local z = 1.2 (fork base) + 1.0 (fork length) = 2.2
-    // Cargo center on forks: z = 1.2 + 0.6 = 1.8
-    // At pickup, forklift z=-10+2=-8, so world cargo z = -8 + 1.8 = -6.2? No wait...
-    // Actually forklift ref position.z = zPos, starting position is [0,0,-10]
-    // So position.z of forklift = zPos which ranges -8 to 2
-    // Fork tips extend to z = 0.9 (mast) + 0.6 (fork extra) = ~1.5 from forklift origin
-    // At zPos=2, forks tips are at 2 + 1.8 (fork group z + cargo offset) ≈ 3.8 in forklift space
-    // But we start at -10, so 2 + (-10) = -8... I'm confusing myself.
-    // Let's trace: forkliftRef position = [0, 0, -10], then in useFrame we set position.z = zPos
-    // So at zPos=2, forkliftRef.position.z = 2, meaning forklift is at [0, 0, 2] relative to outer group
-    // Fork group is at [0, forkHeight, 1.2] relative to forklift
-    // Cargo is at [0, 0.1, 0.6] relative to fork group
-    // So cargo world position (relative to outer group) = (0, forkHeight+0.1, 2 + 1.2 + 0.6) = (0, y, 3.8)
-    // Dock crate should be at z=3.8 to align perfectly
-    // But forkHeight varies, so when forks are up, cargo is higher
-    // For visual match, dock crate pallet should be at floor level (y ≈ 0.08)
-
-    // Fork tips reach: fork at z=0.4 within forkRef, forkRef at z=1.2 within forklift
-    // Fork length is 1.2 units, so fork tip at z = 1.2 + 0.4 + 0.6 = 2.2 from forklift
-    // At zPos=2, fork tips at 2 + 2.2 = 4.2? Let me check the mesh positions.
-    // Fork mesh at [±0.3, 0, 0.4] with boxGeometry [0.1, 0.08, 1.2]
-    // Center at z=0.4, length 1.2, so tip at z = 0.4 + 0.6 = 1.0
-    // ForkRef at z=1.2, so fork tips at 1.2 + 1.0 = 2.2 from forklift
-    // Cargo center at [0, 0.1, 0.6] within forkRef, so at z = 1.2 + 0.6 = 1.8 from forklift
-    // At zPos=2, cargo at z = 2 + 1.8 = 3.8
-    // Dock crate should be centered at z ≈ 3.8 to align
+    // Forklift geometry: forkliftRef.position.z is set to zPos each frame
+    // (overwriting the initial -10). Cargo on forks sits at zPos + 1.2 (fork
+    // group) + 0.6 (cargo offset) = zPos + 1.8 in outer-group space. So at
+    // pickup (zPos=2) cargo z = 3.8 (dock crate); at deposit (zPos=-8) cargo
+    // z = -6.2 (deposit crate). See crate position={} props below.
 
     useFrame((state, delta) => {
       if (!forkliftRef.current || !forkRef.current) return;
@@ -243,25 +215,8 @@ export const DockForklift: React.FC<DockForkliftProps> = React.memo(
       }
     });
 
-    // Dock crate z position: align with where cargo sits on forks when forklift at zPos=2
-    // Cargo at z = zPos + 1.2 (fork group) + 0.6 (cargo offset) = 2 + 1.8 = 3.8
-    // But forklift starts at z=-10, so actual forklift z = -10 + zPos = -10 + 2 = -8
-    // Wait, forkliftRef.position starts at [0,0,-10], then we SET .z = zPos
-    // So forkliftRef.position.z = zPos (overwriting -10)
-    // Hmm, actually looking at the JSX: <group ref={forkliftRef} position={[0, 0, -10]}>
-    // and in useFrame: forkliftRef.current.position.z = zPos
-    // This sets the z component, so at zPos=2, forklift is at [0, 0, 2] (not -10+2)
-    // The -10 in JSX is just initial, we overwrite to zPos each frame
-    // So at pickup (zPos=2): fork tips at z = 2 + 1.2 + 0.4 + 0.6 = 4.2 (z of forks + extension)
-    // Actually fork mesh center is at z=0.4, fork length is 1.2, so tip at z = 0.4 + 0.6 = 1.0
-    // Plus forkRef at z=1.2. Plus forklift at zPos=2. Total: 2 + 1.2 + 1.0 = 4.2
-    // Cargo on forks is at z = 1.2 + 0.6 = 1.8 from forklift, so at zPos=2: z = 2 + 1.8 = 3.8
-    // Therefore dock crate should be at z = 3.8 - but wait, this is in the parent group space
-    // The outer <group position={position}> doesn't affect our internal coordinates
-    // So dock crate at position={[0, 0, 3.8]} should align with cargo on forks when zPos=2
-
-    // Deposit location: same logic at zPos=-8
-    // Cargo z = -8 + 1.8 = -6.2
+    // Crate placement (derived above): dock crate z=3.8 aligns with cargo on
+    // forks at pickup (zPos=2); deposit crate z=-6.2 aligns at deposit (zPos=-8).
 
     return (
       <group ref={outerGroupRef} position={position} rotation={rotation}>

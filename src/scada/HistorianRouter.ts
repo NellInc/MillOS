@@ -189,9 +189,16 @@ export class HistorianRouter implements IHistorian {
   ): Promise<Record<string, TagHistoryPoint[]>> {
     const result: Record<string, TagHistoryPoint[]> = {};
 
-    // Parallel fetch for all tags
+    // Parallel fetch for all tags. Per-tag isolation: a single tag's local-store
+    // (or remote) rejection must not fail the whole batch and discard every other
+    // tag's blended data (Record partial-result contract).
     const promises = tagIds.map(async (tagId) => {
-      result[tagId] = await this.getBlendedData(tagId, startTime, endTime, mode, options);
+      try {
+        result[tagId] = await this.getBlendedData(tagId, startTime, endTime, mode, options);
+      } catch (err) {
+        logger.warn(`[HistorianRouter] getMultipleTagHistory failed for ${tagId}`, err);
+        result[tagId] = [];
+      }
     });
 
     await Promise.all(promises);

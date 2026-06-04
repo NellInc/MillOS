@@ -324,8 +324,14 @@ class GeminiClient {
    * Test connection with a simple prompt
    */
   async testConnection(): Promise<{ success: boolean; message: string }> {
+    this.checkCircuitBreaker();
+
     if (!this.model) {
       return { success: false, message: 'Client not initialized' };
+    }
+
+    if (this.circuitBreaker.isOpen) {
+      return { success: false, message: 'Circuit breaker is open' };
     }
 
     try {
@@ -334,12 +340,16 @@ class GeminiClient {
       );
       const text = result.response.text();
 
+      // Reset failures on a successful connection
+      this.circuitBreaker.failures = 0;
+
       if (text.toLowerCase().includes('successful')) {
         return { success: true, message: 'Connection verified' };
       }
 
       return { success: true, message: 'Connected (response received)' };
     } catch (error) {
+      this.recordFailure();
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       return { success: false, message: errorMessage };
     }
