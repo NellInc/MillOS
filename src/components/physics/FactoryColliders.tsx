@@ -7,11 +7,10 @@
 
 import { RigidBody, CuboidCollider } from '@react-three/rapier';
 import { useMemo } from 'react';
-import { COLLISION_FILTERS, createCollisionGroups } from '../../physics/PhysicsConfig';
+import { COLLISION_FILTERS, createCollisionGroups, WORLD_RADIUS } from '../../physics/PhysicsConfig';
 import { FACTORY_ZONE_Z } from '../../constants/factoryLayout';
 
-// Circular world boundary - matches mountains at radius 260
-const WORLD_RADIUS = 255;
+// Circular world boundary - matches mountains at radius 260 (WORLD_RADIUS from PhysicsConfig)
 const BOUNDARY_SEGMENTS = 32; // Number of wall segments forming the circle
 const BOUNDARY_HEIGHT = 35;
 const BOUNDARY_THICKNESS = 2;

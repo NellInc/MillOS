@@ -282,8 +282,8 @@ export function predictPhaseTransition(history: StabilityDataPoint[]): {
   }
 
   // Calculate rate of change using linear regression
-  const n = history.length;
-  const recent = history.slice(-Math.min(10, n)); // Use last 10 points max
+  const recent = history.slice(-Math.min(10, history.length)); // Use last 10 points max
+  const n = recent.length; // OLS sums are over `recent`, so n must match its length
 
   let sumX = 0;
   let sumY = 0;

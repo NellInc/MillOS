@@ -493,10 +493,15 @@ export class SimulationAdapter implements IProtocolAdapter {
       const correlatedDef = this.tags.get(correlatedTagId);
 
       if (correlatedValue && correlatedDef) {
+        // Guard against a degenerate/misconfigured engineering range; dividing
+        // by a zero (or negative) span would yield NaN/Infinity that propagates
+        // into the tag value and the 3D bridge.
+        const range = correlatedDef.engHigh - correlatedDef.engLow;
+        if (range <= 0) return;
+
         // Normalize correlated value to 0-1 range
         const normalizedCorrelated =
-          ((correlatedValue.value as number) - correlatedDef.engLow) /
-          (correlatedDef.engHigh - correlatedDef.engLow);
+          ((correlatedValue.value as number) - correlatedDef.engLow) / range;
 
         // Apply correlation: when correlated tag is high, this tag increases
         const correlationEffect =

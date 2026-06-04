@@ -15,6 +15,7 @@ export const Cat = React.memo<CatProps>(
   ({ position, rotation = 0, color = '#1a1a1a', pose = 'sitting' }) => {
     const isSleeping = pose === 'sleeping';
     const groupRef = useRef<THREE.Group>(null);
+    const heartCounter = useRef(0);
     const [isExcited, setIsExcited] = useState(false);
     const [hearts, setHearts] = useState<{ id: number; pos: [number, number, number] }[]>([]);
 
@@ -23,8 +24,8 @@ export const Cat = React.memo<CatProps>(
       e.stopPropagation();
       playCritterSound('cat');
       setIsExcited(true);
-      // Spawn heart above cat
-      const id = Date.now();
+      // Spawn heart above cat (monotonic id avoids key collisions on rapid pets)
+      const id = heartCounter.current++;
       setHearts((prev) => [...prev, { id, pos: [0, 1.5, 0] }]);
     };
 

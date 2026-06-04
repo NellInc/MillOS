@@ -55,7 +55,7 @@ function applyWorkerTextures(material: THREE.MeshStandardMaterial): void {
   }
   if (workerTextures.normal) {
     material.normalMap = workerTextures.normal;
-    material.normalScale = new THREE.Vector2(0.3, 0.3); // Subtle for workers
+    material.normalScale.set(0.3, 0.3); // Subtle for workers
   }
   if (workerTextures.ao) {
     material.aoMap = workerTextures.ao;
@@ -289,13 +289,12 @@ export const refreshWorkerTextures = (): void => {
       material.roughnessMap = null;
       material.normalMap = null;
       material.aoMap = null;
+      // Evict from the textured tracking set so the getters re-run
+      // applyWorkerTextures on next access (WeakSet has no clear()).
+      texturedMaterials.delete(material);
       material.needsUpdate = true;
     }
   }
-
-  // Clear the textured tracking so textures get re-applied
-  // Note: WeakSet doesn't have clear(), so materials will get re-textured
-  // on next access since we reset texturesInitialized
 };
 
 /**

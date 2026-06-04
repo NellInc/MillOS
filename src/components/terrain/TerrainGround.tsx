@@ -10,7 +10,7 @@
  * - To displace in World Y (up/down), we modify local Z
  */
 
-import React, { useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { TerrainMaterial } from './TerrainMaterial';
 import {
@@ -116,9 +116,15 @@ export const TerrainGround = React.memo(function TerrainGround({
 
     const heightmapResolution = 512;
     const heightmap = generateHeightmap(heightmapResolution, TERRAIN_BOUNDS, riverConfig);
+    const data = heightmap.image.data as Uint8Array;
+
+    // The heightmap is only needed to extract its CPU-side pixel buffer for
+    // vertex displacement; dispose the transient GPU DataTexture so it does not
+    // leak when this memo recomputes on a graphics-quality / river change.
+    heightmap.dispose();
 
     return {
-      data: heightmap.image.data as Uint8Array,
+      data,
       resolution: heightmapResolution,
     };
   }, [enableRiverChannel, riverConfig]);
@@ -132,7 +138,7 @@ export const TerrainGround = React.memo(function TerrainGround({
         segments,
         heightmapData.data,
         heightmapData.resolution,
-        riverConfig.depth, // 2.5 units
+        riverConfig.depth, // 12 units (deep canyon, see MILLOS_RIVER_CONFIG)
         TERRAIN_BOUNDS
       );
     }
@@ -140,6 +146,14 @@ export const TerrainGround = React.memo(function TerrainGround({
     // No displacement - simple plane
     return new THREE.PlaneGeometry(width, height, 1, 1);
   }, [width, height, segments, heightmapData, riverConfig.depth]);
+
+  // Dispose GPU resources on replacement/unmount. R3F does not auto-dispose a
+  // <primitive> geometry it does not own, and the splatMap DataTexture is a GPU
+  // resource too; without this, every graphics-quality change orphans the prior
+  // vertex buffer / texture. Cleanup only fires when the resource is replaced or
+  // the component unmounts, so visuals are unaffected.
+  useEffect(() => () => geometry.dispose(), [geometry]);
+  useEffect(() => () => splatMap.dispose(), [splatMap]);
 
   return (
     <mesh

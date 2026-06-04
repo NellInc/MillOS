@@ -12,7 +12,7 @@
  *   const texture = useGPUTexture('/path/to/texture.jpg');
  */
 
-import { useEffect, useRef, useMemo, useId } from 'react';
+import { useEffect, useRef, useMemo, useId, useState } from 'react';
 import * as THREE from 'three';
 import { useTexture } from '@react-three/drei';
 import { gpuResourceManager, ResourceType, TrackedResource } from '../utils/GPUResourceManager';
@@ -226,6 +226,3 @@ export function useGPUMemoryStats(refreshIntervalMs: number = 1000) {
 
   return stats;
 }
-
-// Need to import useState for useGPUMemoryStats
-import { useState } from 'react';

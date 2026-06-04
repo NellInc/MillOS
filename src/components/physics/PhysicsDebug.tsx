@@ -79,9 +79,6 @@ function generateDebugObstacles(): DebugObstacle[] {
 export const PhysicsDebug: React.FC = () => {
   const quality = useGraphicsStore((state) => state.graphics.quality);
 
-  // Only show debug on ultra quality
-  if (quality !== 'ultra') return null;
-
   const obstacles = useMemo(() => generateDebugObstacles(), []);
 
   // Create wireframe material
@@ -108,6 +105,9 @@ export const PhysicsDebug: React.FC = () => {
     }
     return new THREE.BufferGeometry().setFromPoints(points);
   }, []);
+
+  // Only show debug on ultra quality (after hooks to keep hook order stable)
+  if (quality !== 'ultra') return null;
 
   return (
     <group name="physics-debug">

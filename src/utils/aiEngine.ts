@@ -1199,7 +1199,7 @@ function generateProductionAwareDecision(context: FactoryContext): AIDecision | 
       action: 'Production falling behind shift target - recommending throughput optimization',
       reasoning: `Current: ${shiftProgress.toFixed(0)}% of shift target, Expected: ${expectedProgress.toFixed(0)}%. Gap of ${(expectedProgress - shiftProgress).toFixed(0)}%.`,
       confidence: calculateConfidence('optimization', context),
-      impact: `Closing gap requires ${((((expectedProgress - shiftProgress) / 100) * shift) / (8 - shiftHoursPassed)).toFixed(0)} kg/hr increase`,
+      impact: `Closing gap requires ${((((expectedProgress - shiftProgress) / 100) * shift) / Math.max(0.5, 8 - shiftHoursPassed)).toFixed(0)} kg/hr increase`,
       status: 'pending',
       triggeredBy: 'metric',
       priority: shiftProgress < expectedProgress - 25 ? 'high' : 'medium',

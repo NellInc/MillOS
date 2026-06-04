@@ -92,6 +92,17 @@ export class RESTAdapter implements IProtocolAdapter {
       this.reconnectAttempts = 0;
       this.lastError = undefined;
 
+      // Reset the statistics accumulation window so rate/latency denominators
+      // (derived from connectTime/uptime) match the counters, avoiding inflated
+      // readsPerSecond/avgReadLatency on the diagnostics panel after a reconnect.
+      this.stats = {
+        readCount: 0,
+        writeCount: 0,
+        errorCount: 0,
+        totalLatency: 0,
+        latencyCount: 0,
+      };
+
       // Start polling
       const interval = this.config.pollInterval ?? 1000;
       this.pollInterval = setInterval(() => this.poll(), interval);

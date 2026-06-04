@@ -272,7 +272,7 @@ export const SCADAValueOverlay: React.FC<{
             <div className="flex items-center justify-between gap-2">
               <span className="text-[9px] text-slate-400">Temp</span>
               <span className="text-[10px] font-mono font-bold" style={{ color: temperatureColor }}>
-                {tagValues.temperature.toFixed(1)}C
+                {tagValues.temperature.toFixed(1)}&deg;C
               </span>
             </div>
           )}

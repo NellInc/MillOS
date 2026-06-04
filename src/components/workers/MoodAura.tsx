@@ -34,6 +34,11 @@ export const MoodAura: React.FC<MoodAuraProps> = React.memo(
     // Get shared geometry
     const geometry = useMemo(() => getSharedAuraGeometry(), []);
 
+    // Dispose the per-worker material on unmount (R3F does not auto-dispose
+    // objects passed via <primitive>). The geometry is the shared singleton
+    // from getSharedAuraGeometry and must NOT be disposed.
+    useEffect(() => () => material.dispose(), [material]);
+
     // Update material uniforms when mood changes
     useEffect(() => {
       if (!materialRef.current || !workerState) return;

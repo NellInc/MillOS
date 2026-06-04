@@ -206,7 +206,6 @@ export const OpenDockOpening: React.FC<OpenDockOpeningProps> = ({
           color="#ffffff"
           anchorX="center"
           anchorY="middle"
-          font={undefined}
         >
           {label}
         </Text>

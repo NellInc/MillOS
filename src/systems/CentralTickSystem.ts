@@ -121,6 +121,9 @@ class CentralTickSystemImpl {
    */
   unregister(id: string): void {
     this.callbacks.delete(id);
+    // Purge any already-queued lazy items so an unregistered callback cannot
+    // fire one more time from the lazy queue on the next frame.
+    this.lazyQueue = this.lazyQueue.filter((q) => q.callback.id !== id);
     this.needsSort = true;
   }
 

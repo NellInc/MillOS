@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { Camera, X, Eye, Factory, Wheat, Filter, Package } from 'lucide-react';
+import { Camera, X, Eye, Factory, Wheat, Filter, Package, Truck, Warehouse } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useCameraStore, CAMERA_PRESETS } from '../CameraController';
 
@@ -10,6 +10,8 @@ const PRESET_ICONS = [
   Wheat, // Milling
   Filter, // Sifting
   Package, // Packing
+  Truck, // Shipping
+  Warehouse, // Receiving
 ];
 
 /**
@@ -118,8 +120,6 @@ export const CameraPresetMenu: React.FC = () => {
                     <div className="flex-1 text-left">
                       <div className="text-xs font-medium">{preset.name}</div>
                     </div>
-                    {/* Keyboard shortcut hint */}
-                    <span className="text-[10px] text-slate-500 font-mono">{index + 1}</span>
                   </button>
                 );
               })}

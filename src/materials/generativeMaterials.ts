@@ -72,6 +72,10 @@ export const createPaintedMetalMaterial = (
     );
   };
 
+  // Stable cache key so the wear-injected program is not shared with an
+  // unmodified MeshStandardMaterial of identical parameters.
+  material.customProgramCacheKey = () => 'paintedMetal_wear_v1';
+
   return material;
 };
 
@@ -175,6 +179,10 @@ export const createRustyMetalMaterial = (
       diffuseColor.rgb = mix(diffuseColor.rgb, rustSample.rgb, rustSample.a);`
     );
   };
+
+  // Stable cache key so the rust-injected program is not shared with an
+  // unmodified MeshStandardMaterial of identical parameters.
+  material.customProgramCacheKey = () => 'rustyMetal_v1';
 
   return material;
 };

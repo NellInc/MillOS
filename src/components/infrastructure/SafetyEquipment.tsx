@@ -464,6 +464,10 @@ const PerimeterFence: React.FC<{
     return tex;
   }, [length, height]);
 
+  // Dispose the locally-created CanvasTexture on unmount / texture change to
+  // avoid orphaning GPU textures when fences unmount on a quality-level toggle.
+  useEffect(() => () => chainLinkTexture.dispose(), [chainLinkTexture]);
+
   // Pre-calculate post positions
   const postPositions = useMemo(() => {
     return Array.from({ length: postCount }).map((_, i) => {

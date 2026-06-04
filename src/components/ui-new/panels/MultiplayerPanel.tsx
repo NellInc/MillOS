@@ -25,6 +25,7 @@ import {
   useIsHost,
 } from '../../../stores/multiplayerStore';
 import { getMultiplayerManager, destroyMultiplayerManager } from '../../../multiplayer';
+import { sanitizePlayerName, sanitizeRoomCode } from '../../../utils/sanitize';
 
 export const MultiplayerPanel: React.FC = () => {
   const [playerName, setPlayerName] = useState('');
@@ -82,7 +83,8 @@ export const MultiplayerPanel: React.FC = () => {
   }, []);
 
   const handleCreateRoom = useCallback(async () => {
-    if (!playerName.trim()) {
+    const name = sanitizePlayerName(playerName);
+    if (!name) {
       setError('Please enter your name');
       return;
     }
@@ -91,9 +93,9 @@ export const MultiplayerPanel: React.FC = () => {
     setIsConnecting(true);
 
     try {
-      setLocalPlayerName(playerName.trim());
+      setLocalPlayerName(name);
       const manager = getMultiplayerManager();
-      await manager.hostRoom(playerName.trim());
+      await manager.hostRoom(name);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create room');
     } finally {
@@ -102,11 +104,13 @@ export const MultiplayerPanel: React.FC = () => {
   }, [playerName, setLocalPlayerName]);
 
   const handleJoinRoom = useCallback(async () => {
-    if (!playerName.trim()) {
+    const name = sanitizePlayerName(playerName);
+    if (!name) {
       setError('Please enter your name');
       return;
     }
-    if (!joinCode.trim() || joinCode.trim().length !== 6) {
+    const code = sanitizeRoomCode(joinCode);
+    if (!code) {
       setError('Please enter a valid 6-character room code');
       return;
     }
@@ -115,9 +119,9 @@ export const MultiplayerPanel: React.FC = () => {
     setIsConnecting(true);
 
     try {
-      setLocalPlayerName(playerName.trim());
+      setLocalPlayerName(name);
       const manager = getMultiplayerManager();
-      await manager.joinRoom(joinCode.trim().toUpperCase(), playerName.trim());
+      await manager.joinRoom(code, name);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to join room');
     } finally {

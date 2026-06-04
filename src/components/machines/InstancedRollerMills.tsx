@@ -167,7 +167,6 @@ export const InstancedRollerMills: React.FC<InstancedRollerMillsProps> = ({
   // Machine audio - start/stop based on running status
   useEffect(() => {
     const nowRunning = new Set<string>();
-    const nowStopped = new Set<string>();
 
     // Determine which machines are running vs stopped
     machines.forEach((machine) => {
@@ -184,7 +183,6 @@ export const InstancedRollerMills: React.FC<InstancedRollerMillsProps> = ({
           );
         }
       } else {
-        nowStopped.add(machine.id);
         // Stop sound if currently playing
         if (playingSoundsRef.current.has(machine.id)) {
           audioManager.stopMachineSound(machine.id);

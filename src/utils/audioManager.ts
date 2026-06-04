@@ -585,7 +585,8 @@ class AudioManager {
 
   private updateMasterVolume(): void {
     if (this.masterGain) {
-      const targetVolume = this._muted ? 0 : this._volume;
+      // Keep hidden-tab silence intact: backgroundMuted overrides volume/mute changes
+      const targetVolume = this.backgroundMuted || this._muted ? 0 : this._volume;
       this.masterGain.gain.setTargetAtTime(targetVolume, this.audioContext?.currentTime || 0, 0.1);
     }
   }
@@ -5813,6 +5814,11 @@ class AudioManager {
       clearTimeout(this.announcementChimeTimeout);
       this.announcementChimeTimeout = null;
     }
+    // Cancel the queue safety timeout so it cannot re-run processAnnouncementQueue
+    if (this.announcementSafetyTimeout) {
+      clearTimeout(this.announcementSafetyTimeout);
+      this.announcementSafetyTimeout = null;
+    }
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
     }
@@ -5861,6 +5867,8 @@ class AudioManager {
     this.reeferNodes.forEach((_node, id) => {
       this.stopReeferSound(id);
     });
+    // Stop any in-flight TTS speech, clear its queue, and cancel its timers
+    this.stopTTS();
   }
 }
 

@@ -11,7 +11,7 @@
  * - Custom shader for animated pulse effect
  */
 
-import React, { useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useWorkerPersonalityStore } from '../../stores/workerPersonalityStore';
@@ -80,6 +80,10 @@ export const RelationshipLines: React.FC<RelationshipLinesProps> = React.memo(
 
       return { geometry: geo, hasLines: positions.length > 0 };
     }, [workers, workerStates, minStrength, maxLines]);
+
+    // Dispose each replaced BufferGeometry (and the last on unmount) so the
+    // GPU buffers from prior recomputes are not leaked.
+    useEffect(() => () => geometry.dispose(), [geometry]);
 
     // Shader material with pulse animation
     const material = useMemo(

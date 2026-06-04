@@ -62,6 +62,9 @@ export const FocusIndicator: React.FC<FocusIndicatorProps> = React.memo(
           groupRef.current.remove(lineRef.current);
         }
         lineRef.current = null;
+        // Dispose per-instance GPU resources owned by this component.
+        geometry.dispose();
+        material.dispose();
       };
     }, [geometry, material]);
 

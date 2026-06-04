@@ -144,6 +144,10 @@ export const InstancedLamps: React.FC<{ isNight: boolean }> = React.memo(({ isNi
     });
   }, [isNight]);
 
+  // Dispose the previous glass material when it is replaced on a day/night
+  // toggle, preventing an unbounded MeshStandardMaterial leak over long sessions.
+  useEffect(() => () => glassMaterial.dispose(), [glassMaterial]);
+
   return (
     <group>
       <instancedMesh
