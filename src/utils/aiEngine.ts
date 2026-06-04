@@ -3255,8 +3255,10 @@ function aiLoop() {
           if (decision) {
             applyDecisionEffects(decision);
             store.updateSystemStatus({ decisions: store.systemStatus.decisions + 1 });
-            // FIX: Record success to reset backoff
-            recordApiSuccess();
+            // NOTE: tactical decisions are LOCAL heuristics (generateContextAwareDecision
+            // is synchronous, no API call), so they must not touch the API backoff state.
+            // Recording a "success" here reset the strategic layer's backoff after a real
+            // API failure, defeating it in hybrid mode.
 
             if (shouldTriggerAudioCue(decision)) {
               // Audio handled by audioManager based on priority/type
@@ -3266,8 +3268,8 @@ function aiLoop() {
           }
         } catch (e) {
           logger.error('Failed to generate tactical decision', e);
-          // FIX: Record failure for exponential backoff
-          recordApiFailure();
+          // No recordApiFailure() here: a heuristic computation error is not an API
+          // failure and must not drive the strategic API backoff.
         } finally {
           isGeneratingDecision = false;
           store.setTacticalThinking(false);

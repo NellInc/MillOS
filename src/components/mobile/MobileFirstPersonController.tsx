@@ -193,13 +193,23 @@ export const MobileFirstPersonController: React.FC = () => {
     return false;
   }, []);
 
-  // Movement update using D-pad input
+  // Per-frame update: camera look (touch-drag) and D-pad movement.
   useFrame((_, delta) => {
     const { dpadDirection, isSprinting } = useMobileControlStore.getState();
 
-    // Get D-pad input for movement
-    direction.current.set(0, 0, 0);
+    // --- Camera look (touch-to-look) ---
+    // MUST run every frame, independent of movement. Previously this lived after
+    // the no-movement early-return below, so touch-to-look did nothing unless a
+    // D-pad direction was also held.
+    euler.current.x += (targetEuler.current.x - euler.current.x) * LOOK_SMOOTHING;
+    euler.current.y += (targetEuler.current.y - euler.current.y) * LOOK_SMOOTHING;
+    camera.quaternion.setFromEuler(euler.current);
 
+    // Keep camera at player height
+    camera.position.y = PLAYER_HEIGHT;
+
+    // --- D-pad movement ---
+    direction.current.set(0, 0, 0);
     if (dpadDirection) {
       // D-pad Y: negative = forward, positive = backward
       direction.current.z = dpadDirection.y;
@@ -207,6 +217,7 @@ export const MobileFirstPersonController: React.FC = () => {
       direction.current.x = dpadDirection.x;
     }
 
+    // No movement input this frame — look is already applied above, so just stop here.
     if (direction.current.length() === 0) return;
 
     // Normalize diagonal movement
@@ -215,7 +226,7 @@ export const MobileFirstPersonController: React.FC = () => {
     // Calculate speed based on sprint state
     const speed = isSprinting ? SPRINT_SPEED : MOVE_SPEED;
 
-    // Get forward and right vectors from camera (reuse module-level vectors)
+    // Get forward and right vectors from the (already-updated) camera orientation
     _forward.set(0, 0, -1).applyQuaternion(camera.quaternion);
     _right.set(1, 0, 0).applyQuaternion(camera.quaternion);
 
@@ -241,14 +252,6 @@ export const MobileFirstPersonController: React.FC = () => {
     if (!checkCollision(camera.position.x, newZ)) {
       camera.position.z = newZ;
     }
-
-    // Smoothly interpolate camera rotation for better feel
-    euler.current.x += (targetEuler.current.x - euler.current.x) * LOOK_SMOOTHING;
-    euler.current.y += (targetEuler.current.y - euler.current.y) * LOOK_SMOOTHING;
-    camera.quaternion.setFromEuler(euler.current);
-
-    // Keep camera at player height
-    camera.position.y = PLAYER_HEIGHT;
   });
 
   return null;

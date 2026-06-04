@@ -1,6 +1,6 @@
+import { Suspense, lazy } from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
-import AssetPrototypePage from './prototypes/AssetPrototypePage';
 import ErrorBoundary from './components/ErrorBoundary';
 import './index.css';
 import { registerServiceWorker } from './utils/serviceWorkerRegistration';
@@ -59,11 +59,17 @@ const isPrototypeRoute = (): boolean => {
   );
 };
 
+// Lazy-load the prototype deck so its ~162KB bundle is code-split out of the
+// main entry chunk; only fetched when the prototype route is actually requested.
+const AssetPrototypePage = lazy(() => import('./prototypes/AssetPrototypePage'));
+
 const RootComponent = isPrototypeRoute() ? AssetPrototypePage : App;
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <ErrorBoundary>
-    <RootComponent />
+    <Suspense fallback={null}>
+      <RootComponent />
+    </Suspense>
   </ErrorBoundary>
 );
 

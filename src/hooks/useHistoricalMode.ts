@@ -51,18 +51,27 @@ export interface UseHistoricalModeReturn {
 export function useHistoricalMode(): UseHistoricalModeReturn {
   const isReplaying = useIsReplaying();
   const playbackTime = usePlaybackTime();
-  const store = useHistoricalPlaybackStore();
+
+  // Select stable store-method references individually so this hook does not
+  // re-subscribe to the whole store (which re-references on every set(),
+  // including every playbackTime tick during replay).
+  const setStoreAvailableRange = useHistoricalPlaybackStore((s) => s.setAvailableRange);
+  const enterReplayMode = useHistoricalPlaybackStore((s) => s.enterReplayMode);
+  const exitReplayMode = useHistoricalPlaybackStore((s) => s.exitReplayMode);
+  const setPlaybackTime = useHistoricalPlaybackStore((s) => s.setPlaybackTime);
 
   const [availableRange, setAvailableRange] = useState<{ start: number; end: number } | null>(null);
 
-  // Initialize available range from HistoryStore
+  // Initialize available range from HistoryStore (run once on mount)
   useEffect(() => {
+    let ignore = false;
     const loadRange = async () => {
       const historyStore = getHistoryStore();
       await historyStore.init();
       const stats = await historyStore.getStats();
+      if (ignore) return;
       if (stats.oldestTimestamp && stats.newestTimestamp) {
-        store.setAvailableRange(stats.oldestTimestamp, stats.newestTimestamp);
+        setStoreAvailableRange(stats.oldestTimestamp, stats.newestTimestamp);
         setAvailableRange({
           start: stats.oldestTimestamp,
           end: stats.newestTimestamp,
@@ -70,7 +79,10 @@ export function useHistoricalMode(): UseHistoricalModeReturn {
       }
     };
     loadRange();
-  }, [store]);
+    return () => {
+      ignore = true;
+    };
+  }, [setStoreAvailableRange]);
 
   // Get tag value at a specific timestamp (interpolated)
   const getTagValueAt = useCallback(
@@ -105,9 +117,9 @@ export function useHistoricalMode(): UseHistoricalModeReturn {
   // Get decisions near a timestamp
   const getDecisionsAt = useCallback(
     (timestamp: number): DecisionHistoryEntry[] => {
-      return store.getDecisionsAt(timestamp, 60000); // 1 min window
+      return useHistoricalPlaybackStore.getState().getDecisionsAt(timestamp, 60000); // 1 min window
     },
-    [store]
+    []
   );
 
   // Load bulk history for charts
@@ -123,9 +135,9 @@ export function useHistoricalMode(): UseHistoricalModeReturn {
     isReplaying,
     playbackTime,
     availableRange,
-    enterReplay: store.enterReplayMode,
-    exitReplay: store.exitReplayMode,
-    scrubTo: store.setPlaybackTime,
+    enterReplay: enterReplayMode,
+    exitReplay: exitReplayMode,
+    scrubTo: setPlaybackTime,
     getTagValueAt,
     getDecisionsAt,
     loadTagHistory,

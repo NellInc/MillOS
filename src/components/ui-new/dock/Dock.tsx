@@ -106,7 +106,7 @@ export const Dock: React.FC<DockProps> = ({ activeMode, onModeChange, onDatalink
     <nav
       id="navigation-dock"
       className={`fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-900/80 backdrop-blur-xl border border-white/10 rounded-2xl flex items-center shadow-2xl z-50 pointer-events-auto ${
-        isMobile ? 'px-2 py-2 gap-1' : 'px-4 py-3 gap-4'
+        isMobile ? 'px-2 py-2 gap-1 max-w-full overflow-x-auto' : 'px-4 py-3 gap-4'
       }`}
       aria-label="Main Navigation"
       role="navigation"

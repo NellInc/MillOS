@@ -67,7 +67,7 @@ export const createPaintedMetalMaterial = (
     shader.fragmentShader = shader.fragmentShader.replace(
       '#include <map_fragment>',
       `#include <map_fragment>
-      vec4 wearSample = texture2D(wearMap, vMapUv);
+      vec4 wearSample = texture2D(wearMap, vNormalMapUv);
       diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * 0.7, wearSample.a * 0.3);`
     );
   };
@@ -171,7 +171,7 @@ export const createRustyMetalMaterial = (
     shader.fragmentShader = shader.fragmentShader.replace(
       '#include <color_fragment>',
       `#include <color_fragment>
-      vec4 rustSample = texture2D(rustMap, vMapUv);
+      vec4 rustSample = texture2D(rustMap, vRoughnessMapUv);
       diffuseColor.rgb = mix(diffuseColor.rgb, rustSample.rgb, rustSample.a);`
     );
   };

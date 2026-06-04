@@ -15,7 +15,6 @@ export function useSafetySimulation() {
   const recordWorkerEvasion = useSafetyStore((state) => state.recordWorkerEvasion);
   const recordNearMiss = useSafetyStore((state) => state.recordNearMiss);
   const addSafetyIncident = useSafetyStore((state) => state.addSafetyIncident);
-  const machines = useProductionStore((state) => state.machines);
 
   const prevGameDayRef = useRef(gameDay);
   const lastEventCheckRef = useRef(Date.now());
@@ -44,7 +43,10 @@ export function useSafetySimulation() {
       // Only check every ~30 real seconds to avoid spam
       if (timeSinceLastCheck < 25000) return;
 
-      // Count running machines - more activity = more chance of events
+      // Count running machines - more activity = more chance of events.
+      // Read fresh machine state each tick via getState() so the interval is
+      // not torn down and recreated every time the machines array changes.
+      const machines = useProductionStore.getState().machines;
       const runningMachines = machines.filter((m) => m.status === 'running').length;
       if (runningMachines === 0) return; // No activity, no events
 
@@ -72,7 +74,7 @@ export function useSafetySimulation() {
     }, 30000); // Check every 30 seconds
 
     return () => clearInterval(interval);
-  }, [gameSpeed, machines, recordWorkerEvasion, recordNearMiss, addSafetyIncident]);
+  }, [gameSpeed, recordWorkerEvasion, recordNearMiss, addSafetyIncident]);
 }
 
 // Random descriptions for variety

@@ -595,16 +595,16 @@ const MachineMesh: React.FC<MachineMeshProps> = React.memo(({ data, onSelect, on
         const h = Number.isFinite(size[1]) && size[1] > 0 ? size[1] : 5;
         const d = Number.isFinite(size[2]) && size[2] > 0 ? size[2] : 3.5;
 
-        // Cable path for motor power
-        const motorCablePoints = useMemo(
-          () => [
-            new THREE.Vector3(-w * 0.5 - 0.4, -h * 0.1, 0), // Motor
-            new THREE.Vector3(-w * 0.5 - 0.4, -h * 0.4, 0), // Down
-            new THREE.Vector3(-w * 0.3, -h * 0.45, 0), // In
-            new THREE.Vector3(0, -h * 0.45, 0), // Center
-          ],
-          [w, h]
-        );
+        // Cable path for motor power. Plain const, NOT useMemo: renderGeometry()
+        // is called conditionally (low-quality branch at the render site), so a
+        // hook here would violate the Rules of Hooks. Rebuilding 4 vectors per
+        // render of a static machine is negligible.
+        const motorCablePoints = [
+          new THREE.Vector3(-w * 0.5 - 0.4, -h * 0.1, 0), // Motor
+          new THREE.Vector3(-w * 0.5 - 0.4, -h * 0.4, 0), // Down
+          new THREE.Vector3(-w * 0.3, -h * 0.45, 0), // In
+          new THREE.Vector3(0, -h * 0.45, 0), // Center
+        ];
 
         return (
           <group position={[0, size[1] / 2, 0]}>

@@ -11,7 +11,7 @@ export * from './safety';
 export * from './wildlife';
 export * from './equipment';
 export * from './atmosphere';
-export * from './personalItems';
+export * from './PersonalItems';
 export * from './workplaceCulture';
 export * from './utilities';
 export * from './microDetails';
@@ -67,7 +67,7 @@ import {
   WaterBottle,
   FoldedNewspaper,
   CoffeeCup,
-} from './personalItems';
+} from './PersonalItems';
 import {
   VendingMachine,
   TimeClockStation,

@@ -307,11 +307,17 @@ export class RESTAdapter implements IProtocolAdapter {
     if (this.reconnectTimeoutId) return;
 
     this.reconnectAttempts++;
-    this.lastError = 'Connection lost';
 
     if (this.reconnectAttempts >= 5) {
+      // Terminal failure: surface a distinct error so consumers polling
+      // getConnectionStatus() can distinguish a permanent give-up from a
+      // transient blip. (Reconnect ceiling and subscriber-teardown behavior
+      // are intentionally unchanged pending a product decision.)
+      this.lastError = 'Reconnect limit reached (5 attempts)';
       this.disconnect();
     } else {
+      this.lastError = 'Connection lost';
+
       // Exponential backoff
       const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000);
 

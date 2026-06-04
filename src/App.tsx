@@ -170,30 +170,6 @@ const DynamicBackground: React.FC = () => {
   return null;
 };
 
-// Probe for WebGL support before mounting the R3F Canvas. R3F's Canvas
-// configure() rejects asynchronously when a context cannot be created, surfacing
-// as an unhandledrejection the render-path ErrorBoundary does not catch.
-// Detecting up front lets us show a graceful fallback instead of a blank canvas.
-const detectWebGLSupport = (): boolean => {
-  if (typeof window === 'undefined' || typeof document === 'undefined') {
-    return false;
-  }
-  try {
-    const canvas = document.createElement('canvas');
-    const gl = (canvas.getContext('webgl2') ||
-      canvas.getContext('webgl') ||
-      canvas.getContext('experimental-webgl')) as WebGLRenderingContext | null;
-    if (!gl) {
-      return false;
-    }
-    // Release the probe context so we do not consume one of the browser's limited slots.
-    gl.getExtension('WEBGL_lose_context')?.loseContext();
-    return true;
-  } catch {
-    return false;
-  }
-};
-
 const App: React.FC = () => {
   // PERF DEBUG: Track App re-renders
   trackRender('App');
@@ -235,10 +211,6 @@ const App: React.FC = () => {
   const [audioInitialized, setAudioInitialized] = useState(false);
   const [qualityNotification, setQualityNotification] = useState<string | null>(null);
   const [autoRotate, setAutoRotate] = useState(true);
-  // Probe WebGL support once on mount; if unavailable, render a static fallback
-  // instead of mounting Canvas (whose async context-creation failure would
-  // otherwise escape the render-path ErrorBoundary as an unhandledrejection).
-  const [webglSupported] = useState(detectWebGLSupport);
 
   // PERFORMANCE: Consolidated store subscriptions with useShallow to prevent unnecessary re-renders
   const { currentQuality, enablePhysics, resolutionScale, enableLogarithmicDepth } =
@@ -559,23 +531,6 @@ const App: React.FC = () => {
   }, [selectedMachine]);
 
   // WebGL context loss fallback component
-  // Shown when the browser cannot create a WebGL context at all (no GPU support,
-  // WebGL disabled, or unsupported browser). Distinct from context-loss: a reload
-  // will not help, so we guide the user to enable WebGL or switch browsers.
-  const WebGLUnsupportedFallback = (
-    <div className="fixed inset-0 flex items-center justify-center bg-slate-950">
-      <div className="bg-slate-900 border border-amber-500/50 rounded-xl p-8 max-w-md text-center">
-        <AlertTriangle className="w-12 h-12 text-amber-500 mx-auto mb-4" />
-        <h2 className="text-xl font-bold text-white mb-2">3D Graphics Not Supported</h2>
-        <p className="text-slate-400">
-          This experience requires WebGL, which is unavailable in your current browser. Please enable
-          hardware acceleration, update your graphics drivers, or try a modern browser such as
-          Chrome, Edge, or Firefox.
-        </p>
-      </div>
-    </div>
-  );
-
   const WebGLErrorFallback = (
     <div className="fixed inset-0 flex items-center justify-center bg-slate-950">
       <div className="bg-slate-900 border border-amber-500/50 rounded-xl p-8 max-w-md text-center">
@@ -595,12 +550,6 @@ const App: React.FC = () => {
       </div>
     </div>
   );
-
-  // If the browser cannot create a WebGL context at all, render the static
-  // fallback instead of mounting Canvas (all hooks above run unconditionally).
-  if (!webglSupported) {
-    return WebGLUnsupportedFallback;
-  }
 
   return (
     <div className="relative w-full h-full bg-slate-950">

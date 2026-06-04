@@ -30,8 +30,12 @@ import { MachineInspector } from './MachineInspector';
 import { SettingsPanel } from '../panels/SettingsPanel';
 import { SafetyPanel } from '../panels/SafetyPanel';
 import { OverviewPanel } from '../panels/OverviewPanel';
-import { MultiplayerPanel } from '../panels/MultiplayerPanel';
 import { WorkforcePanel } from '../panels/WorkforcePanel';
+
+// MultiplayerPanel lazy-loaded to keep peerjs/WebRTC out of the boot chunk
+const MultiplayerPanel = lazy(() =>
+  import('../panels/MultiplayerPanel').then((m) => ({ default: m.MultiplayerPanel }))
+);
 
 // Core BAS controls (kept static - frequently used, small)
 import { FiveAxesPanel } from '../widgets/FiveAxesPanel';
@@ -165,7 +169,11 @@ export const ContextSidebar: React.FC<ContextSidebarProps> = ({
   } else if (mode === 'multiplayer') {
     headerTitle = 'Multiplayer';
     HeaderIcon = Users;
-    content = <MultiplayerPanel />;
+    content = (
+      <Suspense fallback={<LoadingPlaceholder />}>
+        <MultiplayerPanel />
+      </Suspense>
+    );
   } else if (mode === 'management') {
     headerTitle = 'Bilateral Autonomy';
     HeaderIcon = Heart;

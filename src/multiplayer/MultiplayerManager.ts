@@ -101,7 +101,11 @@ export class MultiplayerManager {
       if (currentState.connectionState === 'connecting') {
         logger.multiplayer.error('Connection timeout - no state sync received');
         currentState.setConnectionState('disconnected');
-        this.destroy();
+        // Use the module-level destroy so the singleton is nulled, not just
+        // flagged isDestroyed. Otherwise getMultiplayerManager() keeps returning
+        // this poisoned (isDestroyed=true) instance and all later broadcasts/
+        // state-syncs short-circuit, breaking subsequent multiplayer attempts.
+        destroyMultiplayerManager();
       }
     }, 15000);
   }
