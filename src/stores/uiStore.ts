@@ -78,11 +78,6 @@ interface UIStore {
   setFpsMode: (enabled: boolean) => void;
   toggleFpsMode: () => void;
 
-  // SPC Charts
-  showSPCCharts: boolean;
-  setShowSPCCharts: (show: boolean) => void;
-  toggleSPCCharts: () => void;
-
   // FPS Counter
   showFPSCounter: boolean;
   setShowFPSCounter: (show: boolean) => void;
@@ -198,11 +193,6 @@ export const useUIStore = create<UIStore>()(
       setFpsMode: (enabled: boolean) => set({ fpsMode: enabled }),
       toggleFpsMode: () => set((state) => ({ fpsMode: !state.fpsMode })),
 
-      // SPC Charts
-      showSPCCharts: false,
-      setShowSPCCharts: (show: boolean) => set({ showSPCCharts: show }),
-      toggleSPCCharts: () => set((state) => ({ showSPCCharts: !state.showSPCCharts })),
-
       // FPS Counter
       showFPSCounter: false,
       setShowFPSCounter: (show: boolean) => set({ showFPSCounter: show }),
@@ -226,7 +216,6 @@ export const useUIStore = create<UIStore>()(
         legendPosition: state.legendPosition,
         showMiniMap: state.showMiniMap,
         fpsMode: state.fpsMode,
-        showSPCCharts: state.showSPCCharts,
         showFPSCounter: state.showFPSCounter,
         blueprintMode: state.blueprintMode,
       }),

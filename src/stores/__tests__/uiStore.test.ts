@@ -43,7 +43,6 @@ describe('UIStore', () => {
       showGamificationBar: false,
       showMiniMap: false,
       fpsMode: false,
-      showSPCCharts: false,
     });
   });
 
@@ -264,30 +263,6 @@ describe('UIStore', () => {
 
       toggleFpsMode();
       expect(useUIStore.getState().fpsMode).toBe(false);
-    });
-  });
-
-  describe('SPC Charts', () => {
-    it('should initialize with SPC charts hidden', () => {
-      const { showSPCCharts } = useUIStore.getState();
-      expect(showSPCCharts).toBe(false);
-    });
-
-    it('should set SPC charts visibility', () => {
-      const { setShowSPCCharts } = useUIStore.getState();
-
-      setShowSPCCharts(true);
-      expect(useUIStore.getState().showSPCCharts).toBe(true);
-    });
-
-    it('should toggle SPC charts', () => {
-      const { toggleSPCCharts } = useUIStore.getState();
-
-      toggleSPCCharts();
-      expect(useUIStore.getState().showSPCCharts).toBe(true);
-
-      toggleSPCCharts();
-      expect(useUIStore.getState().showSPCCharts).toBe(false);
     });
   });
 
