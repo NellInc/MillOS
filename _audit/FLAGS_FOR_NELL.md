@@ -14,6 +14,52 @@ found in-tree + committed, then Phase A high-value fixes, a seeded 12-lane compl
 
 ---
 
+## Round 2 — actioned from your "fix these" decisions (committed, gated green)
+
+You answered: canonical host = **www**, product name = **BAMS**, governing law = **England & Wales**,
+disconnected features = **investigate each**, plus "fix" the dead-code batch / ownership→friction /
+scada-proxy. Done:
+
+- **Disconnected features** (16-agent per-component investigation → my own verification):
+  - **Deleted 11 orphaned/superseded components** (`1ad81f2`): ComplianceDashboard (superseded by live
+    SCADAPanel), SPCCharts, ShiftHandover (≠ live ShiftHandoverSummary), ShiftBriefing,
+    PreferenceRequestWidget, AssetShowcase, ManagementStylePanel, MillSceneMinimal, VillageAreaOptimized,
+    FarmAreaInstances, SmartForklift. + cleaned the dead uiStore SPC toggle.
+  - **Kept** (the L11 "dead" flags were false positives): WorkerMoodOverlay (live at WorkerSystem:1336),
+    InstancedVillageComponents (VillageArea uses its InstancedLamps).
+  - **Flagged, NOT wired** (see "Still needs you" below): CelebrationSystem, CrisisEventSystem, MissionControl.
+- **Dead-code utilities** — deleted 8 orphaned files, ~3000 LOC (`58584f5`): gpuManagement(+geometryMerger,
+  lodIntegration, objectPool), pathfinding, truckPath, workerBehaviorEngine, apiSecurity.
+- **ownership→friction**: activated the silently-dead integration (static import) + made its tests
+  deterministic (`4b06b2a`).
+- **Canonical host → www.millos.net** across og:/canonical/twitter/img-src (`e3765ad`).
+- **BAMS naming**: all *user-facing* strings already read BAMS (Phase C); the remaining "BAS" are internal
+  code identifiers/types (out of scope to rename — high risk, zero user benefit). No change needed.
+- **scada-proxy criticals** (`2c7eb4b`): env-var dual-read (`SCADA_API_KEY ?? API_KEY`), constant-time key
+  compare ×2, and **`npm audit` → 0 vulnerabilities** (jsrsasign CRITICAL, express-rate-limit/minimatch HIGH).
+- **Legal drafts**: filled England & Wales governing law + `nell@ethicsnet.com` contact (`c4c6ec6`).
+
+### Still needs you (deliberately not auto-done — would crash, is redundant, or needs your value)
+- **CelebrationSystem (achievements):** complete + valuable, but it renders a fragment mixing an R3F
+  `<points>` particle system (ConfettiBurst) **and** DOM `<motion.div>` — mounting it as-is **crashes**
+  ("R3F hooks outside Canvas"). Wiring needs a deliberate split (confetti → into the Canvas; milestone
+  overlay → into the DOM tree) + a real-browser check. I left its internal interval-bug fix in place so it
+  works *once split & wired*.
+- **CrisisEventSystem (+CrisisEffects):** complete crisis mechanic, needs Canvas wiring — **wire-in or delete?**
+- **MissionControl:** complete sidebar widget but **redundant** with the live OverviewPanel (efficiency/
+  priorities/alerts) — likely delete, your call.
+- **truckbay model cluster (~1500 LOC):** still imported by the prototype deck (AssetPrototypePage); delete it
+  together with the prototype-deck decision (below).
+- **gameSimulationStore briefing methods** (`startShiftBriefing`/`completeShiftBriefing` + `'briefing'` phase):
+  now dead after deleting ShiftBriefing — safe to trim, but it touches the live shift state-machine, so I left
+  it for your eyeball.
+- **scada-proxy:** WS auth still accepts the key via URL query (leaks into logs); moving it to a subprotocol/
+  short-lived token needs a coordinated SCADAPanel (frontend) change.
+- **Legal `[CONFIRM]`:** controller legal identity (you-as-individual vs a company), liability cap, effective
+  date, `<Text>` 3D-font self-host (removes the last jsDelivr connection), optional min-age line.
+
+---
+
 ## What was fixed this session (committed, gated green)
 
 ### `feat(ai)` — local WebGPU AI backend (commit `6454b86`) — **NEEDS YOUR SIGN-OFF**
