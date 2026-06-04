@@ -1521,15 +1521,30 @@ export const useScenarioStore = create<ScenarioState>()(
       },
 
       recordStability: (stability) => {
-        set((state) => ({
-          stabilityReadings: [...state.stabilityReadings.slice(-500), stability],
-        }));
+        // Append with a single bounded copy per tick (driven at 10Hz during
+        // active scenarios). slice() always allocates a fresh array, preserving
+        // Zustand's new-reference-per-update contract while avoiding the prior
+        // slice(-500)+spread double-copy regardless of array length.
+        set((state) => {
+          const readings =
+            state.stabilityReadings.length >= 500
+              ? state.stabilityReadings.slice(1)
+              : state.stabilityReadings.slice();
+          readings.push(stability);
+          return { stabilityReadings: readings };
+        });
       },
 
       recordEngagement: (engagement) => {
-        set((state) => ({
-          engagementReadings: [...state.engagementReadings.slice(-500), engagement],
-        }));
+        // Same bounded single-copy append pattern as recordStability.
+        set((state) => {
+          const readings =
+            state.engagementReadings.length >= 500
+              ? state.engagementReadings.slice(1)
+              : state.engagementReadings.slice();
+          readings.push(engagement);
+          return { engagementReadings: readings };
+        });
       },
 
       recordAxisChange: () => {

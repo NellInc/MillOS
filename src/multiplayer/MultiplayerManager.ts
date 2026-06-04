@@ -32,6 +32,11 @@ const PLAYER_UPDATE_INTERVAL = 50; // 20Hz for smooth movement
 const STATE_SYNC_INTERVAL = 100; // 10Hz for game state
 const PING_INTERVAL = 1000; // 1Hz for latency measurement
 
+// Resolve any guest intent that has not received an INTENT_RESULT within this
+// window as failed, so the UI surfaces the failure and pendingIntents does not
+// grow unbounded when the host drops an INTENT silently.
+const INTENT_TIMEOUT_MS = 5000;
+
 export class MultiplayerManager {
   private signalingService: SignalingService | null = null;
   private peerConnections: Map<string, PeerConnection> = new Map();
@@ -554,6 +559,17 @@ export class MultiplayerManager {
     this.pingInterval = setInterval(() => {
       if (this.isDestroyed) return;
 
+      // Sweep stale pending intents (guest path). Any intent that has not been
+      // resolved by an INTENT_RESULT within INTENT_TIMEOUT_MS is resolved as
+      // failed so the UI is notified and pendingIntents stays bounded.
+      const now = Date.now();
+      const pendingStore = useMultiplayerStore.getState();
+      for (const intent of pendingStore.pendingIntents) {
+        if (now - intent.timestamp > INTENT_TIMEOUT_MS) {
+          pendingStore.resolveIntent(intent.id, false, 'Intent timed out');
+        }
+      }
+
       let totalLatency = 0;
       let count = 0;
       const stalePeers: string[] = [];
@@ -633,6 +649,12 @@ export class MultiplayerManager {
           type: 'INTENT',
           payload: fullIntent,
         });
+      } else {
+        // No host connection: the INTENT can never be sent, so resolve it
+        // locally as failed instead of leaving it stuck in pendingIntents
+        // forever. The timeout sweep covers the case where the host receives
+        // the INTENT but silently drops it (no INTENT_RESULT returned).
+        store.resolveIntent(fullIntent.id, false, 'Not connected to host');
       }
     }
   }

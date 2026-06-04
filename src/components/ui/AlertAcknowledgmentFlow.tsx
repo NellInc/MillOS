@@ -62,7 +62,7 @@ export const AlertAcknowledgmentFlow: React.FC<AlertAcknowledgmentFlowProps> = (
 
   return (
     <div
-      className="fixed bottom-4 right-4 z-40 space-y-2 max-w-sm"
+      className="fixed bottom-4 right-4 z-50 space-y-2 max-w-sm"
       role="region"
       aria-live="polite"
       aria-label="Notifications"

@@ -251,6 +251,37 @@ class PositionRegistry {
     return nearby;
   }
 
+  // Boolean-only variant of getEntitiesNearby: short-circuits on first hit
+  // without allocating an array. Used by hot-path collision checks (e.g.
+  // isPathClear) that only need to know whether anything is within radius.
+  private anyEntityWithin(
+    x: number,
+    z: number,
+    radius: number,
+    type: 'worker' | 'forklift',
+    excludeId?: string,
+    y?: number
+  ): boolean {
+    let found = false;
+    this.positions.forEach((pos) => {
+      if (found) return;
+      if (pos.type === type && pos.id !== excludeId) {
+        // Check vertical distance if provided
+        if (y !== undefined && pos.y !== undefined) {
+          if (Math.abs(pos.y - y) > 3.0) return;
+        }
+
+        const dx = pos.x - x;
+        const dz = pos.z - z;
+        const distance = Math.sqrt(dx * dx + dz * dz);
+        if (distance < radius) {
+          found = true;
+        }
+      }
+    });
+    return found;
+  }
+
   // Get all workers within a certain radius of a point
   getWorkersNearby(x: number, z: number, radius: number, y?: number): EntityPosition[] {
     return this.getEntitiesNearby(x, z, radius, 'worker', undefined, y);
@@ -283,20 +314,14 @@ class PositionRegistry {
     for (let d = 1; d <= checkDistance; d += 0.5) {
       const checkX = x + dirX * d;
       const checkZ = z + dirZ * d;
-      const workersNearby = this.getWorkersNearby(checkX, checkZ, safetyRadius, y);
-      if (workersNearby.length > 0) {
+      // Use boolean short-circuit helpers to avoid allocating throwaway
+      // EntityPosition[] arrays at each check-point in this per-frame hot path.
+      if (this.anyEntityWithin(checkX, checkZ, safetyRadius, 'worker', undefined, y)) {
         return false;
       }
       // Also check for other forklifts if forkliftId is provided
       if (forkliftId) {
-        const forkliftsNearby = this.getForkliftsNearby(
-          checkX,
-          checkZ,
-          safetyRadius,
-          forkliftId,
-          y
-        );
-        if (forkliftsNearby.length > 0) {
+        if (this.anyEntityWithin(checkX, checkZ, safetyRadius, 'forklift', forkliftId, y)) {
           return false;
         }
       }

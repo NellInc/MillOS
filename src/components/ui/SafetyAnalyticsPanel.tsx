@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { TrendingUp, ChevronDown, ChevronUp, Truck, FileText, Download } from 'lucide-react';
 import { useSafetyStore } from '../../stores/safetyStore';
@@ -6,6 +6,11 @@ import { useUIStore } from '../../stores/uiStore';
 
 export const SafetyAnalyticsPanel: React.FC = () => {
   const [expanded, setExpanded] = useState(false);
+  // Two-step inline confirmation for destructive, irreversible data wipes.
+  const [confirmClearHeatMap, setConfirmClearHeatMap] = useState(false);
+  const [confirmResetMetrics, setConfirmResetMetrics] = useState(false);
+  const clearConfirmTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const resetConfirmTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const safetyIncidents = useSafetyStore((state) => state.safetyIncidents);
   const forkliftMetrics = useSafetyStore((state) => state.forkliftMetrics);
   const incidentHeatMap = useSafetyStore((state) => state.incidentHeatMap);
@@ -14,6 +19,40 @@ export const SafetyAnalyticsPanel: React.FC = () => {
   const clearIncidentHeatMap = useSafetyStore((state) => state.clearIncidentHeatMap);
   const resetForkliftMetrics = useSafetyStore((state) => state.resetForkliftMetrics);
   const theme = useUIStore((state) => state.theme);
+
+  // Clear any pending confirmation timers on unmount.
+  useEffect(() => {
+    return () => {
+      if (clearConfirmTimer.current) clearTimeout(clearConfirmTimer.current);
+      if (resetConfirmTimer.current) clearTimeout(resetConfirmTimer.current);
+    };
+  }, []);
+
+  // First click arms the confirmation; second click within the window performs
+  // the irreversible wipe. The armed state auto-reverts after 4s.
+  const handleClearHeatMap = () => {
+    if (confirmClearHeatMap) {
+      if (clearConfirmTimer.current) clearTimeout(clearConfirmTimer.current);
+      setConfirmClearHeatMap(false);
+      clearIncidentHeatMap();
+      return;
+    }
+    setConfirmClearHeatMap(true);
+    if (clearConfirmTimer.current) clearTimeout(clearConfirmTimer.current);
+    clearConfirmTimer.current = setTimeout(() => setConfirmClearHeatMap(false), 4000);
+  };
+
+  const handleResetMetrics = () => {
+    if (confirmResetMetrics) {
+      if (resetConfirmTimer.current) clearTimeout(resetConfirmTimer.current);
+      setConfirmResetMetrics(false);
+      resetForkliftMetrics();
+      return;
+    }
+    setConfirmResetMetrics(true);
+    if (resetConfirmTimer.current) clearTimeout(resetConfirmTimer.current);
+    resetConfirmTimer.current = setTimeout(() => setConfirmResetMetrics(false), 4000);
+  };
 
   // Calculate stats
   const today = new Date();
@@ -175,14 +214,26 @@ export const SafetyAnalyticsPanel: React.FC = () => {
                     {showIncidentHeatMap ? 'ON' : 'OFF'}
                   </button>
                   <button
-                    onClick={clearIncidentHeatMap}
+                    onClick={handleClearHeatMap}
+                    aria-label={
+                      confirmClearHeatMap
+                        ? 'Confirm clearing incident heat map (irreversible)'
+                        : 'Clear incident heat map'
+                    }
+                    title={
+                      confirmClearHeatMap
+                        ? 'Click again to permanently clear all hotspot data'
+                        : 'Permanently clear all recorded hotspots'
+                    }
                     className={`py-1 px-2 rounded text-[10px] font-medium ${
-                      theme === 'light'
-                        ? 'bg-slate-200 text-slate-600 hover:bg-slate-300'
-                        : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                      confirmClearHeatMap
+                        ? 'bg-red-600 text-white hover:bg-red-500'
+                        : theme === 'light'
+                          ? 'bg-slate-200 text-slate-600 hover:bg-slate-300'
+                          : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
                     }`}
                   >
-                    Clear
+                    {confirmClearHeatMap ? 'Confirm?' : 'Clear'}
                   </button>
                 </div>
               </div>
@@ -202,10 +253,26 @@ export const SafetyAnalyticsPanel: React.FC = () => {
                   </span>
                 </div>
                 <button
-                  onClick={resetForkliftMetrics}
-                  className={`text-[9px] transition-colors ${theme === 'light' ? 'text-slate-400 hover:text-red-500' : 'text-slate-500 hover:text-red-400'}`}
+                  onClick={handleResetMetrics}
+                  aria-label={
+                    confirmResetMetrics
+                      ? 'Confirm resetting forklift efficiency metrics (irreversible)'
+                      : 'Reset forklift efficiency metrics'
+                  }
+                  title={
+                    confirmResetMetrics
+                      ? 'Click again to permanently reset all forklift metrics'
+                      : 'Permanently reset all forklift efficiency metrics'
+                  }
+                  className={`text-[9px] font-medium transition-colors ${
+                    confirmResetMetrics
+                      ? 'text-red-500'
+                      : theme === 'light'
+                        ? 'text-slate-400 hover:text-red-500'
+                        : 'text-slate-500 hover:text-red-400'
+                  }`}
                 >
-                  Reset
+                  {confirmResetMetrics ? 'Confirm?' : 'Reset'}
                 </button>
               </div>
               {efficiencyData.length === 0 ? (

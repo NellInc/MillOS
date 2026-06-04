@@ -7,7 +7,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { CheckCircle, Circle, Play, Timer } from 'lucide-react';
+import { CheckCircle, Circle, Pause, Play, RotateCcw, Timer } from 'lucide-react';
 import { useAIConfigStore } from '../../stores/aiConfigStore';
 
 interface ActionStep {
@@ -80,6 +80,27 @@ export const ActionPlanTimeline: React.FC = () => {
     return 'pending';
   };
 
+  // Restart the plan from the first step (also recovers from the finished state).
+  const restart = () => {
+    setActiveStep(0);
+    setCountdown((steps[0]?.duration ?? DEFAULT_STEPS[0].duration) * 60);
+    setIsRunning(true);
+  };
+
+  // Pause/resume. If the timer has already finished (countdown hit 0 and
+  // isRunning was cleared), resuming would otherwise stall at 0:00 because the
+  // countdown effect early-returns on countdown <= 0 — so route to restart.
+  const togglePause = () => {
+    if (countdown <= 0) {
+      restart();
+      return;
+    }
+    setIsRunning((prev) => !prev);
+  };
+
+  // Controls are only meaningful once a real action plan is present.
+  const hasPlan = !!strategic.actionPlan?.length;
+
   if (!strategic.actionPlan?.length && !strategic.isThinking) return null;
 
   return (
@@ -90,16 +111,42 @@ export const ActionPlanTimeline: React.FC = () => {
           <Timer className="w-4 h-4 text-cyan-400" />
           <span className="text-sm font-medium text-slate-200">Action Plan</span>
         </div>
-        {isRunning && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="flex items-center gap-1.5 bg-cyan-500/20 px-2 py-1 rounded-full"
-          >
-            <div className="w-1.5 h-1.5 bg-cyan-400 rounded-full animate-pulse" />
-            <span className="text-[10px] text-cyan-400 font-mono">{formatTime(countdown)}</span>
-          </motion.div>
-        )}
+        <div className="flex items-center gap-2">
+          {(isRunning || (hasPlan && countdown > 0)) && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="flex items-center gap-1.5 bg-cyan-500/20 px-2 py-1 rounded-full"
+            >
+              <div
+                className={`w-1.5 h-1.5 bg-cyan-400 rounded-full ${isRunning ? 'animate-pulse' : ''}`}
+              />
+              <span className="text-[10px] text-cyan-400 font-mono">{formatTime(countdown)}</span>
+            </motion.div>
+          )}
+          {hasPlan && (
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={togglePause}
+                aria-label={isRunning ? 'Pause action plan' : 'Resume action plan'}
+                title={isRunning ? 'Pause' : 'Resume'}
+                className="p-1 rounded text-slate-400 hover:text-cyan-400 hover:bg-slate-700/50 transition-colors"
+              >
+                {isRunning ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+              </button>
+              <button
+                type="button"
+                onClick={restart}
+                aria-label="Restart action plan"
+                title="Restart"
+                className="p-1 rounded text-slate-400 hover:text-cyan-400 hover:bg-slate-700/50 transition-colors"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Timeline */}

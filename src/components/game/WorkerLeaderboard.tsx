@@ -84,7 +84,11 @@ export const WorkerLeaderboard: React.FC<{ onClose: () => void }> = ({ onClose }
       drag
       dragMomentum={false}
       dragElastic={0}
-      className="fixed top-24 right-4 w-80 bg-slate-900/98 backdrop-blur-xl rounded-2xl border border-slate-700/50 shadow-2xl z-50 flex flex-col max-h-[60vh] pointer-events-auto overflow-hidden"
+      // Anchored to the LEFT of AchievementsPanel (which sits at right-4 w-80) so the
+      // two independently-toggleable top-right panels don't overlap when both are open.
+      // right-[22rem] (352px) = AchievementsPanel width (w-80 = 320px) + right-4 (16px)
+      // + a 16px gap. Both remain draggable from these distinct defaults.
+      className="fixed top-24 right-[22rem] w-80 bg-slate-900/98 backdrop-blur-xl rounded-2xl border border-slate-700/50 shadow-2xl z-50 flex flex-col max-h-[60vh] pointer-events-auto overflow-hidden"
     >
       {/* Header - draggable area */}
       <div className="flex items-center justify-between p-3 border-b border-slate-800 cursor-move">

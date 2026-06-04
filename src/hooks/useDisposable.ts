@@ -1,4 +1,4 @@
-import { useRef, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 
 /**
  * Custom hook for managing disposable Three.js resources
@@ -19,22 +19,23 @@ export function useDisposable<T extends { dispose: () => void }>(
   factory: () => T,
   deps: React.DependencyList
 ): T | null {
-  const ref = useRef<T | null>(null);
+  // Hold the resource in state so creation triggers a re-render and the
+  // consumer receives the resource instead of the initial null.
+  const [resource, setResource] = useState<T | null>(null);
 
   useEffect(() => {
     // Create the resource
-    ref.current = factory();
+    const created = factory();
+    setResource(created);
 
     // Cleanup: dispose the resource
     return () => {
-      if (ref.current) {
-        ref.current.dispose();
-        ref.current = null;
-      }
+      created.dispose();
+      setResource(null);
     };
   }, deps);
 
-  return ref.current;
+  return resource;
 }
 
 /**
@@ -56,22 +57,25 @@ export function useDisposableArray<T extends { dispose: () => void }>(
   factory: () => T[],
   deps: React.DependencyList
 ): T[] {
-  const ref = useRef<T[]>([]);
+  // Hold the resources in state so creation triggers a re-render and the
+  // consumer receives the resources instead of the initial empty array.
+  const [resources, setResources] = useState<T[]>([]);
 
   useEffect(() => {
     // Create the resources
-    ref.current = factory();
+    const created = factory();
+    setResources(created);
 
     // Cleanup: dispose all resources
     return () => {
-      ref.current.forEach((resource) => {
+      created.forEach((resource) => {
         if (resource) {
           resource.dispose();
         }
       });
-      ref.current = [];
+      setResources([]);
     };
   }, deps);
 
-  return ref.current;
+  return resources;
 }

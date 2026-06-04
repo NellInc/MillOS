@@ -648,14 +648,37 @@ const MultiplayerContent: React.FC = () => {
 
   const [copied, setCopied] = React.useState(false);
   const copyTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [confirmLeave, setConfirmLeave] = React.useState(false);
+  const leaveTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   React.useEffect(() => {
     return () => {
       if (copyTimeoutRef.current) {
         clearTimeout(copyTimeoutRef.current);
       }
+      if (leaveTimeoutRef.current) {
+        clearTimeout(leaveTimeoutRef.current);
+      }
     };
   }, []);
+
+  // Two-tap confirm so an accidental touch can't end the shared session.
+  const handleLeaveClick = () => {
+    if (confirmLeave) {
+      if (leaveTimeoutRef.current) {
+        clearTimeout(leaveTimeoutRef.current);
+        leaveTimeoutRef.current = null;
+      }
+      setConfirmLeave(false);
+      leaveRoom();
+      return;
+    }
+    setConfirmLeave(true);
+    if (leaveTimeoutRef.current) {
+      clearTimeout(leaveTimeoutRef.current);
+    }
+    leaveTimeoutRef.current = setTimeout(() => setConfirmLeave(false), 3000);
+  };
 
   const copyRoomCode = () => {
     if (roomCode) {
@@ -690,6 +713,25 @@ const MultiplayerContent: React.FC = () => {
         </button>
         <div className="text-[10px] text-slate-500 text-center">
           Share the room code with friends to play together
+        </div>
+      </div>
+    );
+  }
+
+  // While the session is still establishing, show a loading indicator instead
+  // of the connected room view (mirrors the desktop MultiplayerLobby).
+  if (connectionState === 'connecting' || connectionState === 'reconnecting') {
+    return (
+      <div className="space-y-3">
+        <div className="flex items-center gap-2 text-xs text-slate-400">
+          <Users className="w-4 h-4" />
+          <span>Multiplayer</span>
+        </div>
+        <div className="bg-slate-800/50 rounded-lg p-3 text-center">
+          <div className="flex items-center justify-center gap-2 text-yellow-400 text-xs">
+            <Wifi className="w-4 h-4 animate-pulse" />
+            {connectionState === 'reconnecting' ? 'Reconnecting...' : 'Connecting...'}
+          </div>
         </div>
       </div>
     );
@@ -738,10 +780,10 @@ const MultiplayerContent: React.FC = () => {
       </div>
 
       <button
-        onClick={leaveRoom}
+        onClick={handleLeaveClick}
         className="w-full p-2 bg-red-600/80 hover:bg-red-500/80 rounded-lg text-white text-sm font-medium transition-colors"
       >
-        Leave Room
+        {confirmLeave ? 'Tap again to confirm' : 'Leave Room'}
       </button>
     </div>
   );
@@ -860,7 +902,7 @@ const PlaceholderContent: React.FC<{ mode: DockMode }> = ({ mode }) => {
       <div className="text-center">
         <div className="mb-2">{getPanelIcon(mode)}</div>
         <div className="text-sm">{getPanelTitle(mode)} panel</div>
-        <div className="text-xs text-slate-500 mt-1">Coming soon</div>
+        <div className="text-xs text-slate-500 mt-1">This panel is unavailable on mobile.</div>
       </div>
     </div>
   );

@@ -824,7 +824,7 @@ export const BASTimeline: React.FC = () => {
             >
               <div className="mt-3 space-y-2 text-[9px] text-slate-400">
                 <p className="leading-relaxed">
-                  The BAS Timeline visualizes how bilateral autonomy metrics evolve over time,
+                  The BAMS Timeline visualizes how bilateral autonomy metrics evolve over time,
                   helping identify patterns and trends.
                 </p>
 

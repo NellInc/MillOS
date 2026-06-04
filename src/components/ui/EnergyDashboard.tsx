@@ -171,19 +171,19 @@ export const EnergyDashboard: React.FC = () => {
                 <div className="text-red-300 font-mono">
                   {formatNumber(metrics.emergencyLoad.lighting)}
                 </div>
-                <div className="text-slate-500">Lighting (30%)</div>
+                <div className="text-slate-400">Lighting (30%)</div>
               </div>
               <div className="text-center">
                 <div className="text-red-300 font-mono">
                   {formatNumber(metrics.emergencyLoad.hvac)}
                 </div>
-                <div className="text-slate-500">HVAC (50%)</div>
+                <div className="text-slate-400">HVAC (50%)</div>
               </div>
               <div className="text-center">
                 <div className="text-red-300 font-mono">
                   {formatNumber(metrics.emergencyLoad.baseSystems)}
                 </div>
-                <div className="text-slate-500">Base Systems</div>
+                <div className="text-slate-400">Base Systems</div>
               </div>
             </div>
           </div>
@@ -197,7 +197,7 @@ export const EnergyDashboard: React.FC = () => {
             {formatNumber(metrics.totalEnergy)}
             <span className="text-sm font-normal text-slate-400 ml-1">kWh</span>
           </div>
-          <div className="text-[10px] text-slate-500 mt-0.5">
+          <div className="text-[10px] text-slate-400 mt-0.5">
             {emergencyActive ? 'Emergency consumption' : 'Current consumption'}
           </div>
         </div>
@@ -277,7 +277,7 @@ export const EnergyDashboard: React.FC = () => {
                   style={{ width: `${metrics.avgLoadFactor}%` }}
                 />
               </div>
-              <div className="text-[9px] text-slate-500 mt-1">70-100% of base energy</div>
+              <div className="text-[9px] text-slate-400 mt-1">70-100% of base energy</div>
             </div>
 
             {/* Warning Status */}
@@ -301,7 +301,7 @@ export const EnergyDashboard: React.FC = () => {
               >
                 {metrics.warningCount > 0 ? `+10% (${metrics.warningCount})` : 'None'}
               </div>
-              <div className="text-[9px] text-slate-500">Inefficient operation</div>
+              <div className="text-[9px] text-slate-400">Inefficient operation</div>
             </div>
 
             {/* Maintenance Due */}
@@ -327,7 +327,7 @@ export const EnergyDashboard: React.FC = () => {
                   ? `+5-25% (${metrics.maintenanceDueCount})`
                   : 'None'}
               </div>
-              <div className="text-[9px] text-slate-500">Within 24hrs</div>
+              <div className="text-[9px] text-slate-400">Within 24hrs</div>
             </div>
 
             {/* Overdue Maintenance */}
@@ -351,7 +351,7 @@ export const EnergyDashboard: React.FC = () => {
               >
                 {metrics.overdueCount > 0 ? `+25% (${metrics.overdueCount})` : 'None'}
               </div>
-              <div className="text-[9px] text-slate-500">Max penalty</div>
+              <div className="text-[9px] text-slate-400">Max penalty</div>
             </div>
           </div>
         </div>
@@ -369,7 +369,7 @@ export const EnergyDashboard: React.FC = () => {
                 <Lightbulb className="w-3.5 h-3.5 text-yellow-400" />
                 <div>
                   <span className="text-slate-300">Lighting</span>
-                  <div className="text-[9px] text-slate-500">8 kWh day → 35 kWh night</div>
+                  <div className="text-[9px] text-slate-400">8 kWh day → 35 kWh night</div>
                 </div>
               </div>
               <span className="text-yellow-400 font-mono">
@@ -383,7 +383,7 @@ export const EnergyDashboard: React.FC = () => {
                 <ThermometerSun className="w-3.5 h-3.5 text-orange-400" />
                 <div>
                   <span className="text-slate-300">HVAC</span>
-                  <div className="text-[9px] text-slate-500">20→30→45→35 kWh curve</div>
+                  <div className="text-[9px] text-slate-400">20→30→45→35 kWh curve</div>
                 </div>
               </div>
               <span className="text-orange-400 font-mono">
@@ -397,7 +397,7 @@ export const EnergyDashboard: React.FC = () => {
                 <Shield className="w-3.5 h-3.5 text-slate-400" />
                 <div>
                   <span className="text-slate-300">Other</span>
-                  <div className="text-[9px] text-slate-500">Security, IT, fire systems</div>
+                  <div className="text-[9px] text-slate-400">Security, IT, fire systems</div>
                 </div>
               </div>
               <span className="text-slate-400 font-mono">{metrics.facilityLoad.other} kWh</span>
@@ -413,7 +413,7 @@ export const EnergyDashboard: React.FC = () => {
               className={`font-mono ${metrics.isPeakHours ? 'text-amber-400' : 'text-emerald-400'}`}
             >
               ${formatNumber(metrics.estimatedCostPerHour, 2)}
-              <span className="text-[9px] text-slate-500 ml-1">
+              <span className="text-[9px] text-slate-400 ml-1">
                 ({metrics.isPeakHours ? '$0.15' : '$0.08'}/kWh)
               </span>
             </span>

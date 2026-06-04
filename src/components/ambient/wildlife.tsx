@@ -133,8 +133,8 @@ export const Mouse: React.FC<{ position: [number, number, number]; pathLength?: 
     <group position={position}>
       <group ref={mouseRef} scale={0.5}>
         {/* Body */}
-        <mesh>
-          <sphereGeometry args={[0.06, 8, 6]} scale={[1.5, 1, 1]} />
+        <mesh scale={[1.5, 1, 1]}>
+          <sphereGeometry args={[0.06, 8, 6]} />
           <meshStandardMaterial color="#78716c" roughness={0.9} />
         </mesh>
 

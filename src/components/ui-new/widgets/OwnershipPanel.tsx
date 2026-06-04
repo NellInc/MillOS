@@ -450,17 +450,17 @@ export const OwnershipPanel: React.FC = () => {
                   <div className="bg-slate-800/50 rounded p-1.5 text-center">
                     <Users className="w-3 h-3 mx-auto mb-0.5 text-cyan-400" />
                     <div className="text-[10px] font-bold text-white">{workerCount || 10}</div>
-                    <div className="text-[7px] text-slate-500">Members</div>
+                    <div className="text-[7px] text-slate-400">Members</div>
                   </div>
                   <div className="bg-slate-800/50 rounded p-1.5 text-center">
                     <Target className="w-3 h-3 mx-auto mb-0.5 text-green-400" />
                     <div className="text-[10px] font-bold text-white">51%</div>
-                    <div className="text-[7px] text-slate-500">Min Target</div>
+                    <div className="text-[7px] text-slate-400">Min Target</div>
                   </div>
                   <div className="bg-slate-800/50 rounded p-1.5 text-center">
                     <Shield className="w-3 h-3 mx-auto mb-0.5 text-amber-400" />
                     <div className="text-[10px] font-bold text-white">{structure.reservePool}%</div>
-                    <div className="text-[7px] text-slate-500">Reserve</div>
+                    <div className="text-[7px] text-slate-400">Reserve</div>
                   </div>
                 </div>
 

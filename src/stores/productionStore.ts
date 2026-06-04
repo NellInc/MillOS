@@ -935,7 +935,12 @@ export const useProductionStore = create<ProductionStore>()(
 
     // Heat map data
     heatMapData: [],
-    recordHeatMapPoint: (x: number, z: number) =>
+    recordHeatMapPoint: (x: number, z: number) => {
+      // Heat map is usually toggled OFF. Avoid the per-call Map clone + array
+      // rebuild (and the resulting subscriber churn) when nothing consumes it.
+      // History starts fresh when the overlay is re-enabled — acceptable for a
+      // live overlay.
+      if (!get().showHeatMap) return;
       set((state) => {
         const threshold = 2;
         const gridKey = getGridKey(x, z, threshold);
@@ -974,7 +979,8 @@ export const useProductionStore = create<ProductionStore>()(
             heatMapIndex: newIndex,
           },
         };
-      }),
+      });
+    },
     clearHeatMap: () =>
       set((state) => ({
         heatMapData: [],

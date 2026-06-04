@@ -808,12 +808,12 @@ export function initBASSubscription(): void {
   const axes = useBASStore.getState().axes;
   useAIConfigStore.getState().syncBASAxes(axes);
 
-  // Subscribe to future changes (track previous axes for comparison)
-  let prevAxes = JSON.stringify(useBASStore.getState().axes);
-  basStoreUnsubscribe = useBASStore.subscribe((state) => {
-    const newAxes = JSON.stringify(state.axes);
-    if (newAxes !== prevAxes) {
-      prevAxes = newAxes;
+  // Subscribe to future changes. basStore replaces the axes object on every
+  // mutation (setAxis/applyPreset/resetToDefaults all spread into a fresh
+  // object, never mutate in place), so an O(1) reference check is sufficient
+  // and avoids a per-callback JSON.stringify on unrelated BAS mutations.
+  basStoreUnsubscribe = useBASStore.subscribe((state, prevState) => {
+    if (state.axes !== prevState.axes) {
       useAIConfigStore.getState().syncBASAxes(state.axes);
     }
   });

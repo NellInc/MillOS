@@ -70,6 +70,12 @@ class MQTTWebSocketClient {
     this.state = 'connecting';
 
     return new Promise((resolve, reject) => {
+      // Guard so the connect Promise is settled exactly once. Without this, a
+      // clean server-initiated close before CONNACK (onclose fires, onerror does
+      // not) would leave the Promise pending until the 10s timeout.
+      let settled = false;
+      let timeout: ReturnType<typeof setTimeout> | null = null;
+
       try {
         this.ws = new WebSocket(this.url, 'mqtt');
         this.ws.binaryType = 'arraybuffer';
@@ -85,18 +91,31 @@ class MQTTWebSocketClient {
         this.ws.onerror = () => {
           const error = new Error('WebSocket error');
           this.onError?.(error);
-          if (this.state === 'connecting') {
+          if (this.state === 'connecting' && !settled) {
+            settled = true;
+            if (timeout) clearTimeout(timeout);
             this.isConnecting = false;
             reject(error);
           }
         };
 
         this.ws.onclose = (event) => {
-          this.handleDisconnect(event.reason || 'Connection closed');
+          const reason = event.reason || 'Connection closed';
+          // A clean close before CONNACK fires onclose with no preceding onerror.
+          // Reject the pending connect Promise so callers don't stall until the
+          // timeout and the real close reason is surfaced.
+          if (this.state === 'connecting' && !settled) {
+            settled = true;
+            if (timeout) clearTimeout(timeout);
+            reject(new Error(`Closed before CONNACK: ${reason}`));
+          }
+          this.handleDisconnect(reason);
         };
 
         // Wait for CONNACK
-        const timeout = setTimeout(() => {
+        timeout = setTimeout(() => {
+          if (settled) return;
+          settled = true;
           this.isConnecting = false;
           reject(new Error('Connection timeout'));
           this.disconnect();
@@ -107,7 +126,9 @@ class MQTTWebSocketClient {
           const data = new Uint8Array(event.data);
           // Check for CONNACK (0x20)
           if (data[0] === 0x20) {
-            clearTimeout(timeout);
+            if (settled) return;
+            settled = true;
+            if (timeout) clearTimeout(timeout);
             this.state = 'connected';
             this.isConnecting = false;
             this.startKeepAlive();
@@ -119,7 +140,11 @@ class MQTTWebSocketClient {
       } catch (err) {
         this.state = 'disconnected';
         this.isConnecting = false;
-        reject(err);
+        if (!settled) {
+          settled = true;
+          if (timeout) clearTimeout(timeout);
+          reject(err);
+        }
       }
     });
   }

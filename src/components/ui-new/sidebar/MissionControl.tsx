@@ -35,7 +35,7 @@ export const MissionControl: React.FC = () => {
       <div className="bg-slate-900/80 backdrop-blur-xl border border-white/10 rounded-xl p-4 shadow-lg pointer-events-auto flex-1 max-h-60 overflow-hidden">
         <div className="flex items-center gap-2 text-orange-400 mb-3">
           <Target size={14} />
-          <h3 className="text-xs font-bold uppercase tracking-wider">Objectives</h3>
+          <h2 className="text-xs font-bold uppercase tracking-wider">Objectives</h2>
         </div>
         <ul className="space-y-3">
           {priorities.map((text: string, idx: number) => (
@@ -54,7 +54,7 @@ export const MissionControl: React.FC = () => {
       <div className="bg-slate-900/80 backdrop-blur-xl border border-white/10 rounded-xl p-4 shadow-lg pointer-events-auto">
         <div className="flex items-center gap-2 text-cyan-400 mb-2">
           <TrendingUp size={14} />
-          <h3 className="text-xs font-bold uppercase tracking-wider">Efficiency</h3>
+          <h2 className="text-xs font-bold uppercase tracking-wider">Efficiency</h2>
         </div>
         <div className="text-2xl font-bold text-white font-mono">{efficiency.toFixed(1)}%</div>
         <div className="w-full h-1 bg-slate-700 rounded-full mt-2 overflow-hidden">

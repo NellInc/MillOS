@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MapPin, ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react';
 import { useSafetyStore } from '../../stores/safetyStore';
@@ -8,14 +8,42 @@ export const ZoneCustomizationPanel: React.FC = () => {
   const [expanded, setExpanded] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
   const [newZone, setNewZone] = useState({ name: '', x: 0, z: 0, radius: 4 });
+  // Track which zone (if any) is awaiting delete confirmation. Per-zone so a
+  // single click only "arms" that row instead of destroying the zone outright.
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const confirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const speedZones = useSafetyStore((state) => state.speedZones);
   const addSpeedZone = useSafetyStore((state) => state.addSpeedZone);
   const removeSpeedZone = useSafetyStore((state) => state.removeSpeedZone);
   const theme = useUIStore((state) => state.theme);
 
+  // Clear any pending confirm-revert timer on unmount to avoid setState-after-unmount.
+  useEffect(() => {
+    return () => {
+      if (confirmTimerRef.current) clearTimeout(confirmTimerRef.current);
+    };
+  }, []);
+
+  const handleRemoveClick = (id: string) => {
+    if (confirmTimerRef.current) clearTimeout(confirmTimerRef.current);
+    if (confirmingId === id) {
+      // Second click: confirmed — delete and reset.
+      removeSpeedZone(id);
+      setConfirmingId(null);
+      return;
+    }
+    // First click: arm confirmation, auto-revert after ~3s.
+    setConfirmingId(id);
+    confirmTimerRef.current = setTimeout(() => {
+      setConfirmingId(null);
+      confirmTimerRef.current = null;
+    }, 3000);
+  };
+
   const handleAddZone = () => {
     if (newZone.name.trim()) {
-      addSpeedZone(newZone);
+      const safeRadius = Number.isFinite(newZone.radius) ? Math.max(0.5, newZone.radius) : 4;
+      addSpeedZone({ ...newZone, radius: safeRadius });
       setNewZone({ name: '', x: 0, z: 0, radius: 4 });
       setShowAddForm(false);
     }
@@ -72,18 +100,29 @@ export const ZoneCustomizationPanel: React.FC = () => {
                       ({zone.x}, {zone.z}) r={zone.radius}m
                     </div>
                   </div>
-                  <button
-                    onClick={() => removeSpeedZone(zone.id)}
-                    className={`opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 focus-visible:outline-none p-1 transition-all ${
-                      theme === 'light'
-                        ? 'text-red-500 hover:text-red-600'
-                        : 'text-red-400 hover:text-red-300'
-                    }`}
-                    title="Remove zone"
-                    aria-label={`Remove zone ${zone.name}`}
-                  >
-                    <Trash2 className="w-3 h-3" aria-hidden="true" />
-                  </button>
+                  {confirmingId === zone.id ? (
+                    <button
+                      onClick={() => handleRemoveClick(zone.id)}
+                      className="opacity-100 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-600 hover:bg-red-500 text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-red-400 transition-all whitespace-nowrap"
+                      title={`Confirm removing zone ${zone.name}`}
+                      aria-label={`Confirm removing zone ${zone.name}`}
+                    >
+                      Confirm?
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleRemoveClick(zone.id)}
+                      className={`opacity-100 md:opacity-0 md:group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 focus-visible:outline-none p-1 transition-all ${
+                        theme === 'light'
+                          ? 'text-red-500 hover:text-red-600'
+                          : 'text-red-400 hover:text-red-300'
+                      }`}
+                      title="Remove zone"
+                      aria-label={`Remove zone ${zone.name}`}
+                    >
+                      <Trash2 className="w-3 h-3" aria-hidden="true" />
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
@@ -158,9 +197,14 @@ export const ZoneCustomizationPanel: React.FC = () => {
                     <input
                       id="zone-radius"
                       type="number"
+                      min="0.5"
+                      step="0.5"
                       value={newZone.radius}
                       onChange={(e) =>
-                        setNewZone({ ...newZone, radius: parseFloat(e.target.value) || 4 })
+                        setNewZone({
+                          ...newZone,
+                          radius: Math.max(0.5, parseFloat(e.target.value)) || 4,
+                        })
                       }
                       className={`w-full rounded px-1.5 py-0.5 text-xs border outline-none ${
                         theme === 'light'

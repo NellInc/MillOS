@@ -48,14 +48,6 @@ const AXIS_ICONS: Record<AxisKey, React.ComponentType<{ className?: string }>> =
   collectiveOrientation: Users,
 };
 
-const AXIS_COLORS: Record<AxisKey, string> = {
-  autonomyLevel: 'cyan',
-  decisionMode: 'violet',
-  informationAccess: 'amber',
-  evaluationDirection: 'pink',
-  collectiveOrientation: 'green',
-};
-
 // Static, fully-spelled Tailwind class strings for the slider track gradient + accent.
 // Interpolated names like `via-${color}-500/30` are never emitted by Tailwind's JIT
 // (the literal must appear in source), so these are precomputed per axis color.
@@ -65,6 +57,26 @@ const AXIS_SLIDER_TRACK_CLASSES: Record<AxisKey, string> = {
   informationAccess: 'from-slate-700 via-amber-500/30 to-amber-500 accent-amber-500',
   evaluationDirection: 'from-slate-700 via-pink-500/30 to-pink-500 accent-pink-500',
   collectiveOrientation: 'from-slate-700 via-green-500/30 to-green-500 accent-green-500',
+};
+
+// Static, fully-spelled `text-*-400` and `bg-*-500` strings per axis color.
+// Interpolated names like `text-${color}-400` / `bg-${color}-500` are never emitted
+// by Tailwind's JIT (the literal must appear in source), so the violet/pink axes
+// silently lost their icon/label tint and value-indicator dot. Precompute literals.
+const AXIS_TEXT_CLASSES: Record<AxisKey, string> = {
+  autonomyLevel: 'text-cyan-400',
+  decisionMode: 'text-violet-400',
+  informationAccess: 'text-amber-400',
+  evaluationDirection: 'text-pink-400',
+  collectiveOrientation: 'text-green-400',
+};
+
+const AXIS_DOT_CLASSES: Record<AxisKey, string> = {
+  autonomyLevel: 'bg-cyan-500',
+  decisionMode: 'bg-violet-500',
+  informationAccess: 'bg-amber-500',
+  evaluationDirection: 'bg-pink-500',
+  collectiveOrientation: 'bg-green-500',
 };
 
 // =============================================================================
@@ -84,7 +96,8 @@ const AxisSlider: React.FC<AxisSliderProps> = memo(
   ({ axisKey, value, onChange, minAllowed, maxAllowed, lockedByVote }) => {
     const descriptor = useMemo(() => AXIS_DESCRIPTORS.find((d) => d.key === axisKey)!, [axisKey]);
     const Icon = AXIS_ICONS[axisKey];
-    const color = AXIS_COLORS[axisKey];
+    const textClass = AXIS_TEXT_CLASSES[axisKey];
+    const dotClass = AXIS_DOT_CLASSES[axisKey];
 
     const handleChange = useCallback(
       (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -107,7 +120,7 @@ const AxisSlider: React.FC<AxisSliderProps> = memo(
       <div className="group">
         <div className="flex items-center justify-between mb-1">
           <div className="flex items-center gap-1.5">
-            <Icon className={`w-3 h-3 text-${color}-400`} />
+            <Icon className={`w-3 h-3 ${textClass}`} />
             <span className="text-[10px] font-medium text-slate-300">{descriptor.shortLabel}</span>
             {lockedByVote && (
               <span title="Locked by vote">
@@ -117,7 +130,7 @@ const AxisSlider: React.FC<AxisSliderProps> = memo(
           </div>
           <div className="flex items-center gap-1">
             <span className="text-[9px] text-slate-500">{modeLabel}</span>
-            <span className={`text-[10px] font-mono text-${color}-400`}>{value}%</span>
+            <span className={`text-[10px] font-mono ${textClass}`}>{value}%</span>
           </div>
         </div>
 
@@ -151,7 +164,7 @@ const AxisSlider: React.FC<AxisSliderProps> = memo(
           </span>
           {/* Value indicator */}
           <div
-            className={`absolute -top-1 w-3 h-3 rounded-full bg-${color}-500 border-2 border-slate-900 pointer-events-none transition-all`}
+            className={`absolute -top-1 w-3 h-3 rounded-full ${dotClass} border-2 border-slate-900 pointer-events-none transition-all`}
             style={{ left: `calc(${value}% - 6px)` }}
             aria-hidden="true"
           />
@@ -159,8 +172,8 @@ const AxisSlider: React.FC<AxisSliderProps> = memo(
 
         {/* Low/High labels */}
         <div className="flex justify-between mt-0.5" aria-hidden="true">
-          <span className="text-[8px] text-slate-600">{descriptor.lowLabel}</span>
-          <span className="text-[8px] text-slate-600">{descriptor.highLabel}</span>
+          <span className="text-[8px] text-slate-400">{descriptor.lowLabel}</span>
+          <span className="text-[8px] text-slate-400">{descriptor.highLabel}</span>
         </div>
       </div>
     );
@@ -272,7 +285,7 @@ export const FiveAxesPanel: React.FC = () => {
       <div className="p-3 border-b border-slate-700/50">
         <div className="flex items-center gap-2">
           <Target className="w-4 h-4 text-cyan-400" />
-          <span className="text-sm font-bold text-white">Bilateral Autonomy</span>
+          <span className="text-sm font-bold text-white">Bilateral Alignment (BAMS)</span>
           <span
             className={`ml-auto text-[10px] font-bold px-2 py-0.5 rounded ${MODE_COLORS[mode]}`}
           >
@@ -415,10 +428,10 @@ export const FiveAxesPanel: React.FC = () => {
                   <div key={desc.key} className="bg-slate-800/30 rounded p-2">
                     <div className="flex items-center gap-1 mb-1">
                       {React.createElement(AXIS_ICONS[desc.key], {
-                        className: `w-3 h-3 text-${desc.color}-400`,
+                        className: `w-3 h-3 ${AXIS_TEXT_CLASSES[desc.key]}`,
                       })}
                       <span className="text-[10px] font-medium text-white">{desc.label}</span>
-                      <span className={`ml-auto text-[10px] text-${desc.color}-400`}>
+                      <span className={`ml-auto text-[10px] ${AXIS_TEXT_CLASSES[desc.key]}`}>
                         {axes[desc.key]}%
                       </span>
                     </div>

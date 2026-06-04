@@ -94,7 +94,16 @@ export class SignalingService {
         this.peer.on('disconnected', () => {
           if (this.isDestroyed) return;
           logger.multiplayer.warn('Disconnected from PeerJS server, attempting reconnect...');
-          // PeerJS will auto-reconnect
+          // PeerJS does NOT auto-reconnect a server-disconnected peer; reconnect()
+          // must be called explicitly. Existing P2P data connections survive a
+          // signaling-server drop, but new connections are blocked until the
+          // signaling channel is restored. A disconnected (not destroyed) peer is
+          // the only valid target for reconnect().
+          try {
+            this.peer?.reconnect();
+          } catch (err) {
+            logger.multiplayer.error('PeerJS reconnect attempt failed:', err);
+          }
         });
 
         // Set a timeout for initial connection

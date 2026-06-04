@@ -104,40 +104,46 @@ export function encodeStateSnapshot(state: StateSnapshot): string {
     parts.push(`[LOCK:${lockSymbols}]`);
   }
 
-  // Wellbeing
-  const trendSymbol = {
-    improving: '\u2191', // ↑
-    stable: '\u2192', // →
-    declining: '\u2193', // ↓
-  }[state.wellbeing.flourishingTrend];
+  // Wellbeing (guard: decodeStateSnapshot / partial interop state may omit this layer)
+  if (state.wellbeing) {
+    const trendSymbol = {
+      improving: '\u2191', // ↑
+      stable: '\u2192', // →
+      declining: '\u2193', // ↓
+    }[state.wellbeing.flourishingTrend];
 
-  const concernDim = state.wellbeing.concernDimension
-    ? state.wellbeing.concernDimension[0].toUpperCase()
-    : '';
+    const concernDim = state.wellbeing.concernDimension
+      ? state.wellbeing.concernDimension[0].toUpperCase()
+      : '';
 
-  parts.push(
-    `[WELL:F${state.wellbeing.flourishingScore.toFixed(0)}${trendSymbol}` +
-      `${concernDim ? '|' + concernDim : ''}]`
-  );
+    parts.push(
+      `[WELL:F${state.wellbeing.flourishingScore.toFixed(0)}${trendSymbol}` +
+        `${concernDim ? '|' + concernDim : ''}]`
+    );
+  }
 
-  // Stability
-  const phaseSymbol = {
-    stable: '\u2713', // ✓
-    approaching: '\u223C', // ∼
-    critical: '!',
-    unstable: '\u2717', // ✗
-  }[state.stability.phase];
+  // Stability (guard: decodeStateSnapshot / partial interop state may omit this layer)
+  if (state.stability) {
+    const phaseSymbol = {
+      stable: '\u2713', // ✓
+      approaching: '\u223C', // ∼
+      critical: '!',
+      unstable: '\u2717', // ✗
+    }[state.stability.phase];
 
-  parts.push(`[STAB:${phaseSymbol}${state.stability.product.toFixed(2)}]`);
+    parts.push(`[STAB:${phaseSymbol}${state.stability.product.toFixed(2)}]`);
+  }
 
-  // Engagement
-  const flowSymbol = {
-    flow: '\uD83C\uDF0A', // 🌊
-    partial: '\uD83D\uDCA7', // 💧
-    none: '\uD83C\uDFDC', // 🏜
-  }[state.engagement.flowState];
+  // Engagement (guard: decodeStateSnapshot / partial interop state may omit this layer)
+  if (state.engagement) {
+    const flowSymbol = {
+      flow: '\uD83C\uDF0A', // 🌊
+      partial: '\uD83D\uDCA7', // 💧
+      none: '\uD83C\uDFDC', // 🏜
+    }[state.engagement.flowState];
 
-  parts.push(`[ENG:${state.engagement.score.toFixed(0)}${flowSymbol}]`);
+    parts.push(`[ENG:${state.engagement.score.toFixed(0)}${flowSymbol}]`);
+  }
 
   return parts.join('');
 }

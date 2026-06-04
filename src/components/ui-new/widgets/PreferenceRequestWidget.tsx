@@ -113,10 +113,11 @@ export const PreferenceRequestWidget: React.FC = () => {
             </button>
             <button
               onClick={() => handleDeny(false)}
-              className="flex items-center justify-center gap-1 bg-red-600/50 hover:bg-red-600 text-white text-xs py-1.5 px-2 rounded font-medium transition-colors"
-              aria-label={`Dismiss request`}
+              className="flex items-center justify-center gap-1.5 bg-red-600/50 hover:bg-red-600 text-white text-xs py-1.5 px-2 rounded font-medium transition-colors"
+              aria-label={`Dismiss request (erodes trust)`}
             >
               <XCircle className="w-3.5 h-3.5" />
+              Dismiss
             </button>
           </div>
 

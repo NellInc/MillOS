@@ -448,6 +448,8 @@ const Timeline: React.FC<TimelineProps> = ({ scenario, currentTime, triggeredEve
           return (
             <div
               key={index}
+              role="img"
+              aria-label={event.description}
               className={`absolute top-0 bottom-0 w-1 ${eventColor} ${
                 isTriggered ? 'opacity-100' : 'opacity-40'
               }`}

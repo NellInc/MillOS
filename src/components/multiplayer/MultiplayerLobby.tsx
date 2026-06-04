@@ -39,6 +39,7 @@ export const MultiplayerLobby: React.FC = () => {
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [confirmingLeave, setConfirmingLeave] = useState(false);
 
   const connectionState = useMultiplayerStore((s) => s.connectionState);
   const roomCode = useMultiplayerStore((s) => s.roomCode);
@@ -119,11 +120,37 @@ export const MultiplayerLobby: React.FC = () => {
   }, [playerName, joinCode, setLocalPlayerName]);
 
   const handleLeaveRoom = useCallback(() => {
+    // Destructive action: require a second tap to confirm before tearing down the
+    // session. As host this ends the room for every guest, so guard against
+    // accidental clicks.
+    if (!confirmingLeave) {
+      setConfirmingLeave(true);
+      return;
+    }
     const manager = getMultiplayerManager();
     manager.leave();
     destroyMultiplayerManager();
+    setConfirmingLeave(false);
     setError(null);
+  }, [confirmingLeave]);
+
+  const handleCancelLeave = useCallback(() => {
+    setConfirmingLeave(false);
   }, []);
+
+  // Auto-disarm the leave confirmation so it does not stay armed indefinitely.
+  useEffect(() => {
+    if (!confirmingLeave) return;
+    const timer = setTimeout(() => setConfirmingLeave(false), 4000);
+    return () => clearTimeout(timer);
+  }, [confirmingLeave]);
+
+  // Reset the confirm state whenever the session ends (e.g. host disconnect).
+  useEffect(() => {
+    if (!isActive && confirmingLeave) {
+      setConfirmingLeave(false);
+    }
+  }, [isActive, confirmingLeave]);
 
   const handleCopyCode = useCallback(() => {
     if (roomCode) {
@@ -346,14 +373,42 @@ export const MultiplayerLobby: React.FC = () => {
                   </div>
                 )}
 
-                {/* Leave button */}
-                <button
-                  onClick={handleLeaveRoom}
-                  className="w-full flex items-center justify-center gap-2 bg-red-600/20 hover:bg-red-600/30 text-red-400 text-xs font-medium py-2 px-3 rounded transition-colors"
-                >
-                  <LogOut className="w-4 h-4" />
-                  Leave Room
-                </button>
+                {/* Leave button - requires confirmation to avoid accidental teardown */}
+                {confirmingLeave ? (
+                  <div className="space-y-2">
+                    <p
+                      role="alert"
+                      className="text-[10px] text-red-300 text-center leading-relaxed"
+                    >
+                      {isHost
+                        ? 'Leaving ends the session for everyone. Are you sure?'
+                        : 'Leave this room? Are you sure?'}
+                    </p>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handleCancelLeave}
+                        className="flex-1 flex items-center justify-center gap-2 bg-slate-700/50 hover:bg-slate-700/70 text-slate-300 text-xs font-medium py-2 px-3 rounded transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleLeaveRoom}
+                        className="flex-1 flex items-center justify-center gap-2 bg-red-600 hover:bg-red-500 text-white text-xs font-medium py-2 px-3 rounded transition-colors"
+                      >
+                        <LogOut className="w-4 h-4" />
+                        Confirm Leave
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={handleLeaveRoom}
+                    className="w-full flex items-center justify-center gap-2 bg-red-600/20 hover:bg-red-600/30 text-red-400 text-xs font-medium py-2 px-3 rounded transition-colors"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    Leave Room
+                  </button>
+                )}
               </div>
             )}
           </motion.div>

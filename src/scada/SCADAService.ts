@@ -57,6 +57,12 @@ export class SCADAService {
   // In-memory cache of current values
   private currentValues: Map<string, TagValue> = new Map();
 
+  // Tracks alarmIds already archived to history while in a cleared/archived
+  // state, so a persistent RTN_UNACK alarm is not re-written on every notify.
+  // Ids are pruned when the alarm leaves the active set or re-arms, allowing a
+  // recurring alarm (same deterministic id) to be archived again on its next clear.
+  private archivedAlarmIds: Set<string> = new Set();
+
   // Subscribers
   private valueListeners: Set<ValueUpdateCallback> = new Set();
   private alarmListeners: Set<AlarmUpdateCallback> = new Set();
@@ -157,6 +163,7 @@ export class SCADAService {
 
     await this.historyStore.close();
     this.currentValues.clear();
+    this.archivedAlarmIds.clear();
   }
 
   /**
@@ -308,10 +315,33 @@ export class SCADAService {
   }
 
   private handleAlarmUpdates(alarms: Alarm[]): void {
-    // Archive closed alarms to history
+    // Archive closed alarms to history exactly once per cleared/archived
+    // transition. handleAlarmUpdates fires on every raise/clear/ack of any tag,
+    // so a persistent RTN_UNACK alarm (clearedAt set, awaiting operator ack)
+    // would otherwise be re-written on every notify, accumulating duplicate
+    // IndexedDB rows. Track which ids have been archived; prune ids that re-arm
+    // so a recurring alarm (same deterministic id) is archived again next clear.
+    const activeIds = new Set<string>();
     alarms.forEach((alarm) => {
-      if (alarm.state === 'NORMAL' || alarm.clearedAt) {
-        this.historyStore.writeAlarm(alarm);
+      activeIds.add(alarm.id);
+      const isCleared = alarm.state === 'NORMAL' || alarm.clearedAt !== undefined;
+      if (isCleared) {
+        if (!this.archivedAlarmIds.has(alarm.id)) {
+          this.historyStore.writeAlarm(alarm);
+          this.archivedAlarmIds.add(alarm.id);
+        }
+      } else {
+        // Alarm is active again (re-armed without leaving the list) - allow a
+        // future clear of the same id to be archived.
+        this.archivedAlarmIds.delete(alarm.id);
+      }
+    });
+
+    // Forget ids no longer present in the active set (e.g. acknowledged and
+    // deleted), so a later recurrence of the same tag+type is archived again.
+    this.archivedAlarmIds.forEach((id) => {
+      if (!activeIds.has(id)) {
+        this.archivedAlarmIds.delete(id);
       }
     });
 

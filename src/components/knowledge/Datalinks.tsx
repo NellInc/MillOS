@@ -214,7 +214,7 @@ export function Datalinks({ isOpen, onClose }: DatalinksProps) {
                   >
                     DATALINKS
                   </h2>
-                  <p className="text-[10px] text-slate-500 uppercase tracking-widest">
+                  <p className="text-[10px] text-slate-300 uppercase tracking-widest">
                     Bilateral Alignment Management System Database
                   </p>
                 </div>
@@ -410,7 +410,7 @@ export function Datalinks({ isOpen, onClose }: DatalinksProps) {
                       Access the accumulated wisdom of bilateral alignment, servant leadership,
                       economic democracy, and the pioneers who shaped these ideas.
                     </p>
-                    <p className="text-xs text-slate-600 mt-6 uppercase tracking-wider">
+                    <p className="text-xs text-slate-400 mt-6 uppercase tracking-wider">
                       Select an entry to begin
                     </p>
                   </div>

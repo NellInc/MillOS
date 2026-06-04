@@ -134,6 +134,8 @@ export const MultiObjectiveDashboard: React.FC = () => {
 
   return (
     <motion.div
+      role="region"
+      aria-label="Multi-objective dashboard"
       initial={{ opacity: 0, x: -20 }}
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: -20 }}
@@ -148,6 +150,9 @@ export const MultiObjectiveDashboard: React.FC = () => {
           <span className="text-sm font-medium text-white">Multi-Objective</span>
         </div>
         <div
+          role="status"
+          aria-live="polite"
+          aria-label={`Overall objective score ${overallScore} percent`}
           className={`px-2 py-0.5 rounded-full text-xs font-bold ${
             overallScore >= 80
               ? 'bg-green-500/20 text-green-400'
@@ -205,6 +210,7 @@ export const MultiObjectiveDashboard: React.FC = () => {
       {/* Trade-off Indicator */}
       <div className="px-3 pb-3">
         <div
+          aria-live="polite"
           className={`p-2 rounded-lg text-[10px] ${
             overallScore >= 80
               ? 'bg-green-500/10 text-green-300 border border-green-500/20'

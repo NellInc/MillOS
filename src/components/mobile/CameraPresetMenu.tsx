@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { Camera, X, Eye, Factory, Wheat, Filter, Package, Truck, Warehouse } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useCameraStore, CAMERA_PRESETS } from '../CameraController';
@@ -43,19 +43,42 @@ export const CameraPresetMenu: React.FC = () => {
     [setPreset]
   );
 
+  // Dismiss on Escape (keyboard/desktop completeness)
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen]);
+
   return (
     <div
-      className="pointer-events-auto"
+      className="pointer-events-auto relative z-10"
       style={{
         marginTop: 'max(8px, env(safe-area-inset-top))',
         marginRight: 'max(8px, env(safe-area-inset-right))',
       }}
     >
+      {/* Outside-tap backdrop: dismisses the menu when tapping elsewhere.
+          Sits below the button/menu (z-0) so it catches taps outside only. */}
+      {isOpen && (
+        <div
+          className="fixed inset-0 z-0 pointer-events-auto"
+          onClick={() => setIsOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
       {/* Main camera button */}
       <button
         type="button"
         onClick={handleToggle}
         className={`
+          relative z-10
           w-11 h-11 rounded-full
           flex items-center justify-center
           transition-all duration-200
@@ -86,7 +109,7 @@ export const CameraPresetMenu: React.FC = () => {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.8, y: -10 }}
             transition={{ duration: 0.15 }}
-            className="absolute right-0 top-14 bg-slate-900/95 backdrop-blur-xl rounded-xl border border-slate-700/50 shadow-2xl overflow-hidden min-w-[140px]"
+            className="absolute right-0 top-14 z-10 bg-slate-900/95 backdrop-blur-xl rounded-xl border border-slate-700/50 shadow-2xl overflow-hidden min-w-[140px]"
           >
             {/* Header */}
             <div className="px-3 py-2 border-b border-slate-700/50">

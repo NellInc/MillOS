@@ -240,22 +240,22 @@ export const FederationPanel: React.FC = () => {
           <div className="bg-slate-800/50 rounded p-1.5 text-center">
             <Building2 className="w-3 h-3 mx-auto mb-0.5 text-violet-400" />
             <div className="text-[10px] font-bold text-white">{federation.memberUnits.length}</div>
-            <div className="text-[7px] text-slate-500">Members</div>
+            <div className="text-[7px] text-slate-400">Members</div>
           </div>
           <div className="bg-slate-800/50 rounded p-1.5 text-center">
             <Lightbulb className="w-3 h-3 mx-auto mb-0.5 text-amber-400" />
             <div className="text-[10px] font-bold text-white">{availableLearnings.length}</div>
-            <div className="text-[7px] text-slate-500">Learnings</div>
+            <div className="text-[7px] text-slate-400">Learnings</div>
           </div>
           <div className="bg-slate-800/50 rounded p-1.5 text-center">
             <Check className="w-3 h-3 mx-auto mb-0.5 text-green-400" />
             <div className="text-[10px] font-bold text-white">{adoptedCount}</div>
-            <div className="text-[7px] text-slate-500">Adopted</div>
+            <div className="text-[7px] text-slate-400">Adopted</div>
           </div>
           <div className="bg-slate-800/50 rounded p-1.5 text-center">
             <ArrowLeftRight className="w-3 h-3 mx-auto mb-0.5 text-cyan-400" />
             <div className="text-[10px] font-bold text-white">{activeExchanges.length}</div>
-            <div className="text-[7px] text-slate-500">Exchanges</div>
+            <div className="text-[7px] text-slate-400">Exchanges</div>
           </div>
         </div>
       </div>
@@ -284,7 +284,7 @@ export const FederationPanel: React.FC = () => {
                 key={learning.id}
                 learning={learning}
                 onAdopt={() => adoptLearning(learning.id)}
-                onReject={() => rejectLearning(learning.id, 'Not applicable')}
+                onReject={() => rejectLearning(learning.id, 'no reason given')}
               />
             ))}
           </div>

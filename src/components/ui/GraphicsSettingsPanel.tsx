@@ -610,14 +610,22 @@ export const GraphicsSettingsPanel: React.FC = () => {
               </div>
               <div className="flex gap-2">
                 <button
-                  onClick={clearPersistedState}
+                  onClick={() => {
+                    if (
+                      !window.confirm(
+                        "Restart the day? This clears today's progress and resets the clock to 10:00."
+                      )
+                    )
+                      return;
+                    clearPersistedState();
+                  }}
                   className={`flex-1 py-1.5 rounded text-[10px] font-medium transition-all flex items-center justify-center gap-1 ${
                     theme === 'light'
                       ? 'bg-amber-100 text-amber-700 hover:bg-amber-200'
                       : 'bg-amber-900/50 text-amber-300 hover:bg-amber-800/50'
                   }`}
                 >
-                  Reset to 10:00
+                  Restart Day
                 </button>
                 <button
                   onClick={() => {

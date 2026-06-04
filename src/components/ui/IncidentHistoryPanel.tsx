@@ -6,9 +6,19 @@ import { useUIStore } from '../../stores/uiStore';
 
 export const IncidentHistoryPanel: React.FC = () => {
   const [expanded, setExpanded] = useState(false);
+  const [confirmingClear, setConfirmingClear] = useState(false);
   const safetyIncidents = useSafetyStore((state) => state.safetyIncidents);
   const clearSafetyIncidents = useSafetyStore((state) => state.clearSafetyIncidents);
   const theme = useUIStore((state) => state.theme);
+
+  const handleClearClick = () => {
+    if (confirmingClear) {
+      clearSafetyIncidents();
+      setConfirmingClear(false);
+    } else {
+      setConfirmingClear(true);
+    }
+  };
 
   const formatTime = (timestamp: number) => {
     const date = new Date(timestamp);
@@ -104,18 +114,42 @@ export const IncidentHistoryPanel: React.FC = () => {
                     </div>
                   ))}
                 </div>
-                {safetyIncidents.length > 0 && (
-                  <button
-                    onClick={clearSafetyIncidents}
-                    className={`w-full text-[10px] transition-colors py-1 ${
-                      theme === 'light'
-                        ? 'text-slate-400 hover:text-red-500'
-                        : 'text-slate-500 hover:text-red-400'
-                    }`}
-                  >
-                    Clear history
-                  </button>
-                )}
+                {safetyIncidents.length > 0 &&
+                  (confirmingClear ? (
+                    <div className="flex items-center gap-2 pt-1">
+                      <button
+                        onClick={handleClearClick}
+                        className={`flex-1 text-[10px] font-medium transition-colors py-1 rounded ${
+                          theme === 'light'
+                            ? 'text-red-600 bg-red-100 hover:bg-red-200'
+                            : 'text-red-400 bg-red-500/20 hover:bg-red-500/30'
+                        }`}
+                      >
+                        Confirm clear?
+                      </button>
+                      <button
+                        onClick={() => setConfirmingClear(false)}
+                        className={`flex-1 text-[10px] transition-colors py-1 rounded ${
+                          theme === 'light'
+                            ? 'text-slate-600 bg-slate-100 hover:bg-slate-200'
+                            : 'text-slate-300 bg-slate-500/20 hover:bg-slate-500/30'
+                        }`}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={handleClearClick}
+                      className={`w-full text-[10px] transition-colors py-1 ${
+                        theme === 'light'
+                          ? 'text-slate-400 hover:text-red-500'
+                          : 'text-slate-500 hover:text-red-400'
+                      }`}
+                    >
+                      Clear history
+                    </button>
+                  ))}
               </>
             )}
           </motion.div>

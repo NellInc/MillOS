@@ -46,6 +46,7 @@ export class WebSocketAdapter implements IProtocolAdapter {
   private values: Map<string, TagValue> = new Map();
   private subscribers: Map<string, Set<(values: TagValue[]) => void>> = new Map();
   private globalSubscribers: Set<(values: TagValue[]) => void> = new Set();
+  private connectionListeners: Set<(status: ConnectionStatus) => void> = new Set();
   private ws: WebSocket | null = null;
   private connected = false;
   private connectTime = 0;
@@ -117,6 +118,10 @@ export class WebSocketAdapter implements IProtocolAdapter {
             tagIds: Array.from(this.tags.keys()),
           });
 
+          // Notify connection-state listeners that the link is up so a
+          // consumer that previously saw it go down can recover.
+          this.notifyConnectionChange();
+
           resolve();
         };
 
@@ -164,6 +169,7 @@ export class WebSocketAdapter implements IProtocolAdapter {
     // Clear subscribers to prevent memory leaks across reconnects
     this.subscribers.clear();
     this.globalSubscribers.clear();
+    this.connectionListeners.clear();
   }
 
   isConnected(): boolean {
@@ -253,6 +259,19 @@ export class WebSocketAdapter implements IProtocolAdapter {
       tagIds.forEach((id) => {
         this.subscribers.get(id)?.delete(callback);
       });
+    };
+  }
+
+  /**
+   * Subscribe to connection-state transitions (connect success, disconnect,
+   * and reconnection abandoned after max attempts). The value-subscriber path
+   * (subscribe) only fires on tag updates, so a data-only consumer would never
+   * learn the link is permanently down; this channel surfaces that.
+   */
+  onConnectionChange(callback: (status: ConnectionStatus) => void): () => void {
+    this.connectionListeners.add(callback);
+    return () => {
+      this.connectionListeners.delete(callback);
     };
   }
 
@@ -387,6 +406,7 @@ export class WebSocketAdapter implements IProtocolAdapter {
 
     // Don't attempt reconnection if this was a deliberate disconnect
     if (this.isDisconnecting) {
+      this.notifyConnectionChange();
       return;
     }
 
@@ -401,7 +421,16 @@ export class WebSocketAdapter implements IProtocolAdapter {
           // Reconnect failed - will be retried
         });
       }, delay + jitter);
+    } else {
+      // Reconnection abandoned after the max attempts. Record a terminal error
+      // so getConnectionStatus reflects it, then push the state to listeners so
+      // a data-only consumer learns the feed is permanently dead instead of
+      // silently showing stale values forever.
+      this.lastError = 'WebSocket reconnection abandoned after maximum attempts';
     }
+
+    // Surface the connection-state transition to listeners.
+    this.notifyConnectionChange();
   }
 
   private stopReconnect(): void {
@@ -474,5 +503,27 @@ export class WebSocketAdapter implements IProtocolAdapter {
         }
       });
     }
+  }
+
+  private notifyConnectionChange(): void {
+    if (this.connectionListeners.size === 0) {
+      return;
+    }
+    const status = this.getConnectionStatus();
+    // Iterate a copy with error isolation so one faulty listener cannot block
+    // the others or break the disconnect/connect flow.
+    const listenersCopy = [...this.connectionListeners];
+    listenersCopy.forEach((listener) => {
+      try {
+        listener(status);
+      } catch {
+        // Remove faulty listener to prevent repeated errors
+        try {
+          this.connectionListeners.delete(listener);
+        } catch {
+          // Ignore cleanup errors
+        }
+      }
+    });
   }
 }

@@ -57,7 +57,6 @@ export const CostEstimationOverlay: React.FC = () => {
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -20 }}
         drag
         dragMomentum={false}
         dragElastic={0.1}
@@ -97,7 +96,7 @@ export const CostEstimationOverlay: React.FC = () => {
         <div className="p-3">
           <div className="text-center mb-3">
             <div className="text-3xl font-bold text-cyan-400">{formatCost(sessionCost)}</div>
-            <div className="text-[10px] text-slate-500 mt-0.5">
+            <div className="text-[10px] text-slate-400 mt-0.5">
               Session Total ({displayDuration})
             </div>
           </div>
@@ -149,7 +148,7 @@ export const CostEstimationOverlay: React.FC = () => {
 
         {/* Pricing Note */}
         <div className="px-3 pb-2">
-          <div className="text-[9px] text-slate-600 text-center">
+          <div className="text-[9px] text-slate-400 text-center">
             Flash: $0.075/1M in • $0.30/1M out
           </div>
         </div>

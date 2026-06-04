@@ -44,6 +44,37 @@ export const StatusHUD: React.FC = () => {
     [position]
   );
 
+  // Handle keyboard repositioning on grip (WCAG 2.1.1 - keyboard operable)
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    const NUDGE = e.shiftKey ? 20 : 4;
+    let dx = 0;
+    let dy = 0;
+    switch (e.key) {
+      case 'ArrowLeft':
+        dx = -NUDGE;
+        break;
+      case 'ArrowRight':
+        dx = NUDGE;
+        break;
+      case 'ArrowUp':
+        dy = -NUDGE;
+        break;
+      case 'ArrowDown':
+        dy = NUDGE;
+        break;
+      default:
+        return;
+    }
+    e.preventDefault();
+    const rect = hudRef.current?.getBoundingClientRect();
+    const maxX = window.innerWidth - (rect?.width ?? 200) - 16;
+    const maxY = window.innerHeight - (rect?.height ?? 50) - 16;
+    setPosition((prev) => ({
+      x: Math.max(16, Math.min(maxX, prev.x + dx)),
+      y: Math.max(16, Math.min(maxY, prev.y + dy)),
+    }));
+  }, []);
+
   // Handle mouse move while dragging
   useEffect(() => {
     if (!isDragging) return;
@@ -119,9 +150,10 @@ export const StatusHUD: React.FC = () => {
         {/* Drag Handle */}
         <div
           onMouseDown={handleMouseDown}
+          onKeyDown={handleKeyDown}
           className="px-2 py-1.5 cursor-grab hover:bg-white/10 transition-colors flex items-center border-r border-white/10"
           role="button"
-          aria-label="Drag to reposition status bar"
+          aria-label="Reposition status bar. Drag with the mouse, or use the arrow keys to move it; hold Shift for larger steps."
           tabIndex={0}
         >
           <GripVertical className="w-3 h-3 text-slate-500" aria-hidden="true" />
