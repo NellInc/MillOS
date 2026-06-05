@@ -5,7 +5,7 @@
  * Creates HUD-style information display above machines.
  */
 import React, { useMemo } from 'react';
-import { Text } from '@react-three/drei';
+import { SceneText as Text } from '../shared/SceneText';
 import * as THREE from 'three';
 import { PALETTE, getStatusColor } from '../../utils/digitalTwinPalette';
 

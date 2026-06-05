@@ -1,6 +1,7 @@
 import React, { useRef, useMemo, useState, useEffect, useCallback } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Text, Line } from '@react-three/drei';
+import { Line } from '@react-three/drei';
+import { SceneText as Text } from './shared/SceneText';
 import { positionRegistry, EntityPosition } from '../utils/positionRegistry';
 import { audioManager } from '../utils/audioManager';
 import { useSafetyStore } from '../stores/safetyStore';

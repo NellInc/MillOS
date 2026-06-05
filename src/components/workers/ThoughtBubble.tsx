@@ -8,7 +8,8 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { Text, Billboard } from '@react-three/drei';
+import { Billboard } from '@react-three/drei';
+import { SceneText as Text } from '../shared/SceneText';
 import { useWorkerPersonalityStore } from '../../stores/workerPersonalityStore';
 
 interface ThoughtBubbleProps {

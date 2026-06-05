@@ -6,7 +6,8 @@
  */
 
 import React, { useMemo } from 'react';
-import { Text, Billboard } from '@react-three/drei';
+import { Billboard } from '@react-three/drei';
+import { SceneText as Text } from './shared/SceneText';
 import { useAIConfigStore } from '../stores/aiConfigStore';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';

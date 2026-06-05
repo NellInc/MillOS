@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import React, { useRef, useMemo, useEffect } from 'react';
-import { Text } from '@react-three/drei';
+import { SceneText as Text } from './shared/SceneText';
 
 // ============================================================================
 // Module-level shared geometries (singleton instances)

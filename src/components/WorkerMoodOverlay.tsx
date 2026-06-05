@@ -7,7 +7,8 @@
 
 import React, { useRef, useMemo, createContext, useContext, useCallback, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Html, Billboard, Text } from '@react-three/drei';
+import { Html, Billboard } from '@react-three/drei';
+import { SceneText as Text } from './shared/SceneText';
 import * as THREE from 'three';
 import { useShallow } from 'zustand/react/shallow';
 import { useWorkerMoodStore } from '../stores/workerMoodStore';

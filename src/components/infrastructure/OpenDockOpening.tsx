@@ -1,5 +1,5 @@
 import React from 'react';
-import { Text } from '@react-three/drei';
+import { SceneText as Text } from '../shared/SceneText';
 import * as THREE from 'three';
 import { FLOOR_LAYERS, POLYGON_OFFSET } from '../../constants/renderLayers';
 

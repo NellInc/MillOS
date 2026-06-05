@@ -5,7 +5,8 @@
  */
 
 import React, { useMemo } from 'react';
-import { Billboard, Text } from '@react-three/drei';
+import { Billboard } from '@react-three/drei';
+import { SceneText as Text } from '../shared/SceneText';
 import { useMachineLockHolder, useMachineLockedByOther } from '../../multiplayer';
 import { useMultiplayerStore, useIsMultiplayerActive } from '../../stores/multiplayerStore';
 import { INDICATOR_HEIGHTS, POLYGON_OFFSET } from '../../constants/renderLayers';

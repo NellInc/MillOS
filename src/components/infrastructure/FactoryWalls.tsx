@@ -1,7 +1,8 @@
 import React, { useRef, useEffect, useMemo } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
-import { Text, Instances, Instance } from '@react-three/drei';
+import { Instances, Instance } from '@react-three/drei';
+import { SceneText as Text } from '../shared/SceneText';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { useSafetyStore } from '../../stores/safetyStore';
 import { useGraphicsStore } from '../../stores/graphicsStore';

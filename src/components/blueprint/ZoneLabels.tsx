@@ -6,7 +6,7 @@
  */
 import React, { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Text } from '@react-three/drei';
+import { SceneText as Text } from '../shared/SceneText';
 import * as THREE from 'three';
 import { PALETTE } from '../../utils/digitalTwinPalette';
 import { FACTORY_ZONE_Z } from '../../constants/factoryLayout';

@@ -10,7 +10,8 @@
 
 import React, { useRef, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Billboard, Text } from '@react-three/drei';
+import { Billboard } from '@react-three/drei';
+import { SceneText as Text } from '../shared/SceneText';
 import * as THREE from 'three';
 import { RemotePlayer } from '../../multiplayer/types';
 import { FLOOR_LAYERS, POLYGON_OFFSET, RENDER_ORDER } from '../../constants/renderLayers';

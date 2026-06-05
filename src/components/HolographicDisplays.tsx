@@ -1,6 +1,7 @@
 import React, { useRef, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Text, Billboard, RoundedBox } from '@react-three/drei';
+import { Billboard, RoundedBox } from '@react-three/drei';
+import { SceneText as Text } from './shared/SceneText';
 
 // NOTE: The "unsupported GPOS table" warnings in the console are expected and harmless.
 // They originate from the font parser in the underlying Troika library used by @react-three/drei's Text component.

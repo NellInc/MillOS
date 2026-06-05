@@ -1,6 +1,7 @@
 import React, { useRef, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Billboard, Text } from '@react-three/drei';
+import { Billboard } from '@react-three/drei';
+import { SceneText as Text } from '../shared/SceneText';
 import * as THREE from 'three';
 import { shouldRunThisFrame } from '../../utils/frameThrottle';
 

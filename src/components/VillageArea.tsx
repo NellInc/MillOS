@@ -1,6 +1,6 @@
 import React, { useRef, useEffect } from 'react';
 import type { ThreeEvent } from '@react-three/fiber';
-import { Text } from '@react-three/drei';
+import { SceneText as Text } from './shared/SceneText';
 import * as THREE from 'three';
 import { useShallow } from 'zustand/react/shallow';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';

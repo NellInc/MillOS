@@ -12,7 +12,8 @@
 
 import React, { useRef, useMemo, useState, useEffect, useCallback } from 'react';
 import * as THREE from 'three';
-import { Html, Billboard, Text } from '@react-three/drei';
+import { Html, Billboard } from '@react-three/drei';
+import { SceneText as Text } from './shared/SceneText';
 import { Briefcase, FlaskConical, HardHat, Shield, User, Wrench as WrenchIcon } from 'lucide-react';
 
 // Types
