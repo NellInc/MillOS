@@ -14,6 +14,32 @@ found in-tree + committed, then Phase A high-value fixes, a seeded 12-lane compl
 
 ---
 
+## Round 7 — SCADA render loop ROOT-CAUSED + FIXED + verified (the Round 6 "known follow-up")
+
+The intermittent "Maximum update depth" loop is fixed. It was **not** a SCADA bug at all — it was in
+`src/components/ui-new/GameInterface.tsx`.
+
+**Root cause:** the `I` and `O` keyboard shortcuts toggle `showAIPanel` and `showSCADAPanel`
+*independently* (useKeyboardShortcuts.ts:201/213 — no mutual exclusion), so pressing `I` then `O`
+makes **both true**. GameInterface had two effects, each keyed on `[<flag>, activeMode]`, that
+unconditionally forced `activeMode` to their own mode. With both flags true, effect A drove
+`activeMode -> 'ai'` and effect B -> `'scada'`, each re-firing the other through the `activeMode`
+dependency -> an infinite ping-pong. (The camera presets in my earlier repros were a red herring —
+just render jitter that widened the both-true window; the real trigger is `I`+`O`.)
+
+**Fix:** each effect now depends ONLY on its own flag and uses a functional `setActiveMode`, so it
+reacts to a flag *change* once instead of fighting over `activeMode`. No feedback between the two
+effects; the last-opened panel wins.
+
+**Verified (deterministic before/after):** a clean repro — open AI (`I`), then SCADA (`O`), leave both
+open for 18s — produced **43** "Maximum update depth" bursts before the fix and **0** after. Panels
+still open/switch correctly (AI via keyboard ✓ and dock ✓; SCADA last-wins ✓). Full gate green
+(typecheck/lint/prettier/1183 tests/build). Method note: the parallel diagnostic workflow's exhaustive
+audit ruled out the unstable-`useSyncExternalStore` snapshots (dead code) and pointed at the
+GameInterface panel-sync effects on the panel-cycling path; I verified the mechanism and fix directly.
+
+---
+
 ## Round 6 — "3D environment not loading" (root-caused + fixed; working tree only, NOT committed)
 
 **This was a real blocker, and the cause was Session B's font self-host (`ac93a5b`), not a GPU issue.**

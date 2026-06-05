@@ -87,24 +87,27 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
     }
   }, [selectedMachine, selectedWorker]);
 
-  // Sync keyboard shortcuts with activeMode (I key for AI, O key for SCADA, Escape to close)
+  // Sync keyboard-driven panel flags (I = AI, O = SCADA) into activeMode.
+  //
+  // Each effect depends ONLY on its own flag (NOT activeMode) and uses a
+  // functional setState, so it reacts to a flag *change* exactly once. The
+  // previous version keyed both effects on [..., activeMode] and unconditionally
+  // forced activeMode to its mode: when both showAIPanel and showSCADAPanel were
+  // true at once (the I and O keyboard toggles are independent, so pressing I
+  // then O sets both), effect A drove activeMode -> 'ai' and effect B -> 'scada',
+  // each re-firing the other through the activeMode dependency -> an infinite
+  // ping-pong that tripped React's "Maximum update depth exceeded". Reacting only
+  // to a flag's own transition makes the last-opened panel win, once, with no
+  // feedback between the two effects.
   useEffect(() => {
-    if (showAIPanel && activeMode !== 'ai') {
-      setActiveMode('ai');
-      setSidebarVisible(true);
-    } else if (showAIPanel === false && activeMode === 'ai') {
-      setActiveMode('overview');
-    }
-  }, [showAIPanel, activeMode]);
+    if (showAIPanel) setSidebarVisible(true);
+    setActiveMode((prev) => (showAIPanel ? 'ai' : prev === 'ai' ? 'overview' : prev));
+  }, [showAIPanel]);
 
   useEffect(() => {
-    if (showSCADAPanel && activeMode !== 'scada') {
-      setActiveMode('scada');
-      setSidebarVisible(true);
-    } else if (showSCADAPanel === false && activeMode === 'scada') {
-      setActiveMode('overview');
-    }
-  }, [showSCADAPanel, activeMode]);
+    if (showSCADAPanel) setSidebarVisible(true);
+    setActiveMode((prev) => (showSCADAPanel ? 'scada' : prev === 'scada' ? 'overview' : prev));
+  }, [showSCADAPanel]);
 
   // Listen for B key to toggle Management panel
   useEffect(() => {
