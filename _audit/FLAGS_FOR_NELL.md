@@ -14,6 +14,33 @@ found in-tree + committed, then Phase A high-value fixes, a seeded 12-lane compl
 
 ---
 
+## Round 3 — executed the recommendation brief you approved (committed, gated green)
+
+Build + 1200 tests + boot smoke green. Three commits:
+- **Deleted** CelebrationSystem (+ConfettiBurst), CrisisEventSystem (+CrisisEffects), MissionControl
+  (`e7f6e43`) — broken/redundant/overlapping per the per-component investigation.
+- **Removed the internal Asset Prototype Deck** from the production build + **deleted the orphaned
+  truckbay model cluster** (~1500 LOC) (`dda4fbd`).
+- **Self-hosted the 3D `<Text>` font** via a `SceneText` wrapper defaulting to a local
+  `Inter-Regular.otf` — removes the last unconditional third-party connection (jsDelivr glyph fetch)
+  (`ac93a5b`).
+
+**⚠️ Concurrent-edit collision — left for you (NOT committed by me):** while I worked you were editing
+the tree (RM-105/106 → 4 mills, central spine conveyor, dock-opening dims, crane position, worker
+spawns, pallet/shower placement). My font codemod's one-line `<Text>` import swap landed on **4 files
+you're mid-edit on** — `ConveyorSystem`, `MillScene`, `FactoryExterior`, `TruckBay` — so I did **not**
+commit them (I can't cleanly split my swap from your edits without interactive staging). They + your 5
+standalone edits (`AmbientDetails`, `SafetyEquipment`, `types.ts`, `InstancedPlansifters`,
+`ProductionFlowVisualization`) remain in your working tree. When you commit those 4, my import swaps
+ride along and the font self-host reaches 23/23.
+
+**Still yours:** the legal `[CONFIRM]` values (controller identity, liability cap, effective date,
+min-age); and removing `cdn.jsdelivr.net` from the CSP once you confirm 3D labels render in a real
+browser (kept for now as troika's safe fallback). The CelebrationSystem `achievementsStore` is kept as
+a foundation if you ever want a real achievements UI.
+
+---
+
 ## Round 2 — actioned from your "fix these" decisions (committed, gated green)
 
 You answered: canonical host = **www**, product name = **BAMS**, governing law = **England & Wales**,
