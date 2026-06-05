@@ -90,6 +90,11 @@ function safeLoadTexture(jpgPath: string): Texture | null {
     if (!pendingKtx2Loads.has(ktx2Path)) {
       const loadPromise = loadCompressedTexture(ktx2Path, jpgPath, `machine-${textureName}`)
         .then((tex) => {
+          // Dispose the immediate JPG fallback if it raced into the cache first,
+          // otherwise replacing the slot with the KTX2 texture leaks the JPG's
+          // GPU memory for the lifetime of the session.
+          const prev = textureCache.get(jpgPath);
+          if (prev && prev !== tex) prev.dispose();
           textureCache.set(jpgPath, tex);
           pendingKtx2Loads.delete(ktx2Path);
           return tex;

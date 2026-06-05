@@ -417,7 +417,10 @@ const EnvironmentAnimationManager: React.FC = () => {
     // 14. Update Weather Particles (30fps - throttled to every 2nd frame)
     if (weatherParticlesRegistry.size > 0 && shouldRunThisFrame(2)) {
       weatherParticlesRegistry.forEach((data) => {
-        if (data.quality === 'low' || data.quality === 'medium') return;
+        // Medium quality RENDERS weather particles (shouldRender gates only
+        // 'low', with medium-specific particle counts), so it must also
+        // ANIMATE them - excluding medium here left rain frozen in mid-air.
+        if (data.quality === 'low') return;
 
         const isRaining = data.weather === 'rain' || data.weather === 'storm';
         const isStorm = data.weather === 'storm';
@@ -1986,8 +1989,16 @@ const WeatherEffects: React.FC = () => {
     return pos;
   }, [splashCount]);
 
-  const splashVelocities = useRef<Float32Array>(new Float32Array(splashCount * 3));
-  const splashLife = useRef<Float32Array>(new Float32Array(splashCount));
+  // Allocate to the MAXIMUM splash count (50 on high/ultra), not the current
+  // one: these refs are created once on mount and never resized, but
+  // splashCount grows 20->50 when the user raises quality mid-session.
+  // Undersized buffers made the animation loop read undefined past index 19
+  // and write NaN into the splash position attribute (the
+  // computeBoundingSphere NaN class from CLAUDE.md). The loop is bounded by
+  // splashCount, so over-allocation is safe in both directions.
+  const SPLASH_MAX_COUNT = 50;
+  const splashVelocities = useRef<Float32Array>(new Float32Array(SPLASH_MAX_COUNT * 3));
+  const splashLife = useRef<Float32Array>(new Float32Array(SPLASH_MAX_COUNT));
 
   // Register weather particles with animation manager
   useEffect(() => {

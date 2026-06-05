@@ -363,6 +363,9 @@ const FenceSection = React.memo<{
   length?: number;
 }>(({ position, rotation = 0, length = 4 }) => {
   const railGeom = useMemo(() => new THREE.BoxGeometry(length, 0.08, 0.06), [length]);
+  // Dispose the per-instance rail geometry on unmount / length change
+  // (matches the Machines.tsx convention; previously leaked on remount).
+  useEffect(() => () => railGeom.dispose(), [railGeom]);
   return (
     <group position={position} rotation={[0, rotation, 0]}>
       <mesh position={[-length / 2, 0.5, 0]} castShadow>

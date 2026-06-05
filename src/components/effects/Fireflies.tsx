@@ -70,9 +70,11 @@ const Fireflies: React.FC<FirefliesProps> = ({ count = 50, bounds, color = '#ccf
     meshRef.current.instanceMatrix.needsUpdate = true;
   });
 
-  // If not night or low quality, don't render (unless we want static ones?)
-  // For charm, static is fine on low quality, but let's hide them to save Draw Calls.
-  if ((!isNight || quality === 'low') && !meshRef.current) return null;
+  // If not night or low quality, don't render. (The old `&& !meshRef.current`
+  // term latched the fireflies on after their first night: once the mesh had
+  // mounted, the guard never returned null again, so they stayed rendered -
+  // frozen and glowing - all day. React remounts cleanly next night.)
+  if (!isNight || quality === 'low') return null;
 
   return (
     <instancedMesh ref={meshRef} args={[undefined, undefined, count]} frustumCulled={false}>

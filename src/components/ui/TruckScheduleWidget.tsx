@@ -31,7 +31,10 @@ const DockRow: React.FC<DockRowProps> = ({ type, nextArrival, isDocked, status }
   // Status colors
   const getStatusColor = () => {
     if (isDocked) return 'text-red-400 bg-red-500/20';
-    if (status === 'arriving' || nextArrival < 15) return 'text-amber-400 bg-amber-500/20';
+    // nextArrival is in SECONDS (callers pass nextArrivalMinutes * 60), so the
+    // "arriving soon" window is 15 minutes = 900s. The bare `< 15` compared
+    // seconds against a minutes-era threshold and only fired in the last 15s.
+    if (status === 'arriving' || nextArrival < 15 * 60) return 'text-amber-400 bg-amber-500/20';
     return 'text-emerald-400 bg-emerald-500/20';
   };
 
@@ -73,7 +76,7 @@ const DockRow: React.FC<DockRowProps> = ({ type, nextArrival, isDocked, status }
         ) : (
           <div className="flex items-center gap-1 text-slate-400 min-w-[50px] justify-end">
             <Clock className="w-3 h-3" />
-            <span className={`text-sm font-mono ${nextArrival < 15 ? 'text-amber-400' : ''}`}>
+            <span className={`text-sm font-mono ${nextArrival < 15 * 60 ? 'text-amber-400' : ''}`}>
               {formatTime(nextArrival)}
             </span>
           </div>

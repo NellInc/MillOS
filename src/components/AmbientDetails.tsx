@@ -168,6 +168,9 @@ const Cobweb: React.FC<{
     return geo;
   }, [scale]);
 
+  // Dispose the per-instance cobweb geometry on unmount / scale change.
+  useEffect(() => () => geometry.dispose(), [geometry]);
+
   // Subtle swaying animation using centralized manager
   const animationId = useMemo(
     () => `cobweb-${position.join(',')}-${rotation.join(',')}`,
@@ -319,11 +322,16 @@ const OilPuddle: React.FC<{ position: [number, number, number]; size?: number }>
     return geo;
   }, [size]);
 
+  // Dispose the per-instance puddle geometry on unmount, and hoist the random
+  // rotation into a stable useMemo so it doesn't re-roll on every re-render.
+  useEffect(() => () => shape.dispose(), [shape]);
+  const rotZ = useMemo(() => Math.random() * Math.PI * 2, []);
+
   return (
     <mesh
       ref={meshRef}
       position={position}
-      rotation={[-Math.PI / 2, 0, Math.random() * Math.PI * 2]}
+      rotation={[-Math.PI / 2, 0, rotZ]}
       geometry={shape}
       renderOrder={RENDER_ORDER.floorEffects}
     >
@@ -395,11 +403,16 @@ const RainPuddle: React.FC<{ position: [number, number, number]; size?: number }
     return geo;
   }, [size]);
 
+  // Dispose the per-instance puddle geometry on unmount, and hoist the random
+  // rotation into a stable useMemo so it doesn't re-roll on every re-render.
+  useEffect(() => () => shape.dispose(), [shape]);
+  const rotZ = useMemo(() => Math.random() * Math.PI * 2, []);
+
   return (
     <mesh
       ref={meshRef}
       position={position}
-      rotation={[-Math.PI / 2, 0, Math.random() * Math.PI * 2]}
+      rotation={[-Math.PI / 2, 0, rotZ]}
       geometry={shape}
       renderOrder={RENDER_ORDER.floorEffects}
     >
@@ -1767,9 +1780,9 @@ const Mouse: React.FC<{ position: [number, number, number]; pathLength?: number 
   return (
     <group position={position}>
       <group ref={mouseRef} scale={0.5}>
-        {/* Body */}
-        <mesh>
-          <sphereGeometry args={[0.06, 8, 6]} scale={[1.5, 1, 1]} />
+        {/* Body - scale belongs on the mesh; R3F ignores `scale` on a geometry */}
+        <mesh scale={[1.5, 1, 1]}>
+          <sphereGeometry args={[0.06, 8, 6]} />
           <meshStandardMaterial color="#78716c" roughness={0.9} />
         </mesh>
 
@@ -3586,9 +3599,12 @@ const StuckGum: React.FC<{ position: [number, number, number]; color?: string }>
   position,
   color = '#f472b6',
 }) => {
+  // Stable per-instance radius (was re-rolled every render) and the squash
+  // scale moved onto the mesh (R3F ignores `scale` on a geometry).
+  const radius = useMemo(() => 0.015 + Math.random() * 0.01, []);
   return (
-    <mesh position={position}>
-      <sphereGeometry args={[0.015 + Math.random() * 0.01, 8, 6]} scale={[1, 0.4, 1]} />
+    <mesh position={position} scale={[1, 0.4, 1]}>
+      <sphereGeometry args={[radius, 8, 6]} />
       <meshStandardMaterial color={color} roughness={0.3} metalness={0.1} />
     </mesh>
   );
@@ -4411,10 +4427,13 @@ const MothSwarm: React.FC<{ position: [number, number, number]; count?: number }
       moth.position.z = Math.sin(angle) * data.radius + Math.cos(time * 5 + i) * data.erratic;
       // Face direction of travel
       moth.rotation.y = -angle + Math.PI / 2;
-      // Wing flap
+      // Wing flap - children are [body, leftWing, rightWing]. Flap the two
+      // wings (1 and 2) around their ±0.3 rest spread; the body (0) stays put.
+      // Previously this rotated the body and only one wing, leaving the right
+      // wing (child 2) frozen.
       const wingAngle = Math.sin(time * 30 + i * 5) * 0.8;
-      (moth.children[0] as THREE.Mesh).rotation.z = wingAngle;
-      (moth.children[1] as THREE.Mesh).rotation.z = -wingAngle;
+      (moth.children[1] as THREE.Mesh).rotation.z = 0.3 + wingAngle;
+      (moth.children[2] as THREE.Mesh).rotation.z = -0.3 - wingAngle;
     });
   });
 
@@ -4670,7 +4689,9 @@ export const AmbientDetailsGroup: React.FC = () => {
           ========================================== */}
 
       {/* Stacked pallets in corners and along walls */}
-      <StackedPallets position={[-52, 0, -35]} count={4} />
+      {/* Moved off [-52,0,-35] which sat inside the locker-room building (x[-54,-46] z[-38,-32]);
+          [-52,0,-27] is the clear west-wall gap between the locker room and break-room-left. */}
+      <StackedPallets position={[-52, 0, -27]} count={4} />
       <StackedPallets position={[52, 0, -35]} count={3} />
       <StackedPallets position={[-52, 0, 35]} count={5} />
       <StackedPallets position={[52, 0, 35]} count={2} />
@@ -4875,7 +4896,9 @@ export const AmbientDetailsGroup: React.FC = () => {
           ========================================== */}
 
       {/* Emergency shower stations */}
-      <EmergencyShower position={[-48, 0, -35]} />
+      {/* Moved off [-48,0,-35] which sat inside the locker-room building; [-44,0,-35] is just
+          outside the locker-room east wall (x=-46) so the shower is reachable, not buried. */}
+      <EmergencyShower position={[-44, 0, -35]} />
       <EmergencyShower position={[48, 0, 35]} />
 
       {/* Eye wash stations */}

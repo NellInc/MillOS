@@ -102,6 +102,9 @@ const PhaseIndicator: React.FC<PhaseIndicatorProps> = memo(({ phase, product, th
   const config = PHASE_CONFIG[phase] || PHASE_CONFIG.stable;
   const Icon = config.icon;
   const percentage = ((threshold - product) / threshold) * 100;
+  // Clamp to the meter range: when product exceeds threshold (unstable phase)
+  // the raw value goes negative and rendered "-N%" beside a 0-width bar.
+  const displayPct = Math.max(0, Math.min(100, percentage));
 
   return (
     <div className={`rounded-lg p-3 ${config.bgColor}`}>
@@ -112,7 +115,7 @@ const PhaseIndicator: React.FC<PhaseIndicatorProps> = memo(({ phase, product, th
           <ConceptTooltip conceptId="phase-transition" position="right" />
         </div>
         <span className={`text-lg font-mono font-bold ${config.color}`} aria-hidden="true">
-          {percentage.toFixed(0)}%
+          {displayPct.toFixed(0)}%
         </span>
       </div>
 
@@ -120,10 +123,10 @@ const PhaseIndicator: React.FC<PhaseIndicatorProps> = memo(({ phase, product, th
       <div
         role="meter"
         aria-label="System stability"
-        aria-valuenow={percentage}
+        aria-valuenow={displayPct}
         aria-valuemin={0}
         aria-valuemax={100}
-        aria-valuetext={`${percentage.toFixed(0)}% stability, phase: ${config.label}`}
+        aria-valuetext={`${displayPct.toFixed(0)}% stability, phase: ${config.label}`}
         className="relative h-2 bg-slate-700/50 rounded-full overflow-hidden"
       >
         {/* Warning zone marker */}

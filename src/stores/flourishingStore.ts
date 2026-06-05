@@ -548,6 +548,13 @@ export const useFlourishingStore = create<FlourishingState>()(
             const worker = newFlourishing[workerId];
             if (!worker) return;
 
+            // Fresh per-worker object: `newFlourishing` is only a SHALLOW copy
+            // of the record, so mutating `worker` in place left every
+            // per-worker reference unchanged and reference-based selectors
+            // (e.g. FlourishingIndicator's state.workerFlourishing[id]) never
+            // re-rendered on tick.
+            const updatedWorker = { ...worker };
+
             const dimensions: FlourishingDimensionKey[] = [
               'meaning',
               'mastery',
@@ -558,7 +565,7 @@ export const useFlourishingStore = create<FlourishingState>()(
             ];
 
             dimensions.forEach((dim) => {
-              const current = worker[dim].score;
+              const current = updatedWorker[dim].score;
               let drift = (neutralTarget - current) * driftRate;
 
               // Production speed stress effect on specific dimensions
@@ -571,14 +578,15 @@ export const useFlourishingStore = create<FlourishingState>()(
                 }
               }
 
-              worker[dim] = {
-                ...worker[dim],
+              updatedWorker[dim] = {
+                ...updatedWorker[dim],
                 score: Math.max(0, Math.min(100, current + drift)),
               };
             });
 
             // Recalculate composite score
-            worker.flourishingScore = calculateWorkerFlourishingScore(worker);
+            updatedWorker.flourishingScore = calculateWorkerFlourishingScore(updatedWorker);
+            newFlourishing[workerId] = updatedWorker;
           });
 
           // Update weekly baseline every 24 hours (simulated)

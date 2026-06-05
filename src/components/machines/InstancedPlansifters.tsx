@@ -294,14 +294,24 @@ export const InstancedPlansifters: React.FC<InstancedPlansiftersProps> = ({
       dummy.updateMatrix();
       bodyRef.current!.setMatrixAt(i, dummy.matrix);
 
-      // 2. Hanger Rods (4 per machine)
+      // 2. Suspension rods (4 per machine) - run from the sifter's ceiling frame UP to
+      //    the roof underside so the assembly reads as genuinely roof-mounted. Previously
+      //    these were short stubs ending at ~y17, leaving a ~15-unit gap to the roof which
+      //    made the suspended sifters look like they hung from nothing. Roof underside
+      //    ~y31.75 (FactoryRoof roofHeight=32, 0.5-thick slab).
       const hangerOffset = w * 0.4;
+      const roofUndersideY = 31.75;
+      const rodTopY = machine.position[1] + h / 2 + h * 0.65; // ceiling-frame top (~y17)
+      const rodLength = Math.max(0.1, roofUndersideY - rodTopY);
+      const rodCenterY = (rodTopY + roofUndersideY) / 2;
       [1, -1].forEach((hx, hi) => {
         [1, -1].forEach((hz, zi) => {
           const hangerIdx = i * 4 + (hi * 2 + zi);
-          dummy.position.set(x + hx * hangerOffset, y + h * 0.35, z + hz * hangerOffset);
-          dummy.scale.set(0.05, h * 0.6, 0.05);
-          dummy.rotation.set(rotX, 0, rotZ);
+          // Base follows the body's tiny lateral oscillation; the long rods keep vertical
+          // (top sway from the ~0.05-unit body offset is imperceptible at the roof).
+          dummy.position.set(x + hx * hangerOffset, rodCenterY, z + hz * hangerOffset);
+          dummy.scale.set(0.05, rodLength, 0.05);
+          dummy.rotation.set(0, 0, 0);
           dummy.updateMatrix();
           hangersRef.current!.setMatrixAt(hangerIdx, dummy.matrix);
         });

@@ -154,9 +154,17 @@ export const MultiplayerLobby: React.FC = () => {
 
   const handleCopyCode = useCallback(() => {
     if (roomCode) {
-      navigator.clipboard.writeText(roomCode);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      // navigator.clipboard is undefined in insecure (non-HTTPS/localhost)
+      // contexts; guard + catch so a copy attempt can't throw.
+      navigator.clipboard
+        ?.writeText(roomCode)
+        .then(() => {
+          setCopied(true);
+          setTimeout(() => setCopied(false), 2000);
+        })
+        .catch(() => {
+          /* clipboard unavailable - silently ignore */
+        });
     }
   }, [roomCode]);
 

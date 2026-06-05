@@ -27,8 +27,23 @@ export const getWorkerPortrait = (workerId: string): string | undefined => {
 };
 
 /**
- * Get the portrait path for a worker, with fallback to default avatar
+ * Neutral fallback avatar as an inline SVG data URI. Used instead of a file
+ * path so the fallback can NEVER 404 (there is no default_avatar.webp on disk,
+ * and an unknown worker id previously yielded a broken image).
+ */
+export const DEFAULT_AVATAR_DATA_URI =
+  'data:image/svg+xml;utf8,' +
+  encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">' +
+      '<rect width="128" height="128" fill="#334155"/>' +
+      '<circle cx="64" cy="48" r="24" fill="#94a3b8"/>' +
+      '<path d="M64 78c-26 0-42 16-42 38v12h84v-12c0-22-16-38-42-38z" fill="#94a3b8"/>' +
+      '</svg>'
+  );
+
+/**
+ * Get the portrait path for a worker, with fallback to a neutral default avatar
  */
 export const getWorkerPortraitOrDefault = (workerId: string): string => {
-  return WORKER_PORTRAITS[workerId] ?? '/assets/workers/default_avatar.webp';
+  return WORKER_PORTRAITS[workerId] ?? DEFAULT_AVATAR_DATA_URI;
 };

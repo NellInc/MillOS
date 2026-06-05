@@ -4,7 +4,7 @@
  * Floating holographic machine label with connecting line.
  * Creates HUD-style information display above machines.
  */
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { SceneText as Text } from '../shared/SceneText';
 import * as THREE from 'three';
 import { PALETTE, getStatusColor } from '../../utils/digitalTwinPalette';
@@ -53,6 +53,20 @@ export const HoloLabel: React.FC<HoloLabelProps> = ({
     () => new THREE.Line(lineGeometry, lineMaterial),
     [lineGeometry, lineMaterial]
   );
+
+  // Dispose GPU resources on unmount / recreation (a lineHeight change builds
+  // a new BufferGeometry; without this the old one leaked, and unmounting a
+  // per-machine label leaked both geometry and material).
+  useEffect(() => {
+    return () => {
+      lineGeometry.dispose();
+    };
+  }, [lineGeometry]);
+  useEffect(() => {
+    return () => {
+      lineMaterial.dispose();
+    };
+  }, [lineMaterial]);
 
   return (
     <group position={position}>

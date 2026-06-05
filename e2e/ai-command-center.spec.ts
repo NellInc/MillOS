@@ -1,157 +1,86 @@
 import { test, expect, Page } from '@playwright/test';
 
 /**
- * E2E tests for AICommandCenter metrics calculations.
+ * E2E tests for the AI Command Center, accessed through the live ui-new shell
+ * (GameInterface -> Dock -> ContextSidebar embeds <AICommandCenter embedded />).
  *
- * These tests cover scenarios that are difficult to unit test because they
- * depend on internal refs (decisionOutcomesRef) that track outcomes over time.
- * The component calculates CPU usage and success rate based on accumulated state
- * from the full application flow.
- *
- * Related unit tests (skipped): src/components/__tests__/AICommandCenter.test.tsx
- * - should calculate success rate from completed decisions
- * - should calculate CPU usage based on active work
- * - should update metrics periodically
+ * The legacy UIOverlay shell (and its ai-panel-toggle / ai-success-rate testids)
+ * was removed; the canonical surface is the bottom Dock's "AI Command" button.
+ * The embedded panel renders compact CPU / MEM / DEC metrics (integer percents),
+ * tagged with data-testids: ai-cpu-value, ai-memory-value, ai-decisions-count,
+ * and a container ai-command-center.
  */
 
-/**
- * Helper to open the AI Command Center panel.
- * The toggle button has different testids depending on sidebar state.
- */
-async function openAIPanel(page: Page) {
-  // Try expanded panel button first (visible when sidebar is expanded)
-  const expandedButton = page.getByTestId('ai-panel-toggle-expanded');
-  const collapsedButton = page.getByTestId('ai-panel-toggle');
-
-  if (await expandedButton.isVisible()) {
-    await expandedButton.click();
-  } else {
-    await collapsedButton.click();
+/** Dismiss the first-run "AI Reflection" onboarding modal if present. Its blur
+ *  backdrop intercepts pointer events, so the dock can't be clicked until closed. */
+async function dismissOnboarding(page: Page) {
+  const reflection = page.getByText('AI Reflection', { exact: false });
+  if (await reflection.isVisible().catch(() => false)) {
+    await page.keyboard.press('Escape');
+    // The modal close button is the icon button in its header.
+    await page
+      .getByRole('button', { name: /close/i })
+      .first()
+      .click({ timeout: 2000 })
+      .catch(() => {});
+    await page.waitForTimeout(500);
   }
+}
 
-  // Wait for panel to open
+/** Open the AI Command Center via the dock and wait for its metrics to mount. */
+async function openAIPanel(page: Page) {
+  await dismissOnboarding(page);
+  await page.getByRole('button', { name: 'AI Command' }).click();
+  await expect(page.getByTestId('ai-command-center')).toBeVisible({ timeout: 5000 });
   await expect(page.getByTestId('ai-cpu-value')).toBeVisible({ timeout: 5000 });
 }
 
-test.describe('AICommandCenter Metrics', () => {
+test.describe('AI Command Center (ui-new dock)', () => {
   test.beforeEach(async ({ page }) => {
-    // Navigate to the app and wait for 3D scene to load
     await page.goto('/');
-
-    // Wait for the main UI to be ready
-    await page.waitForSelector('text=MillOS', { timeout: 30000 });
-
-    // Wait for machines to load (3D scene initialization)
-    // The app shows machine count in the monitoring summary
-    await page.waitForTimeout(5000);
+    // Wait for the loading overlay (drei useProgress) to clear.
+    await page
+      .waitForSelector('text=INITIALIZING DIGITAL TWIN', { state: 'detached', timeout: 60000 })
+      .catch(() => {});
+    // Dock + status bar present once the shell has mounted.
+    await page.getByRole('button', { name: 'Mill Overview' }).waitFor({ timeout: 30000 });
+    await page.waitForTimeout(2000);
   });
 
-  test('should open AI Command Center panel', async ({ page }) => {
+  test('opens the AI Command Center panel from the dock', async ({ page }) => {
     await openAIPanel(page);
-
-    // Verify the panel opened by checking for metrics elements
-    const cpuValue = page.getByTestId('ai-cpu-value');
-    await expect(cpuValue).toBeVisible();
+    await expect(page.getByTestId('ai-command-center')).toBeVisible();
   });
 
-  test('should display initial CPU value of 15.0%', async ({ page }) => {
+  test('displays a valid CPU percentage', async ({ page }) => {
     await openAIPanel(page);
-
-    // Check initial CPU value (should start at 15%)
-    const cpuValue = page.getByTestId('ai-cpu-value');
-    await expect(cpuValue).toBeVisible();
-    await expect(cpuValue).toHaveText('15.0%');
+    const cpu = page.getByTestId('ai-cpu-value');
+    await expect(cpu).toBeVisible();
+    await expect(cpu).toHaveText(/^\d+%$/);
   });
 
-  test('should calculate CPU usage based on active work', async ({ page }) => {
+  test('displays a valid memory percentage', async ({ page }) => {
     await openAIPanel(page);
-
-    // Get initial CPU value
-    const cpuValue = page.getByTestId('ai-cpu-value');
-    await expect(cpuValue).toBeVisible();
-
-    // Verify initial CPU value format
-    const initialCpu = await cpuValue.textContent();
-    expect(initialCpu).toMatch(/^\d+\.\d%$/);
-
-    // Wait for the AI to generate decisions and update metrics
-    // The metrics update every 1.5 seconds, and decisions generate every 6 seconds
-    await page.waitForTimeout(8000);
-
-    // CPU should have changed based on active decisions and alerts
-    // The formula is: baseCpu (12) + activeDecisions * 8 + pendingDecisions * 2 + alerts * 4
-    const updatedCpu = await cpuValue.textContent();
-
-    // CPU should have updated (may be same or different depending on state)
-    // At minimum, verify it's still a valid percentage
-    expect(updatedCpu).toMatch(/^\d+\.\d%$/);
-
-    // Log the change for debugging purposes
-    console.log(`CPU changed from ${initialCpu} to ${updatedCpu}`);
+    const mem = page.getByTestId('ai-memory-value');
+    await expect(mem).toBeVisible();
+    await expect(mem).toHaveText(/^\d+%$/);
   });
 
-  test('should calculate success rate from completed decisions', async ({ page }) => {
+  test('displays an integer decisions count', async ({ page }) => {
     await openAIPanel(page);
-
-    // Get initial success rate (should start at 0)
-    const successRate = page.getByTestId('ai-success-rate');
-    await expect(successRate).toBeVisible();
-
-    const initialRate = await successRate.textContent();
-    expect(initialRate).toBe('0.0%');
-
-    // Wait for decisions to be generated and some to complete
-    // Decisions generate every 6 seconds, and some will complete over time
-    await page.waitForTimeout(20000);
-
-    // Success rate may have updated if decisions completed
-    const updatedRate = await successRate.textContent();
-
-    // Verify it's a valid percentage format
-    expect(updatedRate).toMatch(/^\d+\.\d%$/);
-
-    // The success rate should update when decisions complete
-    // If decisions completed successfully, rate should be > 0
-    // Note: This depends on actual decision processing in the app
+    const dec = page.getByTestId('ai-decisions-count');
+    await expect(dec).toBeVisible();
+    await expect(dec).toHaveText(/^\d+$/);
   });
 
-  test('should update metrics periodically', async ({ page }) => {
+  test('keeps metrics in a valid format across an update cycle', async ({ page }) => {
     await openAIPanel(page);
-
-    // Get initial values
-    const cpuValue = page.getByTestId('ai-cpu-value');
-    const decisionsCount = page.getByTestId('ai-decisions-count');
-
-    await expect(cpuValue).toBeVisible();
-    await expect(decisionsCount).toBeVisible();
-
-    const initialCpu = await cpuValue.textContent();
-
-    // Wait for metrics update cycle (every 1.5 seconds)
-    await page.waitForTimeout(3000);
-
-    // Verify CPU is still updating (format check)
-    const updatedCpu = await cpuValue.textContent();
-    expect(updatedCpu).toMatch(/^\d+\.\d%$/);
-
-    // Note: Decision generation requires machine data from 3D scene
-    // In headless mode, WebGL/machines may not initialize fully
-    // so we only verify the metrics display is working
-    console.log(`Metrics update test: CPU ${initialCpu} -> ${updatedCpu}`);
-  });
-
-  test('should track decisions count display', async ({ page }) => {
-    await openAIPanel(page);
-
-    const decisionsCount = page.getByTestId('ai-decisions-count');
-    await expect(decisionsCount).toBeVisible();
-
-    // Verify the decisions count is displayed (starts at 0)
-    const count = await decisionsCount.textContent();
-    expect(count).toMatch(/^\d+$/);
-
-    // Note: Actual decision generation depends on machine data from 3D scene
-    // In headless mode, WebGL may not initialize fully
-    // This test verifies the UI element is present and displays correctly
+    const cpu = page.getByTestId('ai-cpu-value');
+    const initial = await cpu.textContent();
+    // Metrics refresh on an interval; after a wait the value must still be valid.
+    await page.waitForTimeout(4000);
+    const updated = await cpu.textContent();
+    expect(updated).toMatch(/^\d+%$/);
+    console.log(`AI Command Center CPU: ${initial} -> ${updated}`);
   });
 });

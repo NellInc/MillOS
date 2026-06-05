@@ -101,7 +101,8 @@ export interface MaterialFlowState {
   // Cumulative stats
   totalMaterialProcessed: number; // kg total
   totalFlourProduced: number; // kg flour output
-  currentFlowRate: number; // kg/sec instantaneous
+  currentFlowRate: number; // kg/sec instantaneous (summed across ALL stages)
+  currentPackerFlowRate: number; // kg/sec processed at the final packing stage only
 
   // Time tracking for transit
   simulationTime: number; // seconds elapsed
@@ -139,8 +140,8 @@ function createInitialMachineBuffers(): Map<string, MachineBuffer> {
     });
   });
 
-  // Roller Mills - 6 mills that grind grain to flour/bran/middlings
-  const millIds = ['rm-101', 'rm-102', 'rm-103', 'rm-104', 'rm-105', 'rm-106'];
+  // Roller Mills - 4 mills that grind grain to flour/bran/middlings
+  const millIds = ['rm-101', 'rm-102', 'rm-103', 'rm-104'];
   millIds.forEach((id) => {
     buffers.set(id, {
       machineId: id,
@@ -149,7 +150,7 @@ function createInitialMachineBuffers(): Map<string, MachineBuffer> {
       outputBuffer: [],
       inputCapacity: 2000, // 2 ton input buffer
       outputCapacity: 2000,
-      processingRate: 50, // 50 kg/sec processing rate (180 tons/hour total for 6 mills)
+      processingRate: 50, // 50 kg/sec processing rate (per mill, across the 4 mills)
       conversionRatios: [
         {
           inputType: 'wheat_grain',
@@ -260,8 +261,7 @@ function createInitialNetwork(): NetworkTopology {
     upstreamMap.set(toId, upstream);
   };
 
-  // Silos -> Mills (distribute across mills)
-  // Each silo feeds 1-2 mills for load balancing
+  // Silos -> Mills (5 silos distribute across the 4 roller mills for load balancing)
   addSegment('silo-alpha', 'rm-101', 'wheat_grain', 40);
   addSegment('silo-alpha', 'rm-102', 'wheat_grain', 40);
   addSegment('silo-beta', 'rm-102', 'corn_grain', 40);
@@ -269,18 +269,16 @@ function createInitialNetwork(): NetworkTopology {
   addSegment('silo-gamma', 'rm-103', 'wheat_grain', 40);
   addSegment('silo-gamma', 'rm-104', 'wheat_grain', 40);
   addSegment('silo-delta', 'rm-104', 'corn_grain', 40);
-  addSegment('silo-delta', 'rm-105', 'corn_grain', 40);
-  addSegment('silo-epsilon', 'rm-105', 'wheat_grain', 40);
-  addSegment('silo-epsilon', 'rm-106', 'wheat_grain', 40);
+  addSegment('silo-delta', 'rm-101', 'corn_grain', 40);
+  addSegment('silo-epsilon', 'rm-102', 'wheat_grain', 40);
+  addSegment('silo-epsilon', 'rm-103', 'wheat_grain', 40);
 
-  // Mills -> Sifters (flour output)
-  // 2 mills feed each sifter
+  // Mills -> Sifters (flour output); mirrors the physical spouting (rm[i] -> sifter[i % 3]),
+  // so every sifter is fed by the 4 mills (sifter-a by rm-101 & rm-104).
   addSegment('rm-101', 'sifter-a', 'flour', 50);
-  addSegment('rm-102', 'sifter-a', 'flour', 50);
-  addSegment('rm-103', 'sifter-b', 'flour', 50);
-  addSegment('rm-104', 'sifter-b', 'flour', 50);
-  addSegment('rm-105', 'sifter-c', 'flour', 50);
-  addSegment('rm-106', 'sifter-c', 'flour', 50);
+  addSegment('rm-102', 'sifter-b', 'flour', 50);
+  addSegment('rm-103', 'sifter-c', 'flour', 50);
+  addSegment('rm-104', 'sifter-a', 'flour', 50);
 
   // Sifters -> Packers
   // Each sifter feeds one packer primarily
@@ -302,6 +300,7 @@ export const useMaterialFlowStore = create<MaterialFlowState>()(
     totalMaterialProcessed: 0,
     totalFlourProduced: 0,
     currentFlowRate: 0,
+    currentPackerFlowRate: 0,
     simulationTime: 0,
 
     tickMaterialFlow: (deltaSeconds: number, productionSpeed: number) => {
@@ -328,6 +327,7 @@ export const useMaterialFlowStore = create<MaterialFlowState>()(
       }));
 
       let instantFlowRate = 0;
+      let instantPackerFlowRate = 0;
       let flourProducedThisTick = 0;
 
       // 1. Process each machine: convert input -> output
@@ -374,6 +374,12 @@ export const useMaterialFlowStore = create<MaterialFlowState>()(
           // but add explicit check at point of use for safety)
           if (deltaSeconds > 0) {
             instantFlowRate += toProcess / deltaSeconds;
+            // Track the final-stage rate separately: only packers represent
+            // finished-goods output. The headline throughput must use this, not
+            // the all-stage sum (which triple-counts mill + sifter + packer).
+            if (buffer.machineType === 'packer') {
+              instantPackerFlowRate += toProcess / deltaSeconds;
+            }
           }
         });
       });
@@ -388,13 +394,22 @@ export const useMaterialFlowStore = create<MaterialFlowState>()(
         const arrivedMaterial = segment.inTransit.filter((t) => t.arrivalTime <= newTime);
         segment.inTransit = segment.inTransit.filter((t) => t.arrivalTime > newTime);
 
-        // Add arrived material to destination input buffer
+        // Add arrived material to destination input buffer.
+        // Mass conservation: a parcel only leaves the belt (currentLoad -= ...)
+        // for the amount the destination actually ACCEPTS. Any remainder stays
+        // on the belt as a re-queued in-transit parcel that retries shortly.
+        // Previously the whole parcel was removed from inTransit while
+        // currentLoad was only decremented by the accepted amount - when a
+        // destination buffer filled up, currentLoad ratcheted upward until
+        // spaceOnConveyor hit 0 and the belt stalled PERMANENTLY (and the
+        // rejected material was silently destroyed). With the re-queue, a
+        // jammed belt backs up and then recovers once downstream drains.
         arrivedMaterial.forEach((arrived) => {
           const totalInput = toBuffer.inputBuffer.reduce((sum, m) => sum + m.amount, 0);
           const spaceAvailable = toBuffer.inputCapacity - totalInput;
+          const toAdd = Math.max(0, Math.min(arrived.amount, spaceAvailable));
 
-          if (spaceAvailable > 0) {
-            const toAdd = Math.min(arrived.amount, spaceAvailable);
+          if (toAdd > 0) {
             const existingInput = toBuffer.inputBuffer.find((m) => m.type === arrived.type);
             if (existingInput) {
               existingInput.amount += toAdd;
@@ -402,6 +417,17 @@ export const useMaterialFlowStore = create<MaterialFlowState>()(
               toBuffer.inputBuffer.push({ type: arrived.type, amount: toAdd });
             }
             segment.currentLoad -= toAdd;
+          }
+
+          const remainder = arrived.amount - toAdd;
+          if (remainder > 0.01) {
+            // Destination full: keep the remainder on the belt (currentLoad
+            // still includes it) and retry in 1s of sim time.
+            segment.inTransit.push({
+              amount: remainder,
+              arrivalTime: newTime + 1,
+              type: arrived.type,
+            });
           }
         });
 
@@ -439,6 +465,7 @@ export const useMaterialFlowStore = create<MaterialFlowState>()(
         totalMaterialProcessed: state.totalMaterialProcessed + instantFlowRate * deltaSeconds,
         totalFlourProduced: state.totalFlourProduced + flourProducedThisTick,
         currentFlowRate: instantFlowRate,
+        currentPackerFlowRate: instantPackerFlowRate,
       });
     },
 
@@ -470,6 +497,7 @@ export const useMaterialFlowStore = create<MaterialFlowState>()(
         totalMaterialProcessed: 0,
         totalFlourProduced: 0,
         currentFlowRate: 0,
+        currentPackerFlowRate: 0,
         simulationTime: 0,
       });
     },

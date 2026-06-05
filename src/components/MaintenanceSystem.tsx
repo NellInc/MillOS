@@ -524,7 +524,13 @@ WorkerReactionOverlay.displayName = 'WorkerReactionOverlay';
 // Slip effect - motion lines and stars
 // Falls back to standalone useFrame when not in MaintenanceAnimationManager context
 const SlipEffect: React.FC<{ workerId: string }> = React.memo(({ workerId }) => {
-  const ctx = useMaintenanceAnimation();
+  // Nullable context read (NOT the throwing useMaintenanceAnimation wrapper):
+  // WorkerReactionOverlay mounts this from WorkerSystem, OUTSIDE the
+  // MaintenanceAnimationManager provider. The component is built for that case
+  // (the `if (ctx)` register guard + fallback useFrame below), but the throwing
+  // wrapper turned the intended standalone path into a render crash that
+  // unwound to the app-level ErrorBoundary and killed the whole scene.
+  const ctx = useContext(MaintenanceAnimationContext);
   const groupRef = useRef<THREE.Group>(null);
   const phaseRef = useRef(0);
   const frameCountRef = useRef(0);
@@ -596,7 +602,9 @@ SlipEffect.displayName = 'SlipEffect';
 // Cough effect - puff clouds
 // Falls back to standalone useFrame when not in MaintenanceAnimationManager context
 const CoughEffect: React.FC<{ workerId: string }> = React.memo(({ workerId }) => {
-  const ctx = useMaintenanceAnimation();
+  // Nullable context read — see SlipEffect: mounted outside the provider by
+  // WorkerReactionOverlay; null ctx selects the standalone fallback useFrame.
+  const ctx = useContext(MaintenanceAnimationContext);
   const puffsRef = useRef<THREE.Mesh[]>([]);
   const phases = useMemo(() => [0, 0.3, 0.6], []);
   const frameCountRef = useRef(0);
@@ -641,6 +649,7 @@ const CoughEffect: React.FC<{ workerId: string }> = React.memo(({ workerId }) =>
             if (el) puffsRef.current[i] = el;
           }}
           position={[0, 1.4, 0.3]}
+          scale={0.05}
         >
           <sphereGeometry args={[1, 8, 8]} />
           <meshBasicMaterial color="#a0826d" transparent opacity={0.5} />

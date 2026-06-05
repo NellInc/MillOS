@@ -1,6 +1,6 @@
 import React, { useMemo, useRef, useEffect, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
-import { Text } from '@react-three/drei';
+import { SceneText as Text } from './shared/SceneText';
 import { useFrame, ThreeEvent } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
@@ -4515,9 +4515,13 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = () => {
   const buildingFrontZ = 48; // Front wall Z (behind the z=42 front doors)
   const buildingBackZ = -48; // Back wall Z (behind the z=-45 back doors)
 
-  // Dock opening dimensions - single centered opening for one truck lane
-  const dockOpeningWidth = 10; // Width of the door
-  const dockOpeningHeight = 10;
+  // Dock opening dimensions - per-wall widths match the <OpenDockOpening> frames
+  // mounted in MillScene (shipping front width=30, receiving back width=18); height
+  // matches the 14-tall frames so the steel frame/bollards/stripes frame a real hole,
+  // not solid wall.
+  const frontDockOpeningWidth = 30; // matches <OpenDockOpening width={30}> shipping
+  const backDockOpeningWidth = 18; // matches <OpenDockOpening width={18}> receiving
+  const dockOpeningHeight = 14;
 
   // Colors
   const wallColor = '#475569';
@@ -4564,7 +4568,7 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = () => {
       {/* Left section - FULL HEIGHT - extends PAST side wall for clean corner */}
       <mesh
         position={[
-          -((buildingHalfWidth + wallThickness) / 2 + dockOpeningWidth / 4),
+          -((buildingHalfWidth + wallThickness) / 2 + frontDockOpeningWidth / 4),
           wallHeight / 2,
           buildingFrontZ,
         ]}
@@ -4573,7 +4577,7 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = () => {
       >
         <boxGeometry
           args={[
-            buildingHalfWidth + wallThickness - dockOpeningWidth / 2,
+            buildingHalfWidth + wallThickness - frontDockOpeningWidth / 2,
             wallHeight,
             wallThickness,
           ]}
@@ -4591,7 +4595,7 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = () => {
       {/* Right section - FULL HEIGHT - extends PAST side wall for clean corner */}
       <mesh
         position={[
-          (buildingHalfWidth + wallThickness) / 2 + dockOpeningWidth / 4,
+          (buildingHalfWidth + wallThickness) / 2 + frontDockOpeningWidth / 4,
           wallHeight / 2,
           buildingFrontZ,
         ]}
@@ -4600,7 +4604,7 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = () => {
       >
         <boxGeometry
           args={[
-            buildingHalfWidth + wallThickness - dockOpeningWidth / 2,
+            buildingHalfWidth + wallThickness - frontDockOpeningWidth / 2,
             wallHeight,
             wallThickness,
           ]}
@@ -4621,7 +4625,9 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = () => {
         castShadow
         receiveShadow
       >
-        <boxGeometry args={[dockOpeningWidth, wallHeight - dockOpeningHeight, wallThickness]} />
+        <boxGeometry
+          args={[frontDockOpeningWidth, wallHeight - dockOpeningHeight, wallThickness]}
+        />
         <meshStandardMaterial
           color={wallColor}
           roughness={0.8}
@@ -4912,7 +4918,7 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = () => {
       {/* Left section - FULL HEIGHT - extends PAST side wall for clean corner */}
       <mesh
         position={[
-          -((buildingHalfWidth + wallThickness) / 2 + dockOpeningWidth / 4),
+          -((buildingHalfWidth + wallThickness) / 2 + backDockOpeningWidth / 4),
           wallHeight / 2,
           buildingBackZ,
         ]}
@@ -4921,7 +4927,7 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = () => {
       >
         <boxGeometry
           args={[
-            buildingHalfWidth + wallThickness - dockOpeningWidth / 2,
+            buildingHalfWidth + wallThickness - backDockOpeningWidth / 2,
             wallHeight,
             wallThickness,
           ]}
@@ -4938,7 +4944,7 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = () => {
       {/* Right section - FULL HEIGHT - extends PAST side wall for clean corner */}
       <mesh
         position={[
-          (buildingHalfWidth + wallThickness) / 2 + dockOpeningWidth / 4,
+          (buildingHalfWidth + wallThickness) / 2 + backDockOpeningWidth / 4,
           wallHeight / 2,
           buildingBackZ,
         ]}
@@ -4947,7 +4953,7 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = () => {
       >
         <boxGeometry
           args={[
-            buildingHalfWidth + wallThickness - dockOpeningWidth / 2,
+            buildingHalfWidth + wallThickness - backDockOpeningWidth / 2,
             wallHeight,
             wallThickness,
           ]}
@@ -4967,7 +4973,7 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = () => {
         castShadow
         receiveShadow
       >
-        <boxGeometry args={[dockOpeningWidth, wallHeight - dockOpeningHeight, wallThickness]} />
+        <boxGeometry args={[backDockOpeningWidth, wallHeight - dockOpeningHeight, wallThickness]} />
         <meshStandardMaterial
           color={wallColor}
           roughness={0.8}

@@ -21,56 +21,61 @@ interface CascadeConnection {
   riskLevel: 'low' | 'medium' | 'high' | 'critical';
 }
 
-// Machine positions in the factory (approximate centers)
+// Machine positions in the factory (approximate centers).
+// Keys are the LIVE machine ids created in MillScene.tsx (silo-0..4,
+// rm-101..104, sifter-a/b/c, packer-0..2) so getMachineLoad can resolve
+// loads by exact id. The legacy silo-alpha / plansifter-* / pack-line-*
+// keys existed in no live roster, so load lookups either fell back to the
+// 50 default (silos) or substring-matched the wrong machine (pack-line-1
+// -> silo-1), making the stress overlay misreport exactly what it exists
+// to visualize.
 const MACHINE_POSITIONS: Record<string, [number, number, number]> = {
-  // Silos (Zone 1, z=-22)
-  'silo-alpha': [-18, 8, FACTORY_ZONE_Z.silos],
-  'silo-beta': [-9, 8, FACTORY_ZONE_Z.silos],
-  'silo-gamma': [0, 8, FACTORY_ZONE_Z.silos],
-  'silo-delta': [9, 8, FACTORY_ZONE_Z.silos],
-  'silo-epsilon': [18, 8, FACTORY_ZONE_Z.silos],
+  // Silos (Zone 1, z=-22) - live x = i*9 for i=-2..2
+  'silo-0': [-18, 8, FACTORY_ZONE_Z.silos],
+  'silo-1': [-9, 8, FACTORY_ZONE_Z.silos],
+  'silo-2': [0, 8, FACTORY_ZONE_Z.silos],
+  'silo-3': [9, 8, FACTORY_ZONE_Z.silos],
+  'silo-4': [18, 8, FACTORY_ZONE_Z.silos],
 
   // Roller Mills (Zone 2, z=-6)
   'rm-101': [-15, 2.5, FACTORY_ZONE_Z.milling],
   'rm-102': [-7.5, 2.5, FACTORY_ZONE_Z.milling],
-  'rm-103': [0, 2.5, FACTORY_ZONE_Z.milling],
-  'rm-104': [7.5, 2.5, FACTORY_ZONE_Z.milling],
-  'rm-105': [15, 2.5, FACTORY_ZONE_Z.milling],
-  'rm-106': [22.5, 2.5, FACTORY_ZONE_Z.milling],
+  'rm-103': [7.5, 2.5, FACTORY_ZONE_Z.milling],
+  'rm-104': [15, 2.5, FACTORY_ZONE_Z.milling],
 
   // Plansifters (Zone 3, z=6, elevated)
-  'plansifter-a': [-14, 9, FACTORY_ZONE_Z.sifting],
-  'plansifter-b': [0, 9, FACTORY_ZONE_Z.sifting],
-  'plansifter-c': [14, 9, FACTORY_ZONE_Z.sifting],
+  'sifter-a': [-14, 9, FACTORY_ZONE_Z.sifting],
+  'sifter-b': [0, 9, FACTORY_ZONE_Z.sifting],
+  'sifter-c': [14, 9, FACTORY_ZONE_Z.sifting],
 
-  // Packers (Zone 4, z=25)
-  'pack-line-1': [-12, 2, FACTORY_ZONE_Z.packing],
-  'pack-line-2': [0, 2, FACTORY_ZONE_Z.packing],
-  'pack-line-3': [12, 2, FACTORY_ZONE_Z.packing],
+  // Packers (Zone 4, z=25) - live x = i*8 for i=-1..1 (was +/-12, off by 4)
+  'packer-0': [-8, 2, FACTORY_ZONE_Z.packing],
+  'packer-1': [0, 2, FACTORY_ZONE_Z.packing],
+  'packer-2': [8, 2, FACTORY_ZONE_Z.packing],
 };
 
 // Production flow connections (upstream → downstream)
 const FLOW_CONNECTIONS: [string[], string[]][] = [
-  // Silos → Mills
+  // Silos → Mills (5 silos -> 4 mills)
   [
-    ['silo-alpha', 'silo-beta'],
+    ['silo-0', 'silo-1'],
     ['rm-101', 'rm-102'],
   ],
-  [['silo-gamma'], ['rm-103', 'rm-104']],
+  [['silo-2'], ['rm-102', 'rm-103']],
   [
-    ['silo-delta', 'silo-epsilon'],
-    ['rm-105', 'rm-106'],
+    ['silo-3', 'silo-4'],
+    ['rm-103', 'rm-104'],
   ],
 
-  // Mills → Sifters
-  [['rm-101', 'rm-102'], ['plansifter-a']],
-  [['rm-103', 'rm-104'], ['plansifter-b']],
-  [['rm-105', 'rm-106'], ['plansifter-c']],
+  // Mills → Sifters (mirrors physical spouting: rm[i] -> sifter[i % 3])
+  [['rm-101', 'rm-104'], ['sifter-a']],
+  [['rm-102'], ['sifter-b']],
+  [['rm-103'], ['sifter-c']],
 
-  // Sifters → Packers
-  [['plansifter-a'], ['pack-line-1']],
-  [['plansifter-b'], ['pack-line-2']],
-  [['plansifter-c'], ['pack-line-3']],
+  // Sifters → Packers (packer i is fed by sifter[i % 3])
+  [['sifter-a'], ['packer-0']],
+  [['sifter-b'], ['packer-1']],
+  [['sifter-c'], ['packer-2']],
 ];
 
 function getColor(riskLevel: CascadeConnection['riskLevel']): string {
@@ -87,7 +92,10 @@ function getColor(riskLevel: CascadeConnection['riskLevel']): string {
 }
 
 function getMachineLoad(machines: MachineData[], id: string): number {
-  const machine = machines.find((m) => m.id.toLowerCase().includes(id.split('-').slice(-1)[0]));
+  // Exact-id lookup. The previous fuzzy match on the last id segment
+  // (m.id.includes(id.split('-').pop())) resolved 'pack-line-1' to 'silo-1'
+  // (silos are scanned first) and resolved every silo to nothing at all.
+  const machine = machines.find((m) => m.id === id);
   return machine?.metrics.load ?? 50;
 }
 

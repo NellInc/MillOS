@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Volume2, Clock, Shield, AlertTriangle, Package } from 'lucide-react';
+import { X, Volume2, Shield, AlertTriangle, Package } from 'lucide-react';
 // Use announcementsStore directly - productionStore.announcements is a stale snapshot
 import { useAnnouncementsStore } from '../../stores/announcementsStore';
 import { usePAScheduler, useEventAnnouncementScheduler } from './shared';
@@ -257,16 +257,17 @@ export const PAAnnouncementSystem: React.FC = () => {
   };
 
   const getTypeIcon = (type: string) => {
+    // Keyed to the stored Announcement.type union ('info'|'warning'|'success'
+    // |'emergency'). The previous keys ('shift_change'|'safety'|'production')
+    // were never stored, so only the emergency and default icons ever showed.
     switch (type) {
-      case 'shift_change':
-        return <Clock className="w-5 h-5" />;
-      case 'safety':
+      case 'warning':
         return <Shield className="w-5 h-5" />;
+      case 'success':
+        return <Package className="w-5 h-5" />;
       case 'emergency':
         return <AlertTriangle className="w-5 h-5" />;
-      case 'production':
-        return <Package className="w-5 h-5" />;
-      default:
+      default: // 'info'
         return <Volume2 className="w-5 h-5" />;
     }
   };

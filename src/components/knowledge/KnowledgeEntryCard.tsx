@@ -113,6 +113,44 @@ export function KnowledgeEntryCard({ entry, onClose, onNavigate }: KnowledgeEntr
       listItems = [];
     };
 
+    // Emit the buffered table (used both when a non-table line ends a table AND
+    // at end-of-article, so a table that is the final block isn't dropped).
+    const flushTable = (keyHint: string | number) => {
+      if (!inTable || tableRows.length === 0) {
+        inTable = false;
+        tableRows = [];
+        return;
+      }
+      elements.push(
+        <div key={`table-${keyHint}`} className="my-4 overflow-x-auto">
+          <table className="w-full text-sm border-collapse">
+            <thead>
+              <tr className="border-b border-slate-700">
+                {tableRows[0]?.map((cell, i) => (
+                  <th key={i} className="text-left py-2 px-3 text-slate-300 font-medium">
+                    {cell.replace(/\*\*/g, '')}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {tableRows.slice(1).map((row, rowIndex) => (
+                <tr key={rowIndex} className="border-b border-slate-700/50">
+                  {row.map((cell, cellIndex) => (
+                    <td key={cellIndex} className="py-2 px-3 text-slate-400">
+                      {cell.replace(/\*\*/g, '')}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+      inTable = false;
+      tableRows = [];
+    };
+
     lines.forEach((line, index) => {
       // Headers
       if (line.startsWith('**') && line.endsWith('**') && !line.includes('|')) {
@@ -141,35 +179,8 @@ export function KnowledgeEntryCard({ entry, onClose, onNavigate }: KnowledgeEntr
         }
         return;
       } else if (inTable) {
-        // End of table
-        elements.push(
-          <div key={`table-${index}`} className="my-4 overflow-x-auto">
-            <table className="w-full text-sm border-collapse">
-              <thead>
-                <tr className="border-b border-slate-700">
-                  {tableRows[0]?.map((cell, i) => (
-                    <th key={i} className="text-left py-2 px-3 text-slate-300 font-medium">
-                      {cell.replace(/\*\*/g, '')}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {tableRows.slice(1).map((row, rowIndex) => (
-                  <tr key={rowIndex} className="border-b border-slate-700/50">
-                    {row.map((cell, cellIndex) => (
-                      <td key={cellIndex} className="py-2 px-3 text-slate-400">
-                        {cell.replace(/\*\*/g, '')}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        );
-        inTable = false;
-        tableRows = [];
+        // A non-table line ends the current table
+        flushTable(index);
       }
 
       // List items
@@ -215,8 +226,10 @@ export function KnowledgeEntryCard({ entry, onClose, onNavigate }: KnowledgeEntr
       );
     });
 
-    // Flush any list still open at the end of the article
+    // Flush anything still open at the end of the article (a list, or a table
+    // that was the article's final block).
     flushList('end');
+    flushTable('end');
 
     return elements;
   };

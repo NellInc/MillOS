@@ -351,18 +351,21 @@ export const InstancedSilos: React.FC<InstancedSilosProps> = ({ machines, onSele
         const intensity = 0.002 * (fillLevel / 100) * (machine.metrics.vibration || 1);
         offsetX = Math.sin(time * 5) * intensity;
         offsetZ = Math.cos(time * 4) * intensity;
-
-        // Update BODY position if vibrating
-        dummy.position.set(
-          machine.position[0] + offsetX,
-          machine.position[1] + SILO_SIZE.height / 2,
-          machine.position[2] + offsetZ
-        );
-        dummy.scale.set(SILO_SIZE.width / 2, SILO_SIZE.height, SILO_SIZE.width / 2);
-        dummy.rotation.set(0, 0, 0);
-        dummy.updateMatrix();
-        bodyRef.current!.setMatrixAt(i, dummy.matrix);
       }
+
+      // Update BODY position - ALWAYS on the visible path (offsets are 0 when not
+      // vibrating). Restoring only inside the vibration guard left any culled
+      // idle/stopped/<=50%-fill silo body stuck at scale 0 forever once the
+      // camera came back within range (the cull path above zeroes the matrix).
+      dummy.position.set(
+        machine.position[0] + offsetX,
+        machine.position[1] + SILO_SIZE.height / 2,
+        machine.position[2] + offsetZ
+      );
+      dummy.scale.set(SILO_SIZE.width / 2, SILO_SIZE.height, SILO_SIZE.width / 2);
+      dummy.rotation.set(0, 0, 0);
+      dummy.updateMatrix();
+      bodyRef.current!.setMatrixAt(i, dummy.matrix);
 
       // Update Ladder Position (sync with body vibration)
       if (ladderRef.current) {
@@ -388,11 +391,11 @@ export const InstancedSilos: React.FC<InstancedSilosProps> = ({ machines, onSele
     });
 
     fillRef.current.instanceMatrix.needsUpdate = true;
-    if (vibrationEnabled) {
-      bodyRef.current.instanceMatrix.needsUpdate = true;
-      if (ladderRef.current) ladderRef.current.instanceMatrix.needsUpdate = true;
-    }
-    // Update ladder matrix if culling happened
+    // Body and ladder matrices are written on every processed frame (cull AND
+    // restore paths), so always flush them. Gating the body flush on
+    // vibrationEnabled left cull/restore writes sitting unflushed in the
+    // CPU-side buffer on low quality (uploaded as stale zeroes later).
+    bodyRef.current.instanceMatrix.needsUpdate = true;
     if (ladderRef.current) ladderRef.current.instanceMatrix.needsUpdate = true;
   });
 

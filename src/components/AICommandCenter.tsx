@@ -193,7 +193,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
   if (embedded) {
     return (
       <>
-        <div className="h-full flex flex-col bg-transparent">
+        <div className="h-full flex flex-col bg-transparent" data-testid="ai-command-center">
           {/* Compact Header for embedded mode */}
           <div className="p-3 border-b border-cyan-500/20">
             <div className="flex items-center gap-2 text-cyan-400 mb-2">
@@ -240,15 +240,21 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
             <div className="grid grid-cols-4 gap-1.5 text-[10px]">
               <div className="bg-slate-800/50 rounded px-2 py-1">
                 <span className="text-slate-500">CPU</span>
-                <span className="text-cyan-400 ml-1">{systemStatus.cpu.toFixed(0)}%</span>
+                <span className="text-cyan-400 ml-1" data-testid="ai-cpu-value">
+                  {systemStatus.cpu.toFixed(0)}%
+                </span>
               </div>
               <div className="bg-slate-800/50 rounded px-2 py-1">
                 <span className="text-slate-500">MEM</span>
-                <span className="text-green-400 ml-1">{systemStatus.memory.toFixed(0)}%</span>
+                <span className="text-green-400 ml-1" data-testid="ai-memory-value">
+                  {systemStatus.memory.toFixed(0)}%
+                </span>
               </div>
               <div className="bg-slate-800/50 rounded px-2 py-1">
                 <span className="text-slate-500">DEC</span>
-                <span className="text-purple-400 ml-1">{systemStatus.decisions}</span>
+                <span className="text-purple-400 ml-1" data-testid="ai-decisions-count">
+                  {systemStatus.decisions}
+                </span>
               </div>
               <div className="bg-slate-800/50 rounded px-2 py-1">
                 {(aiMode === 'gemini' || aiMode === 'hybrid') &&

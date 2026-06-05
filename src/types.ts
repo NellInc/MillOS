@@ -838,7 +838,7 @@ export const WORKER_ROSTER: Omit<WorkerData, 'position' | 'direction'>[] = [
     icon: 'engineer',
     speed: 7.0,
     currentTask: 'Calibrating Roller Mill #2',
-    targetMachine: 'mill-1.5',
+    targetMachine: 'rm-102',
     status: 'working',
     shiftStart: '06:00',
     experience: 8,
@@ -928,7 +928,7 @@ export const WORKER_ROSTER: Omit<WorkerData, 'position' | 'direction'>[] = [
     icon: 'engineer',
     speed: 7.6,
     currentTask: 'Optimizing Plansifter efficiency',
-    targetMachine: 'sifter-0',
+    targetMachine: 'sifter-a',
     status: 'working',
     shiftStart: '06:00',
     experience: 7,
@@ -968,7 +968,9 @@ export const WORKER_ROSTER: Omit<WorkerData, 'position' | 'direction'>[] = [
 ];
 
 export function createInitialWorkers(): WorkerData[] {
-  const aisles = [10, -10, 0];
+  // Side aisles only - the centre (x=0) is the central spine conveyor, so workers must
+  // not spawn on it (the central-conveyor-belt obstacle also blocks that lane).
+  const aisles = [10, -10];
 
   return WORKER_ROSTER.map((roster, i) => ({
     ...roster,

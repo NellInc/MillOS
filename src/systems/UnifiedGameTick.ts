@@ -120,16 +120,21 @@ function updateMachineTruth(
   const baseLoad = machine.metrics.load;
   const wearConfig = getWearConfig(machine.type);
 
-  // Temperature changes (this IS truth, affects machine health)
+  // Temperature changes (this IS truth, affects machine health).
+  // Keep 0.1C resolution and DON'T floor the per-tick step at 0.1: the old
+  // `Math.round(... Math.max(0.1, delta))` forced a minimum +0.1 then rounded
+  // it back off, so as the proportional delta shrank near the target the
+  // temperature froze a full degree below 75C and never converged. Rounding to
+  // one decimal (matching Machines.tsx) lets it settle within 0.1C of target.
   let newTemp = baseTemp;
   if (isRunning) {
     const tempTarget = 75;
     const tempDelta = (tempTarget - baseTemp) * 0.02 * deltaSeconds;
-    newTemp = Math.round(Math.min(85, baseTemp + Math.max(0.1, tempDelta)));
+    newTemp = Math.round(Math.min(85, baseTemp + tempDelta) * 10) / 10;
   } else {
     const tempTarget = 25;
     const tempDelta = (baseTemp - tempTarget) * 0.01 * deltaSeconds;
-    newTemp = Math.round(Math.max(25, baseTemp - Math.max(0.1, tempDelta)));
+    newTemp = Math.round(Math.max(25, baseTemp - tempDelta) * 10) / 10;
   }
 
   // Wear accumulation (this IS truth)

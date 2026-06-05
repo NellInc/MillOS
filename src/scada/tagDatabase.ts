@@ -125,11 +125,11 @@ const siloTags: TagDefinition[] = SILO_NAMES.flatMap((name, idx) => [
 ]);
 
 // ============================================================================
-// Zone 2: Roller Mills (6 mills x 6 tags = 36 tags)
+// Zone 2: Roller Mills (4 mills x 6 tags = 24 tags)
 // ============================================================================
 
-const MILL_IDS = ['rm-101', 'rm-102', 'rm-103', 'rm-104', 'rm-105', 'rm-106'];
-const MILL_NUMBERS = ['101', '102', '103', '104', '105', '106'];
+const MILL_IDS = ['rm-101', 'rm-102', 'rm-103', 'rm-104'];
+const MILL_NUMBERS = ['101', '102', '103', '104'];
 
 const rollerMillTags: TagDefinition[] = MILL_NUMBERS.flatMap((num, idx) => [
   // Roll Speed

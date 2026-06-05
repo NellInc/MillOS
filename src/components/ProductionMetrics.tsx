@@ -213,22 +213,35 @@ export const ProductionMetrics: React.FC = () => {
     setData(initialData);
   }, []); // Run once on mount - uses initial values to seed historical data
 
-  // Update chart data with real metrics
+  // Keep the latest metrics in a ref so the sampling interval can read them
+  // without being torn down and recreated on every metric change. Listing the
+  // metric values as effect deps restarted the 5s timer on each update, so a
+  // metric that changed faster than 5s could starve the chart of new points.
+  const latestMetricsRef = useRef({
+    throughput: liveMetrics.throughput,
+    efficiency: storeMetrics.efficiency,
+    quality: storeMetrics.quality,
+  });
+  latestMetricsRef.current = {
+    throughput: liveMetrics.throughput,
+    efficiency: storeMetrics.efficiency,
+    quality: storeMetrics.quality,
+  };
+
+  // Update chart data with real metrics (single stable 5s interval)
   useEffect(() => {
     const interval = setInterval(() => {
       const now = new Date();
       const newPoint: MetricsData = {
         time: now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-        throughput: liveMetrics.throughput,
-        efficiency: storeMetrics.efficiency,
-        quality: storeMetrics.quality,
+        ...latestMetricsRef.current,
       };
 
       setData((prev) => [...prev.slice(-29), newPoint]);
     }, 5000); // Increased from 2s to 5s to reduce re-renders
 
     return () => clearInterval(interval);
-  }, [liveMetrics.throughput, storeMetrics.efficiency, storeMetrics.quality]);
+  }, []);
 
   return (
     <div className="space-y-1.5">

@@ -4,7 +4,7 @@
  * Animated data flow lines between connected machines.
  * Shows material/data flow with animated dashed lines.
  */
-import React, { useRef, useMemo } from 'react';
+import React, { useEffect, useRef, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { PALETTE } from '../utils/digitalTwinPalette';
@@ -102,6 +102,15 @@ export const DataFlowLine: React.FC<DataFlowLineProps> = ({
     return geo;
   }, [start, end, segments]);
 
+  // Stable Line identity + disposal. Building `new THREE.Line(...)` inline in
+  // the JSX allocated a fresh Line every render (forcing R3F to detach and
+  // reattach it), and superseded geometries/materials were never disposed -
+  // a GPU leak that grew with every color/active/endpoint change.
+  const line = useMemo(() => new THREE.Line(geometry, material), [geometry, material]);
+
+  useEffect(() => () => geometry.dispose(), [geometry]);
+  useEffect(() => () => material.dispose(), [material]);
+
   // Animate time uniform
   useFrame((state) => {
     if (materialRef.current?.uniforms) {
@@ -111,7 +120,7 @@ export const DataFlowLine: React.FC<DataFlowLineProps> = ({
   });
 
   // Use primitive element for Three.js Line
-  return <primitive object={new THREE.Line(geometry, material)} />;
+  return <primitive object={line} />;
 };
 
 /**

@@ -156,7 +156,16 @@ export const InstancedLamps: React.FC<{ isNight: boolean }> = React.memo(({ isNi
         castShadow
       />
       <instancedMesh ref={housingsRef} args={[lampHousingGeometry, blackMetalMaterial, count]} />
-      <instancedMesh ref={glassRef} args={[lampGlassGeometry, glassMaterial, count]} />
+      {/* Material attached as a child primitive, NOT via args: a state-varying
+          material in `args` changes the args array identity on every isNight
+          flip, making R3F tear down and rebuild the InstancedMesh - which
+          resets instanceMatrix to all-zeros while the matrix-population effect
+          (deps [dummy]) never re-runs, so all glass panes collapsed to the
+          origin after the first day/night transition. As a child primitive,
+          only the material swaps; the populated mesh persists. */}
+      <instancedMesh ref={glassRef} args={[lampGlassGeometry, undefined, count]}>
+        <primitive object={glassMaterial} attach="material" />
+      </instancedMesh>
       {/* Point lights only at night - limit to reduce draw calls */}
       {isNight &&
         LAMP_POSITIONS.slice(0, 4).map(([x, z], i) => (

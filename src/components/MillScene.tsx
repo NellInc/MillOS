@@ -1,6 +1,7 @@
 import React, { useMemo, useEffect, useRef, Suspense, useCallback } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Environment, Text } from '@react-three/drei';
+import { Environment } from '@react-three/drei';
+import { SceneText as Text } from './shared/SceneText';
 import * as THREE from 'three';
 
 // Import static assets so Vite handles base path correctly
@@ -429,15 +430,18 @@ export const MillScene: React.FC<MillSceneProps> = ({
 
     // ZONE 2: Milling Floor (Roller Mills)
     // Names use "R.M." format for proper TTS pronunciation in PA announcements
-    const millNames = ['R.M. 101', 'R.M. 102', 'R.M. 103', 'R.M. 104', 'R.M. 105', 'R.M. 106'];
-    const millIds = ['101', '102', '103', '104', '105', '106'];
+    // Exactly 4 roller mills are placed (the loop below skips the centre x=0 for the
+    // central spine conveyor), so the name/id arrays are 4 long. (Were 6; rm-105/106
+    // were never built.)
+    const millNames = ['R.M. 101', 'R.M. 102', 'R.M. 103', 'R.M. 104'];
+    const millIds = ['101', '102', '103', '104'];
     let millIndex = 0;
     for (let i = -3; i <= 3; i += 1.5) {
       if (Math.abs(i) < 0.5) continue;
       // Deterministic metrics based on mill position
       const idx = millIndex;
       _machines.push({
-        id: `rm-${millIds[millIndex]}`, // rm-101 to rm-106
+        id: `rm-${millIds[millIndex]}`, // rm-101 to rm-104
         name: millNames[millIndex],
         type: MachineType.ROLLER_MILL,
         position: [i * 5, 0, FACTORY_ZONE_Z.milling],

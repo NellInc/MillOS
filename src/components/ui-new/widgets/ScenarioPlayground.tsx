@@ -739,6 +739,13 @@ export const ScenarioPlayground: React.FC = () => {
   useEffect(() => {
     if (!isPlaying || !activeScenario) return;
 
+    // Reset the tick reference when (re)starting: lastTickRef is initialized
+    // at MOUNT, so without this the first tick's delta included the whole
+    // mount-to-start browsing time (and pause durations on resume), making the
+    // scenario timeline jump forward - short scenarios could complete on their
+    // very first tick.
+    lastTickRef.current = Date.now();
+
     const interval = setInterval(() => {
       const now = Date.now();
       const delta = (now - lastTickRef.current) / 1000;
@@ -828,16 +835,11 @@ export const ScenarioPlayground: React.FC = () => {
         }
       }
     });
-
-    // Check for scenario completion
-    if (currentTime >= activeScenario.duration && !results) {
-      const finalStability = getStabilityPercentage();
-      calculateResults(axes, finalStability);
-    }
   }, [
     currentTime,
     activeScenario,
     isPlaying,
+    axes,
     getStabilityPercentage,
     recordStability,
     recordEngagement,
@@ -846,10 +848,19 @@ export const ScenarioPlayground: React.FC = () => {
     updateFriction,
     updateDelay,
     updateResourceRates,
-    results,
-    calculateResults,
-    axes,
   ]);
+
+  // Scenario completion - deliberately NOT gated on isPlaying: the store's
+  // tick() clamps currentTime to duration AND flips isPlaying to false in one
+  // atomic set() (scenarioStore.ts ~1511), so there is never a render where
+  // currentTime >= duration while isPlaying is still true. Keeping the
+  // completion check inside the isPlaying-gated effect above made
+  // calculateResults unreachable - the results/grade screen never appeared.
+  useEffect(() => {
+    if (activeScenario && !results && currentTime >= activeScenario.duration) {
+      calculateResults(axes, getStabilityPercentage());
+    }
+  }, [activeScenario, results, currentTime, axes, calculateResults, getStabilityPercentage]);
 
   const handleStartScenario = (id: string) => {
     startScenario(id);

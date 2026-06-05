@@ -73,10 +73,16 @@ export const COLLISION_FILTERS = {
   },
 
   // Workers collide with static and player, not other workers or forklifts
-  // This prevents crowding issues and improves performance
+  // This prevents crowding issues and improves performance.
+  // SENSOR is included because Rapier requires BOTH colliders' filters to
+  // accept each other before intersection events fire: without it the
+  // fire-drill exit sensors (memberships=SENSOR, filter=WORKER) could never
+  // detect a worker, so physics-mode evacuations were never registered by
+  // the sensors. Sensors are non-physical (intersection events only), so
+  // this adds no collision response.
   worker: {
     memberships: COLLISION_GROUPS.WORKER,
-    filter: COLLISION_GROUPS.STATIC | COLLISION_GROUPS.PLAYER,
+    filter: COLLISION_GROUPS.STATIC | COLLISION_GROUPS.PLAYER | COLLISION_GROUPS.SENSOR,
   },
 
   // Forklifts collide with static and player only

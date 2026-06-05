@@ -1,6 +1,7 @@
 import React, { useRef, useMemo, useEffect, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Text, Html } from '@react-three/drei';
+import { Html } from '@react-three/drei';
+import { SceneText as Text } from './shared/SceneText';
 import * as THREE from 'three';
 import { useShallow } from 'zustand/react/shallow';
 import { audioManager } from '../utils/audioManager';
@@ -76,7 +77,6 @@ const SUPPORT_LEG_POSITIONS = [-25, -15, -5, 5, 15, 25] as const;
 const ROLLER_SUPPORT_POSITIONS = [-10, 0, 10] as const;
 
 // Pre-computed arrays for iteration (avoid Array.from on each render)
-const DRIVE_ROLLER_INDICES = Array.from({ length: 13 }); // 55/4 ≈ 13 rollers
 
 // Bag movement boundary (wraps from +BOUNDARY to -BOUNDARY)
 const BAG_BOUNDARY = 28;
@@ -287,6 +287,26 @@ export const ConveyorSystem = React.memo<ConveyorSystemProps>(({ productionSpeed
       {/* Roller conveyor to packing with enhanced details - moved to z=21 */}
       <RollerConveyor position={[0, 0.5, 21]} productionSpeed={productionSpeed} />
 
+      {/* Central spine conveyor - longitudinal belt filling the reserved centre gap that
+          runs down the middle of the mill (silos z=-22 toward packing). Oriented along Z
+          via a 90deg Y rotation; spans z=-20..18 at x=0 to match the central-conveyor-belt
+          pathfinding obstacle declared in MillScene (x[-1.8,1.8] z[-20,18]). Without this,
+          the reserved gap + obstacle were a "ghost" (empty floor that agents detoured). */}
+      <group position={[0, 0.5, -1]} rotation={[0, Math.PI / 2, 0]}>
+        <MemoizedConveyorBelt
+          position={[0, 0, 0]}
+          length={38}
+          productionSpeed={productionSpeed}
+          enableAudio={false}
+        />
+      </group>
+      {/* Support legs for the central belt (each rotated 90deg to straddle it in x) */}
+      {[-16, -10, -4, 2, 8, 14].map((zPos) => (
+        <group key={`central-leg-${zPos}`} position={[0, 0, zPos]} rotation={[0, Math.PI / 2, 0]}>
+          <SupportLeg position={[0, 0, 0]} />
+        </group>
+      ))}
+
       {/* Tension adjustment mechanisms */}
       <TensionMechanism position={[-27.5, 0.5, 24]} />
       <TensionMechanism position={[27.5, 0.5, 24]} />
@@ -439,6 +459,15 @@ export const ConveyorBelt: React.FC<{
 }> = ({ position, length, productionSpeed, enableAudio = true }) => {
   const beltRef = useRef<THREE.Mesh>(null);
   const driveRollerRef = useRef<THREE.Group>(null);
+  // Roller count derived from the belt's actual length (one every 4 units,
+  // inset 2 from each end). The old module-level 13-roller constant was tuned
+  // for the length=55 main belt (this formula still yields 13 there) and left
+  // rollers floating 4-12 units past the end of the shorter length=38 central
+  // spine belt.
+  const driveRollerIndices = useMemo(
+    () => Array.from({ length: Math.max(1, Math.floor((length - 4) / 4) + 1) }),
+    [length]
+  );
   const posX = position[0];
   const posY = position[1];
   const posZ = position[2];
@@ -550,7 +579,7 @@ export const ConveyorBelt: React.FC<{
 
       {/* Drive rollers at intervals - NO SHADOWS for small rotating parts */}
       {showDetails &&
-        DRIVE_ROLLER_INDICES.map((_, i) => {
+        driveRollerIndices.map((_, i) => {
           const x = -length / 2 + 2 + i * 4;
           return (
             <group key={i} ref={i === 0 ? driveRollerRef : undefined} position={[x, 0.15, 0]}>

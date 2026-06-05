@@ -296,6 +296,14 @@ const Worker: React.FC<{ data: WorkerData; onSelect: () => void }> = React.memo(
     >('normal');
     const recordWorkerEvasion = useSafetyStore((state) => state.recordWorkerEvasion);
     const alerts = useUIStore((state) => state.alerts);
+    // Derive the active critical/warning subset once per alerts change instead
+    // of re-filtering inside every worker's useFrame (N workers x 60fps of
+    // throwaway arrays). Stable identity until `alerts` actually changes.
+    const activeAlerts = useMemo(
+      () =>
+        alerts.filter((a) => !a.acknowledged && (a.type === 'critical' || a.type === 'warning')),
+      [alerts]
+    );
 
     const recordHeatMapPoint = useProductionStore((state) => state.recordHeatMapPoint);
 
@@ -751,10 +759,8 @@ const Worker: React.FC<{ data: WorkerData; onSelect: () => void }> = React.memo(
       }
 
       // === ALERT REACTION ===
-      // Check for active (non-acknowledged) critical/warning alerts and look toward them
-      const activeAlerts = alerts.filter(
-        (a) => !a.acknowledged && (a.type === 'critical' || a.type === 'warning')
-      );
+      // Uses the component-level memoized `activeAlerts` (computed above) rather
+      // than re-filtering every frame.
       if (activeAlerts.length > 0 && !isEvadingRef.current) {
         // Find nearest alert by machine position (approximate positions based on machine zones)
         const machinePositions: Record<string, { x: number; z: number }> = {

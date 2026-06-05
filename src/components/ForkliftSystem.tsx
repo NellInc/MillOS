@@ -567,14 +567,23 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
     operationRef.current = op;
   }, []);
 
+  // Physics mode (the default) skips the legacy movement branch that maintains
+  // the isStopped state, pinning it to false forever - wheels kept spinning on
+  // a halted forklift, the warning light never went red during drills, and the
+  // safety-stop horn/metric never fired. Derive the stopped signal from the
+  // safety inputs physics mode DOES honor. (Known gap: physics-mode worker
+  // -proximity stops are internal to PhysicsForklift and still not surfaced -
+  // that needs a stopped-callback from PhysicsForklift.)
+  const effectiveStopped = enablePhysics ? forkliftEmergencyStop || emergencyDrillMode : isStopped;
+
   // Play horn when stopping for safety
   useEffect(() => {
-    if (isStopped && !wasStoppedRef.current) {
+    if (effectiveStopped && !wasStoppedRef.current) {
       audioManager.playHorn(data.id);
       recordSafetyStop();
     }
-    wasStoppedRef.current = isStopped;
-  }, [isStopped, data.id, recordSafetyStop]);
+    wasStoppedRef.current = effectiveStopped;
+  }, [effectiveStopped, data.id, recordSafetyStop]);
 
   // Set initial position only once (not via prop to avoid reset on re-render)
   const initializedRef = useRef(false);
@@ -902,7 +911,7 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
           ? 'loading'
           : currentOperation === 'unloading'
             ? 'unloading'
-            : isStopped
+            : effectiveStopped
               ? 'idle'
               : 'moving';
       onSelect({
@@ -928,7 +937,7 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
       {distanceTier === 'close' ? (
         <ForkliftModel
           hasCargo={hasCargo}
-          isMoving={!isStopped && !isOperating}
+          isMoving={!effectiveStopped && !isOperating}
           speedMultiplier={1}
           forkHeightRef={forkHeightRef}
         />
@@ -938,7 +947,7 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
 
       {/* Warning light - only render when close (flashing light not visible from far anyway) */}
       {distanceTier === 'close' && (
-        <WarningLight isStopped={isStopped} isInCrossing={isInCrossingRef.current} />
+        <WarningLight isStopped={effectiveStopped} isInCrossing={isInCrossingRef.current} />
       )}
 
       {/* Operator name and status - only render when close */}

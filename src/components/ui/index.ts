@@ -1,16 +1,20 @@
-// Barrel export for UI components
+// Barrel export for UI components.
+// NOTE: the legacy UIOverlay shell was removed (replaced by ui-new/GameInterface).
+// The widgets below that are no longer rendered anywhere (the "stranded" set:
+// MillClockDisplay, SafetyMetricsDisplay, SafetyConfigPanel, IncidentHistoryPanel,
+// SafetyAnalyticsPanel, ZoneCustomizationPanel, KeyboardShortcutsModal,
+// PredictiveMaintenancePanel, TruckScheduleWidget) are deliberately kept for a
+// later re-home into ui-new panels. The fully-orphaned ones (CollapsibleLegend,
+// EmergencyControlPanel, WeatherControlPanel, GraphicsSettingsPanel,
+// AlertAcknowledgmentFlow) were deleted with the shell.
 export { MillClockDisplay } from './MillClockDisplay';
 export { SafetyMetricsDisplay } from './SafetyMetricsDisplay';
-export { EmergencyControlPanel } from './EmergencyControlPanel';
-export { WeatherControlPanel } from './WeatherControlPanel';
-export { GraphicsSettingsPanel } from './GraphicsSettingsPanel';
 export { SafetyConfigPanel } from './SafetyConfigPanel';
 export { IncidentHistoryPanel } from './IncidentHistoryPanel';
 export { SafetyAnalyticsPanel } from './SafetyAnalyticsPanel';
 export { ZoneCustomizationPanel } from './ZoneCustomizationPanel';
 export { EmergencyStopButton } from './EmergencyStopButton';
 export { KeyboardShortcutsModal } from './KeyboardShortcutsModal';
-export { CollapsibleLegend } from './CollapsibleLegend';
 
 // Strategic AI UI Components
 export { DecisionHistoryPanel } from './DecisionHistoryPanel';
@@ -27,7 +31,6 @@ export { MultiObjectiveDashboard } from './MultiObjectiveDashboard';
 
 // Phase 4 Enhancements
 export { ShiftHandoverSummary } from './ShiftHandoverSummary';
-export { AlertAcknowledgmentFlow } from './AlertAcknowledgmentFlow';
 export { CostEstimationOverlay } from './CostEstimationOverlay';
 export { WeatherEffectsOverlay } from './WeatherEffectsOverlay';
 

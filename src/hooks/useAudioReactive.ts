@@ -32,6 +32,8 @@ export function useAudioReactive() {
   const dataArrayRef = useRef<Uint8Array | null>(null);
   const rafIdRef = useRef<number | null>(null);
   const lastFrameTimeRef = useRef<number>(0);
+  // The master gain we connected the analyzer to, so cleanup can disconnect it.
+  const connectedGainRef = useRef<AudioNode | null>(null);
 
   const updateFromFFT = useAudioAnalyzerStore((s) => s.updateFromFFT);
   const updateFallback = useAudioAnalyzerStore((s) => s.updateFallback);
@@ -130,6 +132,7 @@ export function useAudioReactive() {
       const masterGain = audioManager.getAnalyzerMasterGain();
       if (masterGain) {
         masterGain.connect(analyzer);
+        connectedGainRef.current = masterGain;
       }
 
       analyzerRef.current = analyzer;
@@ -148,6 +151,17 @@ export function useAudioReactive() {
         cancelAnimationFrame(rafIdRef.current);
         rafIdRef.current = null;
       }
+      // Disconnect the analyzer from the persistent master gain. masterGain
+      // lives for the whole session, so leaving the edge connected leaks the
+      // AnalyserNode on every unmount/remount of an audio-reactive component.
+      if (connectedGainRef.current && analyzerRef.current) {
+        try {
+          connectedGainRef.current.disconnect(analyzerRef.current);
+        } catch {
+          /* already disconnected */
+        }
+      }
+      connectedGainRef.current = null;
       analyzerRef.current = null;
       dataArrayRef.current = null;
     };

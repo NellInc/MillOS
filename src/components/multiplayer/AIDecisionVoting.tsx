@@ -88,6 +88,24 @@ export const AIDecisionVotingCard: React.FC<AIDecisionVotingProps> = ({ decision
   const isRejected = rejectCount >= voteThreshold;
   const votingComplete = approveCount + rejectCount >= totalPlayers || isApproved || isRejected;
 
+  // Apply the collective verdict to the production store exactly once when the
+  // multiplayer vote completes. Previously the result was only shown in the UI
+  // and never committed, so an approved team vote had no effect on the actual
+  // decision (the single-player Apply/Dismiss buttons did commit, but those are
+  // hidden in multiplayer).
+  const verdictAppliedRef = React.useRef(false);
+  useEffect(() => {
+    if (!isActive || !votingComplete || verdictAppliedRef.current) return;
+    verdictAppliedRef.current = true;
+    useProductionStore
+      .getState()
+      .updateDecisionStatus(
+        decision.id,
+        isApproved ? 'completed' : 'superseded',
+        isApproved ? 'Approved by team vote' : 'Rejected by team vote'
+      );
+  }, [isActive, votingComplete, isApproved, decision.id]);
+
   // Get confidence color
   const confidenceColor =
     decision.confidence >= 0.8

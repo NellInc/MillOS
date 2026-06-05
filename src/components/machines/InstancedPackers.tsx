@@ -301,10 +301,13 @@ export const InstancedPackers: React.FC<InstancedPackersProps> = ({ machines, on
         return;
       }
 
-      if (machine.status !== 'running') return;
-
+      // Restore the spout matrix on the visible path even when NOT running -
+      // an early `status !== 'running'` return left a culled idle/stopped
+      // packer's spout stuck at scale 0 forever once the camera came back
+      // (same cull-restore class as the InstancedSilos body bug). Only the
+      // rhythmic bagging motion requires 'running'.
       const { height: ph } = PACKER_SIZE;
-      const cycle = Math.sin(time * 15) * 0.05;
+      const cycle = machine.status === 'running' ? Math.sin(time * 15) * 0.05 : 0;
 
       // Re-calculate spout position with offset
       const x = machine.position[0];

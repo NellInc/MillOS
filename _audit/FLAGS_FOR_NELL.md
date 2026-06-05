@@ -14,6 +14,236 @@ found in-tree + committed, then Phase A high-value fixes, a seeded 12-lane compl
 
 ---
 
+## Round 6 — "3D environment not loading" (root-caused + fixed; working tree only, NOT committed)
+
+**This was a real blocker, and the cause was Session B's font self-host (`ac93a5b`), not a GPU issue.**
+
+**Root cause (proven, not guessed):** `SceneText` defaulted the 3D `<Text>` font to a self-hosted
+`Inter-Regular.otf`. That file is a CFF/PostScript OpenType font, and troika-three-text's parser
+throws on its CFF encoding (`unknown encoding format: 1`). Critically, troika's `doLoadFont` *swallows*
+that parse error (it only `console.error`s — it never calls the load callback). drei's `<Text>`
+(v10.7.7) **suspends** on the font via `suspend-react`, so that promise never resolves → every
+`<Text>` stays suspended forever → the scene's `<Suspense fallback={null}>` never resolves → **the
+entire 3D scene renders as `null`** while the DOM UI (dock/sidebar) stays up. The `SceneText` comment
+claimed troika "falls back to the resolver — a safe failure mode"; that's false when `font` is set
+explicitly (it hangs instead). One console error, blank 3D — exactly the symptom.
+
+**Fix:** converted Inter to TrueType (`glyf`) outlines with fontTools cu2qu → `Inter-Regular.ttf`
+(troika's native, reliable format; the repo's MedievalSharp.ttf already proved glyf parses).
+Repointed `SceneText` at the `.ttf`, deleted the broken `.otf`, and corrected the misleading comment
+to warn that the bundled font MUST be glyf/TTF (a CFF OTF hangs the whole scene).
+
+**Verified end-to-end** (forced software WebGL / SwiftShader so the scene renders headless):
+canvas initializes (640×400), **loading screen dismisses**, scene mounts, `FontFace` parses the TTF,
+and the console is **clean — zero font errors**. typecheck/lint/prettier/**1183 tests**/build all green.
+
+> **You may need a hard refresh** (Cmd/Ctrl+Shift+R) to clear your browser's cache of the old `.otf`
+> and, if a service worker is registered, clear site data / unregister it (DevTools → Application).
+
+### ⚠️ Separate finding (NOT from my edits, NOT fixed): intermittent SCADA render loop
+While stress-testing, opening the **SCADA panel** after rapidly switching camera presets + other panels
+produced bursts of React "Maximum update depth exceeded" (a `setState`-in-effect loop). It is
+**intermittent and sequence-dependent** — opening SCADA alone produced zero errors — which points at a
+`useSyncExternalStore`/subscription race in `src/scada/useSCADA.ts` (the `useSCADAAlarms` suppressed-
+alarms effect and the machine-sync effect are the suspects), not a deterministic bug. I did **not**
+touch SCADA code in any round, so this is pre-existing. I left it unfixed rather than apply a
+speculative patch to a 1,558-line panel for a race I can't reliably reproduce — flagging it for a
+focused follow-up with a dedicated repro. Say the word and I'll chase it down.
+
+---
+
+## Round 5 — "fix all issues" (executed on your call; working tree only, NOT committed)
+
+You approved deleting the dead shell + orphans (keeping the 9 stranded widgets), and asked to fix
+everything. All green: typecheck ✓, eslint ✓ (0), prettier ✓, **1183/1183 tests** ✓ (down 17 = the
+deleted UIOverlay test), production build ✓, and **e2e boot smoke ✓ — 5/5** against the live ui-new
+dock. Net this round: 52 files changed, +954/−524, 7 files deleted.
+
+### Dead UI removed (~5,000 LOC)
+- Deleted `UIOverlay.tsx` (the legacy 2,152-line shell ui-new replaced) + its test, and the 5
+  fully-orphaned `ui/` widgets (`CollapsibleLegend`, `EmergencyControlPanel`, `WeatherControlPanel`,
+  `GraphicsSettingsPanel`, `AlertAcknowledgmentFlow`). Updated the `ui/index.ts` barrel.
+- **Kept** the 9 stranded widgets (`PredictiveMaintenancePanel`, `SafetyAnalyticsPanel`,
+  `KeyboardShortcutsModal`, `MillClockDisplay`, `SafetyMetricsDisplay`, `SafetyConfigPanel`,
+  `IncidentHistoryPanel`, `ZoneCustomizationPanel`, `TruckScheduleWidget`) for a later re-home into
+  ui-new panels — they're now orphaned-but-compiling. **A re-home decision is still open** (see below).
+
+### Remaining defects fixed (the Round-4 report-only list + the 4 AmbientDetails findings)
+- **AmbientDetails** ×4: undisposed Cobweb/OilPuddle/RainPuddle geometries (leak); `Math.random()` in
+  JSX re-rolling OilPuddle/RainPuddle rotation + StuckGum radius on every render (hoisted to stable
+  useMemo); `scale` prop on `<sphereGeometry>` (ignored by R3F) moved onto the parent mesh for the
+  Mouse body + StuckGum; MothSwarm flapped body+one-wing — now flaps both wings, body still.
+- **productionStore throughput** — added a packer-only flow accumulator (`currentPackerFlowRate`) in
+  materialFlowStore and drove the headline bags/hour from it; the old all-stage `currentFlowRate`
+  triple-counted mill+sifter+packer and inflated the KPI ~3×.
+- **workerPortraits** — fallback now an inline neutral SVG data-URI (can't 404); the referenced
+  `default_avatar.webp` never existed.
+- **PAAnnouncementSystem** — re-keyed icon switch to the real `Announcement.type` union
+  (`info|warning|success|emergency`); the old keys (`shift_change|safety|production`) never matched.
+- **UnifiedGameTick** — machine temperature kept at 0.1°C resolution instead of integer-rounded with a
+  0.1 floor that froze it a full degree below the 75°C target.
+- **AIDecisionVoting** — an approved multiplayer team vote now actually commits the decision to the
+  production store (was UI-only).
+- Plus: **ProductionMetrics** stable 5s sampling interval (was torn down on every metric change);
+  **StabilityMonitor** clamps the displayed % (was showing negative); **machineTextures** disposes the
+  raced JPG fallback; **KnowledgeEntryCard** flushes a table that's the article's final block (was
+  dropped); **MultiplayerLobby** guards `navigator.clipboard` (threw in insecure contexts);
+  **useAudioReactive** disconnects its AnalyserNode on cleanup (leak); **CameraController** guards
+  `e.key` + reuses a vector instead of per-frame `.clone()`; **WorkerSystem** memoizes the active-alert
+  filter (was per-worker per-frame); **types.ts** worker `targetMachine` ghosts (`mill-1.5`/`sifter-0`
+  → `rm-102`/`sifter-a`); **MaintenanceSystem** cough puff starts at the right scale (no 1-frame pop);
+  **hypothesisEngine** checks no-evidence before the refuted branch (latent).
+
+### e2e fixed
+- `e2e/ai-command-center.spec.ts` rewritten against the ui-new Dock (was targeting the deleted
+  UIOverlay testids — and the suite's port-3000 server is Grafana on this machine). Added stable
+  data-testids (`ai-command-center`, `ai-cpu-value`, `ai-memory-value`, `ai-decisions-count`) to the
+  embedded AICommandCenter; the spec dismisses the first-run onboarding modal, opens the panel from the
+  dock, and asserts metric formats. **Note:** the repo `playwright.config.ts` still points at port
+  3000 — leave/repoint per your environment; I ran the suite against a free port to verify.
+
+### Still open for you
+1. **Commit** — same three-author tree caveat; nothing committed. Round 4 + Round 5 fixes + Session A/B
+   WIP are all interleaved in the working tree. Say the word and I'll split clean logical commits.
+2. **Re-home the 9 stranded widgets** into ui-new panels (predictive maintenance, safety analytics,
+   keyboard-shortcuts help look genuinely worth keeping), or delete them too.
+3. **The 9 un-run swarm dimension sweeps** still need the spend limit raised (`resumeFromRunId:
+   wf_bae7e912-ec4`).
+
+---
+
+## Round 4 — full code + 3D-scene defect audit (massively parallel swarm + inline fixes; working tree only, NOT committed)
+
+You asked for everything — code, assets, placements, models — to be checked for errors. A 109-agent
+workflow ran: 3 spatial-ground-truth extractors (building AABBs, live machine world positions, 34
+pathfinding obstacles, parent-group offsets), 29 area + 13 dimension finders + a diff-verifier, then
+dedup and adversarial verification. 63 raw findings → 62 deduped → every critical/high/medium
+verified (swarm-verified or re-verified inline by me against the live tree). **All fixes below are in
+the working tree, deliberately uncommitted — see Decision 1.**
+
+### Fixed — critical
+- **MaintenanceSystem.tsx** — SlipEffect/CoughEffect called the *throwing* `useMaintenanceAnimation()`
+  while mounted OUTSIDE the provider (via WorkerReactionOverlay in WorkerSystem). On ultra quality, a
+  grain-spill/dust chaos reaction crashed the render and unwound to the app-level ErrorBoundary,
+  killing the whole 3D scene. Both components were already built for a null context (fallback
+  useFrame); switched them to the nullable `useContext` read.
+
+### Fixed — high
+- **InstancedSilos.tsx** — distance-culled silo bodies only un-culled inside the
+  `vibrating && running && fill>50` guard: any idle/stopped/≤50%-fill silo vanished PERMANENTLY after
+  the camera panned away and back. Body matrix now always restored on the visible path; matrix flush
+  no longer gated on vibration. **InstancedPackers.tsx** had the same class (idle packer spouts) — fixed.
+- **ScenarioPlayground.tsx** — the results/grade screen was unreachable: the store ends a scenario by
+  clamping `currentTime` AND flipping `isPlaying:false` in one atomic set, but the completion check
+  lived inside an `isPlaying`-gated effect. Moved to its own effect. Also fixed the tick-delta leak
+  (mount-to-start/pause time made scenarios jump forward, sometimes completing on the first tick).
+- **materialFlowStore.ts** — mass-conservation leak: parcels arriving at a full destination buffer were
+  destroyed while `currentLoad` kept their weight, ratcheting up until the conveyor stalled FOREVER.
+  Remainders now stay on the belt and retry; jams back up and recover.
+- **CascadeVisualization.tsx** — re-keyed to the live machine ids (`silo-0..4`, `sifter-a/b/c`,
+  `packer-0..2`; your 03:12 pass fixed the mill count but the legacy id scheme remained), replaced the
+  fuzzy substring load-match (`pack-line-1` was reading **silo-1**'s load; silos resolved to nothing)
+  with exact-id lookup, corrected packer positions (±8, was ±12).
+- **InstancedVillageComponents.tsx** — village lamp glass vanished after the first day/night toggle:
+  the isNight-keyed material passed through `args` remounted the InstancedMesh (zeroing instanceMatrix)
+  while the matrix-population effect never re-ran. Material now attached as a child primitive.
+
+### Fixed — medium
+- **Environment.tsx** ×2 — splash velocity/life buffers sized to the mount-time quality wrote NaN into
+  geometry when quality was raised mid-session (now allocated at max=50); rain RENDERED on medium but
+  was excluded from ANIMATION (frozen rain in mid-air — gate now excludes only low).
+- **TruckBay.tsx** — truck position used `clock.elapsedTime` while lights/doors recomputed state from
+  `performance.now()` (offset by page-load→canvas-start): collapsed to one clock via state refs.
+- **ForkliftSystem.tsx** — in physics mode (the default) `isStopped`/`isInCrossing` were never updated:
+  wheels spun on frozen forklifts, warning lights never went red in drills, the safety horn/metric
+  never fired. Derived `effectiveStopped` from the signals physics mode honors. (Known gap: PhysicsForklift's
+  internal proximity stops still aren't surfaced — needs a stopped-callback, flagged below.)
+- **VisibleChaos.tsx** — grain-spill main pile rendered with cone radius `0.8 * scaleRef.current` read
+  at render time (ref starts 0 → permanently invisible). Pile now animated via object scale.
+- **StatusRing.tsx** / **HoloLabel.tsx** / **DataFlowLine.tsx** / **FarmArea.tsx** — GPU resource leaks
+  (materials/geometries recreated without disposal; DataFlowLine also rebuilt its `THREE.Line` every render).
+- **TruckScheduleWidget.tsx** — "arriving soon" amber compared SECONDS against a 15-MINUTE-era
+  threshold (fired only in the last 15s). Now `15 * 60`.
+- **flourishingStore.ts** — tick mutated worker objects in place under a shallow copy; per-worker
+  subscribers never re-rendered. Now builds fresh per-worker objects.
+- **GPUResourceManager.ts** — `${type}s` produced `"geometrys"` vs the `geometries` stats key: geometry
+  memory stats were permanently 0. Explicit singular→plural map.
+- **DecisionPathRings.tsx** — attention ring hardcoded Y=0.2, rendering ~9 units below elevated sifters.
+
+### Fixed — low (safe/isolated only)
+- **SkySystem.tsx** CityLights could never render (early return meant the points the night-manager
+  drives never mounted); **Fireflies.tsx** latched on after their first night (frozen + glowing all
+  day); **WorkerBillboard.tsx** far-LOD workers floated 0.39 units and were ~30% short, with hardcoded
+  light skin tone (now uses `appearance.skinTone` like the other LODs); **ConveyorSystem.tsx** roller
+  count now derived from belt length (13 fixed rollers overhung your new 38-unit central spine belt by
+  up to 12 units; main belt keeps exactly 13); **PhysicsConfig.ts** fire-drill exit sensors could
+  NEVER fire (Rapier needs both filters to accept: worker filter lacked SENSOR) — evacuation still
+  worked via the distance path, but the physics sensors were dead weight.
+
+### ⚠️ Disclosure — two workflow agents edited files (against instructions; both edits validated and kept)
+Verifier agents were read-only by instruction, but two applied their fixes before dying:
+**WorkerMoodOverlay.tsx** (tab-refocus delta cap, 6000ms — correctly mirrors the 2000ms cap scaled to
+the 5s tick; prevents safety/flourishing values cratering on refocus) and
+**SafetyEquipment.tsx** (`hasPost={false}` on the Zone 2/3 signs whose new floor posts would have
+speared the central spine conveyor). I verified both for correctness AND completeness, and checked the
+remaining posted signs (Zone 1 z=-25, Zone 4 z=28) land clear of silos/packers/belts.
+
+### Report-only (real, deliberately not edited)
+- `productionStore.ts:770` headline throughput consumes the combined mill+sifter+packer flow rate as if
+  it were final packer output (inflated KPI) — needs a packer-only accumulator; metric-semantics call.
+- `utils/workerPortraits.ts:33` falls back to `/assets/workers/default_avatar.webp` which **does not
+  exist** (404/broken image for unknown ids) — needs an actual asset created.
+- **AmbientDetails.tsx** (your WIP file; 4 verified lows left untouched): undisposed useMemo
+  geometries; `Math.random()` in returned JSX re-randomizing on re-render; `scale` prop on
+  `<sphereGeometry>` silently ignored by R3F; MothSwarm flaps the wrong child indices (right wing
+  never animates).
+- Smaller verified/likely items: UIOverlay 500ms stale machine metrics on switch; ProductionMetrics
+  interval churn; PAAnnouncementSystem icon switch keyed on never-stored types; CollapsibleLegend first-drag
+  jump; StabilityMonitor negative %; machineTextures JPG/KTX2 race leak; KnowledgeEntryCard drops a
+  final markdown table; MultiplayerLobby unguarded clipboard; AIDecisionVoting approved votes never
+  apply; UnifiedGameTick temperature rounding freeze; useAudioReactive analyser never disconnected;
+  `types.ts` roster `targetMachine` ghosts (`mill-1.5`, `sifter-0`, display-only); WorkerSystem
+  per-frame alert `.filter`; CameraController keydown guard + per-frame `.clone()`;
+  hypothesisEngine status-branch ordering (latent, method uncalled).
+- Completeness critic: `src/animation/` and `src/protocols/vcp/` (20+ files of pure logic-math) were
+  covered by no scope; `vcp/memory/outcomeTracker.ts` has visible divide-by-length smells.
+
+### Decisions required (3)
+1. **Commit strategy.** The working tree now interleaves THREE authors: your placement pass (incl. the
+   03:12 rm-105/106 propagation), Session B's 4 deferred font-swap files, and this round's ~25 fix
+   files. I did NOT commit anything (same reason Round 3 didn't). Happy to split into clean logical
+   commits on your word, or you can review-and-commit wholesale.
+2. **The monthly spend limit killed ~52 of 109 swarm agents mid-run** ("You've hit your monthly spend
+   limit"). Every dropped critical/high/medium was re-verified inline, and the **asset-paths sweep was
+   completed deterministically inline** (every `/assets|models|textures|sounds|portraits|hdri|draco|libs|fonts`
+   reference + dynamic builders diffed against `public/`: the ONLY missing referenced asset is
+   `default_avatar.webp`; draco/basis decoders, SceneText font, machine-texture trees, and all
+   portrait/worker webps resolve). **9 dimension sweeps never ran**: inside-building, z-fighting,
+   resource-dispose, shader-cachekey, NaN-geometry, react-hooks, null-safety, logic-math, and the
+   uncommitted-diff verifier. If you raise the limit, the run resumes cheaply
+   (`resumeFromRunId: wf_bae7e912-ec4` — completed agents return cached).
+3. **Is your placement session still open?** Its last edit was 03:13 (the mill-count propagation).
+   Everything here was written assuming it might wake; nothing of yours was reverted or committed.
+
+_Validation: full gate run GREEN after all Round 4 fixes — typecheck ✓, eslint ✓ (0 problems),
+prettier ✓, **1200/1200 tests** ✓, production build ✓ (10.95s). **Boot smoke ✓**: Playwright Chromium
+against a dev server serving the fixed tree boots to the full UI — status bar, navigation dock,
+alerts, **60 FPS** with the 3D scene live. Machine-readable artifacts: `_audit/round1_results.json`
+(16 swarm-verified findings + spatial map + critic) and `_audit/round1_unverified.json` (the 42
+findings whose verifiers the spend limit killed; all crit/high/medium among them were re-verified
+inline before fixing)._
+
+_⚠️ Two environment/test-infra findings from the smoke run (pre-existing, not from this round's
+fixes): (1) **the e2e suite cannot run as configured** — Playwright targets port 3000, which on this
+machine is occupied by **Grafana** (and 3100 by a Docker forward), so it tested Grafana's login page;
+(2) run on a free port, the app boots fine but **all 6 `e2e/ai-command-center.spec.ts` tests fail on
+stale selectors** — `ai-panel-toggle`/`ai-cpu-value` testids exist only in the legacy `UIOverlay.tsx`,
+while the rendered ui-new Dock ("AI Command" aria-label) and redesigned panel have none of them.
+Rewriting the spec needs your call on which UI surface is canonical for e2e (`ui/` vs `ui-new/`) —
+add it to Decision 1's review or tell me and I'll rewrite the spec._
+
+---
+
 ## Round 3 — executed the recommendation brief you approved (committed, gated green)
 
 Build + 1200 tests + boot smoke green. Three commits:

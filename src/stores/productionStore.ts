@@ -768,7 +768,10 @@ export const useProductionStore = create<ProductionStore>()(
         // This represents actual kg/sec flowing through the system
         // Convert to bags/hour: (kg/sec) / 25 kg/bag * 3600 sec/hour
         const materialFlowState = useMaterialFlowStore.getState();
-        const flowRateKgPerSec = materialFlowState.currentFlowRate;
+        // Final-stage (packer) rate only - the documented basis for throughput.
+        // currentFlowRate sums every processing stage (mill + sifter + packer),
+        // which inflated bags/hour ~3x.
+        const flowRateKgPerSec = materialFlowState.currentPackerFlowRate;
         const BAG_WEIGHT_KG = 25; // Standard bag weight
 
         // If material flow is not initialized yet, fall back to RPM-based calculation
@@ -843,7 +846,10 @@ export const useProductionStore = create<ProductionStore>()(
         }
 
         const materialFlowState = useMaterialFlowStore.getState();
-        const flowRateKgPerSec = materialFlowState.currentFlowRate;
+        // Final-stage (packer) rate only - the documented basis for throughput.
+        // currentFlowRate sums every processing stage (mill + sifter + packer),
+        // which inflated bags/hour ~3x.
+        const flowRateKgPerSec = materialFlowState.currentPackerFlowRate;
         const BAG_WEIGHT_KG = 25;
 
         let throughput: number;

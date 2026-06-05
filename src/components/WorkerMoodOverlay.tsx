@@ -547,7 +547,14 @@ export const useBilateralAlignmentSimulation = () => {
 
     // PERFORMANCE: Tick only every 5 seconds to reduce store updates
     if (deltaMs >= 5000) {
-      const deltaMinutes = deltaMs / 1000; // Convert to game minutes
+      // Cap deltaMs to prevent huge time jumps after the tab becomes visible
+      // again (useFrame is gated by isTabVisible, so lastTickRef can lag by the
+      // entire hidden duration). Without this, a single post-refocus tick passes
+      // a massive deltaMinutes into the simulations, instantly cratering values
+      // like reportingWillingness (-0.5 * deltaMinutes, clamped to 0). Mirrors
+      // the cap already applied in useMoodSimulation above.
+      const cappedDeltaMs = Math.min(deltaMs, 6000);
+      const deltaMinutes = cappedDeltaMs / 1000; // Convert to game minutes
 
       useSafetyReportStore.getState().tickSafetySimulation(deltaMinutes);
       useEmergentCooperationStore.getState().tickEmergentCooperation(deltaMinutes);

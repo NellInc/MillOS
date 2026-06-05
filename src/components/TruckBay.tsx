@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Text } from '@react-three/drei';
+import { SceneText as Text } from './shared/SceneText';
 import * as THREE from 'three';
 // shouldRunThisFrame is used in the imported TruckAnimationManager from animationSystem
 import { audioManager } from '../utils/audioManager';
@@ -2597,6 +2597,15 @@ export const TruckBay: React.FC<TruckBayProps> = ({ productionSpeed }) => {
   const lastDockUpdateRef = useRef({ receiving: '', shipping: '' });
   const lastDockedStateRef = useRef({ shipping: false, receiving: false });
 
+  // Single-clock truck state: the useFrame below drives truck position from
+  // state.clock.elapsedTime and stores each computed TruckAnimState in these
+  // refs; RealisticTruck's getTruckState reads them instead of recomputing
+  // from performance.now(), whose origin (page load) is offset from the
+  // three.js clock's (canvas start) - the two clocks put lights/doors out of
+  // phase with the truck's actual position.
+  const shippingTruckStateRef = useRef<TruckAnimState>(calculateShippingTruckState(0, 0));
+  const receivingTruckStateRef = useRef<TruckAnimState>(calculateReceivingTruckState(30, 0));
+
   // PERFORMANCE: Consolidate store subscriptions with useShallow
   const isTabVisible = useGameSimulationStore((state) => state.isTabVisible);
   const graphicsQuality = useGraphicsStore((state) => state.graphics.quality);
@@ -2622,6 +2631,7 @@ export const TruckBay: React.FC<TruckBayProps> = ({ productionSpeed }) => {
     if (shippingTruckRef.current) {
       const cycle = adjustedTime % CYCLE_LENGTH;
       const truckState = calculateShippingTruckState(cycle, time);
+      shippingTruckStateRef.current = truckState;
 
       shippingTruckRef.current.position.x = truckState.x;
       shippingTruckRef.current.position.z = truckState.z;
@@ -2690,6 +2700,7 @@ export const TruckBay: React.FC<TruckBayProps> = ({ productionSpeed }) => {
     if (receivingTruckRef.current) {
       const cycle = (adjustedTime + CYCLE_LENGTH / 2) % CYCLE_LENGTH;
       const truckState = calculateReceivingTruckState(cycle, time);
+      receivingTruckStateRef.current = truckState;
 
       receivingTruckRef.current.position.x = truckState.x;
       receivingTruckRef.current.position.z = truckState.z;
@@ -2804,16 +2815,6 @@ export const TruckBay: React.FC<TruckBayProps> = ({ productionSpeed }) => {
       updateDockStatus('shipping', { status: shippingStatus, etaMinutes: shippingEta });
     }
   });
-
-  const getShippingState = (time: number) => {
-    const adjustedTime = time * (productionSpeed * 0.25 + 0.2);
-    return calculateShippingTruckState(adjustedTime % 60, time);
-  };
-
-  const getReceivingState = (time: number) => {
-    const adjustedTime = time * (productionSpeed * 0.25 + 0.2);
-    return calculateReceivingTruckState((adjustedTime + 30) % 60, time);
-  };
 
   return (
     <group>
@@ -3134,8 +3135,12 @@ export const TruckBay: React.FC<TruckBayProps> = ({ productionSpeed }) => {
             {/* Scale ticket kiosk */}
             <ScaleTicketKiosk position={[3, 0, 52]} rotation={0} />
 
-            {/* Overhead crane in maintenance bay */}
-            <OverheadCrane position={[90, 5.5, 30]} spanWidth={10} />
+            {/* Overhead crane in maintenance bay.
+                This sits inside the FRONT TRUCK YARD group (offset +50 in z), and the
+                MaintenanceBay is mounted OUTSIDE that group at world [85,0,30]. Local z=-20
+                therefore lands the crane over the bay at world z=30 (was local z=30 -> world
+                z=80, leaving it floating ~50 units north of the bay with no support). */}
+            <OverheadCrane position={[85, 5.5, -20]} spanWidth={10} />
 
             {/* Stretch wrap machine - moved out of dock apron to staging side */}
             <StretchWrapMachine position={[-28, 0, 24]} isActive={shippingDoorsOpenRef.current} />
@@ -3212,7 +3217,7 @@ export const TruckBay: React.FC<TruckBayProps> = ({ productionSpeed }) => {
           wheelRotation={shippingWheelRotation}
           throttle={shippingThrottleRef}
           trailerAngle={shippingTrailerAngleRef}
-          getTruckState={() => getShippingState(performance.now() / 1000)}
+          getTruckState={() => shippingTruckStateRef.current}
         />
       </group>
 
@@ -3586,7 +3591,7 @@ export const TruckBay: React.FC<TruckBayProps> = ({ productionSpeed }) => {
           wheelRotation={receivingWheelRotation}
           throttle={receivingThrottleRef}
           trailerAngle={receivingTrailerAngleRef}
-          getTruckState={() => getReceivingState(performance.now() / 1000)}
+          getTruckState={() => receivingTruckStateRef.current}
         />
       </group>
     </group>

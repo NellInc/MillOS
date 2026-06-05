@@ -83,12 +83,24 @@ export const StatusRing: React.FC<StatusRingProps> = ({
   const glowIntensity = getGlowIntensity(status);
   const opacity = status === 'idle' ? 0.3 : glowIntensity * 0.6;
 
+  // Create the ShaderMaterial exactly ONCE. The status-change effect below
+  // already keeps color/opacity/pulseSpeed uniforms in sync in place, so
+  // recreating the material on every status transition (the old
+  // [color, opacity, pulseSpeed] deps) only leaked the previous material's
+  // GPU program - accumulating across all machines as statuses cycle.
   const material = useMemo(() => {
     const mat = createStatusRingMaterial(color, opacity);
     mat.uniforms.pulseSpeed.value = pulseSpeed;
     materialRef.current = mat;
     return mat;
-  }, [color, opacity, pulseSpeed]);
+  }, []);
+
+  // Dispose the material on unmount
+  useEffect(() => {
+    return () => {
+      material.dispose();
+    };
+  }, [material]);
 
   // Update time uniform for animation
   useFrame((state) => {

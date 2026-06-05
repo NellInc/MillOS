@@ -275,12 +275,16 @@ export const useHypothesisEngine = create<HypothesisEngineState>()(
             const testResult = results.find((r) => r.hypothesis.id === h.id);
             if (!testResult) return h;
 
-            if (testResult.result.newConfidence > 0.7) {
+            // Check the no-evidence case FIRST: a hypothesis with no relevant
+            // evidence and a low confidence would otherwise fall into the
+            // < 0.3 'refuted' branch and be wrongly marked refuted on absent
+            // data rather than left at its current status.
+            if (testResult.result.evidence.includes('No relevant')) {
+              return h; // Insufficient data - keep current status
+            } else if (testResult.result.newConfidence > 0.7) {
               return { ...h, status: 'confirmed' as const };
             } else if (testResult.result.newConfidence < 0.3) {
               return { ...h, status: 'refuted' as const };
-            } else if (testResult.result.evidence.includes('No relevant')) {
-              return h; // Keep current status
             }
             return { ...h, status: 'inconclusive' as const };
           }),

@@ -14,6 +14,10 @@ import { FACTORY_ZONE_Z } from '../constants/factoryLayout';
 // Movement key tracking
 const pressedKeys = new Set<string>();
 
+// Reusable vector for the D-pad look offset (avoids a per-frame Vector3
+// allocation while the mobile look control is held).
+const _lookOffset = new THREE.Vector3();
+
 // Movement configuration
 const MOVE_SPEED = 20; // Units per second
 const VERTICAL_SPEED = 15; // Units per second for up/down
@@ -133,6 +137,8 @@ export const CameraController: React.FC<CameraControllerProps> = ({
         return;
       }
 
+      // Guard against undefined e.key (meta keys / blur), matching handleKeyUp
+      if (!e.key) return;
       const key = e.key.toLowerCase();
       // Track movement keys and shift for sprint
       if (
@@ -185,7 +191,7 @@ export const CameraController: React.FC<CameraControllerProps> = ({
     if (dpadDirection && dpadMode === 'look' && orbitControlsRef?.current) {
       const LOOK_SPEED = 1.5; // radians per second
       const target = orbitControlsRef.current.target;
-      const offset = camera.position.clone().sub(target);
+      const offset = _lookOffset.copy(camera.position).sub(target);
 
       // Convert to spherical coordinates
       const radius = offset.length();

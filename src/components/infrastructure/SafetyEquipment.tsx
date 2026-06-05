@@ -104,7 +104,8 @@ const WallSign: React.FC<{
   rotation?: [number, number, number];
   text: string;
   color?: string;
-}> = React.memo(({ position, rotation = [0, 0, 0], color = '#3b82f6' }) => {
+  hasPost?: boolean;
+}> = React.memo(({ position, rotation = [0, 0, 0], color = '#3b82f6', hasPost = true }) => {
   const safeRotation = rotation as [number, number, number];
   return (
     <group position={position} rotation={safeRotation}>
@@ -117,6 +118,15 @@ const WallSign: React.FC<{
         <planeGeometry args={[1.1, 0.3]} />
         <meshBasicMaterial color="#ffffff" transparent opacity={0.9} depthWrite={false} />
       </mesh>
+      {/* Support post to the floor for free-standing signs (set hasPost={false} for signs
+          that are genuinely mounted on a wall). Sign group sits at y=4, so the post spans
+          the 3.8 units down to the floor; without it the sign appears to float. */}
+      {hasPost && (
+        <mesh position={[0, -2.1, 0]} castShadow>
+          <cylinderGeometry args={[0.04, 0.04, 3.8, 8]} />
+          <meshStandardMaterial color="#64748b" metalness={0.7} roughness={0.3} />
+        </mesh>
+      )}
     </group>
   );
 });
@@ -651,14 +661,16 @@ export const SafetyEquipment: React.FC<SafetyEquipmentProps> = React.memo(() => 
       {showWarehouseClutter && (
         <>
           {/* Pallets near shipping dock staging (front, but away from truck yard) */}
-          <PalletStack position={[35, 0, 35]} layers={2} hasCrates rotation={0.1} />
+          {/* Moved off [35,0,35] which sat inside the toilet-block building (x[31,39] z[32.5,37.5]) */}
+          <PalletStack position={[42, 0, 38]} layers={2} hasCrates rotation={0.1} />
           <PalletStack position={[40, 0, 32]} layers={1} hasCrates={false} rotation={-0.05} />
           <PalletStack position={[-35, 0, 35]} layers={3} hasCrates rotation={0.2} />
           <PalletStack position={[-40, 0, 32]} layers={2} hasCrates rotation={-0.1} />
 
           {/* Pallets near packing zone (z=25) */}
           <PalletStack position={[20, 0, 30]} layers={2} hasCrates={false} rotation={Math.PI / 2} />
-          <PalletStack position={[-20, 0, 30]} layers={1} hasCrates rotation={Math.PI / 2 + 0.1} />
+          {/* Moved off [-20,0,30] which sat inside the manager-office building (x[-24,-16] z[27,33]) */}
+          <PalletStack position={[-14, 0, 30]} layers={1} hasCrates rotation={Math.PI / 2 + 0.1} />
 
           {/* Sack stacks near silos (z=-22), away from receiving dock */}
           <SackStack position={[-15, 0, -30]} count={6} rotation={0.15} />
@@ -701,20 +713,38 @@ export const SafetyEquipment: React.FC<SafetyEquipmentProps> = React.memo(() => 
           <WarningSign position={[-30, 1.5, -18]} type="danger" />
           <WarningSign position={[30, 1.5, -18]} type="danger" />
 
-          {/* Exit signs - near shipping dock (front), back, and sides */}
-          <WallSign position={[0, 4, 48]} rotation={[0, Math.PI, 0]} text="EXIT" color="#22c55e" />
-          <WallSign position={[0, 4, -48]} rotation={[0, 0, 0]} text="EXIT" color="#22c55e" />
+          {/* Exit signs - near shipping dock (front), back, and sides.
+              The front/back EXIT signs are offset off the door centerline (x=18 / x=11) so they
+              mount on the SOLID wall beside the dock opening (front opening is x[-15,15], back
+              x[-9,9]) instead of floating in the doorway / standing in the truck path. All four
+              are wall-mounted, so hasPost={false}. */}
+          <WallSign
+            position={[18, 4, 48]}
+            rotation={[0, Math.PI, 0]}
+            text="EXIT"
+            color="#22c55e"
+            hasPost={false}
+          />
+          <WallSign
+            position={[11, 4, -48]}
+            rotation={[0, 0, 0]}
+            text="EXIT"
+            color="#22c55e"
+            hasPost={false}
+          />
           <WallSign
             position={[-58, 4, 0]}
             rotation={[0, Math.PI / 2, 0]}
             text="EXIT"
             color="#22c55e"
+            hasPost={false}
           />
           <WallSign
             position={[58, 4, 0]}
             rotation={[0, -Math.PI / 2, 0]}
             text="EXIT"
             color="#22c55e"
+            hasPost={false}
           />
 
           {/* Zone signs - positioned near actual zone locations */}
@@ -725,19 +755,23 @@ export const SafetyEquipment: React.FC<SafetyEquipmentProps> = React.memo(() => 
             text="ZONE 1 - STORAGE"
             color="#3b82f6"
           />
-          {/* Zone 2: Milling at z=-6 */}
+          {/* Zone 2: Milling at z=-6 - hasPost={false}: a floor post at x=0,z=-10 would
+              spear through the central spine conveyor (x[-1.8,1.8] z[-20,18], top ~y0.85). */}
           <WallSign
             position={[0, 4, -10]}
             rotation={[0, 0, 0]}
             text="ZONE 2 - MILLING"
             color="#f97316"
+            hasPost={false}
           />
-          {/* Zone 3: Sifting at z=6 */}
+          {/* Zone 3: Sifting at z=6 - hasPost={false}: a floor post at x=0,z=8 would
+              spear through the central spine conveyor (belt spans z=-20..18 at x=0). */}
           <WallSign
             position={[0, 4, 8]}
             rotation={[0, 0, 0]}
             text="ZONE 3 - SIFTING"
             color="#a855f7"
+            hasPost={false}
           />
           {/* Zone 4: Packing at z=25 */}
           <WallSign

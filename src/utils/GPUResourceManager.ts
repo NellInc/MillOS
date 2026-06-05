@@ -219,9 +219,19 @@ class GPUResourceManager {
       total: { count: 0, bytes: 0, budgetPercent: 0 },
     };
 
+    // Explicit singular->plural mapping. Naive `${type}s` produced
+    // 'geometrys' (stats key is 'geometries'), so geometry count/bytes
+    // silently never accumulated and the geometry budget gauge sat at 0.
+    const TYPE_TO_CATEGORY: Record<string, keyof Omit<MemoryUsage, 'total'>> = {
+      geometry: 'geometries',
+      texture: 'textures',
+      material: 'materials',
+      renderTarget: 'renderTargets',
+    };
+
     this.resources.forEach((tracked) => {
-      const category = `${tracked.type}s` as keyof Omit<MemoryUsage, 'total'>;
-      if (stats[category]) {
+      const category = TYPE_TO_CATEGORY[tracked.type];
+      if (category && stats[category]) {
         stats[category].count++;
         stats[category].bytes += tracked.estimatedBytes;
       }

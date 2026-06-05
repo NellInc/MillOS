@@ -52,7 +52,10 @@ const DecisionRing: React.FC<DecisionRingProps> = ({ position, status, transitio
   if (transition < 0.01) return null;
 
   return (
-    <group position={[position[0], 0.2, position[2]]}>
+    // Keep the machine's Y: hardcoding 0.2 dropped elevated machines' rings to
+    // the floor (plansifters sit at y=9, so their attention ring rendered ~9
+    // units below the machine it was pointing at).
+    <group position={[position[0], position[1] + 0.2, position[2]]}>
       {/* Main pulsing ring */}
       <mesh ref={ringRef} rotation={[-Math.PI / 2, 0, 0]} renderOrder={RENDER_ORDER.floorEffects}>
         <ringGeometry args={[3, 3.5, 32]} />

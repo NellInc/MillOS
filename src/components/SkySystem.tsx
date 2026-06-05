@@ -1851,10 +1851,13 @@ const CityLights: React.FC<{
     }
   }, [isNight, startAngle]);
 
-  if (!isNight) return null;
-
+  // No early return on isNight: this component mounts during the day, so the
+  // old `if (!isNight) return null;` meant lightsRef never existed and the
+  // SkyAnimationManager (which reveals the lights imperatively via
+  // lightsRef.visible at dusk/night) had nothing to drive - city lights never
+  // appeared. Mount hidden instead; the manager toggles visibility.
   return (
-    <points ref={lightsRef}>
+    <points ref={lightsRef} visible={false}>
       <bufferGeometry>
         <bufferAttribute attach="attributes-position" args={[lightPositions, 3]} />
         <bufferAttribute attach="attributes-color" args={[lightColors, 3]} />
