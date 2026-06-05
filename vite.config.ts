@@ -88,7 +88,6 @@ export default defineConfig((): UserConfig => {
       rollupOptions: {
         input: {
           main: path.resolve(__dirname, 'index.html'),
-          prototypes: path.resolve(__dirname, 'prototypes/index.html'),
         },
         output: {
           // Manual chunks for better caching and parallel loading

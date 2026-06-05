@@ -1,4 +1,4 @@
-import { Suspense, lazy } from 'react';
+import { Suspense } from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -44,26 +44,7 @@ window.addEventListener('error', (event: ErrorEvent): void => {
 
 // StrictMode disabled for 3D app - causes double-renders that tank performance in dev
 // Production builds are unaffected (StrictMode only runs in development)
-const isPrototypeRoute = (): boolean => {
-  const url = new URL(window.location.href);
-  const normalizedPath = url.pathname.replace(/\/+$/, '') || '/';
-  const normalizedBase = import.meta.env.BASE_URL.replace(/\/+$/, '') || '/';
-  const prototypePath = normalizedBase === '/' ? '/prototypes' : `${normalizedBase}/prototypes`;
-  const prototypeIndexPath = `${prototypePath}/index.html`;
-
-  return (
-    normalizedPath === prototypePath ||
-    normalizedPath === prototypeIndexPath ||
-    url.searchParams.get('view') === 'prototypes' ||
-    url.hash === '#prototypes'
-  );
-};
-
-// Lazy-load the prototype deck so its ~162KB bundle is code-split out of the
-// main entry chunk; only fetched when the prototype route is actually requested.
-const AssetPrototypePage = lazy(() => import('./prototypes/AssetPrototypePage'));
-
-const RootComponent = isPrototypeRoute() ? AssetPrototypePage : App;
+const RootComponent = App;
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <ErrorBoundary>
