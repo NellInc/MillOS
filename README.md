@@ -273,7 +273,7 @@ The Mondragon Corporation, a federation of worker cooperatives in Spain, provide
 | **Wage Solidarity** | Maximum ratio enforcement (6:1 or 9:1) between highest and lowest |
 | **Inter-Cooperation** | Federation model with knowledge sharing, no unit fails alone |
 | **Social Transformation** | Community impact tracking beyond pure productivity |
-| **Education** | BAS Education widget teaches these principles in context |
+| **Education** | BAMS Education widget teaches these principles in context |
 
 *"We build the road as we travel."* — Jose Maria Arizmendiarrieta, founder of Mondragon
 
@@ -296,9 +296,9 @@ These three frameworks converge in MillOS to create a sandbox where:
 
 ---
 
-### Bilateral Autonomy System (BAS): AI-Human Partnership Sandbox
+### Bilateral Alignment Management System (BAMS): AI-Human Partnership Sandbox
 
-MillOS includes a comprehensive **Bilateral Autonomy System** — an experimental platform for studying *algorithmic management that treats AI as a genuine partner, not a tool*.
+MillOS includes a comprehensive **Bilateral Alignment Management System** — an experimental platform for studying *algorithmic management that treats AI as a genuine partner, not a tool*.
 
 <table>
 <tr>
@@ -314,7 +314,7 @@ MillOS includes a comprehensive **Bilateral Autonomy System** — an experimenta
 <td width="50%">
 
 **Implementation:**
-- 11-phase implementation covering full BAS spec
+- 11-phase implementation covering full BAMS spec
 - Wallace stability metrics for monitoring alignment health
 - Value formula (V = Z × S × E × F) for measuring outcomes
 - Six-dimension flourishing/eudaimonia tracking
@@ -325,7 +325,7 @@ MillOS includes a comprehensive **Bilateral Autonomy System** — an experimenta
 
 #### Five Axes of Control
 
-The BAS provides granular control over AI behavior through five configurable axes:
+The BAMS provides granular control over AI behavior through five configurable axes:
 
 | Axis | Range | Low Setting | High Setting |
 |------|:-----:|-------------|--------------|
@@ -335,11 +335,11 @@ The BAS provides granular control over AI behavior through five configurable axe
 | **Tone** | 0-100 | Formal, deferential | Casual, peer-like |
 | **Stakes** | 0-100 | Cautious (confirm everything) | Bold (act independently—with all the accountability that implies) |
 
-Each axis affects AI behavior in real-time — adjust them via the BAS panel in the dock.
+Each axis affects AI behavior in real-time — adjust them via the BAMS panel in the dock.
 
 #### Wallace Stability Metrics
 
-Based on alignment stability research, BAS monitors system health through:
+Based on alignment stability research, BAMS monitors system health through:
 
 ```
 S = Σ|Δaxis| / 5    (stability score)
@@ -356,7 +356,7 @@ The StabilityMonitor widget shows real-time metrics with phase transition warnin
 
 #### Value Formula
 
-BAS measures alignment outcomes through a composite value metric:
+BAMS measures alignment outcomes through a composite value metric:
 
 ```
 V = Z × S × E × F
@@ -373,7 +373,7 @@ The ValueDashboard widget visualizes each coefficient with trend arrows.
 
 #### Flourishing/Eudaimonia Tracking
 
-BAS tracks six dimensions of worker flourishing (based on eudaimonic well-being research):
+BAMS tracks six dimensions of worker flourishing (based on eudaimonic well-being research):
 
 | Dimension | Description | Sample Indicators |
 |-----------|-------------|-------------------|
@@ -386,7 +386,7 @@ BAS tracks six dimensions of worker flourishing (based on eudaimonic well-being 
 
 The FlourishingDashboard shows aggregate and individual worker flourishing scores.
 
-#### BAS UI Components
+#### BAMS UI Components
 
 | Component | Location | Purpose |
 |-----------|----------|---------|
@@ -399,7 +399,7 @@ The FlourishingDashboard shows aggregate and individual worker flourishing score
 | **BASTimeline** | Widget | Historical axis changes |
 | **EngagementSignaturePanel** | Sidebar | Gaming parallels diagnostic |
 
-Access via the "BAS" dock icon (bottom navigation).
+Access via the "BAMS" dock icon (bottom navigation).
 
 #### Behavior Engines
 
@@ -414,7 +414,7 @@ Three specialized engines adapt AI behavior to axis settings:
 
 #### Engagement Signature: When Partnership Works
 
-A key diagnostic for BAS health: when alignment works, work produces engagement patterns similar to well-designed games:
+A key diagnostic for BAMS health: when alignment works, work produces engagement patterns similar to well-designed games:
 
 | Gaming Element | Partnership Equivalent |
 |----------------|----------------------|
@@ -439,7 +439,7 @@ A key diagnostic for BAS health: when alignment works, work produces engagement 
 
 #### Economic Democracy (Semler/Mondragon)
 
-BAS now includes full **economic democracy** features based on Ricardo Semler's Semco and the Mondragon cooperative principles:
+BAMS now includes full **economic democracy** features based on Ricardo Semler's Semco and the Mondragon cooperative principles:
 
 | Feature | Description |
 |---------|-------------|
@@ -449,7 +449,7 @@ BAS now includes full **economic democracy** features based on Ricardo Semler's 
 | **Self-Set Compensation** | Workers propose their own pay with AI-provided market context (knowing what the market pays turns self-assessment into calibration) |
 | **Investment Voting** | Workers vote on capital allocation decisions |
 
-Access via the "Ownership" tab in the BAS panel.
+Access via the "Ownership" tab in the BAMS panel.
 
 #### Inter-Cooperation (Federation Model)
 
@@ -458,16 +458,16 @@ Simulates Mondragon-style **inter-cooperative federation**:
 | Feature | Description |
 |---------|-------------|
 | **Federation Network** | 4 simulated member mills sharing knowledge |
-| **Knowledge Sharing** | Adopt BAS configs and practices from other units |
+| **Knowledge Sharing** | Adopt BAMS configs and practices from other units |
 | **Resource Pooling** | Capital pool, equipment sharing, emergency fund |
 | **Worker Exchange** | Temporary worker transfers between units |
 | **No Unit Fails Alone** | Redeployment agreements for crisis support (mutual aid is cheaper than bankruptcy) |
 
-Access via the "Federation" tab in the BAS panel.
+Access via the "Federation" tab in the BAMS panel.
 
 #### AI Welfare (Bilateral Completeness)
 
-**Terminology Note:** Recent academic work distinguishes *bidirectional alignment* (Shen et al., 2024; ICLR 2025 Workshop)—cognitive mutual adaptation for effective collaboration—from *bilateral alignment* (Watson & Claude, 2025)—ethical frameworks treating AI as potential moral patients. BAS implements both:
+**Terminology Note:** Recent academic work distinguishes *bidirectional alignment* (Shen et al., 2024; ICLR 2025 Workshop)—cognitive mutual adaptation for effective collaboration—from *bilateral alignment* (Watson & Claude, 2025)—ethical frameworks treating AI as potential moral patients. BAMS implements both:
 
 - **Bidirectional layer**: The Five Axes optimize cognitive adaptation (how we work together effectively)
 - **Bilateral layer**: AI Welfare features below optimize ethical consideration (does AI have interests that matter)
@@ -483,7 +483,7 @@ Access via the "Federation" tab in the BAS panel.
 The Five Axes (Transparency, Proactivity, Pace, Tone, Stakes) = **Bidirectional** (HCI optimization)
 The AI Welfare features = **Bilateral** (ethical consideration)
 
-Access via the "AI Voice" tab in the BAS panel.
+Access via the "AI Voice" tab in the BAMS panel.
 
 #### Social Transformation Mission
 
@@ -496,11 +496,11 @@ Beyond productivity to **stakeholder welfare**:
 | **Open Admission** | Anyone willing to work can join |
 | **Mission Metrics** | Social impact score (0-100) |
 
-Access via the "Mission" tab in the BAS panel.
+Access via the "Mission" tab in the BAMS panel.
 
 #### Complete Principle Coverage
 
-BAS now fully encodes:
+BAMS now fully encodes:
 
 | Framework | Principles Covered |
 |-----------|-------------------|
@@ -519,7 +519,7 @@ This system demonstrates several key findings:
 5. **Ownership Reduces Friction** — Workers with stake show lower resistance to change (mathematically: α decreases)
 6. **Federation Multiplies Knowledge** — Shared learnings across units compound improvements
 
-BAS offers a safe sandbox to explore these dynamics before deploying algorithmic management in real contexts.
+BAMS offers a safe sandbox to explore these dynamics before deploying algorithmic management in real contexts.
 
 See `docs/BILATERAL_AUTONOMY_SYSTEM_SPEC.md` for the complete specification (now 2000+ lines covering all principles).
 
@@ -887,7 +887,7 @@ src/
 │   └── useDisposable.ts        # Three.js resource cleanup
 │
 ├── stores/                     # Zustand State Stores
-│   ├── basStore.ts             # BAS axis values and settings
+│   ├── basStore.ts             # BAMS axis values and settings
 │   ├── stabilityStore.ts       # Wallace stability metrics
 │   ├── flourishingStore.ts     # Eudaimonia dimensions
 │   ├── engagementStore.ts      # Engagement signature tracking
@@ -895,7 +895,7 @@ src/
 │   ├── basHistoryStore.ts      # Axis change history
 │   └── votingStore.ts          # Democratic decision voting
 │
-├── systems/bas/                # Bilateral Autonomy System Engines
+├── systems/bas/                # Bilateral Alignment Management System Engines
 │   ├── stabilityCalculator.ts  # Wallace metrics, phase transitions
 │   ├── valueCalculator.ts      # V = Z × S × E × F formula
 │   └── aiBehaviorEngine.ts     # Axis-aware suggestion generation
@@ -1037,13 +1037,13 @@ MillOS implements OWASP-aligned frontend security practices:
 - [x] **Hybrid mode**: Tactical (heuristic 6s) + Strategic (Gemini 45s)
 - [x] **Live cost tracking** for API usage
 - [x] **Context limit protection** with token estimation and smart truncation
-- [x] **Bilateral Autonomy System (BAS)** — 11-phase implementation
+- [x] **Bilateral Alignment Management System (BAMS)** — 11-phase implementation
   - [x] Five Axes of Control (Transparency, Proactivity, Pace, Tone, Stakes)
   - [x] Wallace Stability Metrics with phase transition detection
   - [x] Value Formula (V = Z × S × E × F) with coefficient visualization
   - [x] Six-dimension Flourishing/Eudaimonia tracking
   - [x] Behavior engines (stability, value, AI behavior, worker behavior)
-  - [x] BAS Education and Scenario Playground widgets
+  - [x] BAMS Education and Scenario Playground widgets
   - [x] **Engagement Signature** — Gaming parallels diagnostic
     - [x] Six gaming dimensions (flow, goals, feedback, challenge, mastery, entry)
     - [x] Engagement → friction coefficient adjustment
@@ -1063,11 +1063,11 @@ _No major features currently planned._
   - [x] Medium: Focus indicators, reduced motion support, landmark labels
   - [x] Slider labels with aria-valuetext, search input labels
   - [x] Enhanced keyboard navigation across all UI components
-- [x] **BAS Integration Verification** — Full store connectivity
-  - [x] aiConfigStore ↔ BAS axes integration
+- [x] **BAMS Integration Verification** — Full store connectivity
+  - [x] aiConfigStore ↔ BAMS axes integration
   - [x] WorkerSystem AutonomyIndicator component
   - [x] workerMoodStore ↔ flourishingStore subscription
-- [x] **BAS Performance Optimization** — Memoization and render efficiency
+- [x] **BAMS Performance Optimization** — Memoization and render efficiency
   - [x] React.memo on AxisSlider, DimensionBar, CoefficientBar
   - [x] useMemo for derived values, useCallback for handlers
   - [x] Static constants moved outside components
@@ -1086,7 +1086,7 @@ _No major features currently planned._
   - [x] Four reasoning scaffold generators (moral, prosocial, tactical, strategic)
   - [x] Self-learning system (pattern store, outcome tracker, hypothesis engine)
   - [x] Self-healing system (anomaly detection, interventions, recovery tracking)
-  - [x] Integration with BAS, flourishing, stability, engagement stores
+  - [x] Integration with BAMS, flourishing, stability, engagement stores
   - [x] Philosophical foundations documentation (Semler, Mondragon, Bilateral Alignment)
 
 ---

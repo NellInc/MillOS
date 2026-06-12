@@ -31,7 +31,6 @@
     "@react-three/fiber": "^9.4.2",
     "@react-three/postprocessing": "^3.0.4",
     "@react-three/rapier": "^2.2.0",
-    "@rollup/rollup-darwin-arm64": "^4.54.0",
     "@tailwindcss/postcss": "^4.1.18",
     "framer-motion": "^12.23.26",
     "lucide-react": "^0.562.0",
@@ -72,6 +71,9 @@
     "typescript-eslint": "^8.50.1",
     "vite": "^7.3.0",
     "vitest": "^4.0.16"
+  },
+  "optionalDependencies": {
+    "@rollup/rollup-darwin-arm64": "^4.54.0"
   },
   "overrides": {
     "stats-gl": {

@@ -27,7 +27,7 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm ci --force
+        run: npm ci
 
       # Gate: never publish a broken build to production. Mirrors CI's checks so
       # a push to main that fails typecheck/lint/tests stops here instead of
@@ -62,16 +62,36 @@ jobs:
       - name: Copy music files to v0.20
         run: cp public/*.mp3 staging/v0.20/
 
-      # Root redirects to v0.30 (current)
+      # Root redirects to v0.30 (current). The canonical URL (https://www.millos.net/)
+      # IS this page, so it must carry the full SEO/OG head — crawlers and link
+      # unfurlers don't follow the meta-refresh, and a contentless redirect page
+      # made social cards and search results blank.
       - name: Create root redirect
         run: |
           cat > staging/index.html << 'EOF'
           <!DOCTYPE html>
-          <html>
+          <html lang="en">
           <head>
             <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <meta http-equiv="refresh" content="0;url=/v0.30/">
-            <title>Redirecting to MillOS</title>
+            <title>MillOS | AI-Powered Grain Mill Digital Twin</title>
+            <meta name="description" content="MillOS - AI-Powered Grain Mill Digital Twin Simulator. A browser-based 3D industrial simulation featuring autonomous workers, intelligent forklifts, real-time production metrics, and SCADA integration." />
+            <link rel="canonical" href="https://www.millos.net/" />
+            <meta property="og:type" content="website" />
+            <meta property="og:url" content="https://www.millos.net/" />
+            <meta property="og:title" content="MillOS | AI-Powered Grain Mill Digital Twin" />
+            <meta property="og:description" content="A browser-based 3D industrial simulation featuring autonomous workers, intelligent forklifts, real-time production metrics, and SCADA integration. An agentic AI experiment by Nell Watson." />
+            <meta property="og:image" content="https://www.millos.net/og-image.png" />
+            <meta property="og:image:width" content="3456" />
+            <meta property="og:image:height" content="1993" />
+            <meta property="og:site_name" content="MillOS" />
+            <meta name="twitter:card" content="summary_large_image" />
+            <meta name="twitter:url" content="https://www.millos.net/" />
+            <meta name="twitter:title" content="MillOS | AI-Powered Grain Mill Digital Twin" />
+            <meta name="twitter:description" content="A browser-based 3D industrial simulation featuring autonomous workers, intelligent forklifts, real-time production metrics, and SCADA integration." />
+            <meta name="twitter:image" content="https://www.millos.net/og-image.png" />
+            <meta name="twitter:creator" content="@NellWatson" />
           </head>
           <body>
             <p>Redirecting to <a href="/v0.30/">MillOS v0.30</a>...</p>

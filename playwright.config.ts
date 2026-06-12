@@ -18,8 +18,12 @@ export default defineConfig({
   reporter: 'html',
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
-    /* Base URL to use in actions like `await page.goto('/')`. */
-    baseURL: 'http://localhost:3000',
+    /* Base URL to use in actions like `await page.goto('/')`.
+     * Dedicated e2e port: on port 3000 (the dev default) reuseExistingServer
+     * happily adopts WHATEVER is already listening — on one dev machine the
+     * suite silently tested a Grafana login page. 5180 + --strictPort makes
+     * the suite fail loudly instead of testing the wrong app. */
+    baseURL: 'http://localhost:5180',
 
     /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
     trace: 'on-first-retry',
@@ -38,8 +42,8 @@ export default defineConfig({
 
   /* Run your local dev server before starting the tests */
   webServer: {
-    command: 'npm run dev',
-    url: 'http://localhost:3000',
+    command: 'npm run dev -- --port 5180 --strictPort',
+    url: 'http://localhost:5180',
     reuseExistingServer: !process.env.CI,
     timeout: 120 * 1000, // 2 minutes for 3D app to start
   },

@@ -269,7 +269,7 @@ Types of decisions commonly voted on:
 - Compensation policies and profit distribution
 - Hiring, promotion, and separation decisions
 - Work rules and policy changes
-- AI system configurations (in BAS context)
+- AI system configurations (in BAMS context)
 
 The process includes deliberation time, ensuring workers can discuss and understand implications before voting.`,
   relatedConcepts: ['mondragon-principles', 'sovereignty-of-labor', 'radical-transparency'],
