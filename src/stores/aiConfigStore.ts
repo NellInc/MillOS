@@ -40,10 +40,16 @@ export type WebGPUStatus =
   | 'ready'
   | 'error';
 
-// Gemini Flash pricing (per 1M tokens, as of Dec 2024)
-// https://ai.google.dev/pricing
-const GEMINI_FLASH_INPUT_COST_PER_1M = 0.075; // $0.075 per 1M input tokens
-const GEMINI_FLASH_OUTPUT_COST_PER_1M = 0.3; // $0.30 per 1M output tokens
+// Gemini pricing per 1M tokens (paid tier, text), per model in the fallback
+// chain. Verified against https://ai.google.dev/gemini-api/docs/pricing (June 2026).
+const GEMINI_COST_PER_1M: Record<string, { input: number; output: number }> = {
+  'gemini-3.5-flash': { input: 1.5, output: 9.0 },
+  'gemini-3-flash-preview': { input: 0.5, output: 3.0 },
+  'gemini-2.5-flash': { input: 0.3, output: 2.5 },
+};
+// Fallback for unknown model IDs: price as the most expensive known model so
+// the tracker over-estimates rather than under-reports spend.
+const GEMINI_COST_DEFAULT = GEMINI_COST_PER_1M['gemini-3.5-flash'];
 const CHARS_PER_TOKEN = 4; // Conservative estimate
 
 // Strategic layer configuration
@@ -641,9 +647,11 @@ export const useAIConfigStore = create<AIConfigState>()(
         const inputTokens = Math.ceil(inputChars / CHARS_PER_TOKEN);
         const outputTokens = Math.ceil(outputChars / CHARS_PER_TOKEN);
 
-        // Calculate cost in USD
-        const inputCost = (inputTokens / 1_000_000) * GEMINI_FLASH_INPUT_COST_PER_1M;
-        const outputCost = (outputTokens / 1_000_000) * GEMINI_FLASH_OUTPUT_COST_PER_1M;
+        // Calculate cost in USD using the model actually serving requests
+        // (the client may have fallen back along its model chain)
+        const pricing = GEMINI_COST_PER_1M[geminiClient.getActiveModelId()] ?? GEMINI_COST_DEFAULT;
+        const inputCost = (inputTokens / 1_000_000) * pricing.input;
+        const outputCost = (outputTokens / 1_000_000) * pricing.output;
         const requestCost = inputCost + outputCost;
 
         set((state) => ({

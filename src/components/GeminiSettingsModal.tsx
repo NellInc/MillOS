@@ -2,7 +2,7 @@
  * AI Settings Modal for MillOS
  *
  * Configure the strategic AI backend:
- * - Gemini API: cloud inference with a Google API key (Gemini 3 Flash).
+ * - Gemini API: cloud inference with a Google API key (Gemini Flash model chain).
  * - Local (WebGPU): on-device Qwen3-4B neural core via @mlc-ai/web-llm — no
  *   API key, no cost, no data leaving the device after the one-time weight
  *   download. Mirrors the CABAL workspace WebGPU brain.
@@ -515,7 +515,10 @@ export function GeminiSettingsModal({ isOpen, onClose }: GeminiSettingsModalProp
               {!isLocal && isGeminiConnected && (
                 <div className="mt-2 flex items-center gap-2 text-sm text-green-400">
                   <CheckCircle className="w-4 h-4" aria-hidden="true" />
-                  <span>Connected • {geminiClient.getMaskedApiKey()}</span>
+                  <span>
+                    Connected • {geminiClient.getActiveModelId()} •{' '}
+                    {geminiClient.getMaskedApiKey()}
+                  </span>
                 </div>
               )}
 

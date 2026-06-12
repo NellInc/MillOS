@@ -1,8 +1,8 @@
 /**
- * Gemini 3 Flash Client for MillOS Plant Management
+ * Gemini Flash Client for MillOS Plant Management
  *
  * SDK wrapper with:
- * - thinkingLevel: 'high' for strategic plant decisions
+ * - Model fallback chain (stable GA model first, survives model deprecations)
  * - Circuit breaker for API resilience
  * - Connection state management
  * - Context length protection (token limits)
@@ -10,6 +10,31 @@
 
 import { GoogleGenerativeAI, GenerativeModel } from '@google/generative-ai';
 import { logger } from './logger';
+
+/**
+ * Model fallback chain, tried in order. A model-not-found / not-supported
+ * error advances to the next candidate instead of killing the AI layer —
+ * the previous hardcoded single ID ('gemini-3-flash-preview') left live AI
+ * silently dead once that preview model was retired.
+ *
+ * Verified against https://ai.google.dev/gemini-api/docs/models (June 2026):
+ * - gemini-3.5-flash: stable GA (May 2026), no announced shutdown
+ * - gemini-3-flash-preview: preview tier (restrictive rate limits)
+ * - gemini-2.5-flash: legacy stable, shutdown announced for 2026-10-16
+ */
+export const GEMINI_MODEL_CANDIDATES = [
+  'gemini-3.5-flash',
+  'gemini-3-flash-preview',
+  'gemini-2.5-flash',
+] as const;
+
+export type GeminiModelId = (typeof GEMINI_MODEL_CANDIDATES)[number];
+
+// Error patterns indicating the model ID itself is invalid/retired (vs a
+// transient failure). Matches the legacy SDK's surfaced REST errors, e.g.
+// "[404 Not Found] models/x is not found for API version v1beta, or is not
+// supported for generateContent."
+const MODEL_UNAVAILABLE_PATTERNS = ['is not found', 'not supported for', '404'] as const;
 
 // Circuit breaker state
 interface CircuitBreakerState {
@@ -42,6 +67,7 @@ const CONTEXT_OVERFLOW_PATTERNS = [
 class GeminiClient {
   private genAI: GoogleGenerativeAI | null = null;
   private model: GenerativeModel | null = null;
+  private modelIndex = 0;
   private apiKey: string | null = null;
   private circuitBreaker: CircuitBreakerState = {
     failures: 0,
@@ -132,27 +158,62 @@ class GeminiClient {
     try {
       this.apiKey = apiKey;
       this.genAI = new GoogleGenerativeAI(apiKey);
-
-      // Configure model with high thinking level for strategic decisions
-      this.model = this.genAI.getGenerativeModel({
-        model: 'gemini-3-flash-preview',
-        generationConfig: {
-          temperature: 0.7,
-          topP: 0.9,
-          maxOutputTokens: 2048,
-        },
-      });
+      this.modelIndex = 0;
+      this.buildModel();
 
       // Reset circuit breaker on successful init
       this.resetCircuitBreaker();
 
-      logger.info('[GeminiClient] Initialized with Gemini 3 Flash');
+      logger.info(`[GeminiClient] Initialized with ${this.getActiveModelId()}`);
       return true;
     } catch (error) {
       logger.error('[GeminiClient] Failed to initialize:', error);
       this.disconnect();
       return false;
     }
+  }
+
+  /** Instantiate the SDK model for the current candidate. */
+  private buildModel(): void {
+    if (!this.genAI) return;
+    this.model = this.genAI.getGenerativeModel({
+      model: GEMINI_MODEL_CANDIDATES[this.modelIndex],
+      generationConfig: {
+        temperature: 0.7,
+        topP: 0.9,
+        maxOutputTokens: 2048,
+      },
+    });
+  }
+
+  /** The model ID currently in use (for UI display and cost tracking). */
+  getActiveModelId(): GeminiModelId {
+    return GEMINI_MODEL_CANDIDATES[this.modelIndex];
+  }
+
+  /** Whether an error means the model ID itself is invalid/retired. */
+  private isModelUnavailableError(error: unknown): boolean {
+    if (!(error instanceof Error)) return false;
+    const msg = error.message.toLowerCase();
+    return MODEL_UNAVAILABLE_PATTERNS.some((p) => msg.includes(p.toLowerCase()));
+  }
+
+  /**
+   * Advance to the next model candidate. Returns false when the chain is
+   * exhausted (model stays on the last candidate; circuit breaker takes over).
+   */
+  private advanceModel(): boolean {
+    if (this.modelIndex >= GEMINI_MODEL_CANDIDATES.length - 1) {
+      logger.error('[GeminiClient] All model candidates unavailable:', GEMINI_MODEL_CANDIDATES);
+      return false;
+    }
+    const previous = this.getActiveModelId();
+    this.modelIndex++;
+    this.buildModel();
+    logger.warn(
+      `[GeminiClient] Model ${previous} unavailable — falling back to ${this.getActiveModelId()}`
+    );
+    return true;
   }
 
   /**
@@ -178,6 +239,7 @@ class GeminiClient {
     this.genAI = null;
     this.model = null;
     this.apiKey = null;
+    this.modelIndex = 0;
     logger.info('[GeminiClient] Disconnected');
   }
 
@@ -295,38 +357,49 @@ class GeminiClient {
     // Safe truncation if needed
     const safePrompt = this.truncatePrompt(prompt);
 
-    try {
-      const result = await this.model.generateContent(safePrompt);
-      const response = result.response;
-      const text = response.text();
+    // One attempt per model candidate: a retired/invalid model ID advances
+    // the fallback chain instead of opening the circuit breaker.
+    for (;;) {
+      const model = this.model;
+      if (!model) return null;
+      try {
+        const result = await model.generateContent(safePrompt);
+        const response = result.response;
+        const text = response.text();
 
-      // Guard against empty/null model output before caching, so a transient
-      // empty response is not cached and silently returned for future prompts
-      if (!text) {
-        logger.warn('[GeminiClient] Empty response from model');
+        // Guard against empty/null model output before caching, so a transient
+        // empty response is not cached and silently returned for future prompts
+        if (!text) {
+          logger.warn('[GeminiClient] Empty response from model');
+          return null;
+        }
+
+        // Reset failures and overflow state on success
+        this.circuitBreaker.failures = 0;
+        this.lastContextOverflow = false;
+
+        // Cache the successful response
+        this.setCachedResponse(prompt, text);
+
+        return text;
+      } catch (error) {
+        // Check for context overflow specifically
+        if (this.isContextOverflowError(error)) {
+          this.lastContextOverflow = true;
+          logger.error('[GeminiClient] Context overflow detected - falling back to heuristic');
+          // Don't count overflow as circuit breaker failure
+          return null;
+        }
+
+        // Retired/invalid model ID: try the next candidate in the chain
+        if (this.isModelUnavailableError(error) && this.advanceModel()) {
+          continue;
+        }
+
+        this.recordFailure();
+        logger.error('[GeminiClient] Generation failed:', error);
         return null;
       }
-
-      // Reset failures and overflow state on success
-      this.circuitBreaker.failures = 0;
-      this.lastContextOverflow = false;
-
-      // Cache the successful response
-      this.setCachedResponse(prompt, text);
-
-      return text;
-    } catch (error) {
-      // Check for context overflow specifically
-      if (this.isContextOverflowError(error)) {
-        this.lastContextOverflow = true;
-        logger.error('[GeminiClient] Context overflow detected - falling back to heuristic');
-        // Don't count overflow as circuit breaker failure
-        return null;
-      }
-
-      this.recordFailure();
-      logger.error('[GeminiClient] Generation failed:', error);
-      return null;
     }
   }
 
@@ -344,24 +417,33 @@ class GeminiClient {
       return { success: false, message: 'Circuit breaker is open' };
     }
 
-    try {
-      const result = await this.model.generateContent(
-        'Reply with exactly: "MillOS connection successful"'
-      );
-      const text = result.response.text();
+    for (;;) {
+      const model = this.model;
+      if (!model) return { success: false, message: 'Client not initialized' };
+      try {
+        const result = await model.generateContent(
+          'Reply with exactly: "MillOS connection successful"'
+        );
+        const text = result.response.text();
 
-      // Reset failures on a successful connection
-      this.circuitBreaker.failures = 0;
+        // Reset failures on a successful connection
+        this.circuitBreaker.failures = 0;
 
-      if (text.toLowerCase().includes('successful')) {
-        return { success: true, message: 'Connection verified' };
+        if (text.toLowerCase().includes('successful')) {
+          return { success: true, message: `Connection verified (${this.getActiveModelId()})` };
+        }
+
+        return { success: true, message: `Connected (${this.getActiveModelId()})` };
+      } catch (error) {
+        // Retired/invalid model ID: try the next candidate in the chain
+        if (this.isModelUnavailableError(error) && this.advanceModel()) {
+          continue;
+        }
+
+        this.recordFailure();
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        return { success: false, message: errorMessage };
       }
-
-      return { success: true, message: 'Connected (response received)' };
-    } catch (error) {
-      this.recordFailure();
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      return { success: false, message: errorMessage };
     }
   }
 

@@ -3905,7 +3905,7 @@ function parseStrategicResponse(response: string): {
 }
 
 /**
- * Generate a strategic decision using Gemini Flash 3
+ * Generate a strategic decision using the configured LLM backend
  * Returns priorities for the tactical layer to follow
  */
 export async function generateStrategicDecision(): Promise<AIDecision | null> {
