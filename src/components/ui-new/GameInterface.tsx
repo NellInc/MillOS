@@ -12,6 +12,8 @@ import { FEATURE_FLAGS } from '../../config/featureFlags';
 import { useAINarrationStore } from '../../stores/aiNarrationStore';
 import { useKnowledgeStore } from '../../stores/knowledgeStore';
 import { useKnowledgeIntegration } from '../../hooks/useKnowledgeIntegration';
+import { useUIStore } from '../../stores/uiStore';
+import { KeyboardShortcutsModal } from '../ui/KeyboardShortcutsModal';
 
 interface GameInterfaceProps {
   productionSpeed: number;
@@ -50,6 +52,11 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
 
   // Datalinks modal state
   const [datalinksOpen, setDatalinksOpen] = useState(false);
+
+  // Keyboard-shortcuts help modal — driven by the ? key (useKeyboardShortcuts
+  // toggles uiStore.showShortcuts; this is the only consumer that renders it).
+  const showShortcuts = useUIStore((s) => s.showShortcuts);
+  const setShowShortcuts = useUIStore((s) => s.setShowShortcuts);
 
   // AI Narration - get current narration to display
   const { getNarration, markShown } = useAINarrationStore();
@@ -232,6 +239,9 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
       {FEATURE_FLAGS.AI_NARRATION_ENABLED && currentNarration && (
         <AINarrationModal narration={currentNarration} onDismiss={handleNarrationDismiss} />
       )}
+
+      {/* 10. Keyboard Shortcuts Help (? key) */}
+      <KeyboardShortcutsModal isOpen={showShortcuts} onClose={() => setShowShortcuts(false)} />
     </div>
   );
 };

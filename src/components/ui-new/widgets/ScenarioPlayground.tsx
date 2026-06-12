@@ -711,7 +711,33 @@ export const ScenarioPlayground: React.FC = () => {
     markEventTriggered,
     calculateResults,
     getPendingEvents,
-  } = useScenarioStore();
+  } = useScenarioStore(
+    // Subscribe to the used slice only — the bare useScenarioStore() form
+    // re-rendered this 1000+ line widget on EVERY store mutation.
+    useShallow((state) => ({
+      availableScenarios: state.availableScenarios,
+      activeScenario: state.activeScenario,
+      isPlaying: state.isPlaying,
+      currentTime: state.currentTime,
+      speed: state.speed,
+      currentPhase: state.currentPhase,
+      results: state.results,
+      completedScenarios: state.completedScenarios,
+      triggeredEvents: state.triggeredEvents,
+      startScenario: state.startScenario,
+      pauseScenario: state.pauseScenario,
+      resumeScenario: state.resumeScenario,
+      stopScenario: state.stopScenario,
+      setSpeed: state.setSpeed,
+      tick: state.tick,
+      recordStability: state.recordStability,
+      recordEngagement: state.recordEngagement,
+      recordAxisChange: state.recordAxisChange,
+      markEventTriggered: state.markEventTriggered,
+      calculateResults: state.calculateResults,
+      getPendingEvents: state.getPendingEvents,
+    }))
+  );
 
   // BAS Store for applying scenario axes
   const { axes, setAxis } = useBASStore(

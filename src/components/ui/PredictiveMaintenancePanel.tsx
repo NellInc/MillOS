@@ -236,7 +236,7 @@ const ScheduleSection: React.FC = () => {
 // Main panel component
 export const PredictiveMaintenancePanel: React.FC = () => {
   return (
-    <div className="bg-slate-900/95 backdrop-blur-sm rounded-lg border border-slate-700 p-4 w-[320px]">
+    <div className="bg-slate-900/95 backdrop-blur-sm rounded-lg border border-slate-700 p-4 w-full">
       {/* Header */}
       <div className="flex items-center gap-2 mb-4 pb-3 border-b border-slate-700">
         <Wrench className="w-5 h-5 text-blue-400" />

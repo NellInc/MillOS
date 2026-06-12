@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { useGraphicsStore, GraphicsQuality } from '../../../stores/graphicsStore';
 import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
+import { useShallow } from 'zustand/react/shallow';
 // Import optimized audio hook (uses useSyncExternalStore instead of forceUpdate)
 import { useAudioStateWithControls as useAudioState } from '../../../hooks/useAudioState';
 import { useKnowledgeStore } from '../../../stores/knowledgeStore';
@@ -29,12 +30,19 @@ export const SettingsPanel: React.FC<{
   showZones?: boolean;
   setShowZones?: (v: boolean) => void;
 }> = ({ productionSpeed, setProductionSpeed, showZones, setShowZones }) => {
-  const graphics = useGraphicsStore();
+  // Subscribe to the used slice only — the bare useGraphicsStore() form
+  // re-rendered the whole panel on any graphics-store mutation.
+  const graphics = useGraphicsStore(
+    useShallow((state) => ({
+      graphics: state.graphics,
+      setGraphicsSetting: state.setGraphicsSetting,
+    }))
+  );
   const setGraphicsQuality = useGraphicsStore((state) => state.setGraphicsQuality);
   const clearPersistedState = useGameSimulationStore((state) => state.clearPersistedState);
   const audio = useAudioState();
 
-  // Knowledge system settings
+  // Knowledge system settings (used slice only — same reasoning as graphics)
   const {
     showTooltips,
     showLoadingQuotes,
@@ -44,7 +52,18 @@ export const SettingsPanel: React.FC<{
     setShowLoadingQuotes,
     setShowAINarration,
     setShowUnlockNotifications,
-  } = useKnowledgeStore();
+  } = useKnowledgeStore(
+    useShallow((state) => ({
+      showTooltips: state.showTooltips,
+      showLoadingQuotes: state.showLoadingQuotes,
+      showAINarration: state.showAINarration,
+      showUnlockNotifications: state.showUnlockNotifications,
+      setShowTooltips: state.setShowTooltips,
+      setShowLoadingQuotes: state.setShowLoadingQuotes,
+      setShowAINarration: state.setShowAINarration,
+      setShowUnlockNotifications: state.setShowUnlockNotifications,
+    }))
+  );
   const narrationEnabled = useAINarrationStore((state) => state.enabled);
   const setNarrationEnabled = useAINarrationStore((state) => state.setEnabled);
 

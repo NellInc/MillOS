@@ -1,13 +1,11 @@
 // Barrel export for UI components.
 // NOTE: the legacy UIOverlay shell was removed (replaced by ui-new/GameInterface).
-// The widgets below that are no longer rendered anywhere (the "stranded" set:
-// MillClockDisplay, SafetyMetricsDisplay, SafetyConfigPanel, IncidentHistoryPanel,
-// SafetyAnalyticsPanel, ZoneCustomizationPanel, KeyboardShortcutsModal,
-// PredictiveMaintenancePanel, TruckScheduleWidget) are deliberately kept for a
-// later re-home into ui-new panels. The fully-orphaned ones (CollapsibleLegend,
-// EmergencyControlPanel, WeatherControlPanel, GraphicsSettingsPanel,
-// AlertAcknowledgmentFlow) were deleted with the shell.
-export { MillClockDisplay } from './MillClockDisplay';
+// The formerly-stranded widgets are now re-homed: SafetyMetricsDisplay,
+// SafetyAnalyticsPanel, IncidentHistoryPanel, SafetyConfigPanel and
+// ZoneCustomizationPanel live in ui-new SafetyPanel tabs; PredictiveMaintenancePanel
+// in ui-new OverviewPanel; KeyboardShortcutsModal in GameInterface (? key).
+// MillClockDisplay and TruckScheduleWidget were deleted as redundant with
+// OverviewPanel's GameClock/GameSpeedControls and Dock Status sections.
 export { SafetyMetricsDisplay } from './SafetyMetricsDisplay';
 export { SafetyConfigPanel } from './SafetyConfigPanel';
 export { IncidentHistoryPanel } from './IncidentHistoryPanel';

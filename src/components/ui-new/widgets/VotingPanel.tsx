@@ -40,6 +40,7 @@ import {
   BarChart2,
 } from 'lucide-react';
 import { useVotingStore } from '../../../stores/votingStore';
+import { useShallow } from 'zustand/react/shallow';
 import { WORKER_ROSTER } from '../../../types';
 import { ConceptTooltip } from './ConceptTooltip';
 import type { Vote as VoteInterface, VoteType, VoteOption, VoteStatus } from '../../../types/bas';
@@ -472,8 +473,19 @@ export const VotingPanel: React.FC<VotingPanelProps> = ({ defaultExpanded = true
   const [expanded, setExpanded] = useState(defaultExpanded);
   const [activeTab, setActiveTab] = useState<'active' | 'history'>('active');
 
+  // Subscribe to the used slice only — the bare useVotingStore() form
+  // re-rendered the panel on every store mutation.
   const { votes, castVote, simulateWorkerVoting, getActiveVotes, getClosedVotes, closeVote } =
-    useVotingStore();
+    useVotingStore(
+      useShallow((state) => ({
+        votes: state.votes,
+        castVote: state.castVote,
+        simulateWorkerVoting: state.simulateWorkerVoting,
+        getActiveVotes: state.getActiveVotes,
+        getClosedVotes: state.getClosedVotes,
+        closeVote: state.closeVote,
+      }))
+    );
 
   const activeVotes = useMemo(() => getActiveVotes(), [votes]);
   const closedVotes = useMemo(() => getClosedVotes().slice(0, 5), [votes]); // Last 5

@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, Suspense, lazy } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import {
   Activity,
@@ -25,6 +25,14 @@ import { useHistoricalPlaybackStore } from '../../../stores/historicalPlaybackSt
 import { useShallow } from 'zustand/react/shallow';
 import { AchievementsPanel, WorkerLeaderboard } from '../../GameFeatures';
 import { TimelinePlayback } from '../../ui/TimelinePlayback';
+
+// Re-homed from ui/ (orphaned after the UIOverlay removal): live breakdown
+// mechanics — active breakdowns, predictive alerts, parts inventory, schedule.
+const PredictiveMaintenancePanel = lazy(() =>
+  import('../../ui/PredictiveMaintenancePanel').then((m) => ({
+    default: m.PredictiveMaintenancePanel,
+  }))
+);
 
 // Isolated Clock component to prevent full panel re-renders
 const GameClock: React.FC = React.memo(() => {
@@ -324,6 +332,19 @@ export const OverviewPanel: React.FC = React.memo(() => {
             eta={dockStatus.shipping.etaMinutes}
           />
         </div>
+      </section>
+
+      {/* Maintenance (breakdowns, predictive alerts, parts, schedule) */}
+      <section>
+        <Suspense
+          fallback={
+            <div className="h-20 bg-slate-800/30 rounded-lg animate-pulse" role="status">
+              <span className="sr-only">Loading maintenance panel...</span>
+            </div>
+          }
+        >
+          <PredictiveMaintenancePanel />
+        </Suspense>
       </section>
 
       {/* Total Production */}
