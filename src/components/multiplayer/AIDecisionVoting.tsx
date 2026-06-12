@@ -25,7 +25,7 @@ interface AIDecisionVotingProps {
 export const AIDecisionVotingCard: React.FC<AIDecisionVotingProps> = ({ decision, onClose }) => {
   const isActive = useIsMultiplayerActive();
   const localPlayerId = useMultiplayerStore((s) => s.localPlayerId);
-  const remotePlayers = useMultiplayerStore((s) => s._remotePlayersArray);
+  const remotePlayers = useMultiplayerStore((s) => s._remoteRosterArray);
 
   // For now, voting is stored in local state
   // In a full implementation, this would sync via the multiplayer system

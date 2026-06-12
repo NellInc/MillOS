@@ -26,7 +26,7 @@ export const MultiplayerChat: React.FC = () => {
   const markChatRead = useMultiplayerStore((s) => s.markChatRead);
   const localPlayerId = useMultiplayerStore((s) => s.localPlayerId);
   const localPlayerColor = useMultiplayerStore((s) => s.localPlayerColor);
-  const remotePlayers = useMultiplayerStore((s) => s._remotePlayersArray);
+  const remotePlayers = useMultiplayerStore((s) => s._remoteRosterArray);
 
   // Get player color by ID
   const getPlayerColor = useCallback(

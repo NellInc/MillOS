@@ -235,7 +235,7 @@ export function useMachineLockedByOther(machineId: string): boolean {
  */
 export function useMachineLockHolder(machineId: string): string | null {
   const lockHolder = useMultiplayerStore((s) => s.machineLocks.get(machineId));
-  const remotePlayers = useMultiplayerStore((s) => s._remotePlayersArray);
+  const remotePlayers = useMultiplayerStore((s) => s._remoteRosterArray);
   const localPlayerId = useMultiplayerStore((s) => s.localPlayerId);
   const localPlayerName = useMultiplayerStore((s) => s.localPlayerName);
 

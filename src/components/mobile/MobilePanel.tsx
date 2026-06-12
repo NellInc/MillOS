@@ -642,7 +642,7 @@ const MultiplayerContent: React.FC = () => {
   const connectionState = useMultiplayerStore((s) => s.connectionState);
   const roomCode = useMultiplayerStore((s) => s.roomCode);
   const isHost = useMultiplayerStore((s) => s.isHost);
-  const remotePlayers = useMultiplayerStore((s) => s._remotePlayersArray);
+  const remotePlayers = useMultiplayerStore((s) => s._remoteRosterArray);
   const createRoom = useMultiplayerStore((s) => s.createRoom);
   const leaveRoom = useMultiplayerStore((s) => s.leaveRoom);
 

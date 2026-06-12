@@ -45,7 +45,7 @@ export const MultiplayerLobby: React.FC = () => {
   const roomCode = useMultiplayerStore((s) => s.roomCode);
   const localPlayerName = useMultiplayerStore((s) => s.localPlayerName);
   const localPlayerColor = useMultiplayerStore((s) => s.localPlayerColor);
-  const remotePlayers = useMultiplayerStore((s) => s._remotePlayersArray);
+  const remotePlayers = useMultiplayerStore((s) => s._remoteRosterArray);
   const averageLatency = useMultiplayerStore((s) => s.averageLatencyMs);
   const setLocalPlayerName = useMultiplayerStore((s) => s.setLocalPlayerName);
 

@@ -41,7 +41,7 @@ export const MultiplayerPanel: React.FC = () => {
   const localPlayerName = useMultiplayerStore((s) => s.localPlayerName);
   const localPlayerColor = useMultiplayerStore((s) => s.localPlayerColor);
   const localPlayerId = useMultiplayerStore((s) => s.localPlayerId);
-  const remotePlayers = useMultiplayerStore((s) => s._remotePlayersArray);
+  const remotePlayers = useMultiplayerStore((s) => s._remoteRosterArray);
   const averageLatency = useMultiplayerStore((s) => s.averageLatencyMs);
   const unreadChatCount = useMultiplayerStore((s) => s.unreadChatCount);
   const chatMessages = useMultiplayerStore((s) => s.chatMessages);
