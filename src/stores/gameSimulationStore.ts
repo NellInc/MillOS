@@ -429,6 +429,16 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
           currentShift: 'morning',
           shiftStartTime: Date.now(),
           crisisState: createDefaultCrisisState(),
+          // Emergency/drill/shift-change runtime flags must reset too, or an
+          // active emergency survives the reset (frozen forklifts, evacuation
+          // behavior, alarm overlays) with no way to clear it.
+          emergencyActive: false,
+          emergencyMachineId: null,
+          emergencyDrillMode: false,
+          drillMetrics: createDefaultDrillMetrics(),
+          preEmergencyMachineStatuses: new Map(),
+          shiftChangeActive: false,
+          shiftChangePhase: 'idle',
         }),
 
       clearPersistedState: () => {
@@ -451,6 +461,15 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
             packerBellEnabled: true,
           },
           crisisState: createDefaultCrisisState(),
+          // Same emergency/shift runtime-flag reset as resetGameState — a
+          // "clear data" that leaves an alarm state running is not a reset.
+          emergencyActive: false,
+          emergencyMachineId: null,
+          emergencyDrillMode: false,
+          drillMetrics: createDefaultDrillMetrics(),
+          preEmergencyMachineStatuses: new Map(),
+          shiftChangeActive: false,
+          shiftChangePhase: 'idle',
         });
       },
 

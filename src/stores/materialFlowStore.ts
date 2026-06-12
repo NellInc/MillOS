@@ -6,11 +6,14 @@
  * - Roller Mills -> Plansifters (sifting/separation)
  * - Plansifters -> Packers (packaging)
  *
- * Zone Layout (from CLAUDE.md):
- * - Zone 1 (z=-22): 5 Silos (Alpha-Epsilon)
- * - Zone 2 (z=-6): 6 Roller Mills (RM-101 to RM-106)
- * - Zone 3 (z=6, y=9 elevated): 3 Plansifters (A-C)
- * - Zone 4 (z=20): 3 Packers (Lines 1-3)
+ * Zone Layout (matches the live scene in MillScene.tsx / factoryLayout.ts):
+ * - Zone 1 (z=-22): 5 Silos (silo-0..silo-4)
+ * - Zone 2 (z=-6): 4 Roller Mills (rm-101 to rm-104)
+ * - Zone 3 (z=6, y=9 elevated): 3 Plansifters (sifter-a..c)
+ * - Zone 4 (z=25): 3 Packers (packer-0..packer-2)
+ *
+ * Buffer ids MUST match the live machine ids from MillScene's machine roster —
+ * syncMachineProcessing() joins on them to couple machine status to flow.
  */
 
 import { create } from 'zustand';
@@ -109,6 +112,16 @@ export interface MaterialFlowState {
 
   // Actions
   tickMaterialFlow: (deltaSeconds: number, productionSpeed: number) => void;
+  /**
+   * Couple machine status to flow: stopped/idle/critical machines stop
+   * processing material. Joined on the live machine ids from the scene.
+   */
+  syncMachineProcessing: (machines: ReadonlyArray<{ id: string; status: string }>) => void;
+  /**
+   * A receiving truck delivers grain: tops up the emptiest silo (wheat for
+   * even silo indices, corn for odd, matching the initial fill pattern).
+   */
+  receiveGrainDelivery: (amountKg: number) => void;
   getMachineBuffer: (machineId: string) => MachineBuffer | undefined;
   getConveyorLoad: (segmentId: string) => number;
   getTotalInputBuffer: (machineId: string) => number;
@@ -123,8 +136,9 @@ export interface MaterialFlowState {
 function createInitialMachineBuffers(): Map<string, MachineBuffer> {
   const buffers = new Map<string, MachineBuffer>();
 
-  // Silos - 5 silos with initial grain storage (20 tons each)
-  const siloIds = ['silo-alpha', 'silo-beta', 'silo-gamma', 'silo-delta', 'silo-epsilon'];
+  // Silos - 5 silos with initial grain storage (20 tons each).
+  // Ids match the live scene roster (MillScene creates silo-0..silo-4).
+  const siloIds = ['silo-0', 'silo-1', 'silo-2', 'silo-3', 'silo-4'];
   siloIds.forEach((id, index) => {
     const grainType: MaterialType = index % 2 === 0 ? 'wheat_grain' : 'corn_grain';
     buffers.set(id, {
@@ -198,8 +212,9 @@ function createInitialMachineBuffers(): Map<string, MachineBuffer> {
     });
   });
 
-  // Packers - 3 packing lines
-  const packerIds = ['packer-1', 'packer-2', 'packer-3'];
+  // Packers - 3 packing lines. Ids match the live scene roster
+  // (MillScene creates packer-0..packer-2).
+  const packerIds = ['packer-0', 'packer-1', 'packer-2'];
   packerIds.forEach((id) => {
     buffers.set(id, {
       machineId: id,
@@ -262,16 +277,16 @@ function createInitialNetwork(): NetworkTopology {
   };
 
   // Silos -> Mills (5 silos distribute across the 4 roller mills for load balancing)
-  addSegment('silo-alpha', 'rm-101', 'wheat_grain', 40);
-  addSegment('silo-alpha', 'rm-102', 'wheat_grain', 40);
-  addSegment('silo-beta', 'rm-102', 'corn_grain', 40);
-  addSegment('silo-beta', 'rm-103', 'corn_grain', 40);
-  addSegment('silo-gamma', 'rm-103', 'wheat_grain', 40);
-  addSegment('silo-gamma', 'rm-104', 'wheat_grain', 40);
-  addSegment('silo-delta', 'rm-104', 'corn_grain', 40);
-  addSegment('silo-delta', 'rm-101', 'corn_grain', 40);
-  addSegment('silo-epsilon', 'rm-102', 'wheat_grain', 40);
-  addSegment('silo-epsilon', 'rm-103', 'wheat_grain', 40);
+  addSegment('silo-0', 'rm-101', 'wheat_grain', 40);
+  addSegment('silo-0', 'rm-102', 'wheat_grain', 40);
+  addSegment('silo-1', 'rm-102', 'corn_grain', 40);
+  addSegment('silo-1', 'rm-103', 'corn_grain', 40);
+  addSegment('silo-2', 'rm-103', 'wheat_grain', 40);
+  addSegment('silo-2', 'rm-104', 'wheat_grain', 40);
+  addSegment('silo-3', 'rm-104', 'corn_grain', 40);
+  addSegment('silo-3', 'rm-101', 'corn_grain', 40);
+  addSegment('silo-4', 'rm-102', 'wheat_grain', 40);
+  addSegment('silo-4', 'rm-103', 'wheat_grain', 40);
 
   // Mills -> Sifters (flour output); mirrors the physical spouting (rm[i] -> sifter[i % 3]),
   // so every sifter is fed by the 4 mills (sifter-a by rm-101 & rm-104).
@@ -282,9 +297,9 @@ function createInitialNetwork(): NetworkTopology {
 
   // Sifters -> Packers
   // Each sifter feeds one packer primarily
-  addSegment('sifter-a', 'packer-1', 'flour', 80);
-  addSegment('sifter-b', 'packer-2', 'flour', 80);
-  addSegment('sifter-c', 'packer-3', 'flour', 80);
+  addSegment('sifter-a', 'packer-0', 'flour', 80);
+  addSegment('sifter-b', 'packer-1', 'flour', 80);
+  addSegment('sifter-c', 'packer-2', 'flour', 80);
 
   return { segments, downstreamMap, upstreamMap };
 }
@@ -467,6 +482,64 @@ export const useMaterialFlowStore = create<MaterialFlowState>()(
         currentFlowRate: instantFlowRate,
         currentPackerFlowRate: instantPackerFlowRate,
       });
+    },
+
+    syncMachineProcessing: (machines) => {
+      const state = get();
+      let changed = false;
+      const newBuffers = new Map(state.machineBuffers);
+
+      for (const machine of machines) {
+        const buffer = newBuffers.get(machine.id);
+        if (!buffer) continue;
+        // 'running' and 'warning' machines process; idle/critical/stopped don't.
+        const shouldProcess = machine.status === 'running' || machine.status === 'warning';
+        if (buffer.isProcessing !== shouldProcess) {
+          newBuffers.set(machine.id, { ...buffer, isProcessing: shouldProcess });
+          changed = true;
+        }
+      }
+
+      if (changed) {
+        set({ machineBuffers: newBuffers });
+      }
+    },
+
+    receiveGrainDelivery: (amountKg: number) => {
+      if (amountKg <= 0) return;
+      const state = get();
+
+      // Find the emptiest silo (least total stored grain)
+      let emptiest: MachineBuffer | null = null;
+      let emptiestTotal = Infinity;
+      state.machineBuffers.forEach((buffer) => {
+        if (buffer.machineType !== 'silo') return;
+        const total = buffer.outputBuffer.reduce((sum, m) => sum + m.amount, 0);
+        if (total < emptiestTotal) {
+          emptiestTotal = total;
+          emptiest = buffer;
+        }
+      });
+      if (!emptiest) return;
+
+      const target: MachineBuffer = emptiest;
+      // Even silo indices store wheat, odd store corn (matches initial fill)
+      const siloIndex = Number.parseInt(target.machineId.replace('silo-', ''), 10) || 0;
+      const grainType: MaterialType = siloIndex % 2 === 0 ? 'wheat_grain' : 'corn_grain';
+      const space = target.outputCapacity - emptiestTotal;
+      const toAdd = Math.max(0, Math.min(amountKg, space));
+      if (toAdd <= 0) return;
+
+      const newBuffers = new Map(state.machineBuffers);
+      const newOutput = target.outputBuffer.map((m) => ({ ...m }));
+      const existing = newOutput.find((m) => m.type === grainType);
+      if (existing) {
+        existing.amount += toAdd;
+      } else {
+        newOutput.push({ type: grainType, amount: toAdd });
+      }
+      newBuffers.set(target.machineId, { ...target, outputBuffer: newOutput });
+      set({ machineBuffers: newBuffers });
     },
 
     getMachineBuffer: (machineId: string) => {

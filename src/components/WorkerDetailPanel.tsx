@@ -63,13 +63,13 @@ const SKILL_NAMES: Record<keyof NonNullable<WorkerData['skills']>, string> = {
 // Available tasks for assignment
 const AVAILABLE_TASKS: { task: string; machine?: string; category: string }[] = [
   { task: 'Overseeing production line', category: 'Supervision' },
-  { task: 'Calibrating Roller Mill', machine: 'roller-mill-1', category: 'Operations' },
-  { task: 'Monitoring Silo levels', machine: 'silo-alpha', category: 'Operations' },
+  { task: 'Calibrating Roller Mill', machine: 'rm-101', category: 'Operations' },
+  { task: 'Monitoring Silo levels', machine: 'silo-0', category: 'Operations' },
   { task: 'Testing flour samples', machine: 'qc-lab', category: 'Quality Control' },
   { task: 'Preventive maintenance', machine: 'packer-1', category: 'Maintenance' },
   { task: 'Safety inspection', category: 'Safety' },
-  { task: 'Loading grain', machine: 'silo-gamma', category: 'Operations' },
-  { task: 'Optimizing Plansifter', machine: 'plansifter-a', category: 'Operations' },
+  { task: 'Loading grain', machine: 'silo-2', category: 'Operations' },
+  { task: 'Optimizing Plansifter', machine: 'sifter-a', category: 'Operations' },
   { task: 'Operating Packer', machine: 'packer-2', category: 'Operations' },
   { task: 'Moisture analysis', machine: 'qc-lab', category: 'Quality Control' },
   { task: 'Break', category: 'Break' },

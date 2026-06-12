@@ -15,8 +15,26 @@ import { centralTick, TICK_PRIORITY } from './CentralTickSystem';
 import type { TickContext } from './CentralTickSystem';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import { useProductionStore } from '../stores/productionStore';
+import { useMaterialFlowStore } from '../stores/materialFlowStore';
+import { useTruckScheduleStore } from '../stores/truckScheduleStore';
 import { useUIStore } from '../stores/uiStore';
 import type { MachineData } from '../types';
+
+// Tracks the receiving dock's docked state across ticks so a false->true
+// transition (a grain truck arriving) triggers exactly one silo delivery.
+let _lastReceivingDocked = false;
+
+// One grain truck tops up ~15 t (silo capacity is 50 t)
+const GRAIN_DELIVERY_KG = 15000;
+
+// Shift-change phase timer. startShiftHandover() sets phase 'leaving' (workers
+// walk to the exit at z=-50, ~3 u/s, worst case ~27 s) but nothing ever
+// completed the change — shiftChangeActive stayed true forever and the
+// handover button disabled itself permanently. This timer advances
+// leaving -> entering -> completeShiftHandover().
+let _shiftPhaseElapsed = 0;
+const SHIFT_LEAVING_DURATION_S = 30;
+const SHIFT_ENTERING_DURATION_S = 10;
 
 // Machine status type (matches MachineData.status)
 type MachineStatus = 'running' | 'idle' | 'warning' | 'critical';
@@ -338,6 +356,49 @@ function unifiedGameTick(ctx: TickContext): void {
       gameTime: newGameTime,
       gameDay: newGameDay,
     });
+  }
+
+  // 4b. Advance the material-flow simulation (grain -> mills -> sifters -> packers).
+  // This tick was orphaned when ConveyorSystem was modularized (a5d0c21) — the
+  // whole flow network silently froze. It belongs here, on the simulation tick,
+  // not in a render-loop useFrame.
+  const flowStore = useMaterialFlowStore.getState();
+  // Couple machine status to flow FIRST so a stopped/broken machine stops
+  // processing material this same tick (action -> consequence).
+  flowStore.syncMachineProcessing(
+    anyMachineChanged ? useProductionStore.getState().machines : machines
+  );
+  flowStore.tickMaterialFlow(deltaSeconds, productionSpeed);
+
+  // 4c. Grain deliveries: when a receiving truck docks, it refills the
+  // emptiest silo — without this the silos drain dry in under an hour of
+  // simulation and the flow network starves permanently.
+  const receivingDocked = useTruckScheduleStore.getState().truckSchedule.receiving.truckDocked;
+  if (receivingDocked && !_lastReceivingDocked) {
+    flowStore.receiveGrainDelivery(GRAIN_DELIVERY_KG);
+  }
+  _lastReceivingDocked = receivingDocked;
+
+  // 4d. Shift-change completion (see _shiftPhaseElapsed above)
+  const simStore = useGameSimulationStore.getState();
+  if (simStore.shiftChangeActive) {
+    _shiftPhaseElapsed += deltaSeconds;
+    if (simStore.shiftChangePhase === 'leaving' && _shiftPhaseElapsed >= SHIFT_LEAVING_DURATION_S) {
+      // Old crew is out — new crew walks back in (normal worker behavior resumes)
+      useGameSimulationStore.setState({ shiftChangePhase: 'entering' });
+      _shiftPhaseElapsed = 0;
+    } else if (
+      simStore.shiftChangePhase === 'entering' &&
+      _shiftPhaseElapsed >= SHIFT_ENTERING_DURATION_S
+    ) {
+      // completeShiftHandover (not the plain completeShiftChange): also
+      // archives shift notes/production, resets incidents and clock-ins,
+      // and rolls the supervisor handoff for the incoming shift.
+      simStore.completeShiftHandover();
+      _shiftPhaseElapsed = 0;
+    }
+  } else {
+    _shiftPhaseElapsed = 0;
   }
 
   // 5. Handle breakdowns (async, outside main path)

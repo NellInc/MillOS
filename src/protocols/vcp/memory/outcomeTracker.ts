@@ -226,7 +226,10 @@ export const useOutcomeTracker = create<OutcomeTrackerState>()(
 
       getAverageAccuracy: () => {
         const { outcomes } = get();
-        if (outcomes.length === 0) return 1;
+        // No track record yet: report neutral confidence rather than a
+        // perfect 1.0, which falsely advertised flawless prediction accuracy
+        // (this value surfaces as learningConfidence in the VCP status UI).
+        if (outcomes.length === 0) return 0.5;
 
         const avgAbsDelta =
           outcomes.reduce((sum, o) => sum + Math.abs(o.delta), 0) / outcomes.length;
