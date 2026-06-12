@@ -205,6 +205,9 @@ const SM = {
     metalness: 0.1,
     transparent: true,
     opacity: 0.8,
+    // Transparent overlay surface: writing depth made the water occlude
+    // ground/objects behind it inconsistently by camera angle (sort flicker)
+    depthWrite: false,
   }),
   treeTrunk: new THREE.MeshStandardMaterial({
     color: '#5d4037',

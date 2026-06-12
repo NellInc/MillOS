@@ -69,7 +69,6 @@ export interface WorkerAnimationData {
   // Animation timers
   walkCycle: number;
   idleTimer: number;
-  idleDuration: number;
   idleVariation: IdleVariation;
   idleVariationTimer: number;
 
@@ -169,7 +168,6 @@ export function createWorkerAnimationData(config: WorkerAnimationConfig): Worker
 
     walkCycle: Math.random() * Math.PI * 2, // Randomize starting phase
     idleTimer: Math.random() * 8 + 4, // Time until next idle (shorter)
-    idleDuration: 0,
     idleVariation: 'breathing',
     idleVariationTimer: Math.random() * 3 + 3,
 

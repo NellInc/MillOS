@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect } from 'react';
 import { Html } from '@react-three/drei';
 import * as THREE from 'three';
 import { POLYGON_OFFSET } from '../../constants/renderLayers';
@@ -93,6 +93,9 @@ export const HistoricalPhoto: React.FC<HistoricalPhotoProps> = ({
     texture.needsUpdate = true;
     return texture;
   }, [type]);
+
+  // Dispose the manually-created GPU texture on unmount / type change
+  useEffect(() => () => photoTexture.dispose(), [photoTexture]);
 
   // Photo metadata
   const photoInfo = useMemo(() => {

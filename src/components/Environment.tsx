@@ -755,7 +755,13 @@ const DaylightWindow: React.FC<{ position: [number, number, number]; size: [numb
         {/* Daylight glow behind glass */}
         <mesh position={[0, 0, -0.1]}>
           <planeGeometry args={[innerW, innerH]} />
-          <meshBasicMaterial ref={glowMaterialRef} color="#7dd3fc" transparent opacity={0.3} />
+          <meshBasicMaterial
+            ref={glowMaterialRef}
+            color="#7dd3fc"
+            transparent
+            opacity={0.3}
+            depthWrite={false}
+          />
         </mesh>
       </group>
     );
@@ -1799,7 +1805,13 @@ const DripMesh: React.FC<{
       </mesh>
       <mesh ref={trailRef} visible={false}>
         <cylinderGeometry args={[0.02, 0.04, 0.3, 6]} />
-        <meshBasicMaterial ref={trailMaterialRef} color="#7dd3fc" transparent opacity={0.24} />
+        <meshBasicMaterial
+          ref={trailMaterialRef}
+          color="#7dd3fc"
+          transparent
+          opacity={0.24}
+          depthWrite={false}
+        />
       </mesh>
     </group>
   );
@@ -1835,7 +1847,13 @@ const SplashMesh: React.FC<{ data: SplashParticle }> = memo(({ data }) => {
     <>
       <mesh ref={meshRef} position={[data.x, data.y, data.z]}>
         <sphereGeometry args={[0.03, 6, 6]} />
-        <meshBasicMaterial ref={materialRef} color="#7dd3fc" transparent opacity={0.5} />
+        <meshBasicMaterial
+          ref={materialRef}
+          color="#7dd3fc"
+          transparent
+          opacity={0.5}
+          depthWrite={false}
+        />
       </mesh>
       <mesh
         ref={ringRef}
@@ -1844,7 +1862,13 @@ const SplashMesh: React.FC<{ data: SplashParticle }> = memo(({ data }) => {
         visible={false}
       >
         <ringGeometry args={[0.05, 0.1, 16]} />
-        <meshBasicMaterial ref={ringMaterialRef} color="#7dd3fc" transparent opacity={0.6} />
+        <meshBasicMaterial
+          ref={ringMaterialRef}
+          color="#7dd3fc"
+          transparent
+          opacity={0.6}
+          depthWrite={false}
+        />
       </mesh>
     </>
   );

@@ -1,7 +1,12 @@
-import React, { useRef, useMemo, useState } from 'react';
+import React, { useRef, useMemo, useState, useEffect } from 'react';
 import * as THREE from 'three';
 import { useAmbientAnimation } from './shared';
 import { FLOOR_LAYERS, POLYGON_OFFSET, RENDER_ORDER } from '../../constants/renderLayers';
+
+/** Dispose a manually-created GPU resource when its owner unmounts. */
+function useDispose(resource: { dispose: () => void }): void {
+  useEffect(() => () => resource.dispose(), [resource]);
+}
 
 // ==========================================
 // WEAR & DAMAGE COMPONENTS
@@ -58,6 +63,7 @@ export const Cobweb: React.FC<{
     geo.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
     return geo;
   }, [scale]);
+  useDispose(geometry);
 
   // Subtle swaying animation using centralized manager
   const animationId = useMemo(
@@ -140,6 +146,7 @@ export const RustStain: React.FC<{
     tex.needsUpdate = true;
     return tex;
   }, []);
+  useDispose(texture);
 
   return (
     <mesh position={position} rotation={rotation} renderOrder={RENDER_ORDER.floorEffects}>
@@ -208,12 +215,16 @@ export const OilPuddle: React.FC<{ position: [number, number, number]; size?: nu
 
     return geo;
   }, [size]);
+  useDispose(shape);
+
+  // Stable random rotation — inline Math.random() in JSX re-rolled every render
+  const yRotation = useMemo(() => Math.random() * Math.PI * 2, []);
 
   return (
     <mesh
       ref={meshRef}
       position={position}
-      rotation={[-Math.PI / 2, 0, Math.random() * Math.PI * 2]}
+      rotation={[-Math.PI / 2, 0, yRotation]}
       geometry={shape}
       renderOrder={RENDER_ORDER.floorEffects}
     >
@@ -285,12 +296,16 @@ export const RainPuddle: React.FC<{ position: [number, number, number]; size?: n
 
     return geo;
   }, [size]);
+  useDispose(shape);
+
+  // Stable random rotation — inline Math.random() in JSX re-rolled every render
+  const yRotation = useMemo(() => Math.random() * Math.PI * 2, []);
 
   return (
     <mesh
       ref={meshRef}
       position={position}
-      rotation={[-Math.PI / 2, 0, Math.random() * Math.PI * 2]}
+      rotation={[-Math.PI / 2, 0, yRotation]}
       geometry={shape}
       renderOrder={RENDER_ORDER.floorEffects}
     >
@@ -369,6 +384,7 @@ export const ScorchMark: React.FC<{
     tex.needsUpdate = true;
     return tex;
   }, []);
+  useDispose(texture);
 
   return (
     <mesh position={position} rotation={rotation}>
@@ -518,6 +534,7 @@ export const CeilingWaterStain: React.FC<{ position: [number, number, number]; s
     tex.needsUpdate = true;
     return tex;
   }, []);
+  useDispose(texture);
 
   return (
     <mesh position={position} rotation={[Math.PI / 2, 0, 0]}>
@@ -579,6 +596,7 @@ export const WindowCondensation: React.FC<{
     tex.needsUpdate = true;
     return tex;
   }, []);
+  useDispose(texture);
 
   return (
     <mesh position={position} rotation={rotation}>

@@ -431,14 +431,14 @@ export class WorkerAnimationManager {
       data.idleTimer -= delta;
       if (data.idleTimer <= 0) {
         data.currentState = 'walking';
-        data.idleTimer = Math.random() * 12 + 8;
       }
     } else if (data.currentState === 'walking') {
-      data.idleDuration -= delta;
-      // Random chance to idle
+      // Random chance to pause and idle for 2-6 seconds. (Previously the
+      // pause length was written into idleDuration — a dead field nothing
+      // read — so idle stretches ran on a stale leftover idleTimer instead.)
       if (Math.random() < 0.001) {
         data.currentState = 'idle';
-        data.idleDuration = Math.random() * 4 + 2;
+        data.idleTimer = Math.random() * 4 + 2;
       }
     }
   }
@@ -669,13 +669,15 @@ export class WorkerAnimationManager {
   }
 
   private updateFatigue(data: WorkerAnimationData, delta: number): void {
-    // Accumulate fatigue over shift (cap at 0.8)
-    const shiftDuration = (Date.now() - data.shiftStartTime) / 1000 / 60; // minutes
-    data.fatigueLevel = Math.min(0.8, shiftDuration / 60); // Max at 1 hour
-
-    // Reset on break
+    // Accumulate fatigue while working, recover on breaks (cap at 0.8, ~1 hour
+    // of animation time to max). Accumulator-based on the frame delta: the
+    // previous version re-derived fatigue from wall-clock shift duration every
+    // frame, which clobbered the break-recovery decrement one frame later
+    // (breaks never visibly reduced fatigue) and kept accruing while paused.
     if (data.status === 'break') {
       data.fatigueLevel = Math.max(0, data.fatigueLevel - delta * 0.1);
+    } else {
+      data.fatigueLevel = Math.min(0.8, data.fatigueLevel + delta * (0.8 / 3600));
     }
 
     // Apply fatigue effects (head droop, slouch)

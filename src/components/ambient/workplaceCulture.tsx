@@ -1,4 +1,4 @@
-import React, { useRef, useMemo } from 'react';
+import React, { useRef, useMemo, useEffect } from 'react';
 import * as THREE from 'three';
 import { useAmbientAnimation } from './shared';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
@@ -323,6 +323,9 @@ export const Graffiti: React.FC<{
     tex.needsUpdate = true;
     return tex;
   }, [type]);
+
+  // Dispose the manually-created GPU texture on unmount / type change
+  useEffect(() => () => texture.dispose(), [texture]);
 
   return (
     <mesh position={position} rotation={rotation}>

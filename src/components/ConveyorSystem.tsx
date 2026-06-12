@@ -20,6 +20,10 @@ import { POLYGON_OFFSET } from '../constants/renderLayers';
 import { shouldRunThisFrame } from '../utils/frameThrottle';
 import { useModelTextures } from '../utils/machineTextures';
 
+// Shared, immutable normal-scale for belt materials (inline `new THREE.Vector2`
+// in JSX re-created the object every render, forcing a material prop diff)
+const BELT_NORMAL_SCALE = new THREE.Vector2(0.5, 0.5);
+
 // Module-level registry for centralized conveyor audio updates
 const conveyorAudioRegistry = new Map<string, { position: THREE.Vector3; isRunning: boolean }>();
 
@@ -565,7 +569,7 @@ export const ConveyorBelt: React.FC<{
           color={conveyorTextures.color ? '#ffffff' : undefined}
           map={conveyorTextures.color || beltTexture}
           normalMap={conveyorTextures.normal}
-          normalScale={conveyorTextures.normal ? new THREE.Vector2(0.5, 0.5) : undefined}
+          normalScale={conveyorTextures.normal ? BELT_NORMAL_SCALE : undefined}
           roughnessMap={conveyorTextures.roughness}
           roughness={0.8}
         />

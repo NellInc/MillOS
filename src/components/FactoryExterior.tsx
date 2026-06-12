@@ -576,7 +576,7 @@ const Canal: React.FC<{
       {/* Water depth effect */}
       <mesh position={[0, -0.8, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <planeGeometry args={[safeWidth - 1.5, safeLength - 1]} />
-        <meshBasicMaterial color="#0a2a3a" transparent opacity={0.6} />
+        <meshBasicMaterial color="#0a2a3a" transparent opacity={0.6} depthWrite={false} />
       </mesh>
       {/* Left canal wall */}
       <mesh position={[-safeWidth / 2, 0.3, 0]} castShadow receiveShadow>
@@ -816,7 +816,8 @@ export const CanalBoat: React.FC<{
         <group position={[0, 0.8, boatLength / 2 - 1.2]}>
           <mesh rotation={[-0.4, 0, 0]}>
             <boxGeometry args={[boatWidth - 0.4, 0.8, 0.05]} />
-            <meshStandardMaterial color="#222" transparent opacity={0.4} />
+            {/* depthWrite off: this fill is coplanar with the wireframe frame below */}
+            <meshStandardMaterial color="#222" transparent opacity={0.4} depthWrite={false} />
           </mesh>
           <mesh rotation={[-0.4, 0, 0]} position={[0, 0, 0]}>
             <boxGeometry args={[boatWidth - 0.4, 0.8, 0.05]} />
@@ -839,7 +840,7 @@ export const CanalBoat: React.FC<{
         {/* Water Reflection / Shadow */}
         <mesh position={[0, -0.2, 0]} rotation={[-Math.PI / 2, 0, 0]}>
           <planeGeometry args={[boatWidth + 0.5, boatLength + 1]} />
-          <meshBasicMaterial color="#000" transparent opacity={0.3} />
+          <meshBasicMaterial color="#000" transparent opacity={0.3} depthWrite={false} />
         </mesh>
       </group>
     );

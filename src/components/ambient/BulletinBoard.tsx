@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect } from 'react';
 import { Html } from '@react-three/drei';
 import * as THREE from 'three';
 
@@ -60,6 +60,15 @@ export const BulletinBoard: React.FC<BulletinBoardProps> = ({ position, rotation
     texture.needsUpdate = true;
     return texture;
   }, []);
+
+  // Dispose the manually-created GPU textures on unmount
+  useEffect(
+    () => () => {
+      corkTexture.dispose();
+      photoTexture.dispose();
+    },
+    [corkTexture, photoTexture]
+  );
 
   return (
     <group position={position} rotation={rotation}>

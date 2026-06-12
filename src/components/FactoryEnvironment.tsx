@@ -117,15 +117,18 @@ const PottedFern: React.FC<PlantProps> = React.memo(({ plant }) => {
 });
 PottedFern.displayName = 'PottedFern';
 
+// Shared ceramic pot material — one instance across all desk succulents
+// instead of a per-mount inline material per plant
+const ceramicPotMaterial = new THREE.MeshStandardMaterial({ color: '#e5e5e5', roughness: 0.5 });
+
 const DeskSucculent: React.FC<PlantProps> = React.memo(({ plant }) => {
   const healthMaterial = getHealthMaterial(plant.health);
 
   return (
     <group position={plant.position}>
       {/* Small pot - white ceramic */}
-      <mesh position={[0, 0.04, 0]} castShadow>
+      <mesh position={[0, 0.04, 0]} castShadow material={ceramicPotMaterial}>
         <cylinderGeometry args={[0.06, 0.05, 0.08, 8]} />
-        <meshStandardMaterial color="#e5e5e5" roughness={0.5} />
       </mesh>
 
       {/* Succulent body */}

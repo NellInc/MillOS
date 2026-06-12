@@ -1526,7 +1526,13 @@ const MachineMesh: React.FC<MachineMeshProps> = React.memo(({ data, onSelect, on
               {status === 'running' && (
                 <mesh position={[0, -0.25, 0]}>
                   <boxGeometry args={[0.5, 0.4, 0.3]} />
-                  <meshStandardMaterial color="#fef3c7" roughness={0.7} transparent opacity={0.8} />
+                  <meshStandardMaterial
+                    color="#fef3c7"
+                    roughness={0.7}
+                    transparent
+                    opacity={0.8}
+                    depthWrite={false}
+                  />
                 </mesh>
               )}
             </group>

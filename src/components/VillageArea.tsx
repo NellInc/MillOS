@@ -200,8 +200,14 @@ const SM = {
     metalness: 0.2,
     transparent: true,
     opacity: 0.7,
+    depthWrite: false, // transparent pane: avoid occluding interiors/sort flicker
   }),
-  smoke: new THREE.MeshBasicMaterial({ color: '#9ca3af', transparent: true, opacity: 0.4 }),
+  smoke: new THREE.MeshBasicMaterial({
+    color: '#9ca3af',
+    transparent: true,
+    opacity: 0.4,
+    depthWrite: false, // soft particle: depth writes cause hard sorting pops
+  }),
 };
 
 // ===== CHIMNEY SMOKE =====
