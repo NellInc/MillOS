@@ -556,9 +556,12 @@ export const useAIConfigStore = create<AIConfigState>()(
         return Math.min(totalWeight, 100); // Cap at 100
       },
 
-      // AI Visualization toggles - all default OFF
+      // AI Visualization toggles - default OFF except the production target,
+      // which is ON so a new player sees a goal immediately. None of these are
+      // persisted (see partialize), so the new default applies to existing
+      // players too without needing a persist-version bump.
       showCascadeVisualization: false,
-      showProductionTarget: false,
+      showProductionTarget: true,
       showStrategicOverlay: false,
       showVCLDebug: true,
       showEnergyDashboard: false,

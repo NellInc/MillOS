@@ -38,6 +38,12 @@ export type { TruckScheduleState, TruckScheduleStore } from './truckScheduleStor
 // - truckScheduleStore.ts - Truck scheduling
 // =========================================================================
 
+/**
+ * Daily production goal in bags. Shared by ProductionTargetWidget (progress UI)
+ * and UnifiedGameTick (milestone celebrations at 25/50/75/100%).
+ */
+export const DAILY_TARGET_BAGS = 5000;
+
 // =========================================================================
 // PERF: Throttled bag production accumulator
 // Batches multiple incrementBagsProduced calls into fewer store updates
@@ -347,6 +353,12 @@ export interface ProductionStore
 
   // Machine management
   setMachines: (machines: MachineData[]) => void;
+  /** Reduce a machine's wear (repairs breakdowns); returns the outcome for UI feedback */
+  performMaintenance: (machineId: string) => {
+    success: boolean;
+    wearReduced: number;
+    message: string;
+  };
   updateMachineMetrics: (machineId: string, metrics: Partial<MachineData['metrics']>) => void;
   batchUpdateMachineMetrics: (
     updates: { machineId: string; metrics: Partial<MachineData['metrics']> }[]
@@ -394,6 +406,10 @@ export interface ProductionStore
   setProductionTarget: (target: ProductionTarget) => void;
   updateProductionProgress: (bagsProduced: number) => void;
   totalBagsProduced: number;
+  /** Bags produced since the last game-day rollover (drives the daily target UI) */
+  dailyBagsProduced: number;
+  /** Reset the daily counter - called by the game tick on day rollover */
+  resetDailyBagsProduced: () => void;
   incrementBagsProduced: (count?: number) => void;
   /** @internal Direct increment - use throttledIncrementBags() for high-frequency updates */
   _directIncrementBags: (count: number) => void;
@@ -1062,7 +1078,7 @@ export const useProductionStore = create<ProductionStore>()(
     productionTarget: {
       id: 'daily-target-1',
       date: new Date().toISOString().split('T')[0],
-      targetBags: 15000,
+      targetBags: DAILY_TARGET_BAGS,
       producedBags: 0,
       targetThroughput: 1500,
       actualThroughput: 0,
@@ -1081,6 +1097,19 @@ export const useProductionStore = create<ProductionStore>()(
           : null,
       })),
     totalBagsProduced: 0,
+    dailyBagsProduced: 0,
+    resetDailyBagsProduced: () =>
+      set((state) => ({
+        dailyBagsProduced: 0,
+        // Keep the Overview panel's daily target in sync: new day, fresh count
+        productionTarget: state.productionTarget
+          ? {
+              ...state.productionTarget,
+              producedBags: 0,
+              status: 'in_progress' as const,
+            }
+          : null,
+      })),
     incrementBagsProduced: (count = 1) =>
       set((state) => {
         // Validate input: ensure non-negative integer count
@@ -1094,6 +1123,10 @@ export const useProductionStore = create<ProductionStore>()(
 
         return {
           totalBagsProduced: newTotal,
+          dailyBagsProduced: Math.min(
+            Number.MAX_SAFE_INTEGER,
+            state.dailyBagsProduced + actualIncrement
+          ),
           productionTarget: state.productionTarget
             ? {
                 ...state.productionTarget,
@@ -1125,6 +1158,10 @@ export const useProductionStore = create<ProductionStore>()(
 
         return {
           totalBagsProduced: newTotal,
+          dailyBagsProduced: Math.min(
+            Number.MAX_SAFE_INTEGER,
+            state.dailyBagsProduced + actualIncrement
+          ),
           productionTarget: state.productionTarget
             ? {
                 ...state.productionTarget,

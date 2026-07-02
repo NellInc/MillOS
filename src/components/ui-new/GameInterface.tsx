@@ -10,10 +10,38 @@ import { useMobileDetection } from '../../hooks/useMobileDetection';
 import { Datalinks, AINarrationModal, UnlockNotificationContainer } from '../knowledge';
 import { FEATURE_FLAGS } from '../../config/featureFlags';
 import { useAINarrationStore } from '../../stores/aiNarrationStore';
+import type { NarrationEntry } from '../../stores/aiNarrationStore';
 import { useKnowledgeStore } from '../../stores/knowledgeStore';
 import { useKnowledgeIntegration } from '../../hooks/useKnowledgeIntegration';
 import { useUIStore } from '../../stores/uiStore';
 import { KeyboardShortcutsModal } from '../ui/KeyboardShortcutsModal';
+import { startVoteGenerator } from '../../stores/votingStore';
+
+// First-load onboarding: three short steps shown once, reusing the AI
+// narration modal so the intro speaks in the mill AI's voice.
+const INTRO_STEPS: NarrationEntry[] = [
+  {
+    id: 'intro-orientation',
+    trigger: 'first-play',
+    content: `This is your mill.
+
+Grain flows from the silos at the back, through the roller mills, up into the sifters, and out through the packing lines. Everything you see is running right now - drag to look around, scroll to zoom.`,
+  },
+  {
+    id: 'intro-goal',
+    trigger: 'first-play',
+    content: `Today's goal: hit the production target.
+
+Keep an eye on the target widget in the HUD - it tracks output against the day's quota. Machines that stall or overheat will cost you throughput.`,
+  },
+  {
+    id: 'intro-controls',
+    trigger: 'first-play',
+    content: `You decide how this place runs.
+
+Try the production speed slider, click any machine to inspect it, and press ? for the full list of shortcuts. The dock at the bottom opens everything else.`,
+  },
+];
 
 interface GameInterfaceProps {
   productionSpeed: number;
@@ -57,6 +85,34 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
   // toggles uiStore.showShortcuts; this is the only consumer that renders it).
   const showShortcuts = useUIStore((s) => s.showShortcuts);
   const setShowShortcuts = useUIStore((s) => s.setShowShortcuts);
+
+  // First-load onboarding intro (persisted flag; shown once ever)
+  const hasSeenIntro = useUIStore((s) => s.hasSeenIntro);
+  const setHasSeenIntro = useUIStore((s) => s.setHasSeenIntro);
+  const [introStep, setIntroStep] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (hasSeenIntro || isMobile) return;
+    // Small delay so the scene has loaded before the first intro card appears
+    const timer = setTimeout(() => setIntroStep(0), 2500);
+    return () => clearTimeout(timer);
+    // Intentionally keyed on hasSeenIntro only: once dismissed it never re-queues
+  }, [hasSeenIntro, isMobile]);
+
+  const handleIntroDismiss = () => {
+    setIntroStep((step) => {
+      const next = (step ?? 0) + 1;
+      if (next >= INTRO_STEPS.length) {
+        setHasSeenIntro(true);
+        return null;
+      }
+      return next;
+    });
+  };
+
+  // Low-frequency worker-vote producer so Democratic Voting sees activity
+  // during normal play (contextual worker-initiated votes every ~5 minutes).
+  useEffect(() => startVoteGenerator(), []);
 
   // AI Narration - get current narration to display
   const { getNarration, markShown } = useAINarrationStore();
@@ -238,6 +294,12 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
       {/* 9. AI Narration Modal */}
       {FEATURE_FLAGS.AI_NARRATION_ENABLED && currentNarration && (
         <AINarrationModal narration={currentNarration} onDismiss={handleNarrationDismiss} />
+      )}
+
+      {/* 9b. First-load onboarding intro - waits for any active narration
+          (e.g. the one-time welcome) to be dismissed before stepping through */}
+      {!currentNarration && introStep !== null && INTRO_STEPS[introStep] && (
+        <AINarrationModal narration={INTRO_STEPS[introStep]} onDismiss={handleIntroDismiss} />
       )}
 
       {/* 10. Keyboard Shortcuts Help (? key) */}

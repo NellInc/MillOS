@@ -82,30 +82,6 @@ export { useAIWelfareStore } from './aiWelfareStore';
 
 export { useSocialMissionStore } from './socialMissionStore';
 
-// =============================================================================
-// SECURITY AUDIT STORE
-// Client-side security event logging and monitoring
-// OWASP A09:2021 - Security Logging and Monitoring Failures
-// =============================================================================
-
-export { useAuditStore } from './auditStore';
-export {
-  auditValidationFailure,
-  auditXssBlocked,
-  auditRateLimit,
-  auditAuthAttempt,
-  auditApiError,
-  auditSuspiciousInput,
-  auditMultiplayer,
-} from './auditStore';
-export type {
-  AuditEventType,
-  AuditSeverity,
-  AuditEvent,
-  AuditStats,
-  AuditConfig,
-} from './auditStore';
-
 // Re-export BAS types for convenience
 export type { Scenario, ScenarioEvent, ScenarioResult } from './scenarioStore';
 export type { BASHistoryPoint, BASEvent, BASEventType, TimeRange } from './basHistoryStore';

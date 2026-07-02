@@ -16,6 +16,7 @@ import { useBreakdownStore } from '../stores/breakdownStore';
 import { useProductionStore } from '../stores/productionStore';
 import { useWorkerMoodStore } from '../stores/workerMoodStore';
 import { BreakdownEffects } from './breakdown/BreakdownEffects';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 // Import machine subcomponents
 import { GRAIN_TYPES, INDICES_5, INDICES_6, INDICES_8 } from './machines/shared';
@@ -48,6 +49,77 @@ import { InstancedPackers } from './machines/InstancedPackers';
 // Module-level read-only temporary to avoid per-render allocation (CLAUDE.md convention).
 // Value identical to the previous inline `new THREE.Vector2(0.3, 0.3)`; never mutated.
 const SILO_NORMAL_SCALE = new THREE.Vector2(0.3, 0.3);
+
+// ==========================================
+// LOW-QUALITY SIMPLIFIED MACHINE SILHOUETTES
+// ==========================================
+// Normalized (1x1x1 footprint, base at y=0) merged geometries, shared across
+// all machines and scaled per-instance -> one draw call per machine, but the
+// silhouette still reads as the machine type instead of a flat box.
+
+// Bake a vertical brightness gradient into vertex colors (dark base -> light top)
+const bakeVerticalGradient = (
+  geometry: THREE.BufferGeometry,
+  minShade = 0.55
+): THREE.BufferGeometry => {
+  const pos = geometry.getAttribute('position');
+  const colors = new Float32Array(pos.count * 3);
+  for (let i = 0; i < pos.count; i++) {
+    const t = THREE.MathUtils.clamp(pos.getY(i), 0, 1);
+    const shade = minShade + (1 - minShade) * t;
+    colors[i * 3] = shade;
+    colors[i * 3 + 1] = shade;
+    colors[i * 3 + 2] = shade;
+  }
+  geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  return geometry;
+};
+
+const createSimplifiedMachineGeometries = () => {
+  // SILO: cylinder body + cone cap
+  const siloBody = new THREE.CylinderGeometry(0.5, 0.5, 0.85, 12);
+  siloBody.translate(0, 0.425, 0);
+  const siloCap = new THREE.ConeGeometry(0.5, 0.15, 12);
+  siloCap.translate(0, 0.925, 0);
+  const silo = bakeVerticalGradient(mergeGeometries([siloBody, siloCap]) ?? siloBody.clone());
+  siloBody.dispose();
+  siloCap.dispose();
+
+  // MILL/PACKER: box body + tapered hopper wedge on top (4-sided frustum)
+  const millBody = new THREE.BoxGeometry(1, 0.75, 1);
+  millBody.translate(0, 0.375, 0);
+  const hopper = new THREE.CylinderGeometry(0.14, 0.55, 0.25, 4);
+  hopper.rotateY(Math.PI / 4);
+  hopper.translate(0, 0.875, 0);
+  const hopperBox = bakeVerticalGradient(mergeGeometries([millBody, hopper]) ?? millBody.clone());
+  millBody.dispose();
+  hopper.dispose();
+
+  // Everything else: plain box
+  const box = new THREE.BoxGeometry(1, 1, 1);
+  box.translate(0, 0.5, 0);
+  bakeVerticalGradient(box);
+
+  return { silo, hopperBox, box };
+};
+
+const SIMPLIFIED_MACHINE_GEOMETRIES = createSimplifiedMachineGeometries();
+
+// Lambert + baked vertex-color gradient: cheap shading without per-pixel cost
+const SIMPLIFIED_MACHINE_MATERIALS: Record<string, THREE.MeshLambertMaterial> = {
+  [MachineType.SILO]: new THREE.MeshLambertMaterial({ color: '#94a3b8', vertexColors: true }),
+  [MachineType.ROLLER_MILL]: new THREE.MeshLambertMaterial({
+    color: '#64748b',
+    vertexColors: true,
+  }),
+  [MachineType.PLANSIFTER]: new THREE.MeshLambertMaterial({ color: '#78716c', vertexColors: true }),
+  [MachineType.PACKER]: new THREE.MeshLambertMaterial({ color: '#475569', vertexColors: true }),
+  [MachineType.CONTROL_ROOM]: new THREE.MeshLambertMaterial({
+    color: '#64748b',
+    vertexColors: true,
+  }),
+  fallback: new THREE.MeshLambertMaterial({ color: '#64748b', vertexColors: true }),
+};
 
 interface MachinesProps {
   machines: MachineData[];
@@ -1674,24 +1746,22 @@ const MachineMesh: React.FC<MachineMeshProps> = React.memo(({ data, onSelect, on
     }
   };
 
-  // PERFORMANCE: Simplified box representation for LOW quality
-  // Reduces ~150 draw calls per machine down to ~5
+  // PERFORMANCE: Simplified representation for LOW quality
+  // Type-specific silhouette (shared merged geometry, one draw call per machine)
   const renderSimplifiedGeometry = () => {
-    // Simple colored box based on machine type
-    const typeColors: Record<MachineType, string> = {
-      [MachineType.SILO]: '#94a3b8',
-      [MachineType.ROLLER_MILL]: '#64748b',
-      [MachineType.PLANSIFTER]: '#78716c',
-      [MachineType.PACKER]: '#475569',
-      [MachineType.CONTROL_ROOM]: '#64748b',
-    };
-    const color = typeColors[type] || '#64748b';
+    const geometry =
+      type === MachineType.SILO
+        ? SIMPLIFIED_MACHINE_GEOMETRIES.silo
+        : type === MachineType.ROLLER_MILL || type === MachineType.PACKER
+          ? SIMPLIFIED_MACHINE_GEOMETRIES.hopperBox
+          : SIMPLIFIED_MACHINE_GEOMETRIES.box;
 
     return (
-      <mesh position={[0, size[1] / 2, 0]}>
-        <boxGeometry args={[size[0], size[1], size[2]]} />
-        <meshBasicMaterial color={color} />
-      </mesh>
+      <mesh
+        geometry={geometry}
+        material={SIMPLIFIED_MACHINE_MATERIALS[type] ?? SIMPLIFIED_MACHINE_MATERIALS.fallback}
+        scale={[size[0], size[1], size[2]]}
+      />
     );
   };
 

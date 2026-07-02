@@ -9,7 +9,6 @@ game/
 ├── index.tsx                      # Main export file for backward compatibility
 ├── shared.tsx                     # Shared utilities, types, and announcement data (2,370 lines)
 ├── PAAnnouncementSystem.tsx       # Theme Hospital-style PA announcement system
-├── ProductionTargetsWidget.tsx    # Daily production targets widget
 ├── AchievementsPanel.tsx          # Achievements tracking panel
 ├── WorkerLeaderboard.tsx          # Worker performance leaderboard
 ├── MiniMap.tsx                    # GPS tracking mini-map
@@ -27,13 +26,6 @@ Theme Hospital-inspired PA announcement system with 150+ witty announcements. In
 - Chaos-level based selection
 - Event-triggered announcements
 - Text-to-speech support
-
-### ProductionTargetsWidget
-Displays daily production targets and progress with:
-- Real-time progress tracking
-- Expandable details
-- Victory fanfare on completion
-- Color-coded status indicators
 
 ### AchievementsPanel
 Gamification achievements system featuring:

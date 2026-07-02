@@ -49,17 +49,18 @@ describe('AlertSystem', () => {
   });
 
   describe('Rendering', () => {
-    it('should render the screen reader status container', () => {
+    it('should render the screen reader alert container', () => {
       render(<AlertSystem />);
 
-      const statusContainer = document.querySelector('[role="status"]');
-      expect(statusContainer).toBeInTheDocument();
+      const alertContainer = document.querySelector('[role="alert"]');
+      expect(alertContainer).toBeInTheDocument();
     });
 
     it('should have accessible screen reader region', () => {
       render(<AlertSystem />);
 
-      const liveRegion = document.querySelector('[aria-live="assertive"]');
+      // role="alert" is an implicitly assertive live region
+      const liveRegion = document.querySelector('[role="alert"]');
       expect(liveRegion).toBeInTheDocument();
       expect(liveRegion).toHaveClass('sr-only');
     });
@@ -67,9 +68,10 @@ describe('AlertSystem', () => {
     it('should not render any visible alert UI', () => {
       render(<AlertSystem />);
 
-      // AlertSystem now only renders sr-only screen reader region
+      // AlertSystem only renders an sr-only screen reader region
       const alertElements = document.querySelectorAll('[role="alert"]');
-      expect(alertElements.length).toBe(0);
+      expect(alertElements.length).toBe(1);
+      expect(alertElements[0]).toHaveClass('sr-only');
     });
   });
 
@@ -151,8 +153,8 @@ describe('AlertSystem', () => {
     it('should update live region for critical alerts', async () => {
       render(<AlertSystem />);
 
-      // The component should have an aria-live region
-      const liveRegion = document.querySelector('[aria-live="assertive"]');
+      // role="alert" is an implicitly assertive live region
+      const liveRegion = document.querySelector('[role="alert"]');
       expect(liveRegion).toBeInTheDocument();
       expect(liveRegion).toHaveAttribute('aria-atomic', 'true');
     });

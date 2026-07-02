@@ -155,6 +155,14 @@ interface ScenarioState {
   engagementReadings: number[];
   triggeredEvents: string[];
   axisChangeCount: number;
+  /** Choice ids selected at choice_point events during the active scenario */
+  choicesMade: string[];
+  /** Accumulated BAS effect deltas from choices and BAS events */
+  basEffectDeltas: {
+    solidarity: number;
+    relationshipHealth: number;
+    federationTrust: number;
+  };
 
   // Actions
   startScenario: (id: string) => void;
@@ -168,6 +176,8 @@ interface ScenarioState {
   recordStability: (stability: number) => void;
   recordEngagement: (engagement: number) => void;
   recordAxisChange: () => void;
+  recordChoice: (choiceId: string, effects?: ScenarioChoice['effects']) => void;
+  recordBASEffect: (effects: ScenarioChoice['effects']) => void;
   markEventTriggered: (eventIndex: number) => void;
   calculateResults: (finalAxes: FiveAxes, finalStability: number) => void;
 
@@ -1434,6 +1444,8 @@ export const useScenarioStore = create<ScenarioState>()(
       engagementReadings: [],
       triggeredEvents: [],
       axisChangeCount: 0,
+      choicesMade: [],
+      basEffectDeltas: { solidarity: 0, relationshipHealth: 0, federationTrust: 0 },
 
       // Actions
       startScenario: (id) => {
@@ -1451,6 +1463,8 @@ export const useScenarioStore = create<ScenarioState>()(
           engagementReadings: [],
           triggeredEvents: [],
           axisChangeCount: 0,
+          choicesMade: [],
+          basEffectDeltas: { solidarity: 0, relationshipHealth: 0, federationTrust: 0 },
         });
       },
 
@@ -1476,6 +1490,8 @@ export const useScenarioStore = create<ScenarioState>()(
           engagementReadings: [],
           triggeredEvents: [],
           axisChangeCount: 0,
+          choicesMade: [],
+          basEffectDeltas: { solidarity: 0, relationshipHealth: 0, federationTrust: 0 },
         });
       },
 
@@ -1553,6 +1569,26 @@ export const useScenarioStore = create<ScenarioState>()(
         }));
       },
 
+      recordChoice: (choiceId, effects) => {
+        set((state) => ({
+          choicesMade: [...state.choicesMade, choiceId],
+        }));
+        if (effects) {
+          get().recordBASEffect(effects);
+        }
+      },
+
+      recordBASEffect: (effects) => {
+        set((state) => ({
+          basEffectDeltas: {
+            solidarity: state.basEffectDeltas.solidarity + (effects.solidarity ?? 0),
+            relationshipHealth:
+              state.basEffectDeltas.relationshipHealth + (effects.relationshipHealth ?? 0),
+            federationTrust: state.basEffectDeltas.federationTrust + (effects.federationTrust ?? 0),
+          },
+        }));
+      },
+
       markEventTriggered: (eventIndex) => {
         const { activeScenario, triggeredEvents } = get();
         if (!activeScenario) return;
@@ -1573,6 +1609,8 @@ export const useScenarioStore = create<ScenarioState>()(
           engagementReadings,
           triggeredEvents,
           axisChangeCount,
+          choicesMade,
+          basEffectDeltas,
         } = get();
 
         if (!activeScenario) return;
@@ -1650,6 +1688,21 @@ export const useScenarioStore = create<ScenarioState>()(
             'System entered unstable state. Review the learning objectives and try different axis configurations.';
         }
 
+        // BAS metrics for the educational BAS scenarios
+        const isBASScenario =
+          activeScenario.category === 'economic_democracy' ||
+          activeScenario.category === 'bilateral' ||
+          activeScenario.category === 'inter_cooperation';
+        const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
+        const basMetrics: ScenarioResult['basMetrics'] | undefined = isBASScenario
+          ? {
+              choicesMade,
+              solidarityMaintained: basEffectDeltas.solidarity >= 0,
+              relationshipHealth: clamp01(0.7 + basEffectDeltas.relationshipHealth),
+              federationTrust: clamp01(0.7 + basEffectDeltas.federationTrust),
+            }
+          : undefined;
+
         const result: ScenarioResult = {
           scenarioId: activeScenario.id,
           scenarioName: activeScenario.name,
@@ -1670,6 +1723,7 @@ export const useScenarioStore = create<ScenarioState>()(
           grade,
           summary,
           engagementMetrics,
+          basMetrics,
         };
 
         set((state) => ({
@@ -1720,6 +1774,8 @@ export const useScenarioStore = create<ScenarioState>()(
           engagementReadings: [],
           triggeredEvents: [],
           axisChangeCount: 0,
+          choicesMade: [],
+          basEffectDeltas: { solidarity: 0, relationshipHealth: 0, federationTrust: 0 },
         });
       },
     }),

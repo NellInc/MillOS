@@ -5,11 +5,17 @@ import { useUIStore } from '../../stores/uiStore';
 import { useProductionStore } from '../../stores/productionStore';
 import { useHistoricalPlaybackStore } from '../../stores/historicalPlaybackStore';
 import { useShallow } from 'zustand/react/shallow';
+import { useAchievementTracker } from '../../hooks/useAchievementTracker';
 import { AchievementsPanel } from './AchievementsPanel';
 import { WorkerLeaderboard } from './WorkerLeaderboard';
 import { ScreenshotButton } from './ScreenshotButton';
 
 export const GamificationBar: React.FC = () => {
+  // Drives achievement progress/unlocks from live simulation stores.
+  // GamificationBar is always mounted on desktop (GameInterface), even when
+  // the bar itself is hidden (the early return below happens after hooks).
+  useAchievementTracker();
+
   const [showAchievements, setShowAchievements] = useState(false);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const { showMiniMap, setShowMiniMap, showGamificationBar, setShowGamificationBar } = useUIStore(

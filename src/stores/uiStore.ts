@@ -60,6 +60,10 @@ interface UIStore {
   showShortcuts: boolean;
   setShowShortcuts: (show: boolean) => void;
 
+  // First-load onboarding intro (persisted)
+  hasSeenIntro: boolean;
+  setHasSeenIntro: (seen: boolean) => void;
+
   // Legend position (for draggable legend)
   legendPosition: { x: number; y: number };
   setLegendPosition: (pos: { x: number; y: number }) => void;
@@ -175,6 +179,10 @@ export const useUIStore = create<UIStore>()(
       showShortcuts: false,
       setShowShortcuts: (show: boolean) => set({ showShortcuts: show }),
 
+      // First-load onboarding intro
+      hasSeenIntro: false,
+      setHasSeenIntro: (seen: boolean) => set({ hasSeenIntro: seen }),
+
       // Legend position
       legendPosition: { x: -1, y: -1 }, // -1 means use default position
       setLegendPosition: (pos: { x: number; y: number }) => set({ legendPosition: pos }),
@@ -209,6 +217,7 @@ export const useUIStore = create<UIStore>()(
       name: 'millos-ui',
       storage: safeJSONStorage,
       partialize: (state) => ({
+        hasSeenIntro: state.hasSeenIntro,
         showZones: state.showZones,
         showAIPanel: state.showAIPanel,
         panelMinimized: state.panelMinimized,

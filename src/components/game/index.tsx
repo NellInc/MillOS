@@ -15,7 +15,6 @@ export {
 
 // Components
 export { PAAnnouncementSystem } from './PAAnnouncementSystem';
-export { ProductionTargetsWidget } from './ProductionTargetsWidget';
 export { AchievementsPanel } from './AchievementsPanel';
 export { WorkerLeaderboard } from './WorkerLeaderboard';
 export { MiniMap } from './MiniMap';

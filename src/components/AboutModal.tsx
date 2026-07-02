@@ -2,6 +2,7 @@ import React, { useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Info, ExternalLink } from 'lucide-react';
 import { useFocusTrap } from '../hooks/useFocusTrap';
+import pkg from '../../package.json';
 
 interface AboutModalProps {
   isOpen: boolean;
@@ -142,7 +143,7 @@ export const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose, theme }
 
               {/* Version */}
               <div className={`text-xs ${mutedClass} pt-2 border-t ${borderClass}`}>
-                <p>Version 2.0.0</p>
+                <p>Version {pkg.version}</p>
               </div>
             </div>
           </motion.div>

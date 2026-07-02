@@ -19,6 +19,7 @@ import type { Vote, VoteStatus, VoteOption, VoteComment, AxisKey } from '../type
 import { VOTING_RULES } from '../types/bas';
 import { useBASStore } from './basStore';
 import { useUIStore } from './uiStore';
+import { useAchievementsStore } from './achievementsStore';
 
 // =============================================================================
 // STORE INTERFACE
@@ -83,6 +84,9 @@ interface VotingState {
 // =============================================================================
 // HELPER FUNCTIONS
 // =============================================================================
+
+/** Worker id used for the human player's votes in the voting UI */
+const PLAYER_WORKER_ID = 'worker-1';
 
 function generateVoteId(): string {
   return `vote-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -158,6 +162,11 @@ export const useVotingStore = create<VotingState>((set, get) => ({
   },
 
   castVote: (voteId, workerId, optionId) => {
+    // Snapshot before mutating: achievement progress counts each vote the
+    // player participates in once (changing a vote is not a new participation).
+    const priorVote = get().votes.find((v) => v.id === voteId);
+    const alreadyVoted = priorVote?.options.some((opt) => opt.votes.includes(workerId)) ?? false;
+
     set((state) => ({
       votes: state.votes.map((v) => {
         if (v.id !== voteId || v.status !== 'open') return v;
@@ -177,6 +186,14 @@ export const useVotingStore = create<VotingState>((set, get) => ({
         };
       }),
     }));
+
+    // Achievement: the player (worker-1) participating in factory votes.
+    // Simulated worker votes deliberately do not count.
+    if (workerId === PLAYER_WORKER_ID && priorVote?.status === 'open' && !alreadyVoted) {
+      const achievements = useAchievementsStore.getState();
+      const current = achievements.getAchievement('vote-participant');
+      achievements.updateAchievementProgress('vote-participant', (current?.progress ?? 0) + 1);
+    }
   },
 
   closeVote: (voteId) => {
@@ -529,3 +546,113 @@ export const useVotingStore = create<VotingState>((set, get) => ({
     return vote;
   },
 }));
+
+// =============================================================================
+// PERIODIC VOTE GENERATOR
+// =============================================================================
+
+/** Contextual worker-initiated votes so democratic voting occurs in normal play */
+const WORKER_VOTE_TEMPLATES: {
+  type: Vote['type'];
+  title: string;
+  description: string;
+  options: { label: string; description: string }[];
+}[] = [
+  {
+    type: 'schedule',
+    title: 'Rotate Break Schedule',
+    description:
+      'Proposal to rotate break slots weekly so no crew is always stuck with the late slot.',
+    options: [
+      { label: 'Weekly rotation', description: 'Rotate break slots every week.' },
+      { label: 'Keep fixed slots', description: 'Keep the current fixed break schedule.' },
+    ],
+  },
+  {
+    type: 'method',
+    title: 'Pair Checks on Sifter Cleaning',
+    description:
+      'Proposal to do plansifter cleaning in pairs: slower per task, but fewer re-cleans and safer.',
+    options: [
+      { label: 'Adopt pair checks', description: 'Two workers per sifter cleaning task.' },
+      { label: 'Keep solo cleaning', description: 'One worker per task, as today.' },
+    ],
+  },
+  {
+    type: 'policy',
+    title: 'Open Maintenance Log',
+    description:
+      'Proposal to make the full maintenance log visible to all workers, not just the shift lead.',
+    options: [
+      { label: 'Open the log', description: 'Everyone can read the maintenance history.' },
+      { label: 'Leads only', description: 'Keep access limited to shift leads.' },
+    ],
+  },
+  {
+    type: 'recognition',
+    title: 'Recognize the Packing Line Crew',
+    description:
+      'Nomination: the packing crew covered two absences this week without missing the target.',
+    options: [
+      { label: 'Award recognition', description: 'Formally recognize the packing crew.' },
+      { label: 'Hold for review', description: 'Wait until the monthly recognition round.' },
+    ],
+  },
+];
+
+let voteGeneratorInterval: ReturnType<typeof setInterval> | null = null;
+let nextTemplateIndex = Math.floor(Math.random() * WORKER_VOTE_TEMPLATES.length);
+
+/**
+ * Start the low-frequency worker-vote producer. Creates and opens a contextual
+ * worker-initiated vote every ~5 minutes of play, but only when no vote is
+ * currently open. Returns a cleanup function; safe to call more than once.
+ */
+export function startVoteGenerator(intervalMs = 5 * 60 * 1000): () => void {
+  if (voteGeneratorInterval !== null) {
+    return stopVoteGenerator;
+  }
+
+  voteGeneratorInterval = setInterval(() => {
+    const store = useVotingStore.getState();
+    if (store.getActiveVotes().length > 0) return;
+
+    const template = WORKER_VOTE_TEMPLATES[nextTemplateIndex % WORKER_VOTE_TEMPLATES.length];
+    nextTemplateIndex += 1;
+
+    const proposer = WORKER_ROSTER[Math.floor(Math.random() * WORKER_ROSTER.length)];
+    const vote = store.createVote({
+      type: template.type,
+      title: template.title,
+      description: template.description,
+      proposedBy: proposer?.id ?? 'system',
+      proposerName: proposer?.name ?? 'System',
+      options: template.options.map((opt) => ({
+        id: generateOptionId(),
+        label: opt.label,
+        description: opt.description,
+        votes: [],
+      })),
+    });
+    store.openVote(vote.id);
+    store.generateAIAnalysis(vote.id);
+
+    useUIStore.getState().addAlert({
+      id: `vote-open-${vote.id}`,
+      type: 'info',
+      title: 'New Vote Opened',
+      message: `${vote.proposerName} proposed: "${vote.title}". Cast your vote in the Democratic Voting panel.`,
+      timestamp: new Date(),
+      acknowledged: false,
+    });
+  }, intervalMs);
+
+  return stopVoteGenerator;
+}
+
+export function stopVoteGenerator(): void {
+  if (voteGeneratorInterval !== null) {
+    clearInterval(voteGeneratorInterval);
+    voteGeneratorInterval = null;
+  }
+}

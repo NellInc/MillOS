@@ -17,7 +17,6 @@ export {
 
   // Components
   PAAnnouncementSystem,
-  ProductionTargetsWidget,
   AchievementsPanel,
   WorkerLeaderboard,
   MiniMap,

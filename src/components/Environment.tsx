@@ -26,10 +26,8 @@ import { useProductionStore } from '../stores/productionStore';
 import { audioManager } from '../utils/audioManager';
 import { shouldRunThisFrame, incrementGlobalFrame } from '../utils/frameThrottle';
 
-// Orphaned store integrations for BAS history, breakdowns, and emergent cooperation
+// Orphaned store integrations for BAS history recording
 import { recordCurrentBASState } from '../stores/basHistoryStore';
-import { useBreakdownStore } from '../stores/breakdownStore';
-import { useEmergentCooperationStore } from '../stores/emergentCooperationStore';
 import { useStabilityStore } from '../stores/stabilityStore';
 import { useFlourishingStore } from '../stores/flourishingStore';
 import { useWorkerMoodStore } from '../stores/workerMoodStore';
@@ -807,19 +805,18 @@ const LightShaft: React.FC<{ position: [number, number, number] }> = memo(({ pos
 
 // Orphaned store integrations ticker - runs only when FactoryEnvironment is mounted
 // NOTE: Game time and production metrics are now handled by CentralTickProvider + UnifiedGameTick.
-// This component only handles supplemental store integrations (BAS history, breakdowns, etc.)
-// that are specific to when FactoryEnvironment is mounted.
+// Breakdown and emergent-cooperation simulation ticks are driven exclusively by
+// useBilateralAlignmentSimulation (WorkerMoodOverlay.tsx) - do NOT re-add them
+// here, or the simulations run at double rate with inconsistent time units.
+// This component only handles BAS history recording.
 const OrphanedStoresTicker: React.FC = () => {
-  // Refs to track time since last tick for each orphaned store
+  // Ref to track time since last BAS history tick
   const lastBASHistoryTickRef = useRef(0);
-  const lastBreakdownTickRef = useRef(0);
-  const lastEmergentCooperationTickRef = useRef(0);
 
   // Run orphaned store integrations on an interval
   useEffect(() => {
     const intervalId = setInterval(() => {
       const now = Date.now();
-      const currentGameTime = useGameSimulationStore.getState().gameTime;
 
       // BAS History: Record data point every ~10 seconds (real time)
       if (now - lastBASHistoryTickRef.current >= 10000) {
@@ -850,33 +847,6 @@ const OrphanedStoresTicker: React.FC = () => {
         const value = (flourishingScore / 100) * (stabilityPercentage / 100);
 
         recordCurrentBASState(stabilityProduct, value, flourishingScore, avgSatisfaction, phase);
-      }
-
-      // Breakdowns: Tick every ~5 seconds (real time)
-      if (now - lastBreakdownTickRef.current >= 5000) {
-        lastBreakdownTickRef.current = now;
-
-        const breakdownStore = useBreakdownStore.getState();
-        const productionState = useProductionStore.getState();
-
-        // Get machines for breakdown simulation from production store
-        const machines = productionState.machines.map((m) => ({
-          id: m.id,
-          name: m.name,
-          status: m.status,
-        }));
-
-        breakdownStore.tickBreakdownSimulation(currentGameTime, machines);
-      }
-
-      // Emergent Cooperation: Tick every ~3 seconds (real time)
-      if (now - lastEmergentCooperationTickRef.current >= 3000) {
-        lastEmergentCooperationTickRef.current = now;
-
-        const emergentStore = useEmergentCooperationStore.getState();
-        // Convert delta (game seconds) to minutes for the emergent cooperation tick
-        // Assume ~3 real seconds passed, game time delta is roughly delta * timeScale
-        emergentStore.tickEmergentCooperation(0.05); // ~3 game seconds = ~0.05 game minutes
       }
     }, 4000); // Check every 4 seconds (was 2s, then 1s - reduced for better perf)
 

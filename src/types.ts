@@ -333,10 +333,10 @@ export type PreferenceRequestType = 'assignment' | 'break' | 'colleague' | 'shif
 
 /** Current status of a worker's preference satisfaction */
 export type PreferenceStatus =
-  | 'satisfied' // ✅ Preference currently met
-  | 'pending' // ✋ Has active request
-  | 'denied' // ❌ Preference recently denied
-  | 'negotiating'; // ⚖️ In active negotiation
+  | 'satisfied' // Preference currently met
+  | 'pending' // Has active request
+  | 'denied' // Preference recently denied
+  | 'negotiating'; // In active negotiation
 
 /**
  * Worker Preferences - Bilateral Alignment Core

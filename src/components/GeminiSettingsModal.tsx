@@ -454,9 +454,10 @@ export function GeminiSettingsModal({ isOpen, onClose }: GeminiSettingsModalProp
             {/* Backend Selector */}
             <div className="p-3 rounded-lg bg-slate-800/50 space-y-2">
               <label className="block text-sm font-medium text-slate-300">AI Backend</label>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="AI Backend">
                 <button
-                  aria-pressed={llmBackend === 'gemini'}
+                  role="radio"
+                  aria-checked={llmBackend === 'gemini'}
                   onClick={() => setLLMBackend('gemini')}
                   className={`p-2 rounded-lg border text-center transition-all ${
                     llmBackend === 'gemini'
@@ -469,7 +470,8 @@ export function GeminiSettingsModal({ isOpen, onClose }: GeminiSettingsModalProp
                   <div className="text-[9px] opacity-70">Cloud • API key</div>
                 </button>
                 <button
-                  aria-pressed={llmBackend === 'webgpu'}
+                  role="radio"
+                  aria-checked={llmBackend === 'webgpu'}
                   onClick={() => setLLMBackend('webgpu')}
                   className={`p-2 rounded-lg border text-center transition-all ${
                     llmBackend === 'webgpu'
@@ -516,8 +518,7 @@ export function GeminiSettingsModal({ isOpen, onClose }: GeminiSettingsModalProp
                 <div className="mt-2 flex items-center gap-2 text-sm text-green-400">
                   <CheckCircle className="w-4 h-4" aria-hidden="true" />
                   <span>
-                    Connected • {geminiClient.getActiveModelId()} •{' '}
-                    {geminiClient.getMaskedApiKey()}
+                    Connected • {geminiClient.getActiveModelId()} • {geminiClient.getMaskedApiKey()}
                   </span>
                 </div>
               )}
@@ -576,9 +577,10 @@ export function GeminiSettingsModal({ isOpen, onClose }: GeminiSettingsModalProp
                   </a>
                 </p>
                 <p className="text-[10px] text-slate-500 leading-relaxed">
-                  Your API key is stored only in this browser (localStorage) and is never sent to a
-                  MillOS server. In Gemini and Hybrid modes, your key and simulation state are sent
-                  directly to Google&rsquo;s Gemini API, where they are handled under{' '}
+                  Your key is stored unencrypted in this browser&rsquo;s local storage and sent only
+                  to Google. It is never sent to a MillOS server. In Gemini and Hybrid modes, your
+                  key and simulation state are sent directly to Google&rsquo;s Gemini API, where
+                  they are handled under{' '}
                   <a
                     href="https://policies.google.com/privacy"
                     target="_blank"
@@ -626,10 +628,15 @@ export function GeminiSettingsModal({ isOpen, onClose }: GeminiSettingsModalProp
                 <label className="block text-sm font-medium text-slate-300">
                   AI Operating Mode
                 </label>
-                <div className="grid grid-cols-3 gap-2">
+                <div
+                  className="grid grid-cols-3 gap-2"
+                  role="radiogroup"
+                  aria-label="AI Operating Mode"
+                >
                   <button
                     onClick={() => setAIMode('heuristic')}
-                    aria-pressed={aiMode === 'heuristic'}
+                    role="radio"
+                    aria-checked={aiMode === 'heuristic'}
                     className={`p-2 rounded-lg border text-center transition-all ${
                       aiMode === 'heuristic'
                         ? 'bg-amber-500/20 border-amber-500/50 text-amber-400'
@@ -642,7 +649,8 @@ export function GeminiSettingsModal({ isOpen, onClose }: GeminiSettingsModalProp
                   </button>
                   <button
                     onClick={() => setAIMode('hybrid')}
-                    aria-pressed={aiMode === 'hybrid'}
+                    role="radio"
+                    aria-checked={aiMode === 'hybrid'}
                     className={`p-2 rounded-lg border text-center transition-all ${
                       aiMode === 'hybrid'
                         ? 'bg-purple-500/20 border-purple-500/50 text-purple-400'
@@ -659,7 +667,8 @@ export function GeminiSettingsModal({ isOpen, onClose }: GeminiSettingsModalProp
                         setShowGeminiConfirmation(true);
                       }
                     }}
-                    aria-pressed={aiMode === 'gemini'}
+                    role="radio"
+                    aria-checked={aiMode === 'gemini'}
                     className={`p-2 rounded-lg border text-center transition-all ${
                       aiMode === 'gemini'
                         ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-400'

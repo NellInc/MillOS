@@ -254,7 +254,7 @@ export const SettingsPanel: React.FC<{
               value={showUnlockNotifications}
               onChange={setShowUnlockNotifications}
             />
-            <p className="text-[9px] text-slate-500 mt-2 px-2">
+            <p className="text-[9px] text-slate-400 mt-2 px-2">
               Control how educational content about bilateral alignment and economic democracy is
               presented.
             </p>
@@ -298,7 +298,7 @@ export const SettingsPanel: React.FC<{
 
           {/* Post-Processing */}
           <div className="space-y-1">
-            <div className="text-[9px] uppercase tracking-wider text-slate-500 mb-1">
+            <div className="text-[9px] uppercase tracking-wider text-slate-400 mb-1">
               Post-Processing
             </div>
             <Toggle
@@ -335,7 +335,7 @@ export const SettingsPanel: React.FC<{
 
           {/* Particles & Effects */}
           <div className="space-y-1">
-            <div className="text-[9px] uppercase tracking-wider text-slate-500 mb-1">
+            <div className="text-[9px] uppercase tracking-wider text-slate-400 mb-1">
               Particles & Effects
             </div>
             <Toggle
@@ -350,17 +350,11 @@ export const SettingsPanel: React.FC<{
               value={graphics.graphics.enableGrainFlow}
               onChange={(v) => graphics.setGraphicsSetting('enableGrainFlow', v)}
             />
-            <Toggle
-              label="Atmospheric Haze"
-              icon={<Wind size={12} />}
-              value={graphics.graphics.enableAtmosphericHaze}
-              onChange={(v) => graphics.setGraphicsSetting('enableAtmosphericHaze', v)}
-            />
           </div>
 
           {/* Scene & Machines */}
           <div className="space-y-1">
-            <div className="text-[9px] uppercase tracking-wider text-slate-500 mb-1">
+            <div className="text-[9px] uppercase tracking-wider text-slate-400 mb-1">
               Scene & Machines
             </div>
             <Toggle

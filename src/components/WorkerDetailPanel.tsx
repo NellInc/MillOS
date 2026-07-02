@@ -22,6 +22,10 @@ import {
   History,
   Check,
   X,
+  CheckCircle,
+  Hand,
+  XCircle,
+  Scale,
 } from 'lucide-react';
 import { WorkerData, PerformanceReview, SkillLevel } from '../types';
 import { toSkillLevel } from '../utils/typeGuards';
@@ -735,7 +739,7 @@ export const WorkerDetailPanel: React.FC<WorkerDetailPanelProps> = ({
                       </div>
                       <div className="flex items-center gap-2">
                         <span
-                          className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
                             workerMood.preferenceStatus === 'satisfied'
                               ? 'bg-green-500/20 text-green-300'
                               : workerMood.preferenceStatus === 'pending'
@@ -745,13 +749,23 @@ export const WorkerDetailPanel: React.FC<WorkerDetailPanelProps> = ({
                                   : 'bg-blue-500/20 text-blue-300'
                           }`}
                         >
-                          {workerMood.preferenceStatus === 'satisfied'
-                            ? '✅ Satisfied'
-                            : workerMood.preferenceStatus === 'pending'
-                              ? '✋ Request Pending'
-                              : workerMood.preferenceStatus === 'denied'
-                                ? '❌ Recently Denied'
-                                : '⚖️ Negotiating'}
+                          {workerMood.preferenceStatus === 'satisfied' ? (
+                            <>
+                              <CheckCircle className="w-3 h-3" /> Satisfied
+                            </>
+                          ) : workerMood.preferenceStatus === 'pending' ? (
+                            <>
+                              <Hand className="w-3 h-3" /> Request Pending
+                            </>
+                          ) : workerMood.preferenceStatus === 'denied' ? (
+                            <>
+                              <XCircle className="w-3 h-3" /> Recently Denied
+                            </>
+                          ) : (
+                            <>
+                              <Scale className="w-3 h-3" /> Negotiating
+                            </>
+                          )}
                         </span>
                       </div>
 

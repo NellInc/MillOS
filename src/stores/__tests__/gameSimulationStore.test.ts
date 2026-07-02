@@ -66,29 +66,146 @@ describe('GameSimulationStore', () => {
       expect(useGameSimulationStore.getState().gameTime).toBe(10); // Unchanged (10am default)
     });
 
-    it('should advance time based on delta and speed', () => {
-      // Reset to clear any accumulated delta from previous tests
-      useGameSimulationStore.getState().resetGameState();
+    it('should advance time exactly by delta * speed', () => {
       const { setGameSpeed, tickGameTime } = useGameSimulationStore.getState();
       setGameSpeed(3600); // 1 real second = 1 game hour
 
-      // The store has internal throttling at 100ms intervals
-      // We need to advance time to ensure we're past the throttle interval
-      // and accumulate enough delta to see a change
-
-      // First tick to initialize lastTickTime
-      vi.advanceTimersByTime(150);
+      // Two 0.5s ticks at 3600x = exactly 1 game hour: 10 -> 11
       tickGameTime(0.5);
+      expect(useGameSimulationStore.getState().gameTime).toBe(10.5);
 
-      // Second tick with more delta
-      vi.advanceTimersByTime(150);
       tickGameTime(0.5);
+      expect(useGameSimulationStore.getState().gameTime).toBe(11);
+    });
 
-      const { gameTime } = useGameSimulationStore.getState();
-      // Time calculation: At 3600x speed, 1 real second = 1 game hour
-      // With accumulated 1 second of real time, we should advance ~1 hour
-      // But due to throttling, actual change may be less
-      expect(gameTime).toBeGreaterThanOrEqual(10);
+    it('should wrap at midnight and increment gameDay', () => {
+      const { setGameTime, setGameSpeed, tickGameTime } = useGameSimulationStore.getState();
+      setGameTime(23);
+      setGameSpeed(3600);
+      expect(useGameSimulationStore.getState().gameDay).toBe(0);
+
+      // 2 real seconds at 3600x = 2 game hours: 23 -> 1 (crosses midnight)
+      tickGameTime(2);
+
+      const state = useGameSimulationStore.getState();
+      expect(state.gameTime).toBe(1);
+      expect(state.gameDay).toBe(1);
+    });
+
+    it('should not increment gameDay when no midnight crossing occurs', () => {
+      const { setGameTime, setGameSpeed, tickGameTime } = useGameSimulationStore.getState();
+      setGameTime(12);
+      setGameSpeed(3600);
+
+      tickGameTime(2); // 12 -> 14, no wrap
+
+      const state = useGameSimulationStore.getState();
+      expect(state.gameTime).toBe(14);
+      expect(state.gameDay).toBe(0);
+    });
+
+    it('should auto-change shift when tick crosses a shift boundary', () => {
+      const { setGameTime, setGameSpeed, tickGameTime } = useGameSimulationStore.getState();
+      setGameTime(13.75); // late morning shift
+      setGameSpeed(3600);
+      expect(useGameSimulationStore.getState().currentShift).toBe('morning');
+      const supervisorBefore = useGameSimulationStore.getState().shiftData.incomingSupervisor;
+
+      tickGameTime(0.5); // 13.75 -> 14.25, crosses the 14:00 boundary
+
+      const state = useGameSimulationStore.getState();
+      expect(state.gameTime).toBe(14.25);
+      expect(state.currentShift).toBe('afternoon');
+      expect(state.shiftData.currentShift).toBe('afternoon');
+      // Handover: previous incoming supervisor becomes outgoing
+      expect(state.shiftData.outgoingSupervisor).toBe(supervisorBefore);
+      expect(state.shiftData.priorities).toContain('Peak production targets');
+    });
+
+    it('should auto-change to night shift when crossing midnight', () => {
+      const { setGameTime, setGameSpeed, tickGameTime, setShift } =
+        useGameSimulationStore.getState();
+      setShift('afternoon');
+      setGameTime(21.9);
+      setGameSpeed(3600);
+
+      tickGameTime(0.5); // 21.9 -> 22.4, crosses the 22:00 boundary
+
+      expect(useGameSimulationStore.getState().currentShift).toBe('night');
+    });
+  });
+
+  describe('Fire Drill Evacuation', () => {
+    it('should track evacuations without double-counting duplicate worker ids', () => {
+      const { startEmergencyDrill, markWorkerEvacuated } = useGameSimulationStore.getState();
+      startEmergencyDrill(3);
+
+      markWorkerEvacuated('worker-1');
+      markWorkerEvacuated('worker-1'); // duplicate - must not double-count
+      markWorkerEvacuated('worker-2');
+
+      const { drillMetrics } = useGameSimulationStore.getState();
+      expect(drillMetrics.evacuatedWorkerIds).toEqual(['worker-1', 'worker-2']);
+      expect(drillMetrics.evacuationComplete).toBe(false);
+      expect(drillMetrics.finalTimeSeconds).toBeNull();
+    });
+
+    it('should ignore evacuations when no drill is active', () => {
+      const { markWorkerEvacuated } = useGameSimulationStore.getState();
+      markWorkerEvacuated('worker-1');
+
+      const { drillMetrics } = useGameSimulationStore.getState();
+      expect(drillMetrics.evacuatedWorkerIds).toHaveLength(0);
+    });
+
+    it('should flip evacuationComplete exactly once and compute finalTimeSeconds', () => {
+      const { startEmergencyDrill, markWorkerEvacuated } = useGameSimulationStore.getState();
+      startEmergencyDrill(2);
+
+      // 45 seconds elapse (fake timers drive Date.now)
+      vi.advanceTimersByTime(45_000);
+      markWorkerEvacuated('worker-1');
+      expect(useGameSimulationStore.getState().drillMetrics.evacuationComplete).toBe(false);
+
+      vi.advanceTimersByTime(45_000);
+      markWorkerEvacuated('worker-2');
+
+      const afterComplete = useGameSimulationStore.getState().drillMetrics;
+      expect(afterComplete.evacuationComplete).toBe(true);
+      expect(afterComplete.finalTimeSeconds).toBe(90);
+
+      // Re-marking an already-evacuated worker after completion changes nothing
+      vi.advanceTimersByTime(30_000);
+      markWorkerEvacuated('worker-2');
+      const afterDuplicate = useGameSimulationStore.getState().drillMetrics;
+      expect(afterDuplicate.evacuationComplete).toBe(true);
+      expect(afterDuplicate.finalTimeSeconds).toBe(90); // Unchanged
+      expect(afterDuplicate.evacuatedWorkerIds).toHaveLength(2);
+    });
+
+    it('should not start a drill during an active crisis', () => {
+      const { triggerCrisis, startEmergencyDrill } = useGameSimulationStore.getState();
+      triggerCrisis('fire', 'high');
+
+      startEmergencyDrill(5);
+
+      const state = useGameSimulationStore.getState();
+      expect(state.drillMetrics.active).toBe(false);
+      expect(state.emergencyDrillMode).toBe(false);
+    });
+
+    it('should return the geometrically nearest exit per quadrant', () => {
+      const { getNearestExit } = useGameSimulationStore.getState();
+
+      // Exits: front (0, 52), back (0, -52), west (-62, 0), east (62, 0)
+      expect(getNearestExit(0, 30).id).toBe('front');
+      expect(getNearestExit(0, -30).id).toBe('back');
+      expect(getNearestExit(-40, 0).id).toBe('west');
+      expect(getNearestExit(40, 0).id).toBe('east');
+      // Off-axis point: (10, 20) is ~33.5 from front, farther from all others
+      expect(getNearestExit(10, 20).id).toBe('front');
+      // Center is equidistant-ish; front (dist 52) beats west/east (dist 62)
+      expect(getNearestExit(0, 0).id).toBe('front');
     });
   });
 

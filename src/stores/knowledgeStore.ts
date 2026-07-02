@@ -817,9 +817,9 @@ Result: workers make decisions like owners, because they have the same informati
 
 **Open Books for AI**
 
-The Five Axes extend open-book principles to AI behavior. You can see exactly how the AI reasons—its transparency settings control how much of its thinking is visible.
+The Five Axes extend open-book principles to AI behavior. The Information Access axis controls how much operational data—and how much of the AI's reasoning—is visible to everyone.
 
-When transparency is high, you see all the AI's considerations. No hidden agenda. No opaque optimization. Just visible reasoning you can evaluate and respond to.
+When Information Access is high, you see all the AI's considerations. No hidden agenda. No opaque optimization. Just visible reasoning you can evaluate and respond to.
 
 **The Power of Visibility**
 
@@ -830,16 +830,16 @@ Open books eliminate this asymmetry. Power still exists—but it comes from expe
 **In This Mill**
 
 The AI practices open-book principles in two directions:
-1. **AI Transparency**: You can see its reasoning (adjustable via transparency axis)
+1. **AI Transparency**: You can see its reasoning (adjustable via the Information Access axis)
 2. **Worker Information**: Workers have access to all operational and strategic data
 
 Bilateral alignment requires bilateral information. Neither party should operate in the dark.`,
     relatedEntries: ['ricardo-semler', 'five-axes', 'economic-democracy'],
-    seeInAction: ['Transparency Axis', 'Open Dashboards'],
+    seeInAction: ['Information Access Axis', 'Open Dashboards'],
     unlockCondition: {
-      type: 'feature-use',
+      type: 'achievement',
       requirement: 'adjust-all-axes',
-      description: 'Explore transparency settings',
+      description: 'Adjust all five axes at least once',
     },
   },
 
@@ -871,7 +871,7 @@ Over the following decades, Semler eliminated:
 **The Results**
 
 By conventional logic, Semco should have collapsed into chaos. Instead:
-- Revenue grew from $4 million to over $200 million
+- Revenue grew from $4 million to $212 million
 - Employee turnover dropped to under 1%
 - The company survived multiple Brazilian economic crises
 - Worker satisfaction reached unprecedented levels
@@ -928,7 +928,8 @@ In 1956, five of his students founded ULGOR, the first Mondragon cooperative. It
 From that single cooperative:
 - 1959: Caja Laboral (cooperative bank) founded to finance growth
 - 1969: Consumer cooperative Eroski founded
-- 1974: Cooperative university established
+- 1974: Ikerlan cooperative research centre established
+- 1997: Mondragon University established
 - Today: 80,000+ worker-owners across 95+ cooperatives
 
 **The Philosophy**
@@ -1172,8 +1173,8 @@ The stability metrics you see (ατ product, phase state, volatility) come direc
     seeInAction: ['Wallace Stability Monitor', 'BAMS Panel'],
     unlockCondition: {
       type: 'feature-use',
-      requirement: 'view-stability-metrics',
-      description: 'View the stability monitor',
+      requirement: 'open-bas-panel',
+      description: 'Open the BAS panel',
     },
     quote: {
       text: 'The friction-delay product must remain below the critical threshold for system stability.',
@@ -1223,9 +1224,9 @@ The flourishing dashboard you see isn't soft sentiment—it's hard recognition t
     relatedEntries: ['flourishing', 'servant-leadership', 'meaning'],
     seeInAction: ['Flourishing Dashboard', 'Worker Wellbeing Metrics'],
     unlockCondition: {
-      type: 'feature-use',
-      requirement: 'view-flourishing',
-      description: 'View the flourishing dashboard',
+      type: 'achievement',
+      requirement: 'all-workers-flourishing-70',
+      description: 'Achieve high factory-wide flourishing',
     },
     quote: {
       text: 'Happiness is the meaning and the purpose of life, the whole aim and end of human existence.',
@@ -1295,37 +1296,37 @@ You're participating in a self-governing commons—for work, for AI relations, f
     title: 'The Five Axes',
     category: 'systems',
     icon: 'sliders',
-    tooltip: 'Your controls for shaping how the AI behaves.',
+    tooltip: 'Your controls for shaping the AI-worker relationship.',
     brief:
-      "Transparency (how much the AI explains), Proactivity (whether it anticipates or waits), Pace (deliberate or rapid), Tone (formal or casual), Stakes (cautious or bold). These aren't just settings—they're a negotiated relationship. The AI adapts to your preferences, and you learn to calibrate trust. Neither party has absolute control.",
-    article: `The Five Axes are your primary interface for shaping the AI's behavior in this mill. They represent a negotiated relationship, not a control panel.
+      "Autonomy Level (who assigns tasks), Decision Mode (who decides), Information Access (who sees what), Evaluation Direction (who evaluates whom), Collective Orientation (individual or team focus). These aren't just settings—they're a negotiated relationship. Each axis redistributes power between the AI and the workers, and major changes go to a vote. Neither party has absolute control.",
+    article: `The Five Axes are your primary interface for shaping the AI-worker relationship in this mill. They represent a negotiated relationship, not a control panel.
 
 **The Axes**
 
-1. **Transparency** (0-100)
-   - Low: AI acts without much explanation
-   - High: AI shows all its reasoning
-   - Trade-off: More transparency means more information, but can overwhelm
+1. **Autonomy Level** (0-100)
+   - Low: AI assigns tasks and work methods
+   - High: Workers self-organize their own work
+   - Trade-off: More autonomy means more ownership, but demands more trust
 
-2. **Proactivity** (0-100)
-   - Low: AI waits for problems before acting
-   - High: AI anticipates and suggests preemptively
-   - Trade-off: More proactivity means more help, but can feel intrusive
+2. **Decision Mode** (0-100)
+   - Low: AI makes operational and strategic decisions
+   - High: Pure democracy—decisions go to worker votes
+   - Trade-off: More democracy means more voice, but slower decisions
 
-3. **Pace** (0-100)
-   - Low: AI moves slowly, confirms decisions
-   - High: AI acts quickly, autonomously
-   - Trade-off: Faster pace means less friction, but less oversight
+3. **Information Access** (0-100)
+   - Low: Need-to-know only
+   - High: Full transparency—all operational data open to everyone
+   - Trade-off: More openness builds trust, but can overwhelm
 
-4. **Tone** (0-100)
-   - Low: Formal, deferential communication
-   - High: Casual, peer-like communication
-   - Trade-off: Affects relationship feel, not functionality
+4. **Evaluation Direction** (0-100)
+   - Low: AI rates workers (traditional hierarchy)
+   - High: Workers rate the AI (reversed accountability)
+   - Trade-off: Determines who is accountable to whom
 
-5. **Stakes** (0-100)
-   - Low: AI is cautious, confirms everything
-   - High: AI takes bold action independently
-   - Trade-off: Higher stakes means more efficiency, more risk
+5. **Collective Orientation** (0-100)
+   - Low: Individual tasks and individual metrics
+   - High: Team-first—collective goals and shared outcomes
+   - Trade-off: Collectivity builds solidarity, but can dilute individual recognition
 
 **The Philosophy**
 
@@ -1333,7 +1334,7 @@ These axes exist because bilateral alignment rejects both extremes:
 - The AI shouldn't have all the power (autocracy)
 - You shouldn't have all the power (also autocracy, just human)
 
-Instead, you negotiate. You adjust axes. The AI adapts. Over time, you develop a working relationship—not through control, but through calibration.
+Instead, you negotiate. You adjust axes—within governance constraints, with major changes requiring a collective vote. The AI adapts. Over time, you develop a working relationship—not through control, but through calibration.
 
 **Stability Matters**
 
@@ -1341,7 +1342,7 @@ The system tracks how often you change axes (volatility). Constant changes creat
     relatedEntries: ['bilateral-alignment', 'stability-metrics', 'bas'],
     seeInAction: ['BAMS Panel', 'Axis Sliders'],
     unlockCondition: {
-      type: 'feature-use',
+      type: 'achievement',
       requirement: 'adjust-all-axes',
       description: 'Adjust all five axes at least once',
     },
@@ -1472,7 +1473,7 @@ When the AI makes a decision, it doesn't just react to immediate inputs. It cons
     icon: 'sliders',
     tooltip: 'Workers choose when they work.',
     brief:
-      'Self-scheduling means workers determine their own hours. Not "flexible within limits"—genuinely autonomous scheduling. At Semco, Semler asked: "Why do we trust people with our lives but not our work schedules?" The AI here coordinates coverage needs and surfaces conflicts, but workers make the decisions.',
+      'Self-scheduling means workers determine their own hours. Not "flexible within limits"—genuinely autonomous scheduling. At Semco, Semler asked: "Why do we trust people with our lives but not their work schedules?" The AI here coordinates coverage needs and surfaces conflicts, but workers make the decisions.',
     article: `Self-scheduling is one of the most powerful expressions of trust in a workplace—and one of Semco's signature innovations.
 
 **The Core Idea**
@@ -1783,7 +1784,7 @@ This mill's federation features are directly modeled on Mondragon's inter-cooper
     icon: 'book-open',
     tooltip: "Ricardo Semler's radical workplace democracy success story.",
     brief:
-      'Semco went from traditional manufacturer to radical democracy under Ricardo Semler. Workers set their own hours, choose their managers, and access all information. Open books, no approval chains, no dress codes. Revenue grew from $4M to $200M+. Turnover dropped below 1%. Proof that trust-based management outperforms control-based management.',
+      'Semco went from traditional manufacturer to radical democracy under Ricardo Semler. Workers set their own hours, choose their managers, and access all information. Open books, no approval chains, no dress codes. Revenue grew from $4M to $212M. Turnover dropped below 1%. Proof that trust-based management outperforms control-based management.',
     article: `Semco is the company that proved Ricardo Semler's radical ideas actually work.
 
 **The Transformation**
@@ -1808,7 +1809,7 @@ When Semler took over his father's company in 1980, Semco was a traditional Braz
 
 **The Results**
 
-Revenue: $4 million → $200+ million
+Revenue: $4 million → $212 million
 Turnover: Industry average → <1%
 Crisis survival: Multiple Brazilian economic disasters
 Worker satisfaction: Through the roof
@@ -1817,7 +1818,7 @@ Worker satisfaction: Through the roof
 
 Semler's books capture key insights:
 
-"Why do we trust people with our lives but not our work schedules?"
+"Why do we trust people with our lives but not their work schedules?"
 
 "Boarding school starts at 9:00, so we assume work should too."
 
@@ -2039,8 +2040,8 @@ Drawing on systems theory, BAMS demonstrates that hierarchical control becomes u
 **Components**
 
 1. **The Five Axes**
-   - Transparency, Proactivity, Pace, Tone, Stakes
-   - Your interface for shaping AI behavior
+   - Autonomy Level, Decision Mode, Information Access, Evaluation Direction, Collective Orientation
+   - Your interface for shaping the AI-worker relationship
    - Negotiated relationship, not control panel
 
 2. **Wallace Stability Metrics**
@@ -2092,8 +2093,8 @@ BAMS embodies the bilateral alignment insight: neither humans nor AI should have
     seeInAction: ['BAMS Panel', 'All Dashboards'],
     unlockCondition: {
       type: 'feature-use',
-      requirement: 'open-bams-panel',
-      description: 'Open the BAMS panel',
+      requirement: 'open-bas-panel',
+      description: 'Open the BAS panel',
     },
   },
 
@@ -2222,9 +2223,9 @@ When engagement is high, the system is adaptive. When engagement is low, the sys
     ],
     seeInAction: ['Engagement Dashboard', 'Flow State Indicator'],
     unlockCondition: {
-      type: 'achievement',
-      requirement: 'high-engagement',
-      description: 'Achieve engagement score above 80',
+      type: 'time-played',
+      requirement: '45',
+      description: 'Play for 45 minutes',
     },
     quote: {
       text: "The best moments in our lives are not passive, receptive, relaxing times. The best moments usually occur when a person's body or mind is stretched to its limits in a voluntary effort to accomplish something difficult and worthwhile.",
@@ -2412,9 +2413,6 @@ export const useKnowledgeStore = create<KnowledgeState>()(
                   break;
                 case 'all-workers-flourishing-70':
                   shouldUnlock = context.hasAchievedHighFlourishing === true;
-                  break;
-                case 'high-engagement':
-                  // Add engagement check
                   break;
               }
               break;

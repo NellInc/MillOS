@@ -2,25 +2,23 @@
  * ProductionTargetWidget Component
  *
  * On-screen UI widget showing countdown to daily production target.
- * Uses showProductionTarget toggle from aiConfigStore (default OFF).
+ * Uses showProductionTarget toggle from aiConfigStore (default ON).
  */
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { useAIConfigStore } from '../stores/aiConfigStore';
-import { useProductionStore } from '../stores/productionStore';
+import { useProductionStore, DAILY_TARGET_BAGS } from '../stores/productionStore';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import { Target, Clock, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BAG_WEIGHT_KG } from '../types';
 
-const DAILY_TARGET_BAGS = 5000;
 const DAILY_TARGET_MASS = DAILY_TARGET_BAGS * BAG_WEIGHT_KG; // 125,000 kg = 125t
-const SHIFT_END_HOUR = 18;
 
 export const ProductionTargetWidget: React.FC = () => {
   const showProductionTarget = useAIConfigStore((state) => state.showProductionTarget);
   const metrics = useProductionStore((state) => state.metrics);
-  const totalBagsProduced = useProductionStore((state) => state.totalBagsProduced);
+  const dailyBagsProduced = useProductionStore((state) => state.dailyBagsProduced);
   const gameTime = useGameSimulationStore((state) => state.gameTime);
 
   const targetData = useMemo(() => {
@@ -28,11 +26,14 @@ export const ProductionTargetWidget: React.FC = () => {
     const currentThroughputBags = metrics.throughput || 0;
     const currentThroughputMass = currentThroughputBags * BAG_WEIGHT_KG; // kg/hr
 
-    // Use actual produced counts if available, otherwise estimate
-    const currentMass = totalBagsProduced * BAG_WEIGHT_KG;
+    // Today's production only - the counter resets at day rollover, so the
+    // widget never locks at 100% after the first day.
+    const currentMass = dailyBagsProduced * BAG_WEIGHT_KG;
 
     const remainingMass = Math.max(0, DAILY_TARGET_MASS - currentMass);
-    const hoursRemaining = Math.max(0.5, SHIFT_END_HOUR - gameTime);
+    // Hours until end-of-day (midnight rollover), when the daily counter
+    // resets - not a fixed shift-end clamp that reads BEHIND all evening.
+    const hoursRemaining = Math.max(0.25, 24 - gameTime);
     const requiredRateMass = remainingMass / hoursRemaining;
 
     const progress = Math.min(100, (currentMass / DAILY_TARGET_MASS) * 100);
@@ -56,7 +57,7 @@ export const ProductionTargetWidget: React.FC = () => {
       progress,
       status,
     };
-  }, [metrics.throughput, totalBagsProduced, gameTime]);
+  }, [metrics.throughput, dailyBagsProduced, gameTime]);
 
   // Keep the draggable widget within the viewport so it can never be dragged
   // off-screen (its only re-show path is a hidden keyboard shortcut). The widget

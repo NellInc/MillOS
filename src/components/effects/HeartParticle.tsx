@@ -15,10 +15,14 @@ export const HeartParticle = React.memo<{
 
   useFrame((_, delta) => {
     // Throttle heart animation to every 2nd frame (~30 FPS)
-    if (!shouldRunThisFrame(2)) return;
+    const throttle = 2;
+    if (!shouldRunThisFrame(throttle)) return;
+
+    // Compensate for skipped frames; cap to avoid jumps on tab refocus
+    const cappedDelta = Math.min(delta * throttle, 0.1);
 
     if (groupRef.current) {
-      groupRef.current.position.y += delta * 1.5; // Float up
+      groupRef.current.position.y += cappedDelta * 1.5; // Float up
 
       // Optional: Fade out effect could be added here if material supports transparency
       // For now, we rely on the removal timer.

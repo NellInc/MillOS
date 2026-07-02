@@ -2,6 +2,7 @@ import React, { useRef, useMemo, useState } from 'react';
 import * as THREE from 'three';
 import { useAmbientAnimation } from './shared';
 import { FLOOR_LAYERS, POLYGON_OFFSET } from '../../constants/renderLayers';
+import { safeDivide } from '../../utils/typeGuards';
 
 // ==========================================
 // UTILITIES & INFRASTRUCTURE
@@ -419,9 +420,16 @@ export const ExtensionCord: React.FC<{
       const wave = Math.sin(t * Math.PI * 3) * 0.3;
       const perpX = -(end[2] - start[2]);
       const perpZ = end[0] - start[0];
+      // Guard against coincident endpoints (len=0 would yield NaN Vector3s)
       const len = Math.sqrt(perpX * perpX + perpZ * perpZ);
 
-      pts.push(new THREE.Vector3(x + (perpX / len) * wave, 0.01, z + (perpZ / len) * wave));
+      pts.push(
+        new THREE.Vector3(
+          x + safeDivide(perpX, len, 0) * wave,
+          0.01,
+          z + safeDivide(perpZ, len, 0) * wave
+        )
+      );
     }
 
     return pts;

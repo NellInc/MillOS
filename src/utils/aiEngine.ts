@@ -4519,23 +4519,36 @@ async function updateAlignmentAchievements(
       (m) => m?.preferences?.preferenceStatus === 'satisfied'
     ).length;
 
-    // Update achievement progress
-    // trust-falls: Reach 90% average management trust
-    store.updateAchievementProgress('trust-falls', Math.floor(avgTrust));
+    // Update achievement progress (mapped onto the real bilateral/social
+    // achievement IDs defined in achievementsStore - the previous IDs
+    // trust-falls / initiative-engine / preference-prophet / self-organizers
+    // never existed and silently no-oped).
 
-    // initiative-engine: Reach 80% average initiative across workforce
-    store.updateAchievementProgress('initiative-engine', Math.floor(avgInitiative));
-
-    // preference-prophet: Grant 20 preference requests
-    if (grantsThisCycle > 0) {
-      const current = store.achievements.find((a) => a.id === 'preference-prophet')?.progress || 0;
-      store.updateAchievementProgress('preference-prophet', current + grantsThisCycle);
+    // trust-builder: Maintain high trust score for 1 hour (target: 60 minutes).
+    // Each alignment cycle at >=90% average management trust counts one
+    // minute toward the streak; the streak resets if trust drops.
+    const trustBuilder = store.achievements.find((a) => a.id === 'trust-builder');
+    if (trustBuilder && !trustBuilder.unlocked) {
+      store.updateAchievementProgress(
+        'trust-builder',
+        avgTrust >= 90 ? trustBuilder.progress + 1 : 0
+      );
     }
 
-    // self-organizers: 10 workers autonomously help each other (when all satisfied)
-    if (satisfiedCount === withPrefs.length && withPrefs.length >= 5) {
-      const current = store.achievements.find((a) => a.id === 'self-organizers')?.progress || 0;
-      store.updateAchievementProgress('self-organizers', current + 1);
+    // first-preference: Record your first AI preference (first granted request)
+    // collaborative-spirit: Complete 5 collaborative decisions (each granted
+    // preference request is a collaborative human-AI decision).
+    if (grantsThisCycle > 0) {
+      const current =
+        store.achievements.find((a) => a.id === 'collaborative-spirit')?.progress || 0;
+      store.updateAchievementProgress('collaborative-spirit', current + grantsThisCycle);
+      store.unlockAchievement('first-preference');
+    }
+
+    // emergent-cooperation: Witness spontaneous worker cooperation - a fully
+    // satisfied workforce with high average initiative is self-organizing.
+    if ((satisfiedCount === withPrefs.length && withPrefs.length >= 5) || avgInitiative >= 80) {
+      store.unlockAchievement('emergent-cooperation');
     }
   } catch (error) {
     logger.error('[Alignment] Error updating achievements:', error);

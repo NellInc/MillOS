@@ -217,6 +217,7 @@ Before marking any todo as `status: "completed"`:
 1. **Show the output** — actual `npm run build` results, not claims. The terminal output is the proof.
 2. **Claims require proof** — don't claim "verified", "tested", "works" without command output evidence.
 3. **One in-progress max** — complete current before starting next.
+4. **Baseline-with-names** — baseline before the first change: state the starting pass/fail counts and the names of failing tests up front; after each step re-run the whole gate and report the delta vs baseline. A green on the thing you touched says nothing about what you broke.
 
 These rules create external verification so the work speaks for itself.
 
@@ -243,6 +244,8 @@ These rules create external verification so the work speaks for itself.
 9. **File discipline** — edit > create, no proactive docs. Use existing directories.
 10. **Defensive code** — use `?.`/`??` guards, proper null checks
 11. **Debug, don't bail** — when a command fails, diagnose and fix. Timeout → increase timeout. Error → fix error.
+12. **Reproduce-first** — a traced cause stays unverified until you reproduce it: make the bug happen, then make the fix stop it. A compile, build, or read is not a runtime; never let "it builds" stand for "it works."
+13. **Old Contract** — every change has a far side. Before calling it safe, name what still speaks the previous contract: the deployed server meeting your new schema, clients still sending the old shape, a cache holding the prior value, the consumer of the API you altered. Confirm it won't break.
 
 ### 🚨 TypeScript Cascade Prevention
 
@@ -349,7 +352,7 @@ This app has a service worker (`public/sw.js`) that can serve cached CSS/JS in p
 
 The factory is organized into 4 production zones:
 1. **Zone 1 (z=-22):** Silos (Alpha-Epsilon) - raw material storage
-2. **Zone 2 (z=-6):** Roller Mills (RM-101 to RM-106) - milling floor
+2. **Zone 2 (z=-6):** Roller Mills (R.M. 101–104) - milling floor
 3. **Zone 3 (z=6, elevated):** Plansifters (A-C) - sifting, positioned at y=9
 4. **Zone 4 (z=20):** Packers (Lines 1-3) - packaging output
 
@@ -358,14 +361,15 @@ The factory is organized into 4 production zones:
 **3D Systems** (inside MillScene):
 - `Machines.tsx` - Renders silos, mills, sifters, packers with status indicators
 - `ConveyorSystem.tsx` - Animated conveyor belts and product flow
-- `WorkerSystem.tsx` - Worker avatars with pathfinding
+- `WorkerSystemNew.tsx` - Worker avatars with pathfinding
 - `ForkliftSystem.tsx` - Autonomous forklifts
 - `SpoutingSystem.tsx` - Grain flow pipes between machines
 - `DustParticles.tsx` - Atmospheric particle effects
 - `Environment.tsx` - Lighting and factory environment
 
 **UI Overlays** (React DOM):
-- `UIOverlay.tsx` - Production controls, machine info panels
+- `ui-new/GameInterface.tsx` - Main HUD, dock, and panel host (production controls, machine info)
+- `ui-new/panels/` - Individual panels (production, safety, BAS, settings, ...)
 - `AICommandCenter.tsx` - AI decision slide-out panel
 - `AlertSystem.tsx` - Toast notifications
 - `WorkerDetailPanel.tsx` - Worker profile modal
@@ -380,7 +384,7 @@ The app uses both React local state (App.tsx) and Zustand global state (store.ts
 
 ## Fire Drill System
 
-The fire drill is a fully functional evacuation simulation accessible from the Emergency & Environment Controls panel in the UI.
+The fire drill is a fully functional evacuation simulation accessible from the Safety panel (`src/components/ui-new/panels/SafetyPanel.tsx`) in the UI.
 
 ### How It Works
 
@@ -408,10 +412,11 @@ Workers are assigned to the geometrically nearest exit.
 | File | Responsibility |
 |------|----------------|
 | `src/stores/gameSimulationStore.ts` | Drill state, metrics, `FIRE_DRILL_EXITS`, `markWorkerEvacuated()` |
-| `src/components/WorkerSystem.tsx` | Evacuation movement behavior (lines ~1983-2024) |
-| `src/components/ForkliftSystem.tsx` | Emergency stop enforcement (line ~559) |
+| `src/components/WorkerSystemNew.tsx` | Evacuation movement behavior (`emergencyDrillMode` / `getNearestExit` / `markWorkerEvacuated`, ~line 346) |
+| `src/components/ForkliftSystem.tsx` | Emergency stop enforcement (drill mode forces stop, ~line 577) |
+| `src/components/physics/ExitZoneSensors.tsx` | Exit-zone detection triggering `markWorkerEvacuated` |
 | `src/components/MillScene.tsx` | `FireDrillExitMarkers` component |
-| `src/components/UIOverlay.tsx` | `EmergencyEnvironmentPanel` with progress UI |
+| `src/components/ui-new/panels/SafetyPanel.tsx` | START/END DRILL controls with progress UI |
 
 ### Drill Metrics Interface
 
@@ -456,8 +461,10 @@ Never use emoji characters in the codebase. Always use Lucide React icons instea
 
 **Exception:** The 🏭 mill emoji is permitted in these specific branding locations:
 - Favicon (`index.html`)
-- Loading screen icon (`index.html`)
-- Top-left header logo (`UIOverlay.tsx`)
+- Loading screen icon (`index.html`, `LoadingScreen.tsx`)
+- Header/sidebar logo (`ui-new/sidebar/ContextSidebar.tsx`)
+
+**Exception:** Emoji that document the VCL wire-encoding glyphs (e.g. the legend in `VCLDebugPanel.tsx`) are protocol documentation, not UI decoration, and stay as-is.
 
 Example:
 
@@ -510,7 +517,7 @@ Certain effects cause visual flickering (brightness pulsing, "dancing shadows") 
 | Component | Issue | Resolution |
 |-----------|-------|------------|
 | **AtmosphericHaze** | Large transparent boxes with `THREE.BackSide` cause depth sorting conflicts | Disabled in MillScene.tsx |
-| **Post-processing (Bloom/Vignette)** | EffectComposer causes flickering with scene lighting | Disabled on medium preset in store.ts |
+| **Post-processing (Bloom/Vignette)** | EffectComposer caused flickering with scene lighting (root cause: ACES tone mapping + animated lights) | Fixed by forcing LINEAR tone mapping in `PostProcessing.tsx`; SSAO/Bloom/Vignette are now deliberately enabled on the medium preset (`graphicsStore.ts`) |
 | **MeshReflectorMaterial** | Floor reflector causes temporal instability | Only enabled on high/ultra |
 | **ContactShadows position** | Originally at y=0.01, too close to floor | Raised to y=0.05 |
 | **Shadow bias** | Was -0.0001 (too aggressive) | Changed to -0.001 |
@@ -521,7 +528,7 @@ Certain effects cause visual flickering (brightness pulsing, "dancing shadows") 
 When adding new visual effects, be aware of what's enabled per quality level:
 
 - **Low:** No shadows, no post-processing, meshBasicMaterial, minimal effects
-- **Medium:** Shadows, HDRI environment, standard materials, NO post-processing
+- **Medium:** Shadows, HDRI environment, standard materials, post-processing WITH SSAO/Bloom/Vignette (deliberate — the earlier medium-preset flicker was fixed by forcing LINEAR tone mapping in `PostProcessing.tsx`; see `graphicsStore.ts` GRAPHICS_PRESETS.medium)
 - **High/Ultra:** Full effects including post-processing, reflector floor, AmbientDetails
 
 ### Preventing Future Flickering

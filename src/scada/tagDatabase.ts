@@ -1,7 +1,7 @@
 /**
  * SCADA Tag Database for MillOS
  *
- * Complete definition of 90+ SCADA tags covering all 4 production zones:
+ * Complete definition of 78 SCADA tags covering all 4 production zones:
  * - Zone 1: Silos (raw material storage)
  * - Zone 2: Roller Mills (milling floor)
  * - Zone 3: Plansifters (sifting)
@@ -690,14 +690,14 @@ const utilityTags: TagDefinition[] = [
 // Complete Tag Database Export
 // ============================================================================
 
-/** All SCADA tags for MillOS (90+ tags) */
+/** All SCADA tags for MillOS (78 tags) */
 export const MILL_TAGS: TagDefinition[] = [
   ...siloTags, // 20 tags
-  ...rollerMillTags, // 36 tags
+  ...rollerMillTags, // 24 tags (4 mills x 6)
   ...plansifterTags, // 12 tags
   ...packerTags, // 12 tags
   ...utilityTags, // 10 tags
-]; // Total: 90 tags
+]; // Total: 78 tags
 
 /** Get tags by machine ID */
 export function getTagsByMachine(machineId: string): TagDefinition[] {
@@ -730,6 +730,6 @@ export function getTagsWithAlarms(): TagDefinition[] {
   );
 }
 
-// Tag database loaded: 90 tags total
-// Zone 1 (Silos): 20 tags, Zone 2 (Mills): 36 tags, Zone 3 (Sifters): 12 tags
+// Tag database loaded: 78 tags total
+// Zone 1 (Silos): 20 tags, Zone 2 (Mills): 24 tags, Zone 3 (Sifters): 12 tags
 // Zone 4 (Packers): 12 tags, Utility: 10 tags

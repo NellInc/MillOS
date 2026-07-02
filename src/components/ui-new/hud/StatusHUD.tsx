@@ -114,10 +114,19 @@ export const StatusHUD: React.FC = () => {
         setShowNotifications(false);
       }
     };
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setShowNotifications(false);
+      }
+    };
     if (showNotifications) {
       document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('keydown', handleEscape);
     }
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleEscape);
+    };
   }, [showNotifications]);
 
   // Compute safety score from metrics (100 baseline minus penalties)
@@ -161,10 +170,9 @@ export const StatusHUD: React.FC = () => {
 
         <div className="flex items-center gap-4 px-3 py-1.5" role="status" aria-live="polite">
           {/* FPS - excluded from the live region so the constantly-changing
-              value does not flood screen readers; aria-label keeps it readable on demand */}
+              value does not flood screen readers */}
           <div
             className="flex items-center gap-1.5 text-[10px] text-slate-400 font-mono"
-            aria-label={`Frame rate: ${fps} FPS`}
             aria-hidden="true"
           >
             <ActivityIcon size={12} aria-hidden="true" />
@@ -201,6 +209,8 @@ export const StatusHUD: React.FC = () => {
           onClick={() => setShowNotifications(!showNotifications)}
           className="w-8 h-8 rounded-full bg-slate-900/50 backdrop-blur border border-white/10 flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-colors pointer-events-auto relative"
           aria-label={`Notifications (${unacknowledgedCount} unread)`}
+          aria-haspopup="dialog"
+          aria-expanded={showNotifications}
         >
           <Bell size={14} />
           {unacknowledgedCount > 0 && (
@@ -226,7 +236,7 @@ export const StatusHUD: React.FC = () => {
             </div>
             <div className="max-h-80 overflow-y-auto">
               {alerts.length === 0 ? (
-                <div className="p-6 text-center text-slate-500 text-sm">No notifications</div>
+                <div className="p-6 text-center text-slate-400 text-sm">No notifications</div>
               ) : (
                 alerts.slice(0, 10).map((alert) => (
                   <div
@@ -252,7 +262,7 @@ export const StatusHUD: React.FC = () => {
                       <div className="flex-1 min-w-0">
                         <div className="text-xs font-medium text-white truncate">{alert.title}</div>
                         <div className="text-[10px] text-slate-400 truncate">{alert.message}</div>
-                        <div className="text-[9px] text-slate-500 mt-1">
+                        <div className="text-[9px] text-slate-400 mt-1">
                           {new Date(alert.timestamp).toLocaleTimeString()}
                         </div>
                       </div>

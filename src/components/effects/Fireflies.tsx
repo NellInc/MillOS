@@ -47,10 +47,14 @@ const Fireflies: React.FC<FirefliesProps> = ({ count = 50, bounds, color = '#ccf
     if (quality === 'low') return;
 
     // Throttle firefly animation to every 3rd frame (~20 FPS)
-    if (!shouldRunThisFrame(3)) return;
+    const throttle = 3;
+    if (!shouldRunThisFrame(throttle)) return;
+
+    // Compensate for skipped frames; cap to avoid jumps on tab refocus
+    const cappedDelta = Math.min(delta * throttle, 0.1);
 
     particles.forEach((p, i) => {
-      p.time += delta * p.speed;
+      p.time += cappedDelta * p.speed;
 
       // Gentle wandering motion
       const x = p.basePos.x + Math.sin(p.time * 0.5 + p.offset) * 0.5;

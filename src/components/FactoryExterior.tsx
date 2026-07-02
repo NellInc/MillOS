@@ -18,7 +18,8 @@ import {
   calculateShippingTruckState,
   calculateReceivingTruckState,
 } from './truckbay/useTruckPhysics';
-import { PROCEDURAL_TEXTURES } from '../utils/sharedMaterials';
+import { PROCEDURAL_TEXTURES, TREE_MATERIALS } from '../utils/sharedMaterials';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 // OUTDOOR_MATERIALS removed - grass plane now handled by TerrainGround
 import { GasStation } from './GasStationInstanced';
 import {
@@ -46,25 +47,73 @@ const GRASS_COLORS = {
 };
 
 // Simple low-poly tree component
+// Foliage: irregular icosahedron clusters merged into ONE geometry per variant
+// (module-level, shared) so each tree costs 2 draw calls (trunk + canopy).
+const createFoliageCluster = (seed: number): THREE.BufferGeometry => {
+  // Deterministic pseudo-random from seed (no Math.random - stable across renders)
+  const rand = (n: number) => {
+    const s = Math.sin(seed * 127.1 + n * 311.7) * 43758.5453;
+    return s - Math.floor(s);
+  };
+  const parts: THREE.BufferGeometry[] = [];
+  for (let i = 0; i < 4; i++) {
+    const blob = new THREE.IcosahedronGeometry(1.1 + rand(i) * 0.8, 0);
+    blob.scale(1, 0.75 + rand(i + 10) * 0.35, 1);
+    blob.rotateY(rand(i + 15) * Math.PI);
+    blob.translate(
+      (rand(i + 20) - 0.5) * 1.7,
+      4.4 + rand(i + 30) * 2.2,
+      (rand(i + 40) - 0.5) * 1.7
+    );
+    parts.push(blob);
+  }
+  const merged = mergeGeometries(parts) ?? parts[0].clone();
+  parts.forEach((g) => g.dispose());
+  return merged;
+};
+
+const TREE_FOLIAGE_VARIANTS = [
+  createFoliageCluster(1),
+  createFoliageCluster(2),
+  createFoliageCluster(3),
+];
+
+// Per-variant hue jitter via three shared materials (no per-instance material churn)
+const TREE_FOLIAGE_MATERIALS = [
+  new THREE.MeshStandardMaterial({ color: '#2e7d32', roughness: 0.85, flatShading: true }),
+  new THREE.MeshStandardMaterial({ color: '#3f8e3a', roughness: 0.85, flatShading: true }),
+  new THREE.MeshStandardMaterial({ color: '#38691e', roughness: 0.85, flatShading: true }),
+];
+
 const SimpleTree: React.FC<{ position: [number, number, number]; scale?: number }> = React.memo(
-  ({ position, scale = 1 }) => (
-    <group position={position} scale={scale}>
-      {/* Trunk */}
-      <mesh position={[0, 1.5, 0]} castShadow>
-        <cylinderGeometry args={[0.3, 0.4, 3, 6]} />
-        <meshStandardMaterial color="#5d4037" roughness={0.9} />
-      </mesh>
-      {/* Foliage - simple cone */}
-      <mesh position={[0, 4.5, 0]} castShadow>
-        <coneGeometry args={[2, 5, 6]} />
-        <meshStandardMaterial color="#2e7d32" roughness={0.8} />
-      </mesh>
-      <mesh position={[0, 6.5, 0]} castShadow>
-        <coneGeometry args={[1.5, 3.5, 6]} />
-        <meshStandardMaterial color="#388e3c" roughness={0.8} />
-      </mesh>
-    </group>
-  )
+  ({ position, scale = 1 }) => {
+    // Deterministic per-tree variant, rotation and scale jitter from position hash
+    const { variant, rotY, jitter } = useMemo(() => {
+      const h = Math.abs(Math.sin(position[0] * 12.9898 + position[2] * 78.233) * 43758.5453);
+      const frac = h - Math.floor(h);
+      return {
+        variant: Math.floor(frac * 3) % 3,
+        rotY: frac * Math.PI * 2,
+        jitter: 0.9 + frac * 0.2,
+      };
+    }, [position]);
+
+    return (
+      <group position={position} scale={scale * jitter} rotation={[0, rotY, 0]}>
+        {/* Trunk - shared bark-textured material */}
+        <mesh position={[0, 1.5, 0]} castShadow>
+          <cylinderGeometry args={[0.3, 0.4, 3, 6]} />
+          <primitive object={TREE_MATERIALS.trunk} attach="material" />
+        </mesh>
+        {/* Canopy - merged icosahedron cluster, single draw call */}
+        <mesh
+          geometry={TREE_FOLIAGE_VARIANTS[variant]}
+          material={TREE_FOLIAGE_MATERIALS[variant]}
+          castShadow
+        />
+      </group>
+    );
+  }
 );
 
 // Simple park bench
@@ -92,37 +141,153 @@ const ParkBench: React.FC<{ position: [number, number, number]; rotation?: numbe
   )
 );
 
-// Small office building
+// Small office building - module-level shared materials (procedural stucco walls)
+const officeWallColor = PROCEDURAL_TEXTURES.stuccoColor.clone();
+const officeWallNormal = PROCEDURAL_TEXTURES.stuccoNormal.clone();
+officeWallColor.wrapS = officeWallColor.wrapT = THREE.RepeatWrapping;
+officeWallNormal.wrapS = officeWallNormal.wrapT = THREE.RepeatWrapping;
+officeWallColor.repeat.set(3, 2);
+officeWallNormal.repeat.set(3, 2);
+
+const OFFICE_MATERIALS = {
+  wall: new THREE.MeshStandardMaterial({
+    color: '#8fa3ad',
+    roughness: 0.8,
+    map: officeWallColor,
+    normalMap: officeWallNormal,
+    normalScale: new THREE.Vector2(0.3, 0.3),
+  }),
+  trim: new THREE.MeshStandardMaterial({ color: '#546e7a', roughness: 0.6 }),
+  frame: new THREE.MeshStandardMaterial({ color: '#37474f', roughness: 0.5, metalness: 0.4 }),
+  glassDay: new THREE.MeshStandardMaterial({ color: '#90caf9', metalness: 0.3, roughness: 0.15 }),
+  glassNight: new THREE.MeshStandardMaterial({
+    color: '#ffd28a',
+    emissive: '#ffb74d',
+    emissiveIntensity: 0.9,
+    roughness: 0.3,
+  }),
+  hvac: new THREE.MeshStandardMaterial({ color: '#9e9e9e', roughness: 0.5, metalness: 0.5 }),
+  door: new THREE.MeshStandardMaterial({ color: '#5d4037', roughness: 0.8 }),
+};
+
+// Inset window with thin frame; glass sits behind the frame so it reads recessed
+const OfficeWindow: React.FC<{
+  position: [number, number, number];
+  lit: boolean;
+  width?: number;
+  height?: number;
+}> = React.memo(({ position, lit, width = 2, height = 2.5 }) => (
+  <group position={position}>
+    {/* Frame - top/bottom/left/right, slightly proud of the wall */}
+    <mesh position={[0, height / 2, 0.06]} material={OFFICE_MATERIALS.frame}>
+      <boxGeometry args={[width + 0.12, 0.1, 0.1]} />
+    </mesh>
+    <mesh position={[0, -height / 2, 0.06]} material={OFFICE_MATERIALS.frame}>
+      <boxGeometry args={[width + 0.12, 0.1, 0.1]} />
+    </mesh>
+    <mesh position={[-width / 2, 0, 0.06]} material={OFFICE_MATERIALS.frame}>
+      <boxGeometry args={[0.1, height + 0.12, 0.1]} />
+    </mesh>
+    <mesh position={[width / 2, 0, 0.06]} material={OFFICE_MATERIALS.frame}>
+      <boxGeometry args={[0.1, height + 0.12, 0.1]} />
+    </mesh>
+    {/* Glass - recessed behind the frame */}
+    <mesh
+      position={[0, 0, 0.02]}
+      material={lit ? OFFICE_MATERIALS.glassNight : OFFICE_MATERIALS.glassDay}
+    >
+      <planeGeometry args={[width, height]} />
+    </mesh>
+  </group>
+));
+OfficeWindow.displayName = 'OfficeWindow';
+
 export const SmallOffice: React.FC<{
   position: [number, number, number];
   size?: [number, number, number];
   rotation?: number;
-}> = React.memo(({ position, size = [12, 8, 10], rotation = 0 }) => (
-  <group position={position} rotation={[0, rotation, 0]}>
-    {/* Main building */}
-    <mesh position={[0, size[1] / 2, 0]} castShadow receiveShadow>
-      <boxGeometry args={[size[0], size[1], size[2]]} />
-      <meshStandardMaterial color="#78909c" roughness={0.7} />
-    </mesh>
-    {/* Roof */}
-    <mesh position={[0, size[1] + 0.3, 0]} castShadow>
-      <boxGeometry args={[size[0] + 0.5, 0.6, size[2] + 0.5]} />
-      <meshStandardMaterial color="#546e7a" roughness={0.6} />
-    </mesh>
-    {/* Windows - front (raised to avoid overlap with door) */}
-    {[-3, 0, 3].map((x, i) => (
-      <mesh key={`front-${i}`} position={[x, size[1] / 2 + 0.8, size[2] / 2 + 0.05]}>
-        <planeGeometry args={[2, 2.5]} />
-        <meshStandardMaterial color="#90caf9" metalness={0.3} roughness={0.2} />
+}> = React.memo(({ position, size = [12, 8, 10], rotation = 0 }) => {
+  const isNight = useGameSimulationStore(
+    useShallow((state) => state.gameTime >= 20 || state.gameTime < 6)
+  );
+
+  return (
+    <group position={position} rotation={[0, rotation, 0]}>
+      {/* Main building - procedural stucco walls */}
+      <mesh
+        position={[0, size[1] / 2, 0]}
+        castShadow
+        receiveShadow
+        material={OFFICE_MATERIALS.wall}
+      >
+        <boxGeometry args={[size[0], size[1], size[2]]} />
       </mesh>
-    ))}
-    {/* Door */}
-    <mesh position={[0, 1.2, size[2] / 2 + 0.05]}>
-      <planeGeometry args={[1.5, 2.4]} />
-      <meshStandardMaterial color="#5d4037" roughness={0.8} />
-    </mesh>
-  </group>
-));
+      {/* Roof slab */}
+      <mesh position={[0, size[1] + 0.15, 0]} castShadow material={OFFICE_MATERIALS.trim}>
+        <boxGeometry args={[size[0] + 0.3, 0.3, size[2] + 0.3]} />
+      </mesh>
+      {/* Parapet - four low walls around the roof edge */}
+      <mesh
+        position={[0, size[1] + 0.55, size[2] / 2 + 0.1]}
+        castShadow
+        material={OFFICE_MATERIALS.trim}
+      >
+        <boxGeometry args={[size[0] + 0.5, 0.5, 0.15]} />
+      </mesh>
+      <mesh
+        position={[0, size[1] + 0.55, -(size[2] / 2 + 0.1)]}
+        castShadow
+        material={OFFICE_MATERIALS.trim}
+      >
+        <boxGeometry args={[size[0] + 0.5, 0.5, 0.15]} />
+      </mesh>
+      <mesh
+        position={[size[0] / 2 + 0.1, size[1] + 0.55, 0]}
+        castShadow
+        material={OFFICE_MATERIALS.trim}
+      >
+        <boxGeometry args={[0.15, 0.5, size[2] + 0.5]} />
+      </mesh>
+      <mesh
+        position={[-(size[0] / 2 + 0.1), size[1] + 0.55, 0]}
+        castShadow
+        material={OFFICE_MATERIALS.trim}
+      >
+        <boxGeometry args={[0.15, 0.5, size[2] + 0.5]} />
+      </mesh>
+      {/* Rooftop HVAC unit */}
+      <group position={[size[0] / 5, size[1] + 0.75, -size[2] / 6]}>
+        <mesh castShadow material={OFFICE_MATERIALS.hvac}>
+          <boxGeometry args={[2, 0.9, 1.4]} />
+        </mesh>
+        {/* Fan grille on top */}
+        <mesh
+          position={[0, 0.47, 0]}
+          rotation={[-Math.PI / 2, 0, 0]}
+          material={OFFICE_MATERIALS.frame}
+        >
+          <circleGeometry args={[0.5, 12]} />
+        </mesh>
+      </group>
+      {/* Windows - front (raised to avoid overlap with door); middle bay dark for variety */}
+      {[-3, 0, 3].map((x, i) => (
+        <OfficeWindow
+          key={`front-${i}`}
+          position={[x, size[1] / 2 + 0.8, size[2] / 2 + 0.01]}
+          lit={isNight && i !== 1}
+        />
+      ))}
+      {/* Door with frame */}
+      <mesh position={[0, 1.2, size[2] / 2 + 0.02]} material={OFFICE_MATERIALS.door}>
+        <planeGeometry args={[1.5, 2.4]} />
+      </mesh>
+      <mesh position={[0, 2.45, size[2] / 2 + 0.05]} material={OFFICE_MATERIALS.frame}>
+        <boxGeometry args={[1.7, 0.1, 0.08]} />
+      </mesh>
+    </group>
+  );
+});
+SmallOffice.displayName = 'SmallOffice';
 
 // Nissen hut - semi-cylindrical corrugated building
 const NissenHut: React.FC<{
@@ -3488,6 +3653,11 @@ export const CuteCar: React.FC<{
         <boxGeometry args={[d.cabinLength, d.cabinHeight, d.bodyWidth - 0.1]} />
         <meshStandardMaterial color={color} roughness={0.35} metalness={0.4} />
       </mesh>
+      {/* Roof cap - inset box softens the hard cabin roofline */}
+      <mesh position={[cabinX, cabinY + d.cabinHeight / 2 + 0.025, 0]} castShadow>
+        <boxGeometry args={[d.cabinLength * 0.82, 0.06, (d.bodyWidth - 0.1) * 0.82]} />
+        <meshStandardMaterial color={color} roughness={0.3} metalness={0.45} />
+      </mesh>
 
       {/* Window pillars - A and C combined per side */}
       {[-1, 1].map((side) => (
@@ -3684,17 +3854,17 @@ export const CuteCar: React.FC<{
         </group>
       )}
 
-      {/* Shadow underneath - just above the surface the car sits on */}
+      {/* Shadow underneath - soft radial-gradient blob (alpha falloff, no hard edges) */}
       <mesh
         position={[0, 0.01, 0]}
         rotation={[-Math.PI / 2, 0, 0]}
         renderOrder={RENDER_ORDER.floorEffects}
       >
-        <planeGeometry args={[d.bodyLength + 0.5, d.bodyWidth + 0.3]} />
+        <planeGeometry args={[d.bodyLength + 1.2, d.bodyWidth + 0.9]} />
         <meshBasicMaterial
-          color="#000000"
+          map={CAR_SHADOW_TEXTURE}
           transparent
-          opacity={0.15}
+          opacity={0.85}
           depthWrite={false}
           polygonOffset
           polygonOffsetFactor={-4}
@@ -3704,6 +3874,26 @@ export const CuteCar: React.FC<{
     </group>
   );
 });
+
+// Shared soft radial-gradient shadow blob for parked cars (created once at module load)
+const createCarShadowTexture = (): THREE.CanvasTexture => {
+  const canvas = document.createElement('canvas');
+  canvas.width = 64;
+  canvas.height = 64;
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    const grad = ctx.createRadialGradient(32, 32, 6, 32, 32, 32);
+    grad.addColorStop(0, 'rgba(0,0,0,0.55)');
+    grad.addColorStop(0.6, 'rgba(0,0,0,0.3)');
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 64, 64);
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+};
+const CAR_SHADOW_TEXTURE = createCarShadowTexture();
 
 // Car colors palette - fun and varied
 const CAR_COLORS = [
@@ -3780,7 +3970,6 @@ const ParkingLot: React.FC<{
         <meshStandardMaterial
           color="#374151"
           roughness={0.9}
-          depthWrite={false}
           polygonOffset
           polygonOffsetFactor={-2}
           polygonOffsetUnits={-2}
@@ -3826,8 +4015,8 @@ const ParkingLot: React.FC<{
               color="#ffffff"
               depthWrite={false}
               polygonOffset
-              polygonOffsetFactor={POLYGON_OFFSET.moderate.factor}
-              polygonOffsetUnits={POLYGON_OFFSET.moderate.units}
+              polygonOffsetFactor={POLYGON_OFFSET.exteriorOverlay.factor}
+              polygonOffsetUnits={POLYGON_OFFSET.exteriorOverlay.units}
             />
           </mesh>
         </group>

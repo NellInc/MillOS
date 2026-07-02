@@ -239,19 +239,19 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
             {/* System Status - compact */}
             <div className="grid grid-cols-4 gap-1.5 text-[10px]">
               <div className="bg-slate-800/50 rounded px-2 py-1">
-                <span className="text-slate-500">CPU</span>
+                <span className="text-slate-400">CPU</span>
                 <span className="text-cyan-400 ml-1" data-testid="ai-cpu-value">
                   {systemStatus.cpu.toFixed(0)}%
                 </span>
               </div>
               <div className="bg-slate-800/50 rounded px-2 py-1">
-                <span className="text-slate-500">MEM</span>
+                <span className="text-slate-400">MEM</span>
                 <span className="text-green-400 ml-1" data-testid="ai-memory-value">
                   {systemStatus.memory.toFixed(0)}%
                 </span>
               </div>
               <div className="bg-slate-800/50 rounded px-2 py-1">
-                <span className="text-slate-500">DEC</span>
+                <span className="text-slate-400">DEC</span>
                 <span className="text-purple-400 ml-1" data-testid="ai-decisions-count">
                   {systemStatus.decisions}
                 </span>
@@ -261,14 +261,14 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
                 !isLocalBackend &&
                 isGeminiConnected ? (
                   <>
-                    <span className="text-slate-500">$</span>
+                    <span className="text-slate-400">$</span>
                     <span className="text-emerald-400 ml-1">
                       {useAIConfigStore.getState().getFormattedCost()}
                     </span>
                   </>
                 ) : (
                   <>
-                    <span className="text-slate-500">$</span>
+                    <span className="text-slate-400">$</span>
                     {/* Local WebGPU inference and heuristic mode are both free. */}
                     <span className="text-emerald-400 ml-1">FREE</span>
                   </>
@@ -285,7 +285,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
               </div>
             )}
             {/* Context: Weather & Shift */}
-            <div className="mt-2 flex items-center justify-between text-[9px] text-slate-500">
+            <div className="mt-2 flex items-center justify-between text-[9px] text-slate-400">
               <span className="capitalize">
                 {weather} | {currentShift} shift
               </span>

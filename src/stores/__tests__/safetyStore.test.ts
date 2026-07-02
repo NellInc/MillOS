@@ -411,40 +411,51 @@ describe('SafetyStore', () => {
     });
   });
 
-  describe('Performance', () => {
-    beforeEach(() => {
-      vi.useFakeTimers();
-    });
-
-    afterEach(() => {
-      vi.useRealTimers();
-    });
-
-    it('should handle rapid incident recording efficiently', () => {
+  describe('Batch Recording Behavior', () => {
+    // NOTE: this block previously asserted wall-clock durations under fake
+    // timers, where performance.now() is frozen and every duration is 0 -
+    // a tautology. It now asserts the state invariants that batch recording
+    // must uphold instead.
+    it('should record a rapid batch of incidents newest-first', () => {
       const { addSafetyIncident } = useSafetyStore.getState();
       const batchIncidents = generateBatchIncidents(50);
 
-      const start = performance.now();
       batchIncidents.forEach((incident) => addSafetyIncident(incident));
-      const duration = performance.now() - start;
 
-      expect(duration).toBeLessThan(100); // Should complete in under 100ms
+      const { safetyIncidents } = useSafetyStore.getState();
+      expect(safetyIncidents).toHaveLength(50);
+      // Newest first: the last-added incident heads the list
+      expect(safetyIncidents[0].description).toBe('Batch incident 49');
+      expect(safetyIncidents[49].description).toBe('Batch incident 0');
+      // Every incident got a unique id
+      expect(new Set(safetyIncidents.map((i) => i.id)).size).toBe(50);
     });
 
-    it('should handle rapid heat map updates efficiently', () => {
+    it('should aggregate repeated locations into one heat map point capped at intensity 10', () => {
       const { recordIncidentLocation } = useSafetyStore.getState();
 
-      const start = performance.now();
-      for (let i = 0; i < 100; i++) {
-        recordIncidentLocation(
-          (Math.random() - 0.5) * 60,
-          (Math.random() - 0.5) * 60,
-          i % 2 === 0 ? 'stop' : 'evasion'
-        );
+      for (let i = 0; i < 15; i++) {
+        recordIncidentLocation(5, 5, 'stop');
       }
-      const duration = performance.now() - start;
 
-      expect(duration).toBeLessThan(100); // Should complete in under 100ms
+      const { incidentHeatMap } = useSafetyStore.getState();
+      expect(incidentHeatMap).toHaveLength(1);
+      expect(incidentHeatMap[0].intensity).toBe(10); // Capped, not 15
+    });
+
+    it('should cap the heat map at 100 points under rapid distinct updates', () => {
+      const { recordIncidentLocation } = useSafetyStore.getState();
+
+      // 110 locations in distinct 3-unit grid cells (4-unit spacing)
+      for (let i = 0; i < 110; i++) {
+        const x = (i % 11) * 4 - 20;
+        const z = Math.floor(i / 11) * 4 - 20;
+        recordIncidentLocation(x, z, i % 2 === 0 ? 'stop' : 'evasion');
+      }
+
+      const { incidentHeatMap } = useSafetyStore.getState();
+      expect(incidentHeatMap).toHaveLength(100);
+      expect(incidentHeatMap.every((p) => p.intensity >= 1 && p.intensity <= 10)).toBe(true);
     });
   });
 });

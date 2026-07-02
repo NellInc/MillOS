@@ -26,7 +26,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import { LoadingScreen } from './components/LoadingScreen';
 import { MachineData, MachineType, WorkerData, createInitialWorkers } from './types';
 import { ForkliftData } from './components/ForkliftSystem';
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, motion, MotionConfig } from 'framer-motion';
 import { audioManager } from './utils/audioManager';
 import { gpuResourceManager } from './utils/GPUResourceManager';
 import { initKTX2Loader } from './utils/textureCompression';
@@ -37,6 +37,8 @@ import { useGraphicsStore } from './stores/graphicsStore';
 import { useUIStore } from './stores/uiStore';
 import { useGameSimulationStore } from './stores/gameSimulationStore';
 import { useProductionStore } from './stores/productionStore';
+import { useMaterialFlowStore } from './stores/materialFlowStore';
+import { safeDivide } from './utils/typeGuards';
 import { initializeSCADASync } from './store';
 import { useShallow } from 'zustand/react/shallow';
 import { AlertTriangle, RotateCcw } from 'lucide-react';
@@ -491,14 +493,43 @@ const App: React.FC = () => {
       const bagsThisTick = BAGS_PER_TICK * productionSpeed * gameSpeedFactor;
 
       // Only produce if we have running machines (packers)
-      const runningPackers = store.machines.filter(
+      const runningPackerMachines = store.machines.filter(
         (m) => m.type === MachineType.PACKER && (m.status === 'running' || m.status === 'warning')
-      ).length;
+      );
+      const runningPackers = runningPackerMachines.length;
 
       if (runningPackers > 0) {
         // Scale by number of running packers (3 packers at full = 100%)
         const packerScale = runningPackers / 3;
-        const finalBags = Math.round(bagsThisTick * packerScale * 10) / 10;
+
+        // Couple production to the material-flow simulation so silo starvation,
+        // jams and breakdowns visibly dent throughput. currentPackerFlowRate is
+        // kg/sec at the final packing stage; nominal max is the packers'
+        // 25 kg/sec processingRate (materialFlowStore) per running packer.
+        const NOMINAL_PACKER_KG_PER_SEC = 25;
+        const flowStore = useMaterialFlowStore.getState();
+        const flowRate = flowStore.currentPackerFlowRate;
+        const flowSimLive =
+          Number.isFinite(flowRate) && (flowRate > 0 || flowStore.totalMaterialProcessed > 0);
+
+        let healthFactor: number;
+        if (flowSimLive) {
+          healthFactor = Math.max(
+            0,
+            Math.min(1, safeDivide(flowRate, NOMINAL_PACKER_KG_PER_SEC * runningPackers, 1))
+          );
+        } else {
+          // Flow network not initialized yet: fall back to average packer
+          // efficiency so degraded machines still produce less than pristine ones.
+          const avgEfficiency = safeDivide(
+            runningPackerMachines.reduce((sum, m) => sum + (m.metrics.efficiency ?? 100), 0),
+            runningPackers * 100,
+            1
+          );
+          healthFactor = Math.max(0, Math.min(1, avgEfficiency));
+        }
+
+        const finalBags = Math.round(bagsThisTick * packerScale * healthFactor * 10) / 10;
 
         if (finalBags > 0) {
           store.incrementBagsProduced(finalBags);
@@ -552,326 +583,332 @@ const App: React.FC = () => {
   );
 
   return (
-    <div className="relative w-full h-full bg-slate-950">
-      {/* Loading screen - shown until 3D assets are fully loaded */}
-      <LoadingScreen minimumLoadTimeMs={3000} />
+    // reducedMotion="user": all framer-motion animations in the tree respect
+    // the OS-level prefers-reduced-motion setting (WCAG 2.3.3).
+    <MotionConfig reducedMotion="user">
+      <div className="relative w-full h-full bg-slate-950">
+        {/* Loading screen - shown until 3D assets are fully loaded */}
+        <LoadingScreen minimumLoadTimeMs={3000} />
 
-      {/* Audio-reactive visual system - analyzes audio for visual synchronization */}
-      <AudioReactiveProvider />
+        {/* Audio-reactive visual system - analyzes audio for visual synchronization */}
+        <AudioReactiveProvider />
 
-      {/* Skip links for keyboard navigation - WCAG 2.1 AA */}
-      <div className="sr-only focus-within:not-sr-only focus-within:absolute focus-within:top-4 focus-within:left-4 focus-within:z-[100] focus-within:flex focus-within:flex-col focus-within:gap-2">
-        <a
-          href="#main-content"
-          className="px-4 py-2 bg-cyan-600 text-white rounded-lg shadow-lg outline-none ring-2 ring-cyan-400 hover:bg-cyan-500 focus:bg-cyan-500"
-        >
-          Skip to main content
-        </a>
-        <a
-          href="#navigation-dock"
-          className="px-4 py-2 bg-cyan-600 text-white rounded-lg shadow-lg outline-none ring-2 ring-cyan-400 hover:bg-cyan-500 focus:bg-cyan-500"
-        >
-          Skip to navigation
-        </a>
-      </div>
-
-      {/* 3D Canvas keyboard accessibility notice - visible to screen readers */}
-      <div role="note" aria-label="3D visualization keyboard controls" className="sr-only">
-        The 3D factory visualization is interactive. Press V to toggle first-person view mode. Use
-        keyboard shortcuts: I for AI panel, O for SCADA, Escape to close panels. Press 1-5 to switch
-        camera presets. Arrow keys control camera in first-person mode.
-      </div>
-
-      {/* NEW UI INTERFACE Wrapper */}
-      <GameInterface
-        productionSpeed={productionSpeed}
-        setProductionSpeed={setProductionSpeed}
-        showZones={showZones}
-        setShowZones={setShowZones}
-        selectedMachine={selectedMachine}
-        selectedWorker={selectedWorker}
-        onCloseSelection={handleCloseSelection}
-        showAIPanel={showAIPanel}
-        showSCADAPanel={showSCADAPanel}
-        onAIPanelChange={setShowAIPanel}
-        onSCADAPanelChange={setShowSCADAPanel}
-      />
-
-      {/* Mobile Controls Overlay - D-pad and mobile panel */}
-      {isMobile && <MobileControlsOverlay />}
-
-      {/* Forklift Info Panel (Keep as legacy simple overlay for now, or move to sidebar later) */}
-      <AnimatePresence>
-        {selectedForklift && (
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 20 }}
-            className="fixed right-4 top-20 bg-gray-900/95 backdrop-blur-sm rounded-lg p-4 shadow-xl border border-amber-500/30 z-50 min-w-64 pointer-events-auto"
+        {/* Skip links for keyboard navigation - WCAG 2.1 AA */}
+        <div className="sr-only focus-within:not-sr-only focus-within:absolute focus-within:top-4 focus-within:left-4 focus-within:z-[100] focus-within:flex focus-within:flex-col focus-within:gap-2">
+          <a
+            href="#main-content"
+            className="px-4 py-2 bg-cyan-600 text-white rounded-lg shadow-lg outline-none ring-2 ring-cyan-400 hover:bg-cyan-500 focus:bg-cyan-500"
           >
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-amber-400 font-bold text-lg">Forklift</h3>
-              <button
-                onClick={() => setSelectedForklift(null)}
-                className="text-gray-400 hover:text-white transition-colors"
-              >
-                ×
-              </button>
-            </div>
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-gray-400">ID:</span>
-                <span className="text-white font-mono">{selectedForklift.id}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-400">Operator:</span>
-                <span className="text-white">{selectedForklift.operatorName}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-400">Cargo:</span>
-                <span
-                  className={
-                    selectedForklift.cargo === 'pallet' ? 'text-green-400' : 'text-gray-500'
-                  }
-                >
-                  {selectedForklift.cargo === 'pallet' ? 'Loaded' : 'Empty'}
-                </span>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* 3D Canvas with Error Boundary */}
-      <main
-        id="main-content"
-        className="absolute inset-0 z-0"
-        aria-label="3D factory visualization"
-      >
-        <ErrorBoundary fallback={WebGLErrorFallback}>
-          <Canvas
-            key={`canvas-${canvasQuality}-${resolutionScale}`} // Force remount when quality or resolution changes
-            shadows={canvasQuality !== 'low' ? { type: THREE.PCFShadowMap } : false}
-            camera={{
-              position: [35, 25, 20], // Start inside factory so workers/production initialize
-              fov: 65,
-              near: 0.5,
-              far: 600,
-            }}
-            gl={{
-              antialias: canvasQuality !== 'low',
-              alpha: false,
-              toneMappingExposure: 1.1,
-              powerPreference: 'high-performance',
-              preserveDrawingBuffer: false,
-              failIfMajorPerformanceCaveat: false,
-              // Logarithmic depth buffer - runtime fallback for persistent z-fighting
-              // Toggle in graphics settings if z-fighting persists despite proper polygon offset
-              logarithmicDepthBuffer: enableLogarithmicDepth,
-            }}
-            dpr={Math.max(
-              0.5,
-              Math.min(window.devicePixelRatio * resolutionScale, canvasQuality === 'low' ? 1 : 2)
-            )}
-            onCreated={({ gl }) => {
-              glRef.current = gl;
-
-              // Initialize GPU management systems
-              try {
-                initKTX2Loader(gl);
-                const settings = getGPUSettings();
-                gpuResourceManager.setBudget({ total: settings.memoryBudget });
-                // Register shared resources (geometries, materials) with tracker
-                initializeGPUTracking();
-              } catch {
-                // GPU management initialization failed - continue without it
-              }
-
-              const handleContextLost = (event: Event) => {
-                event.preventDefault();
-                gpuResourceManager.handleContextLost();
-                gpuResourceManager.debugLog();
-              };
-              const handleContextRestored = () => {
-                gpuResourceManager.handleContextRestored();
-                // Only reload if resource recreation fails
-                const usage = gpuResourceManager.getMemoryUsage();
-                if (usage.total.count === 0) {
-                  window.location.reload();
-                }
-              };
-              webglHandlersRef.current = {
-                lost: handleContextLost,
-                restored: handleContextRestored,
-              };
-              gl.domElement.addEventListener('webglcontextlost', handleContextLost);
-              gl.domElement.addEventListener('webglcontextrestored', handleContextRestored);
-            }}
+            Skip to main content
+          </a>
+          <a
+            href="#navigation-dock"
+            className="px-4 py-2 bg-cyan-600 text-white rounded-lg shadow-lg outline-none ring-2 ring-cyan-400 hover:bg-cyan-500 focus:bg-cyan-500"
           >
-            {/* Dynamic background color that syncs with game time */}
-            <DynamicBackground />
-            {/* Fog extended to match camera far plane, prevents clipping artifacts */}
-            {/* Note: fog color is updated dynamically by DynamicBackground */}
-            <fog attach="fog" args={['#0a0f1a', 150, 550]} />
+            Skip to navigation
+          </a>
+        </div>
 
-            <Suspense fallback={null}>
-              {enablePhysics ? (
-                /* Physics-enabled mode */
-                <Physics gravity={[0, -9.81, 0]} timeStep={1 / 60}>
-                  {/* Static colliders for factory geometry */}
-                  <FactoryColliders />
-                  <ExitZoneSensors />
-                  {/* Debug wireframes (only on ultra quality) */}
-                  <PhysicsDebug />
+        {/* 3D Canvas keyboard accessibility notice - visible to screen readers */}
+        <div role="note" aria-label="3D visualization keyboard controls" className="sr-only">
+          The 3D factory visualization is interactive. Press V to toggle first-person view mode. Use
+          keyboard shortcuts: I for AI panel, O for SCADA, Escape to close panels. Press 1-5 to
+          switch camera presets. Arrow keys control camera in first-person mode.
+        </div>
 
-                  {fpsMode ? (
-                    isMobile ? (
-                      <MobileFirstPersonController />
-                    ) : (
-                      <PhysicsFirstPersonController onLockChange={handleLockChange} />
-                    )
-                  ) : (
-                    <OrbitControls
-                      ref={orbitControlsRef}
-                      maxPolarAngle={Math.PI / 2 - 0.05}
-                      minPolarAngle={0.2}
-                      minDistance={15}
-                      maxDistance={100}
-                      autoRotate
-                      autoRotateSpeed={0}
-                      target={[0, 5, 0]}
-                      enableDamping
-                      dampingFactor={0.05}
-                      // On mobile, disable rotate (TouchLookHandler handles single-touch rotation)
-                      enableRotate={!isMobile}
-                      makeDefault
-                    />
-                  )}
-
-                  <MillScene
-                    productionSpeed={productionSpeed}
-                    showZones={showZones}
-                    onSelectMachine={handleSelectMachine}
-                    onSelectWorker={handleSelectWorker}
-                    onSelectForklift={handleSelectForklift}
-                  />
-                </Physics>
-              ) : (
-                /* Legacy non-physics mode */
-                <>
-                  {fpsMode ? (
-                    isMobile ? (
-                      <MobileFirstPersonController />
-                    ) : (
-                      <FirstPersonController onLockChange={handleLockChange} />
-                    )
-                  ) : (
-                    <OrbitControls
-                      ref={orbitControlsRef}
-                      maxPolarAngle={Math.PI / 2 - 0.05}
-                      minPolarAngle={0.2}
-                      minDistance={15}
-                      maxDistance={100}
-                      autoRotate
-                      autoRotateSpeed={0}
-                      target={[0, 5, 0]}
-                      enableDamping
-                      dampingFactor={0.05}
-                      // On mobile, disable rotate (TouchLookHandler handles single-touch rotation)
-                      enableRotate={!isMobile}
-                      makeDefault
-                    />
-                  )}
-
-                  <MillScene
-                    productionSpeed={productionSpeed}
-                    showZones={showZones}
-                    onSelectMachine={handleSelectMachine}
-                    onSelectWorker={handleSelectWorker}
-                    onSelectForklift={handleSelectForklift}
-                  />
-                </>
-              )}
-
-              <SpatialAudioTracker />
-              <FPSTracker />
-
-              {!fpsMode && (
-                <CameraController
-                  orbitControlsRef={orbitControlsRef}
-                  autoRotateEnabled={autoRotate && !selectedMachine && !selectedWorker}
-                  targetSpeed={0.15}
-                />
-              )}
-
-              {/* Mobile touch-to-look handler (inside Canvas for R3F access) */}
-              {isMobile && !fpsMode && <TouchLookHandler orbitControlsRef={orbitControlsRef} />}
-
-              <Preload all />
-            </Suspense>
-          </Canvas>
-        </ErrorBoundary>
-      </main>
-
-      {/* Camera preset indicator (orbit mode only) */}
-      {!fpsMode && <CameraPresetIndicator />}
-
-      {/* FPS mode overlays */}
-      <FPSCrosshair />
-      {isMobile ? (
-        <MobileFPSInstructions
-          visible={showFpsInstructions && fpsMode}
-          onDismiss={() => setShowFpsInstructions(false)}
+        {/* NEW UI INTERFACE Wrapper */}
+        <GameInterface
+          productionSpeed={productionSpeed}
+          setProductionSpeed={setProductionSpeed}
+          showZones={showZones}
+          setShowZones={setShowZones}
+          selectedMachine={selectedMachine}
+          selectedWorker={selectedWorker}
+          onCloseSelection={handleCloseSelection}
+          showAIPanel={showAIPanel}
+          showSCADAPanel={showSCADAPanel}
+          onAIPanelChange={setShowAIPanel}
+          onSCADAPanelChange={setShowSCADAPanel}
         />
-      ) : (
-        <FPSInstructions visible={showFpsInstructions && fpsMode} />
-      )}
 
-      {/* Quality/Status change notification */}
-      <AnimatePresence>
-        {qualityNotification && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.8 }}
-            className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 pointer-events-none"
-          >
-            <div
-              className={`px-6 py-4 rounded-xl backdrop-blur-xl border shadow-2xl ${
-                qualityNotification === 'EMERGENCY STOP'
-                  ? 'bg-red-900/95 border-red-500 text-red-100 animate-pulse'
-                  : 'bg-slate-800/90 border-slate-600 text-slate-300'
-              }`}
+        {/* Mobile Controls Overlay - D-pad and mobile panel */}
+        {isMobile && <MobileControlsOverlay />}
+
+        {/* Forklift Info Panel (Keep as legacy simple overlay for now, or move to sidebar later) */}
+        <AnimatePresence>
+          {selectedForklift && (
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 20 }}
+              className="fixed right-4 top-20 bg-gray-900/95 backdrop-blur-sm rounded-lg p-4 shadow-xl border border-amber-500/30 z-50 min-w-64 pointer-events-auto"
             >
-              <div className="text-center">
-                <div className="text-3xl font-bold uppercase tracking-wider">
-                  {qualityNotification}
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-amber-400 font-bold text-lg">Forklift</h3>
+                <button
+                  onClick={() => setSelectedForklift(null)}
+                  className="text-gray-400 hover:text-white transition-colors"
+                >
+                  ×
+                </button>
+              </div>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-400">ID:</span>
+                  <span className="text-white font-mono">{selectedForklift.id}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Operator:</span>
+                  <span className="text-white">{selectedForklift.operatorName}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Cargo:</span>
+                  <span
+                    className={
+                      selectedForklift.cargo === 'pallet' ? 'text-green-400' : 'text-gray-500'
+                    }
+                  >
+                    {selectedForklift.cargo === 'pallet' ? 'Loaded' : 'Empty'}
+                  </span>
                 </div>
               </div>
-            </div>
-          </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* 3D Canvas with Error Boundary */}
+        <main
+          id="main-content"
+          className="absolute inset-0 z-0"
+          aria-label="3D factory visualization"
+        >
+          <ErrorBoundary fallback={WebGLErrorFallback}>
+            <Canvas
+              key={`canvas-${canvasQuality}-${resolutionScale}`} // Force remount when quality or resolution changes
+              shadows={canvasQuality !== 'low' ? { type: THREE.PCFShadowMap } : false}
+              camera={{
+                position: [35, 25, 20], // Start inside factory so workers/production initialize
+                fov: 65,
+                near: 0.5,
+                far: 600,
+              }}
+              gl={{
+                antialias: canvasQuality !== 'low',
+                alpha: false,
+                toneMappingExposure: 1.1,
+                powerPreference: 'high-performance',
+                preserveDrawingBuffer: false,
+                failIfMajorPerformanceCaveat: false,
+                // Logarithmic depth buffer - runtime fallback for persistent z-fighting
+                // Toggle in graphics settings if z-fighting persists despite proper polygon offset
+                logarithmicDepthBuffer: enableLogarithmicDepth,
+              }}
+              dpr={Math.max(
+                0.5,
+                Math.min(window.devicePixelRatio * resolutionScale, canvasQuality === 'low' ? 1 : 2)
+              )}
+              onCreated={({ gl }) => {
+                glRef.current = gl;
+
+                // Initialize GPU management systems
+                try {
+                  initKTX2Loader(gl);
+                  const settings = getGPUSettings();
+                  gpuResourceManager.setBudget({ total: settings.memoryBudget });
+                  // Register shared resources (geometries, materials) with tracker
+                  initializeGPUTracking();
+                } catch {
+                  // GPU management initialization failed - continue without it
+                }
+
+                const handleContextLost = (event: Event) => {
+                  event.preventDefault();
+                  gpuResourceManager.handleContextLost();
+                  gpuResourceManager.debugLog();
+                };
+                const handleContextRestored = () => {
+                  gpuResourceManager.handleContextRestored();
+                  // Only reload if resource recreation fails
+                  const usage = gpuResourceManager.getMemoryUsage();
+                  if (usage.total.count === 0) {
+                    window.location.reload();
+                  }
+                };
+                webglHandlersRef.current = {
+                  lost: handleContextLost,
+                  restored: handleContextRestored,
+                };
+                gl.domElement.addEventListener('webglcontextlost', handleContextLost);
+                gl.domElement.addEventListener('webglcontextrestored', handleContextRestored);
+              }}
+            >
+              {/* Dynamic background color that syncs with game time */}
+              <DynamicBackground />
+              {/* Fog extended to match camera far plane, prevents clipping artifacts */}
+              {/* Note: fog color is updated dynamically by DynamicBackground */}
+              <fog attach="fog" args={['#0a0f1a', 150, 550]} />
+
+              <Suspense fallback={null}>
+                {enablePhysics ? (
+                  /* Physics-enabled mode */
+                  <Physics gravity={[0, -9.81, 0]} timeStep={1 / 60}>
+                    {/* Static colliders for factory geometry */}
+                    <FactoryColliders />
+                    <ExitZoneSensors />
+                    {/* Debug wireframes (only on ultra quality) */}
+                    <PhysicsDebug />
+
+                    {fpsMode ? (
+                      isMobile ? (
+                        <MobileFirstPersonController />
+                      ) : (
+                        <PhysicsFirstPersonController onLockChange={handleLockChange} />
+                      )
+                    ) : (
+                      <OrbitControls
+                        ref={orbitControlsRef}
+                        maxPolarAngle={Math.PI / 2 - 0.05}
+                        minPolarAngle={0.2}
+                        minDistance={15}
+                        maxDistance={100}
+                        autoRotate
+                        autoRotateSpeed={0}
+                        target={[0, 5, 0]}
+                        enableDamping
+                        dampingFactor={0.05}
+                        // On mobile, disable rotate (TouchLookHandler handles single-touch rotation)
+                        enableRotate={!isMobile}
+                        makeDefault
+                      />
+                    )}
+
+                    <MillScene
+                      productionSpeed={productionSpeed}
+                      showZones={showZones}
+                      onSelectMachine={handleSelectMachine}
+                      onSelectWorker={handleSelectWorker}
+                      onSelectForklift={handleSelectForklift}
+                    />
+                  </Physics>
+                ) : (
+                  /* Legacy non-physics mode */
+                  <>
+                    {fpsMode ? (
+                      isMobile ? (
+                        <MobileFirstPersonController />
+                      ) : (
+                        <FirstPersonController onLockChange={handleLockChange} />
+                      )
+                    ) : (
+                      <OrbitControls
+                        ref={orbitControlsRef}
+                        maxPolarAngle={Math.PI / 2 - 0.05}
+                        minPolarAngle={0.2}
+                        minDistance={15}
+                        maxDistance={100}
+                        autoRotate
+                        autoRotateSpeed={0}
+                        target={[0, 5, 0]}
+                        enableDamping
+                        dampingFactor={0.05}
+                        // On mobile, disable rotate (TouchLookHandler handles single-touch rotation)
+                        enableRotate={!isMobile}
+                        makeDefault
+                      />
+                    )}
+
+                    <MillScene
+                      productionSpeed={productionSpeed}
+                      showZones={showZones}
+                      onSelectMachine={handleSelectMachine}
+                      onSelectWorker={handleSelectWorker}
+                      onSelectForklift={handleSelectForklift}
+                    />
+                  </>
+                )}
+
+                <SpatialAudioTracker />
+                <FPSTracker />
+
+                {!fpsMode && (
+                  <CameraController
+                    orbitControlsRef={orbitControlsRef}
+                    autoRotateEnabled={autoRotate && !selectedMachine && !selectedWorker}
+                    targetSpeed={0.15}
+                  />
+                )}
+
+                {/* Mobile touch-to-look handler (inside Canvas for R3F access) */}
+                {isMobile && !fpsMode && <TouchLookHandler orbitControlsRef={orbitControlsRef} />}
+
+                <Preload all />
+              </Suspense>
+            </Canvas>
+          </ErrorBoundary>
+        </main>
+
+        {/* Camera preset indicator (orbit mode only) */}
+        {!fpsMode && <CameraPresetIndicator />}
+
+        {/* FPS mode overlays */}
+        <FPSCrosshair />
+        {isMobile ? (
+          <MobileFPSInstructions
+            visible={showFpsInstructions && fpsMode}
+            onDismiss={() => setShowFpsInstructions(false)}
+          />
+        ) : (
+          <FPSInstructions visible={showFpsInstructions && fpsMode} />
         )}
-      </AnimatePresence>
 
-      {/* Multiplayer UI Components */}
-      <MultiplayerChat />
-      <AIDecisionVotingPanel />
+        {/* Quality/Status change notification */}
+        <AnimatePresence>
+          {qualityNotification && (
+            <motion.div
+              role="status"
+              aria-live="polite"
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.8 }}
+              className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 pointer-events-none"
+            >
+              <div
+                className={`px-6 py-4 rounded-xl backdrop-blur-xl border shadow-2xl ${
+                  qualityNotification === 'EMERGENCY STOP'
+                    ? 'bg-red-900/95 border-red-500 text-red-100 animate-pulse'
+                    : 'bg-slate-800/90 border-slate-600 text-slate-300'
+                }`}
+              >
+                <div className="text-center">
+                  <div className="text-3xl font-bold uppercase tracking-wider">
+                    {qualityNotification}
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-      {/* AI Strategic Widgets (optional, default OFF - toggle with T/U/Y) */}
-      <ProductionTargetWidget />
-      <EnergyDashboard />
-      <MultiObjectiveDashboard />
-      <CostEstimationOverlay />
+        {/* Multiplayer UI Components */}
+        <MultiplayerChat />
+        <AIDecisionVotingPanel />
 
-      {/* Shift change summary modal */}
-      <ShiftHandoverSummary />
+        {/* AI Strategic Widgets (production target default ON; others OFF - toggle with T/U/Y) */}
+        <ProductionTargetWidget />
+        <EnergyDashboard />
+        <MultiObjectiveDashboard />
+        <CostEstimationOverlay />
 
-      {/* Weather effects 2D overlay - shows rain/storm based on alerts */}
-      <WeatherEffectsOverlay />
+        {/* Shift change summary modal */}
+        <ShiftHandoverSummary />
 
-      {/* Mobile portrait rotation prompt - blocks interaction until rotated */}
-      <RotateDeviceOverlay visible={isMobile && !isLandscape} />
-    </div>
+        {/* Weather effects 2D overlay - shows rain/storm based on alerts */}
+        <WeatherEffectsOverlay />
+
+        {/* Mobile portrait rotation prompt - blocks interaction until rotated */}
+        <RotateDeviceOverlay visible={isMobile && !isLandscape} />
+      </div>
+    </MotionConfig>
   );
 };
 

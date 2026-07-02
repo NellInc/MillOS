@@ -39,7 +39,7 @@ export const CASUAL_DIALOGUE: DialogueLine[] = [
 // Work-related communication
 export const WORK_DIALOGUE: DialogueLine[] = [
   {
-    text: 'R.M.-103 sounds a bit off today',
+    text: 'R.M. 103 sounds a bit off today',
     type: 'work',
     context: 'near_warning_machine',
     priority: 3,
@@ -86,7 +86,7 @@ export const RADIO_DIALOGUE: DialogueLine[] = [
   { text: 'Control, this is Floor 2, all clear', type: 'radio', priority: 2 },
   { text: 'Copy that, proceeding to Silo Alpha', type: 'radio' },
   { text: 'Break time in 10, over', type: 'radio', context: 'pre_break' },
-  { text: '10-4, maintenance complete on R.M.-102', type: 'radio', context: 'maintenance' },
+  { text: '10-4, maintenance complete on R.M. 102', type: 'radio', context: 'maintenance' },
   { text: 'Quality check passed, good to continue', type: 'radio', priority: 2 },
   { text: 'Requesting backup at packer line 3', type: 'radio', priority: 3 },
   { text: 'Truck arriving at shipping dock, ETA 5 minutes', type: 'radio', priority: 3 },

@@ -5,8 +5,8 @@
 <p>
   <img src="https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=white" alt="React 19" />
   <img src="https://img.shields.io/badge/Three.js-r182-black?style=for-the-badge&logo=three.js&logoColor=white" alt="Three.js" />
-  <img src="https://img.shields.io/badge/TypeScript-5.6-3178C6?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript" />
-  <img src="https://img.shields.io/badge/Vite-6.0-646CFF?style=for-the-badge&logo=vite&logoColor=white" alt="Vite" />
+  <img src="https://img.shields.io/badge/TypeScript-5.9-3178C6?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript" />
+  <img src="https://img.shields.io/badge/Vite-7-646CFF?style=for-the-badge&logo=vite&logoColor=white" alt="Vite" />
   <img src="https://img.shields.io/badge/SCADA-ISA--18.2-00A86B?style=for-the-badge" alt="SCADA" />
 </p>
 
@@ -66,12 +66,12 @@ If you're exploring agentic development yourself, I hope MillOS serves as both i
 
 ## Overview
 
-MillOS is a fully interactive digital twin of a grain mill factory, built with React Three Fiber. Watch 10 autonomous workers patrol the factory floor, observe 2 intelligent forklifts navigate around obstacles, and monitor real-time SCADA data as 14 machines process grain across 4 production zones. The integrated SCADA system provides industrial-grade monitoring with 90 process tags, ISA-18.2 compliant alarms, and support for real PLC connections via OPC-UA and Modbus protocols.
+MillOS is a fully interactive digital twin of a grain mill factory, built with React Three Fiber. Watch 10 autonomous workers patrol the factory floor, observe 2 intelligent forklifts navigate around obstacles, and monitor real-time SCADA data as 15 machines process grain across 4 production zones. The integrated SCADA system provides industrial-grade monitoring with 78 process tags, ISA-18.2 compliant alarms, and support for real PLC connections via OPC-UA and Modbus protocols.
 
 <table>
 <tr>
-<td align="center"><strong>14</strong><br/>Interactive Machines</td>
-<td align="center"><strong>90</strong><br/>SCADA Tags</td>
+<td align="center"><strong>15</strong><br/>Interactive Machines</td>
+<td align="center"><strong>78</strong><br/>SCADA Tags</td>
 <td align="center"><strong>10</strong><br/>Autonomous Workers</td>
 <td align="center"><strong>4</strong><br/>Production Zones</td>
 </tr>
@@ -92,7 +92,7 @@ MillOS is a fully interactive digital twin of a grain mill factory, built with R
 | Zone | Equipment | Function |
 |:----:|-----------|----------|
 | **1** | 5 Silos (Alpha–Epsilon) | Raw material storage with real-time capacity tracking |
-| **2** | 6 Roller Mills (RM-101–106) | Milling floor with RPM, temperature & vibration monitoring |
+| **2** | 4 Roller Mills (R.M. 101–104) | Milling floor with RPM, temperature & vibration monitoring |
 | **3** | 3 Plansifters (A–C) | Elevated sifting platforms with oscillation animation |
 | **4** | 3 Packer Lines | High-speed packaging at 42 bags/minute |
 
@@ -329,11 +329,11 @@ The BAMS provides granular control over AI behavior through five configurable ax
 
 | Axis | Range | Low Setting | High Setting |
 |------|:-----:|-------------|--------------|
-| **Transparency** | 0-100 | Minimal explanation | Full reasoning exposed |
-| **Proactivity** | 0-100 | Reactive only | Anticipatory suggestions |
-| **Pace** | 0-100 | Slow, deliberate | Fast, autonomous |
-| **Tone** | 0-100 | Formal, deferential | Casual, peer-like |
-| **Stakes** | 0-100 | Cautious (confirm everything) | Bold (act independently—with all the accountability that implies) |
+| **Autonomy Level** | 0-100 | AI assigns tasks | Workers self-organize |
+| **Decision Mode** | 0-100 | AI decides | Pure democracy (all votes) |
+| **Information Access** | 0-100 | Need-to-know only | Full transparency |
+| **Evaluation Direction** | 0-100 | AI rates workers | Workers rate the AI |
+| **Collective Orientation** | 0-100 | Individual tasks | Team-first (collective outcomes) |
 
 Each axis affects AI behavior in real-time — adjust them via the BAMS panel in the dock.
 
@@ -480,7 +480,7 @@ Access via the "Federation" tab in the BAMS panel.
 | **AI Voice** | Bilateral | AI can suggest changes to its own behavior |
 | **Nuclear Options** | Bilateral | Workers can vote to shutdown or redesign AI (with process) |
 
-The Five Axes (Transparency, Proactivity, Pace, Tone, Stakes) = **Bidirectional** (HCI optimization)
+The Five Axes (Autonomy Level, Decision Mode, Information Access, Evaluation Direction, Collective Orientation) = **Bidirectional** (HCI optimization)
 The AI Welfare features = **Bilateral** (ethical consideration)
 
 Access via the "AI Voice" tab in the BAMS panel.
@@ -646,7 +646,7 @@ Full industrial SCADA system with real-time process monitoring:
 
 | Feature | Description |
 |---------|-------------|
-| **90 Process Tags** | ISA-5.1 compliant naming (e.g., `RM101.TT001.PV`) |
+| **78 Process Tags** | ISA-5.1 compliant naming (e.g., `RM101.TT001.PV`) |
 | **5-Tab Monitor Panel** | Tags, Alarms, Trends, Test, Config |
 | **ISA-18.2 Alarms** | UNACK/ACKED/RTN state machine with 4 priority levels |
 | **Historical Trends** | 24-hour retention in IndexedDB with CSV/JSON export |
@@ -669,7 +669,7 @@ Full industrial SCADA system with real-time process monitoring:
 | Zone | Equipment | Tags |
 |:----:|-----------|:----:|
 | 1 | 5 Silos (Alpha-Epsilon) | 20 |
-| 2 | 6 Roller Mills (RM-101-106) | 36 |
+| 2 | 4 Roller Mills (R.M. 101–104) | 24 |
 | 3 | 3 Plansifters (A-C) | 12 |
 | 4 | 3 Packers (Lines 1-3) | 12 |
 | - | Utility/Ambient Systems | 10 |
@@ -829,7 +829,7 @@ src/
 │   ├── Machines.tsx            # Silos, mills, sifters, packers
 │   ├── ConveyorSystem.tsx      # Animated belt & flour bags
 │   ├── SpoutingSystem.tsx      # Curved grain pipes
-│   ├── WorkerSystem.tsx        # Worker avatars & pathfinding
+│   ├── WorkerSystemNew.tsx     # Worker avatars & pathfinding
 │   ├── ForkliftSystem.tsx      # Autonomous vehicles
 │   ├── DustParticles.tsx       # Instanced particle effects
 │   ├── Environment.tsx         # Lighting & factory structure
@@ -847,7 +847,9 @@ src/
 │   │   └── PhysicsDebug.tsx             # Debug visualization
 │   │
 │   │   # UI Overlays (React DOM)
-│   ├── UIOverlay.tsx           # Production controls & machine info
+│   ├── ui-new/
+│   │   ├── GameInterface.tsx   # Main HUD, dock & panel host
+│   │   └── panels/             # Production, safety & system panels
 │   ├── AICommandCenter.tsx     # AI decision slide-out panel
 │   ├── SCADAPanel.tsx          # SCADA monitor with 5 tabs
 │   ├── WorkerDetailPanel.tsx   # Worker profile modal
@@ -856,7 +858,7 @@ src/
 │
 ├── scada/                      # SCADA Integration Layer
 │   ├── types.ts                # TypeScript interfaces
-│   ├── tagDatabase.ts          # 90 process tags (ISA-5.1 naming)
+│   ├── tagDatabase.ts          # 78 process tags (ISA-5.1 naming)
 │   ├── AlarmManager.ts         # ISA-18.2 alarm state machine
 │   ├── HistoryStore.ts         # IndexedDB with 24h retention
 │   ├── SCADAService.ts         # Main orchestration service
@@ -940,7 +942,7 @@ MillOS uses **Zustand** for lightweight, performant global state:
 interface MillStore {
   // Entities
   workers: Worker[]           // 10 workers with positions, tasks, status
-  machines: Machine[]         // 14 machines with metrics and status
+  machines: Machine[]         // 15 machines with metrics and status
 
   // AI System
   aiDecisions: AIDecision[]   // Rolling feed (max 20)
@@ -993,17 +995,11 @@ MillOS implements OWASP-aligned frontend security practices:
 | Feature | Implementation | Reference |
 |---------|---------------|-----------|
 | **Input Sanitization** | HTML entity encoding, XSS prevention | OWASP A03:2021 |
-| **Rate Limiting** | Client-side sliding window (configurable per-endpoint) | DoS mitigation |
-| **CSRF Protection** | Token generation with session storage | OWASP A01:2021 |
-| **Audit Logging** | Security event tracking with pattern detection | OWASP A09:2021 |
 | **CSP Headers** | Strict Content-Security-Policy in index.html | XSS prevention |
 
 **Key Files:**
 - `src/utils/sanitize.ts` — Input validation and XSS prevention utilities
-- `src/utils/apiSecurity.ts` — Rate limiting, CSRF tokens, secure fetch wrapper
-- `src/stores/auditStore.ts` — Security event logging with brute-force detection
-
-**Audit Event Types:** Authentication attempts, rate limit triggers, validation failures, CSRF violations, suspicious patterns (brute force, validation spam).
+- `index.html` — Content-Security-Policy meta headers
 
 ---
 
@@ -1011,7 +1007,7 @@ MillOS implements OWASP-aligned frontend security practices:
 
 ### Completed
 
-- [x] Full SCADA integration with 90 process tags
+- [x] Full SCADA integration with 78 process tags
 - [x] ISA-18.2 compliant alarm management
 - [x] Multiple protocol adapters (REST, MQTT, WebSocket)
 - [x] OPC-UA and Modbus backend proxy
@@ -1038,7 +1034,7 @@ MillOS implements OWASP-aligned frontend security practices:
 - [x] **Live cost tracking** for API usage
 - [x] **Context limit protection** with token estimation and smart truncation
 - [x] **Bilateral Alignment Management System (BAMS)** — 11-phase implementation
-  - [x] Five Axes of Control (Transparency, Proactivity, Pace, Tone, Stakes)
+  - [x] Five Axes of Control (Autonomy Level, Decision Mode, Information Access, Evaluation Direction, Collective Orientation)
   - [x] Wallace Stability Metrics with phase transition detection
   - [x] Value Formula (V = Z × S × E × F) with coefficient visualization
   - [x] Six-dimension Flourishing/Eudaimonia tracking

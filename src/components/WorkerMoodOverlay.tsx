@@ -531,15 +531,22 @@ export const useMoodSimulation = () => {
  * Ticks:
  * - Safety report store (report aging, willingness decay)
  * - Emergent cooperation store (action completion, random triggers)
+ * - Breakdown store (breakdown simulation)
+ * - Flourishing store
+ *
+ * AUTHORITATIVE DRIVER: this hook is the ONLY driver for
+ * tickBreakdownSimulation and tickEmergentCooperation. Do not add these
+ * ticks elsewhere (e.g. Environment.tsx OrphanedStoresTicker used to
+ * duplicate them at double rate with ~100x-off deltaMinutes units).
  */
 export const useBilateralAlignmentSimulation = () => {
   const lastTickRef = useRef(Date.now());
   const isTabVisible = useGameSimulationStore((state) => state.isTabVisible);
-  const graphicsQuality = useGraphicsStore((state) => state.graphics.quality);
 
   useFrame(() => {
-    // PERFORMANCE: Skip on low quality
-    if (graphicsQuality === 'low') return;
+    // NOTE: runs on all quality levels (throttled to one store tick per 5s,
+    // negligible cost) - it is the sole driver for these simulations, so
+    // skipping on low quality would freeze breakdowns/cooperation entirely.
     if (!isTabVisible) return;
 
     const now = Date.now();

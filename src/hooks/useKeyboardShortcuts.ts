@@ -105,8 +105,33 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig) {
         return;
       }
 
-      // Emergency stop on Spacebar (use ref for current state)
+      // Leave modifier combos to the browser (Ctrl+C copy, Ctrl +/- zoom, Ctrl+P print,
+      // Cmd shortcuts on macOS). The single intentional combo, Ctrl+B (blueprint mode),
+      // is handled here before bailing out.
+      if (e.ctrlKey || e.metaKey || e.altKey) {
+        if (e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === 'b') {
+          e.preventDefault();
+          audioManager.playClick();
+          const current = useUIStore.getState().blueprintMode;
+          useUIStore.getState().toggleBlueprintMode();
+          setQualityNotification(current ? 'NORMAL VIEW' : 'BLUEPRINT MODE');
+          setTimeout(() => setQualityNotification(null), 1500);
+        }
+        return;
+      }
+
+      // Emergency stop on Spacebar (use ref for current state).
+      // Space is also the native activation key for buttons/links/selects — if an
+      // interactive element has focus, let it handle the keypress instead of e-stopping.
       if (e.key === ' ' || e.code === 'Space') {
+        const isInteractive = (el: unknown): boolean =>
+          el instanceof HTMLElement &&
+          !!el.closest(
+            'button, select, a[href], input, textarea, [contenteditable="true"], [role="button"], [role="checkbox"], [role="radio"], [tabindex]'
+          );
+        if (isInteractive(e.target) || isInteractive(document.activeElement)) {
+          return;
+        }
         e.preventDefault();
         const newState = !forkliftEmergencyStopRef.current;
         setForkliftEmergencyStop(newState);
@@ -333,17 +358,6 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig) {
         audioManager.playClick();
         setAutoRotate(!autoRotateRef.current);
         setQualityNotification(autoRotateRef.current ? 'ROTATION OFF' : 'ROTATION ON');
-        setTimeout(() => setQualityNotification(null), 1500);
-        return;
-      }
-
-      // Ctrl+B - Toggle Blueprint Mode (see-through architecture view)
-      if (e.ctrlKey && key === 'b') {
-        e.preventDefault();
-        audioManager.playClick();
-        const current = useUIStore.getState().blueprintMode;
-        useUIStore.getState().toggleBlueprintMode();
-        setQualityNotification(current ? 'NORMAL VIEW' : 'BLUEPRINT MODE');
         setTimeout(() => setQualityNotification(null), 1500);
         return;
       }

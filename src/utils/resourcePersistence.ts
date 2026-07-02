@@ -184,8 +184,29 @@ export function getGPUSettings(): GPUSettings {
     const data = localStorage.getItem(SETTINGS_KEY);
     if (!data) return { ...DEFAULT_SETTINGS };
 
+    // Validate each field individually - corrupted/legacy localStorage data
+    // must not overwrite sane defaults (mirrors audioManager.loadSettings)
     const parsed = JSON.parse(data) as Partial<GPUSettings>;
-    return { ...DEFAULT_SETTINGS, ...parsed };
+    const settings: GPUSettings = { ...DEFAULT_SETTINGS };
+    if (Number.isFinite(parsed.memoryBudget) && (parsed.memoryBudget as number) > 0) {
+      settings.memoryBudget = parsed.memoryBudget as number;
+    }
+    if (typeof parsed.autoDisposeEnabled === 'boolean') {
+      settings.autoDisposeEnabled = parsed.autoDisposeEnabled;
+    }
+    if (typeof parsed.compressionEnabled === 'boolean') {
+      settings.compressionEnabled = parsed.compressionEnabled;
+    }
+    if (
+      Number.isFinite(parsed.lodDistanceMultiplier) &&
+      (parsed.lodDistanceMultiplier as number) > 0
+    ) {
+      settings.lodDistanceMultiplier = parsed.lodDistanceMultiplier as number;
+    }
+    if (typeof parsed.lastQuality === 'string' && parsed.lastQuality.length > 0) {
+      settings.lastQuality = parsed.lastQuality;
+    }
+    return settings;
   } catch {
     return { ...DEFAULT_SETTINGS };
   }

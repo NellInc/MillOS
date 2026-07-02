@@ -108,7 +108,7 @@ export const WorkerLeaderboard: React.FC<{ onClose: () => void }> = ({ onClose }
       {/* Leaderboard list */}
       <div className="flex-1 overflow-y-auto p-3 space-y-2">
         {workerLeaderboard.length === 0 ? (
-          <div className="text-center text-slate-500 py-8 text-sm">No leaderboard data yet</div>
+          <div className="text-center text-slate-400 py-8 text-sm">No leaderboard data yet</div>
         ) : (
           workerLeaderboard.map((worker, index) => (
             <div
@@ -120,11 +120,11 @@ export const WorkerLeaderboard: React.FC<{ onClose: () => void }> = ({ onClose }
               </div>
               <div className="flex-1 min-w-0">
                 <div className="text-white text-sm font-medium truncate">{worker.name}</div>
-                <div className="text-[10px] text-slate-500">{worker.tasksCompleted} tasks</div>
+                <div className="text-[10px] text-slate-400">{worker.tasksCompleted} tasks</div>
               </div>
               <div className="text-right">
                 <div className="text-cyan-400 font-mono font-bold text-sm">{worker.score}</div>
-                <div className="text-[10px] text-slate-500">pts</div>
+                <div className="text-[10px] text-slate-400">pts</div>
               </div>
             </div>
           ))

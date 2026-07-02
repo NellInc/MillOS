@@ -1,5 +1,7 @@
 import React, { useRef, useEffect } from 'react';
+import { useFrame } from '@react-three/fiber';
 import type { ThreeEvent } from '@react-three/fiber';
+import { shouldRunThisFrame } from '../utils/frameThrottle';
 import { SceneText as Text } from './shared/SceneText';
 import * as THREE from 'three';
 import { useShallow } from 'zustand/react/shallow';
@@ -1376,56 +1378,150 @@ const Postbox = React.memo<{ position: [number, number, number]; rotation?: numb
 Postbox.displayName = 'Postbox';
 
 // ===== FOUNTAIN =====
-const Fountain = React.memo<{ position: [number, number, number] }>(({ position }) => (
-  <group position={position}>
-    {/* Base pool */}
-    <mesh position={[0, 0.3, 0]} castShadow receiveShadow>
-      <cylinderGeometry args={[3, 3.5, 0.6, 16]} />
-      <primitive object={SM.stone} attach="material" />
-    </mesh>
-    {/* Lower water - visible disc */}
-    <mesh position={[0, 0.65, 0]}>
-      <cylinderGeometry args={[2.8, 2.8, 0.1, 16]} />
-      <primitive object={SM.water} attach="material" />
-    </mesh>
-    {/* Center column */}
-    <mesh position={[0, 1.5, 0]} castShadow>
-      <cylinderGeometry args={[0.3, 0.4, 2.4, 12]} />
-      <primitive object={SM.stone} attach="material" />
-    </mesh>
-    {/* Top bowl */}
-    <mesh position={[0, 2.8, 0]} castShadow>
-      <cylinderGeometry args={[1, 0.8, 0.4, 12]} />
-      <primitive object={SM.stone} attach="material" />
-    </mesh>
-    <mesh position={[0, 2.95, 0]}>
-      <cylinderGeometry args={[0.8, 0.8, 0.15, 12]} />
-      <primitive object={SM.water} attach="material" />
-    </mesh>
-    {/* Bird perched on edge */}
-    <group
-      position={[0.7, 3.1, 0]}
-      rotation={[0, -0.5, 0]}
-      onClick={(e) => {
-        e.stopPropagation();
-        playCritterSound('bird');
-      }}
-    >
-      <mesh position={[0, 0.1, 0]}>
-        <sphereGeometry args={[0.12, 8, 8]} />
-        <meshStandardMaterial color="#4a4a4a" />
+// Animated water assets - module level, shared by the single fountain instance.
+// Deterministic canvas texture (no Math.random) with wavy highlight streaks.
+const createFountainWaterTexture = (): THREE.CanvasTexture => {
+  const canvas = document.createElement('canvas');
+  canvas.width = 64;
+  canvas.height = 64;
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    ctx.fillStyle = '#5c8a6a';
+    ctx.fillRect(0, 0, 64, 64);
+    ctx.strokeStyle = 'rgba(220, 240, 255, 0.35)';
+    ctx.lineWidth = 2;
+    for (let i = 0; i < 8; i++) {
+      ctx.beginPath();
+      const y = i * 8 + 4;
+      for (let x = 0; x <= 64; x += 4) {
+        const yy = y + Math.sin((x / 64) * Math.PI * 2 + i * 1.7) * 3;
+        if (x === 0) ctx.moveTo(x, yy);
+        else ctx.lineTo(x, yy);
+      }
+      ctx.stroke();
+    }
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+};
+
+// Separate texture instances: surface and falling water scroll at different rates
+const fountainWaterTexture = createFountainWaterTexture();
+const fountainFallTexture = createFountainWaterTexture();
+
+const fountainWaterMaterial = new THREE.MeshStandardMaterial({
+  color: '#7fb2d8',
+  map: fountainWaterTexture,
+  transparent: true,
+  opacity: 0.85,
+  roughness: 0.15,
+  metalness: 0.2,
+});
+
+// Narrow additive falling-water sheath (transparent overlay - depthWrite off is correct)
+const fountainFallMaterial = new THREE.MeshBasicMaterial({
+  color: '#cfe8ff',
+  map: fountainFallTexture,
+  transparent: true,
+  opacity: 0.3,
+  blending: THREE.AdditiveBlending,
+  depthWrite: false,
+  side: THREE.DoubleSide,
+});
+
+const Fountain = React.memo<{ position: [number, number, number] }>(({ position }) => {
+  const rippleRef = useRef<THREE.Mesh>(null);
+  const rippleMaterialRef = useRef<THREE.MeshBasicMaterial>(null);
+
+  useFrame((state, delta) => {
+    // Throttle to every 3rd frame; compensate delta (ConveyorSystem convention)
+    const throttle = 3;
+    if (!shouldRunThisFrame(throttle)) return;
+    const cappedDelta = Math.min(delta * throttle, 0.1);
+
+    // Scroll water surface slowly; falling water streams downward fast
+    fountainWaterTexture.offset.x += cappedDelta * 0.02;
+    fountainWaterTexture.offset.y += cappedDelta * 0.035;
+    fountainFallTexture.offset.y -= cappedDelta * 0.9;
+
+    // Faint ripple ring expanding from the column
+    if (rippleRef.current && rippleMaterialRef.current) {
+      const phase = (state.clock.elapsedTime * 0.35) % 1;
+      const s = 1 + phase * 1.6;
+      rippleRef.current.scale.set(s, s, 1);
+      rippleMaterialRef.current.opacity = 0.28 * (1 - phase);
+    }
+  });
+
+  return (
+    <group position={position}>
+      {/* Base pool */}
+      <mesh position={[0, 0.3, 0]} castShadow receiveShadow>
+        <cylinderGeometry args={[3, 3.5, 0.6, 16]} />
+        <primitive object={SM.stone} attach="material" />
       </mesh>
-      <mesh position={[0, 0, 0.08]}>
-        <sphereGeometry args={[0.08, 8, 8]} />
-        <meshStandardMaterial color="#4a4a4a" />
+      {/* Lower water - animated scrolling surface */}
+      <mesh position={[0, 0.65, 0]}>
+        <cylinderGeometry args={[2.8, 2.8, 0.1, 16]} />
+        <primitive object={fountainWaterMaterial} attach="material" />
       </mesh>
-      <mesh position={[0, 0, 0.15]}>
-        <coneGeometry args={[0.03, 0.08, 4]} />
-        <meshStandardMaterial color="#ffa500" />
+      {/* Ripple ring - faint, expands outward from the column */}
+      <mesh ref={rippleRef} position={[0, 0.72, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[0.5, 0.75, 24]} />
+        <meshBasicMaterial
+          ref={rippleMaterialRef}
+          color="#dbeafe"
+          transparent
+          opacity={0.28}
+          depthWrite={false}
+        />
       </mesh>
+      {/* Center column */}
+      <mesh position={[0, 1.5, 0]} castShadow>
+        <cylinderGeometry args={[0.3, 0.4, 2.4, 12]} />
+        <primitive object={SM.stone} attach="material" />
+      </mesh>
+      {/* Top bowl */}
+      <mesh position={[0, 2.8, 0]} castShadow>
+        <cylinderGeometry args={[1, 0.8, 0.4, 12]} />
+        <primitive object={SM.stone} attach="material" />
+      </mesh>
+      <mesh position={[0, 2.95, 0]}>
+        <cylinderGeometry args={[0.8, 0.8, 0.15, 12]} />
+        <primitive object={SM.water} attach="material" />
+      </mesh>
+      {/* Falling water - narrow open-ended cone from top bowl to pool */}
+      <mesh position={[0, 1.85, 0]}>
+        <cylinderGeometry args={[0.22, 0.55, 2.2, 12, 1, true]} />
+        <primitive object={fountainFallMaterial} attach="material" />
+      </mesh>
+      {/* Bird perched on edge */}
+      <group
+        position={[0.7, 3.1, 0]}
+        rotation={[0, -0.5, 0]}
+        onClick={(e) => {
+          e.stopPropagation();
+          playCritterSound('bird');
+        }}
+      >
+        <mesh position={[0, 0.1, 0]}>
+          <sphereGeometry args={[0.12, 8, 8]} />
+          <meshStandardMaterial color="#4a4a4a" />
+        </mesh>
+        <mesh position={[0, 0, 0.08]}>
+          <sphereGeometry args={[0.08, 8, 8]} />
+          <meshStandardMaterial color="#4a4a4a" />
+        </mesh>
+        <mesh position={[0, 0, 0.15]}>
+          <coneGeometry args={[0.03, 0.08, 4]} />
+          <meshStandardMaterial color="#ffa500" />
+        </mesh>
+      </group>
     </group>
-  </group>
-));
+  );
+});
 Fountain.displayName = 'Fountain';
 
 // ===== HORSE =====

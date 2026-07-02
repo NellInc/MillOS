@@ -6,14 +6,14 @@ import { defineConfig, devices } from '@playwright/test';
  */
 export default defineConfig({
   testDir: './e2e',
-  /* Run tests in files in parallel */
-  fullyParallel: true,
+  /* Each test boots the full 3D app; parallel instances saturate the GPU and
+   * time out. Run serially everywhere. */
+  fullyParallel: false,
   /* Fail the build on CI if you accidentally left test.only in the source code. */
   forbidOnly: !!process.env.CI,
   /* Retry on CI only */
   retries: process.env.CI ? 2 : 0,
-  /* Opt out of parallel tests on CI. */
-  workers: process.env.CI ? 1 : undefined,
+  workers: 1,
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
   reporter: 'html',
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
@@ -30,6 +30,12 @@ export default defineConfig({
 
     /* Screenshot on failure */
     screenshot: 'only-on-failure',
+
+    /* Headless chromium falls back to software WebGL (SwiftShader), which
+     * makes this 3D app's procedural texture generation take 150s+ and the
+     * shell mount time exceed any sane timeout. Run headed locally to use
+     * the real GPU; CI keeps headless and relies on the long timeouts. */
+    headless: !!process.env.CI,
   },
 
   /* Configure projects for major browsers */
@@ -48,8 +54,11 @@ export default defineConfig({
     timeout: 120 * 1000, // 2 minutes for 3D app to start
   },
 
-  /* Increase timeout for 3D app loading */
-  timeout: 60000, // 60 seconds per test
+  /* Increase timeout for 3D app loading. Headless chromium renders WebGL in
+   * software (SwiftShader): procedural texture generation alone measured at
+   * ~155s (vs ~5s in real Chrome), and the loading overlay stays up until it
+   * finishes. The beforeEach counts toward the per-test timeout. */
+  timeout: 300000, // 5 minutes per test
   expect: {
     timeout: 15000, // 15 seconds for assertions
   },

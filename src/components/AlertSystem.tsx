@@ -118,7 +118,7 @@ export const AlertSystem: React.FC = () => {
   // Only render screen reader live region - no visible UI
   // Alerts are displayed via StatusHUD notification dropdown
   return (
-    <div role="status" aria-live="assertive" aria-atomic="true" className="sr-only">
+    <div role="alert" aria-atomic="true" className="sr-only">
       {liveRegionMessage}
     </div>
   );

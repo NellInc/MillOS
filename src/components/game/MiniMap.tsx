@@ -84,10 +84,10 @@ export const MiniMap: React.FC = () => {
           </div>
 
           {/* Zone indicators */}
-          <div className="absolute left-2 top-2 text-[8px] text-slate-500">Silos</div>
-          <div className="absolute left-2 top-1/4 text-[8px] text-slate-500">Mills</div>
-          <div className="absolute left-2 bottom-1/4 text-[8px] text-slate-500">Sifters</div>
-          <div className="absolute left-2 bottom-2 text-[8px] text-slate-500">Packers</div>
+          <div className="absolute left-2 top-2 text-[8px] text-slate-400">Silos</div>
+          <div className="absolute left-2 top-1/4 text-[8px] text-slate-400">Mills</div>
+          <div className="absolute left-2 bottom-1/4 text-[8px] text-slate-400">Sifters</div>
+          <div className="absolute left-2 bottom-2 text-[8px] text-slate-400">Packers</div>
 
           {/* Workers */}
           {positions.workers.map((worker) => (

@@ -1,8 +1,18 @@
 import React, { useState, useMemo } from 'react';
 import { MachineData, MaintenanceRecord, MachineType } from '../../../types';
-import { RotateCcw, FileText, CheckCircle, Loader2 } from 'lucide-react';
+import { RotateCcw, FileText, CheckCircle, Loader2, Wrench } from 'lucide-react';
 import { useProductionStore } from '../../../stores/productionStore';
+import { useBreakdownStore, PartsInventory } from '../../../stores/breakdownStore';
 import { useUIStore } from '../../../stores/uiStore';
+
+// Order in which spare parts are consumed by routine maintenance
+const MAINTENANCE_PART_PRIORITY: Array<keyof PartsInventory> = [
+  'filters',
+  'bearings',
+  'belts',
+  'sensors',
+  'motors',
+];
 
 /**
  * Generates deterministic maintenance logs based on machine data.
@@ -133,11 +143,54 @@ function generateMaintenanceLogs(machine: MachineData): MaintenanceRecord[] {
 export const MachineInspector: React.FC<{ machine: MachineData }> = ({ machine }) => {
   const metrics = machine.metrics || { rpm: 0, temperature: 0, vibration: 0, load: 0 };
   const [isRestarting, setIsRestarting] = useState(false);
+  const [isMaintaining, setIsMaintaining] = useState(false);
   const [showLogs, setShowLogs] = useState(false);
 
   const updateMachineStatus = useProductionStore((state) => state.updateMachineStatus);
   const updateMachineMetrics = useProductionStore((state) => state.updateMachineMetrics);
+  const performMaintenance = useProductionStore((state) => state.performMaintenance);
+  const partsInventory = useBreakdownStore((state) => state.partsInventory);
+  const consumePart = useBreakdownStore((state) => state.consumePart);
   const addAlert = useUIStore((state) => state.addAlert);
+
+  const availablePart = MAINTENANCE_PART_PRIORITY.find((part) => (partsInventory[part] ?? 0) > 0);
+
+  const handleMaintenance = async () => {
+    // Maintenance consumes one spare part - block when the store is empty
+    if (!availablePart) {
+      addAlert({
+        id: `maintenance-noparts-${machine.id}-${Date.now()}`,
+        type: 'warning',
+        title: 'No Spare Parts',
+        message: `Cannot perform maintenance on ${machine.name}: parts inventory is empty. Wait for a parts delivery.`,
+        timestamp: new Date(),
+        machineId: machine.id,
+        acknowledged: false,
+      });
+      return;
+    }
+
+    setIsMaintaining(true);
+    // Brief delay to simulate the maintenance task
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+
+    const result = performMaintenance(machine.id);
+    if (result.success) {
+      // performMaintenance fires its own success alert; consume the part used
+      consumePart(availablePart);
+    } else {
+      addAlert({
+        id: `maintenance-skip-${machine.id}-${Date.now()}`,
+        type: 'info',
+        title: 'Maintenance Not Needed',
+        message: `${machine.name}: ${result.message}`,
+        timestamp: new Date(),
+        machineId: machine.id,
+        acknowledged: false,
+      });
+    }
+    setIsMaintaining(false);
+  };
 
   const handleRestart = async () => {
     setIsRestarting(true);
@@ -243,8 +296,30 @@ export const MachineInspector: React.FC<{ machine: MachineData }> = ({ machine }
           {showLogs ? 'Hide Maintenance Logs' : 'View Maintenance Logs'}
         </button>
         <button
+          onClick={handleMaintenance}
+          disabled={isMaintaining || isRestarting}
+          title={
+            !availablePart
+              ? 'No spare parts in inventory - maintenance requires one part.'
+              : `Reduces machine wear (consumes 1 spare part: ${availablePart})`
+          }
+          className="w-full bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed text-white py-2 rounded-lg font-medium text-xs transition-colors flex items-center justify-center gap-2"
+        >
+          {isMaintaining ? (
+            <>
+              <Loader2 size={14} className="animate-spin" />
+              Performing Maintenance...
+            </>
+          ) : (
+            <>
+              <Wrench size={14} />
+              Perform Maintenance
+            </>
+          )}
+        </button>
+        <button
           onClick={handleRestart}
-          disabled={isRestarting || machine.status === 'critical'}
+          disabled={isRestarting || isMaintaining || machine.status === 'critical'}
           title={
             machine.status === 'critical'
               ? 'Critical faults must be cleared via Safety controls before this unit can be restarted.'

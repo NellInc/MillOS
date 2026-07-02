@@ -122,7 +122,7 @@ export const AchievementsPanel: React.FC<{ onClose: () => void }> = ({ onClose }
                   {/* Progress bar */}
                   <div className="mt-2">
                     <div className="flex justify-between text-[10px] mb-1">
-                      <span className="text-slate-500">Progress</span>
+                      <span className="text-slate-400">Progress</span>
                       <span className="text-slate-400">
                         {achievement.progress} / {achievement.target}
                       </span>
@@ -168,7 +168,7 @@ export const AchievementsPanel: React.FC<{ onClose: () => void }> = ({ onClose }
         ) : (
           <button
             onClick={() => setConfirmReset(true)}
-            className="flex items-center gap-1.5 px-2 py-1 text-xs text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors"
+            className="flex items-center gap-1.5 px-2 py-1 text-xs text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors"
             title="Reset all achievements"
           >
             <RotateCcw className="w-3 h-3" />

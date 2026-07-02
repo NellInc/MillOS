@@ -95,6 +95,7 @@ export const IncidentReplayControls: React.FC = () => {
             </button>
             <button
               onClick={handleSkipForward}
+              aria-label="Skip forward 10 frames"
               className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-white flex items-center justify-center"
             >
               <SkipForward className="w-4 h-4" />

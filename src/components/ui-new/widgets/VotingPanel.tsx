@@ -503,8 +503,10 @@ export const VotingPanel: React.FC<VotingPanelProps> = ({ defaultExpanded = true
 
   const handleSimulate = (voteId: string) => {
     simulateWorkerVoting(voteId);
-    // Auto-close if all workers have voted
-    const vote = votes.find((v) => v.id === voteId);
+    // Auto-close if enough workers have voted. Read fresh state from the store:
+    // the `votes` render closure still holds the PRE-simulation tallies, so the
+    // auto-close would never fire on the triggering click.
+    const vote = useVotingStore.getState().votes.find((v) => v.id === voteId);
     if (vote) {
       const totalVotes = vote.options.reduce((sum, opt) => sum + opt.votes.length, 0);
       if (totalVotes >= WORKER_ROSTER.length * 0.8) {

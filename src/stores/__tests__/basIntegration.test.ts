@@ -354,33 +354,38 @@ describe('BAS Integration Tests', () => {
     });
   });
 
-  describe('Performance', () => {
-    it('should handle rapid cross-store updates efficiently', () => {
-      const start = performance.now();
-
+  describe('Rapid Update Stress', () => {
+    // NOTE: these were previously wall-clock duration assertions, which are
+    // flaky on loaded CI machines. They now assert state correctness after
+    // the same rapid update cycles instead.
+    it('should remain consistent after rapid cross-store updates', () => {
       for (let i = 0; i < 100; i++) {
         useBASStore.getState().setAxis('autonomyLevel', i % 100);
         useFlourishingStore.getState().getFactoryFlourishing();
         useStabilityStore.getState().getStabilityStatus();
       }
 
-      const duration = performance.now() - start;
+      // Last write wins: axis reflects the final iteration's value
+      expect(useBASStore.getState().axes.autonomyLevel).toBe(99);
 
-      // Should complete in under 200ms
-      expect(duration).toBeLessThan(200);
+      // Dependent stores still return well-formed results
+      const flourishing = useFlourishingStore.getState().getFactoryFlourishing();
+      expect(Number.isFinite(flourishing.overallScore)).toBe(true);
+
+      const status = useStabilityStore.getState().getStabilityStatus();
+      expect(status.status).toBeDefined();
+      expect(Number.isFinite(status.urgency)).toBe(true);
     });
 
-    it('should handle voting operations efficiently', () => {
+    it('should keep voting state consistent across rapid vote cycles', () => {
       const { createAxisChangeVote, openVote, castVote, closeVote } = useVotingStore.getState();
 
-      const start = performance.now();
-
-      // Create and process 10 votes
+      const voteIds: string[] = [];
       for (let i = 0; i < 10; i++) {
         const vote = createAxisChangeVote('autonomyLevel', 50, 60 + i, 'worker-1');
+        voteIds.push(vote.id);
         openVote(vote.id);
 
-        // Simulate some voting
         for (let j = 0; j < 5; j++) {
           castVote(vote.id, `worker-${j + 2}`, vote.options[0].id);
         }
@@ -388,10 +393,19 @@ describe('BAS Integration Tests', () => {
         closeVote(vote.id);
       }
 
-      const duration = performance.now() - start;
+      const votes = useVotingStore.getState().votes;
+      expect(votes).toHaveLength(10);
+      expect(new Set(voteIds).size).toBe(10); // All ids distinct
 
-      // Should complete in under 100ms
-      expect(duration).toBeLessThan(100);
+      for (const id of voteIds) {
+        const vote = votes.find((v) => v.id === id);
+        expect(vote).toBeDefined();
+        // Every vote was closed: none remain open
+        expect(vote!.status).not.toBe('open');
+        // All 5 ballots were recorded exactly once
+        const totalBallots = vote!.options.reduce((sum, opt) => sum + opt.votes.length, 0);
+        expect(totalBallots).toBe(5);
+      }
     });
   });
 });

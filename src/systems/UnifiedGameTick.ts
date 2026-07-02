@@ -14,7 +14,8 @@ import { useEffect } from 'react';
 import { centralTick, TICK_PRIORITY } from './CentralTickSystem';
 import type { TickContext } from './CentralTickSystem';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
-import { useProductionStore } from '../stores/productionStore';
+import { useProductionStore, DAILY_TARGET_BAGS } from '../stores/productionStore';
+import { useQCLabStore } from '../stores/qcLabStore';
 import { useMaterialFlowStore } from '../stores/materialFlowStore';
 import { useTruckScheduleStore } from '../stores/truckScheduleStore';
 import { useUIStore } from '../stores/uiStore';
@@ -38,6 +39,14 @@ const SHIFT_ENTERING_DURATION_S = 10;
 
 // Machine status type (matches MachineData.status)
 type MachineStatus = 'running' | 'idle' | 'warning' | 'critical';
+
+// QC grade -> quality score mapping (mirrors deprecated productionStore.tickMetrics)
+const QC_GRADE_SCORES: Record<string, number> = { A: 100, B: 85, C: 70, FAIL: 0 };
+
+// Daily-target milestone tracking (percent thresholds, fired once each per day,
+// reset on day rollover). Bitmask index matches _MILESTONE_THRESHOLDS.
+const _MILESTONE_THRESHOLDS = [25, 50, 75, 100] as const;
+let _milestonesReachedMask = 0;
 
 // ============================================================
 // REUSABLE MODULE-LEVEL OBJECTS (never recreated)
@@ -222,6 +231,20 @@ function unifiedGameTick(ctx: TickContext): void {
   let newGameDay = gameStore.gameDay;
   if (newGameTime < gameStore.gameTime && hoursElapsed > 0) {
     newGameDay++;
+
+    // Close out the production day: celebrate the result, then reset the
+    // daily counter and milestone tracking so the target loop restarts fresh.
+    const dayEndStore = useProductionStore.getState();
+    const dayBags = dayEndStore.dailyBagsProduced;
+    gameStore.triggerCelebration('shift_complete', {
+      value: dayBags,
+      message:
+        dayBags >= DAILY_TARGET_BAGS
+          ? `Day complete: ${Math.round(dayBags).toLocaleString()} bags - target met!`
+          : `Day complete: ${Math.round(dayBags).toLocaleString()} of ${DAILY_TARGET_BAGS.toLocaleString()} bags`,
+    });
+    dayEndStore.resetDailyBagsProduced();
+    _milestonesReachedMask = 0;
   }
 
   // 2. Update machine TRUTH (not cosmetics)
@@ -231,6 +254,7 @@ function unifiedGameTick(ctx: TickContext): void {
   let anyMachineChanged = false;
   let runningCount = 0;
   let totalRunningDelta = 0;
+  let efficiencySum = 0;
 
   // Check each machine for truth changes
   // Use module-level reusable arrays (cleared here, never reallocated)
@@ -245,6 +269,7 @@ function unifiedGameTick(ctx: TickContext): void {
       runningCount++;
       totalRunningDelta += deltaSeconds;
     }
+    efficiencySum += machine.metrics.efficiency ?? 100;
 
     const result = updateMachineTruth(machine, deltaSeconds);
 
@@ -279,6 +304,20 @@ function unifiedGameTick(ctx: TickContext): void {
 
   // Efficiency: percentage of machines running
   _metricsUpdate.efficiency = Math.round((runningCount / totalMachines) * 100 * 10) / 10;
+
+  // Quality: latest QC Lab test grade (A=100, B=85, C=70, FAIL=0 - mirrors the
+  // deprecated productionStore.tickMetrics mapping). Before any test exists,
+  // derive an estimate from average machine health so the KPI isn't frozen at
+  // its 99.5 initial value: pristine machines read 99.5, worn ones drag it down.
+  const qcHistory = useQCLabStore.getState().qcLab.testHistory;
+  const latestTest = qcHistory[qcHistory.length - 1];
+  if (latestTest) {
+    _metricsUpdate.quality = QC_GRADE_SCORES[latestTest.grade] ?? 99.5;
+  } else {
+    const avgMachineEfficiency = efficiencySum / totalMachines; // 0-100
+    _metricsUpdate.quality =
+      Math.round(Math.max(0, Math.min(99.5, 99.5 * (avgMachineEfficiency / 100))) * 10) / 10;
+  }
 
   // Update tracking
   _metricTrackingUpdate.totalRunningSeconds =
@@ -346,6 +385,26 @@ function unifiedGameTick(ctx: TickContext): void {
       _metricTracking: { ..._metricTrackingUpdate },
       metrics: { ..._metricsUpdate },
     });
+  }
+
+  // 3b. Daily-target milestones: celebrate 25/50/75/100% once each per day
+  // (mask resets on day rollover above). 100% counts as target met.
+  if (DAILY_TARGET_BAGS > 0) {
+    const dailyProgressPct = (prodStore.dailyBagsProduced / DAILY_TARGET_BAGS) * 100;
+    for (let t = 0; t < _MILESTONE_THRESHOLDS.length; t++) {
+      const threshold = _MILESTONE_THRESHOLDS[t];
+      const bit = 1 << t;
+      if (dailyProgressPct >= threshold && (_milestonesReachedMask & bit) === 0) {
+        _milestonesReachedMask |= bit;
+        gameStore.triggerCelebration(threshold === 100 ? 'target_met' : 'milestone', {
+          value: Math.round(prodStore.dailyBagsProduced),
+          message:
+            threshold === 100
+              ? `Daily target reached: ${DAILY_TARGET_BAGS.toLocaleString()} bags!`
+              : `Daily target ${threshold}% complete`,
+        });
+      }
+    }
   }
 
   // 4. Update game time only if changed
