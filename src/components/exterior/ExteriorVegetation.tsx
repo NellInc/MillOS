@@ -9,28 +9,70 @@
 
 import React, { useMemo, useLayoutEffect, useRef } from 'react';
 import * as THREE from 'three';
-import { SIMPLE_TREE_MATERIALS, BENCH_MATERIALS } from '../../utils/sharedMaterials';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { TREE_MATERIALS, BENCH_MATERIALS } from '../../utils/sharedMaterials';
 
 // ============================================================
 // GEOMETRIES (Module Level - Pre-translated with baked offsets)
 // ============================================================
 
-// SimpleTree geometry offsets (from original component):
-// - Trunk: position [0, 1.5, 0], cylinder [0.3, 0.4, 3, 6]
-// - Lower foliage: position [0, 4.5, 0], cone [2, 5, 6]
-// - Upper foliage: position [0, 6.5, 0], cone [1.5, 3.5, 6]
+// Tree canopy: irregular icosahedron clusters merged into ONE geometry per
+// variant (module-level, shared). Same look as FactoryExterior's SimpleTree,
+// which imports these exports — single source of truth for tree geometry.
+const createFoliageCluster = (seed: number): THREE.BufferGeometry => {
+  // Deterministic pseudo-random from seed (no Math.random - stable across renders)
+  const rand = (n: number) => {
+    const s = Math.sin(seed * 127.1 + n * 311.7) * 43758.5453;
+    return s - Math.floor(s);
+  };
+  const parts: THREE.BufferGeometry[] = [];
+  for (let i = 0; i < 4; i++) {
+    const blob = new THREE.IcosahedronGeometry(1.1 + rand(i) * 0.8, 0);
+    blob.scale(1, 0.75 + rand(i + 10) * 0.35, 1);
+    blob.rotateY(rand(i + 15) * Math.PI);
+    blob.translate(
+      (rand(i + 20) - 0.5) * 1.7,
+      4.4 + rand(i + 30) * 2.2,
+      (rand(i + 40) - 0.5) * 1.7
+    );
+    parts.push(blob);
+  }
+  const merged = mergeGeometries(parts) ?? parts[0].clone();
+  parts.forEach((g) => g.dispose());
+  return merged;
+};
+
+export const TREE_FOLIAGE_VARIANTS = [
+  createFoliageCluster(1),
+  createFoliageCluster(2),
+  createFoliageCluster(3),
+];
+
+// Per-variant hue jitter via three shared materials (no per-instance material churn)
+export const TREE_FOLIAGE_MATERIALS = [
+  new THREE.MeshStandardMaterial({ color: '#2e7d32', roughness: 0.85, flatShading: true }),
+  new THREE.MeshStandardMaterial({ color: '#3f8e3a', roughness: 0.85, flatShading: true }),
+  new THREE.MeshStandardMaterial({ color: '#38691e', roughness: 0.85, flatShading: true }),
+];
+
+/** Deterministic per-tree variant/rotation/scale jitter from position hash
+ *  (identical to SimpleTree's, so a tree looks the same whether it is
+ *  rendered individually or instanced). */
+export const treeJitterFromPosition = (position: [number, number, number]) => {
+  const h = Math.abs(Math.sin(position[0] * 12.9898 + position[2] * 78.233) * 43758.5453);
+  const frac = h - Math.floor(h);
+  return {
+    variant: Math.floor(frac * 3) % 3,
+    rotY: frac * Math.PI * 2,
+    jitter: 0.9 + frac * 0.2,
+  };
+};
 
 const createTreeGeometries = () => {
   const trunk = new THREE.CylinderGeometry(0.3, 0.4, 3, 6);
   trunk.translate(0, 1.5, 0);
 
-  const foliageLower = new THREE.ConeGeometry(2, 5, 6);
-  foliageLower.translate(0, 4.5, 0);
-
-  const foliageUpper = new THREE.ConeGeometry(1.5, 3.5, 6);
-  foliageUpper.translate(0, 6.5, 0);
-
-  return { trunk, foliageLower, foliageUpper };
+  return { trunk };
 };
 
 // ParkBench geometry offsets (from original component):
@@ -103,36 +145,50 @@ export interface TreeInstanceData {
 export const SimpleTreeInstances: React.FC<{
   trees: TreeInstanceData[];
 }> = React.memo(({ trees }) => {
-  const count = trees.length;
+  // Per-tree deterministic variant/rotation/scale jitter, matching SimpleTree.
+  // Trees are bucketed by canopy variant: one instancedMesh per variant plus
+  // one for all trunks (4 draw calls total regardless of tree count).
+  const { allTrees, byVariant } = useMemo(() => {
+    const all: InstanceData[] = [];
+    const buckets: InstanceData[][] = [[], [], []];
+    trees.forEach((t) => {
+      const { variant, rotY, jitter } = treeJitterFromPosition(t.position);
+      const item: InstanceData = {
+        position: t.position,
+        rotation: rotY,
+        scale: (t.scale ?? 1) * jitter,
+      };
+      all.push(item);
+      buckets[variant].push(item);
+    });
+    return { allTrees: all, byVariant: buckets };
+  }, [trees]);
 
-  const data = useMemo(
-    () => trees.map((t) => ({ position: t.position, scale: t.scale ?? 1 })),
-    [trees]
-  );
+  const trunkRef = useInstances(allTrees.length, allTrees);
+  const canopy0Ref = useInstances(byVariant[0].length, byVariant[0]);
+  const canopy1Ref = useInstances(byVariant[1].length, byVariant[1]);
+  const canopy2Ref = useInstances(byVariant[2].length, byVariant[2]);
+  const canopyRefs = [canopy0Ref, canopy1Ref, canopy2Ref];
 
-  const trunkRef = useInstances(count, data);
-  const foliageLowerRef = useInstances(count, data);
-  const foliageUpperRef = useInstances(count, data);
-
-  if (count === 0) return null;
+  if (trees.length === 0) return null;
 
   return (
     <group>
       <instancedMesh
         ref={trunkRef}
-        args={[TREE_GEOMETRIES.trunk, SIMPLE_TREE_MATERIALS.trunk, count]}
+        args={[TREE_GEOMETRIES.trunk, TREE_MATERIALS.trunk, allTrees.length]}
         castShadow
       />
-      <instancedMesh
-        ref={foliageLowerRef}
-        args={[TREE_GEOMETRIES.foliageLower, SIMPLE_TREE_MATERIALS.foliageLower, count]}
-        castShadow
-      />
-      <instancedMesh
-        ref={foliageUpperRef}
-        args={[TREE_GEOMETRIES.foliageUpper, SIMPLE_TREE_MATERIALS.foliageUpper, count]}
-        castShadow
-      />
+      {byVariant.map((bucket, variant) =>
+        bucket.length > 0 ? (
+          <instancedMesh
+            key={variant}
+            ref={canopyRefs[variant]}
+            args={[TREE_FOLIAGE_VARIANTS[variant], TREE_FOLIAGE_MATERIALS[variant], bucket.length]}
+            castShadow
+          />
+        ) : null
+      )}
     </group>
   );
 });

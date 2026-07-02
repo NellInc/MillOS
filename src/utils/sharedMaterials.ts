@@ -786,14 +786,6 @@ export const TREE_MATERIALS = {
   }),
 } as const;
 
-// === TREE MATERIALS (Simple/Instanced) ===
-// Simpler tree materials for instanced rendering (lower overhead)
-export const SIMPLE_TREE_MATERIALS = {
-  trunk: new THREE.MeshStandardMaterial({ color: '#5d4037', roughness: 0.9 }),
-  foliageLower: new THREE.MeshStandardMaterial({ color: '#2e7d32', roughness: 0.8 }),
-  foliageUpper: new THREE.MeshStandardMaterial({ color: '#388e3c', roughness: 0.8 }),
-} as const;
-
 // === BENCH MATERIALS ===
 // Materials for park benches and outdoor furniture
 export const BENCH_MATERIALS = {

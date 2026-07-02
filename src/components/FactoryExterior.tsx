@@ -19,7 +19,6 @@ import {
   calculateReceivingTruckState,
 } from './truckbay/useTruckPhysics';
 import { PROCEDURAL_TEXTURES, TREE_MATERIALS } from '../utils/sharedMaterials';
-import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 // OUTDOOR_MATERIALS removed - grass plane now handled by TerrainGround
 import { GasStation } from './GasStationInstanced';
 import {
@@ -31,6 +30,9 @@ import {
   PARKLAND_BENCHES,
   FRONT_PARKLAND_TREES,
   FRONT_PARKLAND_BENCHES,
+  TREE_FOLIAGE_VARIANTS,
+  TREE_FOLIAGE_MATERIALS,
+  treeJitterFromPosition,
 } from './exterior/ExteriorVegetation';
 interface FactoryExteriorProps {
   floorWidth?: number;
@@ -48,55 +50,12 @@ const GRASS_COLORS = {
 
 // Simple low-poly tree component
 // Foliage: irregular icosahedron clusters merged into ONE geometry per variant
-// (module-level, shared) so each tree costs 2 draw calls (trunk + canopy).
-const createFoliageCluster = (seed: number): THREE.BufferGeometry => {
-  // Deterministic pseudo-random from seed (no Math.random - stable across renders)
-  const rand = (n: number) => {
-    const s = Math.sin(seed * 127.1 + n * 311.7) * 43758.5453;
-    return s - Math.floor(s);
-  };
-  const parts: THREE.BufferGeometry[] = [];
-  for (let i = 0; i < 4; i++) {
-    const blob = new THREE.IcosahedronGeometry(1.1 + rand(i) * 0.8, 0);
-    blob.scale(1, 0.75 + rand(i + 10) * 0.35, 1);
-    blob.rotateY(rand(i + 15) * Math.PI);
-    blob.translate(
-      (rand(i + 20) - 0.5) * 1.7,
-      4.4 + rand(i + 30) * 2.2,
-      (rand(i + 40) - 0.5) * 1.7
-    );
-    parts.push(blob);
-  }
-  const merged = mergeGeometries(parts) ?? parts[0].clone();
-  parts.forEach((g) => g.dispose());
-  return merged;
-};
-
-const TREE_FOLIAGE_VARIANTS = [
-  createFoliageCluster(1),
-  createFoliageCluster(2),
-  createFoliageCluster(3),
-];
-
-// Per-variant hue jitter via three shared materials (no per-instance material churn)
-const TREE_FOLIAGE_MATERIALS = [
-  new THREE.MeshStandardMaterial({ color: '#2e7d32', roughness: 0.85, flatShading: true }),
-  new THREE.MeshStandardMaterial({ color: '#3f8e3a', roughness: 0.85, flatShading: true }),
-  new THREE.MeshStandardMaterial({ color: '#38691e', roughness: 0.85, flatShading: true }),
-];
-
+// (module-level, shared with the instanced parkland trees — single source in
+// ExteriorVegetation.tsx) so each tree costs 2 draw calls (trunk + canopy).
 const SimpleTree: React.FC<{ position: [number, number, number]; scale?: number }> = React.memo(
   ({ position, scale = 1 }) => {
     // Deterministic per-tree variant, rotation and scale jitter from position hash
-    const { variant, rotY, jitter } = useMemo(() => {
-      const h = Math.abs(Math.sin(position[0] * 12.9898 + position[2] * 78.233) * 43758.5453);
-      const frac = h - Math.floor(h);
-      return {
-        variant: Math.floor(frac * 3) % 3,
-        rotY: frac * Math.PI * 2,
-        jitter: 0.9 + frac * 0.2,
-      };
-    }, [position]);
+    const { variant, rotY, jitter } = useMemo(() => treeJitterFromPosition(position), [position]);
 
     return (
       <group position={position} scale={scale * jitter} rotation={[0, rotY, 0]}>

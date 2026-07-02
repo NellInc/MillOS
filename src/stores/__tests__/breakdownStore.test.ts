@@ -210,6 +210,29 @@ describe('BreakdownStore', () => {
       expect(useBreakdownStore.getState().hasLowInventory()).toBe(false);
     });
 
+    it('should top up depleted parts toward default stock on a truck delivery', () => {
+      const { consumePart, restockDelivery } = useBreakdownStore.getState();
+
+      consumePart('motors'); // 3 -> 2
+      consumePart('motors'); // 2 -> 1
+      consumePart('belts'); // 8 -> 7
+
+      restockDelivery();
+      const inv = useBreakdownStore.getState().partsInventory;
+      expect(inv.motors).toBe(3); // 1 + 2, capped at default 3
+      expect(inv.belts).toBe(8); // 7 + 2 would exceed default 8, capped
+      expect(inv.bearings).toBe(10); // untouched part stays at default cap
+    });
+
+    it('should never grow inventory beyond default stock via deliveries', () => {
+      const { restockDelivery } = useBreakdownStore.getState();
+
+      restockDelivery();
+      restockDelivery();
+      const inv = useBreakdownStore.getState().partsInventory;
+      expect(inv).toEqual({ bearings: 10, belts: 8, filters: 15, motors: 3, sensors: 12 });
+    });
+
     it('should map breakdown types to required parts', () => {
       const { getPartsForBreakdown } = useBreakdownStore.getState();
       expect(getPartsForBreakdown('mechanical')).toEqual(['bearings', 'belts']);

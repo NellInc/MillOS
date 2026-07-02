@@ -18,6 +18,7 @@ import { useProductionStore, DAILY_TARGET_BAGS } from '../stores/productionStore
 import { useQCLabStore } from '../stores/qcLabStore';
 import { useMaterialFlowStore } from '../stores/materialFlowStore';
 import { useTruckScheduleStore } from '../stores/truckScheduleStore';
+import { useBreakdownStore } from '../stores/breakdownStore';
 import { useUIStore } from '../stores/uiStore';
 import type { MachineData } from '../types';
 
@@ -435,6 +436,9 @@ function unifiedGameTick(ctx: TickContext): void {
   const receivingDocked = useTruckScheduleStore.getState().truckSchedule.receiving.truckDocked;
   if (receivingDocked && !_lastReceivingDocked) {
     flowStore.receiveGrainDelivery(GRAIN_DELIVERY_KG);
+    // The same truck also carries a spare-parts resupply, closing the
+    // maintenance loop: consume parts to repair, trucks bring them back.
+    useBreakdownStore.getState().restockDelivery();
   }
   _lastReceivingDocked = receivingDocked;
 

@@ -137,6 +137,7 @@ interface BreakdownStore {
   // Parts inventory
   consumePart: (partType: keyof PartsInventory) => boolean;
   restockPart: (partType: keyof PartsInventory, quantity: number) => void;
+  restockDelivery: () => void;
   getPartsForBreakdown: (type: BreakdownType) => (keyof PartsInventory)[];
 
   // Maintenance scheduling
@@ -391,6 +392,18 @@ export const useBreakdownStore = create<BreakdownStore>()(
           [partType]: state.partsInventory[partType] + quantity,
         },
       })),
+
+    // Each receiving truck carries a small maintenance resupply alongside the
+    // grain: every part type is topped up by 2, never beyond its default stock
+    // level, so inventory recovers from maintenance without growing unbounded.
+    restockDelivery: () =>
+      set((state) => {
+        const next = { ...state.partsInventory };
+        (Object.keys(DEFAULT_PARTS_INVENTORY) as (keyof PartsInventory)[]).forEach((part) => {
+          next[part] = Math.min(DEFAULT_PARTS_INVENTORY[part], next[part] + 2);
+        });
+        return { partsInventory: next };
+      }),
 
     getPartsForBreakdown: (type) => PARTS_FOR_BREAKDOWN[type],
 
