@@ -88,11 +88,15 @@ void main() {
         skyColor = mix(mix(bottomColor, topColor, 0.5), topColor, smoothstep(0.0, 1.0, t));
     }
 
-    // Procedural clouds using spherical coords (avoids UV seam)
-    // Use atan for seamless wrapping around the sphere
-    float theta = atan(dir.z, dir.x); // -PI to PI
-    float phi = acos(dir.y); // 0 to PI
-    vec2 cloudUV = vec2(theta * 0.5 + time * 0.015, phi * 1.5 + time * 0.005);
+    // Procedural clouds via a seamless planar dome projection.
+    // The previous mapping used theta = atan(dir.z, dir.x), which has a branch
+    // cut at the -x meridian (theta jumps +PI -> -PI there). fbm() is not
+    // periodic, so that produced a HARD VERTICAL SEAM splitting the sky. The
+    // direction vector is continuous everywhere, so projecting it has no branch
+    // cut. Dividing by (|dir.y| + k) spreads clouds toward the horizon and
+    // compresses them overhead for a natural dome look; the cloud mask below
+    // fades out the slight pinch at the zenith.
+    vec2 cloudUV = dir.xz / (abs(dir.y) + 0.5) * 1.5 + vec2(time * 0.015, time * 0.005);
 
     float n = fbm(cloudUV);
     // Secondary layer: cheaper single-noise detail to avoid a second fbm() pass

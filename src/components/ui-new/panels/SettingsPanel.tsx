@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Volume2,
   Monitor,
@@ -23,6 +23,7 @@ import { useAudioStateWithControls as useAudioState } from '../../../hooks/useAu
 import { useKnowledgeStore } from '../../../stores/knowledgeStore';
 import { useAINarrationStore } from '../../../stores/aiNarrationStore';
 import { FEATURE_FLAGS } from '../../../config/featureFlags';
+import { ConfirmDialog } from '../../ui/ConfirmDialog';
 
 export const SettingsPanel: React.FC<{
   productionSpeed: number;
@@ -41,6 +42,10 @@ export const SettingsPanel: React.FC<{
   const setGraphicsQuality = useGraphicsStore((state) => state.setGraphicsQuality);
   const clearPersistedState = useGameSimulationStore((state) => state.clearPersistedState);
   const audio = useAudioState();
+
+  // Which reset confirmation dialog is open ('day' = back to 10am, 'full' = wipe
+  // all saved data). null = no dialog. Replaces the native window.confirm() calls.
+  const [resetConfirm, setResetConfirm] = useState<'day' | 'full' | null>(null);
 
   // Knowledge system settings (used slice only — same reasoning as graphics)
   const {
@@ -463,36 +468,13 @@ export const SettingsPanel: React.FC<{
         </h3>
         <div className="bg-slate-800/50 p-3 rounded-xl border border-white/5 space-y-2">
           <button
-            onClick={() => {
-              if (
-                !window.confirm('Reset the simulation back to 10am? Current progress will be lost.')
-              ) {
-                return;
-              }
-              clearPersistedState();
-            }}
+            onClick={() => setResetConfirm('day')}
             className="w-full py-2 rounded-lg text-xs font-medium bg-amber-900/30 text-amber-400 hover:bg-amber-900/50 flex items-center justify-center gap-2 transition-colors"
           >
             Reset to 10am
           </button>
           <button
-            onClick={() => {
-              if (
-                !window.confirm(
-                  'Reset the simulation and clear all saved data? This clears saved progress, graphics settings, and your Gemini API key, then reloads. This cannot be undone.'
-                )
-              ) {
-                return;
-              }
-              // Clear every persisted MillOS store (keys are namespaced "millos-*").
-              // This includes millos-graphics and millos-ai-config (the plaintext
-              // Gemini API key), which a full reset should remove.
-              Object.keys(localStorage)
-                .filter((key) => key.startsWith('millos-'))
-                .forEach((key) => localStorage.removeItem(key));
-              setGraphicsQuality('medium');
-              window.location.reload();
-            }}
+            onClick={() => setResetConfirm('full')}
             className="w-full py-2 rounded-lg text-xs font-medium text-red-400 hover:bg-red-900/20 flex items-center justify-center gap-2 transition-colors"
           >
             <RotateCcw size={12} aria-hidden="true" />
@@ -500,6 +482,40 @@ export const SettingsPanel: React.FC<{
           </button>
         </div>
       </section>
+
+      {/* Reset to 10am confirmation */}
+      <ConfirmDialog
+        isOpen={resetConfirm === 'day'}
+        title="Reset to 10am"
+        tone="amber"
+        confirmLabel="Reset to 10am"
+        message="Reset the simulation back to 10am? Current progress will be lost."
+        onCancel={() => setResetConfirm(null)}
+        onConfirm={() => {
+          clearPersistedState();
+          setResetConfirm(null);
+        }}
+      />
+
+      {/* Full reset confirmation (destructive) */}
+      <ConfirmDialog
+        isOpen={resetConfirm === 'full'}
+        title="Reset Simulation"
+        tone="red"
+        confirmLabel="Reset Everything"
+        message="Reset the simulation and clear all saved data? This clears saved progress, graphics settings, and your Gemini API key, then reloads. This cannot be undone."
+        onCancel={() => setResetConfirm(null)}
+        onConfirm={() => {
+          // Clear every persisted MillOS store (keys are namespaced "millos-*").
+          // This includes millos-graphics and millos-ai-config (the plaintext
+          // Gemini API key), which a full reset should remove.
+          Object.keys(localStorage)
+            .filter((key) => key.startsWith('millos-'))
+            .forEach((key) => localStorage.removeItem(key));
+          setGraphicsQuality('medium');
+          window.location.reload();
+        }}
+      />
     </div>
   );
 };

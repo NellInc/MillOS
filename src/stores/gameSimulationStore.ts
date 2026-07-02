@@ -236,7 +236,7 @@ const getShiftPriorities = (shift: 'morning' | 'afternoon' | 'night'): string[] 
 };
 
 // Calculate expected shift based on game hour (handles midnight crossover correctly)
-const getShiftForHour = (hour: number): 'morning' | 'afternoon' | 'night' => {
+export const getShiftForHour = (hour: number): 'morning' | 'afternoon' | 'night' => {
   // Normalize hour to 0-24 range
   const normalizedHour = ((hour % 24) + 24) % 24;
   if (normalizedHour >= 6 && normalizedHour < 14) return 'morning';
@@ -372,7 +372,29 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
       gameDay: 0, // Days elapsed since simulation start
       gameSpeed: 180, // Default: 1 game day = 8 real minutes
 
-      setGameTime: (time) => set({ gameTime: ((time % 24) + 24) % 24 }), // Handle negative wrap
+      setGameTime: (time) => {
+        // Normalize to [0,24) and keep the shift in lock-step with the clock.
+        // A direct time set (e.g. multiplayer sync) must not leave currentShift
+        // stale, or the HUD shows the wrong shift for the displayed hour.
+        const gameTime = ((time % 24) + 24) % 24; // Handle negative wrap
+        const expectedShift = getShiftForHour(gameTime);
+        set((state) =>
+          state.currentShift === expectedShift
+            ? { gameTime }
+            : {
+                gameTime,
+                currentShift: expectedShift,
+                shiftStartTime: Date.now(),
+                shiftData: {
+                  ...state.shiftData,
+                  currentShift: expectedShift,
+                  shiftStartTime: Date.now(),
+                  incomingSupervisor: getSupervisorForShift(expectedShift),
+                  priorities: getShiftPriorities(expectedShift),
+                },
+              }
+        );
+      },
 
       setGameSpeed: (speed) => set({ gameSpeed: speed }),
 

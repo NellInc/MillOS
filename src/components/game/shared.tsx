@@ -3441,9 +3441,11 @@ const usePAScheduler = () => {
     // Dynamic timing: more frequent during chaos, less during calm
     const getNextDelay = () => {
       const chaosLevel = calculateChaosLevel();
-      // Base: 45-90 seconds, chaos reduces this to 25-50 seconds
-      const minDelay = 45000 - chaosLevel * 20000; // 45s → 25s
-      const maxDelay = 90000 - chaosLevel * 40000; // 90s → 50s
+      // Base: 90-180 seconds, chaos reduces this to 50-100 seconds.
+      // Doubled from 45-90s so PA quips are more occasional (2x spacing at
+      // every chaos level).
+      const minDelay = 90000 - chaosLevel * 40000; // 90s → 50s
+      const maxDelay = 180000 - chaosLevel * 80000; // 180s → 100s
       return minDelay + Math.random() * (maxDelay - minDelay);
     };
 

@@ -129,7 +129,7 @@ const GRAPHICS_PRESETS: Record<GraphicsQuality, GraphicsSettings> = {
     enableMachineColorVariation: false,
     enableMachineLOD: true,
     machineLodDistance: 30, // Aggressive LOD for low quality
-    resolutionScale: 0.5, // Half resolution for performance
+    resolutionScale: 0.25, // 25% resolution for performance
     enableTextureFiltering: false, // No texture filtering on low
     anisotropyLevel: 1, // No anisotropic filtering
     enableAudioReactive: false, // Disabled on low for performance
@@ -174,7 +174,7 @@ const GRAPHICS_PRESETS: Record<GraphicsQuality, GraphicsSettings> = {
     enableMachineColorVariation: true, // Enable color variation on medium+
     enableMachineLOD: true,
     machineLodDistance: 50,
-    resolutionScale: 0.5, // 50% resolution - consistent default across all presets
+    resolutionScale: 0.25, // 25% resolution - consistent default across all presets
     enableTextureFiltering: true, // Basic texture filtering
     anisotropyLevel: 4, // Low anisotropic filtering
     enableAudioReactive: true, // Audio-reactive visuals on medium+
@@ -219,7 +219,7 @@ const GRAPHICS_PRESETS: Record<GraphicsQuality, GraphicsSettings> = {
     enableMachineColorVariation: true,
     enableMachineLOD: true,
     machineLodDistance: 80,
-    resolutionScale: 0.5, // 50% resolution - consistent default across all presets
+    resolutionScale: 0.25, // 25% resolution - consistent default across all presets
     enableTextureFiltering: true, // Full texture filtering
     anisotropyLevel: 8, // Medium anisotropic filtering
     enableAudioReactive: true, // Audio-reactive visuals enabled
@@ -264,7 +264,7 @@ const GRAPHICS_PRESETS: Record<GraphicsQuality, GraphicsSettings> = {
     enableMachineColorVariation: true,
     enableMachineLOD: true,
     machineLodDistance: 150, // Very long LOD distance for ultra
-    resolutionScale: 0.5, // 50% resolution - consistent default across all presets
+    resolutionScale: 0.25, // 25% resolution - consistent default across all presets
     enableTextureFiltering: true, // Full texture filtering
     anisotropyLevel: 16, // Maximum anisotropic filtering
     enableAudioReactive: true, // Audio-reactive visuals enabled
@@ -335,6 +335,17 @@ export const useGraphicsStore = create<GraphicsStore>()(
     {
       name: 'millos-graphics',
       storage: safeJSONStorage,
+      version: 1,
+      // v0 -> v1: the default resolutionScale dropped from 0.5 to 0.25. Bump
+      // installs still sitting on the old 0.5 default so the new default takes
+      // effect on next load; any deliberately chosen value is left untouched.
+      migrate: (persisted: unknown, version: number) => {
+        const p = persisted as { graphics?: { resolutionScale?: number } } | undefined;
+        if (version < 1 && p?.graphics && p.graphics.resolutionScale === 0.5) {
+          p.graphics.resolutionScale = 0.25;
+        }
+        return persisted as GraphicsStore;
+      },
       partialize: (state) => ({
         graphics: state.graphics,
       }),

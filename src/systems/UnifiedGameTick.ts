@@ -13,7 +13,7 @@
 import { useEffect } from 'react';
 import { centralTick, TICK_PRIORITY } from './CentralTickSystem';
 import type { TickContext } from './CentralTickSystem';
-import { useGameSimulationStore } from '../stores/gameSimulationStore';
+import { useGameSimulationStore, getShiftForHour } from '../stores/gameSimulationStore';
 import { useProductionStore, DAILY_TARGET_BAGS } from '../stores/productionStore';
 import { useQCLabStore } from '../stores/qcLabStore';
 import { useMaterialFlowStore } from '../stores/materialFlowStore';
@@ -416,6 +416,17 @@ function unifiedGameTick(ctx: TickContext): void {
       gameTime: newGameTime,
       gameDay: newGameDay,
     });
+
+    // Keep the shift in lock-step with the clock. This unified tick replaced the
+    // store's tickGameTime (which reconciled the shift inline); without this the
+    // clock advanced but currentShift stayed frozen at its load-time value, so
+    // the HUD showed e.g. "Afternoon" at 23:59. getShiftForHour derives from the
+    // final time, so a single high-speed tick spanning multiple boundaries still
+    // lands on the correct shift. setShift silently updates shiftData too.
+    const expectedShift = getShiftForHour(newGameTime);
+    if (expectedShift !== gameStore.currentShift) {
+      gameStore.setShift(expectedShift);
+    }
   }
 
   // 4b. Advance the material-flow simulation (grain -> mills -> sifters -> packers).
