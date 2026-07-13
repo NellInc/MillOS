@@ -34,19 +34,22 @@
     <meta name="theme-color" content="#0a0f1a" />
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏭</text></svg>" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="description" content="MillOS - AI-Powered Grain Mill Digital Twin Simulator. A browser-based 3D industrial simulation featuring autonomous workers, intelligent forklifts, real-time production metrics, and SCADA integration." />
+    <meta name="description" content="Explore MillOS, a browser-based 3D grain mill digital twin with autonomous workers, intelligent forklifts, real-time production metrics, and SCADA tools." />
     <meta name="author" content="Nell Watson" />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
     <meta name="keywords" content="MillOS, grain mill, digital twin, 3D simulation, SCADA, industrial automation, AI, React Three Fiber, agentic AI" />
 
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://www.millos.net/" />
     <meta property="og:title" content="MillOS | AI-Powered Grain Mill Digital Twin" />
-    <meta property="og:description" content="A browser-based 3D industrial simulation featuring autonomous workers, intelligent forklifts, real-time production metrics, and SCADA integration. An agentic AI experiment by Nell Watson." />
+    <meta property="og:description" content="Explore a browser-based 3D grain mill digital twin with autonomous workers, intelligent forklifts, real-time production metrics, and SCADA tools." />
     <meta property="og:image" content="https://www.millos.net/og-image.png" />
+    <meta property="og:image:alt" content="MillOS grain mill digital twin interface" />
     <meta property="og:image:width" content="3456" />
     <meta property="og:image:height" content="1993" />
     <meta property="og:site_name" content="MillOS" />
+    <meta property="og:locale" content="en_GB" />
 
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image" />
@@ -54,6 +57,7 @@
     <meta name="twitter:title" content="MillOS | AI-Powered Grain Mill Digital Twin" />
     <meta name="twitter:description" content="A browser-based 3D industrial simulation featuring autonomous workers, intelligent forklifts, real-time production metrics, and SCADA integration." />
     <meta name="twitter:image" content="https://www.millos.net/og-image.png" />
+    <meta name="twitter:image:alt" content="MillOS grain mill digital twin interface" />
     <meta name="twitter:creator" content="@NellWatson" />
 
     <!-- Additional SEO -->
@@ -63,27 +67,37 @@
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
-        "@type": "WebApplication",
-        "name": "MillOS",
-        "description": "AI-Powered Grain Mill Digital Twin Simulator. A browser-based 3D industrial simulation featuring autonomous workers, intelligent forklifts, real-time production metrics, and SCADA integration.",
-        "applicationCategory": "SimulationApplication",
-        "operatingSystem": "Any (Web)",
-        "browserRequirements": "Requires a WebGL-capable browser",
-        "url": "https://www.millos.net/",
-        "image": "https://www.millos.net/og-image.png",
-        "author": {
-          "@type": "Person",
-          "name": "Nell Watson"
-        }
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://www.millos.net/#website",
+            "url": "https://www.millos.net/",
+            "name": "MillOS",
+            "description": "A browser-based 3D grain mill digital twin."
+          },
+          {
+            "@type": "WebApplication",
+            "@id": "https://www.millos.net/#application",
+            "name": "MillOS",
+            "description": "A browser-based 3D grain mill digital twin with autonomous workers, intelligent forklifts, real-time production metrics, and SCADA tools.",
+            "applicationCategory": "SimulationApplication",
+            "operatingSystem": "Any",
+            "browserRequirements": "Requires a WebGL-capable browser",
+            "url": "https://www.millos.net/",
+            "image": "https://www.millos.net/og-image.png",
+            "isPartOf": { "@id": "https://www.millos.net/#website" },
+            "author": {
+              "@type": "Person",
+              "name": "Nell Watson"
+            }
+          }
+        ]
       }
     </script>
 
     <title>MillOS | Grain Mill Digital Twin</title>
     <!-- Inter + JetBrains Mono are now self-hosted (see src/fonts.css), so there
          is no Google Fonts <link> and no third-party IP transmission on load. -->
-    <!-- Preload 3D scene font for faster troika-three-text initialization -->
-    <!-- Relative path works at any base URL (/, /v0.20/, etc.) -->
-    <link rel="preload" href="fonts/MedievalSharp.ttf" as="font" type="font/ttf" crossorigin>
     <style>
       body, html { height: 100%; margin: 0; overflow: hidden; background-color: #0a0f1a; }
       #root { width: 100%; height: 100%; }
@@ -108,6 +122,7 @@
     </style>
   </head>
   <body>
+    <noscript><h1>MillOS Industrial Factory Simulation</h1></noscript>
     <div id="root">
       <div class="loading-screen">
         <div class="loading-logo">🏭</div>

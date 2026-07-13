@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://millos.net/sitemap.xml
+Sitemap: https://www.millos.net/sitemap.xml
