@@ -35,6 +35,9 @@ jobs:
 
       - name: Setup staging with v0.30 current
         run: |
+          # Vite copies public/ wholesale. Remove versioned archives before
+          # staging, because they are copied exactly once in the steps below.
+          rm -rf dist/v0.10 dist/v0.20 dist/v0.30
           mkdir -p staging/v0.30
           cp -r dist/* staging/v0.30/
 
