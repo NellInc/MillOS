@@ -16,29 +16,31 @@
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏭</text></svg>" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="description" content="MillOS - AI-Powered Grain Mill Digital Twin Simulator. A browser-based 3D industrial simulation featuring autonomous workers, intelligent forklifts, real-time production metrics, and SCADA integration." />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
     <meta name="author" content="Nell Watson" />
     <meta name="keywords" content="MillOS, grain mill, digital twin, 3D simulation, SCADA, industrial automation, AI, React Three Fiber, agentic AI" />
 
     <!-- Open Graph / Facebook -->
+    <meta property="og:locale" content="en_US" />
     <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://millos.net/" />
+    <meta property="og:url" content="https://www.millos.net/v0.30/" />
     <meta property="og:title" content="MillOS | AI-Powered Grain Mill Digital Twin" />
     <meta property="og:description" content="A browser-based 3D industrial simulation featuring autonomous workers, intelligent forklifts, real-time production metrics, and SCADA integration. An agentic AI experiment by Nell Watson." />
-    <meta property="og:image" content="https://millos.net/og-image.png" />
+    <meta property="og:image" content="https://www.millos.net/v0.30/og-image.png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta property="og:site_name" content="MillOS" />
 
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:url" content="https://millos.net/" />
+    <meta name="twitter:url" content="https://www.millos.net/v0.30/" />
     <meta name="twitter:title" content="MillOS | AI-Powered Grain Mill Digital Twin" />
     <meta name="twitter:description" content="A browser-based 3D industrial simulation featuring autonomous workers, intelligent forklifts, real-time production metrics, and SCADA integration." />
-    <meta name="twitter:image" content="https://millos.net/og-image.png" />
+    <meta name="twitter:image" content="https://www.millos.net/v0.30/og-image.png" />
     <meta name="twitter:creator" content="@NellWatson" />
 
     <!-- Additional SEO -->
-    <link rel="canonical" href="https://millos.net/" />
+    <link rel="canonical" href="https://www.millos.net/v0.30/" />
 
     <title>MillOS | Grain Mill Digital Twin</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -69,6 +71,37 @@
       .loading-bar::after { content: ''; display: block; width: 50%; height: 100%; background: linear-gradient(90deg, #f97316, #3b82f6); animation: loading 1.5s ease-in-out infinite; }
       @keyframes loading { 0% { transform: translateX(-100%); } 100% { transform: translateX(300%); } }
     </style>
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://www.millos.net/#website",
+            "url": "https://www.millos.net/",
+            "name": "MillOS",
+            "description": "A browser-based 3D grain mill digital twin."
+          },
+          {
+            "@type": "WebApplication",
+            "@id": "https://www.millos.net/#application",
+            "name": "MillOS",
+            "description": "A browser-based 3D grain mill digital twin with autonomous workers, intelligent forklifts, real-time production metrics, and SCADA tools.",
+            "applicationCategory": "SimulationApplication",
+            "operatingSystem": "Any",
+            "browserRequirements": "Requires a WebGL-capable browser",
+            "url": "https://www.millos.net/",
+            "image": "https://www.millos.net/og-image.png",
+            "isPartOf": { "@id": "https://www.millos.net/#website" },
+            "author": {
+              "@type": "Person",
+              "name": "Nell Watson"
+            }
+          }
+        ]
+      }
+    </script>
   </head>
   <body>
     <div id="root">

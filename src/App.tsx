@@ -648,6 +648,7 @@ const App: React.FC = () => {
         className="absolute inset-0 z-0"
         aria-label="3D factory visualization"
       >
+        <h1 className="sr-only">MillOS Industrial Factory Simulation</h1>
         <ErrorBoundary fallback={WebGLErrorFallback}>
           <Canvas
             key={`canvas-${canvasQuality}-${resolutionScale}`} // Force remount when quality or resolution changes

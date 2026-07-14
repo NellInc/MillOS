@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /v0.30/
+Disallow: /v0.10/
+Disallow: /v0.20/
+
+Sitemap: https://www.millos.net/sitemap.xml
