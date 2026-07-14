@@ -57,7 +57,7 @@ jobs:
         run: npm test -- --coverage --reporter=verbose || true
 
       - name: Upload coverage
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v6
         if: success()
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -85,7 +85,7 @@ jobs:
         run: npm run build
 
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: dist
           path: dist/
