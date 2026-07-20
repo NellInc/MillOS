@@ -235,3 +235,12 @@
     opacity: 1;
   }
 }
+
+/* Soft page-to-page cross-fade, matching nellwatson.com. Browsers without
+   cross-document View Transitions keep their normal navigation behaviour. */
+@view-transition { navigation: auto; }
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) { animation: none !important; }
+}
