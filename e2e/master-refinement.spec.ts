@@ -341,13 +341,14 @@ test.describe('MillOS master refinement runtime', () => {
     const acknowledgeAll = workspace.getByRole('button', { name: /Acknowledge All/ });
     await expect(acknowledgeAll).toBeVisible({ timeout: 15_000 });
     await acknowledgeAll.click();
-    await expect(acknowledgeAll).toBeHidden();
 
     await workspace.getByRole('tab', { name: 'Events', exact: true }).click();
     await workspace.getByRole('button', { name: 'Refresh', exact: true }).click();
-    await expect(workspace.getByRole('list', { name: 'SCADA alarm event timeline' })).toBeVisible({
-      timeout: 15_000,
-    });
+    const alarmTimeline = workspace.getByRole('list', { name: 'SCADA alarm event timeline' });
+    await expect(alarmTimeline).toBeVisible({ timeout: 15_000 });
+    await expect(
+      alarmTimeline.getByText('Acknowledged by Runtime verification controller').first()
+    ).toBeVisible({ timeout: 15_000 });
 
     await workspace.getByRole('tab', { name: 'Simulation Lab', exact: true }).click();
     await workspace.getByRole('button', { name: 'Clear All Faults' }).click();
