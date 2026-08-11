@@ -35,6 +35,7 @@
  *   --port=<number>       Local preview port. Default 4173.
  *   --time=<hour>         Simulation hour 0-24. Default 12.
  *   --weather=<name>      clear | cloudy | rain | storm. Default clear.
+ *   --pa=<mode>           off | focused | characterful. Default off for silent review.
  *   --duration=<seconds>  Sample seconds per scene. Default 6.
  *   --warmup=<seconds>    Warmup seconds per scene. Default 4.
  *   --perf-gate           Also run a non-art budget run on the same scenes.
@@ -105,6 +106,7 @@ if (hasFlag('help') || hasFlag('h')) {
       '  --port=<number>       Local preview port (default 4173)',
       '  --time=<hour>         0-24 (default 12)',
       '  --weather=<name>      clear | cloudy | rain | storm (default clear)',
+      '  --pa=<mode>           off | focused | characterful (default off)',
       '  --duration=<seconds>  Sample seconds per scene (default 6)',
       '  --warmup=<seconds>    Warmup seconds per scene (default 4)',
       '  --perf-gate           Also run the non-art budget gate on the same scenes',
@@ -274,6 +276,7 @@ async function main() {
     port: readArgument('port', '4173'),
     time: readArgument('time', '12'),
     weather: readArgument('weather', 'clear'),
+    pa: readArgument('pa', 'off'),
     duration: readArgument('duration', '6'),
     warmup: readArgument('warmup', '4'),
     perfGate: hasFlag('perf-gate'),
@@ -298,6 +301,7 @@ async function main() {
     `--port=${options.port}`,
     `--time=${options.time}`,
     `--weather=${options.weather}`,
+    `--pa=${options.pa}`,
     `--duration=${options.duration}`,
     `--warmup=${options.warmup}`,
     `--output=${outputDirectory}`,
@@ -325,6 +329,7 @@ async function main() {
       `--port=${options.port}`,
       `--time=${options.time}`,
       `--weather=${options.weather}`,
+      `--pa=${options.pa}`,
       `--duration=${options.duration}`,
       `--warmup=${options.warmup}`,
       `--output=${perfDirectory}`,
