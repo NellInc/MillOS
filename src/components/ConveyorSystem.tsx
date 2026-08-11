@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { useShallow } from 'zustand/react/shallow';
 import { audioManager } from '../utils/audioManager';
 import { useGraphicsStore } from '../stores/graphicsStore';
+import { useMaterialFlowStore } from '../stores/materialFlowStore';
 // Note: Production counting moved to App.tsx interval-based system (scales with gameSpeed)
 // Conveyor animation is now purely visual - no bag counting here
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
@@ -86,6 +87,25 @@ const ROLLER_SUPPORT_POSITIONS = [-10, 0, 10] as const;
 
 // Bag movement boundary (wraps from +BOUNDARY to -BOUNDARY)
 const BAG_BOUNDARY = 28;
+const NOMINAL_PACKER_FLOW_KG_PER_SECOND = 75;
+
+export const calculateVisibleBagCount = (
+  availableBagCount: number,
+  currentPackerFlowRate: number
+): number => {
+  if (
+    !Number.isFinite(availableBagCount) ||
+    !Number.isFinite(currentPackerFlowRate) ||
+    availableBagCount <= 0 ||
+    currentPackerFlowRate <= 0
+  ) {
+    return 0;
+  }
+
+  const availableBags = Math.floor(availableBagCount);
+  const flowRatio = Math.min(1, currentPackerFlowRate / NOMINAL_PACKER_FLOW_KG_PER_SECOND);
+  return Math.min(availableBags, Math.ceil(availableBags * flowRatio));
+};
 
 // === BELT SURFACE TEXTURES ==============================================
 //
@@ -1326,6 +1346,7 @@ const InstancedFlourBags: React.FC<{
   const stripesRef = useRef<THREE.InstancedMesh>(null);
   const tooltipRef = useRef<THREE.Group>(null);
   const positionsRef = useRef<number[]>(bags.map((bag) => bag.position[0]));
+  const visibleCountRef = useRef(bags.length);
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const isTabVisible = useGameSimulationStore((state) => state.isTabVisible);
   const groupPosition = useMemo(() => new THREE.Vector3(), []);
@@ -1373,8 +1394,18 @@ const InstancedFlourBags: React.FC<{
     if (bodies.instanceColor) bodies.instanceColor.needsUpdate = true;
     if (stripes.instanceColor) stripes.instanceColor.needsUpdate = true;
     writeMatrices();
+    // Measure the complete authored envelope before reducing the live draw
+    // count. Initial flow is normally zero; computing at count zero would
+    // leave restarted bags with an empty frustum-culling volume.
     bodies.computeBoundingSphere();
     stripes.computeBoundingSphere();
+    const visibleBagCount = calculateVisibleBagCount(
+      bags.length,
+      useMaterialFlowStore.getState().currentPackerFlowRate
+    );
+    bodies.count = visibleBagCount;
+    stripes.count = visibleBagCount;
+    visibleCountRef.current = visibleBagCount;
     setHoveredIndex(null);
   }, [bags, qualityColours]);
 
@@ -1388,8 +1419,23 @@ const InstancedFlourBags: React.FC<{
   }, [bags.length, hoveredIndex]);
 
   useFrame((_, delta) => {
-    if (isTabVisible && productionSpeed > 0) {
-      for (let index = 0; index < bags.length; index += 1) {
+    // These meshes represent live packer discharge, not finished-goods
+    // inventory. Drive their instance count from the conserved final-stage
+    // flow so a starved, blocked, stopped, or faulted packer cannot keep
+    // emitting phantom bags.
+    const visibleBagCount = calculateVisibleBagCount(
+      bags.length,
+      useMaterialFlowStore.getState().currentPackerFlowRate
+    );
+    if (visibleCountRef.current !== visibleBagCount) {
+      if (bodiesRef.current) bodiesRef.current.count = visibleBagCount;
+      if (stripesRef.current) stripesRef.current.count = visibleBagCount;
+      visibleCountRef.current = visibleBagCount;
+      if (hoveredIndex !== null && hoveredIndex >= visibleBagCount) setHoveredIndex(null);
+    }
+
+    if (isTabVisible && productionSpeed > 0 && visibleBagCount > 0) {
+      for (let index = 0; index < visibleBagCount; index += 1) {
         positionsRef.current[index] = advanceBagPosition(
           positionsRef.current[index],
           bags[index].speed,
