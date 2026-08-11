@@ -31,6 +31,7 @@ import {
 } from './truckbay/useTruckPhysics';
 import { OptimizedTruckVisual, TRUCK_WHEEL_RADIUS } from './truckbay/OptimizedTruckBay';
 import { getRuntimeMode } from '../runtime/runtimeMode';
+import { PROCEDURAL_TEXTURES } from '../utils/sharedMaterials';
 // Import animation system functions and TruckAnimationManager
 import {
   TruckAnimationManager,
@@ -51,6 +52,54 @@ import {
 interface TruckBayProps {
   productionSpeed: number;
 }
+
+const cloneYardTexture = (
+  source: THREE.Texture,
+  repeatX: number,
+  repeatY: number
+): THREE.Texture => {
+  const texture = source.clone();
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(repeatX, repeatY);
+  return texture;
+};
+
+const YARD_TARMAC_MAP = cloneYardTexture(PROCEDURAL_TEXTURES.tarmacColor, 18, 18);
+const YARD_TARMAC_ROUGHNESS = cloneYardTexture(PROCEDURAL_TEXTURES.tarmacRoughness, 18, 18);
+const ROAD_TARMAC_MAP = cloneYardTexture(PROCEDURAL_TEXTURES.tarmacColor, 4, 28);
+const ROAD_TARMAC_ROUGHNESS = cloneYardTexture(PROCEDURAL_TEXTURES.tarmacRoughness, 4, 28);
+const APRON_CONCRETE_MAP = cloneYardTexture(PROCEDURAL_TEXTURES.concreteColor, 6, 5);
+const APRON_CONCRETE_ROUGHNESS = cloneYardTexture(PROCEDURAL_TEXTURES.concreteRoughness, 6, 5);
+
+// The authored colour textures decode as sRGB. White material tint preserves
+// their aggregate detail instead of multiplying the logistics yard into black.
+const YARD_TARMAC_SURFACE = {
+  color: '#ffffff',
+  map: YARD_TARMAC_MAP,
+  // These aprons sit beneath the factory mass in the authored cameras. A low
+  // albedo-matched diffuse floor keeps the rough surface above display black.
+  emissive: '#ffffff',
+  emissiveMap: YARD_TARMAC_MAP,
+  emissiveIntensity: 0.1,
+  roughnessMap: YARD_TARMAC_ROUGHNESS,
+  roughness: 1,
+  metalness: 0,
+} as const;
+const ROAD_TARMAC_SURFACE = {
+  color: '#ffffff',
+  map: ROAD_TARMAC_MAP,
+  roughnessMap: ROAD_TARMAC_ROUGHNESS,
+  roughness: 1,
+  metalness: 0,
+} as const;
+const APRON_CONCRETE_SURFACE = {
+  color: '#ffffff',
+  map: APRON_CONCRETE_MAP,
+  roughnessMap: APRON_CONCRETE_ROUGHNESS,
+  roughness: 0.92,
+  metalness: 0,
+} as const;
 
 // Stable module-level work-area bounds for warehouse workers. Hoisted out of
 // the JSX so their object identity is constant across renders; passing inline
@@ -2552,12 +2601,12 @@ const RoadTunnel: React.FC<{
       {/* Road into tunnel */}
       <mesh position={[0, 0.05, -tunnelDepth / 2]} rotation={[-Math.PI / 2, 0, 0]}>
         <planeGeometry args={[roadWidth, tunnelDepth]} />
-        <meshStandardMaterial color="#1a1a1a" roughness={0.95} />
+        <meshStandardMaterial {...ROAD_TARMAC_SURFACE} />
       </mesh>
       {/* Road approach */}
       <mesh position={[0, 0.06, 10]} rotation={[-Math.PI / 2, 0, 0]}>
         <planeGeometry args={[roadWidth, 20]} />
-        <meshStandardMaterial color="#1c1c1c" roughness={0.95} />
+        <meshStandardMaterial {...ROAD_TARMAC_SURFACE} />
       </mesh>
 
       {/* Center line marking */}
@@ -3301,7 +3350,7 @@ export const TruckBay: React.FC<TruckBayProps> = ({ productionSpeed }) => {
           {/* Sunken groove floor */}
           <mesh position={[0, -0.3, 0]} receiveShadow>
             <boxGeometry args={[4.5, 0.1, 18]} />
-            <meshStandardMaterial color="#1c1c1c" roughness={0.95} />
+            <meshStandardMaterial {...YARD_TARMAC_SURFACE} />
           </mesh>
           {/* Groove side walls */}
           <mesh position={[-2.4, -0.15, 0]}>
@@ -3398,13 +3447,13 @@ export const TruckBay: React.FC<TruckBayProps> = ({ productionSpeed }) => {
         {/* Main truck yard asphalt - raised to y=0.08 to prevent z-fighting with main asphalt at y=-0.05 */}
         <mesh position={[0, 0.08, 30]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
           <planeGeometry args={[60, 60]} />
-          <meshStandardMaterial color="#1c1c1c" roughness={0.95} />
+          <meshStandardMaterial {...YARD_TARMAC_SURFACE} />
         </mesh>
 
         {/* Dock apron - raised to y=0.12 to be above truck yard asphalt */}
         <mesh position={[0, 0.12, 8]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
           <planeGeometry args={[20, 16]} />
-          <meshStandardMaterial color="#374151" roughness={0.85} />
+          <meshStandardMaterial {...APRON_CONCRETE_SURFACE} />
         </mesh>
 
         {/* Road markings - raised to y=0.16 to be above dock apron at y=0.12 */}
@@ -3528,7 +3577,7 @@ export const TruckBay: React.FC<TruckBayProps> = ({ productionSpeed }) => {
         {/* Road extension connecting truck yard to tunnel */}
         <mesh position={[20, 0.07, 115]} rotation={[-Math.PI / 2, 0, 0]}>
           <planeGeometry args={[10, 120]} />
-          <meshStandardMaterial color="#1c1c1c" roughness={0.95} />
+          <meshStandardMaterial {...ROAD_TARMAC_SURFACE} />
         </mesh>
         {/* Road center line */}
         <mesh position={[20, 0.09, 115]} rotation={[-Math.PI / 2, 0, 0]}>
@@ -3718,7 +3767,7 @@ export const TruckBay: React.FC<TruckBayProps> = ({ productionSpeed }) => {
           {/* Sunken groove floor */}
           <mesh position={[0, -0.3, 0]} receiveShadow>
             <boxGeometry args={[4.5, 0.1, 18]} />
-            <meshStandardMaterial color="#1c1c1c" roughness={0.95} />
+            <meshStandardMaterial {...YARD_TARMAC_SURFACE} />
           </mesh>
           {/* Groove side walls */}
           <mesh position={[-2.4, -0.15, 0]}>
@@ -3813,13 +3862,13 @@ export const TruckBay: React.FC<TruckBayProps> = ({ productionSpeed }) => {
         {/* Main truck yard asphalt - raised to y=0.08 to prevent z-fighting with main asphalt at y=-0.05 */}
         <mesh position={[0, 0.08, -30]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
           <planeGeometry args={[60, 60]} />
-          <meshStandardMaterial color="#1c1c1c" roughness={0.95} />
+          <meshStandardMaterial {...YARD_TARMAC_SURFACE} />
         </mesh>
 
         {/* Dock apron - raised to y=0.12 to be above truck yard asphalt */}
         <mesh position={[0, 0.12, -8]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
           <planeGeometry args={[20, 16]} />
-          <meshStandardMaterial color="#374151" roughness={0.85} />
+          <meshStandardMaterial {...APRON_CONCRETE_SURFACE} />
         </mesh>
 
         {/* Road markings - raised to y=0.16 to be above dock apron at y=0.12 */}
@@ -3943,7 +3992,7 @@ export const TruckBay: React.FC<TruckBayProps> = ({ productionSpeed }) => {
         {/* Road extension connecting truck yard to tunnel */}
         <mesh position={[-20, 0.07, -115]} rotation={[-Math.PI / 2, 0, 0]}>
           <planeGeometry args={[10, 120]} />
-          <meshStandardMaterial color="#1c1c1c" roughness={0.95} />
+          <meshStandardMaterial {...ROAD_TARMAC_SURFACE} />
         </mesh>
         {/* Road center line */}
         <mesh position={[-20, 0.09, -115]} rotation={[-Math.PI / 2, 0, 0]}>

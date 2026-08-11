@@ -4368,7 +4368,17 @@ export const StorageTank: React.FC<{
     >
       {/* Painted pressure vessel, not polished steel - see the note on
           GrainSilo about the environment probe these values assume. */}
-      <meshStandardMaterial color={color} roughness={0.55} metalness={0.18} />
+      {/* Pale dielectric paint fell below display black in the authored yard
+          camera. A bounded same-colour diffuse floor restores the body shape
+          without changing geometry or adding a local light. */}
+      <meshStandardMaterial
+        color={color}
+        emissive={color}
+        emissiveIntensity={0.18}
+        roughness={0.64}
+        metalness={0.03}
+        envMapIntensity={0.72}
+      />
     </mesh>
     {/* Support legs - 4 saddle supports */}
     {[-length / 3, length / 3].map((x, i) => (
