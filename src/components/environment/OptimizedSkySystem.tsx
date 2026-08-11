@@ -352,7 +352,7 @@ function createStarGeometry(count: number, angleOffset: number): THREE.BufferGeo
 const starGeometry = createStarGeometry(640, 0);
 const brightStarGeometry = createStarGeometry(48, 0.73);
 
-interface MountainRidgeSpec {
+export interface MountainRidgeSpec {
   radius: number;
   baseY: number;
   minHeight: number;
@@ -476,54 +476,57 @@ export function createMountainRidgeGeometry({
 }
 
 const horizonRadius = SITE_LAYOUT.world.horizonRadius;
-const farMountainGeometry = createMountainRidgeGeometry({
-  radius: horizonRadius + 58,
-  baseY: -17,
-  // THE FAR RING IS ALSO AN OCCLUDER, NOT ONLY A SILHOUETTE. The authored
-  // ground disc stops at radius 255 while this ring is camera-locked at 318, so
-  // wherever the ring's profile dips below the ground's apparent horizon the
-  // terrain BEYOND it shows through the gap - a strip of ground hanging in the
-  // sky above the mountains. The old linear fog hid that strip by saturating;
-  // exponential fog does not. Raising the valley floor lifts the ring's minimum
-  // summit from y=8.6 to y=20.7, which from the overview camera at y=74 covers
-  // ground out to 452 units - past the 413-unit far rim of the disc.
-  minHeight: 10,
-  maxHeight: 76,
-  slopeDepth: 16,
-  valleyFloor: 0.42,
-  snowLine: 0.63,
-  seed: 0.37,
-  // TRUE ALBEDO. These three arrays used to be pre-hazed blue-greys, i.e. they
-  // had aerial perspective painted into them, which is why the far ring read as
-  // a flat grey cut-out under any lighting. The haze is applied per channel at
-  // runtime now, so the geometry carries rock and snow and nothing else.
-  colors: ['#42574c', '#717a76', '#e9eff2'],
-});
-const midMountainGeometry = createMountainRidgeGeometry({
-  radius: horizonRadius + 20,
-  baseY: -20,
-  minHeight: 3,
-  maxHeight: 58,
-  slopeDepth: 23,
-  valleyFloor: 0.07,
-  snowLine: 0.77,
-  seed: 1.83,
-  colors: ['#3f5548', '#6e7873', '#eaf0f2'],
-});
-const nearHillGeometry = createMountainRidgeGeometry({
-  // Pull the green foothill inside the nominal horizon so it once again frames
-  // the playable zone. Its slope grows outward to 276, behind the city and
-  // authored landmarks, while the sky remains a genuine analytic skybox.
-  radius: horizonRadius - 12,
-  baseY: -16,
-  minHeight: 2,
-  maxHeight: 42,
-  slopeDepth: 28,
-  valleyFloor: 0.025,
-  snowLine: 1.1,
-  seed: 3.41,
-  colors: ['#334c3b', '#5c6a5b', '#93a08f'],
-});
+
+/**
+ * The v0.30 composition used a readable mountain mass at every depth: far
+ * summits began near y=30, the middle range near y=22, and the wooded foreground
+ * near y=13. Later optimization preserved all three rings but lowered the middle
+ * and near valleys below the terrain datum, so most views retained only a thin
+ * distant strip. These profiles restore the contained valley silhouette while
+ * keeping the current closed slope geometry, lighting, and camera anchoring.
+ */
+export const MOUNTAIN_ENCLOSURE_SPECS = {
+  far: {
+    radius: horizonRadius + 58,
+    baseY: -8,
+    minHeight: 18,
+    maxHeight: 76,
+    slopeDepth: 16,
+    valleyFloor: 0.34,
+    snowLine: 0.63,
+    seed: 0.37,
+    // True albedo. Aerial perspective remains a runtime material concern.
+    colors: ['#42574c', '#717a76', '#e9eff2'],
+  },
+  mid: {
+    radius: horizonRadius + 20,
+    baseY: -6,
+    minHeight: 21,
+    maxHeight: 58,
+    slopeDepth: 23,
+    valleyFloor: 0.1,
+    snowLine: 0.77,
+    seed: 1.83,
+    colors: ['#3f5548', '#6e7873', '#eaf0f2'],
+  },
+  near: {
+    // The wooded foothill begins just inside the nominal horizon and grows
+    // outward behind the city sector and authored landmarks.
+    radius: horizonRadius - 12,
+    baseY: -3,
+    minHeight: 15,
+    maxHeight: 38,
+    slopeDepth: 28,
+    valleyFloor: 0.03,
+    snowLine: 1.1,
+    seed: 3.41,
+    colors: ['#334c3b', '#5c6a5b', '#93a08f'],
+  },
+} as const satisfies Record<'far' | 'mid' | 'near', MountainRidgeSpec>;
+
+const farMountainGeometry = createMountainRidgeGeometry(MOUNTAIN_ENCLOSURE_SPECS.far);
+const midMountainGeometry = createMountainRidgeGeometry(MOUNTAIN_ENCLOSURE_SPECS.mid);
+const nearHillGeometry = createMountainRidgeGeometry(MOUNTAIN_ENCLOSURE_SPECS.near);
 
 const dayTop = new THREE.Color('#79bce6');
 const nightTop = new THREE.Color('#071426');

@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { MOUNTAIN_RIDGE_SEGMENTS, createMountainRidgeGeometry } from './OptimizedSkySystem';
+import {
+  MOUNTAIN_ENCLOSURE_SPECS,
+  MOUNTAIN_RIDGE_SEGMENTS,
+  createMountainRidgeGeometry,
+} from './OptimizedSkySystem';
 
 describe('mountain ridge geometry', () => {
   it('creates a finite, closed slope with radial depth', () => {
@@ -90,5 +94,22 @@ describe('mountain ridge geometry', () => {
     // 192 segments put a facet edge every 1.875 degrees, plainly visible as
     // straight chords along a summit at a ring radius of 280-325.
     expect(MOUNTAIN_RIDGE_SEGMENTS).toBeGreaterThanOrEqual(384);
+  });
+
+  it('keeps every enclosure layer above the terrain horizon', () => {
+    const minimumSummits = { far: 29, mid: 18, near: 12 } as const;
+
+    for (const key of ['far', 'mid', 'near'] as const) {
+      const geometry = createMountainRidgeGeometry(MOUNTAIN_ENCLOSURE_SPECS[key]);
+      const positions = geometry.getAttribute('position');
+      const summitYs: number[] = [];
+      for (let segment = 0; segment <= MOUNTAIN_RIDGE_SEGMENTS; segment += 1) {
+        summitYs.push(positions.getY(segment * 5 + 4));
+      }
+
+      expect(Math.min(...summitYs)).toBeGreaterThanOrEqual(minimumSummits[key]);
+      expect(Math.max(...summitYs) - Math.min(...summitYs)).toBeGreaterThan(20);
+      geometry.dispose();
+    }
   });
 });
