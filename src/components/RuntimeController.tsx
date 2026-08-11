@@ -217,6 +217,16 @@ export function resolveBenchmarkCamera(
   return { ...camera, target };
 }
 
+export function resolveBenchmarkGameSpeed(scene: BenchmarkScene, motionCapture: boolean): number {
+  if (!motionCapture) return 0;
+
+  // The close cameras target named workers at their declared initial
+  // positions. Advancing the simulation during warmup lets those workers walk
+  // out of a two-metre portrait frame before evidence is captured.
+  if (scene === 'personnel-close' || scene === 'personnel-feminine') return 0;
+  return 180;
+}
+
 function percentile(sortedValues: number[], fraction: number): number {
   if (sortedValues.length === 0) return 0;
   const index = Math.min(
@@ -428,7 +438,7 @@ export const RuntimeController: React.FC<RuntimeControllerProps> = ({ adaptiveEn
     useAnnouncementsStore.getState().setMode(mode.paMode);
     const game = useGameSimulationStore.getState();
     game.setGameTime(mode.gameTime);
-    game.setGameSpeed(mode.motionCapture ? 180 : 0);
+    game.setGameSpeed(resolveBenchmarkGameSpeed(mode.benchmarkScene, mode.motionCapture));
     game.setWeather(mode.weather);
 
     const benchmarkCamera = resolveBenchmarkCamera(

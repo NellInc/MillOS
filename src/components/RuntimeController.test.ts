@@ -5,6 +5,7 @@ import {
   readRuntimeMotionTelemetry,
   rendererCounterPerFrame,
   resolveBenchmarkCamera,
+  resolveBenchmarkGameSpeed,
 } from './RuntimeController';
 
 function normalizedDirection(from: Vec3Tuple, to: Vec3Tuple): Vec3Tuple {
@@ -54,6 +55,21 @@ describe('resolveBenchmarkCamera', () => {
 
     expect(dot(sunDirection, noon.sunDirection)).toBeGreaterThan(0.999);
     expect(dot(moonDirection, midnight.moonDirection)).toBeGreaterThan(0.999);
+  });
+});
+
+describe('resolveBenchmarkGameSpeed', () => {
+  it('advances ordinary motion evidence at the deterministic capture speed', () => {
+    expect(resolveBenchmarkGameSpeed('overview', true)).toBe(180);
+  });
+
+  it('holds named workers inside close evidence frames during warmup', () => {
+    expect(resolveBenchmarkGameSpeed('personnel-close', true)).toBe(0);
+    expect(resolveBenchmarkGameSpeed('personnel-feminine', true)).toBe(0);
+  });
+
+  it('keeps non-motion benchmark routes paused', () => {
+    expect(resolveBenchmarkGameSpeed('overview', false)).toBe(0);
   });
 });
 
