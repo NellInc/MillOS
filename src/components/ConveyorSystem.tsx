@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { useShallow } from 'zustand/react/shallow';
 import { audioManager } from '../utils/audioManager';
 import { useGraphicsStore } from '../stores/graphicsStore';
+import { useMaterialFlowStore } from '../stores/materialFlowStore';
 // Note: Production counting moved to App.tsx interval-based system (scales with gameSpeed)
 // Conveyor animation is now purely visual - no bag counting here
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
@@ -112,6 +113,29 @@ const ROLLER_SUPPORT_POSITIONS = [-10, 0, 10] as const;
 
 // Bag movement boundary (wraps from +BOUNDARY to -BOUNDARY)
 const BAG_BOUNDARY = 28;
+const NOMINAL_PACKER_FLOW_KG_PER_SECOND = 75;
+
+export const calculateVisibleBagCount = (
+  registeredBagCount: number,
+  currentPackerFlowRate: number
+): number => {
+  if (
+    !Number.isFinite(registeredBagCount) ||
+    !Number.isFinite(currentPackerFlowRate) ||
+    registeredBagCount <= 0 ||
+    currentPackerFlowRate <= 0
+  ) {
+    return 0;
+  }
+
+  const availableBags = Math.floor(registeredBagCount);
+  const flowRatio = THREE.MathUtils.clamp(
+    currentPackerFlowRate / NOMINAL_PACKER_FLOW_KG_PER_SECOND,
+    0,
+    1
+  );
+  return Math.min(availableBags, Math.ceil(availableBags * flowRatio));
+};
 
 // === BELT SURFACE TEXTURES ==============================================
 //
@@ -425,6 +449,14 @@ const BagAnimationManager: React.FC<{
     // Skip if no bags registered
     if (bagAnimationRegistry.size === 0) return;
 
+    // These meshes represent the live packer discharge, not finished-goods
+    // inventory. Scale their density from the conserved final-stage flow so a
+    // starved, blocked, or faulted packer cannot keep emitting phantom bags.
+    const visibleBagCount = calculateVisibleBagCount(
+      bagAnimationRegistry.size,
+      useMaterialFlowStore.getState().currentPackerFlowRate
+    );
+
     // Deliberately NOT throttled. This loop is <= 60 iterations of two float
     // ops; at a 3-frame throttle bags advanced 0.25 world units per step, which
     // is visible stepping against a belt surface that now scrolls at 60 Hz.
@@ -432,8 +464,14 @@ const BagAnimationManager: React.FC<{
     const cappedDelta = Math.min(delta, 0.1);
 
     // Update all bags in a single pass (visual only - no production counting)
+    let bagIndex = 0;
     bagAnimationRegistry.forEach((state) => {
       if (!state.ref) return;
+
+      const isFlowing = bagIndex < visibleBagCount;
+      bagIndex += 1;
+      state.ref.visible = isFlowing;
+      if (!isFlowing) return;
 
       state.currentX += state.speed * productionSpeed * cappedDelta;
 
