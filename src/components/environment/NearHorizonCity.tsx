@@ -12,7 +12,7 @@ const deterministicNoise = (index: number, channel: number): number => {
 };
 
 export const HORIZON_CITY_SEGMENTS = 96;
-export const HORIZON_CITY_BASE_RADIUS = SITE_LAYOUT.world.horizonRadius - 2;
+export const HORIZON_CITY_BASE_RADIUS = SITE_LAYOUT.world.horizonRadius + 15;
 export const HORIZON_CITY_BASE_Y = -2;
 // The same south-east skyline sector used by the v0.30 horizon ring.
 export const HORIZON_CITY_START_ANGLE = Math.PI * -0.35;

@@ -112,4 +112,10 @@ describe('mountain ridge geometry', () => {
       geometry.dispose();
     }
   });
+
+  it('preserves the v0.30 camera-relative ridge distances', () => {
+    expect(MOUNTAIN_ENCLOSURE_SPECS.far.radius).toBe(320);
+    expect(MOUNTAIN_ENCLOSURE_SPECS.mid.radius).toBe(300);
+    expect(MOUNTAIN_ENCLOSURE_SPECS.near.radius).toBe(280);
+  });
 });

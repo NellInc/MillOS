@@ -24,7 +24,8 @@ describe('horizon city silhouette', () => {
     expect(first[0]).toBe(first.at(-1));
     expect(HORIZON_CITY_START_ANGLE).toBeCloseTo(Math.PI * 1.65 - Math.PI * 2);
     expect(HORIZON_CITY_END_ANGLE).toBeCloseTo(Math.PI * 1.95 - Math.PI * 2);
-    expect(HORIZON_CITY_BASE_RADIUS).toBe(SITE_LAYOUT.world.horizonRadius - 2);
+    expect(HORIZON_CITY_BASE_RADIUS).toBe(275);
+    expect(HORIZON_CITY_BASE_RADIUS).toBe(SITE_LAYOUT.world.horizonRadius + 15);
     expect(HORIZON_CITY_BASE_RADIUS).toBeGreaterThan(200);
   });
 

@@ -478,16 +478,16 @@ export function createMountainRidgeGeometry({
 const horizonRadius = SITE_LAYOUT.world.horizonRadius;
 
 /**
- * The v0.30 composition used a readable mountain mass at every depth: far
- * summits began near y=30, the middle range near y=22, and the wooded foreground
- * near y=13. Later optimization preserved all three rings but lowered the middle
- * and near valleys below the terrain datum, so most views retained only a thin
- * distant strip. These profiles restore the contained valley silhouette while
+ * The v0.30 composition used camera-relative ridge radii of 320, 300, and 280
+ * metres, with readable mountain mass at every depth. Later optimization both
+ * lowered the valleys and pulled the middle and near rings inward, which made
+ * authored landmarks such as the castle feel crowded by the backdrop. These
+ * profiles restore the original distances and contained valley silhouette while
  * keeping the current closed slope geometry, lighting, and camera anchoring.
  */
 export const MOUNTAIN_ENCLOSURE_SPECS = {
   far: {
-    radius: horizonRadius + 58,
+    radius: horizonRadius + 60,
     baseY: -8,
     minHeight: 18,
     maxHeight: 76,
@@ -499,7 +499,7 @@ export const MOUNTAIN_ENCLOSURE_SPECS = {
     colors: ['#42574c', '#717a76', '#e9eff2'],
   },
   mid: {
-    radius: horizonRadius + 20,
+    radius: horizonRadius + 40,
     baseY: -6,
     minHeight: 21,
     maxHeight: 58,
@@ -510,9 +510,9 @@ export const MOUNTAIN_ENCLOSURE_SPECS = {
     colors: ['#3f5548', '#6e7873', '#eaf0f2'],
   },
   near: {
-    // The wooded foothill begins just inside the nominal horizon and grows
-    // outward behind the city sector and authored landmarks.
-    radius: horizonRadius - 12,
+    // Match the v0.30 wooded-foothill radius so the castle retains clear air
+    // around its silhouette instead of being swallowed by a nearby ridge.
+    radius: horizonRadius + 20,
     baseY: -3,
     minHeight: 15,
     maxHeight: 38,
