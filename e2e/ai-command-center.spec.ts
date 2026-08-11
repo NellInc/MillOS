@@ -11,32 +11,8 @@ import { test, expect, Page } from '@playwright/test';
  * and a container ai-command-center.
  */
 
-/** Dismiss the current first-run tour, with a legacy reflection fallback. */
-async function dismissOnboarding(page: Page) {
-  const currentTour = page.getByRole('region', { name: /Getting started, step \d+ of \d+/ });
-  if (await currentTour.isVisible().catch(() => false)) {
-    await currentTour.getByRole('button', { name: 'Skip tour' }).click();
-    await expect(currentTour).toBeHidden();
-    return;
-  }
-
-  // Older builds queued reflection cards, so retain a bounded compatibility path.
-  for (let i = 0; i < 5; i++) {
-    const reflection = page.getByText('AI Reflection', { exact: false });
-    if (!(await reflection.isVisible().catch(() => false))) break;
-    // The modal close button is the icon button in its header.
-    await page
-      .getByRole('button', { name: /close/i })
-      .first()
-      .click({ timeout: 2000 })
-      .catch(() => page.keyboard.press('Escape'));
-    await page.waitForTimeout(1000);
-  }
-}
-
 /** Open the AI Partner workspace via the dock and wait for its metrics to mount. */
 async function openAIPanel(page: Page) {
-  await dismissOnboarding(page);
   await page.getByRole('button', { name: 'AI Partner', exact: true }).click();
   await expect(page.getByTestId('ai-command-center')).toBeVisible({ timeout: 5000 });
   await expect(page.getByTestId('ai-cpu-value')).toBeVisible({ timeout: 5000 });
@@ -44,6 +20,16 @@ async function openAIPanel(page: Page) {
 
 test.describe('AI Partner workspace (ui-new dock)', () => {
   test.beforeEach(async ({ page }) => {
+    // This test exercises the workspace, not first-run narration. Seed the same
+    // persisted current-user state as the comprehensive runtime suite so an AI
+    // Reflection modal cannot cover the dock while Playwright dispatches clicks.
+    await page.addInitScript(() => {
+      localStorage.setItem(
+        'millos-ui',
+        JSON.stringify({ state: { hasSeenIntro: true }, version: 1 })
+      );
+      localStorage.setItem('millos-has-played', 'true');
+    });
     await page.goto('/');
     await page.waitForFunction(
       () => document.documentElement.dataset.sceneReady === 'true',
