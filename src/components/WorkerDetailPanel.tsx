@@ -1,12 +1,7 @@
 import React, { useState, useMemo, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Briefcase,
-  FlaskConical,
-  HardHat,
-  Shield,
   User,
-  Wrench,
   Star,
   TrendingUp,
   Award,
@@ -33,10 +28,10 @@ import { getWorkerStatusBgClass } from '../utils/statusColors';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 import { useWorkerMoodStore } from '../stores/workerMoodStore';
 import { useProductionStore } from '../stores/productionStore';
-import { getWorkerPortrait } from '../utils/workerPortraits';
 import { getWorkerComment } from '../stores/workerDialogueStore';
 import { FEATURE_FLAGS } from '../config/featureFlags';
 import { useKnowledgeStore } from '../stores/knowledgeStore';
+import { WorkerPresencePortrait } from './WorkerPresencePortrait';
 
 interface WorkerDetailPanelProps {
   worker: WorkerData;
@@ -273,26 +268,6 @@ const ReviewCard: React.FC<{ review: PerformanceReview }> = ({ review }) => {
   );
 };
 
-const getWorkerIcon = (role: WorkerData['role']) => {
-  const iconClass = 'w-8 h-8 text-white';
-  switch (role) {
-    case 'Supervisor':
-      return <Briefcase className={iconClass} />;
-    case 'Engineer':
-      return <Wrench className={iconClass} />;
-    case 'Operator':
-      return <HardHat className={iconClass} />;
-    case 'Safety Officer':
-      return <Shield className={iconClass} />;
-    case 'Quality Control':
-      return <FlaskConical className={iconClass} />;
-    case 'Maintenance':
-      return <Wrench className={iconClass} />;
-    default:
-      return <User className={iconClass} />;
-  }
-};
-
 export const WorkerDetailPanel: React.FC<WorkerDetailPanelProps> = ({
   worker,
   onClose,
@@ -305,9 +280,6 @@ export const WorkerDetailPanel: React.FC<WorkerDetailPanelProps> = ({
   );
   const [showTaskDropdown, setShowTaskDropdown] = useState(false);
   const panelRef = useRef<HTMLDivElement | null>(null);
-
-  // Get worker portrait
-  const portrait = useMemo(() => getWorkerPortrait(worker.id), [worker.id]);
 
   // Bilateral Alignment: Get worker mood/preferences from store
   const workerMood = useWorkerMoodStore((state) => state.workerMoods[worker.id]);
@@ -447,29 +419,32 @@ export const WorkerDetailPanel: React.FC<WorkerDetailPanelProps> = ({
               <X className="w-4 h-4" />
             </button>
           )}
-          <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-full bg-white/20 flex items-center justify-center relative overflow-hidden">
-              {portrait ? (
-                <img
-                  src={portrait}
-                  alt={worker.name}
-                  className="w-full h-full object-cover"
-                  loading="lazy"
-                />
-              ) : (
-                getWorkerIcon(worker.role)
-              )}
+          <div className="flex items-center gap-4 pr-8">
+            <div
+              className="relative h-28 w-20 flex-shrink-0 overflow-hidden rounded-lg border border-white/20 bg-slate-950/20 shadow-inner sm:h-32 sm:w-24"
+              data-testid="worker-presence-frame"
+            >
+              <div
+                className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/10 via-transparent to-slate-950/25"
+                aria-hidden="true"
+              />
+              <WorkerPresencePortrait
+                key={worker.id}
+                workerId={worker.id}
+                workerName={worker.name}
+                className="relative z-[1] drop-shadow-[0_8px_12px_rgba(15,23,42,0.45)]"
+              />
               {/* Promotion badge */}
               <div
-                className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white border-2 border-white/30"
+                className="absolute bottom-1 right-1 z-[2] flex h-6 w-6 items-center justify-center rounded-full border-2 border-white/30 text-[10px] font-bold text-white"
                 style={{ backgroundColor: promotion.color }}
                 aria-label={`${promotion.name} level`}
               >
                 {promotion.name[0]}
               </div>
             </div>
-            <div>
-              <h2 id="worker-detail-title" className="text-xl font-bold text-white">
+            <div className="min-w-0">
+              <h2 id="worker-detail-title" className="truncate text-xl font-bold text-white">
                 {worker.name}
               </h2>
               <p className="text-white/80 text-sm">
@@ -518,7 +493,11 @@ export const WorkerDetailPanel: React.FC<WorkerDetailPanelProps> = ({
         </div>
 
         {/* Scrollable Content Area */}
-        <div className="flex-1 overflow-y-auto min-h-0 bg-slate-900/30">
+        <div
+          className="flex-1 overflow-y-auto min-h-0 bg-slate-900/30"
+          tabIndex={0}
+          aria-label={`${worker.name} details content`}
+        >
           <AnimatePresence mode="wait">
             {/* Overview Tab */}
             {activeTab === 'overview' && (

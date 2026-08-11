@@ -18,6 +18,55 @@ export const WORKER_PORTRAITS: Record<string, string> = {
   w10: '/assets/workers/w10_jennifer_lee.webp',
 };
 
+export interface WorkerPresenceAssets {
+  portrait: string;
+  animation?: string;
+  rest?: string;
+}
+
+const WORKER_IDLE_PORTRAITS: Record<string, Pick<WorkerPresenceAssets, 'animation' | 'rest'>> = {
+  w1: {
+    animation: '/assets/workers/idle/w1_marcus_chen_idle.webp',
+    rest: '/assets/workers/idle/w1_marcus_chen_idle_rest.webp',
+  },
+  w2: {
+    animation: '/assets/workers/idle/w2_sarah_mitchell_idle.webp',
+    rest: '/assets/workers/idle/w2_sarah_mitchell_idle_rest.webp',
+  },
+  w3: {
+    animation: '/assets/workers/idle/w3_james_rodriguez_idle.webp',
+    rest: '/assets/workers/idle/w3_james_rodriguez_idle_rest.webp',
+  },
+  w4: {
+    animation: '/assets/workers/idle/w4_emily_ronson_idle.webp',
+    rest: '/assets/workers/idle/w4_emily_ronson_idle_rest.webp',
+  },
+  w5: {
+    animation: '/assets/workers/idle/w5_david_kim_idle.webp',
+    rest: '/assets/workers/idle/w5_david_kim_idle_rest.webp',
+  },
+  w6: {
+    animation: '/assets/workers/idle/w6_lisa_thompson_idle.webp',
+    rest: '/assets/workers/idle/w6_lisa_thompson_idle_rest.webp',
+  },
+  w7: {
+    animation: '/assets/workers/idle/w7_robert_garcia_idle.webp',
+    rest: '/assets/workers/idle/w7_robert_garcia_idle_rest.webp',
+  },
+  w8: {
+    animation: '/assets/workers/idle/w8_anna_kowalski_idle.webp',
+    rest: '/assets/workers/idle/w8_anna_kowalski_idle_rest.webp',
+  },
+  w9: {
+    animation: '/assets/workers/idle/w9_michael_brown_idle.webp',
+    rest: '/assets/workers/idle/w9_michael_brown_idle_rest.webp',
+  },
+  w10: {
+    animation: '/assets/workers/idle/w10_jennifer_lee_idle.webp',
+    rest: '/assets/workers/idle/w10_jennifer_lee_idle_rest.webp',
+  },
+};
+
 /**
  * Get the portrait path for a worker by ID
  * Returns undefined if no portrait exists
@@ -47,3 +96,12 @@ export const DEFAULT_AVATAR_DATA_URI =
 export const getWorkerPortraitOrDefault = (workerId: string): string => {
   return WORKER_PORTRAITS[workerId] ?? DEFAULT_AVATAR_DATA_URI;
 };
+
+/**
+ * Resolve the large worker-presence artwork while retaining the canonical
+ * profile portrait as the synchronous fallback.
+ */
+export const getWorkerPresenceAssets = (workerId: string): WorkerPresenceAssets => ({
+  portrait: getWorkerPortraitOrDefault(workerId),
+  ...WORKER_IDLE_PORTRAITS[workerId],
+});

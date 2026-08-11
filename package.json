@@ -31,6 +31,7 @@
     "optimize-assets": "node scripts/optimize-assets.mjs",
     "optimize-assets:dry": "node scripts/optimize-assets.mjs --dry-run",
     "validate:assets": "node scripts/validate-assets.mjs",
+    "validate:worker-portraits": "node scripts/validate-worker-idle-assets.mjs",
     "validate:depth": "node scripts/validate-depth-policy.mjs",
     "validate:shaders": "node scripts/validate-shaders.mjs",
     "validate:bundle": "node scripts/validate-bundle.mjs"

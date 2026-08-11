@@ -1,0 +1,273 @@
+{
+  "version": 1,
+  "sourceCandidate": "cast-polish-v9",
+  "provenance": "Production derivatives of the approved MillOS worker portrait animation masters. Processing is limited to a fixed crop, premultiplied-alpha resize, and WebP encoding.",
+  "sourceContract": {
+    "width": 256,
+    "height": 512,
+    "frames": 70,
+    "frameRate": 16,
+    "durationMs": 4375
+  },
+  "productionContract": {
+    "crop": {
+      "x": 24,
+      "y": 8,
+      "width": 208,
+      "height": 277,
+      "mode": "fixed across every worker and frame"
+    },
+    "width": 192,
+    "height": 256,
+    "format": "animated WebP",
+    "encoder": "img2webp 1.6.0",
+    "quality": 84,
+    "method": 4,
+    "loopCount": 1,
+    "durationMs": 4375,
+    "maxAnimationBytes": 2000000,
+    "maxRestBytes": 100000
+  },
+  "assets": [
+    {
+      "workerId": "w1",
+      "name": "Marcus Chen",
+      "sourceMaster": "w1_marcus_chen/w1_marcus_chen-cast-polish-v9.apng",
+      "sourceSha256": "a77a424bd925e96ec8445cac22ec48737aab60d9ac1b6f35fd6490bf8a3a3616",
+      "sourceFrames": 70,
+      "animation": {
+        "file": "w1_marcus_chen_idle.webp",
+        "sha256": "0d6ca86e2c7bf73f8797b3f28fa841f44bd35f109f50fcea284e34f10b691e57",
+        "bytes": 857132,
+        "width": 192,
+        "height": 256,
+        "encodedFrames": 64,
+        "durationMs": 4375,
+        "loopCount": 1
+      },
+      "rest": {
+        "file": "w1_marcus_chen_idle_rest.webp",
+        "sha256": "5aac59f764e97e79e05d7def1226169ab8aaa8695eb94bcfcf3c8e0cd1153bb4",
+        "bytes": 39926,
+        "width": 192,
+        "height": 256
+      }
+    },
+    {
+      "workerId": "w2",
+      "name": "Sarah Mitchell",
+      "sourceMaster": "w2_sarah_mitchell/w2_sarah_mitchell-cast-polish-v9.apng",
+      "sourceSha256": "2aa21e794aa54c9e5072ecda5e26a4df49805ff306098c69e66837bcd54373d5",
+      "sourceFrames": 70,
+      "animation": {
+        "file": "w2_sarah_mitchell_idle.webp",
+        "sha256": "ad54155e0f55d3973cfea3ef93922d4cc0746b0feabc6514e8c0c49befdd3532",
+        "bytes": 687204,
+        "width": 192,
+        "height": 256,
+        "encodedFrames": 67,
+        "durationMs": 4375,
+        "loopCount": 1
+      },
+      "rest": {
+        "file": "w2_sarah_mitchell_idle_rest.webp",
+        "sha256": "8c8319832d3ce38c31458237346bd63874a18f86ec07b8ed8ca1f88345fbe1ed",
+        "bytes": 33964,
+        "width": 192,
+        "height": 256
+      }
+    },
+    {
+      "workerId": "w3",
+      "name": "James Rodriguez",
+      "sourceMaster": "w3_james_rodriguez/w3_james_rodriguez-cast-polish-v9.apng",
+      "sourceSha256": "92df6563a71c75472b928088600a0c94b6825a29b0bb8b0c5a6878f7362afe72",
+      "sourceFrames": 70,
+      "animation": {
+        "file": "w3_james_rodriguez_idle.webp",
+        "sha256": "1e5d408c7f6219abb5d79afdf2f531f1fe0355972a2957256a8995513b8fe61c",
+        "bytes": 942354,
+        "width": 192,
+        "height": 256,
+        "encodedFrames": 67,
+        "durationMs": 4375,
+        "loopCount": 1
+      },
+      "rest": {
+        "file": "w3_james_rodriguez_idle_rest.webp",
+        "sha256": "12117a7db52122817e799a740501ac0fbd687b2d31d3b7a92ccaaf3e2ee87981",
+        "bytes": 44818,
+        "width": 192,
+        "height": 256
+      }
+    },
+    {
+      "workerId": "w4",
+      "name": "Emily Ronson",
+      "sourceMaster": "w4_emily_ronson/w4_emily_ronson-cast-polish-v9.apng",
+      "sourceSha256": "a5a9340aeddaecd784d4453ea14ff2a891c9432f653fecc6e66da11d72e04f6e",
+      "sourceFrames": 70,
+      "animation": {
+        "file": "w4_emily_ronson_idle.webp",
+        "sha256": "c44287792f2b070f87c2eda28eeb97b95dcba07e57a8df1638cd2fe43ed103e6",
+        "bytes": 765770,
+        "width": 192,
+        "height": 256,
+        "encodedFrames": 67,
+        "durationMs": 4375,
+        "loopCount": 1
+      },
+      "rest": {
+        "file": "w4_emily_ronson_idle_rest.webp",
+        "sha256": "0650a670a1cbf74d194e0c89b0e6522f31d79d9fb20209292f5e28710d5539b2",
+        "bytes": 38764,
+        "width": 192,
+        "height": 256
+      }
+    },
+    {
+      "workerId": "w5",
+      "name": "David Kim",
+      "sourceMaster": "w5_david_kim/w5_david_kim-cast-polish-v9.apng",
+      "sourceSha256": "3878f78d08ff5b158926f6d56bb10870d80bf3ffd01b804429a9cab84cf9bff6",
+      "sourceFrames": 70,
+      "animation": {
+        "file": "w5_david_kim_idle.webp",
+        "sha256": "fb7057d8da77af5213c9f67758ee0adeb5908a9e171f02e03591ce79751d5657",
+        "bytes": 1026596,
+        "width": 192,
+        "height": 256,
+        "encodedFrames": 67,
+        "durationMs": 4375,
+        "loopCount": 1
+      },
+      "rest": {
+        "file": "w5_david_kim_idle_rest.webp",
+        "sha256": "9e1b29b5620fb9b9f517b563caacdb28cbedc612c2f10964449150bc46beaf14",
+        "bytes": 46842,
+        "width": 192,
+        "height": 256
+      }
+    },
+    {
+      "workerId": "w6",
+      "name": "Lisa Thompson",
+      "sourceMaster": "w6_lisa_thompson/w6_lisa_thompson-cast-polish-v9.apng",
+      "sourceSha256": "d52e29e7fe5f526ee18cf0765d6e0ca35a37194459f4bb31f90ecfcec2f707e9",
+      "sourceFrames": 70,
+      "animation": {
+        "file": "w6_lisa_thompson_idle.webp",
+        "sha256": "eff3c54e8cf4ff70e2eae966751e9a166bc09a31a9ef84b0b8db7e347b77fe9d",
+        "bytes": 949022,
+        "width": 192,
+        "height": 256,
+        "encodedFrames": 67,
+        "durationMs": 4375,
+        "loopCount": 1
+      },
+      "rest": {
+        "file": "w6_lisa_thompson_idle_rest.webp",
+        "sha256": "597d612ac1e62bafb8634cccdcbb298362880b0c42e5287f5f00be03c1228c38",
+        "bytes": 40370,
+        "width": 192,
+        "height": 256
+      }
+    },
+    {
+      "workerId": "w7",
+      "name": "Robert Garcia",
+      "sourceMaster": "w7_robert_garcia/w7_robert_garcia-cast-polish-v9.apng",
+      "sourceSha256": "4cb6be80de42fc69fe8b08ee04ae4f776ca5071faaa6b3dbb4777363ef1e3a6a",
+      "sourceFrames": 70,
+      "animation": {
+        "file": "w7_robert_garcia_idle.webp",
+        "sha256": "a11cdba82cef0cdcd9ac9d8a0a728d4923b446e84833709d82563582e784de50",
+        "bytes": 980784,
+        "width": 192,
+        "height": 256,
+        "encodedFrames": 67,
+        "durationMs": 4375,
+        "loopCount": 1
+      },
+      "rest": {
+        "file": "w7_robert_garcia_idle_rest.webp",
+        "sha256": "304946177b651d8b8d8a24ee30fbb84f95e9ac8659003ca046b4ee73d3b6ed0d",
+        "bytes": 45414,
+        "width": 192,
+        "height": 256
+      }
+    },
+    {
+      "workerId": "w8",
+      "name": "Anna Kowalski",
+      "sourceMaster": "w8_anna_kowalski/w8_anna_kowalski-cast-polish-v9.apng",
+      "sourceSha256": "0f60dad7f5235a24f2fd3646e544a1b106f207d07e2f92c6b61e424e4c8355e6",
+      "sourceFrames": 70,
+      "animation": {
+        "file": "w8_anna_kowalski_idle.webp",
+        "sha256": "8bcb233757dcf46294649ca95a5dbc353dbb30e16e10b23fdd78acff62183bbe",
+        "bytes": 673984,
+        "width": 192,
+        "height": 256,
+        "encodedFrames": 67,
+        "durationMs": 4375,
+        "loopCount": 1
+      },
+      "rest": {
+        "file": "w8_anna_kowalski_idle_rest.webp",
+        "sha256": "9423d24448d66e283d8e7654ce537440cca0d2357838fba98505b7c50ee900ed",
+        "bytes": 30986,
+        "width": 192,
+        "height": 256
+      }
+    },
+    {
+      "workerId": "w9",
+      "name": "Michael Brown",
+      "sourceMaster": "w9_michael_brown/w9_michael_brown-cast-polish-v9.apng",
+      "sourceSha256": "de615e0d1a945b2cc0644516adef959ee19505fb1defc841a526f213281b097c",
+      "sourceFrames": 70,
+      "animation": {
+        "file": "w9_michael_brown_idle.webp",
+        "sha256": "e10b87d85030345ecabbf97d5b8ed9fede461c6da137a4f5b30b16533dbebf2c",
+        "bytes": 862248,
+        "width": 192,
+        "height": 256,
+        "encodedFrames": 67,
+        "durationMs": 4375,
+        "loopCount": 1
+      },
+      "rest": {
+        "file": "w9_michael_brown_idle_rest.webp",
+        "sha256": "739a2c0ce16bab3785482b40341b389302b468c041f7a7594ef8a503958c2f5d",
+        "bytes": 46076,
+        "width": 192,
+        "height": 256
+      }
+    },
+    {
+      "workerId": "w10",
+      "name": "Jennifer Lee",
+      "sourceMaster": "w10_jennifer_lee/w10_jennifer_lee-cast-polish-v9.apng",
+      "sourceSha256": "604834f4505f3b509da4fd75322d04fcc55b44348f17c92193f5ef77b1275181",
+      "sourceFrames": 70,
+      "animation": {
+        "file": "w10_jennifer_lee_idle.webp",
+        "sha256": "652b2b1f00eb561beffdbe7ef6f1b6aeed242c0f463e4f59f8597dca9b07ae78",
+        "bytes": 680044,
+        "width": 192,
+        "height": 256,
+        "encodedFrames": 67,
+        "durationMs": 4375,
+        "loopCount": 1
+      },
+      "rest": {
+        "file": "w10_jennifer_lee_idle_rest.webp",
+        "sha256": "7cfb41a11d01837f477bbcfc873ecfbf09391e340164c11eb82084a3df39948f",
+        "bytes": 35318,
+        "width": 192,
+        "height": 256
+      }
+    }
+  ]
+}
