@@ -44,6 +44,12 @@ export default defineConfig({
      * shell mount time exceed any sane timeout. Run headed locally to use
      * the real GPU; CI keeps headless and relies on the long timeouts. */
     headless: !!process.env.CI,
+
+    /* Browser-driven review and acceptance runs must stay silent even when the
+     * app exercises PA announcements, alarms, or music while Nell is away. */
+    launchOptions: {
+      args: ['--mute-audio'],
+    },
   },
 
   /* Configure projects for major browsers */
