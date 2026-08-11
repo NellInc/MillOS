@@ -1,7 +1,7 @@
 ---
 title: MillOS procedural geometry — designed silhouettes
 date: 2026-08-07
-status: four geometry commits plus the worker-presence commit are isolated on a crew-bearing candidate; exact runtime and performance verification in progress
+status: locally verified crew-bearing candidate; publication and product-line merge remain unapproved
 scope: procedural three.js geometry across the live scene, plus the Blender design harness under scripts/blender/
 branch: codex/millos-crew-presence-refinement
 verification_criteria:
@@ -127,41 +127,39 @@ protect the machine and got arithmetic for its trouble. Blender headless is
 ~2 s per render and parallelises fine; it is `npm run build`/`test` that must
 stay central.
 
-## 4. Do this first — the real gap
+## 4. Runtime gap closed locally
 
-**Pass 3 was never seen running.** Static gates are green (typecheck, lint,
-build, 99 files / 1638 tests, 0 failures) but the repo's own rule is that a
-build is not a runtime, and 67 objects changed shape without anyone loading the
-scene. This is the single highest-value next action.
+Pass 3 and the accepted worker-presence integration have now been exercised in
+the running app on a clean, crew-bearing candidate. The final silent art review
+set contains all 12 canonical review scenes:
 
-The tooling for it now exists and did not when this work was done:
-
-```bash
-npm run capture:art          # scripts/capture-art-review.mjs
-/art-loop                    # .claude/commands/art-loop.md
+```text
+test-results/art-review/crew-presence-refinement-final/
 ```
 
-plus two subagents: `visual-fidelity-judge` (grades a capture sheet against a
-rubric, PASS/FAIL) and `blind-ab-judge` (decides whether an iteration helped).
-Run the capture, judge it, and treat any regression as blocking. Watch
-specifically for:
+Manual inspection covered the four named risks: corrugated silo shadow acne,
+the large-silo fill-cap and roof-collar junction, pond-bank z-fighting, and
+worker silhouettes at medium LOD. None reproduced in the final capture. The
+same inspection found and corrected two unrelated runtime defects that static
+geometry review could not expose: near-black yard and storage-tank materials,
+and a moving personnel benchmark subject that escaped its close camera before
+capture.
 
-- shadow acne on the corrugated silo wall (single directional light, bias
-  −0.001) — explicitly flagged UNVERIFIED by the designing agent;
-- the fill-cap / roof-collar junction on the big silos;
-- z-fighting where the new pond bank crosses the water disc (`polygonOffset` was
-  rebalanced there);
-- worker silhouettes at medium LOD, where the torso was reshaped.
+The first full capture attempt also found a foreign preview server occupying
+the default review port. That process was left alone; the clean rerun used a
+dedicated port and kept PA announcements, music, and sound muted. The stable
+capture command now defaults PA announcements to off.
 
-Then measure, because nothing has been:
+The non-art benchmark gate also ran against the candidate:
 
-```bash
-npm run benchmark:runtime    # FPS, p95 frame time, renderer draw calls, DPR
+```text
+test-results/runtime-benchmarks/crew-presence-refinement-final/benchmark.json
 ```
 
-The machine bank issues 43 draw calls and 30 of them cluster onto 9 shared
-materials; `BatchedMesh` would take that to roughly 20. Nobody has shown it
-matters — measure before optimising.
+All five canonical scenes passed the 25 ms p95 budget at DPR 1.2. This removes
+the evidence basis for a speculative `BatchedMesh` rewrite. Publication and
+merging personnel back into the explicitly uncrewed product line remain human
+decisions, not consequences of this local verification.
 
 ## 5. Reconciled findings and remaining scope
 
@@ -181,8 +179,9 @@ matters — measure before optimising.
    remains in the live source.
 8. **Transitively dead geometry files:** deliberately deferred. They are a
    separate cleanup and do not enter this candidate's visual correction budget.
-9. **Runtime proof:** still open. Exact candidate art capture and performance
-   measurement remain the gate before this continuation can close.
+9. **Runtime proof:** resolved locally. The exact candidate has a silent
+   12-scene art capture, a five-scene performance report, full automated tests,
+   focused browser coverage, and all repository validators recorded below.
 
 ## 6. Standing constraints
 
@@ -202,12 +201,35 @@ matters — measure before optimising.
 
 ```bash
 npm run typecheck && npm run lint
+npm run format:check
 npm run build
 npx vitest run --pool=threads --maxWorkers=1 --testTimeout=120000 --hookTimeout=120000
-npm run validate:assets      # 4/4 pass
-npm run benchmark:runtime    # NOT YET RUN for this work
+npm run validate:assets              # 4/4 pass
+npm run validate:worker-portraits    # 10/10 worker portraits pass
+npm run validate:depth               # pass
+npm run validate:shaders             # pass
+npm run validate:bundle              # pass
+npx impeccable detect src            # no findings
+npx playwright test                   # 4/4 pass; browser audio muted by config
+npm run capture:art -- --label=crew-presence-refinement-final --set=art --port=4287 --pa=off
+npm run benchmark:runtime -- --port=4287 --pa=off --output=test-results/runtime-benchmarks/crew-presence-refinement-final
 ```
 
 Baseline note: the portrait checkpoint passed 101 files / 1645 tests with zero
-failures under the resource-stable command above. Always record failing test
-*names* before starting, and never transfer that evidence to a changed SHA.
+failures under the resource-stable command above. The candidate passes 102
+files / 1652 tests with zero failures. The seven-test increase is the intended
+coverage for conserved packer output and deterministic personnel review
+cameras. Always record failing test *names* before starting, and never transfer
+evidence to a changed SHA.
+
+## 8. Verification deviations
+
+| Observation | Conservative response | Resolution |
+|---|---|---|
+| A foreign preview occupied the default art-review port. | Did not stop or control the foreign process. | Re-ran on dedicated port 4287. |
+| Initial runtime frames showed black storage tanks and crushed yard detail. | Treated the frames as a real rendering defect rather than accepting a green build. | Ported the proven material treatment from the later product line and re-captured. |
+| The close personnel scene captured empty floor after the worker moved. | Did not hand-tune a lucky capture delay. | Froze benchmark-only game speed during close-scene warmup and added unit coverage. |
+| Art-mode telemetry was noisy in one heavy scene. | Did not use the art capture as a performance claim. | Ran the dedicated five-scene non-art benchmark; every scene passed. |
+
+Human aesthetic acceptance remains a separate gate. No push, pull request, or
+merge into the uncrewed product line is authorized by this ledger.
