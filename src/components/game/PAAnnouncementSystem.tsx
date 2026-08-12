@@ -271,6 +271,12 @@ export const PAAnnouncementSystem: React.FC = () => {
   if (!currentAnnouncement) return <>{liveRegion}</>;
   if (!captionsEnabled && !isUrgent) return <>{liveRegion}</>;
 
+  // On compact screens the emergency overlay already owns the scarce visual
+  // hierarchy with the alarm state and response instructions. Keep the live
+  // region and TTS path active, but let the duplicate PA ticker yield rather
+  // than obscure either safety surface.
+  if (isCompactLayout && safetyOverlayActive) return <>{liveRegion}</>;
+
   // Mobile: Show compact ticker
   if (isCompactLayout) {
     return (
@@ -278,11 +284,8 @@ export const PAAnnouncementSystem: React.FC = () => {
         {liveRegion}
         <div
           className="fixed top-0 left-0 right-0 z-[60] pointer-events-auto"
-          data-safety-offset={safetyOverlayActive ? 'true' : 'false'}
           style={{
-            paddingTop: safetyOverlayActive
-              ? 'max(56px, calc(env(safe-area-inset-top) + 52px))'
-              : 'max(4px, env(safe-area-inset-top))',
+            paddingTop: 'max(4px, env(safe-area-inset-top))',
           }}
         >
           <AnimatePresence mode="wait">

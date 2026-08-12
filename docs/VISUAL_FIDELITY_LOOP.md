@@ -26,8 +26,9 @@ capture records its own provenance.
 | Blender for asset design, with this repo's constraints | `scripts/blender/PROMPTS.md`, `machine_part_preview.py` |
 | Performance budgets to hold the fixes honest           | `npm run benchmark:runtime`                             |
 
-New here: the scene-set + provenance wrapper (`npm run capture:art`), the two
-judge agents, and this protocol.
+New here: the scene-set + provenance wrapper (`npm run capture:art`), the
+operational presentation capture (`npm run capture:operations`), the two judge
+agents, and this protocol.
 
 ## The bar
 
@@ -65,6 +66,32 @@ and a non-art performance run.
 - Scene sets: `art` (12, default), `full` (all 19), `quick` (4), `exterior`,
   `interior`. Lighting is a graded axis, so review at least one non-noon
   condition per round: `--time=18 --weather=cloudy`.
+
+### Operational presentation evidence
+
+The art set keeps the interface out of world-composition frames. Capture the
+HUD and operational workspaces separately:
+
+```bash
+npm run capture:operations -- --label=operations-<date> --headed
+```
+
+The default set captures desktop overview, SCADA, AI Partner, workforce,
+Bilateral Autonomy, safety controls, an active fire drill, a facility stop, and
+the cleared recovery state, plus a compact mobile fire drill. `quick`, `desktop`,
+and `safety` sets are available, or pass `--states=<comma-separated names>`.
+
+Every state uses a fresh browser context, cleared persisted state, completed
+onboarding, a fixed overview camera, blocked service workers, and the reduced
+motion accessibility setting. Playwright opens each state through the shipping
+Dock and safety controls. The manifest records the expected accessible surface,
+runtime world-integrity result, browser diagnostics, viewport, and candidate
+provenance. A stale bundle fails because the runtime must acknowledge
+`operations=on` before capture.
+
+The operational capture is presentation evidence. It does not establish a
+performance budget. Run `npm run benchmark:runtime` on the same candidate before
+calling a visual change shippable.
 
 ### 1. Judge
 
@@ -148,19 +175,15 @@ block the verdict; it is listed in Provisos, and the result is a **PROVISIONAL
 PASS**, never a PASS. A rubric item the harness cannot see would otherwise make
 PASS unreachable no matter how good the render is, which is a broken halt
 condition wearing the costume of a high bar. This escape is deliberately narrow:
-a scene set that merely *omitted* the evidence does not earn an `n/a`, or
+a scene set that merely _omitted_ the evidence does not earn an `n/a`, or
 narrowing `--scenes` would become a way to get axes excused.
 
-**Known gap — axis 7 is currently ungradeable.** Art captures render no SCADA
-overlay. `App.tsx:472` gates asset preload on `benchmark && !artMode`, so art
-mode deliberately opts back into the shipping image, but the operational-UI gate
-at `App.tsx:724` is a bare `!runtimeMode.benchmark` and suppresses the overlay
-regardless. Aligning the second gate with the first would make the HUD
-gradeable, at the cost of the overlay occluding the 3D in every scene frame —
-so the better shape is probably one dedicated HUD frame rather than HUD-on
-everywhere. Note that `scada=on|off` does not control this: it sets the graphics
-store's `enableSCADA` (the telemetry runtime), not overlay visibility, which is
-also worth checking against what `--compare-scada` believes it is measuring.
+**Axis 7 uses the dedicated operational set.** `operations=on` exposes the
+shipping interface only when a fixed benchmark camera is active. World art
+frames therefore remain unobstructed while the separate operational set makes
+HUD hierarchy, SCADA readability, safety signaling, and compact layout
+gradeable. `scada=on|off` still controls the telemetry runtime rather than
+overlay visibility.
 
 The source recipe for this loop did not terminate: "the judge kept critiquing and
 it kept going overnight, then I manually stopped it." That is what happens when
@@ -191,6 +214,7 @@ deliberately and outside a running loop.
 | Path                                      | Role                                                                                 |
 | ----------------------------------------- | ------------------------------------------------------------------------------------ |
 | `scripts/capture-art-review.mjs`          | Capture wrapper: scene sets, validation, contact sheet, manifest, optional perf gate |
+| `scripts/capture-operational-review.mjs`  | Deterministic operational UI states, desktop/mobile frames, manifest, contact sheet  |
 | `.claude/agents/visual-fidelity-judge.md` | Absolute-bar judge. Rubric, thresholds, verdict format                               |
 | `.claude/agents/blind-ab-judge.md`        | Regression judge over staged blind pairs                                             |
 | `scripts/stage-blind-ab.mjs`              | Stages two capture runs into neutral A/B pairs                                       |

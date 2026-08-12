@@ -55,7 +55,13 @@ function assignsAfterToA(scene, salt) {
 async function scenesIn(directory) {
   const entries = await readdir(directory).catch(() => []);
   return entries
-    .filter((entry) => entry.endsWith('.png') && !entry.includes('-motion-start'))
+    .filter(
+      (entry) =>
+        entry.endsWith('.png') &&
+        entry !== 'contact-sheet.png' &&
+        !entry.endsWith('-failure.png') &&
+        !entry.includes('-motion-start')
+    )
     .map((entry) => entry.replace(/\.png$/, ''));
 }
 

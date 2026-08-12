@@ -42,6 +42,12 @@ export interface RuntimeMode {
    * a screenshot review judges the image players actually see.
    */
   artMode: boolean;
+  /**
+   * Show the shipping operational interface over a fixed benchmark camera.
+   * This is deliberately restricted to benchmark mode so a public query string
+   * cannot change ordinary gameplay presentation.
+   */
+  operationalCapture: boolean;
 }
 
 const BENCHMARK_SCENES: ReadonlySet<string> = new Set<BenchmarkScene>([
@@ -126,6 +132,7 @@ export function parseRuntimeMode(search: string): RuntimeMode {
     paMode: setValue<RuntimePAMode>(params.get('pa'), PA_MODE_VALUES, 'focused'),
     motionCapture: benchmark && booleanValue(params.get('motion'), false),
     artMode: booleanValue(params.get('art'), false),
+    operationalCapture: benchmark && booleanValue(params.get('operations'), false),
   };
 }
 

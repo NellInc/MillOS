@@ -8,6 +8,7 @@ import {
   Play,
   Square,
   Activity,
+  CheckCircle2,
 } from 'lucide-react';
 import { useGameSimulationStore, useProductionStore } from '../../../stores';
 import { useShallow } from 'zustand/react/shallow';
@@ -82,6 +83,9 @@ export const SafetyPanel: React.FC = () => {
     }))
   );
   const activeSafetyEvent = safetyEvents.find((event) => event.id === activeSafetyEventId);
+  const latestClearedSafetyEvent = [...safetyEvents]
+    .reverse()
+    .find((event) => event.stage === 'cleared');
 
   const { showHeatMap, setShowHeatMap, clearHeatMap, workerCount } = useProductionStore(
     useShallow((state) => ({
@@ -214,6 +218,29 @@ export const SafetyPanel: React.FC = () => {
                 </div>
               )}
 
+              {!activeSafetyEvent && latestClearedSafetyEvent && (
+                <div
+                  className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-3"
+                  role="status"
+                  aria-label="Safety state recovered"
+                  aria-live="polite"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-emerald-100">
+                      <CheckCircle2 size={14} aria-hidden="true" />
+                      Safety state recovered
+                    </span>
+                    <span className="rounded border border-emerald-300/30 px-2 py-0.5 text-[10px] uppercase text-emerald-100">
+                      Cleared
+                    </span>
+                  </div>
+                  <p className="mt-2 text-xs text-slate-200">{latestClearedSafetyEvent.cause}</p>
+                  <p className="mt-1 text-[11px] text-emerald-100/80">
+                    {latestClearedSafetyEvent.recovery}
+                  </p>
+                </div>
+              )}
+
               {/* Drill Button */}
               <div className="bg-slate-800/50 p-3 rounded-xl border border-white/5">
                 <div className="flex justify-between items-center mb-2">
@@ -254,12 +281,14 @@ export const SafetyPanel: React.FC = () => {
               {/* E-Stop Button */}
               <button
                 type="button"
-                disabled={crisisActive}
-                aria-disabled={crisisActive}
+                disabled={crisisActive || emergencyDrillMode}
+                aria-disabled={crisisActive || emergencyDrillMode}
                 title={
                   crisisActive
                     ? 'Resolve the active crisis before clearing its interlock'
-                    : undefined
+                    : emergencyDrillMode
+                      ? 'End the active fire drill before using the emergency stop'
+                      : undefined
                 }
                 onClick={() => {
                   if (emergencyActive && !emergencyDrillMode && !crisisActive) {
@@ -271,7 +300,7 @@ export const SafetyPanel: React.FC = () => {
                   }
                 }}
                 className={`w-full py-3 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 ${
-                  crisisActive
+                  crisisActive || emergencyDrillMode
                     ? 'cursor-not-allowed border border-amber-500/50 bg-amber-900/30 text-amber-200'
                     : emergencyActive && !emergencyDrillMode
                       ? 'bg-green-600 hover:bg-green-500 text-white animate-pulse'
@@ -281,9 +310,11 @@ export const SafetyPanel: React.FC = () => {
                 <AlertTriangle size={16} />
                 {crisisActive
                   ? 'CRISIS INTERLOCK ACTIVE'
-                  : emergencyActive && !emergencyDrillMode
-                    ? 'CLEAR EMERGENCY'
-                    : 'TRIGGER EMERGENCY STOP'}
+                  : emergencyDrillMode
+                    ? 'DRILL INTERLOCK ACTIVE'
+                    : emergencyActive && !emergencyDrillMode
+                      ? 'CLEAR EMERGENCY'
+                      : 'TRIGGER EMERGENCY STOP'}
               </button>
             </div>
           </section>

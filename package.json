@@ -15,6 +15,7 @@
     "benchmark:runtime": "node scripts/run-performance-benchmark.mjs",
     "benchmark:runtime:report": "node scripts/run-performance-benchmark.mjs --report-only",
     "capture:art": "node scripts/capture-art-review.mjs",
+    "capture:operations": "node scripts/capture-operational-review.mjs",
     "review:stage-ab": "node scripts/stage-blind-ab.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.typecheck.json",
     "lint": "eslint src",

@@ -156,6 +156,7 @@ const App: React.FC = () => {
   // Mobile detection for touch controls
   const { isMobile, isCompactLayout, isLandscape } = useMobileDetection();
   const runtimeMode = getRuntimeMode();
+  const showOperationalUI = !runtimeMode.benchmark || runtimeMode.operationalCapture;
   const [deferredUIReady, setDeferredUIReady] = useState(
     () => document.documentElement.dataset.sceneReady === 'true'
   );
@@ -167,12 +168,12 @@ const App: React.FC = () => {
   }, [uiScale]);
 
   useEffect(() => {
-    if (runtimeMode.benchmark || deferredUIReady) return;
+    if (!showOperationalUI || deferredUIReady) return;
     const reveal = (): void => setDeferredUIReady(true);
     window.addEventListener('millos:first-frame', reveal, { once: true });
     if (document.documentElement.dataset.sceneReady === 'true') reveal();
     return () => window.removeEventListener('millos:first-frame', reveal);
-  }, [deferredUIReady, runtimeMode.benchmark]);
+  }, [deferredUIReady, showOperationalUI]);
 
   const [productionSpeed, setProductionSpeedLocal] = useState(0.8);
   const [showZones, setShowZones] = useState(false);
@@ -720,8 +721,8 @@ const App: React.FC = () => {
         camera presets. Arrow keys control camera in first-person mode.
       </div>
 
-      {!runtimeMode.benchmark && !deferredUIReady && <StartupInterface />}
-      {!runtimeMode.benchmark && deferredUIReady && (
+      {showOperationalUI && !deferredUIReady && <StartupInterface />}
+      {showOperationalUI && deferredUIReady && (
         <ErrorBoundary>
           <Suspense fallback={<StartupInterface />}>
             <DeferredOperationalUI

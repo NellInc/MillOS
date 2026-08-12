@@ -188,9 +188,9 @@ export const EmergencyOverlay: React.FC = () => {
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="absolute bottom-20 left-1/2 -translate-x-1/2"
+            className="absolute left-4 right-4 top-24 sm:bottom-20 sm:left-1/2 sm:right-auto sm:top-auto sm:-translate-x-1/2"
           >
-            <div className="max-w-md rounded-lg border border-slate-600 bg-slate-950/95 px-4 py-2 text-center text-xs text-slate-100 backdrop-blur-sm">
+            <div className="mx-auto max-w-md rounded-lg border border-slate-600 bg-slate-950/95 px-4 py-2 text-center text-xs text-slate-100 backdrop-blur-sm">
               {isDrill
                 ? 'Simulation only. Follow marked exits and report to the assembly point.'
                 : 'Machines and mobile equipment are stopped. Clear the interlock from Safety after the cause is resolved.'}

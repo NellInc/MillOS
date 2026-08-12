@@ -14,6 +14,7 @@ describe('parseRuntimeMode', () => {
       paMode: 'focused',
       motionCapture: false,
       artMode: false,
+      operationalCapture: false,
     });
   });
 
@@ -31,6 +32,7 @@ describe('parseRuntimeMode', () => {
       paMode: 'focused',
       motionCapture: false,
       artMode: false,
+      operationalCapture: false,
     });
   });
 
@@ -41,6 +43,12 @@ describe('parseRuntimeMode', () => {
     // Art fidelity is independent of benchmark mode so an ordinary visit can
     // reproduce exactly what a review screenshot showed.
     expect(parseRuntimeMode('?art=on').artMode).toBe(true);
+  });
+
+  it('enables operational UI capture only with a deterministic benchmark camera', () => {
+    expect(parseRuntimeMode('?benchmark=overview&operations=on').operationalCapture).toBe(true);
+    expect(parseRuntimeMode('?benchmark=overview&operations=off').operationalCapture).toBe(false);
+    expect(parseRuntimeMode('?operations=on').operationalCapture).toBe(false);
   });
 
   it('clamps numeric inputs and rejects unsupported enum values', () => {

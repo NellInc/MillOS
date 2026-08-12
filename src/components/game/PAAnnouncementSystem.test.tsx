@@ -12,6 +12,10 @@ const audioState = vi.hoisted(() => ({
   pendingSpeech: false,
 }));
 
+const layoutState = vi.hoisted(() => ({
+  compact: false,
+}));
+
 const speakAnnouncement = vi.hoisted(() =>
   vi.fn(() => {
     audioState.pendingSpeech = true;
@@ -39,7 +43,7 @@ vi.mock('./shared', () => ({
 }));
 
 vi.mock('../../hooks/useMobileDetection', () => ({
-  useMobileDetection: () => ({ isCompactLayout: false }),
+  useMobileDetection: () => ({ isCompactLayout: layoutState.compact }),
 }));
 
 vi.mock('../../hooks/useReducedMotion', () => ({
@@ -56,6 +60,7 @@ describe('PAAnnouncementSystem speech lifecycle', () => {
     audioState.muted = false;
     audioState.canSpeak = false;
     audioState.pendingSpeech = false;
+    layoutState.compact = false;
     speakAnnouncement.mockClear();
     useAnnouncementsStore.setState({
       announcements: [],
@@ -197,5 +202,31 @@ describe('PAAnnouncementSystem speech lifecycle', () => {
     const container = document.querySelector('[data-safety-offset="true"]');
     expect(container).toBeInTheDocument();
     expect(container).toHaveClass('top-20');
+  });
+
+  it('lets compact safety guidance own the visual hierarchy while retaining the live region', async () => {
+    layoutState.compact = true;
+    useGameSimulationStore.setState({ emergencyActive: true });
+    useAnnouncementsStore.getState().addAnnouncement({
+      type: 'emergency',
+      message: 'Facility stop active. Follow the emergency response instructions.',
+      priority: 4,
+      source: 'Safety system',
+      channel: 'safety',
+      tone: 'literal',
+      cooldownMs: 0,
+    });
+    render(<PAAnnouncementSystem />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000);
+    });
+
+    expect(document.querySelector('[data-safety-offset]')).not.toBeInTheDocument();
+    const liveRegion = screen.getByRole('alert');
+    expect(liveRegion).toHaveClass('sr-only');
+    expect(liveRegion).toHaveTextContent(
+      'Facility stop active. Follow the emergency response instructions.'
+    );
   });
 });
