@@ -67,12 +67,7 @@ export interface MaintenanceRecord {
 }
 
 export type WorkerIconType =
-  | 'supervisor'
-  | 'engineer'
-  | 'operator'
-  | 'safety'
-  | 'quality'
-  | 'maintenance';
+  'supervisor' | 'engineer' | 'operator' | 'safety' | 'quality' | 'maintenance';
 
 // Worker gender for pronoun usage
 export type WorkerGender = 'male' | 'female' | 'nonbinary';
@@ -123,12 +118,7 @@ export interface WorkerData {
   name: string;
   gender: WorkerGender;
   role:
-    | 'Operator'
-    | 'Engineer'
-    | 'Supervisor'
-    | 'Safety Officer'
-    | 'Quality Control'
-    | 'Maintenance';
+    'Operator' | 'Engineer' | 'Supervisor' | 'Safety Officer' | 'Quality Control' | 'Maintenance';
   icon: WorkerIconType;
   position: [number, number, number];
   speed: number;
@@ -824,12 +814,7 @@ export interface FactoryPlant {
 export interface MaintenanceTask {
   id: string;
   type:
-    | 'sweeping'
-    | 'oiling'
-    | 'lightbulb'
-    | 'plant_watering'
-    | 'spill_cleanup'
-    | 'general_tidying';
+    'sweeping' | 'oiling' | 'lightbulb' | 'plant_watering' | 'spill_cleanup' | 'general_tidying';
   position: [number, number, number];
   priority: 'low' | 'medium' | 'high';
   assignedWorkerId?: string;

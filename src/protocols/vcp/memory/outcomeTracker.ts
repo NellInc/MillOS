@@ -15,6 +15,11 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { OutcomeRecord, StateSnapshot } from '../types';
+import {
+  sanitizeOutcomeTrackerPersistence,
+  VCP_MEMORY_LIMITS,
+  type PersistedPendingDecision,
+} from './persistenceValidation';
 
 // In-memory fallback used when localStorage is unavailable (SSR, privacy mode,
 // some test runners). Declared before create(persist(...)) so it is initialized
@@ -25,16 +30,7 @@ const memoryFallback = new Map<string, unknown>();
 // PENDING DECISION TRACKING
 // =============================================================================
 
-interface PendingDecision {
-  id: string;
-  description: string;
-  expectedEffect: string;
-  expectedDimension: string;
-  expectedMagnitude: number;
-  registeredAt: number;
-  measureAfter: number; // Delay before measuring outcome
-  baselineValue: number;
-}
+type PendingDecision = PersistedPendingDecision;
 
 // =============================================================================
 // LESSON EXTRACTION
@@ -111,12 +107,17 @@ interface OutcomeTrackerState {
   clearOldOutcomes: (maxAge: number) => void;
 }
 
+type OutcomeTrackerPersisted = Pick<
+  OutcomeTrackerState,
+  'pendingDecisions' | 'outcomes' | 'defaultMeasureDelay' | 'maxOutcomes'
+>;
+
 // =============================================================================
 // STORE IMPLEMENTATION
 // =============================================================================
 
 export const useOutcomeTracker = create<OutcomeTrackerState>()(
-  persist(
+  persist<OutcomeTrackerState, [], [], OutcomeTrackerPersisted>(
     (set, get) => ({
       pendingDecisions: [],
       outcomes: [],
@@ -144,7 +145,10 @@ export const useOutcomeTracker = create<OutcomeTrackerState>()(
         };
 
         set((state) => ({
-          pendingDecisions: [...state.pendingDecisions, pending],
+          pendingDecisions: [
+            ...state.pendingDecisions.slice(-(VCP_MEMORY_LIMITS.pendingDecisions - 1)),
+            pending,
+          ],
         }));
       },
 
@@ -303,6 +307,19 @@ export const useOutcomeTracker = create<OutcomeTrackerState>()(
           webStorage.removeItem(name);
         },
       },
+      partialize: (state) => ({
+        pendingDecisions: state.pendingDecisions,
+        outcomes: state.outcomes,
+        defaultMeasureDelay: state.defaultMeasureDelay,
+        maxOutcomes: state.maxOutcomes,
+      }),
+      merge: (persisted: unknown, current) => ({
+        ...current,
+        ...sanitizeOutcomeTrackerPersistence(persisted, {
+          defaultMeasureDelay: current.defaultMeasureDelay,
+          maxOutcomes: current.maxOutcomes,
+        }),
+      }),
     }
   )
 );

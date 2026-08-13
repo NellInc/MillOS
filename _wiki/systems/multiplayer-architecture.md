@@ -3,59 +3,41 @@
 <!-- wiki:type = system -->
 <!-- wiki:scope = millos -->
 <!-- wiki:created = 2026-05-23 -->
-<!-- wiki:updated = 2026-05-23 -->
+<!-- wiki:updated = 2026-08-12 -->
 <!-- wiki:status = active -->
 
 ## Summary
 
-MillOS supports real-time co-op multiplayer via WebRTC (PeerJS). The architecture is host-authoritative with a 6-character room code system. All multiplayer logic lives in `src/multiplayer/`. State is synchronized at 20Hz (player position) and 10Hz (game state). MVP host migration is not implemented: host disconnect ends the session. (src/multiplayer/MultiplayerManager.ts; SignalingService.ts)
+MillOS multiplayer is a host-authoritative social simulation over PeerJS WebRTC data channels. The host owns shared game state, players broadcast local movement at 20 Hz, and the host sends shared-state updates at 10 Hz. (src/multiplayer/MultiplayerManager.ts:1-10; src/multiplayer/MultiplayerManager.ts:30-33)
 
-## Core Components
+## Discovery and connection
 
-All in `src/multiplayer/`:
+A host uses a predictable peer identifier built from the six-character room code; a guest identifier adds its player ID. (src/multiplayer/SignalingService.ts:45-58) The default configuration uses the public PeerJS cloud signaling service. (src/multiplayer/SignalingService.ts:25-31) A signaling disconnect triggers PeerJS reconnect while existing peer data connections may survive. (src/multiplayer/SignalingService.ts:94-107)
 
-| File | Role |
-|------|------|
-| `MultiplayerManager.ts` | Orchestrator: peer connections, broadcast, host authority, intent validation |
-| `SignalingService.ts` | PeerJS wrapper: peer discovery, ICE/SDP via free PeerJS cloud server |
-| `PeerConnection.ts` | Per-peer data channel management |
-| `PlayerInterpolation.ts` | Smooth remote player movement between state updates |
-| `HostMigration.ts` | Host disconnect handler (MVP: ends session, no migration) |
-| `types.ts` | `MultiplayerMessage`, `RemotePlayer`, `GameStateDiff`, `FullGameState`, `MachineIntent`, `PLAYER_COLORS` |
+Room codes identify a room and are not an authentication credential. This makes multiplayer unsuitable for credentials, private plant data, or safety-critical commands. [Inference from predictable identifiers and public signaling] (src/multiplayer/SignalingService.ts:25-31; src/multiplayer/SignalingService.ts:45-58)
 
-## Broadcast Frequencies
+## Authority and identity
 
-From MultiplayerManager.ts:
-- `PLAYER_UPDATE_INTERVAL = 50ms` — 20Hz player position/state
-- `STATE_SYNC_INTERVAL = 100ms` — 10Hz game state diff
-- `PING_INTERVAL = 1000ms` — 1Hz latency measurement
+MultiplayerManager owns connection orchestration, state broadcasts, and machine intent processing. (src/multiplayer/MultiplayerManager.ts:1-10; src/multiplayer/MultiplayerManager.ts:40-65) The host binds each connection to a verified player ID and overwrites identity-bearing fields from subsequent messages so peers cannot impersonate another room member through message data. (src/multiplayer/MultiplayerManager.ts:49-53) A guest accepts an authoritative connection only from its expected host peer identifier. (src/multiplayer/MultiplayerManager.ts:55-59; src/multiplayer/MultiplayerManager.ts:134-139)
 
-## Room Code System
+These controls constrain the maintained protocol, but the room still trusts its host to provide game state. They do not provide cryptographic host identity or industrial authorization. [Inference from host authority and predictable host identifier] (src/multiplayer/MultiplayerManager.ts:49-59; src/multiplayer/SignalingService.ts:52-58)
 
-6-character alphanumeric codes generated from unambiguous characters (`ABCDEFGHJKLMNPQRSTUVWXYZ23456789`). Host peer ID: `millos-<roomCode>`. Guest peer ID: `millos-<roomCode>-<playerId>`. This makes the host's peer discoverable by guests using only the room code. (SignalingService.ts:48–52; multiplayerStore.ts)
+## Message boundary
 
-## Host Authority
+Every received PeerJS payload is validated before it reaches message callbacks. (src/multiplayer/PeerConnection.ts:54-67) The discriminated-union validator bounds identifiers, vectors, machine lists, lock maps, chat, nested intent parameters, finite numbers, and timestamps across all maintained message variants. (src/multiplayer/messageValidation.ts:1-140; src/multiplayer/messageValidation.ts:142-213)
 
-Host is the single authority for `MachineIntent` validation. `setIntentHandler()` callback — called by host to process machine control intents from guests. `setGameStateProvider()` — host provides full game state to new joiners. Guests send intents; host validates and broadcasts authoritative result.
+Messages sent before a connection opens use a 256-item queue. High-frequency PLAYER_UPDATE and STATE_SYNC messages are coalesced, and capacity eviction prefers stale coalescible state before older control traffic. (src/multiplayer/PeerConnection.ts:18-25; src/multiplayer/PeerConnection.ts:121-140)
 
-## Host Migration
+## Host loss
 
-`HostMigration.ts`: MVP implementation. On host disconnect: guest calls `store.leaveRoom()`, dispatches `multiplayer:host-disconnected` CustomEvent for UI notification. Full migration (elect new host by latency, state transfer, reconnect) is documented as future work but not implemented. (HostMigration.ts:44–52)
-
-## Store Integration
-
-`src/stores/multiplayerStore.ts` (Zustand): tracks `connectionState`, `isHost`, `roomCode`, `localPlayerId`, `localPlayerName`, `localPlayerColor`, `remotePlayers` (Map), `_remotePlayersArray` (cached array). Room codes generated fresh per session; player IDs are `player_<timestamp>_<random>`.
-
-## Peer Infrastructure
-
-Uses PeerJS free public cloud server by default. For production, self-hosting recommended (`peerjs-server`). Debug level 2 in development, 0 in production. (SignalingService.ts:PEERJS_CONFIG)
+Host departure ends the session. The guest store leaves the room and dispatches a UI event explaining that the session ended. (src/multiplayer/HostDisconnect.ts:1-31) No host migration, consensus, state transfer, or split-brain recovery protocol is implemented. (src/multiplayer/HostDisconnect.ts:1-4)
 
 ## Provenance
 
-- Sources: `src/multiplayer/MultiplayerManager.ts`, `src/multiplayer/SignalingService.ts`, `src/multiplayer/HostMigration.ts`, `src/stores/multiplayerStore.ts`
-- Last verified: 2026-05-23
+- Sources consulted: src/multiplayer/MultiplayerManager.ts, src/multiplayer/SignalingService.ts, src/multiplayer/PeerConnection.ts, src/multiplayer/messageValidation.ts, src/multiplayer/HostDisconnect.ts
+- Last verified against sources: 2026-08-12
 
 ## See Also
 
-- [[millos:systems/store-architecture]] — Zustand store patterns MillOS uses
-- [[millos:systems/game-simulation]] — MachineIntent targets (what multiplayer guests control)
+- [[millos:systems/safety-audit-security-logging]] — local audit and trust boundaries
+- [[millos:systems/game-simulation]] — synchronized simulation state

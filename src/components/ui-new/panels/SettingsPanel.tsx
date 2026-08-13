@@ -546,18 +546,15 @@ export const SettingsPanel: React.FC<{
               value={graphics.graphics.enableWireframe}
               onChange={(v) => graphics.setGraphicsSetting('enableWireframe', v)}
             />
-            {/* REMOVED: "Textures Enabled" (`enableTextureFiltering`) and
-                "Procedural Textures" (`enableProceduralTextures`).
-                `enableTextureFiltering` has zero readers anywhere in the tree -
-                it was a switch wired to nothing. `enableProceduralTextures`
+            {/* REMOVED: "Procedural Textures" (`enableProceduralTextures`).
+                The setting
                 does not control procedural texture generation at all (that is
                 unconditional, through `getTexture()`); after the App.tsx
                 preloader was decoupled from it, all it still gates is two
                 conveyor detail groups that cost draw calls for geometry that is
                 either enclosed by the belt frame or illegible at 0.06 units.
                 Turning it on made the scene slower and no better, so the
-                control is gone rather than mislabelled. See the notes on both
-                keys in `graphicsStore.ts`. */}
+                control is gone rather than mislabelled. */}
             <Toggle
               label="Contact Shadows"
               icon={<Eye size={12} />}
@@ -776,12 +773,12 @@ export const SettingsPanel: React.FC<{
         title="Reset Simulation"
         tone="red"
         confirmLabel="Reset Everything"
-        message="Reset the simulation and clear all saved data? This clears saved progress, graphics settings, and your Gemini API key, then reloads. This cannot be undone."
+        message="Reset the simulation and clear all saved data? This clears saved progress and preferences, disconnects the session-only Gemini client, then reloads. This cannot be undone."
         onCancel={() => setResetConfirm(null)}
         onConfirm={() => {
           // Clear every persisted MillOS store (keys are namespaced "millos-*").
-          // This includes millos-graphics and millos-ai-config (the plaintext
-          // Gemini API key), which a full reset should remove.
+          // Gemini credentials are session-only, so the reload clears the live
+          // client while local storage removal clears preferences and progress.
           Object.keys(localStorage)
             .filter((key) => key.startsWith('millos-'))
             .forEach((key) => localStorage.removeItem(key));

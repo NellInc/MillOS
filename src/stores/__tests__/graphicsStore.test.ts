@@ -578,7 +578,7 @@ describe('GraphicsStore', () => {
     });
   });
 
-  describe('Persisted Migration (v2 -> v3 -> v4)', () => {
+  describe('Persisted Migration (v2 -> v3 -> v4 -> v5)', () => {
     // The rebuilt pipeline changes what the post-processing keys mean. Without
     // a migration, `merge` -> sanitizeGraphicsSettings and then
     // onRehydrateStorage both carry the old values forward on top of the new
@@ -590,8 +590,8 @@ describe('GraphicsStore', () => {
         graphics: Record<string, unknown>;
       };
 
-    it('is versioned past 3', () => {
-      expect(persistOptions.version).toBe(4);
+    it('is versioned past 4', () => {
+      expect(persistOptions.version).toBe(5);
     });
 
     it('resets post-processing keys to the preset and drops the retired ones', () => {
@@ -666,7 +666,7 @@ describe('GraphicsStore', () => {
       const quality: GraphicsQuality = 'ultra';
       const migrated = runMigrate(
         { graphics: { quality, enableVignette: false, enableColorGrade: false } },
-        4
+        5
       );
       expect(migrated.graphics.enableVignette).toBe(false);
       expect(migrated.graphics.enableColorGrade).toBe(false);
@@ -722,6 +722,26 @@ describe('GraphicsStore', () => {
       const settings = sanitizeGraphicsSettings(migrated.graphics);
       expect(settings.enableGrainFlow).toBe(true);
       expect(settings.dustParticleCount).toBe(GRAPHICS_PRESETS.medium.dustParticleCount);
+    });
+
+    it('drops settings whose only consumers were unreachable implementations', () => {
+      const migrated = runMigrate(
+        {
+          graphics: {
+            quality: 'medium',
+            enableWeathering: true,
+            enableMachineLOD: false,
+            machineLodDistance: 250,
+            enableTextureFiltering: false,
+          },
+        },
+        4
+      );
+
+      expect(migrated.graphics).not.toHaveProperty('enableWeathering');
+      expect(migrated.graphics).not.toHaveProperty('enableMachineLOD');
+      expect(migrated.graphics).not.toHaveProperty('machineLodDistance');
+      expect(migrated.graphics).not.toHaveProperty('enableTextureFiltering');
     });
   });
 });

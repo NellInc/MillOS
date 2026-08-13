@@ -3,7 +3,7 @@
 <!-- wiki:type = system -->
 <!-- wiki:scope = millos -->
 <!-- wiki:created = 2026-05-23 -->
-<!-- wiki:updated = 2026-05-23 -->
+<!-- wiki:updated = 2026-08-13 -->
 <!-- wiki:status = active -->
 
 ## Summary
@@ -13,6 +13,7 @@
 ## Shift System
 
 `ShiftData` interface (`src/stores/gameSimulationStore.ts`) tracks:
+
 - `currentShift`: 'morning' | 'afternoon' | 'night'
 - `shiftStartTime`, `previousShiftNotes`, `shiftIncidents` (typed by severity: low/medium/high/critical)
 - `shiftProduction`: target, actual, efficiency percentage
@@ -29,6 +30,7 @@ Severity: `CrisisSeverity` = 'low' | 'medium' | 'high' | 'critical' (`src/stores
 ## Fire Drill Evacuation
 
 State held in `DrillMetrics` (`src/stores/gameSimulationStore.ts:69-77`):
+
 ```typescript
 interface DrillMetrics {
   active: boolean;
@@ -53,14 +55,13 @@ Exit assignment uses nearest-exit logic (geometry-based); four exits at z=50, z=
 `src/systems/CentralTickSystem.ts`, `UnifiedGameTick.ts`, `CentralTickProvider.tsx` — centralized update loop that drives simulation advancement, AI behavior, and worker behavior engines.
 
 `src/systems/bas/aiBehaviorEngine.ts` — AI decision behavior driven by BAS axis settings.
-`src/systems/bas/workerBehaviorEngine.ts` — worker agent decisions.
 `src/systems/bas/stabilityCalculator.ts` — Wallace stability metrics.
 `src/systems/bas/valueCalculator.ts` — computes derived flourishing values from axis state.
 
 ## Provenance
 
 - Sources consulted: `src/stores/gameSimulationStore.ts`, `CLAUDE.md:380-440`, `src/systems/`
-- Last verified against sources: 2026-05-23
+- Last verified against sources: 2026-08-13
 
 ## See Also
 

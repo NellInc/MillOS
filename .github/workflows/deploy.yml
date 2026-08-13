@@ -18,16 +18,24 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
           cache: npm
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Resolve current release line
+        id: release_line
+        run: |
+          RELEASE_LINE=$(node -p "require('./package.json').version.split('.').slice(0, 2).join('.')")
+          echo "current=v${RELEASE_LINE}" >> "$GITHUB_OUTPUT"
 
       # Gate: never publish a broken build to production. Mirrors CI's checks so
       # a push to main that fails typecheck/lint/tests stops here instead of
@@ -36,16 +44,30 @@ jobs:
         run: |
           npm run typecheck
           npm run lint
+          npm run format:check
+          npm run check:dead-code
+          npm run validate:assets
+          npm run validate:depth
+          npm run validate:shaders
+          npm run validate:credits
+          npm run validate:docs
+          npm run validate:security
           npm test
 
-      # Build v0.30 (current) to /v0.30/ subdirectory
-      - name: Build v0.30 current
-        run: VERSION=v0.30 npm run build
+      - name: Build current release line
+        env:
+          CURRENT_VERSION: ${{ steps.release_line.outputs.current }}
+        run: VERSION="$CURRENT_VERSION" npm run build
 
-      - name: Setup staging with v0.30 current
+      - name: Validate current release bundle
+        run: npm run validate:bundle
+
+      - name: Stage current release line
+        env:
+          CURRENT_VERSION: ${{ steps.release_line.outputs.current }}
         run: |
-          mkdir -p staging/v0.30
-          cp -r dist/* staging/v0.30/
+          mkdir -p "staging/$CURRENT_VERSION"
+          cp -r dist/* "staging/$CURRENT_VERSION/"
 
       # v0.20 is pre-built in public/v0.20/ - copy to staging
       - name: Copy v0.20 to staging
@@ -57,24 +79,28 @@ jobs:
 
       # Copy music files to legacy versions for music backport
       - name: Copy music files to v0.10
-        run: cp public/*.mp3 staging/v0.10/
+        run: cp public/*.mp3 public/MUSIC_CREDITS.txt staging/v0.10/
 
       - name: Copy music files to v0.20
-        run: cp public/*.mp3 staging/v0.20/
+        run: cp public/*.mp3 public/MUSIC_CREDITS.txt staging/v0.20/
 
-      # Root redirects to v0.30 (current). The canonical URL (https://www.millos.net/)
+      # Root redirects to the current package release line. The canonical URL (https://www.millos.net/)
       # IS this page, so it must carry the full SEO/OG head — crawlers and link
       # unfurlers don't follow the meta-refresh, and a contentless redirect page
       # made social cards and search results blank.
       - name: Create root redirect
+        env:
+          CURRENT_VERSION: ${{ steps.release_line.outputs.current }}
         run: |
-          cat > staging/index.html << 'EOF'
+          cat > staging/index.html << EOF
           <!DOCTYPE html>
           <html lang="en">
           <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <meta http-equiv="refresh" content="0;url=/v0.30/">
+            <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https://www.millos.net; base-uri 'none'; form-action 'none'; upgrade-insecure-requests">
+            <meta name="referrer" content="no-referrer">
+            <meta http-equiv="refresh" content="0;url=/$CURRENT_VERSION/">
             <title>MillOS | AI-Powered Grain Mill Digital Twin</title>
             <meta name="description" content="MillOS - AI-Powered Grain Mill Digital Twin Simulator. A browser-based 3D industrial simulation featuring autonomous workers, intelligent forklifts, real-time production metrics, and SCADA integration." />
             <link rel="canonical" href="https://www.millos.net/" />
@@ -94,7 +120,7 @@ jobs:
             <meta name="twitter:creator" content="@NellWatson" />
           </head>
           <body>
-            <p>Redirecting to <a href="/v0.30/">MillOS v0.30</a>...</p>
+            <p>Redirecting to <a href="/$CURRENT_VERSION/">MillOS $CURRENT_VERSION</a>...</p>
           </body>
           </html>
           EOF
@@ -105,10 +131,10 @@ jobs:
         run: cp CNAME staging/CNAME
 
       - name: Setup Pages
-        uses: actions/configure-pages@v4
+        uses: actions/configure-pages@1f0c5cde4bc74cd7e1254d0cb4de8d49e9068c7d # v4
 
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
         with:
           path: staging
 
@@ -121,4 +147,4 @@ jobs:
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4

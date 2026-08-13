@@ -1,5 +1,10 @@
 # Components Reference
 
+> **Historical component snapshot, 2026-08-13.** This reference predates the
+> compact machine, optimized environment, and `ui-new` consolidation. Several
+> paths below no longer exist. Use the architecture map in `../README.md` and
+> inspect `src/components/MillScene.tsx` for the maintained scene graph.
+
 Reference documentation for all React components in the MillOS application.
 
 ## Table of Contents
@@ -24,6 +29,7 @@ Reference documentation for all React components in the MillOS application.
 The root application component that sets up the React Three Fiber canvas and manages top-level state.
 
 #### Responsibilities
+
 - Canvas initialization with camera and renderer settings
 - OrbitControls configuration
 - Panel state management (AI panel, machine selection, worker selection)
@@ -32,16 +38,17 @@ The root application component that sets up the React Three Fiber canvas and man
 
 #### State Variables
 
-| Variable | Type | Default | Description |
-|----------|------|---------|-------------|
-| `productionSpeed` | number | 0.8 | Production line speed multiplier (0-2) |
-| `showZones` | boolean | true | Toggle safety zone visibility |
-| `showAIPanel` | boolean | false | AI Command Center panel visibility |
-| `selectedMachine` | MachineData \| null | null | Currently selected machine |
-| `selectedWorker` | WorkerData \| null | null | Currently selected worker |
-| `audioInitialized` | boolean | false | Audio context initialization state |
+| Variable           | Type                | Default | Description                            |
+| ------------------ | ------------------- | ------- | -------------------------------------- |
+| `productionSpeed`  | number              | 0.8     | Production line speed multiplier (0-2) |
+| `showZones`        | boolean             | true    | Toggle safety zone visibility          |
+| `showAIPanel`      | boolean             | false   | AI Command Center panel visibility     |
+| `selectedMachine`  | MachineData \| null | null    | Currently selected machine             |
+| `selectedWorker`   | WorkerData \| null  | null    | Currently selected worker              |
+| `audioInitialized` | boolean             | false   | Audio context initialization state     |
 
 #### Key Features
+
 - Auto-rotation of camera when no selection is active
 - Panel open/close sound effects
 - ESC key to dismiss all panels
@@ -113,21 +120,21 @@ Renders all factory machinery with type-specific geometry and status indicators.
 
 #### Machine Types
 
-| Type | Geometry | Color | Animation |
-|------|----------|-------|-----------|
-| `SILO` | Cylinder with cones | #cbd5e1 | None |
-| `ROLLER_MILL` | Box with hopper | #3b82f6 | Y-axis vibration |
-| `PLANSIFTER` | Suspended box | #f8fafc | XZ-axis oscillation |
-| `PACKER` | Box with chute | #f59e0b | None |
+| Type          | Geometry            | Color   | Animation           |
+| ------------- | ------------------- | ------- | ------------------- |
+| `SILO`        | Cylinder with cones | #cbd5e1 | None                |
+| `ROLLER_MILL` | Box with hopper     | #3b82f6 | Y-axis vibration    |
+| `PLANSIFTER`  | Suspended box       | #f8fafc | XZ-axis oscillation |
+| `PACKER`      | Box with chute      | #f59e0b | None                |
 
 #### Status Colors
 
-| Status | Color | Emissive |
-|--------|-------|----------|
-| `running` | #22c55e (green) | Yes |
-| `idle` | #9ca3af (gray) | No |
-| `warning` | #f59e0b (amber) | Yes |
-| `critical` | #ef4444 (red) | Yes |
+| Status     | Color           | Emissive |
+| ---------- | --------------- | -------- |
+| `running`  | #22c55e (green) | Yes      |
+| `idle`     | #9ca3af (gray)  | No       |
+| `warning`  | #f59e0b (amber) | Yes      |
+| `critical` | #ef4444 (red)   | Yes      |
 
 #### Machine Sound Integration
 
@@ -172,11 +179,11 @@ useFrame((_, delta) => {
 
 #### Configuration
 
-| Property | Value |
-|----------|-------|
-| Bag Count | 60 |
-| Belt Length | 55 units |
-| Roller Count | 25 |
+| Property     | Value    |
+| ------------ | -------- |
+| Bag Count    | 60       |
+| Belt Length  | 55 units |
+| Roller Count | 25       |
 
 ---
 
@@ -192,18 +199,18 @@ Complete worker simulation system with realistic human models and behaviors.
 
 The system initializes workers from `WORKER_ROSTER` in types.ts:
 
-| ID | Name | Role | Speed | Target Machine | Color |
-|----|------|------|-------|----------------|-------|
-| w1 | Marcus Chen | Supervisor | 1.2 | rm-103 | #3b82f6 |
-| w2 | Sarah Mitchell | Engineer | 1.5 | mill-1.5 | #ffffff |
-| w3 | James Rodriguez | Operator | 1.3 | silo-0 | #f97316 |
-| w4 | Emily Ronson | Quality Control | 1.1 | packer-2 | #a855f7 |
-| w5 | David Kim | Maintenance | 1.4 | packer-0 | #eab308 |
-| w6 | Lisa Thompson | Safety Officer | 1.0 | sifter-b | #22c55e |
-| w7 | Robert Garcia | Operator | 1.2 | silo-2 | #f97316 |
-| w8 | Anna Kowalski | Engineer | 1.6 | sifter-0 | #ffffff |
-| w9 | Michael Brown | Operator | 1.3 | packer-2 | #f97316 |
-| w10 | Jennifer Lee | Quality Control | 1.2 | sifter-a | #a855f7 |
+| ID  | Name            | Role            | Speed | Target Machine | Color   |
+| --- | --------------- | --------------- | ----- | -------------- | ------- |
+| w1  | Marcus Chen     | Supervisor      | 1.2   | rm-103         | #3b82f6 |
+| w2  | Sarah Mitchell  | Engineer        | 1.5   | mill-1.5       | #ffffff |
+| w3  | James Rodriguez | Operator        | 1.3   | silo-0         | #f97316 |
+| w4  | Emily Ronson    | Quality Control | 1.1   | packer-2       | #a855f7 |
+| w5  | David Kim       | Maintenance     | 1.4   | packer-0       | #eab308 |
+| w6  | Lisa Thompson   | Safety Officer  | 1.0   | sifter-b       | #22c55e |
+| w7  | Robert Garcia   | Operator        | 1.2   | silo-2         | #f97316 |
+| w8  | Anna Kowalski   | Engineer        | 1.6   | sifter-0       | #ffffff |
+| w9  | Michael Brown   | Operator        | 1.3   | packer-2       | #f97316 |
+| w10 | Jennifer Lee    | Quality Control | 1.2   | sifter-a       | #a855f7 |
 
 Workers with `targetMachine` assignments periodically walk to their assigned machine to perform work tasks (8-20 seconds), then return to patrolling.
 
@@ -237,9 +244,9 @@ Workers respond to shift changes by walking to the nearest exit, "leaving" the f
 ```typescript
 // Entry/exit positions
 const ENTRY_POSITIONS: [number, number, number][] = [
-  [0, 0, 38],   // Front entrance
+  [0, 0, 38], // Front entrance
   [-30, 0, 38], // Left loading bay
-  [30, 0, 38],  // Right loading bay
+  [30, 0, 38], // Right loading bay
 ];
 
 // When shift change is triggered:
@@ -279,23 +286,23 @@ Autonomous forklift vehicles with safety systems.
 
 #### Forklift Configuration
 
-| ID | Operator | Speed | Path Points | Cargo |
-|----|----------|-------|-------------|-------|
-| forklift-1 | Tom | 3.0 | 4 | pallet |
-| forklift-2 | Jake | 2.5 | 4 | empty |
+| ID         | Operator | Speed | Path Points | Cargo  |
+| ---------- | -------- | ----- | ----------- | ------ |
+| forklift-1 | Tom      | 3.0   | 4           | pallet |
+| forklift-2 | Jake     | 2.5   | 4           | empty  |
 
 #### Speed Zones
 
 Areas where forklifts automatically slow down:
 
-| Zone | Position | Radius | Name |
-|------|----------|--------|------|
-| 1 | (0, 0) | 6 | Central Intersection |
-| 2 | (0, 15) | 5 | North Loading |
-| 3 | (0, -15) | 5 | South Loading |
-| 4 | (-20, -6) | 4 | Milling Area West |
-| 5 | (20, -6) | 4 | Milling Area East |
-| 6 | (0, 20) | 5 | Packing Zone |
+| Zone | Position  | Radius | Name                 |
+| ---- | --------- | ------ | -------------------- |
+| 1    | (0, 0)    | 6      | Central Intersection |
+| 2    | (0, 15)   | 5      | North Loading        |
+| 3    | (0, -15)  | 5      | South Loading        |
+| 4    | (-20, -6) | 4      | Milling Area West    |
+| 5    | (20, -6)  | 4      | Milling Area East    |
+| 6    | (0, 20)   | 5      | Packing Zone         |
 
 #### Safety Features
 
@@ -309,9 +316,7 @@ Areas where forklifts automatically slow down:
 #### Collision Detection
 
 ```typescript
-const isSafeToMove = pathClear &&
-                     workersNearby.length === 0 &&
-                     forkliftsNearby.length === 0;
+const isSafeToMove = pathClear && workersNearby.length === 0 && forkliftsNearby.length === 0;
 ```
 
 ---
@@ -336,14 +341,14 @@ Factory environment including lighting, walls, and time-of-day effects.
 
 Time-responsive window lighting based on 24-hour game clock:
 
-| Time Period | Hours | Color | Intensity |
-|-------------|-------|-------|-----------|
-| Night | 20:00-05:00 | #1e3a5f | 0.1 |
-| Dawn | 05:00-07:00 | #f97316 | 0.2-0.5 |
-| Morning | 07:00-10:00 | #fbbf24 | 0.5-0.8 |
-| Midday | 10:00-16:00 | #7dd3fc | 0.8 |
-| Afternoon | 16:00-18:00 | #fbbf24 | 0.5-0.7 |
-| Dusk | 18:00-20:00 | #f97316 | 0.2-0.5 |
+| Time Period | Hours       | Color   | Intensity |
+| ----------- | ----------- | ------- | --------- |
+| Night       | 20:00-05:00 | #1e3a5f | 0.1       |
+| Dawn        | 05:00-07:00 | #f97316 | 0.2-0.5   |
+| Morning     | 07:00-10:00 | #fbbf24 | 0.5-0.8   |
+| Midday      | 10:00-16:00 | #7dd3fc | 0.8       |
+| Afternoon   | 16:00-18:00 | #fbbf24 | 0.5-0.7   |
+| Dusk        | 18:00-20:00 | #f97316 | 0.2-0.5   |
 
 #### Factory Structure
 
@@ -389,12 +394,12 @@ Main control panel and information display.
 
 #### Time Speed Options
 
-| Speed | Label | Display |
-|-------|-------|---------|
-| 0 | Paused | II |
-| 1 | 1x | 1x |
-| 60 | 60x | 60x |
-| 300 | 300x | 5m/s |
+| Speed | Label  | Display |
+| ----- | ------ | ------- |
+| 0     | Paused | II      |
+| 1     | 1x     | 1x      |
+| 60    | 60x    | 60x     |
+| 300   | 300x   | 5m/s    |
 
 ---
 
@@ -406,21 +411,21 @@ Slide-out panel showing AI decisions and system status.
 
 #### System Metrics
 
-| Metric | Range | Color |
-|--------|-------|-------|
-| CPU | 15-35% | Cyan |
-| Memory | 40-55% | Green |
+| Metric    | Range      | Color  |
+| --------- | ---------- | ------ |
+| CPU       | 15-35%     | Cyan   |
+| Memory    | 40-55%     | Green  |
 | Decisions | Cumulative | Purple |
 
 #### Decision Types
 
-| Type | Icon | Color Gradient |
-|------|------|----------------|
-| assignment | User | blue |
-| optimization | Zap | green |
-| prediction | Eye | purple |
-| maintenance | Wrench | yellow |
-| safety | Shield | red |
+| Type         | Icon   | Color Gradient |
+| ------------ | ------ | -------------- |
+| assignment   | User   | blue           |
+| optimization | Zap    | green          |
+| prediction   | Eye    | purple         |
+| maintenance  | Wrench | yellow         |
+| safety       | Shield | red            |
 
 ---
 
@@ -432,13 +437,13 @@ Toast notification system for factory events.
 
 #### Alert Types
 
-| Type | Icon | Background | Border |
-|------|------|------------|--------|
-| critical | Siren | red-950 | red-500 |
-| warning | AlertTriangle | yellow-950 | yellow-500 |
-| success | CheckCircle | green-950 | green-500 |
-| safety | Shield | emerald-950 | emerald-500 |
-| info | Info | blue-950 | blue-500 |
+| Type     | Icon          | Background  | Border      |
+| -------- | ------------- | ----------- | ----------- |
+| critical | Siren         | red-950     | red-500     |
+| warning  | AlertTriangle | yellow-950  | yellow-500  |
+| success  | CheckCircle   | green-950   | green-500   |
+| safety   | Shield        | emerald-950 | emerald-500 |
+| info     | Info          | blue-950    | blue-500    |
 
 ---
 
@@ -450,14 +455,14 @@ Real-time production KPIs and safety metrics.
 
 #### Displayed Metrics
 
-| Metric | Unit | Color |
-|--------|------|-------|
-| Throughput | t/hr | White |
-| Efficiency | % | Green |
-| Quality | % | Purple |
-| Bags/min | count | Orange |
-| Uptime | % | Blue |
-| Energy Usage | kWh | Yellow |
+| Metric       | Unit  | Color  |
+| ------------ | ----- | ------ |
+| Throughput   | t/hr  | White  |
+| Efficiency   | %     | Green  |
+| Quality      | %     | Purple |
+| Bags/min     | count | Orange |
+| Uptime       | %     | Blue   |
+| Energy Usage | kWh   | Yellow |
 
 #### Safety Dashboard
 

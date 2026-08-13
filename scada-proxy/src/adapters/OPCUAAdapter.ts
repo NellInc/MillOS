@@ -12,8 +12,12 @@ import {
   DataValue,
   AttributeIds,
   StatusCodes,
+  type StatusCode,
   Variant,
-  DataType
+  DataType,
+  MessageSecurityMode,
+  SecurityPolicy,
+  UserTokenType,
 } from 'node-opcua-client';
 
 interface TagValue {
@@ -30,6 +34,16 @@ interface ConnectionStatus {
   reconnectAttempts: number;
 }
 
+export type TagDataType = 'FLOAT32' | 'INT16' | 'INT32' | 'BOOL' | 'STRING';
+
+const OPCUA_DATA_TYPES: Record<TagDataType, DataType> = {
+  FLOAT32: DataType.Float,
+  INT16: DataType.Int16,
+  INT32: DataType.Int32,
+  BOOL: DataType.Boolean,
+  STRING: DataType.String,
+};
+
 export class OPCUAAdapter {
   private endpoint: string;
   private client: OPCUAClient | null = null;
@@ -41,8 +55,12 @@ export class OPCUAAdapter {
 
   // Map tagId to OPC-UA NodeId
   private tagNodeMap = new Map<string, string>();
+  private tagTypeMap = new Map<string, DataType>();
 
   constructor(endpoint: string) {
+    if (!endpoint.startsWith('opc.tcp://')) {
+      throw new Error('OPC-UA endpoint must use the opc.tcp:// scheme');
+    }
     this.endpoint = endpoint;
   }
 
@@ -59,10 +77,15 @@ export class OPCUAAdapter {
     // - Data tampering during transmission
     const isDev = process.env.NODE_ENV === 'development';
 
-    // Security modes: 1=None, 2=Sign, 3=SignAndEncrypt
-    // Security policies: None, Basic128Rsa15, Basic256, Basic256Sha256
-    const securityMode = isDev ? 1 : 3;
-    const securityPolicy = isDev ? 'None' : 'Basic256Sha256';
+    const securityMode = isDev ? MessageSecurityMode.None : MessageSecurityMode.SignAndEncrypt;
+    const securityPolicy = isDev ? SecurityPolicy.None : SecurityPolicy.Basic256Sha256;
+    const certificateFile = process.env.OPCUA_CLIENT_CERTIFICATE_FILE;
+    const privateKeyFile = process.env.OPCUA_CLIENT_PRIVATE_KEY_FILE;
+    if (Boolean(certificateFile) !== Boolean(privateKeyFile)) {
+      throw new Error(
+        'OPCUA_CLIENT_CERTIFICATE_FILE and OPCUA_CLIENT_PRIVATE_KEY_FILE must be configured together'
+      );
+    }
 
     if (isDev) {
       console.warn('[OPCUAAdapter] WARNING: Running with NO security (development mode)');
@@ -74,15 +97,28 @@ export class OPCUAAdapter {
       connectionStrategy: {
         initialDelay: 1000,
         maxRetry: 5,
-        maxDelay: 10000
+        maxDelay: 10000,
       },
-      securityMode, // 1=None (dev only), 3=SignAndEncrypt (production)
-      securityPolicy // 'None' (dev only), 'Basic256Sha256' (production)
+      securityMode,
+      securityPolicy,
+      ...(certificateFile && privateKeyFile ? { certificateFile, privateKeyFile } : {}),
     });
 
     try {
       await this.client.connect(this.endpoint);
-      this.session = await this.client.createSession();
+      const username = process.env.OPCUA_USERNAME;
+      const password = process.env.OPCUA_PASSWORD;
+      if (Boolean(username) !== Boolean(password)) {
+        throw new Error('OPCUA_USERNAME and OPCUA_PASSWORD must be configured together');
+      }
+      this.session =
+        username && password
+          ? await this.client.createSession({
+              type: UserTokenType.UserName,
+              userName: username,
+              password,
+            })
+          : await this.client.createSession();
       this.connected = true;
       this.reconnectAttempts = 0;
       this.lastError = undefined;
@@ -133,15 +169,16 @@ export class OPCUAAdapter {
       connected: this.connected,
       endpoint: this.endpoint,
       lastError: this.lastError,
-      reconnectAttempts: this.reconnectAttempts
+      reconnectAttempts: this.reconnectAttempts,
     };
   }
 
   /**
    * Register tag to NodeId mapping
    */
-  registerTag(tagId: string, nodeId: string): void {
+  registerTag(tagId: string, nodeId: string, dataType?: TagDataType): void {
     this.tagNodeMap.set(tagId, nodeId);
+    if (dataType) this.tagTypeMap.set(tagId, OPCUA_DATA_TYPES[dataType]);
   }
 
   /**
@@ -165,7 +202,7 @@ export class OPCUAAdapter {
       const dataValues = await this.session.read(
         nodeIds.map((nodeId) => ({
           nodeId,
-          attributeId: AttributeIds.Value
+          attributeId: AttributeIds.Value,
         }))
       );
 
@@ -173,7 +210,7 @@ export class OPCUAAdapter {
         tagId: tagIds[i],
         value: this.extractValue(dv),
         quality: this.mapStatusCode(dv.statusCode),
-        timestamp: dv.sourceTimestamp?.getTime() ?? Date.now()
+        timestamp: dv.sourceTimestamp?.getTime() ?? Date.now(),
       }));
     } catch (err) {
       console.error('[OPCUAAdapter] Read error:', err);
@@ -198,10 +235,10 @@ export class OPCUAAdapter {
         attributeId: AttributeIds.Value,
         value: {
           value: new Variant({
-            dataType: this.inferDataType(value),
-            value
-          })
-        }
+            dataType: this.tagTypeMap.get(tagId) ?? this.inferDataType(value),
+            value,
+          }),
+        },
       });
 
       return statusCode.isGood();
@@ -229,7 +266,7 @@ export class OPCUAAdapter {
       requestedMaxKeepAliveCount: 10,
       maxNotificationsPerPublish: 100,
       publishingEnabled: true,
-      priority: 10
+      priority: 10,
     });
 
     // Log subscription lifecycle events
@@ -247,11 +284,7 @@ export class OPCUAAdapter {
       );
 
       monitoredItem.on('changed', (dataValue: DataValue) => {
-        callback(
-          tagId,
-          this.extractValue(dataValue),
-          this.mapStatusCode(dataValue.statusCode)
-        );
+        callback(tagId, this.extractValue(dataValue), this.mapStatusCode(dataValue.statusCode));
       });
     }
 
@@ -271,7 +304,7 @@ export class OPCUAAdapter {
   /**
    * Map OPC-UA StatusCode to quality string
    */
-  private mapStatusCode(statusCode: any): string {
+  private mapStatusCode(statusCode: StatusCode | null | undefined): string {
     if (!statusCode) return 'BAD';
 
     if (statusCode.equals(StatusCodes.Good)) {

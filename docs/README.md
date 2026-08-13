@@ -1,92 +1,41 @@
 # MillOS Documentation
 
-Welcome to the MillOS Digital Twin Simulator documentation. This directory contains complete documentation for the AI-powered grain mill digital twin with industrial SCADA integration.
+This directory contains maintained operational guidance, subsystem references,
+research specifications, historical audits, and continuation records. A dated
+historical banner means the document preserves evidence and should not be used
+as a current source map.
 
-## Documentation Index
+## Maintained guidance
 
-| Document | Description |
-|----------|-------------|
-| [Architecture Overview](./architecture.md) | System architecture, tech stack, and design patterns |
-| [Components Reference](./components.md) | Detailed reference for all React components |
-| [State Management](./state-management.md) | Zustand store structure and data flow |
-| [3D Scene System](./3d-scene.md) | Three.js/R3F scene composition and rendering |
-| [SCADA Integration](../SCADA_PLAN.md) | Full SCADA system with protocol adapters, alarms, and history |
-| [Audio System](./audio-system.md) | Web Audio API implementation for factory sounds |
-| [Safety System](./safety-system.md) | Collision avoidance and safety metrics |
-| [AI Integration](./ai-integration.md) | AI Command Center and decision simulation |
-| [Development Guide](./development.md) | Setup, development workflow, and conventions |
-| [Deployment Guide](./deployment.md) | Build process and production deployment |
+| Document                                          | Purpose                                                              |
+| ------------------------------------------------- | -------------------------------------------------------------------- |
+| [Repository README](../README.md)                 | Product overview, current architecture, setup, and controls          |
+| [Architecture](./architecture.md)                 | High-level application and protocol boundaries                       |
+| [Development](./development.md)                   | Supported Node versions, local workflow, conventions, and validation |
+| [Deployment](./deployment.md)                     | Static application and optional SCADA proxy deployment               |
+| [Multiplayer](./multiplayer.md)                   | Current host-authoritative PeerJS trust model                        |
+| [AI integration](./ai-integration.md)             | Session-only Gemini key and local fallback behavior                  |
+| [Visual fidelity loop](./VISUAL_FIDELITY_LOOP.md) | Candidate-bound art and operational capture workflow                 |
+| [Security policy](../SECURITY.md)                 | Reporting, supported surfaces, and industrial boundary               |
+| [SCADA proxy README](../scada-proxy/README.md)    | Proxy configuration and local operation                              |
 
-## Quick Links
+## Historical and design references
 
-- **Main Entry:** `src/App.tsx`
-- **State Store:** `src/store.ts`
-- **Type Definitions:** `src/types.ts`
-- **3D Scene:** `src/components/MillScene.tsx`
-- **SCADA Service:** `src/scada/SCADAService.ts`
-- **SCADA Panel:** `src/components/SCADAPanel.tsx`
+The component, 3D scene, audio, safety, state-management, GPU-resource, SCADA
+plan, audit, migration, and refactoring documents record earlier designs or
+point-in-time evidence. Their banners and dates define their authority. The
+current source tree and the exhaustive improvement ledgers under
+`../_contprompts/` take precedence when a historical file disagrees.
 
-## Project Structure
+## Current entry points
 
-```
-src/
-├── App.tsx                 # Root component with Canvas setup
-├── main.tsx                # Application entry point
-├── store.ts                # Zustand global state store
-├── types.ts                # TypeScript interfaces and types
-├── index.css               # Global styles (Tailwind)
-│
-├── components/             # React components
-│   ├── MillScene.tsx       # Main 3D scene composition
-│   ├── Machines.tsx        # Machine rendering (silos, mills, etc.)
-│   ├── WorkerSystem.tsx    # Worker avatars and animations
-│   ├── ForkliftSystem.tsx  # Forklift vehicles and safety
-│   ├── ConveyorSystem.tsx  # Conveyor belts and product flow
-│   ├── UIOverlay.tsx       # Main UI control panel
-│   ├── AICommandCenter.tsx # AI decisions slide-out panel
-│   ├── SCADAPanel.tsx      # SCADA monitor with 5 tabs
-│   ├── AlertSystem.tsx     # Toast notifications
-│   └── ...                 # Additional components
-│
-├── scada/                  # SCADA Integration Layer
-│   ├── types.ts            # TypeScript interfaces
-│   ├── tagDatabase.ts      # 90 process tags (ISA-5.1 naming)
-│   ├── AlarmManager.ts     # ISA-18.2 alarm state machine
-│   ├── HistoryStore.ts     # IndexedDB with 24h retention
-│   ├── SCADAService.ts     # Main orchestration service
-│   ├── SCADABridge.ts      # SCADA-to-3D visual mapping
-│   ├── useSCADA.ts         # React hooks
-│   ├── useSCADAVisuals.ts  # 3D visualization hooks
-│   └── adapters/           # Protocol adapters
-│       ├── SimulationAdapter.ts
-│       ├── RESTAdapter.ts
-│       ├── MQTTAdapter.ts
-│       └── WebSocketAdapter.ts
-│
-├── hooks/                  # Reusable React Hooks
-│   ├── useKeyboardShortcuts.ts
-│   ├── useProceduralTextures.ts
-│   └── useDisposable.ts
-│
-├── utils/                  # Utility modules
-│   ├── audioManager.ts     # Web Audio API sound system
-│   ├── positionRegistry.ts # Entity position tracking
-│   └── frameThrottle.ts    # Performance throttling
-│
-└── test/                   # Test suite
-    └── setup.ts            # Vitest configuration
+- Application: `src/App.tsx`
+- Authored scene: `src/components/MillScene.tsx`
+- Operational UI: `src/components/DeferredOperationalUI.tsx`
+- Stores: `src/stores/`
+- Browser SCADA: `src/scada/`
+- Protocol proxy: `scada-proxy/src/index.ts`
+- Multiplayer: `src/multiplayer/`
+- Deterministic checks: `package.json` scripts and `.github/workflows/ci.yml`
 
-scada-proxy/                # Backend Proxy Service
-├── src/
-│   ├── index.ts            # Express server
-│   ├── TagRegistry.ts      # Tag management
-│   └── adapters/
-│       ├── OPCUAAdapter.ts # OPC-UA client
-│       └── ModbusAdapter.ts# Modbus TCP client
-├── Dockerfile
-└── docker-compose.yml
-```
-
-## Version
-
-Current Version: **v3.0**
+Current application version: **v0.40**

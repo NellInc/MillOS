@@ -428,7 +428,9 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
   }, [isOpen]);
 
   // Load trend data when selected tags or duration change
+  const trendLoadSequenceRef = useRef(0);
   const loadTrendData = useCallback(async () => {
+    const loadSequence = ++trendLoadSequenceRef.current;
     if (selectedTrendTags.length === 0) {
       setTrendData([]);
       return;
@@ -439,7 +441,9 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
       const historyPromises = selectedTrendTags.map((tagId) => getHistory(tagId, trendDuration));
       const historyResults = await Promise.all(historyPromises);
 
-      setTrendData(await processTrendHistory(selectedTrendTags, historyResults));
+      const processedHistory = await processTrendHistory(selectedTrendTags, historyResults);
+      if (loadSequence !== trendLoadSequenceRef.current) return;
+      setTrendData(processedHistory);
     } catch {
       // Failed to load history - ignore
     }
@@ -449,10 +453,19 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
   useEffect(() => {
     if (activeTab !== 'trends' || trendPaused) return;
 
-    loadTrendData();
-    const interval = setInterval(loadTrendData, 2000); // Update every 2 seconds
+    let active = true;
+    let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+    const refresh = async () => {
+      await loadTrendData();
+      if (active) refreshTimer = setTimeout(refresh, 2000);
+    };
+    void refresh();
 
-    return () => clearInterval(interval);
+    return () => {
+      active = false;
+      trendLoadSequenceRef.current += 1;
+      if (refreshTimer) clearTimeout(refreshTimer);
+    };
   }, [activeTab, trendPaused, loadTrendData]);
 
   const loadEventHistory = useCallback(async () => {
@@ -1810,7 +1823,11 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
                           }}
                           labelStyle={{ color: '#e2e8f0' }}
                           itemStyle={{ color: '#cbd5e1' }}
-                          labelFormatter={(ts) => new Date(ts).toLocaleTimeString()}
+                          labelFormatter={(timestamp) =>
+                            typeof timestamp === 'string' || typeof timestamp === 'number'
+                              ? new Date(timestamp).toLocaleTimeString()
+                              : ''
+                          }
                           formatter={(value) => [
                             typeof value === 'number' ? value.toFixed(2) : String(value ?? ''),
                             '',

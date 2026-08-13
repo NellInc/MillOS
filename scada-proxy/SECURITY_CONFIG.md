@@ -1,384 +1,111 @@
-# SCADA Proxy Security Configuration Guide
+# SCADA Proxy Security Deployment Guide
 
-Quick reference for deploying the SCADA proxy securely in production environments.
+This guide describes the controls that must hold around a production SCADA proxy deployment. The checked in manifests provide a fail closed base. Site-specific trust, identity, and network facts remain deployment gates.
 
----
+## Required production invariants
 
-## Critical: Production Deployment
+| Control          | Required state                                                         | Proof                                                                           |
+| ---------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| Environment      | `NODE_ENV=production`                                                  | Pod environment and startup log                                                 |
+| Read identity    | 32 to 4096 printable ASCII character `SCADA_API_KEY` in secret storage | Authorized read succeeds; missing, weak, and incorrect keys fail closed         |
+| Write state      | `SCADA_ENABLE_WRITES=false` unless an approved control use case exists | Rendered configuration                                                          |
+| Write identity   | Equally strong, distinct `SCADA_WRITE_API_KEY` when writes are enabled | Read key receives 403 on write; write key reaches tag validation                |
+| Browser origins  | Exact HTTPS origins only                                               | Disallowed browser origin lacks CORS approval and WebSocket upgrade is rejected |
+| Proxy trust      | `TRUST_PROXY_HOPS` equals the real trusted hop count                   | Rate limit test through the deployed ingress                                    |
+| OPC UA transport | SignAndEncrypt with Basic256Sha256                                     | Server channel diagnostics and packet inspection                                |
+| OPC UA identity  | Reviewed anonymous, username, or certificate identity                  | Server session audit and trust store                                            |
+| Modbus boundary  | Private segmented route to exact devices only                          | Effective NetworkPolicy and firewall rules                                      |
+| Tag contract     | Reviewed canonical `tags.json`                                         | Startup validation and independent PLC address review                           |
+| Availability     | One active connection owner                                            | Replica count 1 until coordination is implemented                               |
+| Observability    | Central logs and alerts collect security and connection events         | Log sink query and alert exercise                                               |
 
-### Step 1: Set Environment Variables
+## Credentials
 
-Create `.env` file (DO NOT commit to git):
+Production startup fails unless the read key contains 32 to 4096 printable ASCII characters. Writes fail closed independently and the write key must meet the same format when enabled.
 
-```bash
-# CRITICAL: Set to production to enable OPC-UA encryption
-NODE_ENV=production
+Generate and store keys in the deployment secret manager. Do not write them into `.env`, shell history, Kubernetes YAML, CI logs, or command arguments. The committed secret file is an empty example only.
 
-# Server configuration
-PORT=3001
-POLL_INTERVAL=1000
+Rotate read and write keys independently. A safe rotation needs an overlap mechanism at the ingress or application layer because the current process accepts one value for each capability. Until such a mechanism exists, rotate during a controlled maintenance window and verify reconnect behavior.
 
-# OPC-UA connection (ensure server supports SignAndEncrypt)
-OPCUA_ENDPOINT=opc.tcp://your-opcua-server:4840
+## Browser origin policy
 
-# Optional: Modbus TCP
-# MODBUS_HOST=192.168.1.100
-# MODBUS_PORT=502
-```
+`ALLOWED_ORIGINS` accepts comma separated exact origins such as `https://scada.example.org`. The parser rejects wildcards, paths, and non-HTTP schemes.
 
-### Step 2: Verify Security Settings
+The CORS layer permits a missing Origin for authenticated machine clients. A browser request must match the allowlist. Production WebSocket upgrades require an allowlisted Origin because WebSocket does not enforce CORS itself.
 
-Check that OPC-UA encryption is enabled:
+Origin checks supplement credentials. They do not replace them.
 
-```bash
-# Start the server and look for this message:
-# ❌ BAD (Insecure):
-# [OPCUAAdapter] WARNING: Running with NO security (development mode)
+## Write enable procedure
 
-# ✅ GOOD (Secure):
-# [OPCUAAdapter] Connected to opc.tcp://server:4840
-# (No warning message = encryption enabled)
-```
+Keep writes disabled unless the deployment has a reviewed operational need.
 
-### Step 3: OPC-UA Server Certificate Setup
+Before enabling writes:
 
-Production OPC-UA requires certificate-based authentication:
+1. Review every tag whose access mode is `WRITE` or `READ_WRITE` against the PLC program and physical interlocks.
+2. Confirm data types, engineering ranges, Modbus byte order, Modbus word order, slave IDs, offsets, and OPC UA NodeIds independently.
+3. Create a write key distinct from the read key.
+4. Exercise rejected out-of-range, wrong-type, read-only, and unavailable-adapter writes in a non-production environment.
+5. Verify the durable external audit sink. The service currently emits structured write events to stdout only.
+6. Confirm the write rate limit and incident response procedure.
+7. Set `SCADA_ENABLE_WRITES=true` only in the reviewed deployment overlay.
 
-```typescript
-// For mutual authentication, configure certificates:
-const client = OPCUAClient.create({
-  applicationName: 'MillOS-SCADA-Proxy',
-  securityMode: 3,
-  securityPolicy: 'Basic256Sha256',
-  certificateFile: '/path/to/client-cert.pem',
-  privateKeyFile: '/path/to/client-key.pem',
-  // Add server certificate for validation
-  serverCertificate: '/path/to/server-cert.pem'
-});
-```
+The browser can use the write key as its connection credential when write capability is intended. Read-only clients should receive only the read key.
 
----
+## OPC UA
 
-## Security Modes Explained
+Development uses no OPC UA message security and logs a warning. Production uses `MessageSecurityMode.SignAndEncrypt` and `SecurityPolicy.Basic256Sha256`.
 
-### OPC-UA Security Modes
+Username and password must be configured together. Client certificate and private key paths must also be configured together. The OPC UA server still decides whether to trust the client certificate and which nodes the session may access.
 
-| Mode | Value | Description | Use Case |
-|------|-------|-------------|----------|
-| **None** | 1 | No encryption, no signing | Development/testing only |
-| **Sign** | 2 | Messages signed but not encrypted | Low-security environments |
-| **SignAndEncrypt** | 3 | Full encryption + signing | **Production (REQUIRED)** |
+Production acceptance requires evidence from the real server:
 
-### OPC-UA Security Policies
+1. The endpoint supports Basic256Sha256 and SignAndEncrypt.
+2. The server certificate chain or pinned certificate is trusted through the node-opcua PKI workflow.
+3. The client certificate, when used, is trusted by the server.
+4. The session identity has the minimum node permissions needed.
+5. A packet capture shows encrypted application traffic.
+6. Certificate expiry and rotation are monitored.
 
-| Policy | Encryption | Hash | Key Size | Recommendation |
-|--------|-----------|------|----------|----------------|
-| None | - | - | - | Development only |
-| Basic128Rsa15 | AES-128 | SHA-1 | 1024-2048 bit | **Deprecated** |
-| Basic256 | AES-256 | SHA-1 | 2048-4096 bit | **Deprecated** |
-| **Basic256Sha256** | **AES-256** | **SHA-256** | **2048-4096 bit** | **RECOMMENDED** |
+## Modbus
 
----
+Modbus TCP has no native confidentiality, peer authentication, or authorization. Protect it with network architecture:
 
-## Security Testing
+1. Permit egress only to the exact device IP ranges and TCP ports.
+2. Keep devices on a segmented control network.
+3. Do not expose TCP 502 through public ingress.
+4. Prefer a secure industrial gateway or tunnel when traffic crosses trust zones.
+5. Treat device identity, register maps, and byte order as commissioned plant configuration.
 
-### Test 1: Verify OPC-UA Encryption
+The base NetworkPolicy intentionally permits no industrial egress. Add exact plant routes in a deployment overlay. Broad private address ranges are not an acceptable production rule.
 
-```bash
-# Development mode (should show warning):
-NODE_ENV=development npm run dev
-# Expected: [OPCUAAdapter] WARNING: Running with NO security
+## HTTP and WebSocket edge
 
-# Production mode (no warning):
-NODE_ENV=production npm run dev
-# Expected: No security warnings
-```
+Terminate TLS at a reviewed ingress or service mesh. Derive an ingress from `k8s/ingress.example.yaml`; replace its placeholder host and TLS secret. The base kustomization does not expose the service publicly.
 
-### Test 2: Network Traffic Analysis
+The service bounds request bodies, batch sizes, HTTP rates, write rates, WebSocket payloads, per-connection message rates, and concurrent clients. Tune the limits from measured load. One client polling once per second needs 900 requests per 15 minutes, so the general default is 2,000 rather than the former self-denial limit of 100.
 
-```bash
-# Install Wireshark or tcpdump
-sudo tcpdump -i any -w opcua-traffic.pcap port 4840
+WebSocket query credentials are rejected because URL credentials commonly appear in logs. Browser clients use the base64url credential subprotocol, while machine clients may use an authorization header.
 
-# Development mode: You can see plaintext data
-# Production mode: Encrypted traffic (gibberish)
-```
+Each WebSocket starts with no tag subscriptions. Clients must subscribe explicitly, and the proxy sends only subscribed values. This controls disclosure volume between authenticated clients, but it is not authorization. A read credential can still subscribe to any configured tag until a reviewed per-tag policy exists.
 
-### Test 3: Security Scan
+## Kubernetes
+
+The container runs as UID 1001 with no added capabilities, no privilege escalation, and a read-only root filesystem. `/tmp` is a bounded writable volume. Health and readiness are separate.
+
+The base uses one replica. Do not add an HPA or second replica until the service has leader election or an explicit read and write ownership model. Multiple unsynchronized replicas can duplicate industrial polls and commands.
+
+The base has no metrics scrape annotation because no `/metrics` route exists. Add metrics and authenticated or internally restricted scraping as one coherent change.
+
+## Verification commands
 
 ```bash
-# Check for known vulnerabilities
-npm audit --audit-level=moderate
-
-# Check for outdated packages
-npm outdated
-
-# Static security analysis
-npx eslint src/**/*.ts --ext .ts
+npm ci
+npm run build
+npm run lint
+npm test
+npm audit --audit-level=high
+docker compose config --quiet
+kubectl kustomize k8s > /tmp/millos-scada-rendered.yaml
 ```
 
----
-
-## Common Security Issues & Solutions
-
-### Issue 1: "SecurityPolicy Basic256Sha256 not supported"
-
-**Cause:** OPC-UA server doesn't support the security policy.
-
-**Solution:**
-1. Check server capabilities: `opcua-client -e opc.tcp://server:4840 -s`
-2. Use a supported policy (fallback to Basic256 if necessary)
-3. Upgrade OPC-UA server to support modern security
-
-### Issue 2: "Certificate validation failed"
-
-**Cause:** Server certificate not trusted.
-
-**Solution:**
-```bash
-# Option A: Add server certificate to trusted store
-cp server-cert.pem /path/to/trusted-certs/
-
-# Option B: Configure client to trust specific certificate
-OPCUA_SERVER_CERT=/path/to/server-cert.pem npm start
-```
-
-### Issue 3: "Connection refused" in production
-
-**Cause:** Firewall blocking OPC-UA port 4840.
-
-**Solution:**
-```bash
-# Check firewall rules
-sudo iptables -L -n | grep 4840
-
-# Allow outbound connection to OPC-UA server
-sudo iptables -A OUTPUT -p tcp --dport 4840 -d SERVER_IP -j ACCEPT
-```
-
----
-
-## Deployment Checklist
-
-### Pre-Deployment
-
-- [ ] `NODE_ENV=production` set in environment
-- [ ] `.env` file created with all required variables
-- [ ] `.env` added to `.gitignore` (never commit secrets!)
-- [ ] OPC-UA server certificates obtained and validated
-- [ ] Network firewall rules configured
-- [ ] HTTPS/TLS certificates generated for REST API
-- [ ] Security audit completed
-
-### Post-Deployment
-
-- [ ] Verify no security warnings in logs
-- [ ] Test OPC-UA connection with encryption
-- [ ] Confirm network traffic is encrypted (Wireshark)
-- [ ] Monitor for connection errors
-- [ ] Set up audit logging
-- [ ] Configure alerts for security events
-
----
-
-## Environment Variables Reference
-
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `NODE_ENV` | **YES** | `development` | **CRITICAL:** Must be `production` for encryption |
-| `PORT` | No | `3001` | HTTP server port |
-| `POLL_INTERVAL` | No | `1000` | Tag polling interval (ms) |
-| `OPCUA_ENDPOINT` | No | - | OPC-UA server URL |
-| `MODBUS_HOST` | No | - | Modbus TCP host |
-| `MODBUS_PORT` | No | `502` | Modbus TCP port |
-
-### Future Variables (When Authentication Added)
-
-| Variable | Description |
-|----------|-------------|
-| `JWT_SECRET` | Secret key for JWT signing (min 256 bits) |
-| `API_KEY` | API key for client authentication |
-| `ALLOWED_ORIGINS` | Comma-separated CORS origins |
-| `TLS_KEY_PATH` | Path to TLS private key |
-| `TLS_CERT_PATH` | Path to TLS certificate |
-
----
-
-## Docker Deployment
-
-### Secure Docker Compose
-
-```yaml
-version: '3.8'
-
-services:
-  scada-proxy:
-    build: .
-    restart: unless-stopped
-    ports:
-      - "3001:3001"
-    environment:
-      - NODE_ENV=production  # CRITICAL: Enable encryption
-      - PORT=3001
-      - POLL_INTERVAL=1000
-      - OPCUA_ENDPOINT=opc.tcp://opcua-server:4840
-    volumes:
-      # Mount certificates (read-only)
-      - ./certs:/app/certs:ro
-      # Mount logs (write-only for security)
-      - ./logs:/var/log/scada-proxy
-    networks:
-      - scada-internal
-    # Security hardening
-    read_only: true
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
-    cap_add:
-      - NET_BIND_SERVICE
-    tmpfs:
-      - /tmp
-
-networks:
-  scada-internal:
-    driver: bridge
-    ipam:
-      config:
-        - subnet: 172.20.0.0/16
-```
-
-### Build and Run
-
-```bash
-# Build image
-docker-compose build
-
-# Start in production mode
-docker-compose up -d
-
-# Check logs for security warnings
-docker-compose logs scada-proxy | grep -i security
-
-# Should NOT see: "WARNING: Running with NO security"
-```
-
----
-
-## Kubernetes Deployment
-
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: scada-proxy
-spec:
-  replicas: 2
-  selector:
-    matchLabels:
-      app: scada-proxy
-  template:
-    metadata:
-      labels:
-        app: scada-proxy
-    spec:
-      containers:
-      - name: scada-proxy
-        image: millos-scada-proxy:latest
-        ports:
-        - containerPort: 3001
-        env:
-        - name: NODE_ENV
-          value: "production"  # CRITICAL
-        - name: OPCUA_ENDPOINT
-          valueFrom:
-            configMapKeyRef:
-              name: scada-config
-              key: opcua-endpoint
-        # Mount secrets for certificates
-        volumeMounts:
-        - name: opcua-certs
-          mountPath: /app/certs
-          readOnly: true
-        # Security context
-        securityContext:
-          runAsNonRoot: true
-          runAsUser: 1001
-          allowPrivilegeEscalation: false
-          readOnlyRootFilesystem: true
-          capabilities:
-            drop:
-            - ALL
-      volumes:
-      - name: opcua-certs
-        secret:
-          secretName: opcua-certificates
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: scada-proxy
-spec:
-  type: ClusterIP
-  ports:
-  - port: 3001
-    targetPort: 3001
-  selector:
-    app: scada-proxy
-```
-
----
-
-## Monitoring Security
-
-### Log Monitoring
-
-```bash
-# Watch for security warnings
-tail -f logs/scada-proxy.log | grep -i "warning\|security\|error"
-
-# Monitor failed connections
-tail -f logs/scada-proxy.log | grep "Connection failed"
-
-# Audit tag writes
-tail -f logs/scada-proxy.log | grep "Write\|writeValue"
-```
-
-### Metrics to Track
-
-1. **Connection Security Status**
-   - OPC-UA securityMode in use
-   - Certificate expiration dates
-   - Failed authentication attempts
-
-2. **Performance & Availability**
-   - Connection uptime
-   - Failed connection attempts
-   - Average response time
-
-3. **Security Events**
-   - Invalid tag write attempts
-   - Rate limit violations
-   - Unusual data patterns
-
----
-
-## Support & Resources
-
-### Getting Help
-
-- **Security Issues:** Report to security team immediately
-- **Configuration Help:** See `SECURITY_AUDIT.md` for detailed guidance
-- **OPC-UA Debugging:** Enable debug logging: `DEBUG=opcua:* npm start`
-
-### Additional Reading
-
-- [OPC Foundation Security](https://opcfoundation.org/about/opc-technologies/opc-ua/ua-security/)
-- [NIST ICS Security Guide](https://csrc.nist.gov/publications/detail/sp/800-82/rev-2/final)
-- [OWASP Top 10](https://owasp.org/Top10/)
-
----
-
-**Last Updated:** 2025-12-04
-**Reviewed By:** Security Team
-**Next Review:** 2026-01-04
+Static rendering proves schema and composition only. It does not prove cluster admission, ingress behavior, certificate trust, PLC addressing, or physical safety.

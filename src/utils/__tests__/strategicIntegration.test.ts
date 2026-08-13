@@ -82,10 +82,18 @@ describe('Strategic AI Integration', () => {
     it('should update strategic priorities', () => {
       const store = useAIConfigStore.getState();
 
-      store.setStrategicPriorities([mockStrategicResponse.priority]);
+      store.setStrategicPriorities([mockStrategicResponse.priority], {
+        actionPlan: mockStrategicResponse.actionPlan,
+        insight: mockStrategicResponse.insight,
+        tradeoff: mockStrategicResponse.tradeoff,
+        recommendWorker: mockStrategicResponse.recommendWorker,
+        confidenceScores: mockStrategicResponse.confidenceScores,
+      });
 
       const newState = useAIConfigStore.getState();
       expect(newState.strategic.legacyPriorities).toContain(mockStrategicResponse.priority);
+      expect(newState.strategic.actionPlan).toEqual(mockStrategicResponse.actionPlan);
+      expect(newState.strategic.confidenceScores?.overall).toBe(87);
     });
 
     it('should track thinking state', () => {

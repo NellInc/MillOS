@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -16,9 +16,11 @@
       (src/utils/webgpuClient.ts, webgpuWorker.ts). The references live inside the
       web-llm dependency's appConfig, so a grep of src/ alone will not surface them.
     -->
-    <meta http-equiv="Content-Security-Policy" content="
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="
       default-src 'self';
-      script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:;
+      script-src 'self' 'sha256-cRLXZbWdjWBf5m4G98z9h9F175L/TlwoVISIopcDzcE=' 'wasm-unsafe-eval' blob:;
       style-src 'self' 'unsafe-inline';
       font-src 'self';
       img-src 'self' data: blob: https://www.millos.net;
@@ -28,22 +30,39 @@
       base-uri 'self';
       form-action 'self';
       upgrade-insecure-requests;
-    " />
-    <meta http-equiv="X-Content-Type-Options" content="nosniff" />
+    "
+    />
+    <!-- X-Content-Type-Options and framing policy require HTTP response headers.
+         See docs/deployment.md; a meta element cannot enforce them. -->
     <meta name="referrer" content="strict-origin-when-cross-origin" />
     <meta name="theme-color" content="#0a0f1a" />
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏭</text></svg>" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏭</text></svg>"
+    />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="description" content="Explore MillOS, a browser-based 3D grain mill operations simulator with simulated workers, deterministic logistics, production metrics, and a simulated SCADA workspace." />
+    <meta
+      name="description"
+      content="Explore MillOS, a browser-based 3D grain mill operations simulator with simulated workers, deterministic logistics, production metrics, and a simulated SCADA workspace."
+    />
     <meta name="author" content="Nell Watson" />
-    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
-    <meta name="keywords" content="MillOS, grain mill, digital twin, 3D simulation, SCADA, industrial automation, AI, React Three Fiber, agentic AI" />
+    <meta
+      name="robots"
+      content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1"
+    />
+    <meta
+      name="keywords"
+      content="MillOS, grain mill, digital twin, 3D simulation, SCADA, industrial automation, AI, React Three Fiber, agentic AI"
+    />
 
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://www.millos.net/" />
     <meta property="og:title" content="MillOS | 3D Grain Mill Operations Simulator" />
-    <meta property="og:description" content="Explore a browser-based grain mill simulator with deterministic logistics, production metrics, and a simulated SCADA workspace." />
+    <meta
+      property="og:description"
+      content="Explore a browser-based grain mill simulator with deterministic logistics, production metrics, and a simulated SCADA workspace."
+    />
     <meta property="og:image" content="https://www.millos.net/og-image.png" />
     <meta property="og:image:alt" content="MillOS grain mill digital twin interface" />
     <meta property="og:image:width" content="3456" />
@@ -55,7 +74,10 @@
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:url" content="https://www.millos.net/" />
     <meta name="twitter:title" content="MillOS | 3D Grain Mill Operations Simulator" />
-    <meta name="twitter:description" content="A browser-based 3D grain mill simulator with simulated workers, deterministic logistics, production metrics, and simulated SCADA." />
+    <meta
+      name="twitter:description"
+      content="A browser-based 3D grain mill simulator with simulated workers, deterministic logistics, production metrics, and simulated SCADA."
+    />
     <meta name="twitter:image" content="https://www.millos.net/og-image.png" />
     <meta name="twitter:image:alt" content="MillOS grain mill digital twin interface" />
     <meta name="twitter:creator" content="@NellWatson" />
@@ -99,8 +121,17 @@
     <!-- Inter + JetBrains Mono are now self-hosted (see src/fonts.css), so there
          is no Google Fonts <link> and no third-party IP transmission on load. -->
     <style>
-      body, html { height: 100%; margin: 0; overflow: hidden; background-color: #0a0f1a; }
-      #root { width: 100%; height: 100%; }
+      body,
+      html {
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        background-color: #0a0f1a;
+      }
+      #root {
+        width: 100%;
+        height: 100%;
+      }
       .loading-screen {
         position: fixed;
         top: 0;
@@ -114,11 +145,44 @@
         justify-content: center;
         z-index: 9999;
       }
-      .loading-logo { font-size: 3rem; margin-bottom: 1rem; }
-      .loading-text { color: #64748b; font-family: 'Inter', system-ui, -apple-system, sans-serif; font-size: 0.875rem; letter-spacing: 0.1em; }
-      .loading-bar { width: 200px; height: 2px; background: #1e293b; margin-top: 1.5rem; border-radius: 1px; overflow: hidden; }
-      .loading-bar::after { content: ''; display: block; width: 50%; height: 100%; background: linear-gradient(90deg, #f97316, #3b82f6); animation: loading 1.5s ease-in-out infinite; }
-      @keyframes loading { 0% { transform: translateX(-100%); } 100% { transform: translateX(300%); } }
+      .loading-logo {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+      }
+      .loading-text {
+        color: #64748b;
+        font-family:
+          'Inter',
+          system-ui,
+          -apple-system,
+          sans-serif;
+        font-size: 0.875rem;
+        letter-spacing: 0.1em;
+      }
+      .loading-bar {
+        width: 200px;
+        height: 2px;
+        background: #1e293b;
+        margin-top: 1.5rem;
+        border-radius: 1px;
+        overflow: hidden;
+      }
+      .loading-bar::after {
+        content: '';
+        display: block;
+        width: 50%;
+        height: 100%;
+        background: linear-gradient(90deg, #f97316, #3b82f6);
+        animation: loading 1.5s ease-in-out infinite;
+      }
+      @keyframes loading {
+        0% {
+          transform: translateX(-100%);
+        }
+        100% {
+          transform: translateX(300%);
+        }
+      }
     </style>
   </head>
   <body>

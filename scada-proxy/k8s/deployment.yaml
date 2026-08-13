@@ -7,7 +7,9 @@ metadata:
     app.kubernetes.io/name: scada-proxy
     app.kubernetes.io/component: backend
 spec:
-  replicas: 2
+  # One process owns each industrial connection. Do not scale above one until
+  # leader election or explicit read/write partitioning is implemented.
+  replicas: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: scada-proxy
@@ -16,16 +18,16 @@ spec:
       labels:
         app.kubernetes.io/name: scada-proxy
         app.kubernetes.io/component: backend
-      annotations:
-        prometheus.io/scrape: "true"
-        prometheus.io/port: "3001"
-        prometheus.io/path: "/metrics"
     spec:
       serviceAccountName: scada-proxy
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 30
       securityContext:
         runAsNonRoot: true
-        runAsUser: 1000
-        fsGroup: 1000
+        runAsUser: 1001
+        fsGroup: 1001
+        seccompProfile:
+          type: RuntimeDefault
 
       containers:
         - name: scada-proxy
@@ -38,6 +40,10 @@ spec:
               protocol: TCP
 
           env:
+            - name: NODE_ENV
+              value: production
+            - name: HOME
+              value: /tmp
             - name: PORT
               valueFrom:
                 configMapKeyRef:
@@ -53,11 +59,56 @@ spec:
                 configMapKeyRef:
                   name: scada-proxy-config
                   key: LOG_LEVEL
-            - name: CORS_ORIGIN
+            - name: ALLOWED_ORIGINS
               valueFrom:
                 configMapKeyRef:
                   name: scada-proxy-config
-                  key: CORS_ORIGIN
+                  key: ALLOWED_ORIGINS
+            - name: TRUST_PROXY_HOPS
+              valueFrom:
+                configMapKeyRef:
+                  name: scada-proxy-config
+                  key: TRUST_PROXY_HOPS
+            - name: RATE_LIMIT_MAX
+              valueFrom:
+                configMapKeyRef:
+                  name: scada-proxy-config
+                  key: RATE_LIMIT_MAX
+            - name: WRITE_RATE_LIMIT_MAX
+              valueFrom:
+                configMapKeyRef:
+                  name: scada-proxy-config
+                  key: WRITE_RATE_LIMIT_MAX
+            - name: WS_MESSAGE_RATE_MAX
+              valueFrom:
+                configMapKeyRef:
+                  name: scada-proxy-config
+                  key: WS_MESSAGE_RATE_MAX
+            - name: WS_MAX_CLIENTS
+              valueFrom:
+                configMapKeyRef:
+                  name: scada-proxy-config
+                  key: WS_MAX_CLIENTS
+            - name: SCADA_ENABLE_WRITES
+              valueFrom:
+                configMapKeyRef:
+                  name: scada-proxy-config
+                  key: SCADA_ENABLE_WRITES
+            - name: OPCUA_ENDPOINT
+              valueFrom:
+                configMapKeyRef:
+                  name: scada-proxy-config
+                  key: OPCUA_ENDPOINT
+            - name: MODBUS_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: scada-proxy-config
+                  key: MODBUS_HOST
+            - name: MODBUS_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: scada-proxy-config
+                  key: MODBUS_PORT
             - name: OPCUA_USERNAME
               valueFrom:
                 secretKeyRef:
@@ -70,17 +121,21 @@ spec:
                   name: scada-proxy-secrets
                   key: OPCUA_PASSWORD
                   optional: true
-            - name: API_KEY
+            - name: SCADA_API_KEY
               valueFrom:
                 secretKeyRef:
                   name: scada-proxy-secrets
-                  key: API_KEY
+                  key: SCADA_API_KEY
+            - name: SCADA_WRITE_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: scada-proxy-secrets
+                  key: SCADA_WRITE_API_KEY
+                  optional: true
 
           volumeMounts:
-            - name: tags-config
-              mountPath: /app/tags.json
-              subPath: tags.json
-              readOnly: true
+            - name: temporary-files
+              mountPath: /tmp
 
           resources:
             requests:
@@ -101,7 +156,7 @@ spec:
 
           readinessProbe:
             httpGet:
-              path: /health
+              path: /ready
               port: http
             initialDelaySeconds: 5
             periodSeconds: 10
@@ -116,12 +171,9 @@ spec:
                 - ALL
 
       volumes:
-        - name: tags-config
-          configMap:
-            name: scada-proxy-config
-            items:
-              - key: tags.json
-                path: tags.json
+        - name: temporary-files
+          emptyDir:
+            sizeLimit: 64Mi
 
       affinity:
         podAntiAffinity:

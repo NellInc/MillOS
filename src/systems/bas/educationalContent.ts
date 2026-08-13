@@ -29,12 +29,7 @@ export interface ConceptTooltipContent {
 }
 
 export type ConceptCategory =
-  | 'wallace'
-  | 'mondragon'
-  | 'semler'
-  | 'bilateral'
-  | 'flourishing'
-  | 'bams';
+  'wallace' | 'mondragon' | 'semler' | 'bilateral' | 'flourishing' | 'bams';
 
 // =============================================================================
 // WALLACE STABILITY CONCEPTS

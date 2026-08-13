@@ -255,12 +255,7 @@ export interface ValueMetrics {
 // =============================================================================
 
 export type FlourishingDimensionKey =
-  | 'meaning'
-  | 'mastery'
-  | 'connection'
-  | 'joy'
-  | 'wholeness'
-  | 'agency';
+  'meaning' | 'mastery' | 'connection' | 'joy' | 'wholeness' | 'agency';
 
 export interface FlourishingDimension {
   score: number; // 0-100

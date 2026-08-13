@@ -3,26 +3,32 @@
 <!-- wiki:type = system -->
 <!-- wiki:scope = millos -->
 <!-- wiki:created = 2026-05-23 -->
-<!-- wiki:updated = 2026-05-23 -->
+<!-- wiki:updated = 2026-08-13 -->
 <!-- wiki:status = active -->
 
 ## Summary
 
-MillOS uses Zustand for state management across 25+ domain-specific stores. A backward-compatibility layer (`store.ts`) re-exports from the modular stores index and provides `useMillStore`, a combined hook for components not yet migrated to individual stores. The BAS, flourishing, ownership, federation, and AI welfare stores implement MillOS's governance model.
+MillOS uses Zustand across more than 30 domain-specific stores. A compatibility
+layer in `src/store.ts` still bridges integrated SCADA behavior, while current
+components import narrow domain stores. BAS, flourishing, ownership, federation,
+and Becoming Mind welfare stores implement the governance model.
 
 ## Domain Store Groups
 
 ### Core Production
+
 - `productionStore.ts` — machines (MachineData), workers, AI decisions, production targets; depends on `qcLabStore`, `achievementsStore`, `announcementsStore`, `incidentReplayStore`, `truckScheduleStore` (`src/stores/productionStore.ts`)
 - `gameSimulationStore.ts` — shift data, crisis events, fire drill metrics, weather (`src/stores/gameSimulationStore.ts`)
 - `safetyStore.ts` — safety metrics and incidents
 - `graphicsStore.ts` — quality presets (Low/Medium/High/Ultra) and rendering flags
 
 ### UI
+
 - `uiStore.ts` — alerts, panel visibility
 - `workerMoodStore.ts` — per-worker mood state used by flourishing calculations
 
 ### Bilateral Autonomy System (BAS)
+
 - `basStore.ts` — Five Axes (0-100 each): Autonomy Level, Decision Mode, Information Access, Evaluation Direction, Collective Orientation; BAS presets; axis-to-flourishing impact mapping (`src/stores/basStore.ts`)
 - `stabilityStore.ts` — Wallace stability metrics (coefficient and margin)
 - `flourishingStore.ts` — six eudaimonia dimensions per worker and factory aggregate (`src/stores/flourishingStore.ts`)
@@ -31,19 +37,28 @@ MillOS uses Zustand for state management across 25+ domain-specific stores. A ba
 - `votingStore.ts` — democratic vote records
 
 ### Economic Democracy
+
 - `ownershipStore.ts` — collective ownership, wage solidarity, compensation transparency, investment proposals (`src/stores/ownershipStore.ts`)
 
 ### Federation
+
 - `interCooperationStore.ts` — federation membership, knowledge sharing, worker exchanges, federation votes (`src/stores/interCooperationStore.ts`)
 
 ### AI Welfare
+
 - `aiWelfareStore.ts` — AI preferences, voice expressions, worker treatment metrics, relationship health, boundary requests, AI suggestions (`src/stores/aiWelfareStore.ts`)
 
 ### Engagement and Social
+
 - `engagementStore.ts`, `socialMissionStore.ts`, `emergentCooperationStore.ts`, `knowledgeStore.ts`
 
-### Security
-- `auditStore.ts` — client-side OWASP A09 event logging; exports helpers: `auditValidationFailure`, `auditXssBlocked`, `auditRateLimit`, `auditAuthAttempt`, `auditApiError`, `auditSuspiciousInput`, `auditMultiplayer` (`src/stores/auditStore.ts`)
+### Persistence and trust
+
+- `storage.ts` provides safe JSON storage and shape-aware persisted-state merge.
+- Browser persistence stores preferences and simulation state. It is not a
+  tamper-evident security audit log.
+- SCADA authentication and security logging belong to `scada-proxy/`, outside
+  the browser store tree.
 
 ## Backward Compatibility Layer
 
@@ -58,7 +73,7 @@ The `CombinedStoreState` type is the union of all five core stores: graphics, ga
 ## Provenance
 
 - Sources consulted: `src/stores/index.ts`, `src/store.ts`, `src/stores/basStore.ts`, `src/stores/aiWelfareStore.ts`, `src/stores/flourishingStore.ts`, `src/stores/ownershipStore.ts`, `src/stores/interCooperationStore.ts`, `src/stores/productionStore.ts`, `src/stores/gameSimulationStore.ts`
-- Last verified against sources: 2026-05-23
+- Last verified against sources: 2026-08-13
 
 ## See Also
 

@@ -18,11 +18,11 @@ Development workflow, environment setup, and coding conventions for MillOS.
 
 ### Required Software
 
-| Software | Version | Purpose |
-|----------|---------|---------|
-| Node.js | 18+ | JavaScript runtime |
-| npm | 9+ | Package manager |
-| Git | 2.x | Version control |
+| Software | Version | Purpose            |
+| -------- | ------- | ------------------ |
+| Node.js  | 20+     | JavaScript runtime |
+| npm      | 9+      | Package manager    |
+| Git      | 2.x     | Version control    |
 
 ### Recommended Tools
 
@@ -49,14 +49,11 @@ cd MillOS
 npm install
 ```
 
-### 3. Environment Variables
+### 3. AI backends
 
-Create `.env.local` file:
+No Gemini key is read from a frontend environment file. For cloud inference, open the in-app Gemini settings and connect a Google API key for the current browser session. MillOS keeps that key in memory, clears it on reload or tab close, and never persists it.
 
-```bash
-# .env.local
-GEMINI_API_KEY=your_gemini_api_key_here
-```
+Without a key, heuristic mode remains available. A compatible browser and GPU can also run the optional local WebGPU model. Model weights may be browser-cached, while the runtime engine is reloaded for each session.
 
 ### 4. Start Development Server
 
@@ -64,7 +61,9 @@ GEMINI_API_KEY=your_gemini_api_key_here
 npm run dev
 ```
 
-Server runs at `http://localhost:3000`
+The server listens on localhost and runs at `http://localhost:3000` by default. For deliberate
+testing from another device on a trusted network, run `npm run dev -- --host 0.0.0.0`. Treat that
+as an explicit exposure choice and stop the server when the device test is complete.
 
 ---
 
@@ -72,16 +71,25 @@ Server runs at `http://localhost:3000`
 
 ### Available Scripts
 
-| Command | Description |
-|---------|-------------|
-| `npm run dev` | Start dev server on port 3000 |
-| `npm run build` | Create production build |
-| `npm run preview` | Preview production build |
+| Command                     | Description                                               |
+| --------------------------- | --------------------------------------------------------- |
+| `npm run dev`               | Start dev server on port 3000                             |
+| `npm run build`             | Create production build                                   |
+| `npm run preview`           | Preview production build                                  |
+| `npm run typecheck`         | Typecheck production and test projects                    |
+| `npm run lint`              | Lint source, E2E, scripts, and configuration              |
+| `npm run format:check`      | Check maintained formatting                               |
+| `npm test`                  | Run Vitest plus maintained Node tool tests                |
+| `npm run test:coverage`     | Run coverage with repository floors                       |
+| `npm run test:e2e`          | Run serial Chromium journeys                              |
+| `npm run check:dead-code`   | Check files, dependencies, unresolved imports, and cycles |
+| `npm run validate:docs`     | Validate maintained links and source references           |
+| `npm run validate:security` | Validate the current HTML script policy and inline hashes |
 
 ### Development Server
 
 - **Hot Module Replacement (HMR)** - Changes reflect instantly
-- **Accessible on network** - `host: '0.0.0.0'`
+- **Local by default** - Binds to `127.0.0.1`; pass `--host 0.0.0.0` only for an owned device test
 - **Default port** - 3000
 
 ### Build Process
@@ -97,43 +105,31 @@ npm run build
 
 ## Project Structure
 
-```
+```text
 MillOS/
-├── docs/                    # Documentation (this folder)
-├── public/                  # Static assets
 ├── src/
-│   ├── components/          # React components
-│   │   ├── AICommandCenter.tsx
-│   │   ├── AlertSystem.tsx
-│   │   ├── ConveyorSystem.tsx
-│   │   ├── DustParticles.tsx
-│   │   ├── Environment.tsx
-│   │   ├── FactoryInfrastructure.tsx
-│   │   ├── ForkliftSystem.tsx
-│   │   ├── HolographicDisplays.tsx
-│   │   ├── Machines.tsx
+│   ├── App.tsx
+│   ├── components/
 │   │   ├── MillScene.tsx
-│   │   ├── PostProcessing.tsx
-│   │   ├── ProductionMetrics.tsx
-│   │   ├── SpoutingSystem.tsx
-│   │   ├── TruckBay.tsx
-│   │   ├── UIOverlay.tsx
-│   │   ├── WorkerDetailPanel.tsx
-│   │   └── WorkerSystem.tsx
+│   │   ├── machines/CompactMachines.tsx
+│   │   ├── environment/
+│   │   ├── infrastructure/
+│   │   ├── physics/
+│   │   ├── multiplayer/
+│   │   └── ui-new/
+│   ├── stores/
+│   ├── scada/
+│   ├── multiplayer/
+│   ├── systems/
+│   ├── protocols/vcp/
+│   ├── runtime/
 │   ├── utils/
-│   │   ├── audioManager.ts  # Web Audio API manager
-│   │   └── positionRegistry.ts  # Collision detection
-│   ├── App.tsx              # Root component
-│   ├── main.tsx             # Entry point
-│   ├── store.ts             # Zustand store
-│   ├── types.ts             # TypeScript types
-│   └── index.css            # Global styles
-├── index.html               # HTML template
-├── package.json             # Dependencies
-├── tailwind.config.js       # Tailwind configuration
-├── tsconfig.json            # TypeScript configuration
-├── vite.config.ts           # Vite configuration
-└── CLAUDE.md                # AI assistant guidelines
+│   └── test/
+├── scada-proxy/
+├── scripts/
+├── e2e/
+├── public/
+└── docs/
 ```
 
 ### Path Aliases
@@ -142,7 +138,7 @@ Configured in `tsconfig.json` and `vite.config.ts`:
 
 ```typescript
 // Use @ to reference project root
-import { something } from '@/src/utils/something';
+import { sanitizePlayerName } from '@/src/utils/sanitize';
 ```
 
 ---
@@ -192,16 +188,17 @@ export const MyComponent: React.FC<MyComponentProps> = ({ title, onAction }) => 
 ```tsx
 // Bad
 const icon = '🚨';
-<span>{icon}</span>
+<span>{icon}</span>;
 
 // Good
 import { Siren } from 'lucide-react';
-<Siren className="w-5 h-5" />
+<Siren className="w-5 h-5" />;
 ```
 
 **Exception:** The mill emoji is permitted in these branding locations only:
+
 - `index.html` - Favicon and loading screen
-- `UIOverlay.tsx` - Top-left header logo
+- `ui-new/sidebar/ContextSidebar.tsx` - Header and sidebar logo
 
 ### Available Lucide Icons
 
@@ -231,17 +228,17 @@ Use Tailwind CSS utility classes:
 
 ### Color Palette
 
-| Purpose | Color | Hex |
-|---------|-------|-----|
-| Background | Slate 950 | #0a0f1a |
-| Surface | Slate 900 | #0f172a |
-| Border | Slate 700 | #334155 |
-| Text Primary | White | #ffffff |
+| Purpose        | Color     | Hex     |
+| -------------- | --------- | ------- |
+| Background     | Slate 950 | #0a0f1a |
+| Surface        | Slate 900 | #0f172a |
+| Border         | Slate 700 | #334155 |
+| Text Primary   | White     | #ffffff |
 | Text Secondary | Slate 400 | #94a3b8 |
-| Accent | Cyan 500 | #06b6d4 |
-| Success | Green 500 | #22c55e |
-| Warning | Amber 500 | #f59e0b |
-| Error | Red 500 | #ef4444 |
+| Accent         | Cyan 500  | #06b6d4 |
+| Success        | Green 500 | #22c55e |
+| Warning        | Amber 500 | #f59e0b |
+| Error          | Red 500   | #ef4444 |
 
 ---
 
@@ -250,14 +247,16 @@ Use Tailwind CSS utility classes:
 ### Adding a New Machine Type
 
 1. **Define type** in `types.ts`:
+
 ```typescript
 export enum MachineType {
   // existing types...
-  NEW_MACHINE = 'NEW_MACHINE'
+  NEW_MACHINE = 'NEW_MACHINE',
 }
 ```
 
-2. **Add geometry** in `Machines.tsx`:
+2. **Add geometry** in `src/components/machines/CompactMachines.tsx`:
+
 ```typescript
 case MachineType.NEW_MACHINE:
   return (
@@ -268,6 +267,7 @@ case MachineType.NEW_MACHINE:
 ```
 
 3. **Add sound** in `audioManager.ts`:
+
 ```typescript
 playNewMachineSound(machineId: string) {
   // Sound implementation
@@ -275,6 +275,7 @@ playNewMachineSound(machineId: string) {
 ```
 
 4. **Add to scene** in `MillScene.tsx`:
+
 ```typescript
 _machines.push({
   id: 'new-machine-1',
@@ -286,11 +287,13 @@ _machines.push({
 ### Adding a New Worker Role
 
 1. **Update type** in `types.ts`:
+
 ```typescript
 role: 'Operator' | 'Engineer' | ... | 'NewRole';
 ```
 
-2. **Add appearance** in `WorkerSystem.tsx`:
+2. **Add appearance** through `src/components/workers/WorkerAppearance.ts` and the current worker components:
+
 ```typescript
 case 'NewRole':
   return {
@@ -301,6 +304,7 @@ case 'NewRole':
 ```
 
 3. **Add to roster** in `types.ts`:
+
 ```typescript
 WORKER_ROSTER.push({
   id: 'w11',
@@ -313,6 +317,7 @@ WORKER_ROSTER.push({
 ### Adding a New Sound
 
 1. **Add method** to `AudioManager`:
+
 ```typescript
 playNewSound() {
   if (this.getEffectiveVolume() === 0) return;
@@ -328,6 +333,7 @@ playNewSound() {
 ```
 
 2. **Call from component**:
+
 ```typescript
 import { audioManager } from '../utils/audioManager';
 audioManager.playNewSound();
@@ -340,6 +346,7 @@ audioManager.playNewSound();
 ### React DevTools
 
 Install browser extension for:
+
 - Component hierarchy inspection
 - Props and state viewing
 - Performance profiling
@@ -393,13 +400,13 @@ useFrame((state) => {
 
 ### Common Issues
 
-| Issue | Solution |
-|-------|----------|
+| Issue             | Solution                                |
+| ----------------- | --------------------------------------- |
 | Audio not playing | Click/interact first (Web Audio policy) |
-| Black screen | Check console for WebGL errors |
-| Slow performance | Reduce `dpr` or particle count |
-| TypeScript errors | Run `npm install` to update types |
-| Hot reload broken | Restart dev server |
+| Black screen      | Check console for WebGL errors          |
+| Slow performance  | Reduce `dpr` or particle count          |
+| TypeScript errors | Run `npm install` to update types       |
+| Hot reload broken | Restart dev server                      |
 
 ---
 

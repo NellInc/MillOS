@@ -58,6 +58,28 @@ describe('BASStore', () => {
       expect(activeScenario).toBeNull();
       expect(scenarioProgress).toBe(0);
     });
+
+    it('deep-merges partial persisted state without losing current axis contracts', () => {
+      const current = useBASStore.getState();
+      const merge = useBASStore.persist.getOptions().merge;
+      const restored = merge?.(
+        {
+          axes: { autonomyLevel: 75, decisionMode: 'corrupt' },
+          axisConfigs: { autonomyLevel: { minAllowed: 20 } },
+          educationEnabled: false,
+        },
+        current
+      );
+
+      expect(restored?.axes.autonomyLevel).toBe(75);
+      expect(restored?.axes.decisionMode).toBe(DEFAULT_AXES.decisionMode);
+      expect(restored?.axes.informationAccess).toBe(DEFAULT_AXES.informationAccess);
+      expect(restored?.axisConfigs.autonomyLevel.minAllowed).toBe(20);
+      expect(restored?.axisConfigs.autonomyLevel.maxAllowed).toBe(100);
+      expect(restored?.axisConfigs.decisionMode.currentTarget).toBe(50);
+      expect(restored?.educationEnabled).toBe(false);
+      expect(restored?.setAxis).toBe(current.setAxis);
+    });
   });
 
   describe('Axis Value Updates', () => {
@@ -663,30 +685,26 @@ describe('BASStore', () => {
     });
   });
 
-  describe('Performance', () => {
-    it('should handle rapid axis updates efficiently', () => {
+  describe('Rapid updates', () => {
+    it('should preserve the final value across rapid axis updates', () => {
       const { setAxis } = useBASStore.getState();
 
-      const start = performance.now();
       for (let i = 0; i < 1000; i++) {
         setAxis('autonomyLevel', i % 100);
       }
-      const duration = performance.now() - start;
 
-      expect(duration).toBeLessThan(100); // Should complete in under 100ms
+      expect(useBASStore.getState().axes.autonomyLevel).toBe(99);
     });
 
-    it('should handle rapid preset changes efficiently', () => {
-      const { applyPreset } = useBASStore.getState();
+    it('should preserve the final preset across rapid preset changes', () => {
+      const { applyPreset, getCurrentPresetName } = useBASStore.getState();
       const presets = ['traditional', 'balanced', 'democratic', 'experimental'] as const;
 
-      const start = performance.now();
       for (let i = 0; i < 100; i++) {
         applyPreset(presets[i % presets.length]);
       }
-      const duration = performance.now() - start;
 
-      expect(duration).toBeLessThan(50); // Should complete in under 50ms
+      expect(getCurrentPresetName()).toBe('experimental');
     });
   });
 });

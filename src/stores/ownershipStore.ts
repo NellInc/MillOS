@@ -13,7 +13,7 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { safeJSONStorage } from './storage';
+import { mergePersistedState, safeJSONStorage } from './storage';
 
 // ============================================================================
 // TYPES
@@ -418,6 +418,7 @@ export const useOwnershipStore = create<OwnershipState & OwnershipActions>()(
         capitalDecisions: state.capitalDecisions,
         simulationMode: state.simulationMode,
       }),
+      merge: mergePersistedState,
     }
   )
 );

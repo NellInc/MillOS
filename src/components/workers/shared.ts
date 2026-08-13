@@ -71,12 +71,7 @@ export const getSafeSpawnZ = (preferredZ: number): number => {
 // Animation types
 export type IdleAnimationType = 'breathing' | 'looking' | 'shifting' | 'stretching';
 export type SpecialAction =
-  | 'none'
-  | 'running'
-  | 'carrying'
-  | 'sitting'
-  | 'celebrating'
-  | 'pointing';
+  'none' | 'running' | 'carrying' | 'sitting' | 'celebrating' | 'pointing';
 
 // Role-specific working pose configurations
 export type WorkingPose = {

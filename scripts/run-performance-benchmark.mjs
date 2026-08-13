@@ -3,6 +3,7 @@ import { mkdir, access, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import { chromium } from '@playwright/test';
+import { waitForServer } from './lib/wait-for-server.mjs';
 
 const ROOT = process.cwd();
 const DEFAULT_OUTPUT = path.join(ROOT, 'test-results', 'runtime-benchmarks');
@@ -136,21 +137,6 @@ const budgets = {
 };
 
 let previewProcess = null;
-
-async function waitForServer(url, timeoutMs = 30000) {
-  const deadline = Date.now() + timeoutMs;
-  let lastError = null;
-  while (Date.now() < deadline) {
-    try {
-      const response = await fetch(url);
-      if (response.ok) return;
-    } catch (error) {
-      lastError = error;
-    }
-    await new Promise((resolve) => setTimeout(resolve, 250));
-  }
-  throw new Error(`Preview did not become ready at ${url}: ${String(lastError ?? 'timeout')}`);
-}
 
 async function startPreview() {
   await access(path.join(ROOT, 'dist', 'index.html')).catch(() => {
@@ -298,7 +284,8 @@ async function waitForRuntimeStage(page, label, predicate, timeoutMs, diagnostic
         { ...diagnostics, pageState },
         null,
         2
-      )}`
+      )}`,
+      { cause: error }
     );
   }
 }
@@ -357,20 +344,24 @@ function summarizeMotion(samples) {
       entities.set(entity.id, current);
     }
   }
-  return [...entities.values()].map(({ lastPosition: _lastPosition, ...entity }) => ({
-    ...entity,
-    distance: Number(entity.distance.toFixed(2)),
-    telemetry: Object.fromEntries(
-      Object.entries(entity.telemetry).map(([key, metric]) => [
-        key,
-        {
-          min: Number(metric.min.toFixed(4)),
-          max: Number(metric.max.toFixed(4)),
-          delta: Number((metric.last - metric.first).toFixed(4)),
-        },
-      ])
-    ),
-  }));
+  return [...entities.values()].map((withLastPosition) => {
+    const entity = { ...withLastPosition };
+    delete entity.lastPosition;
+    return {
+      ...entity,
+      distance: Number(entity.distance.toFixed(2)),
+      telemetry: Object.fromEntries(
+        Object.entries(entity.telemetry).map(([key, metric]) => [
+          key,
+          {
+            min: Number(metric.min.toFixed(4)),
+            max: Number(metric.max.toFixed(4)),
+            delta: Number((metric.last - metric.first).toFixed(4)),
+          },
+        ])
+      ),
+    };
+  });
 }
 
 async function waitForRuntimeSettled(

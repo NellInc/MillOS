@@ -22,9 +22,19 @@ import type {
   HealingSignals,
   SignalSource,
   UniversalSubject,
+  FlourishingDimension,
 } from './types';
 
 import { SOURCE_TO_UNIVERSAL } from './types';
+
+const FLOURISHING_DIMENSION_SYMBOL: Record<FlourishingDimension, string> = {
+  meaning: 'M',
+  mastery: 'Y',
+  connection: 'C',
+  joy: 'J',
+  wholeness: 'W',
+  agency: 'A',
+};
 
 // =============================================================================
 // LAYER 1: CONTEXT FRAME ENCODING
@@ -113,7 +123,7 @@ export function encodeStateSnapshot(state: StateSnapshot): string {
     }[state.wellbeing.flourishingTrend];
 
     const concernDim = state.wellbeing.concernDimension
-      ? state.wellbeing.concernDimension[0].toUpperCase()
+      ? FLOURISHING_DIMENSION_SYMBOL[state.wellbeing.concernDimension]
       : '';
 
     parts.push(
@@ -214,7 +224,7 @@ export function encodeReasoningScaffolds(scaffolds: ReasoningScaffolds): string 
     strategic: '\uD83C\uDF31', // 🌱
   }[scaffolds.primaryFocus];
 
-  const flourishDim = scaffolds.moral.flourishingFocus[0].toUpperCase();
+  const flourishDim = FLOURISHING_DIMENSION_SYMBOL[scaffolds.moral.flourishingFocus];
 
   const trustSymbol = {
     building: '\u2191', // ↑

@@ -13,7 +13,6 @@ const activeRoots = [
   'src/components/infrastructure',
   'src/components/machines',
   'src/components/truckbay',
-  'src/components/conveyors',
 ];
 
 function collect(path) {
@@ -28,8 +27,7 @@ function collect(path) {
 
 const failures = [];
 const files = activeRoots.flatMap(collect);
-const rawOffset =
-  /polygonOffset(?:Factor|Units)\s*(?:=|:)\s*(?:\{\s*)?-?\d+(?:\.\d+)?/g;
+const rawOffset = /polygonOffset(?:Factor|Units)\s*(?:=|:)\s*(?:\{\s*)?-?\d+(?:\.\d+)?/g;
 
 for (const file of files) {
   const source = readFileSync(file, 'utf8');
@@ -52,9 +50,7 @@ if (!/near:\s*0\.5/.test(layerSource) || !/far:\s*360/.test(layerSource)) {
 }
 
 const registrySource = readFileSync(resolve(root, 'src/constants/depthRegistry.ts'), 'utf8');
-const registryEntries = [...registrySource.matchAll(/\bid:\s*'([^']+)'/g)].map(
-  (match) => match[1]
-);
+const registryEntries = [...registrySource.matchAll(/\bid:\s*'([^']+)'/g)].map((match) => match[1]);
 if (registryEntries.length < 10 || new Set(registryEntries).size !== registryEntries.length) {
   failures.push('depth registry must contain at least ten unique confirmed relationships');
 }

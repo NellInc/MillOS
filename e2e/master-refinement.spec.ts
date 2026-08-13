@@ -171,12 +171,22 @@ test.describe('MillOS master refinement runtime', () => {
     await introStepTwo.getByRole('button', { name: 'Next' }).click();
     const introStepThree = page.getByRole('region', { name: 'Getting started, step 3 of 3' });
     await expect(introStepThree).toBeVisible();
-    await introStepThree.getByRole('button', { name: 'Start operating' }).click();
+    const startOperating = introStepThree.getByRole('button', { name: 'Start operating' });
+    await startOperating.focus();
+    await expect(startOperating).toBeFocused();
+    await startOperating.press('Enter');
     await expect(introStepThree).toBeHidden();
     await expectNoWcagViolations(page, testInfo, 'default-desktop');
 
+    const welcomeReflection = page.getByRole('complementary', { name: 'AI reflection' });
+    await expect(welcomeReflection).toBeVisible();
+    await welcomeReflection.getByRole('button', { name: 'Close' }).click();
+    await expect(welcomeReflection).toBeHidden();
+
     const aiDockButton = page.getByRole('button', { name: 'AI Partner', exact: true });
-    await aiDockButton.click();
+    await aiDockButton.focus();
+    await expect(aiDockButton).toBeFocused();
+    await aiDockButton.press('Enter');
     const aiSidebar = page.getByRole('complementary', { name: 'AI Partner sidebar panel' });
     await expect(aiSidebar).toBeVisible();
     await expect(aiSidebar.getByTestId('ai-command-center')).toBeVisible();
@@ -376,6 +386,23 @@ test.describe('MillOS master refinement runtime', () => {
       path: testInfo.outputPath('settings-desktop.png'),
       animations: 'disabled',
     });
+
+    await page.getByRole('button', { name: 'About MillOS' }).click();
+    const aboutDialog = page.getByRole('dialog', { name: 'About MillOS' });
+    await expect(aboutDialog).toBeVisible();
+    await expect(aboutDialog.getByText('Fanfare for Space', { exact: false })).toBeVisible();
+    await expect(aboutDialog.getByText('Forklift by Mantas Stankaitis')).toBeVisible();
+    await expect(aboutDialog.getByText('Ultimate Modular Men Pack by Quaternius')).toBeVisible();
+    await expect(
+      aboutDialog.getByRole('link', { name: 'Complete 26-track credits and ISRCs' })
+    ).toHaveAttribute('href', /MUSIC_CREDITS\.txt$/);
+    await expectNoWcagViolations(page, testInfo, 'about-credits');
+    await page.screenshot({
+      path: testInfo.outputPath('about-credits.png'),
+      animations: 'disabled',
+    });
+    await aboutDialog.getByRole('button', { name: 'Close about dialog' }).click();
+    await expect(aboutDialog).toBeHidden();
 
     await page.keyboard.press('Escape');
     await expect(settingsSidebar).toBeHidden();

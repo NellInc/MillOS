@@ -15,7 +15,10 @@ import { test, expect, Page } from '@playwright/test';
 async function dismissOnboarding(page: Page) {
   const currentTour = page.getByRole('region', { name: /Getting started, step \d+ of \d+/ });
   if (await currentTour.isVisible().catch(() => false)) {
-    await currentTour.getByRole('button', { name: 'Skip tour' }).click();
+    const skipTour = currentTour.getByRole('button', { name: 'Skip tour' });
+    await skipTour.focus();
+    await expect(skipTour).toBeFocused();
+    await skipTour.press('Enter');
     await expect(currentTour).toBeHidden();
     return;
   }
@@ -37,7 +40,10 @@ async function dismissOnboarding(page: Page) {
 /** Open the AI Partner workspace via the dock and wait for its metrics to mount. */
 async function openAIPanel(page: Page) {
   await dismissOnboarding(page);
-  await page.getByRole('button', { name: 'AI Partner', exact: true }).click();
+  const aiDockButton = page.getByRole('button', { name: 'AI Partner', exact: true });
+  await aiDockButton.focus();
+  await expect(aiDockButton).toBeFocused();
+  await aiDockButton.press('Enter');
   await expect(page.getByTestId('ai-command-center')).toBeVisible({ timeout: 5000 });
   await expect(page.getByTestId('ai-cpu-value')).toBeVisible({ timeout: 5000 });
 }

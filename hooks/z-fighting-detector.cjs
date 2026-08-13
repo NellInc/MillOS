@@ -62,11 +62,6 @@ function main() {
     process.exit(0);
   }
 
-  // Skip archive files
-  if (filePath.includes('/0.10 Archive/')) {
-    process.exit(0);
-  }
-
   try {
     const content = fs.readFileSync(filePath, 'utf-8');
     const violations = detectZFightingViolations(filePath, content);

@@ -10,6 +10,7 @@ import {
   PeerInfo,
 } from '../multiplayer/types';
 import { sanitizePlayerName, sanitizeRoomCode } from '../utils/sanitize';
+import { generateMultiplayerId, generatePlayerId, generateRoomCode } from '../multiplayer/identity';
 
 /** Identity slice of a RemotePlayer — the fields UI rosters render. */
 export interface RemotePlayerIdentity {
@@ -20,21 +21,6 @@ export interface RemotePlayerIdentity {
 
 function buildRoster(players: Map<string, RemotePlayer>): RemotePlayerIdentity[] {
   return Array.from(players.values(), (p) => ({ id: p.id, name: p.name, color: p.color }));
-}
-
-// Generate a simple 6-character room code
-function generateRoomCode(): string {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Avoid ambiguous chars
-  let code = '';
-  for (let i = 0; i < 6; i++) {
-    code += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return code;
-}
-
-// Generate a unique player ID
-function generatePlayerId(): string {
-  return `player_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
 }
 
 interface MultiplayerStore {
@@ -128,11 +114,13 @@ interface MultiplayerStore {
   reset: () => void;
 }
 
+const LOCAL_PLAYER_ID = 'player_local';
+
 const initialState = {
   connectionState: 'disconnected' as ConnectionState,
   isHost: false,
   roomCode: null,
-  localPlayerId: generatePlayerId(),
+  localPlayerId: LOCAL_PLAYER_ID,
   localPlayerName: 'Player',
   localPlayerColor: PLAYER_COLORS[0],
   remotePlayers: new Map<string, RemotePlayer>(),
@@ -191,7 +179,7 @@ export const useMultiplayerStore = create<MultiplayerStore>((set, get) => ({
   leaveRoom: () => {
     set({
       ...initialState,
-      localPlayerId: generatePlayerId(),
+      localPlayerId: LOCAL_PLAYER_ID,
       localPlayerName: get().localPlayerName, // Preserve name
     });
   },
@@ -315,7 +303,7 @@ export const useMultiplayerStore = create<MultiplayerStore>((set, get) => ({
     const state = get();
     const fullIntent: MachineIntent = {
       ...intent,
-      id: `intent_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
+      id: generateMultiplayerId('intent'),
       playerId: state.localPlayerId,
       timestamp: Date.now(),
     };
@@ -376,7 +364,7 @@ export const useMultiplayerStore = create<MultiplayerStore>((set, get) => ({
   reset: () => {
     set({
       ...initialState,
-      localPlayerId: generatePlayerId(),
+      localPlayerId: LOCAL_PLAYER_ID,
     });
   },
 }));

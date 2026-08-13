@@ -3,7 +3,19 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { isValidWSMessage, isValidMQTTPayload, MessageValidationError } from '../messageValidation';
+import {
+  isAcceptableSCADAPayloadText,
+  isValidMQTTPayload,
+  isValidWSMessage,
+  MAX_SCADA_BATCH_TAGS,
+  MAX_SCADA_ERROR_BYTES,
+  MAX_SCADA_MESSAGE_BYTES,
+  MAX_SCADA_QUALITY_BYTES,
+  MAX_SCADA_STRING_VALUE_BYTES,
+  MAX_SCADA_TAG_ID_BYTES,
+  MAX_SCADA_TAG_IDS,
+  MessageValidationError,
+} from '../messageValidation';
 
 describe('WebSocket Message Validation', () => {
   describe('isValidWSMessage', () => {
@@ -384,6 +396,92 @@ describe('MQTT Payload Validation', () => {
 
       expect(isValidMQTTPayload(payload)).toBe(false);
     });
+  });
+});
+
+describe('SCADA protocol trust-boundary limits', () => {
+  const validTag = {
+    tagId: 'SILO_A_LEVEL',
+    value: 75.5,
+    quality: 'GOOD',
+    timestamp: 1_700_000_000_000,
+  };
+
+  it('bounds raw text by UTF-8 bytes before JSON parsing', () => {
+    expect(isAcceptableSCADAPayloadText('x'.repeat(MAX_SCADA_MESSAGE_BYTES))).toBe(true);
+    expect(isAcceptableSCADAPayloadText('x'.repeat(MAX_SCADA_MESSAGE_BYTES + 1))).toBe(false);
+    expect(isAcceptableSCADAPayloadText('é'.repeat(MAX_SCADA_MESSAGE_BYTES / 2 + 1))).toBe(false);
+    expect(isAcceptableSCADAPayloadText(new ArrayBuffer(8))).toBe(false);
+  });
+
+  it('requires bounded identifiers, concrete finite values, and finite timestamps', () => {
+    expect(
+      isValidWSMessage({
+        type: 'update',
+        tagId: 'A'.repeat(MAX_SCADA_TAG_ID_BYTES),
+        value: 'x'.repeat(MAX_SCADA_STRING_VALUE_BYTES),
+        quality: 'Q'.repeat(MAX_SCADA_QUALITY_BYTES),
+        timestamp: Number.MAX_SAFE_INTEGER,
+      })
+    ).toBe(true);
+    expect(isValidWSMessage({ type: 'update', tagId: 'A' })).toBe(false);
+    expect(
+      isValidWSMessage({
+        ...validTag,
+        type: 'update',
+        tagId: 'A'.repeat(MAX_SCADA_TAG_ID_BYTES + 1),
+      })
+    ).toBe(false);
+    expect(isValidWSMessage({ ...validTag, type: 'update', value: Number.POSITIVE_INFINITY })).toBe(
+      false
+    );
+    expect(isValidWSMessage({ ...validTag, type: 'update', timestamp: Number.NaN })).toBe(false);
+    expect(
+      isValidWSMessage({
+        ...validTag,
+        type: 'update',
+        value: 'x'.repeat(MAX_SCADA_STRING_VALUE_BYTES + 1),
+      })
+    ).toBe(false);
+  });
+
+  it('bounds WebSocket collections and diagnostic strings', () => {
+    expect(
+      isValidWSMessage({ type: 'subscribe', tagIds: Array(MAX_SCADA_TAG_IDS).fill('TAG') })
+    ).toBe(true);
+    expect(
+      isValidWSMessage({ type: 'subscribe', tagIds: Array(MAX_SCADA_TAG_IDS + 1).fill('TAG') })
+    ).toBe(false);
+    expect(
+      isValidWSMessage({ type: 'batch', tags: Array(MAX_SCADA_BATCH_TAGS).fill(validTag) })
+    ).toBe(true);
+    expect(
+      isValidWSMessage({ type: 'snapshot', tags: Array(MAX_SCADA_BATCH_TAGS + 1).fill(validTag) })
+    ).toBe(false);
+    expect(isValidWSMessage({ type: 'error', error: 'x'.repeat(MAX_SCADA_ERROR_BYTES + 1) })).toBe(
+      false
+    );
+    expect(
+      isValidWSMessage({
+        ...validTag,
+        type: 'update',
+        quality: 'Q'.repeat(MAX_SCADA_QUALITY_BYTES + 1),
+      })
+    ).toBe(false);
+  });
+
+  it('applies the same scalar limits to MQTT payloads', () => {
+    expect(isValidMQTTPayload({ ...validTag, sourceTimestamp: Number.MAX_SAFE_INTEGER })).toBe(
+      true
+    );
+    expect(isValidMQTTPayload({ ...validTag, value: Number.NEGATIVE_INFINITY })).toBe(false);
+    expect(isValidMQTTPayload({ ...validTag, timestamp: Number.NaN })).toBe(false);
+    expect(isValidMQTTPayload({ ...validTag, sourceTimestamp: Number.POSITIVE_INFINITY })).toBe(
+      false
+    );
+    expect(isValidMQTTPayload({ ...validTag, tagId: 'é'.repeat(MAX_SCADA_TAG_ID_BYTES) })).toBe(
+      false
+    );
   });
 });
 

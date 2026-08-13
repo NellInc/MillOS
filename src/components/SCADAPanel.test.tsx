@@ -1,6 +1,6 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import type { ReactNode } from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TagDefinition, TagHistoryPoint, TagValue } from '../scada/types';
 import { useGraphicsStore } from '../stores/graphicsStore';
 import { SCADAPanel } from './SCADAPanel';
@@ -95,7 +95,12 @@ vi.mock('recharts', () => ({
 describe('SCADAPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    testState.getHistory.mockResolvedValue([]);
     useGraphicsStore.getState().setSCADAEnabled(true);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('opens the full workspace, traps focus, closes with Escape, and restores focus', async () => {
@@ -170,6 +175,31 @@ describe('SCADAPanel', () => {
     expect(screen.getByText('6/6 tags selected')).toBeInTheDocument();
     expect(tagOptions[6]).toHaveAccessibleName(/Mill temperature 7/);
     expect(tagOptions[6]).toBeDisabled();
+  });
+
+  it('waits for an active trend request before scheduling the next refresh', async () => {
+    vi.useFakeTimers();
+    let resolveFirstRequest: ((history: TagHistoryPoint[]) => void) | undefined;
+    testState.getHistory.mockImplementationOnce(
+      () =>
+        new Promise<TagHistoryPoint[]>((resolve) => {
+          resolveFirstRequest = resolve;
+        })
+    );
+
+    render(<SCADAPanel isOpen onClose={vi.fn()} />);
+    fireEvent.click(screen.getByRole('tab', { name: 'Trends' }));
+    fireEvent.click(screen.getAllByTestId('scada-trend-tag-option')[0]);
+    await act(async () => Promise.resolve());
+
+    expect(testState.getHistory).toHaveBeenCalledTimes(1);
+    await act(async () => vi.advanceTimersByTimeAsync(6_000));
+    expect(testState.getHistory).toHaveBeenCalledTimes(1);
+
+    resolveFirstRequest?.([]);
+    await act(async () => Promise.resolve());
+    await act(async () => vi.advanceTimersByTimeAsync(2_000));
+    expect(testState.getHistory).toHaveBeenCalledTimes(2);
   });
 
   it('provides a keyboard-readable trend table and scoped CSV export', async () => {

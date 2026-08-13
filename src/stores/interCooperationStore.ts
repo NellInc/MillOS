@@ -15,18 +15,14 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { safeJSONStorage } from './storage';
+import { mergePersistedState, safeJSONStorage } from './storage';
 
 // ============================================================================
 // TYPES
 // ============================================================================
 
 export type LearningType =
-  | 'bas-config'
-  | 'process'
-  | 'ai-improvement'
-  | 'crisis-response'
-  | 'flourishing';
+  'bas-config' | 'process' | 'ai-improvement' | 'crisis-response' | 'flourishing';
 
 export type LearningStatus = 'available' | 'reviewing' | 'adopted' | 'rejected';
 
@@ -461,6 +457,7 @@ export const useInterCooperationStore = create<InterCooperationState & InterCoop
         federationGovernance: state.federationGovernance,
         simulationMode: state.simulationMode,
       }),
+      merge: mergePersistedState,
     }
   )
 );

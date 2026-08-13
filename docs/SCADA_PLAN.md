@@ -1,5 +1,7 @@
 # SCADA Integration Plan for MillOS
 
+> **Historical record.** This document preserves an earlier audit, plan, or implementation snapshot. It is not current status or operating instruction. See [the 12 August 2026 exhaustive improvement ledger](../_contprompts/millos_exhaustive_improvements_2026-08-12.md) and [its second pass](../_contprompts/millos_exhaustive_improvements_second_pass_2026-08-12.md) for current evidence, dispositions, and remaining gates.
+
 ## Status: COMPLETE
 
 All phases of the SCADA integration have been implemented, serving as both the original architecture plan and current usage documentation.
@@ -126,7 +128,7 @@ npm install
 npm run dev
 
 # Or with Docker
-docker-compose up
+docker compose up
 ```
 
 Configure environment:
@@ -414,25 +416,25 @@ Connect: `ws://localhost:3001/ws`
 
 ```bash
 cd scada-proxy
-docker-compose up
+docker compose up
 ```
 
 ### With MQTT Broker
 
 ```bash
-docker-compose --profile mqtt up
+docker compose --profile mqtt up
 ```
 
 ### With Simulators
 
 ```bash
-docker-compose --profile opcua-sim --profile modbus-sim up
+docker compose --profile opcua-sim --profile modbus-sim up
 ```
 
 ### Production
 
 ```bash
-docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+Production used a deployment-specific overlay that is not retained in this repository.
 ```
 
 ---

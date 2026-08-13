@@ -21,7 +21,11 @@ import {
   ConnectionStatus,
   AdapterStatistics,
 } from '../types';
-import { isValidWSMessage, MessageValidationError } from './messageValidation';
+import {
+  isAcceptableSCADAPayloadText,
+  isValidWSMessage,
+  MessageValidationError,
+} from './messageValidation';
 
 /** WebSocket message types */
 interface WSMessage {
@@ -38,6 +42,17 @@ interface WSMessage {
     timestamp: number;
   }>;
   error?: string;
+}
+
+function encodeApiKeyProtocol(apiKey: string): string {
+  if (apiKey.length > 4096) throw new Error('SCADA API key exceeds 4096 characters');
+  const bytes = new TextEncoder().encode(apiKey);
+  let binary = '';
+  bytes.forEach((byte) => {
+    binary += String.fromCharCode(byte);
+  });
+  const encoded = btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+  return `millos-scada-key.${encoded}`;
 }
 
 export class WebSocketAdapter implements IProtocolAdapter {
@@ -91,7 +106,10 @@ export class WebSocketAdapter implements IProtocolAdapter {
 
     return new Promise((resolve, reject) => {
       try {
-        this.ws = new WebSocket(url);
+        const protocols = this.config.apiKey
+          ? ['millos-scada', encodeApiKeyProtocol(this.config.apiKey)]
+          : undefined;
+        this.ws = protocols ? new WebSocket(url, protocols) : new WebSocket(url);
 
         const timeout = setTimeout(() => {
           // Mark as deliberately closing so the onclose handler does not
@@ -304,8 +322,18 @@ export class WebSocketAdapter implements IProtocolAdapter {
   // Message Handling
   // =========================================================================
 
-  private handleMessage(data: string): void {
+  private handleMessage(data: unknown): void {
     try {
+      if (!isAcceptableSCADAPayloadText(data)) {
+        const closeCode = typeof data === 'string' ? 1009 : 1003;
+        this.ws?.close(closeCode, 'Invalid SCADA message payload');
+        throw new MessageValidationError(
+          'WebSocket message must be text no larger than 32 KiB',
+          undefined,
+          'WebSocket'
+        );
+      }
+
       // Parse JSON
       const parsed: unknown = JSON.parse(data);
 

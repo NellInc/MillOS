@@ -3,53 +3,45 @@
 <!-- wiki:type = flow -->
 <!-- wiki:scope = millos -->
 <!-- wiki:created = 2026-05-23 -->
-<!-- wiki:updated = 2026-05-23 -->
+<!-- wiki:updated = 2026-08-13 -->
 <!-- wiki:status = active -->
 
 ## Summary
 
-The fire drill is a fully functional evacuation simulation. Workers pathfind to nearest exits; forklifts emergency-stop; progress is tracked live. Triggered from the Emergency & Environment Controls panel in `UIOverlay.tsx`.
+The fire drill is a simulated evacuation journey started from
+`src/components/ui-new/panels/SafetyPanel.tsx`. It activates the alarm layer,
+stops forklifts, sends workers to the geometrically nearest exit, and records a
+candidate-local elapsed time and evacuated count.
 
 ## Flow
 
-1. **Trigger**: User clicks "START DRILL" in `EmergencyEnvironmentPanel` (`src/components/UIOverlay.tsx`)
-2. **Store init**: `startEmergencyDrill(totalWorkers)` — sets `DrillMetrics.active = true`, starts alarm audio, initializes `evacuatedWorkerIds = []` (`src/stores/gameSimulationStore.ts`)
-3. **Alarm**: Emergency siren plays continuously via `audioManager`
-4. **Worker evacuation**: `WorkerSystem.tsx` checks `drillMetrics.active`; each worker runs at speed 6 units/sec toward their assigned exit (lines ~1983–2024, `src/components/WorkerSystem.tsx`)
-5. **Exit assignment**: `getNearestExit(x, z)` returns closest exit by geometric distance (`src/stores/gameSimulationStore.ts`)
-6. **Forklift stop**: `ForkliftSystem.tsx` checks drill active flag and halts all movement (line ~559, `src/components/ForkliftSystem.tsx`)
-7. **Exit markers**: `FireDrillExitMarkers` component in `MillScene.tsx` renders glowing green circles with labels at each exit
-8. **Progress tracking**: UI shows live timer (100ms updates) and "Evacuated: X/Y" count via `DrillMetrics`
-9. **Completion**: When all workers call `markWorkerEvacuated(workerId)`, `evacuationComplete = true` and alarm stops; "ALL CLEAR" banner shows with final time
-10. **Manual end**: User can click "END DRILL"; `endEmergencyDrill()` resets all metrics
+1. SafetyPanel calls `startEmergencyDrill(totalWorkers)`.
+2. `src/stores/gameSimulationStore.ts` initializes `DrillMetrics` and alarm state.
+3. `src/components/EmergencyOverlay.tsx` presents the clearly labelled simulated alarm.
+4. `src/components/WorkerSystemNew.tsx` uses `getNearestExit` and moves workers at drill speed.
+5. `src/components/ForkliftSystem.tsx` enforces the drill stop.
+6. `src/components/physics/ExitZoneSensors.tsx` calls `markWorkerEvacuated` at an exit.
+7. `FireDrillExitMarkers` in `src/components/MillScene.tsx` shows egress locations.
+8. Completion records final time and stops the alarm; manual end resets the drill.
 
-## Exit Points
+## Exit contract
 
-| Exit | Position | Coverage |
-|------|---------|----------|
-| Front Exit | z = 50 | Workers with z > 0 |
-| Back Exit | z = -50 | Workers with z < -15 |
-| West Exit | x = -55 | Workers with x < -20 |
-| East Exit | x = 55 | Workers with x > 20 |
+`FIRE_DRILL_EXITS` in `gameSimulationStore.ts` defines front, back, west, and
+east exits. Assignment is geometric rather than a set of hard-coded worker
+categories. Duplicate evacuation marks are ignored.
 
-Exit positions align with personnel door locations in `FactoryExterior.tsx` (`CLAUDE.md:392-403`).
-
-## Key Files
-
-| File | Role |
-|------|------|
-| `src/stores/gameSimulationStore.ts` | DrillMetrics state, FIRE_DRILL_EXITS, store functions |
-| `src/components/WorkerSystem.tsx` | Evacuation movement behavior (~1983-2024) |
-| `src/components/ForkliftSystem.tsx` | Emergency stop (~559) |
-| `src/components/MillScene.tsx` | FireDrillExitMarkers component |
-| `src/components/UIOverlay.tsx` | EmergencyEnvironmentPanel UI |
+The facility emergency stop is a separate interlock. The UI prevents changing
+that interlock while a drill owns the safety state.
 
 ## Provenance
 
-- Sources consulted: `CLAUDE.md:380-440`, `src/stores/gameSimulationStore.ts`
-- Last verified against sources: 2026-05-23
+- Sources: `src/stores/gameSimulationStore.ts`,
+  `src/components/ui-new/panels/SafetyPanel.tsx`,
+  `src/components/WorkerSystemNew.tsx`, `src/components/ForkliftSystem.tsx`,
+  `src/components/physics/ExitZoneSensors.tsx`
+- Last verified: 2026-08-13
 
 ## See Also
 
 - [[millos:systems/game-simulation]]
-- [[millos:systems/scene-zones]]
+- [[millos:systems/safety-audit-security-logging]]

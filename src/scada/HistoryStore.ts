@@ -18,6 +18,7 @@ import {
   Alarm,
   SCADAExport,
 } from './types';
+import { logger } from '../utils/logger';
 
 /** Configuration for the history store */
 interface HistoryStoreConfig {
@@ -55,10 +56,13 @@ const DEFAULT_CONFIG: HistoryStoreConfig = {
  * Wrap a promise with a timeout to prevent indefinite hangs
  */
 const withTimeout = <T>(promise: Promise<T>, ms: number, operation: string): Promise<T> => {
-  const timeout = new Promise<never>((_, reject) =>
-    setTimeout(() => reject(new Error(`IndexedDB timeout: ${operation} exceeded ${ms}ms`)), ms)
-  );
-  return Promise.race([promise, timeout]);
+  return new Promise<T>((resolve, reject) => {
+    const timeoutId = setTimeout(
+      () => reject(new Error(`IndexedDB timeout: ${operation} exceeded ${ms}ms`)),
+      ms
+    );
+    promise.then(resolve, reject).finally(() => clearTimeout(timeoutId));
+  });
 };
 
 export class HistoryStore {
@@ -74,6 +78,8 @@ export class HistoryStore {
   private isFlushing = false;
   private flushQueued = false;
   private historyDisabled = false;
+  private tagOverflowWarningEmitted = false;
+  private alarmOverflowWarningEmitted = false;
 
   // Monotonically increasing ID for buffer entries to ensure safe concurrent removal
   private nextBufferId = 0;
@@ -82,7 +88,29 @@ export class HistoryStore {
   private lastWrittenValues: Map<string, number> = new Map();
 
   constructor(config: Partial<HistoryStoreConfig> = {}) {
-    this.config = { ...DEFAULT_CONFIG, ...config };
+    const merged = { ...DEFAULT_CONFIG, ...config };
+    this.config = {
+      retentionMs:
+        Number.isFinite(merged.retentionMs) && merged.retentionMs > 0
+          ? merged.retentionMs
+          : DEFAULT_CONFIG.retentionMs,
+      batchIntervalMs:
+        Number.isFinite(merged.batchIntervalMs) && merged.batchIntervalMs >= 100
+          ? Math.floor(merged.batchIntervalMs)
+          : DEFAULT_CONFIG.batchIntervalMs,
+      maxQueryPoints:
+        Number.isFinite(merged.maxQueryPoints) && merged.maxQueryPoints >= 1
+          ? Math.floor(merged.maxQueryPoints)
+          : DEFAULT_CONFIG.maxQueryPoints,
+      maxBufferSize:
+        Number.isFinite(merged.maxBufferSize) && merged.maxBufferSize >= 1
+          ? Math.floor(merged.maxBufferSize)
+          : DEFAULT_CONFIG.maxBufferSize,
+      changeDeadband:
+        Number.isFinite(merged.changeDeadband) && merged.changeDeadband >= 0
+          ? merged.changeDeadband
+          : DEFAULT_CONFIG.changeDeadband,
+    };
   }
 
   // =========================================================================
@@ -136,13 +164,16 @@ export class HistoryStore {
         this.isInitialized = true;
 
         // Start batch write interval
-        this.batchInterval = setInterval(() => this.flushBuffers(), this.config.batchIntervalMs);
+        this.batchInterval = setInterval(
+          () => void this.flushBuffers(),
+          this.config.batchIntervalMs
+        );
 
         // Start cleanup interval (every hour)
-        this.cleanupInterval = setInterval(() => this.cleanup(), 60 * 60 * 1000);
+        this.cleanupInterval = setInterval(() => void this.cleanup(), 60 * 60 * 1000);
 
         // Initial cleanup
-        this.cleanup();
+        void this.cleanup();
 
         resolve();
       };
@@ -185,6 +216,8 @@ export class HistoryStore {
     this.lastWrittenValues.clear();
     this.isFlushing = false;
     this.flushQueued = false;
+    this.tagOverflowWarningEmitted = false;
+    this.alarmOverflowWarningEmitted = false;
     this.isInitialized = false;
   }
 
@@ -200,7 +233,13 @@ export class HistoryStore {
   writeTagValue(tagValue: TagValue): void {
     if (this.historyDisabled) return;
 
-    const numValue = tagValue.value as number;
+    const numValue =
+      typeof tagValue.value === 'boolean'
+        ? Number(tagValue.value)
+        : typeof tagValue.value === 'number'
+          ? tagValue.value
+          : Number(tagValue.value);
+    if (!Number.isFinite(numValue)) return;
 
     // OPT-5: Change detection - skip if value hasn't changed significantly
     const lastValue = this.lastWrittenValues.get(tagValue.tagId);
@@ -222,9 +261,19 @@ export class HistoryStore {
       _bufferId: this.nextBufferId++,
     });
 
+    if (this.writeBuffer.length > this.config.maxBufferSize) {
+      this.writeBuffer.splice(0, this.writeBuffer.length - this.config.maxBufferSize);
+      if (!this.tagOverflowWarningEmitted) {
+        this.tagOverflowWarningEmitted = true;
+        logger.scada.warn(
+          `[HistoryStore] Tag write buffer reached ${this.config.maxBufferSize} records; dropping oldest unpersisted samples until storage recovers`
+        );
+      }
+    }
+
     // OPT-13: Bounded buffer - force flush if buffer exceeds max size
     if (this.writeBuffer.length >= this.config.maxBufferSize) {
-      this.flushBuffers();
+      void this.flushBuffers();
     }
   }
 
@@ -256,6 +305,20 @@ export class HistoryStore {
       acknowledgedBy: alarm.acknowledgedBy,
       _bufferId: this.nextBufferId++,
     });
+
+    if (this.alarmBuffer.length > this.config.maxBufferSize) {
+      this.alarmBuffer.splice(0, this.alarmBuffer.length - this.config.maxBufferSize);
+      if (!this.alarmOverflowWarningEmitted) {
+        this.alarmOverflowWarningEmitted = true;
+        logger.scada.warn(
+          `[HistoryStore] Alarm write buffer reached ${this.config.maxBufferSize} records; dropping oldest unpersisted alarms until storage recovers`
+        );
+      }
+    }
+
+    if (this.alarmBuffer.length >= this.config.maxBufferSize) {
+      void this.flushBuffers();
+    }
   }
 
   /**
@@ -299,6 +362,7 @@ export class HistoryStore {
           // Remove only the exact records we flushed by ID, not by count
           // This prevents race conditions where concurrent writes could be missed
           this.writeBuffer = this.writeBuffer.filter((r) => !flushedIds.has(r._bufferId));
+          this.tagOverflowWarningEmitted = false;
         } catch {
           // Records remain in buffer for next attempt
         }
@@ -328,6 +392,7 @@ export class HistoryStore {
           // Remove only the exact records we flushed by ID, not by count
           // This prevents race conditions where concurrent writes could be missed
           this.alarmBuffer = this.alarmBuffer.filter((r) => !flushedIds.has(r._bufferId));
+          this.alarmOverflowWarningEmitted = false;
         } catch {
           // Records remain in buffer for next attempt
         }

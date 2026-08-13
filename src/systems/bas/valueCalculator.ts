@@ -278,10 +278,7 @@ export interface ValueBreakdown {
   };
   /** Which factor is the limiting factor */
   limitingFactor:
-    | 'resourceIndex'
-    | 'stabilityCoefficient'
-    | 'equityIndex'
-    | 'flourishingCoefficient';
+    'resourceIndex' | 'stabilityCoefficient' | 'equityIndex' | 'flourishingCoefficient';
   /** Improvement potential if limiting factor reaches average of others */
   improvementPotential: number;
   /** Comparison to baseline */
@@ -601,11 +598,7 @@ export function analyzeValueTrend(history: ValueDataPoint[]): {
   trend: 'improving' | 'stable' | 'declining';
   rateOfChange: number;
   dominantDriver:
-    | 'resourceIndex'
-    | 'stabilityCoefficient'
-    | 'equityIndex'
-    | 'flourishingCoefficient'
-    | null;
+    'resourceIndex' | 'stabilityCoefficient' | 'equityIndex' | 'flourishingCoefficient' | null;
   recommendation: string;
 } {
   if (history.length < 2) {

@@ -12,13 +12,11 @@
  *   node scripts/convert-textures.mjs [--dry-run] [--force]
  */
 
-import { execSync } from 'child_process';
+import { spawnSync } from 'node:child_process';
 import { readdirSync, statSync, existsSync, mkdirSync } from 'fs';
 import { join, basename, extname } from 'path';
 
-const TEXTURE_DIRS = [
-  'public/textures/machines',
-];
+const TEXTURE_DIRS = ['public/textures/machines'];
 
 const OUTPUT_DIR = 'public/textures/compressed';
 const SUPPORTED_EXTENSIONS = ['.jpg', '.jpeg', '.png'];
@@ -31,13 +29,17 @@ const COMPRESSION_SETTINGS = {
   uastc: '-ktx2 -uastc -mipmap -linear',
 };
 
-function checkBasiuInstalled() {
-  try {
-    execSync('basisu -version', { stdio: 'pipe' });
-    return true;
-  } catch {
-    return false;
-  }
+function runBasisu(args, stdio = 'pipe') {
+  return spawnSync('basisu', args, {
+    encoding: 'utf8',
+    shell: false,
+    stdio,
+  });
+}
+
+function checkBasisuInstalled() {
+  const result = runBasisu(['-version']);
+  return !result.error && result.status === 0;
 }
 
 function findTextures(dir, textures = []) {
@@ -66,12 +68,12 @@ function getCompressionType(filename) {
   return 'etc1s';
 }
 
-function convertTexture(inputPath, outputDir, dryRun = false) {
+function convertTexture(inputPath, outputDir, { dryRun = false, force = false } = {}) {
   const filename = basename(inputPath, extname(inputPath));
   const outputPath = join(outputDir, `${filename}.ktx2`);
 
   // Skip if output exists and is newer
-  if (existsSync(outputPath)) {
+  if (!force && existsSync(outputPath)) {
     const inputStat = statSync(inputPath);
     const outputStat = statSync(outputPath);
     if (outputStat.mtime > inputStat.mtime) {
@@ -81,26 +83,30 @@ function convertTexture(inputPath, outputDir, dryRun = false) {
   }
 
   const compressionType = getCompressionType(filename);
-  const settings = COMPRESSION_SETTINGS[compressionType];
-
-  // basisu outputs to the same directory as input by default, so we use -output_file
-  const cmd = `basisu ${settings} -output_file "${outputPath}" "${inputPath}"`;
+  const settings = COMPRESSION_SETTINGS[compressionType].split(' ');
+  const commandArgs = [...settings, '-output_file', outputPath, inputPath];
 
   if (dryRun) {
-    console.log(`  [dry-run] ${cmd}`);
+    console.log(`  [dry-run] basisu ${commandArgs.map((arg) => JSON.stringify(arg)).join(' ')}`);
     return { dryRun: true };
   }
 
   try {
     console.log(`  [convert] ${filename} -> ${filename}.ktx2 (${compressionType})`);
-    execSync(cmd, { stdio: 'pipe' });
+    const result = runBasisu(commandArgs);
+    if (result.error) throw result.error;
+    if (result.status !== 0) {
+      throw new Error(result.stderr?.trim() || `basisu exited with status ${result.status}`);
+    }
 
     // Get size comparison
     const inputSize = statSync(inputPath).size;
     const outputSize = statSync(outputPath).size;
     const savings = ((1 - outputSize / inputSize) * 100).toFixed(1);
 
-    console.log(`           ${(inputSize/1024).toFixed(1)}KB -> ${(outputSize/1024).toFixed(1)}KB (${savings}% smaller)`);
+    console.log(
+      `           ${(inputSize / 1024).toFixed(1)}KB -> ${(outputSize / 1024).toFixed(1)}KB (${savings}% smaller)`
+    );
     return { success: true, inputSize, outputSize };
   } catch (err) {
     console.error(`  [error] Failed to convert ${filename}: ${err.message}`);
@@ -111,11 +117,16 @@ function convertTexture(inputPath, outputDir, dryRun = false) {
 async function main() {
   const args = process.argv.slice(2);
   const dryRun = args.includes('--dry-run');
+  const force = args.includes('--force');
+  const unknownArgs = args.filter((arg) => arg !== '--dry-run' && arg !== '--force');
+  if (unknownArgs.length > 0) {
+    throw new Error(`Unknown argument(s): ${unknownArgs.join(', ')}`);
+  }
 
   console.log('=== Texture Conversion Tool (basisu) ===\n');
 
   // Check for basisu
-  if (!checkBasiuInstalled()) {
+  if (!checkBasisuInstalled()) {
     console.error('Error: basisu not found. Please install basis_universal:');
     console.error('  macOS: brew install basis_universal');
     process.exit(1);
@@ -137,7 +148,7 @@ async function main() {
 
   if (allTextures.length === 0) {
     console.log('No textures found. Add textures to:');
-    TEXTURE_DIRS.forEach(dir => console.log(`  - ${dir}`));
+    TEXTURE_DIRS.forEach((dir) => console.log(`  - ${dir}`));
     return;
   }
 
@@ -145,7 +156,7 @@ async function main() {
   const stats = { success: 0, skipped: 0, error: 0, totalSaved: 0 };
 
   for (const texture of allTextures) {
-    const result = convertTexture(texture, OUTPUT_DIR, dryRun);
+    const result = convertTexture(texture, OUTPUT_DIR, { dryRun, force });
 
     if (result.success) {
       stats.success++;
@@ -171,4 +182,7 @@ async function main() {
   }
 }
 
-main().catch(console.error);
+main().catch((error) => {
+  console.error(error instanceof Error ? error.message : error);
+  process.exitCode = 1;
+});

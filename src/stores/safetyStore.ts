@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { safeJSONStorage } from './storage';
+import { mergePersistedState, safeJSONStorage } from './storage';
 
 interface IncidentHeatMapIndex {
   incidentHeatMapIndex: Map<string, { x: number; z: number; intensity: number; type: string }>;
@@ -302,23 +302,7 @@ export const useSafetyStore = create<SafetyStore>()(
         safetyConfig: state.safetyConfig,
         speedZones: state.speedZones,
       }),
-      onRehydrateStorage: () => (state, error) => {
-        if (error) {
-          return;
-        }
-
-        // Validate arrays exist
-        if (state && state.speedZones && !Array.isArray(state.speedZones)) {
-          state.speedZones = [
-            { id: 'zone-1', x: 0, z: 0, radius: 5, name: 'Central Area' },
-            { id: 'zone-2', x: 0, z: 28, radius: 4, name: 'North Loading' },
-            { id: 'zone-3', x: 0, z: -28, radius: 4, name: 'South Loading' },
-            { id: 'zone-4', x: -28, z: 0, radius: 3, name: 'West Corridor' },
-            { id: 'zone-5', x: 28, z: 0, radius: 3, name: 'East Corridor' },
-            { id: 'zone-6', x: 0, z: 18, radius: 4, name: 'Packing Zone' },
-          ];
-        }
-      },
+      merge: mergePersistedState,
     }
   )
 );

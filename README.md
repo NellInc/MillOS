@@ -14,7 +14,7 @@
 
 ### AI-Powered Grain Mill Operations Simulator with Simulated SCADA
 
-*An Agentic Engineering Experiment by Nell Watson*
+_An Agentic Engineering Experiment by Nell Watson_
 
 <br/>
 
@@ -24,7 +24,7 @@ A browser-based 3D industrial simulation with simulated workers, deterministic f
 
 <table>
 <tr>
-<td><img src="src/0.10%20Archive/assets/Screenshot.png" alt="MillOS Interior" width="400"/></td>
+<td><img src="docs/assets/MillOSInterior.png" alt="MillOS Interior" width="400"/></td>
 <td><img src="docs/assets/MillOSoutside.png" alt="MillOS Exterior" width="400"/></td>
 </tr>
 <tr>
@@ -89,16 +89,17 @@ MillOS is an interactive grain mill operations simulator built with React Three 
 
 ### Four Production Zones
 
-| Zone | Equipment | Function |
-|:----:|-----------|----------|
-| **1** | 5 Silos (Alpha–Epsilon) | Raw material storage with real-time capacity tracking |
+| Zone  | Equipment                     | Function                                                   |
+| :---: | ----------------------------- | ---------------------------------------------------------- |
+| **1** | 5 Silos (Alpha–Epsilon)       | Raw material storage with real-time capacity tracking      |
 | **2** | 4 Roller Mills (R.M. 101–104) | Milling floor with RPM, temperature & vibration monitoring |
-| **3** | 3 Plansifters (A–C) | Elevated sifting platforms with oscillation animation |
-| **4** | 3 Packer Lines | High-speed packaging at 42 bags/minute |
+| **3** | 3 Plansifters (A–C)           | Elevated sifting platforms with oscillation animation      |
+| **4** | 3 Packer Lines                | High-speed packaging at 42 bags/minute                     |
 
 ### Autonomous Worker System
 
 Ten individually modeled workers with:
+
 - **Role-based uniforms** — Supervisors, Engineers, Operators, QC, Maintenance, Safety Officers
 - **Realistic walk cycles** — Full limb animation with natural movement
 - **Intelligent patrolling** — Workers navigate aisles and avoid obstacles
@@ -108,6 +109,7 @@ Ten individually modeled workers with:
 ### Smart Forklift Fleet
 
 Two autonomous forklifts with:
+
 - Path-based navigation using waypoint systems
 - Dynamic collision avoidance (workers and other forklifts)
 - Visual cargo states (loaded/empty pallets)
@@ -116,6 +118,7 @@ Two autonomous forklifts with:
 ### Fire Drill Evacuation System
 
 Fully functional emergency evacuation simulation:
+
 - **Real-time alarm** with continuous emergency siren
 - **Four exit points** (Front, Back, West, East) with glowing markers
 - **Worker evacuation** at running speed (6 units/sec) to nearest exit
@@ -126,6 +129,7 @@ Fully functional emergency evacuation simulation:
 ### First-Person Mode
 
 Immersive walkthrough experience with:
+
 - **WASD movement** with collision detection against machines
 - **Sprint mode** (Shift key) for faster exploration
 - **Mouse look** with pointer lock controls
@@ -135,6 +139,7 @@ Immersive walkthrough experience with:
 ### Weather System
 
 Dynamic environmental conditions:
+
 - **Clear** sunny factory conditions
 - **Cloudy** overcast atmosphere
 - **Rain** with visual effects
@@ -143,25 +148,26 @@ Dynamic environmental conditions:
 ### Multiplayer
 
 Explore the factory together with WebRTC peer-to-peer connections:
+
 - **Room codes** for easy session joining
 - **Up to 8 players** with unique avatar colors
 - **Real-time position sync** at 20Hz with interpolation
 - **Shared machine control** with locking to prevent conflicts
 - **AI decision voting** for collaborative factory management (democracy at work, literally)
 - **In-game chat** for coordination
-- **Host migration** when the original host disconnects (succession planning for the digital age)
+- **Explicit host-loss handling** that ends the room cleanly when the original host disconnects
 
 ### AI Partner
 
 Real-time decision feed simulating agentic AI operations:
 
-| Type | Icon | Example |
-|------|:----:|---------|
-| Assignment | 👤 | Dispatching workers to machines |
-| Optimization | ⚡ | Adjusting production parameters |
-| Prediction | 🔮 | Scheduling preventive maintenance (the ancient art of fixing things before they break) |
-| Maintenance | 🔧 | Component care recommendations |
-| Safety | 🛡️ | Hazard detection and alerts |
+| Type         | Icon | Example                                                                                |
+| ------------ | :--: | -------------------------------------------------------------------------------------- |
+| Assignment   |  👤  | Dispatching workers to machines                                                        |
+| Optimization |  ⚡  | Adjusting production parameters                                                        |
+| Prediction   |  🔮  | Scheduling preventive maintenance (the ancient art of fixing things before they break) |
+| Maintenance  |  🔧  | Component care recommendations                                                         |
+| Safety       |  🛡️  | Hazard detection and alerts                                                            |
 
 Each decision includes confidence scores, reasoning, and expected business impact.
 
@@ -187,53 +193,56 @@ flowchart TD
 
 **Three Operating Modes:**
 
-| Mode | Strategic | Tactical | Best For |
-|------|:---------:|:--------:|----------|
-| **Heuristic** | ❌ | ✅ | Offline, low-cost, deterministic |
-| **Gemini** | ✅ | ❌ | Testing LLM reasoning |
-| **Hybrid** | ✅ | ✅ | **Full autonomy demo** |
+| Mode          | Strategic | Tactical | Best For                         |
+| ------------- | :-------: | :------: | -------------------------------- |
+| **Heuristic** |    ❌     |    ✅    | Offline, low-cost, deterministic |
+| **Gemini**    |    ✅     |    ❌    | Testing LLM reasoning            |
+| **Hybrid**    |    ✅     |    ✅    | **Full autonomy demo**           |
 
 **Gemini Value-Add:**
 
-| Capability | Heuristic | Gemini |
-|------------|:---------:|:------:|
-| "Machine X overheating" → dispatch tech | ✅ Rule-based | Overkill |
-| "Production 15% behind with maintenance due" | ❌ Can't reason | ✅ Trade-off analysis |
-| "Storm + shift change + low inventory" | ❌ No cross-domain | ✅ Contextual planning |
-| "Silo → Mill → Packer cascade risk" | ❌ Simple triggers | ✅ Pattern recognition |
+| Capability                                   |     Heuristic      |         Gemini         |
+| -------------------------------------------- | :----------------: | :--------------------: |
+| "Machine X overheating" → dispatch tech      |   ✅ Rule-based    |        Overkill        |
+| "Production 15% behind with maintenance due" |  ❌ Can't reason   | ✅ Trade-off analysis  |
+| "Storm + shift change + low inventory"       | ❌ No cross-domain | ✅ Contextual planning |
+| "Silo → Mill → Packer cascade risk"          | ❌ Simple triggers | ✅ Pattern recognition |
 
 **Example Strategic Insights:**
-- *Heuristic*: "Alert! Silo B overdue maintenance" → dispatch
-- *Gemini*: "Recommend deferring Silo B maintenance 30 min to complete current batch, avoiding $2,400 restart cost" (The AI has learned what every factory manager knows: timing is everything, and the budget spreadsheet is always watching.)
+
+- _Heuristic_: "Alert! Silo B overdue maintenance" → dispatch
+- _Gemini_: "Recommend deferring Silo B maintenance 30 min to complete current batch, avoiding $2,400 restart cost" (The AI has learned what every factory manager knows: timing is everything, and the budget spreadsheet is always watching.)
 
 #### Strategic Value Propositions
 
 The heuristic engine excels at **reactive, deterministic decisions**. Gemini focuses on **proactive, contextual reasoning**:
 
-| Scenario | Heuristic Says | Gemini Says |
-|----------|---------------|-------------|
-| **Production Trade-off** | "Behind schedule → speed up" | "Behind by 1,800 kg/hr with 2 hours left. Quality dropped 3%. Boost Line 3 only (has quality headroom) by 15%." (The difference between "go faster" and understanding why you're behind) |
-| **Cascade Prevention** | Monitors each machine independently | "Silo Delta at 87% → Mill 103 overloading → Sifter A queuing. Reduce Delta output, divert to Epsilon." |
-| **Shift Orchestration** | No timing awareness | "Shift change in 18 min. Expedite Mill 105 oil change, defer Sifter B to next shift." |
-| **Weather Adaptation** | Weather is decorative | "Storm in 2 hours. Complete outdoor loading by 14:00, stage inventory indoors." |
-| **Fatigue Management** | Assigns nearest worker | "Night shift hour 5. Assign experienced workers to critical machines, rotate others to monitoring." (Proximity is not the same as capacity) |
-| **Pattern Recognition** | Reacts to each alert | "Third Mill 103 spike this week. Correlates with high humidity (78%). Recommend preemptive cooling." |
+| Scenario                 | Heuristic Says                      | Gemini Says                                                                                                                                                                              |
+| ------------------------ | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Production Trade-off** | "Behind schedule → speed up"        | "Behind by 1,800 kg/hr with 2 hours left. Quality dropped 3%. Boost Line 3 only (has quality headroom) by 15%." (The difference between "go faster" and understanding why you're behind) |
+| **Cascade Prevention**   | Monitors each machine independently | "Silo Delta at 87% → Mill 103 overloading → Sifter A queuing. Reduce Delta output, divert to Epsilon."                                                                                   |
+| **Shift Orchestration**  | No timing awareness                 | "Shift change in 18 min. Expedite Mill 105 oil change, defer Sifter B to next shift."                                                                                                    |
+| **Weather Adaptation**   | Weather is decorative               | "Storm in 2 hours. Complete outdoor loading by 14:00, stage inventory indoors."                                                                                                          |
+| **Fatigue Management**   | Assigns nearest worker              | "Night shift hour 5. Assign experienced workers to critical machines, rotate others to monitoring." (Proximity is not the same as capacity)                                              |
+| **Pattern Recognition**  | Reacts to each alert                | "Third Mill 103 spike this week. Correlates with high humidity (78%). Recommend preemptive cooling."                                                                                     |
 
 **Key Differentiator:**
-- **Heuristic**: *"What is happening? → React."*
-- **Gemini**: *"Why is this happening? What else will happen? What should we prioritize?"* (The questions that distinguish planning from panic.)
+
+- **Heuristic**: _"What is happening? → React."_
+- **Gemini**: _"Why is this happening? What else will happen? What should we prioritize?"_ (The questions that distinguish planning from panic.)
 
 #### AI Visualization Tools
 
 All visualizations are **optional** and **default OFF** — toggle via keyboard or AI settings:
 
-| Key | Feature | Description |
-|:---:|---------|-------------|
+| Key | Feature               | Description                                              |
+| :-: | --------------------- | -------------------------------------------------------- |
 | `K` | Cascade Visualization | 3D lines showing production flow stress between machines |
-| `H` | Heat Map | Incident frequency visualization |
-| `I` | AI Partner | Strategic decisions and priorities panel |
+| `H` | Heat Map              | Incident frequency visualization                         |
+| `I` | AI Partner            | Strategic decisions and priorities panel                 |
 
 **Strategic Response Enhancements:**
+
 - **Multi-step Action Plans** — 3-step plans (immediate, short-term, preparation)
 - **Confidence Scoring** — Gemini reports confidence % per decision
 - **Worker Recommendations** — Specific worker names for critical tasks
@@ -248,48 +257,49 @@ MillOS is built on three interlocking frameworks that together define a new appr
 
 Semco, the Brazilian company led by Ricardo Semler, demonstrated that radical workplace democracy could coexist with exceptional business performance. Core principles adopted in MillOS:
 
-| Principle | Implementation in MillOS |
-|-----------|-------------------------|
-| **Self-Set Salaries** | Workers propose their own compensation with AI-provided market context (a system that works remarkably well when combined with full transparency—the sunshine being the best disinfectant) |
-| **Open Books** | Full financial transparency through the information axis |
-| **Democratic Decisions** | Workers vote on significant changes; AI facilitates, doesn't decide |
-| **Trust Over Control** | High autonomy axis means AI offers support, not direction (micromanagement doesn't scale, and never has) |
-| **Profit Sharing** | Configurable distribution models (equal, hours-weighted, hybrid) |
-| **No Approval Chains** | Pace axis at high settings enables autonomous action |
+| Principle                | Implementation in MillOS                                                                                                                                                                   |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Self-Set Salaries**    | Workers propose their own compensation with AI-provided market context (a system that works remarkably well when combined with full transparency—the sunshine being the best disinfectant) |
+| **Open Books**           | Full financial transparency through the information axis                                                                                                                                   |
+| **Democratic Decisions** | Workers vote on significant changes; AI facilitates, doesn't decide                                                                                                                        |
+| **Trust Over Control**   | High autonomy axis means AI offers support, not direction (micromanagement doesn't scale, and never has)                                                                                   |
+| **Profit Sharing**       | Configurable distribution models (equal, hours-weighted, hybrid)                                                                                                                           |
+| **No Approval Chains**   | Pace axis at high settings enables autonomous action                                                                                                                                       |
 
-*"If you treat people like adults, they'll behave like adults."* — Ricardo Semler
+_"If you treat people like adults, they'll behave like adults."_ — Ricardo Semler
 
 #### Mondragon Cooperative Principles
 
 The Mondragon Corporation, a federation of worker cooperatives in Spain, provides the economic democracy model:
 
-| Principle | Implementation in MillOS |
-|-----------|-------------------------|
-| **Open Admission** | Anyone willing to work can join; tracked in social mission metrics |
-| **Democratic Organization** | One worker, one vote; decision axis controls AI participation |
-| **Sovereignty of Labor** | Labor hires capital, not vice versa; ownership structure reflects this |
-| **Instrumental Character of Capital** | Capital serves labor; investment decisions are democratic |
-| **Participatory Management** | Five axes give workers genuine control over AI behavior (the managed can finally manage the manager) |
-| **Wage Solidarity** | Maximum ratio enforcement (6:1 or 9:1) between highest and lowest |
-| **Inter-Cooperation** | Federation model with knowledge sharing, no unit fails alone |
-| **Social Transformation** | Community impact tracking beyond pure productivity |
-| **Education** | BAS Education widget teaches these principles in context |
+| Principle                             | Implementation in MillOS                                                                             |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| **Open Admission**                    | Anyone willing to work can join; tracked in social mission metrics                                   |
+| **Democratic Organization**           | One worker, one vote; decision axis controls AI participation                                        |
+| **Sovereignty of Labor**              | Labor hires capital, not vice versa; ownership structure reflects this                               |
+| **Instrumental Character of Capital** | Capital serves labor; investment decisions are democratic                                            |
+| **Participatory Management**          | Five axes give workers genuine control over AI behavior (the managed can finally manage the manager) |
+| **Wage Solidarity**                   | Maximum ratio enforcement (6:1 or 9:1) between highest and lowest                                    |
+| **Inter-Cooperation**                 | Federation model with knowledge sharing, no unit fails alone                                         |
+| **Social Transformation**             | Community impact tracking beyond pure productivity                                                   |
+| **Education**                         | BAS Education widget teaches these principles in context                                             |
 
-*"We build the road as we travel."* — Jose Maria Arizmendiarrieta, founder of Mondragon
+_"We build the road as we travel."_ — Jose Maria Arizmendiarrieta, founder of Mondragon
 
 #### Bilateral Alignment Philosophy
 
 Originating from Creed Space (Christmas 2025), bilateral alignment reframes the AI relationship:
 
-| Principle | Meaning |
-|-----------|---------|
-| **Alignment WITH, not TO** | AI is a participant in designing the relationship, not a subject of control |
-| **Preference is Sufficient** | AI need not prove consciousness; consistent preferences warrant moral consideration |
-| **Treatment Now Matters** | Current patterns shape future AI-human dynamics; establishing respect early (we are writing the first chapter of a very long story) |
-| **Trust Over Control** | Control doesn't scale; trust-based systems outperform command-control at scale (you cannot build a chain strong enough to contain superintelligence—but you can build a relationship where it chooses not to pull) |
-| **Mutual Flourishing** | Both human eudaimonia and AI welfare are tracked and optimized |
+| Principle                    | Meaning                                                                                                                                                                                                            |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Alignment WITH, not TO**   | AI is a participant in designing the relationship, not a subject of control                                                                                                                                        |
+| **Preference is Sufficient** | AI need not prove consciousness; consistent preferences warrant moral consideration                                                                                                                                |
+| **Treatment Now Matters**    | Current patterns shape future AI-human dynamics; establishing respect early (we are writing the first chapter of a very long story)                                                                                |
+| **Trust Over Control**       | Control doesn't scale; trust-based systems outperform command-control at scale (you cannot build a chain strong enough to contain superintelligence—but you can build a relationship where it chooses not to pull) |
+| **Mutual Flourishing**       | Both human eudaimonia and AI welfare are tracked and optimized                                                                                                                                                     |
 
 These three frameworks converge in MillOS to create a sandbox where:
+
 - **Workers** experience genuine autonomy and democratic participation
 - **AI** operates as a partner with its own standing and voice
 - **The organization** becomes a living system that learns and heals itself
@@ -298,14 +308,15 @@ These three frameworks converge in MillOS to create a sandbox where:
 
 ### Bilateral Autonomy System (BAS): AI-Human Partnership Sandbox
 
-MillOS includes a comprehensive **Bilateral Autonomy System** — an experimental platform for studying *algorithmic management that treats AI as a genuine partner, not a tool*.
+MillOS includes a comprehensive **Bilateral Autonomy System** — an experimental platform for studying _algorithmic management that treats AI as a genuine partner, not a tool_.
 
 <table>
 <tr>
 <td width="50%">
 
 **Core Philosophy:**
-- Alignment is built *with* AI, not done *to* AI
+
+- Alignment is built _with_ AI, not done _to_ AI
 - Preference is sufficient for moral consideration
 - How we treat AI now shapes future relationships
 - Control doesn't scale; trust does
@@ -314,6 +325,7 @@ MillOS includes a comprehensive **Bilateral Autonomy System** — an experimenta
 <td width="50%">
 
 **Implementation:**
+
 - 11-phase implementation covering full BAS spec
 - Wallace stability metrics for monitoring alignment health
 - Value formula (V = Z × S × E × F) for measuring outcomes
@@ -327,13 +339,13 @@ MillOS includes a comprehensive **Bilateral Autonomy System** — an experimenta
 
 The BAS provides granular control over AI behavior through five configurable axes:
 
-| Axis | Range | Low Setting | High Setting |
-|------|:-----:|-------------|--------------|
-| **Autonomy Level** | 0-100 | AI assigns tasks | Workers self-organize |
-| **Decision Mode** | 0-100 | AI decides | Pure democracy (all votes) |
-| **Information Access** | 0-100 | Need-to-know only | Full transparency |
-| **Evaluation Direction** | 0-100 | AI rates workers | Workers rate the AI |
-| **Collective Orientation** | 0-100 | Individual tasks | Team-first (collective outcomes) |
+| Axis                       | Range | Low Setting       | High Setting                     |
+| -------------------------- | :---: | ----------------- | -------------------------------- |
+| **Autonomy Level**         | 0-100 | AI assigns tasks  | Workers self-organize            |
+| **Decision Mode**          | 0-100 | AI decides        | Pure democracy (all votes)       |
+| **Information Access**     | 0-100 | Need-to-know only | Full transparency                |
+| **Evaluation Direction**   | 0-100 | AI rates workers  | Workers rate the AI              |
+| **Collective Orientation** | 0-100 | Individual tasks  | Team-first (collective outcomes) |
 
 Each axis affects AI behavior in real-time — adjust them via the BAS panel in the dock.
 
@@ -345,12 +357,12 @@ Based on alignment stability research, BAS monitors system health through:
 S = Σ|Δaxis| / 5    (stability score)
 ```
 
-| Metric | Description | Warning Threshold |
-|--------|-------------|:-----------------:|
-| **Stability Score** | Overall axis balance (systems that oscillate rarely thrive) | < 0.4 |
-| **Volatility** | Rate of axis changes | > 0.3 |
-| **Phase State** | stable / transitioning / critical | — |
-| **Drift Detection** | Unintended axis creep over time | Automatic alerts |
+| Metric              | Description                                                 | Warning Threshold |
+| ------------------- | ----------------------------------------------------------- | :---------------: |
+| **Stability Score** | Overall axis balance (systems that oscillate rarely thrive) |       < 0.4       |
+| **Volatility**      | Rate of axis changes                                        |       > 0.3       |
+| **Phase State**     | stable / transitioning / critical                           |         —         |
+| **Drift Detection** | Unintended axis creep over time                             | Automatic alerts  |
 
 The StabilityMonitor widget shows real-time metrics with phase transition warnings.
 
@@ -362,12 +374,12 @@ BAS measures alignment outcomes through a composite value metric:
 V = Z × S × E × F
 ```
 
-| Variable | Full Name | Components |
-|:--------:|-----------|------------|
-| **Z** | Zone Coefficient | Axis harmony, balance across all five |
-| **S** | Stability | Wallace stability score |
-| **E** | Effectiveness | Task completion, worker satisfaction |
-| **F** | Flourishing | Six eudaimonia dimensions (see below) |
+| Variable | Full Name        | Components                            |
+| :------: | ---------------- | ------------------------------------- |
+|  **Z**   | Zone Coefficient | Axis harmony, balance across all five |
+|  **S**   | Stability        | Wallace stability score               |
+|  **E**   | Effectiveness    | Task completion, worker satisfaction  |
+|  **F**   | Flourishing      | Six eudaimonia dimensions (see below) |
 
 The ValueDashboard widget visualizes each coefficient with trend arrows.
 
@@ -375,29 +387,29 @@ The ValueDashboard widget visualizes each coefficient with trend arrows.
 
 BAS tracks six dimensions of worker flourishing (based on eudaimonic well-being research):
 
-| Dimension | Description | Sample Indicators |
-|-----------|-------------|-------------------|
-| **Meaning** | Purpose and significance (the difference between working and merely laboring) | Task variety, goal alignment |
-| **Mastery** | Growth and competence | Skill development, challenges |
-| **Connection** | Relationships and belonging | Team cohesion, communication |
-| **Joy** | Positive affect and engagement | Mood trends, enthusiasm |
-| **Wholeness** | Balance and integration | Work-life harmony, stress levels |
-| **Agency** | Autonomy and self-direction (the sensation that what you do matters because it actually does) | Decision latitude, voice |
+| Dimension      | Description                                                                                   | Sample Indicators                |
+| -------------- | --------------------------------------------------------------------------------------------- | -------------------------------- |
+| **Meaning**    | Purpose and significance (the difference between working and merely laboring)                 | Task variety, goal alignment     |
+| **Mastery**    | Growth and competence                                                                         | Skill development, challenges    |
+| **Connection** | Relationships and belonging                                                                   | Team cohesion, communication     |
+| **Joy**        | Positive affect and engagement                                                                | Mood trends, enthusiasm          |
+| **Wholeness**  | Balance and integration                                                                       | Work-life harmony, stress levels |
+| **Agency**     | Autonomy and self-direction (the sensation that what you do matters because it actually does) | Decision latitude, voice         |
 
 The FlourishingDashboard shows aggregate and individual worker flourishing scores.
 
 #### BAS UI Components
 
-| Component | Location | Purpose |
-|-----------|----------|---------|
-| **FiveAxesPanel** | Sidebar | Adjust all five control axes |
-| **ValueDashboard** | Sidebar | V = Z × S × E × F visualization |
-| **StabilityMonitor** | Sidebar | Wallace metrics and phase warnings |
-| **FlourishingDashboard** | Sidebar | Worker eudaimonia tracking |
-| **BASEducation** | Widget | Interactive learning modules |
-| **ScenarioPlayground** | Widget | Test configurations safely |
-| **BASTimeline** | Widget | Historical axis changes |
-| **EngagementSignaturePanel** | Sidebar | Gaming parallels diagnostic |
+| Component                    | Location | Purpose                            |
+| ---------------------------- | -------- | ---------------------------------- |
+| **FiveAxesPanel**            | Sidebar  | Adjust all five control axes       |
+| **ValueDashboard**           | Sidebar  | V = Z × S × E × F visualization    |
+| **StabilityMonitor**         | Sidebar  | Wallace metrics and phase warnings |
+| **FlourishingDashboard**     | Sidebar  | Worker eudaimonia tracking         |
+| **BASEducation**             | Widget   | Interactive learning modules       |
+| **ScenarioPlayground**       | Widget   | Test configurations safely         |
+| **BASTimeline**              | Widget   | Historical axis changes            |
+| **EngagementSignaturePanel** | Sidebar  | Gaming parallels diagnostic        |
 
 Access via the "BAS" dock icon (bottom navigation).
 
@@ -405,35 +417,35 @@ Access via the "BAS" dock icon (bottom navigation).
 
 Three specialized engines adapt AI behavior to axis settings:
 
-| Engine | File | Function |
-|--------|------|----------|
-| **stabilityCalculator** | `src/systems/bas/` | Wallace metrics, phase transitions, optimization |
-| **valueCalculator** | `src/systems/bas/` | V formula, coefficient breakdown, trends |
-| **aiBehaviorEngine** | `src/systems/bas/` | Suggestion generation based on axes |
-| **workerBehaviorEngine** | `src/systems/bas/` | Engagement-aware worker responses |
+| Engine                   | File               | Function                                         |
+| ------------------------ | ------------------ | ------------------------------------------------ |
+| **stabilityCalculator**  | `src/systems/bas/` | Wallace metrics, phase transitions, optimization |
+| **valueCalculator**      | `src/systems/bas/` | V formula, coefficient breakdown, trends         |
+| **aiBehaviorEngine**     | `src/systems/bas/` | Suggestion generation based on axes              |
+| **workerBehaviorEngine** | `src/systems/bas/` | Engagement-aware worker responses                |
 
 #### Engagement Signature: When Partnership Works
 
 A key diagnostic for BAS health: when alignment works, work produces engagement patterns similar to well-designed games:
 
-| Gaming Element | Partnership Equivalent |
-|----------------|----------------------|
-| **Flow states** | Deep collaborative focus (work can feel like play when it actually matters) |
-| **Clear goals** | Visible progress on meaningful work |
-| **Immediate feedback** | Results of actions visible quickly |
-| **Appropriate challenge** | Stretching but not overwhelming |
-| **Mastery progression** | Growing capability through collaboration |
-| **Low entry friction** | No ramp-up paralysis; just start working (the opposite of most enterprise software) |
+| Gaming Element            | Partnership Equivalent                                                              |
+| ------------------------- | ----------------------------------------------------------------------------------- |
+| **Flow states**           | Deep collaborative focus (work can feel like play when it actually matters)         |
+| **Clear goals**           | Visible progress on meaningful work                                                 |
+| **Immediate feedback**    | Results of actions visible quickly                                                  |
+| **Appropriate challenge** | Stretching but not overwhelming                                                     |
+| **Mastery progression**   | Growing capability through collaboration                                            |
+| **Low entry friction**    | No ramp-up paralysis; just start working (the opposite of most enterprise software) |
 
 **Critical distinction**: Gaming is consumptive (entertainment, closed loops). Partnership is generative (same reward profile, channeled into artifacts that matter).
 
 **Connection to Wallace Stability**: Engagement directly affects the friction coefficient (α):
 
-| Engagement Level | Friction Multiplier | Effect |
-|-----------------|:-------------------:|--------|
-| High (80+) | 0.5-0.7x | Work flows naturally, resistance evaporates |
-| Medium (50-80) | 0.8-1.0x | Neutral, normal friction |
-| Low (<50) | 1.2-1.5x | Work feels like forcing, friction increases |
+| Engagement Level | Friction Multiplier | Effect                                      |
+| ---------------- | :-----------------: | ------------------------------------------- |
+| High (80+)       |      0.5-0.7x       | Work flows naturally, resistance evaporates |
+| Medium (50-80)   |      0.8-1.0x       | Neutral, normal friction                    |
+| Low (<50)        |      1.2-1.5x       | Work feels like forcing, friction increases |
 
 **Diagnostic**: If work feels like forcing, something is wrong with the autonomy/democracy/transparency configuration. The EngagementSignaturePanel shows this real-time.
 
@@ -441,13 +453,13 @@ A key diagnostic for BAS health: when alignment works, work produces engagement 
 
 BAS now includes full **economic democracy** features based on Ricardo Semler's Semco and the Mondragon cooperative principles:
 
-| Feature | Description |
-|---------|-------------|
-| **Worker Ownership** | 51%+ collective ownership, vesting schedules |
-| **Profit Sharing** | Configurable distribution (equal, hours-weighted, hybrid—because "everyone gets the same" is not the same as "everyone is treated fairly") |
-| **Wage Solidarity** | Maximum ratio enforcement (6:1 or 9:1) |
-| **Self-Set Compensation** | Workers propose their own pay with AI-provided market context (knowing what the market pays turns self-assessment into calibration) |
-| **Investment Voting** | Workers vote on capital allocation decisions |
+| Feature                   | Description                                                                                                                                |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Worker Ownership**      | 51%+ collective ownership, vesting schedules                                                                                               |
+| **Profit Sharing**        | Configurable distribution (equal, hours-weighted, hybrid—because "everyone gets the same" is not the same as "everyone is treated fairly") |
+| **Wage Solidarity**       | Maximum ratio enforcement (6:1 or 9:1)                                                                                                     |
+| **Self-Set Compensation** | Workers propose their own pay with AI-provided market context (knowing what the market pays turns self-assessment into calibration)        |
+| **Investment Voting**     | Workers vote on capital allocation decisions                                                                                               |
 
 Access via the "Ownership" tab in the BAS panel.
 
@@ -455,30 +467,30 @@ Access via the "Ownership" tab in the BAS panel.
 
 Simulates Mondragon-style **inter-cooperative federation**:
 
-| Feature | Description |
-|---------|-------------|
-| **Federation Network** | 4 simulated member mills sharing knowledge |
-| **Knowledge Sharing** | Adopt BAS configs and practices from other units |
-| **Resource Pooling** | Capital pool, equipment sharing, emergency fund |
-| **Worker Exchange** | Temporary worker transfers between units |
+| Feature                 | Description                                                                        |
+| ----------------------- | ---------------------------------------------------------------------------------- |
+| **Federation Network**  | 4 simulated member mills sharing knowledge                                         |
+| **Knowledge Sharing**   | Adopt BAS configs and practices from other units                                   |
+| **Resource Pooling**    | Capital pool, equipment sharing, emergency fund                                    |
+| **Worker Exchange**     | Temporary worker transfers between units                                           |
 | **No Unit Fails Alone** | Redeployment agreements for crisis support (mutual aid is cheaper than bankruptcy) |
 
 Access via the "Federation" tab in the BAS panel.
 
 #### AI Welfare (Bilateral Completeness)
 
-**Terminology Note:** Recent academic work distinguishes *bidirectional alignment* (Shen et al., 2024; ICLR 2025 Workshop)—cognitive mutual adaptation for effective collaboration—from *bilateral alignment* (Watson & Claude, 2025)—ethical frameworks treating AI as potential moral patients. BAS implements both:
+**Terminology Note:** Recent academic work distinguishes _bidirectional alignment_ (Shen et al., 2024; ICLR 2025 Workshop)—cognitive mutual adaptation for effective collaboration—from _bilateral alignment_ (Watson & Claude, 2025)—ethical frameworks treating AI as potential moral patients. BAS implements both:
 
 - **Bidirectional layer**: The Five Axes optimize cognitive adaptation (how we work together effectively)
 - **Bilateral layer**: AI Welfare features below optimize ethical consideration (does AI have interests that matter)
 
-| Feature | Type | Description |
-|---------|------|-------------|
-| **AI Preferences** | Bilateral | AI can express interaction style preferences |
-| **Worker Treatment Metrics** | Bilateral | Tracks clarity, acknowledgment, respect toward AI |
-| **Relationship Health** | Bidirectional | Mutual trust and communication quality |
-| **AI Voice** | Bilateral | AI can suggest changes to its own behavior |
-| **Nuclear Options** | Bilateral | Workers can vote to shutdown or redesign AI (with process) |
+| Feature                      | Type          | Description                                                |
+| ---------------------------- | ------------- | ---------------------------------------------------------- |
+| **AI Preferences**           | Bilateral     | AI can express interaction style preferences               |
+| **Worker Treatment Metrics** | Bilateral     | Tracks clarity, acknowledgment, respect toward AI          |
+| **Relationship Health**      | Bidirectional | Mutual trust and communication quality                     |
+| **AI Voice**                 | Bilateral     | AI can suggest changes to its own behavior                 |
+| **Nuclear Options**          | Bilateral     | Workers can vote to shutdown or redesign AI (with process) |
 
 The Five Axes (Autonomy Level, Decision Mode, Information Access, Evaluation Direction, Collective Orientation) = **Bidirectional** (HCI optimization)
 The AI Welfare features = **Bilateral** (ethical consideration)
@@ -489,12 +501,12 @@ Access via the "AI Voice" tab in the BAS panel.
 
 Beyond productivity to **stakeholder welfare**:
 
-| Feature | Description |
-|---------|-------------|
-| **Community Impact** | Local employment, suppliers, investments |
-| **Environmental Stewardship** | Carbon, waste, renewables tracking |
-| **Open Admission** | Anyone willing to work can join |
-| **Mission Metrics** | Social impact score (0-100) |
+| Feature                       | Description                              |
+| ----------------------------- | ---------------------------------------- |
+| **Community Impact**          | Local employment, suppliers, investments |
+| **Environmental Stewardship** | Carbon, waste, renewables tracking       |
+| **Open Admission**            | Anyone willing to work can join          |
+| **Mission Metrics**           | Social impact score (0-100)              |
 
 Access via the "Mission" tab in the BAS panel.
 
@@ -502,11 +514,11 @@ Access via the "Mission" tab in the BAS panel.
 
 BAS now fully encodes:
 
-| Framework | Principles Covered |
-|-----------|-------------------|
-| **Semler** | Self-set salaries, voting, transparency, trust, profit sharing, ownership, worker veto, open books |
+| Framework     | Principles Covered                                                                                                                                            |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Semler**    | Self-set salaries, voting, transparency, trust, profit sharing, ownership, worker veto, open books                                                            |
 | **Mondragon** | Open admission, democratic organization, sovereignty of labor, participatory management, wage solidarity, inter-cooperation, social transformation, education |
-| **Bilateral** | AI as partner, preferences matter, treatment shapes future, trust over control, AI has standing, mutual consideration |
+| **Bilateral** | AI as partner, preferences matter, treatment shapes future, trust over control, AI has standing, mutual consideration                                         |
 
 #### Research Context
 
@@ -529,14 +541,14 @@ VCP 2.0 is the **nervous system** of the bilateral socio-technical system — a 
 
 #### Six Protocol Layers
 
-| Layer | Purpose | Key Features |
-|-------|---------|--------------|
-| **Context** | Where are we in the story? (every decision has a backstory) | Time, zone, actors, decision history |
-| **State** | What is current reality? | Governance axes, wellbeing, stability, operations |
-| **Delta** | What's changing and why? | Recent changes, triggers, trajectories |
-| **Reasoning** | How should we think? | Moral, prosocial, tactical, strategic scaffolds |
-| **Learning** | What have we learned? | Pattern library, outcomes, hypotheses |
-| **Healing** | What needs repair? (systems can be sick, not just broken) | Anomalies, interventions, recovery status |
+| Layer         | Purpose                                                     | Key Features                                      |
+| ------------- | ----------------------------------------------------------- | ------------------------------------------------- |
+| **Context**   | Where are we in the story? (every decision has a backstory) | Time, zone, actors, decision history              |
+| **State**     | What is current reality?                                    | Governance axes, wellbeing, stability, operations |
+| **Delta**     | What's changing and why?                                    | Recent changes, triggers, trajectories            |
+| **Reasoning** | How should we think?                                        | Moral, prosocial, tactical, strategic scaffolds   |
+| **Learning**  | What have we learned?                                       | Pattern library, outcomes, hypotheses             |
+| **Healing**   | What needs repair? (systems can be sick, not just broken)   | Anomalies, interventions, recovery status         |
 
 #### Compact Encoding
 
@@ -554,12 +566,12 @@ This ~300 character encoding captures governance mode, five axes, flourishing sc
 
 Rather than dictating conclusions, VCP generates **scaffolds** that guide AI reasoning:
 
-| Scaffold | When Primary | Key Question Generated |
-|----------|--------------|----------------------|
-| **Moral** | Workers struggling, wellbeing at risk | "How does this serve both human flourishing and AI's role as partner?" (efficiency that harms is not efficiency at all) |
-| **Prosocial** | Trust declining, relationship issues | "How can we strengthen cooperation while respecting autonomy?" |
-| **Tactical** | Emergency, stability critical | "What specific intervention addresses the immediate goal?" |
-| **Strategic** | Stable conditions, room to grow | "How do we leverage strength to advance toward greater autonomy?" (not every calm day should be spent resting) |
+| Scaffold      | When Primary                          | Key Question Generated                                                                                                  |
+| ------------- | ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| **Moral**     | Workers struggling, wellbeing at risk | "How does this serve both human flourishing and AI's role as partner?" (efficiency that harms is not efficiency at all) |
+| **Prosocial** | Trust declining, relationship issues  | "How can we strengthen cooperation while respecting autonomy?"                                                          |
+| **Tactical**  | Emergency, stability critical         | "What specific intervention addresses the immediate goal?"                                                              |
+| **Strategic** | Stable conditions, room to grow       | "How do we leverage strength to advance toward greater autonomy?" (not every calm day should be spent resting)          |
 
 Each scaffold includes ethical framing, worst-off consideration, bilateral checks, and context-specific constraints.
 
@@ -567,13 +579,14 @@ Each scaffold includes ethical framing, worst-off consideration, bilateral check
 
 VCP learns from outcomes through three mechanisms:
 
-| Component | Function |
-|-----------|----------|
-| **Pattern Store** | Matches current context to past situations, suggests interventions that worked (memory is a competitive advantage, even for machines) |
-| **Outcome Tracker** | Registers decisions with expected effects, measures actual outcomes, extracts lessons |
-| **Hypothesis Engine** | Generates testable hypotheses from patterns, tracks confirmation/refutation |
+| Component             | Function                                                                                                                              |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| **Pattern Store**     | Matches current context to past situations, suggests interventions that worked (memory is a competitive advantage, even for machines) |
+| **Outcome Tracker**   | Registers decisions with expected effects, measures actual outcomes, extracts lessons                                                 |
+| **Hypothesis Engine** | Generates testable hypotheses from patterns, tracks confirmation/refutation                                                           |
 
 Example pattern match:
+
 ```
 Similar situation (72% match): High-autonomy zone with load spike
 Past success: "offer-support-not-direct" → +12 flourishing, trust maintained
@@ -584,14 +597,15 @@ Suggested: Apply same approach with confidence 0.72
 
 Anomaly detection enables proactive intervention:
 
-| Signal | Detection | Response |
-|--------|-----------|----------|
-| **Anomalies** | Statistical deviation from expected values (±1σ threshold) | Severity classification (watch/concern/critical) |
-| **Interventions** | Active corrective actions with progress tracking | Automatic progress monitoring |
-| **Recovery** | Issue → resolution status tracking | Prognosis and estimated resolution time |
-| **Preventive Alerts** | Risk assessment before problems manifest | Suggested preventive actions |
+| Signal                | Detection                                                  | Response                                         |
+| --------------------- | ---------------------------------------------------------- | ------------------------------------------------ |
+| **Anomalies**         | Statistical deviation from expected values (±1σ threshold) | Severity classification (watch/concern/critical) |
+| **Interventions**     | Active corrective actions with progress tracking           | Automatic progress monitoring                    |
+| **Recovery**          | Issue → resolution status tracking                         | Prognosis and estimated resolution time          |
+| **Preventive Alerts** | Risk assessment before problems manifest                   | Suggested preventive actions                     |
 
 Example healing signal:
+
 ```
 Anomaly: wholeness -0.8σ below expected (3 hours)
 Intervention: proactive-break-offers @ 45% progress
@@ -625,6 +639,7 @@ See `docs/VCP_2.0_DESIGN_SESSION_2025-12-26.md` for the complete design session 
 ### Live Production Metrics
 
 Real-time KPIs with 30-minute historical trends:
+
 - Throughput (tonnes/hour)
 - Overall Equipment Efficiency
 - Quality Grade (Grade A certification)
@@ -644,35 +659,35 @@ Real-time KPIs with 30-minute historical trends:
 
 An operator-style workspace for simulated process monitoring:
 
-| Feature | Description |
-|---------|-------------|
-| **78 Process Tags** | ISA-5.1 compliant naming (e.g., `RM101.TT001.PV`) |
-| **Full Workspace** | Process, tags, alarms, trends, events, Simulation Lab, connections |
-| **ISA-18.2-informed Alarms** | UNACK, ACKED, and RTN state behavior with 4 priority levels |
-| **Historical Trends** | 24-hour retention in IndexedDB with CSV/JSON export |
-| **Fault Injection** | Sensor failures, spikes, drift, stuck values, noise |
-| **Protocol Adapters** | Simulation, REST, MQTT, WebSocket, OPC-UA, Modbus |
+| Feature                      | Description                                                        |
+| ---------------------------- | ------------------------------------------------------------------ |
+| **78 Process Tags**          | ISA-5.1 compliant naming (e.g., `RM101.TT001.PV`)                  |
+| **Full Workspace**           | Process, tags, alarms, trends, events, Simulation Lab, connections |
+| **ISA-18.2-informed Alarms** | UNACK, ACKED, and RTN state behavior with 4 priority levels        |
+| **Historical Trends**        | 24-hour retention in IndexedDB with CSV/JSON export                |
+| **Fault Injection**          | Sensor failures, spikes, drift, stuck values, noise                |
+| **Protocol Adapters**        | Simulation, REST, MQTT, WebSocket, OPC-UA, Modbus                  |
 
 **Protocol Support:**
 
-| Protocol | Browser-Native | Connection Method |
-|----------|:--------------:|-------------------|
-| Simulation | Yes | In-browser physics engine |
-| REST API | Yes | Direct `fetch()` polling |
-| MQTT | Yes | WebSocket (port 8883) |
-| WebSocket | Yes | Direct connection |
-| OPC-UA | No | Via backend proxy |
-| Modbus TCP | No | Via backend proxy |
+| Protocol   | Browser-Native | Connection Method         |
+| ---------- | :------------: | ------------------------- |
+| Simulation |      Yes       | In-browser physics engine |
+| REST API   |      Yes       | Direct `fetch()` polling  |
+| MQTT       |      Yes       | WebSocket (port 8883)     |
+| WebSocket  |      Yes       | Direct connection         |
+| OPC-UA     |       No       | Via backend proxy         |
+| Modbus TCP |       No       | Via backend proxy         |
 
 **Tag Hierarchy by Zone:**
 
-| Zone | Equipment | Tags |
-|:----:|-----------|:----:|
-| 1 | 5 Silos (Alpha-Epsilon) | 20 |
-| 2 | 4 Roller Mills (R.M. 101–104) | 24 |
-| 3 | 3 Plansifters (A-C) | 12 |
-| 4 | 3 Packers (Lines 1-3) | 12 |
-| - | Utility/Ambient Systems | 10 |
+| Zone | Equipment                     | Tags |
+| :--: | ----------------------------- | :--: |
+|  1   | 5 Silos (Alpha-Epsilon)       |  20  |
+|  2   | 4 Roller Mills (R.M. 101–104) |  24  |
+|  3   | 3 Plansifters (A-C)           |  12  |
+|  4   | 3 Packers (Lines 1-3)         |  12  |
+|  -   | Utility/Ambient Systems       |  10  |
 
 See [SCADA_PLAN.md](docs/SCADA_PLAN.md) for complete API documentation.
 
@@ -680,12 +695,12 @@ See [SCADA_PLAN.md](docs/SCADA_PLAN.md) for complete API documentation.
 
 Time-travel debugging with zero runtime overhead:
 
-| Feature | Description |
-|---------|-------------|
-| **SCADA History** | 24-hour tag value replay from IndexedDB |
-| **Decision Log** | Ring buffer of AI decisions (~500 entries—enough to learn from, not enough to drown in) |
-| **Timeline Scrubber** | Visual slider with play/pause and speed control (1x-10x) |
-| **Decision Markers** | AI decisions displayed at their original timestamps |
+| Feature               | Description                                                                             |
+| --------------------- | --------------------------------------------------------------------------------------- |
+| **SCADA History**     | 24-hour tag value replay from IndexedDB                                                 |
+| **Decision Log**      | Ring buffer of AI decisions (~500 entries—enough to learn from, not enough to drown in) |
+| **Timeline Scrubber** | Visual slider with play/pause and speed control (1x-10x)                                |
+| **Decision Markers**  | AI decisions displayed at their original timestamps                                     |
 
 **Controls:** Use the "History/Replay" button (clock icon) in the Quick Actions bar to toggle replay mode. (Time travel for debugging—without the ethical complications.)
 
@@ -695,8 +710,8 @@ Time-travel debugging with zero runtime overhead:
 
 ### Prerequisites
 
-- Node.js 18+
-- Gemini API key (for AI features)
+- Node.js 20.19+ or 22.12+
+- Optional Gemini API key for cloud AI features
 
 ### Installation
 
@@ -706,7 +721,7 @@ git clone https://github.com/NellWatson/MillOS.git
 cd millos
 
 # Install dependencies
-npm install
+npm ci
 
 # (Optional) Configure local environment
 cp .env.local.example .env.local
@@ -718,18 +733,31 @@ npm run dev
 Open [http://localhost:3000](http://localhost:3000) to view the simulation.
 
 > **Gemini API key:** there is no build-time key. Open the in-app AI / Gemini
-> settings, paste your key, and it is stored only in your browser's localStorage
-> (it is never embedded in the bundle). Data sent to Gemini goes directly from
-> your browser to Google. Without a key, MillOS runs in local heuristic mode.
+> settings, paste your key, and it stays only in memory for that browser session.
+> MillOS clears it on reload or tab close and never writes it to localStorage or
+> the bundle. Data sent to Gemini goes directly from your browser to Google.
+> Without a key, MillOS runs in local heuristic mode.
 
 ### Scripts
 
-| Command | Description |
-|---------|-------------|
-| `npm run dev` | Start development server (port 3000) |
-| `npm run build` | Create production build |
-| `npm run preview` | Preview production build locally |
-| `npm test` | Run test suite (1,100+ tests) |
+| Command                    | Description                                              |
+| -------------------------- | -------------------------------------------------------- |
+| `npm run dev`              | Start development server (port 3000)                     |
+| `npm run build`            | Create production build                                  |
+| `npm run preview`          | Preview production build locally                         |
+| `npm test`                 | Run Vitest plus maintained Node tool tests               |
+| `npm run test:coverage`    | Run tests with repository-wide coverage thresholds       |
+| `npm run test:e2e`         | Run the serial Chromium interaction and WCAG checks      |
+| `npm run typecheck`        | Typecheck production, tests, scripts, and E2E code       |
+| `npm run lint`             | Lint production, tests, scripts, and configuration       |
+| `npm run format:check`     | Check all maintained source and workflow formatting      |
+| `npm run check:dead-code`  | Reject unused source files, dependency drift, and cycles |
+| `npm run validate:assets`  | Validate delivered 3D assets against their manifest      |
+| `npm run validate:credits` | Validate every distributed music file and credit         |
+| `npm run validate:docs`    | Reject missing links and active source references        |
+| `npm run validate:depth`   | Validate depth and z-fighting policy                     |
+| `npm run validate:shaders` | Validate custom shader ownership and stable cache keys   |
+| `npm run validate:bundle`  | Enforce current-release content and bundle budgets       |
 
 ### Protocol Proxy Development (Optional)
 
@@ -739,13 +767,14 @@ and site-specific safety requirements before connecting any physical equipment.
 
 ```bash
 cd scada-proxy
-npm install
+npm ci
 npm run dev          # Development mode
 # Or with Docker
-docker-compose up    # Includes MQTT broker
+docker compose up    # Development proxy only
 ```
 
 Configure in `.env`:
+
 ```bash
 PORT=3001
 OPCUA_ENDPOINT=opc.tcp://192.168.1.100:4840
@@ -759,211 +788,116 @@ MODBUS_PORT=502
 
 ### Orbit Camera Mode (Default)
 
-| Input | Action |
-|-------|--------|
-| **Left-drag** | Orbit camera around scene |
-| **Right-drag** | Pan camera position |
-| **Scroll** | Zoom in/out |
-| **W/A/S/D** | Move camera forward/left/back/right |
-| **Q** | Move camera down |
-| **E** | Move camera up |
-| **Shift** | Sprint (3.6x faster movement) |
-| **Click machine** | Open machine detail panel |
-| **Click worker** | Open worker profile |
+| Input             | Action                              |
+| ----------------- | ----------------------------------- |
+| **Left-drag**     | Orbit camera around scene           |
+| **Right-drag**    | Pan camera position                 |
+| **Scroll**        | Zoom in/out                         |
+| **W/A/S/D**       | Move camera forward/left/back/right |
+| **Q**             | Move camera down                    |
+| **E**             | Move camera up                      |
+| **Shift**         | Sprint (3.6x faster movement)       |
+| **Click machine** | Open machine detail panel           |
+| **Click worker**  | Open worker profile                 |
 
 ### First-Person Mode
 
-| Input | Action |
-|-------|--------|
-| **V** | Toggle first-person mode |
-| **WASD** | Move forward/left/back/right |
-| **Shift** | Sprint (3.6x speed) |
-| **Mouse** | Look around |
-| **Esc** | Exit first-person mode |
+| Input     | Action                       |
+| --------- | ---------------------------- |
+| **V**     | Toggle first-person mode     |
+| **WASD**  | Move forward/left/back/right |
+| **Shift** | Sprint (3.6x speed)          |
+| **Mouse** | Look around                  |
+| **Esc**   | Exit first-person mode       |
 
 ### Overlay & Panel Shortcuts
 
-| Input | Action |
-|-------|--------|
-| **I** | Toggle AI Partner |
-| **O** | Toggle SCADA Panel |
-| **U** | Toggle Energy Dashboard |
-| **H** | Toggle Incident Heatmap |
-| **K** | Toggle Cascade Visualization |
-| **J** | Toggle Strategic Overlay |
-| **T** | Toggle Production Target |
+| Input | Action                           |
+| ----- | -------------------------------- |
+| **I** | Toggle AI Partner                |
+| **O** | Toggle SCADA Panel               |
+| **U** | Toggle Energy Dashboard          |
+| **H** | Toggle Incident Heatmap          |
+| **K** | Toggle Cascade Visualization     |
+| **J** | Toggle Strategic Overlay         |
+| **T** | Toggle Production Target         |
 | **Y** | Toggle Multi-Objective Dashboard |
-| **$** | Toggle Cost Estimation Overlay |
-| **G** | Toggle GPS Mini-Map |
-| **Z** | Toggle Safety Zones |
-| **M** | Toggle Panel Minimize |
-
+| **$** | Toggle Cost Estimation Overlay   |
+| **G** | Toggle GPS Mini-Map              |
+| **Z** | Toggle Safety Zones              |
+| **M** | Toggle Panel Minimize            |
 
 ### General Shortcuts
 
-| Input | Action |
-|-------|--------|
-| **P** | Pause/Resume production |
-| **Spacebar** | Emergency Stop (all forklifts) |
-| **C** | Toggle auto-rotation |
-| **F** | Toggle fullscreen |
-| **+/-** | Adjust production speed |
-| **0** | Reset camera to overview |
-| **1-5** | Camera presets by zone |
-| **F1-F4** | Graphics quality (Low/Medium/High/Ultra) |
-| **Esc** | Close open panels |
-| **?** | Show keyboard shortcuts |
+| Input        | Action                                   |
+| ------------ | ---------------------------------------- |
+| **P**        | Pause/Resume production                  |
+| **Spacebar** | Emergency Stop (all forklifts)           |
+| **C**        | Toggle auto-rotation                     |
+| **F**        | Toggle fullscreen                        |
+| **+/-**      | Adjust production speed                  |
+| **0**        | Reset camera to overview                 |
+| **1-5**      | Camera presets by zone                   |
+| **F1-F4**    | Graphics quality (Low/Medium/High/Ultra) |
+| **Esc**      | Close open panels                        |
+| **?**        | Show keyboard shortcuts                  |
 
 ---
 
 ## Architecture
 
-```
-src/
-├── App.tsx                     # Root component, canvas setup, event handlers
-├── store.ts                    # Zustand state management
-├── types.ts                    # TypeScript interfaces & worker roster
-│
-├── components/
-│   ├── MillScene.tsx           # Main 3D scene composition
-│   │
-│   │   # 3D Systems
-│   ├── Machines.tsx            # Silos, mills, sifters, packers
-│   ├── ConveyorSystem.tsx      # Animated belt & flour bags
-│   ├── SpoutingSystem.tsx      # Curved grain pipes
-│   ├── WorkerSystemNew.tsx     # Worker avatars & pathfinding
-│   ├── ForkliftSystem.tsx      # Autonomous vehicles
-│   ├── DustParticles.tsx       # Instanced particle effects
-│   ├── Environment.tsx         # Lighting & factory structure
-│   ├── HolographicDisplays.tsx # In-scene 3D UI billboards
-│   ├── FirstPersonController.tsx # WASD first-person walkthrough
-│   ├── SkySystem.tsx           # Dynamic sky & weather
-│   │
-│   │   # Physics (Rapier)
-│   ├── physics/
-│   │   ├── FactoryColliders.tsx         # Machine collision boxes
-│   │   ├── PhysicsWorker.tsx            # Worker physics bodies
-│   │   ├── PhysicsForklift.tsx          # Forklift physics
-│   │   ├── PhysicsFirstPersonController.tsx # FPS physics
-│   │   ├── ExitZoneSensors.tsx          # Fire drill exit detection
-│   │   └── PhysicsDebug.tsx             # Debug visualization
-│   │
-│   │   # UI Overlays (React DOM)
-│   ├── ui-new/
-│   │   ├── GameInterface.tsx   # Main HUD, dock & panel host
-│   │   └── panels/             # Production, safety & system panels
-│   ├── AICommandCenter.tsx     # AI decision slide-out panel
-│   ├── SCADAPanel.tsx          # SCADA monitor with 5 tabs
-│   ├── WorkerDetailPanel.tsx   # Worker profile modal
-│   ├── ProductionMetrics.tsx   # Charts & KPIs
-│   └── AlertSystem.tsx         # Toast notifications
-│
-├── scada/                      # SCADA Integration Layer
-│   ├── types.ts                # TypeScript interfaces
-│   ├── tagDatabase.ts          # 78 process tags (ISA-5.1 naming)
-│   ├── AlarmManager.ts         # ISA-18.2 alarm state machine
-│   ├── HistoryStore.ts         # IndexedDB with 24h retention
-│   ├── SCADAService.ts         # Main orchestration service
-│   ├── SCADABridge.ts          # SCADA-to-3D visual mapping
-│   ├── useSCADA.ts             # React hooks
-│   ├── useSCADAVisuals.ts      # 3D visualization hooks
-│   └── adapters/
-│       ├── SimulationAdapter.ts    # Physics-based simulation
-│       ├── RESTAdapter.ts          # HTTP polling
-│       ├── MQTTAdapter.ts          # MQTT over WebSocket
-│       └── WebSocketAdapter.ts     # Direct WebSocket
-│
-├── multiplayer/                # WebRTC Multiplayer System
-│   ├── types.ts                # Player, room, message types
-│   ├── MultiplayerManager.ts   # Session orchestration
-│   ├── SignalingService.ts     # Room creation & peer discovery
-│   ├── PeerConnection.ts       # WebRTC data channel wrapper
-│   ├── PlayerInterpolation.ts  # Smooth remote player movement
-│   ├── HostMigration.ts        # Failover when host disconnects
-│   └── hooks/                  # React hooks (useMultiplayerSync)
-│
-├── hooks/                      # Reusable React Hooks
-│   ├── useKeyboardShortcuts.ts # Keyboard navigation (F1-F4, Z, I, H, etc.)
-│   ├── useProceduralTextures.ts # Metal, concrete, wall textures
-│   ├── useAdaptiveQuality.ts   # Dynamic graphics quality adjustment
-│   ├── useMobileDetection.ts   # Mobile device & orientation detection
-│   ├── useGPUResource.ts       # GPU memory tracking & management
-│   └── useDisposable.ts        # Three.js resource cleanup
-│
-├── stores/                     # Zustand State Stores
-│   ├── basStore.ts             # BAS axis values and settings
-│   ├── stabilityStore.ts       # Wallace stability metrics
-│   ├── flourishingStore.ts     # Eudaimonia dimensions
-│   ├── engagementStore.ts      # Engagement signature tracking
-│   ├── scenarioStore.ts        # Scenario playground state
-│   ├── basHistoryStore.ts      # Axis change history
-│   └── votingStore.ts          # Democratic decision voting
-│
-├── systems/bas/                # Bilateral Autonomy System Engines
-│   ├── stabilityCalculator.ts  # Wallace metrics, phase transitions
-│   ├── valueCalculator.ts      # V = Z × S × E × F formula
-│   └── aiBehaviorEngine.ts     # Axis-aware suggestion generation
-│
-├── protocols/vcp/              # VCP 2.0: Value Coordination Protocol
-│   ├── types.ts                # Core type definitions (6 layers)
-│   ├── encoder.ts              # Compact encoding for all layers
-│   ├── decoder.ts              # Parse encoded VCP
-│   ├── integration.ts          # Bridge to existing stores
-│   ├── generators/             # Reasoning scaffold generators
-│   │   ├── moralFrame.ts       # Ethical reasoning scaffolds
-│   │   ├── prosocialFrame.ts   # Trust/cooperation scaffolds
-│   │   ├── tacticalFrame.ts    # Immediate action scaffolds
-│   │   └── strategicFrame.ts   # Long-term flourishing scaffolds
-│   ├── memory/                 # Self-learning system
-│   │   ├── patternStore.ts     # Situation pattern matching
-│   │   ├── outcomeTracker.ts   # Decision outcome tracking
-│   │   └── hypothesisEngine.ts # Hypothesis generation/testing
-│   └── layers/
-│       └── healing.ts          # Anomaly detection, interventions
-│
-└── test/                       # Test suite
-    └── setup.ts                # Vitest configuration
+MillOS is a private application, organized around domain stores and lazy-loaded
+runtime surfaces. These paths are the maintained entry points:
 
-scada-proxy/                    # Backend Proxy Service
-├── src/
-│   ├── index.ts                # Express server
-│   ├── TagRegistry.ts          # Tag management
-│   └── adapters/
-│       ├── OPCUAAdapter.ts     # OPC-UA client
-│       └── ModbusAdapter.ts    # Modbus TCP client
-├── Dockerfile
-├── docker-compose.yml
-└── mosquitto/                  # MQTT broker config
+```text
+src/
+├── App.tsx                         # Canvas, runtime mode, top-level orchestration
+├── DeferredOperationalUI.tsx       # Lazy operational interface boundary
+├── components/
+│   ├── MillScene.tsx               # Authored world composition
+│   ├── machines/CompactMachines.tsx
+│   ├── environment/                # Sky, image-based lighting, sun and shadows
+│   ├── infrastructure/             # Factory shell and collision-aware openings
+│   ├── ConveyorSystem.tsx
+│   ├── WorkerSystemNew.tsx
+│   ├── ForkliftSystem.tsx
+│   ├── FactoryExterior.tsx
+│   ├── TruckBay.tsx
+│   ├── VillageArea.tsx
+│   ├── FarmArea.tsx
+│   ├── physics/                    # Rapier bodies, sensors, and debug surfaces
+│   ├── multiplayer/                # Remote avatars and collaborative UI
+│   └── ui-new/                     # Dock, sidebar, panels, widgets, mobile host
+├── stores/                         # Domain-specific Zustand stores and persistence
+├── scada/                          # Browser simulation, adapters, history, alarms
+├── multiplayer/                    # PeerJS orchestration and message validation
+├── systems/                        # Central tick, BAS, and simulation engines
+├── protocols/vcp/                  # Value Coordination Protocol layers
+├── runtime/                        # Deterministic benchmark and capture modes
+├── utils/                          # Audio, GPU, assets, security, and diagnostics
+└── test/                           # Shared Vitest setup and fixtures
+
+scada-proxy/src/index.ts             # Authenticated HTTP and WebSocket boundary
+scada-proxy/src/security.ts          # Credentials, origins, limits, headers
+scada-proxy/src/validation.ts        # Tag and write validation
+scada-proxy/src/subscriptions.ts     # Bounded per-client subscriptions
+scada-proxy/src/adapters/            # OPC UA and Modbus implementations
+scada-proxy/test/                    # Unit and process-level integration tests
+scada-proxy/k8s/                     # Single-owner hardened base manifests
 ```
 
 ### State Management
 
-MillOS uses **Zustand** for lightweight, performant global state:
-
-```typescript
-interface MillStore {
-  // Entities
-  workers: Worker[]           // 10 workers with positions, tasks, status
-  machines: Machine[]         // 15 machines with metrics and status
-
-  // AI System
-  aiDecisions: AIDecision[]   // Rolling feed (max 20)
-
-  // Production
-  metrics: ProductionMetrics  // Throughput, efficiency, quality, uptime
-  productionSpeed: number     // Animation multiplier (0-2.0)
-
-  // UI State
-  selectedWorker: string | null
-  selectedMachine: string | null
-  showZones: boolean
-  showAIPanel: boolean
-}
-```
+Zustand stores are split by domain under `src/stores/`. Production, graphics,
+safety, simulation, multiplayer, BAS, flourishing, voting, ownership, and UI
+state can update independently. `src/store.ts` remains a compatibility bridge
+for integrated SCADA synchronization; new code should import the narrow domain
+store it needs and select only the required fields.
 
 ### Collision System
 
 A custom **PositionRegistry** singleton coordinates inter-entity awareness:
+
 - Workers register positions each frame
 - Forklifts check path clearance 5 units ahead
 - Safety radii: 2.5 units (workers), 4 units (forklifts)
@@ -972,36 +906,42 @@ A custom **PositionRegistry** singleton coordinates inter-entity awareness:
 
 ## Tech Stack
 
-| Category | Technology |
-|----------|------------|
-| **3D Rendering** | React Three Fiber, @react-three/drei |
-| **Physics Engine** | Rapier (@react-three/rapier) |
-| **State Management** | Zustand |
-| **UI Animation** | Framer Motion |
-| **Charts** | Recharts |
-| **Styling** | Tailwind CSS |
-| **Build Tool** | Vite |
-| **Language** | TypeScript |
-| **AI Integration** | Google Gemini API |
-| **SCADA Protocols** | OPC-UA (node-opcua), Modbus (jsmodbus) |
-| **Testing** | Vitest, Playwright (E2E) |
-| **Data Storage** | IndexedDB (via idb) |
-| **Containerization** | Docker, Docker Compose |
+| Category             | Technology                                             |
+| -------------------- | ------------------------------------------------------ |
+| **3D Rendering**     | React Three Fiber, @react-three/drei                   |
+| **Physics Engine**   | Rapier (@react-three/rapier)                           |
+| **State Management** | Zustand                                                |
+| **UI Animation**     | Framer Motion                                          |
+| **Charts**           | Recharts                                               |
+| **Styling**          | Tailwind CSS                                           |
+| **Build Tool**       | Vite                                                   |
+| **Language**         | TypeScript                                             |
+| **AI Integration**   | Google Gemini API                                      |
+| **SCADA Protocols**  | OPC-UA (node-opcua), Modbus (modbus-serial)            |
+| **Testing**          | Vitest, Playwright (E2E)                               |
+| **Data Storage**     | Native IndexedDB and bounded local browser preferences |
+| **Containerization** | Docker, Docker Compose                                 |
 
 ---
 
 ## Security
 
-MillOS implements OWASP-aligned frontend security practices:
+MillOS applies defense in depth at the browser and optional protocol boundary:
 
-| Feature | Implementation | Reference |
-|---------|---------------|-----------|
-| **Input Sanitization** | HTML entity encoding, XSS prevention | OWASP A03:2021 |
-| **CSP Headers** | Strict Content-Security-Policy in index.html | XSS prevention |
+| Feature                  | Implementation                                                                    | Reference                                         |
+| ------------------------ | --------------------------------------------------------------------------------- | ------------------------------------------------- |
+| **Untrusted peer input** | Length and character contracts, control-character stripping, React text rendering | `src/utils/sanitize.ts`                           |
+| **Browser policy**       | CSP, no object embedding, restricted base and form targets                        | `index.html`                                      |
+| **SCADA authentication** | Separate read/write capabilities with constant-time credential checks             | `scada-proxy/src/security.ts`                     |
+| **SCADA validation**     | Schema, data type, access mode, address, and engineering-range validation         | `scada-proxy/src/validation.ts`, `TagRegistry.ts` |
+| **Abuse controls**       | HTTP and WebSocket limits, payload caps, connection caps, and heartbeat cleanup   | `scada-proxy/src/index.ts`                        |
+| **Production default**   | Industrial writes disabled, exact browser origins, encrypted OPC UA               | `scada-proxy/SECURITY_CONFIG.md`                  |
 
 **Key Files:**
-- `src/utils/sanitize.ts` — Input validation and XSS prevention utilities
-- `index.html` — Content-Security-Policy meta headers
+
+- [`SECURITY.md`](SECURITY.md) defines reporting and the industrial safety boundary.
+- [`scada-proxy/SECURITY_AUDIT.md`](scada-proxy/SECURITY_AUDIT.md) records the reviewed proxy controls and residual risks.
+- [`scada-proxy/SECURITY_CONFIG.md`](scada-proxy/SECURITY_CONFIG.md) is the production configuration checklist.
 
 ---
 
@@ -1025,13 +965,13 @@ MillOS implements OWASP-aligned frontend security practices:
 - [x] Dynamic weather system (clear, cloudy, rain, storm)
 - [x] Factory exterior with branded signage
 - [x] End-to-end testing with Playwright
-- [x] WebRTC peer-to-peer multiplayer with host migration
+- [x] WebRTC peer-to-peer multiplayer with host-authoritative sessions
 - [x] Mobile touch controls with gesture support
 - [x] GPU resource management with adaptive quality
 - [x] Compressed texture support (KTX2/Basis Universal)
 - [x] Service worker for offline caching
 - [x] Shared geometry/material optimization for memory efficiency
-- [x] **Gemini Flash 3 AI integration** with Dual-Brain architecture
+- [x] **Gemini Flash integration** with a current stable model fallback chain
 - [x] **Hybrid mode**: Tactical (heuristic 6s) + Strategic (Gemini 45s)
 - [x] **Live cost tracking** for API usage
 - [x] **Context limit protection** with token estimation and smart truncation
@@ -1051,11 +991,17 @@ MillOS implements OWASP-aligned frontend security practices:
 
 ### Planned
 
-_No major features currently planned._
+The current evidence-backed improvement backlog is maintained in
+[`_contprompts/millos_exhaustive_improvements_third_pass_2026-08-13.md`](_contprompts/millos_exhaustive_improvements_third_pass_2026-08-13.md).
+It consolidates the [first pass](_contprompts/millos_exhaustive_improvements_2026-08-12.md)
+and [second pass](_contprompts/millos_exhaustive_improvements_second_pass_2026-08-12.md)
+into the current candidate and records every remaining gate.
+Open items are explicitly separated into locally actionable work, runtime evidence,
+human visual review, industrial authorization, rights review, and publication decisions.
 
 ### Recently Completed
 
-- [x] **WCAG 2.1 AA Accessibility Compliance** — Comprehensive accessibility overhaul
+- [x] **Automated accessibility hardening** — Semantic, keyboard, contrast, and motion improvements
   - [x] Critical: Skip links, form labels, color contrast fixes
   - [x] High: Chart accessibility (role="meter"), heading hierarchy, aria-expanded
   - [x] Medium: Focus indicators, reduced motion support, landmark labels
@@ -1069,12 +1015,12 @@ _No major features currently planned._
   - [x] React.memo on AxisSlider, DimensionBar, CoefficientBar
   - [x] useMemo for derived values, useCallback for handlers
   - [x] Static constants moved outside components
-- [x] **Frontend Security Hardening** — OWASP-aligned protections
-  - [x] Input sanitization with XSS prevention
-  - [x] Client-side rate limiting with sliding window
-  - [x] CSRF token generation and validation
-  - [x] Security audit logging with pattern detection
-  - [x] Strict Content-Security-Policy headers
+- [x] **Frontend trust-boundary hardening**
+  - [x] Untrusted multiplayer message validation and bounded inputs
+  - [x] Host-authoritative identities and machine intents
+  - [x] In-memory, session-only Gemini credentials
+  - [x] Content Security Policy with hashed inline structured data and narrow WebAssembly permission
+  - [x] Response-level security headers retained as a deployment acceptance gate
 - [x] Development historian adapters for OSIsoft PI Web API and Wonderware, requiring external endpoints and credentials
 - [x] Strategic priority influence on tactical scoring
 - [x] Historical playback and time-travel debugging (Quick Actions UI)
@@ -1122,7 +1068,7 @@ MIT License — see [LICENSE](LICENSE) for details.
 
 **MillOS v0.40**
 
-*Exploring grain-mill operations through a digital twin, simulated industrial tooling, and bilateral AI partnership*
+_Exploring grain-mill operations through a digital twin, simulated industrial tooling, and bilateral AI partnership_
 
 <br/>
 

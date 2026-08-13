@@ -2,24 +2,42 @@ import path from 'path';
 import fs from 'fs';
 import { defineConfig, Plugin, UserConfig } from 'vite';
 import react from '@vitejs/plugin-react-swc'; // SWC is 20x faster than Babel
+import musicCredits from './music-credits.json';
+import {
+  isLegacyAssetRequest,
+  isPathWithin,
+  resolveLegacyAssetPath,
+  validateDeploymentVersion,
+} from './src/utils/vitePathSecurity';
 
 const packageMetadata = JSON.parse(
   fs.readFileSync(path.resolve(__dirname, 'package.json'), 'utf8')
 ) as { version?: string };
 
-const CURRENT_AUDIO_FILES = new Set([
-  'The Builder.mp3',
-  'Space Jazz.mp3',
-  'Upbeat Forever.mp3',
-  'Fuzzball Parade.mp3',
-  'I Got a Stick Feat James Gavins.mp3',
-  'Boogie Party.mp3',
-  'Voxel Revolution.mp3',
-  'Newer Wave.mp3',
-  'Neon Laser Horizon.mp3',
-  'Cloud Dancer.mp3',
-  'Fanfare for Space.mp3',
-]);
+const CURRENT_AUDIO_FILES = new Set(
+  musicCredits.tracks.filter((track) => track.currentRole !== null).map((track) => track.file)
+);
+
+const LEGACY_CONTENT_TYPES: Readonly<Record<string, string>> = {
+  '.css': 'text/css; charset=utf-8',
+  '.glb': 'model/gltf-binary',
+  '.gltf': 'model/gltf+json',
+  '.hdr': 'application/octet-stream',
+  '.html': 'text/html; charset=utf-8',
+  '.ico': 'image/x-icon',
+  '.jpeg': 'image/jpeg',
+  '.jpg': 'image/jpeg',
+  '.js': 'application/javascript; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.ktx2': 'image/ktx2',
+  '.mp3': 'audio/mpeg',
+  '.png': 'image/png',
+  '.ttf': 'font/ttf',
+  '.wasm': 'application/wasm',
+  '.webp': 'image/webp',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+};
 
 function finalizeCurrentBuild({
   buildId,
@@ -84,46 +102,85 @@ function finalizeCurrentBuild({
 
 // Plugin to serve static v0.10 and v0.20 builds during development
 function serveStaticVersions(): Plugin {
+  const publicRoot = path.resolve(__dirname, 'public');
+
   return {
     name: 'serve-static-versions',
     configureServer(server) {
       server.middlewares.use((req, res, next) => {
-        // Handle both v0.10 and v0.20 static builds
-        const versionMatch = req.url?.match(/^\/(v0\.10|v0\.20)(\/|$)/);
-        if (versionMatch && req.url) {
-          const version = versionMatch[1];
-          const urlPath = req.url.replace(/\?.*$/, ''); // Remove query string
-          let filePath = path.join(__dirname, 'public', urlPath);
+        if (!isLegacyAssetRequest(req.url)) {
+          next();
+          return;
+        }
 
-          // Serve index.html for directory requests
-          if (urlPath === `/${version}` || urlPath === `/${version}/`) {
-            filePath = path.join(__dirname, 'public', version, 'index.html');
-          }
+        if (req.method !== 'GET' && req.method !== 'HEAD') {
+          res.statusCode = 405;
+          res.setHeader('Allow', 'GET, HEAD');
+          res.end('Method not allowed');
+          return;
+        }
 
-          if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
-            const ext = path.extname(filePath);
-            const contentTypes: Record<string, string> = {
-              '.html': 'text/html',
-              '.js': 'application/javascript',
-              '.css': 'text/css',
-              '.json': 'application/json',
-              '.mp3': 'audio/mpeg',
-              '.hdr': 'application/octet-stream',
-              '.glb': 'model/gltf-binary',
-              '.gltf': 'model/gltf+json',
-              '.png': 'image/png',
-              '.jpg': 'image/jpeg',
-              '.jpeg': 'image/jpeg',
-              '.ttf': 'font/ttf',
-              '.woff': 'font/woff',
-              '.woff2': 'font/woff2',
-            };
-            res.setHeader('Content-Type', contentTypes[ext] || 'application/octet-stream');
-            res.end(fs.readFileSync(filePath));
+        const assetPath = resolveLegacyAssetPath(publicRoot, req.url);
+        if (!assetPath) {
+          res.statusCode = 400;
+          res.end('Invalid legacy asset path');
+          return;
+        }
+
+        fs.realpath(assetPath.rootPath, (rootError, realRootPath) => {
+          if (rootError) {
+            res.statusCode = 404;
+            res.end('Legacy release not found');
             return;
           }
-        }
-        next();
+
+          fs.realpath(assetPath.filePath, (fileError, realFilePath) => {
+            if (fileError) {
+              res.statusCode = 404;
+              res.end('Legacy asset not found');
+              return;
+            }
+
+            if (!isPathWithin(realRootPath, realFilePath)) {
+              res.statusCode = 403;
+              res.end('Legacy asset path is outside its release');
+              return;
+            }
+
+            fs.stat(realFilePath, (statError, fileStat) => {
+              if (statError || !fileStat.isFile()) {
+                res.statusCode = 404;
+                res.end('Legacy asset not found');
+                return;
+              }
+
+              const extension = path.extname(realFilePath).toLowerCase();
+              res.statusCode = 200;
+              res.setHeader(
+                'Content-Type',
+                LEGACY_CONTENT_TYPES[extension] ?? 'application/octet-stream'
+              );
+              res.setHeader('Content-Length', String(fileStat.size));
+              res.setHeader('Cache-Control', 'no-store');
+              res.setHeader('X-Content-Type-Options', 'nosniff');
+
+              if (req.method === 'HEAD') {
+                res.end();
+                return;
+              }
+
+              const assetStream = fs.createReadStream(realFilePath);
+              assetStream.on('error', (error) => {
+                if (!res.headersSent) {
+                  next(error);
+                  return;
+                }
+                res.destroy(error);
+              });
+              assetStream.pipe(res);
+            });
+          });
+        });
       });
     },
   };
@@ -131,7 +188,7 @@ function serveStaticVersions(): Plugin {
 
 export default defineConfig((): UserConfig => {
   // Support versioned deployments: VERSION=v0.10 -> base=/v0.10/
-  const version = process.env.VERSION;
+  const version = validateDeploymentVersion(process.env.VERSION);
   const basePath = version ? `/${version}/` : '/';
   const packageVersion = packageMetadata.version ?? '0.0.0';
   const commit =
@@ -146,7 +203,7 @@ export default defineConfig((): UserConfig => {
     base: basePath,
     server: {
       port: 3000,
-      host: '0.0.0.0',
+      host: process.env.MILLOS_DEV_HOST?.trim() || '127.0.0.1',
       hmr: {
         overlay: false, // Disable error overlay (reduces rendering overhead)
       },

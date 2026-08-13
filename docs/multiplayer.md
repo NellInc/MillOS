@@ -1,6 +1,6 @@
 # Multiplayer System Documentation
 
-MillOS supports peer-to-peer multiplayer for 2-8 players, allowing visitors to explore the grain mill together and collaboratively control machines.
+MillOS supports peer-to-peer multiplayer for 2-8 players, allowing visitors to explore the grain mill together and collaboratively control simulated machines. This is a social simulator feature, not an industrial control channel.
 
 ## Quick Start
 
@@ -52,12 +52,12 @@ The multiplayer system uses a **host-authority model** where:
 
 ### Why Host-Authority (not CRDTs)?
 
-| Factor | Host-Authority | CRDTs (Y.js) |
-|--------|---------------|--------------|
-| Complexity | Simple | High |
-| Bundle size | ~50KB (PeerJS) | ~80KB+ |
-| Conflict resolution | Automatic | Complex merging |
-| Debugging | Easy | Hard |
+| Factor              | Host-Authority | CRDTs (Y.js)    |
+| ------------------- | -------------- | --------------- |
+| Complexity          | Simple         | High            |
+| Bundle size         | ~50KB (PeerJS) | ~80KB+          |
+| Conflict resolution | Automatic      | Complex merging |
+| Debugging           | Easy           | Hard            |
 
 For 2-8 players, host-authority offers the best balance of simplicity and reliability.
 
@@ -67,31 +67,25 @@ For 2-8 players, host-authority offers the best balance of simplicity and reliab
 
 ### File Structure
 
-```
+```text
 src/multiplayer/
-  types.ts                 # Type definitions
-  SignalingService.ts      # PeerJS room signaling
-  PeerConnection.ts        # WebRTC DataChannel wrapper
-  MultiplayerManager.ts    # Main orchestration
-  PlayerInterpolation.ts   # Smooth movement buffer
-  HostMigration.ts         # Disconnect handling
-  hooks/
-    useMultiplayerSync.ts  # State sync hook
-    index.ts
-  index.ts                 # Module exports
+  types.ts                    # Message and session types
+  identity.ts                 # Cryptographic room, player, and intent identifiers
+  messageValidation.ts        # Bounded discriminated-union payload validation
+  SignalingService.ts         # PeerJS setup and host discovery
+  PeerConnection.ts           # Data channel wrapper and bounded pre-open queue
+  MultiplayerManager.ts       # Host authority, sync, chat, and intent handling
+  PlayerInterpolation.ts      # Remote movement smoothing
+  HostDisconnect.ts           # Guest cleanup when the host leaves
+  hooks.ts                    # React synchronization hooks
+  index.ts                    # Maintained exports
 
-src/stores/
-  multiplayerStore.ts      # Zustand store for multiplayer state
-
-src/components/multiplayer/
-  RemotePlayerAvatar.tsx   # 3D player model
-  RemotePlayersGroup.tsx   # Renders all remote players
-  MultiplayerLobby.tsx     # Create/join room UI
-  MachineLockIndicator.tsx # Visual lock indicator
-  ConnectionQuality.tsx    # Network quality display
-  MultiplayerChat.tsx      # Chat system
-  AIDecisionVoting.tsx     # Collaborative voting
-  index.ts
+src/stores/multiplayerStore.ts
+src/components/multiplayer/RemotePlayerAvatar.tsx
+src/components/multiplayer/RemotePlayersGroup.tsx
+src/components/multiplayer/MultiplayerChat.tsx
+src/components/multiplayer/AIDecisionVoting.tsx
+src/components/ui-new/panels/MultiplayerPanel.tsx
 ```
 
 ### Key Classes
@@ -132,12 +126,15 @@ Handles WebRTC peer discovery using PeerJS:
 - Guests connect to the host's peer ID
 - Once connected, signaling server is no longer needed
 
+Room codes are discovery identifiers, not authentication secrets. The current client depends on public PeerJS signaling and public ICE infrastructure. Do not send private plant data, credentials, or safety-critical commands through a room.
+
 #### PeerConnection
 
 Wrapper for WebRTC DataChannel communication:
 
 - Message serialization/deserialization
-- Send queue for offline buffering
+- Bounded pre-open send queue with coalescing for high-frequency state
+- Discriminated-union validation before any received payload reaches callbacks
 - Ping/pong latency measurement
 
 ### Zustand Store
@@ -182,27 +179,29 @@ All messages are sent as JSON over WebRTC DataChannel:
 ```typescript
 type MultiplayerMessage =
   | { type: 'PLAYER_UPDATE'; payload: RemotePlayer }
-  | { type: 'PLAYER_JOIN'; payload: { id, name, color } }
+  | { type: 'PLAYER_JOIN'; payload: { id; name; color } }
   | { type: 'PLAYER_LEAVE'; payload: { id } }
   | { type: 'STATE_SYNC'; payload: GameStateDiff }
   | { type: 'FULL_STATE_SYNC'; payload: FullGameState }
   | { type: 'INTENT'; payload: MachineIntent }
-  | { type: 'INTENT_RESULT'; payload: { intentId, success, error? } }
-  | { type: 'MACHINE_LOCK'; payload: { machineId, playerId } }
+  | { type: 'INTENT_RESULT'; payload: { intentId; success; error? } }
+  | { type: 'MACHINE_LOCK'; payload: { machineId; playerId } }
   | { type: 'CHAT'; payload: ChatMessage }
   | { type: 'PING'; payload: { timestamp } }
-  | { type: 'PONG'; payload: { timestamp, hostTime } };
+  | { type: 'PONG'; payload: { timestamp; hostTime } };
 ```
+
+Every received payload is checked against its exact message variant before dispatch. The validator bounds identifiers, vectors, timestamps, machine and lock collections, chat text, and nested intent parameters; it rejects unknown types, missing fields, nonfinite numbers, and unsafe object shapes. This protects the maintained client from malformed peer data. It does not establish peer identity or make the host trustworthy.
 
 ### Broadcast Frequencies
 
-| Data | Frequency | Direction |
-|------|-----------|-----------|
-| Player position | 20Hz (50ms) | All peers |
-| Game state | 10Hz (100ms) | Host → Guests |
-| Latency ping | 1Hz (1000ms) | All peers |
-| Chat messages | Immediate | All peers |
-| Machine intents | Immediate | Guest → Host |
+| Data            | Frequency    | Direction     |
+| --------------- | ------------ | ------------- |
+| Player position | 20Hz (50ms)  | All peers     |
+| Game state      | 10Hz (100ms) | Host → Guests |
+| Latency ping    | 1Hz (1000ms) | All peers     |
+| Chat messages   | Immediate    | All peers     |
+| Machine intents | Immediate    | Guest → Host  |
 
 ### Data Sizes
 
@@ -312,16 +311,16 @@ Shows network health:
 
 ### What Gets Synchronized
 
-| State | Owner | Sync Method |
-|-------|-------|-------------|
-| Game time | Host | Broadcast 10Hz |
-| Weather | Host | On change |
-| Machine status | Host | Broadcast 10Hz |
-| Machine metrics | Host | Broadcast 10Hz |
-| Emergency state | Host | Immediate |
-| Player positions | Each player | P2P 20Hz |
-| Machine locks | Host | Immediate |
-| Chat messages | Originator | Immediate |
+| State            | Owner       | Sync Method    |
+| ---------------- | ----------- | -------------- |
+| Game time        | Host        | Broadcast 10Hz |
+| Weather          | Host        | On change      |
+| Machine status   | Host        | Broadcast 10Hz |
+| Machine metrics  | Host        | Broadcast 10Hz |
+| Emergency state  | Host        | Immediate      |
+| Player positions | Each player | P2P 20Hz       |
+| Machine locks    | Host        | Immediate      |
+| Chat messages    | Originator  | Immediate      |
 
 ### Initial Sync
 
@@ -372,6 +371,7 @@ const state = buffer.getInterpolatedState(Date.now());
 ```
 
 The buffer:
+
 - Holds positions 100ms in the past
 - Interpolates between samples
 - Extrapolates briefly if packets are late
@@ -382,11 +382,11 @@ The buffer:
 
 ### Connection Errors
 
-| Error | Cause | Recovery |
-|-------|-------|----------|
-| `unavailable-id` | Room code in use | Choose different code |
-| `peer-unavailable` | Host not found | Check room code |
-| Connection timeout | Network issues | Retry or check firewall |
+| Error              | Cause            | Recovery                |
+| ------------------ | ---------------- | ----------------------- |
+| `unavailable-id`   | Room code in use | Choose different code   |
+| `peer-unavailable` | Host not found   | Check room code         |
+| Connection timeout | Network issues   | Retry or check firewall |
 
 ### Host Disconnect
 
@@ -396,7 +396,7 @@ When the host leaves:
 2. Session ends for all players
 3. Players return to disconnected state
 
-Future enhancement: Automatic host migration to lowest-latency player.
+There is no host migration. Adding it would require an explicit leader-election and state-transfer design, split-brain handling, reconnect rules, and adversarial tests. It remains a separate architecture programme rather than an implied reliability feature.
 
 ---
 
@@ -433,6 +433,7 @@ Future enhancement: Automatic host migration to lowest-latency player.
 ```
 
 PeerJS handles:
+
 - WebRTC complexity (ICE, STUN, TURN)
 - Signaling server (free cloud tier)
 - DataChannel abstraction

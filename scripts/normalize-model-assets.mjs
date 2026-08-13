@@ -374,37 +374,6 @@ async function normalizeForklift(io, source, output) {
   };
 }
 
-async function normalizeWorker(io, source, output) {
-  const document = await io.read(source);
-  const root = document.getRoot();
-  const scene = root.listScenes()[0];
-  if (!scene) throw new Error('Worker source has no scene');
-
-  const initialBounds = getBounds(scene);
-  const initialHeight = initialBounds.max[1] - initialBounds.min[1];
-  const targetHeight = 1.72;
-  const scaleFactor = initialHeight > 0 ? targetHeight / initialHeight : 1;
-  scene.listChildren().forEach((node) => multiplyScale(node, scaleFactor));
-  centreSceneBelow(document, scene);
-
-  scene.setName('MillOS_Worker');
-  root.listAnimations().forEach((animation, index) => {
-    animation.setName(index === 0 ? 'worker-motion' : `worker-motion-${index + 1}`);
-  });
-  Object.assign(root.getAsset(), {
-    generator: `MillOS asset pipeline, glTF-Transform ${GLTF_TRANSFORM_VERSION}`,
-    copyright: 'Cesium Man, Cesium, CC BY 4.0',
-  });
-
-  await writeBinaryGLB(io, output, document);
-  return {
-    bounds: getBounds(scene),
-    materials: root.listMaterials().length,
-    textures: root.listTextures().length,
-    animations: root.listAnimations().map((animation) => animation.getName()),
-  };
-}
-
 function selectWorkerAnimation(document, sourceName, targetName) {
   const sourceAnimation = document
     .getRoot()

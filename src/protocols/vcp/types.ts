@@ -128,12 +128,7 @@ export interface WellbeingState {
 }
 
 export type FlourishingDimension =
-  | 'meaning'
-  | 'mastery'
-  | 'connection'
-  | 'joy'
-  | 'wholeness'
-  | 'agency';
+  'meaning' | 'mastery' | 'connection' | 'joy' | 'wholeness' | 'agency';
 
 export interface EngagementState {
   /** Factory-wide engagement score (0-100) */

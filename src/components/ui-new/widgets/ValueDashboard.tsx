@@ -145,15 +145,13 @@ export const ValueDashboard: React.FC = () => {
 
   // Social mission store for V = Z x S x E x F contributions
   const socialMissionMetrics = useSocialMissionStore(
-    useShallow(
-      (state): SocialMissionMetrics => ({
-        socialImpactScore: state.missionMetrics.socialImpactScore,
-        workerFlourishingContribution: state.missionMetrics.workerFlourishingContribution,
-        communityWelfareContribution: state.missionMetrics.communityWelfareContribution,
-        environmentalContribution: state.missionMetrics.environmentalContribution,
-        workerSatisfaction: state.stakeholderSatisfaction.workers,
-      })
-    )
+    useShallow((state): SocialMissionMetrics => ({
+      socialImpactScore: state.missionMetrics.socialImpactScore,
+      workerFlourishingContribution: state.missionMetrics.workerFlourishingContribution,
+      communityWelfareContribution: state.missionMetrics.communityWelfareContribution,
+      environmentalContribution: state.missionMetrics.environmentalContribution,
+      workerSatisfaction: state.stakeholderSatisfaction.workers,
+    }))
   );
 
   // Calculate coefficients

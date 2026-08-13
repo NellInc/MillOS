@@ -40,6 +40,52 @@ function isTestEnvironment(): boolean {
   );
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function mergePersistedValue<T>(currentValue: T, persistedValue: unknown): T {
+  if (Array.isArray(currentValue)) {
+    return (Array.isArray(persistedValue) ? persistedValue : currentValue) as T;
+  }
+
+  if (isRecord(currentValue)) {
+    if (!isRecord(persistedValue)) return currentValue;
+    const currentRecord = currentValue as Record<string, unknown>;
+    const mergedRecord: Record<string, unknown> = { ...currentRecord };
+
+    for (const key of Object.keys(currentRecord)) {
+      if (!Object.hasOwn(persistedValue, key)) continue;
+      mergedRecord[key] = mergePersistedValue(currentRecord[key], persistedValue[key]);
+    }
+    return mergedRecord as T;
+  }
+
+  if (typeof currentValue === 'number') {
+    return (
+      typeof persistedValue === 'number' && Number.isFinite(persistedValue)
+        ? persistedValue
+        : currentValue
+    ) as T;
+  }
+
+  if (typeof currentValue === 'string' || typeof currentValue === 'boolean') {
+    return (typeof persistedValue === typeof currentValue ? persistedValue : currentValue) as T;
+  }
+
+  if (currentValue === null && persistedValue === null) return persistedValue as T;
+  return currentValue;
+}
+
+/**
+ * Merge JSON-backed persisted state through the current store shape. Unknown
+ * keys and wrong primitive types are ignored, missing nested keys retain their
+ * current defaults, and action functions cannot be replaced by stored data.
+ */
+export function mergePersistedState<T extends object>(persisted: unknown, current: T): T {
+  return mergePersistedValue(current, persisted);
+}
+
 export const safeJSONStorage: PersistStorage<unknown> = isTestEnvironment()
   ? createMemoryPersistStorage()
   : createJSONStorage(() => {

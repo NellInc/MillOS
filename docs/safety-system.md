@@ -1,5 +1,11 @@
 # Safety System
 
+> **Historical safety reference, 2026-08-13.** This records an earlier UI and
+> component layout. Current drill and facility-stop behavior is owned by
+> `src/stores/gameSimulationStore.ts`, `src/components/WorkerSystemNew.tsx`,
+> `src/components/ForkliftSystem.tsx`, and
+> `src/components/ui-new/panels/SafetyPanel.tsx`.
+
 MillOS implements a complete safety simulation demonstrating realistic industrial collision avoidance between workers and forklifts.
 
 ## Table of Contents
@@ -40,14 +46,7 @@ Every frame, entities register their positions:
 positionRegistry.register(data.id, pos.x, pos.z, 'worker');
 
 // Forklift registration with direction
-positionRegistry.register(
-  data.id,
-  pos.x,
-  pos.z,
-  'forklift',
-  dirNormalized.x,
-  dirNormalized.z
-);
+positionRegistry.register(data.id, pos.x, pos.z, 'forklift', dirNormalized.x, dirNormalized.z);
 ```
 
 ### Interface
@@ -58,7 +57,7 @@ interface EntityPosition {
   x: number;
   z: number;
   type: 'worker' | 'forklift';
-  dirX?: number;  // Direction for forklifts
+  dirX?: number; // Direction for forklifts
   dirZ?: number;
 }
 ```
@@ -169,11 +168,11 @@ if (nearestForklift && positionRegistry.isForkliftApproaching(...)) {
 
 ### Evasion Parameters
 
-| Parameter | Value | Description |
-|-----------|-------|-------------|
-| `FORKLIFT_DETECTION_RANGE` | 8 | Detection distance |
-| `EVADE_DISTANCE` | 3 | How far to step aside |
-| `EVADE_SPEED` | 4 | Sideways movement speed |
+| Parameter                  | Value | Description             |
+| -------------------------- | ----- | ----------------------- |
+| `FORKLIFT_DETECTION_RANGE` | 8     | Detection distance      |
+| `EVADE_DISTANCE`           | 3     | How far to step aside   |
+| `EVADE_SPEED`              | 4     | Sideways movement speed |
 
 ### Acknowledgment Wave
 
@@ -212,7 +211,8 @@ if (nearestForklift && distToForklift < WAVE_TRIGGER_DISTANCE) {
 
 // When forklift passes and leaves range, trigger friendly wave
 if (!nearestForklift && forkliftNearbyRef.current && waveCooldownRef.current <= 0) {
-  if (!wasEvadingRef.current) {  // Only if didn't already wave from evading
+  if (!wasEvadingRef.current) {
+    // Only if didn't already wave from evading
     setIsWaving(true);
     setTimeout(() => setIsWaving(false), 1200);
     waveCooldownRef.current = 15; // 15 second cooldown between waves
@@ -221,10 +221,10 @@ if (!nearestForklift && forkliftNearbyRef.current && waveCooldownRef.current <= 
 }
 ```
 
-| Parameter | Value | Description |
-|-----------|-------|-------------|
-| `WAVE_TRIGGER_DISTANCE` | 6 | Distance to detect passing forklift |
-| `waveCooldownRef` | 15s | Cooldown between friendly waves |
+| Parameter               | Value | Description                         |
+| ----------------------- | ----- | ----------------------------------- |
+| `WAVE_TRIGGER_DISTANCE` | 6     | Distance to detect passing forklift |
+| `waveCooldownRef`       | 15s   | Cooldown between friendly waves     |
 
 ---
 
@@ -237,8 +237,10 @@ Forklifts check multiple safety conditions before moving:
 ```typescript
 // Check path is clear of workers and forklifts
 const pathClear = positionRegistry.isPathClear(
-  pos.x, pos.z,
-  dirNormalized.x, dirNormalized.z,
+  pos.x,
+  pos.z,
+  dirNormalized.x,
+  dirNormalized.z,
   CHECK_DISTANCE,
   SAFETY_RADIUS,
   data.id
@@ -249,27 +251,26 @@ const workersNearby = positionRegistry.getWorkersNearby(pos.x, pos.z, SAFETY_RAD
 
 // Check for other forklifts
 const forkliftsNearby = positionRegistry.getForkliftsNearby(
-  pos.x, pos.z,
+  pos.x,
+  pos.z,
   FORKLIFT_SAFETY_RADIUS,
   data.id
 );
 
 // Only move if all checks pass
-const isSafeToMove = pathClear &&
-                     workersNearby.length === 0 &&
-                     forkliftsNearby.length === 0;
+const isSafeToMove = pathClear && workersNearby.length === 0 && forkliftsNearby.length === 0;
 ```
 
 ### Safety Distances (Configurable)
 
 From Zustand store `safetyConfig`:
 
-| Config | Default | Description |
-|--------|---------|-------------|
-| `workerDetectionRadius` | 2.5 | Distance to detect workers |
-| `forkliftSafetyRadius` | 4 | Distance between forklifts |
-| `pathCheckDistance` | 5 | Look-ahead distance |
-| `speedZoneSlowdown` | 0.4 | Speed multiplier in slow zones |
+| Config                  | Default | Description                    |
+| ----------------------- | ------- | ------------------------------ |
+| `workerDetectionRadius` | 2.5     | Distance to detect workers     |
+| `forkliftSafetyRadius`  | 4       | Distance between forklifts     |
+| `pathCheckDistance`     | 5       | Look-ahead distance            |
+| `speedZoneSlowdown`     | 0.4     | Speed multiplier in slow zones |
 
 ### Horn Warning
 
@@ -292,7 +293,11 @@ Forklifts honk their horn when approaching waypoints (intersections/turns) as a 
 ```typescript
 // Horn honk when approaching intersection
 const HORN_DISTANCE = 5; // Distance to start honking before waypoint
-if (distance < HORN_DISTANCE && distance > 1 && pathIndexRef.current !== lastHornWaypointRef.current) {
+if (
+  distance < HORN_DISTANCE &&
+  distance > 1 &&
+  pathIndexRef.current !== lastHornWaypointRef.current
+) {
   audioManager.playHorn(data.id);
   lastHornWaypointRef.current = pathIndexRef.current;
 }
@@ -321,10 +326,10 @@ if (forkliftsNearby.length > 0 && isStuck) {
 }
 ```
 
-| Threshold | Value | Description |
-|-----------|-------|-------------|
-| `STUCK_THRESHOLD` | 3s | Time before considered stuck |
-| `SKIP_THRESHOLD` | 8s | Time before skipping waypoint |
+| Threshold         | Value | Description                   |
+| ----------------- | ----- | ----------------------------- |
+| `STUCK_THRESHOLD` | 3s    | Time before considered stuck  |
+| `SKIP_THRESHOLD`  | 8s    | Time before skipping waypoint |
 
 ### Operator Wave
 
@@ -392,6 +397,7 @@ const isInSpeedZone = (x: number, z: number): boolean => {
 ### Visual Markers
 
 Speed zones are visualized with:
+
 - Circular floor markings
 - "SLOW" text labels
 - Amber color (#fbbf24)
@@ -404,10 +410,10 @@ Speed zones are visualized with:
 
 ```typescript
 safetyMetrics: {
-  nearMisses: number;       // Total near-miss events
-  safetyStops: number;      // Forklift safety stops
-  workerEvasions: number;   // Worker evasion maneuvers
-  lastIncidentTime: number | null;  // Last event timestamp
+  nearMisses: number; // Total near-miss events
+  safetyStops: number; // Forklift safety stops
+  workerEvasions: number; // Worker evasion maneuvers
+  lastIncidentTime: number | null; // Last event timestamp
 }
 ```
 
@@ -415,22 +421,24 @@ safetyMetrics: {
 
 ```typescript
 // When forklift stops for worker
-recordSafetyStop: () => set((state) => ({
-  safetyMetrics: {
-    ...state.safetyMetrics,
-    safetyStops: state.safetyMetrics.safetyStops + 1,
-    nearMisses: state.safetyMetrics.nearMisses + 1,
-    lastIncidentTime: Date.now()
-  }
-}))
+recordSafetyStop: () =>
+  set((state) => ({
+    safetyMetrics: {
+      ...state.safetyMetrics,
+      safetyStops: state.safetyMetrics.safetyStops + 1,
+      nearMisses: state.safetyMetrics.nearMisses + 1,
+      lastIncidentTime: Date.now(),
+    },
+  }));
 
 // When worker evades forklift
-recordWorkerEvasion: () => set((state) => ({
-  safetyMetrics: {
-    ...state.safetyMetrics,
-    workerEvasions: state.safetyMetrics.workerEvasions + 1
-  }
-}))
+recordWorkerEvasion: () =>
+  set((state) => ({
+    safetyMetrics: {
+      ...state.safetyMetrics,
+      workerEvasions: state.safetyMetrics.workerEvasions + 1,
+    },
+  }));
 ```
 
 ### Time Since Incident
@@ -500,22 +508,22 @@ const WarningLight: React.FC<{ isStopped: boolean; isYielding: boolean }> = ({ i
 };
 ```
 
-| State | Color | Flash Speed | Additional Indicators |
-|-------|-------|-------------|----------------------|
-| Moving | Amber (#f59e0b) | 5 Hz | None |
-| Stopped | Red (#ef4444) | 15 Hz | Point light |
-| Yielding | Bright Amber (#fbbf24) | 25 Hz | Alternating side lights |
+| State    | Color                  | Flash Speed | Additional Indicators   |
+| -------- | ---------------------- | ----------- | ----------------------- |
+| Moving   | Amber (#f59e0b)        | 5 Hz        | None                    |
+| Stopped  | Red (#ef4444)          | 15 Hz       | Point light             |
+| Yielding | Bright Amber (#fbbf24) | 25 Hz       | Alternating side lights |
 
 ### Worker Status Indicator
 
 Floating status orb above each worker:
 
-| Status | Color |
-|--------|-------|
-| `working` | #22c55e (green) |
+| Status       | Color           |
+| ------------ | --------------- |
+| `working`    | #22c55e (green) |
 | `responding` | #f59e0b (amber) |
-| `break` | #6b7280 (gray) |
-| `idle` | #3b82f6 (blue) |
+| `break`      | #6b7280 (gray)  |
+| `idle`       | #3b82f6 (blue)  |
 
 ### Path Visualization
 
@@ -548,6 +556,7 @@ const NEAR_MISS_MESSAGES = [
 ```
 
 Alert styling:
+
 - Background: `bg-emerald-950/90`
 - Border: `border-emerald-500`
 - Icon: Shield

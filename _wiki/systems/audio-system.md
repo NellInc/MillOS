@@ -3,35 +3,44 @@
 <!-- wiki:type = system -->
 <!-- wiki:scope = millos -->
 <!-- wiki:created = 2026-05-23 -->
-<!-- wiki:updated = 2026-05-23 -->
+<!-- wiki:updated = 2026-08-13 -->
 <!-- wiki:status = active -->
 
 ## Summary
 
-MillOS uses a Zustand-backed audio analysis store (`audioAnalyzerStore.ts`) plus an `AudioReactiveProvider` component that drives visual effects based on audio input. The system feeds real-time frequency data into the 3D scene for dynamic ambient effects. (src/stores/audioAnalyzerStore.ts; src/components/AudioReactiveProvider.tsx)
+`src/utils/audioManager.ts` owns the Web Audio graph, music, machine and ambient
+sound, announcements, alarms, user settings, and cleanup. Event producers live
+in simulation stores and components. Reactive analysis is optional and feeds
+the post-processing vignette rather than a retired ambient-details component.
 
-## Components
+## Reactive path
 
-`src/components/AudioReactiveProvider.tsx` — top-level audio context provider. Wraps scene content; provides audio analysis data to child components via context or store. Likely uses Web Audio API `AnalyserNode` for frequency data.
+`src/components/AudioReactiveProvider.tsx` runs
+`src/hooks/useAudioReactive.ts` when the graphics setting is enabled. The hook
+updates `src/stores/audioAnalyzerStore.ts`. `src/components/PostProcessing.tsx`
+reads the analyzed treble level for a bounded vignette response.
 
-`src/stores/audioAnalyzerStore.ts` — Zustand store tracking audio state. Exposes frequency/amplitude data to the store layer for reactive scene updates (ambient details, effects, etc.).
+`src/components/SpatialAudioTracker.tsx` maintains listener and source position
+for spatial sound. `src/hooks/useAudioState.ts` exposes narrow reactive audio
+state to the UI.
 
-## Audio-Reactive Visuals
+## Accessibility and rights
 
-`src/components/AmbientDetails.tsx` — ambient detail component driven by audio data. `src/components/SpatialAudioTracker.tsx` — 3D spatial audio positioning system, maps audio sources to 3D positions in the scene.
-
-`src/stores/audioAnalyzerStore.ts` has a `__tests__/` subdirectory — the audio store is unit-tested.
-
-## Integration with Scene
-
-The audio system feeds into particle effects, ambient lighting, and ambient detail animation. This creates a responsive factory environment where machine noise or music influences visual atmosphere.
+Muted state is checked at producers, effects, and render surfaces where timing
+matters. PA captions and live regions remain available independently of visible
+tickers. Music attribution is defined by `music-credits.json`, emitted to
+`public/MUSIC_CREDITS.txt`, and checked by `scripts/validate-credits.mjs`.
+Repository attribution proves internal consistency only; listening acceptance
+and independent rights clearance remain separate gates.
 
 ## Provenance
 
-- Sources: `src/stores/audioAnalyzerStore.ts` (file name + store index), `src/components/AudioReactiveProvider.tsx` (file name), `src/components/SpatialAudioTracker.tsx` (file name), `src/components/AmbientDetails.tsx` (file name)
-- Last verified: 2026-05-23
+- Sources: `src/utils/audioManager.ts`, `src/hooks/useAudioReactive.ts`,
+  `src/hooks/useAudioState.ts`, `src/stores/audioAnalyzerStore.ts`,
+  `src/components/PostProcessing.tsx`, `music-credits.json`
+- Last verified: 2026-08-13
 
 ## See Also
 
-- [[millos:systems/graphics-rendering]] — visual system the audio feeds into
-- [[millos:systems/scene-zones]] — 3D scene structure where spatial audio positions sources
+- [[millos:systems/graphics-rendering]]
+- [[millos:systems/game-simulation]]

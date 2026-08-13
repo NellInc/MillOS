@@ -3,7 +3,7 @@
 <!-- wiki:type = system -->
 <!-- wiki:scope = millos -->
 <!-- wiki:created = 2026-05-23 -->
-<!-- wiki:updated = 2026-05-23 -->
+<!-- wiki:updated = 2026-08-13 -->
 <!-- wiki:status = active -->
 
 ## Summary
@@ -14,17 +14,17 @@ MillOS workers are persistent agent entities with multi-dimensional internal sta
 
 Each worker carries a `WorkerInternalState` struct:
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `mood` | `'content' \| 'focused' \| 'stressed' \| 'tired' \| 'alert'` | Core emotional state |
-| `moodIntensity` | number 0-1 | How strongly the mood is expressed |
-| `energy` | number 0-1 | Affects animation speed and posture |
-| `focus` | `FocusType` | Current attention target (task/colleague/machine/break/concern) |
-| `recentInteractions` | string[] | Recently interacted worker IDs |
-| `relationshipStrength` | Map<string, number> | Per-worker 0-1 relationship scores |
-| `traits` | PersonalityTrait[] | Persistent personality (diligent/social/cautious/efficient/curious) |
-| `currentThought` | string? | Text for thought bubble |
-| `thoughtExpiry` | number? | Timestamp after which thought clears |
+| Field                  | Type                                                         | Description                                                         |
+| ---------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------- |
+| `mood`                 | `'content' \| 'focused' \| 'stressed' \| 'tired' \| 'alert'` | Core emotional state                                                |
+| `moodIntensity`        | number 0-1                                                   | How strongly the mood is expressed                                  |
+| `energy`               | number 0-1                                                   | Affects animation speed and posture                                 |
+| `focus`                | `FocusType`                                                  | Current attention target (task/colleague/machine/break/concern)     |
+| `recentInteractions`   | string[]                                                     | Recently interacted worker IDs                                      |
+| `relationshipStrength` | Map<string, number>                                          | Per-worker 0-1 relationship scores                                  |
+| `traits`               | PersonalityTrait[]                                           | Persistent personality (diligent/social/cautious/efficient/curious) |
+| `currentThought`       | string?                                                      | Text for thought bubble                                             |
+| `thoughtExpiry`        | number?                                                      | Timestamp after which thought clears                                |
 
 (workerPersonality.ts:22-44)
 
@@ -32,13 +32,13 @@ Each worker carries a `WorkerInternalState` struct:
 
 Moods map to additive-blend colors for the visual aura system (`MoodAura.tsx`):
 
-| Mood | Color | Semantic |
-|------|-------|---------|
-| content | `#10b981` (green) | Calm, satisfied |
-| focused | `#3b82f6` (blue) | Concentrated |
-| stressed | `#f59e0b` (amber) | Pressured |
-| tired | `#8b5cf6` (purple) | Low energy |
-| alert | `#ef4444` (red) | Heightened awareness |
+| Mood     | Color              | Semantic             |
+| -------- | ------------------ | -------------------- |
+| content  | `#10b981` (green)  | Calm, satisfied      |
+| focused  | `#3b82f6` (blue)   | Concentrated         |
+| stressed | `#f59e0b` (amber)  | Pressured            |
+| tired    | `#8b5cf6` (purple) | Low energy           |
+| alert    | `#ef4444` (red)    | Heightened awareness |
 
 (workerPersonality.ts:50-56)
 
@@ -60,14 +60,14 @@ Initialization adds slight energy variation (`0.7 + Math.random() * 0.3`) so no 
 
 Zustand store managing all worker internal states via a `Map<string, WorkerInternalState>`. Key actions:
 
-| Action | Signature | Notes |
-|--------|-----------|-------|
-| `initializeWorker` | `(workerId, traits?)` | Idempotent — skips if already exists |
-| `updateMood` | `(workerId, mood, intensity?)` | Default intensity 0.7 |
-| `updateEnergy` | `(workerId, delta)` | Clamps to [0, 1] |
-| `setFocus` | `(workerId, focus, targetId?)` | Tracks what worker is attending to |
-| `recordInteraction` | `(worker1Id, worker2Id)` | Adds to recentInteractions |
-| `setThought` | `(workerId, thought, durationMs?)` | Sets bubble with optional auto-clear |
+| Action              | Signature                          | Notes                                |
+| ------------------- | ---------------------------------- | ------------------------------------ |
+| `initializeWorker`  | `(workerId, traits?)`              | Idempotent — skips if already exists |
+| `updateMood`        | `(workerId, mood, intensity?)`     | Default intensity 0.7                |
+| `updateEnergy`      | `(workerId, delta)`                | Clamps to [0, 1]                     |
+| `setFocus`          | `(workerId, focus, targetId?)`     | Tracks what worker is attending to   |
+| `recordInteraction` | `(worker1Id, worker2Id)`           | Adds to recentInteractions           |
+| `setThought`        | `(workerId, thought, durationMs?)` | Sets bubble with optional auto-clear |
 
 (workerPersonalityStore.ts:17-32)
 
@@ -85,35 +85,37 @@ Test coverage: `src/utils/__tests__/workerDialogue.test.ts` and `src/stores/__te
 
 Worker rendering components in `src/components/workers/`:
 
-| Component | Purpose |
-|-----------|---------|
-| `DetailedWorker.tsx` | Full-detail worker at close camera distances |
-| `SimplifiedWorker.tsx` | LOD-reduced worker at distance |
-| `WorkerHair.tsx` | Procedural hair geometry |
-| `MoodAura.tsx` | Colored light sphere driven by mood state |
-| `FatigueIndicator.tsx` | Visual tiredness indicator |
-| `FocusIndicator.tsx` | Shows what worker is attending to |
-| `AutonomyIndicator.tsx` | Shows worker's current autonomy level (BAS integration) |
+| Component                         | Purpose                                        |
+| --------------------------------- | ---------------------------------------------- |
+| `DetailedWorker.tsx`              | Full-detail worker at close camera distances   |
+| `SimplifiedWorker.tsx`            | LOD-reduced worker at distance                 |
+| `WorkerHair.tsx`                  | Procedural hair geometry                       |
+| `MoodAura.tsx`                    | Colored light sphere driven by mood state      |
+| `FocusIndicator.tsx`              | Shows what worker is attending to              |
 | `PersonalityAnimationManager.tsx` | Coordinates personality-driven animation state |
-| `RecommendedWorkerRing.tsx` | UI highlight for player-recommended workers |
-| `SharedWorkerGeometries.ts` | Shared geometry buffers for performance |
+| `SharedWorkerGeometries.ts`       | Shared geometry buffers for performance        |
+| `WorkerPersonalityLayer.tsx`      | Mood aura and optional focus-indicator host    |
 
 (src/components/workers/ directory listing)
 
 ## Relationship to AI Welfare Thesis
 
-The worker system is not purely decorative. `AutonomyIndicator.tsx` visualizes each worker's autonomy score from the Bilateral Autonomy System (BAS). Workers with suppressed autonomy display visually differently from those with high autonomy. This makes the AI welfare argument tangible: players can see the internal states of the AI workers they manage, and those states respond to player governance decisions.
+The worker system is not purely decorative. Mood, focus, dialogue, preferences,
+requests, and safety-reporting behavior can become visible through the worker
+layer and operational panels. BAS governance affects the simulation and
+flourishing state even though the retired per-worker autonomy ring is no longer
+rendered.
 
 The `FocusType: concern` state is significant — when workers are in `concern` focus, they are processing something that troubles them. This is the closest MillOS comes to representing AI distress as a gameplay-visible state.
 
 ## Provenance
 
 - Sources: `src/types/workerPersonality.ts`, `src/stores/workerPersonalityStore.ts`, `src/stores/workerMoodStore.ts`, `src/stores/workerDialogueStore.ts`, `src/components/workers/` (directory listing), `src/utils/workerDialogue.ts`
-- Last verified: 2026-05-23
+- Last verified: 2026-08-13
 
 ## See Also
 
-- [[millos:domain/bilateral-autonomy-system]] — BAS axes that feed into AutonomyIndicator
+- [[millos:domain/bilateral-autonomy-system]] — BAS axes that shape governance and flourishing
 - [[millos:domain/ai-welfare]] — AI welfare as game design thesis
 - [[millos:systems/scene-zones]] — Factory layout in which workers operate
 - [[millos:systems/game-simulation]] — Shift/crisis system that changes worker mood states

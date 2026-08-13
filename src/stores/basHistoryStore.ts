@@ -30,12 +30,7 @@ export interface BASHistoryPoint {
 
 /** Event types for significant moments */
 export type BASEventType =
-  | 'phase-transition'
-  | 'axis-change'
-  | 'crisis'
-  | 'recovery'
-  | 'vote-completed'
-  | 'milestone';
+  'phase-transition' | 'axis-change' | 'crisis' | 'recovery' | 'vote-completed' | 'milestone';
 
 /** A significant event marker */
 export interface BASEvent {

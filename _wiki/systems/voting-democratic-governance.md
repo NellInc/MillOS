@@ -13,9 +13,11 @@ MillOS implements a Zustand-based democratic voting system (`src/stores/votingSt
 ## Design Principles
 
 The store file opens with explicit attribution:
+
 > "Based on Semler's worker self-governance and Mondragon's one-worker-one-vote."
 
 Workers can vote on:
+
 - Policy changes
 - AI behavior modifications
 - Schedule changes
@@ -29,17 +31,17 @@ Workers can vote on:
 
 The `Vote` type (from `src/types/bas.ts`) has auto-generated fields:
 
-| Field | Generated vs. provided |
-|-------|----------------------|
-| `id` | Auto-generated |
-| `createdAt` | Auto-generated |
-| `status` | Auto-generated (starts as pending) |
-| `result` | Auto-generated on close |
-| `turnout` | Calculated |
-| `discussionThread` | Auto-initialized |
-| `openedAt`, `closedAt`, `deadline` | Managed by lifecycle actions |
-| `quorumRequired` | From `VOTING_RULES` |
-| `approvalThreshold` | From `VOTING_RULES` |
+| Field                              | Generated vs. provided             |
+| ---------------------------------- | ---------------------------------- |
+| `id`                               | Auto-generated                     |
+| `createdAt`                        | Auto-generated                     |
+| `status`                           | Auto-generated (starts as pending) |
+| `result`                           | Auto-generated on close            |
+| `turnout`                          | Calculated                         |
+| `discussionThread`                 | Auto-initialized                   |
+| `openedAt`, `closedAt`, `deadline` | Managed by lifecycle actions       |
+| `quorumRequired`                   | From `VOTING_RULES`                |
+| `approvalThreshold`                | From `VOTING_RULES`                |
 
 (votingStore.ts:29-47, typed as `Omit<Vote, ...>` in `createVote`)
 
@@ -86,7 +88,7 @@ The `AxisKey` type (from `src/types/bas.ts`) determines which axes are votable. 
 
 ## Provenance
 
-- Sources: `src/stores/votingStore.ts`, `src/types/bas.ts` (imports), `src/types/index.ts` (WORKER_ROSTER reference)
+- Sources: `src/stores/votingStore.ts`, `src/types/bas.ts` (vote contracts), `src/types.ts` (WORKER_ROSTER)
 - Last verified: 2026-05-23
 
 ## See Also

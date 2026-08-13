@@ -49,9 +49,7 @@ export interface QCLabStore {
 }
 
 export type DispatchQualityHoldReason =
-  | 'certification_expired'
-  | 'unresolved_contamination'
-  | 'failed_quality_test';
+  'certification_expired' | 'unresolved_contamination' | 'failed_quality_test';
 
 export interface DispatchQualityStatus {
   released: boolean;

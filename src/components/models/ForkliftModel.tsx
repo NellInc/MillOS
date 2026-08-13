@@ -1,14 +1,9 @@
 /**
  * Forklift 3D Model Component
  *
- * Uses GLTF model if available at /public/models/forklift/forklift.glb
- * Falls back to procedural primitives otherwise.
- *
- * Recommended free CC0/public domain models:
- * - Poly.pizza: https://poly.pizza/search/forklift (CC0, properly scaled)
- * - Quaternius: https://quaternius.com/ (vehicle packs, CC0)
- * - TurboSquid free section: https://www.turbosquid.com/Search/3D-Models/free/forklift
- * - RigModels: https://rigmodels.com/index.php?searchkeyword=forklift (GLB available)
+ * Uses the delivery-validated GLTF asset recorded in
+ * public/models/asset-manifest.json. Procedural geometry is the loading and
+ * low-quality fallback.
  *
  * The runtime derivative is normalized to metres, centered on X/Z, grounded at
  * Y=0, and oriented with its forks facing positive Z.
@@ -34,7 +29,7 @@ import { useDracoGLTF } from '../../utils/dracoLoader';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
-import { useModelAvailable, MODEL_PATHS } from '../../utils/modelLoader';
+import { MODEL_PATHS } from '../../utils/modelLoader';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { useGraphicsStore } from '../../stores/graphicsStore';
 import { useProductionStore } from '../../stores/productionStore';
@@ -1490,13 +1485,6 @@ const ProceduralForklift: React.FC<ForkliftModelProps> = ({
 };
 
 const DetailedForkliftModel: React.FC<ForkliftModelProps> = (props) => {
-  const modelAvailable = useModelAvailable('forklift');
-
-  // While checking, show procedural
-  if (modelAvailable === null || modelAvailable === false) {
-    return <ProceduralForklift {...props} />;
-  }
-
   return (
     <Suspense fallback={<ProceduralForklift {...props} />}>
       <GLTFForklift {...props} />

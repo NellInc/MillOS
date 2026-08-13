@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { DockMode } from '../components/ui-new/dock/Dock';
+import type { DockMode } from '../components/ui-new/dock/types';
 
 export interface DPadDirection {
   x: number; // -1 (left) to 1 (right)

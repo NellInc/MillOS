@@ -15,7 +15,7 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { safeJSONStorage } from './storage';
+import { mergePersistedState, safeJSONStorage } from './storage';
 import type {
   FiveAxes,
   AxisKey,
@@ -330,6 +330,7 @@ export const useBASStore = create<BASState>()(
         educationEnabled: state.educationEnabled,
         educationFocus: state.educationFocus,
       }),
+      merge: mergePersistedState,
     }
   )
 );

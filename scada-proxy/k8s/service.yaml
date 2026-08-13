@@ -15,22 +15,3 @@ spec:
       protocol: TCP
   selector:
     app.kubernetes.io/name: scada-proxy
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: scada-proxy-headless
-  namespace: millos-scada
-  labels:
-    app.kubernetes.io/name: scada-proxy
-    app.kubernetes.io/component: backend
-spec:
-  type: ClusterIP
-  clusterIP: None
-  ports:
-    - name: http
-      port: 3001
-      targetPort: http
-      protocol: TCP
-  selector:
-    app.kubernetes.io/name: scada-proxy

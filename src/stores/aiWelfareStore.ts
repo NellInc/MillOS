@@ -17,7 +17,7 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { safeJSONStorage } from './storage';
+import { mergePersistedState, safeJSONStorage } from './storage';
 
 // =============================================================================
 // TYPES
@@ -636,6 +636,7 @@ export const useAIWelfareStore = create<AIWelfareState & AIWelfareActions>()(
         aiVoice: state.aiVoice,
         accountability: state.accountability,
       }),
+      merge: mergePersistedState,
     }
   )
 );

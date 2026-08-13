@@ -1,5 +1,13 @@
 # GPU Resource Management System
 
+> **Historical design document, 2026-08-13.** This file describes an earlier
+> resource-recreation design. Several named hooks and modules were never part of
+> the maintained runtime and have been removed. Current code uses
+> `src/utils/GPUResourceManager.ts`, `src/utils/gpuTrackedResources.ts`, and
+> `src/utils/textureCompression.ts`. `src/utils/resourcePersistence.ts` now only
+> reads a bounded legacy GPU memory budget. Treat the remaining examples below
+> as design history rather than runnable integration guidance.
+
 A complete solution for preventing WebGL context loss, managing GPU memory, and ensuring smooth 3D performance in React Three Fiber applications.
 
 ## Table of Contents
@@ -29,6 +37,7 @@ A complete solution for preventing WebGL context loss, managing GPU memory, and 
 ### Problem
 
 WebGL applications can suffer from:
+
 - **Context loss**: GPU runs out of resources, crashes, or resets
 - **Memory leaks**: Geometries/textures not properly disposed
 - **Performance degradation**: Too many draw calls, unoptimized resources
@@ -37,6 +46,7 @@ WebGL applications can suffer from:
 ### Solution
 
 This system delivers:
+
 - Centralized GPU resource lifecycle management
 - Memory budget monitoring with automatic pruning
 - Context loss detection and graceful recovery
@@ -184,9 +194,9 @@ import { gpuResourceManager } from '@/src/utils/GPUResourceManager';
 
 // Register a resource
 const id = gpuResourceManager.register(
-  'geometry',           // type: 'geometry' | 'texture' | 'material' | 'renderTarget'
-  myGeometry,           // the Three.js object
-  'my-component',       // owner identifier
+  'geometry', // type: 'geometry' | 'texture' | 'material' | 'renderTarget'
+  myGeometry, // the Three.js object
+  'my-component', // owner identifier
   {
     priority: 'normal', // 'critical' | 'normal' | 'low'
     recreator: () => new THREE.BoxGeometry(1, 1, 1), // for context recovery
@@ -240,8 +250,8 @@ initKTX2Loader(renderer);
 // Load single texture (auto-fallback to JPG if KTX2 fails)
 const texture = await loadCompressedTexture(
   '/textures/wood.ktx2',
-  '/textures/wood.jpg',  // fallback (optional)
-  'my-component'         // owner for tracking
+  '/textures/wood.jpg', // fallback (optional)
+  'my-component' // owner for tracking
 );
 
 // Batch load multiple textures
@@ -282,25 +292,25 @@ const merged = mergeGeometries([
 // Merge a grid of identical geometries (floors, tiles)
 const floorTiles = mergeGrid(
   tileGeometry,
-  { x: 10, z: 10 },    // grid size
-  { x: 2, z: 2 },      // spacing
+  { x: 10, z: 10 }, // grid size
+  { x: 2, z: 2 }, // spacing
   { owner: 'floor' }
 );
 
 // Merge geometries in a line (rails, pipes)
 const rails = mergeLine(
   railGeometry,
-  20,                  // count
-  1.5,                 // spacing
-  'z',                 // direction
+  20, // count
+  1.5, // spacing
+  'z', // direction
   { owner: 'rails' }
 );
 
 // Merge in a circle (wheels, fans)
 const spokes = mergeCircular(
   spokeGeometry,
-  12,                  // count
-  2,                   // radius
+  12, // count
+  2, // radius
   { rotateToCenter: true }
 );
 
@@ -483,11 +493,9 @@ function ColoredBox({ color }) {
 import { useGPURenderTarget } from '@/src/hooks/useGPUResource';
 
 function PostProcessing() {
-  const renderTarget = useGPURenderTarget(
-    window.innerWidth,
-    window.innerHeight,
-    { minFilter: THREE.LinearFilter }
-  );
+  const renderTarget = useGPURenderTarget(window.innerWidth, window.innerHeight, {
+    minFilter: THREE.LinearFilter,
+  });
 
   // Use in custom post-processing...
 }
@@ -517,31 +525,31 @@ function TexturedMesh() {
 
 ### Default Budgets
 
-| Resource Type | Default Budget | Purpose |
-|--------------|----------------|---------|
-| Geometries | 64 MB | Vertex buffers, index buffers |
-| Textures | 300 MB | Largest category, image data |
-| Materials | 8 MB | Material metadata, uniforms |
-| Render Targets | 64 MB | FBOs, post-processing buffers |
-| **Total** | **512 MB** | Combined limit |
+| Resource Type  | Default Budget | Purpose                       |
+| -------------- | -------------- | ----------------------------- |
+| Geometries     | 64 MB          | Vertex buffers, index buffers |
+| Textures       | 300 MB         | Largest category, image data  |
+| Materials      | 8 MB           | Material metadata, uniforms   |
+| Render Targets | 64 MB          | FBOs, post-processing buffers |
+| **Total**      | **512 MB**     | Combined limit                |
 
 ### Behavior Thresholds
 
-| Usage | Action |
-|-------|--------|
-| < 80% | Normal operation |
-| 80% | Warning logged, callbacks fired |
-| 90% | Auto-prune unused resources (30s+ idle) |
-| 100% | Manual disposal required |
+| Usage | Action                                  |
+| ----- | --------------------------------------- |
+| < 80% | Normal operation                        |
+| 80%   | Warning logged, callbacks fired         |
+| 90%   | Auto-prune unused resources (30s+ idle) |
+| 100%  | Manual disposal required                |
 
 ### Custom Budget Configuration
 
 ```typescript
 // Set via GPUResourceManager
 gpuResourceManager.setBudget({
-  total: 256 * 1024 * 1024,      // 256MB total
-  textures: 150 * 1024 * 1024,   // 150MB for textures
-  geometries: 50 * 1024 * 1024,  // 50MB for geometries
+  total: 256 * 1024 * 1024, // 256MB total
+  textures: 150 * 1024 * 1024, // 150MB for textures
+  geometries: 50 * 1024 * 1024, // 50MB for geometries
 });
 
 // Or save to localStorage for persistence
@@ -767,6 +775,7 @@ const imageData = await decodeTexture(url);
 **Cause**: Exceeded GPU memory limits
 
 **Solutions**:
+
 1. Lower texture resolutions
 2. Enable texture compression (KTX2)
 3. Reduce geometry complexity
@@ -778,6 +787,7 @@ const imageData = await decodeTexture(url);
 **Cause**: Resources not being disposed
 
 **Solutions**:
+
 1. Use `useGPUResource` hooks instead of raw `useMemo`
 2. Check for components that don't unmount cleanly
 3. Enable auto-prune: resources unused for 30s+ will be disposed at 90% memory
@@ -787,6 +797,7 @@ const imageData = await decodeTexture(url);
 **Cause**: KTX2 transcoder not initialized
 
 **Solutions**:
+
 1. Run `npm run setup:basis`
 2. Verify files exist in `public/libs/basis/`
 3. Check browser console for transcoder errors
@@ -796,6 +807,7 @@ const imageData = await decodeTexture(url);
 **Cause**: No recreators registered
 
 **Solutions**:
+
 1. Register resources with recreator functions
 2. Use `useGPUResource` hooks (they auto-register recreators)
 3. Check console for recovery errors
@@ -806,37 +818,37 @@ const imageData = await decodeTexture(url);
 
 ### GPUResourceManager
 
-| Method | Description |
-|--------|-------------|
-| `register(type, resource, owner, options)` | Track a resource |
-| `dispose(id)` | Dispose single resource |
-| `disposeByOwner(owner)` | Dispose all from owner |
-| `disposeByType(type)` | Dispose all of type |
-| `disposeAll()` | Dispose everything |
-| `touch(id)` | Mark as recently used |
-| `pruneUnused(maxAgeMs)` | Remove old resources |
-| `getMemoryUsage()` | Get usage statistics |
-| `setBudget(budget)` | Configure limits |
-| `onContextLost(cb)` | Subscribe to event |
-| `onContextRestored(cb)` | Subscribe to event |
-| `onMemoryWarning(cb)` | Subscribe to event |
-| `handleContextLost()` | Call on context loss |
-| `handleContextRestored()` | Call on restore |
-| `isContextAvailable()` | Check context state |
-| `debugLog()` | Log to console |
+| Method                                     | Description             |
+| ------------------------------------------ | ----------------------- |
+| `register(type, resource, owner, options)` | Track a resource        |
+| `dispose(id)`                              | Dispose single resource |
+| `disposeByOwner(owner)`                    | Dispose all from owner  |
+| `disposeByType(type)`                      | Dispose all of type     |
+| `disposeAll()`                             | Dispose everything      |
+| `touch(id)`                                | Mark as recently used   |
+| `pruneUnused(maxAgeMs)`                    | Remove old resources    |
+| `getMemoryUsage()`                         | Get usage statistics    |
+| `setBudget(budget)`                        | Configure limits        |
+| `onContextLost(cb)`                        | Subscribe to event      |
+| `onContextRestored(cb)`                    | Subscribe to event      |
+| `onMemoryWarning(cb)`                      | Subscribe to event      |
+| `handleContextLost()`                      | Call on context loss    |
+| `handleContextRestored()`                  | Call on restore         |
+| `isContextAvailable()`                     | Check context state     |
+| `debugLog()`                               | Log to console          |
 
 ### Hooks
 
-| Hook | Description |
-|------|-------------|
-| `useGPUGeometry(factory, deps, priority)` | Auto-managed geometry |
-| `useGPUMaterial(factory, deps, priority)` | Auto-managed material |
-| `useGPURenderTarget(w, h, options, priority)` | Auto-managed FBO |
-| `useGPUTexture(path, priority)` | Tracked drei texture |
-| `useGPUResource(type, factory, deps, options)` | Generic resource |
-| `useRegisterGPUResource(type, resource, owner)` | Register existing |
-| `useGPUResourceCleanup(owner)` | Cleanup by owner |
-| `useTextureWorker()` | Worker interface |
+| Hook                                            | Description           |
+| ----------------------------------------------- | --------------------- |
+| `useGPUGeometry(factory, deps, priority)`       | Auto-managed geometry |
+| `useGPUMaterial(factory, deps, priority)`       | Auto-managed material |
+| `useGPURenderTarget(w, h, options, priority)`   | Auto-managed FBO      |
+| `useGPUTexture(path, priority)`                 | Tracked drei texture  |
+| `useGPUResource(type, factory, deps, options)`  | Generic resource      |
+| `useRegisterGPUResource(type, resource, owner)` | Register existing     |
+| `useGPUResourceCleanup(owner)`                  | Cleanup by owner      |
+| `useTextureWorker()`                            | Worker interface      |
 
 ---
 

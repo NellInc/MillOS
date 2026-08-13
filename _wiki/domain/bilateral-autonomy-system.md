@@ -3,7 +3,7 @@
 <!-- wiki:type = domain -->
 <!-- wiki:scope = millos -->
 <!-- wiki:created = 2026-05-23 -->
-<!-- wiki:updated = 2026-05-23 -->
+<!-- wiki:updated = 2026-08-13 -->
 <!-- wiki:status = active -->
 
 ## Summary
@@ -14,13 +14,13 @@ The Bilateral Autonomy System is MillOS's core governance model for human-AI col
 
 Defined in `src/types/bas.ts` as `FiveAxes`, type `AxisKey`. Each axis is 0–100:
 
-| Axis | 0 end | 100 end |
-|------|-------|---------|
-| 1. Autonomy Level | AI-assigned tasks | Self-organized |
-| 2. Decision Mode | AI decides | Democratic vote |
-| 3. Information Access | Need-to-know | Full open access |
-| 4. Evaluation Direction | AI evaluates workers | Workers rate AI |
-| 5. Collective Orientation | Individual focus | Team-first |
+| Axis                      | 0 end                | 100 end          |
+| ------------------------- | -------------------- | ---------------- |
+| 1. Autonomy Level         | AI-assigned tasks    | Self-organized   |
+| 2. Decision Mode          | AI decides           | Democratic vote  |
+| 3. Information Access     | Need-to-know         | Full open access |
+| 4. Evaluation Direction   | AI evaluates workers | Workers rate AI  |
+| 5. Collective Orientation | Individual focus     | Team-first       |
 
 (`src/stores/basStore.ts:1-14`)
 
@@ -50,13 +50,13 @@ Active scenario (`activeScenario`, `scenarioProgress`) drives structured governa
 ## Behavior Engines
 
 `src/systems/bas/aiBehaviorEngine.ts` — translates axis settings into per-tick AI decisions.
-`src/systems/bas/workerBehaviorEngine.ts` — worker agent responses to axis configuration.
 `src/systems/bas/stabilityCalculator.ts` — Wallace stability metrics.
 `src/systems/bas/valueCalculator.ts` — derived flourishing values from axes.
 
 ## BAS History and Audit
 
-`basHistoryStore.ts` records a `BASHistoryPoint` for each state change, enabling replay and audit. `auditStore.ts` logs security events separately (OWASP A09).
+`basHistoryStore.ts` records `BASHistoryPoint` changes for governance history.
+This browser history is product state rather than a security audit trail.
 
 ## Relationship to Flourishing
 
@@ -65,7 +65,7 @@ BAS axis settings are the primary driver of `flourishingStore` dimension values:
 ## Provenance
 
 - Sources consulted: `src/stores/basStore.ts`, `src/stores/index.ts`, `src/systems/bas/`, `CLAUDE.md:279-281`
-- Last verified against sources: 2026-05-23
+- Last verified against sources: 2026-08-13
 
 ## See Also
 

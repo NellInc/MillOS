@@ -217,9 +217,7 @@ export interface WonderwareConnectionConfig {
  * Union type for all historian configurations
  */
 export type HistorianConnectionConfig =
-  | PIConnectionConfig
-  | WonderwareConnectionConfig
-  | { type: 'local' }; // Local IndexedDB storage
+  PIConnectionConfig | WonderwareConnectionConfig | { type: 'local' }; // Local IndexedDB storage
 
 // ============================================================================
 // Factory Function Types

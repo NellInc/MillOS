@@ -26,7 +26,20 @@ WORKDIR /app
 
 # Install production dependencies only
 COPY package*.json ./
-RUN npm ci --only=production && npm cache clean --force
+RUN apk upgrade --no-cache && \
+    npm ci --omit=dev && \
+    npm cache clean --force && \
+    rm -rf \
+      /opt/yarn-v* \
+      /usr/local/lib/node_modules/corepack \
+      /usr/local/lib/node_modules/npm \
+      /usr/local/bin/corepack \
+      /usr/local/bin/npm \
+      /usr/local/bin/npx \
+      /usr/local/bin/pnpm \
+      /usr/local/bin/pnpx \
+      /usr/local/bin/yarn \
+      /usr/local/bin/yarnpkg
 
 # Copy built files
 COPY --from=builder /app/dist ./dist

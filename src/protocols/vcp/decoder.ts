@@ -33,19 +33,15 @@ const PATTERNS = {
   governance: /\[GOV:([TXDE])\]/,
   axes: /\[AXIS:A(\d{2})\|D(\d{2})\|I(\d{2})\|E(\d{2})\|C(\d{2})\]/,
   lock: /\[LOCK:([^\]]+)\]/,
-  // NOTE: 'meaning' and 'mastery' both encode to 'M' (encoder uses
-  // concernDimension[0].toUpperCase()), so this char class is [MCJWA], not all
-  // six FlourishingDimension values. The 'M' collision is decoded as 'meaning'
-  // (see dimMap in decodeStateSnapshot). Full disambiguation needs an
-  // encoder-side wire-format change to give 'mastery' a unique symbol.
-  wellbeing: /\[WELL:F(\d+)([↑→↓])\|?([MCJWA])?\]/u,
+  // M remains meaning for backward compatibility. Y is the distinct mastery
+  // symbol emitted by current encoders.
+  wellbeing: /\[WELL:F(\d+)([↑→↓])\|?([MYCJWA])?\]/u,
   stability: /\[STAB:([✓∼!✗])([\d.]+)\]/u,
   engagement: /\[ENG:(\d+)([🌊💧🏜])\]/u,
   delta: /\[Δ:([^\]]+)\]/,
   triggers: /\[⚡:([^\]]+)\]/u,
   net: /\[NET:([↗→↘↔])\]/u,
-  // [MCJWA]: 'meaning'/'mastery' both encode to 'M' (decoded as 'meaning'); see wellbeing note above.
-  reasoning: /\[R:([⚖🤝⚡🌱])([MCJWA])\|([↑✓⚠↻])\|([!+?>])\|([↗→✳🛡])\]/u,
+  reasoning: /\[R:([⚖🤝⚡🌱])([MYCJWA])\|([↑✓⚠↻])\|([!+?>])\|([↗→✳🛡])\]/u,
   learning: /\[L:([^\]]+)\]/,
   healing: /\[H:([^\]]+)\]/,
 };
@@ -157,12 +153,9 @@ export function decodeStateSnapshot(encoded: string): Partial<StateSnapshot> | n
     '🏜': 'none',
   };
 
-  // LOSSY: 'meaning' and 'mastery' both encode to 'M' (encoder uses
-  // concernDimension[0].toUpperCase()), so 'M' is decoded as 'meaning' and a
-  // concernDimension of 'mastery' silently round-trips to 'meaning'. Restoring
-  // full fidelity requires giving 'mastery' a unique encoder symbol.
   const dimMap: Record<string, FlourishingDimension> = {
     M: 'meaning',
+    Y: 'mastery',
     A: 'agency',
     C: 'connection',
     J: 'joy',
@@ -331,10 +324,9 @@ export function decodeReasoningScaffolds(encoded: string): Partial<ReasoningScaf
     '🌱': 'strategic',
   };
 
-  // LOSSY: 'meaning' and 'mastery' both encode to 'M'; 'M' is decoded as
-  // 'meaning' (see note in decodeStateSnapshot's dimMap).
   const dimMap: Record<string, FlourishingDimension> = {
     M: 'meaning',
+    Y: 'mastery',
     A: 'agency',
     C: 'connection',
     J: 'joy',

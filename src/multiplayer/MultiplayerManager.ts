@@ -23,7 +23,7 @@ import {
 } from './types';
 import { useMultiplayerStore } from '../stores/multiplayerStore';
 import { useProductionStore } from '../stores/productionStore';
-import { handleHostDisconnect } from './HostMigration';
+import { handleHostDisconnect } from './HostDisconnect';
 import { logger } from '../utils/logger';
 import { sanitizeChatMessage, sanitizePlayerName } from '../utils/sanitize';
 
@@ -43,6 +43,7 @@ export class MultiplayerManager {
   private playerUpdateInterval: ReturnType<typeof setInterval> | null = null;
   private stateSyncInterval: ReturnType<typeof setInterval> | null = null;
   private pingInterval: ReturnType<typeof setInterval> | null = null;
+  private joinTimeout: ReturnType<typeof setTimeout> | null = null;
   private stateSequence = 0;
   private isDestroyed = false;
 
@@ -61,8 +62,7 @@ export class MultiplayerManager {
   // Callbacks for external integration
   private onGameStateRequest: (() => FullGameState) | null = null;
   private onMachineIntent:
-    | ((intent: MachineIntent) => { success: boolean; error?: string })
-    | null = null;
+    ((intent: MachineIntent) => { success: boolean; error?: string }) | null = null;
 
   /**
    * Set callback for getting current game state (called by host when new player joins)
@@ -82,6 +82,7 @@ export class MultiplayerManager {
    * Create and host a new room
    */
   async hostRoom(playerName: string): Promise<string> {
+    this.clearJoinTimeout();
     const store = useMultiplayerStore.getState();
     const roomCode = store.createRoom();
 
@@ -102,6 +103,7 @@ export class MultiplayerManager {
    * Join an existing room
    */
   async joinRoom(roomCode: string, playerName: string): Promise<void> {
+    this.clearJoinTimeout();
     const store = useMultiplayerStore.getState();
     store.joinRoom(roomCode);
 
@@ -112,20 +114,33 @@ export class MultiplayerManager {
       playerName,
     });
 
+    // A fast host can deliver FULL_STATE_SYNC before the initialize() await
+    // continuation runs. In that case the room is already connected and no
+    // timeout should be armed after the fact.
+    if (useMultiplayerStore.getState().connectionState !== 'connecting') return;
+
     // Set a timeout for receiving the initial state sync
     // If we don't receive it within 15 seconds, consider the connection failed
-    setTimeout(() => {
+    this.joinTimeout = setTimeout(() => {
+      this.joinTimeout = null;
+      if (this.isDestroyed) return;
       const currentState = useMultiplayerStore.getState();
       if (currentState.connectionState === 'connecting') {
         logger.multiplayer.error('Connection timeout - no state sync received');
         currentState.setConnectionState('disconnected');
-        // Use the module-level destroy so the singleton is nulled, not just
-        // flagged isDestroyed. Otherwise getMultiplayerManager() keeps returning
-        // this poisoned (isDestroyed=true) instance and all later broadcasts/
-        // state-syncs short-circuit, breaking subsequent multiplayer attempts.
-        destroyMultiplayerManager();
+        // Destroy exactly the manager that owns this timer. A stale manager must
+        // never tear down a newer singleton created by a subsequent join attempt.
+        this.destroy();
+        if (multiplayerManager === this) multiplayerManager = null;
       }
     }, 15000);
+  }
+
+  private clearJoinTimeout(): void {
+    if (this.joinTimeout) {
+      clearTimeout(this.joinTimeout);
+      this.joinTimeout = null;
+    }
   }
 
   /**
@@ -547,6 +562,7 @@ export class MultiplayerManager {
 
       case 'FULL_STATE_SYNC':
         this.applyFullState(message.payload);
+        this.clearJoinTimeout();
         store.setConnectionState('connected');
         // Start broadcasting our position now that we're connected
         this.startBroadcasting();
@@ -892,6 +908,7 @@ export class MultiplayerManager {
    */
   destroy(): void {
     this.isDestroyed = true;
+    this.clearJoinTimeout();
     this.stopBroadcasting();
 
     // Close all peer connections

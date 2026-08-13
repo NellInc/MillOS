@@ -93,12 +93,7 @@ export interface FactoryEngagement {
 // =============================================================================
 
 export type EngagementDimensionKey =
-  | 'flow'
-  | 'goals'
-  | 'feedback'
-  | 'challenge'
-  | 'mastery'
-  | 'entryFriction';
+  'flow' | 'goals' | 'feedback' | 'challenge' | 'mastery' | 'entryFriction';
 
 export type DiagnosticStatus =
   | 'healthy' // Green - all dimensions good

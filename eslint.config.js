@@ -10,17 +10,42 @@ export default tseslint.config(
 
   // Global ignores (replaces ignorePatterns)
   {
-    ignores: [
-      'dist/**',
-      'node_modules/**',
-      'scada-proxy/**',
-      'src/test/**',
-      'src/stores/index.ts', // Has circular dependency issues
-      'src/0.10 Archive/**', // Archived code, no need to lint
-      'coverage/**',
-      '*.config.js',
-      '*.config.ts',
+    ignores: ['dist/**', 'node_modules/**', 'scada-proxy/**', 'src/test/**', 'coverage/**'],
+  },
+
+  // Node tools and browser-evaluated profiling callbacks live together in
+  // scripts. Declare both environments so lint reports logic defects rather
+  // than hundreds of false undefined-global findings.
+  {
+    files: [
+      'scripts/**/*.{js,mjs,cjs}',
+      '*.{js,mjs,cjs}',
+      '*.config.{js,mjs,cjs,ts}',
+      'vite.config.ts',
+      'playwright.config.ts',
+      'vitest.config.ts',
     ],
+    languageOptions: {
+      ecmaVersion: 'latest',
+      sourceType: 'module',
+      globals: {
+        ...globals.node,
+        ...globals.browser,
+      },
+    },
+    rules: {
+      'preserve-caught-error': 'error',
+    },
+  },
+
+  {
+    files: ['e2e/**/*.ts'],
+    languageOptions: {
+      globals: {
+        ...globals.node,
+        ...globals.browser,
+      },
+    },
   },
 
   // Main configuration for TypeScript files

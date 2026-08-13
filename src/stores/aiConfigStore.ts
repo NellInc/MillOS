@@ -32,20 +32,15 @@ export type LLMBackend = 'gemini' | 'webgpu';
 
 /** Lifecycle status of the local WebGPU neural core. */
 export type WebGPUStatus =
-  | 'idle'
-  | 'checking'
-  | 'unsupported'
-  | 'loading'
-  | 'compiling'
-  | 'ready'
-  | 'error';
+  'idle' | 'checking' | 'unsupported' | 'loading' | 'compiling' | 'ready' | 'error';
 
 // Gemini pricing per 1M tokens (paid tier, text), per model in the fallback
-// chain. Verified against https://ai.google.dev/gemini-api/docs/pricing (June 2026).
+// chain. Verified against https://ai.google.dev/gemini-api/docs/pricing on
+// 12 August 2026.
 const GEMINI_COST_PER_1M: Record<string, { input: number; output: number }> = {
+  'gemini-3.6-flash': { input: 1.5, output: 7.5 },
   'gemini-3.5-flash': { input: 1.5, output: 9.0 },
-  'gemini-3-flash-preview': { input: 0.5, output: 3.0 },
-  'gemini-2.5-flash': { input: 0.3, output: 2.5 },
+  'gemini-3.5-flash-lite': { input: 0.3, output: 2.5 },
 };
 // Fallback for unknown model IDs: price as the most expensive known model so
 // the tracker over-estimates rather than under-reports spend.
@@ -76,6 +71,11 @@ interface StrategicState {
   recommendWorker?: string; // Recommended worker for critical tasks
   confidenceScores?: { overall: number; reasoning: string };
 }
+
+type StrategicResponseDetails = Omit<
+  StrategicState,
+  'priorities' | 'legacyPriorities' | 'lastDecisionTime' | 'isThinking'
+>;
 
 /**
  * BAS-derived AI behavior settings
@@ -132,7 +132,7 @@ interface AIConfigState {
   // Strategic layer state
   strategic: StrategicState;
   strategicIntervalMs: number;
-  setStrategicPriorities: (priorities: string[]) => void;
+  setStrategicPriorities: (priorities: string[], details?: StrategicResponseDetails) => void;
   setStrategicThinking: (thinking: boolean) => void;
   // Tactical layer state
   isTacticalThinking: boolean;
@@ -161,7 +161,7 @@ interface AIConfigState {
   setGeminiApiKey: (key: string | null) => Promise<boolean>;
   testGeminiConnection: () => Promise<{ success: boolean; message: string }>;
   clearGeminiConfig: () => void;
-  initializeFromStorage: () => void;
+  initializeSessionClient: () => void;
 
   // AI Visualization toggles (all default OFF)
   showCascadeVisualization: boolean;
@@ -254,6 +254,35 @@ function computeBASBehavior(axes: FiveAxes): BASAIBehavior {
 // load with a cancellation request. Module-scoped so it survives across the
 // loadWebGPUModel/cancelWebGPUModelLoad closures without polluting store state.
 let webgpuCancelRequested = false;
+
+/**
+ * Remove credentials written by persistence version 0. Gemini keys are now
+ * session-only because browser local storage is readable by any script running
+ * in the origin. Preserve ordinary preferences, but return a cloud-backed mode
+ * to the locally available heuristic mode when its stored key is removed.
+ */
+export function migrateAIConfigPersistedState(
+  persistedState: unknown,
+  persistedVersion: number
+): Record<string, unknown> {
+  if (!persistedState || typeof persistedState !== 'object' || Array.isArray(persistedState)) {
+    return {};
+  }
+
+  const migrated = { ...(persistedState as Record<string, unknown>) };
+  const removedStoredKey =
+    persistedVersion < 1 &&
+    typeof migrated.geminiApiKey === 'string' &&
+    migrated.geminiApiKey.length > 0;
+
+  delete migrated.geminiApiKey;
+
+  if (removedStoredKey && migrated.llmBackend !== 'webgpu') {
+    migrated.aiMode = 'heuristic';
+  }
+
+  return migrated;
+}
 
 export const useAIConfigStore = create<AIConfigState>()(
   persist(
@@ -459,11 +488,17 @@ export const useAIConfigStore = create<AIConfigState>()(
       },
       strategicIntervalMs: DEFAULT_STRATEGIC_INTERVAL_MS,
 
-      setStrategicPriorities: (priorities: string[]) => {
+      setStrategicPriorities: (priorities: string[], details = {}) => {
         set((state) => ({
           strategic: {
             ...state.strategic,
             legacyPriorities: priorities,
+            actionPlan: details.actionPlan,
+            insight: details.insight,
+            tradeoff: details.tradeoff,
+            focusMachine: details.focusMachine,
+            recommendWorker: details.recommendWorker,
+            confidenceScores: details.confidenceScores,
             lastDecisionTime: Date.now(),
           },
         }));
@@ -773,14 +808,14 @@ export const useAIConfigStore = create<AIConfigState>()(
         logger.info('[AIConfigStore] Gemini config cleared');
       },
 
-      // Re-initialize client from stored key (call on app startup)
-      initializeFromStorage: () => {
+      // Initialize the client from a key supplied during this browser session.
+      initializeSessionClient: () => {
         const key = get().geminiApiKey;
         if (key) {
           const success = geminiClient.initialize(key);
           if (success) {
             set({ isGeminiConnected: true });
-            logger.info('[AIConfigStore] Gemini client re-initialized from storage');
+            logger.info('[AIConfigStore] Gemini session client initialized');
           } else {
             set({ isGeminiConnected: false, aiMode: 'heuristic' });
           }
@@ -790,10 +825,11 @@ export const useAIConfigStore = create<AIConfigState>()(
     {
       name: 'millos-ai-config',
       storage: safeJSONStorage,
+      version: 1,
+      migrate: migrateAIConfigPersistedState,
       partialize: (state) => ({
-        // Only persist these fields
+        // Persist preferences only. Credentials are deliberately session-only.
         aiMode: state.aiMode,
-        geminiApiKey: state.geminiApiKey,
         managementGenerosity: state.managementGenerosity,
         // Persist the chosen backend; webgpuModelReady is intentionally NOT
         // persisted (the engine is memory-only and must be reloaded each session).
@@ -846,7 +882,7 @@ export function cleanupAIConfigBASSubscription(): void {
 if (typeof window !== 'undefined') {
   // Small delay to ensure rehydration completes
   setTimeout(() => {
-    useAIConfigStore.getState().initializeFromStorage();
+    useAIConfigStore.getState().initializeSessionClient();
     // Initialize BAS subscription after stores are ready
     initBASSubscription();
   }, 100);

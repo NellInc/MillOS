@@ -1,5 +1,7 @@
 # Code Refactoring Summary
 
+> **Historical record.** This document preserves an earlier audit, plan, or implementation snapshot. It is not current status or operating instruction. See [the 12 August 2026 exhaustive improvement ledger](../_contprompts/millos_exhaustive_improvements_2026-08-12.md) and [its second pass](../_contprompts/millos_exhaustive_improvements_second_pass_2026-08-12.md) for current evidence, dispositions, and remaining gates.
+
 ## Files Created
 
 ### 1. `/src/hooks/useKeyboardShortcuts.ts`

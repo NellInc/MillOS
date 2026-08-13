@@ -7,8 +7,6 @@
   "exclude": [
     "node_modules",
     "dist",
-    "src/0.10 Archive",
-    "src/0.10 Archive/**/*",
     "output",
     "prototypes",
     "scada-proxy",

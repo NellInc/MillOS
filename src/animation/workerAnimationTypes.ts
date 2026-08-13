@@ -8,14 +8,7 @@ import type { WorkerWorkAction } from '../components/workers/workerTypes';
 
 // Animation states
 export type AnimationState =
-  | 'idle'
-  | 'walking'
-  | 'working'
-  | 'running'
-  | 'sitting'
-  | 'waving'
-  | 'startled'
-  | 'evacuating';
+  'idle' | 'walking' | 'working' | 'running' | 'sitting' | 'waving' | 'startled' | 'evacuating';
 
 // Idle animation variations
 export type IdleVariation = 'breathing' | 'looking' | 'shifting' | 'stretching';

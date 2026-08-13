@@ -11,7 +11,7 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { safeJSONStorage } from './storage';
+import { mergePersistedState, safeJSONStorage } from './storage';
 
 // =============================================================================
 // TYPES
@@ -426,6 +426,7 @@ export const useSocialMissionStore = create<SocialMissionState & SocialMissionAc
         openAdmission: state.openAdmission,
         stakeholderSatisfaction: state.stakeholderSatisfaction,
       }),
+      merge: mergePersistedState,
     }
   )
 );

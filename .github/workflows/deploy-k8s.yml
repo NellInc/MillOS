@@ -18,6 +18,9 @@ on:
 env:
   REGISTRY: ghcr.io
 
+permissions:
+  contents: read
+
 jobs:
   deploy:
     name: Deploy to ${{ inputs.environment }}
@@ -26,29 +29,60 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       - name: Setup kubectl
-        uses: azure/setup-kubectl@v4
+        uses: azure/setup-kubectl@776406bce94f63e41d621b960d78ee25c8b76ede # v4
         with:
           version: 'v1.29.0'
 
       - name: Setup Kustomize
-        uses: imranismail/setup-kustomize@v2
+        uses: imranismail/setup-kustomize@2ba527d4d055ab63514ba50a99456fc35684947f # v2
 
       - name: Configure kubeconfig
         run: |
+          set -euo pipefail
           mkdir -p ~/.kube
-          echo "$KUBECONFIG_DATA" | base64 -d > ~/.kube/config
+          printf '%s' "$KUBECONFIG_DATA" | base64 -d > ~/.kube/config
           chmod 600 ~/.kube/config
         env:
           KUBECONFIG_DATA: ${{ secrets.KUBECONFIG }}
 
+      - name: Verify externally managed SCADA secret
+        run: |
+          set -euo pipefail
+          kubectl apply -f scada-proxy/k8s/namespace.yaml
+          READ_KEY_B64=$(kubectl get secret scada-proxy-secrets -n millos-scada -o jsonpath='{.data.SCADA_API_KEY}')
+          WRITE_ENABLED=$(sed -n "s/^[[:space:]]*SCADA_ENABLE_WRITES:[[:space:]]*['\"]\([^'\"]*\)['\"].*/\1/p" scada-proxy/k8s/configmap.yaml)
+          WRITE_KEY_B64=''
+          if [[ "$WRITE_ENABLED" == "true" ]]; then
+            WRITE_KEY_B64=$(kubectl get secret scada-proxy-secrets -n millos-scada -o jsonpath='{.data.SCADA_WRITE_API_KEY}')
+          fi
+          READ_KEY_B64="$READ_KEY_B64" WRITE_KEY_B64="$WRITE_KEY_B64" WRITE_ENABLED="$WRITE_ENABLED" \
+            node scripts/validate-scada-secret.mjs
+          unset READ_KEY_B64 WRITE_KEY_B64 WRITE_ENABLED
+
       - name: Update image tag
         working-directory: scada-proxy/k8s
+        env:
+          DEPLOY_VERSION: ${{ inputs.version }}
         run: |
-          IMAGE_NAME="${{ env.REGISTRY }}/${{ github.repository }}/scada-proxy:${{ inputs.version }}"
+          set -euo pipefail
+          if [[ ! "$DEPLOY_VERSION" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid deployment version: $DEPLOY_VERSION" >&2
+            exit 1
+          fi
+          REPOSITORY="${GITHUB_REPOSITORY,,}"
+          IMAGE_NAME="${{ env.REGISTRY }}/${REPOSITORY}/scada-proxy:${DEPLOY_VERSION}"
           kustomize edit set image millos/scada-proxy="$IMAGE_NAME"
+
+      - name: Validate rendered trust boundaries
+        working-directory: scada-proxy/k8s
+        run: |
+          set -euo pipefail
+          kustomize build | node ../../scripts/validate-k8s-render.mjs
 
       - name: Apply to cluster
         working-directory: scada-proxy/k8s
@@ -64,13 +98,24 @@ jobs:
 
       - name: Run smoke tests
         run: |
+          set -euo pipefail
           # Port forward for testing
           kubectl port-forward svc/scada-proxy 3001:3001 -n millos-scada &
           PF_PID=$!
-          sleep 5
+          trap 'kill "$PF_PID" 2>/dev/null || true' EXIT
 
           # Health check
-          curl -f http://localhost:3001/health || exit 1
+          curl --fail --retry 10 --retry-delay 1 --retry-connrefused http://localhost:3001/health
+          curl --fail --retry 10 --retry-delay 1 --retry-connrefused http://localhost:3001/ready
 
-          kill $PF_PID || true
+          READ_KEY_B64=$(kubectl get secret scada-proxy-secrets -n millos-scada -o jsonpath='{.data.SCADA_API_KEY}')
+          READ_KEY=$(printf '%s' "$READ_KEY_B64" | base64 -d)
+          UNAUTHENTICATED_STATUS=$(curl --silent --output /dev/null --write-out '%{http_code}' http://localhost:3001/tags)
+          if [[ "$UNAUTHENTICATED_STATUS" != "401" ]]; then
+            echo "Expected unauthenticated /tags to return 401, received $UNAUTHENTICATED_STATUS" >&2
+            exit 1
+          fi
+          curl --fail --silent --output /dev/null --header "x-api-key: $READ_KEY" http://localhost:3001/tags
+          unset READ_KEY READ_KEY_B64
+
           echo "Deployment verified successfully"

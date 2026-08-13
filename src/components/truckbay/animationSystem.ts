@@ -47,11 +47,7 @@ export interface OscillationAnimData {
 
 /** Union of all animation data types */
 export type AnimationData =
-  | RotationAnimData
-  | PulseAnimData
-  | LerpAnimData
-  | OscillationAnimData
-  | Record<string, unknown>; // For custom animations
+  RotationAnimData | PulseAnimData | LerpAnimData | OscillationAnimData | Record<string, unknown>; // For custom animations
 
 /** Callback signature for custom animations */
 export type AnimationCallback = (

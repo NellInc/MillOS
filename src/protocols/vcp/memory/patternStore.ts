@@ -20,6 +20,7 @@ import type {
   StateSnapshot,
   ContextFrame,
 } from '../types';
+import { sanitizePatternPersistence, VCP_MEMORY_LIMITS } from './persistenceValidation';
 
 // In-memory fallback used when localStorage is unavailable (SSR, privacy mode,
 // some test runners). Declared before create(persist(...)) so it is initialized
@@ -205,12 +206,14 @@ interface PatternStoreState {
   getMostSuccessfulIntervention: () => string | null;
 }
 
+type PatternStorePersisted = Pick<PatternStoreState, 'patterns'>;
+
 // =============================================================================
 // STORE IMPLEMENTATION
 // =============================================================================
 
 export const usePatternStore = create<PatternStoreState>()(
-  persist(
+  persist<PatternStoreState, [], [], PatternStorePersisted>(
     (set, get) => ({
       patterns: [],
       currentMatch: null,
@@ -231,6 +234,8 @@ export const usePatternStore = create<PatternStoreState>()(
         outcome: 'positive' | 'neutral' | 'negative',
         effectMagnitude: number
       ) => {
+        if (!Number.isFinite(effectMagnitude)) return;
+        const boundedEffectMagnitude = Math.max(-100, Math.min(100, effectMagnitude));
         const { currentSignature, patterns } = get();
         if (!currentSignature) return;
 
@@ -249,7 +254,7 @@ export const usePatternStore = create<PatternStoreState>()(
             // Update running average
             const newSampleSize = existingIntv.sampleSize + 1;
             const newMagnitude =
-              (existingIntv.effectMagnitude * existingIntv.sampleSize + effectMagnitude) /
+              (existingIntv.effectMagnitude * existingIntv.sampleSize + boundedEffectMagnitude) /
               newSampleSize;
             const newConfidence = Math.min(0.95, 0.5 + newSampleSize * 0.05);
 
@@ -282,7 +287,7 @@ export const usePatternStore = create<PatternStoreState>()(
             const newIntervention: InterventionRecord = {
               intervention,
               outcome,
-              effectMagnitude,
+              effectMagnitude: boundedEffectMagnitude,
               confidence: 0.5,
               sampleSize: 1,
             };
@@ -292,7 +297,12 @@ export const usePatternStore = create<PatternStoreState>()(
                 p.id === existingPattern.id
                   ? {
                       ...p,
-                      interventionsTried: [...p.interventionsTried, newIntervention],
+                      interventionsTried: [
+                        ...p.interventionsTried.slice(
+                          -(VCP_MEMORY_LIMITS.interventionsPerPattern - 1)
+                        ),
+                        newIntervention,
+                      ],
                       matchCount: p.matchCount + 1,
                       lastMatched: Date.now(),
                     }
@@ -310,7 +320,7 @@ export const usePatternStore = create<PatternStoreState>()(
               {
                 intervention,
                 outcome,
-                effectMagnitude,
+                effectMagnitude: boundedEffectMagnitude,
                 confidence: 0.5,
                 sampleSize: 1,
               },
@@ -319,7 +329,9 @@ export const usePatternStore = create<PatternStoreState>()(
             lastMatched: Date.now(),
           };
 
-          set({ patterns: [...patterns, newPattern] });
+          set({
+            patterns: [...patterns.slice(-(VCP_MEMORY_LIMITS.patterns - 1)), newPattern],
+          });
         }
       },
 
@@ -430,6 +442,13 @@ export const usePatternStore = create<PatternStoreState>()(
           webStorage.removeItem(name);
         },
       },
+      partialize: (state) => ({ patterns: state.patterns }),
+      merge: (persisted: unknown, current) => ({
+        ...current,
+        patterns: sanitizePatternPersistence(persisted),
+        currentMatch: null,
+        currentSignature: null,
+      }),
     }
   )
 );

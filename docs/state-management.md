@@ -1,5 +1,9 @@
 # State Management
 
+> **Historical store reference, 2026-08-13.** The domain-store principles remain
+> relevant, while several diagrams and combined-store examples predate the
+> current modules. Treat `src/stores/` and `src/store.ts` as authoritative.
+
 MillOS uses Zustand for global state management, detailing the store structure, actions, and state flow patterns.
 
 ## Table of Contents
@@ -30,16 +34,16 @@ export const useMillStore = create<MillStore>((set) => ({
 
 ```typescript
 // Reading state
-const workers = useMillStore(state => state.workers);
+const workers = useMillStore((state) => state.workers);
 
 // Reading multiple values
-const { workers, machines } = useMillStore(state => ({
+const { workers, machines } = useMillStore((state) => ({
   workers: state.workers,
-  machines: state.machines
+  machines: state.machines,
 }));
 
 // Calling actions
-const updateStatus = useMillStore(state => state.updateMachineStatus);
+const updateStatus = useMillStore((state) => state.updateMachineStatus);
 updateStatus('mill-1.5', 'warning');
 ```
 
@@ -53,15 +57,15 @@ Controls the simulated 24-hour day cycle.
 
 ```typescript
 interface TimeSlice {
-  gameTime: number;              // 0-24 representing hour of day
+  gameTime: number; // 0-24 representing hour of day
   setGameTime: (time: number) => void;
   tickGameTime: () => void;
 }
 ```
 
-| Property | Type | Default | Description |
-|----------|------|---------|-------------|
-| `gameTime` | number | 8 | Current hour (24-hour format) |
+| Property   | Type   | Default | Description                   |
+| ---------- | ------ | ------- | ----------------------------- |
+| `gameTime` | number | 8       | Current hour (24-hour format) |
 
 #### Time Progression
 
@@ -70,9 +74,10 @@ interface TimeSlice {
 - Time wraps around at 24 back to 0
 
 ```typescript
-tickGameTime: () => set((state) => ({
-  gameTime: (state.gameTime + 0.004) % 24
-}))
+tickGameTime: () =>
+  set((state) => ({
+    gameTime: (state.gameTime + 0.004) % 24,
+  }));
 ```
 
 ---
@@ -88,9 +93,9 @@ interface ProductionSlice {
 }
 ```
 
-| Property | Type | Default | Range | Description |
-|----------|------|---------|-------|-------------|
-| `productionSpeed` | number | 0.8 | 0-2 | Speed multiplier for animations |
+| Property          | Type   | Default | Range | Description                     |
+| ----------------- | ------ | ------- | ----- | ------------------------------- |
+| `productionSpeed` | number | 0.8     | 0-2   | Speed multiplier for animations |
 
 ---
 
@@ -113,7 +118,8 @@ interface WorkerSlice {
 interface WorkerData {
   id: string;
   name: string;
-  role: 'Operator' | 'Engineer' | 'Supervisor' | 'Safety Officer' | 'Quality Control' | 'Maintenance';
+  role:
+    'Operator' | 'Engineer' | 'Supervisor' | 'Safety Officer' | 'Quality Control' | 'Maintenance';
   icon: WorkerIconType;
   position: [number, number, number];
   speed: number;
@@ -173,7 +179,7 @@ enum MachineType {
   ROLLER_MILL = 'ROLLER_MILL',
   PLANSIFTER = 'PLANSIFTER',
   PACKER = 'PACKER',
-  CONTROL_ROOM = 'CONTROL_ROOM'
+  CONTROL_ROOM = 'CONTROL_ROOM',
 }
 ```
 
@@ -198,9 +204,10 @@ interface AlertSlice {
 - Oldest alerts automatically removed
 
 ```typescript
-addAlert: (alert) => set((state) => ({
-  alerts: [alert, ...state.alerts].slice(0, 10)
-}))
+addAlert: (alert) =>
+  set((state) => ({
+    alerts: [alert, ...state.alerts].slice(0, 10),
+  }));
 ```
 
 #### AlertData Interface
@@ -267,12 +274,12 @@ interface MetricsSlice {
 }
 ```
 
-| Metric | Default | Unit | Description |
-|--------|---------|------|-------------|
-| `throughput` | 1240 | t/hr | Tons processed per hour |
-| `efficiency` | 98.2 | % | Production efficiency |
-| `uptime` | 99.7 | % | Machine availability |
-| `quality` | 99.9 | % | Product quality grade |
+| Metric       | Default | Unit | Description             |
+| ------------ | ------- | ---- | ----------------------- |
+| `throughput` | 1240    | t/hr | Tons processed per hour |
+| `efficiency` | 98.2    | %    | Production efficiency   |
+| `uptime`     | 99.7    | %    | Machine availability    |
+| `quality`    | 99.9    | %    | Product quality grade   |
 
 ---
 
@@ -302,21 +309,21 @@ interface SafetySlice {
 
 #### Safety Metrics
 
-| Metric | Type | Description |
-|--------|------|-------------|
-| `nearMisses` | number | Total near-miss incidents |
-| `safetyStops` | number | Forklift safety stops |
-| `workerEvasions` | number | Worker evasion maneuvers |
+| Metric             | Type           | Description                |
+| ------------------ | -------------- | -------------------------- |
+| `nearMisses`       | number         | Total near-miss incidents  |
+| `safetyStops`      | number         | Forklift safety stops      |
+| `workerEvasions`   | number         | Worker evasion maneuvers   |
 | `lastIncidentTime` | number \| null | Timestamp of last incident |
 
 #### Safety Configuration
 
-| Config | Default | Description |
-|--------|---------|-------------|
-| `workerDetectionRadius` | 2.5 | Distance to detect workers |
-| `forkliftSafetyRadius` | 4 | Distance between forklifts |
-| `pathCheckDistance` | 5 | Look-ahead distance |
-| `speedZoneSlowdown` | 0.4 | Speed reduction factor |
+| Config                  | Default | Description                |
+| ----------------------- | ------- | -------------------------- |
+| `workerDetectionRadius` | 2.5     | Distance to detect workers |
+| `forkliftSafetyRadius`  | 4       | Distance between forklifts |
+| `pathCheckDistance`     | 5       | Look-ahead distance        |
+| `speedZoneSlowdown`     | 0.4     | Speed reduction factor     |
 
 ---
 
@@ -338,37 +345,39 @@ interface ShiftSlice {
 
 #### Shift State
 
-| Property | Type | Default | Description |
-|----------|------|---------|-------------|
-| `currentShift` | string | 'morning' | Current shift (morning/afternoon/night) |
-| `shiftStartTime` | number | Date.now() | Timestamp when current shift started |
-| `shiftChangeActive` | boolean | false | Whether a shift change is in progress |
-| `shiftChangePhase` | string | 'idle' | Current phase of shift change |
+| Property            | Type    | Default    | Description                             |
+| ------------------- | ------- | ---------- | --------------------------------------- |
+| `currentShift`      | string  | 'morning'  | Current shift (morning/afternoon/night) |
+| `shiftStartTime`    | number  | Date.now() | Timestamp when current shift started    |
+| `shiftChangeActive` | boolean | false      | Whether a shift change is in progress   |
+| `shiftChangePhase`  | string  | 'idle'     | Current phase of shift change           |
 
 #### Shift Actions
 
 ```typescript
 // Set shift directly
-setShift: (shift) => set({ currentShift: shift, shiftStartTime: Date.now() })
+setShift: (shift) => set({ currentShift: shift, shiftStartTime: Date.now() });
 
 // Trigger a shift change (workers leave and re-enter)
-triggerShiftChange: () => set({
-  shiftChangeActive: true,
-  shiftChangePhase: 'leaving'
-})
+triggerShiftChange: () =>
+  set({
+    shiftChangeActive: true,
+    shiftChangePhase: 'leaving',
+  });
 
 // Complete shift change (cycles to next shift)
-completeShiftChange: () => set((state) => {
-  const shifts = ['morning', 'afternoon', 'night'];
-  const currentIndex = shifts.indexOf(state.currentShift);
-  const nextShift = shifts[(currentIndex + 1) % shifts.length];
-  return {
-    shiftChangeActive: false,
-    shiftChangePhase: 'idle',
-    currentShift: nextShift,
-    shiftStartTime: Date.now()
-  };
-})
+completeShiftChange: () =>
+  set((state) => {
+    const shifts = ['morning', 'afternoon', 'night'];
+    const currentIndex = shifts.indexOf(state.currentShift);
+    const nextShift = shifts[(currentIndex + 1) % shifts.length];
+    return {
+      shiftChangeActive: false,
+      shiftChangePhase: 'idle',
+      currentShift: nextShift,
+      shiftStartTime: Date.now(),
+    };
+  });
 ```
 
 #### Shift Change Flow
@@ -427,12 +436,12 @@ interface UISlice {
 Simple state updates:
 
 ```typescript
-setGameTime: (time) => set({ gameTime: time % 24 })
-setProductionSpeed: (speed) => set({ productionSpeed: speed })
-setSelectedWorker: (worker) => set({ selectedWorker: worker })
-setSelectedMachine: (machine) => set({ selectedMachine: machine })
-setShowZones: (show) => set({ showZones: show })
-setShowAIPanel: (show) => set({ showAIPanel: show })
+setGameTime: (time) => set({ gameTime: time % 24 });
+setProductionSpeed: (speed) => set({ productionSpeed: speed });
+setSelectedWorker: (worker) => set({ selectedWorker: worker });
+setSelectedMachine: (machine) => set({ selectedMachine: machine });
+setShowZones: (show) => set({ showZones: show });
+setShowAIPanel: (show) => set({ showAIPanel: show });
 ```
 
 ### Entity Update Actions
@@ -441,18 +450,18 @@ Actions that update specific entities:
 
 ```typescript
 // Update worker task
-updateWorkerTask: (workerId, task, targetMachine) => set((state) => ({
-  workers: state.workers.map(w =>
-    w.id === workerId ? { ...w, currentTask: task, targetMachine } : w
-  )
-}))
+updateWorkerTask: (workerId, task, targetMachine) =>
+  set((state) => ({
+    workers: state.workers.map((w) =>
+      w.id === workerId ? { ...w, currentTask: task, targetMachine } : w
+    ),
+  }));
 
 // Update machine status
-updateMachineStatus: (machineId, status) => set((state) => ({
-  machines: state.machines.map(m =>
-    m.id === machineId ? { ...m, status } : m
-  )
-}))
+updateMachineStatus: (machineId, status) =>
+  set((state) => ({
+    machines: state.machines.map((m) => (m.id === machineId ? { ...m, status } : m)),
+  }));
 ```
 
 ### Safety Recording Actions
@@ -460,21 +469,23 @@ updateMachineStatus: (machineId, status) => set((state) => ({
 Actions for safety event tracking:
 
 ```typescript
-recordSafetyStop: () => set((state) => ({
-  safetyMetrics: {
-    ...state.safetyMetrics,
-    safetyStops: state.safetyMetrics.safetyStops + 1,
-    nearMisses: state.safetyMetrics.nearMisses + 1,
-    lastIncidentTime: Date.now()
-  }
-}))
+recordSafetyStop: () =>
+  set((state) => ({
+    safetyMetrics: {
+      ...state.safetyMetrics,
+      safetyStops: state.safetyMetrics.safetyStops + 1,
+      nearMisses: state.safetyMetrics.nearMisses + 1,
+      lastIncidentTime: Date.now(),
+    },
+  }));
 
-recordWorkerEvasion: () => set((state) => ({
-  safetyMetrics: {
-    ...state.safetyMetrics,
-    workerEvasions: state.safetyMetrics.workerEvasions + 1
-  }
-}))
+recordWorkerEvasion: () =>
+  set((state) => ({
+    safetyMetrics: {
+      ...state.safetyMetrics,
+      workerEvasions: state.safetyMetrics.workerEvasions + 1,
+    },
+  }));
 ```
 
 ---
@@ -485,12 +496,12 @@ recordWorkerEvasion: () => set((state) => ({
 
 ```typescript
 // Single value
-const gameTime = useMillStore(state => state.gameTime);
+const gameTime = useMillStore((state) => state.gameTime);
 
 // Multiple values (object pattern)
-const { workers, machines } = useMillStore(state => ({
+const { workers, machines } = useMillStore((state) => ({
   workers: state.workers,
-  machines: state.machines
+  machines: state.machines,
 }));
 ```
 
@@ -498,12 +509,12 @@ const { workers, machines } = useMillStore(state => ({
 
 ```typescript
 // Single action
-const recordSafetyStop = useMillStore(state => state.recordSafetyStop);
+const recordSafetyStop = useMillStore((state) => state.recordSafetyStop);
 
 // Multiple actions
-const { addAlert, dismissAlert } = useMillStore(state => ({
+const { addAlert, dismissAlert } = useMillStore((state) => ({
   addAlert: state.addAlert,
-  dismissAlert: state.dismissAlert
+  dismissAlert: state.dismissAlert,
 }));
 ```
 
@@ -513,7 +524,7 @@ For computed values, use selectors or local computation:
 
 ```typescript
 // In component
-const safetyMetrics = useMillStore(state => state.safetyMetrics);
+const safetyMetrics = useMillStore((state) => state.safetyMetrics);
 const timeSinceIncident = safetyMetrics.lastIncidentTime
   ? Date.now() - safetyMetrics.lastIncidentTime
   : null;
@@ -615,7 +626,7 @@ Subscribe only to needed state:
 
 ```typescript
 // Good - specific subscription
-const safetyStops = useMillStore(state => state.safetyMetrics.safetyStops);
+const safetyStops = useMillStore((state) => state.safetyMetrics.safetyStops);
 
 // Avoid - subscribing to entire store
 const store = useMillStore();
@@ -629,7 +640,7 @@ For object selections, Zustand provides `shallow`:
 import { shallow } from 'zustand/shallow';
 
 const { workers, machines } = useMillStore(
-  state => ({ workers: state.workers, machines: state.machines }),
+  (state) => ({ workers: state.workers, machines: state.machines }),
   shallow
 );
 ```
@@ -640,7 +651,7 @@ Actions are stable references (don't change between renders):
 
 ```typescript
 // Actions can be safely used in dependency arrays
-const updateMetrics = useMillStore(state => state.updateMetrics);
+const updateMetrics = useMillStore((state) => state.updateMetrics);
 
 useEffect(() => {
   const interval = setInterval(() => updateMetrics({ throughput: 1300 }), 1000);

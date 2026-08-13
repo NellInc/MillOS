@@ -3,53 +3,60 @@
 <!-- wiki:type = system -->
 <!-- wiki:scope = millos -->
 <!-- wiki:created = 2026-05-23 -->
-<!-- wiki:updated = 2026-05-23 -->
+<!-- wiki:updated = 2026-08-13 -->
 <!-- wiki:status = active -->
 
 ## Summary
 
-MillOS is a React/Three.js application built with Vite. The repo serves a static `dist/` output at a CNAME-configured domain. A `scada-proxy/` directory suggests a proxy server for SCADA protocol bridging. Build artifacts go to `dist/`. (vite.config.ts; CNAME; scada-proxy/)
+MillOS builds the browser application with Vite and deploys static output from
+`dist/`. The optional `scada-proxy/` is a separately built Node service for OPC
+UA and Modbus ownership. Static publication, proxy image publication, and
+Kubernetes deployment use distinct workflows and authority gates.
 
-## Build Stack
+## Maintained commands
 
-- **Bundler**: Vite (`vite.config.ts`)
-- **TypeScript config**: `tsconfig.json` (strict), `tsconfig.typecheck.json` (type-check only, no emit)
-- **CSS**: Tailwind v4 (`tailwind.config.js`, `postcss.config.js`). Known issue: Tailwind v4 CSS layer ordering causes conflicts with Three.js canvas — documented in [[millos:systems/graphics-rendering]].
-- **Entry**: `index.html` at repo root; `src/main.tsx`
+- `npm run typecheck`, production and test TypeScript contracts
+- `npm run lint` and `npm run format:check`, maintained source and tooling
+- `npm test` and `npm run test:coverage`, deterministic behavior and coverage
+- `npm run check:dead-code`, scoped reachability, dependency, and cycle gate
+- `npm run validate:assets`, `validate:credits`, `validate:security`,
+  `validate:depth`, `validate:shaders`, and `validate:bundle`
+- `npm run build`, production Vite output
+- `npm --prefix scada-proxy run build`, proxy compilation
 
-## Output
+Generated runtime evidence belongs under ignored `test-results/`. A build or
+source check does not establish browser behavior, plant safety, rights, or
+publication approval.
 
-`dist/` — built output. `CNAME` at repo root — custom domain configuration (for GitHub Pages or equivalent static host).
+## Workflows
 
-## SCADA Proxy
+- `.github/workflows/ci.yml`, deterministic repository validation
+- `.github/workflows/deploy.yml`, static Pages deployment
+- `.github/workflows/docker.yml`, validated and scanned proxy image publication
+- `.github/workflows/release.yml`, tag-matched deterministic release archive
+- `.github/workflows/deploy-k8s.yml`, authenticated single-owner proxy rollout
 
-`scada-proxy/` — standalone proxy server for SCADA protocol adapters. Runs independently of the main Vite build. Provides the bridging layer for [[millos:systems/scada-layer]] adapters that connect to real OT systems.
+Actions are commit pinned and checkout credential persistence is disabled. The
+Kubernetes base deliberately runs one replica because the process owns stateful
+industrial connections. Availability scaling requires leader election or
+endpoint partitioning first.
 
-## Scripts
+## SCADA proxy boundary
 
-Utility Python scripts at repo root:
-- `analyze-useMillStore.cjs` — analyzes useMillStore usage patterns
-- `optimize_truckbay.py` — Truck Bay optimization analysis
-- `split_ambient_details.py` — splits ambient detail assets
-
-## Logs and Metadata
-
-`logs/` — runtime logs. `metadata.json` — build or runtime metadata. `output/` — generated analysis output.
-
-## Prototypes
-
-`prototypes/` and `src/prototypes/` — experimental implementations not in the main build. Iteration surface for new systems before integration.
-
-## Make Targets
-
-From CLAUDE.md: `make format-fix` + `make python-format` for formatting; `make quick-fix` for automated lint fixes; `make validate-all` for full validation before release.
+`scada-proxy/src/index.ts` exposes authenticated REST and WebSocket services.
+Production requires separate read and write credentials, exact browser origins,
+explicit write enablement, and encrypted OPC UA configuration. Kubernetes base
+manifests live under `scada-proxy/k8s/`; site ingress, egress, secrets, PKI, and
+tag mapping remain environment-owned overlays.
 
 ## Provenance
 
-- Sources: `vite.config.ts` (filename), `tsconfig.json` (filename), `tailwind.config.js` (filename), `scada-proxy/` (directory), `CNAME` (file), repo root listing
-- Last verified: 2026-05-23
+- Sources: `package.json`, `.github/workflows/`, `vite.config.ts`,
+  `scada-proxy/package.json`, `scada-proxy/k8s/`
+- Last verified: 2026-08-13
 
 ## See Also
 
-- [[millos:systems/scada-layer]] — SCADA adapters bridged by scada-proxy/
-- [[millos:systems/graphics-rendering]] — Tailwind v4 CSS layer bug affecting Three.js
+- [[millos:systems/scada-layer]]
+- [[millos:systems/testing-infrastructure]]
+- [[millos:systems/graphics-rendering]]

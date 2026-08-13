@@ -2,7 +2,7 @@
  * MultiplayerPanel - Embedded panel for multiplayer controls in the sidebar
  */
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   Users,
   Copy,
@@ -35,6 +35,8 @@ export const MultiplayerPanel: React.FC = () => {
   const [copied, setCopied] = useState(false);
   const [showChat, setShowChat] = useState(false);
   const [chatMessage, setChatMessage] = useState('');
+  const copiedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const playerLeftTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const connectionState = useMultiplayerStore((s) => s.connectionState);
   const roomCode = useMultiplayerStore((s) => s.roomCode);
@@ -47,6 +49,7 @@ export const MultiplayerPanel: React.FC = () => {
   const chatMessages = useMultiplayerStore((s) => s.chatMessages);
   const markChatRead = useMultiplayerStore((s) => s.markChatRead);
   const setLocalPlayerName = useMultiplayerStore((s) => s.setLocalPlayerName);
+  const setConnectionState = useMultiplayerStore((s) => s.setConnectionState);
 
   const isActive = useIsMultiplayerActive();
   const isHost = useIsHost();
@@ -63,8 +66,8 @@ export const MultiplayerPanel: React.FC = () => {
 
     const handlePlayerLeft = (event: CustomEvent<{ id: string; name: string }>) => {
       setPlayerLeftNotice(`${event.detail.name} left the session`);
-      // Auto-clear after 3 seconds
-      setTimeout(() => setPlayerLeftNotice(null), 3000);
+      if (playerLeftTimeoutRef.current) clearTimeout(playerLeftTimeoutRef.current);
+      playerLeftTimeoutRef.current = setTimeout(() => setPlayerLeftNotice(null), 3000);
     };
 
     window.addEventListener(
@@ -79,6 +82,8 @@ export const MultiplayerPanel: React.FC = () => {
         handleHostDisconnected as EventListener
       );
       window.removeEventListener('multiplayer:player-left', handlePlayerLeft as EventListener);
+      if (copiedTimeoutRef.current) clearTimeout(copiedTimeoutRef.current);
+      if (playerLeftTimeoutRef.current) clearTimeout(playerLeftTimeoutRef.current);
     };
   }, []);
 
@@ -97,11 +102,13 @@ export const MultiplayerPanel: React.FC = () => {
       const manager = getMultiplayerManager();
       await manager.hostRoom(name);
     } catch (err) {
+      setConnectionState('disconnected');
+      destroyMultiplayerManager();
       setError(err instanceof Error ? err.message : 'Failed to create room');
     } finally {
       setIsConnecting(false);
     }
-  }, [playerName, setLocalPlayerName]);
+  }, [playerName, setConnectionState, setLocalPlayerName]);
 
   const handleJoinRoom = useCallback(async () => {
     const name = sanitizePlayerName(playerName);
@@ -123,11 +130,13 @@ export const MultiplayerPanel: React.FC = () => {
       const manager = getMultiplayerManager();
       await manager.joinRoom(code, name);
     } catch (err) {
+      setConnectionState('disconnected');
+      destroyMultiplayerManager();
       setError(err instanceof Error ? err.message : 'Failed to join room');
     } finally {
       setIsConnecting(false);
     }
-  }, [playerName, joinCode, setLocalPlayerName]);
+  }, [playerName, joinCode, setConnectionState, setLocalPlayerName]);
 
   const handleLeaveRoom = useCallback(() => {
     const manager = getMultiplayerManager();
@@ -137,11 +146,17 @@ export const MultiplayerPanel: React.FC = () => {
     setShowChat(false);
   }, []);
 
-  const handleCopyCode = useCallback(() => {
-    if (roomCode) {
-      navigator.clipboard.writeText(roomCode);
+  const handleCopyCode = useCallback(async () => {
+    if (!roomCode) return;
+    try {
+      await navigator.clipboard.writeText(roomCode);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      setError(null);
+      if (copiedTimeoutRef.current) clearTimeout(copiedTimeoutRef.current);
+      copiedTimeoutRef.current = setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setCopied(false);
+      setError('Could not copy the room code. Select it and copy manually.');
     }
   }, [roomCode]);
 
@@ -182,8 +197,15 @@ export const MultiplayerPanel: React.FC = () => {
       <div className="rounded-lg border border-amber-500/35 bg-amber-500/10 p-3 text-xs leading-relaxed text-amber-100">
         <strong className="font-semibold">Trusted friends, experimental.</strong> The host owns the
         simulation state and accepts shared commands. Verify the room code out of band. The session
-        ends for guests if the host leaves.
+        uses public PeerJS signalling, peers may learn network addresses, and the room code is a
+        discovery identifier rather than a password. The session ends for guests if the host leaves.
       </div>
+
+      {error && (
+        <div role="alert" className="rounded-lg bg-red-500/10 p-2 text-center text-xs text-red-400">
+          {error}
+        </div>
+      )}
 
       {/* Not connected - Show create/join options */}
       {!isActive && connectionState !== 'connecting' && (
@@ -254,16 +276,6 @@ export const MultiplayerPanel: React.FC = () => {
               Join
             </button>
           </div>
-
-          {/* Error message */}
-          {error && (
-            <div
-              role="alert"
-              className="text-red-400 text-xs text-center bg-red-500/10 rounded-lg p-2"
-            >
-              {error}
-            </div>
-          )}
         </div>
       )}
 
@@ -307,9 +319,10 @@ export const MultiplayerPanel: React.FC = () => {
                 {roomCode}
               </span>
               <button
-                onClick={handleCopyCode}
+                onClick={() => void handleCopyCode()}
                 className="p-2 hover:bg-slate-700/50 rounded-lg transition-colors"
                 title="Copy room code"
+                aria-label="Copy room code"
               >
                 {copied ? (
                   <Check className="w-5 h-5 text-green-400" />

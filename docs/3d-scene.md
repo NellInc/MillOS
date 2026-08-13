@@ -1,5 +1,10 @@
 # 3D Scene System
 
+> **Historical scene-design reference, 2026-08-13.** Component names and the
+> example hierarchy below describe an earlier scene graph. Current composition
+> lives in `src/components/MillScene.tsx`, with machines, environment, and
+> infrastructure split into their corresponding subdirectories.
+
 Three.js and React Three Fiber implementation for the MillOS 3D factory visualization.
 
 ## Table of Contents
@@ -33,12 +38,12 @@ Three.js and React Three Fiber implementation for the MillOS 3D factory visualiz
 
 ### Canvas Props
 
-| Prop | Value | Description |
-|------|-------|-------------|
-| `shadows` | true | Enable shadow mapping |
-| `gl.antialias` | true | Smooth edges |
-| `gl.alpha` | false | Opaque background |
-| `dpr` | [1, 2] | Device pixel ratio limits |
+| Prop           | Value  | Description               |
+| -------------- | ------ | ------------------------- |
+| `shadows`      | true   | Enable shadow mapping     |
+| `gl.antialias` | true   | Smooth edges              |
+| `gl.alpha`     | false  | Opaque background         |
+| `dpr`          | [1, 2] | Device pixel ratio limits |
 
 ### Background and Fog
 
@@ -64,13 +69,13 @@ camera={{
 
 ```tsx
 <OrbitControls
-  maxPolarAngle={Math.PI / 2 - 0.05}  // Prevent flipping under floor
-  minPolarAngle={0.2}                  // Minimum angle from above
-  minDistance={15}                     // Closest zoom
-  maxDistance={100}                    // Furthest zoom
+  maxPolarAngle={Math.PI / 2 - 0.05} // Prevent flipping under floor
+  minPolarAngle={0.2} // Minimum angle from above
+  minDistance={15} // Closest zoom
+  maxDistance={100} // Furthest zoom
   autoRotate={!selectedMachine && !selectedWorker && !showAIPanel}
   autoRotateSpeed={0.3}
-  target={[0, 5, 0]}                   // Look at center, elevated
+  target={[0, 5, 0]} // Look at center, elevated
   enableDamping
   dampingFactor={0.05}
 />
@@ -128,27 +133,29 @@ Provides base illumination with cool industrial tint.
 ### Industrial Overhead Lights
 
 ```tsx
-{[-20, -10, 0, 10, 20].map((x, i) => (
-  <pointLight
-    key={i}
-    position={[x, 18, 0]}
-    intensity={50}
-    distance={30}
-    decay={2}
-    color="#fef3c7"
-  />
-))}
+{
+  [-20, -10, 0, 10, 20].map((x, i) => (
+    <pointLight
+      key={i}
+      position={[x, 18, 0]}
+      intensity={50}
+      distance={30}
+      decay={2}
+      color="#fef3c7"
+    />
+  ));
+}
 ```
 
 ### Accent Lighting
 
 Colored lights for dramatic effect:
 
-| Position | Color | Intensity |
-|----------|-------|-----------|
-| [-30, 5, -15] | #3b82f6 (blue) | 30 |
-| [30, 5, 15] | #f97316 (orange) | 30 |
-| [0, 3, 25] | #22c55e (green) | 20 |
+| Position      | Color            | Intensity |
+| ------------- | ---------------- | --------- |
+| [-30, 5, -15] | #3b82f6 (blue)   | 30        |
+| [30, 5, 15]   | #f97316 (orange) | 30        |
+| [0, 3, 25]    | #22c55e (green)  | 20        |
 
 ---
 
@@ -187,12 +194,12 @@ Colored lights for dramatic effect:
 
 ### Zone Layout (Z-axis)
 
-| Zone | Z Position | Y Position | Contents |
-|------|------------|------------|----------|
-| 1 | -22 | 0 | Silos |
-| 2 | -6 | 0 | Roller Mills |
-| 3 | +6 | 9 | Plansifters (elevated) |
-| 4 | +20 | 0 | Packers |
+| Zone | Z Position | Y Position | Contents               |
+| ---- | ---------- | ---------- | ---------------------- |
+| 1    | -22        | 0          | Silos                  |
+| 2    | -6         | 0          | Roller Mills           |
+| 3    | +6         | 9          | Plansifters (elevated) |
+| 4    | +20        | 0          | Packers                |
 
 ---
 
@@ -221,6 +228,7 @@ useFrame((state, delta) => {
 ### Machine Vibrations
 
 #### Plansifter Oscillation
+
 ```typescript
 if (type === MachineType.PLANSIFTER) {
   const intensity = 0.05;
@@ -231,6 +239,7 @@ if (type === MachineType.PLANSIFTER) {
 ```
 
 #### Roller Mill Vibration
+
 ```typescript
 if (type === MachineType.ROLLER_MILL) {
   const intensity = 0.01;
@@ -244,7 +253,7 @@ if (type === MachineType.ROLLER_MILL) {
 ```typescript
 useFrame((state, delta) => {
   if (!isIdle) {
-    setWalkCycle(prev => prev + delta * 5.5);
+    setWalkCycle((prev) => prev + delta * 5.5);
   }
 
   // Bob height based on walk cycle
@@ -288,22 +297,22 @@ useFrame((_, delta) => {
 
 ```tsx
 <meshStandardMaterial
-  color="#3b82f6"        // Base color
-  metalness={0.5}        // Metal look (0-1)
-  roughness={0.3}        // Surface roughness (0-1)
-  emissive="#000000"     // Self-illumination color
-  emissiveIntensity={0}  // Glow strength
+  color="#3b82f6" // Base color
+  metalness={0.5} // Metal look (0-1)
+  roughness={0.3} // Surface roughness (0-1)
+  emissive="#000000" // Self-illumination color
+  emissiveIntensity={0} // Glow strength
 />
 ```
 
 ### Machine-Specific Materials
 
-| Machine | Color | Metalness | Roughness |
-|---------|-------|-----------|-----------|
-| Silo | #cbd5e1 | 0.7 | 0.2 |
-| Roller Mill | #3b82f6 | 0.5 | 0.3 |
-| Plansifter | #f8fafc | 0.2 | 0.1 |
-| Packer | #f59e0b | 0.4 | 0.4 |
+| Machine     | Color   | Metalness | Roughness |
+| ----------- | ------- | --------- | --------- |
+| Silo        | #cbd5e1 | 0.7       | 0.2       |
+| Roller Mill | #3b82f6 | 0.5       | 0.3       |
+| Plansifter  | #f8fafc | 0.2       | 0.1       |
+| Packer      | #f59e0b | 0.4       | 0.4       |
 
 ### Emissive Materials
 
@@ -314,7 +323,7 @@ Status lights and displays use emissive properties:
   color="#22c55e"
   emissive="#22c55e"
   emissiveIntensity={3}
-  toneMapped={false}      // Allows values > 1
+  toneMapped={false} // Allows values > 1
 />
 ```
 
@@ -378,7 +387,7 @@ Flour bags are created once and recycled:
 const bags = useMemo(() => {
   const _bags: FlourBag[] = [];
   for (let i = 0; i < 60; i++) {
-    _bags.push({ /* bag data */ });
+    _bags.push({/* bag data */});
   }
   return _bags;
 }, []);
@@ -393,12 +402,14 @@ Three.js automatically culls objects outside camera view. This is enabled by def
 Multiple instances can share geometry:
 
 ```tsx
-{[-40, -20, 0, 20, 40].map((x, i) => (
-  <mesh key={i} position={[x, 20, 0]}>
-    <boxGeometry args={[0.5, 25, 0.5]} />
-    <meshStandardMaterial color="#374151" />
-  </mesh>
-))}
+{
+  [-40, -20, 0, 20, 40].map((x, i) => (
+    <mesh key={i} position={[x, 20, 0]}>
+      <boxGeometry args={[0.5, 25, 0.5]} />
+      <meshStandardMaterial color="#374151" />
+    </mesh>
+  ));
+}
 ```
 
 ---
@@ -413,10 +424,11 @@ import { PostProcessing } from './PostProcessing';
 <Suspense fallback={null}>
   {/* Scene */}
   <PostProcessing />
-</Suspense>
+</Suspense>;
 ```
 
 Effects may include:
+
 - Bloom for emissive glow
 - Ambient occlusion
 - Color correction
@@ -429,20 +441,18 @@ Effects may include:
 
 ```tsx
 <Html position={[0, size[1] + 2.5, 0]} center distanceFactor={12}>
-  <div className="bg-slate-900/95 ...">
-    {/* Tooltip content */}
-  </div>
+  <div className="bg-slate-900/95 ...">{/* Tooltip content */}</div>
 </Html>
 ```
 
 ### Props
 
-| Prop | Description |
-|------|-------------|
-| `position` | 3D world coordinates |
-| `center` | Center the element |
+| Prop             | Description                    |
+| ---------------- | ------------------------------ |
+| `position`       | 3D world coordinates           |
+| `center`         | Center the element             |
 | `distanceFactor` | Scale based on camera distance |
-| `occlude` | Hide when behind objects |
+| `occlude`        | Hide when behind objects       |
 
 ---
 
@@ -452,18 +462,14 @@ Effects may include:
 import * as THREE from 'three';
 
 // Common usage
-new THREE.Vector3(x, y, z)
-new THREE.Color('#ff0000')
-THREE.MathUtils.lerp(a, b, t)
-THREE.BackSide  // For interior surfaces
+new THREE.Vector3(x, y, z);
+new THREE.Color('#ff0000');
+THREE.MathUtils.lerp(a, b, t);
+THREE.BackSide; // For interior surfaces
 ```
 
 ### Lerp for Smooth Transitions
 
 ```typescript
-ref.current.rotation.y = THREE.MathUtils.lerp(
-  ref.current.rotation.y,
-  targetRotation,
-  0.1
-);
+ref.current.rotation.y = THREE.MathUtils.lerp(ref.current.rotation.y, targetRotation, 0.1);
 ```

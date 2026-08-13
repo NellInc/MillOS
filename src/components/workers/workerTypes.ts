@@ -12,22 +12,10 @@ export type HairStyle = 'bald' | 'short' | 'medium' | 'curly' | 'ponytail';
 export type WorkerBodyType = 'masculine' | 'feminine';
 
 export type ToolType =
-  | 'clipboard'
-  | 'tablet'
-  | 'radio'
-  | 'wrench'
-  | 'magnifier'
-  | 'sample-kit'
-  | 'none';
+  'clipboard' | 'tablet' | 'radio' | 'wrench' | 'magnifier' | 'sample-kit' | 'none';
 
 export type WorkerWorkAction =
-  | 'supervise'
-  | 'inspect'
-  | 'operate'
-  | 'sample'
-  | 'repair'
-  | 'radio'
-  | 'none';
+  'supervise' | 'inspect' | 'operate' | 'sample' | 'repair' | 'radio' | 'none';
 
 export interface WorkerAppearance {
   bodyType: WorkerBodyType;

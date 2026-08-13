@@ -514,8 +514,7 @@ export function writeDecalUvRects(
   placements: readonly MachineDecalPlacement[]
 ): void {
   const existing = geometry.getAttribute('aDecalUvRect') as
-    | THREE.InstancedBufferAttribute
-    | undefined;
+    THREE.InstancedBufferAttribute | undefined;
   const attribute =
     existing && existing.count === placements.length
       ? existing

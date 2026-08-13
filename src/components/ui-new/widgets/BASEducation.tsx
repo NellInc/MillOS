@@ -784,13 +784,7 @@ const EngagementSignatureSection: React.FC = () => {
 // =============================================================================
 
 type SectionKey =
-  | 'wallace'
-  | 'axes'
-  | 'value'
-  | 'flourishing'
-  | 'mission'
-  | 'engagement'
-  | 'contributors';
+  'wallace' | 'axes' | 'value' | 'flourishing' | 'mission' | 'engagement' | 'contributors';
 
 // Static section keys to prevent recreation
 const ALL_SECTIONS: SectionKey[] = [

@@ -36,6 +36,8 @@ export class SignalingService {
   private config: SignalingConfig;
   private callbacks: SignalingCallbacks;
   private isDestroyed = false;
+  private initializationTimeout: ReturnType<typeof setTimeout> | null = null;
+  private rejectInitialization: ((error: Error) => void) | null = null;
 
   constructor(config: SignalingConfig, callbacks: SignalingCallbacks) {
     this.config = config;
@@ -48,6 +50,40 @@ export class SignalingService {
    */
   async initialize(): Promise<void> {
     return new Promise((resolve, reject) => {
+      let settled = false;
+      const clearInitializationTimeout = (): void => {
+        if (this.initializationTimeout) {
+          clearTimeout(this.initializationTimeout);
+          this.initializationTimeout = null;
+        }
+      };
+      const resolveOnce = (): void => {
+        if (settled) return;
+        settled = true;
+        clearInitializationTimeout();
+        this.rejectInitialization = null;
+        resolve();
+      };
+      const rejectOnce = (error: Error): void => {
+        if (settled) return;
+        settled = true;
+        clearInitializationTimeout();
+        this.rejectInitialization = null;
+        reject(error);
+      };
+      this.rejectInitialization = rejectOnce;
+
+      if (this.isDestroyed || this.peer) {
+        rejectOnce(new Error('Signaling service cannot be initialized more than once'));
+        return;
+      }
+
+      this.initializationTimeout = setTimeout(() => {
+        if (!this.peer?.open && !this.isDestroyed) {
+          rejectOnce(new Error('Connection timeout - could not reach signaling server'));
+        }
+      }, 10000);
+
       try {
         // Host uses predictable ID based on room code
         // Guests use their player ID
@@ -67,7 +103,7 @@ export class SignalingService {
             this.connectToHost();
           }
 
-          resolve();
+          resolveOnce();
         });
 
         this.peer.on('connection', (conn) => {
@@ -80,15 +116,18 @@ export class SignalingService {
           logger.multiplayer.error('PeerJS error:', err);
 
           // Handle specific error types
+          let reportedError: Error;
           if (err.type === 'unavailable-id') {
             // Room code already in use (host) or player already connected
-            this.callbacks.onError(new Error('Room code already in use or already connected'));
+            reportedError = new Error('Room code already in use or already connected');
           } else if (err.type === 'peer-unavailable') {
             // Host not found (for guests)
-            this.callbacks.onError(new Error('Room not found. Check the room code.'));
+            reportedError = new Error('Room not found. Check the room code.');
           } else {
-            this.callbacks.onError(err);
+            reportedError = err;
           }
+          this.callbacks.onError(reportedError);
+          if (!this.peer?.open) rejectOnce(reportedError);
         });
 
         this.peer.on('disconnected', () => {
@@ -105,15 +144,8 @@ export class SignalingService {
             logger.multiplayer.error('PeerJS reconnect attempt failed:', err);
           }
         });
-
-        // Set a timeout for initial connection
-        setTimeout(() => {
-          if (!this.peer?.open && !this.isDestroyed) {
-            reject(new Error('Connection timeout - could not reach signaling server'));
-          }
-        }, 10000);
       } catch (error) {
-        reject(error);
+        rejectOnce(error instanceof Error ? error : new Error(String(error)));
       }
     });
   }
@@ -224,6 +256,12 @@ export class SignalingService {
    */
   destroy(): void {
     this.isDestroyed = true;
+    this.rejectInitialization?.(new Error('Signaling service destroyed during initialization'));
+    this.rejectInitialization = null;
+    if (this.initializationTimeout) {
+      clearTimeout(this.initializationTimeout);
+      this.initializationTimeout = null;
+    }
 
     // Close all connections
     for (const conn of this.connections.values()) {

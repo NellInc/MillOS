@@ -24,12 +24,7 @@ import { subscribeWithSelector } from 'zustand/middleware';
 // =============================================================================
 
 export type MaterialType =
-  | 'wheat_grain'
-  | 'corn_grain'
-  | 'flour'
-  | 'bran'
-  | 'middlings'
-  | 'semolina';
+  'wheat_grain' | 'corn_grain' | 'flour' | 'bran' | 'middlings' | 'semolina';
 
 export interface MaterialAmount {
   type: MaterialType;

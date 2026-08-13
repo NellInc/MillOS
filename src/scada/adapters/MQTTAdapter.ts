@@ -25,7 +25,12 @@ import {
   ConnectionStatus,
   AdapterStatistics,
 } from '../types';
-import { isValidMQTTPayload, MessageValidationError } from './messageValidation';
+import {
+  isAcceptableSCADAPayloadText,
+  isValidMQTTPayload,
+  MessageValidationError,
+} from './messageValidation';
+import { decodeMQTTWebSocketFrame, MQTTFrameError } from './mqttFrame';
 
 /** MQTT message payload for tag values */
 interface MQTTTagPayload {
@@ -123,19 +128,40 @@ class MQTTWebSocketClient {
 
         const originalOnMessage = this.ws.onmessage;
         this.ws.onmessage = (event) => {
-          const data = new Uint8Array(event.data);
-          // Check for CONNACK (0x20)
-          if (data[0] === 0x20) {
+          if (!(event.data instanceof ArrayBuffer) || event.data.byteLength !== 4) {
             if (settled) return;
             settled = true;
             if (timeout) clearTimeout(timeout);
-            this.state = 'connected';
             this.isConnecting = false;
-            this.startKeepAlive();
-            this.ws!.onmessage = originalOnMessage;
-            this.onConnect?.();
-            resolve();
+            const error = new Error('Malformed MQTT CONNACK frame');
+            this.onError?.(error);
+            reject(error);
+            this.ws?.close(1002, 'Malformed CONNACK');
+            return;
           }
+
+          const data = new Uint8Array(event.data);
+          if (data[0] !== 0x20 || data[1] !== 0x02 || data[2] !== 0x00 || data[3] !== 0x00) {
+            if (settled) return;
+            settled = true;
+            if (timeout) clearTimeout(timeout);
+            this.isConnecting = false;
+            const error = new Error(`MQTT connection refused or malformed (code ${data[3]})`);
+            this.onError?.(error);
+            reject(error);
+            this.ws?.close(1002, 'CONNACK rejected');
+            return;
+          }
+
+          if (settled) return;
+          settled = true;
+          if (timeout) clearTimeout(timeout);
+          this.state = 'connected';
+          this.isConnecting = false;
+          this.startKeepAlive();
+          this.ws!.onmessage = originalOnMessage;
+          this.onConnect?.();
+          resolve();
         };
       } catch (err) {
         this.state = 'disconnected';
@@ -341,65 +367,33 @@ class MQTTWebSocketClient {
     this.ws.send(packet);
   }
 
-  private handleMessage(data: ArrayBuffer): void {
-    const bytes = new Uint8Array(data);
-    const packetType = bytes[0] >> 4;
-
-    switch (packetType) {
-      case 3: // PUBLISH
-        this.handlePublish(bytes);
-        break;
-      case 13: // PINGRESP
-        // Keep-alive response received
-        break;
-    }
-  }
-
-  private handlePublish(bytes: Uint8Array): void {
-    let offset = 1;
-
-    // Remaining length: MQTT variable-length integer (1-4 bytes, continuation-bit scheme)
-    let remainingLength = 0;
-    let multiplier = 1;
-    let lengthByte: number;
-    do {
-      lengthByte = bytes[offset++];
-      remainingLength += (lengthByte & 0x7f) * multiplier;
-      multiplier *= 128;
-    } while ((lengthByte & 0x80) !== 0 && offset < bytes.length && multiplier <= 128 * 128 * 128);
-
-    // The variable header starts immediately after the remaining-length bytes;
-    // the payload occupies the rest of the declared remaining length.
-    const packetEnd = offset + remainingLength;
-
-    // Topic length
-    const topicLength = (bytes[offset] << 8) | bytes[offset + 1];
-    // Reject malformed frames before slicing: ensure the topic-length prefix and
-    // declared topic bytes both fit within the buffer and the declared packet end.
-    if (offset + 2 + topicLength > bytes.length || offset + 2 + topicLength > packetEnd) {
-      return;
-    }
-    offset += 2;
-
-    // Topic
-    const topic = new TextDecoder().decode(bytes.slice(offset, offset + topicLength));
-    offset += topicLength;
-
-    // Payload
-    const payload = new TextDecoder().decode(bytes.slice(offset, packetEnd));
-
-    // Notify subscribers
-    this.subscriptions.forEach((callbacks, pattern) => {
-      if (this.topicMatches(pattern, topic)) {
-        callbacks.forEach((cb) => {
-          try {
-            cb(topic, payload);
-          } catch {
-            // Callback error - silently ignored in production
+  private handleMessage(data: unknown): void {
+    try {
+      for (const { topic, payload } of decodeMQTTWebSocketFrame(data)) {
+        this.subscriptions.forEach((callbacks, pattern) => {
+          if (this.topicMatches(pattern, topic)) {
+            callbacks.forEach((callback) => {
+              try {
+                callback(topic, payload);
+              } catch {
+                // A consumer failure must not corrupt protocol processing.
+              }
+            });
           }
         });
       }
-    });
+    } catch (error) {
+      if (error instanceof MQTTFrameError) {
+        this.rejectProtocolFrame(error.message, error.closeCode);
+      } else {
+        this.rejectProtocolFrame('Unexpected MQTT frame processing error');
+      }
+    }
+  }
+
+  private rejectProtocolFrame(reason: string, closeCode = 1002): void {
+    this.onError?.(new Error(reason));
+    this.ws?.close(closeCode, reason.slice(0, 123));
   }
 
   private topicMatches(pattern: string, topic: string): boolean {
@@ -683,6 +677,14 @@ export class MQTTAdapter implements IProtocolAdapter {
 
   private handleTagMessage(_topic: string, payload: string): void {
     try {
+      if (!isAcceptableSCADAPayloadText(payload)) {
+        throw new MessageValidationError(
+          'MQTT payload must be text no larger than 32 KiB',
+          undefined,
+          'MQTT'
+        );
+      }
+
       // Parse JSON
       const parsed: unknown = JSON.parse(payload);
 

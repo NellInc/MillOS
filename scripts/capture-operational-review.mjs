@@ -11,6 +11,7 @@ import { access, mkdir, readdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import { chromium } from '@playwright/test';
+import { waitForServer } from './lib/wait-for-server.mjs';
 
 const ROOT = process.cwd();
 const OUTPUT_ROOT = path.join(ROOT, 'test-results', 'operational-review');
@@ -271,21 +272,6 @@ async function gitProvenance() {
   };
 }
 
-async function waitForServer(url, timeoutMs = 30_000) {
-  const deadline = Date.now() + timeoutMs;
-  let lastError = null;
-  while (Date.now() < deadline) {
-    try {
-      const response = await fetch(url);
-      if (response.ok) return;
-    } catch (error) {
-      lastError = error;
-    }
-    await new Promise((resolve) => setTimeout(resolve, 250));
-  }
-  throw new Error(`Preview did not become ready at ${url}: ${String(lastError ?? 'timeout')}`);
-}
-
 async function startPreview() {
   await access(path.join(ROOT, 'dist', 'index.html')).catch(() => {
     throw new Error('dist/index.html is missing. Run npm run build before capture.');
@@ -536,7 +522,7 @@ async function main() {
     channel: options.browserChannel || undefined,
   });
   const results = [];
-  let contactSheet = null;
+  let contactSheet;
   try {
     for (const stateName of options.states) {
       console.log(`Capturing ${stateName}...`);

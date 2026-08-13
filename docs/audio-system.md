@@ -1,5 +1,10 @@
 # Audio System
 
+> **Historical audio reference, 2026-08-13.** The event catalogue remains useful
+> design context, but several integration snippets name retired scene files.
+> Current ownership is `src/utils/audioManager.ts`, the hooks in `src/hooks/`,
+> and event producers in the maintained components and stores.
+
 MillOS features a detailed audio system using the Web Audio API to create an immersive factory soundscape.
 
 ## Table of Contents
@@ -74,12 +79,12 @@ async resume() {
 
 Continuous background soundscape:
 
-| Sound | Type | Frequency | Volume | Description |
-|-------|------|-----------|--------|-------------|
-| Machinery Hum | Brown noise | 120Hz lowpass | 0.08 | Deep industrial drone |
-| Conveyor Noise | Pink noise | 300Hz bandpass | 0.03 | Rhythmic belt sound |
-| Ventilation | White noise | 500Hz highpass | 0.015 | HVAC air flow |
-| Grain Flow | White noise | 2500Hz bandpass | 0.012 | Trickling grain |
+| Sound          | Type        | Frequency       | Volume | Description           |
+| -------------- | ----------- | --------------- | ------ | --------------------- |
+| Machinery Hum  | Brown noise | 120Hz lowpass   | 0.08   | Deep industrial drone |
+| Conveyor Noise | Pink noise  | 300Hz bandpass  | 0.03   | Rhythmic belt sound   |
+| Ventilation    | White noise | 500Hz highpass  | 0.015  | HVAC air flow         |
+| Grain Flow     | White noise | 2500Hz bandpass | 0.012  | Trickling grain       |
 
 ```typescript
 audioManager.startAmbientSounds();
@@ -91,6 +96,7 @@ audioManager.stopAmbientSounds();
 Per-machine operational sounds:
 
 #### Roller Mill Sound
+
 ```typescript
 audioManager.playMillSound(machineId: string, rpm: number);
 audioManager.stopMillSound(machineId: string);
@@ -101,6 +107,7 @@ audioManager.stopMillSound(machineId: string);
 - Volume: 0.04
 
 #### Plansifter Sound
+
 ```typescript
 audioManager.playSifterSound(machineId: string, rpm: number);
 ```
@@ -110,6 +117,7 @@ audioManager.playSifterSound(machineId: string, rpm: number);
 - Volume: 0.025
 
 #### Packer Sound
+
 ```typescript
 audioManager.playPackerSound(machineId: string);
 ```
@@ -121,6 +129,7 @@ audioManager.playPackerSound(machineId: string);
 ### 3. Forklift Sounds
 
 #### Horn
+
 ```typescript
 audioManager.playHorn(forkliftId: string);
 ```
@@ -131,6 +140,7 @@ audioManager.playHorn(forkliftId: string);
 - Rate limited: 800ms cooldown
 
 #### Backup Beeper
+
 ```typescript
 audioManager.playBackupBeep(forkliftId: string);
 ```
@@ -140,6 +150,7 @@ audioManager.playBackupBeep(forkliftId: string);
 - Rate limited: 600ms cooldown
 
 #### Engine
+
 ```typescript
 audioManager.startForkliftEngine(forkliftId: string);
 audioManager.updateForkliftEngine(forkliftId: string, isMoving: boolean, isStopped: boolean);
@@ -161,6 +172,7 @@ audioManager.playAirBrake();
 ### 5. Worker Sounds
 
 #### Footsteps
+
 ```typescript
 audioManager.playFootstep(workerId: string);
 ```
@@ -172,12 +184,12 @@ audioManager.playFootstep(workerId: string);
 ### 6. UI Sounds
 
 ```typescript
-audioManager.playClick();        // UI button clicks
-audioManager.playHover();        // Element hover (subtle)
-audioManager.playPanelOpen();    // Panel opening
-audioManager.playPanelClose();   // Panel closing
-audioManager.playAlert();        // Warning/critical alerts
-audioManager.playClunk();        // Mechanical state changes
+audioManager.playClick(); // UI button clicks
+audioManager.playHover(); // Element hover (subtle)
+audioManager.playPanelOpen(); // Panel opening
+audioManager.playPanelClose(); // Panel closing
+audioManager.playAlert(); // Warning/critical alerts
+audioManager.playClunk(); // Mechanical state changes
 ```
 
 ### 7. Radio Chatter
@@ -201,11 +213,11 @@ audioManager.startOutdoorAmbient();
 audioManager.stopOutdoorAmbient();
 ```
 
-| Sound | Type | Frequency | Description |
-|-------|------|-----------|-------------|
-| Birds | White noise | 3500Hz bandpass | Chirping modulation |
-| Wind | Pink noise | 400Hz lowpass | Gusting LFO |
-| Traffic | Brown noise | 80Hz lowpass | Distant rumble |
+| Sound   | Type        | Frequency       | Description         |
+| ------- | ----------- | --------------- | ------------------- |
+| Birds   | White noise | 3500Hz bandpass | Chirping modulation |
+| Wind    | Pink noise  | 400Hz lowpass   | Gusting LFO         |
+| Traffic | Brown noise | 80Hz lowpass    | Distant rumble      |
 
 ---
 
@@ -214,13 +226,17 @@ audioManager.stopOutdoorAmbient();
 The audio system generates three types of noise:
 
 ### White Noise
+
 Random values between -1 and 1:
+
 ```typescript
 data[i] = Math.random() * 2 - 1;
 ```
 
 ### Pink Noise
+
 Filtered white noise with equal power per octave:
+
 ```typescript
 b0 = 0.99886 * b0 + white * 0.0555179;
 b1 = 0.99332 * b1 + white * 0.0750759;
@@ -229,9 +245,11 @@ data[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * 0.11;
 ```
 
 ### Brown Noise
+
 Integration of white noise (more bass):
+
 ```typescript
-data[i] = (b0 = (b0 + (0.02 * white)) / 1.02) * 3.5;
+data[i] = (b0 = (b0 + 0.02 * white) / 1.02) * 3.5;
 ```
 
 ---
@@ -336,8 +354,12 @@ function useAudioState() {
   return {
     muted: audioManager.muted,
     volume: audioManager.volume,
-    setMuted: (v: boolean) => { audioManager.muted = v; },
-    setVolume: (v: number) => { audioManager.volume = v; }
+    setMuted: (v: boolean) => {
+      audioManager.muted = v;
+    },
+    setVolume: (v: number) => {
+      audioManager.volume = v;
+    },
   };
 }
 ```
@@ -409,6 +431,7 @@ useEffect(() => {
 ```
 
 The `stopAll()` method terminates:
+
 - Ambient sounds
 - Outdoor ambient
 - Radio chatter

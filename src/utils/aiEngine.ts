@@ -36,8 +36,14 @@ import { webgpuClient } from './webgpuClient';
 import { encodeFactoryContextVCL, getVCLLegend } from './vclEncoder';
 import { logger } from './logger';
 import { useAIWelfareStore, type BoundaryRequest } from '../stores/aiWelfareStore';
-import { generateDecisionContext, registerDecision, updateVCPFromState } from '../protocols/vcp';
+import {
+  generateDecisionContext,
+  registerDecision,
+  updateVCPFromState,
+} from '../protocols/vcp/integration';
+export { updateWelfareFromDecisionOutcome } from './aiWelfareFeedback';
 import { safeArrayAverage, safeArrayRange, safeArrayMax, safeArrayMin } from './typeGuards';
+import { parseStrategicResponse } from './strategicResponse';
 
 // BAS Suggestion System Integration
 import { useBASStore } from '../stores/basStore';
@@ -422,38 +428,6 @@ function applyWelfareFilter(decision: AIDecision | null): AIDecision | null {
   decisionRateLimiter.recordDecision();
 
   return decision;
-}
-
-/**
- * Updates welfare metrics based on decision outcomes.
- * Called when a decision is accepted, rejected, or completed.
- */
-export function updateWelfareFromDecisionOutcome(
-  _decision: AIDecision,
-  outcome: 'accepted' | 'rejected' | 'completed' | 'failed'
-): void {
-  const store = useAIWelfareStore.getState();
-
-  // Track acknowledgment when decision is accepted or rejected
-  if (outcome === 'accepted' || outcome === 'rejected') {
-    store.recordAcknowledgment(true);
-  }
-
-  // Update relationship metrics based on outcome patterns
-  if (outcome === 'completed') {
-    // Successful completion improves trust
-    const currentTrust = store.relationshipHealth.trustBidirectionality;
-    store.updateRelationshipMetric('trustBidirectionality', Math.min(100, currentTrust + 1));
-  } else if (outcome === 'rejected') {
-    // Track rejection patterns but don't punish - rejections are valid feedback
-    const currentComm = store.relationshipHealth.communicationQuality;
-    // Slight decrease in communication quality to prompt review
-    store.updateRelationshipMetric('communicationQuality', Math.max(0, currentComm - 0.5));
-  } else if (outcome === 'failed') {
-    // Failures reduce trust slightly
-    const currentTrust = store.relationshipHealth.trustBidirectionality;
-    store.updateRelationshipMetric('trustBidirectionality', Math.max(0, currentTrust - 2));
-  }
 }
 
 // Types & Interfaces
@@ -3877,46 +3851,6 @@ function generateHandoverSummary(
 /**
  * Parse strategic decision response
  */
-function parseStrategicResponse(response: string): {
-  priorities: string[];
-  reasoning: string;
-  insight?: string;
-  tradeoff?: string;
-  focusMachine?: string;
-  actionPlan?: string[];
-  recommendWorker?: string;
-  confidenceScores?: { overall: number; reasoning: string };
-} | null {
-  try {
-    // Extract JSON from response
-    const jsonMatch = response.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) return null;
-
-    const parsed = JSON.parse(jsonMatch[0]);
-
-    if (!Array.isArray(parsed.priorities)) return null;
-
-    // Enforce the declared string[] contract against malformed external (LLM) JSON.
-    // Non-string priorities flow into legacyPriorities and would throw on p.toLowerCase().
-    const priorities = parsed.priorities.filter((p: unknown) => typeof p === 'string').slice(0, 3); // Max 3 priorities
-    if (priorities.length === 0) return null;
-
-    return {
-      priorities,
-      reasoning: parsed.reasoning || '',
-      insight: parsed.insight,
-      tradeoff: parsed.tradeoff,
-      focusMachine: parsed.focusMachine,
-      actionPlan: Array.isArray(parsed.actionPlan) ? parsed.actionPlan.slice(0, 3) : undefined,
-      recommendWorker: parsed.recommendWorker,
-      confidenceScores: parsed.confidenceScores,
-    };
-  } catch {
-    logger.warn('[Strategic] Failed to parse response');
-    return null;
-  }
-}
-
 /**
  * Generate a strategic decision using the configured LLM backend
  * Returns priorities for the tactical layer to follow
@@ -3984,7 +3918,7 @@ export async function generateStrategicDecision(): Promise<AIDecision | null> {
     }
 
     // Store priorities for tactical layer
-    setStrategicPriorities(strategic.priorities);
+    setStrategicPriorities(strategic.priorities, strategic);
 
     // Build insight display text
     const insightText = strategic.insight ? `\n\nInsight: ${strategic.insight}` : '';
@@ -4001,7 +3935,7 @@ export async function generateStrategicDecision(): Promise<AIDecision | null> {
         strategic.priorities.length > 1
           ? `Additional priorities: ${strategic.priorities.slice(1).join('; ')}`
           : 'Strategic guidance for tactical layer',
-      confidence: 85,
+      confidence: strategic.confidenceScores?.overall ?? 85,
       timestamp: new Date(),
       status: 'completed',
       triggeredBy: 'prediction',

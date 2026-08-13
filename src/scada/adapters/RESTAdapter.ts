@@ -53,6 +53,7 @@ export class RESTAdapter implements IProtocolAdapter {
   private reconnectAttempts = 0;
   private lastError: string | undefined;
   private reconnectTimeoutId: ReturnType<typeof setTimeout> | null = null;
+  private pollInFlight = false;
 
   // Statistics
   private stats = {
@@ -153,7 +154,7 @@ export class RESTAdapter implements IProtocolAdapter {
         throw new Error(`Failed to read tag: ${response.status}`);
       }
 
-      const data: RESTTagResponse = await response.json();
+      const data: unknown = await this.readBoundedJson(response);
       if (!this.isValidTagResponse(data)) {
         throw new Error('Malformed tag response: missing required fields');
       }
@@ -184,11 +185,15 @@ export class RESTAdapter implements IProtocolAdapter {
         throw new Error(`Failed to read tags: ${response.status}`);
       }
 
-      const data: RESTBatchResponse = await response.json();
-      if (!data || !Array.isArray(data.tags)) {
+      const data: unknown = await this.readBoundedJson(response);
+      if (!data || typeof data !== 'object' || !Array.isArray((data as RESTBatchResponse).tags)) {
         throw new Error('Malformed batch response: missing tags array');
       }
-      const tagValues = data.tags
+      const tags = (data as RESTBatchResponse).tags;
+      if (tags.length > 256) {
+        throw new Error('Malformed batch response: too many tags');
+      }
+      const tagValues = tags
         .filter((t) => this.isValidTagResponse(t))
         .map((t) => this.parseTagResponse(t));
 
@@ -303,13 +308,16 @@ export class RESTAdapter implements IProtocolAdapter {
   // =========================================================================
 
   private async poll(): Promise<void> {
-    if (!this.connected) return;
+    if (!this.connected || this.pollInFlight) return;
+    this.pollInFlight = true;
 
     try {
       const tagValues = await this.readAllTags();
       this.notifySubscribers(tagValues);
     } catch {
       this.handleConnectionError();
+    } finally {
+      this.pollInFlight = false;
     }
   }
 
@@ -382,6 +390,26 @@ export class RESTAdapter implements IProtocolAdapter {
     return this.fetchWithTimeout(url, { ...options, headers });
   }
 
+  private async readBoundedJson(response: Response, maximumBytes = 64 * 1024): Promise<unknown> {
+    const contentLength = response.headers.get('content-length');
+    if (contentLength) {
+      const declaredBytes = Number(contentLength);
+      if (
+        !Number.isSafeInteger(declaredBytes) ||
+        declaredBytes < 0 ||
+        declaredBytes > maximumBytes
+      ) {
+        throw new Error(`Response body exceeds ${maximumBytes} bytes`);
+      }
+    }
+
+    const text = await response.text();
+    if (text.length > maximumBytes || new TextEncoder().encode(text).byteLength > maximumBytes) {
+      throw new Error(`Response body exceeds ${maximumBytes} bytes`);
+    }
+    return JSON.parse(text) as unknown;
+  }
+
   /**
    * Validates a raw REST tag entry has the required shape before parsing.
    * Guards against malformed 200 responses (e.g. `{}`, `{error:...}`, null entries)
@@ -394,11 +422,17 @@ export class RESTAdapter implements IProtocolAdapter {
     const d = data as Record<string, unknown>;
     return (
       typeof d.tagId === 'string' &&
-      (typeof d.value === 'number' ||
+      d.tagId.length > 0 &&
+      d.tagId.length <= 256 &&
+      ((typeof d.value === 'number' && Number.isFinite(d.value)) ||
         typeof d.value === 'boolean' ||
-        typeof d.value === 'string') &&
+        (typeof d.value === 'string' && d.value.length <= 1024)) &&
       typeof d.quality === 'string' &&
-      typeof d.timestamp === 'number'
+      d.quality.length <= 32 &&
+      typeof d.timestamp === 'number' &&
+      Number.isFinite(d.timestamp) &&
+      (d.sourceTimestamp === undefined ||
+        (typeof d.sourceTimestamp === 'number' && Number.isFinite(d.sourceTimestamp)))
     );
   }
 

@@ -22,6 +22,7 @@ import type {
   PatternRecord,
   OutcomeRecord,
 } from '../types';
+import { sanitizeHypothesisPersistence, VCP_MEMORY_LIMITS } from './persistenceValidation';
 
 // In-memory fallback used when localStorage is unavailable (SSR, privacy mode,
 // some test runners). Declared before create(persist(...)) so it is initialized
@@ -55,12 +56,14 @@ export function generateHypothesesFromPatterns(
         newHypotheses.push({
           id: `hyp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
           hypothesis: hypothesisText,
-          basis: `Based on ${intervention.sampleSize} occurrences with ${intervention.confidence.toFixed(0)}% confidence`,
+          basis: `Based on ${intervention.sampleSize} occurrences with ${(intervention.confidence * 100).toFixed(0)}% confidence`,
           testable: true,
           risk: intervention.effectMagnitude > 20 ? 'medium' : 'low',
           generatedAt: Date.now(),
           status: 'proposed',
         });
+        existingTexts.add(hypothesisText.toLowerCase());
+        if (newHypotheses.length >= VCP_MEMORY_LIMITS.hypotheses) return newHypotheses;
       }
     }
   }
@@ -107,6 +110,8 @@ export function generateHypothesesFromOutcomes(
             generatedAt: Date.now(),
             status: 'proposed',
           });
+          existingTexts.add(hypothesisText.toLowerCase());
+          if (newHypotheses.length >= VCP_MEMORY_LIMITS.hypotheses) return newHypotheses;
         }
       }
     }
@@ -216,12 +221,14 @@ interface HypothesisEngineState {
   pruneOldHypotheses: (maxAge: number) => void;
 }
 
+type HypothesisEnginePersisted = Pick<HypothesisEngineState, 'hypotheses'>;
+
 // =============================================================================
 // STORE IMPLEMENTATION
 // =============================================================================
 
 export const useHypothesisEngine = create<HypothesisEngineState>()(
-  persist(
+  persist<HypothesisEngineState, [], [], HypothesisEnginePersisted>(
     (set, get) => ({
       hypotheses: [],
 
@@ -234,7 +241,10 @@ export const useHypothesisEngine = create<HypothesisEngineState>()(
         };
 
         set((state) => ({
-          hypotheses: [...state.hypotheses, newHypothesis],
+          hypotheses: [
+            ...state.hypotheses.slice(-(VCP_MEMORY_LIMITS.hypotheses - 1)),
+            newHypothesis,
+          ],
         }));
       },
 
@@ -252,7 +262,9 @@ export const useHypothesisEngine = create<HypothesisEngineState>()(
 
         if (newHypotheses.length > 0) {
           set((state) => ({
-            hypotheses: [...state.hypotheses, ...newHypotheses],
+            hypotheses: [...state.hypotheses, ...newHypotheses].slice(
+              -VCP_MEMORY_LIMITS.hypotheses
+            ),
           }));
         }
 
@@ -376,6 +388,11 @@ export const useHypothesisEngine = create<HypothesisEngineState>()(
           webStorage.removeItem(name);
         },
       },
+      partialize: (state) => ({ hypotheses: state.hypotheses }),
+      merge: (persisted: unknown, current) => ({
+        ...current,
+        hypotheses: sanitizeHypothesisPersistence(persisted),
+      }),
     }
   )
 );

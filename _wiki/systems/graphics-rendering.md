@@ -3,68 +3,54 @@
 <!-- wiki:type = system -->
 <!-- wiki:scope = millos -->
 <!-- wiki:created = 2026-05-23 -->
-<!-- wiki:updated = 2026-05-23 -->
+<!-- wiki:updated = 2026-08-13 -->
 <!-- wiki:status = active -->
 
 ## Summary
 
-MillOS uses React Three Fiber with Drei helpers for 3D rendering, controlled by a four-tier quality preset system (`graphicsStore.ts`). Known performance bugs and z-fighting patterns are documented with prevention rules in `CLAUDE.md`.
+MillOS uses React Three Fiber, Drei, and a four-tier Zustand graphics profile.
+Every tier renders the same authored world. Tiers change cost, effects, density,
+resolution, and shadows rather than replacing the scene.
 
-## Quality Presets
+## Quality presets
 
-Managed in `src/stores/graphicsStore.ts`, four tiers:
+| Level  | Current default characteristics                                         |
+| ------ | ----------------------------------------------------------------------- |
+| Low    | No composer, renderer-side Neutral tone mapping, minimal effects        |
+| Medium | Composer tone mapping, colour grade, vignette, and SMAA; no AO or bloom |
+| High   | Adds half-resolution N8AO and bloom, with higher scene detail           |
+| Ultra  | Full-resolution N8AO, larger shadows, and the highest density           |
 
-| Level | Key characteristics |
-|-------|-------------------|
-| Low | No shadows, `meshBasicMaterial`, minimal effects, no post-processing |
-| Medium | Shadows, HDRI environment, standard materials, NO post-processing |
-| High | Post-processing, `MeshReflectorMaterial` floor, `AmbientDetails` |
-| Ultra | Full effects |
+`GRAPHICS_PRESETS` and `isPostProcessingActive` live in
+`src/stores/graphicsStore.ts`. The renderer and composer share the same tone
+curve and exposure so adaptive changes do not create a tonal jump.
 
-`GRAPHICS_PRESETS` constant exported from `src/stores/graphicsStore.ts`.
+## Guarded contracts
 
-## Performance Issues Fixed
+- Shader program cache keys are deterministic. Time and random values are banned.
+- Procedural albedo textures declare sRGB colour space; normals, ORM, height, and
+  masks declare linear space.
+- Exterior ground surfaces share a plane and use the constants in
+  `src/constants/renderLayers.ts` for depth order.
+- `PlaneGeometry` receives two dimensions unless integer segment counts are
+  intentional.
+- Tailwind global base rules stay inside cascade layers so utilities retain
+  their spacing and layout behavior.
+- External machine texture maps remain disabled until sampling, colour-space,
+  and authored-material override requirements are met.
 
-### Shader Cache Key Bug (2025-12-29)
-Using `Date.now()` in `customProgramCacheKey` forces WebGL shader recompilation every frame. Fix: stable deterministic key based on actual configuration (`CLAUDE.md:477-498`). Rule: never use `Date.now()`, `Math.random()`, or any non-deterministic value in `customProgramCacheKey`.
-
-### GC Pressure
-Module-level reusable `THREE.Vector3` instances in `SmartForklift.tsx` and `Environment.tsx` replace per-frame `new THREE.Vector3()` allocations in `useFrame` callbacks (`CLAUDE.md:498-502`).
-
-### Flickering (Medium+ Quality)
-Disabled effects that caused flicker (`CLAUDE.md:504-530`):
-- `AtmosphericHaze` (BackSide depth sorting) — disabled in MillScene.tsx
-- Post-processing Bloom/Vignette — disabled on Medium preset
-- ContactShadows raised to y=0.05; shadow bias changed from -0.0001 to -0.001
-- Camera near/far changed from 0.1/500 to 0.5/300 (better depth precision)
-
-### useSyncExternalStore Race Condition (2025-12-30)
-PA announcements flashed briefly when muted. Pattern: multi-layer defense: prevention in scheduler, render gate checking BOTH hook and direct property, effect gate, cleanup dismissal (`CLAUDE.md:810-857`). Key files: `PAAnnouncementSystem.tsx`, `src/components/game/shared.tsx`.
-
-## Z-Fighting Prevention
-
-### Interior Floor Surfaces
-Use `FLOOR_LAYERS.*` (Y positions 0.01–0.16) + `depthWrite={false}` for transparent overlays.
-
-### Exterior Surfaces
-All at `EXTERIOR_LAYERS.ground = -0.02`; differentiated by `POLYGON_OFFSET` presets (`src/constants/renderLayers.ts`). Do NOT Y-separate exterior surfaces — creates visible seams (`CLAUDE.md:538-550`).
-
-### PlaneGeometry NaN Prevention
-`PlaneGeometry(width, height, widthSegments?, heightSegments?)` — 3rd argument is segment count, NOT depth (`CLAUDE.md:695-710`). Utilities in `src/utils/typeGuards.ts`: `safeDimension()`, `safeDivide()`, `safeFinite()`. Debug hook: `useGeometryNaNDetector()` in `src/components/SafeGeometry.tsx`.
-
-## Tailwind v4 CSS Layer Bug
-
-Tailwind v4 emits utilities inside CSS cascade layers (`@layer`). Unlayered CSS (e.g., `* { margin: 0; padding: 0; }`) overrides all layered rules regardless of specificity. Do not use universal resets in `src/index.css` or `index.html`. Global base styles must go inside `@layer base { }` (`CLAUDE.md:302-333`). Service worker in `public/sw.js` can serve stale CSS; clear site data after production build changes.
-
-## Path Aliases
-
-`@/*` maps to project root (configured in `tsconfig.json` and `vite.config.ts`, `CLAUDE.md:445`).
+Source validators cover depth relations, shader keys, assets, and bundle
+budgets. `npm run benchmark:runtime` is the candidate-bound timing gate. Native
+captures and human review remain distinct from static validation.
 
 ## Provenance
 
-- Sources consulted: `CLAUDE.md:295-650`, `CLAUDE.md:800-860`, `src/stores/graphicsStore.ts`, `src/constants/renderLayers.ts`, `src/utils/depthMaterials.ts`, `src/utils/typeGuards.ts`
-- Last verified against sources: 2026-05-23
+- Sources: `src/stores/graphicsStore.ts`, `src/components/MillScene.tsx`,
+  `src/components/PostProcessing.tsx`, `src/constants/renderLayers.ts`,
+  `src/utils/textureGenerator.ts`
+- Last verified: 2026-08-13
 
 ## See Also
 
 - [[millos:systems/scene-zones]]
+- [[millos:systems/build-deployment]]

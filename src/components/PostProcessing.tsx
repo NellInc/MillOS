@@ -210,9 +210,7 @@ export const PostProcessing: React.FC = () => {
           />
         )}
 
-        {graphics.enableChromaticAberration && (
-          <ChromaticAberration offset={[0.0005, 0.0005]} blendFunction={BlendFunction.NORMAL} />
-        )}
+        {graphics.enableChromaticAberration && <ChromaticAberration offset={[0.0005, 0.0005]} />}
 
         {graphics.enableFilmGrain && (
           <Noise opacity={0.025} blendFunction={BlendFunction.OVERLAY} />
