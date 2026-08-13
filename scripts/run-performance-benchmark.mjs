@@ -298,7 +298,8 @@ async function waitForRuntimeStage(page, label, predicate, timeoutMs, diagnostic
         { ...diagnostics, pageState },
         null,
         2
-      )}`
+      )}`,
+      { cause: error }
     );
   }
 }
@@ -357,20 +358,24 @@ function summarizeMotion(samples) {
       entities.set(entity.id, current);
     }
   }
-  return [...entities.values()].map(({ lastPosition: _lastPosition, ...entity }) => ({
-    ...entity,
-    distance: Number(entity.distance.toFixed(2)),
-    telemetry: Object.fromEntries(
-      Object.entries(entity.telemetry).map(([key, metric]) => [
-        key,
-        {
-          min: Number(metric.min.toFixed(4)),
-          max: Number(metric.max.toFixed(4)),
-          delta: Number((metric.last - metric.first).toFixed(4)),
-        },
-      ])
-    ),
-  }));
+  return [...entities.values()].map((withLastPosition) => {
+    const entity = { ...withLastPosition };
+    delete entity.lastPosition;
+    return {
+      ...entity,
+      distance: Number(entity.distance.toFixed(2)),
+      telemetry: Object.fromEntries(
+        Object.entries(entity.telemetry).map(([key, metric]) => [
+          key,
+          {
+            min: Number(metric.min.toFixed(4)),
+            max: Number(metric.max.toFixed(4)),
+            delta: Number((metric.last - metric.first).toFixed(4)),
+          },
+        ])
+      ),
+    };
+  });
 }
 
 async function waitForRuntimeSettled(

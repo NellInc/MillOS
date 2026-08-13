@@ -1,5 +1,7 @@
 # AmbientDetails.tsx Refactoring Summary
 
+> **Historical record.** This document preserves an earlier audit, plan, or implementation snapshot. It is not current status or operating instruction. See [the 12 August 2026 exhaustive improvement ledger](../_contprompts/millos_exhaustive_improvements_2026-08-12.md) and [its second pass](../_contprompts/millos_exhaustive_improvements_second_pass_2026-08-12.md) for current evidence, dispositions, and remaining gates.
+
 ## Overview
 
 The massive `AmbientDetails.tsx` file (4,689 lines, 76 components) has been refactored into smaller, focused component files for better maintainability and code organization.

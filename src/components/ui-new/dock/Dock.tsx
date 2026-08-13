@@ -19,16 +19,9 @@ import { useUIStore } from '../../../stores/uiStore';
 import { useIsMultiplayerActive } from '../../../stores/multiplayerStore';
 import { useMobileDetection } from '../../../hooks/useMobileDetection';
 import { useMobileControlStore } from '../../../stores/mobileControlStore';
+import type { DockMode } from './types';
 
-export type DockMode =
-  | 'overview'
-  | 'ai'
-  | 'scada'
-  | 'workforce'
-  | 'management'
-  | 'safety'
-  | 'settings'
-  | 'multiplayer';
+export type { DockMode } from './types';
 
 interface DockProps {
   activeMode: DockMode;

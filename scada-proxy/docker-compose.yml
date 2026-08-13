@@ -1,32 +1,52 @@
 # MillOS SCADA Proxy - Docker Compose
 #
 # Usage:
-#   Development:  docker-compose up
-#   Production:   docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
-#   With MQTT:    docker-compose --profile mqtt up
-
-version: '3.8'
+#   Development:  docker compose up --build
+#   With MQTT:    docker compose --profile mqtt up --build
+#
+# This is a hardened local and integration composition. Production needs
+# externally managed secrets, TLS termination, and a site-specific network
+# policy. There is no docker-compose.prod.yml in this repository.
 
 services:
   # Main SCADA Proxy Service
   scada-proxy:
+    init: true
     build:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "3001:3001"
+      - '3001:3001'
     environment:
-      - NODE_ENV=production
+      - NODE_ENV=${NODE_ENV:-development}
       - PORT=3001
       - POLL_INTERVAL=${POLL_INTERVAL:-1000}
       - OPCUA_ENDPOINT=${OPCUA_ENDPOINT:-}
       - MODBUS_HOST=${MODBUS_HOST:-}
       - MODBUS_PORT=${MODBUS_PORT:-502}
+      - SCADA_API_KEY=${SCADA_API_KEY:-}
+      - SCADA_ENABLE_WRITES=${SCADA_ENABLE_WRITES:-false}
+      - SCADA_WRITE_API_KEY=${SCADA_WRITE_API_KEY:-}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:5173}
+      - TRUST_PROXY_HOPS=${TRUST_PROXY_HOPS:-0}
+      - RATE_LIMIT_MAX=${RATE_LIMIT_MAX:-2000}
+      - WRITE_RATE_LIMIT_MAX=${WRITE_RATE_LIMIT_MAX:-120}
+      - WS_MESSAGE_RATE_MAX=${WS_MESSAGE_RATE_MAX:-120}
+      - WS_MAX_CLIENTS=${WS_MAX_CLIENTS:-100}
+      - OPCUA_USERNAME=${OPCUA_USERNAME:-}
+      - OPCUA_PASSWORD=${OPCUA_PASSWORD:-}
     volumes:
       - ./tags.json:/app/tags.json:ro
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/health"]
+      test: ['CMD', 'wget', '--no-verbose', '--tries=1', '--spider', 'http://localhost:3001/health']
       interval: 30s
       timeout: 10s
       retries: 3
@@ -40,8 +60,8 @@ services:
     profiles:
       - mqtt
     ports:
-      - "1883:1883"   # MQTT
-      - "8883:8883"   # MQTT over WebSocket
+      - '1883:1883' # MQTT
+      - '8883:8883' # MQTT over WebSocket
     volumes:
       - ./mosquitto/config:/mosquitto/config:ro
       - mosquitto-data:/mosquitto/data
@@ -56,7 +76,7 @@ services:
     profiles:
       - opcua-sim
     ports:
-      - "50000:50000"
+      - '50000:50000'
     environment:
       - PLC_SIMULATION_CONFIG=/app/pn.json
     restart: unless-stopped
@@ -69,7 +89,7 @@ services:
     profiles:
       - modbus-sim
     ports:
-      - "5020:5020"
+      - '5020:5020'
     restart: unless-stopped
     networks:
       - scada-network

@@ -1,4 +1,6 @@
 # MillOS Performance Test Report
+
+> **Historical record.** This document preserves an earlier audit, plan, or implementation snapshot. It is not current status or operating instruction. See [the 12 August 2026 exhaustive improvement ledger](../_contprompts/millos_exhaustive_improvements_2026-08-12.md) and [its second pass](../_contprompts/millos_exhaustive_improvements_second_pass_2026-08-12.md) for current evidence, dispositions, and remaining gates.
 **Date:** 2025-12-05
 **Test Duration:** 10 seconds sampling after 15s warmup
 **Testing Tool:** Puppeteer automated performance testing
@@ -210,7 +212,7 @@ export const WorkerModel = React.memo(({ position, rotation }) => {
 4. Test FPS improvement
 
 ### Phase 4: Validate (15 minutes)
-1. Re-run performance test: `node perf-test.cjs`
+1. Re-run performance test: `npm run benchmark:runtime`
 2. Verify FPS improvement
 3. Ensure no new errors
 4. Test on real devices (not just Puppeteer)
@@ -284,7 +286,7 @@ Skip updates for objects outside camera view.
 Already implemented via `FPSMonitor.tsx` - good!
 
 ### 2. Add Performance Tests to CI
-Run `node perf-test.cjs` in CI pipeline.
+Run `npm run benchmark:runtime` in CI pipeline.
 Alert if FPS drops below threshold.
 
 ### 3. useFrame Hook Linting

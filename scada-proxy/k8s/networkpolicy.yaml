@@ -17,23 +17,14 @@ spec:
     - from:
         - namespaceSelector:
             matchLabels:
-              app.kubernetes.io/name: ingress-nginx
+              kubernetes.io/metadata.name: ingress-nginx
       ports:
         - protocol: TCP
           port: 3001
 
-    # Allow ingress from same namespace (for health checks, metrics)
+    # Allow same-namespace operational access such as a bounded smoke test.
     - from:
         - podSelector: {}
-      ports:
-        - protocol: TCP
-          port: 3001
-
-    # Allow prometheus scraping
-    - from:
-        - namespaceSelector:
-            matchLabels:
-              app.kubernetes.io/name: monitoring
       ports:
         - protocol: TCP
           port: 3001
@@ -41,7 +32,9 @@ spec:
   egress:
     # Allow DNS
     - to:
-        - namespaceSelector: {}
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
           podSelector:
             matchLabels:
               k8s-app: kube-dns
@@ -51,35 +44,6 @@ spec:
         - protocol: TCP
           port: 53
 
-    # Allow OPC-UA connections (typically port 4840)
-    - to:
-        - ipBlock:
-            cidr: 0.0.0.0/0
-            except:
-              - 10.0.0.0/8
-              - 172.16.0.0/12
-              - 192.168.0.0/16
-      ports:
-        - protocol: TCP
-          port: 4840
-
-    # Allow Modbus connections (typically port 502)
-    - to:
-        - ipBlock:
-            cidr: 0.0.0.0/0
-            except:
-              - 10.0.0.0/8
-              - 172.16.0.0/12
-              - 192.168.0.0/16
-      ports:
-        - protocol: TCP
-          port: 502
-
-    # Allow MQTT (internal broker)
-    - to:
-        - podSelector:
-            matchLabels:
-              app.kubernetes.io/name: mosquitto
-      ports:
-        - protocol: TCP
-          port: 1883
+    # Industrial egress is deliberately absent from the base. A deployment
+    # overlay must add only the exact plant CIDRs and ports it owns. Broad RFC
+    # 1918 access gives a compromised proxy reach into unrelated private hosts.

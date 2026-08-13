@@ -16,9 +16,7 @@ import { execSync } from 'child_process';
 import { readdirSync, statSync, existsSync, mkdirSync } from 'fs';
 import { join, basename, extname } from 'path';
 
-const TEXTURE_DIRS = [
-  'public/textures/machines',
-];
+const TEXTURE_DIRS = ['public/textures/machines'];
 
 const OUTPUT_DIR = 'public/textures/compressed';
 const SUPPORTED_EXTENSIONS = ['.jpg', '.jpeg', '.png'];
@@ -100,7 +98,9 @@ function convertTexture(inputPath, outputDir, dryRun = false) {
     const outputSize = statSync(outputPath).size;
     const savings = ((1 - outputSize / inputSize) * 100).toFixed(1);
 
-    console.log(`           ${(inputSize/1024).toFixed(1)}KB -> ${(outputSize/1024).toFixed(1)}KB (${savings}% smaller)`);
+    console.log(
+      `           ${(inputSize / 1024).toFixed(1)}KB -> ${(outputSize / 1024).toFixed(1)}KB (${savings}% smaller)`
+    );
     return { success: true, inputSize, outputSize };
   } catch (err) {
     console.error(`  [error] Failed to convert ${filename}: ${err.message}`);
@@ -137,7 +137,7 @@ async function main() {
 
   if (allTextures.length === 0) {
     console.log('No textures found. Add textures to:');
-    TEXTURE_DIRS.forEach(dir => console.log(`  - ${dir}`));
+    TEXTURE_DIRS.forEach((dir) => console.log(`  - ${dir}`));
     return;
   }
 

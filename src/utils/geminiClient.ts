@@ -8,7 +8,7 @@
  * - Context length protection (token limits)
  */
 
-import { GoogleGenerativeAI, GenerativeModel } from '@google/generative-ai';
+import { GoogleGenAI } from '@google/genai';
 import { logger } from './logger';
 
 /**
@@ -17,15 +17,15 @@ import { logger } from './logger';
  * the previous hardcoded single ID ('gemini-3-flash-preview') left live AI
  * silently dead once that preview model was retired.
  *
- * Verified against https://ai.google.dev/gemini-api/docs/models (June 2026):
- * - gemini-3.5-flash: stable GA (May 2026), no announced shutdown
- * - gemini-3-flash-preview: preview tier (restrictive rate limits)
- * - gemini-2.5-flash: legacy stable, shutdown announced for 2026-10-16
+ * Verified against Google's model and migration guides on 12 August 2026:
+ * - gemini-3.6-flash: current stable GA general-purpose Flash model
+ * - gemini-3.5-flash: stable GA compatibility fallback
+ * - gemini-3.5-flash-lite: stable GA low-cost fallback
  */
 export const GEMINI_MODEL_CANDIDATES = [
+  'gemini-3.6-flash',
   'gemini-3.5-flash',
-  'gemini-3-flash-preview',
-  'gemini-2.5-flash',
+  'gemini-3.5-flash-lite',
 ] as const;
 
 export type GeminiModelId = (typeof GEMINI_MODEL_CANDIDATES)[number];
@@ -65,8 +65,7 @@ const CONTEXT_OVERFLOW_PATTERNS = [
 ] as const;
 
 class GeminiClient {
-  private genAI: GoogleGenerativeAI | null = null;
-  private model: GenerativeModel | null = null;
+  private genAI: GoogleGenAI | null = null;
   private modelIndex = 0;
   private apiKey: string | null = null;
   private circuitBreaker: CircuitBreakerState = {
@@ -157,9 +156,8 @@ class GeminiClient {
   initialize(apiKey: string): boolean {
     try {
       this.apiKey = apiKey;
-      this.genAI = new GoogleGenerativeAI(apiKey);
+      this.genAI = new GoogleGenAI({ apiKey });
       this.modelIndex = 0;
-      this.buildModel();
 
       // Reset circuit breaker on successful init
       this.resetCircuitBreaker();
@@ -171,19 +169,6 @@ class GeminiClient {
       this.disconnect();
       return false;
     }
-  }
-
-  /** Instantiate the SDK model for the current candidate. */
-  private buildModel(): void {
-    if (!this.genAI) return;
-    this.model = this.genAI.getGenerativeModel({
-      model: GEMINI_MODEL_CANDIDATES[this.modelIndex],
-      generationConfig: {
-        temperature: 0.7,
-        topP: 0.9,
-        maxOutputTokens: 2048,
-      },
-    });
   }
 
   /** The model ID currently in use (for UI display and cost tracking). */
@@ -209,7 +194,6 @@ class GeminiClient {
     }
     const previous = this.getActiveModelId();
     this.modelIndex++;
-    this.buildModel();
     logger.warn(
       `[GeminiClient] Model ${previous} unavailable — falling back to ${this.getActiveModelId()}`
     );
@@ -220,7 +204,7 @@ class GeminiClient {
    * Check if client is connected and ready
    */
   isConnected(): boolean {
-    return this.model !== null && !this.circuitBreaker.isOpen;
+    return this.genAI !== null && !this.circuitBreaker.isOpen;
   }
 
   /**
@@ -237,7 +221,6 @@ class GeminiClient {
    */
   disconnect(): void {
     this.genAI = null;
-    this.model = null;
     this.apiKey = null;
     this.modelIndex = 0;
     logger.info('[GeminiClient] Disconnected');
@@ -332,8 +315,8 @@ class GeminiClient {
   async generateContent(prompt: string): Promise<string | null> {
     this.checkCircuitBreaker();
 
-    if (!this.model) {
-      logger.warn('[GeminiClient] Model not initialized');
+    if (!this.genAI) {
+      logger.warn('[GeminiClient] Client not initialized');
       return null;
     }
 
@@ -360,12 +343,15 @@ class GeminiClient {
     // One attempt per model candidate: a retired/invalid model ID advances
     // the fallback chain instead of opening the circuit breaker.
     for (;;) {
-      const model = this.model;
-      if (!model) return null;
+      const genAI = this.genAI;
+      if (!genAI) return null;
       try {
-        const result = await model.generateContent(safePrompt);
-        const response = result.response;
-        const text = response.text();
+        const response = await genAI.models.generateContent({
+          model: this.getActiveModelId(),
+          contents: safePrompt,
+          config: { maxOutputTokens: 2048 },
+        });
+        const text = response.text;
 
         // Guard against empty/null model output before caching, so a transient
         // empty response is not cached and silently returned for future prompts
@@ -409,7 +395,7 @@ class GeminiClient {
   async testConnection(): Promise<{ success: boolean; message: string }> {
     this.checkCircuitBreaker();
 
-    if (!this.model) {
+    if (!this.genAI) {
       return { success: false, message: 'Client not initialized' };
     }
 
@@ -418,13 +404,15 @@ class GeminiClient {
     }
 
     for (;;) {
-      const model = this.model;
-      if (!model) return { success: false, message: 'Client not initialized' };
+      const genAI = this.genAI;
+      if (!genAI) return { success: false, message: 'Client not initialized' };
       try {
-        const result = await model.generateContent(
-          'Reply with exactly: "MillOS connection successful"'
-        );
-        const text = result.response.text();
+        const response = await genAI.models.generateContent({
+          model: this.getActiveModelId(),
+          contents: 'Reply with exactly: "MillOS connection successful"',
+          config: { maxOutputTokens: 64 },
+        });
+        const text = response.text ?? '';
 
         // Reset failures on a successful connection
         this.circuitBreaker.failures = 0;

@@ -1810,7 +1810,11 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
                           }}
                           labelStyle={{ color: '#e2e8f0' }}
                           itemStyle={{ color: '#cbd5e1' }}
-                          labelFormatter={(ts) => new Date(ts).toLocaleTimeString()}
+                          labelFormatter={(timestamp) =>
+                            typeof timestamp === 'string' || typeof timestamp === 'number'
+                              ? new Date(timestamp).toLocaleTimeString()
+                              : ''
+                          }
                           formatter={(value) => [
                             typeof value === 'number' ? value.toFixed(2) : String(value ?? ''),
                             '',

@@ -20,7 +20,8 @@ import { useProductionStore } from '../../stores/productionStore';
 import { encodeWorkersVCL, encodeMachinesVCL } from '../../utils/vclEncoder';
 import { logger } from '../../utils/logger';
 
-import { generateReasoningScaffolds, expandReasoningGuidance, encodeVCPMessage } from './index';
+import { generateReasoningScaffolds, expandReasoningGuidance } from './generators';
+import { encodeVCPMessage } from './encoder';
 
 import { usePatternStore } from './memory/patternStore';
 import { useOutcomeTracker } from './memory/outcomeTracker';

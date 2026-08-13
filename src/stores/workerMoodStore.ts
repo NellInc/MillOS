@@ -1433,6 +1433,9 @@ export function initWorkerMoodBASSubscription(): void {
 
 let flourishingStoreSubscribed = false;
 let flourishingStoreUnsubscribe: (() => void) | null = null;
+let workerMoodEffectsSubscribed = false;
+let workerMoodEffectsUnsubscribe: (() => void) | null = null;
+let isApplyingMoodEffects = false;
 // Cache previous scores to prevent circular update loops
 let previousFlourishingScores: Record<string, number> = {};
 // FIX: Use per-sync-cycle flag instead of global blocking flag
@@ -1502,6 +1505,53 @@ export function initWorkerMoodFlourishingSubscription(): void {
   flourishingStoreSubscribed = true;
 }
 
+/**
+ * Apply significant worker preference changes to flourishing without making
+ * flourishingStore import workerMoodStore. Keeping both directions here gives
+ * the integration one explicit owner and avoids a store module cycle.
+ */
+export function initWorkerMoodEffectsSubscription(): void {
+  if (workerMoodEffectsSubscribed) return;
+
+  const previousValues = new Map<string, { trust: number; initiative: number }>();
+  Object.entries(useWorkerMoodStore.getState().workerMoods).forEach(([workerId, mood]) => {
+    previousValues.set(workerId, {
+      trust: mood.preferences?.managementTrust ?? DEFAULT_WORKER_PREFERENCES.managementTrust,
+      initiative: mood.preferences?.initiative ?? DEFAULT_WORKER_PREFERENCES.initiative,
+    });
+  });
+
+  workerMoodEffectsUnsubscribe = useWorkerMoodStore.subscribe((state) => {
+    if (isApplyingMoodEffects) return;
+
+    Object.entries(state.workerMoods).forEach(([workerId, mood]) => {
+      const trust = mood.preferences?.managementTrust ?? DEFAULT_WORKER_PREFERENCES.managementTrust;
+      const initiative = mood.preferences?.initiative ?? DEFAULT_WORKER_PREFERENCES.initiative;
+      const previous = previousValues.get(workerId);
+
+      if (!previous) {
+        previousValues.set(workerId, { trust, initiative });
+        return;
+      }
+
+      const trustDelta = trust - previous.trust;
+      const initiativeDelta = initiative - previous.initiative;
+
+      if (Math.abs(trustDelta) >= 3 || Math.abs(initiativeDelta) >= 3) {
+        isApplyingMoodEffects = true;
+        try {
+          useFlourishingStore.getState().applyMoodEffects(workerId, trustDelta, initiativeDelta);
+        } finally {
+          isApplyingMoodEffects = false;
+        }
+        previousValues.set(workerId, { trust, initiative });
+      }
+    });
+  });
+
+  workerMoodEffectsSubscribed = true;
+}
+
 /** Cleanup function for testing and HMR - unsubscribes from all stores */
 export function cleanupWorkerMoodSubscriptions(): void {
   // FIX: Increment initialization IDs to cancel any in-flight async initializations
@@ -1516,8 +1566,14 @@ export function cleanupWorkerMoodSubscriptions(): void {
     flourishingStoreUnsubscribe();
     flourishingStoreUnsubscribe = null;
   }
+  if (workerMoodEffectsUnsubscribe) {
+    workerMoodEffectsUnsubscribe();
+    workerMoodEffectsUnsubscribe = null;
+  }
   basStoreSubscribed = false;
   flourishingStoreSubscribed = false;
+  workerMoodEffectsSubscribed = false;
+  isApplyingMoodEffects = false;
   // Reset sync state
   previousFlourishingScores = {};
   currentSyncCycleId = 0;
@@ -1532,6 +1588,7 @@ if (typeof window !== 'undefined') {
     initializationTimeoutId = null;
     initWorkerMoodBASSubscription();
     initWorkerMoodFlourishingSubscription();
+    initWorkerMoodEffectsSubscription();
   }, 150);
 }
 

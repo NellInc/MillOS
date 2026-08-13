@@ -125,28 +125,6 @@ export const ACTIVE_SHADER_CONTRACTS: readonly ActiveShaderContract[] = [
     fallbackMaterial: 'stock three fog chunks',
   },
   {
-    id: 'water-family',
-    owner: 'OptimizedExterior.WaterNetwork',
-    sources: ['src/components/exterior/OptimizedExterior.tsx'],
-    coordinateSpaces: ['object UV', 'world position', 'world normal', 'view direction'],
-    colorSpace: 'linear uniforms to Three.js output color space',
-    toneMapping: 'three-chunk',
-    fog: 'three-chunk',
-    transparency: 'alpha',
-    depthBehavior: 'depthTest true, depthWrite false, named water render order',
-    qualityVariants: ['low', 'medium'],
-    uniformOwner: 'WaterNetwork memoized preset materials',
-    timeSource: 'simulation',
-    cacheKey: 'millos-water-family-v3',
-    disposalOwner: 'WaterNetwork cleanup effect',
-    fallbackMaterial: 'opaque calibrated water body color',
-  },
-  {
-    // Registered in the DEFECT 2 sweep. This is a SECOND live water family,
-    // distinct from `water-family` above: `FactoryExterior` is lazily mounted by
-    // MillScene alongside `OptimizedExterior`, so both programs can be resident
-    // in the same frame. See the note in UNCONTRACTED_SHADER_SITES about which
-    // camera this lands under.
     id: 'authored-exterior-water',
     owner: 'FactoryExterior.AnimatedWater',
     sources: ['src/components/FactoryExterior.tsx'],
@@ -180,7 +158,7 @@ export const ACTIVE_SHADER_CONTRACTS: readonly ActiveShaderContract[] = [
     qualityVariants: ['high', 'ultra'],
     uniformOwner: 'TerrainMaterial stable uniform refs',
     timeSource: 'none',
-    cacheKey: 'terrain_v10_{disp|nodisp}',
+    cacheKey: 'terrain_v11_{disp|nodisp}',
     disposalOwner: 'TerrainMaterial cleanup effect',
     fallbackMaterial: 'calibrated grass MeshStandardMaterial',
   },
@@ -355,40 +333,6 @@ export const ACTIVE_SHADER_CONTRACTS: readonly ActiveShaderContract[] = [
     fallbackMaterial: 'static LineBasicMaterial',
   },
   {
-    id: 'machine-heat-shimmer',
-    owner: 'VisualEffects.HeatShimmer',
-    sources: ['src/components/machines/VisualEffects.tsx'],
-    coordinateSpaces: ['object UV'],
-    colorSpace: 'linear effect color to Three.js output color space',
-    toneMapping: 'disabled-emissive',
-    fog: 'none',
-    transparency: 'alpha',
-    depthBehavior: 'depthTest true, depthWrite false',
-    qualityVariants: ['medium', 'high', 'ultra'],
-    uniformOwner: 'HeatShimmer mounted material and shader registry',
-    timeSource: 'render-visual-only',
-    cacheKey: 'millos-heat-shimmer-v2',
-    disposalOwner: 'HeatShimmer cleanup effect',
-    fallbackMaterial: 'feature hidden',
-  },
-  {
-    id: 'detailed-atmosphere-family',
-    owner: 'SkySystem',
-    sources: ['src/components/SkySystem.tsx'],
-    coordinateSpaces: ['sky direction', 'world position', 'object UV'],
-    colorSpace: 'shader-specific linear values through audited Three.js output',
-    toneMapping: 'three-chunk',
-    fog: 'material-pipeline',
-    transparency: 'alpha',
-    depthBehavior: 'camera-centred sky with explicit depth writes and named transparent layers',
-    qualityVariants: ['high', 'ultra'],
-    uniformOwner: 'SkySystem memoized materials',
-    timeSource: 'simulation',
-    cacheKey: 'three-source-default',
-    disposalOwner: 'SkySystem component lifetime',
-    fallbackMaterial: 'OptimizedSkySystem',
-  },
-  {
     id: 'blueprint-wireframe',
     owner: 'blueprint.WireframeOverlay',
     sources: ['src/components/blueprint/WireframeOverlay.tsx'],
@@ -494,23 +438,6 @@ export interface UncontractedShaderSite {
  * `scripts/validate-shaders.mjs` requires each of these paths to still contain
  * a shader definition site, so an entry cannot rot into a permanent mute after
  * the code it excused has been deleted. Removing the file is always preferred
- * over adding an entry here; these three are recorded rather than deleted
- * because deleting them belongs to the agents who own those trees.
+ * over adding an entry here. The active tree currently needs no exceptions.
  */
-export const UNCONTRACTED_SHADER_SITES: readonly UncontractedShaderSite[] = [
-  {
-    path: 'src/components/machines/StatusRing.tsx',
-    reason:
-      'Unreachable. Imported only by Instanced{Silos,RollerMills,Plansifters,Packers}.tsx, which are imported only by src/components/Machines.tsx, which nothing imports - statically or via the lazy import() chain in MillScene.tsx. MillScene renders machines through CompactMachines instead, whose only ring is an opaque structural stiffener band. The former `machine-status-ring` contract described this file and was removed. Delete the tree to clear this entry.',
-  },
-  {
-    path: 'src/components/conveyors/CompactConveyorSystem.tsx',
-    reason:
-      'Unreachable. No file in src/ references it, statically or dynamically; MillScene lazily imports src/components/ConveyorSystem.tsx, which has no custom shader at all. The former `compact-conveyor-belt` contract named this file and was removed - it could not be repointed because the live conveyor has no shader family to point at.',
-  },
-  {
-    path: 'src/materials/generativeMaterials.ts',
-    reason:
-      'Unreachable. Re-exported by src/materials/index.ts, which nothing imports, and createPaintedMetalMaterial / createRustyMetalMaterial have no call sites outside that barrel. Both cache keys (paintedMetal_wear_v1, rustyMetal_v1) are stable, so this is dead weight rather than a hazard.',
-  },
-];
+export const UNCONTRACTED_SHADER_SITES: readonly UncontractedShaderSite[] = [];

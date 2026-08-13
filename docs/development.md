@@ -19,8 +19,8 @@ Development workflow, environment setup, and coding conventions for MillOS.
 ### Required Software
 
 | Software | Version | Purpose |
-|----------|---------|---------|
-| Node.js | 18+ | JavaScript runtime |
+| -------- | ------- | ------------------ |
+| Node.js  | 20+     | JavaScript runtime |
 | npm | 9+ | Package manager |
 | Git | 2.x | Version control |
 
@@ -49,14 +49,11 @@ cd MillOS
 npm install
 ```
 
-### 3. Environment Variables
+### 3. AI backends
 
-Create `.env.local` file:
+No Gemini key is read from a frontend environment file. For cloud inference, open the in-app Gemini settings and connect a Google API key for the current browser session. MillOS keeps that key in memory, clears it on reload or tab close, and never persists it.
 
-```bash
-# .env.local
-GEMINI_API_KEY=your_gemini_api_key_here
-```
+Without a key, heuristic mode remains available. A compatible browser and GPU can also run the optional local WebGPU model. Model weights may be browser-cached, while the runtime engine is reloaded for each session.
 
 ### 4. Start Development Server
 
@@ -73,10 +70,17 @@ Server runs at `http://localhost:3000`
 ### Available Scripts
 
 | Command | Description |
-|---------|-------------|
+| ------------------------- | --------------------------------------------------------- |
 | `npm run dev` | Start dev server on port 3000 |
 | `npm run build` | Create production build |
 | `npm run preview` | Preview production build |
+| `npm run typecheck`       | Typecheck production and test projects                    |
+| `npm run lint`            | Lint source, E2E, scripts, and configuration              |
+| `npm run format:check`    | Check maintained formatting                               |
+| `npm test`                | Run the complete Vitest suite                             |
+| `npm run test:coverage`   | Run coverage with repository floors                       |
+| `npm run test:e2e`        | Run serial Chromium journeys                              |
+| `npm run check:dead-code` | Check files, dependencies, unresolved imports, and cycles |
 
 ### Development Server
 
@@ -192,14 +196,15 @@ export const MyComponent: React.FC<MyComponentProps> = ({ title, onAction }) => 
 ```tsx
 // Bad
 const icon = '🚨';
-<span>{icon}</span>
+<span>{icon}</span>;
 
 // Good
 import { Siren } from 'lucide-react';
-<Siren className="w-5 h-5" />
+<Siren className="w-5 h-5" />;
 ```
 
 **Exception:** The mill emoji is permitted in these branding locations only:
+
 - `index.html` - Favicon and loading screen
 - `UIOverlay.tsx` - Top-left header logo
 
@@ -232,7 +237,7 @@ Use Tailwind CSS utility classes:
 ### Color Palette
 
 | Purpose | Color | Hex |
-|---------|-------|-----|
+| -------------- | --------- | ------- |
 | Background | Slate 950 | #0a0f1a |
 | Surface | Slate 900 | #0f172a |
 | Border | Slate 700 | #334155 |
@@ -250,14 +255,16 @@ Use Tailwind CSS utility classes:
 ### Adding a New Machine Type
 
 1. **Define type** in `types.ts`:
+
 ```typescript
 export enum MachineType {
   // existing types...
-  NEW_MACHINE = 'NEW_MACHINE'
+  NEW_MACHINE = 'NEW_MACHINE',
 }
 ```
 
 2. **Add geometry** in `Machines.tsx`:
+
 ```typescript
 case MachineType.NEW_MACHINE:
   return (
@@ -268,6 +275,7 @@ case MachineType.NEW_MACHINE:
 ```
 
 3. **Add sound** in `audioManager.ts`:
+
 ```typescript
 playNewMachineSound(machineId: string) {
   // Sound implementation
@@ -275,6 +283,7 @@ playNewMachineSound(machineId: string) {
 ```
 
 4. **Add to scene** in `MillScene.tsx`:
+
 ```typescript
 _machines.push({
   id: 'new-machine-1',
@@ -286,11 +295,13 @@ _machines.push({
 ### Adding a New Worker Role
 
 1. **Update type** in `types.ts`:
+
 ```typescript
 role: 'Operator' | 'Engineer' | ... | 'NewRole';
 ```
 
 2. **Add appearance** in `WorkerSystem.tsx`:
+
 ```typescript
 case 'NewRole':
   return {
@@ -301,6 +312,7 @@ case 'NewRole':
 ```
 
 3. **Add to roster** in `types.ts`:
+
 ```typescript
 WORKER_ROSTER.push({
   id: 'w11',
@@ -313,6 +325,7 @@ WORKER_ROSTER.push({
 ### Adding a New Sound
 
 1. **Add method** to `AudioManager`:
+
 ```typescript
 playNewSound() {
   if (this.getEffectiveVolume() === 0) return;
@@ -328,6 +341,7 @@ playNewSound() {
 ```
 
 2. **Call from component**:
+
 ```typescript
 import { audioManager } from '../utils/audioManager';
 audioManager.playNewSound();
@@ -340,6 +354,7 @@ audioManager.playNewSound();
 ### React DevTools
 
 Install browser extension for:
+
 - Component hierarchy inspection
 - Props and state viewing
 - Performance profiling
@@ -394,7 +409,7 @@ useFrame((state) => {
 ### Common Issues
 
 | Issue | Solution |
-|-------|----------|
+| ----------------- | --------------------------------------- |
 | Audio not playing | Click/interact first (Web Audio policy) |
 | Black screen | Check console for WebGL errors |
 | Slow performance | Reduce `dpr` or particle count |

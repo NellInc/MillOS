@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Dock, DockMode } from './dock/Dock';
+import { Dock } from './dock/Dock';
+import type { DockMode } from './dock/types';
 import { ContextSidebar } from './sidebar/ContextSidebar';
 import { StatusHUD } from './hud/StatusHUD';
 import { EmergencyOverlay } from '../EmergencyOverlay';

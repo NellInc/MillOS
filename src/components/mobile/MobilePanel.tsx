@@ -26,7 +26,7 @@ import {
   Siren,
   Heart,
 } from 'lucide-react';
-import type { DockMode } from '../ui-new/dock/Dock';
+import type { DockMode } from '../ui-new/dock/types';
 import { useProductionStore } from '../../stores/productionStore';
 import { useUIStore } from '../../stores/uiStore';
 import { useMultiplayerStore } from '../../stores/multiplayerStore';

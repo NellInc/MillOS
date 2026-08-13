@@ -15,7 +15,7 @@ import {
   Info,
   ArrowRight,
 } from 'lucide-react';
-import { DockMode } from '../dock/Dock';
+import type { DockMode } from '../dock/types';
 import { MachineData, WorkerData } from '../../../types';
 import { AboutModal } from '../../AboutModal';
 import pkg from '../../../../package.json';

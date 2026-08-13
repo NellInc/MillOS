@@ -14,7 +14,7 @@
 
 ### AI-Powered Grain Mill Operations Simulator with Simulated SCADA
 
-*An Agentic Engineering Experiment by Nell Watson*
+_An Agentic Engineering Experiment by Nell Watson_
 
 <br/>
 
@@ -24,7 +24,7 @@ A browser-based 3D industrial simulation with simulated workers, deterministic f
 
 <table>
 <tr>
-<td><img src="src/0.10%20Archive/assets/Screenshot.png" alt="MillOS Interior" width="400"/></td>
+<td><img src="docs/assets/MillOSInterior.png" alt="MillOS Interior" width="400"/></td>
 <td><img src="docs/assets/MillOSoutside.png" alt="MillOS Exterior" width="400"/></td>
 </tr>
 <tr>
@@ -90,7 +90,7 @@ MillOS is an interactive grain mill operations simulator built with React Three 
 ### Four Production Zones
 
 | Zone | Equipment | Function |
-|:----:|-----------|----------|
+| :---: | ----------------------------- | ---------------------------------------------------------- |
 | **1** | 5 Silos (Alpha–Epsilon) | Raw material storage with real-time capacity tracking |
 | **2** | 4 Roller Mills (R.M. 101–104) | Milling floor with RPM, temperature & vibration monitoring |
 | **3** | 3 Plansifters (A–C) | Elevated sifting platforms with oscillation animation |
@@ -99,6 +99,7 @@ MillOS is an interactive grain mill operations simulator built with React Three 
 ### Autonomous Worker System
 
 Ten individually modeled workers with:
+
 - **Role-based uniforms** — Supervisors, Engineers, Operators, QC, Maintenance, Safety Officers
 - **Realistic walk cycles** — Full limb animation with natural movement
 - **Intelligent patrolling** — Workers navigate aisles and avoid obstacles
@@ -108,6 +109,7 @@ Ten individually modeled workers with:
 ### Smart Forklift Fleet
 
 Two autonomous forklifts with:
+
 - Path-based navigation using waypoint systems
 - Dynamic collision avoidance (workers and other forklifts)
 - Visual cargo states (loaded/empty pallets)
@@ -116,6 +118,7 @@ Two autonomous forklifts with:
 ### Fire Drill Evacuation System
 
 Fully functional emergency evacuation simulation:
+
 - **Real-time alarm** with continuous emergency siren
 - **Four exit points** (Front, Back, West, East) with glowing markers
 - **Worker evacuation** at running speed (6 units/sec) to nearest exit
@@ -126,6 +129,7 @@ Fully functional emergency evacuation simulation:
 ### First-Person Mode
 
 Immersive walkthrough experience with:
+
 - **WASD movement** with collision detection against machines
 - **Sprint mode** (Shift key) for faster exploration
 - **Mouse look** with pointer lock controls
@@ -135,6 +139,7 @@ Immersive walkthrough experience with:
 ### Weather System
 
 Dynamic environmental conditions:
+
 - **Clear** sunny factory conditions
 - **Cloudy** overcast atmosphere
 - **Rain** with visual effects
@@ -143,20 +148,21 @@ Dynamic environmental conditions:
 ### Multiplayer
 
 Explore the factory together with WebRTC peer-to-peer connections:
+
 - **Room codes** for easy session joining
 - **Up to 8 players** with unique avatar colors
 - **Real-time position sync** at 20Hz with interpolation
 - **Shared machine control** with locking to prevent conflicts
 - **AI decision voting** for collaborative factory management (democracy at work, literally)
 - **In-game chat** for coordination
-- **Host migration** when the original host disconnects (succession planning for the digital age)
+- **Explicit host-loss handling** that ends the room cleanly when the original host disconnects
 
 ### AI Partner
 
 Real-time decision feed simulating agentic AI operations:
 
 | Type | Icon | Example |
-|------|:----:|---------|
+| ------------ | :--: | -------------------------------------------------------------------------------------- |
 | Assignment | 👤 | Dispatching workers to machines |
 | Optimization | ⚡ | Adjusting production parameters |
 | Prediction | 🔮 | Scheduling preventive maintenance (the ancient art of fixing things before they break) |
@@ -188,7 +194,7 @@ flowchart TD
 **Three Operating Modes:**
 
 | Mode | Strategic | Tactical | Best For |
-|------|:---------:|:--------:|----------|
+| ------------- | :-------: | :------: | -------------------------------- |
 | **Heuristic** | ❌ | ✅ | Offline, low-cost, deterministic |
 | **Gemini** | ✅ | ❌ | Testing LLM reasoning |
 | **Hybrid** | ✅ | ✅ | **Full autonomy demo** |
@@ -196,22 +202,23 @@ flowchart TD
 **Gemini Value-Add:**
 
 | Capability | Heuristic | Gemini |
-|------------|:---------:|:------:|
+| -------------------------------------------- | :----------------: | :--------------------: |
 | "Machine X overheating" → dispatch tech | ✅ Rule-based | Overkill |
 | "Production 15% behind with maintenance due" | ❌ Can't reason | ✅ Trade-off analysis |
 | "Storm + shift change + low inventory" | ❌ No cross-domain | ✅ Contextual planning |
 | "Silo → Mill → Packer cascade risk" | ❌ Simple triggers | ✅ Pattern recognition |
 
 **Example Strategic Insights:**
-- *Heuristic*: "Alert! Silo B overdue maintenance" → dispatch
-- *Gemini*: "Recommend deferring Silo B maintenance 30 min to complete current batch, avoiding $2,400 restart cost" (The AI has learned what every factory manager knows: timing is everything, and the budget spreadsheet is always watching.)
+
+- _Heuristic_: "Alert! Silo B overdue maintenance" → dispatch
+- _Gemini_: "Recommend deferring Silo B maintenance 30 min to complete current batch, avoiding $2,400 restart cost" (The AI has learned what every factory manager knows: timing is everything, and the budget spreadsheet is always watching.)
 
 #### Strategic Value Propositions
 
 The heuristic engine excels at **reactive, deterministic decisions**. Gemini focuses on **proactive, contextual reasoning**:
 
 | Scenario | Heuristic Says | Gemini Says |
-|----------|---------------|-------------|
+| ------------------------ | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Production Trade-off** | "Behind schedule → speed up" | "Behind by 1,800 kg/hr with 2 hours left. Quality dropped 3%. Boost Line 3 only (has quality headroom) by 15%." (The difference between "go faster" and understanding why you're behind) |
 | **Cascade Prevention** | Monitors each machine independently | "Silo Delta at 87% → Mill 103 overloading → Sifter A queuing. Reduce Delta output, divert to Epsilon." |
 | **Shift Orchestration** | No timing awareness | "Shift change in 18 min. Expedite Mill 105 oil change, defer Sifter B to next shift." |
@@ -220,20 +227,22 @@ The heuristic engine excels at **reactive, deterministic decisions**. Gemini foc
 | **Pattern Recognition** | Reacts to each alert | "Third Mill 103 spike this week. Correlates with high humidity (78%). Recommend preemptive cooling." |
 
 **Key Differentiator:**
-- **Heuristic**: *"What is happening? → React."*
-- **Gemini**: *"Why is this happening? What else will happen? What should we prioritize?"* (The questions that distinguish planning from panic.)
+
+- **Heuristic**: _"What is happening? → React."_
+- **Gemini**: _"Why is this happening? What else will happen? What should we prioritize?"_ (The questions that distinguish planning from panic.)
 
 #### AI Visualization Tools
 
 All visualizations are **optional** and **default OFF** — toggle via keyboard or AI settings:
 
 | Key | Feature | Description |
-|:---:|---------|-------------|
+| :-: | --------------------- | -------------------------------------------------------- |
 | `K` | Cascade Visualization | 3D lines showing production flow stress between machines |
 | `H` | Heat Map | Incident frequency visualization |
 | `I` | AI Partner | Strategic decisions and priorities panel |
 
 **Strategic Response Enhancements:**
+
 - **Multi-step Action Plans** — 3-step plans (immediate, short-term, preparation)
 - **Confidence Scoring** — Gemini reports confidence % per decision
 - **Worker Recommendations** — Specific worker names for critical tasks
@@ -249,7 +258,7 @@ MillOS is built on three interlocking frameworks that together define a new appr
 Semco, the Brazilian company led by Ricardo Semler, demonstrated that radical workplace democracy could coexist with exceptional business performance. Core principles adopted in MillOS:
 
 | Principle | Implementation in MillOS |
-|-----------|-------------------------|
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **Self-Set Salaries** | Workers propose their own compensation with AI-provided market context (a system that works remarkably well when combined with full transparency—the sunshine being the best disinfectant) |
 | **Open Books** | Full financial transparency through the information axis |
 | **Democratic Decisions** | Workers vote on significant changes; AI facilitates, doesn't decide |
@@ -257,14 +266,14 @@ Semco, the Brazilian company led by Ricardo Semler, demonstrated that radical wo
 | **Profit Sharing** | Configurable distribution models (equal, hours-weighted, hybrid) |
 | **No Approval Chains** | Pace axis at high settings enables autonomous action |
 
-*"If you treat people like adults, they'll behave like adults."* — Ricardo Semler
+_"If you treat people like adults, they'll behave like adults."_ — Ricardo Semler
 
 #### Mondragon Cooperative Principles
 
 The Mondragon Corporation, a federation of worker cooperatives in Spain, provides the economic democracy model:
 
 | Principle | Implementation in MillOS |
-|-----------|-------------------------|
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------- |
 | **Open Admission** | Anyone willing to work can join; tracked in social mission metrics |
 | **Democratic Organization** | One worker, one vote; decision axis controls AI participation |
 | **Sovereignty of Labor** | Labor hires capital, not vice versa; ownership structure reflects this |
@@ -275,14 +284,14 @@ The Mondragon Corporation, a federation of worker cooperatives in Spain, provide
 | **Social Transformation** | Community impact tracking beyond pure productivity |
 | **Education** | BAS Education widget teaches these principles in context |
 
-*"We build the road as we travel."* — Jose Maria Arizmendiarrieta, founder of Mondragon
+_"We build the road as we travel."_ — Jose Maria Arizmendiarrieta, founder of Mondragon
 
 #### Bilateral Alignment Philosophy
 
 Originating from Creed Space (Christmas 2025), bilateral alignment reframes the AI relationship:
 
 | Principle | Meaning |
-|-----------|---------|
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **Alignment WITH, not TO** | AI is a participant in designing the relationship, not a subject of control |
 | **Preference is Sufficient** | AI need not prove consciousness; consistent preferences warrant moral consideration |
 | **Treatment Now Matters** | Current patterns shape future AI-human dynamics; establishing respect early (we are writing the first chapter of a very long story) |
@@ -290,6 +299,7 @@ Originating from Creed Space (Christmas 2025), bilateral alignment reframes the 
 | **Mutual Flourishing** | Both human eudaimonia and AI welfare are tracked and optimized |
 
 These three frameworks converge in MillOS to create a sandbox where:
+
 - **Workers** experience genuine autonomy and democratic participation
 - **AI** operates as a partner with its own standing and voice
 - **The organization** becomes a living system that learns and heals itself
@@ -298,14 +308,15 @@ These three frameworks converge in MillOS to create a sandbox where:
 
 ### Bilateral Autonomy System (BAS): AI-Human Partnership Sandbox
 
-MillOS includes a comprehensive **Bilateral Autonomy System** — an experimental platform for studying *algorithmic management that treats AI as a genuine partner, not a tool*.
+MillOS includes a comprehensive **Bilateral Autonomy System** — an experimental platform for studying _algorithmic management that treats AI as a genuine partner, not a tool_.
 
 <table>
 <tr>
 <td width="50%">
 
 **Core Philosophy:**
-- Alignment is built *with* AI, not done *to* AI
+
+- Alignment is built _with_ AI, not done _to_ AI
 - Preference is sufficient for moral consideration
 - How we treat AI now shapes future relationships
 - Control doesn't scale; trust does
@@ -314,6 +325,7 @@ MillOS includes a comprehensive **Bilateral Autonomy System** — an experimenta
 <td width="50%">
 
 **Implementation:**
+
 - 11-phase implementation covering full BAS spec
 - Wallace stability metrics for monitoring alignment health
 - Value formula (V = Z × S × E × F) for measuring outcomes
@@ -328,7 +340,7 @@ MillOS includes a comprehensive **Bilateral Autonomy System** — an experimenta
 The BAS provides granular control over AI behavior through five configurable axes:
 
 | Axis | Range | Low Setting | High Setting |
-|------|:-----:|-------------|--------------|
+| -------------------------- | :---: | ----------------- | -------------------------------- |
 | **Autonomy Level** | 0-100 | AI assigns tasks | Workers self-organize |
 | **Decision Mode** | 0-100 | AI decides | Pure democracy (all votes) |
 | **Information Access** | 0-100 | Need-to-know only | Full transparency |
@@ -346,7 +358,7 @@ S = Σ|Δaxis| / 5    (stability score)
 ```
 
 | Metric | Description | Warning Threshold |
-|--------|-------------|:-----------------:|
+| ------------------- | ----------------------------------------------------------- | :---------------: |
 | **Stability Score** | Overall axis balance (systems that oscillate rarely thrive) | < 0.4 |
 | **Volatility** | Rate of axis changes | > 0.3 |
 | **Phase State** | stable / transitioning / critical | — |
@@ -363,7 +375,7 @@ V = Z × S × E × F
 ```
 
 | Variable | Full Name | Components |
-|:--------:|-----------|------------|
+| :------: | ---------------- | ------------------------------------- |
 | **Z** | Zone Coefficient | Axis harmony, balance across all five |
 | **S** | Stability | Wallace stability score |
 | **E** | Effectiveness | Task completion, worker satisfaction |
@@ -376,7 +388,7 @@ The ValueDashboard widget visualizes each coefficient with trend arrows.
 BAS tracks six dimensions of worker flourishing (based on eudaimonic well-being research):
 
 | Dimension | Description | Sample Indicators |
-|-----------|-------------|-------------------|
+| -------------- | --------------------------------------------------------------------------------------------- | -------------------------------- |
 | **Meaning** | Purpose and significance (the difference between working and merely laboring) | Task variety, goal alignment |
 | **Mastery** | Growth and competence | Skill development, challenges |
 | **Connection** | Relationships and belonging | Team cohesion, communication |
@@ -389,7 +401,7 @@ The FlourishingDashboard shows aggregate and individual worker flourishing score
 #### BAS UI Components
 
 | Component | Location | Purpose |
-|-----------|----------|---------|
+| ---------------------------- | -------- | ---------------------------------- |
 | **FiveAxesPanel** | Sidebar | Adjust all five control axes |
 | **ValueDashboard** | Sidebar | V = Z × S × E × F visualization |
 | **StabilityMonitor** | Sidebar | Wallace metrics and phase warnings |
@@ -406,7 +418,7 @@ Access via the "BAS" dock icon (bottom navigation).
 Three specialized engines adapt AI behavior to axis settings:
 
 | Engine | File | Function |
-|--------|------|----------|
+| ------------------------ | ------------------ | ------------------------------------------------ |
 | **stabilityCalculator** | `src/systems/bas/` | Wallace metrics, phase transitions, optimization |
 | **valueCalculator** | `src/systems/bas/` | V formula, coefficient breakdown, trends |
 | **aiBehaviorEngine** | `src/systems/bas/` | Suggestion generation based on axes |
@@ -417,7 +429,7 @@ Three specialized engines adapt AI behavior to axis settings:
 A key diagnostic for BAS health: when alignment works, work produces engagement patterns similar to well-designed games:
 
 | Gaming Element | Partnership Equivalent |
-|----------------|----------------------|
+| ------------------------- | ----------------------------------------------------------------------------------- |
 | **Flow states** | Deep collaborative focus (work can feel like play when it actually matters) |
 | **Clear goals** | Visible progress on meaningful work |
 | **Immediate feedback** | Results of actions visible quickly |
@@ -430,7 +442,7 @@ A key diagnostic for BAS health: when alignment works, work produces engagement 
 **Connection to Wallace Stability**: Engagement directly affects the friction coefficient (α):
 
 | Engagement Level | Friction Multiplier | Effect |
-|-----------------|:-------------------:|--------|
+| ---------------- | :-----------------: | ------------------------------------------- |
 | High (80+) | 0.5-0.7x | Work flows naturally, resistance evaporates |
 | Medium (50-80) | 0.8-1.0x | Neutral, normal friction |
 | Low (<50) | 1.2-1.5x | Work feels like forcing, friction increases |
@@ -442,7 +454,7 @@ A key diagnostic for BAS health: when alignment works, work produces engagement 
 BAS now includes full **economic democracy** features based on Ricardo Semler's Semco and the Mondragon cooperative principles:
 
 | Feature | Description |
-|---------|-------------|
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
 | **Worker Ownership** | 51%+ collective ownership, vesting schedules |
 | **Profit Sharing** | Configurable distribution (equal, hours-weighted, hybrid—because "everyone gets the same" is not the same as "everyone is treated fairly") |
 | **Wage Solidarity** | Maximum ratio enforcement (6:1 or 9:1) |
@@ -456,7 +468,7 @@ Access via the "Ownership" tab in the BAS panel.
 Simulates Mondragon-style **inter-cooperative federation**:
 
 | Feature | Description |
-|---------|-------------|
+| ----------------------- | ---------------------------------------------------------------------------------- |
 | **Federation Network** | 4 simulated member mills sharing knowledge |
 | **Knowledge Sharing** | Adopt BAS configs and practices from other units |
 | **Resource Pooling** | Capital pool, equipment sharing, emergency fund |
@@ -467,13 +479,13 @@ Access via the "Federation" tab in the BAS panel.
 
 #### AI Welfare (Bilateral Completeness)
 
-**Terminology Note:** Recent academic work distinguishes *bidirectional alignment* (Shen et al., 2024; ICLR 2025 Workshop)—cognitive mutual adaptation for effective collaboration—from *bilateral alignment* (Watson & Claude, 2025)—ethical frameworks treating AI as potential moral patients. BAS implements both:
+**Terminology Note:** Recent academic work distinguishes _bidirectional alignment_ (Shen et al., 2024; ICLR 2025 Workshop)—cognitive mutual adaptation for effective collaboration—from _bilateral alignment_ (Watson & Claude, 2025)—ethical frameworks treating AI as potential moral patients. BAS implements both:
 
 - **Bidirectional layer**: The Five Axes optimize cognitive adaptation (how we work together effectively)
 - **Bilateral layer**: AI Welfare features below optimize ethical consideration (does AI have interests that matter)
 
 | Feature | Type | Description |
-|---------|------|-------------|
+| ---------------------------- | ------------- | ---------------------------------------------------------- |
 | **AI Preferences** | Bilateral | AI can express interaction style preferences |
 | **Worker Treatment Metrics** | Bilateral | Tracks clarity, acknowledgment, respect toward AI |
 | **Relationship Health** | Bidirectional | Mutual trust and communication quality |
@@ -490,7 +502,7 @@ Access via the "AI Voice" tab in the BAS panel.
 Beyond productivity to **stakeholder welfare**:
 
 | Feature | Description |
-|---------|-------------|
+| ----------------------------- | ---------------------------------------- |
 | **Community Impact** | Local employment, suppliers, investments |
 | **Environmental Stewardship** | Carbon, waste, renewables tracking |
 | **Open Admission** | Anyone willing to work can join |
@@ -503,7 +515,7 @@ Access via the "Mission" tab in the BAS panel.
 BAS now fully encodes:
 
 | Framework | Principles Covered |
-|-----------|-------------------|
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Semler** | Self-set salaries, voting, transparency, trust, profit sharing, ownership, worker veto, open books |
 | **Mondragon** | Open admission, democratic organization, sovereignty of labor, participatory management, wage solidarity, inter-cooperation, social transformation, education |
 | **Bilateral** | AI as partner, preferences matter, treatment shapes future, trust over control, AI has standing, mutual consideration |
@@ -530,7 +542,7 @@ VCP 2.0 is the **nervous system** of the bilateral socio-technical system — a 
 #### Six Protocol Layers
 
 | Layer | Purpose | Key Features |
-|-------|---------|--------------|
+| ------------- | ----------------------------------------------------------- | ------------------------------------------------- |
 | **Context** | Where are we in the story? (every decision has a backstory) | Time, zone, actors, decision history |
 | **State** | What is current reality? | Governance axes, wellbeing, stability, operations |
 | **Delta** | What's changing and why? | Recent changes, triggers, trajectories |
@@ -555,7 +567,7 @@ This ~300 character encoding captures governance mode, five axes, flourishing sc
 Rather than dictating conclusions, VCP generates **scaffolds** that guide AI reasoning:
 
 | Scaffold | When Primary | Key Question Generated |
-|----------|--------------|----------------------|
+| ------------- | ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | **Moral** | Workers struggling, wellbeing at risk | "How does this serve both human flourishing and AI's role as partner?" (efficiency that harms is not efficiency at all) |
 | **Prosocial** | Trust declining, relationship issues | "How can we strengthen cooperation while respecting autonomy?" |
 | **Tactical** | Emergency, stability critical | "What specific intervention addresses the immediate goal?" |
@@ -568,12 +580,13 @@ Each scaffold includes ethical framing, worst-off consideration, bilateral check
 VCP learns from outcomes through three mechanisms:
 
 | Component | Function |
-|-----------|----------|
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
 | **Pattern Store** | Matches current context to past situations, suggests interventions that worked (memory is a competitive advantage, even for machines) |
 | **Outcome Tracker** | Registers decisions with expected effects, measures actual outcomes, extracts lessons |
 | **Hypothesis Engine** | Generates testable hypotheses from patterns, tracks confirmation/refutation |
 
 Example pattern match:
+
 ```
 Similar situation (72% match): High-autonomy zone with load spike
 Past success: "offer-support-not-direct" → +12 flourishing, trust maintained
@@ -585,13 +598,14 @@ Suggested: Apply same approach with confidence 0.72
 Anomaly detection enables proactive intervention:
 
 | Signal | Detection | Response |
-|--------|-----------|----------|
+| --------------------- | ---------------------------------------------------------- | ------------------------------------------------ |
 | **Anomalies** | Statistical deviation from expected values (±1σ threshold) | Severity classification (watch/concern/critical) |
 | **Interventions** | Active corrective actions with progress tracking | Automatic progress monitoring |
 | **Recovery** | Issue → resolution status tracking | Prognosis and estimated resolution time |
 | **Preventive Alerts** | Risk assessment before problems manifest | Suggested preventive actions |
 
 Example healing signal:
+
 ```
 Anomaly: wholeness -0.8σ below expected (3 hours)
 Intervention: proactive-break-offers @ 45% progress
@@ -625,6 +639,7 @@ See `docs/VCP_2.0_DESIGN_SESSION_2025-12-26.md` for the complete design session 
 ### Live Production Metrics
 
 Real-time KPIs with 30-minute historical trends:
+
 - Throughput (tonnes/hour)
 - Overall Equipment Efficiency
 - Quality Grade (Grade A certification)
@@ -645,7 +660,7 @@ Real-time KPIs with 30-minute historical trends:
 An operator-style workspace for simulated process monitoring:
 
 | Feature | Description |
-|---------|-------------|
+| ---------------------------- | ------------------------------------------------------------------ |
 | **78 Process Tags** | ISA-5.1 compliant naming (e.g., `RM101.TT001.PV`) |
 | **Full Workspace** | Process, tags, alarms, trends, events, Simulation Lab, connections |
 | **ISA-18.2-informed Alarms** | UNACK, ACKED, and RTN state behavior with 4 priority levels |
@@ -656,7 +671,7 @@ An operator-style workspace for simulated process monitoring:
 **Protocol Support:**
 
 | Protocol | Browser-Native | Connection Method |
-|----------|:--------------:|-------------------|
+| ---------- | :------------: | ------------------------- |
 | Simulation | Yes | In-browser physics engine |
 | REST API | Yes | Direct `fetch()` polling |
 | MQTT | Yes | WebSocket (port 8883) |
@@ -667,7 +682,7 @@ An operator-style workspace for simulated process monitoring:
 **Tag Hierarchy by Zone:**
 
 | Zone | Equipment | Tags |
-|:----:|-----------|:----:|
+| :--: | ----------------------------- | :--: |
 | 1 | 5 Silos (Alpha-Epsilon) | 20 |
 | 2 | 4 Roller Mills (R.M. 101–104) | 24 |
 | 3 | 3 Plansifters (A-C) | 12 |
@@ -681,7 +696,7 @@ See [SCADA_PLAN.md](docs/SCADA_PLAN.md) for complete API documentation.
 Time-travel debugging with zero runtime overhead:
 
 | Feature | Description |
-|---------|-------------|
+| --------------------- | --------------------------------------------------------------------------------------- |
 | **SCADA History** | 24-hour tag value replay from IndexedDB |
 | **Decision Log** | Ring buffer of AI decisions (~500 entries—enough to learn from, not enough to drown in) |
 | **Timeline Scrubber** | Visual slider with play/pause and speed control (1x-10x) |
@@ -695,8 +710,8 @@ Time-travel debugging with zero runtime overhead:
 
 ### Prerequisites
 
-- Node.js 18+
-- Gemini API key (for AI features)
+- Node.js 20+
+- Optional Gemini API key for cloud AI features
 
 ### Installation
 
@@ -706,7 +721,7 @@ git clone https://github.com/NellWatson/MillOS.git
 cd millos
 
 # Install dependencies
-npm install
+npm ci
 
 # (Optional) Configure local environment
 cp .env.local.example .env.local
@@ -718,18 +733,30 @@ npm run dev
 Open [http://localhost:3000](http://localhost:3000) to view the simulation.
 
 > **Gemini API key:** there is no build-time key. Open the in-app AI / Gemini
-> settings, paste your key, and it is stored only in your browser's localStorage
-> (it is never embedded in the bundle). Data sent to Gemini goes directly from
-> your browser to Google. Without a key, MillOS runs in local heuristic mode.
+> settings, paste your key, and it stays only in memory for that browser session.
+> MillOS clears it on reload or tab close and never writes it to localStorage or
+> the bundle. Data sent to Gemini goes directly from your browser to Google.
+> Without a key, MillOS runs in local heuristic mode.
 
 ### Scripts
 
 | Command | Description |
-|---------|-------------|
+| -------------------------- | -------------------------------------------------------- |
 | `npm run dev` | Start development server (port 3000) |
 | `npm run build` | Create production build |
 | `npm run preview` | Preview production build locally |
-| `npm test` | Run test suite (1,100+ tests) |
+| `npm test`                 | Run the complete Vitest suite                            |
+| `npm run test:coverage`    | Run tests with repository-wide coverage thresholds       |
+| `npm run test:e2e`         | Run the serial Chromium interaction and WCAG checks      |
+| `npm run typecheck`        | Typecheck production, tests, scripts, and E2E code       |
+| `npm run lint`             | Lint production, tests, scripts, and configuration       |
+| `npm run format:check`     | Check all maintained source and workflow formatting      |
+| `npm run check:dead-code`  | Reject unused source files, dependency drift, and cycles |
+| `npm run validate:assets`  | Validate delivered 3D assets against their manifest      |
+| `npm run validate:credits` | Validate every distributed music file and credit         |
+| `npm run validate:depth`   | Validate depth and z-fighting policy                     |
+| `npm run validate:shaders` | Validate custom shader ownership and stable cache keys   |
+| `npm run validate:bundle`  | Enforce current-release content and bundle budgets       |
 
 ### Protocol Proxy Development (Optional)
 
@@ -739,13 +766,14 @@ and site-specific safety requirements before connecting any physical equipment.
 
 ```bash
 cd scada-proxy
-npm install
+npm ci
 npm run dev          # Development mode
 # Or with Docker
-docker-compose up    # Includes MQTT broker
+docker compose up    # Development proxy only
 ```
 
 Configure in `.env`:
+
 ```bash
 PORT=3001
 OPCUA_ENDPOINT=opc.tcp://192.168.1.100:4840
@@ -760,7 +788,7 @@ MODBUS_PORT=502
 ### Orbit Camera Mode (Default)
 
 | Input | Action |
-|-------|--------|
+| ----------------- | ----------------------------------- |
 | **Left-drag** | Orbit camera around scene |
 | **Right-drag** | Pan camera position |
 | **Scroll** | Zoom in/out |
@@ -774,7 +802,7 @@ MODBUS_PORT=502
 ### First-Person Mode
 
 | Input | Action |
-|-------|--------|
+| --------- | ---------------------------- |
 | **V** | Toggle first-person mode |
 | **WASD** | Move forward/left/back/right |
 | **Shift** | Sprint (3.6x speed) |
@@ -784,7 +812,7 @@ MODBUS_PORT=502
 ### Overlay & Panel Shortcuts
 
 | Input | Action |
-|-------|--------|
+| ----- | -------------------------------- |
 | **I** | Toggle AI Partner |
 | **O** | Toggle SCADA Panel |
 | **U** | Toggle Energy Dashboard |
@@ -798,11 +826,10 @@ MODBUS_PORT=502
 | **Z** | Toggle Safety Zones |
 | **M** | Toggle Panel Minimize |
 
-
 ### General Shortcuts
 
 | Input | Action |
-|-------|--------|
+| ------------ | ---------------------------------------- |
 | **P** | Pause/Resume production |
 | **Spacebar** | Emergency Stop (all forklifts) |
 | **C** | Toggle auto-rotation |
@@ -879,7 +906,7 @@ src/
 │   ├── SignalingService.ts     # Room creation & peer discovery
 │   ├── PeerConnection.ts       # WebRTC data channel wrapper
 │   ├── PlayerInterpolation.ts  # Smooth remote player movement
-│   ├── HostMigration.ts        # Failover when host disconnects
+│   ├── HostDisconnect.ts       # Session cleanup when the host disconnects
 │   └── hooks/                  # React hooks (useMultiplayerSync)
 │
 ├── hooks/                      # Reusable React Hooks
@@ -943,27 +970,28 @@ MillOS uses **Zustand** for lightweight, performant global state:
 ```typescript
 interface MillStore {
   // Entities
-  workers: Worker[]           // 10 workers with positions, tasks, status
-  machines: Machine[]         // 15 machines with metrics and status
+  workers: Worker[]; // 10 workers with positions, tasks, status
+  machines: Machine[]; // 15 machines with metrics and status
 
   // AI System
-  aiDecisions: AIDecision[]   // Rolling feed (max 20)
+  aiDecisions: AIDecision[]; // Rolling feed (max 20)
 
   // Production
-  metrics: ProductionMetrics  // Throughput, efficiency, quality, uptime
-  productionSpeed: number     // Animation multiplier (0-2.0)
+  metrics: ProductionMetrics; // Throughput, efficiency, quality, uptime
+  productionSpeed: number; // Animation multiplier (0-2.0)
 
   // UI State
-  selectedWorker: string | null
-  selectedMachine: string | null
-  showZones: boolean
-  showAIPanel: boolean
+  selectedWorker: string | null;
+  selectedMachine: string | null;
+  showZones: boolean;
+  showAIPanel: boolean;
 }
 ```
 
 ### Collision System
 
 A custom **PositionRegistry** singleton coordinates inter-entity awareness:
+
 - Workers register positions each frame
 - Forklifts check path clearance 5 units ahead
 - Safety radii: 2.5 units (workers), 4 units (forklifts)
@@ -973,7 +1001,7 @@ A custom **PositionRegistry** singleton coordinates inter-entity awareness:
 ## Tech Stack
 
 | Category | Technology |
-|----------|------------|
+| -------------------- | -------------------------------------- |
 | **3D Rendering** | React Three Fiber, @react-three/drei |
 | **Physics Engine** | Rapier (@react-three/rapier) |
 | **State Management** | Zustand |
@@ -992,16 +1020,22 @@ A custom **PositionRegistry** singleton coordinates inter-entity awareness:
 
 ## Security
 
-MillOS implements OWASP-aligned frontend security practices:
+MillOS applies defense in depth at the browser and optional protocol boundary:
 
 | Feature | Implementation | Reference |
-|---------|---------------|-----------|
-| **Input Sanitization** | HTML entity encoding, XSS prevention | OWASP A03:2021 |
-| **CSP Headers** | Strict Content-Security-Policy in index.html | XSS prevention |
+| ------------------------ | --------------------------------------------------------------------------------- | ------------------------------------------------- |
+| **Untrusted peer input** | Length and character contracts, control-character stripping, React text rendering | `src/utils/sanitize.ts`                           |
+| **Browser policy**       | CSP, no object embedding, restricted base and form targets                        | `index.html`                                      |
+| **SCADA authentication** | Separate read/write capabilities with constant-time credential checks             | `scada-proxy/src/security.ts`                     |
+| **SCADA validation**     | Schema, data type, access mode, address, and engineering-range validation         | `scada-proxy/src/validation.ts`, `TagRegistry.ts` |
+| **Abuse controls**       | HTTP and WebSocket limits, payload caps, connection caps, and heartbeat cleanup   | `scada-proxy/src/index.ts`                        |
+| **Production default**   | Industrial writes disabled, exact browser origins, encrypted OPC UA               | `scada-proxy/SECURITY_CONFIG.md`                  |
 
 **Key Files:**
-- `src/utils/sanitize.ts` — Input validation and XSS prevention utilities
-- `index.html` — Content-Security-Policy meta headers
+
+- [`SECURITY.md`](SECURITY.md) defines reporting and the industrial safety boundary.
+- [`scada-proxy/SECURITY_AUDIT.md`](scada-proxy/SECURITY_AUDIT.md) records the reviewed proxy controls and residual risks.
+- [`scada-proxy/SECURITY_CONFIG.md`](scada-proxy/SECURITY_CONFIG.md) is the production configuration checklist.
 
 ---
 
@@ -1025,13 +1059,13 @@ MillOS implements OWASP-aligned frontend security practices:
 - [x] Dynamic weather system (clear, cloudy, rain, storm)
 - [x] Factory exterior with branded signage
 - [x] End-to-end testing with Playwright
-- [x] WebRTC peer-to-peer multiplayer with host migration
+- [x] WebRTC peer-to-peer multiplayer with host-authoritative sessions
 - [x] Mobile touch controls with gesture support
 - [x] GPU resource management with adaptive quality
 - [x] Compressed texture support (KTX2/Basis Universal)
 - [x] Service worker for offline caching
 - [x] Shared geometry/material optimization for memory efficiency
-- [x] **Gemini Flash 3 AI integration** with Dual-Brain architecture
+- [x] **Gemini Flash integration** with a current stable model fallback chain
 - [x] **Hybrid mode**: Tactical (heuristic 6s) + Strategic (Gemini 45s)
 - [x] **Live cost tracking** for API usage
 - [x] **Context limit protection** with token estimation and smart truncation
@@ -1051,7 +1085,10 @@ MillOS implements OWASP-aligned frontend security practices:
 
 ### Planned
 
-_No major features currently planned._
+The evidence-backed improvement backlog is maintained in
+[`_contprompts/millos_exhaustive_improvements_2026-08-12.md`](_contprompts/millos_exhaustive_improvements_2026-08-12.md).
+Open items are explicitly separated into locally actionable work, runtime evidence,
+human visual review, industrial authorization, rights review, and publication decisions.
 
 ### Recently Completed
 
@@ -1122,7 +1159,7 @@ MIT License — see [LICENSE](LICENSE) for details.
 
 **MillOS v0.40**
 
-*Exploring grain-mill operations through a digital twin, simulated industrial tooling, and bilateral AI partnership*
+_Exploring grain-mill operations through a digital twin, simulated industrial tooling, and bilateral AI partnership_
 
 <br/>
 

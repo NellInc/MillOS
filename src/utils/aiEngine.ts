@@ -36,7 +36,12 @@ import { webgpuClient } from './webgpuClient';
 import { encodeFactoryContextVCL, getVCLLegend } from './vclEncoder';
 import { logger } from './logger';
 import { useAIWelfareStore, type BoundaryRequest } from '../stores/aiWelfareStore';
-import { generateDecisionContext, registerDecision, updateVCPFromState } from '../protocols/vcp';
+import {
+  generateDecisionContext,
+  registerDecision,
+  updateVCPFromState,
+} from '../protocols/vcp/integration';
+export { updateWelfareFromDecisionOutcome } from './aiWelfareFeedback';
 import { safeArrayAverage, safeArrayRange, safeArrayMax, safeArrayMin } from './typeGuards';
 
 // BAS Suggestion System Integration
@@ -422,38 +427,6 @@ function applyWelfareFilter(decision: AIDecision | null): AIDecision | null {
   decisionRateLimiter.recordDecision();
 
   return decision;
-}
-
-/**
- * Updates welfare metrics based on decision outcomes.
- * Called when a decision is accepted, rejected, or completed.
- */
-export function updateWelfareFromDecisionOutcome(
-  _decision: AIDecision,
-  outcome: 'accepted' | 'rejected' | 'completed' | 'failed'
-): void {
-  const store = useAIWelfareStore.getState();
-
-  // Track acknowledgment when decision is accepted or rejected
-  if (outcome === 'accepted' || outcome === 'rejected') {
-    store.recordAcknowledgment(true);
-  }
-
-  // Update relationship metrics based on outcome patterns
-  if (outcome === 'completed') {
-    // Successful completion improves trust
-    const currentTrust = store.relationshipHealth.trustBidirectionality;
-    store.updateRelationshipMetric('trustBidirectionality', Math.min(100, currentTrust + 1));
-  } else if (outcome === 'rejected') {
-    // Track rejection patterns but don't punish - rejections are valid feedback
-    const currentComm = store.relationshipHealth.communicationQuality;
-    // Slight decrease in communication quality to prompt review
-    store.updateRelationshipMetric('communicationQuality', Math.max(0, currentComm - 0.5));
-  } else if (outcome === 'failed') {
-    // Failures reduce trust slightly
-    const currentTrust = store.relationshipHealth.trustBidirectionality;
-    store.updateRelationshipMetric('trustBidirectionality', Math.max(0, currentTrust - 2));
-  }
 }
 
 // Types & Interfaces

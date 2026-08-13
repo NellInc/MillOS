@@ -29,9 +29,7 @@ import * as THREE from 'three';
 
 const SOURCE_ROOT = path.resolve(__dirname, '../..');
 
-// Archived snapshots are frozen copies of earlier releases pinned to older
-// three versions; their anchors are not a contract this build has to honour.
-const EXCLUDED_DIRECTORIES = new Set(['0.10 Archive', '__tests__', 'node_modules']);
+const EXCLUDED_DIRECTORIES = new Set(['__tests__', 'node_modules']);
 
 function collectSourceFiles(directory: string, accumulator: string[] = []): string[] {
   for (const entry of readdirSync(directory)) {

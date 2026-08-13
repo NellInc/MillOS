@@ -28,10 +28,9 @@ import type {
   WorkerFlourishing,
   FactoryFlourishing,
 } from '../types/bas';
-import { DEFAULT_WORKER_PREFERENCES, WORKER_ROSTER } from '../types';
+import { WORKER_ROSTER } from '../types';
 import { useBASStore } from './basStore';
 import { useProductionStore } from './productionStore';
-import { useWorkerMoodStore } from './workerMoodStore';
 
 // =============================================================================
 // DIMENSION DESCRIPTORS
@@ -699,68 +698,9 @@ export function cleanupFlourishingBASSubscription(): void {
   basAxisSubscribed = false;
 }
 
-// Worker Mood -> Flourishing subscription
-let flourishingMoodUnsubscribe: (() => void) | null = null;
-let flourishingMoodSubscribed = false;
-// Re-entrancy guard to break circular subscription loops
-let isApplyingMoodEffects = false;
-
-/** Initialize subscription to worker mood changes for flourishing effects */
-function initFlourishingWorkerMoodSubscription(): void {
-  if (flourishingMoodSubscribed) return;
-
-  const previousValues = new Map<string, { trust: number; initiative: number }>();
-
-  flourishingMoodUnsubscribe = useWorkerMoodStore.subscribe((state) => {
-    // Re-entrancy guard - break circular subscription loops
-    if (isApplyingMoodEffects) return;
-
-    const workers = state.workerMoods;
-
-    Object.entries(workers).forEach(([workerId, mood]) => {
-      const trust = mood.preferences?.managementTrust ?? DEFAULT_WORKER_PREFERENCES.managementTrust;
-      const initiative = mood.preferences?.initiative ?? DEFAULT_WORKER_PREFERENCES.initiative;
-
-      const prev = previousValues.get(workerId);
-      if (!prev) {
-        previousValues.set(workerId, { trust, initiative });
-        return;
-      }
-
-      const trustDelta = trust - prev.trust;
-      const initiativeDelta = initiative - prev.initiative;
-
-      // Only apply if significant change (>= 3 points)
-      if (Math.abs(trustDelta) >= 3 || Math.abs(initiativeDelta) >= 3) {
-        isApplyingMoodEffects = true;
-        try {
-          useFlourishingStore.getState().applyMoodEffects(workerId, trustDelta, initiativeDelta);
-        } finally {
-          isApplyingMoodEffects = false;
-        }
-        previousValues.set(workerId, { trust, initiative });
-      }
-    });
-  });
-
-  flourishingMoodSubscribed = true;
-}
-
-/** Cleanup function for worker mood subscription */
-export function cleanupFlourishingWorkerMoodSubscription(): void {
-  if (flourishingMoodUnsubscribe) {
-    flourishingMoodUnsubscribe();
-    flourishingMoodUnsubscribe = null;
-  }
-  flourishingMoodSubscribed = false;
-}
-
 // Initialize subscriptions on module load (after a short delay to allow stores to initialize)
 if (typeof window !== 'undefined') {
   setTimeout(() => {
     initFlourishingBASSubscription();
   }, 100);
-  setTimeout(() => {
-    initFlourishingWorkerMoodSubscription();
-  }, 200);
 }

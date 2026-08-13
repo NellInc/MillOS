@@ -768,7 +768,7 @@ export const useProductionStore = create<ProductionStore>()(
       // Wire AI welfare feedback loop - update welfare metrics on decision completion
       // FIX: Re-fetch decision from fresh state inside async callback to avoid stale closure
       if (decisionId && (status === 'completed' || status === 'superseded')) {
-        import('../utils/aiEngine')
+        import('../utils/aiWelfareFeedback')
           .then(({ updateWelfareFromDecisionOutcome }) => {
             // Get fresh decision state after async import resolves
             const freshDecision = get().aiDecisions.find((d) => d.id === decisionId);

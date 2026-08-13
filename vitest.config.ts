@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react-swc';
 import { resolve } from 'path';
 
 export default defineConfig({
-  plugins: [react() as any],
+  plugins: [react()],
   test: {
     globals: true,
     environment: 'jsdom',
@@ -13,34 +13,36 @@ export default defineConfig({
     fileParallelism: false,
     maxWorkers: 1,
     include: ['src/**/*.{test,spec}.{ts,tsx}'],
-    exclude: [
-      'node_modules',
-      'dist',
-      'scada-proxy',
-      'src/0.10 Archive/**',
-      'src/**/node_modules/**',
-    ],
+    exclude: ['node_modules', 'dist', 'scada-proxy', 'src/**/node_modules/**'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html', 'lcov'],
-      include: ['src/scada/**/*.ts'],
+      include: ['src/**/*.{ts,tsx}'],
       exclude: [
-        'src/scada/**/*.test.ts',
-        'src/scada/**/*.bench.ts',
-        'src/scada/index.ts'
-      ]
+        'src/**/*.{test,spec,bench}.{ts,tsx}',
+        'src/**/__tests__/**',
+        'src/test/**',
+        'src/**/*.d.ts',
+        'src/main.tsx',
+      ],
+      thresholds: {
+        branches: 15,
+        functions: 15,
+        lines: 15,
+        statements: 15,
+      },
     },
     benchmark: {
       include: ['src/**/*.bench.ts'],
       reporters: ['default'],
-      outputJson: 'benchmark-results.json'
+      outputJson: 'benchmark-results.json',
     },
     setupFiles: ['./src/test/setup.ts'],
-    testTimeout: 10000
+    testTimeout: 10000,
   },
   resolve: {
     alias: {
-      '@': resolve(__dirname, './src')
-    }
-  }
+      '@': resolve(__dirname, './src'),
+    },
+  },
 });

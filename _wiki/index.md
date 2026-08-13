@@ -3,9 +3,10 @@
 <!-- wiki:type = index -->
 <!-- wiki:scope = millos -->
 <!-- wiki:created = 2026-05-23 -->
-<!-- wiki:updated = 2026-05-23 -->
+<!-- wiki:updated = 2026-08-12 -->
 
 ## Systems
+
 - [[millos:systems/store-architecture]] — Domain stores, useMillStore backward-compat, BAS store groups (updated: 2026-05-23)
 - [[millos:systems/scada-layer]] — Adapter pattern, AlarmManager, HistoryStore, protocol adapters (updated: 2026-05-23)
 - [[millos:systems/scene-zones]] — 4-zone factory layout, 3D component hierarchy, z-fighting prevention (updated: 2026-05-23)
@@ -13,11 +14,13 @@
 - [[millos:systems/graphics-rendering]] — Quality presets, known bugs, Tailwind v4 CSS layer issue (updated: 2026-05-23)
 
 ## Flows
+
 - [[millos:flows/fire-drill-evacuation]] — START DRILL → worker pathfind → all-clear (updated: 2026-05-23)
 - [[millos:flows/scada-store-sync]] — Bidirectional Zustand↔SCADA sync at startup (updated: 2026-05-23)
 - [[millos:flows/production-pipeline]] — Silo → Roller Mill → Plansifter → Packer (updated: 2026-05-23)
 
 ## Domain
+
 - [[millos:domain/bilateral-autonomy-system]] — Five Axes of Democratic AI Management (updated: 2026-05-23)
 - [[millos:domain/flourishing-dimensions]] — Six eudaimonia dimensions, geometric mean aggregate (updated: 2026-05-23)
 - [[millos:domain/economic-democracy]] — Mondragon ownership, wage solidarity, investment voting (updated: 2026-05-23)
@@ -25,8 +28,9 @@
 - [[millos:domain/ai-welfare]] — AI preferences, voice, boundaries, worker treatment metrics (updated: 2026-05-23)
 
 ## Additional Systems
-- [[millos:systems/multiplayer-architecture]] — WebRTC/PeerJS co-op, room codes, host authority, MVP host migration (updated: 2026-05-23)
-- [[millos:systems/testing-infrastructure]] — Vitest unit, Playwright E2E, perf test scripts (updated: 2026-05-23)
+
+- [[millos:systems/multiplayer-architecture]] — Host-authoritative PeerJS co-op, validated message boundary, bounded queue, session end on host loss (updated: 2026-08-12)
+- [[millos:systems/testing-infrastructure]] — Serial Vitest and Playwright, static gates, candidate-bound runtime and art evidence (updated: 2026-08-12)
 - [[millos:systems/audio-system]] — AudioReactiveProvider, audioAnalyzerStore, spatial audio (updated: 2026-05-23)
 - [[millos:systems/build-deployment]] — Vite + Tailwind v4, CNAME static host, scada-proxy, build artifacts (updated: 2026-05-23)
 - [[millos:systems/worker-agent-system]] — WorkerInternalState, 5 personality traits, mood/personality Zustand stores, visual components, AutonomyIndicator (updated: 2026-05-23)

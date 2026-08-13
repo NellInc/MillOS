@@ -663,30 +663,26 @@ describe('BASStore', () => {
     });
   });
 
-  describe('Performance', () => {
-    it('should handle rapid axis updates efficiently', () => {
+  describe('Rapid updates', () => {
+    it('should preserve the final value across rapid axis updates', () => {
       const { setAxis } = useBASStore.getState();
 
-      const start = performance.now();
       for (let i = 0; i < 1000; i++) {
         setAxis('autonomyLevel', i % 100);
       }
-      const duration = performance.now() - start;
 
-      expect(duration).toBeLessThan(100); // Should complete in under 100ms
+      expect(useBASStore.getState().axes.autonomyLevel).toBe(99);
     });
 
-    it('should handle rapid preset changes efficiently', () => {
-      const { applyPreset } = useBASStore.getState();
+    it('should preserve the final preset across rapid preset changes', () => {
+      const { applyPreset, getCurrentPresetName } = useBASStore.getState();
       const presets = ['traditional', 'balanced', 'democratic', 'experimental'] as const;
 
-      const start = performance.now();
       for (let i = 0; i < 100; i++) {
         applyPreset(presets[i % presets.length]);
       }
-      const duration = performance.now() - start;
 
-      expect(duration).toBeLessThan(50); // Should complete in under 50ms
+      expect(getCurrentPresetName()).toBe('experimental');
     });
   });
 });

@@ -7,9 +7,19 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { encodeContextFrame, encodeStateSnapshot, encodeDeltaLayer } from '../encoder';
-import { decodeContextFrame, decodeStateSnapshot, decodeDeltaLayer } from '../decoder';
-import type { ContextFrame, StateSnapshot, DeltaLayer } from '../types';
+import {
+  encodeContextFrame,
+  encodeStateSnapshot,
+  encodeDeltaLayer,
+  encodeReasoningScaffolds,
+} from '../encoder';
+import {
+  decodeContextFrame,
+  decodeStateSnapshot,
+  decodeDeltaLayer,
+  decodeReasoningScaffolds,
+} from '../decoder';
+import type { ContextFrame, StateSnapshot, DeltaLayer, ReasoningScaffolds } from '../types';
 
 // =============================================================================
 // TEST FIXTURES
@@ -145,6 +155,42 @@ const createMockDelta = (): DeltaLayer => ({
   ],
   trajectories: [],
   netDirection: 'improving',
+});
+
+const createMockReasoning = (): ReasoningScaffolds => ({
+  primaryFocus: 'moral',
+  moral: {
+    primaryValue: 'growth',
+    flourishingFocus: 'mastery',
+    ethicalFrame: 'bilateral',
+    worstOffConsideration: 'worker',
+    bilateralCheck: 'preserve agency',
+    keyQuestion: 'What supports learning?',
+  },
+  prosocial: {
+    trustState: 'stable',
+    cooperationPattern: 'collaborative',
+    relationshipRisks: [],
+    mutualBenefit: 'shared competence',
+    communicationStyle: 'collaborative',
+    keyQuestion: 'What builds trust?',
+  },
+  tactical: {
+    immediateGoal: 'support learning',
+    constraints: [],
+    quickWins: [],
+    frictionSources: [],
+    actionType: 'support',
+    keyQuestion: 'What helps now?',
+  },
+  strategic: {
+    longTermFlourishing: 'durable skill',
+    stabilityImplications: 'positive',
+    learningOpportunity: 'practice',
+    systemEvolution: 'shared capability',
+    posture: 'consolidate',
+    keyQuestion: 'What should persist?',
+  },
 });
 
 // =============================================================================
@@ -302,6 +348,37 @@ describe('Delta Layer Encoding', () => {
 // =============================================================================
 
 describe('Encoding Roundtrip', () => {
+  it('preserves mastery as distinct from meaning in wellbeing state', () => {
+    const state = createMockState();
+    state.wellbeing.concernDimension = 'mastery';
+
+    const encoded = encodeStateSnapshot(state);
+    const decoded = decodeStateSnapshot(encoded);
+
+    expect(encoded).toContain('[WELL:F68↑|Y]');
+    expect(decoded?.wellbeing?.concernDimension).toBe('mastery');
+  });
+
+  it('preserves mastery as distinct from meaning in reasoning scaffolds', () => {
+    const reasoning = createMockReasoning();
+
+    const encoded = encodeReasoningScaffolds(reasoning);
+    const decoded = decodeReasoningScaffolds(encoded);
+
+    expect(encoded).toContain('[R:⚖Y|');
+    expect(decoded?.moral?.flourishingFocus).toBe('mastery');
+  });
+
+  it('continues to decode legacy M symbols as meaning', () => {
+    const legacyState = encodeStateSnapshot({
+      ...createMockState(),
+      wellbeing: { ...createMockState().wellbeing, concernDimension: 'mastery' },
+    }).replace('|Y]', '|M]');
+
+    expect(decodeStateSnapshot(legacyState)?.wellbeing?.concernDimension).toBe('meaning');
+    expect(decodeReasoningScaffolds('[R:⚖M|✓|?|→]')?.moral?.flourishingFocus).toBe('meaning');
+  });
+
   it('should preserve governance mode through roundtrip', () => {
     const state = createMockState();
     const encoded = encodeStateSnapshot(state);

@@ -7,6 +7,7 @@
 import { DataConnection } from 'peerjs';
 import { MultiplayerMessage } from './types';
 import { logger } from '../utils/logger';
+import { isValidMultiplayerMessage } from './messageValidation';
 
 export interface PeerConnectionCallbacks {
   onMessage: (message: MultiplayerMessage) => void;
@@ -16,6 +17,12 @@ export interface PeerConnectionCallbacks {
 
 // Timeout for stale connection detection (5 seconds without any message)
 const STALE_CONNECTION_TIMEOUT = 5000;
+export const MAX_PENDING_MULTIPLAYER_MESSAGES = 256;
+
+const COALESCIBLE_MESSAGE_TYPES = new Set<MultiplayerMessage['type']>([
+  'PLAYER_UPDATE',
+  'STATE_SYNC',
+]);
 
 export class PeerConnection {
   private connection: DataConnection;
@@ -49,15 +56,11 @@ export class PeerConnection {
       try {
         // PeerJS already deserialized the object; validate the shape of this
         // untrusted-peer payload before dispatching it to message handlers.
-        if (
-          !data ||
-          typeof data !== 'object' ||
-          typeof (data as { type?: unknown }).type !== 'string'
-        ) {
+        if (!isValidMultiplayerMessage(data)) {
           logger.multiplayer.warn('Dropped malformed message from peer', this.connection.peer);
           return;
         }
-        this.handleMessage(data as MultiplayerMessage);
+        this.handleMessage(data);
       } catch (err) {
         // Handler error (not a parse error) - log instead of swallowing silently
         logger.multiplayer.warn('Error handling peer message', err);
@@ -117,7 +120,22 @@ export class PeerConnection {
    */
   send(message: MultiplayerMessage): boolean {
     if (!this.isOpen) {
-      // Queue message for later
+      // Keep only the newest high-frequency state while opening. This prevents
+      // a slow handshake from replaying stale 20 Hz positions or 10 Hz state.
+      if (COALESCIBLE_MESSAGE_TYPES.has(message.type)) {
+        const existingIndex = this.messageQueue.findIndex((item) => item.type === message.type);
+        if (existingIndex >= 0) {
+          this.messageQueue[existingIndex] = message;
+          return false;
+        }
+      }
+
+      if (this.messageQueue.length >= MAX_PENDING_MULTIPLAYER_MESSAGES) {
+        const staleStateIndex = this.messageQueue.findIndex((item) =>
+          COALESCIBLE_MESSAGE_TYPES.has(item.type)
+        );
+        this.messageQueue.splice(staleStateIndex >= 0 ? staleStateIndex : 0, 1);
+      }
       this.messageQueue.push(message);
       return false;
     }

@@ -393,7 +393,7 @@ export function GeminiSettingsModal({ isOpen, onClose }: GeminiSettingsModalProp
     const success = await setGeminiApiKey(inputKey.trim());
 
     if (success) {
-      setTestResult({ success: true, message: 'API key saved and connected!' });
+      setTestResult({ success: true, message: 'API key connected for this session.' });
       setInputKey('');
       // Close modal after short delay on success
       setTimeout(() => onClose(), 1500);
@@ -555,6 +555,8 @@ export function GeminiSettingsModal({ isOpen, onClose }: GeminiSettingsModalProp
                   <input
                     id="gemini-api-key"
                     type="password"
+                    autoComplete="off"
+                    spellCheck={false}
                     value={inputKey}
                     onChange={(e) => setInputKey(e.target.value)}
                     placeholder={
@@ -577,10 +579,10 @@ export function GeminiSettingsModal({ isOpen, onClose }: GeminiSettingsModalProp
                   </a>
                 </p>
                 <p className="text-[10px] text-slate-500 leading-relaxed">
-                  Your key is stored unencrypted in this browser&rsquo;s local storage and sent only
-                  to Google. It is never sent to a MillOS server. In Gemini and Hybrid modes, your
-                  key and simulation state are sent directly to Google&rsquo;s Gemini API, where
-                  they are handled under{' '}
+                  Your key stays in memory for this browser session and is cleared on reload or tab
+                  close. It is never stored by MillOS or sent to a MillOS server. In Gemini and
+                  Hybrid modes, your key and simulation state are sent directly to Google&rsquo;s
+                  Gemini API, where they are handled under{' '}
                   <a
                     href="https://policies.google.com/privacy"
                     target="_blank"
@@ -791,7 +793,7 @@ export function GeminiSettingsModal({ isOpen, onClose }: GeminiSettingsModalProp
                   disabled={!inputKey.trim() || isTesting}
                   className="px-4 py-2 text-sm font-medium text-white bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
                 >
-                  {isTesting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Save & Connect'}
+                  {isTesting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Connect for Session'}
                 </button>
               </div>
             </div>

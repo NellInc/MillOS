@@ -5,12 +5,12 @@ Welcome to the MillOS Digital Twin Simulator documentation. This directory conta
 ## Documentation Index
 
 | Document | Description |
-|----------|-------------|
+| ------------------------------------------ | ------------------------------------------------------------- |
 | [Architecture Overview](./architecture.md) | System architecture, tech stack, and design patterns |
 | [Components Reference](./components.md) | Detailed reference for all React components |
 | [State Management](./state-management.md) | Zustand store structure and data flow |
 | [3D Scene System](./3d-scene.md) | Three.js/R3F scene composition and rendering |
-| [SCADA Integration](../SCADA_PLAN.md) | Full SCADA system with protocol adapters, alarms, and history |
+| [SCADA Integration](./SCADA_PLAN.md)       | Full SCADA system with protocol adapters, alarms, and history |
 | [Audio System](./audio-system.md) | Web Audio API implementation for factory sounds |
 | [Safety System](./safety-system.md) | Collision avoidance and safety metrics |
 | [AI Integration](./ai-integration.md) | AI Command Center and decision simulation |
@@ -39,7 +39,7 @@ src/
 ├── components/             # React components
 │   ├── MillScene.tsx       # Main 3D scene composition
 │   ├── Machines.tsx        # Machine rendering (silos, mills, etc.)
-│   ├── WorkerSystem.tsx    # Worker avatars and animations
+│   ├── WorkerSystemNew.tsx # Worker avatars and animations
 │   ├── ForkliftSystem.tsx  # Forklift vehicles and safety
 │   ├── ConveyorSystem.tsx  # Conveyor belts and product flow
 │   ├── UIOverlay.tsx       # Main UI control panel
@@ -50,7 +50,7 @@ src/
 │
 ├── scada/                  # SCADA Integration Layer
 │   ├── types.ts            # TypeScript interfaces
-│   ├── tagDatabase.ts      # 90 process tags (ISA-5.1 naming)
+│   ├── tagDatabase.ts      # 78 process tags (ISA-5.1 naming)
 │   ├── AlarmManager.ts     # ISA-18.2 alarm state machine
 │   ├── HistoryStore.ts     # IndexedDB with 24h retention
 │   ├── SCADAService.ts     # Main orchestration service
@@ -89,4 +89,4 @@ scada-proxy/                # Backend Proxy Service
 
 ## Version
 
-Current Version: **v3.0**
+Current Version: **v0.40**

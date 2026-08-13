@@ -1,5 +1,6 @@
 // Audio manager for realistic factory sounds using Web Audio API
 import { logger } from './logger';
+import musicCredits from '../../music-credits.json';
 
 export type AmbientWeather = 'clear' | 'cloudy' | 'rain' | 'storm';
 
@@ -209,60 +210,26 @@ class AudioManager {
   private musicEndedHandler: (() => void) | null = null;
   private musicErrorHandler: ((e: Event) => void) | null = null;
 
-  // Available music tracks (shuffled on init, excludes victory fanfare)
-  // Music by Kevin MacLeod (incompetech.com) - Licensed under CC BY 3.0/4.0
-  // Jolly, upbeat working/driving music for factory vibes
-  // Note: Using import.meta.env.BASE_URL for GitHub Pages subdirectory deployment
-  private readonly allMusicTracks = [
-    { id: 'the_builder', name: 'The Builder', file: `${import.meta.env.BASE_URL}The Builder.mp3` },
-    { id: 'space_jazz', name: 'Space Jazz', file: `${import.meta.env.BASE_URL}Space Jazz.mp3` },
-    {
-      id: 'upbeat_forever',
-      name: 'Upbeat Forever',
-      file: `${import.meta.env.BASE_URL}Upbeat Forever.mp3`,
-    },
-    {
-      id: 'fuzzball_parade',
-      name: 'Fuzzball Parade',
-      file: `${import.meta.env.BASE_URL}Fuzzball Parade.mp3`,
-    },
-    {
-      id: 'i_got_a_stick',
-      name: 'I Got a Stick',
-      file: `${import.meta.env.BASE_URL}I Got a Stick Feat James Gavins.mp3`,
-    },
-    {
-      id: 'boogie_party',
-      name: 'Boogie Party',
-      file: `${import.meta.env.BASE_URL}Boogie Party.mp3`,
-    },
-    {
-      id: 'voxel_revolution',
-      name: 'Voxel Revolution',
-      file: `${import.meta.env.BASE_URL}Voxel Revolution.mp3`,
-    },
-    { id: 'newer_wave', name: 'Newer Wave', file: `${import.meta.env.BASE_URL}Newer Wave.mp3` },
-    {
-      id: 'neon_laser_horizon',
-      name: 'Neon Laser Horizon',
-      file: `${import.meta.env.BASE_URL}Neon Laser Horizon.mp3`,
-    },
-    {
-      id: 'cloud_dancer',
-      name: 'Cloud Dancer',
-      file: `${import.meta.env.BASE_URL}Cloud Dancer.mp3`,
-    },
-  ];
+  // Runtime selection and public attribution share one canonical manifest.
+  private readonly allMusicTracks = musicCredits.tracks
+    .filter((track) => track.currentRole === 'playlist')
+    .map((track) => ({
+      id: track.id,
+      name: track.title,
+      file: `${import.meta.env.BASE_URL}${track.file}`,
+    }));
 
   // Shuffled playlist (Fisher-Yates shuffle on init)
   private musicTracks: { id: string; name: string; file: string }[];
 
-  // Victory fanfare - only played when quota hits 100%
-  // Music by Kevin MacLeod (incompetech.com) - Licensed under CC BY 4.0
+  // Victory fanfare, played only when quota reaches 100%.
+  private readonly victoryFanfareCredit = musicCredits.tracks.find(
+    (track) => track.currentRole === 'victory-fanfare'
+  );
   private readonly victoryFanfare = {
-    id: 'fanfare_for_space',
+    id: this.victoryFanfareCredit?.id ?? 'fanfare_for_space',
     name: 'Victory!',
-    file: `${import.meta.env.BASE_URL}Fanfare for Space.mp3`,
+    file: `${import.meta.env.BASE_URL}${this.victoryFanfareCredit?.file ?? 'Fanfare for Space.mp3'}`,
   };
   private victoryAudio: HTMLAudioElement | null = null;
   private _quotaReached: boolean = false;

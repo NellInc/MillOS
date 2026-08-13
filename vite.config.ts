@@ -2,24 +2,15 @@ import path from 'path';
 import fs from 'fs';
 import { defineConfig, Plugin, UserConfig } from 'vite';
 import react from '@vitejs/plugin-react-swc'; // SWC is 20x faster than Babel
+import musicCredits from './music-credits.json';
 
 const packageMetadata = JSON.parse(
   fs.readFileSync(path.resolve(__dirname, 'package.json'), 'utf8')
 ) as { version?: string };
 
-const CURRENT_AUDIO_FILES = new Set([
-  'The Builder.mp3',
-  'Space Jazz.mp3',
-  'Upbeat Forever.mp3',
-  'Fuzzball Parade.mp3',
-  'I Got a Stick Feat James Gavins.mp3',
-  'Boogie Party.mp3',
-  'Voxel Revolution.mp3',
-  'Newer Wave.mp3',
-  'Neon Laser Horizon.mp3',
-  'Cloud Dancer.mp3',
-  'Fanfare for Space.mp3',
-]);
+const CURRENT_AUDIO_FILES = new Set(
+  musicCredits.tracks.filter((track) => track.currentRole !== null).map((track) => track.file)
+);
 
 function finalizeCurrentBuild({
   buildId,

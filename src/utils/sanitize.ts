@@ -9,44 +9,6 @@
  */
 
 // =============================================================================
-// HTML ENTITY ENCODING
-// =============================================================================
-
-/**
- * HTML entity map for encoding dangerous characters.
- * These characters have special meaning in HTML and must be encoded
- * to prevent XSS attacks when displaying user input.
- */
-const HTML_ENTITIES: Record<string, string> = {
-  '&': '&amp;',
-  '<': '&lt;',
-  '>': '&gt;',
-  '"': '&quot;',
-  "'": '&#x27;',
-  '/': '&#x2F;',
-  '`': '&#x60;',
-  '=': '&#x3D;',
-};
-
-/**
- * Encode HTML entities in a string to prevent XSS.
- * Use this when displaying ANY user-provided content in the DOM.
- *
- * @param input - The string to encode
- * @returns Encoded string safe for HTML display
- *
- * @example
- * encodeHtmlEntities('<script>alert("xss")</script>')
- * // Returns: '&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;'
- */
-export function encodeHtmlEntities(input: string): string {
-  if (typeof input !== 'string') {
-    return '';
-  }
-  return input.replace(/[&<>"'`=/]/g, (char) => HTML_ENTITIES[char] ?? char);
-}
-
-// =============================================================================
 // STRING SANITIZATION
 // =============================================================================
 
@@ -153,11 +115,16 @@ export function sanitizePlayerName(name: unknown): string {
 }
 
 /**
- * Sanitize chat message for multiplayer.
- * Encodes HTML entities and removes control characters.
+ * Normalize a multiplayer chat message for safe bounded transport.
+ *
+ * React escapes this value when MultiplayerChat renders it as a text child.
+ * Entity encoding here would be wrong: every message passes through both the
+ * sender and receiver, so it would double-encode ordinary text and display
+ * entities literally. This value must never be routed to an HTML sink such as
+ * dangerouslySetInnerHTML.
  *
  * @param message - Raw chat message
- * @returns Sanitized message safe for display
+ * @returns Bounded plain text for React text rendering
  */
 export function sanitizeChatMessage(message: unknown): string {
   if (typeof message !== 'string') {
@@ -170,9 +137,6 @@ export function sanitizeChatMessage(message: unknown): string {
 
   // Trim and limit length
   clean = clean.trim().slice(0, 500);
-
-  // Encode HTML entities to prevent XSS
-  clean = encodeHtmlEntities(clean);
 
   return clean;
 }

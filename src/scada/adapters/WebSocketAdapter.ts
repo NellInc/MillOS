@@ -40,6 +40,17 @@ interface WSMessage {
   error?: string;
 }
 
+function encodeApiKeyProtocol(apiKey: string): string {
+  if (apiKey.length > 4096) throw new Error('SCADA API key exceeds 4096 characters');
+  const bytes = new TextEncoder().encode(apiKey);
+  let binary = '';
+  bytes.forEach((byte) => {
+    binary += String.fromCharCode(byte);
+  });
+  const encoded = btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+  return `millos-scada-key.${encoded}`;
+}
+
 export class WebSocketAdapter implements IProtocolAdapter {
   private config: ConnectionConfig;
   private tags: Map<string, TagDefinition> = new Map();
@@ -91,7 +102,10 @@ export class WebSocketAdapter implements IProtocolAdapter {
 
     return new Promise((resolve, reject) => {
       try {
-        this.ws = new WebSocket(url);
+        const protocols = this.config.apiKey
+          ? ['millos-scada', encodeApiKeyProtocol(this.config.apiKey)]
+          : undefined;
+        this.ws = protocols ? new WebSocket(url, protocols) : new WebSocket(url);
 
         const timeout = setTimeout(() => {
           // Mark as deliberately closing so the onclose handler does not

@@ -22,7 +22,7 @@ interface ConnectionStatus {
   reconnectAttempts: number;
 }
 
-interface ModbusTagConfig {
+export interface ModbusTagConfig {
   tagId: string;
   slaveId: number;
   registerType: 'holding' | 'input' | 'coil' | 'discrete';
@@ -40,6 +40,7 @@ export class ModbusAdapter {
   private connected = false;
   private reconnectAttempts = 0;
   private lastError?: string;
+  private ioQueue: Promise<void> = Promise.resolve();
 
   // Map tagId to Modbus configuration
   private tagConfigMap = new Map<string, ModbusTagConfig>();
@@ -99,7 +100,7 @@ export class ModbusAdapter {
       host: this.host,
       port: this.port,
       lastError: this.lastError,
-      reconnectAttempts: this.reconnectAttempts
+      reconnectAttempts: this.reconnectAttempts,
     };
   }
 
@@ -108,6 +109,16 @@ export class ModbusAdapter {
    */
   registerTag(config: ModbusTagConfig): void {
     this.tagConfigMap.set(config.tagId, config);
+  }
+
+  /** Serialize setID plus I/O so concurrent polls and writes cannot target the wrong slave. */
+  private withIO<T>(operation: () => Promise<T>): Promise<T> {
+    const result = this.ioQueue.then(operation, operation);
+    this.ioQueue = result.then(
+      () => undefined,
+      () => undefined
+    );
+    return result;
   }
 
   /**
@@ -119,19 +130,15 @@ export class ModbusAdapter {
     for (const tagId of tagIds) {
       const config = this.tagConfigMap.get(tagId);
       if (!config) {
-        // Try to parse from tag ID
-        const parsed = this.parseTagId(tagId);
-        if (parsed) {
-          const value = await this.readTag(parsed);
-          results.push(value);
-        } else {
-          results.push({
-            tagId,
-            value: 0,
-            quality: 'BAD',
-            timestamp: Date.now()
-          });
-        }
+        // Never guess an industrial address from a display identifier. Missing
+        // registration is a configuration fault, not permission to read slave
+        // 1, register 0.
+        results.push({
+          tagId,
+          value: 0,
+          quality: 'BAD',
+          timestamp: Date.now(),
+        });
         continue;
       }
 
@@ -147,59 +154,36 @@ export class ModbusAdapter {
    */
   private async readTag(config: ModbusTagConfig): Promise<TagValue> {
     try {
-      this.client.setID(config.slaveId);
+      const value = await this.withIO(async () => {
+        this.client.setID(config.slaveId);
 
-      let rawData: number[];
-
-      switch (config.registerType) {
-        case 'holding':
-          const holdingResult = await this.client.readHoldingRegisters(
-            config.address,
-            config.count
-          );
-          rawData = Array.from(holdingResult.data);
-          break;
-
-        case 'input':
-          const inputResult = await this.client.readInputRegisters(
-            config.address,
-            config.count
-          );
-          rawData = Array.from(inputResult.data);
-          break;
-
-        case 'coil':
-          const coilResult = await this.client.readCoils(config.address, 1);
-          return {
-            tagId: config.tagId,
-            value: coilResult.data[0],
-            quality: 'GOOD',
-            timestamp: Date.now()
-          };
-
-        case 'discrete':
-          const discreteResult = await this.client.readDiscreteInputs(
-            config.address,
-            1
-          );
-          return {
-            tagId: config.tagId,
-            value: discreteResult.data[0],
-            quality: 'GOOD',
-            timestamp: Date.now()
-          };
-
-        default:
-          throw new Error(`Unknown register type: ${config.registerType}`);
-      }
-
-      const value = this.convertValue(rawData, config);
+        switch (config.registerType) {
+          case 'holding': {
+            const result = await this.client.readHoldingRegisters(config.address, config.count);
+            return this.convertValue(Array.from(result.data), config);
+          }
+          case 'input': {
+            const result = await this.client.readInputRegisters(config.address, config.count);
+            return this.convertValue(Array.from(result.data), config);
+          }
+          case 'coil': {
+            const result = await this.client.readCoils(config.address, 1);
+            return result.data[0];
+          }
+          case 'discrete': {
+            const result = await this.client.readDiscreteInputs(config.address, 1);
+            return result.data[0];
+          }
+          default:
+            throw new Error(`Unknown register type: ${config.registerType}`);
+        }
+      });
 
       return {
         tagId: config.tagId,
         value,
         quality: 'GOOD',
-        timestamp: Date.now()
+        timestamp: Date.now(),
       };
     } catch (err) {
       console.error(`[ModbusAdapter] Read error for ${config.tagId}:`, err);
@@ -209,7 +193,7 @@ export class ModbusAdapter {
         tagId: config.tagId,
         value: 0,
         quality: 'BAD',
-        timestamp: Date.now()
+        timestamp: Date.now(),
       };
     }
   }
@@ -225,26 +209,26 @@ export class ModbusAdapter {
     }
 
     try {
-      this.client.setID(config.slaveId);
+      await this.withIO(async () => {
+        this.client.setID(config.slaveId);
 
-      switch (config.registerType) {
-        case 'holding':
-          const registers = this.valueToRegisters(value, config);
-          if (registers.length === 1) {
-            await this.client.writeRegister(config.address, registers[0]);
-          } else {
-            await this.client.writeRegisters(config.address, registers);
+        switch (config.registerType) {
+          case 'holding': {
+            const registers = this.valueToRegisters(value, config);
+            if (registers.length === 1) {
+              await this.client.writeRegister(config.address, registers[0]);
+            } else {
+              await this.client.writeRegisters(config.address, registers);
+            }
+            return;
           }
-          break;
-
-        case 'coil':
-          await this.client.writeCoil(config.address, Boolean(value));
-          break;
-
-        default:
-          console.warn(`[ModbusAdapter] Cannot write to ${config.registerType} registers`);
-          return false;
-      }
+          case 'coil':
+            await this.client.writeCoil(config.address, Boolean(value));
+            return;
+          default:
+            throw new Error(`Cannot write to ${config.registerType} registers`);
+        }
+      });
 
       return true;
     } catch (err) {
@@ -258,9 +242,9 @@ export class ModbusAdapter {
    * Convert raw register data to typed value
    */
   private convertValue(rawData: number[], config: ModbusTagConfig): number {
-    let data = [...rawData];
-
-    // Apply word swap if needed
+    let data = rawData.map((register) =>
+      config.byteSwap ? ((register & 0xff) << 8) | ((register >>> 8) & 0xff) : register
+    );
     if (config.wordSwap && data.length >= 2) {
       data = [data[1], data[0], ...data.slice(2)];
     }
@@ -277,7 +261,7 @@ export class ModbusAdapter {
 
       case 'FLOAT32':
         if (data.length >= 2) {
-          return this.toFloat32(data[0], data[1], config.byteSwap);
+          return this.toFloat32(data[0], data[1]);
         }
         return data[0];
 
@@ -294,42 +278,35 @@ export class ModbusAdapter {
    */
   private valueToRegisters(value: unknown, config: ModbusTagConfig): number[] {
     const numValue = Number(value);
-
+    let registers: number[];
     switch (config.dataType) {
       case 'INT16':
-        return [numValue & 0xFFFF];
+        registers = [numValue & 0xffff];
+        break;
 
       case 'INT32':
-        return [(numValue >> 16) & 0xFFFF, numValue & 0xFFFF];
+        registers = [(numValue >> 16) & 0xffff, numValue & 0xffff];
+        break;
 
       case 'FLOAT32':
-        return this.float32ToRegisters(numValue, config.byteSwap);
+        registers = this.float32ToRegisters(numValue);
+        break;
 
       case 'BOOL':
-        return [numValue !== 0 ? 1 : 0];
+        registers = [numValue !== 0 ? 1 : 0];
+        break;
 
       default:
-        return [numValue & 0xFFFF];
+        registers = [numValue & 0xffff];
     }
-  }
 
-  /**
-   * Parse tag ID to infer configuration
-   */
-  private parseTagId(tagId: string): ModbusTagConfig | null {
-    // Try to extract info from tag ID pattern
-    // Example: SILO_ALPHA.LT001.PV -> holding register, slave 1
-    const match = tagId.match(/^(\w+)\.(\w+)\.PV$/);
-    if (!match) return null;
-
-    return {
-      tagId,
-      slaveId: 1,
-      registerType: 'holding',
-      address: 0,
-      count: 2,
-      dataType: 'FLOAT32'
-    };
+    if (config.wordSwap && registers.length >= 2) {
+      registers = [registers[1], registers[0], ...registers.slice(2)];
+    }
+    if (config.byteSwap) {
+      registers = registers.map((register) => ((register & 0xff) << 8) | ((register >>> 8) & 0xff));
+    }
+    return registers;
   }
 
   /**
@@ -350,17 +327,12 @@ export class ModbusAdapter {
   /**
    * Convert two 16-bit registers to 32-bit float
    */
-  private toFloat32(high: number, low: number, byteSwap = false): number {
+  private toFloat32(high: number, low: number): number {
     const buffer = new ArrayBuffer(4);
     const view = new DataView(buffer);
 
-    if (byteSwap) {
-      view.setUint16(0, low, false);
-      view.setUint16(2, high, false);
-    } else {
-      view.setUint16(0, high, false);
-      view.setUint16(2, low, false);
-    }
+    view.setUint16(0, high, false);
+    view.setUint16(2, low, false);
 
     return view.getFloat32(0, false);
   }
@@ -368,7 +340,7 @@ export class ModbusAdapter {
   /**
    * Convert 32-bit float to two 16-bit registers
    */
-  private float32ToRegisters(value: number, byteSwap = false): number[] {
+  private float32ToRegisters(value: number): number[] {
     const buffer = new ArrayBuffer(4);
     const view = new DataView(buffer);
 
@@ -377,6 +349,6 @@ export class ModbusAdapter {
     const high = view.getUint16(0, false);
     const low = view.getUint16(2, false);
 
-    return byteSwap ? [low, high] : [high, low];
+    return [high, low];
   }
 }

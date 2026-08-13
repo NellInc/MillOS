@@ -1,5 +1,7 @@
 # MillOS Codebase Audit Report
 
+> **Historical record.** This document preserves an earlier audit, plan, or implementation snapshot. It is not current status or operating instruction. See [the 12 August 2026 exhaustive improvement ledger](../_contprompts/millos_exhaustive_improvements_2026-08-12.md) and [its second pass](../_contprompts/millos_exhaustive_improvements_second_pass_2026-08-12.md) for current evidence, dispositions, and remaining gates.
+
 **Date:** 2025-12-11
 **Audited by:** Claude Code with 15 Specialized Agents
 **Codebase Version:** v0.20.0

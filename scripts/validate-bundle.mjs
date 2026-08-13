@@ -19,19 +19,12 @@ const MAX_INITIAL_GZIP_BYTES = 2.5 * 1024 * 1024;
 const MAX_CURRENT_DIST_BYTES = 170 * 1024 * 1024;
 const OPTIONAL_CHUNK_PATTERN =
   /(rapier|recharts|charts?|peerjs|multiplayer|postprocessing|web[._-]?llm|webgpu|scadapanel|scada-workspace)/i;
-const REQUIRED_AUDIO = new Set([
-  'The Builder.mp3',
-  'Space Jazz.mp3',
-  'Upbeat Forever.mp3',
-  'Fuzzball Parade.mp3',
-  'I Got a Stick Feat James Gavins.mp3',
-  'Boogie Party.mp3',
-  'Voxel Revolution.mp3',
-  'Newer Wave.mp3',
-  'Neon Laser Horizon.mp3',
-  'Cloud Dancer.mp3',
-  'Fanfare for Space.mp3',
-]);
+const musicCredits = JSON.parse(
+  fs.readFileSync(path.join(projectRoot, 'music-credits.json'), 'utf8')
+);
+const REQUIRED_AUDIO = new Set(
+  musicCredits.tracks.filter((track) => track.currentRole !== null).map((track) => track.file)
+);
 
 if (!fs.existsSync(distDirectory)) {
   throw new Error(`Build output does not exist: ${distDirectory}`);

@@ -23,7 +23,7 @@ import {
 } from './types';
 import { useMultiplayerStore } from '../stores/multiplayerStore';
 import { useProductionStore } from '../stores/productionStore';
-import { handleHostDisconnect } from './HostMigration';
+import { handleHostDisconnect } from './HostDisconnect';
 import { logger } from '../utils/logger';
 import { sanitizeChatMessage, sanitizePlayerName } from '../utils/sanitize';
 
