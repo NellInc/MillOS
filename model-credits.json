@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "assets": [
+    {
+      "id": "forklift",
+      "source": "https://sketchfab.com/3d-models/forklift-d40cae50e04145dd997cdca415cd72ad",
+      "license": "CC-BY-4.0",
+      "attribution": "Forklift by Mantas Stankaitis"
+    },
+    {
+      "id": "worker",
+      "source": "https://kenney.nl/assets/animated-characters-protagonists",
+      "license": "CC0-1.0",
+      "attribution": "Animated Characters Protagonists by Kenney"
+    },
+    {
+      "id": "worker-masculine",
+      "source": "https://quaternius.com/packs/ultimatemodularcharacters.html",
+      "license": "CC0-1.0",
+      "attribution": "Ultimate Modular Men Pack by Quaternius"
+    },
+    {
+      "id": "worker-feminine",
+      "source": "https://quaternius.com/packs/ultimatemodularwomen.html",
+      "license": "CC0-1.0",
+      "attribution": "Ultimate Modular Women Pack by Quaternius"
+    }
+  ]
+}

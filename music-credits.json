@@ -1,0 +1,216 @@
+{
+  "schemaVersion": 1,
+  "sourceCatalog": "https://incompetech.com/music/royalty-free/pieces.json",
+  "licenseName": "Creative Commons Attribution 4.0 International",
+  "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+  "tracks": [
+    {
+      "id": "achilles",
+      "title": "Achilles",
+      "file": "Achilles.mp3",
+      "artist": "Kevin MacLeod",
+      "isrc": "USUAN1100463",
+      "currentRole": null
+    },
+    {
+      "id": "all_this",
+      "title": "All This",
+      "file": "All This.mp3",
+      "artist": "Kevin MacLeod",
+      "isrc": "USUAN1300001",
+      "currentRole": null
+    },
+    {
+      "id": "boogie_party",
+      "title": "Boogie Party",
+      "file": "Boogie Party.mp3",
+      "artist": "Kevin MacLeod",
+      "isrc": "USUAN2200002",
+      "currentRole": "playlist"
+    },
+    {
+      "id": "carefree",
+      "title": "Carefree",
+      "file": "Carefree.mp3",
+      "artist": "Kevin MacLeod",
+      "isrc": "USUAN1400037",
+      "currentRole": null
+    },
+    {
+      "id": "clenched_teeth",
+      "title": "Clenched Teeth",
+      "file": "Clenched Teeth.mp3",
+      "artist": "Kevin MacLeod",
+      "isrc": "USUAN1100705",
+      "currentRole": null
+    },
+    {
+      "id": "cloud_dancer",
+      "title": "Cloud Dancer",
+      "file": "Cloud Dancer.mp3",
+      "artist": "Kevin MacLeod",
+      "isrc": "USUAN2300007",
+      "currentRole": "playlist"
+    },
+    {
+      "id": "dark_fog",
+      "title": "Dark Fog",
+      "file": "Dark Fog.mp3",
+      "artist": "Kevin MacLeod",
+      "isrc": "USUAN1300031",
+      "currentRole": null
+    },
+    {
+      "id": "fanfare_for_space",
+      "title": "Fanfare for Space",
+      "file": "Fanfare for Space.mp3",
+      "artist": "Kevin MacLeod",
+      "isrc": "USUAN1300026",
+      "currentRole": "victory-fanfare"
+    },
+    {
+      "id": "five_armies",
+      "title": "Five Armies",
+      "file": "Five Armies.mp3",
+      "artist": "Kevin MacLeod",
+      "isrc": "USUAN1100875",
+      "currentRole": null
+    },
+    {
+      "id": "fluffing_a_duck",
+      "title": "Fluffing a Duck",
+      "file": "Fluffing a Duck.mp3",
+      "artist": "Kevin MacLeod",
+      "isrc": "USUAN1100768",
+      "currentRole": null
+    },
+    {
+      "id": "fuzzball_parade",
+      "title": "Fuzzball Parade",
+      "file": "Fuzzball Parade.mp3",
+      "artist": "Kevin MacLeod",
+      "isrc": "USUAN1900017",
+      "currentRole": "playlist"
+    },
+    {
+      "id": "i_got_a_stick",
+      "title": "I Got a Stick Feat James Gavins",
+      "file": "I Got a Stick Feat James Gavins.mp3",
+      "artist": "Kevin MacLeod, James Gavins, and Bryan Teoh",
+      "isrc": "USUAN2200003",
+      "currentRole": "playlist"
+    },
+    {
+      "id": "impact_moderato",
+      "title": "Impact Moderato",
+      "file": "Impact Moderato.mp3",
+      "artist": "Kevin MacLeod",
+      "isrc": "USUAN1100618",
+      "currentRole": null
+    },
+    {
+      "id": "industrial_revolution",
+      "title": "Industrial Revolution",
+      "file": "Industrial Revolution.mp3",
+      "artist": "Kevin MacLeod",
+      "isrc": "USUAN1100811",
+      "currentRole": null
+    },
+    {
+      "id": "interloper",
+      "title": "Interloper",
+      "file": "Interloper.mp3",
+      "artist": "Kevin MacLeod",
+      "isrc": "USUAN1100401",
+      "currentRole": null
+    },
+    {
+      "id": "killers",
+      "title": "Killers",
+      "file": "Killers.mp3",
+      "artist": "Kevin MacLeod",
+      "isrc": "USUAN1600024",
+      "currentRole": null
+    },
+    {
+      "id": "mechanolith",
+      "title": "Mechanolith",
+      "file": "Mechanolith.mp3",
+      "artist": "Kevin MacLeod",
+      "isrc": "USUAN1100879",
+      "currentRole": null
+    },
+    {
+      "id": "monkeys_spinning_monkeys",
+      "title": "Monkeys Spinning Monkeys",
+      "file": "Monkeys Spinning Monkeys.mp3",
+      "artist": "Kevin MacLeod",
+      "isrc": "USUAN1400011",
+      "currentRole": null
+    },
+    {
+      "id": "neon_laser_horizon",
+      "title": "Neon Laser Horizon",
+      "file": "Neon Laser Horizon.mp3",
+      "artist": "Kevin MacLeod",
+      "isrc": "USUAN2000023",
+      "currentRole": "playlist"
+    },
+    {
+      "id": "newer_wave",
+      "title": "Newer Wave",
+      "file": "Newer Wave.mp3",
+      "artist": "Kevin MacLeod",
+      "isrc": "USUAN2000024",
+      "currentRole": "playlist"
+    },
+    {
+      "id": "sergios_magic_dustbin",
+      "title": "Sergio's Magic Dustbin",
+      "file": "Sergio's Magic Dustbin.mp3",
+      "artist": "Kevin MacLeod",
+      "isrc": "USUAN2300012",
+      "currentRole": null
+    },
+    {
+      "id": "space_jazz",
+      "title": "Space Jazz",
+      "file": "Space Jazz.mp3",
+      "artist": "Kevin MacLeod",
+      "isrc": "USUAN2100030",
+      "currentRole": "playlist"
+    },
+    {
+      "id": "the_builder",
+      "title": "The Builder",
+      "file": "The Builder.mp3",
+      "artist": "Kevin MacLeod",
+      "isrc": "USUAN1400016",
+      "currentRole": "playlist"
+    },
+    {
+      "id": "upbeat_forever",
+      "title": "Upbeat Forever",
+      "file": "Upbeat Forever.mp3",
+      "artist": "Kevin MacLeod",
+      "isrc": "USUAN1500063",
+      "currentRole": "playlist"
+    },
+    {
+      "id": "volatile_reaction",
+      "title": "Volatile Reaction",
+      "file": "Volatile Reaction.mp3",
+      "artist": "Kevin MacLeod",
+      "isrc": "USUAN1400039",
+      "currentRole": null
+    },
+    {
+      "id": "voxel_revolution",
+      "title": "Voxel Revolution",
+      "file": "Voxel Revolution.mp3",
+      "artist": "Kevin MacLeod",
+      "isrc": "USUAN2000025",
+      "currentRole": "playlist"
+    }
+  ]
+}

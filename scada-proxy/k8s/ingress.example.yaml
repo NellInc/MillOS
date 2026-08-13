@@ -1,0 +1,41 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: scada-proxy
+  namespace: millos-scada
+  labels:
+    app.kubernetes.io/name: scada-proxy
+    app.kubernetes.io/component: backend
+  annotations:
+    # Nginx Ingress Controller annotations
+    nginx.ingress.kubernetes.io/proxy-read-timeout: '3600'
+    nginx.ingress.kubernetes.io/proxy-send-timeout: '3600'
+    nginx.ingress.kubernetes.io/websocket-services: 'scada-proxy'
+    nginx.ingress.kubernetes.io/upstream-hash-by: '$binary_remote_addr'
+
+    # Rate limiting
+    nginx.ingress.kubernetes.io/limit-rps: '100'
+    nginx.ingress.kubernetes.io/limit-connections: '50'
+
+    # SSL redirect
+    nginx.ingress.kubernetes.io/ssl-redirect: 'true'
+
+    # Cert-manager (if using)
+    # cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - scada.millos.example.com
+      secretName: scada-proxy-tls
+  rules:
+    - host: scada.millos.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: scada-proxy
+                port:
+                  name: http

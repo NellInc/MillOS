@@ -1,0 +1,7 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": ["e2e/**/*.ts", "scripts/**/*.{js,mjs,cjs,ts}", "hooks/**/*.{js,mjs,cjs,ts}", "*.cjs"],
+  "project": ["src/**/*.{ts,tsx}", "e2e/**/*.ts", "scripts/**/*.{js,mjs,cjs,ts}"],
+  "ignoreBinaries": ["basisu"],
+  "ignoreUnresolved": ["/hdri/warehouse.hdr?url"]
+}

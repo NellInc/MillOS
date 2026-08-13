@@ -1,0 +1,149 @@
+MillOS Music Credits
+====================
+
+Catalog: https://incompetech.com/music/royalty-free/pieces.json
+Licence: Creative Commons Attribution 4.0 International
+Licence URL: https://creativecommons.org/licenses/by/4.0/
+
+The following recordings are distributed with MillOS under the licence above.
+No changes were intentionally made to the recordings. The repository copies were not independently compared byte-for-byte with current upstream downloads.
+
+Tracks
+------
+"Achilles"
+Artist: Kevin MacLeod
+ISRC: USUAN1100463
+Use: Legacy MillOS archive
+
+"All This"
+Artist: Kevin MacLeod
+ISRC: USUAN1300001
+Use: Legacy MillOS archive
+
+"Boogie Party"
+Artist: Kevin MacLeod
+ISRC: USUAN2200002
+Use: Current MillOS playlist
+
+"Carefree"
+Artist: Kevin MacLeod
+ISRC: USUAN1400037
+Use: Legacy MillOS archive
+
+"Clenched Teeth"
+Artist: Kevin MacLeod
+ISRC: USUAN1100705
+Use: Legacy MillOS archive
+
+"Cloud Dancer"
+Artist: Kevin MacLeod
+ISRC: USUAN2300007
+Use: Current MillOS playlist
+
+"Dark Fog"
+Artist: Kevin MacLeod
+ISRC: USUAN1300031
+Use: Legacy MillOS archive
+
+"Fanfare for Space"
+Artist: Kevin MacLeod
+ISRC: USUAN1300026
+Use: Current MillOS victory fanfare
+
+"Five Armies"
+Artist: Kevin MacLeod
+ISRC: USUAN1100875
+Use: Legacy MillOS archive
+
+"Fluffing a Duck"
+Artist: Kevin MacLeod
+ISRC: USUAN1100768
+Use: Legacy MillOS archive
+
+"Fuzzball Parade"
+Artist: Kevin MacLeod
+ISRC: USUAN1900017
+Use: Current MillOS playlist
+
+"I Got a Stick Feat James Gavins"
+Artist: Kevin MacLeod, James Gavins, and Bryan Teoh
+ISRC: USUAN2200003
+Use: Current MillOS playlist
+
+"Impact Moderato"
+Artist: Kevin MacLeod
+ISRC: USUAN1100618
+Use: Legacy MillOS archive
+
+"Industrial Revolution"
+Artist: Kevin MacLeod
+ISRC: USUAN1100811
+Use: Legacy MillOS archive
+
+"Interloper"
+Artist: Kevin MacLeod
+ISRC: USUAN1100401
+Use: Legacy MillOS archive
+
+"Killers"
+Artist: Kevin MacLeod
+ISRC: USUAN1600024
+Use: Legacy MillOS archive
+
+"Mechanolith"
+Artist: Kevin MacLeod
+ISRC: USUAN1100879
+Use: Legacy MillOS archive
+
+"Monkeys Spinning Monkeys"
+Artist: Kevin MacLeod
+ISRC: USUAN1400011
+Use: Legacy MillOS archive
+
+"Neon Laser Horizon"
+Artist: Kevin MacLeod
+ISRC: USUAN2000023
+Use: Current MillOS playlist
+
+"Newer Wave"
+Artist: Kevin MacLeod
+ISRC: USUAN2000024
+Use: Current MillOS playlist
+
+"Sergio's Magic Dustbin"
+Artist: Kevin MacLeod
+ISRC: USUAN2300012
+Use: Legacy MillOS archive
+
+"Space Jazz"
+Artist: Kevin MacLeod
+ISRC: USUAN2100030
+Use: Current MillOS playlist
+
+"The Builder"
+Artist: Kevin MacLeod
+ISRC: USUAN1400016
+Use: Current MillOS playlist
+
+"Upbeat Forever"
+Artist: Kevin MacLeod
+ISRC: USUAN1500063
+Use: Current MillOS playlist
+
+"Volatile Reaction"
+Artist: Kevin MacLeod
+ISRC: USUAN1400039
+Use: Legacy MillOS archive
+
+"Voxel Revolution"
+Artist: Kevin MacLeod
+ISRC: USUAN2000025
+Use: Current MillOS playlist
+
+Attribution note
+----------------
+Most recordings are by Kevin MacLeod. "I Got a Stick Feat James Gavins" also credits James Gavins for vocals and lyrics, and Bryan Teoh for arrangement and instruments, as recorded in the Incompetech catalog.
+
+Licence notice
+--------------
+You may share and adapt these recordings under the Creative Commons Attribution 4.0 International licence, provided appropriate credit is given, the licence is linked, and changes are indicated. Refer to the licence URL above for the authoritative terms.
