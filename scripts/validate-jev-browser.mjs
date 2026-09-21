@@ -1,7 +1,7 @@
 // Built-assembly UI gate. Only synthetic keys/text and intercepted provider responses.
 // Working if desktop/mobile can submit manually, forget credentials, and make no unsolicited calls.
 import assert from 'node:assert/strict';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { chromium } from 'playwright';
@@ -26,7 +26,14 @@ const lock = await acquireCaptureLock('jev-browser-acceptance', { root });
 let browser, server, page;
 try {
   await mkdir(output, { recursive: true });
-  server = await preview({ root, preview: { host: '127.0.0.1', port: 4398, strictPort: true } });
+  const html = await readFile(path.join(root, 'dist/index.html'), 'utf8');
+  const base = html.match(/src="([^"]*\/)assets\/main-[^"]+\.js"/)?.[1];
+  assert.ok(base, 'Built application entry must identify its deployment base');
+  server = await preview({
+    root,
+    base,
+    preview: { host: '127.0.0.1', port: 4398, strictPort: true },
+  });
   browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({ serviceWorkers: 'block', reducedMotion: 'reduce' });
   await context.addInitScript(() => {
@@ -76,9 +83,12 @@ try {
   });
   page.on('requestfailed', (request) => report.failedRequests.push(request.url()));
   await page.setViewportSize({ width: 1440, height: 1000 });
-  await page.goto('http://127.0.0.1:4398/?benchmark=overview&quality=low&operations=on&pa=off', {
-    waitUntil: 'domcontentloaded',
-  });
+  await page.goto(
+    `http://127.0.0.1:4398${base}?benchmark=overview&quality=low&operations=on&pa=off`,
+    {
+      waitUntil: 'domcontentloaded',
+    }
+  );
   await page.waitForFunction(
     () =>
       window.__MILLOS_RUNTIME__?.ready &&

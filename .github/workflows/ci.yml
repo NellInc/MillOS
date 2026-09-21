@@ -95,7 +95,7 @@ jobs:
         run: npm ci
 
       - name: Build application
-        run: npm run build
+        run: VERSION="v$(node -p "require('./package.json').version.split('.').slice(0, 2).join('.')")" npm run build
 
       # Both read dist/ and src/ only; neither needs a GPU or a browser.
       - name: Validate bundle budget
