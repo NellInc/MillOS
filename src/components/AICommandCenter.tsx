@@ -20,6 +20,7 @@ import { useAIConfigStore } from '../stores/aiConfigStore';
 import { useShallow } from 'zustand/react/shallow';
 import { applyDecisionEffects, reactToAlert } from '../utils/aiEngine';
 import { GeminiSettingsModal } from './GeminiSettingsModal';
+import { JevAdvisoryPanel } from './ui/JevAdvisoryPanel';
 import { ActionPlanTimeline } from './ui/ActionPlanTimeline';
 import { DecisionHistoryPanel } from './ui/DecisionHistoryPanel';
 import { StrategicPriorityCards } from './ui/StrategicPriorityCards';
@@ -51,7 +52,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
   embedded = false,
 }) => {
   const [isThinking, setIsThinking] = useState(false);
-  const [activeTab, setActiveTab] = useState<'decisions' | 'strategic'>('decisions');
+  const [activeTab, setActiveTab] = useState<'decisions' | 'strategic' | 'advisory'>('decisions');
   const [selectedDecision, setSelectedDecision] = useState<AIDecision | null>(null);
 
   const [systemStatus, setSystemStatus] = useState({
@@ -315,6 +316,20 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
               <Target className="w-3 h-3 inline mr-1" aria-hidden="true" />
               Strategic
             </button>
+            <button
+              role="tab"
+              id="ai-advisory-tab"
+              aria-selected={activeTab === 'advisory'}
+              aria-controls="ai-command-tabpanel"
+              onClick={() => setActiveTab('advisory')}
+              className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                activeTab === 'advisory'
+                  ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
+                  : 'bg-slate-800/50 text-slate-400 hover:bg-slate-800'
+              }`}
+            >
+              Advisory
+            </button>
           </div>
 
           {/* Screen-reader-only live region announcing the newest AI decision */}
@@ -326,10 +341,14 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
           <div
             id="ai-command-tabpanel"
             role="tabpanel"
-            aria-labelledby={activeTab === 'decisions' ? 'ai-decisions-tab' : 'ai-strategic-tab'}
+            aria-labelledby={`ai-${activeTab}-tab`}
             className="flex-1 overflow-y-auto p-3 space-y-2"
           >
-            {activeTab === 'decisions' ? (
+            {activeTab === 'advisory' ? (
+              <JevAdvisoryPanel
+                latestAlert={alerts[0] ? `${alerts[0].title}\n${alerts[0].message}` : undefined}
+              />
+            ) : activeTab === 'decisions' ? (
               <>
                 {aiDecisions.slice(0, 15).map((decision: AIDecision) => (
                   <div

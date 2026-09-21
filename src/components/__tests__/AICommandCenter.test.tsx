@@ -202,6 +202,22 @@ describe('AICommandCenter', () => {
   });
 
   describe('Rendering', () => {
+    it('opens the advisory tab and forgets its key when switching away', () => {
+      render(<AICommandCenter isOpen={true} onClose={vi.fn()} embedded />);
+      fireEvent.click(screen.getByRole('tab', { name: 'Advisory' }));
+      expect(screen.getByRole('tabpanel', { name: 'Advisory' })).toBeInTheDocument();
+      expect(screen.getByRole('region', { name: 'Jev advisory' })).toBeInTheDocument();
+      fireEvent.change(screen.getByLabelText('Your OpenRouter API key'), {
+        target: { value: `sk-or-v1-${'test-only-'.repeat(5)}` },
+      });
+      fireEvent.click(screen.getByRole('tab', { name: 'Strategic' }));
+      expect(screen.queryByRole('region', { name: 'Jev advisory' })).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole('tab', { name: 'Advisory' }));
+      expect(screen.getByLabelText('Your OpenRouter API key')).toHaveValue('');
+      expect(screen.getByRole('checkbox')).not.toBeChecked();
+      expect(aiEngineMock.applyDecisionEffects).not.toHaveBeenCalled();
+    });
+
     it('should not render when isOpen is false', () => {
       const { container } = render(<AICommandCenter isOpen={false} onClose={vi.fn()} embedded />);
 
