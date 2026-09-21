@@ -98,25 +98,19 @@ try {
     { timeout: 240_000 }
   );
   // CompleteWorldMarker fires on mount, before incremental static batching.
-  // Use the same structural-settling criterion as run-performance-benchmark.mjs.
+  // Read the batcher's readiness counter directly. Runtime snapshot() performs
+  // geometry raycasts as well as counting objects, so it is unsuitable for polling.
+  report.phase = 'scene-batching';
+  await writeFile(path.join(output, 'result.json'), `${JSON.stringify(report, null, 2)}\n`);
   const settlingStarted = Date.now();
   await page.waitForFunction(
     () => {
-      const snapshot = window.__MILLOS_RUNTIME__?.snapshot();
-      if (!snapshot) return false;
-      const signature = JSON.stringify([
-        snapshot.sceneGraph.objects,
-        snapshot.sceneGraph.meshes,
-        snapshot.sceneGraph.instancedMeshes,
-      ]);
       const now = performance.now();
-      if (
-        Number(document.documentElement.dataset.millosStaticBatchesPending ?? 0) > 0 ||
-        window.jevSceneSignature !== signature
-      ) {
-        window.jevSceneSignature = signature;
+      if (Number(document.documentElement.dataset.millosStaticBatchesPending ?? 0) > 0) {
         window.jevSceneStableSince = now;
+        return false;
       }
+      window.jevSceneStableSince ??= now;
       return now - window.jevSceneStableSince >= 2000;
     },
     null,
@@ -125,6 +119,8 @@ try {
   report.settlingMs = Date.now() - settlingStarted;
 
   for (const width of [1440, 390]) {
+    report.phase = `layout-${width}`;
+    await writeFile(path.join(output, 'result.json'), `${JSON.stringify(report, null, 2)}\n`);
     await page.setViewportSize({ width, height: width === 390 ? 844 : 1000 });
     await page.getByRole('button', { name: 'AI Partner', exact: true }).click();
     await page.getByRole('tab', { name: 'Advisory', exact: true }).click();
@@ -182,9 +178,9 @@ try {
   await page?.screenshot({ path: path.join(output, 'failure.png'), timeout: 5000 }).catch(() => {});
   process.exitCode = 1;
 } finally {
+  await writeFile(path.join(output, 'result.json'), `${JSON.stringify(report, null, 2)}\n`);
+  console.log(JSON.stringify(report, null, 2));
   await browser?.close();
   if (server) await new Promise((resolve) => server.httpServer.close(resolve));
   await lock.release();
-  await writeFile(path.join(output, 'result.json'), `${JSON.stringify(report, null, 2)}\n`);
-  console.log(JSON.stringify(report, null, 2));
 }

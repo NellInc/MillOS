@@ -108,6 +108,7 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Validate Jev personal-key flow in desktop and mobile layouts
+        timeout-minutes: 8
         run: node scripts/validate-jev-browser.mjs
 
       - name: Upload Jev browser evidence
