@@ -29,6 +29,7 @@ import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { useSafetyStore } from '../../stores/safetyStore';
 import { useOperationsCampaignStore } from '../../stores/operationsCampaignStore';
 import { EmergencyStopButton } from '../ui/EmergencyStopButton';
+import { JevAdvisoryPanel } from '../ui/JevAdvisoryPanel';
 
 interface MobilePanelProps {
   isVisible: boolean;
@@ -453,6 +454,8 @@ const SettingsContent: React.FC = () => {
 // AI Partner panel content
 const AIContent: React.FC = () => {
   const aiDecisions = useProductionStore((s) => s.aiDecisions);
+  const latestAlert = useUIStore((s) => s.alerts[0]);
+  const [activeTab, setActiveTab] = React.useState<'decisions' | 'advisory'>('decisions');
   const recentDecisions = aiDecisions.slice(0, 5);
 
   const getStatusIcon = (status: string) => {
@@ -470,28 +473,62 @@ const AIContent: React.FC = () => {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2 text-xs text-slate-400">
-        <Brain className="w-4 h-4" />
-        <span>Recent AI Decisions</span>
+      <div role="tablist" aria-label="AI Partner views" className="flex gap-2">
+        {(['decisions', 'advisory'] as const).map((tab) => (
+          <button
+            key={tab}
+            role="tab"
+            id={`mobile-ai-${tab}-tab`}
+            aria-selected={activeTab === tab}
+            aria-controls="mobile-ai-tabpanel"
+            onClick={() => setActiveTab(tab)}
+            className={`min-h-10 flex-1 rounded-lg px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 ${
+              activeTab === tab ? 'bg-cyan-500/20 text-cyan-300' : 'bg-slate-800 text-slate-300'
+            }`}
+          >
+            {tab === 'decisions' ? 'Decisions' : 'Advisory'}
+          </button>
+        ))}
       </div>
-      {recentDecisions.length === 0 ? (
-        <div className="text-center py-4 text-slate-500 text-sm">No AI decisions yet</div>
-      ) : (
-        <div className="space-y-2">
-          {recentDecisions.map((decision) => (
-            <div
-              key={decision.id}
-              className="bg-slate-800/50 rounded-lg p-2 flex items-start gap-2"
-            >
-              {getStatusIcon(decision.status)}
-              <div className="flex-1 min-w-0">
-                <div className="text-xs text-white truncate">{decision.action}</div>
-                <div className="text-[10px] text-slate-400 truncate">{decision.reasoning}</div>
-              </div>
+      <div
+        id="mobile-ai-tabpanel"
+        role="tabpanel"
+        aria-labelledby={`mobile-ai-${activeTab}-tab`}
+        className="space-y-3"
+      >
+        {activeTab === 'advisory' ? (
+          <JevAdvisoryPanel
+            latestAlert={latestAlert ? `${latestAlert.title}\n${latestAlert.message}` : undefined}
+          />
+        ) : (
+          <>
+            <div className="flex items-center gap-2 text-xs text-slate-400">
+              <Brain className="w-4 h-4" />
+              <span>Recent AI Decisions</span>
             </div>
-          ))}
-        </div>
-      )}
+            {recentDecisions.length === 0 ? (
+              <div className="text-center py-4 text-slate-500 text-sm">No AI decisions yet</div>
+            ) : (
+              <div className="space-y-2">
+                {recentDecisions.map((decision) => (
+                  <div
+                    key={decision.id}
+                    className="bg-slate-800/50 rounded-lg p-2 flex items-start gap-2"
+                  >
+                    {getStatusIcon(decision.status)}
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs text-white truncate">{decision.action}</div>
+                      <div className="text-[10px] text-slate-400 truncate">
+                        {decision.reasoning}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 };
@@ -741,13 +778,15 @@ export const MobilePanel: React.FC<MobilePanelProps> = ({ isVisible, content, on
             className="fixed left-4 right-4 z-50 pointer-events-auto"
             style={{
               bottom: 'max(100px, calc(env(safe-area-inset-bottom) + 90px))',
-              maxHeight: '33vh',
+              maxHeight: content === 'ai' ? '70vh' : '33vh',
             }}
             aria-label={`${getPanelTitle(content)} mobile panel`}
             role="dialog"
             aria-modal="true"
           >
-            <div className="flex flex-col max-h-[33vh] bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
+            <div
+              className={`flex flex-col ${content === 'ai' ? 'max-h-[70vh]' : 'max-h-[33vh]'} bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden shadow-2xl`}
+            >
               {/* Header */}
               <div className="flex shrink-0 items-center justify-between px-4 py-3 border-b border-slate-700/50">
                 <div className="flex items-center gap-2 text-slate-200">
