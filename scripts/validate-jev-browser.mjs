@@ -97,6 +97,32 @@ try {
     null,
     { timeout: 240_000 }
   );
+  // CompleteWorldMarker fires on mount, before incremental static batching.
+  // Use the same structural-settling criterion as run-performance-benchmark.mjs.
+  const settlingStarted = Date.now();
+  await page.waitForFunction(
+    () => {
+      const snapshot = window.__MILLOS_RUNTIME__?.snapshot();
+      if (!snapshot) return false;
+      const signature = JSON.stringify([
+        snapshot.sceneGraph.objects,
+        snapshot.sceneGraph.meshes,
+        snapshot.sceneGraph.instancedMeshes,
+      ]);
+      const now = performance.now();
+      if (
+        Number(document.documentElement.dataset.millosStaticBatchesPending ?? 0) > 0 ||
+        window.jevSceneSignature !== signature
+      ) {
+        window.jevSceneSignature = signature;
+        window.jevSceneStableSince = now;
+      }
+      return now - window.jevSceneStableSince >= 2000;
+    },
+    null,
+    { polling: 400, timeout: 240_000 }
+  );
+  report.settlingMs = Date.now() - settlingStarted;
 
   for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: width === 390 ? 844 : 1000 });
