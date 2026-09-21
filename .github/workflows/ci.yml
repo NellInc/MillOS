@@ -104,6 +104,21 @@ jobs:
       - name: Validate module reachability
         run: npm run validate:reachability
 
+      - name: Install browser for Jev UI acceptance
+        run: npx playwright install --with-deps chromium
+
+      - name: Validate Jev personal-key flow in desktop and mobile layouts
+        run: node scripts/validate-jev-browser.mjs
+
+      - name: Upload Jev browser evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: jev-browser
+          path: test-results/jev-browser/
+          if-no-files-found: ignore
+          retention-days: 7
+
       - name: Upload build artifacts
         uses: actions/upload-artifact@v7
         with:
