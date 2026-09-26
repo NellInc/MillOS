@@ -4,6 +4,9 @@ import type {
   AgentCommandEnvelope,
   AgentCommandPreview,
   AgentExecutionReceipt,
+  AgentLegalOption,
+  AgentLegalOptionSet,
+  AgentLegalOptionsRequest,
   AgentRuntimeApi,
   AgentVerificationResult,
 } from '../contracts/commandContracts';
@@ -101,6 +104,135 @@ export function createAgentCommandKernel(dependencies: KernelDependencies) {
       mode: capture.mode,
       requestedAt: now().toISOString(),
     } satisfies AgentCommandEnvelope);
+  }
+
+  /**
+   * Enumerate the commands that would pass every current check on one target,
+   * so a chooser picks from a closed set instead of composing a command. It
+   * never calls preview(): that would write the ledger and could evict real
+   * previews from the bounded history. All candidates share one capture.
+   */
+  async function legalOptions(request: AgentLegalOptionsRequest): Promise<AgentLegalOptionSet> {
+    const capture = dependencies.capture();
+    const actorUri = request.actorUri ?? DEFAULT_AGENT_ACTOR_URI;
+    const grantId = request.grantId ?? DEFAULT_AGENT_GRANT_ID;
+    let targetKind: AgentEntityKind | null = null;
+    try {
+      targetKind = parseSemanticUri(request.targetUri).kind;
+    } catch {
+      targetKind = null;
+    }
+    const options: AgentLegalOption[] = [];
+    const needsInput: AgentLegalOptionSet['needsInput'] = [];
+    const excluded: AgentLegalOptionSet['excluded'] = [];
+
+    for (const capability of capabilities.values()) {
+      if (!targetKind || !capability.targetKinds.includes(targetKind)) continue;
+      const handler = handlers.get(capability.id);
+      const probe = (parameters: Record<string, AgentJsonValue>): AgentCommandEnvelope => ({
+        schemaVersion: 1,
+        commandId: 'legal-option-probe',
+        idempotencyKey: 'legal-option-probe',
+        capabilityId: capability.id,
+        capabilityVersion: capability.version,
+        actorUri,
+        grantId,
+        targetUri: request.targetUri,
+        parameters,
+        // Never leaves this function; a chosen option is drafted with the chooser's reason.
+        reason: 'legal option probe',
+        observedRevision: observedRevisionFor(capability, capture),
+        mode: capture.mode,
+        requestedAt: now().toISOString(),
+      });
+
+      // Authority depends on actor, grant, capability, target and mode, never
+      // on parameters, so it is settled once before any parameter is filled.
+      const authority = dependencies.authority.evaluate(probe({}), capability);
+      if (!authority.allowed) {
+        excluded.push({
+          optionId: capability.id,
+          capabilityId: capability.id,
+          reasons: authority.reasons,
+        });
+        continue;
+      }
+
+      const { properties, required } = capability.parameters;
+      const uriKeys = Object.keys(properties).filter((key) => key.endsWith('Uri'));
+      const enumKeys = required.filter((key) => Array.isArray(properties[key]?.enum));
+      const openKeys = required.filter(
+        (key) => !enumKeys.includes(key) && !(uriKeys.length === 1 && key === uriKeys[0])
+      );
+      if (openKeys.length > 0) {
+        needsInput.push({ capabilityId: capability.id, parameters: openKeys });
+        continue;
+      }
+
+      let variants: Array<Record<string, AgentJsonValue>> = [
+        uriKeys.length === 1 ? { [uriKeys[0]]: request.targetUri } : {},
+      ];
+      for (const key of enumKeys) {
+        const values = properties[key].enum as AgentJsonValue[];
+        variants = variants.flatMap((variant) =>
+          values.map((value) => ({ ...variant, [key]: value }))
+        );
+      }
+
+      for (const parameters of variants) {
+        const optionId = [
+          capability.id,
+          ...enumKeys.map((key) => `${key}=${String(parameters[key])}`),
+        ].join(':');
+        const command = probe(parameters);
+        const reasons = validateCommand(command, capability, handler, capture)
+          .filter((problem) => problem.severity === 'blocking')
+          .map((problem) => problem.message);
+        let inspection: AgentCommandInspection | null = null;
+        if (handler && reasons.length === 0) {
+          try {
+            inspection = await handler.inspect(command, capture);
+            for (const check of [...inspection.preconditions, ...inspection.invariants]) {
+              if (!check.satisfied) reasons.push(check.detail);
+            }
+          } catch (error) {
+            reasons.push(error instanceof Error ? error.message : String(error));
+          }
+        }
+        if (reasons.length > 0 || !inspection) {
+          excluded.push({ optionId, capabilityId: capability.id, reasons });
+          continue;
+        }
+        options.push({
+          optionId,
+          capabilityId: capability.id,
+          title: capability.title,
+          risk: capability.risk,
+          approvalRequired: authority.approvalRequired,
+          draft: {
+            capabilityId: capability.id,
+            targetUri: request.targetUri,
+            parameters,
+            actorUri,
+            grantId,
+          },
+          effects: inspection.effects,
+          uncertainties: inspection.uncertainties,
+        });
+      }
+    }
+
+    return immutable({
+      schemaVersion: 1,
+      targetUri: request.targetUri,
+      actorUri,
+      grantId,
+      mode: capture.mode,
+      generatedAt: now().toISOString(),
+      options,
+      needsInput,
+      excluded,
+    } satisfies AgentLegalOptionSet);
   }
 
   async function preview(command: AgentCommandEnvelope): Promise<AgentCommandPreview> {
@@ -526,6 +658,7 @@ export function createAgentCommandKernel(dependencies: KernelDependencies) {
   }
 
   return {
+    legalOptions,
     draft,
     preview,
     approve,
@@ -859,5 +992,5 @@ function jsonValue(value: unknown): AgentJsonValue {
 export type AgentCommandKernel = ReturnType<typeof createAgentCommandKernel>;
 export type AgentCommandRuntimeMethods = Pick<
   AgentRuntimeApi,
-  'draft' | 'preview' | 'approve' | 'commit'
+  'legalOptions' | 'draft' | 'preview' | 'approve' | 'commit'
 >;

@@ -78,6 +78,30 @@ describe('MillOS runtime agent projection', () => {
     expect(window.__MILLOS_RUNTIME__).toBe(legacyBefore);
   });
 
+  it('lists legal options from live stores without writing evidence', async () => {
+    const remove = installMillOSAgentRuntime(window);
+    try {
+      const agent = window.__MILLOS_AGENT__;
+      const eventsBefore = agent?.evidence().events.length;
+      const set = await agent?.legalOptions({ targetUri: 'millos://simulation/local' });
+      expect(agent?.evidence().events.length).toBe(eventsBefore);
+      if (set?.mode === 'simulation') {
+        expect(set.options).toContainEqual(
+          expect.objectContaining({
+            optionId: 'simulation.start-fire-drill',
+            approvalRequired: true,
+          })
+        );
+        expect(set.needsInput).toContainEqual({
+          capabilityId: 'simulation.set-speed',
+          parameters: ['speed'],
+        });
+      }
+    } finally {
+      remove();
+    }
+  });
+
   // Runs last: the composition deliberately outlives an install, so the
   // revocation below persists on this window for the rest of the file.
   it('reuses one composed agent plane across re-installs so a revocation survives', () => {

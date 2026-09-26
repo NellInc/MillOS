@@ -152,6 +152,7 @@ describe('MillOS agent system registry', () => {
         'query',
         'capabilities',
         'trace',
+        'legalOptions',
         'draft',
         'preview',
         'approve',

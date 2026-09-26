@@ -755,6 +755,7 @@ const systemRegistrySource = {
       'query',
       'capabilities',
       'trace',
+      'legalOptions',
       'draft',
       'preview',
       'approve',

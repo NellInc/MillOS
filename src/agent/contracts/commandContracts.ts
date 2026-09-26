@@ -40,6 +40,41 @@ export interface AgentCommandDraftRequest {
   idempotencyKey?: string;
 }
 
+export interface AgentLegalOptionsRequest {
+  targetUri: string;
+  actorUri?: string;
+  grantId?: string;
+}
+
+/**
+ * One command that would pass every current check for the requesting actor.
+ * It carries no reason: the chooser must supply its own before draft(), and
+ * draft -> preview -> commit still re-checks everything.
+ */
+export interface AgentLegalOption {
+  optionId: string;
+  capabilityId: string;
+  title: string;
+  risk: AgentRisk;
+  approvalRequired: boolean;
+  draft: Omit<AgentCommandDraftRequest, 'reason' | 'idempotencyKey'>;
+  effects: string[];
+  uncertainties: string[];
+}
+
+export interface AgentLegalOptionSet {
+  schemaVersion: 1;
+  targetUri: string;
+  actorUri: string;
+  grantId: string;
+  mode: AgentRuntimeMode;
+  generatedAt: string;
+  options: AgentLegalOption[];
+  /** Permitted, but a required parameter has no closed set of values to offer. */
+  needsInput: Array<{ capabilityId: string; parameters: string[] }>;
+  excluded: Array<{ optionId: string; capabilityId: string; reasons: string[] }>;
+}
+
 export interface AgentActorDescriptor {
   id: string;
   uri: string;
@@ -237,6 +272,11 @@ export interface AgentRuntimeApi extends Omit<AgentRuntimeReadApi, 'version' | '
       }
     >;
   }>;
+  /**
+   * The closed set of commands currently legal on one target. Read-only: it
+   * writes no preview, ledger event or budget use.
+   */
+  legalOptions: (request: AgentLegalOptionsRequest) => Promise<AgentLegalOptionSet>;
   draft: (request: AgentCommandDraftRequest) => AgentCommandEnvelope;
   preview: (command: AgentCommandEnvelope) => Promise<AgentCommandPreview>;
   /**

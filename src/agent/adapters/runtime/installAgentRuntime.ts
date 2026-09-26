@@ -163,6 +163,7 @@ function composeMillOSAgentRuntime(): AgentRuntimeApi {
         ),
       }) as AgentObservationEnvelope;
     },
+    legalOptions: kernel.legalOptions,
     draft: kernel.draft,
     preview: kernel.preview,
     approve: (previewId, reason) => kernel.approve(previewId, reason, HUMAN_OPERATOR_URI),

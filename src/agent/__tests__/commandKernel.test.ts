@@ -411,3 +411,72 @@ describe('agent command kernel regressions', () => {
     expect(receipt.status).toBe('verified');
   });
 });
+
+describe('agent command kernel legal options', () => {
+  it('offers only commands that pass every check, and writes nothing while enumerating', async () => {
+    const fixture = createFixture();
+    const eventsBefore = fixture.ledger.export().events.length;
+
+    const set = await fixture.kernel.legalOptions({ targetUri: 'millos://order/order-001' });
+    expect(set.options.map((option) => option.optionId)).toEqual(['operations.activate-order']);
+    expect(set.options[0].effects).toContain('Activate order-001.');
+    expect(fixture.ledger.export().events.length).toBe(eventsBefore);
+    expect(fixture.state.activationCount).toBe(0);
+
+    // A chosen option still goes through the full gate with the chooser's own reason.
+    const preview = await fixture.kernel.preview(
+      fixture.kernel.draft({ ...set.options[0].draft, reason: 'Chosen from legal options.' })
+    );
+    expect(preview.status).toBe('ready');
+  });
+
+  it('excludes a command whose handler precondition fails', async () => {
+    const fixture = createFixture();
+    const set = await fixture.kernel.legalOptions({ targetUri: 'millos://order/order-999' });
+    expect(set.options).toEqual([]);
+    expect(set.excluded).toEqual([
+      {
+        optionId: 'operations.activate-order',
+        capabilityId: 'operations.activate-order',
+        reasons: ['Order must exist.'],
+      },
+    ]);
+  });
+
+  it('expands required enum parameters into one option each', async () => {
+    const fixture = createFixture();
+    const set = await fixture.kernel.legalOptions({ targetUri: 'millos://decision/decision-001' });
+    // The fixture registers no handler for this capability, so every variant is excluded.
+    expect(set.excluded.map((entry) => entry.optionId)).toEqual([
+      'ai.respond-to-decision:disposition=accepted',
+      'ai.respond-to-decision:disposition=modified',
+      'ai.respond-to-decision:disposition=rejected',
+      'ai.respond-to-decision:disposition=deferred',
+    ]);
+    expect(set.excluded[0].reasons).toContain('No runtime handler is registered.');
+  });
+
+  it('reports permitted commands that need free-form input instead of offering them', async () => {
+    const fixture = createFixture();
+    const set = await fixture.kernel.legalOptions({ targetUri: 'millos://batch/batch-001' });
+    expect(set.options).toEqual([]);
+    expect(set.needsInput).toEqual([
+      { capabilityId: 'quality.hold-batch', parameters: ['reason'] },
+      { capabilityId: 'quality.release-batch', parameters: ['reason'] },
+    ]);
+  });
+
+  it('offers nothing under a revoked grant or for a malformed target', async () => {
+    const fixture = createFixture();
+    fixture.authority.revoke('grant.agent-driver.simulation.v1', 'Test revocation.');
+    const revoked = await fixture.kernel.legalOptions({ targetUri: 'millos://order/order-001' });
+    expect(revoked.options).toEqual([]);
+    expect(
+      revoked.excluded[0].reasons.some((reason) => reason.startsWith('Grant was revoked'))
+    ).toBe(true);
+
+    const malformed = await fixture.kernel.legalOptions({ targetUri: 'not-a-uri' });
+    expect(malformed.options).toEqual([]);
+    expect(malformed.needsInput).toEqual([]);
+  });
+});

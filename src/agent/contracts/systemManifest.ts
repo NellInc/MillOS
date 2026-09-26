@@ -163,6 +163,7 @@ export interface AgentQueryPlaneDescriptor {
     | 'query'
     | 'capabilities'
     | 'trace'
+    | 'legalOptions'
     | 'draft'
     | 'preview'
     | 'approve'

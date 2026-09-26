@@ -48,6 +48,7 @@ const QUERY_RUNTIME_METHODS = [
   'query',
   'capabilities',
   'trace',
+  'legalOptions',
   'draft',
   'preview',
   'approve',
