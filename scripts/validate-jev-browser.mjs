@@ -122,7 +122,9 @@ try {
     report.phase = `layout-${width}`;
     await writeFile(path.join(output, 'result.json'), `${JSON.stringify(report, null, 2)}\n`);
     await page.setViewportSize({ width, height: width === 390 ? 844 : 1000 });
-    await page.getByRole('button', { name: 'AI Partner', exact: true }).click();
+    // AI Partner lives in the dock's More menu (Dock.tsx), as in master-refinement.spec.
+    await page.getByRole('button', { name: 'More workspaces and view controls' }).click();
+    await page.getByRole('menuitem', { name: 'AI Partner I', exact: true }).click();
     await page.getByRole('tab', { name: 'Advisory', exact: true }).click();
     const panel = page.getByRole('region', { name: 'Jev advisory' });
     const credential = panel.getByLabel('Your OpenRouter API key');
