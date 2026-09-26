@@ -18,6 +18,7 @@ interface InspectableHistoryStore {
     maxQueryPoints: number;
     maxBufferSize: number;
     changeDeadband: number;
+    maxSampleIntervalMs: number;
   };
   writeBuffer: BufferedTagRecord[];
   alarmBuffer: BufferedAlarmRecord[];
@@ -217,6 +218,7 @@ describe('HistoryStore adversarial boundaries', () => {
       maxQueryPoints: Number.POSITIVE_INFINITY,
       maxBufferSize: Number.NaN,
       changeDeadband: -1,
+      maxSampleIntervalMs: -5,
     });
 
     expect(inspect(store).config).toEqual({
@@ -225,6 +227,7 @@ describe('HistoryStore adversarial boundaries', () => {
       maxQueryPoints: 10000,
       maxBufferSize: 2000,
       changeDeadband: 0.5,
+      maxSampleIntervalMs: 60_000,
     });
 
     const boundaryStore = new HistoryStore({
@@ -375,6 +378,95 @@ describe('HistoryStore adversarial boundaries', () => {
       { timestamp: 3, value: 10.5, quality: 'BAD' },
       { timestamp: 5, value: 10.75, quality: 'GOOD' },
     ]);
+  });
+
+  it('rewrites a steady value once the heartbeat interval elapses', () => {
+    const store = new HistoryStore({ changeDeadband: 1, maxSampleIntervalMs: 60_000 });
+
+    store.writeTagValues([
+      tagValue('TAG', 10, 0),
+      tagValue('TAG', 10, 30_000),
+      tagValue('TAG', 10, 59_999),
+      tagValue('TAG', 10, 60_000),
+      tagValue('TAG', 10, 90_000),
+    ]);
+
+    expect(inspect(store).writeBuffer).toMatchObject([
+      { timestamp: 0, value: 10 },
+      { timestamp: 60_000, value: 10 },
+    ]);
+  });
+
+  it('applies a per-tag change deadband before the global default', () => {
+    const store = new HistoryStore({
+      changeDeadband: 0.5,
+      changeDeadbandFor: (tagId) => (tagId === 'FINE' ? 0.05 : undefined),
+    });
+
+    store.writeTagValues([
+      tagValue('FINE', 25, 1),
+      tagValue('FINE', 25.1, 2),
+      tagValue('COARSE', 25, 3),
+      tagValue('COARSE', 25.1, 4),
+    ]);
+
+    expect(inspect(store).writeBuffer.map(({ tagId, value }) => [tagId, value])).toEqual([
+      ['FINE', 25],
+      ['FINE', 25.1],
+      ['COARSE', 25],
+    ]);
+  });
+
+  it('keeps the newest samples when a window holds more than the query cap', async () => {
+    const rows = Array.from({ length: 10 }, (_, index) => ({
+      tagId: 'TAG',
+      timestamp: index,
+      value: index,
+      quality: 'GOOD',
+    }));
+    const settle = <T extends { onsuccess: (() => void) | null }>(request: T): T => {
+      queueMicrotask(() => request.onsuccess?.());
+      return request;
+    };
+    const index = {
+      openKeyCursor: vi.fn(() => {
+        let position = rows.length - 1;
+        const request: { result: unknown; onsuccess: (() => void) | null; onerror: null } = {
+          result: null,
+          onsuccess: null,
+          onerror: null,
+        };
+        const cursorAt = (
+          at: number
+        ): { key: [string, number]; advance: (count: number) => void } | null =>
+          at >= 0
+            ? {
+                key: ['TAG', rows[at].timestamp],
+                advance: (count: number) => {
+                  position -= count;
+                  request.result = cursorAt(position);
+                  settle(request);
+                },
+              }
+            : null;
+        request.result = cursorAt(position);
+        return settle(request);
+      }),
+      getAll: vi.fn((range: { lower: [string, number] }, limit: number) =>
+        settle({
+          result: rows.filter((row) => row.timestamp >= range.lower[1]).slice(0, limit),
+          onsuccess: null as (() => void) | null,
+          onerror: null,
+        })
+      ),
+    };
+    const store = new HistoryStore({ maxQueryPoints: 4 });
+    inspect(store).db = {
+      transaction: () => ({ objectStore: () => ({ index: () => index }) }),
+    } as unknown as IDBDatabase;
+
+    const history = await store.getHistory('TAG', 0, 100);
+    expect(history.map((point) => point.timestamp)).toEqual([6, 7, 8, 9]);
   });
 
   it('rejects malformed alarms before they can corrupt IndexedDB ordering', () => {

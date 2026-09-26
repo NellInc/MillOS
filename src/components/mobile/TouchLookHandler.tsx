@@ -1,42 +1,33 @@
 import { useEffect, useRef } from 'react';
 import { useThree } from '@react-three/fiber';
+import * as THREE from 'three';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import { useMobileControlStore } from '../../stores/mobileControlStore';
+import { ORBIT_POLAR_LIMITS } from '../../utils/cameraNavigation';
+
+// Reusable offset so a drag does not allocate a Vector3 per touchmove.
+const _offset = new THREE.Vector3();
 
 interface TouchLookHandlerProps {
   orbitControlsRef: React.RefObject<OrbitControlsImpl | null>;
   sensitivity?: number;
-  zoomSensitivity?: number;
-  minDistance?: number;
-  maxDistance?: number;
 }
 
 /**
  * React Three Fiber component that handles touch gestures on the canvas.
  * - Single-finger drag: rotates the camera view (orbit)
- * - Two-finger pinch: zooms in/out
+ * - Two fingers: left to OrbitControls, which owns dolly and pan and applies
+ *   the orbit rig's distance limits. A second pinch here double-zoomed.
  * This is a behavior-only component that returns null.
  */
 export const TouchLookHandler: React.FC<TouchLookHandlerProps> = ({
   orbitControlsRef,
   sensitivity = 0.004,
-  zoomSensitivity = 0.02,
-  minDistance = 15,
-  maxDistance = 200,
 }) => {
   const { gl, camera } = useThree();
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
-  const pinchStartDistRef = useRef<number | null>(null);
-  const pinchStartZoomRef = useRef<number | null>(null);
   const lastTouchTimeRef = useRef<number>(0);
   const setIsTouchLooking = useMobileControlStore((s) => s.setIsTouchLooking);
-
-  // Helper to calculate distance between two touch points
-  const getTouchDistance = (t1: Touch, t2: Touch): number => {
-    const dx = t1.clientX - t2.clientX;
-    const dy = t1.clientY - t2.clientY;
-    return Math.sqrt(dx * dx + dy * dy);
-  };
 
   useEffect(() => {
     const canvas = gl.domElement;
@@ -47,8 +38,9 @@ export const TouchLookHandler: React.FC<TouchLookHandlerProps> = ({
       const target = e.target as HTMLElement;
       if (target.closest('.pointer-events-auto')) return;
 
-      // Prevent default to avoid conflicts with OrbitControls
-      e.preventDefault();
+      // No preventDefault here: cancelling touchstart suppresses the
+      // synthesized click that R3F onClick (forklifts, props) listens for.
+      // OrbitControls already sets touch-action: none on the canvas.
 
       // Use targetTouches to only count touches on this element (canvas)
       // This allows D-pad and look to work simultaneously
@@ -60,14 +52,9 @@ export const TouchLookHandler: React.FC<TouchLookHandlerProps> = ({
         };
         setIsTouchLooking(true);
       } else if (e.targetTouches.length === 2) {
-        // Two touches on canvas - start pinch-to-zoom
-        touchStartRef.current = null; // Cancel any single-touch drag
-        pinchStartDistRef.current = getTouchDistance(e.targetTouches[0], e.targetTouches[1]);
-        // Store current camera distance from target
-        const controls = orbitControlsRef.current;
-        if (controls) {
-          pinchStartZoomRef.current = camera.position.distanceTo(controls.target);
-        }
+        // Two fingers belong to OrbitControls. Drop the single-finger drag so
+        // lifting one finger does not resume look from a stale start point.
+        touchStartRef.current = null;
       }
     };
 
@@ -79,32 +66,6 @@ export const TouchLookHandler: React.FC<TouchLookHandlerProps> = ({
 
       e.preventDefault();
 
-      // Handle pinch-to-zoom (two fingers on canvas)
-      if (
-        e.targetTouches.length === 2 &&
-        pinchStartDistRef.current !== null &&
-        pinchStartZoomRef.current !== null
-      ) {
-        const currentDist = getTouchDistance(e.targetTouches[0], e.targetTouches[1]);
-        const pinchDelta = pinchStartDistRef.current - currentDist;
-        const zoomDelta = pinchDelta * zoomSensitivity;
-
-        const controls = orbitControlsRef.current;
-        if (controls) {
-          const target = controls.target;
-          const offset = camera.position.clone().sub(target);
-
-          // Calculate new radius with pinch delta
-          let newRadius = pinchStartZoomRef.current + zoomDelta;
-          newRadius = Math.max(minDistance, Math.min(maxDistance, newRadius));
-
-          // Scale offset to new radius
-          offset.normalize().multiplyScalar(newRadius);
-          camera.position.copy(target).add(offset);
-        }
-        return;
-      }
-
       // Handle single-finger drag (look) - use targetTouches for simultaneous D-pad + look
       if (!touchStartRef.current || e.targetTouches.length !== 1) return;
 
@@ -115,7 +76,7 @@ export const TouchLookHandler: React.FC<TouchLookHandlerProps> = ({
       const controls = orbitControlsRef.current;
       if (controls) {
         const target = controls.target;
-        const offset = camera.position.clone().sub(target);
+        const offset = _offset.copy(camera.position).sub(target);
 
         // Convert to spherical coordinates
         const radius = offset.length();
@@ -126,8 +87,9 @@ export const TouchLookHandler: React.FC<TouchLookHandlerProps> = ({
         theta -= deltaX * sensitivity;
         phi += deltaY * sensitivity;
 
-        // Clamp polar angle to prevent camera from going above or below limits
-        phi = Math.max(0.2, Math.min(Math.PI / 2 - 0.05, phi));
+        // Same limits as the orbit rig and the D-pad look, so the first drag
+        // from a low preset does not snap the camera upward.
+        phi = Math.max(ORBIT_POLAR_LIMITS.min, Math.min(ORBIT_POLAR_LIMITS.max, phi));
 
         // Convert back to cartesian
         offset.x = radius * Math.sin(phi) * Math.sin(theta);
@@ -146,12 +108,6 @@ export const TouchLookHandler: React.FC<TouchLookHandlerProps> = ({
     };
 
     const handleTouchEnd = (e: TouchEvent) => {
-      // Reset pinch state when fingers lift
-      if (e.touches.length < 2) {
-        pinchStartDistRef.current = null;
-        pinchStartZoomRef.current = null;
-      }
-
       // Only end look state if all touches are released
       if (e.touches.length === 0) {
         touchStartRef.current = null;
@@ -161,8 +117,6 @@ export const TouchLookHandler: React.FC<TouchLookHandlerProps> = ({
 
     const handleTouchCancel = () => {
       touchStartRef.current = null;
-      pinchStartDistRef.current = null;
-      pinchStartZoomRef.current = null;
       setIsTouchLooking(false);
     };
 
@@ -178,16 +132,7 @@ export const TouchLookHandler: React.FC<TouchLookHandlerProps> = ({
       canvas.removeEventListener('touchend', handleTouchEnd);
       canvas.removeEventListener('touchcancel', handleTouchCancel);
     };
-  }, [
-    gl,
-    camera,
-    orbitControlsRef,
-    sensitivity,
-    zoomSensitivity,
-    minDistance,
-    maxDistance,
-    setIsTouchLooking,
-  ]);
+  }, [gl, camera, orbitControlsRef, sensitivity, setIsTouchLooking]);
 
   // This is a behavior-only component
   return null;

@@ -1,0 +1,12 @@
+{
+  "matchedTriangles": 576,
+  "omittedZeroAreaSourceTriangles": 0,
+  "slowMatches": 0,
+  "maxNormalizedPositionError": 6.198068378461905e-8,
+  "preservedProviderAttributes": {
+    "POSITION": "d61e33daa8ee58ddff8f5516ed4679260930d0e065ed6b5bf70dd1b7495e50ab",
+    "TEXCOORD_0": "366e789e156ed5d5af777061ebcae770b8c2f607b75e280828a693f58771f552"
+  },
+  "sourceColourSha256": "d50f08f991b957af7e1c32ddb68c1f9213dde35404ebdd9b6d347179d732df74",
+  "note": "Authored linear colour on vertices, no colour atlas. Tripo normal and roughness on original UV0. Original hard-surface normals restored. Positions and topology unchanged; no extra material. Runtime appearance and benefit remain unverified."
+}

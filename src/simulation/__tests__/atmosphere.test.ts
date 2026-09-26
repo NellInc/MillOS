@@ -18,6 +18,17 @@ describe('atmosphere sampling', () => {
     expect(dusk.twilight).toBeGreaterThan(noon.twilight);
   });
 
+  it('shares a normalized site-oriented orbit across the complete day', () => {
+    for (let hour = 0; hour < 24; hour += 0.5) {
+      const state = sampleCelestial(sampleAtmosphere(0, hour, 'clear'));
+      expect(Math.hypot(...state.sunDirection)).toBeCloseTo(1, 8);
+      state.sunDirection.forEach((value, axis) => expect(state.moonDirection[axis]).toBe(-value));
+    }
+    const afternoon = sampleCelestial(sampleAtmosphere(0, 16, 'clear'));
+    expect(afternoon.sunDirection[0]).toBeLessThan(-0.5);
+    expect(afternoon.sunDirection[2]).toBeGreaterThan(0.5);
+  });
+
   it('uses one weather event for cloud, light, precipitation, wetness, wind, and fog', () => {
     const clear = sampleAtmosphere(2, 12, 'clear');
     const cloudy = sampleAtmosphere(2, 12, 'cloudy');
@@ -54,8 +65,8 @@ describe('atmosphere sampling', () => {
       expect(Math.hypot(...sample.sunDirection)).toBeCloseTo(1, 8);
     }
 
-    expect(dawn.sunDirection[0]).toBeLessThan(0);
-    expect(dusk.sunDirection[0]).toBeGreaterThan(0);
+    expect(dawn.sunDirection[0]).toBeGreaterThan(0);
+    expect(dusk.sunDirection[0]).toBeLessThan(0);
     expect(noon.sunDirection[1]).toBeCloseTo(1, 8);
   });
 

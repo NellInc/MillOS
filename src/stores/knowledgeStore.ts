@@ -109,6 +109,18 @@ export const LOADING_QUOTES: KnowledgeQuote[] = [
     text: 'Every alarm needs a condition, disposition, and recovery path.',
     author: 'MillOS SCADA principle',
   },
+  {
+    text: 'A well-run mill is boring. Boring is the goal.',
+    author: 'MillOS control principle',
+  },
+  {
+    text: 'Every sensor tells the truth. The dashboard is where interpretation begins.',
+    author: 'MillOS SCADA principle',
+  },
+  {
+    text: 'If the forklifts are confused, so is the system.',
+    author: 'MillOS logistics principle',
+  },
 ];
 
 export const KNOWLEDGE_ENTRIES: KnowledgeEntry[] = [
@@ -119,8 +131,8 @@ export const KNOWLEDGE_ENTRIES: KnowledgeEntry[] = [
     icon: 'factory',
     tooltip: 'Interior, yard, village, farm, and water share one simulation.',
     brief:
-      'MillOS keeps the factory and its surrounding site in one continuous coordinate system, with a shared clock, weather state, and production model.',
-    article: `## One Continuous Site\n\nThe mill floor, loading yard, maintenance garage, village, farm, stream, culvert, and distant terrain remain part of one authored world. Camera travel changes viewpoint, not simulation mode.\n\nA unified world prevents duplicated state and discontinuous lighting. Trucks can approach the same docks seen from inside. Water crosses terrain through the same culvert visible from the road. The sun, moon, windows, exterior lamps, and process clocks all derive from the same time source.\n\nThis architecture also makes faults easier to diagnose. Positioning, occlusion, route clearance, and z-layer policies can be measured in one coordinate system instead of translated between disconnected scenes.`,
+      'The factory and its surroundings share one coordinate system, one clock, and one weather state. There is no seam between inside and out.',
+    article: `## One Continuous Site\n\nMill floor, loading yard, village, farm, stream, and distant terrain are all part of one world. Moving the camera changes what you see, not what is being simulated.\n\nThis means trucks approach the same docks visible from inside. Water flows through the same culvert you can see from the road. Sun, moon, lamps, and process clocks all derive from a single time source. No seams, no duplicated state, no discontinuous lighting.\n\nIt also makes faults easier to find. Positioning, occlusion, route clearance, and depth-layer policies can all be measured in one coordinate system rather than translated between disconnected scenes.`,
     relatedEntries: ['autonomous-material-flow', 'environment-cycle'],
     seeInAction: ['3D world', 'Overview workspace'],
     unlockCondition: always,
@@ -131,9 +143,8 @@ export const KNOWLEDGE_ENTRIES: KnowledgeEntry[] = [
     category: 'systems',
     icon: 'network',
     tooltip: 'Source lots remain traceable through silos, mills, sifters, and packers.',
-    brief:
-      'The material-flow ledger connects receiving manifests, source lots, production batches, QC disposition, and dispatch loads.',
-    article: `## Causal Material Flow\n\nGrain enters through a receiving manifest and becomes a source lot. Each transformation records mass transfer, equipment identity, time, and disposition. Packers create production batches from explicit source contributions. Dispatch can load only released material.\n\nThe genealogy balance compares received, in-process, shipped, and lost mass. A non-zero balance error is treated as a control defect. Quality holds follow the affected batches and source contributions instead of applying an unexplained global penalty.\n\nThis gives the SCADA workspace evidence for every major action and makes replay useful: a state can be reconstructed from its inputs rather than inferred from a dashboard number.`,
+    brief: 'Every bag of flour can trace its lineage back to the grain that arrived at the dock.',
+    article: `## Causal Material Flow\n\nGrain arrives as a receiving manifest and becomes a source lot. Every transformation — milling, sifting, packing — records what went in, what came out, which machine did it, and when. Dispatch can only load released material. No shortcuts.\n\nThe genealogy balance compares received, in-process, shipped, and lost mass. A discrepancy is a control defect, not a rounding error. Quality holds follow the affected batches rather than applying a blanket penalty to the whole line.\n\nThis gives the SCADA workspace evidence for every major action. A state can be reconstructed from its inputs, not inferred from a dashboard number.`,
     relatedEntries: ['scada-alarm-lifecycle', 'batch-quality'],
     seeInAction: ['SCADA provenance', 'Batch genealogy'],
     unlockCondition: always,
@@ -145,8 +156,8 @@ export const KNOWLEDGE_ENTRIES: KnowledgeEntry[] = [
     icon: 'chart-bar',
     tooltip: 'Alarms expose state, acknowledgement, disposition, and recovery.',
     brief:
-      'MillOS distinguishes active conditions, returned conditions, acknowledgement, shelving, suppression, and out-of-service disposition.',
-    article: `## Alarm State Is Evidence\n\nAn alarm occurrence records the tag, limit, measured value, priority, timestamp, and literal condition. Acknowledgement does not erase the process condition. Return-to-normal does not erase the acknowledgement requirement.\n\nShelving is temporary visibility control. Suppression is a bounded control disposition. Out-of-service status declares that a signal cannot currently be trusted for normal alarm service. Each action requires a control identity and a reason so the timeline stays auditable.\n\nFlood monitoring counts occurrences over a rolling interval. The interface keeps event history separate from the active alarm list, preventing a cleared symptom from disappearing from operational memory.`,
+      'An alarm is not just a noise. It is a condition, a disposition, a piece of evidence, and a record of who did what about it.',
+    article: `## Alarm State Is Evidence\n\nEvery alarm records the tag, the limit, the measured value, the priority, the time, and the literal condition. Acknowledging an alarm does not make the process condition go away. Return-to-normal does not excuse you from acknowledging it.\n\nShelving hides an alarm temporarily. Suppression is a deliberate, bounded control decision. Out-of-service means the signal cannot be trusted right now. Each of these requires a name and a reason, so the timeline stays honest.\n\nFlood monitoring counts occurrences over a rolling window. Event history is kept separate from the active alarm list — a cleared symptom should not vanish from operational memory.`,
     relatedEntries: ['predictive-maintenance', 'autonomous-evidence'],
     seeInAction: ['SCADA alarms', 'Event history'],
     unlockCondition: always,
@@ -158,8 +169,8 @@ export const KNOWLEDGE_ENTRIES: KnowledgeEntry[] = [
     icon: 'settings',
     tooltip: 'Wear becomes diagnosis, parts demand, repair, verification, and restart.',
     brief:
-      'Equipment wear drives a causal work-order state machine with inventory checks and controlled restart.',
-    article: `## From Signal to Return to Service\n\nTemperature, vibration, load, and wear can trigger a predictive alert before a machine fails. A breakdown opens a work order with a diagnosed cause and required parts. Repair cannot begin when stock is missing.\n\nThe autonomous service unit advances the order through repair and verification. The production lockout remains until a restart request reaches the central simulation tick, maintenance reduces wear, and the far-side machine state confirms readiness.\n\nThe audit trail records every phase transition. This prevents a progress bar from claiming recovery while the production model still considers the machine critical.`,
+      'Fix things before they break. And when they do break, fix them properly — with parts, evidence, and a controlled restart.',
+    article: `## From Signal to Return to Service\n\nTemperature, vibration, load, and wear can raise a predictive alert before anything actually breaks. When something does break, a work order opens with a diagnosed cause and the parts it needs. No parts, no repair — the system will not pretend.\n\nDispatch a service unit from the Predictive Maintenance panel to carry the order through repair and verification. The machine stays locked out until its controlled restart is confirmed, wear is reduced, and it reports ready.\n\nEvery phase transition is recorded. A progress bar cannot claim recovery while the production model still considers the machine critical.`,
     relatedEntries: ['scada-alarm-lifecycle', 'autonomous-evidence'],
     seeInAction: ['Predictive maintenance', 'SCADA maintenance provenance'],
     unlockCondition: always,
@@ -171,8 +182,8 @@ export const KNOWLEDGE_ENTRIES: KnowledgeEntry[] = [
     icon: 'scale',
     tooltip: 'Quality disposition follows exact batches and source lots.',
     brief:
-      'QC records connect a test to the batch, source-lot scope, measurements, action, and recall state.',
-    article: `## Bounded Quality Decisions\n\nA quality test names the batch, source lots, equipment, test type, measurements, and control source. A hold prevents dispatch while preserving the rest of the line. A conforming retest can release the investigated scope. A recall isolates only the affected material.\n\nThis bounded approach is more informative than reducing one global quality score. The score remains useful for trend display, while the genealogy and disposition records carry the evidence needed for action.`,
+      'A quality hold follows the flour, not the factory. Only the affected batches stop moving.',
+    article: `## Bounded Quality Decisions\n\nA quality test names the batch, source lots, equipment, test type, measurements, and who ordered it. A hold stops dispatch of the suspect material while the rest of the line keeps running. A passing retest releases the investigated scope. A recall isolates only what needs isolating.\n\nThis is more informative than a single quality score that goes up or down. The score still works for trends, but the genealogy and disposition records carry the evidence you actually need to act.`,
     relatedEntries: ['autonomous-material-flow', 'scada-alarm-lifecycle'],
     seeInAction: ['Overview batch genealogy', 'SCADA quality provenance'],
     unlockCondition: always,
@@ -183,9 +194,8 @@ export const KNOWLEDGE_ENTRIES: KnowledgeEntry[] = [
     category: 'case-studies',
     icon: 'refresh-cw',
     tooltip: 'Forklifts, dock doors, trailers, and manifests move as one system.',
-    brief:
-      'Mobile equipment uses explicit routes, conflict holds, dock state, cargo state, and signal phases.',
-    article: `## Legible Yard Motion\n\nForklifts publish position, heading, and stop intent into a shared route registry. Conflict prediction checks nearby autonomous vehicles and static obstacles before motion resumes. Fork height, mast tilt, steering, brake lamps, and cargo state reinforce what the control state is doing.\n\nTruck motion follows approach, alignment, dock, loading, and departure phases. Dock plates, doors, lamps, manifests, and dispatch mass agree with those phases. Decorative animation may reduce with graphics quality or reduced-motion preference, while process-critical state changes remain visible.`,
+    brief: 'Forklifts say where they are going and trucks follow a sequence. Nobody cuts in line.',
+    article: `## Legible Yard Motion\n\nEvery forklift publishes where it is, where it is heading, and when it intends to stop — which is more communication than most warehouse colleagues manage. Conflict prediction checks nearby vehicles and obstacles before anything moves.\n\nTrucks follow a strict choreography: approach, alignment, dock, loading, departure. Dock plates, doors, lamps, and manifests all agree with whichever phase is active. Decorative animation scales with graphics quality, but process-critical state changes remain visible regardless.`,
     relatedEntries: ['autonomous-material-flow', 'unified-digital-twin'],
     seeInAction: ['Shipping yard', 'Forklift telemetry'],
     unlockCondition: always,
@@ -197,8 +207,8 @@ export const KNOWLEDGE_ENTRIES: KnowledgeEntry[] = [
     icon: 'sparkles',
     tooltip: 'Sky, sun, moon, mountains, windows, lamps, and water share time.',
     brief:
-      'The environment derives its palette, lighting, reflections, and visibility from the same simulated clock and weather state.',
-    article: `## A Coherent Backdrop\n\nThe sky gradient, haze, cloud cover, sun path, moon path, stars, mountain values, window emission, yard lighting, and water response are coordinated rather than animated independently.\n\nDistant ridges use low-frequency geometry and palette transitions to hold silhouette without competing with the factory. The sun supplies the principal shadow direction. The moon and stars become visible as daylight falls. Weather modifies cloud cover, light contrast, and water character without replacing the world.\n\nStable shader cache keys and bounded per-frame updates keep the cycle continuous without forcing recompilation or allocation churn.`,
+      'The sky, the lamps, the puddles, and the mountains all answer to the same clock and weather.',
+    article: `## A Coherent Backdrop\n\nSky, haze, clouds, sun, moon, stars, mountains, window glow, yard lamps, and water all move together rather than on independent timers. When the sun sets, the whole world agrees about it.\n\nDistant ridges hold their silhouette without competing with the factory. The moon and stars arrive as daylight leaves. Weather modifies cloud cover, light contrast, and water character without replacing the world — rain makes it wetter, not different.\n\nStable shader cache keys and bounded per-frame updates keep the cycle continuous without recompilation or allocation churn.`,
     relatedEntries: ['unified-digital-twin', 'depth-and-material-policy'],
     seeInAction: ['Sky and mountains', 'Stream and culvert'],
     unlockCondition: always,
@@ -210,8 +220,8 @@ export const KNOWLEDGE_ENTRIES: KnowledgeEntry[] = [
     icon: 'sliders',
     tooltip: 'Shared layers and explicit colour spaces prevent visual instability.',
     brief:
-      'Floor overlays, exterior surfaces, decals, indicators, and procedural textures follow explicit depth and colour-space contracts.',
-    article: `## Stable Surfaces\n\nExterior ground surfaces share a common elevation and use polygon offset to establish ordering. Floor markings and translucent overlays disable depth writes where appropriate. Decals use bounded surface offsets. Camera near and far planes preserve depth precision across the site.\n\nProcedural albedo textures declare sRGB colour space. Normal, roughness, metalness, height, and mask textures stay linear. Roughness occupies the channel consumed by the shader, and normal perturbation remains signed.\n\nThese contracts prevent flicker, washed-out albedo, mirror-like roughness failures, and seams caused by arbitrary vertical separation.`,
+      'Surfaces do not fight for the same pixel. Explicit depth and colour-space contracts keep them honest.',
+    article: `## Stable Surfaces\n\nExterior ground surfaces share one elevation and use polygon offset to sort themselves. Floor markings disable depth writes. Decals use bounded offsets. Camera near and far planes preserve depth precision across the whole site.\n\nProcedural albedo textures declare sRGB colour space. Normal, roughness, metalness, and height maps stay linear. Getting this wrong makes cobblestones glow or gives metal the sheen of wet soap — neither is a good look.\n\nThese contracts prevent flicker, washed-out colour, mirror-smooth roughness failures, and the seams that appear when surfaces are separated by guesswork.`,
     relatedEntries: ['environment-cycle', 'autonomous-evidence'],
     seeInAction: ['Factory floor', 'Roads and stream banks'],
     unlockCondition: always,
@@ -222,9 +232,8 @@ export const KNOWLEDGE_ENTRIES: KnowledgeEntry[] = [
     category: 'principles',
     icon: 'brain',
     tooltip: 'Every decision carries observations, assumptions, alternatives, and expected effect.',
-    brief:
-      'The control layer records why it acted, what equipment was affected, and which telemetry supported the action.',
-    article: `## Legible Autonomy\n\nAutonomy is trustworthy when its evidence is inspectable. Each decision captures telemetry, timestamp, source, assumptions, alternatives, expected effect, and the equipment within scope.\n\nThe replay ledger samples machine state, alerts, and mobile-equipment positions without credentials or personal data. Control commands are stored separately from frames so a review can distinguish what happened from what requested it.\n\nConfidence is presented with reasoning rather than as an unexplained percentage. Uncertainty remains visible, and safe fallback actions preserve the current state when evidence does not justify intervention.`,
+    brief: 'Autonomy is trustworthy when you can ask it why. Every decision carries its evidence.',
+    article: `## Legible Autonomy\n\nTrust requires transparency. Every autonomous decision captures its telemetry, timestamp, assumptions, alternatives, expected effect, and the equipment in scope. You can always ask why.\n\nThe replay ledger samples machine state, alerts, and vehicle positions without credentials or personal data. Commands are stored separately from frames, so a review can tell what happened from what requested it.\n\nConfidence comes with reasoning attached, not as an unexplained percentage. When evidence does not justify intervention, the system holds steady rather than guessing.`,
     relatedEntries: ['scada-alarm-lifecycle', 'predictive-maintenance'],
     seeInAction: ['AI Command Centre', 'Decision replay'],
     unlockCondition: always,

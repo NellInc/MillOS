@@ -30,6 +30,8 @@ export type BenchmarkScene =
   | 'canal'
   | 'lake'
   | 'busstop'
+  | 'road-tunnel'
+  | 'castle'
   | 'kiosk'
   | 'sun'
   | 'moon';
@@ -107,6 +109,9 @@ const BENCHMARK_SCENES: ReadonlySet<string> = new Set<BenchmarkScene>([
   'canal',
   'lake',
   'busstop',
+  // The truck road tunnels at each end of the valley, bored into the foothills.
+  'road-tunnel',
+  'castle',
   'kiosk',
   'sun',
   'moon',
@@ -155,9 +160,11 @@ function booleanValue(value: string | null, fallback: boolean): boolean {
 export function parseRuntimeMode(search: string): RuntimeMode {
   const params = new URLSearchParams(search);
   const benchmarkValue = params.get('benchmark');
-  const benchmark = benchmarkValue !== null && benchmarkValue !== '0' && benchmarkValue !== 'false';
+  // Same vocabulary as every other flag: 0/false/off disable, 1/true/on enable
+  // with `scene=`, and any other value names the scene to benchmark.
+  const benchmark = benchmarkValue !== null && booleanValue(benchmarkValue, true);
   const requestedScene =
-    benchmarkValue && benchmarkValue !== '1' && benchmarkValue !== 'true'
+    benchmarkValue && benchmarkValue !== '1' && benchmarkValue !== 'true' && benchmarkValue !== 'on'
       ? benchmarkValue
       : params.get('scene');
   const benchmarkScene = setValue<BenchmarkScene>(requestedScene, BENCHMARK_SCENES, 'overview');

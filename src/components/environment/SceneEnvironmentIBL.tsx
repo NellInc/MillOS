@@ -132,6 +132,16 @@ export const SUN_REFERENCE_INTENSITY = 3.1;
 const GROUND_ALBEDO = new THREE.Color('#6f806c');
 const GROUND_GOLDEN = new THREE.Color('#8a6a4e');
 
+/**
+ * The ground bounce scales with the light actually reaching the ground, read
+ * off the live horizon against clear daylight's (`OptimizedSkySystem`'s
+ * `dayHorizon`). Clear noon is exactly unchanged; night keeps a small floor.
+ */
+const DAY_HORIZON = new THREE.Color('#a3cce2');
+const DAY_HORIZON_LUMINANCE =
+  0.2126 * DAY_HORIZON.r + 0.7152 * DAY_HORIZON.g + 0.0722 * DAY_HORIZON.b;
+const GROUND_NIGHT_FLOOR = 0.12;
+
 /** Solar disc tint, matched to the key light's own noon-to-golden ramp. */
 const SUN_TINT_DAY = new THREE.Color('#fff1cf');
 const SUN_TINT_GOLDEN = new THREE.Color('#ffb15d');
@@ -494,6 +504,12 @@ export function SceneEnvironmentIBL(): React.JSX.Element {
     const { gameDay, gameTime, weather } = useGameSimulationStore.getState();
     const celestial = sampleCelestial(sampleAtmosphere(gameDay, gameTime, weather), _celestial);
     _ground.copy(GROUND_ALBEDO).lerp(GROUND_GOLDEN, celestial.goldenHour);
+    // Without this the nadir band stays at daylight brightness all night and
+    // lights the world from below under a black sky.
+    const horizonLuminance = 0.2126 * _horizon.r + 0.7152 * _horizon.g + 0.0722 * _horizon.b;
+    _ground.multiplyScalar(
+      Math.max(GROUND_NIGHT_FLOOR, Math.min(1, horizonLuminance / DAY_HORIZON_LUMINANCE))
+    );
 
     const hemisphere = hemisphereRef.current;
     if (hemisphere) {

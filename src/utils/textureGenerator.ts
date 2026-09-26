@@ -108,6 +108,34 @@ export const voronoi = (
 export const fbmNoiseSigned = (x: number, y: number, octaves: number = 4): number =>
   fbmNoise(x, y, octaves) - 0.5;
 
+/** Blend only the outer sixteenth of a tile into its opposite edge.
+ * Interior texels stay untouched. Any generator summing non-periodic noise
+ * jumps at the wrap and needs this to tile without a visible seam.
+ * This runs once during baking, adding no texture taps or frame-time work.
+ */
+export const blendTileEdges = (data: Uint8Array, size: number): void => {
+  const band = Math.max(1, Math.floor(size / 16));
+  const blend = (left: number, right: number, weight: number): void => {
+    for (let c = 0; c < 3; c += 1) {
+      const a = data[left + c];
+      const b = data[right + c];
+      data[left + c] = Math.round(a * (1 - weight) + b * weight);
+      data[right + c] = Math.round(b * (1 - weight) + a * weight);
+    }
+  };
+  for (let axis = 0; axis < 2; axis += 1) {
+    for (let edge = 0; edge < band; edge += 1) {
+      const t = edge / band;
+      const weight = 0.5 * (1 - t * t * (3 - 2 * t));
+      for (let i = 0; i < size; i += 1) {
+        const left = axis === 0 ? i * size + edge : edge * size + i;
+        const right = axis === 0 ? i * size + size - 1 - edge : (size - 1 - edge) * size + i;
+        blend(left * 4, right * 4, weight);
+      }
+    }
+  }
+};
+
 /**
  * Create a DataTexture from pixel data.
  *

@@ -107,6 +107,8 @@ export const ExteriorLampDriver: React.FC = () => {
     // reveal the road surface and fixture spacing without merging into a flat
     // amber carpet when several yard poles overlap.
     LAMP_POOL_MATERIAL.opacity = level * 0.24;
+    // Skip the additive draw entirely while it would add nothing (clear days).
+    LAMP_POOL_MATERIAL.visible = LAMP_POOL_MATERIAL.opacity > 0.002;
     pointLights.forEach(({ light, baseIntensity }) => {
       light.intensity = baseIntensity * level;
     });

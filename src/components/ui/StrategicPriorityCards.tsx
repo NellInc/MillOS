@@ -2,10 +2,11 @@
  * StrategicPriorityCards Component
  *
  * Displays strategic priorities as dismissible cards in the UI.
- * Shows action plans and recommendations from Gemini's strategic layer.
+ * Shows action plans and recommendations from the strategic layer (Gemini or
+ * the local WebGPU core).
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Target, X, Lightbulb, AlertTriangle, Gauge } from 'lucide-react';
 import { useAIConfigStore } from '../../stores/aiConfigStore';
@@ -19,7 +20,14 @@ export const StrategicPriorityCards: React.FC<StrategicPriorityCardsProps> = ({
   className = '',
 }) => {
   const strategic = useAIConfigStore((state) => state.strategic);
+  const llmBackend = useAIConfigStore((state) => state.llmBackend);
   const [dismissedPriorities, setDismissedPriorities] = useState<Set<number>>(new Set());
+
+  // Dismissals are slot indices, so they belong to one plan. A new strategic
+  // decision brings new priorities and must not inherit the previous hiding.
+  useEffect(() => {
+    setDismissedPriorities(new Set());
+  }, [strategic.lastDecisionTime]);
 
   const dismissPriority = (index: number) => {
     setDismissedPriorities((prev) => new Set([...prev, index]));
@@ -51,7 +59,9 @@ export const StrategicPriorityCards: React.FC<StrategicPriorityCardsProps> = ({
                 aria-hidden="true"
                 className="w-4 h-4 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin"
               />
-              <span className="text-sm text-cyan-400">Gemini analyzing...</span>
+              <span className="text-sm text-cyan-400">
+                {llmBackend === 'webgpu' ? 'Local core analyzing...' : 'Gemini analyzing...'}
+              </span>
             </div>
           </motion.div>
         )}

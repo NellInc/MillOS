@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Dock, DockMode } from './dock/Dock';
+import { Dock, DockMode, DOCK_LABELS } from './dock/Dock';
 import { ContextSidebar } from './sidebar/ContextSidebar';
 import { StatusHUD } from './hud/StatusHUD';
 import { EmergencyOverlay } from '../EmergencyOverlay';
@@ -12,6 +12,7 @@ import {
   IncidentReplayControls,
 } from '../GameFeatures';
 import { useMobileDetection } from '../../hooks/useMobileDetection';
+import { AchievementTracker } from '../../hooks/useAchievementTracker';
 import { Datalinks, AINarration, UnlockNotificationContainer } from '../knowledge';
 import { FEATURE_FLAGS } from '../../config/featureFlags';
 import { useAINarrationStore } from '../../stores/aiNarrationStore';
@@ -30,22 +31,22 @@ import { MillOSMusicPlayer } from './MillOSMusicPlayer';
 
 const INTRO_STEPS: OnboardingStep[] = [
   {
-    title: 'Follow the process',
+    title: 'Follow the grain',
     icon: 'factory',
     content:
-      'The camera is flying to the full site. Grain moves from the rear silos through milling and sifting, then reaches packing and shipping. Use W A S D to move, Q and E to descend or climb, drag to orbit, and scroll or pinch to zoom.',
+      'Grain enters the silos, passes through milling and sifting, and leaves as packed flour. Follow the route to understand how each stage supports the next.',
   },
   {
-    title: 'Protect today’s target',
+    title: "Protect the day's flour",
     icon: 'goal',
     content:
-      'The tour is flying to packing. The status bar compares output with the active run target. Alarms, stoppages, quality loss, and route conflicts reduce throughput.',
+      "Every bag at the packers began as grain in the silos. Keep packing on pace for today's target — when a stage starves or backs up, select its machine to see what it is waiting for.",
   },
   {
-    title: 'Inspect before acting',
+    title: 'Look first, touch second',
     icon: 'controls',
     content:
-      'The tour is flying to milling. Select a machine to inspect it. The bottom dock opens production, safety, autonomy, and simulated SCADA. Press ? for keyboard controls.',
+      'Select any machine for its status, buffers, and maintenance record. The dock opens production, safety, autonomy, and SCADA workspaces. Press ? for controls.',
   },
 ];
 
@@ -143,6 +144,8 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
     if (next >= INTRO_STEPS.length) {
       setHasSeenIntro(true);
       setIntroStep(null);
+      if (isCompactLayout) useMobileControlStore.getState().openMobilePanel('overview');
+      else setSidebarVisible(true);
       return;
     }
     setIntroStep(next);
@@ -211,7 +214,7 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
   // ping-pong that tripped React's "Maximum update depth exceeded". Reacting only
   // to a flag's own transition makes the last-opened panel win, once, with no
   // feedback between the two effects.
-  // The keyboard paths (I, O, B) must clear the 3D selection like a dock click
+  // The keyboard paths (I, O) must clear the 3D selection like a dock click
   // does, or ContextSidebar keeps showing the MachineInspector and the panel
   // the user asked for never appears.
   useEffect(() => {
@@ -227,22 +230,6 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
     setActiveMode((prev) => (showSCADAPanel ? 'scada' : prev === 'scada' ? 'overview' : prev));
   }, [showSCADAPanel]);
 
-  // Listen for B key to toggle Management panel
-  useEffect(() => {
-    const handleToggleManagement = () => {
-      if (activeMode === 'management') {
-        setActiveMode('overview');
-        setSidebarVisible(false);
-      } else {
-        setActiveMode('management');
-        setSidebarVisible(true);
-        onCloseSelection();
-      }
-    };
-    window.addEventListener('toggleManagementPanel', handleToggleManagement);
-    return () => window.removeEventListener('toggleManagementPanel', handleToggleManagement);
-  }, [activeMode]);
-
   // Handler for Dock interactions
   const handleModeChange = (mode: DockMode, trigger?: HTMLElement) => {
     const exactTrigger =
@@ -250,10 +237,16 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
       document.querySelector<HTMLElement>(`[data-dock-mode="${mode}"]`) ??
       (document.activeElement instanceof HTMLElement ? document.activeElement : null);
     sidebarTriggerRef.current = exactTrigger;
+    if (mode === 'production') useCameraStore.getState().setPreset(2);
+    if (mode === 'overview') useCameraStore.getState().setPreset(0);
 
     if (
       activeMode === mode &&
-      (mode === 'ai' || mode === 'settings' || mode === 'scada' || mode === 'safety')
+      (mode === 'ai' ||
+        mode === 'settings' ||
+        mode === 'scada' ||
+        mode === 'safety' ||
+        mode === 'management')
     ) {
       // Toggle off if clicking the same active mode for panels
       setActiveMode('overview');
@@ -289,7 +282,8 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
       activeMode === 'ai' ||
       activeMode === 'scada' ||
       activeMode === 'settings' ||
-      activeMode === 'safety'
+      activeMode === 'safety' ||
+      activeMode === 'management'
     ) {
       // Notify parent of panel state changes for keyboard shortcut sync
       if (activeMode === 'ai') onAIPanelChange?.(false);
@@ -312,6 +306,12 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
   return (
     <div
       className="absolute inset-0 pointer-events-none select-none"
+      style={
+        {
+          '--millos-sidebar-width':
+            selectedMachine && activeMode !== 'scada' ? 'min(19rem, 42vw)' : 'min(24rem, 42vw)',
+        } as React.CSSProperties
+      }
       data-testid="game-interface"
       data-active-mode={activeMode}
       data-sidebar-visible={isSidebarVisible}
@@ -319,7 +319,11 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
       inert={isCompactLayout && mobilePanelVisible ? true : undefined}
     >
       {/* 1. Top HUD Layer - Desktop only (draggable, complex interactions) */}
-      {!isCompactLayout && <StatusHUD />}
+      {!isCompactLayout && (
+        <StatusHUD
+          workspace={activeMode === 'production' ? 'Production floor' : DOCK_LABELS[activeMode]}
+        />
+      )}
 
       {/* 2. Emergency Flasher - Always visible */}
       <EmergencyOverlay />
@@ -334,16 +338,31 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
 
       {/* 4. Immersion Overlays - PA announcements work on mobile, others are desktop only */}
       <PAAnnouncementSystem />
+      {/* Layout-independent: achievements must progress on compact and mobile
+        layouts too, where the GamificationBar is not mounted. */}
+      <AchievementTracker />
       {!isCompactLayout && <GamificationBar />}
       {!isCompactLayout && <MiniMap />}
       <IncidentReplayControls />
 
-      {/* The soundtrack player remains directly reachable without opening a control panel. */}
-      <MillOSMusicPlayer />
+      {/* A compact sheet owns this space. Keep the player mounted so playback continues. */}
+      <div hidden={isCompactLayout && mobilePanelVisible}>
+        <MillOSMusicPlayer
+          sidebarVisible={!isCompactLayout && isSidebarVisible}
+          distractionFree={
+            introStep !== null ||
+            safetyStateActive ||
+            hasCriticalAlert ||
+            isSidebarVisible ||
+            mobilePanelVisible
+          }
+        />
+      </div>
 
       {/* 5. Bottom Dock - Always visible (adapts to mobile) */}
       <Dock
         activeMode={activeMode}
+        sidebarVisible={!isCompactLayout && isSidebarVisible}
         onModeChange={handleModeChange}
         onDatalinksOpen={FEATURE_FLAGS.KNOWLEDGE_LIBRARY_ENABLED ? handleDatalinksOpen : undefined}
       />
@@ -373,6 +392,8 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
         currentNarration &&
         introStep === null &&
         activeMode === 'overview' &&
+        !isSidebarVisible &&
+        !mobilePanelVisible &&
         !fpsMode &&
         !hasCriticalAlert &&
         !safetyStateActive && (

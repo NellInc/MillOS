@@ -9,9 +9,10 @@ import React, {
 } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { FACTORY_ZONE_Z } from '../constants/factoryLayout';
+import { FACTORY_BOUNDS, SIFTER_LAYOUT, SITE_LAYOUT } from '../constants/siteLayout';
+import { buildFactoryRoofGlazing } from './infrastructure/OptimizedFactoryInfrastructure';
 import { useGraphicsStore } from '../stores/graphicsStore';
-import { useGameSimulationStore } from '../stores/gameSimulationStore';
+import { selectSafetyHoldActive, useGameSimulationStore } from '../stores/gameSimulationStore';
 import { useProductionStore } from '../stores/productionStore';
 import { shouldRunThisFrame, getThrottleLevel } from '../utils/frameThrottle';
 import { useShallow } from 'zustand/react/shallow';
@@ -155,7 +156,7 @@ export const DustAnimationManager: React.FC<{ children: React.ReactNode }> = ({ 
           break;
         case 'machineSteam':
           if (!shouldRunThisFrame(3)) return;
-          animateMachineSteam(entry, delta);
+          animateMachineSteam(entry, Math.min(delta * 3, 0.1));
           break;
       }
     });
@@ -195,31 +196,33 @@ function animateDustParticles(entry: DustParticlesEntry, advance: boolean) {
       continue;
     }
 
+    // Motes advance per tick, so a throttled tick steps by the throttle factor
+    // to keep the same drift and cycle rate on every quality tier.
     if (advance) {
-      particle.lifetime++;
+      particle.lifetime += entry.throttleLevel;
 
       if (particle.lifetime > particle.maxLifetime) {
         particle.t = Math.random() * 100;
-        particle.xFactor = -40 + Math.random() * 80;
-        particle.yFactor = Math.random() * 25;
-        particle.zFactor = -30 + Math.random() * 60;
+        particle.xFactor = randomMoteX();
+        particle.yFactor = randomMoteYFactor();
+        particle.zFactor = randomMoteZ();
         particle.lifetime = 0;
         particle.maxLifetime = 200 + Math.random() * 300;
       }
     }
 
     const { factor, speed, xFactor, yFactor, zFactor } = particle;
-    if (advance) particle.t += speed;
+    if (advance) particle.t += speed * entry.throttleLevel;
     const t = particle.t;
 
     const s = Math.max(0.3, Math.cos(t) * 0.5 + 0.5);
 
     const x = xFactor + Math.cos((t / 10) * factor) * 2;
-    let y = yFactor + Math.sin((t / 10) * factor) * 2 + 5;
+    let y = yFactor + Math.sin((t / 10) * factor) * 2 + MOTE_BASE_Y;
     const z = zFactor + Math.cos((t / 10) * factor) * 2;
 
-    if (y < 1) y = 25;
-    if (y > 30) y = 5;
+    if (y < 1) y = MOTE_MAX_Y - 2;
+    if (y > MOTE_MAX_Y) y = MOTE_BASE_Y;
 
     const lightIntensity = entry.isDaytime ? isInLightShaft(x, y, z) : 0;
 
@@ -339,9 +342,35 @@ interface PooledParticle {
   maxLifetime: number;
 }
 
-// Skylight positions for light shaft calculation
-const SKYLIGHT_POSITIONS = [-20, 0, 20];
-const LIGHT_SHAFT_Z = 0;
+// Light shafts fall from the rendered roof glazing, so a brightened mote sits
+// under a real skylight. The panes are the authoritative light-path targets.
+const SKYLIGHT_XZ: readonly (readonly [number, number])[] = buildFactoryRoofGlazing().map(
+  ({ position }) => [position[0], position[2]] as const
+);
+const LIGHT_SHAFT_BASE_Y = 5;
+const LIGHT_SHAFT_TOP_Y = FACTORY_BOUNDS.maxY;
+
+// The mote field fills the hall below the roof deck. Each mote wanders up to
+// 2 m about its anchor, so anchors are inset 4 m to keep the field 2 m clear of
+// the walls.
+const MOTE_WANDER = 2;
+const MOTE_WALL_INSET = 2 + MOTE_WANDER;
+const MOTE_BASE_Y = 5;
+const MOTE_MAX_Y = 20;
+const MOTE_MIN_X = FACTORY_BOUNDS.minX + MOTE_WALL_INSET;
+const MOTE_SPAN_X = FACTORY_BOUNDS.maxX - FACTORY_BOUNDS.minX - MOTE_WALL_INSET * 2;
+const MOTE_MIN_Z = FACTORY_BOUNDS.minZ + MOTE_WALL_INSET;
+const MOTE_SPAN_Z = FACTORY_BOUNDS.maxZ - FACTORY_BOUNDS.minZ - MOTE_WALL_INSET * 2;
+/** Anchor heights keep the mote (base + anchor + wander) at or below MOTE_MAX_Y. */
+const MOTE_SPAN_Y_FACTOR = MOTE_MAX_Y - MOTE_BASE_Y - MOTE_WANDER;
+const randomMoteX = (): number => MOTE_MIN_X + Math.random() * MOTE_SPAN_X;
+const randomMoteYFactor = (): number => Math.random() * MOTE_SPAN_Y_FACTOR;
+const randomMoteZ = (): number => MOTE_MIN_Z + Math.random() * MOTE_SPAN_Z;
+/** Culling volume for the whole mote field, wander included. */
+const MOTE_BOUNDING_SPHERE = new THREE.Box3(
+  new THREE.Vector3(FACTORY_BOUNDS.minX, 0, FACTORY_BOUNDS.minZ),
+  new THREE.Vector3(FACTORY_BOUNDS.maxX, MOTE_MAX_Y, FACTORY_BOUNDS.maxZ)
+).getBoundingSphere(new THREE.Sphere());
 
 // Cached vectors for performance
 const tempPosition = new THREE.Vector3();
@@ -353,19 +382,19 @@ const tempQuaternion = new THREE.Quaternion();
 // Pre-calculates cone radius once per Y level to avoid redundant calculations
 const isInLightShaft = (x: number, y: number, z: number): number => {
   // Early exit for out-of-bounds
-  if (y <= 5 || y >= 32) return 0;
+  if (y <= LIGHT_SHAFT_BASE_Y || y >= LIGHT_SHAFT_TOP_Y) return 0;
 
   // Pre-calculate cone properties once per call (not per light shaft)
-  const normalizedY = (y - 5) / 27;
+  const normalizedY = (y - LIGHT_SHAFT_BASE_Y) / (LIGHT_SHAFT_TOP_Y - LIGHT_SHAFT_BASE_Y);
   const coneRadius = 3 + normalizedY * 3;
   const coneRadiusSq = coneRadius * coneRadius;
   const invConeRadius = 1 / coneRadius; // Pre-compute inverse for faster division
 
   // Check each light shaft
-  for (let i = 0; i < SKYLIGHT_POSITIONS.length; i++) {
-    const skylightX = SKYLIGHT_POSITIONS[i];
+  for (let i = 0; i < SKYLIGHT_XZ.length; i++) {
+    const [skylightX, skylightZ] = SKYLIGHT_XZ[i];
     const dx = x - skylightX;
-    const dz = z - LIGHT_SHAFT_Z;
+    const dz = z - skylightZ;
     const distanceSq = dx * dx + dz * dz;
 
     if (distanceSq < coneRadiusSq) {
@@ -399,9 +428,9 @@ class ParticlePool {
       t: Math.random() * 100,
       factor: 20 + Math.random() * 80,
       speed: 0.005 + Math.random() / 300,
-      xFactor: -40 + Math.random() * 80,
-      yFactor: Math.random() * 25,
-      zFactor: -30 + Math.random() * 60,
+      xFactor: randomMoteX(),
+      yFactor: randomMoteYFactor(),
+      zFactor: randomMoteZ(),
       active,
       lifetime: 0,
       maxLifetime: 200 + Math.random() * 300, // Particles live 200-500 frames
@@ -416,9 +445,9 @@ class ParticlePool {
       p.t = Math.random() * 100;
       p.factor = 20 + Math.random() * 80;
       p.speed = 0.005 + Math.random() / 300;
-      p.xFactor = -40 + Math.random() * 80;
-      p.yFactor = Math.random() * 25;
-      p.zFactor = -30 + Math.random() * 60;
+      p.xFactor = randomMoteX();
+      p.yFactor = randomMoteYFactor();
+      p.zFactor = randomMoteZ();
       p.maxLifetime = 200 + Math.random() * 300;
       this.activeCount++;
     }
@@ -611,8 +640,8 @@ export const DustParticles: React.FC<DustParticlesProps> = ({ count }) => {
       false
     );
 
-    // Particles span roughly x: [-40, 40], y: [5, 30], z: [-30, 30]
-    instanced.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 17.5, 0), 60);
+    // Particles fill the factory hall below MOTE_MAX_Y.
+    instanced.boundingSphere = MOTE_BOUNDING_SPHERE.clone();
   }, [count, effectiveCount, pool, colorArray, hiddenMatrix, isDaytime, throttleLevel]);
 
   // Register with manager if available
@@ -714,11 +743,13 @@ export const GrainFlow: React.FC = () => {
 
   // Read the machine layout directly rather than take it as a prop, so this
   // component needs no MillScene change to learn where the pipes are.
-  const machines = useProductionStore(useShallow((state) => state.machines));
-  const machineKey = useMemo(() => spoutMachineKey(machines), [machines]);
-  // Keyed on the layout string, not the machines array: status ticks every
-  // simulation step and would otherwise rebuild every curve with it.
-  const routes = useMemo(() => buildSpoutRoutes(machines), [machineKey]);
+  // Subscribe to the layout string, not the machines array: status ticks every
+  // simulation step and would otherwise re-render and rebuild every curve.
+  const machineKey = useProductionStore((state) => spoutMachineKey(state.machines));
+  const routes = useMemo(
+    () => buildSpoutRoutes(useProductionStore.getState().machines),
+    [machineKey]
+  );
 
   const count = GRAIN_FLOW_COUNT;
 
@@ -781,17 +812,19 @@ export const GrainFlow: React.FC = () => {
     // particles in and out as they travel to the ends of their runs.
     const bounds = new THREE.Box3();
     routes.forEach((route) => {
-      route.curve.points.forEach((controlPoint) => bounds.expandByPoint(controlPoint));
+      bounds.union(route.bounds);
     });
-    bounds.expandByScalar(SPOUT_PIPE_RADIUS + 0.5);
+    bounds.expandByScalar(0.5);
     geometry.boundingSphere = bounds.getBoundingSphere(new THREE.Sphere());
   }, [routes, buffers, count]);
 
   // Throttle grain flow updates
   const throttleLevel = getThrottleLevel(quality);
 
-  // Get production speed for velocity scaling
+  // Get production speed for velocity scaling. A fire drill or emergency stop
+  // halts product in the spouts along with the machines feeding them.
   const productionSpeed = useProductionStore((state) => state.productionSpeed);
+  const safetyHold = useGameSimulationStore(selectSafetyHoldActive);
 
   const entry = useMemo<GrainFlowEntry>(
     () => ({
@@ -804,9 +837,9 @@ export const GrainFlow: React.FC = () => {
       jitter: buffers.jitter,
       count,
       throttleLevel,
-      speedMultiplier: productionSpeed,
+      speedMultiplier: safetyHold ? 0 : productionSpeed,
     }),
-    [routes, buffers, count, throttleLevel, productionSpeed]
+    [routes, buffers, count, throttleLevel, productionSpeed, safetyHold]
   );
 
   // Register with manager if available. Machines load asynchronously, so on the
@@ -1066,7 +1099,7 @@ const MachineSteamParticle: React.FC<MachineSteamProps> = ({ position, type, int
     if (context) return; // Manager handles animation
     if (!particlesRef.current || !isTabVisible || prefersReducedMotion) return;
     if (!shouldRunThisFrame(3)) return;
-    animateMachineSteam(entry, delta);
+    animateMachineSteam(entry, Math.min(delta * 3, 0.1));
   });
 
   // Use key to force remount when count changes, preventing buffer resize error
@@ -1098,31 +1131,56 @@ const MachineSteamParticle: React.FC<MachineSteamProps> = ({ position, type, int
   );
 };
 
-// Machine positions from MillScene zones:
-// Zone 2 (z=-6): Roller Mills - hot grinding process creates steam/heat
-// Zone 3 (z=6, y=9): Plansifters - dust from sifting
-// Zone 4 (z=25): Packers - dust from packaging
-const STEAM_SOURCES: {
+// Vents are anchored to SITE_LAYOUT.machines and sit just outside a real
+// surface of each CompactMachines part, so every puff leaves the casing:
+// - roller mills: beside the louvred vent face on the west side (x - 2.4),
+// - plansifters: at the front corner of the cap deck opposite the status
+//   beacon (MACHINE_BEACON_MOUNTS), clear of the central inlet,
+// - packers: on the hopper lid (HOPPER is 1.5 m tall at y 5.72), off its centre.
+type SteamSource = {
   position: [number, number, number];
   type: 'steam' | 'dust' | 'exhaust';
   intensity: number;
-}[] = [
-  // Roller mill steam vents (grinding creates heat)
-  { position: [-18, 4, FACTORY_ZONE_Z.milling], type: 'steam', intensity: 0.8 },
-  { position: [-10, 4, FACTORY_ZONE_Z.milling], type: 'steam', intensity: 0.7 },
-  { position: [-2, 4, FACTORY_ZONE_Z.milling], type: 'exhaust', intensity: 0.6 },
-  { position: [6, 4, FACTORY_ZONE_Z.milling], type: 'steam', intensity: 0.9 },
-  { position: [14, 4, FACTORY_ZONE_Z.milling], type: 'exhaust', intensity: 0.7 },
+};
 
-  // Plansifter dust (sifting creates fine flour dust)
-  { position: [-12, 12, FACTORY_ZONE_Z.sifting], type: 'dust', intensity: 1 },
-  { position: [0, 12, FACTORY_ZONE_Z.sifting], type: 'dust', intensity: 0.9 },
-  { position: [12, 12, FACTORY_ZONE_Z.sifting], type: 'dust', intensity: 0.8 },
+/** Grinding heat: alternate steam and exhaust along the mill row. */
+const MILL_VENTS: readonly Pick<SteamSource, 'type' | 'intensity'>[] = [
+  { type: 'steam', intensity: 0.8 },
+  { type: 'exhaust', intensity: 0.6 },
+  { type: 'steam', intensity: 0.9 },
+  { type: 'exhaust', intensity: 0.7 },
+];
+const SIFTER_DUST_INTENSITY = [1, 0.9, 0.8] as const;
+const PACKER_DUST_INTENSITY = [0.7, 0.8, 0.6] as const;
 
-  // Packer dust (packaging creates airborne flour)
-  { position: [-15, 3, FACTORY_ZONE_Z.packing], type: 'dust', intensity: 0.7 },
-  { position: [0, 3, FACTORY_ZONE_Z.packing], type: 'dust', intensity: 0.8 },
-  { position: [15, 3, FACTORY_ZONE_Z.packing], type: 'dust', intensity: 0.6 },
+const MILL_VENT_OFFSET: [number, number, number] = [-2.85, 2.3, -0.5];
+const SIFTER_VENT_OFFSET: [number, number, number] = [
+  -2.2,
+  SIFTER_LAYOUT.capCentreY + SIFTER_LAYOUT.capHeight / 2 + 0.1,
+  1.9,
+];
+const PACKER_VENT_OFFSET: [number, number, number] = [0.45, 5.72 + 1.5 / 2 + 0.1, 0.45];
+
+const offsetFrom = (
+  [x, y, z]: readonly [number, number, number],
+  [dx, dy, dz]: readonly [number, number, number]
+): [number, number, number] => [x + dx, y + dy, z + dz];
+
+const STEAM_SOURCES: readonly SteamSource[] = [
+  ...SITE_LAYOUT.machines.rollerMills.map(({ position }, i) => ({
+    position: offsetFrom(position, MILL_VENT_OFFSET),
+    ...MILL_VENTS[i % MILL_VENTS.length],
+  })),
+  ...SITE_LAYOUT.machines.sifters.map(({ position }, i) => ({
+    position: offsetFrom(position, SIFTER_VENT_OFFSET),
+    type: 'dust' as const,
+    intensity: SIFTER_DUST_INTENSITY[i % SIFTER_DUST_INTENSITY.length],
+  })),
+  ...SITE_LAYOUT.machines.packers.map(({ position }, i) => ({
+    position: offsetFrom(position, PACKER_VENT_OFFSET),
+    type: 'dust' as const,
+    intensity: PACKER_DUST_INTENSITY[i % PACKER_DUST_INTENSITY.length],
+  })),
 ];
 
 // Steam vents component - renders multiple steam sources near machines.
@@ -1136,6 +1194,8 @@ export const MachineSteamVents: React.FC = () => {
   const quality = useGraphicsStore((state) => state.graphics.quality);
   const isEnabled = quality !== 'low';
   const groupRef = useRef<THREE.Group>(null);
+  // Machines stop under a fire drill or emergency stop, and so do their vents.
+  const safetyHold = useGameSimulationStore(selectSafetyHoldActive);
 
   // Distance threshold for culling steam sources (in world units)
   const cullDistance = quality === 'ultra' ? 60 : quality === 'high' ? 50 : 40;
@@ -1153,6 +1213,9 @@ export const MachineSteamVents: React.FC = () => {
     // Visibility only; cheap enough to leave un-throttled, but there is no
     // reason to run it at full rate.
     if (!shouldRunThisFrame(10)) return;
+
+    group.visible = !safetyHold;
+    if (safetyHold) return;
 
     const cullDistSq = cullDistance * cullDistance;
     for (let i = 0; i < group.children.length; i++) {

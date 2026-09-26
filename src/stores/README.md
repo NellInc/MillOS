@@ -10,9 +10,9 @@ Owns quality presets, rendering feature flags, shadow and post-processing budget
 
 Primary actions:
 
-- `setGraphicsQuality(quality)` applies a complete preset.
+- `setGraphicsQuality(quality)` applies a preset, carrying the current SCADA sync and adaptive quality preferences across.
 - `setGraphicsSetting(key, value)` changes one graphics setting.
-- `resetGraphicsToPreset(quality)` restores the selected preset.
+- `resetGraphicsToPreset(quality)` restores the selected preset in full, including SCADA sync and adaptive quality.
 
 Persistence key: `millos-graphics`.
 

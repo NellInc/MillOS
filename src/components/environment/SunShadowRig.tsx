@@ -42,18 +42,45 @@ import { SITE_LAYOUT } from '../../constants/siteLayout';
 const SUN_LIGHT_NAME = 'sun-key-light';
 const WALL_ENVELOPE_NAME = 'persistent-factory-wall-envelope';
 
-/**
- * World box the cascade must contain while the camera is inside the building.
- *
- * Fitted to the envelope rather than to the camera. `y` reaches 35 so the roof
- * slabs at 32.45 are inside the box: they are the occluder that makes the
- * interior an interior, and a cascade that clips them lets full sun through the
- * roof.
- */
+/** Interior receiver coverage retains its texel density after bins move outdoors. */
 export const FACTORY_SHADOW_VOLUME = {
-  centre: [0, 16.5, 0] as const,
-  half: [62, 18.5, 52] as const,
+  centre: [0, (SITE_LAYOUT.factory.bounds.maxY + 1) / 2, 0] as const,
+  half: [62, (SITE_LAYOUT.factory.bounds.maxY + 5) / 2, 52] as const,
 };
+
+/**
+ * An exterior caster only needs extra DEPTH in an interior shadow map. Its
+ * shadow shares the receiver's light-space XY, so widening the map wastes
+ * floor resolution. Working if external silos cast into the hall while the
+ * receiver texel budget remains unchanged.
+ */
+export function factoryOccluderDepth(x: number, y: number, z: number): number {
+  const [cx, cy, cz] = FACTORY_SHADOW_VOLUME.centre;
+  let depth = projectedHalfExtent(x, y, z, ...FACTORY_SHADOW_VOLUME.half);
+  const include = (px: number, py: number, pz: number, hx: number, hy: number, hz: number) => {
+    depth = Math.max(
+      depth,
+      Math.abs(x * (px - cx) + y * (py - cy) + z * (pz - cz)) +
+        projectedHalfExtent(x, y, z, hx, hy, hz)
+    );
+  };
+  const size = SITE_LAYOUT.machineDimensions.silo;
+  for (const {
+    position: [px, py, pz],
+  } of SITE_LAYOUT.machines.silos) {
+    include(px, py + size[1] / 2, pz, size[0] / 2 + 1, size[1] / 2 + 1, size[2] / 2 + 1);
+  }
+  const tower = SITE_LAYOUT.bulkStorage.elevator;
+  include(
+    tower.position[0],
+    tower.position[1] + tower.height / 2,
+    tower.position[2],
+    tower.footprint[0] / 2 + 1,
+    tower.height / 2 + 1,
+    tower.footprint[1] / 2 + 1
+  );
+  return depth;
+}
 
 /**
  * World box the cascade covers while the camera is outside the building.
@@ -115,6 +142,12 @@ export const SHADOW_DEPTH_MARGIN = 25;
 
 /** Frames between full refits. Repositioning still happens every frame. */
 export const SHADOW_REFIT_INTERVAL = 3;
+
+/**
+ * Key-light intensity below which the shadow map is not redrawn. Below this the
+ * key contributes nothing visible, so its shadow cannot be seen either.
+ */
+export const SHADOW_MIN_INTENSITY = 0.02;
 
 /**
  * Refit ticks spent looking for the wall envelope before giving up.
@@ -215,11 +248,27 @@ export function exteriorHalfExtent(groundDistance: number): number {
  *
  * Same `groundDistance` convention as {@link exteriorHalfExtent}.
  */
-export function exteriorLeadDistance(groundDistance: number, halfExtent: number): number {
+export function exteriorLeadDistance(
+  groundDistance: number,
+  halfExtent: number,
+  planarMaxComponent = 1
+): number {
   const minimum = LEAD_MIN_FRACTION * halfExtent;
   const maximum = LEAD_MAX_FRACTION * halfExtent;
   if (!Number.isFinite(groundDistance) || groundDistance < 0) return maximum;
-  return Math.min(maximum, Math.max(minimum, LEAD_GROUND_FRACTION * groundDistance));
+  const preferred = Math.min(maximum, Math.max(minimum, LEAD_GROUND_FRACTION * groundDistance));
+  // A shallow overview can saturate the extent before half-distance lead
+  // leaves space for up-sun casters. Move the same box toward its receiver.
+  // One metre covers the final texel snap; two metres keep the camera inside.
+  // Working if every authored exterior view retains the 30-degree caster
+  // margin without enlarging the shadow map's world extent or its texels.
+  const axis = Number.isFinite(planarMaxComponent)
+    ? THREE.MathUtils.clamp(planarMaxComponent, Math.SQRT1_2, 1)
+    : 1;
+  const casterMargin = EXTERIOR_SHADOW_VOLUME.halfY / Math.tan(Math.PI / 6) + 1;
+  const receiverLead = groundDistance - (halfExtent - casterMargin) / axis;
+  const cameraLimit = (halfExtent - 2) / axis;
+  return Math.min(cameraLimit, Math.max(preferred, receiverLead));
 }
 
 export function SunShadowRig(): null {
@@ -338,8 +387,10 @@ export function SunShadowRig(): null {
         halfX = exteriorHalfExtent(groundDistance);
         halfY = EXTERIOR_SHADOW_VOLUME.halfY;
         halfZ = halfX;
-        const lead = exteriorLeadDistance(groundDistance, halfX);
         const planar = Math.hypot(_forward.x, _forward.z);
+        const axis =
+          planar > 1e-4 ? Math.max(Math.abs(_forward.x), Math.abs(_forward.z)) / planar : 1;
+        const lead = exteriorLeadDistance(groundDistance, halfX, axis);
         const leadX = planar > 1e-4 ? (_forward.x / planar) * lead : 0;
         const leadZ = planar > 1e-4 ? (_forward.z / planar) * lead : 0;
         _volumeCentre.set(
@@ -364,7 +415,9 @@ export function SunShadowRig(): null {
       const basis = _worldFromLight.elements;
       const extentX = projectedHalfExtent(basis[0], basis[1], basis[2], halfX, halfY, halfZ);
       const extentY = projectedHalfExtent(basis[4], basis[5], basis[6], halfX, halfY, halfZ);
-      const extentZ = projectedHalfExtent(basis[8], basis[9], basis[10], halfX, halfY, halfZ);
+      const extentZ = inside
+        ? factoryOccluderDepth(basis[8], basis[9], basis[10])
+        : projectedHalfExtent(basis[8], basis[9], basis[10], halfX, halfY, halfZ);
 
       // One square box keeps a single texel size, which keeps the snap below to
       // one quantum instead of two.
@@ -410,8 +463,16 @@ export function SunShadowRig(): null {
       // map that was actually drawn. A stale matrix over a fresh map - which is
       // what refitting without redrawing would produce - is what makes shadows
       // slide off their casters.
+      //
+      // Refit but do not redraw while the key is dark: at night the sun damps
+      // to zero and a full caster pass would be spent on a light that
+      // contributes nothing. The stale map stays paired with its own matrix, and
+      // the first refit above the threshold at dawn redraws it. A map that has
+      // never been drawn (a session that starts at night) is drawn once.
       light.shadow.autoUpdate = false;
-      light.shadow.needsUpdate = true;
+      if (light.intensity > SHADOW_MIN_INTENSITY || light.shadow.map === null) {
+        light.shadow.needsUpdate = true;
+      }
     }
 
     // Every frame, not only on a refit: the sky rewrites `light.position` from

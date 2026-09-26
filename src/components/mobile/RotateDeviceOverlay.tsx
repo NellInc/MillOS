@@ -14,6 +14,9 @@ export const RotateDeviceOverlay: React.FC<RotateDeviceOverlayProps> = ({ visibl
 
   return (
     <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="rotate-device-title"
       className="fixed inset-0 z-[2000] bg-slate-950 flex flex-col items-center justify-center"
       style={{
         padding:
@@ -21,7 +24,7 @@ export const RotateDeviceOverlay: React.FC<RotateDeviceOverlayProps> = ({ visibl
       }}
     >
       {/* Animated rotating phone icon */}
-      <div className="relative mb-8">
+      <div className="relative mb-8" aria-hidden="true">
         <div className="w-24 h-36 border-4 border-cyan-400 rounded-2xl relative">
           {/* Phone notch */}
           <div className="absolute top-2 left-1/2 -translate-x-1/2 w-8 h-1 bg-cyan-400 rounded-full" />
@@ -35,9 +38,11 @@ export const RotateDeviceOverlay: React.FC<RotateDeviceOverlayProps> = ({ visibl
       </div>
 
       {/* Text prompt */}
-      <h2 className="text-2xl font-bold text-white mb-2 text-center">Rotate Your Device</h2>
+      <h2 id="rotate-device-title" className="text-2xl font-bold text-white mb-2 text-center">
+        Rotate to landscape
+      </h2>
       <p className="text-slate-400 text-center max-w-xs">
-        MillOS works best in landscape mode. Please rotate your device for the full experience.
+        The mill floor needs a wide view. Turn your device sideways to continue.
       </p>
 
       {/* Mill branding */}

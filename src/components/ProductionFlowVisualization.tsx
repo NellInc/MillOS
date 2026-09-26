@@ -15,17 +15,16 @@ import { useProductionStore } from '../stores/productionStore';
 import { useGraphicsStore } from '../stores/graphicsStore';
 import { useShallow } from 'zustand/react/shallow';
 import { DataFlowLine } from './DataFlowLine';
-import { PALETTE } from '../utils/digitalTwinPalette';
 import { MachineData, MachineType } from '../types';
 
-// Zone colors for flow lines
-const ZONE_COLORS = {
-  'silos-to-mills': PALETTE.zones.silos, // Blue
-  'mills-to-sifters': PALETTE.zones.milling, // Purple
-  'sifters-to-packers': PALETTE.zones.packing, // Green
+// Process accents stay distinct without competing with actual status beacons.
+export const PROCESS_FLOW_COLORS = {
+  'silos-to-mills': '#78aeb9',
+  'mills-to-sifters': '#78b5aa',
+  'sifters-to-packers': '#c3b88c',
 } as const;
 
-type ZoneKey = keyof typeof ZONE_COLORS;
+type ZoneKey = keyof typeof PROCESS_FLOW_COLORS;
 
 export interface FlowConnection {
   id: string;
@@ -104,11 +103,15 @@ export function isProcessFlowActive(
   statusByMachine: ReadonlyMap<string, MachineData['status']>,
   productionSpeed: number
 ): boolean {
+  // A machine in 'warning' is still processing (the simulation runs it), so its
+  // flow keeps moving; only idle or critical ends stop the line.
+  const from = statusByMachine.get(connection.fromMachineId);
+  const to = statusByMachine.get(connection.toMachineId);
   return (
     Number.isFinite(productionSpeed) &&
     productionSpeed > 0 &&
-    statusByMachine.get(connection.fromMachineId) === 'running' &&
-    statusByMachine.get(connection.toMachineId) === 'running'
+    (from === 'running' || from === 'warning') &&
+    (to === 'running' || to === 'warning')
   );
 }
 
@@ -139,7 +142,7 @@ export const ProductionFlowVisualization: React.FC = () => {
           start={conn.from}
           end={conn.to}
           active={isProcessFlowActive(conn, statusByMachine, productionSpeed)}
-          color={ZONE_COLORS[conn.zone]}
+          color={PROCESS_FLOW_COLORS[conn.zone]}
           segments={24}
         />
       ))}

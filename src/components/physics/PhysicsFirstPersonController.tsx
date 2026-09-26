@@ -12,6 +12,9 @@ import { RigidBody, CapsuleCollider } from '@react-three/rapier';
 import type { RapierRigidBody } from '@react-three/rapier';
 import * as THREE from 'three';
 import { useUIStore } from '../../stores/uiStore';
+import { useGraphicsStore } from '../../stores/graphicsStore';
+import { sampleValleyGroundHeight } from '../terrain/splatMapGenerator';
+import { getTerrainGridSegments } from '../terrain/terrainTypes';
 import {
   PHYSICS_CONFIG,
   COLLISION_FILTERS,
@@ -91,7 +94,16 @@ export const PhysicsFirstPersonController: React.FC<PhysicsFirstPersonController
     }
 
     // Y position: ground level (capsule base + small offset)
-    return [spawnX, 2, spawnZ];
+    return [
+      spawnX,
+      2 +
+        sampleValleyGroundHeight(
+          spawnX,
+          spawnZ,
+          getTerrainGridSegments(useGraphicsStore.getState().graphics.quality)
+        ),
+      spawnZ,
+    ];
   }, []);
 
   // Set initial camera FOV and look direction

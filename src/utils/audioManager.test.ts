@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { audioManager, calculateOutdoorAmbientMix } from './audioManager';
+import { landmarkLocalToWorld, SITE_LAYOUT } from '../constants/siteLayout';
 
 describe('calculateOutdoorAmbientMix', () => {
   it('occludes the exterior soundscape inside the factory', () => {
@@ -10,12 +11,15 @@ describe('calculateOutdoorAmbientMix', () => {
   });
 
   it('locates water and farm animals in their authored world areas', () => {
-    const village = calculateOutdoorAmbientMix({ x: -190, z: 0 }, 'day', 'clear');
+    const [x, , z] = landmarkLocalToWorld(SITE_LAYOUT.landmarks.village, [20, 0, 25]);
+    const village = calculateOutdoorAmbientMix({ x, z }, 'day', 'clear');
     const farm = calculateOutdoorAmbientMix({ x: 75, z: 120 }, 'day', 'clear');
     expect(village.water).toBeGreaterThan(0);
     expect(village.ducks).toBeGreaterThan(0);
     expect(farm.pigs).toBeGreaterThan(0);
     expect(farm.cows).toBeGreaterThan(0);
+    const farFromPond = calculateOutdoorAmbientMix({ x: 190, z: 0 }, 'day', 'clear');
+    expect(farFromPond.ducks).toBe(0);
   });
 
   it('suppresses wildlife and strengthens weather layers in a storm', () => {
@@ -58,6 +62,34 @@ describe('music playlist', () => {
     expect(audioManager.trackCount).toBe(10);
     expect(audioManager.currentTrack.station).toBe('legacy');
     audioManager.musicStation = 'original';
+  });
+});
+
+describe('vehicle engine spatial level', () => {
+  type EngineLevel = {
+    calculateVehicleEngineVolume: (id: string, base: number, ref: number) => number;
+  };
+  const level = (id: string) =>
+    (audioManager as unknown as EngineLevel).calculateVehicleEngineVolume(id, 1, 10);
+
+  it('is full inside the reference distance and falls off inversely beyond it', () => {
+    audioManager.updateCameraPosition(0, 2, 0);
+    audioManager.registerSoundPosition('engine-near', 3, 1, 0);
+    audioManager.registerSoundPosition('engine-mid', 0, 2, 40);
+    expect(level('engine-near')).toBe(1);
+    expect(level('engine-mid')).toBeCloseTo(0.25, 5);
+  });
+
+  it('never cuts an engine to zero from the default overview camera', () => {
+    const [x, y, z] = SITE_LAYOUT.cameras.overview.position;
+    audioManager.updateCameraPosition(x, y, z);
+    // Outdoors: distance alone, ~92 m from a truck at the shipping apron.
+    audioManager.registerSoundPosition('engine-yard', 0, 1.5, 70);
+    expect(level('engine-yard')).toBeGreaterThan(0.1);
+    // Indoors: the same wall occlusion as the factory hum applies on top.
+    audioManager.registerSoundPosition('engine-floor', 0, 1, 0);
+    expect(level('engine-floor')).toBeGreaterThan(0);
+    expect(level('engine-floor')).toBeLessThan(level('engine-yard'));
   });
 });
 
@@ -218,7 +250,7 @@ describe('compressor resource lifecycle', () => {
     expect(context.bufferSources).toHaveLength(1);
     expect(context.oscillators).toHaveLength(1);
     expect(context.filters).toHaveLength(2);
-    expect(context.gains).toHaveLength(3); // master, compressor output, pumping depth
+    expect(context.gains).toHaveLength(4); // master, machine bus, compressor output, pumping depth
 
     const source = context.bufferSources[0];
     const pumpingOscillator = context.oscillators[0];
@@ -227,7 +259,7 @@ describe('compressor resource lifecycle', () => {
     expect(source.stop).toHaveBeenCalledOnce();
     expect(pumpingOscillator.stop).toHaveBeenCalledOnce();
 
-    for (const node of [source, pumpingOscillator, ...context.filters, ...context.gains.slice(1)]) {
+    for (const node of [source, pumpingOscillator, ...context.filters, ...context.gains.slice(2)]) {
       expect(node.disconnect).toHaveBeenCalledOnce();
     }
     expect(warning).toHaveBeenCalledWith(
@@ -254,5 +286,61 @@ describe('compressor resource lifecycle', () => {
     expect(source.disconnect).toHaveBeenCalledOnce();
     expect(pumpingOscillator.disconnect).toHaveBeenCalledOnce();
     expect(vi.getTimerCount()).toBe(0);
+  });
+});
+
+describe('ambient one-shot schedulers', () => {
+  let manager: typeof import('./audioManager').audioManager;
+
+  beforeEach(async () => {
+    vi.useFakeTimers();
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    vi.stubGlobal('AudioContext', MockAudioContext);
+    vi.stubGlobal('requestIdleCallback', vi.fn());
+    MockAudioContext.instances = [];
+    vi.resetModules();
+    manager = (await import('./audioManager')).audioManager;
+    manager.muted = false;
+    manager.volume = 0.5;
+    await manager.resume();
+  });
+
+  afterEach(() => {
+    manager.stopPASystem();
+    manager.stopMetalClanks();
+    vi.clearAllTimers();
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('keeps the PA bells scheduled after a tick fires while muted', async () => {
+    const bell = vi.spyOn(manager, 'playCycleBell').mockImplementation(() => undefined);
+    manager.muted = true;
+    manager.startPASystem();
+
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(bell).not.toHaveBeenCalled();
+    expect(vi.getTimerCount()).toBe(1);
+
+    manager.muted = false;
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(bell).toHaveBeenCalledOnce();
+  });
+
+  it('keeps the metal clanks scheduled after a tick fires while muted', async () => {
+    const clank = vi
+      .spyOn(manager as unknown as { playMetalClankHeavy: () => void }, 'playMetalClankHeavy')
+      .mockImplementation(() => undefined);
+    manager.muted = true;
+    manager.startMetalClanks();
+
+    await vi.advanceTimersByTimeAsync(8_000);
+    expect(clank).not.toHaveBeenCalled();
+    expect(vi.getTimerCount()).toBe(1);
+
+    manager.muted = false;
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(clank).toHaveBeenCalledOnce();
   });
 });

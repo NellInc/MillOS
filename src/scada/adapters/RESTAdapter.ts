@@ -446,12 +446,19 @@ export class RESTAdapter implements IProtocolAdapter {
       this.pollInterval = null;
     }
     this.abortActiveRequests();
+    // The last polled values are no longer being refreshed; publish them as
+    // STALE before the cache is dropped, or they read as GOOD indefinitely.
+    const now = this.lastDisconnectTime;
+    const stale = Array.from(this.values.values()).map(
+      (value): TagValue => ({ ...value, quality: 'STALE', timestamp: now })
+    );
     // The recovering server may have restarted its source clock. Values and
     // ordering metadata from the failed connection have no authority over the
     // replacement lifecycle.
     this.resetReadAuthority();
     this.reconnectAttempts++;
     this.scheduleReconnect();
+    if (stale.length > 0) this.notifySubscribers(stale);
   }
 
   // =========================================================================

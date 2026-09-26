@@ -5,10 +5,11 @@ import { useProductionStore } from '../stores/productionStore';
 import { useSafetyStore } from '../stores/safetyStore';
 import { useUIStore } from '../stores/uiStore';
 import { useAIConfigStore } from '../stores/aiConfigStore';
+import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import { audioManager } from '../utils/audioManager';
 import { useCameraStore, CAMERA_PRESETS } from '../components/CameraController';
-import { MachineData } from '../types';
-import { EMERGENCY_STOP_ANNOUNCEMENTS } from '../components/GameFeatures';
+import type { ForkliftData, MachineData } from '../types';
+import { FORKLIFT_STOP_ANNOUNCEMENTS } from '../components/GameFeatures';
 
 interface KeyboardShortcutsConfig {
   showAIPanel: boolean;
@@ -17,6 +18,8 @@ interface KeyboardShortcutsConfig {
   setShowSCADAPanel: (show: boolean) => void;
   selectedMachine: MachineData | null;
   setSelectedMachine: (machine: MachineData | null) => void;
+  selectedForklift: ForkliftData | null;
+  setSelectedForklift: (forklift: ForkliftData | null) => void;
   productionSpeed: number;
   setProductionSpeed: (speed: number) => void;
   showZones: boolean;
@@ -34,6 +37,8 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig) {
     setShowSCADAPanel,
     selectedMachine,
     setSelectedMachine,
+    selectedForklift,
+    setSelectedForklift,
     productionSpeed,
     setProductionSpeed,
     showZones,
@@ -50,6 +55,9 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig) {
   const showAIPanelRef = useRef(showAIPanel);
   const showSCAPanelRef = useRef(showSCADAPanel);
   const selectedMachineRef = useRef(selectedMachine);
+  const selectedForkliftRef = useRef(selectedForklift);
+  // Speed P restores on resume, so pausing does not discard the chosen rate.
+  const resumeSpeedRef = useRef(0.8);
   // One pending clear at a time: overlapping timers cleared a fresh
   // notification early, and none was cancelled on unmount.
   const notificationTimerRef = useRef<number | null>(null);
@@ -75,7 +83,16 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig) {
     showAIPanelRef.current = showAIPanel;
     showSCAPanelRef.current = showSCADAPanel;
     selectedMachineRef.current = selectedMachine;
-  }, [productionSpeed, showZones, autoRotate, showAIPanel, showSCADAPanel, selectedMachine]);
+    selectedForkliftRef.current = selectedForklift;
+  }, [
+    productionSpeed,
+    showZones,
+    autoRotate,
+    showAIPanel,
+    showSCADAPanel,
+    selectedMachine,
+    selectedForklift,
+  ]);
 
   // Graphics quality shortcuts
   const setGraphicsQuality = useGraphicsStore((state) => state.setGraphicsQuality);
@@ -102,8 +119,15 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig) {
     };
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Ignore shortcuts when typing in input fields
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+      // Native editors and modal controls own their keys. In particular, a
+      // collection select's P search must never pause production underneath it.
+      if (
+        e.defaultPrevented ||
+        (e.target instanceof Element &&
+          e.target.closest(
+            'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="dialog"][aria-modal="true"]'
+          ))
+      ) {
         return;
       }
 
@@ -113,6 +137,7 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig) {
       if (e.ctrlKey || e.metaKey || e.altKey) {
         if (e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === 'b') {
           e.preventDefault();
+          if (e.repeat) return;
           audioManager.playClick();
           const current = useUIStore.getState().blueprintMode;
           useUIStore.getState().toggleBlueprintMode();
@@ -129,20 +154,35 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig) {
         const isInteractive = (el: unknown): boolean =>
           el instanceof HTMLElement &&
           !!el.closest(
-            'button, select, a[href], input, textarea, [contenteditable="true"], [role="button"], [role="checkbox"], [role="radio"], [tabindex]'
+            'button, summary, select, a[href], input, textarea, [contenteditable="true"], [role="button"], [role="checkbox"], [role="radio"], [tabindex]'
           );
         if (isInteractive(e.target) || isInteractive(document.activeElement)) {
           return;
         }
         e.preventDefault();
+        // A held Space would otherwise toggle the stop at the key-repeat rate,
+        // queueing a PA announcement and a safety incident on every other event.
+        if (e.repeat) return;
+        // Mirror the panel button's interlock: a fire drill holds the forklifts
+        // whatever this flag says, and an active emergency owns its own release.
+        // Engaging the stop outside a drill is always allowed.
+        const sim = useGameSimulationStore.getState();
+        if (sim.emergencyDrillMode || (sim.emergencyActive && forkliftEmergencyStopRef.current)) {
+          setQualityNotification(
+            sim.emergencyDrillMode ? 'DRILL INTERLOCK ACTIVE' : 'INTERLOCK ACTIVE'
+          );
+          scheduleNotificationClear(2000);
+          return;
+        }
         const newState = !forkliftEmergencyStopRef.current;
         setForkliftEmergencyStop(newState);
         if (newState) {
           audioManager.playEmergencyStop();
-          // Queue random emergency stop PA announcement
+          audioManager.startEmergencyStopAlarm();
+          // Forklift-only stop: the PA must not claim the mill has stopped.
           const announcement =
-            EMERGENCY_STOP_ANNOUNCEMENTS[
-              Math.floor(Math.random() * EMERGENCY_STOP_ANNOUNCEMENTS.length)
+            FORKLIFT_STOP_ANNOUNCEMENTS[
+              Math.floor(Math.random() * FORKLIFT_STOP_ANNOUNCEMENTS.length)
             ];
           addAnnouncement({
             type: 'emergency',
@@ -155,6 +195,7 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig) {
           });
           setQualityNotification('EMERGENCY STOP');
         } else {
+          audioManager.stopEmergencyStopAlarm();
           setQualityNotification('E-STOP RELEASED');
         }
         scheduleNotificationClear(2000);
@@ -163,38 +204,53 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig) {
 
       // Close panels on escape (use refs for values that change frequently)
       if (e.key === 'Escape') {
-        if (showAIPanelRef.current || showSCAPanelRef.current || selectedMachineRef.current) {
+        // Before the first click there is no pointer lock to release, so Esc
+        // is the only documented way back out of the first-person overlay.
+        const ui = useUIStore.getState();
+        if (ui.fpsMode && !document.pointerLockElement) ui.setFpsMode(false);
+        if (
+          showAIPanelRef.current ||
+          showSCAPanelRef.current ||
+          selectedMachineRef.current ||
+          selectedForkliftRef.current
+        ) {
           audioManager.playPanelClose();
         }
         setShowAIPanel(false);
         setShowSCADAPanel(false);
         setSelectedMachine(null);
+        setSelectedForklift(null);
         return;
       }
 
       // Graphics quality shortcuts (F1-F4)
       if (qualityKeys[e.key]) {
         e.preventDefault();
+        if (e.repeat) return;
         const quality = qualityKeys[e.key];
         setGraphicsQuality(quality);
         audioManager.playClick();
-        setQualityNotification(quality);
+        setQualityNotification(`${quality.toUpperCase()} QUALITY`);
         scheduleNotificationClear(2000);
         return;
       }
 
       // Additional shortcuts (case-insensitive)
       const key = e.key.toLowerCase();
+      // Every remaining shortcut is a toggle or a one-shot, except +/- which
+      // step the speed and are meant to be held.
+      if (e.repeat && key !== '+' && key !== '=' && key !== '-') return;
 
       // P - Toggle pause (set production speed to 0 or restore)
       if (key === 'p') {
         e.preventDefault();
         audioManager.playClick();
         if (productionSpeedRef.current > 0) {
+          resumeSpeedRef.current = productionSpeedRef.current;
           setProductionSpeed(0);
           setQualityNotification('PAUSED');
         } else {
-          setProductionSpeed(0.8);
+          setProductionSpeed(resumeSpeedRef.current > 0 ? resumeSpeedRef.current : 0.8);
           setQualityNotification('RESUMED');
         }
         scheduleNotificationClear(1500);
@@ -316,8 +372,11 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig) {
       if (key === '+' || key === '=') {
         e.preventDefault();
         audioManager.playClick();
-        const newSpeed = Math.min(2, productionSpeedRef.current + 0.1);
+        // Round to the 0.1 grid so repeated steps land exactly on 0 and 2.
+        const newSpeed = Math.round(Math.min(2, productionSpeedRef.current + 0.1) * 10) / 10;
         setProductionSpeed(newSpeed);
+        setQualityNotification(`SPEED ${Math.round(newSpeed * 100)}%`);
+        scheduleNotificationClear(1200);
         return;
       }
 
@@ -325,8 +384,10 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig) {
       if (key === '-') {
         e.preventDefault();
         audioManager.playClick();
-        const newSpeed = Math.max(0, productionSpeedRef.current - 0.1);
+        const newSpeed = Math.round(Math.max(0, productionSpeedRef.current - 0.1) * 10) / 10;
         setProductionSpeed(newSpeed);
+        setQualityNotification(`SPEED ${Math.round(newSpeed * 100)}%`);
+        scheduleNotificationClear(1200);
         return;
       }
 
@@ -390,7 +451,7 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig) {
         audioManager.playClick();
         const current = useUIStore.getState().fpsMode;
         useUIStore.getState().setFpsMode(!current);
-        setQualityNotification(current ? 'ORBIT MODE' : 'FPS MODE');
+        setQualityNotification(current ? 'ORBIT VIEW' : 'FIRST-PERSON');
         scheduleNotificationClear(1500);
         return;
       }
@@ -399,17 +460,21 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig) {
       if (e.key === '0') {
         e.preventDefault();
         audioManager.playClick();
+        // No camera controller runs in first-person, so return to orbit and fly
+        // from here instead of queueing a flight that plays on the next exit.
+        if (useUIStore.getState().fpsMode) useUIStore.getState().setFpsMode(false);
         setCameraPreset(0); // Overview preset
         setQualityNotification('RESET VIEW');
         scheduleNotificationClear(1500);
         return;
       }
 
-      // 1-5 - Camera presets
+      // Number keys select the authored camera presets.
       const presetIndex = parseInt(e.key) - 1;
       if (presetIndex >= 0 && presetIndex < CAMERA_PRESETS.length) {
         e.preventDefault();
         audioManager.playClick();
+        if (useUIStore.getState().fpsMode) useUIStore.getState().setFpsMode(false);
         setCameraPreset(presetIndex);
         const preset = CAMERA_PRESETS[presetIndex];
         setQualityNotification(preset.name.toUpperCase());
@@ -427,6 +492,7 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig) {
     setShowAIPanel,
     setShowSCADAPanel,
     setSelectedMachine,
+    setSelectedForklift,
     setProductionSpeed,
     setShowZones,
     setAutoRotate,

@@ -201,13 +201,19 @@ export function sampleCelestial(
   atmosphere: AtmosphereState,
   target: CelestialState = createCelestialState()
 ): CelestialState {
-  const orbitX = -Math.cos(atmosphere.solarAngle);
+  const orbitX = Math.cos(atmosphere.solarAngle);
   const orbitY = atmosphere.solarElevation;
   const orbitZ = Math.cos(atmosphere.solarAngle) * 0.16;
   const inverseLength = 1 / Math.hypot(orbitX, orbitY, orbitZ);
-  target.sunDirection[0] = orbitX * inverseLength;
+  // Dawn enters from site east (+X); afternoon crosses the west and south
+  // process glazing. Sky, water, IBL and shadows all use this common orbit.
+  // Working if the afternoon key reaches -X and +Z and stays unit length.
+  const azimuth = (50 * Math.PI) / 180;
+  target.sunDirection[0] =
+    (orbitX * Math.cos(azimuth) + orbitZ * Math.sin(azimuth)) * inverseLength;
   target.sunDirection[1] = orbitY * inverseLength;
-  target.sunDirection[2] = orbitZ * inverseLength;
+  target.sunDirection[2] =
+    (-orbitX * Math.sin(azimuth) + orbitZ * Math.cos(azimuth)) * inverseLength;
   target.moonDirection[0] = -target.sunDirection[0];
   target.moonDirection[1] = -target.sunDirection[1];
   target.moonDirection[2] = -target.sunDirection[2];

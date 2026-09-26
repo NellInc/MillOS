@@ -1,4 +1,4 @@
-import { SITE_LAYOUT } from './siteLayout';
+import { SITE_LAYOUT, CONVEYOR_LAYOUT, conveyorBounds } from './siteLayout';
 
 export interface FactoryObstacle {
   readonly id: string;
@@ -93,3 +93,19 @@ export function createMachineObstacles(clearancePadding = 1): FactoryObstacle[] 
 
   return obstacles;
 }
+
+/** Every navigation mode shares the rendered belt envelopes. */
+export function createConveyorObstacles(): FactoryObstacle[] {
+  return Object.values(CONVEYOR_LAYOUT).map((conveyor) => ({
+    id: conveyor.id,
+    ...conveyorBounds(conveyor),
+    minY: 0,
+    maxY: 1.5,
+  }));
+}
+
+/** Conservative dock-platform envelopes shared by every navigation mode. */
+export const DOCK_PLATFORM_OBSTACLES: readonly FactoryObstacle[] = [
+  { id: 'shipping-dock-platform', minX: -18, maxX: 18, minZ: 44, maxZ: 54, minY: 0, maxY: 1.5 },
+  { id: 'receiving-dock-platform', minX: -10, maxX: 10, minZ: -54, maxZ: -44, minY: 0, maxY: 1.5 },
+];

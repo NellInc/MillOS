@@ -1,25 +1,34 @@
+import { CONVEYOR_LAYOUT } from '../constants/siteLayout';
+import { GeneratedBoundary } from './models/GeneratedModel';
+import { GeneratedBoxSurface, GeneratedGeometrySurface } from './models/GeneratedGeometrySurface';
 import React, { useRef, useMemo, useEffect, useLayoutEffect, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import * as THREE from 'three';
 import { useShallow } from 'zustand/react/shallow';
 import { audioManager } from '../utils/audioManager';
+import { useAudioInitialized } from '../hooks/useAudioState';
 import { useGraphicsStore } from '../stores/graphicsStore';
 // Note: Production counting moved to App.tsx interval-based system (scales with gameSpeed)
 // Conveyor animation is now purely visual - no bag counting here
-import { useGameSimulationStore } from '../stores/gameSimulationStore';
-import { GrainQuality } from '../types';
+import { selectSafetyHoldActive, useGameSimulationStore } from '../stores/gameSimulationStore';
+import { BAG_WEIGHT_KG, GrainQuality } from '../types';
 import { SHARED_GEOMETRIES } from '../utils/sharedMaterials';
 // The conveyor branch's surface finish. See `conveyors/conveyorSurfaces.ts` for
 // why these are treated clones of the shared singletons rather than the
 // singletons themselves.
 import { CONVEYOR_MATERIALS, createBeltMaterial } from './conveyors/conveyorSurfaces';
-import { applyWorldSurface } from '../utils/worldSurface';
 import { FLOOR_LAYERS, POLYGON_OFFSET, RENDER_ORDER } from '../constants/renderLayers';
 import { shouldRunThisFrame } from '../utils/frameThrottle';
 import { useModelTextures } from '../utils/machineTextures';
 import { createColorDataTexture, createLinearDataTexture } from '../utils/textureGenerator';
-import { getFlourSackMaps } from '../textures/grain';
+import {
+  getFlourSackGeometry,
+  getFlourSackMaterial,
+  FLOUR_SACK_PRINT_GEOMETRY,
+  FLOUR_SACK_HEIGHT,
+  FLOUR_STRIPE_MATERIAL,
+} from '../utils/flourSacks';
 
 // Shared, immutable normal-scale for belt materials (inline `new THREE.Vector2`
 // in JSX re-created the object every render, forcing a material prop diff).
@@ -85,7 +94,8 @@ const ROLLER_SUPPORT_POSITIONS = [-10, 0, 10] as const;
 // Pre-computed arrays for iteration (avoid Array.from on each render)
 
 // Bag movement boundary (wraps from +BOUNDARY to -BOUNDARY)
-const BAG_BOUNDARY = 28;
+export const BAG_BOUNDARY = (CONVEYOR_LAYOUT.shipping.length - 2) / 2;
+export const FLOUR_BAG_BASE_Y = 0.5 + 0.3 + 0.1 / 2;
 
 // === BELT SURFACE TEXTURES ==============================================
 //
@@ -418,25 +428,34 @@ const getRandomQuality = (): GrainQuality => {
   return 'standard';
 };
 
+// Even slots preserve clear space at all three quality counts, including the
+// wrap seam. Random X positions allowed sacks and their printing to intersect.
+export const getFlourBagStartX = (index: number, count: number): number =>
+  -BAG_BOUNDARY + ((index + 0.5) * BAG_BOUNDARY * 2) / count;
+
 export const ConveyorSystem = React.memo<ConveyorSystemProps>(({ productionSpeed }) => {
   const graphicsQuality = useGraphicsStore(useShallow((state) => state.graphics.quality));
-  // PERF: Removed incrementBagsProduced selector - now using throttledIncrementBags directly
-  const bagCount = graphicsQuality === 'low' ? 15 : graphicsQuality === 'medium' ? 30 : 60;
+  // Production totals remain owned by the simulation, not this visual loop.
+  const bagCount = graphicsQuality === 'low' ? 8 : graphicsQuality === 'medium' ? 16 : 32;
+  // A fire drill or emergency stop halts every belt, sack and conveyor hum,
+  // matching the machines and forklifts the hold has already stopped.
+  const safetyHold = useGameSimulationStore(selectSafetyHoldActive);
+  const effectiveSpeed = safetyHold ? 0 : productionSpeed;
 
   const bags = useMemo(() => {
     const _bags: FlourBag[] = [];
     for (let i = 0; i < bagCount; i++) {
       _bags.push({
         id: `bag-${i}`,
-        position: [(Math.random() - 0.5) * 50, 1.1, 24], // Updated to z=24
+        position: [getFlourBagStartX(i, bagCount), FLOUR_BAG_BASE_Y, 0],
         // Bags ride the belt: exactly belt surface speed, no per-bag variation.
-        // The randomised initial X above is what keeps the wrap staggered.
+        // Equal speed preserves the initial separation through every wrap.
         speed: BELT_LINEAR_SPEED,
         rotation: (Math.random() - 0.5) * 0.1,
         // Batch tracking
         batchNumber: generateBatchNumber(i),
         quality: getRandomQuality(),
-        weight: 25 + Math.floor(Math.random() * 6), // 25-30 kg bags
+        weight: BAG_WEIGHT_KG,
       });
     }
     return _bags;
@@ -445,62 +464,60 @@ export const ConveyorSystem = React.memo<ConveyorSystemProps>(({ productionSpeed
   return (
     <group>
       {/* Centralized audio manager - updates all conveyors in one pass */}
-      <ConveyorAudioManager productionSpeed={productionSpeed} />
+      <ConveyorAudioManager productionSpeed={effectiveSpeed} />
 
-      {/* Ambient contact darkening on the floor beneath every belt run. One
-          triangle pair + one texture fetch each; works at EVERY tier including
-          `low`, where there is no shadow-casting light at all.
-
-          KEEP IN SYNC with the belt placements immediately below: the x/z here
-          mirror <MemoizedConveyorBelt z=24 len=55>, <RollerConveyor z=21> and
-          the rotated central spine belt at z=-1. They live out here, not inside
-          ConveyorBelt, because the spine belt's wrapper group already carries
-          the 0.5 riser and a 90-degree Y rotation - a decal positioned relative
-          to the belt component would float half a metre off the floor there. */}
-      <BeltContactShadow x={0} z={24} length={55} />
-      <BeltContactShadow x={0} z={21} length={30} width={3.6} />
-      <BeltContactShadow x={0} z={-1} length={38} rotationY={Math.PI / 2} />
-
-      {/* Main conveyor belt structure - moved to z=24 to align with packers at z=25 */}
-      <MemoizedConveyorBelt position={[0, 0.5, 24]} length={55} productionSpeed={productionSpeed} />
-
-      {/* Side rails with detail */}
-      <SideRails position={[0, 1.3, 24]} length={55} />
-
-      {/* Support legs with cross bracing */}
-      {SUPPORT_LEG_POSITIONS.map((x, i) => (
-        <SupportLeg key={i} position={[x, 0, 24]} />
+      {Object.values(CONVEYOR_LAYOUT).map((run) => (
+        <BeltContactShadow
+          key={run.id}
+          x={run.position[0]}
+          z={run.position[2]}
+          length={run.length}
+          width={run.width + 0.6}
+          rotationY={run.rotationY}
+        />
       ))}
 
-      {/* Flour bags: two animated instanced draws, one body and one quality stripe. */}
-      <InstancedFlourBags bags={bags} productionSpeed={productionSpeed} />
-
-      {/* Roller conveyor to packing with enhanced details - moved to z=21 */}
-      <RollerConveyor position={[0, 0.5, 21]} productionSpeed={productionSpeed} />
-
-      {/* Central spine conveyor - longitudinal belt filling the reserved centre gap that
-          runs down the middle of the mill (silos z=-22 toward packing). Oriented along Z
-          via a 90deg Y rotation; spans z=-20..18 at x=0 to match the central-conveyor-belt
-          pathfinding obstacle declared in MillScene (x[-1.8,1.8] z[-20,18]). Without this,
-          the reserved gap + obstacle were a "ghost" (empty floor that agents detoured). */}
-      <group position={[0, 0.5, -1]} rotation={[0, Math.PI / 2, 0]}>
-        <MemoizedConveyorBelt
-          position={[0, 0, 0]}
-          length={38}
-          productionSpeed={productionSpeed}
-          enableAudio={false}
-        />
+      <MemoizedConveyorBelt
+        position={[CONVEYOR_LAYOUT.main.position[0], 0.5, CONVEYOR_LAYOUT.main.position[2]]}
+        length={CONVEYOR_LAYOUT.main.length}
+        productionSpeed={effectiveSpeed}
+      />
+      <group position={[...CONVEYOR_LAYOUT.main.position]}>
+        <SideRails position={[-2, 1.3, 0]} length={CONVEYOR_LAYOUT.main.length - 4} />
+        {SUPPORT_LEG_POSITIONS.map((x) => (
+          <SupportLeg key={x} position={[x, 0, 0]} />
+        ))}
+        <TensionMechanism position={[-30, 0.5, 0]} />
+        <TensionMechanism position={[30, 0.5, 0]} />
       </group>
-      {/* Support legs for the central belt (each rotated 90deg to straddle it in x) */}
-      {[-16, -10, -4, 2, 8, 14].map((zPos) => (
-        <group key={`central-leg-${zPos}`} position={[0, 0, zPos]} rotation={[0, Math.PI / 2, 0]}>
-          <SupportLeg position={[0, 0, 0]} />
+
+      <RollerConveyor
+        position={[CONVEYOR_LAYOUT.roller.position[0], 0.5, CONVEYOR_LAYOUT.roller.position[2]]}
+        productionSpeed={effectiveSpeed}
+      />
+
+      {/* The transfer runs down the right wall; its return delivers sacks along
+          the mill row to the collection aisle. Cargo keeps two instanced draws. */}
+      {[CONVEYOR_LAYOUT.transfer, CONVEYOR_LAYOUT.shipping].map((run) => (
+        <group key={run.id} position={[...run.position]} rotation={[0, run.rotationY, 0]}>
+          <MemoizedConveyorBelt
+            position={[0, 0.5, 0]}
+            length={run.length}
+            productionSpeed={effectiveSpeed}
+            enableAudio={false}
+          />
+          <SideRails
+            position={[run.id === CONVEYOR_LAYOUT.shipping.id ? 2 : -2, 1.3, 0]}
+            length={run.length - 4}
+          />
+          {SUPPORT_LEG_POSITIONS.filter((x) => Math.abs(x) < run.length / 2 - 1).map((x) => (
+            <SupportLeg key={x} position={[x, 0, 0]} />
+          ))}
+          {run.id === CONVEYOR_LAYOUT.shipping.id && (
+            <InstancedFlourBags bags={bags} productionSpeed={effectiveSpeed} />
+          )}
         </group>
       ))}
-
-      {/* Tension adjustment mechanisms */}
-      <TensionMechanism position={[-27.5, 0.5, 24]} />
-      <TensionMechanism position={[27.5, 0.5, 24]} />
     </group>
   );
 });
@@ -525,7 +542,7 @@ const SideRails: React.FC<{ position: [number, number, number]; length: number }
 
       let instanceIndex = 0;
       for (let i = 0; i < 11; i++) {
-        const x = -length / 2 + 2.5 + i * 5;
+        const x = -length / 2 + 2.5 + (i * (length - 5)) / 10;
         // Front bracket
         tempPosition.set(x, -0.15, -0.9);
         tempMatrix.compose(tempPosition, identityQuaternion, tempScale);
@@ -568,29 +585,42 @@ const SupportLeg: React.FC<{ position: [number, number, number] }> = React.memo(
   return (
     <group position={position}>
       {/* Front leg - only main supports cast shadows */}
-      <mesh position={[0, 0.25, -0.5]} castShadow>
-        <boxGeometry args={[0.3, 0.5, 0.15]} />
-        <primitive object={CONVEYOR_MATERIALS.paintedDarkGray} attach="material" />
-      </mesh>
+      <GeneratedBoxSurface
+        asset="factorySteelUnit"
+        size={[0.3, 0.5, 0.15]}
+        material={CONVEYOR_MATERIALS.paintedDarkGray}
+        position={[0, 0.25, -0.5]}
+        castShadow
+      />
       {/* Back leg */}
-      <mesh position={[0, 0.25, 0.5]} castShadow>
-        <boxGeometry args={[0.3, 0.5, 0.15]} />
-        <primitive object={CONVEYOR_MATERIALS.paintedDarkGray} attach="material" />
-      </mesh>
+      <GeneratedBoxSurface
+        asset="factorySteelUnit"
+        size={[0.3, 0.5, 0.15]}
+        material={CONVEYOR_MATERIALS.paintedDarkGray}
+        position={[0, 0.25, 0.5]}
+        castShadow
+      />
       {/* Cross brace - no shadow for small part */}
-      <mesh position={[0, 0.25, 0]} rotation={[0, 0, 0.3]}>
-        <boxGeometry args={[0.08, 0.08, 0.9]} />
-        <primitive object={CONVEYOR_MATERIALS.paintedMediumGray} attach="material" />
-      </mesh>
+      <GeneratedBoxSurface
+        asset="factorySteelUnit"
+        size={[0.08, 0.08, 0.9]}
+        material={CONVEYOR_MATERIALS.paintedMediumGray}
+        position={[0, 0.25, 0]}
+        rotation={[0, 0, 0.3]}
+      />
       {/* Foot pads - no shadow for floor-level parts */}
-      <mesh position={[0, 0.02, -0.5]}>
-        <boxGeometry args={[0.4, 0.04, 0.25]} />
-        <primitive object={CONVEYOR_MATERIALS.paintedBlack} attach="material" />
-      </mesh>
-      <mesh position={[0, 0.02, 0.5]}>
-        <boxGeometry args={[0.4, 0.04, 0.25]} />
-        <primitive object={CONVEYOR_MATERIALS.paintedBlack} attach="material" />
-      </mesh>
+      <GeneratedBoxSurface
+        asset="factorySteelUnit"
+        size={[0.4, 0.04, 0.25]}
+        material={CONVEYOR_MATERIALS.paintedBlack}
+        position={[0, 0.02, -0.5]}
+      />
+      <GeneratedBoxSurface
+        asset="factorySteelUnit"
+        size={[0.4, 0.04, 0.25]}
+        material={CONVEYOR_MATERIALS.paintedBlack}
+        position={[0, 0.02, 0.5]}
+      />
     </group>
   );
 });
@@ -773,16 +803,19 @@ export const ConveyorBelt: React.FC<{
   // Position vector for audio registry (reused, never recreated)
   const positionVec = useMemo(() => new THREE.Vector3(posX, posY, posZ), [posX, posY, posZ]);
 
-  // Start conveyor sound and register for centralized audio updates
+  // Start conveyor sound and register for centralized audio updates. The hum
+  // follows the belt: it stops when the belt stops and restarts with it.
+  const running = productionSpeed > 0;
+  const audioReady = useAudioInitialized();
   useEffect(() => {
-    if (!enableAudio) return;
+    if (!enableAudio || !audioReady || !running) return;
     audioManager.startConveyorSound(conveyorId, posX, posY, posZ);
     registerConveyorAudio(conveyorId, positionVec, true);
     return () => {
       audioManager.stopConveyorSound(conveyorId);
       unregisterConveyorAudio(conveyorId);
     };
-  }, [conveyorId, enableAudio, posX, posY, posZ, positionVec]);
+  }, [conveyorId, enableAudio, audioReady, running, posX, posY, posZ, positionVec]);
 
   // Exactly one map set is bound and scrolled. `enableMachineTextures` is
   // currently false on every tier so the KTX2 path is dead, but if it is turned
@@ -918,10 +951,12 @@ export const ConveyorBelt: React.FC<{
       {/* Motor housing at one end */}
       {showMotor && (
         <group position={[-length / 2 + 1, -0.1, 1.3]}>
-          <mesh castShadow>
-            <boxGeometry args={[0.8, 0.6, 0.5]} />
-            <primitive object={CONVEYOR_MATERIALS.industrialBlue} attach="material" />
-          </mesh>
+          <GeneratedBoxSurface
+            asset="factorySteelUnit"
+            size={[0.8, 0.6, 0.5]}
+            material={CONVEYOR_MATERIALS.industrialBlue}
+            castShadow
+          />
           {/* Motor shaft - NO SHADOW for small part */}
           <mesh position={[0, 0.1, -0.3]} rotation={[Math.PI / 2, 0, 0]}>
             <cylinderGeometry args={[0.08, 0.08, 0.3, 8]} />
@@ -1090,16 +1125,19 @@ export const RollerConveyor: React.FC<{
     axlesRef.current.instanceMatrix.needsUpdate = true;
   }, [tempMatrix, tempPosition, tempScale, quality]);
 
-  // Start roller conveyor sound and register for centralized audio updates
+  // Start roller conveyor sound and register for centralized audio updates;
+  // silent while the rollers are stopped.
+  const running = productionSpeed > 0;
+  const audioReady = useAudioInitialized();
   useEffect(() => {
-    if (!enableAudio) return;
+    if (!enableAudio || !audioReady || !running) return;
     audioManager.startConveyorSound(conveyorId, posX, posY, posZ);
     registerConveyorAudio(conveyorId, positionVec, true);
     return () => {
       audioManager.stopConveyorSound(conveyorId);
       unregisterConveyorAudio(conveyorId);
     };
-  }, [conveyorId, enableAudio, posX, posY, posZ, positionVec]);
+  }, [conveyorId, enableAudio, audioReady, running, posX, posY, posZ, positionVec]);
 
   useFrame((_, delta) => {
     // PERFORMANCE: Skip animations when tab hidden or production stopped
@@ -1205,106 +1243,15 @@ export const RollerConveyor: React.FC<{
 
 // === FLOUR SACK ==========================================================
 
-/**
- * Slumped sack silhouette, built ONCE at module level.
- *
- * The bags were 60 identical sharp-edged boxes. A subdivided box with its
- * middle ring pushed outward and its top gathered reads as a filled sack for
- * zero runtime cost - the alternative (per-bag geometry) would allocate 60
- * BufferGeometries.
- */
-const createFlourSackGeometry = (): THREE.BufferGeometry => {
-  const geometry = new THREE.BoxGeometry(0.6, 0.5, 0.9, 3, 2, 3);
-  const position = geometry.attributes.position as THREE.BufferAttribute;
+export {
+  getFlourSackGeometry,
+  FLOUR_STRIPE_GEOMETRY,
+  FLOUR_STRIPE_MATERIAL,
+} from '../utils/flourSacks';
 
-  for (let i = 0; i < position.count; i++) {
-    let x = position.getX(i);
-    const y = position.getY(i);
-    let z = position.getZ(i);
-
-    // Bulge outward through the middle, pinned at the flat top and bottom.
-    const bulge = 0.055 * (1 - Math.min(1, Math.abs(y) / 0.25));
-    const radial = Math.hypot(x, z);
-    if (radial > 1e-4) {
-      x += (x / radial) * bulge;
-      z += (z / radial) * bulge;
-    }
-
-    // Gathered, sewn top.
-    if (y > 0.15) {
-      const pinch = 1 - 0.35 * ((y - 0.15) / 0.1);
-      x *= pinch;
-      z *= pinch;
-    }
-
-    position.setXYZ(i, x, y, z);
-  }
-
-  position.needsUpdate = true;
-  geometry.computeVertexNormals();
-  return geometry;
-};
-
-let flourSackGeometryCache: THREE.BufferGeometry | null = null;
-const getFlourSackGeometry = (): THREE.BufferGeometry => {
-  if (!flourSackGeometryCache) flourSackGeometryCache = createFlourSackGeometry();
-  return flourSackGeometryCache;
-};
-
-/**
- * One shared sack material for every instance. `color` is white because the
- * correctly tagged sRGB albedo map already carries the cloth hue. Per-instance
- * colour supplies the restrained hover highlight without another draw call.
- */
-let flourSackMaterialCache: THREE.MeshStandardMaterial | null = null;
-
-const getFlourSackMaterial = (): THREE.MeshStandardMaterial => {
-  if (flourSackMaterialCache) return flourSackMaterialCache;
-
-  const source = getFlourSackMaps();
-  const tile = (texture: THREE.Texture): THREE.Texture => {
-    const clone = texture.clone();
-    clone.wrapS = THREE.RepeatWrapping;
-    clone.wrapT = THREE.RepeatWrapping;
-    clone.repeat.set(2, 2);
-    clone.needsUpdate = true;
-    return clone;
-  };
-
-  flourSackMaterialCache = new THREE.MeshStandardMaterial({
-    color: '#ffffff',
-    map: tile(source.map),
-    normalMap: tile(source.normal),
-    normalScale: new THREE.Vector2(0.6, 0.6),
-    roughnessMap: tile(source.roughness),
-    roughness: 1,
-    metalness: 0,
-    envMapIntensity: 0.7,
-  });
-
-  // `fabric` in OBJECT rest space: these sacks travel the length of the belt,
-  // and a world-space field would make the weave swim across a bag as it moves
-  // through it.
-  //
-  // Treated in place rather than on a clone. `THREE.Material.copy()` runs
-  // userData through `JSON.parse(JSON.stringify(...))` and does NOT copy
-  // `onBeforeCompile`, so cloning a material that already carries the treatment
-  // produces a JSON ghost - the bookkeeping without the shader, and permanently
-  // deaf to the A/B toggle.
-  applyWorldSurface(flourSackMaterialCache, 'fabric');
-  return flourSackMaterialCache;
-};
-
-const FLOUR_STRIPE_GEOMETRY = new THREE.PlaneGeometry(0.5, 0.3);
-const FLOUR_STRIPE_MATERIAL = new THREE.MeshBasicMaterial({
-  color: '#ffffff',
-  depthWrite: false,
-  polygonOffset: true,
-  polygonOffsetFactor: POLYGON_OFFSET.standard.factor,
-  polygonOffsetUnits: POLYGON_OFFSET.standard.units,
-});
-const BAG_BODY_OFFSET = new THREE.Matrix4().makeTranslation(0, 0.25, 0);
-const BAG_STRIPE_OFFSET = new THREE.Matrix4().makeTranslation(0, 0.25, 0.48);
+export const BAG_BODY_OFFSET = new THREE.Matrix4().makeTranslation(0, FLOUR_SACK_HEIGHT / 2, 0);
+// Body and all five printed faces share the same belt-contact datum.
+export const BAG_STRIPE_OFFSET = BAG_BODY_OFFSET.clone();
 const BAG_SCALE = new THREE.Vector3(1, 1, 1);
 const BAG_UP = new THREE.Vector3(0, 1, 0);
 const BAG_IDLE_COLOR = new THREE.Color('#ffffff');
@@ -1342,7 +1289,7 @@ const InstancedFlourBags: React.FC<{
   const groupMatrix = useMemo(() => new THREE.Matrix4(), []);
   const instanceMatrix = useMemo(() => new THREE.Matrix4(), []);
   const qualityColours = useMemo(
-    () => bags.map((bag) => new THREE.Color(QUALITY_COLORS[bag.quality])),
+    () => bags.map((bag) => new THREE.Color(QUALITY_COLORS[bag.quality]).multiplyScalar(0.12)),
     [bags]
   );
 
@@ -1427,15 +1374,25 @@ const InstancedFlourBags: React.FC<{
         ref={bodiesRef}
         args={[getFlourSackGeometry(), getFlourSackMaterial(), bags.length]}
         castShadow
+        receiveShadow
         onPointerOver={(event) => {
           event.stopPropagation();
           if (event.instanceId !== undefined) setHoveredIndex(event.instanceId);
         }}
         onPointerOut={() => setHoveredIndex(null)}
-      />
+      >
+        <GeneratedBoundary fallback={null}>
+          <GeneratedGeometrySurface
+            asset={'flourSackUnit'}
+            original={getFlourSackGeometry()}
+            meshRef={bodiesRef}
+          />
+        </GeneratedBoundary>
+      </instancedMesh>
       <instancedMesh
         ref={stripesRef}
-        args={[FLOUR_STRIPE_GEOMETRY, FLOUR_STRIPE_MATERIAL, bags.length]}
+        args={[FLOUR_SACK_PRINT_GEOMETRY, FLOUR_STRIPE_MATERIAL, bags.length]}
+        receiveShadow
       />
 
       {hoveredBag && (

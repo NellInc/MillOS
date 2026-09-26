@@ -12,6 +12,7 @@ import {
   type OperationalIncident,
 } from '../stores/operationsCampaignStore';
 import { useGraphicsStore } from '../stores/graphicsStore';
+import { useReducedMotion } from '../hooks/useReducedMotion';
 import { SceneText } from './shared/SceneText';
 
 type SignalPlacement = {
@@ -27,15 +28,27 @@ type SignalPlacement = {
  */
 export const OPERATIONAL_INCIDENT_PLACEMENTS: Readonly<Record<IncidentKind, SignalPlacement>> = {
   bearing_overheat: {
-    position: [SITE_LAYOUT.machines.rollerMills[0].position[0] - 3.25, 0.08, -6],
+    position: [
+      SITE_LAYOUT.machines.rollerMills[0].position[0] -
+        SITE_LAYOUT.machineDimensions.rollerMill[0] / 2 -
+        1.4,
+      0.08,
+      SITE_LAYOUT.machines.rollerMills[0].position[2],
+    ],
     shortLabel: 'R.M. 101 HEAT',
   },
   dust_filter_pressure: {
-    position: [5.25, SITE_LAYOUT.datum.mezzanine + 0.08, 8.75],
+    position: [5.25, SITE_LAYOUT.datum.mezzanine + 0.08, SITE_LAYOUT.factory.zones.sifting + 2.75],
     shortLabel: 'FILTER DP',
   },
   power_sag: {
-    position: [70, 0.04, 6],
+    // Off the south end of the silo bank. The old point sat 5 m from Silo
+    // Epsilon's centre, inside its 6 m discharge enclosure.
+    position: [
+      SITE_LAYOUT.machines.silos[4].position[0],
+      0.04,
+      SITE_LAYOUT.machines.silos[4].position[2] - SITE_LAYOUT.machineDimensions.silo[2] / 2 - 2.5,
+    ],
     shortLabel: 'POWER SAG',
   },
   delayed_truck: {
@@ -47,7 +60,11 @@ export const OPERATIONAL_INCIDENT_PLACEMENTS: Readonly<Record<IncidentKind, Sign
     shortLabel: 'LOT HOLD',
   },
   packaging_shortage: {
-    position: [SITE_LAYOUT.machines.packers[0].position[0] - 5, 0.08, 25],
+    position: [
+      SITE_LAYOUT.machines.packers[0].position[0] - 5,
+      0.08,
+      SITE_LAYOUT.machines.packers[0].position[2],
+    ],
     shortLabel: 'PACKAGING LOW',
   },
   severe_rain: {
@@ -56,7 +73,7 @@ export const OPERATIONAL_INCIDENT_PLACEMENTS: Readonly<Record<IncidentKind, Sign
   },
   control_network_degraded: {
     position: [SITE_LAYOUT.portals.eastService.centre[0] - 7, 0.08, -20],
-    shortLabel: 'ROLE GAP',
+    shortLabel: 'LINK DEGRADED',
   },
 };
 
@@ -250,21 +267,22 @@ const SignalSymbol: React.FC<{
         </group>
       );
     case 'control_network_degraded':
+      // Two network nodes joined by a link with a visible break at the centre.
       return (
         <group>
-          {[-0.34, 0.34].map((x) => (
-            <group key={x} position={[x, 0, 0]}>
+          {[-1, 1].map((side) => (
+            <group key={side}>
               <mesh
-                geometry={SPHERE_GEOMETRY}
-                material={material}
-                position={[0, 0.35, 0]}
-                scale={0.65}
+                geometry={BOX_GEOMETRY}
+                material={HOUSING_MATERIAL}
+                position={[side * 0.42, 0, 0]}
+                scale={[0.26, 0.26, 0.26]}
               />
               <mesh
-                geometry={CYLINDER_GEOMETRY}
-                material={HOUSING_MATERIAL}
-                position={[0, -0.18, 0]}
-                scale={[0.65, 0.65, 0.65]}
+                geometry={BOX_GEOMETRY}
+                material={material}
+                position={[side * 0.2, 0, 0]}
+                scale={[0.22, 0.12, 0.12]}
               />
             </group>
           ))}
@@ -335,6 +353,7 @@ export const OperationalWorldSignals: React.FC = () => {
     useShallow((state) => state.incidents.filter((incident) => incident.phase !== 'resolved'))
   );
   const quality = useGraphicsStore((state) => state.graphics.quality);
+  const reducedMotion = useReducedMotion();
   const animatedGroups = useRef(new Map<string, THREE.Group>());
 
   const registerAnimated = useCallback((id: string, group: THREE.Group | null) => {
@@ -350,6 +369,12 @@ export const OperationalWorldSignals: React.FC = () => {
     const time = clock.elapsedTime;
     animatedGroups.current.forEach((group) => {
       const phaseOffset = Number(group.userData.phaseOffset) || 0;
+      // Reduced motion: beacons hold still; phase colour and label carry state.
+      if (reducedMotion) {
+        group.scale.setScalar(1);
+        group.rotation.y = phaseOffset;
+        return;
+      }
       const pulse = 1 + Math.sin(time * 3.2 + phaseOffset) * 0.1;
       group.scale.setScalar(pulse);
       group.rotation.y = time * 0.35 + phaseOffset;

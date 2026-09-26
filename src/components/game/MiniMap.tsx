@@ -4,6 +4,16 @@ import { Map, X } from 'lucide-react';
 import { useUIStore } from '../../stores/uiStore';
 import { useShallow } from 'zustand/react/shallow';
 import { positionRegistry, type EntityPosition } from '../../utils/positionRegistry';
+import { FACTORY_ZONE_Z } from '../../constants/siteLayout';
+
+// True top-down view matching the overview camera: +x right, -z (the far side
+// of the site) up. The tick is a bar hanging down from the dot, so rotate()
+// must carry screen (0, 1) onto the heading (dirX, dirZ).
+const ZONE_LABELS = [
+  { label: 'Packing', z: FACTORY_ZONE_Z.packing },
+  { label: 'Sifters', z: FACTORY_ZONE_Z.sifting },
+  { label: 'Mills', z: FACTORY_ZONE_Z.milling },
+] as const;
 
 export const MiniMap: React.FC = () => {
   const { showMiniMap, setShowMiniMap } = useUIStore(
@@ -55,7 +65,7 @@ export const MiniMap: React.FC = () => {
         <div className="flex items-center justify-between px-3 py-2 border-b border-slate-800 bg-slate-800/50">
           <div className="flex items-center gap-2">
             <Map className="w-4 h-4 text-cyan-400" />
-            <span className="text-xs font-medium text-white">GPS Tracking</span>
+            <span className="text-xs font-medium text-white">Fleet Map</span>
           </div>
           <button
             onClick={() => setShowMiniMap(false)}
@@ -84,11 +94,17 @@ export const MiniMap: React.FC = () => {
             ))}
           </div>
 
-          {/* Zone indicators */}
-          <div className="absolute left-2 top-2 text-[8px] text-slate-400">Silos</div>
-          <div className="absolute left-2 top-1/4 text-[8px] text-slate-400">Mills</div>
-          <div className="absolute left-2 bottom-1/4 text-[8px] text-slate-400">Sifters</div>
-          <div className="absolute left-2 bottom-2 text-[8px] text-slate-400">Packers</div>
+          {/* Zone indicators, placed at each zone's real z. The silo pad sits at
+              x=65, outside the mapped +/-60 m, so it has no label here. */}
+          {ZONE_LABELS.map(({ label, z }) => (
+            <div
+              key={label}
+              className="absolute left-2 -translate-y-1/2 text-[8px] text-slate-400"
+              style={{ top: offsetZ + (z * mapScale) / 2 }}
+            >
+              {label}
+            </div>
+          ))}
 
           {/* Forklifts */}
           {positions.forklifts.map((forklift) => (
@@ -97,7 +113,7 @@ export const MiniMap: React.FC = () => {
               className="absolute"
               style={{
                 left: offsetX + (forklift.x * mapScale) / 2,
-                top: offsetZ - (forklift.z * mapScale) / 2,
+                top: offsetZ + (forklift.z * mapScale) / 2,
                 transform: 'translate(-50%, -50%)',
               }}
             >
@@ -110,7 +126,7 @@ export const MiniMap: React.FC = () => {
                     left: '50%',
                     top: '50%',
                     transformOrigin: 'center top',
-                    transform: `translateX(-50%) rotate(${Math.atan2(forklift.dirX, -forklift.dirZ) * (180 / Math.PI)}deg)`,
+                    transform: `translateX(-50%) rotate(${Math.atan2(-forklift.dirX, forklift.dirZ) * (180 / Math.PI)}deg)`,
                   }}
                 />
               )}

@@ -10,6 +10,7 @@ import {
   NORMAL_BIAS_TEXELS,
   VERTICAL_SUN_THRESHOLD,
   exteriorHalfExtent,
+  factoryOccluderDepth,
   exteriorLeadDistance,
   isInsideFactoryFootprint,
   normalBiasForTexel,
@@ -100,8 +101,10 @@ describe('normalBiasForTexel', () => {
 
 describe('isInsideFactoryFootprint', () => {
   it('classifies every benchmark camera the way the shadow fit needs', () => {
-    const inside = ['interior', 'silos', 'milling', 'packing', 'processFloor', 'forklift'];
+    const inside = ['interior', 'milling', 'packing', 'processFloor'];
     const outside = [
+      'silos',
+      'forklift',
       'overview',
       'shipping',
       'yard',
@@ -171,8 +174,7 @@ describe('exteriorLeadDistance', () => {
   });
 
   it('covers the factory from the overview camera, which a flat 0.35 lead does not', () => {
-    // pos [112, 74, 112] -> target [0, 7, 2]. The view ray meets y = 0 at about
-    // (-12, 0, -10), so the ground distance is roughly 174.
+    // Use the authored overview lens and aim, rather than an old copied pose.
     const camera = SITE_LAYOUT.cameras.overview;
     const forward = new THREE.Vector3(
       camera.target[0] - camera.position[0],
@@ -186,8 +188,9 @@ describe('exteriorLeadDistance', () => {
 
     // The site-wide shot is exactly the case that still needs the full box.
     expect(exteriorHalfExtent(groundDistance)).toBe(halfExtent);
-    const lead = exteriorLeadDistance(groundDistance, halfExtent);
     const planar = Math.hypot(forward.x, forward.z);
+    const axis = Math.max(Math.abs(forward.x), Math.abs(forward.z)) / planar;
+    const lead = exteriorLeadDistance(groundDistance, halfExtent, axis);
     const centreX = camera.position[0] + (forward.x / planar) * lead;
     const centreZ = camera.position[2] + (forward.z / planar) * lead;
 
@@ -205,12 +208,10 @@ describe('exteriorLeadDistance', () => {
     expect(Math.abs(camera.position[0] - centreX)).toBeLessThan(halfExtent);
     expect(Math.abs(camera.position[2] - centreZ)).toBeLessThan(halfExtent);
 
-    // The flat 0.35 * halfExtent lead the brief started from leaves a 35-unit
-    // strip of the factory unshadowed in its own overview shot; this is the
-    // arithmetic that motivated the ground-distance form.
+    // Compare the old fixed lead on the far edge for the authored overview camera.
     const flatLead = 0.35 * halfExtent;
-    const flatCentreX = camera.position[0] + (forward.x / planar) * flatLead;
-    expect(flatCentreX - halfExtent).toBeGreaterThan(bounds.minX + 30);
+    const flatCentreZ = camera.position[2] + (forward.z / planar) * flatLead;
+    expect(flatCentreZ - halfExtent).toBeGreaterThan(bounds.minZ + 20);
   });
 });
 
@@ -223,10 +224,32 @@ describe('factory shadow volume', () => {
     expect(centreX + halfX).toBeGreaterThanOrEqual(bounds.maxX);
     expect(centreZ - halfZ).toBeLessThanOrEqual(bounds.minZ);
     expect(centreZ + halfZ).toBeGreaterThanOrEqual(bounds.maxZ);
-    // Roof panels sit at y 32.45 and the skylights at 33.02. If the fit clips
-    // them the interior stops being an interior.
-    expect(centreY + halfY).toBeGreaterThanOrEqual(33.02);
+    expect(centreY + halfY).toBeGreaterThanOrEqual(bounds.maxY + 1.02);
     expect(centreY - halfY).toBeLessThanOrEqual(0);
+  });
+
+  it('includes outdoor bins and the elevator along light depth without widening receiver coverage', () => {
+    expect(FACTORY_SHADOW_VOLUME.half[0]).toBe(62);
+    expect(FACTORY_SHADOW_VOLUME.half[2]).toBe(52);
+    const tower = SITE_LAYOUT.bulkStorage.elevator;
+    for (const direction of [
+      new THREE.Vector3(1, 0, 0),
+      new THREE.Vector3(0, 1, 0),
+      new THREE.Vector3(0, 0, 1),
+      new THREE.Vector3(1, 1, -1).normalize(),
+    ]) {
+      const depth = factoryOccluderDepth(...direction.toArray());
+      for (const x of [-1, 1])
+        for (const y of [-1, 1])
+          for (const z of [-1, 1]) {
+            const point = new THREE.Vector3(
+              tower.position[0] + (x * tower.footprint[0]) / 2,
+              tower.position[1] + ((y + 1) * tower.height) / 2,
+              tower.position[2] + (z * tower.footprint[1]) / 2
+            ).sub(new THREE.Vector3(...FACTORY_SHADOW_VOLUME.centre));
+            expect(Math.abs(point.dot(direction))).toBeLessThan(depth);
+          }
+    }
   });
 
   it('stays inside a usable texel size at every solar elevation and azimuth', () => {
@@ -294,7 +317,8 @@ function fitExteriorCamera(
   const rayLength = forward.y < -0.05 && position[1] > 0 ? -position[1] / forward.y : -1;
   const groundDistance = rayLength >= 0 ? rayLength * planar : -1;
   const half = exteriorHalfExtent(groundDistance);
-  const lead = exteriorLeadDistance(groundDistance, half);
+  const axis = planar > 1e-4 ? Math.max(Math.abs(forward.x), Math.abs(forward.z)) / planar : 1;
+  const lead = exteriorLeadDistance(groundDistance, half, axis);
   const leadX = planar > 1e-4 ? (forward.x / planar) * lead : 0;
   const leadZ = planar > 1e-4 ? (forward.z / planar) * lead : 0;
   return {
@@ -403,10 +427,9 @@ describe('exterior fit across every authored camera', () => {
   it('holds a readable texel on a 1024 map at every camera and elevation', () => {
     // ANSWERS "IS 1024 MATCHED TO THE FIT". These are the world sizes of one
     // shadow texel that `medium`'s configured 1024 actually produces. They are
-    // fine for a filtered lookup and coarse for an unfiltered one - which is
-    // what the renderer is currently doing, because three 0.182 has no
-    // `SHADOWMAP_TYPE_PCF_SOFT` branch and falls through to
-    // `SHADOWMAP_TYPE_BASIC`, a single hard tap.
+    // fine for the PCF lookup selected by App. PCFSoft silently fell through
+    // to BASIC in three 0.182; shaderInjectionAnchors.test now guards the real
+    // Canvas value against the installed renderer mapping.
     const azimuths = [0, Math.PI / 3, (2 * Math.PI) / 3, Math.PI];
     let worstVertical = 0;
     let worstOverall = 0;

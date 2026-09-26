@@ -241,7 +241,8 @@ const LAMP_MATERIALS = {
  * mesh cannot move, and a merged material cannot change colour, so batching
  * this would silently restore the zero it exists to remove.
  */
-const LEVELER_DEPLOYED_PITCH = -0.13; // ~7.5 degrees down onto the trailer bed.
+// ~7.5 degrees: the outboard lip lifts toward the trailer bed, which sits above the dock floor.
+const LEVELER_DEPLOYED_PITCH = -0.13;
 const LEVELER_SMOOTH_TIME = 0.55; // Seconds to converge; a hydraulic ram is slow.
 
 interface DockMechanismProps {
@@ -352,6 +353,8 @@ export const OpenDockOpening: React.FC<OpenDockOpeningProps> = ({
   const halfWidth = width / 2;
   const frameWidth = 0.8; // I-beam width
   const frameDepth = 0.6;
+  // One diagonal every 4 m across the full `width + 2` threshold band.
+  const stripeCount = Math.floor((width + 2) / 4);
 
   return (
     <group position={position} rotation={[0, rotation, 0]}>
@@ -404,13 +407,14 @@ export const OpenDockOpening: React.FC<OpenDockOpeningProps> = ({
         <primitive object={HAZARD_PAINT_YELLOW} attach="material" />
       </mesh>
       {/* Black diagonal stripes on yellow */}
-      {[-8, -4, 0, 4, 8].map((x, i) => (
+      {Array.from({ length: stripeCount }, (_, i) => (
         <mesh
           key={`stripe-${i}`}
-          position={[x, FLOOR_LAYERS.safetyMain + 0.005, 0]}
+          position={[(i - (stripeCount - 1) / 2) * 4, FLOOR_LAYERS.safetyMain + 0.005, 0]}
           rotation={[-Math.PI / 2, 0, Math.PI / 4]}
         >
-          <planeGeometry args={[0.4, 2]} />
+          {/* 1.7 m long: rotated 45 degrees it reaches +/-0.74 m, inside the 1.5 m band. */}
+          <planeGeometry args={[0.4, 1.7]} />
           <primitive object={HAZARD_PAINT_BLACK} attach="material" />
         </mesh>
       ))}
@@ -424,7 +428,10 @@ export const OpenDockOpening: React.FC<OpenDockOpeningProps> = ({
         dock={dock}
       />
 
-      {/* Protective canopy extending outward */}
+      {/* Interior hood over the dock header. Local -Z is the building interior
+          and +Z is outdoors; the exterior bays carry their own canopies in
+          the truck yard, and the wall glazing above the opening rules out a
+          slab running outward at this height. */}
       {hasCanopy && (
         <group position={[0, height + 1.5, -4]}>
           <mesh
@@ -457,37 +464,18 @@ export const OpenDockOpening: React.FC<OpenDockOpeningProps> = ({
       {/* Dock label sign */}
       <group position={[0, height + 2.5, 0.5]}>
         <mesh geometry={UNIT_BOX} material={MATERIALS.sign} scale={[6, 1.2, 0.15]} />
+        {/* Painted lettering on a lit board: it darkens with the board at night instead of glowing. */}
         <Text
           position={[0, 0, 0.1]}
           fontSize={0.6}
           color="#ffffff"
           anchorX="center"
           anchorY="middle"
+          surface="painted"
         >
           {label}
         </Text>
       </group>
-
-      {/* Outdoor light spill effect - subtle brightness looking out */}
-      <mesh position={[0, height / 2, -3]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[width + 4, 6]} />
-        <meshBasicMaterial
-          color="#fef9c3"
-          transparent
-          opacity={0.08}
-          side={THREE.DoubleSide}
-          depthWrite={false}
-        />
-      </mesh>
-
-      {/* Ambient outdoor light - warm daylight */}
-      <pointLight
-        position={[0, height / 2, -5]}
-        intensity={0.4}
-        color="#fef3c7"
-        distance={25}
-        decay={2}
-      />
     </group>
   );
 };

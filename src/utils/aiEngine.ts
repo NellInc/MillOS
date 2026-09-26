@@ -2,8 +2,8 @@
  * Autonomous plant decision engine.
  *
  * The engine watches process equipment, production flow, safety interlocks,
- * logistics routes, weather, and the active strategic backend. It deliberately
- * is intentionally limited to equipment and process state.
+ * logistics routes, weather, and the active strategic backend. It is
+ * deliberately limited to equipment and process state.
  */
 
 import type { AIDecision, AlertData, MachineData } from '../types';
@@ -381,10 +381,11 @@ export function reactToAlert(alert: AlertData): AIDecision | null {
 
 export function applyDecisionEffects(
   decision: AIDecision,
-  disposition: 'automatic' | 'accepted' | 'modified' = 'automatic'
+  disposition: 'automatic' | 'accepted' | 'modified' = 'automatic',
+  options?: { note?: string; modifiedAction?: string }
 ): void {
   const store = useProductionStore.getState();
-  store.recordDecisionResponse?.(decision.id, disposition);
+  store.recordDecisionResponse?.(decision.id, disposition, options);
 
   if (decision.machineId && decision.type === 'safety') {
     store.updateMachineStatus?.(decision.machineId, 'idle');
@@ -601,7 +602,9 @@ export function isGeminiModeActive(): boolean {
 
 export function isStrategicLayerActive(): boolean {
   const state = useAIConfigStore.getState();
-  return state.aiMode === 'hybrid' && state.isLLMReady();
+  // 'gemini' is the LLM-only mode: the strategic layer runs and the tactical
+  // rules layer is paused (see isTacticalLayerActive).
+  return (state.aiMode === 'hybrid' || state.aiMode === 'gemini') && state.isLLMReady();
 }
 
 export function isTacticalLayerActive(): boolean {
@@ -622,13 +625,15 @@ function strategicPrompt(machines: MachineData[]): string {
   }));
   return [
     'You are the strategic controller for an uncrewed grain mill digital twin.',
-    'Return JSON only with priorities (one to three strings), reasoning, optional insight, tradeoff, focusMachine, and actionPlan.',
+    'Return one JSON object only: {"priorities": 1-3 short imperative strings (under 80 characters each), "reasoning": 1-2 sentences, "insight"?: string, "tradeoff"?: string, "focusMachine"?: one equipment id from the telemetry, "actionPlan"?: [immediate, short-term, preparation] as 3 strings}.',
     'Prioritize safety interlocks, stable material flow, quality, energy, condition maintenance, and autonomous logistics.',
     `Plant period: ${simulation.currentShift}. Weather: ${simulation.weather}.`,
     `Production: ${JSON.stringify(production.metrics)}.`,
     `Equipment telemetry: ${JSON.stringify(telemetry)}.`,
   ].join('\n');
 }
+
+const STRATEGIC_TEXT_LIMIT = 160;
 
 function parseStrategicResponse(response: string): {
   priorities: string[];
@@ -642,20 +647,30 @@ function parseStrategicResponse(response: string): {
     const match = response.match(/\{[\s\S]*\}/);
     if (!match) return null;
     const parsed = JSON.parse(match[0]) as Record<string, unknown>;
-    const priorities = Array.isArray(parsed.priorities)
-      ? parsed.priorities.filter((item): item is string => typeof item === 'string').slice(0, 3)
-      : [];
+    // Model text lands verbatim in decision cards and the aria-live decision
+    // announcement, so every field is trimmed and bounded here.
+    const clip = (value: unknown): string | undefined => {
+      if (typeof value !== 'string') return undefined;
+      const text = value.trim().slice(0, STRATEGIC_TEXT_LIMIT);
+      return text || undefined;
+    };
+    const clipList = (value: unknown): string[] =>
+      Array.isArray(value)
+        ? value
+            .map(clip)
+            .filter((item): item is string => item !== undefined)
+            .slice(0, 3)
+        : [];
+    const priorities = clipList(parsed.priorities);
     if (!priorities.length) return null;
+    const actionPlan = clipList(parsed.actionPlan);
     return {
       priorities,
-      reasoning:
-        typeof parsed.reasoning === 'string' ? parsed.reasoning : 'Strategic analysis complete.',
-      insight: typeof parsed.insight === 'string' ? parsed.insight : undefined,
-      tradeoff: typeof parsed.tradeoff === 'string' ? parsed.tradeoff : undefined,
-      focusMachine: typeof parsed.focusMachine === 'string' ? parsed.focusMachine : undefined,
-      actionPlan: Array.isArray(parsed.actionPlan)
-        ? parsed.actionPlan.filter((item): item is string => typeof item === 'string').slice(0, 3)
-        : undefined,
+      reasoning: clip(parsed.reasoning) ?? 'Strategic analysis complete.',
+      insight: clip(parsed.insight),
+      tradeoff: clip(parsed.tradeoff),
+      focusMachine: clip(parsed.focusMachine),
+      actionPlan: actionPlan.length ? actionPlan : undefined,
     };
   } catch {
     return null;
@@ -709,6 +724,13 @@ async function runStrategicDecision(
     }
     const strategic = parseStrategicResponse(response);
     if (!strategic) return null;
+    // Only keep a focus machine the plant actually has, so neither the decision
+    // nor the Strategic tab's "Focus" chip points at an asset that isn't there.
+    const machineIds = new Set(getMachines().map((machine) => machine.id));
+    const focusMachine =
+      strategic.focusMachine && machineIds.has(strategic.focusMachine)
+        ? strategic.focusMachine
+        : undefined;
     const decision: AIDecision = {
       id: makeId('strategic'),
       timestamp: new Date(),
@@ -722,14 +744,19 @@ async function runStrategicDecision(
         strategic.priorities.length > 1
           ? `Additional priorities: ${strategic.priorities.slice(1).join('; ')}`
           : 'Strategic guidance recorded for the tactical controller.',
-      machineId: strategic.focusMachine,
+      machineId: focusMachine,
       status: 'completed',
       priority: 'medium',
       triggeredBy: 'prediction',
     };
     const recorded = recordDecision(decision);
     if (!recorded) return null;
-    liveConfig.setStrategicPriorities(strategic.priorities);
+    liveConfig.setStrategicPriorities(strategic.priorities, {
+      actionPlan: strategic.actionPlan,
+      insight: strategic.insight,
+      tradeoff: strategic.tradeoff,
+      focusMachine,
+    });
     return recorded;
   } catch (error) {
     logger.ai.error('Strategic decision generation failed', error);

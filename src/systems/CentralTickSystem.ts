@@ -207,7 +207,12 @@ class CentralTickSystemImpl {
       return false;
     }
 
-    this.lastTickTime = currentTime;
+    // Advance by exactly one interval to keep phase: resetting to currentTime
+    // dropped each tick's frame overshoot and ran the whole simulation clock
+    // ~1-3% slow. A long gap (hidden tab, hitch) resyncs rather than bursting
+    // catch-up ticks.
+    this.lastTickTime =
+      deltaTime < this.tickInterval * 2 ? this.lastTickTime + this.tickInterval : currentTime;
     this.tickCount++;
     this.elapsedTime = currentTime;
 

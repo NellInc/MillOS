@@ -6,6 +6,15 @@ import { playCritterSound } from '../../utils/critterAudio';
 import { shouldRunThisFrame } from '../../utils/frameThrottle';
 import { CreatureBody, type CreatureRigHandle } from '../models/RiggedCreatureModel';
 
+// Hover affordance for petting, matching every other clickable object in the
+// scene.
+const setPointerCursor = () => {
+  document.body.style.cursor = 'pointer';
+};
+const resetCursor = () => {
+  document.body.style.cursor = 'auto';
+};
+
 interface CatProps {
   position: [number, number, number];
   rotation?: number;
@@ -97,6 +106,9 @@ export const Cat = React.memo<CatProps>(
       setHearts((prev) => prev.filter((h) => h.id !== id));
     };
 
+    // A cat unmounted while hovered must not leave the pointer cursor stuck.
+    useEffect(() => resetCursor, []);
+
     // Reset excitement
     useEffect(() => {
       if (isExcited) {
@@ -153,7 +165,13 @@ export const Cat = React.memo<CatProps>(
     // scale 0.4 the largest part is a 0.48 m sphere, with ears at 64 mm and eyes
     // at 32 mm. A faceted critter is the art direction here, not neglect.
     return (
-      <group position={position} rotation={[0, rotation, 0]} onClick={handlePet}>
+      <group
+        position={position}
+        rotation={[0, rotation, 0]}
+        onClick={handlePet}
+        onPointerOver={setPointerCursor}
+        onPointerOut={resetCursor}
+      >
         <group ref={groupRef}>
           {isSleeping ? (
             // Sleeping Pose (Curled up). Still primitive: the generated cat is

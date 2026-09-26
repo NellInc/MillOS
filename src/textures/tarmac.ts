@@ -13,6 +13,7 @@ import {
   fbmNoiseSigned,
   hash,
   voronoi,
+  blendTileEdges,
 } from '../utils/textureGenerator';
 
 export interface TarmacOptions {
@@ -43,7 +44,7 @@ export const generateTarmac = (
 
   // v5: corrected direct-light albedo. Bumped so HMR cannot retain the former
   // darker cached texture.
-  const cacheKey = `tarmac-v5-${size}-${baseColor.join(',')}-${aggregateAmount}-${wearAmount}-${oilStains}`;
+  const cacheKey = `tarmac-v6-${size}-${baseColor.join(',')}-${aggregateAmount}-${wearAmount}-${oilStains}`;
 
   return getTexture(cacheKey, () => {
     const data = new Uint8Array(size * size * 4);
@@ -165,6 +166,7 @@ export const generateTarmac = (
       }
     }
 
+    blendTileEdges(data, size);
     return createColorDataTexture(data, size, size);
   });
 };
@@ -177,7 +179,7 @@ export const generateTarmacRoughness = (
   size: number = 256,
   wearAmount: number = 0.3
 ): THREE.DataTexture => {
-  return getTexture(`tarmac-roughness-${size}-${wearAmount}`, () => {
+  return getTexture(`tarmac-roughness-v2-${size}-${wearAmount}`, () => {
     const data = new Uint8Array(size * size * 4);
 
     for (let y = 0; y < size; y++) {
@@ -216,6 +218,7 @@ export const generateTarmacRoughness = (
       }
     }
 
+    blendTileEdges(data, size);
     return createLinearDataTexture(data, size, size);
   });
 };

@@ -14,7 +14,12 @@ import { useEffect } from 'react';
 import { centralTick, TICK_PRIORITY } from './CentralTickSystem';
 import type { TickContext } from './CentralTickSystem';
 import { useGameSimulationStore, getShiftForHour } from '../stores/gameSimulationStore';
-import { useProductionStore, DAILY_TARGET_BAGS } from '../stores/productionStore';
+import {
+  useProductionStore,
+  DAILY_TARGET_BAGS,
+  calculateEfficiency,
+  getWearConfig,
+} from '../stores/productionStore';
 import { getDispatchQualityStatus, useQCLabStore } from '../stores/qcLabStore';
 import {
   useMaterialFlowStore,
@@ -30,7 +35,7 @@ import {
   type DispatchLoadSnapshot,
   type OperationalIncident,
 } from '../stores/operationsCampaignStore';
-import { getFacilityBaseLoad, getMachineEnergy } from '../utils/energyCalculations';
+import { getSiteDemandKw } from '../utils/energyCalculations';
 import { sanitizeGameSpeed } from '../stores/persistenceMigrations';
 
 // Tracks the receiving dock's docked state across ticks so a false->true
@@ -52,6 +57,14 @@ const GRAIN_DELIVERY_KG = 15000;
 // A shipping truck can load up to 5 t of finished flour or semolina.
 const FINISHED_GOODS_SHIPMENT_KG = 5000;
 const SHIPPING_LOAD_RATE_KG_PER_SECOND = 400;
+// A delayed_truck incident that lands while a shipping truck is already on its
+// way or at the dock cannot move an arrival timer that is not running; the
+// delay is held here and added to the next scheduled arrival instead.
+const DELAYED_TRUCK_MINUTES = 45;
+let _pendingShippingDelayMinutes = 0;
+// Below this many real seconds per game day (above ~1440x) a day passes too
+// quickly for the end-of-day and milestone celebrations to mean anything.
+const MIN_CELEBRATED_DAY_REAL_SECONDS = 60;
 let _bagProductionCarry = 0;
 
 export const calculateBagsProducedForTick = (
@@ -135,13 +148,26 @@ function applyCampaignIncidentConsequence(incident: OperationalIncident): void {
     }
     case 'dust_filter_pressure':
       if (incident.affectedMachineId) {
+        const machine = production.machines.find(
+          (candidate) => candidate.id === incident.affectedMachineId
+        );
         production.updateMachineStatus(incident.affectedMachineId, 'warning');
+        if (machine && machine.status !== 'warning') {
+          useBreakdownStore.getState().addPredictiveAlert(machine.id, machine.name, {
+            vibration: machine.metrics.vibration,
+            temperature: machine.metrics.temperature,
+            load: machine.metrics.load,
+          });
+        }
       }
       break;
     case 'delayed_truck': {
       const trucks = useTruckScheduleStore.getState();
-      if (!trucks.truckSchedule.shipping.truckDocked) {
-        trucks.updateNextArrival('shipping', trucks.truckSchedule.shipping.nextArrivalMinutes + 45);
+      const shipping = trucks.truckSchedule.shipping;
+      if (shipping.truckActive) {
+        _pendingShippingDelayMinutes += DELAYED_TRUCK_MINUTES;
+      } else {
+        trucks.updateNextArrival('shipping', shipping.nextArrivalMinutes + DELAYED_TRUCK_MINUTES);
       }
       break;
     }
@@ -233,35 +259,20 @@ const _changedData: Array<{
   newStatus: MachineStatus;
   newWear: number;
   newEfficiency: number;
-  newTemp: number;
 }> = [];
 
-// ============================================================
-// WEAR CONFIGURATION (static, never changes)
-// ============================================================
+// Sub-resolution wear carried between ticks, per machine. Stored wear keeps
+// two decimals, and at low game speeds a single tick's increment is far below
+// that, so without the carry the rounding erased every tick's wear.
+const _wearCarry = new Map<string, number>();
 
-const WEAR_CONFIG: Record<
-  string,
-  { wearRatePerSecond: number; warningThreshold: number; breakdownThreshold: number }
-> = {
-  SILO: { wearRatePerSecond: 0.0001, warningThreshold: 70, breakdownThreshold: 95 },
-  ROLLER_MILL: { wearRatePerSecond: 0.0005, warningThreshold: 60, breakdownThreshold: 90 },
-  PLANSIFTER: { wearRatePerSecond: 0.0003, warningThreshold: 65, breakdownThreshold: 92 },
-  PACKER: { wearRatePerSecond: 0.0004, warningThreshold: 55, breakdownThreshold: 88 },
-};
-
-function getWearConfig(machineType: string) {
-  return WEAR_CONFIG[machineType] || WEAR_CONFIG.ROLLER_MILL;
-}
-
-function calculateEfficiency(wear: number, machineType: string): number {
-  const config = getWearConfig(machineType);
-  if (wear >= config.breakdownThreshold) return 0;
-  if (wear < config.warningThreshold * 0.5) return 100;
-  const degradationRange = config.breakdownThreshold - config.warningThreshold * 0.5;
-  const wearInRange = wear - config.warningThreshold * 0.5;
-  const degradation = Math.min(1, wearInRange / degradationRange);
-  return Math.round((1 - degradation * 0.4) * 100);
+/** Game minutes until wear reaches the breakdown threshold at the current load. */
+function gameMinutesToWearBreakdown(machineType: string, wear: number, load: number): number {
+  const wearConfig = getWearConfig(machineType);
+  const ratePerGameSecond =
+    wearConfig.wearRatePerSecond * (0.5 + (Number.isFinite(load) ? load : 0) / 100);
+  if (!(ratePerGameSecond > 0)) return Number.POSITIVE_INFINITY;
+  return Math.max(0, wearConfig.breakdownThreshold - wear) / ratePerGameSecond / 60;
 }
 
 function inferBreakdownType(machine: MachineData): BreakdownType {
@@ -279,16 +290,24 @@ function inferBreakdownType(machine: MachineData): BreakdownType {
  * Check if a machine's TRUTH has changed (not cosmetic values)
  * Truth = status, wear, efficiency
  * Cosmetics = RPM variance, load variance, temp fluctuation
+ *
+ * Temperature is deliberately not written here: MachineSimulationController
+ * owns it offline (per-type targets) and SCADA owns it once live. A third
+ * writer only made the value oscillate between models.
+ *
+ * `gameSeconds` is SIMULATED time (real delta x game speed). Wear is a
+ * mechanical-ageing process, so it runs on the production clock: at the
+ * default 180x a roller mill reaches its first warning roughly once per game
+ * day. Driven by real seconds it took ~25 real hours, so no session saw it.
  */
 function updateMachineTruth(
   machine: MachineData,
-  deltaSeconds: number
+  gameSeconds: number
 ): {
   changed: boolean;
   newStatus: MachineStatus;
   newWear: number;
   newEfficiency: number;
-  newTemp: number;
   breakdown: boolean;
 } {
   const isRunning = machine.status === 'running' || machine.status === 'warning';
@@ -301,39 +320,25 @@ function updateMachineTruth(
       newStatus: machine.status,
       newWear: machine.metrics.wear ?? 0,
       newEfficiency: machine.metrics.efficiency ?? 100,
-      newTemp: machine.metrics.temperature,
       breakdown: false,
     };
   }
 
   const baseWear = machine.metrics.wear ?? 0;
-  const baseTemp = machine.metrics.temperature;
   const baseLoad = machine.metrics.load;
   const wearConfig = getWearConfig(machine.type);
 
-  // Temperature changes (this IS truth, affects machine health).
-  // Keep 0.1C resolution and DON'T floor the per-tick step at 0.1: the old
-  // `Math.round(... Math.max(0.1, delta))` forced a minimum +0.1 then rounded
-  // it back off, so as the proportional delta shrank near the target the
-  // temperature froze a full degree below 75C and never converged. Rounding to
-  // one decimal (matching Machines.tsx) lets it settle within 0.1C of target.
-  let newTemp = baseTemp;
-  if (isRunning) {
-    const tempTarget = 75;
-    const tempDelta = (tempTarget - baseTemp) * 0.02 * deltaSeconds;
-    newTemp = Math.round(Math.min(85, baseTemp + tempDelta) * 10) / 10;
-  } else {
-    const tempTarget = 25;
-    const tempDelta = (baseTemp - tempTarget) * 0.01 * deltaSeconds;
-    newTemp = Math.round(Math.max(25, baseTemp - tempDelta) * 10) / 10;
-  }
-
-  // Wear accumulation (this IS truth)
+  // Wear accumulation (this IS truth). Stored at 0.01 resolution; the
+  // remainder below that carries to the next tick instead of being rounded off.
   let newWear = baseWear;
   if (isRunning) {
     const loadFactor = 0.5 + baseLoad / 100;
-    const wearIncrement = wearConfig.wearRatePerSecond * deltaSeconds * loadFactor;
-    newWear = Math.min(100, baseWear + wearIncrement);
+    const wearIncrement = wearConfig.wearRatePerSecond * gameSeconds * loadFactor;
+    const preciseWear = baseWear + (_wearCarry.get(machine.id) ?? 0) + wearIncrement;
+    // The epsilon keeps a stored value like 0.29 (28.999... x 100) from
+    // flooring below itself; the max keeps wear monotonic while running.
+    newWear = Math.min(100, Math.max(baseWear, Math.floor(preciseWear * 100 + 1e-9) / 100));
+    _wearCarry.set(machine.id, newWear >= 100 ? 0 : preciseWear - newWear);
   }
 
   // Efficiency based on wear (derived truth)
@@ -350,17 +355,15 @@ function updateMachineTruth(
   }
 
   // Check if truth actually changed (not cosmetics)
-  const wearChanged = Math.abs(newWear - baseWear) > 0.001; // Threshold to avoid float noise
-  const tempChanged = newTemp !== baseTemp;
+  const wearChanged = newWear !== baseWear;
   const efficiencyChanged = newEfficiency !== (machine.metrics.efficiency ?? 100);
   const statusChanged = newStatus !== machine.status;
 
   return {
-    changed: wearChanged || tempChanged || efficiencyChanged || statusChanged,
+    changed: wearChanged || efficiencyChanged || statusChanged,
     newStatus,
-    newWear: Math.round(newWear * 100) / 100,
+    newWear,
     newEfficiency,
-    newTemp,
     breakdown,
   };
 }
@@ -381,6 +384,7 @@ function unifiedGameTick(ctx: TickContext): void {
 
   const safeGameSpeed = sanitizeGameSpeed(gameSpeed);
   if (deltaSeconds === 0 || safeGameSpeed === 0) return;
+  const celebrateDay = 86400 / safeGameSpeed >= MIN_CELEBRATED_DAY_REAL_SECONDS;
 
   // Clear reusable arrays (no allocation)
   _breakdowns.length = 0;
@@ -399,13 +403,15 @@ function unifiedGameTick(ctx: TickContext): void {
     // daily counter and milestone tracking so the target loop restarts fresh.
     const dayEndStore = useProductionStore.getState();
     const dayBags = dayEndStore.dailyBagsProduced;
-    gameStore.triggerCelebration('shift_complete', {
-      value: dayBags,
-      message:
-        dayBags >= DAILY_TARGET_BAGS
-          ? `Day complete: ${Math.round(dayBags).toLocaleString()} bags - target met!`
-          : `Day complete: ${Math.round(dayBags).toLocaleString()} of ${DAILY_TARGET_BAGS.toLocaleString()} bags`,
-    });
+    if (celebrateDay) {
+      gameStore.triggerCelebration('shift_complete', {
+        value: dayBags,
+        message:
+          dayBags >= DAILY_TARGET_BAGS
+            ? `Day complete: ${Math.round(dayBags).toLocaleString()} bags - target met!`
+            : `Day complete: ${Math.round(dayBags).toLocaleString()} of ${DAILY_TARGET_BAGS.toLocaleString()} bags`,
+      });
+    }
     dayEndStore.resetDailyBagsProduced();
     _milestonesReachedMask = 0;
   }
@@ -460,7 +466,7 @@ function unifiedGameTick(ctx: TickContext): void {
     }
     efficiencySum += machine.metrics.efficiency ?? 100;
 
-    const result = updateMachineTruth(machine, deltaSeconds);
+    const result = updateMachineTruth(machine, deltaSeconds * safeGameSpeed);
 
     if (result.breakdown) {
       _breakdowns.push({
@@ -478,7 +484,6 @@ function unifiedGameTick(ctx: TickContext): void {
         newStatus: result.newStatus,
         newWear: result.newWear,
         newEfficiency: result.newEfficiency,
-        newTemp: result.newTemp,
       });
     }
   }
@@ -562,9 +567,20 @@ function unifiedGameTick(ctx: TickContext): void {
           ...oldMachine.metrics,
           wear: data.newWear,
           efficiency: data.newEfficiency,
-          temperature: data.newTemp,
         },
       };
+      if (data.newStatus === 'warning' && oldMachine.status !== 'warning') {
+        useBreakdownStore.getState().addPredictiveAlert(
+          oldMachine.id,
+          oldMachine.name,
+          {
+            vibration: oldMachine.metrics.vibration,
+            temperature: oldMachine.metrics.temperature,
+            load: oldMachine.metrics.load,
+          },
+          gameMinutesToWearBreakdown(oldMachine.type, data.newWear, oldMachine.metrics.load)
+        );
+      }
     }
 
     useProductionStore.setState({
@@ -588,7 +604,10 @@ function unifiedGameTick(ctx: TickContext): void {
       const threshold = _MILESTONE_THRESHOLDS[t];
       const bit = 1 << t;
       if (dailyProgressPct >= threshold && (_milestonesReachedMask & bit) === 0) {
+        // The bit is set even when the celebration is suppressed, so slowing
+        // back down mid-day does not replay milestones already passed.
         _milestonesReachedMask |= bit;
+        if (!celebrateDay) continue;
         gameStore.triggerCelebration(threshold === 100 ? 'target_met' : 'milestone', {
           value: Math.round(prodStore.dailyBagsProduced),
           message:
@@ -620,6 +639,24 @@ function unifiedGameTick(ctx: TickContext): void {
       gameStore.setShift(expectedShift);
     }
   }
+
+  // 4a. Truck arrivals run on the simulation clock (game minutes), matching
+  // lastDepartureSimulationMinutes and the dock ETA readout. Advancing them
+  // before the dock logic below lets an arrival released this tick be seen by
+  // it. A delay held for a truck that was already en route applies to the
+  // first arrival scheduled after it departs, before that timer advances.
+  const truckSchedule = useTruckScheduleStore.getState();
+  if (_pendingShippingDelayMinutes > 0) {
+    const shipping = truckSchedule.truckSchedule.shipping;
+    if (!shipping.truckActive) {
+      truckSchedule.updateNextArrival(
+        'shipping',
+        shipping.nextArrivalMinutes + _pendingShippingDelayMinutes
+      );
+      _pendingShippingDelayMinutes = 0;
+    }
+  }
+  truckSchedule.tickArrivals((deltaSeconds * safeGameSpeed) / 60);
 
   // 4b. Advance the material-flow simulation (grain -> mills -> sifters -> packers).
   // This tick was orphaned when ConveyorSystem was modularized (a5d0c21) — the
@@ -797,9 +834,11 @@ function unifiedGameTick(ctx: TickContext): void {
     useQCLabStore.getState().qcLab,
     latestFlow.productionBatches
   );
-  const totalEnergyKw =
-    latestProduction.machines.reduce((sum, machine) => sum + getMachineEnergy(machine), 0) +
-    getFacilityBaseLoad(latestGame.gameTime).total;
+  const totalEnergyKw = getSiteDemandKw(
+    latestProduction.machines,
+    latestGame.gameTime,
+    latestGame.emergencyActive
+  );
   const executionPlan = useOperationsCampaignStore.getState().getActiveProductionPlan();
   const executionMaterial = executionPlan?.finishedMaterial ?? _shippingLoad.materialType;
   const finishedAvailability = getFinishedGoodsAvailability(latestFlow, executionMaterial);
@@ -824,6 +863,7 @@ function unifiedGameTick(ctx: TickContext): void {
     openWorkOrders: useBreakdownStore
       .getState()
       .workOrders.filter((workOrder) => workOrder.phase !== 'returned_to_service').length,
+    clockMinuteOfDay: latestGame.gameTime * 60,
   });
 
   // 5. Handle breakdowns (async, outside main path)
@@ -869,6 +909,8 @@ export function resetUnifiedTickState(): void {
   };
   _bagProductionCarry = 0;
   _milestonesReachedMask = 0;
+  _wearCarry.clear();
+  _pendingShippingDelayMinutes = 0;
 }
 
 export function useUnifiedGameTick(): void {

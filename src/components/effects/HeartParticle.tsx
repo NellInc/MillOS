@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useLayoutEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Billboard } from '@react-three/drei';
 import * as THREE from 'three';
@@ -50,11 +50,17 @@ export const HeartParticle = React.memo<{
     }
   });
 
-  // Use simple timeout for cleanup
-  useEffect(() => {
-    const timer = setTimeout(onComplete, 1000);
-    return () => clearTimeout(timer);
+  // One removal timer per heart, started on mount. Callers pass an inline
+  // `onComplete`, so keying the timer on it restarted every live heart's clock
+  // on each parent re-render (including the one that spawns the next heart).
+  const onCompleteRef = useRef(onComplete);
+  useLayoutEffect(() => {
+    onCompleteRef.current = onComplete;
   }, [onComplete]);
+  useEffect(() => {
+    const timer = setTimeout(() => onCompleteRef.current(), 1000);
+    return () => clearTimeout(timer);
+  }, []);
 
   return (
     <group ref={groupRef} position={position} dispose={null}>

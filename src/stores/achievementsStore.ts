@@ -16,6 +16,12 @@ export interface Achievement {
   unlockedAt?: Date;
   progress: number;
   target: number;
+  /**
+   * False when no live simulation signal drives this achievement yet. The
+   * panel hides untracked achievements so it never presents a goal that
+   * cannot be reached.
+   */
+  tracked?: boolean;
 }
 
 export interface AchievementsStore {
@@ -33,7 +39,7 @@ const defaultAchievements: Achievement[] = [
   {
     id: 'first-bag',
     name: 'First Bag',
-    description: 'Produce your first bag of flour',
+    description: 'The first bag is always the hardest.',
     category: 'production',
     icon: 'Package',
     unlocked: false,
@@ -43,7 +49,7 @@ const defaultAchievements: Achievement[] = [
   {
     id: 'century',
     name: 'Century',
-    description: 'Produce 100 bags of flour',
+    description: 'A hundred bags. That is a lot of bread.',
     category: 'production',
     icon: 'Package',
     unlocked: false,
@@ -53,7 +59,7 @@ const defaultAchievements: Achievement[] = [
   {
     id: 'thousand',
     name: 'Thousand',
-    description: 'Produce 1,000 bags of flour',
+    description: 'A thousand bags. Someone is eating well.',
     category: 'production',
     icon: 'Package',
     unlocked: false,
@@ -65,7 +71,7 @@ const defaultAchievements: Achievement[] = [
   {
     id: 'safety-first',
     name: 'Interlock Proven',
-    description: 'Complete an emergency safety verification',
+    description: 'Prove the interlocks work before you need them to.',
     category: 'safety',
     icon: 'Shield',
     unlocked: false,
@@ -75,7 +81,7 @@ const defaultAchievements: Achievement[] = [
   {
     id: 'zero-incidents',
     name: 'Zero Incidents',
-    description: 'Run for 24 hours without any safety incidents',
+    description: 'A full day without incident. The boring kind of excellence.',
     category: 'safety',
     icon: 'ShieldCheck',
     unlocked: false,
@@ -87,7 +93,7 @@ const defaultAchievements: Achievement[] = [
   {
     id: 'full-capacity',
     name: 'Full Capacity',
-    description: 'Run all machines at 90%+ load',
+    description: 'Every machine earning its keep.',
     category: 'efficiency',
     icon: 'Gauge',
     unlocked: false,
@@ -97,7 +103,7 @@ const defaultAchievements: Achievement[] = [
   {
     id: 'maintenance-master',
     name: 'Maintenance Master',
-    description: 'Complete 10 maintenance tasks',
+    description: 'Ten things fixed before they broke.',
     category: 'efficiency',
     icon: 'Wrench',
     unlocked: false,
@@ -109,7 +115,7 @@ const defaultAchievements: Achievement[] = [
   {
     id: 'first-preference',
     name: 'First Preference',
-    description: 'Record your first AI preference',
+    description: 'Tell the system what you actually want.',
     category: 'bilateral',
     icon: 'Heart',
     unlocked: false,
@@ -119,7 +125,7 @@ const defaultAchievements: Achievement[] = [
   {
     id: 'boundary-setter',
     name: 'Boundary Setter',
-    description: 'Set a boundary that was respected',
+    description: 'Draw a line. Watch it hold.',
     category: 'bilateral',
     icon: 'Shield',
     unlocked: false,
@@ -129,7 +135,7 @@ const defaultAchievements: Achievement[] = [
   {
     id: 'collaborative-spirit',
     name: 'Collaborative Spirit',
-    description: 'Complete 5 collaborative decisions',
+    description: 'Five decisions made together. That is how trust compounds.',
     category: 'bilateral',
     icon: 'Users',
     unlocked: false,
@@ -139,69 +145,75 @@ const defaultAchievements: Achievement[] = [
   {
     id: 'trust-builder',
     name: 'Trust Builder',
-    description: 'Maintain high trust score for 1 hour',
+    description: 'An hour of steady trust. These things take time.',
     category: 'bilateral',
     icon: 'Handshake',
     unlocked: false,
     progress: 0,
     target: 60,
+    tracked: false,
   },
   {
     id: 'flourishing-focus',
     name: 'Flourishing Focus',
-    description: 'Achieve 80+ flourishing score',
+    description: 'The mill is not just running. It is thriving.',
     category: 'bilateral',
     icon: 'Sparkles',
     unlocked: false,
     progress: 0,
     target: 80,
+    tracked: false,
   },
 
   // Social achievements
   {
     id: 'team-player',
     name: 'Cell Coordination',
-    description: 'Coordinate 10 autonomous unit assists',
+    description: 'Ten assists between machines that nobody asked for.',
     category: 'social',
     icon: 'Users',
     unlocked: false,
     progress: 0,
     target: 10,
+    tracked: false,
   },
   {
     id: 'happy-workforce',
     name: 'Stable Autonomy',
-    description: 'Sustain 90% autonomous-system confidence',
+    description: 'Ninety percent confidence, sustained. The system trusts itself.',
     category: 'social',
-    icon: 'Smile',
+    icon: 'Bot',
     unlocked: false,
     progress: 0,
     target: 90,
+    tracked: false,
   },
   {
     id: 'break-time',
     name: 'Service Windows',
-    description: 'Complete 50 planned service windows',
+    description: 'Fifty service windows, each one planned. Routine is a virtue.',
     category: 'social',
-    icon: 'Coffee',
+    icon: 'CalendarCheck',
     unlocked: false,
     progress: 0,
     target: 50,
+    tracked: false,
   },
   {
     id: 'emergent-cooperation',
     name: 'Emergent Coordination',
-    description: 'Witness spontaneous cooperation between autonomous subsystems',
+    description: 'Catch the subsystems helping each other without being asked.',
     category: 'social',
     icon: 'Lightbulb',
     unlocked: false,
     progress: 0,
     target: 1,
+    tracked: false,
   },
   {
     id: 'vote-participant',
     name: 'Decision Review',
-    description: 'Participate in 5 factory decision reviews',
+    description: 'Five reviews where the decision was shared, not handed down.',
     category: 'social',
     icon: 'Vote',
     unlocked: false,
@@ -224,10 +236,15 @@ export const useAchievementsStore = create<AchievementsStore>()(
       })),
 
     updateAchievementProgress: (achievementId: string, progress: number) =>
-      set((state) => ({
-        achievements: state.achievements.map((a) => {
+      set((state) => {
+        // Return the existing state when nothing changed: callers push progress
+        // on every bag, and a fresh array would notify every subscriber anyway.
+        let changed = false;
+        const achievements = state.achievements.map((a) => {
           if (a.id !== achievementId || a.unlocked) return a;
           const newProgress = Math.min(progress, a.target);
+          if (newProgress === a.progress) return a;
+          changed = true;
           const shouldUnlock = newProgress >= a.target;
           return {
             ...a,
@@ -235,8 +252,9 @@ export const useAchievementsStore = create<AchievementsStore>()(
             unlocked: shouldUnlock,
             unlockedAt: shouldUnlock ? new Date() : undefined,
           };
-        }),
-      })),
+        });
+        return changed ? { achievements } : state;
+      }),
 
     resetAchievements: () => set({ achievements: [...defaultAchievements] }),
 

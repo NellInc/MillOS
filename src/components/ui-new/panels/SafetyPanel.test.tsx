@@ -1,6 +1,8 @@
-import { cleanup, render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
+import { useSafetyStore } from '../../../stores/safetyStore';
+import { audioManager } from '../../../utils/audioManager';
 import { SafetyPanel } from './SafetyPanel';
 
 describe('SafetyPanel', () => {
@@ -13,6 +15,21 @@ describe('SafetyPanel', () => {
       safetyEvents: [],
       activeSafetyEventId: null,
     }));
+    useSafetyStore.setState({ forkliftEmergencyStop: false });
+  });
+
+  it('releases a forklift-only stop that the facility E-Stop cannot clear', () => {
+    const stopAlarm = vi.spyOn(audioManager, 'stopEmergencyStopAlarm');
+    useSafetyStore.setState({ forkliftEmergencyStop: true });
+
+    render(<SafetyPanel />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'RELEASE FORKLIFT STOP' }));
+    expect(useSafetyStore.getState().forkliftEmergencyStop).toBe(false);
+    // The Space-bar stop starts the alarm; releasing it here must silence it.
+    expect(stopAlarm).toHaveBeenCalled();
+    stopAlarm.mockRestore();
+    expect(screen.queryByRole('button', { name: 'RELEASE FORKLIFT STOP' })).not.toBeInTheDocument();
   });
 
   it('disables the facility stop control while a drill owns the safety interlock', () => {
@@ -24,7 +41,7 @@ describe('SafetyPanel', () => {
     expect(interlock).toBeDisabled();
     expect(interlock).toHaveAttribute(
       'title',
-      'End the active fire drill before using the emergency stop'
+      'End the active egress verification drill before using the emergency stop'
     );
   });
 

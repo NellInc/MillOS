@@ -144,31 +144,6 @@ export const TrafficConeInstances: React.FC<{
   );
 });
 
-// We need to fix the offset issue. The easiest way with standard geometries is to translate the geometry itself.
-// However, in R3F/Three, modifying geometry affects all instances.
-// So we should construct specific geometries that are pre-transformed (translated) to the correct relative position.
-
-/** Geometry constructor type for Three.js geometries (supports numeric and boolean args like openEnded) */
-type GeometryConstructor = new (...args: any[]) => THREE.BufferGeometry;
-
-/** Geometry constructor arguments - varies by type (Box: [w,h,d], Cone: [r,h,seg], etc.) */
-type GeometryArgs = readonly (number | boolean)[];
-
-// Helper to create translated geometry
-const useTranslatedGeometry = (
-  GeometryClass: GeometryConstructor,
-  args: GeometryArgs,
-  translation: [number, number, number],
-  rotation?: [number, number, number]
-) => {
-  return useMemo(() => {
-    const geo = new GeometryClass(...args);
-    if (rotation) geo.rotateX(rotation[0]).rotateY(rotation[1]).rotateZ(rotation[2]);
-    geo.translate(...translation);
-    return geo;
-  }, [GeometryClass, args, translation, rotation]);
-};
-
 /**
  * Build a merged prop geometry once and dispose it when the caller unmounts.
  *
@@ -295,39 +270,38 @@ export const OptimizedSpeedBumpInstances: React.FC<{
 });
 
 // --- Stripes (Road Markings) ---
+// Module-level and never disposed: one stripe plane shared by every instance.
+// Built per render (fresh array literals defeated the memo) it rebuilt the
+// InstancedMesh on each TruckBay render and leaked the old geometry.
+const STRIPE_GEOMETRY = new THREE.PlaneGeometry(0.15, 4);
+const STRIPE_ROTATION: [number, number, number] = [-Math.PI / 2, 0, 0];
+
 export const OptimizedStripeInstances: React.FC<{
   positions: [number, number, number][];
   rotation?: [number, number, number];
   color?: string;
-}> = React.memo(
-  ({
-    positions,
-    rotation = [-Math.PI / 2, 0, 0] as [number, number, number],
-    color = '#fef3c7',
-  }) => {
-    const data = useMemo(
-      () =>
-        positions.map((p) => ({
-          position: p,
-          rotation: rotation,
-        })),
-      [positions, rotation]
-    );
+}> = React.memo(({ positions, rotation = STRIPE_ROTATION, color = '#fef3c7' }) => {
+  const data = useMemo(
+    () =>
+      positions.map((p) => ({
+        position: p,
+        rotation: rotation,
+      })),
+    [positions, rotation]
+  );
 
-    const geo = useTranslatedGeometry(THREE.PlaneGeometry, [0.15, 4], [0, 0, 0]);
-    const ref = useInstances(data.length, data);
+  const ref = useInstances(data.length, data);
 
-    return (
-      <instancedMesh ref={ref} args={[geo, undefined, data.length]} renderOrder={10}>
-        <meshStandardMaterial
-          color={color}
-          polygonOffset
-          polygonOffsetFactor={POLYGON_OFFSET.strong.factor}
-          polygonOffsetUnits={POLYGON_OFFSET.strong.units}
-          depthWrite={false}
-          roughness={0.85}
-        />
-      </instancedMesh>
-    );
-  }
-);
+  return (
+    <instancedMesh ref={ref} args={[STRIPE_GEOMETRY, undefined, data.length]} renderOrder={10}>
+      <meshStandardMaterial
+        color={color}
+        polygonOffset
+        polygonOffsetFactor={POLYGON_OFFSET.strong.factor}
+        polygonOffsetUnits={POLYGON_OFFSET.strong.units}
+        depthWrite={false}
+        roughness={0.85}
+      />
+    </instancedMesh>
+  );
+});

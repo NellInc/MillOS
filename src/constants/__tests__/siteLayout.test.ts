@@ -1,34 +1,125 @@
 import { describe, expect, it } from 'vitest';
-import { createMachineObstacles } from '../factoryObstacles';
+import { resolveCameraCollision } from '../../utils/cameraCollision';
+import {
+  createMachineObstacles,
+  createConveyorObstacles,
+  DOCK_PLATFORM_OBSTACLES,
+} from '../factoryObstacles';
 import { WATER_LAYERS } from '../renderLayers';
 import {
   FACTORY_BOUNDS,
   SITE_LAYOUT,
+  SILO_ACCESS_LAYOUT,
   boundsOverlapXZ,
   containsPoint,
   getServiceAssetBounds,
+  getSiloAssemblyScale,
   getLandmarkBounds,
   getVisibleSiteCells,
   getVisibleSiteCellsForView,
   isPointInPortalTransition,
+  landmarkLocalToWorld,
   routeIntersectsBoundsXZ,
 } from '../siteLayout';
 
 describe('canonical site layout', () => {
-  it('defines 15 uniquely identified machines inside the factory envelope', () => {
+  it('shares a collision-clear floor composition between production navigation and review', () => {
+    const floor = SITE_LAYOUT.cameras.processFloor;
+    expect(SITE_LAYOUT.cameras.milling).toEqual(floor);
+    expect(resolveCameraCollision([-34, 4.5, 49], floor.position)).toEqual({
+      position: floor.position,
+      collidedWith: null,
+    });
+    expect(containsPoint(FACTORY_BOUNDS, ...floor.position)).toBe(true);
+    expect(floor.position[0] - FACTORY_BOUNDS.minX).toBeGreaterThan(3);
+  });
+
+  it('defines fifteen unique working machines with bulk storage outside the production hall', () => {
     const anchors = Object.values(SITE_LAYOUT.machines).flat();
     const ids = anchors.map(({ id }) => id);
 
     expect(anchors).toHaveLength(15);
     expect(new Set(ids).size).toBe(ids.length);
-    anchors.forEach(({ position }) => {
-      expect(containsPoint(FACTORY_BOUNDS, ...position)).toBe(true);
+    const indoor = [
+      ...SITE_LAYOUT.machines.rollerMills,
+      ...SITE_LAYOUT.machines.sifters,
+      ...SITE_LAYOUT.machines.packers,
+    ];
+    indoor.forEach(({ position }) => expect(containsPoint(FACTORY_BOUNDS, ...position)).toBe(true));
+    SITE_LAYOUT.machines.silos.forEach(({ position }) => {
+      expect(containsPoint(FACTORY_BOUNDS, ...position)).toBe(false);
+      expect(position[0] - SITE_LAYOUT.machineDimensions.silo[0] / 2).toBeGreaterThan(
+        FACTORY_BOUNDS.maxX
+      );
     });
+  });
+
+  it('keeps the bulk-storage envelopes clear of aprons and neighbouring assets', () => {
+    const size = SITE_LAYOUT.machineDimensions.silo;
+    const storage = [
+      {
+        id: SITE_LAYOUT.bulkStorage.elevator.id,
+        bounds: getServiceAssetBounds(SITE_LAYOUT.bulkStorage.elevator),
+      },
+      ...SITE_LAYOUT.machines.silos.map(({ id, position: [x, y, z] }) => ({
+        id,
+        bounds: {
+          minX: x - size[0] / 2 - 0.3,
+          maxX: x + size[0] / 2 + 0.3,
+          minY: y,
+          maxY: y + size[1] + 1,
+          minZ: z - size[2] / 2 - 0.3,
+          maxZ: z + size[2] / 2 + 0.3,
+        },
+      })),
+    ];
+    storage.forEach(({ id, bounds }, index) => {
+      expect(boundsOverlapXZ(bounds, FACTORY_BOUNDS), id).toBe(false);
+      expect(boundsOverlapXZ(bounds, SITE_LAYOUT.docks.receiving.apron), id).toBe(false);
+      expect(bounds.minX).toBeGreaterThanOrEqual(SITE_LAYOUT.perimeter.minX);
+      expect(bounds.maxX).toBeLessThanOrEqual(SITE_LAYOUT.perimeter.maxX);
+      expect(bounds.minZ).toBeGreaterThanOrEqual(SITE_LAYOUT.perimeter.minZ);
+      for (const other of storage.slice(index + 1))
+        expect(boundsOverlapXZ(bounds, other.bounds), `${id} hits ${other.id}`).toBe(false);
+      for (const asset of Object.values(SITE_LAYOUT.serviceYard))
+        expect(
+          boundsOverlapXZ(bounds, getServiceAssetBounds(asset)),
+          `${id} hits ${asset.id}`
+        ).toBe(false);
+    });
+  });
+
+  it('provides continuous human-scale access from the pad to the bin eave', () => {
+    const layout = SILO_ACCESS_LAYOUT;
+    const [sx, sy] = getSiloAssemblyScale(SITE_LAYOUT.machineDimensions.silo);
+    expect(layout.ladderHalfWidth * 2 * sx).toBeCloseTo(0.72, 6);
+    expect(layout.rungPitch * sy).toBeCloseTo(0.3, 6);
+    expect(layout.firstRungY * sy).toBeCloseTo(0.5, 6);
+    expect((layout.firstRungY + (layout.rungCount - 1) * layout.rungPitch) * sy).toBeCloseTo(
+      29.6,
+      6
+    );
+    expect((layout.railCentreY + layout.railHeight / 2) * sy).toBeCloseTo(31.2, 6);
+    expect(layout.hatchCentreY * sy).toBe(2);
+    expect(layout.hatchSize[1] * sy).toBe(1.2);
+    expect(layout.supportWidth * sx).toBeCloseTo(0.1866667, 5);
+    const supportOuterRadius = Math.SQRT2 * (layout.supportOffset + layout.supportWidth / 2) * sx;
+    expect(supportOuterRadius - layout.baseRadius * sx).toBeGreaterThan(0);
+    expect(supportOuterRadius - layout.baseRadius * sx).toBeLessThan(0.13);
+  });
+
+  it('scales the complete silo assembly and rejects invalid dimensions per axis', () => {
+    expect(getSiloAssemblyScale([4.5, 16, 4.5])).toEqual([1, 1, 1]);
+    expect(getSiloAssemblyScale(SITE_LAYOUT.machineDimensions.silo)).toEqual([
+      12 / 4.5,
+      2,
+      12 / 4.5,
+    ]);
+    expect(getSiloAssemblyScale([0, Number.NaN, -1])).toEqual([1, 1, 1]);
   });
 
   it('keeps each production group on its declared zone datum', () => {
     const expectedZones = [
-      [SITE_LAYOUT.machines.silos, SITE_LAYOUT.factory.zones.silos],
       [SITE_LAYOUT.machines.rollerMills, SITE_LAYOUT.factory.zones.milling],
       [SITE_LAYOUT.machines.sifters, SITE_LAYOUT.factory.zones.sifting],
       [SITE_LAYOUT.machines.packers, SITE_LAYOUT.factory.zones.packing],
@@ -37,6 +128,46 @@ describe('canonical site layout', () => {
     expectedZones.forEach(([anchors, expectedZ]) => {
       anchors.forEach(({ position }) => expect(position[2]).toBe(expectedZ));
     });
+    const { position: centre, size } = SITE_LAYOUT.bulkStorage.siloPad;
+    expect(centre[2]).toBe(SITE_LAYOUT.factory.zones.silos);
+    for (const { position } of SITE_LAYOUT.machines.silos) {
+      expect(
+        Math.abs(position[0] - centre[0]) + SITE_LAYOUT.machineDimensions.silo[0] / 2
+      ).toBeLessThanOrEqual(size[0] / 2);
+      expect(
+        Math.abs(position[2] - centre[2]) + SITE_LAYOUT.machineDimensions.silo[2] / 2
+      ).toBeLessThanOrEqual(size[2] / 2);
+    }
+  });
+
+  it('transforms village evidence cameras with the rendered site and keeps its pad inside the world', () => {
+    const village = SITE_LAYOUT.landmarks.village;
+    expect(SITE_LAYOUT.cameras.square.position).toEqual(
+      landmarkLocalToWorld(village, [12, 3.6, -4])
+    );
+    expect(SITE_LAYOUT.cameras.square.target).toEqual(landmarkLocalToWorld(village, [0, 2, 8]));
+    expect(landmarkLocalToWorld(village, [0, 0, 0])).toEqual(village.position);
+    const bounds = getLandmarkBounds(village);
+    for (const x of [bounds.minX, bounds.maxX])
+      for (const z of [bounds.minZ, bounds.maxZ])
+        expect(Math.hypot(x, z)).toBeLessThan(SITE_LAYOUT.world.radius);
+  });
+
+  it('retains every authored landmark footprint inside the playable landscape', () => {
+    // The castle is a backdrop set against the foothills, as in v0.30. It turns
+    // 45 degrees, so its reach is the half-diagonal; it must stand in front of
+    // the site-anchored foothill ring, whose foot is world.radius + 16.
+    const { castle, ...walkable } = SITE_LAYOUT.landmarks;
+    const castleReach =
+      Math.hypot(castle.position[0], castle.position[2]) +
+      (Math.SQRT2 / 2) * Math.max(...castle.footprint) * castle.scale;
+    expect(castleReach).toBeLessThan(SITE_LAYOUT.world.radius + 16);
+    for (const anchor of Object.values(walkable)) {
+      const bounds = getLandmarkBounds(anchor);
+      for (const x of [bounds.minX, bounds.maxX])
+        for (const z of [bounds.minZ, bounds.maxZ])
+          expect(Math.hypot(x, z), anchor.id).toBeLessThan(SITE_LAYOUT.world.radius);
+    }
   });
 
   it('aligns portals to the corresponding factory boundary', () => {
@@ -125,28 +256,36 @@ describe('canonical site layout', () => {
     }
   });
 
-  it('keeps forklift swept corridors outside conveyor and central dock hazards', () => {
+  it('keeps forklift swept corridors clear of conveyors and physical dock platforms', () => {
     const shipping = SITE_LAYOUT.routes.forklifts.shipping;
     const receiving = SITE_LAYOUT.routes.forklifts.receiving;
 
-    expect(routeIntersectsBoundsXZ(shipping, SITE_LAYOUT.routeHazards.mainConveyor.bounds)).toBe(
-      false
-    );
-    expect(routeIntersectsBoundsXZ(shipping, SITE_LAYOUT.routeHazards.rollerConveyor.bounds)).toBe(
-      false
-    );
-    expect(routeIntersectsBoundsXZ(receiving, SITE_LAYOUT.routeHazards.mainConveyor.bounds)).toBe(
-      false
-    );
-    expect(routeIntersectsBoundsXZ(receiving, SITE_LAYOUT.routeHazards.rollerConveyor.bounds)).toBe(
-      false
-    );
-    expect(routeIntersectsBoundsXZ(shipping, SITE_LAYOUT.routeHazards.shippingDock.bounds)).toBe(
-      false
-    );
-    expect(routeIntersectsBoundsXZ(receiving, SITE_LAYOUT.routeHazards.receivingDock.bounds)).toBe(
-      false
-    );
+    for (const route of [shipping, receiving]) {
+      for (const platform of DOCK_PLATFORM_OBSTACLES) {
+        expect(routeIntersectsBoundsXZ(route, platform), `${route.id} hits ${platform.id}`).toBe(
+          false
+        );
+      }
+      // Dock intersections are slow approach zones; only the platforms are solid.
+      for (const hazard of Object.values(SITE_LAYOUT.routeHazards).filter(
+        ({ type }) => type === 'conveyor'
+      )) {
+        expect(routeIntersectsBoundsXZ(route, hazard.bounds), `${route.id} hits ${hazard.id}`).toBe(
+          false
+        );
+      }
+    }
+  });
+
+  it('keeps navigation belt obstacles on the rendered conveyor hazards', () => {
+    const obstacles = createConveyorObstacles();
+    expect(obstacles).toHaveLength(4);
+    for (const obstacle of obstacles) {
+      const hazard = Object.values(SITE_LAYOUT.routeHazards).find(({ id }) => id === obstacle.id);
+      expect(hazard).toBeDefined();
+      expect(obstacle).toMatchObject(hazard!.bounds);
+      expect(obstacle.maxY).toBeGreaterThan(0.85);
+    }
   });
 
   it('keeps authored landscape districts separated from the factory and service yard', () => {
@@ -182,9 +321,10 @@ describe('canonical site layout', () => {
     expect(isPointInPortalTransition(SITE_LAYOUT.portals.shipping, 0, 61)).toBe(true);
     expect(isPointInPortalTransition(SITE_LAYOUT.portals.shipping, 30, 50)).toBe(false);
 
-    expect(isPointInPortalTransition(SITE_LAYOUT.portals.eastService, 58, -20)).toBe(true);
-    expect(isPointInPortalTransition(SITE_LAYOUT.portals.eastService, 62, -20)).toBe(true);
-    expect(isPointInPortalTransition(SITE_LAYOUT.portals.eastService, 60, 0)).toBe(false);
+    const east = SITE_LAYOUT.portals.eastService;
+    expect(isPointInPortalTransition(east, east.centre[0] - 2, east.centre[2])).toBe(true);
+    expect(isPointInPortalTransition(east, east.centre[0] + 2, east.centre[2])).toBe(true);
+    expect(isPointInPortalTransition(east, east.centre[0], 0)).toBe(false);
   });
 
   it('preloads only nearby render cells and overlaps at portals', () => {
@@ -193,7 +333,9 @@ describe('canonical site layout', () => {
     expect(getVisibleSiteCells(0, 5, -50)).toEqual(
       expect.arrayContaining(['interior', 'receiving'])
     );
-    expect(getVisibleSiteCells(...SITE_LAYOUT.cameras.overview.position)).toEqual(['eastYard']);
+    // The new overview is beyond the west yard; its gaze still loads the mill.
+    expect(getVisibleSiteCells(-75, 32, 110)).toEqual(['westYard']);
+    expect(getVisibleSiteCells(...SITE_LAYOUT.cameras.overview.position)).toEqual([]);
 
     const overview = SITE_LAYOUT.cameras.overview;
     const direction = overview.target.map((value, index) => value - overview.position[index]) as [
@@ -202,7 +344,7 @@ describe('canonical site layout', () => {
       number,
     ];
     expect(getVisibleSiteCellsForView(overview.position, direction)).toEqual(
-      expect.arrayContaining(['interior', 'shipping', 'eastYard'])
+      expect.arrayContaining(['interior', 'shipping', 'receiving'])
     );
   });
 
@@ -232,9 +374,10 @@ describe('canonical site layout', () => {
     const horizontalDistance = Math.hypot(position[0] - target[0], position[2] - target[2]);
     const elevationAngle = Math.atan2(position[1] - target[1], horizontalDistance);
 
-    expect(position[1]).toBeGreaterThan(SITE_LAYOUT.factory.bounds.maxY + 24);
-    expect(elevationAngle).toBeGreaterThan(Math.PI / 8);
-    expect(elevationAngle).toBeLessThan(Math.PI / 3);
+    expect(position[1]).toBeGreaterThan(SITE_LAYOUT.factory.bounds.maxY + 3);
+    expect(elevationAngle).toBeGreaterThan(Math.PI / 24);
+    expect(elevationAngle).toBeLessThan(Math.PI / 8);
+    expect(SITE_LAYOUT.cameras.overview.fov).toBe(45);
   });
 
   it('keeps the yard camera and target outside the opaque factory shell', () => {

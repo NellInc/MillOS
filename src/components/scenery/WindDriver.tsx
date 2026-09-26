@@ -24,11 +24,16 @@
  *   StaticMeshBatch merging. Only apply the injection to materials that are
  *   consumed exclusively by InstancedMesh (which the batcher already skips) or
  *   by a handful of meshes - never to a shared building material.
+ * - Sway strength follows the weather (`atmosphere.wind`, the same value that
+ *   spins the farm windmill), eased so a weather change builds as a gust
+ *   rather than a jump. Clear weather lands exactly on the 0.16 baseline.
  */
 
 import React from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
+import { useGameSimulationStore } from '../../stores/gameSimulationStore';
+import { createAtmosphereState, sampleAtmosphere } from '../../simulation/atmosphere';
 
 /** Wrap period. All shader frequencies are multiples of 0.1, so f*PERIOD is a
  *  whole number of cycles and the wrap is invisible. */
@@ -50,20 +55,38 @@ let lastElapsed = -1;
 
 /**
  * Advance the shared clock. Safe to call from any number of subscribers in the
- * same frame - only the first call of a given frame does work.
+ * same frame - only the first call of a given frame does work, and only that
+ * call returns true.
  */
-export const advanceWind = (elapsed: number, delta: number): void => {
-  if (elapsed === lastElapsed) return;
+export const advanceWind = (elapsed: number, delta: number): boolean => {
+  if (elapsed === lastElapsed) return false;
   lastElapsed = elapsed;
   // Clamp delta so a tab-switch stall does not teleport the whole field.
   const next = WIND_UNIFORMS.uWindTime.value + Math.min(delta, 0.1);
   WIND_UNIFORMS.uWindTime.value = next >= WIND_PERIOD ? next - WIND_PERIOD : next;
+  return true;
 };
+
+/** Sway strength in clear weather; every baseline capture was taken at this. */
+const WIND_BASE_STRENGTH = 0.16;
+const _windAtmosphere = createAtmosphereState();
 
 /** Mount anywhere vegetation is rendered. Mounting several is harmless. */
 export const WindDriver: React.FC = () => {
   useFrame((state, delta) => {
-    advanceWind(state.clock.elapsedTime, delta);
+    // Only the driver that advanced the clock this frame eases the strength,
+    // so several mounted drivers do not double-step the damp.
+    if (!advanceWind(state.clock.elapsedTime, delta)) return;
+    const { gameDay, gameTime, weather } = useGameSimulationStore.getState();
+    const { wind } = sampleAtmosphere(gameDay, gameTime, weather, _windAtmosphere);
+    // Clear 0.2 -> exactly 0.16, storm 0.92 -> ~0.33.
+    const target = WIND_BASE_STRENGTH * (0.7 + 1.5 * wind);
+    WIND_UNIFORMS.uWindStrength.value = THREE.MathUtils.damp(
+      WIND_UNIFORMS.uWindStrength.value,
+      target,
+      0.5,
+      Math.min(delta, 0.1)
+    );
   });
   return null;
 };
@@ -84,14 +107,15 @@ export interface WindShaderOptions {
 /**
  * Inject wind sway into a MeshStandardMaterial (or MeshDepthMaterial).
  *
- * The bend is applied in world-ish space and then pulled back through the
- * instance transform, so a field of randomly-rotated instances all lean the
- * same way. Without that correction each instance sways along its own local
- * axis and the field looks like static, not weather.
+ * The bend is applied in world space and then pulled back through the model
+ * AND instance transforms, so randomly-rotated instances - and whole groups
+ * placed at different yaws (the village, the farm, the two tunnel banks) - all
+ * lean the same way. Without that correction each one sways along its own
+ * local axis and the site looks like static, not weather.
  *
  * `transpose(M3)/scale^2` is the inverse of a rotation-plus-uniform-scale
- * matrix, which is exactly what the instance matrices here are. It avoids
- * GLSL `inverse()` and costs about ten ALU ops on a handful of vertices.
+ * matrix, which is what both the model and instance matrices here are. It
+ * avoids GLSL `inverse()` and costs about ten ALU ops per transform.
  */
 export const applyWindShader = (
   material: THREE.Material,
@@ -138,10 +162,22 @@ uniform float uWindStrength;`
   vec3 millosOffset = vec3( uWindDir.x, 0.0, uWindDir.y )
     * ( millosGust * uWindStrength * ${s} * millosStiff );
 
+  // inverse( model * instance ) = inverse( instance ) * inverse( model ), so
+  // undo the parent groups' yaw first, then the instance's own rotation.
+  vec3 millosM0 = modelMatrix[ 0 ].xyz;
+  vec3 millosM1 = modelMatrix[ 1 ].xyz;
+  vec3 millosM2 = modelMatrix[ 2 ].xyz;
+  float millosModelScaleSq = max( dot( millosM0, millosM0 ), 1e-5 );
+  millosOffset = vec3(
+    dot( millosM0, millosOffset ),
+    dot( millosM1, millosOffset ),
+    dot( millosM2, millosOffset )
+  ) / millosModelScaleSq;
+
   #ifdef USE_INSTANCING
-    // Pull the world-space offset back through the instance rotation so all
-    // instances lean the same way: inverse of (rotation * uniform scale) is
-    // transpose(M) / scale^2.
+    // Pull the (now model-space) offset back through the instance rotation so
+    // all instances lean the same way: inverse of (rotation * uniform scale)
+    // is transpose(M) / scale^2.
     vec3 millosCol0 = instanceMatrix[ 0 ].xyz;
     vec3 millosCol1 = instanceMatrix[ 1 ].xyz;
     vec3 millosCol2 = instanceMatrix[ 2 ].xyz;

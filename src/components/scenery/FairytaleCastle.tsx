@@ -501,6 +501,13 @@ FairytaleCastlePrimitiveBody.displayName = 'FairytaleCastlePrimitiveBody';
  * distance this landmark is shot from that reads as a different castle rather
  * than a worse one, but it is the largest single change in this pass.
  */
+/**
+ * Seat the generated rock a little into the meadow (local metres, 0.3 m at the
+ * landmark's 1.5 scale), so the gentle start of the river bank under the keep's
+ * northern edge never opens a gap beneath it.
+ */
+export const CASTLE_ROCK_SINK = 0.2;
+
 export const FairytaleCastle: React.FC<FairytaleCastleProps> = React.memo(
   ({
     position = [0, 0, 0] as [number, number, number],
@@ -508,7 +515,11 @@ export const FairytaleCastle: React.FC<FairytaleCastleProps> = React.memo(
     rotation = [0, 0, 0] as [number, number, number],
   }) => (
     <group name="heritage-castle" position={position} scale={scale} rotation={rotation}>
-      <GeneratedBody asset="castle" fallback={<FairytaleCastlePrimitiveBody />} />
+      <GeneratedBody
+        asset="castle"
+        sink={CASTLE_ROCK_SINK}
+        fallback={<FairytaleCastlePrimitiveBody />}
+      />
     </group>
   )
 );

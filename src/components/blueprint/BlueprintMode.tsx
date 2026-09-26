@@ -10,7 +10,7 @@
  * - Pulsing decision rings on attention-needed machines
  * - Enhanced data flow visualization
  */
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { useUIStore } from '../../stores/uiStore';
 import { useGraphicsStore } from '../../stores/graphicsStore';
@@ -23,12 +23,14 @@ const TRANSITION_DURATION = 0.5;
 
 export const BlueprintMode: React.FC = () => {
   const blueprintMode = useUIStore((state) => state.blueprintMode);
-  const blueprintTransition = useUIStore((state) => state.blueprintTransition);
-  const setBlueprintTransition = useUIStore((state) => state.setBlueprintTransition);
   const graphicsQuality = useGraphicsStore((state) => state.graphics.quality);
 
+  // The transition is local: only this subtree reads it, and routing it through
+  // uiStore made the persisted store serialise to localStorage and notify every
+  // subscriber on each frame of the fade.
+  const [blueprintTransition, setBlueprintTransition] = useState(0);
+  const transitionRef = useRef(0);
   const targetRef = useRef(0);
-  const lastTimeRef = useRef(0);
 
   // Update target when mode changes
   useEffect(() => {
@@ -36,12 +38,9 @@ export const BlueprintMode: React.FC = () => {
   }, [blueprintMode]);
 
   // Smooth transition animation
-  useFrame((state) => {
-    const delta = state.clock.elapsedTime - lastTimeRef.current;
-    lastTimeRef.current = state.clock.elapsedTime;
-
+  useFrame((_, delta) => {
     const target = targetRef.current;
-    const current = blueprintTransition;
+    const current = transitionRef.current;
 
     // Lerp towards target
     if (Math.abs(current - target) > 0.001) {
@@ -49,6 +48,7 @@ export const BlueprintMode: React.FC = () => {
       const step = delta * speed;
       const newValue =
         current < target ? Math.min(current + step, target) : Math.max(current - step, target);
+      transitionRef.current = newValue;
       setBlueprintTransition(newValue);
     }
   });

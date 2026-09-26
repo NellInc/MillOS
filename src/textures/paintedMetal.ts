@@ -6,7 +6,57 @@
  */
 
 import * as THREE from 'three';
-import { getTexture, fbmNoise, voronoi, createLinearDataTexture } from '../utils/textureGenerator';
+import {
+  getTexture,
+  fbmNoise,
+  hash,
+  voronoi,
+  createLinearDataTexture,
+} from '../utils/textureGenerator';
+
+/**
+ * Coated castings have an isotropic satin finish. A brushed-stock ORM adds
+ * directional scratches and a repeated AO panel grid where no joint exists.
+ * R stays unoccluded, G carries the finish, B stays dielectric. Only G is bound.
+ * Working if a housing has broad highlights without tiled dark seams, while
+ * the bare-metal parts retain their separate brushed-stock maps.
+ */
+export function generateEnamelORM(size = 256): THREE.DataTexture {
+  return getTexture(`enamel-orm-v1-${size}`, () => {
+    const data = new Uint8Array(size * size * 4);
+    // Periodic value fields, with periods above nine texels at the default
+    // size. Wrapping the lattice keeps the texture seamless at every mip.
+    const field = (u: number, v: number, frequency: number): number => {
+      const x = u * frequency;
+      const y = v * frequency;
+      const ix = Math.floor(x);
+      const iy = Math.floor(y);
+      const fx = x - ix;
+      const fy = y - iy;
+      const sx = fx * fx * (3 - 2 * fx);
+      const sy = fy * fy * (3 - 2 * fy);
+      const x1 = (ix + 1) % frequency;
+      const y1 = (iy + 1) % frequency;
+      return (
+        (hash(ix, iy) * (1 - sx) + hash(x1, iy) * sx) * (1 - sy) +
+        (hash(ix, y1) * (1 - sx) + hash(x1, y1) * sx) * sy
+      );
+    };
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        const u = x / size;
+        const v = y / size;
+        const roughness = 0.58 + (field(u, v, 6) - 0.5) * 0.1 + (field(u, v, 28) - 0.5) * 0.06;
+        const offset = (y * size + x) * 4;
+        data[offset] = 255;
+        data[offset + 1] = Math.round(roughness * 255);
+        data[offset + 2] = 0;
+        data[offset + 3] = 255;
+      }
+    }
+    return createLinearDataTexture(data, size, size);
+  });
+}
 
 /**
  * Generates painted metal with subtle wear patterns.

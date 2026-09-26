@@ -10,7 +10,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { History, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useProductionStore } from '../../stores/productionStore';
 import { DecisionReplayTrigger } from './DecisionReplay';
-import { getDecisionTypeIcon, getDecisionStatusIcon } from '../../utils/decisionIcons';
+import {
+  getDecisionTypeIcon,
+  getDecisionStatusIcon,
+  getDecisionPriorityBadge,
+} from '../../utils/decisionIcons';
 import { formatTime } from '../../utils/timeFormatting';
 
 const ITEMS_PER_PAGE = 5;
@@ -107,13 +111,7 @@ export const DecisionHistoryPanel: React.FC = () => {
                               {formatTime(decision.timestamp)}
                             </span>
                             <span
-                              className={`text-[9px] px-1.5 py-0.5 rounded ${
-                                decision.priority === 'high'
-                                  ? 'bg-red-500/20 text-red-400'
-                                  : decision.priority === 'medium'
-                                    ? 'bg-amber-500/20 text-amber-400'
-                                    : 'bg-slate-600/50 text-slate-400'
-                              }`}
+                              className={`text-[9px] px-1.5 py-0.5 rounded border ${getDecisionPriorityBadge(decision.priority)}`}
                             >
                               {decision.priority}
                             </span>

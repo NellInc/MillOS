@@ -36,6 +36,14 @@ const parseHex = (hex: string): { r: number; g: number; b: number } => ({
   b: parseInt(hex.slice(5, 7), 16) / 255,
 });
 
+/**
+ * Snap the authored stone size so a whole number of cells spans the tile.
+ * (512, 14) and (256, 7) both land on 37 cells, so colour and roughness stay
+ * registered.
+ */
+const snapStoneGrid = (size: number, stoneSize: number): number =>
+  size / Math.max(1, Math.round(size / stoneSize));
+
 // Stone color palette (grays with warm/cool variations)
 const STONE_COLORS = [
   { r: 0.45, g: 0.42, b: 0.4 }, // Warm gray
@@ -53,14 +61,16 @@ export const generateCobblestone = (
   options: CobblestoneOptions = {}
 ): THREE.DataTexture => {
   const opts = { ...DEFAULT_OPTIONS, ...options };
-  const cacheKey = `cobblestone-${size}-${opts.stoneSize}-${opts.variation}-${opts.mortarColor}`;
+  const cacheKey = `cobblestone-v2-${size}-${opts.stoneSize}-${opts.variation}-${opts.mortarColor}`;
 
   return getTexture(cacheKey, () => {
     const data = new Uint8Array(size * size * 4);
     const mortar = parseHex(opts.mortarColor);
 
-    // Pre-calculate stone centers using Voronoi-like approach
-    const gridSize = opts.stoneSize;
+    // Pre-calculate stone centers using Voronoi-like approach. The grid is
+    // snapped so it divides the tile: a partial last cell would wrap straight
+    // into cell 0 as a row of chopped stones at every repeat.
+    const gridSize = snapStoneGrid(size, opts.stoneSize);
     const halfGrid = gridSize / 2;
 
     for (let y = 0; y < size; y++) {
@@ -152,9 +162,9 @@ export const generateCobblestoneNormal = (
   size: number = 512,
   stoneSize: number = 24
 ): THREE.DataTexture => {
-  return getTexture(`cobblestone-normal-${size}-${stoneSize}`, () => {
+  return getTexture(`cobblestone-normal-v2-${size}-${stoneSize}`, () => {
     const data = new Uint8Array(size * size * 4);
-    const gridSize = stoneSize;
+    const gridSize = snapStoneGrid(size, stoneSize);
     const halfGrid = gridSize / 2;
 
     for (let y = 0; y < size; y++) {
@@ -230,9 +240,9 @@ export const generateCobblestoneRoughness = (
   size: number = 256,
   stoneSize: number = 24
 ): THREE.DataTexture => {
-  return getTexture(`cobblestone-roughness-${size}-${stoneSize}`, () => {
+  return getTexture(`cobblestone-roughness-v2-${size}-${stoneSize}`, () => {
     const data = new Uint8Array(size * size * 4);
-    const gridSize = stoneSize;
+    const gridSize = snapStoneGrid(size, stoneSize);
     const halfGrid = gridSize / 2;
 
     for (let y = 0; y < size; y++) {

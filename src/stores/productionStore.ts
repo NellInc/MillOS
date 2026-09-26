@@ -45,9 +45,11 @@ export type { TruckScheduleState, TruckScheduleStore } from './truckScheduleStor
 
 /**
  * Daily production goal in bags. Shared by ProductionTargetWidget (progress UI)
- * and UnifiedGameTick (milestone celebrations at 25/50/75/100%).
+ * and UnifiedGameTick (milestone celebrations at 25/50/75/100%). Set to about
+ * 85% of packer capacity (~1,440 bags per game day at the default 180x), so a
+ * well-run day reaches it; the former 5,000 was unreachable at any offered speed.
  */
-export const DAILY_TARGET_BAGS = 5000;
+export const DAILY_TARGET_BAGS = 1200;
 
 // =========================================================================
 // PERF: Throttled bag production accumulator
@@ -128,7 +130,11 @@ export function resetThrottledBagState() {
 // =========================================================================
 
 interface WearConfig {
-  /** Wear rate per game second when running (0-100 scale) */
+  /**
+   * Wear per SIMULATED second while running (0-100 scale), scaled by a load
+   * factor of 0.5-1.5. The live tick (UnifiedGameTick) feeds it game seconds,
+   * so a roller mill warns about once per game day (~8.5 real min at 180x).
+   */
   wearRatePerSecond: number;
   /** Threshold where machine enters 'warning' state (0-100) */
   warningThreshold: number;
@@ -136,66 +142,71 @@ interface WearConfig {
   breakdownThreshold: number;
   /** How much maintenance reduces wear (0-100) */
   maintenanceReduction: number;
-  /** Efficiency penalty per point of wear above 50 (percentage) */
-  efficiencyPenaltyRate: number;
 }
 
 /**
- * Wear configuration per machine type:
+ * Wear configuration per machine type. This is the single table shared by the
+ * live simulation tick (UnifiedGameTick) and performMaintenance, so a repaired
+ * machine lands in the same status and efficiency the next tick computes.
  * - SILO: Storage, minimal wear (conveyors and hatches)
  * - ROLLER_MILL: High mechanical stress from grinding
  * - PLANSIFTER: Medium wear from sifting vibrations
  * - PACKER: Medium-high wear from continuous packaging motion
  * - CONTROL_ROOM: Minimal wear (electronics only)
  */
-const WEAR_CONFIG: Record<MachineType, WearConfig> = {
+export const WEAR_CONFIG: Record<MachineType, WearConfig> = {
   [MachineType.SILO]: {
-    wearRatePerSecond: 0.001, // Very slow - mostly static storage
+    wearRatePerSecond: 0.0001,
     warningThreshold: 70,
     breakdownThreshold: 95,
     maintenanceReduction: 40,
-    efficiencyPenaltyRate: 0.3,
   },
   [MachineType.ROLLER_MILL]: {
-    wearRatePerSecond: 0.015, // High - mechanical grinding causes stress
+    wearRatePerSecond: 0.0005,
     warningThreshold: 60,
     breakdownThreshold: 90,
     maintenanceReduction: 50,
-    efficiencyPenaltyRate: 0.6,
   },
   [MachineType.PLANSIFTER]: {
-    wearRatePerSecond: 0.008, // Medium - vibration causes gradual wear
+    wearRatePerSecond: 0.0003,
     warningThreshold: 65,
     breakdownThreshold: 92,
     maintenanceReduction: 45,
-    efficiencyPenaltyRate: 0.5,
   },
   [MachineType.PACKER]: {
-    wearRatePerSecond: 0.012, // Medium-high - continuous motion wears parts
-    warningThreshold: 62,
+    wearRatePerSecond: 0.0004,
+    warningThreshold: 55,
     breakdownThreshold: 88,
     maintenanceReduction: 48,
-    efficiencyPenaltyRate: 0.55,
   },
   [MachineType.CONTROL_ROOM]: {
-    wearRatePerSecond: 0.0005, // Minimal - electronics degrade slowly
+    wearRatePerSecond: 0.0005,
     warningThreshold: 80,
     breakdownThreshold: 98,
     maintenanceReduction: 30,
-    efficiencyPenaltyRate: 0.2,
   },
 };
 
+/** Wear configuration for a machine type, falling back to the roller-mill profile. */
+export function getWearConfig(machineType: string): WearConfig {
+  return (
+    (WEAR_CONFIG as Record<string, WearConfig | undefined>)[machineType] ??
+    WEAR_CONFIG[MachineType.ROLLER_MILL]
+  );
+}
+
 /**
- * Calculate efficiency based on wear level
- * Efficiency remains at 100% until wear exceeds 50%, then degrades linearly
+ * Efficiency from wear: 100% until half the warning threshold, then a linear
+ * fall to 60% at the breakdown threshold, and 0% once broken down.
  */
-function calculateEfficiency(wear: number, machineType: MachineType): number {
-  if (wear <= 50) return 100;
-  const config = WEAR_CONFIG[machineType];
-  const wearAboveThreshold = wear - 50;
-  const efficiency = 100 - wearAboveThreshold * config.efficiencyPenaltyRate;
-  return Math.max(0, Math.round(efficiency * 10) / 10);
+export function calculateEfficiency(wear: number, machineType: string): number {
+  const config = getWearConfig(machineType);
+  if (wear >= config.breakdownThreshold) return 0;
+  if (wear < config.warningThreshold * 0.5) return 100;
+  const degradationRange = config.breakdownThreshold - config.warningThreshold * 0.5;
+  const wearInRange = wear - config.warningThreshold * 0.5;
+  const degradation = Math.min(1, wearInRange / degradationRange);
+  return Math.round((1 - degradation * 0.4) * 100);
 }
 
 function updateMachinesForTick(
@@ -843,12 +854,15 @@ export const useProductionStore = create<ProductionStore>()(
       }
 
       const currentWear = machine.metrics.wear ?? 0;
-      if (currentWear <= 0) {
+      // A broken-down machine is always serviceable: a campaign fault (e.g. a
+      // bearing overheat) can trip a machine at any wear, and its controlled
+      // restart must still return it to service.
+      if (currentWear <= 0 && machine.status !== 'critical') {
         return { success: false, wearReduced: 0, message: 'Machine has no wear to repair' };
       }
 
-      const wearConfig = WEAR_CONFIG[machine.type];
-      const wearReduced = Math.min(currentWear, wearConfig.maintenanceReduction);
+      const wearConfig = getWearConfig(machine.type);
+      const wearReduced = Math.max(0, Math.min(currentWear, wearConfig.maintenanceReduction));
       const newWear = Math.max(0, currentWear - wearReduced);
       const newEfficiency = calculateEfficiency(newWear, machine.type);
 
@@ -888,7 +902,10 @@ export const useProductionStore = create<ProductionStore>()(
         id: `maintenance-${machineId}-${Date.now()}`,
         type: 'success',
         title: 'Maintenance Complete',
-        message: `${machine.name} maintained. Wear reduced by ${wearReduced.toFixed(1)}%, now at ${newWear.toFixed(1)}%. Efficiency: ${newEfficiency}%`,
+        message:
+          wearReduced > 0
+            ? `${machine.name} maintained. Wear reduced by ${wearReduced.toFixed(1)}%, now at ${newWear.toFixed(1)}%. Efficiency: ${newEfficiency}%`
+            : `${machine.name} restored to service. Efficiency: ${newEfficiency}%`,
         machineId,
         timestamp: new Date(),
         acknowledged: false,
@@ -897,7 +914,10 @@ export const useProductionStore = create<ProductionStore>()(
       return {
         success: true,
         wearReduced: Math.round(wearReduced * 10) / 10,
-        message: `Wear reduced from ${currentWear.toFixed(1)}% to ${newWear.toFixed(1)}%`,
+        message:
+          wearReduced > 0
+            ? `Wear reduced from ${currentWear.toFixed(1)}% to ${newWear.toFixed(1)}%`
+            : 'Restored to service',
       };
     },
 
@@ -909,7 +929,7 @@ export const useProductionStore = create<ProductionStore>()(
 
       const wear = machine.metrics.wear ?? 0;
       const efficiency = machine.metrics.efficiency ?? 100;
-      const wearConfig = WEAR_CONFIG[machine.type];
+      const wearConfig = getWearConfig(machine.type);
 
       return {
         wear,

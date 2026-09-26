@@ -4,7 +4,6 @@ import { useBreakdownStore } from '../../../stores/breakdownStore';
 import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
 import { useMaterialFlowStore } from '../../../stores/materialFlowStore';
 import { useOperationsCampaignStore } from '../../../stores/operationsCampaignStore';
-import { getDispatchQualityStatus, useQCLabStore } from '../../../stores/qcLabStore';
 import { useProductionStore } from '../../../stores/productionStore';
 import { useTruckScheduleStore } from '../../../stores/truckScheduleStore';
 import { applyDecisionEffects } from '../../../utils/aiEngine';
@@ -71,7 +70,9 @@ function activateOrderHandler(): AgentCommandHandler {
           ),
           check(
             'INV.RESOURCE.BOUNDED',
-            arrayOfRecords(campaign.logbook).length <= 160,
+            // The logbook is not part of the projected campaign domain, so the
+            // bound is read from the live store rather than an absent field.
+            useOperationsCampaignStore.getState().logbook.length <= 160,
             'Campaign logbook remains within its 160-entry bound.'
           ),
         ]
@@ -235,18 +236,17 @@ function respondToDecisionHandler(): AgentCommandHandler {
         if (typeof command.parameters.modifiedAction !== 'string') {
           return json({ changed: false, reason: 'modified_action_required' });
         }
+        // Record the replacement and close the decision without running the
+        // original recommendation's machine effect: the operator replaced it.
         store.recordDecisionResponse(id, 'modified', {
           modifiedAction: command.parameters.modifiedAction,
           note: stringParameter(command, 'note'),
         });
-        const modified = useProductionStore
+        useProductionStore
           .getState()
-          .aiDecisions.find((candidate) => candidate.id === id);
-        // Pass 'modified' through so the effects call does not overwrite the
-        // disposition just recorded with 'accepted'.
-        if (modified) applyDecisionEffects(modified, 'modified');
+          .updateDecisionStatus(id, 'completed', 'Completed after operator modification');
       } else if (disposition === 'accepted') {
-        applyDecisionEffects(decision, 'accepted');
+        applyDecisionEffects(decision, 'accepted', { note: stringParameter(command, 'note') });
       } else {
         store.recordDecisionResponse(id, disposition, { note: stringParameter(command, 'note') });
       }
@@ -409,7 +409,7 @@ function batchDispositionHandler(
       );
       const canChange =
         disposition === 'hold'
-          ? batch?.disposition !== 'shipped'
+          ? batch?.disposition !== 'shipped' && batch?.disposition !== 'recalled'
           : batch?.disposition === 'hold' && !contaminationBlocks;
       return inspection(
         [`Set batch ${id} disposition to ${disposition}.`],
@@ -422,7 +422,7 @@ function batchDispositionHandler(
             'PRE.BATCH.DISPOSITION',
             Boolean(batch && canChange),
             disposition === 'hold'
-              ? 'Shipped product cannot be held.'
+              ? 'Shipped or recalled product cannot be held.'
               : 'Only a non-contaminated hold may be released.'
           ),
           check(
@@ -776,6 +776,3 @@ function stringParameter(command: AgentCommandEnvelope, name: string): string | 
 function json(value: unknown): AgentJsonValue {
   return JSON.parse(JSON.stringify(value ?? null)) as AgentJsonValue;
 }
-
-void getDispatchQualityStatus;
-void useQCLabStore;

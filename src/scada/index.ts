@@ -54,7 +54,13 @@ export type {
 } from './HistorianInterface';
 
 // React Hooks
-export { useSCADA, useSCADAMachine, useSCADATag, useSCADAAlarms } from './useSCADA';
+export {
+  useSCADA,
+  useSCADAMachine,
+  useSCADATag,
+  useSCADAAlarms,
+  refreshSharedSCADAStatus,
+} from './useSCADA';
 export type { UseSCADAReturn } from './useSCADA';
 
 // SCADA Bridge - Visual Properties

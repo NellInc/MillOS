@@ -63,6 +63,20 @@ describe('AchievementsStore', () => {
       expect(achievement.unlockedAt).toBe(unlockedAt); // Same Date instance, untouched
     });
 
+    it('keeps the same array when progress does not change', () => {
+      const store = useAchievementsStore.getState();
+      store.updateAchievementProgress('century', 40);
+      const before = useAchievementsStore.getState().achievements;
+
+      useAchievementsStore.getState().updateAchievementProgress('century', 40);
+      expect(useAchievementsStore.getState().achievements).toBe(before);
+
+      useAchievementsStore.getState().unlockAchievement('first-bag');
+      const unlocked = useAchievementsStore.getState().achievements;
+      useAchievementsStore.getState().updateAchievementProgress('first-bag', 5);
+      expect(useAchievementsStore.getState().achievements).toBe(unlocked);
+    });
+
     it('should be a no-op for unknown achievement ids', () => {
       const before = useAchievementsStore.getState().achievements;
       useAchievementsStore.getState().updateAchievementProgress('nonexistent-id', 999);

@@ -75,6 +75,9 @@ describe('wind shader injection', () => {
     expect(shader.vertexShader).toContain('millosWindWorld.x * 0.35');
     // Instance rotation must be undone or every tree leans its own way.
     expect(shader.vertexShader).toContain('#ifdef USE_INSTANCING');
+    // Parent-group yaw must be undone too, or the village, the farm and the
+    // two tunnel banks each lean a different way.
+    expect(shader.vertexShader).toContain('modelMatrix[ 0 ].xyz');
 
     // The documented 60-recompiles-per-second bug: a cache key must never be
     // derived from a clock or a random source.

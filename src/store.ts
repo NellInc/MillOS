@@ -18,6 +18,7 @@ import {
   type VehicleTelemetrySnapshot,
 } from './simulation/vehicles/vehicleTelemetryRegistry';
 import type { MachineData } from './types';
+import type { Alarm } from './scada/types';
 
 // Re-export everything from the new stores
 export {
@@ -55,6 +56,14 @@ import { shallow } from 'zustand/shallow';
 // Debounced machine state sync to prevent flooding SCADA with updates
 let lastMachineSyncTime = 0;
 const MACHINE_SYNC_DEBOUNCE_MS = 200;
+
+/** Alert copy for a SCADA alarm, e.g. '<tag>: 8.0 t, below the 10.0 t limit'. */
+function formatAlarmMessage(alarm: Alarm): string {
+  if (alarm.type === 'BAD_QUALITY') return `${alarm.tagName}: source signal quality is BAD`;
+  const unit = alarm.unit ? ` ${alarm.unit}` : '';
+  const direction = alarm.type === 'LO' || alarm.type === 'LOLO' ? 'below' : 'above';
+  return `${alarm.tagName}: ${alarm.value.toFixed(1)}${unit}, ${direction} the ${alarm.threshold.toFixed(1)}${unit} limit`;
+}
 
 export function buildOperationalTelemetry(
   flow: MaterialFlowState,
@@ -240,28 +249,49 @@ export function initializeSCADASync(): () => void {
       // This ensures SCADA values reflect machine operational status
       // PERFORMANCE FIX: Use selector that returns stable reference (machines array)
       // and let the shallow comparison check if individual machine objects changed
+      const pushMachineStates = (machines: MachineData[]): void => {
+        lastMachineSyncTime = Date.now();
+        if (machines.length === 0) return;
+        const machineStates = machines.map((m) => ({
+          id: m.id,
+          status: m.status,
+          metrics: {
+            load: m.metrics?.load ?? 50,
+            rpm: m.metrics?.rpm ?? 450,
+          },
+        }));
+        service.updateMachineStates(machineStates);
+      };
+      // A change inside the debounce window schedules one trailing push, so
+      // the last status change of a burst still reaches SCADA.
+      let trailingMachineSync: ReturnType<typeof setTimeout> | null = null;
       const unsubMachines = useProductionStore.subscribe(
         (state) => state.machines,
         (machines) => {
-          const now = Date.now();
-          if (now - lastMachineSyncTime < MACHINE_SYNC_DEBOUNCE_MS) return;
-          lastMachineSyncTime = now;
-
-          if (machines.length > 0) {
-            const machineStates = machines.map((m) => ({
-              id: m.id,
-              status: m.status,
-              metrics: {
-                load: m.metrics?.load ?? 50,
-                rpm: m.metrics?.rpm ?? 450,
-              },
-            }));
-            service.updateMachineStates(machineStates);
+          const elapsed = Date.now() - lastMachineSyncTime;
+          if (elapsed < MACHINE_SYNC_DEBOUNCE_MS) {
+            if (trailingMachineSync === null) {
+              trailingMachineSync = setTimeout(() => {
+                trailingMachineSync = null;
+                pushMachineStates(useProductionStore.getState().machines);
+              }, MACHINE_SYNC_DEBOUNCE_MS - elapsed);
+            }
+            return;
           }
+          if (trailingMachineSync !== null) {
+            clearTimeout(trailingMachineSync);
+            trailingMachineSync = null;
+          }
+          pushMachineStates(machines);
         },
         { fireImmediately: true, equalityFn: shallow }
       );
-      cleanupFunctions.push(unsubMachines);
+      cleanupFunctions.push(unsubMachines, () => {
+        if (trailingMachineSync !== null) {
+          clearTimeout(trailingMachineSync);
+          trailingMachineSync = null;
+        }
+      });
 
       // 2. STORE -> SCADA: publish the conserved material ledger that drives
       // conveyors and truck manifests. The adapter samples these values into
@@ -314,8 +344,8 @@ export function initializeSCADASync(): () => void {
             uiStore.addAlert({
               id: `scada-${alarm.id}`,
               type: alarm.priority === 'CRITICAL' ? 'critical' : 'warning',
-              title: `SCADA: ${alarm.type.replace('_', ' ')}`,
-              message: `${alarm.tagName}: ${alarm.value.toFixed(1)} exceeds ${alarm.threshold.toFixed(1)}`,
+              title: `SCADA: ${alarm.type.replaceAll('_', ' ')}`,
+              message: formatAlarmMessage(alarm),
               timestamp: new Date(alarm.timestamp),
               machineId: alarm.machineId,
               acknowledged: false,
@@ -324,35 +354,10 @@ export function initializeSCADASync(): () => void {
       });
       cleanupFunctions.push(unsubAlarms);
 
-      // 4. SCADA → STORE: Update efficiency metrics from SCADA
-      // Throttled to 1Hz to avoid excessive updates
-      let lastMetricsUpdate = 0;
-      const unsubMetrics = service.subscribeToValues((values) => {
-        const now = Date.now();
-        if (now - lastMetricsUpdate < 1000) return; // 1Hz throttle
-        lastMetricsUpdate = now;
-
-        // Calculate aggregate metrics from SCADA values
-        const speedTags = values.filter((v) => v.tagId.includes('.ST001.'));
-
-        if (speedTags.length > 0) {
-          const avgSpeed =
-            speedTags.reduce((sum, v) => sum + (v.value as number), 0) / speedTags.length;
-          const normalizedSpeed = Math.min(100, (avgSpeed / 500) * 100); // Normalize to 0-100
-
-          // Only update if significantly different (>2% change)
-          const current = useProductionStore.getState().metrics;
-          if (Math.abs(current.throughput - normalizedSpeed * 12.4) > 25) {
-            useProductionStore.getState().updateMetrics({
-              throughput: Math.round(normalizedSpeed * 12.4), // Scale to ~1240 range
-            });
-          }
-        }
-      });
-      cleanupFunctions.push(unsubMetrics);
-
-      // 5. SCADA → STORE: Sync real machine metrics for visualization
-      // Throttled to 1Hz to avoid extra renders
+      // 4. SCADA → STORE: Sync real machine metrics for visualization
+      // Throttled to 1Hz to avoid extra renders.
+      // Throughput is deliberately NOT derived from SCADA here: UnifiedGameTick
+      // computes it from the packer mass flow, the single authority SCADA shares.
       // PERFORMANCE FIX: Use batch updates to prevent multiple re-renders per second
       let lastMachineUpdate = 0;
       const unsubValueSync = service.subscribeToValues((values) => {
@@ -366,6 +371,10 @@ export function initializeSCADASync(): () => void {
 
         const valueMap = new Map(values.map((v) => [v.tagId, v]));
         const alarms = service.getActiveAlarms();
+        // In simulation mode the store is the status authority and the adapter
+        // only mirrors it: a stopped machine reads 0 RPM, trips LOLO, and
+        // writing that alarm back as 'critical' would strand the machine.
+        const storeOwnsStatus = service.getState().mode === 'simulation';
 
         // Collect all updates first, then apply as a single store write.
         const metricsByMachineId = new Map<string, Partial<MachineData['metrics']>>();
@@ -391,7 +400,16 @@ export function initializeSCADASync(): () => void {
             }
           }
 
-          if (sync.status && sync.status !== machine.status) {
+          // Live mode: SCADA may only escalate a running machine. It never
+          // writes its rpm echo ('running'/'idle') or overrides a game-held
+          // 'idle' or 'critical'.
+          if (
+            !storeOwnsStatus &&
+            sync.status &&
+            sync.status !== machine.status &&
+            (machine.status === 'running' || machine.status === 'warning') &&
+            (sync.status === 'warning' || sync.status === 'critical')
+          ) {
             statusByMachineId.set(machine.id, sync.status);
             hasAnyChanges = true;
           }

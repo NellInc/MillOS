@@ -52,9 +52,9 @@ describe('SafetyStore', () => {
       incidentHeatMap: [],
       showIncidentHeatMap: false,
       safetyConfig: {
-        vehicleDetectionRadius: 1.8,
-        forkliftSafetyRadius: 3,
-        pathCheckDistance: 4,
+        vehicleDetectionRadius: 2.5,
+        forkliftSafetyRadius: 4,
+        pathCheckDistance: 5,
         speedZoneSlowdown: 0.5,
       },
       speedZones: [
@@ -309,13 +309,33 @@ describe('SafetyStore', () => {
   });
 
   describe('Safety Configuration', () => {
+    it('drops the never-live v1 clearance defaults on migration but keeps user-set values', () => {
+      const migrate = useSafetyStore.persist.getOptions().migrate;
+      expect(migrate).toBeDefined();
+      const untouched = migrate?.(
+        {
+          safetyConfig: {
+            vehicleDetectionRadius: 1.8,
+            forkliftSafetyRadius: 3,
+            pathCheckDistance: 4,
+            speedZoneSlowdown: 0.3,
+          },
+        },
+        1
+      ) as { safetyConfig: Record<string, number> };
+      expect(untouched.safetyConfig).toEqual({ speedZoneSlowdown: 0.3 });
+
+      const tuned = { safetyConfig: { vehicleDetectionRadius: 3.2, forkliftSafetyRadius: 3 } };
+      expect(migrate?.(tuned, 1)).toBe(tuned);
+    });
+
     it('should update safety config partially', () => {
       const { setSafetyConfig } = useSafetyStore.getState();
-      setSafetyConfig({ vehicleDetectionRadius: 2.5 });
+      setSafetyConfig({ vehicleDetectionRadius: 3.1 });
 
       const { safetyConfig } = useSafetyStore.getState();
-      expect(safetyConfig.vehicleDetectionRadius).toBe(2.5);
-      expect(safetyConfig.forkliftSafetyRadius).toBe(3); // Unchanged
+      expect(safetyConfig.vehicleDetectionRadius).toBe(3.1);
+      expect(safetyConfig.forkliftSafetyRadius).toBe(4); // Unchanged
     });
 
     it('should update multiple config values', () => {

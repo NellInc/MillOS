@@ -97,7 +97,9 @@ export function createOrganicLakeBankGeometry(
     new THREE.Color('#6f7759'),
     new THREE.Color('#526c49'),
   ];
-  const rowHeights = [-0.05, 0.015, 0.105, 0.055, 0] as const;
+  // The bank is placed at world y=0.08. Sink its outside edge through the
+  // ground datum (-0.02), rather than leaving a raised cut edge above the lawn.
+  const rowHeights = [-0.05, 0.015, 0.105, 0.035, -0.12] as const;
 
   for (let segment = 0; segment <= safeSegments; segment += 1) {
     const progress = segment === safeSegments ? 0 : segment / safeSegments;
@@ -107,17 +109,22 @@ export function createOrganicLakeBankGeometry(
       innerFactor + Math.sin(angle * 7 - seed * 2.1) * 0.01 + Math.sin(angle * 13 + seed) * 0.006;
 
     for (let row = 0; row < rows; row += 1) {
-      const ratio = row / (rows - 1);
+      const baseRatio = row / (rows - 1);
+      // Vary the width of each band without moving either boundary or adding
+      // vertices. The bounded derivative stays positive, so rows cannot fold.
+      const sweep = Math.sin(angle * 3 + seed) * 0.08 + Math.sin(angle * 7 - seed) * 0.035;
+      const ratio = baseRatio + sweep * Math.sin(Math.PI * baseRatio);
       const radiusX = THREE.MathUtils.lerp(waterRadiusX * 0.985, shoreRadiusX, ratio);
       const radiusZ = THREE.MathUtils.lerp(waterRadiusZ * 0.985, shoreRadiusZ, ratio);
       const factor = THREE.MathUtils.lerp(innerFactor, outerFactor, ratio);
       positions.push(
         Math.cos(angle) * radiusX * factor,
         Math.sin(angle) * radiusZ * factor,
-        rowHeights[row]
+        rowHeights[row] + Math.sin(angle * 5 + seed) * 0.02 * Math.sin(Math.PI * baseRatio)
       );
       const color = rowColors[row];
-      colors.push(color.r, color.g, color.b);
+      const shade = 0.96 + 0.04 * Math.sin(angle * 4 + seed + baseRatio * 2);
+      colors.push(color.r * shade, color.g * shade, color.b * shade);
     }
   }
 

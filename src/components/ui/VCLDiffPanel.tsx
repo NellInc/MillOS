@@ -13,6 +13,20 @@ import { useProductionStore } from '../../stores/productionStore';
 import { useGameSimulationStore, useUIStore } from '../../stores';
 import { encodeFactoryContextVCL } from '../../utils/vclEncoder';
 
+// VCP glyphs are mostly astral emoji, many with a U+FE0F variation selector, so
+// a UTF-16 split('') cuts one glyph into 2-3 units: highlights land on lone
+// surrogates and the change count inflates. Diff by user-perceived character.
+const graphemeSegmenter =
+  typeof Intl !== 'undefined' && 'Segmenter' in Intl
+    ? new Intl.Segmenter(undefined, { granularity: 'grapheme' })
+    : null;
+
+function graphemes(value: string): string[] {
+  return graphemeSegmenter
+    ? Array.from(graphemeSegmenter.segment(value), (part) => part.segment)
+    : Array.from(value);
+}
+
 export const VCLDiffPanel: React.FC = () => {
   const showVCLDebug = useAIConfigStore((state) => state.showVCLDebug);
   const [previousVCL, setPreviousVCL] = useState<string>('');
@@ -69,36 +83,23 @@ export const VCLDiffPanel: React.FC = () => {
     }
   };
 
-  // Find differences between VCL strings
-  const getDiffHighlights = () => {
-    if (!previousVCL || !currentVCL) return { added: [], removed: [] };
-
-    const prevChars = previousVCL.split('');
-    const currChars = currentVCL.split('');
-
-    const added: number[] = [];
-    const removed: number[] = [];
-
-    // Simple character-level diff
-    currChars.forEach((char, i) => {
-      if (i >= prevChars.length || char !== prevChars[i]) {
-        added.push(i);
-      }
-    });
-
-    prevChars.forEach((char, i) => {
-      if (i >= currChars.length || char !== currChars[i]) {
-        removed.push(i);
-      }
-    });
-
-    return { added, removed };
-  };
-
   if (!showVCLDebug) return null;
 
-  const diff = getDiffHighlights();
-  const hasChanges = diff.added.length > 0 || diff.removed.length > 0;
+  const prevChars = graphemes(previousVCL);
+  const currChars = graphemes(currentVCL);
+
+  // Simple positional diff over graphemes
+  const added = new Set<number>();
+  const removed = new Set<number>();
+  if (previousVCL && currentVCL) {
+    currChars.forEach((char, i) => {
+      if (i >= prevChars.length || char !== prevChars[i]) added.add(i);
+    });
+    prevChars.forEach((char, i) => {
+      if (i >= currChars.length || char !== currChars[i]) removed.add(i);
+    });
+  }
+  const hasChanges = added.size > 0 || removed.size > 0;
 
   return (
     <AnimatePresence>
@@ -115,7 +116,7 @@ export const VCLDiffPanel: React.FC = () => {
             <span className="text-xs font-medium text-indigo-300">VCP Diff</span>
             {hasChanges && (
               <span className="px-1.5 py-0.5 rounded-full bg-green-500/20 text-[9px] text-green-400">
-                {diff.added.length} changes
+                {added.size} {added.size === 1 ? 'change' : 'changes'}
               </span>
             )}
           </div>
@@ -150,11 +151,8 @@ export const VCLDiffPanel: React.FC = () => {
                   <span className="text-[9px] text-red-400 uppercase">Previous</span>
                 </div>
                 <div className="font-mono text-[10px] text-slate-400 bg-slate-800/50 rounded p-2 break-all">
-                  {previousVCL.split('').map((char, i) => (
-                    <span
-                      key={i}
-                      className={diff.removed.includes(i) ? 'bg-red-500/30 text-red-300' : ''}
-                    >
+                  {prevChars.map((char, i) => (
+                    <span key={i} className={removed.has(i) ? 'bg-red-500/30 text-red-300' : ''}>
                       {char}
                     </span>
                   ))}
@@ -168,11 +166,8 @@ export const VCLDiffPanel: React.FC = () => {
                   <ArrowRight className="w-2.5 h-2.5 text-slate-500" />
                 </div>
                 <div className="font-mono text-[10px] text-slate-300 bg-slate-800/50 rounded p-2 break-all">
-                  {currentVCL.split('').map((char, i) => (
-                    <span
-                      key={i}
-                      className={diff.added.includes(i) ? 'bg-green-500/30 text-green-300' : ''}
-                    >
+                  {currChars.map((char, i) => (
+                    <span key={i} className={added.has(i) ? 'bg-green-500/30 text-green-300' : ''}>
                       {char}
                     </span>
                   ))}

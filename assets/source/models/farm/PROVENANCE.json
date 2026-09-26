@@ -4,11 +4,11 @@
   "area": "farm",
   "publisher": "Tripo3D",
   "license": "Tripo3D API-plan output",
-  "licenceNote": "Generated on a Tripo3D API plan. The free tier releases outputs CC BY 4.0, public and non-commercial; commercial rights attach to paid and API plans. Confirmed by the account owner before any output entered public/models/.",
+  "licenceNote": "Generated through the Tripo3D API under the account owner's confirmed API-plan rights. Account-owner rights confirmation is separate from the technical validation reported here.",
   "transformation": {
     "script": "scripts/normalize-model-assets.mjs",
     "table": "GENERATED_ASSETS",
-    "description": "Per asset: derive facing from the whole Head-to-Hip heading vector and snap to the nearest quarter turn (rigged only), apply any authored yaw, scale uniformly to the stated target along the stated axis, re-origin to bottom centre through a Pivot node so a skin binding survives, resample the three 4096-square maps to 512 JPEG, force the metallic factor to zero, and rename material, mesh and textures semantically.",
+    "description": "Per asset: derive facing from the whole Head-to-Hip heading vector and snap to the nearest quarter turn (rigged only), apply any authored yaw, scale uniformly to the stated target along the stated axis, optionally fit the recorded architectural envelope within a 20 percent axis limit, re-origin to bottom centre through a Pivot node so a skin binding survives, resample source maps to each asset table entry texture size (512 by default) in JPEG, force the metallic factor to zero, and rename material, mesh and textures semantically.",
     "generatedBy": "scripts/write-model-provenance.mjs"
   },
   "sourcePacks": [
@@ -283,45 +283,6 @@
         "textures": 3,
         "textureBytes": 47830,
         "renderVertices": 18000
-      }
-    },
-    {
-      "name": "scarecrow",
-      "id": "farm-scarecrow",
-      "sourcePage": "https://platform.tripo3d.ai",
-      "pipeline": [
-        "text_to_model v2.5-20250123, texture:true, pbr:true",
-        "animate_prerigcheck (0 credits)",
-        "animate_rig"
-      ],
-      "preservedAs": "scarecrow-tripo-original.glb",
-      "sha256": "42d2e6c1f72b8ce692e87e6b5a81fa50d5d70a1a11942337b1f5529e3a6f6a92",
-      "runtimeDerivative": {
-        "file": "public/models/farm/scarecrow.glb",
-        "sha256": "e998cd3d3cecf93882c91226106302b7f1f912c132000cde1d626d68c18f9be1",
-        "bytes": 398732
-      },
-      "normalization": {
-        "sizedBy": "height",
-        "targetMetres": 1.9,
-        "scaleFactor": 1.90009,
-        "facingYawRadians": 1.5708,
-        "authoredYawRadians": 0,
-        "bounds": {
-          "width": 1.6549,
-          "height": 1.9,
-          "length": 0.5259,
-          "minY": 0,
-          "centreX": 0,
-          "centreZ": 0
-        },
-        "bodyNode": "ScarecrowBody",
-        "joints": 41,
-        "clips": [],
-        "materials": 1,
-        "textures": 3,
-        "textureBytes": 108655,
-        "renderVertices": 17976
       }
     },
     {

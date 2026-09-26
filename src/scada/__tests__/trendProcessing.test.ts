@@ -25,6 +25,27 @@ describe('SCADA trend processing', () => {
     expect(rows[1][`${tagId}${TREND_QUALITY_SUFFIX}`]).toBe('BAD');
   });
 
+  it('holds a deadband-compressed slow tag forward until a bad sample ends the hold', () => {
+    const fast = Array.from({ length: 5 }, (_, index) => ({
+      timestamp: index * 1_000,
+      value: 60 + index,
+      quality: 'GOOD' as const,
+    }));
+    const slow: TagHistoryPoint[] = [
+      { timestamp: 0, value: 12, quality: 'GOOD' },
+      { timestamp: 3_000, value: 0, quality: 'BAD' },
+    ];
+    const rows = mergeAndDownsampleTrendHistory(['FAST', 'SLOW'], [fast, slow]);
+
+    expect(rows).toHaveLength(5);
+    expect(rows.slice(0, 3).map((row) => row.SLOW)).toEqual([12, 12, 12]);
+    expect(rows[1][`SLOW${TREND_QUALITY_SUFFIX}`]).toBe('GOOD');
+    expect(rows[3].SLOW).toBeUndefined();
+    expect(rows[3][`SLOW${TREND_QUALITY_SUFFIX}`]).toBe('BAD');
+    expect(rows[4].SLOW).toBeUndefined();
+    expect(rows[4][`SLOW${TREND_QUALITY_SUFFIX}`]).toBeUndefined();
+  });
+
   it('bounds long ranges while preserving first and last samples', () => {
     const history = Array.from({ length: 2_000 }, (_, index) => ({
       timestamp: index * 1_000,

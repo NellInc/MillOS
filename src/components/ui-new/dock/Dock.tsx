@@ -11,21 +11,35 @@ import {
   Heart,
   Database,
   MoreHorizontal,
+  ChartColumn,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useUIStore } from '../../../stores/uiStore';
 import { useMobileDetection } from '../../../hooks/useMobileDetection';
 import { useMobileControlStore } from '../../../stores/mobileControlStore';
 
-export type DockMode = 'overview' | 'ai' | 'scada' | 'management' | 'safety' | 'settings';
+export type DockMode =
+  | 'overview'
+  | 'production'
+  | 'ai'
+  | 'scada'
+  | 'management'
+  | 'safety'
+  | 'settings';
 
 interface DockProps {
   activeMode: DockMode;
   onModeChange: (mode: DockMode, trigger?: HTMLElement) => void;
   onDatalinksOpen?: () => void;
+  sidebarVisible?: boolean;
 }
 
-export const Dock: React.FC<DockProps> = ({ activeMode, onModeChange, onDatalinksOpen }) => {
+export const Dock: React.FC<DockProps> = ({
+  activeMode,
+  onModeChange,
+  onDatalinksOpen,
+  sidebarVisible = false,
+}) => {
   const fpsMode = useUIStore((state) => state.fpsMode);
   const toggleFpsMode = useUIStore((state) => state.toggleFpsMode);
   const { isMobile, isCompactLayout } = useMobileDetection();
@@ -77,22 +91,27 @@ export const Dock: React.FC<DockProps> = ({ activeMode, onModeChange, onDatalink
         return;
       }
       if (event.key !== 'Escape') return;
+      // Capture phase + stopPropagation: Escape dismisses only the menu, not
+      // the sidebar workspace or the selection underneath it.
+      event.preventDefault();
+      event.stopPropagation();
       setMoreOpen(false);
       requestAnimationFrame(() => moreMenuTriggerRef.current?.focus());
     };
     // Move focus into the menu on open, as a menu role implies.
     requestAnimationFrame(() => menuItems()[0]?.focus());
     document.addEventListener('mousedown', closeOnOutside);
-    document.addEventListener('keydown', closeOnEscape);
+    document.addEventListener('keydown', closeOnEscape, true);
     return () => {
       document.removeEventListener('mousedown', closeOnOutside);
-      document.removeEventListener('keydown', closeOnEscape);
+      document.removeEventListener('keydown', closeOnEscape, true);
     };
   }, [moreOpen]);
 
   const toggleFullscreen = useCallback(async () => {
     try {
-      if (!document.fullscreenElement) {
+      // Tracked state covers prefixed WebKit, where fullscreenElement is absent.
+      if (!isFullscreen) {
         const docEl = document.documentElement as HTMLElement & {
           webkitRequestFullscreen?: () => Promise<void>;
         };
@@ -115,7 +134,10 @@ export const Dock: React.FC<DockProps> = ({ activeMode, onModeChange, onDatalink
     } catch {
       // Fullscreen request failed - silently continue
     }
-  }, []);
+  }, [isFullscreen]);
+
+  // AI Partner lives only in the More menu, so its trigger carries the highlight.
+  const moreActive = fpsMode || activeMode === 'ai';
 
   // On mobile, clicking a dock item opens the mobile panel instead of sidebar
   const handleModeChange = (mode: DockMode, trigger?: HTMLElement) => {
@@ -132,11 +154,17 @@ export const Dock: React.FC<DockProps> = ({ activeMode, onModeChange, onDatalink
     setMoreOpen(false);
   };
 
+  // Stay centred in the viewport until the panel requires us to move left.
+  // When the remaining workspace is narrower than the dock, centre in that space.
+  const workspaceWidth = 'calc(100vw - var(--millos-sidebar-width, min(24rem, 42vw)))';
+
   return (
     <nav
       id="navigation-dock"
-      className={`fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-900/80 backdrop-blur-xl border border-white/10 rounded-2xl flex items-center shadow-2xl z-50 pointer-events-auto ${
-        isCompactLayout ? 'px-2 py-2 gap-1 max-w-full' : 'px-3 py-2 gap-2'
+      className={`fixed bottom-6 left-1/2 -translate-x-1/2 bg-[#071722]/95 backdrop-blur-xl border border-cyan-100/15 rounded-md flex items-center shadow-2xl z-50 pointer-events-auto ${
+        isCompactLayout
+          ? 'p-1 gap-0.5 max-w-[calc(100vw-1rem)]'
+          : 'p-0 gap-0 w-[min(48rem,calc(100vw-2rem))]'
       }`}
       aria-label="Main Navigation"
       role="navigation"
@@ -147,7 +175,12 @@ export const Dock: React.FC<DockProps> = ({ activeMode, onModeChange, onDatalink
               marginLeft: 'env(safe-area-inset-left)',
               marginRight: 'env(safe-area-inset-right)',
             }
-          : undefined
+          : sidebarVisible
+            ? {
+                left: `min(50vw, max(calc(${workspaceWidth} / 2), calc(${workspaceWidth} - 25rem)))`,
+                maxWidth: `calc(${workspaceWidth} - 2rem)`,
+              }
+            : undefined
       }
     >
       <DockItem
@@ -159,19 +192,11 @@ export const Dock: React.FC<DockProps> = ({ activeMode, onModeChange, onDatalink
         isMobile={isCompactLayout}
       />
       <DockItem
-        mode="ai"
-        icon={<Brain size={24} />}
-        label="AI Partner"
-        isActive={activeMode === 'ai'}
-        onClick={(trigger) => handleModeChange('ai', trigger)}
-        isMobile={isCompactLayout}
-      />
-      <DockItem
-        mode="scada"
-        icon={<Activity size={24} />}
-        label="Simulated SCADA"
-        isActive={activeMode === 'scada'}
-        onClick={(trigger) => handleModeChange('scada', trigger)}
+        mode="production"
+        icon={<ChartColumn size={26} />}
+        label="Production"
+        isActive={activeMode === 'production'}
+        onClick={(trigger) => handleModeChange('production', trigger)}
         isMobile={isCompactLayout}
       />
       {!isCompactLayout && (
@@ -193,6 +218,14 @@ export const Dock: React.FC<DockProps> = ({ activeMode, onModeChange, onDatalink
         isMobile={isCompactLayout}
       />
       <DockItem
+        mode="scada"
+        icon={<Activity size={26} />}
+        label="Simulated SCADA"
+        isActive={activeMode === 'scada'}
+        onClick={(trigger) => handleModeChange('scada', trigger)}
+        isMobile={isCompactLayout}
+      />
+      <DockItem
         mode="settings"
         icon={<Settings size={24} />}
         label="Settings"
@@ -201,7 +234,7 @@ export const Dock: React.FC<DockProps> = ({ activeMode, onModeChange, onDatalink
         isMobile={isCompactLayout}
       />
 
-      <div className="relative border-l border-white/10 pl-2" ref={moreMenuRef}>
+      <div className="relative shrink-0 border-l border-white/10 pl-1" ref={moreMenuRef}>
         <button
           ref={moreMenuTriggerRef}
           type="button"
@@ -210,7 +243,7 @@ export const Dock: React.FC<DockProps> = ({ activeMode, onModeChange, onDatalink
           aria-haspopup="menu"
           aria-expanded={moreOpen}
           className={`relative min-h-[44px] min-w-[44px] rounded-xl p-2 text-slate-300 transition-colors hover:bg-white/5 hover:text-white ${
-            fpsMode ? 'bg-white/10 text-cyan-300' : ''
+            moreActive ? 'bg-white/10 text-cyan-300' : ''
           }`}
         >
           <MoreHorizontal size={24} aria-hidden="true" />
@@ -221,6 +254,18 @@ export const Dock: React.FC<DockProps> = ({ activeMode, onModeChange, onDatalink
             aria-label="More workspaces and view controls"
             className="absolute bottom-full right-0 mb-2 w-60 overflow-hidden rounded-xl border border-white/10 bg-slate-950/98 p-1.5 shadow-2xl"
           >
+            <button
+              role="menuitem"
+              type="button"
+              data-dock-mode="ai"
+              aria-current={activeMode === 'ai' ? 'page' : undefined}
+              onClick={() => handleMoreModeChange('ai')}
+              className="flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-left text-sm text-slate-200 transition-colors hover:bg-white/10"
+            >
+              <Brain size={18} aria-hidden="true" />
+              AI Partner
+              <kbd className="ml-auto text-[10px] text-slate-400">I</kbd>
+            </button>
             {isCompactLayout && (
               <>
                 <button
@@ -247,7 +292,6 @@ export const Dock: React.FC<DockProps> = ({ activeMode, onModeChange, onDatalink
               >
                 <Database size={18} aria-hidden="true" />
                 Datalinks
-                <kbd className="ml-auto text-[10px] text-slate-400">L</kbd>
               </button>
             )}
             <button
@@ -288,6 +332,16 @@ export const Dock: React.FC<DockProps> = ({ activeMode, onModeChange, onDatalink
   );
 };
 
+export const DOCK_LABELS: Record<DockMode, string> = {
+  overview: 'Overview',
+  production: 'Production',
+  ai: 'AI Partner',
+  scada: 'SCADA',
+  management: 'Autonomy',
+  safety: 'Safety',
+  settings: 'Settings',
+};
+
 const DockItem: React.FC<{
   mode: DockMode;
   icon: React.ReactNode;
@@ -304,15 +358,20 @@ const DockItem: React.FC<{
       aria-pressed={isActive}
       aria-current={isActive ? 'page' : undefined}
       title={label}
-      className={`relative rounded-xl transition-colors ${
-        isMobile ? 'p-2 min-w-[44px] min-h-[44px]' : 'p-3'
-      } ${isActive ? 'bg-white/10 text-cyan-400' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
+      className={`relative border-r border-white/10 last:border-r-0 transition-colors ${
+        isMobile
+          ? 'p-2 min-w-[44px] min-h-[44px]'
+          : 'flex min-w-0 flex-1 h-[82px] flex-col items-center justify-center gap-2 px-1'
+      } ${isActive ? 'bg-cyan-300/10 text-cyan-200' : 'text-slate-300 hover:text-white hover:bg-white/5'}`}
     >
       <span aria-hidden="true">{icon}</span>
+      {!isMobile && (
+        <span className="text-[12px] leading-4 whitespace-nowrap">{DOCK_LABELS[mode]}</span>
+      )}
       {isActive && (
         <motion.div
           layoutId="dock-active"
-          className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 bg-cyan-400 rounded-full"
+          className="absolute bottom-0 left-2 right-2 h-px bg-cyan-300"
           aria-hidden="true"
         />
       )}

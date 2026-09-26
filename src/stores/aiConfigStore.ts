@@ -47,6 +47,16 @@ const GEMINI_COST_PER_1M: Record<string, { input: number; output: number }> = {
 const GEMINI_COST_DEFAULT = GEMINI_COST_PER_1M['gemini-3.5-flash'];
 const CHARS_PER_TOKEN = 4; // Conservative estimate
 
+/**
+ * Per-1M-token pricing for the Gemini model currently serving requests (the
+ * client may have fallen back along its model chain). Single source for the
+ * cost tracker and every UI that quotes a rate, so the two cannot disagree.
+ */
+export function getActiveGeminiPricing(): { model: string; input: number; output: number } {
+  const model = geminiClient.getActiveModelId();
+  return { model, ...(GEMINI_COST_PER_1M[model] ?? GEMINI_COST_DEFAULT) };
+}
+
 // Strategic layer configuration
 const DEFAULT_STRATEGIC_INTERVAL_MS = 45000; // 45 seconds
 
@@ -69,6 +79,14 @@ interface StrategicState {
   tradeoff?: string; // Trade-off explanation
   focusMachine?: string; // Machine ID to prioritize
   confidenceScores?: { overall: number; reasoning: string };
+}
+
+/** Optional detail the strategic layer attaches to a set of priorities. */
+export interface StrategicPlanDetails {
+  actionPlan?: string[];
+  insight?: string;
+  tradeoff?: string;
+  focusMachine?: string;
 }
 
 interface AIConfigState {
@@ -107,7 +125,9 @@ interface AIConfigState {
   // Strategic layer state
   strategic: StrategicState;
   strategicIntervalMs: number;
-  setStrategicPriorities: (priorities: string[]) => void;
+  /** Record a strategic plan. Every detail field is replaced, so a new plan
+   *  clears whatever the previous one said. */
+  setStrategicPriorities: (priorities: string[], details?: StrategicPlanDetails) => void;
   setStrategicThinking: (thinking: boolean) => void;
   // Tactical layer state
   isTacticalThinking: boolean;
@@ -285,10 +305,12 @@ export const useAIConfigStore = create<AIConfigState>()(
             webgpuError: null,
             // Mirror the Gemini auto-switch: a fresh local core lights up the
             // strategic layer via Hybrid mode (keeps fast heuristic tactical).
-            // Promote from BOTH heuristic and gemini — pure 'gemini' (LLM-only)
-            // would leave tactical AND strategic gated off (a silent dead state),
-            // so only an already-'hybrid' mode is left untouched. Skipped on the
-            // silent startup prewarm (promote=false) to respect persisted aiMode.
+            // Promote from BOTH heuristic and gemini: 'gemini' (LLM-only) runs the
+            // strategic layer with the fast rules layer paused, which is an
+            // explicit opt-in the player can re-select, not a sensible default
+            // for a freshly loaded core. Only an already-'hybrid' mode is left
+            // untouched. Skipped on the silent startup prewarm (promote=false)
+            // to respect the persisted aiMode.
             aiMode: promote && state.aiMode !== 'hybrid' ? 'hybrid' : state.aiMode,
           }));
           logger.info('[AIConfigStore] WebGPU model ready');
@@ -364,11 +386,17 @@ export const useAIConfigStore = create<AIConfigState>()(
       },
       strategicIntervalMs: DEFAULT_STRATEGIC_INTERVAL_MS,
 
-      setStrategicPriorities: (priorities: string[]) => {
+      setStrategicPriorities: (priorities: string[], details?: StrategicPlanDetails) => {
         set((state) => ({
           strategic: {
             ...state.strategic,
             legacyPriorities: priorities,
+            // Assigned explicitly (not spread) so a plan that omits a field
+            // clears the previous plan's value instead of inheriting it.
+            actionPlan: details?.actionPlan,
+            insight: details?.insight,
+            tradeoff: details?.tradeoff,
+            focusMachine: details?.focusMachine,
             lastDecisionTime: Date.now(),
           },
         }));
@@ -498,7 +526,7 @@ export const useAIConfigStore = create<AIConfigState>()(
 
         // Calculate cost in USD using the model actually serving requests
         // (the client may have fallen back along its model chain)
-        const pricing = GEMINI_COST_PER_1M[geminiClient.getActiveModelId()] ?? GEMINI_COST_DEFAULT;
+        const pricing = getActiveGeminiPricing();
         const inputCost = (inputTokens / 1_000_000) * pricing.input;
         const outputCost = (outputTokens / 1_000_000) * pricing.output;
         const requestCost = inputCost + outputCost;
@@ -613,7 +641,9 @@ export const useAIConfigStore = create<AIConfigState>()(
         set({
           geminiApiKey: null,
           isGeminiConnected: false,
-          aiMode: 'heuristic',
+          // Only fall back to heuristic when Gemini is what the strategic layer
+          // runs on; clearing a stale key must not switch off a ready local core.
+          aiMode: get().llmBackend === 'gemini' ? 'heuristic' : get().aiMode,
           connectionError: null,
         });
         logger.info('[AIConfigStore] Gemini config cleared');
@@ -628,7 +658,10 @@ export const useAIConfigStore = create<AIConfigState>()(
             set({ isGeminiConnected: true });
             logger.info('[AIConfigStore] Gemini client re-initialized from storage');
           } else {
-            set({ isGeminiConnected: false, aiMode: 'heuristic' });
+            set({
+              isGeminiConnected: false,
+              ...(get().llmBackend === 'gemini' ? { aiMode: 'heuristic' as const } : {}),
+            });
           }
         }
       },

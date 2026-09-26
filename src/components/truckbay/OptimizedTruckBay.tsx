@@ -1,3 +1,5 @@
+import { GeneratedBoundary } from '../models/GeneratedModel';
+import { GeneratedSurfaceMesh, GeneratedGeometrySurface } from '../models/GeneratedGeometrySurface';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
@@ -862,7 +864,15 @@ export function OptimizedTruckVisual({
       const z = isTrailer ? -baseX * trailerSin + baseZ * trailerCos : baseZ;
       const steer = isSteer ? state.steeringAngle : 0;
       object.position.set(x, y, z);
-      object.rotation.set(wheelRotation, (isTrailer ? state.trailerAngle : 0) + steer, Math.PI / 2);
+      // 'YXZ' spins the wheel about its own axle before yawing it; the default
+      // 'XYZ' spun it about the parent X axis, so a steered or articulated wheel
+      // wobbled once per revolution.
+      object.rotation.set(
+        wheelRotation,
+        (isTrailer ? state.trailerAngle : 0) + steer,
+        Math.PI / 2,
+        'YXZ'
+      );
       object.updateMatrix();
       wheels.setMatrixAt(index, object.matrix);
       if (hasHub) {
@@ -1018,7 +1028,8 @@ export function OptimizedTruckVisual({
   return (
     <group dispose={null}>
       <group ref={cabRef}>
-        <mesh
+        <GeneratedSurfaceMesh
+          asset="truckCabUnit"
           geometry={ROUNDED_BOX}
           material={cabMaterial}
           position={[0, 1.25, 3.15]}
@@ -1234,7 +1245,8 @@ export function OptimizedTruckVisual({
       </group>
 
       <group ref={trailerRef} position={[0, 0, 0]}>
-        <mesh
+        <GeneratedSurfaceMesh
+          asset="truckTrailerUnit"
           geometry={ROUNDED_BOX}
           material={trailerMaterial}
           position={[0, 2.45, -5.75]}
@@ -1402,7 +1414,11 @@ export function OptimizedTruckVisual({
         args={[WHEEL, MATERIALS.tyre, wheelLayout.length]}
         castShadow
         receiveShadow
-      />
+      >
+        <GeneratedBoundary fallback={null}>
+          <GeneratedGeometrySurface asset={'truckTyreUnit'} original={WHEEL} meshRef={wheelsRef} />
+        </GeneratedBoundary>
+      </instancedMesh>
       {/* Hubs are 0.5 m discs recessed inside 1.04 m tyres that already cast:
           their shadow is a strict subset of the wheel's, at 8 extra instances
           resubmitted on every shadow refit. */}

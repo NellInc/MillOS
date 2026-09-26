@@ -1,4 +1,5 @@
-import React, { useState, useCallback, Suspense, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, Suspense, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { AnimatePresence } from 'framer-motion';
 import {
   Activity,
@@ -22,8 +23,9 @@ import {
 } from 'lucide-react';
 import { useProductionStore } from '../../../stores/productionStore';
 import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
+import { useAchievementsStore } from '../../../stores/achievementsStore';
 import { computeSafetyScore, useSafetyStore } from '../../../stores/safetyStore';
-import { downloadScenePng } from '../../../utils/sceneCapture';
+import { saveScenePng } from '../../../utils/sceneCapture';
 import { useUIStore } from '../../../stores/uiStore';
 import { useHistoricalPlaybackStore } from '../../../stores/historicalPlaybackStore';
 import { useMaterialFlowStore } from '../../../stores/materialFlowStore';
@@ -53,13 +55,18 @@ const GameClock: React.FC = React.memo(() => {
     return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
   };
 
+  // 180 game-seconds per real second is 1x; agent commands may set any speed.
+  const speedRatio = gameSpeed / 180;
+  const speedLabel =
+    gameSpeed === 0 ? 'PAUSED' : speedRatio < 0.1 ? '<0.1x' : `${Number(speedRatio.toFixed(1))}x`;
+
   return (
     <div className="text-right">
       <div className="text-xl font-mono font-bold text-white">{formatGameTime(gameTime)}</div>
       <div
         className={`text-[10px] font-bold ${gameSpeed === 0 ? 'text-red-400' : 'text-green-400'}`}
       >
-        {gameSpeed === 0 ? 'PAUSED' : gameSpeed === 180 ? '1x' : gameSpeed === 1800 ? '10x' : '60x'}
+        {speedLabel}
       </div>
     </div>
   );
@@ -134,7 +141,7 @@ const ShiftDisplay: React.FC = React.memo(() => {
 
   return (
     <div>
-      <div className="text-[10px] text-slate-500 uppercase tracking-wider">Current Shift</div>
+      <div className="text-[10px] text-slate-500 uppercase tracking-wider">Run window</div>
       <div className="text-sm font-bold text-white capitalize">{currentShift}</div>
     </div>
   );
@@ -222,11 +229,21 @@ const MaterialTraceabilitySection: React.FC = React.memo(() => {
   );
 });
 
+// The balance walks every buffer and parcel, so the panel samples it at 1 Hz
+// rather than on every material-flow write, rounded to the 0.01 kg it displays.
+const readGenealogyErrorKg = () =>
+  Math.round(useMaterialFlowStore.getState().getGenealogyBalance().errorKg * 100) / 100;
+
 const BatchGenealogySection: React.FC = React.memo(() => {
   const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
   const productionBatches = useMaterialFlowStore((state) => state.productionBatches);
   const sourceLotCount = useMaterialFlowStore((state) => state.sourceLots.size);
-  const genealogyErrorKg = useMaterialFlowStore((state) => state.getGenealogyBalance().errorKg);
+  // Read once up front so the first paint never shows a false +0.00 kg.
+  const [genealogyErrorKg, setGenealogyErrorKg] = useState(readGenealogyErrorKg);
+  useEffect(() => {
+    const timer = window.setInterval(() => setGenealogyErrorKg(readGenealogyErrorKg()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
   const qcLab = useQCLabStore((state) => state.qcLab);
   const startQCTest = useQCLabStore((state) => state.startQCTest);
   const completeQCTest = useQCLabStore((state) => state.completeQCTest);
@@ -654,6 +671,7 @@ export const OverviewPanel: React.FC = React.memo(() => {
             label="Receiving"
             status={dockStatus.receiving.status}
             eta={dockStatus.receiving.etaMinutes}
+            receiving
           />
           <DockCard
             label="Shipping"
@@ -719,7 +737,7 @@ const StatCard: React.FC<{
         <span className={colorClasses[color].split(' ')[0]}>{icon}</span>
         {label}
       </div>
-      <div className="flex items-baseline gap-1">
+      <div className="flex flex-wrap items-baseline gap-x-1 gap-y-0.5">
         <span className={`text-lg font-mono font-bold ${colorClasses[color].split(' ')[0]}`}>
           {value}
         </span>
@@ -749,10 +767,11 @@ const MiniStat: React.FC<{ label: string; value: number; color: string }> = ({
   );
 };
 
-const DockCard: React.FC<{ label: string; status: string; eta: number }> = ({
+const DockCard: React.FC<{ label: string; status: string; eta: number; receiving?: boolean }> = ({
   label,
   status,
   eta,
+  receiving = false,
 }) => {
   const statusColors: Record<string, { bg: string; text: string }> = {
     clear: { bg: 'bg-slate-600/20', text: 'text-slate-400' },
@@ -766,7 +785,12 @@ const DockCard: React.FC<{ label: string; status: string; eta: number }> = ({
   return (
     <div className={`${colors.bg} border border-white/5 rounded-lg p-3`}>
       <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">{label}</div>
-      <div className={`text-sm font-bold capitalize ${colors.text}`}>{status}</div>
+      <div className={`text-sm font-bold capitalize ${colors.text}`}>
+        {receiving && status === 'loading' ? 'Unloading' : status}
+      </div>
+      {status === 'clear' && eta > 0 && (
+        <div className="text-[10px] text-slate-500">Next truck in {eta} min</div>
+      )}
       {status !== 'clear' && eta > 0 && (
         <div className="text-[10px] text-slate-500">ETA: {eta} min</div>
       )}
@@ -779,7 +803,9 @@ const QuickActionsSection: React.FC = () => {
   // Shared with GamificationBar through uiStore so the two toggles drive one panel.
   const showAchievements = useUIStore((state) => state.showAchievements);
   const setShowAchievements = useUIStore((state) => state.setShowAchievements);
-  const achievements = useProductionStore((state) => state.achievements);
+  // When the gamification bar is showing it renders the same panel itself.
+  const showGamificationBar = useUIStore((state) => state.showGamificationBar);
+  const achievements = useAchievementsStore((state) => state.achievements);
   const { showMiniMap, setShowMiniMap } = useUIStore(
     useShallow((state) => ({
       showMiniMap: state.showMiniMap,
@@ -788,11 +814,12 @@ const QuickActionsSection: React.FC = () => {
   );
   const isReplaying = useHistoricalPlaybackStore((state) => state.isReplaying);
 
-  const unlockedCount = achievements.filter((a) => a.unlockedAt).length;
+  // Same visibility rule as AchievementsPanel: untracked goals are not counted.
+  const unlockedCount = achievements.filter((a) => a.tracked !== false && a.unlockedAt).length;
 
-  const handleScreenshot = useCallback(() => {
+  const handleScreenshot = useCallback(async () => {
     // Through the renderer: a direct canvas.toDataURL() reads a cleared buffer.
-    downloadScenePng(`millos-${new Date().toISOString().split('T')[0]}.png`);
+    await saveScenePng(`millos-${new Date().toISOString().split('T')[0]}.png`);
   }, []);
 
   const handleExport = useCallback(() => {
@@ -802,7 +829,9 @@ const QuickActionsSection: React.FC = () => {
       metrics: store.metrics,
       productionTarget: store.productionTarget,
       totalBagsProduced: store.totalBagsProduced,
-      achievements: store.achievements.filter((a) => a.unlockedAt),
+      achievements: useAchievementsStore
+        .getState()
+        .achievements.filter((a) => a.tracked !== false && a.unlockedAt),
     };
     const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -838,6 +867,7 @@ const QuickActionsSection: React.FC = () => {
           {/* Achievements */}
           <button
             onClick={() => setShowAchievements(!showAchievements)}
+            aria-expanded={showAchievements}
             className={`py-2.5 px-3 rounded-lg flex items-center gap-2 transition-colors relative ${
               showAchievements
                 ? 'bg-yellow-600 text-white'
@@ -857,6 +887,7 @@ const QuickActionsSection: React.FC = () => {
           {/* Replay History */}
           <button
             onClick={handleToggleReplay}
+            aria-pressed={isReplaying}
             className={`py-2.5 px-3 rounded-lg flex items-center gap-2 transition-colors ${
               isReplaying
                 ? 'bg-red-600 text-white'
@@ -888,7 +919,7 @@ const QuickActionsSection: React.FC = () => {
         <div className="flex gap-2 mt-2">
           <button
             onClick={handleScreenshot}
-            className="flex-1 h-8 rounded-lg flex items-center justify-center gap-1.5 text-xs bg-slate-700/60 text-slate-400 hover:bg-slate-600 hover:text-white transition-colors"
+            className="flex-1 min-h-11 rounded-lg flex items-center justify-center gap-1.5 text-xs bg-slate-700/60 text-slate-400 hover:bg-slate-600 hover:text-white transition-colors"
             title="Screenshot"
           >
             <Image size={12} />
@@ -896,7 +927,7 @@ const QuickActionsSection: React.FC = () => {
           </button>
           <button
             onClick={handleExport}
-            className="flex-1 h-8 rounded-lg flex items-center justify-center gap-1.5 text-xs bg-slate-700/60 text-slate-400 hover:bg-slate-600 hover:text-white transition-colors"
+            className="flex-1 min-h-11 rounded-lg flex items-center justify-center gap-1.5 text-xs bg-slate-700/60 text-slate-400 hover:bg-slate-600 hover:text-white transition-colors"
             title="Export Report"
           >
             <Download size={12} />
@@ -912,10 +943,16 @@ const QuickActionsSection: React.FC = () => {
         </section>
       )}
 
-      {/* Panels */}
-      <AnimatePresence>
-        {showAchievements && <AchievementsPanel onClose={() => setShowAchievements(false)} />}
-      </AnimatePresence>
+      {/* Portaled: the sidebar's backdrop-filter would otherwise become the
+        containing block for this fixed, draggable panel and clip it. */}
+      {!showGamificationBar &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <AnimatePresence>
+            {showAchievements && <AchievementsPanel onClose={() => setShowAchievements(false)} />}
+          </AnimatePresence>,
+          document.body
+        )}
     </>
   );
 };

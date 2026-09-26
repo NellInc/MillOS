@@ -76,16 +76,6 @@
       "version": "v0.20",
       "files": [
         {
-          "path": "v0.20/Achilles.mp3",
-          "bytes": 2540613,
-          "sha256": "03917669cba8086f921712e0db8c59d32e02d63e3be443d8d4458a9d2786ded3"
-        },
-        {
-          "path": "v0.20/All This.mp3",
-          "bytes": 9158674,
-          "sha256": "15aa40f76bf114748e23452e4659fed30cfb88745efa5d13c7279ea2fc370f12"
-        },
-        {
           "path": "v0.20/assets/AICommandCenter-Bmo3GMTC.js",
           "bytes": 49442,
           "sha256": "8dcdd64bb6d935d3a44ef4b063b0a99fb49b19656b96f2402cdd28908e666574"
@@ -226,39 +216,14 @@
           "sha256": "738c7cf5b142bca6f249f731d1f7c5a5025d17b7a05ba649319b0c512c229643"
         },
         {
-          "path": "v0.20/Carefree.mp3",
-          "bytes": 6566713,
-          "sha256": "8433b770a630d9b1594fd484442c677907ece899a4d149954cd2e74fd733e311"
-        },
-        {
-          "path": "v0.20/Clenched Teeth.mp3",
-          "bytes": 3648195,
-          "sha256": "a113c6c93730d8517b5f851cd2ac72c1e89b8a3f61abfd62ae499c60b1456998"
-        },
-        {
           "path": "v0.20/Cloud Dancer.mp3",
           "bytes": 7040022,
           "sha256": "d329666f15f516b8742532d9dc45309e2019cc1505d4636fdadb7bf6000a8d5c"
         },
         {
-          "path": "v0.20/Dark Fog.mp3",
-          "bytes": 9564075,
-          "sha256": "a357b85ec02c52c17e4c677ca19037d742985045993db8f2226c7eab646ae86e"
-        },
-        {
           "path": "v0.20/Fanfare for Space.mp3",
           "bytes": 2459812,
           "sha256": "a0f05d7bc8ffa08a4c1cc18003a2e69bd1a05e7d1b77a68cf1706c4e316390f6"
-        },
-        {
-          "path": "v0.20/Five Armies.mp3",
-          "bytes": 6235982,
-          "sha256": "f56746c90756db04675a80ebd29e22253177a6fcc16f56602da62af9eae8d733"
-        },
-        {
-          "path": "v0.20/Fluffing a Duck.mp3",
-          "bytes": 2696840,
-          "sha256": "cb23b1833c35e391de10d998d6a40cfc760565ce31d23014c86025523ca8239b"
         },
         {
           "path": "v0.20/fonts/MedievalSharp.ttf",
@@ -281,29 +246,9 @@
           "sha256": "c9acc652b5279168c8cb2d73bc5a156add24682ffe91312399468152ce852cd1"
         },
         {
-          "path": "v0.20/Impact Moderato.mp3",
-          "bytes": 3031166,
-          "sha256": "a85d378af027d75014be4a95b43007b19e03b06693c4b4ad72594cf392f4bc1c"
-        },
-        {
           "path": "v0.20/index.html",
           "bytes": 5521,
           "sha256": "2a942538de0d36a53651408be56e049b90129910a2b6c1fa6f4db66332a0ba2e"
-        },
-        {
-          "path": "v0.20/Industrial Revolution.mp3",
-          "bytes": 5832537,
-          "sha256": "1caa983292c03ce2a0bdda59825d4f74fc633bacc91e2dee33f5c5528ad656ad"
-        },
-        {
-          "path": "v0.20/Interloper.mp3",
-          "bytes": 10639852,
-          "sha256": "f979f0a000e45e7007121ee9b4292f0aa17ec661512f6517ac84d2ad1cfabecd"
-        },
-        {
-          "path": "v0.20/Killers.mp3",
-          "bytes": 9769089,
-          "sha256": "5a47315f15cae3148df295aef80c7ec64bf124f692b5464a835353bd4ec82d23"
         },
         {
           "path": "v0.20/libs/basis/basis_transcoder.js",
@@ -314,11 +259,6 @@
           "path": "v0.20/libs/basis/basis_transcoder.wasm",
           "bytes": 527333,
           "sha256": "6cf17dc889352c42e9acf8897107978d127005fe3386c36a0e3845e27967630a"
-        },
-        {
-          "path": "v0.20/Mechanolith.mp3",
-          "bytes": 2217401,
-          "sha256": "56159a05eb0d1b9ab98a31d4892bdb52d7a9ee925bde0f41cf314998275ce759"
         },
         {
           "path": "v0.20/models/forklift/forklift-original.glb",
@@ -351,11 +291,6 @@
           "sha256": "de74a51281270da5d5c8339599eb253828f4cc1a98a14c91d05a09aadeec2439"
         },
         {
-          "path": "v0.20/Monkeys Spinning Monkeys.mp3",
-          "bytes": 5005207,
-          "sha256": "a5bb345c23849ad0786aa0bc5157a9f2d4039660fe00282e55754d475f36dc14"
-        },
-        {
           "path": "v0.20/Neon Laser Horizon.mp3",
           "bytes": 3573716,
           "sha256": "1921dce762a8589e1f50fe68f827701a129946884eccd33a36c9ac7e1c2c8005"
@@ -369,11 +304,6 @@
           "path": "v0.20/og-image.png",
           "bytes": 2189012,
           "sha256": "c3a7aaf733d68d3369b62778aa9a81978c4610e7cca477f94379f61591cbf2b3"
-        },
-        {
-          "path": "v0.20/Sergio's Magic Dustbin.mp3",
-          "bytes": 4850751,
-          "sha256": "c7732bf0e41a419208359132d3f105f2e542157f7e5eeb52d26b722015c6140f"
         },
         {
           "path": "v0.20/Space Jazz.mp3",
@@ -1716,17 +1646,12 @@
           "sha256": "ea56d74e3ef28f2ad9b0101a2b571aef199adb4f566f533033d053003d2090ce"
         },
         {
-          "path": "v0.20/Volatile Reaction.mp3",
-          "bytes": 5293585,
-          "sha256": "ced1148df201a6c69062a96b7ef49c49924572ca5023c2ac5a2d6c5828ecb218"
-        },
-        {
           "path": "v0.20/Voxel Revolution.mp3",
           "bytes": 2600392,
           "sha256": "9977d93c698abacc29e5da7ff0bccee2b8f6de47ed7e567cb0f1ed9b7564f74e"
         }
       ],
-      "bytes": 400126389
+      "bytes": 313075709
     },
     {
       "version": "v0.30",

@@ -26,7 +26,6 @@ const CURRENT_AUDIO_FILES = new Set([
   'Newer Wave.mp3',
   'Neon Laser Horizon.mp3',
   'Cloud Dancer.mp3',
-  'Fanfare for Space.mp3',
 ]);
 
 /**
@@ -76,6 +75,7 @@ function finalizeCurrentBuild({
 }): Plugin {
   return {
     name: 'finalize-current-build',
+    apply: 'build',
     closeBundle() {
       const outputDirectory = path.resolve(__dirname, 'dist');
       if (!fs.existsSync(outputDirectory)) return;
@@ -133,12 +133,30 @@ function serveStaticVersions(): Plugin {
         const versionMatch = req.url?.match(/^\/(v\d+\.\d+)(\/|$)/);
         if (versionMatch && req.url && STATIC_RELEASE_VERSIONS.has(versionMatch[1])) {
           const version = versionMatch[1];
-          const urlPath = req.url.replace(/\?.*$/, ''); // Remove query string
-          let filePath = path.join(__dirname, 'public', urlPath);
+          const publicRoot = path.join(__dirname, 'public');
+          const versionRoot = path.join(publicRoot, version);
+          let urlPath: string;
+          try {
+            urlPath = decodeURIComponent(req.url.replace(/\?.*$/, '')); // Remove query string
+          } catch {
+            return next();
+          }
+          let filePath = path.join(publicRoot, urlPath);
 
           // Serve index.html for directory requests
           if (urlPath === `/${version}` || urlPath === `/${version}/`) {
-            filePath = path.join(__dirname, 'public', version, 'index.html');
+            filePath = path.join(versionRoot, 'index.html');
+          }
+
+          // This middleware runs ahead of Vite's fs.allow/deny checks on a
+          // LAN-bound server, so never serve anything outside the archive.
+          const relativePath = path.relative(versionRoot, filePath);
+          if (
+            relativePath === '' ||
+            relativePath.startsWith('..') ||
+            path.isAbsolute(relativePath)
+          ) {
+            return next();
           }
 
           if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
@@ -158,6 +176,10 @@ function serveStaticVersions(): Plugin {
               '.ttf': 'font/ttf',
               '.woff': 'font/woff',
               '.woff2': 'font/woff2',
+              '.wasm': 'application/wasm',
+              '.svg': 'image/svg+xml',
+              '.webp': 'image/webp',
+              '.ktx2': 'image/ktx2',
             };
             res.setHeader('Content-Type', contentTypes[ext] || 'application/octet-stream');
             res.end(fs.readFileSync(filePath));

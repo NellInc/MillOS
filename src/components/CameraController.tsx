@@ -11,7 +11,9 @@ import {
 import { useMobileControlStore } from '../stores/mobileControlStore';
 import { SITE_LAYOUT, getVisibleSiteCellsForView } from '../constants/siteLayout';
 import { resolveCameraCollision } from '../utils/cameraCollision';
+import { useReducedMotion } from '../hooks/useReducedMotion';
 import {
+  ORBIT_POLAR_LIMITS,
   clampNavigationDelta,
   getNavigationIntent,
   shouldHandleNavigationKey,
@@ -53,6 +55,7 @@ export interface CameraPreset {
   position: [number, number, number];
   target: [number, number, number];
   description: string;
+  fov?: number;
 }
 
 export const CAMERA_PRESETS: CameraPreset[] = [
@@ -60,24 +63,28 @@ export const CAMERA_PRESETS: CameraPreset[] = [
     name: 'Overview',
     position: [...SITE_LAYOUT.cameras.overview.position],
     target: [...SITE_LAYOUT.cameras.overview.target],
+    fov: SITE_LAYOUT.cameras.overview.fov,
     description: 'Whole mill and logistics site',
   },
   {
     name: 'Silos',
     position: [...SITE_LAYOUT.cameras.silos.position],
     target: [...SITE_LAYOUT.cameras.silos.target],
+    fov: SITE_LAYOUT.cameras.silos.fov,
     description: 'Raw material storage (Zone 1)',
   },
   {
     name: 'Milling',
     position: [...SITE_LAYOUT.cameras.milling.position],
     target: [...SITE_LAYOUT.cameras.milling.target],
+    fov: SITE_LAYOUT.cameras.milling.fov,
     description: 'Roller mills (Zone 2)',
   },
   {
     name: 'Sifting',
     position: [...SITE_LAYOUT.cameras.sifting.position],
     target: [...SITE_LAYOUT.cameras.sifting.target],
+    fov: SITE_LAYOUT.cameras.sifting.fov,
     description: 'Plansifters (Zone 3)',
   },
   {
@@ -105,6 +112,7 @@ interface CameraStore {
   activePreset: number | null;
   targetPosition: THREE.Vector3 | null;
   targetLookAt: THREE.Vector3 | null;
+  targetFov: number;
   isAnimating: boolean;
   setPreset: (index: number) => void;
   focusOn: (position: [number, number, number], target: [number, number, number]) => void;
@@ -116,6 +124,7 @@ export const useCameraStore = create<CameraStore>((set) => ({
   activePreset: null,
   targetPosition: null,
   targetLookAt: null,
+  targetFov: 65,
   isAnimating: false,
   setPreset: (index) => {
     if (index >= 0 && index < CAMERA_PRESETS.length) {
@@ -124,6 +133,7 @@ export const useCameraStore = create<CameraStore>((set) => ({
         activePreset: index,
         targetPosition: new THREE.Vector3(...preset.position),
         targetLookAt: new THREE.Vector3(...preset.target),
+        targetFov: preset.fov ?? 65,
         isAnimating: true,
       });
     }
@@ -133,6 +143,7 @@ export const useCameraStore = create<CameraStore>((set) => ({
       activePreset: null,
       targetPosition: new THREE.Vector3(...position),
       targetLookAt: new THREE.Vector3(...target),
+      targetFov: 65,
       isAnimating: true,
     }),
   clearAnimation: () => set({ isAnimating: false }),
@@ -158,11 +169,20 @@ export const CameraController: React.FC<CameraControllerProps> = ({
   targetSpeed = 0.15,
 }) => {
   const { camera } = useThree();
-  const { targetPosition, targetLookAt, isAnimating, clearAnimation, cancelAnimation } =
-    useCameraStore();
+  const {
+    activePreset,
+    targetPosition,
+    targetLookAt,
+    targetFov,
+    isAnimating,
+    clearAnimation,
+    cancelAnimation,
+  } = useCameraStore();
+  const reducedMotion = useReducedMotion();
   const animationProgress = useRef(0);
   const animationStartPosition = useRef(new THREE.Vector3());
   const animationStartLookAt = useRef(new THREE.Vector3());
+  const animationStartFov = useRef(65);
   const previousCameraPosition = useRef(new THREE.Vector3());
   const cameraPositionInitialized = useRef(false);
   const currentSpeed = useRef(0);
@@ -235,7 +255,7 @@ export const CameraController: React.FC<CameraControllerProps> = ({
       phi += dpadDirection.y * LOOK_SPEED * movementDelta;
 
       // Clamp polar angle
-      phi = Math.max(0.2, Math.min(Math.PI / 2 - 0.05, phi));
+      phi = Math.max(ORBIT_POLAR_LIMITS.min, Math.min(ORBIT_POLAR_LIMITS.max, phi));
 
       // Convert back to cartesian
       offset.x = radius * Math.sin(phi) * Math.sin(theta);
@@ -253,7 +273,9 @@ export const CameraController: React.FC<CameraControllerProps> = ({
     const hasManualInput = Boolean(dpadDirection || hasKeyboardInput);
     let manualMovementApplied = false;
 
-    if (hasManualInput && isAnimating) {
+    // Also clear a settled preset: once manual input moves the camera, the
+    // preset indicator would otherwise keep naming a view it has left.
+    if (hasManualInput && (isAnimating || activePreset !== null)) {
       cancelAnimation();
     }
 
@@ -347,12 +369,17 @@ export const CameraController: React.FC<CameraControllerProps> = ({
     // Handle preset animation from a fixed starting pose. The prior recursive
     // lerp never followed a predictable easing curve and could stop short.
     if (isAnimating && targetPosition && targetLookAt && !hasManualInput) {
-      const animationDuration = 0.9;
+      // Reduced motion cuts straight to the destination through the same path.
+      const animationDuration = reducedMotion ? 0.001 : 0.9;
       animationProgress.current += movementDelta / animationDuration;
       const t = Math.min(animationProgress.current, 1);
       const easeT = t * t * (3 - 2 * t);
 
       camera.position.lerpVectors(animationStartPosition.current, targetPosition, easeT);
+      if (camera instanceof THREE.PerspectiveCamera) {
+        camera.fov = THREE.MathUtils.lerp(animationStartFov.current, targetFov, easeT);
+        camera.updateProjectionMatrix();
+      }
       if (orbitControlsRef?.current) {
         orbitControlsRef.current.target.lerpVectors(
           animationStartLookAt.current,
@@ -407,6 +434,7 @@ export const CameraController: React.FC<CameraControllerProps> = ({
     if (isAnimating) {
       animationProgress.current = 0;
       animationStartPosition.current.copy(camera.position);
+      if (camera instanceof THREE.PerspectiveCamera) animationStartFov.current = camera.fov;
       if (orbitControlsRef?.current) {
         animationStartLookAt.current.copy(orbitControlsRef.current.target);
       } else if (targetLookAt) {

@@ -69,6 +69,12 @@ class AdaptiveQualityManager {
   private isInitialized = false;
   private isChangingQuality = false; // Prevent concurrent quality changes
   private pendingQualityChange: GraphicsQuality | null = null;
+  /** The last quality this manager applied; anything else was the user's choice. */
+  private lastAppliedQuality: GraphicsQuality | null = null;
+  /** The user's explicit choice: adaptive only restores what it took away. */
+  private userCeiling: GraphicsQuality | null = null;
+  /** Upgrade-sustain multiplier, doubled per downgrade so a tier that cannot hold does not oscillate. */
+  private upgradeBackoff = 1;
 
   /**
    * Update with current frame delta time
@@ -76,6 +82,15 @@ class AdaptiveQualityManager {
    */
   update(deltaSeconds: number): void {
     if (!this.config.enabled || !this.isInitialized) return;
+
+    // Any quality this manager did not apply (the persisted startup value, a
+    // settings click, a keyboard shortcut) is the user's ceiling.
+    const current = useGraphicsStore.getState().graphics.quality;
+    if (current !== this.lastAppliedQuality) {
+      this.userCeiling = current;
+      this.lastAppliedQuality = current;
+      this.upgradeBackoff = 1;
+    }
 
     // Convert to FPS
     const fps = 1 / Math.max(deltaSeconds, 0.001);
@@ -111,7 +126,7 @@ class AdaptiveQualityManager {
       this.highFpsDurationMs += deltaSeconds * 1000;
       this.lowFpsDurationMs = 0;
 
-      if (this.highFpsDurationMs >= this.config.upgradeSustainMs) {
+      if (this.highFpsDurationMs >= this.config.upgradeSustainMs * this.upgradeBackoff) {
         this.upgradeQuality();
         this.lastChangeTime = now;
         this.highFpsDurationMs = 0;
@@ -167,6 +182,7 @@ class AdaptiveQualityManager {
 
     scheduleChange(() => {
       try {
+        this.lastAppliedQuality = newQuality;
         useGraphicsStore.getState().setGraphicsQuality(newQuality);
         this.frameTimes = []; // Reset samples after change
       } catch {
@@ -198,6 +214,7 @@ class AdaptiveQualityManager {
 
     if (currentIndex > minIndex) {
       const newQuality = QUALITY_ORDER[currentIndex - 1];
+      this.upgradeBackoff = Math.min(this.upgradeBackoff * 2, 8);
       this.safeQualityChange(newQuality);
       return true;
     }
@@ -214,8 +231,9 @@ class AdaptiveQualityManager {
     const currentQuality = useGraphicsStore.getState().graphics.quality;
     const currentIndex = QUALITY_ORDER.indexOf(currentQuality);
     const maxIndex = QUALITY_ORDER.indexOf(this.config.maxQuality);
+    const ceilingIndex = this.userCeiling ? QUALITY_ORDER.indexOf(this.userCeiling) : maxIndex;
 
-    if (currentIndex < maxIndex) {
+    if (currentIndex < Math.min(maxIndex, ceilingIndex)) {
       const newQuality = QUALITY_ORDER[currentIndex + 1];
       this.safeQualityChange(newQuality);
       return true;
@@ -264,6 +282,7 @@ class AdaptiveQualityManager {
     this.lowFpsDurationMs = 0;
     this.highFpsDurationMs = 0;
     this.lastChangeTime = 0;
+    this.upgradeBackoff = 1;
   }
 }
 

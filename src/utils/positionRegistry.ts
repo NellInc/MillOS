@@ -123,11 +123,16 @@ class PositionRegistry {
     safetyRadius: number,
     forkliftId = '',
     checkObstacles = false,
-    y = 0
+    y = 0,
+    samplePath?: (distanceAhead: number) => { x: number; z: number }
   ): boolean {
     for (let distance = 1; distance <= checkDistance; distance += 0.5) {
-      const checkX = x + dirX * distance;
-      const checkZ = z + dirZ * distance;
+      // A turning vehicle follows its route, while callers without a route
+      // keep the straight-line check. Working if a clear turn stays open and
+      // a barrier or peer on that same turn still stops the vehicle.
+      const point = samplePath?.(distance);
+      const checkX = point?.x ?? x + dirX * distance;
+      const checkZ = point?.z ?? z + dirZ * distance;
       if (this.anyForkliftWithin(checkX, checkZ, safetyRadius, forkliftId, y)) return false;
       if (checkObstacles && this.isInsideObstacle(checkX, checkZ, safetyRadius * 0.5)) return false;
     }

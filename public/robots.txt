@@ -3,5 +3,6 @@ Allow: /
 Disallow: /v0.10/
 Disallow: /v0.20/
 Disallow: /v0.30/
+Disallow: /v0.40/
 
 Sitemap: https://www.millos.net/sitemap.xml

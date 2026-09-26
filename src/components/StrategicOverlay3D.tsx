@@ -11,18 +11,22 @@ import { SceneText as Text } from './shared/SceneText';
 import { useAIConfigStore } from '../stores/aiConfigStore';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
+import { useReducedMotion } from '../hooks/useReducedMotion';
 
 export const StrategicOverlay3D: React.FC = () => {
   const showStrategicOverlay = useAIConfigStore((state) => state.showStrategicOverlay);
   const strategic = useAIConfigStore((state) => state.strategic);
+  const reducedMotion = useReducedMotion();
 
-  // Animated glow effect
+  // Animated border glow. The backdrop behind the text stays at a constant
+  // opacity so the priority's contrast never breathes.
   const materialRef = React.useRef<THREE.MeshBasicMaterial>(null);
 
   useFrame((state) => {
     if (!showStrategicOverlay || !materialRef.current) return;
-    const pulse = Math.sin(state.clock.elapsedTime * 2) * 0.2 + 0.8;
-    materialRef.current.opacity = pulse;
+    materialRef.current.opacity = reducedMotion
+      ? 0.3
+      : 0.3 + Math.sin(state.clock.elapsedTime * 2) * 0.1;
   });
 
   // Get the top priority - prefer legacy string priorities for display, fall back to structured
@@ -50,19 +54,19 @@ export const StrategicOverlay3D: React.FC = () => {
         {/* Background panel - depthWrite false to prevent z-fighting */}
         <mesh position={[0, 0, -0.1]}>
           <planeGeometry args={[25, 2.5]} />
-          <meshBasicMaterial
-            ref={materialRef}
-            color="#0f172a"
-            transparent
-            opacity={0.85}
-            depthWrite={false}
-          />
+          <meshBasicMaterial color="#0f172a" transparent opacity={0.85} depthWrite={false} />
         </mesh>
 
         {/* Border glow - depthWrite false to prevent z-fighting */}
         <mesh position={[0, 0, -0.15]}>
           <planeGeometry args={[25.2, 2.7]} />
-          <meshBasicMaterial color="#06b6d4" transparent opacity={0.3} depthWrite={false} />
+          <meshBasicMaterial
+            ref={materialRef}
+            color="#06b6d4"
+            transparent
+            opacity={0.3}
+            depthWrite={false}
+          />
         </mesh>
 
         {/* Label */}

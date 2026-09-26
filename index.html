@@ -4,9 +4,11 @@
     <meta charset="UTF-8" />
     <!--
       CSP connect-src third-party domains and their runtime consumers:
-      - https://0.peerjs.com                      PeerJS multiplayer signalling
       - https://generativelanguage.googleapis.com Gemini cloud AI (GeminiSettingsModal)
-      - https://cdn.jsdelivr.net                  asset/CDN fetches
+      - https://openrouter.ai                     opt-in Jev advisory (jevClient.ts)
+      - https://cdn.jsdelivr.net                  troika-three-text unicode-font-resolver fallback
+                                                  for glyphs outside the self-hosted Inter
+                                                  (src/components/shared/SceneText.tsx)
       - https://huggingface.co + https://*.hf.co  @mlc-ai/web-llm model weights
                                                   (Qwen3-4B-q4f16_1-MLC); HF LFS blobs
                                                   are served from *.hf.co
@@ -15,6 +17,8 @@
       These are NOT dead trust surface: they back the on-device WebGPU neural core
       (src/utils/webgpuClient.ts, webgpuWorker.ts). The references live inside the
       web-llm dependency's appConfig, so a grep of src/ alone will not surface them.
+      script-src 'unsafe-eval' is required by the wasm-bindgen glue in
+      @dimforge/rapier3d-compat (new Function) and by WASM compilation.
     -->
     <meta
       http-equiv="Content-Security-Policy"
@@ -24,7 +28,7 @@
       style-src 'self' 'unsafe-inline';
       font-src 'self';
       img-src 'self' data: blob: https://www.millos.net;
-      connect-src 'self' blob: ws: wss: https://0.peerjs.com https://generativelanguage.googleapis.com https://cdn.jsdelivr.net https://huggingface.co https://*.huggingface.co https://*.hf.co https://raw.githubusercontent.com;
+      connect-src 'self' blob: ws: wss: https://openrouter.ai https://generativelanguage.googleapis.com https://cdn.jsdelivr.net https://huggingface.co https://*.huggingface.co https://*.hf.co https://raw.githubusercontent.com;
       worker-src 'self' blob:;
       object-src 'none';
       base-uri 'self';
@@ -32,9 +36,9 @@
       upgrade-insecure-requests;
     "
     />
-    <meta http-equiv="X-Content-Type-Options" content="nosniff" />
     <meta name="referrer" content="strict-origin-when-cross-origin" />
     <meta name="theme-color" content="#0a0f1a" />
+    <meta name="color-scheme" content="dark" />
     <link
       rel="icon"
       href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏭</text></svg>"
@@ -42,7 +46,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta
       name="description"
-      content="Explore MillOS, a browser-based 3D grain mill operations simulator with simulated workers, deterministic logistics, production metrics, and a simulated SCADA workspace."
+      content="An uncrewed grain mill in your browser: fifteen machines turn wheat into flour, autonomous forklifts and trucks move it, and 122 SCADA tags track every step."
     />
     <meta name="author" content="Nell Watson" />
     <meta
@@ -60,12 +64,15 @@
     <meta property="og:title" content="MillOS | 3D Grain Mill Operations Simulator" />
     <meta
       property="og:description"
-      content="Explore a browser-based grain mill simulator with deterministic logistics, production metrics, and a simulated SCADA workspace."
+      content="An uncrewed grain mill in your browser: fifteen machines turn wheat into flour, with autonomous forklifts, scheduled trucks and 122 simulated SCADA tags in view."
     />
     <meta property="og:image" content="https://www.millos.net/og-image.png" />
-    <meta property="og:image:alt" content="MillOS grain mill digital twin interface" />
-    <meta property="og:image:width" content="3456" />
-    <meta property="og:image:height" content="1993" />
+    <meta
+      property="og:image:alt"
+      content="An uncrewed 3D grain mill: a glass-walled milling hall, grain silos and truck yard below green hills"
+    />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
     <meta property="og:site_name" content="MillOS" />
     <meta property="og:locale" content="en_GB" />
 
@@ -75,10 +82,13 @@
     <meta name="twitter:title" content="MillOS | 3D Grain Mill Operations Simulator" />
     <meta
       name="twitter:description"
-      content="A browser-based 3D grain mill simulator with simulated workers, deterministic logistics, production metrics, and simulated SCADA."
+      content="An uncrewed grain mill in your browser: fifteen machines turn wheat into flour while autonomous forklifts and scheduled trucks keep it moving."
     />
     <meta name="twitter:image" content="https://www.millos.net/og-image.png" />
-    <meta name="twitter:image:alt" content="MillOS grain mill digital twin interface" />
+    <meta
+      name="twitter:image:alt"
+      content="An uncrewed 3D grain mill: a glass-walled milling hall, grain silos and truck yard below green hills"
+    />
     <meta name="twitter:creator" content="@NellWatson" />
 
     <!-- Additional SEO -->
@@ -100,7 +110,7 @@
             "@type": "WebApplication",
             "@id": "https://www.millos.net/#application",
             "name": "MillOS",
-            "description": "A browser-based 3D grain mill operations simulator with deterministic logistics, production metrics, and a simulated SCADA workspace.",
+            "description": "An uncrewed 3D grain mill operations simulator in the browser, with autonomous forklifts, scheduled trucks, live production metrics and a simulated SCADA workspace.",
             "applicationCategory": "SimulationApplication",
             "operatingSystem": "Any",
             "browserRequirements": "Requires a WebGL-capable browser",
@@ -116,9 +126,26 @@
       }
     </script>
 
-    <title>MillOS | Grain Mill Digital Twin</title>
+    <title>MillOS | 3D Grain Mill Operations Simulator</title>
     <!-- Inter + JetBrains Mono are now self-hosted (see src/fonts.css), so there
          is no Google Fonts <link> and no third-party IP transmission on load. -->
+    <noscript>
+      <style>
+        .loading-screen {
+          display: none;
+        }
+        .noscript-message {
+          color: #dbe6e2;
+          font:
+            16px system-ui,
+            sans-serif;
+          padding: 2rem;
+          text-align: center;
+        }
+      </style>
+    </noscript>
+    <!-- The inline shell mirrors the first frame of LoadingScreen.tsx so the
+         hand-off at React mount does not jump. Keep the two in step. -->
     <style>
       body,
       html {
@@ -137,33 +164,45 @@
         left: 0;
         right: 0;
         bottom: 0;
-        background: #0a0f1a;
+        background: #081015;
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
+        padding: 0 24px;
         z-index: 9999;
       }
       .loading-logo {
-        font-size: 3rem;
-        margin-bottom: 1rem;
+        font-size: 56px;
+        margin-bottom: 14px;
       }
-      .loading-text {
-        color: #64748b;
+      .loading-text,
+      .loading-sub {
         font-family:
           'Inter',
           system-ui,
           -apple-system,
           sans-serif;
-        font-size: 0.875rem;
-        letter-spacing: 0.1em;
+        text-align: center;
+      }
+      .loading-text {
+        color: #dbe6e2;
+        font-size: 17px;
+        font-weight: 650;
+        letter-spacing: 0.08em;
+      }
+      .loading-sub {
+        color: #9fb3ad;
+        font-size: 13px;
+        margin-top: 8px;
+        min-height: 20px;
       }
       .loading-bar {
-        width: 200px;
-        height: 2px;
-        background: #1e293b;
-        margin-top: 1.5rem;
-        border-radius: 1px;
+        width: min(320px, 78vw);
+        height: 4px;
+        background: #1c2b2f;
+        margin-top: 22px;
+        border-radius: 999px;
         overflow: hidden;
       }
       .loading-bar::after {
@@ -171,8 +210,15 @@
         display: block;
         width: 50%;
         height: 100%;
-        background: linear-gradient(90deg, #f97316, #3b82f6);
+        background: #d99a3d;
         animation: loading 1.5s ease-in-out infinite;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .loading-bar::after {
+          animation: none;
+          transform: none;
+          width: 35%;
+        }
       }
       @keyframes loading {
         0% {
@@ -185,11 +231,17 @@
     </style>
   </head>
   <body>
-    <noscript><h1>MillOS Industrial Factory Simulation</h1></noscript>
+    <noscript>
+      <div class="noscript-message">
+        MillOS runs a live 3D grain mill in your browser and needs JavaScript and WebGL. Enable
+        JavaScript and reload to step inside.
+      </div>
+    </noscript>
     <div id="root">
-      <div class="loading-screen">
-        <div class="loading-logo">🏭</div>
-        <div class="loading-text">INITIALIZING DIGITAL TWIN</div>
+      <div class="loading-screen" role="status" aria-label="Loading MillOS">
+        <div class="loading-logo" aria-hidden="true">🏭</div>
+        <div class="loading-text">WARMING UP THE ROLLERS</div>
+        <div class="loading-sub">Firing up the mill</div>
         <div class="loading-bar"></div>
       </div>
     </div>

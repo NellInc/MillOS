@@ -36,7 +36,9 @@
 @layer base {
   html {
     --ui-scale: 1;
-    font-size: calc(16px * var(--ui-scale));
+    /* 100% keeps the reader's browser text-size preference as the base. */
+    font-size: calc(100% * var(--ui-scale));
+    color-scheme: dark;
   }
 
   html,
@@ -96,12 +98,6 @@
     outline: none;
   }
 
-  input[type='range']:focus-visible::-webkit-slider-thumb {
-    box-shadow:
-      0 0 0 4px rgba(34, 211, 238, 0.4),
-      0 0 10px rgba(249, 115, 22, 0.5);
-  }
-
   @media (prefers-reduced-motion: reduce) {
     *,
     *::before,
@@ -112,9 +108,7 @@
       scroll-behavior: auto !important;
     }
 
-    .animate-pulse,
-    .animate-pulse-glow,
-    .animate-in {
+    .animate-pulse {
       animation: none !important;
     }
   }
@@ -150,96 +144,42 @@
     transform: scale(1.1);
   }
 
-  .glass {
-    background: rgba(15, 23, 42, 0.8);
-    backdrop-filter: blur(12px);
-    border: 1px solid rgba(100, 116, 139, 0.2);
+  /* The focus glow must live in this layer: a base-layer rule loses to the
+     thumb's own box-shadow above, and the range outline is suppressed. The
+     vendor pseudo-elements stay in separate rules because an unknown one
+     invalidates a whole selector list. */
+  input[type='range']:focus-visible::-webkit-slider-thumb {
+    box-shadow:
+      0 0 0 4px rgba(34, 211, 238, 0.45),
+      0 0 10px rgba(249, 115, 22, 0.5);
   }
 
-  .holographic {
-    background: linear-gradient(
-      135deg,
-      rgba(6, 182, 212, 0.1) 0%,
-      rgba(59, 130, 246, 0.1) 50%,
-      rgba(139, 92, 246, 0.1) 100%
-    );
-    border: 1px solid rgba(6, 182, 212, 0.3);
+  input[type='range']::-moz-range-track {
+    background: linear-gradient(to right, #0f172a 0%, #1e293b 100%);
+    height: 6px;
+    border-radius: 3px;
+  }
+
+  input[type='range']::-moz-range-thumb {
+    background: linear-gradient(135deg, #f97316, #ea580c);
+    height: 16px;
+    width: 16px;
+    border: none;
+    border-radius: 50%;
+    box-shadow: 0 0 10px rgba(249, 115, 22, 0.5);
+  }
+
+  input[type='range']:focus-visible::-moz-range-thumb {
+    box-shadow:
+      0 0 0 4px rgba(34, 211, 238, 0.45),
+      0 0 10px rgba(249, 115, 22, 0.5);
   }
 
   @media (prefers-contrast: high) {
-    .glass {
-      background: rgba(15, 23, 42, 0.95);
-      border: 2px solid rgba(255, 255, 255, 0.5);
-    }
-
     button,
     [role='button'] {
       border: 1px solid currentColor;
     }
-  }
-}
-
-@layer utilities {
-  .sr-only {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    border-width: 0;
-  }
-
-  .animate-pulse-glow {
-    animation: pulse-glow 2s ease-in-out infinite;
-  }
-
-  .animate-in {
-    animation-duration: 300ms;
-    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
-    animation-fill-mode: both;
-  }
-
-  .slide-in-from-right-10 {
-    animation-name: slideInFromRight;
-  }
-
-  .fade-in {
-    animation-name: fadeIn;
-  }
-}
-
-@keyframes pulse-glow {
-  0%,
-  100% {
-    box-shadow: 0 0 5px currentColor;
-  }
-  50% {
-    box-shadow:
-      0 0 20px currentColor,
-      0 0 30px currentColor;
-  }
-}
-
-@keyframes slideInFromRight {
-  from {
-    transform: translateX(100%);
-    opacity: 0;
-  }
-  to {
-    transform: translateX(0);
-    opacity: 1;
-  }
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
   }
 }
 

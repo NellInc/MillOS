@@ -27,6 +27,7 @@ import {
   Server,
   Shield,
   GripVertical,
+  X,
 } from 'lucide-react';
 import { useProductionStore } from '../../stores/productionStore';
 import { useGameSimulationStore } from '../../stores';
@@ -38,13 +39,13 @@ import {
   getFacilityBaseLoad,
   getEmergencyLoad,
   getMachineEnergy,
+  getSiteDemandKw,
 } from '../../utils/energyCalculations';
 import { MachineType } from '../../types';
 
 const SIMULATED_GRID_INTENSITY_KG_PER_KWH = 0.4;
 
-export const EnergyDashboard: React.FC = () => {
-  const showEnergyDashboard = useAIConfigStore((state) => state.showEnergyDashboard);
+const EnergyDashboardBody: React.FC = () => {
   const machines = useProductionStore((state) => state.machines);
   const gameTime = useGameSimulationStore((state) => state.gameTime);
   const emergencyActive = useGameSimulationStore((state) => state.emergencyActive);
@@ -77,10 +78,8 @@ export const EnergyDashboard: React.FC = () => {
         ? runningMachines.reduce((sum, m) => sum + m.metrics.load, 0) / runningMachines.length
         : 0;
 
-    // Total instantaneous demand calculation.
-    const totalEnergy = emergencyActive
-      ? emergencyLoad.total
-      : Math.round(totalMachineEnergy + facilityLoad.total);
+    // Total instantaneous demand: the same figure the campaign bills.
+    const totalEnergy = Math.round(getSiteDemandKw(machines, gameTime, emergencyActive));
 
     // Peak hours: 9 AM - 9 PM
     const hour = ((gameTime % 24) + 24) % 24;
@@ -110,12 +109,12 @@ export const EnergyDashboard: React.FC = () => {
     };
   }, [machines, gameTime, emergencyActive]);
 
-  if (!showEnergyDashboard) return null;
-
   const formatNumber = (n: number, decimals = 1) => n.toFixed(decimals);
   const formatTime = (hour: number) => {
-    const h = Math.floor(hour);
-    const m = Math.round((hour - h) * 60);
+    // Whole minutes, floored: rounding the fraction showed 'HH:60' near the hour.
+    const total = Math.floor(hour * 60);
+    const h = Math.floor(total / 60) % 24;
+    const m = total % 60;
     return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
   };
 
@@ -127,6 +126,8 @@ export const EnergyDashboard: React.FC = () => {
       drag
       dragMomentum={false}
       dragElastic={0.1}
+      role="region"
+      aria-label="Energy dashboard"
       className="fixed left-4 bottom-20 w-80 bg-slate-900/95 backdrop-blur-xl rounded-xl border border-emerald-500/30 shadow-xl z-40 max-h-[80vh] overflow-y-auto"
     >
       {/* Header - Drag Handle */}
@@ -157,6 +158,15 @@ export const EnergyDashboard: React.FC = () => {
               </>
             )}
           </div>
+          <button
+            type="button"
+            onPointerDownCapture={(e) => e.stopPropagation()}
+            onClick={() => useAIConfigStore.getState().setShowEnergyDashboard(false)}
+            aria-label="Close energy dashboard"
+            className="p-1 rounded text-slate-400 hover:text-white hover:bg-slate-700/50"
+          >
+            <X className="w-4 h-4" aria-hidden="true" />
+          </button>
         </div>
       </div>
 
@@ -171,19 +181,19 @@ export const EnergyDashboard: React.FC = () => {
             <div className="grid grid-cols-3 gap-2 text-[10px]">
               <div className="text-center">
                 <div className="text-red-300 font-mono">
-                  {formatNumber(metrics.emergencyLoad.lighting)}
+                  {formatNumber(metrics.emergencyLoad.lighting)} kW
                 </div>
                 <div className="text-slate-400">Lighting (30%)</div>
               </div>
               <div className="text-center">
                 <div className="text-red-300 font-mono">
-                  {formatNumber(metrics.emergencyLoad.hvac)}
+                  {formatNumber(metrics.emergencyLoad.hvac)} kW
                 </div>
                 <div className="text-slate-400">HVAC (50%)</div>
               </div>
               <div className="text-center">
                 <div className="text-red-300 font-mono">
-                  {formatNumber(metrics.emergencyLoad.baseSystems)}
+                  {formatNumber(metrics.emergencyLoad.baseSystems)} kW
                 </div>
                 <div className="text-slate-400">Base Systems</div>
               </div>
@@ -402,7 +412,9 @@ export const EnergyDashboard: React.FC = () => {
                   <div className="text-[9px] text-slate-400">Security, IT, fire systems</div>
                 </div>
               </div>
-              <span className="text-slate-400 font-mono">{metrics.facilityLoad.other} kW</span>
+              <span className="text-slate-400 font-mono">
+                {formatNumber(metrics.facilityLoad.other)} kW
+              </span>
             </div>
           </div>
         </div>
@@ -450,4 +462,11 @@ export const EnergyDashboard: React.FC = () => {
       </div>
     </motion.div>
   );
+};
+
+// Always mounted (DeferredOperationalUI) but off by default: keep the tick-rate
+// subscriptions and metric walks in the body so a hidden dashboard costs nothing.
+export const EnergyDashboard: React.FC = () => {
+  const show = useAIConfigStore((state) => state.showEnergyDashboard);
+  return show ? <EnergyDashboardBody /> : null;
 };

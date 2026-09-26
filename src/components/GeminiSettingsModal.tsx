@@ -23,8 +23,9 @@ import {
   Cloud,
   Download,
 } from 'lucide-react';
+import { useShallow } from 'zustand/react/shallow';
 import { useAIConfigStore } from '../stores/aiConfigStore';
-import { geminiClient } from '../utils/geminiClient';
+import { GeminiClient, geminiClient } from '../utils/geminiClient';
 import {
   WebGPUClient,
   checkWebGPUSupport,
@@ -39,12 +40,14 @@ const VisualizationToggles: React.FC = () => {
   const showStrategicOverlay = useAIConfigStore((s) => s.showStrategicOverlay);
   const showVCLDebug = useAIConfigStore((s) => s.showVCLDebug);
   const showEnergyDashboard = useAIConfigStore((s) => s.showEnergyDashboard);
+  const showMultiObjective = useAIConfigStore((s) => s.showMultiObjective);
   const showCostOverlay = useAIConfigStore((s) => s.showCostOverlay);
   const setShowCascadeVisualization = useAIConfigStore((s) => s.setShowCascadeVisualization);
   const setShowProductionTarget = useAIConfigStore((s) => s.setShowProductionTarget);
   const setShowStrategicOverlay = useAIConfigStore((s) => s.setShowStrategicOverlay);
   const setShowVCLDebug = useAIConfigStore((s) => s.setShowVCLDebug);
   const setShowEnergyDashboard = useAIConfigStore((s) => s.setShowEnergyDashboard);
+  const setShowMultiObjective = useAIConfigStore((s) => s.setShowMultiObjective);
   const setShowCostOverlay = useAIConfigStore((s) => s.setShowCostOverlay);
 
   // `key` is the actual keyboard shortcut wired in useKeyboardShortcuts.ts.
@@ -78,6 +81,12 @@ const VisualizationToggles: React.FC = () => {
       key: 'U',
       enabled: showEnergyDashboard,
       setEnabled: setShowEnergyDashboard,
+    },
+    {
+      label: 'Multi-Objective',
+      key: 'Y',
+      enabled: showMultiObjective,
+      setEnabled: setShowMultiObjective,
     },
     {
       label: 'API Cost Tracker',
@@ -326,6 +335,8 @@ interface GeminiSettingsModalProps {
 }
 
 export function GeminiSettingsModal({ isOpen, onClose }: GeminiSettingsModalProps) {
+  // Selected, not the whole store: this modal is always mounted, and a bare
+  // useAIConfigStore() would re-render it on every status and cost update.
   const {
     aiMode,
     setAIMode,
@@ -336,7 +347,19 @@ export function GeminiSettingsModal({ isOpen, onClose }: GeminiSettingsModalProp
     llmBackend,
     setLLMBackend,
     webgpuModelReady,
-  } = useAIConfigStore();
+  } = useAIConfigStore(
+    useShallow((s) => ({
+      aiMode: s.aiMode,
+      setAIMode: s.setAIMode,
+      isGeminiConnected: s.isGeminiConnected,
+      connectionError: s.connectionError,
+      setGeminiApiKey: s.setGeminiApiKey,
+      clearGeminiConfig: s.clearGeminiConfig,
+      llmBackend: s.llmBackend,
+      setLLMBackend: s.setLLMBackend,
+      webgpuModelReady: s.webgpuModelReady,
+    }))
+  );
 
   const [inputKey, setInputKey] = useState('');
   const [isTesting, setIsTesting] = useState(false);
@@ -359,21 +382,20 @@ export function GeminiSettingsModal({ isOpen, onClose }: GeminiSettingsModalProp
     setIsTesting(true);
     setTestResult(null);
 
-    // Temporarily initialize to test
-    const success = geminiClient.initialize(inputKey.trim());
-    if (!success) {
+    // Probe with a throwaway client. The app-wide singleton is serving the
+    // live strategic layer; only saving (setGeminiApiKey) may swap its key.
+    const probe = new GeminiClient();
+    if (!probe.initialize(inputKey.trim())) {
       setTestResult({ success: false, message: 'Failed to initialize client' });
       setIsTesting(false);
       return;
     }
 
-    const result = await geminiClient.testConnection();
-    setTestResult(result);
-    setIsTesting(false);
-
-    // Don't keep the test connection if not saving
-    if (!result.success) {
-      geminiClient.disconnect();
+    try {
+      setTestResult(await probe.testConnection());
+    } finally {
+      probe.disconnect();
+      setIsTesting(false);
     }
   }, [inputKey]);
 
@@ -391,11 +413,15 @@ export function GeminiSettingsModal({ isOpen, onClose }: GeminiSettingsModalProp
       // Close modal after short delay on success
       setTimeout(() => onClose(), 1500);
     } else {
-      setTestResult({ success: false, message: connectionError || 'Failed to connect' });
+      // Read after the await: the closure's connectionError predates this attempt.
+      setTestResult({
+        success: false,
+        message: useAIConfigStore.getState().connectionError || 'Failed to connect',
+      });
     }
 
     setIsTesting(false);
-  }, [inputKey, setGeminiApiKey, connectionError, onClose]);
+  }, [inputKey, setGeminiApiKey, onClose]);
 
   const handleClear = useCallback(() => {
     clearGeminiConfig();
@@ -677,8 +703,8 @@ export function GeminiSettingsModal({ isOpen, onClose }: GeminiSettingsModalProp
                   {aiMode === 'heuristic' && 'Fast rule-based decisions. No API cost.'}
                   {aiMode === 'gemini' &&
                     (isLocal
-                      ? 'All decisions powered by the local WebGPU model.'
-                      : 'All decisions powered by Gemini AI.')}
+                      ? 'Strategic decisions from the local model only (every 45s); the fast rules layer is paused.'
+                      : 'Strategic decisions from Gemini only (every 45s); the fast rules layer is paused.')}
                   {aiMode === 'hybrid' &&
                     (isLocal
                       ? 'Tactical (heuristic 6s) + Strategic (local model 45s).'
@@ -703,14 +729,14 @@ export function GeminiSettingsModal({ isOpen, onClose }: GeminiSettingsModalProp
                     <p className="text-xs text-slate-300 leading-relaxed">
                       <strong className="text-purple-400">Hybrid Mode</strong> combines fast
                       heuristic decisions (every 6s) with strategic insights (every 45s), giving you
-                      the best of both worlds{isLocal ? '.' : ' at lower API cost.'}
+                      the best of both worlds.
                     </p>
                     <p className="text-xs text-slate-400 mt-2">
                       <strong className="text-cyan-400">
                         {isLocal ? 'Local Only' : 'Gemini Only'}
                       </strong>{' '}
-                      routes all decisions through the LLM, which may be slower
-                      {isLocal ? ' and heavier on your GPU.' : ' and more expensive.'}
+                      runs only the strategic LLM layer and pauses the fast rules layer, so the
+                      plant responds to changes more slowly.
                     </p>
                   </div>
                 </div>

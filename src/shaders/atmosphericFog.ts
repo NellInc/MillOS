@@ -39,7 +39,7 @@
  *    inverse square root per vertex and removes the artefact entirely.
  *
  * 4. A FAR-PLANE GUARD, WHICH IS NOT A NEW EFFECT BUT A PRESERVED CONTRACT.
- *    The camera far plane is 360 (`constants/renderLayers.ts`), and the world
+ *    The former camera far plane was 360 (`constants/renderLayers.ts`), and the world
  *    is larger than that: from the `overview` camera the far rim of the ground
  *    disc sits about 413 units away and is clipped. That clip is invisible
  *    today only because the linear fog reached a saturated 1.0 at 350 and the
@@ -51,6 +51,9 @@
  *    view-space z, and z is never greater than radial distance, the guard is
  *    guaranteed to have saturated by the time anything reaches the far plane,
  *    at every angle across the frame.
+ *
+ * The current guard starts beyond the whole visible site and saturates at
+ * 592 m, before the 600 m far plane. Its extinction model is unchanged.
  *
  * WHAT IT DOES NOT TOUCH: the fog COLOUR, which `OptimizedSkySystem` owns and
  * drives per frame from the sky's horizon colour plus a sun-direction inscatter
@@ -81,17 +84,17 @@ export const FOG_HEIGHT_FALLOFF = 0.014;
 export const FOG_HEIGHT_FLOOR = 0.35;
 
 /** Radial distance at which the far-plane guard starts to take over. */
-export const FOG_HORIZON_START = 300;
+export const FOG_HORIZON_START = 780;
 
 /**
  * Radial distance at which fog is fully saturated.
  *
- * Must stay strictly inside `CAMERA_DEPTH.far` (360) or the frustum clips
+ * Must stay strictly inside `CAMERA_DEPTH.far` (960) or the frustum clips
  * before the fog has hidden the edge. The mountain rings are not a constraint
- * on this number even though the far one sits at 325 to 341: all three carry
+ * on this number: all three carry
  * `fog: false` and are shaded by their own aerial-perspective ramp instead.
  */
-export const FOG_HORIZON_END = 352;
+export const FOG_HORIZON_END = 952;
 
 /**
  * CPU twin of the fragment-stage fog function.

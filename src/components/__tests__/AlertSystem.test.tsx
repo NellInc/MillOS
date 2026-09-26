@@ -133,5 +133,23 @@ describe('AlertSystem', () => {
         'Safety alert: Near-Miss Avoided. Forklift stopped for a blocked aisle - safety protocol activated'
       );
     });
+
+    it('does not report a near miss when forklifts halt for a deliberate emergency stop', async () => {
+      render(<AlertSystem />);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(100);
+      });
+      const initialAlertCount = useUIStore.getState().alerts.length;
+
+      useSafetyStore.setState({ forkliftEmergencyStop: true });
+      await act(async () => {
+        useSafetyStore.getState().recordSafetyStop();
+        await vi.advanceTimersByTimeAsync(100);
+      });
+      useSafetyStore.setState({ forkliftEmergencyStop: false });
+
+      expect(useUIStore.getState().alerts).toHaveLength(initialAlertCount);
+      expect(audioManager.playAlert).not.toHaveBeenCalled();
+    });
   });
 });

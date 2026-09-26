@@ -1,5 +1,5 @@
-import React, { useCallback } from 'react';
-import { Zap } from 'lucide-react';
+import React, { useCallback, useEffect } from 'react';
+import { Footprints, Zap } from 'lucide-react';
 import { DPad } from './DPad';
 import { MobilePanel } from './MobilePanel';
 import { CameraPresetMenu } from './CameraPresetMenu';
@@ -13,6 +13,11 @@ import { useUIStore } from '../../stores/uiStore';
 const SprintButton: React.FC = () => {
   const setIsSprinting = useMobileControlStore((s) => s.setIsSprinting);
   const isSprinting = useMobileControlStore((s) => s.isSprinting);
+
+  // The button unmounts when first-person ends, possibly mid-press, and a
+  // touchend never reaches an unmounted node. Without this the next walk
+  // session would sprint permanently.
+  useEffect(() => () => setIsSprinting(false), [setIsSprinting]);
 
   const handleTouchStart = useCallback(
     (e: React.TouchEvent) => {
@@ -65,6 +70,38 @@ const SprintButton: React.FC = () => {
 };
 
 /**
+ * Switches between walking the floor and the orbit view. Phones have no V key,
+ * and without this the orbit presets and touch-orbit were unreachable.
+ */
+const ViewModeToggle: React.FC<{ fpsMode: boolean }> = ({ fpsMode }) => (
+  <button
+    type="button"
+    className={`
+      w-11 h-11 rounded-full
+      flex items-center justify-center
+      transition-colors duration-100
+      select-none
+      pointer-events-auto
+      backdrop-blur-sm
+      ${
+        fpsMode
+          ? 'bg-cyan-500/80 border-cyan-400'
+          : 'bg-slate-800/70 border-slate-600/50 hover:bg-slate-700/70'
+      }
+      border-2
+    `}
+    onClick={() => useUIStore.getState().toggleFpsMode()}
+    aria-pressed={fpsMode}
+    aria-label="Walk mode"
+  >
+    <Footprints
+      className={`w-5 h-5 ${fpsMode ? 'text-white' : 'text-cyan-400'}`}
+      aria-hidden="true"
+    />
+  </button>
+);
+
+/**
  * Main overlay container for mobile controls.
  * Contains the D-pad, sprint button (in FPS mode), and mobile panel.
  * Should only be rendered on mobile/touch devices.
@@ -86,10 +123,18 @@ export const MobileControlsOverlay: React.FC<MobileControlsOverlayProps> = ({
         aria-hidden={mobilePanelVisible ? true : undefined}
         inert={mobilePanelVisible ? true : undefined}
       >
-        {/* Camera preset menu - top right, only in orbit mode */}
-        {showTouchControls && !fpsMode && (
-          <div className="absolute top-4 right-4">
-            <CameraPresetMenu />
+        {/* View toggle and, in orbit mode, the camera preset menu - top right */}
+        {showTouchControls && (
+          <div className="absolute top-4 right-4 flex items-start gap-2">
+            <div
+              style={{
+                marginTop: 'max(8px, env(safe-area-inset-top))',
+                marginRight: fpsMode ? 'max(8px, env(safe-area-inset-right))' : undefined,
+              }}
+            >
+              <ViewModeToggle fpsMode={fpsMode} />
+            </div>
+            {!fpsMode && <CameraPresetMenu />}
           </div>
         )}
 

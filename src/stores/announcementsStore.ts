@@ -117,7 +117,9 @@ function sanitizePersistedAnnouncements(value: unknown): Announcement[] {
         type,
         message: String(entry.message),
         timestamp,
-        dismissed: entry.dismissed === true,
+        // Restored entries are transcript history, not live captions: replaying
+        // a queued 'Emergency stop activated' from a previous session misleads.
+        dismissed: true,
         source: typeof entry.source === 'string' ? entry.source : undefined,
         priority:
           typeof entry.priority === 'number' && Number.isFinite(entry.priority)

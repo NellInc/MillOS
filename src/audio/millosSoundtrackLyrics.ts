@@ -20528,12 +20528,26 @@ export function findActiveMillosLyricWord(
   positionSeconds: number
 ): MillosActiveLyricWord | null {
   if (!Number.isFinite(positionSeconds) || positionSeconds < 0) return null;
-  let latest: MillosActiveLyricWord | null = null;
-  sheet.lines.forEach((line, lineIndex) => {
-    line.words.forEach((word, wordIndex) => {
-      if (word.startSeconds === null || word.endSeconds === null) return;
-      if (positionSeconds >= word.startSeconds) latest = { lineIndex, wordIndex, word };
-    });
-  });
-  return latest;
+  // Track indices rather than allocating a result per timed word: this runs on
+  // every playback tick.
+  let lineIdx = -1;
+  let wordIdx = -1;
+  let latestWord: MillosTimedLyricWord | null = null;
+  for (let lineIndex = 0; lineIndex < sheet.lines.length; lineIndex += 1) {
+    const words = sheet.lines[lineIndex].words;
+    for (let wordIndex = 0; wordIndex < words.length; wordIndex += 1) {
+      const word = words[wordIndex];
+      if (word.startSeconds === null || word.endSeconds === null) continue;
+      if (positionSeconds >= word.startSeconds) {
+        lineIdx = lineIndex;
+        wordIdx = wordIndex;
+        latestWord = word;
+      }
+    }
+  }
+  if (!latestWord || latestWord.endSeconds === null) return null;
+  // More than 4 s past the latest sung word (an instrumental break or the
+  // outro), highlight nothing.
+  if (positionSeconds > latestWord.endSeconds + 4) return null;
+  return { lineIndex: lineIdx, wordIndex: wordIdx, word: latestWord };
 }

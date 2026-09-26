@@ -7,7 +7,9 @@ import { useUIStore } from '../../stores/uiStore';
 export const ZoneCustomizationPanel: React.FC = () => {
   const [expanded, setExpanded] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
-  const [newZone, setNewZone] = useState({ name: '', x: 0, z: 0, radius: 4 });
+  // Numeric fields are held as the raw text typed, and parsed only on submit, so
+  // a field can be cleared or start with '-' without snapping back to 0.
+  const [newZone, setNewZone] = useState({ name: '', x: '0', z: '0', radius: '4' });
   // Track which zone (if any) is awaiting delete confirmation. Per-zone so a
   // single click only "arms" that row instead of destroying the zone outright.
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
@@ -42,9 +44,16 @@ export const ZoneCustomizationPanel: React.FC = () => {
 
   const handleAddZone = () => {
     if (newZone.name.trim()) {
-      const safeRadius = Number.isFinite(newZone.radius) ? Math.max(0.5, newZone.radius) : 4;
-      addSpeedZone({ ...newZone, radius: safeRadius });
-      setNewZone({ name: '', x: 0, z: 0, radius: 4 });
+      const x = Number.parseFloat(newZone.x);
+      const z = Number.parseFloat(newZone.z);
+      const r = Number.parseFloat(newZone.radius);
+      addSpeedZone({
+        name: newZone.name.trim(),
+        x: Number.isFinite(x) ? x : 0,
+        z: Number.isFinite(z) ? z : 0,
+        radius: Number.isFinite(r) ? Math.max(0.5, r) : 4,
+      });
+      setNewZone({ name: '', x: '0', z: '0', radius: '4' });
       setShowAddForm(false);
     }
   };
@@ -129,7 +138,12 @@ export const ZoneCustomizationPanel: React.FC = () => {
 
             {/* Add Zone Form */}
             {showAddForm ? (
-              <div
+              <form
+                noValidate
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleAddZone();
+                }}
                 className={`rounded p-2 space-y-2 ${theme === 'light' ? 'bg-slate-100' : 'bg-slate-800/50'}`}
               >
                 <input
@@ -156,9 +170,7 @@ export const ZoneCustomizationPanel: React.FC = () => {
                       id="zone-x"
                       type="number"
                       value={newZone.x}
-                      onChange={(e) =>
-                        setNewZone({ ...newZone, x: parseFloat(e.target.value) || 0 })
-                      }
+                      onChange={(e) => setNewZone({ ...newZone, x: e.target.value })}
                       className={`w-full rounded px-1.5 py-0.5 text-xs border outline-none ${
                         theme === 'light'
                           ? 'bg-white text-slate-700 border-slate-300 focus:border-amber-500'
@@ -177,9 +189,7 @@ export const ZoneCustomizationPanel: React.FC = () => {
                       id="zone-z"
                       type="number"
                       value={newZone.z}
-                      onChange={(e) =>
-                        setNewZone({ ...newZone, z: parseFloat(e.target.value) || 0 })
-                      }
+                      onChange={(e) => setNewZone({ ...newZone, z: e.target.value })}
                       className={`w-full rounded px-1.5 py-0.5 text-xs border outline-none ${
                         theme === 'light'
                           ? 'bg-white text-slate-700 border-slate-300 focus:border-amber-500'
@@ -200,12 +210,7 @@ export const ZoneCustomizationPanel: React.FC = () => {
                       min="0.5"
                       step="0.5"
                       value={newZone.radius}
-                      onChange={(e) =>
-                        setNewZone({
-                          ...newZone,
-                          radius: Math.max(0.5, parseFloat(e.target.value)) || 4,
-                        })
-                      }
+                      onChange={(e) => setNewZone({ ...newZone, radius: e.target.value })}
                       className={`w-full rounded px-1.5 py-0.5 text-xs border outline-none ${
                         theme === 'light'
                           ? 'bg-white text-slate-700 border-slate-300 focus:border-amber-500'
@@ -223,13 +228,14 @@ export const ZoneCustomizationPanel: React.FC = () => {
                 )}
                 <div className="flex gap-1">
                   <button
-                    onClick={handleAddZone}
+                    type="submit"
                     disabled={!newZone.name.trim()}
                     className="flex-1 bg-amber-600 hover:bg-amber-500 disabled:bg-amber-600/40 disabled:cursor-not-allowed disabled:hover:bg-amber-600/40 text-white py-1 rounded text-xs font-medium transition-colors"
                   >
                     Add Zone
                   </button>
                   <button
+                    type="button"
                     onClick={() => setShowAddForm(false)}
                     className={`px-2 py-1 rounded text-xs transition-colors ${
                       theme === 'light'
@@ -240,7 +246,7 @@ export const ZoneCustomizationPanel: React.FC = () => {
                     Cancel
                   </button>
                 </div>
-              </div>
+              </form>
             ) : (
               <button
                 onClick={() => setShowAddForm(true)}

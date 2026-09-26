@@ -170,7 +170,7 @@ export const useUIStore = create<UIStore>()(
         return state._alertIndices.alertsByPriority.get(priority) || [];
       },
 
-      showZones: true,
+      showZones: false,
       setShowZones: (show: boolean) => set({ showZones: show }),
       showAIPanel: true,
       setShowAIPanel: (show: boolean) => set({ showAIPanel: show }),
@@ -229,8 +229,14 @@ export const useUIStore = create<UIStore>()(
     {
       name: 'millos-ui',
       storage: safeJSONStorage,
-      version: 1,
-      migrate: (persisted) => sanitizeUIState(persisted) as UIStore,
+      version: 2,
+      migrate: (persisted, version) => {
+        const state = sanitizeUIState(persisted);
+        // v1 persisted showZones while it defaulted to true; drop it so existing
+        // users pick up the off-by-default overlays.
+        if (version < 2) delete state.showZones;
+        return state as UIStore;
+      },
       merge: (persisted, current) => ({
         ...current,
         ...sanitizeUIState(persisted),

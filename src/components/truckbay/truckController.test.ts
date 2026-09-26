@@ -162,19 +162,57 @@ describe('schedule-owned articulated truck controller', () => {
     expect(pose.reverseLights).toBe(false);
   });
 
-  it('mirrors receiving motion and steering from the same controller contract', () => {
+  it('rotates receiving motion half a turn without mirroring vehicle-relative steering', () => {
     let shipping = createTruckController('shipping');
     let receiving = createTruckController('receiving');
-    for (let frame = 0; frame < 600; frame += 1) {
+    let sawSteering = false;
+    for (let frame = 0; frame < 60 * 30; frame += 1) {
       shipping = step(shipping).state;
       receiving = step(receiving).state;
+      const shippingPose = getTruckControllerPose(shipping);
+      const receivingPose = getTruckControllerPose(receiving);
+      sawSteering ||= Math.abs(shippingPose.steeringAngle) > 0.1;
+      expect(receivingPose.x).toBeCloseTo(-shippingPose.x);
+      expect(receivingPose.z).toBeCloseTo(-shippingPose.z);
+      expect(Math.cos(receivingPose.rotation - shippingPose.rotation - Math.PI)).toBeCloseTo(1);
+      // A 180 degree rotation about the site origin is not a reflection, so
+      // steering, articulation, cab roll and indicator side are unchanged.
+      expect(receivingPose.steeringAngle).toBeCloseTo(shippingPose.steeringAngle);
+      expect(receivingPose.articulation).toBeCloseTo(shippingPose.articulation);
+      expect(receivingPose.trailerAngle).toBeCloseTo(shippingPose.trailerAngle);
+      expect(receivingPose.cabRoll).toBeCloseTo(shippingPose.cabRoll);
+      expect(receivingPose.leftSignal).toBe(shippingPose.leftSignal);
+      expect(receivingPose.rightSignal).toBe(shippingPose.rightSignal);
     }
-    const shippingPose = getTruckControllerPose(shipping);
-    const receivingPose = getTruckControllerPose(receiving);
-    expect(receivingPose.x).toBeCloseTo(-shippingPose.x);
-    expect(receivingPose.z).toBeCloseTo(-shippingPose.z);
-    expect(receivingPose.steeringAngle).toBeCloseTo(-shippingPose.steeringAngle);
-    expect(receivingPose.articulation).toBeCloseTo(-shippingPose.articulation);
+    expect(sawSteering).toBe(true);
+  });
+
+  it('freezes dock service under a safety hold', () => {
+    let state = createTruckController('receiving', true, 'docked');
+    for (let frame = 0; frame < 60 * 2; frame += 1) state = step(state).state;
+    const heldServicePhase = state.servicePhase;
+    const heldServiceElapsed = state.serviceElapsed;
+    for (let frame = 0; frame < 60 * 30; frame += 1) {
+      state = step(state, { safetyHold: true }).state;
+    }
+    expect(state.phase).toBe('docked');
+    expect(state.servicePhase).toBe(heldServicePhase);
+    expect(state.serviceElapsed).toBe(heldServiceElapsed);
+
+    for (let frame = 0; frame < 60 * 30; frame += 1) state = step(state).state;
+    expect(state.phase).not.toBe('docked');
+  });
+
+  it('reports the motion phase, not a stale service phase, once the truck pulls out', () => {
+    let state = createTruckController('shipping', true, 'docked');
+    for (let frame = 0; frame < 60 * 40 && state.phase !== 'pulling_out'; frame += 1) {
+      state = step(state).state;
+    }
+    expect(state.phase).toBe('pulling_out');
+    expect(state.servicePhase).toBe('approach');
+    const pose = getTruckControllerPose(state);
+    expect(pose.doorsOpen).toBe(false);
+    expect(pose.landingGearAmount).toBe(0);
   });
 
   it('spawns only when the schedule marks an arrival ready', () => {

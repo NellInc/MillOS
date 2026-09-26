@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { SITE_LAYOUT, type Vec3Tuple } from '../constants/siteLayout';
 import { sampleAtmosphere, sampleCelestial } from '../simulation/atmosphere';
 import {
@@ -74,6 +75,14 @@ describe('summarizeFramePacing', () => {
 });
 
 describe('resolveBenchmarkCamera', () => {
+  it('releases benchmark polar clamps while retaining the player orbit limits', () => {
+    const source = readFileSync('src/App.tsx', 'utf8');
+    expect(source).toContain(
+      'maxPolarAngle={runtimeMode.benchmark ? Math.PI : ORBIT_POLAR_LIMITS.max}'
+    );
+    expect(source).toContain('minPolarAngle={runtimeMode.benchmark ? 0 : ORBIT_POLAR_LIMITS.min}');
+  });
+
   it('preserves authored fixed cameras for ordinary benchmark scenes', () => {
     expect(resolveBenchmarkCamera('overview', 12, 'clear')).toEqual(SITE_LAYOUT.cameras.overview);
   });

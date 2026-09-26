@@ -14,12 +14,12 @@ import { useGraphicsStore, type GraphicsQuality } from '../../stores/graphicsSto
  *
  * TWO PARTS, DELIBERATELY UNEQUAL:
  *
- * 1. FOUR real point lights, one per production zone. Four is a ceiling, not a
+ * 1. FOUR real point lights, across the production hall. Four is a ceiling, not a
  *    budget guess. Three's forward renderer puts every point light in the
  *    uniform block of every lit material with no per-object culling, so light
  *    count is a per-fragment cost paid across the entire frame - including the
  *    exterior cameras where these contribute nothing at all. Fifteen would not
- *    hold the frame budget, and the four are placed on the zone centres so the
+ *    hold the frame budget, and the four are placed on the work aisles so the
  *    falloff lands where the machinery is.
  *
  * 2. FIFTEEN additive floor pools, one per fixture, as a single InstancedMesh.
@@ -32,25 +32,25 @@ import { useGraphicsStore, type GraphicsQuality } from '../../stores/graphicsSto
  */
 
 /** Ceiling fixture grid, harvested from `OptimizedFactoryInfrastructure`. */
-export const FIXTURE_GRID_X = [-42, -21, 0, 21, 42] as const;
-export const FIXTURE_GRID_Z = [-30, 0, 30] as const;
+export const FIXTURE_GRID_X = [-28, -14, 0, 14, 28] as const;
+export const FIXTURE_GRID_Z = [-30, -8, 38] as const;
 
-/** Height the four zone lights hang at, below the 28.09 emitter plane. */
-export const ZONE_LIGHT_HEIGHT = 22;
+/** Height the four zone lights hang at, below the shared ceiling emitter plane. */
+export const ZONE_LIGHT_HEIGHT = SITE_LAYOUT.factory.bounds.maxY - 4.5;
 
 /**
  * Intensity of one zone light.
  *
  * Three has used physical falloff since r155, so with `decay` 2 the irradiance
  * at the floor is `intensity / d^2` scaled by the cutoff window
- * `(1 - (d/distance)^4)^2`. At d = 22 and `distance` 46 that window is 0.898,
- * so 520 lands on about 0.97 directly under a fixture - a little over four
+ * `(1 - (d/distance)^4)^2`. At d = 17.5 and `distance` 44 that window is 0.951,
+ * so 300 lands on about 0.93 directly under a fixture - a little over four
  * times the 0.22 ambient term, which is a readable pool rather than a hotspot.
  */
-export const ZONE_LIGHT_INTENSITY = 520;
+export const ZONE_LIGHT_INTENSITY = 300;
 
 /** Cutoff radius. Beyond it the light contributes exactly zero. */
-export const ZONE_LIGHT_DISTANCE = 46;
+export const ZONE_LIGHT_DISTANCE = 44;
 
 export const ZONE_LIGHT_COLOR = '#ffe8b0';
 
@@ -70,16 +70,17 @@ const POOL_TEXTURE_HEIGHT = 32;
  */
 const POOL_LENGTHWISE_FALLOFF = 0.62;
 
-/** Zone centres the four real lights sit on. */
+/**
+ * Four lights across two ceiling banks. The front bank clears the pneumatic
+ * risers instead of placing a point source against the middle sifter's inlet.
+ * Working if every zone is lit and no live process pipe receives a hotspot.
+ */
 export const ZONE_LIGHT_POSITIONS: readonly (readonly [number, number, number])[] = [
-  [0, ZONE_LIGHT_HEIGHT, SITE_LAYOUT.factory.zones.silos],
-  [0, ZONE_LIGHT_HEIGHT, SITE_LAYOUT.factory.zones.milling],
-  [0, ZONE_LIGHT_HEIGHT, SITE_LAYOUT.factory.zones.sifting],
-  [0, ZONE_LIGHT_HEIGHT, SITE_LAYOUT.factory.zones.packing],
-];
+  -8, 38,
+].flatMap((z) => [-14, 14].map((x) => [x, ZONE_LIGHT_HEIGHT, z] as const));
 
 /**
- * The two lights `low` and `medium` keep, one per PAIR of adjacent zones.
+ * The two lights `low` and `medium` keep, one at each bank's centre.
  *
  * WHY A POINT LIGHT IS AN EXTERIOR COST AT ALL. `NUM_POINT_LIGHTS` is a program
  * define and three's forward renderer has no per-object light culling, so
@@ -88,7 +89,7 @@ export const ZONE_LIGHT_POSITIONS: readonly (readonly [number, number, number])[
  * material in the frame. There is no early-out around it either: the loop tests
  * `directLight.visible` only to gate a shadow lookup, never the BRDF. So on the
  * `yard`, `farm` and `overview` cameras, where the nearest of these hangs
- * inside a building whose 46-unit cutoff reaches nothing on screen, each light
+ * inside a building whose 44-unit cutoff reaches nothing on screen, each light
  * is a per-pixel evaluation of a term that is identically zero. The scene is
  * fill-bound - the harness measures 4.0 ms for the terrain shader against zero
  * draw calls, and half the pixel count buys back 36% of the frame - so this is
@@ -107,25 +108,19 @@ export const ZONE_LIGHT_POSITIONS: readonly (readonly [number, number, number])[
  * is where `castShadow` on the sun - and therefore `NUM_DIR_LIGHT_SHADOWS` -
  * changes.
  *
- * WHAT IS TRADED. Intensity and cutoff are deliberately NOT retuned, so the
+ * WHAT IS TRADED. Intensity and cutoff are identical between tiers, so the
  * floor directly under a fixture is unchanged and the arithmetic below is
- * checkable without a screenshot. Two lights at the pair midpoints give about
- * half the four-light irradiance across the middle of the hall and hold the
- * zone centres at roughly the same ratio; the ends past +/-40 fall further. That
- * is a real dimming on `medium`, against ambient 0.22, hemisphere 0.22 and the
+ * checkable without a screenshot. The two central sources retain about 80-90%
+ * of the full set's centre-line irradiance, with a larger loss at the outer mills.
+ * That is a real dimming on `medium`, against ambient 0.22, hemisphere 0.22 and the
  * IBL - and still far more interior modelling than the zero point lights this
  * building had before the fixtures were lit at all. `high` and `ultra` keep all
  * four. The fifteen floor pools are untouched on every tier, and they are what
  * carries the graphic read of the fixture grid.
  */
 export const REDUCED_ZONE_LIGHT_POSITIONS: readonly (readonly [number, number, number])[] = [
-  [0, ZONE_LIGHT_HEIGHT, (SITE_LAYOUT.factory.zones.silos + SITE_LAYOUT.factory.zones.milling) / 2],
-  [
-    0,
-    ZONE_LIGHT_HEIGHT,
-    (SITE_LAYOUT.factory.zones.sifting + SITE_LAYOUT.factory.zones.packing) / 2,
-  ],
-];
+  -8, 38,
+].map((z) => [0, ZONE_LIGHT_HEIGHT, z] as const);
 
 /** Zone lights for a quality tier. Full set above `medium`, reduced at or below. */
 export function zoneLightPositions(
@@ -233,8 +228,8 @@ export function InteriorLightRig() {
     <group name="interior-light-rig">
       {zoneLights.map((position) => (
         <pointLight
-          key={`zone-light-${position[2]}`}
-          name={`interior-zone-light-${position[2]}`}
+          key={`zone-light-${position[0]}-${position[2]}`}
+          name={`interior-zone-light-${position[0]}-${position[2]}`}
           position={position as unknown as [number, number, number]}
           color={ZONE_LIGHT_COLOR}
           intensity={ZONE_LIGHT_INTENSITY}

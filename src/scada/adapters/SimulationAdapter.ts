@@ -388,8 +388,11 @@ export class SimulationAdapter implements IProtocolAdapter {
       // Get machine state
       const machineState = this.machineStates.get(tag.machineId);
       // Default to 'running' if state is unknown to prevent startup alarms
-      // This covers the gap between SimulationAdapter init and the first store sync
-      const isRunning = machineState ? machineState.status === 'running' : true;
+      // This covers the gap between SimulationAdapter init and the first store sync.
+      // 'warning' is degraded but still producing, as everywhere else in the game.
+      const isRunning = machineState
+        ? machineState.status === 'running' || machineState.status === 'warning'
+        : true;
 
       // Check for active fault
       const activeFault = this.activeFaults.get(id);
@@ -397,7 +400,8 @@ export class SimulationAdapter implements IProtocolAdapter {
       // Handle faults first
       if (activeFault) {
         const faultResult = this.applyFault(activeFault, tag, newValue);
-        newValue = faultResult.value;
+        // A transmitter saturates at its range limits.
+        newValue = Math.max(tag.engLow, Math.min(tag.engHigh, faultResult.value));
         quality = faultResult.quality;
       }
       // Exact conserved telemetry takes precedence over synthetic drift and
@@ -415,7 +419,8 @@ export class SimulationAdapter implements IProtocolAdapter {
           const ambientTemp = 24;
           newValue = newValue + (ambientTemp - newValue) * 0.01;
         }
-        quality = machineState?.status === 'critical' ? 'BAD' : 'UNCERTAIN';
+        // A tripped machine's transmitters are healthy; only the process is stopped.
+        quality = 'UNCERTAIN';
       }
       // Normal operation
       else {

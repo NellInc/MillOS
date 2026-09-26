@@ -164,11 +164,11 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
 
   const safeProgress = Number.isFinite(progress) ? Math.min(100, Math.max(0, progress)) : 0;
   const progressText = useMemo(() => {
-    if (errors.length > 0) return 'Some optional assets were skipped';
-    if (firstFrameRendered) return 'Scene ready';
+    if (errors.length > 0) return 'A few optional assets were skipped — the mill runs without them';
+    if (firstFrameRendered) return 'Ready when you are';
     if (active && total > 0) return `Loading scene assets, ${loaded} of ${total}`;
-    if (item) return 'Preparing scene assets';
-    return 'Starting the mill simulation';
+    if (item) return 'Assembling the machinery';
+    return 'Firing up the mill';
   }, [active, errors.length, firstFrameRendered, item, loaded, total]);
 
   return (
@@ -181,12 +181,6 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
             opacity: isExiting ? 0 : 1,
             transition: reducedMotion ? 'none' : 'opacity 220ms ease-out',
           }}
-          aria-label="Loading MillOS"
-          role="progressbar"
-          aria-valuenow={Math.round(safeProgress)}
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuetext={progressText}
         >
           <div aria-hidden="true" style={{ fontSize: '56px', marginBottom: '14px' }}>
             🏭
@@ -202,7 +196,7 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
               textAlign: 'center',
             }}
           >
-            MILL OPERATIONS STARTING
+            WARMING UP THE ROLLERS
           </div>
 
           <div
@@ -227,7 +221,15 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
             </div>
           )}
 
+          {/* The progressbar role sits on the track alone: its children are
+            presentational, which would hide the live text and Enter now. */}
           <div
+            role="progressbar"
+            aria-label="Loading MillOS"
+            aria-valuenow={Math.round(safeProgress)}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuetext={progressText}
             style={{
               width: 'min(320px, 78vw)',
               height: '4px',
@@ -255,7 +257,7 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
               onClick={() => setDismissRequested(true)}
               className="mt-6 rounded-md border border-slate-500 bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-100 transition-colors hover:border-amber-400 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-400"
             >
-              Show available scene
+              Enter now
             </button>
           )}
         </div>

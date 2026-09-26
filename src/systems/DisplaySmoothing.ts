@@ -210,34 +210,35 @@ export function useMachineDisplayValues(
 
 let _smoothedGameTime = 0;
 let _lastRealGameTime = 0;
+let _sinceStoreChange = 0;
+// The store clock advances once per central tick (CentralTickSystem default
+// interval), so display time never leads the store by more than one tick.
+const SMOOTHING_HORIZON_SECONDS = 0.5;
 
 /**
  * Get smoothed game time for display
- * Interpolates between store updates so sky/lighting looks continuous
+ * Interpolates between store updates so sky/lighting looks continuous.
+ *
+ * Extrapolates forward from the last store change at the current game speed,
+ * capped at one tick, so the display meets the store exactly on each tick
+ * instead of snapping to it, and wraps midnight without an unwrapped
+ * subtraction (which used to flash the sky ~2.4 h ahead at 23:59).
  */
 export function getSmoothedGameTime(
   storeGameTime: number,
   deltaSeconds: number,
   gameSpeed: number
 ): number {
-  // If store time jumped (new tick), reset
-  if (Math.abs(storeGameTime - _lastRealGameTime) > 0.01) {
-    _smoothedGameTime = storeGameTime;
+  if (storeGameTime !== _lastRealGameTime) {
     _lastRealGameTime = storeGameTime;
-    return storeGameTime;
+    _sinceStoreChange = 0;
+  } else {
+    _sinceStoreChange += Number.isFinite(deltaSeconds) ? Math.max(0, deltaSeconds) : 0;
   }
 
-  // Interpolate based on expected time passage
-  const expectedHoursPerSecond = gameSpeed / 3600;
-  _smoothedGameTime += deltaSeconds * expectedHoursPerSecond;
-
-  // Clamp to valid range
-  _smoothedGameTime = ((_smoothedGameTime % 24) + 24) % 24;
-
-  // Slowly converge to truth (prevents drift)
-  _smoothedGameTime = _smoothedGameTime + (storeGameTime - _smoothedGameTime) * 0.1;
-
-  _lastRealGameTime = storeGameTime;
+  const safeSpeed = Number.isFinite(gameSpeed) ? Math.max(0, gameSpeed) : 0;
+  const leadHours = (Math.min(_sinceStoreChange, SMOOTHING_HORIZON_SECONDS) * safeSpeed) / 3600;
+  _smoothedGameTime = (((storeGameTime + leadHours) % 24) + 24) % 24;
   return _smoothedGameTime;
 }
 

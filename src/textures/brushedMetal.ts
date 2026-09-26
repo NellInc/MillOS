@@ -16,6 +16,74 @@ import {
 
 export type ScratchDirection = 'horizontal' | 'vertical' | 'diagonal';
 
+/** Zinc spangle has compact, nondirectional facets, without a cladding AO grid.
+ * Periodic seeds keep the sheet continuous across the repeat boundary.
+ * Working if R/B stay 255 and G varies isotropically inside a satin band.
+ */
+export const generateGalvanizedORM = (size = 256): THREE.DataTexture =>
+  getTexture(`galvanized-orm-v1-${size}`, () => {
+    const data = new Uint8Array(size * size * 4);
+    const cells = 32;
+    const wrap = (value: number) => ((value % cells) + cells) % cells;
+    // The nine neighbouring periodic cells cover the nearest crystal centre.
+    const seeds = Array.from({ length: cells * cells }, (_, index) => {
+      const x = index % cells,
+        y = Math.floor(index / cells);
+      return { x: hash(x, y), y: hash(x + 71, y + 29), finish: hash(x + 11, y + 53) };
+    });
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        const u = (x * cells) / size,
+          v = (y * cells) / size;
+        const cx = Math.floor(u),
+          cy = Math.floor(v);
+        let distance = Infinity,
+          finish = 0;
+        for (let dy = -1; dy <= 1; dy++) {
+          for (let dx = -1; dx <= 1; dx++) {
+            const seed = seeds[wrap(cy + dy) * cells + wrap(cx + dx)];
+            const d = (cx + dx + seed.x - u) ** 2 + (cy + dy + seed.y - v) ** 2;
+            if (d < distance) {
+              distance = d;
+              finish = seed.finish;
+            }
+          }
+        }
+        const i = (y * size + x) * 4;
+        data[i] = 255;
+        data[i + 1] = Math.round((0.56 + finish * 0.1) * 255);
+        data[i + 2] = 255;
+        data[i + 3] = 255;
+      }
+    }
+    return createLinearDataTexture(data, size, size);
+  });
+
+/** Fine horizontal corrugation on the drums; rolled sheet grain on the trim.
+ * At eight height repeats, twenty ridges per tile give a 15.6 cm drum pitch.
+ * Working if the signed relief is seamless and adds no embossed square grid.
+ */
+export const generateGalvanizedNormal = (corrugated: boolean, size = 256): THREE.DataTexture =>
+  getTexture(`galvanized-normal-v1-${corrugated}-${size}`, () => {
+    const data = new Uint8Array(size * size * 4);
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        const u = (x / size) * Math.PI * 2,
+          v = (y / size) * Math.PI * 2;
+        const nx = Math.sin(u * 11) * Math.cos(v * 13) * 0.012;
+        const ny =
+          Math.sin(v * 11) * Math.cos(u * 13) * 0.012 + (corrugated ? Math.sin(v * 20) * 0.14 : 0);
+        const length = Math.hypot(nx, ny, 1),
+          i = (y * size + x) * 4;
+        data[i] = Math.round(((nx / length) * 0.5 + 0.5) * 255);
+        data[i + 1] = Math.round(((ny / length) * 0.5 + 0.5) * 255);
+        data[i + 2] = Math.round(((1 / length) * 0.5 + 0.5) * 255);
+        data[i + 3] = 255;
+      }
+    }
+    return createLinearDataTexture(data, size, size);
+  });
+
 /**
  * Generates brushed metal texture with directional scratches.
  * Returns: roughness/metalness texture (R=roughness, G=metalness, B=AO)

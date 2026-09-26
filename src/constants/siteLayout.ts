@@ -1,5 +1,11 @@
 export type Vec3Tuple = readonly [number, number, number];
 
+/** The existing river footbridge deck, shared by rendering and collision. */
+export const RIVER_FOOTBRIDGE_DECK = {
+  centre: [0, 2, -145] as Vec3Tuple,
+  size: [6.375, 0.8, 70] as Vec3Tuple,
+} as const;
+
 export interface SiteBounds {
   readonly minX: number;
   readonly maxX: number;
@@ -58,6 +64,79 @@ export interface LandmarkAnchor {
   readonly height: number;
 }
 
+/** Resolve authored local positions through the same yaw/scale as the landmark group. */
+export function landmarkLocalToWorld(anchor: LandmarkAnchor, local: Vec3Tuple): Vec3Tuple {
+  const cosine = Math.cos(anchor.rotation[1]);
+  const sine = Math.sin(anchor.rotation[1]);
+  return [
+    anchor.position[0] + anchor.scale * (local[0] * cosine + local[2] * sine),
+    anchor.position[1] + anchor.scale * local[1],
+    anchor.position[2] + anchor.scale * (-local[0] * sine + local[2] * cosine),
+  ];
+}
+
+// West of the canal, at grade, as in v0.30.
+const VILLAGE_SITE = {
+  id: 'village',
+  position: [-190, 0, 0],
+  rotation: [0, 0, 0],
+  scale: 1,
+  footprint: [70, 130],
+  height: 26,
+} as const satisfies LandmarkAnchor;
+
+/** Physical plansifter stack, shared by geometry, pipe connections and bounds. */
+export const SIFTER_LAYOUT = {
+  trayCount: 7,
+  trayPitch: 0.82,
+  bodyCentreY: 3.05,
+  bodyHeight: 5.81,
+  capCentreY: 6.14,
+  capHeight: 0.38,
+  inletCentreY: 6.91,
+  inletHeight: 1.3,
+} as const;
+
+export const PROCESS_GALLERY_POST_X = [-20, -10, 0, 10, 20] as const;
+
+/** Physical feeder and pipe ports stay independent of the collision envelope. */
+export const MILL_FEEDER_LAYOUT = {
+  height: 5.78,
+  scale: [2.7, 1.62, 2.45] as const,
+} as const;
+export const MILL_PROCESS_PORTS = {
+  intake: [0, MILL_FEEDER_LAYOUT.height + MILL_FEEDER_LAYOUT.scale[1] / 2, 0],
+  pneumatic: [0, 5, 0],
+} as const;
+
+/** Shared belt placement, including the return run along the milling aisle. */
+export const CONVEYOR_LAYOUT = {
+  main: { id: 'main-conveyor', position: [0, 0, -16], length: 60, width: 3, rotationY: 0 },
+  roller: { id: 'roller-conveyor', position: [0, 0, -19], length: 30, width: 3, rotationY: 0 },
+  transfer: {
+    id: 'transfer-conveyor',
+    position: [30, 0, 11],
+    length: 54,
+    width: 3.6,
+    rotationY: -Math.PI / 2,
+  },
+  shipping: {
+    id: 'shipping-conveyor',
+    position: [8, 0, 38],
+    length: 44,
+    width: 3.6,
+    rotationY: Math.PI,
+  },
+} as const;
+
+export function conveyorBounds(conveyor: (typeof CONVEYOR_LAYOUT)[keyof typeof CONVEYOR_LAYOUT]) {
+  const [x, , z] = conveyor.position;
+  const longitudinal = Math.abs(Math.sin(conveyor.rotationY)) > 0.5;
+  const halfX = (longitudinal ? conveyor.width : conveyor.length) / 2;
+  const halfZ = (longitudinal ? conveyor.length : conveyor.width) / 2;
+  return { minX: x - halfX, maxX: x + halfX, minZ: z - halfZ, maxZ: z + halfZ };
+}
+
 export const SITE_LAYOUT = {
   units: 'metres',
   axes: {
@@ -75,6 +154,8 @@ export const SITE_LAYOUT = {
     water: 0.08,
     groundOverlay: -0.01,
   },
+  // The v0.30 valley: the foothills close in just beyond the walkable disc,
+  // so the road tunnels bore into them and the village sits under the ridge.
   world: {
     radius: 255,
     horizonRadius: 260,
@@ -89,22 +170,22 @@ export const SITE_LAYOUT = {
   } satisfies SiteBounds,
   factory: {
     bounds: {
-      minX: -60,
-      maxX: 60,
+      minX: -40,
+      maxX: 40,
       minY: 0,
-      maxY: 32,
+      maxY: 22,
       minZ: -50,
       maxZ: 50,
     } satisfies SiteBounds,
     floor: {
-      width: 120,
+      width: 80,
       depth: 100,
     },
     zones: {
-      silos: -22,
-      milling: -6,
-      sifting: 6,
-      packing: 25,
+      silos: 33,
+      milling: 30,
+      sifting: 20,
+      packing: -12,
     },
   },
   portals: {
@@ -129,7 +210,7 @@ export const SITE_LAYOUT = {
     eastService: {
       id: 'east-service',
       label: 'East service exit',
-      centre: [60, 0, -20],
+      centre: [40, 0, -20],
       normal: [1, 0, 0],
       halfWidth: 2,
       height: 3,
@@ -138,7 +219,7 @@ export const SITE_LAYOUT = {
     westService: {
       id: 'west-service',
       label: 'West service exit',
-      centre: [-60, 0, -20],
+      centre: [-40, 0, -20],
       normal: [-1, 0, 0],
       halfWidth: 2,
       height: 3,
@@ -161,7 +242,7 @@ export const SITE_LAYOUT = {
       bayCentre: [0, 0, -61] as Vec3Tuple,
       apron: {
         minX: -30,
-        maxX: 30,
+        maxX: 10,
         minY: -0.02,
         maxY: 8,
         minZ: -92,
@@ -169,10 +250,21 @@ export const SITE_LAYOUT = {
       } satisfies SiteBounds,
     },
   },
+  bulkStorage: {
+    siloPad: { position: [65, 0, 33], size: [16, 0.16, 66] },
+    elevator: {
+      id: 'grain-elevator',
+      position: [65, 0, -46],
+      rotation: 0,
+      footprint: [18, 12],
+      height: 55,
+      clearance: 1,
+    } satisfies ServiceAssetAnchor,
+  },
   serviceYard: {
     maintenanceGarage: {
       id: 'maintenance-garage',
-      position: [83.5, 0, 36],
+      position: [83.5, 0, 0],
       rotation: -Math.PI / 2,
       footprint: [12.3, 10.8],
       height: 8,
@@ -180,7 +272,7 @@ export const SITE_LAYOUT = {
     },
     propaneCompound: {
       id: 'propane-compound',
-      position: [83.5, 0, 14.5],
+      position: [83.5, 0, -22],
       rotation: 0,
       footprint: [12, 9],
       height: 5,
@@ -188,8 +280,8 @@ export const SITE_LAYOUT = {
     },
     utilityTankFarm: {
       id: 'utility-tank-farm',
-      position: [75, 0, -15],
-      rotation: 0,
+      position: [69, 0, -70],
+      rotation: Math.PI / 2,
       footprint: [22, 42],
       height: 12,
       clearance: 2,
@@ -217,14 +309,14 @@ export const SITE_LAYOUT = {
         id: 'forklift-shipping',
         vehicle: 'forklift',
         points: [
-          [28, 0, 20],
-          [45, 0, 20],
-          [45, 0, 42],
-          [24, 0, 42],
-          [24, 0, 44],
-          [29, 0, 44],
-          [45, 0, 42],
-          [45, 0, 20],
+          [-16, 0, 42],
+          [12, 0, 42],
+          [25, 0, 42],
+          [22.5, 0, 43],
+          [22.5, 0, 48],
+          [26, 0, 48],
+          [26, 0, 42],
+          [-16, 0, 42],
         ],
         halfWidth: 1.35,
         closed: true,
@@ -233,12 +325,12 @@ export const SITE_LAYOUT = {
         id: 'forklift-receiving',
         vehicle: 'forklift',
         points: [
-          [-35, 0, -43],
-          [-35, 0, -38],
-          [-35, 0, -30],
+          [-28, 0, -43],
+          [-28, 0, -38],
+          [-28, 0, -30],
+          [-28, 0, -22],
           [-35, 0, -22],
-          [-42, 0, -22],
-          [-42, 0, -38],
+          [-35, 0, -38],
         ],
         halfWidth: 1.35,
         closed: true,
@@ -249,12 +341,22 @@ export const SITE_LAYOUT = {
     mainConveyor: {
       id: 'main-conveyor',
       type: 'conveyor',
-      bounds: { minX: -28, maxX: 28, minZ: 22, maxZ: 26 },
+      bounds: conveyorBounds(CONVEYOR_LAYOUT.main),
     },
     rollerConveyor: {
       id: 'roller-conveyor',
       type: 'conveyor',
-      bounds: { minX: -16, maxX: 16, minZ: 19, maxZ: 23 },
+      bounds: conveyorBounds(CONVEYOR_LAYOUT.roller),
+    },
+    transferConveyor: {
+      id: 'transfer-conveyor',
+      type: 'conveyor',
+      bounds: conveyorBounds(CONVEYOR_LAYOUT.transfer),
+    },
+    shippingConveyor: {
+      id: 'shipping-conveyor',
+      type: 'conveyor',
+      bounds: conveyorBounds(CONVEYOR_LAYOUT.shipping),
     },
     shippingDock: {
       id: 'shipping-dock',
@@ -267,14 +369,52 @@ export const SITE_LAYOUT = {
       bounds: { minX: -20, maxX: 20, minZ: -50, maxZ: -40 },
     },
   } satisfies Record<string, RouteHazardAnchor>,
+  /**
+   * Truck road tunnels at each end of the valley. Local +Z of each faces the
+   * yard; the 90 m bore runs away from it into the foothills. Mounted with the
+   * continuous exterior so they exist at every graphics tier.
+   */
+  roadTunnels: {
+    south: { id: 'road-tunnel-south', position: [20, 0, 220] as Vec3Tuple, rotation: Math.PI },
+    north: { id: 'road-tunnel-north', position: [-20, 0, -220] as Vec3Tuple, rotation: 0 },
+  },
+  /**
+   * Standing water and huts in the exterior. `FactoryExterior` mounts them from
+   * here and the woodland filter keeps its trunks and crowns clear of the same
+   * numbers, so a moved canal cannot leave a grove standing in it.
+   */
+  exteriorFeatures: {
+    canal: { position: [-145, 0, -5] as Vec3Tuple, length: 220, width: 12, rotation: 0 },
+    canalBranch: {
+      position: [-145, 0, -110] as Vec3Tuple,
+      length: 70,
+      width: 8,
+      rotation: Math.PI / 2,
+    },
+    lake: { position: [120, 0, 120] as Vec3Tuple, size: [40, 30] as const },
+    ponds: [
+      { position: [-125, 0, 105] as Vec3Tuple, radius: 10 },
+      { position: [115, 0, -80] as Vec3Tuple, radius: 6 },
+    ],
+    nissenHuts: [
+      { position: [-75, 0, -100] as Vec3Tuple, length: 14, rotation: 0 },
+      { position: [85, 0, -100] as Vec3Tuple, length: 10, rotation: Math.PI / 2 },
+    ],
+  },
   landmarks: {
     castle: {
       id: 'castle',
-      position: [45, 0, -200],
+      // v0.30's bearing across the river, set 19 m further back than v0.30's
+      // z = -200 so the whole keep stands on level ground beyond the river's
+      // outer bank (z ~ -190 here) rather than overhanging it.
+      position: [45, -0.02, -219],
       rotation: [0, -Math.PI / 4, 0],
       scale: 1.5,
-      footprint: [72, 72],
-      height: 58,
+      // The generated castle.glb, rock included (asset-manifest bounds), not the
+      // larger primitive fallback. Rotated 45 degrees, so exclusions that must
+      // clear its corners use the half-diagonal rather than this box.
+      footprint: [39, 39],
+      height: 42,
     },
     farm: {
       id: 'farm',
@@ -284,62 +424,58 @@ export const SITE_LAYOUT = {
       footprint: [82, 78],
       height: 20,
     },
-    village: {
-      id: 'village',
-      position: [-190, 0, 0],
-      rotation: [0, 0, 0],
-      scale: 1,
-      footprint: [64, 124],
-      height: 26,
-    },
+    village: VILLAGE_SITE,
   } satisfies Record<string, LandmarkAnchor>,
   machines: {
     silos: [
-      { id: 'silo-0', position: [-18, 0, -22] },
-      { id: 'silo-1', position: [-9, 0, -22] },
-      { id: 'silo-2', position: [0, 0, -22] },
-      { id: 'silo-3', position: [9, 0, -22] },
-      { id: 'silo-4', position: [18, 0, -22] },
+      { id: 'silo-0', position: [65, 0, 59] },
+      { id: 'silo-1', position: [65, 0, 46] },
+      { id: 'silo-2', position: [65, 0, 33] },
+      { id: 'silo-3', position: [65, 0, 20] },
+      { id: 'silo-4', position: [65, 0, 7] },
     ],
     rollerMills: [
-      { id: 'rm-101', position: [-15, 0, -6] },
-      { id: 'rm-102', position: [-7.5, 0, -6] },
-      { id: 'rm-103', position: [7.5, 0, -6] },
-      { id: 'rm-104', position: [15, 0, -6] },
+      { id: 'rm-101', position: [-24, 0, 30] },
+      { id: 'rm-102', position: [-10, 0, 30] },
+      { id: 'rm-103', position: [4, 0, 30] },
+      { id: 'rm-104', position: [18, 0, 30] },
     ],
     sifters: [
-      { id: 'sifter-a', position: [-14, 9, 6] },
-      { id: 'sifter-b', position: [0, 9, 6] },
-      { id: 'sifter-c', position: [14, 9, 6] },
+      { id: 'sifter-a', position: [-14, 9, 20] },
+      { id: 'sifter-b', position: [0, 9, 20] },
+      { id: 'sifter-c', position: [14, 9, 20] },
     ],
     packers: [
-      { id: 'packer-0', position: [-8, 0, 25] },
-      { id: 'packer-1', position: [0, 0, 25] },
-      { id: 'packer-2', position: [8, 0, 25] },
+      { id: 'packer-0', position: [-8, 0, -12] },
+      { id: 'packer-1', position: [0, 0, -12] },
+      { id: 'packer-2', position: [8, 0, -12] },
     ],
   } satisfies Record<string, readonly MachineAnchor[]>,
   machineDimensions: {
-    silo: [4.5, 16, 4.5],
-    rollerMill: [3.5, 5, 3.5],
-    sifter: [7, 4, 7],
+    silo: [12, 32, 12],
+    rollerMill: [7.8, 6.7, 5.7],
+    sifter: [7, SIFTER_LAYOUT.inletCentreY + SIFTER_LAYOUT.inletHeight / 2, 7],
     packer: [4, 6, 4],
   } satisfies Record<string, Vec3Tuple>,
   cameras: {
-    overview: { position: [112, 74, 112], target: [0, 7, 2] },
-    interior: { position: [36, 17, 32], target: [0, 3, 2] },
-    silos: { position: [37, 18, -38], target: [0, 8, -22] },
-    milling: { position: [34, 13, -7], target: [0, 3, -6] },
-    sifting: { position: [34, 20, 18], target: [0, 9, 6] },
-    packing: { position: [-34, 14, 34], target: [0, 3, 25] },
-    processFloor: { position: [27, 5.5, -2], target: [-4, 2, -10], fov: 50 },
-    tankFarm: { position: [102, 8.5, -15], target: [75, 3.5, -15], fov: 55 },
+    overview: { position: [-61, 32, 132], target: [14, 5, 0], fov: 45 },
+    interior: { position: [-36, 14, 48], target: [0, 7, 25], fov: 55 },
+    silos: { position: [95, 26, 74], target: [65, 13, 33], fov: 55 },
+    milling: { position: [-36, 4.5, 42], target: [12, 5.5, 23], fov: 50 },
+    sifting: { position: [30, 17, 36], target: [0, 13, 20], fov: 55 },
+    packing: { position: [-34, 14, 0], target: [0, 3, -12] },
+    processFloor: { position: [-36, 4.5, 42], target: [12, 5.5, 23], fov: 50 },
+    tankFarm: { position: [69, 8.5, -97], target: [69, 3.5, -70], fov: 55 },
     logisticsClose: { position: [18, 3.8, 96], target: [14, 1.8, 82], fov: 45 },
     forklift: { position: [48, 3.8, 33], target: [40, 1.15, 24] },
     shipping: { position: [34, 9, 104], target: [5, 2.5, 82] },
     receiving: { position: [-34, 9, -104], target: [-5, 2.5, -82] },
     yard: { position: [110, 36, 58], target: [72, 1.5, 12] },
     water: { position: [158, 23, 154], target: [118, 0.08, 116] },
-    village: { position: [-142, 28, 64], target: [-190, 5, 0] },
+    village: {
+      position: landmarkLocalToWorld(VILLAGE_SITE, [48, 28, 64]),
+      target: landmarkLocalToWorld(VILLAGE_SITE, [0, 5, 0]),
+    },
     farm: { position: [128, 26, 174], target: [75, 4, 120] },
     /**
      * Two close cameras for the generated farm and village assets.
@@ -355,7 +491,7 @@ export const SITE_LAYOUT = {
      * debugging cycle once already (`FINDINGS.md`, "the farm sits at
      * SITE_LAYOUT.landmarks.farm with rotation [0, PI, 0]"):
      *   farm    local (x, z) -> world (75 - x, 120 - z)
-     *   village local (x, z) -> world (x - 190, z)
+     *   village local positions use landmarkLocalToWorld below.
      */
     // Paddock: the three rigged cows at farm-local (0,15) (5,18) (8,13), their
     // fence, the sheep and the hay bales, with the barn behind. Camera at
@@ -369,8 +505,11 @@ export const SITE_LAYOUT = {
     // (0,20). Camera at local (12, 3.6, -4), target the fountain at
     // local (0, 2.0, 8). Near eye height and aimed slightly up: the first
     // framing stood at 5.5 m and gave half a frame of bare cobbles.
-    square: { position: [-178, 3.6, -4], target: [-190, 2, 8] },
-    garage: { position: [69, 6.5, 30], target: [85, 3, 30] },
+    square: {
+      position: landmarkLocalToWorld(VILLAGE_SITE, [12, 3.6, -4]),
+      target: landmarkLocalToWorld(VILLAGE_SITE, [0, 2, 8]),
+    },
+    garage: { position: [73, 9, 14], target: [83.5, 3, -2], fov: 55 },
     // Ground safety markings at the receiving apron. KEEP CLEAR sits at
     // (0, 0.09, -59) on its red zone plane and STAGING AREA at (-12, 0.02,
     // -57.5); both are inside `receiving`'s frustum and neither is legible from
@@ -390,7 +529,7 @@ export const SITE_LAYOUT = {
     // answer "is this car inside its bay" - the cars' own length foreshortens
     // and adjacent bays stack behind each other. Straight down does.
     carpark: { position: [120, 30, 51], target: [120, 0, 50] },
-    // The river channel: centreline (0, -145), 280 m long, 20 m wide, cut 12 m
+    // The river channel: centreline (0, -145), 280 m long, 20 m bed width, cut 4 m
     // into the terrain with 25 m sloped banks.
     river: { position: [34, 16, -118], target: [0, -2, -145] },
     // Exterior sweep cameras, one per feature that had never been framed.
@@ -406,6 +545,11 @@ export const SITE_LAYOUT = {
     lake: { position: [86, 14, 86], target: [120, 0, 120] },
     // Bus stop at (29, 0, 140) beside the front road.
     busstop: { position: [44, 5, 122], target: [29, 2, 140] },
+    // South truck road tunnel: portal at (20, 0, 220), bore running out to +Z
+    // into the foothills, framed from the approach road's verge.
+    roadTunnel: { position: [44, 11, 178], target: [20, 4, 224], fov: 55 },
+    // The castle across the river, from the near bank by the footbridge.
+    castle: { position: [-30, 12, -112], target: [45, 14, -219], fov: 55 },
     // Kiosk cafe at (-108, 0, 105) with the pond at (-125, 0, 105).
     kiosk: { position: [-84, 8, 84], target: [-114, 2, 106] },
     celestial: { position: [90, 12, 72], target: [0, 12, 0] },
@@ -454,7 +598,64 @@ export const SITE_LAYOUT = {
   } satisfies Record<string, SiteBounds>,
 } as const;
 
+/** Conveyor ports are derived from the actual elevator and end bins.
+ * Working if both rendered spans meet those ports after a site-layout change.
+ */
+export const BULK_STORAGE_GALLERY = {
+  head: [
+    SITE_LAYOUT.bulkStorage.elevator.position[0],
+    SITE_LAYOUT.bulkStorage.elevator.position[1] + 43,
+    SITE_LAYOUT.bulkStorage.elevator.position[2],
+  ] as Vec3Tuple,
+  nearBin: [
+    SITE_LAYOUT.machines.silos[4].position[0],
+    34.4,
+    SITE_LAYOUT.machines.silos[4].position[2],
+  ] as Vec3Tuple,
+  farBin: [
+    SITE_LAYOUT.machines.silos[0].position[0],
+    34.4,
+    SITE_LAYOUT.machines.silos[0].position[2],
+  ] as Vec3Tuple,
+};
+
 export const FACTORY_ZONE_Z = SITE_LAYOUT.factory.zones;
+/**
+ * Normal-atlas geometry stays in its authored local metres. Instance matrices,
+ * placards and ladder access share this scale when the working bins change size.
+ * Working if those three surfaces remain coincident at every configured size.
+ */
+export const SILO_ASSEMBLY_SIZE: Vec3Tuple = [4.5, 16, 4.5];
+/** Local assembly metres, shared by the enclosure, ladder and access placards.
+ * Working if the 12 m bins have 30 cm rung pitch and a ground-level hatch.
+ */
+export const SILO_ACCESS_LAYOUT = {
+  baseCentreY: 1.27,
+  baseHeight: 2.46,
+  baseRadius: 2.25,
+  supportOffset: 1.59,
+  supportWidth: 0.07,
+  ladderHalfWidth: 0.135,
+  ladderZ: 2.34,
+  railCentreY: 7.925,
+  railHeight: 15.35,
+  railWidth: 0.015,
+  firstRungY: 0.25,
+  rungPitch: 0.15,
+  rungCount: 98,
+  rungHeight: 0.015,
+  hatchAngle: 0.36,
+  hatchRadius: 2.27,
+  hatchCentreY: 1,
+  hatchSize: [0.4, 0.6, 0.04] as Vec3Tuple,
+  nameplateY: 1.55,
+} as const;
+export function getSiloAssemblyScale(size: Vec3Tuple): [number, number, number] {
+  return size.map((dimension, axis) =>
+    Number.isFinite(dimension) && dimension > 0 ? dimension / SILO_ASSEMBLY_SIZE[axis] : 1
+  ) as [number, number, number];
+}
+
 export const FACTORY_BOUNDS = SITE_LAYOUT.factory.bounds;
 export const WORLD_RADIUS = SITE_LAYOUT.world.radius;
 

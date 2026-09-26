@@ -127,9 +127,9 @@ Existing UI controls call store actions directly. During agent-system migration,
 
 The Phase 0 direct-call inventory is generated at
 `build/generated/agent/mutation-inventory.json`. It classifies 124 direct chained store method
-calls, including 106 mutations. Its scope and exclusions are explicit in the artifact. The first
-three campaign capability candidates currently have no external caller and remain
-discovery-only.
+calls, including 106 mutations. Its scope and exclusions are explicit in the artifact.
+Capabilities are discoverable from the read service, and implemented ones are executable through
+the command kernel installed by `installMillOSAgentRuntime`.
 
 ### AI effects
 

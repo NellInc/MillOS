@@ -39,7 +39,7 @@ const PRECACHE_URLS = [
 const WORLD_EXTENSIONS = new Set(['.glb', '.gltf', '.bin', '.hdr', '.ktx2']);
 const OPTIONAL_EXTENSIONS = new Set(['.mp3', '.ogg', '.wav', '.m4a']);
 const OPTIONAL_CHUNK_PATTERN =
-  /(rapier|recharts|charts?|peerjs|multiplayer|postprocessing|web[._-]?llm|webgpu|scada)/i;
+  /(rapier|recharts|charts?|postprocessing|web[._-]?llm|webgpu|scada)/i;
 const HASHED_ASSET_PATTERN = /\/assets\/.+-[a-zA-Z0-9_-]{6,}\.[a-zA-Z0-9]+$/;
 const ARCHIVE_PATH_PATTERN = /^\/v\d+\.\d+(?:\/|$)/;
 
@@ -60,14 +60,14 @@ function isRequestWithinScope(requestUrl) {
 
 function cacheNameFor(requestUrl) {
   const extension = getExtension(requestUrl.href);
-  if (ARCHIVE_PATH_PATTERN.test(requestUrl.pathname)) return CACHE_NAMES.archive;
-  if (
-    WORLD_EXTENSIONS.has(extension) ||
-    /\/(?:models|textures|hdri|draco)\//i.test(requestUrl.pathname)
-  ) {
+  // Classify against the scope-relative path: a /v0.40/-scoped worker sees
+  // /v0.40/ on every request, and only a root-scoped worker serves archives.
+  const scopedPath = requestUrl.pathname.slice(SCOPE_PATH.length - 1);
+  if (SCOPE_PATH === '/' && ARCHIVE_PATH_PATTERN.test(scopedPath)) return CACHE_NAMES.archive;
+  if (WORLD_EXTENSIONS.has(extension) || /\/(?:models|textures|hdri|draco)\//i.test(scopedPath)) {
     return CACHE_NAMES.world;
   }
-  if (OPTIONAL_EXTENSIONS.has(extension) || OPTIONAL_CHUNK_PATTERN.test(requestUrl.pathname)) {
+  if (OPTIONAL_EXTENSIONS.has(extension) || OPTIONAL_CHUNK_PATTERN.test(scopedPath)) {
     return CACHE_NAMES.optional;
   }
   return CACHE_NAMES.shell;
@@ -127,14 +127,12 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  if (request.headers.has('range')) {
-    event.respondWith(fetch(request));
-    return;
-  }
+  // Let the browser stream ranged media requests directly.
+  if (request.headers.has('range')) return;
 
   const extension = getExtension(request.url);
   if (request.mode === 'navigate' || extension === '.html' || extension === '.json') {
-    event.respondWith(networkFirst(request, CACHE_NAMES.shell));
+    event.respondWith(networkFirst(event, request, CACHE_NAMES.shell));
     return;
   }
 
@@ -144,37 +142,43 @@ self.addEventListener('fetch', (event) => {
     cacheName !== CACHE_NAMES.shell ||
     extension
   ) {
-    event.respondWith(cacheFirst(request, cacheName));
+    event.respondWith(cacheFirst(event, request, cacheName));
   }
 });
 
-async function cacheFirst(request, cacheName) {
+/**
+ * Store a response without holding it back from the page. A rejected put
+ * (for example QuotaExceededError) must not turn a good network response
+ * into an offline error.
+ */
+function cacheInBackground(event, cache, request, networkResponse) {
+  if (!isCacheable(networkResponse)) return;
+  event.waitUntil(cache.put(request, networkResponse.clone()).catch(() => {}));
+}
+
+async function cacheFirst(event, request, cacheName) {
   const cache = await caches.open(cacheName);
   const cachedResponse = await cache.match(request);
   if (cachedResponse) return cachedResponse;
 
+  let networkResponse;
   try {
-    const networkResponse = await fetch(request);
-    if (isCacheable(networkResponse)) {
-      await cache.put(request, networkResponse.clone());
-    }
-    return networkResponse;
+    networkResponse = await fetch(request);
   } catch {
     return new Response('Offline', {
       status: 503,
       statusText: 'Service Unavailable',
     });
   }
+  cacheInBackground(event, cache, request, networkResponse);
+  return networkResponse;
 }
 
-async function networkFirst(request, cacheName) {
+async function networkFirst(event, request, cacheName) {
   const cache = await caches.open(cacheName);
+  let networkResponse;
   try {
-    const networkResponse = await fetch(request, { cache: 'no-store' });
-    if (isCacheable(networkResponse)) {
-      await cache.put(request, networkResponse.clone());
-    }
-    return networkResponse;
+    networkResponse = await fetch(request, { cache: 'no-store' });
   } catch {
     const cachedResponse = await cache.match(request);
     if (cachedResponse) return cachedResponse;
@@ -188,6 +192,8 @@ async function networkFirst(request, cacheName) {
       statusText: 'Service Unavailable',
     });
   }
+  cacheInBackground(event, cache, request, networkResponse);
+  return networkResponse;
 }
 
 self.addEventListener('message', (event) => {

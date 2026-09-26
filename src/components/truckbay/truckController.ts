@@ -239,7 +239,12 @@ const transitionPhase = (state: TruckControllerState, phase: TruckPhase): TruckC
     phase,
     phaseDistance: 0,
     phaseElapsed: 0,
-    servicePhase: phase === 'docked' ? 'parking-brake' : state.servicePhase,
+    servicePhase:
+      phase === 'docked'
+        ? 'parking-brake'
+        : phase === 'pulling_out'
+          ? 'approach'
+          : state.servicePhase,
     serviceElapsed: 0,
     x: pose.x,
     z: pose.z,
@@ -343,17 +348,14 @@ const poseFromState = (state: TruckControllerState, safetyHold: boolean): TruckA
   };
 
   if (state.dock === 'shipping') return canonical;
+  // The receiving yard is the shipping yard turned half a revolution about the
+  // site origin: a rotation, not a mirror. Steering, articulation, cab roll and
+  // the indicator sides are all vehicle-relative, so they keep their sign.
   return {
     ...canonical,
     x: -canonical.x,
     z: -canonical.z,
     rotation: normalizeVehicleAngle(canonical.rotation + Math.PI),
-    steeringAngle: -canonical.steeringAngle,
-    leftSignal: canonical.rightSignal,
-    rightSignal: canonical.leftSignal,
-    trailerAngle: -canonical.trailerAngle,
-    cabRoll: -canonical.cabRoll,
-    articulation: -canonical.articulation,
   };
 };
 
@@ -437,7 +439,8 @@ export function stepTruckController(
 
   if (state.phase === 'docked') {
     state = {
-      ...stepService(state, deltaSeconds, input.serviceComplete),
+      // A safety hold (e-stop, drill) freezes dock service mid-step as well as motion.
+      ...stepService(state, input.safetyHold ? 0 : deltaSeconds, input.serviceComplete),
       motion: { speed: 0, acceleration: 0 },
       x: POSES.dock.x,
       z: POSES.dock.z,

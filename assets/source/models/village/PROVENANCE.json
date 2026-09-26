@@ -4,11 +4,11 @@
   "area": "village",
   "publisher": "Tripo3D",
   "license": "Tripo3D API-plan output",
-  "licenceNote": "Generated on a Tripo3D API plan. The free tier releases outputs CC BY 4.0, public and non-commercial; commercial rights attach to paid and API plans. Confirmed by the account owner before any output entered public/models/.",
+  "licenceNote": "Generated through the Tripo3D API under the account owner's confirmed API-plan rights. Account-owner rights confirmation is separate from the technical validation reported here.",
   "transformation": {
     "script": "scripts/normalize-model-assets.mjs",
     "table": "GENERATED_ASSETS",
-    "description": "Per asset: derive facing from the whole Head-to-Hip heading vector and snap to the nearest quarter turn (rigged only), apply any authored yaw, scale uniformly to the stated target along the stated axis, re-origin to bottom centre through a Pivot node so a skin binding survives, resample the three 4096-square maps to 512 JPEG, force the metallic factor to zero, and rename material, mesh and textures semantically.",
+    "description": "Per asset: derive facing from the whole Head-to-Hip heading vector and snap to the nearest quarter turn (rigged only), apply any authored yaw, scale uniformly to the stated target along the stated axis, optionally fit the recorded architectural envelope within a 20 percent axis limit, re-origin to bottom centre through a Pivot node so a skin binding survives, resample source maps to each asset table entry texture size (512 by default) in JPEG, force the metallic factor to zero, and rename material, mesh and textures semantically.",
     "generatedBy": "scripts/write-model-provenance.mjs"
   },
   "sourcePacks": [
@@ -25,8 +25,8 @@
       "sha256": "fc395d2c27717f9ea9f2369ed2dfcbb1251d1386895eada549cf9d7d4b65b7a5",
       "runtimeDerivative": {
         "file": "public/models/village/cat.glb",
-        "sha256": "8c1ed114ca132aebd9c48e1ba3a9ccef2bf1ff6083606daaeee243b606e60fa9",
-        "bytes": 298856
+        "sha256": "938c364b86b0b9c54afd70339a9eb1a000c81850c527a7c4be603589af8d5c80",
+        "bytes": 298820
       },
       "normalization": {
         "sizedBy": "height",
@@ -62,8 +62,8 @@
       "sha256": "a88fc25fde338805657ace7391134f1fbe2fde38f6b3121f06f2809be81e29cc",
       "runtimeDerivative": {
         "file": "public/models/village/cottage.glb",
-        "sha256": "951ee54f71d6899ef3636efd920fcfc7bce30d9ddfb47d9f595252c01fbcbf63",
-        "bytes": 433984
+        "sha256": "15bd2310c963f90da2e5d55f01fab175760bfdc23313f57e1998bf920118622d",
+        "bytes": 386152
       },
       "normalization": {
         "sizedBy": "longest axis",
@@ -99,8 +99,8 @@
       "sha256": "950c49a07b0111671cd1bed38c92b393105d0abbda59f85a3862b366ad697549",
       "runtimeDerivative": {
         "file": "public/models/village/shop.glb",
-        "sha256": "46237f9f0a369d62f567843c476673a026f9ba3b036b0a7df1a88886b2bd0c90",
-        "bytes": 394764
+        "sha256": "b010c6603be28e0ba9faaa764ef9b559e74245eadb4e2c5c076dd7d99e8a48a7",
+        "bytes": 346892
       },
       "normalization": {
         "sizedBy": "longest axis",
@@ -136,8 +136,8 @@
       "sha256": "a1486e7872c624a12a1f708a222818a8ddc54029d4e6d053ae79b71dd553869d",
       "runtimeDerivative": {
         "file": "public/models/village/church.glb",
-        "sha256": "22f703e0e4e8eb2da267fd6e6f2b7d7edbf2c5de5f6db1ce03296690e3e88d38",
-        "bytes": 382740
+        "sha256": "c683761f36b65f43d11345c6ea0b2be9fe7c1cece6a75af4d4a1e10dd384dc69",
+        "bytes": 334772
       },
       "normalization": {
         "sizedBy": "longest axis",
@@ -173,8 +173,8 @@
       "sha256": "d80aaa1a16622d876e0852412d4ebd514f5fbcf15ec5af7b95799df20b9e32fb",
       "runtimeDerivative": {
         "file": "public/models/village/townhall.glb",
-        "sha256": "cb4557deb8a66c5ae2ba572854ecacf837452a9fceb2954ab01866d01de72191",
-        "bytes": 562616
+        "sha256": "16f745408d7998e09e58e0e4942be23556d6d35eb4390bec2b45d21ecbd22f7c",
+        "bytes": 514688
       },
       "normalization": {
         "sizedBy": "longest axis",
@@ -210,8 +210,8 @@
       "sha256": "81102a0d0173109cdff805239f0435b4e6468364b2ee76b915e9c755e9e466ec",
       "runtimeDerivative": {
         "file": "public/models/village/pub.glb",
-        "sha256": "647459136800519e4b9be828e16168d6a1233adef16893fa6cd774befb50a42e",
-        "bytes": 485140
+        "sha256": "8205099704a52707ece411072ef900e460fff720ce5a0ef379d7a81ec75fd84e",
+        "bytes": 437820
       },
       "normalization": {
         "sizedBy": "longest axis",
@@ -247,8 +247,8 @@
       "sha256": "3be8efe21c58758b60cec5483bb8a85850d497914aed169d603b7d5a095e021e",
       "runtimeDerivative": {
         "file": "public/models/village/school.glb",
-        "sha256": "b558d596fa035f7d31f594f7d6c7a406b421e63fa99b412ae51bc68bff808d7a",
-        "bytes": 424724
+        "sha256": "a26e0bb12536d30b673158ac6095f6a79c86f66892253b40d934f505bce1fb27",
+        "bytes": 376860
       },
       "normalization": {
         "sizedBy": "longest axis",
@@ -284,8 +284,8 @@
       "sha256": "225b6809469b20cd71b6e12579afe637e070ccd9ebb2f088f3c83bdc64fe3f1b",
       "runtimeDerivative": {
         "file": "public/models/village/forge.glb",
-        "sha256": "5232243799e24c62af6e4dbd7ec8e6f5095c4d5d892bd6a77f37c198c5b00efb",
-        "bytes": 385732
+        "sha256": "3791cb57fbf854ebf0e03941b214d29a17fad64e9697c76733fe016ac373c789",
+        "bytes": 337756
       },
       "normalization": {
         "sizedBy": "longest axis",
@@ -321,8 +321,8 @@
       "sha256": "8f2f28a013d740f6539805d2f8af2f8c31d2fff3b95dad7d1ae8f8e7e8e8d379",
       "runtimeDerivative": {
         "file": "public/models/village/wishingwell.glb",
-        "sha256": "cb3946667ae14049eeb170e5b1e998d572b36199c231000d2fd24a065f73b15b",
-        "bytes": 411076
+        "sha256": "0661f287621b8e91960f4482b10500a3cee7edba4f3dfd4f4a061c40fc4056a7",
+        "bytes": 363516
       },
       "normalization": {
         "sizedBy": "longest axis",
@@ -358,8 +358,8 @@
       "sha256": "ab8f371f48336857b544cf76ae4cd28bb3461527c02b8098869ff35fc98e880a",
       "runtimeDerivative": {
         "file": "public/models/village/marketstall.glb",
-        "sha256": "4f1deb118df27837ad2f5d35fdc7cad3e52ff512c66669ecec775a234bfaf49e",
-        "bytes": 572004
+        "sha256": "7304b8b6d05a56e3584ee3a902e16aee4ef6f08535e52ea47f2fbcdfb8992074",
+        "bytes": 524120
       },
       "normalization": {
         "sizedBy": "longest axis",
@@ -395,8 +395,8 @@
       "sha256": "85356cfa9c1e0eb0cd9cd62caf649f25aef9f07c5bd224439ca6832f4db3b884",
       "runtimeDerivative": {
         "file": "public/models/village/postbox.glb",
-        "sha256": "f96d187b1cf6fda30dc2f48e3712b1fee329eb507bfd38bb4f45e7c88cc0ba08",
-        "bytes": 316708
+        "sha256": "d3dcca70699910cd242a36c66b5cb02d8655eccea1fe465c61e5e53c83db4925",
+        "bytes": 268700
       },
       "normalization": {
         "sizedBy": "height",
@@ -432,8 +432,8 @@
       "sha256": "c525be615479747fa4914c36ab9d35e3e8b1126ff13f05993a51bc96ddb33b4c",
       "runtimeDerivative": {
         "file": "public/models/village/fountain.glb",
-        "sha256": "bbaa095f90e439b4eee599cd3c60ccb615b0ef597cab571219b5cc434cd21cf1",
-        "bytes": 315264
+        "sha256": "4728c90f73e419d17641400c689713602afd50433d422953fb2c931f982443c9",
+        "bytes": 267232
       },
       "normalization": {
         "sizedBy": "height",
@@ -469,8 +469,8 @@
       "sha256": "8e92cc6519cd7c2cc04c7d95813e46df7233ae2183a02f3f6be9e67c4307379d",
       "runtimeDerivative": {
         "file": "public/models/village/duckpond.glb",
-        "sha256": "eb0c6f8317b654a6a279e597fbce776731cbd5981270e3e35c7a8bf3df051642",
-        "bytes": 539724
+        "sha256": "b80eef524c168fbfa9dab5688d4fbbecc9776dffcea3501a7e807d57c73e4ed6",
+        "bytes": 492028
       },
       "normalization": {
         "sizedBy": "longest axis",
@@ -506,8 +506,8 @@
       "sha256": "a5d0e1cc948788ab9cd75e5b72e4b5f11703658d090c81c9dc17853d6145f498",
       "runtimeDerivative": {
         "file": "public/models/village/castle.glb",
-        "sha256": "f8e36b6ebe83ce696d3b7a052e35ee574161bf6a560d30e7d57f83a97a24b998",
-        "bytes": 574560
+        "sha256": "1513efc7d89ecf08b85ec269efc0b314717adb5af06e8143aa89d0d67555b883",
+        "bytes": 526704
       },
       "normalization": {
         "sizedBy": "longest axis",
@@ -533,11 +533,5 @@
       }
     }
   ],
-  "rejected": [
-    {
-      "file": "test-results/tripo-probe-20260815/models/tripo_cow_idle_REJECTED.glb",
-      "step": "animate_retarget preset:idle",
-      "reason": "The preset library is humanoid and the quadruped rig names the front legs Clavicle/Upperarm/Hand, so a biped idle maps onto it and rears the animal onto its hind legs for the whole clip. Applies to every quadruped and avian rig in this set, not only the cow: all of them carry the identical 41-joint skeleton with identical bone names. Kept outside the repo as reproducible evidence; never promoted."
-    }
-  ]
+  "rejected": []
 }

@@ -43,8 +43,11 @@ import { useGeometryNaNDetector } from './components/SafeGeometry';
 import { RuntimeController } from './components/RuntimeController';
 import { getRuntimeMode } from './runtime/runtimeMode';
 import { CAMERA_DEPTH } from './constants/renderLayers';
+import { ORBIT_POLAR_LIMITS } from './utils/cameraNavigation';
+import { SITE_LAYOUT } from './constants/siteLayout';
 import { recoverableLazy } from './utils/recoverableLazy';
 import { installAtmosphericFogChunks } from './shaders/atmosphericFog';
+import { CURRENT_RELEASE_VERSION } from './config/releaseVersions';
 
 // MUST run before any fog-enabled material compiles a program. Three.js
 // snapshots shader chunk source at compile time, so a program already built
@@ -125,7 +128,9 @@ const StartupInterface: React.FC = () => (
     aria-live="polite"
     className="pointer-events-none fixed left-4 top-4 z-20 rounded-lg border border-white/15 bg-slate-950/80 px-4 py-3 text-slate-100 shadow-lg backdrop-blur-md"
   >
-    <div className="text-sm font-semibold tracking-[0.12em]">MILLOS 0.40</div>
+    <div className="text-sm font-semibold tracking-[0.12em]">
+      MILLOS {CURRENT_RELEASE_VERSION.replace(/^v/, '')}
+    </div>
     <div className="mt-1 text-xs text-slate-300">Bringing operations online</div>
   </div>
 );
@@ -172,7 +177,10 @@ const App: React.FC = () => {
   }, [deferredUIReady, showOperationalUI]);
 
   const [productionSpeed, setProductionSpeedLocal] = useState(0.8);
-  const [showZones, setShowZones] = useState(false);
+  // One source of truth for zone visibility: the desktop Z key, the Settings
+  // panel and the mobile Settings switch all read and write the UI store.
+  const showZones = useUIStore((state) => state.showZones);
+  const setShowZones = useUIStore((state) => state.setShowZones);
 
   // Sync local production speed to store (HolographicDisplays reads from store)
   const setStoreProductionSpeed = useProductionStore((state) => state.setProductionSpeed);
@@ -199,7 +207,11 @@ const App: React.FC = () => {
 
   const [audioInitialized, setAudioInitialized] = useState(false);
   const [qualityNotification, setQualityNotification] = useState<string | null>(null);
-  const [autoRotate, setAutoRotate] = useState(true);
+  // A continuous orbit of the whole scene is a vestibular trigger, so it starts
+  // off for anyone who has asked the OS for reduced motion.
+  const [autoRotate, setAutoRotate] = useState(
+    () => !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+  );
 
   // PERFORMANCE: Consolidated store subscriptions with useShallow to prevent unnecessary re-renders
   const {
@@ -252,10 +264,13 @@ const App: React.FC = () => {
 
       handleSelectMachine(machine);
       setAutoRotate(false);
+      // The camera controller only runs in orbit view; leave first-person so
+      // the focus flight plays now rather than on the next exit.
+      if (useUIStore.getState().fpsMode) setFpsMode(false);
       const [x, y, z] = machine.position;
       useCameraStore.getState().focusOn([x + 15, Math.max(9, y + 10), z + 16], [x, y + 2, z]);
     },
-    [handleSelectMachine]
+    [handleSelectMachine, setFpsMode]
   );
   const handleSelectForklift = useCallback(
     (forklift: ForkliftData) => setSelectedForklift(forklift),
@@ -267,19 +282,28 @@ const App: React.FC = () => {
     }
   }, []);
 
-  // Show FPS instructions only once when first entering FPS mode
+  // Desktop shows the instructions on every entry: first-person mounts unlocked,
+  // and the overlay is the only cue to click (it hides itself on lock). Mobile
+  // needs a manual dismiss, so it shows once per session.
   useEffect(() => {
-    if (fpsMode && !hasShownFpsInstructions.current) {
+    if (fpsMode && (!isMobile || !hasShownFpsInstructions.current)) {
       setShowFpsInstructions(true);
       hasShownFpsInstructions.current = true;
     }
-  }, [fpsMode]);
+  }, [fpsMode, isMobile]);
 
-  // Auto-toggle FPS mode on mobile based on orientation
-  // Landscape = FPS mode, Portrait = Orbit mode
+  // Mobile enters first-person each time it rotates into landscape. Within a
+  // landscape session the on-screen view toggle owns the choice, so resize and
+  // orientation events no longer overwrite it.
+  const forcedMobileFpsRef = useRef(false);
   useEffect(() => {
-    if (isMobile) {
-      setFpsMode(isLandscape);
+    if (!isMobile || !isLandscape) {
+      forcedMobileFpsRef.current = false;
+      return;
+    }
+    if (!forcedMobileFpsRef.current) {
+      forcedMobileFpsRef.current = true;
+      setFpsMode(true);
     }
   }, [isMobile, isLandscape, setFpsMode]);
 
@@ -329,6 +353,8 @@ const App: React.FC = () => {
     setShowSCADAPanel,
     selectedMachine,
     setSelectedMachine,
+    selectedForklift,
+    setSelectedForklift,
     productionSpeed,
     setProductionSpeed,
     showZones,
@@ -403,8 +429,8 @@ const App: React.FC = () => {
     };
   }, []);
 
-  // The legacy tracker pre-creates every high-detail machine geometry and all
-  // procedural textures. Load it only after a user explicitly selects a high
+  // The legacy tracker registers the shared machine, metal and basic materials
+  // with GPUResourceManager. Load it only after a user explicitly selects a high
   // fidelity preset. Default startup now tracks resources actually in use.
   useEffect(() => {
     if (runtimeMode.benchmark || (canvasQuality !== 'high' && canvasQuality !== 'ultra')) {
@@ -439,9 +465,9 @@ const App: React.FC = () => {
   // thing the gate decided was WHEN - and deferring it meant paying for each
   // generation as a mid-interaction hitch on first use instead.
   //
-  // It runs at every tier, low included: `useConveyorBeltTextures`, the
-  // concrete floor and the flour-sack maps all consume this set on low too, and
-  // low is the tier least able to absorb a hitch. The scheduling IS the
+  // It runs at every tier, low included: the flour-sack maps consume this set
+  // on low too (the spouting relief is requested on medium and above), and low
+  // is the tier least able to absorb a hitch. The scheduling IS the
   // mitigation - 1500 ms after first frame, then `requestIdleCallback` in
   // batches of two inside `preloadGenerativeTexturesOnce`.
   useEffect(() => {
@@ -522,7 +548,10 @@ const App: React.FC = () => {
   // WebGL context loss fallback component
   const WebGLErrorFallback = (
     <div className="fixed inset-0 flex items-center justify-center bg-slate-950">
-      <div className="bg-slate-900 border border-amber-500/50 rounded-xl p-8 max-w-md text-center">
+      <div
+        role="alert"
+        className="bg-slate-900 border border-amber-500/50 rounded-xl p-8 max-w-md text-center"
+      >
         <svg
           viewBox="0 0 24 24"
           aria-hidden="true"
@@ -534,14 +563,14 @@ const App: React.FC = () => {
           <path d="M10.3 3.4 2.2 17.5A2 2 0 0 0 4 20.5h16a2 2 0 0 0 1.7-3L13.7 3.4a2 2 0 0 0-3.4 0Z" />
           <path d="M12 8v5M12 17h.01" />
         </svg>
-        <h2 className="text-xl font-bold text-white mb-2">WebGL Context Lost</h2>
+        <h2 className="text-xl font-bold text-white mb-2">3D view stopped</h2>
         <p className="text-slate-400 mb-4">
-          The 3D graphics context encountered an error. This can happen due to GPU limitations or
-          driver issues.
+          The 3D view hit an unexpected problem. Reloading usually restores it.
         </p>
         <button
+          type="button"
           onClick={() => window.location.reload()}
-          className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg mx-auto"
+          className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold rounded-lg mx-auto"
         >
           <svg
             viewBox="0 0 24 24"
@@ -584,8 +613,9 @@ const App: React.FC = () => {
       <div role="note" aria-label="3D visualization keyboard controls" className="sr-only">
         The 3D factory visualization is interactive. Use W, A, S, D or the arrow keys to move, Q and
         E to move down and up, and Shift to move faster. Press V to toggle first-person view mode.
-        Press 1-5 to switch camera presets. Keyboard movement pauses while an interface control has
-        focus.
+        Press 1-7 to switch camera presets. Keyboard movement pauses while an interface control has
+        focus. Press Space to toggle the forklift emergency stop, and the question mark key for the
+        full list of shortcuts.
       </div>
 
       {showOperationalUI && !deferredUIReady && <StartupInterface />}
@@ -636,18 +666,17 @@ const App: React.FC = () => {
             // rendered with nothing casting a shadow anywhere. There is no
             // amount of tonal authoring that substitutes for that.
             //
-            // PCFSoft rather than PCF: it costs four extra shadow-map taps per
-            // shadowed fragment and removes the hard single-texel stair-step,
-            // which matters because `SunShadowRig` fits a single cascade across
-            // a 90 to 220 unit span - texels are large and the stair-step would
-            // be the most visible artefact in the frame.
+            // Three r182 implements PCF but no longer maps PCFSoft to a
+            // filtered shader. The old value silently selected BASIC, exposing
+            // every shadow texel along the glass facade. Keep the existing map
+            // budget and use the renderer's actual filtered path.
             //
             // `low` keeps no shadow pass at all. It also has no composer, so it
             // stays the one tier that is purely forward-rendered.
-            shadows={canvasQuality === 'low' ? false : { type: THREE.PCFSoftShadowMap }}
+            shadows={canvasQuality === 'low' ? false : { type: THREE.PCFShadowMap }}
             camera={{
-              position: [35, 25, 20], // Start inside factory so production is immediately readable
-              fov: 65,
+              position: [...SITE_LAYOUT.cameras.overview.position],
+              fov: SITE_LAYOUT.cameras.overview.fov,
               near: CAMERA_DEPTH.near,
               far: CAMERA_DEPTH.far,
             }}
@@ -799,20 +828,18 @@ const App: React.FC = () => {
                          * damping integrator and any pointer handling, and
                          * because a measurement run has no user input to serve.
                          *
-                         * The polar limits are back to their single player
-                         * values: the `sun`/`moon` widenings only existed so
-                         * those two near-vertical poses could survive `update()`
-                         * at all, and with the distance clamp gone the pose
-                         * RuntimeController writes is the pose that renders.
+                         * Benchmark polar limits must also be relaxed: a sun or
+                         * moon target lies above the camera, beyond the player
+                         * orbit range. A disabled control still clamps on update.
                          */
                         enabled={!runtimeMode.benchmark}
-                        maxPolarAngle={Math.PI / 2 - 0.05}
-                        minPolarAngle={0.2}
+                        maxPolarAngle={runtimeMode.benchmark ? Math.PI : ORBIT_POLAR_LIMITS.max}
+                        minPolarAngle={runtimeMode.benchmark ? 0 : ORBIT_POLAR_LIMITS.min}
                         minDistance={runtimeMode.benchmark ? 0.25 : 15}
                         maxDistance={runtimeMode.benchmark ? 1000 : 220}
                         autoRotate
                         autoRotateSpeed={0}
-                        target={[0, 5, 0]}
+                        target={[...SITE_LAYOUT.cameras.overview.target]}
                         enableDamping
                         dampingFactor={0.05}
                         // On mobile, disable rotate (TouchLookHandler handles single-touch rotation)

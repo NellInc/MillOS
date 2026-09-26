@@ -264,7 +264,7 @@ describe('ProductionMetrics', () => {
   });
 
   describe('Time Since Incident', () => {
-    it('should show "No incidents" when lastIncidentTime is null', () => {
+    it('should show "Clean record" when lastIncidentTime is null', () => {
       useSafetyStore.setState({
         safetyMetrics: {
           nearMisses: 0,
@@ -277,7 +277,7 @@ describe('ProductionMetrics', () => {
 
       render(<ProductionMetrics />);
 
-      expect(screen.getByText(/No incidents/i)).toBeInTheDocument();
+      expect(screen.getByText(/Clean record/i)).toBeInTheDocument();
     });
 
     it('shows an exact five-minute elapsed duration under a fixed clock', () => {

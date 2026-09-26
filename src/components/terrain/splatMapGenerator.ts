@@ -21,11 +21,12 @@ import {
   type TerrainBounds,
 } from './terrainTypes';
 import { createLinearDataTexture } from '../../utils/textureGenerator';
+import { getLandmarkBounds, SITE_LAYOUT } from '../../constants/siteLayout';
 
 /**
  * Calculate signed distance to a shape (negative = inside, positive = outside)
  */
-function signedDistanceToShape(worldX: number, worldZ: number, shape: RegionShape): number {
+export function signedDistanceToShape(worldX: number, worldZ: number, shape: RegionShape): number {
   switch (shape.type) {
     case 'rect': {
       // Distance to axis-aligned rectangle
@@ -191,6 +192,39 @@ export const MILLOS_TERRAIN_REGIONS: TerrainRegion[] = [
     shape: { type: 'rect', x: 45, z: 55, width: 30, height: 25 },
     intensity: 1,
     edgeSoftness: 2.5,
+    priority: 15,
+  },
+
+  // Authored outlying hardstands need the same transition as the main yard.
+  // Match the actual station (-85,140; shop extends west) and visitor lot
+  // (120,50; six 3.5 m bays and two 5 m rows around a 6 m aisle).
+  // These bake into the existing splat texture, with no extra runtime draws.
+  {
+    channel: TerrainChannel.DIRT,
+    shape: { type: 'roundedRect', x: -88, z: 140, width: 32, height: 18, radius: 2 },
+    intensity: 0.75,
+    edgeSoftness: 2.5,
+    priority: 12,
+  },
+  {
+    channel: TerrainChannel.ASPHALT,
+    shape: { type: 'roundedRect', x: -88, z: 140, width: 28, height: 14, radius: 1 },
+    intensity: 1,
+    edgeSoftness: 2,
+    priority: 15,
+  },
+  {
+    channel: TerrainChannel.DIRT,
+    shape: { type: 'roundedRect', x: 120, z: 50, width: 29, height: 24, radius: 2 },
+    intensity: 0.65,
+    edgeSoftness: 2,
+    priority: 12,
+  },
+  {
+    channel: TerrainChannel.ASPHALT,
+    shape: { type: 'rect', x: 120, z: 50, width: 25, height: 20 },
+    intensity: 1,
+    edgeSoftness: 1.5,
     priority: 15,
   },
 
@@ -390,6 +424,8 @@ export interface RiverChannelConfig {
   meander: number;
   /** Depth of the channel (positive = deeper) */
   depth: number;
+  /** Mean world-space water height, shared by geometry and shading. */
+  waterLevel: number;
   /** Width of the sloped bank on each side */
   bankWidth: number;
 }
@@ -402,15 +438,16 @@ export const MILLOS_RIVER_CONFIG: RiverChannelConfig = {
   length: 280,
   width: 20,
   meander: 10,
-  depth: 12, // Deep canyon
-  bankWidth: 25, // Wider sloped canyon walls for gentler banks
+  depth: 4,
+  waterLevel: -2,
+  bankWidth: 25, // Gentle banks, clear of the existing woodland and service pads
 };
 
 /**
  * Calculate the river centerline Z offset at a given X position
  * Matches the River component's meander calculation
  */
-function getRiverCenterZ(worldX: number, config: RiverChannelConfig): number {
+export function getRiverCenterZ(worldX: number, config: RiverChannelConfig): number {
   const [riverX, riverZ] = config.position;
   const halfLength = config.length / 2;
 
@@ -426,7 +463,11 @@ function getRiverCenterZ(worldX: number, config: RiverChannelConfig): number {
 /**
  * Calculate the distance from a point to the river centerline
  */
-function getDistanceToRiver(worldX: number, worldZ: number, config: RiverChannelConfig): number {
+export function getDistanceToRiver(
+  worldX: number,
+  worldZ: number,
+  config: RiverChannelConfig
+): number {
   const [riverX] = config.position;
   const halfLength = config.length / 2;
 
@@ -509,6 +550,26 @@ export function generateHeightmap(
   texture.needsUpdate = true;
 
   return texture;
+}
+
+const riverHeightfieldCache = new WeakMap<
+  RiverChannelConfig,
+  { data: Uint8Array; resolution: number }
+>();
+
+/** Share the rendered 512-pixel field with terrain-fitted water geometry.
+ * Working if a quality change changes triangle density without regenerating
+ * the height pixels, and shore tests use these same pixels and dimensions.
+ */
+export function getRiverHeightfield(config: RiverChannelConfig = MILLOS_RIVER_CONFIG) {
+  const cached = riverHeightfieldCache.get(config);
+  if (cached) return cached;
+  const resolution = 512;
+  const texture = generateHeightmap(resolution, TERRAIN_BOUNDS, config);
+  const heightfield = { data: texture.image.data as Uint8Array, resolution };
+  texture.dispose();
+  riverHeightfieldCache.set(config, heightfield);
+  return heightfield;
 }
 
 /**
@@ -633,4 +694,146 @@ export function debugSplatMapToCanvas(splatMap: THREE.DataTexture): HTMLCanvasEl
 
   ctx.putImageData(imageData, 0, 0);
   return canvas;
+}
+
+/** Compact meadow rises, clear of the village, castle, yard, canal and river banks. */
+export const VALLEY_HILLS = [
+  [-190, -104, 30, 20, 10],
+  [-71, -198, 50, 23, 14],
+  [-212, 106, 18, 10, 5],
+] as const;
+
+// The castle carries its own rock, so the meadow rise at its v0.30 site is
+// flattened under it rather than lifting the rock's foot off the ground.
+const LANDMARK_RELIEF_PADS = [
+  SITE_LAYOUT.landmarks.village,
+  SITE_LAYOUT.landmarks.farm,
+  SITE_LAYOUT.landmarks.castle,
+].map((anchor) => getLandmarkBounds(anchor));
+
+// Align the occupied plateau to the coarsest terrain grid. Both quality meshes
+// then contain complete, level triangles under the plaza and every building.
+// Working if rays through the real 64/128 meshes hit the village ground datum.
+const villageBounds = getLandmarkBounds(SITE_LAYOUT.landmarks.village);
+const terraceGrid = (TERRAIN_BOUNDS.maxX - TERRAIN_BOUNDS.minX) / 64;
+export const VILLAGE_TERRACE = {
+  minX: Math.floor(villageBounds.minX / terraceGrid) * terraceGrid,
+  maxX: Math.ceil(villageBounds.maxX / terraceGrid) * terraceGrid,
+  minZ: Math.floor(villageBounds.minZ / terraceGrid) * terraceGrid,
+  maxZ: Math.ceil(villageBounds.maxZ / terraceGrid) * terraceGrid,
+  height: SITE_LAYOUT.landmarks.village.position[1],
+  shoulder: 48,
+} as const;
+
+/** Added above the unchanged canyon heightmap, without changing its byte contract.
+ * Working if operational pads stay at zero, the village sits on its terrace,
+ * and trees, navigation and physics follow these same ground triangles.
+ */
+export function sampleValleyRelief(x: number, z: number): number {
+  let height = 0;
+  for (const [cx, cz, rx, rz, rise] of VALLEY_HILLS) {
+    const radiusSquared = ((x - cx) / rx) ** 2 + ((z - cz) / rz) ** 2;
+    if (radiusSquared < 1) height += rise * (1 - radiusSquared) ** 2;
+  }
+  // The low-tier grid has 18.75 m cells. Keep its complete triangle diagonal
+  // outside an occupied pad, so interpolated terrain cannot penetrate a floor.
+  // Working if both 64- and 128-segment meshes stay flat across the actual pads.
+  for (const pad of LANDMARK_RELIEF_PADS) {
+    const distance = signedDistanceToShape(x, z, {
+      type: 'rect',
+      x: (pad.minX + pad.maxX) / 2,
+      z: (pad.minZ + pad.maxZ) / 2,
+      width: pad.maxX - pad.minX,
+      height: pad.maxZ - pad.minZ,
+    });
+    height *= THREE.MathUtils.smoothstep(distance, 27, 38);
+  }
+  let clearance =
+    getDistanceToRiver(x, z, MILLOS_RIVER_CONFIG) -
+    MILLOS_RIVER_CONFIG.width / 2 -
+    MILLOS_RIVER_CONFIG.bankWidth;
+  for (const region of MILLOS_TERRAIN_REGIONS) {
+    if (region.channel !== TerrainChannel.GRASS) {
+      clearance = Math.min(
+        clearance,
+        signedDistanceToShape(x, z, region.shape) - (region.edgeSoftness ?? 0)
+      );
+    }
+  }
+  const dx = Math.max(VILLAGE_TERRACE.minX - x, 0, x - VILLAGE_TERRACE.maxX);
+  const dz = Math.max(VILLAGE_TERRACE.minZ - z, 0, z - VILLAGE_TERRACE.maxZ);
+  const terrace =
+    VILLAGE_TERRACE.height *
+    (1 - THREE.MathUtils.smoothstep(Math.hypot(dx, dz), 0, VILLAGE_TERRACE.shoulder));
+  // A whole coarse-grid diagonal stays outside the road/canyon exclusion.
+  // This also protects the approach-road paint up to the tunnel bores.
+  return Math.max(
+    height * THREE.MathUtils.smoothstep(clearance, 3, 12),
+    terrace * THREE.MathUtils.smoothstep(clearance, 27, 36)
+  );
+}
+
+/** Interpolate the same two triangles emitted by PlaneGeometry for grounded props. */
+export function sampleValleyGroundHeight(x: number, z: number, segments: number): number {
+  const stepX = (TERRAIN_BOUNDS.maxX - TERRAIN_BOUNDS.minX) / segments;
+  const stepZ = (TERRAIN_BOUNDS.maxZ - TERRAIN_BOUNDS.minZ) / segments;
+  const gx = (x - TERRAIN_BOUNDS.minX) / stepX;
+  const gz = (z - TERRAIN_BOUNDS.minZ) / stepZ;
+  const ix = Math.floor(gx),
+    iz = Math.floor(gz);
+  const tx = gx - ix,
+    tz = gz - iz;
+  const x0 = TERRAIN_BOUNDS.minX + ix * stepX;
+  const z0 = TERRAIN_BOUNDS.minZ + iz * stepZ;
+  const a = sampleValleyRelief(x0, z0);
+  const b = sampleValleyRelief(x0, z0 + stepZ);
+  const c = sampleValleyRelief(x0 + stepX, z0 + stepZ);
+  const d = sampleValleyRelief(x0 + stepX, z0);
+  return tx + tz <= 1
+    ? a * (1 - tx - tz) + d * tx + b * tz
+    : c * (tx + tz - 1) + b * (1 - tx) + d * (1 - tz);
+}
+
+/**
+ * Height of the terrain mesh itself: the river canyon AND the meadow relief,
+ * over the same triangles. `createDisplacedGeometry` carves the canyon from
+ * `getRiverHeightfield` with a 25 m bank, which `sampleValleyGroundHeight`
+ * leaves out - so anything grounded by it on a river bank hovered up to a
+ * metre above the slope. Each vertex reads its heightfield texel exactly as the
+ * mesh does, by floored UV, rather than by bilinear lookup.
+ * Working if a tree rooted by this meets the rendered terrain on a bank.
+ */
+export function sampleTerrainGroundHeight(
+  x: number,
+  z: number,
+  segments: number,
+  config: RiverChannelConfig = MILLOS_RIVER_CONFIG
+): number {
+  const { data, resolution } = getRiverHeightfield(config);
+  const stepX = (TERRAIN_BOUNDS.maxX - TERRAIN_BOUNDS.minX) / segments;
+  const stepZ = (TERRAIN_BOUNDS.maxZ - TERRAIN_BOUNDS.minZ) / segments;
+  const gx = (x - TERRAIN_BOUNDS.minX) / stepX;
+  const gz = (z - TERRAIN_BOUNDS.minZ) / stepZ;
+  const ix = Math.floor(gx),
+    iz = Math.floor(gz);
+  const tx = gx - ix,
+    tz = gz - iz;
+  // PlaneGeometry's UV runs u = column / segments and v = 1 - row / segments,
+  // and world z = minZ is row 0 once the plane is laid flat.
+  const vertex = (column: number, row: number) => {
+    const px = Math.floor((column / segments) * (resolution - 1));
+    const py = Math.floor((1 - row / segments) * (resolution - 1));
+    const canyon = (data[(py * resolution + px) * 4] / 255 - 1) * config.depth;
+    return (
+      canyon +
+      sampleValleyRelief(TERRAIN_BOUNDS.minX + column * stepX, TERRAIN_BOUNDS.minZ + row * stepZ)
+    );
+  };
+  const a = vertex(ix, iz);
+  const b = vertex(ix, iz + 1);
+  const c = vertex(ix + 1, iz + 1);
+  const d = vertex(ix + 1, iz);
+  return tx + tz <= 1
+    ? a * (1 - tx - tz) + d * tx + b * tz
+    : c * (tx + tz - 1) + b * (1 - tx) + d * (1 - tz);
 }

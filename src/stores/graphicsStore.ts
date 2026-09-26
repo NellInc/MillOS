@@ -16,6 +16,8 @@ export interface PerfDebugSettings {
   disableForkliftSystem: boolean; // Disable ForkliftSystem
   disableConveyorSystem: boolean; // Disable ConveyorSystem
   disableMachines: boolean; // Disable Machines (9 useFrame hooks)
+  /** Paired cost check: hide only the new guards and fittings, keeping the mill running. */
+  disableMachineFinish: boolean;
   disableEnvironment: boolean; // Disable FactoryEnvironment
   disableTerrain: boolean; // Disable unified terrain for GPU isolation
   /**
@@ -179,6 +181,7 @@ const DEFAULT_PERF_DEBUG: PerfDebugSettings = {
   disableForkliftSystem: false,
   disableConveyorSystem: false,
   disableMachines: false,
+  disableMachineFinish: false,
   disableEnvironment: false,
   disableTerrain: false,
   disablePunctualLights: false,
@@ -619,7 +622,16 @@ export const useGraphicsStore = create<GraphicsStore>()(
       // Graphics settings - default to medium for better visuals
       graphics: GRAPHICS_PRESETS.medium,
 
-      setGraphicsQuality: (quality) => set({ graphics: { ...GRAPHICS_PRESETS[quality] } }),
+      // SCADA sync and adaptive quality are preferences, not part of a visual
+      // preset, so a quality swap (manual or adaptive) carries them across.
+      setGraphicsQuality: (quality) =>
+        set((state) => ({
+          graphics: {
+            ...GRAPHICS_PRESETS[quality],
+            enableSCADA: state.graphics.enableSCADA,
+            enableAdaptiveQuality: state.graphics.enableAdaptiveQuality,
+          },
+        })),
 
       setGraphicsSetting: (key, value) =>
         set((state) => ({

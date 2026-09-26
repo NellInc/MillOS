@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { audioManager } from '../utils/audioManager';
 import { useSafetyStore } from '../stores/safetyStore';
+import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import { useUIStore } from '../stores/uiStore';
 import type { AlertData } from '../types';
 
@@ -18,16 +19,15 @@ const getSampleAlerts = (): Omit<AlertData, 'id' | 'timestamp' | 'acknowledged'>
     message: 'Plansifter B bearing temperature elevated',
     machineId: 'sifter-b',
   },
-  { type: 'info', title: 'Quality Check', message: 'Hourly sample collection in progress' },
-  { type: 'success', title: 'Target Met', message: 'Daily production target achieved at 94%' },
-  { type: 'warning', title: 'Low Stock', message: 'Packaging supplies below reorder threshold' },
-  { type: 'info', title: 'Conveyor Check', message: 'Belt tension within normal parameters' },
+  { type: 'info', title: 'Quality Check', message: 'Hourly sample collection under way' },
+  { type: 'success', title: 'Target Met', message: 'Daily production target reached' },
+  { type: 'warning', title: 'Low Stock', message: 'Packaging supplies below reorder point' },
+  { type: 'info', title: 'Conveyor Check', message: 'Belt tension nominal' },
 ];
 
 const NEAR_MISS_MESSAGES = [
   'Forklift stopped for a blocked aisle - safety protocol activated',
   'Unexpected load detected in forklift path - collision averted',
-  'Emergency stop triggered - all clear',
   'Proximity alert - forklift yielded to crossing equipment',
   'Safety system engaged - near-miss avoided',
 ];
@@ -47,7 +47,12 @@ export const AlertSystem: React.FC = () => {
   useEffect(() => {
     if (isInitialMount.current) return;
 
-    if (safetyMetrics.safetyStops > prevSafetyStopsRef.current) {
+    // A forklift halting for an operator E-stop, the Space-bar stop or the
+    // egress drill is obeying an order, not avoiding a near miss.
+    const deliberateHold =
+      useSafetyStore.getState().forkliftEmergencyStop ||
+      useGameSimulationStore.getState().emergencyActive;
+    if (safetyMetrics.safetyStops > prevSafetyStopsRef.current && !deliberateHold) {
       const message = NEAR_MISS_MESSAGES[Math.floor(Math.random() * NEAR_MISS_MESSAGES.length)];
       const newAlert: AlertData = {
         id: `safety-${Date.now()}`,

@@ -20,6 +20,7 @@ import { useAIConfigStore } from '../stores/aiConfigStore';
 import { useShallow } from 'zustand/react/shallow';
 import { applyDecisionEffects, reactToAlert } from '../utils/aiEngine';
 import { GeminiSettingsModal } from './GeminiSettingsModal';
+import { JevAdvisoryPanel } from './ui/JevAdvisoryPanel';
 import { ActionPlanTimeline } from './ui/ActionPlanTimeline';
 import { DecisionHistoryPanel } from './ui/DecisionHistoryPanel';
 import { StrategicPriorityCards } from './ui/StrategicPriorityCards';
@@ -50,8 +51,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
   onClose: _onClose,
   embedded = false,
 }) => {
-  const [isThinking, setIsThinking] = useState(false);
-  const [activeTab, setActiveTab] = useState<'decisions' | 'strategic'>('decisions');
+  const [activeTab, setActiveTab] = useState<'decisions' | 'strategic' | 'advisory'>('decisions');
   const [selectedDecision, setSelectedDecision] = useState<AIDecision | null>(null);
 
   const [systemStatus, setSystemStatus] = useState({
@@ -62,7 +62,10 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
   // Subscribed, not read imperatively, so the readout follows trackAPICost.
   const formattedSessionCost = useAIConfigStore((state) => state.getFormattedCost());
 
-  const lastAlertCountRef = useRef(0);
+  // Alert ids already accounted for. Tracking ids rather than the list length
+  // keeps reactions firing once uiStore's alert list reaches its 10-item cap,
+  // and dismissing the newest alert never re-triggers an older one.
+  const seenAlertIdsRef = useRef<Set<string>>(new Set());
 
   const alertReactionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -110,29 +113,36 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
   // (Gemini connected while backend=webgpu-not-loaded must NOT read as ready.)
   const isLocalBackend = llmBackend === 'webgpu';
   const llmReady = isLocalBackend ? webgpuModelReady : isGeminiConnected;
+  // Mirrors the badge text below so the settings button's name contains it.
+  const modeLabel =
+    aiMode === 'gemini' && llmReady
+      ? isLocalBackend
+        ? 'Local'
+        : 'Gemini'
+      : aiMode === 'hybrid' && llmReady
+        ? 'Hybrid'
+        : 'Heuristic';
   const [showGeminiSettings, setShowGeminiSettings] = useState(false);
 
   // React to new alerts
   useEffect(() => {
     if (!isOpen) return;
 
-    if (alerts.length > lastAlertCountRef.current) {
-      const newAlert = alerts[0];
-      if (newAlert && newAlert.machineId) {
-        if (alertReactionTimeoutRef.current) clearTimeout(alertReactionTimeoutRef.current);
-        alertReactionTimeoutRef.current = setTimeout(() => {
-          const decision = reactToAlert(newAlert);
-          if (decision) {
-            applyDecisionEffects(decision);
-            setSystemStatus((prev) => ({
-              ...prev,
-              decisions: prev.decisions + 1,
-            }));
-          }
-        }, 1500);
-      }
+    const newAlert = alerts[0];
+    if (newAlert?.machineId && !seenAlertIdsRef.current.has(newAlert.id)) {
+      if (alertReactionTimeoutRef.current) clearTimeout(alertReactionTimeoutRef.current);
+      alertReactionTimeoutRef.current = setTimeout(() => {
+        const decision = reactToAlert(newAlert);
+        if (decision) {
+          applyDecisionEffects(decision);
+          setSystemStatus((prev) => ({
+            ...prev,
+            decisions: prev.decisions + 1,
+          }));
+        }
+      }, 1500);
     }
-    lastAlertCountRef.current = alerts.length;
+    seenAlertIdsRef.current = new Set(alerts.map((alert) => alert.id));
 
     return () => {
       if (alertReactionTimeoutRef.current) {
@@ -150,11 +160,11 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
     // Optional: add any side effects needed on decision updates
   }, [aiDecisions]);
 
-  // Sync isThinking state from store
+  // The tactical pass flips its flag within one synchronous task, so on its own
+  // it never renders; the slow async strategic call is what the player waits on.
   const isTacticalThinking = useAIConfigStore((state) => state.isTacticalThinking);
-  useEffect(() => {
-    setIsThinking(isTacticalThinking);
-  }, [isTacticalThinking]);
+  const isStrategicThinking = useAIConfigStore((state) => state.strategic?.isThinking ?? false);
+  const isThinking = isTacticalThinking || isStrategicThinking;
 
   // Update system status from store instead of local calculation
   const storeSystemStatus = useAIConfigStore((state) => state.systemStatus);
@@ -187,12 +197,15 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
               <Brain className="w-5 h-5" aria-hidden="true" />
               <span className="font-bold text-sm">AI Partner</span>
               {/* Fixed width container prevents layout jitter */}
-              <span className={`text-xs ml-1 w-16 ${isThinking ? 'animate-pulse' : 'invisible'}`}>
+              <span
+                className={`text-xs ml-1 w-16 ${isThinking ? 'motion-safe:animate-pulse' : 'invisible'}`}
+              >
                 reviewing...
               </span>
               {/* Gemini Settings Button */}
               <button
                 onClick={() => setShowGeminiSettings(true)}
+                aria-label={`AI settings, current mode: ${modeLabel}`}
                 className="ml-auto flex items-center gap-1.5 px-2 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 border border-slate-700 transition-colors"
                 title={
                   aiMode === 'gemini'
@@ -262,10 +275,10 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
             </div>
             {/* Emergency Drill Banner */}
             {emergencyDrillMode && (
-              <div className="mt-2 px-2 py-1.5 bg-red-500/20 rounded-lg border border-red-500/30 animate-pulse">
+              <div className="mt-2 px-2 py-1.5 bg-red-500/20 rounded-lg border border-red-500/30 motion-safe:animate-pulse">
                 <div className="flex items-center gap-2 text-red-400 text-[10px] font-bold">
-                  <Shield className="w-3 h-3" />
-                  EMERGENCY DRILL IN PROGRESS
+                  <Shield className="w-3 h-3" aria-hidden="true" />
+                  EGRESS DRILL IN PROGRESS
                 </div>
               </div>
             )}
@@ -315,6 +328,21 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
               <Target className="w-3 h-3 inline mr-1" aria-hidden="true" />
               Strategic
             </button>
+            <button
+              role="tab"
+              id="ai-advisory-tab"
+              aria-selected={activeTab === 'advisory'}
+              aria-controls="ai-command-tabpanel"
+              onClick={() => setActiveTab('advisory')}
+              className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                activeTab === 'advisory'
+                  ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
+                  : 'bg-slate-800/50 text-slate-400 hover:bg-slate-800'
+              }`}
+            >
+              <Shield className="w-3 h-3 inline mr-1" aria-hidden="true" />
+              Advisory
+            </button>
           </div>
 
           {/* Screen-reader-only live region announcing the newest AI decision */}
@@ -326,10 +354,14 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
           <div
             id="ai-command-tabpanel"
             role="tabpanel"
-            aria-labelledby={activeTab === 'decisions' ? 'ai-decisions-tab' : 'ai-strategic-tab'}
+            aria-labelledby={`ai-${activeTab}-tab`}
             className="flex-1 overflow-y-auto p-3 space-y-2"
           >
-            {activeTab === 'decisions' ? (
+            {activeTab === 'advisory' ? (
+              <JevAdvisoryPanel
+                latestAlert={alerts[0] ? `${alerts[0].title}\n${alerts[0].message}` : undefined}
+              />
+            ) : activeTab === 'decisions' ? (
               <>
                 {aiDecisions.slice(0, 15).map((decision: AIDecision) => (
                   <div
@@ -408,14 +440,6 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
                                 <XCircle className="h-3 w-3" aria-hidden="true" />
                                 Reject
                               </button>
-                              {aiDecisions.length > 15 && (
-                                <p
-                                  className="text-center text-[10px] text-slate-500 py-1"
-                                  role="status"
-                                >
-                                  Showing 15 of {aiDecisions.length} decisions
-                                </p>
-                              )}
                             </>
                           )}
                         </div>
@@ -423,6 +447,11 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
                     </div>
                   </div>
                 ))}
+                {aiDecisions.length > 15 && (
+                  <p className="text-center text-[10px] text-slate-500 py-1" role="status">
+                    Showing 15 of {aiDecisions.length} decisions
+                  </p>
+                )}
                 {aiDecisions.length === 0 && (
                   <div className="text-center py-6 text-slate-500">
                     <Bot className="w-6 h-6 mx-auto mb-2" />

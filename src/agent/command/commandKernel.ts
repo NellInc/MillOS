@@ -15,10 +15,12 @@ import type {
 import type {
   AgentCapabilityDescriptor,
   AgentDomainId,
+  AgentEntityKind,
   AgentSystemRegistrySource,
 } from '../contracts/systemManifest';
 import { canonicalStringify } from '../contracts/registryValidation.js';
 import { revisionFor } from '../query/queryService.js';
+import { parseSemanticUri } from '../ontology/semanticUri.js';
 import { AgentAuthorityEngine, DEFAULT_AGENT_ACTOR_URI, DEFAULT_AGENT_GRANT_ID } from './authority';
 import { AgentCausalLedger } from './causalLedger';
 
@@ -118,10 +120,18 @@ export function createAgentCommandKernel(dependencies: KernelDependencies) {
       }))
     );
 
-    const inspection =
-      handler && problems.every((problem) => problem.severity !== 'blocking')
-        ? await handler.inspect(command, capture)
-        : emptyInspection(capability);
+    let inspection = emptyInspection(capability);
+    if (handler && problems.every((problem) => problem.severity !== 'blocking')) {
+      // A preview always resolves to a structured status. A handler that throws
+      // becomes a blocking problem instead of rejecting the whole preview.
+      try {
+        inspection = await handler.inspect(command, capture);
+      } catch (error) {
+        problems.push(
+          blocking('INSPECTION_FAILED', error instanceof Error ? error.message : String(error))
+        );
+      }
+    }
     for (const check of [...inspection.preconditions, ...inspection.invariants]) {
       if (!check.satisfied) {
         problems.push({
@@ -565,8 +575,21 @@ function validateCommand(
     );
   if (!command.reason.trim())
     problems.push(blocking('COMMAND_REASON_REQUIRED', 'A non-empty reason is required.'));
-  if (!command.targetUri.startsWith('millos://'))
-    problems.push(blocking('TARGET_URI_INVALID', 'Target must be a MillOS semantic URI.'));
+  // Handlers resolve the target through parseSemanticUri, which throws on a
+  // non-canonical id or an unknown kind; reject those here as a structured problem.
+  let targetKind: AgentEntityKind | null = null;
+  try {
+    targetKind = parseSemanticUri(command.targetUri).kind;
+  } catch {
+    targetKind = null;
+  }
+  if (!targetKind || !capability.targetKinds.includes(targetKind))
+    problems.push(
+      blocking(
+        'TARGET_URI_INVALID',
+        `Target must be a canonical MillOS URI of kind ${capability.targetKinds.join('/')}.`
+      )
+    );
   problems.push(...validateSchema(command.parameters, capability.parameters));
   const targetParameters = Object.keys(capability.parameters.properties).filter((key) =>
     key.endsWith('Uri')

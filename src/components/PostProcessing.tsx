@@ -16,10 +16,12 @@ import { BlendFunction } from 'postprocessing';
 // `n8ao` ships no type declarations, so the pass is held through the
 // `postprocessing` base class it extends. Only `.enabled` is touched here.
 import type { Pass, VignetteEffect } from 'postprocessing';
+import { useFrame } from '@react-three/fiber';
 import { useShallow } from 'zustand/react/shallow';
 import { useGraphicsStore, isPostProcessingActive } from '../stores/graphicsStore';
 import { useAudioAnalyzerStore } from '../stores/audioAnalyzerStore';
 import { SSAO_PALETTE_COLOR } from '../utils/digitalTwinPalette';
+import { fulfilComposerCapture, setComposerCaptureAvailable } from '../utils/sceneCapture';
 import {
   AMBIENT_OCCLUSION,
   AO_QUALITY_LEVELS,
@@ -30,6 +32,23 @@ import {
   aoQualityLevel,
   vignetteDarknessFor,
 } from '../constants/colorGrade';
+
+/**
+ * Reads screenshot requests back from the composer's finished frame (see
+ * `sceneCapture.ts`). Priority 2 runs after the composer's priority-1 render in
+ * the same animation frame, while the drawing buffer still holds the graded
+ * image. Mounted as the composer's NEXT sibling so that on unmount the
+ * composer's effect cleanup restores `gl.toneMapping` before this cleanup
+ * settles any pending request through the synchronous fallback render.
+ */
+function ComposerCaptureReader(): null {
+  useEffect(() => {
+    setComposerCaptureAvailable(true);
+    return () => setComposerCaptureAvailable(false);
+  }, []);
+  useFrame(({ gl }) => fulfilComposerCapture(gl.domElement), 2);
+  return null;
+}
 
 /**
  * Post-processing chain.
@@ -254,8 +273,11 @@ export const PostProcessing: React.FC = () => {
     // submission. N8AO needs only depth.
     // `multisampling` is set explicitly: the R3F default of 8 costs roughly
     // 132 MB of MSAA storage at 1920x1080 plus a per-frame resolve.
-    <EffectComposer enableNormalPass={false} multisampling={COMPOSER_MULTISAMPLING}>
-      {children}
-    </EffectComposer>
+    <>
+      <EffectComposer enableNormalPass={false} multisampling={COMPOSER_MULTISAMPLING}>
+        {children}
+      </EffectComposer>
+      <ComposerCaptureReader />
+    </>
   );
 };

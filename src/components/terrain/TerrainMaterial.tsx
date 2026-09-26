@@ -301,6 +301,15 @@ const fragmentShaderPreamble = `
       worldXZ.x * TERRAIN_GRASS_COS - worldXZ.y * TERRAIN_GRASS_SIN,
       worldXZ.x * TERRAIN_GRASS_SIN + worldXZ.y * TERRAIN_GRASS_COS
     ) / uGrassScale;
+    // A continuous, low-frequency warp bends the 6.5 m tile lattice without
+    // another texture tap. Both albedo and packed relief follow the same UV.
+    // Its Jacobian stays positive, so no folds or hard cell boundaries appear.
+    vec2 grassWarpPhase = vec2(
+      dot(grassUV, vec2(0.11, 0.37)),
+      dot(grassUV, vec2(0.29, -0.13))
+    );
+    vec2 grassWarpSlope = vec2(0.68, 0.53) * cos(grassWarpPhase);
+    grassUV += vec2(0.68, 0.53) * sin(grassWarpPhase);
     vec2 asphaltUV = worldXZ / uAsphaltScale;
     vec2 roadUV = worldXZ / uRoadScale;
     vec2 dirtUV = worldXZ / uDirtScale;
@@ -487,6 +496,12 @@ const fragmentShaderPreamble = `
 
     if (hasSurface) {
       vec2 nGrass = surfGrass.rg * 2.0 - 1.0;
+      // Transform the sampled relief gradient by the warp Jacobian transpose
+      // before undoing the grass UV rotation, keeping light on the right slope.
+      nGrass = vec2(
+        (1.0 + 0.11 * grassWarpSlope.x) * nGrass.x + 0.29 * grassWarpSlope.y * nGrass.y,
+        0.37 * grassWarpSlope.x * nGrass.x + (1.0 - 0.13 * grassWarpSlope.y) * nGrass.y
+      );
       nGrass = vec2(
         TERRAIN_GRASS_COS * nGrass.x + TERRAIN_GRASS_SIN * nGrass.y,
         -TERRAIN_GRASS_SIN * nGrass.x + TERRAIN_GRASS_COS * nGrass.y
@@ -615,11 +630,14 @@ function injectTerrainShader(shader: THREE.WebGLProgramParametersWithUniforms): 
  */
 export function TerrainMaterial(props: TerrainMaterialProps) {
   const materialRef = useRef<THREE.MeshStandardMaterial>(null);
-  const uniformsRef = useRef(createTerrainUniforms(props));
+  // Lazy: useRef's argument is evaluated on every render, which would build and
+  // discard a whole uniform set each time.
+  const uniformsRef = useRef<ReturnType<typeof createTerrainUniforms> | null>(null);
+  if (uniformsRef.current === null) uniformsRef.current = createTerrainUniforms(props);
 
   // Update uniforms when props change
   useEffect(() => {
-    const uniforms = uniformsRef.current;
+    const uniforms = uniformsRef.current!;
     if (props.splatMap) {
       uniforms.uSplatMap.value = props.splatMap;
     }
@@ -718,17 +736,16 @@ export function TerrainMaterial(props: TerrainMaterialProps) {
     // Everything added since is gated on uniform floats rather than #defines, so
     // there are still exactly two program variants and this key stays correct.
     const hasDisplacementKey = hasDisplacement ? 'disp' : 'nodisp';
-    // v11: the injected source changed (grass tile-break folded into the macro
-    // tap, near-macro tap put behind a uniform branch). three uses this key
+    // v12: continuous grass UV warp and matching relief Jacobian. three uses this key
     // INSTEAD of hashing the injected source, so it has to be bumped whenever
     // that source changes or a warm program cache could serve the old one.
-    mat.customProgramCacheKey = () => `terrain_v11_${hasDisplacementKey}`;
+    mat.customProgramCacheKey = () => `terrain_v12_${hasDisplacementKey}`;
 
     // Inject custom shader code
     mat.onBeforeCompile = (shader) => {
       // Uniforms are shared BY REFERENCE, so textures that arrive later flip a
       // uniform without triggering a shader recompile.
-      Object.assign(shader.uniforms, uniformsRef.current);
+      Object.assign(shader.uniforms, uniformsRef.current!);
       injectTerrainShader(shader);
     };
 
@@ -750,52 +767,4 @@ export function TerrainMaterial(props: TerrainMaterialProps) {
   useEffect(() => () => material.dispose(), [material]);
 
   return <primitive object={material} attach="material" />;
-}
-
-/**
- * Hook to create and manage a terrain material
- * For use outside of JSX context
- */
-export function useTerrainMaterial(props: TerrainMaterialProps) {
-  const uniformsRef = useRef(createTerrainUniforms(props));
-
-  const material = useMemo(() => {
-    const mat = new THREE.MeshStandardMaterial({
-      color: 0xffffff,
-      roughness: 0.8,
-      metalness: 0.0,
-      side: THREE.FrontSide,
-    });
-
-    mat.onBeforeCompile = (shader) => {
-      Object.assign(shader.uniforms, uniformsRef.current);
-      // Must use the same injection set as the component: the fragment
-      // preamble declares vWorldNormal, so omitting the vertex-side assignment
-      // would compile cleanly and shade from an undefined varying.
-      injectTerrainShader(shader);
-    };
-
-    mat.needsUpdate = true;
-    return mat;
-  }, []);
-
-  // Update uniforms reactively
-  useEffect(() => {
-    const uniforms = uniformsRef.current;
-    uniforms.uSplatMap.value = props.splatMap;
-    if (props.heightmap !== undefined) {
-      uniforms.uHeightmap.value = props.heightmap;
-      uniforms.uHasHeightmap.value = props.heightmap ? 1.0 : 0.0;
-    }
-    if (props.displacementDepth !== undefined) {
-      uniforms.uDisplacementDepth.value = props.displacementDepth;
-    }
-    material.needsUpdate = true;
-  }, [props.splatMap, props.heightmap, props.displacementDepth, material]);
-
-  // Dispose the material (and its compiled shader program) on unmount,
-  // preventing a GPU resource leak.
-  useEffect(() => () => material.dispose(), [material]);
-
-  return material;
 }

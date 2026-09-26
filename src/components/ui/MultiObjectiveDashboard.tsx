@@ -71,7 +71,8 @@ export const MultiObjectiveDashboard: React.FC = () => {
         energyKwh += (MACHINE_ENERGY[type] || 20) * (0.3 + 0.7 * loadFactor);
       }
     }
-    const energyTarget = 150; // kWh target
+    // A sum of instantaneous draw, so this is power (kW), not energy (kWh).
+    const energyTarget = 150; // kW target
 
     // Carbon (derived from energy)
     const carbonKg = energyKwh * 0.4;
@@ -100,7 +101,7 @@ export const MultiObjectiveDashboard: React.FC = () => {
         label: 'Energy',
         value: Math.round(energyKwh * 10) / 10,
         target: energyTarget,
-        unit: 'kWh',
+        unit: 'kW',
         icon: <Zap className="w-4 h-4" />,
         color: 'amber',
         trend: energyKwh <= energyTarget ? 'up' : 'down',
@@ -109,7 +110,7 @@ export const MultiObjectiveDashboard: React.FC = () => {
         label: 'Carbon',
         value: Math.round(carbonKg * 10) / 10,
         target: carbonTarget,
-        unit: 'kg CO₂',
+        unit: 'kg CO₂/h',
         icon: <Leaf className="w-4 h-4" />,
         color: 'emerald',
         trend: carbonKg <= carbonTarget ? 'up' : 'down',
@@ -149,10 +150,9 @@ export const MultiObjectiveDashboard: React.FC = () => {
           </div>
           <span className="text-sm font-medium text-white">Multi-Objective</span>
         </div>
+        {/* Not a live region: the score moves every metrics tick, and the
+            trade-off banner below already announces the changes that matter. */}
         <div
-          role="status"
-          aria-live="polite"
-          aria-label={`Overall objective score ${overallScore} percent`}
           className={`px-2 py-0.5 rounded-full text-xs font-bold ${
             overallScore >= 80
               ? 'bg-green-500/20 text-green-400'
@@ -161,6 +161,7 @@ export const MultiObjectiveDashboard: React.FC = () => {
                 : 'bg-red-500/20 text-red-400'
           }`}
         >
+          <span className="sr-only">Overall objective score </span>
           {overallScore}%
         </div>
       </div>

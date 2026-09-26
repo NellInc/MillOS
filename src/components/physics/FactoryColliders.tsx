@@ -5,14 +5,74 @@
  * Extracted from MillScene.tsx obstacle definitions for physics-based collision.
  */
 
-import { RigidBody, CuboidCollider } from '@react-three/rapier';
+import { RigidBody, CuboidCollider, TrimeshCollider } from '@react-three/rapier';
 import { useMemo } from 'react';
 import {
   COLLISION_FILTERS,
   createCollisionGroups,
   WORLD_RADIUS,
 } from '../../physics/PhysicsConfig';
-import { createMachineObstacles } from '../../constants/factoryObstacles';
+import {
+  createMachineObstacles,
+  createConveyorObstacles,
+  DOCK_PLATFORM_OBSTACLES,
+} from '../../constants/factoryObstacles';
+import { useGraphicsStore } from '../../stores/graphicsStore';
+import { createDisplacedGeometry } from '../terrain/TerrainGround';
+import { getTerrainGridSegments, TERRAIN_BOUNDS } from '../terrain/terrainTypes';
+import { VILLAGE_TERRACE } from '../terrain/splatMapGenerator';
+import { RIVER_FOOTBRIDGE_DECK } from '../../constants/siteLayout';
+
+/**
+ * Reuse the rendered terrain assembly. Only raised triangles need another
+ * collider; the existing flat world floor remains authoritative elsewhere.
+ * Working if physics rays and visible relief agree at every quality tier.
+ */
+export function createValleyCollider(segments: number): [Float32Array, Uint32Array] {
+  const geometry = createDisplacedGeometry(1200, 1200, segments, null, 1, 12, TERRAIN_BOUNDS);
+  geometry.rotateX(-Math.PI / 2);
+  const positions = geometry.getAttribute('position');
+  const index = geometry.getIndex()!;
+  // The village plateau is one plane. Preserve the rendered slope triangles,
+  // but represent that plane with two faces instead of a grid of coplanar ones.
+  // Working if the real Rapier rays agree across the complete plateau and its
+  // perimeter, while the existing 1,200-triangle collider budget still holds.
+  const insideTerrace = (i: number) =>
+    positions.getX(i) >= VILLAGE_TERRACE.minX &&
+    positions.getX(i) <= VILLAGE_TERRACE.maxX &&
+    positions.getZ(i) >= VILLAGE_TERRACE.minZ &&
+    positions.getZ(i) <= VILLAGE_TERRACE.maxZ;
+  let terraceIsFlat = true;
+  const corners = [-1, -1, -1, -1];
+  for (let i = 0; i < positions.count; i += 1) {
+    if (!insideTerrace(i)) continue;
+    if (Math.abs(positions.getY(i) - VILLAGE_TERRACE.height) > 0.0001) terraceIsFlat = false;
+    const x = positions.getX(i),
+      z = positions.getZ(i);
+    if (x === VILLAGE_TERRACE.minX && z === VILLAGE_TERRACE.minZ) corners[0] = i;
+    if (x === VILLAGE_TERRACE.minX && z === VILLAGE_TERRACE.maxZ) corners[1] = i;
+    if (x === VILLAGE_TERRACE.maxX && z === VILLAGE_TERRACE.minZ) corners[2] = i;
+    if (x === VILLAGE_TERRACE.maxX && z === VILLAGE_TERRACE.maxZ) corners[3] = i;
+  }
+  // An at-grade village (height 0) has no terrace: the flat world floor already
+  // carries it, and its triangles fail the raised filter below anyway.
+  const mergeTerrace =
+    VILLAGE_TERRACE.height > 0.001 && terraceIsFlat && corners.every((i) => i >= 0);
+  const triangles: number[] = [];
+  for (let i = 0; i < index.count; i += 3) {
+    const a = index.getX(i),
+      b = index.getX(i + 1),
+      c = index.getX(i + 2);
+    if (mergeTerrace && insideTerrace(a) && insideTerrace(b) && insideTerrace(c)) continue;
+    if (Math.max(positions.getY(a), positions.getY(b), positions.getY(c)) > 0.001)
+      triangles.push(a, b, c);
+  }
+  if (mergeTerrace)
+    triangles.push(corners[0], corners[1], corners[2], corners[1], corners[3], corners[2]);
+  const vertices = new Float32Array(positions.array);
+  geometry.dispose();
+  return [vertices, new Uint32Array(triangles)];
+}
 
 // Circular world boundary - matches mountains at radius 260 (WORLD_RADIUS from PhysicsConfig)
 const BOUNDARY_SEGMENTS = 32; // Number of wall segments forming the circle
@@ -32,106 +92,12 @@ interface ObstacleData {
 }
 
 // Generate obstacle data matching MillScene.tsx definitions
-function generateObstacles(): ObstacleData[] {
+export function generateObstacles(): ObstacleData[] {
   const obstacles: ObstacleData[] = [...createMachineObstacles()];
 
-  // CONVEYOR SYSTEM
-  obstacles.push({
-    id: 'main-conveyor',
-    minX: -28,
-    maxX: 28,
-    minZ: 22.5,
-    maxZ: 25.5,
-    minY: 0,
-    maxY: 1.5,
-  });
+  obstacles.push(...createConveyorObstacles());
 
-  obstacles.push({
-    id: 'roller-conveyor',
-    minX: -15,
-    maxX: 15,
-    minZ: 19.5,
-    maxZ: 22.5,
-    minY: 0,
-    maxY: 1,
-  });
-
-  // LOADING DOCKS
-  obstacles.push({
-    id: 'shipping-dock',
-    minX: -18,
-    maxX: 18,
-    minZ: 44,
-    maxZ: 54,
-    minY: 0,
-    maxY: 1.5,
-  });
-
-  obstacles.push({
-    id: 'receiving-dock',
-    minX: -10,
-    maxX: 10,
-    minZ: -54,
-    maxZ: -44,
-    minY: 0,
-    maxY: 1.5,
-  });
-
-  // AMENITY BUILDINGS (forklift-only in legacy, but physics uses full collision)
-  obstacles.push({
-    id: 'break-room-left',
-    minX: -53,
-    maxX: -47,
-    minZ: -22.5,
-    maxZ: -17.5,
-    minY: 0,
-    maxY: 3,
-    forkliftOnly: true,
-  });
-
-  obstacles.push({
-    id: 'break-room-right',
-    minX: 47,
-    maxX: 53,
-    minZ: -22.5,
-    maxZ: -17.5,
-    minY: 0,
-    maxY: 3,
-    forkliftOnly: true,
-  });
-
-  obstacles.push({
-    id: 'toilet-block',
-    minX: 31,
-    maxX: 39,
-    minZ: 32.5,
-    maxZ: 37.5,
-    minY: 0,
-    maxY: 3,
-    forkliftOnly: true,
-  });
-
-  obstacles.push({
-    id: 'locker-room',
-    minX: -54,
-    maxX: -46,
-    minZ: -38,
-    maxZ: -32,
-    minY: 0,
-    maxY: 3,
-    forkliftOnly: true,
-  });
-
-  obstacles.push({
-    id: 'manager-office',
-    minX: -24,
-    maxX: -16,
-    minZ: 27,
-    maxZ: 33,
-    minY: 0,
-    maxY: 3,
-    forkliftOnly: true,
-  });
+  obstacles.push(...DOCK_PLATFORM_OBSTACLES);
 
   // ========== BRIDGES (walkable surfaces) ==========
 
@@ -148,16 +114,20 @@ function generateObstacles(): ObstacleData[] {
     maxY: 1.4, // deck surface + small buffer
   });
 
-  // River Stone Bridge at [0, -145] (inside River component)
-  // Deck at y=1.5, dimensions [18, 0.8, river_width+4] where river_width=20
+  // The rendered 70 m deck spans both banks. Its former 24 m collider ended
+  // over the river and extended sideways beyond the actual 6.375 m deck.
+  const {
+    centre: [bridgeX, bridgeY, bridgeZ],
+    size: [bridgeWidth, bridgeHeight, bridgeLength],
+  } = RIVER_FOOTBRIDGE_DECK;
   obstacles.push({
     id: 'stone-bridge-river',
-    minX: -9, // half of 18
-    maxX: 9,
-    minZ: -145 - 12, // half of 24
-    maxZ: -145 + 12,
-    minY: 1.1, // below deck for step-up
-    maxY: 1.9, // deck top
+    minX: bridgeX - bridgeWidth / 2,
+    maxX: bridgeX + bridgeWidth / 2,
+    minZ: bridgeZ - bridgeLength / 2,
+    maxZ: bridgeZ + bridgeLength / 2,
+    minY: bridgeY - bridgeHeight / 2,
+    maxY: bridgeY + bridgeHeight / 2,
   });
 
   // LockGate walkway at [-145, 50], width=10
@@ -204,6 +174,8 @@ function generateBoundarySegments(): Array<{
  * Static factory colliders - machines, walls, and obstacles
  */
 export const FactoryColliders: React.FC = () => {
+  const quality = useGraphicsStore((state) => state.graphics.quality);
+  const valley = useMemo(() => createValleyCollider(getTerrainGridSegments(quality)), [quality]);
   const obstacles = useMemo(() => generateObstacles(), []);
   const boundarySegments = useMemo(() => generateBoundarySegments(), []);
 
@@ -242,6 +214,7 @@ export const FactoryColliders: React.FC = () => {
       {/* Floor - large circular area up to mountains */}
       <RigidBody type="fixed" collisionGroups={staticCollisionGroups}>
         <CuboidCollider args={[WORLD_RADIUS, 0.5, WORLD_RADIUS]} position={[0, -0.5, 0]} />
+        <TrimeshCollider args={valley} />
       </RigidBody>
 
       {/* Machine and obstacle colliders */}

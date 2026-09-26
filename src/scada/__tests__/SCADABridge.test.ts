@@ -10,6 +10,7 @@ import {
   calculateMachineVisuals,
   scadaToStoreMetrics,
   getAlarmVisualConfig,
+  vibrationTagToStoreVelocity,
 } from '../SCADABridge';
 import { TagValue, Alarm } from '../types';
 
@@ -222,6 +223,21 @@ describe('SCADABridge', () => {
     });
   });
 
+  describe('vibrationTagToStoreVelocity', () => {
+    const sifterDef = { engUnit: 'mm', alarmLo: 4, alarmHi: 9 };
+    it('reads the band centre as a quiet machine and either limit as a warning', () => {
+      expect(vibrationTagToStoreVelocity(6.5, sifterDef)).toBe(1);
+      expect(vibrationTagToStoreVelocity(9, sifterDef)).toBe(3.5);
+      expect(vibrationTagToStoreVelocity(4, sifterDef)).toBe(3.5);
+      expect(vibrationTagToStoreVelocity(10, sifterDef)).toBe(4.5);
+    });
+    it('leaves mm/s tags and incomplete definitions alone', () => {
+      expect(vibrationTagToStoreVelocity(2.2, { engUnit: 'mm/s', alarmHi: 3.5 })).toBe(2.2);
+      expect(vibrationTagToStoreVelocity(7, { engUnit: 'mm' })).toBe(7);
+      expect(vibrationTagToStoreVelocity(7)).toBe(7);
+    });
+  });
+
   describe('scadaToStoreMetrics', () => {
     const createTagValue = (tagId: string, value: number): TagValue => ({
       tagId,
@@ -234,6 +250,21 @@ describe('SCADABridge', () => {
       const values = new Map<string, TagValue>();
       const result = scadaToStoreMetrics('unknown-machine', values, []);
       expect(result).toBeNull();
+    });
+
+    it('maps sifter stroke amplitude (mm) onto the store velocity scale', () => {
+      const values = new Map<string, TagValue>();
+      // Healthy amplitude, inside the 4-9 mm band: must not read as a 7 mm/s fault.
+      values.set('SIFTER_A.VT001.PV', createTagValue('SIFTER_A.VT001.PV', 6.8));
+      const result = scadaToStoreMetrics('sifter-a', values, []);
+      expect(result?.metrics.vibration).toBeGreaterThanOrEqual(1);
+      expect(result?.metrics.vibration).toBeLessThan(1.5);
+    });
+
+    it('passes velocity tags (mm/s) through unchanged', () => {
+      const values = new Map<string, TagValue>();
+      values.set('RM101.VT001.PV', createTagValue('RM101.VT001.PV', 1.7));
+      expect(scadaToStoreMetrics('rm-101', values, [])?.metrics.vibration).toBe(1.7);
     });
 
     it('should extract metrics from SCADA values', () => {

@@ -126,6 +126,9 @@ const DEFAULT_PARTS_INVENTORY: PartsInventory = {
   sensors: 12,
 };
 
+/** Closed (returned_to_service) work orders retained for audit. */
+const MAX_CLOSED_WORK_ORDERS = 30;
+
 const makeId = (prefix: string, sequence: number): string =>
   `${prefix}-${sequence.toString().padStart(5, '0')}`;
 
@@ -182,7 +185,9 @@ export interface BreakdownStore {
   addPredictiveAlert: (
     machineId: string,
     machineName: string,
-    metrics: { vibration: number; temperature: number; load: number }
+    metrics: { vibration: number; temperature: number; load: number },
+    /** Game minutes until breakdown, when the caller can derive it (e.g. from wear). */
+    predictedMinutes?: number
   ) => void;
   acknowledgePredictiveAlert: (alertId: string) => void;
   clearOldPredictiveAlerts: () => void;
@@ -275,7 +280,7 @@ export const useBreakdownStore = create<BreakdownStore>()(
             {
               phase: 'diagnosed',
               timestamp: now,
-              note: `${description}. Work order opened with causal machine lockout.`,
+              note: `${description}. Work order opened; machine locked out pending repair.`,
             },
           ],
         };
@@ -459,7 +464,7 @@ export const useBreakdownStore = create<BreakdownStore>()(
                     {
                       phase: 'restart_requested',
                       timestamp: now,
-                      note: 'Operator requested controlled restart.',
+                      note: 'Controlled restart requested by the control layer.',
                     },
                   ],
                 }
@@ -486,27 +491,39 @@ export const useBreakdownStore = create<BreakdownStore>()(
           repairProgress: 100,
           downtimeSeconds: workOrder.downtimeSeconds,
         };
+        const updatedWorkOrders = state.workOrders.map((candidate) =>
+          candidate.id === workOrder.id
+            ? {
+                ...candidate,
+                phase: 'returned_to_service' as const,
+                restartedAt: now,
+                audit: [
+                  ...candidate.audit,
+                  {
+                    phase: 'returned_to_service' as const,
+                    timestamp: now,
+                    note: 'Machine returned to service after production state reset.',
+                  },
+                ],
+              }
+            : candidate
+        );
+        // Keep every open order but only the most recent closed ones, matching
+        // the bounded breakdownHistory; the tick iterates this list.
+        const closedWorkOrders = updatedWorkOrders.filter(
+          (candidate) => candidate.phase === 'returned_to_service'
+        );
+        const retainedClosedIds = new Set(
+          closedWorkOrders.slice(-MAX_CLOSED_WORK_ORDERS).map((candidate) => candidate.id)
+        );
         return {
           activeBreakdowns: state.activeBreakdowns.filter(
             (candidate) => candidate.id !== breakdownId
           ),
           breakdownHistory: [resolvedBreakdown, ...state.breakdownHistory].slice(0, 20),
-          workOrders: state.workOrders.map((candidate) =>
-            candidate.id === workOrder.id
-              ? {
-                  ...candidate,
-                  phase: 'returned_to_service',
-                  restartedAt: now,
-                  audit: [
-                    ...candidate.audit,
-                    {
-                      phase: 'returned_to_service',
-                      timestamp: now,
-                      note: 'Machine returned to service after production state reset.',
-                    },
-                  ],
-                }
-              : candidate
+          workOrders: updatedWorkOrders.filter(
+            (candidate) =>
+              candidate.phase !== 'returned_to_service' || retainedClosedIds.has(candidate.id)
           ),
         };
       });
@@ -541,7 +558,7 @@ export const useBreakdownStore = create<BreakdownStore>()(
       }));
     },
 
-    addPredictiveAlert: (machineId, machineName, metrics) => {
+    addPredictiveAlert: (machineId, machineName, metrics, predictedMinutes) => {
       const state = get();
       if (
         state.predictiveAlerts.some((alert) => alert.machineId === machineId && !alert.acknowledged)
@@ -553,7 +570,7 @@ export const useBreakdownStore = create<BreakdownStore>()(
       if (metrics.vibration > 4) {
         predictedFailureType = 'vibration_failure';
         confidence = Math.min(95, 60 + metrics.vibration * 8);
-      } else if (metrics.temperature > 65) {
+      } else if (metrics.temperature >= 80) {
         predictedFailureType = 'overheating';
         confidence = Math.min(95, 50 + (metrics.temperature - 50) * 3);
       } else if (metrics.load > 95) {
@@ -570,7 +587,10 @@ export const useBreakdownStore = create<BreakdownStore>()(
         machineName,
         predictedFailureType,
         confidence: Math.round(confidence),
-        predictedTimeToFailure: Math.max(5, 30 - Math.floor(confidence / 5)),
+        predictedTimeToFailure:
+          predictedMinutes !== undefined && Number.isFinite(predictedMinutes)
+            ? Math.max(5, Math.round(predictedMinutes))
+            : Math.max(5, 30 - Math.floor(confidence / 5)),
         basedOnMetrics: metrics,
         acknowledged: false,
         createdAt: Date.now(),

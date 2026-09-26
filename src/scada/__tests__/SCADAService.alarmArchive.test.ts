@@ -1,5 +1,6 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { SCADAService } from '../SCADAService';
+import type { AlarmManager } from '../AlarmManager';
 import type { Alarm } from '../types';
 
 /**
@@ -83,5 +84,43 @@ describe('SCADAService alarm archival dedup', () => {
     notify([makeAlarm({ state: 'RTN_UNACK', clearedAt: 2 })]);
 
     expect(writeAlarm).toHaveBeenCalledTimes(2);
+  });
+
+  describe('through a real AlarmManager', () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('persists an alarm that is acknowledged and then clears, with its acknowledger', () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-07-27T12:00:00Z'));
+      const live = new SCADAService();
+      const write = vi.fn();
+      (live as unknown as { historyStore: { writeAlarm: typeof write } }).historyStore = {
+        writeAlarm: write,
+      } as never;
+      const manager = (live as unknown as { alarmManager: AlarmManager }).alarmManager;
+      vi.advanceTimersByTime(5_001);
+
+      const sample = (value: number) =>
+        manager.evaluate({
+          tagId: 'RM101.TT001.PV',
+          value,
+          quality: 'GOOD',
+          timestamp: Date.now(),
+        });
+      sample(70);
+      const raised = manager.getActiveAlarms().find((a) => a.tagId === 'RM101.TT001.PV');
+      expect(raised).toBeDefined();
+      manager.acknowledge(raised!.id, 'Autonomous control layer', 'Bearing checked');
+      sample(40);
+
+      expect(write).toHaveBeenCalledOnce();
+      expect(write.mock.calls[0][0]).toMatchObject({
+        id: raised!.id,
+        state: 'NORMAL',
+        acknowledgedBy: 'Autonomous control layer',
+      });
+    });
   });
 });

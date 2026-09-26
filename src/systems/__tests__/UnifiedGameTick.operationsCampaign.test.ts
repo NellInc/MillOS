@@ -7,7 +7,7 @@ import { useQCLabStore } from '../../stores/qcLabStore';
 import { useTruckScheduleStore } from '../../stores/truckScheduleStore';
 import { useUIStore } from '../../stores/uiStore';
 import type { TickContext } from '../CentralTickSystem';
-import { unifiedGameTick } from '../UnifiedGameTick';
+import { resetUnifiedTickState, unifiedGameTick } from '../UnifiedGameTick';
 
 const context: TickContext = {
   deltaSeconds: 0.5,
@@ -19,6 +19,7 @@ const context: TickContext = {
 
 describe('UnifiedGameTick operations campaign consequences', () => {
   beforeEach(() => {
+    resetUnifiedTickState();
     useOperationsCampaignStore.getState().resetCampaign();
     useTruckScheduleStore.getState().resetTruckSchedule();
     useMaterialFlowStore.getState().resetMaterialFlow();
@@ -32,19 +33,71 @@ describe('UnifiedGameTick operations campaign consequences', () => {
   });
 
   it('applies a delayed collection to the truck schedule exactly once', () => {
+    useTruckScheduleStore.getState().setTruckActive('shipping', false);
     const incident = useOperationsCampaignStore.getState().triggerIncident('delayed_truck')!;
     expect(useTruckScheduleStore.getState().truckSchedule.shipping.nextArrivalMinutes).toBe(20);
 
     unifiedGameTick({ ...context, tickCount: 2 });
 
-    expect(useTruckScheduleStore.getState().truckSchedule.shipping.nextArrivalMinutes).toBe(65);
+    // The arrival timer now runs on game minutes (0.5 s at 1x = 1/120 min).
+    expect(useTruckScheduleStore.getState().truckSchedule.shipping.nextArrivalMinutes).toBeCloseTo(
+      65 - 1 / 120,
+      6
+    );
     expect(
       useOperationsCampaignStore.getState().incidents.find((item) => item.id === incident.id)
         ?.effectApplied
     ).toBe(true);
 
     unifiedGameTick({ ...context, tickCount: 3 });
-    expect(useTruckScheduleStore.getState().truckSchedule.shipping.nextArrivalMinutes).toBe(65);
+    expect(useTruckScheduleStore.getState().truckSchedule.shipping.nextArrivalMinutes).toBeCloseTo(
+      65 - 2 / 120,
+      6
+    );
+  });
+
+  it('holds a delay raised while the truck is en route for its next scheduled arrival', () => {
+    // The initial shipping truck is already active, so its timer is not running.
+    const incident = useOperationsCampaignStore.getState().triggerIncident('delayed_truck')!;
+    unifiedGameTick({ ...context, tickCount: 2 });
+    expect(useTruckScheduleStore.getState().truckSchedule.shipping.nextArrivalMinutes).toBe(20);
+    expect(
+      useUIStore.getState().alerts.some((alert) => alert.id === `campaign-${incident.id}`)
+    ).toBe(true);
+
+    useTruckScheduleStore.getState().recordTruckDeparture('shipping', 30);
+    const cadenceMinutes =
+      useTruckScheduleStore.getState().truckSchedule.shipping.nextArrivalMinutes;
+    unifiedGameTick({ ...context, tickCount: 3 });
+
+    expect(useTruckScheduleStore.getState().truckSchedule.shipping.nextArrivalMinutes).toBeCloseTo(
+      cadenceMinutes + 45 - 1 / 120,
+      6
+    );
+    unifiedGameTick({ ...context, tickCount: 4 });
+    expect(useTruckScheduleStore.getState().truckSchedule.shipping.nextArrivalMinutes).toBeCloseTo(
+      cadenceMinutes + 45 - 2 / 120,
+      6
+    );
+  });
+
+  it('brings the next truck back to a dock once its arrival timer runs out', () => {
+    useTruckScheduleStore.getState().recordTruckDeparture('receiving', 10);
+    expect(useTruckScheduleStore.getState().truckSchedule.receiving.truckActive).toBe(false);
+    const minutesToArrival =
+      useTruckScheduleStore.getState().truckSchedule.receiving.nextArrivalMinutes;
+
+    // At 180x one 0.5 s tick advances 1.5 game minutes.
+    const ticks = Math.ceil(minutesToArrival / 1.5);
+    for (let tick = 0; tick < ticks; tick += 1) {
+      unifiedGameTick({ ...context, gameSpeed: 180, tickCount: 2 + tick });
+    }
+
+    expect(useTruckScheduleStore.getState().truckSchedule.receiving).toMatchObject({
+      truckActive: true,
+      arrivalReady: true,
+      lifecyclePhase: 'approaching',
+    });
   });
 
   it('couples severe rain into the shared weather simulation', () => {

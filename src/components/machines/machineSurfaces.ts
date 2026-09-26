@@ -71,8 +71,15 @@
  */
 
 import * as THREE from 'three';
-import { generateMachineORM, generateMachinePanelNormal } from '../../textures';
+import {
+  generateMachineORM,
+  generateMachinePanelNormal,
+  generateProceduralNormal,
+} from '../../textures';
 import { applyWorldSurface } from '../../utils/worldSurface';
+import { generateGalvanizedORM, generateGalvanizedNormal } from '../../textures/brushedMetal';
+import { generateEnamelORM } from '../../textures/paintedMetal';
+import { createColorDataTexture, getTexture } from '../../utils/textureGenerator';
 
 // ===========================================================================
 // SOURCE TEXTURES
@@ -117,6 +124,7 @@ function band(
  */
 const SKIN_ORM = generateMachineORM(512, 'vertical', 96);
 const HOUSING_ORM = generateMachineORM(512, 'horizontal', 128);
+const ENAMEL_ORM = generateEnamelORM();
 
 /** Same key as the shell's `CLADDING_PANEL_NORMAL`; also a free cache hit. */
 const PANEL_NORMAL = generateMachinePanelNormal(512, 4, 7);
@@ -148,21 +156,23 @@ export const MACHINE_ORM_ROUGHNESS_RANGE = { min: 0.35, max: 0.85 } as const;
 // the same inert-detail failure this file exists to fix. That follows the
 // shell's `steelTrim` precedent.
 
-/** Silo body: cylinder, circumference 14.14 m x height 12.5 m. Tile ~1.6 m. */
-const SILO_SKIN_ORM = band(SKIN_ORM, 9, 8, { anisotropy: 4 });
-/** Silo body panel courses: 14.14 / (4 * 2.5) = 1.41 m x 12.5 / (4 * 2) = 1.56 m. */
-const SILO_SKIN_NORMAL = band(PANEL_NORMAL, 2.5, 2, { anisotropy: 4 });
-
-/** Silo roof cone / outlet cone / stiffener rings. Circumference ~14.8 m. */
-const SILO_TRIM_ORM = band(SKIN_ORM, 9, 2);
-const SILO_TRIM_NORMAL = band(PANEL_NORMAL, 2.5, 0.5);
+/** Installed 12 m bins: about 1.5 m of zinc stock per ORM tile.
+ * Their corrugation and joints have geometry; cladding's dark grid would add
+ * seams where none exist. Working if the same-camera finish loses those seams
+ * while the 15.6 cm normal corrugation remains visible in supporting views.
+ */
+const GALVANIZED_ORM = generateGalvanizedORM();
+const SILO_SKIN_ORM = band(GALVANIZED_ORM, 25, 16, { anisotropy: 4 });
+const SILO_SKIN_NORMAL = band(generateGalvanizedNormal(true), 25, 8, { anisotropy: 4 });
+const SILO_TRIM_ORM = band(GALVANIZED_ORM, 25, 3);
+const SILO_TRIM_NORMAL = band(generateGalvanizedNormal(false), 25, 3);
 
 /** Silo legs: 0.24 x 3 m box. Tile ~0.5 m, no relief (too slender). */
 const SILO_LEG_ORM = band(SKIN_ORM, 0.5, 6);
 
-/** Mill body: 4.8 x 4.7 m face. Tile 1.2 m; panel pitch 1.2 x 1.18 m. */
-const MILL_SKIN_ORM = band(HOUSING_ORM, 4, 4);
-const MILL_SKIN_NORMAL = band(PANEL_NORMAL, 1, 1);
+/** Cast enamel has fine orange peel; its seams now belong to actual fittings. */
+const MILL_SKIN_ORM = band(ENAMEL_ORM, 4, 4);
+const MILL_SKIN_NORMAL = band(generateProceduralNormal(256, 0.18, 24), 2, 2);
 
 /** Mill base 5.2 x 4.4 m, hopper cone, sifter inlet. Tile ~1.2 m. */
 const MILL_TRIM_ORM = band(HOUSING_ORM, 4, 2);
@@ -178,8 +188,8 @@ const RECESS_NORMAL = band(PANEL_NORMAL, 1.5, 1);
 /** Chill rolls: circumference 3.02 m x 3.25 m long. Tile ~0.4 m. */
 const ROLLER_ORM = band(SKIN_ORM, 8, 8);
 
-/** Sifter body: 6.5 x 3.35 m face. Tile ~1.2 m; panel pitch ~1.1 m. */
-const SIFTER_SKIN_ORM = band(HOUSING_ORM, 5, 3);
+/** Sifter body: 6.5 x 3.35 m face. Satin enamel over the existing panel relief. */
+const SIFTER_SKIN_ORM = band(ENAMEL_ORM, 5, 3);
 const SIFTER_SKIN_NORMAL = band(PANEL_NORMAL, 1.5, 0.75);
 
 /** Sifter trays 6.8 x 5.95 m and lid 5.6 x 4.8 m. Tile ~1.2 m. */
@@ -189,8 +199,8 @@ const SIFTER_TRAY_ORM = band(HOUSING_ORM, 5, 5);
 const PLATFORM_ORM = band(HOUSING_ORM, 6, 6);
 const PLATFORM_NORMAL = band(PANEL_NORMAL, 1.6, 1.4);
 
-/** Packer body: 3.7 x 4.75 m face. Tile ~1.2 m; panel pitch ~1.16 m. */
-const PACKER_SKIN_ORM = band(HOUSING_ORM, 3, 4);
+/** Packer body: 3.7 x 4.75 m face. Same enamel, independently tiled. */
+const PACKER_SKIN_ORM = band(ENAMEL_ORM, 3, 4);
 const PACKER_SKIN_NORMAL = band(PANEL_NORMAL, 0.8, 1);
 
 /** Packer base 4.5 x 4.25 m, hopper cone, fill head. Tile ~1.1 m. */
@@ -375,22 +385,61 @@ function withWear<T extends THREE.MeshStandardMaterial>(
 // MATERIALS
 // ===========================================================================
 //
-// `roughness` is authored at or near 1 wherever an ORM map is present, because
-// the map is a real multiplier now (G in 0.35-0.85, mean 0.582). The comment on
-// each entry gives the resulting FINAL roughness band so the intent is legible
-// without running the multiplication.
+// Brushed ORM has G in 0.35-0.85, mean 0.582. Enamel narrows it to 0.50-0.66
+// without painted-on scratches or cavity shadows. Each entry states its FINAL
+// roughness after multiplication, before the analytic wear layer.
 //
 // `metalness` is 0 or 1. Nothing in between.
 //
-// `aoMap` shares the ORM texture object with `roughnessMap` - three reads .r
+// On brushed surfaces, `aoMap` shares the ORM texture with `roughnessMap` - three reads .r
 // for AO and .g for roughness, and `Texture.channel` defaults to 0 so no uv2 is
-// needed. `metalnessMap` is deliberately NOT assigned: `generateMachineORM`
+// needed. The three enamel housings have no baked cavities and leave AO unbound.
+// `metalnessMap` is deliberately NOT assigned: `generateMachineORM`
 // writes a constant 1 into B, so it would be a no-op on conductors (1 x 1) AND
 // on dielectrics (0 x 1) while still costing a texture fetch and a shader
 // permutation. Do not "add the missing map".
 
+/**
+ * A shared dark instrument display with a process schematic, without invented
+ * readings or machine-state colours. The separate beacon owns live status.
+ * Working if the bezel surrounds a legible dark screen rather than a cyan tile,
+ * including on low where the same emissive map is rendered without bloom.
+ */
+export function getMachineScreenTexture(): THREE.DataTexture {
+  return getTexture('machine-instrument-screen-v1', () => {
+    const width = 128;
+    const height = 80;
+    const data = new Uint8Array(width * height * 4);
+    const rect = (u: number, v: number, x: number, y: number, w: number, h: number) =>
+      u >= x && u < x + w && v >= y && v < y + h;
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const u = x / width;
+        const v = y / height;
+        let rgb = [9, 20, 28];
+        if (rect(u, v, 0.05, 0.77, 0.9, 0.16)) rgb = [23, 48, 58];
+        // Header strokes and four linked process blocks remain readable when
+        // the HMI occupies only a few dozen pixels. DataTexture row zero is down.
+        if (rect(u, v, 0.09, 0.82, 0.23, 0.035)) rgb = [206, 219, 214];
+        if (rect(u, v, 0.18, 0.45, 0.63, 0.03)) rgb = [75, 122, 124];
+        for (let node = 0; node < 4; node++) {
+          const left = 0.1 + node * 0.21;
+          if (rect(u, v, left, 0.34, 0.16, 0.25)) rgb = [98, 163, 158];
+          if (rect(u, v, left + 0.025, 0.38, 0.11, 0.17)) rgb = [20, 52, 59];
+        }
+        if (rect(u, v, 0.1, 0.15, 0.35, 0.035)) rgb = [112, 137, 140];
+        if (rect(u, v, 0.64, 0.14, 0.2, 0.055)) rgb = [166, 157, 129];
+        const offset = (y * width + x) * 4;
+        data.set(rgb, offset);
+        data[offset + 3] = 255;
+      }
+    }
+    return createColorDataTexture(data, width, height);
+  });
+}
+
 export const MACHINE_MATERIALS = {
-  /** Galvanised silo skin. CONDUCTOR. Final roughness 0.35-0.85. */
+  /** Galvanised silo skin. CONDUCTOR. Zinc spangle at roughness 0.56-0.66. */
   silo: withWear(
     new THREE.MeshStandardMaterial({
       name: 'machine-silo-skin',
@@ -406,18 +455,18 @@ export const MACHINE_MATERIALS = {
     { grime: 0.3, dust: 0.05, edge: 0.1, grimeHeight: 3.2 }
   ),
 
-  /** Painted roof cone, outlet cone and stiffener rings. Final 0.33-0.81. */
+  /** Galvanised roof, grounded discharge enclosure and stiffener rings. */
   siloRoof: withWear(
     new THREE.MeshStandardMaterial({
       name: 'machine-silo-trim',
-      color: '#5e6b71',
+      color: '#c2c9c7',
       roughnessMap: SILO_TRIM_ORM,
       aoMap: SILO_TRIM_ORM,
       aoMapIntensity: 0.8,
       normalMap: SILO_TRIM_NORMAL,
       normalScale: new THREE.Vector2(0.55, 0.55),
-      roughness: 0.95,
-      metalness: 0,
+      roughness: 1,
+      metalness: 1,
     }),
     { grime: 0.05, dust: 0.24, edge: 0.16, grimeHeight: 2.2 }
   ),
@@ -455,20 +504,29 @@ export const MACHINE_MATERIALS = {
     'vegetation'
   ),
 
-  /** Painted mill housing. Final 0.35-0.85. */
+  /** Petrol enamel housing. Final roughness 0.33-0.44 retains broad highlights. */
   mill: withWear(
     new THREE.MeshStandardMaterial({
       name: 'machine-mill-body',
-      color: '#bbb8ac',
+      color: '#356a74',
       roughnessMap: MILL_SKIN_ORM,
-      aoMap: MILL_SKIN_ORM,
-      aoMapIntensity: 0.85,
       normalMap: MILL_SKIN_NORMAL,
       normalScale: new THREE.Vector2(0.7, 0.7),
-      roughness: 1,
+      roughness: 0.66,
       metalness: 0,
     }),
-    { grime: 0.26, dust: 0.2, edge: 0.18, grimeHeight: 1.5 }
+    { grime: 0.2, dust: 0.085, edge: 0.07, grimeHeight: 1.5 }
+  ),
+
+  /** A narrow brushed-brass trim, distinct from yellow safety paint. */
+  millAccent: withWear(
+    new THREE.MeshStandardMaterial({
+      name: 'machine-mill-brass-trim',
+      color: '#c4b48f',
+      roughness: 0.46,
+      metalness: 1,
+    }),
+    { grime: 0, dust: 0.04, edge: 0.02, grimeHeight: 1.2 }
   ),
 
   /** Painted mill base, hopper and sifter inlet. Final 0.35-0.85. */
@@ -531,23 +589,21 @@ export const MACHINE_MATERIALS = {
       roughness: 0.45,
       metalness: 1,
     }),
-    { grime: 0, dust: 0.3, edge: 0.06, grimeHeight: 1 }
+    { grime: 0, dust: 0.08, edge: 0.06, grimeHeight: 1 }
   ),
 
-  /** Painted sifter housing. Final 0.35-0.85. */
+  /** Warm champagne enamel distinguishes the elevated sifting stage. Final 0.40-0.53. */
   sifter: withWear(
     new THREE.MeshStandardMaterial({
       name: 'machine-sifter-body',
-      color: '#b0ae9e',
+      color: '#bea876',
       roughnessMap: SIFTER_SKIN_ORM,
-      aoMap: SIFTER_SKIN_ORM,
-      aoMapIntensity: 0.85,
       normalMap: SIFTER_SKIN_NORMAL,
       normalScale: new THREE.Vector2(0.7, 0.7),
-      roughness: 1,
+      roughness: 0.8,
       metalness: 0,
     }),
-    { grime: 0.18, dust: 0.3, edge: 0.18, grimeHeight: 1.4, deck: SIFTER_DECK_Y }
+    { grime: 0.18, dust: 0.15, edge: 0.08, grimeHeight: 1.4, deck: SIFTER_DECK_Y }
   ),
 
   /** Timber-framed sifter trays and lid. Final 0.35-0.85. */
@@ -580,17 +636,15 @@ export const MACHINE_MATERIALS = {
     { grime: 0.4, dust: 0.28, edge: 0.16, grimeHeight: 0.6, deck: SIFTER_DECK_Y }
   ),
 
-  /** Painted packer housing. Final 0.35-0.85. */
+  /** Satin-painted packer housing. Final roughness 0.41-0.54. */
   packer: withWear(
     new THREE.MeshStandardMaterial({
       name: 'machine-packer-body',
       color: '#4e817b',
       roughnessMap: PACKER_SKIN_ORM,
-      aoMap: PACKER_SKIN_ORM,
-      aoMapIntensity: 0.85,
       normalMap: PACKER_SKIN_NORMAL,
       normalScale: new THREE.Vector2(0.7, 0.7),
-      roughness: 1,
+      roughness: 0.82,
       metalness: 0,
     }),
     { grime: 0.24, dust: 0.22, edge: 0.18, grimeHeight: 1.5 }
@@ -685,17 +739,17 @@ export const MACHINE_MATERIALS = {
   ),
 
   /**
-   * HMI screen. Was a `MeshBasicMaterial` with `toneMapped: false`, which made
-   * it the only surface in the mill bypassing the NeutralToneMapping curve - a
-   * flat cyan chip pasted onto a tone-mapped scene. Now a real emissive surface
-   * that sits in the same curve as everything else. `emissiveIntensity` is
+   * HMI screen. Its sparse backlit schematic shares the scene's tone curve.
+   * Colour and emissive maps use the same sRGB source. `emissiveIntensity` is
    * raised above 1 only when the composer is mounted; see
    * `setMachineScreenGlow`.
    */
   screen: new THREE.MeshStandardMaterial({
     name: 'machine-screen',
-    color: '#0d1f22',
-    emissive: new THREE.Color('#72dfd0'),
+    color: '#ffffff',
+    map: getMachineScreenTexture(),
+    emissive: new THREE.Color('#ffffff'),
+    emissiveMap: getMachineScreenTexture(),
     emissiveIntensity: 1,
     roughness: 0.28,
     metalness: 0,
@@ -737,7 +791,7 @@ export const MACHINE_MATERIALS = {
  * `isPostProcessingActive(graphics)`.
  */
 export function setMachineScreenGlow(composerActive: boolean): void {
-  MACHINE_MATERIALS.screen.emissiveIntensity = composerActive ? 2.4 : 1;
+  MACHINE_MATERIALS.screen.emissiveIntensity = composerActive ? 1.35 : 1;
 }
 
 /**

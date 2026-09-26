@@ -47,18 +47,18 @@ export function BuildCacheDiagnostics(): ReactElement {
 
   const checkForUpdate = async (): Promise<void> => {
     setAction('checking');
-    setMessage('Checking for a newer build.');
+    setMessage('Looking for a newer build.');
     const checked = await updateServiceWorker();
     await refresh();
-    setMessage(checked ? 'Update check complete.' : 'No registered service worker to update.');
+    setMessage(checked ? 'Up to date.' : 'No service worker registered.');
   };
 
   const clearCache = async (): Promise<void> => {
     setAction('clearing');
-    setMessage('Clearing caches for this deployment scope.');
+    setMessage('Clearing cached assets.');
     const cleared = await clearServiceWorkerCache();
     await refresh();
-    setMessage(cleared ? 'This version cache is clear.' : 'The cache could not be cleared.');
+    setMessage(cleared ? 'Cache cleared.' : 'Could not clear the cache.');
   };
 
   const activateUpdate = async (): Promise<void> => {

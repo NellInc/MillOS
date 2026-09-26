@@ -104,6 +104,42 @@ const smootherstep = (value: number): number => {
   return t * t * t * (t * (t * 6 - 15) + 10);
 };
 
+/**
+ * Half-width of the heading blend around each route vertex, in metres.
+ *
+ * Arc-length samples take central-difference tangents and the sampler lerps
+ * them across a whole segment, so an unrounded action corner (pickup and
+ * dropoff are never rounded) turned the heading across the entire 2-8 m leg
+ * beside it: up to ~58 degrees of crab on a straight. Inserting a point this
+ * far either side of every vertex confines the tangent and curvature blend to
+ * the corner itself; every straight leg then points along travel.
+ */
+const FORKLIFT_CORNER_BLEND_METRES = 0.4;
+
+const densifyClosedRoute = (
+  points: readonly { readonly x: number; readonly z: number }[]
+): { x: number; z: number }[] => {
+  const ring = points.map(({ x, z }) => ({ x, z }));
+  // A closing point that repeats the first would be a zero-length segment.
+  const last = ring[ring.length - 1];
+  if (ring.length > 1 && Math.hypot(last.x - ring[0].x, last.z - ring[0].z) <= 1e-6) ring.pop();
+
+  const dense: { x: number; z: number }[] = [];
+  ring.forEach((point, index) => {
+    const next = ring[(index + 1) % ring.length];
+    dense.push(point);
+    const dx = next.x - point.x;
+    const dz = next.z - point.z;
+    const length = Math.hypot(dx, dz);
+    // Only where the two inserted points cannot meet or cross.
+    if (length <= FORKLIFT_CORNER_BLEND_METRES * 2 + 0.01) return;
+    const t = FORKLIFT_CORNER_BLEND_METRES / length;
+    dense.push({ x: point.x + dx * t, z: point.z + dz * t });
+    dense.push({ x: next.x - dx * t, z: next.z - dz * t });
+  });
+  return dense;
+};
+
 export function createForkliftRoutePlan(
   points: readonly (readonly [number, number, number])[],
   actions: readonly ForkliftWaypointAction[]
@@ -111,10 +147,7 @@ export function createForkliftRoutePlan(
   if (points.length !== actions.length) {
     throw new Error(`Forklift route has ${points.length} points but ${actions.length} actions`);
   }
-  const path = createArcLengthPath(
-    points.map(([x, , z]) => ({ x, z })),
-    true
-  );
+  const path = createArcLengthPath(densifyClosedRoute(points.map(([x, , z]) => ({ x, z }))), true);
   const markers = points
     .map((point, index) => ({
       distance: findNearestPathDistance(path, point[0], point[2]),
@@ -324,7 +357,10 @@ export function sampleForkliftLoadPose(
       : ['disengaging', 'withdrawing', 'resetting'].includes(phase)
         ? 0
         : initialHeight;
-  const mastTilt = phase === 'levelling' ? -0.055 * (1 - segmentProgress) : 0;
+  // Aligning holds the loaded-travel tilt, so the dropoff starts from the pose
+  // the mast arrived in instead of popping level and back.
+  const mastTilt =
+    phase === 'aligning' ? -0.055 : phase === 'levelling' ? -0.055 * (1 - segmentProgress) : 0;
   return {
     phase,
     forkHeight,

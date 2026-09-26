@@ -167,6 +167,11 @@ export interface CampaignTickContext {
   releasedFinishedKg: number;
   dispatchLoad: DispatchLoadSnapshot;
   openWorkOrders: number;
+  /**
+   * Minute of day on the visible game clock (gameTime * 60). The peak energy
+   * tariff follows it; campaign elapsed time is used only when it is absent.
+   */
+  clockMinuteOfDay?: number;
 }
 
 export interface IncidentEffect {
@@ -226,6 +231,8 @@ const MAX_REPORTS = 12;
 const MAX_INCIDENTS = 32;
 const MAX_PROCESSED_MANIFESTS = 120;
 const EPSILON_KG = 1e-6;
+/** No open commitment: keep the line warm and build stock instead of stopping. */
+const STOCK_BUILD_SETPOINT_PERCENT = 70;
 
 const ZERO_ECONOMICS: CampaignEconomics = {
   revenue: 0,
@@ -264,7 +271,7 @@ export const MILL_RECIPES: Record<string, MillRecipe> = {
   },
   fine_semolina: {
     id: 'fine_semolina',
-    label: 'Fine pasta semolina',
+    label: 'Fine corn semolina',
     finishedMaterial: 'semolina',
     sourceMaterial: 'corn_grain',
     minimumQuality: 90,
@@ -548,7 +555,7 @@ function deriveExecution(
       sourceMaterial: null,
       finishedMaterial: null,
       stage: 'fulfilled',
-      lineSetpointPercent: 0,
+      lineSetpointPercent: STOCK_BUILD_SETPOINT_PERCENT,
       remainingKg: 0,
       qualityReleased: context.dispatchReleased,
       dispatchLoad: { ...context.dispatchLoad },
@@ -585,7 +592,7 @@ function executionMessage(execution: OrderExecutionState): string {
     case 'planning':
       return 'Production route planned.';
     case 'milling':
-      return `Processing ${execution.sourceMaterial ?? 'scheduled grain'} through the active recipe.`;
+      return `Processing ${execution.sourceMaterial?.replaceAll('_', ' ') ?? 'scheduled grain'} for the active recipe.`;
     case 'quality_hold':
       return execution.dispatchLoad.blockReason ?? 'Finished goods are held at the quality gate.';
     case 'ready_to_load':
@@ -597,7 +604,9 @@ function executionMessage(execution: OrderExecutionState): string {
     case 'dispatched':
       return `${execution.dispatchLoad.lastDispatchKg.toFixed(0)} kg left the shipping bay.`;
     case 'fulfilled':
-      return 'All current commitments are fulfilled.';
+      return execution.orderId === null
+        ? 'All commitments fulfilled. The line is building stock at a reduced setpoint.'
+        : 'Commitment fulfilled.';
   }
 }
 
@@ -628,6 +637,10 @@ function combinedIncidentEffect(incidents: ReadonlyArray<OperationalIncident>): 
   };
 }
 
+function sentenceStart(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
 function makeConstraints(
   state: Pick<OperationsCampaignState, 'orders' | 'activeOrderId' | 'incidents' | 'elapsedMinutes'>,
   context: CampaignTickContext,
@@ -649,7 +662,7 @@ function makeConstraints(
       id: `recipe-feed-${activeOrder.id}`,
       severity: 'critical',
       label: 'Recipe feed unavailable',
-      detail: `${activeOrder.recipe.sourceMaterial.replaceAll('_', ' ')} inventory is empty.`,
+      detail: `${sentenceStart(activeOrder.recipe.sourceMaterial.replaceAll('_', ' '))} inventory is empty.`,
       relatedId: activeOrder.id,
     });
   }
@@ -663,7 +676,10 @@ function makeConstraints(
         id: `order-due-${nextOrder.id}`,
         severity: remainingMinutes <= 0 ? 'critical' : 'warning',
         label: remainingMinutes <= 0 ? 'Commitment overdue' : 'Commitment due soon',
-        detail: `${Math.max(0, Math.ceil(remainingMinutes))} simulated minutes remain for ${nextOrder.customer}.`,
+        detail:
+          remainingMinutes <= 0
+            ? `${nextOrder.customer} is ${Math.max(1, Math.ceil(-remainingMinutes))} simulated minutes overdue.`
+            : `${Math.ceil(remainingMinutes)} simulated minutes remain for ${nextOrder.customer}.`,
         relatedId: nextOrder.id,
       });
     }
@@ -674,7 +690,13 @@ function makeConstraints(
       severity: 'critical',
       label: 'Dispatch isolated',
       detail: 'An active incident requires the shipping quality gate to remain closed.',
-      relatedId: state.incidents.find((incident) => incident.phase !== 'resolved')?.id ?? null,
+      relatedId:
+        state.incidents.find(
+          (incident) =>
+            incident.phase !== 'resolved' &&
+            incident.phase !== 'mitigated' &&
+            INCIDENT_DEFINITIONS[incident.kind].effect.dispatchBlocked
+        )?.id ?? null,
     });
   }
   if (context.openWorkOrders > 0) {
@@ -761,7 +783,7 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
                 simulationMinute: state.elapsedMinutes,
                 source: 'Order scheduler',
                 category: 'operation',
-                message: `${selected.id} activated: ${selected.recipe.sourceMaterial} to ${selected.recipe.finishedMaterial}.`,
+                message: `${selected.customer}: ${selected.recipe.label} is now the active commitment.`,
                 relatedId: selected.id,
               },
               MAX_LOG_ENTRIES
@@ -812,30 +834,75 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
       },
 
       acknowledgeIncident: (incidentId) =>
-        set((state) => ({
-          incidents: state.incidents.map((incident) =>
-            incident.id === incidentId && incident.phase === 'raised'
-              ? { ...incident, phase: 'acknowledged', acknowledgedAtMinute: state.elapsedMinutes }
-              : incident
-          ),
-        })),
+        set((state) => {
+          const target = state.incidents.find(
+            (incident) => incident.id === incidentId && incident.phase === 'raised'
+          );
+          if (!target) return state;
+          const sequence = state.sequence + 1;
+          return {
+            incidents: state.incidents.map((incident) =>
+              incident.id === incidentId
+                ? { ...incident, phase: 'acknowledged', acknowledgedAtMinute: state.elapsedMinutes }
+                : incident
+            ),
+            sequence,
+            logbook: appendBounded(
+              state.logbook,
+              {
+                id: `log-${String(sequence).padStart(4, '0')}`,
+                simulationMinute: state.elapsedMinutes,
+                source: 'Incident controller',
+                category: 'operation',
+                message: `${target.title} acknowledged.`,
+                relatedId: incidentId,
+              },
+              MAX_LOG_ENTRIES
+            ),
+          };
+        }),
 
       mitigateIncident: (incidentId) =>
-        set((state) => ({
-          incidents: state.incidents.map((incident) =>
-            incident.id === incidentId && incident.phase !== 'resolved'
-              ? {
-                  ...incident,
-                  phase: 'mitigated',
-                  acknowledgedAtMinute: incident.acknowledgedAtMinute ?? state.elapsedMinutes,
-                }
-              : incident
-          ),
-          shiftMetrics: {
-            ...state.shiftMetrics,
-            automaticActions: state.shiftMetrics.automaticActions + 1,
-          },
-        })),
+        set((state) => {
+          // Only a live incident can be mitigated; an unknown or already
+          // settled id is a no-op, not an automatic action.
+          const target = state.incidents.find(
+            (incident) =>
+              incident.id === incidentId &&
+              incident.phase !== 'resolved' &&
+              incident.phase !== 'mitigated'
+          );
+          if (!target) return state;
+          const sequence = state.sequence + 1;
+          return {
+            incidents: state.incidents.map((incident) =>
+              incident.id === incidentId
+                ? {
+                    ...incident,
+                    phase: 'mitigated',
+                    acknowledgedAtMinute: incident.acknowledgedAtMinute ?? state.elapsedMinutes,
+                  }
+                : incident
+            ),
+            shiftMetrics: {
+              ...state.shiftMetrics,
+              automaticActions: state.shiftMetrics.automaticActions + 1,
+            },
+            sequence,
+            logbook: appendBounded(
+              state.logbook,
+              {
+                id: `log-${String(sequence).padStart(4, '0')}`,
+                simulationMinute: state.elapsedMinutes,
+                source: 'Incident controller',
+                category: 'operation',
+                message: `${target.title} mitigated; residual effect halved.`,
+                relatedId: incidentId,
+              },
+              MAX_LOG_ENTRIES
+            ),
+          };
+        }),
 
       resolveIncident: (incidentId) =>
         set((state) => {
@@ -925,6 +992,8 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
             processedManifestIds.push(manifest.id);
             let remaining = manifest.actualKg;
             for (const product of manifest.productBatches) {
+              // A batch can be split across orders, but never beyond its own mass.
+              let productRemaining = product.amount;
               const batch = batchesById.get(product.batchId);
               const material = batch?.materialType ?? manifest.materials[0]?.type;
               for (const order of orders
@@ -939,12 +1008,13 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
                     priorityRank(a.priority) - priorityRank(b.priority) ||
                     a.dueAtMinute - b.dueAtMinute
                 )) {
-                if (remaining <= EPSILON_KG) break;
+                if (remaining <= EPSILON_KG || productRemaining <= EPSILON_KG) break;
                 const needed = Math.max(0, order.requiredKg - order.shippedKg);
-                const allocated = Math.min(needed, remaining, product.amount);
+                const allocated = Math.min(needed, remaining, productRemaining);
                 if (allocated <= EPSILON_KG) continue;
                 order.shippedKg += allocated;
                 remaining -= allocated;
+                productRemaining -= allocated;
                 if (!order.batchIds.includes(product.batchId)) order.batchIds.push(product.batchId);
                 if (!order.manifestIds.includes(manifest.id)) order.manifestIds.push(manifest.id);
                 if (context.averageQuality < order.recipe.minimumQuality) {
@@ -1057,11 +1127,22 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
             };
           });
 
-          const hour = elapsedMinutes % (24 * 60);
+          const minuteOfDay =
+            context.clockMinuteOfDay !== undefined && Number.isFinite(context.clockMinuteOfDay)
+              ? context.clockMinuteOfDay
+              : elapsedMinutes % (24 * 60);
           const energyCost =
-            effectiveEnergyKw * (hour >= 540 && hour <= 1260 ? 0.15 : 0.08) * deltaHours;
+            effectiveEnergyKw *
+            (minuteOfDay >= 540 && minuteOfDay <= 1260 ? 0.15 : 0.08) *
+            deltaHours;
           const automationCost = 28 * deltaHours;
-          const wasteCost = Math.max(0, context.wasteKg - state.lastWasteKg) * 0.18;
+          // The material-flow waste counter is per session; if it restarted
+          // below the last reading, everything it now holds is new waste.
+          const newWasteKg =
+            context.wasteKg >= state.lastWasteKg
+              ? context.wasteKg - state.lastWasteKg
+              : context.wasteKg;
+          const wasteCost = Math.max(0, newWasteKg) * 0.18;
           const maintenanceCost = context.openWorkOrders * 90 * deltaHours;
           const demurrageCost =
             context.shippingDocked && (!context.dispatchReleased || incidentEffect.dispatchBlocked)
@@ -1221,12 +1302,22 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
         constraints: state.constraints,
         execution: state.execution,
         utilityAssets: state.utilityAssets,
-        processedManifestIds: state.processedManifestIds,
-        lastWasteKg: state.lastWasteKg,
         currentShiftKey: state.currentShiftKey,
         currentShiftLabel: state.currentShiftLabel,
         shiftStartedAtMinute: state.shiftStartedAtMinute,
         sequence: state.sequence,
+      }),
+      // Material-flow manifest ids and the waste counter restart every session,
+      // so their bookkeeping must too: a restored id list skipped the new
+      // session's colliding shipping-000N manifests (no revenue, no fulfilment).
+      // Older blobs still carry both fields, hence a merge, not just partialize.
+      merge: (persisted, current) => ({
+        ...current,
+        ...(persisted && typeof persisted === 'object'
+          ? (persisted as Partial<OperationsCampaignState>)
+          : {}),
+        processedManifestIds: [],
+        lastWasteKg: 0,
       }),
     }
   )

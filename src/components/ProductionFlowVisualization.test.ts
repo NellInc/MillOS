@@ -48,4 +48,15 @@ describe('scene-linked process flow', () => {
     expect(isProcessFlowActive(connection, running, 0)).toBe(false);
     expect(isProcessFlowActive(connection, stopped, 1)).toBe(false);
   });
+
+  it('keeps flowing through a machine that is running with a warning', () => {
+    const connection = buildProcessFlowConnections(machines)[1];
+    const warning = new Map(machines.map(({ id, status }) => [id, status] as const));
+    warning.set('sifter', 'warning');
+    const idle = new Map(warning);
+    idle.set('mill', 'idle');
+
+    expect(isProcessFlowActive(connection, warning, 1)).toBe(true);
+    expect(isProcessFlowActive(connection, idle, 1)).toBe(false);
+  });
 });

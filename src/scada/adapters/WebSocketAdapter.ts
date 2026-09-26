@@ -547,7 +547,16 @@ export class WebSocketAdapter implements IProtocolAdapter {
     this.connected = false;
     this.lastDisconnectTime = Date.now();
     this.ws = null;
+    // An unplanned loss leaves the last values unrefreshed; publish them as
+    // STALE before the cache is dropped, or they read as GOOD indefinitely.
+    const now = this.lastDisconnectTime;
+    const stale = this.isDisconnecting
+      ? []
+      : Array.from(this.values.values()).map(
+          (value): TagValue => ({ ...value, quality: 'STALE', timestamp: now })
+        );
     this.resetValueAuthority();
+    if (stale.length > 0) this.notifySubscribers(stale);
 
     // Don't attempt reconnection if this was a deliberate disconnect
     if (this.isDisconnecting || !allowReconnect) {

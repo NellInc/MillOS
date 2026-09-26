@@ -228,24 +228,26 @@ function buildSurfaceTexture(
   });
 }
 
-const TWO_PI = Math.PI * 2;
-
 /**
- * Grass relief: tussocks, blade clusters and a wind-combed blade direction.
+ * Grass relief: tussocks and irregular blade clusters.
  *
  * Feature periods at the default 256px: tussocks ~25.6px, clumps ~8px, blade
- * rows ~11px - all above the ~4-6px floor below which detail aliases and
+ * tufts ~11px - all above the ~4-6px floor below which detail aliases and
  * averages to a flat constant one mip down.
  */
 export const generateGrassSurface = (size: number = 256): THREE.DataTexture =>
-  buildSurfaceTexture(`terrain-grass-surface-v2-${size}`, size, 0.55, (u, v) => {
+  // A 0.55 RMS slope made the 20-65 cm tuft field read as broken ground.
+  // A same-page normal-only control isolated that coarse lighting pattern.
+  // 0.12 keeps centimetre-scale leaf relief without terrain-sized ridges.
+  // Working if the decoded slope stays near 0.12 at both generated resolutions.
+  buildSurfaceTexture(`terrain-grass-surface-v4-${size}`, size, 0.12, (u, v) => {
     const tussock = tileFbm(u, v, 10, 3);
     const clump = tileFbm(u + 0.31, v + 0.17, 32, 2);
-    // Integer wave counts in u and v keep the comb pattern periodic.
-    const comb = 0.5 + 0.5 * Math.sin(TWO_PI * (u * 22 + v * 8) + tussock * 5.0);
+    // A two-dimensional tuft field preserves tileability without long comb rows.
+    const tips = tileFbm(u + 0.23, v + 0.61, 22, 2);
     const thin = tileFbm(u + 0.71, v + 0.53, 6, 2);
 
-    let height = 0.5 * tussock + 0.3 * clump + 0.2 * comb * (0.35 + 0.65 * tussock);
+    let height = 0.5 * tussock + 0.3 * clump + 0.2 * tips * (0.35 + 0.65 * tussock);
     // Worn/thin patches sit lower and pick up more soil.
     height -= Math.max(0, 0.42 - thin) * 0.5;
 

@@ -83,6 +83,27 @@ describe('foliage atlases', () => {
     expect(s.meanRGB[1]).toBeGreaterThan(s.meanRGB[2]);
   });
 
+  it('small broadleaves retain a canopy after two mip reductions', () => {
+    const size = 384;
+    const data = generateLeafAtlas(size, 'broadleaf').image.data as Uint8Array;
+    const coverage = (block: number) => {
+      let visible = 0;
+      for (let y = 0; y < size; y += block) {
+        for (let x = 0; x < size; x += block) {
+          let alpha = 0;
+          for (let dy = 0; dy < block; dy++)
+            for (let dx = 0; dx < block; dx++) alpha += data[((y + dy) * size + x + dx) * 4 + 3];
+          if (alpha / (block * block * 255) >= 0.4) visible++;
+        }
+      }
+      return visible / (size / block) ** 2;
+    };
+    const base = coverage(1);
+    expect(base).toBeGreaterThan(0.2);
+    expect(base).toBeLessThan(0.65);
+    expect(coverage(4) / base).toBeGreaterThan(0.65);
+  });
+
   it('needle atlas is generated and fully written', () => {
     const s = analyse(generateLeafAtlas(256, 'needle').image.data as Uint8Array);
     expect(s.opaqueFrac).toBeGreaterThan(0.05);
@@ -122,6 +143,24 @@ describe('foliage atlases', () => {
     expect(maxR).toBeGreaterThan(155);
     expect(minG).toBeLessThan(100);
     expect(maxG).toBeGreaterThan(155);
+  });
+
+  it.each([384, 512])('broadleaf veins have bounded slope at %i px', (size) => {
+    const albedo = generateLeafAtlas(size, 'broadleaf').image.data as Uint8Array;
+    const normal = generateLeafNormal(size, 'broadleaf').image.data as Uint8Array;
+    let count = 0;
+    let slopeSquared = 0;
+    for (let offset = 0; offset < normal.length; offset += 4) {
+      if (albedo[offset + 3] < 102) continue;
+      const x = normal[offset] / 127.5 - 1;
+      const y = normal[offset + 1] / 127.5 - 1;
+      const z = normal[offset + 2] / 127.5 - 1;
+      slopeSquared += (x * x + y * y) / Math.max(0.00001, z * z);
+      count++;
+    }
+    const rmsSlope = Math.sqrt(slopeSquared / count);
+    expect(rmsSlope).toBeGreaterThan(0.15);
+    expect(rmsSlope).toBeLessThan(0.45);
   });
 
   it('leaf roughness writes GREEN and BLUE, not R only', () => {

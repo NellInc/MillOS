@@ -231,7 +231,7 @@ export const COMMAND_CAPABILITY_DESCRIPTORS = [
     required: ['simulationUri'],
     properties: {
       simulationUri: { type: 'string', pattern: '^millos://simulation/' },
-      totalZones: { type: 'integer', minimum: 0, maximum: 16 },
+      totalZones: { type: 'integer', minimum: 1, maximum: 4 },
     },
     reads: ['simulation.emergencyActive', 'simulation.crisis'],
     writes: [

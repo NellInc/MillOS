@@ -29,6 +29,7 @@ import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { useSafetyStore } from '../../stores/safetyStore';
 import { useOperationsCampaignStore } from '../../stores/operationsCampaignStore';
 import { EmergencyStopButton } from '../ui/EmergencyStopButton';
+import { JevAdvisoryPanel } from '../ui/JevAdvisoryPanel';
 
 interface MobilePanelProps {
   isVisible: boolean;
@@ -60,6 +61,7 @@ const panelVariants = {
 const getPanelIcon = (mode: DockMode) => {
   const iconClass = 'w-5 h-5';
   switch (mode) {
+    case 'production':
     case 'overview':
       return <Home className={iconClass} />;
     case 'ai':
@@ -80,6 +82,8 @@ const getPanelIcon = (mode: DockMode) => {
 // Get title for panel header
 const getPanelTitle = (mode: DockMode) => {
   switch (mode) {
+    case 'production':
+      return 'Production';
     case 'overview':
       return 'Mill Overview';
     case 'ai':
@@ -160,13 +164,7 @@ const OverviewContent: React.FC = () => {
           <span
             className={`text-[10px] font-bold ${gameSpeed === 0 ? 'text-red-400' : 'text-green-400'}`}
           >
-            {gameSpeed === 0
-              ? 'PAUSED'
-              : gameSpeed === 180
-                ? '1x'
-                : gameSpeed === 1800
-                  ? '10x'
-                  : '60x'}
+            {gameSpeed === 0 ? 'PAUSED' : `${Number((gameSpeed / 180).toFixed(1))}x`}
           </span>
         </div>
         <div className="flex gap-1">
@@ -178,33 +176,36 @@ const OverviewContent: React.FC = () => {
               gameSpeed === 0 ? 'bg-orange-700 text-white' : 'bg-slate-700 text-white/70'
             }`}
           >
-            <Pause className="w-3 h-3" />
+            <Pause className="w-3 h-3" aria-hidden="true" />
           </button>
           <button
             onClick={() => setGameSpeed(180)}
+            aria-pressed={gameSpeed === 180}
             className={`flex-1 py-1.5 rounded text-[10px] font-bold flex items-center justify-center gap-1 ${
               gameSpeed === 180 ? 'bg-orange-700 text-white' : 'bg-slate-700 text-white/70'
             }`}
           >
-            <Play className="w-3 h-3" />
+            <Play className="w-3 h-3" aria-hidden="true" />
             1x
           </button>
           <button
             onClick={() => setGameSpeed(1800)}
+            aria-pressed={gameSpeed === 1800}
             className={`flex-1 py-1.5 rounded text-[10px] font-bold flex items-center justify-center gap-1 ${
               gameSpeed === 1800 ? 'bg-orange-700 text-white' : 'bg-slate-700 text-white/70'
             }`}
           >
-            <FastForward className="w-3 h-3" />
+            <FastForward className="w-3 h-3" aria-hidden="true" />
             10x
           </button>
           <button
             onClick={() => setGameSpeed(10800)}
+            aria-pressed={gameSpeed === 10800}
             className={`flex-1 py-1.5 rounded text-[10px] font-bold flex items-center justify-center gap-1 ${
               gameSpeed === 10800 ? 'bg-orange-700 text-white' : 'bg-slate-700 text-white/70'
             }`}
           >
-            <FastForward className="w-3 h-3" />
+            <FastForward className="w-3 h-3" aria-hidden="true" />
             60x
           </button>
         </div>
@@ -410,7 +411,7 @@ const SafetyContent: React.FC = () => {
       <EmergencyStopButton />
 
       <div className="text-[10px] text-slate-500 text-center">
-        Emergency stop halts production and autonomous logistics.
+        Halts every autonomous forklift until released. Production lines keep running.
       </div>
     </div>
   );
@@ -453,6 +454,8 @@ const SettingsContent: React.FC = () => {
 // AI Partner panel content
 const AIContent: React.FC = () => {
   const aiDecisions = useProductionStore((s) => s.aiDecisions);
+  const latestAlert = useUIStore((s) => s.alerts[0]);
+  const [activeTab, setActiveTab] = React.useState<'decisions' | 'advisory'>('decisions');
   const recentDecisions = aiDecisions.slice(0, 5);
 
   const getStatusIcon = (status: string) => {
@@ -470,31 +473,85 @@ const AIContent: React.FC = () => {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2 text-xs text-slate-400">
-        <Brain className="w-4 h-4" />
-        <span>Recent AI Decisions</span>
+      <div role="tablist" aria-label="AI Partner views" className="flex gap-2">
+        {(['decisions', 'advisory'] as const).map((tab) => (
+          <button
+            key={tab}
+            role="tab"
+            id={`mobile-ai-${tab}-tab`}
+            aria-selected={activeTab === tab}
+            aria-controls="mobile-ai-tabpanel"
+            onClick={() => setActiveTab(tab)}
+            className={`min-h-10 flex-1 rounded-lg px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 ${
+              activeTab === tab ? 'bg-cyan-500/20 text-cyan-300' : 'bg-slate-800 text-slate-300'
+            }`}
+          >
+            {tab === 'decisions' ? 'Decisions' : 'Advisory'}
+          </button>
+        ))}
       </div>
-      {recentDecisions.length === 0 ? (
-        <div className="text-center py-4 text-slate-500 text-sm">No AI decisions yet</div>
-      ) : (
-        <div className="space-y-2">
-          {recentDecisions.map((decision) => (
-            <div
-              key={decision.id}
-              className="bg-slate-800/50 rounded-lg p-2 flex items-start gap-2"
-            >
-              {getStatusIcon(decision.status)}
-              <div className="flex-1 min-w-0">
-                <div className="text-xs text-white truncate">{decision.action}</div>
-                <div className="text-[10px] text-slate-400 truncate">{decision.reasoning}</div>
-              </div>
+      <div
+        id="mobile-ai-tabpanel"
+        role="tabpanel"
+        aria-labelledby={`mobile-ai-${activeTab}-tab`}
+        className="space-y-3"
+      >
+        {activeTab === 'advisory' ? (
+          <JevAdvisoryPanel
+            latestAlert={latestAlert ? `${latestAlert.title}\n${latestAlert.message}` : undefined}
+          />
+        ) : (
+          <>
+            <div className="flex items-center gap-2 text-xs text-slate-400">
+              <Brain className="w-4 h-4" />
+              <span>Recent AI Decisions</span>
             </div>
-          ))}
-        </div>
-      )}
+            {recentDecisions.length === 0 ? (
+              <div className="text-center py-4 text-slate-500 text-sm">No AI decisions yet</div>
+            ) : (
+              <div className="space-y-2">
+                {recentDecisions.map((decision) => (
+                  <div
+                    key={decision.id}
+                    className="bg-slate-800/50 rounded-lg p-2 flex items-start gap-2"
+                  >
+                    {getStatusIcon(decision.status)}
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs text-white truncate">{decision.action}</div>
+                      <div className="text-[10px] text-slate-400 truncate">
+                        {decision.reasoning}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 };
+
+// Declared at module scope: defined inside SCADAContent it was a new component
+// type every render, so all four cards remounted on each metrics tick.
+const MetricCard: React.FC<{
+  label: string;
+  value: string | number;
+  unit: string;
+  icon: React.ReactNode;
+}> = ({ label, value, unit, icon }) => (
+  <div className="bg-slate-800/50 rounded-lg p-2">
+    <div className="flex items-center gap-1 text-slate-400 mb-1">
+      {icon}
+      <span className="text-[10px]">{label}</span>
+    </div>
+    <div className="text-lg font-bold text-white">
+      {value}
+      <span className="text-xs text-slate-400 ml-1">{unit}</span>
+    </div>
+  </div>
+);
 
 // Simulated SCADA panel content
 const SCADAContent: React.FC = () => {
@@ -502,24 +559,6 @@ const SCADAContent: React.FC = () => {
   const scadaLive = useProductionStore((s) => s.scadaLive);
   const campaignExecution = useOperationsCampaignStore((s) => s.execution);
   const utilityAssets = useOperationsCampaignStore((s) => s.utilityAssets);
-
-  const MetricCard: React.FC<{
-    label: string;
-    value: string | number;
-    unit: string;
-    icon: React.ReactNode;
-  }> = ({ label, value, unit, icon }) => (
-    <div className="bg-slate-800/50 rounded-lg p-2">
-      <div className="flex items-center gap-1 text-slate-400 mb-1">
-        {icon}
-        <span className="text-[10px]">{label}</span>
-      </div>
-      <div className="text-lg font-bold text-white">
-        {value}
-        <span className="text-xs text-slate-400 ml-1">{unit}</span>
-      </div>
-    </div>
-  );
 
   return (
     <div className="space-y-3">
@@ -650,6 +689,7 @@ const ManagementContent: React.FC = () => {
 const getPanelContent = (mode: DockMode | null) => {
   if (!mode) return null;
   switch (mode) {
+    case 'production':
     case 'overview':
       return <OverviewContent />;
     case 'ai':
@@ -741,13 +781,15 @@ export const MobilePanel: React.FC<MobilePanelProps> = ({ isVisible, content, on
             className="fixed left-4 right-4 z-50 pointer-events-auto"
             style={{
               bottom: 'max(100px, calc(env(safe-area-inset-bottom) + 90px))',
-              maxHeight: '33vh',
+              maxHeight: content === 'ai' ? '70vh' : '33vh',
             }}
             aria-label={`${getPanelTitle(content)} mobile panel`}
             role="dialog"
             aria-modal="true"
           >
-            <div className="flex flex-col max-h-[33vh] bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
+            <div
+              className={`flex flex-col ${content === 'ai' ? 'max-h-[70vh]' : 'max-h-[33vh]'} bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden shadow-2xl`}
+            >
               {/* Header */}
               <div className="flex shrink-0 items-center justify-between px-4 py-3 border-b border-slate-700/50">
                 <div className="flex items-center gap-2 text-slate-200">

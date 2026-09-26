@@ -83,9 +83,14 @@ export function createArcLengthPath(
   const totalLength = distances.at(-1) ?? 0;
   if (totalLength <= EPSILON) throw new Error('Vehicle path has no measurable length');
 
+  // On a closed path the first sample and the closing duplicate are the same
+  // vertex, so both take wrapped neighbours. One-sided ends made the heading
+  // snap by the full corner angle at the seam.
+  const lastIndex = clean.length - 1;
   const samples = clean.map<ArcLengthPathSample>((point, index) => {
-    const previous = clean[Math.max(0, index - 1)];
-    const next = clean[Math.min(clean.length - 1, index + 1)];
+    const atSeam = closed && (index === 0 || index === lastIndex);
+    const previous = atSeam ? clean[lastIndex - 1] : clean[Math.max(0, index - 1)];
+    const next = atSeam ? clean[1] : clean[Math.min(lastIndex, index + 1)];
     const tangentLength = Math.hypot(next.x - previous.x, next.z - previous.z);
     const tangentX = tangentLength > EPSILON ? (next.x - previous.x) / tangentLength : 0;
     const tangentZ = tangentLength > EPSILON ? (next.z - previous.z) / tangentLength : 1;
@@ -97,7 +102,7 @@ export function createArcLengthPath(
       0.5 * (pointDistance(previous, point) + pointDistance(point, next))
     );
     const curvature =
-      index === 0 || index === clean.length - 1
+      !atSeam && (index === 0 || index === lastIndex)
         ? 0
         : shortestVehicleAngle(incomingHeading, outgoingHeading) / localLength;
 

@@ -200,6 +200,12 @@ export const useTruckScheduleStore = create<TruckScheduleStore>()(
     tickArrivals: (deltaMinutes: number) => {
       if (!Number.isFinite(deltaMinutes) || deltaMinutes <= 0) return;
       set((state) => {
+        // Both docks busy: nothing is counting down. Returning the same state
+        // skips the notify, so the central tick does not republish the
+        // schedule every 500 ms for no change.
+        if (state.truckSchedule.receiving.truckActive && state.truckSchedule.shipping.truckActive) {
+          return state;
+        }
         const newReceiving = { ...state.truckSchedule.receiving };
         const newShipping = { ...state.truckSchedule.shipping };
 

@@ -127,14 +127,10 @@ export const TERRAIN_BOUNDS: TerrainBounds = {
  * World-space domain the splat map is painted over, and the domain the shader
  * maps to splat UV 0..1.
  *
- * The furthest painted region reaches z=230 (the front road), so every texel
- * outside +/-280 would be pure grass. The splat texture uses
- * ClampToEdgeWrapping, so world positions beyond this rectangle resolve to the
- * border texel - which is pure grass - exactly as they did when the splat map
- * covered the full +/-600. Restricting the domain is therefore visually
- * lossless outside and raises texel density from 1200/res to 560/res: at the
- * 1024 high/ultra resolution that is 1.17 -> 0.547 world units per texel, a
- * 2.14x sharpening of every road, verge and yard edge for free.
+ * The approach roads end at z=+/-230, inside the tunnel bores. Keep 50 m of
+ * grass beyond them: ClampToEdgeWrapping repeats the border texel outside this
+ * domain, so a road touching that border would continue indefinitely. The
+ * 560 m square gives 0.547 m per texel at the 1024 high/ultra resolution.
  */
 export const SPLAT_BOUNDS: TerrainBounds = {
   minX: -280,
@@ -178,15 +174,17 @@ export const TERRAIN_COLORS = {
  * oversaturated, hue-shifted green with no headroom. Grass and dirt are now
  * neutral: the texture alone carries the colour.
  *
- * Asphalt and road are deliberately NOT pure white. Both sample the same
- * near-neutral tarmac albedo, so a near-neutral tint separates them without
- * double-applying a hue: the yard reads a touch warmer and dustier, the roads
- * a touch cooler and fresher. Both stay above ~0.75 linear so neither surface
- * is pushed back toward the crushed near-black it used to render as.
+ * The yard and road sample the same tarmac albedo. The yard multiplier lifts
+ * that dark binder into weathered, warm aggregate without changing the road.
+ * Its values are linear gains over a texture, not an untextured base colour.
+ * The authored truck yards share this gain so their boundaries do not become
+ * unrelated rectangles. Working if both surfaces retain grain and darken at night.
  */
+export const YARD_PAVING_TINT = new THREE.Color(2.1, 1.7, 1.5);
+
 export const TERRAIN_TINTS = {
   grass: '#ffffff',
-  asphalt: '#f0eeea',
+  asphalt: YARD_PAVING_TINT,
   road: '#e2e4e6',
   dirt: '#ffffff',
 } as const;
@@ -216,3 +214,7 @@ export const DEFAULT_TERRAIN_MATERIALS: TerrainConfig['materials'] = {
     textureScale: 0.22, // ~4.5 units per tile
   },
 };
+
+/** Shared geometry density keeps tree feet and navigation on the rendered ground. */
+export const getTerrainGridSegments = (quality: string): number =>
+  quality === 'high' || quality === 'ultra' ? 128 : 64;

@@ -28,7 +28,7 @@ describe('atmospheric fog model', () => {
 
   it('is monotonic in distance', () => {
     let previous = -1;
-    for (let distance = 0; distance <= 360; distance += 10) {
+    for (let distance = 0; distance <= CAMERA_DEPTH.far; distance += 10) {
       const factor = fogFactorAt(distance, 0, CLEAR_DENSITY);
       expect(factor).toBeGreaterThanOrEqual(previous);
       previous = factor;
@@ -62,8 +62,12 @@ describe('atmospheric fog model', () => {
     }
     // ...and the guard must not start so early that it eats the middle
     // distance the exponential model exists to keep readable.
-    expect(FOG_HORIZON_START).toBeGreaterThanOrEqual(290);
-    expect(fogFactorAt(FOG_HORIZON_START, 0, CLEAR_DENSITY)).toBeLessThan(0.35);
+    expect(FOG_HORIZON_START).toBeGreaterThanOrEqual(450);
+    expect(fogFactorAt(350, 0, CLEAR_DENSITY)).toBeLessThan(0.4);
+    expect(fogFactorAt(FOG_HORIZON_START, 0, CLEAR_DENSITY)).toBeCloseTo(
+      1 - Math.exp(-Math.pow(CLEAR_DENSITY * FOG_HORIZON_START, 2)),
+      10
+    );
   });
 
   it('gets thicker with worse weather at a fixed distance', () => {

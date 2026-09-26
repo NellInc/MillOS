@@ -20,7 +20,7 @@
  * old mapping used `theta = atan(dir.z, dir.x)`, which has a branch cut at the
  * -x meridian where theta jumps from +PI to -PI, and noise is not periodic
  * across that jump. The direction vector itself is continuous everywhere, so
- * this module keeps that commit's fix - project `dir.xz / (|dir.y| + 0.5)` -
+ * this module keeps that commit's fix - project from `dir.xz` with a continuous elevation denominator -
  * and adds the second requirement the projection implies: because the
  * projection walks off the edge of the texture, the noise ITSELF has to tile,
  * or `RepeatWrapping` reintroduces a seam of its own. Hence the wrapped lattice
@@ -152,7 +152,7 @@ export function sampleCloudNoise(u: number, v: number): number {
  * threshold, so more of the field passes.
  */
 export function cloudCoverThreshold(cloudAmount: number): number {
-  return 0.74 + (0.26 - 0.74) * clamp01(cloudAmount);
+  return 0.7 + (0.24 - 0.7) * clamp01(cloudAmount);
 }
 
 let cloudNoiseTexture: THREE.DataTexture | null = null;
@@ -196,16 +196,17 @@ uniform vec3 uCloudLit;
 uniform vec3 uCloudShadow;
 
 vec4 millosSkyClouds( vec3 dir, float cloudAmount, vec3 sunDir, vec3 sunTint ) {
-	// Branch-cut-free dome projection (see the note at the top of this file).
-	vec2 p = dir.xz / ( abs( dir.y ) + 0.5 ) * 1.5;
+	// Branch-cut-free projection compresses distant banks toward the horizon.
+	vec2 p = dir.xz / ( abs( dir.y ) + 0.12 ) * 0.65;
 
-	float cumulus = texture2D( uCloudNoise, p * 0.55 + uCloudDrift ).r;
+	vec2 cloudUv = p * 1.1 + uCloudDrift;
+	float cumulus = texture2D( uCloudNoise, cloudUv ).r;
 	float cirrus = texture2D( uCloudNoise, p * 0.19 + uCirrusDrift + vec2( 0.37, 0.11 ) ).r;
-	float shape = cumulus * 0.74 + cirrus * 0.26;
+	float shape = cumulus * 0.78 + cirrus * 0.22;
 
 	// COVERAGE, not opacity: the threshold moves, the blend stays near opaque.
-	float cover = mix( 0.70, 0.24, clamp( cloudAmount, 0.0, 1.0 ) );
-	float mask = smoothstep( cover, cover + 0.12, shape );
+	float cover = mix( ${cloudCoverThreshold(0).toFixed(2)}, ${cloudCoverThreshold(1).toFixed(2)}, clamp( cloudAmount, 0.0, 1.0 ) );
+	float mask = smoothstep( cover, cover + 0.09, shape );
 
 	// The projection already pinches toward the zenith, so only the horizon
 	// needs a fade, and it has to be SHALLOW. A cut at 0.14 looks reasonable in
@@ -218,8 +219,13 @@ vec4 millosSkyClouds( vec3 dir, float cloudAmount, vec3 sunDir, vec3 sunTint ) {
 
 	float mu = max( dot( dir, sunDir ), 0.0 );
 
-	// Bodies stay grey and read as volume; the sun-facing side lifts.
-	vec3 lit = mix( uCloudShadow, uCloudLit, clamp( 0.4 + pow( mu, 3.0 ) * 0.6, 0.0, 1.0 ) );
+	// Shape-dependent self-shading makes each bank read as volume even away
+	// from the sun. One offset tap lights its sunward slope; thicker cores shade.
+	vec2 sunward = sunDir.xz / max( length( sunDir.xz ), 0.01 );
+	float slope = texture2D( uCloudNoise, cloudUv + sunward * 0.008 ).r - cumulus;
+	float thickness = smoothstep( cover, cover + 0.28, shape );
+	float faceLight = clamp( 0.82 - thickness * 0.23 + slope * 3.0, 0.32, 0.96 );
+	vec3 lit = mix( uCloudShadow, uCloudLit, faceLight );
 
 	// Silver lining. rim is high exactly where the field is just BELOW the
 	// coverage threshold, i.e. at the ragged edge of a cloud, so the blow-out
@@ -229,4 +235,78 @@ vec4 millosSkyClouds( vec3 dir, float cloudAmount, vec3 sunDir, vec3 sunTint ) {
 
 	return vec4( lit, mask * 0.92 );
 }
+`;
+
+/**
+ * Neutral photographic cumulus detail, shared for the scene lifetime. The
+ * procedural field remains active until the image has actually loaded.
+ * Working if a failed atlas request leaves the existing weather sky intact,
+ * and every graphics tier shares one colour-correct RGBA upload.
+ */
+interface CumulusAtlas {
+  texture: THREE.Texture;
+  ready: { value: number };
+}
+let cumulusAtlas: CumulusAtlas | null = null;
+export function getCumulusAtlas(): CumulusAtlas {
+  if (cumulusAtlas) return cumulusAtlas;
+  const ready = { value: 0 };
+  const texture = new THREE.TextureLoader().load(
+    `${import.meta.env.BASE_URL}textures/clouds-cumulus-v1.png`,
+    () => {
+      ready.value = 1;
+    },
+    undefined,
+    () => {
+      ready.value = 0;
+    }
+  );
+  texture.name = 'MillOS Cumulus Atlas';
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.minFilter = THREE.LinearMipmapLinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  texture.generateMipmaps = true;
+  cumulusAtlas = { texture, ready };
+  return cumulusAtlas;
+}
+
+/**
+ * One extra texture fetch, no extra geometry or draw call. Longitude repeats
+ * an integer number of times and its random seeds use the wrapped column,
+ * so both sides of atan's branch cut sample the same cell and atlas texel.
+ * The cells fade before the polar singularity. The original projection still
+ * supplies cirrus, the zenith, overcast weather and the loading fallback.
+ */
+export const CUMULUS_ATLAS_GLSL = /* glsl */ `
+uniform sampler2D uCloudAtlas;
+uniform float uCloudAtlasReady;
+
+vec4 millosCumulusBanks( vec3 dir, float amount, vec3 sunDir, vec3 sunTint ) {
+  if ( uCloudAtlasReady < 0.5 || dir.y < -0.02 || dir.y > 0.90 ) return vec4( 0.0 );
+  // Integer repeat count and wrapped cell seeds close the azimuth branch cut.
+  float longitude = atan( dir.z, dir.x ) / 6.28318530718;
+  vec2 grid = vec2( longitude * 36.0 + uCloudDrift.x * 36.0, dir.y * 8.0 );
+  float column = mod( floor( grid.x ), 36.0 );
+  float columnSeed = fract( sin( column * 127.1 + 311.7 ) * 43758.5453 );
+  grid.y += ( columnSeed - 0.5 ) * 0.5;
+  vec2 cell = floor( grid );
+  float seed = fract( sin( column * 127.1 + cell.y * 311.7 ) * 43758.5453 );
+  float chosen = floor( fract( seed * 7.131 ) * 4.0 );
+  vec2 tile = vec2( mod( chosen, 2.0 ), floor( chosen / 2.0 ) );
+  float size = 1.2 + fract( seed * 13.21 ) * 0.65;
+  vec2 local = ( fract( grid ) - 0.5 ) * size + 0.5;
+  local.y += ( fract( seed * 23.17 ) - 0.5 ) * 0.20;
+  local.x = mix( local.x, 1.0 - local.x, step( 0.5, fract( seed * 17.13 ) ) );
+  float bounds = step( 0.0, local.x ) * step( local.x, 1.0 ) * step( 0.0, local.y ) * step( local.y, 1.0 );
+  vec4 cloud = texture2D( uCloudAtlas, ( tile + clamp( local, 0.002, 0.998 ) ) * 0.5 );
+  float coverageWeight = smoothstep( seed - 0.10, seed + 0.10, 0.12 + amount * 0.9 );
+  float alpha = cloud.a * bounds * coverageWeight * smoothstep( -0.02, 0.045, dir.y ) * ( 1.0 - smoothstep( 0.62, 0.90, dir.y ) ) * uCloudAtlasReady;
+  alpha *= mix( 0.55, 1.0, smoothstep( 0.04, 0.25, dir.y ) );
+  float light = clamp( ( cloud.r - 0.20 ) / 0.80, 0.0, 1.0 );
+  vec3 colour = mix( uCloudShadow, uCloudLit, light );
+  float mu = max( dot( dir, sunDir ), 0.0 );
+  colour += sunTint * pow( mu, 9.0 ) * ( 1.0 - cloud.a ) * 0.25;
+  return vec4( colour, alpha );
+}
+
 `;

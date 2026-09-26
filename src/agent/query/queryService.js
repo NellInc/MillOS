@@ -242,11 +242,7 @@ export function createAgentQueryService(dependencies) {
           warnings,
           [
             link('domain', 'millos://query/domain/evidence', 'Inspect bounded evidence state'),
-            link(
-              'capabilities',
-              'millos://query/capabilities',
-              'Inspect discovery-only capabilities'
-            ),
+            link('capabilities', 'millos://query/capabilities', 'Inspect capabilities'),
           ],
           'partial'
         ),
@@ -469,9 +465,11 @@ function buildBriefData(snapshot, registry, changedDomains, sinceRevision) {
   const orders = arrayOfRecords(campaign.orders);
   const activeOrderId = stringOrNull(campaign.activeOrderId);
   const activeOrder = orders.find((order) => order.id === activeOrderId);
-  const plannedOrder = [...orders].sort(
-    (left, right) => priorityRank(left.priority) - priorityRank(right.priority)
-  )[0];
+  // Only an open order can be the objective; a fulfilled or cancelled one
+  // would send a cold agent after work that is already finished.
+  const plannedOrder = orders
+    .filter((order) => order.status !== 'fulfilled' && order.status !== 'cancelled')
+    .sort((left, right) => priorityRank(left.priority) - priorityRank(right.priority))[0];
   const objectiveOrder = activeOrder ?? plannedOrder;
   const exceptions = collectHealthExceptions({
     simulation,
@@ -977,10 +975,17 @@ function entityLookup(domains, kind) {
   const campaign = asRecord(domains.campaign);
   const material = asRecord(domains.material);
   const quality = asRecord(domains.quality);
-  const evidence = asRecord(domains.evidence);
+  const maintenance = asRecord(domains.maintenance);
+  const scada = asRecord(domains.scada);
   switch (kind) {
     case 'machine':
       return arrayOfRecords(production.machines);
+    case 'decision':
+      return arrayOfRecords(production.aiDecisions);
+    case 'breakdown':
+      return arrayOfRecords(maintenance.activeBreakdowns);
+    case 'tag':
+      return arrayOfRecords(scada.writableTags);
     case 'order':
       return arrayOfRecords(campaign.orders);
     case 'batch':
@@ -990,7 +995,10 @@ function entityLookup(domains, kind) {
     case 'incident':
       return arrayOfRecords(campaign.incidents);
     case 'alarm':
-      return [...arrayOfRecords(quality.contaminationAlerts), ...arrayOfRecords(evidence.alerts)];
+      return [
+        ...arrayOfRecords(scada.activeAlarms),
+        ...arrayOfRecords(quality.contaminationAlerts),
+      ];
     default:
       return [];
   }
@@ -1000,6 +1008,7 @@ function entityLookup(domains, kind) {
 function ownerForKind(kind) {
   switch (kind) {
     case 'machine':
+    case 'decision':
       return 'production';
     case 'order':
     case 'incident':
@@ -1007,8 +1016,11 @@ function ownerForKind(kind) {
     case 'batch':
     case 'manifest':
       return 'material';
+    case 'breakdown':
+      return 'maintenance';
     case 'alarm':
-      return 'quality';
+    case 'tag':
+      return 'scada';
     default:
       return 'evidence';
   }
@@ -1118,7 +1130,7 @@ function standardLinks() {
     link('domain', 'millos://query/domain/campaign', 'Inspect objectives and constraints'),
     link('domain', 'millos://query/domain/safety', 'Inspect safety state'),
     link('domain', 'millos://query/domain/quality', 'Inspect quality release state'),
-    link('capabilities', 'millos://query/capabilities', 'Inspect discovery-only capabilities'),
+    link('capabilities', 'millos://query/capabilities', 'Inspect capabilities'),
     link('trace', 'millos://query/trace', 'Inspect bounded diagnostic evidence'),
   ];
 }
@@ -1127,7 +1139,7 @@ function standardLinks() {
 function domainLinks(domainId) {
   return [
     link('self', `millos://query/domain/${domainId}`, `Current ${domainId} observation`),
-    link('capabilities', 'millos://query/capabilities', 'Inspect discovery-only capabilities'),
+    link('capabilities', 'millos://query/capabilities', 'Inspect capabilities'),
     link('trace', 'millos://query/trace', 'Inspect bounded diagnostic evidence'),
   ];
 }

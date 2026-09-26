@@ -1,8 +1,9 @@
-import { downloadScenePng } from '../../utils/sceneCapture';
+import { saveScenePng } from '../../utils/sceneCapture';
 import React, { useState } from 'react';
 import { Image, Download } from 'lucide-react';
 import { useProductionStore } from '../../stores/productionStore';
 import { useSafetyStore } from '../../stores/safetyStore';
+import { useAchievementsStore } from '../../stores/achievementsStore';
 import { useUIStore } from '../../stores/uiStore';
 
 export const ScreenshotButton: React.FC = () => {
@@ -14,7 +15,7 @@ export const ScreenshotButton: React.FC = () => {
     try {
       // Capture through the renderer, not querySelector('canvas'): the context
       // does not preserve its drawing buffer, so a direct toDataURL is blank.
-      const saved = downloadScenePng(
+      const saved = await saveScenePng(
         `millos-screenshot-${new Date().toISOString().split('T')[0]}.png`
       );
       if (!saved) {
@@ -53,15 +54,19 @@ export const ScreenshotButton: React.FC = () => {
       safetyMetrics: safetyStore.safetyMetrics,
       productionTarget: store.productionTarget,
       totalBagsProduced: store.totalBagsProduced,
-      achievements: store.achievements.filter((a) => a.unlockedAt),
+      achievements: useAchievementsStore
+        .getState()
+        .achievements.filter((a) => a.tracked !== false && a.unlockedAt),
       safetyIncidents: safetyStore.safetyIncidents.slice(0, 20),
     };
 
     const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
     const link = document.createElement('a');
     link.download = `millos-report-${new Date().toISOString().split('T')[0]}.json`;
-    link.href = URL.createObjectURL(blob);
+    const url = URL.createObjectURL(blob);
+    link.href = url;
     link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 0);
   };
 
   return (

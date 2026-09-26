@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { SITE_LAYOUT } from '../../constants/siteLayout';
 import { useSafetyStore } from '../safetyStore';
 import { safeJSONStorage } from '../storage';
 import {
@@ -18,6 +19,15 @@ describe('autonomous game simulation store', () => {
 
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  it('keeps side egress markers immediately outside the actual service doors', () => {
+    for (const side of ['west', 'east'] as const) {
+      const marker = SERVICE_EGRESS_POINTS.find((point) => point.id === side)!;
+      const portal = SITE_LAYOUT.portals[side === 'west' ? 'westService' : 'eastService'];
+      expect(marker.position.x).toBe(portal.centre[0] + portal.normal[0] * 2);
+      expect(marker.position.z).toBe(portal.centre[2]);
+    }
   });
 
   it('maps clock hours to deterministic run windows', () => {
@@ -114,6 +124,18 @@ describe('autonomous game simulation store', () => {
     expect(selectSafetyHoldActive(state)).toBe(false);
     expect(useSafetyStore.getState().forkliftEmergencyStop).toBe(false);
     expect(state.safetyEvents.at(-1)?.stage).toBe('cleared');
+  });
+
+  it('leaves an active drill to endEmergencyDrill rather than resolveEmergency', () => {
+    const store = useGameSimulationStore.getState();
+    store.startEmergencyDrill();
+    store.resolveEmergency();
+
+    const state = useGameSimulationStore.getState();
+    expect(state.emergencyDrillMode).toBe(true);
+    expect(state.drillMetrics.active).toBe(true);
+    expect(selectSafetyHoldActive(state)).toBe(true);
+    expect(useSafetyStore.getState().forkliftEmergencyStop).toBe(true);
   });
 
   it('verifies each service egress zone once and records completion time', () => {

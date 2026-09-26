@@ -51,7 +51,7 @@ describe('UIStore', () => {
       alerts: [],
       rehydrationError: false,
       scadaSyncError: false,
-      showZones: true,
+      showZones: false,
       showAIPanel: true,
       panelMinimized: false,
       theme: 'dark',
@@ -312,6 +312,27 @@ describe('UIStore', () => {
       resetLegendPosition();
 
       expect(useUIStore.getState().legendPosition).toEqual({ x: -1, y: -1 });
+    });
+  });
+
+  describe('Persisted Migration (v1 -> v2)', () => {
+    const persistOptions = useUIStore.persist.getOptions();
+
+    it('drops the v1 showZones value so zones start off', () => {
+      expect(persistOptions.version).toBe(2);
+      const migrated = persistOptions.migrate?.({ showZones: true, theme: 'light' }, 1) as {
+        showZones?: boolean;
+        theme?: string;
+      };
+      expect(migrated).not.toHaveProperty('showZones');
+      expect(migrated.theme).toBe('light');
+    });
+
+    it('keeps a v2 showZones choice', () => {
+      const migrated = persistOptions.migrate?.({ showZones: true }, 2) as {
+        showZones?: boolean;
+      };
+      expect(migrated.showZones).toBe(true);
     });
   });
 });

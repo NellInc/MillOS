@@ -1,3 +1,5 @@
+import { GeneratedBoundary } from '../models/GeneratedModel';
+import { GeneratedGeometrySurface } from '../models/GeneratedGeometrySurface';
 /**
  * InstancedFoliage - alpha-cut card vegetation for the village, the farm and
  * the exterior parkland.
@@ -770,17 +772,43 @@ const SpeciesGroup: React.FC<{ bucket: SpeciesBucket }> = ({ bucket }) => {
   return (
     <group>
       <instancedMesh
+        name="tree-trunks"
         ref={trunkRef}
         args={[def.trunk, def.trunkMaterial, count]}
         castShadow
         receiveShadow
-      />
+      >
+        <GeneratedBoundary fallback={null}>
+          <GeneratedGeometrySurface
+            asset={
+              ({ oak: 'oakTrunkUnit', birch: 'birchTrunkUnit', pine: 'pineTrunkUnit' } as const)[
+                bucket.species
+              ]
+            }
+            original={def.trunk}
+            meshRef={trunkRef}
+          />
+        </GeneratedBoundary>
+      </instancedMesh>
       <instancedMesh
+        name="tree-canopies"
         ref={canopyRef}
         args={[def.canopy, def.kind === 'needle' ? NEEDLE_MATERIAL : BROADLEAF_MATERIAL, count]}
         castShadow
         receiveShadow
-      />
+      >
+        <GeneratedBoundary fallback={null}>
+          <GeneratedGeometrySurface
+            asset={
+              ({ oak: 'oakCanopyUnit', birch: 'birchCanopyUnit', pine: 'pineCanopyUnit' } as const)[
+                bucket.species
+              ]
+            }
+            original={def.canopy}
+            meshRef={canopyRef}
+          />
+        </GeneratedBoundary>
+      </instancedMesh>
     </group>
   );
 };
@@ -1019,10 +1047,10 @@ MULCH_GEOMETRY.rotateX(-Math.PI / 2);
 /**
  * Soft dirt rings that put a trunk or a wall base in contact with the ground.
  *
- * `y` is the caller's problem: the village square sits on its own cobble sheet
- * at local y=0.12 and the farm barnyard at 0.08, so a single shared
- * EXTERIOR_LAYERS constant would sink under them. Callers pass a height just
- * above whatever surface they are decorating; the material never writes depth
+ * `y` is the caller's problem: pass a height just above whatever surface is
+ * being decorated. The village cobble sheet and the farm barnyard both sit on
+ * the ground datum now, so both callers use this default overlay layer (the
+ * village divides it by its authored scale). The material never writes depth
  * and carries `exteriorOverlay` polygon offset so it cannot z-fight.
  */
 export const InstancedMulch: React.FC<{

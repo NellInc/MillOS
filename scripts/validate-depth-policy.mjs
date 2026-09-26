@@ -47,8 +47,16 @@ for (const file of files) {
 }
 
 const layerSource = readFileSync(resolve(root, 'src/constants/renderLayers.ts'), 'utf8');
-if (!/near:\s*0\.5/.test(layerSource) || !/far:\s*360/.test(layerSource)) {
-  failures.push('normal camera depth must remain 0.5 to 360 metres');
+// The explorable valley is 840 m across. Its remote ridge and celestial
+// silhouettes stay inside 960 m, retaining the same 1200:1 depth ratio.
+// Working if only CAMERA_DEPTH satisfies the check, with a ratio at most 1200.
+const cameraSource = layerSource.match(/export const CAMERA_DEPTH = \{([\s\S]*?)\} as const/)?.[1] ?? '';
+const depthValue = (name) => Number(cameraSource.match(new RegExp(`\\b${name}:\\s*([\\d.]+)`))?.[1]);
+const near = depthValue('near');
+const far = depthValue('far');
+const ratio = depthValue('recommendedRatio');
+if (near !== 0.8 || far !== 960 || ratio !== 1200 || far / near > ratio) {
+  failures.push('normal camera depth must remain 0.8 to 960 metres with a 1200:1 maximum ratio');
 }
 
 const registrySource = readFileSync(resolve(root, 'src/constants/depthRegistry.ts'), 'utf8');
@@ -68,6 +76,6 @@ if (failures.length > 0) {
   process.exitCode = 1;
 } else {
   console.log(
-    `Depth policy valid: ${files.length} active files, ${registryEntries.length} resolved relationships.`
+    `Depth policy valid: ${files.length} active files, ${registryEntries.length} resolved relationships. Nothing fights for the same pixel.`
   );
 }

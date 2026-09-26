@@ -17,6 +17,11 @@
  */
 
 import * as THREE from 'three';
+import {
+  SIFTER_LAYOUT,
+  MILL_PROCESS_PORTS,
+  PROCESS_GALLERY_POST_X,
+} from '../../constants/siteLayout';
 import { MachineData, MachineType } from '../../types';
 
 /** Outer radius of a spouting run, in world units. */
@@ -24,9 +29,33 @@ export const SPOUT_PIPE_RADIUS = 0.17;
 
 export type PipeRouteFamily = 'intake' | 'pneumatic' | 'finished';
 
+/** Service lanes fit below the gallery and behind its sifter housings. */
+export const SPOUT_SERVICE_LAYOUT = {
+  intakeRise: 0.9,
+  intakeSetback: 3.8,
+  intakeLanePitch: 0.5,
+  riserOffsetX: 0.85,
+  rearSetback: 7,
+  rearLanePitch: 0.42,
+  topRise: 0.8,
+  topLanePitch: 0.28,
+  finishedRise: 0.7,
+  bendSetback: 0.65,
+} as const;
+
+/** Riser banks sit alongside actual columns, clear of their 360 mm shafts. */
+export function getSpoutRiserX(machineX: number): number {
+  const post = PROCESS_GALLERY_POST_X.reduce((nearest, value) =>
+    Math.abs(value - machineX) < Math.abs(nearest - machineX) ? value : nearest
+  );
+  return post + (machineX < post ? -1 : 1) * SPOUT_SERVICE_LAYOUT.riserOffsetX;
+}
+
 export interface SpoutRoute {
   readonly family: PipeRouteFamily;
-  readonly curve: THREE.CatmullRomCurve3;
+  readonly curve: THREE.CurvePath<THREE.Vector3>;
+  /** Conservative bore bounds shared with moving-grain culling. */
+  readonly bounds: THREE.Box3;
   /** Arc length in world units (cached; `getLength()` re-integrates). */
   readonly length: number;
 }
@@ -49,32 +78,86 @@ export const spoutMachineKey = (machines: readonly MachineData[]): string =>
     .map((m) => `${m.id}:${m.position.join(',')}:${m.size.join(',')}`)
     .join('|');
 
+/** Straight service runs with compact, bounded tangent bends. */
+function serviceCurve(points: THREE.Vector3[]): THREE.CurvePath<THREE.Vector3> {
+  const path = new THREE.CurvePath<THREE.Vector3>();
+  const clean = points.filter(
+    (point, index) => index === 0 || point.distanceTo(points[index - 1]) > 1e-6
+  );
+  let cursor = clean[0];
+  for (let index = 1; index < clean.length - 1; index++) {
+    const before = clean[index - 1],
+      corner = clean[index],
+      after = clean[index + 1];
+    const incoming = corner.clone().sub(before).normalize();
+    const outgoing = after.clone().sub(corner).normalize();
+    if (incoming.dot(outgoing) > 0.99999) continue;
+    const setback = Math.min(
+      SPOUT_SERVICE_LAYOUT.bendSetback,
+      corner.distanceTo(before) * 0.4,
+      corner.distanceTo(after) * 0.4
+    );
+    const entry = corner.clone().addScaledVector(incoming, -setback);
+    const exit = corner.clone().addScaledVector(outgoing, setback);
+    if (cursor.distanceTo(entry) > 1e-6) path.add(new THREE.LineCurve3(cursor, entry));
+    path.add(new THREE.QuadraticBezierCurve3(entry, corner, exit));
+    cursor = exit;
+  }
+  const end = clean[clean.length - 1];
+  if (cursor.distanceTo(end) > 1e-6) path.add(new THREE.LineCurve3(cursor, end));
+  path.arcLengthDivisions = 800;
+  return path;
+}
+
 const createRoute = (
   start: THREE.Vector3,
   end: THREE.Vector3,
-  family: PipeRouteFamily
+  family: PipeRouteFamily,
+  lane: number
 ): SpoutRoute => {
-  // Rise to a shared service level, run the horizontal leg down the service
-  // lane, then drop - i.e. a routed process line, not a point-to-point tube.
-  const routeY = Math.min(17, Math.max(start.y, end.y) + 2.4);
-  const startRiser = new THREE.Vector3(start.x, routeY, start.z);
-  const endDrop = new THREE.Vector3(end.x, routeY, end.z);
-  const serviceLaneZ = THREE.MathUtils.lerp(start.z, end.z, 0.5);
-  const curve = new THREE.CatmullRomCurve3(
-    [
+  let points: THREE.Vector3[];
+  if (family === 'intake') {
+    const y = Math.max(start.y, end.y) + SPOUT_SERVICE_LAYOUT.intakeRise;
+    const z =
+      end.z - SPOUT_SERVICE_LAYOUT.intakeSetback + lane * SPOUT_SERVICE_LAYOUT.intakeLanePitch;
+    points = [
       start,
-      startRiser,
-      new THREE.Vector3(start.x, routeY, serviceLaneZ),
-      new THREE.Vector3(end.x, routeY, serviceLaneZ),
-      endDrop,
+      new THREE.Vector3(start.x, y, start.z),
+      new THREE.Vector3(start.x, y, z),
+      new THREE.Vector3(end.x, y, z),
+      new THREE.Vector3(end.x, y, end.z),
       end,
-    ],
-    false,
-    'centripetal',
-    0.35
-  );
-
-  return { family, curve, length: curve.getLength() };
+    ];
+  } else if (family === 'pneumatic') {
+    const x = getSpoutRiserX(start.x);
+    const z = end.z - SPOUT_SERVICE_LAYOUT.rearSetback + lane * SPOUT_SERVICE_LAYOUT.rearLanePitch;
+    const y = end.y + SPOUT_SERVICE_LAYOUT.topRise + lane * SPOUT_SERVICE_LAYOUT.topLanePitch;
+    points = [
+      start,
+      new THREE.Vector3(x, start.y, start.z),
+      new THREE.Vector3(x, start.y, z),
+      new THREE.Vector3(x, y, z),
+      new THREE.Vector3(end.x, y, z),
+      new THREE.Vector3(end.x, y, end.z),
+      end,
+    ];
+  } else {
+    const y = Math.max(start.y, end.y) + SPOUT_SERVICE_LAYOUT.finishedRise;
+    const x = getSpoutRiserX(start.x);
+    const z = start.z - SPOUT_SERVICE_LAYOUT.rearSetback;
+    points = [
+      start,
+      new THREE.Vector3(start.x, y, start.z),
+      new THREE.Vector3(x, y, start.z),
+      new THREE.Vector3(x, y, z),
+      new THREE.Vector3(end.x, y, z),
+      new THREE.Vector3(end.x, y, end.z),
+      end,
+    ];
+  }
+  const curve = serviceCurve(points);
+  const bounds = new THREE.Box3().setFromPoints(points).expandByScalar(SPOUT_PIPE_RADIUS);
+  return { family, curve, bounds, length: curve.getLength() };
 };
 
 // Single-entry cache. Both consumers pass the same machine list on the same
@@ -100,7 +183,7 @@ export const buildSpoutRoutes = (machines: readonly MachineData[]): readonly Spo
 
   const routes: SpoutRoute[] = [];
 
-  // Silos to Mills (gravity intake)
+  // Silos to Mills (enclosed intake supply)
   mills.forEach((mill, i) => {
     const silo = silos[i % silos.length];
     if (!silo) return;
@@ -109,10 +192,11 @@ export const buildSpoutRoutes = (machines: readonly MachineData[]): readonly Spo
         new THREE.Vector3(silo.position[0], 3, silo.position[2]),
         new THREE.Vector3(
           mill.position[0],
-          mill.position[1] + mill.size[1] + 1.5,
+          mill.position[1] + MILL_PROCESS_PORTS.intake[1],
           mill.position[2]
         ),
-        'intake'
+        'intake',
+        i
       )
     );
   });
@@ -121,17 +205,20 @@ export const buildSpoutRoutes = (machines: readonly MachineData[]): readonly Spo
   mills.forEach((mill, i) => {
     const sifter = sifters[i % sifters.length];
     if (!sifter) return;
-    // Deterministic lane offset (a random one made pipes jump on re-render).
-    const offsetX = ((i % 3) - 1) * 1.5;
     routes.push(
       createRoute(
-        new THREE.Vector3(mill.position[0], mill.position[1] + mill.size[1], mill.position[2]),
         new THREE.Vector3(
-          sifter.position[0] + offsetX,
-          sifter.position[1] + sifter.size[1] / 2,
+          mill.position[0],
+          mill.position[1] + MILL_PROCESS_PORTS.pneumatic[1],
+          mill.position[2]
+        ),
+        new THREE.Vector3(
+          sifter.position[0],
+          sifter.position[1] + SIFTER_LAYOUT.inletCentreY + SIFTER_LAYOUT.inletHeight / 2,
           sifter.position[2]
         ),
-        'pneumatic'
+        'pneumatic',
+        i
       )
     );
   });
@@ -148,7 +235,8 @@ export const buildSpoutRoutes = (machines: readonly MachineData[]): readonly Spo
           packer.position[1] + packer.size[1] + 1,
           packer.position[2]
         ),
-        'finished'
+        'finished',
+        i
       )
     );
   });

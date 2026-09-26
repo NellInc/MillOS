@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { SkipBack, SkipForward, Play, Pause } from 'lucide-react';
-import { useProductionStore } from '../../stores/productionStore';
+import { useIncidentReplayStore } from '../../stores/incidentReplayStore';
 import { useShallow } from 'zustand/react/shallow';
 
 export const IncidentReplayControls: React.FC = () => {
+  // Select from the owning store. productionStore's replay getters are
+  // flattened into plain values by its first set(), so they never update.
   const { replayMode, replayFrames, currentReplayIndex, setReplayMode, setReplayIndex } =
-    useProductionStore(
+    useIncidentReplayStore(
       useShallow((state) => ({
         replayMode: state.replayMode,
         replayFrames: state.replayFrames,
@@ -61,6 +63,9 @@ export const IncidentReplayControls: React.FC = () => {
   }, [setReplayMode]);
 
   if (!replayMode) return null;
+
+  const frameTime = replayFrames[currentReplayIndex]?.timestamp;
+  const frameLabel = frameTime ? new Date(frameTime).toLocaleTimeString() : null;
 
   // Sits above the dock (bottom-6, z-50) and the always-present music player
   // (bottom-[6.75rem]). At bottom-4 the play and skip buttons were behind the dock.
@@ -120,11 +125,16 @@ export const IncidentReplayControls: React.FC = () => {
               aria-valuemin={0}
               aria-valuemax={replayFrames.length - 1}
               aria-valuenow={currentReplayIndex}
-              aria-valuetext={`Frame ${currentReplayIndex + 1} of ${replayFrames.length}`}
+              aria-valuetext={`Frame ${currentReplayIndex + 1} of ${replayFrames.length}${
+                frameLabel ? `, captured ${frameLabel}` : ''
+              }`}
               className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/50"
             />
             <div className="flex justify-between text-[10px] text-slate-500 mt-0.5">
-              <span>Frame {currentReplayIndex + 1}</span>
+              <span>
+                Frame {currentReplayIndex + 1}
+                {frameLabel ? ` · ${frameLabel}` : ''}
+              </span>
               <span>{replayFrames.length} total</span>
             </div>
           </div>

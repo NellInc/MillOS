@@ -47,14 +47,13 @@ export const getRandomMachineOfType = (type: keyof typeof MACHINE_IDS): string =
 
 const AUTONOMOUS_NOTICES: AnnouncementConfig[] = [
   {
-    message:
-      'Process path verified from receiving through packing. All interlocks are reporting ready.',
+    message: 'Process path verified, receiving through packing. All interlocks ready.',
     type: 'production',
     category: 'operations',
     stressWeight: 0.1,
   },
   {
-    message: 'Silo inventory reconciliation complete. Mass balance remains within tolerance.',
+    message: 'Silo inventory reconciled. Mass balance within tolerance — nothing unaccounted for.',
     type: 'production',
     category: 'production',
     stressWeight: 0.15,
@@ -72,46 +71,43 @@ const AUTONOMOUS_NOTICES: AnnouncementConfig[] = [
     stressWeight: 0.2,
   },
   {
-    message: 'Packing line verification complete. Checkweigher and reject logic are available.',
+    message: 'Packing line verified. Checkweigher and reject gate standing by.',
     type: 'production',
     category: 'production',
     stressWeight: 0.2,
   },
   {
-    message: 'Dock sequencing has reserved a clear approach for the next autonomous delivery.',
+    message: 'Dock sequencing has cleared a path for the next delivery.',
     type: 'general',
     category: 'logistics',
     stressWeight: 0.25,
   },
   {
-    message: 'Forklift routes have been deconflicted with truck and conveyor movements.',
+    message: 'Forklift routes deconflicted. Trucks and conveyors accounted for.',
     type: 'safety',
     category: 'logistics',
     stressWeight: 0.35,
   },
   {
-    message: 'Mobile equipment geofences are synchronized with the active production zones.',
+    message: 'Mobile equipment geofences match the active production zones.',
     type: 'safety',
     category: 'safety',
     stressWeight: 0.3,
   },
   {
-    message:
-      'Dust extraction trend is stable. Differential pressure remains inside the control band.',
+    message: 'Dust extraction stable. Differential pressure inside the control band.',
     type: 'general',
     category: 'safety',
     stressWeight: 0.25,
   },
   {
-    message:
-      'Waterway telemetry is healthy. Stream flow and pond levels are within seasonal bounds.',
+    message: 'Waterway telemetry is healthy. The stream is doing what streams do.',
     type: 'general',
     category: 'environment',
     stressWeight: 0.1,
   },
   {
-    message:
-      'Weather adaptation is active. Lighting, wet surfaces, and vehicle limits share one state.',
+    message: 'Weather feed checked. Lighting and vehicle limits match the conditions outside.',
     type: 'general',
     category: 'environment',
     stressWeight: 0.2,
@@ -123,26 +119,25 @@ const AUTONOMOUS_NOTICES: AnnouncementConfig[] = [
     stressWeight: 0.05,
   },
   {
-    message: 'A diagnostic packet has been captured for the highest-vibration asset.',
+    message: 'Vibration trend reviewed on the busiest asset. Nothing outside its envelope.',
     type: 'general',
     category: 'operations',
     stressWeight: 0.45,
   },
   {
-    message:
-      'Production constraint analysis updated. The current bottleneck is highlighted in SCADA.',
+    message: 'Constraint analysis updated. The bottleneck is marked in SCADA.',
     type: 'production',
     category: 'production',
     stressWeight: 0.45,
   },
   {
-    message: 'A short cycle-time variance was detected and corrected by the line controller.',
+    message: 'Short cycle-time variance detected and corrected. The line controller handled it.',
     type: 'production',
     category: 'operations',
     stressWeight: 0.55,
   },
   {
-    message: 'Automated housekeeping cycle complete. Access lanes and sensor sightlines are clear.',
+    message: 'Housekeeping cycle complete. Lanes clear, sensors unobstructed.',
     type: 'general',
     category: 'safety',
     stressWeight: 0.15,
@@ -152,13 +147,13 @@ const AUTONOMOUS_NOTICES: AnnouncementConfig[] = [
 const TIME_NOTICES: Record<'day' | 'night', AnnouncementConfig[]> = {
   day: [
     {
-      message: 'Daylight control is active. Exterior luminaires are tracking available light.',
+      message: 'Daylight control active. Exterior lights following the sun.',
       type: 'general',
       category: 'environment',
       stressWeight: 0.1,
     },
     {
-      message: 'Solar loading forecast has been applied to ventilation and cooling setpoints.',
+      message: 'Solar loading forecast applied. Ventilation and cooling setpoints adjusted.',
       type: 'general',
       category: 'environment',
       stressWeight: 0.2,
@@ -174,7 +169,7 @@ const TIME_NOTICES: Record<'day' | 'night', AnnouncementConfig[]> = {
     },
     {
       message:
-        'The celestial clock and facility lighting are synchronized for the current night cycle.',
+        'Facility lighting is tracking the sky. The celestial clock and the electrical one agree.',
       type: 'general',
       category: 'environment',
       stressWeight: 0.1,
@@ -184,41 +179,40 @@ const TIME_NOTICES: Record<'day' | 'night', AnnouncementConfig[]> = {
 
 const MACHINE_STATUS_NOTICES = {
   warning: {
-    template: 'Warning at {MACHINE}. Diagnostic review is required before the next control change.',
+    template: 'Warning at {MACHINE}. Needs a diagnostic review before the next control change.',
     type: 'production' as const,
     priority: 'high' as const,
   },
   critical: {
-    template: 'Critical alarm at {MACHINE}. The affected process is held in a verified safe state.',
+    template: 'Critical alarm at {MACHINE}. Process held safe until this is resolved.',
     type: 'emergency' as const,
     priority: 'critical' as const,
   },
   running: {
-    template:
-      '{MACHINE} recovery complete. Interlocks are clear and normal production has resumed.',
+    template: '{MACHINE} recovery complete. Interlocks clear, production resumed.',
     type: 'production' as const,
     priority: 'medium' as const,
   },
 };
 
 const MILESTONE_MESSAGES: Record<number, string> = {
-  25: 'Production has reached 25% of the current target.',
-  50: 'Production has reached 50% of the current target.',
-  75: 'Production has reached 75% of the current target.',
-  90: 'Production has reached 90% of the current target.',
-  100: 'Production target achieved. The completed batch record is available in SCADA.',
+  25: 'Daily target 25% packed. The line has found its rhythm.',
+  50: 'Halfway to the daily target. Packing is holding pace.',
+  75: 'Daily target 75% packed. The finish line is in sight.',
+  90: 'Daily target 90% packed. Just the last bags to fill.',
+  100: 'Daily target achieved. The batch record is filed in SCADA. Well done, mill.',
 };
 
 export const SAFETY_INCIDENT_ANNOUNCEMENTS: EventAnnouncementConfig[] = [
   {
-    message: 'Safety interlock event logged. The affected zone is held in a verified safe state.',
+    message: 'Safety interlock event logged. The affected zone is held safe.',
     type: 'safety',
     priority: 'high',
     duration: 20,
   },
   {
     message:
-      'Near-miss logic triggered. Mobile equipment is stationary while route telemetry is reviewed.',
+      'Near-miss logic triggered. Mobile equipment stopped while route telemetry is reviewed.',
     type: 'safety',
     priority: 'high',
     duration: 20,
@@ -234,47 +228,59 @@ export const SAFETY_INCIDENT_ANNOUNCEMENTS: EventAnnouncementConfig[] = [
 
 export const FIRE_DRILL_ANNOUNCEMENTS: EventAnnouncementConfig[] = [
   {
-    message: 'Simulated fire-response drill active. Equipment is entering its verified safe state.',
+    message:
+      'Egress verification drill started. Equipment is in a safe stop while service exits are checked.',
+    type: 'emergency',
+    priority: 'critical',
+    duration: 20,
+  },
+  {
+    message: 'Service egress sensors under test. Isolation interlocks holding.',
     type: 'emergency',
     priority: 'critical',
     duration: 20,
   },
   {
     message:
-      'Fire-response simulation in progress. Egress sensors and isolation interlocks are under test.',
-    type: 'emergency',
-    priority: 'critical',
-    duration: 20,
-  },
-  {
-    message:
-      'Drill sequence complete. Restart remains inhibited until every safety channel reports clear.',
+      'Egress verification complete. All service exits confirmed clear; production resuming.',
     type: 'emergency',
     priority: 'critical',
     duration: 20,
   },
 ];
 
+const DRILL_ENDED_EARLY_MESSAGE = 'Egress verification drill ended early. Production restored.';
+
 export const EMERGENCY_STOP_ANNOUNCEMENTS: EventAnnouncementConfig[] = [
   {
-    message: 'Emergency stop activated. Machines and mobile equipment are stationary.',
+    message: 'Emergency stop activated. Everything is stationary.',
     type: 'emergency',
     priority: 'critical',
     duration: 20,
   },
   {
     message:
-      'Facility emergency stop engaged. Restart is inhibited until the cause and interlocks clear.',
+      'Facility emergency stop engaged. Restart held until the cause is found and interlocks clear.',
     type: 'emergency',
     priority: 'critical',
     duration: 20,
   },
   {
-    message:
-      'All autonomous vehicles are secure. Route reservations remain locked pending the all clear.',
+    message: 'All vehicles secure. Route reservations locked until the all-clear.',
     type: 'emergency',
     priority: 'critical',
     duration: 22,
+  },
+];
+
+// The forklift-only stop (Space bar, panel E-STOP button) holds the vehicles
+// while production keeps running, so it must not claim the whole site stopped.
+export const FORKLIFT_STOP_ANNOUNCEMENTS: EventAnnouncementConfig[] = [
+  {
+    message: 'Forklift emergency stop. Every forklift is holding position; the mill keeps running.',
+    type: 'emergency',
+    priority: 'critical',
+    duration: 20,
   },
 ];
 
@@ -330,6 +336,41 @@ let lastMilestoneReached = 0;
 const lastMachineStatuses: Record<string, string> = {};
 const lastMachineStatusAnnouncementTime: Record<string, number> = {};
 const MACHINE_STATUS_COOLDOWN_MS = 30000;
+const DRILL_CAPTION_COOLDOWN_MS = 15000;
+
+type DrillSnapshot = { active: boolean; verificationComplete: boolean };
+
+// Driven by a store subscription rather than the 5 s poll: the sequencer holds
+// a completed drill for only ~5 s before ending it and resetting its metrics.
+const announceDrillTransition = (
+  drill: DrillSnapshot,
+  previous: DrillSnapshot,
+  addAnnouncement: (input: AnnouncementInput) => void
+): void => {
+  if (audioManager.muted) return;
+  let message: string | null = null;
+  let priority = 3;
+  if (drill.active && !previous.active) {
+    message = FIRE_DRILL_ANNOUNCEMENTS[0].message;
+    priority = 4;
+  } else if (drill.verificationComplete && !previous.verificationComplete) {
+    message = FIRE_DRILL_ANNOUNCEMENTS[2].message;
+  } else if (previous.active && !drill.active && !previous.verificationComplete) {
+    message = DRILL_ENDED_EARLY_MESSAGE;
+  }
+  if (!message) return;
+  // Emergency items are allowed in every PA mode, so there is no mode gate.
+  addAnnouncement({
+    type: 'emergency',
+    message,
+    priority,
+    source: 'Safety controller',
+    channel: 'safety',
+    tone: 'literal',
+    audience: 'control',
+    cooldownMs: DRILL_CAPTION_COOLDOWN_MS,
+  });
+};
 
 const checkEventAnnouncements = (addAnnouncement: (input: AnnouncementInput) => void): void => {
   if (useAnnouncementsStore.getState().mode === 'off') return;
@@ -338,20 +379,23 @@ const checkEventAnnouncements = (addAnnouncement: (input: AnnouncementInput) => 
 
   if (target && target.targetBags > 0) {
     const progress = Math.floor((target.producedBags / target.targetBags) * 100);
-    for (const milestone of [25, 50, 75, 90, 100]) {
-      if (progress >= milestone && lastMilestoneReached < milestone) {
-        lastMilestoneReached = milestone;
-        addAnnouncement({
-          type: 'success',
-          message: MILESTONE_MESSAGES[milestone],
-          priority: milestone === 100 ? 4 : milestone >= 50 ? 3 : 2,
-          source: 'Production controller',
-          channel: 'operational',
-          tone: 'literal',
-          audience: 'control',
-          cooldownMs: 90000,
-        });
-      }
+    // Announce only the highest milestone newly crossed: a fast game speed or a
+    // reload part-way through the day would otherwise queue several at once.
+    const reached = [25, 50, 75, 90, 100]
+      .filter((milestone) => progress >= milestone && lastMilestoneReached < milestone)
+      .pop();
+    if (reached !== undefined) {
+      lastMilestoneReached = reached;
+      addAnnouncement({
+        type: 'success',
+        message: MILESTONE_MESSAGES[reached],
+        priority: reached === 100 ? 4 : reached >= 50 ? 3 : 2,
+        source: 'Production controller',
+        channel: 'operational',
+        tone: 'literal',
+        audience: 'control',
+        cooldownMs: 90000,
+      });
     }
     if (progress < 10 && lastMilestoneReached > 0) lastMilestoneReached = 0;
   }
@@ -360,8 +404,18 @@ const checkEventAnnouncements = (addAnnouncement: (input: AnnouncementInput) => 
   for (const machine of state.machines ?? []) {
     const previous = lastMachineStatuses[machine.id];
     const current = machine.status;
-    if (previous && previous !== current && current in MACHINE_STATUS_NOTICES) {
-      const lastTime = lastMachineStatusAnnouncementTime[current] ?? 0;
+    // 'running' is only a recovery when it follows a fault; idle-to-running is
+    // a routine start or a restore after a hold, and nothing recovered.
+    if (
+      previous &&
+      previous !== current &&
+      current in MACHINE_STATUS_NOTICES &&
+      (current !== 'running' || previous === 'warning' || previous === 'critical')
+    ) {
+      // Keyed per machine: a status-only key dropped a second machine's
+      // critical alarm raised within the cooldown of the first.
+      const cooldownKey = `${machine.id}:${current}`;
+      const lastTime = lastMachineStatusAnnouncementTime[cooldownKey] ?? 0;
       if (now - lastTime >= MACHINE_STATUS_COOLDOWN_MS) {
         const notice = MACHINE_STATUS_NOTICES[current as keyof typeof MACHINE_STATUS_NOTICES];
         addAnnouncement({
@@ -374,7 +428,7 @@ const checkEventAnnouncements = (addAnnouncement: (input: AnnouncementInput) => 
           audience: 'control',
           cooldownMs: 90000,
         });
-        lastMachineStatusAnnouncementTime[current] = now;
+        lastMachineStatusAnnouncementTime[cooldownKey] = now;
       }
     }
     lastMachineStatuses[machine.id] = current;
@@ -387,7 +441,38 @@ const useEventAnnouncementScheduler = () => {
     const interval = setInterval(() => {
       if (!audioManager.muted) checkEventAnnouncements(addAnnouncement);
     }, 5000);
-    return () => clearInterval(interval);
+    const unsubscribeDrill = useGameSimulationStore.subscribe((state, previous) => {
+      if (state.drillMetrics !== previous.drillMetrics) {
+        announceDrillTransition(state.drillMetrics, previous.drillMetrics, addAnnouncement);
+      }
+      // A facility emergency (not a drill, which captions itself above) gets
+      // one caption on the rising edge.
+      if (
+        state.emergencyActive &&
+        !previous.emergencyActive &&
+        !state.emergencyDrillMode &&
+        !audioManager.muted
+      ) {
+        const notice =
+          EMERGENCY_STOP_ANNOUNCEMENTS[
+            Math.floor(Math.random() * EMERGENCY_STOP_ANNOUNCEMENTS.length)
+          ];
+        addAnnouncement({
+          type: 'emergency',
+          message: notice.message,
+          priority: 4,
+          source: 'Safety controller',
+          channel: 'safety',
+          tone: 'literal',
+          audience: 'control',
+          cooldownMs: DRILL_CAPTION_COOLDOWN_MS,
+        });
+      }
+    });
+    return () => {
+      clearInterval(interval);
+      unsubscribeDrill();
+    };
   }, [addAnnouncement]);
 };
 
@@ -403,7 +488,15 @@ const usePAScheduler = () => {
       return setTimeout(
         () => {
           const mode = useAnnouncementsStore.getState().mode;
-          if (!audioManager.muted && mode !== 'off') {
+          // Ambient notices such as 'The mill is calm' are false during a hold.
+          // Skip them, but keep the timer running.
+          const game = useGameSimulationStore.getState();
+          const safetyHold =
+            game.emergencyActive ||
+            game.emergencyDrillMode ||
+            game.crisisState.active ||
+            useSafetyStore.getState().forkliftEmergencyStop;
+          if (!safetyHold && !audioManager.muted && mode !== 'off') {
             const gameTime = useGameSimulationStore.getState().gameTime;
             let notice = chooseNotice(gameTime);
             for (

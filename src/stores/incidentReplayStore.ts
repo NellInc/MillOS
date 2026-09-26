@@ -5,6 +5,7 @@
 
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
+import { CURRENT_RELEASE_VERSION } from '../config/releaseVersions';
 
 export interface ReplayFrame {
   timestamp: number;
@@ -72,18 +73,19 @@ export interface IncidentReplayStore {
   jumpToEnd: () => void;
 }
 
+const DEFAULT_SIMULATION_SEED = `millos-${CURRENT_RELEASE_VERSION}-default`;
 const MAX_REPLAY_FRAMES = 600; // 10 minutes at 1 frame/second
 const MAX_DIAGNOSTIC_COMMANDS = 1000;
 const BUILD_ID = typeof __MILLOS_BUILD_ID__ === 'string' ? __MILLOS_BUILD_ID__ : 'development';
 
 function getSimulationSeed(): string {
-  if (typeof window === 'undefined') return 'millos-v0.40-default';
+  if (typeof window === 'undefined') return DEFAULT_SIMULATION_SEED;
   const requested = new URLSearchParams(window.location.search).get('seed');
   const sanitized = requested
     ?.trim()
     .replace(/[^a-zA-Z0-9_.:]/g, '')
     .slice(0, 64);
-  return sanitized || 'millos-v0.40-default';
+  return sanitized || DEFAULT_SIMULATION_SEED;
 }
 
 export const useIncidentReplayStore = create<IncidentReplayStore>()(

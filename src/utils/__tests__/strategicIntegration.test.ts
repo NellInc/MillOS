@@ -65,6 +65,30 @@ describe('Strategic AI state integration', () => {
     });
   });
 
+  it('stores plan details with the priorities and clears them on the next plan', () => {
+    const store = useAIConfigStore.getState();
+    store.setStrategicPriorities(['Stabilise RM-102 load'], {
+      actionPlan: ['Trim feed', 'Watch vibration', 'Stage bearings'],
+      insight: 'Load is drifting upward.',
+      tradeoff: 'Throughput dips slightly.',
+      focusMachine: 'rm-102',
+    });
+    expect(useAIConfigStore.getState().strategic).toMatchObject({
+      actionPlan: ['Trim feed', 'Watch vibration', 'Stage bearings'],
+      insight: 'Load is drifting upward.',
+      tradeoff: 'Throughput dips slightly.',
+      focusMachine: 'rm-102',
+    });
+
+    useAIConfigStore.getState().setStrategicPriorities(['Hold steady']);
+    const { strategic } = useAIConfigStore.getState();
+    expect(strategic.legacyPriorities).toEqual(['Hold steady']);
+    expect(strategic.actionPlan).toBeUndefined();
+    expect(strategic.insight).toBeUndefined();
+    expect(strategic.tradeoff).toBeUndefined();
+    expect(strategic.focusMachine).toBeUndefined();
+  });
+
   it('tracks both transitions of strategic thinking state', () => {
     useAIConfigStore.getState().setStrategicThinking(true);
     expect(useAIConfigStore.getState().strategic.isThinking).toBe(true);

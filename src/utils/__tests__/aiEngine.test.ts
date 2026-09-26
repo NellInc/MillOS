@@ -649,6 +649,48 @@ describe('aiEngine - Core Functions', () => {
       expect(useAIConfigStore.getState().strategic.isThinking).toBe(false);
     });
 
+    it('runs in LLM-only mode and records the plan, dropping an unknown focus machine', async () => {
+      configureStrategicLayer();
+      useAIConfigStore.setState({ aiMode: 'gemini' });
+      vi.spyOn(geminiClient, 'isConnected').mockReturnValue(true);
+      vi.spyOn(geminiClient, 'generateContent').mockResolvedValue(
+        JSON.stringify({
+          priorities: [`  Protect RM-101 ${'x'.repeat(400)}`],
+          reasoning: 'Load is high.',
+          insight: 'Vibration is trending up.',
+          tradeoff: 'Throughput dips briefly.',
+          focusMachine: 'RM-999',
+          actionPlan: ['Trim feed', 'Watch vibration', 'Stage bearings'],
+        })
+      );
+
+      const decision = await generateStrategicDecision();
+
+      expect(decision?.action.startsWith('Strategic: Protect RM-101')).toBe(true);
+      // Model text is trimmed and bounded before it reaches the decision card.
+      expect(decision?.action.length).toBeLessThanOrEqual('Strategic: '.length + 160);
+      expect(decision?.machineId).toBeUndefined();
+      expect(useAIConfigStore.getState().strategic).toMatchObject({
+        actionPlan: ['Trim feed', 'Watch vibration', 'Stage bearings'],
+        insight: 'Vibration is trending up.',
+        tradeoff: 'Throughput dips briefly.',
+        focusMachine: undefined,
+      });
+    });
+
+    it('keeps a focus machine that the plant actually has', async () => {
+      configureStrategicLayer();
+      vi.spyOn(geminiClient, 'isConnected').mockReturnValue(true);
+      vi.spyOn(geminiClient, 'generateContent').mockResolvedValue(
+        '{"priorities":["Protect the roller mill"],"reasoning":"Stable","focusMachine":"RM-101"}'
+      );
+
+      const decision = await generateStrategicDecision();
+
+      expect(decision?.machineId).toBe('RM-101');
+      expect(useAIConfigStore.getState().strategic.focusMachine).toBe('RM-101');
+    });
+
     it('discards an outstanding response after the last engine lease is released', async () => {
       configureStrategicLayer();
       vi.spyOn(geminiClient, 'isConnected').mockReturnValue(true);

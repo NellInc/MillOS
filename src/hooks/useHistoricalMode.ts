@@ -62,7 +62,8 @@ export function useHistoricalMode(): UseHistoricalModeReturn {
 
   const [availableRange, setAvailableRange] = useState<{ start: number; end: number } | null>(null);
 
-  // Initialize available range from HistoryStore (run once on mount)
+  // Load the available range from HistoryStore on mount and again each time
+  // replay is entered or exited, so the range reflects what has been recorded.
   useEffect(() => {
     let ignore = false;
     const loadRange = async () => {
@@ -82,7 +83,7 @@ export function useHistoricalMode(): UseHistoricalModeReturn {
     return () => {
       ignore = true;
     };
-  }, [setStoreAvailableRange]);
+  }, [isReplaying, setStoreAvailableRange]);
 
   // Get tag value at a specific timestamp (interpolated)
   const getTagValueAt = useCallback(

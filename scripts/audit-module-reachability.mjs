@@ -133,6 +133,7 @@ const KNOWN_DEAD = new Map([
   ['src/components/machines/InstancedRollerMills.tsx', MACHINES],
   ['src/components/machines/InstancedSilos.tsx', MACHINES],
   ['src/components/machines/MachineAnimationManager.tsx', MACHINES],
+  ['src/components/machines/MachineLOD.ts', MACHINES],
   ['src/components/machines/shared.ts', MACHINES],
   ['src/components/machines/SiloComponents.tsx', MACHINES],
   ['src/components/machines/StatusRing.tsx', MACHINES],

@@ -1,0 +1,23 @@
+{
+  "source": "assets/source/models/world/flour-sack-unit-authored-vertex-colour-tripo-finish.glb",
+  "sourceSha256": "41eeb7b777f7d7ab97ef57badef4dd60bcacb3e443759c70063d28be317b00cc",
+  "authored": "assets/source/models/world/flour-sack-unit-geometry.json",
+  "authoredSha256": "89050c43b8e7cbeddcd6f4ad8abef2de018e6c608aac499644ffd5a90f61ac63",
+  "implementation": "src/utils/flourSacks.ts",
+  "implementationSha256": "915e285c073a62ed9705bd9f8b1dab2c3027444a0e37319c32a37609d6f222bf",
+  "output": "assets/source/models/world/flour-sack-unit-pillow-profile.glb",
+  "outputSha256": "bd2d4b07d95380673bcbfceb5ed690430b188e2f6a93d0ef29d370bac427652a",
+  "triangles": 84,
+  "corners": 252,
+  "maxCorrespondenceError": 1.7791053637811763e-8,
+  "preservedAtlas": {
+    "indices": "b367c7c9929b5774fb84bd7db7330f371d4223a1bf528fbabba528deccc9fef8",
+    "uv": "89eaa5ea7a44f3c551eb4ae26b0ab7f7f699aea7a2fbbb1ee7120513b58c0a70",
+    "colour": "31ea73c1ca82bbb314c7ed7f2b248f58410919b6f88de12dc69fdc0cf35fa2f4",
+    "textures": [
+      "1ac46c0bd47dae3f4bac7397b8816c11bcaa3c90e8f48ffde9a3db8cf393fd11",
+      "77ab3c833561ab01ba47d366e42f0f1f04bf6f660178d57e007538593ac1cc10"
+    ]
+  },
+  "note": "Local topology-preserving pillow-profile derivative; original provider and authored-atlas files are unchanged."
+}

@@ -1,5 +1,11 @@
 import * as THREE from 'three';
 
+/** Allow low production-floor views to look up, with floor clipping handled by navigation. */
+export const ORBIT_POLAR_LIMITS = {
+  min: 0.2,
+  max: (Math.PI * 2) / 3,
+} as const;
+
 /** Physical key positions shared by orbit and first-person camera modes. */
 export const NAVIGATION_CODES: ReadonlySet<string> = new Set([
   'KeyW',
@@ -28,6 +34,7 @@ const INTERACTIVE_TARGET_SELECTOR = [
   'textarea',
   'select',
   'button',
+  'summary',
   'a[href]',
   '[contenteditable]:not([contenteditable="false"])',
   '[role="button"]',

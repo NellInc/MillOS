@@ -108,3 +108,20 @@ describe('shader chunk injection anchors', () => {
     ).toEqual([]);
   });
 });
+
+describe('renderer shadow filter contract', () => {
+  it('selects a shadow mode implemented by the installed renderer', () => {
+    const app = readFileSync(path.join(SOURCE_ROOT, 'App.tsx'), 'utf8');
+    const mode = app.match(/<Canvas[\s\S]*?\bshadows=\{[\s\S]*?type:\s*THREE\.(\w+)/)?.[1];
+    expect(mode, 'Canvas shadow mode must be discoverable').toBeDefined();
+    const program = readFileSync(
+      path.join(SOURCE_ROOT, '../node_modules/three/src/renderers/webgl/WebGLProgram.js'),
+      'utf8'
+    );
+    const defines = program.match(/const shadowMapTypeDefines = \{([\s\S]*?)\};/)?.[1] ?? '';
+    expect(defines, `${mode} must not silently fall back to single-tap BASIC shadows`).toContain(
+      `[ ${mode} ]`
+    );
+    expect(THREE.ShaderChunk.shadowmap_pars_fragment).toContain('SHADOWMAP_TYPE_PCF');
+  });
+});

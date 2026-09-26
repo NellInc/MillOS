@@ -160,7 +160,7 @@ export const SettingsPanel: React.FC<{
               </label>
               <button
                 onClick={() => audio.setMuted(!audio.muted)}
-                aria-label={audio.muted ? 'Unmute audio' : 'Mute audio'}
+                aria-label="Mute audio"
                 aria-pressed={audio.muted}
                 className="text-[10px] text-cyan-400 hover:text-cyan-300"
               >
@@ -195,7 +195,7 @@ export const SettingsPanel: React.FC<{
               </div>
               <button
                 onClick={() => audio.setMusicEnabled(!audio.musicEnabled)}
-                aria-label={audio.musicEnabled ? 'Disable music' : 'Enable music'}
+                aria-label="Music playback"
                 aria-pressed={audio.musicEnabled}
                 className={`text-[10px] px-2 py-0.5 rounded ${audio.musicEnabled ? 'bg-emerald-700 text-white' : 'bg-slate-700 text-white/70'}`}
               >
@@ -275,8 +275,8 @@ export const SettingsPanel: React.FC<{
               ))}
             </div>
             <p className="text-[10px] leading-4 text-slate-400">
-              Focused uses sparse operational captions. Characterful enables the full text feed.
-              Critical safety messages remain available.
+              Focused keeps the PA terse. Characterful lets it talk. Safety messages come through
+              regardless.
             </p>
           </fieldset>
 
@@ -289,7 +289,7 @@ export const SettingsPanel: React.FC<{
             <button
               type="button"
               onClick={() => setCaptionsEnabled(!captionsEnabled)}
-              aria-label={captionsEnabled ? 'Disable PA captions' : 'Enable PA captions'}
+              aria-label="PA captions"
               aria-pressed={captionsEnabled}
               className={`rounded px-2 py-0.5 text-[10px] ${
                 captionsEnabled ? 'bg-teal-700 text-white' : 'bg-slate-700 text-white/70'
@@ -328,8 +328,8 @@ export const SettingsPanel: React.FC<{
                 {filteredTranscript.length === 0 ? (
                   <p className="p-2 text-[10px] text-slate-400">
                     {transcript.length === 0
-                      ? 'No announcements have been recorded.'
-                      : 'No announcements match this search.'}
+                      ? 'Nothing announced yet. The mill is either very new or very quiet.'
+                      : 'No matches. Try a different search, or accept the silence.'}
                   </p>
                 ) : (
                   filteredTranscript.map((announcement) => (
@@ -402,15 +402,16 @@ export const SettingsPanel: React.FC<{
                 setNarrationEnabled(v);
               }}
             />
-            <Toggle
-              label="Unlock Notifications"
-              icon={<Bell size={12} />}
-              value={showUnlockNotifications}
-              onChange={setShowUnlockNotifications}
-            />
+            {FEATURE_FLAGS.KNOWLEDGE_UNLOCK_TOASTS_ENABLED && (
+              <Toggle
+                label="Unlock Notifications"
+                icon={<Bell size={12} />}
+                value={showUnlockNotifications}
+                onChange={setShowUnlockNotifications}
+              />
+            )}
             <p className="text-[9px] text-slate-400 mt-2 px-2">
-              Control how educational content about bilateral alignment and economic democracy is
-              presented.
+              Controls the depth of bilateral alignment and economic democracy content.
             </p>
           </div>
         </section>
@@ -652,8 +653,8 @@ export const SettingsPanel: React.FC<{
             className="w-full cursor-pointer accent-cyan-500"
           />
           <p className="mt-2 text-[11px] leading-relaxed text-slate-400">
-            Scales controls and text without reducing the 3D render resolution. Browser zoom and
-            operating-system text settings remain supported.
+            Makes controls and text larger without reducing the 3D render resolution. Browser zoom
+            and OS text size still work as expected.
           </p>
         </div>
       </section>
@@ -665,8 +666,8 @@ export const SettingsPanel: React.FC<{
         </h3>
         <div className="space-y-3 rounded-xl border border-white/5 bg-slate-800/50 p-3">
           <p className="text-[11px] leading-relaxed text-slate-400">
-            A bounded ten-minute buffer records simulation frames and important commands with the
-            build identifier and seed. The export excludes credentials and player identity data.
+            The last ten minutes of the simulation are buffered — frames, commands, build ID and
+            seed. No credentials or identity data leave the building.
           </p>
           <div className="grid grid-cols-2 gap-2 text-center text-xs">
             <div className="rounded-lg bg-slate-900/60 p-2">
@@ -738,7 +739,7 @@ export const SettingsPanel: React.FC<{
             onClick={() => setResetConfirm('day')}
             className="w-full py-2 rounded-lg text-xs font-medium bg-amber-900/30 text-amber-400 hover:bg-amber-900/50 flex items-center justify-center gap-2 transition-colors"
           >
-            Reset to 10am
+            Reset to 10 AM
           </button>
           <button
             onClick={() => setResetConfirm('full')}
@@ -753,10 +754,10 @@ export const SettingsPanel: React.FC<{
       {/* Reset to 10am confirmation */}
       <ConfirmDialog
         isOpen={resetConfirm === 'day'}
-        title="Reset to 10am"
+        title="Reset to 10 AM"
         tone="amber"
-        confirmLabel="Reset to 10am"
-        message="Reset the clock, weather, shift and emergency state back to 10am? Production totals, machine states, alerts and achievements are kept."
+        confirmLabel="Reset to 10 AM"
+        message="Wind the clock back to 10 AM — weather, run window and emergency state reset. Production totals, machine states, and achievements survive the trip."
         onCancel={() => setResetConfirm(null)}
         onConfirm={() => {
           clearPersistedState();
@@ -770,7 +771,7 @@ export const SettingsPanel: React.FC<{
         title="Reset Simulation"
         tone="red"
         confirmLabel="Reset Everything"
-        message="Reset the simulation and clear all saved data? This clears saved progress, graphics settings, and your Gemini API key, then reloads. This cannot be undone."
+        message="Wipe everything — saved progress, graphics settings, your Gemini API key — and reload from scratch. There is no undo."
         onCancel={() => setResetConfirm(null)}
         onConfirm={() => {
           // Clear every persisted MillOS store (keys are namespaced "millos-*").
@@ -779,7 +780,8 @@ export const SettingsPanel: React.FC<{
           Object.keys(localStorage)
             .filter((key) => key.startsWith('millos-'))
             .forEach((key) => localStorage.removeItem(key));
-          setGraphicsQuality('medium');
+          // No graphics write here: the reload boots the default medium preset,
+          // and any store write would persist millos-graphics straight back.
           window.location.reload();
         }}
       />
@@ -795,7 +797,7 @@ const Toggle: React.FC<{
 }> = ({ label, icon, value, onChange }) => (
   <button
     onClick={() => onChange(!value)}
-    aria-label={`${value ? 'Disable' : 'Enable'} ${label}`}
+    aria-label={label}
     aria-pressed={value}
     className={`w-full flex items-center justify-between p-2 rounded-lg transition-colors ${value ? 'bg-slate-700/50 text-white' : 'hover:bg-slate-800 text-slate-300'}`}
   >
@@ -804,7 +806,7 @@ const Toggle: React.FC<{
       <span>{label}</span>
     </div>
     <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider">
-      <span className={value ? 'text-green-300' : 'text-slate-500'}>{value ? 'On' : 'Off'}</span>
+      <span className={value ? 'text-green-300' : 'text-slate-400'}>{value ? 'On' : 'Off'}</span>
       <span
         className={`w-2 h-2 rounded-full ${value ? 'bg-green-400' : 'bg-slate-500'}`}
         aria-hidden="true"

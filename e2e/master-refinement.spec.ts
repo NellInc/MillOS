@@ -23,6 +23,17 @@ interface E2EDownload {
 }
 
 async function expectNoWcagViolations(page: Page, testInfo: TestInfo, state: string) {
+  // A newly visible sidebar is still fading in. Sample its settled colours,
+  // rather than measuring white text halfway through the entrance animation.
+  await expect
+    .poll(() =>
+      page
+        .locator('aside:visible')
+        .evaluateAll((panels) =>
+          panels.every((panel) => Number(getComputedStyle(panel).opacity) >= 0.9999)
+        )
+    )
+    .toBe(true);
   const results = await new AxeBuilder({ page })
     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
     .analyze();
@@ -277,8 +288,26 @@ test.describe('MillOS master refinement runtime', () => {
     await expect(overviewSidebar).toBeHidden();
     await expect(overviewDockButton).toBeFocused();
 
-    const aiDockButton = page.getByRole('button', { name: 'AI Partner', exact: true });
+    const productionButton = page.getByRole('button', { name: 'Production', exact: true });
+    await productionButton.click();
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const runtime = (
+            window as typeof window & {
+              __MILLOS_RUNTIME__?: { snapshot(): { camera: { position: number[]; fov: number } } };
+            }
+          ).__MILLOS_RUNTIME__;
+          const camera = runtime?.snapshot().camera;
+          return camera ? Math.abs(camera.position[1] - 4.5) + Math.abs(camera.fov - 50) : Infinity;
+        })
+      )
+      .toBeLessThan(0.1);
+    await page.getByRole('button', { name: 'Close sidebar panel', exact: true }).click();
+
+    const aiDockButton = page.getByRole('button', { name: 'More workspaces and view controls' });
     await aiDockButton.click();
+    await page.getByRole('menuitem', { name: 'AI Partner I', exact: true }).click();
     const aiSidebar = page.getByRole('complementary', { name: 'AI Partner sidebar panel' });
     await expect(aiSidebar).toBeVisible();
     await expect(aiSidebar.getByTestId('ai-command-center')).toBeVisible();
@@ -380,7 +409,7 @@ test.describe('MillOS master refinement runtime', () => {
       await safetyDockButton.click();
       await expect(gameInterface).toHaveAttribute('data-active-mode', 'safety');
       await expect(safetySidebar).toBeVisible();
-      await expect(safetySidebar.getByRole('button', { name: 'START DRILL' })).toHaveCount(0);
+      await expect(safetySidebar.getByRole('button', { name: 'START DRILL' })).toBeVisible();
       await expect(safetySidebar.getByRole('button', { name: 'END DRILL' })).toHaveCount(0);
       await expect(page.getByRole('alert', { name: 'Simulated fire drill' })).toHaveCount(0);
       await expect(page.getByLabel('AI reflection', { exact: true })).toHaveCount(0);
@@ -391,6 +420,23 @@ test.describe('MillOS master refinement runtime', () => {
       });
       await expect(gameInterface).toHaveAttribute('data-active-mode', 'safety');
       await expect(safetyDockButton).toHaveAttribute('aria-pressed', 'true');
+    });
+
+    await test.step('run the automated service-egress verification to completion', async () => {
+      await safetySidebar.getByRole('button', { name: 'START DRILL' }).click();
+      const drillBanner = page.getByRole('alert', { name: 'Simulated fire drill' });
+      await expect(drillBanner).toBeVisible();
+      await expect(safetySidebar.getByRole('button', { name: 'END DRILL' })).toBeVisible();
+      await expect(
+        safetySidebar.getByRole('group', { name: 'Emergency egress verification drill' })
+      ).toContainText('zones verified');
+      // Four zones at 4 s each, followed by the sequencer's next tick and 5 s hold.
+      await expect(
+        safetySidebar.getByRole('group', { name: 'Emergency egress verification drill' })
+      ).toContainText('All zones verified', { timeout: 22_000 });
+      await expect(drillBanner).toBeHidden({ timeout: 12_000 });
+      await expect(safetySidebar.getByRole('button', { name: 'START DRILL' })).toBeVisible();
+      await expect(safetySidebar.getByRole('button', { name: 'END DRILL' })).toHaveCount(0);
     });
 
     await test.step('trigger and clear the facility emergency interlock', async () => {
@@ -432,7 +478,8 @@ test.describe('MillOS master refinement runtime', () => {
     await muteButton.click();
 
     const captionsButton = settingsSidebar.getByRole('button', {
-      name: /Enable PA captions|Disable PA captions/,
+      name: 'PA captions',
+      exact: true,
     });
     const captionsWerePressed = await captionsButton.getAttribute('aria-pressed');
     await captionsButton.click();
@@ -490,10 +537,14 @@ test.describe('MillOS master refinement runtime', () => {
     await page.setViewportSize({ width: 390, height: 844 });
     const dock = page.getByRole('navigation', { name: 'Main Navigation' });
     await expect(dock).toBeVisible();
-    const dockBox = await dock.boundingBox();
-    expect(dockBox).not.toBeNull();
-    expect((dockBox?.x ?? 0) + (dockBox?.width ?? 0)).toBeLessThanOrEqual(390.5);
-    expect(dockBox?.x ?? 0).toBeGreaterThanOrEqual(-0.5);
+    // Viewport emulation can return before React commits the compact dock.
+    // Keep the actual bounds assertion, retrying through that resize commit.
+    await expect(async () => {
+      const dockBox = await dock.boundingBox();
+      expect(dockBox).not.toBeNull();
+      expect((dockBox?.x ?? 0) + (dockBox?.width ?? 0)).toBeLessThanOrEqual(390.5);
+      expect(dockBox?.x ?? 0).toBeGreaterThanOrEqual(-0.5);
+    }).toPass({ timeout: 15_000 });
 
     const minimumDockTarget = await dock.locator('button:visible').evaluateAll((buttons) =>
       Math.min(
@@ -531,6 +582,8 @@ test.describe('MillOS master refinement runtime', () => {
     await expect(mobileSettings).toBeVisible();
     await expect(gameInterface).toHaveAttribute('inert', '');
     await expect(gameInterface).toHaveAttribute('aria-hidden', 'true');
+    const music = page.locator('section[aria-label="Music player"]');
+    await expect(music).toBeHidden();
     await page.keyboard.press('Shift+Tab');
     expect(await mobileSettings.evaluate((dialog) => dialog.contains(document.activeElement))).toBe(
       true
@@ -543,6 +596,7 @@ test.describe('MillOS master refinement runtime', () => {
     await page.keyboard.press('Escape');
     await expect(mobileSettings).toBeHidden();
     await expect(settingsDockButton).toBeFocused();
+    await expect(music).toBeVisible();
 
     expect(diagnostics.consoleErrors, diagnostics.consoleErrors.join('\n')).toEqual([]);
     expect(diagnostics.pageErrors, diagnostics.pageErrors.join('\n')).toEqual([]);

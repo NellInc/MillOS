@@ -44,8 +44,8 @@ describe('depth policy', () => {
   });
 
   it('uses a precise normal camera range without logarithmic depth', () => {
-    expect(CAMERA_DEPTH.near).toBeGreaterThanOrEqual(0.5);
-    expect(CAMERA_DEPTH.far).toBeLessThanOrEqual(360);
+    expect(CAMERA_DEPTH.near).toBe(0.8);
+    expect(CAMERA_DEPTH.far).toBe(960);
     expect(CAMERA_DEPTH.far / CAMERA_DEPTH.near).toBeLessThanOrEqual(CAMERA_DEPTH.recommendedRatio);
   });
 });

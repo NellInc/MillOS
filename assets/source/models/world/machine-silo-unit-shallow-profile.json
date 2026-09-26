@@ -1,0 +1,27 @@
+{
+  "source": "assets/source/models/world/machine-silo-unit-authored-vertex-colour-tripo-finish.glb",
+  "sourceSha256": "7ea3756134f210294ac0035b41a5da8e08d47975ac656cd83b695e1bc244c25b",
+  "authored": "assets/source/models/world/machine-silo-unit-geometry.json",
+  "authoredSha256": "b0a673daeb24adb25be0ae4b4beca4c70b96f1c12ff62920130eb32488475110",
+  "implementation": "src/components/machines/CompactMachines.tsx",
+  "implementationSha256": "9a089001821cac3ba5ea8eeb55571ea9d9c45fc41fe0a8da568b4e643dd9f317",
+  "output": "assets/source/models/world/machine-silo-unit-shallow-profile.glb",
+  "outputSha256": "10ff4d0eba4cc94b247ee4f43247fd4f1085cdd68e1a10e39d357e2f8b2ab5e0",
+  "triangles": 10304,
+  "corners": 30912,
+  "omittedOriginalPoleSlivers": 64,
+  "maxOrderError": 4.909490900823868e-7,
+  "maxCorrespondenceError": 1.9657376484073906e-8,
+  "preservedAtlas": {
+    "attributes": {
+      "TEXCOORD_0": "929ccfb359e8cbb59d033a97808062fcc9a05197ea5f33eb30049481df7fc237",
+      "COLOR_0": "7456706df1a7c66275a30278ad2474f079816661019a93a103df1d0cb6d5fdf6"
+    },
+    "indices": "c20a03255bae8bc22a45e3904fa329af041bbed037a3c3f3db1569dc4607b72f",
+    "textures": [
+      "a73526901d117717bce937b87739e6f3005fb6bbbb5cd0ace48ff10f9994d214",
+      "397eb636d724559c4029d6449344017076e141a6361154107e1be83c732f9c38"
+    ]
+  },
+  "note": "Local topology-preserving shallow-profile derivative. Original provider and authored-atlas files are unchanged."
+}

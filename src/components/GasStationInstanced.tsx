@@ -1,7 +1,11 @@
 import * as THREE from 'three';
-import React, { useRef, useMemo, useEffect } from 'react';
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+import { EXTERIOR_LAYERS } from '../constants/renderLayers';
+import React, { useRef, useMemo, useLayoutEffect } from 'react';
 import { SceneText as Text } from './shared/SceneText';
 import { PROCEDURAL_TEXTURES } from '../utils/sharedMaterials';
+import { GeneratedBoundary, GeneratedModel } from './models/GeneratedModel';
+import { GeneratedBoxSurface, GeneratedSurfaceMesh } from './models/GeneratedGeometrySurface';
 
 // ============================================================================
 // Shared surface textures
@@ -31,6 +35,21 @@ const SHOP_WALL_SURFACE = {
 } as const;
 
 // ============================================================================
+// Source palette and procedural maps remain authoritative.
+const STATION_WALL_MATERIAL = new THREE.MeshStandardMaterial({
+  color: '#e0e0e0',
+  ...SHOP_WALL_SURFACE,
+});
+const STATION_ROOF_MATERIAL = new THREE.MeshStandardMaterial({ color: '#b71c1c', roughness: 0.5 });
+const STATION_POLE_MATERIAL = new THREE.MeshStandardMaterial({
+  color: '#757575',
+  roughness: 0.5,
+  metalness: 0.3,
+});
+const STATION_CABINET_MATERIAL = new THREE.MeshStandardMaterial({
+  color: '#fff3e0',
+  roughness: 0.5,
+});
 // Designed forecourt geometry
 // ============================================================================
 // Every geometry in this section is module-level and drawn either through an
@@ -246,10 +265,26 @@ const NOZZLE_SPOUT_Z_OFFSET = 0.7448;
 // the flange still tucked 10 mm inside, so there is no gap to see through.
 const SWIVEL_Z_OFFSET = 0.42;
 
+// The old z=0.30 buried the X inside the head (radius 0.45). The head surface
+// at the eye centre reaches z=0.412. This exposes the glyph's front face,
+// preserving the existing silhouette and geometry budget.
+// Reproduced by scripts/blender/dino_sign_preview.py with matched ray probes.
+export const DINO_EYE_FRONT_Z = 0.445;
+
+// Small edge radii catch the light without changing pump clearance or layout.
+// These shared meshes replace boxes, adding no objects or material instances.
+export const createFuelPumpBodyGeometry = (): RoundedBoxGeometry =>
+  new RoundedBoxGeometry(0.6, 1.6, 0.5, 1, 0.035);
+export const createPumpIslandGeometry = (): RoundedBoxGeometry =>
+  new RoundedBoxGeometry(10, 0.2, 3, 1, 0.08);
+
 // ============================================================================
 // Module-level shared geometries (singleton instances)
 // ============================================================================
 const GEOMETRIES = {
+  pumpBody: createFuelPumpBodyGeometry(),
+  pumpIsland: createPumpIslandGeometry(),
+  pumpCap: new RoundedBoxGeometry(0.7, 0.2, 0.6, 1, 0.035),
   shelfProduct: new THREE.BoxGeometry(0.15, 0.25, 0.2),
   drinkBottle: new THREE.CylinderGeometry(0.1, 0.1, 0.4, 8),
   canopyColumn: createCanopyColumnGeometry(),
@@ -326,12 +361,31 @@ interface GasStationProps {
   rotation?: number;
 }
 
+// The GLB retains the exact shell. Screens, holders, hoses and nozzles stay live.
+const FuelPumpShell = () => (
+  <GeneratedBoundary
+    fallback={
+      <>
+        <mesh position={[0, 0.9, 0]} geometry={GEOMETRIES.pumpBody} castShadow>
+          <meshStandardMaterial color="#ffffff" roughness={0.5} />
+        </mesh>
+        <mesh position={[0, 1.8, 0]} geometry={GEOMETRIES.pumpCap} castShadow>
+          <meshStandardMaterial color="#e65100" roughness={0.5} />
+        </mesh>
+      </>
+    }
+  >
+    <group position={[0, 0.1, 0]}>
+      <GeneratedModel asset="fuelPumpShell" />
+    </group>
+  </GeneratedBoundary>
+);
+
 export const GasStation = React.memo<GasStationProps>(
   ({ position = [-85, 0, 140], rotation = 0 }) => {
     // Refs for instanced meshes
     const shelfProductsRef = useRef<THREE.InstancedMesh>(null);
     const drinkBottlesRef = useRef<THREE.InstancedMesh>(null);
-    const canopyColumnsRef = useRef<THREE.InstancedMesh>(null);
     const magazinesRef = useRef<THREE.InstancedMesh>(null);
     // Pump hose/nozzle refs (4 pumps total)
     const hoseSegmentsRef = useRef<THREE.InstancedMesh>(null);
@@ -490,8 +544,13 @@ export const GasStation = React.memo<GasStationProps>(
       return { hoseMatrices, connectorMatrices, handleMatrices, spoutMatrices };
     }, []);
 
+    // Instance writes run in layout effects and recompute bounds: three caches an
+    // InstancedMesh's bounding sphere the first time it is frustum-tested and never
+    // invalidates it, so a sphere taken from identity matrices culls the goods
+    // and hoses whenever the island centre leaves the frame.
+
     // Initialize shelf products
-    useEffect(() => {
+    useLayoutEffect(() => {
       if (!shelfProductsRef.current) return;
 
       const matrix = new THREE.Matrix4();
@@ -501,13 +560,15 @@ export const GasStation = React.memo<GasStationProps>(
         shelfProductsRef.current!.setColorAt(i, shelfProductData.colors[i]);
       });
       shelfProductsRef.current.instanceMatrix.needsUpdate = true;
+      shelfProductsRef.current.computeBoundingBox();
+      shelfProductsRef.current.computeBoundingSphere();
       if (shelfProductsRef.current.instanceColor) {
         shelfProductsRef.current.instanceColor.needsUpdate = true;
       }
     }, [shelfProductData]);
 
     // Initialize drink bottles
-    useEffect(() => {
+    useLayoutEffect(() => {
       if (!drinkBottlesRef.current) return;
 
       const matrix = new THREE.Matrix4();
@@ -517,25 +578,15 @@ export const GasStation = React.memo<GasStationProps>(
         drinkBottlesRef.current!.setColorAt(i, drinkBottleData.colors[i]);
       });
       drinkBottlesRef.current.instanceMatrix.needsUpdate = true;
+      drinkBottlesRef.current.computeBoundingBox();
+      drinkBottlesRef.current.computeBoundingSphere();
       if (drinkBottlesRef.current.instanceColor) {
         drinkBottlesRef.current.instanceColor.needsUpdate = true;
       }
     }, [drinkBottleData]);
 
-    // Initialize canopy columns
-    useEffect(() => {
-      if (!canopyColumnsRef.current) return;
-
-      const matrix = new THREE.Matrix4();
-      canopyColumnData.positions.forEach((pos, i) => {
-        matrix.setPosition(pos[0], pos[1], pos[2]);
-        canopyColumnsRef.current!.setMatrixAt(i, matrix);
-      });
-      canopyColumnsRef.current.instanceMatrix.needsUpdate = true;
-    }, [canopyColumnData]);
-
     // Initialize magazines
-    useEffect(() => {
+    useLayoutEffect(() => {
       if (!magazinesRef.current) return;
 
       const matrix = new THREE.Matrix4();
@@ -551,19 +602,23 @@ export const GasStation = React.memo<GasStationProps>(
         magazinesRef.current!.setColorAt(i, magazineData.colors[i]);
       });
       magazinesRef.current.instanceMatrix.needsUpdate = true;
+      magazinesRef.current.computeBoundingBox();
+      magazinesRef.current.computeBoundingSphere();
       if (magazinesRef.current.instanceColor) {
         magazinesRef.current.instanceColor.needsUpdate = true;
       }
     }, [magazineData]);
 
     // Initialize pump hoses and nozzles
-    useEffect(() => {
+    useLayoutEffect(() => {
       // Hose segments
       if (hoseSegmentsRef.current) {
         pumpHoseData.hoseMatrices.forEach((m, i) => {
           hoseSegmentsRef.current!.setMatrixAt(i, m);
         });
         hoseSegmentsRef.current.instanceMatrix.needsUpdate = true;
+        hoseSegmentsRef.current.computeBoundingBox();
+        hoseSegmentsRef.current.computeBoundingSphere();
       }
       // Connectors
       if (hoseConnectorsRef.current) {
@@ -571,6 +626,8 @@ export const GasStation = React.memo<GasStationProps>(
           hoseConnectorsRef.current!.setMatrixAt(i, m);
         });
         hoseConnectorsRef.current.instanceMatrix.needsUpdate = true;
+        hoseConnectorsRef.current.computeBoundingBox();
+        hoseConnectorsRef.current.computeBoundingSphere();
       }
       // Handles
       if (nozzleHandlesRef.current) {
@@ -578,6 +635,8 @@ export const GasStation = React.memo<GasStationProps>(
           nozzleHandlesRef.current!.setMatrixAt(i, m);
         });
         nozzleHandlesRef.current.instanceMatrix.needsUpdate = true;
+        nozzleHandlesRef.current.computeBoundingBox();
+        nozzleHandlesRef.current.computeBoundingSphere();
       }
       // Spouts
       if (nozzleSpoutsRef.current) {
@@ -585,6 +644,8 @@ export const GasStation = React.memo<GasStationProps>(
           nozzleSpoutsRef.current!.setMatrixAt(i, m);
         });
         nozzleSpoutsRef.current.instanceMatrix.needsUpdate = true;
+        nozzleSpoutsRef.current.computeBoundingBox();
+        nozzleSpoutsRef.current.computeBoundingSphere();
       }
     }, [pumpHoseData]);
 
@@ -593,30 +654,50 @@ export const GasStation = React.memo<GasStationProps>(
         {/* ========== STATION BUILDING ========== */}
         <group position={[-12, 0, 0]}>
           {/* Back wall (solid) */}
-          <mesh position={[-3.9, 2.5, 0]} castShadow receiveShadow>
-            <boxGeometry args={[0.2, 5, 10]} />
-            <meshStandardMaterial color="#e0e0e0" {...SHOP_WALL_SURFACE} />
-          </mesh>
+          <GeneratedBoxSurface
+            asset="stationWallUnit"
+            size={[0.2, 5, 10]}
+            material={STATION_WALL_MATERIAL}
+            position={[-3.9, 2.5, 0]}
+            castShadow
+            receiveShadow
+          />
           {/* Left side wall (solid) */}
-          <mesh position={[0, 2.5, -4.9]} castShadow receiveShadow>
-            <boxGeometry args={[8, 5, 0.2]} />
-            <meshStandardMaterial color="#e0e0e0" {...SHOP_WALL_SURFACE} />
-          </mesh>
+          <GeneratedBoxSurface
+            asset="stationWallUnit"
+            size={[8, 5, 0.2]}
+            material={STATION_WALL_MATERIAL}
+            position={[0, 2.5, -4.9]}
+            castShadow
+            receiveShadow
+          />
           {/* Right side wall (with door opening) - top section */}
-          <mesh position={[0, 4, 4.9]} castShadow receiveShadow>
-            <boxGeometry args={[8, 2, 0.2]} />
-            <meshStandardMaterial color="#e0e0e0" {...SHOP_WALL_SURFACE} />
-          </mesh>
+          <GeneratedBoxSurface
+            asset="stationWallUnit"
+            size={[8, 2, 0.2]}
+            material={STATION_WALL_MATERIAL}
+            position={[0, 4, 4.9]}
+            castShadow
+            receiveShadow
+          />
           {/* Right side wall - left of door */}
-          <mesh position={[-2.65, 1.5, 4.9]} castShadow receiveShadow>
-            <boxGeometry args={[2.5, 3, 0.2]} />
-            <meshStandardMaterial color="#e0e0e0" {...SHOP_WALL_SURFACE} />
-          </mesh>
+          <GeneratedBoxSurface
+            asset="stationWallUnit"
+            size={[2.5, 3, 0.2]}
+            material={STATION_WALL_MATERIAL}
+            position={[-2.65, 1.5, 4.9]}
+            castShadow
+            receiveShadow
+          />
           {/* Right side wall - right of door */}
-          <mesh position={[2.65, 1.5, 4.9]} castShadow receiveShadow>
-            <boxGeometry args={[2.5, 3, 0.2]} />
-            <meshStandardMaterial color="#e0e0e0" {...SHOP_WALL_SURFACE} />
-          </mesh>
+          <GeneratedBoxSurface
+            asset="stationWallUnit"
+            size={[2.5, 3, 0.2]}
+            material={STATION_WALL_MATERIAL}
+            position={[2.65, 1.5, 4.9]}
+            castShadow
+            receiveShadow
+          />
           {/* Front wall - large glass window section (transparent) */}
           <mesh position={[3.9, 2.5, 0]}>
             <boxGeometry args={[0.2, 5, 10]} />
@@ -632,13 +713,16 @@ export const GasStation = React.memo<GasStationProps>(
         </group>
 
         {/* Building roof */}
-        <mesh position={[-12, 5.3, 0]} castShadow>
-          <boxGeometry args={[9, 0.5, 11]} />
-          <meshStandardMaterial color="#b71c1c" roughness={0.5} />
-        </mesh>
+        <GeneratedBoxSurface
+          asset="stationRoofUnit"
+          size={[9, 0.5, 11]}
+          material={STATION_ROOF_MATERIAL}
+          position={[-12, 5.3, 0]}
+          castShadow
+        />
 
         {/* Door */}
-        <mesh position={[-12, 1.2, 5]} rotation={[0, Math.PI / 2, 0]}>
+        <mesh position={[-12, 1.2, 5]}>
           <planeGeometry args={[1.2, 2.4]} />
           <meshStandardMaterial color="#424242" roughness={0.7} side={2} />
         </mesh>
@@ -653,56 +737,102 @@ export const GasStation = React.memo<GasStationProps>(
 
           {/* Checkout counter near window */}
           <group position={[3, 0, -1]}>
-            {/* Counter base */}
-            <mesh position={[0, 0.5, 0]} castShadow>
-              <boxGeometry args={[1.5, 1, 2.5]} />
-              <meshStandardMaterial color="#5d4037" roughness={0.7} />
-            </mesh>
-            {/* Counter top */}
-            <mesh position={[0, 1.02, 0]} castShadow>
-              <boxGeometry args={[1.6, 0.05, 2.6]} />
-              <meshStandardMaterial color="#37474f" roughness={0.4} metalness={0.3} />
-            </mesh>
-            {/* Cash register */}
-            <mesh position={[0, 1.25, 0]} castShadow>
-              <boxGeometry args={[0.5, 0.4, 0.4]} />
-              <meshStandardMaterial color="#212121" roughness={0.5} />
-            </mesh>
+            <GeneratedBoundary
+              fallback={
+                <>
+                  {/* Counter base */}
+                  <mesh position={[0, 0.5, 0]} castShadow>
+                    <boxGeometry args={[1.5, 1, 2.5]} />
+                    <meshStandardMaterial color="#5d4037" roughness={0.7} />
+                  </mesh>
+                  {/* Counter top */}
+                  <mesh position={[0, 1.02, 0]} castShadow>
+                    <boxGeometry args={[1.6, 0.05, 2.6]} />
+                    <meshStandardMaterial color="#37474f" roughness={0.4} metalness={0.3} />
+                  </mesh>
+                </>
+              }
+            >
+              <GeneratedModel asset="stationCounter" receiveShadow={false} />
+            </GeneratedBoundary>
+            <GeneratedBoundary
+              fallback={
+                <>
+                  {/* Cash register */}
+                  <mesh position={[0, 1.25, 0]} castShadow>
+                    <boxGeometry args={[0.5, 0.4, 0.4]} />
+                    <meshStandardMaterial color="#212121" roughness={0.5} />
+                  </mesh>
+                </>
+              }
+            >
+              <group position={[0, 1.05, 0]}>
+                <GeneratedModel asset="stationRegister" receiveShadow={false} />
+              </group>
+            </GeneratedBoundary>
             {/* Register screen */}
             <mesh position={[0.26, 1.35, 0]} rotation={[0, 0, 0.2]}>
               <planeGeometry args={[0.3, 0.2]} />
               <meshBasicMaterial color="#4fc3f7" />
             </mesh>
-            {/* Card reader */}
-            <mesh position={[0, 1.1, 0.6]} castShadow>
-              <boxGeometry args={[0.15, 0.08, 0.2]} />
-              <meshStandardMaterial color="#37474f" roughness={0.5} />
-            </mesh>
+            <GeneratedBoundary
+              fallback={
+                <>
+                  {/* Card reader */}
+                  <mesh position={[0, 1.1, 0.6]} castShadow>
+                    <boxGeometry args={[0.15, 0.08, 0.2]} />
+                    <meshStandardMaterial color="#37474f" roughness={0.5} />
+                  </mesh>
+                </>
+              }
+            >
+              <group position={[0, 1.06, 0.6]}>
+                <GeneratedModel asset="stationCardReader" receiveShadow={false} />
+              </group>
+            </GeneratedBoundary>
           </group>
 
           {/* Product shelves - back wall */}
           <group position={[-3, 0, 0]}>
-            {/* Shelf unit frame */}
-            <mesh position={[0, 2, 0]} castShadow>
-              <boxGeometry args={[0.3, 4, 6]} />
-              <meshStandardMaterial color="#5d4037" roughness={0.8} />
-            </mesh>
-            {/* Shelves */}
-            {[0.8, 1.6, 2.4, 3.2].map((y, i) => (
-              <mesh key={`shelf-${i}`} position={[0.2, y, 0]} castShadow>
-                <boxGeometry args={[0.6, 0.08, 5.5]} />
-                <meshStandardMaterial color="#8d6e63" roughness={0.7} />
-              </mesh>
-            ))}
+            <GeneratedBoundary
+              fallback={
+                <>
+                  {/* Shelf unit frame */}
+                  <mesh position={[0, 2, 0]} castShadow>
+                    <boxGeometry args={[0.3, 4, 6]} />
+                    <meshStandardMaterial color="#5d4037" roughness={0.8} />
+                  </mesh>
+                  {/* Shelves */}
+                  {[0.8, 1.6, 2.4, 3.2].map((y, i) => (
+                    <mesh key={`shelf-${i}`} position={[0.2, y, 0]} castShadow>
+                      <boxGeometry args={[0.6, 0.08, 5.5]} />
+                      <meshStandardMaterial color="#8d6e63" roughness={0.7} />
+                    </mesh>
+                  ))}
+                </>
+              }
+            >
+              <group position={[0.175, 0, 0]}>
+                <GeneratedModel asset="stationShelving" receiveShadow={false} />
+              </group>
+            </GeneratedBoundary>
           </group>
 
           {/* Refrigerated drinks cabinet - side wall */}
           <group position={[0, 0, -4]}>
-            {/* Cabinet frame */}
-            <mesh position={[0, 1.5, 0]} castShadow>
-              <boxGeometry args={[4, 3, 0.8]} />
-              <meshStandardMaterial color="#37474f" roughness={0.5} metalness={0.3} />
-            </mesh>
+            <GeneratedBoundary
+              fallback={
+                <>
+                  {/* Cabinet frame */}
+                  <mesh position={[0, 1.5, 0]} castShadow>
+                    <boxGeometry args={[4, 3, 0.8]} />
+                    <meshStandardMaterial color="#37474f" roughness={0.5} metalness={0.3} />
+                  </mesh>
+                </>
+              }
+            >
+              <GeneratedModel asset="stationDrinksCabinet" receiveShadow={false} />
+            </GeneratedBoundary>
             {/* Glass front */}
             <mesh position={[0, 1.5, 0.41]}>
               <boxGeometry args={[3.8, 2.8, 0.02]} />
@@ -712,28 +842,44 @@ export const GasStation = React.memo<GasStationProps>(
 
           {/* Coffee machine */}
           <group position={[2, 0, -3.5]}>
-            <mesh position={[0, 1.1, 0]} castShadow>
-              <boxGeometry args={[0.8, 2.2, 0.6]} />
-              <meshStandardMaterial color="#212121" roughness={0.4} metalness={0.4} />
-            </mesh>
+            <GeneratedBoundary
+              fallback={
+                <>
+                  <mesh position={[0, 1.1, 0]} castShadow>
+                    <boxGeometry args={[0.8, 2.2, 0.6]} />
+                    <meshStandardMaterial color="#212121" roughness={0.4} metalness={0.4} />
+                  </mesh>
+                  {/* Cup dispenser */}
+                  <mesh position={[0, 0.3, 0.35]} castShadow>
+                    <cylinderGeometry args={[0.15, 0.12, 0.3, 12]} />
+                    <meshStandardMaterial color="#424242" roughness={0.5} />
+                  </mesh>
+                </>
+              }
+            >
+              <group position={[0, 0, 0.1]}>
+                <GeneratedModel asset="stationCoffeeMachine" receiveShadow={false} />
+              </group>
+            </GeneratedBoundary>
             {/* Coffee display panel */}
             <mesh position={[0.41, 1.5, 0]} rotation={[0, Math.PI / 2, 0]}>
               <planeGeometry args={[0.4, 0.5]} />
               <meshBasicMaterial color="#4caf50" />
             </mesh>
-            {/* Cup dispenser */}
-            <mesh position={[0, 0.3, 0.35]} castShadow>
-              <cylinderGeometry args={[0.15, 0.12, 0.3, 12]} />
-              <meshStandardMaterial color="#424242" roughness={0.5} />
-            </mesh>
           </group>
 
           {/* Slushie machine - Dead Dino branded! */}
           <group position={[2, 0, -2]}>
-            <mesh position={[0, 0.9, 0]} castShadow>
-              <boxGeometry args={[0.7, 1.8, 0.5]} />
-              <meshStandardMaterial color="#e65100" roughness={0.4} />
-            </mesh>
+            <GeneratedBoundary
+              fallback={
+                <mesh position={[0, 0.9, 0]} castShadow>
+                  <boxGeometry args={[0.7, 1.8, 0.5]} />
+                  <meshStandardMaterial color="#e65100" roughness={0.4} />
+                </mesh>
+              }
+            >
+              <GeneratedModel asset="stationSlushieMachine" receiveShadow={false} />
+            </GeneratedBoundary>
             {/* Slushie tanks */}
             {[-0.15, 0.15].map((x, i) => (
               <mesh key={`slush-${i}`} position={[x, 1.3, 0.1]} castShadow>
@@ -755,10 +901,18 @@ export const GasStation = React.memo<GasStationProps>(
 
           {/* Hot dog roller grill */}
           <group position={[2, 0, -0.5]}>
-            <mesh position={[0, 0.9, 0]} castShadow>
-              <boxGeometry args={[0.6, 0.4, 0.5]} />
-              <meshStandardMaterial color="#9e9e9e" roughness={0.4} metalness={0.5} />
-            </mesh>
+            <GeneratedBoundary
+              fallback={
+                <mesh position={[0, 0.9, 0]} castShadow>
+                  <boxGeometry args={[0.6, 0.4, 0.5]} />
+                  <meshStandardMaterial color="#9e9e9e" roughness={0.4} metalness={0.5} />
+                </mesh>
+              }
+            >
+              <group position={[0, 0.7, 0]}>
+                <GeneratedModel asset="stationGrill" receiveShadow={false} />
+              </group>
+            </GeneratedBoundary>
             {/* Hot dogs */}
             {[-0.15, 0, 0.15].map((z, i) => (
               <mesh
@@ -780,10 +934,16 @@ export const GasStation = React.memo<GasStationProps>(
 
           {/* Magazine/newspaper rack near door */}
           <group position={[1.5, 0, 3]}>
-            <mesh position={[0, 0.6, 0]} castShadow>
-              <boxGeometry args={[0.8, 1.2, 0.4]} />
-              <meshStandardMaterial color="#5d4037" roughness={0.8} />
-            </mesh>
+            <GeneratedBoundary
+              fallback={
+                <mesh position={[0, 0.6, 0]} castShadow>
+                  <boxGeometry args={[0.8, 1.2, 0.4]} />
+                  <meshStandardMaterial color="#5d4037" roughness={0.8} />
+                </mesh>
+              }
+            >
+              <GeneratedModel asset="stationMagazineRack" receiveShadow={false} />
+            </GeneratedBoundary>
           </group>
 
           {/* Interior ceiling light */}
@@ -794,21 +954,40 @@ export const GasStation = React.memo<GasStationProps>(
         </group>
 
         {/* ========== CANOPY STRUCTURE ========== */}
-        {/* Canopy roof */}
-        <mesh position={[0, 5, 0]} castShadow>
-          <boxGeometry args={[16, 0.4, 12]} />
-          <meshStandardMaterial color="#f5f5f5" roughness={0.4} />
-        </mesh>
-        {/* Canopy fascia with Dead Dino orange brand color */}
-        <mesh position={[0, 4.6, 0]}>
-          <boxGeometry args={[16.5, 0.4, 12.5]} />
-          <meshStandardMaterial color="#e65100" roughness={0.5} />
-        </mesh>
+        <GeneratedBoundary
+          fallback={
+            <>
+              {/* Canopy roof */}
+              <mesh position={[0, 5, 0]} castShadow>
+                <boxGeometry args={[16, 0.4, 12]} />
+                <meshStandardMaterial color="#f5f5f5" roughness={0.4} />
+              </mesh>
+              {/* Canopy fascia with Dead Dino orange brand color */}
+              <mesh position={[0, 4.6, 0]}>
+                <boxGeometry args={[16.5, 0.4, 12.5]} />
+                <meshStandardMaterial color="#e65100" roughness={0.5} />
+              </mesh>
+              <instancedMesh
+                args={[GEOMETRIES.canopyColumn, MATERIALS.canopyColumn, 4]}
+                castShadow
+                onUpdate={(mesh) => {
+                  const matrix = new THREE.Matrix4();
+                  canopyColumnData.positions.forEach((pos, i) => {
+                    matrix.setPosition(...pos);
+                    mesh.setMatrixAt(i, matrix);
+                  });
+                  mesh.instanceMatrix.needsUpdate = true;
+                }}
+              />
+            </>
+          }
+        >
+          <GeneratedModel asset="stationCanopy" />
+        </GeneratedBoundary>
 
         {/* ========== FUEL PUMPS (back-to-back, line toward shop) ========== */}
         {/* Single island running along X axis toward shop */}
-        <mesh position={[0, 0.1, 0]} receiveShadow>
-          <boxGeometry args={[10, 0.2, 3]} />
+        <mesh position={[0, 0.1, 0]} geometry={GEOMETRIES.pumpIsland} receiveShadow>
           <meshStandardMaterial color="#616161" roughness={0.8} />
         </mesh>
 
@@ -817,16 +996,7 @@ export const GasStation = React.memo<GasStationProps>(
           <group key={`pump-pair-${x}`} position={[x, 0, 0]}>
             {/* Pump facing +Z (serves vehicles on +Z side) - screen & nozzle face outward */}
             <group position={[0, 0, 0.9]} rotation={[0, -Math.PI / 2, 0]}>
-              {/* Pump body */}
-              <mesh position={[0, 0.9, 0]} castShadow>
-                <boxGeometry args={[0.6, 1.6, 0.5]} />
-                <meshStandardMaterial color="#ffffff" roughness={0.5} />
-              </mesh>
-              {/* Pump top - Dead Dino orange */}
-              <mesh position={[0, 1.8, 0]} castShadow>
-                <boxGeometry args={[0.7, 0.2, 0.6]} />
-                <meshStandardMaterial color="#e65100" roughness={0.5} />
-              </mesh>
+              <FuelPumpShell />
               {/* Screen */}
               <mesh position={[0.31, 1.1, 0]} rotation={[0, Math.PI / 2, 0]}>
                 <planeGeometry args={[0.3, 0.4]} />
@@ -841,16 +1011,7 @@ export const GasStation = React.memo<GasStationProps>(
 
             {/* Pump facing -Z (serves vehicles on -Z side) - screen & nozzle face outward */}
             <group position={[0, 0, -0.9]} rotation={[0, Math.PI / 2, 0]}>
-              {/* Pump body */}
-              <mesh position={[0, 0.9, 0]} castShadow>
-                <boxGeometry args={[0.6, 1.6, 0.5]} />
-                <meshStandardMaterial color="#ffffff" roughness={0.5} />
-              </mesh>
-              {/* Pump top - Dead Dino orange */}
-              <mesh position={[0, 1.8, 0]} castShadow>
-                <boxGeometry args={[0.7, 0.2, 0.6]} />
-                <meshStandardMaterial color="#e65100" roughness={0.5} />
-              </mesh>
+              <FuelPumpShell />
               {/* Screen */}
               <mesh position={[0.31, 1.1, 0]} rotation={[0, Math.PI / 2, 0]}>
                 <planeGeometry args={[0.3, 0.4]} />
@@ -871,9 +1032,13 @@ export const GasStation = React.memo<GasStationProps>(
               shaft and a mounting shoe under the cabinet, still 16 sides and
               still radius 0.15 by y +/-4, so everything stacked above is
               untouched. */}
-          <mesh position={[0, 4, 0]} geometry={GEOMETRIES.signPole} castShadow>
-            <meshStandardMaterial color="#757575" roughness={0.5} metalness={0.3} />
-          </mesh>
+          <GeneratedSurfaceMesh
+            asset="stationSignPoleUnit"
+            geometry={GEOMETRIES.signPole}
+            material={STATION_POLE_MATERIAL}
+            position={[0, 4, 0]}
+            castShadow
+          />
           {/* Sign cabinet.
               THE FIELD AND THE FRAME WERE THE WRONG WAY ROUND. The orange was
               the 4 x 5 carcass and the cream was a 3.7 x 4.7 panel laid over
@@ -895,10 +1060,13 @@ export const GasStation = React.memo<GasStationProps>(
               for `signage` - does not exist yet; this is the third site to want
               it (see the thatch note in `utils/worldSurface.ts` and the
               outbuilding roofs in the `masonry` profile). */}
-          <mesh position={[0, 7.2, 0]} castShadow>
-            <boxGeometry args={[4, 5, 0.3]} />
-            <meshStandardMaterial color="#fff3e0" roughness={0.5} />
-          </mesh>
+          <GeneratedBoxSurface
+            asset="stationSignCabinetUnit"
+            size={[4, 5, 0.3]}
+            material={STATION_CABINET_MATERIAL}
+            position={[0, 7.2, 0]}
+            castShadow
+          />
           {/* Brand field - front. Lifted from #e65100: that decodes to a deep
               rust which, once the batcher's `painted` mottling is on it, read as
               a weathered brown board rather than a forecourt sign. */}
@@ -914,12 +1082,15 @@ export const GasStation = React.memo<GasStationProps>(
 
           {/* Cute Dead Dino Logo - FRONT */}
           <group position={[0, 7.8, 0.25]}>
-            {/* Dino body - chubby oval */}
-            <mesh position={[0, 0, 0]} castShadow>
-              <sphereGeometry args={[0.7, 16, 12]} />
-              <meshStandardMaterial color="#4caf50" roughness={0.6} />
-            </mesh>
-            {/* NO BELLY SPHERE, deliberately.
+            <GeneratedBoundary
+              fallback={
+                <group>
+                  {/* Dino body - chubby oval */}
+                  <mesh position={[0, 0, 0]} castShadow>
+                    <sphereGeometry args={[0.7, 16, 12]} />
+                    <meshStandardMaterial color="#4caf50" roughness={0.6} />
+                  </mesh>
+                  {/* NO BELLY SPHERE, deliberately.
                 A 0.45 m pale sphere at z +0.3 - straight at the reader - punched
                 a light disc through the middle of the logo; moving it to the
                 flank at z 0 only made the disc smaller, because a lighter sphere
@@ -931,73 +1102,81 @@ export const GasStation = React.memo<GasStationProps>(
                 cuteness lives in the X eyes, the tongue and the stubby limbs,
                 all of which survive at distance because they break the outline
                 rather than sitting inside it. */}
-            {/* Dino head */}
-            <mesh position={[0.5, 0.5, 0]} castShadow>
-              <sphereGeometry args={[0.45, 14, 12]} />
-              <meshStandardMaterial color="#4caf50" roughness={0.6} />
-            </mesh>
-            {/* Dino snout */}
-            <mesh position={[0.85, 0.4, 0]} castShadow>
-              <sphereGeometry args={[0.25, 12, 10]} />
-              <meshStandardMaterial color="#4caf50" roughness={0.6} />
-            </mesh>
-            {/* X eyes (dead!) - left eye */}
-            <group position={[0.65, 0.6, 0.3]}>
-              <mesh rotation={[0, 0, Math.PI / 4]}>
-                <boxGeometry args={[0.18, 0.04, 0.02]} />
-                <meshBasicMaterial color="#212121" />
-              </mesh>
-              <mesh rotation={[0, 0, -Math.PI / 4]}>
-                <boxGeometry args={[0.18, 0.04, 0.02]} />
-                <meshBasicMaterial color="#212121" />
-              </mesh>
-            </group>
-            {/* X eyes - right eye */}
-            <group position={[0.55, 0.6, -0.25]}>
-              <mesh rotation={[0, 0, Math.PI / 4]}>
-                <boxGeometry args={[0.18, 0.04, 0.02]} />
-                <meshBasicMaterial color="#212121" />
-              </mesh>
-              <mesh rotation={[0, 0, -Math.PI / 4]}>
-                <boxGeometry args={[0.18, 0.04, 0.02]} />
-                <meshBasicMaterial color="#212121" />
-              </mesh>
-            </group>
-            {/* Tongue sticking out (cute!) */}
-            <mesh position={[0.95, 0.25, 0.1]} rotation={[0, 0, -0.3]}>
-              <boxGeometry args={[0.15, 0.08, 0.06]} />
-              <meshStandardMaterial color="#f48fb1" roughness={0.4} />
-            </mesh>
-            {/* Tiny arms (T-Rex style) */}
-            <mesh position={[0.25, 0.1, 0.5]} rotation={[0.3, 0.5, 0.2]} castShadow>
-              <capsuleGeometry args={[0.08, 0.2, 4, 8]} />
-              <meshStandardMaterial color="#4caf50" roughness={0.6} />
-            </mesh>
-            <mesh position={[0.25, 0.1, -0.5]} rotation={[-0.3, -0.5, 0.2]} castShadow>
-              <capsuleGeometry args={[0.08, 0.2, 4, 8]} />
-              <meshStandardMaterial color="#4caf50" roughness={0.6} />
-            </mesh>
-            {/* Stubby legs */}
-            <mesh position={[-0.2, -0.6, 0.35]} castShadow>
-              <capsuleGeometry args={[0.12, 0.25, 4, 8]} />
-              <meshStandardMaterial color="#4caf50" roughness={0.6} />
-            </mesh>
-            <mesh position={[-0.2, -0.6, -0.35]} castShadow>
-              <capsuleGeometry args={[0.12, 0.25, 4, 8]} />
-              <meshStandardMaterial color="#4caf50" roughness={0.6} />
-            </mesh>
-            {/* Tail */}
-            <mesh position={[-0.7, -0.1, 0]} rotation={[0, 0, 0.4]} castShadow>
-              <coneGeometry args={[0.2, 0.8, 8]} />
-              <meshStandardMaterial color="#4caf50" roughness={0.6} />
-            </mesh>
-            {/* Back spikes (cute bumps) */}
-            {[-0.3, -0.1, 0.1, 0.3].map((x, i) => (
-              <mesh key={`spike-${i}`} position={[x, 0.65 - Math.abs(x) * 0.3, 0]} castShadow>
-                <coneGeometry args={[0.08, 0.18, 6]} />
-                <meshStandardMaterial color="#81c784" roughness={0.6} />
-              </mesh>
-            ))}
+                  {/* Dino head */}
+                  <mesh position={[0.5, 0.5, 0]} castShadow>
+                    <sphereGeometry args={[0.45, 14, 12]} />
+                    <meshStandardMaterial color="#4caf50" roughness={0.6} />
+                  </mesh>
+                  {/* Dino snout */}
+                  <mesh position={[0.85, 0.4, 0]} castShadow>
+                    <sphereGeometry args={[0.25, 12, 10]} />
+                    <meshStandardMaterial color="#4caf50" roughness={0.6} />
+                  </mesh>
+                  {/* X eyes (dead!) - left eye */}
+                  <group position={[0.65, 0.6, DINO_EYE_FRONT_Z]}>
+                    <mesh rotation={[0, 0, Math.PI / 4]}>
+                      <boxGeometry args={[0.18, 0.04, 0.02]} />
+                      <meshBasicMaterial color="#212121" />
+                    </mesh>
+                    <mesh rotation={[0, 0, -Math.PI / 4]}>
+                      <boxGeometry args={[0.18, 0.04, 0.02]} />
+                      <meshBasicMaterial color="#212121" />
+                    </mesh>
+                  </group>
+                  {/* X eyes - right eye */}
+                  <group position={[0.55, 0.6, -0.25]}>
+                    <mesh rotation={[0, 0, Math.PI / 4]}>
+                      <boxGeometry args={[0.18, 0.04, 0.02]} />
+                      <meshBasicMaterial color="#212121" />
+                    </mesh>
+                    <mesh rotation={[0, 0, -Math.PI / 4]}>
+                      <boxGeometry args={[0.18, 0.04, 0.02]} />
+                      <meshBasicMaterial color="#212121" />
+                    </mesh>
+                  </group>
+                  {/* Tongue sticking out (cute!) */}
+                  <mesh position={[0.95, 0.25, 0.1]} rotation={[0, 0, -0.3]}>
+                    <boxGeometry args={[0.15, 0.08, 0.06]} />
+                    <meshStandardMaterial color="#f48fb1" roughness={0.4} />
+                  </mesh>
+                  {/* Tiny arms (T-Rex style) */}
+                  <mesh position={[0.25, 0.1, 0.5]} rotation={[0.3, 0.5, 0.2]} castShadow>
+                    <capsuleGeometry args={[0.08, 0.2, 4, 8]} />
+                    <meshStandardMaterial color="#4caf50" roughness={0.6} />
+                  </mesh>
+                  <mesh position={[0.25, 0.1, -0.5]} rotation={[-0.3, -0.5, 0.2]} castShadow>
+                    <capsuleGeometry args={[0.08, 0.2, 4, 8]} />
+                    <meshStandardMaterial color="#4caf50" roughness={0.6} />
+                  </mesh>
+                  {/* Stubby legs */}
+                  <mesh position={[-0.2, -0.6, 0.35]} castShadow>
+                    <capsuleGeometry args={[0.12, 0.25, 4, 8]} />
+                    <meshStandardMaterial color="#4caf50" roughness={0.6} />
+                  </mesh>
+                  <mesh position={[-0.2, -0.6, -0.35]} castShadow>
+                    <capsuleGeometry args={[0.12, 0.25, 4, 8]} />
+                    <meshStandardMaterial color="#4caf50" roughness={0.6} />
+                  </mesh>
+                  {/* Tail */}
+                  <mesh position={[-0.7, -0.1, 0]} rotation={[0, 0, 0.4]} castShadow>
+                    <coneGeometry args={[0.2, 0.8, 8]} />
+                    <meshStandardMaterial color="#4caf50" roughness={0.6} />
+                  </mesh>
+                  {/* Back spikes (cute bumps) */}
+                  {[-0.3, -0.1, 0.1, 0.3].map((x, i) => (
+                    <mesh key={`spike-${i}`} position={[x, 0.65 - Math.abs(x) * 0.3, 0]} castShadow>
+                      <coneGeometry args={[0.08, 0.18, 6]} />
+                      <meshStandardMaterial color="#81c784" roughness={0.6} />
+                    </mesh>
+                  ))}
+                </group>
+              }
+            >
+              {/* Shallow outward relief keeps the opposite mascot behind the board. */}
+              <group position={[0.1224, -0.845, 0.31]} scale={[1, 1, 0.45]}>
+                <GeneratedModel asset="dinoMascot" />
+              </group>
+            </GeneratedBoundary>
           </group>
 
           {/* Cute Dead Dino Logo - BACK (mirrored).
@@ -1007,79 +1186,94 @@ export const GasStation = React.memo<GasStationProps>(
               the front one. A fix applied to the FRONT logo alone changes
               nothing in that capture and looks like the fix failed. */}
           <group position={[0, 7.8, -0.25]} rotation={[0, Math.PI, 0]}>
-            {/* Dino body - chubby oval */}
-            <mesh position={[0, 0, 0]} castShadow>
-              <sphereGeometry args={[0.7, 16, 12]} />
-              <meshStandardMaterial color="#4caf50" roughness={0.6} />
-            </mesh>
-            {/* No belly sphere - see the front logo for why. */}
-            {/* Dino head */}
-            <mesh position={[0.5, 0.5, 0]} castShadow>
-              <sphereGeometry args={[0.45, 14, 12]} />
-              <meshStandardMaterial color="#4caf50" roughness={0.6} />
-            </mesh>
-            {/* Dino snout */}
-            <mesh position={[0.85, 0.4, 0]} castShadow>
-              <sphereGeometry args={[0.25, 12, 10]} />
-              <meshStandardMaterial color="#4caf50" roughness={0.6} />
-            </mesh>
-            {/* X eyes (dead!) - left eye */}
-            <group position={[0.65, 0.6, 0.3]}>
-              <mesh rotation={[0, 0, Math.PI / 4]}>
-                <boxGeometry args={[0.18, 0.04, 0.02]} />
-                <meshBasicMaterial color="#212121" />
-              </mesh>
-              <mesh rotation={[0, 0, -Math.PI / 4]}>
-                <boxGeometry args={[0.18, 0.04, 0.02]} />
-                <meshBasicMaterial color="#212121" />
-              </mesh>
-            </group>
-            {/* X eyes - right eye */}
-            <group position={[0.55, 0.6, -0.25]}>
-              <mesh rotation={[0, 0, Math.PI / 4]}>
-                <boxGeometry args={[0.18, 0.04, 0.02]} />
-                <meshBasicMaterial color="#212121" />
-              </mesh>
-              <mesh rotation={[0, 0, -Math.PI / 4]}>
-                <boxGeometry args={[0.18, 0.04, 0.02]} />
-                <meshBasicMaterial color="#212121" />
-              </mesh>
-            </group>
-            {/* Tongue sticking out (cute!) */}
-            <mesh position={[0.95, 0.25, 0.1]} rotation={[0, 0, -0.3]}>
-              <boxGeometry args={[0.15, 0.08, 0.06]} />
-              <meshStandardMaterial color="#f48fb1" roughness={0.4} />
-            </mesh>
-            {/* Tiny arms (T-Rex style) */}
-            <mesh position={[0.25, 0.1, 0.5]} rotation={[0.3, 0.5, 0.2]} castShadow>
-              <capsuleGeometry args={[0.08, 0.2, 4, 8]} />
-              <meshStandardMaterial color="#4caf50" roughness={0.6} />
-            </mesh>
-            <mesh position={[0.25, 0.1, -0.5]} rotation={[-0.3, -0.5, 0.2]} castShadow>
-              <capsuleGeometry args={[0.08, 0.2, 4, 8]} />
-              <meshStandardMaterial color="#4caf50" roughness={0.6} />
-            </mesh>
-            {/* Stubby legs */}
-            <mesh position={[-0.2, -0.6, 0.35]} castShadow>
-              <capsuleGeometry args={[0.12, 0.25, 4, 8]} />
-              <meshStandardMaterial color="#4caf50" roughness={0.6} />
-            </mesh>
-            <mesh position={[-0.2, -0.6, -0.35]} castShadow>
-              <capsuleGeometry args={[0.12, 0.25, 4, 8]} />
-              <meshStandardMaterial color="#4caf50" roughness={0.6} />
-            </mesh>
-            {/* Tail */}
-            <mesh position={[-0.7, -0.1, 0]} rotation={[0, 0, 0.4]} castShadow>
-              <coneGeometry args={[0.2, 0.8, 8]} />
-              <meshStandardMaterial color="#4caf50" roughness={0.6} />
-            </mesh>
-            {/* Back spikes (cute bumps) */}
-            {[-0.3, -0.1, 0.1, 0.3].map((x, i) => (
-              <mesh key={`spike-back-${i}`} position={[x, 0.65 - Math.abs(x) * 0.3, 0]} castShadow>
-                <coneGeometry args={[0.08, 0.18, 6]} />
-                <meshStandardMaterial color="#81c784" roughness={0.6} />
-              </mesh>
-            ))}
+            <GeneratedBoundary
+              fallback={
+                <group>
+                  {/* Dino body - chubby oval */}
+                  <mesh position={[0, 0, 0]} castShadow>
+                    <sphereGeometry args={[0.7, 16, 12]} />
+                    <meshStandardMaterial color="#4caf50" roughness={0.6} />
+                  </mesh>
+                  {/* No belly sphere - see the front logo for why. */}
+                  {/* Dino head */}
+                  <mesh position={[0.5, 0.5, 0]} castShadow>
+                    <sphereGeometry args={[0.45, 14, 12]} />
+                    <meshStandardMaterial color="#4caf50" roughness={0.6} />
+                  </mesh>
+                  {/* Dino snout */}
+                  <mesh position={[0.85, 0.4, 0]} castShadow>
+                    <sphereGeometry args={[0.25, 12, 10]} />
+                    <meshStandardMaterial color="#4caf50" roughness={0.6} />
+                  </mesh>
+                  {/* X eyes (dead!) - left eye */}
+                  <group position={[0.65, 0.6, DINO_EYE_FRONT_Z]}>
+                    <mesh rotation={[0, 0, Math.PI / 4]}>
+                      <boxGeometry args={[0.18, 0.04, 0.02]} />
+                      <meshBasicMaterial color="#212121" />
+                    </mesh>
+                    <mesh rotation={[0, 0, -Math.PI / 4]}>
+                      <boxGeometry args={[0.18, 0.04, 0.02]} />
+                      <meshBasicMaterial color="#212121" />
+                    </mesh>
+                  </group>
+                  {/* X eyes - right eye */}
+                  <group position={[0.55, 0.6, -0.25]}>
+                    <mesh rotation={[0, 0, Math.PI / 4]}>
+                      <boxGeometry args={[0.18, 0.04, 0.02]} />
+                      <meshBasicMaterial color="#212121" />
+                    </mesh>
+                    <mesh rotation={[0, 0, -Math.PI / 4]}>
+                      <boxGeometry args={[0.18, 0.04, 0.02]} />
+                      <meshBasicMaterial color="#212121" />
+                    </mesh>
+                  </group>
+                  {/* Tongue sticking out (cute!) */}
+                  <mesh position={[0.95, 0.25, 0.1]} rotation={[0, 0, -0.3]}>
+                    <boxGeometry args={[0.15, 0.08, 0.06]} />
+                    <meshStandardMaterial color="#f48fb1" roughness={0.4} />
+                  </mesh>
+                  {/* Tiny arms (T-Rex style) */}
+                  <mesh position={[0.25, 0.1, 0.5]} rotation={[0.3, 0.5, 0.2]} castShadow>
+                    <capsuleGeometry args={[0.08, 0.2, 4, 8]} />
+                    <meshStandardMaterial color="#4caf50" roughness={0.6} />
+                  </mesh>
+                  <mesh position={[0.25, 0.1, -0.5]} rotation={[-0.3, -0.5, 0.2]} castShadow>
+                    <capsuleGeometry args={[0.08, 0.2, 4, 8]} />
+                    <meshStandardMaterial color="#4caf50" roughness={0.6} />
+                  </mesh>
+                  {/* Stubby legs */}
+                  <mesh position={[-0.2, -0.6, 0.35]} castShadow>
+                    <capsuleGeometry args={[0.12, 0.25, 4, 8]} />
+                    <meshStandardMaterial color="#4caf50" roughness={0.6} />
+                  </mesh>
+                  <mesh position={[-0.2, -0.6, -0.35]} castShadow>
+                    <capsuleGeometry args={[0.12, 0.25, 4, 8]} />
+                    <meshStandardMaterial color="#4caf50" roughness={0.6} />
+                  </mesh>
+                  {/* Tail */}
+                  <mesh position={[-0.7, -0.1, 0]} rotation={[0, 0, 0.4]} castShadow>
+                    <coneGeometry args={[0.2, 0.8, 8]} />
+                    <meshStandardMaterial color="#4caf50" roughness={0.6} />
+                  </mesh>
+                  {/* Back spikes (cute bumps) */}
+                  {[-0.3, -0.1, 0.1, 0.3].map((x, i) => (
+                    <mesh
+                      key={`spike-back-${i}`}
+                      position={[x, 0.65 - Math.abs(x) * 0.3, 0]}
+                      castShadow
+                    >
+                      <coneGeometry args={[0.08, 0.18, 6]} />
+                      <meshStandardMaterial color="#81c784" roughness={0.6} />
+                    </mesh>
+                  ))}
+                </group>
+              }
+            >
+              {/* Shallow outward relief keeps the opposite mascot behind the board. */}
+              <group position={[0.1224, -0.845, 0.31]} scale={[1, 1, 0.45]}>
+                <GeneratedModel asset="dinoMascot" />
+              </group>
+            </GeneratedBoundary>
           </group>
 
           {/* "DEAD" text - front */}
@@ -1114,6 +1308,7 @@ export const GasStation = React.memo<GasStationProps>(
             color="#fff3e0"
             anchorX="center"
             anchorY="middle"
+            surface="painted"
           >
             Premium Fossil Fuel
           </Text>
@@ -1153,18 +1348,19 @@ export const GasStation = React.memo<GasStationProps>(
             color="#fff3e0"
             anchorX="center"
             anchorY="middle"
+            surface="painted"
           >
             Premium Fossil Fuel
           </Text>
         </group>
 
-        {/* Forecourt ground.
-            Y RAISED 0.01 -> 0.08. TerrainGround renders at y=0.05, so at 0.01
-            this apron was buried and drew for nothing. 0.08 with a -2/-2
-            polygonOffset is exactly what ParkingLot and ConnectingRoad already
-            use against the same datum - this is matching the file's existing
-            convention, not inventing a new Y layer. */}
-        <mesh position={[0, 0.08, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+        {/* Match the current terrain datum. Polygon offset separates the asphalt;
+            the obsolete 0.08 datum left the apron floating 10 cm above grass. */}
+        <mesh
+          position={[0, EXTERIOR_LAYERS.ground, 0]}
+          rotation={[-Math.PI / 2, 0, 0]}
+          receiveShadow
+        >
           <planeGeometry args={[20, 14]} />
           <meshStandardMaterial
             color="#ffffff"
@@ -1190,13 +1386,6 @@ export const GasStation = React.memo<GasStationProps>(
         <instancedMesh
           ref={drinkBottlesRef}
           args={[GEOMETRIES.drinkBottle, MATERIALS.drinkBottle, 12]}
-          castShadow
-        />
-
-        {/* Instanced Canopy Columns (4 total) */}
-        <instancedMesh
-          ref={canopyColumnsRef}
-          args={[GEOMETRIES.canopyColumn, MATERIALS.canopyColumn, 4]}
           castShadow
         />
 

@@ -21,9 +21,10 @@ import {
 export const generateConcrete = (
   size: number = 512,
   panelSize: number = 64,
-  wearPaths: boolean = true
+  wearPaths: boolean = true,
+  panelJoints: boolean = true
 ): THREE.DataTexture => {
-  return getTexture(`concrete-v2-${size}-${panelSize}-${wearPaths}`, () => {
+  return getTexture(`concrete-v3-${size}-${panelSize}-${wearPaths}-${panelJoints}`, () => {
     const data = new Uint8Array(size * size * 4);
 
     // Base concrete gray, authored in sRGB. 0.56 sRGB = ~0.27 linear, which is
@@ -51,7 +52,7 @@ export const generateConcrete = (
         const panelY = (y % panelSize) / panelSize;
         const edgeX = panelX < 0.02 || panelX > 0.98 ? 0.05 : 0;
         const edgeY = panelY < 0.02 || panelY > 0.98 ? 0.05 : 0;
-        const panelEdge = Math.max(edgeX, edgeY);
+        const panelEdge = panelJoints ? Math.max(edgeX, edgeY) : 0;
 
         // Wear paths (darker areas where people walk)
         let wear = 0;

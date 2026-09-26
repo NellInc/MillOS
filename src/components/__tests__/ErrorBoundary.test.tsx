@@ -65,6 +65,17 @@ describe('ErrorBoundary', () => {
     expect(screen.queryByText('Something went wrong')).not.toBeInTheDocument();
   });
 
+  it('renders nothing for an explicit null fallback instead of the default card', () => {
+    const { container } = render(
+      <ErrorBoundary fallback={null}>
+        <ThrowError shouldThrow />
+      </ErrorBoundary>
+    );
+
+    expect(container).toBeEmptyDOMElement();
+    expect(screen.queryByText('Something went wrong')).not.toBeInTheDocument();
+  });
+
   it('reports the exact error and component stack once', () => {
     const onError = vi.fn();
 

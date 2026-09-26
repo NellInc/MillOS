@@ -1,0 +1,15 @@
+{
+  "asset": "clouds-cumulus-v1.png",
+  "kind": "generated cloud atlas",
+  "generator": "built-in image_gen",
+  "generatedAt": "2026-09-09",
+  "prompt": "Use case: photorealistic-natural. Asset type: a square RGBA game texture atlas of four isolated cumulus cloud banks, arranged exactly in a 2 by 2 grid, one cloud centred in each equal square cell. Create a genuinely transparent background with clean soft alpha edges, no sky colour, no opaque backdrop and no checkerboard baked into the image. Each cloud must remain fully inside its own cell with generous transparent margins on all four sides; no overlap between cells. Subject: four distinctly shaped natural fair-weather cumulus cloud banks viewed from ground level at modest elevation, wide horizontal profiles about 2.4 times wider than tall, flat soft grey undersides and richly modelled irregular cauliflower domes. Small wisps and finely resolved turbulent edges. Photographic realism, restrained natural volume, neutral white and light neutral grey only. Illumination is broad diffuse overhead daylight, no directional sunset colour or rim flare, no very dark shadows. The four clouds should differ in silhouette and internal lobes, avoid identical rounded cotton balls. No text, no grid lines, no horizon, no sun, no scenery, no painted style. 2048 by 2048 pixels if possible. This atlas will be tinted and moved in a real-time sky shader, so actual transparency, neutral colour and exact cell separation are essential.",
+  "sourceFile": "exec-fefad798-8975-4d4a-b903-3c4d34f00907.png",
+  "dimensions": [
+    1254,
+    1254
+  ],
+  "channels": "RGBA",
+  "sha256": "6d87669e2daa8b46f7ec3723a2bc2ee2ba56f162673403ca4d952119b82a2054",
+  "note": "Original output copied without pixel changes. Atlas colour is neutral daylight detail; runtime supplies weather, wind, cloud light and shadow tints."
+}

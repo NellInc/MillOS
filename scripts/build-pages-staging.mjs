@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -196,7 +197,14 @@ const releaseNavigationPath = path.join(outputDirectory, currentVersion, 'releas
 if (!fs.existsSync(releaseNavigationPath)) {
   throw new Error(`Current build is missing release-navigation.js: ${releaseNavigationPath}`);
 }
-const releaseNavigationTag = `<script defer src="/${currentVersion}/release-navigation.js"></script>`;
+// Content-hash the bridge URL so a returning archive visitor's cache-first copy
+// is bypassed whenever the bridge changes. validate-release-matrix strips this
+// tag (query included) before checking the proven historical index hashes.
+const bridgeHash = createHash('sha256')
+  .update(fs.readFileSync(releaseNavigationPath))
+  .digest('hex')
+  .slice(0, 12);
+const releaseNavigationTag = `<script defer src="/${currentVersion}/release-navigation.js?v=${bridgeHash}"></script>`;
 for (const archive of archives) {
   const archiveIndexPath = path.join(outputDirectory, archive, 'index.html');
   const archiveIndex = fs.readFileSync(archiveIndexPath, 'utf8');
@@ -221,9 +229,9 @@ const rootIndex = `<!DOCTYPE html>
   <meta property="og:title" content="MillOS | 3D Grain Mill Operations Simulator" />
   <meta property="og:description" content="Explore an autonomous browser-based grain mill simulator with deterministic logistics, production metrics, and a simulated SCADA workspace." />
   <meta property="og:image" content="https://www.millos.net/og-image.png" />
-  <meta property="og:image:alt" content="MillOS grain mill digital twin interface" />
-  <meta property="og:image:width" content="3456" />
-  <meta property="og:image:height" content="1993" />
+  <meta property="og:image:alt" content="An uncrewed 3D grain mill: a glass-walled milling hall, grain silos and truck yard below green hills" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
   <meta property="og:site_name" content="MillOS" />
   <meta property="og:locale" content="en_GB" />
   <meta name="twitter:card" content="summary_large_image" />
@@ -231,7 +239,7 @@ const rootIndex = `<!DOCTYPE html>
   <meta name="twitter:title" content="MillOS | 3D Grain Mill Operations Simulator" />
   <meta name="twitter:description" content="An autonomous browser-based 3D grain mill simulator with deterministic logistics, production metrics, and simulated SCADA." />
   <meta name="twitter:image" content="https://www.millos.net/og-image.png" />
-  <meta name="twitter:image:alt" content="MillOS grain mill digital twin interface" />
+  <meta name="twitter:image:alt" content="An uncrewed 3D grain mill: a glass-walled milling hall, grain silos and truck yard below green hills" />
   <meta name="twitter:creator" content="@NellWatson" />
 </head>
 <body>

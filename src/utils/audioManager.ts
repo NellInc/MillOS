@@ -1,5 +1,6 @@
 // Audio manager for realistic factory sounds using Web Audio API
 import { logger } from './logger';
+import { landmarkLocalToWorld, SITE_LAYOUT } from '../constants/siteLayout';
 import {
   MUSIC_STATIONS,
   type MusicStation,
@@ -27,8 +28,17 @@ interface CompressorAudioNodes {
   lfoGain: GainNode;
 }
 
+interface OutdoorLayerNodes {
+  source: AudioBufferSourceNode;
+  gain: GainNode;
+  lfo?: OscillatorNode;
+}
+
 const proximity = (x: number, z: number, targetX: number, targetZ: number, range: number): number =>
   Math.max(0, 1 - Math.hypot(x - targetX, z - targetZ) / range);
+
+const VILLAGE_POND_POSITION = landmarkLocalToWorld(SITE_LAYOUT.landmarks.village, [20, 0, 25]);
+const TOWN_HALL_CLOCK_POSITION = landmarkLocalToWorld(SITE_LAYOUT.landmarks.village, [0, 12, 20]);
 
 /** Pure spatial and weather mix, kept testable outside Web Audio. */
 export function calculateOutdoorAmbientMix(
@@ -46,14 +56,14 @@ export function calculateOutdoorAmbientMix(
   }[weather];
   const daylight = timeOfDay === 'day' ? 1 : 0.25;
   const waterProximity = Math.max(
-    proximity(camera.x, camera.z, -190, 0, 70),
+    proximity(camera.x, camera.z, VILLAGE_POND_POSITION[0], VILLAGE_POND_POSITION[2], 70),
     proximity(camera.x, camera.z, -125, 105, 70),
     proximity(camera.x, camera.z, 120, 120, 80),
     proximity(camera.x, camera.z, 0, -145, 75)
   );
   const farmProximity = proximity(camera.x, camera.z, 75, 120, 75);
   const villagePondProximity = Math.max(
-    proximity(camera.x, camera.z, -190, 0, 55),
+    proximity(camera.x, camera.z, VILLAGE_POND_POSITION[0], VILLAGE_POND_POSITION[2], 55),
     proximity(camera.x, camera.z, -125, 105, 45)
   );
 
@@ -87,8 +97,10 @@ const audioLog = {
 class AudioManager {
   private audioContext: AudioContext | null = null;
   private masterGain: GainNode | null = null;
+  // Machinery bus under masterGain. The Settings "Machine Sounds" slider scales
+  // it, with the 0.5 default at unity so the authored mix is unchanged.
+  private machineBus: GainNode | null = null;
   private lastHornTime: Map<string, number> = new Map();
-  private lastBeepTime: Map<string, number> = new Map();
   private _muted: boolean = false;
   private _volume: number = 0.5;
   private listeners: Set<() => void> = new Set();
@@ -102,6 +114,9 @@ class AudioManager {
     white1s?: AudioBuffer; // 1-second white noise for various effects
   } = {};
   private noiseBuffersGenerated: boolean = false;
+  // Loop-bed buffers of whole-second lengths, generated once per session so the
+  // first-click burst of loop starts does not synthesise the same noise twice.
+  private loopNoiseBuffers: Map<string, AudioBuffer> = new Map();
 
   get initialized(): boolean {
     return this._initialized;
@@ -126,22 +141,29 @@ class AudioManager {
     }
   > = new Map();
 
-  // Forklift engine sounds
+  // Forklift engine sounds. `gain` carries the spatial level; `lfoDepth` is the
+  // relative tremolo depth, so the idle rhythm scales with distance.
   private forkliftEngines: Map<
     string,
-    { source: AudioBufferSourceNode; gain: GainNode; lfo: OscillatorNode }
+    {
+      source: AudioBufferSourceNode;
+      gain: GainNode;
+      lfo: OscillatorNode;
+      lfoDepth: GainNode;
+      baseGain: number;
+    }
   > = new Map();
   private backgroundMuted = false;
 
   // Outdoor ambient sounds
   private outdoorNodes: {
-    birds?: { source: AudioBufferSourceNode; gain: GainNode };
-    wind?: { source: AudioBufferSourceNode; gain: GainNode };
-    traffic?: { source: AudioBufferSourceNode; gain: GainNode };
-    water?: { source: AudioBufferSourceNode; gain: GainNode };
-    ducks?: { source: AudioBufferSourceNode; gain: GainNode };
-    pigs?: { source: AudioBufferSourceNode; gain: GainNode };
-    cows?: { source: AudioBufferSourceNode; gain: GainNode };
+    birds?: OutdoorLayerNodes;
+    wind?: OutdoorLayerNodes;
+    traffic?: OutdoorLayerNodes;
+    water?: OutdoorLayerNodes;
+    ducks?: OutdoorLayerNodes;
+    pigs?: OutdoorLayerNodes;
+    cows?: OutdoorLayerNodes;
   } = {};
   private lastOutdoorTargets: Partial<OutdoorAmbientMix> = {};
 
@@ -214,16 +236,6 @@ class AudioManager {
 
   // Active station playlist. Original soundtrack order is authoritative unless shuffle is enabled.
   private musicTracks: MusicTrack[];
-
-  // Victory fanfare - only played when quota hits 100%
-  // Music by Kevin MacLeod (incompetech.com) - Licensed under CC BY 4.0
-  private readonly victoryFanfare = {
-    id: 'fanfare_for_space',
-    name: 'Victory!',
-    file: `${import.meta.env.BASE_URL}Fanfare for Space.mp3`,
-  };
-  private victoryAudio: HTMLAudioElement | null = null;
-  private _quotaReached: boolean = false;
 
   // PA tannoy reverb/echo effect chain
   private paReverbChain: {
@@ -369,6 +381,12 @@ class AudioManager {
         node.gain.gain.setTargetAtTime(effectiveVolume, this.audioContext?.currentTime ?? 0, 0.15);
       }
     });
+    // Mute is already applied on masterGain, which the bus feeds.
+    this.machineBus?.gain.setTargetAtTime(
+      this._machineVolume * 2,
+      this.audioContext?.currentTime ?? 0,
+      0.15
+    );
   }
 
   get currentTrack(): MusicTrack {
@@ -413,10 +431,19 @@ class AudioManager {
     this._musicShuffle = value;
     this.musicTracks = [...MUSIC_STATIONS[this._musicStation]];
     if (value) this.shufflePlaylist();
-    this._currentTrackIndex = Math.max(
+    const currentIndex = Math.max(
       0,
       this.musicTracks.findIndex((track) => track.id === currentTrackId)
     );
+    if (value && currentIndex > 0) {
+      // Lead the shuffled order with the song already playing, so the rest of
+      // the album follows it instead of being skipped until the next wrap.
+      [this.musicTracks[0], this.musicTracks[currentIndex]] = [
+        this.musicTracks[currentIndex],
+        this.musicTracks[0],
+      ];
+    }
+    this._currentTrackIndex = value ? 0 : currentIndex;
     this.saveSettings();
     this.notifyListeners();
   }
@@ -447,10 +474,21 @@ class AudioManager {
   }
 
   nextTrack(autoplay = this.musicPlaying): void {
+    const endedTrackId = this.currentTrack.id;
     this._currentTrackIndex += 1;
     if (this._currentTrackIndex >= this.musicTracks.length) {
       this._currentTrackIndex = 0;
-      if (this._musicShuffle) this.shufflePlaylist();
+      if (this._musicShuffle) {
+        this.shufflePlaylist();
+        // A fresh shuffle must not replay the song that just finished.
+        const last = this.musicTracks.length - 1;
+        if (last > 0 && this.musicTracks[0].id === endedTrackId) {
+          [this.musicTracks[0], this.musicTracks[last]] = [
+            this.musicTracks[last],
+            this.musicTracks[0],
+          ];
+        }
+      }
     }
     this.loadCurrentMusicTrack(autoplay && this._musicEnabled);
     this.notifyListeners();
@@ -475,14 +513,20 @@ class AudioManager {
   seekMusic(positionSeconds: number): void {
     if (!this.musicAudio || !Number.isFinite(positionSeconds)) return;
     this.musicAudio.currentTime = Math.max(0, Math.min(this.musicDurationSeconds, positionSeconds));
+    this.updateMediaSession();
+    this.notifyListeners();
+  }
+
+  pauseMusic(): void {
+    if (!this.musicPlaying) return;
+    this._userPausedMusic = true;
+    this.musicAudio?.pause();
     this.notifyListeners();
   }
 
   toggleMusicPlayback(): void {
     if (this.musicPlaying) {
-      this._userPausedMusic = true;
-      this.musicAudio?.pause();
-      this.notifyListeners();
+      this.pauseMusic();
       return;
     }
     if (!this._musicEnabled) {
@@ -490,57 +534,6 @@ class AudioManager {
       return;
     }
     this.startMusic();
-  }
-
-  // Play victory fanfare when daily quota reaches 100%
-  // This interrupts current music briefly, then resumes
-  playVictoryFanfare(): void {
-    // Only play once per quota achievement (reset when quota drops below 100%)
-    if (this._quotaReached) return;
-    this._quotaReached = true;
-
-    // Pause current music
-    const wasPlaying = this.musicAudio && !this.musicAudio.paused;
-    const currentTime = this.musicAudio?.currentTime || 0;
-    if (wasPlaying && this.musicAudio) {
-      this.musicAudio.pause();
-    }
-
-    // Play victory fanfare
-    if (!this.victoryAudio) {
-      this.victoryAudio = new Audio(this.victoryFanfare.file);
-    }
-    this.victoryAudio.volume = this._muted ? 0 : this._musicVolume * 1.2; // Slightly louder
-    this.victoryAudio.currentTime = 0;
-
-    // Resume music after fanfare ends
-    this.victoryAudio.onended = () => {
-      if (wasPlaying && this.musicAudio && this._musicEnabled) {
-        this.musicAudio.currentTime = currentTime;
-        this.musicAudio.play().catch((e) => {
-          audioLog.warn('Music resume after fanfare failed', e);
-        });
-      }
-    };
-
-    this.victoryAudio.play().catch((e) => {
-      audioLog.warn('Victory fanfare playback failed', e);
-      // Resume music if fanfare failed
-      if (wasPlaying && this.musicAudio && this._musicEnabled) {
-        this.musicAudio.play().catch((e2) => {
-          audioLog.warn('Music resume after fanfare failure failed', e2);
-        });
-      }
-    });
-  }
-
-  // Reset quota flag when production drops below 100%
-  resetQuotaFlag(): void {
-    this._quotaReached = false;
-  }
-
-  get quotaReached(): boolean {
-    return this._quotaReached;
   }
 
   subscribe(listener: () => void): () => void {
@@ -560,6 +553,9 @@ class AudioManager {
       this.audioContext = new AudioContext();
       this.masterGain = this.audioContext.createGain();
       this.masterGain.connect(this.audioContext.destination);
+      this.machineBus = this.audioContext.createGain();
+      this.machineBus.gain.value = this._machineVolume * 2;
+      this.machineBus.connect(this.masterGain);
       this.updateMasterVolume();
       // Pre-generate noise buffers asynchronously to avoid blocking during playback
       this.preGenerateNoiseBuffers();
@@ -646,6 +642,50 @@ class AudioManager {
     const ctx = this.getContext();
     if (!ctx) return null;
     return this.masterGain;
+  }
+
+  // Output for factory machinery (beds, conveyors, spouts, compressor, clanks).
+  private getMachineBus(): GainNode | null {
+    const ctx = this.getContext();
+    if (!ctx) return null;
+    return this.machineBus;
+  }
+
+  // A context the browser suspended or interrupted after the first gesture
+  // (iOS, audio-device change, long background) stays silent until resumed.
+  private ensureRunning(): void {
+    const ctx = this.audioContext;
+    if (ctx && ctx.state !== 'running' && ctx.state !== 'closed') {
+      void ctx.resume().catch(() => undefined);
+    }
+  }
+
+  // Roof and walls muffle outdoor sources heard from inside the factory.
+  private isCameraInsideFactory(): boolean {
+    return this.getFactoryBoundaryInfo(this.cameraPosition.x, this.cameraPosition.z).isInside;
+  }
+
+  // Unity-gain tremolo stage: `depth` is relative (0-1), so whatever level the
+  // following gain carries, the modulation scales with it instead of adding a
+  // fixed amount that survives a mix target of zero.
+  private createTremolo(
+    ctx: AudioContext,
+    lfo: OscillatorNode,
+    depth: number
+  ): { trem: GainNode; lfoDepth: GainNode } {
+    const trem = ctx.createGain();
+    trem.gain.value = 1;
+    const lfoDepth = ctx.createGain();
+    lfoDepth.gain.value = Math.min(1, depth);
+    lfo.connect(lfoDepth);
+    lfoDepth.connect(trem.gain);
+    return { trem, lfoDepth };
+  }
+
+  // Start a looping noise bed at a random point so beds sharing one cached
+  // buffer do not play sample-identical noise.
+  private startLoopAtRandomOffset(source: AudioBufferSourceNode): void {
+    source.start(0, Math.random() * (source.buffer?.duration ?? 0));
   }
 
   /**
@@ -773,6 +813,8 @@ class AudioManager {
     const gain = this.masterGain;
     if (!ctx || !gain) return;
 
+    if (!hidden) this.ensureRunning();
+
     if (hidden && !this.backgroundMuted) {
       this.backgroundMuted = true;
       gain.gain.setTargetAtTime(0, ctx.currentTime, 0.1);
@@ -794,15 +836,22 @@ class AudioManager {
 
   private updateMusicVolume(): void {
     if (this.musicAudio) {
-      // Music has its own independent volume control
-      this.musicAudio.volume = this._muted ? 0 : this._musicVolume;
+      // Music has its own independent volume control. iOS ignores scripted
+      // `volume` (it always reads 1) but honours `muted`, so mute uses both.
+      this.musicAudio.muted = this._muted;
+      this.musicAudio.volume = this._musicVolume;
     }
   }
+
+  // Station and track the OS media controls were last given metadata for.
+  private lastMediaSessionKey: string | null = null;
 
   private updateMediaSession(): void {
     if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
     const artworkSize = this.currentTrack.trackNumber === 7 ? '360x360' : '1024x1024';
-    if (typeof MediaMetadata !== 'undefined') {
+    const mediaSessionKey = `${this._musicStation}:${this.currentTrack.id}`;
+    if (typeof MediaMetadata !== 'undefined' && mediaSessionKey !== this.lastMediaSessionKey) {
+      this.lastMediaSessionKey = mediaSessionKey;
       navigator.mediaSession.metadata = new MediaMetadata({
         title: this.currentTrack.name,
         artist: this.currentTrack.artist,
@@ -839,8 +888,13 @@ class AudioManager {
       return;
     }
     const handlers: ReadonlyArray<readonly [MediaSessionAction, MediaSessionActionHandler]> = [
-      ['play', () => this.startMusic()],
-      ['pause', () => this.toggleMusicPlayback()],
+      [
+        'play',
+        () => {
+          if (!this.musicPlaying) this.toggleMusicPlayback();
+        },
+      ],
+      ['pause', () => this.pauseMusic()],
       ['nexttrack', () => this.nextTrack(true)],
       ['previoustrack', () => this.prevTrack(true)],
       ['seekto', (details) => this.seekMusic(details.seekTime ?? 0)],
@@ -857,10 +911,9 @@ class AudioManager {
 
   private syncMusicProgressTicker(): void {
     if (this.musicPlaying && !this.musicProgressTimer) {
-      this.musicProgressTimer = setInterval(() => {
-        this.updateMediaSession();
-        this.notifyListeners();
-      }, 100);
+      // UI progress only. The OS extrapolates Media Session position from
+      // playbackRate, so it is refreshed on discrete media events instead.
+      this.musicProgressTimer = setInterval(() => this.notifyListeners(), 100);
     } else if (!this.musicPlaying && this.musicProgressTimer) {
       clearInterval(this.musicProgressTimer);
       this.musicProgressTimer = null;
@@ -888,9 +941,10 @@ class AudioManager {
     audio.addEventListener('canplay', () => {
       this.consecutiveMusicLoadFailures = 0;
     });
-    for (const event of ['play', 'pause', 'timeupdate', 'loadedmetadata', 'durationchange']) {
+    for (const event of ['play', 'pause', 'seeked', 'loadedmetadata', 'durationchange']) {
       audio.addEventListener(event, stateHandler);
     }
+    audio.addEventListener('timeupdate', () => this.notifyListeners());
     this.configureMediaSession();
   }
 
@@ -964,9 +1018,19 @@ class AudioManager {
       return this.cachedNoiseBuffers.white1s;
     }
 
+    // Whole-second loop-bed lengths are generated once. One-shot and random
+    // durations (thunder, hydraulics) stay uncached so the map cannot grow.
+    const loopKey = Number.isInteger(duration) && duration <= 8 ? `${type}:${duration}` : null;
+    if (loopKey) {
+      const cached = this.loopNoiseBuffers.get(loopKey);
+      if (cached) return cached;
+    }
+
     // Fall back to generating a new buffer for uncached sizes/types
     const sampleRate = ctx.sampleRate;
-    return this.generateNoiseBufferInternal(duration, type, sampleRate);
+    const buffer = this.generateNoiseBufferInternal(duration, type, sampleRate);
+    if (loopKey && buffer) this.loopNoiseBuffers.set(loopKey, buffer);
+    return buffer;
   }
 
   // === FORKLIFT SOUNDS ===
@@ -1047,108 +1111,11 @@ class AudioManager {
       noiseSource.start(currentTime);
       noiseSource.stop(currentTime + 0.45);
     } catch (e) {
-      audioLog.warn('Click sound playback failed', e);
-    }
-  }
-
-  // Play realistic backup alarm (classic industrial beeper)
-  playBackupBeep(forkliftId: string) {
-    if (this.getEffectiveVolume() === 0) return;
-
-    const now = Date.now();
-    const lastPlayed = this.lastBeepTime.get(forkliftId) || 0;
-    if (now - lastPlayed < 600) return;
-    this.lastBeepTime.set(forkliftId, now);
-
-    try {
-      const ctx = this.getContext();
-      const masterGain = this.getMasterGain();
-      if (!ctx || !masterGain) return;
-      const currentTime = ctx.currentTime;
-
-      // Classic backup alarm - alternating tones
-      const osc1 = ctx.createOscillator();
-      const osc2 = ctx.createOscillator();
-      const gain = ctx.createGain();
-      const filter = ctx.createBiquadFilter();
-
-      // Two-tone alarm
-      osc1.type = 'square';
-      osc1.frequency.setValueAtTime(1200, currentTime);
-
-      osc2.type = 'square';
-      osc2.frequency.setValueAtTime(1000, currentTime);
-
-      filter.type = 'lowpass';
-      filter.frequency.setValueAtTime(2000, currentTime);
-
-      // Pulsing envelope
-      gain.gain.setValueAtTime(0, currentTime);
-      gain.gain.linearRampToValueAtTime(0.06, currentTime + 0.01);
-      gain.gain.setValueAtTime(0.06, currentTime + 0.15);
-      gain.gain.linearRampToValueAtTime(0, currentTime + 0.2);
-      gain.gain.setValueAtTime(0, currentTime + 0.25);
-      gain.gain.linearRampToValueAtTime(0.06, currentTime + 0.26);
-      gain.gain.setValueAtTime(0.06, currentTime + 0.4);
-      gain.gain.linearRampToValueAtTime(0, currentTime + 0.45);
-
-      const merger = ctx.createGain();
-      osc1.connect(merger);
-      osc2.connect(merger);
-      merger.gain.setValueAtTime(0.5, currentTime);
-      merger.connect(filter);
-      filter.connect(gain);
-      gain.connect(masterGain);
-
-      osc1.start(currentTime);
-      osc2.start(currentTime);
-      osc1.stop(currentTime + 0.5);
-      osc2.stop(currentTime + 0.5);
-    } catch (e) {
-      audioLog.warn('Backup beep sound failed', { forkliftId }, e);
+      audioLog.warn('Forklift horn playback failed', e);
     }
   }
 
   // === QC LAB SOUNDS ===
-
-  private lastLabBeepTime = 0;
-
-  // Play lab equipment beep (soft, subtle)
-  playLabEquipmentBeep() {
-    if (this.getEffectiveVolume() === 0) return;
-
-    const now = Date.now();
-    if (now - this.lastLabBeepTime < 5000) return; // 5 second cooldown
-    this.lastLabBeepTime = now;
-
-    try {
-      const ctx = this.getContext();
-      const masterGain = this.getMasterGain();
-      if (!ctx || !masterGain) return;
-      const currentTime = ctx.currentTime;
-
-      // Short, high-pitched beep
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(1200, currentTime);
-
-      // Very short, subtle beep
-      gain.gain.setValueAtTime(0, currentTime);
-      gain.gain.linearRampToValueAtTime(0.05, currentTime + 0.01);
-      gain.gain.setValueAtTime(0.05, currentTime + 0.08);
-      gain.gain.exponentialRampToValueAtTime(0.001, currentTime + 0.15);
-
-      osc.connect(gain);
-      gain.connect(masterGain);
-
-      osc.start(currentTime);
-      osc.stop(currentTime + 0.2);
-    } catch (e) {
-      audioLog.warn('Lab beep sound failed', e);
-    }
-  }
 
   // === AMBIENT FACTORY SOUNDS ===
 
@@ -1158,8 +1125,8 @@ class AudioManager {
 
     try {
       const ctx = this.getContext();
-      const masterGain = this.getMasterGain();
-      if (!ctx || !masterGain) return;
+      const machineBus = this.getMachineBus();
+      if (!ctx || !machineBus) return;
 
       // Machinery hum - low frequency drone
       {
@@ -1180,7 +1147,7 @@ class AudioManager {
 
         source.connect(filter);
         filter.connect(gain);
-        gain.connect(masterGain);
+        gain.connect(machineBus);
         source.start();
 
         this.ambientNodes.machineryHum = { source, gain };
@@ -1205,7 +1172,7 @@ class AudioManager {
 
         source.connect(filter);
         filter.connect(gain);
-        gain.connect(masterGain);
+        gain.connect(machineBus);
         source.start();
 
         this.ambientNodes.conveyorNoise = { source, gain };
@@ -1230,7 +1197,7 @@ class AudioManager {
 
         source.connect(filter);
         filter.connect(gain);
-        gain.connect(masterGain);
+        gain.connect(machineBus);
         source.start();
 
         this.ambientNodes.ventilation = { source, gain };
@@ -1256,11 +1223,15 @@ class AudioManager {
 
         source.connect(filter);
         filter.connect(gain);
-        gain.connect(masterGain);
+        gain.connect(machineBus);
         source.start();
 
         this.ambientNodes.grainFlow = { source, gain };
       }
+
+      // Apply wall and distance attenuation for the current camera now; the
+      // tracker only reports again once the camera moves.
+      this.updateAmbientSpatialVolumes();
     } catch (e) {
       audioLog.warn('Ambient factory sounds initialization failed', e);
     }
@@ -1330,18 +1301,6 @@ class AudioManager {
       this.machineNodes.set(machineId, { source, gain, filter, lfo });
     } catch (e) {
       audioLog.warn('Mill sound initialization failed', { machineId }, e);
-    }
-  }
-
-  stopMillSound(machineId: string) {
-    const node = this.machineNodes.get(machineId);
-    if (node) {
-      try {
-        node.source.stop();
-      } catch (e) {
-        audioLog.warn('Failed to stop mill sound', { machineId }, e);
-      }
-      this.machineNodes.delete(machineId);
     }
   }
 
@@ -1488,41 +1447,6 @@ class AudioManager {
 
   // === ONE-SHOT SOUNDS ===
 
-  // Play a mechanical clunk (for machine state changes)
-  playClunk() {
-    if (this.getEffectiveVolume() === 0) return;
-
-    try {
-      const ctx = this.getContext();
-      const masterGain = this.getMasterGain();
-      if (!ctx || !masterGain) return;
-      const currentTime = ctx.currentTime;
-
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      const filter = ctx.createBiquadFilter();
-
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(80, currentTime);
-      osc.frequency.exponentialRampToValueAtTime(40, currentTime + 0.1);
-
-      filter.type = 'lowpass';
-      filter.frequency.setValueAtTime(200, currentTime);
-
-      gain.gain.setValueAtTime(0.15, currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, currentTime + 0.15);
-
-      osc.connect(filter);
-      filter.connect(gain);
-      gain.connect(masterGain);
-
-      osc.start(currentTime);
-      osc.stop(currentTime + 0.2);
-    } catch (e) {
-      audioLog.warn('Clunk sound playback failed', e);
-    }
-  }
-
   // Alert/warning sound
   playAlert() {
     if (this.getEffectiveVolume() === 0) return;
@@ -1559,45 +1483,6 @@ class AudioManager {
     }
   }
 
-  // Grain pouring/flowing sound
-  playGrainFlow(duration: number = 1) {
-    if (this.getEffectiveVolume() === 0) return;
-
-    try {
-      const ctx = this.getContext();
-      const masterGain = this.getMasterGain();
-      if (!ctx || !masterGain) return;
-      const currentTime = ctx.currentTime;
-
-      const buffer = this.createNoiseBuffer(duration + 0.5, 'white');
-      if (!buffer) return;
-      const source = ctx.createBufferSource();
-      const gain = ctx.createGain();
-      const filter = ctx.createBiquadFilter();
-
-      source.buffer = buffer;
-
-      // Grainy, high-frequency sound
-      filter.type = 'bandpass';
-      filter.frequency.setValueAtTime(3000, currentTime);
-      filter.Q.setValueAtTime(2, currentTime);
-
-      gain.gain.setValueAtTime(0, currentTime);
-      gain.gain.linearRampToValueAtTime(0.05, currentTime + 0.1);
-      gain.gain.setValueAtTime(0.05, currentTime + duration);
-      gain.gain.exponentialRampToValueAtTime(0.001, currentTime + duration + 0.3);
-
-      source.connect(filter);
-      filter.connect(gain);
-      gain.connect(masterGain);
-
-      source.start(currentTime);
-      source.stop(currentTime + duration + 0.5);
-    } catch (e) {
-      audioLog.warn('Alert sound playback failed', e);
-    }
-  }
-
   // === TRUCK SOUNDS ===
 
   // Truck engine idle/running sound
@@ -1608,12 +1493,17 @@ class AudioManager {
       gain: GainNode;
       filter: BiquadFilterNode;
       lfo: OscillatorNode;
+      lfoDepth: GainNode;
+      baseGain: number;
     }
   > = new Map();
+  // Reference distance for the inverse rolloff (full level inside it).
+  private readonly TRUCK_ENGINE_REF_DISTANCE = 15;
 
+  // Persistent loop: started even while muted, because masterGain already
+  // silences it and callers ask only once. Unmuting then brings it back.
   startTruckEngine(truckId: string, isMoving: boolean = false) {
     if (this.truckEngines.has(truckId)) return;
-    if (this.getEffectiveVolume() === 0) return;
 
     try {
       const ctx = this.getContext();
@@ -1627,7 +1517,6 @@ class AudioManager {
       const gain = ctx.createGain();
       const filter = ctx.createBiquadFilter();
       const lfo = ctx.createOscillator();
-      const lfoGain = ctx.createGain();
 
       source.buffer = buffer;
       source.loop = true;
@@ -1637,39 +1526,54 @@ class AudioManager {
       filter.frequency.setValueAtTime(isMoving ? 150 : 80, ctx.currentTime);
       filter.Q.setValueAtTime(3, ctx.currentTime);
 
-      // LFO for engine rhythm
+      // LFO for engine rhythm: a fixed 0.01 swing, expressed relative to the
+      // base level so spatial attenuation scales the rhythm with the engine.
+      const baseGain = isMoving ? 0.04 : 0.025;
       lfo.type = 'sine';
       lfo.frequency.setValueAtTime(isMoving ? 25 : 15, ctx.currentTime);
-      lfoGain.gain.setValueAtTime(0.01, ctx.currentTime);
+      const { trem, lfoDepth } = this.createTremolo(ctx, lfo, 0.01 / baseGain);
 
-      gain.gain.setValueAtTime(isMoving ? 0.04 : 0.025, ctx.currentTime);
+      gain.gain.setValueAtTime(
+        this.calculateVehicleEngineVolume(truckId, baseGain, this.TRUCK_ENGINE_REF_DISTANCE),
+        ctx.currentTime
+      );
 
       source.connect(filter);
-      filter.connect(gain);
-      lfo.connect(lfoGain);
-      lfoGain.connect(gain.gain);
+      filter.connect(trem);
+      trem.connect(gain);
       gain.connect(masterGain);
 
       source.start();
       lfo.start();
 
-      this.truckEngines.set(truckId, { source, gain, filter, lfo });
+      this.truckEngines.set(truckId, { source, gain, filter, lfo, lfoDepth, baseGain });
     } catch (e) {
-      audioLog.warn('Grain flow sound playback failed', e);
+      audioLog.warn('Truck engine start failed', { truckId }, e);
     }
   }
 
   updateTruckEngine(truckId: string, isMoving: boolean) {
     const engine = this.truckEngines.get(truckId);
     if (engine && this.audioContext) {
-      const targetGain = isMoving ? 0.04 : 0.025;
-      engine.gain.gain.setTargetAtTime(targetGain, this.audioContext.currentTime, 0.3);
-      engine.filter.frequency.setTargetAtTime(
-        isMoving ? 150 : 80,
-        this.audioContext.currentTime,
-        0.35
+      const now = this.audioContext.currentTime;
+      engine.baseGain = isMoving ? 0.04 : 0.025;
+      engine.lfoDepth.gain.setTargetAtTime(Math.min(1, 0.01 / engine.baseGain), now, 0.3);
+      this.updateTruckSpatialVolume(truckId);
+      engine.filter.frequency.setTargetAtTime(isMoving ? 150 : 80, now, 0.35);
+      engine.lfo.frequency.setTargetAtTime(isMoving ? 25 : 15, now, 0.35);
+    }
+  }
+
+  // Re-apply distance and wall attenuation after registerSoundPosition(truckId).
+  updateTruckSpatialVolume(truckId: string) {
+    const engine = this.truckEngines.get(truckId);
+    if (engine && this.audioContext) {
+      const spatialGain = this.calculateVehicleEngineVolume(
+        truckId,
+        engine.baseGain,
+        this.TRUCK_ENGINE_REF_DISTANCE
       );
-      engine.lfo.frequency.setTargetAtTime(isMoving ? 25 : 15, this.audioContext.currentTime, 0.35);
+      engine.gain.gain.setTargetAtTime(spatialGain, this.audioContext.currentTime, 0.3);
     }
   }
 
@@ -1680,7 +1584,7 @@ class AudioManager {
         engine.source.stop();
         engine.lfo.stop();
       } catch (e) {
-        audioLog.warn('Truck engine start failed', { truckId }, e);
+        audioLog.warn('Truck engine stop failed', { truckId }, e);
       }
       this.truckEngines.delete(truckId);
     }
@@ -1725,7 +1629,7 @@ class AudioManager {
   // Backup beeper for trucks reversing
   private backupBeepers: Map<
     string,
-    { oscillator: OscillatorNode; gain: GainNode; interval: number | NodeJS.Timeout }
+    { oscillator: OscillatorNode; gain: GainNode; interval: ReturnType<typeof setTimeout> }
   > = new Map();
 
   startBackupBeeper(truckId: string) {
@@ -1754,24 +1658,26 @@ class AudioManager {
       const maxBeeps = 2;
       let isOn = false;
 
-      const interval = setInterval(
-        () => {
-          if (!this.audioContext) return;
-          isOn = !isOn;
-          gain.gain.setTargetAtTime(isOn ? 0.03 : 0, this.audioContext.currentTime, 0.01);
+      // Self-rescheduling so each phase picks its own length; a setInterval
+      // evaluates the delay once and ran a flat 500/500 cadence.
+      const step = () => {
+        if (!this.audioContext || this.backupBeepers.get(truckId) !== record) return;
+        isOn = !isOn;
+        gain.gain.setTargetAtTime(isOn ? 0.03 : 0, this.audioContext.currentTime, 0.01);
 
-          // Count completed beeps (when turning off after being on)
-          if (!isOn) {
-            beepCount++;
-            if (beepCount >= maxBeeps) {
-              this.stopBackupBeeper(truckId);
-            }
+        // Count completed beeps (when turning off after being on)
+        if (!isOn) {
+          beepCount++;
+          if (beepCount >= maxBeeps) {
+            this.stopBackupBeeper(truckId);
+            return;
           }
-        },
-        isOn ? 300 : 500
-      );
+        }
+        record.interval = setTimeout(step, isOn ? 300 : 500);
+      };
 
-      this.backupBeepers.set(truckId, { oscillator, gain, interval });
+      const record = { oscillator, gain, interval: setTimeout(step, 500) };
+      this.backupBeepers.set(truckId, record);
     } catch (e) {
       audioLog.warn('Backup beeper start failed', e);
     }
@@ -1781,7 +1687,7 @@ class AudioManager {
     const beeper = this.backupBeepers.get(truckId);
     if (beeper) {
       try {
-        clearInterval(beeper.interval as number);
+        clearTimeout(beeper.interval);
         beeper.oscillator.stop();
       } catch (e) {
         audioLog.warn('Backup beeper stop failed', e);
@@ -1792,159 +1698,12 @@ class AudioManager {
 
   // === AI DECISION SOUNDS ===
 
-  // AI critical decision alert sound
-  playAICriticalAlert() {
-    if (this.getEffectiveVolume() === 0) return;
-
-    try {
-      const ctx = this.getContext();
-      const masterGain = this.getMasterGain();
-      if (!ctx || !masterGain) return;
-      const currentTime = ctx.currentTime;
-
-      // Triple ascending beep with urgency
-      const notes = [440, 554, 698]; // A4, C#5, F5
-      notes.forEach((freq, i) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        const startTime = currentTime + i * 0.12;
-
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(freq, startTime);
-
-        gain.gain.setValueAtTime(0, startTime);
-        gain.gain.linearRampToValueAtTime(0.08, startTime + 0.02);
-        gain.gain.setValueAtTime(0.08, startTime + 0.08);
-        gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.11);
-
-        osc.connect(gain);
-        gain.connect(masterGain);
-
-        osc.start(startTime);
-        osc.stop(startTime + 0.15);
-      });
-    } catch (e) {
-      audioLog.warn('AI critical alert sound failed', e);
-    }
-  }
-
-  // AI decision notification sound (subtle)
-  playAIDecision() {
-    if (this.getEffectiveVolume() === 0) return;
-
-    try {
-      const ctx = this.getContext();
-      const masterGain = this.getMasterGain();
-      if (!ctx || !masterGain) return;
-      const currentTime = ctx.currentTime;
-
-      // Soft double-blip like a computer thinking
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(880, currentTime);
-      osc.frequency.setValueAtTime(1047, currentTime + 0.08);
-
-      gain.gain.setValueAtTime(0, currentTime);
-      gain.gain.linearRampToValueAtTime(0.04, currentTime + 0.01);
-      gain.gain.linearRampToValueAtTime(0.02, currentTime + 0.06);
-      gain.gain.linearRampToValueAtTime(0.04, currentTime + 0.09);
-      gain.gain.exponentialRampToValueAtTime(0.001, currentTime + 0.15);
-
-      osc.connect(gain);
-      gain.connect(masterGain);
-
-      osc.start(currentTime);
-      osc.stop(currentTime + 0.18);
-    } catch (e) {
-      audioLog.warn('AI decision sound failed', e);
-    }
-  }
-
-  // AI anomaly detection sound
-  playAIAnomaly() {
-    if (this.getEffectiveVolume() === 0) return;
-
-    try {
-      const ctx = this.getContext();
-      const masterGain = this.getMasterGain();
-      if (!ctx || !masterGain) return;
-      const currentTime = ctx.currentTime;
-
-      // Warning-like wobble sound
-      const osc = ctx.createOscillator();
-      const lfo = ctx.createOscillator();
-      const lfoGain = ctx.createGain();
-      const gain = ctx.createGain();
-
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(660, currentTime);
-
-      // LFO for wobble effect
-      lfo.type = 'sine';
-      lfo.frequency.setValueAtTime(15, currentTime);
-      lfoGain.gain.setValueAtTime(30, currentTime);
-
-      lfo.connect(lfoGain);
-      lfoGain.connect(osc.frequency);
-
-      gain.gain.setValueAtTime(0, currentTime);
-      gain.gain.linearRampToValueAtTime(0.06, currentTime + 0.05);
-      gain.gain.setValueAtTime(0.06, currentTime + 0.3);
-      gain.gain.exponentialRampToValueAtTime(0.001, currentTime + 0.5);
-
-      osc.connect(gain);
-      gain.connect(masterGain);
-
-      osc.start(currentTime);
-      lfo.start(currentTime);
-      osc.stop(currentTime + 0.55);
-      lfo.stop(currentTime + 0.55);
-    } catch (e) {
-      audioLog.warn('AI anomaly sound failed', e);
-    }
-  }
-
-  // AI success chime (for completed decisions)
-  playAISuccess() {
-    if (this.getEffectiveVolume() === 0) return;
-
-    try {
-      const ctx = this.getContext();
-      const masterGain = this.getMasterGain();
-      if (!ctx || !masterGain) return;
-      const currentTime = ctx.currentTime;
-
-      // Pleasant ascending arpeggio
-      const notes = [523, 659, 784, 1047]; // C5, E5, G5, C6
-      notes.forEach((freq, i) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        const startTime = currentTime + i * 0.06;
-
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(freq, startTime);
-
-        gain.gain.setValueAtTime(0, startTime);
-        gain.gain.linearRampToValueAtTime(0.03, startTime + 0.02);
-        gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.2);
-
-        osc.connect(gain);
-        gain.connect(masterGain);
-
-        osc.start(startTime);
-        osc.stop(startTime + 0.25);
-      });
-    } catch (e) {
-      audioLog.warn('AI success sound failed', e);
-    }
-  }
-
   // === UI SOUNDS ===
 
   // Click sound for UI interactions
   playClick() {
+    // Always runs inside a user gesture, the one moment a resume is allowed.
+    this.ensureRunning();
     if (this.getEffectiveVolume() === 0) return;
 
     try {
@@ -1973,37 +1732,9 @@ class AudioManager {
     }
   }
 
-  // Hover sound (subtle)
-  playHover() {
-    if (this.getEffectiveVolume() === 0) return;
-
-    try {
-      const ctx = this.getContext();
-      const masterGain = this.getMasterGain();
-      if (!ctx || !masterGain) return;
-      const currentTime = ctx.currentTime;
-
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(800, currentTime);
-
-      gain.gain.setValueAtTime(0.02, currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, currentTime + 0.03);
-
-      osc.connect(gain);
-      gain.connect(masterGain);
-
-      osc.start(currentTime);
-      osc.stop(currentTime + 0.04);
-    } catch (e) {
-      audioLog.warn('Hover sound failed', e);
-    }
-  }
-
   // Panel open/close sound
   playPanelOpen() {
+    this.ensureRunning();
     if (this.getEffectiveVolume() === 0) return;
 
     try {
@@ -2033,6 +1764,7 @@ class AudioManager {
   }
 
   playPanelClose() {
+    this.ensureRunning();
     if (this.getEffectiveVolume() === 0) return;
 
     try {
@@ -2080,7 +1812,10 @@ class AudioManager {
 
   // Update camera position for spatial audio calculations
   updateCameraPosition(x: number, y: number, z: number) {
-    this.cameraPosition = { x, y, z };
+    // Mutated in place: this runs on every tracked camera move.
+    this.cameraPosition.x = x;
+    this.cameraPosition.y = y;
+    this.cameraPosition.z = z;
     // Update ambient factory sounds based on distance from factory
     this.updateAmbientSpatialVolumes();
     this.adjustAmbientForTimeOfDay();
@@ -2261,6 +1996,40 @@ class AudioManager {
     return baseVolume * distanceAttenuation * wallFactor;
   }
 
+  /**
+   * Engine level for a moving vehicle: inverse-distance rolloff (Web Audio's
+   * 'inverse' model, rolloff 1) plus the same wall occlusion as other sources.
+   * The linear-to-zero falloff used for conveyors reaches silence at its max
+   * distance, and the default overview camera sits ~150 m from the plant, so a
+   * 40 m linear falloff would erase every engine there. Inverse rolloff keeps a
+   * distant fleet faintly present (1/15 at 150 m for forklifts, before walls)
+   * while a nearby one dominates. Indoor engines heard from outside still take
+   * the full wall occlusion, as the factory hum does. Before any position is
+   * registered this is the base level.
+   */
+  private calculateVehicleEngineVolume(
+    sourceId: string,
+    baseVolume: number,
+    refDistance: number
+  ): number {
+    const sourcePos = this.soundPositions.get(sourceId);
+    if (!sourcePos) return baseVolume;
+
+    const dx = sourcePos.x - this.cameraPosition.x;
+    const dy = sourcePos.y - this.cameraPosition.y;
+    const dz = sourcePos.z - this.cameraPosition.z;
+    const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+    const distanceAttenuation = refDistance / (refDistance + Math.max(0, distance - refDistance));
+
+    let wallFactor = 1.0;
+    const cameraInfo = this.getFactoryBoundaryInfo(this.cameraPosition.x, this.cameraPosition.z);
+    if (!cameraInfo.isInside && this.getFactoryBoundaryInfo(sourcePos.x, sourcePos.z).isInside) {
+      wallFactor = this.calculateWallAttenuation(this.cameraPosition.x, this.cameraPosition.z);
+    }
+
+    return baseVolume * distanceAttenuation * wallFactor;
+  }
+
   // Update machine sound volume based on camera distance
   updateMachineSpatialVolume(machineId: string) {
     const node = this.machineNodes.get(machineId);
@@ -2303,6 +2072,12 @@ class AudioManager {
   updateWeather(weather: AmbientWeather): void {
     if (weather === this.currentWeather) return;
     this.currentWeather = weather;
+    // Rain bed for rain and storm; thunder itself is gated to storms.
+    if (weather === 'rain' || weather === 'storm') {
+      this.startRain();
+    } else {
+      this.stopRain();
+    }
     this.adjustAmbientForTimeOfDay();
   }
 
@@ -2320,6 +2095,15 @@ class AudioManager {
       this.lastOutdoorTargets[key] = target;
       this.outdoorNodes[key]?.gain.gain.setTargetAtTime(target, currentTime, 0.8);
     });
+
+    const rain = this.weatherNodes.rain;
+    if (rain) {
+      const rainTarget = this.getRainTarget();
+      if (Math.abs(this.lastRainTarget - rainTarget) >= 0.00001) {
+        this.lastRainTarget = rainTarget;
+        rain.gain.gain.setTargetAtTime(rainTarget, currentTime, 0.8);
+      }
+    }
   }
 
   private nightAmbientInterval: NodeJS.Timeout | number | null = null;
@@ -2328,10 +2112,14 @@ class AudioManager {
     if (this.nightAmbientInterval) return;
 
     const playCrickets = () => {
-      if (this.currentTimeOfDay !== 'night' || this.getEffectiveVolume() === 0) return;
+      // The whole 19:30-21:00 window, not just its night-time second half.
+      if (!this.isDuskCricketTime || this.getEffectiveVolume() === 0) return;
+      // Crickets fall silent in rain, like the rest of the wildlife.
+      if (this.currentWeather === 'rain' || this.currentWeather === 'storm') return;
       // Skip playback when tab hidden
       if (!this._isTabVisible) return;
-      this.playCricketChirp();
+      // Same interior occlusion as the outdoor ambient mix.
+      this.playCricketChirp(this.isCameraInsideFactory() ? 0.12 : 1);
     };
 
     // Cricket chirps every 15-30 seconds (sparse, occasional ambiance)
@@ -2345,8 +2133,9 @@ class AudioManager {
     }
   }
 
-  private playCricketChirp() {
+  private playCricketChirp(level = 1) {
     if (this.getEffectiveVolume() === 0) return;
+    const peak = 0.008 * level;
 
     try {
       const ctx = this.getContext();
@@ -2367,8 +2156,8 @@ class AudioManager {
         osc.frequency.setValueAtTime(baseFreq, startTime);
 
         gain.gain.setValueAtTime(0, startTime);
-        gain.gain.linearRampToValueAtTime(0.008, startTime + 0.01);
-        gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.05);
+        gain.gain.linearRampToValueAtTime(peak, startTime + 0.01);
+        gain.gain.exponentialRampToValueAtTime(peak / 8, startTime + 0.05);
 
         osc.connect(gain);
         gain.connect(masterGain);
@@ -2377,7 +2166,7 @@ class AudioManager {
         osc.stop(startTime + 0.06);
       }
     } catch (e) {
-      audioLog.warn('Time of day audio update failed', e);
+      audioLog.warn('Cricket chirp playback failed', e);
     }
   }
 
@@ -2385,14 +2174,15 @@ class AudioManager {
 
   private conveyorNodes: Map<string, { source: AudioBufferSourceNode; gain: GainNode }> = new Map();
 
+  // Persistent loop: no mute guard, since masterGain silences it and unmuting
+  // must bring it back without the caller asking again.
   startConveyorSound(conveyorId: string, x: number, y: number, z: number) {
     if (this.conveyorNodes.has(conveyorId)) return;
-    if (this.getEffectiveVolume() === 0) return;
 
     try {
       const ctx = this.getContext();
-      const masterGain = this.getMasterGain();
-      if (!ctx || !masterGain) return;
+      const machineBus = this.getMachineBus();
+      if (!ctx || !machineBus) return;
 
       // Continuous belt/roller sound
       const buffer = this.createNoiseBuffer(3, 'pink');
@@ -2413,9 +2203,9 @@ class AudioManager {
 
       source.connect(filter);
       filter.connect(gain);
-      gain.connect(masterGain);
+      gain.connect(machineBus);
 
-      source.start();
+      this.startLoopAtRandomOffset(source);
 
       this.conveyorNodes.set(conveyorId, { source, gain });
       this.registerSoundPosition(conveyorId, x, y, z);
@@ -2486,7 +2276,7 @@ class AudioManager {
       // Air brake release after horn
       setTimeout(() => this.playAirBrake(), 700);
     } catch (e) {
-      audioLog.warn('Air brake sound failed', e);
+      audioLog.warn('Truck arrival sound failed', e);
     }
   }
 
@@ -2642,282 +2432,15 @@ class AudioManager {
     }
   }
 
-  // Tire squeal (during tight turns)
-  playTireSqueal(vehicleId: string, intensity: number = 0.5) {
-    if (this.getEffectiveVolume() === 0) return;
-
-    try {
-      const ctx = this.getContext();
-      const masterGain = this.getMasterGain();
-      if (!ctx || !masterGain) return;
-      const currentTime = ctx.currentTime;
-
-      const duration = 0.8 + intensity * 0.5;
-
-      // High-pitched friction sound
-      const osc1 = ctx.createOscillator();
-      const osc2 = ctx.createOscillator();
-      const gain = ctx.createGain();
-      const filter = ctx.createBiquadFilter();
-
-      // Screaming tire frequencies
-      osc1.type = 'sawtooth';
-      osc1.frequency.setValueAtTime(800 + Math.random() * 200, currentTime);
-      osc1.frequency.linearRampToValueAtTime(600 + Math.random() * 100, currentTime + duration);
-
-      osc2.type = 'sawtooth';
-      osc2.frequency.setValueAtTime(1200 + Math.random() * 300, currentTime);
-      osc2.frequency.linearRampToValueAtTime(900 + Math.random() * 150, currentTime + duration);
-
-      filter.type = 'bandpass';
-      filter.frequency.setValueAtTime(2000, currentTime);
-      filter.Q.setValueAtTime(3, currentTime);
-
-      // Volume envelope
-      gain.gain.setValueAtTime(0, currentTime);
-      gain.gain.linearRampToValueAtTime(0.04 * intensity, currentTime + 0.05);
-      gain.gain.setValueAtTime(0.04 * intensity, currentTime + duration * 0.7);
-      gain.gain.exponentialRampToValueAtTime(0.001, currentTime + duration);
-
-      osc1.connect(filter);
-      osc2.connect(filter);
-      filter.connect(gain);
-      gain.connect(masterGain);
-
-      osc1.start(currentTime);
-      osc1.stop(currentTime + duration + 0.1);
-      osc2.start(currentTime);
-      osc2.stop(currentTime + duration + 0.1);
-    } catch (e) {
-      audioLog.warn('Tire squeal sound failed', { vehicleId }, e);
-    }
-  }
-
-  // Diesel pump clicking at fuel island
-  playDieselPumpClick() {
-    if (this.getEffectiveVolume() === 0) return;
-
-    try {
-      const ctx = this.getContext();
-      const masterGain = this.getMasterGain();
-      if (!ctx || !masterGain) return;
-      const currentTime = ctx.currentTime;
-
-      // Mechanical clicking sound of fuel pump meter
-      const clickCount = 8 + Math.floor(Math.random() * 5);
-      for (let i = 0; i < clickCount; i++) {
-        const startTime = currentTime + i * 0.12 + Math.random() * 0.03;
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-
-        osc.type = 'square';
-        osc.frequency.setValueAtTime(1500 + Math.random() * 300, startTime);
-
-        gain.gain.setValueAtTime(0, startTime);
-        gain.gain.linearRampToValueAtTime(0.015, startTime + 0.002);
-        gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.03);
-
-        osc.connect(gain);
-        gain.connect(masterGain);
-
-        osc.start(startTime);
-        osc.stop(startTime + 0.04);
-      }
-
-      // Add the fuel flow hiss
-      const buffer = this.createNoiseBuffer(1.5, 'white');
-      if (buffer) {
-        const source = ctx.createBufferSource();
-        const gain = ctx.createGain();
-        const filter = ctx.createBiquadFilter();
-
-        source.buffer = buffer;
-        filter.type = 'bandpass';
-        filter.frequency.setValueAtTime(4000, currentTime);
-        filter.Q.setValueAtTime(2, currentTime);
-
-        gain.gain.setValueAtTime(0, currentTime);
-        gain.gain.linearRampToValueAtTime(0.008, currentTime + 0.1);
-        gain.gain.setValueAtTime(0.008, currentTime + 1.2);
-        gain.gain.exponentialRampToValueAtTime(0.001, currentTime + 1.5);
-
-        source.connect(filter);
-        filter.connect(gain);
-        gain.connect(masterGain);
-
-        source.start(currentTime);
-        source.stop(currentTime + 1.6);
-      }
-    } catch (e) {
-      audioLog.warn('Diesel pump click sound failed', e);
-    }
-  }
-
-  // Glad hands air hiss when connecting/disconnecting
-  playGladHandsHiss() {
-    if (this.getEffectiveVolume() === 0) return;
-
-    try {
-      const ctx = this.getContext();
-      const masterGain = this.getMasterGain();
-      if (!ctx || !masterGain) return;
-      const currentTime = ctx.currentTime;
-
-      // Air hiss sound - shorter than air brake release
-      const buffer = this.createNoiseBuffer(0.8, 'white');
-      if (!buffer) return;
-      const source = ctx.createBufferSource();
-      const gain = ctx.createGain();
-      const filter = ctx.createBiquadFilter();
-
-      source.buffer = buffer;
-
-      filter.type = 'highpass';
-      filter.frequency.setValueAtTime(3000, currentTime);
-      filter.Q.setValueAtTime(1, currentTime);
-
-      // Quick burst then fade
-      gain.gain.setValueAtTime(0, currentTime);
-      gain.gain.linearRampToValueAtTime(0.06, currentTime + 0.03);
-      gain.gain.exponentialRampToValueAtTime(0.02, currentTime + 0.2);
-      gain.gain.exponentialRampToValueAtTime(0.001, currentTime + 0.7);
-
-      source.connect(filter);
-      filter.connect(gain);
-      gain.connect(masterGain);
-
-      source.start(currentTime);
-      source.stop(currentTime + 0.8);
-
-      // Metallic clunk when coupling
-      const osc = ctx.createOscillator();
-      const oscGain = ctx.createGain();
-      const oscFilter = ctx.createBiquadFilter();
-
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(180, currentTime);
-      osc.frequency.exponentialRampToValueAtTime(60, currentTime + 0.1);
-
-      oscFilter.type = 'lowpass';
-      oscFilter.frequency.setValueAtTime(300, currentTime);
-
-      oscGain.gain.setValueAtTime(0.08, currentTime);
-      oscGain.gain.exponentialRampToValueAtTime(0.001, currentTime + 0.15);
-
-      osc.connect(oscFilter);
-      oscFilter.connect(oscGain);
-      oscGain.connect(masterGain);
-
-      osc.start(currentTime);
-      osc.stop(currentTime + 0.2);
-    } catch (e) {
-      audioLog.warn('Glad hands hiss sound failed', e);
-    }
-  }
-
-  // Pallet jack warning beeps
-  playPalletJackBeep() {
-    if (this.getEffectiveVolume() === 0) return;
-
-    try {
-      const ctx = this.getContext();
-      const masterGain = this.getMasterGain();
-      if (!ctx || !masterGain) return;
-      const currentTime = ctx.currentTime;
-
-      // Two quick beeps
-      for (let i = 0; i < 2; i++) {
-        const startTime = currentTime + i * 0.2;
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-
-        osc.type = 'square';
-        osc.frequency.setValueAtTime(2800, startTime);
-
-        gain.gain.setValueAtTime(0, startTime);
-        gain.gain.linearRampToValueAtTime(0.03, startTime + 0.01);
-        gain.gain.setValueAtTime(0.03, startTime + 0.1);
-        gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.15);
-
-        osc.connect(gain);
-        gain.connect(masterGain);
-
-        osc.start(startTime);
-        osc.stop(startTime + 0.16);
-      }
-    } catch (e) {
-      audioLog.warn('Pallet jack beep sound failed', e);
-    }
-  }
-
-  // Scale ticket printer sound
-  playScaleTicketPrinter() {
-    if (this.getEffectiveVolume() === 0) return;
-
-    try {
-      const ctx = this.getContext();
-      const masterGain = this.getMasterGain();
-      if (!ctx || !masterGain) return;
-      const currentTime = ctx.currentTime;
-
-      // Dot matrix printer sound - rapid clicking
-      const clickCount = 15;
-      for (let i = 0; i < clickCount; i++) {
-        const startTime = currentTime + i * 0.08;
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-
-        osc.type = 'square';
-        osc.frequency.setValueAtTime(2000 + Math.random() * 500, startTime);
-
-        gain.gain.setValueAtTime(0, startTime);
-        gain.gain.linearRampToValueAtTime(0.02, startTime + 0.005);
-        gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.04);
-
-        osc.connect(gain);
-        gain.connect(masterGain);
-
-        osc.start(startTime);
-        osc.stop(startTime + 0.05);
-      }
-
-      // Paper feed sound at the end
-      setTimeout(
-        () => {
-          const buffer = this.createNoiseBuffer(0.3, 'white');
-          if (!buffer) return;
-          const source = ctx.createBufferSource();
-          const gain = ctx.createGain();
-          const filter = ctx.createBiquadFilter();
-
-          source.buffer = buffer;
-          filter.type = 'highpass';
-          filter.frequency.setValueAtTime(3000, ctx.currentTime);
-
-          gain.gain.setValueAtTime(0.015, ctx.currentTime);
-          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
-
-          source.connect(filter);
-          filter.connect(gain);
-          gain.connect(masterGain);
-
-          source.start(ctx.currentTime);
-          source.stop(ctx.currentTime + 0.3);
-        },
-        clickCount * 80 + 100
-      );
-
-      audioLog.info('Scale ticket printer sound played');
-    } catch (e) {
-      audioLog.warn('Scale ticket printer sound failed', e);
-    }
-  }
-
   // === FORKLIFT ENGINE SOUNDS ===
 
+  // Reference distance for the inverse rolloff (full level inside it).
+  private readonly FORKLIFT_ENGINE_REF_DISTANCE = 10;
+
+  // Persistent loop: no mute guard, since masterGain silences it and callers
+  // ask only once. Unmuting then brings it back.
   startForkliftEngine(forkliftId: string) {
     if (this.forkliftEngines.has(forkliftId)) return;
-    if (this.getEffectiveVolume() === 0) return;
 
     try {
       const ctx = this.getContext();
@@ -2931,7 +2454,6 @@ class AudioManager {
       const gain = ctx.createGain();
       const filter = ctx.createBiquadFilter();
       const lfo = ctx.createOscillator();
-      const lfoGain = ctx.createGain();
 
       source.buffer = buffer;
       source.loop = true;
@@ -2941,23 +2463,27 @@ class AudioManager {
       filter.frequency.setValueAtTime(100, ctx.currentTime);
       filter.Q.setValueAtTime(4, ctx.currentTime);
 
-      // LFO for engine idle rhythm (irregular idle)
+      // LFO for engine idle rhythm (irregular idle): a 0.008 swing, expressed
+      // relative to the base level so distance scales the rhythm too.
+      const baseGain = 0.02;
       lfo.type = 'sine';
       lfo.frequency.setValueAtTime(8 + Math.random() * 2, ctx.currentTime);
-      lfoGain.gain.setValueAtTime(0.008, ctx.currentTime);
+      const { trem, lfoDepth } = this.createTremolo(ctx, lfo, 0.008 / baseGain);
 
-      gain.gain.setValueAtTime(0.02, ctx.currentTime);
+      gain.gain.setValueAtTime(
+        this.calculateVehicleEngineVolume(forkliftId, baseGain, this.FORKLIFT_ENGINE_REF_DISTANCE),
+        ctx.currentTime
+      );
 
       source.connect(filter);
-      filter.connect(gain);
-      lfo.connect(lfoGain);
-      lfoGain.connect(gain.gain);
+      filter.connect(trem);
+      trem.connect(gain);
       gain.connect(masterGain);
 
       source.start();
       lfo.start();
 
-      this.forkliftEngines.set(forkliftId, { source, gain, lfo });
+      this.forkliftEngines.set(forkliftId, { source, gain, lfo, lfoDepth, baseGain });
     } catch (e) {
       audioLog.warn('Forklift engine start failed', { forkliftId }, e);
     }
@@ -2966,17 +2492,32 @@ class AudioManager {
   updateForkliftEngine(forkliftId: string, isMoving: boolean, isStopped: boolean) {
     const engine = this.forkliftEngines.get(forkliftId);
     if (engine && this.audioContext) {
+      const now = this.audioContext.currentTime;
       // Adjust volume based on movement state and spatial position
       let targetGain = isMoving ? 0.035 : 0.02;
       if (isStopped) targetGain = 0.025; // Slightly louder when stopped (safety horn was honked)
+      engine.baseGain = targetGain;
+      engine.lfoDepth.gain.setTargetAtTime(Math.min(1, 0.008 / targetGain), now, 0.3);
 
       // Apply spatial attenuation
-      const spatialGain = this.calculateSpatialVolume(forkliftId, targetGain, 40);
-      engine.gain.gain.setTargetAtTime(spatialGain, this.audioContext.currentTime, 0.3);
+      this.updateForkliftSpatialVolume(forkliftId);
 
       // Adjust LFO frequency based on movement
       const targetFreq = isMoving ? 12 : 8;
-      engine.lfo.frequency.setTargetAtTime(targetFreq, this.audioContext.currentTime, 0.5);
+      engine.lfo.frequency.setTargetAtTime(targetFreq, now, 0.5);
+    }
+  }
+
+  // Re-apply distance and wall attenuation after registerSoundPosition(forkliftId).
+  updateForkliftSpatialVolume(forkliftId: string) {
+    const engine = this.forkliftEngines.get(forkliftId);
+    if (engine && this.audioContext) {
+      const spatialGain = this.calculateVehicleEngineVolume(
+        forkliftId,
+        engine.baseGain,
+        this.FORKLIFT_ENGINE_REF_DISTANCE
+      );
+      engine.gain.gain.setTargetAtTime(spatialGain, this.audioContext.currentTime, 0.3);
     }
   }
 
@@ -3011,7 +2552,6 @@ class AudioManager {
         const gain = ctx.createGain();
         const filter = ctx.createBiquadFilter();
         const lfo = ctx.createOscillator();
-        const lfoGain = ctx.createGain();
 
         source.buffer = buffer;
         source.loop = true;
@@ -3024,20 +2564,20 @@ class AudioManager {
         // Very slow modulation for gentle warbling, not rhythmic chirping
         lfo.type = 'sine';
         lfo.frequency.setValueAtTime(0.3 + Math.random() * 0.2, ctx.currentTime); // 0.3-0.5Hz
-        lfoGain.gain.setValueAtTime(0.002, ctx.currentTime); // Subtle modulation
+        // Full-depth warble, scaled by the mix target
+        const { trem } = this.createTremolo(ctx, lfo, 1);
 
         gain.gain.setValueAtTime(0.002, ctx.currentTime); // Quieter base volume
 
         source.connect(filter);
-        filter.connect(gain);
-        lfo.connect(lfoGain);
-        lfoGain.connect(gain.gain);
+        filter.connect(trem);
+        trem.connect(gain);
         gain.connect(masterGain);
 
-        source.start();
+        this.startLoopAtRandomOffset(source);
         lfo.start();
 
-        this.outdoorNodes.birds = { source, gain };
+        this.outdoorNodes.birds = { source, gain, lfo };
       }
 
       // Wind - gentle whooshing
@@ -3048,7 +2588,6 @@ class AudioManager {
         const gain = ctx.createGain();
         const filter = ctx.createBiquadFilter();
         const lfo = ctx.createOscillator();
-        const lfoGain = ctx.createGain();
 
         source.buffer = buffer;
         source.loop = true;
@@ -3061,20 +2600,20 @@ class AudioManager {
         // Slow modulation for gusting
         lfo.type = 'sine';
         lfo.frequency.setValueAtTime(0.15, ctx.currentTime);
-        lfoGain.gain.setValueAtTime(0.008, ctx.currentTime);
+        // Gusting around the mix target
+        const { trem } = this.createTremolo(ctx, lfo, 0.008 / 0.012);
 
         gain.gain.setValueAtTime(0.012, ctx.currentTime);
 
         source.connect(filter);
-        filter.connect(gain);
-        lfo.connect(lfoGain);
-        lfoGain.connect(gain.gain);
+        filter.connect(trem);
+        trem.connect(gain);
         gain.connect(masterGain);
 
-        source.start();
+        this.startLoopAtRandomOffset(source);
         lfo.start();
 
-        this.outdoorNodes.wind = { source, gain };
+        this.outdoorNodes.wind = { source, gain, lfo };
       }
 
       // Distant traffic - very low rumble
@@ -3099,7 +2638,7 @@ class AudioManager {
         filter.connect(gain);
         gain.connect(masterGain);
 
-        source.start();
+        this.startLoopAtRandomOffset(source);
 
         this.outdoorNodes.traffic = { source, gain };
       }
@@ -3112,7 +2651,6 @@ class AudioManager {
         const gain = ctx.createGain();
         const filter = ctx.createBiquadFilter();
         const lfo = ctx.createOscillator();
-        const lfoGain = ctx.createGain();
 
         source.buffer = buffer;
         source.loop = true;
@@ -3125,20 +2663,20 @@ class AudioManager {
         // Very slow, subtle modulation - avoids rhythmic "maraca" effect
         lfo.type = 'sine';
         lfo.frequency.setValueAtTime(0.15 + Math.random() * 0.1, ctx.currentTime); // Much slower
-        lfoGain.gain.setValueAtTime(0.001, ctx.currentTime); // Much subtler
+        // Gentle ripple around the mix target
+        const { trem } = this.createTremolo(ctx, lfo, 0.001 / 0.004);
 
         gain.gain.setValueAtTime(0.004, ctx.currentTime); // Quieter stream
 
         source.connect(filter);
-        filter.connect(gain);
-        lfo.connect(lfoGain);
-        lfoGain.connect(gain.gain);
+        filter.connect(trem);
+        trem.connect(gain);
         gain.connect(masterGain);
 
-        source.start();
+        this.startLoopAtRandomOffset(source);
         lfo.start();
 
-        this.outdoorNodes.water = { source, gain };
+        this.outdoorNodes.water = { source, gain, lfo };
       }
 
       // Ducks - occasional quacking (higher pitched, rhythmic bursts)
@@ -3149,7 +2687,6 @@ class AudioManager {
         const gain = ctx.createGain();
         const filter = ctx.createBiquadFilter();
         const lfo = ctx.createOscillator();
-        const lfoGain = ctx.createGain();
 
         source.buffer = buffer;
         source.loop = true;
@@ -3162,20 +2699,20 @@ class AudioManager {
         // Quick modulation for quacking rhythm (~3-5 quacks per second feel)
         lfo.type = 'square';
         lfo.frequency.setValueAtTime(0.4 + Math.random() * 0.3, ctx.currentTime); // Irregular timing
-        lfoGain.gain.setValueAtTime(0.0015, ctx.currentTime);
+        // On/off quack gating
+        const { trem } = this.createTremolo(ctx, lfo, 1);
 
         gain.gain.setValueAtTime(0.0008, ctx.currentTime); // Very quiet, background
 
         source.connect(filter);
-        filter.connect(gain);
-        lfo.connect(lfoGain);
-        lfoGain.connect(gain.gain);
+        filter.connect(trem);
+        trem.connect(gain);
         gain.connect(masterGain);
 
-        source.start();
+        this.startLoopAtRandomOffset(source);
         lfo.start();
 
-        this.outdoorNodes.ducks = { source, gain };
+        this.outdoorNodes.ducks = { source, gain, lfo };
       }
 
       // Pigs - soft grunting (low frequency, rhythmic)
@@ -3186,7 +2723,6 @@ class AudioManager {
         const gain = ctx.createGain();
         const filter = ctx.createBiquadFilter();
         const lfo = ctx.createOscillator();
-        const lfoGain = ctx.createGain();
 
         source.buffer = buffer;
         source.loop = true;
@@ -3199,20 +2735,20 @@ class AudioManager {
         // Slow, irregular modulation for natural grunt timing
         lfo.type = 'sine';
         lfo.frequency.setValueAtTime(0.8 + Math.random() * 0.4, ctx.currentTime);
-        lfoGain.gain.setValueAtTime(0.002, ctx.currentTime);
+        // Full-depth grunt rhythm
+        const { trem } = this.createTremolo(ctx, lfo, 1);
 
         gain.gain.setValueAtTime(0.0012, ctx.currentTime); // Quiet background
 
         source.connect(filter);
-        filter.connect(gain);
-        lfo.connect(lfoGain);
-        lfoGain.connect(gain.gain);
+        filter.connect(trem);
+        trem.connect(gain);
         gain.connect(masterGain);
 
-        source.start();
+        this.startLoopAtRandomOffset(source);
         lfo.start();
 
-        this.outdoorNodes.pigs = { source, gain };
+        this.outdoorNodes.pigs = { source, gain, lfo };
       }
 
       // Cows - distant mooing (very low, slow, resonant)
@@ -3223,7 +2759,6 @@ class AudioManager {
         const gain = ctx.createGain();
         const filter = ctx.createBiquadFilter();
         const lfo = ctx.createOscillator();
-        const lfoGain = ctx.createGain();
 
         source.buffer = buffer;
         source.loop = true;
@@ -3236,24 +2771,27 @@ class AudioManager {
         // Very slow modulation - occasional moo (once every few seconds)
         lfo.type = 'sine';
         lfo.frequency.setValueAtTime(0.15 + Math.random() * 0.1, ctx.currentTime);
-        lfoGain.gain.setValueAtTime(0.001, ctx.currentTime);
+        // Full-depth moo swell
+        const { trem } = this.createTremolo(ctx, lfo, 1);
 
         gain.gain.setValueAtTime(0.0008, ctx.currentTime); // Distant, quiet
 
         source.connect(filter);
-        filter.connect(gain);
-        lfo.connect(lfoGain);
-        lfoGain.connect(gain.gain);
+        filter.connect(trem);
+        trem.connect(gain);
         gain.connect(masterGain);
 
-        source.start();
+        this.startLoopAtRandomOffset(source);
         lfo.start();
 
-        this.outdoorNodes.cows = { source, gain };
+        this.outdoorNodes.cows = { source, gain, lfo };
       }
 
       // Apply camera, time and weather weighting after every layer exists.
       this.adjustAmbientForTimeOfDay();
+
+      // Weather set before the first gesture had no context to start rain in.
+      if (this.currentWeather === 'rain' || this.currentWeather === 'storm') this.startRain();
     } catch (e) {
       audioLog.warn('Outdoor ambient sound start failed', e);
     }
@@ -3264,6 +2802,7 @@ class AudioManager {
       if (node) {
         try {
           node.source.stop();
+          node.lfo?.stop();
         } catch (e) {
           audioLog.warn('Failed to stop outdoor ambient', e);
         }
@@ -3275,8 +2814,11 @@ class AudioManager {
 
   // === TOWN HALL CLOCK CHIME ===
 
-  // Town hall clock position (world coordinates) - at [-190, 12, 20]
-  private readonly TOWN_HALL_CLOCK_POS = { x: -190, y: 12, z: 20 };
+  private readonly TOWN_HALL_CLOCK_POS = {
+    x: TOWN_HALL_CLOCK_POSITION[0],
+    y: TOWN_HALL_CLOCK_POSITION[1],
+    z: TOWN_HALL_CLOCK_POSITION[2],
+  };
   private readonly CLOCK_CHIME_MAX_DISTANCE = 60; // Units before sound is inaudible
   private lastClockChimeHour = -1;
 
@@ -3385,155 +2927,15 @@ class AudioManager {
     }
   }
 
-  // Reset clock chime tracking (call when time is reset or jumped)
-  resetClockChime(): void {
-    this.lastClockChimeHour = -1;
-  }
-
   // === SPEED ZONE SOUNDS ===
-
-  private lastSpeedZoneTime: Map<string, number> = new Map();
-
-  // Soft chime when entering speed zone
-  playSpeedZoneEnter(forkliftId: string) {
-    if (this.getEffectiveVolume() === 0) return;
-
-    const now = Date.now();
-    const lastPlayed = this.lastSpeedZoneTime.get(forkliftId) || 0;
-    if (now - lastPlayed < 2000) return; // Debounce
-    this.lastSpeedZoneTime.set(forkliftId, now);
-
-    try {
-      const ctx = this.getContext();
-      const masterGain = this.getMasterGain();
-      if (!ctx || !masterGain) return;
-      const currentTime = ctx.currentTime;
-
-      // Two-note descending chime (like "slow down")
-      const notes = [880, 660]; // A5 to E5
-      notes.forEach((freq, i) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        const startTime = currentTime + i * 0.12;
-
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(freq, startTime);
-
-        gain.gain.setValueAtTime(0, startTime);
-        gain.gain.linearRampToValueAtTime(0.06, startTime + 0.02);
-        gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.2);
-
-        osc.connect(gain);
-        gain.connect(masterGain);
-
-        osc.start(startTime);
-        osc.stop(startTime + 0.25);
-      });
-    } catch (e) {
-      audioLog.warn('Speed zone enter sound failed', { forkliftId }, e);
-    }
-  }
-
-  // Ascending chime when exiting speed zone
-  playSpeedZoneExit(forkliftId: string) {
-    if (this.getEffectiveVolume() === 0) return;
-
-    const now = Date.now();
-    const lastPlayed = this.lastSpeedZoneTime.get(forkliftId) || 0;
-    if (now - lastPlayed < 2000) return;
-    this.lastSpeedZoneTime.set(forkliftId, now);
-
-    try {
-      const ctx = this.getContext();
-      const masterGain = this.getMasterGain();
-      if (!ctx || !masterGain) return;
-      const currentTime = ctx.currentTime;
-
-      // Two-note ascending chime (like "all clear")
-      const notes = [660, 880]; // E5 to A5
-      notes.forEach((freq, i) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        const startTime = currentTime + i * 0.1;
-
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(freq, startTime);
-
-        gain.gain.setValueAtTime(0, startTime);
-        gain.gain.linearRampToValueAtTime(0.05, startTime + 0.02);
-        gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.15);
-
-        osc.connect(gain);
-        gain.connect(masterGain);
-
-        osc.start(startTime);
-        osc.stop(startTime + 0.2);
-      });
-    } catch (e) {
-      audioLog.warn('Speed zone exit sound failed', { forkliftId }, e);
-    }
-  }
 
   // === EMERGENCY STOP SOUNDS ===
 
-  private emergencyAlarmNode: { source: OscillatorNode; gain: GainNode } | null = null;
   private emergencyStopAlarmNode: {
     source: OscillatorNode;
     gain: GainNode;
     lfo: OscillatorNode;
   } | null = null;
-
-  // Start loud emergency alarm
-  startEmergencyAlarm() {
-    if (this.emergencyAlarmNode) return;
-    if (this.getEffectiveVolume() === 0) return;
-
-    try {
-      const ctx = this.getContext();
-      const masterGain = this.getMasterGain();
-      if (!ctx || !masterGain) return;
-
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      const lfo = ctx.createOscillator();
-      const lfoGain = ctx.createGain();
-
-      // Alternating two-tone siren
-      osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(800, ctx.currentTime);
-
-      // LFO for siren effect
-      lfo.type = 'square';
-      lfo.frequency.setValueAtTime(2, ctx.currentTime); // 2 Hz alternation
-      lfoGain.gain.setValueAtTime(200, ctx.currentTime); // Frequency deviation
-
-      lfo.connect(lfoGain);
-      lfoGain.connect(osc.frequency);
-
-      gain.gain.setValueAtTime(0.1, ctx.currentTime);
-
-      osc.connect(gain);
-      gain.connect(masterGain);
-
-      osc.start();
-      lfo.start();
-
-      this.emergencyAlarmNode = { source: osc, gain };
-    } catch (e) {
-      audioLog.warn('Emergency alarm start failed', e);
-    }
-  }
-
-  stopEmergencyAlarm() {
-    if (this.emergencyAlarmNode) {
-      try {
-        this.emergencyAlarmNode.source.stop();
-      } catch (e) {
-        audioLog.warn('Failed to stop emergency alarm', e);
-      }
-      this.emergencyAlarmNode = null;
-    }
-  }
 
   // One-shot emergency stop sound (for button press)
   playEmergencyStop() {
@@ -3575,9 +2977,9 @@ class AudioManager {
   // Start continuous emergency stop alarm (different from fire drill)
   // Fire drill: sawtooth 800Hz, 2Hz square LFO = alternating two-tone siren
   // Emergency stop: square 400Hz, 4Hz square LFO = rapid pulsing klaxon
+  // No mute guard: the klaxon must sound if the user unmutes during the stop.
   startEmergencyStopAlarm() {
     if (this.emergencyStopAlarmNode) return;
-    if (this.getEffectiveVolume() === 0) return;
 
     try {
       const ctx = this.getContext();
@@ -3629,40 +3031,6 @@ class AudioManager {
 
   // === FORKLIFT-TO-FORKLIFT ACKNOWLEDGMENT ===
 
-  // Quick double-honk for forklift acknowledgment
-  playForkliftAcknowledge(forkliftId: string) {
-    if (this.getEffectiveVolume() === 0) return;
-
-    try {
-      const ctx = this.getContext();
-      const masterGain = this.getMasterGain();
-      if (!ctx || !masterGain) return;
-      const currentTime = ctx.currentTime;
-
-      // Two quick beeps
-      for (let i = 0; i < 2; i++) {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        const startTime = currentTime + i * 0.15;
-
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(440, startTime); // A4
-
-        gain.gain.setValueAtTime(0, startTime);
-        gain.gain.linearRampToValueAtTime(0.08, startTime + 0.02);
-        gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.1);
-
-        osc.connect(gain);
-        gain.connect(masterGain);
-
-        osc.start(startTime);
-        osc.stop(startTime + 0.12);
-      }
-    } catch (e) {
-      audioLog.warn('Forklift acknowledge sound failed', { forkliftId }, e);
-    }
-  }
-
   // === PA SYSTEM ANNOUNCEMENTS ===
 
   private paSystemActive: boolean = false;
@@ -3673,10 +3041,11 @@ class AudioManager {
     this.paSystemActive = true;
 
     const playRandomAnnouncement = () => {
-      if (!this.paSystemActive || this.getEffectiveVolume() === 0) return;
+      if (!this.paSystemActive) return;
 
-      // Skip playback when tab hidden but keep scheduling to resume when visible
-      if (this._isTabVisible) {
+      // Skip playback while muted or hidden, but keep scheduling so a later
+      // unmute or visibility change resumes the bells.
+      if (this._isTabVisible && this.getEffectiveVolume() > 0) {
         // Automated cycle bells and signal tones communicate plant state without voices.
         const announcementType = Math.random();
         if (announcementType < 0.5) {
@@ -3768,7 +3137,7 @@ class AudioManager {
       osc.start(currentTime);
       osc.stop(currentTime + 0.85);
     } catch (e) {
-      audioLog.warn('Audio playback failed', e);
+      audioLog.warn('PA tone playback failed', e);
     }
   }
 
@@ -3835,8 +3204,8 @@ class AudioManager {
     let nodes: CompressorAudioNodes | null = null;
     try {
       const ctx = this.getContext();
-      const masterGain = this.getMasterGain();
-      if (!ctx || !masterGain) return;
+      const machineBus = this.getMachineBus();
+      if (!ctx || !machineBus) return;
       const currentTime = ctx.currentTime;
 
       // Air compressor has a rhythmic pumping sound with motor hum
@@ -3881,7 +3250,7 @@ class AudioManager {
       bandpass.connect(gain);
       lfo.connect(lfoGain);
       lfoGain.connect(gain.gain);
-      gain.connect(masterGain);
+      gain.connect(machineBus);
 
       source.start();
       lfo.start();
@@ -3939,7 +3308,7 @@ class AudioManager {
           this.disposeCompressorNodes(nodes);
         }
       } catch (e) {
-        audioLog.warn('Audio playback failed', e);
+        audioLog.warn('Compressor fade-out failed', e);
         this.disposeCompressorNodes(nodes);
       }
     }
@@ -3951,8 +3320,8 @@ class AudioManager {
 
     try {
       const ctx = this.getContext();
-      const masterGain = this.getMasterGain();
-      if (!ctx || !masterGain) return;
+      const machineBus = this.getMachineBus();
+      if (!ctx || !machineBus) return;
       const currentTime = ctx.currentTime;
 
       // Heavy mechanical clunk
@@ -3972,7 +3341,7 @@ class AudioManager {
 
       osc.connect(filter);
       filter.connect(gain);
-      gain.connect(masterGain);
+      gain.connect(machineBus);
 
       osc.start(currentTime);
       osc.stop(currentTime + 0.3);
@@ -3992,10 +3361,11 @@ class AudioManager {
     this.metalClankActive = true;
 
     const playRandomClank = () => {
-      if (!this.metalClankActive || this.getEffectiveVolume() === 0) return;
+      if (!this.metalClankActive) return;
 
-      // Skip playback when tab hidden but keep scheduling to resume when visible
-      if (this._isTabVisible) {
+      // Skip playback while muted or hidden, but keep scheduling so a later
+      // unmute or visibility change resumes the clanks.
+      if (this._isTabVisible && this.getEffectiveVolume() > 0) {
         const clankType = Math.random();
         if (clankType < 0.3) {
           this.playMetalClankHeavy();
@@ -4031,8 +3401,8 @@ class AudioManager {
 
     try {
       const ctx = this.getContext();
-      const masterGain = this.getMasterGain();
-      if (!ctx || !masterGain) return;
+      const machineBus = this.getMachineBus();
+      if (!ctx || !machineBus) return;
       const currentTime = ctx.currentTime;
 
       // Multiple frequencies for rich metallic sound
@@ -4056,7 +3426,7 @@ class AudioManager {
 
         osc.connect(filter);
         filter.connect(gain);
-        gain.connect(masterGain);
+        gain.connect(machineBus);
 
         osc.start(currentTime);
         osc.stop(currentTime + 0.25);
@@ -4079,12 +3449,12 @@ class AudioManager {
 
       noiseSource.connect(noiseFilter);
       noiseFilter.connect(noiseGain);
-      noiseGain.connect(masterGain);
+      noiseGain.connect(machineBus);
 
       noiseSource.start(currentTime);
       noiseSource.stop(currentTime + 0.1);
     } catch (e) {
-      audioLog.warn('Failed to stop metal clanks', e);
+      audioLog.warn('Heavy metal clank playback failed', e);
     }
   }
 
@@ -4094,8 +3464,8 @@ class AudioManager {
 
     try {
       const ctx = this.getContext();
-      const masterGain = this.getMasterGain();
-      if (!ctx || !masterGain) return;
+      const machineBus = this.getMachineBus();
+      if (!ctx || !machineBus) return;
       const currentTime = ctx.currentTime;
 
       const frequencies = [400, 800, 1600, 2400];
@@ -4111,13 +3481,13 @@ class AudioManager {
         gain.gain.exponentialRampToValueAtTime(0.001, currentTime + 0.08 + i * 0.02);
 
         osc.connect(gain);
-        gain.connect(masterGain);
+        gain.connect(machineBus);
 
         osc.start(currentTime);
         osc.stop(currentTime + 0.15);
       });
     } catch (e) {
-      audioLog.warn('Audio playback failed', e);
+      audioLog.warn('Light metal clank playback failed', e);
     }
   }
 
@@ -4127,8 +3497,8 @@ class AudioManager {
 
     try {
       const ctx = this.getContext();
-      const masterGain = this.getMasterGain();
-      if (!ctx || !masterGain) return;
+      const machineBus = this.getMachineBus();
+      if (!ctx || !machineBus) return;
       const currentTime = ctx.currentTime;
 
       const baseFreq = 1000 + Math.random() * 500;
@@ -4142,12 +3512,12 @@ class AudioManager {
       gain.gain.exponentialRampToValueAtTime(0.001, currentTime + 0.4);
 
       osc.connect(gain);
-      gain.connect(masterGain);
+      gain.connect(machineBus);
 
       osc.start(currentTime);
       osc.stop(currentTime + 0.45);
     } catch (e) {
-      audioLog.warn('Audio playback failed', e);
+      audioLog.warn('Metal ping playback failed', e);
     }
   }
 
@@ -4157,8 +3527,8 @@ class AudioManager {
 
     try {
       const ctx = this.getContext();
-      const masterGain = this.getMasterGain();
-      if (!ctx || !masterGain) return;
+      const machineBus = this.getMachineBus();
+      if (!ctx || !machineBus) return;
       const currentTime = ctx.currentTime;
 
       // Series of quick metallic clicks
@@ -4175,13 +3545,13 @@ class AudioManager {
         gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.03);
 
         osc.connect(gain);
-        gain.connect(masterGain);
+        gain.connect(machineBus);
 
         osc.start(startTime);
         osc.stop(startTime + 0.04);
       }
     } catch (e) {
-      audioLog.warn('Audio playback failed', e);
+      audioLog.warn('Chain rattle playback failed', e);
     }
   }
 
@@ -4233,7 +3603,7 @@ class AudioManager {
       // Add hydraulic fluid whoosh
       this.playHydraulicFluid(duration);
     } catch (e) {
-      audioLog.warn('Hydraulic fluid sound failed', e);
+      audioLog.warn('Hydraulic lift sound failed', e);
     }
   }
 
@@ -4319,21 +3689,17 @@ class AudioManager {
 
   private weatherNodes: { rain?: { source: AudioBufferSourceNode; gain: GainNode } } = {};
   private isRaining: boolean = false;
-  private thunderListeners: Set<() => void> = new Set();
+  private lastRainTarget = -1;
+  private thunderTimeout: ReturnType<typeof setTimeout> | null = null;
 
-  // Subscribe to thunder events for visual synchronization
-  onThunder(callback: () => void): () => void {
-    this.thunderListeners.add(callback);
-    return () => this.thunderListeners.delete(callback);
+  // Rain on the roof reaches the factory floor muffled.
+  private getRainTarget(): number {
+    return 0.03 * (this.isCameraInsideFactory() ? 0.25 : 1);
   }
 
-  private notifyThunderListeners(): void {
-    this.thunderListeners.forEach((listener) => listener());
-  }
-
+  // Persistent loop: no mute guard, so unmuting mid-storm brings the rain back.
   startRain() {
-    if (this.weatherNodes.rain || this.getEffectiveVolume() === 0) return;
-    this.isRaining = true;
+    if (this.weatherNodes.rain) return;
 
     try {
       const ctx = this.getContext();
@@ -4356,16 +3722,20 @@ class AudioManager {
       lowpass.type = 'lowpass';
       lowpass.frequency.setValueAtTime(8000, ctx.currentTime);
 
+      // Fade in towards the camera-dependent level; adjustAmbientForTimeOfDay
+      // retargets the same param as the camera crosses the factory walls.
+      this.lastRainTarget = this.getRainTarget();
       gain.gain.setValueAtTime(0, ctx.currentTime);
-      gain.gain.linearRampToValueAtTime(0.03, ctx.currentTime + 2);
+      gain.gain.setTargetAtTime(this.lastRainTarget, ctx.currentTime, 0.8);
 
       source.connect(highpass);
       highpass.connect(lowpass);
       lowpass.connect(gain);
       gain.connect(masterGain);
 
-      source.start();
+      this.startLoopAtRandomOffset(source);
       this.weatherNodes.rain = { source, gain };
+      this.isRaining = true;
       this.scheduleThunder();
     } catch (e) {
       audioLog.warn('Rain sound start failed', e);
@@ -4374,19 +3744,30 @@ class AudioManager {
 
   stopRain() {
     this.isRaining = false;
-    if (this.weatherNodes.rain) {
+    if (this.thunderTimeout !== null) {
+      clearTimeout(this.thunderTimeout);
+      this.thunderTimeout = null;
+    }
+    // Detach synchronously so a quick return to rain starts a fresh bed
+    // instead of finding this one mid-fade, and the delayed stop below can
+    // only ever reach the node it faded.
+    const rain = this.weatherNodes.rain;
+    this.weatherNodes.rain = undefined;
+    this.lastRainTarget = -1;
+    if (rain) {
       try {
         const ctx = this.getContext();
         if (ctx) {
-          this.weatherNodes.rain.gain.gain.setTargetAtTime(0, ctx.currentTime, 1);
+          rain.gain.gain.setTargetAtTime(0, ctx.currentTime, 1);
           setTimeout(() => {
             try {
-              this.weatherNodes.rain?.source.stop();
+              rain.source.stop();
             } catch (e) {
               audioLog.warn('Failed to stop rain sound', e);
             }
-            this.weatherNodes.rain = undefined;
           }, 3000);
+        } else {
+          rain.source.stop();
         }
       } catch (e) {
         audioLog.warn('Rain fade-out failed', e);
@@ -4395,9 +3776,10 @@ class AudioManager {
   }
 
   private scheduleThunder() {
-    if (!this.isRaining) return;
+    if (!this.isRaining || this.thunderTimeout !== null) return;
     const delay = 15000 + Math.random() * 45000;
-    setTimeout(() => {
+    this.thunderTimeout = setTimeout(() => {
+      this.thunderTimeout = null;
       if (this.isRaining) {
         this.playThunder();
         this.scheduleThunder();
@@ -4406,16 +3788,16 @@ class AudioManager {
   }
 
   private playThunder() {
-    if (this.getEffectiveVolume() === 0 || !this.isRaining) return;
+    // Rain alone is steady; thunder belongs to storms.
+    if (this.getEffectiveVolume() === 0 || !this.isRaining || this.currentWeather !== 'storm') {
+      return;
+    }
 
     try {
       const ctx = this.getContext();
       const masterGain = this.getMasterGain();
       if (!ctx || !masterGain) return;
       const currentTime = ctx.currentTime;
-
-      // Notify listeners for visual sync (lightning flash)
-      this.notifyThunderListeners();
 
       const duration = 2 + Math.random() * 3;
       const buffer = this.createNoiseBuffer(duration + 1, 'brown');
@@ -4448,14 +3830,14 @@ class AudioManager {
 
   private spoutingNodes: Map<string, { source: AudioBufferSourceNode; gain: GainNode }> = new Map();
 
+  // Persistent loop: no mute guard, for the same reason as startConveyorSound.
   startSpoutingSound(spoutId: string, x: number, y: number, z: number) {
     if (this.spoutingNodes.has(spoutId)) return;
-    if (this.getEffectiveVolume() === 0) return;
 
     try {
       const ctx = this.getContext();
-      const masterGain = this.getMasterGain();
-      if (!ctx || !masterGain) return;
+      const machineBus = this.getMachineBus();
+      if (!ctx || !machineBus) return;
 
       const buffer = this.createNoiseBuffer(3, 'white');
       if (!buffer) return;
@@ -4474,9 +3856,9 @@ class AudioManager {
 
       source.connect(filter);
       filter.connect(gain);
-      gain.connect(masterGain);
+      gain.connect(machineBus);
 
-      source.start();
+      this.startLoopAtRandomOffset(source);
       this.spoutingNodes.set(spoutId, { source, gain });
       this.registerSoundPosition(spoutId, x, y, z);
     } catch (e) {
@@ -4504,233 +3886,9 @@ class AudioManager {
     }
   }
 
-  // === VENTILATION FAN SOUNDS ===
-
-  private ventilationFanNodes: { source: AudioBufferSourceNode; gain: GainNode } | null = null;
-
-  // Start ventilation fan ambient sound (continuous whooshing)
-  startVentilationFanSound() {
-    if (this.ventilationFanNodes || this.getEffectiveVolume() === 0) return;
-
-    try {
-      const ctx = this.getContext();
-      const masterGain = this.getMasterGain();
-      if (!ctx || !masterGain) return;
-      const currentTime = ctx.currentTime;
-
-      // Whooshing fan sound - mix of noise frequencies
-      const buffer = this.createNoiseBuffer(4, 'pink');
-      if (!buffer) return;
-      const source = ctx.createBufferSource();
-      const gain = ctx.createGain();
-      const lowpass = ctx.createBiquadFilter();
-      const highpass = ctx.createBiquadFilter();
-      const lfo = ctx.createOscillator();
-      const lfoGain = ctx.createGain();
-
-      source.buffer = buffer;
-      source.loop = true;
-
-      // Band-limited fan whoosh
-      lowpass.type = 'lowpass';
-      lowpass.frequency.setValueAtTime(800, currentTime);
-      lowpass.Q.setValueAtTime(1, currentTime);
-
-      highpass.type = 'highpass';
-      highpass.frequency.setValueAtTime(100, currentTime);
-
-      // LFO for subtle blade rotation effect
-      lfo.type = 'sine';
-      lfo.frequency.setValueAtTime(2.5, currentTime); // Blade pass frequency
-      lfoGain.gain.setValueAtTime(0.008, currentTime);
-
-      // Fade in
-      gain.gain.setValueAtTime(0, currentTime);
-      gain.gain.linearRampToValueAtTime(0.025, currentTime + 1);
-
-      source.connect(highpass);
-      highpass.connect(lowpass);
-      lowpass.connect(gain);
-      lfo.connect(lfoGain);
-      lfoGain.connect(gain.gain);
-      gain.connect(masterGain);
-
-      source.start();
-      lfo.start();
-
-      this.ventilationFanNodes = { source, gain };
-    } catch (e) {
-      audioLog.warn('Ventilation fan sound start failed', e);
-    }
-  }
-
-  stopVentilationFanSound() {
-    if (this.ventilationFanNodes) {
-      try {
-        const ctx = this.getContext();
-        if (ctx) {
-          this.ventilationFanNodes.gain.gain.setTargetAtTime(0, ctx.currentTime, 0.5);
-          setTimeout(() => {
-            try {
-              this.ventilationFanNodes?.source.stop();
-            } catch (e) {
-              audioLog.warn('Failed to stop ventilation fan source', e);
-            }
-            this.ventilationFanNodes = null;
-          }, 1000);
-        }
-      } catch (e) {
-        audioLog.warn('Ventilation fan fade-out failed', e);
-      }
-    }
-  }
-
   // === POWER FLICKER SOUNDS ===
 
-  private lastFlickerSoundTime: number = 0;
-
-  // Electrical buzz/flicker sound during power fluctuation
-  playPowerFlicker() {
-    if (this.getEffectiveVolume() === 0) return;
-
-    // Debounce
-    const now = Date.now();
-    if (now - this.lastFlickerSoundTime < 100) return;
-    this.lastFlickerSoundTime = now;
-
-    try {
-      const ctx = this.getContext();
-      const masterGain = this.getMasterGain();
-      if (!ctx || !masterGain) return;
-      const currentTime = ctx.currentTime;
-
-      // Electrical buzz - multiple harmonics
-      const duration = 0.1 + Math.random() * 0.2;
-
-      // Base 60Hz hum
-      const osc1 = ctx.createOscillator();
-      const gain1 = ctx.createGain();
-      osc1.type = 'sawtooth';
-      osc1.frequency.setValueAtTime(60, currentTime);
-      gain1.gain.setValueAtTime(0.04, currentTime);
-      gain1.gain.exponentialRampToValueAtTime(0.001, currentTime + duration);
-      osc1.connect(gain1);
-      gain1.connect(masterGain);
-      osc1.start(currentTime);
-      osc1.stop(currentTime + duration);
-
-      // Higher harmonic for buzz character
-      const osc2 = ctx.createOscillator();
-      const gain2 = ctx.createGain();
-      osc2.type = 'square';
-      osc2.frequency.setValueAtTime(120, currentTime);
-      gain2.gain.setValueAtTime(0.02, currentTime);
-      gain2.gain.exponentialRampToValueAtTime(0.001, currentTime + duration * 0.8);
-      osc2.connect(gain2);
-      gain2.connect(masterGain);
-      osc2.start(currentTime);
-      osc2.stop(currentTime + duration);
-
-      // Crackling noise
-      const buffer = this.createNoiseBuffer(duration, 'white');
-      if (buffer) {
-        const noiseSource = ctx.createBufferSource();
-        const noiseGain = ctx.createGain();
-        const noiseFilter = ctx.createBiquadFilter();
-
-        noiseSource.buffer = buffer;
-
-        noiseFilter.type = 'highpass';
-        noiseFilter.frequency.setValueAtTime(2000, currentTime);
-
-        noiseGain.gain.setValueAtTime(0.03, currentTime);
-        noiseGain.gain.exponentialRampToValueAtTime(0.001, currentTime + duration * 0.5);
-
-        noiseSource.connect(noiseFilter);
-        noiseFilter.connect(noiseGain);
-        noiseGain.connect(masterGain);
-
-        noiseSource.start(currentTime);
-        noiseSource.stop(currentTime + duration);
-      }
-    } catch (e) {
-      audioLog.warn('Power flicker sound failed', e);
-    }
-  }
-
   // === WATER DRIP SOUNDS ===
-
-  private lastDripSoundTime: number = 0;
-
-  // Water drip hitting floor/puddle
-  playWaterDrip() {
-    if (this.getEffectiveVolume() === 0) return;
-
-    // Debounce to prevent too many drip sounds
-    const now = Date.now();
-    if (now - this.lastDripSoundTime < 200) return;
-    this.lastDripSoundTime = now;
-
-    try {
-      const ctx = this.getContext();
-      const masterGain = this.getMasterGain();
-      if (!ctx || !masterGain) return;
-      const currentTime = ctx.currentTime;
-
-      // High-pitched plop sound
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      const filter = ctx.createBiquadFilter();
-
-      // Random pitch variation for natural feel
-      const basePitch = 800 + Math.random() * 400;
-
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(basePitch, currentTime);
-      osc.frequency.exponentialRampToValueAtTime(basePitch * 0.3, currentTime + 0.15);
-
-      filter.type = 'lowpass';
-      filter.frequency.setValueAtTime(2000, currentTime);
-      filter.Q.setValueAtTime(2, currentTime);
-
-      // Quick attack, medium decay
-      gain.gain.setValueAtTime(0.06, currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, currentTime + 0.2);
-
-      osc.connect(filter);
-      filter.connect(gain);
-      gain.connect(masterGain);
-
-      osc.start(currentTime);
-      osc.stop(currentTime + 0.25);
-
-      // Add subtle splash noise
-      const buffer = this.createNoiseBuffer(0.1, 'white');
-      if (buffer) {
-        const noiseSource = ctx.createBufferSource();
-        const noiseGain = ctx.createGain();
-        const noiseFilter = ctx.createBiquadFilter();
-
-        noiseSource.buffer = buffer;
-
-        noiseFilter.type = 'bandpass';
-        noiseFilter.frequency.setValueAtTime(3000, currentTime);
-        noiseFilter.Q.setValueAtTime(1, currentTime);
-
-        noiseGain.gain.setValueAtTime(0.02, currentTime);
-        noiseGain.gain.exponentialRampToValueAtTime(0.001, currentTime + 0.08);
-
-        noiseSource.connect(noiseFilter);
-        noiseFilter.connect(noiseGain);
-        noiseGain.connect(masterGain);
-
-        noiseSource.start(currentTime);
-        noiseSource.stop(currentTime + 0.1);
-      }
-    } catch (e) {
-      audioLog.warn('Water drip sound failed', e);
-    }
-  }
 
   // === LOADING BAY DOOR SOUNDS ===
 
@@ -4770,7 +3928,7 @@ class AudioManager {
 
       setTimeout(() => this.playDoorClunk(), (duration - 0.2) * 1000);
     } catch (e) {
-      audioLog.warn('Door clunk sound failed', e);
+      audioLog.warn('Door open sound failed', e);
     }
   }
 
@@ -4810,7 +3968,7 @@ class AudioManager {
 
       setTimeout(() => this.playDoorClunk(), (duration - 0.1) * 1000);
     } catch (e) {
-      audioLog.warn('Door clunk sound failed', e);
+      audioLog.warn('Door close sound failed', e);
     }
   }
 
@@ -4844,52 +4002,6 @@ class AudioManager {
   }
 
   // === DOCK OPERATIONS SOUNDS ===
-
-  // Stretch wrap machine buzzing sound
-  private stretchWrapNode: { source: OscillatorNode; gain: GainNode } | null = null;
-
-  startStretchWrapSound() {
-    if (this.getEffectiveVolume() === 0 || this.stretchWrapNode) return;
-
-    try {
-      const ctx = this.getContext();
-      const masterGain = this.getMasterGain();
-      if (!ctx || !masterGain) return;
-
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      const filter = ctx.createBiquadFilter();
-
-      osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(60, ctx.currentTime);
-
-      filter.type = 'lowpass';
-      filter.frequency.setValueAtTime(200, ctx.currentTime);
-      filter.Q.setValueAtTime(2, ctx.currentTime);
-
-      gain.gain.setValueAtTime(0.02, ctx.currentTime);
-
-      osc.connect(filter);
-      filter.connect(gain);
-      gain.connect(masterGain);
-
-      osc.start();
-      this.stretchWrapNode = { source: osc, gain };
-    } catch (e) {
-      audioLog.warn('Stretch wrap sound failed', e);
-    }
-  }
-
-  stopStretchWrapSound() {
-    if (this.stretchWrapNode) {
-      try {
-        this.stretchWrapNode.source.stop();
-      } catch (e) {
-        // Already stopped
-      }
-      this.stretchWrapNode = null;
-    }
-  }
 
   // Dock leveler hydraulic whine
   playDockLevelerSound() {
@@ -4930,71 +4042,6 @@ class AudioManager {
     }
   }
 
-  // Reefer (refrigeration) unit humming
-  private reeferNodes: Map<
-    string,
-    { source: OscillatorNode; gain: GainNode; lfo: OscillatorNode }
-  > = new Map();
-
-  startReeferSound(reeferId: string) {
-    if (this.getEffectiveVolume() === 0 || this.reeferNodes.has(reeferId)) return;
-
-    try {
-      const ctx = this.getContext();
-      const masterGain = this.getMasterGain();
-      if (!ctx || !masterGain) return;
-      const currentTime = ctx.currentTime;
-
-      // Main compressor drone
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      const filter = ctx.createBiquadFilter();
-      const lfo = ctx.createOscillator();
-      const lfoGain = ctx.createGain();
-
-      osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(50, currentTime);
-
-      // LFO for slight pulsing
-      lfo.type = 'sine';
-      lfo.frequency.setValueAtTime(2, currentTime);
-      lfoGain.gain.setValueAtTime(0.005, currentTime);
-
-      lfo.connect(lfoGain);
-      lfoGain.connect(gain.gain);
-
-      filter.type = 'lowpass';
-      filter.frequency.setValueAtTime(150, currentTime);
-      filter.Q.setValueAtTime(1, currentTime);
-
-      gain.gain.setValueAtTime(0.025, currentTime);
-
-      osc.connect(filter);
-      filter.connect(gain);
-      gain.connect(masterGain);
-
-      osc.start();
-      lfo.start();
-
-      this.reeferNodes.set(reeferId, { source: osc, gain, lfo });
-    } catch (e) {
-      audioLog.warn('Reefer sound failed', e);
-    }
-  }
-
-  stopReeferSound(reeferId: string) {
-    const node = this.reeferNodes.get(reeferId);
-    if (node) {
-      try {
-        node.source.stop();
-        node.lfo.stop();
-      } catch (e) {
-        // Already stopped
-      }
-      this.reeferNodes.delete(reeferId);
-    }
-  }
-
   getDiagnostics(): {
     activeNodes: number;
     contextState: AudioContextState | 'not-created';
@@ -5008,8 +4055,7 @@ class AudioManager {
       this.truckEngines.size +
       this.backupBeepers.size +
       this.conveyorNodes.size +
-      this.spoutingNodes.size +
-      this.reeferNodes.size;
+      this.spoutingNodes.size;
     return {
       activeNodes: objectNodeCount + mappedNodeCount,
       contextState: this.audioContext?.state ?? 'not-created',
@@ -5024,11 +4070,9 @@ class AudioManager {
     this.stopNightAmbient();
     this.stopPASystem();
     this.stopRain();
-    this.stopEmergencyAlarm();
     this.stopEmergencyStopAlarm();
     this.stopCompressorCycling();
     this.stopMetalClanks();
-    this.stopVentilationFanSound();
     this.machineNodes.forEach((_node, id) => {
       this.stopMachineSound(id);
     });
@@ -5047,10 +4091,6 @@ class AudioManager {
     });
     this.spoutingNodes.forEach((_node, id) => {
       this.stopSpoutingSound(id);
-    });
-    this.stopStretchWrapSound();
-    this.reeferNodes.forEach((_node, id) => {
-      this.stopReeferSound(id);
     });
   }
 }

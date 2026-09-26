@@ -6,6 +6,19 @@ import { MachineData } from '../../types';
 import { useProductionStore } from '../../stores/productionStore';
 
 /**
+ * Running vibration velocity (mm/s) at ~80% load, matched to the SCADA
+ * simulation baselines in tagDatabase.ts. A plansifter's SCADA tag is stroke
+ * amplitude; SCADABridge maps its healthy band to ~1.0-1.6 mm/s equivalent.
+ */
+const RUNNING_VIBRATION_MM_S: Record<string, number> = {
+  SILO: 1.2,
+  ROLLER_MILL: 1.6,
+  PLANSIFTER: 1.3,
+  PACKER: 1.3,
+  CONTROL_ROOM: 0.3,
+};
+
+/**
  * Isolated, deterministic metric simulation. Keeping this in a small module
  * lets the default renderer lazy-load the high-detail machine authoring code.
  */
@@ -73,9 +86,11 @@ export function MachineSimulationController() {
         90
       );
 
+      // mm/s velocity, the same unit the SCADA VT001 tags feed the store, so
+      // toggling SCADA does not jump the reading (or the status derived from it).
       let targetVibration = 1;
       if (isRunning) {
-        targetVibration = 1 + (machine.metrics.rpm / 1200) * 2 + newLoad / 100;
+        targetVibration = (RUNNING_VIBRATION_MM_S[machine.type] ?? 1.3) * (0.6 + newLoad / 200);
         if (machine.status === 'warning') targetVibration *= 1.5;
       } else if (isCritical) {
         targetVibration = 7;

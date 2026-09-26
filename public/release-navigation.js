@@ -1,5 +1,7 @@
 (() => {
   const selectorLabel = 'Select MillOS version';
+  // The v0.10 and v0.20 bundles label their selector with a title instead.
+  const legacySelectorTitle = 'Switch version';
   const matrixUrl = '/release-matrix.json';
   const activeVersion = window.location.pathname.match(/^\/(v\d+\.\d+)(?:\/|$)/)?.[1];
 
@@ -28,11 +30,11 @@
     const go = document.createElement('button');
     go.type = 'button';
     go.textContent = 'Go';
-    go.setAttribute('aria-label', `Switch to MillOS version ${selector.value.slice(1)}`);
+    go.setAttribute('aria-label', `Go to MillOS version ${selector.value.slice(1)}`);
     go.disabled = selector.value === activeVersion;
     selector.addEventListener('change', () => {
       go.disabled = selector.value === activeVersion;
-      go.setAttribute('aria-label', `Switch to MillOS version ${selector.value.slice(1)}`);
+      go.setAttribute('aria-label', `Go to MillOS version ${selector.value.slice(1)}`);
     });
     go.addEventListener('click', () => {
       if (go.disabled) return;
@@ -71,7 +73,9 @@
     const matrix = await response.json();
     const enhance = () => {
       document
-        .querySelectorAll(`select[aria-label="${selectorLabel}"]`)
+        .querySelectorAll(
+          `select[aria-label="${selectorLabel}"], select[title="${legacySelectorTitle}"]`
+        )
         .forEach((selector) => buildNavigation(selector, matrix));
     };
     enhance();

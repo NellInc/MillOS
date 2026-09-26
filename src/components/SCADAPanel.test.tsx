@@ -48,6 +48,7 @@ const testState = vi.hoisted(() => {
 vi.mock('../scada', () => ({
   useSCADA: () => ({
     isConnected: true,
+    linkUp: true,
     mode: 'simulation',
     tagCount: testState.tags.length,
     values: testState.values,
@@ -71,6 +72,7 @@ vi.mock('../scada', () => ({
     unsuppress: vi.fn(),
     hasCritical: false,
   }),
+  refreshSharedSCADAStatus: vi.fn(),
   getSCADAService: () => ({
     getConnectionConfig: () => ({ type: 'simulation' }),
     getAlarmHistory: testState.getAlarmHistory,

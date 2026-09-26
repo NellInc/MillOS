@@ -1,24 +1,87 @@
+import { GeneratedBoundary } from './models/GeneratedModel';
+import { GeneratedGeometrySurface } from './models/GeneratedGeometrySurface';
 import React, { useMemo, useEffect, useLayoutEffect, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { applyWorldSurface } from '../utils/worldSurface';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { MachineData, MachineType } from '../types';
+import { SITE_LAYOUT, MILL_PROCESS_PORTS, PROCESS_GALLERY_POST_X } from '../constants/siteLayout';
 import { audioManager } from '../utils/audioManager';
-import { PIPE_MATERIALS } from '../utils/sharedMaterials';
+import { useAudioInitialized } from '../hooks/useAudioState';
+import { ORM_MEAN_ROUGHNESS, PIPE_MATERIALS } from '../utils/sharedMaterials';
 import { shouldRunThisFrame } from '../utils/frameThrottle';
-import { useGameSimulationStore } from '../stores/gameSimulationStore';
+import { selectSafetyHoldActive, useGameSimulationStore } from '../stores/gameSimulationStore';
 import { useGraphicsStore } from '../stores/graphicsStore';
 import { useShallow } from 'zustand/react/shallow';
-import { generateMachinePanelNormal } from '../textures/normalGenerator';
+import { generateProceduralNormal } from '../textures/normalGenerator';
 import {
   buildSpoutRoutes,
+  getSpoutRiserX,
   spoutMachineKey,
   SPOUT_PIPE_RADIUS,
+  SPOUT_SERVICE_LAYOUT,
   type PipeRouteFamily,
 } from './flow/spoutRoutes';
 
-const PIPE_RADIUS = SPOUT_PIPE_RADIUS;
+/** Spend sweep rings on elbows, leaving every straight run as one segment. */
+class SpoutSweepCurve extends THREE.Curve<THREE.Vector3> {
+  readonly stations: readonly number[];
+
+  constructor(
+    private readonly route: THREE.CurvePath<THREE.Vector3>,
+    bendSegments: number
+  ) {
+    super();
+    const lengths = route.getCurveLengths();
+    const total = lengths[lengths.length - 1];
+    const stations = [0];
+    route.curves.forEach((curve, index) => {
+      const start = index === 0 ? 0 : lengths[index - 1];
+      const steps = curve instanceof THREE.LineCurve3 ? 1 : bendSegments;
+      for (let step = 1; step <= steps; step++) {
+        stations.push((start + ((lengths[index] - start) * step) / steps) / total);
+      }
+    });
+    this.stations = stations;
+  }
+
+  private routeProgress(progress: number): number {
+    const index = THREE.MathUtils.clamp(progress, 0, 1) * (this.stations.length - 1);
+    const lower = Math.min(Math.floor(index), this.stations.length - 2);
+    return THREE.MathUtils.lerp(this.stations[lower], this.stations[lower + 1], index - lower);
+  }
+
+  override getPoint(progress: number, target = new THREE.Vector3()): THREE.Vector3 {
+    return this.route.getPointAt(this.routeProgress(progress), target);
+  }
+
+  override getPointAt(progress: number, target = new THREE.Vector3()): THREE.Vector3 {
+    return this.getPoint(progress, target);
+  }
+
+  override getTangentAt(progress: number, target = new THREE.Vector3()): THREE.Vector3 {
+    return this.route.getTangentAt(this.routeProgress(progress), target);
+  }
+}
+
+/** Same bore as the grain-flow curve, with bounded close-up elbow resolution.
+ * Working if the tube follows every route endpoint and curved branch while
+ * long straight spans do not add hundreds of redundant sweep rings.
+ */
+export function createSpoutTubeGeometry(
+  curve: THREE.CurvePath<THREE.Vector3>,
+  radialSegments: number
+): THREE.TubeGeometry {
+  const sampling = new SpoutSweepCurve(curve, radialSegments >= 12 ? 6 : 4);
+  return new THREE.TubeGeometry(
+    sampling,
+    sampling.stations.length - 1,
+    SPOUT_PIPE_RADIUS,
+    radialSegments,
+    false
+  );
+}
 
 /**
  * Bolted spout joint, instanced every 3-4 m along every route.
@@ -199,37 +262,44 @@ interface PipeRouteMesh {
  *
  * These are CLONES of the shared `PIPE_MATERIALS`, not edits to them:
  * `sharedMaterials.ts` is consumed by machines, forklifts and infrastructure,
- * and the spouting network is the only place that wants sheet relief and a
- * per-family roughness spread. The clone shares the source textures, so the
+ * and the spouting network is the only place that wants rolled-sheet grain and
+ * a per-family roughness spread. The clone shares the source textures, so the
  * only cost is three extra material objects.
  *
- * The `color` values are KEPT. These materials carry a `roughnessMap` but no
- * albedo `map`, so `color` IS the albedo - it is not a tint compensating for
- * the old linear/sRGB texture bug and must not be reset to white.
+ * These materials have no albedo map, so `color` IS the finish colour.
+ * Intake and product lines are galvanised conductors; the lift line remains
+ * food-grade paint. The global pipe library is untouched.
  */
 let routeMaterialCache: Record<PipeRouteFamily, THREE.MeshStandardMaterial> | null = null;
 
-const getRouteMaterials = (): Record<PipeRouteFamily, THREE.MeshStandardMaterial> => {
+export const getSpoutRouteMaterials = (): Record<PipeRouteFamily, THREE.MeshStandardMaterial> => {
   if (routeMaterialCache) return routeMaterialCache;
 
   // Cloned so the tiling below cannot leak into other consumers of the cached
   // source texture.
-  const detailNormal = generateMachinePanelNormal(256, 4, 6).clone();
+  const detailNormal = generateProceduralNormal(256, 0.12, 16).clone();
   detailNormal.wrapS = THREE.RepeatWrapping;
   detailNormal.wrapT = THREE.RepeatWrapping;
-  // u runs along the tube axis, v around the circumference: 8 sheet sections
-  // along the run, 2 seams around the bore.
-  detailNormal.repeat.set(8, 2);
+  // Fine rolled-sheet grain, with the actual flanges providing the joints.
+  // An embossed cabinet-panel grid stretched around these tubes read as dents.
+  detailNormal.colorSpace = THREE.NoColorSpace;
+  detailNormal.repeat.set(6, 1);
   detailNormal.needsUpdate = true;
 
-  const normalScale = new THREE.Vector2(0.28, 0.28);
+  const normalScale = new THREE.Vector2(0.22, 0.22);
 
   const derive = (
     source: THREE.MeshStandardMaterial,
-    roughness: number
+    finishRoughness: number,
+    color: string,
+    family: PipeRouteFamily
   ): THREE.MeshStandardMaterial => {
     const material = source.clone();
-    material.roughness = roughness;
+    material.name = `process-spout-${family}`;
+    material.color.set(color);
+    // The source carries an ORM roughness map. Author the FINAL average,
+    // otherwise its green channel halves the intended finish into a mirror.
+    material.roughness = finishRoughness / ORM_MEAN_ROUGHNESS;
     material.normalMap = detailNormal;
     material.normalScale = normalScale;
     material.envMapIntensity = 1.2;
@@ -237,9 +307,9 @@ const getRouteMaterials = (): Record<PipeRouteFamily, THREE.MeshStandardMaterial
   };
 
   routeMaterialCache = {
-    intake: derive(PIPE_MATERIALS.darkPipe, 0.46), // dusty raw-grain line
-    pneumatic: derive(PIPE_MATERIALS.whitePipe, 0.34), // painted lift line
-    finished: derive(PIPE_MATERIALS.lightPipe, 0.3), // polished product line
+    intake: derive(PIPE_MATERIALS.lightPipe, 0.42, '#b8c2bf', 'intake'),
+    pneumatic: derive(PIPE_MATERIALS.whitePipe, 0.38, '#9ba7a1', 'pneumatic'),
+    finished: derive(PIPE_MATERIALS.lightPipe, 0.32, '#cbd0c9', 'finished'),
   };
   return routeMaterialCache;
 };
@@ -262,7 +332,15 @@ function InstancedPipeFlanges({ matrices }: { readonly matrices: readonly THREE.
       args={[PIPE_FLANGE_GEOMETRY, PIPE_FLANGE_MATERIAL, matrices.length]}
       castShadow
       receiveShadow
-    />
+    >
+      <GeneratedBoundary fallback={null}>
+        <GeneratedGeometrySurface
+          asset={'spoutingFlangeUnit'}
+          original={PIPE_FLANGE_GEOMETRY}
+          meshRef={ref}
+        />
+      </GeneratedBoundary>
+    </instancedMesh>
   );
 }
 
@@ -271,6 +349,9 @@ export const SpoutingSystem = React.memo<{
   enableAudio?: boolean;
 }>(({ machines, enableAudio = true }) => {
   const isTabVisible = useGameSimulationStore((state) => state.isTabVisible);
+  // Product stops moving through the spouts under a fire drill or emergency
+  // stop, so the flow sound stops with it and resumes when the hold clears.
+  const safetyHold = useGameSimulationStore(selectSafetyHoldActive);
   const quality = useGraphicsStore(useShallow((state) => state.graphics.quality));
   // Extract stable machine data to prevent unnecessary re-renders.
   // Shared with GrainFlow through `spoutRoutes`, so both agree on when the
@@ -309,9 +390,10 @@ export const SpoutingSystem = React.memo<{
     return positions;
   }, [machineKey]); // Use stable key instead of full machines array
 
-  // Start spouting sounds on mount
+  // Start spouting sounds once the audio context exists
+  const audioReady = useAudioInitialized();
   useEffect(() => {
-    if (!enableAudio) return;
+    if (!enableAudio || !audioReady || safetyHold) return;
     spoutPositions.forEach((pos) => {
       audioManager.startSpoutingSound(pos.id, pos.x, pos.y, pos.z);
     });
@@ -321,11 +403,11 @@ export const SpoutingSystem = React.memo<{
         audioManager.stopSpoutingSound(pos.id);
       });
     };
-  }, [enableAudio, spoutPositions]);
+  }, [enableAudio, audioReady, safetyHold, spoutPositions]);
 
   // Update spatial audio volumes each frame
   useFrame(() => {
-    if (!enableAudio) return;
+    if (!enableAudio || safetyHold) return;
     if (!isTabVisible) return;
     // Spatial volume is fine at ~30fps; throttle to reduce per-frame audio work
     if (!shouldRunThisFrame(2)) return;
@@ -353,9 +435,7 @@ export const SpoutingSystem = React.memo<{
     // Curves come from the shared route builder so GrainFlow puts product
     // inside these exact pipes.
     buildSpoutRoutes(machines).forEach(({ family, curve, length }) => {
-      routeGeometries[family].push(
-        new THREE.TubeGeometry(curve, 32, PIPE_RADIUS, radialSegments, false)
-      );
+      routeGeometries[family].push(createSpoutTubeGeometry(curve, radialSegments));
 
       // Real spouting is bolted up roughly every 3-4 m. Flanges are instanced
       // into one draw call, so density here is nearly free and it is what makes
@@ -397,7 +477,7 @@ export const SpoutingSystem = React.memo<{
     };
   }, [pipeData]);
 
-  const routeMaterials = getRouteMaterials();
+  const routeMaterials = getSpoutRouteMaterials();
 
   return (
     <group name="process-spouting-network">
@@ -419,14 +499,56 @@ export const SpoutingSystem = React.memo<{
   );
 });
 
-// Pipe support positions (static, defined at module level)
-const PIPE_SUPPORT_POSITIONS: [number, number, number][] = [
-  [-21, 10, -14],
-  [0, 10, -14],
-  [21, 10, -14],
-  [-18, 12, 7],
-  [18, 12, 7],
-];
+type SupportSegment = {
+  readonly start: readonly [number, number, number];
+  readonly end: readonly [number, number, number];
+};
+
+/** Braced service racks attach to the existing gallery columns.
+ * Working if the arms meet actual pipe runs, their inner ends meet a gallery
+ * post, and no replacement post occupies a vehicle or maintenance aisle.
+ */
+export const PIPE_SUPPORT_SEGMENTS: { beams: SupportSegment[]; braces: SupportSegment[] } = (() => {
+  const beams: SupportSegment[] = [];
+  const braces: SupportSegment[] = [];
+  const galleryZ = SITE_LAYOUT.factory.zones.sifting;
+  const intakeY = MILL_PROCESS_PORTS.intake[1] + SPOUT_SERVICE_LAYOUT.intakeRise;
+  const beamY = intakeY - SPOUT_PIPE_RADIUS - 0.08;
+  const endZ =
+    SITE_LAYOUT.machines.rollerMills[0].position[2] -
+    SPOUT_SERVICE_LAYOUT.intakeSetback +
+    (SITE_LAYOUT.machines.rollerMills.length - 1) * SPOUT_SERVICE_LAYOUT.intakeLanePitch +
+    0.25;
+  for (const x of PROCESS_GALLERY_POST_X.filter((x) => x !== 0)) {
+    const start = [x, beamY, galleryZ + 4.8] as const;
+    const end = [x, beamY, endZ] as const;
+    beams.push({ start, end });
+    braces.push({ start: [x, beamY - 0.75, galleryZ + 4.8], end });
+  }
+  SITE_LAYOUT.machines.rollerMills.forEach((mill, index) => {
+    const sifter = SITE_LAYOUT.machines.sifters[index % SITE_LAYOUT.machines.sifters.length];
+    const x = getSpoutRiserX(mill.position[0]);
+    const z =
+      sifter.position[2] -
+      SPOUT_SERVICE_LAYOUT.rearSetback +
+      index * SPOUT_SERVICE_LAYOUT.rearLanePitch;
+    const post = PROCESS_GALLERY_POST_X.reduce((nearest, value) =>
+      Math.abs(value - x) < Math.abs(nearest - x) ? value : nearest
+    );
+    const start = new THREE.Vector3(post, beamY, galleryZ - 4.8);
+    const end = new THREE.Vector3(x, beamY, z);
+    end.addScaledVector(start.clone().sub(end).normalize(), SPOUT_PIPE_RADIUS);
+    beams.push({
+      start: start.toArray() as [number, number, number],
+      end: end.toArray() as [number, number, number],
+    });
+    braces.push({
+      start: [post, beamY - 0.75, galleryZ - 4.8],
+      end: end.toArray() as [number, number, number],
+    });
+  });
+  return { beams, braces };
+})();
 
 const PipeSupports: React.FC = React.memo(() => {
   const verticalRef = useRef<THREE.InstancedMesh>(null);
@@ -434,19 +556,26 @@ const PipeSupports: React.FC = React.memo(() => {
 
   useLayoutEffect(() => {
     const object = new THREE.Object3D();
-    PIPE_SUPPORT_POSITIONS.forEach(([x, height, z], index) => {
-      object.position.set(x, height / 2, z);
-      object.rotation.set(0, 0, 0);
-      object.scale.set(0.1, height, 0.1);
-      object.updateMatrix();
-      verticalRef.current?.setMatrixAt(index, object.matrix);
-
-      object.position.set(x, height, z);
-      object.rotation.set(0, 0, Math.PI / 2);
-      object.scale.set(0.08, 3, 0.08);
-      object.updateMatrix();
-      crossBeamRef.current?.setMatrixAt(index, object.matrix);
-    });
+    const axis = new THREE.Vector3(0, 1, 0);
+    const direction = new THREE.Vector3();
+    for (const [segments, ref, radius] of [
+      [PIPE_SUPPORT_SEGMENTS.braces, verticalRef, 0.06],
+      [PIPE_SUPPORT_SEGMENTS.beams, crossBeamRef, 0.08],
+    ] as const) {
+      segments.forEach(({ start, end }, index) => {
+        direction.set(end[0] - start[0], end[1] - start[1], end[2] - start[2]);
+        const length = direction.length();
+        object.position.set(
+          (start[0] + end[0]) / 2,
+          (start[1] + end[1]) / 2,
+          (start[2] + end[2]) / 2
+        );
+        object.quaternion.setFromUnitVectors(axis, direction.normalize());
+        object.scale.set(radius, length, radius);
+        object.updateMatrix();
+        ref.current?.setMatrixAt(index, object.matrix);
+      });
+    }
 
     [verticalRef.current, crossBeamRef.current].forEach((mesh) => {
       if (!mesh) return;
@@ -459,19 +588,39 @@ const PipeSupports: React.FC = React.memo(() => {
     <group name="process-spouting-supports">
       <instancedMesh
         ref={verticalRef}
-        args={[PIPE_COLUMN_GEOMETRY, PIPE_MATERIALS.supportGray, PIPE_SUPPORT_POSITIONS.length]}
+        args={[
+          PIPE_COLUMN_GEOMETRY,
+          PIPE_MATERIALS.supportGray,
+          PIPE_SUPPORT_SEGMENTS.braces.length,
+        ]}
         castShadow
         receiveShadow
-      />
+      >
+        <GeneratedBoundary fallback={null}>
+          <GeneratedGeometrySurface
+            asset={'spoutingColumnUnit'}
+            original={PIPE_COLUMN_GEOMETRY}
+            meshRef={verticalRef}
+          />
+        </GeneratedBoundary>
+      </instancedMesh>
       <instancedMesh
         ref={crossBeamRef}
         args={[
           PIPE_CROSS_BEAM_GEOMETRY,
           PIPE_MATERIALS.supportSlate,
-          PIPE_SUPPORT_POSITIONS.length,
+          PIPE_SUPPORT_SEGMENTS.beams.length,
         ]}
         receiveShadow
-      />
+      >
+        <GeneratedBoundary fallback={null}>
+          <GeneratedGeometrySurface
+            asset={'spoutingCrossbeamUnit'}
+            original={PIPE_CROSS_BEAM_GEOMETRY}
+            meshRef={crossBeamRef}
+          />
+        </GeneratedBoundary>
+      </instancedMesh>
     </group>
   );
 });

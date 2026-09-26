@@ -12,6 +12,7 @@ import {
   fbmNoise,
   hash,
   smoothNoise,
+  blendTileEdges,
 } from '../utils/textureGenerator';
 
 export interface GrassOptions {
@@ -31,14 +32,14 @@ export const generateGrass = (
   options: GrassOptions = {}
 ): THREE.DataTexture => {
   const {
-    baseColor = [0.29, 0.49, 0.35], // #4a7c59 forest green
-    tipColor = [0.42, 0.58, 0.38], // Lighter tip
+    baseColor = [0.36, 0.45, 0.25], // Mixed meadow grasses
+    tipColor = [0.55, 0.59, 0.33], // Sun-dried blade tips
     density = 0.7,
     variation = 0.2,
     seed = 42,
   } = options;
 
-  const cacheKey = `grass-v2-${size}-${baseColor.join(',')}-${density}-${variation}-${seed}`;
+  const cacheKey = `grass-v4-${size}-${baseColor.join(',')}-${tipColor.join(',')}-${density}-${variation}-${seed}`;
 
   return getTexture(cacheKey, () => {
     const data = new Uint8Array(size * size * 4);
@@ -62,12 +63,11 @@ export const generateGrass = (
         const microNoise = smoothNoise(x * 0.15, y * 0.15) * 0.5 + 0.5;
 
         // === GRASS BLADE PATTERN ===
-        // Multiple blade frequencies for variety
-        const blade1 = Math.sin(u * size * 0.3 + hash(Math.floor(u * 12), seed) * 4) * 0.5 + 0.5;
-        const blade2 =
-          Math.sin(u * size * 0.7 + hash(Math.floor(u * 25), seed + 1) * 3) * 0.5 + 0.5;
-        const blade3 = Math.sin((u + v * 0.3) * size * 0.15 + seed) * 0.5 + 0.5;
-        const bladePattern = blade1 * 0.4 + blade2 * 0.35 + blade3 * 0.25;
+        // Local clumps have no field-wide grain direction. The old u-only
+        // waves survived mipmapping as parallel mowing stripes across every lawn.
+        const bladePattern =
+          smoothNoise(u * 48 + mediumNoise * 3 + seed, v * 48 + fineNoise * 3) * 0.65 +
+          smoothNoise(u * 24 - seed, v * 24 + mediumNoise * 2) * 0.35;
 
         // Tip gradient influenced by noise
         const tipGradient = Math.pow(fineNoise * microNoise, 0.6);
@@ -144,6 +144,7 @@ export const generateGrass = (
       }
     }
 
+    blendTileEdges(data, size);
     return createColorDataTexture(data, size, size);
   });
 };

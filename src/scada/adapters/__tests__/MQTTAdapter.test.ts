@@ -535,6 +535,24 @@ describe('MQTTAdapter adversarial message and resource boundaries', () => {
     expect(callback).toHaveBeenCalledTimes(1);
   });
 
+  it('publishes the last values as STALE on an unplanned broker disconnect', async () => {
+    const callback = vi.fn();
+    adapter.subscribe(['RM101.TT001.PV'], callback);
+    const topic = 'mill/tags/RM101.TT001.PV/value';
+    socket.receive(publishPacket(topic, tagPayload('RM101.TT001.PV', 45, 1_000)));
+
+    socket.brokerClose();
+
+    expect(callback).toHaveBeenLastCalledWith([
+      expect.objectContaining({ tagId: 'RM101.TT001.PV', value: 45, quality: 'STALE' }),
+    ]);
+    expect(await adapter.readTag('RM101.TT001.PV')).toMatchObject({
+      value: 45,
+      quality: 'STALE',
+      timestamp: 1_000,
+    });
+  });
+
   it('isolates subscriber mutations from stored values and later callbacks', async () => {
     adapter.subscribe([], (values) => {
       values[0].value = 999;

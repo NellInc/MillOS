@@ -13,9 +13,11 @@
  * - etc.
  */
 
-import React, { useRef, useEffect, useMemo } from 'react';
+import React, { useRef, useEffect, useLayoutEffect, useMemo } from 'react';
 import * as THREE from 'three';
 import { PROCEDURAL_TEXTURES } from '../../utils/sharedMaterials';
+import { useGameSimulationStore } from '../../stores/gameSimulationStore';
+import { ExteriorLampPool, getExteriorLampLevel } from '../exterior/ExteriorLighting';
 
 // ============================================================
 // SHARED GEOMETRIES - Created once at module level
@@ -260,10 +262,20 @@ const LAMP_POSITIONS: [number, number][] = [
   [15, 50],
 ];
 
+/** Lamp head height is 4.3 m; the pool reaches roughly the next building line. */
+const LAMP_POOL_RADIUS = 5.5;
+
 /**
- * Instanced village lamps - 8 lamps in ~3 draw calls instead of 24
+ * Instanced village lamps - 8 lamps in ~3 draw calls instead of 24, each with
+ * a ground light pool. The pools share the site-wide ExteriorLampDriver level
+ * (dusk ramp, night, storm/rain floor), and the glass switches on that same
+ * level, so a pool never lies under an unlit lamp. No punctual lights: those
+ * would change the scene's light count at dusk and recompile every material.
  */
-export const InstancedLamps: React.FC<{ isNight: boolean }> = React.memo(({ isNight }) => {
+export const InstancedLamps: React.FC = React.memo(() => {
+  const isLit = useGameSimulationStore(
+    (state) => getExteriorLampLevel(state.gameTime, state.weather) >= 0.5
+  );
   const postsRef = useRef<THREE.InstancedMesh>(null);
   const housingsRef = useRef<THREE.InstancedMesh>(null);
   const glassRef = useRef<THREE.InstancedMesh>(null);
@@ -271,7 +283,9 @@ export const InstancedLamps: React.FC<{ isNight: boolean }> = React.memo(({ isNi
   const count = LAMP_POSITIONS.length;
   const dummy = useMemo(() => new THREE.Object3D(), []);
 
-  useEffect(() => {
+  // Layout, not passive: a frame rendered before the matrices land would cache
+  // an origin-sized bounding sphere and frustum-cull the whole row of lamps.
+  useLayoutEffect(() => {
     LAMP_POSITIONS.forEach(([x, z], i) => {
       // Post
       dummy.position.set(x, 2, z);
@@ -292,17 +306,21 @@ export const InstancedLamps: React.FC<{ isNight: boolean }> = React.memo(({ isNi
     if (postsRef.current) postsRef.current.instanceMatrix.needsUpdate = true;
     if (housingsRef.current) housingsRef.current.instanceMatrix.needsUpdate = true;
     if (glassRef.current) glassRef.current.instanceMatrix.needsUpdate = true;
+    // setMatrixAt never invalidates InstancedMesh.boundingSphere.
+    postsRef.current?.computeBoundingSphere();
+    housingsRef.current?.computeBoundingSphere();
+    glassRef.current?.computeBoundingSphere();
   }, [dummy]);
 
   // Keep one compiled material across the day/night boundary. Uniform changes
   // are cheap; swapping material objects here used to trigger shader setup in
   // the same frame as the wider atmosphere transition.
   useEffect(() => {
-    lampGlassMaterial.color.set(isNight ? '#ffaa00' : '#333333');
-    lampGlassMaterial.emissive.set(isNight ? '#ffaa00' : '#000000');
-    lampGlassMaterial.emissiveIntensity = isNight ? 2 : 0;
-    lampGlassMaterial.roughness = isNight ? 0.35 : 0.6;
-  }, [isNight]);
+    lampGlassMaterial.color.set(isLit ? '#ffaa00' : '#333333');
+    lampGlassMaterial.emissive.set(isLit ? '#ffaa00' : '#000000');
+    lampGlassMaterial.emissiveIntensity = isLit ? 2 : 0;
+    lampGlassMaterial.roughness = isLit ? 0.35 : 0.6;
+  }, [isLit]);
 
   return (
     <group>
@@ -319,6 +337,11 @@ export const InstancedLamps: React.FC<{ isNight: boolean }> = React.memo(({ isNi
       <instancedMesh ref={glassRef} args={[lampGlassGeometry, undefined, count]}>
         <primitive object={lampGlassMaterial} attach="material" />
       </instancedMesh>
+      {LAMP_POSITIONS.map(([x, z]) => (
+        <group key={`lamp-pool-${x}-${z}`} position={[x, 0, z]}>
+          <ExteriorLampPool radius={LAMP_POOL_RADIUS} />
+        </group>
+      ))}
       {/* The emissive glass supplies the night cue without adding point lights.
           Changing the global light count at dusk recompiles every affected
           scene material, which caused a visible whole-site hitch.
@@ -363,7 +386,8 @@ export const InstancedBenches: React.FC = React.memo(() => {
       seatsRef.current?.setMatrixAt(i, dummy.matrix);
 
       // Back
-      dummy.position.set(x + Math.sin(rotation) * -0.2, 0.25, z + Math.cos(rotation) * -0.2);
+      // Stands on the seat's rear strip (0.44-0.94), not under it.
+      dummy.position.set(x + Math.sin(rotation) * -0.2, 0.69, z + Math.cos(rotation) * -0.2);
       dummy.rotation.set(0, rotation, 0);
       dummy.updateMatrix();
       backsRef.current?.setMatrixAt(i, dummy.matrix);

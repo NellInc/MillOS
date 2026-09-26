@@ -44,13 +44,17 @@ function packFor(spec, result) {
   return {
     name: spec.slug,
     id: spec.id,
-    sourcePage: 'https://platform.tripo3d.ai',
-    pipeline: [
+    sourcePage: spec.sourcePage ?? 'https://platform.tripo3d.ai',
+    license: spec.license,
+    attribution: spec.attribution,
+    taskId: spec.taskId,
+    pipeline: spec.pipeline ?? [
       'text_to_model v2.5-20250123, texture:true, pbr:true',
       ...(rigged ? ['animate_prerigcheck (0 credits)', 'animate_rig'] : []),
     ],
     preservedAs: `${spec.slug}-tripo-original.glb`,
     sha256: result.sourceSha256,
+    blenderPreparation: result.blenderPreparation,
     runtimeDerivative: {
       file: `public/models/${result.file}`,
       sha256: result.outputSha256,
@@ -62,6 +66,14 @@ function packFor(spec, result) {
       // they were each paid for by a wrong render.
       sizedBy: AXIS_NOTE[spec.axis] ?? spec.axis,
       targetMetres: spec.target,
+      fittedEnvelopeMetres: spec.fitDimensions,
+      simplification: spec.simplifyRatio
+        ? {
+            requestedRatio: spec.simplifyRatio,
+            maximumRelativeError: 0.005,
+            method: 'meshoptimizer attribute-aware, UV seams retained',
+          }
+        : undefined,
       scaleFactor: result.scaleFactor,
       // Snapped to the nearest quarter turn from the whole heading vector, for
       // rigged bodies; a fixed yaw for the props whose generated long axis ran
@@ -85,7 +97,7 @@ const REJECTED = [
     file: 'test-results/tripo-probe-20260815/models/tripo_cow_idle_REJECTED.glb',
     step: 'animate_retarget preset:idle',
     reason:
-      "The preset library is humanoid and the quadruped rig names the front legs Clavicle/Upperarm/Hand, so a biped idle maps onto it and rears the animal onto its hind legs for the whole clip. Applies to every quadruped and avian rig in this set, not only the cow: all of them carry the identical 41-joint skeleton with identical bone names. Kept outside the repo as reproducible evidence; never promoted.",
+      'The preset library is humanoid and the quadruped rig names the front legs Clavicle/Upperarm/Hand, so a biped idle maps onto it and rears the animal onto its hind legs for the whole clip. Applies to every quadruped and avian rig in this set, not only the cow: all of them carry the identical 41-joint skeleton with identical bone names. Kept outside the repo as reproducible evidence; never promoted.',
   },
 ];
 
@@ -93,7 +105,7 @@ const LICENCE = {
   publisher: 'Tripo3D',
   license: 'Tripo3D API-plan output',
   licenceNote:
-    'Generated on a Tripo3D API plan. The free tier releases outputs CC BY 4.0, public and non-commercial; commercial rights attach to paid and API plans. Confirmed by the account owner before any output entered public/models/.',
+    "Generated through the Tripo3D API under the account owner's confirmed API-plan rights. Account-owner rights confirmation is separate from the technical validation reported here.",
 };
 
 const main = async () => {
@@ -108,7 +120,10 @@ const main = async () => {
     );
   }
 
-  for (const area of ['farm', 'village']) {
+  const areaFlag = process.argv.find((arg) => arg.startsWith('--area='))?.slice(7);
+  const areas = [...new Set(specs.map((spec) => spec.area))];
+  if (areaFlag && !areas.includes(areaFlag)) throw new Error('Unknown provenance area');
+  for (const area of areaFlag ? [areaFlag] : areas) {
     const packs = specs
       .filter((spec) => spec.area === area)
       .map((spec) => packFor(spec, byId.get(spec.id)));
@@ -118,18 +133,20 @@ const main = async () => {
       `${JSON.stringify(
         {
           schemaVersion: 3,
-          retrievedAt: '2026-08-15',
+          retrievedAt:
+            specs.find((spec) => spec.area === area && spec.retrievedAt)?.retrievedAt ??
+            '2026-08-15',
           area,
           ...LICENCE,
           transformation: {
             script: 'scripts/normalize-model-assets.mjs',
             table: 'GENERATED_ASSETS',
             description:
-              'Per asset: derive facing from the whole Head-to-Hip heading vector and snap to the nearest quarter turn (rigged only), apply any authored yaw, scale uniformly to the stated target along the stated axis, re-origin to bottom centre through a Pivot node so a skin binding survives, resample the three 4096-square maps to 512 JPEG, force the metallic factor to zero, and rename material, mesh and textures semantically.',
+              'Per asset: derive facing from the whole Head-to-Hip heading vector and snap to the nearest quarter turn (rigged only), apply any authored yaw, scale uniformly to the stated target along the stated axis, optionally fit the recorded architectural envelope within a 20 percent axis limit, re-origin to bottom centre through a Pivot node so a skin binding survives, resample source maps to each asset table entry texture size (512 by default) in JPEG, force the metallic factor to zero, and rename material, mesh and textures semantically.',
             generatedBy: 'scripts/write-model-provenance.mjs',
           },
           sourcePacks: packs,
-          rejected: REJECTED,
+          rejected: area === 'farm' ? REJECTED : [],
         },
         null,
         2

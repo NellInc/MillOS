@@ -289,7 +289,7 @@ if (failures.length > 0) {
   process.exitCode = 1;
 } else {
   console.log(
-    `Shader contracts valid: ${contractIds.length} families, ${customKeyCount} stable custom cache keys, ` +
-      `${definitionSites.size} definition sites covered (${allowedPaths.size} allow-listed).`
+    `Shader contracts valid: ${contractIds.length} families, ${customKeyCount} stable cache keys, ` +
+      `${definitionSites.size} definition sites covered. No recompiles on your conscience.`
   );
 }

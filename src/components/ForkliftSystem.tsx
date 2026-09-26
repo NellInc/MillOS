@@ -36,15 +36,22 @@ import {
   type ForkliftStopReason,
 } from '../simulation/vehicles/forkliftController';
 import { sampleArcLengthPath } from '../simulation/vehicles/vehicleKinematics';
-import { vehicleTelemetryRegistry } from '../simulation/vehicles/vehicleTelemetryRegistry';
+import {
+  vehicleTelemetryRegistry,
+  type VehicleTelemetrySnapshot,
+} from '../simulation/vehicles/vehicleTelemetryRegistry';
 import * as THREE from 'three';
 import { applyWorldSurface } from '../utils/worldSurface';
 
-// Path visualization component - shows forklift routes on the floor
-const ForkliftPath: React.FC<{ path: [number, number, number][]; color: string }> = ({
-  path,
-  color,
-}) => {
+// Path visualization component - shows forklift routes on the floor. The dashed
+// line follows the rounded route; markers sit only on the authored waypoints,
+// not on every corner-rounding sample.
+const ForkliftPath: React.FC<{
+  path: [number, number, number][];
+  waypoints: [number, number, number][];
+  waypointActions: WaypointAction[];
+  color: string;
+}> = ({ path, waypoints, waypointActions, color }) => {
   // PERF: Reuse Vector3 objects instead of allocating new ones each path change
   const pointsRef = useRef<THREE.Vector3[]>([]);
   const points = useMemo(() => {
@@ -76,33 +83,36 @@ const ForkliftPath: React.FC<{ path: [number, number, number][]; color: string }
         dashScale={2}
         gapSize={0.3}
       />
-      {/* Waypoint markers */}
-      {path.map((point, i) => (
-        <group key={`waypoint-${i}-${point[0]}-${point[2]}`} position={[point[0], 0.1, point[2]]}>
-          {/* Circle marker */}
-          <mesh rotation={[-Math.PI / 2, 0, 0]}>
-            <ringGeometry args={[0.3, 0.5, 16]} />
-            <meshBasicMaterial
-              color={color}
-              transparent
-              opacity={0.6}
-              depthWrite={false}
-              polygonOffset
-              polygonOffsetFactor={POLYGON_OFFSET.standard.factor}
-              polygonOffsetUnits={POLYGON_OFFSET.standard.units}
-            />
-          </mesh>
-          {/* Direction arrow to next point */}
-          {i < path.length && (
+      {/* Waypoint markers. A closing point that repeats the first is skipped;
+          pickup and dropoff stops get a wider ring. */}
+      {waypoints.map((point, i) => {
+        const isClosingRepeat =
+          i > 0 &&
+          i === waypoints.length - 1 &&
+          point[0] === waypoints[0][0] &&
+          point[2] === waypoints[0][2];
+        if (isClosingRepeat) return null;
+        const next = waypoints[(i + 1) % waypoints.length];
+        const isStop =
+          waypointActions[i]?.type === 'pickup' || waypointActions[i]?.type === 'dropoff';
+        return (
+          <group key={`waypoint-${i}-${point[0]}-${point[2]}`} position={[point[0], 0.1, point[2]]}>
+            {/* Circle marker */}
+            <mesh rotation={[-Math.PI / 2, 0, 0]}>
+              <ringGeometry args={isStop ? [0.55, 0.8, 24] : [0.3, 0.5, 16]} />
+              <meshBasicMaterial
+                color={color}
+                transparent
+                opacity={0.6}
+                depthWrite={false}
+                polygonOffset
+                polygonOffsetFactor={POLYGON_OFFSET.standard.factor}
+                polygonOffsetUnits={POLYGON_OFFSET.standard.units}
+              />
+            </mesh>
+            {/* Direction arrow to next point */}
             <mesh
-              rotation={[
-                -Math.PI / 2,
-                0,
-                Math.atan2(
-                  path[(i + 1) % path.length][0] - point[0],
-                  path[(i + 1) % path.length][2] - point[2]
-                ),
-              ]}
+              rotation={[-Math.PI / 2, 0, Math.atan2(next[0] - point[0], next[2] - point[2])]}
               position={[0, 0.05, 0]}
             >
               <coneGeometry args={[0.2, 0.4, 3]} />
@@ -116,9 +126,9 @@ const ForkliftPath: React.FC<{ path: [number, number, number][]; color: string }
                 polygonOffsetUnits={POLYGON_OFFSET.standard.units}
               />
             </mesh>
-          )}
-        </group>
-      ))}
+          </group>
+        );
+      })}
     </group>
   );
 };
@@ -144,13 +154,18 @@ const BEACON_SWEEP_RATE = 4;
  * real point light is reserved for high and ultra because each point light
  * adds a loop to every lit material in the complete scene. Medium retains the
  * emissive beacon and sweeping pool without that scene-wide shader cost.
+ *
+ * The same rule covers LOD: the beacon stays mounted in the far tier, where
+ * `showGeometry` hides only the housing and wedge (the billboard has its own
+ * beacon mesh), so crossing the LOD distance never changes the light count.
  */
 const WarningLight = React.memo<{
   isStopped: boolean;
   isInCrossing: boolean;
   simulationPaused: boolean;
   height: number;
-}>(({ isStopped, isInCrossing, simulationPaused, height }) => {
+  showGeometry: boolean;
+}>(({ isStopped, isInCrossing, simulationPaused, height, showGeometry }) => {
   // Use ref instead of useState to avoid triggering re-renders in useFrame
   const flashRef = useRef(false);
   const materialRef = useRef<THREE.MeshStandardMaterial>(null);
@@ -190,7 +205,7 @@ const WarningLight = React.memo<{
   return (
     <group position={[0, height, -0.3]}>
       {/* Light housing */}
-      <mesh>
+      <mesh visible={showGeometry}>
         <cylinderGeometry args={[0.1, 0.1, 0.15, 10]} />
         <meshStandardMaterial
           ref={materialRef}
@@ -213,7 +228,7 @@ const WarningLight = React.memo<{
           for by the facets - the radial wobble 8 of them buy is 42 mm on a
           550 mm radius at 0.16 opacity - so smoothing costs the sweep nothing.
           16 stays divisible by 4, so the 0.55 m base radius is unchanged. */}
-      <group ref={sweepRef}>
+      <group ref={sweepRef} visible={showGeometry}>
         <mesh position={[0, 0.02, 0]} renderOrder={8}>
           <coneGeometry args={[0.55, 0.9, 16, 1, true]} />
           <meshBasicMaterial
@@ -421,20 +436,35 @@ interface Forklift {
   cargo: 'empty' | 'pallet';
 }
 
-const withRoundedRoute = (forklift: Forklift): Forklift => {
+/** A forklift on its rounded route, keeping the authored waypoints for the overlay. */
+interface RoutedForklift extends Forklift {
+  authoredPath: [number, number, number][];
+  authoredActions: WaypointAction[];
+}
+
+const withRoundedRoute = (forklift: Forklift): RoutedForklift => {
   const route = createRoundedForkliftRoute(forklift.path, forklift.pathActions, 2, 8);
   return {
     ...forklift,
     path: route.path,
     pathActions: route.actions,
+    authoredPath: forklift.path,
+    authoredActions: forklift.pathActions,
   };
+};
+
+// In-world tags use the SCADA vehicle names (tagDatabase FLT01/FLT02) plus the
+// forklift's role; data.id stays the key for logic and selection.
+const FORKLIFT_DISPLAY_LABELS: Record<string, string> = {
+  'forklift-1': 'FLT01 · SHIPPING',
+  'forklift-2': 'FLT02 · RECEIVING',
 };
 
 // Path colors for each forklift
 const PATH_COLORS = ['#f59e0b', '#3b82f6']; // Amber for first, blue for second
 
 // Conveyor crossing zones - areas where forklifts must yield
-// Main conveyor at z=24, roller conveyor at z=21 (updated for new layout)
+// Placements come from the same layout as the belt geometry.
 interface CrossingZone {
   id: string;
   xMin: number;
@@ -590,14 +620,9 @@ export const ForkliftSystem: React.FC<ForkliftSystemProps> = ({
   showSpeedZones = false,
   onSelectForklift,
 }) => {
-  // Updated paths for the canonical 120x100 factory:
-  // - Shipping dock at z=50 (front), Receiving dock at z=-50 (back)
-  // - Packers at z=25, Silos at z=-22
-  // - Conveyors at z=24 (main, x:-28 to 28) and z=21 (roller, x:-15 to 15)
-  // IMPORTANT: Forklifts must go AROUND conveyors, not through them
-  // Main conveyor blocks z=22.5-25.5 for x in [-28, 28]
-  // Roller conveyor blocks z=19.5-22.5 for x in [-15, 15]
-  const forklifts = useMemo<Forklift[]>(
+  // Both routes use the shared site anchors. Clearance tests cover the whole
+  // swept vehicle corridor against machines, conveyors and dock platforms.
+  const forklifts = useMemo<RoutedForklift[]>(
     () =>
       (
         [
@@ -606,11 +631,7 @@ export const ForkliftSystem: React.FC<ForkliftSystemProps> = ({
             position: [...SITE_LAYOUT.routes.forklifts.shipping.points[0]],
             rotation: 0,
             speed: 3.5,
-            // Shipping route: Packing area -> Shipping dock (front, z=50)
-            // IMPORTANT: Dock platform obstacle is x:-10 to 10, z:44 to 54
-            // Must stay outside those bounds - approach from side at x=15
-            // IMPORTANT: Break room at [35,0,25] (x:32-38, z:22.5-27.5) and
-            // Toilet block at [35,0,35] (x:31-39, z:32.5-37.5) - route around east side
+            // Finished-bag aisle to the shipping platform side approach.
             path: SITE_LAYOUT.routes.forklifts.shipping.points.map((point) => [...point]),
             pathActions: [
               { type: 'pickup', duration: 7.0 }, // Align, engage, lift, tilt, and retract
@@ -660,6 +681,8 @@ export const ForkliftSystem: React.FC<ForkliftSystemProps> = ({
             <ForkliftPath
               key={`path-${f.id}`}
               path={f.path}
+              waypoints={f.authoredPath}
+              waypointActions={f.authoredActions}
               color={PATH_COLORS[i % PATH_COLORS.length]}
             />
           ))}
@@ -694,9 +717,22 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
   const loadPhaseRef = useRef<ForkliftLoadPhase>('idle');
   const stopReasonRef = useRef<ForkliftStopReason>('none');
   const cameraDistanceRef = useRef(0); // Track distance to camera
-  const isInCrossingRef = useRef(false); // Changed to ref to avoid re-renders // Track if in crossing zone
+  // Mirrored into state so the beacon recolours on entry and exit; it flips only
+  // a couple of times per lap, so the re-render is cheap.
+  const isInCrossingRef = useRef(false);
+  const [isInCrossing, setIsInCrossing] = useState(false);
   const dirNormalizedRef = useRef(new THREE.Vector3());
-  const wasStoppedRef = useRef(false);
+  // One snapshot per vehicle, mutated each frame; the registry copies it on publish.
+  const telemetryRef = useRef<VehicleTelemetrySnapshot>({
+    id: data.id,
+    type: 'forklift',
+    speedMps: 0,
+    steeringRadians: 0,
+    phase: 'idle',
+    stopReason: 'none',
+    articulationRadians: 0,
+    transferReady: false,
+  });
   const stateChangeTimerRef = useRef(0); // Hysteresis timer
   const frameCountRef = useRef(0); // Frame counter for throttling
   const lastCollisionCheckRef = useRef({
@@ -766,6 +802,20 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
   const simulationPaused = isForkliftSimulationPaused(productionSpeed, gameSpeed);
   const motionStopped = effectiveStopped || simulationPaused;
   const isOperating = currentOperation === 'loading' || currentOperation === 'unloading';
+  const effectiveStoppedRef = useRef(effectiveStopped);
+  effectiveStoppedRef.current = effectiveStopped;
+
+  // 1 Hz utilisation sample for Safety Analytics. The store books wall-clock
+  // deltas, so the first sample after a resume attributes the pause gap to the
+  // last known state.
+  useEffect(() => {
+    if (simulationPaused) return undefined;
+    const id = setInterval(
+      () => useSafetyStore.getState().updateForkliftMetrics(data.id, !effectiveStoppedRef.current),
+      1000
+    );
+    return () => clearInterval(id);
+  }, [data.id, simulationPaused]);
 
   useEffect(() => {
     if (!audioReady) return undefined;
@@ -787,15 +837,6 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
       audioManager.playHydraulicLower(data.id, duration);
     }
   }, [audioReady, currentOperation, data.id]);
-
-  // Play horn when stopping for safety
-  useEffect(() => {
-    if (effectiveStopped && !wasStoppedRef.current) {
-      audioManager.playHorn(data.id);
-      recordSafetyStop();
-    }
-    wasStoppedRef.current = effectiveStopped;
-  }, [effectiveStopped, data.id, recordSafetyStop]);
 
   // Set initial position only once (not via prop to avoid reset on re-render)
   const initializedRef = useRef(false);
@@ -825,6 +866,17 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
     const vehicle = ref.current;
     const motionBefore = motionStateRef.current;
 
+    if (audioReady && shouldRunThisFrame(4)) {
+      // Engine height; the loop then follows camera distance and walls.
+      audioManager.registerSoundPosition(
+        data.id,
+        vehicle.position.x,
+        vehicle.position.y + 1,
+        vehicle.position.z
+      );
+      audioManager.updateForkliftSpatialVolume(data.id);
+    }
+
     cameraDistanceRef.current = state.camera.position.distanceTo(vehicle.position);
     if (distanceTier === 'close' && cameraDistanceRef.current > FORKLIFT_LOD_FAR_METRES) {
       setDistanceTier('far');
@@ -852,16 +904,12 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
         cargo: hasCargoRef.current ? 'pallet' : 'empty',
         stopped: motion.stopReason !== 'none' || motion.speed <= 0.01,
       });
-      vehicleTelemetryRegistry.publish({
-        id: data.id,
-        type: 'forklift',
-        speedMps: motion.speed,
-        steeringRadians: motion.steeringAngle,
-        phase: loadPhaseRef.current,
-        stopReason: motion.stopReason,
-        articulationRadians: 0,
-        transferReady: false,
-      });
+      const telemetry = telemetryRef.current;
+      telemetry.speedMps = motion.speed;
+      telemetry.steeringRadians = motion.steeringAngle;
+      telemetry.phase = loadPhaseRef.current;
+      telemetry.stopReason = motion.stopReason;
+      vehicleTelemetryRegistry.publish(telemetry);
     };
 
     if (simulationPaused) {
@@ -872,9 +920,6 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
         stopReason: 'simulation-paused',
       };
       currentSpeedRef.current = 0;
-      steeringAngleRef.current = 0;
-      innerSteeringAngleRef.current = 0;
-      outerSteeringAngleRef.current = 0;
       stopReasonRef.current = 'simulation-paused';
       const sample = sampleArcLengthPath(routePlan.path, motionBefore.routeDistance);
       dirNormalizedRef.current.set(sample.tangentX, 0, sample.tangentZ);
@@ -903,21 +948,25 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
     let forkliftsNearby: EntityPosition[];
 
     if (shouldCheckCollisions) {
+      // Operator clearances from the Safety Config sliders (read, not subscribed).
+      const clearance = useSafetyStore.getState().safetyConfig;
       pathClear = positionRegistry.isPathClear(
         motionBefore.x,
         motionBefore.z,
         direction.x,
         direction.z,
-        5,
-        2.5,
+        clearance.pathCheckDistance,
+        clearance.vehicleDetectionRadius,
         data.id,
         true,
-        vehicle.position.y
+        vehicle.position.y,
+        (distanceAhead) =>
+          sampleArcLengthPath(routePlan.path, motionBefore.routeDistance + distanceAhead)
       );
       forkliftsNearby = positionRegistry.getForkliftsNearby(
         motionBefore.x,
         motionBefore.z,
-        4,
+        clearance.forkliftSafetyRadius,
         data.id,
         vehicle.position.y
       );
@@ -959,7 +1008,11 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
       });
       crossingTimerRef.current = 0;
     }
-    isInCrossingRef.current = activeCrossing !== null;
+    const inCrossing = activeCrossing !== null;
+    if (inCrossing !== isInCrossingRef.current) {
+      isInCrossingRef.current = inCrossing;
+      setIsInCrossing(inCrossing);
+    }
 
     const marker = routePlan.markers[actionMarkerIndexRef.current];
     const markerAction =
@@ -976,7 +1029,31 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
       ? distanceAheadOnClosedPath(routePlan.path, motionBefore.routeDistance, marker.distance)
       : Infinity;
 
+    // An e-stop or drill freezes a lift/place cycle where it is, as well as travel.
+    const emergencyStopped = forkliftEmergencyStop || emergencyDrillMode;
+
     if (operationRef.current === 'loading' || operationRef.current === 'unloading') {
+      if (emergencyStopped) {
+        stopReasonRef.current = 'emergency-stop';
+        motionStateRef.current = {
+          ...motionBefore,
+          speed: 0,
+          acceleration: 0,
+          stopReason: 'emergency-stop',
+        };
+        currentSpeedRef.current = 0;
+        positionRegistry.register(
+          data.id,
+          motionBefore.x,
+          motionBefore.z,
+          direction.x,
+          direction.z,
+          true,
+          vehicle.position.y
+        );
+        publishMotionTelemetry();
+        return;
+      }
       operationTimerRef.current += simulationDelta;
       const duration = Math.max(0.1, operationDurationRef.current);
       const action = operationRef.current === 'loading' ? 'pickup' : 'dropoff';
@@ -1005,9 +1082,6 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
         stopReason: 'load-operation',
       };
       currentSpeedRef.current = 0;
-      steeringAngleRef.current = 0;
-      innerSteeringAngleRef.current = 0;
-      outerSteeringAngleRef.current = 0;
       positionRegistry.register(
         data.id,
         motionBefore.x,
@@ -1035,7 +1109,7 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
     }
 
     let logisticsInterlock = false;
-    if (marker && markerRelevant && distanceToMarker <= 0.06 && markerAction) {
+    if (marker && markerRelevant && distanceToMarker <= 0.06 && markerAction && !emergencyStopped) {
       if (canPerformWaypointAction(markerAction)) {
         const markerSample = sampleArcLengthPath(routePlan.path, marker.distance);
         motionStateRef.current = {
@@ -1062,7 +1136,7 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
     }
 
     let stopReason: ForkliftStopReason = 'none';
-    if (forkliftEmergencyStop || emergencyDrillMode) stopReason = 'emergency-stop';
+    if (emergencyStopped) stopReason = 'emergency-stop';
     else if (!pathClear) stopReason = 'route-blocked';
     else if (forkliftsNearby.some((other) => !other.isStopped || data.id > other.id)) {
       stopReason = 'vehicle-yield';
@@ -1081,6 +1155,16 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
       if (stateChangeTimerRef.current >= HYSTERESIS_TIME) {
         setIsStopped(requestedStopped);
         stateChangeTimerRef.current = 0;
+        // Only a genuine obstruction is a near-miss. Commanded waits (crossing
+        // reservation, logistics interlock, e-stop or drill) keep the red
+        // beacon but neither sound the horn nor reset Days Safe.
+        if (stopReason === 'route-blocked' || stopReason === 'vehicle-yield') {
+          audioManager.playHorn(data.id);
+          recordSafetyStop();
+          useSafetyStore
+            .getState()
+            .recordIncidentLocation(vehicle.position.x, vehicle.position.z, 'stop');
+        }
       }
     } else {
       stateChangeTimerRef.current = 0;
@@ -1183,15 +1267,16 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
         <ForkliftBillboard hasCargo={hasCargo} simulationPaused={simulationPaused} />
       )}
 
-      {/* Warning light - only render when close (flashing light not visible from far anyway) */}
-      {distanceTier === 'close' && (
-        <WarningLight
-          isStopped={effectiveStopped}
-          isInCrossing={isInCrossingRef.current}
-          simulationPaused={simulationPaused}
-          height={authoredVehicleVisual ? 1.86 : 2.3}
-        />
-      )}
+      {/* Warning light - always mounted so the point-light count is constant;
+          its housing and wedge are drawn only in the close tier. The compact
+          (low) model's roof is at 2.13 m, so the 0.15 m housing centres at 2.205. */}
+      <WarningLight
+        isStopped={effectiveStopped}
+        isInCrossing={isInCrossing}
+        simulationPaused={simulationPaused}
+        height={authoredVehicleVisual ? 1.86 : 2.205}
+        showGeometry={distanceTier === 'close'}
+      />
 
       {/* Fleet identity and operation status, rendered only when close */}
       {distanceTier === 'close' && (
@@ -1204,7 +1289,7 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
             outlineWidth={0.02}
             outlineColor="#000"
           >
-            {data.id}
+            {FORKLIFT_DISPLAY_LABELS[data.id] ?? data.id}
           </Text>
           {/* Show operation status when loading/unloading */}
           {isOperating && (

@@ -1,11 +1,11 @@
 /**
- * Static generated structures and props.
+ * Generated rigid structures and props.
  *
- * Twenty-one generated GLBs normalized by
+ * Generated GLBs normalized by
  * `scripts/normalize-model-assets.mjs` and declared in
- * `public/models/asset-manifest.json`. None of them move, so unlike
- * `RiggedCreatureModel` this needs no skeleton, no rest-pose cache and no
- * imperative handle - it clones, turns shadows on, and gets out of the way.
+ * `public/models/asset-manifest.json`. These bodies have no internal rig. A
+ * runtime parent can still move them, as the yard jockey does. Source shadow
+ * flags survive atlas consolidation; older assets retain the true defaults.
  *
  * `Object3D.clone` rather than `SkeletonUtils.clone` is deliberate and safe
  * here: the SkeletonUtils rebinding these assets do not need costs a skeleton
@@ -83,6 +83,10 @@ export interface GeneratedModelProps {
    * outbuilding, a taller landmark - not for correcting the asset.
    */
   scale?: number;
+  /** Override an authored shadow flag, or retain the historical true default. */
+  castShadow?: boolean;
+  /** Match the source mesh shadow-reception contract. */
+  receiveShadow?: boolean;
   /**
    * Metres of the asset's OWN body to bury below the call site's origin.
    *
@@ -104,7 +108,13 @@ export interface GeneratedModelProps {
   sink?: number;
 }
 
-export const GeneratedModel: React.FC<GeneratedModelProps> = ({ asset, scale, sink }) => {
+export const GeneratedModel: React.FC<GeneratedModelProps> = ({
+  asset,
+  scale,
+  sink,
+  castShadow,
+  receiveShadow,
+}) => {
   const { scene } = useDracoGLTF(GENERATED_ASSET_PATHS[asset]);
 
   const model = useMemo(() => {
@@ -112,11 +122,14 @@ export const GeneratedModel: React.FC<GeneratedModelProps> = ({ asset, scale, si
     clone.traverse((object) => {
       const mesh = object as THREE.Mesh;
       if (!mesh.isMesh) return;
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
+      const authoredCast = mesh.userData.authoredCastShadow;
+      const authoredReceive = mesh.userData.authoredReceiveShadow;
+      mesh.castShadow = castShadow ?? (typeof authoredCast === 'boolean' ? authoredCast : true);
+      mesh.receiveShadow =
+        receiveShadow ?? (typeof authoredReceive === 'boolean' ? authoredReceive : true);
     });
     return clone;
-  }, [scene]);
+  }, [scene, castShadow, receiveShadow]);
 
   return (
     <primitive
@@ -149,17 +162,35 @@ export interface GeneratedBodyProps extends GeneratedModelProps {
 export const GeneratedBoundary: React.FC<{
   fallback: React.ReactNode;
   children: React.ReactNode;
-}> = ({ fallback, children }) => (
-  <ErrorBoundary fallback={fallback}>
-    <React.Suspense fallback={fallback}>{children}</React.Suspense>
-  </ErrorBoundary>
-);
+  /** Unknown dimensional or colour variants keep their authored geometry. */
+  enabled?: boolean;
+}> = ({ fallback, children, enabled = true }) =>
+  enabled ? (
+    <ErrorBoundary fallback={<>{fallback}</>}>
+      <React.Suspense fallback={fallback}>{children}</React.Suspense>
+    </ErrorBoundary>
+  ) : (
+    <>{fallback}</>
+  );
 
 GeneratedBoundary.displayName = 'GeneratedBoundary';
 
-export const GeneratedBody: React.FC<GeneratedBodyProps> = ({ asset, scale, sink, fallback }) => (
+export const GeneratedBody: React.FC<GeneratedBodyProps> = ({
+  asset,
+  scale,
+  sink,
+  castShadow,
+  receiveShadow,
+  fallback,
+}) => (
   <GeneratedBoundary fallback={fallback}>
-    <GeneratedModel asset={asset} scale={scale} sink={sink} />
+    <GeneratedModel
+      asset={asset}
+      scale={scale}
+      sink={sink}
+      castShadow={castShadow}
+      receiveShadow={receiveShadow}
+    />
   </GeneratedBoundary>
 );
 

@@ -57,13 +57,6 @@ const SCENARIOS = {
       await page.getByTestId('ai-command-center').waitFor();
     },
   },
-  workforce: {
-    title: 'Workforce',
-    viewport: DESKTOP_VIEWPORT,
-    dockLabel: 'Workforce',
-    surfaceRole: 'complementary',
-    surfaceName: 'Workforce sidebar panel',
-  },
   'bilateral-autonomy': {
     title: 'Bilateral autonomy',
     viewport: DESKTOP_VIEWPORT,
@@ -78,11 +71,11 @@ const SCENARIOS = {
     surfaceRole: 'complementary',
     surfaceName: 'Safety & Emergency sidebar panel',
     afterOpen: async (page) => {
-      await page.getByText('Fire Drill', { exact: true }).waitFor();
+      await page.getByRole('group', { name: 'Emergency egress verification drill' }).waitFor();
     },
   },
   'fire-drill': {
-    title: 'Active fire drill',
+    title: 'Active egress verification drill',
     viewport: DESKTOP_VIEWPORT,
     dockLabel: 'Safety & Emergency',
     surfaceRole: 'complementary',
@@ -115,7 +108,7 @@ const SCENARIOS = {
     },
   },
   'mobile-fire-drill': {
-    title: 'Mobile active fire drill',
+    title: 'Mobile active egress verification drill',
     viewport: MOBILE_VIEWPORT,
     dockLabel: 'Safety & Emergency',
     surfaceRole: 'dialog',
@@ -128,7 +121,11 @@ const SCENARIOS = {
       await page
         .locator('[role="alert"][aria-label="Simulated fire drill"]')
         .waitFor({ state: 'visible' });
-      await panel.getByText('Evacuated', { exact: true }).waitFor();
+      await panel
+        .getByRole('group', { name: 'Emergency egress verification drill' })
+        .getByRole('status')
+        .filter({ hasText: /zones verified/i })
+        .waitFor();
     },
   },
 };

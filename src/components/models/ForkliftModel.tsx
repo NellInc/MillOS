@@ -1,3 +1,5 @@
+import { GeneratedBoundary } from './GeneratedModel';
+import { GeneratedGeometrySurface } from './GeneratedGeometrySurface';
 /**
  * Forklift 3D Model Component
  *
@@ -42,6 +44,12 @@ import { applyVehicleSurface } from '../../utils/vehicleSurface';
 import { applyWorldSurface } from '../../utils/worldSurface';
 import { PROCEDURAL_TEXTURES } from '../../utils/sharedMaterials';
 import { RENDER_ORDER } from '../../constants/renderLayers';
+import {
+  getFlourPalletGeometry,
+  getFlourSackMaterial,
+  FLOUR_STRIPE_MATERIAL,
+  PALLET_PRINT_ALPHA_TEST,
+} from '../../utils/flourSacks';
 
 /**
  * Authored-GLB material overrides.
@@ -229,6 +237,70 @@ interface ForkliftModelProps {
   grime?: number;
 }
 
+/** The same carried product at every detail tier, with per-vehicle fading. */
+const FlourPallet: React.FC<{
+  opacity?: number;
+  materialRefs?: React.MutableRefObject<THREE.MeshStandardMaterial[]>;
+}> = ({ opacity = 1, materialRefs }) => {
+  const geometry = getFlourPalletGeometry();
+  const cloth = getFlourSackMaterial();
+  const localMaterials = useRef<THREE.MeshStandardMaterial[]>([]);
+  useEffect(() => {
+    const owned = localMaterials.current;
+    return () => owned.forEach((material) => material.dispose());
+  }, []);
+  const keepMaterial =
+    (slot: number, profile?: 'vehicle' | 'fabric') =>
+    (material: THREE.MeshStandardMaterial | null) => {
+      if (!material) return;
+      localMaterials.current[slot] = material;
+      if (materialRefs) materialRefs.current[slot] = material;
+      if (profile) applyWorldSurface(material, profile);
+    };
+  return (
+    <group name="forklift-flour-pallet" dispose={null}>
+      <mesh geometry={geometry.pallet} castShadow receiveShadow>
+        <meshStandardMaterial
+          ref={keepMaterial(0, 'vehicle')}
+          color="#90704b"
+          roughness={0.88}
+          transparent={!!materialRefs}
+          opacity={opacity}
+        />
+      </mesh>
+      <mesh geometry={geometry.sacks} castShadow receiveShadow>
+        <meshStandardMaterial
+          ref={keepMaterial(1, 'fabric')}
+          color="#ffffff"
+          map={cloth.map}
+          normalMap={cloth.normalMap}
+          normalScale={cloth.normalScale}
+          roughnessMap={cloth.roughnessMap}
+          roughness={cloth.roughness}
+          envMapIntensity={cloth.envMapIntensity}
+          transparent={!!materialRefs}
+          opacity={opacity}
+        />
+      </mesh>
+      <mesh geometry={geometry.ink} receiveShadow>
+        <meshStandardMaterial
+          ref={keepMaterial(2)}
+          color="#39352d"
+          map={FLOUR_STRIPE_MATERIAL.map}
+          roughness={0.95}
+          alphaTest={PALLET_PRINT_ALPHA_TEST}
+          polygonOffset
+          polygonOffsetFactor={FLOUR_STRIPE_MATERIAL.polygonOffsetFactor}
+          polygonOffsetUnits={FLOUR_STRIPE_MATERIAL.polygonOffsetUnits}
+          // Preserve antialiased ink in compact LOD as well as fading models.
+          transparent
+          opacity={opacity}
+        />
+      </mesh>
+    </group>
+  );
+};
+
 /**
  * Compact-LOD tyre, 0.64 m across and 0.24 m wide.
  *
@@ -286,44 +358,6 @@ function createCompactWheelGeometry(): THREE.LatheGeometry {
   return new THREE.LatheGeometry(profile, 20);
 }
 
-/**
- * Compact-LOD rotating beacon, 0.16 m across and 0.13 m tall.
- *
- * Mounted at y = 2.19, the highest point on the vehicle and so the only part
- * regularly read against open sky rather than against the mill behind it.
- * `CylinderGeometry(0.08, 0.08, 0.13, 10)` gave it a flat top, which reads as a
- * drum rather than a lamp.
- *
- * Two constraints make this profile unusually spare, and both are worth
- * stating. The cab roof's top face is at y = 2.13 - local y = -0.06 - so the
- * bottom 5 mm of this profile is inside the roof and any detail spent there is
- * invisible. And at the distances this LOD covers, the whole lamp is under ten
- * pixels tall, so lens fresnel rings would average to a plain cylinder one mip
- * level down. Everything therefore goes into the silhouette above the roof
- * line: a narrow mounting collar, a skirt flaring to full radius, a short
- * barrel, and a dome. The dome also earns its place on the emissive, which has
- * somewhere for its highlight to fall off instead of clipping across a flat lid.
- *
- * Envelope unchanged: max radius 0.08, y in [-0.065, 0.065]. The 10 segments
- * carry over from the cylinder deliberately - a 0.16 m lamp does not need more,
- * and any other count moves the inscribed polygon's Z half-extent by ~3.9 mm.
- */
-function createCompactBeaconGeometry(): THREE.LatheGeometry {
-  const profile = [
-    new THREE.Vector2(0.0, -0.065), // base cap centre, buried in the roof
-    new THREE.Vector2(0.062, -0.065),
-    new THREE.Vector2(0.068, -0.056), // mounting collar, emerging from the roof
-    new THREE.Vector2(0.068, -0.04),
-    new THREE.Vector2(0.08, -0.033), // lens skirt flares to full radius
-    new THREE.Vector2(0.08, 0.012), // lens barrel - envelope max radius
-    new THREE.Vector2(0.074, 0.03), // shoulder turns in
-    new THREE.Vector2(0.057, 0.048), // dome
-    new THREE.Vector2(0.031, 0.0605),
-    new THREE.Vector2(0.0, 0.065), // apex - envelope max y
-  ];
-  return new THREE.LatheGeometry(profile, 10);
-}
-
 // Low quality retains a deliberately small shared visual. Medium and above use
 // the authored derivative, which remains inside the measured draw-call budget.
 const compactForkliftGeometry = {
@@ -344,9 +378,6 @@ const compactForkliftGeometry = {
   // InstancedMesh - a one-off, not per wheel or per vehicle. Divisible by 4, so
   // the 0.32 m radius that sets ground contact is byte-identical.
   wheel: createCompactWheelGeometry(),
-  pallet: new THREE.BoxGeometry(0.94, 0.12, 0.86),
-  load: new THREE.BoxGeometry(0.84, 0.55, 0.76),
-  beacon: createCompactBeaconGeometry(),
   // Deliberately still a torus. Two dished-lathe replacements were designed and
   // previewed (compactSteeringWheelREJECTED in the spec cited above) and both
   // rendered as a solid lid. A steering wheel is defined by its spokes, its hub
@@ -438,32 +469,6 @@ const compactForkliftMaterial = {
     opacity: 0.5,
     depthWrite: false,
   }),
-  // Timber and sacking, carried by the truck: object space for the same reason
-  // the bodywork uses it.
-  pallet: applyWorldSurface(
-    new THREE.MeshStandardMaterial({ color: '#8a6337', roughness: 0.9, metalness: 0 }),
-    'vehicle'
-  ),
-  load: applyWorldSurface(
-    new THREE.MeshStandardMaterial({ color: '#e8d6ad', roughness: 0.75, metalness: 0 }),
-    'fabric'
-  ),
-  beaconMoving: new THREE.MeshStandardMaterial({
-    color: '#4a3200',
-    emissive: '#ff8c00',
-    emissiveIntensity: 1.2,
-    roughness: 0.35,
-    metalness: 0,
-    toneMapped: true,
-  }),
-  beaconStopped: new THREE.MeshStandardMaterial({
-    color: '#3d0f0f',
-    emissive: '#e02020',
-    emissiveIntensity: 1.1,
-    roughness: 0.35,
-    metalness: 0,
-    toneMapped: true,
-  }),
   headlight: new THREE.MeshStandardMaterial({
     color: '#2a2a26',
     emissive: '#fff1bd',
@@ -544,7 +549,6 @@ const setCompactInstances = (
 
 const CompactForklift: React.FC<ForkliftModelProps> = ({
   hasCargo,
-  isMoving,
   forkHeightRef,
   mastTiltRef,
   steeringAngleRef,
@@ -649,7 +653,7 @@ const CompactForklift: React.FC<ForkliftModelProps> = ({
     } else {
       const distance = worldPositionRef.current.distanceTo(previousWorldPositionRef.current);
       previousWorldPositionRef.current.copy(worldPositionRef.current);
-      if (isMoving && distance > 0 && distance <= 2) {
+      if (distance > 0 && distance <= 2) {
         wheelAngleRef.current += distance / FORKLIFT_WHEEL_RADIUS;
       }
     }
@@ -668,7 +672,8 @@ const CompactForklift: React.FC<ForkliftModelProps> = ({
               ? (innerSteeringAngleRef?.current ?? centreSteering)
               : (outerSteeringAngleRef?.current ?? centreSteering)
             : 0;
-      compactWheelSteering.setFromAxisAngle(THREE.Object3D.DEFAULT_UP, rearSteering);
+      // Rear-axle steering: a rear wheel yaws opposite to the turn it produces.
+      compactWheelSteering.setFromAxisAngle(THREE.Object3D.DEFAULT_UP, -rearSteering);
       compactWheelQuaternion
         .copy(compactWheelSteering)
         .multiply(compactWheelOrientation)
@@ -769,19 +774,7 @@ const CompactForklift: React.FC<ForkliftModelProps> = ({
             receiveShadow
           />
           <group position={[0, 0.43, 0.66]} visible={hasCargo}>
-            <mesh
-              geometry={compactForkliftGeometry.pallet}
-              material={compactForkliftMaterial.pallet}
-              castShadow
-              receiveShadow
-            />
-            <mesh
-              geometry={compactForkliftGeometry.load}
-              material={compactForkliftMaterial.load}
-              position={[0, 0.33, 0]}
-              castShadow
-              receiveShadow
-            />
+            <FlourPallet />
           </group>
         </group>
       </group>
@@ -789,14 +782,6 @@ const CompactForklift: React.FC<ForkliftModelProps> = ({
         ref={wheelRef}
         args={[compactForkliftGeometry.wheel, compactForkliftMaterial.tyre, 4]}
         castShadow
-        receiveShadow
-      />
-      <mesh
-        geometry={compactForkliftGeometry.beacon}
-        material={
-          isMoving ? compactForkliftMaterial.beaconMoving : compactForkliftMaterial.beaconStopped
-        }
-        position={[0, 2.19, -0.35]}
         receiveShadow
       />
       <instancedMesh
@@ -918,6 +903,11 @@ const GLTFForklift: React.FC<ForkliftModelProps> = ({
   const hasPreviousWorldPositionRef = useRef(false);
   const lampLitRef = useRef<boolean | null>(null);
 
+  const chassisRef = useRef<THREE.Mesh>(null);
+  const chassisGeometry = useMemo(
+    () => (scene.getObjectByName('forklift-base-24') as THREE.Mesh | undefined)?.geometry,
+    [scene]
+  );
   const materials = useMemo(() => createAuthoredForkliftMaterials(grime), [grime]);
   useEffect(() => () => materials.all.forEach((material) => material.dispose()), [materials]);
 
@@ -927,6 +917,7 @@ const GLTFForklift: React.FC<ForkliftModelProps> = ({
     // Local transforms are cloned but world matrices are not, and both the
     // wheel measurement and the lift-axis derivation read world transforms.
     clone.updateMatrixWorld(true);
+    chassisRef.current = null;
     wheelNodesRef.current = [];
     mastRootRef.current = null;
     forkCarrierRef.current = null;
@@ -941,6 +932,7 @@ const GLTFForklift: React.FC<ForkliftModelProps> = ({
     clone.traverse((child) => {
       const mesh = child as THREE.Mesh;
       if (mesh.isMesh) {
+        if (child.name === 'forklift-base-24') chassisRef.current = mesh;
         child.castShadow = true;
         child.receiveShadow = true;
         const isRam = RAM_NODE_NAMES.has(child.name);
@@ -1094,7 +1086,7 @@ const GLTFForklift: React.FC<ForkliftModelProps> = ({
     } else {
       const distance = worldPositionRef.current.distanceTo(previousWorldPositionRef.current);
       previousWorldPositionRef.current.copy(worldPositionRef.current);
-      if (isMoving && distance > 0 && distance <= 2) {
+      if (distance > 0 && distance <= 2) {
         travelDistanceRef.current += distance;
       }
     }
@@ -1109,7 +1101,8 @@ const GLTFForklift: React.FC<ForkliftModelProps> = ({
       );
       authoredWheelSteering.setFromAxisAngle(
         THREE.Object3D.DEFAULT_UP,
-        steered ? (steeringAngleRef?.current ?? 0) : 0
+        // The steered wheels are the rear axle, which yaws opposite to the turn.
+        steered ? -(steeringAngleRef?.current ?? 0) : 0
       );
       object.quaternion
         .copy(authoredWheelSteering)
@@ -1121,6 +1114,15 @@ const GLTFForklift: React.FC<ForkliftModelProps> = ({
   return (
     <group ref={modelRef}>
       <primitive object={clonedScene} scale={FORKLIFT_MODEL_SCALE} />
+      {chassisRef.current && chassisGeometry && (
+        <GeneratedBoundary fallback={null}>
+          <GeneratedGeometrySurface
+            asset="forkliftChassisUnit"
+            original={chassisGeometry}
+            meshRef={chassisRef}
+          />
+        </GeneratedBoundary>
+      )}
       {/* Add cargo on top if needed - always mounted, opacity animated */}
       <group ref={cargoMastRef} name="authored-forklift-cargo-mast">
         <group
@@ -1128,47 +1130,7 @@ const GLTFForklift: React.FC<ForkliftModelProps> = ({
           position={[0, 0.34, 1.02]}
           visible={hasCargo || cargoOpacityRef.current > 0.01}
         >
-          {/* The carried load: 40 m of `#fef3c7` over 22 instances, and the
-              largest genuinely flat row left in `world-forklifts`.
-
-              Treated through the existing ref rather than at a module-level
-              material because these two carry a PER-FORKLIFT animated opacity -
-              they are the cargo fade. `applyWorldSurface` is idempotent (it
-              guards on object identity), so a ref callback that fires on every
-              remount is the right place for it.
-
-              Both take OBJECT rest space: a forklift drives across the yard, and
-              a world-space field would slide the weave over the sacks it is
-              carrying. `vehicle` for the timber pallet and `fabric` for the
-              sacking, matching the compact forklift's own table above. */}
-          <mesh castShadow receiveShadow>
-            <boxGeometry args={[0.9, 0.12, 0.8]} />
-            <meshStandardMaterial
-              ref={(mat) => {
-                if (mat) {
-                  cargoMaterialsRef.current[0] = mat;
-                  applyWorldSurface(mat, 'vehicle');
-                }
-              }}
-              color="#a16207"
-              transparent
-              opacity={cargoOpacityRef.current}
-            />
-          </mesh>
-          <mesh castShadow receiveShadow position={[0, 0.34, 0]}>
-            <boxGeometry args={[0.82, 0.56, 0.72]} />
-            <meshStandardMaterial
-              ref={(mat) => {
-                if (mat) {
-                  cargoMaterialsRef.current[1] = mat;
-                  applyWorldSurface(mat, 'fabric');
-                }
-              }}
-              color="#fef3c7"
-              transparent
-              opacity={cargoOpacityRef.current}
-            />
-          </mesh>
+          <FlourPallet opacity={cargoOpacityRef.current} materialRefs={cargoMaterialsRef} />
         </group>
       </group>
     </group>
@@ -1181,7 +1143,6 @@ const GLTFForklift: React.FC<ForkliftModelProps> = ({
 // Procedural fallback (improved from original)
 const ProceduralForklift: React.FC<ForkliftModelProps> = ({
   hasCargo,
-  isMoving,
   forkHeightRef,
   mastTiltRef,
   steeringAngleRef,
@@ -1256,14 +1217,14 @@ const ProceduralForklift: React.FC<ForkliftModelProps> = ({
     const centreSteering = steeringAngleRef?.current ?? 0;
     wheelGroupRefs.current.forEach((wheelGroup, index) => {
       if (index < 2 || !wheelGroup) return;
-      wheelGroup.rotation.y =
-        index === 2
-          ? centreSteering > 0
-            ? (outerSteeringAngleRef?.current ?? centreSteering)
-            : (innerSteeringAngleRef?.current ?? centreSteering)
-          : centreSteering > 0
-            ? (innerSteeringAngleRef?.current ?? centreSteering)
-            : (outerSteeringAngleRef?.current ?? centreSteering);
+      // Rear-axle steering: a rear wheel yaws opposite to the turn it produces.
+      wheelGroup.rotation.y = -(index === 2
+        ? centreSteering > 0
+          ? (outerSteeringAngleRef?.current ?? centreSteering)
+          : (innerSteeringAngleRef?.current ?? centreSteering)
+        : centreSteering > 0
+          ? (innerSteeringAngleRef?.current ?? centreSteering)
+          : (outerSteeringAngleRef?.current ?? centreSteering));
     });
     modelRef.current.getWorldPosition(worldPositionRef.current);
     if (!hasPreviousWorldPositionRef.current) {
@@ -1274,7 +1235,7 @@ const ProceduralForklift: React.FC<ForkliftModelProps> = ({
 
     const distance = worldPositionRef.current.distanceTo(previousWorldPositionRef.current);
     previousWorldPositionRef.current.copy(worldPositionRef.current);
-    if (!isMoving || distance <= 0 || distance > 2) return;
+    if (distance <= 0 || distance > 2) return;
     wheelRefs.current.forEach((wheel, index) => {
       // Front and rear radii differ, and both must equal the geometry below.
       const radius = index < 2 ? FORKLIFT_WHEEL_RADIUS : FORKLIFT_REAR_WHEEL_RADIUS;
@@ -1520,80 +1481,14 @@ const ProceduralForklift: React.FC<ForkliftModelProps> = ({
         </group>
       ))}
 
-      {/* Cargo (pallet with boxes) - always mounted, opacity animated via useFrame */}
+      {/* Carried flour stays mounted while its existing opacity and mast pose animate. */}
       <group ref={cargoTiltRef} position={[0, 0, 1.3]}>
         <group
           ref={cargoRef}
           position={[0, 0.6, 0.7]}
           visible={hasCargo || cargoOpacityRef.current > 0.01}
         >
-          {/* Pallet */}
-          <mesh castShadow>
-            <boxGeometry args={[1, 0.12, 1]} />
-            <meshStandardMaterial
-              ref={(mat) => {
-                if (mat) cargoMaterialsRef.current[0] = mat;
-              }}
-              color="#a16207"
-              roughness={0.8}
-              transparent
-              opacity={cargoOpacityRef.current}
-            />
-          </mesh>
-          {/* Pallet slats */}
-          {[-0.35, 0, 0.35].map((z, i) => (
-            <mesh key={i} position={[0, -0.05, z]}>
-              <boxGeometry args={[1, 0.02, 0.15]} />
-              <meshStandardMaterial
-                ref={(mat) => {
-                  if (mat) cargoMaterialsRef.current[1 + i] = mat;
-                }}
-                color="#92400e"
-                roughness={0.9}
-                transparent
-                opacity={cargoOpacityRef.current}
-              />
-            </mesh>
-          ))}
-          {/* Stacked boxes */}
-          <mesh castShadow position={[0, 0.38, 0]}>
-            <boxGeometry args={[0.85, 0.5, 0.85]} />
-            <meshStandardMaterial
-              ref={(mat) => {
-                if (mat) {
-                  cargoMaterialsRef.current[4] = mat;
-                  applyWorldSurface(mat, 'fabric');
-                }
-              }}
-              color="#fef3c7"
-              roughness={0.7}
-              transparent
-              opacity={cargoOpacityRef.current}
-            />
-          </mesh>
-          {/* Box strapping */}
-          <mesh position={[0, 0.38, 0.43]}>
-            <boxGeometry args={[0.86, 0.05, 0.01]} />
-            <meshStandardMaterial
-              ref={(mat) => {
-                if (mat) cargoMaterialsRef.current[5] = mat;
-              }}
-              color="#3b82f6"
-              transparent
-              opacity={cargoOpacityRef.current}
-            />
-          </mesh>
-          <mesh position={[0, 0.38, -0.43]}>
-            <boxGeometry args={[0.86, 0.05, 0.01]} />
-            <meshStandardMaterial
-              ref={(mat) => {
-                if (mat) cargoMaterialsRef.current[6] = mat;
-              }}
-              color="#3b82f6"
-              transparent
-              opacity={cargoOpacityRef.current}
-            />
-          </mesh>
+          <FlourPallet opacity={cargoOpacityRef.current} materialRefs={cargoMaterialsRef} />
         </group>
       </group>
     </group>

@@ -1,15 +1,8 @@
 // Minimal WebAudio synthesizer for critter sounds
 // Avoids loading assets, keeps performance high.
-
-// Extend Window type for webkit-prefixed AudioContext
-interface WebkitWindow extends Window {
-  webkitAudioContext?: typeof AudioContext;
-}
-
-const ctx =
-  typeof window !== 'undefined'
-    ? new (window.AudioContext || (window as WebkitWindow).webkitAudioContext!)()
-    : null;
+// Voices run on audioManager's shared context and master bus, so mute, volume,
+// hidden-tab silence and the audio-reactive analyser all apply to them.
+import { audioManager } from './audioManager';
 
 type CritterType =
   | 'cat'
@@ -26,15 +19,20 @@ type CritterType =
   | 'bell';
 
 export const playCritterSound = (type: CritterType) => {
-  if (!ctx) return;
-  if (ctx.state === 'suspended') ctx.resume();
+  if (audioManager.muted) return;
+  // Every caller is a click handler, so this user gesture may create or resume
+  // the shared context.
+  void audioManager.resume().catch(() => undefined);
+  const ctx = audioManager.getAudioContext();
+  const out = audioManager.getAnalyzerMasterGain();
+  if (!ctx || !out) return;
 
   const t = ctx.currentTime;
   const osc = ctx.createOscillator();
   const gain = ctx.createGain();
 
   osc.connect(gain);
-  gain.connect(ctx.destination);
+  gain.connect(out);
 
   // Default volume (can be clamped)
   const vol = 0.1;
@@ -77,7 +75,7 @@ export const playCritterSound = (type: CritterType) => {
       const gain2 = ctx.createGain();
       osc2.type = 'square';
       osc2.connect(gain2);
-      gain2.connect(ctx.destination);
+      gain2.connect(out);
       osc2.frequency.setValueAtTime(150, t + 0.15);
       osc2.frequency.linearRampToValueAtTime(100, t + 0.25);
       gain2.gain.setValueAtTime(0, t + 0.15);
@@ -187,7 +185,7 @@ export const playCritterSound = (type: CritterType) => {
       const oscBell2 = ctx.createOscillator();
       const gainBell2 = ctx.createGain();
       oscBell2.connect(gainBell2);
-      gainBell2.connect(ctx.destination);
+      gainBell2.connect(out);
       oscBell2.type = 'sine';
       oscBell2.frequency.setValueAtTime(220.0 * 1.2, t); // Minor 3rdish dissonance
       gainBell2.gain.setValueAtTime(0, t);
@@ -200,7 +198,7 @@ export const playCritterSound = (type: CritterType) => {
       const oscBell3 = ctx.createOscillator();
       const gainBell3 = ctx.createGain();
       oscBell3.connect(gainBell3);
-      gainBell3.connect(ctx.destination);
+      gainBell3.connect(out);
       oscBell3.type = 'sine';
       oscBell3.frequency.setValueAtTime(220.0 * 2.6, t);
       gainBell3.gain.setValueAtTime(0, t);

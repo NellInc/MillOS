@@ -22,7 +22,7 @@
       "bounds": {
         "width": [
           0.9,
-          1.0
+          1
         ],
         "height": [
           1.75,
@@ -1061,6 +1061,3834 @@
       },
       "requiredNodes": [
         "CastleBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-dino-mascot",
+      "file": "world/dino-mascot.glb",
+      "role": "generated-landmark-mascot",
+      "source": "https://platform.tripo3d.ai (image_to_model v3.1-20260211, smart_low_poly, task 09017288-088f-4811-85e4-fefc3660fc71)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Generated with Tripo3D for MillOS under an API plan",
+      "selfContained": true,
+      "maxFileBytes": 210000,
+      "maxMaterials": 1,
+      "maxTextures": 3,
+      "maxRenderVertices": 15000,
+      "bounds": {
+        "width": [
+          1.95,
+          1.96
+        ],
+        "height": [
+          1.82,
+          1.86
+        ],
+        "length": [
+          1.36,
+          1.37
+        ],
+        "groundTolerance": 0.005,
+        "centreTolerance": 0.01
+      },
+      "requiredNodes": [
+        "Dino-mascotBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-bus-shelter",
+      "file": "world/bus-shelter.glb",
+      "role": "generated-structure",
+      "source": "https://platform.tripo3d.ai (image_to_model v3.1-20260211, smart_low_poly, task ea364612-95ec-42f3-a771-36dbecbd0bb9)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Generated with Tripo3D for MillOS under an API plan",
+      "selfContained": true,
+      "maxFileBytes": 300000,
+      "maxMaterials": 1,
+      "maxTextures": 3,
+      "maxRenderVertices": 19500,
+      "bounds": {
+        "width": [
+          4.39,
+          4.41
+        ],
+        "height": [
+          2.98,
+          3
+        ],
+        "length": [
+          2.29,
+          2.31
+        ],
+        "groundTolerance": 0.005,
+        "centreTolerance": 0.01
+      },
+      "requiredNodes": [
+        "Bus-shelterBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-park-bench",
+      "file": "world/park-bench.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (image_to_model v3.1-20260211, smart_low_poly, task bc6438f9-16aa-452e-80ef-c835629d88c1)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Generated with Tripo3D for MillOS under an API plan",
+      "selfContained": true,
+      "maxFileBytes": 210000,
+      "maxMaterials": 1,
+      "maxTextures": 3,
+      "maxRenderVertices": 9000,
+      "bounds": {
+        "width": [
+          1.79,
+          1.81
+        ],
+        "height": [
+          0.98,
+          1.01
+        ],
+        "length": [
+          0.6,
+          0.62
+        ],
+        "groundTolerance": 0.005,
+        "centreTolerance": 0.01
+      },
+      "requiredNodes": [
+        "Park-benchBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-nissen-hut",
+      "file": "world/nissen-hut.glb",
+      "role": "generated-structure",
+      "source": "https://platform.tripo3d.ai (image_to_model v3.1-20260211, smart_low_poly, task ea5ddd22-5a22-4a02-a124-4d909f669928)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Generated with Tripo3D for MillOS under an API plan",
+      "selfContained": true,
+      "maxFileBytes": 440000,
+      "maxMaterials": 1,
+      "maxTextures": 3,
+      "maxRenderVertices": 21000,
+      "bounds": {
+        "width": [
+          5.19,
+          5.21
+        ],
+        "height": [
+          2.49,
+          2.51
+        ],
+        "length": [
+          12.39,
+          12.41
+        ],
+        "groundTolerance": 0.005,
+        "centreTolerance": 0.01
+      },
+      "requiredNodes": [
+        "Nissen-hutBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-picnic-table",
+      "file": "world/picnic-table.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (image_to_model v3.1-20260211, smart_low_poly, task 41922669-dd09-4d8c-9d66-e49c1fcac9f2)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Generated with Tripo3D for MillOS under an API plan",
+      "selfContained": true,
+      "maxFileBytes": 320000,
+      "maxMaterials": 1,
+      "maxTextures": 3,
+      "maxRenderVertices": 13500,
+      "bounds": {
+        "width": [
+          1.79,
+          1.81
+        ],
+        "height": [
+          0.8,
+          0.82
+        ],
+        "length": [
+          1.4,
+          1.43
+        ],
+        "groundTolerance": 0.005,
+        "centreTolerance": 0.01
+      },
+      "requiredNodes": [
+        "Picnic-tableBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-waste-bin",
+      "file": "world/waste-bin.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (image_to_model v3.1-20260211, smart_low_poly, task 1f3a23d9-67d1-4d82-ba7e-ef465f02de42)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Generated with Tripo3D for MillOS under an API plan",
+      "selfContained": true,
+      "maxFileBytes": 160000,
+      "maxMaterials": 1,
+      "maxTextures": 3,
+      "maxRenderVertices": 6300,
+      "bounds": {
+        "width": [
+          0.55,
+          0.57
+        ],
+        "height": [
+          0.79,
+          0.81
+        ],
+        "length": [
+          0.55,
+          0.57
+        ],
+        "groundTolerance": 0.005,
+        "centreTolerance": 0.01
+      },
+      "requiredNodes": [
+        "Waste-binBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-caravan",
+      "file": "world/caravan.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (image_to_model v3.1-20260211, smart_low_poly, task 74dfba72-6a36-4a79-9488-fdf13e062ec6)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Generated with Tripo3D for MillOS under an API plan",
+      "selfContained": true,
+      "maxFileBytes": 400000,
+      "maxMaterials": 1,
+      "maxTextures": 3,
+      "maxRenderVertices": 18000,
+      "bounds": {
+        "width": [
+          2.8827,
+          2.9027
+        ],
+        "height": [
+          2.6554,
+          2.6754
+        ],
+        "length": [
+          6.445,
+          6.465
+        ],
+        "groundTolerance": 0.005,
+        "centreTolerance": 0.01
+      },
+      "requiredNodes": [
+        "CaravanBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-cute-car-sedan",
+      "file": "world/cute-car-sedan.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (image_to_model v3.1-20260211, smart_low_poly, task 47b0f068-58d6-4536-be42-ae4e54933379)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Generated with Tripo3D for MillOS under an API plan",
+      "selfContained": true,
+      "maxFileBytes": 450000,
+      "maxMaterials": 1,
+      "maxTextures": 3,
+      "maxRenderVertices": 16000,
+      "bounds": {
+        "width": [
+          3.51,
+          3.53
+        ],
+        "height": [
+          1.5123,
+          1.5323
+        ],
+        "length": [
+          1.8017,
+          1.8217
+        ],
+        "groundTolerance": 0.005,
+        "centreTolerance": 0.01
+      },
+      "requiredNodes": [
+        "Cute-car-sedanBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-small-office",
+      "file": "world/small-office.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (image_to_model v3.1-20260211, smart_low_poly, task b1feb03a-e73c-41f9-9d87-c700355b9088)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Generated with Tripo3D for MillOS under an API plan",
+      "selfContained": true,
+      "maxFileBytes": 450000,
+      "maxMaterials": 1,
+      "maxTextures": 3,
+      "maxRenderVertices": 16000,
+      "bounds": {
+        "width": [
+          14.49,
+          14.51
+        ],
+        "height": [
+          8.21,
+          8.23
+        ],
+        "length": [
+          10.49,
+          10.51
+        ],
+        "groundTolerance": 0.005,
+        "centreTolerance": 0.01
+      },
+      "requiredNodes": [
+        "Small-officeBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-cute-car-suv",
+      "file": "world/cute-car-suv.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (image_to_model v3.1-20260211, smart_low_poly:true, texture:true, pbr:true; Blender area-weighted normals, task a2420114-f0df-4cc1-8287-48860f2a61e7)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Generated with Tripo3D for MillOS under an API plan",
+      "selfContained": true,
+      "maxFileBytes": 300000,
+      "maxMaterials": 1,
+      "maxTextures": 3,
+      "maxRenderVertices": 12000,
+      "bounds": {
+        "width": [
+          3.71,
+          3.73
+        ],
+        "height": [
+          1.695,
+          1.715
+        ],
+        "length": [
+          1.95,
+          1.97
+        ],
+        "groundTolerance": 0.005,
+        "centreTolerance": 0.01
+      },
+      "requiredNodes": [
+        "Cute-car-suvBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-kiosk-cafe",
+      "file": "world/kiosk-cafe.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (image_to_model v3.1-20260211, smart_low_poly:true, texture:true, pbr:true; Blender area-weighted normals, task af78663e-ae54-446d-b977-bd2e0558951b)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Generated with Tripo3D for MillOS under an API plan",
+      "selfContained": true,
+      "maxFileBytes": 320000,
+      "maxMaterials": 1,
+      "maxTextures": 3,
+      "maxRenderVertices": 16000,
+      "bounds": {
+        "width": [
+          5.59,
+          5.61
+        ],
+        "height": [
+          4.4371,
+          4.4571
+        ],
+        "length": [
+          5.601,
+          5.621
+        ],
+        "groundTolerance": 0.005,
+        "centreTolerance": 0.01
+      },
+      "requiredNodes": [
+        "Kiosk-cafeBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-office-apartment",
+      "file": "world/office-apartment.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (image_to_model v3.1-20260211, smart_low_poly:true, texture:true, pbr:true; Blender area-weighted normals, task da878c89-f8e0-4aef-8efa-ad18b47edced)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Generated with Tripo3D for MillOS under an API plan",
+      "selfContained": true,
+      "maxFileBytes": 700000,
+      "maxMaterials": 1,
+      "maxTextures": 3,
+      "maxRenderVertices": 22000,
+      "bounds": {
+        "width": [
+          16.49,
+          16.51
+        ],
+        "height": [
+          16.09,
+          16.11
+        ],
+        "length": [
+          14.99,
+          15.01
+        ],
+        "groundTolerance": 0.005,
+        "centreTolerance": 0.01
+      },
+      "requiredNodes": [
+        "Office-apartmentBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-office-apartment-three",
+      "file": "world/office-apartment-three.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (image_to_model v3.1-20260211, smart_low_poly:true, texture:true, pbr:true; Blender middle-storey removal and area-weighted normals, task da878c89-f8e0-4aef-8efa-ad18b47edced)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Generated with Tripo3D for MillOS under an API plan",
+      "selfContained": true,
+      "maxFileBytes": 650000,
+      "maxMaterials": 1,
+      "maxTextures": 3,
+      "maxRenderVertices": 20000,
+      "bounds": {
+        "width": [
+          16.49,
+          16.51
+        ],
+        "height": [
+          12.59,
+          12.61
+        ],
+        "length": [
+          14.99,
+          15.01
+        ],
+        "groundTolerance": 0.005,
+        "centreTolerance": 0.01
+      },
+      "requiredNodes": [
+        "Office-apartment-threeBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-canal-boat",
+      "file": "world/canal-boat.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (image_to_model v3.1-20260211, smart_low_poly:true, texture:true, pbr:true; Blender area-weighted normals, task aa7ac592-5e84-4ab6-8afa-c6c24f317718)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Generated with Tripo3D for MillOS under an API plan",
+      "selfContained": true,
+      "maxFileBytes": 620000,
+      "maxMaterials": 1,
+      "maxTextures": 3,
+      "maxRenderVertices": 24000,
+      "bounds": {
+        "width": [
+          2.8085,
+          2.8285
+        ],
+        "height": [
+          4.002,
+          4.022
+        ],
+        "length": [
+          12.94,
+          12.96
+        ],
+        "groundTolerance": 0.005,
+        "centreTolerance": 0.01
+      },
+      "requiredNodes": [
+        "Canal-boatBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-cute-car-hatchback",
+      "file": "world/cute-car-hatchback.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (image_to_model v3.1-20260211, smart_low_poly:true; Blender cleanup and proportion or lamp correction; task 9de63797-04ca-4f9a-95c3-5cad2e02bcfa)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Generated with Tripo3D for MillOS under an API plan",
+      "selfContained": true,
+      "maxFileBytes": 360000,
+      "maxMaterials": 1,
+      "maxTextures": 3,
+      "maxRenderVertices": 15000,
+      "bounds": {
+        "width": [
+          2.91,
+          2.93
+        ],
+        "height": [
+          1.4071,
+          1.4271
+        ],
+        "length": [
+          1.7443,
+          1.7643
+        ],
+        "groundTolerance": 0.005,
+        "centreTolerance": 0.01
+      },
+      "requiredNodes": [
+        "Cute-car-hatchbackBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-cute-car-pickup",
+      "file": "world/cute-car-pickup.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (image_to_model v3.1-20260211, smart_low_poly:true; Blender cleanup and proportion or lamp correction; task 69c7a569-d67b-4cc3-96f4-7cfcc3283a26)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Generated with Tripo3D for MillOS under an API plan",
+      "selfContained": true,
+      "maxFileBytes": 340000,
+      "maxMaterials": 1,
+      "maxTextures": 3,
+      "maxRenderVertices": 14000,
+      "bounds": {
+        "width": [
+          4.11,
+          4.13
+        ],
+        "height": [
+          1.57,
+          1.59
+        ],
+        "length": [
+          1.9734,
+          1.9934
+        ],
+        "groundTolerance": 0.005,
+        "centreTolerance": 0.01
+      },
+      "requiredNodes": [
+        "Cute-car-pickupBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-food-truck",
+      "file": "world/food-truck.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (image_to_model v3.1-20260211, smart_low_poly:true; Blender cleanup and proportion or lamp correction; task d1e9b696-7db8-4430-9c2a-7927ec78d428)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Generated with Tripo3D for MillOS under an API plan",
+      "selfContained": true,
+      "maxFileBytes": 360000,
+      "maxMaterials": 1,
+      "maxTextures": 3,
+      "maxRenderVertices": 22000,
+      "bounds": {
+        "width": [
+          3.8917,
+          3.9117
+        ],
+        "height": [
+          2.64,
+          2.66
+        ],
+        "length": [
+          7.965,
+          7.985
+        ],
+        "groundTolerance": 0.005,
+        "centreTolerance": 0.01
+      },
+      "requiredNodes": [
+        "Food-truckBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-brick-carport",
+      "file": "world/brick-carport.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (image_to_model v3.1-20260211, smart_low_poly:true; Blender weighted normals; task c0dfd1e4-4c21-4f2b-bbc2-cbcb8d825253)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Generated with Tripo3D for MillOS under an API plan",
+      "selfContained": true,
+      "maxFileBytes": 690000,
+      "maxMaterials": 1,
+      "maxTextures": 3,
+      "maxRenderVertices": 22000,
+      "bounds": {
+        "width": [
+          10.59,
+          10.61
+        ],
+        "height": [
+          3.89,
+          3.91
+        ],
+        "length": [
+          8.59,
+          8.61
+        ],
+        "groundTolerance": 0.005,
+        "centreTolerance": 0.01
+      },
+      "requiredNodes": [
+        "Brick-carportBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-path-lamp-victorian",
+      "file": "world/path-lamp-victorian.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (image_to_model v3.1-20260211, smart_low_poly:true; Blender weighted normals; task d0a365e4-851b-496f-9e1b-7343af2b1857)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Generated with Tripo3D for MillOS under an API plan",
+      "selfContained": true,
+      "maxFileBytes": 120000,
+      "maxMaterials": 1,
+      "maxTextures": 3,
+      "maxRenderVertices": 5000,
+      "bounds": {
+        "width": [
+          0.6605,
+          0.6805
+        ],
+        "height": [
+          4.44,
+          4.46
+        ],
+        "length": [
+          0.5386,
+          0.5586
+        ],
+        "groundTolerance": 0.005,
+        "centreTolerance": 0.01
+      },
+      "requiredNodes": [
+        "Path-lamp-victorianBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-path-lamp-modern",
+      "file": "world/path-lamp-modern.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (image_to_model v3.1-20260211, smart_low_poly:true; Blender weighted normals; task 2efe4b42-80b9-4819-993c-83993e9d5236)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Generated with Tripo3D for MillOS under an API plan",
+      "selfContained": true,
+      "maxFileBytes": 80000,
+      "maxMaterials": 1,
+      "maxTextures": 3,
+      "maxRenderVertices": 4000,
+      "bounds": {
+        "width": [
+          0.5306,
+          0.5506
+        ],
+        "height": [
+          4.24,
+          4.26
+        ],
+        "length": [
+          0.514,
+          0.534
+        ],
+        "groundTolerance": 0.005,
+        "centreTolerance": 0.01
+      },
+      "requiredNodes": [
+        "Path-lamp-modernBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-info-sign",
+      "file": "world/info-sign.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (image_to_model v3.1-20260211, smart_low_poly:true; Blender weighted normals; task f66e1797-0d66-4e74-81cd-119456b357f4)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Generated with Tripo3D for MillOS under an API plan",
+      "selfContained": true,
+      "maxFileBytes": 70000,
+      "maxMaterials": 1,
+      "maxTextures": 3,
+      "maxRenderVertices": 5000,
+      "bounds": {
+        "width": [
+          0.7574,
+          0.7774
+        ],
+        "height": [
+          1.54,
+          1.56
+        ],
+        "length": [
+          0.1841,
+          0.2041
+        ],
+        "groundTolerance": 0.005,
+        "centreTolerance": 0.01
+      },
+      "requiredNodes": [
+        "Info-signBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-fuel-pump-shell",
+      "file": "world/fuel-pump-shell.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry and palette retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 75000,
+      "maxMaterials": 1,
+      "maxTextures": 3,
+      "maxRenderVertices": 700,
+      "bounds": {
+        "width": [
+          0.695,
+          0.705
+        ],
+        "height": [
+          1.795,
+          1.805
+        ],
+        "length": [
+          0.595,
+          0.605
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Fuel-pump-shellBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-station-canopy",
+      "file": "world/station-canopy.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry and palette retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 380000,
+      "maxMaterials": 1,
+      "maxTextures": 3,
+      "maxRenderVertices": 4700,
+      "bounds": {
+        "width": [
+          16.495,
+          16.505
+        ],
+        "height": [
+          5.195,
+          5.205
+        ],
+        "length": [
+          12.495,
+          12.505
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Station-canopyBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-checkpoint-booth",
+      "file": "world/checkpoint-booth.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry and palette retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 55000,
+      "maxMaterials": 1,
+      "maxTextures": 3,
+      "maxRenderVertices": 100,
+      "bounds": {
+        "width": [
+          4.295,
+          4.305
+        ],
+        "height": [
+          3.845,
+          3.855
+        ],
+        "length": [
+          3.795,
+          3.805
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Checkpoint-boothBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-station-counter",
+      "file": "world/station-counter.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry and palette retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 17000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 72,
+      "bounds": {
+        "width": [
+          1.599,
+          1.601
+        ],
+        "height": [
+          1.044,
+          1.046
+        ],
+        "length": [
+          2.599,
+          2.601
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Station-counterBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-station-register",
+      "file": "world/station-register.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry and palette retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 12000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 36,
+      "bounds": {
+        "width": [
+          0.499,
+          0.501
+        ],
+        "height": [
+          0.399,
+          0.401
+        ],
+        "length": [
+          0.399,
+          0.401
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Station-registerBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-station-card-reader",
+      "file": "world/station-card-reader.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry and palette retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 12000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 36,
+      "bounds": {
+        "width": [
+          0.149,
+          0.151
+        ],
+        "height": [
+          0.079,
+          0.081
+        ],
+        "length": [
+          0.199,
+          0.201
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Station-card-readerBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-station-shelving",
+      "file": "world/station-shelving.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry and palette retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 24000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 180,
+      "bounds": {
+        "width": [
+          0.649,
+          0.651
+        ],
+        "height": [
+          3.999,
+          4.001
+        ],
+        "length": [
+          5.999,
+          6.001
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Station-shelvingBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-station-drinks-cabinet",
+      "file": "world/station-drinks-cabinet.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry and palette retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 13000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 36,
+      "bounds": {
+        "width": [
+          3.999,
+          4.001
+        ],
+        "height": [
+          2.999,
+          3.001
+        ],
+        "length": [
+          0.799,
+          0.801
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Station-drinks-cabinetBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-station-coffee-machine",
+      "file": "world/station-coffee-machine.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry and palette retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 22000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 180,
+      "bounds": {
+        "width": [
+          0.799,
+          0.801
+        ],
+        "height": [
+          2.199,
+          2.201
+        ],
+        "length": [
+          0.799,
+          0.801
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Station-coffee-machineBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-station-slushie-machine",
+      "file": "world/station-slushie-machine.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry and palette retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 12000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 36,
+      "bounds": {
+        "width": [
+          0.699,
+          0.701
+        ],
+        "height": [
+          1.799,
+          1.801
+        ],
+        "length": [
+          0.499,
+          0.501
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Station-slushie-machineBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-station-grill",
+      "file": "world/station-grill.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry and palette retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 11000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 36,
+      "bounds": {
+        "width": [
+          0.599,
+          0.601
+        ],
+        "height": [
+          0.399,
+          0.401
+        ],
+        "length": [
+          0.499,
+          0.501
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Station-grillBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-station-magazine-rack",
+      "file": "world/station-magazine-rack.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry and palette retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 12000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 36,
+      "bounds": {
+        "width": [
+          0.799,
+          0.801
+        ],
+        "height": [
+          1.199,
+          1.201
+        ],
+        "length": [
+          0.399,
+          0.401
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Station-magazine-rackBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-grain-silo-large-shell",
+      "file": "world/grain-silo-large-shell.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 781000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 41184,
+      "bounds": {
+        "width": [
+          12.599,
+          12.601
+        ],
+        "height": [
+          39.799,
+          39.801
+        ],
+        "length": [
+          12.599,
+          12.601
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Grain-silo-large-shellBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-grain-silo-small-shell",
+      "file": "world/grain-silo-small-shell.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 688000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 35712,
+      "bounds": {
+        "width": [
+          10.599,
+          10.601
+        ],
+        "height": [
+          33.999,
+          34.001
+        ],
+        "length": [
+          10.599,
+          10.601
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Grain-silo-small-shellBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-grain-elevator-authored-body",
+      "file": "world/grain-elevator-authored-body.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 199000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 1728,
+      "bounds": {
+        "width": [
+          17.2181,
+          17.2201
+        ],
+        "height": [
+          57.1924,
+          57.1944
+        ],
+        "length": [
+          8.999,
+          9.001
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Grain-elevator-authored-bodyBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-utility-fuel-shell",
+      "file": "world/utility-fuel-shell.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 264000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 3456,
+      "bounds": {
+        "width": [
+          15.999,
+          16.001
+        ],
+        "height": [
+          5.999,
+          6.001
+        ],
+        "length": [
+          5.999,
+          6.001
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Utility-fuel-shellBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-utility-process-shell",
+      "file": "world/utility-process-shell.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 263000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 3456,
+      "bounds": {
+        "width": [
+          12.999,
+          13.001
+        ],
+        "height": [
+          4.999,
+          5.001
+        ],
+        "length": [
+          4.999,
+          5.001
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Utility-process-shellBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-propane-large-shell",
+      "file": "world/propane-large-shell.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 264000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 3456,
+      "bounds": {
+        "width": [
+          2.999,
+          3.001
+        ],
+        "height": [
+          7.999,
+          8.001
+        ],
+        "length": [
+          2.999,
+          3.001
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Propane-large-shellBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-propane-small-shell",
+      "file": "world/propane-small-shell.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 264000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 3456,
+      "bounds": {
+        "width": [
+          2.399,
+          2.401
+        ],
+        "height": [
+          6.399,
+          6.401
+        ],
+        "length": [
+          2.399,
+          2.401
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Propane-small-shellBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-wooden-bollard",
+      "file": "world/wooden-bollard.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 19000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 96,
+      "bounds": {
+        "width": [
+          0.299,
+          0.301
+        ],
+        "height": [
+          0.799,
+          0.801
+        ],
+        "length": [
+          0.299,
+          0.301
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Wooden-bollardBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-metal-bollard",
+      "file": "world/metal-bollard.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 18000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 96,
+      "bounds": {
+        "width": [
+          0.299,
+          0.301
+        ],
+        "height": [
+          0.799,
+          0.801
+        ],
+        "length": [
+          0.299,
+          0.301
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Metal-bollardBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-wooden-footbridge",
+      "file": "world/wooden-footbridge.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 175000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 2340,
+      "bounds": {
+        "width": [
+          2.999,
+          3.001
+        ],
+        "height": [
+          2.049,
+          2.051
+        ],
+        "length": [
+          14.039,
+          14.041
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Wooden-footbridgeBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-lock-gate-structure",
+      "file": "world/lock-gate-structure.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 33000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 216,
+      "bounds": {
+        "width": [
+          11.499,
+          11.501
+        ],
+        "height": [
+          3.824,
+          3.826
+        ],
+        "length": [
+          4.4965,
+          4.4985
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Lock-gate-structureBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-dock-canopy-structure",
+      "file": "world/dock-canopy-structure.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 59000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 636,
+      "bounds": {
+        "width": [
+          20.499,
+          20.501
+        ],
+        "height": [
+          6.199,
+          6.201
+        ],
+        "length": [
+          5.199,
+          5.201
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Dock-canopy-structureBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-yard-access-node-body",
+      "file": "world/yard-access-node-body.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 62000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 468,
+      "bounds": {
+        "width": [
+          1.024,
+          1.026
+        ],
+        "height": [
+          1.099,
+          1.101
+        ],
+        "length": [
+          0.219,
+          0.221
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Yard-access-node-bodyBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-yard-air-hose-body",
+      "file": "world/yard-air-hose-body.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 70000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 552,
+      "bounds": {
+        "width": [
+          0.599,
+          0.601
+        ],
+        "height": [
+          3.324,
+          3.326
+        ],
+        "length": [
+          0.519,
+          0.521
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Yard-air-hose-bodyBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-yard-bumper-body",
+      "file": "world/yard-bumper-body.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 21000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 36,
+      "bounds": {
+        "width": [
+          0.899,
+          0.901
+        ],
+        "height": [
+          0.499,
+          0.501
+        ],
+        "length": [
+          0.039,
+          0.041
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Yard-bumper-bodyBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-yard-compactor-body",
+      "file": "world/yard-compactor-body.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 32000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 150,
+      "bounds": {
+        "width": [
+          2.684,
+          2.686
+        ],
+        "height": [
+          2.649,
+          2.651
+        ],
+        "length": [
+          2.059,
+          2.061
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Yard-compactor-bodyBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-yard-crane-body",
+      "file": "world/yard-crane-body.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 88000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 702,
+      "bounds": {
+        "width": [
+          10.799,
+          10.801
+        ],
+        "height": [
+          0.949,
+          0.951
+        ],
+        "length": [
+          1.299,
+          1.301
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Yard-crane-bodyBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-yard-dock-plate-body",
+      "file": "world/yard-dock-plate-body.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 42000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 198,
+      "bounds": {
+        "width": [
+          2.999,
+          3.001
+        ],
+        "height": [
+          0.149,
+          0.151
+        ],
+        "length": [
+          2.989,
+          2.991
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Yard-dock-plate-bodyBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-yard-dumpster-body",
+      "file": "world/yard-dumpster-body.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 437000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 5382,
+      "bounds": {
+        "width": [
+          8.359,
+          8.361
+        ],
+        "height": [
+          2.6063,
+          2.6083
+        ],
+        "length": [
+          4.359,
+          4.361
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Yard-dumpster-bodyBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-yard-extinguisher-body",
+      "file": "world/yard-extinguisher-body.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 75000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 660,
+      "bounds": {
+        "width": [
+          0.499,
+          0.501
+        ],
+        "height": [
+          1.024,
+          1.026
+        ],
+        "length": [
+          0.274,
+          0.276
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Yard-extinguisher-bodyBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-yard-fuel-island-body",
+      "file": "world/yard-fuel-island-body.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 72000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 564,
+      "bounds": {
+        "width": [
+          5.999,
+          6.001
+        ],
+        "height": [
+          6.249,
+          6.251
+        ],
+        "length": [
+          9.999,
+          10.001
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Yard-fuel-island-bodyBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-yard-guard-shack-body",
+      "file": "world/yard-guard-shack-body.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 50000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 336,
+      "bounds": {
+        "width": [
+          6.5781,
+          6.5801
+        ],
+        "height": [
+          3.099,
+          3.101
+        ],
+        "length": [
+          3.499,
+          3.501
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Yard-guard-shack-bodyBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-yard-intercom-body",
+      "file": "world/yard-intercom-body.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 71000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 510,
+      "bounds": {
+        "width": [
+          0.299,
+          0.301
+        ],
+        "height": [
+          1.549,
+          1.551
+        ],
+        "length": [
+          0.224,
+          0.226
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Yard-intercom-bodyBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-yard-jockey-body",
+      "file": "world/yard-jockey-body.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 77000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 756,
+      "bounds": {
+        "width": [
+          2.049,
+          2.051
+        ],
+        "height": [
+          2.099,
+          2.101
+        ],
+        "length": [
+          2.499,
+          2.501
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Yard-jockey-bodyBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-yard-maintenance-body",
+      "file": "world/yard-maintenance-body.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 337000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 4020,
+      "bounds": {
+        "width": [
+          12.8131,
+          12.8151
+        ],
+        "height": [
+          8.089,
+          8.091
+        ],
+        "length": [
+          12.039,
+          12.041
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Yard-maintenance-bodyBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-yard-manifest-body",
+      "file": "world/yard-manifest-body.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 55000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 318,
+      "bounds": {
+        "width": [
+          0.499,
+          0.501
+        ],
+        "height": [
+          0.699,
+          0.701
+        ],
+        "length": [
+          0.184,
+          0.186
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Yard-manifest-bodyBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-yard-pallet-charger-body",
+      "file": "world/yard-pallet-charger-body.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 180000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 1944,
+      "bounds": {
+        "width": [
+          1.499,
+          1.501
+        ],
+        "height": [
+          1.499,
+          1.501
+        ],
+        "length": [
+          3.599,
+          3.601
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Yard-pallet-charger-bodyBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-yard-safety-mirror-body",
+      "file": "world/yard-safety-mirror-body.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 23000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 72,
+      "bounds": {
+        "width": [
+          1.199,
+          1.201
+        ],
+        "height": [
+          0.899,
+          0.901
+        ],
+        "length": [
+          0.639,
+          0.641
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Yard-safety-mirror-bodyBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-yard-scale-kiosk-body",
+      "file": "world/yard-scale-kiosk-body.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 39000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 228,
+      "bounds": {
+        "width": [
+          0.999,
+          1.001
+        ],
+        "height": [
+          1.949,
+          1.951
+        ],
+        "length": [
+          0.899,
+          0.901
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Yard-scale-kiosk-bodyBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-yard-stretch-wrap-body",
+      "file": "world/yard-stretch-wrap-body.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 56000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 432,
+      "bounds": {
+        "width": [
+          3.124,
+          3.126
+        ],
+        "height": [
+          2.999,
+          3.001
+        ],
+        "length": [
+          2.399,
+          2.401
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Yard-stretch-wrap-bodyBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-yard-telemetry-body",
+      "file": "world/yard-telemetry-body.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 68000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 468,
+      "bounds": {
+        "width": [
+          8.599,
+          8.601
+        ],
+        "height": [
+          7.599,
+          7.601
+        ],
+        "length": [
+          6.599,
+          6.601
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Yard-telemetry-bodyBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-yard-tire-inspection-body",
+      "file": "world/yard-tire-inspection-body.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 109000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 1032,
+      "bounds": {
+        "width": [
+          6.899,
+          6.901
+        ],
+        "height": [
+          2.599,
+          2.601
+        ],
+        "length": [
+          7.999,
+          8.001
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Yard-tire-inspection-bodyBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-yard-truck-wash-body",
+      "file": "world/yard-truck-wash-body.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 180000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 2040,
+      "bounds": {
+        "width": [
+          8.549,
+          8.551
+        ],
+        "height": [
+          8.299,
+          8.301
+        ],
+        "length": [
+          11.999,
+          12.001
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Yard-truck-wash-bodyBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-yard-weight-scale-body",
+      "file": "world/yard-weight-scale-body.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 46000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 276,
+      "bounds": {
+        "width": [
+          6.799,
+          6.801
+        ],
+        "height": [
+          3.2735,
+          3.2755
+        ],
+        "length": [
+          14.5065,
+          14.5085
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Yard-weight-scale-bodyBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-dock-leveler-plate",
+      "file": "world/dock-leveler-plate.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 18000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 36,
+      "bounds": {
+        "width": [
+          7.999,
+          8.001
+        ],
+        "height": [
+          0.149,
+          0.151
+        ],
+        "length": [
+          3.999,
+          4.001
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Dock-leveler-plateBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-dock-leveler-lip",
+      "file": "world/dock-leveler-lip.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 21000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 36,
+      "bounds": {
+        "width": [
+          7.999,
+          8.001
+        ],
+        "height": [
+          0.099,
+          0.101
+        ],
+        "length": [
+          0.299,
+          0.301
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Dock-leveler-lipBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-dock-door-panel",
+      "file": "world/dock-door-panel.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 21000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 36,
+      "bounds": {
+        "width": [
+          8.999,
+          9.001
+        ],
+        "height": [
+          3.999,
+          4.001
+        ],
+        "length": [
+          0.149,
+          0.151
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Dock-door-panelBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-dock-door-frame",
+      "file": "world/dock-door-frame.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 43000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 252,
+      "bounds": {
+        "width": [
+          9.699,
+          9.701
+        ],
+        "height": [
+          5.249,
+          5.251
+        ],
+        "length": [
+          0.284,
+          0.286
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Dock-door-frameBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-dock-shelter-side",
+      "file": "world/dock-shelter-side.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 20000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 36,
+      "bounds": {
+        "width": [
+          0.299,
+          0.301
+        ],
+        "height": [
+          3.499,
+          3.501
+        ],
+        "length": [
+          2.999,
+          3.001
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Dock-shelter-sideBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-dock-shelter-top",
+      "file": "world/dock-shelter-top.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 20000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 36,
+      "bounds": {
+        "width": [
+          4.099,
+          4.101
+        ],
+        "height": [
+          0.299,
+          0.301
+        ],
+        "length": [
+          2.999,
+          3.001
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Dock-shelter-topBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-dock-shelter-frame",
+      "file": "world/dock-shelter-frame.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 44000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 108,
+      "bounds": {
+        "width": [
+          4.799,
+          4.801
+        ],
+        "height": [
+          4.099,
+          4.101
+        ],
+        "length": [
+          0.199,
+          0.201
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Dock-shelter-frameBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-pallet-staging-body",
+      "file": "world/pallet-staging-body.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 110000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 1008,
+      "bounds": {
+        "width": [
+          2.999,
+          3.001
+        ],
+        "height": [
+          0.894,
+          0.896
+        ],
+        "length": [
+          3.199,
+          3.201
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Pallet-staging-bodyBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-wheel-chock-body",
+      "file": "world/wheel-chock-body.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 38000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 204,
+      "bounds": {
+        "width": [
+          0.3036,
+          0.3056
+        ],
+        "height": [
+          0.274,
+          0.276
+        ],
+        "length": [
+          0.359,
+          0.361
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Wheel-chock-bodyBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-dock-bumper-rubber",
+      "file": "world/dock-bumper-rubber.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 23000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 36,
+      "bounds": {
+        "width": [
+          0.799,
+          0.801
+        ],
+        "height": [
+          0.399,
+          0.401
+        ],
+        "length": [
+          0.269,
+          0.271
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Dock-bumper-rubberBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-cupid-authored-body",
+      "file": "world/cupid-authored-body.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 383000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 4668,
+      "bounds": {
+        "width": [
+          1.399,
+          1.401
+        ],
+        "height": [
+          2.329,
+          2.331
+        ],
+        "length": [
+          1.399,
+          1.401
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Cupid-authored-bodyBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-frog-authored-body",
+      "file": "world/frog-authored-body.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 218000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 2556,
+      "bounds": {
+        "width": [
+          0.3278,
+          0.3298
+        ],
+        "height": [
+          0.249,
+          0.251
+        ],
+        "length": [
+          0.239,
+          0.241
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Frog-authored-bodyBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-machine-silo-unit",
+      "file": "world/machine-silo-unit.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 2392000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 30912,
+      "bounds": {
+        "width": [
+          1.999,
+          2.001
+        ],
+        "height": [
+          0.999,
+          1.001
+        ],
+        "length": [
+          1.999,
+          2.001
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Machine-silo-unitBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-machine-mill-unit",
+      "file": "world/machine-mill-unit.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 58000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 576,
+      "bounds": {
+        "width": [
+          0.999,
+          1.001
+        ],
+        "height": [
+          0.999,
+          1.001
+        ],
+        "length": [
+          0.999,
+          1.001
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Machine-mill-unitBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-machine-sifter-unit",
+      "file": "world/machine-sifter-unit.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 75000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 792,
+      "bounds": {
+        "width": [
+          0.999,
+          1.001
+        ],
+        "height": [
+          0.999,
+          1.001
+        ],
+        "length": [
+          0.999,
+          1.001
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Machine-sifter-unitBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-machine-packer-unit",
+      "file": "world/machine-packer-unit.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 64000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 648,
+      "bounds": {
+        "width": [
+          0.999,
+          1.001
+        ],
+        "height": [
+          0.999,
+          1.001
+        ],
+        "length": [
+          0.999,
+          1.001
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Machine-packer-unitBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-fence-post-unit",
+      "file": "world/fence-post-unit.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 21000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 36,
+      "bounds": {
+        "width": [
+          0.149,
+          0.151
+        ],
+        "height": [
+          2.399,
+          2.401
+        ],
+        "length": [
+          0.149,
+          0.151
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Fence-post-unitBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-fence-rail-unit",
+      "file": "world/fence-rail-unit.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 14000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 36,
+      "bounds": {
+        "width": [
+          0.109,
+          0.111
+        ],
+        "height": [
+          0.109,
+          0.111
+        ],
+        "length": [
+          62.999,
+          63.001
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Fence-rail-unitBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-hedge-unit",
+      "file": "world/hedge-unit.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 19000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 36,
+      "bounds": {
+        "width": [
+          0.499,
+          0.501
+        ],
+        "height": [
+          0.599,
+          0.601
+        ],
+        "length": [
+          29.999,
+          30.001
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Hedge-unitBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-bridge-housing-unit",
+      "file": "world/bridge-housing-unit.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 23000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 36,
+      "bounds": {
+        "width": [
+          1.999,
+          2.001
+        ],
+        "height": [
+          1.499,
+          1.501
+        ],
+        "length": [
+          19.3122,
+          19.3142
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Bridge-housing-unitBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-bridge-support-unit",
+      "file": "world/bridge-support-unit.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 19000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 36,
+      "bounds": {
+        "width": [
+          0.299,
+          0.301
+        ],
+        "height": [
+          0.499,
+          0.501
+        ],
+        "length": [
+          17.3122,
+          17.3142
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Bridge-support-unitBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-factory-steel-unit",
+      "file": "world/factory-steel-unit.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 22000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 36,
+      "bounds": {
+        "width": [
+          0.999,
+          1.001
+        ],
+        "height": [
+          0.999,
+          1.001
+        ],
+        "length": [
+          0.999,
+          1.001
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Factory-steel-unitBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-factory-concrete-unit",
+      "file": "world/factory-concrete-unit.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 19000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 36,
+      "bounds": {
+        "width": [
+          0.999,
+          1.001
+        ],
+        "height": [
+          0.999,
+          1.001
+        ],
+        "length": [
+          0.999,
+          1.001
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Factory-concrete-unitBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-city-masonry-unit",
+      "file": "world/city-masonry-unit.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 20000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 36,
+      "bounds": {
+        "width": [
+          0.999,
+          1.001
+        ],
+        "height": [
+          0.999,
+          1.001
+        ],
+        "length": [
+          0.999,
+          1.001
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "City-masonry-unitBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-station-sign-pole-unit",
+      "file": "world/station-sign-pole-unit.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 103000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 1152,
+      "bounds": {
+        "width": [
+          0.299,
+          0.301
+        ],
+        "height": [
+          7.999,
+          8.001
+        ],
+        "length": [
+          0.299,
+          0.301
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Station-sign-pole-unitBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-station-sign-cabinet-unit",
+      "file": "world/station-sign-cabinet-unit.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 21000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 36,
+      "bounds": {
+        "width": [
+          3.999,
+          4.001
+        ],
+        "height": [
+          4.999,
+          5.001
+        ],
+        "length": [
+          0.299,
+          0.301
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Station-sign-cabinet-unitBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-station-wall-unit",
+      "file": "world/station-wall-unit.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 20000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 36,
+      "bounds": {
+        "width": [
+          0.199,
+          0.201
+        ],
+        "height": [
+          4.999,
+          5.001
+        ],
+        "length": [
+          9.999,
+          10.001
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Station-wall-unitBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-station-roof-unit",
+      "file": "world/station-roof-unit.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 19000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 36,
+      "bounds": {
+        "width": [
+          8.999,
+          9.001
+        ],
+        "height": [
+          0.499,
+          0.501
+        ],
+        "length": [
+          10.999,
+          11.001
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Station-roof-unitBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-park-trunk-unit",
+      "file": "world/park-trunk-unit.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 68000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 648,
+      "bounds": {
+        "width": [
+          0.799,
+          0.801
+        ],
+        "height": [
+          2.999,
+          3.001
+        ],
+        "length": [
+          0.799,
+          0.801
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Park-trunk-unitBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-park-canopy-zero-unit",
+      "file": "world/park-canopy-zero-unit.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 32000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 96,
+      "bounds": {
+        "width": [
+          5.8257,
+          5.8277
+        ],
+        "height": [
+          3.9575,
+          3.9595
+        ],
+        "length": [
+          5.8257,
+          5.8277
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Park-canopy-zero-unitBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-park-canopy-one-unit",
+      "file": "world/park-canopy-one-unit.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 30000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 96,
+      "bounds": {
+        "width": [
+          6.5392,
+          6.5412
+        ],
+        "height": [
+          4.5665,
+          4.5685
+        ],
+        "length": [
+          6.5392,
+          6.5412
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Park-canopy-one-unitBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-park-canopy-two-unit",
+      "file": "world/park-canopy-two-unit.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 31000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 96,
+      "bounds": {
+        "width": [
+          5.2312,
+          5.2332
+        ],
+        "height": [
+          3.653,
+          3.655
+        ],
+        "length": [
+          5.2312,
+          5.2332
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Park-canopy-two-unitBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-oak-trunk-unit",
+      "file": "world/oak-trunk-unit.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 72000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 720,
+      "bounds": {
+        "width": [
+          0.639,
+          0.641
+        ],
+        "height": [
+          2.599,
+          2.601
+        ],
+        "length": [
+          0.639,
+          0.641
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Oak-trunk-unitBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-oak-canopy-unit",
+      "file": "world/oak-canopy-unit.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 30000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 96,
+      "bounds": {
+        "width": [
+          4.3988,
+          4.4008
+        ],
+        "height": [
+          3.1455,
+          3.1475
+        ],
+        "length": [
+          4.3988,
+          4.4008
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Oak-canopy-unitBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-birch-trunk-unit",
+      "file": "world/birch-trunk-unit.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 66000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 648,
+      "bounds": {
+        "width": [
+          0.319,
+          0.321
+        ],
+        "height": [
+          3.099,
+          3.101
+        ],
+        "length": [
+          0.319,
+          0.321
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Birch-trunk-unitBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-birch-canopy-unit",
+      "file": "world/birch-canopy-unit.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 33000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 96,
+      "bounds": {
+        "width": [
+          2.9718,
+          2.9738
+        ],
+        "height": [
+          3.044,
+          3.046
+        ],
+        "length": [
+          2.9718,
+          2.9738
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Birch-canopy-unitBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-pine-trunk-unit",
+      "file": "world/pine-trunk-unit.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 92000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 936,
+      "bounds": {
+        "width": [
+          0.479,
+          0.481
+        ],
+        "height": [
+          2.999,
+          3.001
+        ],
+        "length": [
+          0.479,
+          0.481
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Pine-trunk-unitBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-pine-canopy-unit",
+      "file": "world/pine-canopy-unit.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 33000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 96,
+      "bounds": {
+        "width": [
+          3.4475,
+          3.4495
+        ],
+        "height": [
+          3.856,
+          3.858
+        ],
+        "length": [
+          3.4475,
+          3.4495
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Pine-canopy-unitBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-flour-sack-unit",
+      "file": "world/flour-sack-unit.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 39000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 252,
+      "bounds": {
+        "width": [
+          0.599,
+          0.601
+        ],
+        "height": [
+          0.299,
+          0.301
+        ],
+        "length": [
+          0.899,
+          0.901
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Flour-sack-unitBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-spouting-flange-unit",
+      "file": "world/spouting-flange-unit.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 123000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 1368,
+      "bounds": {
+        "width": [
+          0.439,
+          0.441
+        ],
+        "height": [
+          0.119,
+          0.121
+        ],
+        "length": [
+          0.439,
+          0.441
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Spouting-flange-unitBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-spouting-column-unit",
+      "file": "world/spouting-column-unit.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 68000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 648,
+      "bounds": {
+        "width": [
+          1.999,
+          2.001
+        ],
+        "height": [
+          0.999,
+          1.001
+        ],
+        "length": [
+          1.999,
+          2.001
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Spouting-column-unitBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-spouting-crossbeam-unit",
+      "file": "world/spouting-crossbeam-unit.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 96000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 1008,
+      "bounds": {
+        "width": [
+          1.999,
+          2.001
+        ],
+        "height": [
+          0.999,
+          1.001
+        ],
+        "length": [
+          1.999,
+          2.001
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Spouting-crossbeam-unitBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-forklift-chassis-unit",
+      "file": "world/forklift-chassis-unit.glb",
+      "role": "generated-prop",
+      "source": "https://sketchfab.com/3d-models/forklift-d40cae50e04145dd997cdca415cd72ad",
+      "license": "CC-BY-4.0",
+      "attribution": "Forklift by Mantas Stankaitis; Tripo3D normal/roughness treatment under API-plan rights",
+      "selfContained": true,
+      "maxFileBytes": 402000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 4977,
+      "bounds": {
+        "width": [
+          1.999,
+          2.001
+        ],
+        "height": [
+          0.8074,
+          0.8094
+        ],
+        "length": [
+          0.9527,
+          0.9547
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Forklift-chassis-unitBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-truck-cab-unit",
+      "file": "world/truck-cab-unit.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 148000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 1764,
+      "bounds": {
+        "width": [
+          0.999,
+          1.001
+        ],
+        "height": [
+          0.999,
+          1.001
+        ],
+        "length": [
+          0.999,
+          1.001
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Truck-cab-unitBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-truck-trailer-unit",
+      "file": "world/truck-trailer-unit.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 150000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 1764,
+      "bounds": {
+        "width": [
+          0.999,
+          1.001
+        ],
+        "height": [
+          0.999,
+          1.001
+        ],
+        "length": [
+          0.999,
+          1.001
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Truck-trailer-unitBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-truck-tyre-unit",
+      "file": "world/truck-tyre-unit.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 35000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 288,
+      "bounds": {
+        "width": [
+          1.039,
+          1.041
+        ],
+        "height": [
+          0.379,
+          0.381
+        ],
+        "length": [
+          1.039,
+          1.041
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Truck-tyre-unitBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-victorian-portal-unit",
+      "file": "world/victorian-portal-unit.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 55000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 456,
+      "bounds": {
+        "width": [
+          13.999,
+          14.001
+        ],
+        "height": [
+          9.999,
+          10.001
+        ],
+        "length": [
+          1.199,
+          1.201
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Victorian-portal-unitBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-industrial-portal-unit",
+      "file": "world/industrial-portal-unit.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 91000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 936,
+      "bounds": {
+        "width": [
+          1.999,
+          2.001
+        ],
+        "height": [
+          0.999,
+          1.001
+        ],
+        "length": [
+          0.9917,
+          0.9937
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Industrial-portal-unitBody"
+      ],
+      "requiredAnimations": []
+    },
+    {
+      "id": "world-drainage-pipe-unit",
+      "file": "world/drainage-pipe-unit.glb",
+      "role": "generated-prop",
+      "source": "https://platform.tripo3d.ai (texture v3.0-20250812; Blender authored geometry retained)",
+      "license": "Tripo3D API-plan output",
+      "attribution": "Authored MillOS geometry with Tripo3D texture treatment",
+      "selfContained": true,
+      "maxFileBytes": 223000,
+      "maxMaterials": 1,
+      "maxTextures": 2,
+      "maxRenderVertices": 2496,
+      "bounds": {
+        "width": [
+          1.999,
+          2.001
+        ],
+        "height": [
+          0.999,
+          1.001
+        ],
+        "length": [
+          1.999,
+          2.001
+        ],
+        "groundTolerance": 0.001,
+        "centreTolerance": 0.001
+      },
+      "requiredNodes": [
+        "Drainage-pipe-unitBody"
       ],
       "requiredAnimations": []
     }

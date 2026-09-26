@@ -94,14 +94,16 @@ events exist.
 ### Agent contract and query plane
 
 Phases 0 through 2 of the agent operating programme are implemented under `src/agent/`. They
-provide semantic URIs, 11 domain descriptors, 10 invariant descriptors, three discovery-only
-capability candidates, deterministic domain revisions, Level 0 and Level 1 observations, runtime
-validation, source fingerprints, and generated evidence under `build/generated/agent/`.
+provide semantic URIs, 11 domain descriptors, 10 invariant descriptors, capability descriptors
+discoverable from the read service, deterministic domain revisions, Level 0 and Level 1
+observations, runtime validation, source fingerprints, and generated evidence under
+`build/generated/agent/`.
 
 `scripts/agent-brief.mjs` composes bounded Git state and generated contract facts without reading
 diffs, environment values, credentials, or arbitrary repository contents. The browser imports the
-registry only through the read adapter. Current authority is observation-only: command execution,
-grants, cockpit mutation controls, and external writes remain absent.
+registry only through the read adapter. Implemented capabilities are executable through the
+command kernel that `installMillOSAgentRuntime` composes, and every agent command passes a
+capability, revision, authority grant, preview, receipt, and verifier.
 
 The exact Phase 2 production build transforms 3,609 modules. The initial JavaScript budget is
 0.45 MiB gzip across five files. A capture-locked shipping-page probe confirmed all four methods,

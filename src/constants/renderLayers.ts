@@ -267,13 +267,13 @@ export const RENDER_ORDER = {
  */
 export const CAMERA_DEPTH = {
   /** Near plane - minimum view distance */
-  near: 0.5,
+  near: 0.8,
 
   /** Far plane - maximum view distance */
-  far: 360,
+  far: 960,
 
   /** Recommended ratio for indoor scenes */
-  recommendedRatio: 720,
+  recommendedRatio: 1200,
 } as const;
 
 /**

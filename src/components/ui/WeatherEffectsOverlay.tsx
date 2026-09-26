@@ -7,7 +7,7 @@
  */
 
 import React from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { CloudRain, CloudLightning, Wind, Snowflake } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 
@@ -29,32 +29,30 @@ const RAIN_DROPS = Array.from({ length: 50 }, (_, index) => ({
 
 const LIGHTNING_REPEAT_DELAY = seededUnit(211) * 5;
 
+// Whole-word matching only: substring tests read 'Raw Grain Inventory' as rain
+// and the 'Service Windows' achievement as wind.
+const WEATHER_RE = /\b(storm|storms|rain|rainfall|wind|winds|snow|weather)\b/i;
+const RAIN_RE = /\brain(fall)?\b/i;
+const WIND_RE = /\bwinds?\b/i;
+const SNOW_RE = /\bsnow\b/i;
+
 export const WeatherEffectsOverlay: React.FC = () => {
   // Optimized selector: Derived state inside useStore + useShallow
   const weatherAlert = useUIStore(
     useShallow((state) => {
       // Find first weather-related alert
-      const alert = state.alerts.find((a) => {
-        const t = a.title?.toLowerCase() ?? '';
-        const m = a.message?.toLowerCase() ?? '';
-        const combined = t + ' ' + m;
-        return (
-          combined.includes('storm') ||
-          combined.includes('weather') ||
-          combined.includes('rain') ||
-          combined.includes('wind') ||
-          combined.includes('snow')
-        );
-      });
+      const alert = state.alerts.find(
+        (a) => !a.acknowledged && WEATHER_RE.test(`${a.title ?? ''} ${a.message ?? ''}`)
+      );
 
       if (!alert) return null;
 
       // Determine weather type
-      const text = `${alert.title} ${alert.message}`.toLowerCase();
+      const text = `${alert.title ?? ''} ${alert.message ?? ''}`;
       let type: WeatherType = 'storm';
-      if (text.includes('rain')) type = 'rain';
-      else if (text.includes('wind')) type = 'wind';
-      else if (text.includes('snow')) type = 'snow';
+      if (RAIN_RE.test(text)) type = 'rain';
+      else if (WIND_RE.test(text)) type = 'wind';
+      else if (SNOW_RE.test(text)) type = 'snow';
 
       // Determine severity
       let severity: 'low' | 'medium' | 'high' = 'medium';
@@ -65,6 +63,8 @@ export const WeatherEffectsOverlay: React.FC = () => {
       return { type, severity };
     })
   );
+
+  const reduceMotion = useReducedMotion();
 
   if (!weatherAlert) return null;
 
@@ -145,8 +145,8 @@ export const WeatherEffectsOverlay: React.FC = () => {
           </div>
         </motion.div>
 
-        {/* Rain effect - animated lines */}
-        {(weatherAlert.type === 'rain' || weatherAlert.type === 'storm') && (
+        {/* Rain: transform-only so the drops stay on the compositor; skipped for reduced motion. */}
+        {!reduceMotion && (weatherAlert.type === 'rain' || weatherAlert.type === 'storm') && (
           <div className="absolute inset-0 overflow-hidden">
             {RAIN_DROPS.slice(0, weatherAlert.severity === 'high' ? 50 : 25).map((drop, i) => (
               <motion.div
@@ -155,9 +155,10 @@ export const WeatherEffectsOverlay: React.FC = () => {
                 style={{
                   left: drop.left,
                   height: drop.height,
+                  top: 0,
                 }}
-                initial={{ top: '-5%' }}
-                animate={{ top: '105%' }}
+                initial={{ y: '-5vh' }}
+                animate={{ y: '105vh' }}
                 transition={{
                   duration: drop.duration,
                   repeat: Infinity,
@@ -170,7 +171,7 @@ export const WeatherEffectsOverlay: React.FC = () => {
         )}
 
         {/* Lightning flash for storms */}
-        {weatherAlert.type === 'storm' && weatherAlert.severity === 'high' && (
+        {!reduceMotion && weatherAlert.type === 'storm' && weatherAlert.severity === 'high' && (
           <motion.div
             className="absolute inset-0 bg-white/10"
             initial={{ opacity: 0 }}

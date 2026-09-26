@@ -3,6 +3,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { safeJSONStorage } from './storage';
+import { CURRENT_RELEASE_VERSION } from '../config/releaseVersions';
 
 export type NarrationTrigger =
   | 'first-play'
@@ -39,7 +40,7 @@ export const AI_NARRATIONS: NarrationEntry[] = [
     oneTime: true,
     priority: 100,
     unlocksEntry: 'unified-digital-twin',
-    content: `Welcome to MillOS v0.40.\n\nThis is a fully uncrewed grain-mill digital twin. The factory floor, loading yard, garage, village, farm, stream, mountains, sky, and celestial cycle remain one continuous world.\n\nI coordinate process state, logistics, safety interlocks, quality genealogy, maintenance, and SCADA evidence. Open Datalinks for concise explanations of how each subsystem fits together.`,
+    content: `Welcome to MillOS ${CURRENT_RELEASE_VERSION}.\n\nThis is a fully uncrewed grain-mill digital twin. The factory floor, loading yard, garage, village, farm, stream, mountains, sky, and celestial cycle form one continuous world.\n\nI coordinate process state, logistics, safety interlocks, quality genealogy, maintenance, and SCADA evidence. Open Datalinks for concise explanations of how each subsystem fits together.`,
   },
   {
     id: 'library-autonomous-mill',

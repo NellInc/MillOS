@@ -16,6 +16,7 @@ import {
   fbmNoiseSigned,
   createColorDataTexture,
   createLinearDataTexture,
+  blendTileEdges,
 } from '../utils/textureGenerator';
 
 export interface StuccoOptions {
@@ -40,7 +41,7 @@ export const generateStucco = (
   options: StuccoOptions = {}
 ): THREE.DataTexture => {
   const opts = { ...DEFAULT_OPTIONS, ...options };
-  const cacheKey = `stucco-v3-${size}-${opts.weathering}-${opts.contrast}`;
+  const cacheKey = `stucco-v4-${size}-${opts.weathering}-${opts.contrast}`;
 
   return getTexture(cacheKey, () => {
     const data = new Uint8Array(size * size * 4);
@@ -82,6 +83,7 @@ export const generateStucco = (
       }
     }
 
+    blendTileEdges(data, size);
     return createColorDataTexture(data, size, size);
   });
 };
@@ -128,7 +130,7 @@ export const generateStuccoRoughness = (
   size: number = 512,
   baseRoughness: number = 0.7
 ): THREE.DataTexture => {
-  return getTexture(`stucco-roughness-${size}-${baseRoughness}`, () => {
+  return getTexture(`stucco-roughness-v2-${size}-${baseRoughness}`, () => {
     const data = new Uint8Array(size * size * 4);
 
     for (let y = 0; y < size; y++) {
@@ -153,6 +155,7 @@ export const generateStuccoRoughness = (
       }
     }
 
+    blendTileEdges(data, size);
     return createLinearDataTexture(data, size, size);
   });
 };

@@ -1,14 +1,15 @@
 /**
  * CostEstimationOverlay Component
  *
- * Shows REAL Gemini API costs for the current session.
- * Tracks actual token usage and cost from API calls.
+ * Shows estimated Gemini API costs for the current session: token counts are
+ * approximated from request and response length and priced at the active
+ * model's published per-token rate.
  */
 
 import React, { useRef } from 'react';
 import { motion } from 'framer-motion';
 import { DollarSign, Zap, Brain, RotateCcw, TrendingUp, GripVertical } from 'lucide-react';
-import { useAIConfigStore } from '../../stores/aiConfigStore';
+import { getActiveGeminiPricing, useAIConfigStore } from '../../stores/aiConfigStore';
 
 export const CostEstimationOverlay: React.FC = () => {
   const showCostOverlay = useAIConfigStore((state) => state.showCostOverlay);
@@ -20,6 +21,8 @@ export const CostEstimationOverlay: React.FC = () => {
   const dragConstraintsRef = useRef<HTMLDivElement>(null);
 
   if (!showCostOverlay) return null;
+
+  const pricing = getActiveGeminiPricing();
 
   const {
     sessionCost,
@@ -149,7 +152,8 @@ export const CostEstimationOverlay: React.FC = () => {
         {/* Pricing Note */}
         <div className="px-3 pb-2">
           <div className="text-[9px] text-slate-400 text-center">
-            Flash: $0.075/1M in • $0.30/1M out
+            {pricing.model}: ${pricing.input.toFixed(2)}/1M in • ${pricing.output.toFixed(2)}/1M out
+            (estimated)
           </div>
         </div>
       </motion.div>

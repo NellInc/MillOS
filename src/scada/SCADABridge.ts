@@ -383,6 +383,29 @@ export interface SCADAToStoreSync {
 }
 
 /**
+ * The store's `metrics.vibration` is vibration VELOCITY in mm/s for every
+ * machine type: the silo and mill VT001 tags, the offline simulation, and the
+ * AI engine's 3 / 4.5 mm/s thresholds all read it that way. A plansifter's
+ * VT001 is instead its gyratory stroke AMPLITUDE in mm, healthy inside a band
+ * (alarmLo..alarmHi) and faulty in either direction. Passing it through raw put
+ * a healthy sifter at ~7 on a velocity scale, so switching SCADA off flipped it
+ * to warning. The distance from the band centre maps onto the velocity scale:
+ * 1.0 at the centre, 3.5 at the Lo/Hi limit, ~4.5 at LoLo/HiHi.
+ */
+export function vibrationTagToStoreVelocity(
+  value: number,
+  tagDef?: { engUnit?: string; alarmLo?: number; alarmHi?: number }
+): number {
+  if (tagDef?.engUnit !== 'mm') return value;
+  const { alarmLo, alarmHi } = tagDef;
+  if (alarmLo === undefined || alarmHi === undefined || !(alarmHi > alarmLo)) return value;
+  const centre = (alarmLo + alarmHi) / 2;
+  const halfBand = (alarmHi - alarmLo) / 2;
+  const deviation = Math.abs(value - centre) / halfBand;
+  return Math.round((1 + deviation * 2.5) * 100) / 100;
+}
+
+/**
  * Convert SCADA values to store-compatible machine metrics
  */
 export function scadaToStoreMetrics(
@@ -411,7 +434,10 @@ export function scadaToStoreMetrics(
   if (temp !== undefined) sync.metrics.temperature = temp;
 
   const vib = getNumericValue(vibTag);
-  if (vib !== undefined) sync.metrics.vibration = vib;
+  if (vib !== undefined) {
+    const vibDef = MILL_TAGS.find((t) => t.id === `${prefix}.VT001.PV`);
+    sync.metrics.vibration = vibrationTagToStoreVelocity(vib, vibDef);
+  }
 
   const rpm = getNumericValue(speedTag);
   if (rpm !== undefined) sync.metrics.rpm = rpm;
@@ -428,8 +454,15 @@ export function scadaToStoreMetrics(
     sync.metrics.load = Math.min(100, (feed / 30) * 100);
   }
 
-  // Derive status from alarms
-  const machineAlarms = alarms.filter((a) => a.machineId === machineId);
+  // Derive status from alarms. Only standing, in-service alarms count: a
+  // returned-to-normal alarm awaiting acknowledgement, or one that is shelved,
+  // suppressed or out of service, says nothing about the machine now.
+  const machineAlarms = alarms.filter(
+    (a) =>
+      a.machineId === machineId &&
+      a.state !== 'RTN_UNACK' &&
+      (a.disposition ?? 'IN_SERVICE') === 'IN_SERVICE'
+  );
   if (machineAlarms.some((a) => a.priority === 'CRITICAL')) {
     sync.status = 'critical';
   } else if (machineAlarms.some((a) => a.priority === 'HIGH' || a.priority === 'MEDIUM')) {

@@ -1,3 +1,4 @@
+import { GeneratedGeometrySurface } from '../models/GeneratedGeometrySurface';
 /**
  * ExteriorVegetation.tsx - Instanced vegetation and scenery
  *
@@ -9,6 +10,7 @@
 
 import React, { useMemo, useLayoutEffect, useRef } from 'react';
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { TREE_MATERIALS, BENCH_MATERIALS } from '../../utils/sharedMaterials';
 import {
   createCanopyCage,
@@ -16,6 +18,19 @@ import {
   BROADLEAF_DEPTH,
 } from '../scenery/InstancedFoliage';
 import { WindDriver } from '../scenery/WindDriver';
+import { GeneratedBoundary } from '../models/GeneratedModel';
+import { useDracoGLTF } from '../../utils/dracoLoader';
+import { GENERATED_ASSET_PATHS } from '../../utils/modelLoader';
+import {
+  getDistanceToRiver,
+  sampleTerrainGroundHeight,
+  signedDistanceToShape,
+  MILLOS_RIVER_CONFIG,
+  MILLOS_TERRAIN_REGIONS,
+} from '../terrain/splatMapGenerator';
+import { getLandmarkBounds, SITE_LAYOUT } from '../../constants/siteLayout';
+import { useGraphicsStore } from '../../stores/graphicsStore';
+import { TerrainChannel, getTerrainGridSegments } from '../terrain/terrainTypes';
 
 // ============================================================
 // GEOMETRIES (Module Level - Pre-translated with baked offsets)
@@ -81,6 +96,18 @@ export const TREE_FOLIAGE_MATERIALS = [
 /** Deterministic per-tree variant/rotation/scale jitter from position hash
  *  (identical to SimpleTree's, so a tree looks the same whether it is
  *  rendered individually or instanced). */
+export function groundedTreePosition(
+  position: [number, number, number],
+  quality: string
+): [number, number, number] {
+  return [
+    position[0],
+    position[1] +
+      sampleTerrainGroundHeight(position[0], position[2], getTerrainGridSegments(quality)),
+    position[2],
+  ];
+}
+
 export const treeJitterFromPosition = (position: [number, number, number]) => {
   const h = Math.abs(Math.sin(position[0] * 12.9898 + position[2] * 78.233) * 43758.5453);
   const frac = h - Math.floor(h);
@@ -187,6 +214,38 @@ const TREE_GEOMETRIES = createTreeGeometries();
  * at y = 0.
  */
 export const SHARED_TREE_TRUNK = TREE_GEOMETRIES.trunk;
+
+/**
+ * Five tapering scaffold branches connect the 3 m bole to its leaf crown.
+ * The existing generated trunk and foliage retain their geometry and atlases.
+ * Working if every crown has a woody connection, including in the low tier.
+ */
+function createTreeBranches(): THREE.BufferGeometry {
+  const forks = [
+    [[0, 2.6, 0], [0.14, 5.2, -0.08], 0.22, 0.07],
+    [[0, 3.05, 0], [-1.45, 4.8, 0.3], 0.15, 0.03],
+    [[0.08, 3.45, 0], [1.45, 5.1, -0.35], 0.14, 0.025],
+    [[0.08, 3.6, 0], [0.15, 5.65, 1.3], 0.13, 0.025],
+    [[0.1, 4.25, -0.1], [-0.65, 5.6, -1.25], 0.11, 0.02],
+  ] as const;
+  const up = new THREE.Vector3(0, 1, 0);
+  const parts = forks.map(([from, to, base, tip]) => {
+    const start = new THREE.Vector3(...from);
+    const end = new THREE.Vector3(...to);
+    const direction = end.clone().sub(start);
+    const geometry = new THREE.CylinderGeometry(tip, base, direction.length(), 8);
+    geometry.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(up, direction.normalize()));
+    geometry.translate(...start.add(end).multiplyScalar(0.5).toArray());
+    return geometry;
+  });
+  const result = mergeGeometries(parts, false);
+  parts.forEach((part) => part.dispose());
+  if (!result) throw new Error('Cannot assemble parkland scaffold branches');
+  result.name = 'parkland-scaffold-branches';
+  result.computeBoundingBox();
+  return result;
+}
+export const TREE_BRANCH_GEOMETRY = createTreeBranches();
 const BENCH_GEOMETRIES = createBenchGeometries();
 
 // ============================================================
@@ -199,7 +258,7 @@ interface InstanceData {
   scale?: number;
 }
 
-const useInstances = (_count: number, data: InstanceData[]) => {
+const useInstances = (_count: number, data: InstanceData[], localMatrix?: THREE.Matrix4) => {
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const tempObject = useMemo(() => new THREE.Object3D(), []);
 
@@ -212,10 +271,15 @@ const useInstances = (_count: number, data: InstanceData[]) => {
       const scale = item.scale ?? 1;
       tempObject.scale.set(scale, scale, scale);
       tempObject.updateMatrix();
+      if (localMatrix) tempObject.matrix.multiply(localMatrix);
       meshRef.current!.setMatrixAt(i, tempObject.matrix);
     });
     meshRef.current.instanceMatrix.needsUpdate = true;
-  }, [data, tempObject]);
+    // A quality change moves grounded heights; three never refreshes the
+    // cached bounds of an InstancedMesh on its own.
+    meshRef.current.computeBoundingBox();
+    meshRef.current.computeBoundingSphere();
+  }, [data, tempObject, localMatrix]);
 
   return meshRef;
 };
@@ -234,14 +298,15 @@ export const SimpleTreeInstances: React.FC<{
 }> = React.memo(({ trees }) => {
   // Per-tree deterministic variant/rotation/scale jitter, matching SimpleTree.
   // Trees are bucketed by canopy variant: one instancedMesh per variant plus
-  // one for all trunks (4 draw calls total regardless of tree count).
+  // one for trunks and one for branches (5 draws regardless of tree count).
+  const quality = useGraphicsStore((state) => state.graphics.quality);
   const { allTrees, byVariant } = useMemo(() => {
     const all: InstanceData[] = [];
     const buckets: InstanceData[][] = [[], [], []];
     trees.forEach((t) => {
       const { variant, rotY, jitter } = treeJitterFromPosition(t.position);
       const item: InstanceData = {
-        position: t.position,
+        position: groundedTreePosition(t.position, quality),
         rotation: rotY,
         scale: (t.scale ?? 1) * jitter,
       };
@@ -249,9 +314,10 @@ export const SimpleTreeInstances: React.FC<{
       buckets[variant].push(item);
     });
     return { allTrees: all, byVariant: buckets };
-  }, [trees]);
+  }, [trees, quality]);
 
   const trunkRef = useInstances(allTrees.length, allTrees);
+  const branchRef = useInstances(allTrees.length, allTrees);
   const canopy0Ref = useInstances(byVariant[0].length, byVariant[0]);
   const canopy1Ref = useInstances(byVariant[1].length, byVariant[1]);
   const canopy2Ref = useInstances(byVariant[2].length, byVariant[2]);
@@ -276,8 +342,24 @@ export const SimpleTreeInstances: React.FC<{
           only the first call of any given frame advances the clock. */}
       <WindDriver />
       <instancedMesh
+        name="tree-trunks"
         ref={trunkRef}
         args={[TREE_GEOMETRIES.trunk, TREE_MATERIALS.trunk, allTrees.length]}
+        castShadow
+        receiveShadow
+      >
+        <GeneratedBoundary fallback={null}>
+          <GeneratedGeometrySurface
+            asset={'parkTrunkUnit'}
+            original={TREE_GEOMETRIES.trunk}
+            meshRef={trunkRef}
+          />
+        </GeneratedBoundary>
+      </instancedMesh>
+      <instancedMesh
+        name="parkland-scaffold-branches"
+        ref={branchRef}
+        args={[TREE_BRANCH_GEOMETRY, TREE_MATERIALS.trunk, allTrees.length]}
         castShadow
         receiveShadow
       />
@@ -285,10 +367,23 @@ export const SimpleTreeInstances: React.FC<{
         bucket.length > 0 ? (
           <instancedMesh
             key={variant}
+            name="tree-canopies"
             ref={canopyRefs[variant]}
             args={[TREE_FOLIAGE_VARIANTS[variant], TREE_FOLIAGE_MATERIALS[variant], bucket.length]}
             castShadow
-          />
+          >
+            <GeneratedBoundary fallback={null}>
+              <GeneratedGeometrySurface
+                asset={
+                  (['parkCanopyZeroUnit', 'parkCanopyOneUnit', 'parkCanopyTwoUnit'] as const)[
+                    variant
+                  ]
+                }
+                original={TREE_FOLIAGE_VARIANTS[variant]}
+                meshRef={canopyRefs[variant]}
+              />
+            </GeneratedBoundary>
+          </instancedMesh>
         ) : null
       )}
     </group>
@@ -305,7 +400,7 @@ export interface BenchInstanceData {
   rotation?: number;
 }
 
-export const ParkBenchInstances: React.FC<{
+const PrimitiveParkBenchInstances: React.FC<{
   benches: BenchInstanceData[];
 }> = React.memo(({ benches }) => {
   const count = benches.length;
@@ -347,33 +442,232 @@ export const ParkBenchInstances: React.FC<{
     </group>
   );
 });
+PrimitiveParkBenchInstances.displayName = 'PrimitiveParkBenchInstances';
+
+// One material/mesh atlas, instanced across each parkland set. The normalized
+// GLB hierarchy carries scale and centring; compose that matrix into every seat.
+export function generatedBenchSource(scene: THREE.Object3D): THREE.Mesh {
+  const meshes: THREE.Mesh[] = [];
+  scene.updateMatrixWorld(true);
+  scene.traverse((object) => {
+    if ((object as THREE.Mesh).isMesh) meshes.push(object as THREE.Mesh);
+  });
+  if (meshes.length !== 1 || Array.isArray(meshes[0].material))
+    throw new Error('Park bench must contain one shared mesh and material');
+  return meshes[0];
+}
+
+const GeneratedParkBenchInstances: React.FC<{ benches: BenchInstanceData[] }> = ({ benches }) => {
+  const { scene } = useDracoGLTF(GENERATED_ASSET_PATHS.parkBench);
+  const source = useMemo(() => generatedBenchSource(scene), [scene]);
+  const ref = useInstances(benches.length, benches, source.matrixWorld);
+  useLayoutEffect(() => {
+    ref.current?.computeBoundingBox();
+    ref.current?.computeBoundingSphere();
+  }, [benches, ref]);
+  return (
+    <instancedMesh
+      ref={ref}
+      args={[source.geometry, source.material, benches.length]}
+      castShadow
+      receiveShadow
+    />
+  );
+};
+
+export const ParkBenchInstances: React.FC<{ benches: BenchInstanceData[] }> = React.memo(
+  ({ benches }) =>
+    benches.length ? (
+      <GeneratedBoundary fallback={<PrimitiveParkBenchInstances benches={benches} />}>
+        <GeneratedParkBenchInstances benches={benches} />
+      </GeneratedBoundary>
+    ) : null
+);
 ParkBenchInstances.displayName = 'ParkBenchInstances';
 
 // ============================================================
 // MAIN COMPONENT TREES (absolute positions in FactoryExterior main return)
 // ============================================================
 
+// Loose groves frame the village's outer grass verge and the mill approach.
+// Kept outside the square, waterways and yard; all use the existing five
+// instanced tree batches. Unequal spacing and canopy sizes leave sightlines.
+const VALLEY_GROVES = [
+  [-174, -98, 22, 11, 36],
+  [-119, -93, 9, 8, 12],
+  [-71, -198, 45, 18, 82],
+  [68, -192, 57, 17, 110],
+  [-212, 106, 17, 10, 18],
+  [-120, 0, 5, 65, 26],
+  [-70, -95, 22, 9, 20],
+  [-165, 87, 29, 12, 26],
+  [0, -209, 17, 10, 14],
+  [-232, 0, 7, 57, 26],
+  [-137, -324, 29, 57, 76],
+  [94, -323, 31, 60, 84],
+  [-20, -410, 86, 8, 72],
+  [-88, -267, 33, 17, 40],
+  [65, -254, 34, 22, 44],
+] as const;
+
+const VILLAGE_GROVE_EXCLUSION = getLandmarkBounds(SITE_LAYOUT.landmarks.village);
+const CASTLE = SITE_LAYOUT.landmarks.castle;
+// The castle stands at 45 degrees, so its corners reach the half-diagonal.
+const CASTLE_CLEAR_RADIUS = (Math.SQRT2 / 2) * Math.max(...CASTLE.footprint) * CASTLE.scale + 2;
+const outsideBounds = (
+  x: number,
+  z: number,
+  margin: number,
+  bounds: ReturnType<typeof getLandmarkBounds>
+): boolean =>
+  x < bounds.minX - margin ||
+  x > bounds.maxX + margin ||
+  z < bounds.minZ - margin ||
+  z > bounds.maxZ + margin;
+
+/** Signed distance from (x, z) to a footprint centred on `position`, `along` its local Z. */
+function distanceToFootprint(
+  x: number,
+  z: number,
+  position: readonly [number, number, number],
+  rotation: number,
+  halfAlong: number,
+  halfAcross: number
+): number {
+  const dx = x - position[0];
+  const dz = z - position[2];
+  // Inverse of three's Y rotation, back into the footprint's own axes.
+  const across = Math.abs(dx * Math.cos(rotation) - dz * Math.sin(rotation)) - halfAcross;
+  const along = Math.abs(dx * Math.sin(rotation) + dz * Math.cos(rotation)) - halfAlong;
+  return Math.hypot(Math.max(across, 0), Math.max(along, 0)) + Math.min(Math.max(across, along), 0);
+}
+
+/** Trunk clearance from open water and its walls: root flare plus a dry verge. */
+const TRUNK_WATER_CLEARANCE = 2.5;
+
+/**
+ * Whether a tree at (x, z) stands clear of the canals, lake, ponds and huts.
+ *
+ * The woodland filter below knew the river and the painted terrain regions
+ * but not these, so a grove seeded across the canal kept five trunks in its
+ * water and one stood through the Nissen hut. A crown may overhang water, as
+ * a real bank tree does; the TRUNK must stand on the verge. Nothing may grow
+ * through a hut, so the whole crown clears it.
+ * Working if the live tree audit finds no trunk in water and no crown in a hut.
+ */
+export function treeSiteClear(x: number, z: number, crownRadius: number): boolean {
+  const { canal, canalBranch, lake, ponds, nissenHuts } = SITE_LAYOUT.exteriorFeatures;
+  // Each canal wall is 0.5 m of masonry outside the water width.
+  for (const { position, length, width, rotation } of [canal, canalBranch])
+    if (
+      distanceToFootprint(x, z, position, rotation, length / 2, width / 2 + 0.5) <
+      TRUNK_WATER_CLEARANCE
+    )
+      return false;
+  // The lake's organic bank reaches 1.2 m beyond its nominal half-size.
+  const lakeX = lake.size[0] / 2 + 1.2 + TRUNK_WATER_CLEARANCE;
+  const lakeZ = lake.size[1] / 2 + 1.2 + TRUNK_WATER_CLEARANCE;
+  if (((x - lake.position[0]) / lakeX) ** 2 + ((z - lake.position[2]) / lakeZ) ** 2 < 1)
+    return false;
+  for (const { position, radius } of ponds)
+    if (Math.hypot(x - position[0], z - position[2]) < radius + 0.5 + TRUNK_WATER_CLEARANCE)
+      return false;
+  // Nissen huts are 2.5 m-radius half-cylinders along their local Z.
+  for (const { position, length, rotation } of nissenHuts)
+    if (distanceToFootprint(x, z, position, rotation, length / 2, 2.5) < crownRadius) return false;
+  return true;
+}
+
+/** Connected woodland opens into the village, castle, river banks and service approaches.
+ * Working if the ground-map test keeps every trunk dry and outside the square,
+ * and all of the additional crowns remain in the same five instance batches.
+ */
+export const VALLEY_WOODLAND_TREES: TreeInstanceData[] = VALLEY_GROVES.flatMap(
+  ([x, z, radiusX, radiusZ, count], grove) =>
+    Array.from({ length: count }, (_, index) => {
+      const angle = index * 2.3999632297 + grove * 1.31;
+      const radius = Math.sqrt((index + 0.5) / count);
+      return {
+        position: [
+          Math.round((x + Math.cos(angle) * radiusX * radius) * 10) / 10,
+          0,
+          Math.round((z + Math.sin(angle) * radiusZ * radius) * 10) / 10,
+        ] as [number, number, number],
+        scale: 1.3 + ((index * 17 + grove * 7) % 19) * 0.035,
+      };
+    })
+).filter(({ position, scale }) => {
+  const [x, , z] = position;
+  const crownRadius = 3.1 * scale * treeJitterFromPosition(position).jitter;
+  // Test the terrain's own river and road fields. A grove seed may fall on a
+  // bank or road verge; rejecting that seed keeps the trunk on undisturbed land.
+  const dry =
+    getDistanceToRiver(x, z, MILLOS_RIVER_CONFIG) >
+    MILLOS_RIVER_CONFIG.width / 2 + MILLOS_RIVER_CONFIG.bankWidth + 3.5;
+  return (
+    dry &&
+    treeSiteClear(x, z, crownRadius) &&
+    Math.hypot(x, z) + crownRadius < SITE_LAYOUT.world.radius &&
+    outsideBounds(x, z, crownRadius, VILLAGE_GROVE_EXCLUSION) &&
+    Math.hypot(x - CASTLE.position[0], z - CASTLE.position[2]) >
+      CASTLE_CLEAR_RADIUS + crownRadius &&
+    MILLOS_TERRAIN_REGIONS.every(
+      (region) =>
+        region.channel === TerrainChannel.GRASS ||
+        signedDistanceToShape(x, z, region.shape) > (region.edgeSoftness ?? 0) + 3
+    )
+  );
+});
+
+export const LANDSCAPE_GROVE_TREES: TreeInstanceData[] = [
+  ...VALLEY_WOODLAND_TREES,
+  // West belt behind the village, clear of its 70 m footprint at full crown.
+  { position: [-235, 0, -48], scale: 1.65 },
+  { position: [-242, 0, -37], scale: 1.35 },
+  { position: [-234, 0, -28], scale: 1.8 },
+  { position: [-241, 0, -17], scale: 1.2 },
+  { position: [-235, 0, 26], scale: 1.55 },
+  { position: [-243, 0, 38], scale: 1.8 },
+  { position: [-233, 0, 48], scale: 1.3 },
+  { position: [-236, 0, 60], scale: 1.6 },
+  { position: [-203, 0, -83], scale: 1.5 },
+  { position: [-192, 0, -89], scale: 1.85 },
+  { position: [-180, 0, -81], scale: 1.3 },
+  { position: [-207, 0, 82], scale: 1.75 },
+  { position: [-194, 0, 87], scale: 1.35 },
+  { position: [-182, 0, 80], scale: 1.65 },
+  { position: [-118, 0, 63], scale: 1.55 },
+  { position: [-116, 0, 49], scale: 1.25 },
+  { position: [-110, 0, 75], scale: 1.6 },
+];
+
 // Trees directly in FactoryExterior main component (not inside sub-components)
 export const MAIN_EXTERIOR_TREES: TreeInstanceData[] = [
+  ...LANDSCAPE_GROVE_TREES,
   // Lines 6452-6458: Additional trees along boundaries
   { position: [-105, 0, 60], scale: 1.3 },
   { position: [-110, 0, 30], scale: 1.1 },
   { position: [-110, 0, 0], scale: 1.2 },
   { position: [-110, 0, -30], scale: 1.0 },
-  { position: [110, 0, 40], scale: 1.2 },
+  // Off the visitor car park, whose tarmac starts at x 107.5.
+  { position: [101, 0, 34], scale: 1.2 },
   { position: [110, 0, -20], scale: 1.1 },
   { position: [110, 0, -60], scale: 1.3 },
   // Lines 6916-6920: Trees along waterways
   { position: [-160, 0, 70], scale: 1.1 },
   { position: [-160, 0, 30], scale: 0.9 },
   { position: [-160, 0, -10], scale: 1.2 },
-  { position: [-160, 0, -50], scale: 1.0 },
+  // East of the village cottage at (-165, -50), clear of the canal wall.
+  { position: [-156, 0, -50], scale: 1.0 },
   { position: [-160, 0, -90], scale: 1.1 },
-  // Lines 6923-6926: Trees by river
+  // Trees by river, on the dry ground above its 25 m canyon bank. At z -170
+  // three stood over the channel itself: 3.6 m down to the bed at x 40, with
+  // the -2 m water surface up their trunks. The x 40 tree moved west of the
+  // castle rock rather than into it.
   { position: [-80, 0, -170], scale: 1.3 },
-  { position: [-40, 0, -172], scale: 1.0 },
-  { position: [40, 0, -170], scale: 1.2 },
-  { position: [80, 0, -168], scale: 0.9 },
+  { position: [-44, 0, -187], scale: 1.0 },
+  { position: [2, 0, -194], scale: 1.2 },
+  { position: [74, 0, -189], scale: 0.9 },
   // Lines 6929-6931: Trees by lake
   { position: [155, 0, 110], scale: 1.0 },
   { position: [160, 0, 135], scale: 1.2 },
@@ -385,7 +679,8 @@ export const MAIN_EXTERIOR_BENCHES: BenchInstanceData[] = [
   // Lines 6906-6908: Benches along paths
   { position: [-157, 0, 20], rotation: Math.PI / 2 },
   { position: [-157, 0, -60], rotation: Math.PI / 2 },
-  { position: [0, 0, -140], rotation: 0 },
+  // The old z=-140 placement floated in the river beneath the northern bridge.
+  { position: [3, 0, -112], rotation: Math.PI },
 ];
 
 // ============================================================
@@ -400,8 +695,9 @@ export const PARKLAND_TREES: TreeInstanceData[] = [
 ];
 
 export const PARKLAND_BENCHES: BenchInstanceData[] = [
-  // Moved further from riverbank (was z=-110, now z=-90)
-  { position: [-85, 0, -90], rotation: 0 },
+  // Moved further from riverbank (was z=-110). At z=-90 it stood against the
+  // trunk at (-85, -89); here it sits among the three trees, clear of each.
+  { position: [-85, 0, -93.5], rotation: 0 },
 ];
 
 // ============================================================

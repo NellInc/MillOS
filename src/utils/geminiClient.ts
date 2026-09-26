@@ -233,6 +233,10 @@ export class GeminiClient {
    * Check if client is connected and ready
    */
   isConnected(): boolean {
+    // Let an open breaker half-open once its cool-down has elapsed. Callers
+    // gate on isConnected() before ever reaching generateContent(), so without
+    // this the breaker could never reset and the strategic layer stayed dead.
+    this.checkCircuitBreaker();
     return this.model !== null && !this.circuitBreaker.isOpen;
   }
 

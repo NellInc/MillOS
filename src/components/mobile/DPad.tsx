@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Move, Eye, ChevronUp, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useMobileControlStore, type DPadDirection } from '../../stores/mobileControlStore';
 import { useUIStore } from '../../stores/uiStore';
@@ -58,6 +58,22 @@ export const DPad: React.FC<DPadProps> = ({
     const direction: DPadDirection = { x, y };
     setDpadDirection(direction);
   }, [setDpadDirection]);
+
+  // This is the only writer of dpadDirection. Unmounting mid-press never
+  // delivers touchend, so clear it here or the camera keeps drifting.
+  useEffect(() => {
+    const active = activeDirectionsRef.current;
+    return () => {
+      active.clear();
+      setDpadDirection(null);
+    };
+  }, [setDpadDirection]);
+
+  // Accessible names follow what the buttons actually do in each mode.
+  const labels =
+    dpadMode === 'move' || fpsMode
+      ? { up: 'Move forward', down: 'Move back', left: 'Strafe left', right: 'Strafe right' }
+      : { up: 'Orbit up', down: 'Orbit down', left: 'Orbit left', right: 'Orbit right' };
 
   const handleTouchStart = useCallback(
     (direction: string) => (e: React.TouchEvent) => {
@@ -137,9 +153,9 @@ export const DPad: React.FC<DPadProps> = ({
         onTouchEnd={handleTouchEnd('up')}
         onTouchCancel={handleTouchCancel('up')}
         disabled={disabled}
-        aria-label="Move up"
+        aria-label={labels.up}
       >
-        <ChevronUp className={iconClass} />
+        <ChevronUp className={iconClass} aria-hidden="true" />
       </button>
 
       {/* Down button */}
@@ -153,9 +169,9 @@ export const DPad: React.FC<DPadProps> = ({
         onTouchEnd={handleTouchEnd('down')}
         onTouchCancel={handleTouchCancel('down')}
         disabled={disabled}
-        aria-label="Move down"
+        aria-label={labels.down}
       >
-        <ChevronDown className={iconClass} />
+        <ChevronDown className={iconClass} aria-hidden="true" />
       </button>
 
       {/* Left button */}
@@ -169,9 +185,9 @@ export const DPad: React.FC<DPadProps> = ({
         onTouchEnd={handleTouchEnd('left')}
         onTouchCancel={handleTouchCancel('left')}
         disabled={disabled}
-        aria-label="Move left"
+        aria-label={labels.left}
       >
-        <ChevronLeft className={iconClass} />
+        <ChevronLeft className={iconClass} aria-hidden="true" />
       </button>
 
       {/* Right button */}
@@ -185,9 +201,9 @@ export const DPad: React.FC<DPadProps> = ({
         onTouchEnd={handleTouchEnd('right')}
         onTouchCancel={handleTouchCancel('right')}
         disabled={disabled}
-        aria-label="Move right"
+        aria-label={labels.right}
       >
-        <ChevronRight className={iconClass} />
+        <ChevronRight className={iconClass} aria-hidden="true" />
       </button>
 
       {/* Center mode toggle button - disabled in FPS mode (always move) */}

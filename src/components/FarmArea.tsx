@@ -1,4 +1,4 @@
-import React, { useRef, useState, useMemo, useEffect } from 'react';
+import React, { useRef, useState, useMemo, useEffect, useLayoutEffect } from 'react';
 import { useFrame, ThreeEvent } from '@react-three/fiber';
 import * as THREE from 'three';
 
@@ -27,7 +27,7 @@ import {
 import { WindDriver, applyWindShader } from './scenery/WindDriver';
 import { composeWorldSurface } from '../utils/worldSurface';
 import { DrainageCulvert } from './scenery/Tunnel';
-import { PROCEDURAL_TEXTURES, OUTDOOR_MATERIALS } from '../utils/sharedMaterials';
+import { PROCEDURAL_TEXTURES } from '../utils/sharedMaterials';
 import { EXTERIOR_LAYERS, RENDER_ORDER } from '../constants/renderLayers';
 import { SITE_LAYOUT } from '../constants/siteLayout';
 import { generateCobblestoneRoughness } from '../textures';
@@ -360,15 +360,11 @@ const SG = {
   troughBody: new THREE.BoxGeometry(1.5, 0.5, 0.6),
   troughWater: new THREE.BoxGeometry(1.3, 0.05, 0.45),
   troughLeg: new THREE.BoxGeometry(0.15, 0.2, 0.5),
-  treeTrunk: new THREE.CylinderGeometry(0.4, 0.5, 4, 6),
-  treeFoliage: new THREE.ConeGeometry(2.5, 6, 6),
-  treeFoliageTop: new THREE.ConeGeometry(1.8, 4, 6),
   gardenFrame: new THREE.BoxGeometry(3, 0.3, 2),
   gardenSoil: new THREE.BoxGeometry(2.8, 0.15, 1.8),
   carrotTop: new THREE.ConeGeometry(0.08, 0.15, 6),
   carrotLeaf: new THREE.ConeGeometry(0.1, 0.2, 4),
   cabbage: new THREE.SphereGeometry(0.2, 8, 8),
-  farmGround: new THREE.PlaneGeometry(45, 45),
   mudPuddle: createMudPuddleGeometry(),
   chickenBody: new THREE.SphereGeometry(0.2, 8, 8),
   chickenHead: new THREE.SphereGeometry(0.12, 8, 8),
@@ -503,13 +499,6 @@ const SM = {
     color: '#a1887f',
     roughness: 0.8,
   }),
-  grass: OUTDOOR_MATERIALS.grass, // Use shared grass material for seamless matching
-  mud: new THREE.MeshStandardMaterial({
-    color: '#ffffff', // Let texture provide color
-    roughness: 0.9,
-    map: PROCEDURAL_TEXTURES.mudColor,
-    roughnessMap: PROCEDURAL_TEXTURES.mudRoughness,
-  }),
   soil: new THREE.MeshStandardMaterial({ color: '#3e2723', roughness: 1 }),
   stone: new THREE.MeshStandardMaterial({
     color: '#d7ccc8',
@@ -527,12 +516,6 @@ const SM = {
     // ground/objects behind it inconsistently by camera angle (sort flicker)
     depthWrite: false,
   }),
-  treeTrunk: new THREE.MeshStandardMaterial({
-    color: '#5d4037',
-    roughness: 0.9,
-  }),
-  treeLeafDark: new THREE.MeshStandardMaterial({ color: '#2e7d32', roughness: 0.8 }),
-  treeLeafLight: new THREE.MeshStandardMaterial({ color: '#388e3c', roughness: 0.8 }),
   hay: new THREE.MeshStandardMaterial({
     color: '#d4a574',
     roughness: 0.95,
@@ -1098,6 +1081,15 @@ const SheepPrimitiveBody = React.memo(() => (
 ));
 SheepPrimitiveBody.displayName = 'SheepPrimitiveBody';
 
+// Hover affordance for the pettable animals, matching every other clickable
+// object in the scene.
+const setPointerCursor = () => {
+  document.body.style.cursor = 'pointer';
+};
+const resetCursor = () => {
+  document.body.style.cursor = 'auto';
+};
+
 const Sheep = React.memo<{
   position: [number, number, number];
   rotation?: number;
@@ -1119,6 +1111,8 @@ const Sheep = React.memo<{
         onClick(e);
       }
     }}
+    onPointerOver={onClick ? setPointerCursor : undefined}
+    onPointerOut={onClick ? resetCursor : undefined}
   >
     <CreatureBody creature="sheep" ref={rigRef} fallback={<SheepPrimitiveBody />} />
   </group>
@@ -1135,9 +1129,14 @@ interface AnimalState {
   sequenceStep: number;
 }
 
-const CHICKEN_WANDER_BOUNDS: WanderBounds = { minX: 9, maxX: 15, minZ: -8, maxZ: -2 };
+// Every wander box is convex and clear of solid obstacles, so no straight leg
+// between two targets can cross one. The chickens range on the coop's ramp side
+// (the coop spans x 10.5-13.5 and its primitive ramp reaches x ~14.9), clear of
+// the sheep at (9, -4); the cows keep 1.2 m off the paddock fence lines at
+// x -5/15 and z 9/21, as the pigs already do inside their pen.
+const CHICKEN_WANDER_BOUNDS: WanderBounds = { minX: 15.2, maxX: 18.5, minZ: -8.5, maxZ: -1.5 };
 const PIG_WANDER_BOUNDS: WanderBounds = { minX: -14, maxX: -10, minZ: -7, maxZ: -3 };
-const COW_WANDER_BOUNDS: WanderBounds = { minX: -5, maxX: 15, minZ: 10, maxZ: 20 };
+const COW_WANDER_BOUNDS: WanderBounds = { minX: -3.8, maxX: 13.8, minZ: 10.6, maxZ: 19.4 };
 
 const createAnimalState = (seed: number, bounds: WanderBounds): AnimalState => {
   const plan = createAnimalWanderPlan(seed, 0, bounds);
@@ -1221,6 +1220,8 @@ const Chicken: React.FC<{
         onClick(e);
       }
     }}
+    onPointerOver={onClick ? setPointerCursor : undefined}
+    onPointerOut={onClick ? resetCursor : undefined}
   >
     <CreatureBody
       creature="chicken"
@@ -1307,6 +1308,8 @@ const Pig: React.FC<{
         onClick(e);
       }
     }}
+    onPointerOver={onClick ? setPointerCursor : undefined}
+    onPointerOut={onClick ? resetCursor : undefined}
   >
     <CreatureBody creature="pig" ref={rigRef} fallback={<PigPrimitiveBody tailRef={tailRef} />} />
   </group>
@@ -1440,6 +1443,8 @@ const PaddockCow: React.FC<{
         onClick(e);
       }
     }}
+    onPointerOver={onClick ? setPointerCursor : undefined}
+    onPointerOut={onClick ? resetCursor : undefined}
   >
     <CreatureBody creature="cow" ref={rigRef} fallback={<CowPrimitiveBody headRef={headRef} />} />
   </group>
@@ -1624,7 +1629,7 @@ const HorsePrimitiveBody = React.memo<{ color?: string; isPaint?: boolean }>(
         <mesh position={[0, -1.1, 0]}>
           <cylinderGeometry args={[0.1, 0.11, 0.7, 8]} />
           <meshStandardMaterial color={isPaint ? '#f5f5f5' : color} />
-        </mesh>{' '}
+        </mesh>
         {/* White sock */}
         <mesh position={[0, -1.5, 0]}>
           <cylinderGeometry args={[0.12, 0.15, 0.15, 8]} />
@@ -1670,7 +1675,7 @@ const HorsePrimitiveBody = React.memo<{ color?: string; isPaint?: boolean }>(
         <mesh position={[0, -1.0, 0]}>
           <cylinderGeometry args={[0.1, 0.12, 0.8, 8]} />
           <meshStandardMaterial color={isPaint ? '#f5f5f5' : color} />
-        </mesh>{' '}
+        </mesh>
         {/* White sock */}
         <mesh position={[0, -1.5, 0]}>
           <cylinderGeometry args={[0.12, 0.15, 0.15, 8]} />
@@ -1682,7 +1687,7 @@ const HorsePrimitiveBody = React.memo<{ color?: string; isPaint?: boolean }>(
       <group position={[0, 1.7, -1.0]} rotation={[0.2, 0, 0]}>
         <mesh position={[0, -0.4, -0.2]} rotation={[-0.2, 0, 0]}>
           <cylinderGeometry args={[0.08, 0.15, 1.2, 8]} />
-          <meshStandardMaterial color={isPaint ? '#f5f5f5' : '#3e2723'} />{' '}
+          <meshStandardMaterial color={isPaint ? '#f5f5f5' : '#3e2723'} />
           {/* White tail tip option or mixed */}
         </mesh>
       </group>
@@ -1715,6 +1720,8 @@ const Horse = React.memo<{
         onClick(e);
       }
     }}
+    onPointerOver={onClick ? setPointerCursor : undefined}
+    onPointerOut={onClick ? resetCursor : undefined}
   >
     <CreatureBody
       creature="horse"
@@ -1829,7 +1836,13 @@ const Crow = React.memo<{ position: [number, number, number]; rotation?: number 
     }, [isExcited]);
 
     return (
-      <group position={position} rotation={[0, rotation, 0]} onClick={handlePet}>
+      <group
+        position={position}
+        rotation={[0, rotation, 0]}
+        onClick={handlePet}
+        onPointerOver={setPointerCursor}
+        onPointerOut={resetCursor}
+      >
         <group rotation={[isExcited ? 0.5 : 0, 0, 0]} position={[0, isExcited ? 0.2 : 0, 0]}>
           <CreatureBody creature="crow" ref={rigRef} fallback={<CrowPrimitiveBody />} />
         </group>
@@ -1858,7 +1871,9 @@ const InstancedGrainField = React.memo(() => {
     });
   }, []);
 
-  useEffect(() => {
+  // Layout, not passive: a frame rendered before the matrices land would cache
+  // an origin-sized bounding sphere and cull the whole 30 x 21 m crop.
+  useLayoutEffect(() => {
     if (!stalksRef.current || !leaves1Ref.current || !leaves2Ref.current) return;
 
     // Temp objects for matrix calculations
@@ -1931,6 +1946,10 @@ const InstancedGrainField = React.memo(() => {
     if (stalksRef.current.instanceColor) stalksRef.current.instanceColor.needsUpdate = true;
     if (leaves1Ref.current.instanceColor) leaves1Ref.current.instanceColor.needsUpdate = true;
     if (leaves2Ref.current.instanceColor) leaves2Ref.current.instanceColor.needsUpdate = true;
+    // setMatrixAt never invalidates InstancedMesh.boundingSphere.
+    stalksRef.current.computeBoundingSphere();
+    leaves1Ref.current.computeBoundingSphere();
+    leaves2Ref.current.computeBoundingSphere();
   }, []);
 
   return (
@@ -1970,9 +1989,10 @@ const FARM_TREE_SPOTS: readonly (readonly [number, number])[] = FARM_TREES.map(
   (t) => [t.position[0], t.position[2]] as const
 );
 
-/** Terrain top is y=0.05 and the barnyard cobble y=0.08; the trees stand on
- *  open terrain, so the mulch only has to clear the terrain. */
-const FARM_DECAL_Y = 0.075;
+/** The farm pad is flattened to the -0.02 ground datum and the trees stand on
+ *  open terrain, so the mulch takes the overlay layer 1 cm above it -
+ *  InstancedMulch's own default. */
+const FARM_DECAL_Y = EXTERIOR_LAYERS.groundOverlay;
 
 const FARM_BLOCKERS = [
   { x: 0, z: 0, halfX: 6, halfZ: 5 }, // barn
@@ -2050,9 +2070,9 @@ const FARM_CLUTTER: ClutterSpec = {
   exclude: FARM_BLOCKERS,
   openExclude: FARM_OPEN_BLOCKERS,
   attractors: FARM_ATTRACTORS,
-  // 5 mm under the terrain top: sinking a card base is invisible, floating
+  // 5 mm under the ground datum: sinking a card base is invisible, floating
   // one is not.
-  y: 0.045,
+  y: EXTERIOR_LAYERS.ground - 0.005,
   cullDistance: 120,
 };
 
@@ -2157,6 +2177,10 @@ export const FarmArea: React.FC = () => {
   >([]);
   const nextHeartId = useRef(0);
 
+  // Every pettable animal here mounts and unmounts with the farm, so one reset
+  // keeps a hovered animal from leaving the pointer cursor stuck.
+  useEffect(() => resetCursor, []);
+
   // Refs for jumping animation intensity (0 to 1)
   const chickenJumpStates = useRef<number[]>(new Array(5).fill(0));
   const pigJumpStates = useRef<number[]>(new Array(3).fill(0));
@@ -2227,6 +2251,9 @@ export const FarmArea: React.FC = () => {
       // Move towards target
       const currentPos = ref.position;
       const direction = _animDir.subVectors(state.target, currentPos);
+      // Horizontal only: a pet-jump's y offset must not bleed into the step
+      // or the arrival test.
+      direction.y = 0;
       const dist = direction.length();
 
       if (dist < 0.1) {
@@ -2238,9 +2265,15 @@ export const FarmArea: React.FC = () => {
       } else {
         direction.normalize();
 
-        // Smooth rotation
+        // Smooth rotation along the SHORTEST arc. A plain lerp toward atan2's
+        // [-PI, PI] result spins the animal ~340 degrees whenever its heading
+        // crosses +/-PI.
         const targetRotation = Math.atan2(direction.x, direction.z);
-        ref.rotation.y = THREE.MathUtils.lerp(ref.rotation.y, targetRotation, delta * 5);
+        const turn = Math.atan2(
+          Math.sin(targetRotation - ref.rotation.y),
+          Math.cos(targetRotation - ref.rotation.y)
+        );
+        ref.rotation.y += turn * Math.min(1, delta * 5);
 
         // Move
         currentPos.add(direction.multiplyScalar(speed * delta));
@@ -2453,11 +2486,12 @@ export const FarmArea: React.FC = () => {
 
   const chickenData = useMemo(
     () => [
-      { pos: [13, 0, -3] as [number, number, number], rot: 0.5 },
-      { pos: [14, 0, -4] as [number, number, number], rot: -0.3 },
-      { pos: [11, 0, -2.5] as [number, number, number], rot: 1.2 },
-      { pos: [13.5, 0, -6] as [number, number, number], rot: 2.1 },
-      { pos: [10.5, 0, -4.5] as [number, number, number], rot: -1.5 },
+      // Inside CHICKEN_WANDER_BOUNDS, so the first leg cannot cross the coop.
+      { pos: [15.8, 0, -3] as [number, number, number], rot: 0.5 },
+      { pos: [17, 0, -4.2] as [number, number, number], rot: -0.3 },
+      { pos: [16, 0, -7] as [number, number, number], rot: 1.2 },
+      { pos: [18, 0, -5.8] as [number, number, number], rot: 2.1 },
+      { pos: [15.6, 0, -5.4] as [number, number, number], rot: -1.5 },
     ],
     []
   );
@@ -2490,8 +2524,11 @@ export const FarmArea: React.FC = () => {
       rotation={SITE_LAYOUT.landmarks.farm.rotation}
       scale={SITE_LAYOUT.landmarks.farm.scale}
     >
-      {/* Barnyard cobblestone ground */}
-      <mesh position={[0, 0.08, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+      {/* Barnyard cobblestone ground, on the ground datum the farm pad is
+          flattened to, so the animals standing on it at y 0 are not buried.
+          Coplanar with the terrain; its -2/-2 offset against the terrain's
+          exteriorBase holds the depth order. */}
+      <mesh position={[0, EXTERIOR_LAYERS.ground, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <planeGeometry args={[20, 15]} />
         {/* Untinted: the cobble albedo now decodes as sRGB, so the old
             '#9a9a9a' compensator would darken the yard twice. */}
@@ -2564,13 +2601,9 @@ export const FarmArea: React.FC = () => {
             polygonOffsetUnits={-2}
           />
         </mesh>
-        {/** Pigs are now positioned at top level relative to FarmArea, not inside this group, 
-             so that they can move freely within the fence bounds defined in world/farm space.
-             Wait, if I move them out of this group, I need to adjust their initial coordinates 
-             and bounds to be relative to the FarmArea origin. 
-             Result: I will render them at the FarmArea level but use coordinates that place them here.
-             The fence is at [-12, 0, -5].
-        */}
+        {/* The pigs render at FarmArea level, not in this pen group, so they
+            wander in farm coordinates (PIG_WANDER_BOUNDS) around the pen at
+            [-12, 0, -5]. */}
       </group>
       {pigData.map((p, i) => (
         <Pig
@@ -2668,12 +2701,9 @@ export const FarmArea: React.FC = () => {
           not move - so any prop tucked against a replaced building is suspect.
           [-6.5, ., -2] clears the barn's x extent (-4.68..4.68) and puts the
           trough on the barnyard flank where the animals are, rather than hidden
-          behind the building.
-          y = 0.08 rather than 0 because the barnyard cobble sheet is at 0.08:
-          at 0 the trough was buried by 15% of its own 0.54 m height, which for
-          a trough is the difference between standing on the yard and sunk into
-          it. Taller neighbours bury the same 80 mm invisibly and are left alone. */}
-      <WaterTrough position={[-6.5, 0.08, -2]} />
+          behind the building. It stands at y 0 like every other animal and
+          prop, now that the barnyard sheet sits on the ground datum. */}
+      <WaterTrough position={[-6.5, 0, -2]} />
       <HayBale position={[6, 0, -2]} rotation={0.3} />
       <HayBale position={[6.5, 0, 0]} rotation={-0.2} />
       <HayBale position={[6.2, 0.8, -1]} rotation={0.5} />
@@ -2695,7 +2725,6 @@ export const FarmArea: React.FC = () => {
 
       {/* Grain Field Background */}
       <group position={[0, 0, -42]}>
-        {/* Simple Grain Field - Instanced Loops */}
         {/* Simple Grain Field - Instanced Loops */}
         <InstancedGrainField />
       </group>

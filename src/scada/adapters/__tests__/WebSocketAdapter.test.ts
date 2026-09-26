@@ -251,6 +251,37 @@ describe('WebSocketAdapter lifecycle and recovery', () => {
     expect(vi.getTimerCount()).toBe(1);
   });
 
+  it('publishes the last values as STALE when the link drops unexpectedly', async () => {
+    const initial = adapter.connect();
+    const socket = FakeWebSocket.instances[0];
+    socket.open();
+    await initial;
+    const observer = vi.fn();
+    adapter.subscribe([], observer);
+
+    socket.message(updateFrame(42));
+    socket.serverClose();
+
+    expect(observer).toHaveBeenLastCalledWith([
+      expect.objectContaining({ tagId: tags[0].id, value: 42, quality: 'STALE' }),
+    ]);
+  });
+
+  it('does not publish STALE values on a deliberate disconnect', async () => {
+    const initial = adapter.connect();
+    const socket = FakeWebSocket.instances[0];
+    socket.open();
+    await initial;
+    const observer = vi.fn();
+    adapter.subscribe([], observer);
+    socket.message(updateFrame(42));
+    observer.mockClear();
+
+    await adapter.disconnect();
+
+    expect(observer).not.toHaveBeenCalled();
+  });
+
   it('turns a heartbeat send failure into one bounded reconnect attempt', async () => {
     const initial = adapter.connect();
     const socket = FakeWebSocket.instances[0];

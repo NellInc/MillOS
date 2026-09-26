@@ -82,6 +82,26 @@ describe('agent command kernel', () => {
       }),
       'TARGET_PARAMETER_MISMATCH',
     ],
+    [
+      // Handlers resolve targets through parseSemanticUri, which throws on a
+      // non-canonical id; preview must deny rather than reject.
+      'non-canonical target',
+      (command: AgentCommandEnvelope) => ({
+        ...command,
+        targetUri: 'millos://order/order 001',
+        parameters: { orderUri: 'millos://order/order 001' },
+      }),
+      'TARGET_URI_INVALID',
+    ],
+    [
+      'target of the wrong kind',
+      (command: AgentCommandEnvelope) => ({
+        ...command,
+        targetUri: 'millos://incident/incident-001',
+        parameters: { orderUri: 'millos://incident/incident-001' },
+      }),
+      'TARGET_URI_INVALID',
+    ],
   ])('denies %s before execution', async (_label, alter, code) => {
     const fixture = createFixture();
     const drafted = fixture.kernel.draft({

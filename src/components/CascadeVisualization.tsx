@@ -7,7 +7,7 @@
 
 import React, { useMemo } from 'react';
 import { Line } from '@react-three/drei';
-import { FACTORY_ZONE_Z } from '../constants/factoryLayout';
+import { SIFTER_LAYOUT, SITE_LAYOUT } from '../constants/siteLayout';
 import { useProductionStore } from '../stores/productionStore';
 import { useShallow } from 'zustand/react/shallow';
 import { MachineData } from '../types';
@@ -15,8 +15,7 @@ import { MachineData } from '../types';
 interface CascadeConnection {
   from: string;
   to: string;
-  fromPosition: [number, number, number];
-  toPosition: [number, number, number];
+  points: readonly [[number, number, number], [number, number, number]];
   stressed: boolean;
   riskLevel: 'low' | 'medium' | 'high' | 'critical';
 }
@@ -30,28 +29,31 @@ interface CascadeConnection {
 // -> silo-1), making the stress overlay misreport exactly what it exists
 // to visualize.
 const MACHINE_POSITIONS: Record<string, [number, number, number]> = {
-  // Silos (Zone 1, z=-22) - live x = i*9 for i=-2..2
-  'silo-0': [-18, 8, FACTORY_ZONE_Z.silos],
-  'silo-1': [-9, 8, FACTORY_ZONE_Z.silos],
-  'silo-2': [0, 8, FACTORY_ZONE_Z.silos],
-  'silo-3': [9, 8, FACTORY_ZONE_Z.silos],
-  'silo-4': [18, 8, FACTORY_ZONE_Z.silos],
-
-  // Roller Mills (Zone 2, z=-6)
-  'rm-101': [-15, 2.5, FACTORY_ZONE_Z.milling],
-  'rm-102': [-7.5, 2.5, FACTORY_ZONE_Z.milling],
-  'rm-103': [7.5, 2.5, FACTORY_ZONE_Z.milling],
-  'rm-104': [15, 2.5, FACTORY_ZONE_Z.milling],
-
-  // Plansifters (Zone 3, z=6, elevated)
-  'sifter-a': [-14, 9, FACTORY_ZONE_Z.sifting],
-  'sifter-b': [0, 9, FACTORY_ZONE_Z.sifting],
-  'sifter-c': [14, 9, FACTORY_ZONE_Z.sifting],
-
-  // Packers (Zone 4, z=25) - live x = i*8 for i=-1..1 (was +/-12, off by 4)
-  'packer-0': [-8, 2, FACTORY_ZONE_Z.packing],
-  'packer-1': [0, 2, FACTORY_ZONE_Z.packing],
-  'packer-2': [8, 2, FACTORY_ZONE_Z.packing],
+  ...Object.fromEntries(
+    SITE_LAYOUT.machines.silos.map(({ id, position }) => [
+      id,
+      [position[0], position[1] + SITE_LAYOUT.machineDimensions.silo[1] / 2, position[2]],
+    ])
+  ),
+  ...Object.fromEntries(
+    SITE_LAYOUT.machines.rollerMills.map(({ id, position }) => [
+      id,
+      [position[0], position[1] + SITE_LAYOUT.machineDimensions.rollerMill[1] / 2, position[2]],
+    ])
+  ),
+  // Plansifters stand on the mezzanine; anchor at the centre of the sieve body.
+  ...Object.fromEntries(
+    SITE_LAYOUT.machines.sifters.map(({ id, position }) => [
+      id,
+      [position[0], position[1] + SIFTER_LAYOUT.bodyCentreY, position[2]],
+    ])
+  ),
+  ...Object.fromEntries(
+    SITE_LAYOUT.machines.packers.map(({ id, position }) => [
+      id,
+      [position[0], position[1] + SITE_LAYOUT.machineDimensions.packer[1] / 2, position[2]],
+    ])
+  ),
 };
 
 // Production flow connections (upstream → downstream)
@@ -77,6 +79,23 @@ const FLOW_CONNECTIONS: [string[], string[]][] = [
   [['sifter-b'], ['packer-1']],
   [['sifter-c'], ['packer-2']],
 ];
+
+const groupCentre = (ids: readonly string[]): [number, number, number] => [
+  ids.reduce((sum, id) => sum + (MACHINE_POSITIONS[id]?.[0] ?? 0), 0) / ids.length,
+  ids.reduce((sum, id) => sum + (MACHINE_POSITIONS[id]?.[1] ?? 0), 0) / ids.length,
+  ids.reduce((sum, id) => sum + (MACHINE_POSITIONS[id]?.[2] ?? 0), 0) / ids.length,
+];
+
+// The endpoints never move, so they are built once. A stable `points` array
+// lets each <Line> keep its geometry across the 0.5 s simulation ticks that
+// only change machine load.
+const FLOW_LINKS = FLOW_CONNECTIONS.map(([sources, targets]) => ({
+  sources,
+  targets,
+  from: sources.join('+'),
+  to: targets.join('+'),
+  points: [groupCentre(sources), groupCentre(targets)] as const,
+}));
 
 function getColor(riskLevel: CascadeConnection['riskLevel']): string {
   switch (riskLevel) {
@@ -125,35 +144,13 @@ export const CascadeVisualization: React.FC = () => {
   const machines = useProductionStore(useShallow((state) => state.machines));
 
   const connections = useMemo<CascadeConnection[]>(() => {
-    const result: CascadeConnection[] = [];
-
-    FLOW_CONNECTIONS.forEach(([sources, targets]) => {
-      // Create center-to-center connection for each flow
-      const sourceCenter: [number, number, number] = [
-        sources.reduce((sum, s) => sum + (MACHINE_POSITIONS[s]?.[0] ?? 0), 0) / sources.length,
-        sources.reduce((sum, s) => sum + (MACHINE_POSITIONS[s]?.[1] ?? 0), 0) / sources.length,
-        sources.reduce((sum, s) => sum + (MACHINE_POSITIONS[s]?.[2] ?? 0), 0) / sources.length,
-      ];
-
-      const targetCenter: [number, number, number] = [
-        targets.reduce((sum, t) => sum + (MACHINE_POSITIONS[t]?.[0] ?? 0), 0) / targets.length,
-        targets.reduce((sum, t) => sum + (MACHINE_POSITIONS[t]?.[1] ?? 0), 0) / targets.length,
-        targets.reduce((sum, t) => sum + (MACHINE_POSITIONS[t]?.[2] ?? 0), 0) / targets.length,
-      ];
-
-      const { stressed, riskLevel } = isStressed(machines, sources, targets);
-
-      result.push({
-        from: sources.join('+'),
-        to: targets.join('+'),
-        fromPosition: sourceCenter,
-        toPosition: targetCenter,
-        stressed,
-        riskLevel,
-      });
-    });
-
-    return result;
+    // Centre-to-centre connection for each flow; only the stress changes.
+    return FLOW_LINKS.map(({ sources, targets, from, to, points }) => ({
+      from,
+      to,
+      points,
+      ...isStressed(machines, sources, targets),
+    }));
   }, [machines]);
 
   // Only render stressed connections or all connections if no stress
@@ -164,10 +161,10 @@ export const CascadeVisualization: React.FC = () => {
 
   return (
     <group name="cascade-visualization">
-      {visibleConnections.map((conn, idx) => (
+      {visibleConnections.map((conn) => (
         <Line
-          key={`cascade-${idx}`}
-          points={[conn.fromPosition, conn.toPosition]}
+          key={`${conn.from}>${conn.to}`}
+          points={conn.points}
           color={getColor(conn.riskLevel)}
           lineWidth={conn.stressed ? 4 : 2}
           opacity={conn.stressed ? 0.9 : 0.4}

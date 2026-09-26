@@ -1,6 +1,6 @@
 import React, { Suspense, useState } from 'react';
 import { Shield, Cloud, AlertTriangle, Activity, CheckCircle2 } from 'lucide-react';
-import { useGameSimulationStore } from '../../../stores';
+import { useGameSimulationStore, useSafetyStore } from '../../../stores';
 import { useShallow } from 'zustand/react/shallow';
 import { audioManager } from '../../../utils/audioManager';
 import { ConfirmDialog } from '../../ui/ConfirmDialog';
@@ -39,6 +39,7 @@ const TabLoader = () => (
 export const SafetyPanel: React.FC = () => {
   const [tab, setTab] = useState<SafetyTab>('controls');
   const [confirmEmergencyStop, setConfirmEmergencyStop] = useState(false);
+  const forkliftEmergencyStop = useSafetyStore((state) => state.forkliftEmergencyStop);
   const {
     emergencyActive,
     emergencyDrillMode,
@@ -256,8 +257,8 @@ export const SafetyPanel: React.FC = () => {
                     )}
                   </div>
                   <p className="mt-1 text-[11px] text-slate-400">
-                    Stops production and mobile equipment while the service-egress sensors run their
-                    verification sequence.
+                    Halts production and grounds every forklift while the egress sensors verify
+                    themselves. Nothing moves until they agree.
                   </p>
                   {emergencyDrillMode ? (
                     <button
@@ -284,6 +285,22 @@ export const SafetyPanel: React.FC = () => {
                   )}
                 </div>
 
+                {/* The Space-bar stop holds only the forklifts, so the facility
+                  E-Stop below cannot release it. */}
+                {forkliftEmergencyStop && !emergencyActive && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      useSafetyStore.getState().setForkliftEmergencyStop(false);
+                      audioManager.stopEmergencyStopAlarm();
+                    }}
+                    className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-amber-500/50 bg-amber-900/30 text-sm font-bold text-amber-100 transition-colors hover:bg-amber-900/50"
+                  >
+                    <AlertTriangle size={16} aria-hidden="true" />
+                    RELEASE FORKLIFT STOP
+                  </button>
+                )}
+
                 {/* E-Stop Button */}
                 <button
                   type="button"
@@ -293,7 +310,7 @@ export const SafetyPanel: React.FC = () => {
                     crisisActive
                       ? 'Resolve the active crisis before clearing its interlock'
                       : emergencyDrillMode
-                        ? 'End the active fire drill before using the emergency stop'
+                        ? 'End the active egress verification drill before using the emergency stop'
                         : undefined
                   }
                   onClick={() => {
@@ -363,7 +380,7 @@ export const SafetyPanel: React.FC = () => {
       <ConfirmDialog
         isOpen={confirmEmergencyStop}
         title="Trigger facility emergency stop?"
-        message="All machines and mobile equipment will stop. The emergency alarm will remain active until the interlock is cleared."
+        message="Everything stops — machines, forklifts, the lot. The alarm stays on until you clear the interlock from this panel."
         confirmLabel="Trigger emergency stop"
         tone="red"
         onCancel={() => setConfirmEmergencyStop(false)}

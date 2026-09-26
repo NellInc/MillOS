@@ -237,18 +237,12 @@ export const generateGrainRoughness = (
 // maps are generated on the main thread at conveyor mount instead.
 
 const FLOUR_SACK_SIZE = 256;
-const FLOUR_SACK_DENSITY = 0.8;
 /**
- * Unbleached woven sack. Kept close to `backgroundScale` so the speckle is a
- * weave, not a pattern of visible wheat grains printed on the outside.
- *
- * Verified offline against the sRGB transfer function at mean 0.62 linear
- * (0.52-0.90). The previous bag tint `#fef3c7` had NO map behind it; now that
- * the albedo map is bound and correctly tagged sRGB, the material `color` is
- * white and this palette is the only place the cloth hue is authored.
+ * A complete cloth panel per authored UV face. Broad gathered creases carry
+ * at belt distance; the eight-pixel weave and sewn hems resolve up close.
+ * Loose-grain maps remain separate, so bin contents keep their kernel relief.
  */
 const FLOUR_SACK_COLOR: GrainColor = { r: 0.9, g: 0.86, b: 0.76 };
-const FLOUR_SACK_BG_SCALE = 0.84;
 
 export interface GrainMapSet {
   map: THREE.DataTexture;
@@ -256,14 +250,95 @@ export interface GrainMapSet {
   roughness: THREE.DataTexture;
 }
 
-/** Albedo + normal + roughness for woven flour-sack cloth. All three cached. */
-export const getFlourSackMaps = (): GrainMapSet => ({
-  map: generateGrainPattern(
-    FLOUR_SACK_SIZE,
-    FLOUR_SACK_DENSITY,
-    FLOUR_SACK_COLOR,
-    FLOUR_SACK_BG_SCALE
-  ),
-  normal: generateGrainNormal(FLOUR_SACK_SIZE, FLOUR_SACK_DENSITY, 1.35),
-  roughness: generateGrainRoughness(FLOUR_SACK_SIZE, FLOUR_SACK_DENSITY),
-});
+/** Albedo, normal and roughness share one field and the existing texture cache. */
+export const getFlourSackMaps = (): GrainMapSet => {
+  const size = FLOUR_SACK_SIZE;
+  const profile = (u: number, v: number) => {
+    const edge = Math.min(u, 1 - u);
+    const creaseAt = 0.07 + 0.022 * Math.sin(v * Math.PI * 6);
+    const crease = Math.exp(-(((edge - creaseAt) / 0.025) ** 2));
+    const hem = Math.exp(-(((Math.min(v, 1 - v) - 0.065) / 0.014) ** 2));
+    const weave = Math.cos(u * Math.PI * 64) * Math.cos(v * Math.PI * 64);
+    const stitch = hem * Math.max(0, Math.cos(u * Math.PI * 64));
+    return {
+      crease,
+      hem,
+      weave,
+      stitch,
+      height: weave * 0.1 - crease * 0.8 + hem * 0.7 + stitch * 0.2,
+    };
+  };
+  const make = (channel: 'map' | 'normal' | 'roughness') =>
+    getTexture(`sack-cloth-v2-${channel}-${size}`, () => {
+      const data = new Uint8Array(size * size * 4);
+      for (let y = 0; y < size; y++) {
+        for (let x = 0; x < size; x++) {
+          const u = x / size;
+          const v = y / size;
+          const { crease, hem, weave, stitch } = profile(u, v);
+          const i = (y * size + x) * 4;
+          if (channel === 'map') {
+            const tone = 0.97 + weave * 0.012 - crease * 0.08 - hem * 0.025 - stitch * 0.06;
+            data[i] = Math.round(FLOUR_SACK_COLOR.r * tone * 255);
+            data[i + 1] = Math.round(FLOUR_SACK_COLOR.g * tone * 255);
+            data[i + 2] = Math.round(FLOUR_SACK_COLOR.b * tone * 255);
+          } else if (channel === 'normal') {
+            const dx = profile(u + 1 / size, v).height - profile(u - 1 / size, v).height;
+            const dy = profile(u, v + 1 / size).height - profile(u, v - 1 / size).height;
+            const length = Math.hypot(dx, dy, 1);
+            data[i] = Math.round((0.5 - (dx / length) * 0.5) * 255);
+            data[i + 1] = Math.round((0.5 - (dy / length) * 0.5) * 255);
+            data[i + 2] = Math.round((0.5 + 0.5 / length) * 255);
+          } else {
+            const value = Math.round((0.91 + crease * 0.035 + hem * 0.025 + weave * 0.02) * 255);
+            data[i] = data[i + 1] = data[i + 2] = value;
+          }
+          data[i + 3] = 255;
+        }
+      }
+      return channel === 'map'
+        ? createColorDataTexture(data, size, size)
+        : createLinearDataTexture(data, size, size);
+    });
+  return { map: make('map'), normal: make('normal'), roughness: make('roughness') };
+};
+
+/** Single ink plate, with transparent cloth between letters. No fixed weight:
+ * each bag's actual 25-30 kg value remains in its existing batch tooltip. */
+export const getFlourSackPrint = (): THREE.DataTexture =>
+  getTexture('sack-flour-print-v1', () => {
+    const size = 128;
+    const data = new Uint8Array(size * size * 4);
+    const paint = (x: number, y: number, width: number, height: number) => {
+      for (let j = y; j < y + height; j++) {
+        for (let i = x; i < x + width; i++) {
+          const offset = (j * size + i) * 4;
+          data[offset] = data[offset + 1] = data[offset + 2] = 255;
+          data[offset + 3] = 255;
+        }
+      }
+    };
+    const letters = [
+      ['11111', '10000', '10000', '11110', '10000', '10000', '10000'],
+      ['10000', '10000', '10000', '10000', '10000', '10000', '11111'],
+      ['01110', '10001', '10001', '10001', '10001', '10001', '01110'],
+      ['10001', '10001', '10001', '10001', '10001', '10001', '01110'],
+      ['11110', '10001', '10001', '11110', '10100', '10010', '10001'],
+    ];
+    letters.forEach((rows, letter) =>
+      rows.forEach((row, y) => {
+        [...row].forEach((pixel, x) => {
+          if (pixel === '1') paint(20 + letter * 18 + x * 3, 75 - y * 3, 3, 3);
+        });
+      })
+    );
+    // Small printed wheat ear and two rules, broad enough to survive mipmaps.
+    paint(62, 84, 3, 25);
+    for (let row = 0; row < 3; row++) {
+      paint(54, 87 + row * 7, 7, 4);
+      paint(66, 90 + row * 7, 7, 4);
+    }
+    paint(22, 43, 84, 3);
+    paint(22, 31, 84, 3);
+    return createColorDataTexture(data, size, size);
+  });

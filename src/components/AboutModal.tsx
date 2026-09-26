@@ -42,7 +42,7 @@ export const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose, theme }
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
-            className={`fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[1000] w-full max-w-md ${bgClass} rounded-lg shadow-xl border ${borderClass} pointer-events-auto`}
+            className={`fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[1000] w-[calc(100%-2rem)] max-w-md max-h-[calc(100dvh-2rem)] overflow-y-auto ${bgClass} rounded-lg shadow-xl border ${borderClass} pointer-events-auto`}
           >
             {/* Header */}
             <div className={`flex items-center justify-between p-4 border-b ${borderClass}`}>
@@ -53,9 +53,10 @@ export const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose, theme }
                 </h2>
               </div>
               <button
+                type="button"
                 onClick={onClose}
                 aria-label="Close about dialog"
-                className={`p-1 rounded hover:bg-slate-500/20 focus:outline-none focus:ring-2 focus:ring-cyan-500 ${mutedClass}`}
+                className={`min-h-11 min-w-11 flex items-center justify-center rounded hover:bg-slate-500/20 focus:outline-none focus:ring-2 focus:ring-cyan-500 ${mutedClass}`}
               >
                 <X className="w-5 h-5" aria-hidden="true" />
               </button>
@@ -64,8 +65,8 @@ export const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose, theme }
             {/* Content */}
             <div className={`p-4 space-y-4 ${textClass}`}>
               <p className={mutedClass}>
-                MillOS is an AI-powered grain mill digital twin simulator featuring 3D visualization
-                of factory operations.
+                A digital twin of a grain mill — AI-managed, 3D-rendered, and opinionated about how
+                humans and machines should work together.
               </p>
 
               {/* Music Credits */}
@@ -109,47 +110,20 @@ export const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose, theme }
                   <li className="flex items-start gap-2">
                     <span className="shrink-0">Forklift:</span>
                     <span>
-                      by KolosStudios via{' '}
+                      by Mantas Stankaitis via{' '}
                       <a
-                        href="https://poly.pizza/m/DTQBuenKJY"
+                        href="https://sketchfab.com/3d-models/forklift-d40cae50e04145dd997cdca415cd72ad"
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-blue-500 hover:underline inline-flex items-center gap-1 focus:outline-none focus:ring-2 focus:ring-cyan-500 rounded"
                       >
-                        Poly.pizza <ExternalLink className="w-3 h-3" aria-hidden="true" />
+                        Sketchfab <ExternalLink className="w-3 h-3" aria-hidden="true" />
                       </a>{' '}
-                      (CC-BY 3.0)
+                      (CC BY 4.0)
                     </span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <span className="shrink-0">Characters:</span>
-                    <span>
-                      <a
-                        href="https://kenney.nl/assets/blocky-characters"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-blue-500 hover:underline inline-flex items-center gap-1 focus:outline-none focus:ring-2 focus:ring-cyan-500 rounded"
-                      >
-                        Kenney Blocky Characters{' '}
-                        <ExternalLink className="w-3 h-3" aria-hidden="true" />
-                      </a>{' '}
-                      (CC0)
-                    </span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="shrink-0">Industrial:</span>
-                    <span>
-                      <a
-                        href="https://kenney.nl/assets/city-kit-industrial"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-blue-500 hover:underline inline-flex items-center gap-1 focus:outline-none focus:ring-2 focus:ring-cyan-500 rounded"
-                      >
-                        Kenney City Kit Industrial{' '}
-                        <ExternalLink className="w-3 h-3" aria-hidden="true" />
-                      </a>{' '}
-                      (CC0)
-                    </span>
+                    <span>Scene, village and farm models generated for MillOS with Tripo3D</span>
                   </li>
                 </ul>
               </div>

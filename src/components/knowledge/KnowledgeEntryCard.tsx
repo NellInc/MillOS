@@ -2,7 +2,7 @@
  * KnowledgeEntryCard - Full entry display with progressive disclosure
  *
  * Shows: icon, title, quote, brief, full article
- * Links to related entries and "See in Action" UI elements
+ * Lists where to see each topic in the simulation, and links to related entries
  */
 
 import {
@@ -29,6 +29,7 @@ import {
   Sprout,
   Users,
   Library,
+  Eye,
   LucideIcon,
 } from 'lucide-react';
 import {
@@ -152,6 +153,19 @@ export function KnowledgeEntryCard({ entry, onClose, onNavigate }: KnowledgeEntr
     };
 
     lines.forEach((line, index) => {
+      // Markdown headings (every article opens with '## Subtitle')
+      const markdownHeading = line.match(/^#{1,3}\s+(.*)$/);
+      if (markdownHeading) {
+        flushList(index);
+        flushTable(index);
+        elements.push(
+          <h4 key={index} className="text-amber-400 font-semibold mt-4 mb-2">
+            {markdownHeading[1]}
+          </h4>
+        );
+        return;
+      }
+
       // Headers
       if (line.startsWith('**') && line.endsWith('**') && !line.includes('|')) {
         flushList(index);
@@ -295,6 +309,26 @@ export function KnowledgeEntryCard({ entry, onClose, onNavigate }: KnowledgeEntr
         <div className="prose prose-invert prose-slate max-w-none">
           {formatArticle(entry.article)}
         </div>
+
+        {/* Where to see it in the running simulation */}
+        {entry.seeInAction.length > 0 && (
+          <div className="mt-6 pt-6 border-t border-slate-700">
+            <h4 className="flex items-center gap-2 text-sm font-medium text-slate-400 mb-3">
+              <Eye className="w-4 h-4" aria-hidden="true" />
+              Where to see it
+            </h4>
+            <ul className="flex flex-wrap gap-2">
+              {entry.seeInAction.map((place) => (
+                <li
+                  key={place}
+                  className="rounded-full bg-slate-800 px-2 py-0.5 text-xs text-slate-300"
+                >
+                  {place}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         {/* Related Entries */}
         {relatedEntries.length > 0 && (

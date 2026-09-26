@@ -63,7 +63,10 @@ export const IncidentHistoryPanel: React.FC = () => {
       className={`border-t pt-2 mt-2 ${theme === 'light' ? 'border-slate-200' : 'border-slate-700/50'}`}
     >
       <button
-        onClick={() => setExpanded(!expanded)}
+        onClick={() => {
+          setExpanded(!expanded);
+          setConfirmingClear(false);
+        }}
         aria-expanded={expanded}
         aria-controls="incident-log-content"
         className={`w-full flex items-center justify-between text-xs font-medium transition-colors py-1 ${
@@ -106,6 +109,7 @@ export const IncidentHistoryPanel: React.FC = () => {
                       <div className="flex-1 min-w-0">
                         <div className="font-medium">{formatTime(incident.timestamp)}</div>
                         <div
+                          title={incident.description}
                           className={`truncate ${theme === 'light' ? 'text-slate-600' : 'text-slate-300'}`}
                         >
                           {incident.description}
@@ -114,6 +118,13 @@ export const IncidentHistoryPanel: React.FC = () => {
                     </div>
                   ))}
                 </div>
+                {safetyIncidents.length > 20 && (
+                  <div
+                    className={`text-center text-[9px] ${theme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}
+                  >
+                    Showing latest 20 of {safetyIncidents.length}
+                  </div>
+                )}
                 {safetyIncidents.length > 0 &&
                   (confirmingClear ? (
                     <div className="flex items-center gap-2 pt-1">

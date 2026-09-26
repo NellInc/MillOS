@@ -15,7 +15,7 @@ import {
   type TreeInstance,
   type ClutterSpec,
 } from './scenery/InstancedFoliage';
-import { WindDriver } from './scenery/WindDriver';
+import { WindDriver, WIND_UNIFORMS } from './scenery/WindDriver';
 import { HeartParticle } from './effects/HeartParticle';
 import { playCritterSound } from '../utils/critterAudio';
 import { audioManager } from '../utils/audioManager';
@@ -34,10 +34,10 @@ import { generateCobblestoneRoughness } from '../textures';
 import { SITE_LAYOUT } from '../constants/siteLayout';
 
 // ============================================================
-// CHARMING EUROPEAN VILLAGE - West of Canal
+// NORTHERN VALLEY VILLAGE
 // Lego-style adorable village with colorful buildings
-// Position: [-190, 0, 0] (west of canal at -145)
-// Size: ~60×120 units
+// Position, orientation and scale come from SITE_LAYOUT.landmarks.village.
+// Local ground footprint: 70 × 130 metres
 // ============================================================
 
 // Color Palette
@@ -63,6 +63,15 @@ const COLORS = {
 
 // Font URL - uses Vite's BASE_URL for correct path at any deployment location
 const FONT_URL = `${import.meta.env.BASE_URL}fonts/MedievalSharp.ttf`;
+
+// Hover affordance for the pettable animals, matching every other clickable
+// object in the scene.
+const setPointerCursor = () => {
+  document.body.style.cursor = 'pointer';
+};
+const resetCursor = () => {
+  document.body.style.cursor = 'auto';
+};
 
 // Shared materials with procedural textures
 // Use OUTDOOR_MATERIALS.grass for consistency with other grass surfaces
@@ -117,16 +126,6 @@ stuccoNormalTex.repeat.set(2, 2);
 
 const SM = {
   grass: OUTDOOR_MATERIALS.grass, // Use shared grass material for seamless matching
-  cobble: new THREE.MeshStandardMaterial({
-    // Untinted: the cobble albedo is now decoded as sRGB, so the old '#9a9a9a'
-    // "correct washed-out texture" tint would multiply the same darkening twice.
-    color: '#ffffff',
-    roughness: 0.85,
-    map: villageCobbleColor,
-    normalMap: villageCobbleNormal,
-    normalScale: new THREE.Vector2(0.4, 0.4),
-    roughnessMap: villageCobbleRoughness,
-  }),
   stone: new THREE.MeshStandardMaterial({
     // Untinted: '#a08070' was desaturating a brick map that only looked washed
     // out because it was decoded as linear. The map now carries its own hue.
@@ -241,14 +240,6 @@ const SM = {
     roughness: 0.32,
     metalness: 1,
   }),
-  glass: new THREE.MeshStandardMaterial({
-    color: '#93c5fd',
-    roughness: 0.1,
-    metalness: 0,
-    transparent: true,
-    opacity: 0.7,
-    depthWrite: false, // transparent pane: avoid occluding interiors/sort flicker
-  }),
   windowGlass: new THREE.MeshStandardMaterial({
     color: '#93c5fd',
     emissive: '#000000',
@@ -273,8 +264,12 @@ const SM = {
     roughness: 0.4,
     metalness: 1,
   }),
-  smoke: new THREE.MeshBasicMaterial({
+  // Smoke is particulate matter, not a light source: lit, so it greys into the
+  // night sky instead of glowing against it.
+  smoke: new THREE.MeshStandardMaterial({
     color: '#9ca3af',
+    roughness: 1,
+    metalness: 0,
     transparent: true,
     opacity: 0.4,
     depthWrite: false, // soft particle: depth writes cause hard sorting pops
@@ -453,6 +448,7 @@ const SCHOOL_BELL_CAP = createSchoolBellCapGeometry();
 // per puff and a module-level singleton would make every chimney in the
 // village pulse in lockstep.
 const smokePuffGeometry = new THREE.SphereGeometry(0.3, 8, 6);
+const _smokeQ = new THREE.Quaternion();
 
 /**
  * Three rising puffs per chimney.
@@ -466,28 +462,43 @@ const ChimneySmoke: React.FC<{ position: [number, number, number]; offset?: numb
   position,
   offset = 0,
 }) => {
+  const groupRef = useRef<THREE.Group>(null);
   const smokeRefs = useRef<(THREE.Mesh | null)[]>([]);
+  // The world wind direction expressed in this chimney's local frame. Each
+  // building is yawed to face the street, so a fixed local axis would send the
+  // plumes on the two sides of the street in opposite directions.
+  const driftRef = useRef<THREE.Vector3 | null>(null);
   const materials = useMemo(() => [SM.smoke.clone(), SM.smoke.clone(), SM.smoke.clone()], []);
 
   useEffect(() => () => materials.forEach((m) => m.dispose()), [materials]);
 
   useFrame((state) => {
     if (!shouldRunThisFrame(3)) return;
+    if (!driftRef.current && groupRef.current) {
+      // getWorldQuaternion updates the ancestor matrices itself, so this is
+      // correct on the first frame. The chimney never moves after mount.
+      groupRef.current.getWorldQuaternion(_smokeQ).invert();
+      const { value: windDir } = WIND_UNIFORMS.uWindDir;
+      driftRef.current = new THREE.Vector3(windDir.x, 0, windDir.y).applyQuaternion(_smokeQ);
+    }
+    const drift = driftRef.current;
     const time = state.clock.elapsedTime + offset;
     for (let i = 0; i < smokeRefs.current.length; i++) {
       const mesh = smokeRefs.current[i];
       if (!mesh) continue;
       const phase = (time * 0.5 + i * 0.67) % 2;
       mesh.position.y = phase * 2;
-      // Drift downwind as it rises, so the smoke agrees with the foliage.
-      mesh.position.x = phase * phase * 0.35;
+      // Drift downwind (the foliage's WIND_UNIFORMS direction) as it rises.
+      const d = phase * phase * 0.35;
+      mesh.position.x = drift ? d * drift.x : d;
+      mesh.position.z = drift ? d * drift.z : 0;
       mesh.scale.setScalar(0.3 + phase * 0.45);
       materials[i].opacity = Math.max(0, 0.42 - phase * 0.21);
     }
   });
 
   return (
-    <group position={position}>
+    <group ref={groupRef} position={position}>
       {[0, 1, 2].map((i) => (
         <mesh
           key={i}
@@ -761,14 +772,10 @@ const ChurchBuildingPrimitiveBody = React.memo<{ isNight?: boolean }>(({ isNight
         <circleGeometry args={[1.4, 24]} />
         <meshStandardMaterial color="#1e3a5f" roughness={0.3} />
       </mesh>
-      {/* Main glass segments - radiating colors */}
+      {/* Main glass segments - radiating colors. thetaStart alone places each
+          wedge; a mesh rotation on top would land wedge i at i*90 degrees. */}
       {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
-        <mesh
-          key={i}
-          position={[0, 0, 0.01]}
-          rotation={[0, 0, (i * Math.PI) / 4]}
-          userData={{ dynamic: true }}
-        >
+        <mesh key={i} position={[0, 0, 0.01]} userData={{ dynamic: true }}>
           <circleGeometry args={[1.3, 3, (i * Math.PI) / 4, Math.PI / 4]} />
           <meshStandardMaterial
             color={
@@ -868,7 +875,11 @@ const ChurchBuilding = React.memo<{
   isNight?: boolean;
 }>(({ position, rotation = 0, isNight = false }) => (
   <group position={position} rotation={[0, rotation, 0]}>
-    <GeneratedBody asset="church" fallback={<ChurchBuildingPrimitiveBody isNight={isNight} />} />
+    <GeneratedBody
+      asset="church"
+      scale={1.5}
+      fallback={<ChurchBuildingPrimitiveBody isNight={isNight} />}
+    />
   </group>
 ));
 ChurchBuilding.displayName = 'ChurchBuilding';
@@ -885,15 +896,21 @@ ChurchBuilding.displayName = 'ChurchBuilding';
  */
 const TownHallChime: React.FC = React.memo(() => {
   const gameTime = useGameSimulationStore((state) => state.gameTime);
-  const lastChimeHourRef = useRef(-1);
+  const prevTimeRef = useRef<number | null>(null);
 
   useEffect(() => {
-    const currentHour = Math.floor(gameTime);
-    // Only chime when crossing an hour boundary
-    if (currentHour !== lastChimeHourRef.current && gameTime % 1 < 0.05) {
-      audioManager.playClockChime(currentHour);
-      lastChimeHourRef.current = currentHour;
-    }
+    // Detect the hour boundary being CROSSED rather than sampling a window
+    // after it: at 10x a single tick advances a quarter hour and would step
+    // straight over a fixed window most hours.
+    const prev = prevTimeRef.current;
+    prevTimeRef.current = gameTime;
+    if (prev === null) return; // never bong on mount
+    if (Math.floor(prev) === Math.floor(gameTime)) return;
+    const elapsed = (((gameTime - prev) % 24) + 24) % 24;
+    // Only strike while time flows at roughly normal speed. At 10x/60x, or
+    // after a jump, the hour is skipped rather than chimed every few seconds.
+    if (elapsed > 0.1) return;
+    audioManager.playClockChime(Math.floor(gameTime));
   }, [gameTime]);
 
   return null;
@@ -1290,17 +1307,18 @@ const School = React.memo<{
   rotation?: number;
 }>(({ position, rotation = 0 }) => (
   <group position={position} rotation={[0, rotation, 0]}>
-    {/* Sunk 0.70 m: the generated school is the one asset in the set that
+    {/* Sunk 0.84 m: the generated school is the one asset in the set that
         arrives standing on its own turf disc, which reads as a lawn dropped on
         the village cobbles. Measured off the GLB with the albedo sampled per
         triangle - the disc's top face is 44.6 m2 of up-facing green at
-        y = 0.75-0.80, and the building stands on it, so 0.70 puts BOTH the
-        lawn and the building's base 40 mm under the cobble sheet at y = 0.12.
+        y = 0.75-0.80, and the building stands on it, so 0.84 puts BOTH the
+        lawn and the building's base 40 mm under the ground datum at y = -0.02
+        (0.70 against the old 0.12 cobble sheet, shifted by the same 0.14 m).
         The bushes and the two markers rooted in the disc stay above ground and
         read as planting beside the school. Sinking further would bury the
         doorway; sinking less leaves 44 m2 of green coplanar with the cobbles.
         The other 29 assets were checked the same way and none is green. */}
-    <GeneratedBody asset="school" sink={0.7} fallback={<SchoolPrimitiveBody />} />
+    <GeneratedBody asset="school" sink={0.84} fallback={<SchoolPrimitiveBody />} />
   </group>
 ));
 School.displayName = 'School';
@@ -1554,7 +1572,13 @@ const Duck = React.memo<{
   };
 
   return (
-    <group ref={groupRef} position={[position[0], position[1], position[2]]} onClick={handleClick}>
+    <group
+      ref={groupRef}
+      position={[position[0], position[1], position[2]]}
+      onClick={handleClick}
+      onPointerOver={setPointerCursor}
+      onPointerOut={resetCursor}
+    >
       <CreatureBody creature="duck" ref={rigRef} fallback={<DuckPrimitiveBody />} />
     </group>
   );
@@ -1667,6 +1691,9 @@ const DuckPond = React.memo<{ position: [number, number, number] }>(({ position 
     setHearts((prev) => prev.filter((h) => h.id !== id));
   }, []);
 
+  // A duck unmounted while hovered must not leave the pointer cursor stuck.
+  useEffect(() => resetCursor, []);
+
   return (
     <group position={position}>
       {/* Shore kerb - see POND_SHORE. The lathe is built about its own Y axis,
@@ -1716,11 +1743,13 @@ const DuckPond = React.memo<{ position: [number, number, number] }>(({ position 
           />
         ))}
       </group>
-      {/* Lily pads - floating on water surface */}
+      {/* Lily pads - floating just above the generated water, which after the
+          0.45 sink is a crinkled 0.33-0.39 band. Opaque, so they write depth;
+          a bias keeps the crinkle from biting through them. */}
       {[
-        [-2, 0.33, 0],
-        [1, 0.33, -1.5],
-        [-0.5, 0.33, 2.5],
+        [-2, 0.395, 0],
+        [1, 0.395, -1.5],
+        [-0.5, 0.395, 2.5],
       ].map(([x, y, z], i) => (
         <mesh
           key={`lily-${i}`}
@@ -1728,7 +1757,13 @@ const DuckPond = React.memo<{ position: [number, number, number] }>(({ position 
           rotation={[-Math.PI / 2, 0, i]}
         >
           <circleGeometry args={[0.4, 12]} />
-          <meshStandardMaterial color="#22c55e" roughness={0.9} depthWrite={false} />
+          <meshStandardMaterial
+            color="#22c55e"
+            roughness={0.9}
+            polygonOffset
+            polygonOffsetFactor={-1}
+            polygonOffsetUnits={-1}
+          />
         </mesh>
       ))}
       {/* Render Active Hearts */}
@@ -2359,7 +2394,7 @@ const FOUNTAIN_BOWL = new THREE.LatheGeometry(
 
 const FountainPrimitiveBody = React.memo(() => {
   const rippleRef = useRef<THREE.Mesh>(null);
-  const rippleMaterialRef = useRef<THREE.MeshBasicMaterial>(null);
+  const rippleMaterialRef = useRef<THREE.MeshStandardMaterial>(null);
 
   useFrame((state, delta) => {
     // Throttle to every 3rd frame; compensate delta (ConveyorSystem convention)
@@ -2397,9 +2432,12 @@ const FountainPrimitiveBody = React.memo(() => {
       {/* Ripple ring - faint, expands outward from the column */}
       <mesh ref={rippleRef} position={[0, 0.72, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <ringGeometry args={[0.5, 0.75, 24]} />
-        <meshBasicMaterial
+        {/* Lit: a ripple is water, not a light source, so it must not glow at night. */}
+        <meshStandardMaterial
           ref={rippleMaterialRef}
           color="#dbeafe"
+          roughness={0.2}
+          metalness={0}
           transparent
           opacity={0.28}
           depthWrite={false}
@@ -2432,6 +2470,8 @@ const FountainPrimitiveBody = React.memo(() => {
           e.stopPropagation();
           playCritterSound('bird');
         }}
+        onPointerOver={setPointerCursor}
+        onPointerOut={resetCursor}
       >
         <mesh position={[0, 0.1, 0]}>
           <sphereGeometry args={[0.12, 8, 8]} />
@@ -2500,7 +2540,7 @@ const generatedFountainWaterMaterial = new THREE.MeshStandardMaterial({
  */
 const GeneratedFountainWater: React.FC = () => {
   const rippleRef = useRef<THREE.Mesh>(null);
-  const rippleMaterialRef = useRef<THREE.MeshBasicMaterial>(null);
+  const rippleMaterialRef = useRef<THREE.MeshStandardMaterial>(null);
 
   useFrame((state, delta) => {
     const throttle = 3;
@@ -2536,9 +2576,12 @@ const GeneratedFountainWater: React.FC = () => {
         rotation={[-Math.PI / 2, 0, 0]}
       >
         <ringGeometry args={[0.38, 0.5, 32]} />
-        <meshBasicMaterial
+        {/* Lit: a ripple is water, not a light source, so it must not glow at night. */}
+        <meshStandardMaterial
           ref={rippleMaterialRef}
           color="#dbeafe"
+          roughness={0.2}
+          metalness={0}
           transparent
           opacity={0.26}
           depthWrite={false}
@@ -2575,12 +2618,17 @@ const Horse = React.memo<{ position: [number, number, number]; rotation?: number
     const [isExcited, setIsExcited] = React.useState(false);
     const [hearts, setHearts] = React.useState<{ id: number; pos: [number, number, number] }[]>([]);
     const groupRef = React.useRef<THREE.Group>(null);
+    // Monotonic id avoids React key collisions on rapid pets (as Cat and Crow).
+    const nextHeartId = React.useRef(0);
+
+    // A horse unmounted while hovered must not leave the pointer cursor stuck.
+    React.useEffect(() => resetCursor, []);
 
     const handlePet = (e: ThreeEvent<MouseEvent>) => {
       e.stopPropagation();
       setIsExcited(true);
       playCritterSound('horse');
-      const id = Date.now();
+      const id = nextHeartId.current++;
       setHearts((prev) => [...prev, { id, pos: [0, 2.5, 0] }]);
     };
 
@@ -2611,7 +2659,14 @@ const Horse = React.memo<{ position: [number, number, number]; rotation?: number
     }, [isExcited]);
 
     return (
-      <group position={position} rotation={[0, rotation, 0]} scale={0.6} onClick={handlePet}>
+      <group
+        position={position}
+        rotation={[0, rotation, 0]}
+        scale={0.6}
+        onClick={handlePet}
+        onPointerOver={setPointerCursor}
+        onPointerOut={resetCursor}
+      >
         <group ref={groupRef}>
           {/* Main Body Group */}
           <group position={[0, 1.4, 0]}>
@@ -2837,28 +2892,81 @@ const createRoundedRectShape = (width: number, height: number, radius: number): 
   return shape;
 };
 
+/** Building envelopes also locate the paths to their centre-facing entrances. */
+export const VILLAGE_BUILDING_FOOTPRINTS = [
+  { x: 0, z: -40, halfX: 9.5, halfZ: 7.5 }, // 18 m generated nave, including planting clearance
+  { x: 0, z: -45, halfX: 3, halfZ: 3 }, // bell tower
+  { x: 0, z: 20, halfX: 6.5, halfZ: 6.5 }, // town hall
+  { x: -25, z: -15, halfX: 5, halfZ: 5 }, // pub
+  { x: 22, z: 40, halfX: 5.5, halfZ: 5.5 }, // school
+  { x: -22, z: -55, halfX: 5, halfZ: 5 }, // forge
+  { x: 20, z: 5, halfX: 4, halfZ: 3.5 }, // baker
+  { x: 20, z: -10, halfX: 4, halfZ: 3.5 }, // butcher
+  { x: -20, z: 30, halfX: 4, halfZ: 3.5 }, // general store
+  { x: -25, z: -35, halfX: 3.5, halfZ: 3.5 },
+  { x: 25, z: -35, halfX: 3.5, halfZ: 3.5 },
+  { x: 25, z: -50, halfX: 3.5, halfZ: 3.5 },
+  { x: -25, z: 45, halfX: 3.5, halfZ: 3.5 },
+  { x: 25, z: 55, halfX: 3.5, halfZ: 3.5 },
+] as const;
+
+/** Through streets stay clear of the buildings, well and pond. */
+export const VILLAGE_STREET_CORRIDORS = [
+  { x: -13, z: -36, halfX: 2.5, halfZ: 24 },
+  { x: -12, z: 44, halfX: 2.5, halfZ: 18 },
+  { x: 13, z: -23, halfX: 2.5, halfZ: 37 },
+  { x: 10.25, z: 37, halfX: 2.5, halfZ: 25 },
+  { x: 0, z: -56, halfX: 13, halfZ: 2.5 },
+  { x: -0.875, z: 55, halfX: 11.125, halfZ: 2.5 },
+] as const;
+
+/**
+ * One plan controls the existing cobble sheet and verge scatter.
+ * Working if the square and entrances remain connected, with clear streets
+ * and grass between the plots instead of a single 70 by 130 metre apron.
+ */
+export const VILLAGE_PAVED_AREAS = [
+  { x: 0, z: 8, halfX: 16, halfZ: 20 },
+  { x: 0, z: -40, halfX: 12, halfZ: 12 },
+  ...VILLAGE_STREET_CORRIDORS,
+  ...VILLAGE_BUILDING_FOOTPRINTS.filter((building) => Math.abs(building.x) > 10).map(
+    ({ x, z, halfX }) => {
+      const side = Math.sign(x);
+      const streetX = side < 0 ? (z < -12 ? -13 : -12) : z <= 12 ? 13 : 10.25;
+      const entranceX = x - side * halfX;
+      return {
+        x: (streetX + entranceX) / 2,
+        z,
+        halfX: Math.abs(entranceX - streetX) / 2 + 0.5,
+        halfZ: 1.5,
+      };
+    }
+  ),
+] as const;
+
+export const VILLAGE_COBBLE_TILE_METRES = 6;
+
 // Memoized rounded ground shape with proper UVs for tiling
 const villageGroundShape = createRoundedRectShape(70, 130, 12);
-const villageGroundGeometry = new THREE.ShapeGeometry(villageGroundShape, 24);
+export const VILLAGE_GROUND_GEOMETRY = new THREE.ShapeGeometry(villageGroundShape, 24);
 
-// Recompute UVs - scale for texture tiling (1 tile per 25 units for large cobblestones)
-const uvAttr = villageGroundGeometry.attributes.uv;
-const posAttr = villageGroundGeometry.attributes.position;
+// The 512 / 14-cell texture resolves to roughly 17 cm stones at this repeat.
+const uvAttr = VILLAGE_GROUND_GEOMETRY.attributes.uv;
+const posAttr = VILLAGE_GROUND_GEOMETRY.attributes.position;
 const HW = 35,
   HH = 65;
-const UV_SCALE = 25; // Larger = bigger stones (farmyard-like)
 
 for (let i = 0; i < posAttr.count; i++) {
   const x = posAttr.getX(i);
   const y = posAttr.getY(i);
-  uvAttr.setXY(i, (x + HW) / UV_SCALE, (y + HH) / UV_SCALE);
+  uvAttr.setXY(i, (x + HW) / VILLAGE_COBBLE_TILE_METRES, (y + HH) / VILLAGE_COBBLE_TILE_METRES);
 }
 uvAttr.needsUpdate = true;
 
 // Cobble material with edge feathering via custom shader injection
 // Uses module-level villageCobbleColor and villageCobbleNormal textures
 // polygonOffset with NEGATIVE values pushes toward camera, preventing z-fighting with TerrainGround
-const villageCobbleMaterial = new THREE.MeshStandardMaterial({
+export const VILLAGE_GROUND_MATERIAL = new THREE.MeshStandardMaterial({
   // Was '#9a9a9a' to "correct washed-out texture appearance" - that wash was
   // the linear-decode bug, now fixed in the texture layer. Tinting on top of a
   // correctly decoded albedo double-darkens the square.
@@ -2874,23 +2982,39 @@ const villageCobbleMaterial = new THREE.MeshStandardMaterial({
   polygonOffsetUnits: POLYGON_OFFSET.moderate.units,
 });
 
-// Inject feathering into the shader based on world position
-villageCobbleMaterial.onBeforeCompile = (shader) => {
+// Feather in the authored village coordinates, including its current yaw and
+// scale. The former world-X offset pinned the mask to the abandoned site.
+const villageWorldToLocal = new THREE.Matrix4()
+  .compose(
+    new THREE.Vector3(...SITE_LAYOUT.landmarks.village.position),
+    new THREE.Quaternion().setFromEuler(new THREE.Euler(...SITE_LAYOUT.landmarks.village.rotation)),
+    new THREE.Vector3().setScalar(SITE_LAYOUT.landmarks.village.scale)
+  )
+  .invert();
+VILLAGE_GROUND_MATERIAL.onBeforeCompile = (shader) => {
+  shader.uniforms.uVillageWorldToLocal = { value: villageWorldToLocal };
+  shader.uniforms.uVillagePavingRegions = {
+    value: VILLAGE_PAVED_AREAS.map(
+      ({ x, z, halfX, halfZ }) => new THREE.Vector4(x, z, halfX, halfZ)
+    ),
+  };
   shader.vertexShader = shader.vertexShader.replace(
     '#include <common>',
     `#include <common>
+    uniform mat4 uVillageWorldToLocal;
     varying vec2 vLocalPos;`
   );
   shader.vertexShader = shader.vertexShader.replace(
     '#include <worldpos_vertex>',
     `#include <worldpos_vertex>
     vec4 millosVillageWorldPosition = modelMatrix * vec4(transformed, 1.0);
-    vLocalPos = millosVillageWorldPosition.xz + vec2(190.0, 0.0);`
+    vLocalPos = (uVillageWorldToLocal * millosVillageWorldPosition).xz;`
   );
   shader.fragmentShader = shader.fragmentShader.replace(
     '#include <common>',
     `#include <common>
-    varying vec2 vLocalPos;`
+    varying vec2 vLocalPos;
+    uniform vec4 uVillagePavingRegions[${VILLAGE_PAVED_AREAS.length}];`
   );
   shader.fragmentShader = shader.fragmentShader.replace(
     '#include <dithering_fragment>',
@@ -2898,16 +3022,22 @@ villageCobbleMaterial.onBeforeCompile = (shader) => {
     vec2 q = abs(vLocalPos) - vec2(23.0, 53.0);
     float d = 12.0 - min(max(q.x, q.y), 0.0) - length(max(q, 0.0));
     float feather = clamp(d * 0.16667, 0.0, 1.0);
-    gl_FragColor.a *= mix(feather, 1.0, smoothstep(15.0, 30.0, vLocalPos.x));`
+    float pavedDistance = 1000.0;
+    for (int i = 0; i < ${VILLAGE_PAVED_AREAS.length}; i++) {
+      vec4 region = uVillagePavingRegions[i];
+      vec2 pavingEdge = abs(vLocalPos - region.xy) - region.zw;
+      pavedDistance = min(pavedDistance, max(pavingEdge.x, pavingEdge.y));
+    }
+    gl_FragColor.a *= feather * (1.0 - smoothstep(-0.25, 0.35, pavedDistance));`
   );
 };
 // Stable cache key so the feathering-injected variant gets its own compiled
 // program and never shares a cache slot with a plain MeshStandardMaterial of
 // identical params (which would render without the edge feathering).
-villageCobbleMaterial.customProgramCacheKey = () => 'villageCobble_feather_v1';
+VILLAGE_GROUND_MATERIAL.customProgramCacheKey = () => 'villageCobble_feather_v3';
 
 // ============================================================
-// VEGETATION LAYOUT (village-local coordinates; group sits at [-190, 0, 0])
+// VEGETATION LAYOUT (village-local coordinates)
 // ============================================================
 
 /** Same seven trees as before, now drawn by the instanced card-canopy field. */
@@ -2926,37 +3056,22 @@ const VILLAGE_TREE_SPOTS: readonly (readonly [number, number])[] = VILLAGE_TREES
 );
 
 /**
- * Decal height. The village square is its own cobble sheet at local y=0.12
- * (see the ground mesh below), so a mulch ring has to sit just above THAT,
- * not above the terrain. Sitting proud is safe here because the material never
- * writes depth and carries an `exteriorOverlay` polygon offset.
+ * Decal height. The village cobble sheet and the terrace under it both sit on
+ * the ground datum (`EXTERIOR_LAYERS.ground`, -0.02), so a mulch ring takes the
+ * overlay layer 1 cm above it - InstancedMulch's own default. Safe because the
+ * material never writes depth and carries an `exteriorOverlay` polygon offset.
+ * Divided by the authored scale, as the ground mesh is.
  */
-const VILLAGE_DECAL_Y = 0.145;
+const VILLAGE_DECAL_Y = EXTERIOR_LAYERS.groundOverlay / SITE_LAYOUT.landmarks.village.scale;
 
 /** Building and water footprints no tuft may grow inside. */
 const VILLAGE_BLOCKERS = [
-  { x: 0, z: -40, halfX: 6.5, halfZ: 7.5 }, // church nave
-  { x: 0, z: -45, halfX: 3, halfZ: 3 }, // bell tower
-  { x: 0, z: 20, halfX: 6.5, halfZ: 6.5 }, // town hall
-  { x: -25, z: -15, halfX: 5, halfZ: 5 }, // pub
-  { x: 22, z: 40, halfX: 5.5, halfZ: 5.5 }, // school
-  { x: -22, z: -55, halfX: 5, halfZ: 5 }, // forge
-  { x: 20, z: 5, halfX: 4, halfZ: 3.5 }, // baker
-  { x: 20, z: -10, halfX: 4, halfZ: 3.5 }, // butcher
-  { x: -20, z: 30, halfX: 4, halfZ: 3.5 }, // general store
-  { x: -25, z: -35, halfX: 3.5, halfZ: 3.5 },
-  { x: 25, z: -35, halfX: 3.5, halfZ: 3.5 },
-  { x: 25, z: -50, halfX: 3.5, halfZ: 3.5 },
-  { x: -25, z: 45, halfX: 3.5, halfZ: 3.5 },
-  { x: 25, z: 55, halfX: 3.5, halfZ: 3.5 },
+  ...VILLAGE_BUILDING_FOOTPRINTS,
   { x: -10, z: -5, halfX: 2.2, halfZ: 2.2 }, // wishing well
   { x: 0, z: 6, halfX: 3.2, halfZ: 3.2 }, // fountain
   { x: 20, z: 25, halfX: 6, halfZ: 6 }, // duck pond
   { x: 0, z: 6, halfX: 10, halfZ: 10 }, // market square walking space
 ] as const;
-
-/** The swept, paved core. Verge grass stops here; wall weeds do not. */
-const VILLAGE_PAVED_CORE = { x: 0, z: 0, halfX: 24, halfZ: 54 } as const;
 
 /** Wall bases, rims and trunks: the junctions that read as a razor edge with
  *  nothing growing at them. */
@@ -3028,9 +3143,9 @@ const VILLAGE_WEEDS: ClutterSpec = {
   exclude: VILLAGE_BLOCKERS,
   openExclude: [{ x: 0, z: 0, halfX: 40, halfZ: 70 }],
   attractors: VILLAGE_WALL_BASES,
-  // Sits just under the cobble sheet: sinking a card base is invisible,
-  // floating one is not.
-  y: 0.115,
+  // 5 mm under the -0.02 ground datum the cobble sheet sits on: sinking a
+  // card base is invisible, floating one is not.
+  y: (EXTERIOR_LAYERS.ground - 0.005) / SITE_LAYOUT.landmarks.village.scale,
   cullDistance: 95,
 };
 
@@ -3038,9 +3153,9 @@ const VILLAGE_WEEDS: ClutterSpec = {
 const VILLAGE_VERGE: ClutterSpec = {
   count: 620,
   bounds: { minX: -34, maxX: 34, minZ: -64, maxZ: 64 },
-  exclude: [...VILLAGE_BLOCKERS, VILLAGE_PAVED_CORE],
-  // Terrain top is y=0.05; 0.045 sinks the blade roots by 5 mm.
-  y: 0.045,
+  exclude: [...VILLAGE_BLOCKERS, ...VILLAGE_PAVED_AREAS],
+  // The terrace terrain is on the -0.02 ground datum; sink the blade roots 5 mm.
+  y: (EXTERIOR_LAYERS.ground - 0.005) / SITE_LAYOUT.landmarks.village.scale,
   cullDistance: 130,
 };
 
@@ -3076,19 +3191,23 @@ export const VillageArea: React.FC = () => {
       rotation={SITE_LAYOUT.landmarks.village.rotation}
       scale={SITE_LAYOUT.landmarks.village.scale}
     >
-      {/* Rounded cobblestone ground, on the site's ground datum. The village
-          anchor sits at y=0 and scale 1, so this local Y is the world Y.
+      {/* Rounded cobblestone ground, seated on the village terrace. Divide
+          the local ground offset by the authored scale.
 
-          `villageCobbleMaterial` already carries `POLYGON_OFFSET.moderate` (-2)
+          `VILLAGE_GROUND_MATERIAL` already carries `POLYGON_OFFSET.moderate` (-2)
           against the terrain's `exteriorBase` (+6), which is the whole of the
           separation now - and the material's alpha feathering wants it that
           way: the plaza is meant to dissolve into the grass at its rim, and a
           feathered edge held 14 cm in the air is a feathered edge with a
           shadow gap under it. The 0.12 this replaces was clearance for
           `TerrainGround`'s old 0.05 default. */}
-      <mesh position={[0, EXTERIOR_LAYERS.ground, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <primitive object={villageGroundGeometry} attach="geometry" />
-        <primitive object={villageCobbleMaterial} attach="material" />
+      <mesh
+        position={[0, EXTERIOR_LAYERS.ground / SITE_LAYOUT.landmarks.village.scale, 0]}
+        rotation={[-Math.PI / 2, 0, 0]}
+        receiveShadow
+      >
+        <primitive object={VILLAGE_GROUND_GEOMETRY} attach="geometry" />
+        <primitive object={VILLAGE_GROUND_MATERIAL} attach="material" />
       </mesh>
 
       {/* === CHURCH === */}
@@ -3165,7 +3284,7 @@ export const VillageArea: React.FC = () => {
       <DuckPond position={[20, 0, 25]} />
 
       {/* === STREET LAMPS (Instanced for performance) === */}
-      <InstancedLamps isNight={isNight} />
+      <InstancedLamps />
 
       {/* === POSTBOX === */}
       <Postbox position={[12, 0, 25]} rotation={-Math.PI / 2} />
@@ -3182,7 +3301,9 @@ export const VillageArea: React.FC = () => {
             <boxGeometry args={[1.5, 0.08, 0.5]} />
             <primitive object={SM.timber} attach="material" />
           </mesh>
-          <mesh position={[0, 0.25, -0.2]} castShadow>
+          {/* Backrest standing on the seat's rear strip (0.44-0.94), reclined
+              slightly. It used to span 0.00-0.50 - a skirt under the seat. */}
+          <mesh position={[0, 0.69, -0.2]} rotation={[-0.12, 0, 0]} castShadow>
             <boxGeometry args={[1.5, 0.5, 0.08]} />
             <primitive object={SM.timber} attach="material" />
           </mesh>

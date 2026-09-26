@@ -47,11 +47,9 @@ const aiEngineMock = {
   isGeminiModeActive: vi.fn(() => false),
 };
 
-const audioManagerMock = {
-  playAIDecision: vi.fn(),
-  playAICriticalAlert: vi.fn(),
-  playAIAnomaly: vi.fn(),
-};
+// AICommandCenter plays no sounds; the mock only keeps the real Web Audio
+// manager from loading in jsdom.
+const audioManagerMock = {};
 
 // Mock lucide-react to avoid importing thousands of icon components in unit tests.
 vi.mock('lucide-react', () => ({
@@ -202,6 +200,22 @@ describe('AICommandCenter', () => {
   });
 
   describe('Rendering', () => {
+    it('opens the advisory tab and forgets its key when switching away', () => {
+      render(<AICommandCenter isOpen={true} onClose={vi.fn()} embedded />);
+      fireEvent.click(screen.getByRole('tab', { name: 'Advisory' }));
+      expect(screen.getByRole('tabpanel', { name: 'Advisory' })).toBeInTheDocument();
+      expect(screen.getByRole('region', { name: 'Jev advisory' })).toBeInTheDocument();
+      fireEvent.change(screen.getByLabelText('Your OpenRouter API key'), {
+        target: { value: `sk-or-v1-${'test-only-'.repeat(5)}` },
+      });
+      fireEvent.click(screen.getByRole('tab', { name: 'Strategic' }));
+      expect(screen.queryByRole('region', { name: 'Jev advisory' })).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole('tab', { name: 'Advisory' }));
+      expect(screen.getByLabelText('Your OpenRouter API key')).toHaveValue('');
+      expect(screen.getByRole('checkbox')).not.toBeChecked();
+      expect(aiEngineMock.applyDecisionEffects).not.toHaveBeenCalled();
+    });
+
     it('should not render when isOpen is false', () => {
       const { container } = render(<AICommandCenter isOpen={false} onClose={vi.fn()} embedded />);
 
@@ -213,7 +227,7 @@ describe('AICommandCenter', () => {
 
       render(<AICommandCenter isOpen={true} onClose={vi.fn()} embedded />);
 
-      expect(screen.getByText('EMERGENCY DRILL IN PROGRESS')).toBeInTheDocument();
+      expect(screen.getByText('EGRESS DRILL IN PROGRESS')).toBeInTheDocument();
     });
   });
 

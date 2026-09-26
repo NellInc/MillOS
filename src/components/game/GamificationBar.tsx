@@ -2,19 +2,13 @@ import React, { useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Trophy, History, Map } from 'lucide-react';
 import { useUIStore } from '../../stores/uiStore';
-import { useProductionStore } from '../../stores/productionStore';
+import { useAchievementsStore } from '../../stores/achievementsStore';
 import { useHistoricalPlaybackStore } from '../../stores/historicalPlaybackStore';
 import { useShallow } from 'zustand/react/shallow';
-import { useAchievementTracker } from '../../hooks/useAchievementTracker';
 import { AchievementsPanel } from './AchievementsPanel';
 import { ScreenshotButton } from './ScreenshotButton';
 
 export const GamificationBar: React.FC = () => {
-  // Drives achievement progress/unlocks from live simulation stores.
-  // GamificationBar is always mounted on desktop (GameInterface), even when
-  // the bar itself is hidden (the early return below happens after hooks).
-  useAchievementTracker();
-
   // Shared with OverviewPanel through uiStore so the two toggles drive one panel.
   const showAchievements = useUIStore((state) => state.showAchievements);
   const setShowAchievements = useUIStore((state) => state.setShowAchievements);
@@ -26,10 +20,11 @@ export const GamificationBar: React.FC = () => {
       setShowGamificationBar: state.setShowGamificationBar,
     }))
   );
-  const achievements = useProductionStore((state) => state.achievements);
+  const achievements = useAchievementsStore((state) => state.achievements);
   const isReplaying = useHistoricalPlaybackStore((s) => s.isReplaying);
 
-  const unlockedCount = achievements.filter((a) => a.unlockedAt).length;
+  // Same visibility rule as AchievementsPanel: untracked goals are not counted.
+  const unlockedCount = achievements.filter((a) => a.tracked !== false && a.unlockedAt).length;
 
   // Memoized handlers to prevent re-renders
   const handleHideBar = useCallback(() => setShowGamificationBar(false), [setShowGamificationBar]);
@@ -78,10 +73,16 @@ export const GamificationBar: React.FC = () => {
                 : 'bg-slate-800 text-yellow-400 hover:bg-slate-700'
             }`}
             title="Achievements"
+            aria-label={
+              unlockedCount > 0 ? `Achievements, ${unlockedCount} unlocked` : 'Achievements'
+            }
           >
             <Trophy className="w-5 h-5" />
             {unlockedCount > 0 && (
-              <span className="absolute -top-1 -right-1 w-4 h-4 bg-yellow-500 text-black text-[10px] font-bold rounded-full flex items-center justify-center">
+              <span
+                aria-hidden="true"
+                className="absolute -top-1 -right-1 w-4 h-4 bg-yellow-500 text-black text-[10px] font-bold rounded-full flex items-center justify-center"
+              >
                 {unlockedCount}
               </span>
             )}

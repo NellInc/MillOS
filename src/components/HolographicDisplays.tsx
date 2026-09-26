@@ -14,58 +14,79 @@ import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import { getDockStatusColor } from '../utils/statusColors';
 import { useShallow } from 'zustand/react/shallow';
 import { shouldRunThisFrame, getThrottleLevel } from '../utils/frameThrottle';
-import { MachineType } from '../types';
+import { MachineType, type MachineData } from '../types';
+import { SITE_LAYOUT } from '../constants/siteLayout';
+import { useReducedMotion } from '../hooks/useReducedMotion';
+
+/** Shared positions keep optional zone labels attached when production moves. */
+export const HOLOGRAPHIC_ZONE_POSITIONS: Record<
+  'storage' | 'milling' | 'sifting' | 'packing',
+  [number, number, number]
+> = {
+  storage: [SITE_LAYOUT.machines.silos[0].position[0] - 9, 10, SITE_LAYOUT.factory.zones.silos],
+  milling: [30, 10, SITE_LAYOUT.factory.zones.milling],
+  sifting: [-30, SITE_LAYOUT.datum.mezzanine + 3, SITE_LAYOUT.factory.zones.sifting],
+  packing: [24, 9, SITE_LAYOUT.factory.zones.packing],
+};
+
+/** Use observed counts and output. Zero remains zero; absent readings stay absent.
+ * Working if stopped output is 0 bags/min and an empty silo is shown at 0%.
+ */
+export function getHolographicZoneMetrics(
+  machines: readonly Pick<MachineData, 'type' | 'status' | 'fillLevel'>[],
+  metrics: { throughput: number; quality: number },
+  totalBags: number
+) {
+  const silos = machines.filter((machine) => machine.type === MachineType.SILO);
+  const mills = machines.filter((machine) => machine.type === MachineType.ROLLER_MILL);
+  // 'warning' still processes (the simulation runs it), so it counts as running.
+  const isRunning = (machine: Pick<MachineData, 'status'>) =>
+    machine.status === 'running' || machine.status === 'warning';
+  const runningMills = mills.filter(isRunning).length;
+  const siloLevel =
+    silos.length > 0 && silos.every((silo) => Number.isFinite(silo.fillLevel))
+      ? Math.round(
+          silos.reduce((sum, silo) => sum + Math.max(0, Math.min(100, silo.fillLevel!)), 0) /
+            silos.length
+        )
+      : null;
+  return {
+    siloLevel,
+    runningMills,
+    millAvailability: mills.length ? Math.round((runningMills / mills.length) * 100) : null,
+    runningMachines: machines.filter(isRunning).length,
+    qualityGrade: Number.isFinite(metrics.quality) ? metrics.quality : null,
+    bagsPerMin: Number.isFinite(metrics.throughput) ? Math.max(0, metrics.throughput) / 60 : null,
+    totalBags: Number.isFinite(totalBags) ? Math.max(0, totalBags) : null,
+  };
+}
+
+type DockStatus = 'arriving' | 'loading' | 'departing' | 'clear';
+type Dock = 'shipping' | 'receiving';
 
 export const HolographicDisplays: React.FC = () => {
   // Use useShallow to prevent re-renders when unrelated store values change
-  const { dockStatus, machines, metrics, totalBagsProduced, productionSpeed } = useProductionStore(
+  const { dockStatus, machines, metrics, totalBagsProduced } = useProductionStore(
     useShallow((state) => ({
       dockStatus: state.dockStatus,
       machines: state.machines,
       metrics: state.metrics,
       totalBagsProduced: state.totalBagsProduced,
-      productionSpeed: state.productionSpeed,
     }))
   );
 
-  // Calculate real zone metrics from store data
-  const zoneMetrics = useMemo(() => {
-    // Zone 1: Silos - calculate capacity from silo machine data
-    const silos = machines.filter((m) => m.type === MachineType.SILO);
-    const siloCapacity =
-      silos.length > 0
-        ? Math.round(silos.reduce((acc, s) => acc + (s.metrics?.load || 80), 0) / silos.length)
-        : 85;
+  const zoneMetrics = useMemo(
+    () => getHolographicZoneMetrics(machines, metrics, totalBagsProduced),
+    [machines, metrics, totalBagsProduced]
+  );
 
-    // Zone 2: Mills - calculate throughput
-    const mills = machines.filter((m) => m.type === MachineType.ROLLER_MILL);
-    const runningMills = mills.filter((m) => m.status === 'running').length;
-    const throughput = Math.round(200 * runningMills * productionSpeed + 200);
-
-    // Zone 3: Sifters - use quality metric from store
-    const qualityGrade = metrics.quality;
-
-    // Zone 4: Packers - calculate bags/min and daily total
-    const packers = machines.filter((m) => m.type === MachineType.PACKER);
-    const runningPackers = packers.filter((m) => m.status === 'running').length;
-    const bagsPerMin = Math.round(12 * runningPackers * productionSpeed + 5);
-
-    return {
-      siloCapacity,
-      throughput,
-      qualityGrade,
-      bagsPerMin,
-      totalBags: totalBagsProduced,
-    };
-  }, [machines, metrics, totalBagsProduced, productionSpeed]);
-
-  // Format dock display values
-  const getStatusDisplay = (status: 'arriving' | 'loading' | 'departing' | 'clear') => {
+  // Format dock display values. Shipping loads flour out; receiving unloads grain.
+  const getStatusDisplay = (status: DockStatus, dock: Dock) => {
     switch (status) {
       case 'arriving':
         return 'Incoming';
       case 'loading':
-        return 'Loading';
+        return dock === 'shipping' ? 'Loading' : 'Unloading';
       case 'departing':
         return 'Departing';
       case 'clear':
@@ -73,11 +94,13 @@ export const HolographicDisplays: React.FC = () => {
     }
   };
 
-  const getSubValue = (status: 'arriving' | 'loading' | 'departing' | 'clear', eta: number) => {
-    if (status === 'arriving') return `ETA: ${eta} min`;
-    if (status === 'loading') return `${eta} min left`;
+  // TruckBay publishes etaMinutes = 0 while a truck is at the bay and the
+  // next-arrival minutes while the bay is clear.
+  const getSubValue = (status: DockStatus, dock: Dock, eta: number) => {
+    if (status === 'arriving') return 'On approach';
+    if (status === 'loading') return dock === 'shipping' ? 'Loading flour' : 'Unloading grain';
     if (status === 'departing') return 'Bay clearing';
-    return 'Awaiting truck';
+    return eta > 0 ? `Next truck in ${eta} min` : 'Awaiting truck';
   };
 
   return (
@@ -86,44 +109,64 @@ export const HolographicDisplays: React.FC = () => {
       <HoloPanel
         position={[0, 14, -30]}
         title="PRODUCTION STATUS"
-        value="OPTIMAL"
+        value={`${zoneMetrics.runningMachines}/${machines.length} RUNNING`}
         color="#22c55e"
         size={[14, 4.5]}
       />
 
-      {/* Zone displays - repositioned for 120x160 floor */}
+      {/* Zone displays follow the canonical production layout. */}
       <HoloPanel
-        position={[-30, 10, -22]}
+        position={HOLOGRAPHIC_ZONE_POSITIONS.storage}
         title="ZONE 1: STORAGE"
-        value={`${machines.filter((m) => m.type === MachineType.SILO).length} Silos Active`}
-        subValue={`Capacity: ${zoneMetrics.siloCapacity}%`}
+        value={`${machines.filter((m) => m.type === MachineType.SILO).length} Silos Monitored`}
+        subValue={
+          zoneMetrics.siloLevel === null
+            ? 'Level unavailable'
+            : `Mean level: ${zoneMetrics.siloLevel}%`
+        }
         color="#3b82f6"
         size={[7, 2.8]}
       />
 
       <HoloPanel
-        position={[30, 10, -6]}
+        position={HOLOGRAPHIC_ZONE_POSITIONS.milling}
         title="ZONE 2: MILLING"
-        value={`${machines.filter((m) => m.type === MachineType.ROLLER_MILL && m.status === 'running').length} Mills Running`}
-        subValue={`Output: ${zoneMetrics.throughput.toLocaleString()} kg/hr`}
+        value={`${zoneMetrics.runningMills} Mills Running`}
+        subValue={
+          zoneMetrics.millAvailability === null
+            ? 'No mills configured'
+            : `Running: ${zoneMetrics.millAvailability}%`
+        }
         color="#8b5cf6"
         size={[7, 2.8]}
       />
 
       <HoloPanel
-        position={[-30, 12, 6]}
+        position={HOLOGRAPHIC_ZONE_POSITIONS.sifting}
         title="ZONE 3: SIFTING"
         value={`${machines.filter((m) => m.type === MachineType.PLANSIFTER).length} Plansifters`}
-        subValue={`Grade A: ${zoneMetrics.qualityGrade.toFixed(1)}%`}
+        subValue={
+          zoneMetrics.qualityGrade === null
+            ? 'Quality unavailable'
+            : `Quality: ${zoneMetrics.qualityGrade.toFixed(1)}%`
+        }
         color="#ec4899"
         size={[7, 2.8]}
       />
 
       <HoloPanel
-        position={[24, 9, 20]}
+        position={HOLOGRAPHIC_ZONE_POSITIONS.packing}
         title="ZONE 4: PACKING"
-        value={`${zoneMetrics.bagsPerMin} bags/min`}
-        subValue={`Today: ${zoneMetrics.totalBags.toLocaleString()} bags`}
+        value={
+          zoneMetrics.bagsPerMin === null
+            ? 'Output unavailable'
+            : `${zoneMetrics.bagsPerMin.toFixed(1)} bags/min`
+        }
+        subValue={
+          zoneMetrics.totalBags === null
+            ? 'Total unavailable'
+            : `Total: ${zoneMetrics.totalBags.toLocaleString()} bags`
+        }
         color="#f59e0b"
         size={[7, 2.8]}
       />
@@ -132,8 +175,12 @@ export const HolographicDisplays: React.FC = () => {
       <HoloPanel
         position={[0, 8, 42]}
         title="SHIPPING DOCK"
-        value={getStatusDisplay(dockStatus.shipping.status)}
-        subValue={getSubValue(dockStatus.shipping.status, dockStatus.shipping.etaMinutes)}
+        value={getStatusDisplay(dockStatus.shipping.status, 'shipping')}
+        subValue={getSubValue(
+          dockStatus.shipping.status,
+          'shipping',
+          dockStatus.shipping.etaMinutes
+        )}
         color={getDockStatusColor(dockStatus.shipping.status)}
         size={[5, 2]}
       />
@@ -141,8 +188,12 @@ export const HolographicDisplays: React.FC = () => {
       <HoloPanel
         position={[0, 8, -42]}
         title="RECEIVING DOCK"
-        value={getStatusDisplay(dockStatus.receiving.status)}
-        subValue={getSubValue(dockStatus.receiving.status, dockStatus.receiving.etaMinutes)}
+        value={getStatusDisplay(dockStatus.receiving.status, 'receiving')}
+        subValue={getSubValue(
+          dockStatus.receiving.status,
+          'receiving',
+          dockStatus.receiving.etaMinutes
+        )}
         color={getDockStatusColor(dockStatus.receiving.status)}
         size={[5, 2]}
       />
@@ -168,6 +219,7 @@ const HoloPanel: React.FC<HoloPanelProps> = React.memo(
     const glowRef = useRef<THREE.Mesh>(null);
     const graphicsQuality = useGraphicsStore((state) => state.graphics.quality);
     const isTabVisible = useGameSimulationStore((state) => state.isTabVisible);
+    const reducedMotion = useReducedMotion();
 
     // Guard against NaN/invalid dimensions
     const safeW = Number.isFinite(size[0]) && size[0] > 0 ? size[0] : 2;
@@ -195,12 +247,14 @@ const HoloPanel: React.FC<HoloPanelProps> = React.memo(
       const throttle = getThrottleLevel(graphicsQuality);
       if (!shouldRunThisFrame(throttle)) return;
 
+      // Reduced motion: hold the panel at rest instead of bobbing and pulsing.
+      const t = reducedMotion ? 0 : state.clock.elapsedTime;
       if (groupRef.current) {
-        groupRef.current.position.y = position[1] + Math.sin(state.clock.elapsedTime * 0.5) * 0.1;
+        groupRef.current.position.y = position[1] + Math.sin(t * 0.5) * 0.1;
       }
       if (glowRef.current) {
         (glowRef.current.material as THREE.MeshBasicMaterial).opacity =
-          0.1 + Math.sin(state.clock.elapsedTime * 2) * 0.05;
+          0.1 + Math.sin(t * 2) * 0.05;
       }
     });
 

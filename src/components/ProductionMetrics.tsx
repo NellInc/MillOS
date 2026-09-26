@@ -187,7 +187,7 @@ export const ProductionMetrics: React.FC = () => {
 
   // Calculate time since last safety incident
   const getTimeSinceIncident = () => {
-    if (!safetyMetrics.lastIncidentTime) return 'No incidents';
+    if (!safetyMetrics.lastIncidentTime) return 'Clean record';
     const elapsed = Date.now() - safetyMetrics.lastIncidentTime;
     const seconds = Math.floor(elapsed / 1000);
     const minutes = Math.floor(seconds / 60);

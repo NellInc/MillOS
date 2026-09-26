@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
+import type { PersistStorage } from 'zustand/middleware';
 import { useAdaptiveQuality } from '../hooks/useAdaptiveQuality';
 import { useFPSStore } from './FPSMonitor';
 import { useGraphicsStore, type PerfDebugSettings } from '../stores/graphicsStore';
@@ -615,6 +616,8 @@ const BENCHMARK_CAMERAS: Record<BenchmarkScene, BenchmarkCameraPose> = {
   canal: SITE_LAYOUT.cameras.canal,
   lake: SITE_LAYOUT.cameras.lake,
   busstop: SITE_LAYOUT.cameras.busstop,
+  'road-tunnel': SITE_LAYOUT.cameras.roadTunnel,
+  castle: SITE_LAYOUT.cameras.castle,
   kiosk: SITE_LAYOUT.cameras.kiosk,
   sun: SITE_LAYOUT.cameras.celestial,
   moon: SITE_LAYOUT.cameras.celestial,
@@ -1424,6 +1427,13 @@ export function rendererCounterPerFrame(
 /** JSON has no NaN or Infinity; a poisoned counter must not arrive as a 0. */
 const finiteOrNull = (value: number): number | null => (Number.isFinite(value) ? value : null);
 
+/** Swapped in for the benchmark route so its overrides never reach localStorage. */
+const NO_PERSIST: PersistStorage<unknown> = {
+  getItem: () => null,
+  setItem: () => undefined,
+  removeItem: () => undefined,
+};
+
 export const RuntimeController: React.FC<RuntimeControllerProps> = ({
   adaptiveEnabled,
   orbitControlsRef,
@@ -1432,6 +1442,10 @@ export const RuntimeController: React.FC<RuntimeControllerProps> = ({
   const { camera, gl, scene, controls } = useThree();
   const firstFrameAtRef = useRef<number | null>(null);
   const frameTimesRef = useRef<number[]>([]);
+  // Every rendered frame since reset(), including those the finite/range filter
+  // drops from frameTimesRef. With autoReset off, gl.info accumulates across all
+  // of them, so this - not the frame-time buffer - is the per-frame divisor.
+  const renderedFramesRef = useRef(0);
   const longTasksRef = useRef<Array<{ startTime: number; duration: number }>>([]);
   const drawingBufferSizeRef = useRef(new THREE.Vector2());
   const raycasterRef = useRef(new THREE.Raycaster());
@@ -1496,27 +1510,31 @@ export const RuntimeController: React.FC<RuntimeControllerProps> = ({
           data: { value: state.weather },
         });
       }
-      const event = state.safetyEvents.at(-1);
-      const nextSignature = event
-        ? `${event.id}:${event.stage}:${event.acknowledgedAt ?? 0}:${event.clearedAt ?? 0}`
-        : '';
-      if (event && nextSignature !== safetySignature) {
-        safetySignature = nextSignature;
-        useIncidentReplayStore.getState().recordCommand({
-          timestamp: Date.now(),
-          category: 'safety',
-          action: `${event.kind}_${event.stage}`,
-          targetId: event.id,
-          data: {
-            cause: event.cause,
-            severity: event.severity,
-            simulated: event.simulated,
-          },
-        });
+      // safetyEvents is replaced immutably; skip the per-frame clock ticks.
+      if (state.safetyEvents !== previous.safetyEvents) {
+        const event = state.safetyEvents.at(-1);
+        const nextSignature = event
+          ? `${event.id}:${event.stage}:${event.acknowledgedAt ?? 0}:${event.clearedAt ?? 0}`
+          : '';
+        if (event && nextSignature !== safetySignature) {
+          safetySignature = nextSignature;
+          useIncidentReplayStore.getState().recordCommand({
+            timestamp: Date.now(),
+            category: 'safety',
+            action: `${event.kind}_${event.stage}`,
+            targetId: event.id,
+            data: {
+              cause: event.cause,
+              severity: event.severity,
+              simulated: event.simulated,
+            },
+          });
+        }
       }
     });
 
-    const unsubscribeProduction = useProductionStore.subscribe((state) => {
+    const unsubscribeProduction = useProductionStore.subscribe((state, previous) => {
+      if (state.aiDecisions === previous.aiDecisions) return;
       const decision = state.aiDecisions[0];
       const nextSignature = decision
         ? `${decision.id}:${decision.status}:${decision.response?.disposition ?? 'none'}`
@@ -1578,6 +1596,17 @@ export const RuntimeController: React.FC<RuntimeControllerProps> = ({
   useEffect(() => {
     if (!mode.benchmark) return;
 
+    // Detach persistence before any override. A closed tab or reload never runs
+    // this effect's cleanup, so an override that reached localStorage would
+    // freeze the clock and pin the benchmark's quality, weather, PA and SCADA
+    // settings on the next ordinary visit.
+    const previousGraphicsStorage = useGraphicsStore.persist.getOptions().storage;
+    const previousPAStorage = useAnnouncementsStore.persist.getOptions().storage;
+    const previousGameStorage = useGameSimulationStore.persist.getOptions().storage;
+    useGraphicsStore.persist.setOptions({ storage: NO_PERSIST });
+    useAnnouncementsStore.persist.setOptions({ storage: NO_PERSIST });
+    useGameSimulationStore.persist.setOptions({ storage: NO_PERSIST });
+
     const previousGraphics = useGraphicsStore.getState().graphics;
     const previousPAMode = useAnnouncementsStore.getState().mode;
     const previousGame = useGameSimulationStore.getState();
@@ -1613,9 +1642,10 @@ export const RuntimeController: React.FC<RuntimeControllerProps> = ({
     }
 
     return () => {
-      // Benchmark and demo inputs are ephemeral. Restore ordinary user
-      // preferences before the isolated route closes so measurement never
-      // overwrites the next normal visit.
+      // Benchmark and demo inputs are ephemeral and never reach localStorage:
+      // persistence stays detached for the life of the route. Restore the
+      // in-memory preferences first (those writes still go to the no-op), and
+      // only then reattach storage, so the stored values stay pre-benchmark.
       useGraphicsStore.setState({ graphics: previousGraphics });
       useAnnouncementsStore.getState().setMode(previousPAMode);
       if (perspectiveCamera && previousFov !== undefined) {
@@ -1626,12 +1656,17 @@ export const RuntimeController: React.FC<RuntimeControllerProps> = ({
       currentGame.setGameTime(previousGameInputs.gameTime);
       currentGame.setGameSpeed(previousGameInputs.gameSpeed);
       currentGame.setWeather(previousGameInputs.weather);
+      useGraphicsStore.persist.setOptions({ storage: previousGraphicsStorage });
+      useAnnouncementsStore.persist.setOptions({ storage: previousPAStorage });
+      useGameSimulationStore.persist.setOptions({ storage: previousGameStorage });
     };
   }, [camera, controls, mode, scene]);
 
   useEffect(() => {
     let observer: PerformanceObserver | null = null;
-    if (typeof PerformanceObserver !== 'undefined') {
+    // Only benchmark runs read longTasks, and only they call reset(); observing
+    // on an ordinary visit would grow the buffer for the whole session.
+    if (mode.benchmark && typeof PerformanceObserver !== 'undefined') {
       try {
         observer = new PerformanceObserver((list) => {
           list.getEntries().forEach((entry) => {
@@ -1649,6 +1684,7 @@ export const RuntimeController: React.FC<RuntimeControllerProps> = ({
 
     const reset = (): void => {
       frameTimesRef.current = [];
+      renderedFramesRef.current = 0;
       longTasksRef.current = [];
       gl.info.reset();
     };
@@ -1785,7 +1821,7 @@ export const RuntimeController: React.FC<RuntimeControllerProps> = ({
         }
         if (!(object instanceof THREE.Mesh)) return;
         sceneGraph.meshes += 1;
-        if (object.visible) sceneGraph.visibleMeshes += 1;
+        if (isVisibleInTree(object)) sceneGraph.visibleMeshes += 1;
         if (object instanceof THREE.InstancedMesh) sceneGraph.instancedMeshes += 1;
         if (object.geometry) geometryIds.add(object.geometry.uuid);
         const materials = Array.isArray(object.material) ? object.material : [object.material];
@@ -1855,6 +1891,8 @@ export const RuntimeController: React.FC<RuntimeControllerProps> = ({
           raycasterRef.current.setFromCamera(new THREE.Vector2(x as number, y as number), camera);
           const hits = raycasterRef.current
             .intersectObjects(scene.children, true)
+            // Raycaster tests layers, never `visible`: drop hidden subtrees.
+            .filter((hit) => isVisibleInTree(hit.object))
             .slice(0, 6)
             .map((hit) => {
               const object = hit.object as THREE.Mesh;
@@ -1937,22 +1975,22 @@ export const RuntimeController: React.FC<RuntimeControllerProps> = ({
           adapter,
           calls: rendererCounterPerFrame(
             gl.info.render.calls,
-            values.length,
+            renderedFramesRef.current,
             cumulativeRendererInfo
           ),
           triangles: rendererCounterPerFrame(
             gl.info.render.triangles,
-            values.length,
+            renderedFramesRef.current,
             cumulativeRendererInfo
           ),
           lines: rendererCounterPerFrame(
             gl.info.render.lines,
-            values.length,
+            renderedFramesRef.current,
             cumulativeRendererInfo
           ),
           points: rendererCounterPerFrame(
             gl.info.render.points,
-            values.length,
+            renderedFramesRef.current,
             cumulativeRendererInfo
           ),
           geometries: gl.info.memory.geometries,
@@ -2043,15 +2081,18 @@ export const RuntimeController: React.FC<RuntimeControllerProps> = ({
   }, [camera, controls, gl, mode, orbitControlsRef, scene]);
 
   useFrame((_state, delta) => {
+    renderedFramesRef.current += 1;
     const frameMs = delta * 1000;
     // Preserve pathological frames so the benchmark cannot report 0 FPS with
     // a misleading 0 ms percentile merely because every frame exceeded 5 s.
     if (Number.isFinite(frameMs) && frameMs > 0 && frameMs < 120000) {
       frameTimesRef.current.push(frameMs);
-      // Trim in blocks: a per-frame shift() on 7,200 entries is an O(n)
-      // reindex inside the instrument itself.
-      if (frameTimesRef.current.length > 8000) {
-        frameTimesRef.current.splice(0, frameTimesRef.current.length - 7200);
+      // Trim in blocks: a per-frame shift() is an O(n) reindex inside the
+      // instrument itself. A benchmark window (clamped to 300 s) must fit
+      // whole even at high refresh, or the pacing stats cover only its tail.
+      const frameCap = mode.benchmark ? 72000 : 8000;
+      if (frameTimesRef.current.length > frameCap) {
+        frameTimesRef.current.splice(0, frameTimesRef.current.length - Math.round(frameCap * 0.9));
       }
     }
 

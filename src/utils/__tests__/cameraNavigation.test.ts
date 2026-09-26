@@ -63,6 +63,29 @@ describe('camera navigation input', () => {
     expect(shouldPreventNavigationDefault('KeyW')).toBe(false);
   });
 
+  it('leaves navigation keys with native disclosures and their children', () => {
+    const summary = document.createElement('summary');
+    const child = document.createElement('span');
+    summary.append(child);
+    for (const target of [summary, child]) {
+      expect(isNavigationBlockedTarget(target)).toBe(true);
+      for (const code of ['ArrowDown', 'KeyW']) {
+        let accepted = true;
+        target.addEventListener(
+          'keydown',
+          (event) => {
+            accepted = shouldHandleNavigationKey(event);
+          },
+          { once: true }
+        );
+        const event = new KeyboardEvent('keydown', { code, bubbles: true, cancelable: true });
+        target.dispatchEvent(event);
+        expect(accepted).toBe(false);
+        expect(event.defaultPrevented).toBe(false);
+      }
+    }
+  });
+
   it('caps resume spikes while preserving ordinary frame deltas', () => {
     expect(clampNavigationDelta(1 / 60)).toBeCloseTo(1 / 60);
     expect(clampNavigationDelta(0.5)).toBe(0.1);

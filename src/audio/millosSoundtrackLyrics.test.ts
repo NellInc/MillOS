@@ -42,4 +42,19 @@ describe('MillOS soundtrack lyrics', () => {
     const active = findActiveMillosLyricWord(sheet, firstWord.startSeconds ?? 0);
     expect(active?.word.text).toBe(firstWord.text);
   });
+
+  it('holds the last sung word briefly, then clears it in the outro', () => {
+    const sheet = getMillosSoundtrackLyrics(2);
+    let lineIndex = sheet.lines.length - 1;
+    while (lineIndex > 0 && sheet.lines[lineIndex].words.length === 0) lineIndex -= 1;
+    const wordIndex = sheet.lines[lineIndex].words.length - 1;
+    const lastWord = sheet.lines[lineIndex].words[wordIndex];
+    const end = lastWord.endSeconds ?? 0;
+    expect(findActiveMillosLyricWord(sheet, end + 1)).toEqual({
+      lineIndex,
+      wordIndex,
+      word: lastWord,
+    });
+    expect(findActiveMillosLyricWord(sheet, end + 5)).toBeNull();
+  });
 });

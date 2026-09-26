@@ -32,6 +32,10 @@ interface HistoryStoreConfig {
   maxBufferSize: number;
   /** Deadband for change detection - only write if value changed by this amount (default: 0.5) */
   changeDeadband: number;
+  /** Per-tag change deadband; `undefined` falls back to `changeDeadband` */
+  changeDeadbandFor?: (tagId: string) => number | undefined;
+  /** Longest a tag may go unwritten, even when unchanged (default: 60000ms) */
+  maxSampleIntervalMs: number;
 }
 
 /** Internal record with unique ID for safe concurrent flush handling */
@@ -50,6 +54,7 @@ const DEFAULT_CONFIG: HistoryStoreConfig = {
   maxQueryPoints: 10000,
   maxBufferSize: 2000, // OPT-13: Bounded buffer
   changeDeadband: 0.5, // OPT-5: Change detection
+  maxSampleIntervalMs: 60_000, // Heartbeat so a steady tag still has samples in every trend window
 };
 
 const INDEXED_DB_OPERATION_TIMEOUT_MS = 10_000;
@@ -97,6 +102,13 @@ const sanitizeConfig = (config: Partial<HistoryStoreConfig>): HistoryStoreConfig
     Number.isFinite(config.changeDeadband) && (config.changeDeadband ?? -1) >= 0
       ? config.changeDeadband!
       : DEFAULT_CONFIG.changeDeadband,
+  changeDeadbandFor:
+    typeof config.changeDeadbandFor === 'function' ? config.changeDeadbandFor : undefined,
+  maxSampleIntervalMs: positiveIntegerOr(
+    config.maxSampleIntervalMs ?? DEFAULT_CONFIG.maxSampleIntervalMs,
+    DEFAULT_CONFIG.maxSampleIntervalMs,
+    Number.MAX_SAFE_INTEGER
+  ),
 });
 
 const createHistoryResult = (): Record<string, TagHistoryPoint[]> =>
@@ -157,8 +169,10 @@ export class HistoryStore {
   private nextBufferId = 0;
 
   // OPT-5: Track last written samples for value and quality change detection
-  private lastWrittenSamples: Map<string, { value: number; quality: TagValue['quality'] }> =
-    new Map();
+  private lastWrittenSamples: Map<
+    string,
+    { value: number; quality: TagValue['quality']; timestamp: number }
+  > = new Map();
 
   constructor(config: Partial<HistoryStoreConfig> = {}) {
     this.config = sanitizeConfig(config);
@@ -391,11 +405,20 @@ export class HistoryStore {
       return;
     }
 
-    // OPT-5: Change detection - skip if value hasn't changed significantly
+    // OPT-5: Change detection - skip if value hasn't changed significantly,
+    // unless the tag has gone unwritten for the heartbeat interval.
     const lastSample = this.lastWrittenSamples.get(tagValue.tagId);
     if (lastSample !== undefined && lastSample.quality === tagValue.quality) {
       const delta = Math.abs(numValue - lastSample.value);
-      if (delta < this.config.changeDeadband) {
+      const resolved = this.config.changeDeadbandFor?.(tagValue.tagId);
+      const deadband =
+        typeof resolved === 'number' && Number.isFinite(resolved) && resolved >= 0
+          ? resolved
+          : this.config.changeDeadband;
+      if (
+        delta < deadband &&
+        tagValue.timestamp - lastSample.timestamp < this.config.maxSampleIntervalMs
+      ) {
         return; // Skip unchanged values
       }
     }
@@ -405,6 +428,7 @@ export class HistoryStore {
     this.lastWrittenSamples.set(tagValue.tagId, {
       value: numValue,
       quality: tagValue.quality,
+      timestamp: tagValue.timestamp,
     });
 
     this.writeBuffer.push({
@@ -633,24 +657,58 @@ export class HistoryStore {
       const index = store.index('tagId_timestamp');
 
       const range = IDBKeyRange.bound([tagId, startTime], [tagId, endTime]);
+      const limit = this.config.maxQueryPoints;
 
-      const request = index.getAll(range, this.config.maxQueryPoints);
+      const readForward = (keyRange: IDBKeyRange): void => {
+        const request = index.getAll(keyRange, limit);
 
-      request.onsuccess = () => {
+        request.onsuccess = () => {
+          try {
+            resolve(
+              request.result.map((r) => ({
+                timestamp: r.timestamp,
+                value: r.value,
+                quality: r.quality,
+              }))
+            );
+          } catch (error) {
+            reject(error);
+          }
+        };
+
+        request.onerror = () => reject(request.error);
+      };
+
+      if (typeof index.openKeyCursor !== 'function') {
+        readForward(range);
+        return;
+      }
+
+      // getAll truncates from the OLDEST end, which drops the recent data a
+      // 4h or 24h trend is anchored to. Step back `limit` keys from the newest
+      // sample and read forward from there, so the cap keeps the recent end.
+      const probe = index.openKeyCursor(range, 'prev');
+      let advanced = false;
+      probe.onsuccess = () => {
         try {
-          resolve(
-            request.result.map((r) => ({
-              timestamp: r.timestamp,
-              value: r.value,
-              quality: r.quality,
-            }))
-          );
+          const cursor = probe.result;
+          if (!cursor) {
+            // No rows at all, or fewer than `limit`: the whole window fits.
+            if (advanced) readForward(range);
+            else resolve([]);
+            return;
+          }
+          if (!advanced && limit > 1) {
+            advanced = true;
+            cursor.advance(limit - 1);
+            return;
+          }
+          readForward(IDBKeyRange.bound(cursor.key, [tagId, endTime]));
         } catch (error) {
           reject(error);
         }
       };
-
-      request.onerror = () => reject(request.error);
+      probe.onerror = () => reject(probe.error);
     });
 
     return this.withTransactionTimeout(transaction, query, `getHistory(${tagId})`);

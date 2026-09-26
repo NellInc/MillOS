@@ -52,6 +52,13 @@ const GENERATION_CONFIG = {
 const CIRCUIT_BREAKER_THRESHOLD = 3;
 const CIRCUIT_BREAKER_RESET_MS = 30000;
 
+// Upper bound on one local generation. geminiClient bounds every provider call;
+// without a deadline here a stalled worker (device lost, OOM thrash) leaves the
+// strategic layer's dedupe promise pending and its "analyzing" state stuck on.
+// Deliberately generous: a legitimate 2048-token run on a slow GPU can take well
+// over the 45 s strategic cadence, and must not be killed as a hang.
+const WEBGPU_GENERATION_TIMEOUT_MS = 120_000;
+
 // Heuristic VRAM floor (bytes) below which a 4B q4f16 model is likely to OOM.
 // maxBufferSize on capable discrete/Apple-silicon GPUs is multi-GB; integrated
 // GPUs frequently cap at 256MB–1GB. This is advisory only — never a hard block.
@@ -181,6 +188,8 @@ class WebGPUClient {
 
   /** Whether the model is loaded and ready to serve inference. */
   isConnected(): boolean {
+    // Half-open the breaker after its cool-down (see geminiClient.isConnected).
+    this.checkCircuitBreaker();
     return this.engine !== null && !this.circuitBreaker.isOpen;
   }
 
@@ -433,6 +442,8 @@ class WebGPUClient {
     }
 
     const safePrompt = this.truncatePrompt(prompt);
+    const engine = this.engine;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
     try {
       // NOTE: response_format:{type:'json_object'} is intentionally NOT used.
@@ -442,7 +453,7 @@ class WebGPUClient {
       // instead comes from: enable_thinking:false (no chain-of-thought to derail
       // the output) + stripReasoning() + a tolerant {...}-extracting parser, all
       // verified to yield clean parseable JSON. Truncation is surfaced below.
-      const response = await this.engine.chat.completions.create({
+      const completion = engine.chat.completions.create({
         messages: [{ role: 'user', content: safePrompt }],
         temperature: GENERATION_CONFIG.temperature,
         top_p: GENERATION_CONFIG.top_p,
@@ -452,6 +463,24 @@ class WebGPUClient {
         // unlike a `/no_think` text suffix. stripReasoning() remains a backstop.
         extra_body: { enable_thinking: false },
       });
+      // The deadline resolves to a null sentinel rather than rejecting, so the
+      // catch below never double-counts a timeout as a second failure.
+      const deadline = new Promise<null>((resolve) => {
+        timeoutId = setTimeout(() => resolve(null), WEBGPU_GENERATION_TIMEOUT_MS);
+      });
+      const response = await Promise.race([completion, deadline]);
+      if (response === null) {
+        try {
+          engine.interruptGenerate();
+        } catch {
+          // The worker may already be gone; the breaker below still records it.
+        }
+        this.recordFailure();
+        logger.warn(
+          `[WebGPU] Generation exceeded ${WEBGPU_GENERATION_TIMEOUT_MS / 1000}s; interrupted.`
+        );
+        return null;
+      }
 
       const choice = response.choices?.[0];
       if (choice?.finish_reason === 'length') {
@@ -472,6 +501,8 @@ class WebGPUClient {
       this.recordFailure();
       logger.error('[WebGPU] Generation failed:', error);
       return null;
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
 

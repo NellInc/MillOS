@@ -493,6 +493,22 @@ describe('RESTAdapter adversarial lifecycle and transport contracts', () => {
     expect([...internal.values.values()]).toEqual(recoveredValues);
   });
 
+  it('publishes the last polled values as STALE when polling loses the server', async () => {
+    queueSuccessfulConnect();
+    await adapter.connect();
+    const observer = vi.fn();
+    adapter.subscribe([], observer);
+
+    fetchMock.mockRejectedValueOnce(new Error('offline'));
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    expect(adapter.getConnectionStatus()).toMatchObject({ connected: false });
+    expect(observer).toHaveBeenLastCalledWith([
+      expect.objectContaining({ tagId: 'TEST.TEMP.PV', value: 42, quality: 'STALE' }),
+      expect.objectContaining({ tagId: 'TEST.SPEED.SP', value: 1_200, quality: 'STALE' }),
+    ]);
+  });
+
   it('isolates subscriber snapshots so one callback cannot corrupt another', async () => {
     queueSuccessfulConnect();
     await adapter.connect();

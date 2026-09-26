@@ -5,7 +5,7 @@ import { useMaterialFlowStore } from '../../stores/materialFlowStore';
 import { useProductionStore } from '../../stores/productionStore';
 import { useUIStore } from '../../stores/uiStore';
 import type { TickContext } from '../CentralTickSystem';
-import { unifiedGameTick } from '../UnifiedGameTick';
+import { resetUnifiedTickState, unifiedGameTick } from '../UnifiedGameTick';
 
 const context: TickContext = {
   deltaSeconds: 0.5,
@@ -37,6 +37,7 @@ const failingPacker: MachineData = {
 
 describe('UnifiedGameTick maintenance causality', () => {
   beforeEach(() => {
+    resetUnifiedTickState();
     useBreakdownStore.getState().resetBreakdownStore();
     useMaterialFlowStore.getState().resetMaterialFlow();
     useProductionStore.setState({ machines: [failingPacker], productionSpeed: 1 });
@@ -76,5 +77,92 @@ describe('UnifiedGameTick maintenance causality', () => {
     expect(maintenance.breakdownHistory).toHaveLength(1);
     expect(maintenance.workOrders[0].phase).toBe('returned_to_service');
     expect(maintenance.workOrders[0].consumedParts).toEqual(['bearings', 'belts']);
+  });
+
+  it('returns a zero-wear machine tripped by a campaign fault to service', () => {
+    useProductionStore.setState({
+      machines: [
+        {
+          ...failingPacker,
+          status: 'critical',
+          metrics: { ...failingPacker.metrics, wear: 0, efficiency: 100 },
+        },
+      ],
+    });
+    const breakdown = useBreakdownStore
+      .getState()
+      .triggerBreakdown('packer-0', 'Packer Line 1', 'overheating');
+    expect(breakdown).toBeTruthy();
+    const breakdownId = useBreakdownStore.getState().activeBreakdowns[0].id;
+    expect(useBreakdownStore.getState().startRepair(breakdownId).started).toBe(true);
+    useBreakdownStore.getState().updateRepairProgress(breakdownId, 100);
+    expect(useBreakdownStore.getState().verifyRepair(breakdownId)).toBe(true);
+    expect(useBreakdownStore.getState().requestMachineRestart(breakdownId)).toBe(true);
+
+    unifiedGameTick({ ...context, tickCount: 2 });
+
+    expect(useProductionStore.getState().machines[0].status).toBe('running');
+    expect(useBreakdownStore.getState().workOrders[0].phase).toBe('returned_to_service');
+    expect(
+      useUIStore.getState().alerts.some((alert) => alert.message.includes('restored to service'))
+    ).toBe(true);
+  });
+
+  it('accumulates sub-resolution wear across ticks instead of rounding it away', () => {
+    useProductionStore.setState({
+      machines: [
+        {
+          ...failingPacker,
+          metrics: { ...failingPacker.metrics, wear: 10, efficiency: 100 },
+        },
+      ],
+    });
+    // Packer: 0.0004/s x 0.5 s x (0.5 + 0.8) = 0.00026 wear per tick.
+    for (let tick = 0; tick < 200; tick += 1) {
+      unifiedGameTick({ ...context, tickCount: 2 + tick });
+    }
+
+    const wear = useProductionStore.getState().machines[0].metrics.wear ?? 0;
+    expect(wear).toBeGreaterThanOrEqual(10.05);
+    expect(wear).toBeLessThanOrEqual(10.06);
+  });
+
+  it('ages machines on the game clock, not the wall clock', () => {
+    useProductionStore.setState({
+      machines: [
+        {
+          ...failingPacker,
+          metrics: { ...failingPacker.metrics, wear: 10, efficiency: 100 },
+        },
+      ],
+    });
+    // Same 200 real ticks as above, at the default 180x: 180 times the wear.
+    // Packer: 0.0004 x (0.5 s x 180) x 1.3 = 0.0468 wear per tick -> +9.36.
+    for (let tick = 0; tick < 200; tick += 1) {
+      unifiedGameTick({ ...context, gameSpeed: 180, tickCount: 2 + tick });
+    }
+
+    const wear = useProductionStore.getState().machines[0].metrics.wear ?? 0;
+    expect(wear).toBeGreaterThanOrEqual(19.35);
+    expect(wear).toBeLessThanOrEqual(19.37);
+  });
+
+  it('predicts the wear breakdown window in game minutes when a machine first warns', () => {
+    useProductionStore.setState({
+      machines: [
+        {
+          ...failingPacker,
+          metrics: { ...failingPacker.metrics, wear: 54.99, efficiency: 90 },
+        },
+      ],
+    });
+    unifiedGameTick({ ...context, gameSpeed: 180 });
+
+    expect(useProductionStore.getState().machines[0].status).toBe('warning');
+    const [alert] = useBreakdownStore.getState().predictiveAlerts;
+    // Packer warns at 55 and fails at 88: ~33 wear at 0.00052/game-s ~= 1,057 game minutes.
+    expect(alert?.machineId).toBe('packer-0');
+    expect(alert?.predictedTimeToFailure).toBeGreaterThan(1000);
+    expect(alert?.predictedTimeToFailure).toBeLessThan(1100);
   });
 });

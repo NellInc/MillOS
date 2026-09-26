@@ -22,11 +22,41 @@ declare global {
 }
 
 /**
+ * One composed agent plane per window. The installer runs inside a React
+ * effect that re-fires whenever the default camera controls change (every
+ * first-person toggle). Rebuilding the authority engine, ledger and kernel on
+ * each re-install would silently restore revoked grants, drop objections and
+ * lessons, reset the command budget, empty the causal ledger, and invalidate
+ * any open preview, so the composition outlives the install and is reused.
+ */
+const compositions = new WeakMap<Window, AgentRuntimeApi>();
+
+/**
  * Install the versioned agent plane without altering the legacy runtime
  * telemetry object. The global property is read-only; every mutation still
  * passes a capability, revision, authority, preview, receipt, and verifier.
  */
 export function installMillOSAgentRuntime(target: Window = window): () => void {
+  let composed = compositions.get(target);
+  if (!composed) {
+    composed = composeMillOSAgentRuntime();
+    compositions.set(target, composed);
+  }
+  const service = composed;
+
+  Object.defineProperty(target, '__MILLOS_AGENT__', {
+    configurable: true,
+    enumerable: false,
+    writable: false,
+    value: service,
+  });
+
+  return () => {
+    if (target.__MILLOS_AGENT__ === service) delete target.__MILLOS_AGENT__;
+  };
+}
+
+function composeMillOSAgentRuntime(): AgentRuntimeApi {
   const now = () => new Date();
   const capture = () => captureMillOSAgentState();
   const readService = createAgentQueryService({
@@ -151,16 +181,7 @@ export function installMillOSAgentRuntime(target: Window = window): () => void {
       immutable(ledger.promoteLesson(statement, evidenceEventIds, promotedBy, humanReviewed)),
   };
 
-  Object.defineProperty(target, '__MILLOS_AGENT__', {
-    configurable: true,
-    enumerable: false,
-    writable: false,
-    value: Object.freeze(service),
-  });
-
-  return () => {
-    if (target.__MILLOS_AGENT__ === service) delete target.__MILLOS_AGENT__;
-  };
+  return Object.freeze(service);
 }
 
 function immutable<T>(value: T): T {

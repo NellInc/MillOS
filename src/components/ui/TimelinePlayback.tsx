@@ -43,10 +43,17 @@ export const TimelinePlayback: React.FC<TimelinePlaybackProps> = ({ className = 
 
   const formatDuration = (ms: number): string => {
     const totalSec = Math.floor(ms / 1000);
+    if (totalSec < 60) return 'just now';
     const hours = Math.floor(totalSec / 3600);
     const mins = Math.floor((totalSec % 3600) / 60);
     if (hours > 0) return `${hours}h ${mins}m ago`;
     return `${mins}m ago`;
+  };
+
+  const formatSpan = (ms: number): string => {
+    const totalMins = Math.floor(ms / 60000);
+    if (totalMins < 60) return `${totalMins}m`;
+    return `${Math.floor(totalMins / 60)}h ${String(totalMins % 60).padStart(2, '0')}m`;
   };
 
   // Auto-play logic
@@ -133,7 +140,7 @@ export const TimelinePlayback: React.FC<TimelinePlaybackProps> = ({ className = 
         {/* Empty state: replay entered but no telemetry recorded yet */}
         {!availableRange ? (
           <div className="text-center py-6 px-2 text-sm text-slate-400">
-            No history recorded yet &mdash; run the simulation to capture timeline data.
+            Nothing recorded yet. Run the simulation and come back.
           </div>
         ) : (
           <>
@@ -158,6 +165,9 @@ export const TimelinePlayback: React.FC<TimelinePlaybackProps> = ({ className = 
                   min={availableRange.start}
                   max={availableRange.end}
                   value={playbackTime ?? availableRange.end}
+                  aria-valuetext={
+                    playbackTime ? formatTime(playbackTime) : formatTime(availableRange.end)
+                  }
                   onChange={handleSliderChange}
                   className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer
                 [&::-webkit-slider-thumb]:appearance-none
@@ -188,7 +198,6 @@ export const TimelinePlayback: React.FC<TimelinePlaybackProps> = ({ className = 
               <button
                 onClick={() => setIsPlaying(!isPlaying)}
                 aria-label={isPlaying ? 'Pause playback' : 'Play playback'}
-                aria-pressed={isPlaying}
                 className="p-2 hover:bg-slate-700/50 rounded-lg transition-colors"
               >
                 {isPlaying ? (
@@ -203,10 +212,11 @@ export const TimelinePlayback: React.FC<TimelinePlaybackProps> = ({ className = 
                 aria-label="Playback speed"
                 className="bg-slate-700 text-slate-200 text-xs rounded px-2 py-1 border border-slate-600"
               >
-                <option value={1}>1x</option>
-                <option value={2}>2x</option>
-                <option value={5}>5x</option>
-                <option value={10}>10x</option>
+                {/* Each 100ms step advances 1s x speed of history, so value 1 replays at 10x. */}
+                <option value={1}>10x</option>
+                <option value={2}>20x</option>
+                <option value={5}>50x</option>
+                <option value={10}>100x</option>
               </select>
             </div>
 
@@ -247,7 +257,7 @@ export const TimelinePlayback: React.FC<TimelinePlaybackProps> = ({ className = 
               {availableRange && (
                 <div className="text-center">
                   <div className="text-lg font-mono text-cyan-400">
-                    {Math.round((availableRange.end - availableRange.start) / 3600000)}h
+                    {formatSpan(availableRange.end - availableRange.start)}
                   </div>
                   <div className="text-[9px] text-slate-400 uppercase">History</div>
                 </div>

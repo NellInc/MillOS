@@ -18,7 +18,7 @@ const reportPath = path.join(reportDirectory, 'bundle-budget.json');
 const MAX_INITIAL_GZIP_BYTES = 2.5 * 1024 * 1024;
 const MAX_CURRENT_DIST_BYTES = 170 * 1024 * 1024;
 const OPTIONAL_CHUNK_PATTERN =
-  /(rapier|recharts|charts?|peerjs|multiplayer|postprocessing|web[._-]?llm|webgpu|scadapanel|scada-workspace)/i;
+  /(rapier|recharts|charts?|postprocessing|web[._-]?llm|webgpu|scadapanel|scada-workspace)/i;
 const REQUIRED_AUDIO = new Set([
   'The Builder.mp3',
   'Space Jazz.mp3',
@@ -30,7 +30,6 @@ const REQUIRED_AUDIO = new Set([
   'Newer Wave.mp3',
   'Neon Laser Horizon.mp3',
   'Cloud Dancer.mp3',
-  'Fanfare for Space.mp3',
 ]);
 const SOUNDTRACK_DIRECTORY = 'audio/millos-originals';
 const REQUIRED_SOUNDTRACK_AUDIO = new Set([
@@ -278,5 +277,5 @@ if (failures.length > 0) {
   for (const failure of failures) console.error(`ERROR: ${failure}`);
   process.exitCode = 1;
 } else {
-  console.log('Bundle budget passed.');
+  console.log('Bundle budget passed. The build fits.');
 }

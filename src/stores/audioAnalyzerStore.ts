@@ -8,11 +8,11 @@ import { create } from 'zustand';
  */
 
 export interface AudioAnalyzerState {
-  /** Bass level (0-1): 20-250Hz normalized amplitude */
+  /** Bass level (0-1): ~0-1.5kHz normalized amplitude (FFT bins at 48kHz) */
   bassLevel: number;
-  /** Mid level (0-1): 250Hz-2kHz normalized amplitude */
+  /** Mid level (0-1): ~1.5-6kHz normalized amplitude */
   midLevel: number;
-  /** Treble level (0-1): 2-16kHz normalized amplitude */
+  /** Treble level (0-1): ~6-24kHz normalized amplitude */
   trebleLevel: number;
   /** Overall level (0-1): Weighted average of all bands */
   overallLevel: number;
@@ -74,7 +74,9 @@ export const useAudioAnalyzerStore = create<AudioAnalyzerState & AudioAnalyzerAc
     });
   },
 
-  setFallbackMode: (enabled) => set({ isFallbackMode: enabled }),
+  // Called every analyser tick; returning the same state skips the notification.
+  setFallbackMode: (enabled) =>
+    set((state) => (state.isFallbackMode === enabled ? state : { isFallbackMode: enabled })),
 
   reset: () => set(INITIAL_STATE),
 }));

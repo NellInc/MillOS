@@ -6,20 +6,31 @@ import {
   Star,
   RotateCcw,
   Shield,
+  ShieldCheck,
   Package,
-  Award,
   Users,
-  TrendingUp,
-  Moon,
-  AlertTriangle,
+  Gauge,
+  Wrench,
+  Heart,
+  Handshake,
+  Sparkles,
+  Lightbulb,
+  Vote,
+  CalendarCheck,
+  Bot,
 } from 'lucide-react';
-import { useProductionStore } from '../../stores/productionStore';
+import { useAchievementsStore } from '../../stores/achievementsStore';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import type { Achievement } from '../../stores/achievementsStore';
 
 export const AchievementsPanel: React.FC<{ onClose: () => void }> = ({ onClose }) => {
-  const achievements = useProductionStore((state) => state.achievements);
-  const resetAchievements = useProductionStore((state) => state.resetAchievements);
+  // Read the owning store: productionStore's achievements getter is flattened
+  // into a frozen array by its first set(), so unlocks never reached the panel.
+  const achievements = useAchievementsStore((state) => state.achievements);
+  const resetAchievements = useAchievementsStore((state) => state.resetAchievements);
+  // Untracked achievements have no live signal yet; showing them as locked
+  // goals would promise something the simulation cannot award.
+  const visibleAchievements = achievements.filter((a) => a.tracked !== false);
   const panelRef = useRef<HTMLDivElement | null>(null);
   const [confirmReset, setConfirmReset] = useState(false);
   useFocusTrap(panelRef as React.RefObject<HTMLElement>, true, onClose);
@@ -30,10 +41,12 @@ export const AchievementsPanel: React.FC<{ onClose: () => void }> = ({ onClose }
         return 'text-green-400 bg-green-500/20';
       case 'production':
         return 'text-blue-400 bg-blue-500/20';
-      case 'quality':
-        return 'text-purple-400 bg-purple-500/20';
-      case 'teamwork':
+      case 'efficiency':
         return 'text-amber-400 bg-amber-500/20';
+      case 'bilateral':
+        return 'text-cyan-400 bg-cyan-500/20';
+      case 'social':
+        return 'text-violet-400 bg-violet-500/20';
       default:
         return 'text-slate-400 bg-slate-500/20';
     }
@@ -43,20 +56,30 @@ export const AchievementsPanel: React.FC<{ onClose: () => void }> = ({ onClose }
     switch (iconName) {
       case 'Shield':
         return Shield;
+      case 'ShieldCheck':
+        return ShieldCheck;
       case 'Package':
         return Package;
-      case 'Award':
-        return Award;
       case 'Users':
         return Users;
-      case 'TrendingUp':
-        return TrendingUp;
-      case 'Moon':
-        return Moon;
-      case 'Siren':
-        return AlertTriangle; // Using AlertTriangle as Siren fallback
-      case 'Boxes':
-        return Package; // Using Package as Boxes fallback
+      case 'Gauge':
+        return Gauge;
+      case 'Wrench':
+        return Wrench;
+      case 'Heart':
+        return Heart;
+      case 'Handshake':
+        return Handshake;
+      case 'Sparkles':
+        return Sparkles;
+      case 'Lightbulb':
+        return Lightbulb;
+      case 'Vote':
+        return Vote;
+      case 'CalendarCheck':
+        return CalendarCheck;
+      case 'Bot':
+        return Bot;
       default:
         return Trophy;
     }
@@ -95,7 +118,7 @@ export const AchievementsPanel: React.FC<{ onClose: () => void }> = ({ onClose }
 
       {/* Achievement list */}
       <div className="flex-1 overflow-y-auto p-3 space-y-2">
-        {achievements.map((achievement: Achievement) => {
+        {visibleAchievements.map((achievement: Achievement) => {
           const IconComponent = getIconComponent(achievement.icon);
           const isUnlocked = !!achievement.unlockedAt;
           const progress =
@@ -127,7 +150,14 @@ export const AchievementsPanel: React.FC<{ onClose: () => void }> = ({ onClose }
                         {achievement.progress} / {achievement.target}
                       </span>
                     </div>
-                    <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                    <div
+                      role="progressbar"
+                      aria-valuemin={0}
+                      aria-valuemax={achievement.target}
+                      aria-valuenow={Math.min(achievement.progress, achievement.target)}
+                      aria-label={`${achievement.name} progress`}
+                      className="h-1.5 bg-slate-700 rounded-full overflow-hidden"
+                    >
                       <div
                         className={`h-full rounded-full transition-all ${isUnlocked ? 'bg-yellow-500' : 'bg-cyan-500'}`}
                         style={{ width: `${Math.min(100, progress)}%` }}

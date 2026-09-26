@@ -59,6 +59,21 @@ const SLATE_LAYER_FREQ_VAR = 0.35;
 const THATCH_STRAND_PX = 6;
 
 /**
+ * Snap an authored tile size so a whole number of tiles spans the texture.
+ * A partial last row or column would wrap straight into tile 0 as a line of
+ * stubby half-tiles at every repeat. Rows are kept EVEN so the running bond
+ * alternates across the vertical wrap too. Gap and edge widths stay in pixels.
+ */
+const snapTileGrid = (
+  size: number,
+  tileWidth: number,
+  tileHeight: number
+): { cellW: number; cellH: number } => ({
+  cellW: size / Math.max(1, Math.round(size / tileWidth)),
+  cellH: size / (2 * Math.max(1, Math.round(size / (2 * tileHeight)))),
+});
+
+/**
  * Generates clay/terracotta roof tile texture.
  * Classic Mediterranean barrel/pantile pattern with pronounced 3D effect.
  */
@@ -67,29 +82,30 @@ export const generateClayTiles = (
   options: ClayTileOptions = {}
 ): THREE.DataTexture => {
   const opts = { ...DEFAULT_CLAY_OPTIONS, ...options };
-  const cacheKey = `clay-tiles-v4-${size}-${opts.tileWidth}-${opts.tileHeight}-${opts.baseColor}-${opts.variation}`;
+  const cacheKey = `clay-tiles-v5-${size}-${opts.tileWidth}-${opts.tileHeight}-${opts.baseColor}-${opts.variation}`;
 
   return getTexture(cacheKey, () => {
     const data = new Uint8Array(size * size * 4);
     const baseColor = parseHex(opts.baseColor);
+    const { cellW, cellH } = snapTileGrid(size, opts.tileWidth, opts.tileHeight);
 
     for (let y = 0; y < size; y++) {
       for (let x = 0; x < size; x++) {
         const i = (y * size + x) * 4;
 
-        const tileRow = Math.floor(y / opts.tileHeight);
-        const xOffset = (tileRow % 2) * (opts.tileWidth / 2);
+        const tileRow = Math.floor(y / cellH);
+        const xOffset = (tileRow % 2) * (cellW / 2);
         const adjustedX = (x + xOffset) % size;
 
-        const tileX = adjustedX % opts.tileWidth;
-        const tileY = y % opts.tileHeight;
+        const tileX = adjustedX % cellW;
+        const tileY = y % cellH;
 
-        const tileCol = Math.floor(adjustedX / opts.tileWidth);
+        const tileCol = Math.floor(adjustedX / cellW);
         const tileId = hash(tileCol, tileRow);
 
         const colorVar = (tileId - 0.5) * opts.variation * 2;
 
-        const centerX = opts.tileWidth / 2;
+        const centerX = cellW / 2;
         const normalizedX = (tileX - centerX) / centerX;
         const curveIntensity = normalizedX * normalizedX;
         const curveShade = curveIntensity * 0.3;
@@ -97,17 +113,17 @@ export const generateClayTiles = (
         const crownHighlight =
           Math.abs(normalizedX) < 0.25 ? (0.25 - Math.abs(normalizedX)) * 0.2 : 0;
 
-        const overlapZone = opts.tileHeight * 0.28;
+        const overlapZone = cellH * 0.28;
         let overlapShadow = 0;
         if (tileY < overlapZone) {
           overlapShadow = (1 - tileY / overlapZone) * 0.25;
         }
 
-        const lipZone = opts.tileHeight * 0.12;
-        const lipHighlight = tileY > opts.tileHeight - lipZone ? 0.1 : 0;
+        const lipZone = cellH * 0.12;
+        const lipHighlight = tileY > cellH - lipZone ? 0.1 : 0;
 
         const gapWidth = 3;
-        const inGapX = tileX < gapWidth || tileX > opts.tileWidth - gapWidth;
+        const inGapX = tileX < gapWidth || tileX > cellW - gapWidth;
         const inGapY = tileY < gapWidth;
         const inGap = inGapX || inGapY;
         const gapDark = inGap ? -0.22 : 0;
@@ -166,37 +182,40 @@ export const generateClayTilesNormal = (
   tileWidth: number = 40,
   tileHeight: number = 56
 ): THREE.DataTexture => {
-  return getTexture(`clay-tiles-normal-v5-${size}-${tileWidth}-${tileHeight}`, () => {
+  return getTexture(`clay-tiles-normal-v6-${size}-${tileWidth}-${tileHeight}`, () => {
     const data = new Uint8Array(size * size * 4);
+    // Snapped from the same inputs as generateClayTiles, so colour and relief
+    // stay registered.
+    const { cellW, cellH } = snapTileGrid(size, tileWidth, tileHeight);
 
     for (let y = 0; y < size; y++) {
       for (let x = 0; x < size; x++) {
         const i = (y * size + x) * 4;
 
-        const tileRow = Math.floor(y / tileHeight);
-        const xOffset = (tileRow % 2) * (tileWidth / 2);
+        const tileRow = Math.floor(y / cellH);
+        const xOffset = (tileRow % 2) * (cellW / 2);
         const adjustedX = (x + xOffset) % size;
 
-        const tileX = adjustedX % tileWidth;
-        const tileY = y % tileHeight;
+        const tileX = adjustedX % cellW;
+        const tileY = y % cellH;
 
-        const centerX = tileWidth / 2;
+        const centerX = cellW / 2;
         const normalizedX = (tileX - centerX) / centerX;
 
         let nx = 0.5 + normalizedX * 0.4;
 
         let ny = 0.5;
-        const overlapZone = tileHeight * 0.22;
+        const overlapZone = cellH * 0.22;
         if (tileY < overlapZone) {
           ny = 0.25 + (tileY / overlapZone) * 0.25;
-        } else if (tileY > tileHeight - tileHeight * 0.1) {
+        } else if (tileY > cellH - cellH * 0.1) {
           ny = 0.65;
         }
 
         const gapWidth = 4;
         if (tileX < gapWidth) {
           nx = 0.2;
-        } else if (tileX > tileWidth - gapWidth) {
+        } else if (tileX > cellW - gapWidth) {
           nx = 0.8;
         }
         if (tileY < gapWidth) {
@@ -245,24 +264,25 @@ export const generateSlate = (
   options: SlateOptions = {}
 ): THREE.DataTexture => {
   const opts = { ...DEFAULT_SLATE_OPTIONS, ...options };
-  const cacheKey = `slate-v5-${size}-${opts.tileWidth}-${opts.tileHeight}-${opts.baseColor}-${opts.variation}`;
+  const cacheKey = `slate-v6-${size}-${opts.tileWidth}-${opts.tileHeight}-${opts.baseColor}-${opts.variation}`;
 
   return getTexture(cacheKey, () => {
     const data = new Uint8Array(size * size * 4);
     const baseColor = parseHex(opts.baseColor);
+    const { cellW, cellH } = snapTileGrid(size, opts.tileWidth, opts.tileHeight);
 
     for (let y = 0; y < size; y++) {
       for (let x = 0; x < size; x++) {
         const i = (y * size + x) * 4;
 
-        const tileRow = Math.floor(y / opts.tileHeight);
-        const xOffset = (tileRow % 2) * (opts.tileWidth / 2);
+        const tileRow = Math.floor(y / cellH);
+        const xOffset = (tileRow % 2) * (cellW / 2);
         const adjustedX = (x + xOffset) % size;
 
-        const tileX = adjustedX % opts.tileWidth;
-        const tileY = y % opts.tileHeight;
+        const tileX = adjustedX % cellW;
+        const tileY = y % cellH;
 
-        const tileCol = Math.floor(adjustedX / opts.tileWidth);
+        const tileCol = Math.floor(adjustedX / cellW);
         const tileId = hash(tileCol, tileRow);
 
         const colorVar = (tileId - 0.5) * opts.variation * 2;
@@ -276,17 +296,17 @@ export const generateSlate = (
 
         const edgeWidth = 4;
         const leftEdge = tileX < edgeWidth;
-        const rightEdge = tileX > opts.tileWidth - edgeWidth;
+        const rightEdge = tileX > cellW - edgeWidth;
         const topEdge = tileY < edgeWidth;
-        const bottomEdge = tileY > opts.tileHeight - edgeWidth * 1.5;
+        const bottomEdge = tileY > cellH - edgeWidth * 1.5;
 
         let edgeEffect = 0;
         if (leftEdge) edgeEffect = -0.18 * (1 - tileX / edgeWidth);
-        if (rightEdge) edgeEffect = -0.12 * (1 - (opts.tileWidth - tileX) / edgeWidth);
+        if (rightEdge) edgeEffect = -0.12 * (1 - (cellW - tileX) / edgeWidth);
         if (topEdge) edgeEffect = Math.min(edgeEffect, -0.22 * (1 - tileY / edgeWidth));
         if (bottomEdge) edgeEffect = Math.max(edgeEffect, 0.08);
 
-        const overlapZone = opts.tileHeight * 0.25;
+        const overlapZone = cellH * 0.25;
         const overlapShadow = tileY < overlapZone ? (1 - tileY / overlapZone) * 0.18 : 0;
 
         const nx = x / size;
@@ -332,20 +352,23 @@ export const generateSlateNormal = (
   tileWidth: number = 44,
   tileHeight: number = 32
 ): THREE.DataTexture => {
-  return getTexture(`slate-normal-v5-${size}-${tileWidth}-${tileHeight}`, () => {
+  return getTexture(`slate-normal-v6-${size}-${tileWidth}-${tileHeight}`, () => {
     const data = new Uint8Array(size * size * 4);
+    // Snapped from the same inputs as generateSlate, so colour and relief
+    // stay registered.
+    const { cellW, cellH } = snapTileGrid(size, tileWidth, tileHeight);
 
     for (let y = 0; y < size; y++) {
       for (let x = 0; x < size; x++) {
         const i = (y * size + x) * 4;
 
-        const tileRow = Math.floor(y / tileHeight);
-        const xOffset = (tileRow % 2) * (tileWidth / 2);
+        const tileRow = Math.floor(y / cellH);
+        const xOffset = (tileRow % 2) * (cellW / 2);
         const adjustedX = (x + xOffset) % size;
 
-        const tileX = adjustedX % tileWidth;
-        const tileY = y % tileHeight;
-        const tileCol = Math.floor(adjustedX / tileWidth);
+        const tileX = adjustedX % cellW;
+        const tileY = y % cellH;
+        const tileCol = Math.floor(adjustedX / cellW);
 
         let nx = 0.5;
         let ny = 0.5;
@@ -353,13 +376,13 @@ export const generateSlateNormal = (
         const edgeWidth = 5;
         if (tileX < edgeWidth) {
           nx = 0.25 + (tileX / edgeWidth) * 0.25;
-        } else if (tileX > tileWidth - edgeWidth) {
-          nx = 0.75 - ((tileWidth - tileX) / edgeWidth) * 0.25;
+        } else if (tileX > cellW - edgeWidth) {
+          nx = 0.75 - ((cellW - tileX) / edgeWidth) * 0.25;
         }
 
         if (tileY < edgeWidth) {
           ny = 0.2 + (tileY / edgeWidth) * 0.3;
-        } else if (tileY > tileHeight - edgeWidth) {
+        } else if (tileY > cellH - edgeWidth) {
           ny = 0.65;
         }
 

@@ -7,7 +7,7 @@ export interface CameraCollisionResult {
 }
 
 const CAMERA_MIN_HEIGHT = 1.5;
-const FACTORY_WALL_HEIGHT = 20.6;
+const FACTORY_WALL_HEIGHT = SITE_LAYOUT.factory.bounds.maxY;
 const DEFAULT_CLEARANCE = 0.65;
 const MACHINE_OBSTACLES = createMachineObstacles(0);
 

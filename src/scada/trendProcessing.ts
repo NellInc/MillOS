@@ -150,6 +150,33 @@ function mergePreparedTrendHistory(
   });
 
   const rows = Array.from(timeMap.values()).sort((left, right) => left.timestamp - right.timestamp);
+
+  // Sample-and-hold. The historian writes a tag only when it moves past its
+  // deadband, so a slow tag has no sample in most rows; left empty, those rows
+  // break its line into invisible fragments beside a fast tag. BAD and STALE
+  // samples end the hold, so real gaps stay gaps.
+  const held = new Map<string, { value: number; quality: Quality }>();
+  for (const row of rows) {
+    for (const tagId of tagIds) {
+      const qualityKey = `${tagId}${TREND_QUALITY_SUFFIX}`;
+      const quality = row[qualityKey] as Quality | undefined;
+      if (quality !== undefined) {
+        const value = row[tagId];
+        if (quality === 'BAD' || quality === 'STALE') {
+          held.delete(tagId);
+        } else if (typeof value === 'number') {
+          held.set(tagId, { value, quality });
+        }
+      } else {
+        const hold = held.get(tagId);
+        if (hold) {
+          row[tagId] = hold.value;
+          row[qualityKey] = hold.quality;
+        }
+      }
+    }
+  }
+
   if (rows.length <= rowLimit) return rows;
   if (rowLimit === 1) return rows.slice(0, 1);
 
@@ -164,9 +191,10 @@ function mergePreparedTrendHistory(
 }
 
 /**
- * Aligns historian samples to one-second buckets and deliberately leaves bad
- * or stale samples as gaps. The quality field remains available to the table
- * and export surfaces instead of being silently interpolated.
+ * Aligns historian samples to one-second buckets, holds each tag's last good
+ * sample forward, and deliberately leaves bad or stale samples as gaps. Held
+ * values carry their source quality, so the table and export surfaces never
+ * present a gap as data.
  */
 export function mergeAndDownsampleTrendHistory(
   tagIds: string[],

@@ -1,3 +1,4 @@
+import { SITE_LAYOUT } from '../constants/siteLayout';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { safeJSONStorage } from './storage';
@@ -57,8 +58,22 @@ export interface DrillMetrics {
 export const SERVICE_EGRESS_POINTS = [
   { id: 'front', position: { x: 0, z: 52 }, label: 'Front Service Egress' },
   { id: 'back', position: { x: 0, z: -52 }, label: 'Back Service Egress' },
-  { id: 'west', position: { x: -62, z: 0 }, label: 'West Service Egress' },
-  { id: 'east', position: { x: 62, z: 0 }, label: 'East Service Egress' },
+  {
+    id: 'west',
+    position: {
+      x: SITE_LAYOUT.portals.westService.centre[0] - 2,
+      z: SITE_LAYOUT.portals.westService.centre[2],
+    },
+    label: 'West Service Egress',
+  },
+  {
+    id: 'east',
+    position: {
+      x: SITE_LAYOUT.portals.eastService.centre[0] + 2,
+      z: SITE_LAYOUT.portals.eastService.centre[2],
+    },
+    label: 'East Service Egress',
+  },
 ] as const;
 
 export interface GameSimulationStore {
@@ -359,7 +374,9 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
       },
       resolveEmergency: () => {
         const state = get();
-        if (state.crisisState.active) return;
+        // A drill is torn down only by endEmergencyDrill; resolving here would
+        // release the forklifts while drill mode and metrics stay active.
+        if (state.crisisState.active || state.emergencyDrillMode) return;
         restoreProduction(state.preEmergencyMachineStatuses);
         set({
           emergencyActive: false,
@@ -383,6 +400,15 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
       startEmergencyDrill: (totalZones = SERVICE_EGRESS_POINTS.length) => {
         const state = get();
         if (state.emergencyActive || state.crisisState.active) return;
+        // The sequencer can only verify the egress points that exist, so a larger
+        // count could never complete and a zero count would complete unverified.
+        const zones = Math.min(
+          Math.max(
+            1,
+            Number.isFinite(totalZones) ? Math.floor(totalZones) : SERVICE_EGRESS_POINTS.length
+          ),
+          SERVICE_EGRESS_POINTS.length
+        );
         const id = eventId('fire_drill');
         const event: SafetyEventRecord = {
           id,
@@ -404,9 +430,9 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
             active: true,
             startTime: Date.now(),
             verifiedZoneIds: [],
-            totalZones: Math.max(0, totalZones),
-            verificationComplete: totalZones === 0,
-            finalTimeSeconds: totalZones === 0 ? 0 : null,
+            totalZones: zones,
+            verificationComplete: false,
+            finalTimeSeconds: null,
           },
           safetyEvents: [...state.safetyEvents, event].slice(-MAX_SAFETY_EVENTS),
           activeSafetyEventId: id,

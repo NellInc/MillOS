@@ -57,8 +57,9 @@ export const SafetyConfigPanel: React.FC = () => {
                 aria-label="Vehicle detection radius (meters)"
                 min="1"
                 max="5"
-                step="0.5"
+                step="0.1"
                 value={safetyConfig.vehicleDetectionRadius}
+                aria-valuetext={`${safetyConfig.vehicleDetectionRadius.toFixed(1)} metres`}
                 onChange={(e) =>
                   setSafetyConfig({ vehicleDetectionRadius: parseFloat(e.target.value) })
                 }
@@ -85,6 +86,7 @@ export const SafetyConfigPanel: React.FC = () => {
                 max="8"
                 step="0.5"
                 value={safetyConfig.forkliftSafetyRadius}
+                aria-valuetext={`${safetyConfig.forkliftSafetyRadius.toFixed(1)} metres`}
                 onChange={(e) =>
                   setSafetyConfig({ forkliftSafetyRadius: parseFloat(e.target.value) })
                 }
@@ -111,6 +113,7 @@ export const SafetyConfigPanel: React.FC = () => {
                 max="10"
                 step="0.5"
                 value={safetyConfig.pathCheckDistance}
+                aria-valuetext={`${safetyConfig.pathCheckDistance.toFixed(1)} metres`}
                 onChange={(e) => setSafetyConfig({ pathCheckDistance: parseFloat(e.target.value) })}
                 className={`w-full h-2 rounded-lg appearance-none cursor-pointer accent-purple-500 ${
                   theme === 'light' ? 'bg-slate-200' : 'bg-slate-800'
@@ -135,6 +138,7 @@ export const SafetyConfigPanel: React.FC = () => {
                 max="0.8"
                 step="0.1"
                 value={safetyConfig.speedZoneSlowdown}
+                aria-valuetext={`${Math.round(safetyConfig.speedZoneSlowdown * 100)} percent`}
                 onChange={(e) => setSafetyConfig({ speedZoneSlowdown: parseFloat(e.target.value) })}
                 className={`w-full h-2 rounded-lg appearance-none cursor-pointer accent-amber-500 ${
                   theme === 'light' ? 'bg-slate-200' : 'bg-slate-800'
@@ -163,6 +167,10 @@ export const SafetyConfigPanel: React.FC = () => {
               </p>
               <p>
                 <span className="text-amber-500">Speed Zone:</span> Speed % in slow zones
+              </p>
+              <p className="italic">
+                Detection, spacing and look-ahead drive the forklift controller live. Speed zone
+                rate is a planning value and is not enforced yet.
               </p>
             </div>
           </motion.div>

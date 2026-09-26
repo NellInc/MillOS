@@ -1,4 +1,5 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import {
   AlertTriangle,
   Bot,
@@ -22,7 +23,16 @@ type FieldValues = Record<string, string | number>;
 
 export const AgentCockpit: React.FC = () => {
   const api = globalThis.window?.__MILLOS_AGENT__;
-  const orders = useOperationsCampaignStore((state) => state.orders);
+  // tickCampaign rebuilds `orders` on every central tick (0.5 s). Subscribing
+  // to the ids and a primitive id:status key, rather than the array itself,
+  // keeps the brief below from recapturing and rehashing the whole agent plane
+  // twice a second.
+  const orderIds = useOperationsCampaignStore(
+    useShallow((state) => state.orders.map((order) => order.id))
+  );
+  const orderKey = useOperationsCampaignStore((state) =>
+    state.orders.map((order) => `${order.id}:${order.status}`).join('|')
+  );
   const [capabilityId, setCapabilityId] = useState('operations.activate-order');
   const [fields, setFields] = useState<FieldValues>({});
   const [reason, setReason] = useState('Advance the current production objective.');
@@ -32,8 +42,12 @@ export const AgentCockpit: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   // Each brief() is a full state capture and hash, and trace() exports the
   // ledger. Read them when the runtime, the orders, or our own actions change,
-  // never on every render.
+  // never on every render; a slow tick keeps the exception queue current.
   const [refreshTick, setRefreshTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setRefreshTick((tick) => tick + 1), BRIEF_REFRESH_MS);
+    return () => clearInterval(id);
+  }, []);
   const capabilityObservation = useMemo(
     () => api?.capabilities() ?? null,
 
@@ -47,7 +61,7 @@ export const AgentCockpit: React.FC = () => {
   const brief = useMemo(
     () => api?.brief() ?? null,
 
-    [api, orders, refreshTick]
+    [api, orderKey, refreshTick]
   );
   const policy = useMemo(
     () => api?.policy() ?? null,
@@ -59,7 +73,8 @@ export const AgentCockpit: React.FC = () => {
       receipt ? (api?.trace({ correlationId: receipt.correlationId, limit: 20 }) ?? null) : null,
     [api, receipt]
   );
-  const suggested = useMemo(() => suggestions(capability, orders), [capability, orders]);
+  const targetUris = useMemo(() => suggestedUris(capability, orderIds), [capability, orderIds]);
+  const suggested = useMemo(() => suggestions(capability, targetUris), [capability, targetUris]);
   const effectiveFields = useMemo(() => ({ ...suggested, ...fields }), [fields, suggested]);
 
   if (!api || !capabilityObservation || !brief || !policy) {
@@ -67,7 +82,7 @@ export const AgentCockpit: React.FC = () => {
       <section className="rounded-xl border border-amber-400/30 bg-amber-950/20 p-3" role="status">
         <div className="flex items-center gap-2 text-xs font-semibold text-amber-200">
           <AlertTriangle className="h-4 w-4" aria-hidden="true" />
-          Agent runtime is still hydrating
+          Agent runtime is warming up
         </div>
       </section>
     );
@@ -77,6 +92,9 @@ export const AgentCockpit: React.FC = () => {
   const health = record(briefData.health);
   const exceptions = Array.isArray(health.exceptions) ? health.exceptions : [];
   const activeObjections = policy.objections.filter((objection) => objection.status === 'active');
+  const activeGrantIds = record(briefData.authority).activeGrantIds;
+  const hasActiveGrant = Array.isArray(activeGrantIds) && activeGrantIds.length > 0;
+  const committed = preview !== null && receipt?.previewId === preview.previewId;
 
   const resetAction = (nextCapabilityId: string) => {
     setCapabilityId(nextCapabilityId);
@@ -159,7 +177,11 @@ export const AgentCockpit: React.FC = () => {
         </div>
         <div className="mt-3 grid grid-cols-2 gap-2 text-[10px]">
           <BriefDatum icon={Gauge} label="Revision" value={brief.revision.slice(0, 13)} />
-          <BriefDatum icon={ShieldCheck} label="Authority" value="Scoped commands" />
+          <BriefDatum
+            icon={ShieldCheck}
+            label="Authority"
+            value={hasActiveGrant ? 'Scoped commands' : 'No active grant'}
+          />
         </div>
       </section>
 
@@ -175,13 +197,17 @@ export const AgentCockpit: React.FC = () => {
         </h3>
         <div className="mt-2 space-y-1.5">
           {exceptions.length === 0 && activeObjections.length === 0 ? (
-            <p className="text-[10px] text-emerald-300">No current operational exceptions.</p>
+            <p className="text-[10px] text-emerald-300">No open exceptions or objections.</p>
           ) : (
             <>
               {exceptions.slice(0, 4).map((item, index) => (
                 <p
                   key={`exception-${index}`}
-                  className="rounded bg-amber-400/5 px-2 py-1.5 text-[10px] leading-4 text-amber-100"
+                  className={`rounded px-2 py-1.5 text-[10px] leading-4 ${
+                    record(item).severity === 'blocking'
+                      ? 'bg-red-400/5 text-red-200'
+                      : 'bg-amber-400/5 text-amber-100'
+                  }`}
                 >
                   {problemText(item)}
                 </p>
@@ -236,7 +262,7 @@ export const AgentCockpit: React.FC = () => {
                 name={name}
                 rules={rawRules}
                 value={effectiveFields[name] ?? ''}
-                suggestions={name.endsWith('Uri') ? suggestedUris(capability, orders) : []}
+                suggestions={name.endsWith('Uri') ? targetUris : []}
                 onChange={(value) => {
                   setFields((current) => ({ ...current, [name]: value }));
                   setPreview(null);
@@ -306,17 +332,23 @@ export const AgentCockpit: React.FC = () => {
               ))}
             </div>
           )}
-          {preview.status !== 'denied' && (
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => void handleCommit()}
-              className="mt-3 min-h-10 w-full rounded-lg bg-emerald-700 px-3 text-xs font-semibold text-white hover:bg-emerald-600 disabled:cursor-wait disabled:opacity-60"
-            >
-              {preview.status === 'requires-approval'
-                ? 'Approve exact preview and commit'
-                : 'Commit preview'}
-            </button>
+          {committed ? (
+            <p className="mt-3 text-[10px] text-slate-400">
+              Receipt issued for this preview. Preview again to issue another command.
+            </p>
+          ) : (
+            preview.status !== 'denied' && (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void handleCommit()}
+                className="mt-3 min-h-10 w-full rounded-lg bg-emerald-700 px-3 text-xs font-semibold text-white hover:bg-emerald-600 disabled:cursor-wait disabled:opacity-60"
+              >
+                {preview.status === 'requires-approval'
+                  ? 'Approve exact preview and commit'
+                  : 'Commit preview'}
+              </button>
+            )
           )}
         </section>
       )}
@@ -486,7 +518,13 @@ const CheckList: React.FC<{
           key={item.id}
           className={`flex gap-1 ${item.satisfied ? 'text-emerald-300' : 'text-amber-200'}`}
         >
-          <CheckCircle2 className="mt-0.5 h-3 w-3 flex-none" aria-hidden="true" /> {item.detail}
+          {item.satisfied ? (
+            <CheckCircle2 className="mt-0.5 h-3 w-3 flex-none" aria-hidden="true" />
+          ) : (
+            <AlertTriangle className="mt-0.5 h-3 w-3 flex-none" aria-hidden="true" />
+          )}
+          <span className="sr-only">{item.satisfied ? 'Satisfied: ' : 'Not satisfied: '}</span>
+          {item.detail}
         </li>
       ))}
     </ul>
@@ -501,23 +539,19 @@ const StatusBadge: React.FC<{ status: AgentCommandPreview['status'] }> = ({ stat
   </span>
 );
 
-function suggestions(
-  capability: AgentCapabilityDescriptor | null,
-  orders: Array<{ id: string }>
-): FieldValues {
-  const uri = suggestedUris(capability, orders)[0];
+const BRIEF_REFRESH_MS = 5000;
+
+function suggestions(capability: AgentCapabilityDescriptor | null, uris: string[]): FieldValues {
+  const uri = uris[0];
   if (!capability || !uri) return {};
   const key = Object.keys(capability.parameters.properties).find((name) => name.endsWith('Uri'));
   return key ? { [key]: uri } : {};
 }
 
-function suggestedUris(
-  capability: AgentCapabilityDescriptor | null,
-  orders: Array<{ id: string }>
-): string[] {
+function suggestedUris(capability: AgentCapabilityDescriptor | null, orderIds: string[]): string[] {
   if (!capability) return [];
   if (capability.id === 'operations.activate-order')
-    return orders.map((order) => `millos://order/${order.id}`);
+    return orderIds.map((id) => `millos://order/${id}`);
   if (capability.id === 'dispatch.release') return ['millos://dispatch/shipping'];
   if (capability.id === 'simulation.set-speed' || capability.id === 'simulation.start-fire-drill')
     return ['millos://simulation/main'];
@@ -536,7 +570,10 @@ function array(value: unknown): unknown[] {
 
 function problemText(value: unknown): string {
   const item = record(value);
-  return String(item.message ?? item.detail ?? item.code ?? 'Operational exception');
+  // queryService exceptions carry `summary`; the other keys cover older shapes.
+  return String(
+    item.summary ?? item.message ?? item.detail ?? item.code ?? 'Operational exception'
+  );
 }
 
 function humanize(value: string): string {

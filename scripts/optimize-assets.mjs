@@ -36,7 +36,7 @@ runScript('scripts/normalize-model-assets.mjs', dryRun ? ['--dry-run'] : []);
 
 if (!dryRun) {
   runScript('scripts/validate-assets.mjs');
-  console.log('Runtime derivatives regenerated and validated.');
+  console.log('Runtime derivatives regenerated and validated. Assets are fresh.');
 } else {
   console.log('Dry run complete. No runtime derivative was changed.');
 }

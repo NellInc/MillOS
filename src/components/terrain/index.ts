@@ -6,7 +6,7 @@
  */
 
 export { TerrainGround } from './TerrainGround';
-export { TerrainMaterial, useTerrainMaterial } from './TerrainMaterial';
+export { TerrainMaterial } from './TerrainMaterial';
 export {
   generateSplatMap,
   generateHeightmap,

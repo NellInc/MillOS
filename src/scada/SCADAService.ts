@@ -39,6 +39,13 @@ type ValueUpdateCallback = (values: TagValue[]) => void;
 /** Callback for alarm updates */
 type AlarmUpdateCallback = (alarms: Alarm[]) => void;
 
+/** Machine state pushed from the production store into the simulation. */
+type MachineStateInput = {
+  id: string;
+  status: 'running' | 'idle' | 'warning' | 'critical';
+  metrics: { load: number; rpm: number };
+};
+
 /** Service state */
 interface ServiceState {
   mode: SCADAMode;
@@ -79,6 +86,14 @@ export class SCADAService {
   private adapterUnsubscribe: (() => void) | null = null;
   private alarmUnsubscribe: (() => void) | null = null;
 
+  // Intended lifecycle, independent of the adapter's momentary link state: a
+  // live adapter that failed to connect or is reconnecting is still "running".
+  private running = false;
+
+  // Replayed into a freshly built SimulationAdapter, which would otherwise
+  // report every machine as running until the store next changes.
+  private lastMachineStates: MachineStateInput[] | null = null;
+
   constructor(config?: Partial<SCADAConfig>) {
     this.config = {
       mode: config?.mode ?? 'simulation',
@@ -94,7 +109,15 @@ export class SCADAService {
     this.alarmManager = new AlarmManager(MILL_TAGS);
     this.historyStore = new HistoryStore({
       retentionMs: this.config.historyRetention,
+      // Each tag's alarm deadband is already sized to its signal resolution.
+      changeDeadbandFor: (id) => {
+        const deadband = this.tagRegistry.get(id)?.deadband;
+        return deadband !== undefined && deadband > 0 ? Math.min(0.5, deadband) : undefined;
+      },
     });
+    // Every alarm that leaves the active set reaches the persistent history,
+    // including ACKED-then-cleared ones that never pass through RTN_UNACK.
+    this.alarmManager.onArchive = (alarm) => this.historyStore.writeAlarm(alarm);
   }
 
   // =========================================================================
@@ -105,6 +128,10 @@ export class SCADAService {
    * Start the SCADA service
    */
   async start(): Promise<void> {
+    // Set first: a start that fails still counts as intended-running, so the
+    // next connection Apply retries instead of only storing the config.
+    this.running = true;
+
     // Initialize history store
     await this.historyStore.init();
 
@@ -147,6 +174,8 @@ export class SCADAService {
    * Stop the SCADA service
    */
   async stop(): Promise<void> {
+    this.running = false;
+
     if (this.adapterUnsubscribe) {
       this.adapterUnsubscribe();
       this.adapterUnsubscribe = null;
@@ -227,6 +256,10 @@ export class SCADAService {
         this.adapter = null;
         break;
     }
+
+    if (this.lastMachineStates && this.adapter instanceof SimulationAdapter) {
+      this.updateMachineStates(this.lastMachineStates);
+    }
   }
 
   /**
@@ -284,7 +317,7 @@ export class SCADAService {
    * Update connection configuration (requires restart)
    */
   async setConnectionConfig(config: ConnectionConfig): Promise<void> {
-    const wasRunning = this.adapter?.isConnected() ?? false;
+    const wasRunning = this.running;
 
     if (wasRunning) {
       try {
@@ -633,6 +666,7 @@ export class SCADAService {
         acknowledgedBy: record.acknowledgedBy,
         clearedAt: record.clearedAt,
         machineId: tag?.machineId,
+        unit: tag?.engUnit,
       };
     });
   }
@@ -688,13 +722,12 @@ export class SCADAService {
   /**
    * Update machine states in simulation adapter
    */
-  updateMachineStates(
-    machines: Array<{
-      id: string;
-      status: 'running' | 'idle' | 'warning' | 'critical';
-      metrics: { load: number; rpm: number };
-    }>
-  ): void {
+  updateMachineStates(machines: MachineStateInput[]): void {
+    this.lastMachineStates = machines;
+    // Stopped equipment suppresses its own low speed/flow limits for any adapter.
+    machines.forEach((m) =>
+      this.alarmManager.setEquipmentRunning(m.id, m.status === 'running' || m.status === 'warning')
+    );
     if (this.adapter instanceof SimulationAdapter) {
       this.adapter.updateMachineStates(machines);
     }
@@ -765,6 +798,11 @@ export class SCADAService {
       if (value.timestamp > latest) latest = value.timestamp;
     }
     return latest;
+  }
+
+  /** Whether the service has been started and not since stopped. */
+  isRunning(): boolean {
+    return this.running;
   }
 
   getState(): ServiceState {
@@ -852,27 +890,27 @@ export function peekSCADAService(): SCADAService | null {
  * Returns existing instance if already initialized (true singleton)
  */
 export async function initializeSCADA(config?: Partial<SCADAConfig>): Promise<SCADAService> {
-  // If already initialized and running, return existing instance
-  if (scadaServiceInstance) {
-    const state = scadaServiceInstance.getState();
-    if (state.connected) {
-      return scadaServiceInstance;
-    }
-  }
-
   // If initialization is in progress, wait for it
   if (initializationPromise) {
     return initializationPromise;
   }
 
+  // A started service is kept even while its live link is reconnecting:
+  // replacing it would orphan the store bridge holding the old instance.
+  if (scadaServiceInstance?.isRunning()) {
+    return scadaServiceInstance;
+  }
+
   // Start new initialization
   initializationPromise = (async () => {
     try {
+      const previousMode = scadaServiceInstance?.getState().mode;
       if (scadaServiceInstance) {
         await scadaServiceInstance.stop();
       }
       const mergedConfig: Partial<SCADAConfig> = {
         ...config,
+        mode: config?.mode ?? previousMode,
         connection: config?.connection ?? lastConnectionConfig,
       };
       // Store in local variable to avoid race condition where shutdownSCADA
@@ -893,8 +931,9 @@ export async function initializeSCADA(config?: Partial<SCADAConfig>): Promise<SC
  * Shutdown the SCADA service
  */
 export async function shutdownSCADA(): Promise<void> {
-  if (scadaServiceInstance) {
-    await scadaServiceInstance.stop();
-    scadaServiceInstance = null;
-  }
+  const instance = scadaServiceInstance;
+  if (!instance) return;
+  await instance.stop();
+  // A quick off/on toggle may have installed a new service while this stopped.
+  if (scadaServiceInstance === instance) scadaServiceInstance = null;
 }

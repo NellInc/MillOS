@@ -5,15 +5,24 @@
  * Uses showProductionTarget toggle from aiConfigStore (default ON).
  */
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAIConfigStore } from '../stores/aiConfigStore';
 import { useProductionStore, DAILY_TARGET_BAGS } from '../stores/productionStore';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
-import { Target, Clock, TrendingUp, TrendingDown, Minus, X, GripVertical } from 'lucide-react';
+import {
+  Target,
+  Clock,
+  TrendingUp,
+  TrendingDown,
+  Minus,
+  X,
+  GripVertical,
+  CheckCircle,
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BAG_WEIGHT_KG } from '../types';
 
-const DAILY_TARGET_MASS = DAILY_TARGET_BAGS * BAG_WEIGHT_KG; // 125,000 kg = 125t
+const DAILY_TARGET_MASS = DAILY_TARGET_BAGS * BAG_WEIGHT_KG; // 30,000 kg = 30 t
 
 export const ProductionTargetWidget: React.FC = () => {
   const showProductionTarget = useAIConfigStore((state) => state.showProductionTarget);
@@ -43,11 +52,9 @@ export const ProductionTargetWidget: React.FC = () => {
     const isOnTrack = currentThroughputMass >= requiredRateMass * 0.95;
     const isBehind = currentThroughputMass < requiredRateMass * 0.8;
 
-    const status: 'behind' | 'onTrack' | 'atRisk' = isBehind
-      ? 'behind'
-      : isOnTrack
-        ? 'onTrack'
-        : 'atRisk';
+    // A met target needs 0 t/hr, which would otherwise read as merely ON TRACK.
+    const status: 'met' | 'behind' | 'onTrack' | 'atRisk' =
+      progress >= 100 ? 'met' : isBehind ? 'behind' : isOnTrack ? 'onTrack' : 'atRisk';
 
     return {
       producedMass: currentMass,
@@ -60,34 +67,45 @@ export const ProductionTargetWidget: React.FC = () => {
     };
   }, [metrics.throughput, dailyBagsProduced, gameTime]);
 
-  // Keep the draggable widget within the viewport so it can never be dragged
-  // off-screen. The widget rests at bottom-4 left-4 (clear of the right-side
-  // ContextSidebar and the bottom-right MiniMap) and is w-72 (288px) wide;
-  // dragConstraints values are pixel offsets allowed from that rest position.
-  // From a left rest the widget travels rightward/upward into the viewport, so
-  // `right`/`top` carry the large ranges. Height is conservatively over-estimated
-  // so it can't quite reach the top edge (safe direction).
-  const WIDGET_WIDTH = 288; // w-72
-  const WIDGET_HEIGHT_ESTIMATE = 280; // conservative over-estimate
-  const REST_INSET = 16; // bottom-4 / left-4
-  const computeConstraints = () => {
-    const vw = typeof window !== 'undefined' ? window.innerWidth : WIDGET_WIDTH;
-    const vh = typeof window !== 'undefined' ? window.innerHeight : WIDGET_HEIGHT_ESTIMATE;
+  // The card and launcher rest above desktop playback/navigation. Measure the
+  // card so 150% interface scale keeps drag bounds
+  // honest too; w-72 is no longer necessarily 288 physical pixels.
+  const cardRef = useRef<HTMLDivElement>(null);
+  const computeConstraints = useCallback(() => {
+    const vw = typeof window !== 'undefined' ? window.innerWidth : 768;
+    const vh = typeof window !== 'undefined' ? window.innerHeight : 720;
+    const rem =
+      typeof document === 'undefined'
+        ? 16
+        : Number.parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+    const rect = cardRef.current?.getBoundingClientRect();
+    const narrow = vw < 640;
+    const width = rect?.width || Math.min(18 * rem, (narrow ? vw : vw / 2) - 2 * rem);
+    const height = rect?.height || Math.min(280, Math.max(0, vh - 17 * rem));
+    const rest = narrow ? rem : 11 * rem;
+    const verticalTravel = Math.max(0, vh - rest - height - rem);
     return {
-      left: -REST_INSET,
-      bottom: REST_INSET,
-      right: Math.max(0, vw - WIDGET_WIDTH - REST_INSET),
-      top: -Math.max(0, vh - REST_INSET - WIDGET_HEIGHT_ESTIMATE),
+      left: -rem,
+      bottom: narrow ? verticalTravel : rest - rem,
+      right: Math.max(0, vw - width - rem),
+      top: narrow ? -rem : -verticalTravel,
     };
-  };
+  }, []);
   const [dragConstraints, setDragConstraints] = useState(computeConstraints);
   useEffect(() => {
     const handleResize = () => setDragConstraints(computeConstraints());
+    handleResize();
     window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
+    const observer =
+      typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(handleResize);
+    if (cardRef.current) observer?.observe(cardRef.current);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      observer?.disconnect();
+    };
+  }, [computeConstraints, showProductionTarget]);
 
-  // Closed state: collapse to a small launcher pill (bottom-4 left-4) so the
+  // Closed state: collapse to a small launcher pill at the same resting edge so the
   // tracker is always re-openable without needing the hidden `T` shortcut.
   if (!showProductionTarget) {
     return (
@@ -95,7 +113,7 @@ export const ProductionTargetWidget: React.FC = () => {
         type="button"
         onClick={() => setShowProductionTarget(true)}
         aria-label="Show production target tracker"
-        className="fixed bottom-4 left-4 z-50 flex items-center gap-2 rounded-lg border border-white/10 bg-slate-900/90 px-3 py-2 text-slate-200 shadow-lg backdrop-blur-sm transition-colors hover:bg-slate-800 pointer-events-auto"
+        className="fixed top-4 bottom-auto left-4 sm:top-auto sm:bottom-[11rem] z-50 flex items-center gap-2 rounded-lg border border-white/10 bg-slate-900/90 px-3 py-2 text-slate-200 shadow-lg backdrop-blur-sm transition-colors hover:bg-slate-800 pointer-events-auto"
       >
         <Target className="w-4 h-4 text-green-400" />
         <span className="text-xs font-medium">Target</span>
@@ -104,6 +122,12 @@ export const ProductionTargetWidget: React.FC = () => {
   }
 
   const statusColors = {
+    met: {
+      bg: 'bg-emerald-500/20',
+      border: 'border-emerald-400/60',
+      text: 'text-emerald-300',
+      bar: 'bg-emerald-400',
+    },
     onTrack: {
       bg: 'bg-green-500/20',
       border: 'border-green-500/50',
@@ -127,15 +151,18 @@ export const ProductionTargetWidget: React.FC = () => {
   const colors = statusColors[targetData.status];
 
   const TrendIcon =
-    targetData.status === 'onTrack'
-      ? TrendingUp
-      : targetData.status === 'behind'
-        ? TrendingDown
-        : Minus;
+    targetData.status === 'met'
+      ? CheckCircle
+      : targetData.status === 'onTrack'
+        ? TrendingUp
+        : targetData.status === 'behind'
+          ? TrendingDown
+          : Minus;
 
   return (
     <AnimatePresence>
       <motion.div
+        ref={cardRef}
         role="region"
         aria-label="Production target tracker"
         initial={{ opacity: 0, y: 20 }}
@@ -145,10 +172,10 @@ export const ProductionTargetWidget: React.FC = () => {
         dragMomentum={false}
         dragElastic={0.1}
         dragConstraints={dragConstraints}
-        className={`fixed bottom-4 left-4 w-72 ${colors.bg} ${colors.border} border rounded-lg p-4 backdrop-blur-sm z-50`}
+        className={`fixed top-4 bottom-auto left-4 sm:top-auto sm:bottom-[11rem] max-h-[calc(100dvh-13rem)] sm:max-h-[calc(100dvh-17rem)] overflow-y-auto w-72 max-w-[calc(100vw-2rem)] sm:max-w-[calc(50vw-2rem)] bg-[#071722]/95 ${colors.border} border rounded-lg p-4 backdrop-blur-sm z-50`}
       >
         {/* Header - Drag Handle */}
-        <div className="flex items-center justify-between mb-3 cursor-move select-none">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-3 cursor-move select-none">
           <div className="flex items-center gap-2">
             <Target className={`w-5 h-5 ${colors.text}`} />
             <span className="text-white font-semibold text-sm">Production Target</span>
@@ -166,7 +193,7 @@ export const ProductionTargetWidget: React.FC = () => {
               onClick={() => setShowProductionTarget(false)}
               onPointerDownCapture={(e) => e.stopPropagation()}
               aria-label="Close production target tracker"
-              className="p-1 -mr-1 rounded text-slate-400 hover:bg-white/10 hover:text-white transition-colors cursor-pointer"
+              className="-m-2.5 -mr-3.5 p-3.5 rounded text-slate-400 hover:bg-white/10 hover:text-white transition-colors cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
@@ -208,23 +235,27 @@ export const ProductionTargetWidget: React.FC = () => {
               {(targetData.currentRateMass / 1000).toFixed(1)} t/hr
             </span>
           </div>
-          <div className="text-slate-400">
-            Req:{' '}
-            <span className={`font-mono ${colors.text}`}>
-              {(targetData.requiredRateMass / 1000).toFixed(1)} t/hr
-            </span>
-          </div>
+          {targetData.status !== 'met' && (
+            <div className="text-slate-400">
+              Req:{' '}
+              <span className={`font-mono ${colors.text}`}>
+                {(targetData.requiredRateMass / 1000).toFixed(1)} t/hr
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Status indicator */}
         <div className={`mt-3 flex items-center justify-center gap-2 py-1.5 rounded ${colors.bg}`}>
           <TrendIcon className={`w-4 h-4 ${colors.text}`} />
           <span className={`text-sm font-medium ${colors.text}`}>
-            {targetData.status === 'onTrack'
-              ? 'ON TRACK'
-              : targetData.status === 'behind'
-                ? 'BEHIND SCHEDULE'
-                : 'AT RISK'}
+            {targetData.status === 'met'
+              ? 'TARGET MET'
+              : targetData.status === 'onTrack'
+                ? 'ON TRACK'
+                : targetData.status === 'behind'
+                  ? 'BEHIND SCHEDULE'
+                  : 'AT RISK'}
           </span>
         </div>
       </motion.div>

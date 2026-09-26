@@ -1,5 +1,44 @@
 import { describe, expect, it } from 'vitest';
-import { parseRuntimeMode } from '../runtimeMode';
+import { parseRuntimeMode, type BenchmarkScene } from '../runtimeMode';
+
+// Record<BenchmarkScene, true> makes tsc reject a scene added to the type but
+// not to this list, so every declared camera is round-tripped below.
+const ALL_SCENES: Record<BenchmarkScene, true> = {
+  overview: true,
+  interior: true,
+  silos: true,
+  milling: true,
+  sifting: true,
+  packing: true,
+  'process-floor': true,
+  'tank-farm': true,
+  'logistics-close': true,
+  forklift: true,
+  shipping: true,
+  receiving: true,
+  yard: true,
+  water: true,
+  village: true,
+  farm: true,
+  paddock: true,
+  square: true,
+  garage: true,
+  markings: true,
+  forecourt: true,
+  carpark: true,
+  river: true,
+  tunnel: true,
+  huts: true,
+  offices: true,
+  canal: true,
+  lake: true,
+  busstop: true,
+  'road-tunnel': true,
+  castle: true,
+  kiosk: true,
+  sun: true,
+  moon: true,
+};
 
 describe('parseRuntimeMode', () => {
   it('keeps ordinary visits out of deterministic benchmark mode', () => {
@@ -85,6 +124,20 @@ describe('parseRuntimeMode', () => {
     expect(parseRuntimeMode('?benchmark=true&scene=garage').benchmarkScene).toBe('garage');
     expect(parseRuntimeMode('?benchmark=true&scene=sun').benchmarkScene).toBe('sun');
     expect(parseRuntimeMode('?benchmark=true&scene=moon').benchmarkScene).toBe('moon');
+  });
+
+  it.each(Object.keys(ALL_SCENES))('round-trips the %s benchmark scene', (scene) => {
+    expect(parseRuntimeMode(`?benchmark=${scene}`).benchmarkScene).toBe(scene);
+  });
+
+  it('reads benchmark on/off like every other boolean flag', () => {
+    expect(parseRuntimeMode('?benchmark=off').benchmark).toBe(false);
+    expect(parseRuntimeMode('?benchmark=0').benchmark).toBe(false);
+    expect(parseRuntimeMode('?benchmark=false').benchmark).toBe(false);
+    expect(parseRuntimeMode('?benchmark=on&scene=yard')).toMatchObject({
+      benchmark: true,
+      benchmarkScene: 'yard',
+    });
   });
 
   it('defaults moon review captures to midnight while preserving explicit time', () => {

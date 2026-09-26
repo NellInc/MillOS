@@ -7,7 +7,7 @@ import React from 'react';
 import { useFrame } from '@react-three/fiber';
 import { shouldRunThisFrame } from '../../utils/frameThrottle';
 import * as THREE from 'three';
-import { useGameSimulationStore } from '../../stores/gameSimulationStore';
+import { selectSafetyHoldActive, useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { useGraphicsStore } from '../../stores/graphicsStore';
 import type { TruckAnimState } from './useTruckPhysics';
 
@@ -181,11 +181,21 @@ export const unregisterTruckComponents = (id: string) => {
 export const TruckAnimationManager: React.FC = () => {
   const isTabVisible = useGameSimulationStore((state) => state.isTabVisible);
   const graphicsQuality = useGraphicsStore((state) => state.graphics.quality);
+  // The rotation, oscillation and custom channels (yard machinery such as the
+  // jockey tractor, crane, wash brush, wrapper and compactor, plus the small
+  // displays registered as custom callbacks) run on their own clock, which holds
+  // while the game is paused and during a safety hold or drill. 'pulse' lamps
+  // and the state-driven lerps stay on the wall clock.
+  const equipmentClockRef = React.useRef(0);
 
   useFrame((state, delta) => {
     if (!isTabVisible) return;
 
     const time = state.clock.elapsedTime;
+    const simulation = useGameSimulationStore.getState();
+    const equipmentRunning = simulation.gameSpeed > 0 && !selectSafetyHoldActive(simulation);
+    if (equipmentRunning) equipmentClockRef.current += delta;
+    const equipmentTime = equipmentClockRef.current;
 
     // --- 1. Process Generic Animation Registry ---
     // Throttle based on quality
@@ -216,16 +226,21 @@ export const TruckAnimationManager: React.FC = () => {
       if (!mesh) return;
 
       const currVal = mesh[property][axis];
-      if (Math.abs(currVal - target) <= 0.001) return;
-      const newVal = THREE.MathUtils.lerp(currVal, target, getAnimationDampingAlpha(speed, delta));
-      mesh[property][axis] = newVal;
+      const settled = Math.abs(currVal - target) <= 0.001;
+      const newVal = settled
+        ? currVal
+        : THREE.MathUtils.lerp(currVal, target, getAnimationDampingAlpha(speed, delta));
+      if (!settled) mesh[property][axis] = newVal;
+      // autoHide hides the object once it has retracted past hideThreshold, and
+      // is evaluated even when settled so an object mounted retracted starts hidden.
       if (autoHide && property === 'position') {
-        mesh.visible = newVal > (hideThreshold ?? 0);
+        mesh.visible = newVal < (hideThreshold ?? Infinity);
       }
     });
 
     if (shouldRunThisFrame(throttle)) {
       const adjustDelta = delta * throttle;
+      const equipmentDelta = equipmentRunning ? adjustDelta : 0;
 
       animationRegistry.forEach((anim) => {
         if (anim.type === 'lerp') return;
@@ -234,7 +249,7 @@ export const TruckAnimationManager: React.FC = () => {
           const mesh = anim.mesh as THREE.Object3D;
           const { axis = 'y', speed = 1 } = anim.data as { axis?: 'x' | 'y' | 'z'; speed?: number };
           if (mesh) {
-            mesh.rotation[axis] += speed * adjustDelta;
+            mesh.rotation[axis] += speed * equipmentDelta;
           }
         }
 
@@ -265,13 +280,13 @@ export const TruckAnimationManager: React.FC = () => {
             base?: number;
           };
           if (mesh) {
-            mesh.position[axis] = base + Math.sin(time * speed + offset) * amplitude;
+            mesh.position[axis] = base + Math.sin(equipmentTime * speed + offset) * amplitude;
           }
         }
 
         // 5. Custom callback animation
         else if (anim.type === 'custom' && anim.callback) {
-          anim.callback(time, adjustDelta, anim.mesh, anim.data);
+          anim.callback(equipmentTime, equipmentDelta, anim.mesh, anim.data);
         }
       });
     }

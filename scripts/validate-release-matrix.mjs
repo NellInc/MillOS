@@ -85,11 +85,18 @@ for (const release of releaseMatrix.releases) {
         cwd: projectRoot,
         encoding: 'utf8',
       });
-      if (!sourceIndex.includes(`/${release.version}/`)) {
+      const buildEnvironment = release.reproducibleBuild?.buildEnvironment;
+      if (
+        !sourceIndex.includes(`/${release.version}/`) &&
+        buildEnvironment?.VERSION !== release.version
+      ) {
         failures.push(`${release.version} source index does not identify its historical route.`);
       }
+      if (buildEnvironment && buildEnvironment.GITHUB_SHA !== release.sourceCommit) {
+        failures.push(`${release.version} build identity does not match its preserved source.`);
+      }
       if (!release.identityNote?.trim()) {
-        failures.push(`${release.version} source package discrepancy has no identity note.`);
+        failures.push(`${release.version} source-built archive has no identity note.`);
       }
       if (
         !/^[0-9a-f]{64}$/.test(release.reproducibleBuild?.indexSha256 ?? '') ||
@@ -160,8 +167,12 @@ if (stagingDirectory) {
       }
     }
     if (release.reproducibleBuild) {
-      const navigationTag = `<script defer src="/${releaseMatrix.currentVersion}/release-navigation.js"></script>`;
-      const historicalIndex = index.replace(`  ${navigationTag}\n`, '');
+      // The injected bridge carries a `?v=<content hash>` cache-buster.
+      const escapedVersion = releaseMatrix.currentVersion.replaceAll('.', '\\.');
+      const navigationTag = new RegExp(
+        `  <script defer src="/${escapedVersion}/release-navigation\\.js(?:\\?v=[0-9a-f]+)?"></script>\n`
+      );
+      const historicalIndex = index.replace(navigationTag, '');
       const historicalIndexHash = createHash('sha256').update(historicalIndex).digest('hex');
       if (historicalIndexHash !== release.reproducibleBuild.indexSha256) {
         failures.push(`${release.version} staged index differs from the proven historical build.`);

@@ -33,6 +33,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
 }) => {
   const modalRef = useRef<HTMLDivElement | null>(null);
   const titleId = useId();
+  const descId = useId();
   useFocusTrap(modalRef as React.RefObject<HTMLElement>, isOpen, onCancel);
 
   const toneStyles =
@@ -72,6 +73,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
             role="dialog"
             aria-modal="true"
             aria-labelledby={titleId}
+            aria-describedby={descId}
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
@@ -96,7 +98,9 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
 
             {/* Message */}
             <div className="p-4">
-              <p className="text-sm text-slate-400">{message}</p>
+              <div id={descId} className="text-sm text-slate-400">
+                {message}
+              </div>
             </div>
 
             {/* Actions */}

@@ -18,13 +18,13 @@
  * or a per-machine-class mesh - would have been the wrong shape.
  *
  * ---------------------------------------------------------------------------
- * WHY EVERY PLACARD FACES +Z
+ * PLACARD ORIENTATION
  * ---------------------------------------------------------------------------
  * All four machine classes present their instrument face to +Z with no
  * rotation, so a `PlaneGeometry` - whose front face is +Z - can be placed by
- * translation alone. That removes the one decal failure mode that cannot be
- * caught without looking at the scene: a quad facing into the object it is
- * stuck to. The silo body is a CYLINDER and is deliberately given only two
+ * translation alone. The mill's side serial plate rotates to face -X and its
+ * entire quad is ray-tested against the real inspection cover.
+ * The silo body is a CYLINDER and is deliberately given only two
  * small placards; see `SILO_PLACARD_NOTE`.
  *
  * ---------------------------------------------------------------------------
@@ -37,9 +37,11 @@
  */
 
 import * as THREE from 'three';
-import { MachineData } from '../../types';
+import { MachineData, MachineType } from '../../types';
+import { getSiloAssemblyScale, SILO_ACCESS_LAYOUT } from '../../constants/siteLayout';
 import { POLYGON_OFFSET, SURFACE_LAYERS } from '../../constants/renderLayers';
 import { createColorDataTexture } from '../../utils/textureGenerator';
+import { MILL_LOAD_DIAL } from './machineFinishGeometry';
 
 // ===========================================================================
 // ATLAS
@@ -48,7 +50,7 @@ import { createColorDataTexture } from '../../utils/textureGenerator';
 /** Cell edge in pixels. */
 const CELL_PX = 128;
 const ATLAS_COLS = 4;
-const ATLAS_ROWS = 2;
+const ATLAS_ROWS = 3;
 const ATLAS_W = CELL_PX * ATLAS_COLS;
 const ATLAS_H = CELL_PX * ATLAS_ROWS;
 
@@ -72,9 +74,13 @@ export const DECAL_CELL = {
   lockoutRoundel: 2,
   flowArrow: 3,
   namePlate: 4,
-  inspectionSticker: 5,
+  motorLoadDial: 5,
   greasePoint: 6,
   electricalWarning: 7,
+  mill101: 8,
+  mill102: 9,
+  mill103: 10,
+  mill104: 11,
 } as const;
 
 export type DecalCell = (typeof DECAL_CELL)[keyof typeof DECAL_CELL];
@@ -82,6 +88,13 @@ export type DecalCell = (typeof DECAL_CELL)[keyof typeof DECAL_CELL];
 type Rgba = readonly [number, number, number, number];
 /** Paints one cell. `u`,`v` are 0-1 inside the padded area; v = 0 is the bottom. */
 type CellPainter = (u: number, v: number) => Rgba;
+
+const MILL_ID_CELLS: Readonly<Record<string, DecalCell>> = {
+  'rm-101': DECAL_CELL.mill101,
+  'rm-102': DECAL_CELL.mill102,
+  'rm-103': DECAL_CELL.mill103,
+  'rm-104': DECAL_CELL.mill104,
+};
 
 const CLEAR: Rgba = [0, 0, 0, 0];
 
@@ -104,8 +117,6 @@ const PLATE_DARK = opaque('#2b3235');
 const PLATE_EDGE = opaque('#8d979b');
 const PLATE_TEXT = opaque('#cfd6d8');
 const PLATE_SCREW = opaque('#6f797d');
-const INSPECT_GREEN = opaque('#2e8b57');
-const INSPECT_DARK = opaque('#14532d');
 const ARROW_BACK = opaque('#1f2a2e');
 const ARROW_WHITE = opaque('#e8eef0');
 
@@ -169,6 +180,79 @@ function warningTriangle(u: number, v: number, glyph: (u: number, v: number) => 
 /** Lightning bolt, drawn as one closed zigzag polygon. */
 const BOLT = [0.58, 0.7, 0.4, 0.42, 0.5, 0.42, 0.42, 0.16, 0.62, 0.48, 0.51, 0.48];
 
+/** Compact engraved lettering shared by serial plates and the instrument scale. */
+const MACHINE_GLYPHS: Readonly<Record<string, readonly string[]>> = {
+  R: ['11110', '10001', '10001', '11110', '10100', '10010', '10001'],
+  M: ['10001', '11011', '10101', '10101', '10001', '10001', '10001'],
+  '.': ['0', '0', '0', '0', '0', '1', '1'],
+  '0': ['01110', '10001', '10011', '10101', '11001', '10001', '01110'],
+  '1': ['010', '110', '010', '010', '010', '010', '111'],
+  '2': ['01110', '10001', '00001', '00010', '00100', '01000', '11111'],
+  '3': ['11110', '00001', '00001', '01110', '00001', '00001', '11110'],
+  '4': ['00010', '00110', '01010', '10010', '11111', '00010', '00010'],
+  '5': ['11111', '10000', '10000', '11110', '00001', '00001', '11110'],
+  L: ['10000', '10000', '10000', '10000', '10000', '10000', '11111'],
+  O: ['01110', '10001', '10001', '10001', '10001', '10001', '01110'],
+  A: ['01110', '10001', '10001', '11111', '10001', '10001', '10001'],
+  D: ['11110', '10001', '10001', '10001', '10001', '10001', '11110'],
+  '%': ['11001', '11010', '00010', '00100', '01000', '01011', '10011'],
+};
+const letteringRows = (text: string): string[] =>
+  Array.from({ length: 7 }, (_, row) =>
+    [...text].map((letter) => MACHINE_GLYPHS[letter][row]).join('0')
+  );
+
+function millIdentityPlate(serial: string): CellPainter {
+  const rows = letteringRows(serial);
+  const rim = opaque('#bda573');
+  const ink = opaque('#e2ce9e');
+  const background = opaque('#1d3031');
+  return (u, v) => {
+    const edge = roundedRect(u, v, 0.06);
+    if (edge > 0) return CLEAR;
+    if (edge > -0.035) return rim;
+    if ((u < 0.065 || u > 0.935) && (v < 0.16 || v > 0.84)) return PLATE_SCREW;
+    const col = Math.floor(((u - 0.1) / 0.8) * rows[0].length);
+    const row = Math.floor(((0.72 - v) / 0.44) * 7);
+    return rows[row]?.[col] === '1' ? ink : background;
+  };
+}
+
+/** Printed scale only. The needle comes from telemetry in the shared shader. */
+const DIAL_INK = opaque('#242923');
+const DIAL_PAPER = opaque('#ded8be');
+const DIAL_LABELS = [
+  { rows: letteringRows('0'), x: 0.255, y: 0.24, w: 0.065 },
+  { rows: letteringRows('50'), x: 0.5, y: 0.775, w: 0.12 },
+  { rows: letteringRows('100'), x: 0.735, y: 0.24, w: 0.155 },
+  { rows: letteringRows('LOAD%'), x: 0.5, y: 0.36, w: 0.39 },
+] as const;
+
+function motorLoadDial(u: number, v: number): Rgba {
+  const dx = u - 0.5;
+  const dy = v - 0.5;
+  const radius = Math.hypot(dx, dy);
+  if (radius > 0.47) return CLEAR;
+  if (radius > 0.445) return DIAL_INK;
+  // Zero is lower left, fifty is top, one hundred is lower right.
+  const fraction = (Math.PI * 1.25 - Math.atan2(dy, dx)) / (Math.PI * 1.5);
+  const wrapped = fraction > 1 ? fraction - 4 / 3 : fraction;
+  const tick = Math.round(wrapped * 20);
+  if (tick >= 0 && tick <= 20) {
+    const angle = Math.PI * 1.25 - (tick / 20) * Math.PI * 1.5;
+    const across = Math.abs(dx * Math.sin(angle) - dy * Math.cos(angle));
+    const along = dx * Math.cos(angle) + dy * Math.sin(angle);
+    if (across < 0.008 && along > (tick % 5 === 0 ? 0.315 : 0.355) && along < 0.405)
+      return DIAL_INK;
+  }
+  for (const label of DIAL_LABELS) {
+    const col = Math.floor(((u - label.x) / label.w + 0.5) * label.rows[0].length);
+    const row = Math.floor(((label.y - v) / 0.075 + 0.5) * label.rows.length);
+    if (label.rows[row]?.[col] === '1') return DIAL_INK;
+  }
+  return DIAL_PAPER;
+}
+
 const PAINTERS: readonly CellPainter[] = [
   // 0 - hazardChevron.
   // Tuned for a band roughly 10:1 wide: the 9x weighting on u cancels that
@@ -230,21 +314,8 @@ const PAINTERS: readonly CellPainter[] = [
     return PLATE_DARK;
   },
 
-  // 5 - inspectionSticker.
-  (u, v) => {
-    const dx = u - 0.5;
-    const dy = v - 0.5;
-    const r = Math.hypot(dx, dy);
-    if (r > 0.47) return CLEAR;
-    if (r > 0.4) return SIGN_WHITE;
-    if (r < 0.1) return SIGN_WHITE;
-    if (r > 0.2 && r < 0.38) {
-      const angle = Math.atan2(dy, dx);
-      const sector = angle / (Math.PI / 2);
-      if (Math.abs(sector - Math.round(sector)) < 0.1) return INSPECT_DARK;
-    }
-    return INSPECT_GREEN;
-  },
+  // 5 replaces the unused inspection-sticker cell. No atlas growth.
+  motorLoadDial,
 
   // 6 - greasePoint.
   (u, v) => {
@@ -257,6 +328,10 @@ const PAINTERS: readonly CellPainter[] = [
 
   // 7 - electricalWarning: lightning bolt.
   (u, v) => warningTriangle(u, v, (gu, gv) => pointInPolygon(gu, gv, BOLT)),
+  millIdentityPlate('R.M.101'),
+  millIdentityPlate('R.M.102'),
+  millIdentityPlate('R.M.103'),
+  millIdentityPlate('R.M.104'),
 ];
 
 function buildDecalAtlas(): THREE.DataTexture {
@@ -314,7 +389,7 @@ function buildDecalAtlas(): THREE.DataTexture {
 
 let atlasCache: THREE.DataTexture | null = null;
 
-/** The placard atlas, built once on first use. 512 x 256, ~0.5 MB. */
+/** The placard atlas, built once on first use. 512 x 384, ~0.75 MB. */
 export function getMachineDecalAtlas(): THREE.DataTexture {
   atlasCache ??= buildDecalAtlas();
   return atlasCache;
@@ -330,7 +405,7 @@ export const MACHINE_DECAL_GEOMETRY = new THREE.PlaneGeometry(1, 1);
  * Constant, per the CLAUDE.md ban on non-deterministic cache keys. Bump the
  * suffix by hand if the injected GLSL changes.
  */
-export const MACHINE_DECAL_CACHE_KEY = 'machineDecal_v1';
+export const MACHINE_DECAL_CACHE_KEY = 'machineDecal_v2';
 
 /**
  * The placards are LIT, not `MeshBasicMaterial`. A basic material ignores the
@@ -346,7 +421,7 @@ export const MACHINE_DECAL_CACHE_KEY = 'machineDecal_v1';
  * Only the silo nameplate below composes that standoff arithmetically
  * (`SILO_SKIN_RADIUS + SURFACE_LAYERS.machineDecal`). The remaining `push()`
  * calls carry ABSOLUTE face coordinates with the standoff already folded in -
- * e.g. the sifter placards at z+2.945 are the z+2.930 service-panel face plus
+ * e.g. the sifter placards at z+3.12 are the z+3.105 service-panel face plus
  * 15 mm - so they cannot be rewritten in terms of the constant without also
  * naming every face position. Registered as `machine-face-decals` in
  * `src/constants/depthRegistry.ts`.
@@ -369,24 +444,51 @@ MACHINE_DECAL_MATERIAL.onBeforeCompile = (shader) => {
       '#include <common>',
       `#include <common>
 attribute vec4 aDecalUvRect;
-varying vec2 vDecalUv;`
+attribute float aDecalDialValue;
+varying vec2 vDecalUv;
+varying vec2 vDecalLocalUv;
+varying float vDecalDialValue;`
     )
     .replace(
       '#include <uv_vertex>',
       `#include <uv_vertex>
-vDecalUv = aDecalUvRect.xy + uv * aDecalUvRect.zw;`
+vDecalUv = aDecalUvRect.xy + uv * aDecalUvRect.zw;
+vDecalLocalUv = uv;
+vDecalDialValue = aDecalDialValue;`
     );
   shader.fragmentShader = shader.fragmentShader
     .replace(
       '#include <common>',
       `#include <common>
-varying vec2 vDecalUv;`
+varying vec2 vDecalUv;
+varying vec2 vDecalLocalUv;
+varying float vDecalDialValue;`
     )
     .replace(
       '#include <map_fragment>',
       `#ifdef USE_MAP
   diffuseColor *= texture2D( map, vDecalUv );
-#endif`
+#endif
+if (vDecalDialValue > -1.5) {
+  // Match the padded atlas painter's local coordinates.
+  vec2 p = (vDecalLocalUv - vec2(0.5)) * ${CELL_PX / (CELL_PX - 2 * CELL_PAD_PX)};
+  float ink;
+  if (vDecalDialValue >= 0.0) {
+    float angle = 3.926990817 - vDecalDialValue * 4.712388980;
+    vec2 direction = vec2(cos(angle), sin(angle));
+    float along = clamp(dot(p, direction), -0.045, 0.335);
+    float distanceToNeedle = min(length(p - direction * along) - 0.009, length(p) - 0.032);
+    float aa = max(fwidth(distanceToNeedle), 0.001);
+    ink = 1.0 - smoothstep(-aa, aa, distanceToNeedle);
+  } else {
+    // Unavailable telemetry is a dash, never a fabricated zero reading.
+    vec2 d = abs(p) - vec2(0.09, 0.012);
+    float distanceToDash = max(d.x, d.y);
+    float aa = max(fwidth(distanceToDash), 0.001);
+    ink = 1.0 - smoothstep(-aa, aa, distanceToDash);
+  }
+  diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.012, 0.016, 0.011), ink);
+}`
     );
 };
 
@@ -395,11 +497,15 @@ varying vec2 vDecalUv;`
 // ===========================================================================
 
 export interface MachineDecalPlacement {
+  /** Owning casing, used to keep placards attached during operating motion. */
+  readonly machineId: string;
   /** World position of the quad centre. */
   readonly position: readonly [number, number, number];
   /** World width and height of the quad, in metres. */
   readonly size: readonly [number, number];
   readonly cell: DecalCell;
+  /** Zero for front placards; the mill's side serial plate faces -X. */
+  readonly rotationY?: number;
 }
 
 export interface MachineDecalSubsets {
@@ -426,12 +532,12 @@ const SILO_SKIN_RADIUS = 2.25;
  *
  *   mill   body front z+1.90 (x +/-2.40, y+0.35..5.05), base front z+2.20
  *          (x +/-2.60, y 0..0.64), recess front z+1.98 (x +/-1.825, y+1.47..4.17)
- *   sifter body front z+2.825 (x +/-3.25, y+0.145..3.495), service panel front
- *          z+2.93 (x +/-1.225, y+1.05..2.87), HMI screen x +/-0.41 y+1.95..2.45
+ *   sifter body front z+2.825, service panel front z+3.105
+ *          (x -1.315..2.215, y+0.935..3.185), HMI screen x +/-0.41 y+1.95..2.45
  *   packer body front z+1.725, panel front z+1.81 (x +/-1.325, y+2.225..3.875),
  *          base front z+2.125 (x +/-2.25, y 0..0.56)
- *   silo   hatch front z+2.3325 (x +/-0.475, y+6.525..7.775); ladder rails sit
- *          at x +/-0.34 so the hatch placard is kept inside +/-0.17
+ *   silo   shared SILO_ACCESS_LAYOUT keeps the lower hatch and placards beside
+ *          the ladder, tangent to the discharge enclosure.
  */
 export function planMachineDecals(subsets: MachineDecalSubsets): MachineDecalPlacement[] {
   const placements: MachineDecalPlacement[] = [];
@@ -443,43 +549,85 @@ export function planMachineDecals(subsets: MachineDecalSubsets): MachineDecalPla
     dz: number,
     width: number,
     height: number,
-    cell: DecalCell
+    cell: DecalCell,
+    rotationY = 0
   ) => {
     const [x, y, z] = machine.position;
+    const scale =
+      machine.type === MachineType.SILO ? getSiloAssemblyScale(machine.size) : [1, 1, 1];
     placements.push({
-      position: [x + dx, y + dy, z + dz],
-      size: [width, height],
+      machineId: machine.id,
+      position: [x + dx * scale[0], y + dy * scale[1], z + dz * scale[2]],
+      size: [width * scale[0], height * scale[1]],
       cell,
+      rotationY,
     });
   };
 
   subsets.silos.forEach((machine) => {
-    // Nameplate on the drum, below the ladder foot (y+3.5). Half-width 0.30 m
-    // gives a 20 mm sagitta against a 2.25 m radius.
-    push(
-      machine,
-      0,
-      3.0,
+    const angle = SILO_ACCESS_LAYOUT.hatchAngle;
+    const place = (radius: number, height: number, width: number, sizeY: number, cell: DecalCell) =>
+      push(
+        machine,
+        Math.sin(angle) * radius,
+        height,
+        Math.cos(angle) * radius,
+        width,
+        sizeY,
+        cell,
+        angle
+      );
+    place(
       SILO_SKIN_RADIUS + SURFACE_LAYERS.machineDecal,
-      0.6,
-      0.24,
+      SILO_ACCESS_LAYOUT.nameplateY,
+      0.45,
+      0.14,
       DECAL_CELL.namePlate
     );
-    // Caution placard on the FLAT hatch cover, between the ladder rails.
-    push(machine, 0, 7.15, 2.3425, 0.34, 0.34, DECAL_CELL.cautionTriangle);
+    // The caution plate follows the ground-level cover, clear of the ladder.
+    place(
+      SILO_ACCESS_LAYOUT.hatchRadius +
+        SILO_ACCESS_LAYOUT.hatchSize[2] / 2 +
+        SURFACE_LAYERS.machineDecal,
+      SILO_ACCESS_LAYOUT.hatchCentreY,
+      0.17,
+      0.17,
+      DECAL_CELL.cautionTriangle
+    );
   });
 
   subsets.mills.forEach((machine) => {
-    push(machine, -1.15, 3.85, 1.995, 0.9, 0.3, DECAL_CELL.namePlate);
+    // The flat lower service strip keeps both placards off the cast shoulder.
+    const identity = MILL_ID_CELLS[machine.id];
+    push(
+      machine,
+      0,
+      1.08,
+      2.056,
+      identity === undefined ? 0.9 : 1.25,
+      0.3,
+      identity ?? DECAL_CELL.namePlate
+    );
     push(machine, 0, 0.3, 2.215, 2.8, 0.3, DECAL_CELL.hazardChevron);
-    // Clear of the recess (ends at x +/-1.825) and inside the body (+/-2.40).
-    push(machine, 2.08, 3.4, 1.915, 0.42, 0.42, DECAL_CELL.electricalWarning);
+    push(machine, 1.4, 1.08, 2.056, 0.25, 0.25, DECAL_CELL.electricalWarning);
+    // Clear of the vents and cover bolts, on the real flat side inspection lid.
+    // Working if the ray test finds a 16 mm plate-to-cover gap across its face.
+    if (identity !== undefined)
+      push(machine, -2.481, 3.0, 0.84, 1.12, 0.43, identity, -Math.PI / 2);
+    push(
+      machine,
+      ...MILL_LOAD_DIAL.position,
+      MILL_LOAD_DIAL.diameter,
+      MILL_LOAD_DIAL.diameter,
+      DECAL_CELL.motorLoadDial,
+      -Math.PI / 2
+    );
   });
 
   subsets.sifters.forEach((machine) => {
-    push(machine, -0.78, 2.62, 2.945, 0.82, 0.26, DECAL_CELL.namePlate);
-    push(machine, 0.82, 1.45, 2.945, 0.36, 0.36, DECAL_CELL.cautionTriangle);
-    // On the body below the service panel (which starts at y+1.05) and above
+    push(machine, -0.78, 2.85, 3.12, 0.82, 0.26, DECAL_CELL.namePlate);
+    push(machine, 0.82, 1.45, 3.12, 0.36, 0.36, DECAL_CELL.cautionTriangle);
+    // On the body below the service panel (which starts at y+0.935) and above
     // the platform deck (which tops out at y+0.05).
     push(machine, 0, 0.62, 2.84, 4.2, 0.3, DECAL_CELL.hazardChevron);
   });
@@ -527,6 +675,43 @@ export function writeDecalUvRects(
   });
   attribute.needsUpdate = true;
   if (attribute !== existing) geometry.setAttribute('aDecalUvRect', attribute);
+
+  const values = geometry.getAttribute('aDecalDialValue');
+  if (!values || values.count !== placements.length) {
+    geometry.setAttribute(
+      'aDecalDialValue',
+      new THREE.InstancedBufferAttribute(new Float32Array(placements.length).fill(-2), 1)
+    );
+  }
+}
+
+/**
+ * Read the current roster, not the scene's status-only snapshots. Invalid
+ * telemetry is explicitly unavailable. Working if a load-only update moves
+ * its own needle, keeps other placards unchanged and allocates no new attribute.
+ */
+export function writeDecalDialReadings(
+  geometry: THREE.BufferGeometry,
+  placements: readonly MachineDecalPlacement[],
+  machines: readonly MachineData[]
+): void {
+  const attribute = geometry.getAttribute('aDecalDialValue') as THREE.InstancedBufferAttribute;
+  let changed = false;
+  placements.forEach((placement, index) => {
+    let value = -2;
+    if (placement.cell === DECAL_CELL.motorLoadDial) {
+      const load = machines.find((machine) => machine.id === placement.machineId)?.metrics?.load;
+      value =
+        typeof load === 'number' && Number.isFinite(load) && load >= 0 && load <= 100
+          ? Math.fround(load / 100)
+          : -1;
+    }
+    if (attribute.getX(index) !== value) {
+      attribute.setX(index, value);
+      changed = true;
+    }
+  });
+  if (changed) attribute.needsUpdate = true;
 }
 
 /** Exported for the invariant test. */

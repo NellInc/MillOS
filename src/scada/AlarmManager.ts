@@ -22,12 +22,26 @@ import {
   Quality,
 } from './types';
 
+/** Shelved, suppressed and out-of-service alarms stay listed but do not annunciate. */
+const isInService = (alarm: Alarm): boolean => (alarm.disposition ?? 'IN_SERVICE') === 'IN_SERVICE';
+
 export class AlarmManager {
   private activeAlarms: Map<string, Alarm> = new Map();
   private alarmHistory: Alarm[] = [];
   private suppressions: Map<string, AlarmSuppression> = new Map();
   private tagThresholds: Map<string, TagDefinition> = new Map();
   private listeners: Set<(alarms: Alarm[]) => void> = new Set();
+
+  /** Called with the archived copy whenever an alarm leaves the active set. */
+  onArchive?: (alarm: Alarm) => void;
+
+  // Machines stopped by design. Their status-dependent low limits are
+  // suppressed (ISA-18.2 state-based suppression): an idle mill at 0 RPM is
+  // not a LOLO speed fault. This is plant state, so reset() leaves it alone.
+  private stoppedEquipment = new Set<string>();
+
+  // acknowledgeAll() notifies once for the whole batch.
+  private batchingNotify = false;
 
   // Suppression cleanup throttling (avoid per-tag work when evaluating large batches)
   private lastSuppressionCleanup = 0;
@@ -66,6 +80,12 @@ export class AlarmManager {
     return now - this.startupTime < AlarmManager.WARMUP_PERIOD_MS;
   }
 
+  /** Record whether a machine is operating, for designed low-limit suppression. */
+  setEquipmentRunning(machineId: string, running: boolean): void {
+    if (running) this.stoppedEquipment.delete(machineId);
+    else this.stoppedEquipment.add(machineId);
+  }
+
   // =========================================================================
   // Core Alarm Evaluation
   // =========================================================================
@@ -101,12 +121,19 @@ export class AlarmManager {
       return;
     }
 
-    // Check quality alarm first
+    // Check quality alarm first. A sustained BAD signal is one condition, not
+    // one occurrence per sample.
     if (tagValue.quality === 'BAD') {
-      this.raiseAlarm(tag, 'BAD_QUALITY', numValue, 0, 'HIGH', tagValue.quality);
+      if (!lastState?.inAlarm || lastState.type !== 'BAD_QUALITY') {
+        this.raiseAlarm(tag, 'BAD_QUALITY', numValue, 0, 'HIGH', tagValue.quality);
+      }
       this.lastAlarmStates.set(tag.id, { inAlarm: true, type: 'BAD_QUALITY', value: numValue });
       return;
     }
+
+    // A stopped machine's speed and flow legitimately read zero.
+    const designedStop =
+      tag.simulation?.statusDependent === true && this.stoppedEquipment.has(tag.machineId);
 
     // Determine alarm condition (check from most severe to least)
     let alarmType: AlarmType | null = null;
@@ -120,7 +147,7 @@ export class AlarmManager {
     } else if (tag.alarmHi !== undefined && numValue >= tag.alarmHi) {
       // Apply deadband for returning from higher alarm
       if (lastState?.type === 'HIHI' && tag.alarmHiHi !== undefined) {
-        if (numValue >= tag.alarmHi - deadband) {
+        if (numValue >= tag.alarmHiHi - deadband) {
           alarmType = 'HIHI';
           threshold = tag.alarmHiHi;
           priority = 'CRITICAL';
@@ -134,14 +161,14 @@ export class AlarmManager {
         threshold = tag.alarmHi;
         priority = 'HIGH';
       }
-    } else if (tag.alarmLoLo !== undefined && numValue <= tag.alarmLoLo) {
+    } else if (!designedStop && tag.alarmLoLo !== undefined && numValue <= tag.alarmLoLo) {
       alarmType = 'LOLO';
       threshold = tag.alarmLoLo;
       priority = 'CRITICAL';
-    } else if (tag.alarmLo !== undefined && numValue <= tag.alarmLo) {
+    } else if (!designedStop && tag.alarmLo !== undefined && numValue <= tag.alarmLo) {
       // Apply deadband for returning from lower alarm
       if (lastState?.type === 'LOLO' && tag.alarmLoLo !== undefined) {
-        if (numValue <= tag.alarmLo + deadband) {
+        if (numValue <= tag.alarmLoLo + deadband) {
           alarmType = 'LOLO';
           threshold = tag.alarmLoLo;
           priority = 'CRITICAL';
@@ -161,6 +188,15 @@ export class AlarmManager {
     if (alarmType) {
       // Value is in alarm condition
       if (!lastState?.inAlarm || lastState.type !== alarmType) {
+        // De-escalation retires the higher alarm rather than leaving it
+        // CRITICAL beside the HI/LO that replaces it.
+        if (
+          lastState?.inAlarm &&
+          ((lastState.type === 'HIHI' && alarmType === 'HI') ||
+            (lastState.type === 'LOLO' && alarmType === 'LO'))
+        ) {
+          this.clearAlarm(tag.id, lastState.type);
+        }
         // New alarm or alarm type changed
         this.raiseAlarm(tag, alarmType, numValue, threshold, priority, tagValue.quality);
       }
@@ -168,7 +204,10 @@ export class AlarmManager {
     } else {
       // Value returned to normal - apply deadband
       if (lastState?.inAlarm) {
-        const shouldClear = this.checkDeadbandForClear(tag, numValue, lastState);
+        // A low alarm raised before a designed stop clears with the stop.
+        const shouldClear =
+          (designedStop && (lastState.type === 'LO' || lastState.type === 'LOLO')) ||
+          this.checkDeadbandForClear(tag, numValue, lastState);
         if (shouldClear) {
           this.clearAlarm(tag.id);
           this.lastAlarmStates.set(tag.id, { inAlarm: false, value: numValue });
@@ -272,11 +311,11 @@ export class AlarmManager {
     }
   }
 
-  private clearAlarm(tagId: string): void {
+  private clearAlarm(tagId: string, onlyType?: AlarmType): void {
     const toClear: string[] = [];
 
     this.activeAlarms.forEach((alarm, id) => {
-      if (alarm.tagId === tagId) {
+      if (alarm.tagId === tagId && (!onlyType || alarm.type === onlyType)) {
         toClear.push(id);
       }
     });
@@ -316,7 +355,9 @@ export class AlarmManager {
    */
   acknowledge(alarmId: string, controlSource: string, note?: string): boolean {
     const alarm = this.activeAlarms.get(alarmId);
-    if (!alarm) {
+    // Only alarms awaiting a response can be acknowledged. Re-stamping an
+    // ACKED alarm would overwrite who acknowledged it, when, and why.
+    if (!alarm || (alarm.state !== 'UNACK' && alarm.state !== 'RTN_UNACK')) {
       return false;
     }
 
@@ -336,32 +377,44 @@ export class AlarmManager {
       logger.scada.info(`[AlarmManager] ALARM CLEARED (RTN): ${alarm.tagName} by ${controlSource}`);
     }
 
-    this.notifyListeners();
+    if (!this.batchingNotify) this.notifyListeners();
     return true;
   }
 
   /**
-   * Acknowledge all active alarms
+   * Acknowledge every in-service alarm awaiting a response. Shelved,
+   * suppressed and out-of-service alarms are left for their own disposition.
    */
   acknowledgeAll(controlSource: string, note?: string): number {
     let count = 0;
-    const alarmIds = Array.from(this.activeAlarms.keys());
-
-    alarmIds.forEach((id) => {
-      if (this.acknowledge(id, controlSource, note)) {
-        count++;
-      }
+    const alarmIds: string[] = [];
+    this.activeAlarms.forEach((alarm, id) => {
+      if (isInService(alarm)) alarmIds.push(id);
     });
 
+    this.batchingNotify = true;
+    try {
+      alarmIds.forEach((id) => {
+        if (this.acknowledge(id, controlSource, note)) {
+          count++;
+        }
+      });
+    } finally {
+      this.batchingNotify = false;
+    }
+
+    if (count > 0) this.notifyListeners();
     return count;
   }
 
   private archiveAlarm(alarm: Alarm, clearedAt: number): void {
-    this.alarmHistory.push({
-      ...alarm,
-      state: 'NORMAL',
-      clearedAt,
-    });
+    const archived: Alarm = { ...alarm, state: 'NORMAL', clearedAt };
+    this.alarmHistory.push(archived);
+    try {
+      this.onArchive?.(archived);
+    } catch (e) {
+      logger.scada.error('onArchive failed', e);
+    }
 
     // Keep only last 1000 historical alarms
     if (this.alarmHistory.length > 1000) {
@@ -419,8 +472,9 @@ export class AlarmManager {
     this.activeAlarms.forEach((alarm) => {
       if (alarm.tagId === tagId) alarm.disposition = 'IN_SERVICE';
     });
-    const lastState = this.lastAlarmStates.get(tagId);
-    if (lastState) lastState.inAlarm = false;
+    // lastAlarmStates is left as recorded: the next sample then clears an
+    // alarm whose condition ended while it was shelved, or keeps a persisting
+    // one annunciated.
     this.notifyListeners();
     logger.scada.info(`[AlarmManager] Suppression removed for ${tagId}`);
   }
@@ -500,7 +554,7 @@ export class AlarmManager {
   getUnacknowledgedCount(): number {
     let count = 0;
     this.activeAlarms.forEach((alarm) => {
-      if (alarm.state === 'UNACK' || alarm.state === 'RTN_UNACK') {
+      if (isInService(alarm) && (alarm.state === 'UNACK' || alarm.state === 'RTN_UNACK')) {
         count++;
       }
     });
@@ -508,7 +562,7 @@ export class AlarmManager {
   }
 
   /**
-   * Get count by priority
+   * Get count of in-service alarms by priority
    */
   getCountByPriority(): Record<AlarmPriority, number> {
     const counts: Record<AlarmPriority, number> = {
@@ -519,7 +573,7 @@ export class AlarmManager {
     };
 
     this.activeAlarms.forEach((alarm) => {
-      counts[alarm.priority]++;
+      if (isInService(alarm)) counts[alarm.priority]++;
     });
 
     return counts;
@@ -598,12 +652,12 @@ export class AlarmManager {
   // =========================================================================
 
   /**
-   * Check if any critical alarms are active
+   * Check if any in-service critical alarms are active
    */
   hasCriticalAlarms(): boolean {
     let hasCritical = false;
     this.activeAlarms.forEach((alarm) => {
-      if (alarm.priority === 'CRITICAL') {
+      if (alarm.priority === 'CRITICAL' && isInService(alarm)) {
         hasCritical = true;
       }
     });

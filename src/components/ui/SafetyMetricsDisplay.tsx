@@ -1,45 +1,62 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Activity, AlertTriangle, Route, Shield } from 'lucide-react';
 import { useSafetyStore } from '../../stores/safetyStore';
 import { useUIStore } from '../../stores/uiStore';
 
+const formatTimeSince = (lastIncidentTime: number | null | undefined): string => {
+  if (!lastIncidentTime) return 'Clean record';
+  const seconds = Math.max(0, Math.floor((Date.now() - lastIncidentTime) / 1000));
+  if (seconds < 15) return 'just now';
+  if (seconds < 60) return `${seconds}s ago`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  return `${Math.floor(minutes / 60)}h ago`;
+};
+
 export const SafetyMetricsDisplay: React.FC = () => {
   const safetyMetrics = useSafetyStore((state) => state.safetyMetrics);
   const theme = useUIStore((state) => state.theme);
-  const [prevMetrics, setPrevMetrics] = useState(safetyMetrics);
   const [flashStop, setFlashStop] = useState(false);
   const [flashEvasion, setFlashEvasion] = useState(false);
+  const [, setTick] = useState(0);
+  const prevStopsRef = useRef(safetyMetrics.safetyStops);
+  const prevConflictsRef = useRef(safetyMetrics.routeConflicts);
+  const stopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const evasionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Flash animation when metrics change
+  // Flash a card when its counter rises. The previous values live in refs and
+  // the clear timers are only cancelled on unmount (or by a newer flash), so a
+  // re-render can never cancel an in-flight clear and latch the flash on.
   useEffect(() => {
-    let stopTimeout: NodeJS.Timeout | null = null;
-    let evasionTimeout: NodeJS.Timeout | null = null;
-
-    if (safetyMetrics.safetyStops > prevMetrics.safetyStops) {
+    if (safetyMetrics.safetyStops > prevStopsRef.current) {
       setFlashStop(true);
-      stopTimeout = setTimeout(() => setFlashStop(false), 500);
+      if (stopTimerRef.current) clearTimeout(stopTimerRef.current);
+      stopTimerRef.current = setTimeout(() => setFlashStop(false), 500);
     }
-    if (safetyMetrics.routeConflicts > prevMetrics.routeConflicts) {
+    if (safetyMetrics.routeConflicts > prevConflictsRef.current) {
       setFlashEvasion(true);
-      evasionTimeout = setTimeout(() => setFlashEvasion(false), 500);
+      if (evasionTimerRef.current) clearTimeout(evasionTimerRef.current);
+      evasionTimerRef.current = setTimeout(() => setFlashEvasion(false), 500);
     }
-    setPrevMetrics(safetyMetrics);
+    prevStopsRef.current = safetyMetrics.safetyStops;
+    prevConflictsRef.current = safetyMetrics.routeConflicts;
+  }, [safetyMetrics.safetyStops, safetyMetrics.routeConflicts]);
 
+  useEffect(() => {
     return () => {
-      if (stopTimeout) clearTimeout(stopTimeout);
-      if (evasionTimeout) clearTimeout(evasionTimeout);
+      if (stopTimerRef.current) clearTimeout(stopTimerRef.current);
+      if (evasionTimerRef.current) clearTimeout(evasionTimerRef.current);
     };
-  }, [safetyMetrics, prevMetrics]);
+  }, []);
 
-  // Calculate time since last incident
-  const timeSinceIncident = useMemo(() => {
-    if (!safetyMetrics.lastIncidentTime) return 'No incidents';
-    const seconds = Math.floor((Date.now() - safetyMetrics.lastIncidentTime) / 1000);
-    if (seconds < 60) return `${seconds}s ago`;
-    const minutes = Math.floor(seconds / 60);
-    if (minutes < 60) return `${minutes}m ago`;
-    return `${Math.floor(minutes / 60)}h ago`;
+  // Re-render periodically so "Last Event" keeps counting up between incidents.
+  useEffect(() => {
+    if (!safetyMetrics.lastIncidentTime) return;
+    const id = setInterval(() => setTick((t) => t + 1), 15000);
+    return () => clearInterval(id);
   }, [safetyMetrics.lastIncidentTime]);
+
+  const timeSinceIncident = formatTimeSince(safetyMetrics.lastIncidentTime);
 
   const cardBg = theme === 'light' ? 'bg-slate-100' : 'bg-slate-800/50';
 

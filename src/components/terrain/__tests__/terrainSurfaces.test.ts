@@ -14,6 +14,8 @@
 
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
+import { readFileSync } from 'node:fs';
+import { generateTarmac } from '../../../textures/tarmac';
 import {
   generateGrassSurface,
   generateTarmacSurface,
@@ -21,7 +23,7 @@ import {
   generateTerrainMacro,
 } from '../terrainTextures';
 import { generateSplatMap, MILLOS_TERRAIN_REGIONS } from '../splatMapGenerator';
-import { SPLAT_BOUNDS } from '../terrainTypes';
+import { SPLAT_BOUNDS, TERRAIN_TINTS, YARD_PAVING_TINT } from '../terrainTypes';
 
 type Channel = 0 | 1 | 2 | 3;
 
@@ -66,6 +68,43 @@ const SURFACES: Array<[string, (size: number) => THREE.DataTexture]> = [
   ['dirt', generateDirtSurface],
 ];
 
+describe('weathered yard albedo', () => {
+  it('lifts the real tarmac into warm aggregate without exceeding diffuse reflectance', () => {
+    const texture = generateTarmac(128);
+    const data = texture.image.data as Uint8Array;
+    const pixel = new THREE.Color();
+    const sum = new THREE.Color(0, 0, 0);
+    let minimum = Infinity;
+    let maximum = 0;
+    for (let i = 0; i < data.length; i += 4) {
+      pixel.setRGB(data[i] / 255, data[i + 1] / 255, data[i + 2] / 255, THREE.SRGBColorSpace);
+      pixel.multiply(YARD_PAVING_TINT);
+      sum.add(pixel);
+      minimum = Math.min(minimum, pixel.r, pixel.g, pixel.b);
+      maximum = Math.max(maximum, pixel.r, pixel.g, pixel.b);
+    }
+    sum.multiplyScalar(4 / data.length);
+    expect(minimum).toBeGreaterThan(0);
+    expect(maximum).toBeLessThan(1);
+    expect(sum.r).toBeGreaterThan(0.22);
+    expect(sum.r).toBeLessThan(0.4);
+    expect(sum.r).toBeGreaterThan(sum.g);
+    expect(sum.g).toBeGreaterThan(sum.b);
+    expect(maximum - minimum).toBeGreaterThan(0.1);
+    expect(TERRAIN_TINTS.asphalt).toBe(YARD_PAVING_TINT);
+    expect(TERRAIN_TINTS.road).toBe('#e2e4e6');
+  });
+
+  it('shares the terrain gain with both yards and dock grooves, leaving them non-emissive', () => {
+    const source = readFileSync('src/components/TruckBay.tsx', 'utf8');
+    const surface = source.split('const YARD_TARMAC_SURFACE = {')[1]?.split('} as const;')[0];
+    expect(surface).toContain('color: YARD_PAVING_TINT');
+    expect(surface).toContain('map: YARD_TARMAC_MAP');
+    expect(surface).not.toMatch(/emissive/);
+    expect(source.match(/\.\.\.YARD_TARMAC_SURFACE/g)).toHaveLength(4);
+  });
+});
+
 describe('terrain packed surface textures', () => {
   const size = 128;
 
@@ -94,6 +133,20 @@ describe('terrain packed surface textures', () => {
     // A flat normal map would have near-zero spread in X and Y.
     expect(nx.stdDev).toBeGreaterThan(0.03);
     expect(ny.stdDev).toBeGreaterThan(0.03);
+  });
+
+  it.each([128, 256])('grass at %i px carries leaf relief, not ground-sized ridges', (size) => {
+    const data = generateGrassSurface(size).image.data as Uint8Array;
+    let slopeSquared = 0;
+    for (let offset = 0; offset < data.length; offset += 4) {
+      const nx = (data[offset] / 255) * 2 - 1;
+      const ny = (data[offset + 1] / 255) * 2 - 1;
+      const nzSquared = Math.max(0.0001, 1 - nx * nx - ny * ny);
+      slopeSquared += (nx * nx + ny * ny) / nzSquared;
+    }
+    const rmsSlope = Math.sqrt(slopeSquared / (size * size));
+    expect(rmsSlope).toBeGreaterThan(0.1);
+    expect(rmsSlope).toBeLessThan(0.14);
   });
 
   it.each(SURFACES)('%s roughness channel is written and varies', (_name, generate) => {
@@ -173,14 +226,31 @@ describe('splat map over SPLAT_BOUNDS', () => {
   const sample = (worldX: number, worldZ: number) => {
     const spanX = SPLAT_BOUNDS.maxX - SPLAT_BOUNDS.minX;
     const spanZ = SPLAT_BOUNDS.maxZ - SPLAT_BOUNDS.minZ;
-    const px = Math.round(((worldX - SPLAT_BOUNDS.minX) / spanX) * resolution - 0.5);
-    const py = Math.round(((worldZ - SPLAT_BOUNDS.minZ) / spanZ) * resolution - 0.5);
-    const idx = (py * resolution + px) * 4;
+    // Match the texture's linear filtering at this exact world position.
+    // Nearest sampling silently shifts the probe by up to half a texel,
+    // enough to cross a narrow verge when the painted domain changes.
+    const px = ((worldX - SPLAT_BOUNDS.minX) / spanX) * resolution - 0.5;
+    const py = ((worldZ - SPLAT_BOUNDS.minZ) / spanZ) * resolution - 0.5;
+    const x0 = Math.floor(px);
+    const y0 = Math.floor(py);
+    const fx = px - x0;
+    const fy = py - y0;
+    const texel = (x: number, y: number, channel: Channel) => {
+      const ix = THREE.MathUtils.clamp(x, 0, resolution - 1);
+      const iy = THREE.MathUtils.clamp(y, 0, resolution - 1);
+      return data[(iy * resolution + ix) * 4 + channel] / 255;
+    };
+    const channel = (c: Channel) =>
+      THREE.MathUtils.lerp(
+        THREE.MathUtils.lerp(texel(x0, y0, c), texel(x0 + 1, y0, c), fx),
+        THREE.MathUtils.lerp(texel(x0, y0 + 1, c), texel(x0 + 1, y0 + 1, c), fx),
+        fy
+      );
     return {
-      grass: data[idx] / 255,
-      asphalt: data[idx + 1] / 255,
-      road: data[idx + 2] / 255,
-      dirt: data[idx + 3] / 255,
+      grass: channel(0),
+      asphalt: channel(1),
+      road: channel(2),
+      dirt: channel(3),
     };
   };
 
@@ -201,6 +271,25 @@ describe('splat map over SPLAT_BOUNDS', () => {
   it('paints both approach roads', () => {
     expect(dominant(sample(20, 160))).toBe('road');
     expect(dominant(sample(-20, -160))).toBe('road');
+    // Into the tunnel bores, whose portals stand at z = +/-220.
+    expect(dominant(sample(20, 225))).toBe('road');
+    expect(dominant(sample(-20, -225))).toBe('road');
+  });
+
+  it('ends both roads before the clamped texture border', () => {
+    expect(sample(20, 310).grass).toBe(1);
+    expect(sample(-20, -310).grass).toBe(1);
+    for (let i = 0; i < resolution; i++) {
+      for (const [x, y] of [
+        [i, 0],
+        [i, resolution - 1],
+        [0, i],
+        [resolution - 1, i],
+      ]) {
+        const offset = (y * resolution + x) * 4;
+        expect(Array.from(data.slice(offset, offset + 4))).toEqual([255, 0, 0, 0]);
+      }
+    }
   });
 
   it('paints dirt verges beside the roads, never on them', () => {
@@ -219,16 +308,26 @@ describe('splat map over SPLAT_BOUNDS', () => {
     expect(dominant(sample(0, 80))).toBe('asphalt');
   });
 
+  it('grounds the station and actual visitor lot with soft worn margins', () => {
+    expect(dominant(sample(-88, 140))).toBe('asphalt');
+    expect(dominant(sample(-99, 140))).toBe('asphalt');
+    expect(dominant(sample(120, 50))).toBe('asphalt');
+    expect(sample(-88, 150).dirt).toBeGreaterThan(0.1);
+    expect(sample(135, 50).dirt).toBeGreaterThan(0.1);
+    expect(sample(-88, 160).grass).toBeGreaterThan(0.95);
+  });
+
   it('is clamped, mipmapped linear data', () => {
     expect(texture.colorSpace).toBe(THREE.NoColorSpace);
     expect(texture.wrapS).toBe(THREE.ClampToEdgeWrapping);
     expect(texture.wrapT).toBe(THREE.ClampToEdgeWrapping);
     expect(texture.generateMipmaps).toBe(true);
     expect(texture.minFilter).toBe(THREE.LinearMipmapLinearFilter);
+    expect(texture.magFilter).toBe(THREE.LinearFilter);
   });
 
   it('contains every painted region well inside its domain', () => {
-    // The furthest region edge is the front road at z=230; SPLAT_BOUNDS must
+    // The furthest region edges are the approach roads at z=+/-280; the domain must
     // keep a margin so ClampToEdge only ever resolves to pure grass.
     for (const region of MILLOS_TERRAIN_REGIONS) {
       const shape = region.shape;

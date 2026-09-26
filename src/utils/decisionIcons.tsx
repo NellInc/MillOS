@@ -65,17 +65,35 @@ export function getDecisionStatusIcon(
   size: IconSize = 'sm'
 ): React.ReactNode {
   const sizeClass = iconSizeClasses[size];
+  // The icon is often the only status signal on a card, so it is labelled
+  // (a label also stops lucide from auto-hiding it from assistive tech).
   switch (status) {
     case 'completed':
-      return <CheckCircle className={`${sizeClass} text-green-400`} />;
+      return (
+        <CheckCircle className={`${sizeClass} text-green-400`} role="img" aria-label="Completed" />
+      );
     case 'in_progress':
-      return <Activity className={`${sizeClass} text-blue-400 animate-pulse`} />;
+      return (
+        <Activity
+          className={`${sizeClass} text-blue-400 motion-safe:animate-pulse`}
+          role="img"
+          aria-label="In progress"
+        />
+      );
     case 'pending':
-      return <Clock className={`${sizeClass} text-yellow-400`} />;
+      return <Clock className={`${sizeClass} text-yellow-400`} role="img" aria-label="Pending" />;
     case 'superseded':
-      return <AlertTriangle className={`${sizeClass} text-slate-400`} />;
+      return (
+        <AlertTriangle
+          className={`${sizeClass} text-slate-400`}
+          role="img"
+          aria-label="Superseded"
+        />
+      );
     default:
-      return <Clock className={`${sizeClass} text-slate-400`} />;
+      return (
+        <Clock className={`${sizeClass} text-slate-400`} role="img" aria-label="Status unknown" />
+      );
   }
 }
 

@@ -1,21 +1,12 @@
 /**
  * Texture Preloader
  *
- * Generates all procedural textures at startup to avoid runtime hitches.
- * Call once in App initialization.
+ * Warms the procedural textures that live surfaces request lazily at mount, so
+ * those mounts do not hitch. Call once in App initialization.
  */
 
-import { generateBrushedMetal } from '../textures/brushedMetal';
-import { generatePaintedMetal } from '../textures/paintedMetal';
-import { generateConcrete, generateConcreteRoughness } from '../textures/concrete';
-import { generateGrainPattern, getFlourSackMaps } from '../textures/grain';
-import { generateRustPattern } from '../textures/rust';
-import { generateSafetyStripe } from '../textures/safetyStripe';
-import {
-  generateProceduralNormal,
-  generatePanelNormal,
-  generateMachinePanelNormal,
-} from '../textures/normalGenerator';
+import { getFlourSackMaps } from '../textures/grain';
+import { generateProceduralNormal } from '../textures/normalGenerator';
 import { logger } from './logger';
 
 /**
@@ -27,38 +18,20 @@ export const preloadGenerativeTextures = (): Promise<void> => {
     logger.info('[Textures] Generating procedural textures...');
     const startTime = performance.now();
 
-    // Each task generates one texture variant (they auto-cache). Chunked across
-    // idle callbacks so the 16 generations do not block the first interactive
-    // frames after mount; output is identical, only timing changes.
+    // Each task generates one texture variant (they auto-cache). Only keys a
+    // live surface requests lazily at mount belong here: everything the shared
+    // material modules build at import is already cached, and a variant nothing
+    // samples is pure main-thread work. Chunked across idle callbacks so the
+    // generations do not block the first interactive frames after mount.
     const tasks: Array<() => void> = [
-      // Brushed metal variants
-      () => generateBrushedMetal(256, 0.3, 'horizontal'),
-      () => generateBrushedMetal(256, 0.4, 'vertical'),
-      () => generateBrushedMetal(256, 0.3, 'diagonal'),
-      // Painted metal variants
-      () => generatePaintedMetal(256, 0.2, 8),
-      () => generatePaintedMetal(256, 0.4, 6),
-      // Concrete/floor
-      () => generateConcrete(512, 64, true),
-      () => generateConcrete(512, 128, false),
-      () => generateConcreteRoughness(512),
-      // Specialty textures
-      () => generateGrainPattern(256, 0.4),
       // Flour-sack cloth (albedo + normal + roughness) for the conveyor bags.
       // Requested through the shared preset helper so these cache keys are
       // byte-identical to the ones ConveyorSystem asks for at mount.
       () => getFlourSackMaps(),
-      () => generateRustPattern(256, 0.3, 'down'),
-      () => generateSafetyStripe(256, 32),
-      // Normal maps
-      () => generateProceduralNormal(256, 1.0, 10),
-      () => generateProceduralNormal(256, 0.5, 15),
-      () => generateProceduralNormal(256, 0.5, 20),
-      () => generatePanelNormal(256, 4, 0.02),
-      () => generatePanelNormal(512, 8, 0.03),
-      // Sheet-metal relief for the spouting runs (SpoutingSystem clones this
+      // Sheet-metal detail relief for the spouting runs, requested by
+      // SpoutingSystem's route materials on medium and above (it clones this
       // and re-tiles it; the cached source is shared).
-      () => generateMachinePanelNormal(256, 4, 6),
+      () => generateProceduralNormal(256, 0.12, 16),
     ];
 
     const totalTasks = tasks.length;

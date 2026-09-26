@@ -25,29 +25,42 @@ const normalHash = (x: number, y: number): number => {
   return ((value ^ (value >>> 15)) >>> 0) / 0xffffffff;
 };
 
-const fastSmoothNoise = (x: number, y: number): number => {
+const wrapLattice = (index: number, period: number): number => ((index % period) + period) % period;
+
+/**
+ * `period` (an integer, in lattice cells) makes the noise tile: a map that
+ * samples one full period across its width then joins itself at the wrap
+ * instead of turning the height jump into a spike normal along every edge.
+ */
+const fastSmoothNoise = (x: number, y: number, period?: number): number => {
   const ix = Math.floor(x);
   const iy = Math.floor(y);
   const fx = x - ix;
   const fy = y - iy;
   const sx = fx * fx * (3 - 2 * fx);
   const sy = fy * fy * (3 - 2 * fy);
-  const n00 = normalHash(ix, iy);
-  const n10 = normalHash(ix + 1, iy);
-  const n01 = normalHash(ix, iy + 1);
-  const n11 = normalHash(ix + 1, iy + 1);
+  const x0 = period ? wrapLattice(ix, period) : ix;
+  const x1 = period ? wrapLattice(ix + 1, period) : ix + 1;
+  const y0 = period ? wrapLattice(iy, period) : iy;
+  const y1 = period ? wrapLattice(iy + 1, period) : iy + 1;
+  const n00 = normalHash(x0, y0);
+  const n10 = normalHash(x1, y0);
+  const n01 = normalHash(x0, y1);
+  const n11 = normalHash(x1, y1);
   const nx0 = n00 + (n10 - n00) * sx;
   const nx1 = n01 + (n11 - n01) * sx;
   return nx0 + (nx1 - nx0) * sy;
 };
 
-const fastFbmNoise = (x: number, y: number, octaves: number): number => {
+const fastFbmNoise = (x: number, y: number, octaves: number, period?: number): number => {
   let value = 0;
   let amplitude = 0.5;
   let frequency = 1;
   let weight = 0;
   for (let octave = 0; octave < octaves; octave++) {
-    value += fastSmoothNoise(x * frequency, y * frequency) * amplitude;
+    value +=
+      fastSmoothNoise(x * frequency, y * frequency, period ? period * frequency : undefined) *
+      amplitude;
     weight += amplitude;
     amplitude *= 0.5;
     frequency *= 2;
@@ -64,8 +77,10 @@ export const generateProceduralNormal = (
   bumpScale: number = 1.0,
   noiseScale: number = 10
 ): THREE.DataTexture => {
-  return getTexture(`procedural-normal-v2-${size}-${bumpScale}-${noiseScale}`, () => {
+  return getTexture(`procedural-normal-v3-${size}-${bumpScale}-${noiseScale}`, () => {
     const data = new Uint8Array(size * size * 4);
+    // The map spans `noiseScale` lattice cells, so that is the tiling period.
+    const period = Math.max(1, Math.round(noiseScale));
 
     // First pass: generate height map
     const heights = new Float32Array(size * size);
@@ -73,7 +88,7 @@ export const generateProceduralNormal = (
       for (let x = 0; x < size; x++) {
         const nx = x / size;
         const ny = y / size;
-        heights[y * size + x] = fastFbmNoise(nx * noiseScale, ny * noiseScale, 4);
+        heights[y * size + x] = fastFbmNoise(nx * noiseScale, ny * noiseScale, 4, period);
       }
     }
 
@@ -103,10 +118,11 @@ export const generateProceduralNormal = (
         const nny = ny / len;
         const nnz = nz / len;
 
-        // Encode to 0-255 range (normal maps use 128 as zero)
-        data[i] = Math.floor((nnx * 0.5 + 0.5) * 255); // R = X
-        data[i + 1] = Math.floor((nny * 0.5 + 0.5) * 255); // G = Y
-        data[i + 2] = Math.floor((nnz * 0.5 + 0.5) * 255); // B = Z
+        // Encode to 0-255 range (normal maps use 128 as zero). Rounded, not
+        // floored: flooring biases every flat texel to 127.
+        data[i] = Math.round((nnx * 0.5 + 0.5) * 255); // R = X
+        data[i + 1] = Math.round((nny * 0.5 + 0.5) * 255); // G = Y
+        data[i + 2] = Math.round((nnz * 0.5 + 0.5) * 255); // B = Z
         data[i + 3] = 255;
       }
     }
@@ -191,7 +207,7 @@ export const generateMachinePanelNormal = (
   // Clamp so the bevel can never exceed the panel or fall below the mip floor.
   const bevelPx = Math.max(4, Math.min(panelPx * 0.4, bevelPixels));
 
-  return getTexture(`machine-panel-normal-v2-${safeSize}-${safePanels}-${bevelPx}`, () => {
+  return getTexture(`machine-panel-normal-v3-${safeSize}-${safePanels}-${bevelPx}`, () => {
     const data = new Uint8Array(safeSize * safeSize * 4);
 
     for (let y = 0; y < safeSize; y++) {
@@ -219,17 +235,18 @@ export const generateMachinePanelNormal = (
           normalY = Math.cos(((panelPx - py) / bevelPx) * Math.PI * 0.5) * 0.65;
         }
 
-        // Panel-face micro relief so a flat sheet still catches the sun.
+        // Panel-face micro relief so a flat sheet still catches the sun. The
+        // map spans 90 lattice cells, so a 90-cell period tiles it seamlessly.
         const nx = x / safeSize;
         const ny = y / safeSize;
-        normalX += (fastFbmNoise(nx * 90, ny * 90, 2) - 0.5) * 0.08;
-        normalY += (fastFbmNoise(nx * 90 + 37, ny * 90 + 71, 2) - 0.5) * 0.08;
+        normalX += (fastFbmNoise(nx * 90, ny * 90, 2, 90) - 0.5) * 0.08;
+        normalY += (fastFbmNoise(nx * 90 + 37, ny * 90 + 71, 2, 90) - 0.5) * 0.08;
 
         const len = Math.sqrt(normalX * normalX + normalY * normalY + normalZ * normalZ);
 
-        data[i] = Math.floor(((normalX / len) * 0.5 + 0.5) * 255);
-        data[i + 1] = Math.floor(((normalY / len) * 0.5 + 0.5) * 255);
-        data[i + 2] = Math.floor(((normalZ / len) * 0.5 + 0.5) * 255);
+        data[i] = Math.round(((normalX / len) * 0.5 + 0.5) * 255);
+        data[i + 1] = Math.round(((normalY / len) * 0.5 + 0.5) * 255);
+        data[i + 2] = Math.round(((normalZ / len) * 0.5 + 0.5) * 255);
         data[i + 3] = 255;
       }
     }

@@ -307,11 +307,14 @@ export const useSafetyStore = create<SafetyStore>()(
       showIncidentHeatMap: false,
       setShowIncidentHeatMap: (show) => set({ showIncidentHeatMap: show }),
 
+      // The forklift controller reads the first three every collision check
+      // (ForkliftSystem). Defaults are the clearances the fleet was tuned and
+      // deadlock-checked with; the older 1.8 / 3 / 4 values were never live.
       safetyConfig: {
-        vehicleDetectionRadius: 1.8, // Reduced from 2.5 - less aggressive stopping
-        forkliftSafetyRadius: 3, // Reduced from 4 - forklifts can pass closer
-        pathCheckDistance: 4, // Reduced from 5 - shorter lookahead
-        speedZoneSlowdown: 0.5, // Increased from 0.4 - less slowdown (50% speed)
+        vehicleDetectionRadius: 2.5, // path-corridor half-width for vehicles ahead
+        forkliftSafetyRadius: 4, // radius for nearby-forklift yielding
+        pathCheckDistance: 5, // look-ahead along the route
+        speedZoneSlowdown: 0.5, // planning value: speed zones are not enforced yet
       },
       setSafetyConfig: (config) =>
         set((state) => ({
@@ -351,7 +354,29 @@ export const useSafetyStore = create<SafetyStore>()(
     {
       name: 'millos-safety',
       storage: safeJSONStorage,
-      version: 1,
+      version: 2,
+      // v1 persisted the cosmetic 1.8 / 3 / 4 defaults. Now that the sliders
+      // drive the controller, an untouched v1 config must not silently tighten
+      // every clearance: drop exactly those values so the v2 defaults apply.
+      // A config the user actually moved keeps its values.
+      migrate: (persisted, version) => {
+        if (version >= 2 || persisted === null || typeof persisted !== 'object') return persisted;
+        const record = persisted as { safetyConfig?: Record<string, unknown> };
+        const config = record.safetyConfig;
+        if (
+          config &&
+          config.vehicleDetectionRadius === 1.8 &&
+          config.forkliftSafetyRadius === 3 &&
+          config.pathCheckDistance === 4
+        ) {
+          const safetyConfig = { ...config };
+          delete safetyConfig.vehicleDetectionRadius;
+          delete safetyConfig.forkliftSafetyRadius;
+          delete safetyConfig.pathCheckDistance;
+          return { ...record, safetyConfig };
+        }
+        return persisted;
+      },
       partialize: (state) => ({
         safetyConfig: state.safetyConfig,
         speedZones: state.speedZones,

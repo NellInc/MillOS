@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { useGraphicsStore } from '../../stores/graphicsStore';
 import { shouldRunThisFrame } from '../../utils/frameThrottle';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 
 interface FirefliesProps {
   count?: number;
@@ -66,14 +67,20 @@ const Fireflies: React.FC<FirefliesProps> = ({ count = 50, bounds, color = '#ccf
 
   // Selector optimization: Only re-render when night status CHANGES
   const isNight = useGameSimulationStore((state) => state.gameTime >= 20 || state.gameTime < 6);
+  const reducedMotion = useReducedMotion();
+
+  // Callers pass `bounds` as an inline literal, so everything below keys on its
+  // scalars: keyed on the object, every parent re-render (petting an animal
+  // spawns a heart through setState) regenerated the swarm in new places.
+  const { minX, maxX, minY, maxY, minZ, maxZ } = bounds;
 
   // Generate initial data
   const particles = useMemo(() => {
     const temp = [];
     for (let i = 0; i < count; i++) {
-      const x = bounds.minX + Math.random() * (bounds.maxX - bounds.minX);
-      const y = bounds.minY + Math.random() * (bounds.maxY - bounds.minY);
-      const z = bounds.minZ + Math.random() * (bounds.maxZ - bounds.minZ);
+      const x = minX + Math.random() * (maxX - minX);
+      const y = minY + Math.random() * (maxY - minY);
+      const z = minZ + Math.random() * (maxZ - minZ);
       const speed = 0.5 + Math.random() * 0.5;
       const offset = Math.random() * Math.PI * 2;
       temp.push({
@@ -84,7 +91,7 @@ const Fireflies: React.FC<FirefliesProps> = ({ count = 50, bounds, color = '#ccf
       });
     }
     return temp;
-  }, [count, bounds]);
+  }, [count, minX, maxX, minY, maxY, minZ, maxZ]);
 
   // Dummy object for matrix calculations
   const dummy = useMemo(() => new THREE.Object3D(), []);
@@ -99,6 +106,10 @@ const Fireflies: React.FC<FirefliesProps> = ({ count = 50, bounds, color = '#ccf
   // all-zero) instance matrices and cached a zero-radius sphere at the world
   // origin, culling every firefly forever. Seeding first and then assigning the
   // sphere from `bounds` makes culling correct AND cheap.
+  //
+  // `isNight` and `quality` are dependencies because the mesh only mounts at
+  // night on medium and above; `reducedMotion` so a runtime switch returns
+  // every firefly to its resting position.
   useLayoutEffect(() => {
     const mesh = meshRef.current;
     if (!mesh) return;
@@ -111,28 +122,20 @@ const Fireflies: React.FC<FirefliesProps> = ({ count = 50, bounds, color = '#ccf
     });
     mesh.instanceMatrix.needsUpdate = true;
 
-    const centre = new THREE.Vector3(
-      (bounds.minX + bounds.maxX) / 2,
-      (bounds.minY + bounds.maxY) / 2,
-      (bounds.minZ + bounds.maxZ) / 2
-    );
+    const centre = new THREE.Vector3((minX + maxX) / 2, (minY + maxY) / 2, (minZ + maxZ) / 2);
     const radius =
-      0.5 *
-        Math.hypot(
-          bounds.maxX - bounds.minX,
-          bounds.maxY - bounds.minY,
-          bounds.maxZ - bounds.minZ
-        ) +
+      0.5 * Math.hypot(maxX - minX, maxY - minY, maxZ - minZ) +
       // Wander (+/-0.5), pulse scale and the billboard quad's own extent.
       2;
     mesh.boundingSphere = new THREE.Sphere(centre, radius);
-  }, [particles, dummy, bounds]);
+  }, [particles, dummy, minX, maxX, minY, maxY, minZ, maxZ, isNight, quality, reducedMotion]);
 
   useFrame((_state, delta) => {
     if (!meshRef.current || !isNight) return;
 
-    // Performance optimization: Skip animation on Low quality
-    if (quality === 'low') return;
+    // Performance optimization: Skip animation on Low quality. Under reduced
+    // motion the swarm holds the resting positions seeded above.
+    if (quality === 'low' || reducedMotion) return;
 
     // Throttle firefly animation to every 3rd frame (~20 FPS)
     const throttle = 3;

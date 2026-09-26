@@ -1,0 +1,74 @@
+diff --git a/.github/workflows/deploy.yml b/.github/workflows/deploy.yml
+index fc527b0..cec9239 100644
+--- a/.github/workflows/deploy.yml
++++ b/.github/workflows/deploy.yml
+@@ -49,10 +49,18 @@ jobs:
+       - name: Build current release
+         run: VERSION="v$(node -p "require('./package.json').version.split('.').slice(0, 2).join('.')")" npm run build
+ 
++      - name: Rebuild the deployed v0.40 release for preservation
++        run: |
++          V040_SOURCE_SHA=$(node -e "const m=require('./release-matrix.json'); process.stdout.write(m.releases.find((r) => r.version === 'v0.40').sourceCommit)")
++          git worktree add --detach "$RUNNER_TEMP/millos-v040" "$V040_SOURCE_SHA"
++          npm ci --force --ignore-scripts --prefix "$RUNNER_TEMP/millos-v040"
++          VERSION=v0.40 GITHUB_SHA="$V040_SOURCE_SHA" npm run build --prefix "$RUNNER_TEMP/millos-v040"
++
+       - name: Stage current and archived releases
+         run: |
+           npm run build:pages-staging -- \
+-            --archive-build "v0.30=$RUNNER_TEMP/millos-v030/dist"
++            --archive-build "v0.30=$RUNNER_TEMP/millos-v030/dist" \
++            --archive-build "v0.40=$RUNNER_TEMP/millos-v040/dist"
+           npm run validate:releases -- --staging staging
+ 
+       - name: Setup Pages
+diff --git a/package.json b/package.json
+index 915c15f..3b691ec 100644
+--- a/package.json
++++ b/package.json
+@@ -1,7 +1,7 @@
+ {
+   "name": "grain-mill-simulator",
+   "private": true,
+-  "version": "0.40.0",
++  "version": "0.50.0",
+   "type": "module",
+   "scripts": {
+     "dev": "vite --port 3000",
+diff --git a/release-matrix.json b/release-matrix.json
+index 47384c6..23b29fe 100644
+--- a/release-matrix.json
++++ b/release-matrix.json
+@@ -1,11 +1,30 @@
+ {
+   "schemaVersion": 1,
+-  "currentVersion": "v0.40",
++  "currentVersion": "v0.50",
+   "releases": [
++    {
++      "version": "v0.50",
++      "label": "0.50",
++      "type": "current"
++    },
+     {
+       "version": "v0.40",
+       "label": "0.40",
+-      "type": "current"
++      "type": "source-build",
++      "sourceCommit": "fb263e2aebbee2789bd8f4e2ed1f0842c0ba74a0",
++      "sourcePackageVersion": "0.40.0",
++      "identityNote": "Preserves the deployed September 5 release before v0.50 visual development.",
++      "reproducibleBuild": {
++        "verifiedAt": "2026-09-09",
++        "productionUrl": "https://www.millos.net/v0.40/",
++        "indexSha256": "4608e734688ebffe7af6f18112a7cff12d9617b26aa04c0d6c9d1100a7b46037",
++        "mainAsset": "assets/main-DQL5e0EY.js",
++        "mainSha256": "4985dea83eabf1fb9d824bacaa6901862f91db1bf1682ab8786272439f4251c8",
++        "buildEnvironment": {
++          "VERSION": "v0.40",
++          "GITHUB_SHA": "fb263e2aebbee2789bd8f4e2ed1f0842c0ba74a0"
++        }
++      }
+     },
+     {
+       "version": "v0.30",

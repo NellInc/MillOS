@@ -250,7 +250,7 @@ export const useQCLabStore = create<QCLabStore>()(
               controlSource,
               note:
                 controlNote ||
-                `${result.grade} result ${disposition === 'released' ? 'released' : 'held'} tested material`,
+                `Grade ${result.grade}: material ${disposition === 'released' ? 'released for dispatch' : 'held for investigation'}.`,
             },
           ],
           auditSequence: sequence,

@@ -72,22 +72,25 @@ const invalidateCombinedState = () => {
   combinedStateCache = null;
 };
 
-// Get combined state from all stores (used internally)
-// PERFORMANCE FIX: No longer uses global subscriptions - builds state fresh each call
-// The cache is cleared by subscribeToAllStores when any store changes
-function getCombinedState(): CombinedStoreState {
-  if (combinedStateCache) {
-    return combinedStateCache;
-  }
-
-  combinedStateCache = {
+// Build the combined state from all stores, uncached.
+function buildCombinedState(): CombinedStoreState {
+  return {
     ...useGraphicsStore.getState(),
     ...useGameSimulationStore.getState(),
     ...useProductionStore.getState(),
     ...useSafetyStore.getState(),
     ...useUIStore.getState(),
   };
+}
 
+// Cached combined state for the useMillStore hook's getSnapshot path only.
+// The cache is cleared by subscribeToAllStores when any store changes, so it
+// is only valid while a hook subscription is mounted; imperative getState and
+// subscribe read fresh state instead.
+function getCombinedState(): CombinedStoreState {
+  if (!combinedStateCache) {
+    combinedStateCache = buildCombinedState();
+  }
   return combinedStateCache;
 }
 
@@ -173,8 +176,9 @@ export type CombinedStoreState = ReturnType<typeof useGraphicsStore.getState> &
 
 // Provide getState method for backwards compatibility
 useMillStore.getState = (): CombinedStoreState => {
-  // Use the cached combined state to avoid rebuilding on each call
-  return getCombinedState();
+  // Always fresh: the combined-state cache is invalidated only by mounted hook
+  // subscriptions, so reading it here could return a stale snapshot forever.
+  return buildCombinedState();
 };
 
 /**
@@ -221,11 +225,11 @@ useMillStore.subscribe = <T>(
   options?: { fireImmediately?: boolean }
 ) => {
   // Track the previous value to detect changes
-  let previousValue = selector(useMillStore.getState());
+  let previousValue = selector(buildCombinedState());
 
   // Create a wrapper callback that only fires when the selected value changes
   const wrappedCallback = () => {
-    const newValue = selector(useMillStore.getState());
+    const newValue = selector(buildCombinedState());
 
     // PERFORMANCE FIX: Use shallow equality instead of expensive JSON.stringify
     // shallowEqual handles both primitives and objects efficiently

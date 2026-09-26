@@ -1100,6 +1100,17 @@ export class MQTTAdapter implements IProtocolAdapter {
     this.lastDisconnectTime = Date.now();
     this.reconnectAttempts++;
 
+    // The last samples are no longer being refreshed; say so rather than let
+    // them read as GOOD for as long as the link stays down. The cache keeps
+    // its source timestamps so ordering checks on reconnect are unaffected.
+    const now = this.lastDisconnectTime;
+    const stale: TagValue[] = [];
+    this.values.forEach((value, tagId) => {
+      this.values.set(tagId, { ...value, quality: 'STALE' });
+      stale.push({ ...value, quality: 'STALE', timestamp: now });
+    });
+    if (stale.length > 0) this.notifySubscribers(stale);
+
     this.scheduleReconnect(generation);
   }
 

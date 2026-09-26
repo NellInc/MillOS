@@ -15,7 +15,8 @@ import * as THREE from 'three';
 import { TerrainMaterial } from './TerrainMaterial';
 import {
   generateSplatMap,
-  generateHeightmap,
+  getRiverHeightfield,
+  sampleValleyRelief,
   MILLOS_TERRAIN_REGIONS,
   MILLOS_RIVER_CONFIG,
   type RiverChannelConfig,
@@ -80,11 +81,11 @@ const TERRAIN_OPAQUE_RENDER_ORDER = 1;
 /**
  * Create geometry with CPU-side vertex displacement from heightmap
  */
-function createDisplacedGeometry(
+export function createDisplacedGeometry(
   width: number,
   height: number,
   segments: number,
-  heightmapData: Uint8Array,
+  heightmapData: Uint8Array | null,
   heightmapResolution: number,
   displacementDepth: number,
   _bounds: TerrainBounds
@@ -102,13 +103,15 @@ function createDisplacedGeometry(
     const px = Math.floor(u * (heightmapResolution - 1));
     const py = Math.floor(v * (heightmapResolution - 1));
     const idx = (py * heightmapResolution + px) * 4; // RGBA stride
-    const heightValue = heightmapData[idx] / 255; // Normalize to 0-1
+    const heightValue = heightmapData ? heightmapData[idx] / 255 : 1; // Normalize to 0-1
 
     // Calculate displacement with 1.0 (255) as baseline (pure canyon, no raised banks):
     // - 0 = canyon floor (carve DOWN by displacementDepth)
     // - 1 = terrain (no displacement)
     // The plane will be rotated -PI/2 around X, so local Z becomes world Y
-    const displacement = (heightValue - 1) * displacementDepth;
+    const displacement =
+      (heightValue - 1) * displacementDepth +
+      sampleValleyRelief(positions.getX(i), -positions.getY(i));
 
     // Modify the Z coordinate (which becomes world Y after rotation)
     const currentZ = positions.getZ(i);
@@ -167,7 +170,7 @@ export const TerrainGround = React.memo(function TerrainGround({
   // was a declared-but-unused graphics setting until now.
   const graphicsQuality = useGraphicsStore((state) => state.graphics.quality);
   const anisotropyLevel = useGraphicsStore((state) => state.graphics.anisotropyLevel);
-  // `low` has no post-processing composer, one-triangle terrain geometry and
+  // `low` has no post-processing composer, coarse terrain geometry and
   // the tightest fill budget, so it keeps the original two-tap shader.
   const surfaceDetail = graphicsQuality !== 'low';
   // The second macro tap (38 world units, rotated) is the one per-fragment cost
@@ -191,9 +194,9 @@ export const TerrainGround = React.memo(function TerrainGround({
   const centerX = (TERRAIN_BOUNDS.minX + TERRAIN_BOUNDS.maxX) / 2;
   const centerZ = (TERRAIN_BOUNDS.minZ + TERRAIN_BOUNDS.maxZ) / 2;
 
-  // Splat map is painted over the much smaller SPLAT_BOUNDS - same texel count,
-  // 2.14x the density where regions actually are. Anisotropy is deliberately
-  // NOT a dependency here: the splat is stretched across 560 units so its UV
+  // Splat map is painted over the much smaller SPLAT_BOUNDS, with the same
+  // texel count. Anisotropy is deliberately NOT a dependency here:
+  // the splat is stretched across 560 units so its UV
   // derivative is tiny, mipmaps (now enabled) are what stop its edges crawling.
   const splatMap = useMemo(
     () => generateSplatMap(regions, resolution, SPLAT_BOUNDS),
@@ -234,42 +237,26 @@ export const TerrainGround = React.memo(function TerrainGround({
     }
   }, [anisotropyLevel, dirtTexture, surfaceMaps]);
 
-  // Generate heightmap for river canyon
-  const heightmapData = useMemo(() => {
-    if (!enableRiverChannel) return null;
-
-    const heightmapResolution = 512;
-    const heightmap = generateHeightmap(heightmapResolution, TERRAIN_BOUNDS, riverConfig);
-    const data = heightmap.image.data as Uint8Array;
-
-    // The heightmap is only needed to extract its CPU-side pixel buffer for
-    // vertex displacement; dispose the transient GPU DataTexture so it does not
-    // leak when this memo recomputes on a graphics-quality / river change.
-    heightmap.dispose();
-
-    return {
-      data,
-      resolution: heightmapResolution,
-    };
-  }, [enableRiverChannel, riverConfig]);
+  // Water clips against this same field and quality-tier triangle grid.
+  const heightmapData = useMemo(
+    () => (enableRiverChannel ? getRiverHeightfield(riverConfig) : null),
+    [enableRiverChannel, riverConfig]
+  );
 
   // Create geometry with CPU-side displacement
-  const geometry = useMemo(() => {
-    if (heightmapData) {
-      return createDisplacedGeometry(
+  const geometry = useMemo(
+    () =>
+      createDisplacedGeometry(
         width,
         height,
         segments,
-        heightmapData.data,
-        heightmapData.resolution,
-        riverConfig.depth, // 12 units (deep canyon, see MILLOS_RIVER_CONFIG)
+        heightmapData?.data ?? null,
+        heightmapData?.resolution ?? 1,
+        riverConfig.depth,
         TERRAIN_BOUNDS
-      );
-    }
-
-    // No displacement - simple plane
-    return new THREE.PlaneGeometry(width, height, 1, 1);
-  }, [width, height, segments, heightmapData, riverConfig.depth]);
+      ),
+    [width, height, segments, heightmapData, riverConfig.depth]
+  );
 
   // Dispose GPU resources on replacement/unmount. R3F does not auto-dispose a
   // <primitive> geometry it does not own, and the splatMap DataTexture is a GPU
@@ -312,10 +299,13 @@ export const TerrainGround = React.memo(function TerrainGround({
           macroNoise={surfaceMaps?.macro}
           macroNearAmount={macroNearDetail ? 1 : 0}
           grassScale={6.5}
-          asphaltScale={9}
-          roadScale={7}
+          // Match the adjacent 60 m yard's eighteen repeats. The former
+          // 9 m tile enlarged aggregate into 22.5 cm stones; strong normals
+          // then made the paved apron read as broken gravel in close views.
+          asphaltScale={10 / 3}
+          roadScale={10 / 3}
           dirtScale={4.5}
-          normalStrength={[1.0, 0.85, 0.7, 0.95]}
+          normalStrength={[1.0, 0.18, 0.14, 0.95]}
           roughnessRemap={[1.0, 1.0, 0.94, 1.0]}
           aoIntensity={0.8}
           blendSharpness={0.18}

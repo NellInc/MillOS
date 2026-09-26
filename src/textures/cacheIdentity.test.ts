@@ -4,6 +4,7 @@ import { disposeAllTextures } from '../utils/textureGenerator';
 import { generateBrick, generateBrickNormal } from './brick';
 import { generateCobblestone } from './cobblestone';
 import { generateMud } from './mud';
+import { generateConcrete } from './concrete';
 import {
   generateClayTiles,
   generateSlate,
@@ -22,6 +23,11 @@ const cases: Array<{
   first: TextureFactory;
   second: TextureFactory;
 }> = [
+  {
+    name: 'concrete panel joints',
+    first: () => generateConcrete(64, 32, false, true),
+    second: () => generateConcrete(64, 32, false, false),
+  },
   {
     name: 'brick mortar width',
     first: () => generateBrick(32, { brickWidth: 16, brickHeight: 8, mortarWidth: 1 }),
@@ -91,6 +97,10 @@ const cases: Array<{
 
 describe('procedural texture cache identity', () => {
   afterEach(() => disposeAllTextures());
+
+  it('preserves concrete joints for callers using the existing three arguments', () => {
+    expect(generateConcrete(64, 32, false)).toBe(generateConcrete(64, 32, false, true));
+  });
 
   it.each(cases)('keys the pixel-affecting $name option', ({ first, second }) => {
     disposeAllTextures();

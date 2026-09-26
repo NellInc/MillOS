@@ -8,9 +8,9 @@
  * - Manages SCADA lifecycle with React component lifecycle
  */
 
-import { useState, useEffect, useCallback, useMemo, useSyncExternalStore } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, useSyncExternalStore } from 'react';
 import { useProductionStore } from '../stores/productionStore';
-import { initializeSCADA, shutdownSCADA, getSCADAService } from './SCADAService';
+import { initializeSCADA, getSCADAService, peekSCADAService } from './SCADAService';
 import type {
   TagValue,
   TagDefinition,
@@ -34,12 +34,44 @@ import { MILL_TAGS } from './tagDatabase';
 import { useGraphicsStore } from '../stores/graphicsStore';
 import { logger } from '../utils/logger';
 
+/** Identity recorded on acknowledgements that do not name one. */
+const DEFAULT_CONTROL_SOURCE = 'Autonomous control layer';
+
+// O(1) tag -> machine lookup for the per-batch value callback.
+const TAG_MACHINE_ID = new Map(MILL_TAGS.map((t) => [t.id, t.machineId]));
+
+/** Shelved, suppressed and out-of-service alarms stay listed but do not annunciate. */
+const isInService = (alarm: Alarm): boolean => (alarm.disposition ?? 'IN_SERVICE') === 'IN_SERVICE';
+
+function summarizeAlarms(alarms: Alarm[]): {
+  total: number;
+  unacknowledged: number;
+  critical: number;
+  high: number;
+} {
+  let unacknowledged = 0;
+  let critical = 0;
+  let high = 0;
+
+  alarms.forEach((a) => {
+    if (!isInService(a)) return;
+    if (a.state === 'UNACK' || a.state === 'RTN_UNACK') unacknowledged++;
+    if (a.priority === 'CRITICAL') critical++;
+    if (a.priority === 'HIGH') high++;
+  });
+
+  return { total: alarms.length, unacknowledged, critical, high };
+}
+
 // ============================================================================
 // Shared SCADA State - Single subscription for all hook instances
 // ============================================================================
 
 interface SharedSCADAState {
+  /** Command gate: the shared subscription to the service is established. */
   isConnected: boolean;
+  /** Display only: the adapter's transport link is currently up. */
+  linkUp: boolean;
   mode: SCADAMode;
   values: Map<string, TagValue>;
   alarms: Alarm[];
@@ -48,6 +80,7 @@ interface SharedSCADAState {
 // Shared state singleton
 let sharedState: SharedSCADAState = {
   isConnected: false,
+  linkUp: false,
   mode: 'simulation',
   values: new Map(),
   alarms: [],
@@ -136,6 +169,7 @@ function getAlarmSnapshot(): Alarm[] {
 // Reference counting for SCADA service - only shutdown when all consumers unmount
 let scadaRefCount = 0;
 let initializationPromise: Promise<void> | null = null;
+let subscriptionGeneration = 0;
 
 // Track unsubscribe functions for cleanup on error
 let valueUnsubscribe: (() => void) | null = null;
@@ -144,10 +178,12 @@ let alarmUnsubscribeShared: (() => void) | null = null;
 // Initialize shared SCADA subscriptions (called once globally)
 async function initializeSharedSCADA(): Promise<void> {
   if (initializationPromise) return initializationPromise;
+  const generation = ++subscriptionGeneration;
 
   initializationPromise = (async () => {
     try {
       const service = await initializeSCADA();
+      if (generation !== subscriptionGeneration || scadaRefCount === 0) return;
 
       // Subscribe to value updates with granular notifications
       valueUnsubscribe = service.subscribeToValues((newValues) => {
@@ -160,10 +196,8 @@ async function initializeSharedSCADA(): Promise<void> {
           updatedTagIds.push(v.tagId);
 
           // Track which machines were affected
-          const tag = MILL_TAGS.find((t) => t.id === v.tagId);
-          if (tag?.machineId) {
-            affectedMachines.add(tag.machineId);
-          }
+          const machineId = TAG_MACHINE_ID.get(v.tagId);
+          if (machineId) affectedMachines.add(machineId);
         });
 
         sharedState = { ...sharedState, values: next, isConnected: true };
@@ -182,8 +216,15 @@ async function initializeSharedSCADA(): Promise<void> {
       });
 
       const state = service.getState();
-      sharedState = { ...sharedState, isConnected: true, mode: state.mode };
+      sharedState = {
+        ...sharedState,
+        isConnected: true,
+        linkUp: state.connected,
+        mode: state.mode,
+      };
+      notifyListeners();
     } catch (err) {
+      if (generation !== subscriptionGeneration) return;
       // Clean up any partial subscriptions created before the error
       if (valueUnsubscribe) {
         valueUnsubscribe();
@@ -201,8 +242,10 @@ async function initializeSharedSCADA(): Promise<void> {
   return initializationPromise;
 }
 
-// Shutdown shared SCADA
+// Release view subscriptions. App's initializeSCADASync owns the service itself;
+// closing an inspector must not stop the plant's telemetry and historian.
 function shutdownSharedSCADA(): void {
+  subscriptionGeneration++;
   if (!initializationPromise) return;
 
   // Clean up subscriptions
@@ -215,21 +258,57 @@ function shutdownSharedSCADA(): void {
     alarmUnsubscribeShared = null;
   }
 
-  shutdownSCADA();
+  const oldTagIds = [...sharedState.values.keys()];
   sharedState = {
     isConnected: false,
+    linkUp: false,
     mode: 'simulation',
     values: new Map(),
     alarms: [],
   };
   initializationPromise = null;
+  notifyTagListeners(oldTagIds);
   notifyListeners();
+}
+
+/**
+ * Re-read the service's mode and link state. Neither changes through the value
+ * or alarm streams: a connection Apply reuses the same service instance, and a
+ * live link can drop without publishing anything.
+ */
+export function refreshSharedSCADAStatus(): void {
+  if (!sharedState.isConnected) return;
+  const state = peekSCADAService()?.getState();
+  if (!state) return;
+  if (state.mode === sharedState.mode && state.connected === sharedState.linkUp) return;
+  sharedState = { ...sharedState, mode: state.mode, linkUp: state.connected };
+  notifyListeners();
+}
+
+/**
+ * Every independent tag view retains the existing shared subscription.
+ * Working if an inspector opened before the SCADA panel receives live samples,
+ * and changing selection never shuts down the application-owned historian.
+ */
+function useSharedSCADASubscriptions(active = true): void {
+  const enableSCADA = useGraphicsStore((state) => state.graphics.enableSCADA);
+  useEffect(() => {
+    if (!enableSCADA || !active) return;
+    scadaRefCount++;
+    initializeSharedSCADA().catch((err) => logger.scada.error('SCADA init failed', err));
+    return () => {
+      scadaRefCount = Math.max(0, scadaRefCount - 1);
+      if (scadaRefCount === 0) shutdownSharedSCADA();
+    };
+  }, [active, enableSCADA]);
 }
 
 /** SCADA hook return type */
 export interface UseSCADAReturn {
   // Service state
   isConnected: boolean;
+  /** Transport link state, for display; `isConnected` gates commands. */
+  linkUp: boolean;
   mode: SCADAMode;
   tagCount: number;
 
@@ -275,41 +354,25 @@ export interface UseSCADAReturn {
  * All hook instances share a single subscription to the SCADA service
  */
 export function useSCADA(): UseSCADAReturn {
-  const enableSCADA = useGraphicsStore((state) => state.graphics.enableSCADA);
+  useSharedSCADASubscriptions();
 
   // Use shared state via useSyncExternalStore for efficient updates
   const state = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 
   const [activeFaults, setActiveFaults] = useState<ActiveFault[]>([]);
 
+  // Timed faults expire inside the adapter; drop them from the list as the
+  // next sample arrives.
+  useEffect(() => {
+    setActiveFaults((prev) => {
+      if (prev.length === 0) return prev;
+      const next = getSCADAService().getActiveFaults();
+      return next.length === prev.length ? prev : next;
+    });
+  }, [state.values]);
+
   // Get machines from store for sync
   const machines = useProductionStore((state) => state.machines);
-
-  // Initialize shared SCADA service with reference counting
-  useEffect(() => {
-    if (!enableSCADA) {
-      return undefined;
-    }
-
-    // Increment reference count
-    scadaRefCount++;
-
-    // Initialize shared state (no-op if already initialized)
-    // Attach a rejection handler so init failures surface in logs instead of
-    // becoming an unhandled promise rejection (SCADA silently never connecting).
-    initializeSharedSCADA().catch((err) => {
-      logger.scada.error('SCADA init failed', err);
-    });
-
-    return () => {
-      // Decrement reference count and only shutdown if no more consumers
-      scadaRefCount--;
-      if (scadaRefCount <= 0) {
-        scadaRefCount = 0; // Ensure non-negative
-        shutdownSharedSCADA();
-      }
-    };
-  }, [enableSCADA]);
 
   // Sync machine states to SCADA simulation
   useEffect(() => {
@@ -354,33 +417,14 @@ export function useSCADA(): UseSCADAReturn {
     [state.values]
   );
 
-  // Alarm summary
-  const alarmSummary = useMemo(() => {
-    let unacknowledged = 0;
-    let critical = 0;
-    let high = 0;
-
-    state.alarms.forEach((a) => {
-      if (a.state === 'UNACK' || a.state === 'RTN_UNACK') {
-        unacknowledged++;
-      }
-      if (a.priority === 'CRITICAL') critical++;
-      if (a.priority === 'HIGH') high++;
-    });
-
-    return {
-      total: state.alarms.length,
-      unacknowledged,
-      critical,
-      high,
-    };
-  }, [state.alarms]);
+  // Alarm summary (in-service alarms only, except for the total)
+  const alarmSummary = useMemo(() => summarizeAlarms(state.alarms), [state.alarms]);
 
   // Acknowledge alarm
   const acknowledgeAlarm = useCallback(
     (alarmId: string) => {
       if (!state.isConnected) return;
-      getSCADAService().acknowledgeAlarm(alarmId, 'autonomous-control-layer');
+      getSCADAService().acknowledgeAlarm(alarmId, DEFAULT_CONTROL_SOURCE);
     },
     [state.isConnected]
   );
@@ -388,7 +432,7 @@ export function useSCADA(): UseSCADAReturn {
   // Acknowledge all alarms
   const acknowledgeAllAlarms = useCallback(() => {
     if (!state.isConnected) return;
-    getSCADAService().acknowledgeAllAlarms('autonomous-control-layer');
+    getSCADAService().acknowledgeAllAlarms(DEFAULT_CONTROL_SOURCE);
   }, [state.isConnected]);
 
   // Get history for a tag
@@ -472,6 +516,7 @@ export function useSCADA(): UseSCADAReturn {
 
   return {
     isConnected: state.isConnected,
+    linkUp: state.linkUp,
     mode: state.mode,
     tagCount: state.values.size,
     values: state.values,
@@ -503,30 +548,50 @@ export function useSCADAMachine(machineId: string): {
   tags: TagDefinition[];
   alarms: Alarm[];
 } {
+  useSharedSCADASubscriptions(Boolean(machineId));
+
   // Granular subscription - only notified when this machine's tags update
   const machineSubscribe = useCallback(
     (listener: () => void) => subscribeToMachine(machineId, listener),
     [machineId]
   );
 
+  const tags = useMemo(() => MILL_TAGS.filter((t) => t.machineId === machineId), [machineId]);
+
+  // useSyncExternalStore requires a stable snapshot: recompute only when the
+  // shared source reference (or the machine) changes.
+  const valuesCache = useRef<{
+    machineId: string;
+    src: Map<string, TagValue> | null;
+    out: TagValue[];
+  }>({ machineId, src: null, out: [] });
   const getMachineSnapshot = useCallback(() => {
-    const machineTagIds = MILL_TAGS.filter((t) => t.machineId === machineId).map((t) => t.id);
-    return machineTagIds
-      .map((id) => sharedState.values.get(id))
+    const cache = valuesCache.current;
+    if (cache.machineId === machineId && cache.src === sharedState.values) return cache.out;
+    const out = tags
+      .map((t) => sharedState.values.get(t.id))
       .filter((v): v is TagValue => v !== undefined);
-  }, [machineId]);
+    valuesCache.current = { machineId, src: sharedState.values, out };
+    return out;
+  }, [machineId, tags]);
 
   // useSyncExternalStore with machine-specific subscription
   const values = useSyncExternalStore(machineSubscribe, getMachineSnapshot, getMachineSnapshot);
 
-  const tags = useMemo(() => MILL_TAGS.filter((t) => t.machineId === machineId), [machineId]);
-
   // Alarm subscription (separate)
   const alarmSubscribe = useCallback((listener: () => void) => subscribeToAlarms(listener), []);
-  const getMachineAlarmSnapshot = useCallback(
-    () => sharedState.alarms.filter((a) => a.machineId === machineId),
-    [machineId]
-  );
+  const alarmsCache = useRef<{ machineId: string; src: Alarm[] | null; out: Alarm[] }>({
+    machineId,
+    src: null,
+    out: [],
+  });
+  const getMachineAlarmSnapshot = useCallback(() => {
+    const cache = alarmsCache.current;
+    if (cache.machineId === machineId && cache.src === sharedState.alarms) return cache.out;
+    const out = sharedState.alarms.filter((a) => a.machineId === machineId);
+    alarmsCache.current = { machineId, src: sharedState.alarms, out };
+    return out;
+  }, [machineId]);
   const machineAlarms = useSyncExternalStore(
     alarmSubscribe,
     getMachineAlarmSnapshot,
@@ -546,6 +611,7 @@ export function useSCADATag(tagId: string): {
   history: TagHistoryPoint[];
   loadHistory: (duration: number) => Promise<void>;
 } {
+  useSharedSCADASubscriptions(Boolean(tagId));
   const [history, setHistory] = useState<TagHistoryPoint[]>([]);
 
   // Granular subscription - only notified when this specific tag updates
@@ -597,36 +663,21 @@ export function useSCADAAlarms(): {
   const alarms = useSyncExternalStore(alarmSubscribe, getAlarmSnapshot, getAlarmSnapshot);
   const [suppressed, setSuppressed] = useState<AlarmSuppression[]>([]);
 
-  // Memoize summary calculation
-  const summary = useMemo(() => {
-    let unacknowledged = 0;
-    let critical = 0;
-    let high = 0;
-
-    alarms.forEach((a) => {
-      if (a.state === 'UNACK' || a.state === 'RTN_UNACK') unacknowledged++;
-      if (a.priority === 'CRITICAL') critical++;
-      if (a.priority === 'HIGH') high++;
-    });
-
-    return { total: alarms.length, unacknowledged, critical, high };
-  }, [alarms]);
+  // Memoize summary calculation (in-service alarms only, except for the total)
+  const summary = useMemo(() => summarizeAlarms(alarms), [alarms]);
 
   const acknowledge = useCallback(
-    (alarmId: string, controlSource = 'Autonomous control layer', note?: string) => {
+    (alarmId: string, controlSource = DEFAULT_CONTROL_SOURCE, note?: string) => {
       if (!sharedState.isConnected) return;
       getSCADAService().acknowledgeAlarm(alarmId, controlSource, note);
     },
     []
   );
 
-  const acknowledgeAll = useCallback(
-    (controlSource = 'Autonomous control layer', note?: string) => {
-      if (!sharedState.isConnected) return;
-      getSCADAService().acknowledgeAllAlarms(controlSource, note);
-    },
-    []
-  );
+  const acknowledgeAll = useCallback((controlSource = DEFAULT_CONTROL_SOURCE, note?: string) => {
+    if (!sharedState.isConnected) return;
+    getSCADAService().acknowledgeAllAlarms(controlSource, note);
+  }, []);
 
   const refreshSuppressed = useCallback(() => {
     setSuppressed(getSCADAService().getSuppressedAlarms());

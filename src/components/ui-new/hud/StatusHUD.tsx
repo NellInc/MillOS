@@ -17,7 +17,7 @@ import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
 import { useGraphicsStore } from '../../../stores/graphicsStore';
 import { useShallow } from 'zustand/react/shallow';
 
-export const StatusHUD: React.FC = () => {
+export const StatusHUD: React.FC<{ workspace?: string }> = ({ workspace = 'Overview' }) => {
   const safetyMetrics = useSafetyStore((state) => state.safetyMetrics);
   const fps = useFPSStore((state) => state.fps);
   const alerts = useUIStore((state) => state.alerts);
@@ -42,8 +42,12 @@ export const StatusHUD: React.FC = () => {
   const [showNotifications, setShowNotifications] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const hudRef = useRef<HTMLDivElement>(null);
+  const bellRef = useRef<HTMLButtonElement>(null);
+  const notificationsCloseRef = useRef<HTMLButtonElement>(null);
+  const [notificationPosition, setNotificationPosition] = useState({ left: 16, top: 72 });
 
-  // Draggable position state - default to top-left
+  // The default is a full-width header; dragging detaches the same controls.
+  const [detached, setDetached] = useState(false);
   const [position, setPosition] = useState({ x: 16, y: 16 });
   const [isDragging, setIsDragging] = useState(false);
   const dragStartPos = useRef({ x: 0, y: 0 });
@@ -57,6 +61,7 @@ export const StatusHUD: React.FC = () => {
     (e: React.MouseEvent) => {
       e.preventDefault();
       setIsDragging(true);
+      setDetached(true);
       dragStartPos.current = { x: e.clientX, y: e.clientY };
       elementStartPos.current = { x: position.x, y: position.y };
     },
@@ -65,6 +70,12 @@ export const StatusHUD: React.FC = () => {
 
   // Handle keyboard repositioning on grip (WCAG 2.1.1 - keyboard operable)
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Home') {
+      e.preventDefault();
+      setDetached(false);
+      setPosition({ x: 16, y: 16 });
+      return;
+    }
     const NUDGE = e.shiftKey ? 20 : 4;
     let dx = 0;
     let dy = 0;
@@ -85,6 +96,7 @@ export const StatusHUD: React.FC = () => {
         return;
     }
     e.preventDefault();
+    setDetached(true);
     const rect = hudRef.current?.getBoundingClientRect();
     const maxX = window.innerWidth - (rect?.width ?? 200) - 16;
     const maxY = window.innerHeight - (rect?.height ?? 50) - 16;
@@ -107,7 +119,13 @@ export const StatusHUD: React.FC = () => {
       }));
     };
     window.addEventListener('resize', clampToViewport);
-    return () => window.removeEventListener('resize', clampToViewport);
+    const observer =
+      typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(clampToViewport);
+    if (hudRef.current) observer?.observe(hudRef.current);
+    return () => {
+      window.removeEventListener('resize', clampToViewport);
+      observer?.disconnect();
+    };
   }, []);
 
   // Handle mouse move while dragging
@@ -142,6 +160,22 @@ export const StatusHUD: React.FC = () => {
     };
   }, [isDragging]);
 
+  // Keep the notification surface in the viewport even after the HUD is moved.
+  useEffect(() => {
+    if (!showNotifications) return;
+    const placeNotifications = () => {
+      const rect = bellRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      setNotificationPosition({
+        left: Math.max(16, Math.min(rect.right - 320, window.innerWidth - 336)),
+        top: Math.max(16, Math.min(rect.bottom + 8, window.innerHeight - 384)),
+      });
+    };
+    placeNotifications();
+    window.addEventListener('resize', placeNotifications);
+    return () => window.removeEventListener('resize', placeNotifications);
+  }, [showNotifications, position]);
+
   // Close panel when clicking outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -151,17 +185,27 @@ export const StatusHUD: React.FC = () => {
     };
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
         setShowNotifications(false);
+        bellRef.current?.focus();
       }
     };
     if (showNotifications) {
       document.addEventListener('mousedown', handleClickOutside);
-      document.addEventListener('keydown', handleEscape);
+      document.addEventListener('keydown', handleEscape, true);
     }
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('keydown', handleEscape);
+      document.removeEventListener('keydown', handleEscape, true);
     };
+  }, [showNotifications]);
+
+  // A dialog takes focus when it opens; Escape and Close hand it back to the bell.
+  useEffect(() => {
+    if (!showNotifications) return;
+    const frame = requestAnimationFrame(() => notificationsCloseRef.current?.focus());
+    return () => cancelAnimationFrame(frame);
   }, [showNotifications]);
 
   // Shared formula with OverviewPanel so both surfaces show the same number.
@@ -169,33 +213,44 @@ export const StatusHUD: React.FC = () => {
 
   // Determine safety color
   const safetyColor =
-    safetyScore > 90 ? 'text-green-400' : safetyScore > 70 ? 'text-yellow-400' : 'text-red-500';
-  const SafetyIcon = safetyScore > 80 ? ShieldCheck : ShieldAlert;
+    safetyScore > 90 ? 'text-emerald-300' : safetyScore > 70 ? 'text-yellow-400' : 'text-red-500';
+  const SafetyIcon = safetyScore > 90 ? ShieldCheck : ShieldAlert;
 
   return (
     <header
       ref={hudRef}
-      style={{ left: position.x, top: position.y }}
-      className={`fixed flex items-center gap-2 pointer-events-auto z-30 ${isDragging ? 'cursor-grabbing' : ''}`}
+      style={detached ? { left: position.x, top: position.y } : { left: 0, top: 0 }}
+      className={`fixed flex items-center bg-[#06141e]/98 backdrop-blur-md border-b border-cyan-100/15 pointer-events-auto z-30 ${detached ? 'max-w-[calc(100vw-32px)] rounded-md border shadow-lg' : 'w-full min-h-12'} ${isDragging ? 'cursor-grabbing' : ''}`}
       role="banner"
       aria-label="System status bar"
     >
       {/* System Status Bar */}
-      <div className="flex items-center bg-slate-900/50 backdrop-blur-md border border-white/5 rounded-full overflow-hidden">
+      <div className="flex min-w-0 flex-1 items-stretch overflow-hidden">
         {/* Drag Handle */}
         <div
           onMouseDown={handleMouseDown}
           onKeyDown={handleKeyDown}
-          className="px-2 py-1.5 cursor-grab hover:bg-white/10 transition-colors flex items-center border-r border-white/10"
+          className="px-1 py-2 min-w-[28px] cursor-grab hover:bg-white/10 transition-colors flex items-center border-r border-white/10"
           role="button"
-          aria-label="Reposition status bar. Drag with the mouse, or use the arrow keys to move it; hold Shift for larger steps."
+          aria-label="Reposition status bar. Drag with the mouse, or use the arrow keys to move it; hold Shift for larger steps. Press Home to dock it."
           tabIndex={0}
         >
           <GripVertical className="w-3 h-3 text-slate-500" aria-hidden="true" />
         </div>
 
         <div
-          className="flex items-center gap-4 px-3 py-1.5"
+          className="flex shrink-0 items-center border-r border-white/10 px-5"
+          aria-label="MillOS"
+        >
+          <span className="text-xl font-semibold tracking-tight text-slate-100">
+            Mill<span className="text-cyan-300">OS</span>
+          </span>
+        </div>
+        <span className="hidden shrink-0 items-center border-r border-white/10 px-6 text-sm text-cyan-200 min-[1200px]:flex">
+          {workspace}
+        </span>
+        <div
+          className="flex min-w-0 flex-1 flex-wrap items-center gap-x-5 gap-y-2 px-5 py-3"
           role="group"
           aria-label="Live operational metrics"
         >
@@ -204,46 +259,52 @@ export const StatusHUD: React.FC = () => {
           {showFPSCounter && (
             <>
               <div
-                className="flex items-center gap-1.5 text-[10px] text-slate-300 font-mono"
+                className="flex shrink-0 items-center gap-1.5 text-[12px] text-slate-300 font-mono"
                 aria-label={`${fps} frames per second`}
               >
                 <ActivityIcon size={12} aria-hidden="true" />
                 <span>{fps} FPS</span>
               </div>
-              <div className="w-px h-3 bg-white/10" aria-hidden="true"></div>
+              <div
+                className="hidden w-px h-3 bg-white/10 min-[1200px]:block"
+                aria-hidden="true"
+              ></div>
             </>
           )}
 
           <div
-            className="flex items-center gap-1.5 text-[10px] text-cyan-300 font-mono"
+            className="flex shrink-0 items-center gap-1.5 text-[12px] text-cyan-300 font-mono"
             aria-label={`Final packer throughput ${throughput.toLocaleString()} bags per hour`}
             title="Measured from final-stage packer mass flow"
           >
-            <span>{throughput.toLocaleString()} BAGS/H</span>
+            <span className="hidden text-slate-400 min-[1400px]:inline">Production</span>
+            <span>{throughput.toLocaleString()} bags/h</span>
           </div>
 
-          <div className="w-px h-3 bg-white/10" aria-hidden="true"></div>
+          <div className="hidden w-px h-3 bg-white/10 min-[1200px]:block" aria-hidden="true"></div>
 
           <div
-            className="flex items-center gap-1.5 text-[10px] text-orange-300 font-mono"
+            className="flex shrink-0 items-center gap-1.5 text-[12px] text-slate-200 font-mono"
             aria-label={`Daily target ${dailyBagsProduced} of ${targetBags} bags`}
           >
             <span>
-              TARGET {dailyBagsProduced.toLocaleString()}/{targetBags.toLocaleString()}
+              Target {dailyBagsProduced.toLocaleString()} / {targetBags.toLocaleString()}
             </span>
           </div>
 
-          <div className="w-px h-3 bg-white/10" aria-hidden="true"></div>
+          <div className="hidden w-px h-3 bg-white/10 min-[1200px]:block" aria-hidden="true"></div>
 
           <div
-            className="flex items-center gap-1.5 text-[10px] text-slate-200"
+            className="order-last ml-auto flex shrink-0 items-center gap-3 text-sm text-slate-200"
             aria-label={`${currentShift} run window, simulation time ${Math.floor(gameTime)
               .toString()
               .padStart(2, '0')}:${Math.floor((gameTime % 1) * 60)
               .toString()
               .padStart(2, '0')}`}
           >
-            <span className="uppercase">{currentShift}</span>
+            <span className="hidden uppercase text-xs text-slate-400 min-[1600px]:inline">
+              {currentShift}
+            </span>
             <time>
               {Math.floor(gameTime).toString().padStart(2, '0')}:
               {Math.floor((gameTime % 1) * 60)
@@ -252,22 +313,22 @@ export const StatusHUD: React.FC = () => {
             </time>
           </div>
 
-          <div className="w-px h-3 bg-white/10" aria-hidden="true"></div>
+          <div className="hidden w-px h-3 bg-white/10 min-[1200px]:block" aria-hidden="true"></div>
 
           {/* Safety Score */}
           <div
-            className={`flex items-center gap-1.5 text-[10px] font-bold ${safetyColor}`}
+            className={`flex shrink-0 items-center gap-1.5 text-[12px] font-bold ${safetyColor}`}
             aria-label={`Safety score: ${safetyScore} percent`}
           >
             <SafetyIcon size={12} aria-hidden="true" />
-            <span>{safetyScore}% SAFETY</span>
+            <span>{safetyScore}% safety</span>
           </div>
 
-          <div className="w-px h-3 bg-white/10" aria-hidden="true"></div>
+          <div className="hidden w-px h-3 bg-white/10 min-[1200px]:block" aria-hidden="true"></div>
 
           {/* SCADA mode. Connection health lives in the SCADA workspace. */}
           <div
-            className={`flex items-center gap-1.5 text-[10px] ${
+            className={`flex shrink-0 items-center gap-1.5 text-[12px] ${
               scadaEnabled ? 'text-cyan-300' : 'text-slate-400'
             }`}
             aria-label={
@@ -281,17 +342,18 @@ export const StatusHUD: React.FC = () => {
       </div>
 
       {/* Notifications Bell */}
-      <div className="relative" ref={panelRef}>
+      <div className="relative shrink-0" ref={panelRef}>
         <button
+          ref={bellRef}
           onClick={() => setShowNotifications(!showNotifications)}
-          className="w-8 h-8 rounded-full bg-slate-900/50 backdrop-blur border border-white/10 flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-colors pointer-events-auto relative"
+          className="w-12 h-12 border-l border-white/10 flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-colors pointer-events-auto relative"
           aria-label={`Notifications (${unacknowledgedCount} unread)`}
           aria-haspopup="dialog"
           aria-expanded={showNotifications}
         >
           <Bell size={14} />
           {unacknowledgedCount > 0 && (
-            <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-red-700 rounded-full border-2 border-slate-950 flex items-center justify-center text-[9px] font-bold text-white">
+            <span className="absolute -top-0.5 -right-0.5 min-w-[20px] h-[20px] bg-red-700 rounded-full border-2 border-slate-950 flex items-center justify-center text-[12px] font-bold text-white">
               {unacknowledgedCount > 9 ? '9+' : unacknowledgedCount}
             </span>
           )}
@@ -299,21 +361,34 @@ export const StatusHUD: React.FC = () => {
 
         {/* Notifications Panel */}
         {showNotifications && (
-          <div className="absolute top-full right-0 mt-2 w-80 bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl overflow-hidden pointer-events-auto">
+          <div
+            role="dialog"
+            aria-label="Notifications"
+            style={{
+              ...notificationPosition,
+              maxHeight: `calc(100dvh - ${notificationPosition.top + 16}px)`,
+            }}
+            className="fixed flex w-[min(320px,calc(100vw-32px))] flex-col bg-[#071722]/98 backdrop-blur-xl border border-cyan-100/15 rounded-lg shadow-2xl overflow-hidden pointer-events-auto"
+          >
             <div className="p-3 border-b border-white/10 flex items-center justify-between">
               <h3 className="text-sm font-bold text-white">Notifications</h3>
               <button
-                onClick={() => setShowNotifications(false)}
-                className="text-slate-400 hover:text-white p-1"
+                ref={notificationsCloseRef}
+                type="button"
+                onClick={() => {
+                  setShowNotifications(false);
+                  bellRef.current?.focus();
+                }}
+                className="text-slate-400 hover:text-white p-2"
                 aria-label="Close notifications"
                 title="Close notifications"
               >
                 <X size={14} />
               </button>
             </div>
-            <div className="max-h-80 overflow-y-auto">
+            <div className="min-h-0 max-h-80 overflow-y-auto">
               {alerts.length === 0 ? (
-                <div className="p-6 text-center text-slate-400 text-sm">No notifications</div>
+                <div className="p-6 text-center text-slate-400 text-sm">All clear.</div>
               ) : (
                 alerts.slice(0, 10).map((alert) => (
                   <div
@@ -341,8 +416,10 @@ export const StatusHUD: React.FC = () => {
                       <span className="sr-only">{alert.type}: </span>
                       <div className="flex-1 min-w-0">
                         <div className="text-xs font-medium text-white truncate">{alert.title}</div>
-                        <div className="text-[10px] text-slate-400 truncate">{alert.message}</div>
-                        <div className="text-[9px] text-slate-400 mt-1">
+                        <div className="text-[12px] text-slate-300 break-words">
+                          {alert.message}
+                        </div>
+                        <div className="text-[12px] text-slate-400 mt-1">
                           {new Date(alert.timestamp).toLocaleTimeString()}
                         </div>
                       </div>
@@ -350,7 +427,7 @@ export const StatusHUD: React.FC = () => {
                         {!alert.acknowledged && (
                           <button
                             onClick={() => acknowledgeAlert(alert.id)}
-                            className="p-1 text-slate-500 hover:text-green-400 transition-colors"
+                            className="p-2 text-slate-400 hover:text-green-400 transition-colors"
                             title="Acknowledge"
                             aria-label={`Acknowledge ${alert.title}`}
                           >
@@ -359,7 +436,7 @@ export const StatusHUD: React.FC = () => {
                         )}
                         <button
                           onClick={() => removeAlert(alert.id)}
-                          className="p-1 text-slate-500 hover:text-red-400 transition-colors"
+                          className="p-2 text-slate-400 hover:text-red-400 transition-colors"
                           title="Dismiss"
                           aria-label={`Dismiss ${alert.title}`}
                         >
@@ -379,7 +456,7 @@ export const StatusHUD: React.FC = () => {
                       if (!a.acknowledged) acknowledgeAlert(a.id);
                     });
                   }}
-                  className="w-full text-[10px] text-cyan-400 hover:text-cyan-300 py-1"
+                  className="w-full text-[12px] text-cyan-400 hover:text-cyan-300 py-1"
                 >
                   Mark all as read
                 </button>

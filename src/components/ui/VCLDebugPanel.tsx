@@ -19,7 +19,7 @@ import {
   Brain,
   AlertTriangle,
 } from 'lucide-react';
-import { useAIConfigStore } from '../../stores/aiConfigStore';
+import { getActiveGeminiPricing, useAIConfigStore } from '../../stores/aiConfigStore';
 import { useProductionStore } from '../../stores/productionStore';
 import { useGameSimulationStore, useUIStore } from '../../stores';
 import { encodeFactoryContextVCL } from '../../utils/vclEncoder';
@@ -29,7 +29,7 @@ const VERBOSE_EXAMPLE = `Current time: 14:30, autonomous run window B
 Weather: clear
 Production line status:
 - Silos: 5 of 5 running at 65% average load
-- Roller mills: 6 of 6 running at 78% average load
+- Roller mills: 4 of 4 running at 78% average load
 - Plansifters: 3 of 3 running at 71% average load
 - Packers: 3 of 3 running at 82% average load
 - Control network: online
@@ -76,6 +76,8 @@ export const VCLDebugPanel: React.FC = () => {
   const vclLength = vclEncoding.length;
   const savingsPercent = Math.round((1 - vclLength / verboseLength) * 100);
   const tokensSaved = Math.round((verboseLength - vclLength) / 4); // ~4 chars per token
+  // Input tokens saved across 1,000 requests, at the active model's input rate.
+  const savingsPer1kRequests = ((tokensSaved * 1000) / 1_000_000) * getActiveGeminiPricing().input;
 
   const handleCopy = async () => {
     if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
@@ -235,7 +237,7 @@ export const VCLDebugPanel: React.FC = () => {
                 </div>
                 <div className="bg-slate-800/50 rounded-lg p-2 text-center border border-slate-700/50 overflow-hidden">
                   <div className="text-lg font-bold text-purple-400 truncate">
-                    ${(((tokensSaved * 1000) / 1000000) * 0.075).toFixed(2)}
+                    ${savingsPer1kRequests.toFixed(2)}
                   </div>
                   <div className="text-[8px] text-slate-400 mt-0.5 truncate">Per 1K Requests</div>
                 </div>

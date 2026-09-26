@@ -77,4 +77,27 @@ describe('MillOS runtime agent projection', () => {
     expect(window.__MILLOS_AGENT__).toBeUndefined();
     expect(window.__MILLOS_RUNTIME__).toBe(legacyBefore);
   });
+
+  // Runs last: the composition deliberately outlives an install, so the
+  // revocation below persists on this window for the rest of the file.
+  it('reuses one composed agent plane across re-installs so a revocation survives', () => {
+    const removeFirst = installMillOSAgentRuntime(window);
+    const first = window.__MILLOS_AGENT__;
+    const grantId = first?.grants().find((grant) => !grant.revokedAt)?.id;
+    expect(grantId).toBeDefined();
+    expect(first?.revokeGrant(String(grantId), 'Operator withdrew the agent grant.')).toBe(true);
+    removeFirst();
+    expect(window.__MILLOS_AGENT__).toBeUndefined();
+
+    // A camera-controls change re-runs the installing effect.
+    const removeSecond = installMillOSAgentRuntime(window);
+    try {
+      expect(window.__MILLOS_AGENT__).toBe(first);
+      expect(
+        window.__MILLOS_AGENT__?.grants().find((grant) => grant.id === grantId)?.revokedAt
+      ).toBeTruthy();
+    } finally {
+      removeSecond();
+    }
+  });
 });

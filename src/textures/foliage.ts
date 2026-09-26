@@ -91,7 +91,9 @@ const buildLeaflets = (kind: FoliageKind, cell: number, count: number): Leaflet[
       ry = 0.008 + rnd(seed, i * 7 + 3) * 0.007;
       rot = ang + (rnd(seed, i * 7 + 4) - 0.5) * 0.7;
     } else {
-      rx = 0.052 + rnd(seed, i * 7 + 2) * 0.055;
+      // At 192 px per atlas cell these leaflets span 7-13 px, retaining a
+      // readable blade while avoiding metre-wide leaves on the park crowns.
+      rx = 0.018 + rnd(seed, i * 7 + 2) * 0.017;
       ry = rx * (0.42 + rnd(seed, i * 7 + 3) * 0.34);
       rot = rnd(seed, i * 7 + 4) * Math.PI;
     }
@@ -122,7 +124,9 @@ const buildLeaflets = (kind: FoliageKind, cell: number, count: number): Leaflet[
       r,
       g,
       b,
-      amp: 0.55 + rnd(seed, i * 7 + 4) * 0.45,
+      // Smaller leaves carry proportionally shallower veins. Otherwise the
+      // unchanged height would triple their gradient when their width shrinks.
+      amp: (0.55 + rnd(seed, i * 7 + 4) * 0.45) * (kind === 'broadleaf' ? (rx / 0.08) * 0.125 : 1),
     });
   }
   return out;
@@ -315,10 +319,10 @@ export const generateLeafAtlas = (
   size: number = 512,
   kind: FoliageKind = 'broadleaf'
 ): THREE.DataTexture => {
-  return getTexture(`foliage-leaf-${size}-${kind}`, () => {
+  return getTexture(`foliage-leaf-v2-${size}-${kind}`, () => {
     const data = new Uint8Array(size * size * 4);
     const cell = size >> 1;
-    const count = kind === 'needle' ? 120 : 46;
+    const count = kind === 'needle' ? 120 : 420;
     // Margin keeps bilinear taps from pulling a neighbouring cell across the
     // seam; the bleed pass fills it with the adjacent leaf colour.
     const margin = Math.max(3, Math.round(size * 0.012));
@@ -378,10 +382,10 @@ export const generateLeafNormal = (
   size: number = 512,
   kind: FoliageKind = 'broadleaf'
 ): THREE.DataTexture => {
-  return getTexture(`foliage-leaf-normal-${size}-${kind}`, () => {
+  return getTexture(`foliage-leaf-normal-v2-${size}-${kind}`, () => {
     const height = new Float32Array(size * size);
     const cell = size >> 1;
-    const count = kind === 'needle' ? 120 : 46;
+    const count = kind === 'needle' ? 120 : 420;
     const margin = Math.max(3, Math.round(size * 0.012));
 
     for (let c = 0; c < 4; c++) {

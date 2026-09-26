@@ -281,7 +281,11 @@ export const DecisionReplay: React.FC<DecisionReplayProps> = ({ decision, onClos
                   )}
                 </div>
               ) : (
-                <p className="text-xs text-slate-400">Awaiting an automatic control response.</p>
+                <p className="text-xs text-slate-400">
+                  {decision.status === 'pending'
+                    ? 'Awaiting a response. Accept, defer, or reject it from the decision card.'
+                    : 'No control response was recorded.'}
+                </p>
               )}
             </section>
 
@@ -348,7 +352,7 @@ export const DecisionReplayTrigger: React.FC<{
       <button
         type="button"
         onClick={() => setShowReplay(true)}
-        aria-label="View decision details"
+        aria-label={`View details: ${decision.action}`}
         className="cursor-pointer w-full text-left bg-transparent border-0 p-0 m-0"
       >
         {children}

@@ -159,6 +159,27 @@ describe('BreakdownStore', () => {
       ]);
     });
 
+    it('keeps only the most recent closed work orders', () => {
+      useBreakdownStore.setState({
+        partsInventory: { bearings: 100, belts: 100, filters: 100, motors: 100, sensors: 100 },
+      });
+      for (let cycle = 0; cycle < 32; cycle += 1) {
+        const breakdown = createRepair();
+        const state = useBreakdownStore.getState();
+        state.startRepair(breakdown.id);
+        state.updateRepairProgress(breakdown.id, 100);
+        state.verifyRepair(breakdown.id);
+        state.requestMachineRestart(breakdown.id);
+        state.confirmMachineRestart(breakdown.id);
+      }
+      const open = createRepair();
+
+      const workOrders = useBreakdownStore.getState().workOrders;
+      expect(workOrders).toHaveLength(31);
+      expect(workOrders[0].id).toBe('wo-00003');
+      expect(workOrders.at(-1)).toMatchObject({ breakdownId: open.id, phase: 'diagnosed' });
+    });
+
     it('tracks downtime on active faults and freezes it after restart', () => {
       const breakdown = createRepair();
       const state = useBreakdownStore.getState();

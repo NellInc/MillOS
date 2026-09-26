@@ -1,3 +1,5 @@
+import { GeneratedBoundary } from '../models/GeneratedModel';
+import { GeneratedGeometrySurface } from '../models/GeneratedGeometrySurface';
 import React, { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
@@ -30,10 +32,13 @@ export const buildNearCitySpecs = (count = 42): NearCityBuildingSpec[] =>
     const positionInBand = Math.floor(index / 3);
     const progress = buildingsInBand <= 1 ? 0.5 : positionInBand / (buildingsInBand - 1);
     const angle =
-      THREE.MathUtils.lerp(-1, -0.12, progress) + (deterministicNoise(index, 6) - 0.5) * 0.045;
-    // Three shallow depth bands create real parallax and an enclosing district
-    // silhouette without bringing city geometry into the operational yard.
-    const radius = 184 + districtBand * 16 + deterministicNoise(index, 0) * 8;
+      THREE.MathUtils.lerp(-0.56, 0.16, progress) + (deterministicNoise(index, 6) - 0.5) * 0.045;
+    // Keep the complete footprints beyond the river's east bank. The former
+    // 184 m arc left building feet suspended over the channel and its culvert;
+    // the town now sits at the foot of the foothills, which begin at
+    // world.radius + 16, rather than inside their slope.
+    // Working if rays through both terrain grids find level ground under every foot.
+    const radius = 226 + districtBand * 12 + deterministicNoise(index, 0) * 6;
     const landmark = deterministicNoise(index, 1) > 0.93;
     const height =
       6.5 + deterministicNoise(index, 2) * 13 + districtBand * 1.25 + (landmark ? 6 : 0);
@@ -59,7 +64,9 @@ const CITY_BODY_MATERIAL = new THREE.MeshStandardMaterial({
   emissiveIntensity: 0.22,
   roughness: 0.88,
   metalness: 0.04,
-  vertexColors: true,
+  // setColorAt supplies instanceColor. UNIT_BOX has no vertex colour attribute;
+  // enabling vertexColors additionally multiplies the authored palette by zero.
+  vertexColors: false,
 });
 const CITY_ROOF_MATERIAL = new THREE.MeshStandardMaterial({
   color: '#666d6c',
@@ -279,13 +286,31 @@ export const NearHorizonCity: React.FC = () => {
         name="near-city-buildings"
         args={[UNIT_BOX, CITY_BODY_MATERIAL, buildings.length]}
         renderOrder={RENDER_ORDER.cityNear}
-      />
+      >
+        <GeneratedBoundary fallback={null}>
+          <GeneratedGeometrySurface
+            fitEnvelope
+            asset="cityMasonryUnit"
+            original={UNIT_BOX}
+            meshRef={bodiesRef}
+          />
+        </GeneratedBoundary>
+      </instancedMesh>
       <instancedMesh
         ref={roofsRef}
         name="near-city-roofs"
         args={[UNIT_BOX, CITY_ROOF_MATERIAL, buildings.length]}
         renderOrder={RENDER_ORDER.cityNear + 1}
-      />
+      >
+        <GeneratedBoundary fallback={null}>
+          <GeneratedGeometrySurface
+            fitEnvelope
+            asset="factorySteelUnit"
+            original={UNIT_BOX}
+            meshRef={roofsRef}
+          />
+        </GeneratedBoundary>
+      </instancedMesh>
       <instancedMesh
         ref={windowsRef}
         name="near-city-windows"
@@ -297,13 +322,31 @@ export const NearHorizonCity: React.FC = () => {
         name="near-city-rooftop-equipment"
         args={[UNIT_BOX, CITY_MECHANICAL_MATERIAL, rooftopEquipment.length]}
         renderOrder={RENDER_ORDER.cityNear + 1}
-      />
+      >
+        <GeneratedBoundary fallback={null}>
+          <GeneratedGeometrySurface
+            fitEnvelope
+            asset="factorySteelUnit"
+            original={UNIT_BOX}
+            meshRef={equipmentRef}
+          />
+        </GeneratedBoundary>
+      </instancedMesh>
       <instancedMesh
         ref={stacksRef}
         name="near-city-stacks"
         args={[UNIT_BOX, CITY_STACK_MATERIAL, stacks.length]}
         renderOrder={RENDER_ORDER.cityNear + 1}
-      />
+      >
+        <GeneratedBoundary fallback={null}>
+          <GeneratedGeometrySurface
+            fitEnvelope
+            asset="factorySteelUnit"
+            original={UNIT_BOX}
+            meshRef={stacksRef}
+          />
+        </GeneratedBoundary>
+      </instancedMesh>
     </group>
   );
 };

@@ -1,4 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { SITE_LAYOUT } from '../../constants/siteLayout';
+import { createRoundedForkliftRoute, type ForkliftWaypointAction } from '../forkliftRoute';
+import { sampleArcLengthPath } from './vehicleKinematics';
 import {
   FORKLIFT_MAXIMUM_STEERING_RADIANS,
   createForkliftRoutePlan,
@@ -92,6 +95,62 @@ describe('forklift controller', () => {
     expect(sampleForkliftLoadPose('pickup', 0.4, 1.2).cargoEngaged).toBe(true);
     expect(sampleForkliftLoadPose('pickup', 0.7, 1.2).mastTilt).toBeLessThan(0);
     expect(sampleForkliftLoadPose('pickup', 1, 1.2).operationComplete).toBe(true);
+  });
+
+  it('starts a dropoff from the loaded-travel mast tilt', () => {
+    expect(sampleForkliftLoadPose('dropoff', 0.01, 1.2).mastTilt).toBe(-0.055);
+    expect(sampleForkliftLoadPose('dropoff', 0.99, 1.2).mastTilt).toBe(0);
+  });
+
+  it.each([
+    ['shipping', SITE_LAYOUT.routes.forklifts.shipping.points, 4],
+    ['receiving', SITE_LAYOUT.routes.forklifts.receiving.points, 3],
+  ] as const)('points the %s forklift along travel on every straight leg', (_, route, dropoff) => {
+    const routeActions: ForkliftWaypointAction[] = route.map((__, index) =>
+      index === 0
+        ? { type: 'pickup', duration: 7 }
+        : index === dropoff
+          ? { type: 'dropoff', duration: 6 }
+          : { type: 'none', duration: 0 }
+    );
+    const rounded = createRoundedForkliftRoute(route, routeActions, 2, 8);
+    const plan = createForkliftRoutePlan(rounded.path, rounded.actions);
+    const headingOf = (x: number, z: number) => Math.atan2(x, z);
+
+    // Walk the route by arc length (the shipping route runs both ways along
+    // z = 42, so a nearest-point lookup would be ambiguous there).
+    let worstLegDeviation = 0;
+    let measuredLength = 0;
+    const samples = plan.path.samples;
+    samples.slice(1).forEach((end, index) => {
+      const start = samples[index];
+      const length = end.distance - start.distance;
+      if (length <= 1) return;
+      measuredLength += length;
+      const legHeading = headingOf(end.x - start.x, end.z - start.z);
+      for (let along = 0; along <= length; along += 0.1) {
+        const sample = sampleArcLengthPath(plan.path, start.distance + along);
+        const heading = headingOf(sample.tangentX, sample.tangentZ);
+        const deviation = Math.abs(
+          Math.atan2(Math.sin(heading - legHeading), Math.cos(heading - legHeading))
+        );
+        worstLegDeviation = Math.max(worstLegDeviation, deviation);
+      }
+    });
+    // Straight legs are most of either route; the corner blends are the rest.
+    expect(measuredLength / plan.path.totalLength).toBeGreaterThan(0.7);
+    expect((worstLegDeviation * 180) / Math.PI).toBeLessThan(3);
+
+    // The closed route's seam is the pickup: no one-frame heading snap across it.
+    const beforeSeam = sampleArcLengthPath(plan.path, plan.path.totalLength - 0.01);
+    const afterSeam = sampleArcLengthPath(plan.path, 0.01);
+    const seamStep = Math.abs(
+      Math.atan2(
+        beforeSeam.tangentX * afterSeam.tangentZ - beforeSeam.tangentZ * afterSeam.tangentX,
+        beforeSeam.tangentX * afterSeam.tangentX + beforeSeam.tangentZ * afterSeam.tangentZ
+      )
+    );
+    expect((seamStep * 180) / Math.PI).toBeLessThan(5);
   });
 
   it('places and disengages a carried pallet in distinct phases', () => {

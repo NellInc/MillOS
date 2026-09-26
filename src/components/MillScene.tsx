@@ -1,3 +1,4 @@
+import { createConveyorObstacles, DOCK_PLATFORM_OBSTACLES } from '../constants/factoryObstacles';
 import React, { useMemo, useEffect, useRef, Suspense, useCallback, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Environment } from '@react-three/drei';
@@ -12,6 +13,7 @@ import { DustParticles, GrainFlow, MachineSteamVents, DustAnimationManager } fro
 import { OptimizedFactoryInfrastructure } from './infrastructure/OptimizedFactoryInfrastructure';
 import type { ForkliftData } from './ForkliftSystem';
 import { OptimizedFactoryEnvironment } from './environment/OptimizedFactoryEnvironment';
+import { getTerrainGridSegments } from './terrain/terrainTypes';
 import { ENVIRONMENT_INTENSITY } from './environment/SceneEnvironmentIBL';
 import { CentralTickProvider, useUnifiedGameTick } from '../systems';
 import { ProductionFlowVisualization } from './ProductionFlowVisualization';
@@ -128,6 +130,14 @@ import { useShallow } from 'zustand/react/shallow';
 import { CameraBoundsTracker } from './CameraController';
 import { FLOOR_LAYERS, RENDER_ORDER, POLYGON_OFFSET } from '../constants/renderLayers';
 import { SITE_LAYOUT } from '../constants/siteLayout';
+import { useReducedMotion } from '../hooks/useReducedMotion';
+
+/**
+ * Authored `wireframe` values of the materials the toggle has overridden, so
+ * turning it off restores deliberate wireframe grilles instead of making them
+ * solid. Weak keys: a disposed material is never pinned here.
+ */
+const ORIGINAL_WIREFRAME = new WeakMap<THREE.Material, boolean>();
 
 /**
  * WireframeController - Applies wireframe mode to all scene materials when enabled
@@ -137,7 +147,10 @@ import { SITE_LAYOUT } from '../constants/siteLayout';
 const WireframeController: React.FC = () => {
   const enableWireframe = useGraphicsStore((state) => state.graphics.enableWireframe);
   const sceneRef = useRef<THREE.Scene | null>(null);
-  const lastWireframeState = useRef<boolean | null>(null);
+  // Starts false: with the setting off at load there is nothing to restore, so
+  // the first frame skips a whole-scene traversal. A persisted `true` still
+  // traverses once.
+  const lastWireframeState = useRef<boolean>(false);
 
   useFrame(({ scene }) => {
     if (!sceneRef.current) sceneRef.current = scene;
@@ -151,8 +164,20 @@ const WireframeController: React.FC = () => {
         const materials = Array.isArray(object.material) ? object.material : [object.material];
         materials.forEach((mat) => {
           if (mat instanceof THREE.MeshStandardMaterial || mat instanceof THREE.MeshBasicMaterial) {
-            mat.wireframe = enableWireframe;
-            mat.needsUpdate = true;
+            if (enableWireframe) {
+              if (!ORIGINAL_WIREFRAME.has(mat)) ORIGINAL_WIREFRAME.set(mat, mat.wireframe);
+              mat.wireframe = true;
+            } else {
+              const original = ORIGINAL_WIREFRAME.get(mat);
+              if (original === undefined) return;
+              mat.wireframe = original;
+              ORIGINAL_WIREFRAME.delete(mat);
+            }
+            // three's program key reads `wireframe` only through flat shading;
+            // every other material picks the change up without a recompile.
+            if (mat instanceof THREE.MeshStandardMaterial && mat.flatShading) {
+              mat.needsUpdate = true;
+            }
           }
         });
       }
@@ -169,9 +194,9 @@ const HeatMapPoint = React.memo<{
   registerAnimation: (
     id: string,
     refs: {
-      circle: THREE.MeshBasicMaterial | null;
-      ring: THREE.MeshBasicMaterial | null;
-      column: THREE.MeshBasicMaterial | null;
+      circle: React.RefObject<THREE.MeshBasicMaterial | null>;
+      ring: React.RefObject<THREE.MeshBasicMaterial | null>;
+      column: React.RefObject<THREE.MeshBasicMaterial | null>;
       intensityRef: React.MutableRefObject<number>;
     }
   ) => void;
@@ -217,12 +242,14 @@ const HeatMapPoint = React.memo<{
   const floorRotation = useMemo<[number, number, number]>(() => [-Math.PI / 2, 0, 0], []);
   const labelPosition = useMemo<[number, number, number]>(() => [0, 0.5, 0], []);
 
-  // Register with parent manager
+  // Register the ref OBJECTS with the parent manager, not their current
+  // values: the column mounts only once intensity passes 0.5, long after this
+  // effect has run, and a captured `null` would leave it static for good.
   useEffect(() => {
     registerAnimation(id, {
-      circle: circleMaterialRef.current,
-      ring: ringMaterialRef.current,
-      column: columnMaterialRef.current,
+      circle: circleMaterialRef,
+      ring: ringMaterialRef,
+      column: columnMaterialRef,
       intensityRef, // Pass the ref instead of the value
     });
     return () => unregisterAnimation(id);
@@ -284,12 +311,13 @@ const HeatMapPoint = React.memo<{
 const IncidentHeatMap: React.FC = () => {
   const incidentHeatMap = useSafetyStore((state) => state.incidentHeatMap);
   const showIncidentHeatMap = useSafetyStore((state) => state.showIncidentHeatMap);
+  const reducedMotion = useReducedMotion();
 
   // Registry for animated materials
   interface AnimatedMaterialRefs {
-    circle: THREE.MeshBasicMaterial | null;
-    ring: THREE.MeshBasicMaterial | null;
-    column: THREE.MeshBasicMaterial | null;
+    circle: React.RefObject<THREE.MeshBasicMaterial | null>;
+    ring: React.RefObject<THREE.MeshBasicMaterial | null>;
+    column: React.RefObject<THREE.MeshBasicMaterial | null>;
     intensityRef: React.MutableRefObject<number>;
   }
 
@@ -307,15 +335,19 @@ const IncidentHeatMap: React.FC = () => {
   useFrame((state) => {
     if (!showIncidentHeatMap || animatedRefs.current.size === 0) return;
 
-    // Throttle animation update? Maybe not needed for simple opacity pulse,
-    // but we can throttle if needed. For now run every frame for smooth pulse.
-    const pulse = Math.sin(state.clock.elapsedTime * 2) * 0.3 + 0.7;
+    // Runs every frame for a smooth pulse. Under reduced motion every hotspot
+    // holds its authored resting opacity (pulse 1); colour and size still
+    // convey severity.
+    const pulse = reducedMotion ? 1 : Math.sin(state.clock.elapsedTime * 2) * 0.3 + 0.7;
 
     animatedRefs.current.forEach((refs) => {
       // Use the ref value for intensity
-      if (refs.circle) refs.circle.opacity = 0.3 * pulse * refs.intensityRef.current;
-      if (refs.ring) refs.ring.opacity = 0.6 * pulse;
-      if (refs.column) refs.column.opacity = 0.2 * pulse;
+      const circle = refs.circle.current;
+      const ring = refs.ring.current;
+      const column = refs.column.current;
+      if (circle) circle.opacity = 0.3 * pulse * refs.intensityRef.current;
+      if (ring) ring.opacity = 0.6 * pulse;
+      if (column) column.opacity = 0.2 * pulse;
     });
   });
 
@@ -336,12 +368,29 @@ const IncidentHeatMap: React.FC = () => {
   );
 };
 
-// Automated egress verification markers.
+const EGRESS_PENDING_COLOR = '#f59e0b';
+const EGRESS_VERIFIED_COLOR = '#22c55e';
+const EGRESS_RING_REST = { emissiveIntensity: 1.5, opacity: 0.8 } as const;
+
+// Automated egress verification markers. A pending egress point pulses amber;
+// once the sequencer verifies it, the marker turns steady green and its label
+// says so, so the world tracks the Safety panel's "X/Y zones verified".
 // Memoized since it receives stable props from store selectors
 const ServiceEgressMarkers = React.memo(() => {
   const emergencyDrillMode = useGameSimulationStore((state) => state.emergencyDrillMode);
   const drillMetrics = useGameSimulationStore((state) => state.drillMetrics);
+  const reducedMotion = useReducedMotion();
   const materialRefs = useRef<(THREE.MeshStandardMaterial | null)[]>([]);
+  // A drill may cover fewer zones than there are egress points. Only the zones
+  // in the drill are marked and verified, so none is left pending when it ends.
+  const drillPoints = useMemo(
+    () => SERVICE_EGRESS_POINTS.slice(0, drillMetrics.totalZones),
+    [drillMetrics.totalZones]
+  );
+  const verified = useMemo(
+    () => drillPoints.map((exit) => drillMetrics.verifiedZoneIds.includes(exit.id)),
+    [drillPoints, drillMetrics.verifiedZoneIds]
+  );
 
   // The verification sequence itself. Nothing else calls markZoneVerified, so
   // without this a started drill could never complete: each egress point is
@@ -350,14 +399,14 @@ const ServiceEgressMarkers = React.memo(() => {
     if (!emergencyDrillMode || !drillMetrics.active) return;
     const ZONE_INTERVAL_MS = 4000;
     const COMPLETION_HOLD_MS = 5000;
-    let index = 0;
+    let completionTimer: number | undefined;
     const store = () => useGameSimulationStore.getState();
     const timer = window.setInterval(() => {
       const current = store();
       if (!current.emergencyDrillMode || !current.drillMetrics.active) return;
       if (current.drillMetrics.verificationComplete) {
         window.clearInterval(timer);
-        window.setTimeout(() => {
+        completionTimer = window.setTimeout(() => {
           const latest = store();
           if (latest.emergencyDrillMode && latest.drillMetrics.verificationComplete) {
             latest.endEmergencyDrill();
@@ -365,22 +414,38 @@ const ServiceEgressMarkers = React.memo(() => {
         }, COMPLETION_HOLD_MS);
         return;
       }
-      const zone = SERVICE_EGRESS_POINTS[index % SERVICE_EGRESS_POINTS.length];
-      index += 1;
+      const zone = SERVICE_EGRESS_POINTS.slice(0, current.drillMetrics.totalZones).find(
+        (point) => !current.drillMetrics.verifiedZoneIds.includes(point.id)
+      );
+      // Defensive: every drill zone is verified without the drill completing
+      // (startEmergencyDrill clamps totalZones, so this should not happen).
+      // Stop ticking instead of spinning until END DRILL.
+      if (!zone) {
+        window.clearInterval(timer);
+        return;
+      }
       current.markZoneVerified(zone.id);
     }, ZONE_INTERVAL_MS);
-    return () => window.clearInterval(timer);
+    return () => {
+      window.clearInterval(timer);
+      if (completionTimer !== undefined) window.clearTimeout(completionTimer);
+    };
   }, [emergencyDrillMode, drillMetrics.active]);
 
-  // Pulse during the automated verification sequence.
+  // Pending markers pulse during the automated verification sequence. Verified
+  // markers, and every marker under reduced motion, hold their resting glow.
   useFrame((state) => {
     if (!emergencyDrillMode) return;
     const pulse = Math.sin(state.clock.elapsedTime * 4) * 0.3 + 0.7;
-    materialRefs.current.forEach((mat) => {
-      if (mat) {
-        mat.emissiveIntensity = pulse * 2;
-        mat.opacity = 0.6 + pulse * 0.4;
+    materialRefs.current.forEach((mat, i) => {
+      if (!mat) return;
+      if (reducedMotion || verified[i]) {
+        mat.emissiveIntensity = EGRESS_RING_REST.emissiveIntensity;
+        mat.opacity = EGRESS_RING_REST.opacity;
+        return;
       }
+      mat.emissiveIntensity = pulse * 2;
+      mat.opacity = 0.6 + pulse * 0.4;
     });
   });
 
@@ -389,65 +454,68 @@ const ServiceEgressMarkers = React.memo(() => {
 
   return (
     <group>
-      {SERVICE_EGRESS_POINTS.map((exit, i) => (
-        <group
-          key={exit.id}
-          position={[exit.position.x, FLOOR_LAYERS.exitIndicator, exit.position.z]}
-          renderOrder={RENDER_ORDER.exitIndicator}
-        >
-          {/* Glowing circle on floor */}
-          <mesh rotation={[-Math.PI / 2, 0, 0]}>
-            <ringGeometry args={[2, 3.5, 32]} />
-            <meshStandardMaterial
-              ref={(el) => {
-                materialRefs.current[i] = el;
-              }}
-              color="#22c55e"
-              emissive="#22c55e"
-              emissiveIntensity={1.5}
-              transparent
-              opacity={0.8}
-              side={THREE.DoubleSide}
-              depthWrite={false}
-              polygonOffset
-              polygonOffsetFactor={POLYGON_OFFSET.standard.factor}
-              polygonOffsetUnits={POLYGON_OFFSET.standard.units}
-            />
-          </mesh>
-          {/* Inner solid circle - raised slightly for z-separation */}
-          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
-            <circleGeometry args={[2, 32]} />
-            <meshStandardMaterial
-              color="#22c55e"
-              emissive="#22c55e"
-              emissiveIntensity={0.5}
-              transparent
-              opacity={0.4}
-              depthWrite={false}
-              polygonOffset
-              polygonOffsetFactor={POLYGON_OFFSET.standard.factor}
-              polygonOffsetUnits={POLYGON_OFFSET.standard.units}
-            />
-          </mesh>
-          {/* Exit label */}
-          <Text
-            position={[0, 2, 0]}
-            fontSize={1.2}
-            color="#22c55e"
-            anchorX="center"
-            anchorY="middle"
-            outlineWidth={0.05}
-            outlineColor="#000000"
+      {drillPoints.map((exit, i) => {
+        const color = verified[i] ? EGRESS_VERIFIED_COLOR : EGRESS_PENDING_COLOR;
+        return (
+          <group
+            key={exit.id}
+            position={[exit.position.x, FLOOR_LAYERS.exitIndicator, exit.position.z]}
+            renderOrder={RENDER_ORDER.exitIndicator}
           >
-            {exit.label.toUpperCase()}
-          </Text>
-          {/* Pointing arrow above */}
-          <mesh position={[0, 3.5, 0]} rotation={[0, 0, Math.PI]}>
-            <coneGeometry args={[0.5, 1, 8]} />
-            <meshStandardMaterial color="#22c55e" emissive="#22c55e" emissiveIntensity={1} />
-          </mesh>
-        </group>
-      ))}
+            {/* Glowing circle on floor */}
+            <mesh rotation={[-Math.PI / 2, 0, 0]}>
+              <ringGeometry args={[2, 3.5, 32]} />
+              <meshStandardMaterial
+                ref={(el) => {
+                  materialRefs.current[i] = el;
+                }}
+                color={color}
+                emissive={color}
+                emissiveIntensity={EGRESS_RING_REST.emissiveIntensity}
+                transparent
+                opacity={EGRESS_RING_REST.opacity}
+                side={THREE.DoubleSide}
+                depthWrite={false}
+                polygonOffset
+                polygonOffsetFactor={POLYGON_OFFSET.standard.factor}
+                polygonOffsetUnits={POLYGON_OFFSET.standard.units}
+              />
+            </mesh>
+            {/* Inner solid circle - raised slightly for z-separation */}
+            <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
+              <circleGeometry args={[2, 32]} />
+              <meshStandardMaterial
+                color={color}
+                emissive={color}
+                emissiveIntensity={0.5}
+                transparent
+                opacity={0.4}
+                depthWrite={false}
+                polygonOffset
+                polygonOffsetFactor={POLYGON_OFFSET.standard.factor}
+                polygonOffsetUnits={POLYGON_OFFSET.standard.units}
+              />
+            </mesh>
+            {/* Exit label */}
+            <Text
+              position={[0, 2, 0]}
+              fontSize={1.2}
+              color={color}
+              anchorX="center"
+              anchorY="middle"
+              outlineWidth={0.05}
+              outlineColor="#000000"
+            >
+              {verified[i] ? `${exit.label.toUpperCase()} VERIFIED` : exit.label.toUpperCase()}
+            </Text>
+            {/* Pointing arrow above */}
+            <mesh position={[0, 3.5, 0]} rotation={[0, 0, Math.PI]}>
+              <coneGeometry args={[0.5, 1, 8]} />
+              <meshStandardMaterial color={color} emissive={color} emissiveIntensity={1} />
+            </mesh>
+          </group>
+        );
+      })}
     </group>
   );
 });
@@ -508,7 +576,7 @@ export const MillScene: React.FC<MillSceneProps> = ({
         name: `Silo ${siloNames[idx]}`,
         type: MachineType.SILO,
         position: [...anchor.position],
-        size: [4.5, 16, 4.5],
+        size: [...SITE_LAYOUT.machineDimensions.silo],
         rotation: 0,
         status: 'running',
         metrics: {
@@ -536,7 +604,7 @@ export const MillScene: React.FC<MillSceneProps> = ({
         name: millNames[idx],
         type: MachineType.ROLLER_MILL,
         position: [...anchor.position],
-        size: [3.5, 5, 3.5],
+        size: [...SITE_LAYOUT.machineDimensions.rollerMill],
         rotation: 0,
         status: 'running',
         metrics: {
@@ -560,13 +628,16 @@ export const MillScene: React.FC<MillSceneProps> = ({
         name: sifterNames[idx],
         type: MachineType.PLANSIFTER,
         position: [...anchor.position],
-        size: [7, 7, 7],
+        size: [...SITE_LAYOUT.machineDimensions.sifter],
         rotation: 0,
         status: 'running',
         metrics: {
           rpm: 200 + idx * 6, // Deterministic: 200-212
           temperature: 28 + idx * 1.3, // Deterministic: 28-30.6°C
-          vibration: 5.5 + idx * 0.3, // Deterministic: 5.5-6.1
+          // Deterministic: 1.2-1.4 mm/s, near MachineSimulationController's
+          // running steady state and SCADA's mapped amplitude band. A 5.5+ seed
+          // tipped every sifter into 'warning' on its first simulation tick.
+          vibration: 1.2 + idx * 0.1,
           load: 75 + idx * 3, // Deterministic: 75-81%
           wear: 0, // Start with no wear
           efficiency: 100, // Start at full efficiency
@@ -576,7 +647,7 @@ export const MillScene: React.FC<MillSceneProps> = ({
       });
     });
 
-    // ZONE 4: Packaging (Packers) - Moved forward to z=25 for more space
+    // ZONE 4: Packaging (Packers)
     const packerNames = ['Pack Line 1', 'Pack Line 2', 'Pack Line 3'];
     SITE_LAYOUT.machines.packers.forEach((anchor, idx) => {
       _machines.push({
@@ -584,7 +655,7 @@ export const MillScene: React.FC<MillSceneProps> = ({
         name: packerNames[idx],
         type: MachineType.PACKER,
         position: [...anchor.position],
-        size: [4, 6, 4],
+        size: [...SITE_LAYOUT.machineDimensions.packer],
         rotation: Math.PI,
         status: 'running',
         metrics: {
@@ -612,10 +683,10 @@ export const MillScene: React.FC<MillSceneProps> = ({
       const [x, , z] = anchor.position;
       obs.push({
         id: `${anchor.id}-obstacle`,
-        minX: x - 2.25 - CLEARANCE_PADDING,
-        maxX: x + 2.25 + CLEARANCE_PADDING,
-        minZ: z - 2.25 - CLEARANCE_PADDING,
-        maxZ: z + 2.25 + CLEARANCE_PADDING,
+        minX: x - SITE_LAYOUT.machineDimensions.silo[0] / 2 - CLEARANCE_PADDING,
+        maxX: x + SITE_LAYOUT.machineDimensions.silo[0] / 2 + CLEARANCE_PADDING,
+        minZ: z - SITE_LAYOUT.machineDimensions.silo[2] / 2 - CLEARANCE_PADDING,
+        maxZ: z + SITE_LAYOUT.machineDimensions.silo[2] / 2 + CLEARANCE_PADDING,
       });
     });
 
@@ -623,14 +694,14 @@ export const MillScene: React.FC<MillSceneProps> = ({
       const [x, , z] = anchor.position;
       obs.push({
         id: `${anchor.id}-obstacle`,
-        minX: x - 1.75 - CLEARANCE_PADDING,
-        maxX: x + 1.75 + CLEARANCE_PADDING,
-        minZ: z - 1.75 - CLEARANCE_PADDING,
-        maxZ: z + 1.75 + CLEARANCE_PADDING,
+        minX: x - SITE_LAYOUT.machineDimensions.rollerMill[0] / 2 - CLEARANCE_PADDING,
+        maxX: x + SITE_LAYOUT.machineDimensions.rollerMill[0] / 2 + CLEARANCE_PADDING,
+        minZ: z - SITE_LAYOUT.machineDimensions.rollerMill[2] / 2 - CLEARANCE_PADDING,
+        maxZ: z + SITE_LAYOUT.machineDimensions.rollerMill[2] / 2 + CLEARANCE_PADDING,
       });
     });
 
-    // PLANSIFTERS (Zone 3, z=6) - elevated at y=9, but have hanging cables
+    // PLANSIFTERS, elevated at the shared mezzanine datum, have hanging cables
     // Mobile units can pass beneath these, but the cable anchors remain obstacles.
     SITE_LAYOUT.machines.sifters.forEach((anchor) => {
       const [x, , z] = anchor.position;
@@ -663,108 +734,9 @@ export const MillScene: React.FC<MillSceneProps> = ({
       });
     });
 
-    // CONVEYOR SYSTEM OBSTACLES - Full belt structures
-    // Forklifts and service rovers must route around the conveyors.
-    // Main conveyor belt at z=24, length 55 (x from -27.5 to 27.5)
-    obs.push({
-      id: 'main-conveyor-belt',
-      minX: -28,
-      maxX: 28,
-      minZ: 22.5,
-      maxZ: 25.5,
-    });
+    obs.push(...createConveyorObstacles());
 
-    // Roller conveyor at z=21, length 30 (x from -15 to 15)
-    obs.push({
-      id: 'roller-conveyor-belt',
-      minX: -15,
-      maxX: 15,
-      minZ: 19.5,
-      maxZ: 22.5,
-    });
-
-    // Central longitudinal conveyor - runs from silos (z=-22) to packers (z=25)
-    // Located at x=-1.5 to 1.5. Clear aisles at x=±2.5 remain available.
-    obs.push({
-      id: 'central-conveyor-belt',
-      minX: -1.8, // Actual belt width (x: -1.5 to 1.5) + small buffer
-      maxX: 1.8,
-      minZ: -20, // From just past silos
-      maxZ: 18, // Up to just before the lateral conveyors
-    });
-
-    // LOADING DOCK PLATFORMS - Forklifts must not drive onto elevated docks
-    // Shipping dock (front, z=50): platform at [0, 1, 47], size 32x6 (expanded for 2 bays)
-    obs.push({
-      id: 'shipping-dock-platform',
-      minX: -18,
-      maxX: 18,
-      minZ: 44,
-      maxZ: 54,
-    });
-
-    // Receiving dock (back, z=-50): platform at [0, 1, -47], size 16x6
-    obs.push({
-      id: 'receiving-dock-platform',
-      minX: -10,
-      maxX: 10,
-      minZ: -54,
-      maxZ: -44,
-    });
-
-    // AMENITY BUILDINGS - Break rooms, toilet blocks, locker rooms
-    // These are forklift-only obstacles; compact service rovers may enter.
-    // Moved to back wall area, away from truck paths
-
-    // Left break room at [-50, 0, -20], floor 6x5
-    obs.push({
-      id: 'break-room-left',
-      minX: -53,
-      maxX: -47,
-      minZ: -22.5,
-      maxZ: -17.5,
-      forkliftOnly: true,
-    });
-
-    // Right break room at [50, 0, -20], floor 6x5
-    obs.push({
-      id: 'break-room-right',
-      minX: 47,
-      maxX: 53,
-      minZ: -22.5,
-      maxZ: -17.5,
-      forkliftOnly: true,
-    });
-
-    // Toilet block at [35, 0, 35], floor 8x5
-    obs.push({
-      id: 'toilet-block',
-      minX: 31,
-      maxX: 39,
-      minZ: 32.5,
-      maxZ: 37.5,
-      forkliftOnly: true,
-    });
-
-    // Locker room at [-50, 0, -35], floor 8x6 - moved to back wall area
-    obs.push({
-      id: 'locker-room',
-      minX: -54,
-      maxX: -46,
-      minZ: -38,
-      maxZ: -32,
-      forkliftOnly: true,
-    });
-
-    // Manager's office at [-20, 0, 30], floor 8x6
-    obs.push({
-      id: 'manager-office',
-      minX: -24,
-      maxX: -16,
-      minZ: 27,
-      maxZ: 33,
-      forkliftOnly: true,
-    });
+    obs.push(...DOCK_PLATFORM_OBSTACLES);
 
     return obs;
   }, []);
@@ -813,13 +785,7 @@ export const MillScene: React.FC<MillSceneProps> = ({
       : graphicsQuality === 'medium'
         ? 512
         : 256;
-  const terrainSegments =
-    graphicsQuality === 'ultra' || graphicsQuality === 'high'
-      ? 128
-      : graphicsQuality === 'medium'
-        ? 64
-        : 1;
-  const terrainEnableRiverChannel = graphicsQuality !== 'low';
+  const terrainSegments = getTerrainGridSegments(graphicsQuality);
   const { isCameraInside, isCameraInDockZone } = useCameraPositionStore(
     useShallow((state) => ({
       isCameraInside: state.isCameraInside,
@@ -959,7 +925,7 @@ export const MillScene: React.FC<MillSceneProps> = ({
             debug={false}
             resolution={terrainResolution}
             segments={terrainSegments}
-            enableRiverChannel={terrainEnableRiverChannel}
+            enableRiverChannel
           />
         )}
       </group>

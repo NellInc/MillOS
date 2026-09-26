@@ -36,4 +36,21 @@ describe('normalGenerator', () => {
     expect(Math.max(...green)).toBeGreaterThan(165);
     expect(Math.min(...blue)).toBeGreaterThan(190);
   });
+
+  it('tiles without a relief seam at the wrap edge', () => {
+    // A non-periodic height field turns the jump across u = 1 -> 0 into a
+    // spike normal along both edge columns (FLOOR_AGGREGATE_NORMAL's shape).
+    const size = 128;
+    const data = generateProceduralNormal(size, 1, 26).image.data as Uint8Array;
+    const columnTilt = (x: number) => {
+      let sum = 0;
+      for (let y = 0; y < size; y++) sum += Math.abs(data[(y * size + x) * 4] - 128);
+      return sum / size;
+    };
+    const edge = (columnTilt(0) + columnTilt(size - 1)) / 2;
+    let interior = 0;
+    for (let x = 1; x < size - 1; x++) interior += columnTilt(x);
+    interior /= size - 2;
+    expect(edge).toBeLessThan(interior * 1.4);
+  });
 });

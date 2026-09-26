@@ -51,3 +51,23 @@ describe('organic lake geometry', () => {
     water.dispose();
   });
 });
+
+describe('lake bank ground contact', () => {
+  it('sinks the outer edge into the terrain and varies the crest without more triangles', () => {
+    const bank = createOrganicLakeBankGeometry(19, 14, 21.2, 16.2);
+    const p = bank.getAttribute('position');
+    const crests: number[] = [];
+    for (let i = 0; i < p.count; i += 5) {
+      expect(p.getZ(i + 4) + 0.08).toBeLessThan(-0.02);
+      crests.push(p.getZ(i + 2));
+    }
+    expect(Math.max(...crests) - Math.min(...crests)).toBeGreaterThan(0.03);
+    expect(bank.index!.count / 3).toBe(576);
+    for (let row = 0; row < 5; row += 1) {
+      expect(p.getX(row)).toBe(p.getX(72 * 5 + row));
+      expect(p.getY(row)).toBe(p.getY(72 * 5 + row));
+      expect(p.getZ(row)).toBe(p.getZ(72 * 5 + row));
+    }
+    bank.dispose();
+  });
+});

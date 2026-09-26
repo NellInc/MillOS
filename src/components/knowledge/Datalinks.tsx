@@ -2,13 +2,14 @@
  * Datalinks - The Bilateral Autonomy System Database
  *
  * Inspired by Sid Meier's Alpha Centauri Datalinks - an in-game encyclopedia
- * that unlocks through gameplay, featuring wisdom from pioneers and thinkers.
+ * of MillOS field notes: material flow, alarms, maintenance, quality,
+ * logistics, and the evidence behind autonomous decisions.
  *
  * Browse all knowledge entries organized by category.
  * Progressive disclosure: list view → card → full article
  */
 
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef, type RefObject } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X,
@@ -47,6 +48,7 @@ import {
   getCategoryIcon,
   getCategoryLabel,
 } from '../../stores/knowledgeStore';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
 
 // Icon mapping from KnowledgeIcon to Lucide component
 const ICON_MAP: Record<KnowledgeIcon, LucideIcon> = {
@@ -96,8 +98,13 @@ export function Datalinks({ isOpen, onClose }: DatalinksProps) {
   );
 
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
 
   const { isNew, clearNewBadge, markAsRead, getUnlockedCount, getTotalCount } = useKnowledgeStore();
+
+  // Keep Tab inside the dialog and restore focus on close. Called before the
+  // search-focus effect below so that effect runs last and wins initial focus.
+  useFocusTrap(dialogRef as RefObject<HTMLElement>, isOpen, onClose);
 
   // Move focus into the dialog when it OPENS. Keyed on isOpen ONLY — keying on
   // onClose (an unmemoized inline arrow from the parent) would re-run this on
@@ -107,12 +114,13 @@ export function Datalinks({ isOpen, onClose }: DatalinksProps) {
     searchInputRef.current?.focus();
   }, [isOpen]);
 
-  // Close on Escape (separate effect so it can depend on onClose without
-  // re-triggering the focus move above).
+  // Close on Escape even when focus has left the dialog (e.g. after a click on
+  // a non-focusable area). Inside the dialog useFocusTrap handles Escape and
+  // marks the event handled, so this does not close twice.
   useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
+      if (e.key === 'Escape' && !e.defaultPrevented) {
         onClose();
       }
     };
@@ -193,6 +201,7 @@ export function Datalinks({ isOpen, onClose }: DatalinksProps) {
         >
           <motion.div
             key="datalinks-modal"
+            ref={dialogRef}
             role="dialog"
             aria-modal="true"
             aria-labelledby="datalinks-title"
@@ -257,6 +266,7 @@ export function Datalinks({ isOpen, onClose }: DatalinksProps) {
                 <div className="flex gap-1 px-4 py-2 border-b border-slate-700 overflow-x-auto">
                   <button
                     onClick={() => setSelectedCategory('all')}
+                    aria-pressed={selectedCategory === 'all'}
                     className={`px-3 py-1 text-xs rounded-full whitespace-nowrap transition-colors ${
                       selectedCategory === 'all'
                         ? 'bg-white/20 text-white font-medium'
@@ -269,6 +279,7 @@ export function Datalinks({ isOpen, onClose }: DatalinksProps) {
                     <button
                       key={cat}
                       onClick={() => setSelectedCategory(cat)}
+                      aria-pressed={selectedCategory === cat}
                       className={`flex items-center gap-1.5 px-3 py-1 text-xs rounded-full whitespace-nowrap transition-colors ${
                         selectedCategory === cat
                           ? 'bg-white/20 text-white font-medium'
@@ -293,6 +304,7 @@ export function Datalinks({ isOpen, onClose }: DatalinksProps) {
                       <div key={category} className="border-b border-slate-700/50">
                         <button
                           onClick={() => toggleCategory(category)}
+                          aria-expanded={isExpanded}
                           className="w-full flex items-center gap-2 px-4 py-3 hover:bg-slate-800/50 transition-colors"
                         >
                           {isExpanded ? (
@@ -320,6 +332,7 @@ export function Datalinks({ isOpen, onClose }: DatalinksProps) {
                                 <button
                                   key={entry.id}
                                   onClick={() => handleEntryClick(entry)}
+                                  aria-current={isSelected ? 'true' : undefined}
                                   className={`w-full flex items-center gap-3 px-6 py-2.5 text-left transition-colors ${
                                     isSelected
                                       ? 'bg-white/10 border-l-2 border-white'
@@ -399,8 +412,9 @@ export function Datalinks({ isOpen, onClose }: DatalinksProps) {
                     </p>
                     <p className="text-xs text-slate-500 mb-6">— Bilateral Alignment</p>
                     <p className="text-sm text-slate-500 max-w-md">
-                      Access the accumulated wisdom of bilateral alignment, servant leadership,
-                      economic democracy, and the pioneers who shaped these ideas.
+                      Field notes on how this mill thinks: where every kilo came from, why an alarm
+                      fired, how a repair earns its restart, and the evidence behind each autonomous
+                      decision.
                     </p>
                     <p className="text-xs text-slate-400 mt-6 uppercase tracking-wider">
                       Select an entry to begin

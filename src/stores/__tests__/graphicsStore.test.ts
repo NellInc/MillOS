@@ -46,6 +46,7 @@ describe('GraphicsStore', () => {
     expect(recovered.shadowMapSize).toBe(GRAPHICS_PRESETS.high.shadowMapSize);
     expect(recovered.anisotropyLevel).toBe(GRAPHICS_PRESETS.high.anisotropyLevel);
     expect(recovered.perfDebug.disableMachines).toBe(true);
+    expect(recovered.perfDebug.disableMachineFinish).toBe(false);
     expect(recovered.perfDebug.disableEnvironment).toBe(false);
   });
 
@@ -208,6 +209,17 @@ describe('GraphicsStore', () => {
       expect(useGraphicsStore.getState().graphics.enableSCADA).toBe(false);
       setSCADAEnabled(true);
       expect(useGraphicsStore.getState().graphics.enableSCADA).toBe(true);
+    });
+
+    it('keeps a paused SCADA sync paused across a quality change', () => {
+      const { setSCADAEnabled, setGraphicsQuality } = useGraphicsStore.getState();
+
+      setSCADAEnabled(false);
+      setGraphicsQuality('high');
+
+      const { graphics } = useGraphicsStore.getState();
+      expect(graphics.quality).toBe('high');
+      expect(graphics.enableSCADA).toBe(false);
     });
   });
 

@@ -126,7 +126,7 @@ async function main() {
   }
 
   console.log(
-    `Uncrewed v0.40 contract passed: ${files.length} current delivery files and ${sourceFiles.length} active source files contain no human assets, portraits, host voices, personnel modules, or personnel design studies. Archived releases and source provenance remain outside this current-release gate.`
+    `Uncrewed current-release contract passed: ${files.length} current delivery files and ${sourceFiles.length} active source files contain no human assets, portraits, host voices, personnel modules, or personnel design studies. Archived releases and source provenance remain outside this current-release gate.`
   );
 }
 

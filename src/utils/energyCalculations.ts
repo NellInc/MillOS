@@ -2,7 +2,7 @@
  * Energy Calculations Utility
  *
  * Shared instantaneous power-demand models for the factory simulation.
- * Used by ProductionMetrics, EnergyDashboard, and AI grounding.
+ * Used by EnergyDashboard and the unified game tick (campaign energy cost).
  */
 
 import { MachineType, MachineData } from '../types';
@@ -66,6 +66,10 @@ export function getMachineEnergyDetailed(machine: MachineData): MachineEnergyBre
     }
   }
 
+  // A non-finite load must not poison the campaign's energy cost with NaN.
+  const rawLoad = machine.metrics.load;
+  const load = Number.isFinite(rawLoad) ? Math.min(100, Math.max(0, rawLoad)) : 0;
+
   let baseEnergy: number;
   let loadFactor = 1.0;
   let warningPenalty = 1.0;
@@ -73,13 +77,14 @@ export function getMachineEnergyDetailed(machine: MachineData): MachineEnergyBre
   switch (machine.status) {
     case 'running':
       // Running machines factor in load - 70-100% based on load
-      loadFactor = 0.7 + (machine.metrics.load / 100) * 0.3;
+      loadFactor = 0.7 + (load / 100) * 0.3;
       baseEnergy = consumption.running * loadFactor;
       break;
     case 'warning':
-      // Warning state - running but inefficient (+10% energy)
+      // Running but inefficient: the same load curve, +10% on top.
+      loadFactor = 0.7 + (load / 100) * 0.3;
       warningPenalty = 1.1;
-      baseEnergy = consumption.running * warningPenalty;
+      baseEnergy = consumption.running * loadFactor * warningPenalty;
       break;
     case 'critical':
       // Critical - still consuming but erratically
@@ -181,7 +186,7 @@ export interface EmergencyLoad {
 
 /**
  * Calculate emergency-mode electrical demand.
- * Only 30% lighting + 50% HVAC + base systems (approximately 40-50 kW).
+ * Only 30% lighting + 50% HVAC + base systems (approximately 42-53 kW).
  */
 export function getEmergencyLoad(baseLoad: FacilityBaseLoad): EmergencyLoad {
   const lighting = baseLoad.lighting * 0.3;
@@ -194,6 +199,21 @@ export function getEmergencyLoad(baseLoad: FacilityBaseLoad): EmergencyLoad {
     baseSystems,
     total: Math.round(lighting + hvac + baseSystems),
   };
+}
+
+/**
+ * Whole-site electrical demand (kW): the single figure the energy dashboard
+ * shows and the operations campaign bills. During an emergency the machines are
+ * held and the site drops to emergency-mode facility load.
+ */
+export function getSiteDemandKw(
+  machines: MachineData[],
+  gameTime: number,
+  emergencyActive: boolean
+): number {
+  const facility = getFacilityBaseLoad(gameTime);
+  if (emergencyActive) return getEmergencyLoad(facility).total;
+  return machines.reduce((sum, machine) => sum + getMachineEnergy(machine), 0) + facility.total;
 }
 
 export interface MachineTypeEnergyStats {

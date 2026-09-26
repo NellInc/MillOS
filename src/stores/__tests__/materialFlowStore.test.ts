@@ -538,6 +538,79 @@ describe('MaterialFlowStore', () => {
     });
   });
 
+  describe('millfeed discharge', () => {
+    it('keeps the line running past the point where co-products used to jam the mills', () => {
+      // Ten minutes of simulation, with a truck clearing finished goods each
+      // minute. Before the millfeed outlet, bran and middlings filled every
+      // mill's 2 t output buffer after ~4-5 minutes and packer flow fell to 0.
+      for (let tick = 0; tick < 1200; tick += 1) {
+        useMaterialFlowStore.getState().tickMaterialFlow(0.5, 1);
+        if (tick % 120 === 119) useMaterialFlowStore.getState().shipFinishedGoods(5000);
+      }
+
+      const state = useMaterialFlowStore.getState();
+      expect(state.currentPackerFlowRate).toBeGreaterThan(0);
+      expect(state.byproductKg).toBeGreaterThan(0);
+      for (const millId of ['rm-101', 'rm-102', 'rm-103', 'rm-104']) {
+        const millfeedKg =
+          state
+            .getMachineBuffer(millId)
+            ?.outputBuffer.filter((m) => m.type === 'bran' || m.type === 'middlings')
+            .reduce((sum, m) => sum + m.amount, 0) ?? 0;
+        expect(millfeedKg).toBeLessThan(600);
+      }
+      expect(state.getMaterialBalance().byproductKg).toBeCloseTo(state.byproductKg, 6);
+      expect(Math.abs(state.getMaterialBalance().errorKg)).toBeLessThan(0.001);
+      expect(Math.abs(state.getGenealogyBalance().errorKg)).toBeLessThan(0.001);
+    }, 60_000);
+  });
+
+  describe('dispositions', () => {
+    it('never reverses a recall, even through an intermediate hold', () => {
+      useMaterialFlowStore.getState().tickMaterialFlow(4, 1);
+      const state = useMaterialFlowStore.getState();
+      const batch = state.productionBatches[0];
+      state.setBatchDisposition([batch.id], 'recalled', 'Confirmed foreign material');
+      expect(state.setBatchDisposition([batch.id], 'hold', 'Supplier notification')).toEqual([]);
+      expect(state.setBatchDisposition([batch.id], 'released', 'Cleared')).toEqual([]);
+      expect(
+        useMaterialFlowStore.getState().productionBatches.find((b) => b.id === batch.id)
+          ?.disposition
+      ).toBe('recalled');
+
+      const lotId = [...state.sourceLots.keys()][0];
+      state.setLotDisposition([lotId], 'recalled', 'Supplier recall');
+      state.setLotDisposition([lotId], 'hold', 'Review');
+      state.setLotDisposition([lotId], 'released', 'Cleared');
+      expect(useMaterialFlowStore.getState().sourceLots.get(lotId)?.disposition).toBe('recalled');
+    });
+
+    it('packs held-lot material into its own held batches, never into released ones', () => {
+      const lots = useMaterialFlowStore.getState().sourceLots;
+      // Hold everything upstream of the packers; the packers' own opening
+      // flour stays released and opens released batches first.
+      const heldLotIds = [...lots.keys()].filter((id) => !id.startsWith('lot-opening-packer'));
+      useMaterialFlowStore.getState().setLotDisposition(heldLotIds, 'hold', 'Supplier notice');
+
+      for (let tick = 0; tick < 120; tick += 1) {
+        useMaterialFlowStore.getState().tickMaterialFlow(0.5, 1);
+      }
+
+      const { productionBatches } = useMaterialFlowStore.getState();
+      const held = new Set(heldLotIds);
+      const heldBatches = productionBatches.filter((batch) => batch.disposition === 'hold');
+      const releasedBatches = productionBatches.filter((batch) => batch.disposition === 'released');
+      expect(heldBatches.length).toBeGreaterThan(0);
+      for (const batch of releasedBatches) {
+        expect(batch.sourceContributions.some((source) => held.has(source.lotId))).toBe(false);
+      }
+      // Held output fills batches toward the 1 t target instead of opening a
+      // fresh fragment every tick for every packer.
+      const heldKg = heldBatches.reduce((sum, batch) => sum + batch.producedKg, 0);
+      expect(heldBatches.length).toBeLessThanOrEqual(Math.ceil(heldKg / 1000) + 6);
+    });
+  });
+
   describe('resetMaterialFlow', () => {
     it('should restore initial buffers and clear cumulative stats', () => {
       const { tickMaterialFlow, receiveGrainDelivery, resetMaterialFlow } =

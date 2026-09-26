@@ -9,6 +9,7 @@ import { useEffect, useRef, useCallback } from 'react';
 import { audioManager } from '../utils/audioManager';
 import { useAudioAnalyzerStore } from '../stores/audioAnalyzerStore';
 import { useGraphicsStore } from '../stores/graphicsStore';
+import { useAudioInitialized } from './useAudioState';
 
 // FFT configuration
 const FFT_SIZE = 128; // 64 bins (FFT_SIZE / 2)
@@ -39,6 +40,10 @@ export function useAudioReactive() {
   const updateFallback = useAudioAnalyzerStore((s) => s.updateFallback);
   const setFallbackMode = useAudioAnalyzerStore((s) => s.setFallbackMode);
   const enableAudioReactive = useGraphicsStore((s) => s.graphics.enableAudioReactive);
+  // The AudioContext only exists after the first user gesture. Re-running the
+  // init effect when it appears is what attaches the real analyser; otherwise
+  // a cold load stays on the simulated fallback for the whole session.
+  const audioReady = useAudioInitialized();
 
   // Calculate band levels from FFT data
   const calculateBandLevels = useCallback((dataArray: Uint8Array<ArrayBuffer>) => {
@@ -176,7 +181,7 @@ export function useAudioReactive() {
       analyzerRef.current = null;
       dataArrayRef.current = null;
     };
-  }, [enableAudioReactive, animate, setFallbackMode]);
+  }, [enableAudioReactive, audioReady, animate, setFallbackMode]);
 
   return {
     isActive: enableAudioReactive,

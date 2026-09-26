@@ -1,5 +1,6 @@
 import React from 'react';
 import { AnimatePresence, MotionConfig, motion } from 'framer-motion';
+import { X } from 'lucide-react';
 import { GameInterface } from './ui-new/GameInterface';
 import { ProductionTargetWidget } from './ProductionTargetWidget';
 import {
@@ -103,9 +104,9 @@ export const DeferredOperationalUI: React.FC<DeferredOperationalUIProps> = ({
               type="button"
               onClick={onClearForklift}
               aria-label="Close forklift details"
-              className="flex min-h-11 min-w-11 items-center justify-center rounded-md text-xl text-gray-300 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-400"
+              className="flex min-h-11 min-w-11 items-center justify-center rounded-md text-gray-300 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-400"
             >
-              ×
+              <X className="h-4 w-4" aria-hidden="true" />
             </button>
           </div>
           <dl className="space-y-2 text-sm">

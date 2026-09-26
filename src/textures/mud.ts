@@ -13,6 +13,7 @@ import {
   hash,
   createColorDataTexture,
   createLinearDataTexture,
+  blendTileEdges,
 } from '../utils/textureGenerator';
 
 export interface MudOptions {
@@ -32,7 +33,7 @@ const DEFAULT_OPTIONS: Required<MudOptions> = {
  */
 export const generateMud = (size: number = 512, options: MudOptions = {}): THREE.DataTexture => {
   const opts = { ...DEFAULT_OPTIONS, ...options };
-  const cacheKey = `mud-${size}-${opts.wetness}-${opts.hasPuddles}-${opts.hasFootprints}`;
+  const cacheKey = `mud-v2-${size}-${opts.wetness}-${opts.hasPuddles}-${opts.hasFootprints}`;
 
   return getTexture(cacheKey, () => {
     const data = new Uint8Array(size * size * 4);
@@ -107,6 +108,7 @@ export const generateMud = (size: number = 512, options: MudOptions = {}): THREE
       }
     }
 
+    blendTileEdges(data, size);
     return createColorDataTexture(data, size, size);
   });
 };
@@ -119,7 +121,7 @@ export const generateMudRoughness = (
   size: number = 512,
   wetness: number = 0.5
 ): THREE.DataTexture => {
-  return getTexture(`mud-roughness-v2-${size}-${wetness}`, () => {
+  return getTexture(`mud-roughness-v3-${size}-${wetness}`, () => {
     const data = new Uint8Array(size * size * 4);
 
     for (let y = 0; y < size; y++) {
@@ -149,6 +151,7 @@ export const generateMudRoughness = (
       }
     }
 
+    blendTileEdges(data, size);
     return createLinearDataTexture(data, size, size);
   });
 };

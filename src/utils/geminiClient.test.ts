@@ -266,6 +266,26 @@ describe('GeminiClient adversarial boundaries', () => {
     expect(generateContent).toHaveBeenCalledTimes(3);
   });
 
+  it('half-opens through isConnected once the breaker cool-down elapses', async () => {
+    // Callers gate on isConnected() before generateContent(); if only the
+    // latter reset the breaker, an opened breaker could never close again.
+    const generateContent = vi.fn().mockRejectedValue(new Error('network unavailable'));
+    sdk.getGenerativeModel.mockReturnValue({ generateContent });
+    const client = new GeminiClient();
+    client.initialize('key');
+
+    await client.generateContent('failure 1');
+    await client.generateContent('failure 2');
+    await client.generateContent('failure 3');
+    expect(client.isConnected()).toBe(false);
+
+    vi.advanceTimersByTime(29_999);
+    expect(client.isConnected()).toBe(false);
+    vi.advanceTimersByTime(1);
+    expect(client.isConnected()).toBe(true);
+    expect(client.getCircuitBreakerStatus()).toMatchObject({ failures: 0, isOpen: false });
+  });
+
   it('reports an empty connection response as a failed probe', async () => {
     const generateContent = vi.fn().mockResolvedValue(result(''));
     sdk.getGenerativeModel.mockReturnValue({ generateContent });

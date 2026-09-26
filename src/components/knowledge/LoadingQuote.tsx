@@ -1,7 +1,7 @@
 /**
- * LoadingQuote - Displays rotating wisdom quotes during loading screens
+ * LoadingQuote - Displays rotating quotes during loading screens
  *
- * Shows quotes from Semler, Arizmendiarrieta, Greenleaf, and bilateral alignment
+ * Shows the MillOS control and design principles from LOADING_QUOTES
  */
 
 import { useState, useEffect } from 'react';
@@ -34,7 +34,13 @@ export function LoadingQuote({
     if (!showLoadingQuotes) return;
 
     const interval = setInterval(() => {
-      setQuote(getRandomLoadingQuote());
+      // Re-draw a repeat: the motion key is the text, so the same quote twice
+      // shows no transition and the rotation looks stalled.
+      setQuote((prev) => {
+        let next = getRandomLoadingQuote();
+        for (let i = 0; next.text === prev.text && i < 4; i++) next = getRandomLoadingQuote();
+        return next;
+      });
     }, rotationInterval);
 
     return () => clearInterval(interval);

@@ -1,0 +1,23 @@
+{
+  "matchedTriangles": 456,
+  "splitVertices": true,
+  "restoredOppositeSourceTriangles": 0,
+  "authoredShadowGroups": [
+    {
+      "castShadow": true,
+      "receiveShadow": true,
+      "triangles": 456
+    }
+  ],
+  "omittedZeroAreaSourceTriangles": 0,
+  "omittedNumericallyNegligibleSourceTriangles": 0,
+  "minimumNormalizedDoubleArea": 0,
+  "slowMatches": 0,
+  "maxNormalizedPositionError": 1.9081375721686664e-8,
+  "preservedProviderAttributes": {
+    "POSITION": "d640c7eedd524e5f07bdcc2262a8016a4c2904906fd5d7834208b32890ae6ccc",
+    "TEXCOORD_0": "d9a25ddfdfd695da049ccd9cf33b6f779ea42b88858cdd2360ab2ddf43d34a41"
+  },
+  "sourceColourSha256": "b541b0947355b59f1f330151f3ee0a24f4b90e194bd154df6ca479554476db23",
+  "note": "Authored linear colour on vertices, no colour atlas. Tripo normal and roughness on original UV0. Original corner normals restored. Provider triangle positions and topology retained. Source degeneracies omitted only as counted above. Runtime appearance and benefit remain unverified."
+}

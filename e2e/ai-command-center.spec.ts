@@ -5,7 +5,7 @@ import { test, expect, Page } from '@playwright/test';
  * (GameInterface -> Dock -> ContextSidebar embeds <AICommandCenter embedded />).
  *
  * The legacy UIOverlay shell (and its ai-panel-toggle / ai-success-rate testids)
- * was removed; the canonical surface is the bottom Dock's "AI Partner" button.
+ * was removed; the canonical surface is the Dock's More menu, then "AI Partner".
  * The embedded panel renders compact CPU / MEM / DEC metrics (integer percents),
  * tagged with data-testids: ai-cpu-value, ai-memory-value, ai-decisions-count,
  * and a container ai-command-center.
@@ -37,7 +37,8 @@ async function dismissOnboarding(page: Page) {
 /** Open the AI Partner workspace via the dock and wait for its metrics to mount. */
 async function openAIPanel(page: Page) {
   await dismissOnboarding(page);
-  await page.getByRole('button', { name: 'AI Partner', exact: true }).click();
+  await page.getByRole('button', { name: 'More workspaces and view controls' }).click();
+  await page.getByRole('menuitem', { name: 'AI Partner I', exact: true }).click();
   await expect(page.getByTestId('ai-command-center')).toBeVisible({ timeout: 5000 });
   await expect(page.getByTestId('ai-cpu-value')).toBeVisible({ timeout: 5000 });
 }
@@ -57,7 +58,11 @@ test.describe('AI Partner workspace (ui-new dock)', () => {
     // CI can still use software WebGL, so retain a generous cross-platform
     // timeout without forcing every local run to wait.
     await page.getByRole('button', { name: 'Mill Overview' }).waitFor({ timeout: 240000 });
-    await page.waitForTimeout(2000);
+    await page.waitForFunction(
+      () => document.documentElement.dataset.millosWorldReady === 'true',
+      undefined,
+      { timeout: 240_000 }
+    );
   });
 
   test('opens the AI Partner and keeps all compact metrics valid', async ({ page }) => {

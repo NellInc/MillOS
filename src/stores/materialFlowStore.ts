@@ -119,6 +119,8 @@ export interface GenealogyBalance {
   inventoryKg: number;
   inTransitKg: number;
   wasteKg: number;
+  /** Bran and middlings discharged from the mills as millfeed. */
+  byproductKg: number;
   shippedKg: number;
   accountedKg: number;
   errorKg: number;
@@ -142,6 +144,8 @@ export interface MaterialBalance {
   inventoryKg: number;
   inTransitKg: number;
   wasteKg: number;
+  /** Bran and middlings discharged from the mills as millfeed. */
+  byproductKg: number;
   shippedKg: number;
   expectedKg: number;
   accountedKg: number;
@@ -228,6 +232,11 @@ export interface MaterialFlowState {
   initialInventoryKg: number;
   receivedKg: number;
   wasteKg: number;
+  /**
+   * Bran and middlings discharged from the roller mills to the millfeed
+   * system. A conserved co-product, not waste: it is sold as feed.
+   */
+  byproductKg: number;
   shippedKg: number;
   manifests: MaterialManifest[];
   manifestSequence: number;
@@ -237,6 +246,7 @@ export interface MaterialFlowState {
   productionBatches: ProductionBatch[];
   processGenealogy: ProcessGenealogyRecord[];
   wasteSourceContributions: SourceContribution[];
+  byproductSourceContributions: SourceContribution[];
   shippedSourceContributions: SourceContribution[];
   lotSequence: number;
   batchSequence: number;
@@ -306,6 +316,10 @@ export interface MaterialFlowState {
 // many lot/path contributions over a long simulation run.
 const GENEALOGY_EPSILON_KG = 0.000000001;
 const PRODUCT_BATCH_TARGET_KG = 1000;
+// Bran and middlings have no conveyor lane: a mill discharges them to the
+// millfeed system whenever its co-product bin reaches this level. Without the
+// outlet they filled the mill's output buffer and stopped the line for good.
+const MILLFEED_DISCHARGE_KG = 500;
 const MAX_PROCESS_GENEALOGY_RECORDS = 500;
 const MAX_MATERIAL_MANIFESTS = 200;
 const MAX_PRODUCTION_BATCHES = 500;
@@ -665,6 +679,7 @@ export const useMaterialFlowStore = create<MaterialFlowState>()(
       initialInventoryKg: INITIAL_INVENTORY_KG,
       receivedKg: 0,
       wasteKg: 0,
+      byproductKg: 0,
       shippedKg: 0,
       manifests: [],
       manifestSequence: 0,
@@ -672,6 +687,7 @@ export const useMaterialFlowStore = create<MaterialFlowState>()(
       productionBatches: [],
       processGenealogy: [],
       wasteSourceContributions: [],
+      byproductSourceContributions: [],
       shippedSourceContributions: [],
       lotSequence: 0,
       batchSequence: 0,
@@ -735,6 +751,8 @@ export const useMaterialFlowStore = create<MaterialFlowState>()(
         let batchSequence = state.batchSequence;
         let processSequence = state.processSequence;
         let wasteSourceContributions = cloneSourceContributions(state.wasteSourceContributions);
+        let byproductSourceContributions = state.byproductSourceContributions;
+        let byproductThisTick = 0;
 
         let instantFlowRate = 0;
         let instantPackerFlowRate = 0;
@@ -748,6 +766,17 @@ export const useMaterialFlowStore = create<MaterialFlowState>()(
           sourceContributions: readonly SourceContribution[]
         ): ProductBatchContribution[] => {
           const assignments: ProductBatchContribution[] = [];
+          // Material only joins an open batch of the same disposition, so a
+          // held lot never dilutes into a released batch, and held output
+          // fills one batch toward the target instead of a fragment per tick.
+          const sourceDispositions = sourceContributions.map(
+            (contribution) => state.sourceLots.get(contribution.lotId)?.disposition ?? 'released'
+          );
+          const disposition: MaterialDisposition = sourceDispositions.includes('recalled')
+            ? 'recalled'
+            : sourceDispositions.includes('hold')
+              ? 'hold'
+              : 'released';
           let remaining = amountKg;
           while (remaining > GENEALOGY_EPSILON_KG) {
             let batch: ProductionBatch | undefined;
@@ -757,7 +786,7 @@ export const useMaterialFlowStore = create<MaterialFlowState>()(
                 candidate.packerId === packerId &&
                 candidate.materialType === materialType &&
                 !candidate.sealed &&
-                candidate.disposition === 'released' &&
+                candidate.disposition === disposition &&
                 candidate.availableKg === candidate.producedKg
               ) {
                 batch = candidate;
@@ -766,15 +795,6 @@ export const useMaterialFlowStore = create<MaterialFlowState>()(
             }
             if (!batch) {
               batchSequence += 1;
-              const sourceDispositions = sourceContributions.map(
-                (contribution) =>
-                  state.sourceLots.get(contribution.lotId)?.disposition ?? 'released'
-              );
-              const disposition = sourceDispositions.includes('recalled')
-                ? 'recalled'
-                : sourceDispositions.includes('hold')
-                  ? 'hold'
-                  : 'released';
               batch = {
                 id: `batch-${String(batchSequence).padStart(5, '0')}`,
                 packerId,
@@ -959,6 +979,28 @@ export const useMaterialFlowStore = create<MaterialFlowState>()(
           });
         });
 
+        // 1b. Millfeed discharge: once a mill's bran + middlings bin reaches
+        // MILLFEED_DISCHARGE_KG it empties to the conserved co-product ledger.
+        newBuffers.forEach((buffer) => {
+          if (buffer.machineType !== 'roller_mill') return;
+          let millfeedKg = 0;
+          for (const material of buffer.outputBuffer) {
+            if (material.type === 'bran' || material.type === 'middlings') {
+              millfeedKg += material.amount;
+            }
+          }
+          if (millfeedKg < MILLFEED_DISCHARGE_KG) return;
+          for (const material of buffer.outputBuffer) {
+            if (material.type !== 'bran' && material.type !== 'middlings') continue;
+            byproductSourceContributions = mergeSourceContributions(
+              byproductSourceContributions,
+              withdrawSourceContributions(material, material.amount)
+            );
+            byproductThisTick += material.amount;
+            material.amount = 0;
+          }
+        });
+
         // 2. Move material along conveyors
         newSegments.forEach((segment) => {
           const fromBuffer = newBuffers.get(segment.fromMachineId);
@@ -1082,6 +1124,7 @@ export const useMaterialFlowStore = create<MaterialFlowState>()(
           currentFlowRate: instantFlowRate,
           currentPackerFlowRate: instantPackerFlowRate,
           wasteKg: state.wasteKg + wasteThisTick,
+          byproductKg: state.byproductKg + byproductThisTick,
           productionBatches: boundedProductionBatches,
           batchSequence,
           processSequence,
@@ -1089,6 +1132,7 @@ export const useMaterialFlowStore = create<MaterialFlowState>()(
             -MAX_PROCESS_GENEALOGY_RECORDS
           ),
           wasteSourceContributions,
+          byproductSourceContributions,
         });
       },
 
@@ -1329,8 +1373,9 @@ export const useMaterialFlowStore = create<MaterialFlowState>()(
           productionBatches: state.productionBatches.map((batch) => {
             if (!requested.has(batch.id) || batch.disposition === 'shipped') return batch;
             // A recall is a terminal product disposition. A later passing retest
-            // may release a hold, but must never silently reverse a recall.
-            if (batch.disposition === 'recalled' && disposition === 'released') return batch;
+            // may release a hold, but must never reverse a recall - not even in
+            // two steps (recalled -> hold -> released).
+            if (batch.disposition === 'recalled' && disposition !== 'recalled') return batch;
             changed.push(batch.id);
             return {
               ...batch,
@@ -1355,7 +1400,7 @@ export const useMaterialFlowStore = create<MaterialFlowState>()(
           for (const lotId of requested) {
             const lot = sourceLots.get(lotId);
             if (!lot) continue;
-            if (lot.disposition === 'recalled' && disposition === 'released') continue;
+            if (lot.disposition === 'recalled' && disposition !== 'recalled') continue;
             sourceLots.set(lotId, { ...lot, disposition, dispositionReason: reason });
           }
 
@@ -1435,14 +1480,16 @@ export const useMaterialFlowStore = create<MaterialFlowState>()(
           0
         );
         const wasteKg = sumContributions(state.wasteSourceContributions);
+        const byproductKg = sumContributions(state.byproductSourceContributions);
         const shippedKg = sumContributions(state.shippedSourceContributions);
         const expectedKg = state.initialInventoryKg + state.receivedKg;
-        const accountedKg = inventoryKg + inTransitKg + wasteKg + shippedKg;
+        const accountedKg = inventoryKg + inTransitKg + wasteKg + byproductKg + shippedKg;
         return {
           expectedKg,
           inventoryKg,
           inTransitKg,
           wasteKg,
+          byproductKg,
           shippedKg,
           accountedKg,
           errorKg: expectedKg - accountedKg,
@@ -1459,13 +1506,15 @@ export const useMaterialFlowStore = create<MaterialFlowState>()(
           0
         );
         const expectedKg = state.initialInventoryKg + state.receivedKg;
-        const accountedKg = inventoryKg + inTransitKg + state.wasteKg + state.shippedKg;
+        const accountedKg =
+          inventoryKg + inTransitKg + state.wasteKg + state.byproductKg + state.shippedKg;
         return {
           initialKg: state.initialInventoryKg,
           receivedKg: state.receivedKg,
           inventoryKg,
           inTransitKg,
           wasteKg: state.wasteKg,
+          byproductKg: state.byproductKg,
           shippedKg: state.shippedKg,
           expectedKg,
           accountedKg,
@@ -1506,6 +1555,7 @@ export const useMaterialFlowStore = create<MaterialFlowState>()(
           initialInventoryKg: INITIAL_INVENTORY_KG,
           receivedKg: 0,
           wasteKg: 0,
+          byproductKg: 0,
           shippedKg: 0,
           manifests: [],
           manifestSequence: 0,
@@ -1513,6 +1563,7 @@ export const useMaterialFlowStore = create<MaterialFlowState>()(
           productionBatches: [],
           processGenealogy: [],
           wasteSourceContributions: [],
+          byproductSourceContributions: [],
           shippedSourceContributions: [],
           lotSequence: 0,
           batchSequence: 0,

@@ -70,7 +70,6 @@ export const AutonomyPanel: React.FC = () => {
   const targetProgress = productionTarget
     ? clampPercent((productionTarget.producedBags / Math.max(1, productionTarget.targetBags)) * 100)
     : 0;
-  const logisticsReady = !forkliftEmergencyStop && alarmedAssets === 0;
 
   return (
     <div className="space-y-4 p-3" data-testid="autonomy-panel">
@@ -82,7 +81,7 @@ export const AutonomyPanel: React.FC = () => {
           <div>
             <h3 className="text-sm font-bold text-white">Autonomous plant state</h3>
             <p className="mt-0.5 text-[10px] leading-4 text-slate-400">
-              One control picture across process, logistics, safety, and diagnostics.
+              Process, logistics, safety, and diagnostics in one picture.
             </p>
           </div>
         </div>
@@ -110,7 +109,7 @@ export const AutonomyPanel: React.FC = () => {
         <MetricCard
           label="Active assets"
           value={`${runningAssets}/${machines.length}`}
-          detail={`${alarmedAssets} require diagnostic attention`}
+          detail={`${alarmedAssets} ${alarmedAssets === 1 ? 'needs' : 'need'} diagnostic attention`}
           icon={Activity}
           accent="text-emerald-400"
         />
@@ -131,7 +130,9 @@ export const AutonomyPanel: React.FC = () => {
         <MetricCard
           label="Safety stops"
           value={`${safetyMetrics.safetyStops}`}
-          detail={`${safetyMetrics.nearMisses} route conflicts recorded`}
+          detail={`${safetyMetrics.nearMisses} route ${
+            safetyMetrics.nearMisses === 1 ? 'conflict' : 'conflicts'
+          } recorded`}
           icon={ShieldCheck}
           accent="text-amber-400"
         />
@@ -150,17 +151,17 @@ export const AutonomyPanel: React.FC = () => {
             ready={alarmedAssets === 0}
             detail={
               alarmedAssets === 0
-                ? 'Machine states and production targets are coherent.'
-                : `${alarmedAssets} asset alarms are constraining the current plan.`
+                ? 'Machine states and targets agree.'
+                : `${alarmedAssets} ${alarmedAssets === 1 ? 'alarm is' : 'alarms are'} holding the plan back.`
             }
           />
           <StatusLine
             label="Vehicle orchestration"
-            ready={logisticsReady}
+            ready={!forkliftEmergencyStop}
             detail={
               forkliftEmergencyStop
-                ? 'Autonomous vehicle motion is inhibited by the safety layer.'
-                : 'Forklift routes, dock approaches, and crossings share reservations.'
+                ? 'The safety layer has grounded the forklifts.'
+                : 'Forklifts, docks, and crossings share reservations.'
             }
           />
           <StatusLine
@@ -178,7 +179,7 @@ export const AutonomyPanel: React.FC = () => {
 
       <div className="flex items-center gap-2 rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2 text-[10px] leading-4 text-slate-500">
         <Truck className="h-4 w-4 flex-none text-slate-400" />
-        Select Simulated SCADA for alarm provenance, tag quality, trends, and control history.
+        Open Simulated SCADA for the full alarm trail, tag quality, trends, and control history.
       </div>
 
       <AgentCockpit />
