@@ -1,0 +1,1400 @@
+[
+  {
+    "id": "forklift"
+  },
+  {
+    "id": "world-fuel-pump-shell",
+    "spec": {
+      "slug": "fuel-pump-shell",
+      "area": "world",
+      "preparedSource": "fuel-pump-shell-authored-vertex-colour-tripo-finish.glb",
+      "target": 1.8,
+      "axis": "y",
+      "texture": 256,
+      "sourceSha256": "fc203b69d9c4c9f0f36b3dc5942a58ce14ef4040c7a069058f2f767185528072"
+    }
+  },
+  {
+    "id": "world-station-canopy",
+    "spec": {
+      "slug": "station-canopy",
+      "area": "world",
+      "preparedSource": "station-canopy-authored-vertex-colour-tripo-finish.glb",
+      "target": 16.5,
+      "axis": "x",
+      "texture": 512,
+      "sourceSha256": "247933fefea4dba99e65183fb85d7930c2cb0d06b847f0e27e1a81b279a14702"
+    }
+  },
+  {
+    "id": "world-checkpoint-booth",
+    "spec": {
+      "slug": "checkpoint-booth",
+      "area": "world",
+      "preparedSource": "checkpoint-booth-authored-vertex-colour-tripo-finish.glb",
+      "target": 4.3,
+      "axis": "x",
+      "texture": 512,
+      "sourceSha256": "757ce1f69d2a38a3da938ad617c0a9a9f02d48268674d8273e6a73a2a8fc4a60"
+    }
+  },
+  {
+    "id": "world-station-counter",
+    "spec": {
+      "slug": "station-counter",
+      "area": "world",
+      "preparedSource": "station-counter-authored-vertex-colour-tripo-finish.glb",
+      "target": 1.0449999570846558,
+      "axis": "y",
+      "texture": 256,
+      "sourceSha256": "7a90e4219c886ce4652c3be4ddc11d2cf3272ef7b72ddc81b0454e67c8b6c666"
+    }
+  },
+  {
+    "id": "world-station-register",
+    "spec": {
+      "slug": "station-register",
+      "area": "world",
+      "preparedSource": "station-register-authored-vertex-colour-tripo-finish.glb",
+      "target": 0.40000009536743164,
+      "axis": "y",
+      "texture": 256,
+      "sourceSha256": "8e05c8eddceea9bcdccede02120012b1d0c78e9b102e82c016784b464a62608f"
+    }
+  },
+  {
+    "id": "world-station-card-reader",
+    "spec": {
+      "slug": "station-card-reader",
+      "area": "world",
+      "preparedSource": "station-card-reader-authored-vertex-colour-tripo-finish.glb",
+      "target": 0.08000004291534424,
+      "axis": "y",
+      "texture": 256,
+      "sourceSha256": "1a4642fd613e6a45956e9d4abae99eff0da2b1b373cfda484fd45cc66f2b3c63"
+    }
+  },
+  {
+    "id": "world-station-shelving",
+    "spec": {
+      "slug": "station-shelving",
+      "area": "world",
+      "preparedSource": "station-shelving-authored-vertex-colour-tripo-finish.glb",
+      "target": 4,
+      "axis": "y",
+      "texture": 256,
+      "sourceSha256": "4836b490aa1321df962d3f552661825d824177196403bd8d0d5eb5ca07cc38a2"
+    }
+  },
+  {
+    "id": "world-station-drinks-cabinet",
+    "spec": {
+      "slug": "station-drinks-cabinet",
+      "area": "world",
+      "preparedSource": "station-drinks-cabinet-authored-vertex-colour-tripo-finish.glb",
+      "target": 3,
+      "axis": "y",
+      "texture": 256,
+      "sourceSha256": "854ae192776019b668308e786d2529d6a3f188581f82ccc1bbf26d8f3e7d6752"
+    }
+  },
+  {
+    "id": "world-station-coffee-machine",
+    "spec": {
+      "slug": "station-coffee-machine",
+      "area": "world",
+      "preparedSource": "station-coffee-machine-authored-vertex-colour-tripo-finish.glb",
+      "target": 2.200000071525574,
+      "axis": "y",
+      "texture": 256,
+      "sourceSha256": "3e056a397998e0ac5b57ff9fd454ca4db17674bca70abdb2c6359b2df729e102"
+    }
+  },
+  {
+    "id": "world-station-slushie-machine",
+    "spec": {
+      "slug": "station-slushie-machine",
+      "area": "world",
+      "preparedSource": "station-slushie-machine-authored-vertex-colour-tripo-finish.glb",
+      "target": 1.799999928474426,
+      "axis": "y",
+      "texture": 256,
+      "sourceSha256": "430276d0662edfef05738d23950dceca8c38cbb4a3100d5e1686560948efa7af"
+    }
+  },
+  {
+    "id": "world-station-grill",
+    "spec": {
+      "slug": "station-grill",
+      "area": "world",
+      "preparedSource": "station-grill-authored-vertex-colour-tripo-finish.glb",
+      "target": 0.40000003576278687,
+      "axis": "y",
+      "texture": 256,
+      "sourceSha256": "37705a1ebe88e2c0ca6391de9fe7046663da9911c90c0e36ed86d38899b3aabb"
+    }
+  },
+  {
+    "id": "world-station-magazine-rack",
+    "spec": {
+      "slug": "station-magazine-rack",
+      "area": "world",
+      "preparedSource": "station-magazine-rack-authored-vertex-colour-tripo-finish.glb",
+      "target": 1.200000071525574,
+      "axis": "y",
+      "texture": 256,
+      "sourceSha256": "b28d1272b0a3c4ebea185ae6119c38603917320bbb97b83a3ff4bb3f2e08de03"
+    }
+  },
+  {
+    "id": "world-grain-silo-large-shell",
+    "spec": {
+      "slug": "grain-silo-large-shell",
+      "area": "world",
+      "preparedSource": "grain-silo-large-shell-authored-vertex-colour-tripo-finish.glb",
+      "target": 39.79999923706055,
+      "axis": "y",
+      "texture": 1024,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "c176174cceb6375b46258e6e55c218513d3aa3a8c9a35158cea6cdd713c81817"
+    }
+  },
+  {
+    "id": "world-grain-silo-small-shell",
+    "spec": {
+      "slug": "grain-silo-small-shell",
+      "area": "world",
+      "preparedSource": "grain-silo-small-shell-authored-vertex-colour-tripo-finish.glb",
+      "target": 34,
+      "axis": "y",
+      "texture": 1024,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "6e49db96691a21108d364166432b613334626fb370c8ea88e32ebaa9d829be44"
+    }
+  },
+  {
+    "id": "world-grain-elevator-authored-body",
+    "spec": {
+      "slug": "grain-elevator-authored-body",
+      "area": "world",
+      "preparedSource": "grain-elevator-authored-body-authored-vertex-colour-tripo-finish.glb",
+      "target": 57.19343423843384,
+      "axis": "y",
+      "texture": 1024,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "5bcc9843b40f82899cac1488abb7db9e09b5b3d8aaa005e58b287a5d9ee845e7"
+    }
+  },
+  {
+    "id": "world-utility-fuel-shell",
+    "spec": {
+      "slug": "utility-fuel-shell",
+      "area": "world",
+      "preparedSource": "utility-fuel-shell-authored-vertex-colour-tripo-finish.glb",
+      "target": 6,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "6b718bc5d9991f1a512b237d2406ef74a20b14f02fa769053f848f2a845ca683"
+    }
+  },
+  {
+    "id": "world-utility-process-shell",
+    "spec": {
+      "slug": "utility-process-shell",
+      "area": "world",
+      "preparedSource": "utility-process-shell-authored-vertex-colour-tripo-finish.glb",
+      "target": 5,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "707cc52020b387dfdbe6109e0d5fbaea810ff4d8c0d7807ebecfb3c1d9c5000f"
+    }
+  },
+  {
+    "id": "world-propane-large-shell",
+    "spec": {
+      "slug": "propane-large-shell",
+      "area": "world",
+      "preparedSource": "propane-large-shell-authored-vertex-colour-tripo-finish.glb",
+      "target": 8,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "ee9d4a46e0cb724b3d350caa3ce5ac4def349fa3dc9acbebc12a9beac7dc04a8"
+    }
+  },
+  {
+    "id": "world-propane-small-shell",
+    "spec": {
+      "slug": "propane-small-shell",
+      "area": "world",
+      "preparedSource": "propane-small-shell-authored-vertex-colour-tripo-finish.glb",
+      "target": 6.3999998569488525,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "fa3f152586c91f5c2ce174a0b6a71ee3de9443828d89a57003e6ec10a1598d28"
+    }
+  },
+  {
+    "id": "world-wooden-bollard",
+    "spec": {
+      "slug": "wooden-bollard",
+      "area": "world",
+      "preparedSource": "wooden-bollard-authored-vertex-colour-tripo-finish.glb",
+      "target": 0.800000011920929,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "9db216b7e4fc61c685600258ba9d729a5b2968fb241145c57c8b9aa51fb818e2"
+    },
+    "retainReason": "Retained: tested scales .25/.3/.4 and1 cannot meet BOTH unchanged 19000-byte budget and1-degree max/.25-degree RMS JPEG direction bounds. See deliveryProof trials."
+  },
+  {
+    "id": "world-metal-bollard",
+    "spec": {
+      "slug": "metal-bollard",
+      "area": "world",
+      "preparedSource": "metal-bollard-authored-vertex-colour-tripo-finish.glb",
+      "target": 0.800000011920929,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "1b133d82b87d6d7863a46cf279255eb8073f48972d16f3a6f7a456958fe5c3df"
+    }
+  },
+  {
+    "id": "world-wooden-footbridge",
+    "spec": {
+      "slug": "wooden-footbridge",
+      "area": "world",
+      "preparedSource": "wooden-footbridge-authored-vertex-colour-tripo-finish.glb",
+      "target": 2.0499999761581424,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "da4e424eae7c0436ad1d5c7c88c372ded06e2014747f7f4aad121e37e417dca6"
+    }
+  },
+  {
+    "id": "world-lock-gate-structure",
+    "spec": {
+      "slug": "lock-gate-structure",
+      "area": "world",
+      "preparedSource": "lock-gate-structure-authored-vertex-colour-tripo-finish.glb",
+      "target": 3.825000047683716,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "4dec42f8701d358a768143cbdf3894c3113646db02a4b99d07a9360cb87615a9"
+    },
+    "retainReason": "Retained: tested scales .25/.3/.4 and1 cannot meet BOTH unchanged 33000-byte budget and1-degree max/.25-degree RMS JPEG direction bounds. See deliveryProof trials."
+  },
+  {
+    "id": "world-dock-canopy-structure",
+    "spec": {
+      "slug": "dock-canopy-structure",
+      "area": "world",
+      "preparedSource": "dock-canopy-structure-retained-lit-surfaces.glb",
+      "target": 6.199999809265137,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "1c1894ac3567a89555618a8840a4960eb8648be35aa3f78254b35c6c2acf79cd"
+    }
+  },
+  {
+    "id": "world-yard-access-node-body",
+    "spec": {
+      "slug": "yard-access-node-body",
+      "area": "world",
+      "preparedSource": "yard-access-node-body-authored-vertex-colour-tripo-finish.glb",
+      "target": 1.0999999642372131,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "53bfa3e85a6dd98df744779c729955df331350e39714d3d42a889c904a96b851"
+    }
+  },
+  {
+    "id": "world-yard-air-hose-body",
+    "spec": {
+      "slug": "yard-air-hose-body",
+      "area": "world",
+      "preparedSource": "yard-air-hose-body-authored-vertex-colour-tripo-finish.glb",
+      "target": 3.325000047683716,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "bfc4c9ac70c848da6e2a31c100ac4c4b529cbe963ae9d2ff587d7a5649bd8860"
+    }
+  },
+  {
+    "id": "world-yard-bumper-body",
+    "spec": {
+      "slug": "yard-bumper-body",
+      "area": "world",
+      "preparedSource": "yard-bumper-body-authored-vertex-colour-tripo-finish.glb",
+      "target": 0.5,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "9e6439013e463c9ff9068af0fc8d4bcdde4c0c1799c4bed1bf8013497177e924"
+    }
+  },
+  {
+    "id": "world-yard-compactor-body",
+    "spec": {
+      "slug": "yard-compactor-body",
+      "area": "world",
+      "preparedSource": "yard-compactor-body-authored-vertex-colour-tripo-finish.glb",
+      "target": 2.650000143051148,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "65b24018d5fb3efd671a98bd9a24d8daf89327aa0d2ca890cb8a1c7d948e383c"
+    }
+  },
+  {
+    "id": "world-yard-crane-body",
+    "spec": {
+      "slug": "yard-crane-body",
+      "area": "world",
+      "preparedSource": "yard-crane-body-authored-vertex-colour-tripo-finish.glb",
+      "target": 0.9500000178813934,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "5dbc2de3b06cd7ce8352fea661811d7d26dbc21b975ff66ae971c729649f1b15"
+    }
+  },
+  {
+    "id": "world-yard-dock-plate-body",
+    "spec": {
+      "slug": "yard-dock-plate-body",
+      "area": "world",
+      "preparedSource": "yard-dock-plate-body-authored-vertex-colour-tripo-finish.glb",
+      "target": 0.15000000409781933,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "15b6ef754af3345003d9657a3ee39d7d75aab93b963c84ec5df0422454d5f1f2"
+    }
+  },
+  {
+    "id": "world-yard-dumpster-body",
+    "spec": {
+      "slug": "yard-dumpster-body",
+      "area": "world",
+      "preparedSource": "yard-dumpster-body-authored-vertex-colour-tripo-finish.glb",
+      "target": 2.6072733461856843,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "945c9c10aae7353de0b30b84224ad2e991c3987c76a972f285dd70dfa99e9639"
+    }
+  },
+  {
+    "id": "world-yard-extinguisher-body",
+    "spec": {
+      "slug": "yard-extinguisher-body",
+      "area": "world",
+      "preparedSource": "yard-extinguisher-body-authored-vertex-colour-tripo-finish.glb",
+      "target": 1.024999976158142,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "8e380beca89262b7462cdcd70d7a6dd7d2e0b1201af3bd68a48604d69002ae23"
+    }
+  },
+  {
+    "id": "world-yard-fuel-island-body",
+    "spec": {
+      "slug": "yard-fuel-island-body",
+      "area": "world",
+      "preparedSource": "yard-fuel-island-body-authored-vertex-colour-tripo-finish.glb",
+      "target": 6.250000005960464,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "8ea9628f9e386131248780e508f8422ec39950ac05006308389e56ce8f3249e8"
+    }
+  },
+  {
+    "id": "world-yard-guard-shack-body",
+    "spec": {
+      "slug": "yard-guard-shack-body",
+      "area": "world",
+      "preparedSource": "yard-guard-shack-body-authored-vertex-colour-tripo-finish.glb",
+      "target": 3.0999999046325684,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "60f8c3e89e87565898b827101231c3661fa205f42d0cf5220d698b0878928dd9"
+    }
+  },
+  {
+    "id": "world-yard-intercom-body",
+    "spec": {
+      "slug": "yard-intercom-body",
+      "area": "world",
+      "preparedSource": "yard-intercom-body-authored-vertex-colour-tripo-finish.glb",
+      "target": 1.5499999523162842,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "3837a8631b82eca9ebf7a500bb9531f94153bff2d8327f5a52a015e58aeb8ece"
+    }
+  },
+  {
+    "id": "world-yard-jockey-body",
+    "spec": {
+      "slug": "yard-jockey-body",
+      "area": "world",
+      "preparedSource": "yard-jockey-body-authored-vertex-colour-tripo-finish.glb",
+      "target": 2.099999910593033,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "71c6bfcf14fb59eeb3ffe0997d2a11ffb51c864ccf25469bbf1ba0b832f6c366"
+    }
+  },
+  {
+    "id": "world-yard-maintenance-body",
+    "spec": {
+      "slug": "yard-maintenance-body",
+      "area": "world",
+      "preparedSource": "yard-maintenance-body-authored-vertex-colour-tripo-finish.glb",
+      "target": 8.090000182390213,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "ec78f06b011b6dfcb0cc87a9bd10bb1324e7a57f9641ececb716b851d1b403db"
+    }
+  },
+  {
+    "id": "world-yard-manifest-body",
+    "spec": {
+      "slug": "yard-manifest-body",
+      "area": "world",
+      "preparedSource": "yard-manifest-body-authored-vertex-colour-tripo-finish.glb",
+      "target": 0.699999988079071,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "f0403154c79b4bff554d7a17b2fd32a1d9463be8f3b0c3308338c8787b867fd9"
+    }
+  },
+  {
+    "id": "world-yard-pallet-charger-body",
+    "spec": {
+      "slug": "yard-pallet-charger-body",
+      "area": "world",
+      "preparedSource": "yard-pallet-charger-body-authored-vertex-colour-tripo-finish.glb",
+      "target": 1.5000000119209291,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "79dc103c327cee20267760f41c6bd7f37fb76b4ad55a5c734b1db1ba0949c21b"
+    }
+  },
+  {
+    "id": "world-yard-safety-mirror-body",
+    "spec": {
+      "slug": "yard-safety-mirror-body",
+      "area": "world",
+      "preparedSource": "yard-safety-mirror-body-authored-vertex-colour-tripo-finish.glb",
+      "target": 0.8999999761581421,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "2b6a2202c500486b5a42c45cf784c360b2c7c65866fcf47950cecdf0a53e0f8f"
+    }
+  },
+  {
+    "id": "world-yard-scale-kiosk-body",
+    "spec": {
+      "slug": "yard-scale-kiosk-body",
+      "area": "world",
+      "preparedSource": "yard-scale-kiosk-body-authored-vertex-colour-tripo-finish.glb",
+      "target": 1.9499999284744263,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "4e887b3e97844c61bf994e421df32f9f03ef1c012508d5f636d96bea3b274c68"
+    }
+  },
+  {
+    "id": "world-yard-stretch-wrap-body",
+    "spec": {
+      "slug": "yard-stretch-wrap-body",
+      "area": "world",
+      "preparedSource": "yard-stretch-wrap-body-authored-vertex-colour-tripo-finish.glb",
+      "target": 3.0000000007450582,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "8c73748ce3962d4cd24c0b25d49d1a9bc8e54855fc318e0cf699ba0d7047dd83"
+    }
+  },
+  {
+    "id": "world-yard-telemetry-body",
+    "spec": {
+      "slug": "yard-telemetry-body",
+      "area": "world",
+      "preparedSource": "yard-telemetry-body-authored-vertex-colour-tripo-finish.glb",
+      "target": 7.599999904632568,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "6dff2547e7220f8f497ccd06fd2afa963409d854d9301c613cd74a51304f6b19"
+    }
+  },
+  {
+    "id": "world-yard-tire-inspection-body",
+    "spec": {
+      "slug": "yard-tire-inspection-body",
+      "area": "world",
+      "preparedSource": "yard-tire-inspection-body-authored-vertex-colour-tripo-finish.glb",
+      "target": 2.599999952316285,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "eacefdb09294fdfb99a3fc65251156e3144e69b42a6afd21a76a8fcbb97dba7e"
+    }
+  },
+  {
+    "id": "world-yard-truck-wash-body",
+    "spec": {
+      "slug": "yard-truck-wash-body",
+      "area": "world",
+      "preparedSource": "yard-truck-wash-body-authored-vertex-colour-tripo-finish.glb",
+      "target": 8.300000190734863,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "db7e41e18c54f3feac39e338c0a8d6755703c32d1e6189e780f962afaac9e50e"
+    }
+  },
+  {
+    "id": "world-yard-weight-scale-body",
+    "spec": {
+      "slug": "yard-weight-scale-body",
+      "area": "world",
+      "preparedSource": "yard-weight-scale-body-authored-vertex-colour-tripo-finish.glb",
+      "target": 3.274500332772732,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "a3227332160de7ccf80b8a641caa59e033c978ca324d852b9e8bc53116948ed0"
+    }
+  },
+  {
+    "id": "world-dock-leveler-plate",
+    "spec": {
+      "slug": "dock-leveler-plate",
+      "area": "world",
+      "preparedSource": "dock-leveler-plate-authored-vertex-colour-tripo-finish.glb",
+      "target": 0.15000000596046448,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "d25987172834c0cecc86b08860c92a55adcb6602851be5f6d002ca0cbb7213bf"
+    }
+  },
+  {
+    "id": "world-dock-leveler-lip",
+    "spec": {
+      "slug": "dock-leveler-lip",
+      "area": "world",
+      "preparedSource": "dock-leveler-lip-authored-vertex-colour-tripo-finish.glb",
+      "target": 0.10000000521540642,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "9f12a61bba851b66b24f9bf48f90c86b08d59326f715dc76dab1080e381121cf"
+    }
+  },
+  {
+    "id": "world-dock-door-panel",
+    "spec": {
+      "slug": "dock-door-panel",
+      "area": "world",
+      "preparedSource": "dock-door-panel-authored-vertex-colour-tripo-finish.glb",
+      "target": 4,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "65b795b7d280714e1a670204b277c0d8c24be8c9f0f03d502f518339e27a2cc7"
+    },
+    "retainReason": "Retained: tested scales .25/.3/.4 and1 cannot meet BOTH unchanged 21000-byte budget and1-degree max/.25-degree RMS JPEG direction bounds. See deliveryProof trials."
+  },
+  {
+    "id": "world-dock-door-frame",
+    "spec": {
+      "slug": "dock-door-frame",
+      "area": "world",
+      "preparedSource": "dock-door-frame-authored-vertex-colour-tripo-finish.glb",
+      "target": 5.25,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "d7bf1e39d96a5cab4f81d42f855a1746c27fe846346a851e7734b42c7560993e"
+    }
+  },
+  {
+    "id": "world-dock-shelter-side",
+    "spec": {
+      "slug": "dock-shelter-side",
+      "area": "world",
+      "preparedSource": "dock-shelter-side-authored-vertex-colour-tripo-finish.glb",
+      "target": 3.5,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "519503e4b484b73d8f7ee8145c8cc1e625a61712b0a69478a12320ad413c60b7"
+    }
+  },
+  {
+    "id": "world-dock-shelter-top",
+    "spec": {
+      "slug": "dock-shelter-top",
+      "area": "world",
+      "preparedSource": "dock-shelter-top-authored-vertex-colour-tripo-finish.glb",
+      "target": 0.2999999523162842,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "8394dadf9b8d826602865831c600bbef6b07b2ce9c79d0a36f9459e37c0b5378"
+    }
+  },
+  {
+    "id": "world-dock-shelter-frame",
+    "spec": {
+      "slug": "dock-shelter-frame",
+      "area": "world",
+      "preparedSource": "dock-shelter-frame-authored-vertex-colour-tripo-finish.glb",
+      "target": 4.099999904632568,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "39387050a7678b1a6235c311e15ce1029c97b6c1600bfd7f73b0413cb6b84f95"
+    }
+  },
+  {
+    "id": "world-pallet-staging-body",
+    "spec": {
+      "slug": "pallet-staging-body",
+      "area": "world",
+      "preparedSource": "pallet-staging-body-authored-vertex-colour-tripo-finish.glb",
+      "target": 0.8949999790638685,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "b3728f6b399823d25c175f800ce55ed9f12ce4d29b125a2789500cca198cbca8"
+    }
+  },
+  {
+    "id": "world-wheel-chock-body",
+    "spec": {
+      "slug": "wheel-chock-body",
+      "area": "world",
+      "preparedSource": "wheel-chock-body-authored-vertex-colour-tripo-finish.glb",
+      "target": 0.2750000041723252,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "42a742e7b5029eeea287a62e7d28aab972905d08c88f4be8f7f7579e2d02e657"
+    }
+  },
+  {
+    "id": "world-dock-bumper-rubber",
+    "spec": {
+      "slug": "dock-bumper-rubber",
+      "area": "world",
+      "preparedSource": "dock-bumper-rubber-authored-vertex-colour-tripo-finish.glb",
+      "target": 0.4000000059604645,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "2b393d2dafeb98d62e99f70e7a0c68e8e8e5664c89a685362f9a9aeda3855054"
+    }
+  },
+  {
+    "id": "world-cupid-authored-body",
+    "spec": {
+      "slug": "cupid-authored-body",
+      "area": "world",
+      "preparedSource": "cupid-authored-body-authored-vertex-colour-tripo-finish.glb",
+      "target": 2.330000028014183,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "573cc5f2132d204a54ce2d5e7409c2945faae08e8703834bfa929b04885128fa"
+    }
+  },
+  {
+    "id": "world-frog-authored-body",
+    "spec": {
+      "slug": "frog-authored-body",
+      "area": "world",
+      "preparedSource": "frog-authored-body-authored-vertex-colour-tripo-finish.glb",
+      "target": 0.24999999813901513,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "bdc6acc835eabbebab7217223721b75b39d9598019e51f1cc4c59d5fd389500c"
+    }
+  },
+  {
+    "id": "world-machine-silo-unit",
+    "spec": {
+      "slug": "machine-silo-unit",
+      "area": "world",
+      "preparedSource": "machine-silo-unit-shallow-profile.glb",
+      "target": 0.9999999999999999,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "10ff4d0eba4cc94b247ee4f43247fd4f1085cdd68e1a10e39d357e2f8b2ab5e0"
+    }
+  },
+  {
+    "id": "world-machine-mill-unit",
+    "spec": {
+      "slug": "machine-mill-unit",
+      "area": "world",
+      "preparedSource": "machine-mill-unit-authored-vertex-colour-tripo-finish.glb",
+      "target": 1.0000000507273592,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "0b6b8611e9488a2f7987535c4a59d440b4c81fc81ab2ef9bbcf26d3e733b606f"
+    }
+  },
+  {
+    "id": "world-machine-sifter-unit",
+    "spec": {
+      "slug": "machine-sifter-unit",
+      "area": "world",
+      "preparedSource": "machine-sifter-unit-authored-vertex-colour-tripo-finish.glb",
+      "target": 1.0000001423394544,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "2d9c2dbd9a8c1982044b97d4bb6d97efd373ae20205e53c839e3c03e944704ac"
+    }
+  },
+  {
+    "id": "world-machine-packer-unit",
+    "spec": {
+      "slug": "machine-packer-unit",
+      "area": "world",
+      "preparedSource": "machine-packer-unit-authored-vertex-colour-tripo-finish.glb",
+      "target": 1,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "35864be1328510dfc16553094922ef85c4db052d5d1c9bd8df512328e7cf66fd"
+    }
+  },
+  {
+    "id": "world-fence-post-unit",
+    "spec": {
+      "slug": "fence-post-unit",
+      "area": "world",
+      "preparedSource": "fence-post-unit-authored-vertex-colour-tripo-finish.glb",
+      "target": 2.4000000953674316,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "9d977f7ddbbf0382c4e218a2320f1b783ea87970e8fb4c1f687b3b22caca10a4"
+    }
+  },
+  {
+    "id": "world-fence-rail-unit",
+    "spec": {
+      "slug": "fence-rail-unit",
+      "area": "world",
+      "preparedSource": "fence-rail-unit-authored-vertex-colour-tripo-finish.glb",
+      "target": 0.1100001335144043,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "3a23ce69e4bdba5df0ee4e98380de122106f7d159ac00103dda1d1c267c38d7f"
+    }
+  },
+  {
+    "id": "world-hedge-unit",
+    "spec": {
+      "slug": "hedge-unit",
+      "area": "world",
+      "preparedSource": "hedge-unit-authored-vertex-colour-tripo-finish.glb",
+      "target": 0.6000000238418579,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "e8715cbfcc0e460607d39c8dd7932876836003ebcc906e8716195c6c8532a87e"
+    }
+  },
+  {
+    "id": "world-bridge-housing-unit",
+    "spec": {
+      "slug": "bridge-housing-unit",
+      "area": "world",
+      "preparedSource": "bridge-housing-unit-authored-vertex-colour-tripo-finish.glb",
+      "target": 1.5000000000000009,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "b770d851848c7fc7c118d21949e021bcf5ee2743320837a0c88710acfc779878"
+    }
+  },
+  {
+    "id": "world-bridge-support-unit",
+    "spec": {
+      "slug": "bridge-support-unit",
+      "area": "world",
+      "preparedSource": "bridge-support-unit-authored-vertex-colour-tripo-finish.glb",
+      "target": 0.5000000000000003,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "e2975287c7cd3f1cd1b1737e92ab369f17cd7c103b00d8bdf8a14c6004716c6d"
+    }
+  },
+  {
+    "id": "world-factory-steel-unit",
+    "spec": {
+      "slug": "factory-steel-unit",
+      "area": "world",
+      "preparedSource": "factory-steel-unit-authored-vertex-colour-tripo-finish.glb",
+      "target": 1,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "d7efff8260c7685d5a5278c2b19227efb9661895c180e3b3608138f59690abb4"
+    }
+  },
+  {
+    "id": "world-factory-concrete-unit",
+    "spec": {
+      "slug": "factory-concrete-unit",
+      "area": "world",
+      "preparedSource": "factory-concrete-unit-authored-vertex-colour-tripo-finish.glb",
+      "target": 1,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "952d021729e32c025423af5464c9d54264dc947804e2c4148e39adf365a67a6c"
+    },
+    "retainReason": "Retained: tested scales .25/.3/.4 and1 cannot meet BOTH unchanged 19000-byte budget and1-degree max/.25-degree RMS JPEG direction bounds. See deliveryProof trials."
+  },
+  {
+    "id": "world-city-masonry-unit",
+    "spec": {
+      "slug": "city-masonry-unit",
+      "area": "world",
+      "preparedSource": "city-masonry-unit-authored-vertex-colour-tripo-finish.glb",
+      "target": 1,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "2197ef35e83cbd7ccc3776a5b7cf1544694c6324c531f2c6b50963c7142b7be6"
+    },
+    "retainReason": "Retained: tested scales .25/.3/.4 and1 cannot meet BOTH unchanged 20000-byte budget and1-degree max/.25-degree RMS JPEG direction bounds. See deliveryProof trials."
+  },
+  {
+    "id": "world-station-sign-pole-unit",
+    "spec": {
+      "slug": "station-sign-pole-unit",
+      "area": "world",
+      "preparedSource": "station-sign-pole-unit-authored-vertex-colour-tripo-finish.glb",
+      "target": 8,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "d1dfe1fa3a2d6847de8a15d402f4c0fa965f6aa284416ad93e7d3f5d745158d7"
+    }
+  },
+  {
+    "id": "world-station-sign-cabinet-unit",
+    "spec": {
+      "slug": "station-sign-cabinet-unit",
+      "area": "world",
+      "preparedSource": "station-sign-cabinet-unit-authored-vertex-colour-tripo-finish.glb",
+      "target": 5,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "8a6fdd1764270b5ce01deecccf4539c3a840a9a3e7655a97ec2db70d315ef4cf"
+    }
+  },
+  {
+    "id": "world-station-wall-unit",
+    "spec": {
+      "slug": "station-wall-unit",
+      "area": "world",
+      "preparedSource": "station-wall-unit-authored-vertex-colour-tripo-finish.glb",
+      "target": 5,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "10f6545090ce863589e8c59f0bb8dcf5fe08bb809cd3316b18fa595f2a7a743b"
+    },
+    "retainReason": "Retained: tested scales .25/.3/.4 and1 cannot meet BOTH unchanged 20000-byte budget and1-degree max/.25-degree RMS JPEG direction bounds. See deliveryProof trials."
+  },
+  {
+    "id": "world-station-roof-unit",
+    "spec": {
+      "slug": "station-roof-unit",
+      "area": "world",
+      "preparedSource": "station-roof-unit-authored-vertex-colour-tripo-finish.glb",
+      "target": 0.5,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "963db38e10808dc897833d1250df5347411a6ec42783578247e240ccc5f51d35"
+    }
+  },
+  {
+    "id": "world-park-trunk-unit",
+    "spec": {
+      "slug": "park-trunk-unit",
+      "area": "world",
+      "preparedSource": "park-trunk-unit-authored-vertex-colour-tripo-finish.glb",
+      "target": 3,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "6f4be4b30b0d132d4366633da08eca77ce1e8e941d9ac0aac6e53c87e8eda334"
+    }
+  },
+  {
+    "id": "world-park-canopy-zero-unit",
+    "spec": {
+      "slug": "park-canopy-zero-unit",
+      "area": "world",
+      "preparedSource": "park-canopy-zero-unit-authored-vertex-colour-tripo-finish.glb",
+      "target": 3.9584999084472656,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "987819d42d71607d26c0f56de1f4ccd29978e72abeb2cf7b09ced15094dff345"
+    }
+  },
+  {
+    "id": "world-park-canopy-one-unit",
+    "spec": {
+      "slug": "park-canopy-one-unit",
+      "area": "world",
+      "preparedSource": "park-canopy-one-unit-authored-vertex-colour-tripo-finish.glb",
+      "target": 4.567499876022339,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "578d9b66b590f2253bd1f13700075e8725fca2a25416562702f379bf64195ebb"
+    }
+  },
+  {
+    "id": "world-park-canopy-two-unit",
+    "spec": {
+      "slug": "park-canopy-two-unit",
+      "area": "world",
+      "preparedSource": "park-canopy-two-unit-authored-vertex-colour-tripo-finish.glb",
+      "target": 3.6540002822875977,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "25472d08292a879123c3e9f778874d4c084ce32a117cb91e87a1de526ef7748d"
+    }
+  },
+  {
+    "id": "world-oak-trunk-unit",
+    "spec": {
+      "slug": "oak-trunk-unit",
+      "area": "world",
+      "preparedSource": "oak-trunk-unit-authored-vertex-colour-tripo-finish.glb",
+      "target": 2.599999856948852,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "e65a0cd856d085bcd8a0db6ae31c0630269a8431e861ce7ebb4810bdf17d9e51"
+    }
+  },
+  {
+    "id": "world-oak-canopy-unit",
+    "spec": {
+      "slug": "oak-canopy-unit",
+      "area": "world",
+      "preparedSource": "oak-canopy-unit-authored-vertex-colour-tripo-finish.glb",
+      "target": 3.1464998722076416,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "d91ce66c54f943e0489e5be3b21456a6322d0217b197e5776618ffa29f96b30e"
+    }
+  },
+  {
+    "id": "world-birch-trunk-unit",
+    "spec": {
+      "slug": "birch-trunk-unit",
+      "area": "world",
+      "preparedSource": "birch-trunk-unit-authored-vertex-colour-tripo-finish.glb",
+      "target": 3.099999856948852,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "39699d943ed582173801aba9bafd57b87d62db6bf16c6e0faac4e84a294bbbe2"
+    }
+  },
+  {
+    "id": "world-birch-canopy-unit",
+    "spec": {
+      "slug": "birch-canopy-unit",
+      "area": "world",
+      "preparedSource": "birch-canopy-unit-authored-vertex-colour-tripo-finish.glb",
+      "target": 3.044999837875366,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "8ac666af17ee63f27a020c4fa9a8476bceb05f5d07ef4ee7459615b90e0cbc0f"
+    }
+  },
+  {
+    "id": "world-pine-trunk-unit",
+    "spec": {
+      "slug": "pine-trunk-unit",
+      "area": "world",
+      "preparedSource": "pine-trunk-unit-authored-vertex-colour-tripo-finish.glb",
+      "target": 3,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "5a1de61db99eedaf7e68a106aed2195f124a8d2df2717a202f525edfff0c9767"
+    }
+  },
+  {
+    "id": "world-pine-canopy-unit",
+    "spec": {
+      "slug": "pine-canopy-unit",
+      "area": "world",
+      "preparedSource": "pine-canopy-unit-authored-vertex-colour-tripo-finish.glb",
+      "target": 3.85699999332428,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "fb47ba4b08786ef501c3ade4631a71684a90850156681af8a593ef2fb1d5c2f5"
+    }
+  },
+  {
+    "id": "world-flour-sack-unit",
+    "spec": {
+      "slug": "flour-sack-unit",
+      "area": "world",
+      "preparedSource": "flour-sack-unit-pillow-profile.glb",
+      "target": 0.3,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "bd2d4b07d95380673bcbfceb5ed690430b188e2f6a93d0ef29d370bac427652a"
+    }
+  },
+  {
+    "id": "world-spouting-flange-unit",
+    "spec": {
+      "slug": "spouting-flange-unit",
+      "area": "world",
+      "preparedSource": "spouting-flange-unit-authored-vertex-colour-tripo-finish.glb",
+      "target": 0.11999999731779099,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "f46b3d52d9f2e41d3a991c863474d8947818f961fec2573ad02b2c6ccf672cb9"
+    }
+  },
+  {
+    "id": "world-spouting-column-unit",
+    "spec": {
+      "slug": "spouting-column-unit",
+      "area": "world",
+      "preparedSource": "spouting-column-unit-authored-vertex-colour-tripo-finish.glb",
+      "target": 1,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "8944a9ac29d7e634f8f7c8374f5fc16192ae06ef89e72eed0f73eb6189549819"
+    }
+  },
+  {
+    "id": "world-spouting-crossbeam-unit",
+    "spec": {
+      "slug": "spouting-crossbeam-unit",
+      "area": "world",
+      "preparedSource": "spouting-crossbeam-unit-authored-vertex-colour-tripo-finish.glb",
+      "target": 1,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "96df8567c8de20f06c0ab829a1e654a70eca582f6400e452a3fe8b86d6ef0b5c"
+    }
+  },
+  {
+    "id": "world-forklift-chassis-unit",
+    "spec": {
+      "slug": "forklift-chassis-unit",
+      "area": "world",
+      "preparedSource": "forklift-chassis-unit-authored-vertex-colour-tripo-finish.glb",
+      "target": 0.808435320854187,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "65835bbcf988f7b313760b3a22fdc865d6892a327d25e516abdaea85c82d9e24"
+    }
+  },
+  {
+    "id": "world-truck-cab-unit",
+    "spec": {
+      "slug": "truck-cab-unit",
+      "area": "world",
+      "preparedSource": "truck-cab-unit-authored-vertex-colour-tripo-finish.glb",
+      "target": 1,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "5bb6c06d76ef6c3b0fb36d8be4f466c3e16690313554e74182b0b4be304c6796"
+    }
+  },
+  {
+    "id": "world-truck-trailer-unit",
+    "spec": {
+      "slug": "truck-trailer-unit",
+      "area": "world",
+      "preparedSource": "truck-trailer-unit-authored-vertex-colour-tripo-finish.glb",
+      "target": 1,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "283dc748f7062e91d70288870396bd10aa8d5fbf07815ee842a4a3b05d788b27"
+    }
+  },
+  {
+    "id": "world-truck-tyre-unit",
+    "spec": {
+      "slug": "truck-tyre-unit",
+      "area": "world",
+      "preparedSource": "truck-tyre-unit-authored-vertex-colour-tripo-finish.glb",
+      "target": 0.3799999952316284,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 2
+      },
+      "sourceSha256": "812cfcbb1f6c28e85aa5440ca4eb86bb6719895038e951f0c5338978ee3d5211"
+    }
+  },
+  {
+    "id": "world-victorian-portal-unit",
+    "spec": {
+      "slug": "victorian-portal-unit",
+      "area": "world",
+      "preparedSource": "victorian-portal-unit-authored-vertex-colour-tripo-finish.glb",
+      "target": 10,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "da470972de85d9253de46a35d3b623a35e888304ca64b500c7a3a750646a484d"
+    }
+  },
+  {
+    "id": "world-industrial-portal-unit",
+    "spec": {
+      "slug": "industrial-portal-unit",
+      "area": "world",
+      "preparedSource": "industrial-portal-unit-authored-vertex-colour-tripo-finish.glb",
+      "target": 1,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "856846f5cd4bf8a0bfac2efe168d48b3877bd300d540e5139b965afa9b34b32a"
+    }
+  },
+  {
+    "id": "world-drainage-pipe-unit",
+    "spec": {
+      "slug": "drainage-pipe-unit",
+      "area": "world",
+      "preparedSource": "drainage-pipe-unit-authored-vertex-colour-tripo-finish.glb",
+      "target": 1,
+      "axis": "y",
+      "texture": 512,
+      "surface": {
+        "normalScale": 0.2
+      },
+      "sourceSha256": "16b014760ded8244cd58e3673d10d8f790a90aedcf051672741b4704f6c090d0"
+    }
+  }
+]

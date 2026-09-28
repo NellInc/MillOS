@@ -231,6 +231,7 @@ export const RiggedCreatureModel = React.forwardRef<CreatureRigHandle, RiggedCre
       // so every animal of a species poses identically no matter what is set on
       // them. SkeletonUtils rebinds.
       const model = cloneSkeleton(scene) as THREE.Group;
+      model.name = `creature-${creature}`;
       const bones = new Map<string, THREE.Object3D>();
       const rest = new Map<string, THREE.Quaternion>();
       const skinned: THREE.SkinnedMesh[] = [];
@@ -266,7 +267,7 @@ export const RiggedCreatureModel = React.forwardRef<CreatureRigHandle, RiggedCre
       }
 
       return { model, bones, rest };
-    }, [scene]);
+    }, [scene, creature]);
 
     useImperativeHandle(ref, () => {
       const { model, bones, rest } = prepared;

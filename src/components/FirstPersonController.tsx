@@ -2,7 +2,11 @@ import React, { useRef, useEffect, useCallback } from 'react';
 import { useThree, useFrame } from '@react-three/fiber';
 import { PointerLockControls } from '@react-three/drei';
 import * as THREE from 'three';
-import { sampleValleyGroundHeight } from './terrain/splatMapGenerator';
+import {
+  sampleWalkingGroundHeight,
+  moveWalkingPosition,
+  castleBlocks,
+} from '../utils/castleNavigation';
 import { getTerrainGridSegments } from './terrain/terrainTypes';
 import { useGraphicsStore } from '../stores/graphicsStore';
 import {
@@ -57,13 +61,24 @@ const collides = (x: number, z: number): boolean => {
  * presets and machine-focus poses sit directly above a conveyor footprint.
  */
 const findFreeSpawn = (x: number, z: number): [number, number] => {
-  if (!collides(x, z)) return [x, z];
+  const free = (a: number, b: number) =>
+    !collides(a, b) &&
+    !castleBlocks(
+      a,
+      b,
+      sampleWalkingGroundHeight(
+        a,
+        b,
+        getTerrainGridSegments(useGraphicsStore.getState().graphics.quality)
+      )
+    );
+  if (free(x, z)) return [x, z];
   for (let r = 1; r <= 24; r++) {
     for (let i = 0; i < 16; i++) {
       const a = (i / 16) * Math.PI * 2;
       const cx = x + r * Math.cos(a);
       const cz = z + r * Math.sin(a);
-      if (!collides(cx, cz)) return [cx, cz];
+      if (free(cx, cz)) return [cx, cz];
     }
   }
   return [x, z];
@@ -91,7 +106,7 @@ interface FirstPersonControllerProps {
 }
 
 export const FirstPersonController: React.FC<FirstPersonControllerProps> = ({ onLockChange }) => {
-  const { camera } = useThree();
+  const { camera, gl } = useThree();
   const controlsRef = useRef<any>(null);
   const velocity = useRef(new THREE.Vector3());
   const direction = useRef(new THREE.Vector3());
@@ -123,12 +138,13 @@ export const FirstPersonController: React.FC<FirstPersonControllerProps> = ({ on
     }
     [spawnX, spawnZ] = findFreeSpawn(spawnX, spawnZ);
 
-    const groundY = sampleValleyGroundHeight(
+    const groundY = sampleWalkingGroundHeight(
       spawnX,
       spawnZ,
       getTerrainGridSegments(useGraphicsStore.getState().graphics.quality)
     );
     camera.position.set(spawnX, PLAYER_HEIGHT + groundY, spawnZ);
+    currentHeight.current = camera.position.y;
     camera.lookAt(0, PLAYER_HEIGHT, 0);
 
     // Set wide FOV for FPS mode
@@ -286,26 +302,24 @@ export const FirstPersonController: React.FC<FirstPersonControllerProps> = ({ on
       const terrainSegments = getTerrainGridSegments(useGraphicsStore.getState().graphics.quality);
       const previousFloor =
         PLAYER_HEIGHT +
-        sampleValleyGroundHeight(camera.position.x, camera.position.z, terrainSegments);
+        sampleWalkingGroundHeight(camera.position.x, camera.position.z, terrainSegments);
       const walkingOnGround = currentHeight.current <= previousFloor + 0.05;
       velocity.current.addScaledVector(forward, -direction.current.z * speed * movementDelta);
       velocity.current.addScaledVector(right, direction.current.x * speed * movementDelta);
 
-      // Calculate new position
-      const newX = camera.position.x + velocity.current.x;
-      const newZ = camera.position.z + velocity.current.z;
-
-      // Apply movement with collision detection (sliding along walls)
-      if (!checkCollision(newX, camera.position.z)) {
-        camera.position.x = newX;
-      }
-      if (!checkCollision(camera.position.x, newZ)) {
-        camera.position.z = newZ;
-      }
+      moveWalkingPosition(
+        camera.position,
+        velocity.current.x,
+        velocity.current.z,
+        terrainSegments,
+        walkingOnGround && verticalInput === 0,
+        PLAYER_HEIGHT,
+        checkCollision
+      );
 
       const floorHeight =
         PLAYER_HEIGHT +
-        sampleValleyGroundHeight(camera.position.x, camera.position.z, terrainSegments);
+        sampleWalkingGroundHeight(camera.position.x, camera.position.z, terrainSegments);
 
       // Vertical: Q/E lift the eye off the ground and hold it there. Without
       // this the next line would snap the camera straight back down, which is
@@ -343,6 +357,7 @@ export const FirstPersonController: React.FC<FirstPersonControllerProps> = ({ on
   return (
     <PointerLockControls
       ref={controlsRef}
+      domElement={gl.domElement}
       pointerSpeed={MOUSE_SENSITIVITY}
       onLock={handleLock}
       onUnlock={handleUnlock}

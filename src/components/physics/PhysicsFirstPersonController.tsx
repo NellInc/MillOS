@@ -13,7 +13,13 @@ import type { RapierRigidBody } from '@react-three/rapier';
 import * as THREE from 'three';
 import { useUIStore } from '../../stores/uiStore';
 import { useGraphicsStore } from '../../stores/graphicsStore';
-import { sampleValleyGroundHeight } from '../terrain/splatMapGenerator';
+import {
+  sampleWalkingGroundHeight,
+  nearCastle,
+  castleBlocks,
+  moveWalkingPosition,
+} from '../../utils/castleNavigation';
+import { nearCanalBridge } from '../../constants/publicRealmLayout';
 import { getTerrainGridSegments } from '../terrain/terrainTypes';
 import {
   PHYSICS_CONFIG,
@@ -59,7 +65,7 @@ function clampVelocity(rb: RapierRigidBody, maxSpeed: number): void {
 export const PhysicsFirstPersonController: React.FC<PhysicsFirstPersonControllerProps> = ({
   onLockChange,
 }) => {
-  const { camera } = useThree();
+  const { camera, gl } = useThree();
   const controlsRef = useRef<typeof PointerLockControls.prototype>(null);
   const rigidBodyRef = useRef<RapierRigidBody>(null);
   const isLocked = useRef(false);
@@ -93,11 +99,26 @@ export const PhysicsFirstPersonController: React.FC<PhysicsFirstPersonController
       spawnZ = currentZ * scale;
     }
 
-    // Y position: ground level (capsule base + small offset)
+    const segments = getTerrainGridSegments(useGraphicsStore.getState().graphics.quality);
+    if (castleBlocks(spawnX, spawnZ, sampleWalkingGroundHeight(spawnX, spawnZ, segments))) {
+      search: for (let radius = 1; radius <= 24; radius++) {
+        for (let i = 0; i < 16; i++) {
+          const x = spawnX + radius * Math.cos((i * Math.PI) / 8);
+          const z = spawnZ + radius * Math.sin((i * Math.PI) / 8);
+          if (!castleBlocks(x, z, sampleWalkingGroundHeight(x, z, segments))) {
+            spawnX = x;
+            spawnZ = z;
+            break search;
+          }
+        }
+      }
+    }
+    // Authored castle/bridge stairs are grounded routes; elsewhere preserve the existing
+    // free-inspection spawn height and Rapier collision response.
     return [
       spawnX,
-      2 +
-        sampleValleyGroundHeight(
+      (nearCastle(spawnX, spawnZ) || nearCanalBridge(spawnX, spawnZ) ? MIN_BODY_HEIGHT : 2) +
+        sampleWalkingGroundHeight(
           spawnX,
           spawnZ,
           getTerrainGridSegments(useGraphicsStore.getState().graphics.quality)
@@ -105,6 +126,12 @@ export const PhysicsFirstPersonController: React.FC<PhysicsFirstPersonController
       spawnZ,
     ];
   }, []);
+
+  const previousPosition = useRef({
+    x: spawnPosition[0],
+    y: spawnPosition[1],
+    z: spawnPosition[2],
+  });
 
   // Set initial camera FOV and look direction
   useEffect(() => {
@@ -246,6 +273,38 @@ export const PhysicsFirstPersonController: React.FC<PhysicsFirstPersonController
       );
     }
 
+    // Resolve the actual Rapier displacement against the shared stair floors.
+    // Sweep from the previous frame so a fast body cannot skip risers or walls.
+    const incoming = rb.translation();
+    const previous = previousPosition.current;
+    if (
+      nearCastle(incoming.x, incoming.z) ||
+      nearCastle(previous.x, previous.z) ||
+      nearCanalBridge(incoming.x, incoming.z) ||
+      nearCanalBridge(previous.x, previous.z)
+    ) {
+      const segments = getTerrainGridSegments(useGraphicsStore.getState().graphics.quality);
+      const oldFloor = sampleWalkingGroundHeight(previous.x, previous.z, segments);
+      const grounded =
+        keyboardIntent.vertical === 0 && previous.y <= oldFloor + MIN_BODY_HEIGHT + 0.05;
+      const resolved = {
+        x: previous.x,
+        y: grounded ? oldFloor + MIN_BODY_HEIGHT : incoming.y,
+        z: previous.z,
+      };
+      moveWalkingPosition(
+        resolved,
+        incoming.x - previous.x,
+        incoming.z - previous.z,
+        segments,
+        grounded,
+        MIN_BODY_HEIGHT,
+        () => false
+      );
+      rb.setTranslation(resolved, true);
+    }
+    previousPosition.current = { ...rb.translation() };
+
     // Sync camera to physics body position
     const pos = rb.translation();
     camera.position.set(pos.x, pos.y + PHYSICS_CONFIG.player.height, pos.z);
@@ -292,6 +351,7 @@ export const PhysicsFirstPersonController: React.FC<PhysicsFirstPersonController
       {/* Pointer lock controls for mouse look */}
       <PointerLockControls
         ref={controlsRef}
+        domElement={gl.domElement}
         pointerSpeed={MOUSE_SENSITIVITY}
         onLock={handleLock}
         onUnlock={handleUnlock}

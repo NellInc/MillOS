@@ -1,0 +1,45 @@
+{
+  "changedBaselineFiles": [
+    "assets/source/models/world/PROVENANCE.json",
+    "assets/source/models/world/station-coffee-machine-crafted-retail.glb",
+    "public/models/world/station-coffee-machine.glb",
+    "scripts/normalize-model-assets.mjs",
+    "scripts/refine-retail-shells.mjs",
+    "src/components/FactoryExterior.tsx",
+    "src/components/VillageArea.tsx",
+    "src/components/environment/InteriorLightRig.tsx",
+    "src/components/exterior/LandscapeDressing.test.ts",
+    "src/components/exterior/LandscapeDressing.tsx",
+    "src/components/exterior/WaterSurface.test.tsx",
+    "src/components/models/GeneratedLighting.test.ts",
+    "src/components/models/GeneratedOfficeModel.tsx",
+    "src/components/scenery/InstancedFoliage.tsx",
+    "src/components/scenery/StationRetailDetails.tsx",
+    "src/shaders/shaderContracts.ts",
+    "src/textures/grass.ts"
+  ],
+  "newSourceFiles": [
+    "src/components/scenery/NaturalDuckPond.test.ts",
+    "src/components/scenery/NaturalDuckPond.tsx"
+  ],
+  "unchangedModelFiles": 839,
+  "modelChanges": [
+    "assets/source/models/world/PROVENANCE.json",
+    "assets/source/models/world/station-coffee-machine-crafted-retail.glb",
+    "public/models/world/station-coffee-machine.glb"
+  ],
+  "protectedUnchanged": [
+    "src/constants/castleAccess.ts",
+    "src/utils/castleNavigation.ts",
+    "src/components/FirstPersonController.tsx",
+    "src/components/mobile/MobileFirstPersonController.tsx",
+    "src/components/physics/PhysicsFirstPersonController.tsx",
+    "public/models/asset-manifest.json",
+    "src/utils/startupReadiness.ts"
+  ],
+  "additionalFingerprintFiles": {
+    "package.json": true,
+    "package-lock.json": true,
+    "vite.config.ts": true
+  }
+}

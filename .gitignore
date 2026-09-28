@@ -46,3 +46,14 @@ coverage/
 
 # Generated agent manifest (npm run agent:manifest); CI regenerates it.
 /build/generated/
+
+# Local render experiments, duplicated baselines and temporary icon work.
+# Selected concept art and final review galleries are explicitly checked in.
+# Working if regeneration leaves status clean while curated art remains tracked.
+/output/*-2026*/
+/tmp/
+
+# Python bytecode is regenerated from the checked-in Blender scripts.
+# Working if running an asset builder adds no bytecode to git status.
+__pycache__/
+*.pyc

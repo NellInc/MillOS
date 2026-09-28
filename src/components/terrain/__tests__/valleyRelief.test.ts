@@ -37,7 +37,7 @@ describe('valley meadow relief', () => {
       for (const pad of pads) {
         for (let x = pad.minX; x <= pad.maxX; x += 2)
           for (let z = pad.minZ; z <= pad.maxZ; z += 2) {
-            if (sampleValleyGroundHeight(x, z, segments) > 0.001)
+            if (Math.abs(sampleValleyGroundHeight(x, z, segments)) > 0.001)
               violations.push(`${segments}: ${x}, ${z}`);
           }
       }

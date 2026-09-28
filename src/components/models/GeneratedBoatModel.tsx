@@ -20,18 +20,17 @@ export function applyBoatPortholes(material: THREE.MeshStandardMaterial, night: 
       `varying vec3 vBoatPosition;\nuniform float boatNight;\nuniform vec3 boatGlow;\n${shader.fragmentShader}`.replace(
         '#include <emissivemap_fragment>',
         `#include <emissivemap_fragment>
-      // Gold-ring vertices sampled from the real UV atlas locate the four
-      // bays. Object-rest coordinates keep the cabin glow off the blue hull.
-      float dz = min(min(abs(vBoatPosition.z + 0.24), abs(vBoatPosition.z + 0.122)),
-                     min(abs(vBoatPosition.z + 0.008), abs(vBoatPosition.z - 0.107)));
-      float radius = length(vec2(dz, vBoatPosition.y - 0.023));
-      float porthole = boatNight * step(0.075, abs(vBoatPosition.x))
-        * (1.0 - smoothstep(0.010, 0.012, radius));
+      // The authored portholes are in metres, matching the delivered mesh.
+      // Restrict the glow to the glass inside each physical brass rim.
+      float glass = smoothstep(0.035, 0.07, diffuseColor.b - diffuseColor.r);
+      float porthole = boatNight * glass * step(1.18, abs(vBoatPosition.x))
+        * (1.0 - step(1.20, abs(vBoatPosition.x)))
+        * step(1.80, vBoatPosition.y) * (1.0 - step(2.26, vBoatPosition.y));
       diffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0, 0.402, 0.0), porthole);
       totalEmissiveRadiance += boatGlow * porthole;`
       );
   };
-  material.customProgramCacheKey = () => 'millos-generated-boat-portholes-v1';
+  material.customProgramCacheKey = () => 'millos-authored-boat-portholes-v2';
 }
 
 export function GeneratedBoatModel({ isNight }: { isNight: boolean }) {

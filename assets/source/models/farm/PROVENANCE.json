@@ -23,10 +23,16 @@
       ],
       "preservedAs": "cow-tripo-original.glb",
       "sha256": "fa0bca3ad45676edccd2154cf8e8550fcda5d67bf43bb7fe96a7ab3a158a113a",
+      "blenderPreparation": {
+        "file": "assets/source/models/farm/cow-crafted.glb",
+        "sha256": "7117aab59824ffea4c50159bbeb86b4c058971585d1c28be727cf3c70eb9207d",
+        "script": "scripts/blender/refine_creature_assets.py",
+        "method": "Fair lumpy shoulder, flank and muzzle transitions; preserve horns and hooves. Curvature-protected Taubin fairing and angle-weighted normals; all topology, UV, skin, joint, material and animation bytes preserved."
+      },
       "runtimeDerivative": {
         "file": "public/models/farm/cow.glb",
-        "sha256": "10fe95fbdff201e52a986e4d1570acb8d2d0e74643a0470969765e9d30e3daf8",
-        "bytes": 338644
+        "sha256": "f2c62f54b435b84807c69902af77a6762bd49494f13f012e950dc0e5f5c59282",
+        "bytes": 338640
       },
       "normalization": {
         "sizedBy": "length",
@@ -62,10 +68,16 @@
       ],
       "preservedAs": "sheep-tripo-original.glb",
       "sha256": "817f93545bf0e55bf51a96d8494dd750072ba9e36630114a61b23d53c70c986e",
+      "blenderPreparation": {
+        "file": "assets/source/models/farm/sheep-crafted.glb",
+        "sha256": "dcbceb36d9cb38715b852c0560d72e64b345ba769e58100cd62f85e69ec98c7f",
+        "script": "scripts/blender/refine_creature_assets.py",
+        "method": "Soften triangulation within fleece lobes, retain every wool clump. Curvature-protected Taubin fairing and angle-weighted normals; all topology, UV, skin, joint, material and animation bytes preserved."
+      },
       "runtimeDerivative": {
         "file": "public/models/farm/sheep.glb",
-        "sha256": "939dd8dbc3e136a9bac160008257714a1f5ace4cfee86625f68bb4ec16cc95d7",
-        "bytes": 313572
+        "sha256": "b59210460682d846057b7ac6226ffa751e837b29147111df42bf55f97cf375bd",
+        "bytes": 313568
       },
       "normalization": {
         "sizedBy": "longest axis",
@@ -101,10 +113,16 @@
       ],
       "preservedAs": "pig-tripo-original.glb",
       "sha256": "368451504b298b089ef33b842f5685063b5d6930c2d4222a2ecdad31df6db733",
+      "blenderPreparation": {
+        "file": "assets/source/models/farm/pig-crafted.glb",
+        "sha256": "cdab8cfe68ab2368469b781620b0331214eab32392162a5ef8b9f5cf97f437c4",
+        "script": "scripts/blender/refine_creature_assets.py",
+        "method": "Fair broad flank and cheek while retaining ears, nostrils and curled tail. Curvature-protected Taubin fairing and angle-weighted normals; all topology, UV, skin, joint, material and animation bytes preserved."
+      },
       "runtimeDerivative": {
         "file": "public/models/farm/pig.glb",
-        "sha256": "e04aced3346b045d4b097a50071e30ec0beac65f9312044eac035968a3f3037b",
-        "bytes": 305512
+        "sha256": "c9137ad941eacff4f9ff9c9455f41296f0f3dd9d1d8a376dd6ec5df6b40edbfd",
+        "bytes": 305508
       },
       "normalization": {
         "sizedBy": "longest axis",
@@ -140,10 +158,16 @@
       ],
       "preservedAs": "horse-tripo-original.glb",
       "sha256": "d66efc8e6b06c541ab74612628fbe4a08a6df84c0c967693b2008e2430f25b5b",
+      "blenderPreparation": {
+        "file": "assets/source/models/farm/horse-crafted.glb",
+        "sha256": "a0207f5c1a700b37a14b611ecde90c8cde21be61355ef017d0aae4a77b755661",
+        "script": "scripts/blender/refine_creature_assets.py",
+        "method": "Fair neck, shoulders and flank; retain mane ridges and hooves. Curvature-protected Taubin fairing and angle-weighted normals; all topology, UV, skin, joint, material and animation bytes preserved."
+      },
       "runtimeDerivative": {
         "file": "public/models/farm/horse.glb",
-        "sha256": "7b763552ed08c7ae87d45a821f202abf676d01ca6e5d24ff8b52bfc38c662e3c",
-        "bytes": 332940
+        "sha256": "b8cf0ec6a612a51834875c0b4163ce13d0345fc1678ce1d527a7afe1d542ca3b",
+        "bytes": 332932
       },
       "normalization": {
         "sizedBy": "longest axis",
@@ -179,10 +203,16 @@
       ],
       "preservedAs": "chicken-tripo-original.glb",
       "sha256": "98215ab26519af627d179e93662f23e61cd4d0442e22cbd92a1708844465a0a9",
+      "blenderPreparation": {
+        "file": "assets/source/models/farm/chicken-crafted.glb",
+        "sha256": "144bf25048d04362a8c8a63491fa8f1507dc02a3e7362acfdfc4c3399cfbf383",
+        "script": "scripts/blender/refine_creature_assets.py",
+        "method": "Ease feather-lobe triangulation without flattening layered wings or comb. Curvature-protected Taubin fairing and angle-weighted normals; all topology, UV, skin, joint, material and animation bytes preserved."
+      },
       "runtimeDerivative": {
         "file": "public/models/farm/chicken.glb",
-        "sha256": "826689f674872460a49e941872f7d17b82c14ae1bf1edf0fb1e69f69623ddfb7",
-        "bytes": 385008
+        "sha256": "4d40b7b4b981a57553dd6b5954dd583d4b122561af84096539b6d79f306b801e",
+        "bytes": 385004
       },
       "normalization": {
         "sizedBy": "longest axis",
@@ -218,9 +248,15 @@
       ],
       "preservedAs": "crow-tripo-original.glb",
       "sha256": "2becaea68c1515884e45784da4962c1d06070c7cd3ed7843d38cc7e10040dd8a",
+      "blenderPreparation": {
+        "file": "assets/source/models/farm/crow-crafted.glb",
+        "sha256": "7e67c17249543a0b8e0b8f30b2cd8f4c0d69c1402a5a9ec761107b45da6c22e4",
+        "script": "scripts/blender/refine_creature_assets.py",
+        "method": "Ease breast and wing shading while retaining beak, claws and feather tips. Curvature-protected Taubin fairing and angle-weighted normals; all topology, UV, skin, joint, material and animation bytes preserved."
+      },
       "runtimeDerivative": {
         "file": "public/models/farm/crow.glb",
-        "sha256": "39edadc090bfbfdf14dacf28f322103545d187aed6c7d99fafd0fa6eda9f8036",
+        "sha256": "5729b60b360eff02735ddf8f1f1417095a7e6ed9c9966c730de9c770ddad0a4f",
         "bytes": 362500
       },
       "normalization": {
@@ -257,10 +293,16 @@
       ],
       "preservedAs": "duck-tripo-original.glb",
       "sha256": "01b9793bf6d9af2d8d771ba89192b21d29aba5eb1431f10e34bc262f4207f16f",
+      "blenderPreparation": {
+        "file": "assets/source/models/farm/duck-crafted.glb",
+        "sha256": "d427b047c1b854cdba8e89ebefc4597cda46aa1c3495898c692a1e630362cba9",
+        "script": "scripts/blender/correct_duck_dorsal_albedo.py",
+        "method": "Curvature-protected breast/cheek fairing followed by a separate SHA-pinned dorsal albedo correction using adjacent neutral plumage texels. Bill and foot UV regions protected. Topology, UVs, skin, joints and non-albedo payloads retained; lossless corrected albedo recompressed only by delivery normalization."
+      },
       "runtimeDerivative": {
         "file": "public/models/farm/duck.glb",
-        "sha256": "0d60d7acde0c3b94dd2a6e9cad0c337dd5b55b3ed39b75cdb91a90fa13830e07",
-        "bytes": 298000
+        "sha256": "65e8b431083f5ae3691aa0b8cb13a37bc423bab7fd458ab2a5786f6cf8c3ba62",
+        "bytes": 297840
       },
       "normalization": {
         "sizedBy": "longest axis",
@@ -281,7 +323,7 @@
         "clips": [],
         "materials": 1,
         "textures": 3,
-        "textureBytes": 47830,
+        "textureBytes": 47671,
         "renderVertices": 18000
       }
     },
@@ -294,10 +336,16 @@
       ],
       "preservedAs": "barn-tripo-original.glb",
       "sha256": "a0849ef2ea5e3b347d52843534781290fda2e79c8bd3a369a1d5b301e0327b4c",
+      "blenderPreparation": {
+        "file": "assets/source/models/farm/barn-crafted.glb",
+        "sha256": "ab9f3f1bd03b4c7461e05c58518d535be03f833fd04146147f7e42d311eb5274",
+        "script": "scripts/blender/refine_architecture_assets.py",
+        "method": "Rebuilt measured roof slopes with courses, verge trim, ridge and eave details; retained original walls, doors and chimney details. Closed thin roof slabs provide physical upper faces, undersides and sealed edges while retaining single-sided material rendering, original envelope and existing normalization."
+      },
       "runtimeDerivative": {
         "file": "public/models/farm/barn.glb",
-        "sha256": "b484ae7802f2c844764cf56cd099fcb750ce077d1f11692d1bb8bd5195fe8b91",
-        "bytes": 620916
+        "sha256": "dfb46238507e165766fa91b6533b452ebb2b77968f213ff86ca8a8106bc33d3e",
+        "bytes": 614780
       },
       "normalization": {
         "sizedBy": "longest axis",
@@ -319,7 +367,7 @@
         "materials": 1,
         "textures": 3,
         "textureBytes": 267674,
-        "renderVertices": 23895
+        "renderVertices": 24162
       }
     },
     {
@@ -331,10 +379,16 @@
       ],
       "preservedAs": "coop-tripo-original.glb",
       "sha256": "c1c59659ffda9b0078b2f823289b0757abaf035e3df09526611af3fea55ee0b1",
+      "blenderPreparation": {
+        "file": "assets/source/models/farm/coop-crafted.glb",
+        "sha256": "a17e0f986a6a10ac215489c39e5e2c9b149d95bb0c20384dd5103bfd93404efb",
+        "script": "scripts/blender/refine_architecture_assets.py",
+        "method": "Rebuilt measured roof slopes with courses, verge trim, ridge and eave details; retained original walls, doors and chimney details. Closed thin roof slabs provide physical upper faces, undersides and sealed edges while retaining single-sided material rendering, original envelope and existing normalization."
+      },
       "runtimeDerivative": {
         "file": "public/models/farm/coop.glb",
-        "sha256": "662cecd433c8777dc17876f6b219170e5d6bfbb76e9ee1f521fed55f8cff51ce",
-        "bytes": 403912
+        "sha256": "d418d9bebc5f63a54fd79d78fb19b2939010de704b4c334b5a04238573bdbe73",
+        "bytes": 325312
       },
       "normalization": {
         "sizedBy": "longest axis",
@@ -356,7 +410,7 @@
         "materials": 1,
         "textures": 3,
         "textureBytes": 69769,
-        "renderVertices": 23958
+        "renderVertices": 17832
       }
     },
     {
@@ -368,10 +422,16 @@
       ],
       "preservedAs": "farmhouse-tripo-original.glb",
       "sha256": "ebc862d40b2bc9df64c56e362be259f680a9241e4f1fa7893b8df56931306ba7",
+      "blenderPreparation": {
+        "file": "assets/source/models/farm/farmhouse-crafted.glb",
+        "sha256": "ef0ea0a62446fad805028c9c5768e43a54f0027d77ee609df10c861da325ef29",
+        "script": "scripts/blender/refine_architecture_assets.py",
+        "method": "Rebuilt measured roof slopes with courses, verge trim, ridge and eave details; retained original walls, doors and chimney details. Closed thin roof slabs provide physical upper faces, undersides and sealed edges while retaining single-sided material rendering, original envelope and existing normalization."
+      },
       "runtimeDerivative": {
         "file": "public/models/farm/farmhouse.glb",
-        "sha256": "81d0b12bd01c2b8eca6858b0f9032b9c29713638014099dbc6280e9f8c9f5ecc",
-        "bytes": 499512
+        "sha256": "03080debdd7dcadf2807ba93f4456c66d9b339415caee2d686ffe88c6d1f57d1",
+        "bytes": 432032
       },
       "normalization": {
         "sizedBy": "longest axis",
@@ -393,7 +453,7 @@
         "materials": 1,
         "textures": 3,
         "textureBytes": 201208,
-        "renderVertices": 23976
+        "renderVertices": 16785
       }
     },
     {
@@ -405,10 +465,16 @@
       ],
       "preservedAs": "windmill-tripo-original.glb",
       "sha256": "5ef615dce20d2b3fe6fe853d6068b3560bf81439b0b5044d58e8d20605474226",
+      "blenderPreparation": {
+        "file": "assets/source/models/farm/windmill-crafted.glb",
+        "sha256": "ace4d30d3c1e580658a05a27b8e0bd141759b42e7139c5b15932cef7ca51741f",
+        "script": "scripts/blender/refine_architecture_assets.py",
+        "method": "Added twelve radial cap battens and continuous drip-ring, leaving sail lattice and stone base untouched. Retain the source coordinate system and existing normalization."
+      },
       "runtimeDerivative": {
         "file": "public/models/farm/windmill.glb",
-        "sha256": "a20826bbceab4027faa7d8fae4f01d78f14ea6d238c72c15ba894d552e89014f",
-        "bytes": 363464
+        "sha256": "c2c99cbc01377a0da385b0eec5db7b6efad0d39d77bbddc5c41a6afde1541790",
+        "bytes": 343084
       },
       "normalization": {
         "sizedBy": "longest axis",
@@ -430,7 +496,7 @@
         "materials": 1,
         "textures": 3,
         "textureBytes": 67093,
-        "renderVertices": 24000
+        "renderVertices": 25152
       }
     },
     {
@@ -442,20 +508,26 @@
       ],
       "preservedAs": "haybale-tripo-original.glb",
       "sha256": "bfde41964609e2d7b7f8d40c35060d780f32d3b5b2329795eb0007bb1c676ccf",
+      "blenderPreparation": {
+        "file": "assets/source/models/farm/haybale-crafted.glb",
+        "sha256": "cadee2d2df6ae0005b555ca4ab76b5fac2b523b3cfb01c01969038380f1aa72f",
+        "script": "scripts/blender/refine_civic_props.py",
+        "method": "Hand-authored component rebuild in the retained runtime metre envelope, with separated construction details and one sRGB colour/linear roughness atlas; original provider source preserved."
+      },
       "runtimeDerivative": {
         "file": "public/models/farm/haybale.glb",
-        "sha256": "b3781326279d7887705e17e39a6eeaeae87664ab6e15728dee728f5b8845231e",
-        "bytes": 400104
+        "sha256": "6784961813c1a3bebc2ac08573982bacf8bfd265c6f6dc61866a90dedea61a2a",
+        "bytes": 403792
       },
       "normalization": {
         "sizedBy": "longest axis",
         "targetMetres": 1.5,
-        "scaleFactor": 1.5139,
+        "scaleFactor": 1,
         "facingYawRadians": 0,
         "authoredYawRadians": 0,
         "bounds": {
-          "width": 1.3462,
-          "height": 1.3114,
+          "width": 1.346,
+          "height": 1.311,
           "length": 1.5,
           "minY": 0,
           "centreX": 0,
@@ -465,9 +537,9 @@
         "joints": 0,
         "clips": [],
         "materials": 1,
-        "textures": 3,
-        "textureBytes": 80182,
-        "renderVertices": 23550
+        "textures": 2,
+        "textureBytes": 28990,
+        "renderVertices": 17532
       }
     },
     {
@@ -479,21 +551,27 @@
       ],
       "preservedAs": "watertrough-tripo-original.glb",
       "sha256": "2ed4fd775e2e7ce2fbcb1f46bcc6091f9d55e12040b83be9209d412010f6531f",
+      "blenderPreparation": {
+        "file": "assets/source/models/farm/watertrough-crafted.glb",
+        "sha256": "4729f05f630c4a4ea2eed2b9faf8321083cc7739cb2af61862db3364e554519c",
+        "script": "scripts/blender/refine_civic_props.py",
+        "method": "Hand-authored component rebuild in the retained runtime metre envelope, with separated construction details and one sRGB colour/linear roughness atlas; original provider source preserved."
+      },
       "runtimeDerivative": {
         "file": "public/models/farm/watertrough.glb",
-        "sha256": "2fcaff74a39b78ee68bfc11c0fdb6bb83991152b5a5b988b4635fd344fced79c",
-        "bytes": 447204
+        "sha256": "66bcb7c9c2bf49c124fc576313d7de46059671dcf79b4d51a83f2c4f235a0277",
+        "bytes": 100328
       },
       "normalization": {
         "sizedBy": "longest axis",
         "targetMetres": 1.5,
-        "scaleFactor": 1.49997,
+        "scaleFactor": 1,
         "facingYawRadians": 0,
-        "authoredYawRadians": 1.5707963267948966,
+        "authoredYawRadians": 0,
         "bounds": {
           "width": 1.5,
-          "height": 0.5417,
-          "length": 0.5481,
+          "height": 0.542,
+          "length": 0.548,
           "minY": 0,
           "centreX": 0,
           "centreZ": 0
@@ -502,9 +580,9 @@
         "joints": 0,
         "clips": [],
         "materials": 1,
-        "textures": 3,
-        "textureBytes": 84539,
-        "renderVertices": 23976
+        "textures": 2,
+        "textureBytes": 28990,
+        "renderVertices": 3552
       }
     },
     {
@@ -516,21 +594,27 @@
       ],
       "preservedAs": "gardenbed-tripo-original.glb",
       "sha256": "b2004fc325df0ee4d60bd033510dada4eef0b7396b1213a8905678675449e17b",
+      "blenderPreparation": {
+        "file": "assets/source/models/farm/gardenbed-crafted.glb",
+        "sha256": "73ac37d18e5f99ada5a52c2533561c7b55f41f3715db5d3fd2ec43307efc80aa",
+        "script": "scripts/blender/refine_civic_props.py",
+        "method": "Reference-concept refinement: three layered cabbages, five branching carrot crowns, three tied bean canes with climbing runners and pods, broken soil furrows and corner bands. Single mesh and existing atlas; box envelope and provider source preserved."
+      },
       "runtimeDerivative": {
         "file": "public/models/farm/gardenbed.glb",
-        "sha256": "63166a5ffe79d37ba2cc8fc6a369858c7b34d9cd55ad86a5e1700b7d707e4a3a",
-        "bytes": 396176
+        "sha256": "e7d83657c57a21e561ae72ff55446d803ec1e55190c59b0b71bf8137e2ed3a14",
+        "bytes": 389768
       },
       "normalization": {
         "sizedBy": "longest axis",
         "targetMetres": 3,
-        "scaleFactor": 3.00007,
+        "scaleFactor": 1,
         "facingYawRadians": 0,
-        "authoredYawRadians": 1.5707963267948966,
+        "authoredYawRadians": 0,
         "bounds": {
           "width": 3,
-          "height": 1.2334,
-          "length": 2.1767,
+          "height": 1.233,
+          "length": 2.177,
           "minY": 0,
           "centreX": 0,
           "centreZ": 0
@@ -539,9 +623,9 @@
         "joints": 0,
         "clips": [],
         "materials": 1,
-        "textures": 3,
-        "textureBytes": 81923,
-        "renderVertices": 23916
+        "textures": 2,
+        "textureBytes": 28990,
+        "renderVertices": 24948
       }
     },
     {
@@ -553,21 +637,27 @@
       ],
       "preservedAs": "fence-tripo-original.glb",
       "sha256": "de6995fc65d23a577964d7dc98737f02f7623ce7aa6b2c2343dbbb6473bee049",
+      "blenderPreparation": {
+        "file": "assets/source/models/farm/fence-crafted.glb",
+        "sha256": "be28919563115a914e169935898045c0f35ef84a91fb4cc3fa55a49c11d0ebd5",
+        "script": "scripts/blender/refine_civic_props.py",
+        "method": "Hand-authored component rebuild in the retained runtime metre envelope, with separated construction details and one sRGB colour/linear roughness atlas; original provider source preserved."
+      },
       "runtimeDerivative": {
         "file": "public/models/farm/fence.glb",
-        "sha256": "193188b4c3306e1b9496f3d3570aec9c50544aca237d89f5a90e43c21ce843cc",
-        "bytes": 384520
+        "sha256": "bf75b058527318bd6d355d12792003a175526cf43271880eb6455ade85ad7c33",
+        "bytes": 54280
       },
       "normalization": {
         "sizedBy": "height",
         "targetMetres": 1.05,
-        "scaleFactor": 1.63555,
+        "scaleFactor": 1,
         "facingYawRadians": 0,
         "authoredYawRadians": 0,
         "bounds": {
-          "width": 1.6359,
+          "width": 1.636,
           "height": 1.05,
-          "length": 0.1957,
+          "length": 0.196,
           "minY": 0,
           "centreX": 0,
           "centreZ": 0
@@ -576,9 +666,9 @@
         "joints": 0,
         "clips": [],
         "materials": 1,
-        "textures": 3,
-        "textureBytes": 97486,
-        "renderVertices": 23988
+        "textures": 2,
+        "textureBytes": 28990,
+        "renderVertices": 1236
       }
     }
   ],

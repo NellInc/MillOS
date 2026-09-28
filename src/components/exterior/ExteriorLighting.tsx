@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useRef } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { POLYGON_OFFSET, RENDER_ORDER } from '../../constants/renderLayers';
@@ -70,7 +70,7 @@ const LAMP_POOL_MATERIAL = new THREE.MeshBasicMaterial({
 const LAMP_POOL_GEOMETRY = new THREE.CircleGeometry(1, 28);
 
 interface RegisteredPointLight {
-  readonly light: THREE.PointLight;
+  readonly light: THREE.PointLight | THREE.SpotLight;
   readonly baseIntensity: number;
 }
 
@@ -154,5 +154,44 @@ export const ExteriorPointLight: React.FC<{
       distance={distance}
       color={color}
     />
+  );
+};
+
+/** Downward canopy banks share the lamp clock and never allocate a shadow map. */
+export const ExteriorDownlight: React.FC<{
+  name: string;
+  position: [number, number, number];
+  intensity: number;
+  distance: number;
+  color: THREE.ColorRepresentation;
+}> = ({ name, position, intensity, distance, color }) => {
+  const lightRef = useRef<THREE.SpotLight>(null);
+  const target = useMemo(() => new THREE.Object3D(), []);
+  useLayoutEffect(() => {
+    const light = lightRef.current;
+    if (!light) return;
+    const registration = { light, baseIntensity: intensity };
+    pointLights.add(registration);
+    return () => {
+      pointLights.delete(registration);
+    };
+  }, [intensity]);
+  return (
+    <group position={position}>
+      <primitive object={target} position={[0, -1, 0]} />
+      <spotLight
+        ref={lightRef}
+        name={name}
+        position={[0, 0, 0]}
+        target={target}
+        color={color}
+        intensity={0}
+        distance={distance}
+        decay={2}
+        angle={1.24}
+        penumbra={0.7}
+        castShadow={false}
+      />
+    </group>
   );
 };

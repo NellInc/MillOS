@@ -1,3 +1,4 @@
+import { beginStartupTask } from './startupReadiness';
 import {
   createContext,
   createElement,
@@ -89,7 +90,17 @@ export function recoverableLazy<T extends ComponentType<any>>(
     const recoveryGeneration = useContext(LazyRecoveryContext);
     let LazyComponent = payloadsByGeneration.get(recoveryGeneration);
     if (!LazyComponent) {
-      LazyComponent = lazy(() => importWithBoundedRetry(importer, options));
+      LazyComponent = lazy(async () => {
+        const finish = beginStartupTask();
+        try {
+          const module = await importWithBoundedRetry(importer, options);
+          finish();
+          return module;
+        } catch (error) {
+          finish(true);
+          throw error;
+        }
+      });
       payloadsByGeneration.set(recoveryGeneration, LazyComponent);
     }
     return createElement(LazyComponent, props);

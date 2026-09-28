@@ -146,6 +146,17 @@ const APRON_CONCRETE_SURFACE = {
 // geometry. A second local copy here is how the divisor and the mesh drift
 // apart, and wheel slip is the classic tell that a vehicle is animated rather
 // than driven.
+// Physical facade lettering is lit and readable from its outward face only.
+// Working if cutaway views never show mirrored text through the loading hall.
+export const DOCK_FACADE_TEXT_MATERIAL = new THREE.MeshStandardMaterial({
+  color: '#ffffff',
+  roughness: 0.78,
+  metalness: 0,
+  side: THREE.FrontSide,
+  transparent: true,
+  depthWrite: false,
+});
+
 const SHIPPING_YARD_ORIGIN_Z = 50;
 // Yard-space position of each guard shack's porch light: the shack's local
 // [0, 3, 2] rotated by the shack's yaw (shipping shack at [45, 0, 60], yaw
@@ -3360,6 +3371,8 @@ export const TruckBay: React.FC<TruckBayProps> = ({ productionSpeed }) => {
         />
 
         <Text
+          name="dock-facade-shipping"
+          material={DOCK_FACADE_TEXT_MATERIAL}
           position={[0, 6, -1.5]}
           fontSize={1.2}
           color="#ffffff"
@@ -3372,6 +3385,8 @@ export const TruckBay: React.FC<TruckBayProps> = ({ productionSpeed }) => {
         </Text>
 
         <Text
+          name="dock-facade-outbound"
+          material={DOCK_FACADE_TEXT_MATERIAL}
           position={[0, 4.5, -1.5]}
           fontSize={0.5}
           color="#22c55e"
@@ -3856,6 +3871,8 @@ export const TruckBay: React.FC<TruckBayProps> = ({ productionSpeed }) => {
         />
 
         <Text
+          name="dock-facade-receiving"
+          material={DOCK_FACADE_TEXT_MATERIAL}
           position={[0, 6, -1.5]}
           fontSize={1.2}
           color="#ffffff"
@@ -3868,6 +3885,8 @@ export const TruckBay: React.FC<TruckBayProps> = ({ productionSpeed }) => {
         </Text>
 
         <Text
+          name="dock-facade-inbound"
+          material={DOCK_FACADE_TEXT_MATERIAL}
           position={[0, 4.5, -1.5]}
           fontSize={0.5}
           color="#f97316"

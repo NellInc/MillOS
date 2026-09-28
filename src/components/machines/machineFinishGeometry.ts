@@ -2,7 +2,22 @@ import * as THREE from 'three';
 import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 
-import { SIFTER_LAYOUT } from '../../constants/siteLayout';
+import { SIFTER_LAYOUT, PACKER_HOPPER_LAYOUT } from '../../constants/siteLayout';
+
+/**
+ * Open motor-end cage, in the existing torus mount's unit coordinates.
+ * Three rings and rear cross-braces share one instanced draw and hardware finish.
+ * Working if apertures remain open and the retained 1.1 / 1.1 / 0.1 bounds hold.
+ */
+export function createMotorFanGuardGeometry(): THREE.BufferGeometry {
+  const parts: THREE.BufferGeometry[] = [new THREE.TorusGeometry(1, 0.1, 4, 24)];
+  for (const radius of [0.33, 0.66]) {
+    parts.push(new THREE.TorusGeometry(radius, 0.035, 4, 16));
+  }
+  parts.push(new THREE.BoxGeometry(2, 0.045, 0.045).translate(0, 0, -0.045));
+  parts.push(new THREE.BoxGeometry(0.045, 2, 0.045).translate(0, 0, -0.045));
+  return finish(parts, 'mill-motor-open-fan-guard');
+}
 
 type Vec3 = readonly [number, number, number];
 /** Shared drive position keeps the motor, fan, cooling fins and support together. */
@@ -141,6 +156,21 @@ function millServicePanel(): THREE.BufferGeometry {
   return geometry.translate(0, 0, 2.5625);
 }
 
+/** Folded leaves overlap the casing, while separated barrels expose a hinge pin. */
+function hinge(parts: THREE.BufferGeometry[], x: number, y: number, z: number, sides = 8): void {
+  for (const side of [-1, 1]) {
+    box(parts, [x + side * 0.065, y, z - 0.025], [0.1, 0.24, 0.035]);
+    cylinder(parts, [x, y + side * 0.067, z], 0.045, 0.125, 'y', sides);
+  }
+}
+
+function millRecess(): THREE.BufferGeometry {
+  const parts: THREE.BufferGeometry[] = [];
+  box(parts, [0, 2.82, 1.93], [3.65, 2.7, 0.1]);
+  frontFrame(parts, [0, 2.64, 2.66], 4.13, 2.5, 0.045, 0.09);
+  return finish(parts, 'mill-panel-gasket-and-recess');
+}
+
 function millGuard(): THREE.BufferGeometry {
   const parts: THREE.BufferGeometry[] = [];
   // Deep painted cheeks join the service door to the casting. The moving rolls
@@ -150,6 +180,8 @@ function millGuard(): THREE.BufferGeometry {
     box(parts, [side * 1.675, 2.62, 2.595], [0.65, 2.35, 0.085]);
   }
   parts.push(millServicePanel());
+  // A narrow folded painted land inside the dark gasket; the slots stay open.
+  frontFrame(parts, [0, 2.64, 2.67], 4.03, 2.4, 0.03, 0.09);
   // Closed cast wedge: the shoulder must meet the cheek at oblique views.
   const shoulderProfile = new THREE.Shape();
   shoulderProfile.moveTo(-1.65, 3.82);
@@ -206,7 +238,7 @@ function millHardware(): THREE.BufferGeometry {
       cylinder(parts, [x, y, 2.7], 0.085, 0.07, 'z', 6);
     }
     for (const y of [2.05, 3.45]) {
-      box(parts, [x, y, 2.73], [0.2, 0.3, 0.09]);
+      hinge(parts, x, y, 2.71);
     }
   }
   // A folding handle and narrow screen bezel give the service face a scale.
@@ -278,14 +310,30 @@ function sifterHardware(): THREE.BufferGeometry {
       box(parts, [x, 3.12, side * 3.025], [0.11, 5.32, 0.1]);
       for (let tray = 0; tray < SIFTER_LAYOUT.trayCount; tray += 1) {
         const y = 0.67 + tray * SIFTER_LAYOUT.trayPitch;
-        box(parts, [x, y, side * 3.055], [0.34, 0.16, 0.18]);
+        const shoe = new THREE.BoxGeometry(0.34, 0.16, 0.18);
+        const positions = shoe.getAttribute('position');
+        for (let vertex = 0; vertex < positions.count; vertex++) {
+          if (positions.getZ(vertex) * side > 0)
+            positions.setX(vertex, positions.getX(vertex) * 0.55);
+        }
+        shoe.computeVertexNormals();
+        parts.push(shoe.translate(x, y, side * 3.055));
         box(parts, [x, y, side * 3.17], [0.12, 0.12, 0.07]);
       }
     }
     for (const z of [-1.9, 1.9]) {
       box(parts, [side * 3.445, 3.1, z], [0.11, 5.36, 0.11]);
       for (let tray = 0; tray < SIFTER_LAYOUT.trayCount; tray += 1) {
-        box(parts, [side * 3.52, 0.67 + tray * SIFTER_LAYOUT.trayPitch, z], [0.08, 0.12, 0.12]);
+        const shoe = new THREE.BoxGeometry(0.16, 0.18, 0.26);
+        const positions = shoe.getAttribute('position');
+        for (let vertex = 0; vertex < positions.count; vertex++) {
+          if (positions.getX(vertex) * side > 0) {
+            positions.setY(vertex, (positions.getY(vertex) * 2) / 3);
+            positions.setZ(vertex, positions.getZ(vertex) * 0.46);
+          }
+        }
+        shoe.computeVertexNormals();
+        parts.push(shoe.translate(side * 3.48, 0.67 + tray * SIFTER_LAYOUT.trayPitch, z));
       }
     }
   }
@@ -331,10 +379,117 @@ function sifterServiceRecess(): THREE.BufferGeometry {
   return finish(parts, 'plansifter-access-recesses');
 }
 
+/** Side service covers occupy the flat cabinet course, clear of the working bay.
+ * Working if the gasket lands on the body and front telemetry stays unobscured.
+ */
+function packerRecess(): THREE.BufferGeometry {
+  const parts: THREE.BufferGeometry[] = [];
+  box(parts, [0, 3.05, 1.76], [2.65, 1.65, 0.1]);
+  for (const side of [-1, 1]) {
+    const frame: THREE.BufferGeometry[] = [];
+    frontFrame(frame, [0, 3.1, 1.859], 2.55, 1.65, 0.055, 0.024);
+    parts.push(finish(frame, 'packer-side-gasket').rotateY((side * Math.PI) / 2));
+  }
+  return finish(parts, 'packer-service-gaskets');
+}
+function packerCovers(): THREE.BufferGeometry {
+  const parts: THREE.BufferGeometry[] = [];
+  for (const side of [-1, 1]) box(parts, [side * 1.861, 3.1, 0], [0.034, 1.55, 2.45]);
+  frontFrame(parts, [0, 3.05, 1.817], 2.67, 1.67, 0.035, 0.03);
+  return finish(parts, 'packer-folded-service-covers');
+}
+function packerHardware(): THREE.BufferGeometry {
+  const parts: THREE.BufferGeometry[] = [];
+  for (const side of [-1, 1]) {
+    const fittings: THREE.BufferGeometry[] = [];
+    for (const y of [2.6, 3.6]) hinge(fittings, -1.2, y, 1.904, 6);
+    box(fittings, [1.09, 3.1, 1.905], [0.16, 0.065, 0.05]);
+    parts.push(finish(fittings, 'packer-side-hinges').rotateY((side * Math.PI) / 2));
+  }
+  // Front cover hardware stays outside the nameplate and lockout roundel.
+  for (const y of [2.52, 3.56]) {
+    box(parts, [-1.29, y, 1.83], [0.18, 0.2, 0.035]);
+    cylinder(parts, [-1.3, y, 1.86], 0.035, 0.2, 'y', 6);
+  }
+  box(parts, [1.22, 3.12, 1.845], [0.09, 0.22, 0.055]);
+  const bottom = PACKER_HOPPER_LAYOUT.centreY - PACKER_HOPPER_LAYOUT.scale[1] / 2;
+  const radiusAt = (y: number) =>
+    PACKER_HOPPER_LAYOUT.scale[0] * (1 - (0.55 * (y - bottom)) / PACKER_HOPPER_LAYOUT.scale[1]);
+  const low = bottom + 0.025,
+    high = bottom + 0.13;
+  const band = new THREE.LatheGeometry(
+    [
+      new THREE.Vector2(radiusAt(low) - 0.003, low),
+      new THREE.Vector2(radiusAt(low) + 0.026, low),
+      new THREE.Vector2(radiusAt(high) + 0.026, high),
+      new THREE.Vector2(radiusAt(high) - 0.003, high),
+    ],
+    24
+  );
+  band.normalizeNormals();
+  parts.push(band);
+  for (let index = 0; index < 4; index++) {
+    const angle = Math.PI / 4 + (index * Math.PI) / 2;
+    const lug: THREE.BufferGeometry[] = [];
+    const y = (low + high) / 2;
+    const radius = radiusAt(y);
+    box(lug, [0, y, radius + 0.025], [0.12, 0.15, 0.08]);
+    cylinder(lug, [0, y, radius + 0.078], 0.031, 0.026, 'z', 6);
+    parts.push(finish(lug, 'hopper-clamp-lug').rotateY(angle));
+  }
+  return finish(parts, 'packer-service-and-hopper-hardware');
+}
+
+/** Paired sheet-joint fasteners follow the actual corrugated shell's triangles.
+ * The existing base gets four small anchor shoes, clear of ladder and hatch.
+ * Working if every fastener back contacts the shell and feet remain on the slab.
+ */
+export function createSiloHardwareGeometry(shell: THREE.BufferGeometry): THREE.BufferGeometry {
+  const parts: THREE.BufferGeometry[] = [];
+  const material = new THREE.MeshBasicMaterial();
+  const drum = new THREE.Mesh(shell, material);
+  drum.position.y = 8.75;
+  drum.scale.set(2.25, 12.5, 2.25);
+  drum.updateMatrixWorld(true);
+  const ray = new THREE.Raycaster();
+  for (const seam of [Math.PI / 4, -Math.PI / 4]) {
+    for (let row = 0; row < 12; row++) {
+      const y = 2.8 + row * 1.08;
+      for (const side of [-1, 1]) {
+        const angle = seam + side * 0.018;
+        const outward = new THREE.Vector3(Math.sin(angle), 0, Math.cos(angle));
+        ray.set(outward.clone().multiplyScalar(3).setY(y), outward.clone().negate());
+        const hit = ray.intersectObject(drum)[0];
+        if (!hit) throw new Error('Silo sheet fastener has no supporting shell');
+        // Small domed captive head, eight triangles, with its back buried 2 mm.
+        const head = new THREE.OctahedronGeometry(0.024, 0);
+        head.scale(1, 1, 0.45).rotateY(angle);
+        const point = hit.point.clone().addScaledVector(outward, 0.008);
+        parts.push(mergeVertices(head).translate(point.x, point.y, point.z));
+        head.dispose();
+      }
+    }
+  }
+  material.dispose();
+  for (let index = 0; index < 4; index++) {
+    const angle = Math.PI / 4 + (index * Math.PI) / 2;
+    const foot: THREE.BufferGeometry[] = [];
+    box(foot, [0, 0.035, 2.24], [0.2, 0.07, 0.24]);
+    box(foot, [0, 0.18, 2.245], [0.05, 0.29, 0.15]);
+    cylinder(foot, [0.055, 0.085, 2.31], 0.025, 0.035, 'y', 6);
+    parts.push(finish(foot, 'silo-base-anchor-shoe').rotateY(angle));
+  }
+  return finish(parts, 'silo-sheet-joints-and-anchor-shoes');
+}
+
 export const MACHINE_FINISH_GEOMETRY = {
   millGuard: millGuard(),
   millHardware: millHardware(),
+  millRecess: millRecess(),
   sifterHardware: sifterHardware(),
   sifterServiceFace: sifterServiceFace(),
   sifterServiceRecess: sifterServiceRecess(),
+  packerRecess: packerRecess(),
+  packerCovers: packerCovers(),
+  packerHardware: packerHardware(),
 } as const;

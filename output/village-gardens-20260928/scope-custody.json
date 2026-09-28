@@ -1,0 +1,16 @@
+{
+  "changedBaselineFiles": [
+    "src/components/VillageArea.test.ts",
+    "src/components/VillageArea.tsx",
+    "src/components/exterior/LandscapeDressing.tsx",
+    "src/constants/siteLayout.ts",
+    "src/shaders/shaderContracts.ts"
+  ],
+  "newFiles": [
+    "src/components/scenery/VillageGardens.test.ts",
+    "src/components/scenery/VillageGardens.tsx"
+  ],
+  "providerOriginalsUnchanged": 148,
+  "unaffectedDeliveries": 146,
+  "changedDeliveries": 0
+}

@@ -458,10 +458,10 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 512,
     yaw: 0,
-    preparedSource: 'park-trunk-unit-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'park-trunk-unit-crafted-surface.glb',
+    preparationScript: 'scripts/refine-authored-surfaces.mjs',
     preparationMethod:
-      'Authored palette, corner normals and shadow flags restored with Tripo normal/roughness. Source nondegenerate triangle shape retained. Runtime material layers, original maps, transforms and dynamic nodes remain live.',
+      'Vertical bark fissures with broken cross-grain relief; existing colour/bark maps retained. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
     surface: {
       normalScale: 0.2,
       doubleSided: false,
@@ -554,10 +554,10 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 512,
     yaw: 0,
-    preparedSource: 'oak-trunk-unit-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'oak-trunk-unit-crafted-surface.glb',
+    preparationScript: 'scripts/refine-authored-surfaces.mjs',
     preparationMethod:
-      'Authored palette, corner normals and shadow flags restored with Tripo normal/roughness. Source nondegenerate triangle shape retained. Runtime material layers, original maps, transforms and dynamic nodes remain live.',
+      'Vertical bark fissures with broken cross-grain relief; existing colour/bark maps retained. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
     surface: {
       normalScale: 0.2,
       doubleSided: false,
@@ -602,10 +602,10 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 512,
     yaw: 0,
-    preparedSource: 'birch-trunk-unit-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'birch-trunk-unit-crafted-surface.glb',
+    preparationScript: 'scripts/refine-authored-surfaces.mjs',
     preparationMethod:
-      'Authored palette, corner normals and shadow flags restored with Tripo normal/roughness. Source nondegenerate triangle shape retained. Runtime material layers, original maps, transforms and dynamic nodes remain live.',
+      'Vertical bark fissures with broken cross-grain relief; existing colour/bark maps retained. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
     surface: {
       normalScale: 0.2,
       doubleSided: false,
@@ -650,10 +650,10 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 512,
     yaw: 0,
-    preparedSource: 'pine-trunk-unit-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'pine-trunk-unit-crafted-surface.glb',
+    preparationScript: 'scripts/refine-authored-surfaces.mjs',
     preparationMethod:
-      'Authored palette, corner normals and shadow flags restored with Tripo normal/roughness. Source nondegenerate triangle shape retained. Runtime material layers, original maps, transforms and dynamic nodes remain live.',
+      'Vertical bark fissures with broken cross-grain relief; existing colour/bark maps retained. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
     surface: {
       normalScale: 0.2,
       doubleSided: false,
@@ -722,10 +722,10 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 512,
     yaw: 0,
-    preparedSource: 'spouting-flange-unit-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'spouting-flange-unit-crafted-surface.glb',
+    preparationScript: 'scripts/refine-authored-surfaces.mjs',
     preparationMethod:
-      'Authored palette, corner normals and shadow flags restored with Tripo normal/roughness. Source nondegenerate triangle shape retained. Runtime material layers, original maps, transforms and dynamic nodes remain live.',
+      'Directional fine industrial machining with subdued crossing polish. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
     surface: {
       normalScale: 0.2,
       doubleSided: false,
@@ -746,10 +746,10 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 512,
     yaw: 0,
-    preparedSource: 'spouting-column-unit-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'spouting-column-unit-crafted-surface.glb',
+    preparationScript: 'scripts/refine-authored-surfaces.mjs',
     preparationMethod:
-      'Authored palette, corner normals and shadow flags restored with Tripo normal/roughness. Source nondegenerate triangle shape retained. Runtime material layers, original maps, transforms and dynamic nodes remain live.',
+      'Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
     surface: {
       normalScale: 0.2,
       doubleSided: false,
@@ -770,10 +770,10 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 512,
     yaw: 0,
-    preparedSource: 'spouting-crossbeam-unit-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'spouting-crossbeam-unit-crafted-surface.glb',
+    preparationScript: 'scripts/refine-authored-surfaces.mjs',
     preparationMethod:
-      'Authored palette, corner normals and shadow flags restored with Tripo normal/roughness. Source nondegenerate triangle shape retained. Runtime material layers, original maps, transforms and dynamic nodes remain live.',
+      'Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
     surface: {
       normalScale: 0.2,
       doubleSided: false,
@@ -794,10 +794,10 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 512,
     yaw: 0,
-    preparedSource: 'forklift-chassis-unit-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'forklift-chassis-unit-crafted-surface.glb',
+    preparationScript: 'scripts/refine-authored-surfaces.mjs',
     preparationMethod:
-      'Authored palette, corner normals and shadow flags restored with Tripo normal/roughness. Twelve identical coincident source faces and two zero-area faces omitted; licensed original GLB and dynamic rig unchanged. Runtime material layers, original maps, transforms and dynamic nodes remain live.',
+      'Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
     surface: {
       normalScale: 0.2,
       doubleSided: false,
@@ -821,10 +821,10 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 512,
     yaw: 0,
-    preparedSource: 'truck-cab-unit-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'truck-cab-unit-crafted-surface.glb',
+    preparationScript: 'scripts/refine-authored-surfaces.mjs',
     preparationMethod:
-      'Authored palette, corner normals and shadow flags restored with Tripo normal/roughness. Source nondegenerate triangle shape retained. Runtime material layers, original maps, transforms and dynamic nodes remain live.',
+      'Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
     surface: {
       normalScale: 0.2,
       doubleSided: false,
@@ -845,10 +845,10 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 512,
     yaw: 0,
-    preparedSource: 'truck-trailer-unit-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'truck-trailer-unit-crafted-surface.glb',
+    preparationScript: 'scripts/refine-authored-surfaces.mjs',
     preparationMethod:
-      'Authored palette, corner normals and shadow flags restored with Tripo normal/roughness. Source nondegenerate triangle shape retained. Runtime material layers, original maps, transforms and dynamic nodes remain live.',
+      'Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
     surface: {
       normalScale: 0.2,
       doubleSided: false,
@@ -869,10 +869,10 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 512,
     yaw: 0,
-    preparedSource: 'truck-tyre-unit-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'truck-tyre-unit-crafted-surface.glb',
+    preparationScript: 'scripts/refine-authored-surfaces.mjs',
     preparationMethod:
-      'Authored palette, corner normals and shadow flags restored with Tripo normal/roughness. Source nondegenerate triangle shape retained. Runtime material layers, original maps, transforms and dynamic nodes remain live.',
+      'Moulded elastomer grain; preserve the existing tyre tread geometry and rubber identity. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
     surface: {
       // The near-flat atlas needs this strength to survive black rubber shading.
       // Working if the on/off control changes tyre pixels with the authored tread retained.
@@ -895,10 +895,10 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 512,
     yaw: 0,
-    preparedSource: 'victorian-portal-unit-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'victorian-portal-unit-crafted-surface.glb',
+    preparationScript: 'scripts/refine-authored-surfaces.mjs',
     preparationMethod:
-      'Authored palette, corner normals and shadow flags restored with Tripo normal/roughness. Source nondegenerate triangle shape retained. Runtime material layers, original maps, transforms and dynamic nodes remain live.',
+      'Irregular mineral face relief; existing mortar and architectural detail remain authored. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
     surface: {
       normalScale: 0.2,
       doubleSided: false,
@@ -919,10 +919,10 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 512,
     yaw: 0,
-    preparedSource: 'industrial-portal-unit-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'industrial-portal-unit-crafted-surface.glb',
+    preparationScript: 'scripts/refine-authored-surfaces.mjs',
     preparationMethod:
-      'Authored palette, corner normals and shadow flags restored with Tripo normal/roughness. Source nondegenerate triangle shape retained. Runtime material layers, original maps, transforms and dynamic nodes remain live.',
+      'Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
     surface: {
       normalScale: 0.2,
       doubleSided: false,
@@ -943,10 +943,10 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 512,
     yaw: 0,
-    preparedSource: 'drainage-pipe-unit-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'drainage-pipe-unit-crafted-surface.glb',
+    preparationScript: 'scripts/refine-authored-surfaces.mjs',
     preparationMethod:
-      'Authored palette, corner normals and shadow flags restored with Tripo normal/roughness. Source nondegenerate triangle shape retained. Runtime material layers, original maps, transforms and dynamic nodes remain live.',
+      'Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
     surface: {
       normalScale: 0.2,
       doubleSided: false,
@@ -967,10 +967,10 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 512,
     yaw: 0,
-    preparedSource: 'fence-post-unit-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'fence-post-unit-crafted-surface.glb',
+    preparationScript: 'scripts/refine-authored-surfaces.mjs',
     preparationMethod:
-      'Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live.',
+      'Lengthwise wood fibre with irregular growth bands, without changing authored timber palette. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
     surface: {
       normalScale: 0.2,
       doubleSided: false,
@@ -991,10 +991,10 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 512,
     yaw: 0,
-    preparedSource: 'fence-rail-unit-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'fence-rail-unit-crafted-surface.glb',
+    preparationScript: 'scripts/refine-authored-surfaces.mjs',
     preparationMethod:
-      'Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live.',
+      'Lengthwise wood fibre with irregular growth bands, without changing authored timber palette. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
     surface: {
       normalScale: 0.2,
       doubleSided: false,
@@ -1039,10 +1039,10 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 512,
     yaw: 0,
-    preparedSource: 'bridge-housing-unit-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'bridge-housing-unit-crafted-surface.glb',
+    preparationScript: 'scripts/refine-authored-surfaces.mjs',
     preparationMethod:
-      'Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live.',
+      'Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
     surface: {
       normalScale: 0.2,
       doubleSided: false,
@@ -1063,10 +1063,10 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 512,
     yaw: 0,
-    preparedSource: 'bridge-support-unit-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'bridge-support-unit-crafted-surface.glb',
+    preparationScript: 'scripts/refine-authored-surfaces.mjs',
     preparationMethod:
-      'Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live.',
+      'Non-directional mineral aggregate instead of broad planar bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
     surface: {
       normalScale: 0.2,
       doubleSided: false,
@@ -1087,10 +1087,10 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 512,
     yaw: 0,
-    preparedSource: 'factory-steel-unit-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'factory-steel-unit-crafted-surface.glb',
+    preparationScript: 'scripts/refine-authored-surfaces.mjs',
     preparationMethod:
-      'Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live.',
+      'Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
     surface: {
       normalScale: 0.2,
       doubleSided: false,
@@ -1159,10 +1159,10 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 512,
     yaw: 0,
-    preparedSource: 'station-sign-pole-unit-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'station-sign-pole-unit-crafted-surface.glb',
+    preparationScript: 'scripts/refine-authored-surfaces.mjs',
     preparationMethod:
-      'Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live.',
+      'Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
     surface: {
       normalScale: 0.2,
       doubleSided: false,
@@ -1183,10 +1183,10 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 512,
     yaw: 0,
-    preparedSource: 'station-sign-cabinet-unit-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'station-sign-cabinet-unit-crafted-surface.glb',
+    preparationScript: 'scripts/refine-authored-surfaces.mjs',
     preparationMethod:
-      'Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live.',
+      'Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
     surface: {
       normalScale: 0.2,
       doubleSided: false,
@@ -1231,10 +1231,10 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 512,
     yaw: 0,
-    preparedSource: 'station-roof-unit-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'station-roof-unit-crafted-surface.glb',
+    preparationScript: 'scripts/refine-authored-surfaces.mjs',
     preparationMethod:
-      'Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live.',
+      'Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
     surface: {
       normalScale: 0.2,
       doubleSided: false,
@@ -1255,10 +1255,10 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 512,
     yaw: 0,
-    preparedSource: 'machine-silo-unit-shallow-profile.glb',
-    preparationScript: 'scripts/refine-silo-geometry.mjs',
+    preparedSource: 'machine-silo-unit-crafted-surface.glb',
+    preparationScript: 'scripts/refine-authored-surfaces.mjs',
     preparationMethod:
-      'Local shallow-corrugation remap to the current authored shell; all 10304 retained atlas triangles, UVs, palette, textures and indices preserved. Original 64 zero-area pole faces remain omitted.',
+      'Directional fine industrial machining with subdued crossing polish. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
     surface: {
       normalScale: 0.2,
       doubleSided: false,
@@ -1280,10 +1280,10 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 512,
     yaw: 0,
-    preparedSource: 'machine-mill-unit-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'machine-mill-unit-crafted-surface.glb',
+    preparationScript: 'scripts/refine-authored-surfaces.mjs',
     preparationMethod:
-      'Authored same-topology cast-shoulder remap in CompactMachines.tsx, with preserved Tripo atlas, normal/roughness textures, palette and shadow flags. Live fittings follow the reshaped service face.',
+      'Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
     surface: {
       normalScale: 0.2,
       doubleSided: false,
@@ -1305,10 +1305,10 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 512,
     yaw: 0,
-    preparedSource: 'machine-sifter-unit-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'machine-sifter-unit-crafted-surface.glb',
+    preparationScript: 'scripts/refine-authored-surfaces.mjs',
     preparationMethod:
-      'Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live.',
+      'Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
     surface: {
       normalScale: 0.2,
       doubleSided: false,
@@ -1329,10 +1329,10 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 512,
     yaw: 0,
-    preparedSource: 'machine-packer-unit-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'machine-packer-unit-crafted-surface.glb',
+    preparationScript: 'scripts/refine-authored-surfaces.mjs',
     preparationMethod:
-      'Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live.',
+      'Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
     surface: {
       normalScale: 0.2,
       doubleSided: false,
@@ -1353,10 +1353,10 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 512,
     yaw: 0,
-    preparedSource: 'dock-leveler-plate-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'dock-leveler-plate-crafted-surface.glb',
+    preparationScript: 'scripts/refine-authored-surfaces.mjs',
     preparationMethod:
-      'Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live.',
+      'Directional fine industrial machining with subdued crossing polish. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
     surface: {
       normalScale: 0.2,
       doubleSided: false,
@@ -1377,10 +1377,10 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 512,
     yaw: 0,
-    preparedSource: 'dock-leveler-lip-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'dock-leveler-lip-crafted-surface.glb',
+    preparationScript: 'scripts/refine-authored-surfaces.mjs',
     preparationMethod:
-      'Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live.',
+      'Directional fine industrial machining with subdued crossing polish. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
     surface: {
       normalScale: 0.2,
       doubleSided: false,
@@ -1425,10 +1425,10 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 512,
     yaw: 0,
-    preparedSource: 'dock-door-frame-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'dock-door-frame-crafted-surface.glb',
+    preparationScript: 'scripts/refine-authored-surfaces.mjs',
     preparationMethod:
-      'Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live.',
+      'Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
     surface: {
       normalScale: 0.2,
       doubleSided: false,
@@ -1497,10 +1497,10 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 512,
     yaw: 0,
-    preparedSource: 'dock-shelter-frame-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'dock-shelter-frame-crafted-surface.glb',
+    preparationScript: 'scripts/refine-authored-surfaces.mjs',
     preparationMethod:
-      'Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live.',
+      'Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
     surface: {
       normalScale: 0.2,
       doubleSided: false,
@@ -1521,10 +1521,10 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 512,
     yaw: 0,
-    preparedSource: 'pallet-staging-body-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'pallet-staging-body-crafted-surface.glb',
+    preparationScript: 'scripts/refine-authored-surfaces.mjs',
     preparationMethod:
-      'Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live.',
+      'Lengthwise wood fibre with irregular growth bands, without changing authored timber palette. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
     surface: {
       normalScale: 0.2,
       doubleSided: false,
@@ -1545,10 +1545,10 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 512,
     yaw: 0,
-    preparedSource: 'wheel-chock-body-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'wheel-chock-body-crafted-surface.glb',
+    preparationScript: 'scripts/refine-authored-surfaces.mjs',
     preparationMethod:
-      'Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live.',
+      'Moulded elastomer grain; preserve the existing tyre tread geometry and rubber identity. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
     surface: {
       normalScale: 0.2,
       doubleSided: false,
@@ -1569,10 +1569,10 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 512,
     yaw: 0,
-    preparedSource: 'dock-bumper-rubber-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'dock-bumper-rubber-crafted-surface.glb',
+    preparationScript: 'scripts/refine-authored-surfaces.mjs',
     preparationMethod:
-      'Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live.',
+      'Moulded elastomer grain; preserve the existing tyre tread geometry and rubber identity. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
     surface: {
       normalScale: 0.2,
       doubleSided: false,
@@ -1641,10 +1641,10 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 512,
     yaw: 0,
-    preparedSource: 'yard-access-node-body-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'yard-access-node-body-crafted-surface.glb',
+    preparationScript: 'scripts/refine-authored-surfaces.mjs',
     preparationMethod:
-      'Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live.',
+      'Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
     surface: { doubleSided: false, normalScale: 0.2 },
     pipeline: [
       'Blender authored atlas',
@@ -1662,10 +1662,10 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 512,
     yaw: 0,
-    preparedSource: 'yard-air-hose-body-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'yard-air-hose-body-crafted-surface.glb',
+    preparationScript: 'scripts/refine-authored-surfaces.mjs',
     preparationMethod:
-      'Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live.',
+      'Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
     surface: { doubleSided: false, normalScale: 0.2 },
     pipeline: [
       'Blender authored atlas',
@@ -1683,10 +1683,10 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 512,
     yaw: 0,
-    preparedSource: 'yard-bumper-body-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'yard-bumper-body-crafted-surface.glb',
+    preparationScript: 'scripts/refine-authored-surfaces.mjs',
     preparationMethod:
-      'Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live.',
+      'Moulded elastomer grain; preserve the existing tyre tread geometry and rubber identity. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
     surface: { doubleSided: false, normalScale: 0.2 },
     pipeline: [
       'Blender authored atlas',
@@ -1704,10 +1704,10 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 512,
     yaw: 0,
-    preparedSource: 'yard-compactor-body-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'yard-compactor-body-crafted-surface.glb',
+    preparationScript: 'scripts/refine-authored-surfaces.mjs',
     preparationMethod:
-      'Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live.',
+      'Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
     surface: { doubleSided: false, normalScale: 0.2 },
     pipeline: [
       'Blender authored atlas',
@@ -1725,10 +1725,10 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 512,
     yaw: 0,
-    preparedSource: 'yard-crane-body-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'yard-crane-body-crafted-surface.glb',
+    preparationScript: 'scripts/refine-authored-surfaces.mjs',
     preparationMethod:
-      'Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live.',
+      'Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
     surface: { doubleSided: false, normalScale: 0.2 },
     pipeline: [
       'Blender authored atlas',
@@ -1746,10 +1746,10 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 512,
     yaw: 0,
-    preparedSource: 'yard-dock-plate-body-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'yard-dock-plate-body-crafted-surface.glb',
+    preparationScript: 'scripts/refine-authored-surfaces.mjs',
     preparationMethod:
-      'Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live.',
+      'Directional fine industrial machining with subdued crossing polish. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
     surface: { doubleSided: false, normalScale: 0.2 },
     pipeline: [
       'Blender authored atlas',
@@ -1767,10 +1767,10 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 512,
     yaw: 0,
-    preparedSource: 'yard-dumpster-body-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'yard-dumpster-body-crafted-surface.glb',
+    preparationScript: 'scripts/refine-authored-surfaces.mjs',
     preparationMethod:
-      'Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live.',
+      'Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
     surface: { doubleSided: false, normalScale: 0.2 },
     pipeline: [
       'Blender authored atlas',
@@ -1788,10 +1788,10 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 512,
     yaw: 0,
-    preparedSource: 'yard-extinguisher-body-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'yard-extinguisher-body-crafted-surface.glb',
+    preparationScript: 'scripts/refine-authored-surfaces.mjs',
     preparationMethod:
-      'Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live.',
+      'Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
     surface: { doubleSided: false, normalScale: 0.2 },
     pipeline: [
       'Blender authored atlas',
@@ -1809,10 +1809,10 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 512,
     yaw: 0,
-    preparedSource: 'yard-fuel-island-body-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'yard-fuel-island-body-crafted-surface.glb',
+    preparationScript: 'scripts/refine-authored-surfaces.mjs',
     preparationMethod:
-      'Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live.',
+      'Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
     surface: { doubleSided: false, normalScale: 0.2 },
     pipeline: [
       'Blender authored atlas',
@@ -1830,10 +1830,10 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 512,
     yaw: 0,
-    preparedSource: 'yard-guard-shack-body-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'yard-guard-shack-body-crafted-surface.glb',
+    preparationScript: 'scripts/refine-authored-surfaces.mjs',
     preparationMethod:
-      'Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live.',
+      'Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
     surface: { doubleSided: false, normalScale: 0.2 },
     pipeline: [
       'Blender authored atlas',
@@ -1851,10 +1851,10 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 512,
     yaw: 0,
-    preparedSource: 'yard-intercom-body-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'yard-intercom-body-crafted-surface.glb',
+    preparationScript: 'scripts/refine-authored-surfaces.mjs',
     preparationMethod:
-      'Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live.',
+      'Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
     surface: { doubleSided: false, normalScale: 0.2 },
     pipeline: [
       'Blender authored atlas',
@@ -1872,10 +1872,10 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 512,
     yaw: 0,
-    preparedSource: 'yard-jockey-body-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'yard-jockey-body-crafted-surface.glb',
+    preparationScript: 'scripts/refine-authored-surfaces.mjs',
     preparationMethod:
-      'Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live.',
+      'Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
     surface: { doubleSided: false, normalScale: 0.2 },
     pipeline: [
       'Blender authored atlas',
@@ -1893,10 +1893,10 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 512,
     yaw: 0,
-    preparedSource: 'yard-maintenance-body-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'yard-maintenance-body-crafted-surface.glb',
+    preparationScript: 'scripts/refine-authored-surfaces.mjs',
     preparationMethod:
-      'Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live.',
+      'Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
     surface: { doubleSided: false, normalScale: 0.2 },
     pipeline: [
       'Blender authored atlas',
@@ -1914,10 +1914,10 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 512,
     yaw: 0,
-    preparedSource: 'yard-manifest-body-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'yard-manifest-body-crafted-surface.glb',
+    preparationScript: 'scripts/refine-authored-surfaces.mjs',
     preparationMethod:
-      'Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live.',
+      'Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
     surface: { doubleSided: false, normalScale: 0.2 },
     pipeline: [
       'Blender authored atlas',
@@ -1935,10 +1935,10 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 512,
     yaw: 0,
-    preparedSource: 'yard-pallet-charger-body-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'yard-pallet-charger-body-crafted-surface.glb',
+    preparationScript: 'scripts/refine-authored-surfaces.mjs',
     preparationMethod:
-      'Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live.',
+      'Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
     surface: { doubleSided: false, normalScale: 0.2 },
     pipeline: [
       'Blender authored atlas',
@@ -1956,10 +1956,10 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 512,
     yaw: 0,
-    preparedSource: 'yard-safety-mirror-body-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'yard-safety-mirror-body-crafted-surface.glb',
+    preparationScript: 'scripts/refine-authored-surfaces.mjs',
     preparationMethod:
-      'Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live.',
+      'Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
     surface: { doubleSided: false, normalScale: 0.2 },
     pipeline: [
       'Blender authored atlas',
@@ -1977,10 +1977,10 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 512,
     yaw: 0,
-    preparedSource: 'yard-scale-kiosk-body-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'yard-scale-kiosk-body-crafted-surface.glb',
+    preparationScript: 'scripts/refine-authored-surfaces.mjs',
     preparationMethod:
-      'Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live.',
+      'Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
     surface: { doubleSided: false, normalScale: 0.2 },
     pipeline: [
       'Blender authored atlas',
@@ -1998,10 +1998,10 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 512,
     yaw: 0,
-    preparedSource: 'yard-stretch-wrap-body-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'yard-stretch-wrap-body-crafted-surface.glb',
+    preparationScript: 'scripts/refine-authored-surfaces.mjs',
     preparationMethod:
-      'Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live.',
+      'Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
     surface: { doubleSided: false, normalScale: 0.2 },
     pipeline: [
       'Blender authored atlas',
@@ -2019,10 +2019,10 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 512,
     yaw: 0,
-    preparedSource: 'yard-telemetry-body-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'yard-telemetry-body-crafted-surface.glb',
+    preparationScript: 'scripts/refine-authored-surfaces.mjs',
     preparationMethod:
-      'Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live.',
+      'Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
     surface: { doubleSided: false, normalScale: 0.2 },
     pipeline: [
       'Blender authored atlas',
@@ -2040,10 +2040,10 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 512,
     yaw: 0,
-    preparedSource: 'yard-tire-inspection-body-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'yard-tire-inspection-body-crafted-surface.glb',
+    preparationScript: 'scripts/refine-authored-surfaces.mjs',
     preparationMethod:
-      'Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live.',
+      'Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
     surface: { doubleSided: false, normalScale: 0.2 },
     pipeline: [
       'Blender authored atlas',
@@ -2061,10 +2061,10 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 512,
     yaw: 0,
-    preparedSource: 'yard-truck-wash-body-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'yard-truck-wash-body-crafted-surface.glb',
+    preparationScript: 'scripts/refine-authored-surfaces.mjs',
     preparationMethod:
-      'Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live.',
+      'Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
     surface: { doubleSided: false, normalScale: 0.2 },
     pipeline: [
       'Blender authored atlas',
@@ -2082,10 +2082,10 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 512,
     yaw: 0,
-    preparedSource: 'yard-weight-scale-body-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'yard-weight-scale-body-crafted-surface.glb',
+    preparationScript: 'scripts/refine-authored-surfaces.mjs',
     preparationMethod:
-      'Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live.',
+      'Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
     surface: { doubleSided: false, normalScale: 0.2 },
     pipeline: [
       'Blender authored atlas',
@@ -2103,10 +2103,10 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 1024,
     yaw: 0,
-    preparedSource: 'grain-silo-large-shell-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'grain-silo-large-shell-crafted-surface.glb',
+    preparationScript: 'scripts/refine-authored-surfaces.mjs',
     preparationMethod:
-      'Exact source geometry, palette and corner normals retained with Tripo normal/roughness; utility seams split without changing ordered triangles; light faces remain runtime authored.',
+      'Directional fine industrial machining with subdued crossing polish. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
     surface: {
       normalScale: 0.2,
     },
@@ -2126,10 +2126,10 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 1024,
     yaw: 0,
-    preparedSource: 'grain-silo-small-shell-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'grain-silo-small-shell-crafted-surface.glb',
+    preparationScript: 'scripts/refine-authored-surfaces.mjs',
     preparationMethod:
-      'Exact source geometry, palette and corner normals retained with Tripo normal/roughness; utility seams split without changing ordered triangles; light faces remain runtime authored.',
+      'Directional fine industrial machining with subdued crossing polish. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
     surface: {
       normalScale: 0.2,
     },
@@ -2149,10 +2149,10 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 1024,
     yaw: 0,
-    preparedSource: 'grain-elevator-authored-body-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'grain-elevator-authored-body-crafted-surface.glb',
+    preparationScript: 'scripts/refine-authored-surfaces.mjs',
     preparationMethod:
-      'Exact source geometry, palette and corner normals retained with Tripo normal/roughness; utility seams split without changing ordered triangles; light faces remain runtime authored.',
+      'Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
     surface: {
       normalScale: 0.2,
     },
@@ -2172,15 +2172,16 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 512,
     yaw: 0,
-    preparedSource: 'utility-fuel-shell-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'utility-fuel-shell-crafted-surface.glb',
+    preparationScript: 'scripts/refine-authored-surfaces.mjs',
     preparationMethod:
-      'Exact source geometry, palette and corner normals retained with Tripo normal/roughness; utility seams split without changing ordered triangles; light faces remain runtime authored.',
+      'Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
     surface: {
       metalness: 0.03,
       roughness: 0.64,
       normalScale: 0.2,
-      emissive: [0.12882483009010298, 0.13964799929627628, 0.14103680247388187],
+      // Painted vessels receive yard lighting; they are not light sources.
+      emissive: [0, 0, 0],
     },
     pipeline: [
       'Blender authored atlas',
@@ -2198,15 +2199,16 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 512,
     yaw: 0,
-    preparedSource: 'utility-process-shell-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'utility-process-shell-crafted-surface.glb',
+    preparationScript: 'scripts/refine-authored-surfaces.mjs',
     preparationMethod:
-      'Exact source geometry, palette and corner normals retained with Tripo normal/roughness; utility seams split without changing ordered triangles; light faces remain runtime authored.',
+      'Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
     surface: {
       metalness: 0.03,
       roughness: 0.64,
       normalScale: 0.2,
-      emissive: [0.153898669461789, 0.15833203143932992, 0.152437181671171],
+      // Painted vessels receive yard lighting; they are not light sources.
+      emissive: [0, 0, 0],
     },
     pipeline: [
       'Blender authored atlas',
@@ -2224,15 +2226,16 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 512,
     yaw: 0,
-    preparedSource: 'propane-large-shell-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'propane-large-shell-crafted-surface.glb',
+    preparationScript: 'scripts/refine-authored-surfaces.mjs',
     preparationMethod:
-      'Exact source geometry, palette and corner normals retained with Tripo normal/roughness; utility seams split without changing ordered triangles; light faces remain runtime authored.',
+      'Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
     surface: {
       metalness: 0.03,
       roughness: 0.64,
       normalScale: 0.2,
-      emissive: [0.15833203143932992, 0.1613284836069522, 0.15536829842119604],
+      // Painted vessels receive yard lighting; they are not light sources.
+      emissive: [0, 0, 0],
     },
     pipeline: [
       'Blender authored atlas',
@@ -2250,15 +2253,16 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 512,
     yaw: 0,
-    preparedSource: 'propane-small-shell-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'propane-small-shell-crafted-surface.glb',
+    preparationScript: 'scripts/refine-authored-surfaces.mjs',
     preparationMethod:
-      'Exact source geometry, palette and corner normals retained with Tripo normal/roughness; utility seams split without changing ordered triangles; light faces remain runtime authored.',
+      'Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
     surface: {
       metalness: 0.03,
       roughness: 0.64,
       normalScale: 0.2,
-      emissive: [0.15833203143932992, 0.1613284836069522, 0.15536829842119604],
+      // Painted vessels receive yard lighting; they are not light sources.
+      emissive: [0, 0, 0],
     },
     pipeline: [
       'Blender authored atlas',
@@ -2299,10 +2303,10 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 512,
     yaw: 0,
-    preparedSource: 'metal-bollard-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'metal-bollard-crafted-surface.glb',
+    preparationScript: 'scripts/refine-authored-surfaces.mjs',
     preparationMethod:
-      'Exact source geometry, palette and corner normals retained with Tripo normal/roughness; utility seams split without changing ordered triangles; light faces remain runtime authored.',
+      'Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
     surface: {
       normalScale: 0.2,
     },
@@ -2322,10 +2326,10 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 512,
     yaw: 0,
-    preparedSource: 'wooden-footbridge-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'wooden-footbridge-crafted-surface.glb',
+    preparationScript: 'scripts/refine-authored-surfaces.mjs',
     preparationMethod:
-      'Exact source geometry, palette and corner normals retained with Tripo normal/roughness; utility seams split without changing ordered triangles; light faces remain runtime authored.',
+      'Lengthwise wood fibre with irregular growth bands, without changing authored timber palette. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
     surface: {
       normalScale: 0.2,
     },
@@ -2368,10 +2372,10 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 512,
     yaw: 0,
-    preparedSource: 'dock-canopy-structure-retained-lit-surfaces.glb',
-    preparationScript: 'scripts/prepare-dock-canopy-surfaces.mjs',
+    preparedSource: 'dock-canopy-structure-crafted-surface.glb',
+    preparationScript: 'scripts/refine-authored-surfaces.mjs',
     preparationMethod:
-      'Exact source geometry, palette and corner normals retained with Tripo normal/roughness; utility seams split without changing ordered triangles; light faces remain runtime authored.',
+      'Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
     surface: {
       normalScale: 0.2,
     },
@@ -2391,10 +2395,10 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 256,
     yaw: 0,
-    preparedSource: 'station-counter-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'station-counter-crafted-surface.glb',
+    preparationScript: 'scripts/refine-authored-surfaces.mjs',
     preparationMethod:
-      'Exact authored geometry, source normals and linear vertex colours. Tripo normal and roughness maps retained.',
+      'Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
     pipeline: [
       'Blender authored atlas',
       'texture v3.0-20250812, pbr:true, bake:false',
@@ -2411,10 +2415,10 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 256,
     yaw: 0,
-    preparedSource: 'station-register-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'station-register-crafted-retail.glb',
+    preparationScript: 'scripts/refine-retail-shells.mjs',
     preparationMethod:
-      'Exact authored geometry, source normals and linear vertex colours. Tripo normal and roughness maps retained.',
+      'Retained low register envelope with an operator-sloped deck; original customer face, 36-vertex budget, palette and surface maps preserved.',
     pipeline: [
       'Blender authored atlas',
       'texture v3.0-20250812, pbr:true, bake:false',
@@ -2431,10 +2435,10 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 256,
     yaw: 0,
-    preparedSource: 'station-card-reader-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'station-card-reader-crafted-surface.glb',
+    preparationScript: 'scripts/refine-authored-surfaces.mjs',
     preparationMethod:
-      'Exact authored geometry, source normals and linear vertex colours. Tripo normal and roughness maps retained.',
+      'Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
     pipeline: [
       'Blender authored atlas',
       'texture v3.0-20250812, pbr:true, bake:false',
@@ -2471,10 +2475,10 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 256,
     yaw: 0,
-    preparedSource: 'station-drinks-cabinet-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'station-drinks-cabinet-crafted-surface.glb',
+    preparationScript: 'scripts/refine-authored-surfaces.mjs',
     preparationMethod:
-      'Exact authored geometry, source normals and linear vertex colours. Tripo normal and roughness maps retained.',
+      'Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
     pipeline: [
       'Blender authored atlas',
       'texture v3.0-20250812, pbr:true, bake:false',
@@ -2491,10 +2495,10 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 256,
     yaw: 0,
-    preparedSource: 'station-coffee-machine-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'station-coffee-machine-crafted-retail.glb',
+    preparationScript: 'scripts/refine-retail-shells.mjs',
     preparationMethod:
-      'Exact authored geometry, source normals and linear vertex colours. Tripo normal and roughness maps retained.',
+      'Folded top and recessed dispensing bay replace the plain cabinet and solid baked cup; live dressing owns the open cup and functional hardware. Satin graphite enamel improves housing readability; existing 180-vertex ceiling and maps retained.',
     pipeline: [
       'Blender authored atlas',
       'texture v3.0-20250812, pbr:true, bake:false',
@@ -2511,10 +2515,10 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 256,
     yaw: 0,
-    preparedSource: 'station-slushie-machine-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'station-slushie-machine-crafted-surface.glb',
+    preparationScript: 'scripts/refine-authored-surfaces.mjs',
     preparationMethod:
-      'Exact authored geometry, source normals and linear vertex colours. Tripo normal and roughness maps retained.',
+      'Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
     pipeline: [
       'Blender authored atlas',
       'texture v3.0-20250812, pbr:true, bake:false',
@@ -2531,10 +2535,10 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 256,
     yaw: 0,
-    preparedSource: 'station-grill-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'station-grill-crafted-surface.glb',
+    preparationScript: 'scripts/refine-authored-surfaces.mjs',
     preparationMethod:
-      'Exact authored geometry, source normals and linear vertex colours. Tripo normal and roughness maps retained.',
+      'Directional fine industrial machining with subdued crossing polish. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
     pipeline: [
       'Blender authored atlas',
       'texture v3.0-20250812, pbr:true, bake:false',
@@ -2551,10 +2555,10 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 256,
     yaw: 0,
-    preparedSource: 'station-magazine-rack-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'station-magazine-rack-crafted-surface.glb',
+    preparationScript: 'scripts/refine-authored-surfaces.mjs',
     preparationMethod:
-      'Exact authored geometry, source normals and linear vertex colours. Tripo normal and roughness maps retained.',
+      'Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
     pipeline: [
       'Blender authored atlas',
       'texture v3.0-20250812, pbr:true, bake:false',
@@ -2571,10 +2575,10 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 256,
     yaw: Math.PI / 2,
-    preparedSource: 'fuel-pump-shell-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'fuel-pump-shell-crafted-surface.glb',
+    preparationScript: 'scripts/refine-authored-surfaces.mjs',
     preparationMethod:
-      'Blender authored geometry; --vertex-colour transfers solid linear palette and hard-surface normals by exact triangle correspondence; Tripo normal and roughness maps retained.',
+      'Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
     pipeline: [
       'Blender authored atlas',
       'texture v3.0-20250812, pbr:true, bake:false',
@@ -2611,10 +2615,10 @@ export const GENERATED_ASSETS = [
     axis: 'x',
     texture: 512,
     yaw: 0,
-    preparedSource: 'checkpoint-booth-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'checkpoint-booth-crafted-surface.glb',
+    preparationScript: 'scripts/refine-authored-surfaces.mjs',
     preparationMethod:
-      'Blender authored geometry; --vertex-colour transfers solid linear palette and hard-surface normals by exact triangle correspondence; Tripo normal and roughness maps retained.',
+      'Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
     pipeline: [
       'Blender authored atlas',
       'texture v3.0-20250812, pbr:true, bake:false',
@@ -2631,10 +2635,10 @@ export const GENERATED_ASSETS = [
     axis: 'x',
     texture: 1024,
     yaw: 0,
-    preparedSource: 'brick-carport-roof-repaired.glb',
-    preparationScript: 'scripts/blender/repair_carport_roof.py',
+    preparedSource: 'brick-carport-crafted.glb',
+    preparationScript: 'scripts/blender/refine_architecture_assets.py',
     preparationMethod:
-      'Replace 5564 folded roof faces with a clean bevelled cap; retain provider brickwork and atlas, one material, non-degenerate UVs.',
+      'Retained repaired bevelled roof cap and all piers; added twelve standing-seam bays and straight eave gutters. Retain the source coordinate system and existing normalization.',
     fitDimensions: [10.6, 3.9, 8.6],
     pipeline: [
       'image_to_model v3.1-20260211, smart_low_poly:true, texture:true, pbr:true',
@@ -2644,6 +2648,9 @@ export const GENERATED_ASSETS = [
     retrievedAt: '2026-09-07',
   },
   {
+    preparationMethod:
+      'Hand-authored component rebuild in the retained runtime metre envelope, with separated construction details and one sRGB colour/linear roughness atlas; original provider source preserved.',
+    preparationScript: 'scripts/blender/refine_civic_props.py',
     id: 'world-path-lamp-victorian',
     slug: 'path-lamp-victorian',
     area: 'world',
@@ -2651,7 +2658,7 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 256,
     yaw: 0,
-    preparedSource: 'path-lamp-victorian-blender-cleanup.glb',
+    preparedSource: 'path-lamp-victorian-crafted.glb',
     pipeline: [
       'image_to_model v3.1-20260211, smart_low_poly:true, texture:true, pbr:true',
       'Blender area-weighted normals',
@@ -2660,6 +2667,9 @@ export const GENERATED_ASSETS = [
     retrievedAt: '2026-09-07',
   },
   {
+    preparationMethod:
+      'Hand-authored component rebuild in the retained runtime metre envelope, with separated construction details and one sRGB colour/linear roughness atlas; original provider source preserved.',
+    preparationScript: 'scripts/blender/refine_civic_props.py',
     id: 'world-path-lamp-modern',
     slug: 'path-lamp-modern',
     area: 'world',
@@ -2667,7 +2677,7 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 256,
     yaw: 0,
-    preparedSource: 'path-lamp-modern-blender-cleanup.glb',
+    preparedSource: 'path-lamp-modern-crafted.glb',
     pipeline: [
       'image_to_model v3.1-20260211, smart_low_poly:true, texture:true, pbr:true',
       'Blender area-weighted normals',
@@ -2676,6 +2686,9 @@ export const GENERATED_ASSETS = [
     retrievedAt: '2026-09-07',
   },
   {
+    preparationMethod:
+      'Hand-authored component rebuild in the retained runtime metre envelope, with separated construction details and one sRGB colour/linear roughness atlas; original provider source preserved.',
+    preparationScript: 'scripts/blender/refine_civic_props.py',
     id: 'world-info-sign',
     slug: 'info-sign',
     area: 'world',
@@ -2683,7 +2696,7 @@ export const GENERATED_ASSETS = [
     axis: 'y',
     texture: 256,
     yaw: 0,
-    preparedSource: 'info-sign-blender-cleanup.glb',
+    preparedSource: 'info-sign-crafted.glb',
     pipeline: [
       'image_to_model v3.1-20260211, smart_low_poly:true, texture:true, pbr:true',
       'Blender area-weighted normals',
@@ -2699,10 +2712,10 @@ export const GENERATED_ASSETS = [
     axis: 'x',
     texture: 512,
     yaw: 0,
-    preparedSource: 'cute-car-hatchback-lamps.glb',
-    preparationScript: 'scripts/blender/repair_car_rear_lamps.py',
+    preparedSource: 'cute-car-hatchback-crafted.glb',
+    preparationScript: 'scripts/blender/refine_vehicle_assets.py',
     preparationMethod:
-      'Area-weighted normals followed by rear-lamp vertex tint, preserving the atlas, front lamps and one material.',
+      'Original silhouette, corner colours and protected lower geometry retained; local panel regularization and fitted authored hardware in the existing atlas.',
     pipeline: [
       'image_to_model v3.1-20260211, smart_low_poly:true, texture:true, pbr:true',
       'Blender weighted normals and rear-lamp vertex tint',
@@ -2718,10 +2731,10 @@ export const GENERATED_ASSETS = [
     axis: 'x',
     texture: 512,
     yaw: 0,
-    preparedSource: 'cute-car-pickup-proportioned.glb',
-    preparationScript: 'scripts/blender/repair_pickup_proportions.py',
+    preparedSource: 'cute-car-pickup-crafted.glb',
+    preparationScript: 'scripts/blender/refine_vehicle_assets.py',
     preparationMethod:
-      'Area-weighted normals, rear-lamp vertex tint, then shorten upper body to authored 1.58 m height while preserving lowest 0.78 m and wheels.',
+      'Original silhouette, corner colours and protected lower geometry retained; local panel regularization and fitted authored hardware in the existing atlas.',
     pipeline: [
       'image_to_model v3.1-20260211, smart_low_poly:true, texture:true, pbr:true',
       'Blender weighted normals, rear lamps and upper-body proportion correction',
@@ -2738,10 +2751,10 @@ export const GENERATED_ASSETS = [
     axis: 'z',
     texture: 512,
     yaw: Math.PI,
-    preparedSource: 'food-truck-proportioned.glb',
-    preparationScript: 'scripts/blender/repair_food_truck.py',
+    preparedSource: 'food-truck-crafted.glb',
+    preparationScript: 'scripts/blender/refine_vehicle_assets.py',
     preparationMethod:
-      'Shorten only the upper body to the authored 2.65 m overall height, leaving the lowest 0.9 m and wheel vertices unchanged; recalculate area-weighted normals.',
+      'Original silhouette, corner colours and protected lower geometry retained; local panel regularization and fitted authored hardware in the existing atlas.',
     pipeline: [
       'image_to_model v3.1-20260211, smart_low_poly:true, texture:true, pbr:true',
       'Blender upper-body proportion correction and area-weighted normals',
@@ -2758,10 +2771,10 @@ export const GENERATED_ASSETS = [
     texture: 1024,
     yaw: -Math.PI / 2,
     fitDimensions: [16.5, 12.6, 15],
-    preparedSource: 'office-apartment-three-blender-cleanup.glb',
-    preparationScript: 'scripts/blender/cut_apartment_floor.py',
+    preparedSource: 'office-apartment-three-crafted.glb',
+    preparationScript: 'scripts/blender/refine_architecture_assets.py',
     preparationMethod:
-      'Remove one 3.5 m middle storey at floor bands; preserve roof, entrance and remaining windows at full scale. Recalculate area-weighted normals.',
+      'Added rear-corner rainwater downpipes with brackets and roof service pavers; original wall/window/floor/entrance geometry untouched. Retain the source coordinate system and existing normalization.',
     pipeline: [
       'image_to_model v3.1-20260211, smart_low_poly:true, texture:true, pbr:true',
       'Blender middle-storey removal and area-weighted normals',
@@ -2770,13 +2783,19 @@ export const GENERATED_ASSETS = [
     retrievedAt: '2026-09-07',
   },
   {
+    preparationMethod:
+      'Fully authored narrowboat: fair tapered navy hull, burgundy coachwork, cambered cream roof, brass portholes, teak wells, tiller, rope coil and floral end panels. Metre-space night glazing and measured waterline; no provider geometry retained.',
+    preparationScript: 'scripts/blender/rebuild_village_architecture.py',
     id: 'world-canal-boat',
+    runtimeLicense: 'MillOS project-authored geometry and textures',
+    runtimeAttribution:
+      'Authored for MillOS; original Tripo reference retained in source provenance',
     slug: 'canal-boat',
     area: 'world',
     target: 12.95,
     axis: 'z',
-    texture: 1024,
-    preparedSource: 'canal-boat-blender-cleanup.glb',
+    texture: 512,
+    preparedSource: 'canal-boat-crafted.glb',
     pipeline: [
       'image_to_model v3.1-20260211, smart_low_poly:true, texture:true, pbr:true',
       'Blender area-weighted normals',
@@ -2785,6 +2804,9 @@ export const GENERATED_ASSETS = [
     retrievedAt: '2026-09-07',
   },
   {
+    preparationMethod:
+      'Original silhouette, corner colours and protected lower geometry retained; local panel regularization and fitted authored hardware in the existing atlas.',
+    preparationScript: 'scripts/blender/refine_vehicle_assets.py',
     id: 'world-cute-car-suv',
     slug: 'cute-car-suv',
     area: 'world',
@@ -2793,7 +2815,7 @@ export const GENERATED_ASSETS = [
     texture: 512,
     yaw: 0,
     fitDimensions: [3.72, 1.705, 1.96],
-    preparedSource: 'cute-car-suv-blender-cleanup.glb',
+    preparedSource: 'cute-car-suv-crafted.glb',
     pipeline: [
       'image_to_model v3.1-20260211, smart_low_poly:true, texture:true, pbr:true',
       'Blender area-weighted normals',
@@ -2802,6 +2824,9 @@ export const GENERATED_ASSETS = [
     retrievedAt: '2026-09-07',
   },
   {
+    preparationMethod:
+      'Added eight radial raised roof seams, preserving finial, counter, flower boxes and octagonal roof. Retain the source coordinate system and existing normalization.',
+    preparationScript: 'scripts/blender/refine_architecture_assets.py',
     id: 'world-kiosk-cafe',
     slug: 'kiosk-cafe',
     area: 'world',
@@ -2809,7 +2834,7 @@ export const GENERATED_ASSETS = [
     axis: 'x',
     texture: 512,
     yaw: -Math.PI / 2,
-    preparedSource: 'kiosk-cafe-blender-cleanup.glb',
+    preparedSource: 'kiosk-cafe-crafted.glb',
     pipeline: [
       'image_to_model v3.1-20260211, smart_low_poly:true, texture:true, pbr:true',
       'Blender area-weighted normals',
@@ -2818,6 +2843,9 @@ export const GENERATED_ASSETS = [
     retrievedAt: '2026-09-07',
   },
   {
+    preparationMethod:
+      'Added rear-corner rainwater downpipes with brackets and roof service pavers; original wall/window/floor/entrance geometry untouched. Retain the source coordinate system and existing normalization.',
+    preparationScript: 'scripts/blender/refine_architecture_assets.py',
     id: 'world-office-apartment',
     slug: 'office-apartment',
     area: 'world',
@@ -2826,7 +2854,7 @@ export const GENERATED_ASSETS = [
     texture: 1024,
     yaw: -Math.PI / 2,
     fitDimensions: [16.5, 16.1, 15],
-    preparedSource: 'office-apartment-blender-cleanup.glb',
+    preparedSource: 'office-apartment-crafted.glb',
     pipeline: [
       'image_to_model v3.1-20260211, smart_low_poly:true, texture:true, pbr:true',
       'Blender area-weighted normals',
@@ -2836,13 +2864,16 @@ export const GENERATED_ASSETS = [
   },
 
   {
+    preparationMethod:
+      'Original silhouette, corner colours and protected lower geometry retained; local panel regularization and fitted authored hardware in the existing atlas.',
+    preparationScript: 'scripts/blender/refine_vehicle_assets.py',
     id: 'world-cute-car-sedan',
     slug: 'cute-car-sedan',
     area: 'world',
     target: 3.52,
     axis: 'x',
     texture: 512,
-    preparedSource: 'cute-car-sedan-blender-cleanup.glb',
+    preparedSource: 'cute-car-sedan-crafted.glb',
     pipeline: [
       'image_to_model v3.1-20260211, smart_low_poly:true, texture:true, pbr:true',
       'Blender area-weighted normals',
@@ -2851,6 +2882,9 @@ export const GENERATED_ASSETS = [
     retrievedAt: '2026-09-07',
   },
   {
+    preparationMethod:
+      'Added rear-corner rainwater downpipes with brackets and roof service pavers; original wall/window/floor/entrance geometry untouched. Retain the source coordinate system and existing normalization.',
+    preparationScript: 'scripts/blender/refine_architecture_assets.py',
     id: 'world-small-office',
     slug: 'small-office',
     area: 'world',
@@ -2858,7 +2892,7 @@ export const GENERATED_ASSETS = [
     axis: 'x',
     texture: 1024,
     fitDimensions: [14.5, 8.22, 10.5],
-    preparedSource: 'small-office-blender-cleanup.glb',
+    preparedSource: 'small-office-crafted.glb',
     pipeline: [
       'image_to_model v3.1-20260211, smart_low_poly:true, texture:true, pbr:true',
       'Blender area-weighted normals',
@@ -2867,13 +2901,16 @@ export const GENERATED_ASSETS = [
     retrievedAt: '2026-09-07',
   },
   {
+    preparationMethod:
+      'Original silhouette, corner colours and protected lower geometry retained; local panel regularization and fitted authored hardware in the existing atlas.',
+    preparationScript: 'scripts/blender/refine_vehicle_assets.py',
     id: 'world-caravan',
     slug: 'caravan',
     area: 'world',
     target: 6.455,
     axis: 'z',
     texture: 512,
-    preparedSource: 'caravan-blender-cleanup.glb',
+    preparedSource: 'caravan-crafted.glb',
     pipeline: [
       'image_to_model v3.1-20260211, smart_low_poly:true, texture:true, pbr:true',
       'Blender area-weighted normals',
@@ -2882,6 +2919,11 @@ export const GENERATED_ASSETS = [
     retrievedAt: '2026-09-07',
   },
   {
+    yaw: 0,
+    preparationMethod:
+      'Hand-authored component rebuild in the retained runtime metre envelope, with separated construction details and one sRGB colour/linear roughness atlas; original provider source preserved.',
+    preparationScript: 'scripts/blender/refine_civic_props.py',
+    preparedSource: 'waste-bin-crafted.glb',
     id: 'world-waste-bin',
     slug: 'waste-bin',
     area: 'world',
@@ -2894,6 +2936,11 @@ export const GENERATED_ASSETS = [
     retrievedAt: '2026-09-07',
   },
   {
+    yaw: 0,
+    preparationMethod:
+      'Reference-concept refinement: rounded end-grain planks, supported central pegged stretcher, two upper braces, seated trestle angle plates and bolts. Single mesh and existing colour/roughness atlas; original envelope and provider source preserved.',
+    preparationScript: 'scripts/blender/refine_civic_props.py',
+    preparedSource: 'picnic-table-crafted.glb',
     id: 'world-picnic-table',
     slug: 'picnic-table',
     area: 'world',
@@ -2905,6 +2952,10 @@ export const GENERATED_ASSETS = [
     retrievedAt: '2026-09-07',
   },
   {
+    preparationMethod:
+      'Added five transverse rolled arch seams to corrugated shell; preserved entrance and longitudinal profile. Retain the source coordinate system and existing normalization.',
+    preparationScript: 'scripts/blender/refine_architecture_assets.py',
+    preparedSource: 'nissen-hut-crafted.glb',
     id: 'world-nissen-hut',
     slug: 'nissen-hut',
     area: 'world',
@@ -2919,24 +2970,32 @@ export const GENERATED_ASSETS = [
     retrievedAt: '2026-09-07',
   },
   {
+    preparationMethod:
+      'Reference-concept refinement: continuous curved cast arms with wood grips, rounded end-grain slats, anchored feet and low frame stretcher. Single mesh and existing colour/roughness atlas; original envelope and provider source preserved.',
+    preparationScript: 'scripts/blender/refine_civic_props.py',
+    preparedSource: 'park-bench-crafted.glb',
     id: 'world-park-bench',
     slug: 'park-bench',
     area: 'world',
     target: 1.8,
     axis: 'x',
-    yaw: -Math.PI / 2,
+    yaw: 0,
     texture: 512,
     pipeline: ['image_to_model v3.1-20260211, smart_low_poly:true, texture:true, pbr:true'],
     taskId: 'bc6438f9-16aa-452e-80ef-c835629d88c1',
     retrievedAt: '2026-09-07',
   },
   {
+    preparationMethod:
+      'Reference-concept refinement: rear-glass seating with rounded slats, backrest and continuous end arms; connected gutter/downpipe, retaining clips and cabinet borders. Open front approach, live glass and advert datums, single mesh/material and original envelope preserved.',
+    preparationScript: 'scripts/blender/refine_civic_props.py',
+    preparedSource: 'bus-shelter-crafted.glb',
     id: 'world-bus-shelter',
     slug: 'bus-shelter',
     area: 'world',
     target: 4.4,
     axis: 'x',
-    yaw: -Math.PI / 2,
+    yaw: 0,
     texture: 512,
     fitDimensions: [4.4, 2.99, 2.3],
     pipeline: ['image_to_model v3.1-20260211, smart_low_poly:true, texture:true, pbr:true'],
@@ -2945,6 +3004,10 @@ export const GENERATED_ASSETS = [
   },
   // Reference-guided Tripo v3.1 mascot. Rotate its long +Z axis into the pylon's +X.
   {
+    preparationMethod:
+      'Fair subtle sphere triangulation while retaining stitched eyes, tongue and spikes. Curvature-protected Taubin fairing and angle-weighted normals; all topology, UV, skin, joint, material and animation bytes preserved.',
+    preparationScript: 'scripts/blender/refine_creature_assets.py',
+    preparedSource: 'dino-mascot-crafted.glb',
     id: 'world-dino-mascot',
     slug: 'dino-mascot',
     area: 'world',
@@ -2958,14 +3021,102 @@ export const GENERATED_ASSETS = [
   },
   // Farm animals. Rigged, so the runtime can drive a neck chain; see
   // `src/components/models/RiggedCreatureModel.tsx`.
-  { id: 'farm-cow', slug: 'cow', area: 'farm', target: 1.805, axis: 'z', rigged: true },
-  { id: 'farm-sheep', slug: 'sheep', area: 'farm', target: 1.15, axis: 'max', rigged: true },
-  { id: 'farm-pig', slug: 'pig', area: 'farm', target: 1.25, axis: 'max', rigged: true },
-  { id: 'farm-horse', slug: 'horse', area: 'farm', target: 2.35, axis: 'max', rigged: true },
-  { id: 'farm-chicken', slug: 'chicken', area: 'farm', target: 0.42, axis: 'max', rigged: true },
-  { id: 'farm-crow', slug: 'crow', area: 'farm', target: 0.42, axis: 'max', rigged: true },
-  { id: 'farm-duck', slug: 'duck', area: 'farm', target: 0.5, axis: 'max', rigged: true },
-  { id: 'village-cat', slug: 'cat', area: 'village', target: 0.5, axis: 'y', rigged: true },
+  {
+    preparationMethod:
+      'Fair lumpy shoulder, flank and muzzle transitions; preserve horns and hooves. Curvature-protected Taubin fairing and angle-weighted normals; all topology, UV, skin, joint, material and animation bytes preserved.',
+    preparationScript: 'scripts/blender/refine_creature_assets.py',
+    preparedSource: 'cow-crafted.glb',
+    id: 'farm-cow',
+    slug: 'cow',
+    area: 'farm',
+    target: 1.805,
+    axis: 'z',
+    rigged: true,
+  },
+  {
+    preparationMethod:
+      'Soften triangulation within fleece lobes, retain every wool clump. Curvature-protected Taubin fairing and angle-weighted normals; all topology, UV, skin, joint, material and animation bytes preserved.',
+    preparationScript: 'scripts/blender/refine_creature_assets.py',
+    preparedSource: 'sheep-crafted.glb',
+    id: 'farm-sheep',
+    slug: 'sheep',
+    area: 'farm',
+    target: 1.15,
+    axis: 'max',
+    rigged: true,
+  },
+  {
+    preparationMethod:
+      'Fair broad flank and cheek while retaining ears, nostrils and curled tail. Curvature-protected Taubin fairing and angle-weighted normals; all topology, UV, skin, joint, material and animation bytes preserved.',
+    preparationScript: 'scripts/blender/refine_creature_assets.py',
+    preparedSource: 'pig-crafted.glb',
+    id: 'farm-pig',
+    slug: 'pig',
+    area: 'farm',
+    target: 1.25,
+    axis: 'max',
+    rigged: true,
+  },
+  {
+    preparationMethod:
+      'Fair neck, shoulders and flank; retain mane ridges and hooves. Curvature-protected Taubin fairing and angle-weighted normals; all topology, UV, skin, joint, material and animation bytes preserved.',
+    preparationScript: 'scripts/blender/refine_creature_assets.py',
+    preparedSource: 'horse-crafted.glb',
+    id: 'farm-horse',
+    slug: 'horse',
+    area: 'farm',
+    target: 2.35,
+    axis: 'max',
+    rigged: true,
+  },
+  {
+    preparationMethod:
+      'Ease feather-lobe triangulation without flattening layered wings or comb. Curvature-protected Taubin fairing and angle-weighted normals; all topology, UV, skin, joint, material and animation bytes preserved.',
+    preparationScript: 'scripts/blender/refine_creature_assets.py',
+    preparedSource: 'chicken-crafted.glb',
+    id: 'farm-chicken',
+    slug: 'chicken',
+    area: 'farm',
+    target: 0.42,
+    axis: 'max',
+    rigged: true,
+  },
+  {
+    preparationMethod:
+      'Ease breast and wing shading while retaining beak, claws and feather tips. Curvature-protected Taubin fairing and angle-weighted normals; all topology, UV, skin, joint, material and animation bytes preserved.',
+    preparationScript: 'scripts/blender/refine_creature_assets.py',
+    preparedSource: 'crow-crafted.glb',
+    id: 'farm-crow',
+    slug: 'crow',
+    area: 'farm',
+    target: 0.42,
+    axis: 'max',
+    rigged: true,
+  },
+  {
+    preparationMethod:
+      'Curvature-protected breast/cheek fairing followed by a separate SHA-pinned dorsal albedo correction using adjacent neutral plumage texels. Bill and foot UV regions protected. Topology, UVs, skin, joints and non-albedo payloads retained; lossless corrected albedo recompressed only by delivery normalization.',
+    preparationScript: 'scripts/blender/correct_duck_dorsal_albedo.py',
+    preparedSource: 'duck-crafted.glb',
+    id: 'farm-duck',
+    slug: 'duck',
+    area: 'farm',
+    target: 0.5,
+    axis: 'max',
+    rigged: true,
+  },
+  {
+    preparationMethod:
+      'Ease cheek and shoulder noise while protecting whiskers, ears and tail. Curvature-protected Taubin fairing and angle-weighted normals; all topology, UV, skin, joint, material and animation bytes preserved.',
+    preparationScript: 'scripts/blender/refine_creature_assets.py',
+    preparedSource: 'cat-crafted.glb',
+    id: 'village-cat',
+    slug: 'cat',
+    area: 'village',
+    target: 0.5,
+    axis: 'y',
+    rigged: true,
+  },
 
   // Farm structures and props.
   // TEXTURE BUDGETS ARE MEASURED, NOT ESTIMATED. `texture:` above 512 has to be
@@ -2984,53 +3135,212 @@ export const GENERATED_ASSETS = [
   // `paddock`, its closest camera at 29 m, so taking it to 2048 would spend
   // roughly 37 MB of GPU texture memory to reach 0.32 - four times the memory
   // for detail no camera in the set can resolve. Left at 1024.
-  { id: 'farm-barn', slug: 'barn', area: 'farm', target: 10, axis: 'max', texture: 1024 },
-  { id: 'farm-coop', slug: 'coop', area: 'farm', target: 3, axis: 'max' },
-  { id: 'farm-farmhouse', slug: 'farmhouse', area: 'farm', target: 6, axis: 'max', texture: 1024 },
-  // The call site multiplies by 1.5, so the asset carries the unscaled size.
-  { id: 'farm-windmill', slug: 'windmill', area: 'farm', target: 5.84, axis: 'max' },
-  { id: 'farm-haybale', slug: 'haybale', area: 'farm', target: 1.5, axis: 'max' },
-  // Yawed a quarter turn: these two are elongated props with no front, and the
-  // generator laid both along Z where the shipped components run along X.
   {
+    preparationMethod:
+      'Rebuilt measured roof slopes with courses, verge trim, ridge and eave details; retained original walls, doors and chimney details. Closed thin roof slabs provide physical upper faces, undersides and sealed edges while retaining single-sided material rendering, original envelope and existing normalization.',
+    preparationScript: 'scripts/blender/refine_architecture_assets.py',
+    preparedSource: 'barn-crafted.glb',
+    id: 'farm-barn',
+    slug: 'barn',
+    area: 'farm',
+    target: 10,
+    axis: 'max',
+    texture: 1024,
+  },
+  {
+    preparationMethod:
+      'Rebuilt measured roof slopes with courses, verge trim, ridge and eave details; retained original walls, doors and chimney details. Closed thin roof slabs provide physical upper faces, undersides and sealed edges while retaining single-sided material rendering, original envelope and existing normalization.',
+    preparationScript: 'scripts/blender/refine_architecture_assets.py',
+    preparedSource: 'coop-crafted.glb',
+    id: 'farm-coop',
+    slug: 'coop',
+    area: 'farm',
+    target: 3,
+    axis: 'max',
+  },
+  {
+    preparationMethod:
+      'Rebuilt measured roof slopes with courses, verge trim, ridge and eave details; retained original walls, doors and chimney details. Closed thin roof slabs provide physical upper faces, undersides and sealed edges while retaining single-sided material rendering, original envelope and existing normalization.',
+    preparationScript: 'scripts/blender/refine_architecture_assets.py',
+    preparedSource: 'farmhouse-crafted.glb',
+    id: 'farm-farmhouse',
+    slug: 'farmhouse',
+    area: 'farm',
+    target: 6,
+    axis: 'max',
+    texture: 1024,
+  },
+  // The call site multiplies by 1.5, so the asset carries the unscaled size.
+  {
+    preparationMethod:
+      'Added twelve radial cap battens and continuous drip-ring, leaving sail lattice and stone base untouched. Retain the source coordinate system and existing normalization.',
+    preparationScript: 'scripts/blender/refine_architecture_assets.py',
+    preparedSource: 'windmill-crafted.glb',
+    id: 'farm-windmill',
+    slug: 'windmill',
+    area: 'farm',
+    target: 5.84,
+    axis: 'max',
+  },
+  {
+    yaw: 0,
+    preparationMethod:
+      'Hand-authored component rebuild in the retained runtime metre envelope, with separated construction details and one sRGB colour/linear roughness atlas; original provider source preserved.',
+    preparationScript: 'scripts/blender/refine_civic_props.py',
+    preparedSource: 'haybale-crafted.glb',
+    id: 'farm-haybale',
+    slug: 'haybale',
+    area: 'farm',
+    target: 1.5,
+    axis: 'max',
+  },
+  // Crafted elongated props already run along the live X axis. Their immutable
+  // provider predecessors needed a quarter turn; do not apply that yaw twice.
+  {
+    preparationMethod:
+      'Hand-authored component rebuild in the retained runtime metre envelope, with separated construction details and one sRGB colour/linear roughness atlas; original provider source preserved.',
+    preparationScript: 'scripts/blender/refine_civic_props.py',
+    preparedSource: 'watertrough-crafted.glb',
     id: 'farm-watertrough',
     slug: 'watertrough',
     area: 'farm',
     target: 1.5,
     axis: 'max',
-    yaw: Math.PI / 2,
+    yaw: 0,
   },
   {
+    preparationMethod:
+      'Reference-concept refinement: three layered cabbages, five branching carrot crowns, three tied bean canes with climbing runners and pods, broken soil furrows and corner bands. Single mesh and existing atlas; box envelope and provider source preserved.',
+    preparationScript: 'scripts/blender/refine_civic_props.py',
+    preparedSource: 'gardenbed-crafted.glb',
     id: 'farm-gardenbed',
     slug: 'gardenbed',
     area: 'farm',
     target: 3,
     axis: 'max',
-    yaw: Math.PI / 2,
+    yaw: 0,
   },
   // One panel, sized by HEIGHT. The generated panel is 1 x 0.64 x 0.12, so a
   // 3 m width would stand 1.9 m tall - a stockade, against the 1.05 m post-and
   // rail it replaces. `FenceSection` tiles the panel to reach the length it is
   // asked for.
-  { id: 'farm-fence', slug: 'fence', area: 'farm', target: 1.05, axis: 'y' },
+  {
+    yaw: 0,
+    preparationMethod:
+      'Hand-authored component rebuild in the retained runtime metre envelope, with separated construction details and one sRGB colour/linear roughness atlas; original provider source preserved.',
+    preparationScript: 'scripts/blender/refine_civic_props.py',
+    preparedSource: 'fence-crafted.glb',
+    id: 'farm-fence',
+    slug: 'fence',
+    area: 'farm',
+    target: 1.05,
+    axis: 'y',
+  },
 
   // Village structures and props.
-  { id: 'village-cottage', slug: 'cottage', area: 'village', target: 5, axis: 'max' },
-  { id: 'village-shop', slug: 'shop', area: 'village', target: 6, axis: 'max' },
-  { id: 'village-church', slug: 'church', area: 'village', target: 12, axis: 'max' },
   {
+    yaw: 0,
+    preparationMethod:
+      'Completely rebuilt from planar architectural solids, closed layered roofs, recessed framed glazing, measured timber joinery and grounded thresholds. No provider vertices retained. Original silhouette, palette and occupied envelope guide the authored design; the school turf disc is removed.',
+    preparationScript: 'scripts/blender/rebuild_village_architecture.py',
+    preparedSource: 'cottage-crafted.glb',
+    id: 'village-cottage',
+    slug: 'cottage',
+    area: 'village',
+    target: 5,
+    axis: 'max',
+  },
+  {
+    yaw: 0,
+    preparationMethod:
+      'Completely rebuilt from planar architectural solids, closed layered roofs, recessed framed glazing, measured timber joinery and grounded thresholds. No provider vertices retained. Original silhouette, palette and occupied envelope guide the authored design; the school turf disc is removed.',
+    preparationScript: 'scripts/blender/rebuild_village_architecture.py',
+    preparedSource: 'shop-crafted.glb',
+    id: 'village-shop',
+    slug: 'shop',
+    area: 'village',
+    target: 6,
+    axis: 'max',
+  },
+  {
+    yaw: 0,
+    preparationMethod:
+      'Authored revival of the preserved v0.30 architecture: original nave, rear spire and rose; broad cream civic hall; hipped half-timbered Flour and Barrel; cream open-belfry schoolhouse. Closed layered hips, dressed stone, framed glazing and joinery. New reference-led metre envelopes, original provider source untouched.',
+    preparationScript: 'scripts/blender/rebuild_village_architecture.py',
+    preparedSource: 'church-crafted.glb',
+    id: 'village-church',
+    slug: 'church',
+    area: 'village',
+    target: 13.65,
+    axis: 'z',
+  },
+  {
+    yaw: 0,
+    preparationMethod:
+      'Authored revival of the preserved v0.30 architecture: original nave, rear spire and rose; broad cream civic hall; hipped half-timbered Flour and Barrel; cream open-belfry schoolhouse. Closed layered hips, dressed stone, framed glazing and joinery. New reference-led metre envelopes, original provider source untouched.',
+    preparationScript: 'scripts/blender/rebuild_village_architecture.py',
+    preparedSource: 'townhall-crafted.glb',
     id: 'village-townhall',
     slug: 'townhall',
     area: 'village',
-    target: 12,
-    axis: 'max',
+    target: 14.61,
+    axis: 'z',
     texture: 1024,
   },
-  { id: 'village-pub', slug: 'pub', area: 'village', target: 8, axis: 'max' },
-  { id: 'village-school', slug: 'school', area: 'village', target: 10, axis: 'max' },
-  { id: 'village-forge', slug: 'forge', area: 'village', target: 7, axis: 'max' },
-  { id: 'village-wishingwell', slug: 'wishingwell', area: 'village', target: 2.4, axis: 'max' },
   {
+    yaw: 0,
+    preparationMethod:
+      'Authored revival of the preserved v0.30 architecture: original nave, rear spire and rose; broad cream civic hall; hipped half-timbered Flour and Barrel; cream open-belfry schoolhouse. Closed layered hips, dressed stone, framed glazing and joinery. New reference-led metre envelopes, original provider source untouched.',
+    preparationScript: 'scripts/blender/rebuild_village_architecture.py',
+    preparedSource: 'pub-crafted.glb',
+    id: 'village-pub',
+    slug: 'pub',
+    area: 'village',
+    target: 9.24,
+    axis: 'x',
+  },
+  {
+    yaw: 0,
+    preparationMethod:
+      'Authored revival of the preserved v0.30 architecture: original nave, rear spire and rose; broad cream civic hall; hipped half-timbered Flour and Barrel; cream open-belfry schoolhouse. Closed layered hips, dressed stone, framed glazing and joinery. New reference-led metre envelopes, original provider source untouched.',
+    preparationScript: 'scripts/blender/rebuild_village_architecture.py',
+    preparedSource: 'school-crafted.glb',
+    id: 'village-school',
+    slug: 'school',
+    area: 'village',
+    target: 11.24,
+    axis: 'x',
+  },
+  {
+    yaw: 0,
+    preparationMethod:
+      'Completely rebuilt from planar architectural solids, closed layered roofs, recessed framed glazing, measured timber joinery and grounded thresholds. No provider vertices retained. Original silhouette, palette and occupied envelope guide the authored design; the school turf disc is removed.',
+    preparationScript: 'scripts/blender/rebuild_village_architecture.py',
+    preparedSource: 'forge-crafted.glb',
+    id: 'village-forge',
+    slug: 'forge',
+    area: 'village',
+    target: 7,
+    axis: 'max',
+  },
+  {
+    yaw: 0,
+    preparationMethod:
+      'Reference-concept refinement: jointed coping, continuous coiled rope and tied hollow stave bucket, post bearing straps, half-round ridge caps and verge battens. Single mesh and existing atlas; bore, roof envelope and provider source preserved.',
+    preparationScript: 'scripts/blender/refine_civic_props.py',
+    preparedSource: 'wishingwell-crafted.glb',
+    id: 'village-wishingwell',
+    slug: 'wishingwell',
+    area: 'village',
+    target: 2.4,
+    axis: 'max',
+  },
+  {
+    yaw: 0,
+    preparationMethod:
+      'Hand-authored component rebuild in the retained runtime metre envelope, with separated construction details and one sRGB colour/linear roughness atlas; original provider source preserved.',
+    preparationScript: 'scripts/blender/refine_civic_props.py',
+    preparedSource: 'marketstall-crafted.glb',
     id: 'village-marketstall',
     slug: 'marketstall',
     area: 'village',
@@ -3038,14 +3348,48 @@ export const GENERATED_ASSETS = [
     axis: 'max',
     texture: 1024,
   },
-  { id: 'village-postbox', slug: 'postbox', area: 'village', target: 1.5, axis: 'y' },
+  {
+    yaw: 0,
+    preparationMethod:
+      'Reference-concept refinement: real recessed letter throat and returned hood, curved door/reveal, knuckle hinges, card screws, lock escutcheon, cast envelope emblem and restrained moulding beads. Single atlas/material and original envelope preserved.',
+    preparationScript: 'scripts/blender/refine_civic_props.py',
+    preparedSource: 'postbox-crafted.glb',
+    id: 'village-postbox',
+    slug: 'postbox',
+    area: 'village',
+    target: 1.5,
+    axis: 'y',
+  },
   // Sized by HEIGHT. The corrected fountain still came back as tall as it is
   // wide (0.95 x 1.00 x 0.96 in the unit box) where the shipped one is a low
   // two-tier basin, so matching its 7 m pool would stand a 7.3 m monument in the
   // village square. Height 3.32 m matches the shipped silhouette and gives a
   // 3.1 m pool.
-  { id: 'village-fountain', slug: 'fountain', area: 'village', target: 3.32, axis: 'y' },
   {
+    yaw: 0,
+    preparationMethod:
+      'Reference-concept refinement: sixteen jointed coping stones, fluted tazza and pedestal, four open spill channels seated at measured water datums for live gravity arcs. Original basin, finial, water levels and envelope preserved.',
+    preparationScript: 'scripts/blender/refine_civic_props.py',
+    preparedSource: 'fountain-crafted.glb',
+    id: 'village-fountain',
+    slug: 'fountain',
+    area: 'village',
+    target: 3.32,
+    axis: 'y',
+  },
+  {
+    yaw: 0,
+    preparationMethod:
+      'Independent authored pond with three running-bond brick courses, 64 bevelled limestone coping stones and seven planted reed shelves. Retains the 11 x 10.956 m footprint, y=0.80 m water and 0.45 m runtime sink; no provider geometry or textures incorporated.',
+    preparationScript: 'scripts/blender/refine_civic_props.py',
+    preparedSource: 'duckpond-crafted.glb',
+    runtimeAttribution:
+      'Original MillOS brick pond geometry and mineral/reed atlas; provider source retained separately as reference only.',
+    runtimeLicense: 'MillOS project-authored geometry and procedural textures',
+    pipeline: [
+      'Original Tripo pond preserved as historical reference',
+      'Independent authored replacement: scripts/blender/refine_civic_props.py',
+    ],
     id: 'village-duckpond',
     slug: 'duckpond',
     area: 'village',
@@ -3056,6 +3400,18 @@ export const GENERATED_ASSETS = [
   // Placed through SITE_LAYOUT at scale 1.5, so the asset carries 1/1.5 of the
   // in-engine footprint.
   {
+    preparationMethod:
+      'Fully authored Neuschwanstein-inspired palace with the white limestone and blue slate palette of MillOS v0.30: elongated palas, softly curved roofs, dominant round tower, square watchtower, rounded gate turrets and open through gateway/court. Shared runtime stairs preserve first-person ground access. Original provider source preserved separately; no provider geometry or textures used.',
+    preparationScript: 'scripts/blender/build_neuschwanstein_castle.py',
+    preparedSource: 'castle-neuschwanstein-authored.glb',
+    runtimeAttribution:
+      'Original MillOS geometry and procedural atlas, inspired by Neuschwanstein Castle; no photographic textures or provider geometry incorporated.',
+    runtimeLicense: 'MillOS project-authored geometry and procedural textures',
+    pipeline: [
+      'Original Tripo model retained as historical source only',
+      'Independent authored replacement: scripts/blender/build_neuschwanstein_castle.py',
+    ],
+    surface: { roughness: 0.88, metalness: 0 },
     id: 'village-castle',
     slug: 'castle',
     area: 'village',
@@ -3272,7 +3628,7 @@ async function normalizeGeneratedAsset(io, spec) {
   scene.setName(`MillOS_${titleCase(spec.area)}_${titleCase(spec.slug)}`);
   Object.assign(root.getAsset(), {
     generator: `MillOS generated-asset pipeline, glTF-Transform ${GLTF_TRANSFORM_VERSION}`,
-    copyright: GENERATED_ASSET_ATTRIBUTION,
+    copyright: spec.runtimeAttribution ?? spec.attribution ?? GENERATED_ASSET_ATTRIBUTION,
   });
 
   indexGeneratedGeometry(document);

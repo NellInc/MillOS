@@ -71,3 +71,39 @@ describe('lake bank ground contact', () => {
     bank.dispose();
   });
 });
+
+describe('lake bank width and surface contract', () => {
+  it('varies the bank width inside the old footprint without folding any triangles', () => {
+    const water = createOrganicLakeSurfaceGeometry(19, 14);
+    const bank = createOrganicLakeBankGeometry(19, 14, 21.2, 16.2);
+    const p = bank.getAttribute('position');
+    const w = water.getAttribute('position');
+    const widths: number[] = [];
+    for (let segment = 0; segment <= 72; segment++) {
+      const inner = segment * 5;
+      const rim = 1 + 5 * 73 + segment;
+      // Existing 1.5% overlap follows the actual rendered water outline.
+      expect(p.getX(inner)).toBeCloseTo(w.getX(rim) * 0.985, 5);
+      expect(p.getY(inner)).toBeCloseTo(w.getY(rim) * 0.985, 5);
+      widths.push(Math.hypot(p.getX(inner + 4) - p.getX(inner), p.getY(inner + 4) - p.getY(inner)));
+      for (let row = 1; row < 5; row++) {
+        expect(Math.hypot(p.getX(inner + row), p.getY(inner + row))).toBeGreaterThan(
+          Math.hypot(p.getX(inner + row - 1), p.getY(inner + row - 1))
+        );
+      }
+    }
+    expect(Math.max(...widths) / Math.min(...widths)).toBeGreaterThan(1.8);
+    const indices = bank.index!;
+    for (let triangle = 0; triangle < indices.count; triangle += 3) {
+      const a = indices.getX(triangle);
+      const b = indices.getX(triangle + 1);
+      const c = indices.getX(triangle + 2);
+      const winding =
+        (p.getX(b) - p.getX(a)) * (p.getY(c) - p.getY(a)) -
+        (p.getY(b) - p.getY(a)) * (p.getX(c) - p.getX(a));
+      expect(winding).toBeGreaterThan(0);
+    }
+    water.dispose();
+    bank.dispose();
+  });
+});

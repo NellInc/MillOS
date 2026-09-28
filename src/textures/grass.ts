@@ -32,14 +32,14 @@ export const generateGrass = (
   options: GrassOptions = {}
 ): THREE.DataTexture => {
   const {
-    baseColor = [0.36, 0.45, 0.25], // Mixed meadow grasses
-    tipColor = [0.55, 0.59, 0.33], // Sun-dried blade tips
+    baseColor = [0.33, 0.42, 0.29], // Mixed meadow grasses
+    tipColor = [0.53, 0.56, 0.39], // Sun-dried blade tips
     density = 0.7,
-    variation = 0.2,
+    variation = 0.16,
     seed = 42,
   } = options;
 
-  const cacheKey = `grass-v4-${size}-${baseColor.join(',')}-${tipColor.join(',')}-${density}-${variation}-${seed}`;
+  const cacheKey = `grass-v6-${size}-${baseColor.join(',')}-${tipColor.join(',')}-${density}-${variation}-${seed}`;
 
   return getTexture(cacheKey, () => {
     const data = new Uint8Array(size * size * 4);
@@ -50,9 +50,10 @@ export const generateGrass = (
         const u = x / size;
         const v = y / size;
 
-        // === MULTI-SCALE NOISE FOR NON-REPETITIVE LOOK ===
-        // Very large scale (prevents visible tiling)
-        const megaScale = fbmNoise(u * 1.5 + seed, v * 1.5, 2) * 0.3;
+        // Within-tile variation stays quiet: TerrainMaterial already adds
+        // non-tile-sized macro variation and warps the grass UVs.
+        // Very large scale
+        const megaScale = fbmNoise(u * 1.5 + seed, v * 1.5, 2) * 0.16;
         // Large scale (major color regions)
         const largeNoise = fbmNoise(u * 3.5 + seed * 0.1, v * 3.5, 3);
         // Medium scale (grass clump variation)
@@ -79,7 +80,7 @@ export const generateGrass = (
         let b = baseColor[2] + (tipColor[2] - baseColor[2]) * tipAmount;
 
         // === LARGE SCALE VARIATION (prevents tiling) ===
-        const megaVar = (megaScale - 0.15) * 0.3;
+        const megaVar = (megaScale - 0.08) * 0.3;
         r += megaVar * 0.4;
         g += megaVar * 0.6;
         b += megaVar * 0.2;
@@ -130,11 +131,20 @@ export const generateGrass = (
         g += (mediumNoise - 0.5) * 0.09;
         b += (mediumNoise - 0.5) * 0.04;
 
-        // === CLOVER/WEED SPOTS (occasional bright green) ===
-        const cloverNoise = hash(Math.floor(u * 30 + seed * 3), Math.floor(v * 30));
+        // Soft clover clusters, rather than identical bright square stamps.
+        const cloverX = u * 30 + seed * 3;
+        const cloverY = v * 30;
+        const cloverNoise = hash(Math.floor(cloverX), Math.floor(cloverY));
         if (cloverNoise > 0.95) {
-          g += 0.06;
-          r -= 0.02;
+          const cluster =
+            1 -
+            THREE.MathUtils.smoothstep(
+              Math.hypot((cloverX % 1) - 0.5, (cloverY % 1) - 0.5),
+              0.12,
+              0.6
+            );
+          g += 0.025 * cluster;
+          r -= 0.012 * cluster;
         }
 
         data[i] = Math.floor(Math.max(0, Math.min(1, r)) * 255);

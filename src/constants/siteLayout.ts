@@ -1,5 +1,27 @@
 export type Vec3Tuple = readonly [number, number, number];
 
+/** Existing station and its at-grade connection to the southern approach road. */
+export const GAS_STATION_SITE = {
+  position: [-85, 0, 140] as Vec3Tuple,
+  signPosition: [10, 0, -8.5] as Vec3Tuple,
+  access: {
+    forecourtX: -75.2,
+    forecourtNeckX: -67,
+    roadNeckX: 6,
+    roadX: 14,
+    centreZ: 140,
+    halfWidth: 3.5,
+    forecourtHalfWidth: 6.5,
+    mouthHalfWidth: 9,
+  },
+} as const;
+
+// The west edge line stops at the flared mouth; the east edge stays continuous.
+export const STATION_ROAD_EDGE_SEGMENTS = [
+  [110, GAS_STATION_SITE.access.centreZ - GAS_STATION_SITE.access.mouthHalfWidth],
+  [GAS_STATION_SITE.access.centreZ + GAS_STATION_SITE.access.mouthHalfWidth, 280],
+] as const;
+
 /** The existing river footbridge deck, shared by rendering and collision. */
 export const RIVER_FOOTBRIDGE_DECK = {
   centre: [0, 2, -145] as Vec3Tuple,
@@ -85,6 +107,27 @@ const VILLAGE_SITE = {
   height: 26,
 } as const satisfies LandmarkAnchor;
 
+/** Five authored plots, with street-facing doors and room inside the existing
+ * outer hedges. Working if the actual merged geometry leaves the entry lanes
+ * open and every plot remains clear of the through streets.
+ */
+export const VILLAGE_HOME_PLOTS = [
+  { name: 'honey-cottage', position: [-25, 0, -35], rotation: Math.PI / 2 },
+  { name: 'rose-gable', position: [25, 0, -35], rotation: -Math.PI / 2 },
+  { name: 'bluebell-house', position: [25, 0, -50], rotation: -Math.PI / 2 },
+  { name: 'brick-and-sage', position: [-25, 0, 45], rotation: Math.PI / 2 },
+  { name: 'pearl-cottage', position: [25, 0, 55], rotation: -Math.PI / 2 },
+] as const;
+
+export const VILLAGE_GARDEN_FOOTPRINTS = VILLAGE_HOME_PLOTS.map(({ position: [x, , z] }) => ({
+  x: x - Math.sign(x) * 1.15,
+  z,
+  halfX: 6.45,
+  halfZ: 5.5,
+}));
+
+export const VILLAGE_ALLOTMENT = { x: -25, z: 9, halfX: 6.9, halfZ: 5.65 } as const;
+
 /** Physical plansifter stack, shared by geometry, pipe connections and bounds. */
 export const SIFTER_LAYOUT = {
   trayCount: 7,
@@ -104,6 +147,12 @@ export const MILL_FEEDER_LAYOUT = {
   height: 5.78,
   scale: [2.7, 1.62, 2.45] as const,
 } as const;
+/** The finished-product pipe seats on the physical hopper, not its selection bounds. */
+export const PACKER_HOPPER_LAYOUT = {
+  centreY: 5.72,
+  scale: [1.7, 1.5, 1.7] as const,
+} as const;
+
 export const MILL_PROCESS_PORTS = {
   intake: [0, MILL_FEEDER_LAYOUT.height + MILL_FEEDER_LAYOUT.scale[1] / 2, 0],
   pneumatic: [0, 5, 0],
@@ -386,10 +435,11 @@ export const SITE_LAYOUT = {
   exteriorFeatures: {
     canal: { position: [-145, 0, -5] as Vec3Tuple, length: 220, width: 12, rotation: 0 },
     canalBranch: {
-      position: [-145, 0, -110] as Vec3Tuple,
-      length: 70,
-      width: 8,
-      rotation: Math.PI / 2,
+      // Bounds of the L-shaped overflow. Also used by woodland exclusion.
+      position: [-124.75, 0, -116] as Vec3Tuple,
+      length: 20,
+      width: 29.5,
+      rotation: 0,
     },
     lake: { position: [120, 0, 120] as Vec3Tuple, size: [40, 30] as const },
     ponds: [
@@ -410,9 +460,9 @@ export const SITE_LAYOUT = {
       position: [45, -0.02, -219],
       rotation: [0, -Math.PI / 4, 0],
       scale: 1.5,
-      // The generated castle.glb, rock included (asset-manifest bounds), not the
-      // larger primitive fallback. Rotated 45 degrees, so exclusions that must
-      // clear its corners use the half-diagonal rather than this box.
+      // Authored Neuschwanstein-inspired palas, slate roofs and limestone terrace.
+      // The original footprint and 42 m landmark height are retained.
+      // Rotated exclusions use the half-diagonal to clear the terrace corners.
       footprint: [39, 39],
       height: 42,
     },
@@ -540,7 +590,9 @@ export const SITE_LAYOUT = {
     // Four-floor office block at (-78, 0, 95).
     offices: { position: [-50, 14, 68], target: [-78, 8, 95] },
     // Canal at x -145 with the boat at z 15 and the lock gate at z 50.
-    canal: { position: [-118, 10, 12], target: [-145, 1, 38] },
+    // Look along the channel, clear of the taller east-bank tree crowns.
+    // Working if the lock and boat remain exposed without changing planting.
+    canal: { position: [-137, 13, 72], target: [-145, 0, 34] },
     // Lake at (120, 0, 120), 40 x 30 m, with the picnic tables and LAKE sign.
     lake: { position: [86, 14, 86], target: [120, 0, 120] },
     // Bus stop at (29, 0, 140) beside the front road.

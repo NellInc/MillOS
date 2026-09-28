@@ -1,0 +1,32 @@
+[
+  {
+    "name": "build",
+    "code": 0,
+    "seconds": 65.904
+  },
+  {
+    "name": "validate:depth",
+    "code": 0,
+    "seconds": 0.7
+  },
+  {
+    "name": "validate:shaders",
+    "code": 0,
+    "seconds": 5.911
+  },
+  {
+    "name": "validate:reachability",
+    "code": 0,
+    "seconds": 19.702
+  },
+  {
+    "name": "validate:bundle",
+    "code": 0,
+    "seconds": 0.655
+  },
+  {
+    "name": "validate:uncrewed",
+    "code": 0,
+    "seconds": 2.346
+  }
+]

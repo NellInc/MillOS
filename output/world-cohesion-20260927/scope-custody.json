@@ -1,0 +1,44 @@
+{
+  "changedBaselineFiles": [
+    "src/App.tsx",
+    "src/constants/siteLayout.ts",
+    "src/utils/recoverableLazy.ts",
+    "src/components/FactoryExterior.tsx",
+    "src/components/LoadingScreen.tsx",
+    "src/shaders/shaderContracts.ts",
+    "src/components/scenery/AuthoredPropTrim.tsx",
+    "src/components/exterior/HedgeFoliage.tsx",
+    "src/components/exterior/riverGeometry.test.ts",
+    "src/components/exterior/WaterSurface.test.tsx",
+    "src/components/exterior/riverGeometry.ts",
+    "src/components/terrain/splatMapGenerator.ts",
+    "src/components/terrain/__tests__/valleyRelief.test.ts",
+    "src/utils/__tests__/recoverableLazy.test.ts"
+  ],
+  "newSourceFiles": [
+    "src/components/LoadingScreen.test.tsx",
+    "src/components/StartupReadiness.test.tsx",
+    "src/components/StartupReadiness.tsx",
+    "src/components/exterior/LandscapeDressing.test.ts",
+    "src/components/exterior/LandscapeDressing.tsx",
+    "src/components/exterior/canalOutletGeometry.ts",
+    "src/components/scenery/LockGateJoinery.test.ts",
+    "src/utils/__tests__/startupReadiness.test.ts",
+    "src/utils/startupReadiness.ts"
+  ],
+  "unchangedModelFiles": 842,
+  "modelChanges": [],
+  "protectedUnchanged": [
+    "src/constants/castleAccess.ts",
+    "src/utils/castleNavigation.ts",
+    "src/components/FirstPersonController.tsx",
+    "src/components/mobile/MobileFirstPersonController.tsx",
+    "src/components/physics/PhysicsFirstPersonController.tsx",
+    "public/models/asset-manifest.json"
+  ],
+  "additionalFingerprintFiles": {
+    "package.json": true,
+    "package-lock.json": true,
+    "vite.config.ts": true
+  }
+}

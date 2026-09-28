@@ -1,0 +1,63 @@
+[
+  {
+    "slug": "01-bus-shelter",
+    "source": "/Users/nellwatson/.codex/generated_images/01a07e49-5424-7223-b6d0-d31c4a53b6b2/exec-fccf4ee6-10a5-4cb5-9e0f-129881cd4e9d.png",
+    "prompt": "Use case: stylized-concept. Create a production-oriented concept plate refining the EXACT MillOS bus shelter in the two reference screenshots. Keep dark green rectangular four-post shelter, flat thin roof, glass rear wall, existing two side advert cabinets and their MillOS Flour / Dead Dino artwork, route-42 sign pole, scale, footprint and palette. One large three-quarter front view and two small construction insets on warm off-white sheet. Improve with a comfortable rounded three-slat timber bench moved AGAINST THE REAR GLASS instead of across the open front entrance; add two timber back slats and two restrained curved end handrails with supports. Add shallow realistic roof panel seams, a rear gutter visibly connected to the existing rear downpipe through a short elbow, simple glass retaining clips and weather gaskets, neat steel cabinet border rails outside poster artwork. Keep centre timetable readable and glass see-through. All joints physically seated, no floating furniture. Stylized game-asset finish, restrained material grain, practical construction. Do not redesign as a pavilion, arch roof or modern glass cube. No people, new advertisements, invented feature labels, technical counts or diagrams. Artwork should be achievable from the existing low-poly object. Render only these modest improvements, preserve visual identity.",
+    "file": "/Users/nellwatson/Documents/GitHub/MillOS/output/asset-mastery-20260927/concepts/01-bus-shelter.png",
+    "sha256": "28c9c4d6394ccc3bb4c04955d4083f0cf56271b6c6364cf8466ee743015c24e7",
+    "references": [
+      {
+        "file": "/Users/nellwatson/Documents/GitHub/MillOS/output/asset-mastery-20260927/civic-before/bus-front.png",
+        "sha256": "2f07fcb32007269ef313840a40949d528334e6c65a21499ece48810d1b975226"
+      },
+      {
+        "file": "/Users/nellwatson/Documents/GitHub/MillOS/output/asset-mastery-20260927/civic-before/bus-rear.png",
+        "sha256": "8ae8cb6e48dfa6352cbd6e5cce8ed5d85c27070526c74df380e170c5e79d4517"
+      }
+    ]
+  },
+  {
+    "slug": "02-postbox",
+    "source": "/Users/nellwatson/.codex/generated_images/01a07e49-5424-7223-b6d0-d31c4a53b6b2/exec-18d1f561-80b8-42be-ab6f-6df0048388d3.png",
+    "prompt": "Use case: stylized-concept. Make a detailed game-model refinement concept plate of the exact red cylindrical MillOS village pillar postbox shown in the reference. Retain its squat black plinth, simple turned red crown, height/width proportions, front rectangular access door and cream collection-hours card, existing red and black palette. Large three-quarter portrait plus small aperture and hinge construction close-ups on a warm off-white sheet. Refine the letter slot into a visibly recessed hollow throat under a gently curved rain hood with a real lip and side returns. Define the collection-door perimeter with a fine recessed dark reveal, two three-knuckle red hinges, a seated round brass lock escutcheon and small screws holding the cream schedule card. Add a small simple raised envelope emblem on the lower door, no crown monogram or real postal-service branding. Crown and foot have fine restrained casting bead details, subtly rounded edges and authored paint variation without heavy rust. Every fitting touches its support. Preserve overall silhouette, slot height, card location, scale and character. Do not turn this into a wall-mounted box, rectangular American mailbox, magical object or modern postal kiosk. No letters projecting from the slot, no people, no fabricated readable collection times, no technical metrics. Feasible detailed low-poly game asset, not a photorealistic redesign.",
+    "file": "/Users/nellwatson/Documents/GitHub/MillOS/output/asset-mastery-20260927/concepts/02-postbox.png",
+    "sha256": "87a74d7dc9ab706c44aa8a3ed3ce9b34fa59bb70fdf3bf71f5eaf4e873c788f9",
+    "references": [
+      {
+        "file": "/Users/nellwatson/Documents/GitHub/MillOS/output/asset-mastery-20260927/civic-before/postbox.png",
+        "sha256": "4f1aafd2eda5fe54d73c4155f03629234e63ee099136d7327bd7f87ead21331d"
+      }
+    ]
+  },
+  {
+    "slug": "03-fountain",
+    "source": "/Users/nellwatson/.codex/generated_images/01a07e49-5424-7223-b6d0-d31c4a53b6b2/exec-d2c12601-2ff5-4cf9-8ea5-26182cb1dc9b.png",
+    "prompt": "Use case: stylized-concept. Create a model-faithful upgrade concept sheet for the EXACT stone fountain in the provided MillOS screenshot. Preserve its broad circular lower stone basin, narrow turned pedestal, smaller raised tazza bowl, slim central finial, turquoise water, existing ring of ground setts, overall 3.32m-tall proportions and palette. Large three-quarter hero on warm off-white, two construction-detail insets. Refine the lower coping into sixteen carefully jointed bevelled stone segments without enlarging the opening. Add restrained radial fluting on the outside underside of the upper bowl and the middle pedestal shaft, fine moulded rims, credible seated tier joints. Four small stone spill lips evenly spaced on the upper bowl now feed four thin clear arcing streams into the LOWER WATER INSIDE THE BASIN, with small quiet ripples at landing. Preserve existing upper and lower water levels and exact silhouette; keep finial a simple stone ornament, do not replace it with a statue or an added tier. Streams must start at the lip, follow gravity and land inside the basin, never over the paving. Stylized polished game construction and readable silhouettes, restrained stone colour variation rather than photorealistic grain. No added people, fish, gargoyles, text metrics, extra lighting or new courtyard design. This is an achievable refinement of the referenced asset.",
+    "file": "/Users/nellwatson/Documents/GitHub/MillOS/output/asset-mastery-20260927/concepts/03-fountain.png",
+    "sha256": "c3f0f404bea5e4a862f8b8374c3307409b2ca2ba7f62525266c4afb9e39d870c",
+    "references": [
+      {
+        "file": "/Users/nellwatson/Documents/GitHub/MillOS/output/asset-mastery-20260927/civic-before/fountain.png",
+        "sha256": "c74d5593c3592d30d8e9305652ec9f7cf3e0c6a94e9b0fe872214b2defda8d14"
+      }
+    ]
+  },
+  {
+    "slug": "04-station-interior",
+    "source": "/Users/nellwatson/.codex/generated_images/01a07e49-5424-7223-b6d0-d31c4a53b6b2/exec-4048a156-5327-47a5-8d56-e11059a3a960.png",
+    "prompt": "Use case: stylized-concept.\nAsset type: MillOS gas station interior refinement plate.\nInput image 1 is the actual current shop interior, image 2 the actual current checkout. They are references, not designs to replace. Produce a tasteful two-panel concept plate showing how precisely these existing objects could look after a restrained construction-detail pass. Keep the coarse stylised real-time game geometry, existing scale, shop layout, counter, brown shelving, blue-grey refrigerator frame, orange slush dispenser, grill and products.\nPanel A: same shop angle. The blue-grey drinks cabinet has a real shallow recess, three thin shelves and twelve existing coloured bottles visible behind lightly tinted glazing. Keep its four-metre wide, three-metre high footprint. The orange slush dispenser has a low pedestal with two exposed red and blue tanks seated above it, thin caps and small dispensing handles. Keep the adjacent grill and coffee machine.\nPanel B: same black cash-register block and grey countertop from reference two, with a correctly seated small blue readout facing the customer (+X in the scene), a thin black bezel, restrained small readout bars and three keys on the existing card-reader top. Preserve body proportions.\nNo people, new furniture, branded products, invented text or prices, new lights, extra appliances or overall colour grading makeover. Do not widen the shop, add shelves beyond the existing three product rows, or invent photo-real microdetail. Show only the requested actionable changes, retaining the modest geometric game character.\n",
+    "inputs": [
+      {
+        "path": "output/asset-mastery-20260927/scene-details-high/station-interior.png",
+        "sha256": "3fa80a10f26324802af7c30c7e43be6951e5688192138d6c671e6c0e2b63d872"
+      },
+      {
+        "path": "output/asset-mastery-20260927/scene-details-high/station-counter.png",
+        "sha256": "7ee67e4b54fc986b044ad155cc4105b2710d693ade30c00028ac8a9a53798345"
+      }
+    ],
+    "saved": "output/asset-mastery-20260927/concepts/04-station-interior.png",
+    "sha256": "0b71d3f460eba741c067df4217416095512bb6470bdf95b57d7de937442eed5b",
+    "tool": "built-in imagegen"
+  }
+]

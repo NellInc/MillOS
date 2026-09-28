@@ -47,6 +47,8 @@ describe('GraphicsStore', () => {
     expect(recovered.anisotropyLevel).toBe(GRAPHICS_PRESETS.high.anisotropyLevel);
     expect(recovered.perfDebug.disableMachines).toBe(true);
     expect(recovered.perfDebug.disableMachineFinish).toBe(false);
+    expect(recovered.perfDebug.disableAmbientOcclusion).toBe(false);
+    expect(recovered.perfDebug.disableBloom).toBe(false);
     expect(recovered.perfDebug.disableEnvironment).toBe(false);
   });
 

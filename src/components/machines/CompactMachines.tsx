@@ -10,6 +10,7 @@ import {
   SILO_ACCESS_LAYOUT,
   SIFTER_LAYOUT,
   MILL_FEEDER_LAYOUT,
+  PACKER_HOPPER_LAYOUT,
   type Vec3Tuple,
 } from '../../constants/siteLayout';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
@@ -20,7 +21,13 @@ import { useShallow } from 'zustand/react/shallow';
 import { getMachineOperationalState } from '../../simulation/machineMotion';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { isPostProcessingActive, useGraphicsStore } from '../../stores/graphicsStore';
-import { MACHINE_FINISH_GEOMETRY, MILL_CONTROL_FACE, MILL_DRIVE_Z } from './machineFinishGeometry';
+import {
+  createMotorFanGuardGeometry,
+  createSiloHardwareGeometry,
+  MACHINE_FINISH_GEOMETRY,
+  MILL_CONTROL_FACE,
+  MILL_DRIVE_Z,
+} from './machineFinishGeometry';
 import {
   MACHINE_MATERIALS as MATERIALS,
   machineInstanceTint,
@@ -95,6 +102,7 @@ function createSiloShellGeometry(): THREE.LatheGeometry {
 }
 
 const SILO_SHELL = createSiloShellGeometry();
+export const SILO_HARDWARE = createSiloHardwareGeometry(SILO_SHELL);
 
 /**
  * Picking proxy for the corrugated shell.
@@ -202,14 +210,8 @@ export const MACHINE_BEACON_MOUNTS: Partial<
   [MachineType.PLANSIFTER]: [2.2, SIFTER_LAYOUT.capCentreY + SIFTER_LAYOUT.capHeight / 2, 1.7],
   [MachineType.PACKER]: [1.25, 5.025, 1.4],
 };
-/**
- * Instanced at [0.78, 0.52, 0.09]: an ellipse pressed flat against the mill
- * body, so the ring OUTLINE is what reads and the tube is nearly invisible.
- * The segments go to `tubularSegments` accordingly. Raising `radialSegments`
- * from 6 to 8 rounds the tube to its true circular section, which grows the
- * part by 1.2 mm on the squashed Z axis - the axis buried in the body panel.
- */
-const FAN_GRILLE = new THREE.TorusGeometry(1, 0.1, 8, 32);
+/** Motor-end cage uses the retained 0.58 uniform scale and sideways shaft mount. */
+const FAN_GRILLE = createMotorFanGuardGeometry();
 
 // ===========================================================================
 // MACHINE HOUSINGS
@@ -833,6 +835,7 @@ function CompactMachineSet({
   const siloLadderRailRef = useRef<THREE.InstancedMesh>(null);
   const siloLadderRungRef = useRef<THREE.InstancedMesh>(null);
   const siloHatchRef = useRef<THREE.InstancedMesh>(null);
+  const siloHardwareRef = useRef<THREE.InstancedMesh>(null);
   const millBodyRef = useRef<THREE.InstancedMesh>(null);
   const millHopperRef = useRef<THREE.InstancedMesh>(null);
   const millRollerRef = useRef<THREE.InstancedMesh>(null);
@@ -866,6 +869,8 @@ function CompactMachineSet({
   const packerGuideRef = useRef<THREE.InstancedMesh>(null);
   const packerGuardRef = useRef<THREE.InstancedMesh>(null);
   const packerAccentRef = useRef<THREE.InstancedMesh>(null);
+  const packerCoversRef = useRef<THREE.InstancedMesh>(null);
+  const packerHardwareRef = useRef<THREE.InstancedMesh>(null);
   const bagRef = useRef<THREE.InstancedMesh>(null);
   const beaconRef = useRef<THREE.InstancedMesh>(null);
   const beaconBaseRef = useRef<THREE.InstancedMesh>(null);
@@ -909,6 +914,15 @@ function CompactMachineSet({
     subsets.silos.forEach((machine, index) => {
       const [x, y, z] = machine.position;
       const siloFrame = { origin: machine.position, scale: getSiloAssemblyScale(machine.size) };
+      setInstanceMatrix(
+        siloHardwareRef.current,
+        index,
+        object,
+        [x, y, z],
+        [1, 1, 1],
+        undefined,
+        siloFrame
+      );
       const fill = THREE.MathUtils.clamp(machine.fillLevel ?? machine.metrics.load, 8, 96) / 100;
       siloBodyRef.current?.setColorAt(index, machineInstanceTint(INSTANCE_TINT, machine.id, tint));
       setInstanceMatrix(
@@ -1037,13 +1051,7 @@ function CompactMachineSet({
         [x, y + MILL_FEEDER_LAYOUT.height, z],
         [...MILL_FEEDER_LAYOUT.scale]
       );
-      setInstanceMatrix(
-        millRecessRef.current,
-        index,
-        object,
-        [x, y + 2.82, z + 1.93],
-        [3.65, 2.7, 0.1]
-      );
+      setInstanceMatrix(millRecessRef.current, index, object, [x, y, z], [1, 1, 1]);
       setInstanceMatrix(
         millPanelRef.current,
         index,
@@ -1191,16 +1199,18 @@ function CompactMachineSet({
         index,
         machineInstanceTint(INSTANCE_TINT, machine.id, tint)
       );
+      setInstanceMatrix(packerCoversRef.current, index, object, [x, y, z], [1, 1, 1]);
+      setInstanceMatrix(packerHardwareRef.current, index, object, [x, y, z], [1, 1, 1]);
       setInstanceMatrix(packerBaseRef.current, index, object, [x, y + 0.28, z], [4.5, 0.56, 4.25]);
       setInstanceMatrix(packerBodyRef.current, index, object, [x, y + 2.65, z], [3.7, 4.75, 3.45]);
-      setInstanceMatrix(packerHopperRef.current, index, object, [x, y + 5.72, z], [1.7, 1.5, 1.7]);
       setInstanceMatrix(
-        packerPanelRef.current,
+        packerHopperRef.current,
         index,
         object,
-        [x, y + 3.05, z + 1.76],
-        [2.65, 1.65, 0.1]
+        [x, y + PACKER_HOPPER_LAYOUT.centreY, z],
+        [...PACKER_HOPPER_LAYOUT.scale]
       );
+      setInstanceMatrix(packerPanelRef.current, index, object, [x, y, z], [1, 1, 1]);
       setInstanceMatrix(
         packerHeadRef.current,
         index,
@@ -1305,6 +1315,7 @@ function CompactMachineSet({
       siloLadderRailRef,
       siloLadderRungRef,
       siloHatchRef,
+      siloHardwareRef,
       millBodyRef,
       millHopperRef,
       millRollerRef,
@@ -1338,6 +1349,8 @@ function CompactMachineSet({
       packerGuideRef,
       packerGuardRef,
       packerAccentRef,
+      packerCoversRef,
+      packerHardwareRef,
       bagRef,
       beaconRef,
       beaconBaseRef,
@@ -1364,6 +1377,7 @@ function CompactMachineSet({
       millBodyRef,
       millGuardRef,
       millHardwareRef,
+      millRecessRef,
       millScreenRef,
       millVentRef,
       millRollerRef,
@@ -1406,6 +1420,7 @@ function CompactMachineSet({
         [4.8, 4.7, 3.8]
       );
       setInstanceMatrix(millGuardRef.current, index, object, [x, y + vibration, z], [1, 1, 1]);
+      setInstanceMatrix(millRecessRef.current, index, object, [x, y + vibration, z], [1, 1, 1]);
       setInstanceMatrix(millHardwareRef.current, index, object, [x, y + vibration, z], [1, 1, 1]);
       if (enableMachineDetail) {
         decals.forEach((decal, decalIndex) => {
@@ -1633,6 +1648,15 @@ function CompactMachineSet({
         receiveShadow
       />
 
+      {enableMachineFinish && (
+        <instancedMesh
+          name="silo-sheet-joints-and-anchors"
+          ref={siloHardwareRef}
+          args={[SILO_HARDWARE, MATERIALS.hardware, subsets.silos.length]}
+          receiveShadow
+        />
+      )}
+
       <InteractiveInstances
         meshRef={millBodyRef}
         geometry={MILL_BODY}
@@ -1680,7 +1704,7 @@ function CompactMachineSet({
       />
       <instancedMesh
         ref={millRecessRef}
-        args={[THIN_PLATE, MATERIALS.recess, subsets.mills.length]}
+        args={[MACHINE_FINISH_GEOMETRY.millRecess, MATERIALS.recess, subsets.mills.length]}
         receiveShadow
       />
       <instancedMesh
@@ -1803,6 +1827,26 @@ function CompactMachineSet({
         machines={subsets.packers}
         onSelect={onSelect}
       />
+      {enableMachineFinish && (
+        <>
+          <instancedMesh
+            name="packer-service-covers"
+            ref={packerCoversRef}
+            args={[MACHINE_FINISH_GEOMETRY.packerCovers, MATERIALS.packer, subsets.packers.length]}
+            receiveShadow
+          />
+          <instancedMesh
+            name="packer-service-hardware"
+            ref={packerHardwareRef}
+            args={[
+              MACHINE_FINISH_GEOMETRY.packerHardware,
+              MATERIALS.hardware,
+              subsets.packers.length,
+            ]}
+            receiveShadow
+          />
+        </>
+      )}
       <instancedMesh
         ref={packerHopperRef}
         args={[HOPPER, MATERIALS.packerTrim, subsets.packers.length]}
@@ -1828,7 +1872,7 @@ function CompactMachineSet({
       />
       <instancedMesh
         ref={packerPanelRef}
-        args={[THIN_PLATE, MATERIALS.recess, subsets.packers.length]}
+        args={[MACHINE_FINISH_GEOMETRY.packerRecess, MATERIALS.recess, subsets.packers.length]}
         receiveShadow
       />
       <instancedMesh

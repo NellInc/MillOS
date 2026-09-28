@@ -1,0 +1,26 @@
+{
+  "changedBaselineFiles": [
+    "src/components/FactoryExterior.tsx",
+    "src/components/FarmArea.tsx",
+    "src/components/VillageArea.tsx",
+    "src/components/environment/SceneEnvironmentIBL.test.ts",
+    "src/components/environment/SceneEnvironmentIBL.tsx",
+    "src/components/exterior/ExteriorVegetation.tsx",
+    "src/components/exterior/LandscapeDressing.tsx",
+    "src/components/physics/PhysicsFirstPersonController.castle.test.tsx",
+    "src/components/physics/PhysicsFirstPersonController.tsx",
+    "src/components/scenery/VillageGardens.tsx",
+    "src/utils/castleNavigation.ts"
+  ],
+  "newFiles": [
+    "src/components/scenery/WorldPublicRealm.test.ts",
+    "src/components/scenery/WorldPublicRealm.tsx",
+    "src/constants/publicRealmLayout.ts",
+    "src/utils/authoredPlotGeometry.ts"
+  ],
+  "unexpected": [],
+  "missing": [],
+  "providerOriginalsUnchanged": 148,
+  "deliveriesUnchanged": 146,
+  "head": "3026399d411385f44780ddd11745b1927afe7ace"
+}

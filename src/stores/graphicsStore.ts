@@ -29,6 +29,8 @@ export interface PerfDebugSettings {
    * permutations and frame time. See `PunctualLightIsolation`.
    */
   disablePunctualLights: boolean;
+  /** Same-load reference control for night fill, neutral hall lamps and forecourt light. */
+  disableLightingPolish: boolean;
   /**
    * Switch off the analytic surface treatment in `utils/worldSurface`.
    *
@@ -40,6 +42,9 @@ export interface PerfDebugSettings {
    * `scripts/measure-surface-contrast.mjs`.
    */
   disableSurfaceTreatment: boolean;
+  /** Same-page optical cost controls, never lower a preset to obtain a pass. */
+  disableAmbientOcclusion: boolean;
+  disableBloom: boolean;
   disableAllAnimations: boolean; // Master toggle - disable all useFrame hooks
   showPerfOverlay: boolean; // Show performance metrics overlay
 }
@@ -185,7 +190,10 @@ const DEFAULT_PERF_DEBUG: PerfDebugSettings = {
   disableEnvironment: false,
   disableTerrain: false,
   disablePunctualLights: false,
+  disableLightingPolish: false,
   disableSurfaceTreatment: false,
+  disableAmbientOcclusion: false,
+  disableBloom: false,
   disableAllAnimations: false,
   showPerfOverlay: false,
 };

@@ -11,6 +11,7 @@ import {
   FLOUR_STRIPE_MATERIAL,
   FLOUR_SACK_HEIGHT,
   FLOUR_INK_STANDOFF,
+  FLOUR_SACK_PRINT_GEOMETRY,
 } from '../flourSacks';
 import { hasWorldSurface } from '../worldSurface';
 
@@ -142,19 +143,68 @@ describe('shared carried flour', () => {
     const source = getFlourSackGeometry();
     source.computeBoundingBox();
     const original = source.boundingBox!.clone();
-    const bounds = PALLET_SACK_LAYOUT.map(({ position, scale }) => {
-      const transform = new THREE.Matrix4().makeScale(...scale).setPosition(...position);
+    const bounds = PALLET_SACK_LAYOUT.map(({ position, scale, rotationY }) => {
+      const transform = new THREE.Matrix4().compose(
+        new THREE.Vector3(...position),
+        new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), rotationY),
+        new THREE.Vector3(...scale)
+      );
       return original.clone().applyMatrix4(transform);
     });
     expect(bounds).toHaveLength(12);
     for (let layer = 0; layer < 6; layer++) {
-      expect(bounds[layer * 2].max.x).toBeLessThan(bounds[layer * 2 + 1].min.x);
-      expect(bounds[layer * 2 + 1].min.x - bounds[layer * 2].max.x).toBeLessThan(0.015);
+      const axis = layer % 2 === 1 ? 'z' : 'x';
+      expect(bounds[layer * 2].max[axis]).toBeLessThan(bounds[layer * 2 + 1].min[axis]);
+      expect(bounds[layer * 2 + 1].min[axis] - bounds[layer * 2].max[axis]).toBeLessThan(0.02);
+      if (layer % 2 === 1) {
+        // Each cross-course bridges both sacks below instead of repeating a
+        // full-height vertical seam through the load.
+        expect(bounds[layer * 2].min.x).toBeLessThan(bounds[(layer - 1) * 2].max.x);
+        expect(bounds[layer * 2].max.x).toBeGreaterThan(bounds[(layer - 1) * 2 + 1].min.x);
+      }
       if (layer > 0) expect(bounds[layer * 2].min.y).toBeCloseTo(bounds[(layer - 1) * 2].max.y, 6);
     }
     getFlourPalletGeometry();
     source.computeBoundingBox();
     expect(source.boundingBox!.equals(original)).toBe(true);
+  });
+
+  it('supports each cross-bonded sack on real cloth on both sides of the seam below', () => {
+    const material = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
+    const meshes = PALLET_SACK_LAYOUT.map(({ position, scale, rotationY }) => {
+      const mesh = new THREE.Mesh(getFlourSackGeometry(), material);
+      mesh.position.set(...position);
+      mesh.scale.set(...scale);
+      mesh.rotation.y = rotationY;
+      mesh.updateMatrixWorld(true);
+      return mesh;
+    });
+    try {
+      for (let index = 2; index < meshes.length; index++) {
+        const layer = Math.floor(index / 2);
+        const bag = PALLET_SACK_LAYOUT[index];
+        const bottom = bag.position[1] - (FLOUR_SACK_HEIGHT * bag.scale[1]) / 2;
+        const supporting = meshes.slice((layer - 1) * 2, layer * 2);
+        for (const side of [-1, 1]) {
+          const x = bag.position[0] + (bag.rotationY ? side * 0.17 : 0);
+          const z = bag.position[2] + (bag.rotationY ? 0 : side * 0.17);
+          const underneath = new THREE.Raycaster(
+            new THREE.Vector3(x, bottom - 0.01, z),
+            new THREE.Vector3(0, 1, 0)
+          ).intersectObject(meshes[index])[0];
+          const support = new THREE.Raycaster(
+            new THREE.Vector3(x, bottom + 0.01, z),
+            new THREE.Vector3(0, -1, 0)
+          ).intersectObjects(supporting)[0];
+          expect(underneath).toBeDefined();
+          expect(support).toBeDefined();
+          expect(underneath.point.y).toBeCloseTo(bottom, 5);
+          expect(support.point.y).toBeCloseTo(underneath.point.y, 5);
+        }
+      }
+    } finally {
+      material.dispose();
+    }
   });
 
   it('keeps every top and side printed corner seated on its own real sack', () => {
@@ -180,11 +230,45 @@ describe('shared carried flour', () => {
         );
         const hits = new THREE.Raycaster(corner, inward).intersectObject(sacks);
         expect(hits.length).toBeGreaterThan(0);
-        const scale = PALLET_SACK_LAYOUT[0].scale;
-        expect(hits[0].distance).toBeCloseTo(FLOUR_INK_STANDOFF * scale[dominantAxis], 5);
+        const bag =
+          PALLET_SACK_LAYOUT[
+            Math.floor(i / FLOUR_SACK_PRINT_GEOMETRY.getAttribute('position').count)
+          ];
+        const localAxis = bag.rotationY && dominantAxis !== 1 ? 2 - dominantAxis : dominantAxis;
+        expect(hits[0].distance).toBeCloseTo(FLOUR_INK_STANDOFF * bag.scale[localAxis], 5);
         printDirections.add(`${dominantAxis}:${Math.sign(normal.getComponent(dominantAxis))}`);
       }
       expect(printDirections.size).toBe(5);
+    } finally {
+      material.dispose();
+    }
+  });
+
+  it('leaves two continuous fork-entry channels beneath the deck', () => {
+    const material = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
+    const timber = new THREE.Mesh(getFlourPalletGeometry().pallet, material);
+    try {
+      for (const side of [-1, 1]) {
+        for (const x of [0.075, 0.17, 0.265]) {
+          for (const y of [-0.025, 0, 0.015]) {
+            const ray = new THREE.Raycaster(
+              new THREE.Vector3(side * x, y, -1),
+              new THREE.Vector3(0, 0, 1)
+            );
+            expect(ray.intersectObject(timber)).toHaveLength(0);
+          }
+        }
+        // The same channel has a real deck overhead and a runner beneath it.
+        for (const direction of [-1, 1]) {
+          const ray = new THREE.Raycaster(
+            new THREE.Vector3(side * 0.17, 0, 0),
+            new THREE.Vector3(0, direction, 0)
+          );
+          const hit = ray.intersectObject(timber)[0];
+          expect(hit).toBeDefined();
+          expect(hit.point.y).toBeCloseTo(direction > 0 ? 0.025 : -0.035, 6);
+        }
+      }
     } finally {
       material.dispose();
     }

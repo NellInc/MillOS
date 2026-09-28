@@ -8,6 +8,7 @@ import {
   createInitialForkliftMotion,
   distanceAheadOnClosedPath,
   sampleForkliftLoadPose,
+  resolveForkliftStopReason,
   stepForkliftMotion,
 } from './forkliftController';
 
@@ -271,5 +272,76 @@ describe('forklift controller', () => {
     });
     expect(state.wheelTravel - wheelTravel).toBeCloseTo(0.08);
     expect(state.speed).toBe(0);
+  });
+});
+
+describe('forklift fleet-priority safety arbitration', () => {
+  const stoppedHigherPeer = { id: 'forklift-2', isStopped: true };
+  const peerWait = {
+    id: 'forklift-1',
+    emergencyStopped: false,
+    crossingClear: true,
+    logisticsInterlock: false,
+    pathClear: false,
+    obstaclePathClear: true,
+    nearby: [stoppedHigherPeer],
+  };
+
+  it.each([
+    [{ emergencyStopped: true }, 'emergency-stop'],
+    [{ crossingClear: false }, 'crossing-reservation'],
+    [{ logisticsInterlock: true }, 'logistics-interlock'],
+    [{ obstaclePathClear: false }, 'route-blocked'],
+  ] as const)('does not release a higher-priority hold: %o', (override, expected) => {
+    expect(resolveForkliftStopReason({ ...peerWait, ...override })).toBe(expected);
+  });
+
+  it('preserves emergency priority when every other interlock is also active', () => {
+    expect(
+      resolveForkliftStopReason({
+        ...peerWait,
+        emergencyStopped: true,
+        crossingClear: false,
+        logisticsInterlock: true,
+        obstaclePathClear: false,
+      })
+    ).toBe('emergency-stop');
+  });
+
+  it('releases only the lowest-id vehicle after all forklift peers have stopped', () => {
+    expect(resolveForkliftStopReason(peerWait)).toBe('none');
+    expect(
+      resolveForkliftStopReason({
+        ...peerWait,
+        nearby: [{ ...stoppedHigherPeer, isStopped: false }],
+      })
+    ).toBe('route-blocked');
+    expect(resolveForkliftStopReason({ ...peerWait, nearby: [] })).toBe('route-blocked');
+    expect(
+      resolveForkliftStopReason({ ...peerWait, nearby: [{ ...stoppedHigherPeer, kind: 'truck' }] })
+    ).toBe('route-blocked');
+  });
+
+  it('compares all peer IDs independently of registry insertion order', () => {
+    const peers = [
+      { id: 'forklift-3', isStopped: true },
+      { id: 'forklift-1', isStopped: true },
+    ];
+    for (const nearby of [peers, [...peers].reverse()]) {
+      expect(resolveForkliftStopReason({ ...peerWait, id: 'forklift-2', nearby })).toBe(
+        'route-blocked'
+      );
+    }
+  });
+
+  it('retains yielding on a clear path and releases an unopposed clear route', () => {
+    expect(
+      resolveForkliftStopReason({
+        ...peerWait,
+        pathClear: true,
+        nearby: [{ id: 'forklift-0', isStopped: true }],
+      })
+    ).toBe('vehicle-yield');
+    expect(resolveForkliftStopReason({ ...peerWait, pathClear: true, nearby: [] })).toBe('none');
   });
 });

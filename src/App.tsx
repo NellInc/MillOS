@@ -10,6 +10,8 @@ import { CameraController, useCameraStore } from './components/CameraController'
 import { FirstPersonController } from './components/FirstPersonController';
 import ErrorBoundary from './components/ErrorBoundary';
 import { LoadingScreen } from './components/LoadingScreen';
+import { StartupReadiness } from './components/StartupReadiness';
+import { beginStartupTask } from './utils/startupReadiness';
 import { MachineData } from './types';
 import type { ForkliftData } from './components/ForkliftSystem';
 import { audioManager } from './utils/audioManager';
@@ -47,6 +49,7 @@ import { ORBIT_POLAR_LIMITS } from './utils/cameraNavigation';
 import { SITE_LAYOUT } from './constants/siteLayout';
 import { recoverableLazy } from './utils/recoverableLazy';
 import { installAtmosphericFogChunks } from './shaders/atmosphericFog';
+import { installPunctualLightCulling } from './shaders/punctualLightCulling';
 import { CURRENT_RELEASE_VERSION } from './config/releaseVersions';
 
 // MUST run before any fog-enabled material compiles a program. Three.js
@@ -56,6 +59,7 @@ import { CURRENT_RELEASE_VERSION } from './config/releaseVersions';
 // Called explicitly rather than left as an import side effect, which a bundler
 // is entitled to drop.
 installAtmosphericFogChunks();
+installPunctualLightCulling();
 
 const PhysicsScene = recoverableLazy(() => import('./components/PhysicsScene'));
 const DeferredOrbitControls = recoverableLazy(() => import('./components/SceneOrbitControls'));
@@ -455,46 +459,30 @@ const App: React.FC = () => {
     };
   }, [canvasQuality, runtimeMode.benchmark]);
 
-  // Warm the procedural texture cache after the useful scene has rendered, then
-  // yield again so it cannot block startup.
-  //
-  // NO LONGER GATED ON `graphics.enableProceduralTextures`. That flag was false
-  // on all four tiers, which made this preload dead code, and the name was a
-  // lie: `src/textures/*` generate through `getTexture()`'s lazy memo with no
-  // reference to the flag, so the textures are produced either way. The only
-  // thing the gate decided was WHEN - and deferring it meant paying for each
-  // generation as a mid-interaction hitch on first use instead.
-  //
-  // It runs at every tier, low included: the flour-sack maps consume this set
-  // on low too (the spouting relief is requested on medium and above), and low
-  // is the tier least able to absorb a hitch. The scheduling IS the
-  // mitigation - 1500 ms after first frame, then `requestIdleCallback` in
-  // batches of two inside `preloadGenerativeTexturesOnce`.
+  // Complete procedural cache work behind the loading screen. Keep the first
+  // frame event as the scheduling signal; final readiness waits for this token.
   useEffect(() => {
-    // Benchmark runs skip the preload so frame samples are not contaminated by
-    // texture generation. Art-review captures need the shipping image, so they
-    // opt back in.
     if (runtimeMode.benchmark && !runtimeMode.artMode) return;
-
+    const finish = beginStartupTask();
     let cancelled = false;
-    let idleTimer = 0;
+    let started = false;
     const startPreload = (): void => {
-      idleTimer = window.setTimeout(() => {
-        if (cancelled) return;
-        import('./utils/texturePreloader')
-          .then(({ preloadGenerativeTexturesOnce }) => {
-            if (!cancelled) preloadGenerativeTexturesOnce();
-          })
-          .catch(() => undefined);
-      }, 1500);
+      if (started || cancelled) return;
+      started = true;
+      import('./utils/texturePreloader')
+        .then(({ preloadGenerativeTexturesOnce }) => {
+          if (!cancelled) return preloadGenerativeTexturesOnce();
+        })
+        .then(
+          () => finish(),
+          () => finish(true)
+        );
     };
-
     window.addEventListener('millos:first-frame', startPreload, { once: true });
     if (document.documentElement.dataset.sceneReady === 'true') startPreload();
-
     return () => {
       cancelled = true;
-      window.clearTimeout(idleTimer);
+      finish();
       window.removeEventListener('millos:first-frame', startPreload);
     };
   }, [runtimeMode.benchmark, runtimeMode.artMode]);
@@ -591,7 +579,7 @@ const App: React.FC = () => {
 
   return (
     <div className="relative w-full h-full bg-slate-950">
-      <LoadingScreen minimumLoadTimeMs={runtimeMode.benchmark ? 0 : 700} maximumLoadTimeMs={8000} />
+      <LoadingScreen minimumLoadTimeMs={runtimeMode.benchmark ? 0 : 700} recoveryDelayMs={30000} />
 
       {/* Skip links for keyboard navigation - WCAG 2.1 AA */}
       <div className="sr-only focus-within:not-sr-only focus-within:absolute focus-within:top-4 focus-within:left-4 focus-within:z-[100] focus-within:flex focus-within:flex-col focus-within:gap-2">
@@ -860,6 +848,7 @@ const App: React.FC = () => {
               </>
             </Suspense>
 
+            <StartupReadiness />
             <SpatialAudioTracker />
             <FPSTracker />
 

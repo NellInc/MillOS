@@ -44,15 +44,15 @@ export const ZONE_LIGHT_HEIGHT = SITE_LAYOUT.factory.bounds.maxY - 4.5;
  * Three has used physical falloff since r155, so with `decay` 2 the irradiance
  * at the floor is `intensity / d^2` scaled by the cutoff window
  * `(1 - (d/distance)^4)^2`. At d = 17.5 and `distance` 44 that window is 0.951,
- * so 300 lands on about 0.93 directly under a fixture - a little over four
+ * so 380 lands on about 1.18 directly under a fixture - a little over five
  * times the 0.22 ambient term, which is a readable pool rather than a hotspot.
  */
-export const ZONE_LIGHT_INTENSITY = 300;
+export const ZONE_LIGHT_INTENSITY = 380;
 
 /** Cutoff radius. Beyond it the light contributes exactly zero. */
 export const ZONE_LIGHT_DISTANCE = 44;
 
-export const ZONE_LIGHT_COLOR = '#ffe8b0';
+export const ZONE_LIGHT_COLOR = '#fff1db';
 
 /** Floor pool footprint. The housings are 6.2 x 0.78; light spreads. */
 export const FLOOR_POOL_SCALE = [13, 6.5] as const;
@@ -81,6 +81,11 @@ export const ZONE_LIGHT_POSITIONS: readonly (readonly [number, number, number])[
 
 /**
  * The two lights `low` and `medium` keep, one at each bank's centre.
+ *
+ * The historical cost analysis below predates `punctualLightCulling.ts`.
+ * Standard/Physical materials now skip the BRDF at exactly zero incident
+ * radiance. Light counts, cutoffs and the authored two/four-source tier split
+ * remain unchanged; there is no camera-driven light removal or recompilation.
  *
  * WHY A POINT LIGHT IS AN EXTERIOR COST AT ALL. `NUM_POINT_LIGHTS` is a program
  * define and three's forward renderer has no per-object light culling, so
@@ -181,6 +186,9 @@ export function InteriorLightRig() {
   // the light count, and anything that changes the count more often than the
   // tier does is the recompile storm the note above exists to avoid.
   const quality = useGraphicsStore((state) => state.graphics.quality);
+  const referenceLighting = useGraphicsStore(
+    (state) => state.graphics.perfDebug.disableLightingPolish
+  );
   const zoneLights = zoneLightPositions(quality);
   const poolsRef = useRef<THREE.InstancedMesh>(null);
   const positions = useMemo(() => floorPoolPositions(), []);
@@ -190,7 +198,7 @@ export function InteriorLightRig() {
     () =>
       new THREE.MeshBasicMaterial({
         map: poolTexture,
-        color: '#ffe0a0',
+        color: '#ffedce',
         transparent: true,
         opacity: FLOOR_POOL_OPACITY,
         blending: THREE.AdditiveBlending,
@@ -202,6 +210,10 @@ export function InteriorLightRig() {
       }),
     [poolTexture]
   );
+
+  useEffect(() => {
+    poolMaterial.color.set(referenceLighting ? '#ffe0a0' : '#ffedce');
+  }, [poolMaterial, referenceLighting]);
 
   useEffect(
     () => () => {
@@ -231,7 +243,7 @@ export function InteriorLightRig() {
           key={`zone-light-${position[0]}-${position[2]}`}
           name={`interior-zone-light-${position[0]}-${position[2]}`}
           position={position as unknown as [number, number, number]}
-          color={ZONE_LIGHT_COLOR}
+          color={referenceLighting ? '#ffe8b0' : ZONE_LIGHT_COLOR}
           intensity={ZONE_LIGHT_INTENSITY}
           distance={ZONE_LIGHT_DISTANCE}
           decay={2}

@@ -1,8 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { createSpoutTubeGeometry, getSpoutRouteMaterials } from './SpoutingSystem';
-import { SITE_LAYOUT, MILL_PROCESS_PORTS, SIFTER_LAYOUT } from '../constants/siteLayout';
+import {
+  SITE_LAYOUT,
+  MILL_PROCESS_PORTS,
+  SIFTER_LAYOUT,
+  PACKER_HOPPER_LAYOUT,
+} from '../constants/siteLayout';
 import { MachineType, type MachineData } from '../types';
+import { MACHINE_PART_GEOMETRY } from './machines/CompactMachines';
 import { buildSpoutRoutes, SPOUT_PIPE_RADIUS } from './flow/spoutRoutes';
 import { ORM_MEAN_ROUGHNESS, PIPE_MATERIALS } from '../utils/sharedMaterials';
 import { generateMachinePanelNormal, generateProceduralNormal } from '../textures/normalGenerator';
@@ -95,7 +101,7 @@ describe('shared service-rack routes', () => {
         [sifter.position[0], sifter.position[1] - 2, sifter.position[2]],
         [
           packer.position[0],
-          packer.position[1] + SITE_LAYOUT.machineDimensions.packer[1] + 1,
+          packer.position[1] + PACKER_HOPPER_LAYOUT.centreY + PACKER_HOPPER_LAYOUT.scale[1] / 2,
           packer.position[2],
         ]
       );
@@ -108,6 +114,43 @@ describe('shared service-rack routes', () => {
         })) as unknown as MachineData[]
       )
     ).toBe(routes);
+  });
+
+  it('seats every finished-product pipe on the real hopper cap rather than floating above it', () => {
+    const material = new THREE.MeshBasicMaterial();
+    const hopper = new THREE.Mesh(MACHINE_PART_GEOMETRY.hopper, material);
+    hopper.scale.set(...PACKER_HOPPER_LAYOUT.scale);
+    const finished = buildSpoutRoutes(siteMachines).filter((route) => route.family === 'finished');
+    try {
+      SITE_LAYOUT.machines.packers.forEach((packer, index) => {
+        hopper.position.set(
+          packer.position[0],
+          packer.position[1] + PACKER_HOPPER_LAYOUT.centreY,
+          packer.position[2]
+        );
+        hopper.updateMatrixWorld(true);
+        const end = finished[index].curve.getPointAt(1);
+        expect(end.y - packer.position[1]).toBeCloseTo(6.47, 6);
+        // Raycast the emitted tube's terminal ring, not a copied bore radius.
+        const tube = createSpoutTubeGeometry(finished[index].curve, 12);
+        const positions = tube.getAttribute('position');
+        try {
+          for (let vertex = positions.count - 13; vertex < positions.count; vertex++) {
+            const rim = new THREE.Vector3().fromBufferAttribute(positions, vertex);
+            const origin = rim.clone().add(new THREE.Vector3(0, 1, 0));
+            const hit = new THREE.Raycaster(origin, new THREE.Vector3(0, -1, 0)).intersectObject(
+              hopper
+            )[0];
+            expect(hit).toBeDefined();
+            expect(hit.point.y).toBeCloseTo(rim.y, 5);
+          }
+        } finally {
+          tube.dispose();
+        }
+      });
+    } finally {
+      material.dispose();
+    }
   });
 
   it('contains the full grain-flow network in shared bounds, including bore jitter', () => {

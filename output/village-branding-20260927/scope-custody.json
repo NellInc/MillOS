@@ -1,0 +1,51 @@
+{
+  "changedBaselineFiles": [
+    "assets/source/models/village/PROVENANCE.json",
+    "assets/source/models/village/church-crafted.glb",
+    "assets/source/models/village/cottage-crafted.glb",
+    "assets/source/models/village/forge-crafted.glb",
+    "assets/source/models/village/pub-crafted.glb",
+    "assets/source/models/village/school-crafted.glb",
+    "assets/source/models/village/shop-crafted.glb",
+    "assets/source/models/village/townhall-crafted.glb",
+    "public/models/asset-manifest.json",
+    "public/models/village/church.glb",
+    "public/models/village/cottage.glb",
+    "public/models/village/forge.glb",
+    "public/models/village/pub.glb",
+    "public/models/village/school.glb",
+    "public/models/village/shop.glb",
+    "public/models/village/townhall.glb",
+    "scripts/crafted-assets.test.mjs",
+    "scripts/normalize-model-assets.mjs",
+    "src/components/FactoryExterior.tsx",
+    "src/components/GasStationInstanced.test.ts",
+    "src/components/GasStationInstanced.tsx",
+    "src/components/VillageArea.tsx",
+    "src/components/truckbay/OptimizedTruckBay.tsx"
+  ],
+  "newFiles": [
+    "public/textures/signage/PROVENANCE.json",
+    "public/textures/signage/dead-dino.webp",
+    "public/textures/signage/wheat-sheaf.svg",
+    "public/textures/signage/wheat-sheaf.webp",
+    "scripts/blender/rebuild_village_architecture.py",
+    "src/components/scenery/HeritageSignage.test.ts",
+    "src/components/scenery/HeritageSignage.tsx"
+  ],
+  "providerOriginalsUnchanged": 148,
+  "protectedUnchanged": [
+    "src/constants/castleAccess.ts",
+    "src/utils/castleNavigation.ts",
+    "src/components/FirstPersonController.tsx",
+    "src/components/mobile/MobileFirstPersonController.tsx",
+    "src/components/physics/PhysicsFirstPersonController.tsx",
+    "src/utils/startupReadiness.ts",
+    "src/components/TruckBay.tsx",
+    "package.json",
+    "package-lock.json",
+    "vite.config.ts"
+  ],
+  "unaffectedDeliveries": 139,
+  "changedDeliveries": 7
+}

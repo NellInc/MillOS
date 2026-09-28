@@ -1,0 +1,121 @@
+{
+  "baselineFilesChecked": 18967,
+  "changed": [
+    {
+      "path": "src/components/FactoryExterior.tsx",
+      "before": "1664e16fba7d52770c780a296a0e7266aba4394bdac2e185ca0ba3860415fc98",
+      "after": "ceca087360b3bd07c437df353760fe86d0dc35323b0ced0d25da50d5df3be557"
+    },
+    {
+      "path": "src/components/GasStationInstanced.test.ts",
+      "before": "5e3f70e1b7d334bbe4df3ee0f9cdab53f9ba079c9e90829a1dac25699f575332",
+      "after": "8d050b760fef10ff28ce68f2416873a62644b7a4ca5ac5f79b7519907ccd21d8"
+    },
+    {
+      "path": "src/components/GasStationInstanced.tsx",
+      "before": "dd7c1ae1047ad2ae8d11d7ffa9acde3beee0c23667fa2f1230492280012bc0f7",
+      "after": "1ce86fb616d951d3a48f18231493c6581061c7f8f7da1cc26775f628559d4efb"
+    },
+    {
+      "path": "src/components/VillageArea.test.ts",
+      "before": "a87c37fa1cd757212fd8fcfa4859177a8f14e401f01f1b07393eb6c3200af34f",
+      "after": "e8891b69ac46baaab921cbcf32516bb8b6e14c341e41c043f6f93167de35db68"
+    },
+    {
+      "path": "src/components/VillageArea.tsx",
+      "before": "91381355261ef92894ecd7ad0cf3cfb7c714300ea4b06fe41324b50ba636b69f",
+      "after": "1f707762d5d9ee8a2cc3a1cd6d6c3ad2e2769f986a7aa98f73244b390167049b"
+    },
+    {
+      "path": "src/components/environment/InteriorLightRig.tsx",
+      "before": "9516c61e279473af1bc2c62ed1bd3ba46d0693849162331706261101907df707",
+      "after": "eaabba6c2d94c3fd6dac52e943dce2d1a15c823869c9c1e22c8ce28f471473fb"
+    },
+    {
+      "path": "src/components/environment/SceneEnvironmentIBL.test.ts",
+      "before": "4115b518afdfd0016889b73a387e728b6f4fdeb5a86e739aaac6615612cf4ce1",
+      "after": "94014eb096d1f0f02955c6df9b7294a09ee02ac2e7e738d2763630ac5828ccf3"
+    },
+    {
+      "path": "src/components/environment/SceneEnvironmentIBL.tsx",
+      "before": "5a1e69bf06af340852f761e9d1044fbf990c3698f8c10931fe9aa2fb02dc876b",
+      "after": "69c7a75e42c56378e169352769dc8e06cddc5ca1da1686118c4c2140e5ca1535"
+    },
+    {
+      "path": "src/components/exterior/ExteriorLighting.tsx",
+      "before": "d762bda3b999862dbf6dcd8bab224fac5c523121d1dda388ff88042afaa18492",
+      "after": "8d788adf8bc5484ca1ac8f73d5dc162ebf620a06bdc3c91f13b51f273a293871"
+    },
+    {
+      "path": "src/components/exterior/GroundAlignment.test.tsx",
+      "before": "0faa9a20f9c5f51c50fb800434e8863721a8be91235f77c43da9ba96f2b5fc0e",
+      "after": "ae369117bebf2ecfb2739ad3f9c4ee4c67e164fe6facc02f2c28108ca1f51c8f"
+    },
+    {
+      "path": "src/stores/graphicsStore.ts",
+      "before": "7a03a7353140a67a94ea37608eeccfb78eace390693ba3a91825d2c982971ef6",
+      "after": "342a14aad286a1e4386b65d21acc9ce0d454515921bfe4628e194d450f24ccd7"
+    },
+    {
+      "path": "scripts/blender/refine_civic_props.py",
+      "before": "d8939957d5433b15a9854136aaaef138e007fa7c31076c7df7f55b05fb85e02e",
+      "after": "336e34ad8563b442a2eaadf4040cc3f6c789d01ef25655c041127aa9799c542e"
+    },
+    {
+      "path": "scripts/blender/refine_creature_assets.py",
+      "before": "c60b587a2a131c2a6a45e4739bcfffcc0418b05f4ad905c519fabeae42d46920",
+      "after": "67ee1f109ad35ff21ecdef5915393c86095bd558d228ea22d46b4bcf63db4845"
+    },
+    {
+      "path": "scripts/crafted-assets.test.mjs",
+      "before": "fd18a79c630389c91b9dba6e4c5eeba7e177edce6eb84348356104628b2c4ecc",
+      "after": "58575f1c34f672dd8e59b1ee833460c36d7ff44f9851c6f0ac8a8d94cde63a1b"
+    },
+    {
+      "path": "scripts/normalize-model-assets.mjs",
+      "before": "7c12230f7adb81de6fedd04433723d44466bf75d12fa4755472e71e384f3d85a",
+      "after": "cf7926285d1e1bbea03aa50a022a59c2ed1356315334cf599c2ce983ff8d7db3"
+    },
+    {
+      "path": "scripts/run-performance-benchmark.mjs",
+      "before": "22c5721449613a5763d7156872967ed385a67d4f23934539c295e2abb1bb5dd8",
+      "after": "73d33d2bfa22ad051142cd688eeb2fbf274a9e6f3dc6418ec682dcf1833ea945"
+    },
+    {
+      "path": "public/models/farm/duck.glb",
+      "before": "9cf4e37c31173fc5cb1d6374d0065a3f021c58c07a0a3cd3540cc51cf6de33b5",
+      "after": "65e8b431083f5ae3691aa0b8cb13a37bc423bab7fd458ab2a5786f6cf8c3ba62"
+    },
+    {
+      "path": "public/models/farm/haybale.glb",
+      "before": "bfb7d0dbf70cfdc382e8e5c8a5dd40711cec0686a45db21d0b3149fa3812da97",
+      "after": "6784961813c1a3bebc2ac08573982bacf8bfd265c6f6dc61866a90dedea61a2a"
+    },
+    {
+      "path": "assets/source/models/farm/PROVENANCE.json",
+      "before": "5408700b3deac796d4ec04aa2a9d02acc62fdb3d1df5275bf872847f71e86adb",
+      "after": "e553bd0782987b03215079c0d6a03e12e808b01a025a0816175939f6e1cb020e"
+    },
+    {
+      "path": "assets/source/models/farm/duck-crafted.glb",
+      "before": "b9d04834a764780ba0d29a5a838538f757c373b558e357de73fc9aa684bfa5b8",
+      "after": "d427b047c1b854cdba8e89ebefc4597cda46aa1c3495898c692a1e630362cba9"
+    },
+    {
+      "path": "assets/source/models/farm/haybale-crafted.glb",
+      "before": "5a4b5efce709bb31cc0feed5a9b1d5d0425ebfda5746ccc257ca890fdf5e5eb9",
+      "after": "cadee2d2df6ae0005b555ca4ab76b5fac2b523b3cfb01c01969038380f1aa72f"
+    }
+  ],
+  "missing": [],
+  "protectedUnchanged": [
+    "src/constants/castleAccess.ts",
+    "src/utils/castleNavigation.ts",
+    "src/components/FirstPersonController.tsx",
+    "src/components/mobile/MobileFirstPersonController.tsx",
+    "src/components/physics/PhysicsFirstPersonController.tsx",
+    "public/models/asset-manifest.json",
+    "public/models/village/castle.glb"
+  ],
+  "providerOriginalsUnchanged": 246
+}

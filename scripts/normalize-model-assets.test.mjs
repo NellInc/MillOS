@@ -3,7 +3,7 @@ import { test, expect } from 'vitest';
 import process from 'node:process';
 import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
-import { Document } from '@gltf-transform/core';
+import { Document, NodeIO } from '@gltf-transform/core';
 import {
   multiplyScale,
   indexGeneratedGeometry,
@@ -22,6 +22,25 @@ test('world mascot records the actual source task and preserves a compact textur
   expect(spec.taskId).toBe('09017288-088f-4811-85e4-fefc3660fc71');
   expect(spec.texture).toBe(512);
   expect(spec.target).toBe(1.9558);
+});
+
+test('painted utility and LPG deliveries receive light rather than emitting it', async () => {
+  const io = new NodeIO();
+  for (const slug of [
+    'utility-fuel-shell',
+    'utility-process-shell',
+    'propane-large-shell',
+    'propane-small-shell',
+  ]) {
+    const spec = GENERATED_ASSETS.find((s) => s.slug === slug);
+    const document = await io.read(`public/models/world/${slug}.glb`);
+    expect(spec.surface.emissive, slug).toEqual([0, 0, 0]);
+    for (const material of document.getRoot().listMaterials()) {
+      expect(material.getEmissiveFactor(), slug).toEqual([0, 0, 0]);
+      expect(material.getRoughnessFactor(), slug).toBe(0.64);
+      expect(material.getMetallicFactor(), slug).toBe(0.03);
+    }
+  }
 });
 
 test('shelter derivative keeps the authored envelope for live glass and advertising', () => {

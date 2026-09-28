@@ -3,6 +3,8 @@ import * as THREE from 'three';
 import {
   ENVIRONMENT_INTENSITY,
   HEMISPHERE_INTENSITY,
+  hemisphereFillIntensity,
+  applyGroundBouncePalette,
   METALLIC_ENVMAP_THRESHOLD,
   SUN_DISC_GAIN,
   SUN_DISC_RADIANS,
@@ -289,5 +291,37 @@ describe('adoptEnvironmentMap / releaseEnvironmentMap', () => {
     texture.dispose();
     foreign.dispose();
     geometry.dispose();
+  });
+});
+
+describe('night silhouette fill', () => {
+  it('preserves daytime fill and caps the night lift', () => {
+    expect(hemisphereFillIntensity(1)).toBe(HEMISPHERE_INTENSITY);
+    expect(hemisphereFillIntensity(2)).toBe(HEMISPHERE_INTENSITY);
+    expect(hemisphereFillIntensity(0)).toBeCloseTo(1.1);
+    expect(hemisphereFillIntensity(-1)).toBeCloseTo(1.1);
+  });
+  it('fades continuously and monotonically through twilight', () => {
+    for (let n = 0; n < 100; n++) {
+      const a = hemisphereFillIntensity(n / 100);
+      const b = hemisphereFillIntensity((n + 1) / 100);
+      expect(a).toBeGreaterThanOrEqual(b);
+      expect(a - b).toBeLessThan(0.014);
+    }
+  });
+});
+
+describe('shared masonry and earth bounce', () => {
+  it('warms grass-only daylight bounce while preserving energy and night colours', () => {
+    const source = new THREE.Color('#6f806c');
+    const original = source.clone();
+    const luminance = (c: THREE.Color) => 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+    for (const daylight of [0, 0.25, 0.5, 0.75, 1]) {
+      const result = applyGroundBouncePalette(new THREE.Color(), source, daylight);
+      expect(luminance(result)).toBeCloseTo(luminance(source), 12);
+      if (daylight > 0) expect(result.r / result.g).toBeGreaterThan(source.r / source.g);
+    }
+    expect(source.equals(original)).toBe(true);
+    expect(applyGroundBouncePalette(new THREE.Color(), source, 0).equals(source)).toBe(true);
   });
 });

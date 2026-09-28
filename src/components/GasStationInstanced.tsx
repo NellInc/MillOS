@@ -1,11 +1,16 @@
 import * as THREE from 'three';
+import { useGraphicsStore } from '../stores/graphicsStore';
+import { DeadDinoPylonFace } from './scenery/HeritageSignage';
+import { ExteriorDownlight } from './exterior/ExteriorLighting';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { EXTERIOR_LAYERS } from '../constants/renderLayers';
+import { GAS_STATION_SITE } from '../constants/siteLayout';
 import React, { useRef, useMemo, useLayoutEffect } from 'react';
 import { SceneText as Text } from './shared/SceneText';
 import { PROCEDURAL_TEXTURES } from '../utils/sharedMaterials';
 import { GeneratedBoundary, GeneratedModel } from './models/GeneratedModel';
 import { GeneratedBoxSurface, GeneratedSurfaceMesh } from './models/GeneratedGeometrySurface';
+import { StationRetailDetails, SHOP_FLOOR_MATERIAL } from './scenery/StationRetailDetails';
 
 // ============================================================================
 // Shared surface textures
@@ -265,12 +270,6 @@ const NOZZLE_SPOUT_Z_OFFSET = 0.7448;
 // the flange still tucked 10 mm inside, so there is no gap to see through.
 const SWIVEL_Z_OFFSET = 0.42;
 
-// The old z=0.30 buried the X inside the head (radius 0.45). The head surface
-// at the eye centre reaches z=0.412. This exposes the glyph's front face,
-// preserving the existing silhouette and geometry budget.
-// Reproduced by scripts/blender/dino_sign_preview.py with matched ray probes.
-export const DINO_EYE_FRONT_Z = 0.445;
-
 // Small edge radii catch the light without changing pump clearance or layout.
 // These shared meshes replace boxes, adding no objects or material instances.
 export const createFuelPumpBodyGeometry = (): RoundedBoxGeometry =>
@@ -285,11 +284,8 @@ const GEOMETRIES = {
   pumpBody: createFuelPumpBodyGeometry(),
   pumpIsland: createPumpIslandGeometry(),
   pumpCap: new RoundedBoxGeometry(0.7, 0.2, 0.6, 1, 0.035),
-  shelfProduct: new THREE.BoxGeometry(0.15, 0.25, 0.2),
-  drinkBottle: new THREE.CylinderGeometry(0.1, 0.1, 0.4, 8),
   canopyColumn: createCanopyColumnGeometry(),
   signPole: createSignPoleGeometry(),
-  magazine: new THREE.BoxGeometry(0.6, 0.35, 0.02),
   // Pump hose/handle geometries
   hoseSegment: new THREE.TorusGeometry(HOSE_ARC_RADIUS, 0.025, 8, 20, HOSE_ARC),
   nozzleHandle: new THREE.BoxGeometry(0.06, 0.15, 0.04),
@@ -301,26 +297,10 @@ const GEOMETRIES = {
 // Module-level shared materials (singleton instances with vertexColors)
 // ============================================================================
 const MATERIALS = {
-  shelfProduct: new THREE.MeshStandardMaterial({
-    color: '#ffffff', // White base - instance colors will tint this
-    roughness: 0.3,
-    metalness: 0.1,
-  }),
-  drinkBottle: new THREE.MeshStandardMaterial({
-    color: '#ffffff',
-    roughness: 0.15,
-    metalness: 0.05,
-    transparent: true,
-    opacity: 0.85,
-  }),
   canopyColumn: new THREE.MeshStandardMaterial({
     color: '#9e9e9e',
     roughness: 0.4,
     metalness: 0.3,
-  }),
-  magazine: new THREE.MeshStandardMaterial({
-    color: '#ffffff',
-    roughness: 0.4,
   }),
   // Pump hose/handle materials
   hose: new THREE.MeshStandardMaterial({
@@ -346,12 +326,275 @@ const MATERIALS = {
   }),
 };
 
-// ============================================================================
-// Color definitions - bright, saturated retail product colors
-// ============================================================================
-const SHELF_PRODUCT_COLORS = ['#ff1744', '#ffea00', '#00e676', '#2979ff', '#d500f9']; // Vivid red, yellow, green, blue, purple
-const DRINK_BOTTLE_COLORS = ['#ff1744', '#00e676', '#ff9100', '#00b0ff']; // Red, green, orange, cyan
-const MAGAZINE_COLORS = ['#ff5252', '#448aff', '#ffff00']; // Red, blue, bright yellow
+export interface StationDetailBox {
+  part: string;
+  position: [number, number, number];
+  size: [number, number, number];
+  color: string;
+}
+
+// Existing model bodies are retained. These measured transforms expose their
+// contents rather than placing transparent details inside an opaque solid.
+export const STATION_RETAIL = {
+  cabinetLiner: {
+    position: [0, 0, -0.35] as [number, number, number],
+    scale: [1, 1, 0.12] as [number, number, number],
+  },
+  slushBaseScale: [1, 0.5, 1] as [number, number, number],
+  registerBody: {
+    position: [0, 1.05, 0] as [number, number, number],
+    scale: [1, 0.75, 1] as [number, number, number],
+  },
+  registerScreen: {
+    position: [0.26, 1.235, 0] as [number, number, number],
+    rotation: [0, Math.PI / 2, 0] as [number, number, number],
+  },
+};
+
+/** Station-local trim: two batches, shared cube, no extra lights or lane furniture. */
+export function createStationDetailLayout() {
+  const opaque: StationDetailBox[] = [];
+  const emitters: StationDetailBox[] = [];
+  const add = (
+    part: string,
+    position: StationDetailBox['position'],
+    size: StationDetailBox['size'],
+    color: string
+  ) => opaque.push({ part, position, size, color });
+  const charcoal = '#303b3d';
+  const cream = '#fff0d2';
+  const orange = '#ef7624';
+
+  // Folded edge caps keep the existing top heights. Panel gaps expose a
+  // recessed backing strip, so seams are real joints rather than coplanar decals.
+  const cappedEdge = (
+    part: string,
+    axis: 'x' | 'z',
+    centre: [number, number, number],
+    length: number,
+    height: number,
+    depth: number,
+    panels: number,
+    color: string,
+    backing: string,
+    outward: number
+  ) => {
+    const along = axis === 'x' ? 0 : 2;
+    const across = axis === 'x' ? 2 : 0;
+    const panelLength = length / panels;
+    for (let panel = 0; panel < panels; panel++) {
+      const position: [number, number, number] = [...centre];
+      position[along] += -length / 2 + panelLength * (panel + 0.5);
+      const size: [number, number, number] = [depth, height, depth];
+      size[along] = panelLength - (panel === 0 || panel === panels - 1 ? 0.006 : 0.012);
+      // Preserve the two outside ends while leaving 12 mm between inner panels.
+      position[along] += panel === 0 ? -0.003 : panel === panels - 1 ? 0.003 : 0;
+      add(part, position, size, color);
+    }
+    const position: [number, number, number] = [...centre];
+    position[across] -= outward * 0.008;
+    const size: [number, number, number] = [depth - 0.016, height - 0.008, depth - 0.016];
+    size[along] = length - 0.02;
+    add(`${part}-joint-backing`, position, size, backing);
+  };
+  for (const side of [-1, 1]) {
+    cappedEdge(
+      'canopy-cap',
+      'x',
+      [0, 5.12, side * 6.06],
+      16.24,
+      0.16,
+      0.12,
+      4,
+      '#e6dfcc',
+      '#968d78',
+      side
+    );
+    cappedEdge(
+      'canopy-cap',
+      'z',
+      [side * 8.06, 5.12, 0],
+      12,
+      0.16,
+      0.12,
+      3,
+      '#e6dfcc',
+      '#968d78',
+      side
+    );
+    cappedEdge(
+      'shop-cap',
+      'x',
+      [-12, 5.43, side * 5.47],
+      9,
+      0.24,
+      0.06,
+      3,
+      '#a6382b',
+      '#602b25',
+      side
+    );
+    cappedEdge(
+      'shop-cap',
+      'z',
+      [-12 + side * 4.47, 5.43, 0],
+      10.88,
+      0.24,
+      0.06,
+      4,
+      '#a6382b',
+      '#602b25',
+      side
+    );
+  }
+
+  // The generated fascia underside is y=4.40. Rails enter it by 20 mm;
+  // lens trays sit below the rails, with their tops inside their housings.
+  for (const x of [-6, -4, -2, 0, 2, 4, 6]) {
+    add('soffit-rail', [x, 4.37, 0], [0.055, 0.1, 11.7], charcoal);
+  }
+  // The crossrail face sits 7 mm below the other rails at their intersections.
+  for (const z of [-5.8, 0, 5.8]) {
+    add('soffit-crossrail', [0, 4.363, z], [15.9, 0.1, 0.055], charcoal);
+  }
+  for (const x of [-5, 0, 5]) {
+    for (const z of [-2.8, 2.8]) {
+      add('soffit-housing', [x, 4.34, z], [1.9, 0.16, 0.55], charcoal);
+      emitters.push({
+        part: 'soffit-lens',
+        position: [x, 4.255, z],
+        size: [1.7, 0.035, 0.35],
+        color: '#fff0cc',
+      });
+    }
+  }
+  for (const side of [-1, 1]) {
+    add('canopy-keyline', [0, 4.43, side * 6.251], [16.4, 0.045, 0.024], cream);
+    // Thin inset enamel edge, embedded 1 mm into the island top. Nothing
+    // protrudes past the existing rounded concrete island or into the hoses.
+    add('island-edge', [0, 0.201, side * 1.32], [9.6, 0.004, 0.045], orange);
+    add('island-end', [side * 4.78, 0.201, 0], [0.045, 0.004, 2.595], orange);
+    for (const x of [-3, 3]) {
+      const faceZ = side * 1.215;
+      for (const dx of [-0.17, 0.17]) {
+        add('pump-bezel', [x + dx, 1.1, faceZ], [0.035, 0.46, 0.06], charcoal);
+      }
+      for (const y of [0.885, 1.315]) {
+        add('pump-bezel', [x, y, faceZ], [0.305, 0.035, 0.06], charcoal);
+      }
+      add('pump-grade', [x, 1.57, side * 1.205], [0.31, 0.075, 0.03], x < 0 ? '#35935e' : orange);
+      add('pump-card-reader', [x, 1.415, side * 1.213], [0.2, 0.085, 0.05], charcoal);
+      add('pump-card-slot', [x, 1.415, side * 1.241], [0.13, 0.012, 0.01], cream);
+      // Neutral one/two marks preserve the green/orange bank distinction;
+      // no ungrounded octane grades or relocated controls are introduced.
+      for (const dx of x < 0 ? [0] : [-0.025, 0.025]) {
+        add('pump-grade-mark', [x + dx, 1.57, side * 1.225], [0.012, 0.042, 0.012], cream);
+      }
+      // Two reset displays, 0.00. The decimal position mirrors with the face,
+      // unlike an unrotated row which reads backward from the opposite lane.
+      for (const y of [1.205, 1.08]) {
+        const digit = (dx: number, dy: number, width: number, height: number) =>
+          emitters.push({
+            part: 'pump-readout',
+            position: [x + side * dx, y + dy, side * 1.219],
+            size: [width, height, 0.008],
+            color: '#d9e3d4',
+          });
+        for (const centre of [-0.085, 0, 0.07]) {
+          for (const dy of [-0.04, 0.04]) digit(centre, dy, 0.03, 0.006);
+          for (const dx of [-0.02, 0.02])
+            for (const dy of [-0.02, 0.02]) {
+              digit(centre + dx, dy, 0.006, 0.032);
+            }
+        }
+        digit(-0.048, -0.038, 0.008, 0.008);
+      }
+    }
+  }
+
+  // Front glass ends at station X=-8.0. Frames overlap it by 25 mm;
+  // the header remains below the canopy instead of being buried in its fascia.
+  for (const z of [-4.75, -2.375, 0, 2.375, 4.75]) {
+    add('shop-mullion', [-7.97, 1.96, z], [0.11, 3.62, 0.075], charcoal);
+  }
+  for (const y of [0.18, 2.45]) {
+    add('shop-transom', [-7.968, y, 0], [0.11, 0.1, 9.58], charcoal);
+  }
+  add('shop-header', [-7.98, 3.97, 0], [0.12, 0.5, 9.62], orange);
+  // A grounded vertical kickplate, not a new forecourt slab. It covers the
+  // exposed lower glazing edge while staying clear of the separate side door.
+  add('shop-kickplate', [-7.972, 0.16, 0], [0.136, 0.32, 9.62], charcoal);
+  for (const z of [-4.75, -2.375, 0, 2.375, 4.75]) {
+    for (const side of [-1, 1]) {
+      add('shop-glazing-gasket', [-7.973, 2.02, z + side * 0.043], [0.08, 3.4, 0.016], '#171f21');
+    }
+  }
+  for (const x of [-12.66, -11.34]) {
+    add('door-jamb', [x, 1.23, 5.015], [0.1, 2.46, 0.13], charcoal);
+  }
+  add('door-head', [-12, 2.505, 5.015], [1.42, 0.09, 0.13], charcoal);
+  add('door-threshold', [-12, 0.075, 5.025], [1.42, 0.1, 0.35], cream);
+  // Shop-local parts, expressed in the same station-local coordinate system
+  // as the forecourt. Working if all contents clear their opaque enclosures.
+  for (const side of [-1, 1]) {
+    add('retail-fridge-side', [-12 + side * 1.95, 1.5, -4], [0.1, 3, 0.8], '#37474f');
+    add('retail-fridge-cap', [-12, 1.5 + side * 1.45, -4], [3.8, 0.1, 0.8], '#37474f');
+    add('retail-fridge-handle', [-12 + side * 0.08, 1.5, -3.55], [0.025, 0.35, 0.06], cream);
+    add(
+      'retail-register-bezel',
+      [-8.752, 1.235, -1 + side * 0.1625],
+      [0.02, 0.25, 0.025],
+      charcoal
+    );
+    add('retail-register-bezel', [-8.752, 1.235 + side * 0.1125, -1], [0.02, 0.025, 0.3], charcoal);
+  }
+  for (const y of [0.375, 1.275, 2.175]) {
+    add('retail-fridge-shelf', [-12, y, -3.98], [3.8, 0.05, 0.66], '#9aa7a8');
+  }
+  add('retail-fridge-stile', [-12, 1.5, -3.6], [0.055, 2.8, 0.04], '#37474f');
+  add('retail-slush-ledge', [-10, 0.95, -2], [0.7, 0.1, 0.5], '#e65100');
+  return { opaque, emitters };
+}
+
+export const STATION_DETAIL_LAYOUT = createStationDetailLayout();
+
+// Six visible lenses share two real light banks. Keep a constant shader-light
+// count throughout the day, fade through the existing exterior lamp driver.
+// Working if both outward pump faces receive light without new shadow maps.
+export const STATION_CANOPY_LIGHTS = [-2.8, 2.8].map((z) => ({
+  // Opposite outer fixtures light the pump ends as well as the front panels.
+  position: [Math.sign(z) * 5, 4.21, z] as [number, number, number],
+  intensity: 72,
+  distance: 11.5,
+  color: '#ffe4c4',
+}));
+export const STATION_DETAIL_GEOMETRY = new THREE.BoxGeometry(1, 1, 1);
+const STATION_DETAIL_MATERIAL = new THREE.MeshStandardMaterial({
+  color: '#ffffff',
+  roughness: 0.55,
+  metalness: 0.15,
+});
+// These are physical lamp lenses and LCD strokes, never painted signs.
+const STATION_LENS_MATERIAL = new THREE.MeshBasicMaterial({ color: '#ffffff' });
+
+export function writeStationDetailInstances(
+  mesh: THREE.InstancedMesh,
+  details: StationDetailBox[]
+) {
+  const matrix = new THREE.Matrix4();
+  const color = new THREE.Color();
+  details.forEach((detail, index) => {
+    matrix.makeScale(...detail.size).setPosition(...detail.position);
+    mesh.setMatrixAt(index, matrix);
+    mesh.setColorAt(index, color.set(detail.color));
+  });
+  mesh.instanceMatrix.needsUpdate = true;
+  if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+  // Working if actual instance raycasts and bounds remain valid after mounting,
+  // including the shop trim eight metres away from the station origin.
+  mesh.computeBoundingBox();
+  mesh.computeBoundingSphere();
+}
 
 // ============================================================================
 // Instanced Gas Station Component
@@ -383,60 +626,23 @@ const FuelPumpShell = () => (
 
 export const GasStation = React.memo<GasStationProps>(
   ({ position = [-85, 0, 140], rotation = 0 }) => {
+    const referenceLighting = useGraphicsStore(
+      (state) => state.graphics.perfDebug.disableLightingPolish
+    );
     // Refs for instanced meshes
-    const shelfProductsRef = useRef<THREE.InstancedMesh>(null);
-    const drinkBottlesRef = useRef<THREE.InstancedMesh>(null);
-    const magazinesRef = useRef<THREE.InstancedMesh>(null);
+    const stationTrimRef = useRef<THREE.InstancedMesh>(null);
+    const stationLensesRef = useRef<THREE.InstancedMesh>(null);
+    useLayoutEffect(() => {
+      if (stationTrimRef.current)
+        writeStationDetailInstances(stationTrimRef.current, STATION_DETAIL_LAYOUT.opaque);
+      if (stationLensesRef.current)
+        writeStationDetailInstances(stationLensesRef.current, STATION_DETAIL_LAYOUT.emitters);
+    }, []);
     // Pump hose/nozzle refs (4 pumps total)
     const hoseSegmentsRef = useRef<THREE.InstancedMesh>(null);
     const hoseConnectorsRef = useRef<THREE.InstancedMesh>(null);
     const nozzleHandlesRef = useRef<THREE.InstancedMesh>(null);
     const nozzleSpoutsRef = useRef<THREE.InstancedMesh>(null);
-
-    // Pre-compute shelf product positions and colors (3 shelves x 5 products = 15)
-    const shelfProductData = useMemo(() => {
-      const positions: [number, number, number][] = [];
-      const colors: THREE.Color[] = [];
-
-      // Shop interior offset: [-12, 0, 0] relative to gas station
-      // Shelf unit offset: [-3, 0, 0] relative to interior
-      // Combined: [-15, 0, 0] relative to gas station center
-      const baseX = -15 + 0.35; // -12 (interior) + -3 (shelf) + 0.35 (product offset)
-      const shelfYValues = [0.9, 1.7, 2.5]; // Three shelf heights
-      const zPositions = [-2, -1, 0, 1, 2]; // 5 products per shelf
-
-      shelfYValues.forEach((y) => {
-        zPositions.forEach((zIdx, prodIdx) => {
-          positions.push([baseX, y + 0.15, zIdx * 0.9]);
-          colors.push(new THREE.Color(SHELF_PRODUCT_COLORS[prodIdx]));
-        });
-      });
-
-      return { positions, colors };
-    }, []);
-
-    // Pre-compute drink bottle positions and colors (4 columns x 3 rows = 12)
-    const drinkBottleData = useMemo(() => {
-      const positions: [number, number, number][] = [];
-      const colors: THREE.Color[] = [];
-
-      // Shop interior offset: [-12, 0, 0]
-      // Fridge offset: [0, 0, -4]
-      // Combined: [-12, 0, -4] relative to gas station center
-      const baseX = -12;
-      const baseZ = -4 + 0.1; // Fridge z + offset
-      const xPositions = [-1.2, -0.4, 0.4, 1.2]; // 4 columns
-      const yPositions = [0.6, 1.5, 2.4]; // 3 rows
-
-      xPositions.forEach((x, colIdx) => {
-        yPositions.forEach((y) => {
-          positions.push([baseX + x, y, baseZ]);
-          colors.push(new THREE.Color(DRINK_BOTTLE_COLORS[colIdx]));
-        });
-      });
-
-      return { positions, colors };
-    }, []);
 
     // Pre-compute canopy column positions (4 columns)
     const canopyColumnData = useMemo(() => {
@@ -447,28 +653,6 @@ export const GasStation = React.memo<GasStationProps>(
         [6, 2.5, 4],
       ];
       return { positions };
-    }, []);
-
-    // Pre-compute magazine positions and colors (3 magazines)
-    const magazineData = useMemo(() => {
-      const positions: [number, number, number][] = [];
-      const rotations: THREE.Euler[] = [];
-      const colors: THREE.Color[] = [];
-
-      // Shop interior offset: [-12, 0, 0]
-      // Magazine rack offset: [1.5, 0, 3]
-      // Combined: [-10.5, 0, 3] relative to gas station center
-      const baseX = -10.5;
-      const baseZ = 3 + 0.22; // rack z + offset
-      const yOffsets = [0, 0.3, 0.6];
-
-      yOffsets.forEach((yOffset, i) => {
-        positions.push([baseX, 0.2 + yOffset * 0.5, baseZ]);
-        rotations.push(new THREE.Euler(0.3, 0, 0));
-        colors.push(new THREE.Color(MAGAZINE_COLORS[i]));
-      });
-
-      return { positions, rotations, colors };
     }, []);
 
     // Pre-compute pump hose/nozzle positions (4 pumps: 2 pairs back-to-back)
@@ -548,66 +732,6 @@ export const GasStation = React.memo<GasStationProps>(
     // InstancedMesh's bounding sphere the first time it is frustum-tested and never
     // invalidates it, so a sphere taken from identity matrices culls the goods
     // and hoses whenever the island centre leaves the frame.
-
-    // Initialize shelf products
-    useLayoutEffect(() => {
-      if (!shelfProductsRef.current) return;
-
-      const matrix = new THREE.Matrix4();
-      shelfProductData.positions.forEach((pos, i) => {
-        matrix.setPosition(pos[0], pos[1], pos[2]);
-        shelfProductsRef.current!.setMatrixAt(i, matrix);
-        shelfProductsRef.current!.setColorAt(i, shelfProductData.colors[i]);
-      });
-      shelfProductsRef.current.instanceMatrix.needsUpdate = true;
-      shelfProductsRef.current.computeBoundingBox();
-      shelfProductsRef.current.computeBoundingSphere();
-      if (shelfProductsRef.current.instanceColor) {
-        shelfProductsRef.current.instanceColor.needsUpdate = true;
-      }
-    }, [shelfProductData]);
-
-    // Initialize drink bottles
-    useLayoutEffect(() => {
-      if (!drinkBottlesRef.current) return;
-
-      const matrix = new THREE.Matrix4();
-      drinkBottleData.positions.forEach((pos, i) => {
-        matrix.setPosition(pos[0], pos[1], pos[2]);
-        drinkBottlesRef.current!.setMatrixAt(i, matrix);
-        drinkBottlesRef.current!.setColorAt(i, drinkBottleData.colors[i]);
-      });
-      drinkBottlesRef.current.instanceMatrix.needsUpdate = true;
-      drinkBottlesRef.current.computeBoundingBox();
-      drinkBottlesRef.current.computeBoundingSphere();
-      if (drinkBottlesRef.current.instanceColor) {
-        drinkBottlesRef.current.instanceColor.needsUpdate = true;
-      }
-    }, [drinkBottleData]);
-
-    // Initialize magazines
-    useLayoutEffect(() => {
-      if (!magazinesRef.current) return;
-
-      const matrix = new THREE.Matrix4();
-      const quaternion = new THREE.Quaternion();
-      const scale = new THREE.Vector3(1, 1, 1);
-      const posVec = new THREE.Vector3();
-
-      magazineData.positions.forEach((pos, i) => {
-        quaternion.setFromEuler(magazineData.rotations[i]);
-        posVec.set(pos[0], pos[1], pos[2]);
-        matrix.compose(posVec, quaternion, scale);
-        magazinesRef.current!.setMatrixAt(i, matrix);
-        magazinesRef.current!.setColorAt(i, magazineData.colors[i]);
-      });
-      magazinesRef.current.instanceMatrix.needsUpdate = true;
-      magazinesRef.current.computeBoundingBox();
-      magazinesRef.current.computeBoundingSphere();
-      if (magazinesRef.current.instanceColor) {
-        magazinesRef.current.instanceColor.needsUpdate = true;
-      }
-    }, [magazineData]);
 
     // Initialize pump hoses and nozzles
     useLayoutEffect(() => {
@@ -702,22 +826,23 @@ export const GasStation = React.memo<GasStationProps>(
           <mesh position={[3.9, 2.5, 0]}>
             <boxGeometry args={[0.2, 5, 10]} />
             <meshStandardMaterial
-              color="#81d4fa"
+              color="#c6d6d4"
               transparent
-              opacity={0.3}
-              metalness={0.4}
+              opacity={0.14}
+              depthWrite={false}
+              metalness={0}
               roughness={0.1}
               side={2}
             />
           </mesh>
         </group>
 
-        {/* Building roof */}
+        {/* Roof pan sits inside the folded red cap; the old 5.55 m top stays exact. */}
         <GeneratedBoxSurface
           asset="stationRoofUnit"
-          size={[9, 0.5, 11]}
+          size={[8.88, 0.44, 10.88]}
           material={STATION_ROOF_MATERIAL}
-          position={[-12, 5.3, 0]}
+          position={[-12, 5.27, 0]}
           castShadow
         />
 
@@ -732,7 +857,7 @@ export const GasStation = React.memo<GasStationProps>(
           {/* Interior floor - checkered tiles */}
           <mesh position={[0, 0.08, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
             <planeGeometry args={[7.5, 9.5]} />
-            <meshStandardMaterial color="#e8e8e8" roughness={0.8} />
+            <primitive object={SHOP_FLOOR_MATERIAL} attach="material" />
           </mesh>
 
           {/* Checkout counter near window */}
@@ -759,21 +884,21 @@ export const GasStation = React.memo<GasStationProps>(
               fallback={
                 <>
                   {/* Cash register */}
-                  <mesh position={[0, 1.25, 0]} castShadow>
-                    <boxGeometry args={[0.5, 0.4, 0.4]} />
+                  <mesh position={[0, 1.2, 0]} castShadow>
+                    <boxGeometry args={[0.5, 0.3, 0.4]} />
                     <meshStandardMaterial color="#212121" roughness={0.5} />
                   </mesh>
                 </>
               }
             >
-              <group position={[0, 1.05, 0]}>
+              <group {...STATION_RETAIL.registerBody}>
                 <GeneratedModel asset="stationRegister" receiveShadow={false} />
               </group>
             </GeneratedBoundary>
             {/* Register screen */}
-            <mesh position={[0.26, 1.35, 0]} rotation={[0, 0, 0.2]}>
+            <mesh name="station-register-screen" {...STATION_RETAIL.registerScreen}>
               <planeGeometry args={[0.3, 0.2]} />
-              <meshBasicMaterial color="#4fc3f7" />
+              <meshBasicMaterial color="#102a2e" />
             </mesh>
             <GeneratedBoundary
               fallback={
@@ -820,23 +945,31 @@ export const GasStation = React.memo<GasStationProps>(
 
           {/* Refrigerated drinks cabinet - side wall */}
           <group position={[0, 0, -4]}>
-            <GeneratedBoundary
-              fallback={
-                <>
-                  {/* Cabinet frame */}
-                  <mesh position={[0, 1.5, 0]} castShadow>
-                    <boxGeometry args={[4, 3, 0.8]} />
-                    <meshStandardMaterial color="#37474f" roughness={0.5} metalness={0.3} />
-                  </mesh>
-                </>
-              }
-            >
-              <GeneratedModel asset="stationDrinksCabinet" receiveShadow={false} />
-            </GeneratedBoundary>
+            <group name="station-fridge-liner" {...STATION_RETAIL.cabinetLiner}>
+              <GeneratedBoundary
+                fallback={
+                  <>
+                    {/* Cabinet frame */}
+                    <mesh position={[0, 1.5, 0]} castShadow>
+                      <boxGeometry args={[4, 3, 0.8]} />
+                      <meshStandardMaterial color="#37474f" roughness={0.5} metalness={0.3} />
+                    </mesh>
+                  </>
+                }
+              >
+                <GeneratedModel asset="stationDrinksCabinet" receiveShadow={false} />
+              </GeneratedBoundary>
+            </group>
             {/* Glass front */}
             <mesh position={[0, 1.5, 0.41]}>
               <boxGeometry args={[3.8, 2.8, 0.02]} />
-              <meshStandardMaterial color="#b3e5fc" transparent opacity={0.4} roughness={0.1} />
+              <meshStandardMaterial
+                color="#b3e5fc"
+                transparent
+                opacity={0.12}
+                roughness={0.1}
+                depthWrite={false}
+              />
             </mesh>
           </group>
 
@@ -849,54 +982,29 @@ export const GasStation = React.memo<GasStationProps>(
                     <boxGeometry args={[0.8, 2.2, 0.6]} />
                     <meshStandardMaterial color="#212121" roughness={0.4} metalness={0.4} />
                   </mesh>
-                  {/* Cup dispenser */}
-                  <mesh position={[0, 0.3, 0.35]} castShadow>
-                    <cylinderGeometry args={[0.15, 0.12, 0.3, 12]} />
-                    <meshStandardMaterial color="#424242" roughness={0.5} />
-                  </mesh>
                 </>
               }
             >
-              <group position={[0, 0, 0.1]}>
+              <group>
                 <GeneratedModel asset="stationCoffeeMachine" receiveShadow={false} />
               </group>
             </GeneratedBoundary>
-            {/* Coffee display panel */}
-            <mesh position={[0.41, 1.5, 0]} rotation={[0, Math.PI / 2, 0]}>
-              <planeGeometry args={[0.4, 0.5]} />
-              <meshBasicMaterial color="#4caf50" />
-            </mesh>
           </group>
 
           {/* Slushie machine - Dead Dino branded! */}
           <group position={[2, 0, -2]}>
-            <GeneratedBoundary
-              fallback={
-                <mesh position={[0, 0.9, 0]} castShadow>
-                  <boxGeometry args={[0.7, 1.8, 0.5]} />
-                  <meshStandardMaterial color="#e65100" roughness={0.4} />
-                </mesh>
-              }
-            >
-              <GeneratedModel asset="stationSlushieMachine" receiveShadow={false} />
-            </GeneratedBoundary>
-            {/* Slushie tanks */}
-            {[-0.15, 0.15].map((x, i) => (
-              <mesh key={`slush-${i}`} position={[x, 1.3, 0.1]} castShadow>
-                <cylinderGeometry args={[0.12, 0.12, 0.6, 12]} />
-                <meshStandardMaterial
-                  color={i === 0 ? '#e53935' : '#2196f3'}
-                  transparent
-                  opacity={0.7}
-                  roughness={0.2}
-                />
-              </mesh>
-            ))}
-            {/* "SLUSH" label */}
-            <mesh position={[0.36, 0.5, 0]} rotation={[0, Math.PI / 2, 0]}>
-              <planeGeometry args={[0.3, 0.3]} />
-              <meshBasicMaterial color="#fff3e0" />
-            </mesh>
+            <group name="station-slush-base" scale={STATION_RETAIL.slushBaseScale}>
+              <GeneratedBoundary
+                fallback={
+                  <mesh position={[0, 0.9, 0]} castShadow>
+                    <boxGeometry args={[0.7, 1.8, 0.5]} />
+                    <meshStandardMaterial color="#e65100" roughness={0.4} />
+                  </mesh>
+                }
+              >
+                <GeneratedModel asset="stationSlushieMachine" receiveShadow={false} />
+              </GeneratedBoundary>
+            </group>
           </group>
 
           {/* Hot dog roller grill */}
@@ -913,23 +1021,6 @@ export const GasStation = React.memo<GasStationProps>(
                 <GeneratedModel asset="stationGrill" receiveShadow={false} />
               </group>
             </GeneratedBoundary>
-            {/* Hot dogs */}
-            {[-0.15, 0, 0.15].map((z, i) => (
-              <mesh
-                key={`hotdog-${i}`}
-                position={[0, 1.15, z]}
-                rotation={[0, 0, Math.PI / 2]}
-                castShadow
-              >
-                <cylinderGeometry args={[0.04, 0.04, 0.4, 8]} />
-                <meshStandardMaterial color="#c97a5d" roughness={0.6} />
-              </mesh>
-            ))}
-            {/* Glass cover */}
-            <mesh position={[0, 1.25, 0]}>
-              <boxGeometry args={[0.55, 0.25, 0.45]} />
-              <meshStandardMaterial color="#e3f2fd" transparent opacity={0.3} roughness={0.1} />
-            </mesh>
           </group>
 
           {/* Magazine/newspaper rack near door */}
@@ -947,10 +1038,17 @@ export const GasStation = React.memo<GasStationProps>(
           </group>
 
           {/* Interior ceiling light */}
-          <mesh position={[0, 4.5, 0]}>
-            <boxGeometry args={[1.5, 0.1, 1.5]} />
+          <mesh position={[0, 4.41, 0]}>
+            <boxGeometry args={[1.48, 0.018, 1.48]} />
             <meshBasicMaterial color="#fff9c4" />
           </mesh>
+        </group>
+
+        <StationRetailDetails />
+        <group name="station-canopy-light-banks" visible={!referenceLighting}>
+          {STATION_CANOPY_LIGHTS.map((light, index) => (
+            <ExteriorDownlight key={index} name={`station-canopy-light-${index}`} {...light} />
+          ))}
         </group>
 
         {/* ========== CANOPY STRUCTURE ========== */}
@@ -984,6 +1082,52 @@ export const GasStation = React.memo<GasStationProps>(
         >
           <GeneratedModel asset="stationCanopy" />
         </GeneratedBoundary>
+
+        <instancedMesh
+          ref={stationTrimRef}
+          args={[
+            STATION_DETAIL_GEOMETRY,
+            STATION_DETAIL_MATERIAL,
+            STATION_DETAIL_LAYOUT.opaque.length,
+          ]}
+          castShadow
+          receiveShadow
+        />
+        <instancedMesh
+          ref={stationLensesRef}
+          args={[
+            STATION_DETAIL_GEOMETRY,
+            STATION_LENS_MATERIAL,
+            STATION_DETAIL_LAYOUT.emitters.length,
+          ]}
+        />
+        {[-1, 1].map((side) => (
+          <Text
+            key={`canopy-wordmark-${side}`}
+            position={[0, 4.64, side * 6.28]}
+            rotation={[0, side < 0 ? Math.PI : 0, 0]}
+            fontSize={0.28}
+            letterSpacing={0.1}
+            color="#fff0d2"
+            anchorX="center"
+            anchorY="middle"
+            surface="painted"
+          >
+            DEAD DINO
+          </Text>
+        ))}
+        <Text
+          position={[-7.91, 3.97, 0]}
+          rotation={[0, Math.PI / 2, 0]}
+          fontSize={0.38}
+          letterSpacing={0.08}
+          color="#fff0d2"
+          anchorX="center"
+          anchorY="middle"
+          surface="painted"
+        >
+          SHOP / COFFEE
+        </Text>
 
         {/* ========== FUEL PUMPS (back-to-back, line toward shop) ========== */}
         {/* Single island running along X axis toward shop */}
@@ -1027,7 +1171,7 @@ export const GasStation = React.memo<GasStationProps>(
         ))}
 
         {/* ========== DEAD DINO SIGN ========== */}
-        <group position={[10, 0, 0]}>
+        <group name="station-verge-sign" position={GAS_STATION_SITE.signPosition}>
           {/* Sign pole - see createSignPoleGeometry. Ground shroud, tapered
               shaft and a mounting shoe under the cabinet, still 16 sides and
               still radius 0.15 by y +/-4, so everything stacked above is
@@ -1067,291 +1211,16 @@ export const GasStation = React.memo<GasStationProps>(
             position={[0, 7.2, 0]}
             castShadow
           />
-          {/* Brand field - front. Lifted from #e65100: that decodes to a deep
-              rust which, once the batcher's `painted` mottling is on it, read as
-              a weathered brown board rather than a forecourt sign. */}
-          <mesh position={[0, 7.2, 0.16]}>
-            <boxGeometry args={[3.7, 4.7, 0.02]} />
-            <meshStandardMaterial color="#f57c1f" roughness={0.5} />
-          </mesh>
-          {/* Brand field - back */}
-          <mesh position={[0, 7.2, -0.16]}>
-            <boxGeometry args={[3.7, 4.7, 0.02]} />
-            <meshStandardMaterial color="#f57c1f" roughness={0.5} />
-          </mesh>
-
-          {/* Cute Dead Dino Logo - FRONT */}
-          <group position={[0, 7.8, 0.25]}>
-            <GeneratedBoundary
-              fallback={
-                <group>
-                  {/* Dino body - chubby oval */}
-                  <mesh position={[0, 0, 0]} castShadow>
-                    <sphereGeometry args={[0.7, 16, 12]} />
-                    <meshStandardMaterial color="#4caf50" roughness={0.6} />
-                  </mesh>
-                  {/* NO BELLY SPHERE, deliberately.
-                A 0.45 m pale sphere at z +0.3 - straight at the reader - punched
-                a light disc through the middle of the logo; moving it to the
-                flank at z 0 only made the disc smaller, because a lighter sphere
-                nested inside a darker one of similar radius protrudes wherever
-                the outer one is thinnest. On a PYLON SIGN read at 20-60 m the
-                logo has to work as a silhouette, and an internal highlight is
-                the one thing that cannot. Both captures are in
-                test-results/art-review/defects{,-final}/sign-zoom.png. The
-                cuteness lives in the X eyes, the tongue and the stubby limbs,
-                all of which survive at distance because they break the outline
-                rather than sitting inside it. */}
-                  {/* Dino head */}
-                  <mesh position={[0.5, 0.5, 0]} castShadow>
-                    <sphereGeometry args={[0.45, 14, 12]} />
-                    <meshStandardMaterial color="#4caf50" roughness={0.6} />
-                  </mesh>
-                  {/* Dino snout */}
-                  <mesh position={[0.85, 0.4, 0]} castShadow>
-                    <sphereGeometry args={[0.25, 12, 10]} />
-                    <meshStandardMaterial color="#4caf50" roughness={0.6} />
-                  </mesh>
-                  {/* X eyes (dead!) - left eye */}
-                  <group position={[0.65, 0.6, DINO_EYE_FRONT_Z]}>
-                    <mesh rotation={[0, 0, Math.PI / 4]}>
-                      <boxGeometry args={[0.18, 0.04, 0.02]} />
-                      <meshBasicMaterial color="#212121" />
-                    </mesh>
-                    <mesh rotation={[0, 0, -Math.PI / 4]}>
-                      <boxGeometry args={[0.18, 0.04, 0.02]} />
-                      <meshBasicMaterial color="#212121" />
-                    </mesh>
-                  </group>
-                  {/* X eyes - right eye */}
-                  <group position={[0.55, 0.6, -0.25]}>
-                    <mesh rotation={[0, 0, Math.PI / 4]}>
-                      <boxGeometry args={[0.18, 0.04, 0.02]} />
-                      <meshBasicMaterial color="#212121" />
-                    </mesh>
-                    <mesh rotation={[0, 0, -Math.PI / 4]}>
-                      <boxGeometry args={[0.18, 0.04, 0.02]} />
-                      <meshBasicMaterial color="#212121" />
-                    </mesh>
-                  </group>
-                  {/* Tongue sticking out (cute!) */}
-                  <mesh position={[0.95, 0.25, 0.1]} rotation={[0, 0, -0.3]}>
-                    <boxGeometry args={[0.15, 0.08, 0.06]} />
-                    <meshStandardMaterial color="#f48fb1" roughness={0.4} />
-                  </mesh>
-                  {/* Tiny arms (T-Rex style) */}
-                  <mesh position={[0.25, 0.1, 0.5]} rotation={[0.3, 0.5, 0.2]} castShadow>
-                    <capsuleGeometry args={[0.08, 0.2, 4, 8]} />
-                    <meshStandardMaterial color="#4caf50" roughness={0.6} />
-                  </mesh>
-                  <mesh position={[0.25, 0.1, -0.5]} rotation={[-0.3, -0.5, 0.2]} castShadow>
-                    <capsuleGeometry args={[0.08, 0.2, 4, 8]} />
-                    <meshStandardMaterial color="#4caf50" roughness={0.6} />
-                  </mesh>
-                  {/* Stubby legs */}
-                  <mesh position={[-0.2, -0.6, 0.35]} castShadow>
-                    <capsuleGeometry args={[0.12, 0.25, 4, 8]} />
-                    <meshStandardMaterial color="#4caf50" roughness={0.6} />
-                  </mesh>
-                  <mesh position={[-0.2, -0.6, -0.35]} castShadow>
-                    <capsuleGeometry args={[0.12, 0.25, 4, 8]} />
-                    <meshStandardMaterial color="#4caf50" roughness={0.6} />
-                  </mesh>
-                  {/* Tail */}
-                  <mesh position={[-0.7, -0.1, 0]} rotation={[0, 0, 0.4]} castShadow>
-                    <coneGeometry args={[0.2, 0.8, 8]} />
-                    <meshStandardMaterial color="#4caf50" roughness={0.6} />
-                  </mesh>
-                  {/* Back spikes (cute bumps) */}
-                  {[-0.3, -0.1, 0.1, 0.3].map((x, i) => (
-                    <mesh key={`spike-${i}`} position={[x, 0.65 - Math.abs(x) * 0.3, 0]} castShadow>
-                      <coneGeometry args={[0.08, 0.18, 6]} />
-                      <meshStandardMaterial color="#81c784" roughness={0.6} />
-                    </mesh>
-                  ))}
-                </group>
-              }
+          {/* Both printed faces share artwork; no squashed Tripo relief or unlit type. */}
+          {[1, -1].map((side) => (
+            <group
+              key={side}
+              position={[0, 7.2, side * 0.18]}
+              rotation={[0, side === 1 ? 0 : Math.PI, 0]}
             >
-              {/* Shallow outward relief keeps the opposite mascot behind the board. */}
-              <group position={[0.1224, -0.845, 0.31]} scale={[1, 1, 0.45]}>
-                <GeneratedModel asset="dinoMascot" />
-              </group>
-            </GeneratedBoundary>
-          </group>
-
-          {/* Cute Dead Dino Logo - BACK (mirrored).
-              THE SIGN HAS TWO OF EVERYTHING, which is worth stating because it
-              cost a build to learn: the `forecourt` review camera stands north
-              of the forecourt looking south, so what it frames is this face, not
-              the front one. A fix applied to the FRONT logo alone changes
-              nothing in that capture and looks like the fix failed. */}
-          <group position={[0, 7.8, -0.25]} rotation={[0, Math.PI, 0]}>
-            <GeneratedBoundary
-              fallback={
-                <group>
-                  {/* Dino body - chubby oval */}
-                  <mesh position={[0, 0, 0]} castShadow>
-                    <sphereGeometry args={[0.7, 16, 12]} />
-                    <meshStandardMaterial color="#4caf50" roughness={0.6} />
-                  </mesh>
-                  {/* No belly sphere - see the front logo for why. */}
-                  {/* Dino head */}
-                  <mesh position={[0.5, 0.5, 0]} castShadow>
-                    <sphereGeometry args={[0.45, 14, 12]} />
-                    <meshStandardMaterial color="#4caf50" roughness={0.6} />
-                  </mesh>
-                  {/* Dino snout */}
-                  <mesh position={[0.85, 0.4, 0]} castShadow>
-                    <sphereGeometry args={[0.25, 12, 10]} />
-                    <meshStandardMaterial color="#4caf50" roughness={0.6} />
-                  </mesh>
-                  {/* X eyes (dead!) - left eye */}
-                  <group position={[0.65, 0.6, DINO_EYE_FRONT_Z]}>
-                    <mesh rotation={[0, 0, Math.PI / 4]}>
-                      <boxGeometry args={[0.18, 0.04, 0.02]} />
-                      <meshBasicMaterial color="#212121" />
-                    </mesh>
-                    <mesh rotation={[0, 0, -Math.PI / 4]}>
-                      <boxGeometry args={[0.18, 0.04, 0.02]} />
-                      <meshBasicMaterial color="#212121" />
-                    </mesh>
-                  </group>
-                  {/* X eyes - right eye */}
-                  <group position={[0.55, 0.6, -0.25]}>
-                    <mesh rotation={[0, 0, Math.PI / 4]}>
-                      <boxGeometry args={[0.18, 0.04, 0.02]} />
-                      <meshBasicMaterial color="#212121" />
-                    </mesh>
-                    <mesh rotation={[0, 0, -Math.PI / 4]}>
-                      <boxGeometry args={[0.18, 0.04, 0.02]} />
-                      <meshBasicMaterial color="#212121" />
-                    </mesh>
-                  </group>
-                  {/* Tongue sticking out (cute!) */}
-                  <mesh position={[0.95, 0.25, 0.1]} rotation={[0, 0, -0.3]}>
-                    <boxGeometry args={[0.15, 0.08, 0.06]} />
-                    <meshStandardMaterial color="#f48fb1" roughness={0.4} />
-                  </mesh>
-                  {/* Tiny arms (T-Rex style) */}
-                  <mesh position={[0.25, 0.1, 0.5]} rotation={[0.3, 0.5, 0.2]} castShadow>
-                    <capsuleGeometry args={[0.08, 0.2, 4, 8]} />
-                    <meshStandardMaterial color="#4caf50" roughness={0.6} />
-                  </mesh>
-                  <mesh position={[0.25, 0.1, -0.5]} rotation={[-0.3, -0.5, 0.2]} castShadow>
-                    <capsuleGeometry args={[0.08, 0.2, 4, 8]} />
-                    <meshStandardMaterial color="#4caf50" roughness={0.6} />
-                  </mesh>
-                  {/* Stubby legs */}
-                  <mesh position={[-0.2, -0.6, 0.35]} castShadow>
-                    <capsuleGeometry args={[0.12, 0.25, 4, 8]} />
-                    <meshStandardMaterial color="#4caf50" roughness={0.6} />
-                  </mesh>
-                  <mesh position={[-0.2, -0.6, -0.35]} castShadow>
-                    <capsuleGeometry args={[0.12, 0.25, 4, 8]} />
-                    <meshStandardMaterial color="#4caf50" roughness={0.6} />
-                  </mesh>
-                  {/* Tail */}
-                  <mesh position={[-0.7, -0.1, 0]} rotation={[0, 0, 0.4]} castShadow>
-                    <coneGeometry args={[0.2, 0.8, 8]} />
-                    <meshStandardMaterial color="#4caf50" roughness={0.6} />
-                  </mesh>
-                  {/* Back spikes (cute bumps) */}
-                  {[-0.3, -0.1, 0.1, 0.3].map((x, i) => (
-                    <mesh
-                      key={`spike-back-${i}`}
-                      position={[x, 0.65 - Math.abs(x) * 0.3, 0]}
-                      castShadow
-                    >
-                      <coneGeometry args={[0.08, 0.18, 6]} />
-                      <meshStandardMaterial color="#81c784" roughness={0.6} />
-                    </mesh>
-                  ))}
-                </group>
-              }
-            >
-              {/* Shallow outward relief keeps the opposite mascot behind the board. */}
-              <group position={[0.1224, -0.845, 0.31]} scale={[1, 1, 0.45]}>
-                <GeneratedModel asset="dinoMascot" />
-              </group>
-            </GeneratedBoundary>
-          </group>
-
-          {/* "DEAD" text - front */}
-          <Text
-            position={[0, 6.5, 0.2]}
-            fontSize={0.55}
-            color="#212121"
-            fontWeight="bold"
-            anchorX="center"
-            anchorY="middle"
-          >
-            DEAD
-          </Text>
-          {/* "DINO" text - front */}
-          <Text
-            position={[0, 5.9, 0.2]}
-            fontSize={0.55}
-            color="#212121"
-            fontWeight="bold"
-            anchorX="center"
-            anchorY="middle"
-          >
-            DINO
-          </Text>
-          {/* Tagline - front */}
-          <Text
-            position={[0, 5.35, 0.2]}
-            fontSize={0.22}
-            // Cream, not the old #5d4037 brown: the field under this text is now
-            // the brand orange, and dark brown on #e65100 was the least legible
-            // thing on the sign at the 20-60 m this pylon is read from.
-            color="#fff3e0"
-            anchorX="center"
-            anchorY="middle"
-            surface="painted"
-          >
-            Premium Fossil Fuel
-          </Text>
-
-          {/* "DEAD" text - back */}
-          <Text
-            position={[0, 6.5, -0.2]}
-            rotation={[0, Math.PI, 0]}
-            fontSize={0.55}
-            color="#212121"
-            fontWeight="bold"
-            anchorX="center"
-            anchorY="middle"
-          >
-            DEAD
-          </Text>
-          {/* "DINO" text - back */}
-          <Text
-            position={[0, 5.9, -0.2]}
-            rotation={[0, Math.PI, 0]}
-            fontSize={0.55}
-            color="#212121"
-            fontWeight="bold"
-            anchorX="center"
-            anchorY="middle"
-          >
-            DINO
-          </Text>
-          {/* Tagline - back */}
-          <Text
-            position={[0, 5.35, -0.2]}
-            rotation={[0, Math.PI, 0]}
-            fontSize={0.22}
-            // Cream, not the old #5d4037 brown: the field under this text is now
-            // the brand orange, and dark brown on #e65100 was the least legible
-            // thing on the sign at the 20-60 m this pylon is read from.
-            color="#fff3e0"
-            anchorX="center"
-            anchorY="middle"
-            surface="painted"
-          >
-            Premium Fossil Fuel
-          </Text>
+              <DeadDinoPylonFace />
+            </group>
+          ))}
         </group>
 
         {/* Match the current terrain datum. Polygon offset separates the asphalt;
@@ -1374,27 +1243,6 @@ export const GasStation = React.memo<GasStationProps>(
         </mesh>
 
         {/* ========== INSTANCED ELEMENTS ========== */}
-
-        {/* Instanced Shelf Products (15 total: 3 shelves x 5 products) */}
-        <instancedMesh
-          ref={shelfProductsRef}
-          args={[GEOMETRIES.shelfProduct, MATERIALS.shelfProduct, 15]}
-          castShadow
-        />
-
-        {/* Instanced Drink Bottles (12 total: 4 columns x 3 rows) */}
-        <instancedMesh
-          ref={drinkBottlesRef}
-          args={[GEOMETRIES.drinkBottle, MATERIALS.drinkBottle, 12]}
-          castShadow
-        />
-
-        {/* Instanced Magazines (3 total) */}
-        <instancedMesh
-          ref={magazinesRef}
-          args={[GEOMETRIES.magazine, MATERIALS.magazine, 3]}
-          castShadow
-        />
 
         {/* ========== INSTANCED PUMP HOSES & NOZZLES (4 pumps) ========== */}
 

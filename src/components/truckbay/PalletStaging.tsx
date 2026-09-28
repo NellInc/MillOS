@@ -61,6 +61,7 @@ export const PalletStaging: React.FC<{ dock: 'shipping' | 'receiving' }> = ({ do
         position[1] + (shipping ? 0 : (i % 6) * 0.12 * scale),
         position[2]
       );
+      scratch.rotation.set(0, 0, 0);
       scratch.scale.setScalar(scale);
       scratch.updateMatrix();
       timber.current.setMatrixAt(i, scratch.matrix);
@@ -73,6 +74,7 @@ export const PalletStaging: React.FC<{ dock: 'shipping' | 'receiving' }> = ({ do
         pallet[1] + bag.position[1] * scale,
         pallet[2] + bag.position[2] * scale
       );
+      scratch.rotation.set(0, bag.rotationY, 0);
       scratch.scale.set(bag.scale[0] * scale, bag.scale[1] * scale, bag.scale[2] * scale);
       scratch.updateMatrix();
       sacks.current.setMatrixAt(i, scratch.matrix);

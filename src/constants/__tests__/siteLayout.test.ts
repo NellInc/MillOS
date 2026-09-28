@@ -23,6 +23,19 @@ import {
 } from '../siteLayout';
 
 describe('canonical site layout', () => {
+  it('frames the canal along its clear channel instead of through the east-bank canopy', () => {
+    const canal = SITE_LAYOUT.exteriorFeatures.canal;
+    const view = SITE_LAYOUT.cameras.canal;
+    const clearApproach = (position: readonly number[]) =>
+      Math.abs(position[0] - canal.position[0]) <= canal.width / 2 + 2;
+    expect(clearApproach([-118, 10, 12])).toBe(false);
+    expect(clearApproach(view.position)).toBe(true);
+    expect(view.target[0]).toBe(canal.position[0]);
+    expect(view.position[1]).toBeGreaterThanOrEqual(12);
+    expect(view.position[2]).toBeGreaterThan(50);
+    expect(view.target[2]).toBeLessThan(50);
+  });
+
   it('shares a collision-clear floor composition between production navigation and review', () => {
     const floor = SITE_LAYOUT.cameras.processFloor;
     expect(SITE_LAYOUT.cameras.milling).toEqual(floor);

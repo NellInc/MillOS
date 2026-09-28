@@ -1,5 +1,5 @@
-import React, { Suspense, useEffect, useMemo, useState } from 'react';
-import * as THREE from 'three';
+import React, { Suspense, useEffect, useState, useSyncExternalStore } from 'react';
+import { getStartupSnapshot, subscribeStartup } from '../utils/startupReadiness';
 import { FEATURE_FLAGS } from '../config/featureFlags';
 import { recoverableLazy } from '../utils/recoverableLazy';
 
@@ -9,94 +9,16 @@ const DeferredLoadingQuote = recoverableLazy(() =>
 
 interface LoadingScreenProps {
   minimumLoadTimeMs?: number;
-  maximumLoadTimeMs?: number;
-}
-
-interface LoadingProgress {
-  progress: number;
-  active: boolean;
-  loaded: number;
-  total: number;
-  item: string;
-  errors: string[];
-}
-
-const EMPTY_PROGRESS: LoadingProgress = {
-  progress: 0,
-  active: false,
-  loaded: 0,
-  total: 0,
-  item: '',
-  errors: [],
-};
-
-/**
- * Track Three's default asset queue without importing the complete Drei package
- * into the critical startup path. The previous callbacks are preserved so a
- * host integration can observe the same queue independently.
- */
-function useLoadingProgress(): LoadingProgress {
-  const [state, setState] = useState<LoadingProgress>(EMPTY_PROGRESS);
-
-  useEffect(() => {
-    const manager = THREE.DefaultLoadingManager;
-    const previous = {
-      onStart: manager.onStart,
-      onLoad: manager.onLoad,
-      onProgress: manager.onProgress,
-      onError: manager.onError,
-    };
-
-    const update = (url: string, loaded: number, total: number, active: boolean): void => {
-      const progress = total > 0 ? (loaded / total) * 100 : 0;
-      setState((current) => ({ ...current, progress, active, loaded, total, item: url }));
-    };
-
-    const onStart: THREE.LoadingManager['onStart'] = (url, loaded, total) => {
-      previous.onStart?.(url, loaded, total);
-      update(url, loaded, total, true);
-    };
-    const onLoad: THREE.LoadingManager['onLoad'] = () => {
-      previous.onLoad?.();
-      setState((current) => ({ ...current, progress: 100, active: false }));
-    };
-    const onProgress: THREE.LoadingManager['onProgress'] = (url, loaded, total) => {
-      previous.onProgress?.(url, loaded, total);
-      update(url, loaded, total, loaded < total);
-    };
-    const onError: THREE.LoadingManager['onError'] = (url) => {
-      previous.onError?.(url);
-      setState((current) =>
-        current.errors.includes(url) ? current : { ...current, errors: [...current.errors, url] }
-      );
-    };
-
-    manager.onStart = onStart;
-    manager.onLoad = onLoad;
-    manager.onProgress = onProgress;
-    manager.onError = onError;
-
-    return () => {
-      if (manager.onStart === onStart) manager.onStart = previous.onStart;
-      if (manager.onLoad === onLoad) manager.onLoad = previous.onLoad;
-      if (manager.onProgress === onProgress) manager.onProgress = previous.onProgress;
-      if (manager.onError === onError) manager.onError = previous.onError;
-    };
-  }, []);
-
-  return state;
+  recoveryDelayMs?: number;
 }
 
 export const LoadingScreen: React.FC<LoadingScreenProps> = ({
   minimumLoadTimeMs = 700,
-  maximumLoadTimeMs = 8000,
+  recoveryDelayMs = 30000,
 }) => {
-  const { progress, active, loaded, total, item, errors } = useLoadingProgress();
+  const startup = useSyncExternalStore(subscribeStartup, getStartupSnapshot);
   const [showLoading, setShowLoading] = useState(true);
   const [minimumTimePassed, setMinimumTimePassed] = useState(false);
-  const [firstFrameRendered, setFirstFrameRendered] = useState(
-    () => typeof document !== 'undefined' && document.documentElement.dataset.sceneReady === 'true'
-  );
   const [canContinue, setCanContinue] = useState(false);
   const [dismissRequested, setDismissRequested] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
@@ -113,63 +35,31 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
   }, []);
 
   useEffect(() => {
-    const handleFirstFrame = (): void => setFirstFrameRendered(true);
-    window.addEventListener('millos:first-frame', handleFirstFrame);
-    const sceneReadyObserver = new MutationObserver(() => {
-      if (document.documentElement.dataset.sceneReady === 'true') {
-        handleFirstFrame();
-      }
-    });
-    sceneReadyObserver.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ['data-scene-ready'],
-    });
-    if (document.documentElement.dataset.sceneReady === 'true') {
-      handleFirstFrame();
-    }
-    return () => {
-      sceneReadyObserver.disconnect();
-      window.removeEventListener('millos:first-frame', handleFirstFrame);
-    };
-  }, []);
-
-  useEffect(() => {
     const minimumTimer = window.setTimeout(() => setMinimumTimePassed(true), minimumLoadTimeMs);
-    const continueTimer = window.setTimeout(
-      () => setCanContinue(true),
-      Math.min(4000, maximumLoadTimeMs)
-    );
-    const maximumTimer = window.setTimeout(() => {
-      document.documentElement.dataset.loaderFallback = 'true';
-      setDismissRequested(true);
-    }, maximumLoadTimeMs);
-
+    const recoveryTimer = window.setTimeout(() => setCanContinue(true), recoveryDelayMs);
     return () => {
       window.clearTimeout(minimumTimer);
-      window.clearTimeout(continueTimer);
-      window.clearTimeout(maximumTimer);
+      window.clearTimeout(recoveryTimer);
     };
-  }, [maximumLoadTimeMs, minimumLoadTimeMs]);
-
-  const assetQueueComplete = !active && total > 0 && loaded >= total;
+  }, [recoveryDelayMs, minimumLoadTimeMs]);
 
   useEffect(() => {
-    const sceneCanShow = minimumTimePassed && (firstFrameRendered || assetQueueComplete);
-    if (!dismissRequested && !sceneCanShow) return;
-
+    if (!dismissRequested && !(minimumTimePassed && startup.ready)) return;
     setIsExiting(true);
     const hideTimer = window.setTimeout(() => setShowLoading(false), reducedMotion ? 0 : 220);
     return () => window.clearTimeout(hideTimer);
-  }, [assetQueueComplete, dismissRequested, firstFrameRendered, minimumTimePassed, reducedMotion]);
+  }, [dismissRequested, startup.ready, minimumTimePassed, reducedMotion]);
 
-  const safeProgress = Number.isFinite(progress) ? Math.min(100, Math.max(0, progress)) : 0;
-  const progressText = useMemo(() => {
-    if (errors.length > 0) return 'A few optional assets were skipped — the mill runs without them';
-    if (firstFrameRendered) return 'Ready when you are';
-    if (active && total > 0) return `Loading scene assets, ${loaded} of ${total}`;
-    if (item) return 'Assembling the machinery';
-    return 'Firing up the mill';
-  }, [active, errors.length, firstFrameRendered, item, loaded, total]);
+  const safeProgress = startup.ready
+    ? 100
+    : Math.min(95, startup.totalAssets > 0 ? (startup.loadedAssets / startup.totalAssets) * 95 : 0);
+  const progressText = startup.ready
+    ? 'Ready'
+    : startup.pendingAssets > 0
+      ? `Loading scene assets, ${startup.loadedAssets} of ${startup.totalAssets}`
+      : startup.pendingTasks > 0
+        ? 'Building the complete mill'
+        : 'Warming up the scene and checking animation';
 
   return (
     <>
@@ -222,7 +112,7 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
           )}
 
           {/* The progressbar role sits on the track alone: its children are
-            presentational, which would hide the live text and Enter now. */}
+            presentational, which would hide the live text and Continue while preparing. */}
           <div
             role="progressbar"
             aria-label="Loading MillOS"
@@ -244,21 +134,35 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
                 width: '100%',
                 height: '100%',
                 background: '#d99a3d',
-                transform: `scaleX(${(firstFrameRendered ? 100 : safeProgress) / 100})`,
+                transform: `scaleX(${safeProgress / 100})`,
                 transformOrigin: 'left center',
                 transition: reducedMotion ? 'none' : 'transform 180ms ease-out',
               }}
             />
           </div>
 
-          {canContinue && !firstFrameRendered && (
-            <button
-              type="button"
-              onClick={() => setDismissRequested(true)}
-              className="mt-6 rounded-md border border-slate-500 bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-100 transition-colors hover:border-amber-400 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-400"
-            >
-              Enter now
-            </button>
+          {canContinue && !startup.ready && (
+            <div className="mt-6 flex max-w-md flex-col items-center gap-3 text-center text-sm text-slate-300">
+              <p>The scene is still preparing. You can keep waiting or reload.</p>
+              {startup.errors > 0 && <p>Some resources could not be loaded.</p>}
+              <button
+                type="button"
+                onClick={() => window.location.reload()}
+                className="rounded-md border border-slate-500 px-4 py-2 text-slate-100"
+              >
+                Reload
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  document.documentElement.dataset.loaderFallback = 'true';
+                  setDismissRequested(true);
+                }}
+                className="mt-6 rounded-md border border-slate-500 bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-100 transition-colors hover:border-amber-400 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-400"
+              >
+                Continue while preparing
+              </button>
+            </div>
           )}
         </div>
       )}

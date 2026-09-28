@@ -75,9 +75,10 @@ export const DPad: React.FC<DPadProps> = ({
       ? { up: 'Move forward', down: 'Move back', left: 'Strafe left', right: 'Strafe right' }
       : { up: 'Orbit up', down: 'Orbit down', left: 'Orbit left', right: 'Orbit right' };
 
+  // touch-action below owns scroll suppression; React's touch listeners are
+  // passive, so preventDefault here would only produce a browser warning.
   const handleTouchStart = useCallback(
     (direction: string) => (e: React.TouchEvent) => {
-      e.preventDefault();
       e.stopPropagation();
       if (disabled) return;
       activeDirectionsRef.current.add(direction);
@@ -92,7 +93,6 @@ export const DPad: React.FC<DPadProps> = ({
 
   const handleTouchEnd = useCallback(
     (direction: string) => (e: React.TouchEvent) => {
-      e.preventDefault();
       e.stopPropagation();
       activeDirectionsRef.current.delete(direction);
       updateDirection();
@@ -102,7 +102,7 @@ export const DPad: React.FC<DPadProps> = ({
 
   const handleTouchCancel = useCallback(
     (direction: string) => (e: React.TouchEvent) => {
-      e.preventDefault();
+      e.stopPropagation();
       activeDirectionsRef.current.delete(direction);
       updateDirection();
     },

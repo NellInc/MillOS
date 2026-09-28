@@ -1,4 +1,4 @@
-import { SIFTER_LAYOUT } from '../../constants/siteLayout';
+import { SIFTER_LAYOUT, PACKER_HOPPER_LAYOUT } from '../../constants/siteLayout';
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import {
@@ -30,8 +30,20 @@ describe('instanced machine finish geometry', () => {
       triangles += (geometry.index?.count ?? position.count) / 3;
       expect(geometry.groups).toHaveLength(0);
     }
-    // Shared prototypes; the two fascia roles replace the old service-plate batches.
-    expect(triangles).toBeLessThan(4500);
+    // Accepted concept plates add bounded mill/packer assemblies, preserving
+    // the existing sifter family budget and using three shared extra draws.
+    const count = (name: keyof typeof MACHINE_FINISH_GEOMETRY) => {
+      const geometry = MACHINE_FINISH_GEOMETRY[name];
+      return (geometry.index?.count ?? geometry.attributes.position.count) / 3;
+    };
+    expect(count('millGuard') + count('millHardware') + count('millRecess')).toBeLessThan(3000);
+    expect(
+      count('sifterHardware') + count('sifterServiceFace') + count('sifterServiceRecess')
+    ).toBe(1788);
+    expect(count('packerCovers') + count('packerHardware') + count('packerRecess')).toBeLessThan(
+      900
+    );
+    expect(triangles).toBeLessThan(5688);
   });
 
   it('fits inside the existing machine service envelope', () => {
@@ -48,6 +60,182 @@ describe('instanced machine finish geometry', () => {
           ? SIFTER_LAYOUT.inletCentreY + SIFTER_LAYOUT.inletHeight / 2
           : 6.59
       );
+    }
+  });
+
+  it('seats the mill gasket and folded rim on its casting without closing a grille aperture', () => {
+    const material = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
+    const guard = new THREE.Mesh(MACHINE_FINISH_GEOMETRY.millGuard, material);
+    const gasket = new THREE.Mesh(MACHINE_FINISH_GEOMETRY.millRecess, material);
+    try {
+      for (const [x, y] of [
+        [-2.04, 2.64],
+        [2.04, 2.64],
+        [0, 1.41],
+        [0, 3.87],
+      ]) {
+        const ray = new THREE.Raycaster(new THREE.Vector3(x, y, 6), new THREE.Vector3(0, 0, -1));
+        const rubber = ray.intersectObject(gasket)[0];
+        const casting = ray.intersectObject(guard)[0];
+        expect(rubber).toBeDefined();
+        expect(casting).toBeDefined();
+        expect(rubber.point.z - casting.point.z).toBeGreaterThan(0);
+        expect(rubber.point.z - casting.point.z).toBeLessThan(0.04);
+        // The gasket has a buried back, even where the shoulder stands forward.
+        const back = new THREE.Raycaster(
+          new THREE.Vector3(x, y, 2.5),
+          new THREE.Vector3(0, 0, 1)
+        ).intersectObject(gasket)[0];
+        expect(back.point.z).toBeLessThan(casting.point.z);
+      }
+      for (const x of [-1.995, 1.995]) {
+        const forward = new THREE.Raycaster(
+          new THREE.Vector3(x, 2.6, 6),
+          new THREE.Vector3(0, 0, -1)
+        ).intersectObject(guard);
+        const backward = new THREE.Raycaster(
+          new THREE.Vector3(x, 2.6, 2.5),
+          new THREE.Vector3(0, 0, 1)
+        ).intersectObject(guard);
+        expect(forward[0].point.z).toBeCloseTo(2.715, 5);
+        // The first back-facing hit is the cheek's rear. The folded rim's
+        // rear is the next interior face, before the cheek's front at2.6375.
+        expect(backward.some((hit) => Math.abs(hit.point.z - 2.625) < 1e-5)).toBe(true);
+        expect(forward.some((hit) => Math.abs(hit.point.z - 2.6375) < 1e-5)).toBe(true);
+      }
+      for (const y of [2.25, 2.615, 2.985, 3.35]) {
+        const ray = new THREE.Raycaster(
+          new THREE.Vector3(0, y, 6),
+          new THREE.Vector3(0, 0, -1),
+          0,
+          3.5
+        );
+        expect(ray.intersectObjects([guard, gasket])).toHaveLength(0);
+      }
+    } finally {
+      material.dispose();
+    }
+  });
+
+  it('keeps barrel hinge leaves seated in the mill casing', () => {
+    const material = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
+    const guard = new THREE.Mesh(MACHINE_FINISH_GEOMETRY.millGuard, material);
+    const hardware = new THREE.Mesh(MACHINE_FINISH_GEOMETRY.millHardware, material);
+    try {
+      for (const x of [-2.04, 2.04])
+        for (const y of [2.05, 3.45]) {
+          const ray = new THREE.Raycaster(
+            new THREE.Vector3(x, y + 0.06, 6),
+            new THREE.Vector3(0, 0, -1)
+          );
+          expect(ray.intersectObject(hardware)[0].point.z).toBeCloseTo(2.755, 5);
+          // The leaf spans z2.6675..2.7025 and overlaps the 2.67m casting face.
+          const support = ray.intersectObject(guard)[0];
+          expect(support.point.z).toBeCloseTo(2.67, 5);
+          expect(support.point.z).toBeGreaterThan(2.6675);
+        }
+    } finally {
+      material.dispose();
+    }
+  });
+
+  it('seats packer side gaskets on its real housing and keeps live front labels clear', () => {
+    const material = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
+    const body = new THREE.Mesh(MACHINE_PART_GEOMETRY.packerBody, material);
+    body.position.y = 2.65;
+    body.scale.set(3.7, 4.75, 3.45);
+    body.updateMatrixWorld(true);
+    const gasket = new THREE.Mesh(MACHINE_FINISH_GEOMETRY.packerRecess, material);
+    const covers = new THREE.Mesh(MACHINE_FINISH_GEOMETRY.packerCovers, material);
+    const hardware = new THREE.Mesh(MACHINE_FINISH_GEOMETRY.packerHardware, material);
+    try {
+      for (const side of [-1, 1])
+        for (const [y, z] of [
+          [2.3, 0],
+          [3.9, 0],
+          [3.1, 1.25],
+          [3.1, -1.25],
+        ]) {
+          const ray = new THREE.Raycaster(
+            new THREE.Vector3(side * 4, y, z),
+            new THREE.Vector3(-side, 0, 0)
+          );
+          const rubber = ray.intersectObject(gasket)[0];
+          const support = ray.intersectObject(body)[0];
+          expect(rubber).toBeDefined();
+          expect(support).toBeDefined();
+          expect(Math.abs(rubber.point.x) - Math.abs(support.point.x)).toBeLessThan(0.025);
+        }
+      const packer = {
+        id: 'packer-0',
+        type: MachineType.PACKER,
+        position: [0, 0, 0],
+      } as MachineData;
+      for (const decal of planMachineDecals({
+        silos: [],
+        mills: [],
+        sifters: [],
+        packers: [packer],
+      })) {
+        if (decal.cell === DECAL_CELL.hazardChevron) continue;
+        for (const u of [-0.48, 0, 0.48])
+          for (const v of [-0.48, 0, 0.48]) {
+            const ray = new THREE.Raycaster(
+              new THREE.Vector3(
+                decal.position[0] + u * decal.size[0],
+                decal.position[1] + v * decal.size[1],
+                6
+              ),
+              new THREE.Vector3(0, 0, -1),
+              0,
+              6 - decal.position[2]
+            );
+            expect(ray.intersectObjects([covers, hardware])).toHaveLength(0);
+          }
+      }
+      const hmi = new THREE.Raycaster(
+        new THREE.Vector3(0, 4.05, 6),
+        new THREE.Vector3(0, 0, -1),
+        0,
+        4.2
+      );
+      expect(hmi.intersectObjects([covers, hardware])).toHaveLength(0);
+    } finally {
+      material.dispose();
+    }
+  });
+
+  it('clamps the existing hopper cone with a seated band without entering its pipe port', () => {
+    const material = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
+    const hopper = new THREE.Mesh(MACHINE_PART_GEOMETRY.hopper, material);
+    hopper.position.y = PACKER_HOPPER_LAYOUT.centreY;
+    hopper.scale.set(...PACKER_HOPPER_LAYOUT.scale);
+    hopper.updateMatrixWorld(true);
+    const hardware = new THREE.Mesh(MACHINE_FINISH_GEOMETRY.packerHardware, material);
+    try {
+      for (let index = 0; index < 24; index++) {
+        const angle = (index * Math.PI) / 12;
+        const outward = new THREE.Vector3(Math.sin(angle), 0, Math.cos(angle));
+        const ray = new THREE.Raycaster(
+          outward.clone().multiplyScalar(3).setY(5.045),
+          outward.clone().negate()
+        );
+        const clamp = ray.intersectObject(hardware)[0];
+        const cone = ray.intersectObject(hopper)[0];
+        expect(clamp).toBeDefined();
+        expect(cone).toBeDefined();
+        expect(cone.distance - clamp.distance).toBeGreaterThan(0.01);
+        expect(cone.distance - clamp.distance).toBeLessThan(0.1);
+      }
+      const pipe = new THREE.Raycaster(
+        new THREE.Vector3(0, 7, 0),
+        new THREE.Vector3(0, -1, 0),
+        0,
+        0.53
+      );
+      expect(pipe.intersectObject(hardware)).toHaveLength(0);
+    } finally {
+      material.dispose();
     }
   });
 
@@ -220,6 +408,30 @@ describe('instanced machine finish geometry', () => {
       }
     }
     material.dispose();
+  });
+
+  it('broadens each sifter clamp into a seated shoe without moving its captive head', () => {
+    const material = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
+    const hardware = new THREE.Mesh(MACHINE_FINISH_GEOMETRY.sifterHardware, material);
+    try {
+      for (const side of [-1, 1])
+        for (let tray = 0; tray < SIFTER_LAYOUT.trayCount; tray++) {
+          const y = 0.67 + tray * SIFTER_LAYOUT.trayPitch;
+          for (const z of [-1.8, 2]) {
+            const hits = new THREE.Raycaster(
+              new THREE.Vector3(side * 6, y, z),
+              new THREE.Vector3(-side, 0, 0)
+            ).intersectObject(hardware);
+            // The foot reaches beyond the 110mm tie bar in Z, tapering inward
+            // from a buried3.4m back to the unchanged3.56m captive-head envelope.
+            expect(Math.abs(hits[0].point.x)).toBeGreaterThan(3.4);
+            expect(Math.abs(hits[0].point.x)).toBeLessThan(3.5);
+            expect(Math.abs(hits[1].point.x)).toBeCloseTo(3.4, 5);
+          }
+        }
+    } finally {
+      material.dispose();
+    }
   });
 
   it('puts the sifter clamps on both service sides, without covering its screen', () => {

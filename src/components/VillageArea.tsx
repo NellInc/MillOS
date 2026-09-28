@@ -1,12 +1,23 @@
+import {
+  VILLAGE_REALM_PATHS,
+  VILLAGE_REALM_PATCHES,
+  WORLD_REALM_PATHS,
+  WORLD_REALM_PATCHES,
+  inRealmPath,
+  inRealmPatch,
+} from '../constants/publicRealmLayout';
+import { VillagePublicRealm } from './scenery/WorldPublicRealm';
 import React, { useRef, useEffect, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import type { ThreeEvent } from '@react-three/fiber';
 import { shouldRunThisFrame } from '../utils/frameThrottle';
 import { SceneText as Text } from './shared/SceneText';
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import Fireflies from './effects/Fireflies';
 import { Cat } from './scenery/Cat';
+import { AuthoredPropTrim, MarketGoods } from './scenery/AuthoredPropTrim';
 import {
   InstancedTreeField,
   InstancedGrassClutter,
@@ -29,9 +40,21 @@ import {
   instanceScale,
   instanceYaw,
 } from './models/GeneratedModel';
+import { VillageNameboard, VillageShopSign, FlourAndBarrelSign } from './scenery/VillageSignage';
+import { NaturalDuckPond } from './scenery/NaturalDuckPond';
+import {
+  VillageHome,
+  VillageAllotment,
+  VILLAGE_HOME_PLOTS,
+  VILLAGE_HOMES,
+  VILLAGE_GARDEN_FOOTPRINTS,
+  VILLAGE_ALLOTMENT,
+} from './scenery/VillageGardens';
 import { CreatureBody, type CreatureRigHandle } from './models/RiggedCreatureModel';
 import { generateCobblestoneRoughness } from '../textures';
-import { SITE_LAYOUT } from '../constants/siteLayout';
+import { SITE_LAYOUT, landmarkLocalToWorld } from '../constants/siteLayout';
+import { useReducedMotion } from '../hooks/useReducedMotion';
+import { fountainRippleScale } from '../simulation/creatureMotion';
 
 // ============================================================
 // NORTHERN VALLEY VILLAGE
@@ -513,139 +536,19 @@ const ChimneySmoke: React.FC<{ position: [number, number, number]; offset?: numb
   );
 };
 
-// ===== COTTAGE =====
-const CottagePrimitiveBody = React.memo<{
-  wallColor?: keyof typeof SM;
-  roofType?: 'tile' | 'thatch' | 'slate';
-  hasGarden?: boolean;
-}>(({ wallColor = 'cream', roofType = 'tile', hasGarden = true }) => {
-  const wallMat = SM[wallColor] || SM.cream;
-  const roofMat =
-    roofType === 'thatch' ? SM.thatch : roofType === 'slate' ? SM.roofSlate : SM.roofTile;
-
+// ===== COTTAGES =====
+// The former colour/roof props only reached a loading fallback. The five real
+// bodies and their gardens are now authored variants, sharing the static batch.
+const Cottage = React.memo<{ index: number }>(({ index }) => {
+  const plot = VILLAGE_HOME_PLOTS[index];
+  const chimney = VILLAGE_HOMES[index].chimney;
   return (
-    <group>
-      {/* Main building */}
-      <mesh position={[0, 2, 0]} castShadow receiveShadow>
-        <boxGeometry args={[5, 4, 4]} />
-        <primitive object={wallMat} attach="material" />
-      </mesh>
-      {/* Cute cone roof - Lego style */}
-      <mesh position={[0, 5.5, 0]} rotation={[0, Math.PI / 4, 0]} castShadow>
-        <coneGeometry args={[4, 3, 4]} />
-        <primitive object={roofMat} attach="material" />
-      </mesh>
-      {/* Chimney */}
-      <mesh position={[1.5, 6, 0]} castShadow>
-        <boxGeometry args={[0.6, 1.5, 0.6]} />
-        <primitive object={SM.stone} attach="material" />
-      </mesh>
-      {/* Door */}
-      <mesh position={[0, 1.2, 2.01]}>
-        <boxGeometry args={[1, 2.2, 0.1]} />
-        <primitive object={SM.timber} attach="material" />
-      </mesh>
-      {/* Windows */}
-      {[
-        [-1.5, 2.5],
-        [1.5, 2.5],
-      ].map(([x, y], i) => (
-        <group key={i} position={[x, y, 2.01]}>
-          <mesh userData={{ dynamic: true }}>
-            <boxGeometry args={[0.8, 1, 0.05]} />
-            <primitive object={SM.windowGlass} attach="material" />
-          </mesh>
-          <mesh position={[0, 0, 0.03]}>
-            <boxGeometry args={[0.1, 1.1, 0.02]} />
-            <primitive object={SM.white} attach="material" />
-          </mesh>
-          <mesh position={[0, 0, 0.03]}>
-            <boxGeometry args={[0.9, 0.1, 0.02]} />
-            <primitive object={SM.white} attach="material" />
-          </mesh>
-        </group>
-      ))}
-      {/* Shutters */}
-      {[
-        [-2, 2.5],
-        [2, 2.5],
-      ].map(([x, y], i) => (
-        <mesh key={`shutter-${i}`} position={[x, y, 2.01]}>
-          <boxGeometry args={[0.25, 1, 0.05]} />
-          <primitive object={SM.shutterGreen} attach="material" />
-        </mesh>
-      ))}
-      {/* Flower boxes - under windows (split to avoid door) */}
-      {[-1.5, 1.5].map((x, i) => (
-        <group key={`flowerbox-${i}`} position={[x, 1.8, 2.1]}>
-          <mesh castShadow>
-            <boxGeometry args={[1, 0.2, 0.3]} />
-            <primitive object={SM.timber} attach="material" />
-          </mesh>
-          {/* Flowers */}
-          {[-0.3, 0, 0.3].map((off, j) => (
-            <mesh key={`flower-${j}`} position={[off, 0.25, 0]} castShadow>
-              <sphereGeometry args={[0.12, 8, 8]} />
-              <meshStandardMaterial
-                color={['#f472b6', '#fbbf24', '#f87171'][(i + j) % 3]}
-                roughness={0.8}
-              />
-            </mesh>
-          ))}
-        </group>
-      ))}
-      {/* Garden fence */}
-      {hasGarden && (
-        <group position={[0, 0, 4]}>
-          {[-2, 0, 2].map((x, i) => (
-            <mesh key={i} position={[x, 0.4, 0]} castShadow>
-              <boxGeometry args={[2, 0.8, 0.1]} />
-              <primitive object={SM.white} attach="material" />
-            </mesh>
-          ))}
-        </group>
-      )}
+    <group position={[...plot.position]} rotation={[0, plot.rotation, 0]}>
+      <VillageHome index={index} windowMaterial={SM.windowGlass} />
+      <ChimneySmoke position={[...chimney]} offset={index * 0.61} />
     </group>
   );
 });
-CottagePrimitiveBody.displayName = 'CottagePrimitiveBody';
-
-/**
- * `wallColor` and `roofType` no longer select a variant: there is one generated
- * cottage, and every instance wears it. The props stay because the primitive
- * fallback still honours them and because the call sites read better naming the
- * house they asked for - but a village of six identical cottages is a real cost
- * of this swap, and the fix is more generations rather than a colour tint,
- * which on a baked albedo washes the whole building.
- */
-export const Cottage = React.memo<{
-  position: [number, number, number];
-  rotation?: number;
-  wallColor?: keyof typeof SM;
-  roofType?: 'tile' | 'thatch' | 'slate';
-  hasGarden?: boolean;
-}>(({ position, rotation = 0, wallColor = 'cream', roofType = 'tile', hasGarden = true }) => (
-  // Yaw and scale jitter on the WRAPPER, so the chimney below moves with the
-  // roof it stands on and the primitive fallback varies identically.
-  <group
-    position={position}
-    rotation={[0, rotation + instanceYaw(position), 0]}
-    scale={instanceScale(position)}
-  >
-    <GeneratedBody
-      asset="cottage"
-      fallback={
-        <CottagePrimitiveBody wallColor={wallColor} roofType={roofType} hasGarden={hasGarden} />
-      }
-    />
-    {/* Hoisted out of the body so one chimney smokes on either path. Seated on
-        the generated cottage's ridge (4.33 m) rather than the primitive's 7 m
-        one; the phase is still deterministic from the cottage's own position,
-        because Math.random() here re-rolled the smoke on every remount and
-        defeated memoisation. */}
-    <ChimneySmoke position={[1.2, 4.6, 0]} offset={position[0] * 0.31 + position[2] * 0.17} />
-  </group>
-));
 Cottage.displayName = 'Cottage';
 
 // ===== SHOP BUILDING =====
@@ -721,6 +624,7 @@ const ShopBuilding = React.memo<{
         />
       }
     />
+    <VillageShopSign trade={signText} />
   </group>
 ));
 ShopBuilding.displayName = 'ShopBuilding';
@@ -875,11 +779,7 @@ const ChurchBuilding = React.memo<{
   isNight?: boolean;
 }>(({ position, rotation = 0, isNight = false }) => (
   <group position={position} rotation={[0, rotation, 0]}>
-    <GeneratedBody
-      asset="church"
-      scale={1.5}
-      fallback={<ChurchBuildingPrimitiveBody isNight={isNight} />}
-    />
+    <GeneratedBody asset="church" fallback={<ChurchBuildingPrimitiveBody isNight={isNight} />} />
   </group>
 ));
 ChurchBuilding.displayName = 'ChurchBuilding';
@@ -1071,9 +971,10 @@ export const TownHall = React.memo<{ position: [number, number, number]; rotatio
   ({ position, rotation = 0 }) => (
     <group position={position} rotation={[0, rotation, 0]}>
       <GeneratedBody asset="townhall" fallback={<TownHallPrimitiveBody />} />
-      {/* Hoisted out of the body so the hour still strikes on either path. The
-          generated tower's clock face is baked into its albedo, so only the
-          moving hands are lost by the swap - the sound is not. */}
+      <group position={[0, 6.03, 5.19]}>
+        <VillageNameboard title="TOWN HALL" width={4.9} height={0.66} colour="#354f59" />
+      </group>
+      {/* The chime remains independent of the authored clock-face geometry. */}
       <TownHallChime />
     </group>
   )
@@ -1172,13 +1073,11 @@ const Pub = React.memo<{
 }>(({ position, rotation = 0 }) => (
   <group position={position} rotation={[0, rotation, 0]}>
     <GeneratedBody asset="pub" fallback={<PubPrimitiveBody />} />
-    {/* Hoisted out of the body, or the pub's chimney stops smoking the moment
-        the generated body renders - the same orphaning the cottage's smoke was
-        already saved from. Re-seated on the generated chimney mouth rather than
-        the primitive's: the largest up-facing surface in the top of `pub.glb`
-        is 0.10 m2 at y = 5.55, centroid x 1.91, z -0.06. The primitive's
-        [3, 8.2, 0] would smoke from mid-air 2.6 m above a 5.56 m building. */}
-    <ChimneySmoke position={[1.95, 5.6, -0.06]} offset={5} />
+    <group position={[0, 3.77, 3.2]}>
+      <VillageNameboard title="Flour & Barrel" caption="VILLAGE INN" width={3.42} height={0.76} />
+    </group>
+    <FlourAndBarrelSign />
+    <ChimneySmoke position={[3, 8.23, 0]} offset={5} />
   </group>
 ));
 Pub.displayName = 'Pub';
@@ -1307,18 +1206,11 @@ const School = React.memo<{
   rotation?: number;
 }>(({ position, rotation = 0 }) => (
   <group position={position} rotation={[0, rotation, 0]}>
-    {/* Sunk 0.84 m: the generated school is the one asset in the set that
-        arrives standing on its own turf disc, which reads as a lawn dropped on
-        the village cobbles. Measured off the GLB with the albedo sampled per
-        triangle - the disc's top face is 44.6 m2 of up-facing green at
-        y = 0.75-0.80, and the building stands on it, so 0.84 puts BOTH the
-        lawn and the building's base 40 mm under the ground datum at y = -0.02
-        (0.70 against the old 0.12 cobble sheet, shifted by the same 0.14 m).
-        The bushes and the two markers rooted in the disc stay above ground and
-        read as planting beside the school. Sinking further would bury the
-        doorway; sinking less leaves 44 m2 of green coplanar with the cobbles.
-        The other 29 assets were checked the same way and none is green. */}
-    <GeneratedBody asset="school" sink={0.84} fallback={<SchoolPrimitiveBody />} />
+    {/* Authored walls now meet the real ground datum; no buried turf disc. */}
+    <GeneratedBody asset="school" fallback={<SchoolPrimitiveBody />} />
+    <group position={[0, 5.23, 3.7]}>
+      <VillageNameboard title="VILLAGE SCHOOL" width={4.4} height={0.68} colour="#354f59" />
+    </group>
   </group>
 ));
 School.displayName = 'School';
@@ -1485,6 +1377,7 @@ const WishingWell = React.memo<{ position: [number, number, number] }>(({ positi
 WishingWell.displayName = 'WishingWell';
 
 // ===== DUCK COMPONENT =====
+export const DUCK_SWIM_DRAFT = 0.15;
 /**
  * Quarter turn: the parts below are authored facing +X and the generated duck
  * faces +Z with the rest of the roster, so without it the fallback bird points
@@ -1513,6 +1406,8 @@ const Duck = React.memo<{
   delay: number;
   onClick: (pos: [number, number, number]) => void;
 }>(({ position, delay, onClick }) => {
+  const reducedMotion = useReducedMotion();
+  const animationTime = useRef(0);
   const groupRef = useRef<THREE.Group>(null);
   const rigRef = useRef<CreatureRigHandle>(null);
   const dabbleRef = useRef(0);
@@ -1522,10 +1417,24 @@ const Duck = React.memo<{
   // Restored: a pond of perfectly still ducks beside animated water reads as
   // broken. Runs on the shared 1-in-4 throttle (~15 Hz), which is plenty for a
   // 2 cm bob - and it drops to every frame's worth of work only when petted.
-  useFrame((state) => {
+  useFrame((_state, delta) => {
+    const { isTabVisible, gameSpeed } = useGameSimulationStore.getState();
+    if (!isTabVisible || (!isExcited && gameSpeed <= 0)) return;
+    if (reducedMotion) {
+      if (groupRef.current) {
+        groupRef.current.position.y = position[1];
+        groupRef.current.rotation.y = 0;
+      }
+      if (shakenRef.current) {
+        rigRef.current?.setHeadShake(0);
+        shakenRef.current = false;
+      }
+      return;
+    }
+    animationTime.current += Math.min(delta, 0.1);
     if (!groupRef.current) return;
     if (!isExcited && !shouldRunThisFrame(4)) return;
-    const time = state.clock.elapsedTime;
+    const time = animationTime.current;
 
     let yOffset = Math.sin(time * 2 + delay) * 0.02;
     let rotOffset = Math.sin(time * 0.5 + delay) * 0.1;
@@ -1556,6 +1465,16 @@ const Duck = React.memo<{
     rig.setGraze(dabbleRef.current);
   });
 
+  React.useEffect(() => {
+    if (isExcited) return;
+    if (groupRef.current) {
+      groupRef.current.position.y = position[1];
+      groupRef.current.rotation.y = 0;
+    }
+    if (shakenRef.current) rigRef.current?.setHeadShake(0);
+    shakenRef.current = false;
+  }, [isExcited, position]);
+
   // Reset excitement
   React.useEffect(() => {
     if (isExcited) {
@@ -1579,7 +1498,20 @@ const Duck = React.memo<{
       onPointerOver={setPointerCursor}
       onPointerOut={resetCursor}
     >
-      <CreatureBody creature="duck" ref={rigRef} fallback={<DuckPrimitiveBody />} />
+      {/* The delivery is grounded at the feet. Sink its lower 15 cm so the
+          breast meets water; keep the original half-submerged fallback sphere.
+          Working if feet stay below the pond while the bill and back remain dry. */}
+      <group position={[0, -DUCK_SWIM_DRAFT, 0]}>
+        <CreatureBody
+          creature="duck"
+          ref={rigRef}
+          fallback={
+            <group position={[0, DUCK_SWIM_DRAFT, 0]}>
+              <DuckPrimitiveBody />
+            </group>
+          }
+        />
+      </group>
     </group>
   );
 });
@@ -1714,19 +1646,15 @@ const DuckPond = React.memo<{ position: [number, number, number] }>(({ position 
           this profile exists to hide. This removes the class rather than one
           observed hole. No geometry cost, back faces light correctly (three
           flips the normal), shadows unaffected - the mesh only receives. */}
-      {/* The generated pond carries its own bank and water surface, so the
-          primitive kerb and water disc are fallback-only.
-          Sunk 0.45 m, measured rather than guessed. Weighting the asset's
-          horizontal triangles by AREA puts its water plane at y = 0.80 (48 m2
-          of surface between 0.78 and 0.84); a vertex histogram says 1.22,
-          because it counts the crinkly bank rather than one big flat disc, and
-          that estimate buried the water under the cobbles. The ducks float at
-          0.35, so 0.80 - 0.35 seats the water under them and leaves the bank
-          proud of the ground.
-          `sink` rather than a wrapper group because a wrapper sinks the
-          FALLBACK too, and `DuckPondBasin` has no bank to hide - it was going
-          0.45 m under the cobbles whenever the GLB failed to load. */}
-      <GeneratedBody asset="duckpond" sink={0.45} fallback={<DuckPondBasin />} />
+      {/* The authored brick pond carries its own coping and level water disc.
+          Its water retains the measured 0.80 m delivery datum and 0.45 m sink,
+          placing it at 0.35 m under the existing ducks. The original provider
+          geometry is preserved separately, never overlaid beneath this model.
+          NaturalDuckPond owns the sink inside the boundary: the procedural
+          fallback remains at its own correct water datum. */}
+      <GeneratedBoundary fallback={<DuckPondBasin />}>
+        <NaturalDuckPond />
+      </GeneratedBoundary>
       {/* Ducks - floating on water surface */}
       <group>
         {[
@@ -1743,9 +1671,8 @@ const DuckPond = React.memo<{ position: [number, number, number] }>(({ position 
           />
         ))}
       </group>
-      {/* Lily pads - floating just above the generated water, which after the
-          0.45 sink is a crinkled 0.33-0.39 band. Opaque, so they write depth;
-          a bias keeps the crinkle from biting through them. */}
+      {/* Waxy, notched leaves in three olive greens. Their floating datum
+          and opaque depth contract stay unchanged. */}
       {[
         [-2, 0.395, 0],
         [1, 0.395, -1.5],
@@ -1753,13 +1680,15 @@ const DuckPond = React.memo<{ position: [number, number, number] }>(({ position 
       ].map(([x, y, z], i) => (
         <mesh
           key={`lily-${i}`}
+          name={`pond-lily-pad-${i}`}
+          scale={[1, 0.86 + i * 0.06, 1]}
           position={[x as number, y as number, z as number]}
           rotation={[-Math.PI / 2, 0, i]}
         >
-          <circleGeometry args={[0.4, 12]} />
+          <circleGeometry args={[0.36 + (i % 2) * 0.06, 24, 0.16, Math.PI * 2 - 0.32]} />
           <meshStandardMaterial
-            color="#22c55e"
-            roughness={0.9}
+            color={['#547447', '#627d49', '#436e52'][i]}
+            roughness={0.48}
             polygonOffset
             polygonOffsetFactor={-1}
             polygonOffsetUnits={-1}
@@ -1874,220 +1803,6 @@ const MarketStallPrimitiveBody = React.memo<{ color1?: string; color2?: string }
 MarketStallPrimitiveBody.displayName = 'MarketStallPrimitiveBody';
 
 /**
- * Produce on a stall counter. Four sets, one per pitch.
- *
- * THE DRESSING IS THE FREE HALF OF THE CLONE FIX. Both independent judges named
- * the same thing as the strongest criticism of the generated set: one model, one
- * baked texture, yaw the only variation. Four `marketstall` instances stand 8 m
- * apart in two rows and there is exactly one stall GLB. The paid answer is a
- * second and third generated markings variant; the free answer, which an earlier
- * blind A/B already demonstrated, is that a shared FRAME reads as a market
- * rather than as copy-paste as soon as the GOODS differ - so it is taken here
- * before anything is spent.
- *
- * Not a tint on the body. `Cottage.wallColor` and `ShopBuilding.wallColor` still
- * exist and still drive their fallbacks, and wiring either to a generated body
- * would multiply a hand-picked colour into an albedo that already carries one -
- * the exact double-tint CLAUDE.md records for the village cobbles. These are
- * additive meshes standing ON the counter, so the baked albedo is untouched.
- *
- * COUNTER HEIGHT IS MEASURED, NOT INHERITED. The fallback's table top sits at
- * 0.9 m, which is a fact about the PRIMITIVE. `test-results/pass6/stall-surfaces.mjs`
- * histograms up-facing triangle area by height on the shipped GLB: the generated
- * stall's counter is a 1.445 m2 spike at y 0.85, three times the next bin,
- * spanning x -0.51..0.48 and z -0.90..0.86. Everything below is placed inside
- * that rectangle and stands on that plane. Goods reach y 1.2 at most; the awning
- * underside is at 1.75, so nothing intersects it.
- *
- * All of this is plain static geometry with no injection, so `StaticMeshBatch`
- * merges it into the village batch and `applyBatchWorldSurface` finishes it -
- * these add produce to the frame, not draw calls to the budget.
- */
-const STALL_GOODS_MATERIALS = {
-  crate: new THREE.MeshStandardMaterial({ color: '#8d6a45', roughness: 0.92 }),
-  apple: new THREE.MeshStandardMaterial({ color: '#c0392b', roughness: 0.55 }),
-  cabbage: new THREE.MeshStandardMaterial({ color: '#6b8e3d', roughness: 0.78 }),
-  pumpkin: new THREE.MeshStandardMaterial({ color: '#c9702a', roughness: 0.7 }),
-  cheese: new THREE.MeshStandardMaterial({ color: '#d9b45a', roughness: 0.68 }),
-  loaf: new THREE.MeshStandardMaterial({ color: '#b0763f', roughness: 0.85 }),
-  sack: new THREE.MeshStandardMaterial({ color: '#c8bda3', roughness: 1 }),
-  cloth: new THREE.MeshStandardMaterial({ color: '#8a6f8e', roughness: 0.95 }),
-};
-
-/** Shared primitives, so four dressed stalls cost eight geometries in total. */
-const STALL_GOODS_GEOMETRY = {
-  crate: new THREE.BoxGeometry(1, 1, 1),
-  round: new THREE.SphereGeometry(0.5, 10, 8),
-  wheel: new THREE.CylinderGeometry(0.5, 0.5, 1, 14),
-  loaf: new THREE.CapsuleGeometry(0.5, 0.6, 3, 8),
-};
-
-interface StallGood {
-  geometry: keyof typeof STALL_GOODS_GEOMETRY;
-  material: keyof typeof STALL_GOODS_MATERIALS;
-  position: [number, number, number];
-  scale: [number, number, number];
-  rotation?: [number, number, number];
-}
-
-/** The counter plane, measured off the shipped GLB. */
-const STALL_COUNTER_Y = 0.85;
-
-/**
- * Four dressings. Each is a different TRADE, not a recolour of the same one:
- * the point is that a passer-by reads four merchants, and two stalls of
- * differently-coloured apples read as one merchant with a paint problem.
- */
-const STALL_DRESSINGS: readonly (readonly StallGood[])[] = [
-  // Greengrocer: an open crate of apples and two cabbages.
-  [
-    {
-      geometry: 'crate',
-      material: 'crate',
-      position: [-0.05, 0.13, -0.5],
-      scale: [0.62, 0.26, 0.62],
-    },
-    {
-      geometry: 'round',
-      material: 'apple',
-      position: [-0.19, 0.32, -0.62],
-      scale: [0.16, 0.14, 0.16],
-    },
-    {
-      geometry: 'round',
-      material: 'apple',
-      position: [0.08, 0.32, -0.6],
-      scale: [0.16, 0.14, 0.16],
-    },
-    {
-      geometry: 'round',
-      material: 'apple',
-      position: [-0.05, 0.33, -0.36],
-      scale: [0.16, 0.14, 0.16],
-    },
-    {
-      geometry: 'round',
-      material: 'cabbage',
-      position: [0.02, 0.13, 0.31],
-      scale: [0.26, 0.24, 0.26],
-    },
-    {
-      geometry: 'round',
-      material: 'cabbage',
-      position: [-0.18, 0.12, 0.56],
-      scale: [0.23, 0.21, 0.23],
-    },
-  ],
-  // Dairy: stacked cheese wheels and a folded cloth.
-  [
-    {
-      geometry: 'wheel',
-      material: 'cheese',
-      position: [-0.12, 0.09, -0.45],
-      scale: [0.42, 0.18, 0.42],
-    },
-    {
-      geometry: 'wheel',
-      material: 'cheese',
-      position: [-0.12, 0.26, -0.45],
-      scale: [0.34, 0.16, 0.34],
-    },
-    {
-      geometry: 'wheel',
-      material: 'cheese',
-      position: [0.14, 0.08, 0.12],
-      scale: [0.38, 0.16, 0.38],
-    },
-    {
-      geometry: 'crate',
-      material: 'cloth',
-      position: [-0.02, 0.05, 0.62],
-      scale: [0.7, 0.1, 0.42],
-      rotation: [0, 0.18, 0],
-    },
-  ],
-  // Baker: loaves laid across the counter and a flour sack against the post.
-  [
-    {
-      geometry: 'loaf',
-      material: 'loaf',
-      position: [-0.16, 0.1, -0.55],
-      scale: [0.19, 0.34, 0.19],
-      rotation: [Math.PI / 2, 0, 0.1],
-    },
-    {
-      geometry: 'loaf',
-      material: 'loaf',
-      position: [0.1, 0.1, -0.5],
-      scale: [0.19, 0.34, 0.19],
-      rotation: [Math.PI / 2, 0, -0.16],
-    },
-    {
-      geometry: 'loaf',
-      material: 'loaf',
-      position: [-0.04, 0.1, -0.2],
-      scale: [0.19, 0.34, 0.19],
-      rotation: [Math.PI / 2, 0, 0.05],
-    },
-    { geometry: 'round', material: 'sack', position: [0.06, 0.19, 0.5], scale: [0.42, 0.38, 0.34] },
-    {
-      geometry: 'round',
-      material: 'sack',
-      position: [-0.22, 0.16, 0.66],
-      scale: [0.34, 0.32, 0.3],
-    },
-  ],
-  // Autumn produce: pumpkins, which are the only goods big enough to break the
-  // counter's silhouette from the square camera 8 m away.
-  [
-    {
-      geometry: 'round',
-      material: 'pumpkin',
-      position: [-0.14, 0.19, -0.5],
-      scale: [0.4, 0.34, 0.4],
-    },
-    {
-      geometry: 'round',
-      material: 'pumpkin',
-      position: [0.14, 0.16, -0.16],
-      scale: [0.34, 0.28, 0.34],
-    },
-    {
-      geometry: 'round',
-      material: 'pumpkin',
-      position: [-0.06, 0.15, 0.28],
-      scale: [0.31, 0.26, 0.31],
-    },
-    {
-      geometry: 'crate',
-      material: 'crate',
-      position: [0.06, 0.11, 0.66],
-      scale: [0.56, 0.22, 0.5],
-      rotation: [0, -0.22, 0],
-    },
-  ],
-];
-
-const StallGoods = React.memo<{ dressing: number }>(({ dressing }) => (
-  <group position={[0, STALL_COUNTER_Y, 0]}>
-    {STALL_DRESSINGS[dressing % STALL_DRESSINGS.length].map((good, index) => (
-      <mesh
-        key={index}
-        position={good.position}
-        rotation={good.rotation}
-        scale={good.scale}
-        castShadow
-        receiveShadow
-      >
-        <primitive object={STALL_GOODS_GEOMETRY[good.geometry]} attach="geometry" />
-        <primitive object={STALL_GOODS_MATERIALS[good.material]} attach="material" />
-      </mesh>
-    ))}
-  </group>
-));
-StallGoods.displayName = 'StallGoods';
-
-/**
  * `color1` / `color2` chose the awning stripes. There is one generated stall, so
  * every pitch in the market now wears the same dyed canvas - which is what the
  * standing art verdict asked for ("saturated primaries... plastic toys"), but
@@ -2099,7 +1814,7 @@ const MarketStall = React.memo<{
   color1?: string;
   color2?: string;
   /**
-   * Which of `STALL_DRESSINGS` this pitch sells. Explicit rather than hashed
+   * Which of the four authored trades this pitch sells. Explicit rather than hashed
    * from the position: four stalls and four dressings should be a bijection,
    * and `instanceNoise` would happily give two of them the same trade.
    */
@@ -2113,14 +1828,14 @@ const MarketStall = React.memo<{
     rotation={[0, rotation + instanceYaw(position), 0]}
     scale={instanceScale(position)}
   >
-    <GeneratedBody
-      asset="marketstall"
-      fallback={<MarketStallPrimitiveBody color1={color1} color2={color2} />}
-    />
+    <GeneratedBoundary fallback={<MarketStallPrimitiveBody color1={color1} color2={color2} />}>
+      <GeneratedModel asset="marketstall" />
+      <AuthoredPropTrim kind="market" />
+    </GeneratedBoundary>
     {/* INSIDE the yawed group, so the goods turn with the counter they stand
         on. Outside it they would slide off the table by up to 0.1 m at the
         3.4 degree jitter, which is enough to float one crate in mid-air. */}
-    <StallGoods dressing={dressing} />
+    <MarketGoods dressing={dressing} />
   </group>
 ));
 MarketStall.displayName = 'MarketStall';
@@ -2164,15 +1879,18 @@ Postbox.displayName = 'Postbox';
 // ===== FOUNTAIN =====
 // Animated water assets - module level, shared by the single fountain instance.
 // Deterministic canvas texture (no Math.random) with wavy highlight streaks.
-const createFountainWaterTexture = (): THREE.CanvasTexture => {
+const createFountainWaterTexture = (
+  base = '#5c8a6a',
+  lines = 'rgba(220, 240, 255, 0.35)'
+): THREE.CanvasTexture => {
   const canvas = document.createElement('canvas');
   canvas.width = 64;
   canvas.height = 64;
   const ctx = canvas.getContext('2d');
   if (ctx) {
-    ctx.fillStyle = '#5c8a6a';
+    ctx.fillStyle = base;
     ctx.fillRect(0, 0, 64, 64);
-    ctx.strokeStyle = 'rgba(220, 240, 255, 0.35)';
+    ctx.strokeStyle = lines;
     ctx.lineWidth = 2;
     for (let i = 0; i < 8; i++) {
       ctx.beginPath();
@@ -2193,7 +1911,7 @@ const createFountainWaterTexture = (): THREE.CanvasTexture => {
 
 // Separate texture instances: surface and falling water scroll at different rates
 const fountainWaterTexture = createFountainWaterTexture();
-const fountainFallTexture = createFountainWaterTexture();
+const fountainFallTexture = createFountainWaterTexture('#c6dfe8', 'rgba(255, 255, 255, 0.85)');
 
 const fountainWaterMaterial = new THREE.MeshStandardMaterial({
   color: '#7fb2d8',
@@ -2393,14 +2111,22 @@ const FOUNTAIN_BOWL = new THREE.LatheGeometry(
 );
 
 const FountainPrimitiveBody = React.memo(() => {
+  const reducedMotion = useReducedMotion();
+  const animationTime = useRef(0);
+  const pendingDelta = useRef(0);
   const rippleRef = useRef<THREE.Mesh>(null);
   const rippleMaterialRef = useRef<THREE.MeshStandardMaterial>(null);
 
-  useFrame((state, delta) => {
+  useFrame((_state, delta) => {
+    const { isTabVisible, gameSpeed } = useGameSimulationStore.getState();
+    if (reducedMotion || !isTabVisible || gameSpeed <= 0) return;
+    pendingDelta.current += Math.min(delta, 0.1);
     // Throttle to every 3rd frame; compensate delta (ConveyorSystem convention)
     const throttle = 3;
     if (!shouldRunThisFrame(throttle)) return;
-    const cappedDelta = Math.min(delta * throttle, 0.1);
+    const cappedDelta = pendingDelta.current;
+    pendingDelta.current = 0;
+    animationTime.current += cappedDelta;
 
     // Scroll water surface slowly; falling water streams downward fast
     fountainWaterTexture.offset.x += cappedDelta * 0.02;
@@ -2409,7 +2135,7 @@ const FountainPrimitiveBody = React.memo(() => {
 
     // Faint ripple ring expanding from the column
     if (rippleRef.current && rippleMaterialRef.current) {
-      const phase = (state.clock.elapsedTime * 0.35) % 1;
+      const phase = (animationTime.current * 0.35) % 1;
       const s = 1 + phase * 1.6;
       rippleRef.current.scale.set(s, s, 1);
       rippleMaterialRef.current.opacity = 0.28 * (1 - phase);
@@ -2430,7 +2156,12 @@ const FountainPrimitiveBody = React.memo(() => {
         <primitive object={fountainWaterMaterial} attach="material" />
       </mesh>
       {/* Ripple ring - faint, expands outward from the column */}
-      <mesh ref={rippleRef} position={[0, 0.72, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+      <mesh
+        name="fountain-ripple-primitive"
+        ref={rippleRef}
+        position={[0, 0.72, 0]}
+        rotation={[-Math.PI / 2, 0, 0]}
+      >
         <ringGeometry args={[0.5, 0.75, 24]} />
         {/* Lit: a ripple is water, not a light source, so it must not glow at night. */}
         <meshStandardMaterial
@@ -2504,6 +2235,49 @@ FountainPrimitiveBody.displayName = 'FountainPrimitiveBody';
 const GENERATED_FOUNTAIN_WATER_Y = 1.25;
 const GENERATED_FOUNTAIN_WATER_INNER = 0.36;
 const GENERATED_FOUNTAIN_WATER_OUTER = 1.28;
+const GENERATED_FOUNTAIN_RIPPLE_OUTER = 0.5;
+
+// Real GLB scuppers, after its unchanged 3.18 / 3.145 depth fit. Working if
+// each stream starts within a delivered mouth and lands inside the water ring.
+export const GENERATED_FOUNTAIN_STREAM_PATHS = Array.from({ length: 4 }, (_, i) => {
+  const angle = (i * Math.PI) / 2;
+  const point = (radius: number, y: number) =>
+    new THREE.Vector3(radius * Math.cos(angle), y, radius * Math.sin(angle) * (3.18 / 3.145));
+  return new THREE.QuadraticBezierCurve3(
+    point(0.76, 2.531),
+    point(0.935, 2.531),
+    point(1.11, 1.262)
+  );
+});
+const streamParts = GENERATED_FOUNTAIN_STREAM_PATHS.map(
+  (curve) => new THREE.TubeGeometry(curve, 24, 0.019, 6, false)
+);
+export const GENERATED_FOUNTAIN_STREAM_GEOMETRY = mergeGeometries(streamParts)!;
+streamParts.forEach((geometry) => geometry.dispose());
+const landingParts = GENERATED_FOUNTAIN_STREAM_PATHS.map((curve) => {
+  const point = curve.getPoint(1);
+  return new THREE.RingGeometry(0.045, 0.08, 20)
+    .rotateX(-Math.PI / 2)
+    .translate(point.x, 1.269, point.z);
+});
+const GENERATED_FOUNTAIN_LANDING_GEOMETRY = mergeGeometries(landingParts)!;
+landingParts.forEach((geometry) => geometry.dispose());
+export const GENERATED_FOUNTAIN_STREAM_MATERIAL = new THREE.MeshStandardMaterial({
+  color: '#d0e5e9',
+  map: fountainFallTexture,
+  transparent: true,
+  opacity: 0.52,
+  roughness: 0.12,
+  metalness: 0,
+  depthWrite: false,
+});
+const generatedFountainLandingMaterial = new THREE.MeshStandardMaterial({
+  color: '#c4dce5',
+  transparent: true,
+  opacity: 0.32,
+  roughness: 0.25,
+  depthWrite: false,
+});
 
 /**
  * Overlay material for the generated basin.
@@ -2539,21 +2313,35 @@ const generatedFountainWaterMaterial = new THREE.MeshStandardMaterial({
  * GLB has resolved - exactly when the asset's own water is what is underneath.
  */
 const GeneratedFountainWater: React.FC = () => {
+  const reducedMotion = useReducedMotion();
+  const animationTime = useRef(0);
+  const pendingDelta = useRef(0);
   const rippleRef = useRef<THREE.Mesh>(null);
   const rippleMaterialRef = useRef<THREE.MeshStandardMaterial>(null);
 
-  useFrame((state, delta) => {
+  useFrame((_state, delta) => {
+    const { isTabVisible, gameSpeed } = useGameSimulationStore.getState();
+    if (reducedMotion || !isTabVisible || gameSpeed <= 0) return;
+    pendingDelta.current += Math.min(delta, 0.1);
     const throttle = 3;
     if (!shouldRunThisFrame(throttle)) return;
-    const cappedDelta = Math.min(delta * throttle, 0.1);
+    const cappedDelta = pendingDelta.current;
+    pendingDelta.current = 0;
+    animationTime.current += cappedDelta;
     fountainWaterTexture.offset.x += cappedDelta * 0.02;
     fountainWaterTexture.offset.y += cappedDelta * 0.035;
+    fountainFallTexture.offset.x -= cappedDelta * 0.65;
+    generatedFountainLandingMaterial.opacity = 0.27 + Math.sin(animationTime.current * 3) * 0.06;
 
     if (rippleRef.current && rippleMaterialRef.current) {
-      const phase = (state.clock.elapsedTime * 0.35) % 1;
-      // Grows from the pedestal to the coping: 0.34 to 1.3 over the asset's
-      // own annulus, rather than the primitive's 1x to 2.6x of a 0.5 m ring.
-      const s = 1 + phase * 2.4;
+      const phase = (animationTime.current * 0.35) % 1;
+      // The whole outer edge stays inside the 1.28m water annulus.
+      // The previous 3.4x scale carried the ring 0.42m over the coping.
+      const s = fountainRippleScale(
+        phase,
+        GENERATED_FOUNTAIN_WATER_OUTER,
+        GENERATED_FOUNTAIN_RIPPLE_OUTER
+      );
       rippleRef.current.scale.set(s, s, 1);
       rippleMaterialRef.current.opacity = 0.26 * (1 - phase);
     }
@@ -2561,6 +2349,12 @@ const GeneratedFountainWater: React.FC = () => {
 
   return (
     <group>
+      <mesh name="fountain-scupper-streams" geometry={GENERATED_FOUNTAIN_STREAM_GEOMETRY}>
+        <primitive object={GENERATED_FOUNTAIN_STREAM_MATERIAL} attach="material" />
+      </mesh>
+      <mesh name="fountain-scupper-landings" geometry={GENERATED_FOUNTAIN_LANDING_GEOMETRY}>
+        <primitive object={generatedFountainLandingMaterial} attach="material" />
+      </mesh>
       {/* Sheet over the asset's own water. 8 mm proud: enough to win the depth
           test at every angle this square is read from, far too little to read
           as a step at the coping. `depthWrite` is off, as for every transparent
@@ -2571,11 +2365,12 @@ const GeneratedFountainWater: React.FC = () => {
       </mesh>
       {/* Ripple ring, expanding from the column. */}
       <mesh
+        name="fountain-ripple-generated"
         ref={rippleRef}
         position={[0, GENERATED_FOUNTAIN_WATER_Y + 0.014, 0]}
         rotation={[-Math.PI / 2, 0, 0]}
       >
-        <ringGeometry args={[0.38, 0.5, 32]} />
+        <ringGeometry args={[0.38, GENERATED_FOUNTAIN_RIPPLE_OUTER, 32]} />
         {/* Lit: a ripple is water, not a light source, so it must not glow at night. */}
         <meshStandardMaterial
           ref={rippleMaterialRef}
@@ -2593,18 +2388,15 @@ const GeneratedFountainWater: React.FC = () => {
 GeneratedFountainWater.displayName = 'GeneratedFountainWater';
 
 /**
- * The generated basin with its water moving again.
- *
- * The swap cost the scroll and the ripple because both lived on meshes inside
- * `FountainPrimitiveBody`; `GeneratedFountainWater` puts them back over the
- * asset's own surface. The falling-water sheath is deliberately NOT restored -
- * the primitive's cone runs between two heights this asset does not share, and
- * guessing where a generated spout ends is how the duck pond lost three cycles.
+ * Generated water uses this asset's measured datums and four authored scuppers.
+ * The primitive cone belongs to a different basin and is never reused here.
+ * Working if streams originate inside the GLB mouths and land in its annulus.
  */
 const Fountain = React.memo<{ position: [number, number, number] }>(({ position }) => (
   <group position={position}>
     <GeneratedBoundary fallback={<FountainPrimitiveBody />}>
       <GeneratedModel asset="fountain" />
+      <AuthoredPropTrim kind="fountain" />
       <GeneratedFountainWater />
     </GeneratedBoundary>
   </group>
@@ -2858,13 +2650,10 @@ const Forge = React.memo<{ position: [number, number, number]; rotation?: number
   ({ position, rotation = 0 }) => (
     <group position={position} rotation={[0, rotation, 0]}>
       <GeneratedBody asset="forge" fallback={<ForgePrimitiveBody />} />
-      {/* Both hoisted out of the body. The horse is a whole animal that
-          vanished from the village when the generated forge replaced the
-          primitive one; it stands on the ground, so its coordinates are
-          unchanged. The smoke is re-seated on the generated chimney: the
-          highest up-facing surface in `forge.glb` is 0.89 m2 at y = 5.70,
-          centroid x -0.41, z 1.75, against the primitive's [-2, 8.8, 0]. */}
-      <ChimneySmoke position={[-0.4, 5.75, 1.75]} offset={2} />
+      <group position={[0, 2.95, 3.17]}>
+        <VillageNameboard title="BLACKSMITH" width={3.34} height={0.49} colour="#333e43" />
+      </group>
+      <ChimneySmoke position={[-0.4, 5.72, 1.78]} offset={2} />
       <Horse position={[-4, 0, 4]} rotation={Math.PI / 4} color="#795548" />
     </group>
   )
@@ -2894,11 +2683,11 @@ const createRoundedRectShape = (width: number, height: number, radius: number): 
 
 /** Building envelopes also locate the paths to their centre-facing entrances. */
 export const VILLAGE_BUILDING_FOOTPRINTS = [
-  { x: 0, z: -40, halfX: 9.5, halfZ: 7.5 }, // 18 m generated nave, including planting clearance
+  { x: 0, z: -40, halfX: 6.1, halfZ: 7.5 }, // v0.30 nave and dressed buttress clearance
   { x: 0, z: -45, halfX: 3, halfZ: 3 }, // bell tower
-  { x: 0, z: 20, halfX: 6.5, halfZ: 6.5 }, // town hall
+  { x: 0, z: 20, halfX: 7.25, halfZ: 7.7 }, // broad civic hall and grounded entrance steps
   { x: -25, z: -15, halfX: 5, halfZ: 5 }, // pub
-  { x: 22, z: 40, halfX: 5.5, halfZ: 5.5 }, // school
+  { x: 22, z: 40, halfX: 5, halfZ: 6 }, // rotated schoolhouse and hipped eaves
   { x: -22, z: -55, halfX: 5, halfZ: 5 }, // forge
   { x: 20, z: 5, halfX: 4, halfZ: 3.5 }, // baker
   { x: 20, z: -10, halfX: 4, halfZ: 3.5 }, // butcher
@@ -2908,6 +2697,16 @@ export const VILLAGE_BUILDING_FOOTPRINTS = [
   { x: 25, z: -50, halfX: 3.5, halfZ: 3.5 },
   { x: -25, z: 45, halfX: 3.5, halfZ: 3.5 },
   { x: 25, z: 55, halfX: 3.5, halfZ: 3.5 },
+] as const;
+
+/** Civic benches flank the approach instead of sitting inside the broad hall.
+ * Working if their occupied rectangles clear every building footprint.
+ */
+export const VILLAGE_BENCH_POSITIONS = [
+  [-5.4, 11.9],
+  [5.4, 11.9],
+  [-12, -25],
+  [12, 35],
 ] as const;
 
 /** Through streets stay clear of the buildings, well and pond. */
@@ -2929,6 +2728,7 @@ export const VILLAGE_PAVED_AREAS = [
   { x: 0, z: 8, halfX: 16, halfZ: 20 },
   { x: 0, z: -40, halfX: 12, halfZ: 12 },
   ...VILLAGE_STREET_CORRIDORS,
+  { x: -17.1, z: 9, halfX: 3.2, halfZ: 1.05 }, // allotment gate to the square
   ...VILLAGE_BUILDING_FOOTPRINTS.filter((building) => Math.abs(building.x) > 10).map(
     ({ x, z, halfX }) => {
       const side = Math.sign(x);
@@ -3034,7 +2834,7 @@ VILLAGE_GROUND_MATERIAL.onBeforeCompile = (shader) => {
 // Stable cache key so the feathering-injected variant gets its own compiled
 // program and never shares a cache slot with a plain MeshStandardMaterial of
 // identical params (which would render without the edge feathering).
-VILLAGE_GROUND_MATERIAL.customProgramCacheKey = () => 'villageCobble_feather_v3';
+VILLAGE_GROUND_MATERIAL.customProgramCacheKey = () => 'villageCobble_feather_v4';
 
 // ============================================================
 // VEGETATION LAYOUT (village-local coordinates)
@@ -3066,7 +2866,10 @@ const VILLAGE_DECAL_Y = EXTERIOR_LAYERS.groundOverlay / SITE_LAYOUT.landmarks.vi
 
 /** Building and water footprints no tuft may grow inside. */
 const VILLAGE_BLOCKERS = [
+  ...VILLAGE_REALM_PATCHES,
   ...VILLAGE_BUILDING_FOOTPRINTS,
+  ...VILLAGE_GARDEN_FOOTPRINTS,
+  VILLAGE_ALLOTMENT,
   { x: -10, z: -5, halfX: 2.2, halfZ: 2.2 }, // wishing well
   { x: 0, z: 6, halfX: 3.2, halfZ: 3.2 }, // fountain
   { x: 20, z: 25, halfX: 6, halfZ: 6 }, // duck pond
@@ -3137,7 +2940,17 @@ const VILLAGE_WALL_BASES: readonly (readonly [number, number])[] = [
  * `openExclude` covers the whole area, so only attractor-pulled tufts survive
  * and the paved square itself stays clear.
  */
+export function villageRealmClear(x: number, z: number): boolean {
+  const [wx, , wz] = landmarkLocalToWorld(SITE_LAYOUT.landmarks.village, [x, 0, z]);
+  return (
+    !VILLAGE_REALM_PATHS.some((p) => inRealmPath(x, z, p, 0.45)) &&
+    !VILLAGE_REALM_PATCHES.some((p) => inRealmPatch(x, z, p, 0.45)) &&
+    !WORLD_REALM_PATHS.some((p) => inRealmPath(wx, wz, p, 0.45)) &&
+    !WORLD_REALM_PATCHES.some((p) => inRealmPatch(wx, wz, p, 0.45))
+  );
+}
 const VILLAGE_WEEDS: ClutterSpec = {
+  accepts: villageRealmClear,
   count: 360,
   bounds: { minX: -34, maxX: 34, minZ: -64, maxZ: 64 },
   exclude: VILLAGE_BLOCKERS,
@@ -3151,6 +2964,7 @@ const VILLAGE_WEEDS: ClutterSpec = {
 
 /** Rough verge grass in the ring outside the paved core. */
 const VILLAGE_VERGE: ClutterSpec = {
+  accepts: villageRealmClear,
   count: 620,
   bounds: { minX: -34, maxX: 34, minZ: -64, maxZ: 64 },
   exclude: [...VILLAGE_BLOCKERS, ...VILLAGE_PAVED_AREAS],
@@ -3248,23 +3062,12 @@ export const VillageArea: React.FC = () => {
         awningColor="#3b82f6"
       />
 
-      {/* === COTTAGES === */}
-      <Cottage
-        position={[-25, 0, -35]}
-        rotation={Math.PI / 2}
-        wallColor="cream"
-        roofType="thatch"
-      />
-      <Cottage position={[25, 0, -35]} rotation={-Math.PI / 2} wallColor="pink" roofType="slate" />
-      <Cottage position={[25, 0, -50]} rotation={-Math.PI / 2} wallColor="blue" roofType="thatch" />
-      <Cottage
-        position={[-25, 0, 45]}
-        rotation={Math.PI / 2}
-        wallColor="terracotta"
-        roofType="tile"
-        hasGarden={false}
-      />
-      <Cottage position={[25, 0, 55]} rotation={-Math.PI / 2} wallColor="cream" roofType="slate" />
+      {/* === COTTAGES AND KITCHEN GARDENS === */}
+      {VILLAGE_HOME_PLOTS.map((plot, index) => (
+        <Cottage key={plot.name} index={index} />
+      ))}
+      <VillageAllotment />
+      <VillagePublicRealm />
 
       {/* === WISHING WELL === */}
       <WishingWell position={[-10, 0, -5]} />
@@ -3290,12 +3093,7 @@ export const VillageArea: React.FC = () => {
       <Postbox position={[12, 0, 25]} rotation={-Math.PI / 2} />
 
       {/* === BENCHES === */}
-      {[
-        [-5, 18],
-        [5, 18],
-        [-12, -25],
-        [12, 35],
-      ].map(([x, z], i) => (
+      {VILLAGE_BENCH_POSITIONS.map(([x, z], i) => (
         <group key={i} position={[x, 0, z]} rotation={[0, i > 1 ? Math.PI / 2 : 0, 0]}>
           <mesh position={[0, 0.4, 0]} castShadow>
             <boxGeometry args={[1.5, 0.08, 0.5]} />

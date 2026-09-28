@@ -23,10 +23,16 @@
       ],
       "preservedAs": "cat-tripo-original.glb",
       "sha256": "fc395d2c27717f9ea9f2369ed2dfcbb1251d1386895eada549cf9d7d4b65b7a5",
+      "blenderPreparation": {
+        "file": "assets/source/models/village/cat-crafted.glb",
+        "sha256": "35d10dea0a9793be2eca32daabca29c970fcacb258515d70489bfe383ab4407f",
+        "script": "scripts/blender/refine_creature_assets.py",
+        "method": "Ease cheek and shoulder noise while protecting whiskers, ears and tail. Curvature-protected Taubin fairing and angle-weighted normals; all topology, UV, skin, joint, material and animation bytes preserved."
+      },
       "runtimeDerivative": {
         "file": "public/models/village/cat.glb",
-        "sha256": "938c364b86b0b9c54afd70339a9eb1a000c81850c527a7c4be603589af8d5c80",
-        "bytes": 298820
+        "sha256": "3aae6dddc24b4a2a79388fbafeba3cd54950e8e9ead89068b1f82fc29b8c9c14",
+        "bytes": 298860
       },
       "normalization": {
         "sizedBy": "height",
@@ -60,20 +66,26 @@
       ],
       "preservedAs": "cottage-tripo-original.glb",
       "sha256": "a88fc25fde338805657ace7391134f1fbe2fde38f6b3121f06f2809be81e29cc",
+      "blenderPreparation": {
+        "file": "assets/source/models/village/cottage-crafted.glb",
+        "sha256": "cf6e8280699054b30223bfe50c9b156999e73e8d0ef84ae7bc1d375be99fa0dd",
+        "script": "scripts/blender/rebuild_village_architecture.py",
+        "method": "Completely rebuilt from planar architectural solids, closed layered roofs, recessed framed glazing, measured timber joinery and grounded thresholds. No provider vertices retained. Original silhouette, palette and occupied envelope guide the authored design; the school turf disc is removed."
+      },
       "runtimeDerivative": {
         "file": "public/models/village/cottage.glb",
-        "sha256": "15bd2310c963f90da2e5d55f01fab175760bfdc23313f57e1998bf920118622d",
-        "bytes": 386152
+        "sha256": "3c2b581ea017baa80a2120b03960ff0f0b2d7db993d64d6c4df4b38b354c0cc4",
+        "bytes": 206820
       },
       "normalization": {
         "sizedBy": "longest axis",
         "targetMetres": 5,
-        "scaleFactor": 5.00253,
+        "scaleFactor": 1,
         "facingYawRadians": 0,
         "authoredYawRadians": 0,
         "bounds": {
-          "width": 4.6192,
-          "height": 4.3324,
+          "width": 4.619,
+          "height": 4.332,
           "length": 5,
           "minY": 0,
           "centreX": 0,
@@ -83,9 +95,9 @@
         "joints": 0,
         "clips": [],
         "materials": 1,
-        "textures": 3,
-        "textureBytes": 98946,
-        "renderVertices": 23898
+        "textures": 2,
+        "textureBytes": 13065,
+        "renderVertices": 8292
       }
     },
     {
@@ -97,21 +109,27 @@
       ],
       "preservedAs": "shop-tripo-original.glb",
       "sha256": "950c49a07b0111671cd1bed38c92b393105d0abbda59f85a3862b366ad697549",
+      "blenderPreparation": {
+        "file": "assets/source/models/village/shop-crafted.glb",
+        "sha256": "a1f52be4004ec6bcbecfb1a1a430c671aaaf6f98db2f42175e95931d5a944eb6",
+        "script": "scripts/blender/rebuild_village_architecture.py",
+        "method": "Completely rebuilt from planar architectural solids, closed layered roofs, recessed framed glazing, measured timber joinery and grounded thresholds. No provider vertices retained. Original silhouette, palette and occupied envelope guide the authored design; the school turf disc is removed."
+      },
       "runtimeDerivative": {
         "file": "public/models/village/shop.glb",
-        "sha256": "b010c6603be28e0ba9faaa764ef9b559e74245eadb4e2c5c076dd7d99e8a48a7",
-        "bytes": 346892
+        "sha256": "3622c4ae4fd8a1381fb3dda43282db7428c6d828d110f7f4788a6bd894605e08",
+        "bytes": 186496
       },
       "normalization": {
         "sizedBy": "longest axis",
         "targetMetres": 6,
-        "scaleFactor": 5.99864,
+        "scaleFactor": 1,
         "facingYawRadians": 0,
         "authoredYawRadians": 0,
         "bounds": {
           "width": 6,
           "height": 5.874,
-          "length": 5.4069,
+          "length": 5.407,
           "minY": 0,
           "centreX": 0,
           "centreZ": 0
@@ -120,9 +138,9 @@
         "joints": 0,
         "clips": [],
         "materials": 1,
-        "textures": 3,
-        "textureBytes": 97711,
-        "renderVertices": 23919
+        "textures": 2,
+        "textureBytes": 13065,
+        "renderVertices": 7356
       }
     },
     {
@@ -134,21 +152,27 @@
       ],
       "preservedAs": "church-tripo-original.glb",
       "sha256": "a1486e7872c624a12a1f708a222818a8ddc54029d4e6d053ae79b71dd553869d",
+      "blenderPreparation": {
+        "file": "assets/source/models/village/church-crafted.glb",
+        "sha256": "889127e054e14f98e85be0f4960d88922f7376483c06cf0ab606cb755d6cfeac",
+        "script": "scripts/blender/rebuild_village_architecture.py",
+        "method": "Authored revival of the preserved v0.30 architecture: original nave, rear spire and rose; broad cream civic hall; hipped half-timbered Flour and Barrel; cream open-belfry schoolhouse. Closed layered hips, dressed stone, framed glazing and joinery. New reference-led metre envelopes, original provider source untouched."
+      },
       "runtimeDerivative": {
         "file": "public/models/village/church.glb",
-        "sha256": "c683761f36b65f43d11345c6ea0b2be9fe7c1cece6a75af4d4a1e10dd384dc69",
-        "bytes": 334772
+        "sha256": "0ac12d14d15510c14ae93cc196235d0d470ce290e077237bf75f292616fa283f",
+        "bytes": 343188
       },
       "normalization": {
-        "sizedBy": "longest axis",
-        "targetMetres": 12,
-        "scaleFactor": 12.9912,
+        "sizedBy": "length",
+        "targetMetres": 13.65,
+        "scaleFactor": 1,
         "facingYawRadians": 0,
         "authoredYawRadians": 0,
         "bounds": {
-          "width": 12,
-          "height": 12.9898,
-          "length": 7.5056,
+          "width": 11.24,
+          "height": 20.155,
+          "length": 13.65,
           "minY": 0,
           "centreX": 0,
           "centreZ": 0
@@ -157,9 +181,9 @@
         "joints": 0,
         "clips": [],
         "materials": 1,
-        "textures": 3,
-        "textureBytes": 76830,
-        "renderVertices": 23970
+        "textures": 2,
+        "textureBytes": 13065,
+        "renderVertices": 14352
       }
     },
     {
@@ -171,21 +195,27 @@
       ],
       "preservedAs": "townhall-tripo-original.glb",
       "sha256": "d80aaa1a16622d876e0852412d4ebd514f5fbcf15ec5af7b95799df20b9e32fb",
+      "blenderPreparation": {
+        "file": "assets/source/models/village/townhall-crafted.glb",
+        "sha256": "6624c35fd2b2a0925364690f8166fe71068614baf2ce929bdb14fb884a0ef540",
+        "script": "scripts/blender/rebuild_village_architecture.py",
+        "method": "Authored revival of the preserved v0.30 architecture: original nave, rear spire and rose; broad cream civic hall; hipped half-timbered Flour and Barrel; cream open-belfry schoolhouse. Closed layered hips, dressed stone, framed glazing and joinery. New reference-led metre envelopes, original provider source untouched."
+      },
       "runtimeDerivative": {
         "file": "public/models/village/townhall.glb",
-        "sha256": "16f745408d7998e09e58e0e4942be23556d6d35eb4390bec2b45d21ecbd22f7c",
-        "bytes": 514688
+        "sha256": "af3d3ad3bcc0e73dcb1940dc456f1ae8f9cb775a1a180c358295ea787cd41259",
+        "bytes": 477704
       },
       "normalization": {
-        "sizedBy": "longest axis",
-        "targetMetres": 12,
-        "scaleFactor": 13.95081,
+        "sizedBy": "length",
+        "targetMetres": 14.61,
+        "scaleFactor": 1,
         "facingYawRadians": 0,
         "authoredYawRadians": 0,
         "bounds": {
-          "width": 7.7928,
-          "height": 13.9659,
-          "length": 12,
+          "width": 13.94,
+          "height": 18.32,
+          "length": 14.61,
           "minY": 0,
           "centreX": 0,
           "centreZ": 0
@@ -194,9 +224,9 @@
         "joints": 0,
         "clips": [],
         "materials": 1,
-        "textures": 3,
-        "textureBytes": 248750,
-        "renderVertices": 23946
+        "textures": 2,
+        "textureBytes": 32109,
+        "renderVertices": 19860
       }
     },
     {
@@ -208,21 +238,27 @@
       ],
       "preservedAs": "pub-tripo-original.glb",
       "sha256": "81102a0d0173109cdff805239f0435b4e6468364b2ee76b915e9c755e9e466ec",
+      "blenderPreparation": {
+        "file": "assets/source/models/village/pub-crafted.glb",
+        "sha256": "862f0f6853a6f87d55ed7847f6c7eddd8a2a19d1e9af9e62af572842e23e304e",
+        "script": "scripts/blender/rebuild_village_architecture.py",
+        "method": "Authored revival of the preserved v0.30 architecture: original nave, rear spire and rose; broad cream civic hall; hipped half-timbered Flour and Barrel; cream open-belfry schoolhouse. Closed layered hips, dressed stone, framed glazing and joinery. New reference-led metre envelopes, original provider source untouched."
+      },
       "runtimeDerivative": {
         "file": "public/models/village/pub.glb",
-        "sha256": "8205099704a52707ece411072ef900e460fff720ce5a0ef379d7a81ec75fd84e",
-        "bytes": 437820
+        "sha256": "91ed20027d224c4283ad79cbd6fee991ccaf533257a7fd2e03aca24a7a45511e",
+        "bytes": 214672
       },
       "normalization": {
-        "sizedBy": "longest axis",
-        "targetMetres": 8,
-        "scaleFactor": 8.00152,
+        "sizedBy": "width",
+        "targetMetres": 9.24,
+        "scaleFactor": 1,
         "facingYawRadians": 0,
         "authoredYawRadians": 0,
         "bounds": {
-          "width": 8,
-          "height": 5.5568,
-          "length": 4.4047,
+          "width": 9.24,
+          "height": 8.18,
+          "length": 8.54,
           "minY": 0,
           "centreX": 0,
           "centreZ": 0
@@ -231,9 +267,9 @@
         "joints": 0,
         "clips": [],
         "materials": 1,
-        "textures": 3,
-        "textureBytes": 125937,
-        "renderVertices": 23643
+        "textures": 2,
+        "textureBytes": 13065,
+        "renderVertices": 8568
       }
     },
     {
@@ -245,21 +281,27 @@
       ],
       "preservedAs": "school-tripo-original.glb",
       "sha256": "3be8efe21c58758b60cec5483bb8a85850d497914aed169d603b7d5a095e021e",
+      "blenderPreparation": {
+        "file": "assets/source/models/village/school-crafted.glb",
+        "sha256": "24908fc89ec31b756383cd6d9910d2b9836d4efbe312ae5ea143ce18208d57e0",
+        "script": "scripts/blender/rebuild_village_architecture.py",
+        "method": "Authored revival of the preserved v0.30 architecture: original nave, rear spire and rose; broad cream civic hall; hipped half-timbered Flour and Barrel; cream open-belfry schoolhouse. Closed layered hips, dressed stone, framed glazing and joinery. New reference-led metre envelopes, original provider source untouched."
+      },
       "runtimeDerivative": {
         "file": "public/models/village/school.glb",
-        "sha256": "a26e0bb12536d30b673158ac6095f6a79c86f66892253b40d934f505bce1fb27",
-        "bytes": 376860
+        "sha256": "532cc74536114125e8e75bacd054d468a752453a0a5c337e87d9621e88f6eb05",
+        "bytes": 279592
       },
       "normalization": {
-        "sizedBy": "longest axis",
-        "targetMetres": 10,
-        "scaleFactor": 10.02726,
+        "sizedBy": "width",
+        "targetMetres": 11.24,
+        "scaleFactor": 1,
         "facingYawRadians": 0,
         "authoredYawRadians": 0,
         "bounds": {
-          "width": 10,
-          "height": 9.3005,
-          "length": 9.3357,
+          "width": 11.24,
+          "height": 12.83,
+          "length": 8.44,
           "minY": 0,
           "centreX": 0,
           "centreZ": 0
@@ -268,9 +310,9 @@
         "joints": 0,
         "clips": [],
         "materials": 1,
-        "textures": 3,
-        "textureBytes": 101771,
-        "renderVertices": 23919
+        "textures": 2,
+        "textureBytes": 13065,
+        "renderVertices": 11580
       }
     },
     {
@@ -282,20 +324,26 @@
       ],
       "preservedAs": "forge-tripo-original.glb",
       "sha256": "225b6809469b20cd71b6e12579afe637e070ccd9ebb2f088f3c83bdc64fe3f1b",
+      "blenderPreparation": {
+        "file": "assets/source/models/village/forge-crafted.glb",
+        "sha256": "f1251412f5b5e45b4bc6d859a0cc3c8f1ac75cb0932bb99e5c17fb2dee2ef2f3",
+        "script": "scripts/blender/rebuild_village_architecture.py",
+        "method": "Completely rebuilt from planar architectural solids, closed layered roofs, recessed framed glazing, measured timber joinery and grounded thresholds. No provider vertices retained. Original silhouette, palette and occupied envelope guide the authored design; the school turf disc is removed."
+      },
       "runtimeDerivative": {
         "file": "public/models/village/forge.glb",
-        "sha256": "3791cb57fbf854ebf0e03941b214d29a17fad64e9697c76733fe016ac373c789",
-        "bytes": 337756
+        "sha256": "9481b027aada59407685c8692a52bd9b32c0a63f674561d6d959984e88d882d5",
+        "bytes": 182088
       },
       "normalization": {
         "sizedBy": "longest axis",
         "targetMetres": 7,
-        "scaleFactor": 7.01072,
+        "scaleFactor": 1,
         "facingYawRadians": 0,
         "authoredYawRadians": 0,
         "bounds": {
-          "width": 4.7141,
-          "height": 5.6784,
+          "width": 4.715,
+          "height": 5.679,
           "length": 7,
           "minY": 0,
           "centreX": 0,
@@ -305,9 +353,9 @@
         "joints": 0,
         "clips": [],
         "materials": 1,
-        "textures": 3,
-        "textureBytes": 82842,
-        "renderVertices": 23970
+        "textures": 2,
+        "textureBytes": 13065,
+        "renderVertices": 7164
       }
     },
     {
@@ -319,15 +367,21 @@
       ],
       "preservedAs": "wishingwell-tripo-original.glb",
       "sha256": "8f2f28a013d740f6539805d2f8af2f8c31d2fff3b95dad7d1ae8f8e7e8e8d379",
+      "blenderPreparation": {
+        "file": "assets/source/models/village/wishingwell-crafted.glb",
+        "sha256": "50252b80e5651bf6fa716da5de653c8327a5df2b9b64496e8631bcbc434c3056",
+        "script": "scripts/blender/refine_civic_props.py",
+        "method": "Reference-concept refinement: jointed coping, continuous coiled rope and tied hollow stave bucket, post bearing straps, half-round ridge caps and verge battens. Single mesh and existing atlas; bore, roof envelope and provider source preserved."
+      },
       "runtimeDerivative": {
         "file": "public/models/village/wishingwell.glb",
-        "sha256": "0661f287621b8e91960f4482b10500a3cee7edba4f3dfd4f4a061c40fc4056a7",
-        "bytes": 363516
+        "sha256": "48bdb3d98540ce1171cbec3e2f29982c36326dadc1914fbe8c90e347ea827e3b",
+        "bytes": 435840
       },
       "normalization": {
         "sizedBy": "longest axis",
         "targetMetres": 2.4,
-        "scaleFactor": 2.93187,
+        "scaleFactor": 1,
         "facingYawRadians": 0,
         "authoredYawRadians": 0,
         "bounds": {
@@ -342,9 +396,9 @@
         "joints": 0,
         "clips": [],
         "materials": 1,
-        "textures": 3,
-        "textureBytes": 86563,
-        "renderVertices": 23763
+        "textures": 2,
+        "textureBytes": 28990,
+        "renderVertices": 20280
       }
     },
     {
@@ -356,20 +410,26 @@
       ],
       "preservedAs": "marketstall-tripo-original.glb",
       "sha256": "ab8f371f48336857b544cf76ae4cd28bb3461527c02b8098869ff35fc98e880a",
+      "blenderPreparation": {
+        "file": "assets/source/models/village/marketstall-crafted.glb",
+        "sha256": "bb5668993856965f83bf5bcbe88954c068b0aba11156b239dd0bfe22bb7f14bc",
+        "script": "scripts/blender/refine_civic_props.py",
+        "method": "Hand-authored component rebuild in the retained runtime metre envelope, with separated construction details and one sRGB colour/linear roughness atlas; original provider source preserved."
+      },
       "runtimeDerivative": {
         "file": "public/models/village/marketstall.glb",
-        "sha256": "7304b8b6d05a56e3584ee3a902e16aee4ef6f08535e52ea47f2fbcdfb8992074",
-        "bytes": 524120
+        "sha256": "615a3d042e18837d768ea2de2a27ac5269bbb7647c62a2c07fc656ea9fa530f1",
+        "bytes": 192208
       },
       "normalization": {
         "sizedBy": "longest axis",
         "targetMetres": 2.8,
-        "scaleFactor": 2.80011,
+        "scaleFactor": 1,
         "facingYawRadians": 0,
         "authoredYawRadians": 0,
         "bounds": {
-          "width": 1.5601,
-          "height": 2.2492,
+          "width": 1.56,
+          "height": 2.249,
           "length": 2.8,
           "minY": 0,
           "centreX": 0,
@@ -379,9 +439,9 @@
         "joints": 0,
         "clips": [],
         "materials": 1,
-        "textures": 3,
-        "textureBytes": 240649,
-        "renderVertices": 23922
+        "textures": 2,
+        "textureBytes": 35121,
+        "renderVertices": 7740
       }
     },
     {
@@ -393,21 +453,27 @@
       ],
       "preservedAs": "postbox-tripo-original.glb",
       "sha256": "85356cfa9c1e0eb0cd9cd62caf649f25aef9f07c5bd224439ca6832f4db3b884",
+      "blenderPreparation": {
+        "file": "assets/source/models/village/postbox-crafted.glb",
+        "sha256": "496749ee5a3b7b88ea6e2713c1257cc952f9b5a51b44763d27d2700a09a88955",
+        "script": "scripts/blender/refine_civic_props.py",
+        "method": "Reference-concept refinement: real recessed letter throat and returned hood, curved door/reveal, knuckle hinges, card screws, lock escutcheon, cast envelope emblem and restrained moulding beads. Single atlas/material and original envelope preserved."
+      },
       "runtimeDerivative": {
         "file": "public/models/village/postbox.glb",
-        "sha256": "d3dcca70699910cd242a36c66b5cb02d8655eccea1fe465c61e5e53c83db4925",
-        "bytes": 268700
+        "sha256": "937f13ea3d9d7a4c51fb626de0cf0ca8156ff86ab7c3feed4aedd31052636094",
+        "bytes": 300880
       },
       "normalization": {
         "sizedBy": "height",
         "targetMetres": 1.5,
-        "scaleFactor": 1.49902,
+        "scaleFactor": 1,
         "facingYawRadians": 0,
         "authoredYawRadians": 0,
         "bounds": {
-          "width": 0.7121,
+          "width": 0.712,
           "height": 1.5,
-          "length": 0.7076,
+          "length": 0.708,
           "minY": 0,
           "centreX": 0,
           "centreZ": 0
@@ -416,9 +482,9 @@
         "joints": 0,
         "clips": [],
         "materials": 1,
-        "textures": 3,
-        "textureBytes": 49849,
-        "renderVertices": 23988
+        "textures": 2,
+        "textureBytes": 28990,
+        "renderVertices": 12900
       }
     },
     {
@@ -430,21 +496,27 @@
       ],
       "preservedAs": "fountain-tripo-original.glb",
       "sha256": "c525be615479747fa4914c36ab9d35e3e8b1126ff13f05993a51bc96ddb33b4c",
+      "blenderPreparation": {
+        "file": "assets/source/models/village/fountain-crafted.glb",
+        "sha256": "6c8ca0b9206805985412c2c263a40288832ae7603e167791acdcb2d089729092",
+        "script": "scripts/blender/refine_civic_props.py",
+        "method": "Reference-concept refinement: sixteen jointed coping stones, fluted tazza and pedestal, four open spill channels seated at measured water datums for live gravity arcs. Original basin, finial, water levels and envelope preserved."
+      },
       "runtimeDerivative": {
         "file": "public/models/village/fountain.glb",
-        "sha256": "4728c90f73e419d17641400c689713602afd50433d422953fb2c931f982443c9",
-        "bytes": 267232
+        "sha256": "55ba5ba5db6d1d015b1430e95d166fb4283bff57299d927d68848ed73a7f05a4",
+        "bytes": 305344
       },
       "normalization": {
         "sizedBy": "height",
         "targetMetres": 3.32,
-        "scaleFactor": 3.32057,
+        "scaleFactor": 1,
         "facingYawRadians": 0,
         "authoredYawRadians": 0,
         "bounds": {
-          "width": 3.1448,
+          "width": 3.145,
           "height": 3.32,
-          "length": 3.1799,
+          "length": 3.18,
           "minY": 0,
           "centreX": 0,
           "centreZ": 0
@@ -453,9 +525,9 @@
         "joints": 0,
         "clips": [],
         "materials": 1,
-        "textures": 3,
-        "textureBytes": 52999,
-        "renderVertices": 24000
+        "textures": 2,
+        "textureBytes": 28990,
+        "renderVertices": 18564
       }
     },
     {
@@ -463,25 +535,34 @@
       "id": "village-duckpond",
       "sourcePage": "https://platform.tripo3d.ai",
       "pipeline": [
-        "text_to_model v2.5-20250123, texture:true, pbr:true"
+        "Original Tripo pond preserved as historical reference",
+        "Independent authored replacement: scripts/blender/refine_civic_props.py"
       ],
       "preservedAs": "duckpond-tripo-original.glb",
       "sha256": "8e92cc6519cd7c2cc04c7d95813e46df7233ae2183a02f3f6be9e67c4307379d",
+      "blenderPreparation": {
+        "file": "assets/source/models/village/duckpond-crafted.glb",
+        "sha256": "8bcc1b09aeab55e3a490ea94a00d1b0438962fe0ef0194658e2006a1d71ae534",
+        "script": "scripts/blender/refine_civic_props.py",
+        "method": "Independent authored pond with three running-bond brick courses, 64 bevelled limestone coping stones and seven planted reed shelves. Retains the 11 x 10.956 m footprint, y=0.80 m water and 0.45 m runtime sink; no provider geometry or textures incorporated."
+      },
       "runtimeDerivative": {
         "file": "public/models/village/duckpond.glb",
-        "sha256": "b80eef524c168fbfa9dab5688d4fbbecc9776dffcea3501a7e807d57c73e4ed6",
-        "bytes": 492028
+        "sha256": "e57bc5277b602a0e17d1f6a3aadb8461fda5b018aba9be252bccf43ccd29fca0",
+        "bytes": 506892,
+        "license": "MillOS project-authored geometry and procedural textures",
+        "attribution": "Original MillOS brick pond geometry and mineral/reed atlas; provider source retained separately as reference only."
       },
       "normalization": {
         "sizedBy": "longest axis",
         "targetMetres": 11,
-        "scaleFactor": 11.00413,
+        "scaleFactor": 1,
         "facingYawRadians": 0,
         "authoredYawRadians": 0,
         "bounds": {
           "width": 11,
           "height": 2.195,
-          "length": 10.9562,
+          "length": 10.956,
           "minY": 0,
           "centreX": 0,
           "centreZ": 0
@@ -490,9 +571,9 @@
         "joints": 0,
         "clips": [],
         "materials": 1,
-        "textures": 3,
-        "textureBytes": 222754,
-        "renderVertices": 23835
+        "textures": 2,
+        "textureBytes": 35170,
+        "renderVertices": 24399
       }
     },
     {
@@ -500,24 +581,33 @@
       "id": "village-castle",
       "sourcePage": "https://platform.tripo3d.ai",
       "pipeline": [
-        "text_to_model v2.5-20250123, texture:true, pbr:true"
+        "Original Tripo model retained as historical source only",
+        "Independent authored replacement: scripts/blender/build_neuschwanstein_castle.py"
       ],
       "preservedAs": "castle-tripo-original.glb",
       "sha256": "a5d0e1cc948788ab9cd75e5b72e4b5f11703658d090c81c9dc17853d6145f498",
+      "blenderPreparation": {
+        "file": "assets/source/models/village/castle-neuschwanstein-authored.glb",
+        "sha256": "e075ed92bdf148be2855a21c63109f16ce74d59734aa025276cab5fd997e6162",
+        "script": "scripts/blender/build_neuschwanstein_castle.py",
+        "method": "Fully authored Neuschwanstein-inspired palace with the white limestone and blue slate palette of MillOS v0.30: elongated palas, softly curved roofs, dominant round tower, square watchtower, rounded gate turrets and open through gateway/court. Shared runtime stairs preserve first-person ground access. Original provider source preserved separately; no provider geometry or textures used."
+      },
       "runtimeDerivative": {
         "file": "public/models/village/castle.glb",
-        "sha256": "1513efc7d89ecf08b85ec269efc0b314717adb5af06e8143aa89d0d67555b883",
-        "bytes": 526704
+        "sha256": "f11affbf4a8a14144b6fa78b8d473076baaca9b4806780ce19662bdb83e40249",
+        "bytes": 566608,
+        "license": "MillOS project-authored geometry and procedural textures",
+        "attribution": "Original MillOS geometry and procedural atlas, inspired by Neuschwanstein Castle; no photographic textures or provider geometry incorporated."
       },
       "normalization": {
         "sizedBy": "longest axis",
         "targetMetres": 38.7,
-        "scaleFactor": 41.91786,
+        "scaleFactor": 1,
         "facingYawRadians": 0,
         "authoredYawRadians": 0,
         "bounds": {
           "width": 38.7,
-          "height": 41.8965,
+          "height": 41.9,
           "length": 38.3479,
           "minY": 0,
           "centreX": 0,
@@ -527,9 +617,9 @@
         "joints": 0,
         "clips": [],
         "materials": 1,
-        "textures": 3,
-        "textureBytes": 268553,
-        "renderVertices": 23913
+        "textures": 1,
+        "textureBytes": 62974,
+        "renderVertices": 24930
       }
     }
   ],

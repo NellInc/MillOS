@@ -4,6 +4,9 @@ import { useFrame, ThreeEvent } from '@react-three/fiber';
 import { HeartParticle } from '../effects/HeartParticle';
 import { playCritterSound } from '../../utils/critterAudio';
 import { shouldRunThisFrame } from '../../utils/frameThrottle';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
+import { useGameSimulationStore } from '../../stores/gameSimulationStore';
+import { creatureCadence } from '../../simulation/creatureMotion';
 import { CreatureBody, type CreatureRigHandle } from '../models/RiggedCreatureModel';
 
 // Hover affordance for petting, matching every other clickable object in the
@@ -81,6 +84,9 @@ CatSittingPrimitive.displayName = 'CatSittingPrimitive';
 export const Cat = React.memo<CatProps>(
   ({ position, rotation = 0, color = '#1a1a1a', pose = 'sitting' }) => {
     const isSleeping = pose === 'sleeping';
+    const reducedMotion = useReducedMotion();
+    const animationTime = useRef(0);
+    const cadence = creatureCadence(Math.round(position[0] * 31 + position[2] * 17));
     const groupRef = useRef<THREE.Group>(null);
     // `CREATURE_SPECS.cat` is `bend: 0` on purpose - a sitting cat does not
     // graze - but `setHeadShake` is not scaled by the spec, so the rig is still
@@ -117,15 +123,33 @@ export const Cat = React.memo<CatProps>(
       }
     }, [isExcited]);
 
+    // A pet response must settle even if the simulation was paused meanwhile.
+    useEffect(() => {
+      if (isExcited) return;
+      if (groupRef.current) {
+        groupRef.current.rotation.z = 0;
+        groupRef.current.position.y = 0;
+      }
+      rigRef.current?.setHeadShake(0);
+    }, [isExcited]);
+
     // Animation
-    useFrame((state) => {
+    useFrame((_state, delta) => {
       if (!groupRef.current) return;
+      const { isTabVisible, gameSpeed } = useGameSimulationStore.getState();
+      if (!isTabVisible || (!isExcited && gameSpeed <= 0)) return;
+      if (reducedMotion) {
+        groupRef.current.rotation.z = 0;
+        groupRef.current.position.y = 0;
+        return;
+      }
+      animationTime.current += Math.min(delta, 0.1);
 
       let yOffset = 0;
       let rOffset = 0;
 
       if (isExcited) {
-        const t = state.clock.elapsedTime * 20;
+        const t = animationTime.current * 20;
         // Purr wobble / Happy wiggle
         rOffset = Math.sin(t) * 0.1;
         if (!isSleeping) {
@@ -151,11 +175,11 @@ export const Cat = React.memo<CatProps>(
       const rig = rigRef.current;
       if (!rig || isSleeping) return;
       if (!isExcited && !shouldRunThisFrame(4)) return;
-      const time = state.clock.elapsedTime;
+      const time = animationTime.current;
       rig.setHeadShake(
         isExcited
           ? Math.sin(time * 10) * 0.3
-          : Math.sin(time * 0.23) * 0.45 + Math.sin(time * 0.61) * 0.12
+          : Math.sin(time * 0.23 * cadence) * 0.45 + Math.sin(time * 0.61 * cadence) * 0.12
       );
     });
 

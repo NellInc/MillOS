@@ -31,6 +31,7 @@ import {
   createInitialForkliftMotion,
   distanceAheadOnClosedPath,
   sampleForkliftLoadPose,
+  resolveForkliftStopReason,
   stepForkliftMotion,
   type ForkliftLoadPhase,
   type ForkliftStopReason,
@@ -737,6 +738,7 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
   const frameCountRef = useRef(0); // Frame counter for throttling
   const lastCollisionCheckRef = useRef({
     pathClear: true,
+    obstaclePathClear: true,
     forkliftsNearby: [] as EntityPosition[],
   });
   const crossingTimerRef = useRef(0); // Time spent waiting at crossing
@@ -945,6 +947,7 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
     frameCountRef.current += 1;
     const shouldCheckCollisions = frameCountRef.current % 3 === 0;
     let pathClear: boolean;
+    let obstaclePathClear: boolean;
     let forkliftsNearby: EntityPosition[];
 
     if (shouldCheckCollisions) {
@@ -963,6 +966,16 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
         (distanceAhead) =>
           sampleArcLengthPath(routePlan.path, motionBefore.routeDistance + distanceAhead)
       );
+      obstaclePathClear = positionRegistry.isObstaclePathClear(
+        motionBefore.x,
+        motionBefore.z,
+        direction.x,
+        direction.z,
+        clearance.pathCheckDistance,
+        clearance.vehicleDetectionRadius,
+        (distanceAhead) =>
+          sampleArcLengthPath(routePlan.path, motionBefore.routeDistance + distanceAhead)
+      );
       forkliftsNearby = positionRegistry.getForkliftsNearby(
         motionBefore.x,
         motionBefore.z,
@@ -970,9 +983,9 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
         data.id,
         vehicle.position.y
       );
-      lastCollisionCheckRef.current = { pathClear, forkliftsNearby };
+      lastCollisionCheckRef.current = { pathClear, obstaclePathClear, forkliftsNearby };
     } else {
-      ({ pathClear, forkliftsNearby } = lastCollisionCheckRef.current);
+      ({ pathClear, obstaclePathClear, forkliftsNearby } = lastCollisionCheckRef.current);
     }
 
     const currentCrossingZone = isInCrossingZone(motionBefore.x, motionBefore.z);
@@ -1135,19 +1148,15 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
       logisticsInterlock = true;
     }
 
-    let stopReason: ForkliftStopReason = 'none';
-    if (emergencyStopped) stopReason = 'emergency-stop';
-    else if (!pathClear) stopReason = 'route-blocked';
-    else if (forkliftsNearby.some((other) => !other.isStopped || data.id > other.id)) {
-      stopReason = 'vehicle-yield';
-    } else if (!crossingClear) stopReason = 'crossing-reservation';
-    else if (logisticsInterlock) stopReason = 'logistics-interlock';
-
-    if (!pathClear && forkliftsNearby.length > 0 && data.id < forkliftsNearby[0].id) {
-      // Stable fleet priority prevents reciprocal stopped vehicles from waiting
-      // forever. The lower id proceeds only after the peer has fully stopped.
-      if (forkliftsNearby.every((other) => other.isStopped)) stopReason = 'none';
-    }
+    const stopReason = resolveForkliftStopReason({
+      id: data.id,
+      emergencyStopped,
+      crossingClear,
+      logisticsInterlock,
+      pathClear,
+      obstaclePathClear,
+      nearby: forkliftsNearby,
+    });
 
     const requestedStopped = stopReason !== 'none';
     if (requestedStopped !== isStopped) {

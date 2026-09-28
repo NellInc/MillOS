@@ -1,0 +1,20 @@
+[
+  {
+    "scene": "village-12",
+    "staticPixels": 6397342,
+    "dynamicPixelsExcluded": 2658,
+    "staticChangedOver1Byte": 97,
+    "staticChangedOver3Byte": 52,
+    "staticMeanAbsRgbDelta": 7.638589068189049e-05,
+    "staticMaxChannelDelta": 23
+  },
+  {
+    "scene": "interior-22",
+    "staticPixels": 3645153,
+    "dynamicPixelsExcluded": 41247,
+    "staticChangedOver1Byte": 1921,
+    "staticChangedOver3Byte": 1153,
+    "staticMeanAbsRgbDelta": 0.0040507673249014975,
+    "staticMaxChannelDelta": 103
+  }
+]

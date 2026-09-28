@@ -18,6 +18,31 @@ const OUTPUT_ROOT = path.join(ROOT, 'test-results', 'operational-review');
 
 const DESKTOP_VIEWPORT = { width: 1280, height: 720 };
 const MOBILE_VIEWPORT = { width: 390, height: 844 };
+const LANDSCAPE_VIEWPORT = { width: 844, height: 390 };
+
+async function focusRollerMill(page) {
+  // Use the shipping Locate and Focus controls, never a store mutation.
+  await page.setViewportSize(DESKTOP_VIEWPORT);
+  await page.getByRole('button', { name: 'Simulated SCADA', exact: true }).click();
+  const scada = page.getByRole('complementary', { name: 'Simulated SCADA sidebar panel' });
+  const cameraBefore = await page.evaluate(
+    () => window.__MILLOS_RUNTIME__.snapshot().camera.position
+  );
+  await scada.getByRole('button', { name: 'Open full SCADA workspace', exact: true }).click();
+  const workspace = page.getByRole('dialog', { name: 'Full simulated SCADA workspace' });
+  await workspace.getByRole('tab', { name: 'Tags', exact: true }).click();
+  await workspace
+    .getByRole('button', { name: 'Locate rm-101 in the factory', exact: true })
+    .click();
+  await workspace.getByRole('button', { name: 'Close SCADA panel', exact: true }).click();
+  // O changes workspace without discarding the selected object.
+  await page.keyboard.press('o');
+  await page.getByRole('button', { name: 'Focus machine', exact: true }).click();
+  await page.waitForFunction((before) => {
+    const current = window.__MILLOS_RUNTIME__.snapshot().camera.position;
+    return Math.hypot(...current.map((value, index) => value - before[index])) > 1;
+  }, cameraBefore);
+}
 
 async function triggerFacilityStop(page) {
   await page.getByRole('button', { name: 'TRIGGER EMERGENCY STOP', exact: true }).click();
@@ -50,7 +75,10 @@ const SCENARIOS = {
   'ai-partner': {
     title: 'AI partner',
     viewport: DESKTOP_VIEWPORT,
-    dockLabel: 'AI Partner',
+    prepare: async (page) => {
+      await page.getByRole('button', { name: 'More workspaces and view controls' }).click();
+      await page.getByRole('menuitem', { name: 'AI Partner I', exact: true }).click();
+    },
     surfaceRole: 'complementary',
     surfaceName: 'AI Partner sidebar panel',
     afterOpen: async (page) => {
@@ -62,7 +90,7 @@ const SCENARIOS = {
     viewport: DESKTOP_VIEWPORT,
     dockLabel: 'Bilateral Autonomy System (BAS)',
     surfaceRole: 'complementary',
-    surfaceName: 'Bilateral Autonomy sidebar panel',
+    surfaceName: 'Autonomy & Optimization sidebar panel',
   },
   'safety-controls': {
     title: 'Safety controls',
@@ -107,6 +135,41 @@ const SCENARIOS = {
       await page.getByRole('status', { name: 'Safety state recovered', exact: true }).waitFor();
     },
   },
+  'camera-menu-landscape': {
+    title: 'Landscape camera menu',
+    viewport: LANDSCAPE_VIEWPORT,
+    hasTouch: true,
+    prepare: async (page) => {
+      // Touch landscape intentionally starts in walk mode. Use its real
+      // dismissal and orbit toggle before opening the orbit-only menu.
+      await page.getByRole('button', { name: 'Start exploring', exact: true }).click();
+      await page.getByRole('button', { name: 'Walk mode', exact: true }).click();
+      await page.getByRole('button', { name: 'Open camera menu', exact: true }).click();
+    },
+    surfaceRole: 'button',
+    surfaceName: 'Receiving',
+  },
+  'machine-focus': {
+    title: 'Selected roller mill, Focus control',
+    liveCamera: true,
+    viewport: DESKTOP_VIEWPORT,
+    prepare: focusRollerMill,
+    surfaceRole: 'button',
+    surfaceName: 'Focus machine',
+  },
+  'machine-focus-compact': {
+    title: 'Focused roller mill after compact viewport resize',
+    liveCamera: true,
+    viewport: MOBILE_VIEWPORT,
+    prepare: async (page) => {
+      // Compact UI has no inspector/Focus control. Preserve the real desktop
+      // selection and camera flight while checking its compact framing.
+      await focusRollerMill(page);
+      await page.setViewportSize(MOBILE_VIEWPORT);
+    },
+    surfaceRole: 'navigation',
+    surfaceName: 'Main Navigation',
+  },
   'mobile-fire-drill': {
     title: 'Mobile active egress verification drill',
     viewport: MOBILE_VIEWPORT,
@@ -132,7 +195,7 @@ const SCENARIOS = {
 
 const SCENARIO_SETS = {
   quick: ['overview', 'scada-overview', 'fire-drill', 'mobile-fire-drill'],
-  desktop: Object.keys(SCENARIOS).filter((name) => name !== 'mobile-fire-drill'),
+  desktop: Object.keys(SCENARIOS).filter((name) => SCENARIOS[name].viewport === DESKTOP_VIEWPORT),
   safety: [
     'safety-controls',
     'fire-drill',
@@ -340,7 +403,7 @@ async function stopPreview() {
   });
 }
 
-async function waitForApp(page) {
+async function waitForApp(page, liveCamera = false) {
   await page.waitForFunction(() => window.__MILLOS_RUNTIME__?.ready === true, null, {
     timeout: 90_000,
   });
@@ -358,7 +421,7 @@ async function waitForApp(page) {
   const operationalCapture = await page.evaluate(
     () => window.__MILLOS_RUNTIME__?.mode.operationalCapture === true
   );
-  if (!operationalCapture) {
+  if (!liveCamera && !operationalCapture) {
     throw new Error(
       'Runtime did not acknowledge operations=on; refusing to capture a stale bundle.'
     );
@@ -369,6 +432,7 @@ async function runScenario(browser, baseUrl, stateName) {
   const scenario = SCENARIOS[stateName];
   const context = await browser.newContext({
     viewport: scenario.viewport,
+    hasTouch: scenario.hasTouch ?? false,
     deviceScaleFactor: 1,
     reducedMotion: 'reduce',
     colorScheme: 'dark',
@@ -376,14 +440,25 @@ async function runScenario(browser, baseUrl, stateName) {
     timezoneId: 'Europe/London',
     serviceWorkers: 'block',
   });
-  await context.addInitScript(() => {
+  await context.addInitScript((skipWelcome) => {
     localStorage.clear();
     sessionStorage.clear();
     localStorage.setItem(
       'millos-ui',
       JSON.stringify({ state: { hasSeenIntro: true }, version: 1 })
     );
-  });
+    if (skipWelcome) {
+      // The camera-menu scenario isolates navigation after first-use reading.
+      // The separate failure frame preserves the clipped welcome-card defect.
+      localStorage.setItem(
+        'millos-autonomous-narration',
+        JSON.stringify({
+          state: { shownNarrations: ['welcome-autonomous-mill'], enabled: true },
+          version: 2,
+        })
+      );
+    }
+  }, stateName === 'camera-menu-landscape');
 
   const page = await context.newPage();
   const diagnostics = { consoleErrors: [], pageErrors: [], failedRequests: [] };
@@ -399,7 +474,7 @@ async function runScenario(browser, baseUrl, stateName) {
   });
 
   const query = new URLSearchParams({
-    benchmark: 'overview',
+    benchmark: scenario.liveCamera ? 'off' : 'overview',
     quality: options.quality,
     time: String(options.time),
     weather: options.weather,
@@ -414,8 +489,14 @@ async function runScenario(browser, baseUrl, stateName) {
 
   try {
     await page.goto(`${baseUrl}/?${query}`, { waitUntil: 'domcontentloaded', timeout: 90_000 });
-    await waitForApp(page);
-    await page.getByRole('button', { name: scenario.dockLabel, exact: true }).click();
+    await waitForApp(page, scenario.liveCamera);
+    if (scenario.liveCamera) {
+      const benchmark = await page.evaluate(() => window.__MILLOS_RUNTIME__.mode.benchmark);
+      if (benchmark)
+        throw new Error('Camera controls require live runtime, not fixed benchmark mode.');
+    }
+    if (scenario.prepare) await scenario.prepare(page);
+    else await page.getByRole('button', { name: scenario.dockLabel, exact: true }).click();
     const surface = page.getByRole(scenario.surfaceRole, { name: scenario.surfaceName });
     await surface.waitFor({ state: 'visible', timeout: 30_000 });
     if (scenario.afterOpen) await scenario.afterOpen(page);
@@ -446,6 +527,7 @@ async function runScenario(browser, baseUrl, stateName) {
     return {
       state: stateName,
       title: scenario.title,
+      mode: scenario.liveCamera ? 'live-camera' : 'fixed-benchmark',
       viewport: scenario.viewport,
       image: path.basename(imagePath),
       expectedSurface: { role: scenario.surfaceRole, name: scenario.surfaceName },
@@ -460,6 +542,7 @@ async function runScenario(browser, baseUrl, stateName) {
     return {
       state: stateName,
       title: scenario.title,
+      mode: scenario.liveCamera ? 'live-camera' : 'fixed-benchmark',
       viewport: scenario.viewport,
       image: null,
       failureImage: path.basename(failureImagePath),
@@ -558,6 +641,8 @@ async function main() {
   const git = await gitProvenance();
   const caveats = [
     'Operational frames use the reduced-motion accessibility setting for deterministic safety overlays.',
+    'The landscape camera-menu fixture marks the one-time welcome narration seen to isolate navigation.',
+    'Camera-focus states use ordinary runtime because benchmark mode does not mount camera controls; their simulation is not frozen.',
     'This capture does not establish a performance budget. Run benchmark:runtime on the same candidate.',
     ...(!options.headed
       ? [

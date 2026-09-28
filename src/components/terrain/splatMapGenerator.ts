@@ -21,7 +21,7 @@ import {
   type TerrainBounds,
 } from './terrainTypes';
 import { createLinearDataTexture } from '../../utils/textureGenerator';
-import { getLandmarkBounds, SITE_LAYOUT } from '../../constants/siteLayout';
+import { GAS_STATION_SITE, getLandmarkBounds, SITE_LAYOUT } from '../../constants/siteLayout';
 
 /**
  * Calculate signed distance to a shape (negative = inside, positive = outside)
@@ -201,6 +201,19 @@ export const MILLOS_TERRAIN_REGIONS: TerrainRegion[] = [
   // These bake into the existing splat texture, with no extra runtime draws.
   {
     channel: TerrainChannel.DIRT,
+    shape: {
+      type: 'rect',
+      x: (GAS_STATION_SITE.access.forecourtX + GAS_STATION_SITE.access.roadX) / 2,
+      z: GAS_STATION_SITE.access.centreZ,
+      width: GAS_STATION_SITE.access.roadX - GAS_STATION_SITE.access.forecourtX,
+      height: GAS_STATION_SITE.access.halfWidth * 2 + 0.8,
+    },
+    intensity: 0.55,
+    edgeSoftness: 1,
+    priority: 12,
+  },
+  {
+    channel: TerrainChannel.DIRT,
     shape: { type: 'roundedRect', x: -88, z: 140, width: 32, height: 18, radius: 2 },
     intensity: 0.75,
     edgeSoftness: 2.5,
@@ -271,6 +284,22 @@ export const MILLOS_TERRAIN_REGIONS: TerrainRegion[] = [
     shape: { type: 'rect', x: 0, z: 112, width: 66, height: 14 },
     intensity: 1,
     edgeSoftness: 4,
+    priority: 12,
+  },
+  // Compacted entries join the new open field boundaries to existing routes.
+  // Baked into the current dirt channel, with no extra mesh or texture sample.
+  {
+    channel: TerrainChannel.DIRT,
+    shape: { type: 'ellipse', x: 75, z: 179, radiusX: 5, radiusZ: 7 },
+    intensity: 0.7,
+    edgeSoftness: 2,
+    priority: 12,
+  },
+  {
+    channel: TerrainChannel.DIRT,
+    shape: { type: 'roundedRect', x: -88, z: 152, width: 35, height: 4, radius: 1 },
+    intensity: 0.5,
+    edgeSoftness: 2,
     priority: 12,
   },
   // Scuffed gate approach where the front road meets the factory perimeter.
@@ -696,12 +725,24 @@ export function debugSplatMapToCanvas(splatMap: THREE.DataTexture): HTMLCanvasEl
   return canvas;
 }
 
-/** Compact meadow rises, clear of the village, castle, yard, canal and river banks. */
+/** Broad meadow swells and shallow dry hollows, sampled by the existing terrain grid.
+ * Occupied pads and road/water margins below retain their original level.
+ */
 export const VALLEY_HILLS = [
   [-190, -104, 30, 20, 10],
   [-71, -198, 50, 23, 14],
   [-212, 106, 18, 10, 5],
+  [-230, -100, 32, 25, 4.2],
+  [-215, 139, 34, 30, 3.8],
+  [204, 145, 46, 48, 4.0],
+  [195, 95, 35, 30, 3.4],
 ] as const;
+export const VALLEY_HOLLOWS = [
+  [-181, 151, 24, 24, -1.05],
+  [-111, 188, 38, 30, -0.85],
+  [162, 197, 28, 28, -0.9],
+] as const;
+const MEADOW_RELIEF = [...VALLEY_HILLS, ...VALLEY_HOLLOWS];
 
 // The castle carries its own rock, so the meadow rise at its v0.30 site is
 // flattened under it rather than lifting the rock's foot off the ground.
@@ -731,10 +772,12 @@ export const VILLAGE_TERRACE = {
  */
 export function sampleValleyRelief(x: number, z: number): number {
   let height = 0;
-  for (const [cx, cz, rx, rz, rise] of VALLEY_HILLS) {
+  for (const [cx, cz, rx, rz, rise] of MEADOW_RELIEF) {
     const radiusSquared = ((x - cx) / rx) ** 2 + ((z - cz) / rz) ** 2;
     if (radiusSquared < 1) height += rise * (1 - radiusSquared) ** 2;
   }
+  // Let the authored meadow fade before the separate distant foothill mesh.
+  height *= 1 - THREE.MathUtils.smoothstep(Math.hypot(x, z), 245, 270);
   // The low-tier grid has 18.75 m cells. Keep its complete triangle diagonal
   // outside an occupied pad, so interpolated terrain cannot penetrate a floor.
   // Working if both 64- and 128-segment meshes stay flat across the actual pads.
@@ -767,10 +810,11 @@ export function sampleValleyRelief(x: number, z: number): number {
     (1 - THREE.MathUtils.smoothstep(Math.hypot(dx, dz), 0, VILLAGE_TERRACE.shoulder));
   // A whole coarse-grid diagonal stays outside the road/canyon exclusion.
   // This also protects the approach-road paint up to the tunnel bores.
-  return Math.max(
-    height * THREE.MathUtils.smoothstep(clearance, 3, 12),
-    terrace * THREE.MathUtils.smoothstep(clearance, 27, 36)
-  );
+  const meadow = height * THREE.MathUtils.smoothstep(clearance, 3, 12);
+  const plateau = terrace * THREE.MathUtils.smoothstep(clearance, 27, 36);
+  // Preserve signed hollows on the zero-datum landscape. A raised terrace,
+  // if authored later, still takes precedence over the meadow beneath it.
+  return plateau > 0 ? Math.max(meadow, plateau) : meadow;
 }
 
 /** Interpolate the same two triangles emitted by PlaneGeometry for grounded props. */

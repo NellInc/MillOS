@@ -19,6 +19,38 @@ export type ForkliftStopReason =
   | 'logistics-interlock'
   | 'load-operation';
 
+/** Fleet priority can release a peer wait, never a safety or physical barrier hold.
+ * Working if hard holds and static obstacles survive every peer ordering.
+ */
+export function resolveForkliftStopReason({
+  id,
+  emergencyStopped,
+  crossingClear,
+  logisticsInterlock,
+  pathClear,
+  obstaclePathClear,
+  nearby,
+}: {
+  id: string;
+  emergencyStopped: boolean;
+  crossingClear: boolean;
+  logisticsInterlock: boolean;
+  pathClear: boolean;
+  obstaclePathClear: boolean;
+  nearby: readonly { id: string; isStopped?: boolean; kind?: 'forklift' | 'truck' }[];
+}): ForkliftStopReason {
+  if (emergencyStopped) return 'emergency-stop';
+  if (!crossingClear) return 'crossing-reservation';
+  if (logisticsInterlock) return 'logistics-interlock';
+  if (!obstaclePathClear) return 'route-blocked';
+  const canReleasePeerWait =
+    nearby.length > 0 &&
+    nearby.every((peer) => peer.kind !== 'truck' && peer.isStopped && id < peer.id);
+  if (!pathClear && !canReleasePeerWait) return 'route-blocked';
+  if (nearby.some((peer) => !peer.isStopped || id > peer.id)) return 'vehicle-yield';
+  return 'none';
+}
+
 export type ForkliftLoadPhase =
   | 'idle'
   | 'aligning'

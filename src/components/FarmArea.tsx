@@ -1,3 +1,5 @@
+import { FARM_REALM_PATHS, inRealmPath } from '../constants/publicRealmLayout';
+import { FarmPublicRealm } from './scenery/WorldPublicRealm';
 import React, { useRef, useState, useMemo, useEffect, useLayoutEffect } from 'react';
 import { useFrame, ThreeEvent } from '@react-three/fiber';
 import * as THREE from 'three';
@@ -7,6 +9,14 @@ import { HeartParticle } from './effects/HeartParticle';
 import { playCritterSound } from '../utils/critterAudio';
 import { shouldRunThisFrame } from '../utils/frameThrottle';
 import { Cat } from './scenery/Cat';
+import { AuthoredPropTrim } from './scenery/AuthoredPropTrim';
+import { useReducedMotion } from '../hooks/useReducedMotion';
+import {
+  advanceCreatureStride,
+  creatureCadence,
+  creaturePoseBlend,
+  creatureTravelDistance,
+} from '../simulation/creatureMotion';
 import { CreatureBody, type CreatureRigHandle } from './models/RiggedCreatureModel';
 import {
   GeneratedBody,
@@ -867,6 +877,7 @@ const FenceSection = React.memo<{
             scale={[step / FENCE_PANEL_LENGTH, 1, 1]}
           >
             <GeneratedModel asset="fence" />
+            <AuthoredPropTrim kind="fence" />
           </group>
         ))}
       </GeneratedBoundary>
@@ -925,7 +936,10 @@ WaterTroughPrimitiveBody.displayName = 'WaterTroughPrimitiveBody';
 const WaterTrough = React.memo<{ position: [number, number, number]; rotation?: number }>(
   ({ position, rotation = 0 }) => (
     <group position={position} rotation={[0, rotation, 0]}>
-      <GeneratedBody asset="watertrough" fallback={<WaterTroughPrimitiveBody />} />
+      <GeneratedBoundary fallback={<WaterTroughPrimitiveBody />}>
+        <GeneratedModel asset="watertrough" />
+        <AuthoredPropTrim kind="trough" />
+      </GeneratedBoundary>
     </group>
   )
 );
@@ -1127,6 +1141,9 @@ interface AnimalState {
   idleTime: number;
   seed: number;
   sequenceStep: number;
+  stridePhase: number;
+  moving: boolean;
+  cadence: number;
 }
 
 // Every wander box is convex and clear of solid obstacles, so no straight leg
@@ -1146,6 +1163,9 @@ const createAnimalState = (seed: number, bounds: WanderBounds): AnimalState => {
     idleTime: 0,
     seed,
     sequenceStep: 1,
+    stridePhase: 0,
+    moving: false,
+    cadence: creatureCadence(seed),
   };
 };
 
@@ -1780,6 +1800,8 @@ const CROW_PECK_DUTY = 0.62;
 
 const Crow = React.memo<{ position: [number, number, number]; rotation?: number }>(
   ({ position, rotation = 0 }) => {
+    const reducedMotion = useReducedMotion();
+    const animationTime = useRef(0);
     const [isExcited, setIsExcited] = useState(false);
     const [hearts, setHearts] = useState<{ id: number; pos: [number, number, number] }[]>([]);
     const nextHeartId = useRef(0);
@@ -1794,11 +1816,14 @@ const Crow = React.memo<{ position: [number, number, number]; rotation?: number 
     // the whole of its rig motion is the neck. Runs on the shared 1-in-4
     // throttle; the pet response takes the head off the peck and into a shake
     // for as long as it lasts, rather than adding the two into a scribble.
-    useFrame((state) => {
+    useFrame((_state, delta) => {
+      const { isTabVisible, gameSpeed } = useGameSimulationStore.getState();
+      if (reducedMotion || !isTabVisible || (!isExcited && gameSpeed <= 0)) return;
+      animationTime.current += Math.min(delta, 0.1);
       const rig = rigRef.current;
       if (!rig) return;
       if (!shouldRunThisFrame(4)) return;
-      const time = state.clock.elapsedTime;
+      const time = animationTime.current;
       if (isExcited) {
         rig.setHeadShake(Math.sin(time * 18) * 0.35);
         shakenRef.current = true;
@@ -1815,6 +1840,13 @@ const Crow = React.memo<{ position: [number, number, number]; rotation?: number 
       const wave = Math.sin(time * CROW_PECK_RATE + phase);
       rig.setGraze(THREE.MathUtils.smoothstep(wave, CROW_PECK_DUTY, 1));
     });
+
+    useEffect(() => {
+      if (!isExcited && shakenRef.current) {
+        rigRef.current?.setHeadShake(0);
+        shakenRef.current = false;
+      }
+    }, [isExcited]);
 
     const handlePet = (e: ThreeEvent<MouseEvent>) => {
       e.stopPropagation();
@@ -2065,6 +2097,7 @@ const FARM_ATTRACTORS: readonly (readonly [number, number])[] = [
 ];
 
 const FARM_CLUTTER: ClutterSpec = {
+  accepts: (x, z) => !FARM_REALM_PATHS.some((p) => inRealmPath(x, z, p, 0.45)),
   count: 700,
   bounds: { minX: -38, maxX: 36, minZ: -30, maxZ: 32 },
   exclude: FARM_BLOCKERS,
@@ -2078,6 +2111,10 @@ const FARM_CLUTTER: ClutterSpec = {
 
 // Main component with single useFrame for all animations
 export const FarmArea: React.FC = () => {
+  const reducedMotion = useReducedMotion();
+  const animationTime = useRef(0);
+  const movementElapsed = useRef(0);
+  const poseElapsed = useRef(0);
   // --- Chicken Refs & State ---
   const chickenRefs = useMemo(
     () => Array.from({ length: 5 }, () => React.createRef<THREE.Group>()),
@@ -2204,23 +2241,56 @@ export const FarmArea: React.FC = () => {
       ]);
 
       // Trigger jump animation
-      if (type === 'chicken') chickenJumpStates.current[index] = 1.0;
-      if (type === 'pig') pigJumpStates.current[index] = 1.0;
+      if (!reducedMotion && type === 'chicken') chickenJumpStates.current[index] = 1.0;
+      if (!reducedMotion && type === 'pig') pigJumpStates.current[index] = 1.0;
       // Cows are too heavy to jump, maybe just wiggle?
-      if (type === 'cow') cowJumpStates.current[index] = 1.0;
-      if (type === 'sheep') sheepJumpStates.current[index] = 1.0;
+      if (!reducedMotion && type === 'cow') cowJumpStates.current[index] = 1.0;
+      if (!reducedMotion && type === 'sheep') sheepJumpStates.current[index] = 1.0;
       // The horse answers on its rig rather than on a group transform; see the
       // shake driver in `useFrame`.
-      if (type === 'horse') horseShakeState.current = 1.0;
+      if (!reducedMotion && type === 'horse') horseShakeState.current = 1.0;
 
       playCritterSound(type);
     },
-    []
+    [reducedMotion]
   );
 
   const removeHeart = React.useCallback((id: number) => {
     setHearts((prev) => prev.filter((h) => h.id !== id));
   }, []);
+
+  useEffect(() => {
+    if (!reducedMotion) return;
+    [...chickenRefs, ...sheepRefs].forEach((ref) => {
+      if (ref.current) ref.current.position.y = 0;
+    });
+    pigRefs.forEach((ref) => {
+      if (ref.current) ref.current.rotation.z = 0;
+    });
+    [...chickenRigRefs, ...pigRigRefs, ...cowRigRefs, ...sheepRigRefs, horseRigRef].forEach(
+      (ref) => {
+        ref.current?.setStride(0, 0);
+        ref.current?.setHeadShake(0);
+      }
+    );
+    chickenStride.current.fill(0);
+    pigStride.current.fill(0);
+    cowStride.current.fill(0);
+    chickenJumpStates.current.fill(0);
+    pigJumpStates.current.fill(0);
+    cowJumpStates.current.fill(0);
+    sheepJumpStates.current.fill(0);
+    horseShakeState.current = 0;
+  }, [
+    reducedMotion,
+    chickenRefs,
+    sheepRefs,
+    pigRefs,
+    chickenRigRefs,
+    pigRigRefs,
+    cowRigRefs,
+    sheepRigRefs,
+  ]);
 
   // Animation offsets
   const chickenOffsets = useMemo(() => [0, 1.2, 2.4, 3.6, 4.8], []);
@@ -2237,10 +2307,12 @@ export const FarmArea: React.FC = () => {
     state: AnimalState,
     delta: number,
     speed: number,
+    strideRate: number,
     bounds: { minX: number; maxX: number; minZ: number; maxZ: number },
     yOffset: number = 0
   ) => {
     if (!ref) return;
+    state.moving = false;
 
     if (state.isIdle) {
       state.idleTime -= delta;
@@ -2261,7 +2333,7 @@ export const FarmArea: React.FC = () => {
         const nextPlan = createAnimalWanderPlan(state.seed, state.sequenceStep, bounds);
         state.sequenceStep += 1;
         state.target.set(nextPlan.x, yOffset, nextPlan.z);
-        state.idleTime = nextPlan.idleSeconds;
+        state.idleTime = nextPlan.idleSeconds / state.cadence;
       } else {
         direction.normalize();
 
@@ -2273,37 +2345,45 @@ export const FarmArea: React.FC = () => {
           Math.sin(targetRotation - ref.rotation.y),
           Math.cos(targetRotation - ref.rotation.y)
         );
-        ref.rotation.y += turn * Math.min(1, delta * 5);
+        const turned = turn * (1 - Math.exp(-delta * 5));
+        ref.rotation.y += turned;
 
-        // Move
-        currentPos.add(direction.multiplyScalar(speed * delta));
+        const distance = creatureTravelDistance(dist, turn - turned, delta, speed);
+        currentPos.add(direction.multiplyScalar(distance));
+        state.moving = distance > 0.00001;
+        state.stridePhase = advanceCreatureStride(state.stridePhase, distance, strideRate / speed);
       }
     }
   };
 
   // SINGLE useFrame - THROTTLED/BATCHED
-  useFrame((state, delta) => {
+  useFrame((_state, delta) => {
     const { gameDay, gameTime, gameSpeed, weather, isTabVisible } =
       useGameSimulationStore.getState();
-    if (!isTabVisible || gameSpeed <= 0) return;
+    if (!isTabVisible || gameSpeed <= 0 || reducedMotion) return;
 
     // Cap delta for tab-switch recovery (prevents large jumps after tab is inactive)
     const cappedDelta = Math.min(delta, 0.1);
     frameCountRef.current++;
-    const time = state.clock.elapsedTime;
+    animationTime.current += cappedDelta;
+    movementElapsed.current += cappedDelta;
+    poseElapsed.current += cappedDelta;
+    const time = animationTime.current;
     const atmosphere = sampleAtmosphere(gameDay, gameTime, weather, _farmAtmosphere);
     const animalActivity = getAnimalActivityMultiplier(weather, gameTime);
 
     // Windmill: every 2nd frame (30 FPS)
     if (frameCountRef.current % 2 === 0 && windmillBladesRef.current) {
-      windmillAngleRef.current += cappedDelta * 2 * getWindmillAngularSpeed(atmosphere.wind);
+      windmillAngleRef.current +=
+        movementElapsed.current * getWindmillAngularSpeed(atmosphere.wind);
       windmillBladesRef.current.rotation.z = windmillAngleRef.current;
     }
 
     // Animals: every 2nd frame for smooth movement (30 FPS)
     // We update movement slightly more often than the body animations (pecking/wagging)
     if (frameCountRef.current % 2 === 0) {
-      const adjustDelta = cappedDelta * 2 * animalActivity; // Compensate for skipped frames
+      const adjustDelta = movementElapsed.current * animalActivity;
+      movementElapsed.current = 0;
 
       // Chickens
       chickenRefs.forEach((ref, i) => {
@@ -2312,6 +2392,7 @@ export const FarmArea: React.FC = () => {
           chickenStates.current[i],
           adjustDelta,
           1.5, // Speed
+          CHICKEN_STRIDE_RATE,
           CHICKEN_WANDER_BOUNDS
         );
       });
@@ -2323,6 +2404,7 @@ export const FarmArea: React.FC = () => {
           pigStates.current[i],
           adjustDelta,
           0.8, // Speed
+          PIG_STRIDE_RATE,
           PIG_WANDER_BOUNDS
         );
       });
@@ -2334,6 +2416,7 @@ export const FarmArea: React.FC = () => {
           cowStates.current[i],
           adjustDelta,
           0.5, // Speed
+          COW_STRIDE_RATE,
           COW_WANDER_BOUNDS
         );
       });
@@ -2394,19 +2477,29 @@ export const FarmArea: React.FC = () => {
     // Body animations (Pecking, Wagging, Grazing)
     // Throttle to every 4th frame (15 FPS)
     if (frameCountRef.current % 4 !== 0) return;
+    const blend = (amount: number) => creaturePoseBlend(amount, poseElapsed.current);
 
     // Pecking, only when idle. Peckers dip repeatedly where a grazer holds the
     // pose, so this oscillates the whole 0-1 range rather than sitting near the
     // top of it the way the cow's graze does.
     chickenAnimRefs.forEach((ref, i) => {
       const idle = chickenStates.current[i].isIdle;
-      const target = idle ? 0.5 + Math.sin(time * 3 + chickenOffsets[i]) * 0.5 : 0;
-      chickenPeck.current[i] = THREE.MathUtils.lerp(chickenPeck.current[i], target, 0.25);
-      chickenStride.current[i] = THREE.MathUtils.lerp(chickenStride.current[i], idle ? 0 : 1, 0.15);
+      const target = idle
+        ? 0.5 + Math.sin(time * 3 * chickenStates.current[i].cadence + chickenOffsets[i]) * 0.5
+        : 0;
+      chickenPeck.current[i] = THREE.MathUtils.lerp(chickenPeck.current[i], target, blend(0.25));
+      chickenStride.current[i] = THREE.MathUtils.lerp(
+        chickenStride.current[i],
+        chickenStates.current[i].moving ? 1 : 0,
+        blend(0.15)
+      );
       const rig = chickenRigRefs[i].current;
       if (rig) {
         rig.setGraze(chickenPeck.current[i]);
-        rig.setStride(time * CHICKEN_STRIDE_RATE + chickenOffsets[i], chickenStride.current[i]);
+        rig.setStride(
+          chickenStates.current[i].stridePhase + chickenOffsets[i],
+          chickenStride.current[i]
+        );
       } else if (ref.current) {
         // Local Z, negative, because the primitive bird is authored facing +X:
         // `rotation.x` rolled the whole body sideways about its own length
@@ -2430,11 +2523,17 @@ export const FarmArea: React.FC = () => {
       const rig = rigRef.current;
       if (!rig) return;
       const idle = pigStates.current[i].isIdle;
-      const target = idle ? 0.75 + Math.sin(time * 1.6 + pigOffsets[i]) * 0.25 : 0;
-      pigRoot.current[i] = THREE.MathUtils.lerp(pigRoot.current[i], target, 0.15);
-      pigStride.current[i] = THREE.MathUtils.lerp(pigStride.current[i], idle ? 0 : 1, 0.15);
+      const target = idle
+        ? 0.75 + Math.sin(time * 1.6 * pigStates.current[i].cadence + pigOffsets[i]) * 0.25
+        : 0;
+      pigRoot.current[i] = THREE.MathUtils.lerp(pigRoot.current[i], target, blend(0.15));
+      pigStride.current[i] = THREE.MathUtils.lerp(
+        pigStride.current[i],
+        pigStates.current[i].moving ? 1 : 0,
+        blend(0.15)
+      );
       rig.setGraze(pigRoot.current[i]);
-      rig.setStride(time * PIG_STRIDE_RATE + pigOffsets[i], pigStride.current[i]);
+      rig.setStride(pigStates.current[i].stridePhase + pigOffsets[i], pigStride.current[i]);
     });
 
     // Sheep and the horse have no wander state, so their graze is not gated on
@@ -2444,8 +2543,8 @@ export const FarmArea: React.FC = () => {
     sheepRigRefs.forEach((rigRef, i) => {
       const rig = rigRef.current;
       if (!rig) return;
-      const target = 0.6 + Math.sin(time * 0.35 + sheepOffsets[i]) * 0.4;
-      sheepGraze.current[i] = THREE.MathUtils.lerp(sheepGraze.current[i], target, 0.08);
+      const target = 0.6 + Math.sin(time * 0.35 * creatureCadence(400 + i) + sheepOffsets[i]) * 0.4;
+      sheepGraze.current[i] = THREE.MathUtils.lerp(sheepGraze.current[i], target, blend(0.08));
       rig.setGraze(sheepGraze.current[i]);
     });
 
@@ -2454,7 +2553,7 @@ export const FarmArea: React.FC = () => {
       // that neck curls rather than extends - so driving it to a hard 1.0 buys
       // no more reach and only holds the pose longer.
       const target = 0.55 + Math.sin(time * 0.28) * 0.35;
-      horseGraze.current = THREE.MathUtils.lerp(horseGraze.current, target, 0.06);
+      horseGraze.current = THREE.MathUtils.lerp(horseGraze.current, target, blend(0.06));
       horseRigRef.current.setGraze(horseGraze.current);
     }
 
@@ -2464,16 +2563,21 @@ export const FarmArea: React.FC = () => {
     // shows the step that a rigid box head hid.
     cowHeadRefs.forEach((ref, i) => {
       const idle = cowStates.current[i].isIdle;
-      const target = idle ? 0.85 + Math.sin(time * 0.5 + cowOffsets[i]) * 0.15 : 0;
-      cowGraze.current[i] = THREE.MathUtils.lerp(cowGraze.current[i], target, 0.1);
-      cowStride.current[i] = THREE.MathUtils.lerp(cowStride.current[i], idle ? 0 : 1, 0.12);
+      const target = idle
+        ? 0.85 + Math.sin(time * 0.5 * cowStates.current[i].cadence + cowOffsets[i]) * 0.15
+        : 0;
+      cowGraze.current[i] = THREE.MathUtils.lerp(cowGraze.current[i], target, blend(0.1));
+      cowStride.current[i] = THREE.MathUtils.lerp(
+        cowStride.current[i],
+        cowStates.current[i].moving ? 1 : 0,
+        blend(0.12)
+      );
       const rig = cowRigRefs[i].current;
       if (rig) {
         rig.setGraze(cowGraze.current[i]);
-        // Phase is free-running rather than integrated, so it cannot drift out
-        // of step with the clock when frames are dropped. COW_STRIDE_RATE is
-        // the 0.5 m/s wander speed over a roughly 0.9 m stride.
-        rig.setStride(time * COW_STRIDE_RATE + cowOffsets[i], cowStride.current[i]);
+        // Ground travel owns phase, so weather/night slowing also slows the feet.
+        // External jumps/reset positions never enter this integrated distance.
+        rig.setStride(cowStates.current[i].stridePhase + cowOffsets[i], cowStride.current[i]);
       } else if (ref.current) {
         // Nose down is a negative rotation about the primitive's local Z, its
         // pitch axis. The previous `rotation.x` write rolled the head sideways
@@ -2482,6 +2586,7 @@ export const FarmArea: React.FC = () => {
         ref.current.rotation.z = -cowGraze.current[i] * 0.45;
       }
     });
+    poseElapsed.current = 0;
   });
 
   const chickenData = useMemo(
@@ -2544,6 +2649,7 @@ export const FarmArea: React.FC = () => {
           polygonOffsetUnits={-2}
         />
       </mesh>
+      <FarmPublicRealm />
       <Barn position={[0, 0, 0]} />
       <ChickenCoop position={[12, 0, -5]} />
       <Farmhouse position={[-10, 0, 12]} />

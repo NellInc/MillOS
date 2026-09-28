@@ -28,7 +28,7 @@ import { useUIStore } from '../../stores/uiStore';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { useSafetyStore } from '../../stores/safetyStore';
 import { useOperationsCampaignStore } from '../../stores/operationsCampaignStore';
-import { EmergencyStopButton } from '../ui/EmergencyStopButton';
+import { SafetyPanel } from '../ui-new/panels/SafetyPanel';
 import { JevAdvisoryPanel } from '../ui/JevAdvisoryPanel';
 
 interface MobilePanelProps {
@@ -403,20 +403,6 @@ const MachineStatusBadge: React.FC<{ label: string; count: number; color: string
   );
 };
 
-// Safety panel content for the uncrewed site
-const SafetyContent: React.FC = () => {
-  return (
-    <div className="space-y-3">
-      {/* Emergency Stop */}
-      <EmergencyStopButton />
-
-      <div className="text-[10px] text-slate-500 text-center">
-        Halts every autonomous forklift until released. Production lines keep running.
-      </div>
-    </div>
-  );
-};
-
 // Settings panel content
 const SettingsContent: React.FC = () => {
   const showZones = useUIStore((s) => s.showZones);
@@ -697,7 +683,7 @@ const getPanelContent = (mode: DockMode | null) => {
     case 'scada':
       return <SCADAContent />;
     case 'safety':
-      return <SafetyContent />;
+      return <SafetyPanel />;
     case 'settings':
       return <SettingsContent />;
     case 'management':
@@ -722,6 +708,9 @@ export const MobilePanel: React.FC<MobilePanelProps> = ({ isVisible, content, on
     closeButtonRef.current?.focus();
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      // A portalled safety confirmation owns its own keyboard/focus trap.
+      const eventDialog = e.target instanceof Element ? e.target.closest('[role="dialog"]') : null;
+      if (e.defaultPrevented || (eventDialog && eventDialog !== panelRef.current)) return;
       if (e.key === 'Escape') {
         e.preventDefault();
         onClose();
@@ -781,14 +770,19 @@ export const MobilePanel: React.FC<MobilePanelProps> = ({ isVisible, content, on
             className="fixed left-4 right-4 z-50 pointer-events-auto"
             style={{
               bottom: 'max(100px, calc(env(safe-area-inset-bottom) + 90px))',
-              maxHeight: content === 'ai' ? '70vh' : '33vh',
+              maxHeight:
+                content === 'safety'
+                  ? 'min(70dvh, calc(100dvh - 116px - env(safe-area-inset-bottom)))'
+                  : content === 'ai'
+                    ? '70vh'
+                    : '33vh',
             }}
             aria-label={`${getPanelTitle(content)} mobile panel`}
             role="dialog"
             aria-modal="true"
           >
             <div
-              className={`flex flex-col ${content === 'ai' ? 'max-h-[70vh]' : 'max-h-[33vh]'} bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden shadow-2xl`}
+              className={`flex flex-col ${content === 'safety' ? 'max-h-[min(70dvh,calc(100dvh-116px-env(safe-area-inset-bottom)))]' : content === 'ai' ? 'max-h-[70vh]' : 'max-h-[33vh]'} bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden shadow-2xl`}
             >
               {/* Header */}
               <div className="flex shrink-0 items-center justify-between px-4 py-3 border-b border-slate-700/50">
@@ -807,7 +801,11 @@ export const MobilePanel: React.FC<MobilePanelProps> = ({ isVisible, content, on
               </div>
 
               {/* Content */}
-              <div className="flex-1 min-h-0 p-4 overflow-y-auto">{getPanelContent(content)}</div>
+              <div
+                className={`flex-1 min-h-0 overflow-y-auto ${content === 'safety' ? '' : 'p-4'}`}
+              >
+                {getPanelContent(content)}
+              </div>
             </div>
           </motion.aside>
         </>

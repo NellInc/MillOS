@@ -232,6 +232,10 @@ describe('first-use journey wiring', () => {
     renderInterface();
     act(() => runtime.narrate?.(narration));
     expect(screen.getByText(narration.content)).toBeVisible();
+    expect(screen.getByRole('complementary', { name: 'AI reflection' })).toHaveClass(
+      'max-h-[calc(100dvh-13rem)]',
+      'overflow-y-auto'
+    );
     act(() => useMobileControlStore.getState().openMobilePanel('safety'));
     expect(screen.getByTestId('game-interface')).toHaveAttribute('data-active-mode', 'overview');
     expect(screen.queryByTestId('reflection-content')).not.toBeInTheDocument();

@@ -10,7 +10,11 @@ import {
 import { WORLD_RADIUS } from '../../constants/siteLayout';
 import { useMobileControlStore } from '../../stores/mobileControlStore';
 import { useGraphicsStore } from '../../stores/graphicsStore';
-import { sampleValleyGroundHeight } from '../terrain/splatMapGenerator';
+import {
+  sampleWalkingGroundHeight,
+  moveWalkingPosition,
+  castleBlocks,
+} from '../../utils/castleNavigation';
 import { getTerrainGridSegments } from '../terrain/terrainTypes';
 import { clampNavigationDelta } from '../../utils/cameraNavigation';
 
@@ -55,13 +59,24 @@ const collides = (x: number, z: number): boolean => {
  * spawn inside a box rejects every step and freezes the player.
  */
 const findFreeSpawn = (x: number, z: number): [number, number] => {
-  if (!collides(x, z)) return [x, z];
+  const free = (a: number, b: number) =>
+    !collides(a, b) &&
+    !castleBlocks(
+      a,
+      b,
+      sampleWalkingGroundHeight(
+        a,
+        b,
+        getTerrainGridSegments(useGraphicsStore.getState().graphics.quality)
+      )
+    );
+  if (free(x, z)) return [x, z];
   for (let r = 1; r <= 24; r++) {
     for (let i = 0; i < 16; i++) {
       const a = (i / 16) * Math.PI * 2;
       const cx = x + r * Math.cos(a);
       const cz = z + r * Math.sin(a);
-      if (!collides(cx, cz)) return [cx, cz];
+      if (free(cx, cz)) return [cx, cz];
     }
   }
   return [x, z];
@@ -101,7 +116,7 @@ export const MobileFirstPersonController: React.FC = () => {
     }
     [spawnX, spawnZ] = findFreeSpawn(spawnX, spawnZ);
 
-    const groundY = sampleValleyGroundHeight(
+    const groundY = sampleWalkingGroundHeight(
       spawnX,
       spawnZ,
       getTerrainGridSegments(useGraphicsStore.getState().graphics.quality)
@@ -230,7 +245,7 @@ export const MobileFirstPersonController: React.FC = () => {
     // Touch navigation follows the same quality-tier triangles as the trees.
     const segments = getTerrainGridSegments(useGraphicsStore.getState().graphics.quality);
     camera.position.y =
-      PLAYER_HEIGHT + sampleValleyGroundHeight(camera.position.x, camera.position.z, segments);
+      PLAYER_HEIGHT + sampleWalkingGroundHeight(camera.position.x, camera.position.z, segments);
 
     // --- D-pad movement ---
     direction.current.set(0, 0, 0);
@@ -265,19 +280,15 @@ export const MobileFirstPersonController: React.FC = () => {
     velocity.current.addScaledVector(_forward, -direction.current.z * speed * dt);
     velocity.current.addScaledVector(_right, direction.current.x * speed * dt);
 
-    // Calculate new position
-    const newX = camera.position.x + velocity.current.x;
-    const newZ = camera.position.z + velocity.current.z;
-
-    // Apply movement with collision detection (sliding along walls)
-    if (!checkCollision(newX, camera.position.z)) {
-      camera.position.x = newX;
-    }
-    if (!checkCollision(camera.position.x, newZ)) {
-      camera.position.z = newZ;
-    }
-    camera.position.y =
-      PLAYER_HEIGHT + sampleValleyGroundHeight(camera.position.x, camera.position.z, segments);
+    moveWalkingPosition(
+      camera.position,
+      velocity.current.x,
+      velocity.current.z,
+      segments,
+      true,
+      PLAYER_HEIGHT,
+      checkCollision
+    );
   });
 
   return null;

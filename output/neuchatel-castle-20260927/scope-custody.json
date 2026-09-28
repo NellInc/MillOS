@@ -1,0 +1,15 @@
+{
+  "changedDelivery": [
+    "public/models/village/castle.glb"
+  ],
+  "unchangedDeliveries": 145,
+  "allOtherManifestRowsUnchanged": true,
+  "resourceBudgetsUnchanged": true,
+  "horizontalBoundsUnchanged": true,
+  "heightContractIntentionallyReduced": [
+    24.7,
+    25.1
+  ],
+  "originalAndPriorCraftedSourceUnchanged": true,
+  "allOtherVillageProvenanceRowsUnchanged": true
+}

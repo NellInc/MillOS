@@ -25,15 +25,15 @@
       "preservedAs": "park-trunk-unit-tripo-original.glb",
       "sha256": "c233eb13298c864000c820ce3c66c4369edf18e5105d70c76a7485daba867b11",
       "blenderPreparation": {
-        "file": "assets/source/models/world/park-trunk-unit-authored-vertex-colour-tripo-finish.glb",
-        "sha256": "6f4be4b30b0d132d4366633da08eca77ce1e8e941d9ac0aac6e53c87e8eda334",
-        "script": "scripts/restore-authored-asset-attributes.mjs",
-        "method": "Authored palette, corner normals and shadow flags restored with Tripo normal/roughness. Source nondegenerate triangle shape retained. Runtime material layers, original maps, transforms and dynamic nodes remain live."
+        "file": "assets/source/models/world/park-trunk-unit-crafted-surface.glb",
+        "sha256": "bbbda4a080bc4b783c9569ecbc337a864c71c9be818d884530a3c36788c60e15",
+        "script": "scripts/refine-authored-surfaces.mjs",
+        "method": "Vertical bark fissures with broken cross-grain relief; existing colour/bark maps retained. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
       },
       "runtimeDerivative": {
         "file": "public/models/world/park-trunk-unit.glb",
-        "sha256": "ef7628b4ac65b869da4159121b045a7f1bff32ed113b4d48e1107352282b7f66",
-        "bytes": 22996
+        "sha256": "c079bd9b584747c18600fd3ba8ef4b117a836183d5907f9ce1d9eb0716208709",
+        "bytes": 39772
       },
       "normalization": {
         "sizedBy": "height",
@@ -54,7 +54,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 12185,
+        "textureBytes": 28932,
         "renderVertices": 648
       }
     },
@@ -209,15 +209,15 @@
       "preservedAs": "oak-trunk-unit-tripo-original.glb",
       "sha256": "2ff6a4d33cf345f9421e81ecb37cf6bba74cb3629ded5985191558c85c57f0b8",
       "blenderPreparation": {
-        "file": "assets/source/models/world/oak-trunk-unit-authored-vertex-colour-tripo-finish.glb",
-        "sha256": "e65a0cd856d085bcd8a0db6ae31c0630269a8431e861ce7ebb4810bdf17d9e51",
-        "script": "scripts/restore-authored-asset-attributes.mjs",
-        "method": "Authored palette, corner normals and shadow flags restored with Tripo normal/roughness. Source nondegenerate triangle shape retained. Runtime material layers, original maps, transforms and dynamic nodes remain live."
+        "file": "assets/source/models/world/oak-trunk-unit-crafted-surface.glb",
+        "sha256": "6ee8eb3f1f254cd6ddcda4acfb454c5da3ab4e3fdde14782458f2634ff568cde",
+        "script": "scripts/refine-authored-surfaces.mjs",
+        "method": "Vertical bark fissures with broken cross-grain relief; existing colour/bark maps retained. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
       },
       "runtimeDerivative": {
         "file": "public/models/world/oak-trunk-unit.glb",
-        "sha256": "1d87af21995510310225ae1bc9cc1a72ad32cdcf173bc35354097582dd1a25bb",
-        "bytes": 23736
+        "sha256": "a6489b7be318e8347efd36b9a485793ef1094ab6274ff697a860e4bf37d4aeae",
+        "bytes": 38824
       },
       "normalization": {
         "sizedBy": "height",
@@ -238,7 +238,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 11564,
+        "textureBytes": 26624,
         "renderVertices": 720
       }
     },
@@ -301,15 +301,15 @@
       "preservedAs": "birch-trunk-unit-tripo-original.glb",
       "sha256": "4e60dd3440b95858addc5b40482b3f4139e088947c41f563dac594d1cff9be02",
       "blenderPreparation": {
-        "file": "assets/source/models/world/birch-trunk-unit-authored-vertex-colour-tripo-finish.glb",
-        "sha256": "39699d943ed582173801aba9bafd57b87d62db6bf16c6e0faac4e84a294bbbe2",
-        "script": "scripts/restore-authored-asset-attributes.mjs",
-        "method": "Authored palette, corner normals and shadow flags restored with Tripo normal/roughness. Source nondegenerate triangle shape retained. Runtime material layers, original maps, transforms and dynamic nodes remain live."
+        "file": "assets/source/models/world/birch-trunk-unit-crafted-surface.glb",
+        "sha256": "6a105af344609b706afcef790a408b026f4a1db812afd9827e500b6d439cd5fc",
+        "script": "scripts/refine-authored-surfaces.mjs",
+        "method": "Vertical bark fissures with broken cross-grain relief; existing colour/bark maps retained. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
       },
       "runtimeDerivative": {
         "file": "public/models/world/birch-trunk-unit.glb",
-        "sha256": "2c032dad0237fc3dc1fabba6c2202619f689917598edff9e6e2db2249304dcb9",
-        "bytes": 22056
+        "sha256": "5fcb5ca295bd7310af871a551d8ad38c2dcf729abe81474d682a9f4b80b75cfb",
+        "bytes": 29724
       },
       "normalization": {
         "sizedBy": "height",
@@ -330,7 +330,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 10763,
+        "textureBytes": 18401,
         "renderVertices": 648
       }
     },
@@ -393,15 +393,15 @@
       "preservedAs": "pine-trunk-unit-tripo-original.glb",
       "sha256": "f8afaef7d08b5ff19223abf8145cb1da8c5f0a24c45f2f228ab5bfeb1975ed57",
       "blenderPreparation": {
-        "file": "assets/source/models/world/pine-trunk-unit-authored-vertex-colour-tripo-finish.glb",
-        "sha256": "5a1de61db99eedaf7e68a106aed2195f124a8d2df2717a202f525edfff0c9767",
-        "script": "scripts/restore-authored-asset-attributes.mjs",
-        "method": "Authored palette, corner normals and shadow flags restored with Tripo normal/roughness. Source nondegenerate triangle shape retained. Runtime material layers, original maps, transforms and dynamic nodes remain live."
+        "file": "assets/source/models/world/pine-trunk-unit-crafted-surface.glb",
+        "sha256": "225c48c853cf37d755860e5528dcf31311b390c7d79a1e8839862167b5b989a9",
+        "script": "scripts/refine-authored-surfaces.mjs",
+        "method": "Vertical bark fissures with broken cross-grain relief; existing colour/bark maps retained. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
       },
       "runtimeDerivative": {
         "file": "public/models/world/pine-trunk-unit.glb",
-        "sha256": "e9e27fc66b158e439763938d15e401bacddf1ebeee2488382cfe49a88024f179",
-        "bytes": 29220
+        "sha256": "77fa4c6c44497d0716881904f91730709ccf2c2bc4ee6ac9648e04dfbd2d8e47",
+        "bytes": 37384
       },
       "normalization": {
         "sizedBy": "height",
@@ -422,7 +422,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 14443,
+        "textureBytes": 22570,
         "renderVertices": 936
       }
     },
@@ -531,15 +531,15 @@
       "preservedAs": "spouting-flange-unit-tripo-original.glb",
       "sha256": "d1920c509e29d669ea2953cea1ffbe1f533d1e44f62f059d94826dd5ab1f2812",
       "blenderPreparation": {
-        "file": "assets/source/models/world/spouting-flange-unit-authored-vertex-colour-tripo-finish.glb",
-        "sha256": "f46b3d52d9f2e41d3a991c863474d8947818f961fec2573ad02b2c6ccf672cb9",
-        "script": "scripts/restore-authored-asset-attributes.mjs",
-        "method": "Authored palette, corner normals and shadow flags restored with Tripo normal/roughness. Source nondegenerate triangle shape retained. Runtime material layers, original maps, transforms and dynamic nodes remain live."
+        "file": "assets/source/models/world/spouting-flange-unit-crafted-surface.glb",
+        "sha256": "fda8faa0b131af39f75f7b91a0eb24a57e50a5a4134eeec9137b3564bb83c176",
+        "script": "scripts/refine-authored-surfaces.mjs",
+        "method": "Directional fine industrial machining with subdued crossing polish. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
       },
       "runtimeDerivative": {
         "file": "public/models/world/spouting-flange-unit.glb",
-        "sha256": "df17a1196faeb3a6d1aa53af87cbf36edc05680dc4d820a3563cc39f22967ce3",
-        "bytes": 36912
+        "sha256": "0ac80da1c7ccaab609313288eec6b41714bfc3e771b7005f4509fe6e65f02bde",
+        "bytes": 45464
       },
       "normalization": {
         "sizedBy": "height",
@@ -560,7 +560,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 12543,
+        "textureBytes": 21058,
         "renderVertices": 1368
       }
     },
@@ -577,15 +577,15 @@
       "preservedAs": "spouting-column-unit-tripo-original.glb",
       "sha256": "9c943e50077946a622b8b94a98d308bf098a8624ec3a9491ebe19bacf44b6ef0",
       "blenderPreparation": {
-        "file": "assets/source/models/world/spouting-column-unit-authored-vertex-colour-tripo-finish.glb",
-        "sha256": "8944a9ac29d7e634f8f7c8374f5fc16192ae06ef89e72eed0f73eb6189549819",
-        "script": "scripts/restore-authored-asset-attributes.mjs",
-        "method": "Authored palette, corner normals and shadow flags restored with Tripo normal/roughness. Source nondegenerate triangle shape retained. Runtime material layers, original maps, transforms and dynamic nodes remain live."
+        "file": "assets/source/models/world/spouting-column-unit-crafted-surface.glb",
+        "sha256": "227a1940b7bb8c4fdb87a05c28285a5a5bbe36df1ef0d13a980d65a1553aca6c",
+        "script": "scripts/refine-authored-surfaces.mjs",
+        "method": "Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
       },
       "runtimeDerivative": {
         "file": "public/models/world/spouting-column-unit.glb",
-        "sha256": "2b34ff27f1256ac8ec889cf130a506c42d26fb8c747f160ac0ecd4de00d3c42c",
-        "bytes": 25548
+        "sha256": "0fe2c1515934698839360bd7102846ac74e0b6fdc4e52db06213df49c5d53c4b",
+        "bytes": 29748
       },
       "normalization": {
         "sizedBy": "height",
@@ -606,7 +606,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 12874,
+        "textureBytes": 17040,
         "renderVertices": 648
       }
     },
@@ -623,15 +623,15 @@
       "preservedAs": "spouting-crossbeam-unit-tripo-original.glb",
       "sha256": "60d2d43aea4eb1579a1fdabee95ce1f2f15936e5a293f67ce841bc7fbf5c4ce3",
       "blenderPreparation": {
-        "file": "assets/source/models/world/spouting-crossbeam-unit-authored-vertex-colour-tripo-finish.glb",
-        "sha256": "96df8567c8de20f06c0ab829a1e654a70eca582f6400e452a3fe8b86d6ef0b5c",
-        "script": "scripts/restore-authored-asset-attributes.mjs",
-        "method": "Authored palette, corner normals and shadow flags restored with Tripo normal/roughness. Source nondegenerate triangle shape retained. Runtime material layers, original maps, transforms and dynamic nodes remain live."
+        "file": "assets/source/models/world/spouting-crossbeam-unit-crafted-surface.glb",
+        "sha256": "d475ea856ae79257ba9f69f8f27f2aab39941c7ac655120e70b16b00aee89e85",
+        "script": "scripts/refine-authored-surfaces.mjs",
+        "method": "Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
       },
       "runtimeDerivative": {
         "file": "public/models/world/spouting-crossbeam-unit.glb",
-        "sha256": "a0fef029ebff284d8556a6ee0ee170a97bfd1c9b0f83edd2614d4255441cbdb7",
-        "bytes": 34872
+        "sha256": "8b39604b35877b5962fc66aa4edf387fa98c7edd174f94439d7bf8ba67bed829",
+        "bytes": 39844
       },
       "normalization": {
         "sizedBy": "height",
@@ -652,7 +652,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 12975,
+        "textureBytes": 17905,
         "renderVertices": 1008
       }
     },
@@ -671,15 +671,15 @@
       "preservedAs": "forklift-chassis-unit-tripo-original.glb",
       "sha256": "54e0fdf56998c6b663ba3ae7c049146908df808f9fe6b43c41d1fcb919324efe",
       "blenderPreparation": {
-        "file": "assets/source/models/world/forklift-chassis-unit-authored-vertex-colour-tripo-finish.glb",
-        "sha256": "65835bbcf988f7b313760b3a22fdc865d6892a327d25e516abdaea85c82d9e24",
-        "script": "scripts/restore-authored-asset-attributes.mjs",
-        "method": "Authored palette, corner normals and shadow flags restored with Tripo normal/roughness. Twelve identical coincident source faces and two zero-area faces omitted; licensed original GLB and dynamic rig unchanged. Runtime material layers, original maps, transforms and dynamic nodes remain live."
+        "file": "assets/source/models/world/forklift-chassis-unit-crafted-surface.glb",
+        "sha256": "7751483b9abbea17607c593801a46174bc3924b3fb9b50e5e96f45ce0c8ea846",
+        "script": "scripts/refine-authored-surfaces.mjs",
+        "method": "Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
       },
       "runtimeDerivative": {
         "file": "public/models/world/forklift-chassis-unit.glb",
-        "sha256": "305ef6521c02b27d34b9d8ed4f9a781658d1f4b680c1ebd1bc293930f1f33326",
-        "bytes": 106740
+        "sha256": "05736425535a734f9695d50ba94ad3a47556eb49ced8617d96a1ee160ea82403",
+        "bytes": 111140
       },
       "normalization": {
         "sizedBy": "height",
@@ -700,7 +700,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 13778,
+        "textureBytes": 18145,
         "renderVertices": 4977
       }
     },
@@ -717,15 +717,15 @@
       "preservedAs": "truck-cab-unit-tripo-original.glb",
       "sha256": "7f2a8b89af0ef242491fb542b79c5ef5a06b2e0a307d3b92b6576428de3c13d7",
       "blenderPreparation": {
-        "file": "assets/source/models/world/truck-cab-unit-authored-vertex-colour-tripo-finish.glb",
-        "sha256": "5bb6c06d76ef6c3b0fb36d8be4f466c3e16690313554e74182b0b4be304c6796",
-        "script": "scripts/restore-authored-asset-attributes.mjs",
-        "method": "Authored palette, corner normals and shadow flags restored with Tripo normal/roughness. Source nondegenerate triangle shape retained. Runtime material layers, original maps, transforms and dynamic nodes remain live."
+        "file": "assets/source/models/world/truck-cab-unit-crafted-surface.glb",
+        "sha256": "b8e2356ee63114a2b078bcd082dd71af562895088cfa15100198b9b5f38689f7",
+        "script": "scripts/refine-authored-surfaces.mjs",
+        "method": "Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
       },
       "runtimeDerivative": {
         "file": "public/models/world/truck-cab-unit.glb",
-        "sha256": "25dc6a33e67bbff1758cad72877cbad886a2e565bd603fb46116a86f9e5998ab",
-        "bytes": 33524
+        "sha256": "8fd28140e7dffecedb7c620d801fe3ba4296a7293c65e7031d91f1dfc9cd87d2",
+        "bytes": 36900
       },
       "normalization": {
         "sizedBy": "height",
@@ -746,7 +746,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 7843,
+        "textureBytes": 11185,
         "renderVertices": 1764
       }
     },
@@ -763,15 +763,15 @@
       "preservedAs": "truck-trailer-unit-tripo-original.glb",
       "sha256": "8422e26ae6ab53161c8b87a0a51fbccada347380e46ce94e568f4885e4642cb9",
       "blenderPreparation": {
-        "file": "assets/source/models/world/truck-trailer-unit-authored-vertex-colour-tripo-finish.glb",
-        "sha256": "283dc748f7062e91d70288870396bd10aa8d5fbf07815ee842a4a3b05d788b27",
-        "script": "scripts/restore-authored-asset-attributes.mjs",
-        "method": "Authored palette, corner normals and shadow flags restored with Tripo normal/roughness. Source nondegenerate triangle shape retained. Runtime material layers, original maps, transforms and dynamic nodes remain live."
+        "file": "assets/source/models/world/truck-trailer-unit-crafted-surface.glb",
+        "sha256": "f599c49ddbbab9b85510fb6d5875102b778fc613788fad0a9458633cfdad9053",
+        "script": "scripts/refine-authored-surfaces.mjs",
+        "method": "Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
       },
       "runtimeDerivative": {
         "file": "public/models/world/truck-trailer-unit.glb",
-        "sha256": "4a3ed47e9e7eff8d231f61310bf707a8f18b090915db41278da5bf030d2c618e",
-        "bytes": 34980
+        "sha256": "1e585b1d19cfadd841cff37fe43a440cb5379fd704b6e48319fdeaaed49259ea",
+        "bytes": 37068
       },
       "normalization": {
         "sizedBy": "height",
@@ -792,7 +792,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 9283,
+        "textureBytes": 11334,
         "renderVertices": 1764
       }
     },
@@ -809,15 +809,15 @@
       "preservedAs": "truck-tyre-unit-tripo-original.glb",
       "sha256": "fa7ed2aeea14dadc05ea9805ea52dde799d52e2034fbe5387ada09e9c962f508",
       "blenderPreparation": {
-        "file": "assets/source/models/world/truck-tyre-unit-authored-vertex-colour-tripo-finish.glb",
-        "sha256": "812cfcbb1f6c28e85aa5440ca4eb86bb6719895038e951f0c5338978ee3d5211",
-        "script": "scripts/restore-authored-asset-attributes.mjs",
-        "method": "Authored palette, corner normals and shadow flags restored with Tripo normal/roughness. Source nondegenerate triangle shape retained. Runtime material layers, original maps, transforms and dynamic nodes remain live."
+        "file": "assets/source/models/world/truck-tyre-unit-crafted-surface.glb",
+        "sha256": "196d008356b332df3c1634363d33d49107e7b10320622e1e48c915f8438446d1",
+        "script": "scripts/refine-authored-surfaces.mjs",
+        "method": "Moulded elastomer grain; preserve the existing tyre tread geometry and rubber identity. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
       },
       "runtimeDerivative": {
         "file": "public/models/world/truck-tyre-unit.glb",
-        "sha256": "e583ec1cbb026601fd2e5e1535f02af05dc38abcc77ba5517c192165d7f6a9f3",
-        "bytes": 15676
+        "sha256": "625f7e4b13e5f0e4015938b6a6918968f864f91e525a53fb8a8580f73b1c5460",
+        "bytes": 15868
       },
       "normalization": {
         "sizedBy": "height",
@@ -838,7 +838,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 8370,
+        "textureBytes": 8534,
         "renderVertices": 288
       }
     },
@@ -855,15 +855,15 @@
       "preservedAs": "victorian-portal-unit-tripo-original.glb",
       "sha256": "45e6874548242470ddc5839ede5a4b1e0ca5937925b9b88cbb2432fd7641fb6b",
       "blenderPreparation": {
-        "file": "assets/source/models/world/victorian-portal-unit-authored-vertex-colour-tripo-finish.glb",
-        "sha256": "da470972de85d9253de46a35d3b623a35e888304ca64b500c7a3a750646a484d",
-        "script": "scripts/restore-authored-asset-attributes.mjs",
-        "method": "Authored palette, corner normals and shadow flags restored with Tripo normal/roughness. Source nondegenerate triangle shape retained. Runtime material layers, original maps, transforms and dynamic nodes remain live."
+        "file": "assets/source/models/world/victorian-portal-unit-crafted-surface.glb",
+        "sha256": "b289a566a046158b11d25be92f926b30f27a1a32ad693417719dc202b490ceb3",
+        "script": "scripts/refine-authored-surfaces.mjs",
+        "method": "Irregular mineral face relief; existing mortar and architectural detail remain authored. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
       },
       "runtimeDerivative": {
         "file": "public/models/world/victorian-portal-unit.glb",
-        "sha256": "3616d2df9d8a874dba2171c571c867cf6c8394fd98fef28a6ac269737862f7fe",
-        "bytes": 27528
+        "sha256": "ef1e4bc5d710b0c8e97f630dc18cdbd94167a7193c13b57d71290e10eb0a3e7d",
+        "bytes": 31144
       },
       "normalization": {
         "sizedBy": "height",
@@ -884,7 +884,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 14273,
+        "textureBytes": 17857,
         "renderVertices": 456
       }
     },
@@ -901,15 +901,15 @@
       "preservedAs": "industrial-portal-unit-tripo-original.glb",
       "sha256": "f53013da4eb2936b9ff52aaea5ebfd08b60264c32d8cc025733ee4f9c7ecc38f",
       "blenderPreparation": {
-        "file": "assets/source/models/world/industrial-portal-unit-authored-vertex-colour-tripo-finish.glb",
-        "sha256": "856846f5cd4bf8a0bfac2efe168d48b3877bd300d540e5139b965afa9b34b32a",
-        "script": "scripts/restore-authored-asset-attributes.mjs",
-        "method": "Authored palette, corner normals and shadow flags restored with Tripo normal/roughness. Source nondegenerate triangle shape retained. Runtime material layers, original maps, transforms and dynamic nodes remain live."
+        "file": "assets/source/models/world/industrial-portal-unit-crafted-surface.glb",
+        "sha256": "b31a31fe7f9bb1f91a936ba5c5f971fbf72fe436241be53f7a9c4a7869480318",
+        "script": "scripts/refine-authored-surfaces.mjs",
+        "method": "Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
       },
       "runtimeDerivative": {
         "file": "public/models/world/industrial-portal-unit.glb",
-        "sha256": "e570872f16c9f6583d5e427d701bad2e7882bfa0adfd329d6402ecc40a2e13d7",
-        "bytes": 42152
+        "sha256": "627dd65154a6207080d39f66392900cacfa22d15198d6767b96a073f9e991901",
+        "bytes": 46488
       },
       "normalization": {
         "sizedBy": "height",
@@ -930,7 +930,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 12984,
+        "textureBytes": 17282,
         "renderVertices": 936
       }
     },
@@ -947,15 +947,15 @@
       "preservedAs": "drainage-pipe-unit-tripo-original.glb",
       "sha256": "6a228055bd7a9542fc7eb5f237b45cc48e366b814e6d887c7ef0aeddd4243963",
       "blenderPreparation": {
-        "file": "assets/source/models/world/drainage-pipe-unit-authored-vertex-colour-tripo-finish.glb",
-        "sha256": "16b014760ded8244cd58e3673d10d8f790a90aedcf051672741b4704f6c090d0",
-        "script": "scripts/restore-authored-asset-attributes.mjs",
-        "method": "Authored palette, corner normals and shadow flags restored with Tripo normal/roughness. Source nondegenerate triangle shape retained. Runtime material layers, original maps, transforms and dynamic nodes remain live."
+        "file": "assets/source/models/world/drainage-pipe-unit-crafted-surface.glb",
+        "sha256": "649b7dbf6a6e6c48a03caea5002ed346633493a6968eb326263cdfdbb869cfd6",
+        "script": "scripts/refine-authored-surfaces.mjs",
+        "method": "Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
       },
       "runtimeDerivative": {
         "file": "public/models/world/drainage-pipe-unit.glb",
-        "sha256": "b03dcf04b1c0c3dd87b10a4236fcebf586bbfe4539bc781ebbeb5b825231fbac",
-        "bytes": 70436
+        "sha256": "58baee03f5b0e3ef9f30be089cd7da71dc7f6ef07bc373efc4a0b9e52aa9c4de",
+        "bytes": 64356
       },
       "normalization": {
         "sizedBy": "height",
@@ -976,7 +976,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 23318,
+        "textureBytes": 17207,
         "renderVertices": 2496
       }
     },
@@ -993,15 +993,15 @@
       "preservedAs": "fence-post-unit-tripo-original.glb",
       "sha256": "7a75956e7b2254d77c357d5b415a091a80602f52ba19796fccba0826461b7c3d",
       "blenderPreparation": {
-        "file": "assets/source/models/world/fence-post-unit-authored-vertex-colour-tripo-finish.glb",
-        "sha256": "9d977f7ddbbf0382c4e218a2320f1b783ea87970e8fb4c1f687b3b22caca10a4",
-        "script": "scripts/restore-authored-asset-attributes.mjs",
-        "method": "Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live."
+        "file": "assets/source/models/world/fence-post-unit-crafted-surface.glb",
+        "sha256": "c4448129906122ff1e2a75c8c9d8884d2a046e4df23a51ddd19252b8739fd6dc",
+        "script": "scripts/refine-authored-surfaces.mjs",
+        "method": "Lengthwise wood fibre with irregular growth bands, without changing authored timber palette. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
       },
       "runtimeDerivative": {
         "file": "public/models/world/fence-post-unit.glb",
-        "sha256": "a1350fb0a7b30330f81eb1e12d3eddb0e48febfe48afb4b415c00baea5582819",
-        "bytes": 15596
+        "sha256": "ff95ea3643b3017c9064b9ae001999226377f2fca68115a3fb41655513eb38fe",
+        "bytes": 18516
       },
       "normalization": {
         "sizedBy": "height",
@@ -1022,7 +1022,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 12454,
+        "textureBytes": 15347,
         "renderVertices": 36
       }
     },
@@ -1039,15 +1039,15 @@
       "preservedAs": "fence-rail-unit-tripo-original.glb",
       "sha256": "8735137e1d373b2dc5f0f9c4ab8be422e098b2e09af3798d6768e9e0e36a442a",
       "blenderPreparation": {
-        "file": "assets/source/models/world/fence-rail-unit-authored-vertex-colour-tripo-finish.glb",
-        "sha256": "3a23ce69e4bdba5df0ee4e98380de122106f7d159ac00103dda1d1c267c38d7f",
-        "script": "scripts/restore-authored-asset-attributes.mjs",
-        "method": "Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live."
+        "file": "assets/source/models/world/fence-rail-unit-crafted-surface.glb",
+        "sha256": "7e0774f5fb5fd0524562428bcb8f8f56d8d58b4d88ff506304139716f3151ed5",
+        "script": "scripts/refine-authored-surfaces.mjs",
+        "method": "Lengthwise wood fibre with irregular growth bands, without changing authored timber palette. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
       },
       "runtimeDerivative": {
         "file": "public/models/world/fence-rail-unit.glb",
-        "sha256": "ff754fc515a670ebabebb4af0ade9752177a2b08cfc5a7a9056575fd0ee9dd75",
-        "bytes": 9796
+        "sha256": "2cd9848ac25f69c33a030d638c25124471ada4564ce9ff3890ca4b057b387e4b",
+        "bytes": 9944
       },
       "normalization": {
         "sizedBy": "height",
@@ -1068,7 +1068,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 6656,
+        "textureBytes": 6768,
         "renderVertices": 36
       }
     },
@@ -1131,15 +1131,15 @@
       "preservedAs": "bridge-housing-unit-tripo-original.glb",
       "sha256": "e96b548ba6540b0ba0bee017c4662fa49635bc2176833af1c7d416c83faa4db9",
       "blenderPreparation": {
-        "file": "assets/source/models/world/bridge-housing-unit-authored-vertex-colour-tripo-finish.glb",
-        "sha256": "b770d851848c7fc7c118d21949e021bcf5ee2743320837a0c88710acfc779878",
-        "script": "scripts/restore-authored-asset-attributes.mjs",
-        "method": "Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live."
+        "file": "assets/source/models/world/bridge-housing-unit-crafted-surface.glb",
+        "sha256": "230117e4aac5f84fb586670c4d1fabcc9f2a898402b6342e8a24d80608826ab2",
+        "script": "scripts/refine-authored-surfaces.mjs",
+        "method": "Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
       },
       "runtimeDerivative": {
         "file": "public/models/world/bridge-housing-unit.glb",
-        "sha256": "d8f2662b12ca4847ebab20157b71e0a9ac0103b9bad14d9ba381bed568c36e01",
-        "bytes": 16860
+        "sha256": "0dca9a14191bbb2aa9c5882c3c8c04b996f0ef075f23d4e67c86b916bebff71f",
+        "bytes": 14852
       },
       "normalization": {
         "sizedBy": "height",
@@ -1160,7 +1160,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 13711,
+        "textureBytes": 11665,
         "renderVertices": 36
       }
     },
@@ -1177,15 +1177,15 @@
       "preservedAs": "bridge-support-unit-tripo-original.glb",
       "sha256": "36e8d73911d4fff64e648b41718f863b64d6e76ff156ccda7c192017c4c82bee",
       "blenderPreparation": {
-        "file": "assets/source/models/world/bridge-support-unit-authored-vertex-colour-tripo-finish.glb",
-        "sha256": "e2975287c7cd3f1cd1b1737e92ab369f17cd7c103b00d8bdf8a14c6004716c6d",
-        "script": "scripts/restore-authored-asset-attributes.mjs",
-        "method": "Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live."
+        "file": "assets/source/models/world/bridge-support-unit-crafted-surface.glb",
+        "sha256": "84a145002ec7bfc67d1334fb93a3e92edaad4a2ca2c968654516af03f219dc4b",
+        "script": "scripts/refine-authored-surfaces.mjs",
+        "method": "Non-directional mineral aggregate instead of broad planar bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
       },
       "runtimeDerivative": {
         "file": "public/models/world/bridge-support-unit.glb",
-        "sha256": "82171460262b19ebae701a4f3ba45d00e05032e6998d044b461cb11d8ea4d1e0",
-        "bytes": 13540
+        "sha256": "ac1d455dd859273c4fbda567e3b91b484ab85888eb741a2deb20626ceb34b6ba",
+        "bytes": 13748
       },
       "normalization": {
         "sizedBy": "height",
@@ -1206,7 +1206,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 10378,
+        "textureBytes": 10554,
         "renderVertices": 36
       }
     },
@@ -1223,15 +1223,15 @@
       "preservedAs": "factory-steel-unit-tripo-original.glb",
       "sha256": "6b0753e74c85d9c144fce84a40dd6bc0e33f2aafb420100c56acc32769321fe7",
       "blenderPreparation": {
-        "file": "assets/source/models/world/factory-steel-unit-authored-vertex-colour-tripo-finish.glb",
-        "sha256": "d7efff8260c7685d5a5278c2b19227efb9661895c180e3b3608138f59690abb4",
-        "script": "scripts/restore-authored-asset-attributes.mjs",
-        "method": "Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live."
+        "file": "assets/source/models/world/factory-steel-unit-crafted-surface.glb",
+        "sha256": "5ae31206f613f29639714d3703fcd2de12f91108b093c447996431dff012dc7a",
+        "script": "scripts/refine-authored-surfaces.mjs",
+        "method": "Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
       },
       "runtimeDerivative": {
         "file": "public/models/world/factory-steel-unit.glb",
-        "sha256": "d38ee6ef02ce2f11ffd8e490540ac5fb26c47d24424fc4d7932d9ec9880d91f9",
-        "bytes": 16708
+        "sha256": "85f5881145f7443aa35fe7352919d730fd5b209e37d9ce585def36d5964ffd05",
+        "bytes": 15732
       },
       "normalization": {
         "sizedBy": "height",
@@ -1252,7 +1252,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 13644,
+        "textureBytes": 12629,
         "renderVertices": 36
       }
     },
@@ -1361,15 +1361,15 @@
       "preservedAs": "station-sign-pole-unit-tripo-original.glb",
       "sha256": "c7d998c2e2de7f7044b3f065e5250a7e53883020b28a215eb0080dc8a1d7b254",
       "blenderPreparation": {
-        "file": "assets/source/models/world/station-sign-pole-unit-authored-vertex-colour-tripo-finish.glb",
-        "sha256": "d1dfe1fa3a2d6847de8a15d402f4c0fa965f6aa284416ad93e7d3f5d745158d7",
-        "script": "scripts/restore-authored-asset-attributes.mjs",
-        "method": "Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live."
+        "file": "assets/source/models/world/station-sign-pole-unit-crafted-surface.glb",
+        "sha256": "864b0338aa28dca455bc2b5d2479c53e969052af97509814e84ce1592d6a14da",
+        "script": "scripts/refine-authored-surfaces.mjs",
+        "method": "Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
       },
       "runtimeDerivative": {
         "file": "public/models/world/station-sign-pole-unit.glb",
-        "sha256": "153c9e4a0c814a4d282eeb7789e319632f7071da61b3e2c085651560f8ef1ce9",
-        "bytes": 27952
+        "sha256": "dab09a7af54a294afb1fd096f54f4d70e37af3cce172e4b8f1bcec1a10f78016",
+        "bytes": 29176
       },
       "normalization": {
         "sizedBy": "height",
@@ -1390,7 +1390,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 9047,
+        "textureBytes": 10236,
         "renderVertices": 1152
       }
     },
@@ -1407,15 +1407,15 @@
       "preservedAs": "station-sign-cabinet-unit-tripo-original.glb",
       "sha256": "6615f209ed4e9493084d43607123f7cf988b7afebd2086be53fae756cad3f3d2",
       "blenderPreparation": {
-        "file": "assets/source/models/world/station-sign-cabinet-unit-authored-vertex-colour-tripo-finish.glb",
-        "sha256": "8a6fdd1764270b5ce01deecccf4539c3a840a9a3e7655a97ec2db70d315ef4cf",
-        "script": "scripts/restore-authored-asset-attributes.mjs",
-        "method": "Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live."
+        "file": "assets/source/models/world/station-sign-cabinet-unit-crafted-surface.glb",
+        "sha256": "f9beb25e265a4427febef6d212c9902133497f5e9b087e8cc3727a1e191a1661",
+        "script": "scripts/refine-authored-surfaces.mjs",
+        "method": "Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
       },
       "runtimeDerivative": {
         "file": "public/models/world/station-sign-cabinet-unit.glb",
-        "sha256": "3146b3add0b54b36ad002ab7d0064b37161306c0d22e42b6a7c888bf14a46ab2",
-        "bytes": 15968
+        "sha256": "07e7771059a37a3cff85d60067348a4ee60abec763b09f8ab1347795b07693d5",
+        "bytes": 17292
       },
       "normalization": {
         "sizedBy": "height",
@@ -1436,7 +1436,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 12842,
+        "textureBytes": 14133,
         "renderVertices": 36
       }
     },
@@ -1499,15 +1499,15 @@
       "preservedAs": "station-roof-unit-tripo-original.glb",
       "sha256": "ada3969ba398d25241f6b1441a87867c8c9112ecd2e40865cadf529efb69e2a2",
       "blenderPreparation": {
-        "file": "assets/source/models/world/station-roof-unit-authored-vertex-colour-tripo-finish.glb",
-        "sha256": "963db38e10808dc897833d1250df5347411a6ec42783578247e240ccc5f51d35",
-        "script": "scripts/restore-authored-asset-attributes.mjs",
-        "method": "Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live."
+        "file": "assets/source/models/world/station-roof-unit-crafted-surface.glb",
+        "sha256": "e2445e7c991eedc7ab83247a223c4bc979e2b23536ec32dbdb9fd776d3144e3d",
+        "script": "scripts/refine-authored-surfaces.mjs",
+        "method": "Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
       },
       "runtimeDerivative": {
         "file": "public/models/world/station-roof-unit.glb",
-        "sha256": "d766859ffaaa1b74f1429645892647427ac41d8a78fe1c5fd6f7d06570f9913d",
-        "bytes": 14024
+        "sha256": "40b941a9d3efc4c96d33013aec391ef2acff1414c96df1efa65173ab14810466",
+        "bytes": 13504
       },
       "normalization": {
         "sizedBy": "height",
@@ -1528,7 +1528,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 10873,
+        "textureBytes": 10324,
         "renderVertices": 36
       }
     },
@@ -1546,15 +1546,15 @@
       "preservedAs": "machine-silo-unit-tripo-original.glb",
       "sha256": "8cc105be129852c2946546006fe67880f3e4c9b1c7f663744769dbbd8e09d30b",
       "blenderPreparation": {
-        "file": "assets/source/models/world/machine-silo-unit-shallow-profile.glb",
-        "sha256": "10ff4d0eba4cc94b247ee4f43247fd4f1085cdd68e1a10e39d357e2f8b2ab5e0",
-        "script": "scripts/refine-silo-geometry.mjs",
-        "method": "Local shallow-corrugation remap to the current authored shell; all 10304 retained atlas triangles, UVs, palette, textures and indices preserved. Original 64 zero-area pole faces remain omitted."
+        "file": "assets/source/models/world/machine-silo-unit-crafted-surface.glb",
+        "sha256": "78c5a55f16a2c18f297d780deccc291805dd4c52d52f25ca47e63f516c78ac1a",
+        "script": "scripts/refine-authored-surfaces.mjs",
+        "method": "Directional fine industrial machining with subdued crossing polish. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
       },
       "runtimeDerivative": {
         "file": "public/models/world/machine-silo-unit.glb",
-        "sha256": "e626cc9ee2e9eee350209afc1aab5f51dd59981d848a81f14511a6cc8c26c2da",
-        "bytes": 427728
+        "sha256": "4398e2d42a76b0cbdeb835353a911a5154d9359de8db126d8ec5d9a12bce8c07",
+        "bytes": 431120
       },
       "normalization": {
         "sizedBy": "height",
@@ -1575,7 +1575,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 12226,
+        "textureBytes": 15618,
         "renderVertices": 30912
       }
     },
@@ -1593,15 +1593,15 @@
       "preservedAs": "machine-mill-unit-tripo-original.glb",
       "sha256": "5e030cabea29219dcdf6615eead1241bff23cb69d5bff14a95139f241a9ac386",
       "blenderPreparation": {
-        "file": "assets/source/models/world/machine-mill-unit-authored-vertex-colour-tripo-finish.glb",
-        "sha256": "0b6b8611e9488a2f7987535c4a59d440b4c81fc81ab2ef9bbcf26d3e733b606f",
-        "script": "scripts/restore-authored-asset-attributes.mjs",
-        "method": "Authored same-topology cast-shoulder remap in CompactMachines.tsx, with preserved Tripo atlas, normal/roughness textures, palette and shadow flags. Live fittings follow the reshaped service face."
+        "file": "assets/source/models/world/machine-mill-unit-crafted-surface.glb",
+        "sha256": "34373cbfc273f5ce5af31e39cbb4fb97852ba3190d1c494e2babffb35e884b61",
+        "script": "scripts/refine-authored-surfaces.mjs",
+        "method": "Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
       },
       "runtimeDerivative": {
         "file": "public/models/world/machine-mill-unit.glb",
-        "sha256": "50e01815fb411b67b49988b64dbce4f61658902046e5dfbf4083d3ee01232e49",
-        "bytes": 22936
+        "sha256": "f9c2e6b081b1e505423d590eb9ce735672a8f388bd3811948d2523b8e3cc5e8f",
+        "bytes": 26640
       },
       "normalization": {
         "sizedBy": "height",
@@ -1622,7 +1622,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 8886,
+        "textureBytes": 12563,
         "renderVertices": 576
       }
     },
@@ -1639,15 +1639,15 @@
       "preservedAs": "machine-sifter-unit-tripo-original.glb",
       "sha256": "fbd33171c41944906fa4037640e2493b46666cdb0749410fb9917b6b0c8c7d7e",
       "blenderPreparation": {
-        "file": "assets/source/models/world/machine-sifter-unit-authored-vertex-colour-tripo-finish.glb",
-        "sha256": "2d9c2dbd9a8c1982044b97d4bb6d97efd373ae20205e53c839e3c03e944704ac",
-        "script": "scripts/restore-authored-asset-attributes.mjs",
-        "method": "Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live."
+        "file": "assets/source/models/world/machine-sifter-unit-crafted-surface.glb",
+        "sha256": "a9d8103dd564f10f2de353809284236cf7d076de58d0f820686987a1836f2562",
+        "script": "scripts/refine-authored-surfaces.mjs",
+        "method": "Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
       },
       "runtimeDerivative": {
         "file": "public/models/world/machine-sifter-unit.glb",
-        "sha256": "8f984f37670e075560294e3397fbdb2ec6c53a68b2f288b74af2414fb5485b29",
-        "bytes": 28588
+        "sha256": "009e347f69b4fb12b49fc2abeafbdee4575eef04d1fed5ef6af915ad8b4060a9",
+        "bytes": 33028
       },
       "normalization": {
         "sizedBy": "height",
@@ -1668,7 +1668,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 9461,
+        "textureBytes": 13866,
         "renderVertices": 792
       }
     },
@@ -1685,15 +1685,15 @@
       "preservedAs": "machine-packer-unit-tripo-original.glb",
       "sha256": "5e022f7d32cda28cdeb63d26f6a4526edb02868e57a7e927276a39a5410cb710",
       "blenderPreparation": {
-        "file": "assets/source/models/world/machine-packer-unit-authored-vertex-colour-tripo-finish.glb",
-        "sha256": "35864be1328510dfc16553094922ef85c4db052d5d1c9bd8df512328e7cf66fd",
-        "script": "scripts/restore-authored-asset-attributes.mjs",
-        "method": "Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live."
+        "file": "assets/source/models/world/machine-packer-unit-crafted-surface.glb",
+        "sha256": "4baedbc94045eab33e93467be948ce2166a04b6cc3c0f5c5e08b473c4aa6f1ab",
+        "script": "scripts/refine-authored-surfaces.mjs",
+        "method": "Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
       },
       "runtimeDerivative": {
         "file": "public/models/world/machine-packer-unit.glb",
-        "sha256": "69b8b397b0ac60441bdf9c292a311ba065304c80540da1cf5a30734a7cade114",
-        "bytes": 25188
+        "sha256": "3146a30cbc0bb91be7d298555ba77a904a6602609a119dd6574d37447897b151",
+        "bytes": 29572
       },
       "normalization": {
         "sizedBy": "height",
@@ -1714,7 +1714,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 9517,
+        "textureBytes": 13865,
         "renderVertices": 648
       }
     },
@@ -1731,15 +1731,15 @@
       "preservedAs": "dock-leveler-plate-tripo-original.glb",
       "sha256": "82dfe8446840dbe6b0e3c8e658ca003947493513cecae091a977590fc8b49e59",
       "blenderPreparation": {
-        "file": "assets/source/models/world/dock-leveler-plate-authored-vertex-colour-tripo-finish.glb",
-        "sha256": "d25987172834c0cecc86b08860c92a55adcb6602851be5f6d002ca0cbb7213bf",
-        "script": "scripts/restore-authored-asset-attributes.mjs",
-        "method": "Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live."
+        "file": "assets/source/models/world/dock-leveler-plate-crafted-surface.glb",
+        "sha256": "fe5d2ae9c96b2b1a11c6bfe7f1057a6cae8b4e5374c20a9a62e5956babe60c0c",
+        "script": "scripts/refine-authored-surfaces.mjs",
+        "method": "Directional fine industrial machining with subdued crossing polish. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
       },
       "runtimeDerivative": {
         "file": "public/models/world/dock-leveler-plate.glb",
-        "sha256": "f0a0a516d40b36e16872d3e45797d4637384948531e154378727f98b5ee3f614",
-        "bytes": 13476
+        "sha256": "1b51ebc1f59b436257a0af9387e29c117678b330715d2da75ffa419595e664d8",
+        "bytes": 15668
       },
       "normalization": {
         "sizedBy": "height",
@@ -1760,7 +1760,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 10405,
+        "textureBytes": 12560,
         "renderVertices": 36
       }
     },
@@ -1777,15 +1777,15 @@
       "preservedAs": "dock-leveler-lip-tripo-original.glb",
       "sha256": "adebf7d0a184a862aba06fc700f92a88013d34681c05d47c30410bf45be4ef4d",
       "blenderPreparation": {
-        "file": "assets/source/models/world/dock-leveler-lip-authored-vertex-colour-tripo-finish.glb",
-        "sha256": "9f12a61bba851b66b24f9bf48f90c86b08d59326f715dc76dab1080e381121cf",
-        "script": "scripts/restore-authored-asset-attributes.mjs",
-        "method": "Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live."
+        "file": "assets/source/models/world/dock-leveler-lip-crafted-surface.glb",
+        "sha256": "9a17757457488ca8df64da2ddf39a57371b9fa6b39d11c7ec726f583e3bd4fd2",
+        "script": "scripts/refine-authored-surfaces.mjs",
+        "method": "Directional fine industrial machining with subdued crossing polish. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
       },
       "runtimeDerivative": {
         "file": "public/models/world/dock-leveler-lip.glb",
-        "sha256": "d399ce8e788f46c4e43dab92e68fc5995c8be5ea0d7b023b44c250f3014a6859",
-        "bytes": 15592
+        "sha256": "150f46eccea3dd98934cb938e18216a72fd3da350db87f19efbdff406a20d2c9",
+        "bytes": 13780
       },
       "normalization": {
         "sizedBy": "height",
@@ -1806,7 +1806,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 12499,
+        "textureBytes": 10648,
         "renderVertices": 36
       }
     },
@@ -1869,15 +1869,15 @@
       "preservedAs": "dock-door-frame-tripo-original.glb",
       "sha256": "5e0ab585f6c120ce375e6f48ca597d53cde0e646e538a86ad2b691cc024ff1ef",
       "blenderPreparation": {
-        "file": "assets/source/models/world/dock-door-frame-authored-vertex-colour-tripo-finish.glb",
-        "sha256": "d7bf1e39d96a5cab4f81d42f855a1746c27fe846346a851e7734b42c7560993e",
-        "script": "scripts/restore-authored-asset-attributes.mjs",
-        "method": "Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live."
+        "file": "assets/source/models/world/dock-door-frame-crafted-surface.glb",
+        "sha256": "6ca82363c3faf1bac93584562dd7e8d28349753c2adc4762cc2456bbe802e675",
+        "script": "scripts/refine-authored-surfaces.mjs",
+        "method": "Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
       },
       "runtimeDerivative": {
         "file": "public/models/world/dock-door-frame.glb",
-        "sha256": "a45e477c86fc8ff5ea66cd4297cdc675a23595b1c692d92b45c17271c7a6d5a7",
-        "bytes": 27236
+        "sha256": "f7764d0ad2109cadcbafedac627ee34ad6361b8ea70a180a3355f9242869584a",
+        "bytes": 28140
       },
       "normalization": {
         "sizedBy": "height",
@@ -1898,7 +1898,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 17289,
+        "textureBytes": 18163,
         "renderVertices": 252
       }
     },
@@ -2007,15 +2007,15 @@
       "preservedAs": "dock-shelter-frame-tripo-original.glb",
       "sha256": "c270b567cfd207bf58b20e81282185f91f7679aaae0ffba3df96306b859b7a77",
       "blenderPreparation": {
-        "file": "assets/source/models/world/dock-shelter-frame-authored-vertex-colour-tripo-finish.glb",
-        "sha256": "39387050a7678b1a6235c311e15ce1029c97b6c1600bfd7f73b0413cb6b84f95",
-        "script": "scripts/restore-authored-asset-attributes.mjs",
-        "method": "Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live."
+        "file": "assets/source/models/world/dock-shelter-frame-crafted-surface.glb",
+        "sha256": "354df3251f652413cf52bfcb27ad91ffa8ba60c1d0ec8ecc25413bec56b6203d",
+        "script": "scripts/refine-authored-surfaces.mjs",
+        "method": "Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
       },
       "runtimeDerivative": {
         "file": "public/models/world/dock-shelter-frame.glb",
-        "sha256": "57e5cd9756d70a410dbada3132c2d85e4143d9d979518525b0703672c39da3d7",
-        "bytes": 32672
+        "sha256": "b52c39fac61e8dcabff720c900bb0a5588317a57539007c866d040991734b411",
+        "bytes": 20576
       },
       "normalization": {
         "sizedBy": "height",
@@ -2036,7 +2036,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 27265,
+        "textureBytes": 15138,
         "renderVertices": 108
       }
     },
@@ -2053,15 +2053,15 @@
       "preservedAs": "pallet-staging-body-tripo-original.glb",
       "sha256": "ae6dee17c41831b906062997e4a629f54252fdf80937edb4a0e2092c2621c3e6",
       "blenderPreparation": {
-        "file": "assets/source/models/world/pallet-staging-body-authored-vertex-colour-tripo-finish.glb",
-        "sha256": "b3728f6b399823d25c175f800ce55ed9f12ce4d29b125a2789500cca198cbca8",
-        "script": "scripts/restore-authored-asset-attributes.mjs",
-        "method": "Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live."
+        "file": "assets/source/models/world/pallet-staging-body-crafted-surface.glb",
+        "sha256": "371cc8e91c9074858622db71919c716fb6fa5008ba5d74629a2b589945bc682f",
+        "script": "scripts/refine-authored-surfaces.mjs",
+        "method": "Lengthwise wood fibre with irregular growth bands, without changing authored timber palette. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
       },
       "runtimeDerivative": {
         "file": "public/models/world/pallet-staging-body.glb",
-        "sha256": "5d4c8f38cc434c82296868b039ddee3f1fdf4d1192b322aa59df27b2bf58dcdf",
-        "bytes": 58164
+        "sha256": "e1b49d30790c7fb38f94245f68415824c990fe99e394770fd2ce96c2c477c62c",
+        "bytes": 75840
       },
       "normalization": {
         "sizedBy": "height",
@@ -2082,7 +2082,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 24530,
+        "textureBytes": 42166,
         "renderVertices": 1008
       }
     },
@@ -2099,15 +2099,15 @@
       "preservedAs": "wheel-chock-body-tripo-original.glb",
       "sha256": "40ee1d1f5cd26e4c3e55c0fa5c9e01480681cf1db82dc9fe74778e226ffcdfc9",
       "blenderPreparation": {
-        "file": "assets/source/models/world/wheel-chock-body-authored-vertex-colour-tripo-finish.glb",
-        "sha256": "42a742e7b5029eeea287a62e7d28aab972905d08c88f4be8f7f7579e2d02e657",
-        "script": "scripts/restore-authored-asset-attributes.mjs",
-        "method": "Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live."
+        "file": "assets/source/models/world/wheel-chock-body-crafted-surface.glb",
+        "sha256": "b7afe75757e805b845f56b2bd0a8bf885f7b81abefedca6504eeae1b72d3f94c",
+        "script": "scripts/refine-authored-surfaces.mjs",
+        "method": "Moulded elastomer grain; preserve the existing tyre tread geometry and rubber identity. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
       },
       "runtimeDerivative": {
         "file": "public/models/world/wheel-chock-body.glb",
-        "sha256": "9e1ecff9782a20bc855f45671131502d063f1c8e72f6087e447c889b89a484c5",
-        "bytes": 23416
+        "sha256": "c4dae3d80a82349606191282bf4b594b4bc2eec0253bf104755ca06ff5aae1f2",
+        "bytes": 28332
       },
       "normalization": {
         "sizedBy": "height",
@@ -2128,7 +2128,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 15891,
+        "textureBytes": 20767,
         "renderVertices": 204
       }
     },
@@ -2145,15 +2145,15 @@
       "preservedAs": "dock-bumper-rubber-tripo-original.glb",
       "sha256": "262bb78efefb205dff98128c3a711d5a3ef35e9e398114f86cd34fea1fe4987c",
       "blenderPreparation": {
-        "file": "assets/source/models/world/dock-bumper-rubber-authored-vertex-colour-tripo-finish.glb",
-        "sha256": "2b393d2dafeb98d62e99f70e7a0c68e8e8e5664c89a685362f9a9aeda3855054",
-        "script": "scripts/restore-authored-asset-attributes.mjs",
-        "method": "Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live."
+        "file": "assets/source/models/world/dock-bumper-rubber-crafted-surface.glb",
+        "sha256": "44b4307246f6932b1f708f98d889d8dad7c9958aca1b74a72f1dbb2118b7f5b1",
+        "script": "scripts/refine-authored-surfaces.mjs",
+        "method": "Moulded elastomer grain; preserve the existing tyre tread geometry and rubber identity. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
       },
       "runtimeDerivative": {
         "file": "public/models/world/dock-bumper-rubber.glb",
-        "sha256": "25797677255d6ab7e4ac07fe2b6c0c92777b84f0dcec0fe1f3d27be4b5d83796",
-        "bytes": 17004
+        "sha256": "ca9e9157870366cc3901bd593a9b871bcc583c2c4b892dd9979b9e926da2b312",
+        "bytes": 22628
       },
       "normalization": {
         "sizedBy": "height",
@@ -2174,7 +2174,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 13877,
+        "textureBytes": 19467,
         "renderVertices": 36
       }
     },
@@ -2283,15 +2283,15 @@
       "preservedAs": "yard-access-node-body-tripo-original.glb",
       "sha256": "e995396ea9395124088d44d6296577f7b6a186a5e34d8af41834c23d9db4374a",
       "blenderPreparation": {
-        "file": "assets/source/models/world/yard-access-node-body-authored-vertex-colour-tripo-finish.glb",
-        "sha256": "53bfa3e85a6dd98df744779c729955df331350e39714d3d42a889c904a96b851",
-        "script": "scripts/restore-authored-asset-attributes.mjs",
-        "method": "Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live."
+        "file": "assets/source/models/world/yard-access-node-body-crafted-surface.glb",
+        "sha256": "755735661b7de335a2353fd8f2f39f22e95cbaee35c7ba99e2d30b1ef33787ef",
+        "script": "scripts/refine-authored-surfaces.mjs",
+        "method": "Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
       },
       "runtimeDerivative": {
         "file": "public/models/world/yard-access-node-body.glb",
-        "sha256": "107411d37977c47afebc644de42cf5c8246672f37e2a16cedd1fae0c60726915",
-        "bytes": 35996
+        "sha256": "823cf9835a097f6e6dd9b82bcd2549c541dc017b39a14bfeba7bf1844521d697",
+        "bytes": 34676
       },
       "normalization": {
         "sizedBy": "height",
@@ -2312,7 +2312,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 19258,
+        "textureBytes": 17906,
         "renderVertices": 468
       }
     },
@@ -2329,15 +2329,15 @@
       "preservedAs": "yard-air-hose-body-tripo-original.glb",
       "sha256": "377ef7d61a783161377e42c67bb9b4eb5a698cf6695a7307573cb4cc8060e7f5",
       "blenderPreparation": {
-        "file": "assets/source/models/world/yard-air-hose-body-authored-vertex-colour-tripo-finish.glb",
-        "sha256": "bfc4c9ac70c848da6e2a31c100ac4c4b529cbe963ae9d2ff587d7a5649bd8860",
-        "script": "scripts/restore-authored-asset-attributes.mjs",
-        "method": "Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live."
+        "file": "assets/source/models/world/yard-air-hose-body-crafted-surface.glb",
+        "sha256": "0ff4397b0b6abeabdb2888f10cdf7a8ca0f17c32274a9e1f47851207ddd892b3",
+        "script": "scripts/refine-authored-surfaces.mjs",
+        "method": "Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
       },
       "runtimeDerivative": {
         "file": "public/models/world/yard-air-hose-body.glb",
-        "sha256": "752f81084c214a910da4a8aa6dc4ac5ba92fd25b536b7611aa151425e7750eab",
-        "bytes": 33324
+        "sha256": "1af0c68ad7a8ac0f29f03790b10a973564905a880d7ec0d09a8241ac9a529ddd",
+        "bytes": 32756
       },
       "normalization": {
         "sizedBy": "height",
@@ -2358,7 +2358,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 19904,
+        "textureBytes": 19302,
         "renderVertices": 552
       }
     },
@@ -2375,15 +2375,15 @@
       "preservedAs": "yard-bumper-body-tripo-original.glb",
       "sha256": "922d4dc922149b419df8741454062955ce335768c68f1e34cbd64b220a0acf67",
       "blenderPreparation": {
-        "file": "assets/source/models/world/yard-bumper-body-authored-vertex-colour-tripo-finish.glb",
-        "sha256": "9e6439013e463c9ff9068af0fc8d4bcdde4c0c1799c4bed1bf8013497177e924",
-        "script": "scripts/restore-authored-asset-attributes.mjs",
-        "method": "Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live."
+        "file": "assets/source/models/world/yard-bumper-body-crafted-surface.glb",
+        "sha256": "b7fd82308f4a382ad3c6be233523483824dc33c3253dd6068bf5101d1e8b97f7",
+        "script": "scripts/refine-authored-surfaces.mjs",
+        "method": "Moulded elastomer grain; preserve the existing tyre tread geometry and rubber identity. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
       },
       "runtimeDerivative": {
         "file": "public/models/world/yard-bumper-body.glb",
-        "sha256": "6a445adb5d70f0d18abcab2d0736db060b98e1ddbbee36689a914281205376d1",
-        "bytes": 15296
+        "sha256": "43404633523c06b845289110bb4145073f11362dd635205d3271bc76fbf07626",
+        "bytes": 19432
       },
       "normalization": {
         "sizedBy": "height",
@@ -2404,7 +2404,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 12172,
+        "textureBytes": 16274,
         "renderVertices": 36
       }
     },
@@ -2421,15 +2421,15 @@
       "preservedAs": "yard-compactor-body-tripo-original.glb",
       "sha256": "137c7a9e057552d9a4180a614434c0e22162ab546d1825ba0e1e47bc4da0e430",
       "blenderPreparation": {
-        "file": "assets/source/models/world/yard-compactor-body-authored-vertex-colour-tripo-finish.glb",
-        "sha256": "65b24018d5fb3efd671a98bd9a24d8daf89327aa0d2ca890cb8a1c7d948e383c",
-        "script": "scripts/restore-authored-asset-attributes.mjs",
-        "method": "Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live."
+        "file": "assets/source/models/world/yard-compactor-body-crafted-surface.glb",
+        "sha256": "67c1cfac7c31963267af3f5f2958e497b2481dce4aaafc879d856498c2aae8ba",
+        "script": "scripts/refine-authored-surfaces.mjs",
+        "method": "Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
       },
       "runtimeDerivative": {
         "file": "public/models/world/yard-compactor-body.glb",
-        "sha256": "b3767465efe52727c72c5203fb3d9489baf4d90cfe5f9a0be24fb7272ec92f51",
-        "bytes": 21324
+        "sha256": "938eff9fad946411364eb0666383983799d5179d492592f767bd2800fcafa20a",
+        "bytes": 25528
       },
       "normalization": {
         "sizedBy": "height",
@@ -2450,7 +2450,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 14559,
+        "textureBytes": 18728,
         "renderVertices": 150
       }
     },
@@ -2467,15 +2467,15 @@
       "preservedAs": "yard-crane-body-tripo-original.glb",
       "sha256": "f137e3ce3e82eeac871eeee74e7d938381c2e7ed60dc25d371afa8ef69a22822",
       "blenderPreparation": {
-        "file": "assets/source/models/world/yard-crane-body-authored-vertex-colour-tripo-finish.glb",
-        "sha256": "5dbc2de3b06cd7ce8352fea661811d7d26dbc21b975ff66ae971c729649f1b15",
-        "script": "scripts/restore-authored-asset-attributes.mjs",
-        "method": "Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live."
+        "file": "assets/source/models/world/yard-crane-body-crafted-surface.glb",
+        "sha256": "5c3e57ae34a50521413be164af7a69f32a231a56ae52274ae2e32f443af80fdc",
+        "script": "scripts/refine-authored-surfaces.mjs",
+        "method": "Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
       },
       "runtimeDerivative": {
         "file": "public/models/world/yard-crane-body.glb",
-        "sha256": "0ddae2cbdc078f633edd9cc05be6b400d9423d75c6322c29d006e0e00ad1a871",
-        "bytes": 43056
+        "sha256": "e715de6d094db48f033b9cd2f73760e64fedd3b13d3dda6013731f88a97b2fc8",
+        "bytes": 40144
       },
       "normalization": {
         "sizedBy": "height",
@@ -2496,7 +2496,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 25374,
+        "textureBytes": 22429,
         "renderVertices": 702
       }
     },
@@ -2513,15 +2513,15 @@
       "preservedAs": "yard-dock-plate-body-tripo-original.glb",
       "sha256": "13d044806561c5810a816fb3e4f3dcab1fc270023df57cf5955f566ae13d1bb3",
       "blenderPreparation": {
-        "file": "assets/source/models/world/yard-dock-plate-body-authored-vertex-colour-tripo-finish.glb",
-        "sha256": "15b6ef754af3345003d9657a3ee39d7d75aab93b963c84ec5df0422454d5f1f2",
-        "script": "scripts/restore-authored-asset-attributes.mjs",
-        "method": "Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live."
+        "file": "assets/source/models/world/yard-dock-plate-body-crafted-surface.glb",
+        "sha256": "62e6050666867220169c5ef5acb2a053903e066720ff13629df4796e743096fb",
+        "script": "scripts/refine-authored-surfaces.mjs",
+        "method": "Directional fine industrial machining with subdued crossing polish. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
       },
       "runtimeDerivative": {
         "file": "public/models/world/yard-dock-plate-body.glb",
-        "sha256": "723eff4d1a7f7b5721d06ecf34b7e8ad9db1efe4f204a2e5f71b8807b6865b07",
-        "bytes": 27852
+        "sha256": "7c1d199f7c5b84a978d7af71ef24641fecdbacab65a5baf79f1da520932c9f01",
+        "bytes": 31276
       },
       "normalization": {
         "sizedBy": "height",
@@ -2542,7 +2542,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 19577,
+        "textureBytes": 22971,
         "renderVertices": 198
       }
     },
@@ -2559,15 +2559,15 @@
       "preservedAs": "yard-dumpster-body-tripo-original.glb",
       "sha256": "eb12b207eab9e3fc66b56d636f82f0a514595d06e5876aa20630ff1068753bec",
       "blenderPreparation": {
-        "file": "assets/source/models/world/yard-dumpster-body-authored-vertex-colour-tripo-finish.glb",
-        "sha256": "945c9c10aae7353de0b30b84224ad2e991c3987c76a972f285dd70dfa99e9639",
-        "script": "scripts/restore-authored-asset-attributes.mjs",
-        "method": "Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live."
+        "file": "assets/source/models/world/yard-dumpster-body-crafted-surface.glb",
+        "sha256": "3399234191d8ffed5dee552b8639e132e26377b82e3841e117930c399ac96468",
+        "script": "scripts/refine-authored-surfaces.mjs",
+        "method": "Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
       },
       "runtimeDerivative": {
         "file": "public/models/world/yard-dumpster-body.glb",
-        "sha256": "cd37d867a0fa7854c31760261c1444aaefd8065a9a7f00d21c35113ec197865f",
-        "bytes": 116844
+        "sha256": "9524e3b0b2eefea3f2519c3e0465053e673226fb4914df712eab0d69dd512777",
+        "bytes": 117732
       },
       "normalization": {
         "sizedBy": "height",
@@ -2588,7 +2588,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 16650,
+        "textureBytes": 17509,
         "renderVertices": 5382
       }
     },
@@ -2605,15 +2605,15 @@
       "preservedAs": "yard-extinguisher-body-tripo-original.glb",
       "sha256": "ed1a23bfe28e1e93b8aae064e1e2b6a759f018427c13c4c96460dcd2060c13c7",
       "blenderPreparation": {
-        "file": "assets/source/models/world/yard-extinguisher-body-authored-vertex-colour-tripo-finish.glb",
-        "sha256": "8e380beca89262b7462cdcd70d7a6dd7d2e0b1201af3bd68a48604d69002ae23",
-        "script": "scripts/restore-authored-asset-attributes.mjs",
-        "method": "Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live."
+        "file": "assets/source/models/world/yard-extinguisher-body-crafted-surface.glb",
+        "sha256": "c1d57058ab64a6a73fcc8aa1d17d1e600f3adc30b7dea31c6d51bf1c4ac3fc05",
+        "script": "scripts/refine-authored-surfaces.mjs",
+        "method": "Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
       },
       "runtimeDerivative": {
         "file": "public/models/world/yard-extinguisher-body.glb",
-        "sha256": "6094be613b575c07b5263bbe9d98dba7516d7b284d52a09b88ca2f23ac12da60",
-        "bytes": 34748
+        "sha256": "11e68dae8ea329c982830b4d558bbb7312195ce9c65cdad3ea95c2aa0817e63f",
+        "bytes": 32412
       },
       "normalization": {
         "sizedBy": "height",
@@ -2634,7 +2634,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 17185,
+        "textureBytes": 14813,
         "renderVertices": 660
       }
     },
@@ -2651,15 +2651,15 @@
       "preservedAs": "yard-fuel-island-body-tripo-original.glb",
       "sha256": "1fbd8da36ad3026cbcdc7c249c4876e55dd28951e18a76ef8b9468126611f170",
       "blenderPreparation": {
-        "file": "assets/source/models/world/yard-fuel-island-body-authored-vertex-colour-tripo-finish.glb",
-        "sha256": "8ea9628f9e386131248780e508f8422ec39950ac05006308389e56ce8f3249e8",
-        "script": "scripts/restore-authored-asset-attributes.mjs",
-        "method": "Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live."
+        "file": "assets/source/models/world/yard-fuel-island-body-crafted-surface.glb",
+        "sha256": "4102b37cd4b9db00b3a0aaaccef1d3d442dc9f46e416364510388c591a316176",
+        "script": "scripts/refine-authored-surfaces.mjs",
+        "method": "Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
       },
       "runtimeDerivative": {
         "file": "public/models/world/yard-fuel-island-body.glb",
-        "sha256": "53ac739db1a4cd5f808e4c3185c9498eb8899571674553604d85ee72881e49aa",
-        "bytes": 37592
+        "sha256": "4e6d38846d880b1086f65c882b88420a48a71bdd1ee888d59318321293cb2875",
+        "bytes": 37744
       },
       "normalization": {
         "sizedBy": "height",
@@ -2680,7 +2680,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 21405,
+        "textureBytes": 21526,
         "renderVertices": 564
       }
     },
@@ -2697,15 +2697,15 @@
       "preservedAs": "yard-guard-shack-body-tripo-original.glb",
       "sha256": "fb8d67c85cbadb4080967df8811ae343e633f693c797bb8343290e5a02e48a46",
       "blenderPreparation": {
-        "file": "assets/source/models/world/yard-guard-shack-body-authored-vertex-colour-tripo-finish.glb",
-        "sha256": "60f8c3e89e87565898b827101231c3661fa205f42d0cf5220d698b0878928dd9",
-        "script": "scripts/restore-authored-asset-attributes.mjs",
-        "method": "Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live."
+        "file": "assets/source/models/world/yard-guard-shack-body-crafted-surface.glb",
+        "sha256": "56380489c67697b0563db1cfe38868f9d6eff71f2dc5cab5b0cbc9a23ebd97db",
+        "script": "scripts/refine-authored-surfaces.mjs",
+        "method": "Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
       },
       "runtimeDerivative": {
         "file": "public/models/world/yard-guard-shack-body.glb",
-        "sha256": "9ba308d26d69543c90070f518e812f316a888c6e2f8107762f66ea7a2872d597",
-        "bytes": 27912
+        "sha256": "e6d3d5aa24e2b05266a35f213883ce1a9f57244fdb29a22ab2ae63ee3b2c908a",
+        "bytes": 29676
       },
       "normalization": {
         "sizedBy": "height",
@@ -2726,7 +2726,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 17096,
+        "textureBytes": 18826,
         "renderVertices": 336
       }
     },
@@ -2743,15 +2743,15 @@
       "preservedAs": "yard-intercom-body-tripo-original.glb",
       "sha256": "cb76edf2c03cf87aca09fb85f6afb2b9919c4f3f546cc023750ecaf10b95bfc2",
       "blenderPreparation": {
-        "file": "assets/source/models/world/yard-intercom-body-authored-vertex-colour-tripo-finish.glb",
-        "sha256": "3837a8631b82eca9ebf7a500bb9531f94153bff2d8327f5a52a015e58aeb8ece",
-        "script": "scripts/restore-authored-asset-attributes.mjs",
-        "method": "Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live."
+        "file": "assets/source/models/world/yard-intercom-body-crafted-surface.glb",
+        "sha256": "bd4f7f67e972cbfe594dc0c4e03b6418fbec9f553e332652b67af3cec7987d6a",
+        "script": "scripts/refine-authored-surfaces.mjs",
+        "method": "Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
       },
       "runtimeDerivative": {
         "file": "public/models/world/yard-intercom-body.glb",
-        "sha256": "aa0ddcb92b645e3e201b126a2a3fb13790c3ecf628df7ae9ea42dc1732910c81",
-        "bytes": 40136
+        "sha256": "ab8af7fa35b1ebf9d634dee2e223267b74b6f21a5e2449df8c52c8c34f5561be",
+        "bytes": 37240
       },
       "normalization": {
         "sizedBy": "height",
@@ -2772,7 +2772,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 23656,
+        "textureBytes": 20727,
         "renderVertices": 510
       }
     },
@@ -2789,15 +2789,15 @@
       "preservedAs": "yard-jockey-body-tripo-original.glb",
       "sha256": "1266bc85f0fd89027ecfb8359746903ee1634eb66f1b5e361be992e6aa6934ee",
       "blenderPreparation": {
-        "file": "assets/source/models/world/yard-jockey-body-authored-vertex-colour-tripo-finish.glb",
-        "sha256": "71c6bfcf14fb59eeb3ffe0997d2a11ffb51c864ccf25469bbf1ba0b832f6c366",
-        "script": "scripts/restore-authored-asset-attributes.mjs",
-        "method": "Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live."
+        "file": "assets/source/models/world/yard-jockey-body-crafted-surface.glb",
+        "sha256": "273ec4a63869ca8a74d396b30bd7f700ce2d82d07e4871291502318e967d9d5b",
+        "script": "scripts/refine-authored-surfaces.mjs",
+        "method": "Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
       },
       "runtimeDerivative": {
         "file": "public/models/world/yard-jockey-body.glb",
-        "sha256": "66a3354be6ac79cc10672c48f6857ccecf164bf37fa803b2941b84e1250a67cc",
-        "bytes": 30892
+        "sha256": "64573a85a95025296febfd24163048e8c4f3a3ba787caefaacdbd1e5f748cadb",
+        "bytes": 36192
       },
       "normalization": {
         "sizedBy": "height",
@@ -2818,7 +2818,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 13107,
+        "textureBytes": 18367,
         "renderVertices": 756
       }
     },
@@ -2835,15 +2835,15 @@
       "preservedAs": "yard-maintenance-body-tripo-original.glb",
       "sha256": "c4995ce0f2c81470980353c5cc24856a9c770add1dc40941d46f241bf8703cec",
       "blenderPreparation": {
-        "file": "assets/source/models/world/yard-maintenance-body-authored-vertex-colour-tripo-finish.glb",
-        "sha256": "ec78f06b011b6dfcb0cc87a9bd10bb1324e7a57f9641ececb716b851d1b403db",
-        "script": "scripts/restore-authored-asset-attributes.mjs",
-        "method": "Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live."
+        "file": "assets/source/models/world/yard-maintenance-body-crafted-surface.glb",
+        "sha256": "e9b99e6c9d3ecb0e4a982358766a684f20085ae9f031368e40fb0bfeedff2da2",
+        "script": "scripts/refine-authored-surfaces.mjs",
+        "method": "Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
       },
       "runtimeDerivative": {
         "file": "public/models/world/yard-maintenance-body.glb",
-        "sha256": "2c899383d3162a96f47221ca3c3ccdc68a40347d41e84b3b9f4b19f5c1e9dbc7",
-        "bytes": 96908
+        "sha256": "2a93fd4e5c6565f0e23756602ab46889a8fe9a450273894a35505f27e0f8f964",
+        "bytes": 92060
       },
       "normalization": {
         "sizedBy": "height",
@@ -2864,7 +2864,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 20052,
+        "textureBytes": 15172,
         "renderVertices": 4020
       }
     },
@@ -2881,15 +2881,15 @@
       "preservedAs": "yard-manifest-body-tripo-original.glb",
       "sha256": "dc3e9a2b41c426a65827ec0b16e3e86419967bb92addd22d1773db9bdabd667f",
       "blenderPreparation": {
-        "file": "assets/source/models/world/yard-manifest-body-authored-vertex-colour-tripo-finish.glb",
-        "sha256": "f0403154c79b4bff554d7a17b2fd32a1d9463be8f3b0c3308338c8787b867fd9",
-        "script": "scripts/restore-authored-asset-attributes.mjs",
-        "method": "Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live."
+        "file": "assets/source/models/world/yard-manifest-body-crafted-surface.glb",
+        "sha256": "3eabac54f7ea42bb778f097337ada8b8f8fe95bd212e6b639d6916fd1c8f6966",
+        "script": "scripts/refine-authored-surfaces.mjs",
+        "method": "Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
       },
       "runtimeDerivative": {
         "file": "public/models/world/yard-manifest-body.glb",
-        "sha256": "6d7d4e5060db72ae4513d6300022e5c2abaa98ce03e3c4bebf9926142c6ed473",
-        "bytes": 33552
+        "sha256": "3c052aebc45ecd52c664f2828193437265828aa7d93bab101dfa27a25529f26c",
+        "bytes": 31552
       },
       "normalization": {
         "sizedBy": "height",
@@ -2910,7 +2910,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 22962,
+        "textureBytes": 20931,
         "renderVertices": 318
       }
     },
@@ -2927,15 +2927,15 @@
       "preservedAs": "yard-pallet-charger-body-tripo-original.glb",
       "sha256": "99b664d4faac921353c7973e0c0914caf38caff5b442115de70e8a23fbe7ce90",
       "blenderPreparation": {
-        "file": "assets/source/models/world/yard-pallet-charger-body-authored-vertex-colour-tripo-finish.glb",
-        "sha256": "79dc103c327cee20267760f41c6bd7f37fb76b4ad55a5c734b1db1ba0949c21b",
-        "script": "scripts/restore-authored-asset-attributes.mjs",
-        "method": "Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live."
+        "file": "assets/source/models/world/yard-pallet-charger-body-crafted-surface.glb",
+        "sha256": "7cdfbea7ad20e07e62d1d3e64b698cb2ed8808f407794bc6c83e0056cec53331",
+        "script": "scripts/refine-authored-surfaces.mjs",
+        "method": "Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
       },
       "runtimeDerivative": {
         "file": "public/models/world/yard-pallet-charger-body.glb",
-        "sha256": "dba35f6eab8c88a8ec307c37bbcbeebe0eea1269cd8992d4c0ac8d851f1b898a",
-        "bytes": 60900
+        "sha256": "d1464866e96d7ca1784b09abb3a56aec5b1058983cbced2115f3a04062aea314",
+        "bytes": 60124
       },
       "normalization": {
         "sizedBy": "height",
@@ -2956,7 +2956,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 22605,
+        "textureBytes": 21797,
         "renderVertices": 1944
       }
     },
@@ -2973,15 +2973,15 @@
       "preservedAs": "yard-safety-mirror-body-tripo-original.glb",
       "sha256": "dac4d9c4d770f83050856f3236d829329669cc861ea6618db8846607d949e2a5",
       "blenderPreparation": {
-        "file": "assets/source/models/world/yard-safety-mirror-body-authored-vertex-colour-tripo-finish.glb",
-        "sha256": "2b6a2202c500486b5a42c45cf784c360b2c7c65866fcf47950cecdf0a53e0f8f",
-        "script": "scripts/restore-authored-asset-attributes.mjs",
-        "method": "Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live."
+        "file": "assets/source/models/world/yard-safety-mirror-body-crafted-surface.glb",
+        "sha256": "c0cd89cf33864bc54fe66f72d34cb404756b0ee256e4549c98841d602dca4b15",
+        "script": "scripts/refine-authored-surfaces.mjs",
+        "method": "Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
       },
       "runtimeDerivative": {
         "file": "public/models/world/yard-safety-mirror-body.glb",
-        "sha256": "b7421c81e591a1474065c19d0806479045da335112a4c140f3e7d6287f3cbff6",
-        "bytes": 16024
+        "sha256": "f15d550e24d8b9237a3a66d7e70da0352447a42ac9829db81c16f8b7857537e2",
+        "bytes": 14672
       },
       "normalization": {
         "sizedBy": "height",
@@ -3002,7 +3002,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 11710,
+        "textureBytes": 10327,
         "renderVertices": 72
       }
     },
@@ -3019,15 +3019,15 @@
       "preservedAs": "yard-scale-kiosk-body-tripo-original.glb",
       "sha256": "a581d66c016cebe30236fcce63cf9ee6ead82c6c2e49d80f025e1743926913ec",
       "blenderPreparation": {
-        "file": "assets/source/models/world/yard-scale-kiosk-body-authored-vertex-colour-tripo-finish.glb",
-        "sha256": "4e887b3e97844c61bf994e421df32f9f03ef1c012508d5f636d96bea3b274c68",
-        "script": "scripts/restore-authored-asset-attributes.mjs",
-        "method": "Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live."
+        "file": "assets/source/models/world/yard-scale-kiosk-body-crafted-surface.glb",
+        "sha256": "2c205ee3b3af20c4a7b8bf60721948a9552d6636ad115ed98ae063ab4bdbec65",
+        "script": "scripts/refine-authored-surfaces.mjs",
+        "method": "Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
       },
       "runtimeDerivative": {
         "file": "public/models/world/yard-scale-kiosk-body.glb",
-        "sha256": "ae4fafe534f78b411fc100b60c1363f633d85cfb36211a461387fbbd877f5779",
-        "bytes": 23504
+        "sha256": "b7265053ea3b752dc3aaf647045cab25ee85c7c11f75fb1ccaa9cc67911957a9",
+        "bytes": 23760
       },
       "normalization": {
         "sizedBy": "height",
@@ -3048,7 +3048,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 14945,
+        "textureBytes": 15167,
         "renderVertices": 228
       }
     },
@@ -3065,15 +3065,15 @@
       "preservedAs": "yard-stretch-wrap-body-tripo-original.glb",
       "sha256": "4c76e9c1a29f5f1d01db7a59330a47509293d371c915d64bf3f768f0acb3b536",
       "blenderPreparation": {
-        "file": "assets/source/models/world/yard-stretch-wrap-body-authored-vertex-colour-tripo-finish.glb",
-        "sha256": "8c73748ce3962d4cd24c0b25d49d1a9bc8e54855fc318e0cf699ba0d7047dd83",
-        "script": "scripts/restore-authored-asset-attributes.mjs",
-        "method": "Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live."
+        "file": "assets/source/models/world/yard-stretch-wrap-body-crafted-surface.glb",
+        "sha256": "e7d8a1352fdd78cf1ec90b8a5f28981464e250268101e7cb0cbbcbf0539afb38",
+        "script": "scripts/refine-authored-surfaces.mjs",
+        "method": "Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
       },
       "runtimeDerivative": {
         "file": "public/models/world/yard-stretch-wrap-body.glb",
-        "sha256": "0c842ee6d4c9f0ccb60259e88f0625b1dcbabf4eccd9ebc169e3cde033e4aabb",
-        "bytes": 28264
+        "sha256": "62861f38b6a9d56d88a6262a70408db4c089472bf842c7aeabc4e1bcd83f3138",
+        "bytes": 31672
       },
       "normalization": {
         "sizedBy": "height",
@@ -3094,7 +3094,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 16450,
+        "textureBytes": 19831,
         "renderVertices": 432
       }
     },
@@ -3111,15 +3111,15 @@
       "preservedAs": "yard-telemetry-body-tripo-original.glb",
       "sha256": "238b21f75c328e6c3492fe1e44c7fb50b52c0561c63234dd963aae2fe5ee1be8",
       "blenderPreparation": {
-        "file": "assets/source/models/world/yard-telemetry-body-authored-vertex-colour-tripo-finish.glb",
-        "sha256": "6dff2547e7220f8f497ccd06fd2afa963409d854d9301c613cd74a51304f6b19",
-        "script": "scripts/restore-authored-asset-attributes.mjs",
-        "method": "Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live."
+        "file": "assets/source/models/world/yard-telemetry-body-crafted-surface.glb",
+        "sha256": "00a2cfe4a3c7e5ea30ce3ea390142017a98a79384e95def2a83d342c0b3a2bb8",
+        "script": "scripts/refine-authored-surfaces.mjs",
+        "method": "Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
       },
       "runtimeDerivative": {
         "file": "public/models/world/yard-telemetry-body.glb",
-        "sha256": "8b0909e1992798d4f52f809a7bd009108e0fd5d9ba990fe5f25362a5c8de3d5b",
-        "bytes": 39836
+        "sha256": "24bcd7df0a2ba3aa45ecd59f5d3de1ba7a6b1a17a38a77c8decc4fca630ef22c",
+        "bytes": 37756
       },
       "normalization": {
         "sizedBy": "height",
@@ -3140,7 +3140,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 22810,
+        "textureBytes": 20694,
         "renderVertices": 468
       }
     },
@@ -3157,15 +3157,15 @@
       "preservedAs": "yard-tire-inspection-body-tripo-original.glb",
       "sha256": "35d53092ea3fe8b51a77fce5883bc52c5bd352f270bf81f5cf1099f39e487ed2",
       "blenderPreparation": {
-        "file": "assets/source/models/world/yard-tire-inspection-body-authored-vertex-colour-tripo-finish.glb",
-        "sha256": "eacefdb09294fdfb99a3fc65251156e3144e69b42a6afd21a76a8fcbb97dba7e",
-        "script": "scripts/restore-authored-asset-attributes.mjs",
-        "method": "Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live."
+        "file": "assets/source/models/world/yard-tire-inspection-body-crafted-surface.glb",
+        "sha256": "5e99106f72225e571c33af65f3671c2f377a64b9c5314c1691ba576fbbcfc18f",
+        "script": "scripts/refine-authored-surfaces.mjs",
+        "method": "Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
       },
       "runtimeDerivative": {
         "file": "public/models/world/yard-tire-inspection-body.glb",
-        "sha256": "bb2f2e829d5d51d887d7dbd3b365c6ef8e935bf9a8c293dded0eed6d648fad24",
-        "bytes": 50492
+        "sha256": "758f445ebaa320643f524a64b50f524c476fd51009cd043ab4df6d651440b497",
+        "bytes": 51768
       },
       "normalization": {
         "sizedBy": "height",
@@ -3186,7 +3186,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 22243,
+        "textureBytes": 23483,
         "renderVertices": 1032
       }
     },
@@ -3203,15 +3203,15 @@
       "preservedAs": "yard-truck-wash-body-tripo-original.glb",
       "sha256": "766f606395913fad0dbcf088a5957a7b4844b3b625b02416b5b9cd33320927db",
       "blenderPreparation": {
-        "file": "assets/source/models/world/yard-truck-wash-body-authored-vertex-colour-tripo-finish.glb",
-        "sha256": "db7e41e18c54f3feac39e338c0a8d6755703c32d1e6189e780f962afaac9e50e",
-        "script": "scripts/restore-authored-asset-attributes.mjs",
-        "method": "Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live."
+        "file": "assets/source/models/world/yard-truck-wash-body-crafted-surface.glb",
+        "sha256": "53d6e4949740d28ace215f2a2fb6a8e9879d6b992fe77a014a830f9b74945e5f",
+        "script": "scripts/refine-authored-surfaces.mjs",
+        "method": "Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
       },
       "runtimeDerivative": {
         "file": "public/models/world/yard-truck-wash-body.glb",
-        "sha256": "365b8061b755db5041ed7263254573760124bcbbab450e386320f8d524b29d7e",
-        "bytes": 75664
+        "sha256": "8e2bd2e79cc7ca44cfa623b39132f9f75d0ba490943879aeb8820022ef3c6c23",
+        "bytes": 72656
       },
       "normalization": {
         "sizedBy": "height",
@@ -3232,7 +3232,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 16243,
+        "textureBytes": 13198,
         "renderVertices": 2040
       }
     },
@@ -3249,15 +3249,15 @@
       "preservedAs": "yard-weight-scale-body-tripo-original.glb",
       "sha256": "20cb0f7d6258a572f6442f0d6802a5017b31dca3172893d707ad9e4559482b67",
       "blenderPreparation": {
-        "file": "assets/source/models/world/yard-weight-scale-body-authored-vertex-colour-tripo-finish.glb",
-        "sha256": "a3227332160de7ccf80b8a641caa59e033c978ca324d852b9e8bc53116948ed0",
-        "script": "scripts/restore-authored-asset-attributes.mjs",
-        "method": "Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live."
+        "file": "assets/source/models/world/yard-weight-scale-body-crafted-surface.glb",
+        "sha256": "ad160f4448516642d4aedd45703c406c0d0f4035c0a787e935e833ab1d6a3b24",
+        "script": "scripts/refine-authored-surfaces.mjs",
+        "method": "Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
       },
       "runtimeDerivative": {
         "file": "public/models/world/yard-weight-scale-body.glb",
-        "sha256": "9ea042154fdbdfd3bf46463e6b31d5a4ff28158624cf35525e05a60dcd117bc6",
-        "bytes": 28596
+        "sha256": "e4b07990ab4fae0fedebf0ec8e6e538822352694552c29d4fb89f0c6e723d148",
+        "bytes": 27012
       },
       "normalization": {
         "sizedBy": "height",
@@ -3278,7 +3278,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 17839,
+        "textureBytes": 16220,
         "renderVertices": 276
       }
     },
@@ -3295,15 +3295,15 @@
       "preservedAs": "grain-silo-large-shell-tripo-original.glb",
       "sha256": "731dafe7e94ba5adaba2296f91a387cfc7f0cdbd812eddf2dfdb967b1d608fc9",
       "blenderPreparation": {
-        "file": "assets/source/models/world/grain-silo-large-shell-authored-vertex-colour-tripo-finish.glb",
-        "sha256": "c176174cceb6375b46258e6e55c218513d3aa3a8c9a35158cea6cdd713c81817",
-        "script": "scripts/restore-authored-asset-attributes.mjs",
-        "method": "Exact source geometry, palette and corner normals retained with Tripo normal/roughness; utility seams split without changing ordered triangles; light faces remain runtime authored."
+        "file": "assets/source/models/world/grain-silo-large-shell-crafted-surface.glb",
+        "sha256": "9250ede12bf248aaa19346a2da83aad56446c5d589acd04ac926f123a4fd00fe",
+        "script": "scripts/refine-authored-surfaces.mjs",
+        "method": "Directional fine industrial machining with subdued crossing polish. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
       },
       "runtimeDerivative": {
         "file": "public/models/world/grain-silo-large-shell.glb",
-        "sha256": "b02a9c8c890d4a1a1d05a6c3d3095b0c39511ae3bc8268561de1c86d319ef13e",
-        "bytes": 537824
+        "sha256": "453e79f3f51ea3538ff6b154e9cc6fcb1a5f8f1ebaf3490554cc9a6f465f3b65",
+        "bytes": 538916
       },
       "normalization": {
         "sizedBy": "height",
@@ -3324,7 +3324,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 40455,
+        "textureBytes": 41508,
         "renderVertices": 41184
       }
     },
@@ -3341,15 +3341,15 @@
       "preservedAs": "grain-silo-small-shell-tripo-original.glb",
       "sha256": "6d285fb7e7d6dd1e34f615bc22cb5d05540205ec6b92c9e2c1cd3229a157d279",
       "blenderPreparation": {
-        "file": "assets/source/models/world/grain-silo-small-shell-authored-vertex-colour-tripo-finish.glb",
-        "sha256": "6e49db96691a21108d364166432b613334626fb370c8ea88e32ebaa9d829be44",
-        "script": "scripts/restore-authored-asset-attributes.mjs",
-        "method": "Exact source geometry, palette and corner normals retained with Tripo normal/roughness; utility seams split without changing ordered triangles; light faces remain runtime authored."
+        "file": "assets/source/models/world/grain-silo-small-shell-crafted-surface.glb",
+        "sha256": "b44d447185b4c0882b7ab7def20bc4eaf8dcb6d07b653a39189e4a0e18e3701f",
+        "script": "scripts/refine-authored-surfaces.mjs",
+        "method": "Directional fine industrial machining with subdued crossing polish. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
       },
       "runtimeDerivative": {
         "file": "public/models/world/grain-silo-small-shell.glb",
-        "sha256": "8ebfc9d2de48c5ad66f005e6566642afc23113f71e6a1da11ce98e5684292d5c",
-        "bytes": 475552
+        "sha256": "e2b2009cc97a32c435f17344e75d8bf649a13dc0bcc0f3c5f6089080c67f0dee",
+        "bytes": 476688
       },
       "normalization": {
         "sizedBy": "height",
@@ -3370,7 +3370,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 44589,
+        "textureBytes": 45690,
         "renderVertices": 35712
       }
     },
@@ -3387,15 +3387,15 @@
       "preservedAs": "grain-elevator-authored-body-tripo-original.glb",
       "sha256": "9df6529cbcdc2e57d10d9223933173f12574039ac78e450a4d667b7fc8c73718",
       "blenderPreparation": {
-        "file": "assets/source/models/world/grain-elevator-authored-body-authored-vertex-colour-tripo-finish.glb",
-        "sha256": "5bcc9843b40f82899cac1488abb7db9e09b5b3d8aaa005e58b287a5d9ee845e7",
-        "script": "scripts/restore-authored-asset-attributes.mjs",
-        "method": "Exact source geometry, palette and corner normals retained with Tripo normal/roughness; utility seams split without changing ordered triangles; light faces remain runtime authored."
+        "file": "assets/source/models/world/grain-elevator-authored-body-crafted-surface.glb",
+        "sha256": "0b99a4d9d788ca3b72c2f01f56265c629d7b02e5802ced9f671773d278172131",
+        "script": "scripts/refine-authored-surfaces.mjs",
+        "method": "Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
       },
       "runtimeDerivative": {
         "file": "public/models/world/grain-elevator-authored-body.glb",
-        "sha256": "921f3648c11591f11568024ba5def51c96e29054a9fc95defc1f1c066a70eab7",
-        "bytes": 151356
+        "sha256": "1b976f757ad9b350c83759417ef0a0f41c46b0459a294f717ec676dafd015279",
+        "bytes": 122380
       },
       "normalization": {
         "sizedBy": "height",
@@ -3416,7 +3416,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 95197,
+        "textureBytes": 66190,
         "renderVertices": 1728
       }
     },
@@ -3433,15 +3433,15 @@
       "preservedAs": "utility-fuel-shell-tripo-original.glb",
       "sha256": "64405d32d9f905d6c9dded4f9db4626d95b62c5d3b48b04c086bb6ffc1ab89fb",
       "blenderPreparation": {
-        "file": "assets/source/models/world/utility-fuel-shell-authored-vertex-colour-tripo-finish.glb",
-        "sha256": "6b718bc5d9991f1a512b237d2406ef74a20b14f02fa769053f848f2a845ca683",
-        "script": "scripts/restore-authored-asset-attributes.mjs",
-        "method": "Exact source geometry, palette and corner normals retained with Tripo normal/roughness; utility seams split without changing ordered triangles; light faces remain runtime authored."
+        "file": "assets/source/models/world/utility-fuel-shell-crafted-surface.glb",
+        "sha256": "48bb36e030fbfdee681a3ae18f054b1e258387978c5a49f3cc2b09bfa04d47b7",
+        "script": "scripts/refine-authored-surfaces.mjs",
+        "method": "Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
       },
       "runtimeDerivative": {
         "file": "public/models/world/utility-fuel-shell.glb",
-        "sha256": "f529d970cf6afc703f7510c5403c125e9494255faf13fc5e853694d2319579cd",
-        "bytes": 61324
+        "sha256": "b4557a26b3d2958bb08cecf890a088fad961d69fee137cdb13a1541db729026a",
+        "bytes": 62324
       },
       "normalization": {
         "sizedBy": "height",
@@ -3462,7 +3462,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 10064,
+        "textureBytes": 11115,
         "renderVertices": 3456
       }
     },
@@ -3479,15 +3479,15 @@
       "preservedAs": "utility-process-shell-tripo-original.glb",
       "sha256": "2dfe5c09a63a34f5304ec52e9954bb9f29b9ddf348a5825ac8913e31ce2798aa",
       "blenderPreparation": {
-        "file": "assets/source/models/world/utility-process-shell-authored-vertex-colour-tripo-finish.glb",
-        "sha256": "707cc52020b387dfdbe6109e0d5fbaea810ff4d8c0d7807ebecfb3c1d9c5000f",
-        "script": "scripts/restore-authored-asset-attributes.mjs",
-        "method": "Exact source geometry, palette and corner normals retained with Tripo normal/roughness; utility seams split without changing ordered triangles; light faces remain runtime authored."
+        "file": "assets/source/models/world/utility-process-shell-crafted-surface.glb",
+        "sha256": "a35c08f182cab1be53749b8c3860f12b46be24b823b97aa56f5e223a14633527",
+        "script": "scripts/refine-authored-surfaces.mjs",
+        "method": "Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
       },
       "runtimeDerivative": {
         "file": "public/models/world/utility-process-shell.glb",
-        "sha256": "7def1176ce8525fd2dbdee10b29a451d48f2dbd525475ac09b9405f56627420e",
-        "bytes": 60556
+        "sha256": "7b811d1f4289c725a10d583d2d9bb65be50d8255372153de4bf9c6f035a42672",
+        "bytes": 62780
       },
       "normalization": {
         "sizedBy": "height",
@@ -3508,7 +3508,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 9144,
+        "textureBytes": 11405,
         "renderVertices": 3456
       }
     },
@@ -3525,15 +3525,15 @@
       "preservedAs": "propane-large-shell-tripo-original.glb",
       "sha256": "e5b7fdec9466dafb296591308b3ec2c0a3d550001471e4484f652e8c40f42b03",
       "blenderPreparation": {
-        "file": "assets/source/models/world/propane-large-shell-authored-vertex-colour-tripo-finish.glb",
-        "sha256": "ee9d4a46e0cb724b3d350caa3ce5ac4def349fa3dc9acbebc12a9beac7dc04a8",
-        "script": "scripts/restore-authored-asset-attributes.mjs",
-        "method": "Exact source geometry, palette and corner normals retained with Tripo normal/roughness; utility seams split without changing ordered triangles; light faces remain runtime authored."
+        "file": "assets/source/models/world/propane-large-shell-crafted-surface.glb",
+        "sha256": "cf7a86a157f78948d5dfbf090a29ae1df9558245fa04bb505c8519a4019434e6",
+        "script": "scripts/refine-authored-surfaces.mjs",
+        "method": "Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
       },
       "runtimeDerivative": {
         "file": "public/models/world/propane-large-shell.glb",
-        "sha256": "0f1f084a7269212df22440bf3c857a5c02252a4ce3c91dbee820e5247c517bc0",
-        "bytes": 61692
+        "sha256": "edb295a4ae6e9dbd230b0a1d91b7ed19e9bdc7682d7ec464454e88ab283c3435",
+        "bytes": 66656
       },
       "normalization": {
         "sizedBy": "height",
@@ -3554,7 +3554,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 9993,
+        "textureBytes": 15003,
         "renderVertices": 3456
       }
     },
@@ -3571,15 +3571,15 @@
       "preservedAs": "propane-small-shell-tripo-original.glb",
       "sha256": "135ccae9f518e59a937af3c1e02e70f59953ca3be4047bccc1fb2990505d4446",
       "blenderPreparation": {
-        "file": "assets/source/models/world/propane-small-shell-authored-vertex-colour-tripo-finish.glb",
-        "sha256": "fa3f152586c91f5c2ce174a0b6a71ee3de9443828d89a57003e6ec10a1598d28",
-        "script": "scripts/restore-authored-asset-attributes.mjs",
-        "method": "Exact source geometry, palette and corner normals retained with Tripo normal/roughness; utility seams split without changing ordered triangles; light faces remain runtime authored."
+        "file": "assets/source/models/world/propane-small-shell-crafted-surface.glb",
+        "sha256": "2892a693fd81ca1c240da1a2ecb3cf573d049a228a0bc1606b388689199db739",
+        "script": "scripts/refine-authored-surfaces.mjs",
+        "method": "Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
       },
       "runtimeDerivative": {
         "file": "public/models/world/propane-small-shell.glb",
-        "sha256": "99d5a8e0e9c74194b9724a477c25e44ff90c8174b96e7b31b4df86595645e0b7",
-        "bytes": 61536
+        "sha256": "24d8c80a0d1876049e9842be8db28bcf5dd04f23aace0731a8d385153d30c433",
+        "bytes": 68716
       },
       "normalization": {
         "sizedBy": "height",
@@ -3600,7 +3600,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 9812,
+        "textureBytes": 17034,
         "renderVertices": 3456
       }
     },
@@ -3663,15 +3663,15 @@
       "preservedAs": "metal-bollard-tripo-original.glb",
       "sha256": "fd45e1a3218eac129e0df396571fd87dedaca79f2b5e6bb37ec20697014269a0",
       "blenderPreparation": {
-        "file": "assets/source/models/world/metal-bollard-authored-vertex-colour-tripo-finish.glb",
-        "sha256": "1b133d82b87d6d7863a46cf279255eb8073f48972d16f3a6f7a456958fe5c3df",
-        "script": "scripts/restore-authored-asset-attributes.mjs",
-        "method": "Exact source geometry, palette and corner normals retained with Tripo normal/roughness; utility seams split without changing ordered triangles; light faces remain runtime authored."
+        "file": "assets/source/models/world/metal-bollard-crafted-surface.glb",
+        "sha256": "920b45033bc8fc425ed3c4d5fac47183d85437913ea322da6bd24e4260665e4c",
+        "script": "scripts/refine-authored-surfaces.mjs",
+        "method": "Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
       },
       "runtimeDerivative": {
         "file": "public/models/world/metal-bollard.glb",
-        "sha256": "c6f174e9f53473386b87437c2a80fd9a4c3d6aa0ac21600c9d491c12dc3a1c49",
-        "bytes": 14072
+        "sha256": "561c2ed7fea68fc8bc58944b247e7ff53b3f9465d714886baeef6084e8e09d2f",
+        "bytes": 13920
       },
       "normalization": {
         "sizedBy": "height",
@@ -3692,7 +3692,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 10093,
+        "textureBytes": 9910,
         "renderVertices": 96
       }
     },
@@ -3709,15 +3709,15 @@
       "preservedAs": "wooden-footbridge-tripo-original.glb",
       "sha256": "e9e453803b12683f3552461e315ba413a25618050fe2afe627db64c03123d3ae",
       "blenderPreparation": {
-        "file": "assets/source/models/world/wooden-footbridge-authored-vertex-colour-tripo-finish.glb",
-        "sha256": "da4e424eae7c0436ad1d5c7c88c372ded06e2014747f7f4aad121e37e417dca6",
-        "script": "scripts/restore-authored-asset-attributes.mjs",
-        "method": "Exact source geometry, palette and corner normals retained with Tripo normal/roughness; utility seams split without changing ordered triangles; light faces remain runtime authored."
+        "file": "assets/source/models/world/wooden-footbridge-crafted-surface.glb",
+        "sha256": "c57e1d03e3a8933daa7170ec5e82757cebb4819605993acd8054985a04ac6341",
+        "script": "scripts/refine-authored-surfaces.mjs",
+        "method": "Lengthwise wood fibre with irregular growth bands, without changing authored timber palette. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
       },
       "runtimeDerivative": {
         "file": "public/models/world/wooden-footbridge.glb",
-        "sha256": "7baa37d0e45be1e2b16de6117b87d3de8f83b9f0900d64c48809e614e3ad9735",
-        "bytes": 126724
+        "sha256": "2e41549a745b492282e57bee422752fe31b6a58c3b8d7966eb40be8bbaae727e",
+        "bytes": 137228
       },
       "normalization": {
         "sizedBy": "height",
@@ -3738,7 +3738,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 51420,
+        "textureBytes": 61898,
         "renderVertices": 2340
       }
     },
@@ -3801,15 +3801,15 @@
       "preservedAs": "dock-canopy-structure-tripo-original.glb",
       "sha256": "a3a96f144b4ca8ebdd6dc5c49895d4b9929f769a748589f754e47db2b0e7e250",
       "blenderPreparation": {
-        "file": "assets/source/models/world/dock-canopy-structure-retained-lit-surfaces.glb",
-        "sha256": "1c1894ac3567a89555618a8840a4960eb8648be35aa3f78254b35c6c2acf79cd",
-        "script": "test-results/tripo-world-20260907/prepare-precision-integration.mjs",
-        "method": "Exact source geometry, palette and corner normals retained with Tripo normal/roughness; utility seams split without changing ordered triangles; light faces remain runtime authored."
+        "file": "assets/source/models/world/dock-canopy-structure-crafted-surface.glb",
+        "sha256": "2cf8c9fd00ae3feac9e565a378020b50dba2bea32bb8d87921c088b5d97accef",
+        "script": "scripts/refine-authored-surfaces.mjs",
+        "method": "Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
       },
       "runtimeDerivative": {
         "file": "public/models/world/dock-canopy-structure.glb",
-        "sha256": "08fcd803708fa0670c09f15a64fcfa424a8c075ef1a3f426042c2033f9998a54",
-        "bytes": 37696
+        "sha256": "1a51a17d81ab19f867684e2cfea4618aef82d41b7934a40b2ada901f7deade31",
+        "bytes": 34552
       },
       "normalization": {
         "sizedBy": "height",
@@ -3830,7 +3830,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 19297,
+        "textureBytes": 16122,
         "renderVertices": 636
       }
     },
@@ -3847,15 +3847,15 @@
       "preservedAs": "station-counter-tripo-original.glb",
       "sha256": "5e87fa29d7b3073a5657ef95016a823818d9f364db17f10f41aa0c22c2bde906",
       "blenderPreparation": {
-        "file": "assets/source/models/world/station-counter-authored-vertex-colour-tripo-finish.glb",
-        "sha256": "7a90e4219c886ce4652c3be4ddc11d2cf3272ef7b72ddc81b0454e67c8b6c666",
-        "script": "scripts/restore-authored-asset-attributes.mjs",
-        "method": "Exact authored geometry, source normals and linear vertex colours. Tripo normal and roughness maps retained."
+        "file": "assets/source/models/world/station-counter-crafted-surface.glb",
+        "sha256": "a43065261ede3dba54e722e00eea9307afdbfdd9defb695d3cc2f513a1040982",
+        "script": "scripts/refine-authored-surfaces.mjs",
+        "method": "Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
       },
       "runtimeDerivative": {
         "file": "public/models/world/station-counter.glb",
-        "sha256": "68ad3cfc30b10a783018d70bdc5f23234414c76cbe792d0c3f0045d658a35bd1",
-        "bytes": 12472
+        "sha256": "f16c774a4afcb2e391a9ece96a70a1d6eaa51d056df3581f3a39cbb57340ecc5",
+        "bytes": 10984
       },
       "normalization": {
         "sizedBy": "height",
@@ -3876,7 +3876,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 7308,
+        "textureBytes": 5786,
         "renderVertices": 72
       }
     },
@@ -3893,15 +3893,15 @@
       "preservedAs": "station-register-tripo-original.glb",
       "sha256": "1b3882d31754638f24986e32e6c7cd32bd1de58c8ebc420e51010e79b54d5829",
       "blenderPreparation": {
-        "file": "assets/source/models/world/station-register-authored-vertex-colour-tripo-finish.glb",
-        "sha256": "8e05c8eddceea9bcdccede02120012b1d0c78e9b102e82c016784b464a62608f",
-        "script": "scripts/restore-authored-asset-attributes.mjs",
-        "method": "Exact authored geometry, source normals and linear vertex colours. Tripo normal and roughness maps retained."
+        "file": "assets/source/models/world/station-register-crafted-retail.glb",
+        "sha256": "b9004991c821c9084e223743f7acab5fe16580fd5548020d08f153d84050566e",
+        "script": "scripts/refine-retail-shells.mjs",
+        "method": "Retained low register envelope with an operator-sloped deck; original customer face, 36-vertex budget, palette and surface maps preserved."
       },
       "runtimeDerivative": {
         "file": "public/models/world/station-register.glb",
-        "sha256": "28ee28c4429974f9cd8ae97641f00423c3ea43db44a7b233a3a1fed386ac0675",
-        "bytes": 9124
+        "sha256": "9673d591be4276906a948f4aab3880ec36ba3157a78c6e02805dca7af200b662",
+        "bytes": 7912
       },
       "normalization": {
         "sizedBy": "height",
@@ -3922,7 +3922,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 5565,
+        "textureBytes": 4395,
         "renderVertices": 36
       }
     },
@@ -3939,15 +3939,15 @@
       "preservedAs": "station-card-reader-tripo-original.glb",
       "sha256": "893c2d4251ad8cee08a929c89652f0d994ae58b901193d5a677add4fa4efc868",
       "blenderPreparation": {
-        "file": "assets/source/models/world/station-card-reader-authored-vertex-colour-tripo-finish.glb",
-        "sha256": "1a4642fd613e6a45956e9d4abae99eff0da2b1b373cfda484fd45cc66f2b3c63",
-        "script": "scripts/restore-authored-asset-attributes.mjs",
-        "method": "Exact authored geometry, source normals and linear vertex colours. Tripo normal and roughness maps retained."
+        "file": "assets/source/models/world/station-card-reader-crafted-surface.glb",
+        "sha256": "3ecb3e16cfea02cb38b68c6e62cfc3fff577a258cc7c56d60a19f9de4d2e5d5f",
+        "script": "scripts/refine-authored-surfaces.mjs",
+        "method": "Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
       },
       "runtimeDerivative": {
         "file": "public/models/world/station-card-reader.glb",
-        "sha256": "915274145e9b479d858823c6639c21ae8772c2c084d069949699d233eb0c4583",
-        "bytes": 8912
+        "sha256": "2160135ee32001f847fb499ffa82e94361a06709065e24c1a38d87e94274855d",
+        "bytes": 7576
       },
       "normalization": {
         "sizedBy": "height",
@@ -3968,7 +3968,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 5337,
+        "textureBytes": 3973,
         "renderVertices": 36
       }
     },
@@ -4031,15 +4031,15 @@
       "preservedAs": "station-drinks-cabinet-tripo-original.glb",
       "sha256": "fe83ed937632ff13894b1eba8d42c87c1053ab760cd29a18883696f5d6f6f189",
       "blenderPreparation": {
-        "file": "assets/source/models/world/station-drinks-cabinet-authored-vertex-colour-tripo-finish.glb",
-        "sha256": "854ae192776019b668308e786d2529d6a3f188581f82ccc1bbf26d8f3e7d6752",
-        "script": "scripts/restore-authored-asset-attributes.mjs",
-        "method": "Exact authored geometry, source normals and linear vertex colours. Tripo normal and roughness maps retained."
+        "file": "assets/source/models/world/station-drinks-cabinet-crafted-surface.glb",
+        "sha256": "eb461bac1654e3e9294253c96cabe96eae3fcb50bc8310e6bc21b21d611e2591",
+        "script": "scripts/refine-authored-surfaces.mjs",
+        "method": "Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
       },
       "runtimeDerivative": {
         "file": "public/models/world/station-drinks-cabinet.glb",
-        "sha256": "43fabefd8adb4a767241e9ed58dc4e2889f10beb77d194d438f6402355ce5998",
-        "bytes": 9640
+        "sha256": "5cbdfe53eae6837ee293ddfc65d9b3fcaa1456bfc5fd2cdb2e0796509b35736a",
+        "bytes": 8264
       },
       "normalization": {
         "sizedBy": "height",
@@ -4060,7 +4060,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 6133,
+        "textureBytes": 4725,
         "renderVertices": 36
       }
     },
@@ -4077,20 +4077,20 @@
       "preservedAs": "station-coffee-machine-tripo-original.glb",
       "sha256": "5b4f82fc7a13fc25da603ccf62afd86d79a7ec702e8e396dd8e21424f80af8fd",
       "blenderPreparation": {
-        "file": "assets/source/models/world/station-coffee-machine-authored-vertex-colour-tripo-finish.glb",
-        "sha256": "3e056a397998e0ac5b57ff9fd454ca4db17674bca70abdb2c6359b2df729e102",
-        "script": "scripts/restore-authored-asset-attributes.mjs",
-        "method": "Exact authored geometry, source normals and linear vertex colours. Tripo normal and roughness maps retained."
+        "file": "assets/source/models/world/station-coffee-machine-crafted-retail.glb",
+        "sha256": "1ccac0977baaa5a5757b8a9cdcd849c0c37bad2c88d77eecf6dd6935c8e3e16a",
+        "script": "scripts/refine-retail-shells.mjs",
+        "method": "Folded top and recessed dispensing bay replace the plain cabinet and solid baked cup; live dressing owns the open cup and functional hardware. Satin graphite enamel improves housing readability; existing 180-vertex ceiling and maps retained."
       },
       "runtimeDerivative": {
         "file": "public/models/world/station-coffee-machine.glb",
-        "sha256": "a3091dab50c8af8daa806efbc0276c6bf1e88e19d1f106d58d1540c76f298b80",
-        "bytes": 16000
+        "sha256": "dd5967381acd5d2a6735813e7d599977654407958e52aeedc60eccd9dae79cbf",
+        "bytes": 9300
       },
       "normalization": {
         "sizedBy": "height",
         "targetMetres": 2.200000071525574,
-        "scaleFactor": 2.2,
+        "scaleFactor": 1,
         "facingYawRadians": 0,
         "authoredYawRadians": 0,
         "bounds": {
@@ -4106,8 +4106,8 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 5772,
-        "renderVertices": 180
+        "textureBytes": 4288,
+        "renderVertices": 108
       }
     },
     {
@@ -4123,15 +4123,15 @@
       "preservedAs": "station-slushie-machine-tripo-original.glb",
       "sha256": "f87cfe08ae42ba27c5bdbb3a951ae5a6e3c990cae72c3edc78685f1ff53b1a1b",
       "blenderPreparation": {
-        "file": "assets/source/models/world/station-slushie-machine-authored-vertex-colour-tripo-finish.glb",
-        "sha256": "430276d0662edfef05738d23950dceca8c38cbb4a3100d5e1686560948efa7af",
-        "script": "scripts/restore-authored-asset-attributes.mjs",
-        "method": "Exact authored geometry, source normals and linear vertex colours. Tripo normal and roughness maps retained."
+        "file": "assets/source/models/world/station-slushie-machine-crafted-surface.glb",
+        "sha256": "92cbeb6c771364e4dc92fd16b0fcd16310f33343a615cb4edb0e0c71ee41e0bc",
+        "script": "scripts/refine-authored-surfaces.mjs",
+        "method": "Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
       },
       "runtimeDerivative": {
         "file": "public/models/world/station-slushie-machine.glb",
-        "sha256": "a99e1653bc6c3557cc549a0484bdbdd1ce8d60e2c96cce8fe09f6448367c025c",
-        "bytes": 9020
+        "sha256": "9577ccd97febad9026f05e267fced4c8a7fb4aceceda108b94b142f8629c1b8e",
+        "bytes": 7588
       },
       "normalization": {
         "sizedBy": "height",
@@ -4152,7 +4152,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 5423,
+        "textureBytes": 3961,
         "renderVertices": 36
       }
     },
@@ -4169,15 +4169,15 @@
       "preservedAs": "station-grill-tripo-original.glb",
       "sha256": "22e74620f363749e07b2014d1c4a3b6e657de28dcd53e434d4bc93a960a4890f",
       "blenderPreparation": {
-        "file": "assets/source/models/world/station-grill-authored-vertex-colour-tripo-finish.glb",
-        "sha256": "37705a1ebe88e2c0ca6391de9fe7046663da9911c90c0e36ed86d38899b3aabb",
-        "script": "scripts/restore-authored-asset-attributes.mjs",
-        "method": "Exact authored geometry, source normals and linear vertex colours. Tripo normal and roughness maps retained."
+        "file": "assets/source/models/world/station-grill-crafted-surface.glb",
+        "sha256": "cc80eddd7d2ed9cea8255d4a9bad528eb8abf2b3fa8f2ea1baf8b74f53e9fd6e",
+        "script": "scripts/refine-authored-surfaces.mjs",
+        "method": "Directional fine industrial machining with subdued crossing polish. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
       },
       "runtimeDerivative": {
         "file": "public/models/world/station-grill.glb",
-        "sha256": "31fadc7bc81659cccb04bd969c523e481d5ec207a5fe57f42e1f02886b264090",
-        "bytes": 8508
+        "sha256": "933a1029b3eec0f03214e3c520367638e94ad4f343e6310f8b148d3ba973a28b",
+        "bytes": 8196
       },
       "normalization": {
         "sizedBy": "height",
@@ -4198,7 +4198,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 4938,
+        "textureBytes": 4591,
         "renderVertices": 36
       }
     },
@@ -4215,15 +4215,15 @@
       "preservedAs": "station-magazine-rack-tripo-original.glb",
       "sha256": "72d62abd5343ba0a565f200aa8ec86948f4b2d14d0ad5361d7b91c21d2d5e659",
       "blenderPreparation": {
-        "file": "assets/source/models/world/station-magazine-rack-authored-vertex-colour-tripo-finish.glb",
-        "sha256": "b28d1272b0a3c4ebea185ae6119c38603917320bbb97b83a3ff4bb3f2e08de03",
-        "script": "scripts/restore-authored-asset-attributes.mjs",
-        "method": "Exact authored geometry, source normals and linear vertex colours. Tripo normal and roughness maps retained."
+        "file": "assets/source/models/world/station-magazine-rack-crafted-surface.glb",
+        "sha256": "eaa21b3f66949a368624bcff1c2228f8ecb78cad71a34e1728d4ca03ad4d095b",
+        "script": "scripts/refine-authored-surfaces.mjs",
+        "method": "Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
       },
       "runtimeDerivative": {
         "file": "public/models/world/station-magazine-rack.glb",
-        "sha256": "e8eaa1914229e1dde2c76b99cd6b44c5dcf076a38250b76ba821e4ed88c1af6e",
-        "bytes": 9028
+        "sha256": "dae8e02ba271b1cccf1c128642c32b5ec43ba630423f2fe15882e71547ebeb01",
+        "bytes": 7636
       },
       "normalization": {
         "sizedBy": "height",
@@ -4244,7 +4244,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 5440,
+        "textureBytes": 4017,
         "renderVertices": 36
       }
     },
@@ -4261,15 +4261,15 @@
       "preservedAs": "fuel-pump-shell-tripo-original.glb",
       "sha256": "493a0ad95630d25859e4bec03cf9be6e05b096c45b19fd69b7888eb78f291371",
       "blenderPreparation": {
-        "file": "assets/source/models/world/fuel-pump-shell-authored-vertex-colour-tripo-finish.glb",
-        "sha256": "fc203b69d9c4c9f0f36b3dc5942a58ce14ef4040c7a069058f2f767185528072",
-        "script": "scripts/restore-authored-asset-attributes.mjs",
-        "method": "Blender authored geometry; --vertex-colour transfers solid linear palette and hard-surface normals by exact triangle correspondence; Tripo normal and roughness maps retained."
+        "file": "assets/source/models/world/fuel-pump-shell-crafted-surface.glb",
+        "sha256": "02fda4889d3c2740084390130ad6c93c15eacc1ebe2e73301350cbb67be4bc55",
+        "script": "scripts/refine-authored-surfaces.mjs",
+        "method": "Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
       },
       "runtimeDerivative": {
         "file": "public/models/world/fuel-pump-shell.glb",
-        "sha256": "bd69f0c254d3deb39768164e51cfe568681870b8cc589d43d3e66454a6f6394b",
-        "bytes": 36108
+        "sha256": "e24d2734238f1da551134e6338c4a0028f29228dd328cecdb6868aead69eefd6",
+        "bytes": 35988
       },
       "normalization": {
         "sizedBy": "height",
@@ -4290,7 +4290,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 4399,
+        "textureBytes": 4250,
         "renderVertices": 648
       }
     },
@@ -4353,15 +4353,15 @@
       "preservedAs": "checkpoint-booth-tripo-original.glb",
       "sha256": "4ca0af251052558ca88efa3c4670af2e7707e997aac0e213959d41c1a3d17830",
       "blenderPreparation": {
-        "file": "assets/source/models/world/checkpoint-booth-authored-vertex-colour-tripo-finish.glb",
-        "sha256": "757ce1f69d2a38a3da938ad617c0a9a9f02d48268674d8273e6a73a2a8fc4a60",
-        "script": "scripts/restore-authored-asset-attributes.mjs",
-        "method": "Blender authored geometry; --vertex-colour transfers solid linear palette and hard-surface normals by exact triangle correspondence; Tripo normal and roughness maps retained."
+        "file": "assets/source/models/world/checkpoint-booth-crafted-surface.glb",
+        "sha256": "cff628935c5e46cca25d7dda09d8adbdd7b6e601bb1fc6c379045d95cec4fbb5",
+        "script": "scripts/refine-authored-surfaces.mjs",
+        "method": "Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
       },
       "runtimeDerivative": {
         "file": "public/models/world/checkpoint-booth.glb",
-        "sha256": "72e90fb5a70655650e76fa026bff3ad27093e676076b21edd0b2b7df3388d793",
-        "bytes": 21324
+        "sha256": "095a4da39352bce88f80066fe401579247cfe77bfe658eee546fafcc20c98285",
+        "bytes": 16656
       },
       "normalization": {
         "sizedBy": "width",
@@ -4382,7 +4382,7 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 16154,
+        "textureBytes": 11451,
         "renderVertices": 72
       }
     },
@@ -4398,15 +4398,15 @@
       "preservedAs": "brick-carport-tripo-original.glb",
       "sha256": "40dc8863064817d026ad0e690272d1f933b0554c6d0c29207a69f0fc2aea7ddb",
       "blenderPreparation": {
-        "file": "assets/source/models/world/brick-carport-roof-repaired.glb",
-        "sha256": "07010066061b171b2fc57d5209061fd1a9230c7e6d02bedd1ed4e4c22d41d45f",
-        "script": "scripts/blender/repair_carport_roof.py",
-        "method": "Replace 5564 folded roof faces with a clean bevelled cap; retain provider brickwork and atlas, one material, non-degenerate UVs."
+        "file": "assets/source/models/world/brick-carport-crafted.glb",
+        "sha256": "9050ee230cc921995c1e56316a6d0e96eac777834233d7a8ae2a6e7b0989355d",
+        "script": "scripts/blender/refine_architecture_assets.py",
+        "method": "Retained repaired bevelled roof cap and all piers; added twelve standing-seam bays and straight eave gutters. Retain the source coordinate system and existing normalization."
       },
       "runtimeDerivative": {
         "file": "public/models/world/brick-carport.glb",
-        "sha256": "f6660db72a961fa7b44a89641468ad622652be6b55b3cbdeaede7f0d776bb3b6",
-        "bytes": 247204
+        "sha256": "c1413032cd69e3b3958ec66d1ed1c63c3a839e6efab07ca8feccb4025369438a",
+        "bytes": 258160
       },
       "normalization": {
         "sizedBy": "width",
@@ -4433,7 +4433,7 @@
         "materials": 1,
         "textures": 3,
         "textureBytes": 208332,
-        "renderVertices": 2355
+        "renderVertices": 2823
       }
     },
     {
@@ -4448,20 +4448,20 @@
       "preservedAs": "path-lamp-victorian-tripo-original.glb",
       "sha256": "52c2f008a2de080fa6e2bcef310052626e7ddf11af8eb7553e44c925d3312163",
       "blenderPreparation": {
-        "file": "assets/source/models/world/path-lamp-victorian-blender-cleanup.glb",
-        "sha256": "751b25d0c979edd3892857abba2b53edb7b07dd1e7300420caa71c74676b4336",
-        "script": "scripts/blender/weighted_asset_normals.py",
-        "method": "Weld coincident vertices at 1e-6 source units, area-weighted normals, weight 75; no added triangles"
+        "file": "assets/source/models/world/path-lamp-victorian-crafted.glb",
+        "sha256": "0d44505373bad87af93c0de7deebff850c2f7818ef9739f9c7d2f01b8d34438a",
+        "script": "scripts/blender/refine_civic_props.py",
+        "method": "Hand-authored component rebuild in the retained runtime metre envelope, with separated construction details and one sRGB colour/linear roughness atlas; original provider source preserved."
       },
       "runtimeDerivative": {
         "file": "public/models/world/path-lamp-victorian.glb",
-        "sha256": "08e1abe5dabebed5444bf92500803b92a3a86c0175388060e97be9be796c9bbb",
-        "bytes": 98704
+        "sha256": "4fa9afbf6b2c4a54b6deff084a0cfa749f09bfa0127f8374f048dcbb1690b590",
+        "bytes": 70524
       },
       "normalization": {
         "sizedBy": "height",
         "targetMetres": 4.45,
-        "scaleFactor": 4.45,
+        "scaleFactor": 1,
         "facingYawRadians": 0,
         "authoredYawRadians": 0,
         "bounds": {
@@ -4476,9 +4476,9 @@
         "joints": 0,
         "clips": [],
         "materials": 1,
-        "textures": 3,
-        "textureBytes": 22488,
-        "renderVertices": 4287
+        "textures": 2,
+        "textureBytes": 11064,
+        "renderVertices": 2988
       }
     },
     {
@@ -4493,20 +4493,20 @@
       "preservedAs": "path-lamp-modern-tripo-original.glb",
       "sha256": "96498e5ac3f33c75f9de1bb56a9a30c149b91563782394594f49a12d135be499",
       "blenderPreparation": {
-        "file": "assets/source/models/world/path-lamp-modern-blender-cleanup.glb",
-        "sha256": "d713b90cf2018f798ba427f10601be8e322623fa7f3d9dec78da3163282dc7ae",
-        "script": "scripts/blender/weighted_asset_normals.py",
-        "method": "Weld coincident vertices at 1e-6 source units, area-weighted normals, weight 75; no added triangles"
+        "file": "assets/source/models/world/path-lamp-modern-crafted.glb",
+        "sha256": "738a1a8a5c701736813c34df8ac7cd5d56ecd17563bd29b8f03033d0f77c51b0",
+        "script": "scripts/blender/refine_civic_props.py",
+        "method": "Hand-authored component rebuild in the retained runtime metre envelope, with separated construction details and one sRGB colour/linear roughness atlas; original provider source preserved."
       },
       "runtimeDerivative": {
         "file": "public/models/world/path-lamp-modern.glb",
-        "sha256": "e104a767ec28ac01c0eea664d18646dec6d5770c7ea7e1f86b7e5a5376afd6fc",
-        "bytes": 64732
+        "sha256": "f764ae4b450e2f6d2fb8f3e06dc4ba5ab3ef7fe74cc858821c21f73719018ffa",
+        "bytes": 71748
       },
       "normalization": {
         "sizedBy": "height",
         "targetMetres": 4.25,
-        "scaleFactor": 4.25,
+        "scaleFactor": 1,
         "facingYawRadians": 0,
         "authoredYawRadians": 0,
         "bounds": {
@@ -4521,9 +4521,9 @@
         "joints": 0,
         "clips": [],
         "materials": 1,
-        "textures": 3,
-        "textureBytes": 12821,
-        "renderVertices": 3444
+        "textures": 2,
+        "textureBytes": 11064,
+        "renderVertices": 3024
       }
     },
     {
@@ -4538,20 +4538,20 @@
       "preservedAs": "info-sign-tripo-original.glb",
       "sha256": "9b0457e4e89f566ae16cb5bef8b4d93d35f8349643ebda0b59b4751e1dd0010c",
       "blenderPreparation": {
-        "file": "assets/source/models/world/info-sign-blender-cleanup.glb",
-        "sha256": "e7dfbf4fa8873f47ed9911b181daca460b987445cf875d59eb23ce7ab98ae832",
-        "script": "scripts/blender/weighted_asset_normals.py",
-        "method": "Weld coincident vertices at 1e-6 source units, area-weighted normals, weight 75; no added triangles"
+        "file": "assets/source/models/world/info-sign-crafted.glb",
+        "sha256": "917af662f2046a28326176d87fabb734661a295173bfe819f03d2156128d034d",
+        "script": "scripts/blender/refine_civic_props.py",
+        "method": "Hand-authored component rebuild in the retained runtime metre envelope, with separated construction details and one sRGB colour/linear roughness atlas; original provider source preserved."
       },
       "runtimeDerivative": {
         "file": "public/models/world/info-sign.glb",
-        "sha256": "688c71985ae65edbaa82efdb5836c0ccd655ff6cf6c253eb0afd14af0f7a26ea",
-        "bytes": 58456
+        "sha256": "fcbe8284b38d921abe3a559df73929c1ccdf325b12869e84d2ef772ac6f6ebb6",
+        "bytes": 37244
       },
       "normalization": {
         "sizedBy": "height",
         "targetMetres": 1.55,
-        "scaleFactor": 1.55,
+        "scaleFactor": 1,
         "facingYawRadians": 0,
         "authoredYawRadians": 0,
         "bounds": {
@@ -4566,9 +4566,9 @@
         "joints": 0,
         "clips": [],
         "materials": 1,
-        "textures": 3,
-        "textureBytes": 10840,
-        "renderVertices": 3582
+        "textures": 2,
+        "textureBytes": 11064,
+        "renderVertices": 1260
       }
     },
     {
@@ -4583,15 +4583,15 @@
       "preservedAs": "cute-car-hatchback-tripo-original.glb",
       "sha256": "5060114dd183f64664a1ff57e872ea791ec4aebacea163bab7d8fd0e69463919",
       "blenderPreparation": {
-        "file": "assets/source/models/world/cute-car-hatchback-lamps.glb",
-        "sha256": "ea196905e91bd0d3d06cf9f6e2379edae5fa475e3251eeb5594e1a0def5389c7",
-        "script": "scripts/blender/repair_car_rear_lamps.py",
-        "method": "Area-weighted normals followed by rear-lamp vertex tint, preserving the atlas, front lamps and one material."
+        "file": "assets/source/models/world/cute-car-hatchback-crafted.glb",
+        "sha256": "4e99930803cb6d45285b7ad820ce68becf4dc8cb9d653ee72775fd09bc2bc7c5",
+        "script": "scripts/blender/refine_vehicle_assets.py",
+        "method": "Original silhouette, corner colours and protected lower geometry retained; local panel regularization and fitted authored hardware in the existing atlas."
       },
       "runtimeDerivative": {
         "file": "public/models/world/cute-car-hatchback.glb",
-        "sha256": "dd1e7166bbfc2283005a033a247cc26c86cf31aecdaab4cac93323c7954aba8c",
-        "bytes": 320904
+        "sha256": "ef5cd4bae3e3d43c87f2abebb7fc169a35322265cea244526b7034a3827a8d2d",
+        "bytes": 351212
       },
       "normalization": {
         "sizedBy": "width",
@@ -4612,8 +4612,8 @@
         "clips": [],
         "materials": 1,
         "textures": 3,
-        "textureBytes": 76958,
-        "renderVertices": 13239
+        "textureBytes": 67463,
+        "renderVertices": 13695
       }
     },
     {
@@ -4628,15 +4628,15 @@
       "preservedAs": "cute-car-pickup-tripo-original.glb",
       "sha256": "be2eac77e7eb4a442ef9dba15eb0e2f6b2ffae95350b651333db400ce8ff3f87",
       "blenderPreparation": {
-        "file": "assets/source/models/world/cute-car-pickup-proportioned.glb",
-        "sha256": "e08006f1b154fcb52e5af08f7eae96a589b46193b0906a4c581892fdf530f905",
-        "script": "scripts/blender/repair_pickup_proportions.py",
-        "method": "Area-weighted normals, rear-lamp vertex tint, then shorten upper body to authored 1.58 m height while preserving lowest 0.78 m and wheels."
+        "file": "assets/source/models/world/cute-car-pickup-crafted.glb",
+        "sha256": "df56b136e7f89f1691bbd35b05d601d7bd832d5082556d3160bce857abfb7b02",
+        "script": "scripts/blender/refine_vehicle_assets.py",
+        "method": "Original silhouette, corner colours and protected lower geometry retained; local panel regularization and fitted authored hardware in the existing atlas."
       },
       "runtimeDerivative": {
         "file": "public/models/world/cute-car-pickup.glb",
-        "sha256": "532a8cb55bbfaf9f9666bc512bfd2fa4fa4f1521e64362d6f4684bdede25646e",
-        "bytes": 297100
+        "sha256": "4076852d04824910168764195db5a8dc577f560a5bff0c729273743b21797bd7",
+        "bytes": 324992
       },
       "normalization": {
         "sizedBy": "width",
@@ -4657,8 +4657,8 @@
         "clips": [],
         "materials": 1,
         "textures": 3,
-        "textureBytes": 56306,
-        "renderVertices": 12336
+        "textureBytes": 51353,
+        "renderVertices": 12912
       }
     },
     {
@@ -4673,15 +4673,15 @@
       "preservedAs": "food-truck-tripo-original.glb",
       "sha256": "a3986a1ec584f9055591637ba12f35725e0303d2adaab388b90ac32b2350b79c",
       "blenderPreparation": {
-        "file": "assets/source/models/world/food-truck-proportioned.glb",
-        "sha256": "fb9a21cb440f9a272d3b388eeb48538e87e7e1933e3f6259344909018e4d39ee",
-        "script": "scripts/blender/repair_food_truck.py",
-        "method": "Shorten only the upper body to the authored 2.65 m overall height, leaving the lowest 0.9 m and wheel vertices unchanged; recalculate area-weighted normals."
+        "file": "assets/source/models/world/food-truck-crafted.glb",
+        "sha256": "7c0e2b241ee0beef21ab1420710ca90d1076781f5c1245295b29b209345d9d05",
+        "script": "scripts/blender/refine_vehicle_assets.py",
+        "method": "Original silhouette, corner colours and protected lower geometry retained; local panel regularization and fitted authored hardware in the existing atlas."
       },
       "runtimeDerivative": {
         "file": "public/models/world/food-truck.glb",
-        "sha256": "1b8f1c53b5b7dd562cc1ccf015aa3e3b070293c7f6379626b8be5eec9978ad93",
-        "bytes": 313032
+        "sha256": "1e30df7295c7aa463421e93b555d0c7d593924c3cbbff4d0b465ca70f2a75e73",
+        "bytes": 329964
       },
       "normalization": {
         "sizedBy": "length",
@@ -4690,7 +4690,7 @@
         "facingYawRadians": 0,
         "authoredYawRadians": 3.141592653589793,
         "bounds": {
-          "width": 3.9017,
+          "width": 3.9049,
           "height": 2.65,
           "length": 7.975,
           "minY": 0,
@@ -4702,8 +4702,8 @@
         "clips": [],
         "materials": 1,
         "textures": 3,
-        "textureBytes": 73453,
-        "renderVertices": 18873
+        "textureBytes": 65410,
+        "renderVertices": 19953
       }
     },
     {
@@ -4718,15 +4718,15 @@
       "preservedAs": "office-apartment-three-tripo-original.glb",
       "sha256": "57f9bc55383bbce3cc2b1200fab3030250c0d054e04ea1d25399e28f5dc4e1d9",
       "blenderPreparation": {
-        "file": "assets/source/models/world/office-apartment-three-blender-cleanup.glb",
-        "sha256": "6626d20f44dd427e21e39abb7f3e956418c290ff1be5cbd851e77ff8f8d560c1",
-        "script": "scripts/blender/cut_apartment_floor.py",
-        "method": "Remove one 3.5 m middle storey at floor bands; preserve roof, entrance and remaining windows at full scale. Recalculate area-weighted normals."
+        "file": "assets/source/models/world/office-apartment-three-crafted.glb",
+        "sha256": "3481dd98f08490d2f138d78f03d8cd9b0601f5f03885996af75b2f29bbba6bef",
+        "script": "scripts/blender/refine_architecture_assets.py",
+        "method": "Added rear-corner rainwater downpipes with brackets and roof service pavers; original wall/window/floor/entrance geometry untouched. Retain the source coordinate system and existing normalization."
       },
       "runtimeDerivative": {
         "file": "public/models/world/office-apartment-three.glb",
-        "sha256": "c270cafc8a8cf4c58a56115cd394c50883aa3b428c3fd56d0d4953dc2377ced8",
-        "bytes": 546868
+        "sha256": "5834583123a9415ff5a977af0b6b8ebda19f5c4cb4db044bcf3c9e05e25572b4",
+        "bytes": 569304
       },
       "normalization": {
         "sizedBy": "width",
@@ -4753,7 +4753,7 @@
         "materials": 1,
         "textures": 3,
         "textureBytes": 295832,
-        "renderVertices": 18024
+        "renderVertices": 18984
       }
     },
     {
@@ -4768,25 +4768,27 @@
       "preservedAs": "canal-boat-tripo-original.glb",
       "sha256": "29d0b9243ba334b744ee95d8f5b74f1da47026635078e3a315c00033de2ebc10",
       "blenderPreparation": {
-        "file": "assets/source/models/world/canal-boat-blender-cleanup.glb",
-        "sha256": "4644fb671c6b5226deebf907ba82b71e7afe0feee451fb5bc39f96c4089c32ea",
-        "script": "scripts/blender/weighted_asset_normals.py",
-        "method": "Weld coincident vertices at 1e-6 source units, area-weighted normals, weight 75; no added triangles"
+        "file": "assets/source/models/world/canal-boat-crafted.glb",
+        "sha256": "0d98166b760bdaccb954810e1a7ddfaf82ca72d81ee77018a89ddf4220f51a98",
+        "script": "scripts/blender/rebuild_village_architecture.py",
+        "method": "Fully authored narrowboat: fair tapered navy hull, burgundy coachwork, cambered cream roof, brass portholes, teak wells, tiller, rope coil and floral end panels. Metre-space night glazing and measured waterline; no provider geometry retained."
       },
       "runtimeDerivative": {
         "file": "public/models/world/canal-boat.glb",
-        "sha256": "b1f61c96e92d646fddf9dd38ecde8f5fe4c8994c97092cd77c2f84edeedb580f",
-        "bytes": 522480
+        "sha256": "85f0650a09b0d512b24b6508509bb0c34449984ee3af894af328dbd264ee6b8c",
+        "bytes": 513876,
+        "license": "MillOS project-authored geometry and textures",
+        "attribution": "Authored for MillOS; original Tripo reference retained in source provenance"
       },
       "normalization": {
         "sizedBy": "length",
         "targetMetres": 12.95,
-        "scaleFactor": 12.97539,
+        "scaleFactor": 1,
         "facingYawRadians": 0,
         "authoredYawRadians": 0,
         "bounds": {
-          "width": 2.8185,
-          "height": 4.012,
+          "width": 2.709,
+          "height": 3.39,
           "length": 12.95,
           "minY": 0,
           "centreX": 0,
@@ -4796,9 +4798,9 @@
         "joints": 0,
         "clips": [],
         "materials": 1,
-        "textures": 3,
-        "textureBytes": 256334,
-        "renderVertices": 18063
+        "textures": 2,
+        "textureBytes": 13380,
+        "renderVertices": 22812
       }
     },
     {
@@ -4813,15 +4815,15 @@
       "preservedAs": "cute-car-suv-tripo-original.glb",
       "sha256": "9bbcd695d9b786b5e4036c54b598229dbd70ed9bc87bb2ce5dd4ae1f4488e320",
       "blenderPreparation": {
-        "file": "assets/source/models/world/cute-car-suv-blender-cleanup.glb",
-        "sha256": "c60d4f706cdcc4660745cbc2929fa6395206e5befbc8b9464cec1f6b1dd1a5ff",
-        "script": "scripts/blender/weighted_asset_normals.py",
-        "method": "Weld coincident vertices at 1e-6 source units, area-weighted normals, weight 75; no added triangles"
+        "file": "assets/source/models/world/cute-car-suv-crafted.glb",
+        "sha256": "d635e79bbb4783b239ff14ae0c68b442b8c131919790744cb9d0b50a57d10885",
+        "script": "scripts/blender/refine_vehicle_assets.py",
+        "method": "Original silhouette, corner colours and protected lower geometry retained; local panel regularization and fitted authored hardware in the existing atlas."
       },
       "runtimeDerivative": {
         "file": "public/models/world/cute-car-suv.glb",
-        "sha256": "9acea57edcc37ba20f262e14afc9fd855d34bdf31dc2d9254eb34955d45a26ca",
-        "bytes": 262680
+        "sha256": "fe0575c3a3abf794be71b97bbc39b816e780716220849edf6020b7a6c9df4a50",
+        "bytes": 263308
       },
       "normalization": {
         "sizedBy": "width",
@@ -4847,8 +4849,8 @@
         "clips": [],
         "materials": 1,
         "textures": 3,
-        "textureBytes": 74677,
-        "renderVertices": 11781
+        "textureBytes": 67017,
+        "renderVertices": 11598
       }
     },
     {
@@ -4863,15 +4865,15 @@
       "preservedAs": "kiosk-cafe-tripo-original.glb",
       "sha256": "3e28e5d64258e74f164df081c1c54846766233840f34f2e05e020ad1ab513a65",
       "blenderPreparation": {
-        "file": "assets/source/models/world/kiosk-cafe-blender-cleanup.glb",
-        "sha256": "f2451edbe3db0f15ec22e5202730983f6953f541976446d0c1b4182a12fe6f03",
-        "script": "scripts/blender/weighted_asset_normals.py",
-        "method": "Weld coincident vertices at 1e-6 source units, area-weighted normals, weight 75; no added triangles"
+        "file": "assets/source/models/world/kiosk-cafe-crafted.glb",
+        "sha256": "2acf381091c56230576a30c643ab075404166de6309e2f37320dda5930617328",
+        "script": "scripts/blender/refine_architecture_assets.py",
+        "method": "Added eight radial raised roof seams, preserving finial, counter, flower boxes and octagonal roof. Retain the source coordinate system and existing normalization."
       },
       "runtimeDerivative": {
         "file": "public/models/world/kiosk-cafe.glb",
-        "sha256": "898307c2e9ae21d3d805bead14f85046a71f66deeb340e34925fbb8fc65f016b",
-        "bytes": 259784
+        "sha256": "09cb76bec2035ecff17527b6350c7daaa0c5c76c9ec573ee3959fafa7b40a516",
+        "bytes": 266728
       },
       "normalization": {
         "sizedBy": "width",
@@ -4893,7 +4895,7 @@
         "materials": 1,
         "textures": 3,
         "textureBytes": 50073,
-        "renderVertices": 15186
+        "renderVertices": 15474
       }
     },
     {
@@ -4908,15 +4910,15 @@
       "preservedAs": "office-apartment-tripo-original.glb",
       "sha256": "57f9bc55383bbce3cc2b1200fab3030250c0d054e04ea1d25399e28f5dc4e1d9",
       "blenderPreparation": {
-        "file": "assets/source/models/world/office-apartment-blender-cleanup.glb",
-        "sha256": "838131be50d38a6a7029d2fb7b46da185164087112995581027394f7979e9d48",
-        "script": "scripts/blender/weighted_asset_normals.py",
-        "method": "Weld coincident vertices at 1e-6 source units, area-weighted normals, weight 75; no added triangles"
+        "file": "assets/source/models/world/office-apartment-crafted.glb",
+        "sha256": "159896bafd1f1576c112bb8b2805cf80c12adde9944b9bcbb34b64ebb431333c",
+        "script": "scripts/blender/refine_architecture_assets.py",
+        "method": "Added rear-corner rainwater downpipes with brackets and roof service pavers; original wall/window/floor/entrance geometry untouched. Retain the source coordinate system and existing normalization."
       },
       "runtimeDerivative": {
         "file": "public/models/world/office-apartment.glb",
-        "sha256": "3d4f24a853e2c8c9a72e93d3a1dafeab51204644b63be607dec0c49765f5973d",
-        "bytes": 584496
+        "sha256": "fe07796db96c216ac6b5aae0e2aa0d09f810a8b8b2689fa063cf3aa9fb462748",
+        "bytes": 606960
       },
       "normalization": {
         "sizedBy": "width",
@@ -4943,7 +4945,7 @@
         "materials": 1,
         "textures": 3,
         "textureBytes": 295832,
-        "renderVertices": 20616
+        "renderVertices": 21576
       }
     },
     {
@@ -4958,15 +4960,15 @@
       "preservedAs": "cute-car-sedan-tripo-original.glb",
       "sha256": "02b977f95b75351cad3837339e394c07986cd60cf9d1d5f576fa6a6662f98e1a",
       "blenderPreparation": {
-        "file": "assets/source/models/world/cute-car-sedan-blender-cleanup.glb",
-        "sha256": "e268e93eb2bb63629d69b8df264de9748227799b998cfdfe1ff4773c08bd4de8",
-        "script": "scripts/blender/weighted_asset_normals.py",
-        "method": "Weld coincident vertices at 1e-6 source units, area-weighted normals, weight 75; no added triangles"
+        "file": "assets/source/models/world/cute-car-sedan-crafted.glb",
+        "sha256": "f2451cf3dac28c1b88e1674ce1431247fa5712b78cae5ac6891cd3cb1413bb58",
+        "script": "scripts/blender/refine_vehicle_assets.py",
+        "method": "Original silhouette, corner colours and protected lower geometry retained; local panel regularization and fitted authored hardware in the existing atlas."
       },
       "runtimeDerivative": {
         "file": "public/models/world/cute-car-sedan.glb",
-        "sha256": "e4d53f6c164c34618bb2b3f5b91ff213550e921dc4a4d59a10c6462561808644",
-        "bytes": 243584
+        "sha256": "3dc61839eab16322e7d2f5bc2d9d468b2ebb9e2500f7e5dfa67dfa03adb3b5fc",
+        "bytes": 253300
       },
       "normalization": {
         "sizedBy": "width",
@@ -4977,7 +4979,7 @@
         "bounds": {
           "width": 3.52,
           "height": 1.5223,
-          "length": 1.8117,
+          "length": 1.8145,
           "minY": 0,
           "centreX": 0,
           "centreZ": 0
@@ -4987,8 +4989,8 @@
         "clips": [],
         "materials": 1,
         "textures": 3,
-        "textureBytes": 72098,
-        "renderVertices": 11331
+        "textureBytes": 64141,
+        "renderVertices": 11907
       }
     },
     {
@@ -5003,15 +5005,15 @@
       "preservedAs": "small-office-tripo-original.glb",
       "sha256": "703875ca491ef9fb3102aeff1652296f84003a07fbb55ad6c6149db62444bdd1",
       "blenderPreparation": {
-        "file": "assets/source/models/world/small-office-blender-cleanup.glb",
-        "sha256": "1e870cd4315b9b9c2c979953989590dadb9a9d2352d328018eb11d3f3e3c3ad2",
-        "script": "scripts/blender/weighted_asset_normals.py",
-        "method": "Weld coincident vertices at 1e-6 source units, area-weighted normals, weight 75; no added triangles"
+        "file": "assets/source/models/world/small-office-crafted.glb",
+        "sha256": "9c1b03fdc56aa76fc10bdb93f5c44b1a6b70e6a7c6a5d2aaf2332d71fb42f11f",
+        "script": "scripts/blender/refine_architecture_assets.py",
+        "method": "Added rear-corner rainwater downpipes with brackets and roof service pavers; original wall/window/floor/entrance geometry untouched. Retain the source coordinate system and existing normalization."
       },
       "runtimeDerivative": {
         "file": "public/models/world/small-office.glb",
-        "sha256": "6deaa9c93384c190e2ac4b343a73a15039507566e62e5c02feafda8ac72c7772",
-        "bytes": 370792
+        "sha256": "5ffa5022bc3383d32e232cafdf17fb9f74f4c640b3e3cfe537746265926dc4e5",
+        "bytes": 393768
       },
       "normalization": {
         "sizedBy": "width",
@@ -5038,7 +5040,7 @@
         "materials": 1,
         "textures": 3,
         "textureBytes": 179671,
-        "renderVertices": 14646
+        "renderVertices": 15606
       }
     },
     {
@@ -5053,15 +5055,15 @@
       "preservedAs": "caravan-tripo-original.glb",
       "sha256": "96fb441fdffabb24155b128878350cc2d905e2eee92b3b5e70efed2bb440b16f",
       "blenderPreparation": {
-        "file": "assets/source/models/world/caravan-blender-cleanup.glb",
-        "sha256": "e45329a6364344f38b59e4028d4e6a8f21293b3e5697d00825f7ef2a284435ee",
-        "script": "scripts/blender/weighted_asset_normals.py",
-        "method": "Weld coincident vertices at 1e-6 source units, area-weighted normals, weight 75; no added triangles"
+        "file": "assets/source/models/world/caravan-crafted.glb",
+        "sha256": "79bdf74070e29ec6fe0e717648e38c77388fc9169b1ebe72b29ca202f4613445",
+        "script": "scripts/blender/refine_vehicle_assets.py",
+        "method": "Original silhouette, corner colours and protected lower geometry retained; local panel regularization and fitted authored hardware in the existing atlas."
       },
       "runtimeDerivative": {
         "file": "public/models/world/caravan.glb",
-        "sha256": "448feab462606e59bc52fa987a6afbee052b3b7a104e1bdd65f535c899618fa6",
-        "bytes": 347504
+        "sha256": "9e1a0fb72dcaba506c6d9a65d5705f9a2c080dc47eaa8b763babbe69b4f00df9",
+        "bytes": 360648
       },
       "normalization": {
         "sizedBy": "length",
@@ -5082,8 +5084,8 @@
         "clips": [],
         "materials": 1,
         "textures": 3,
-        "textureBytes": 85365,
-        "renderVertices": 16587
+        "textureBytes": 74914,
+        "renderVertices": 17499
       }
     },
     {
@@ -5096,10 +5098,16 @@
       ],
       "preservedAs": "waste-bin-tripo-original.glb",
       "sha256": "dce91a4e5d8778f900929fddd9628a819d648183bdcfc4b9d773bc6ae21e9ae4",
+      "blenderPreparation": {
+        "file": "assets/source/models/world/waste-bin-crafted.glb",
+        "sha256": "7d65bf6f2f86784f8c9205a306a3d4331d25e56965cb230cdc2177abf8c3d9c9",
+        "script": "scripts/blender/refine_civic_props.py",
+        "method": "Hand-authored component rebuild in the retained runtime metre envelope, with separated construction details and one sRGB colour/linear roughness atlas; original provider source preserved."
+      },
       "runtimeDerivative": {
         "file": "public/models/world/waste-bin.glb",
-        "sha256": "736e11708f1f7e2e548c2c043248c613c61533cf2a56c908de25a462f0202e47",
-        "bytes": 88640
+        "sha256": "7292356cb9d8bb5ba47c85d0cad02241e4a7939a08249668d88bba874cd3e80a",
+        "bytes": 126952
       },
       "normalization": {
         "sizedBy": "height",
@@ -5109,7 +5117,7 @@
           0.8,
           0.56
         ],
-        "scaleFactor": 0.8,
+        "scaleFactor": 1,
         "facingYawRadians": 0,
         "authoredYawRadians": 0,
         "bounds": {
@@ -5124,9 +5132,9 @@
         "joints": 0,
         "clips": [],
         "materials": 1,
-        "textures": 3,
-        "textureBytes": 6007,
-        "renderVertices": 5796
+        "textures": 2,
+        "textureBytes": 11064,
+        "renderVertices": 6012
       }
     },
     {
@@ -5139,21 +5147,27 @@
       ],
       "preservedAs": "picnic-table-tripo-original.glb",
       "sha256": "0758a33980aed6114f13e88d0247cc6cbc255b71e58d46d3226de76176eb32fc",
+      "blenderPreparation": {
+        "file": "assets/source/models/world/picnic-table-crafted.glb",
+        "sha256": "6cccdee7d13c08cfb8e60ab0976dde3e79da6bd0c11f8e38f7bf0ea53f87ba41",
+        "script": "scripts/blender/refine_civic_props.py",
+        "method": "Reference-concept refinement: rounded end-grain planks, supported central pegged stretcher, two upper braces, seated trestle angle plates and bolts. Single mesh and existing colour/roughness atlas; original envelope and provider source preserved."
+      },
       "runtimeDerivative": {
         "file": "public/models/world/picnic-table.glb",
-        "sha256": "c9d1261b149aafb3b7b74733ddf9f9cf8245646e11d6c8b6dcd7f652074003fc",
-        "bytes": 296932
+        "sha256": "f9b457ee91d392dd77d5821986b2b913b583c3d10ed74a04b6bb29d24d64b9bb",
+        "bytes": 175376
       },
       "normalization": {
         "sizedBy": "width",
         "targetMetres": 1.8,
-        "scaleFactor": 1.8,
+        "scaleFactor": 1,
         "facingYawRadians": 0,
         "authoredYawRadians": 0,
         "bounds": {
           "width": 1.8,
-          "height": 0.8102,
-          "length": 1.416,
+          "height": 0.81,
+          "length": 1.415,
           "minY": 0,
           "centreX": 0,
           "centreZ": 0
@@ -5162,9 +5176,9 @@
         "joints": 0,
         "clips": [],
         "materials": 1,
-        "textures": 3,
-        "textureBytes": 72706,
-        "renderVertices": 12894
+        "textures": 2,
+        "textureBytes": 28990,
+        "renderVertices": 7872
       }
     },
     {
@@ -5177,10 +5191,16 @@
       ],
       "preservedAs": "nissen-hut-tripo-original.glb",
       "sha256": "5bb02b56fc9759e7b4856a4e207541da2c8627ac4df9eec5dbf1fa55566b6346",
+      "blenderPreparation": {
+        "file": "assets/source/models/world/nissen-hut-crafted.glb",
+        "sha256": "8c22b88d644d3ba5597ccb79ed3f1fff9da8db516bc628bc80081301ac508ece",
+        "script": "scripts/blender/refine_architecture_assets.py",
+        "method": "Added five transverse rolled arch seams to corrugated shell; preserved entrance and longitudinal profile. Retain the source coordinate system and existing normalization."
+      },
       "runtimeDerivative": {
         "file": "public/models/world/nissen-hut.glb",
-        "sha256": "8d18d20244a6aead5ec0bee21e90724351eead81593b8ac96162149e7934d90f",
-        "bytes": 413648
+        "sha256": "533483865c372ec0b638465d4e73bf43ed1286191eda3c109999e68818a2b9af",
+        "bytes": 422436
       },
       "normalization": {
         "sizedBy": "width",
@@ -5212,7 +5232,7 @@
         "materials": 1,
         "textures": 3,
         "textureBytes": 196404,
-        "renderVertices": 16356
+        "renderVertices": 16635
       }
     },
     {
@@ -5225,21 +5245,27 @@
       ],
       "preservedAs": "park-bench-tripo-original.glb",
       "sha256": "465a6ea3af674b809fdcdf806d13257d420d508dc380af88f7ba51709814c5e9",
+      "blenderPreparation": {
+        "file": "assets/source/models/world/park-bench-crafted.glb",
+        "sha256": "2519af52520581070e72039c070d0e5a1a174d5fc6993920bb3db860ea804518",
+        "script": "scripts/blender/refine_civic_props.py",
+        "method": "Reference-concept refinement: continuous curved cast arms with wood grips, rounded end-grain slats, anchored feet and low frame stretcher. Single mesh and existing colour/roughness atlas; original envelope and provider source preserved."
+      },
       "runtimeDerivative": {
         "file": "public/models/world/park-bench.glb",
-        "sha256": "6d3110832bf5e1bc5025eac3bbb02f6e2b89404c2a4ce08a8b0a1f8bce697bce",
-        "bytes": 191608
+        "sha256": "a44763b704605b3c7b0c5389557cb50274a9a23b1eaa2200bf6899ecf2b20bf1",
+        "bytes": 163876
       },
       "normalization": {
         "sizedBy": "width",
         "targetMetres": 1.8,
-        "scaleFactor": 1.80707,
+        "scaleFactor": 1,
         "facingYawRadians": 0,
-        "authoredYawRadians": -1.5707963267948966,
+        "authoredYawRadians": 0,
         "bounds": {
           "width": 1.8,
-          "height": 0.9937,
-          "length": 0.6083,
+          "height": 0.995,
+          "length": 0.61,
           "minY": 0,
           "centreX": 0,
           "centreZ": 0
@@ -5248,9 +5274,9 @@
         "joints": 0,
         "clips": [],
         "materials": 1,
-        "textures": 3,
-        "textureBytes": 59637,
-        "renderVertices": 8451
+        "textures": 2,
+        "textureBytes": 28990,
+        "renderVertices": 7824
       }
     },
     {
@@ -5263,10 +5289,16 @@
       ],
       "preservedAs": "bus-shelter-tripo-original.glb",
       "sha256": "e3162c952019cb4ad0b7419520dd1630042860bbc5a45fbe0bb99c79b4e2060b",
+      "blenderPreparation": {
+        "file": "assets/source/models/world/bus-shelter-crafted.glb",
+        "sha256": "e0c71790c4f831787d85a9f583bcf617bd4648a266d7672b9802f4a612545b0d",
+        "script": "scripts/blender/refine_civic_props.py",
+        "method": "Reference-concept refinement: rear-glass seating with rounded slats, backrest and continuous end arms; connected gutter/downpipe, retaining clips and cabinet borders. Open front approach, live glass and advert datums, single mesh/material and original envelope preserved."
+      },
       "runtimeDerivative": {
         "file": "public/models/world/bus-shelter.glb",
-        "sha256": "f0257829c2664e84f780465937d35f7f7057353d0a38695afab9f6348704a072",
-        "bytes": 287000
+        "sha256": "60590e1159627eacb93ccbe4e65e0a29933c98ba4ac7aed2756d2f4d0d1df856",
+        "bytes": 278668
       },
       "normalization": {
         "sizedBy": "width",
@@ -5276,9 +5308,9 @@
           2.99,
           2.3
         ],
-        "scaleFactor": 4.4,
+        "scaleFactor": 1,
         "facingYawRadians": 0,
-        "authoredYawRadians": -1.5707963267948966,
+        "authoredYawRadians": 0,
         "bounds": {
           "width": 4.4,
           "height": 2.99,
@@ -5291,9 +5323,9 @@
         "joints": 0,
         "clips": [],
         "materials": 1,
-        "textures": 3,
-        "textureBytes": 40779,
-        "renderVertices": 18588
+        "textures": 2,
+        "textureBytes": 28990,
+        "renderVertices": 13488
       }
     },
     {
@@ -5306,10 +5338,16 @@
       ],
       "preservedAs": "dino-mascot-tripo-original.glb",
       "sha256": "42ed67fd8a5972f9d0dbd9b7d4554545b4146a3c6cdf7410f9cae6068ae4d68c",
+      "blenderPreparation": {
+        "file": "assets/source/models/world/dino-mascot-crafted.glb",
+        "sha256": "7bb6ae23e53b9ed57624d2e85ec3e6e56040427a9a36db2ee5cb2d57b1389cbb",
+        "script": "scripts/blender/refine_creature_assets.py",
+        "method": "Fair subtle sphere triangulation while retaining stitched eyes, tongue and spikes. Curvature-protected Taubin fairing and angle-weighted normals; all topology, UV, skin, joint, material and animation bytes preserved."
+      },
       "runtimeDerivative": {
         "file": "public/models/world/dino-mascot.glb",
-        "sha256": "8a0be8a1fab033a03280ec4133a923ba6e0b101919d63b4b10f20f54a245ce49",
-        "bytes": 190092
+        "sha256": "e12d789220bcf440aec7a48e7c273d6de341b4f674376dfc1b259180381cb15e",
+        "bytes": 190124
       },
       "normalization": {
         "sizedBy": "width",

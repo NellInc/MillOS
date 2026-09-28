@@ -1,8 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { importWithBoundedRetry } from '../recoverableLazy';
+import { createElement, Suspense } from 'react';
+import { act, cleanup, render } from '@testing-library/react';
+import { importWithBoundedRetry, recoverableLazy } from '../recoverableLazy';
+import { getStartupSnapshot } from '../startupReadiness';
 
 describe('importWithBoundedRetry', () => {
   afterEach(() => {
+    cleanup();
     vi.useRealTimers();
   });
 
@@ -49,5 +53,24 @@ describe('importWithBoundedRetry', () => {
     await vi.advanceTimersByTimeAsync(25);
     await expectation;
     expect(importer).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('recoverableLazy startup accounting', () => {
+  afterEach(cleanup);
+
+  it('holds readiness for a lazy module until its import really resolves', async () => {
+    const initial = getStartupSnapshot().pendingTasks;
+    let resolve!: (module: { default: () => null }) => void;
+    const Deferred = recoverableLazy(
+      () =>
+        new Promise<{ default: () => null }>((done) => {
+          resolve = done;
+        })
+    );
+    render(createElement(Suspense, { fallback: null }, createElement(Deferred)));
+    expect(getStartupSnapshot().pendingTasks).toBe(initial + 1);
+    await act(async () => resolve({ default: () => null }));
+    expect(getStartupSnapshot().pendingTasks).toBe(initial);
   });
 });

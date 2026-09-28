@@ -114,6 +114,33 @@ class PositionRegistry {
     return false;
   }
 
+  /** Separate static clearance for fleet-priority arbitration. This uses the
+   * same route samples and padding as isPathClear; peers cannot mask a wall.
+   * Working if a stopped peer is ignored here while a route barrier still fails.
+   */
+  isObstaclePathClear(
+    x: number,
+    z: number,
+    dirX: number,
+    dirZ: number,
+    checkDistance: number,
+    safetyRadius: number,
+    samplePath?: (distanceAhead: number) => { x: number; z: number }
+  ): boolean {
+    for (let distance = 1; distance <= checkDistance; distance += 0.5) {
+      const point = samplePath?.(distance);
+      if (
+        this.isInsideObstacle(
+          point?.x ?? x + dirX * distance,
+          point?.z ?? z + dirZ * distance,
+          safetyRadius * 0.5
+        )
+      )
+        return false;
+    }
+    return true;
+  }
+
   isPathClear(
     x: number,
     z: number,

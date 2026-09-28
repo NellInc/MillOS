@@ -18,7 +18,10 @@ const PERF_SYSTEMS = {
   environment: 'disableEnvironment',
   terrain: 'disableTerrain',
   lights: 'disablePunctualLights',
+  'lighting-polish': 'disableLightingPolish',
   surfaces: 'disableSurfaceTreatment',
+  ao: 'disableAmbientOcclusion',
+  bloom: 'disableBloom',
 };
 const NETWORK_PROFILES = {
   native: null,
@@ -68,8 +71,8 @@ Options:
   --compare-scada           Capture paired SCADA-off and SCADA-on samples
   --disable-systems=<list>  Comma-separated isolation aliases: ${Object.keys(PERF_SYSTEMS).join(', ')}
   --network-profile=<name>  native or fast-3g; default native
-  --startup-only            Measure the first useful frame without waiting for
-                            the complete authored world to finish streaming
+  --startup-only            Capture startup marks at the complete first reveal,
+                            without the subsequent steady-state sample
   --output=<directory>      Evidence directory
   --headed                  Show the browser window
   --report-only             Write evidence without failing the process on a missed budget
@@ -797,13 +800,18 @@ async function runScene(context, baseUrl, scene, scadaEnabled = options.scadaEna
     90000,
     { consoleErrors, pageErrors, failedRequests }
   );
-  // Runtime readiness and the visible useful frame are the same acceptance
-  // surface. A stale or racing loading overlay must fail the benchmark rather
-  // than silently contaminating screenshots that otherwise report green.
-  await page.waitForFunction(
-    () => document.querySelector('[aria-label="Loading MillOS"]') === null,
-    null,
-    { timeout: 12000 }
+  // The telemetry probe becomes ready on the first rendered frame; the loader
+  // now waits for assets, static batches and settled animation. Working if the
+  // benchmark observes that real signal and never samples through the overlay.
+  // This is only an observation timeout, not a relaxed frame or startup budget.
+  await waitForRuntimeStage(
+    page,
+    'Complete, animation-ready first reveal',
+    () =>
+      document.documentElement.dataset.millosStartupReady === 'true' &&
+      document.querySelector('[aria-label="Loading MillOS"]') === null,
+    120000,
+    { consoleErrors, pageErrors, failedRequests }
   );
   if (options.startupOnly) {
     const startup = await captureStartup(page);
@@ -846,10 +854,8 @@ async function runScene(context, baseUrl, scene, scadaEnabled = options.scadaEna
     await page.close();
     return result;
   }
-  // The first useful frame is deliberately lightweight. Steady-state samples
-  // must wait for the complete authored factory/world module before judging
-  // draw calls or frame pacing, otherwise a fast network can accidentally be
-  // compared with the staged preview on a throttled network.
+  // Retain the explicit assembly check alongside the first-reveal contract:
+  // steady-state evidence must never sample the staged preview world.
   await waitForRuntimeStage(
     page,
     'Complete authored world',

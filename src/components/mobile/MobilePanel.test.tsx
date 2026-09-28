@@ -20,7 +20,7 @@ vi.mock('../../stores/uiStore', () => ({
 vi.mock('../../stores/gameSimulationStore', () => ({ useGameSimulationStore: vi.fn() }));
 vi.mock('../../stores/safetyStore', () => ({ useSafetyStore: vi.fn() }));
 vi.mock('../../stores/operationsCampaignStore', () => ({ useOperationsCampaignStore: vi.fn() }));
-vi.mock('../ui/EmergencyStopButton', () => ({ EmergencyStopButton: () => null }));
+vi.mock('../ui-new/panels/SafetyPanel', () => ({ SafetyPanel: () => null }));
 vi.mock('../../utils/jevClient', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../utils/jevClient')>()),
   requestJevAdvice: vi.fn(),

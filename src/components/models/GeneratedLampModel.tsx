@@ -5,7 +5,16 @@ import { EXTERIOR_LAMP_LENS_MATERIAL } from '../exterior/ExteriorLighting';
 import { useDracoGLTF } from '../../utils/dracoLoader';
 import { GENERATED_ASSET_PATHS } from '../../utils/modelLoader';
 
-export function applyLampLens(material: THREE.MeshStandardMaterial): void {
+export type LampStyle = 'modern' | 'victorian';
+
+// Metre-space lens bounds from the authored optic shells, not the old
+// normalized provider mesh. Working if the post and cap never emit light.
+export const LAMP_LENS_HEIGHTS: Record<LampStyle, readonly [number, number]> = {
+  modern: [3.76, 3.95],
+  victorian: [3.935, 4.245],
+};
+
+export function applyLampLens(material: THREE.MeshStandardMaterial, style: LampStyle): void {
   const strength = {
     get value() {
       return EXTERIOR_LAMP_LENS_MATERIAL.emissiveIntensity;
@@ -13,24 +22,26 @@ export function applyLampLens(material: THREE.MeshStandardMaterial): void {
   };
   material.onBeforeCompile = (shader) => {
     shader.uniforms.lampLensStrength = strength;
+    shader.uniforms.lampLensHeights = { value: new THREE.Vector2(...LAMP_LENS_HEIGHTS[style]) };
     shader.uniforms.lampLensColor = { value: EXTERIOR_LAMP_LENS_MATERIAL.emissive };
     shader.vertexShader = `varying float vLampRestHeight;\n${shader.vertexShader}`.replace(
       '#include <begin_vertex>',
       '#include <begin_vertex>\nvLampRestHeight = position.y;'
     );
     shader.fragmentShader =
-      `varying float vLampRestHeight;\nuniform float lampLensStrength;\nuniform vec3 lampLensColor;\n${shader.fragmentShader}`.replace(
+      `varying float vLampRestHeight;\nuniform float lampLensStrength;\nuniform vec2 lampLensHeights;\nuniform vec3 lampLensColor;\n${shader.fragmentShader}`.replace(
         '#include <emissivemap_fragment>',
         `#include <emissivemap_fragment>
-       float lens = step(0.30, vLampRestHeight)
+       float lens = step(lampLensHeights.x, vLampRestHeight)
+         * (1.0 - step(lampLensHeights.y, vLampRestHeight))
          * smoothstep(0.12, 0.30, min(diffuseColor.r, diffuseColor.g));
        totalEmissiveRadiance += lampLensColor * lampLensStrength * lens;`
       );
   };
-  material.customProgramCacheKey = () => 'millos-generated-lamp-lens-v1';
+  material.customProgramCacheKey = () => 'millos-generated-lamp-lens-v2';
 }
 
-export function GeneratedLampModel({ style }: { style: 'modern' | 'victorian' }) {
+export function GeneratedLampModel({ style }: { style: LampStyle }) {
   const asset = style === 'modern' ? 'pathLampModern' : 'pathLampVictorian';
   const { scene } = useDracoGLTF(GENERATED_ASSET_PATHS[asset]);
   const { model, materials } = useMemo(() => {
@@ -41,14 +52,14 @@ export function GeneratedLampModel({ style }: { style: 'modern' | 'victorian' })
       if (!(object.material instanceof THREE.MeshStandardMaterial))
         throw new Error('Generated lamp requires a standard material');
       const material = object.material.clone();
-      applyLampLens(material);
+      applyLampLens(material, style);
       object.material = material;
       object.castShadow = true;
       object.receiveShadow = true;
       materials.push(material);
     });
     return { model, materials };
-  }, [scene]);
+  }, [scene, style]);
   useEffect(() => () => materials.forEach((material) => material.dispose()), [materials]);
   return <primitive object={model} />;
 }

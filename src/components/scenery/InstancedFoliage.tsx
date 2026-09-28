@@ -50,6 +50,7 @@ import {
   type FoliageKind,
 } from '../../textures/foliage';
 import { applyWindShader } from './WindDriver';
+import { createTreeMatrix } from './treeForms';
 import { composeWorldSurface } from '../../utils/worldSurface';
 
 export type TreeSpecies = 'oak' | 'pine' | 'birch';
@@ -743,12 +744,9 @@ const SpeciesGroup: React.FC<{ bucket: SpeciesBucket }> = ({ bucket }) => {
     bucket.items.forEach((item, i) => {
       const jit = foliageJitter(item.position);
       const scale = (item.scale ?? 1) * jit.scaleJitter;
-      _obj.position.set(item.position[0], item.position[1], item.position[2]);
-      _obj.rotation.set(0, jit.rotY, 0);
-      _obj.scale.setScalar(scale);
-      _obj.updateMatrix();
-      trunk.setMatrixAt(i, _obj.matrix);
-      canopy.setMatrixAt(i, _obj.matrix);
+      const matrix = createTreeMatrix(item.position, scale, jit.rotY, bucket.species === 'pine');
+      trunk.setMatrixAt(i, matrix);
+      canopy.setMatrixAt(i, matrix);
       canopy.setColorAt(i, canopyTint(jit.frac, jit.frac2));
     });
 
@@ -904,10 +902,66 @@ export interface ClutterSpec {
   attractors?: readonly (readonly [number, number])[];
   /** Ground height in the parent group's local space. */
   y?: number;
-  /** Camera distance beyond which the whole field is skipped. */
+  /** Analytic terrain support, in parent-local metres; flat callers retain y. */
+  groundHeight?: (x: number, z: number) => number;
+  /** Optional authored-site clearance test before a tuft is accepted. */
+  accepts?: (x: number, z: number) => boolean;
+  /** Camera distance beyond the field's bounds at which it is skipped. */
   cullDistance?: number;
   /** 0..1 tier density multiplier. */
   density?: number;
+}
+
+export function clutterPlacements(spec: ClutterSpec) {
+  const density = Math.max(0, Math.min(1, spec.density ?? 1));
+  const budget = Math.floor(spec.count * density);
+  const { minX, maxX, minZ, maxZ } = spec.bounds;
+  const y = spec.y ?? 0;
+  const attractors = spec.attractors ?? [];
+  const exclude = spec.exclude ?? [];
+  const openExclude = spec.openExclude ?? [];
+  const cx = (minX + maxX) * 0.5;
+  const cz = (minZ + maxZ) * 0.5;
+
+  const out: { x: number; y: number; z: number; s: number; rot: number; tint: number }[] = [];
+  for (let i = 0; i < budget * 2 && out.length < budget; i++) {
+    const h1 = halton(i + 7, 2);
+    const h2 = halton(i + 7, 3);
+    const h3 = halton(i + 7, 5);
+    let x: number;
+    let z: number;
+    // Three of every five tufts hug an attractor; the rest fill open ground.
+    const nearAttractor = attractors.length > 0 && i % 5 < 3;
+    if (nearAttractor) {
+      const a = attractors[i % attractors.length];
+      const ang = h1 * Math.PI * 2;
+      const rad = 0.5 + h2 * 2.1;
+      x = a[0] + Math.cos(ang) * rad;
+      z = a[1] + Math.sin(ang) * rad;
+    } else {
+      x = minX + h1 * (maxX - minX);
+      z = minZ + h2 * (maxZ - minZ);
+    }
+    if (x < minX || x > maxX || z < minZ || z > maxZ) continue;
+
+    const hits = (rects: readonly ClutterRect[]): boolean =>
+      rects.some((r) => Math.abs(x - r.x) < r.halfX && Math.abs(z - r.z) < r.halfZ);
+    if (hits(exclude) || (spec.accepts && !spec.accepts(x, z))) continue;
+    if (!nearAttractor && hits(openExclude)) continue;
+
+    out.push({
+      x,
+      y: spec.groundHeight?.(x, z) ?? y,
+      z,
+      s: 0.72 + h3 * 0.75,
+      rot: h3 * Math.PI * 2,
+      tint: halton(i + 7, 7),
+    });
+  }
+
+  // Near-to-centre first, so a count prefix is also a distance prefix.
+  out.sort((a, b) => (a.x - cx) ** 2 + (a.z - cz) ** 2 - ((b.x - cx) ** 2 + (b.z - cz) ** 2));
+  return out;
 }
 
 /**
@@ -916,63 +970,13 @@ export interface ClutterSpec {
  * Fill rate, not triangles, is the cost here: cards are only ~0.5 m tall and
  * the instance count is prefixed by camera distance on a throttled frame, so
  * the field collapses to zero long before it can matter to a distant scene.
- * Never casts or receives shadows - shadow-pass fragment work on alpha-tested
- * cards is the single most likely way to blow the farm's draw budget.
+ * Never casts shadows; it receives existing shadows so tufts do not glow
+ * beneath buildings. No extra shadow-pass draws.
  */
 export const InstancedGrassClutter: React.FC<{ spec: ClutterSpec }> = React.memo(({ spec }) => {
   const meshRef = useRef<THREE.InstancedMesh>(null);
 
-  const placements = useMemo(() => {
-    const density = Math.max(0, Math.min(1, spec.density ?? 1));
-    const budget = Math.floor(spec.count * density);
-    const { minX, maxX, minZ, maxZ } = spec.bounds;
-    const y = spec.y ?? 0;
-    const attractors = spec.attractors ?? [];
-    const exclude = spec.exclude ?? [];
-    const openExclude = spec.openExclude ?? [];
-    const cx = (minX + maxX) * 0.5;
-    const cz = (minZ + maxZ) * 0.5;
-
-    const out: { x: number; y: number; z: number; s: number; rot: number; tint: number }[] = [];
-    for (let i = 0; i < budget * 2 && out.length < budget; i++) {
-      const h1 = halton(i + 7, 2);
-      const h2 = halton(i + 7, 3);
-      const h3 = halton(i + 7, 5);
-      let x: number;
-      let z: number;
-      // Three of every five tufts hug an attractor; the rest fill open ground.
-      const nearAttractor = attractors.length > 0 && i % 5 < 3;
-      if (nearAttractor) {
-        const a = attractors[i % attractors.length];
-        const ang = h1 * Math.PI * 2;
-        const rad = 0.5 + h2 * 2.1;
-        x = a[0] + Math.cos(ang) * rad;
-        z = a[1] + Math.sin(ang) * rad;
-      } else {
-        x = minX + h1 * (maxX - minX);
-        z = minZ + h2 * (maxZ - minZ);
-      }
-      if (x < minX || x > maxX || z < minZ || z > maxZ) continue;
-
-      const hits = (rects: readonly ClutterRect[]): boolean =>
-        rects.some((r) => Math.abs(x - r.x) < r.halfX && Math.abs(z - r.z) < r.halfZ);
-      if (hits(exclude)) continue;
-      if (!nearAttractor && hits(openExclude)) continue;
-
-      out.push({
-        x,
-        y,
-        z,
-        s: 0.72 + h3 * 0.75,
-        rot: h3 * Math.PI * 2,
-        tint: halton(i + 7, 7),
-      });
-    }
-
-    // Near-to-centre first, so a count prefix is also a distance prefix.
-    out.sort((a, b) => (a.x - cx) ** 2 + (a.z - cz) ** 2 - ((b.x - cx) ** 2 + (b.z - cz) ** 2));
-    return out;
-  }, [spec]);
+  const placements = useMemo(() => clutterPlacements(spec), [spec]);
 
   useLayoutEffect(() => {
     const mesh = meshRef.current;
@@ -983,13 +987,10 @@ export const InstancedGrassClutter: React.FC<{ spec: ClutterSpec }> = React.memo
       _obj.scale.set(p.s, p.s * (0.8 + p.tint * 0.5), p.s);
       _obj.updateMatrix();
       mesh.setMatrixAt(i, _obj.matrix);
-      // ~20% browned-off tufts, the rest a lightness spread.
-      const browned = p.tint > 0.8;
-      _color.setHSL(
-        browned ? 0.11 : 0.27 + (p.tint - 0.5) * 0.05,
-        browned ? 0.42 : 0.4,
-        0.36 * (0.7 + p.tint * 0.45)
-      );
+      // Atlas RGB already contains green blades and dry tips. Multiplying it
+      // by another dark green crushed shadowed tufts to near-black needles.
+      const tone = 0.72 + p.tint * 0.28;
+      _color.setRGB(tone, tone, tone * (p.tint > 0.8 ? 0.82 : 1));
       mesh.setColorAt(i, _color);
     });
     mesh.instanceMatrix.needsUpdate = true;
@@ -1003,8 +1004,10 @@ export const InstancedGrassClutter: React.FC<{ spec: ClutterSpec }> = React.memo
     const mesh = meshRef.current;
     if (!mesh || placements.length === 0) return;
     if (!shouldRunThisFrame(12)) return;
-    mesh.getWorldPosition(_worldPos);
-    const dist = _worldPos.distanceTo(state.camera.position);
+    if (!mesh.boundingSphere) mesh.computeBoundingSphere();
+    _worldPos.copy(mesh.boundingSphere!.center).applyMatrix4(mesh.matrixWorld);
+    const radius = mesh.boundingSphere!.radius * mesh.matrixWorld.getMaxScaleOnAxis();
+    const dist = Math.max(0, _worldPos.distanceTo(state.camera.position) - radius);
     const next =
       dist > cullDistance
         ? 0
@@ -1019,6 +1022,7 @@ export const InstancedGrassClutter: React.FC<{ spec: ClutterSpec }> = React.memo
   return (
     <instancedMesh
       ref={meshRef}
+      name="authored-grass-margin-clusters"
       args={[CLUTTER_GEOMETRY, CLUTTER_MATERIAL, placements.length]}
       // Never CASTS: shadow-pass fragment work on alpha-tested cards is the
       // fastest way to blow the farm's budget. Does RECEIVE - `receiveShadow`

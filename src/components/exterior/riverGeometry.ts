@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import type { RiverChannelConfig } from '../terrain/splatMapGenerator';
+import { sampleTerrainGroundHeight, type RiverChannelConfig } from '../terrain/splatMapGenerator';
 
 type ChannelPoint = readonly [number, number, number];
 
@@ -36,9 +36,10 @@ export function createRiverCulvertGeometries(): Record<
     shape.lineTo(-x, base);
     shape.closePath();
   };
-  const extrude = (shape: THREE.Shape, depth: number, z = 0, curveSegments = 28) => {
+  const extrude = (shape: THREE.Shape, depth: number, z = 0, curveSegments = 28, steps = 1) => {
     const geometry = new THREE.ExtrudeGeometry(shape, {
       depth,
+      steps,
       curveSegments,
       bevelEnabled: false,
     });
@@ -89,7 +90,20 @@ export function createRiverCulvertGeometries(): Record<
   bank.quadraticCurveTo(21, 0, 27, 0);
   bank.lineTo(27, base);
   finishBore(bank, 10.18);
-  const earth = extrude(bank, 18, 0.8);
+  const earth = extrude(bank, 26, 0.8, 10, 4);
+  const bankPosition = earth.getAttribute('position');
+  // The old uniform extrusion ended in a four-metre vertical turf slab.
+  // Beyond the dark recess, taper the roof into dry meadow beyond the
+  // rounded channel end (the high-tier bed is still submerged at z=18.8). Keep the
+  // entrance bore unchanged and bury the back edge below the ground datum.
+  for (let i = 0; i < bankPosition.count; i++) {
+    const y = bankPosition.getY(i);
+    if (y > -0.08) {
+      const fade = 1 - THREE.MathUtils.smoothstep(bankPosition.getZ(i), 4, 26.8);
+      bankPosition.setY(i, -0.08 + (y + 0.08) * fade);
+    }
+  }
+  earth.computeVertexNormals();
 
   // A recessed dark termination conceals the finite terrain channel's cap.
   const shadow = new THREE.Shape();
@@ -108,6 +122,42 @@ export function createRiverCulvertGeometries(): Record<
     geometry.computeBoundingSphere();
   }
   return geometries;
+}
+
+/** Match the far turf edge to the actual canyon triangles, rather than the
+ * zero-height plateau. The tail and lateral feet blend into it; the central entrance stays open.
+ */
+export function fitRiverCulvertBank(
+  source: THREE.BufferGeometry,
+  worldX: number,
+  worldZ: number,
+  rotation: number,
+  segments: number,
+  datum: number
+) {
+  const geometry = source.clone();
+  const p = geometry.getAttribute('position');
+  const cos = Math.cos(rotation),
+    sin = Math.sin(rotation);
+  for (let i = 0; i < p.count; i++) {
+    const roofWeight = THREE.MathUtils.clamp((p.getY(i) + 5) / 4.92, 0, 1);
+    const x = p.getX(i),
+      z = p.getZ(i);
+    const ground =
+      datum +
+      sampleTerrainGroundHeight(worldX + x * cos + z * sin, worldZ - x * sin + z * cos, segments);
+    const rearWeight = THREE.MathUtils.smoothstep(z, 4, 26.8);
+    const sideWeight = THREE.MathUtils.smoothstep(Math.abs(x), 18, 27);
+    // The lateral feet meet the same sloping canyon as the tail. Keep the
+    // central entrance untouched, and bury the perimeter by eight centimetres.
+    const groundOffset =
+      ground * Math.max(rearWeight, sideWeight) - 0.08 * sideWeight * (1 - rearWeight);
+    p.setY(i, p.getY(i) + groundOffset * roofWeight);
+  }
+  geometry.computeVertexNormals();
+  geometry.computeBoundingBox();
+  geometry.computeBoundingSphere();
+  return geometry;
 }
 
 const midpoint = (a: ChannelPoint, b: ChannelPoint): ChannelPoint => [

@@ -2,11 +2,17 @@ import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { NodeIO } from '@gltf-transform/core';
 import { restoreGeometryOrigin } from '../models/GeneratedGeometrySurface';
-import { SIFTER_LAYOUT, SITE_LAYOUT, SILO_ACCESS_LAYOUT } from '../../constants/siteLayout';
+import {
+  SIFTER_LAYOUT,
+  SITE_LAYOUT,
+  SILO_ACCESS_LAYOUT,
+  getSiloAssemblyScale,
+} from '../../constants/siteLayout';
 import { MachineType } from '../../types';
 import { MILL_FEEDER_FASTENERS } from './machineFinishGeometry';
 import {
   MACHINE_PART_GEOMETRY,
+  SILO_HARDWARE,
   MILL_FEEDER_LAYOUT,
   MACHINE_BEACON_MOUNTS,
   MACHINE_BEACON_SCALE,
@@ -44,8 +50,7 @@ const EXPECTED_HALF_EXTENTS: Record<
   roller: [1, 0.5, 1],
   inlet: [1, 0.5, 1],
   beacon: [1, 1, 1],
-  // Ring outline in XY, tube along Z - three.js orients a torus that way, and
-  // the grille is instanced at [0.78, 0.52, 0.09], so Z is the squashed axis.
+  // Cage rings lie in XY before the retained sideways motor-end mount.
   fanGrille: [1.1, 1.1, 0.1],
 };
 
@@ -63,6 +68,74 @@ const halfExtents = (geometry: THREE.BufferGeometry): [number, number, number] =
 };
 
 describe('shared machine part geometry', () => {
+  it('keeps the motor guard open with fewer triangles than the original ring', () => {
+    const geometry = MACHINE_PART_GEOMETRY.fanGrille;
+    expect((geometry.index?.count ?? geometry.attributes.position.count) / 3).toBe(472);
+    const material = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
+    const mesh = new THREE.Mesh(geometry, material);
+    const ray = new THREE.Raycaster(new THREE.Vector3(0.47, 0.18, 1), new THREE.Vector3(0, 0, -1));
+    expect(ray.intersectObject(mesh)).toHaveLength(0);
+    ray.set(new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0, -1));
+    expect(ray.intersectObject(mesh).length).toBeGreaterThan(0);
+    ray.set(new THREE.Vector3(0.66, 0, 1), new THREE.Vector3(0, 0, -1));
+    expect(ray.intersectObject(mesh).length).toBeGreaterThan(0);
+    material.dispose();
+  });
+
+  it('seats the sheet-joint fasteners on the actual corrugations at every silo assembly scale', () => {
+    const material = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
+    try {
+      for (const size of [[4.5, 16.5, 4.5], [...SITE_LAYOUT.machineDimensions.silo]] as [
+        number,
+        number,
+        number,
+      ][]) {
+        const frame = new THREE.Group();
+        frame.scale.set(...getSiloAssemblyScale(size));
+        frame.position.set(3, 0, 7);
+        const shell = new THREE.Mesh(MACHINE_PART_GEOMETRY.siloShell, material);
+        shell.position.y = 8.75;
+        shell.scale.set(2.25, 12.5, 2.25);
+        const hardware = new THREE.Mesh(SILO_HARDWARE, material);
+        frame.add(shell, hardware);
+        frame.updateMatrixWorld(true);
+        for (const seam of [Math.PI / 4, -Math.PI / 4])
+          for (let row = 0; row < 12; row++)
+            for (const side of [-1, 1]) {
+              const angle = seam + side * 0.018;
+              const outward = new THREE.Vector3(Math.sin(angle), 0, Math.cos(angle));
+              const origin = outward
+                .clone()
+                .multiplyScalar(3)
+                .setY(2.8 + row * 1.08)
+                .applyMatrix4(frame.matrixWorld);
+              const direction = outward.clone().negate().transformDirection(frame.matrixWorld);
+              const ray = new THREE.Raycaster(origin, direction);
+              const shellHit = ray.intersectObject(shell)[0];
+              const fittings = ray.intersectObject(hardware);
+              expect(shellHit).toBeDefined();
+              expect(fittings.length).toBeGreaterThanOrEqual(2);
+              expect(fittings[0].distance).toBeLessThan(shellHit.distance);
+              expect(fittings[1].distance).toBeGreaterThan(shellHit.distance);
+            }
+      }
+      expect(
+        (SILO_HARDWARE.index?.count ?? SILO_HARDWARE.attributes.position.count) / 3
+      ).toBeLessThan(650);
+      expect(SILO_HARDWARE.boundingBox!.min.y).toBeCloseTo(0, 6);
+      const positions = SILO_HARDWARE.getAttribute('position');
+      for (let index = 0; index < positions.count; index++) {
+        // All anchors remain within the existing roof/foundation square, and
+        // the ladder and its hatch occupy the clear positive-Z service strip.
+        expect(Math.abs(positions.getX(index))).toBeLessThan(2.25);
+        expect(positions.getZ(index)).toBeLessThan(2.0);
+        expect(Math.hypot(positions.getX(index), positions.getZ(index))).toBeLessThan(2.4);
+      }
+    } finally {
+      material.dispose();
+    }
+  });
+
   it('retains the installed silo frame across initial and subsequent fill updates', () => {
     const mesh = new THREE.InstancedMesh(
       new THREE.CylinderGeometry(1, 1, 1, 16),

@@ -2,12 +2,17 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import ts from 'typescript';
 import * as THREE from 'three';
-import { createRiverCulvertGeometries, createRiverSurfaceGeometry } from './riverGeometry';
+import {
+  createRiverCulvertGeometries,
+  createRiverSurfaceGeometry,
+  fitRiverCulvertBank,
+} from './riverGeometry';
 import { createDisplacedGeometry } from '../terrain/TerrainGround';
 import {
   generateHeightmap,
   getRiverHeightfield,
   MILLOS_RIVER_CONFIG,
+  sampleTerrainGroundHeight,
 } from '../terrain/splatMapGenerator';
 import { TERRAIN_BOUNDS } from '../terrain/terrainTypes';
 import { SITE_LAYOUT } from '../../constants/siteLayout';
@@ -160,7 +165,7 @@ describe('terrain-fitted river surface', () => {
 });
 
 describe('continuous river culverts', () => {
-  it('keeps the masonry and earth bores open above the actual water level', () => {
+  it('keeps the entrance bores open up to the opaque recessed termination', () => {
     const geometries = createRiverCulvertGeometries();
     const material = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
     try {
@@ -173,7 +178,12 @@ describe('continuous river culverts', () => {
           [8.5, -2],
           [-8.5, -2],
         ]) {
-          const ray = new THREE.Raycaster(new THREE.Vector3(x, y, -3), new THREE.Vector3(0, 0, 1));
+          const ray = new THREE.Raycaster(
+            new THREE.Vector3(x, y, -3),
+            new THREE.Vector3(0, 0, 1),
+            0,
+            6.4
+          );
           expect(ray.intersectObject(mesh), `${geometry.name} bore at ${x},${y}`).toHaveLength(0);
         }
       }
@@ -224,9 +234,41 @@ describe('continuous river culverts', () => {
       expect(geometries.face.boundingBox!.min.x).toBe(-18);
       expect(geometries.face.boundingBox!.max.x).toBe(18);
       expect(geometries.earth.boundingBox!.min.y).toBe(-5);
-      expect(geometries.earth.boundingBox!.max.z).toBeCloseTo(18.8, 5);
+      expect(geometries.earth.boundingBox!.max.z).toBeCloseTo(26.8, 5);
+      const bank = geometries.earth.getAttribute('position');
+      const backHeights = Array.from({ length: bank.count }, (_, i) => i)
+        .filter((i) => bank.getZ(i) > 26.79)
+        .map((i) => bank.getY(i));
+      expect(Math.max(...backHeights)).toBeCloseTo(-0.08, 5);
     } finally {
       Object.values(geometries).forEach((g) => g.dispose());
     }
   });
+});
+
+it.each([64, 128])('seats both culvert turf tails on the actual %i canyon mesh', (segments) => {
+  const originals = createRiverCulvertGeometries();
+  for (const [x, z, yaw] of [
+    [-142, -145, -Math.PI / 2],
+    [142, -135, Math.PI / 2],
+  ]) {
+    const bank = fitRiverCulvertBank(originals.earth, x, z, yaw, segments, datum);
+    const p = bank.getAttribute('position');
+    let checked = 0;
+    for (let i = 0; i < p.count; i++) {
+      const perimeter = p.getZ(i) > 26.79 || Math.abs(p.getX(i)) > 26.99;
+      if (!perimeter || originals.earth.getAttribute('position').getY(i) < -0.0801) continue;
+      const wx = x + p.getX(i) * Math.cos(yaw) + p.getZ(i) * Math.sin(yaw);
+      const wz = z - p.getX(i) * Math.sin(yaw) + p.getZ(i) * Math.cos(yaw);
+      expect(p.getY(i)).toBeCloseTo(datum + sampleTerrainGroundHeight(wx, wz, segments) - 0.08, 5);
+      checked++;
+    }
+    expect(checked).toBeGreaterThan(4);
+    const tailGround =
+      datum +
+      sampleTerrainGroundHeight(x + 26.8 * Math.sin(yaw), z + 26.8 * Math.cos(yaw), segments);
+    expect(tailGround).toBeGreaterThan(config.waterLevel + 0.5);
+    bank.dispose();
+  }
+  Object.values(originals).forEach((g) => g.dispose());
 });

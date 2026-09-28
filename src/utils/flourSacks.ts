@@ -171,12 +171,21 @@ export const PALLET_PRINT_ALPHA_TEST = 0.08;
  * carrier datum. Working if six layers sit on the deck without intersecting,
  * and the existing mast transform moves timber, cloth and ink together.
  */
-export const PALLET_SACK_LAYOUT = Array.from({ length: 6 }, (_, layer) =>
-  [-1, 1].map((side) => ({
-    position: [side * 0.225, 0.15 + layer * 0.18, 0] as const,
-    scale: [0.74, 0.18 / FLOUR_SACK_HEIGHT, 0.87] as const,
-  }))
-).flat();
+export const PALLET_SACK_LAYOUT = Array.from({ length: 6 }, (_, layer) => {
+  const crossBond = layer % 2 === 1;
+  // Cross-bonded courses bridge the seam below. Millimetre-scale offsets keep
+  // soft shoulders from reading as identical columns without leaning the load.
+  const settle = [0, 0.004, -0.003, 0.002, -0.004, 0][layer];
+  return [-1, 1].map((side) => ({
+    position: [
+      crossBond ? settle : side * 0.225,
+      0.15 + layer * 0.18,
+      crossBond ? side * 0.2 : settle,
+    ] as const,
+    scale: [crossBond ? 0.64 : 0.74, 0.18 / FLOUR_SACK_HEIGHT, crossBond ? 0.97 : 0.87] as const,
+    rotationY: crossBond ? Math.PI / 2 : 0,
+  }));
+}).flat();
 
 interface FlourPalletGeometry {
   pallet: THREE.BufferGeometry;
@@ -209,16 +218,18 @@ export function getFlourPalletGeometry(): FlourPalletGeometry {
   }
   const sacks: THREE.BufferGeometry[] = [];
   const ink: THREE.BufferGeometry[] = [];
-  for (const { position, scale } of PALLET_SACK_LAYOUT) {
+  for (const { position, scale, rotationY } of PALLET_SACK_LAYOUT) {
     sacks.push(
       getFlourSackGeometry()
         .clone()
         .scale(...scale)
+        .rotateY(rotationY)
         .translate(...position)
     );
     ink.push(
       FLOUR_SACK_PRINT_GEOMETRY.clone()
         .scale(...scale)
+        .rotateY(rotationY)
         .translate(...position)
     );
   }

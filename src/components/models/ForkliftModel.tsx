@@ -358,6 +358,24 @@ function createCompactWheelGeometry(): THREE.LatheGeometry {
   return new THREE.LatheGeometry(profile, 20);
 }
 
+/** Matches the shared pallet's two 0.22 m channels and 0.06 m vertical gap.
+ * The tine top supports the deck underside at pallet-local y=0.025.
+ * Working if ray tests hit the deck at the tine top throughout lift and tilt.
+ */
+export const COMPACT_FORK_LOAD: {
+  centres: readonly number[];
+  size: [number, number, number];
+  y: number;
+  z: number;
+  palletPosition: [number, number, number];
+} = {
+  centres: [-0.17, 0.17],
+  size: [0.13, 0.04, 1.35],
+  y: 0.32,
+  z: 0.65,
+  palletPosition: [0, 0.315, 0.66],
+};
+
 // Low quality retains a deliberately small shared visual. Medium and above use
 // the authored derivative, which remains inside the measured draw-call budget.
 const compactForkliftGeometry = {
@@ -368,7 +386,7 @@ const compactForkliftGeometry = {
   roof: new THREE.BoxGeometry(1.42, 0.1, 1.22),
   mast: new THREE.BoxGeometry(0.11, 2.2, 0.13),
   detailBox: new THREE.BoxGeometry(1, 1, 1),
-  fork: new THREE.BoxGeometry(0.13, 0.08, 1.35),
+  fork: new THREE.BoxGeometry(...COMPACT_FORK_LOAD.size),
   // Shaped tyre, not a drum - see createCompactWheelGeometry. Max radius is
   // still exactly FORKLIFT_WHEEL_RADIUS, which is the divisor the spin
   // integrator uses; the old 0.31 against a 0.32 divisor slipped 3%.
@@ -603,8 +621,8 @@ const CompactForklift: React.FC<ForkliftModelProps> = ({
     }
 
     if (forkRef.current) {
-      [-0.31, 0.31].forEach((x, index) => {
-        compactInstancePosition.set(x, 0.32, 0.65);
+      COMPACT_FORK_LOAD.centres.forEach((x, index) => {
+        compactInstancePosition.set(x, COMPACT_FORK_LOAD.y, COMPACT_FORK_LOAD.z);
         compactInstanceMatrix.compose(
           compactInstancePosition,
           compactStaticQuaternion,
@@ -768,12 +786,17 @@ const CompactForklift: React.FC<ForkliftModelProps> = ({
             receiveShadow
           />
           <instancedMesh
+            name="compact-forklift-tines"
             ref={forkRef}
             args={[compactForkliftGeometry.fork, compactForkliftMaterial.steel, 2]}
             castShadow
             receiveShadow
           />
-          <group position={[0, 0.43, 0.66]} visible={hasCargo}>
+          <group
+            name="compact-forklift-cargo"
+            position={COMPACT_FORK_LOAD.palletPosition}
+            visible={hasCargo}
+          >
             <FlourPallet />
           </group>
         </group>

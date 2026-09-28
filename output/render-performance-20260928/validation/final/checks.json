@@ -1,0 +1,17 @@
+[
+  {
+    "name": "typecheck",
+    "code": 0,
+    "seconds": 102.205
+  },
+  {
+    "name": "lint",
+    "code": 0,
+    "seconds": 13.801
+  },
+  {
+    "name": "format:check",
+    "code": 0,
+    "seconds": 12.217
+  }
+]

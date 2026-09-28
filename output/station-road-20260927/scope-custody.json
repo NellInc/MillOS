@@ -1,0 +1,27 @@
+{
+  "changedBaselineFiles": [
+    "src/components/FactoryExterior.tsx",
+    "src/components/GasStationInstanced.tsx",
+    "src/components/terrain/splatMapGenerator.ts",
+    "src/constants/siteLayout.ts"
+  ],
+  "newSourceFiles": [
+    "src/components/exterior/stationAccessGeometry.test.ts",
+    "src/components/exterior/stationAccessGeometry.ts"
+  ],
+  "unchangedModelFiles": 842,
+  "modelChanges": [],
+  "protectedUnchanged": [
+    "src/constants/castleAccess.ts",
+    "src/utils/castleNavigation.ts",
+    "src/components/FirstPersonController.tsx",
+    "src/components/mobile/MobileFirstPersonController.tsx",
+    "src/components/physics/PhysicsFirstPersonController.tsx",
+    "public/models/asset-manifest.json"
+  ],
+  "additionalFingerprintFiles": {
+    "package.json": true,
+    "package-lock.json": true,
+    "vite.config.ts": true
+  }
+}

@@ -18,6 +18,7 @@ import {
   BROADLEAF_DEPTH,
 } from '../scenery/InstancedFoliage';
 import { WindDriver } from '../scenery/WindDriver';
+import { createTreeMatrix, treeSeed } from '../scenery/treeForms';
 import { GeneratedBoundary } from '../models/GeneratedModel';
 import { useDracoGLTF } from '../../utils/dracoLoader';
 import { GENERATED_ASSET_PATHS } from '../../utils/modelLoader';
@@ -222,18 +223,30 @@ export const SHARED_TREE_TRUNK = TREE_GEOMETRIES.trunk;
  */
 function createTreeBranches(): THREE.BufferGeometry {
   const forks = [
-    [[0, 2.6, 0], [0.14, 5.2, -0.08], 0.22, 0.07],
+    [[0, 2.6, 0], [0.14, 5.2, -0.08], 0.29, 0.07],
     [[0, 3.05, 0], [-1.45, 4.8, 0.3], 0.15, 0.03],
     [[0.08, 3.45, 0], [1.45, 5.1, -0.35], 0.14, 0.025],
     [[0.08, 3.6, 0], [0.15, 5.65, 1.3], 0.13, 0.025],
     [[0.1, 4.25, -0.1], [-0.65, 5.6, -1.25], 0.11, 0.02],
   ] as const;
   const up = new THREE.Vector3(0, 1, 0);
-  const parts = forks.map(([from, to, base, tip]) => {
+  const parts = forks.map(([from, to, base, tip], index) => {
     const start = new THREE.Vector3(...from);
     const end = new THREE.Vector3(...to);
     const direction = end.clone().sub(start);
-    const geometry = new THREE.CylinderGeometry(tip, base, direction.length(), 8);
+    // A middle ring buys a gentle elbow instead of five ruler-straight rods.
+    // Six radial sides keep the whole scaffold at 180 triangles (formerly
+    // 160), in the same single instanced draw and inside the retained crown.
+    const length = direction.length();
+    const geometry = new THREE.CylinderGeometry(tip, base, length, 6, 2);
+    const positions = geometry.getAttribute('position');
+    for (let i = 0; i < positions.count; i++) {
+      const t = (positions.getY(i) + length / 2) / length;
+      const elbow = 4 * t * (1 - t);
+      positions.setX(i, positions.getX(i) + elbow * (index % 2 === 0 ? 0.12 : -0.16));
+      positions.setZ(i, positions.getZ(i) + elbow * 0.06);
+    }
+    geometry.computeVertexNormals();
     geometry.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(up, direction.normalize()));
     geometry.translate(...start.add(end).multiplyScalar(0.5).toArray());
     return geometry;
@@ -256,6 +269,7 @@ interface InstanceData {
   position: [number, number, number];
   rotation?: number;
   scale?: number;
+  matrix?: THREE.Matrix4;
 }
 
 const useInstances = (_count: number, data: InstanceData[], localMatrix?: THREE.Matrix4) => {
@@ -266,11 +280,14 @@ const useInstances = (_count: number, data: InstanceData[], localMatrix?: THREE.
     if (!meshRef.current || data.length === 0) return;
 
     data.forEach((item, i) => {
-      tempObject.position.set(...item.position);
-      tempObject.rotation.set(0, item.rotation ?? 0, 0);
-      const scale = item.scale ?? 1;
-      tempObject.scale.set(scale, scale, scale);
-      tempObject.updateMatrix();
+      if (item.matrix) {
+        tempObject.matrix.copy(item.matrix);
+      } else {
+        tempObject.position.set(...item.position);
+        tempObject.rotation.set(0, item.rotation ?? 0, 0);
+        tempObject.scale.setScalar(item.scale ?? 1);
+        tempObject.updateMatrix();
+      }
       if (localMatrix) tempObject.matrix.multiply(localMatrix);
       meshRef.current!.setMatrixAt(i, tempObject.matrix);
     });
@@ -307,8 +324,11 @@ export const SimpleTreeInstances: React.FC<{
       const { variant, rotY, jitter } = treeJitterFromPosition(t.position);
       const item: InstanceData = {
         position: groundedTreePosition(t.position, quality),
-        rotation: rotY,
-        scale: (t.scale ?? 1) * jitter,
+        matrix: createTreeMatrix(
+          groundedTreePosition(t.position, quality),
+          (t.scale ?? 1) * jitter,
+          rotY
+        ),
       };
       all.push(item);
       buckets[variant].push(item);
@@ -585,15 +605,19 @@ export function treeSiteClear(x: number, z: number, crownRadius: number): boolea
 export const VALLEY_WOODLAND_TREES: TreeInstanceData[] = VALLEY_GROVES.flatMap(
   ([x, z, radiusX, radiusZ, count], grove) =>
     Array.from({ length: count }, (_, index) => {
-      const angle = index * 2.3999632297 + grove * 1.31;
-      const radius = Math.sqrt((index + 0.5) / count);
+      const seed: [number, number, number] = [x + index * 3.7, 0, z + grove * 5.3];
+      // Break the spiral's regular spacing while retaining the grove envelope.
+      const angle = index * 2.3999632297 + grove * 1.31 + (treeSeed(seed, 7) - 0.5) * 0.6;
+      const radius = Math.sqrt((index + 0.5) / count) * (0.78 + treeSeed(seed, 8) * 0.22);
+      const age = treeSeed(seed, 9);
       return {
         position: [
           Math.round((x + Math.cos(angle) * radiusX * radius) * 10) / 10,
           0,
           Math.round((z + Math.sin(angle) * radiusZ * radius) * 10) / 10,
         ] as [number, number, number],
-        scale: 1.3 + ((index * 17 + grove * 7) % 19) * 0.035,
+        // Saplings amongst mature trees, rather than one evenly aged plantation.
+        scale: age < 0.2 ? 0.7 + age * 1.75 : 1.1 + ((age - 0.2) / 0.8) * 0.75,
       };
     })
 ).filter(({ position, scale }) => {
@@ -658,7 +682,7 @@ export const MAIN_EXTERIOR_TREES: TreeInstanceData[] = [
   { position: [-160, 0, 30], scale: 0.9 },
   { position: [-160, 0, -10], scale: 1.2 },
   // East of the village cottage at (-165, -50), clear of the canal wall.
-  { position: [-156, 0, -50], scale: 1.0 },
+  { position: [-158.8, 0, -44], scale: 1.0 },
   { position: [-160, 0, -90], scale: 1.1 },
   // Trees by river, on the dry ground above its 25 m canyon bank. At z -170
   // three stood over the channel itself: 3.6 m down to the bed at x 40, with

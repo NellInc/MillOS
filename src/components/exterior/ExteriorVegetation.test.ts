@@ -4,6 +4,7 @@ import {
   generatedBenchSource,
   MAIN_EXTERIOR_BENCHES,
   LANDSCAPE_GROVE_TREES,
+  VALLEY_WOODLAND_TREES,
   MAIN_EXTERIOR_TREES,
   PARKLAND_TREES,
   FRONT_PARKLAND_TREES,
@@ -22,6 +23,7 @@ import {
 } from '../terrain/splatMapGenerator';
 import { TERRAIN_BOUNDS, SPLAT_BOUNDS } from '../terrain/terrainTypes';
 import { getLandmarkBounds, SITE_LAYOUT } from '../../constants/siteLayout';
+import { createTreeMatrix, treeFormFromPosition } from '../scenery/treeForms';
 
 describe('generated park bench instancing', () => {
   it('connects the retained trunk to every crown variant with a bounded branch mesh', () => {
@@ -35,6 +37,34 @@ describe('generated park bench instancing', () => {
       expect(branches.intersectsBox(crown.boundingBox!)).toBe(true);
     }
     expect(TREE_BRANCH_GEOMETRY.index!.count / 3).toBeLessThan(200);
+  });
+  it('bends the woody leader within the existing crown without moving its endpoints', () => {
+    const positions = TREE_BRANCH_GEOMETRY.getAttribute('position');
+    // First fork, six unique vertices per ring; the seventh closes its seam.
+    const ringCenter = (ring: number) => {
+      const center = new THREE.Vector3();
+      for (let i = 0; i < 6; i++) {
+        center.add(new THREE.Vector3().fromBufferAttribute(positions, ring * 7 + i));
+      }
+      return center.divideScalar(6);
+    };
+    expect(ringCenter(0).distanceTo(new THREE.Vector3(0.14, 5.2, -0.08))).toBeLessThan(1e-6);
+    expect(ringCenter(2).distanceTo(new THREE.Vector3(0, 2.6, 0))).toBeLessThan(1e-6);
+    const straightCenter = ringCenter(0).add(ringCenter(2)).multiplyScalar(0.5);
+    expect(ringCenter(1).distanceTo(straightCenter)).toBeGreaterThan(0.13);
+    expect(ringCenter(1).distanceTo(straightCenter)).toBeLessThan(0.14);
+    expect(TREE_BRANCH_GEOMETRY.index!.count / 3).toBe(180);
+    TREE_BRANCH_GEOMETRY.computeBoundingBox();
+    for (const crown of TREE_FOLIAGE_VARIANTS) {
+      crown.computeBoundingBox();
+      const branches = TREE_BRANCH_GEOMETRY.boundingBox!;
+      const canopy = crown.boundingBox!;
+      expect(branches.min.x).toBeGreaterThan(canopy.min.x);
+      expect(branches.max.x).toBeLessThan(canopy.max.x);
+      expect(branches.min.z).toBeGreaterThan(canopy.min.z);
+      expect(branches.max.z).toBeLessThan(canopy.max.z);
+      expect(branches.max.y).toBeLessThan(canopy.max.y);
+    }
   });
   it('keeps the northern bench on the dry approach beside the river path', () => {
     const resolution = 512;
@@ -179,5 +209,78 @@ describe('tree sites', () => {
       )
       .map(({ position: [x, , z] }) => `${x}, ${z}`);
     expect(wet).toEqual([]);
+  });
+});
+
+describe('natural tree forms', () => {
+  it('varies crown aspect and height independently, stably across terrain quality', () => {
+    const forms = MAIN_EXTERIOR_TREES.map(({ position }) => treeFormFromPosition(position));
+    const aspects = forms.map(({ scale }) => Math.max(scale.x, scale.z) / scale.y);
+    expect(Math.max(...aspects) / Math.min(...aspects)).toBeGreaterThan(1.7);
+    for (const { position } of MAIN_EXTERIOR_TREES) {
+      expect(treeFormFromPosition([position[0], 12, position[2]])).toEqual(
+        treeFormFromPosition(position)
+      );
+      expect(createTreeMatrix(position, 1, 0).elements).toEqual(
+        createTreeMatrix(position, 1, 0).elements
+      );
+    }
+  });
+
+  it('keeps transformed crowns within their previous envelope and tilted roots seated', () => {
+    const point = new THREE.Vector3();
+    const trunk = SHARED_TREE_TRUNK.getAttribute('position');
+    const trees = [...MAIN_EXTERIOR_TREES, ...PARKLAND_TREES, ...FRONT_PARKLAND_TREES];
+    for (const { position, scale = 1 } of trees) {
+      const { variant, rotY, jitter } = treeJitterFromPosition(position);
+      const matrix = createTreeMatrix(position, scale * jitter, rotY);
+      const canopy = TREE_FOLIAGE_VARIANTS[variant].getAttribute('position');
+      let oldRadius = 0;
+      let radius = 0;
+      for (let i = 0; i < canopy.count; i++) {
+        point.fromBufferAttribute(canopy, i);
+        oldRadius = Math.max(oldRadius, Math.hypot(point.x, point.z) * scale * jitter);
+        point.applyMatrix4(matrix);
+        radius = Math.max(radius, Math.hypot(point.x - position[0], point.z - position[2]));
+      }
+      expect(radius).toBeLessThanOrEqual(oldRadius);
+      for (let i = 0; i < trunk.count; i++) {
+        if (Math.abs(trunk.getY(i)) > 1e-6) continue;
+        point.fromBufferAttribute(trunk, i).applyMatrix4(matrix);
+        expect(point.y).toBeLessThanOrEqual(position[1] + 1e-7);
+        expect(point.y).toBeGreaterThan(position[1] - 0.07);
+      }
+      // No shear: three's instance normal shortcut requires orthogonal axes.
+      const axes = [0, 1, 2].map((axis) =>
+        new THREE.Vector3().setFromMatrixColumn(matrix, axis).normalize()
+      );
+      expect(Math.abs(axes[0].dot(axes[1]))).toBeLessThan(1e-12);
+      expect(Math.abs(axes[0].dot(axes[2]))).toBeLessThan(1e-12);
+      expect(Math.abs(axes[1].dot(axes[2]))).toBeLessThan(1e-12);
+    }
+  });
+
+  it('mixes young and mature woodland without adding geometry or instance batches', () => {
+    const ages = VALLEY_WOODLAND_TREES.map(({ scale = 1 }) => scale);
+    const young = ages.filter((scale) => scale < 1.05).length;
+    const mature = ages.filter((scale) => scale > 1.3).length;
+    expect(young / ages.length).toBeGreaterThan(0.15);
+    expect(mature / ages.length).toBeGreaterThan(0.45);
+    const heights = VALLEY_WOODLAND_TREES.map(({ position, scale = 1 }) => {
+      const { variant, rotY, jitter } = treeJitterFromPosition(position);
+      const matrix = createTreeMatrix(position, scale * jitter, rotY);
+      const points = TREE_FOLIAGE_VARIANTS[variant].getAttribute('position');
+      let height = 0;
+      for (let i = 0; i < points.count; i++) {
+        const point = new THREE.Vector3().fromBufferAttribute(points, i).applyMatrix4(matrix);
+        height = Math.max(height, point.y - position[1]);
+      }
+      return height;
+    });
+    expect(Math.max(...heights) / Math.min(...heights)).toBeGreaterThan(2.5);
+    expect(TREE_FOLIAGE_VARIANTS).toHaveLength(3);
+    expect(
+      TREE_FOLIAGE_VARIANTS.every((geometry) => geometry.getAttribute('position').count === 96)
+    ).toBe(true);
   });
 });

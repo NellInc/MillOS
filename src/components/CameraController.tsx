@@ -12,6 +12,7 @@ import { useMobileControlStore } from '../stores/mobileControlStore';
 import { SITE_LAYOUT, getVisibleSiteCellsForView } from '../constants/siteLayout';
 import { resolveCameraCollision } from '../utils/cameraCollision';
 import { useReducedMotion } from '../hooks/useReducedMotion';
+import { useMobileDetection } from '../hooks/useMobileDetection';
 import {
   ORBIT_POLAR_LIMITS,
   clampNavigationDelta,
@@ -516,17 +517,22 @@ export const useActivePreset = () => {
 
 // Camera preset indicator UI component
 export const CameraPresetIndicator: React.FC = () => {
+  const { isCompactLayout } = useMobileDetection();
   const activePreset = useCameraStore((state) => state.activePreset);
   const isAnimating = useCameraStore((state) => state.isAnimating);
 
-  if (activePreset === null) return null;
+  if (activePreset === null || isCompactLayout) return null;
 
   const preset = CAMERA_PRESETS[activePreset];
 
   return (
-    // Keyboard-driven preset readout; on phones there is no number row and the
-    // chips were clipped behind the dock, so it is desktop-only.
-    <div className="fixed bottom-4 right-4 z-40 pointer-events-none hidden sm:block">
+    // Keep the view readout below the status header, clear of the sidebar's
+    // playback/footer controls and the bottom dock. Compact layouts own a menu.
+    <div
+      role="status"
+      aria-label="Camera view"
+      className="fixed top-16 left-4 z-40 pointer-events-none max-w-[calc(100vw-2rem)]"
+    >
       <div
         className={`flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-900/80 backdrop-blur-sm border border-slate-700/50 shadow-lg transition-all duration-300 ${isAnimating ? 'scale-105' : ''}`}
       >

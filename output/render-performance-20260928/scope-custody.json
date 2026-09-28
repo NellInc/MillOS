@@ -1,0 +1,33 @@
+{
+  "capturedAt": "2026-09-28T08:47:17.168245+00:00",
+  "changedBaselineFiles": [
+    "assets/source/models/village/PROVENANCE.json",
+    "assets/source/models/village/duckpond-crafted.glb",
+    "public/models/asset-manifest.json",
+    "public/models/village/duckpond.glb",
+    "scripts/blender/refine_civic_props.py",
+    "scripts/crafted-assets.test.mjs",
+    "scripts/normalize-model-assets.mjs",
+    "scripts/run-performance-benchmark.mjs",
+    "src/App.tsx",
+    "src/components/PostProcessing.tsx",
+    "src/components/VillageArea.tsx",
+    "src/components/environment/InteriorLightRig.tsx",
+    "src/components/scenery/NaturalDuckPond.test.ts",
+    "src/components/scenery/NaturalDuckPond.tsx",
+    "src/shaders/shaderContracts.ts",
+    "src/stores/__tests__/graphicsStore.test.ts",
+    "src/stores/graphicsStore.ts"
+  ],
+  "newFiles": [
+    "src/shaders/__tests__/punctualLightCulling.test.ts",
+    "src/shaders/punctualLightCulling.ts"
+  ],
+  "unexpected": [],
+  "missing": [],
+  "providerOriginalsUnchanged": 148,
+  "deliveriesUnchanged": 145,
+  "changedDelivery": "public/models/village/duckpond.glb",
+  "pondPublicDistServedSha256": "e57bc5277b602a0e17d1f6a3aadb8461fda5b018aba9be252bccf43ccd29fca0",
+  "head": "3026399d411385f44780ddd11745b1927afe7ace"
+}

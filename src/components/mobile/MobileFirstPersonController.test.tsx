@@ -103,3 +103,35 @@ it('restores the orbit FOV and position when leaving first-person', () => {
   expect(harness.camera.fov).toBe(45);
   expect(harness.camera.position.toArray()).toEqual([-190, 50, -104]);
 });
+
+it('walks the castle stairs and returns using the touch-look and D-pad controls', async () => {
+  const { castleWorldPosition, castleLocalPosition } = await import('../../utils/castleNavigation');
+  harness.camera.position.set(...castleWorldPosition(7.2, 5, 26));
+  render(<MobileFirstPersonController />);
+  const initial = new THREE.Euler().setFromQuaternion(harness.camera.quaternion, 'YXZ');
+  const desired = new THREE.PerspectiveCamera();
+  desired.position.copy(harness.camera.position);
+  const target = castleWorldPosition(7.2, 0.52, 0);
+  desired.lookAt(target[0], desired.position.y, target[2]);
+  const end = new THREE.Euler().setFromQuaternion(desired.quaternion, 'YXZ');
+  const touch = (type: string, x: number, y: number) => {
+    const event = new Event(type, { cancelable: true });
+    Object.defineProperty(event, 'targetTouches', { value: [{ clientX: x, clientY: y }] });
+    harness.canvas.dispatchEvent(event);
+  };
+  touch('touchstart', 0, 0);
+  touch('touchmove', (initial.y - end.y) / 0.006, (initial.x - end.x) / 0.006);
+  for (let i = 0; i < 100; i++) harness.frame({}, 1 / 60);
+  useMobileControlStore.getState().setDpadDirection({ x: 0, y: -1 });
+  for (let i = 0; i < 150; i++) harness.frame({}, 1 / 60);
+  expect(castleLocalPosition(harness.camera.position.x, harness.camera.position.z)[1]).toBeLessThan(
+    8
+  );
+  expect(harness.camera.position.y).toBeCloseTo(4.96, 4);
+  useMobileControlStore.getState().setDpadDirection({ x: 0, y: 1 });
+  for (let i = 0; i < 170; i++) harness.frame({}, 1 / 60);
+  expect(
+    castleLocalPosition(harness.camera.position.x, harness.camera.position.z)[1]
+  ).toBeGreaterThan(25);
+  expect(harness.camera.position.y).toBeLessThan(0.6);
+});

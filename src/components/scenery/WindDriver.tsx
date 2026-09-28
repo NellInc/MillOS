@@ -34,6 +34,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { createAtmosphereState, sampleAtmosphere } from '../../simulation/atmosphere';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 
 /** Wrap period. All shader frequencies are multiples of 0.1, so f*PERIOD is a
  *  whole number of cycles and the wrap is invisible. */
@@ -58,9 +59,12 @@ let lastElapsed = -1;
  * same frame - only the first call of a given frame does work, and only that
  * call returns true.
  */
-export const advanceWind = (elapsed: number, delta: number): boolean => {
+export const advanceWind = (elapsed: number, delta: number, reducedMotion = false): boolean => {
   if (elapsed === lastElapsed) return false;
   lastElapsed = elapsed;
+  // Freeze the shared phase, retaining its current pose rather than snapping
+  // every crown upright. Colour and shadow passes share this same clock.
+  if (reducedMotion) return false;
   // Clamp delta so a tab-switch stall does not teleport the whole field.
   const next = WIND_UNIFORMS.uWindTime.value + Math.min(delta, 0.1);
   WIND_UNIFORMS.uWindTime.value = next >= WIND_PERIOD ? next - WIND_PERIOD : next;
@@ -73,10 +77,11 @@ const _windAtmosphere = createAtmosphereState();
 
 /** Mount anywhere vegetation is rendered. Mounting several is harmless. */
 export const WindDriver: React.FC = () => {
+  const reducedMotion = useReducedMotion();
   useFrame((state, delta) => {
     // Only the driver that advanced the clock this frame eases the strength,
     // so several mounted drivers do not double-step the damp.
-    if (!advanceWind(state.clock.elapsedTime, delta)) return;
+    if (!advanceWind(state.clock.elapsedTime, delta, reducedMotion)) return;
     const { gameDay, gameTime, weather } = useGameSimulationStore.getState();
     const { wind } = sampleAtmosphere(gameDay, gameTime, weather, _windAtmosphere);
     // Clear 0.2 -> exactly 0.16, storm 0.92 -> ~0.33.

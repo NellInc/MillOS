@@ -20,6 +20,7 @@ import * as THREE from 'three';
 import {
   SIFTER_LAYOUT,
   MILL_PROCESS_PORTS,
+  PACKER_HOPPER_LAYOUT,
   PROCESS_GALLERY_POST_X,
 } from '../../constants/siteLayout';
 import { MachineData, MachineType } from '../../types';
@@ -232,7 +233,7 @@ export const buildSpoutRoutes = (machines: readonly MachineData[]): readonly Spo
         new THREE.Vector3(sifter.position[0], sifter.position[1] - 2, sifter.position[2]),
         new THREE.Vector3(
           packer.position[0],
-          packer.position[1] + packer.size[1] + 1,
+          packer.position[1] + PACKER_HOPPER_LAYOUT.centreY + PACKER_HOPPER_LAYOUT.scale[1] / 2,
           packer.position[2]
         ),
         'finished',

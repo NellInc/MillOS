@@ -2,6 +2,8 @@ import { GeneratedBoundary } from '../models/GeneratedModel';
 import { GeneratedSurfaceMesh, GeneratedGeometrySurface } from '../models/GeneratedGeometrySurface';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
+import { useTexture } from '@react-three/drei';
+import { HERITAGE_ART } from '../scenery/HeritageSignage';
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { selectSafetyHoldActive, useGameSimulationStore } from '../../stores/gameSimulationStore';
@@ -313,6 +315,7 @@ function TruckIdentityDecals({
   readonly plateNumber: string;
   readonly colour: string;
 }) {
+  const wheat = useTexture(HERITAGE_ART.wheat);
   const texture = useMemo(() => {
     const canvas = document.createElement('canvas');
     canvas.width = 1024;
@@ -331,12 +334,27 @@ function TruckIdentityDecals({
       context.fillText(`MILL LOGISTICS  •  ${plateNumber}`, 82, 178);
       context.fillStyle = '#d5a429';
       context.fillRect(78, 205, 820, 10);
+      if (company === 'GRAIN CO' && wheat.image) {
+        // Composite the shared white alpha mask into this EXISTING sign atlas.
+        // Both trailer faces keep their two draws and use the same gold mark
+        // as the shelter. No free-floating geometry or additional decal layer.
+        const badge = document.createElement('canvas');
+        badge.width = badge.height = 180;
+        const ink = badge.getContext('2d');
+        if (ink) {
+          ink.drawImage(wheat.image as CanvasImageSource, 0, 0, 180, 180);
+          ink.globalCompositeOperation = 'source-in';
+          ink.fillStyle = '#a27733';
+          ink.fillRect(0, 0, 180, 180);
+          context.drawImage(badge, 790, 14);
+        }
+      }
     }
     const canvasTexture = new THREE.CanvasTexture(canvas);
     canvasTexture.colorSpace = THREE.SRGBColorSpace;
     canvasTexture.anisotropy = 4;
     return canvasTexture;
-  }, [colour, company, plateNumber]);
+  }, [colour, company, plateNumber, wheat]);
   const material = useMemo(
     () =>
       new THREE.MeshStandardMaterial({
@@ -361,12 +379,14 @@ function TruckIdentityDecals({
 
   return (
     <>
-      {/* Signwriting panels, 0.035 m proud of the trailer skin. They are pure
-          decal: the surface they sit on is the caster. */}
+      {/* Signwriting panels clear the accent band's outer face at |x|=1.33.
+          Their inner face is at 1.3325, so the band cannot cover the copy.
+          The trailer remains the caster. */}
       <mesh
         geometry={UNIT_BOX}
         material={material}
-        position={[-1.306, 2.55, -5.65]}
+        name="trailer-identity-left"
+        position={[-1.35, 2.55, -5.65]}
         rotation={[0, -Math.PI / 2, 0]}
         scale={[8.2, 2.05, 0.035]}
         receiveShadow
@@ -374,7 +394,8 @@ function TruckIdentityDecals({
       <mesh
         geometry={UNIT_BOX}
         material={material}
-        position={[1.306, 2.55, -5.65]}
+        name="trailer-identity-right"
+        position={[1.35, 2.55, -5.65]}
         rotation={[0, Math.PI / 2, 0]}
         scale={[8.2, 2.05, 0.035]}
         receiveShadow

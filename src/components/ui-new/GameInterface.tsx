@@ -399,7 +399,7 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
         !safetyStateActive && (
           <aside
             aria-label="AI reflection"
-            className="pointer-events-auto fixed bottom-[11.5rem] right-4 z-40 w-[min(24rem,calc(100vw-2rem))]"
+            className="pointer-events-auto fixed bottom-[11.5rem] right-4 z-40 max-h-[calc(100dvh-13rem)] w-[min(24rem,calc(100vw-2rem))] overflow-y-auto overscroll-contain rounded-xl"
           >
             <AINarration narration={currentNarration} onDismiss={handleNarrationDismiss} />
           </aside>

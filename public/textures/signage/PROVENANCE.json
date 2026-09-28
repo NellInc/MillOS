@@ -1,0 +1,21 @@
+{
+  "method": "Built-in image generation; wheat raster binarized and traced with potrace, mechanically tinted white for in-scene gold print. WebP exports resized/compressed with the existing sharp dependency. No hand-authored vector paths.",
+  "workDirectory": "tmp/custom-icons/village-branding",
+  "artwork": [
+    {
+      "id": "dead-dino",
+      "file": "dead-dino.webp",
+      "source": "tmp/custom-icons/village-branding/dead-dino-source.png",
+      "brief": "Retro enamel-sign illustration, friendly sage green collapsed dinosaur, curled tail, bold X eye, cream belly and coral tongue; transparent; no lettering.",
+      "sha256": "48c11de6754f1049d1d6f424e2023bfbcfe28e56d1cb3e5a1c74d78bb6b7d59b"
+    },
+    {
+      "id": "wheat-sheaf",
+      "file": "wheat-sheaf.webp",
+      "vector": "wheat-sheaf.svg",
+      "source": "tmp/custom-icons/village-branding/wheat-source.png",
+      "brief": "Three heritage wheat ears with alternating almond kernels, bowed side stalks and tied ribbon; black on white, then traced to white alpha mask for gold printing.",
+      "sha256": "aa8cf0938173d794a1156c50fefc69bd2c184c533d7166590b31b314ce31db22"
+    }
+  ]
+}

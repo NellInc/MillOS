@@ -1,0 +1,29 @@
+{
+  "changedBaselineFiles": [
+    "scripts/run-performance-benchmark.mjs",
+    "src/components/GasStationInstanced.test.ts",
+    "src/components/GasStationInstanced.tsx",
+    "src/components/exterior/LandscapeDressing.test.ts",
+    "src/components/exterior/LandscapeDressing.tsx",
+    "src/components/scenery/AuthoredPropTrim.tsx",
+    "src/components/scenery/LockGateJoinery.test.ts"
+  ],
+  "newSourceFiles": [
+    "src/components/scenery/lockGateSurface.ts"
+  ],
+  "unchangedModelFiles": 842,
+  "modelChanges": [],
+  "protectedUnchanged": [
+    "src/constants/castleAccess.ts",
+    "src/utils/castleNavigation.ts",
+    "src/components/FirstPersonController.tsx",
+    "src/components/mobile/MobileFirstPersonController.tsx",
+    "src/components/physics/PhysicsFirstPersonController.tsx",
+    "public/models/asset-manifest.json"
+  ],
+  "additionalFingerprintFiles": {
+    "package.json": true,
+    "package-lock.json": true,
+    "vite.config.ts": true
+  }
+}

@@ -84,8 +84,9 @@ export const PostProcessing: React.FC = () => {
   // written 30 times a second and would defeat the memo above.
   const graphics = useGraphicsStore(
     useShallow((state) => ({
-      enableAmbientOcclusion: state.graphics.enableAmbientOcclusion,
-      enableBloom: state.graphics.enableBloom,
+      enableAmbientOcclusion:
+        state.graphics.enableAmbientOcclusion && !state.graphics.perfDebug.disableAmbientOcclusion,
+      enableBloom: state.graphics.enableBloom && !state.graphics.perfDebug.disableBloom,
       enableVignette: state.graphics.enableVignette,
       enableChromaticAberration: state.graphics.enableChromaticAberration,
       enableFilmGrain: state.graphics.enableFilmGrain,

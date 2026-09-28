@@ -1,0 +1,6375 @@
+{
+  "label": "final-low",
+  "baseUrl": "http://127.0.0.1:4190",
+  "night": false,
+  "quality": "low",
+  "time": 12,
+  "weather": "clear",
+  "load": {
+    "averages": [
+      292.12451171875,
+      241.42236328125,
+      202.06884765625
+    ],
+    "cpus": 10
+  },
+  "errors": [],
+  "failedRequests": [],
+  "frames": [
+    {
+      "name": "pond-overview",
+      "scene": "pond-overview",
+      "arm": "on",
+      "position": [
+        -160,
+        7,
+        37
+      ],
+      "target": [
+        -170,
+        0.6,
+        25
+      ],
+      "snapshot": {
+        "capturedAt": 57546.3,
+        "ready": true,
+        "firstFrameAt": 366.5,
+        "sampleCount": 1582,
+        "averageFrameMs": 36.05,
+        "p50FrameMs": 8.3,
+        "p95FrameMs": 9.5,
+        "p99FrameMs": 225.7,
+        "frameTimeStdDevMs": 566.63,
+        "onePercentLowFps": 0.38,
+        "worstFrameMs": 19115.9,
+        "averageFps": 27.74,
+        "framesOver16_7Ms": 58,
+        "framesOver25Ms": 45,
+        "framesOver50Ms": 33,
+        "longTasks": [
+          {
+            "startTime": 447.4,
+            "duration": 56
+          },
+          {
+            "startTime": 528.4,
+            "duration": 5425
+          },
+          {
+            "startTime": 6037.5,
+            "duration": 149
+          },
+          {
+            "startTime": 6208.8,
+            "duration": 222
+          },
+          {
+            "startTime": 6432.8,
+            "duration": 158
+          },
+          {
+            "startTime": 6641.7,
+            "duration": 130
+          },
+          {
+            "startTime": 6844.4,
+            "duration": 151
+          },
+          {
+            "startTime": 7038.5,
+            "duration": 125
+          },
+          {
+            "startTime": 7200.8,
+            "duration": 77
+          },
+          {
+            "startTime": 7299.4,
+            "duration": 116
+          },
+          {
+            "startTime": 7435.7,
+            "duration": 112
+          },
+          {
+            "startTime": 7692.9,
+            "duration": 127
+          },
+          {
+            "startTime": 8242.4,
+            "duration": 114
+          },
+          {
+            "startTime": 8396.1,
+            "duration": 120
+          },
+          {
+            "startTime": 28118.1,
+            "duration": 10422
+          },
+          {
+            "startTime": 38708.6,
+            "duration": 358
+          },
+          {
+            "startTime": 39094.2,
+            "duration": 410
+          },
+          {
+            "startTime": 39520.8,
+            "duration": 431
+          },
+          {
+            "startTime": 40063.2,
+            "duration": 336
+          },
+          {
+            "startTime": 40421.7,
+            "duration": 444
+          },
+          {
+            "startTime": 40886.8,
+            "duration": 53
+          },
+          {
+            "startTime": 40939.9,
+            "duration": 187
+          },
+          {
+            "startTime": 41127.5,
+            "duration": 329
+          },
+          {
+            "startTime": 41465.8,
+            "duration": 596
+          },
+          {
+            "startTime": 42118.3,
+            "duration": 280
+          },
+          {
+            "startTime": 42398.9,
+            "duration": 1699
+          },
+          {
+            "startTime": 44104.6,
+            "duration": 333
+          },
+          {
+            "startTime": 44438.2,
+            "duration": 926
+          },
+          {
+            "startTime": 45369.5,
+            "duration": 113
+          }
+        ],
+        "renderer": {
+          "vendor": "Google Inc. (Apple)",
+          "adapter": "ANGLE (Apple, ANGLE Metal Renderer: Apple M1 Max, Unspecified Version)",
+          "calls": 148,
+          "triangles": 401899,
+          "lines": 0,
+          "points": 635,
+          "geometries": 1089,
+          "textures": 193,
+          "programs": 133,
+          "raw": {
+            "frame": 1598,
+            "calls": 233916,
+            "triangles": 636206399,
+            "lines": 0,
+            "points": 1005168,
+            "autoReset": false
+          }
+        },
+        "sceneGraph": {
+          "objects": 2887,
+          "meshes": 1018,
+          "visibleMeshes": 1011,
+          "instancedMeshes": 196,
+          "uniqueGeometries": 877,
+          "uniqueMaterials": 881,
+          "topBranches": [
+            {
+              "index": 7,
+              "name": "authored-factory-exterior",
+              "type": "Group",
+              "objects": 1141,
+              "meshes": 620,
+              "uniqueGeometries": 554,
+              "uniqueMaterials": 568,
+              "staticBatchStats": {
+                "totalMeshes": 1282,
+                "candidates": 926,
+                "optimizedOriginals": 768,
+                "batches": 106,
+                "instancedOriginals": 192,
+                "instancedBatches": 60,
+                "mergedOriginals": 576,
+                "mergedMeshes": 46,
+                "exclusions": {
+                  "instanced": 39,
+                  "unsupportedMaterial": 201,
+                  "dynamicOrInteractive": 108,
+                  "materialArray": 8
+                },
+                "materialTypes": {
+                  "MeshStandardMaterial": 1125,
+                  "MeshBasicMaterial": 103,
+                  "ShaderMaterial": 7
+                },
+                "surfaceProfiles": {
+                  "declined:painted": 23,
+                  "declined:masonry": 4,
+                  "declined:signage": 44,
+                  "declined:metal": 1,
+                  "painted": 81,
+                  "masonry": 130,
+                  "metal": 5,
+                  "untreated": 24
+                }
+              }
+            },
+            {
+              "index": 3,
+              "name": "world-conveyors",
+              "type": "Group",
+              "objects": 160,
+              "meshes": 125,
+              "uniqueGeometries": 117,
+              "uniqueMaterials": 94
+            },
+            {
+              "index": 10,
+              "name": "authored-village",
+              "type": "Group",
+              "objects": 465,
+              "meshes": 115,
+              "uniqueGeometries": 92,
+              "uniqueMaterials": 107,
+              "staticBatchStats": {
+                "totalMeshes": 230,
+                "candidates": 168,
+                "optimizedOriginals": 130,
+                "batches": 15,
+                "instancedOriginals": 17,
+                "instancedBatches": 5,
+                "mergedOriginals": 113,
+                "mergedMeshes": 10,
+                "exclusions": {
+                  "unsupportedMaterial": 10,
+                  "materialArray": 9,
+                  "dynamicOrInteractive": 30,
+                  "skinned": 5,
+                  "instanced": 8
+                },
+                "materialTypes": {
+                  "MeshStandardMaterial": 200,
+                  "MeshBasicMaterial": 8
+                },
+                "surfaceProfiles": {
+                  "declined:painted": 25,
+                  "declined:masonry": 2,
+                  "painted": 11,
+                  "masonry": 16,
+                  "untreated": 4
+                }
+              }
+            },
+            {
+              "index": 9,
+              "name": "authored-farm",
+              "type": "Group",
+              "objects": 970,
+              "meshes": 53,
+              "uniqueGeometries": 40,
+              "uniqueMaterials": 39,
+              "staticBatchStats": {
+                "totalMeshes": 184,
+                "candidates": 149,
+                "optimizedOriginals": 142,
+                "batches": 11,
+                "instancedOriginals": 8,
+                "instancedBatches": 3,
+                "mergedOriginals": 134,
+                "mergedMeshes": 8,
+                "exclusions": {
+                  "unsupportedMaterial": 3,
+                  "dynamicOrInteractive": 9,
+                  "skinned": 17,
+                  "instanced": 6
+                },
+                "materialTypes": {
+                  "MeshStandardMaterial": 161
+                },
+                "surfaceProfiles": {
+                  "declined:signage": 5,
+                  "declined:masonry": 2,
+                  "masonry": 17,
+                  "untreated": 1
+                }
+              }
+            },
+            {
+              "index": 1,
+              "name": "world-factory-process",
+              "type": "Group",
+              "objects": 46,
+              "meshes": 43,
+              "uniqueGeometries": 22,
+              "uniqueMaterials": 23
+            },
+            {
+              "index": 2,
+              "name": "world-factory-infrastructure",
+              "type": "Group",
+              "objects": 32,
+              "meshes": 26,
+              "uniqueGeometries": 19,
+              "uniqueMaterials": 26
+            },
+            {
+              "index": 4,
+              "name": "world-forklifts",
+              "type": "Group",
+              "objects": 30,
+              "meshes": 20,
+              "uniqueGeometries": 20,
+              "uniqueMaterials": 12
+            },
+            {
+              "index": 0,
+              "name": "world-environment",
+              "type": "Group",
+              "objects": 32,
+              "meshes": 13,
+              "uniqueGeometries": 13,
+              "uniqueMaterials": 13
+            },
+            {
+              "index": 8,
+              "name": "authored-castle",
+              "type": "Group",
+              "objects": 5,
+              "meshes": 2,
+              "uniqueGeometries": 2,
+              "uniqueMaterials": 2,
+              "staticBatchStats": {
+                "totalMeshes": 2,
+                "candidates": 2,
+                "optimizedOriginals": 0,
+                "batches": 0,
+                "instancedOriginals": 0,
+                "instancedBatches": 0,
+                "mergedOriginals": 0,
+                "mergedMeshes": 0,
+                "exclusions": {},
+                "materialTypes": {
+                  "MeshStandardMaterial": 2
+                },
+                "surfaceProfiles": {
+                  "masonry": 2
+                }
+              }
+            },
+            {
+              "index": 6,
+              "name": "world-terrain",
+              "type": "Group",
+              "objects": 2,
+              "meshes": 1,
+              "uniqueGeometries": 1,
+              "uniqueMaterials": 1
+            },
+            {
+              "index": 5,
+              "name": "world-logistics",
+              "type": "Group",
+              "objects": 1,
+              "meshes": 0,
+              "uniqueGeometries": 0,
+              "uniqueMaterials": 0
+            }
+          ]
+        },
+        "canvas": {
+          "cssWidth": 1600,
+          "cssHeight": 1000,
+          "bufferWidth": 800,
+          "bufferHeight": 500,
+          "effectiveDpr": 0.5
+        },
+        "camera": {
+          "position": [
+            -160,
+            7,
+            37
+          ],
+          "fov": 45,
+          "near": 0.8,
+          "far": 960
+        },
+        "diagnosticRays": {
+          "centre": [
+            {
+              "name": "duckpond-natural-water-and-retained-bank",
+              "type": "Mesh",
+              "distance": 17.54,
+              "material": "duckpond-surface",
+              "materialColor": "ffffff",
+              "map": "duckpond-albedo",
+              "receiveShadow": true,
+              "renderOrder": 0
+            },
+            {
+              "name": "world-terrain",
+              "type": "Mesh",
+              "distance": 18.52,
+              "material": "MeshStandardMaterial",
+              "materialColor": "ffffff",
+              "map": null,
+              "receiveShadow": true,
+              "renderOrder": 1
+            },
+            {
+              "name": "authored-village-site",
+              "type": "Mesh",
+              "distance": 18.52,
+              "material": "MeshStandardMaterial",
+              "materialColor": "ffffff",
+              "map": "907f1b83-8e9e-4336-bb69-217ca156b30e",
+              "receiveShadow": true,
+              "renderOrder": 0
+            },
+            {
+              "name": "analytic-sky-dome",
+              "type": "Mesh",
+              "distance": 179.58,
+              "material": "MillOS Optimized Analytic Sky",
+              "materialColor": null,
+              "map": null,
+              "receiveShadow": false,
+              "renderOrder": -1000
+            },
+            {
+              "name": "far-mountain-ring",
+              "type": "Mesh",
+              "distance": 282.23,
+              "material": "MillOS Ridge Aerial: Far",
+              "materialColor": null,
+              "map": null,
+              "receiveShadow": false,
+              "renderOrder": -920
+            }
+          ],
+          "top": [
+            {
+              "name": "analytic-sky-dome",
+              "type": "Mesh",
+              "distance": 179.13,
+              "material": "MillOS Optimized Analytic Sky",
+              "materialColor": null,
+              "map": null,
+              "receiveShadow": false,
+              "renderOrder": -1000
+            },
+            {
+              "name": "near-hill-ring",
+              "type": "Mesh",
+              "distance": 199.59,
+              "material": "MillOS Ridge Aerial: Near",
+              "materialColor": null,
+              "map": null,
+              "receiveShadow": false,
+              "renderOrder": -900
+            },
+            {
+              "name": "world-terrain",
+              "type": "Mesh",
+              "distance": 219.26,
+              "material": "MeshStandardMaterial",
+              "materialColor": "ffffff",
+              "map": null,
+              "receiveShadow": true,
+              "renderOrder": 1
+            },
+            {
+              "name": "mid-mountain-ring",
+              "type": "Mesh",
+              "distance": 233.41,
+              "material": "MillOS Ridge Aerial: Mid",
+              "materialColor": null,
+              "map": null,
+              "receiveShadow": false,
+              "renderOrder": -910
+            },
+            {
+              "name": "far-mountain-ring",
+              "type": "Mesh",
+              "distance": 522.11,
+              "material": "MillOS Ridge Aerial: Far",
+              "materialColor": null,
+              "map": null,
+              "receiveShadow": false,
+              "renderOrder": -920
+            }
+          ],
+          "upperLeft": [
+            {
+              "name": "TownhallBody",
+              "type": "Mesh",
+              "distance": 30.24,
+              "material": "townhall-surface",
+              "materialColor": "ffffff",
+              "map": "townhall-albedo",
+              "receiveShadow": true,
+              "renderOrder": 0
+            },
+            {
+              "name": "tree-trunks",
+              "type": "Mesh",
+              "distance": 84.39,
+              "material": "MeshStandardMaterial",
+              "materialColor": "ffffff",
+              "map": "7fdc52fd-1933-4cb1-86ae-eaf735995799",
+              "receiveShadow": true,
+              "renderOrder": 0
+            },
+            {
+              "name": "world-terrain",
+              "type": "Mesh",
+              "distance": 114.2,
+              "material": "MeshStandardMaterial",
+              "materialColor": "ffffff",
+              "map": null,
+              "receiveShadow": true,
+              "renderOrder": 1
+            },
+            {
+              "name": "near-hill-ring",
+              "type": "Mesh",
+              "distance": 135.21,
+              "material": "MillOS Ridge Aerial: Near",
+              "materialColor": null,
+              "map": null,
+              "receiveShadow": false,
+              "renderOrder": -900
+            },
+            {
+              "name": "analytic-sky-dome",
+              "type": "Mesh",
+              "distance": 178.6,
+              "material": "MillOS Optimized Analytic Sky",
+              "materialColor": null,
+              "map": null,
+              "receiveShadow": false,
+              "renderOrder": -1000
+            },
+            {
+              "name": "far-mountain-ring",
+              "type": "Mesh",
+              "distance": 518.22,
+              "material": "MillOS Ridge Aerial: Far",
+              "materialColor": null,
+              "map": null,
+              "receiveShadow": false,
+              "renderOrder": -920
+            }
+          ],
+          "upperRight": [
+            {
+              "name": "static-batch:authored-village:0:13",
+              "type": "Mesh",
+              "distance": 33.45,
+              "material": "shop-surface",
+              "materialColor": "ffffff",
+              "map": "shop-albedo",
+              "receiveShadow": true,
+              "renderOrder": 0
+            },
+            {
+              "name": "static-batch:authored-village:0:13",
+              "type": "Mesh",
+              "distance": 33.63,
+              "material": "shop-surface",
+              "materialColor": "ffffff",
+              "map": "shop-albedo",
+              "receiveShadow": true,
+              "renderOrder": 0
+            },
+            {
+              "name": "static-batch:authored-village:0:13",
+              "type": "Mesh",
+              "distance": 45.99,
+              "material": "shop-surface",
+              "materialColor": "ffffff",
+              "map": "shop-albedo",
+              "receiveShadow": true,
+              "renderOrder": 0
+            },
+            {
+              "name": "static-batch:authored-village:0:13",
+              "type": "Mesh",
+              "distance": 46.06,
+              "material": "shop-surface",
+              "materialColor": "ffffff",
+              "map": "shop-albedo",
+              "receiveShadow": true,
+              "renderOrder": 0
+            },
+            {
+              "name": "static-batch:authored-village:0:13",
+              "type": "Mesh",
+              "distance": 51.1,
+              "material": "shop-surface",
+              "materialColor": "ffffff",
+              "map": "shop-albedo",
+              "receiveShadow": true,
+              "renderOrder": 0
+            },
+            {
+              "name": "world-terrain",
+              "type": "Mesh",
+              "distance": 114.2,
+              "material": "MeshStandardMaterial",
+              "materialColor": "ffffff",
+              "map": null,
+              "receiveShadow": true,
+              "renderOrder": 1
+            }
+          ],
+          "lowerCentre": [
+            {
+              "name": "world-terrain",
+              "type": "Mesh",
+              "distance": 11.57,
+              "material": "MeshStandardMaterial",
+              "materialColor": "ffffff",
+              "map": null,
+              "receiveShadow": true,
+              "renderOrder": 1
+            },
+            {
+              "name": "authored-village-site",
+              "type": "Mesh",
+              "distance": 11.57,
+              "material": "MeshStandardMaterial",
+              "materialColor": "ffffff",
+              "map": "907f1b83-8e9e-4336-bb69-217ca156b30e",
+              "receiveShadow": true,
+              "renderOrder": 0
+            },
+            {
+              "name": "far-mountain-ring",
+              "type": "Mesh",
+              "distance": 176.37,
+              "material": "MillOS Ridge Aerial: Far",
+              "materialColor": null,
+              "map": null,
+              "receiveShadow": false,
+              "renderOrder": -920
+            },
+            {
+              "name": "analytic-sky-dome",
+              "type": "Mesh",
+              "distance": 179,
+              "material": "MillOS Optimized Analytic Sky",
+              "materialColor": null,
+              "map": null,
+              "receiveShadow": false,
+              "renderOrder": -1000
+            }
+          ],
+          "lowerLeft": [
+            {
+              "name": "SchoolBody",
+              "type": "Mesh",
+              "distance": 5.72,
+              "material": "school-surface",
+              "materialColor": "ffffff",
+              "map": "school-albedo",
+              "receiveShadow": true,
+              "renderOrder": 0
+            },
+            {
+              "name": "SchoolBody",
+              "type": "Mesh",
+              "distance": 5.88,
+              "material": "school-surface",
+              "materialColor": "ffffff",
+              "map": "school-albedo",
+              "receiveShadow": true,
+              "renderOrder": 0
+            },
+            {
+              "name": "world-terrain",
+              "type": "Mesh",
+              "distance": 12.53,
+              "material": "MeshStandardMaterial",
+              "materialColor": "ffffff",
+              "map": null,
+              "receiveShadow": true,
+              "renderOrder": 1
+            },
+            {
+              "name": "authored-village-site",
+              "type": "Mesh",
+              "distance": 12.53,
+              "material": "MeshStandardMaterial",
+              "materialColor": "ffffff",
+              "map": "907f1b83-8e9e-4336-bb69-217ca156b30e",
+              "receiveShadow": true,
+              "renderOrder": 0
+            },
+            {
+              "name": "analytic-sky-dome",
+              "type": "Mesh",
+              "distance": 179.37,
+              "material": "MillOS Optimized Analytic Sky",
+              "materialColor": null,
+              "map": null,
+              "receiveShadow": false,
+              "renderOrder": -1000
+            },
+            {
+              "name": "far-mountain-ring",
+              "type": "Mesh",
+              "distance": 191.02,
+              "material": "MillOS Ridge Aerial: Far",
+              "materialColor": null,
+              "map": null,
+              "receiveShadow": false,
+              "renderOrder": -920
+            }
+          ],
+          "lowerRight": [
+            {
+              "name": "tree-canopies",
+              "type": "Mesh",
+              "distance": 7.94,
+              "material": "MeshStandardMaterial",
+              "materialColor": "c9d8b4",
+              "map": "6ca1fd85-6ddc-42e0-a181-09f18cd14007",
+              "receiveShadow": false,
+              "renderOrder": 0
+            },
+            {
+              "name": "world-terrain",
+              "type": "Mesh",
+              "distance": 12.53,
+              "material": "MeshStandardMaterial",
+              "materialColor": "ffffff",
+              "map": null,
+              "receiveShadow": true,
+              "renderOrder": 1
+            },
+            {
+              "name": "authored-village-site",
+              "type": "Mesh",
+              "distance": 12.53,
+              "material": "MeshStandardMaterial",
+              "materialColor": "ffffff",
+              "map": "907f1b83-8e9e-4336-bb69-217ca156b30e",
+              "receiveShadow": true,
+              "renderOrder": 0
+            },
+            {
+              "name": "analytic-sky-dome",
+              "type": "Mesh",
+              "distance": 179.76,
+              "material": "MillOS Optimized Analytic Sky",
+              "materialColor": null,
+              "map": null,
+              "receiveShadow": false,
+              "renderOrder": -1000
+            },
+            {
+              "name": "far-mountain-ring",
+              "type": "Mesh",
+              "distance": 191.02,
+              "material": "MillOS Ridge Aerial: Far",
+              "materialColor": null,
+              "map": null,
+              "receiveShadow": false,
+              "renderOrder": -920
+            }
+          ]
+        },
+        "shaderStates": [
+          {
+            "name": "MillOS Optimized Analytic Sky",
+            "cacheKey": "millos-optimized-sky-v8",
+            "uniforms": {
+              "topColor": "#70aed8",
+              "horizonColor": "#a3cce2",
+              "groundColor": "#8fae9e",
+              "uCloudLit": "#f4f6f2",
+              "uCloudShadow": "#93a0ad",
+              "uSunTint": "#ffe6a6",
+              "uSunOpacity": 0.916,
+              "uCloudDrift": [
+                0.1754,
+                0.071
+              ],
+              "uCirrusDrift": [
+                -0.0793,
+                0.0376
+              ],
+              "uCloudNoise": "object",
+              "uCloudAtlas": "object",
+              "uCloudAtlasReady": 1,
+              "cloudAmount": 0.2,
+              "daylight": 1,
+              "sunDirection": [
+                0,
+                1,
+                0
+              ]
+            }
+          },
+          {
+            "name": "MillOS Procedural Moon",
+            "cacheKey": "millos-procedural-moon-v1",
+            "uniforms": {
+              "opacity": 0
+            }
+          },
+          {
+            "name": "MillOS Ridge Aerial: Far",
+            "cacheKey": "millos-ridge-aerial-geology-v6",
+            "uniforms": {
+              "uSunDirection": [
+                0,
+                1,
+                0
+              ],
+              "uSunColor": "#fff2d6",
+              "uShadowTint": "#5d7d96",
+              "uInscatter": "#a3cce2",
+              "uAerial": 0.32,
+              "uDetailStrength": 1,
+              "uWorldAnchored": 0
+            }
+          },
+          {
+            "name": "MillOS Ridge Aerial: Mid",
+            "cacheKey": "millos-ridge-aerial-geology-v6",
+            "uniforms": {
+              "uSunDirection": [
+                0,
+                1,
+                0
+              ],
+              "uSunColor": "#fff2d6",
+              "uShadowTint": "#5d7d96",
+              "uInscatter": "#a3cce2",
+              "uAerial": 0.2,
+              "uDetailStrength": 1,
+              "uWorldAnchored": 1
+            }
+          },
+          {
+            "name": "MillOS Ridge Aerial: Near",
+            "cacheKey": "millos-ridge-aerial-geology-v6",
+            "uniforms": {
+              "uSunDirection": [
+                0,
+                1,
+                0
+              ],
+              "uSunColor": "#fff2d6",
+              "uShadowTint": "#5d7d96",
+              "uInscatter": "#a3cce2",
+              "uAerial": 0.1,
+              "uDetailStrength": 1,
+              "uWorldAnchored": 1
+            }
+          },
+          {
+            "name": "MillOS Unified Water Surface",
+            "cacheKey": "millos-unified-water-v13",
+            "uniforms": {
+              "uTime": 0,
+              "uFalling": 0,
+              "uDeep": "#173f4a",
+              "uShallow": "#2d6670",
+              "uReflection": "#86aeb5",
+              "uFlowDirection": [
+                0.2425,
+                0.9701
+              ],
+              "uCrossFlow": [
+                -0.9701,
+                0.2425
+              ],
+              "uRippleA": [
+                0.0862,
+                0.9963
+              ],
+              "uRippleB": [
+                0.5189,
+                0.8548
+              ],
+              "uRippleC": [
+                -0.2012,
+                0.9796
+              ],
+              "uFlowSpeed": 0.12,
+              "uOpacity": 0.9,
+              "uRadial": 0,
+              "uCrossOnly": 1,
+              "uWetness": 0,
+              "uPrecipitation": 0,
+              "uWind": 0.2,
+              "uDaylight": 1,
+              "uSkyZenith": "#5486cc",
+              "uSkyHorizon": "#c9dcea",
+              "uSunColour": "#f5e9cd",
+              "uSunDirection": [
+                0,
+                1,
+                0
+              ],
+              "fogDensity": 0.002,
+              "fogNear": 1
+            }
+          },
+          {
+            "name": "MillOS Unified Water Surface",
+            "cacheKey": "millos-unified-water-v13",
+            "uniforms": {
+              "uTime": 0,
+              "uFalling": 0,
+              "uDeep": "#143b48",
+              "uShallow": "#4a8790",
+              "uReflection": "#c4e0e4",
+              "uFlowDirection": [
+                0.2425,
+                0.9701
+              ],
+              "uCrossFlow": [
+                -0.9701,
+                0.2425
+              ],
+              "uRippleA": [
+                0.0862,
+                0.9963
+              ],
+              "uRippleB": [
+                0.8912,
+                0.4536
+              ],
+              "uRippleC": [
+                -0.6352,
+                0.7723
+              ],
+              "uFlowSpeed": 0.1,
+              "uOpacity": 0.85,
+              "uRadial": 1,
+              "uCrossOnly": 0,
+              "uWetness": 0,
+              "uPrecipitation": 0,
+              "uWind": 0.2,
+              "uDaylight": 1,
+              "uSkyZenith": "#5486cc",
+              "uSkyHorizon": "#c9dcea",
+              "uSunColour": "#f5e9cd",
+              "uSunDirection": [
+                0,
+                1,
+                0
+              ],
+              "fogDensity": 0.002,
+              "fogNear": 1
+            }
+          },
+          {
+            "name": "MillOS Unified Water Surface",
+            "cacheKey": "millos-unified-water-v13",
+            "uniforms": {
+              "uTime": 0,
+              "uFalling": 0,
+              "uDeep": "#123746",
+              "uShallow": "#3b7d8a",
+              "uReflection": "#c0e1e6",
+              "uFlowDirection": [
+                0.9874,
+                0.158
+              ],
+              "uCrossFlow": [
+                -0.158,
+                0.9874
+              ],
+              "uRippleA": [
+                0.9501,
+                0.312
+              ],
+              "uRippleB": [
+                0.9899,
+                -0.1415
+              ],
+              "uRippleC": [
+                0.8218,
+                0.5697
+              ],
+              "uFlowSpeed": 0.504,
+              "uOpacity": 0.9,
+              "uRadial": 0,
+              "uCrossOnly": 1,
+              "uWetness": 0,
+              "uPrecipitation": 0,
+              "uWind": 0.2,
+              "uDaylight": 1,
+              "uSkyZenith": "#5486cc",
+              "uSkyHorizon": "#c9dcea",
+              "uSunColour": "#f5e9cd",
+              "uSunDirection": [
+                0,
+                1,
+                0
+              ],
+              "fogDensity": 0.002,
+              "fogNear": 1
+            }
+          },
+          {
+            "name": "MillOS Unified Water Surface",
+            "cacheKey": "millos-unified-water-v13",
+            "uniforms": {
+              "uTime": 0,
+              "uFalling": 0,
+              "uDeep": "#183f4b",
+              "uShallow": "#4c8990",
+              "uReflection": "#c6e2e2",
+              "uFlowDirection": [
+                0.2425,
+                0.9701
+              ],
+              "uCrossFlow": [
+                -0.9701,
+                0.2425
+              ],
+              "uRippleA": [
+                0.0862,
+                0.9963
+              ],
+              "uRippleB": [
+                0.8912,
+                0.4536
+              ],
+              "uRippleC": [
+                -0.6352,
+                0.7723
+              ],
+              "uFlowSpeed": 0.08,
+              "uOpacity": 0.9,
+              "uRadial": 1,
+              "uCrossOnly": 0,
+              "uWetness": 0,
+              "uPrecipitation": 0,
+              "uWind": 0.2,
+              "uDaylight": 1,
+              "uSkyZenith": "#5486cc",
+              "uSkyHorizon": "#c9dcea",
+              "uSunColour": "#f5e9cd",
+              "uSunDirection": [
+                0,
+                1,
+                0
+              ],
+              "fogDensity": 0.0003,
+              "fogNear": 1
+            }
+          },
+          {
+            "name": "MillOS Unified Water Surface",
+            "cacheKey": "millos-unified-water-v13",
+            "uniforms": {
+              "uTime": 0,
+              "uFalling": 0,
+              "uDeep": "#173f4a",
+              "uShallow": "#2d6670",
+              "uReflection": "#86aeb5",
+              "uFlowDirection": [
+                1,
+                0
+              ],
+              "uCrossFlow": [
+                0,
+                1
+              ],
+              "uRippleA": [
+                0.9874,
+                0.158
+              ],
+              "uRippleB": [
+                0.9552,
+                -0.2961
+              ],
+              "uRippleC": [
+                0.9015,
+                0.4327
+              ],
+              "uFlowSpeed": 0.2,
+              "uOpacity": 0.88,
+              "uRadial": 0,
+              "uCrossOnly": 1,
+              "uWetness": 0,
+              "uPrecipitation": 0,
+              "uWind": 0.2,
+              "uDaylight": 1,
+              "uSkyZenith": "#5486cc",
+              "uSkyHorizon": "#c9dcea",
+              "uSunColour": "#f5e9cd",
+              "uSunDirection": [
+                0,
+                1,
+                0
+              ],
+              "fogDensity": 0.0003,
+              "fogNear": 1
+            }
+          },
+          {
+            "name": "MillOS Unified Water Surface",
+            "cacheKey": "millos-unified-water-v13",
+            "uniforms": {
+              "uTime": 0,
+              "uFalling": 1,
+              "uDeep": "#2e5962",
+              "uShallow": "#6999a1",
+              "uReflection": "#d2e3dc",
+              "uFlowDirection": [
+                0,
+                -1
+              ],
+              "uCrossFlow": [
+                1,
+                0
+              ],
+              "uRippleA": [
+                0.158,
+                -0.9874
+              ],
+              "uRippleB": [
+                -0.2961,
+                -0.9552
+              ],
+              "uRippleC": [
+                0.4327,
+                -0.9015
+              ],
+              "uFlowSpeed": 0.9,
+              "uOpacity": 0.88,
+              "uRadial": 0,
+              "uCrossOnly": 1,
+              "uWetness": 0,
+              "uPrecipitation": 0,
+              "uWind": 0.2,
+              "uDaylight": 1,
+              "uSkyZenith": "#5486cc",
+              "uSkyHorizon": "#c9dcea",
+              "uSunColour": "#f5e9cd",
+              "uSunDirection": [
+                0,
+                1,
+                0
+              ],
+              "fogDensity": 0.0003,
+              "fogNear": 1
+            }
+          },
+          {
+            "name": "MillOS Unified Water Surface",
+            "cacheKey": "millos-unified-water-v13",
+            "uniforms": {
+              "uTime": 0,
+              "uFalling": 0,
+              "uDeep": "#183f4b",
+              "uShallow": "#4c8990",
+              "uReflection": "#c6e2e2",
+              "uFlowDirection": [
+                0.2425,
+                0.9701
+              ],
+              "uCrossFlow": [
+                -0.9701,
+                0.2425
+              ],
+              "uRippleA": [
+                0.0862,
+                0.9963
+              ],
+              "uRippleB": [
+                0.8912,
+                0.4536
+              ],
+              "uRippleC": [
+                -0.6352,
+                0.7723
+              ],
+              "uFlowSpeed": 0.08,
+              "uOpacity": 0.9,
+              "uRadial": 1,
+              "uCrossOnly": 0,
+              "uWetness": 0,
+              "uPrecipitation": 0,
+              "uWind": 0.2,
+              "uDaylight": 1,
+              "uSkyZenith": "#5486cc",
+              "uSkyHorizon": "#c9dcea",
+              "uSunColour": "#f5e9cd",
+              "uSunDirection": [
+                0,
+                1,
+                0
+              ],
+              "fogDensity": 0.002,
+              "fogNear": 1
+            }
+          }
+        ],
+        "textureIssues": [],
+        "worldIntegrity": {
+          "required": [
+            "world-root",
+            "world-environment",
+            "world-factory-process",
+            "world-factory-infrastructure",
+            "world-conveyors",
+            "world-forklifts",
+            "world-logistics",
+            "world-terrain",
+            "authored-factory-exterior",
+            "authored-castle",
+            "authored-farm",
+            "authored-village",
+            "optimized-sky-system",
+            "optimized-horizon-backdrop",
+            "near-horizon-city",
+            "sun-visual",
+            "moon-visual"
+          ],
+          "present": [
+            "world-root",
+            "world-environment",
+            "world-factory-process",
+            "world-factory-infrastructure",
+            "world-conveyors",
+            "world-forklifts",
+            "world-logistics",
+            "world-terrain",
+            "authored-factory-exterior",
+            "authored-castle",
+            "authored-farm",
+            "authored-village",
+            "optimized-sky-system",
+            "optimized-horizon-backdrop",
+            "near-horizon-city",
+            "sun-visual",
+            "moon-visual"
+          ],
+          "visible": [
+            "world-root",
+            "world-environment",
+            "world-factory-process",
+            "world-factory-infrastructure",
+            "world-conveyors",
+            "world-forklifts",
+            "world-logistics",
+            "world-terrain",
+            "authored-factory-exterior",
+            "authored-castle",
+            "authored-farm",
+            "authored-village"
+          ],
+          "missing": [],
+          "hidden": [],
+          "passed": true
+        },
+        "staticBatches": [
+          {
+            "name": "authored-factory-exterior",
+            "totalMeshes": 1282,
+            "candidates": 926,
+            "optimizedOriginals": 768,
+            "batches": 106,
+            "instancedOriginals": 192,
+            "instancedBatches": 60,
+            "mergedOriginals": 576,
+            "mergedMeshes": 46,
+            "exclusions": {
+              "instanced": 39,
+              "unsupportedMaterial": 201,
+              "dynamicOrInteractive": 108,
+              "materialArray": 8
+            },
+            "materialTypes": {
+              "MeshStandardMaterial": 1125,
+              "MeshBasicMaterial": 103,
+              "ShaderMaterial": 7
+            },
+            "surfaceProfiles": {
+              "declined:painted": 23,
+              "declined:masonry": 4,
+              "declined:signage": 44,
+              "declined:metal": 1,
+              "painted": 81,
+              "masonry": 130,
+              "metal": 5,
+              "untreated": 24
+            }
+          },
+          {
+            "name": "authored-castle",
+            "totalMeshes": 2,
+            "candidates": 2,
+            "optimizedOriginals": 0,
+            "batches": 0,
+            "instancedOriginals": 0,
+            "instancedBatches": 0,
+            "mergedOriginals": 0,
+            "mergedMeshes": 0,
+            "exclusions": {},
+            "materialTypes": {
+              "MeshStandardMaterial": 2
+            },
+            "surfaceProfiles": {
+              "masonry": 2
+            }
+          },
+          {
+            "name": "authored-farm",
+            "totalMeshes": 184,
+            "candidates": 149,
+            "optimizedOriginals": 142,
+            "batches": 11,
+            "instancedOriginals": 8,
+            "instancedBatches": 3,
+            "mergedOriginals": 134,
+            "mergedMeshes": 8,
+            "exclusions": {
+              "unsupportedMaterial": 3,
+              "dynamicOrInteractive": 9,
+              "skinned": 17,
+              "instanced": 6
+            },
+            "materialTypes": {
+              "MeshStandardMaterial": 161
+            },
+            "surfaceProfiles": {
+              "declined:signage": 5,
+              "declined:masonry": 2,
+              "masonry": 17,
+              "untreated": 1
+            }
+          },
+          {
+            "name": "authored-village",
+            "totalMeshes": 230,
+            "candidates": 168,
+            "optimizedOriginals": 130,
+            "batches": 15,
+            "instancedOriginals": 17,
+            "instancedBatches": 5,
+            "mergedOriginals": 113,
+            "mergedMeshes": 10,
+            "exclusions": {
+              "unsupportedMaterial": 10,
+              "materialArray": 9,
+              "dynamicOrInteractive": 30,
+              "skinned": 5,
+              "instanced": 8
+            },
+            "materialTypes": {
+              "MeshStandardMaterial": 200,
+              "MeshBasicMaterial": 8
+            },
+            "surfaceProfiles": {
+              "declined:painted": 25,
+              "declined:masonry": 2,
+              "painted": 11,
+              "masonry": 16,
+              "untreated": 4
+            }
+          }
+        ],
+        "humanPresence": {
+          "passed": true,
+          "workerStoreCount": 0,
+          "sceneObjects": []
+        },
+        "motion": {
+          "gameSpeed": 0,
+          "productionSpeed": 0.8,
+          "materialSimulationTime": 0,
+          "entities": [
+            {
+              "id": "forklift-1",
+              "type": "forklift",
+              "position": [
+                -16,
+                0,
+                42
+              ],
+              "rotationY": 0,
+              "phase": "traveling",
+              "speed": 0,
+              "acceleration": 0,
+              "steeringAngle": 0,
+              "innerSteeringAngle": 0,
+              "outerSteeringAngle": 0,
+              "wheelTravel": 0,
+              "routeDistance": 0,
+              "forkHeight": 0,
+              "mastTilt": 0,
+              "cargo": "empty",
+              "loadPhase": "idle",
+              "stopReason": "simulation-paused",
+              "stopped": true
+            },
+            {
+              "id": "forklift-2",
+              "type": "forklift",
+              "position": [
+                -28,
+                0,
+                -43
+              ],
+              "rotationY": 0,
+              "phase": "traveling",
+              "speed": 0,
+              "acceleration": 0,
+              "steeringAngle": 0,
+              "innerSteeringAngle": 0,
+              "outerSteeringAngle": 0,
+              "wheelTravel": 0,
+              "routeDistance": 0,
+              "forkHeight": 0,
+              "mastTilt": 0,
+              "cargo": "empty",
+              "loadPhase": "idle",
+              "stopReason": "simulation-paused",
+              "stopped": true
+            }
+          ]
+        },
+        "checkpoints": [
+          {
+            "id": "receiving-checkpoint",
+            "gateOpen": false,
+            "phase": "closed",
+            "clearanceSecondsRemaining": 0,
+            "armAngle": 0
+          },
+          {
+            "id": "shipping-checkpoint",
+            "gateOpen": false,
+            "phase": "closed",
+            "clearanceSecondsRemaining": 0,
+            "armAngle": 0
+          }
+        ],
+        "audio": {
+          "activeNodes": 0,
+          "contextState": "not-created"
+        },
+        "sceneChildren": 2,
+        "quality": "low",
+        "resolutionScale": 0.4
+      },
+      "lightRig": {
+        "lights": [
+          {
+            "name": "celestial-ambient-light",
+            "type": "AmbientLight",
+            "path": "<Scene>/world-root/world-environment/optimized-factory-environment/celestial-ambient-light",
+            "intensity": 0.22,
+            "color": "#a3cce2",
+            "groundColor": null,
+            "worldPosition": [
+              0,
+              0,
+              0
+            ],
+            "target": null,
+            "distance": null,
+            "decay": null,
+            "castShadow": false,
+            "visible": true,
+            "shadow": null
+          },
+          {
+            "name": "sun-key-light",
+            "type": "DirectionalLight",
+            "path": "<Scene>/world-root/world-environment/optimized-factory-environment/sun-key-light",
+            "intensity": 3.0999999999999996,
+            "color": "#fff1cf",
+            "groundColor": null,
+            "worldPosition": [
+              5.623735252664654e-15,
+              120,
+              -4.873102974436808e-15
+            ],
+            "target": [
+              0,
+              0,
+              0
+            ],
+            "distance": null,
+            "decay": null,
+            "castShadow": false,
+            "visible": true,
+            "shadow": {
+              "mapSize": [
+                1024,
+                1024
+              ],
+              "bias": -0.0004,
+              "normalBias": 0.12,
+              "radius": 1,
+              "near": 10,
+              "far": 260,
+              "halfExtent": [
+                5,
+                5
+              ]
+            }
+          },
+          {
+            "name": "moon-fill-light",
+            "type": "DirectionalLight",
+            "path": "<Scene>/world-root/world-environment/optimized-factory-environment/moon-fill-light",
+            "intensity": 0,
+            "color": "#9bbce5",
+            "groundColor": null,
+            "worldPosition": [
+              -5.155090648275933e-15,
+              12,
+              4.467011059900408e-15
+            ],
+            "target": [
+              0,
+              0,
+              0
+            ],
+            "distance": null,
+            "decay": null,
+            "castShadow": false,
+            "visible": true,
+            "shadow": {
+              "mapSize": [
+                512,
+                512
+              ],
+              "bias": 0,
+              "normalBias": 0,
+              "radius": 1,
+              "near": 0.5,
+              "far": 500,
+              "halfExtent": [
+                5,
+                5
+              ]
+            }
+          },
+          {
+            "name": "environment-hemisphere-fill",
+            "type": "HemisphereLight",
+            "path": "<Scene>/world-root/world-environment/optimized-factory-environment/environment-hemisphere-fill",
+            "intensity": 0.22,
+            "color": "#a3cce2",
+            "groundColor": "#7d7c67",
+            "worldPosition": [
+              0,
+              1,
+              0
+            ],
+            "target": null,
+            "distance": null,
+            "decay": null,
+            "castShadow": false,
+            "visible": true,
+            "shadow": null
+          },
+          {
+            "name": "interior-zone-light-0--8",
+            "type": "PointLight",
+            "path": "<Scene>/world-root/world-environment/optimized-factory-environment/interior-light-rig/interior-zone-light-0--8",
+            "intensity": 380,
+            "color": "#fff1db",
+            "groundColor": null,
+            "worldPosition": [
+              0,
+              17.5,
+              -8
+            ],
+            "target": null,
+            "distance": 44,
+            "decay": 2,
+            "castShadow": false,
+            "visible": true,
+            "shadow": {
+              "mapSize": [
+                512,
+                512
+              ],
+              "bias": 0,
+              "normalBias": 0,
+              "radius": 1,
+              "near": 0.5,
+              "far": 500,
+              "halfExtent": null
+            }
+          },
+          {
+            "name": "interior-zone-light-0-38",
+            "type": "PointLight",
+            "path": "<Scene>/world-root/world-environment/optimized-factory-environment/interior-light-rig/interior-zone-light-0-38",
+            "intensity": 380,
+            "color": "#fff1db",
+            "groundColor": null,
+            "worldPosition": [
+              0,
+              17.5,
+              38
+            ],
+            "target": null,
+            "distance": 44,
+            "decay": 2,
+            "castShadow": false,
+            "visible": true,
+            "shadow": {
+              "mapSize": [
+                512,
+                512
+              ],
+              "bias": 0,
+              "normalBias": 0,
+              "radius": 1,
+              "near": 0.5,
+              "far": 500,
+              "halfExtent": null
+            }
+          },
+          {
+            "name": "station-interior-fixture-light",
+            "type": "PointLight",
+            "path": "<Scene>/world-root/authored-factory-exterior/<Group>/<Group>/station-authored-retail/station-interior-fixture-light",
+            "intensity": 48,
+            "color": "#fff4e4",
+            "groundColor": null,
+            "worldPosition": [
+              -95.6,
+              4.15,
+              138.8
+            ],
+            "target": null,
+            "distance": 8.5,
+            "decay": 2,
+            "castShadow": false,
+            "visible": true,
+            "shadow": {
+              "mapSize": [
+                512,
+                512
+              ],
+              "bias": 0,
+              "normalBias": 0,
+              "radius": 1,
+              "near": 0.5,
+              "far": 500,
+              "halfExtent": null
+            }
+          },
+          {
+            "name": "station-canopy-light-0",
+            "type": "SpotLight",
+            "path": "<Scene>/world-root/authored-factory-exterior/<Group>/<Group>/station-canopy-light-banks/<Group>/station-canopy-light-0",
+            "intensity": 0,
+            "color": "#ffe4c4",
+            "groundColor": null,
+            "worldPosition": [
+              -90,
+              4.21,
+              137.2
+            ],
+            "target": [
+              -90,
+              3.21,
+              137.2
+            ],
+            "distance": 11.5,
+            "decay": 2,
+            "castShadow": false,
+            "visible": true,
+            "shadow": {
+              "mapSize": [
+                512,
+                512
+              ],
+              "bias": 0,
+              "normalBias": 0,
+              "radius": 1,
+              "near": 0.5,
+              "far": 500,
+              "halfExtent": null
+            }
+          },
+          {
+            "name": "station-canopy-light-1",
+            "type": "SpotLight",
+            "path": "<Scene>/world-root/authored-factory-exterior/<Group>/<Group>/station-canopy-light-banks/<Group>/station-canopy-light-1",
+            "intensity": 0,
+            "color": "#ffe4c4",
+            "groundColor": null,
+            "worldPosition": [
+              -80,
+              4.21,
+              142.8
+            ],
+            "target": [
+              -80,
+              3.21,
+              142.8
+            ],
+            "distance": 11.5,
+            "decay": 2,
+            "castShadow": false,
+            "visible": true,
+            "shadow": {
+              "mapSize": [
+                512,
+                512
+              ],
+              "bias": 0,
+              "normalBias": 0,
+              "radius": 1,
+              "near": 0.5,
+              "far": 500,
+              "halfExtent": null
+            }
+          }
+        ],
+        "scene": {
+          "environmentBound": true,
+          "environmentIntensity": 0.3,
+          "backgroundBound": true,
+          "fog": {
+            "type": "FogExp2",
+            "color": "#a3cce2",
+            "near": null,
+            "far": null,
+            "density": 0.002
+          }
+        },
+        "renderer": {
+          "toneMapping": 7,
+          "toneMappingExposure": 1.02,
+          "outputColorSpace": "srgb",
+          "shadowMapEnabled": false,
+          "shadowMapType": 2
+        }
+      },
+      "load": [
+        28.981884765625,
+        24.926953125,
+        20.76357421875
+      ]
+    },
+    {
+      "name": "pond-eye",
+      "scene": "pond-eye",
+      "arm": "on",
+      "position": [
+        -162,
+        1.9,
+        32
+      ],
+      "target": [
+        -170,
+        0.6,
+        25
+      ],
+      "snapshot": {
+        "capturedAt": 59714.9,
+        "ready": true,
+        "firstFrameAt": 366.5,
+        "sampleCount": 1786,
+        "averageFrameMs": 33.16,
+        "p50FrameMs": 8.3,
+        "p95FrameMs": 9.4,
+        "p99FrameMs": 180.3,
+        "frameTimeStdDevMs": 533.43,
+        "onePercentLowFps": 0.43,
+        "worstFrameMs": 19115.9,
+        "averageFps": 30.15,
+        "framesOver16_7Ms": 60,
+        "framesOver25Ms": 47,
+        "framesOver50Ms": 35,
+        "longTasks": [
+          {
+            "startTime": 447.4,
+            "duration": 56
+          },
+          {
+            "startTime": 528.4,
+            "duration": 5425
+          },
+          {
+            "startTime": 6037.5,
+            "duration": 149
+          },
+          {
+            "startTime": 6208.8,
+            "duration": 222
+          },
+          {
+            "startTime": 6432.8,
+            "duration": 158
+          },
+          {
+            "startTime": 6641.7,
+            "duration": 130
+          },
+          {
+            "startTime": 6844.4,
+            "duration": 151
+          },
+          {
+            "startTime": 7038.5,
+            "duration": 125
+          },
+          {
+            "startTime": 7200.8,
+            "duration": 77
+          },
+          {
+            "startTime": 7299.4,
+            "duration": 116
+          },
+          {
+            "startTime": 7435.7,
+            "duration": 112
+          },
+          {
+            "startTime": 7692.9,
+            "duration": 127
+          },
+          {
+            "startTime": 8242.4,
+            "duration": 114
+          },
+          {
+            "startTime": 8396.1,
+            "duration": 120
+          },
+          {
+            "startTime": 28118.1,
+            "duration": 10422
+          },
+          {
+            "startTime": 38708.6,
+            "duration": 358
+          },
+          {
+            "startTime": 39094.2,
+            "duration": 410
+          },
+          {
+            "startTime": 39520.8,
+            "duration": 431
+          },
+          {
+            "startTime": 40063.2,
+            "duration": 336
+          },
+          {
+            "startTime": 40421.7,
+            "duration": 444
+          },
+          {
+            "startTime": 40886.8,
+            "duration": 53
+          },
+          {
+            "startTime": 40939.9,
+            "duration": 187
+          },
+          {
+            "startTime": 41127.5,
+            "duration": 329
+          },
+          {
+            "startTime": 41465.8,
+            "duration": 596
+          },
+          {
+            "startTime": 42118.3,
+            "duration": 280
+          },
+          {
+            "startTime": 42398.9,
+            "duration": 1699
+          },
+          {
+            "startTime": 44104.6,
+            "duration": 333
+          },
+          {
+            "startTime": 44438.2,
+            "duration": 926
+          },
+          {
+            "startTime": 45369.5,
+            "duration": 113
+          }
+        ],
+        "renderer": {
+          "vendor": "Google Inc. (Apple)",
+          "adapter": "ANGLE (Apple, ANGLE Metal Renderer: Apple M1 Max, Unspecified Version)",
+          "calls": 145,
+          "triangles": 403405,
+          "lines": 0,
+          "points": 641,
+          "geometries": 1089,
+          "textures": 193,
+          "programs": 133,
+          "raw": {
+            "frame": 1802,
+            "calls": 258862,
+            "triangles": 720884995,
+            "lines": 0,
+            "points": 1145520,
+            "autoReset": false
+          }
+        },
+        "sceneGraph": {
+          "objects": 2887,
+          "meshes": 1018,
+          "visibleMeshes": 1011,
+          "instancedMeshes": 196,
+          "uniqueGeometries": 877,
+          "uniqueMaterials": 881,
+          "topBranches": [
+            {
+              "index": 7,
+              "name": "authored-factory-exterior",
+              "type": "Group",
+              "objects": 1141,
+              "meshes": 620,
+              "uniqueGeometries": 554,
+              "uniqueMaterials": 568,
+              "staticBatchStats": {
+                "totalMeshes": 1282,
+                "candidates": 926,
+                "optimizedOriginals": 768,
+                "batches": 106,
+                "instancedOriginals": 192,
+                "instancedBatches": 60,
+                "mergedOriginals": 576,
+                "mergedMeshes": 46,
+                "exclusions": {
+                  "instanced": 39,
+                  "unsupportedMaterial": 201,
+                  "dynamicOrInteractive": 108,
+                  "materialArray": 8
+                },
+                "materialTypes": {
+                  "MeshStandardMaterial": 1125,
+                  "MeshBasicMaterial": 103,
+                  "ShaderMaterial": 7
+                },
+                "surfaceProfiles": {
+                  "declined:painted": 23,
+                  "declined:masonry": 4,
+                  "declined:signage": 44,
+                  "declined:metal": 1,
+                  "painted": 81,
+                  "masonry": 130,
+                  "metal": 5,
+                  "untreated": 24
+                }
+              }
+            },
+            {
+              "index": 3,
+              "name": "world-conveyors",
+              "type": "Group",
+              "objects": 160,
+              "meshes": 125,
+              "uniqueGeometries": 117,
+              "uniqueMaterials": 94
+            },
+            {
+              "index": 10,
+              "name": "authored-village",
+              "type": "Group",
+              "objects": 465,
+              "meshes": 115,
+              "uniqueGeometries": 92,
+              "uniqueMaterials": 107,
+              "staticBatchStats": {
+                "totalMeshes": 230,
+                "candidates": 168,
+                "optimizedOriginals": 130,
+                "batches": 15,
+                "instancedOriginals": 17,
+                "instancedBatches": 5,
+                "mergedOriginals": 113,
+                "mergedMeshes": 10,
+                "exclusions": {
+                  "unsupportedMaterial": 10,
+                  "materialArray": 9,
+                  "dynamicOrInteractive": 30,
+                  "skinned": 5,
+                  "instanced": 8
+                },
+                "materialTypes": {
+                  "MeshStandardMaterial": 200,
+                  "MeshBasicMaterial": 8
+                },
+                "surfaceProfiles": {
+                  "declined:painted": 25,
+                  "declined:masonry": 2,
+                  "painted": 11,
+                  "masonry": 16,
+                  "untreated": 4
+                }
+              }
+            },
+            {
+              "index": 9,
+              "name": "authored-farm",
+              "type": "Group",
+              "objects": 970,
+              "meshes": 53,
+              "uniqueGeometries": 40,
+              "uniqueMaterials": 39,
+              "staticBatchStats": {
+                "totalMeshes": 184,
+                "candidates": 149,
+                "optimizedOriginals": 142,
+                "batches": 11,
+                "instancedOriginals": 8,
+                "instancedBatches": 3,
+                "mergedOriginals": 134,
+                "mergedMeshes": 8,
+                "exclusions": {
+                  "unsupportedMaterial": 3,
+                  "dynamicOrInteractive": 9,
+                  "skinned": 17,
+                  "instanced": 6
+                },
+                "materialTypes": {
+                  "MeshStandardMaterial": 161
+                },
+                "surfaceProfiles": {
+                  "declined:signage": 5,
+                  "declined:masonry": 2,
+                  "masonry": 17,
+                  "untreated": 1
+                }
+              }
+            },
+            {
+              "index": 1,
+              "name": "world-factory-process",
+              "type": "Group",
+              "objects": 46,
+              "meshes": 43,
+              "uniqueGeometries": 22,
+              "uniqueMaterials": 23
+            },
+            {
+              "index": 2,
+              "name": "world-factory-infrastructure",
+              "type": "Group",
+              "objects": 32,
+              "meshes": 26,
+              "uniqueGeometries": 19,
+              "uniqueMaterials": 26
+            },
+            {
+              "index": 4,
+              "name": "world-forklifts",
+              "type": "Group",
+              "objects": 30,
+              "meshes": 20,
+              "uniqueGeometries": 20,
+              "uniqueMaterials": 12
+            },
+            {
+              "index": 0,
+              "name": "world-environment",
+              "type": "Group",
+              "objects": 32,
+              "meshes": 13,
+              "uniqueGeometries": 13,
+              "uniqueMaterials": 13
+            },
+            {
+              "index": 8,
+              "name": "authored-castle",
+              "type": "Group",
+              "objects": 5,
+              "meshes": 2,
+              "uniqueGeometries": 2,
+              "uniqueMaterials": 2,
+              "staticBatchStats": {
+                "totalMeshes": 2,
+                "candidates": 2,
+                "optimizedOriginals": 0,
+                "batches": 0,
+                "instancedOriginals": 0,
+                "instancedBatches": 0,
+                "mergedOriginals": 0,
+                "mergedMeshes": 0,
+                "exclusions": {},
+                "materialTypes": {
+                  "MeshStandardMaterial": 2
+                },
+                "surfaceProfiles": {
+                  "masonry": 2
+                }
+              }
+            },
+            {
+              "index": 6,
+              "name": "world-terrain",
+              "type": "Group",
+              "objects": 2,
+              "meshes": 1,
+              "uniqueGeometries": 1,
+              "uniqueMaterials": 1
+            },
+            {
+              "index": 5,
+              "name": "world-logistics",
+              "type": "Group",
+              "objects": 1,
+              "meshes": 0,
+              "uniqueGeometries": 0,
+              "uniqueMaterials": 0
+            }
+          ]
+        },
+        "canvas": {
+          "cssWidth": 1600,
+          "cssHeight": 1000,
+          "bufferWidth": 800,
+          "bufferHeight": 500,
+          "effectiveDpr": 0.5
+        },
+        "camera": {
+          "position": [
+            -162,
+            1.9,
+            32
+          ],
+          "fov": 45,
+          "near": 0.8,
+          "far": 960
+        },
+        "diagnosticRays": {
+          "centre": [
+            {
+              "name": "duckpond-natural-water-and-retained-bank",
+              "type": "Mesh",
+              "distance": 12.77,
+              "material": "duckpond-surface",
+              "materialColor": "ffffff",
+              "map": "duckpond-albedo",
+              "receiveShadow": true,
+              "renderOrder": 0
+            },
+            {
+              "name": "static-batch:authored-village:0:11",
+              "type": "Mesh",
+              "distance": 15.28,
+              "material": "MeshBasicMaterial",
+              "materialColor": "ffe8b8",
+              "map": "bdff2b26-176b-4b2d-b99d-1165fffbdacb",
+              "receiveShadow": false,
+              "renderOrder": 10
+            },
+            {
+              "name": "world-terrain",
+              "type": "Mesh",
+              "distance": 15.82,
+              "material": "MeshStandardMaterial",
+              "materialColor": "ffffff",
+              "map": null,
+              "receiveShadow": true,
+              "renderOrder": 1
+            },
+            {
+              "name": "authored-village-site",
+              "type": "Mesh",
+              "distance": 15.82,
+              "material": "MeshStandardMaterial",
+              "materialColor": "ffffff",
+              "map": "907f1b83-8e9e-4336-bb69-217ca156b30e",
+              "receiveShadow": true,
+              "renderOrder": 0
+            },
+            {
+              "name": "duckpond-natural-water-and-retained-bank",
+              "type": "Mesh",
+              "distance": 15.86,
+              "material": "duckpond-surface",
+              "materialColor": "ffffff",
+              "map": "duckpond-albedo",
+              "receiveShadow": true,
+              "renderOrder": 0
+            },
+            {
+              "name": "analytic-sky-dome",
+              "type": "Mesh",
+              "distance": 178.46,
+              "material": "MillOS Optimized Analytic Sky",
+              "materialColor": null,
+              "map": null,
+              "receiveShadow": false,
+              "renderOrder": -1000
+            }
+          ],
+          "top": [
+            {
+              "name": "analytic-sky-dome",
+              "type": "Mesh",
+              "distance": 178.77,
+              "material": "MillOS Optimized Analytic Sky",
+              "materialColor": null,
+              "map": null,
+              "receiveShadow": false,
+              "renderOrder": -1000
+            }
+          ],
+          "upperLeft": [
+            {
+              "name": "TownhallBody",
+              "type": "Mesh",
+              "distance": 28.99,
+              "material": "townhall-surface",
+              "materialColor": "ffffff",
+              "map": "townhall-albedo",
+              "receiveShadow": true,
+              "renderOrder": 0
+            },
+            {
+              "name": "TownhallBody",
+              "type": "Mesh",
+              "distance": 34.66,
+              "material": "townhall-surface",
+              "materialColor": "ffffff",
+              "map": "townhall-albedo",
+              "receiveShadow": true,
+              "renderOrder": 0
+            },
+            {
+              "name": "TownhallBody",
+              "type": "Mesh",
+              "distance": 34.74,
+              "material": "townhall-surface",
+              "materialColor": "ffffff",
+              "map": "townhall-albedo",
+              "receiveShadow": true,
+              "renderOrder": 0
+            },
+            {
+              "name": "analytic-sky-dome",
+              "type": "Mesh",
+              "distance": 179.33,
+              "material": "MillOS Optimized Analytic Sky",
+              "materialColor": null,
+              "map": null,
+              "receiveShadow": false,
+              "renderOrder": -1000
+            }
+          ],
+          "upperRight": [
+            {
+              "name": "analytic-sky-dome",
+              "type": "Mesh",
+              "distance": 178.73,
+              "material": "MillOS Optimized Analytic Sky",
+              "materialColor": null,
+              "map": null,
+              "receiveShadow": false,
+              "renderOrder": -1000
+            }
+          ],
+          "lowerCentre": [
+            {
+              "name": "world-terrain",
+              "type": "Mesh",
+              "distance": 5.12,
+              "material": "MeshStandardMaterial",
+              "materialColor": "ffffff",
+              "map": null,
+              "receiveShadow": true,
+              "renderOrder": 1
+            },
+            {
+              "name": "authored-village-site",
+              "type": "Mesh",
+              "distance": 5.12,
+              "material": "MeshStandardMaterial",
+              "materialColor": "ffffff",
+              "map": "907f1b83-8e9e-4336-bb69-217ca156b30e",
+              "receiveShadow": true,
+              "renderOrder": 0
+            },
+            {
+              "name": "duckpond-natural-water-and-retained-bank",
+              "type": "Mesh",
+              "distance": 5.55,
+              "material": "duckpond-surface",
+              "materialColor": "ffffff",
+              "map": "duckpond-albedo",
+              "receiveShadow": true,
+              "renderOrder": 0
+            },
+            {
+              "name": "analytic-sky-dome",
+              "type": "Mesh",
+              "distance": 179.21,
+              "material": "MillOS Optimized Analytic Sky",
+              "materialColor": null,
+              "map": null,
+              "receiveShadow": false,
+              "renderOrder": -1000
+            },
+            {
+              "name": "far-mountain-ring",
+              "type": "Mesh",
+              "distance": 271.54,
+              "material": "MillOS Ridge Aerial: Far",
+              "materialColor": null,
+              "map": null,
+              "receiveShadow": false,
+              "renderOrder": -920
+            }
+          ],
+          "lowerLeft": [
+            {
+              "name": "world-terrain",
+              "type": "Mesh",
+              "distance": 5.54,
+              "material": "MeshStandardMaterial",
+              "materialColor": "ffffff",
+              "map": null,
+              "receiveShadow": true,
+              "renderOrder": 1
+            },
+            {
+              "name": "authored-village-site",
+              "type": "Mesh",
+              "distance": 5.54,
+              "material": "MeshStandardMaterial",
+              "materialColor": "ffffff",
+              "map": "907f1b83-8e9e-4336-bb69-217ca156b30e",
+              "receiveShadow": true,
+              "renderOrder": 0
+            },
+            {
+              "name": "analytic-sky-dome",
+              "type": "Mesh",
+              "distance": 178.56,
+              "material": "MillOS Optimized Analytic Sky",
+              "materialColor": null,
+              "map": null,
+              "receiveShadow": false,
+              "renderOrder": -1000
+            },
+            {
+              "name": "far-mountain-ring",
+              "type": "Mesh",
+              "distance": 294.09,
+              "material": "MillOS Ridge Aerial: Far",
+              "materialColor": null,
+              "map": null,
+              "receiveShadow": false,
+              "renderOrder": -920
+            }
+          ],
+          "lowerRight": [
+            {
+              "name": "world-terrain",
+              "type": "Mesh",
+              "distance": 5.54,
+              "material": "MeshStandardMaterial",
+              "materialColor": "ffffff",
+              "map": null,
+              "receiveShadow": true,
+              "renderOrder": 1
+            },
+            {
+              "name": "authored-village-site",
+              "type": "Mesh",
+              "distance": 5.54,
+              "material": "MeshStandardMaterial",
+              "materialColor": "ffffff",
+              "map": "907f1b83-8e9e-4336-bb69-217ca156b30e",
+              "receiveShadow": true,
+              "renderOrder": 0
+            },
+            {
+              "name": "duckpond-natural-water-and-retained-bank",
+              "type": "Mesh",
+              "distance": 6.77,
+              "material": "duckpond-surface",
+              "materialColor": "ffffff",
+              "map": "duckpond-albedo",
+              "receiveShadow": true,
+              "renderOrder": 0
+            },
+            {
+              "name": "analytic-sky-dome",
+              "type": "Mesh",
+              "distance": 179.14,
+              "material": "MillOS Optimized Analytic Sky",
+              "materialColor": null,
+              "map": null,
+              "receiveShadow": false,
+              "renderOrder": -1000
+            },
+            {
+              "name": "far-mountain-ring",
+              "type": "Mesh",
+              "distance": 294.09,
+              "material": "MillOS Ridge Aerial: Far",
+              "materialColor": null,
+              "map": null,
+              "receiveShadow": false,
+              "renderOrder": -920
+            }
+          ]
+        },
+        "shaderStates": [
+          {
+            "name": "MillOS Optimized Analytic Sky",
+            "cacheKey": "millos-optimized-sky-v8",
+            "uniforms": {
+              "topColor": "#70aed8",
+              "horizonColor": "#a3cce2",
+              "groundColor": "#8fae9e",
+              "uCloudLit": "#f4f6f2",
+              "uCloudShadow": "#93a0ad",
+              "uSunTint": "#ffe6a6",
+              "uSunOpacity": 0.916,
+              "uCloudDrift": [
+                0.1754,
+                0.071
+              ],
+              "uCirrusDrift": [
+                -0.0793,
+                0.0376
+              ],
+              "uCloudNoise": "object",
+              "uCloudAtlas": "object",
+              "uCloudAtlasReady": 1,
+              "cloudAmount": 0.2,
+              "daylight": 1,
+              "sunDirection": [
+                0,
+                1,
+                0
+              ]
+            }
+          },
+          {
+            "name": "MillOS Procedural Moon",
+            "cacheKey": "millos-procedural-moon-v1",
+            "uniforms": {
+              "opacity": 0
+            }
+          },
+          {
+            "name": "MillOS Ridge Aerial: Far",
+            "cacheKey": "millos-ridge-aerial-geology-v6",
+            "uniforms": {
+              "uSunDirection": [
+                0,
+                1,
+                0
+              ],
+              "uSunColor": "#fff2d6",
+              "uShadowTint": "#5d7d96",
+              "uInscatter": "#a3cce2",
+              "uAerial": 0.32,
+              "uDetailStrength": 1,
+              "uWorldAnchored": 0
+            }
+          },
+          {
+            "name": "MillOS Ridge Aerial: Mid",
+            "cacheKey": "millos-ridge-aerial-geology-v6",
+            "uniforms": {
+              "uSunDirection": [
+                0,
+                1,
+                0
+              ],
+              "uSunColor": "#fff2d6",
+              "uShadowTint": "#5d7d96",
+              "uInscatter": "#a3cce2",
+              "uAerial": 0.2,
+              "uDetailStrength": 1,
+              "uWorldAnchored": 1
+            }
+          },
+          {
+            "name": "MillOS Ridge Aerial: Near",
+            "cacheKey": "millos-ridge-aerial-geology-v6",
+            "uniforms": {
+              "uSunDirection": [
+                0,
+                1,
+                0
+              ],
+              "uSunColor": "#fff2d6",
+              "uShadowTint": "#5d7d96",
+              "uInscatter": "#a3cce2",
+              "uAerial": 0.1,
+              "uDetailStrength": 1,
+              "uWorldAnchored": 1
+            }
+          },
+          {
+            "name": "MillOS Unified Water Surface",
+            "cacheKey": "millos-unified-water-v13",
+            "uniforms": {
+              "uTime": 0,
+              "uFalling": 0,
+              "uDeep": "#173f4a",
+              "uShallow": "#2d6670",
+              "uReflection": "#86aeb5",
+              "uFlowDirection": [
+                0.2425,
+                0.9701
+              ],
+              "uCrossFlow": [
+                -0.9701,
+                0.2425
+              ],
+              "uRippleA": [
+                0.0862,
+                0.9963
+              ],
+              "uRippleB": [
+                0.5189,
+                0.8548
+              ],
+              "uRippleC": [
+                -0.2012,
+                0.9796
+              ],
+              "uFlowSpeed": 0.12,
+              "uOpacity": 0.9,
+              "uRadial": 0,
+              "uCrossOnly": 1,
+              "uWetness": 0,
+              "uPrecipitation": 0,
+              "uWind": 0.2,
+              "uDaylight": 1,
+              "uSkyZenith": "#5486cc",
+              "uSkyHorizon": "#c9dcea",
+              "uSunColour": "#f5e9cd",
+              "uSunDirection": [
+                0,
+                1,
+                0
+              ],
+              "fogDensity": 0.002,
+              "fogNear": 1
+            }
+          },
+          {
+            "name": "MillOS Unified Water Surface",
+            "cacheKey": "millos-unified-water-v13",
+            "uniforms": {
+              "uTime": 0,
+              "uFalling": 0,
+              "uDeep": "#143b48",
+              "uShallow": "#4a8790",
+              "uReflection": "#c4e0e4",
+              "uFlowDirection": [
+                0.2425,
+                0.9701
+              ],
+              "uCrossFlow": [
+                -0.9701,
+                0.2425
+              ],
+              "uRippleA": [
+                0.0862,
+                0.9963
+              ],
+              "uRippleB": [
+                0.8912,
+                0.4536
+              ],
+              "uRippleC": [
+                -0.6352,
+                0.7723
+              ],
+              "uFlowSpeed": 0.1,
+              "uOpacity": 0.85,
+              "uRadial": 1,
+              "uCrossOnly": 0,
+              "uWetness": 0,
+              "uPrecipitation": 0,
+              "uWind": 0.2,
+              "uDaylight": 1,
+              "uSkyZenith": "#5486cc",
+              "uSkyHorizon": "#c9dcea",
+              "uSunColour": "#f5e9cd",
+              "uSunDirection": [
+                0,
+                1,
+                0
+              ],
+              "fogDensity": 0.002,
+              "fogNear": 1
+            }
+          },
+          {
+            "name": "MillOS Unified Water Surface",
+            "cacheKey": "millos-unified-water-v13",
+            "uniforms": {
+              "uTime": 0,
+              "uFalling": 0,
+              "uDeep": "#123746",
+              "uShallow": "#3b7d8a",
+              "uReflection": "#c0e1e6",
+              "uFlowDirection": [
+                0.9874,
+                0.158
+              ],
+              "uCrossFlow": [
+                -0.158,
+                0.9874
+              ],
+              "uRippleA": [
+                0.9501,
+                0.312
+              ],
+              "uRippleB": [
+                0.9899,
+                -0.1415
+              ],
+              "uRippleC": [
+                0.8218,
+                0.5697
+              ],
+              "uFlowSpeed": 0.504,
+              "uOpacity": 0.9,
+              "uRadial": 0,
+              "uCrossOnly": 1,
+              "uWetness": 0,
+              "uPrecipitation": 0,
+              "uWind": 0.2,
+              "uDaylight": 1,
+              "uSkyZenith": "#5486cc",
+              "uSkyHorizon": "#c9dcea",
+              "uSunColour": "#f5e9cd",
+              "uSunDirection": [
+                0,
+                1,
+                0
+              ],
+              "fogDensity": 0.002,
+              "fogNear": 1
+            }
+          },
+          {
+            "name": "MillOS Unified Water Surface",
+            "cacheKey": "millos-unified-water-v13",
+            "uniforms": {
+              "uTime": 0,
+              "uFalling": 0,
+              "uDeep": "#183f4b",
+              "uShallow": "#4c8990",
+              "uReflection": "#c6e2e2",
+              "uFlowDirection": [
+                0.2425,
+                0.9701
+              ],
+              "uCrossFlow": [
+                -0.9701,
+                0.2425
+              ],
+              "uRippleA": [
+                0.0862,
+                0.9963
+              ],
+              "uRippleB": [
+                0.8912,
+                0.4536
+              ],
+              "uRippleC": [
+                -0.6352,
+                0.7723
+              ],
+              "uFlowSpeed": 0.08,
+              "uOpacity": 0.9,
+              "uRadial": 1,
+              "uCrossOnly": 0,
+              "uWetness": 0,
+              "uPrecipitation": 0,
+              "uWind": 0.2,
+              "uDaylight": 1,
+              "uSkyZenith": "#5486cc",
+              "uSkyHorizon": "#c9dcea",
+              "uSunColour": "#f5e9cd",
+              "uSunDirection": [
+                0,
+                1,
+                0
+              ],
+              "fogDensity": 0.0003,
+              "fogNear": 1
+            }
+          },
+          {
+            "name": "MillOS Unified Water Surface",
+            "cacheKey": "millos-unified-water-v13",
+            "uniforms": {
+              "uTime": 0,
+              "uFalling": 0,
+              "uDeep": "#173f4a",
+              "uShallow": "#2d6670",
+              "uReflection": "#86aeb5",
+              "uFlowDirection": [
+                1,
+                0
+              ],
+              "uCrossFlow": [
+                0,
+                1
+              ],
+              "uRippleA": [
+                0.9874,
+                0.158
+              ],
+              "uRippleB": [
+                0.9552,
+                -0.2961
+              ],
+              "uRippleC": [
+                0.9015,
+                0.4327
+              ],
+              "uFlowSpeed": 0.2,
+              "uOpacity": 0.88,
+              "uRadial": 0,
+              "uCrossOnly": 1,
+              "uWetness": 0,
+              "uPrecipitation": 0,
+              "uWind": 0.2,
+              "uDaylight": 1,
+              "uSkyZenith": "#5486cc",
+              "uSkyHorizon": "#c9dcea",
+              "uSunColour": "#f5e9cd",
+              "uSunDirection": [
+                0,
+                1,
+                0
+              ],
+              "fogDensity": 0.0003,
+              "fogNear": 1
+            }
+          },
+          {
+            "name": "MillOS Unified Water Surface",
+            "cacheKey": "millos-unified-water-v13",
+            "uniforms": {
+              "uTime": 0,
+              "uFalling": 1,
+              "uDeep": "#2e5962",
+              "uShallow": "#6999a1",
+              "uReflection": "#d2e3dc",
+              "uFlowDirection": [
+                0,
+                -1
+              ],
+              "uCrossFlow": [
+                1,
+                0
+              ],
+              "uRippleA": [
+                0.158,
+                -0.9874
+              ],
+              "uRippleB": [
+                -0.2961,
+                -0.9552
+              ],
+              "uRippleC": [
+                0.4327,
+                -0.9015
+              ],
+              "uFlowSpeed": 0.9,
+              "uOpacity": 0.88,
+              "uRadial": 0,
+              "uCrossOnly": 1,
+              "uWetness": 0,
+              "uPrecipitation": 0,
+              "uWind": 0.2,
+              "uDaylight": 1,
+              "uSkyZenith": "#5486cc",
+              "uSkyHorizon": "#c9dcea",
+              "uSunColour": "#f5e9cd",
+              "uSunDirection": [
+                0,
+                1,
+                0
+              ],
+              "fogDensity": 0.0003,
+              "fogNear": 1
+            }
+          },
+          {
+            "name": "MillOS Unified Water Surface",
+            "cacheKey": "millos-unified-water-v13",
+            "uniforms": {
+              "uTime": 0,
+              "uFalling": 0,
+              "uDeep": "#183f4b",
+              "uShallow": "#4c8990",
+              "uReflection": "#c6e2e2",
+              "uFlowDirection": [
+                0.2425,
+                0.9701
+              ],
+              "uCrossFlow": [
+                -0.9701,
+                0.2425
+              ],
+              "uRippleA": [
+                0.0862,
+                0.9963
+              ],
+              "uRippleB": [
+                0.8912,
+                0.4536
+              ],
+              "uRippleC": [
+                -0.6352,
+                0.7723
+              ],
+              "uFlowSpeed": 0.08,
+              "uOpacity": 0.9,
+              "uRadial": 1,
+              "uCrossOnly": 0,
+              "uWetness": 0,
+              "uPrecipitation": 0,
+              "uWind": 0.2,
+              "uDaylight": 1,
+              "uSkyZenith": "#5486cc",
+              "uSkyHorizon": "#c9dcea",
+              "uSunColour": "#f5e9cd",
+              "uSunDirection": [
+                0,
+                1,
+                0
+              ],
+              "fogDensity": 0.002,
+              "fogNear": 1
+            }
+          }
+        ],
+        "textureIssues": [],
+        "worldIntegrity": {
+          "required": [
+            "world-root",
+            "world-environment",
+            "world-factory-process",
+            "world-factory-infrastructure",
+            "world-conveyors",
+            "world-forklifts",
+            "world-logistics",
+            "world-terrain",
+            "authored-factory-exterior",
+            "authored-castle",
+            "authored-farm",
+            "authored-village",
+            "optimized-sky-system",
+            "optimized-horizon-backdrop",
+            "near-horizon-city",
+            "sun-visual",
+            "moon-visual"
+          ],
+          "present": [
+            "world-root",
+            "world-environment",
+            "world-factory-process",
+            "world-factory-infrastructure",
+            "world-conveyors",
+            "world-forklifts",
+            "world-logistics",
+            "world-terrain",
+            "authored-factory-exterior",
+            "authored-castle",
+            "authored-farm",
+            "authored-village",
+            "optimized-sky-system",
+            "optimized-horizon-backdrop",
+            "near-horizon-city",
+            "sun-visual",
+            "moon-visual"
+          ],
+          "visible": [
+            "world-root",
+            "world-environment",
+            "world-factory-process",
+            "world-factory-infrastructure",
+            "world-conveyors",
+            "world-forklifts",
+            "world-logistics",
+            "world-terrain",
+            "authored-factory-exterior",
+            "authored-castle",
+            "authored-farm",
+            "authored-village"
+          ],
+          "missing": [],
+          "hidden": [],
+          "passed": true
+        },
+        "staticBatches": [
+          {
+            "name": "authored-factory-exterior",
+            "totalMeshes": 1282,
+            "candidates": 926,
+            "optimizedOriginals": 768,
+            "batches": 106,
+            "instancedOriginals": 192,
+            "instancedBatches": 60,
+            "mergedOriginals": 576,
+            "mergedMeshes": 46,
+            "exclusions": {
+              "instanced": 39,
+              "unsupportedMaterial": 201,
+              "dynamicOrInteractive": 108,
+              "materialArray": 8
+            },
+            "materialTypes": {
+              "MeshStandardMaterial": 1125,
+              "MeshBasicMaterial": 103,
+              "ShaderMaterial": 7
+            },
+            "surfaceProfiles": {
+              "declined:painted": 23,
+              "declined:masonry": 4,
+              "declined:signage": 44,
+              "declined:metal": 1,
+              "painted": 81,
+              "masonry": 130,
+              "metal": 5,
+              "untreated": 24
+            }
+          },
+          {
+            "name": "authored-castle",
+            "totalMeshes": 2,
+            "candidates": 2,
+            "optimizedOriginals": 0,
+            "batches": 0,
+            "instancedOriginals": 0,
+            "instancedBatches": 0,
+            "mergedOriginals": 0,
+            "mergedMeshes": 0,
+            "exclusions": {},
+            "materialTypes": {
+              "MeshStandardMaterial": 2
+            },
+            "surfaceProfiles": {
+              "masonry": 2
+            }
+          },
+          {
+            "name": "authored-farm",
+            "totalMeshes": 184,
+            "candidates": 149,
+            "optimizedOriginals": 142,
+            "batches": 11,
+            "instancedOriginals": 8,
+            "instancedBatches": 3,
+            "mergedOriginals": 134,
+            "mergedMeshes": 8,
+            "exclusions": {
+              "unsupportedMaterial": 3,
+              "dynamicOrInteractive": 9,
+              "skinned": 17,
+              "instanced": 6
+            },
+            "materialTypes": {
+              "MeshStandardMaterial": 161
+            },
+            "surfaceProfiles": {
+              "declined:signage": 5,
+              "declined:masonry": 2,
+              "masonry": 17,
+              "untreated": 1
+            }
+          },
+          {
+            "name": "authored-village",
+            "totalMeshes": 230,
+            "candidates": 168,
+            "optimizedOriginals": 130,
+            "batches": 15,
+            "instancedOriginals": 17,
+            "instancedBatches": 5,
+            "mergedOriginals": 113,
+            "mergedMeshes": 10,
+            "exclusions": {
+              "unsupportedMaterial": 10,
+              "materialArray": 9,
+              "dynamicOrInteractive": 30,
+              "skinned": 5,
+              "instanced": 8
+            },
+            "materialTypes": {
+              "MeshStandardMaterial": 200,
+              "MeshBasicMaterial": 8
+            },
+            "surfaceProfiles": {
+              "declined:painted": 25,
+              "declined:masonry": 2,
+              "painted": 11,
+              "masonry": 16,
+              "untreated": 4
+            }
+          }
+        ],
+        "humanPresence": {
+          "passed": true,
+          "workerStoreCount": 0,
+          "sceneObjects": []
+        },
+        "motion": {
+          "gameSpeed": 0,
+          "productionSpeed": 0.8,
+          "materialSimulationTime": 0,
+          "entities": [
+            {
+              "id": "forklift-1",
+              "type": "forklift",
+              "position": [
+                -16,
+                0,
+                42
+              ],
+              "rotationY": 0,
+              "phase": "traveling",
+              "speed": 0,
+              "acceleration": 0,
+              "steeringAngle": 0,
+              "innerSteeringAngle": 0,
+              "outerSteeringAngle": 0,
+              "wheelTravel": 0,
+              "routeDistance": 0,
+              "forkHeight": 0,
+              "mastTilt": 0,
+              "cargo": "empty",
+              "loadPhase": "idle",
+              "stopReason": "simulation-paused",
+              "stopped": true
+            },
+            {
+              "id": "forklift-2",
+              "type": "forklift",
+              "position": [
+                -28,
+                0,
+                -43
+              ],
+              "rotationY": 0,
+              "phase": "traveling",
+              "speed": 0,
+              "acceleration": 0,
+              "steeringAngle": 0,
+              "innerSteeringAngle": 0,
+              "outerSteeringAngle": 0,
+              "wheelTravel": 0,
+              "routeDistance": 0,
+              "forkHeight": 0,
+              "mastTilt": 0,
+              "cargo": "empty",
+              "loadPhase": "idle",
+              "stopReason": "simulation-paused",
+              "stopped": true
+            }
+          ]
+        },
+        "checkpoints": [
+          {
+            "id": "receiving-checkpoint",
+            "gateOpen": false,
+            "phase": "closed",
+            "clearanceSecondsRemaining": 0,
+            "armAngle": 0
+          },
+          {
+            "id": "shipping-checkpoint",
+            "gateOpen": false,
+            "phase": "closed",
+            "clearanceSecondsRemaining": 0,
+            "armAngle": 0
+          }
+        ],
+        "audio": {
+          "activeNodes": 0,
+          "contextState": "not-created"
+        },
+        "sceneChildren": 2,
+        "quality": "low",
+        "resolutionScale": 0.4
+      },
+      "lightRig": {
+        "lights": [
+          {
+            "name": "celestial-ambient-light",
+            "type": "AmbientLight",
+            "path": "<Scene>/world-root/world-environment/optimized-factory-environment/celestial-ambient-light",
+            "intensity": 0.22,
+            "color": "#a3cce2",
+            "groundColor": null,
+            "worldPosition": [
+              0,
+              0,
+              0
+            ],
+            "target": null,
+            "distance": null,
+            "decay": null,
+            "castShadow": false,
+            "visible": true,
+            "shadow": null
+          },
+          {
+            "name": "sun-key-light",
+            "type": "DirectionalLight",
+            "path": "<Scene>/world-root/world-environment/optimized-factory-environment/sun-key-light",
+            "intensity": 3.0999999999999996,
+            "color": "#fff1cf",
+            "groundColor": null,
+            "worldPosition": [
+              5.623735252664654e-15,
+              120,
+              -4.873102974436808e-15
+            ],
+            "target": [
+              0,
+              0,
+              0
+            ],
+            "distance": null,
+            "decay": null,
+            "castShadow": false,
+            "visible": true,
+            "shadow": {
+              "mapSize": [
+                1024,
+                1024
+              ],
+              "bias": -0.0004,
+              "normalBias": 0.12,
+              "radius": 1,
+              "near": 10,
+              "far": 260,
+              "halfExtent": [
+                5,
+                5
+              ]
+            }
+          },
+          {
+            "name": "moon-fill-light",
+            "type": "DirectionalLight",
+            "path": "<Scene>/world-root/world-environment/optimized-factory-environment/moon-fill-light",
+            "intensity": 0,
+            "color": "#9bbce5",
+            "groundColor": null,
+            "worldPosition": [
+              -5.155090648275933e-15,
+              12,
+              4.467011059900408e-15
+            ],
+            "target": [
+              0,
+              0,
+              0
+            ],
+            "distance": null,
+            "decay": null,
+            "castShadow": false,
+            "visible": true,
+            "shadow": {
+              "mapSize": [
+                512,
+                512
+              ],
+              "bias": 0,
+              "normalBias": 0,
+              "radius": 1,
+              "near": 0.5,
+              "far": 500,
+              "halfExtent": [
+                5,
+                5
+              ]
+            }
+          },
+          {
+            "name": "environment-hemisphere-fill",
+            "type": "HemisphereLight",
+            "path": "<Scene>/world-root/world-environment/optimized-factory-environment/environment-hemisphere-fill",
+            "intensity": 0.22,
+            "color": "#a3cce2",
+            "groundColor": "#7d7c67",
+            "worldPosition": [
+              0,
+              1,
+              0
+            ],
+            "target": null,
+            "distance": null,
+            "decay": null,
+            "castShadow": false,
+            "visible": true,
+            "shadow": null
+          },
+          {
+            "name": "interior-zone-light-0--8",
+            "type": "PointLight",
+            "path": "<Scene>/world-root/world-environment/optimized-factory-environment/interior-light-rig/interior-zone-light-0--8",
+            "intensity": 380,
+            "color": "#fff1db",
+            "groundColor": null,
+            "worldPosition": [
+              0,
+              17.5,
+              -8
+            ],
+            "target": null,
+            "distance": 44,
+            "decay": 2,
+            "castShadow": false,
+            "visible": true,
+            "shadow": {
+              "mapSize": [
+                512,
+                512
+              ],
+              "bias": 0,
+              "normalBias": 0,
+              "radius": 1,
+              "near": 0.5,
+              "far": 500,
+              "halfExtent": null
+            }
+          },
+          {
+            "name": "interior-zone-light-0-38",
+            "type": "PointLight",
+            "path": "<Scene>/world-root/world-environment/optimized-factory-environment/interior-light-rig/interior-zone-light-0-38",
+            "intensity": 380,
+            "color": "#fff1db",
+            "groundColor": null,
+            "worldPosition": [
+              0,
+              17.5,
+              38
+            ],
+            "target": null,
+            "distance": 44,
+            "decay": 2,
+            "castShadow": false,
+            "visible": true,
+            "shadow": {
+              "mapSize": [
+                512,
+                512
+              ],
+              "bias": 0,
+              "normalBias": 0,
+              "radius": 1,
+              "near": 0.5,
+              "far": 500,
+              "halfExtent": null
+            }
+          },
+          {
+            "name": "station-interior-fixture-light",
+            "type": "PointLight",
+            "path": "<Scene>/world-root/authored-factory-exterior/<Group>/<Group>/station-authored-retail/station-interior-fixture-light",
+            "intensity": 48,
+            "color": "#fff4e4",
+            "groundColor": null,
+            "worldPosition": [
+              -95.6,
+              4.15,
+              138.8
+            ],
+            "target": null,
+            "distance": 8.5,
+            "decay": 2,
+            "castShadow": false,
+            "visible": true,
+            "shadow": {
+              "mapSize": [
+                512,
+                512
+              ],
+              "bias": 0,
+              "normalBias": 0,
+              "radius": 1,
+              "near": 0.5,
+              "far": 500,
+              "halfExtent": null
+            }
+          },
+          {
+            "name": "station-canopy-light-0",
+            "type": "SpotLight",
+            "path": "<Scene>/world-root/authored-factory-exterior/<Group>/<Group>/station-canopy-light-banks/<Group>/station-canopy-light-0",
+            "intensity": 0,
+            "color": "#ffe4c4",
+            "groundColor": null,
+            "worldPosition": [
+              -90,
+              4.21,
+              137.2
+            ],
+            "target": [
+              -90,
+              3.21,
+              137.2
+            ],
+            "distance": 11.5,
+            "decay": 2,
+            "castShadow": false,
+            "visible": true,
+            "shadow": {
+              "mapSize": [
+                512,
+                512
+              ],
+              "bias": 0,
+              "normalBias": 0,
+              "radius": 1,
+              "near": 0.5,
+              "far": 500,
+              "halfExtent": null
+            }
+          },
+          {
+            "name": "station-canopy-light-1",
+            "type": "SpotLight",
+            "path": "<Scene>/world-root/authored-factory-exterior/<Group>/<Group>/station-canopy-light-banks/<Group>/station-canopy-light-1",
+            "intensity": 0,
+            "color": "#ffe4c4",
+            "groundColor": null,
+            "worldPosition": [
+              -80,
+              4.21,
+              142.8
+            ],
+            "target": [
+              -80,
+              3.21,
+              142.8
+            ],
+            "distance": 11.5,
+            "decay": 2,
+            "castShadow": false,
+            "visible": true,
+            "shadow": {
+              "mapSize": [
+                512,
+                512
+              ],
+              "bias": 0,
+              "normalBias": 0,
+              "radius": 1,
+              "near": 0.5,
+              "far": 500,
+              "halfExtent": null
+            }
+          }
+        ],
+        "scene": {
+          "environmentBound": true,
+          "environmentIntensity": 0.3,
+          "backgroundBound": true,
+          "fog": {
+            "type": "FogExp2",
+            "color": "#a3cce2",
+            "near": null,
+            "far": null,
+            "density": 0.002
+          }
+        },
+        "renderer": {
+          "toneMapping": 7,
+          "toneMappingExposure": 1.02,
+          "outputColorSpace": "srgb",
+          "shadowMapEnabled": false,
+          "shadowMapType": 2
+        }
+      },
+      "load": [
+        28.981884765625,
+        24.926953125,
+        20.76357421875
+      ]
+    }
+  ],
+  "audio": "--mute-audio",
+  "homes": [
+    {
+      "name": "village-home-glazing-0",
+      "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/village-home-honey-cottage/village-home-glazing-0",
+      "worldPosition": [
+        -215,
+        0,
+        -35
+      ],
+      "worldDeterminant": 1,
+      "visible": true,
+      "visibleInTree": true,
+      "frustumCulled": true,
+      "castShadow": false,
+      "receiveShadow": false,
+      "renderOrder": 0,
+      "layersMask": 1,
+      "instanceCount": 1,
+      "geometry": {
+        "vertices": 288,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color"
+        ],
+        "boundingSphereRadius": 3.4245168992860804,
+        "worldRadius": 3.4245168992860804,
+        "worldRadiusSum": 3.4245168992860804,
+        "nonFinite": false,
+        "instancedDrawCount": null
+      },
+      "textures": [],
+      "material": {
+        "type": "MeshStandardMaterial",
+        "name": "",
+        "uuid": "84e8fff7-d5bc-44ae-be69-10723c263330",
+        "color": "#93c5fd",
+        "emissive": "#000000",
+        "emissiveIntensity": 0,
+        "metalness": 0,
+        "roughness": 0.18,
+        "envMapIntensity": 1,
+        "envMapBound": false,
+        "lightMapBound": false,
+        "lightMapIntensity": 1,
+        "aoMapBound": false,
+        "aoMapIntensity": 1,
+        "mapUuid": null,
+        "mapColorSpace": null,
+        "mapSize": null,
+        "normalMapBound": false,
+        "shaderInjected": false,
+        "vertexColors": false,
+        "side": 0,
+        "shadowSide": null,
+        "flatShading": false,
+        "transparent": true,
+        "opacity": 0.72,
+        "toneMapped": true,
+        "fog": true,
+        "blending": 1,
+        "depthWrite": false,
+        "visible": true
+      }
+    },
+    {
+      "name": "village-home-glazing-1",
+      "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/village-home-rose-gable/village-home-glazing-1",
+      "worldPosition": [
+        -165,
+        0,
+        -35
+      ],
+      "worldDeterminant": 1,
+      "visible": true,
+      "visibleInTree": true,
+      "frustumCulled": true,
+      "castShadow": false,
+      "receiveShadow": false,
+      "renderOrder": 0,
+      "layersMask": 1,
+      "instanceCount": 1,
+      "geometry": {
+        "vertices": 360,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color"
+        ],
+        "boundingSphereRadius": 3.6205812473602967,
+        "worldRadius": 3.6205812473602967,
+        "worldRadiusSum": 3.6205812473602967,
+        "nonFinite": false,
+        "instancedDrawCount": null
+      },
+      "textures": [],
+      "material": {
+        "type": "MeshStandardMaterial",
+        "name": "",
+        "uuid": "84e8fff7-d5bc-44ae-be69-10723c263330",
+        "color": "#93c5fd",
+        "emissive": "#000000",
+        "emissiveIntensity": 0,
+        "metalness": 0,
+        "roughness": 0.18,
+        "envMapIntensity": 1,
+        "envMapBound": false,
+        "lightMapBound": false,
+        "lightMapIntensity": 1,
+        "aoMapBound": false,
+        "aoMapIntensity": 1,
+        "mapUuid": null,
+        "mapColorSpace": null,
+        "mapSize": null,
+        "normalMapBound": false,
+        "shaderInjected": false,
+        "vertexColors": false,
+        "side": 0,
+        "shadowSide": null,
+        "flatShading": false,
+        "transparent": true,
+        "opacity": 0.72,
+        "toneMapped": true,
+        "fog": true,
+        "blending": 1,
+        "depthWrite": false,
+        "visible": true
+      }
+    },
+    {
+      "name": "village-home-glazing-2",
+      "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/village-home-bluebell-house/village-home-glazing-2",
+      "worldPosition": [
+        -165,
+        0,
+        -50
+      ],
+      "worldDeterminant": 1,
+      "visible": true,
+      "visibleInTree": true,
+      "frustumCulled": true,
+      "castShadow": false,
+      "receiveShadow": false,
+      "renderOrder": 0,
+      "layersMask": 1,
+      "instanceCount": 1,
+      "geometry": {
+        "vertices": 288,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color"
+        ],
+        "boundingSphereRadius": 3.3675311003080797,
+        "worldRadius": 3.3675311003080797,
+        "worldRadiusSum": 3.3675311003080797,
+        "nonFinite": false,
+        "instancedDrawCount": null
+      },
+      "textures": [],
+      "material": {
+        "type": "MeshStandardMaterial",
+        "name": "",
+        "uuid": "84e8fff7-d5bc-44ae-be69-10723c263330",
+        "color": "#93c5fd",
+        "emissive": "#000000",
+        "emissiveIntensity": 0,
+        "metalness": 0,
+        "roughness": 0.18,
+        "envMapIntensity": 1,
+        "envMapBound": false,
+        "lightMapBound": false,
+        "lightMapIntensity": 1,
+        "aoMapBound": false,
+        "aoMapIntensity": 1,
+        "mapUuid": null,
+        "mapColorSpace": null,
+        "mapSize": null,
+        "normalMapBound": false,
+        "shaderInjected": false,
+        "vertexColors": false,
+        "side": 0,
+        "shadowSide": null,
+        "flatShading": false,
+        "transparent": true,
+        "opacity": 0.72,
+        "toneMapped": true,
+        "fog": true,
+        "blending": 1,
+        "depthWrite": false,
+        "visible": true
+      }
+    },
+    {
+      "name": "village-home-glazing-3",
+      "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/village-home-brick-and-sage/village-home-glazing-3",
+      "worldPosition": [
+        -215,
+        0,
+        45
+      ],
+      "worldDeterminant": 1,
+      "visible": true,
+      "visibleInTree": true,
+      "frustumCulled": true,
+      "castShadow": false,
+      "receiveShadow": false,
+      "renderOrder": 0,
+      "layersMask": 1,
+      "instanceCount": 1,
+      "geometry": {
+        "vertices": 360,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color"
+        ],
+        "boundingSphereRadius": 3.7178390452230974,
+        "worldRadius": 3.7178390452230974,
+        "worldRadiusSum": 3.7178390452230974,
+        "nonFinite": false,
+        "instancedDrawCount": null
+      },
+      "textures": [],
+      "material": {
+        "type": "MeshStandardMaterial",
+        "name": "",
+        "uuid": "84e8fff7-d5bc-44ae-be69-10723c263330",
+        "color": "#93c5fd",
+        "emissive": "#000000",
+        "emissiveIntensity": 0,
+        "metalness": 0,
+        "roughness": 0.18,
+        "envMapIntensity": 1,
+        "envMapBound": false,
+        "lightMapBound": false,
+        "lightMapIntensity": 1,
+        "aoMapBound": false,
+        "aoMapIntensity": 1,
+        "mapUuid": null,
+        "mapColorSpace": null,
+        "mapSize": null,
+        "normalMapBound": false,
+        "shaderInjected": false,
+        "vertexColors": false,
+        "side": 0,
+        "shadowSide": null,
+        "flatShading": false,
+        "transparent": true,
+        "opacity": 0.72,
+        "toneMapped": true,
+        "fog": true,
+        "blending": 1,
+        "depthWrite": false,
+        "visible": true
+      }
+    },
+    {
+      "name": "village-home-glazing-4",
+      "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/village-home-pearl-cottage/village-home-glazing-4",
+      "worldPosition": [
+        -165,
+        0,
+        55
+      ],
+      "worldDeterminant": 1,
+      "visible": true,
+      "visibleInTree": true,
+      "frustumCulled": true,
+      "castShadow": false,
+      "receiveShadow": false,
+      "renderOrder": 0,
+      "layersMask": 1,
+      "instanceCount": 1,
+      "geometry": {
+        "vertices": 288,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color"
+        ],
+        "boundingSphereRadius": 3.5878190085357446,
+        "worldRadius": 3.5878190085357446,
+        "worldRadiusSum": 3.5878190085357446,
+        "nonFinite": false,
+        "instancedDrawCount": null
+      },
+      "textures": [],
+      "material": {
+        "type": "MeshStandardMaterial",
+        "name": "",
+        "uuid": "84e8fff7-d5bc-44ae-be69-10723c263330",
+        "color": "#93c5fd",
+        "emissive": "#000000",
+        "emissiveIntensity": 0,
+        "metalness": 0,
+        "roughness": 0.18,
+        "envMapIntensity": 1,
+        "envMapBound": false,
+        "lightMapBound": false,
+        "lightMapIntensity": 1,
+        "aoMapBound": false,
+        "aoMapIntensity": 1,
+        "mapUuid": null,
+        "mapColorSpace": null,
+        "mapSize": null,
+        "normalMapBound": false,
+        "shaderInjected": false,
+        "vertexColors": false,
+        "side": 0,
+        "shadowSide": null,
+        "flatShading": false,
+        "transparent": true,
+        "opacity": 0.72,
+        "toneMapped": true,
+        "fog": true,
+        "blending": 1,
+        "depthWrite": false,
+        "visible": true
+      }
+    }
+  ],
+  "heritage": [
+    {
+      "name": "heritage-flour-heading",
+      "path": "<Scene>/world-root/authored-factory-exterior/<Group>/<Group>/<Group>/<Group>/heritage-flour-poster/heritage-flour-heading",
+      "worldPosition": [
+        29,
+        1.96,
+        137.97000000000003
+      ],
+      "worldDeterminant": 1,
+      "visible": true,
+      "visibleInTree": true,
+      "frustumCulled": true,
+      "castShadow": false,
+      "receiveShadow": false,
+      "renderOrder": 0,
+      "layersMask": 1,
+      "instanceCount": 1,
+      "geometry": {
+        "vertices": 4,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "aTroikaGlyphBounds",
+          "aTroikaGlyphIndex"
+        ],
+        "boundingSphereRadius": 0.5495469518381362,
+        "worldRadius": 0.5495469518381362,
+        "worldRadiusSum": 0.5495469518381362,
+        "nonFinite": false,
+        "instancedDrawCount": 11
+      },
+      "textures": [],
+      "material": {
+        "type": "MeshStandardMaterial",
+        "name": "",
+        "uuid": "66CC3F7E-E134-48F0-AE3E-E02053C65CC1",
+        "color": "#ffffff",
+        "emissive": "#141310",
+        "emissiveIntensity": 0.2,
+        "metalness": 0,
+        "roughness": 0.78,
+        "envMapIntensity": 1,
+        "envMapBound": false,
+        "lightMapBound": false,
+        "lightMapIntensity": 1,
+        "aoMapBound": false,
+        "aoMapIntensity": 1,
+        "mapUuid": null,
+        "mapColorSpace": null,
+        "mapSize": null,
+        "normalMapBound": false,
+        "shaderInjected": false,
+        "vertexColors": false,
+        "side": 2,
+        "shadowSide": 2,
+        "flatShading": false,
+        "transparent": true,
+        "opacity": 1,
+        "toneMapped": true,
+        "fog": true,
+        "blending": 1,
+        "depthWrite": false,
+        "visible": true
+      }
+    },
+    {
+      "name": "heritage-flour-tagline",
+      "path": "<Scene>/world-root/authored-factory-exterior/<Group>/<Group>/<Group>/<Group>/heritage-flour-poster/heritage-flour-tagline",
+      "worldPosition": [
+        29,
+        0.8300000000000001,
+        137.96400000000003
+      ],
+      "worldDeterminant": 1,
+      "visible": true,
+      "visibleInTree": true,
+      "frustumCulled": true,
+      "castShadow": false,
+      "receiveShadow": false,
+      "renderOrder": 0,
+      "layersMask": 1,
+      "instanceCount": 1,
+      "geometry": {
+        "vertices": 4,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "aTroikaGlyphBounds",
+          "aTroikaGlyphIndex"
+        ],
+        "boundingSphereRadius": 0.46607780223477935,
+        "worldRadius": 0.46607780223477935,
+        "worldRadiusSum": 0.46607780223477935,
+        "nonFinite": false,
+        "instancedDrawCount": 25
+      },
+      "textures": [],
+      "material": {
+        "type": "MeshStandardMaterial",
+        "name": "",
+        "uuid": "4A20FE27-F430-450C-BDE1-D8C1A461BD2E",
+        "color": "#ffffff",
+        "emissive": "#141310",
+        "emissiveIntensity": 0.2,
+        "metalness": 0,
+        "roughness": 0.78,
+        "envMapIntensity": 1,
+        "envMapBound": false,
+        "lightMapBound": false,
+        "lightMapIntensity": 1,
+        "aoMapBound": false,
+        "aoMapIntensity": 1,
+        "mapUuid": null,
+        "mapColorSpace": null,
+        "mapSize": null,
+        "normalMapBound": false,
+        "shaderInjected": true,
+        "vertexColors": false,
+        "side": 2,
+        "shadowSide": 2,
+        "flatShading": false,
+        "transparent": true,
+        "opacity": 1,
+        "toneMapped": true,
+        "fog": true,
+        "blending": 1,
+        "depthWrite": false,
+        "visible": true
+      }
+    },
+    {
+      "name": "heritage-flour-footer",
+      "path": "<Scene>/world-root/authored-factory-exterior/<Group>/<Group>/<Group>/<Group>/heritage-flour-poster/heritage-flour-footer",
+      "worldPosition": [
+        29,
+        0.5800000000000001,
+        137.96400000000003
+      ],
+      "worldDeterminant": 1,
+      "visible": true,
+      "visibleInTree": true,
+      "frustumCulled": true,
+      "castShadow": false,
+      "receiveShadow": false,
+      "renderOrder": 0,
+      "layersMask": 1,
+      "instanceCount": 1,
+      "geometry": {
+        "vertices": 4,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "aTroikaGlyphBounds",
+          "aTroikaGlyphIndex"
+        ],
+        "boundingSphereRadius": 0.4569745733299262,
+        "worldRadius": 0.4569745733299262,
+        "worldRadiusSum": 0.4569745733299262,
+        "nonFinite": false,
+        "instancedDrawCount": 18
+      },
+      "textures": [],
+      "material": {
+        "type": "MeshStandardMaterial",
+        "name": "",
+        "uuid": "13352A0B-40D0-44AB-B904-E2E58D939D1B",
+        "color": "#ffffff",
+        "emissive": "#141310",
+        "emissiveIntensity": 0.2,
+        "metalness": 0,
+        "roughness": 0.78,
+        "envMapIntensity": 1,
+        "envMapBound": false,
+        "lightMapBound": false,
+        "lightMapIntensity": 1,
+        "aoMapBound": false,
+        "aoMapIntensity": 1,
+        "mapUuid": null,
+        "mapColorSpace": null,
+        "mapSize": null,
+        "normalMapBound": false,
+        "shaderInjected": true,
+        "vertexColors": false,
+        "side": 2,
+        "shadowSide": 2,
+        "flatShading": false,
+        "transparent": true,
+        "opacity": 1,
+        "toneMapped": true,
+        "fog": true,
+        "blending": 1,
+        "depthWrite": false,
+        "visible": true
+      }
+    },
+    {
+      "name": "heritage-flour-heading",
+      "path": "<Scene>/world-root/authored-factory-exterior/<Group>/<Group>/<Group>/<Group>/heritage-flour-poster/heritage-flour-heading",
+      "worldPosition": [
+        29,
+        1.96,
+        138.07
+      ],
+      "worldDeterminant": 1,
+      "visible": true,
+      "visibleInTree": true,
+      "frustumCulled": true,
+      "castShadow": false,
+      "receiveShadow": false,
+      "renderOrder": 0,
+      "layersMask": 1,
+      "instanceCount": 1,
+      "geometry": {
+        "vertices": 4,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "aTroikaGlyphBounds",
+          "aTroikaGlyphIndex"
+        ],
+        "boundingSphereRadius": 0.5495469518381362,
+        "worldRadius": 0.5495469518381362,
+        "worldRadiusSum": 0.5495469518381362,
+        "nonFinite": false,
+        "instancedDrawCount": 11
+      },
+      "textures": [],
+      "material": {
+        "type": "MeshStandardMaterial",
+        "name": "",
+        "uuid": "9237841F-2A6C-46BA-8A83-454894EBF162",
+        "color": "#ffffff",
+        "emissive": "#141310",
+        "emissiveIntensity": 0.2,
+        "metalness": 0,
+        "roughness": 0.78,
+        "envMapIntensity": 1,
+        "envMapBound": false,
+        "lightMapBound": false,
+        "lightMapIntensity": 1,
+        "aoMapBound": false,
+        "aoMapIntensity": 1,
+        "mapUuid": null,
+        "mapColorSpace": null,
+        "mapSize": null,
+        "normalMapBound": false,
+        "shaderInjected": false,
+        "vertexColors": false,
+        "side": 2,
+        "shadowSide": 2,
+        "flatShading": false,
+        "transparent": true,
+        "opacity": 1,
+        "toneMapped": true,
+        "fog": true,
+        "blending": 1,
+        "depthWrite": false,
+        "visible": true
+      }
+    },
+    {
+      "name": "heritage-flour-tagline",
+      "path": "<Scene>/world-root/authored-factory-exterior/<Group>/<Group>/<Group>/<Group>/heritage-flour-poster/heritage-flour-tagline",
+      "worldPosition": [
+        29,
+        0.8300000000000001,
+        138.076
+      ],
+      "worldDeterminant": 1,
+      "visible": true,
+      "visibleInTree": true,
+      "frustumCulled": true,
+      "castShadow": false,
+      "receiveShadow": false,
+      "renderOrder": 0,
+      "layersMask": 1,
+      "instanceCount": 1,
+      "geometry": {
+        "vertices": 4,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "aTroikaGlyphBounds",
+          "aTroikaGlyphIndex"
+        ],
+        "boundingSphereRadius": 0.46607780223477935,
+        "worldRadius": 0.46607780223477935,
+        "worldRadiusSum": 0.46607780223477935,
+        "nonFinite": false,
+        "instancedDrawCount": 25
+      },
+      "textures": [],
+      "material": {
+        "type": "MeshStandardMaterial",
+        "name": "",
+        "uuid": "E0A60883-74EB-4A6D-9B1F-455B1B4B79A7",
+        "color": "#ffffff",
+        "emissive": "#141310",
+        "emissiveIntensity": 0.2,
+        "metalness": 0,
+        "roughness": 0.78,
+        "envMapIntensity": 1,
+        "envMapBound": false,
+        "lightMapBound": false,
+        "lightMapIntensity": 1,
+        "aoMapBound": false,
+        "aoMapIntensity": 1,
+        "mapUuid": null,
+        "mapColorSpace": null,
+        "mapSize": null,
+        "normalMapBound": false,
+        "shaderInjected": true,
+        "vertexColors": false,
+        "side": 2,
+        "shadowSide": 2,
+        "flatShading": false,
+        "transparent": true,
+        "opacity": 1,
+        "toneMapped": true,
+        "fog": true,
+        "blending": 1,
+        "depthWrite": false,
+        "visible": true
+      }
+    },
+    {
+      "name": "heritage-flour-footer",
+      "path": "<Scene>/world-root/authored-factory-exterior/<Group>/<Group>/<Group>/<Group>/heritage-flour-poster/heritage-flour-footer",
+      "worldPosition": [
+        29,
+        0.5800000000000001,
+        138.076
+      ],
+      "worldDeterminant": 1,
+      "visible": true,
+      "visibleInTree": true,
+      "frustumCulled": true,
+      "castShadow": false,
+      "receiveShadow": false,
+      "renderOrder": 0,
+      "layersMask": 1,
+      "instanceCount": 1,
+      "geometry": {
+        "vertices": 4,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "aTroikaGlyphBounds",
+          "aTroikaGlyphIndex"
+        ],
+        "boundingSphereRadius": 0.4569745733299262,
+        "worldRadius": 0.4569745733299262,
+        "worldRadiusSum": 0.4569745733299262,
+        "nonFinite": false,
+        "instancedDrawCount": 18
+      },
+      "textures": [],
+      "material": {
+        "type": "MeshStandardMaterial",
+        "name": "",
+        "uuid": "625AFB58-8951-48E3-9EB6-FF4038A4211A",
+        "color": "#ffffff",
+        "emissive": "#141310",
+        "emissiveIntensity": 0.2,
+        "metalness": 0,
+        "roughness": 0.78,
+        "envMapIntensity": 1,
+        "envMapBound": false,
+        "lightMapBound": false,
+        "lightMapIntensity": 1,
+        "aoMapBound": false,
+        "aoMapIntensity": 1,
+        "mapUuid": null,
+        "mapColorSpace": null,
+        "mapSize": null,
+        "normalMapBound": false,
+        "shaderInjected": true,
+        "vertexColors": false,
+        "side": 2,
+        "shadowSide": 2,
+        "flatShading": false,
+        "transparent": true,
+        "opacity": 1,
+        "toneMapped": true,
+        "fog": true,
+        "blending": 1,
+        "depthWrite": false,
+        "visible": true
+      }
+    },
+    {
+      "name": "heritage-dino-heading",
+      "path": "<Scene>/world-root/authored-factory-exterior/<Group>/<Group>/<Group>/<Group>/heritage-dino-poster/heritage-dino-heading",
+      "worldPosition": [
+        29,
+        1.96,
+        141.93
+      ],
+      "worldDeterminant": 1,
+      "visible": true,
+      "visibleInTree": true,
+      "frustumCulled": true,
+      "castShadow": false,
+      "receiveShadow": false,
+      "renderOrder": 0,
+      "layersMask": 1,
+      "instanceCount": 1,
+      "geometry": {
+        "vertices": 4,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "aTroikaGlyphBounds",
+          "aTroikaGlyphIndex"
+        ],
+        "boundingSphereRadius": 0.4626168456915095,
+        "worldRadius": 0.4626168456915095,
+        "worldRadiusSum": 0.4626168456915095,
+        "nonFinite": false,
+        "instancedDrawCount": 8
+      },
+      "textures": [],
+      "material": {
+        "type": "MeshStandardMaterial",
+        "name": "",
+        "uuid": "D99ED47D-5192-434F-A210-34450D900042",
+        "color": "#ffffff",
+        "emissive": "#141310",
+        "emissiveIntensity": 0.2,
+        "metalness": 0,
+        "roughness": 0.78,
+        "envMapIntensity": 1,
+        "envMapBound": false,
+        "lightMapBound": false,
+        "lightMapIntensity": 1,
+        "aoMapBound": false,
+        "aoMapIntensity": 1,
+        "mapUuid": null,
+        "mapColorSpace": null,
+        "mapSize": null,
+        "normalMapBound": false,
+        "shaderInjected": false,
+        "vertexColors": false,
+        "side": 2,
+        "shadowSide": 2,
+        "flatShading": false,
+        "transparent": true,
+        "opacity": 1,
+        "toneMapped": true,
+        "fog": true,
+        "blending": 1,
+        "depthWrite": false,
+        "visible": true
+      }
+    },
+    {
+      "name": "heritage-dino-tagline",
+      "path": "<Scene>/world-root/authored-factory-exterior/<Group>/<Group>/<Group>/<Group>/heritage-dino-poster/heritage-dino-tagline",
+      "worldPosition": [
+        29,
+        0.8300000000000001,
+        141.924
+      ],
+      "worldDeterminant": 1,
+      "visible": true,
+      "visibleInTree": true,
+      "frustumCulled": true,
+      "castShadow": false,
+      "receiveShadow": false,
+      "renderOrder": 0,
+      "layersMask": 1,
+      "instanceCount": 1,
+      "geometry": {
+        "vertices": 4,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "aTroikaGlyphBounds",
+          "aTroikaGlyphIndex"
+        ],
+        "boundingSphereRadius": 0.32749064986891224,
+        "worldRadius": 0.32749064986891224,
+        "worldRadiusSum": 0.32749064986891224,
+        "nonFinite": false,
+        "instancedDrawCount": 17
+      },
+      "textures": [],
+      "material": {
+        "type": "MeshStandardMaterial",
+        "name": "",
+        "uuid": "06DEA847-7558-45EE-9FC0-9AA26EDD92F0",
+        "color": "#ffffff",
+        "emissive": "#141310",
+        "emissiveIntensity": 0.2,
+        "metalness": 0,
+        "roughness": 0.78,
+        "envMapIntensity": 1,
+        "envMapBound": false,
+        "lightMapBound": false,
+        "lightMapIntensity": 1,
+        "aoMapBound": false,
+        "aoMapIntensity": 1,
+        "mapUuid": null,
+        "mapColorSpace": null,
+        "mapSize": null,
+        "normalMapBound": false,
+        "shaderInjected": true,
+        "vertexColors": false,
+        "side": 2,
+        "shadowSide": 2,
+        "flatShading": false,
+        "transparent": true,
+        "opacity": 1,
+        "toneMapped": true,
+        "fog": true,
+        "blending": 1,
+        "depthWrite": false,
+        "visible": true
+      }
+    },
+    {
+      "name": "heritage-dino-footer",
+      "path": "<Scene>/world-root/authored-factory-exterior/<Group>/<Group>/<Group>/<Group>/heritage-dino-poster/heritage-dino-footer",
+      "worldPosition": [
+        29,
+        0.5800000000000001,
+        141.924
+      ],
+      "worldDeterminant": 1,
+      "visible": true,
+      "visibleInTree": true,
+      "frustumCulled": true,
+      "castShadow": false,
+      "receiveShadow": false,
+      "renderOrder": 0,
+      "layersMask": 1,
+      "instanceCount": 1,
+      "geometry": {
+        "vertices": 4,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "aTroikaGlyphBounds",
+          "aTroikaGlyphIndex"
+        ],
+        "boundingSphereRadius": 0.4360603367110613,
+        "worldRadius": 0.4360603367110613,
+        "worldRadiusSum": 0.4360603367110613,
+        "nonFinite": false,
+        "instancedDrawCount": 17
+      },
+      "textures": [],
+      "material": {
+        "type": "MeshStandardMaterial",
+        "name": "",
+        "uuid": "59B417DD-F44E-44A4-938B-9FE4B39186C9",
+        "color": "#ffffff",
+        "emissive": "#141310",
+        "emissiveIntensity": 0.2,
+        "metalness": 0,
+        "roughness": 0.78,
+        "envMapIntensity": 1,
+        "envMapBound": false,
+        "lightMapBound": false,
+        "lightMapIntensity": 1,
+        "aoMapBound": false,
+        "aoMapIntensity": 1,
+        "mapUuid": null,
+        "mapColorSpace": null,
+        "mapSize": null,
+        "normalMapBound": false,
+        "shaderInjected": true,
+        "vertexColors": false,
+        "side": 2,
+        "shadowSide": 2,
+        "flatShading": false,
+        "transparent": true,
+        "opacity": 1,
+        "toneMapped": true,
+        "fog": true,
+        "blending": 1,
+        "depthWrite": false,
+        "visible": true
+      }
+    },
+    {
+      "name": "heritage-dino-heading",
+      "path": "<Scene>/world-root/authored-factory-exterior/<Group>/<Group>/<Group>/<Group>/heritage-dino-poster/heritage-dino-heading",
+      "worldPosition": [
+        29,
+        1.96,
+        142.02999999999997
+      ],
+      "worldDeterminant": 1,
+      "visible": true,
+      "visibleInTree": true,
+      "frustumCulled": true,
+      "castShadow": false,
+      "receiveShadow": false,
+      "renderOrder": 0,
+      "layersMask": 1,
+      "instanceCount": 1,
+      "geometry": {
+        "vertices": 4,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "aTroikaGlyphBounds",
+          "aTroikaGlyphIndex"
+        ],
+        "boundingSphereRadius": 0.4626168456915095,
+        "worldRadius": 0.4626168456915095,
+        "worldRadiusSum": 0.4626168456915095,
+        "nonFinite": false,
+        "instancedDrawCount": 8
+      },
+      "textures": [],
+      "material": {
+        "type": "MeshStandardMaterial",
+        "name": "",
+        "uuid": "9F1078CF-8C4F-492F-B475-9F30707C563B",
+        "color": "#ffffff",
+        "emissive": "#141310",
+        "emissiveIntensity": 0.2,
+        "metalness": 0,
+        "roughness": 0.78,
+        "envMapIntensity": 1,
+        "envMapBound": false,
+        "lightMapBound": false,
+        "lightMapIntensity": 1,
+        "aoMapBound": false,
+        "aoMapIntensity": 1,
+        "mapUuid": null,
+        "mapColorSpace": null,
+        "mapSize": null,
+        "normalMapBound": false,
+        "shaderInjected": false,
+        "vertexColors": false,
+        "side": 2,
+        "shadowSide": 2,
+        "flatShading": false,
+        "transparent": true,
+        "opacity": 1,
+        "toneMapped": true,
+        "fog": true,
+        "blending": 1,
+        "depthWrite": false,
+        "visible": true
+      }
+    },
+    {
+      "name": "heritage-dino-tagline",
+      "path": "<Scene>/world-root/authored-factory-exterior/<Group>/<Group>/<Group>/<Group>/heritage-dino-poster/heritage-dino-tagline",
+      "worldPosition": [
+        29,
+        0.8300000000000001,
+        142.03599999999997
+      ],
+      "worldDeterminant": 1,
+      "visible": true,
+      "visibleInTree": true,
+      "frustumCulled": true,
+      "castShadow": false,
+      "receiveShadow": false,
+      "renderOrder": 0,
+      "layersMask": 1,
+      "instanceCount": 1,
+      "geometry": {
+        "vertices": 4,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "aTroikaGlyphBounds",
+          "aTroikaGlyphIndex"
+        ],
+        "boundingSphereRadius": 0.32749064986891224,
+        "worldRadius": 0.32749064986891224,
+        "worldRadiusSum": 0.32749064986891224,
+        "nonFinite": false,
+        "instancedDrawCount": 17
+      },
+      "textures": [],
+      "material": {
+        "type": "MeshStandardMaterial",
+        "name": "",
+        "uuid": "B534EEC8-58AD-4B45-8463-7FD5504FA19A",
+        "color": "#ffffff",
+        "emissive": "#141310",
+        "emissiveIntensity": 0.2,
+        "metalness": 0,
+        "roughness": 0.78,
+        "envMapIntensity": 1,
+        "envMapBound": false,
+        "lightMapBound": false,
+        "lightMapIntensity": 1,
+        "aoMapBound": false,
+        "aoMapIntensity": 1,
+        "mapUuid": null,
+        "mapColorSpace": null,
+        "mapSize": null,
+        "normalMapBound": false,
+        "shaderInjected": true,
+        "vertexColors": false,
+        "side": 2,
+        "shadowSide": 2,
+        "flatShading": false,
+        "transparent": true,
+        "opacity": 1,
+        "toneMapped": true,
+        "fog": true,
+        "blending": 1,
+        "depthWrite": false,
+        "visible": true
+      }
+    },
+    {
+      "name": "heritage-dino-footer",
+      "path": "<Scene>/world-root/authored-factory-exterior/<Group>/<Group>/<Group>/<Group>/heritage-dino-poster/heritage-dino-footer",
+      "worldPosition": [
+        29,
+        0.5800000000000001,
+        142.03599999999997
+      ],
+      "worldDeterminant": 1,
+      "visible": true,
+      "visibleInTree": true,
+      "frustumCulled": true,
+      "castShadow": false,
+      "receiveShadow": false,
+      "renderOrder": 0,
+      "layersMask": 1,
+      "instanceCount": 1,
+      "geometry": {
+        "vertices": 4,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "aTroikaGlyphBounds",
+          "aTroikaGlyphIndex"
+        ],
+        "boundingSphereRadius": 0.4360603367110613,
+        "worldRadius": 0.4360603367110613,
+        "worldRadiusSum": 0.4360603367110613,
+        "nonFinite": false,
+        "instancedDrawCount": 17
+      },
+      "textures": [],
+      "material": {
+        "type": "MeshStandardMaterial",
+        "name": "",
+        "uuid": "20054A9B-A940-4B97-8C4F-856A9BD33D68",
+        "color": "#ffffff",
+        "emissive": "#141310",
+        "emissiveIntensity": 0.2,
+        "metalness": 0,
+        "roughness": 0.78,
+        "envMapIntensity": 1,
+        "envMapBound": false,
+        "lightMapBound": false,
+        "lightMapIntensity": 1,
+        "aoMapBound": false,
+        "aoMapIntensity": 1,
+        "mapUuid": null,
+        "mapColorSpace": null,
+        "mapSize": null,
+        "normalMapBound": false,
+        "shaderInjected": true,
+        "vertexColors": false,
+        "side": 2,
+        "shadowSide": 2,
+        "flatShading": false,
+        "transparent": true,
+        "opacity": 1,
+        "toneMapped": true,
+        "fog": true,
+        "blending": 1,
+        "depthWrite": false,
+        "visible": true
+      }
+    },
+    {
+      "name": "CastleBody",
+      "path": "<Scene>/world-root/authored-castle/heritage-castle/MillOS_Village_Castle/CastleBody",
+      "worldPosition": [
+        45,
+        -0.32000000000000006,
+        -219
+      ],
+      "worldDeterminant": 3.375,
+      "visible": true,
+      "visibleInTree": true,
+      "frustumCulled": true,
+      "castShadow": true,
+      "receiveShadow": true,
+      "renderOrder": 0,
+      "layersMask": 1,
+      "instanceCount": 1,
+      "geometry": {
+        "vertices": 14131,
+        "attributes": [
+          "position",
+          "normal",
+          "uv"
+        ],
+        "boundingSphereRadius": 34.365177328545336,
+        "worldRadius": 51.547765992818,
+        "worldRadiusSum": 51.547765992818,
+        "nonFinite": false,
+        "instancedDrawCount": null
+      },
+      "textures": [
+        {
+          "slot": "map",
+          "uuid": "e752d654-6022-467a-b437-ec9911bbb36e",
+          "colorSpace": "srgb",
+          "size": [
+            1024,
+            1024
+          ]
+        }
+      ],
+      "material": {
+        "type": "MeshStandardMaterial",
+        "name": "castle-surface",
+        "uuid": "c2a739e2-72ea-40e3-8d67-52e20c8b584a",
+        "color": "#ffffff",
+        "emissive": "#000000",
+        "emissiveIntensity": 1,
+        "metalness": 0,
+        "roughness": 0.88,
+        "envMapIntensity": 1,
+        "envMapBound": false,
+        "lightMapBound": false,
+        "lightMapIntensity": 1,
+        "aoMapBound": false,
+        "aoMapIntensity": 1,
+        "mapUuid": "e752d654-6022-467a-b437-ec9911bbb36e",
+        "mapColorSpace": "srgb",
+        "mapSize": [
+          1024,
+          1024
+        ],
+        "normalMapBound": false,
+        "shaderInjected": true,
+        "vertexColors": false,
+        "side": 2,
+        "shadowSide": null,
+        "flatShading": false,
+        "transparent": false,
+        "opacity": 1,
+        "toneMapped": true,
+        "fog": true,
+        "blending": 1,
+        "depthWrite": true,
+        "visible": true
+      }
+    },
+    {
+      "name": "castle-access-stairs",
+      "path": "<Scene>/world-root/authored-castle/heritage-castle/castle-access-stairs",
+      "worldPosition": [
+        45,
+        -0.32000000000000006,
+        -219
+      ],
+      "worldDeterminant": 3.375,
+      "visible": true,
+      "visibleInTree": true,
+      "frustumCulled": true,
+      "castShadow": true,
+      "receiveShadow": true,
+      "renderOrder": 0,
+      "layersMask": 1,
+      "instanceCount": 1,
+      "geometry": {
+        "vertices": 1080,
+        "attributes": [
+          "position",
+          "normal",
+          "uv"
+        ],
+        "boundingSphereRadius": 5.237948557316357,
+        "worldRadius": 7.856922835974535,
+        "worldRadiusSum": 7.856922835974535,
+        "nonFinite": false,
+        "instancedDrawCount": null
+      },
+      "textures": [],
+      "material": {
+        "type": "MeshStandardMaterial",
+        "name": "",
+        "uuid": "5619156d-2e8e-4957-ab71-8dd4dbc40999",
+        "color": "#dce5e9",
+        "emissive": "#000000",
+        "emissiveIntensity": 1,
+        "metalness": 0,
+        "roughness": 0.94,
+        "envMapIntensity": 1,
+        "envMapBound": false,
+        "lightMapBound": false,
+        "lightMapIntensity": 1,
+        "aoMapBound": false,
+        "aoMapIntensity": 1,
+        "mapUuid": null,
+        "mapColorSpace": null,
+        "mapSize": null,
+        "normalMapBound": false,
+        "shaderInjected": true,
+        "vertexColors": false,
+        "side": 0,
+        "shadowSide": null,
+        "flatShading": false,
+        "transparent": false,
+        "opacity": 1,
+        "toneMapped": true,
+        "fog": true,
+        "blending": 1,
+        "depthWrite": true,
+        "visible": true
+      }
+    },
+    {
+      "name": "heritage-wheat-printed-emblem",
+      "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/<Group>/village-nameboard-bakery/<Group>/heritage-wheat-printed-emblem",
+      "worldPosition": [
+        -172.44697362318493,
+        3.1144243255970414,
+        2.7953662924320244
+      ],
+      "worldDeterminant": 0.8964494012993542,
+      "visible": true,
+      "visibleInTree": true,
+      "frustumCulled": true,
+      "castShadow": false,
+      "receiveShadow": false,
+      "renderOrder": 0,
+      "layersMask": 1,
+      "instanceCount": 1,
+      "geometry": {
+        "vertices": 4,
+        "attributes": [
+          "position",
+          "normal",
+          "uv"
+        ],
+        "boundingSphereRadius": 0.2596496009816984,
+        "worldRadius": 0.25035883387893715,
+        "worldRadiusSum": 0.25035883387893715,
+        "nonFinite": false,
+        "instancedDrawCount": null
+      },
+      "textures": [
+        {
+          "slot": "map",
+          "uuid": "9671b902-6c82-44e4-860d-849fbf447ad1",
+          "colorSpace": "srgb",
+          "size": [
+            512,
+            512
+          ]
+        }
+      ],
+      "material": {
+        "type": "MeshStandardMaterial",
+        "name": "",
+        "uuid": "ec0f5d1e-40c7-4b84-9e21-fb5e9526537c",
+        "color": "#e4c680",
+        "emissive": "#000000",
+        "emissiveIntensity": 1,
+        "metalness": 0,
+        "roughness": 0.74,
+        "envMapIntensity": 1,
+        "envMapBound": false,
+        "lightMapBound": false,
+        "lightMapIntensity": 1,
+        "aoMapBound": false,
+        "aoMapIntensity": 1,
+        "mapUuid": "9671b902-6c82-44e4-860d-849fbf447ad1",
+        "mapColorSpace": "srgb",
+        "mapSize": [
+          512,
+          512
+        ],
+        "normalMapBound": false,
+        "shaderInjected": true,
+        "vertexColors": false,
+        "side": 0,
+        "shadowSide": null,
+        "flatShading": false,
+        "transparent": false,
+        "opacity": 1,
+        "toneMapped": true,
+        "fog": true,
+        "blending": 1,
+        "depthWrite": true,
+        "visible": true
+      }
+    }
+  ],
+  "trailerIdentity": [],
+  "landscape": [
+    {
+      "name": "landscape-garden-field-hedges",
+      "path": "<Scene>/world-root/authored-factory-exterior/<Group>/landscape-garden-field-hedges",
+      "worldPosition": [
+        0,
+        0,
+        0
+      ],
+      "worldDeterminant": 1,
+      "visible": true,
+      "visibleInTree": true,
+      "frustumCulled": true,
+      "castShadow": true,
+      "receiveShadow": true,
+      "renderOrder": 0,
+      "layersMask": 1,
+      "instanceCount": 1243,
+      "geometry": {
+        "vertices": 96,
+        "attributes": [
+          "position",
+          "normal",
+          "uv"
+        ],
+        "boundingSphereRadius": 0.7071067811865476,
+        "worldRadius": 2.9597954836230667,
+        "worldRadiusSum": 1667.2049842106567,
+        "nonFinite": false,
+        "instancedDrawCount": null
+      },
+      "textures": [
+        {
+          "slot": "map",
+          "uuid": "bca4cee9-9b76-4bf6-9d07-bca83fe1d001",
+          "colorSpace": "srgb",
+          "size": [
+            384,
+            384
+          ]
+        },
+        {
+          "slot": "normalMap",
+          "uuid": "f7e47363-dff9-4d0e-b47a-b32e7efa0e11",
+          "colorSpace": "",
+          "size": [
+            384,
+            384
+          ]
+        },
+        {
+          "slot": "roughnessMap",
+          "uuid": "6c80fe99-ef69-4c9f-b5f3-b90e6254d757",
+          "colorSpace": "",
+          "size": [
+            256,
+            256
+          ]
+        }
+      ],
+      "material": {
+        "type": "MeshStandardMaterial",
+        "name": "",
+        "uuid": "ac5ce6a3-c64e-4de2-aa53-42a6d7361c2f",
+        "color": "#ffffff",
+        "emissive": "#000000",
+        "emissiveIntensity": 1,
+        "metalness": 0,
+        "roughness": 1,
+        "envMapIntensity": 1,
+        "envMapBound": false,
+        "lightMapBound": false,
+        "lightMapIntensity": 1,
+        "aoMapBound": false,
+        "aoMapIntensity": 1,
+        "mapUuid": "bca4cee9-9b76-4bf6-9d07-bca83fe1d001",
+        "mapColorSpace": "srgb",
+        "mapSize": [
+          384,
+          384
+        ],
+        "normalMapBound": true,
+        "shaderInjected": true,
+        "vertexColors": false,
+        "side": 0,
+        "shadowSide": 0,
+        "flatShading": false,
+        "transparent": false,
+        "opacity": 1,
+        "toneMapped": true,
+        "fog": true,
+        "blending": 1,
+        "depthWrite": true,
+        "visible": true
+      }
+    }
+  ],
+  "stones": [
+    {
+      "name": "landscape-meadow-stone-outcrops",
+      "path": "<Scene>/world-root/authored-factory-exterior/<Group>/landscape-meadow-stone-outcrops",
+      "worldPosition": [
+        0,
+        0,
+        0
+      ],
+      "worldDeterminant": 1,
+      "visible": true,
+      "visibleInTree": true,
+      "frustumCulled": true,
+      "castShadow": false,
+      "receiveShadow": true,
+      "renderOrder": 0,
+      "layersMask": 1,
+      "instanceCount": 49,
+      "geometry": {
+        "vertices": 108,
+        "attributes": [
+          "position",
+          "normal",
+          "uv"
+        ],
+        "boundingSphereRadius": 0.6000000070181176,
+        "worldRadius": 1.2552609534305603,
+        "worldRadiusSum": 40.043455089834126,
+        "nonFinite": false,
+        "instancedDrawCount": null
+      },
+      "textures": [],
+      "material": {
+        "type": "MeshStandardMaterial",
+        "name": "",
+        "uuid": "18ca8404-1f44-4836-8c48-8495aa95940f",
+        "color": "#92917c",
+        "emissive": "#000000",
+        "emissiveIntensity": 1,
+        "metalness": 0,
+        "roughness": 0.98,
+        "envMapIntensity": 1,
+        "envMapBound": false,
+        "lightMapBound": false,
+        "lightMapIntensity": 1,
+        "aoMapBound": false,
+        "aoMapIntensity": 1,
+        "mapUuid": null,
+        "mapColorSpace": null,
+        "mapSize": null,
+        "normalMapBound": false,
+        "shaderInjected": true,
+        "vertexColors": false,
+        "side": 0,
+        "shadowSide": null,
+        "flatShading": false,
+        "transparent": false,
+        "opacity": 1,
+        "toneMapped": true,
+        "fog": true,
+        "blending": 1,
+        "depthWrite": true,
+        "visible": true
+      }
+    }
+  ],
+  "lock": [
+    {
+      "name": "lock-gate-oak-and-iron-joinery",
+      "path": "<Scene>/world-root/authored-factory-exterior/<Group>/<Group>/lock-gate-oak-and-iron-joinery",
+      "worldPosition": [
+        -145,
+        0,
+        50
+      ],
+      "worldDeterminant": 1,
+      "visible": true,
+      "visibleInTree": true,
+      "frustumCulled": true,
+      "castShadow": true,
+      "receiveShadow": false,
+      "renderOrder": 0,
+      "layersMask": 1,
+      "instanceCount": 1,
+      "geometry": {
+        "vertices": 10368,
+        "attributes": [
+          "position",
+          "normal",
+          "uv",
+          "color"
+        ],
+        "boundingSphereRadius": 5.133146209407604,
+        "worldRadius": 5.133146209407604,
+        "worldRadiusSum": 5.133146209407604,
+        "nonFinite": false,
+        "instancedDrawCount": null
+      },
+      "textures": [
+        {
+          "slot": "map",
+          "uuid": "74618384-1392-418e-900d-ba44d1fa00b4",
+          "colorSpace": "srgb",
+          "size": [
+            512,
+            256
+          ]
+        },
+        {
+          "slot": "bumpMap",
+          "uuid": "f884372a-595e-4423-b450-2476bf22017e",
+          "colorSpace": "",
+          "size": [
+            512,
+            256
+          ]
+        }
+      ],
+      "material": {
+        "type": "MeshStandardMaterial",
+        "name": "lock-weathered-oak-and-iron",
+        "uuid": "53fd8763-8575-479a-b6de-96c5de48f7cd",
+        "color": "#ffffff",
+        "emissive": "#000000",
+        "emissiveIntensity": 1,
+        "metalness": 0.08,
+        "roughness": 0.88,
+        "envMapIntensity": 1,
+        "envMapBound": false,
+        "lightMapBound": false,
+        "lightMapIntensity": 1,
+        "aoMapBound": false,
+        "aoMapIntensity": 1,
+        "mapUuid": "74618384-1392-418e-900d-ba44d1fa00b4",
+        "mapColorSpace": "srgb",
+        "mapSize": [
+          512,
+          256
+        ],
+        "normalMapBound": false,
+        "shaderInjected": true,
+        "vertexColors": true,
+        "side": 0,
+        "shadowSide": null,
+        "flatShading": false,
+        "transparent": false,
+        "opacity": 1,
+        "toneMapped": true,
+        "fog": true,
+        "blending": 1,
+        "depthWrite": true,
+        "visible": true
+      }
+    }
+  ],
+  "pond": [
+    {
+      "name": "duckpond-natural-water-and-retained-bank",
+      "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/MillOS_Village_Duckpond/duckpond-natural-water-and-retained-bank",
+      "worldPosition": [
+        -170,
+        -0.45,
+        25
+      ],
+      "worldDeterminant": 1,
+      "visible": true,
+      "visibleInTree": true,
+      "frustumCulled": true,
+      "castShadow": true,
+      "receiveShadow": true,
+      "renderOrder": 0,
+      "layersMask": 1,
+      "instanceCount": 1,
+      "geometry": {
+        "vertices": 13164,
+        "attributes": [
+          "position",
+          "normal",
+          "uv"
+        ],
+        "boundingSphereRadius": 7.839833653350308,
+        "worldRadius": 7.839833653350308,
+        "worldRadiusSum": 7.839833653350308,
+        "nonFinite": false,
+        "instancedDrawCount": null
+      },
+      "textures": [
+        {
+          "slot": "map",
+          "uuid": "26603649-65d6-4fc4-b9ad-35cfb2831a4f",
+          "colorSpace": "srgb",
+          "size": [
+            768,
+            768
+          ]
+        },
+        {
+          "slot": "roughnessMap",
+          "uuid": "5c9ebe8d-7891-4fc8-9d10-84ea0a37185c",
+          "colorSpace": "",
+          "size": [
+            768,
+            768
+          ]
+        },
+        {
+          "slot": "metalnessMap",
+          "uuid": "5c9ebe8d-7891-4fc8-9d10-84ea0a37185c",
+          "colorSpace": "",
+          "size": [
+            768,
+            768
+          ]
+        }
+      ],
+      "material": {
+        "type": "MeshStandardMaterial",
+        "name": "duckpond-surface",
+        "uuid": "c1815508-24df-4b99-b084-ddddbaa8a5d9",
+        "color": "#ffffff",
+        "emissive": "#000000",
+        "emissiveIntensity": 1,
+        "metalness": 0,
+        "roughness": 1,
+        "envMapIntensity": 1,
+        "envMapBound": false,
+        "lightMapBound": false,
+        "lightMapIntensity": 1,
+        "aoMapBound": false,
+        "aoMapIntensity": 1,
+        "mapUuid": "26603649-65d6-4fc4-b9ad-35cfb2831a4f",
+        "mapColorSpace": "srgb",
+        "mapSize": [
+          768,
+          768
+        ],
+        "normalMapBound": false,
+        "shaderInjected": true,
+        "vertexColors": false,
+        "side": 0,
+        "shadowSide": null,
+        "flatShading": false,
+        "transparent": false,
+        "opacity": 1,
+        "toneMapped": true,
+        "fog": true,
+        "blending": 1,
+        "depthWrite": true,
+        "visible": true
+      }
+    }
+  ],
+  "grass": [],
+  "trees": [
+    {
+      "name": "tree-canopies",
+      "path": "<Scene>/world-root/authored-factory-exterior/<Group>/<Group>/tree-canopies",
+      "worldPosition": [
+        0,
+        0,
+        0
+      ],
+      "worldDeterminant": 1,
+      "visible": true,
+      "visibleInTree": true,
+      "frustumCulled": true,
+      "castShadow": true,
+      "receiveShadow": false,
+      "renderOrder": 0,
+      "layersMask": 1,
+      "instanceCount": 1,
+      "geometry": {
+        "vertices": 96,
+        "attributes": [
+          "position",
+          "uv",
+          "normal",
+          "uv1"
+        ],
+        "boundingSphereRadius": null,
+        "worldRadius": 0,
+        "worldRadiusSum": 0,
+        "nonFinite": false,
+        "instancedDrawCount": null
+      },
+      "textures": [
+        {
+          "slot": "map",
+          "uuid": "bca4cee9-9b76-4bf6-9d07-bca83fe1d001",
+          "colorSpace": "srgb",
+          "size": [
+            384,
+            384
+          ]
+        },
+        {
+          "slot": "normalMap",
+          "uuid": "5c6d8fcf-ad16-4250-a35d-ccb163b1c06a",
+          "colorSpace": "",
+          "size": [
+            512,
+            512
+          ]
+        },
+        {
+          "slot": "roughnessMap",
+          "uuid": "6c80fe99-ef69-4c9f-b5f3-b90e6254d757",
+          "colorSpace": "",
+          "size": [
+            256,
+            256
+          ]
+        }
+      ],
+      "material": {
+        "type": "MeshStandardMaterial",
+        "name": "",
+        "uuid": "a79d71a5-b282-4e61-978d-70f059b6e833",
+        "color": "#c9d8b4",
+        "emissive": "#000000",
+        "emissiveIntensity": 1,
+        "metalness": 0,
+        "roughness": 1,
+        "envMapIntensity": 1,
+        "envMapBound": false,
+        "lightMapBound": false,
+        "lightMapIntensity": 1,
+        "aoMapBound": false,
+        "aoMapIntensity": 1,
+        "mapUuid": "bca4cee9-9b76-4bf6-9d07-bca83fe1d001",
+        "mapColorSpace": "srgb",
+        "mapSize": [
+          384,
+          384
+        ],
+        "normalMapBound": true,
+        "shaderInjected": true,
+        "vertexColors": false,
+        "side": 0,
+        "shadowSide": 0,
+        "flatShading": false,
+        "transparent": false,
+        "opacity": 1,
+        "toneMapped": true,
+        "fog": true,
+        "blending": 1,
+        "depthWrite": true,
+        "visible": true
+      }
+    },
+    {
+      "name": "tree-canopies",
+      "path": "<Scene>/world-root/authored-factory-exterior/<Group>/<Group>/tree-canopies",
+      "worldPosition": [
+        0,
+        0,
+        0
+      ],
+      "worldDeterminant": 1,
+      "visible": true,
+      "visibleInTree": true,
+      "frustumCulled": true,
+      "castShadow": true,
+      "receiveShadow": false,
+      "renderOrder": 0,
+      "layersMask": 1,
+      "instanceCount": 1,
+      "geometry": {
+        "vertices": 96,
+        "attributes": [
+          "position",
+          "uv",
+          "normal",
+          "uv1"
+        ],
+        "boundingSphereRadius": null,
+        "worldRadius": 0,
+        "worldRadiusSum": 0,
+        "nonFinite": false,
+        "instancedDrawCount": null
+      },
+      "textures": [
+        {
+          "slot": "map",
+          "uuid": "bca4cee9-9b76-4bf6-9d07-bca83fe1d001",
+          "colorSpace": "srgb",
+          "size": [
+            384,
+            384
+          ]
+        },
+        {
+          "slot": "normalMap",
+          "uuid": "54b514d0-f010-4924-aa82-273f1b378ea2",
+          "colorSpace": "",
+          "size": [
+            512,
+            512
+          ]
+        },
+        {
+          "slot": "roughnessMap",
+          "uuid": "6c80fe99-ef69-4c9f-b5f3-b90e6254d757",
+          "colorSpace": "",
+          "size": [
+            256,
+            256
+          ]
+        }
+      ],
+      "material": {
+        "type": "MeshStandardMaterial",
+        "name": "",
+        "uuid": "322d4e77-2892-463f-88d6-ba2dd2104302",
+        "color": "#ffffff",
+        "emissive": "#000000",
+        "emissiveIntensity": 1,
+        "metalness": 0,
+        "roughness": 1,
+        "envMapIntensity": 1,
+        "envMapBound": false,
+        "lightMapBound": false,
+        "lightMapIntensity": 1,
+        "aoMapBound": false,
+        "aoMapIntensity": 1,
+        "mapUuid": "bca4cee9-9b76-4bf6-9d07-bca83fe1d001",
+        "mapColorSpace": "srgb",
+        "mapSize": [
+          384,
+          384
+        ],
+        "normalMapBound": true,
+        "shaderInjected": true,
+        "vertexColors": false,
+        "side": 0,
+        "shadowSide": 0,
+        "flatShading": false,
+        "transparent": false,
+        "opacity": 1,
+        "toneMapped": true,
+        "fog": true,
+        "blending": 1,
+        "depthWrite": true,
+        "visible": true
+      }
+    },
+    {
+      "name": "tree-canopies",
+      "path": "<Scene>/world-root/authored-factory-exterior/<Group>/road-tunnel/road-hill-oaks/<Group>/tree-canopies",
+      "worldPosition": [
+        20,
+        0,
+        220
+      ],
+      "worldDeterminant": 1,
+      "visible": true,
+      "visibleInTree": true,
+      "frustumCulled": true,
+      "castShadow": true,
+      "receiveShadow": true,
+      "renderOrder": 0,
+      "layersMask": 1,
+      "instanceCount": 13,
+      "geometry": {
+        "vertices": 96,
+        "attributes": [
+          "position",
+          "uv",
+          "normal",
+          "uv1"
+        ],
+        "boundingSphereRadius": null,
+        "worldRadius": 0,
+        "worldRadiusSum": 0,
+        "nonFinite": false,
+        "instancedDrawCount": null
+      },
+      "textures": [
+        {
+          "slot": "map",
+          "uuid": "bca4cee9-9b76-4bf6-9d07-bca83fe1d001",
+          "colorSpace": "srgb",
+          "size": [
+            384,
+            384
+          ]
+        },
+        {
+          "slot": "normalMap",
+          "uuid": "360fc6ab-4244-4498-bf17-f790c14c371a",
+          "colorSpace": "",
+          "size": [
+            512,
+            512
+          ]
+        },
+        {
+          "slot": "roughnessMap",
+          "uuid": "6c80fe99-ef69-4c9f-b5f3-b90e6254d757",
+          "colorSpace": "",
+          "size": [
+            256,
+            256
+          ]
+        }
+      ],
+      "material": {
+        "type": "MeshStandardMaterial",
+        "name": "",
+        "uuid": "1bf9334a-28a6-4045-9503-5c7560a3f843",
+        "color": "#ffffff",
+        "emissive": "#000000",
+        "emissiveIntensity": 1,
+        "metalness": 0,
+        "roughness": 1,
+        "envMapIntensity": 1,
+        "envMapBound": false,
+        "lightMapBound": false,
+        "lightMapIntensity": 1,
+        "aoMapBound": false,
+        "aoMapIntensity": 1,
+        "mapUuid": "bca4cee9-9b76-4bf6-9d07-bca83fe1d001",
+        "mapColorSpace": "srgb",
+        "mapSize": [
+          384,
+          384
+        ],
+        "normalMapBound": true,
+        "shaderInjected": true,
+        "vertexColors": false,
+        "side": 0,
+        "shadowSide": 0,
+        "flatShading": false,
+        "transparent": false,
+        "opacity": 1,
+        "toneMapped": true,
+        "fog": true,
+        "blending": 1,
+        "depthWrite": true,
+        "visible": true
+      }
+    },
+    {
+      "name": "tree-canopies",
+      "path": "<Scene>/world-root/authored-factory-exterior/<Group>/road-tunnel/road-hill-oaks/<Group>/tree-canopies",
+      "worldPosition": [
+        -20,
+        0,
+        -220
+      ],
+      "worldDeterminant": 1,
+      "visible": true,
+      "visibleInTree": true,
+      "frustumCulled": true,
+      "castShadow": true,
+      "receiveShadow": true,
+      "renderOrder": 0,
+      "layersMask": 1,
+      "instanceCount": 13,
+      "geometry": {
+        "vertices": 96,
+        "attributes": [
+          "position",
+          "uv",
+          "normal",
+          "uv1"
+        ],
+        "boundingSphereRadius": null,
+        "worldRadius": 0,
+        "worldRadiusSum": 0,
+        "nonFinite": false,
+        "instancedDrawCount": null
+      },
+      "textures": [
+        {
+          "slot": "map",
+          "uuid": "bca4cee9-9b76-4bf6-9d07-bca83fe1d001",
+          "colorSpace": "srgb",
+          "size": [
+            384,
+            384
+          ]
+        },
+        {
+          "slot": "normalMap",
+          "uuid": "4d113e54-a39f-4e7f-b7c0-a98531539038",
+          "colorSpace": "",
+          "size": [
+            512,
+            512
+          ]
+        },
+        {
+          "slot": "roughnessMap",
+          "uuid": "6c80fe99-ef69-4c9f-b5f3-b90e6254d757",
+          "colorSpace": "",
+          "size": [
+            256,
+            256
+          ]
+        }
+      ],
+      "material": {
+        "type": "MeshStandardMaterial",
+        "name": "",
+        "uuid": "3557bdae-46f7-460e-9f51-4082aa57a3c6",
+        "color": "#ffffff",
+        "emissive": "#000000",
+        "emissiveIntensity": 1,
+        "metalness": 0,
+        "roughness": 1,
+        "envMapIntensity": 1,
+        "envMapBound": false,
+        "lightMapBound": false,
+        "lightMapIntensity": 1,
+        "aoMapBound": false,
+        "aoMapIntensity": 1,
+        "mapUuid": "bca4cee9-9b76-4bf6-9d07-bca83fe1d001",
+        "mapColorSpace": "srgb",
+        "mapSize": [
+          384,
+          384
+        ],
+        "normalMapBound": true,
+        "shaderInjected": true,
+        "vertexColors": false,
+        "side": 0,
+        "shadowSide": 0,
+        "flatShading": false,
+        "transparent": false,
+        "opacity": 1,
+        "toneMapped": true,
+        "fog": true,
+        "blending": 1,
+        "depthWrite": true,
+        "visible": true
+      }
+    },
+    {
+      "name": "tree-canopies",
+      "path": "<Scene>/world-root/authored-factory-exterior/<Group>/<Group>/tree-canopies",
+      "worldPosition": [
+        0,
+        0,
+        0
+      ],
+      "worldDeterminant": 1,
+      "visible": true,
+      "visibleInTree": true,
+      "frustumCulled": true,
+      "castShadow": true,
+      "receiveShadow": false,
+      "renderOrder": 0,
+      "layersMask": 1,
+      "instanceCount": 100,
+      "geometry": {
+        "vertices": 96,
+        "attributes": [
+          "position",
+          "uv",
+          "normal",
+          "uv1"
+        ],
+        "boundingSphereRadius": 3.522086511699905,
+        "worldRadius": 6.2744234395347585,
+        "worldRadiusSum": 417.52273090421653,
+        "nonFinite": false,
+        "instancedDrawCount": null
+      },
+      "textures": [
+        {
+          "slot": "map",
+          "uuid": "bca4cee9-9b76-4bf6-9d07-bca83fe1d001",
+          "colorSpace": "srgb",
+          "size": [
+            384,
+            384
+          ]
+        },
+        {
+          "slot": "normalMap",
+          "uuid": "48e26a6a-2929-4ead-8f88-a8671cc72b13",
+          "colorSpace": "",
+          "size": [
+            512,
+            512
+          ]
+        },
+        {
+          "slot": "roughnessMap",
+          "uuid": "6c80fe99-ef69-4c9f-b5f3-b90e6254d757",
+          "colorSpace": "",
+          "size": [
+            256,
+            256
+          ]
+        }
+      ],
+      "material": {
+        "type": "MeshStandardMaterial",
+        "name": "",
+        "uuid": "5b480198-f5a0-43b1-8c17-2d68cba4422b",
+        "color": "#c9d8b4",
+        "emissive": "#000000",
+        "emissiveIntensity": 1,
+        "metalness": 0,
+        "roughness": 1,
+        "envMapIntensity": 1,
+        "envMapBound": false,
+        "lightMapBound": false,
+        "lightMapIntensity": 1,
+        "aoMapBound": false,
+        "aoMapIntensity": 1,
+        "mapUuid": "bca4cee9-9b76-4bf6-9d07-bca83fe1d001",
+        "mapColorSpace": "srgb",
+        "mapSize": [
+          384,
+          384
+        ],
+        "normalMapBound": true,
+        "shaderInjected": true,
+        "vertexColors": false,
+        "side": 0,
+        "shadowSide": 0,
+        "flatShading": false,
+        "transparent": false,
+        "opacity": 1,
+        "toneMapped": true,
+        "fog": true,
+        "blending": 1,
+        "depthWrite": true,
+        "visible": true
+      }
+    },
+    {
+      "name": "tree-canopies",
+      "path": "<Scene>/world-root/authored-factory-exterior/<Group>/<Group>/tree-canopies",
+      "worldPosition": [
+        0,
+        0,
+        0
+      ],
+      "worldDeterminant": 1,
+      "visible": true,
+      "visibleInTree": true,
+      "frustumCulled": true,
+      "castShadow": true,
+      "receiveShadow": false,
+      "renderOrder": 0,
+      "layersMask": 1,
+      "instanceCount": 87,
+      "geometry": {
+        "vertices": 96,
+        "attributes": [
+          "position",
+          "uv",
+          "normal",
+          "uv1"
+        ],
+        "boundingSphereRadius": 3.988614900730789,
+        "worldRadius": 7.729094401400784,
+        "worldRadiusSum": 448.74624383949,
+        "nonFinite": false,
+        "instancedDrawCount": null
+      },
+      "textures": [
+        {
+          "slot": "map",
+          "uuid": "bca4cee9-9b76-4bf6-9d07-bca83fe1d001",
+          "colorSpace": "srgb",
+          "size": [
+            384,
+            384
+          ]
+        },
+        {
+          "slot": "normalMap",
+          "uuid": "c047d36d-73f4-4525-980e-b99710a06fa8",
+          "colorSpace": "",
+          "size": [
+            512,
+            512
+          ]
+        },
+        {
+          "slot": "roughnessMap",
+          "uuid": "6c80fe99-ef69-4c9f-b5f3-b90e6254d757",
+          "colorSpace": "",
+          "size": [
+            256,
+            256
+          ]
+        }
+      ],
+      "material": {
+        "type": "MeshStandardMaterial",
+        "name": "",
+        "uuid": "898189e8-77b8-4b02-a777-575c9bcdec95",
+        "color": "#ffffff",
+        "emissive": "#000000",
+        "emissiveIntensity": 1,
+        "metalness": 0,
+        "roughness": 1,
+        "envMapIntensity": 1,
+        "envMapBound": false,
+        "lightMapBound": false,
+        "lightMapIntensity": 1,
+        "aoMapBound": false,
+        "aoMapIntensity": 1,
+        "mapUuid": "bca4cee9-9b76-4bf6-9d07-bca83fe1d001",
+        "mapColorSpace": "srgb",
+        "mapSize": [
+          384,
+          384
+        ],
+        "normalMapBound": true,
+        "shaderInjected": true,
+        "vertexColors": false,
+        "side": 0,
+        "shadowSide": 0,
+        "flatShading": false,
+        "transparent": false,
+        "opacity": 1,
+        "toneMapped": true,
+        "fog": true,
+        "blending": 1,
+        "depthWrite": true,
+        "visible": true
+      }
+    },
+    {
+      "name": "tree-canopies",
+      "path": "<Scene>/world-root/authored-factory-exterior/<Group>/<Group>/tree-canopies",
+      "worldPosition": [
+        0,
+        0,
+        0
+      ],
+      "worldDeterminant": 1,
+      "visible": true,
+      "visibleInTree": true,
+      "frustumCulled": true,
+      "castShadow": true,
+      "receiveShadow": false,
+      "renderOrder": 0,
+      "layersMask": 1,
+      "instanceCount": 89,
+      "geometry": {
+        "vertices": 96,
+        "attributes": [
+          "position",
+          "uv",
+          "normal",
+          "uv1"
+        ],
+        "boundingSphereRadius": 3.1908918188134354,
+        "worldRadius": 6.424164098139863,
+        "worldRadiusSum": 379.6647019064275,
+        "nonFinite": false,
+        "instancedDrawCount": null
+      },
+      "textures": [
+        {
+          "slot": "map",
+          "uuid": "bca4cee9-9b76-4bf6-9d07-bca83fe1d001",
+          "colorSpace": "srgb",
+          "size": [
+            384,
+            384
+          ]
+        },
+        {
+          "slot": "normalMap",
+          "uuid": "7294968f-495d-4e84-bf6b-33eeaa9dc7fc",
+          "colorSpace": "",
+          "size": [
+            512,
+            512
+          ]
+        },
+        {
+          "slot": "roughnessMap",
+          "uuid": "6c80fe99-ef69-4c9f-b5f3-b90e6254d757",
+          "colorSpace": "",
+          "size": [
+            256,
+            256
+          ]
+        }
+      ],
+      "material": {
+        "type": "MeshStandardMaterial",
+        "name": "",
+        "uuid": "82a0e377-07be-42aa-bbc4-786c897220c6",
+        "color": "#b9c79c",
+        "emissive": "#000000",
+        "emissiveIntensity": 1,
+        "metalness": 0,
+        "roughness": 1,
+        "envMapIntensity": 1,
+        "envMapBound": false,
+        "lightMapBound": false,
+        "lightMapIntensity": 1,
+        "aoMapBound": false,
+        "aoMapIntensity": 1,
+        "mapUuid": "bca4cee9-9b76-4bf6-9d07-bca83fe1d001",
+        "mapColorSpace": "srgb",
+        "mapSize": [
+          384,
+          384
+        ],
+        "normalMapBound": true,
+        "shaderInjected": true,
+        "vertexColors": false,
+        "side": 0,
+        "shadowSide": 0,
+        "flatShading": false,
+        "transparent": false,
+        "opacity": 1,
+        "toneMapped": true,
+        "fog": true,
+        "blending": 1,
+        "depthWrite": true,
+        "visible": true
+      }
+    },
+    {
+      "name": "tree-canopies",
+      "path": "<Scene>/world-root/authored-factory-exterior/<Group>/<Group>/tree-canopies",
+      "worldPosition": [
+        0,
+        0,
+        0
+      ],
+      "worldDeterminant": 1,
+      "visible": true,
+      "visibleInTree": true,
+      "frustumCulled": true,
+      "castShadow": true,
+      "receiveShadow": false,
+      "renderOrder": 0,
+      "layersMask": 1,
+      "instanceCount": 1,
+      "geometry": {
+        "vertices": 96,
+        "attributes": [
+          "position",
+          "uv",
+          "normal",
+          "uv1"
+        ],
+        "boundingSphereRadius": null,
+        "worldRadius": 0,
+        "worldRadiusSum": 0,
+        "nonFinite": false,
+        "instancedDrawCount": null
+      },
+      "textures": [
+        {
+          "slot": "map",
+          "uuid": "bca4cee9-9b76-4bf6-9d07-bca83fe1d001",
+          "colorSpace": "srgb",
+          "size": [
+            384,
+            384
+          ]
+        },
+        {
+          "slot": "normalMap",
+          "uuid": "bc7094a5-3779-44c6-895d-7cbd09d646db",
+          "colorSpace": "",
+          "size": [
+            512,
+            512
+          ]
+        },
+        {
+          "slot": "roughnessMap",
+          "uuid": "6c80fe99-ef69-4c9f-b5f3-b90e6254d757",
+          "colorSpace": "",
+          "size": [
+            256,
+            256
+          ]
+        }
+      ],
+      "material": {
+        "type": "MeshStandardMaterial",
+        "name": "",
+        "uuid": "1e0684c4-218f-4086-a1dd-84b39c090b0e",
+        "color": "#c9d8b4",
+        "emissive": "#000000",
+        "emissiveIntensity": 1,
+        "metalness": 0,
+        "roughness": 1,
+        "envMapIntensity": 1,
+        "envMapBound": false,
+        "lightMapBound": false,
+        "lightMapIntensity": 1,
+        "aoMapBound": false,
+        "aoMapIntensity": 1,
+        "mapUuid": "bca4cee9-9b76-4bf6-9d07-bca83fe1d001",
+        "mapColorSpace": "srgb",
+        "mapSize": [
+          384,
+          384
+        ],
+        "normalMapBound": true,
+        "shaderInjected": true,
+        "vertexColors": false,
+        "side": 0,
+        "shadowSide": 0,
+        "flatShading": false,
+        "transparent": false,
+        "opacity": 1,
+        "toneMapped": true,
+        "fog": true,
+        "blending": 1,
+        "depthWrite": true,
+        "visible": true
+      }
+    },
+    {
+      "name": "tree-canopies",
+      "path": "<Scene>/world-root/authored-factory-exterior/<Group>/<Group>/tree-canopies",
+      "worldPosition": [
+        0,
+        0,
+        0
+      ],
+      "worldDeterminant": 1,
+      "visible": true,
+      "visibleInTree": true,
+      "frustumCulled": true,
+      "castShadow": true,
+      "receiveShadow": false,
+      "renderOrder": 0,
+      "layersMask": 1,
+      "instanceCount": 1,
+      "geometry": {
+        "vertices": 96,
+        "attributes": [
+          "position",
+          "uv",
+          "normal",
+          "uv1"
+        ],
+        "boundingSphereRadius": null,
+        "worldRadius": 0,
+        "worldRadiusSum": 0,
+        "nonFinite": false,
+        "instancedDrawCount": null
+      },
+      "textures": [
+        {
+          "slot": "map",
+          "uuid": "bca4cee9-9b76-4bf6-9d07-bca83fe1d001",
+          "colorSpace": "srgb",
+          "size": [
+            384,
+            384
+          ]
+        },
+        {
+          "slot": "normalMap",
+          "uuid": "160043bd-ee92-4816-bb5b-075c107aeacd",
+          "colorSpace": "",
+          "size": [
+            512,
+            512
+          ]
+        },
+        {
+          "slot": "roughnessMap",
+          "uuid": "6c80fe99-ef69-4c9f-b5f3-b90e6254d757",
+          "colorSpace": "",
+          "size": [
+            256,
+            256
+          ]
+        }
+      ],
+      "material": {
+        "type": "MeshStandardMaterial",
+        "name": "",
+        "uuid": "6afa9217-fe0b-455b-af93-0318e80f5bad",
+        "color": "#ffffff",
+        "emissive": "#000000",
+        "emissiveIntensity": 1,
+        "metalness": 0,
+        "roughness": 1,
+        "envMapIntensity": 1,
+        "envMapBound": false,
+        "lightMapBound": false,
+        "lightMapIntensity": 1,
+        "aoMapBound": false,
+        "aoMapIntensity": 1,
+        "mapUuid": "bca4cee9-9b76-4bf6-9d07-bca83fe1d001",
+        "mapColorSpace": "srgb",
+        "mapSize": [
+          384,
+          384
+        ],
+        "normalMapBound": true,
+        "shaderInjected": true,
+        "vertexColors": false,
+        "side": 0,
+        "shadowSide": 0,
+        "flatShading": false,
+        "transparent": false,
+        "opacity": 1,
+        "toneMapped": true,
+        "fog": true,
+        "blending": 1,
+        "depthWrite": true,
+        "visible": true
+      }
+    },
+    {
+      "name": "tree-canopies",
+      "path": "<Scene>/world-root/authored-factory-exterior/<Group>/<Group>/tree-canopies",
+      "worldPosition": [
+        0,
+        0,
+        0
+      ],
+      "worldDeterminant": 1,
+      "visible": true,
+      "visibleInTree": true,
+      "frustumCulled": true,
+      "castShadow": true,
+      "receiveShadow": false,
+      "renderOrder": 0,
+      "layersMask": 1,
+      "instanceCount": 1,
+      "geometry": {
+        "vertices": 96,
+        "attributes": [
+          "position",
+          "uv",
+          "normal",
+          "uv1"
+        ],
+        "boundingSphereRadius": null,
+        "worldRadius": 0,
+        "worldRadiusSum": 0,
+        "nonFinite": false,
+        "instancedDrawCount": null
+      },
+      "textures": [
+        {
+          "slot": "map",
+          "uuid": "bca4cee9-9b76-4bf6-9d07-bca83fe1d001",
+          "colorSpace": "srgb",
+          "size": [
+            384,
+            384
+          ]
+        },
+        {
+          "slot": "normalMap",
+          "uuid": "086381fa-101b-4d6f-a7da-55f9d2cf6412",
+          "colorSpace": "",
+          "size": [
+            512,
+            512
+          ]
+        },
+        {
+          "slot": "roughnessMap",
+          "uuid": "6c80fe99-ef69-4c9f-b5f3-b90e6254d757",
+          "colorSpace": "",
+          "size": [
+            256,
+            256
+          ]
+        }
+      ],
+      "material": {
+        "type": "MeshStandardMaterial",
+        "name": "",
+        "uuid": "1c3c4902-02bf-4fc6-a6e3-6ad62410f47c",
+        "color": "#b9c79c",
+        "emissive": "#000000",
+        "emissiveIntensity": 1,
+        "metalness": 0,
+        "roughness": 1,
+        "envMapIntensity": 1,
+        "envMapBound": false,
+        "lightMapBound": false,
+        "lightMapIntensity": 1,
+        "aoMapBound": false,
+        "aoMapIntensity": 1,
+        "mapUuid": "bca4cee9-9b76-4bf6-9d07-bca83fe1d001",
+        "mapColorSpace": "srgb",
+        "mapSize": [
+          384,
+          384
+        ],
+        "normalMapBound": true,
+        "shaderInjected": true,
+        "vertexColors": false,
+        "side": 0,
+        "shadowSide": 0,
+        "flatShading": false,
+        "transparent": false,
+        "opacity": 1,
+        "toneMapped": true,
+        "fog": true,
+        "blending": 1,
+        "depthWrite": true,
+        "visible": true
+      }
+    },
+    {
+      "name": "tree-canopies",
+      "path": "<Scene>/world-root/authored-farm/authored-farm-site/<Group>/tree-canopies",
+      "worldPosition": [
+        75,
+        0,
+        120
+      ],
+      "worldDeterminant": 1,
+      "visible": true,
+      "visibleInTree": true,
+      "frustumCulled": true,
+      "castShadow": true,
+      "receiveShadow": true,
+      "renderOrder": 0,
+      "layersMask": 1,
+      "instanceCount": 5,
+      "geometry": {
+        "vertices": 96,
+        "attributes": [
+          "position",
+          "uv",
+          "normal",
+          "uv1"
+        ],
+        "boundingSphereRadius": null,
+        "worldRadius": 0,
+        "worldRadiusSum": 0,
+        "nonFinite": false,
+        "instancedDrawCount": null
+      },
+      "textures": [
+        {
+          "slot": "map",
+          "uuid": "67086553-6e8e-4f50-b46e-2649b307b331",
+          "colorSpace": "srgb",
+          "size": [
+            256,
+            256
+          ]
+        },
+        {
+          "slot": "normalMap",
+          "uuid": "2230bc3d-b3b5-4870-ae65-da400999d6fa",
+          "colorSpace": "",
+          "size": [
+            512,
+            512
+          ]
+        },
+        {
+          "slot": "roughnessMap",
+          "uuid": "6c80fe99-ef69-4c9f-b5f3-b90e6254d757",
+          "colorSpace": "",
+          "size": [
+            256,
+            256
+          ]
+        }
+      ],
+      "material": {
+        "type": "MeshStandardMaterial",
+        "name": "",
+        "uuid": "eede4f2c-61da-4a78-b6e8-40c5a8aa467e",
+        "color": "#ffffff",
+        "emissive": "#000000",
+        "emissiveIntensity": 1,
+        "metalness": 0,
+        "roughness": 1,
+        "envMapIntensity": 1,
+        "envMapBound": false,
+        "lightMapBound": false,
+        "lightMapIntensity": 1,
+        "aoMapBound": false,
+        "aoMapIntensity": 1,
+        "mapUuid": "67086553-6e8e-4f50-b46e-2649b307b331",
+        "mapColorSpace": "srgb",
+        "mapSize": [
+          256,
+          256
+        ],
+        "normalMapBound": true,
+        "shaderInjected": true,
+        "vertexColors": false,
+        "side": 0,
+        "shadowSide": 0,
+        "flatShading": false,
+        "transparent": false,
+        "opacity": 1,
+        "toneMapped": true,
+        "fog": true,
+        "blending": 1,
+        "depthWrite": true,
+        "visible": true
+      }
+    },
+    {
+      "name": "tree-canopies",
+      "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/tree-canopies",
+      "worldPosition": [
+        -190,
+        0,
+        0
+      ],
+      "worldDeterminant": 1,
+      "visible": true,
+      "visibleInTree": true,
+      "frustumCulled": true,
+      "castShadow": true,
+      "receiveShadow": true,
+      "renderOrder": 0,
+      "layersMask": 1,
+      "instanceCount": 4,
+      "geometry": {
+        "vertices": 96,
+        "attributes": [
+          "position",
+          "uv",
+          "normal",
+          "uv1"
+        ],
+        "boundingSphereRadius": 2.7045520062367907,
+        "worldRadius": 3.1849538044308288,
+        "worldRadiusSum": 11.890011559044634,
+        "nonFinite": false,
+        "instancedDrawCount": null
+      },
+      "textures": [
+        {
+          "slot": "map",
+          "uuid": "bca4cee9-9b76-4bf6-9d07-bca83fe1d001",
+          "colorSpace": "srgb",
+          "size": [
+            384,
+            384
+          ]
+        },
+        {
+          "slot": "normalMap",
+          "uuid": "c6d1ca3b-61a6-41e1-a885-c880a37ec26e",
+          "colorSpace": "",
+          "size": [
+            512,
+            512
+          ]
+        },
+        {
+          "slot": "roughnessMap",
+          "uuid": "6c80fe99-ef69-4c9f-b5f3-b90e6254d757",
+          "colorSpace": "",
+          "size": [
+            256,
+            256
+          ]
+        }
+      ],
+      "material": {
+        "type": "MeshStandardMaterial",
+        "name": "",
+        "uuid": "97c383ce-7b7b-4b21-bf97-9b49f3228ee8",
+        "color": "#ffffff",
+        "emissive": "#000000",
+        "emissiveIntensity": 1,
+        "metalness": 0,
+        "roughness": 1,
+        "envMapIntensity": 1,
+        "envMapBound": false,
+        "lightMapBound": false,
+        "lightMapIntensity": 1,
+        "aoMapBound": false,
+        "aoMapIntensity": 1,
+        "mapUuid": "bca4cee9-9b76-4bf6-9d07-bca83fe1d001",
+        "mapColorSpace": "srgb",
+        "mapSize": [
+          384,
+          384
+        ],
+        "normalMapBound": true,
+        "shaderInjected": true,
+        "vertexColors": false,
+        "side": 0,
+        "shadowSide": 0,
+        "flatShading": false,
+        "transparent": false,
+        "opacity": 1,
+        "toneMapped": true,
+        "fog": true,
+        "blending": 1,
+        "depthWrite": true,
+        "visible": true
+      }
+    },
+    {
+      "name": "tree-canopies",
+      "path": "<Scene>/world-root/authored-village/authored-village-site/<Group>/tree-canopies",
+      "worldPosition": [
+        -190,
+        0,
+        0
+      ],
+      "worldDeterminant": 1,
+      "visible": true,
+      "visibleInTree": true,
+      "frustumCulled": true,
+      "castShadow": true,
+      "receiveShadow": true,
+      "renderOrder": 0,
+      "layersMask": 1,
+      "instanceCount": 3,
+      "geometry": {
+        "vertices": 96,
+        "attributes": [
+          "position",
+          "uv",
+          "normal",
+          "uv1"
+        ],
+        "boundingSphereRadius": 2.1277720795838477,
+        "worldRadius": 2.251612088041542,
+        "worldRadiusSum": 6.026841889099636,
+        "nonFinite": false,
+        "instancedDrawCount": null
+      },
+      "textures": [
+        {
+          "slot": "map",
+          "uuid": "bca4cee9-9b76-4bf6-9d07-bca83fe1d001",
+          "colorSpace": "srgb",
+          "size": [
+            384,
+            384
+          ]
+        },
+        {
+          "slot": "normalMap",
+          "uuid": "d5f7a534-9edb-446d-bf01-b513cfe03115",
+          "colorSpace": "",
+          "size": [
+            512,
+            512
+          ]
+        },
+        {
+          "slot": "roughnessMap",
+          "uuid": "6c80fe99-ef69-4c9f-b5f3-b90e6254d757",
+          "colorSpace": "",
+          "size": [
+            256,
+            256
+          ]
+        }
+      ],
+      "material": {
+        "type": "MeshStandardMaterial",
+        "name": "",
+        "uuid": "de824b9d-42ca-4feb-bfda-8efd62e0dff4",
+        "color": "#ffffff",
+        "emissive": "#000000",
+        "emissiveIntensity": 1,
+        "metalness": 0,
+        "roughness": 1,
+        "envMapIntensity": 1,
+        "envMapBound": false,
+        "lightMapBound": false,
+        "lightMapIntensity": 1,
+        "aoMapBound": false,
+        "aoMapIntensity": 1,
+        "mapUuid": "bca4cee9-9b76-4bf6-9d07-bca83fe1d001",
+        "mapColorSpace": "srgb",
+        "mapSize": [
+          384,
+          384
+        ],
+        "normalMapBound": true,
+        "shaderInjected": true,
+        "vertexColors": false,
+        "side": 0,
+        "shadowSide": 0,
+        "flatShading": false,
+        "transparent": false,
+        "opacity": 1,
+        "toneMapped": true,
+        "fog": true,
+        "blending": 1,
+        "depthWrite": true,
+        "visible": true
+      }
+    }
+  ]
+}

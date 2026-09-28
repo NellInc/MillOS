@@ -3,7 +3,10 @@ import { positionRegistry } from './positionRegistry';
 import { SITE_LAYOUT } from '../constants/siteLayout';
 import { createConveyorObstacles } from '../constants/factoryObstacles';
 import { createRoundedForkliftRoute } from '../simulation/forkliftRoute';
-import { createForkliftRoutePlan } from '../simulation/vehicles/forkliftController';
+import {
+  createForkliftRoutePlan,
+  resolveForkliftStopReason,
+} from '../simulation/vehicles/forkliftController';
 import { sampleArcLengthPath } from '../simulation/vehicles/vehicleKinematics';
 
 const TEST_ID = 'position-registry-test-truck';
@@ -84,4 +87,39 @@ describe('positionRegistry', () => {
     positionRegistry.register(TEST_ID, -31, -22, 0, 1, true, 8, 'truck');
     expect(positionRegistry.isPathClear(...args, sampleAhead)).toBe(true);
   });
+});
+
+it('distinguishes stopped peers from static barriers during fleet-priority release', () => {
+  const args = [0, 0, 0, 1, 5, 1] as const;
+  const nearby = [{ id: TEST_ID, isStopped: true }];
+  positionRegistry.register(TEST_ID, 0, 2, 0, 1, true);
+  const reason = () =>
+    resolveForkliftStopReason({
+      id: 'forklift-1',
+      emergencyStopped: false,
+      crossingClear: true,
+      logisticsInterlock: false,
+      pathClear: positionRegistry.isPathClear(...args, 'forklift-1', true),
+      obstaclePathClear: positionRegistry.isObstaclePathClear(...args),
+      nearby,
+    });
+  expect(positionRegistry.isPathClear(...args, 'forklift-1', true)).toBe(false);
+  expect(positionRegistry.isObstaclePathClear(...args)).toBe(true);
+  expect(reason()).toBe('none');
+  positionRegistry.registerObstacles([
+    { id: 'solid-barrier', minX: -1, maxX: 1, minZ: 2, maxZ: 3 },
+  ]);
+  expect(positionRegistry.isObstaclePathClear(...args)).toBe(false);
+  expect(reason()).toBe('route-blocked');
+});
+
+it('checks static clearance on the sampled curved route with the existing padding', () => {
+  const args = [0, 0, 0, 1, 5, 1] as const;
+  const curve = (distance: number) => ({ x: distance, z: 0 });
+  positionRegistry.registerObstacles([
+    { id: 'turn-barrier', minX: 2, maxX: 3, minZ: -0.1, maxZ: 0.1 },
+  ]);
+  expect(positionRegistry.isObstaclePathClear(...args)).toBe(true);
+  expect(positionRegistry.isObstaclePathClear(...args, curve)).toBe(false);
+  expect(positionRegistry.isPathClear(...args, 'forklift-1', true, 0, curve)).toBe(false);
 });

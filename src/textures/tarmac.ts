@@ -42,9 +42,8 @@ export const generateTarmac = (
     oilStains = true,
   } = options;
 
-  // v5: corrected direct-light albedo. Bumped so HMR cannot retain the former
-  // darker cached texture.
-  const cacheKey = `tarmac-v6-${size}-${baseColor.join(',')}-${aggregateAmount}-${wearAmount}-${oilStains}`;
+  // v7: restrained, rounded aggregate. Keep old HMR cache entries separate.
+  const cacheKey = `tarmac-v7-${size}-${baseColor.join(',')}-${aggregateAmount}-${wearAmount}-${oilStains}`;
 
   return getTexture(cacheKey, () => {
     const data = new Uint8Array(size * size * 4);
@@ -66,48 +65,36 @@ export const generateTarmac = (
         g += (fineNoise - 0.5) * 0.07;
         b += (fineNoise - 0.5) * 0.07;
 
-        // Aggregate particles (small stones). Brightness re-authored in sRGB:
-        // 0.32-0.54 sRGB = 0.084-0.25 linear, the correct light-stone-in-dark-
-        // binder ratio. The old 0.2-0.4 was tuned against the linear misread.
-        //
-        // CELL SIZE IS A SAMPLING DECISION, NOT A LOOK DECISION.
-        //
-        // `u * size` is just `x`, so this factor sets the aggregate cell edge
-        // in pixels: 0.5 gave 2 px cells, 0.25 gives 4 px. Measured offline at
-        // size=512 (the only size this is ever called at - sharedMaterials.ts),
-        // taking the variance of the aggregate mask through successive 2x box
-        // downsamples, which is exactly what mip generation does:
-        //
-        //            mip0     mip1 (2x)   mip2 (4x)
-        //   2 px     100%       100%        24.9%
-        //   4 px     100%       100%       100.0%
-        //
-        // A cell survives intact only while one output texel still covers at
-        // most one cell; past that it averages neighbours and the contrast
-        // collapses. At 2 px that wall is mip2, where three quarters of the
-        // aggregate's variance is gone and the surface flattens to its mean.
-        // At 4 px the same wall moves out one full mip level, so the stones
-        // stay readable to roughly twice the viewing distance.
-        //
-        // Coverage is unchanged - measured 28.3% at 2 px vs 27.9% at 4 px,
-        // since the threshold and blend below are untouched. Only grain size
-        // differs, which is the entire point.
-        const aggregateNoise = hash(Math.floor(u * size * 0.25), Math.floor(v * size * 0.25));
+        // Four-pixel aggregate cells retain their footprint through the first
+        // mips. Rounded coverage and restrained binder-relative contrast keep
+        // the yard from turning into a bright square mosaic in close views.
+        const aggregateX = x * 0.25;
+        const aggregateY = y * 0.25;
+        const aggregateNoise = hash(Math.floor(aggregateX), Math.floor(aggregateY));
         if (aggregateNoise > 1 - aggregateAmount * 0.7) {
-          const brightness = 0.32 + aggregateNoise * 0.22;
-          const blend = (aggregateNoise - (1 - aggregateAmount * 0.7)) * 4;
+          const distance = Math.hypot((aggregateX % 1) - 0.5, (aggregateY % 1) - 0.5);
+          const coverage = 1 - THREE.MathUtils.smoothstep(distance, 0.18, 0.64);
+          const brightness = 0.42 + aggregateNoise * 0.09;
+          const blend = coverage * 0.55;
           r = r * (1 - blend) + brightness * blend;
           g = g * (1 - blend) + brightness * blend;
           b = b * (1 - blend) + brightness * blend;
         }
 
-        // Larger aggregate (occasional big stones)
-        const bigAggregate = hash(Math.floor(u * 30), Math.floor(v * 30));
+        // Sparse larger stones blend into the binder instead of replacing an
+        // entire hash cell with one flat square. Same density, less visual noise.
+        const bigX = u * 30;
+        const bigY = v * 30;
+        const bigAggregate = hash(Math.floor(bigX), Math.floor(bigY));
         if (bigAggregate > 0.93) {
-          const stoneColor = 0.34 + hash(Math.floor(u * 30) + 100, Math.floor(v * 30)) * 0.14;
-          r = stoneColor;
-          g = stoneColor;
-          b = stoneColor * 0.95;
+          const stoneColor = 0.38 + hash(Math.floor(bigX) + 100, Math.floor(bigY)) * 0.1;
+          const coverage =
+            1 -
+            THREE.MathUtils.smoothstep(Math.hypot((bigX % 1) - 0.5, (bigY % 1) - 0.5), 0.12, 0.55);
+          const blend = coverage * 0.45;
+          r = THREE.MathUtils.lerp(r, stoneColor, blend);
+          g = THREE.MathUtils.lerp(g, stoneColor, blend);
+          b = THREE.MathUtils.lerp(b, stoneColor * 0.98, blend);
         }
 
         // Wear patterns (lighter patches from tire wear)
@@ -151,10 +138,9 @@ export const generateTarmac = (
         g += (mediumNoise - 0.5) * 0.035;
         b += (mediumNoise - 0.5) * 0.035;
 
-        // Macro drift (patching, sun-bleaching). Tarmac is tiled 25x across
-        // the yard, so a sub-tile-frequency term is the cheapest way to stop
-        // the eye locking onto the repeat.
-        const macro = fbmNoiseSigned(u * 1.7 + 23, v * 1.7 + 41, 2) * 0.055;
+        // Gentle within-tile drift. This repeats with the map; large-scale
+        // variation belongs to TerrainMaterial's existing world-space macro.
+        const macro = fbmNoiseSigned(u * 1.7 + 23, v * 1.7 + 41, 2) * 0.035;
         r += macro;
         g += macro;
         b += macro * 0.9;

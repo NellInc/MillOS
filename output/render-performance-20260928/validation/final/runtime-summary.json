@@ -1,0 +1,104 @@
+{
+  "load": {
+    "averages": [
+      189.7822265625,
+      206.400390625,
+      207.19970703125
+    ],
+    "cpus": 10
+  },
+  "captures": [
+    {
+      "label": "final-day",
+      "quality": "high",
+      "errors": [],
+      "failedRequests": [],
+      "frames": 5,
+      "allReady": true,
+      "silent": true
+    },
+    {
+      "label": "final-night",
+      "quality": "medium",
+      "errors": [],
+      "failedRequests": [],
+      "frames": 2,
+      "allReady": true,
+      "silent": true
+    },
+    {
+      "label": "final-low",
+      "quality": "low",
+      "errors": [],
+      "failedRequests": [],
+      "frames": 2,
+      "allReady": true,
+      "silent": true
+    }
+  ],
+  "lightingControl": [
+    {
+      "scene": {
+        "scene": "village",
+        "quality": "high",
+        "art": true,
+        "width": 1600,
+        "height": 1000,
+        "time": 12
+      },
+      "reveal": true,
+      "stockSpreadMs": 0.2699999999999996,
+      "ratios": [
+        0.7167397660818713,
+        0.6985239852398524,
+        0.6899890390938983
+      ],
+      "loadPerCoreRange": [
+        30.249755859375,
+        32.773291015625
+      ]
+    },
+    {
+      "scene": {
+        "scene": "interior",
+        "quality": "high",
+        "art": true,
+        "width": 1280,
+        "height": 720,
+        "time": 22
+      },
+      "reveal": true,
+      "stockSpreadMs": 1.6699999999999982,
+      "ratios": [
+        0.8440420560747663,
+        0.8439044481054366,
+        0.8906705539358599
+      ],
+      "loadPerCoreRange": [
+        16.971484375,
+        26.49462890625
+      ]
+    },
+    {
+      "scene": {
+        "scene": "overview",
+        "quality": "medium",
+        "art": false,
+        "width": 1280,
+        "height": 720,
+        "time": 12
+      },
+      "reveal": true,
+      "stockSpreadMs": 0.46000000000000085,
+      "ratios": [
+        1.0411971830985915,
+        1.001450326323423,
+        0.9719298245614036
+      ],
+      "loadPerCoreRange": [
+        6.510888671875,
+        13.105419921875
+      ]
+    }
+  ]
+}

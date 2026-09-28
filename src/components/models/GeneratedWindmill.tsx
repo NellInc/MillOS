@@ -43,6 +43,10 @@ import * as THREE from 'three';
 import { useDracoGLTF } from '../../utils/dracoLoader';
 import { GENERATED_ASSET_PATHS } from '../../utils/modelLoader';
 import ErrorBoundary from '../ErrorBoundary';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
+import { useGameSimulationStore } from '../../stores/gameSimulationStore';
+import { createAtmosphereState, sampleAtmosphere } from '../../simulation/atmosphere';
+import { getWindmillAngularSpeed } from '../../simulation/ambientWorld';
 
 /** Mesh-local Y of the sail axis. */
 export const SAIL_HUB_Y = 0.0948;
@@ -186,6 +190,8 @@ const SAIL_CACHE_KEY = 'windmill_sails_v1';
 export const GeneratedWindmillModel: React.FC = () => {
   const { scene } = useDracoGLTF(GENERATED_ASSET_PATHS.windmill);
   const angleRef = useRef<THREE.IUniform>({ value: 0 });
+  const atmosphereRef = useRef(createAtmosphereState());
+  const reducedMotion = useReducedMotion();
 
   const model = useMemo(() => {
     const clone = scene.clone(true);
@@ -225,12 +231,16 @@ export const GeneratedWindmillModel: React.FC = () => {
     return clone;
   }, [scene]);
 
-  // One float per frame. Free-running off the clock rather than integrated, so
-  // dropped frames cannot let the sails drift out of step with the wall clock,
-  // and wrapped at a full turn so the uniform never grows large enough to lose
-  // precision in a mediump float on mobile.
-  useFrame((state) => {
-    angleRef.current.value = (state.clock.elapsedTime * SAIL_ANGULAR_RATE) % (Math.PI * 2);
+  // Integrate active time, shared with the primitive's atmospheric speed.
+  // Pausing or resuming never jumps to a later wall-clock sail angle.
+  useFrame((_state, delta) => {
+    const { gameDay, gameTime, gameSpeed, weather, isTabVisible } =
+      useGameSimulationStore.getState();
+    if (reducedMotion || !isTabVisible || gameSpeed <= 0) return;
+    const atmosphere = sampleAtmosphere(gameDay, gameTime, weather, atmosphereRef.current);
+    angleRef.current.value =
+      (angleRef.current.value + Math.min(delta, 0.1) * getWindmillAngularSpeed(atmosphere.wind)) %
+      (Math.PI * 2);
   });
 
   return <primitive object={model} />;

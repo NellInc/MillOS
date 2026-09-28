@@ -59,6 +59,8 @@ function packFor(spec, result) {
       file: `public/models/${result.file}`,
       sha256: result.outputSha256,
       bytes: result.outputBytes,
+      license: spec.runtimeLicense,
+      attribution: spec.runtimeAttribution,
     },
     normalization: {
       // Which dimension the size decision was made against, and the value it

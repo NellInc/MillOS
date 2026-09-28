@@ -32,9 +32,9 @@ import {
  *   - top      <- `scene.background`, which `OptimizedSkySystem` keeps equal to
  *                 the sky shader's `topColor` uniform.
  *   - horizon  <- `celestial-ambient-light.color`, already lerped night to day.
- *   - ground   <- the hemisphere light's own ground colour, set below.
- * So the environment reflection, the hemisphere fill and the visible sky cannot
- * disagree at any hour: they are the same three colours.
+ *   - ground   <- terrain bounce, set below. The hemisphere blends a
+ *     luminance-matched masonry tone into this base in daylight; the environment
+ *     reflection keeps the broad landscape tone. Both follow the same daylight.
  *
  * FLOAT, NOT BYTES. The sun disc is authored well above 1.0 so metals get a
  * specular hit with some punch. A `Uint8` texture clamps that to a flat white
@@ -119,6 +119,17 @@ export const METALLIC_ENVMAP_THRESHOLD = 0.6;
 /** Hemisphere fill intensity, matched to the ambient term. */
 export const HEMISPHERE_INTENSITY = 0.22;
 
+/**
+ * Reveal night silhouettes using the existing blue sky fill, with no extra
+ * light or shadow pass. Daytime key/fill stays unchanged. Working if paired
+ * night captures reveal surfaces while this intensity term is unchanged at noon.
+ */
+export function hemisphereFillIntensity(daylight: number): number {
+  const t = THREE.MathUtils.clamp(daylight, 0, 1);
+  const night = 1 - t * t * (3 - 2 * t);
+  return HEMISPHERE_INTENSITY + 0.88 * night;
+}
+
 /** Angular radius of the sun disc stamped into the environment, in radians. */
 export const SUN_DISC_RADIANS = (6 * Math.PI) / 180;
 
@@ -131,6 +142,24 @@ export const SUN_REFERENCE_INTENSITY = 3.1;
 /** Terrain albedo the hemisphere bounces, and the warm it takes at golden hour. */
 const GROUND_ALBEDO = new THREE.Color('#6f806c');
 const GROUND_GOLDEN = new THREE.Color('#8a6a4e');
+
+const MASONRY_BOUNCE = new THREE.Color('#978a71');
+const MASONRY_LUMINANCE =
+  0.2126 * MASONRY_BOUNCE.r + 0.7152 * MASONRY_BOUNCE.g + 0.0722 * MASONRY_BOUNCE.b;
+/** Mix the earth/brick/stone bounce into the grass-only hemisphere colour.
+ * The luminance and existing key/fill budget remain exact. Working if a paired
+ * daytime capture loses the green cast on shaded cream walls without adding
+ * light energy, and night illumination remains unchanged.
+ */
+export function applyGroundBouncePalette(
+  target: THREE.Color,
+  source: THREE.Color,
+  daylight: number
+): THREE.Color {
+  const luminance = 0.2126 * source.r + 0.7152 * source.g + 0.0722 * source.b;
+  target.copy(MASONRY_BOUNCE).multiplyScalar(luminance / MASONRY_LUMINANCE);
+  return target.lerp(source, 1 - 0.6 * THREE.MathUtils.clamp(daylight, 0, 1));
+}
 
 /**
  * The ground bounce scales with the light actually reaching the ground, read
@@ -502,7 +531,8 @@ export function SceneEnvironmentIBL(): React.JSX.Element {
     // is pure and cheap, so ask it directly - the same thing `FactoryExterior`
     // and `OptimizedExterior` already do.
     const { gameDay, gameTime, weather } = useGameSimulationStore.getState();
-    const celestial = sampleCelestial(sampleAtmosphere(gameDay, gameTime, weather), _celestial);
+    const atmosphere = sampleAtmosphere(gameDay, gameTime, weather);
+    const celestial = sampleCelestial(atmosphere, _celestial);
     _ground.copy(GROUND_ALBEDO).lerp(GROUND_GOLDEN, celestial.goldenHour);
     // Without this the nadir band stays at daylight brightness all night and
     // lights the world from below under a black sky.
@@ -513,8 +543,13 @@ export function SceneEnvironmentIBL(): React.JSX.Element {
 
     const hemisphere = hemisphereRef.current;
     if (hemisphere) {
+      hemisphere.intensity = useGraphicsStore.getState().graphics.perfDebug.disableLightingPolish
+        ? HEMISPHERE_INTENSITY
+        : hemisphereFillIntensity(atmosphere.daylight);
       hemisphere.color.copy(_horizon);
-      hemisphere.groundColor.copy(_ground);
+      if (useGraphicsStore.getState().graphics.perfDebug.disableLightingPolish)
+        hemisphere.groundColor.copy(_ground);
+      else applyGroundBouncePalette(hemisphere.groundColor, _ground, atmosphere.daylight);
     }
 
     if (hdriEnvironmentActive) return;
