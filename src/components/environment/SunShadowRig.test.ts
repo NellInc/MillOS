@@ -403,10 +403,9 @@ describe('exterior fit across every authored camera', () => {
   it('holds a readable texel on a 1024 map at every camera and elevation', () => {
     // ANSWERS "IS 1024 MATCHED TO THE FIT". These are the world sizes of one
     // shadow texel that `medium`'s configured 1024 actually produces. They are
-    // fine for a filtered lookup and coarse for an unfiltered one - which is
-    // what the renderer is currently doing, because three 0.182 has no
-    // `SHADOWMAP_TYPE_PCF_SOFT` branch and falls through to
-    // `SHADOWMAP_TYPE_BASIC`, a single hard tap.
+    // fine for the PCF lookup selected by App. PCFSoft silently fell through
+    // to BASIC in three 0.182; shaderInjectionAnchors.test now guards the real
+    // Canvas value against the installed renderer mapping.
     const azimuths = [0, Math.PI / 3, (2 * Math.PI) / 3, Math.PI];
     let worstVertical = 0;
     let worstOverall = 0;

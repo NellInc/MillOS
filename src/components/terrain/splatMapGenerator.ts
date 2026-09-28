@@ -194,6 +194,39 @@ export const MILLOS_TERRAIN_REGIONS: TerrainRegion[] = [
     priority: 15,
   },
 
+  // Authored outlying hardstands need the same transition as the main yard.
+  // Match the actual station (-85,140; shop extends west) and visitor lot
+  // (120,50; six 3.5 m bays and two 5 m rows around a 6 m aisle).
+  // These bake into the existing splat texture, with no extra runtime draws.
+  {
+    channel: TerrainChannel.DIRT,
+    shape: { type: 'roundedRect', x: -88, z: 140, width: 32, height: 18, radius: 2 },
+    intensity: 0.75,
+    edgeSoftness: 2.5,
+    priority: 12,
+  },
+  {
+    channel: TerrainChannel.ASPHALT,
+    shape: { type: 'roundedRect', x: -88, z: 140, width: 28, height: 14, radius: 1 },
+    intensity: 1,
+    edgeSoftness: 2,
+    priority: 15,
+  },
+  {
+    channel: TerrainChannel.DIRT,
+    shape: { type: 'roundedRect', x: 120, z: 50, width: 29, height: 24, radius: 2 },
+    intensity: 0.65,
+    edgeSoftness: 2,
+    priority: 12,
+  },
+  {
+    channel: TerrainChannel.ASPHALT,
+    shape: { type: 'rect', x: 120, z: 50, width: 25, height: 20 },
+    intensity: 1,
+    edgeSoftness: 1.5,
+    priority: 15,
+  },
+
   // ============================================
   // DIRT / GRAVEL VERGES AND WORN APPROACHES
   // Priority 12 sits above the factory perimeter (10) so a verge can scuff the

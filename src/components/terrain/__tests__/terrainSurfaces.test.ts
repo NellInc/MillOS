@@ -219,6 +219,15 @@ describe('splat map over SPLAT_BOUNDS', () => {
     expect(dominant(sample(0, 80))).toBe('asphalt');
   });
 
+  it('grounds the station and actual visitor lot with soft worn margins', () => {
+    expect(dominant(sample(-88, 140))).toBe('asphalt');
+    expect(dominant(sample(-99, 140))).toBe('asphalt');
+    expect(dominant(sample(120, 50))).toBe('asphalt');
+    expect(sample(-88, 150).dirt).toBeGreaterThan(0.1);
+    expect(sample(135, 50).dirt).toBeGreaterThan(0.1);
+    expect(sample(-88, 160).grass).toBeGreaterThan(0.95);
+  });
+
   it('is clamped, mipmapped linear data', () => {
     expect(texture.colorSpace).toBe(THREE.NoColorSpace);
     expect(texture.wrapS).toBe(THREE.ClampToEdgeWrapping);

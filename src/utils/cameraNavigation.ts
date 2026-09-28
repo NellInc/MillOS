@@ -28,6 +28,7 @@ const INTERACTIVE_TARGET_SELECTOR = [
   'textarea',
   'select',
   'button',
+  'summary',
   'a[href]',
   '[contenteditable]:not([contenteditable="false"])',
   '[role="button"]',

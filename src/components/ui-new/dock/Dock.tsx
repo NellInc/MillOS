@@ -135,8 +135,10 @@ export const Dock: React.FC<DockProps> = ({ activeMode, onModeChange, onDatalink
   return (
     <nav
       id="navigation-dock"
-      className={`fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-900/80 backdrop-blur-xl border border-white/10 rounded-2xl flex items-center shadow-2xl z-50 pointer-events-auto ${
-        isCompactLayout ? 'px-2 py-2 gap-1 max-w-full' : 'px-3 py-2 gap-2'
+      className={`fixed bottom-6 left-1/2 -translate-x-1/2 bg-[#071722]/95 backdrop-blur-xl border border-cyan-100/15 rounded-lg flex items-center shadow-2xl z-50 pointer-events-auto ${
+        isCompactLayout
+          ? 'p-1 gap-0.5 max-w-[calc(100vw-1rem)]'
+          : 'p-[4px] gap-0.5 w-[min(48rem,calc(100vw-2rem))]'
       }`}
       aria-label="Main Navigation"
       role="navigation"
@@ -201,7 +203,7 @@ export const Dock: React.FC<DockProps> = ({ activeMode, onModeChange, onDatalink
         isMobile={isCompactLayout}
       />
 
-      <div className="relative border-l border-white/10 pl-2" ref={moreMenuRef}>
+      <div className="relative shrink-0 border-l border-white/10 pl-1" ref={moreMenuRef}>
         <button
           ref={moreMenuTriggerRef}
           type="button"
@@ -288,6 +290,15 @@ export const Dock: React.FC<DockProps> = ({ activeMode, onModeChange, onDatalink
   );
 };
 
+const DOCK_LABELS: Record<DockMode, string> = {
+  overview: 'Overview',
+  ai: 'AI Partner',
+  scada: 'SCADA',
+  management: 'Autonomy',
+  safety: 'Safety',
+  settings: 'Settings',
+};
+
 const DockItem: React.FC<{
   mode: DockMode;
   icon: React.ReactNode;
@@ -304,15 +315,20 @@ const DockItem: React.FC<{
       aria-pressed={isActive}
       aria-current={isActive ? 'page' : undefined}
       title={label}
-      className={`relative rounded-xl transition-colors ${
-        isMobile ? 'p-2 min-w-[44px] min-h-[44px]' : 'p-3'
-      } ${isActive ? 'bg-white/10 text-cyan-400' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
+      className={`relative rounded-md transition-colors ${
+        isMobile
+          ? 'p-2 min-w-[44px] min-h-[44px]'
+          : 'flex min-w-0 flex-1 h-[54px] flex-col items-center justify-center gap-1 px-1'
+      } ${isActive ? 'bg-cyan-300/10 text-cyan-200' : 'text-slate-300 hover:text-white hover:bg-white/5'}`}
     >
       <span aria-hidden="true">{icon}</span>
+      {!isMobile && (
+        <span className="text-[12px] leading-4 whitespace-nowrap">{DOCK_LABELS[mode]}</span>
+      )}
       {isActive && (
         <motion.div
           layoutId="dock-active"
-          className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 bg-cyan-400 rounded-full"
+          className="absolute bottom-0 left-2 right-2 h-px bg-cyan-300"
           aria-hidden="true"
         />
       )}

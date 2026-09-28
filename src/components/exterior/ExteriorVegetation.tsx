@@ -16,6 +16,9 @@ import {
   BROADLEAF_DEPTH,
 } from '../scenery/InstancedFoliage';
 import { WindDriver } from '../scenery/WindDriver';
+import { GeneratedBoundary } from '../models/GeneratedModel';
+import { useDracoGLTF } from '../../utils/dracoLoader';
+import { GENERATED_ASSET_PATHS } from '../../utils/modelLoader';
 
 // ============================================================
 // GEOMETRIES (Module Level - Pre-translated with baked offsets)
@@ -199,7 +202,7 @@ interface InstanceData {
   scale?: number;
 }
 
-const useInstances = (_count: number, data: InstanceData[]) => {
+const useInstances = (_count: number, data: InstanceData[], localMatrix?: THREE.Matrix4) => {
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const tempObject = useMemo(() => new THREE.Object3D(), []);
 
@@ -212,10 +215,11 @@ const useInstances = (_count: number, data: InstanceData[]) => {
       const scale = item.scale ?? 1;
       tempObject.scale.set(scale, scale, scale);
       tempObject.updateMatrix();
+      if (localMatrix) tempObject.matrix.multiply(localMatrix);
       meshRef.current!.setMatrixAt(i, tempObject.matrix);
     });
     meshRef.current.instanceMatrix.needsUpdate = true;
-  }, [data, tempObject]);
+  }, [data, tempObject, localMatrix]);
 
   return meshRef;
 };
@@ -305,7 +309,7 @@ export interface BenchInstanceData {
   rotation?: number;
 }
 
-export const ParkBenchInstances: React.FC<{
+const PrimitiveParkBenchInstances: React.FC<{
   benches: BenchInstanceData[];
 }> = React.memo(({ benches }) => {
   const count = benches.length;
@@ -347,14 +351,79 @@ export const ParkBenchInstances: React.FC<{
     </group>
   );
 });
+PrimitiveParkBenchInstances.displayName = 'PrimitiveParkBenchInstances';
+
+// One material/mesh atlas, instanced across each parkland set. The normalized
+// GLB hierarchy carries scale and centring; compose that matrix into every seat.
+export function generatedBenchSource(scene: THREE.Object3D): THREE.Mesh {
+  const meshes: THREE.Mesh[] = [];
+  scene.updateMatrixWorld(true);
+  scene.traverse((object) => {
+    if ((object as THREE.Mesh).isMesh) meshes.push(object as THREE.Mesh);
+  });
+  if (meshes.length !== 1 || Array.isArray(meshes[0].material))
+    throw new Error('Park bench must contain one shared mesh and material');
+  return meshes[0];
+}
+
+const GeneratedParkBenchInstances: React.FC<{ benches: BenchInstanceData[] }> = ({ benches }) => {
+  const { scene } = useDracoGLTF(GENERATED_ASSET_PATHS.parkBench);
+  const source = useMemo(() => generatedBenchSource(scene), [scene]);
+  const ref = useInstances(benches.length, benches, source.matrixWorld);
+  useLayoutEffect(() => {
+    ref.current?.computeBoundingBox();
+    ref.current?.computeBoundingSphere();
+  }, [benches, ref]);
+  return (
+    <instancedMesh
+      ref={ref}
+      args={[source.geometry, source.material, benches.length]}
+      castShadow
+      receiveShadow
+    />
+  );
+};
+
+export const ParkBenchInstances: React.FC<{ benches: BenchInstanceData[] }> = React.memo(
+  ({ benches }) =>
+    benches.length ? (
+      <GeneratedBoundary fallback={<PrimitiveParkBenchInstances benches={benches} />}>
+        <GeneratedParkBenchInstances benches={benches} />
+      </GeneratedBoundary>
+    ) : null
+);
 ParkBenchInstances.displayName = 'ParkBenchInstances';
 
 // ============================================================
 // MAIN COMPONENT TREES (absolute positions in FactoryExterior main return)
 // ============================================================
 
+// Loose groves frame the village's outer grass verge and the mill approach.
+// Kept outside the square, waterways and yard; all use the existing four
+// instanced tree batches. Unequal spacing and canopy sizes leave sightlines.
+export const LANDSCAPE_GROVE_TREES: TreeInstanceData[] = [
+  { position: [-231, 0, -48], scale: 1.65 },
+  { position: [-238, 0, -37], scale: 1.35 },
+  { position: [-230, 0, -28], scale: 1.8 },
+  { position: [-237, 0, -17], scale: 1.2 },
+  { position: [-231, 0, 26], scale: 1.55 },
+  { position: [-239, 0, 38], scale: 1.8 },
+  { position: [-229, 0, 48], scale: 1.3 },
+  { position: [-232, 0, 60], scale: 1.6 },
+  { position: [-203, 0, -83], scale: 1.5 },
+  { position: [-192, 0, -89], scale: 1.85 },
+  { position: [-180, 0, -81], scale: 1.3 },
+  { position: [-207, 0, 82], scale: 1.75 },
+  { position: [-194, 0, 87], scale: 1.35 },
+  { position: [-182, 0, 80], scale: 1.65 },
+  { position: [-118, 0, 63], scale: 1.55 },
+  { position: [-116, 0, 49], scale: 1.25 },
+  { position: [-110, 0, 75], scale: 1.6 },
+];
+
 // Trees directly in FactoryExterior main component (not inside sub-components)
 export const MAIN_EXTERIOR_TREES: TreeInstanceData[] = [
+  ...LANDSCAPE_GROVE_TREES,
   // Lines 6452-6458: Additional trees along boundaries
   { position: [-105, 0, 60], scale: 1.3 },
   { position: [-110, 0, 30], scale: 1.1 },
@@ -385,7 +454,8 @@ export const MAIN_EXTERIOR_BENCHES: BenchInstanceData[] = [
   // Lines 6906-6908: Benches along paths
   { position: [-157, 0, 20], rotation: Math.PI / 2 },
   { position: [-157, 0, -60], rotation: Math.PI / 2 },
-  { position: [0, 0, -140], rotation: 0 },
+  // The old z=-140 placement floated in the river beneath the northern bridge.
+  { position: [3, 0, -112], rotation: Math.PI },
 ];
 
 // ============================================================

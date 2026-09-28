@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { getTourCameraPreset } from './tourCamera';
 
 describe('tour camera route', () => {
-  it('flies through overview, packing, and milling', () => {
-    expect([0, 1, 2].map(getTourCameraPreset)).toEqual([0, 4, 2]);
+  it('flies through silos, packing, and milling', () => {
+    expect([0, 1, 2].map(getTourCameraPreset)).toEqual([1, 4, 2]);
   });
 
   it('ignores inactive or invalid tour steps', () => {

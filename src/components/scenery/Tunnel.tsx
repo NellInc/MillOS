@@ -18,6 +18,7 @@
 import React, { useEffect, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
+import { mergeGeometries, toCreasedNormals } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { TUNNEL_MATERIALS, PROCEDURAL_TEXTURES } from '../../utils/sharedMaterials';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { createAtmosphereState, sampleAtmosphere } from '../../simulation/atmosphere';
@@ -264,15 +265,70 @@ const CULVERT_RIPRAP_OFFSETS = [
   [0.62, -0.72, 1.26, 0.24],
 ] as const;
 
+/** Perforated masonry face for the existing Victorian portal. Metres, Y up. */
+export function createVictorianTunnelPortalGeometry(
+  width = 14,
+  height = 9,
+  depth = 1.2
+): THREE.ExtrudeGeometry {
+  const wall = new THREE.Shape();
+  wall.moveTo(-width / 2, -1);
+  wall.lineTo(width / 2, -1);
+  wall.lineTo(width / 2, height);
+  wall.lineTo(-width / 2, height);
+  wall.closePath();
+  const passage = new THREE.Path();
+  passage.moveTo(-4, -1);
+  passage.lineTo(-4, 2.5);
+  passage.absarc(0, 2.5, 4, Math.PI, 0, true);
+  passage.lineTo(4, -1);
+  passage.closePath();
+  wall.holes.push(passage);
+  const geometry = new THREE.ExtrudeGeometry(wall, {
+    depth,
+    bevelEnabled: false,
+    curveSegments: 16,
+  });
+  geometry.translate(0, 0, -depth / 2);
+  // Preserve the former columns' brick density, rather than stretching one
+  // UV square across the whole facade or tiling it once per metre.
+  const uv = geometry.getAttribute('uv');
+  for (let i = 0; i < uv.count; i += 1) uv.setXY(i, uv.getX(i) / 3, uv.getY(i) / 8);
+  geometry.computeBoundingBox();
+  geometry.computeBoundingSphere();
+  return geometry;
+}
+
+/** Lower masonry of the barrel vault, outside the unchanged 8 m passage. */
+export function createVictorianTunnelSideGeometry(length: number): THREE.BufferGeometry {
+  const sides = [-4.125, 4.125].map((x) => {
+    const geometry = new THREE.BoxGeometry(0.25, 2.52, length + 0.1);
+    const uv = geometry.getAttribute('uv');
+    const normal = geometry.getAttribute('normal');
+    for (let i = 0; i < uv.count; i += 1) {
+      const span = Math.abs(normal.getX(i)) > 0.5 ? length + 0.1 : 0.25;
+      uv.setXY(i, (uv.getX(i) * span) / 3, (uv.getY(i) * 2.52) / 8);
+    }
+    return geometry.translate(x, 1.24, 0);
+  });
+  const geometry = mergeGeometries(sides);
+  sides.forEach((side) => side.dispose());
+  if (!geometry) throw new Error('Could not assemble the Victorian tunnel side walls');
+  geometry.computeBoundingBox();
+  geometry.computeBoundingSphere();
+  return geometry;
+}
+
 export function createRoadTunnelHillsideGeometry(depth = 90): THREE.ExtrudeGeometry {
   const shape = new THREE.Shape();
   shape.moveTo(-22, 0);
   shape.lineTo(22, 0);
-  shape.lineTo(19, 9);
-  shape.lineTo(12, 16);
-  shape.lineTo(3, 20);
-  shape.lineTo(-7, 18.2);
-  shape.lineTo(-17, 12);
+  // Round the existing earth-bank shoulders while retaining the 44 m footprint
+  // and 20 m crown. The engineered portal and bore below remain unchanged.
+  shape.quadraticCurveTo(21, 10, 13, 16);
+  shape.quadraticCurveTo(8, 20, 3, 20);
+  shape.quadraticCurveTo(-12, 20, -18, 10);
+  shape.quadraticCurveTo(-21, 5, -22, 0);
   shape.closePath();
 
   const opening = new THREE.Path();
@@ -287,10 +343,24 @@ export function createRoadTunnelHillsideGeometry(depth = 90): THREE.ExtrudeGeome
     depth,
     bevelEnabled: false,
     curveSegments: 18,
-    steps: 1,
+    steps: 8,
   });
   geometry.translate(0, 0, -depth);
-  geometry.computeVertexNormals();
+  // A slight longitudinal roll breaks the ruler-straight extrusion. Both end
+  // faces and every bore vertex are fixed, so road clearance and portal joints
+  // keep their old contract. One shared 2,012-triangle mesh, no extra draws.
+  const position = geometry.getAttribute('position');
+  for (let i = 0; i < position.count; i += 1) {
+    const x = position.getX(i);
+    const y = position.getY(i);
+    if (y <= 8.51 && Math.abs(x) <= 5.01) continue;
+    const t = -position.getZ(i) / depth;
+    position.setY(i, y * (1 - 0.08 * Math.sin(Math.PI * t) ** 2));
+    position.setX(i, x * (1 - 0.06 * Math.sin(2 * Math.PI * t) ** 2));
+  }
+  // ExtrudeGeometry is non-indexed; this writes its normals in place, smoothing
+  // the soil while preserving the right-angle cuts around both portal faces.
+  toCreasedNormals(geometry, Math.PI / 3);
   geometry.computeBoundingBox();
   geometry.computeBoundingSphere();
   return geometry;

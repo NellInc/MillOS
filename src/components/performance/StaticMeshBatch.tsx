@@ -210,7 +210,18 @@ const geometrySignature = (geometry: THREE.BufferGeometry): string => {
 
 type MaterialSignatureOptions = { includeColor?: boolean; mergeCompatible?: boolean };
 
-const MATERIAL_IDENTITY_KEYS = new Set(['id', 'uuid', 'name', 'userData', 'version', 'type']);
+// R3F's enumerable ownership descriptor links back through the entire React
+// scene. Signing it both separates visually identical materials by parent and
+// recursively expands shared ownership paths. Only render state belongs here.
+const MATERIAL_IDENTITY_KEYS = new Set([
+  'id',
+  'uuid',
+  'name',
+  'userData',
+  'version',
+  'type',
+  '__r3f',
+]);
 const MERGE_QUANTIZED_KEYS = new Set(['roughness', 'metalness']);
 
 const materialValueSignature = (

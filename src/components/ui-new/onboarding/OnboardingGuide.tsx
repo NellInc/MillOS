@@ -38,7 +38,7 @@ export function OnboardingGuide({
     <section
       aria-label={`Getting started, step ${stepIndex + 1} of ${stepCount}`}
       aria-live="polite"
-      className="pointer-events-auto fixed bottom-[11.5rem] left-3 right-3 z-40 rounded-xl border border-cyan-400/40 bg-slate-950/95 p-4 shadow-2xl shadow-black/40 backdrop-blur-md sm:left-5 sm:right-auto sm:w-[360px]"
+      className="pointer-events-auto fixed bottom-[11.5rem] left-3 right-3 z-40 max-h-[calc(100dvh-15.5rem)] overflow-y-auto overscroll-contain rounded-xl border border-cyan-400/40 bg-slate-950/95 p-4 shadow-2xl shadow-black/40 backdrop-blur-md sm:left-5 sm:right-auto sm:w-[360px]"
     >
       <div className="mb-3 flex items-start gap-3">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-cyan-400/30 bg-cyan-400/10">
@@ -53,7 +53,7 @@ export function OnboardingGuide({
               type="button"
               onClick={onClose}
               aria-label="Close getting started for this session"
-              className="rounded p-1 text-slate-400 transition-colors hover:bg-slate-800 hover:text-white"
+              className="-m-2.5 rounded p-3.5 text-slate-400 transition-colors hover:bg-slate-800 hover:text-white"
             >
               <X className="h-4 w-4" aria-hidden="true" />
             </button>
@@ -64,7 +64,16 @@ export function OnboardingGuide({
 
       <p className="text-sm leading-6 text-slate-200">{step.content}</p>
 
-      <div className="mt-4 flex items-center justify-between gap-3">
+      <details className="mt-2 text-xs text-slate-300">
+        <summary className="min-h-10 cursor-pointer rounded-lg py-3 font-medium text-cyan-300">
+          Camera controls
+        </summary>
+        <p className="pb-2 leading-5">
+          Drag to orbit; scroll or pinch to zoom. Use W A S D to move and Q or E to change height.
+        </p>
+      </details>
+
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex gap-1.5" aria-hidden="true">
           {Array.from({ length: stepCount }, (_, index) => (
             <span
@@ -75,7 +84,7 @@ export function OnboardingGuide({
             />
           ))}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={onBack}

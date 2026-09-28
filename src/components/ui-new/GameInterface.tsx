@@ -30,22 +30,22 @@ import { MillOSMusicPlayer } from './MillOSMusicPlayer';
 
 const INTRO_STEPS: OnboardingStep[] = [
   {
-    title: 'Follow the process',
+    title: 'Follow the grain',
     icon: 'factory',
     content:
-      'The camera is flying to the full site. Grain moves from the rear silos through milling and sifting, then reaches packing and shipping. Use W A S D to move, Q and E to descend or climb, drag to orbit, and scroll or pinch to zoom.',
+      'Grain enters the silos, passes through milling and sifting, and leaves as packed flour. Follow the route to understand how each stage supports the next.',
   },
   {
     title: 'Protect today’s target',
     icon: 'goal',
     content:
-      'The tour is flying to packing. The status bar compares output with the active run target. Alarms, stoppages, quality loss, and route conflicts reduce throughput.',
+      'Packing turns production into finished output. Compare the current rate with today’s target, then inspect any stage that is waiting for material or output space.',
   },
   {
     title: 'Inspect before acting',
     icon: 'controls',
     content:
-      'The tour is flying to milling. Select a machine to inspect it. The bottom dock opens production, safety, autonomy, and simulated SCADA. Press ? for keyboard controls.',
+      'Select a machine to see its status, material buffers, and recorded maintenance. Use the dock for production, safety, autonomy, and simulated SCADA. Press ? for camera and keyboard controls.',
   },
 ];
 
@@ -143,6 +143,8 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
     if (next >= INTRO_STEPS.length) {
       setHasSeenIntro(true);
       setIntroStep(null);
+      if (isCompactLayout) useMobileControlStore.getState().openMobilePanel('overview');
+      else setSidebarVisible(true);
       return;
     }
     setIntroStep(next);
@@ -338,8 +340,17 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
       {!isCompactLayout && <MiniMap />}
       <IncidentReplayControls />
 
-      {/* The soundtrack player remains directly reachable without opening a control panel. */}
-      <MillOSMusicPlayer />
+      {/* Keep playback reachable while the tour, an inspector, or safety owns attention. */}
+      <MillOSMusicPlayer
+        sidebarVisible={!isCompactLayout && isSidebarVisible}
+        distractionFree={
+          introStep !== null ||
+          safetyStateActive ||
+          hasCriticalAlert ||
+          isSidebarVisible ||
+          mobilePanelVisible
+        }
+      />
 
       {/* 5. Bottom Dock - Always visible (adapts to mobile) */}
       <Dock
@@ -373,6 +384,8 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
         currentNarration &&
         introStep === null &&
         activeMode === 'overview' &&
+        !isSidebarVisible &&
+        !mobilePanelVisible &&
         !fpsMode &&
         !hasCriticalAlert &&
         !safetyStateActive && (

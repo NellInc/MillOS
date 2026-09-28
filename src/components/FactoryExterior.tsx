@@ -29,6 +29,15 @@ import {
 } from './exterior/ExteriorLighting';
 // OUTDOOR_MATERIALS removed - grass plane now handled by TerrainGround
 import { GasStation } from './GasStationInstanced';
+import { GeneratedBoundary, GeneratedModel } from './models/GeneratedModel';
+import { GeneratedLampModel } from './models/GeneratedLampModel';
+import { GeneratedPaintedModel } from './models/GeneratedPaintedModel';
+import { GeneratedOfficeModel } from './models/GeneratedOfficeModel';
+import { GeneratedBoatModel } from './models/GeneratedBoatModel';
+import {
+  createVictorianTunnelPortalGeometry,
+  createVictorianTunnelSideGeometry,
+} from './scenery/Tunnel';
 import {
   SimpleTreeInstances,
   ParkBenchInstances,
@@ -167,6 +176,8 @@ const CANAL_BED_MAP = cloneTiledTexture(PROCEDURAL_TEXTURES.mudColor, 2, 37);
 const CANAL_BED_ROUGHNESS = cloneTiledTexture(PROCEDURAL_TEXTURES.mudRoughness, 2, 37);
 
 /** Coarse brick for the 6m Victorian tunnel portal. */
+const VICTORIAN_PORTAL_FACE = createVictorianTunnelPortalGeometry();
+const VICTORIAN_PORTAL_EXIT = createVictorianTunnelPortalGeometry(11, 7, 1);
 const PORTAL_BRICK_MAP = cloneTiledTexture(PROCEDURAL_TEXTURES.brickColor, 2, 3);
 const PORTAL_BRICK_NORMAL = cloneTiledTexture(PROCEDURAL_TEXTURES.brickNormal, 2, 3);
 const PORTAL_BRICK_NORMAL_SCALE = new THREE.Vector2(0.45, 0.45);
@@ -423,23 +434,31 @@ const SimpleTree: React.FC<{ position: [number, number, number]; scale?: number 
 const ParkBench: React.FC<{ position: [number, number, number]; rotation?: number }> = React.memo(
   ({ position, rotation = 0 }) => (
     <group position={position} rotation={[0, rotation, 0]}>
-      {/* Seat */}
-      <mesh position={[0, 0.45, 0]} castShadow>
-        <boxGeometry args={[1.8, 0.1, 0.5]} />
-        <meshStandardMaterial color="#8d6e63" roughness={0.7} />
-      </mesh>
-      {/* Backrest */}
-      <mesh position={[0, 0.75, -0.2]} rotation={[0.2, 0, 0]} castShadow>
-        <boxGeometry args={[1.8, 0.5, 0.08]} />
-        <meshStandardMaterial color="#8d6e63" roughness={0.7} />
-      </mesh>
-      {/* Legs */}
-      {[-0.7, 0.7].map((x, i) => (
-        <mesh key={i} position={[x, 0.22, 0]} castShadow>
-          <boxGeometry args={[0.1, 0.45, 0.4]} />
-          <meshStandardMaterial color="#424242" roughness={0.6} metalness={0.3} />
-        </mesh>
-      ))}
+      <GeneratedBoundary
+        fallback={
+          <group>
+            {/* Seat */}
+            <mesh position={[0, 0.45, 0]} castShadow>
+              <boxGeometry args={[1.8, 0.1, 0.5]} />
+              <meshStandardMaterial color="#8d6e63" roughness={0.7} />
+            </mesh>
+            {/* Backrest */}
+            <mesh position={[0, 0.75, -0.2]} rotation={[0.2, 0, 0]} castShadow>
+              <boxGeometry args={[1.8, 0.5, 0.08]} />
+              <meshStandardMaterial color="#8d6e63" roughness={0.7} />
+            </mesh>
+            {/* Legs */}
+            {[-0.7, 0.7].map((x, i) => (
+              <mesh key={i} position={[x, 0.22, 0]} castShadow>
+                <boxGeometry args={[0.1, 0.45, 0.4]} />
+                <meshStandardMaterial color="#424242" roughness={0.6} metalness={0.3} />
+              </mesh>
+            ))}
+          </group>
+        }
+      >
+        <GeneratedModel asset="parkBench" />
+      </GeneratedBoundary>
     </group>
   )
 );
@@ -517,77 +536,88 @@ export const SmallOffice: React.FC<{
 
   return (
     <group position={position} rotation={[0, rotation, 0]}>
-      {/* Main building - procedural stucco walls */}
-      <mesh
-        position={[0, size[1] / 2, 0]}
-        castShadow
-        receiveShadow
-        material={OFFICE_MATERIALS.wall}
+      <GeneratedBoundary
+        fallback={
+          <group>
+            {' '}
+            {/* Main building - procedural stucco walls */}
+            <mesh
+              position={[0, size[1] / 2, 0]}
+              castShadow
+              receiveShadow
+              material={OFFICE_MATERIALS.wall}
+            >
+              <boxGeometry args={[size[0], size[1], size[2]]} />
+            </mesh>
+            {/* Roof slab */}
+            <mesh position={[0, size[1] + 0.15, 0]} castShadow material={OFFICE_MATERIALS.trim}>
+              <boxGeometry args={[size[0] + 0.3, 0.3, size[2] + 0.3]} />
+            </mesh>
+            {/* Parapet - four low walls around the roof edge */}
+            <mesh
+              position={[0, size[1] + 0.55, size[2] / 2 + 0.1]}
+              castShadow
+              material={OFFICE_MATERIALS.trim}
+            >
+              <boxGeometry args={[size[0] + 0.5, 0.5, 0.15]} />
+            </mesh>
+            <mesh
+              position={[0, size[1] + 0.55, -(size[2] / 2 + 0.1)]}
+              castShadow
+              material={OFFICE_MATERIALS.trim}
+            >
+              <boxGeometry args={[size[0] + 0.5, 0.5, 0.15]} />
+            </mesh>
+            <mesh
+              position={[size[0] / 2 + 0.1, size[1] + 0.55, 0]}
+              castShadow
+              material={OFFICE_MATERIALS.trim}
+            >
+              <boxGeometry args={[0.15, 0.5, size[2] + 0.5]} />
+            </mesh>
+            <mesh
+              position={[-(size[0] / 2 + 0.1), size[1] + 0.55, 0]}
+              castShadow
+              material={OFFICE_MATERIALS.trim}
+            >
+              <boxGeometry args={[0.15, 0.5, size[2] + 0.5]} />
+            </mesh>
+            {/* Rooftop HVAC unit */}
+            <group position={[size[0] / 5, size[1] + 0.75, -size[2] / 6]}>
+              <mesh castShadow material={OFFICE_MATERIALS.hvac}>
+                <boxGeometry args={[2, 0.9, 1.4]} />
+              </mesh>
+              {/* Fan grille on top */}
+              <mesh
+                position={[0, 0.47, 0]}
+                rotation={[-Math.PI / 2, 0, 0]}
+                material={OFFICE_MATERIALS.frame}
+              >
+                <circleGeometry args={[0.5, 12]} />
+              </mesh>
+            </group>
+            {/* Windows - front (raised to avoid overlap with door); middle bay dark for variety */}
+            {[-3, 0, 3].map((x, i) => (
+              <OfficeWindow
+                key={`front-${i}`}
+                position={[x, size[1] / 2 + 0.8, size[2] / 2 + 0.01]}
+                lit={isNight && i !== 1}
+              />
+            ))}
+            {/* Door with frame */}
+            <mesh position={[0, 1.2, size[2] / 2 + 0.02]} material={OFFICE_MATERIALS.door}>
+              <planeGeometry args={[1.5, 2.4]} />
+            </mesh>
+            <mesh position={[0, 2.45, size[2] / 2 + 0.05]} material={OFFICE_MATERIALS.frame}>
+              <boxGeometry args={[1.7, 0.1, 0.08]} />
+            </mesh>
+          </group>
+        }
       >
-        <boxGeometry args={[size[0], size[1], size[2]]} />
-      </mesh>
-      {/* Roof slab */}
-      <mesh position={[0, size[1] + 0.15, 0]} castShadow material={OFFICE_MATERIALS.trim}>
-        <boxGeometry args={[size[0] + 0.3, 0.3, size[2] + 0.3]} />
-      </mesh>
-      {/* Parapet - four low walls around the roof edge */}
-      <mesh
-        position={[0, size[1] + 0.55, size[2] / 2 + 0.1]}
-        castShadow
-        material={OFFICE_MATERIALS.trim}
-      >
-        <boxGeometry args={[size[0] + 0.5, 0.5, 0.15]} />
-      </mesh>
-      <mesh
-        position={[0, size[1] + 0.55, -(size[2] / 2 + 0.1)]}
-        castShadow
-        material={OFFICE_MATERIALS.trim}
-      >
-        <boxGeometry args={[size[0] + 0.5, 0.5, 0.15]} />
-      </mesh>
-      <mesh
-        position={[size[0] / 2 + 0.1, size[1] + 0.55, 0]}
-        castShadow
-        material={OFFICE_MATERIALS.trim}
-      >
-        <boxGeometry args={[0.15, 0.5, size[2] + 0.5]} />
-      </mesh>
-      <mesh
-        position={[-(size[0] / 2 + 0.1), size[1] + 0.55, 0]}
-        castShadow
-        material={OFFICE_MATERIALS.trim}
-      >
-        <boxGeometry args={[0.15, 0.5, size[2] + 0.5]} />
-      </mesh>
-      {/* Rooftop HVAC unit */}
-      <group position={[size[0] / 5, size[1] + 0.75, -size[2] / 6]}>
-        <mesh castShadow material={OFFICE_MATERIALS.hvac}>
-          <boxGeometry args={[2, 0.9, 1.4]} />
-        </mesh>
-        {/* Fan grille on top */}
-        <mesh
-          position={[0, 0.47, 0]}
-          rotation={[-Math.PI / 2, 0, 0]}
-          material={OFFICE_MATERIALS.frame}
-        >
-          <circleGeometry args={[0.5, 12]} />
-        </mesh>
-      </group>
-      {/* Windows - front (raised to avoid overlap with door); middle bay dark for variety */}
-      {[-3, 0, 3].map((x, i) => (
-        <OfficeWindow
-          key={`front-${i}`}
-          position={[x, size[1] / 2 + 0.8, size[2] / 2 + 0.01]}
-          lit={isNight && i !== 1}
-        />
-      ))}
-      {/* Door with frame */}
-      <mesh position={[0, 1.2, size[2] / 2 + 0.02]} material={OFFICE_MATERIALS.door}>
-        <planeGeometry args={[1.5, 2.4]} />
-      </mesh>
-      <mesh position={[0, 2.45, size[2] / 2 + 0.05]} material={OFFICE_MATERIALS.frame}>
-        <boxGeometry args={[1.7, 0.1, 0.08]} />
-      </mesh>
+        <group scale={[size[0] / 14, size[1] / 7, size[2] / 10]}>
+          <GeneratedOfficeModel isNight={isNight} />
+        </group>
+      </GeneratedBoundary>
     </group>
   );
 });
@@ -623,40 +653,56 @@ const NissenHut: React.FC<{
 
   return (
     <group position={position} rotation={[0, rotation, 0]}>
-      {/* Semi-cylindrical roof/walls - corrugated iron using ExtrudeGeometry */}
-      <mesh position={[0, 0, -length / 2]} castShadow receiveShadow>
-        <extrudeGeometry args={[arcShape, extrudeSettings]} />
-        <meshStandardMaterial
-          color="#6b7280"
-          roughness={0.7}
-          metalness={0.4}
-          side={THREE.DoubleSide}
-        />
-      </mesh>
-
-      {/* End walls - semi-circular caps matching the cylinder cross-section */}
-      {[-length / 2, length / 2].map((z, i) => (
-        <group key={`end-${i}`} position={[0, 0, z]}>
-          {/* Semi-circular end wall - rotated to face outward */}
-          <mesh rotation={[0, i === 0 ? Math.PI : 0, 0]} castShadow receiveShadow>
-            <circleGeometry args={[radius, 16, 0, Math.PI]} />
-            <meshStandardMaterial color="#5a6268" roughness={0.8} side={THREE.DoubleSide} />
-          </mesh>
-          {/* Door on front end only */}
-          {i === 0 && (
-            <mesh position={[0, 1, -0.05]} rotation={[0, Math.PI, 0]}>
-              <planeGeometry args={[1.5, 2]} />
-              <meshStandardMaterial color="#3e2723" roughness={0.9} />
+      <GeneratedBoundary
+        fallback={
+          <group>
+            {/* Semi-cylindrical roof/walls - corrugated iron using ExtrudeGeometry */}
+            <mesh position={[0, 0, -length / 2]} castShadow receiveShadow>
+              <extrudeGeometry args={[arcShape, extrudeSettings]} />
+              <meshStandardMaterial
+                color="#6b7280"
+                roughness={0.7}
+                metalness={0.4}
+                side={THREE.DoubleSide}
+              />
             </mesh>
-          )}
-        </group>
-      ))}
 
-      {/* Foundation/base */}
-      <mesh position={[0, 0.1, 0]} receiveShadow>
-        <boxGeometry args={[radius * 2 + 0.2, 0.2, length + 0.4]} />
-        <meshStandardMaterial color="#4a4a4a" roughness={0.9} />
-      </mesh>
+            {/* End walls - semi-circular caps matching the cylinder cross-section */}
+            {[-length / 2, length / 2].map((z, i) => (
+              <group key={`end-${i}`} position={[0, 0, z]}>
+                {/* Semi-circular end wall - rotated to face outward */}
+                <mesh rotation={[0, i === 0 ? Math.PI : 0, 0]} castShadow receiveShadow>
+                  <circleGeometry args={[radius, 16, 0, Math.PI]} />
+                  <meshStandardMaterial color="#5a6268" roughness={0.8} side={THREE.DoubleSide} />
+                </mesh>
+                {/* Door on front end only */}
+                {i === 0 && (
+                  <mesh position={[0, 1, -0.05]} rotation={[0, Math.PI, 0]}>
+                    <planeGeometry args={[1.5, 2]} />
+                    <meshStandardMaterial color="#3e2723" roughness={0.9} />
+                  </mesh>
+                )}
+              </group>
+            ))}
+
+            {/* Foundation/base */}
+            <mesh position={[0, 0.1, 0]} receiveShadow>
+              <boxGeometry args={[radius * 2 + 0.2, 0.2, length + 0.4]} />
+              <meshStandardMaterial color="#4a4a4a" roughness={0.9} />
+            </mesh>
+          </group>
+        }
+      >
+        <group scale={[1, 1, (length + 0.4) / 12.4]}>
+          <GeneratedModel asset="nissenHut" />
+          {/* Tripo mirrored the front door onto the rear. Retain the authored
+              closed rear wall; 6.16 m clears the measured 6.1515 m door relief. */}
+          <mesh position={[0, 0, 6.16]} castShadow receiveShadow>
+            <circleGeometry args={[2.5, 48, 0, Math.PI]} />
+            <meshStandardMaterial color="#5a6268" roughness={0.8} />
+          </mesh>
+        </group>
+      </GeneratedBoundary>
     </group>
   );
 };
@@ -672,14 +718,14 @@ const OfficeApartment: React.FC<{
   const width = 16;
   const depth = 12;
 
-  return (
-    <group position={position} rotation={[0, rotation, 0]}>
+  const primitiveBuilding = (
+    <group>
+      {' '}
       {/* Main building structure */}
       <mesh position={[0, buildingHeight / 2, 0]} castShadow receiveShadow>
         <boxGeometry args={[width, buildingHeight, depth]} />
         <meshStandardMaterial color="#8d9db6" roughness={0.7} />
       </mesh>
-
       {/* Floor bands */}
       {Array.from({ length: floors }).map((_, floor) => (
         <mesh key={`band-${floor}`} position={[0, floor * floorHeight + floorHeight - 0.1, 0]}>
@@ -687,7 +733,6 @@ const OfficeApartment: React.FC<{
           <meshStandardMaterial color="#667292" roughness={0.6} />
         </mesh>
       ))}
-
       {/* Windows - front and back */}
       {Array.from({ length: floors }).map((_, floor) =>
         [-5, -1.5, 1.5, 5].map((x, winIdx) => (
@@ -708,7 +753,6 @@ const OfficeApartment: React.FC<{
           </React.Fragment>
         ))
       )}
-
       {/* Side windows */}
       {Array.from({ length: floors }).map((_, floor) =>
         [-3, 0, 3].map((z, winIdx) => (
@@ -732,7 +776,6 @@ const OfficeApartment: React.FC<{
           </React.Fragment>
         ))
       )}
-
       {/* Main entrance */}
       <group position={[0, 0, depth / 2]}>
         {/* Entrance canopy */}
@@ -753,13 +796,11 @@ const OfficeApartment: React.FC<{
           <meshStandardMaterial color="#64b5f6" metalness={0.4} roughness={0.1} />
         </mesh>
       </group>
-
       {/* Roof structure */}
       <mesh position={[0, buildingHeight + 0.3, 0]} castShadow>
         <boxGeometry args={[width + 0.5, 0.6, depth + 0.5]} />
         <meshStandardMaterial color="#546e7a" roughness={0.6} />
       </mesh>
-
       {/* Roof equipment */}
       <mesh position={[-4, buildingHeight + 1.2, 0]} castShadow>
         <boxGeometry args={[3, 1.8, 4]} />
@@ -769,6 +810,19 @@ const OfficeApartment: React.FC<{
         <boxGeometry args={[2, 1, 2]} />
         <meshStandardMaterial color="#616161" roughness={0.7} />
       </mesh>
+    </group>
+  );
+  return (
+    <group position={position} rotation={[0, rotation, 0]}>
+      <GeneratedBoundary fallback={primitiveBuilding}>
+        {floors === 4 || floors === 3 ? (
+          <group position={[0, 0, 1.25]}>
+            <GeneratedModel asset={floors === 4 ? 'officeApartment' : 'officeApartmentThree'} />
+          </group>
+        ) : (
+          primitiveBuilding
+        )}
+      </GeneratedBoundary>
     </group>
   );
 };
@@ -1380,190 +1434,211 @@ export const CanalBoat: React.FC<{
 
     return (
       <group position={position} rotation={[0, rotation, 0]}>
-        {/* ===== UPGRADED NARROWBOAT HULL ===== */}
-
-        {/* Main Hull Body - smoother darker metal */}
-        <mesh position={[0, -0.1, 0]} castShadow receiveShadow>
-          <boxGeometry args={[boatWidth, hullHeight, boatLength - 2.5]} />
-          <meshStandardMaterial color={hullColor} roughness={0.4} metalness={0.3} />
-        </mesh>
-
-        {/* Tapered Bow Section */}
-        <group position={[0, 0, boatLength / 2 - 1.25]}>
-          <mesh position={[0, -0.1, 1]} rotation={[Math.PI / 2, Math.PI, 0]} castShadow>
-            <cylinderGeometry args={[0.1, boatWidth / 2, 2, 8, 1, false, Math.PI / 2, Math.PI]} />
-            <meshStandardMaterial color={hullColor} roughness={0.4} metalness={0.3} />
-          </mesh>
-          <mesh position={[0, -0.1, 1]} rotation={[Math.PI / 2, 0, 0]} castShadow>
-            <cylinderGeometry args={[0.1, boatWidth / 2, 2, 8, 1, false, Math.PI / 2, Math.PI]} />
-            <meshStandardMaterial color={hullColor} roughness={0.4} metalness={0.3} />
-          </mesh>
-          {/* Bow Deck */}
-          <mesh position={[0, 0.35, 1]} castShadow>
-            <cylinderGeometry args={[boatWidth / 2 - 0.2, boatWidth / 2 - 0.2, 0.1, 16]} />
-            <meshStandardMaterial color="#5d4e37" roughness={0.9} />
-          </mesh>
-        </group>
-
-        {/* Tapered Stern Section */}
-        <group position={[0, 0, -boatLength / 2 + 1.25]}>
-          <mesh position={[0, -0.1, -0.5]} castShadow>
-            <boxGeometry args={[boatWidth, hullHeight, 1]} />
-            <meshStandardMaterial color={hullColor} roughness={0.4} metalness={0.3} />
-          </mesh>
-          {/* Stern Deck */}
-          <mesh position={[0, 0.36, -0.2]} castShadow>
-            <boxGeometry args={[boatWidth - 0.2, 0.05, 2.5]} />
-            <meshStandardMaterial color="#5d4e37" roughness={0.9} />
-          </mesh>
-        </group>
-
-        {/* Rubbing Strakes (Protective Rails) - More detailed */}
-        {[-0.2, 0.1].map((y, i) => (
-          <group key={`strake-${i}`} position={[0, y, 0]}>
-            <mesh position={[boatWidth / 2 + 0.05, 0, 0]} castShadow>
-              <boxGeometry args={[0.1, 0.1, boatLength - 3]} />
-              <meshStandardMaterial color="#111" roughness={0.8} />
-            </mesh>
-            <mesh position={[-boatWidth / 2 - 0.05, 0, 0]} castShadow>
-              <boxGeometry args={[0.1, 0.1, boatLength - 3]} />
-              <meshStandardMaterial color="#111" roughness={0.8} />
-            </mesh>
-          </group>
-        ))}
-
-        {/* ===== CABIN ===== */}
-        <group position={[0, 0.4, -0.5]}>
-          {/* Main Cabin Structure */}
-          <mesh position={[0, cabinHeight / 2, 0]} castShadow receiveShadow>
-            <boxGeometry args={[boatWidth - 0.4, cabinHeight, cabinLength]} />
-            <meshStandardMaterial color={cabinColor} roughness={0.6} />
-          </mesh>
-
-          {/* Painted Panels (Roses & Castles style) */}
-          {[-1, 0, 1].map((xOffset) => (
-            <mesh position={[0, cabinHeight / 2, xOffset * 2]} key={`panel-${xOffset}`}>
-              <boxGeometry args={[boatWidth - 0.35, cabinHeight - 0.4, 1.5]} />
-              <meshStandardMaterial color="#a03030" roughness={0.6} />
-            </mesh>
-          ))}
-
-          {/* Windows - Proper portholes and rectangle windows */}
-          {[-2.5, -1, 0.5, 2].map((z, i) => (
-            <React.Fragment key={`win-${i}`}>
-              {/* Port */}
-              <group position={[-boatWidth / 2 + 0.2, 0.9, z]}>
-                <mesh rotation={[0, 0, Math.PI / 2]}>
-                  <cylinderGeometry args={[0.25, 0.25, 0.1, 16]} />
-                  <meshStandardMaterial color="#d4af37" metalness={0.8} roughness={0.2} />
+        <GeneratedBoundary
+          fallback={
+            <group>
+              {' '}
+              {/* ===== UPGRADED NARROWBOAT HULL ===== */}
+              {/* Main Hull Body - smoother darker metal */}
+              <mesh position={[0, -0.1, 0]} castShadow receiveShadow>
+                <boxGeometry args={[boatWidth, hullHeight, boatLength - 2.5]} />
+                <meshStandardMaterial color={hullColor} roughness={0.4} metalness={0.3} />
+              </mesh>
+              {/* Tapered Bow Section */}
+              <group position={[0, 0, boatLength / 2 - 1.25]}>
+                <mesh position={[0, -0.1, 1]} rotation={[Math.PI / 2, Math.PI, 0]} castShadow>
+                  <cylinderGeometry
+                    args={[0.1, boatWidth / 2, 2, 8, 1, false, Math.PI / 2, Math.PI]}
+                  />
+                  <meshStandardMaterial color={hullColor} roughness={0.4} metalness={0.3} />
                 </mesh>
-                <mesh
-                  rotation={[0, 0, Math.PI / 2]}
-                  position={[0.02, 0, 0]}
-                  userData={{ dynamic: true }}
-                >
-                  <cylinderGeometry args={[0.2, 0.2, 0.1, 16]} />
-                  <primitive object={CANAL_PORTHOLE_GLASS_MATERIAL} attach="material" />
+                <mesh position={[0, -0.1, 1]} rotation={[Math.PI / 2, 0, 0]} castShadow>
+                  <cylinderGeometry
+                    args={[0.1, boatWidth / 2, 2, 8, 1, false, Math.PI / 2, Math.PI]}
+                  />
+                  <meshStandardMaterial color={hullColor} roughness={0.4} metalness={0.3} />
+                </mesh>
+                {/* Bow Deck */}
+                <mesh position={[0, 0.35, 1]} castShadow>
+                  <cylinderGeometry args={[boatWidth / 2 - 0.2, boatWidth / 2 - 0.2, 0.1, 16]} />
+                  <meshStandardMaterial color="#5d4e37" roughness={0.9} />
                 </mesh>
               </group>
-              {/* Starboard */}
-              <group position={[boatWidth / 2 - 0.2, 0.9, z]}>
-                <mesh rotation={[0, 0, Math.PI / 2]}>
-                  <cylinderGeometry args={[0.25, 0.25, 0.1, 16]} />
-                  <meshStandardMaterial color="#d4af37" metalness={0.8} roughness={0.2} />
+              {/* Tapered Stern Section */}
+              <group position={[0, 0, -boatLength / 2 + 1.25]}>
+                <mesh position={[0, -0.1, -0.5]} castShadow>
+                  <boxGeometry args={[boatWidth, hullHeight, 1]} />
+                  <meshStandardMaterial color={hullColor} roughness={0.4} metalness={0.3} />
                 </mesh>
-                <mesh
-                  rotation={[0, 0, Math.PI / 2]}
-                  position={[-0.02, 0, 0]}
-                  userData={{ dynamic: true }}
-                >
-                  <cylinderGeometry args={[0.2, 0.2, 0.1, 16]} />
-                  <primitive object={CANAL_PORTHOLE_GLASS_MATERIAL} attach="material" />
+                {/* Stern Deck */}
+                <mesh position={[0, 0.36, -0.2]} castShadow>
+                  <boxGeometry args={[boatWidth - 0.2, 0.05, 2.5]} />
+                  <meshStandardMaterial color="#5d4e37" roughness={0.9} />
                 </mesh>
               </group>
-            </React.Fragment>
-          ))}
+              {/* Rubbing Strakes (Protective Rails) - More detailed */}
+              {[-0.2, 0.1].map((y, i) => (
+                <group key={`strake-${i}`} position={[0, y, 0]}>
+                  <mesh position={[boatWidth / 2 + 0.05, 0, 0]} castShadow>
+                    <boxGeometry args={[0.1, 0.1, boatLength - 3]} />
+                    <meshStandardMaterial color="#111" roughness={0.8} />
+                  </mesh>
+                  <mesh position={[-boatWidth / 2 - 0.05, 0, 0]} castShadow>
+                    <boxGeometry args={[0.1, 0.1, boatLength - 3]} />
+                    <meshStandardMaterial color="#111" roughness={0.8} />
+                  </mesh>
+                </group>
+              ))}
+              {/* ===== CABIN ===== */}
+              <group position={[0, 0.4, -0.5]}>
+                {/* Main Cabin Structure */}
+                <mesh position={[0, cabinHeight / 2, 0]} castShadow receiveShadow>
+                  <boxGeometry args={[boatWidth - 0.4, cabinHeight, cabinLength]} />
+                  <meshStandardMaterial color={cabinColor} roughness={0.6} />
+                </mesh>
 
-          {/* Roof Accessories Restored */}
+                {/* Painted Panels (Roses & Castles style) */}
+                {[-1, 0, 1].map((xOffset) => (
+                  <mesh position={[0, cabinHeight / 2, xOffset * 2]} key={`panel-${xOffset}`}>
+                    <boxGeometry args={[boatWidth - 0.35, cabinHeight - 0.4, 1.5]} />
+                    <meshStandardMaterial color="#a03030" roughness={0.6} />
+                  </mesh>
+                ))}
 
-          {/* Chimney - Brass and Smoke */}
-          <group position={[0.5, cabinHeight + 0.6, -1.5]}>
-            <mesh castShadow>
-              <cylinderGeometry args={[0.15, 0.18, 1, 12]} />
-              <meshStandardMaterial color="#b8860b" metalness={0.8} roughness={0.3} />
-            </mesh>
-            <mesh position={[0, 0.5, 0]} rotation={[Math.PI / 2, 0, 0]}>
-              <torusGeometry args={[0.18, 0.04, 8, 16]} />
-              <meshStandardMaterial color="#b8860b" metalness={0.8} roughness={0.3} />
-            </mesh>
-            {/* Rain Cap */}
-            <mesh position={[0, 0.8, 0]} rotation={[0, 0, 0.4]}>
-              <cylinderGeometry args={[0.2, 0.01, 0.1, 8]} />
-              <meshStandardMaterial color="#333" />
-            </mesh>
+                {/* Windows - Proper portholes and rectangle windows */}
+                {[-2.5, -1, 0.5, 2].map((z, i) => (
+                  <React.Fragment key={`win-${i}`}>
+                    {/* Port */}
+                    <group position={[-boatWidth / 2 + 0.2, 0.9, z]}>
+                      <mesh rotation={[0, 0, Math.PI / 2]}>
+                        <cylinderGeometry args={[0.25, 0.25, 0.1, 16]} />
+                        <meshStandardMaterial color="#d4af37" metalness={0.8} roughness={0.2} />
+                      </mesh>
+                      <mesh
+                        rotation={[0, 0, Math.PI / 2]}
+                        position={[0.02, 0, 0]}
+                        userData={{ dynamic: true }}
+                      >
+                        <cylinderGeometry args={[0.2, 0.2, 0.1, 16]} />
+                        <primitive object={CANAL_PORTHOLE_GLASS_MATERIAL} attach="material" />
+                      </mesh>
+                    </group>
+                    {/* Starboard */}
+                    <group position={[boatWidth / 2 - 0.2, 0.9, z]}>
+                      <mesh rotation={[0, 0, Math.PI / 2]}>
+                        <cylinderGeometry args={[0.25, 0.25, 0.1, 16]} />
+                        <meshStandardMaterial color="#d4af37" metalness={0.8} roughness={0.2} />
+                      </mesh>
+                      <mesh
+                        rotation={[0, 0, Math.PI / 2]}
+                        position={[-0.02, 0, 0]}
+                        userData={{ dynamic: true }}
+                      >
+                        <cylinderGeometry args={[0.2, 0.2, 0.1, 16]} />
+                        <primitive object={CANAL_PORTHOLE_GLASS_MATERIAL} attach="material" />
+                      </mesh>
+                    </group>
+                  </React.Fragment>
+                ))}
+
+                {/* Roof Accessories Restored */}
+
+                {/* Chimney - Brass and Smoke */}
+                <group position={[0.5, cabinHeight + 0.6, -1.5]}>
+                  <mesh castShadow>
+                    <cylinderGeometry args={[0.15, 0.18, 1, 12]} />
+                    <meshStandardMaterial color="#b8860b" metalness={0.8} roughness={0.3} />
+                  </mesh>
+                  <mesh position={[0, 0.5, 0]} rotation={[Math.PI / 2, 0, 0]}>
+                    <torusGeometry args={[0.18, 0.04, 8, 16]} />
+                    <meshStandardMaterial color="#b8860b" metalness={0.8} roughness={0.3} />
+                  </mesh>
+                  {/* Rain Cap */}
+                  <mesh position={[0, 0.8, 0]} rotation={[0, 0, 0.4]}>
+                    <cylinderGeometry args={[0.2, 0.01, 0.1, 8]} />
+                    <meshStandardMaterial color="#333" />
+                  </mesh>
+                </group>
+
+                {/* Roof Storage Box */}
+                <mesh position={[-0.4, cabinHeight + 0.3, 1]} castShadow>
+                  <boxGeometry args={[0.6, 0.3, 1.2]} />
+                  <meshStandardMaterial color="#5d4e37" roughness={0.9} />
+                </mesh>
+
+                {/* Lantern on Roof */}
+                <group position={[0, cabinHeight + 0.15, 3]}>
+                  <mesh castShadow>
+                    <boxGeometry args={[0.2, 0.3, 0.2]} />
+                    <meshStandardMaterial color="#222" metalness={0.6} />
+                  </mesh>
+                  <mesh position={[0, 0, 0]}>
+                    <boxGeometry args={[0.15, 0.25, 0.15]} />
+                    <meshStandardMaterial
+                      color="#ffaa00"
+                      emissive="#ffaa00"
+                      emissiveIntensity={2}
+                    />
+                  </mesh>
+                </group>
+              </group>
+              {/* ===== DECK DETAILS ===== */}
+              {/* Tiller (Steering) - Distinctive Z shape */}
+              <group position={[0, 1.1, -boatLength / 2 + 1.5]}>
+                <mesh rotation={[0.5, 0, 0]}>
+                  <cylinderGeometry args={[0.04, 0.04, 0.8]} />
+                  <meshStandardMaterial color="#8b4513" />
+                </mesh>
+                <mesh position={[0, 0.4, -0.4]} rotation={[1.8, 0, 0]}>
+                  <cylinderGeometry args={[0.035, 0.035, 1]} />
+                  <meshStandardMaterial color="#ccc" metalness={0.7} />
+                </mesh>
+                <mesh position={[0, 0.4, -0.9]}>
+                  <sphereGeometry args={[0.06]} />
+                  <meshStandardMaterial color="#d4af37" metalness={0.8} />
+                </mesh>
+              </group>
+              {/* Cratch Board (Front triangular cover frame) */}
+              <group position={[0, 0.8, boatLength / 2 - 1.2]}>
+                <mesh rotation={[-0.4, 0, 0]}>
+                  <boxGeometry args={[boatWidth - 0.4, 0.8, 0.05]} />
+                  {/* depthWrite off: this fill is coplanar with the wireframe frame below */}
+                  <meshStandardMaterial color="#222" transparent opacity={0.4} depthWrite={false} />
+                </mesh>
+                <mesh rotation={[-0.4, 0, 0]} position={[0, 0, 0]}>
+                  <boxGeometry args={[boatWidth - 0.4, 0.8, 0.05]} />
+                  <meshStandardMaterial color="#333" wireframe />
+                </mesh>
+              </group>
+              {/* Rope Coils on Bow */}
+              <group position={[0, 0.4, boatLength / 2 - 0.5]}>
+                <mesh rotation={[Math.PI / 2, 0, 0]}>
+                  <torusGeometry args={[0.3, 0.08, 8, 16]} />
+                  <meshStandardMaterial color="#c2b280" roughness={1} />
+                </mesh>
+                <mesh rotation={[Math.PI / 2, 0, 0.5]} position={[0.2, 0.05, 0.1]}>
+                  <torusGeometry args={[0.25, 0.07, 8, 16]} />
+                  <meshStandardMaterial color="#c2b280" roughness={1} />
+                </mesh>
+              </group>
+            </group>
+          }
+        >
+          {/* Hull-top measurement puts the waterline 0.6 m above its keel. */}
+          <group position={[0, -0.6, 0.275]}>
+            <GeneratedBoatModel isNight={isNight} />
           </group>
-
-          {/* Roof Storage Box */}
-          <mesh position={[-0.4, cabinHeight + 0.3, 1]} castShadow>
-            <boxGeometry args={[0.6, 0.3, 1.2]} />
-            <meshStandardMaterial color="#5d4e37" roughness={0.9} />
-          </mesh>
-
-          {/* Lantern on Roof */}
-          <group position={[0, cabinHeight + 0.15, 3]}>
+          <group position={[0, 2.6, 2.5]}>
             <mesh castShadow>
               <boxGeometry args={[0.2, 0.3, 0.2]} />
-              <meshStandardMaterial color="#222" metalness={0.6} />
+              <meshStandardMaterial color="#222222" metalness={0.6} />
             </mesh>
-            <mesh position={[0, 0, 0]}>
-              <boxGeometry args={[0.15, 0.25, 0.15]} />
+            <mesh>
+              <boxGeometry args={[0.15, 0.25, 0.21]} />
               <meshStandardMaterial color="#ffaa00" emissive="#ffaa00" emissiveIntensity={2} />
             </mesh>
           </group>
-        </group>
-
-        {/* ===== DECK DETAILS ===== */}
-
-        {/* Tiller (Steering) - Distinctive Z shape */}
-        <group position={[0, 1.1, -boatLength / 2 + 1.5]}>
-          <mesh rotation={[0.5, 0, 0]}>
-            <cylinderGeometry args={[0.04, 0.04, 0.8]} />
-            <meshStandardMaterial color="#8b4513" />
-          </mesh>
-          <mesh position={[0, 0.4, -0.4]} rotation={[1.8, 0, 0]}>
-            <cylinderGeometry args={[0.035, 0.035, 1]} />
-            <meshStandardMaterial color="#ccc" metalness={0.7} />
-          </mesh>
-          <mesh position={[0, 0.4, -0.9]}>
-            <sphereGeometry args={[0.06]} />
-            <meshStandardMaterial color="#d4af37" metalness={0.8} />
-          </mesh>
-        </group>
-
-        {/* Cratch Board (Front triangular cover frame) */}
-        <group position={[0, 0.8, boatLength / 2 - 1.2]}>
-          <mesh rotation={[-0.4, 0, 0]}>
-            <boxGeometry args={[boatWidth - 0.4, 0.8, 0.05]} />
-            {/* depthWrite off: this fill is coplanar with the wireframe frame below */}
-            <meshStandardMaterial color="#222" transparent opacity={0.4} depthWrite={false} />
-          </mesh>
-          <mesh rotation={[-0.4, 0, 0]} position={[0, 0, 0]}>
-            <boxGeometry args={[boatWidth - 0.4, 0.8, 0.05]} />
-            <meshStandardMaterial color="#333" wireframe />
-          </mesh>
-        </group>
-
-        {/* Rope Coils on Bow */}
-        <group position={[0, 0.4, boatLength / 2 - 0.5]}>
-          <mesh rotation={[Math.PI / 2, 0, 0]}>
-            <torusGeometry args={[0.3, 0.08, 8, 16]} />
-            <meshStandardMaterial color="#c2b280" roughness={1} />
-          </mesh>
-          <mesh rotation={[Math.PI / 2, 0, 0.5]} position={[0.2, 0.05, 0.1]}>
-            <torusGeometry args={[0.25, 0.07, 8, 16]} />
-            <meshStandardMaterial color="#c2b280" roughness={1} />
-          </mesh>
-        </group>
+        </GeneratedBoundary>
 
         {/* Water Reflection / Shadow */}
         <mesh position={[0, -0.2, 0]} rotation={[-Math.PI / 2, 0, 0]}>
@@ -2373,123 +2448,165 @@ const KioskCafe: React.FC<{
 
   return (
     <group position={position} rotation={[0, rotation, 0]}>
-      {/* Base platform */}
-      <mesh position={[0, 0.05, 0]} receiveShadow castShadow>
-        <cylinderGeometry args={[2.2, 2.4, 0.1, 8]} />
-        <meshStandardMaterial color="#8b7355" roughness={0.9} />
-      </mesh>
-
-      {/* Main octagonal hut body */}
-      <mesh position={[0, 1.4, 0]} castShadow receiveShadow>
-        <cylinderGeometry args={[1.8, 2, 2.7, 8]} />
-        <meshStandardMaterial color={woodColor} roughness={0.75} />
-      </mesh>
-
-      {/* Roof - conical with overhang */}
-      <mesh position={[0, 3.2, 0]} castShadow>
-        <coneGeometry args={[2.8, 1.8, 8]} />
-        <meshStandardMaterial color={accentColor} roughness={0.6} />
-      </mesh>
-
-      {/* Roof trim */}
-      <mesh position={[0, 2.35, 0]} castShadow>
-        <torusGeometry args={[2.1, 0.08, 8, 8]} />
-        <meshStandardMaterial color="#5d4037" roughness={0.7} />
-      </mesh>
-
-      {/* Roof finial - cute little ball on top */}
-      <mesh position={[0, 4.2, 0]} castShadow>
-        <sphereGeometry args={[0.15, 12, 12]} />
-        <meshStandardMaterial color="#f4d03f" roughness={0.3} metalness={0.5} />
-      </mesh>
-
-      {/* Serving window - front */}
-      <group position={[0, 1.5, 1.85]}>
-        {/* Window frame */}
-        <mesh castShadow>
-          <boxGeometry args={[1.4, 1.2, 0.15]} />
-          <meshStandardMaterial color="#5d4037" roughness={0.7} />
-        </mesh>
-        {/* Window opening (dark) */}
-        <mesh position={[0, 0, 0.05]}>
-          <boxGeometry args={[1.1, 0.9, 0.1]} />
-          <meshStandardMaterial color="#1a1a2e" roughness={0.9} />
-        </mesh>
-        {/* Serving counter shelf */}
-        <mesh position={[0, -0.5, 0.3]} castShadow>
-          <boxGeometry args={[1.6, 0.1, 0.6]} />
-          <meshStandardMaterial color={woodColor} roughness={0.7} />
-        </mesh>
-      </group>
-
-      {/* Cute striped awning over window */}
-      <group position={[0, 2.3, 2.2]}>
-        {/* Awning frame */}
-        <mesh rotation={[0.4, 0, 0]} castShadow>
-          <boxGeometry args={[1.8, 0.05, 1.2]} />
-          <meshStandardMaterial color={accentColor} roughness={0.6} />
-        </mesh>
-        {/* Awning stripes - alternating red and cream */}
-        {[-0.6, -0.2, 0.2, 0.6].map((x, i) => (
-          <mesh key={`stripe-${i}`} position={[x, -0.02, 0]} rotation={[0.4, 0, 0]}>
-            <boxGeometry args={[0.35, 0.03, 1.2]} />
-            <meshStandardMaterial color={i % 2 === 0 ? accentColor : creamColor} roughness={0.6} />
+      <GeneratedBoundary
+        fallback={
+          <group>
+            {' '}
+            {/* Base platform */}
+            <mesh position={[0, 0.05, 0]} receiveShadow castShadow>
+              <cylinderGeometry args={[2.2, 2.4, 0.1, 8]} />
+              <meshStandardMaterial color="#8b7355" roughness={0.9} />
+            </mesh>
+            {/* Main octagonal hut body */}
+            <mesh position={[0, 1.4, 0]} castShadow receiveShadow>
+              <cylinderGeometry args={[1.8, 2, 2.7, 8]} />
+              <meshStandardMaterial color={woodColor} roughness={0.75} />
+            </mesh>
+            {/* Roof - conical with overhang */}
+            <mesh position={[0, 3.2, 0]} castShadow>
+              <coneGeometry args={[2.8, 1.8, 8]} />
+              <meshStandardMaterial color={accentColor} roughness={0.6} />
+            </mesh>
+            {/* Roof trim */}
+            <mesh position={[0, 2.35, 0]} castShadow>
+              <torusGeometry args={[2.1, 0.08, 8, 8]} />
+              <meshStandardMaterial color="#5d4037" roughness={0.7} />
+            </mesh>
+            {/* Roof finial - cute little ball on top */}
+            <mesh position={[0, 4.2, 0]} castShadow>
+              <sphereGeometry args={[0.15, 12, 12]} />
+              <meshStandardMaterial color="#f4d03f" roughness={0.3} metalness={0.5} />
+            </mesh>
+            {/* Serving window - front */}
+            <group position={[0, 1.5, 1.85]}>
+              {/* Window frame */}
+              <mesh castShadow>
+                <boxGeometry args={[1.4, 1.2, 0.15]} />
+                <meshStandardMaterial color="#5d4037" roughness={0.7} />
+              </mesh>
+              {/* Window opening (dark) */}
+              <mesh position={[0, 0, 0.05]}>
+                <boxGeometry args={[1.1, 0.9, 0.1]} />
+                <meshStandardMaterial color="#1a1a2e" roughness={0.9} />
+              </mesh>
+              {/* Serving counter shelf */}
+              <mesh position={[0, -0.5, 0.3]} castShadow>
+                <boxGeometry args={[1.6, 0.1, 0.6]} />
+                <meshStandardMaterial color={woodColor} roughness={0.7} />
+              </mesh>
+            </group>
+            {/* Cute striped awning over window */}
+            <group position={[0, 2.3, 2.2]}>
+              {/* Awning frame */}
+              <mesh rotation={[0.4, 0, 0]} castShadow>
+                <boxGeometry args={[1.8, 0.05, 1.2]} />
+                <meshStandardMaterial color={accentColor} roughness={0.6} />
+              </mesh>
+              {/* Awning stripes - alternating red and cream */}
+              {[-0.6, -0.2, 0.2, 0.6].map((x, i) => (
+                <mesh key={`stripe-${i}`} position={[x, 0.045, 0]} rotation={[0.4, 0, 0]}>
+                  <boxGeometry args={[0.35, 0.03, 1.2]} />
+                  <meshStandardMaterial
+                    color={i % 2 === 0 ? accentColor : creamColor}
+                    roughness={0.6}
+                  />
+                </mesh>
+              ))}
+              {/* Scalloped edge */}
+              {[-0.7, -0.35, 0, 0.35, 0.7].map((x, i) => (
+                <mesh
+                  key={`scallop-${i}`}
+                  position={[x, -0.27, 0.6]}
+                  rotation={[0.4, 0, 0]}
+                  castShadow
+                >
+                  <sphereGeometry args={[0.12, 8, 8]} />
+                  <meshStandardMaterial
+                    color={i % 2 === 0 ? accentColor : creamColor}
+                    roughness={0.6}
+                  />
+                </mesh>
+              ))}
+            </group>
+            {/* Menu board sign */}
+            <group position={[1.5, 2.8, 1.2]} rotation={[0, -0.4, 0]}>
+              {/* Sign post */}
+              <mesh position={[0, -0.8, 0]} castShadow>
+                <cylinderGeometry args={[0.05, 0.05, 1.6, 8]} />
+                <meshStandardMaterial color="#5d4037" roughness={0.8} />
+              </mesh>
+              {/* Sign board */}
+              <mesh castShadow>
+                <boxGeometry args={[0.8, 0.6, 0.06]} />
+                <meshStandardMaterial color={creamColor} roughness={0.8} />
+              </mesh>
+              {/* Sign frame */}
+              <mesh position={[0, 0, -0.02]}>
+                <boxGeometry args={[0.9, 0.7, 0.02]} />
+                <meshStandardMaterial color="#5d4037" roughness={0.7} />
+              </mesh>
+            </group>
+            {/* Flower boxes on sides */}
+            {[
+              { pos: [1.4, 0.6, 1.2] as [number, number, number], rot: -0.4 },
+              { pos: [-1.4, 0.6, 1.2] as [number, number, number], rot: 0.4 },
+            ].map(({ pos, rot }, i) => (
+              <group key={`flowerbox-${i}`} position={pos} rotation={[0, rot, 0]}>
+                {/* Box */}
+                <mesh castShadow>
+                  <boxGeometry args={[0.8, 0.35, 0.3]} />
+                  <meshStandardMaterial color="#6d4c41" roughness={0.85} />
+                </mesh>
+                {/* Flowers */}
+                {[-0.25, 0, 0.25].map((x, j) => (
+                  <mesh key={`flower-${j}`} position={[x, 0.3, 0]} castShadow>
+                    <sphereGeometry args={[0.12, 8, 8]} />
+                    <meshStandardMaterial
+                      color={['#ff6b9d', '#ffd93d', '#ff8fab'][j]}
+                      roughness={0.7}
+                    />
+                  </mesh>
+                ))}
+                {/* Greenery */}
+                <mesh position={[0, 0.2, 0]} castShadow>
+                  <sphereGeometry args={[0.3, 8, 8]} />
+                  <meshStandardMaterial color="#4a7c59" roughness={0.85} />
+                </mesh>
+              </group>
+            ))}
+          </group>
+        }
+      >
+        <GeneratedModel asset="kioskCafe" />
+        {/* Cute striped awning over window */}
+        <group position={[0, 2.3, 2.2]}>
+          {/* Awning frame */}
+          <mesh rotation={[0.4, 0, 0]} castShadow>
+            <boxGeometry args={[1.8, 0.05, 1.2]} />
+            <meshStandardMaterial color={accentColor} roughness={0.6} />
           </mesh>
-        ))}
-        {/* Scalloped edge */}
-        {[-0.7, -0.35, 0, 0.35, 0.7].map((x, i) => (
-          <mesh key={`scallop-${i}`} position={[x, -0.55, 0.55]} rotation={[0.4, 0, 0]} castShadow>
-            <sphereGeometry args={[0.12, 8, 8]} />
-            <meshStandardMaterial color={i % 2 === 0 ? accentColor : creamColor} roughness={0.6} />
-          </mesh>
-        ))}
-      </group>
-
-      {/* Menu board sign */}
-      <group position={[1.5, 2.8, 1.2]} rotation={[0, -0.4, 0]}>
-        {/* Sign post */}
-        <mesh position={[0, -0.8, 0]} castShadow>
-          <cylinderGeometry args={[0.05, 0.05, 1.6, 8]} />
-          <meshStandardMaterial color="#5d4037" roughness={0.8} />
-        </mesh>
-        {/* Sign board */}
-        <mesh castShadow>
-          <boxGeometry args={[0.8, 0.6, 0.06]} />
-          <meshStandardMaterial color={creamColor} roughness={0.8} />
-        </mesh>
-        {/* Sign frame */}
-        <mesh position={[0, 0, -0.02]}>
-          <boxGeometry args={[0.9, 0.7, 0.02]} />
-          <meshStandardMaterial color="#5d4037" roughness={0.7} />
-        </mesh>
-      </group>
-
-      {/* Flower boxes on sides */}
-      {[
-        { pos: [1.4, 0.6, 1.2] as [number, number, number], rot: -0.4 },
-        { pos: [-1.4, 0.6, 1.2] as [number, number, number], rot: 0.4 },
-      ].map(({ pos, rot }, i) => (
-        <group key={`flowerbox-${i}`} position={pos} rotation={[0, rot, 0]}>
-          {/* Box */}
-          <mesh castShadow>
-            <boxGeometry args={[0.8, 0.35, 0.3]} />
-            <meshStandardMaterial color="#6d4c41" roughness={0.85} />
-          </mesh>
-          {/* Flowers */}
-          {[-0.25, 0, 0.25].map((x, j) => (
-            <mesh key={`flower-${j}`} position={[x, 0.3, 0]} castShadow>
-              <sphereGeometry args={[0.12, 8, 8]} />
-              <meshStandardMaterial color={['#ff6b9d', '#ffd93d', '#ff8fab'][j]} roughness={0.7} />
+          {/* Awning stripes - alternating red and cream */}
+          {[-0.6, -0.2, 0.2, 0.6].map((x, i) => (
+            <mesh key={`stripe-${i}`} position={[x, 0.045, 0]} rotation={[0.4, 0, 0]}>
+              <boxGeometry args={[0.35, 0.03, 1.2]} />
+              <meshStandardMaterial
+                color={i % 2 === 0 ? accentColor : creamColor}
+                roughness={0.6}
+              />
             </mesh>
           ))}
-          {/* Greenery */}
-          <mesh position={[0, 0.2, 0]} castShadow>
-            <sphereGeometry args={[0.3, 8, 8]} />
-            <meshStandardMaterial color="#4a7c59" roughness={0.85} />
-          </mesh>
+          {/* Scalloped edge */}
+          {[-0.7, -0.35, 0, 0.35, 0.7].map((x, i) => (
+            <mesh key={`scallop-${i}`} position={[x, -0.27, 0.6]} rotation={[0.4, 0, 0]} castShadow>
+              <sphereGeometry args={[0.12, 8, 8]} />
+              <meshStandardMaterial
+                color={i % 2 === 0 ? accentColor : creamColor}
+                roughness={0.6}
+              />
+            </mesh>
+          ))}
         </group>
-      ))}
-
+      </GeneratedBoundary>
       {/* Outdoor seating area - small table with umbrella */}
       <group position={[0, 0, 6]}>
         {/* Table */}
@@ -2535,11 +2652,15 @@ const KioskCafe: React.FC<{
         ))}
       </group>
 
-      {/* "CAFE" text sign on awning */}
+      {/* A small fascia gives the painted lettering a real surface. */}
+      <mesh position={[0, 1.74, 2.95]} castShadow>
+        <boxGeometry args={[1.7, 0.32, 0.055]} />
+        <meshStandardMaterial color="#5d4037" roughness={0.7} />
+      </mesh>
       <Text
-        position={[0, 2.5, 2.6]}
-        rotation={[0.4, 0, 0]}
-        fontSize={0.35}
+        position={[0, 1.74, 2.981]}
+        fontSize={0.23}
+        surface="painted"
         color="#fdf5e6"
         anchorX="center"
         anchorY="middle"
@@ -2562,145 +2683,158 @@ const Caravan: React.FC<{
 
   return (
     <group position={position} rotation={[0, rotation, 0]}>
-      {/* Main body - rounded rectangular shape */}
-      <mesh position={[0, 1.1, 0]} castShadow receiveShadow>
-        <boxGeometry args={[2.4, 1.8, 5]} />
-        <meshStandardMaterial color={color} roughness={0.7} />
-      </mesh>
+      <GeneratedBoundary
+        fallback={
+          <group>
+            {/* Main body - rounded rectangular shape */}
+            <mesh position={[0, 1.1, 0]} castShadow receiveShadow>
+              <boxGeometry args={[2.4, 1.8, 5]} />
+              <meshStandardMaterial color={color} roughness={0.7} />
+            </mesh>
 
-      {/* Rounded roof */}
-      <mesh position={[0, 2.1, 0]} castShadow>
-        <boxGeometry args={[2.2, 0.3, 4.8]} />
-        <meshStandardMaterial color={color} roughness={0.7} />
-      </mesh>
-      <mesh position={[0, 2.25, 0]} castShadow>
-        <boxGeometry args={[1.8, 0.15, 4.6]} />
-        <meshStandardMaterial color={color} roughness={0.7} />
-      </mesh>
+            {/* Rounded roof */}
+            <mesh position={[0, 2.1, 0]} castShadow>
+              <boxGeometry args={[2.2, 0.3, 4.8]} />
+              <meshStandardMaterial color={color} roughness={0.7} />
+            </mesh>
+            <mesh position={[0, 2.25, 0]} castShadow>
+              <boxGeometry args={[1.8, 0.15, 4.6]} />
+              <meshStandardMaterial color={color} roughness={0.7} />
+            </mesh>
 
-      {/* Bottom trim stripe */}
-      <mesh position={[0, 0.35, 0]}>
-        <boxGeometry args={[2.45, 0.15, 5.05]} />
-        <meshStandardMaterial color={accentColor} roughness={0.6} />
-      </mesh>
+            {/* Bottom trim stripe */}
+            <mesh position={[0, 0.35, 0]}>
+              <boxGeometry args={[2.45, 0.15, 5.05]} />
+              <meshStandardMaterial color={accentColor} roughness={0.6} />
+            </mesh>
 
-      {/* Top trim stripe */}
-      <mesh position={[0, 1.95, 0]}>
-        <boxGeometry args={[2.45, 0.1, 5.05]} />
-        <meshStandardMaterial color={accentColor} roughness={0.6} />
-      </mesh>
+            {/* Top trim stripe */}
+            <mesh position={[0, 1.95, 0]}>
+              <boxGeometry args={[2.45, 0.1, 5.05]} />
+              <meshStandardMaterial color={accentColor} roughness={0.6} />
+            </mesh>
 
-      {/* Front end (rounded) */}
-      <mesh position={[0, 1.1, 2.4]} rotation={[0, 0, Math.PI / 2]} castShadow>
-        <cylinderGeometry args={[0.9, 0.9, 2.2, 16, 1, false, 0, Math.PI]} />
-        <meshStandardMaterial color={color} roughness={0.7} />
-      </mesh>
+            {/* Front end (rounded) */}
+            <mesh position={[0, 1.1, 2.4]} rotation={[0, 0, Math.PI / 2]} castShadow>
+              <cylinderGeometry args={[0.9, 0.9, 2.2, 16, 1, false, 0, Math.PI]} />
+              <meshStandardMaterial color={color} roughness={0.7} />
+            </mesh>
 
-      {/* Hitch/tongue */}
-      <mesh position={[0, 0.5, 3.2]} castShadow>
-        <boxGeometry args={[0.15, 0.1, 1.2]} />
-        <meshStandardMaterial color={wheelColor} roughness={0.5} metalness={0.4} />
-      </mesh>
-      {/* Hitch coupling */}
-      <mesh position={[0, 0.5, 3.8]} castShadow>
-        <sphereGeometry args={[0.12, 8, 8]} />
-        <meshStandardMaterial color={wheelColor} roughness={0.4} metalness={0.5} />
-      </mesh>
+            {/* Hitch/tongue */}
+            <mesh position={[0, 0.5, 3.2]} castShadow>
+              <boxGeometry args={[0.15, 0.1, 1.2]} />
+              <meshStandardMaterial color={wheelColor} roughness={0.5} metalness={0.4} />
+            </mesh>
+            {/* Hitch coupling */}
+            <mesh position={[0, 0.5, 3.8]} castShadow>
+              <sphereGeometry args={[0.12, 8, 8]} />
+              <meshStandardMaterial color={wheelColor} roughness={0.4} metalness={0.5} />
+            </mesh>
 
-      {/* Door - right side */}
-      <mesh position={[1.21, 1.0, 0.5]}>
-        <boxGeometry args={[0.05, 1.4, 0.8]} />
-        <meshStandardMaterial color="#5d4037" roughness={0.8} />
-      </mesh>
-      {/* Door window */}
-      <mesh position={[1.23, 1.3, 0.5]}>
-        <boxGeometry args={[0.02, 0.5, 0.5]} />
-        <meshStandardMaterial color="#90caf9" roughness={0.2} metalness={0.3} />
-      </mesh>
-      {/* Door handle */}
-      <mesh position={[1.25, 0.9, 0.2]}>
-        <boxGeometry args={[0.04, 0.08, 0.15]} />
-        <meshStandardMaterial color="#bdbdbd" roughness={0.3} metalness={0.6} />
-      </mesh>
+            {/* Door - right side */}
+            <mesh position={[1.21, 1.0, 0.5]}>
+              <boxGeometry args={[0.05, 1.4, 0.8]} />
+              <meshStandardMaterial color="#5d4037" roughness={0.8} />
+            </mesh>
+            {/* Door window */}
+            <mesh position={[1.23, 1.3, 0.5]}>
+              <boxGeometry args={[0.02, 0.5, 0.5]} />
+              <meshStandardMaterial color="#90caf9" roughness={0.2} metalness={0.3} />
+            </mesh>
+            {/* Door handle */}
+            <mesh position={[1.25, 0.9, 0.2]}>
+              <boxGeometry args={[0.04, 0.08, 0.15]} />
+              <meshStandardMaterial color="#bdbdbd" roughness={0.3} metalness={0.6} />
+            </mesh>
 
-      {/* Windows - left side */}
-      {[-0.8, 0.8].map((z, i) => (
-        <mesh key={`win-l-${i}`} position={[-1.21, 1.3, z]}>
-          <boxGeometry args={[0.05, 0.6, 0.7]} />
-          <meshStandardMaterial color="#90caf9" roughness={0.2} metalness={0.3} />
-        </mesh>
-      ))}
-      {/* Window - right side (back) */}
-      <mesh position={[1.21, 1.3, -0.8]}>
-        <boxGeometry args={[0.05, 0.6, 0.7]} />
-        <meshStandardMaterial color="#90caf9" roughness={0.2} metalness={0.3} />
-      </mesh>
+            {/* Windows - left side */}
+            {[-0.8, 0.8].map((z, i) => (
+              <mesh key={`win-l-${i}`} position={[-1.21, 1.3, z]}>
+                <boxGeometry args={[0.05, 0.6, 0.7]} />
+                <meshStandardMaterial color="#90caf9" roughness={0.2} metalness={0.3} />
+              </mesh>
+            ))}
+            {/* Window - right side (back) */}
+            <mesh position={[1.21, 1.3, -0.8]}>
+              <boxGeometry args={[0.05, 0.6, 0.7]} />
+              <meshStandardMaterial color="#90caf9" roughness={0.2} metalness={0.3} />
+            </mesh>
 
-      {/* Rear window */}
-      <mesh position={[0, 1.4, -2.51]}>
-        <boxGeometry args={[1.2, 0.5, 0.05]} />
-        <meshStandardMaterial color="#90caf9" roughness={0.2} metalness={0.3} />
-      </mesh>
+            {/* Rear window */}
+            <mesh position={[0, 1.4, -2.51]}>
+              <boxGeometry args={[1.2, 0.5, 0.05]} />
+              <meshStandardMaterial color="#90caf9" roughness={0.2} metalness={0.3} />
+            </mesh>
 
-      {/* Wheels */}
-      {[-0.9, 0.9].map((x, i) => (
-        <group key={`wheel-${i}`} position={[x, 0.35, -1]}>
-          {/* Tire */}
-          <mesh rotation={[0, 0, Math.PI / 2]} castShadow>
-            <cylinderGeometry args={[0.35, 0.35, 0.2, 16]} />
-            <meshStandardMaterial color="#1a1a1a" roughness={0.9} />
-          </mesh>
-          {/* Hubcap */}
-          <mesh position={[x > 0 ? 0.11 : -0.11, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
-            <cylinderGeometry args={[0.18, 0.18, 0.05, 12]} />
-            <meshStandardMaterial color="#bdbdbd" roughness={0.3} metalness={0.6} />
-          </mesh>
-          {/* Wheel well/fender */}
-          <mesh position={[0, 0.25, 0]} castShadow>
-            <boxGeometry args={[0.3, 0.35, 0.5]} />
-            <meshStandardMaterial color={color} roughness={0.7} />
-          </mesh>
+            {/* Wheels */}
+            {[-0.9, 0.9].map((x, i) => (
+              <group key={`wheel-${i}`} position={[x, 0.35, -1]}>
+                {/* Tire */}
+                <mesh rotation={[0, 0, Math.PI / 2]} castShadow>
+                  <cylinderGeometry args={[0.35, 0.35, 0.2, 16]} />
+                  <meshStandardMaterial color="#1a1a1a" roughness={0.9} />
+                </mesh>
+                {/* Hubcap */}
+                <mesh position={[x > 0 ? 0.11 : -0.11, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
+                  <cylinderGeometry args={[0.18, 0.18, 0.05, 12]} />
+                  <meshStandardMaterial color="#bdbdbd" roughness={0.3} metalness={0.6} />
+                </mesh>
+                {/* Wheel well/fender */}
+                <mesh position={[0, 0.25, 0]} castShadow>
+                  <boxGeometry args={[0.3, 0.35, 0.5]} />
+                  <meshStandardMaterial color={color} roughness={0.7} />
+                </mesh>
+              </group>
+            ))}
+
+            {/* Awning rolled up on side */}
+            <mesh position={[-1.35, 2.0, 0]} castShadow>
+              <cylinderGeometry args={[0.12, 0.12, 3, 8]} />
+              <meshStandardMaterial color="#f57c00" roughness={0.7} />
+            </mesh>
+
+            {/* Small steps at door */}
+            <mesh position={[1.5, 0.15, 0.5]} castShadow>
+              <boxGeometry args={[0.4, 0.1, 0.5]} />
+              <meshStandardMaterial color={wheelColor} roughness={0.6} metalness={0.3} />
+            </mesh>
+
+            {/* Propane tank on tongue */}
+            <mesh position={[0.3, 0.6, 2.8]} rotation={[Math.PI / 2, 0, 0]} castShadow>
+              <capsuleGeometry args={[0.12, 0.3, 4, 8]} />
+              <meshStandardMaterial color="#f5f5f5" roughness={0.5} />
+            </mesh>
+
+            {/* Roof vent */}
+            <mesh position={[0, 2.4, 0]} castShadow>
+              <boxGeometry args={[0.4, 0.15, 0.4]} />
+              <meshStandardMaterial color="#f5f5f5" roughness={0.5} />
+            </mesh>
+
+            {/* Cute flower box on window */}
+            <group position={[-1.35, 0.9, 0.8]}>
+              <mesh castShadow>
+                <boxGeometry args={[0.2, 0.15, 0.5]} />
+                <meshStandardMaterial color="#6d4c41" roughness={0.85} />
+              </mesh>
+              {/* Flowers */}
+              {[-0.15, 0, 0.15].map((z, i) => (
+                <mesh key={`flower-${i}`} position={[0, 0.15, z]} castShadow>
+                  <sphereGeometry args={[0.08, 6, 6]} />
+                  <meshStandardMaterial
+                    color={['#e91e63', '#ffeb3b', '#e91e63'][i]}
+                    roughness={0.7}
+                  />
+                </mesh>
+              ))}
+            </group>
+          </group>
+        }
+      >
+        <group position={[0.115, 0, 0.6925]}>
+          <GeneratedModel asset="caravan" />
         </group>
-      ))}
-
-      {/* Awning rolled up on side */}
-      <mesh position={[-1.35, 2.0, 0]} castShadow>
-        <cylinderGeometry args={[0.12, 0.12, 3, 8]} />
-        <meshStandardMaterial color="#f57c00" roughness={0.7} />
-      </mesh>
-
-      {/* Small steps at door */}
-      <mesh position={[1.5, 0.15, 0.5]} castShadow>
-        <boxGeometry args={[0.4, 0.1, 0.5]} />
-        <meshStandardMaterial color={wheelColor} roughness={0.6} metalness={0.3} />
-      </mesh>
-
-      {/* Propane tank on tongue */}
-      <mesh position={[0.3, 0.6, 2.8]} rotation={[Math.PI / 2, 0, 0]} castShadow>
-        <capsuleGeometry args={[0.12, 0.3, 4, 8]} />
-        <meshStandardMaterial color="#f5f5f5" roughness={0.5} />
-      </mesh>
-
-      {/* Roof vent */}
-      <mesh position={[0, 2.4, 0]} castShadow>
-        <boxGeometry args={[0.4, 0.15, 0.4]} />
-        <meshStandardMaterial color="#f5f5f5" roughness={0.5} />
-      </mesh>
-
-      {/* Cute flower box on window */}
-      <group position={[-1.35, 0.9, 0.8]}>
-        <mesh castShadow>
-          <boxGeometry args={[0.2, 0.15, 0.5]} />
-          <meshStandardMaterial color="#6d4c41" roughness={0.85} />
-        </mesh>
-        {/* Flowers */}
-        {[-0.15, 0, 0.15].map((z, i) => (
-          <mesh key={`flower-${i}`} position={[0, 0.15, z]} castShadow>
-            <sphereGeometry args={[0.08, 6, 6]} />
-            <meshStandardMaterial color={['#e91e63', '#ffeb3b', '#e91e63'][i]} roughness={0.7} />
-          </mesh>
-        ))}
-      </group>
+      </GeneratedBoundary>
     </group>
   );
 };
@@ -2755,180 +2889,226 @@ const FoodTruck: React.FC<{
 
   return (
     <group position={position} rotation={[0, rotation, 0]}>
-      {/* Main truck body */}
-      <mesh position={[0, 1.2, 0]} castShadow receiveShadow>
-        <boxGeometry args={[2.8, 2.2, 6]} />
-        <meshStandardMaterial color={color} roughness={0.6} />
-      </mesh>
-
-      {/* Cab section (front) */}
-      <mesh position={[0, 0.9, 3.5]} castShadow receiveShadow>
-        <boxGeometry args={[2.6, 1.6, 1.5]} />
-        <meshStandardMaterial color={color} roughness={0.6} />
-      </mesh>
-
-      {/* Cab roof (slightly lower) */}
-      <mesh position={[0, 1.8, 3.5]} castShadow>
-        <boxGeometry args={[2.5, 0.15, 1.4]} />
-        <meshStandardMaterial color={color} roughness={0.6} />
-      </mesh>
-
-      {/* Windshield */}
-      <mesh position={[0, 1.1, 4.26]} rotation={[0.15, 0, 0]}>
-        <boxGeometry args={[2.2, 1.0, 0.08]} />
-        <meshStandardMaterial color="#64b5f6" roughness={0.1} metalness={0.4} />
-      </mesh>
-
-      {/* Side windows - cab */}
-      {[-1.31, 1.31].map((x, i) => (
-        <mesh key={`cab-win-${i}`} position={[x, 1.1, 3.5]}>
-          <boxGeometry args={[0.05, 0.7, 1.0]} />
-          <meshStandardMaterial color="#64b5f6" roughness={0.1} metalness={0.4} />
+      <GeneratedBoundary
+        fallback={
+          <group>
+            {' '}
+            {/* Main truck body */}
+            <mesh position={[0, 1.2, 0]} castShadow receiveShadow>
+              <boxGeometry args={[2.8, 2.2, 6]} />
+              <meshStandardMaterial color={color} roughness={0.6} />
+            </mesh>
+            {/* Cab section (front) */}
+            <mesh position={[0, 0.9, 3.5]} castShadow receiveShadow>
+              <boxGeometry args={[2.6, 1.6, 1.5]} />
+              <meshStandardMaterial color={color} roughness={0.6} />
+            </mesh>
+            {/* Cab roof (slightly lower) */}
+            <mesh position={[0, 1.8, 3.5]} castShadow>
+              <boxGeometry args={[2.5, 0.15, 1.4]} />
+              <meshStandardMaterial color={color} roughness={0.6} />
+            </mesh>
+            {/* Windshield */}
+            <mesh position={[0, 1.1, 4.26]} rotation={[0.15, 0, 0]}>
+              <boxGeometry args={[2.2, 1.0, 0.08]} />
+              <meshStandardMaterial color="#64b5f6" roughness={0.1} metalness={0.4} />
+            </mesh>
+            {/* Side windows - cab */}
+            {[-1.31, 1.31].map((x, i) => (
+              <mesh key={`cab-win-${i}`} position={[x, 1.1, 3.5]}>
+                <boxGeometry args={[0.05, 0.7, 1.0]} />
+                <meshStandardMaterial color="#64b5f6" roughness={0.1} metalness={0.4} />
+              </mesh>
+            ))}
+            {/* Serving window (left side) */}
+            <group position={[-1.41, 1.4, -0.5]}>
+              {/* Window opening */}
+              <mesh>
+                <boxGeometry args={[0.05, 1.2, 2.0]} />
+                <meshStandardMaterial color="#1a1a2e" roughness={0.9} />
+              </mesh>
+              {/* Window frame */}
+              <mesh position={[-0.03, 0, 0]}>
+                <boxGeometry args={[0.08, 1.4, 2.2]} />
+                <meshStandardMaterial color={trimColor} roughness={0.5} />
+              </mesh>
+              {/* Serving counter/shelf */}
+              <mesh position={[-0.4, -0.5, 0]} castShadow>
+                <boxGeometry args={[0.8, 0.08, 2.0]} />
+                <meshStandardMaterial color="#5d4037" roughness={0.7} />
+              </mesh>
+            </group>
+            {/* Awning over serving window */}
+            <group position={[-1.8, 2.1, -0.5]}>
+              <mesh rotation={[0, 0, -0.4]} castShadow>
+                <boxGeometry args={[1.2, 0.08, 2.4]} />
+                <meshStandardMaterial color="#f57c00" roughness={0.6} />
+              </mesh>
+              {/* Awning stripes */}
+              {[-0.8, -0.4, 0, 0.4, 0.8].map((z, i) => (
+                <mesh key={`awn-${i}`} position={[0, -0.03, z]} rotation={[0, 0, -0.4]}>
+                  <boxGeometry args={[1.2, 0.04, 0.35]} />
+                  <meshStandardMaterial
+                    color={i % 2 === 0 ? '#f57c00' : '#fff3e0'}
+                    roughness={0.6}
+                  />
+                </mesh>
+              ))}
+            </group>
+            {/* Trim stripe */}
+            <mesh position={[0, 0.4, 0]}>
+              <boxGeometry args={[2.85, 0.15, 6.05]} />
+              <meshStandardMaterial color={trimColor} roughness={0.5} />
+            </mesh>
+            {/* Roof equipment - AC unit */}
+            <mesh position={[0.5, 2.45, 0]} castShadow>
+              <boxGeometry args={[1.0, 0.4, 1.2]} />
+              <meshStandardMaterial color="#9e9e9e" roughness={0.5} metalness={0.3} />
+            </mesh>
+            {/* Roof vent */}
+            <mesh position={[-0.5, 2.4, -1]} castShadow>
+              <cylinderGeometry args={[0.2, 0.25, 0.3, 8]} />
+              <meshStandardMaterial color="#757575" roughness={0.5} metalness={0.4} />
+            </mesh>
+            {/* Wheels */}
+            {[
+              [-1.0, 2.5],
+              [1.0, 2.5],
+              [-1.0, -1.8],
+              [1.0, -1.8],
+            ].map(([x, z], i) => (
+              <group key={`wheel-${i}`} position={[x, 0.4, z]}>
+                <mesh rotation={[0, 0, Math.PI / 2]} castShadow>
+                  <cylinderGeometry args={[0.4, 0.4, 0.25, 16]} />
+                  <meshStandardMaterial color="#1a1a1a" roughness={0.9} />
+                </mesh>
+                <mesh position={[x > 0 ? 0.14 : -0.14, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
+                  <cylinderGeometry args={[0.2, 0.2, 0.06, 12]} />
+                  <meshStandardMaterial color="#bdbdbd" roughness={0.3} metalness={0.6} />
+                </mesh>
+              </group>
+            ))}
+            {/* Headlights */}
+            {[-0.8, 0.8].map((x, i) => (
+              <mesh key={`hl-${i}`} position={[x, 0.7, 4.28]} castShadow>
+                <cylinderGeometry args={[0.15, 0.15, 0.08, 12]} />
+                <meshStandardMaterial
+                  color="#ffeb3b"
+                  roughness={0.3}
+                  emissive="#ffeb3b"
+                  emissiveIntensity={0.2}
+                />
+              </mesh>
+            ))}
+            {/* Bumper */}
+            <mesh position={[0, 0.35, 4.35]} castShadow>
+              <boxGeometry args={[2.4, 0.2, 0.15]} />
+              <meshStandardMaterial color="#424242" roughness={0.5} metalness={0.4} />
+            </mesh>
+            {/* Rear lights */}
+            {[-1.0, 1.0].map((x, i) => (
+              <mesh key={`tl-${i}`} position={[x, 0.8, -3.01]}>
+                <boxGeometry args={[0.3, 0.2, 0.05]} />
+                <meshStandardMaterial
+                  color="#ef5350"
+                  roughness={0.4}
+                  emissive="#ef5350"
+                  emissiveIntensity={0.1}
+                />
+              </mesh>
+            ))}
+            {/* Menu board on side */}
+            <group position={[-1.45, 1.4, 1.5]} rotation={[0, -0.1, 0]}>
+              <mesh castShadow>
+                <boxGeometry args={[0.08, 0.8, 0.6]} />
+                <meshStandardMaterial color="#2d2d2d" roughness={0.8} />
+              </mesh>
+            </group>
+            {/* Name sign on top */}
+            <Text
+              position={[-1.42, 1.9, -0.5]}
+              rotation={[0, -Math.PI / 2, 0]}
+              fontSize={0.35}
+              color="#ffffff"
+              anchorX="center"
+              anchorY="middle"
+              fontWeight="bold"
+            >
+              {name}
+            </Text>
+            {/* Decorative string lights (just little spheres) */}
+            {[-1.5, -1.0, -0.5, 0, 0.5].map((z, i) => (
+              <mesh key={`light-${i}`} position={[-1.5, 2.25, z]} castShadow>
+                <sphereGeometry args={[0.06, 8, 8]} />
+                <meshStandardMaterial
+                  color={['#ffeb3b', '#ff7043', '#4fc3f7', '#ab47bc', '#ffeb3b'][i]}
+                  emissive={['#ffeb3b', '#ff7043', '#4fc3f7', '#ab47bc', '#ffeb3b'][i]}
+                  emissiveIntensity={0.3}
+                  roughness={0.4}
+                />
+              </mesh>
+            ))}
+            {/* Small generator on back */}
+            <mesh position={[0, 0.3, -3.3]} castShadow>
+              <boxGeometry args={[0.8, 0.5, 0.5]} />
+              <meshStandardMaterial color="#616161" roughness={0.6} metalness={0.3} />
+            </mesh>
+          </group>
+        }
+      >
+        <group position={[-0.3991, 0, 0.4375]}>
+          <GeneratedModel asset="foodTruck" />
+        </group>
+        {/* Measured outer awning edge, clear of the generated service window. */}
+        <mesh position={[-2.37, 1.86, -0.5]}>
+          <boxGeometry args={[0.035, 0.3, 1.8]} />
+          <meshStandardMaterial color="#343e36" roughness={0.7} />
         </mesh>
-      ))}
+        <Text
+          position={[-2.39, 1.86, -0.5]}
+          rotation={[0, -Math.PI / 2, 0]}
+          fontSize={0.23}
+          surface="painted"
+          color="#ffffff"
+          anchorX="center"
+          anchorY="middle"
+          fontWeight="bold"
+        >
+          {name}
+        </Text>
 
-      {/* Serving window (left side) */}
-      <group position={[-1.41, 1.4, -0.5]}>
-        {/* Window opening */}
-        <mesh>
-          <boxGeometry args={[0.05, 1.2, 2.0]} />
-          <meshStandardMaterial color="#1a1a2e" roughness={0.9} />
-        </mesh>
-        {/* Window frame */}
-        <mesh position={[-0.03, 0, 0]}>
-          <boxGeometry args={[0.08, 1.4, 2.2]} />
-          <meshStandardMaterial color={trimColor} roughness={0.5} />
-        </mesh>
-        {/* Serving counter/shelf */}
-        <mesh position={[-0.4, -0.5, 0]} castShadow>
-          <boxGeometry args={[0.8, 0.08, 2.0]} />
-          <meshStandardMaterial color="#5d4037" roughness={0.7} />
-        </mesh>
-      </group>
-
-      {/* Awning over serving window */}
-      <group position={[-1.8, 2.1, -0.5]}>
-        <mesh rotation={[0, 0, -0.4]} castShadow>
-          <boxGeometry args={[1.2, 0.08, 2.4]} />
-          <meshStandardMaterial color="#f57c00" roughness={0.6} />
-        </mesh>
-        {/* Awning stripes */}
-        {[-0.8, -0.4, 0, 0.4, 0.8].map((z, i) => (
-          <mesh key={`awn-${i}`} position={[0, -0.03, z]} rotation={[0, 0, -0.4]}>
-            <boxGeometry args={[1.2, 0.04, 0.35]} />
-            <meshStandardMaterial color={i % 2 === 0 ? '#f57c00' : '#fff3e0'} roughness={0.6} />
+        {/* Decorative string lights (just little spheres) */}
+        {[-1.5, -1.0, -0.5, 0, 0.5].map((z, i) => (
+          <mesh key={`light-${i}`} position={[-2.4, 1.67, z]} castShadow>
+            <sphereGeometry args={[0.06, 8, 8]} />
+            <meshStandardMaterial
+              color={['#ffeb3b', '#ff7043', '#4fc3f7', '#ab47bc', '#ffeb3b'][i]}
+              emissive={['#ffeb3b', '#ff7043', '#4fc3f7', '#ab47bc', '#ffeb3b'][i]}
+              emissiveIntensity={0.3}
+              roughness={0.4}
+            />
           </mesh>
         ))}
-      </group>
 
-      {/* Trim stripe */}
-      <mesh position={[0, 0.4, 0]}>
-        <boxGeometry args={[2.85, 0.15, 6.05]} />
-        <meshStandardMaterial color={trimColor} roughness={0.5} />
-      </mesh>
-
-      {/* Roof equipment - AC unit */}
-      <mesh position={[0.5, 2.45, 0]} castShadow>
-        <boxGeometry args={[1.0, 0.4, 1.2]} />
-        <meshStandardMaterial color="#9e9e9e" roughness={0.5} metalness={0.3} />
-      </mesh>
-
-      {/* Roof vent */}
-      <mesh position={[-0.5, 2.4, -1]} castShadow>
-        <cylinderGeometry args={[0.2, 0.25, 0.3, 8]} />
-        <meshStandardMaterial color="#757575" roughness={0.5} metalness={0.4} />
-      </mesh>
-
-      {/* Wheels */}
-      {[
-        [-1.0, 2.5],
-        [1.0, 2.5],
-        [-1.0, -1.8],
-        [1.0, -1.8],
-      ].map(([x, z], i) => (
-        <group key={`wheel-${i}`} position={[x, 0.4, z]}>
-          <mesh rotation={[0, 0, Math.PI / 2]} castShadow>
-            <cylinderGeometry args={[0.4, 0.4, 0.25, 16]} />
-            <meshStandardMaterial color="#1a1a1a" roughness={0.9} />
+        {/* Rear lights */}
+        {[-1.0, 1.0].map((x, i) => (
+          <mesh key={`tl-${i}`} position={[x, 0.8, -3.56]}>
+            <boxGeometry args={[0.3, 0.2, 0.05]} />
+            <meshStandardMaterial
+              color="#ef5350"
+              roughness={0.4}
+              emissive="#ef5350"
+              emissiveIntensity={0.1}
+            />
           </mesh>
-          <mesh position={[x > 0 ? 0.14 : -0.14, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
-            <cylinderGeometry args={[0.2, 0.2, 0.06, 12]} />
-            <meshStandardMaterial color="#bdbdbd" roughness={0.3} metalness={0.6} />
-          </mesh>
-        </group>
-      ))}
+        ))}
 
-      {/* Headlights */}
-      {[-0.8, 0.8].map((x, i) => (
-        <mesh key={`hl-${i}`} position={[x, 0.7, 4.28]} castShadow>
-          <cylinderGeometry args={[0.15, 0.15, 0.08, 12]} />
-          <meshStandardMaterial
-            color="#ffeb3b"
-            roughness={0.3}
-            emissive="#ffeb3b"
-            emissiveIntensity={0.2}
-          />
+        {/* Small generator on back */}
+        <mesh position={[0, 0.3, -3.75]} castShadow>
+          <boxGeometry args={[0.8, 0.5, 0.5]} />
+          <meshStandardMaterial color="#616161" roughness={0.6} metalness={0.3} />
         </mesh>
-      ))}
-
-      {/* Bumper */}
-      <mesh position={[0, 0.35, 4.35]} castShadow>
-        <boxGeometry args={[2.4, 0.2, 0.15]} />
-        <meshStandardMaterial color="#424242" roughness={0.5} metalness={0.4} />
-      </mesh>
-
-      {/* Rear lights */}
-      {[-1.0, 1.0].map((x, i) => (
-        <mesh key={`tl-${i}`} position={[x, 0.8, -3.01]}>
-          <boxGeometry args={[0.3, 0.2, 0.05]} />
-          <meshStandardMaterial
-            color="#ef5350"
-            roughness={0.4}
-            emissive="#ef5350"
-            emissiveIntensity={0.1}
-          />
-        </mesh>
-      ))}
-
-      {/* Menu board on side */}
-      <group position={[-1.45, 1.4, 1.5]} rotation={[0, -0.1, 0]}>
-        <mesh castShadow>
-          <boxGeometry args={[0.08, 0.8, 0.6]} />
-          <meshStandardMaterial color="#2d2d2d" roughness={0.8} />
-        </mesh>
-      </group>
-
-      {/* Name sign on top */}
-      <Text
-        position={[-1.42, 1.9, -0.5]}
-        rotation={[0, -Math.PI / 2, 0]}
-        fontSize={0.35}
-        color="#ffffff"
-        anchorX="center"
-        anchorY="middle"
-        fontWeight="bold"
-      >
-        {name}
-      </Text>
-
-      {/* Decorative string lights (just little spheres) */}
-      {[-1.5, -1.0, -0.5, 0, 0.5].map((z, i) => (
-        <mesh key={`light-${i}`} position={[-1.5, 2.25, z]} castShadow>
-          <sphereGeometry args={[0.06, 8, 8]} />
-          <meshStandardMaterial
-            color={['#ffeb3b', '#ff7043', '#4fc3f7', '#ab47bc', '#ffeb3b'][i]}
-            emissive={['#ffeb3b', '#ff7043', '#4fc3f7', '#ab47bc', '#ffeb3b'][i]}
-            emissiveIntensity={0.3}
-            roughness={0.4}
-          />
-        </mesh>
-      ))}
-
-      {/* Small generator on back */}
-      <mesh position={[0, 0.3, -3.3]} castShadow>
-        <boxGeometry args={[0.8, 0.5, 0.5]} />
-        <meshStandardMaterial color="#616161" roughness={0.6} metalness={0.3} />
-      </mesh>
+      </GeneratedBoundary>
     </group>
   );
 };
@@ -2943,44 +3123,56 @@ const BrickCarport: React.FC<{
 
   return (
     <group position={position} rotation={[0, rotation, 0]}>
-      {/* Brick pillars at corners */}
-      {[
-        [-width / 2 + 0.3, 0.3],
-        [width / 2 - 0.3, 0.3],
-        [-width / 2 + 0.3, -depth / 2 + 0.3],
-        [width / 2 - 0.3, -depth / 2 + 0.3],
-      ].map(([x, z], i) => (
-        <mesh key={`pillar-${i}`} position={[x, height / 2, z]} castShadow receiveShadow>
-          <boxGeometry args={[0.5, height, 0.5]} />
-          <meshStandardMaterial
-            // Was #b5836d, compensating for the albedo being read as linear.
-            // brickColor is sRGB-tagged now, so any tint double-multiplies.
-            color="#ffffff"
-            roughness={0.85}
-            map={PROCEDURAL_TEXTURES.brickColor}
-            normalMap={PROCEDURAL_TEXTURES.brickNormal}
-            normalScale={new THREE.Vector2(0.3, 0.3)}
-          />
-        </mesh>
-      ))}
+      <GeneratedBoundary
+        fallback={
+          <group>
+            {/* Brick pillars at corners */}
+            {[
+              [-width / 2 + 0.3, 0.3],
+              [width / 2 - 0.3, 0.3],
+              [-width / 2 + 0.3, -depth / 2 + 0.3],
+              [width / 2 - 0.3, -depth / 2 + 0.3],
+            ].map(([x, z], i) => (
+              <mesh key={`pillar-${i}`} position={[x, height / 2, z]} castShadow receiveShadow>
+                <boxGeometry args={[0.5, height, 0.5]} />
+                <meshStandardMaterial
+                  // Was #b5836d, compensating for the albedo being read as linear.
+                  // brickColor is sRGB-tagged now, so any tint double-multiplies.
+                  color="#ffffff"
+                  roughness={0.85}
+                  map={PROCEDURAL_TEXTURES.brickColor}
+                  normalMap={PROCEDURAL_TEXTURES.brickNormal}
+                  normalScale={new THREE.Vector2(0.3, 0.3)}
+                />
+              </mesh>
+            ))}
 
-      {/* Roof structure */}
-      <mesh position={[0, height + 0.15, -depth / 4]} castShadow receiveShadow>
-        <boxGeometry args={[width + 0.4, 0.3, depth + 0.4]} />
-        <meshStandardMaterial
-          color="#6b4423"
-          roughness={0.8}
-          normalMap={PROCEDURAL_TEXTURES.panelNormal}
-          normalScale={new THREE.Vector2(0.15, 0.15)}
-        />
-      </mesh>
+            {/* Roof structure */}
+            <mesh position={[0, height + 0.15, -depth / 4]} castShadow receiveShadow>
+              <boxGeometry args={[width + 0.4, 0.3, depth + 0.4]} />
+              <meshStandardMaterial
+                color="#6b4423"
+                roughness={0.8}
+                normalMap={PROCEDURAL_TEXTURES.panelNormal}
+                normalScale={new THREE.Vector2(0.15, 0.15)}
+              />
+            </mesh>
 
-      {/* Roof tiles/covering */}
-      <mesh position={[0, height + 0.35, -depth / 4]} castShadow>
-        <boxGeometry args={[width + 0.6, 0.1, depth + 0.6]} />
-        <meshStandardMaterial color="#8b4513" roughness={0.9} />
-      </mesh>
-
+            {/* Roof tiles/covering */}
+            <mesh position={[0, height + 0.35, -depth / 4]} castShadow>
+              <boxGeometry args={[width + 0.6, 0.1, depth + 0.6]} />
+              <meshStandardMaterial color="#8b4513" roughness={0.9} />
+            </mesh>
+          </group>
+        }
+      >
+        <group
+          position={[0, 0, -depth / 4]}
+          scale={[(width + 0.6) / 10.6, (height + 0.4) / 3.9, (depth + 0.6) / 8.6]}
+        >
+          <GeneratedModel asset="brickCarport" />
+        </group>
+      </GeneratedBoundary>
       {/* Floor/paved area */}
       <mesh position={[0, 0.02, -depth / 4]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <planeGeometry args={[width, depth]} />
@@ -2997,25 +3189,33 @@ const BrickCarport: React.FC<{
       {/* Picnic tables under the shelter */}
       {[-2, 2].map((x, i) => (
         <group key={`table-${i}`} position={[x, 0, -depth / 4]}>
-          {/* Table top */}
-          <mesh position={[0, 0.75, 0]} castShadow>
-            <boxGeometry args={[1.8, 0.08, 0.8]} />
-            <meshStandardMaterial color="#8b6914" roughness={0.8} />
-          </mesh>
-          {/* Benches */}
-          {[-0.55, 0.55].map((z, j) => (
-            <mesh key={`bench-${j}`} position={[0, 0.45, z]} castShadow>
-              <boxGeometry args={[1.8, 0.05, 0.3]} />
-              <meshStandardMaterial color="#8b6914" roughness={0.8} />
-            </mesh>
-          ))}
-          {/* Table legs */}
-          {[-0.7, 0.7].map((lx, k) => (
-            <mesh key={`leg-${k}`} position={[lx, 0.4, 0]} castShadow>
-              <boxGeometry args={[0.08, 0.8, 0.6]} />
-              <meshStandardMaterial color="#5d4037" roughness={0.9} />
-            </mesh>
-          ))}
+          <GeneratedBoundary
+            fallback={
+              <group>
+                {/* Table top */}
+                <mesh position={[0, 0.75, 0]} castShadow>
+                  <boxGeometry args={[1.8, 0.08, 0.8]} />
+                  <meshStandardMaterial color="#8b6914" roughness={0.8} />
+                </mesh>
+                {/* Benches */}
+                {[-0.55, 0.55].map((z, j) => (
+                  <mesh key={`bench-${j}`} position={[0, 0.45, z]} castShadow>
+                    <boxGeometry args={[1.8, 0.05, 0.3]} />
+                    <meshStandardMaterial color="#8b6914" roughness={0.8} />
+                  </mesh>
+                ))}
+                {/* Table legs */}
+                {[-0.7, 0.7].map((lx, k) => (
+                  <mesh key={`leg-${k}`} position={[lx, 0.4, 0]} castShadow>
+                    <boxGeometry args={[0.08, 0.8, 0.6]} />
+                    <meshStandardMaterial color="#5d4037" roughness={0.9} />
+                  </mesh>
+                ))}
+              </group>
+            }
+          >
+            <GeneratedModel asset="picnicTable" />
+          </GeneratedBoundary>
         </group>
       ))}
     </group>
@@ -3277,37 +3477,45 @@ const PathLamp: React.FC<{
 }> = React.memo(({ position, style = 'modern' }) => (
   <group position={position}>
     <ExteriorLampPool radius={style === 'victorian' ? 5.5 : 4.8} />
-    {/* Pole */}
-    <mesh position={[0, 2, 0]} castShadow>
-      <cylinderGeometry args={[0.08, 0.1, 4, 8]} />
-      <meshStandardMaterial
-        color={style === 'victorian' ? '#1f2937' : '#6b7280'}
-        roughness={0.5}
-        metalness={0.4}
-      />
-    </mesh>
-    {/* Lamp head */}
-    {style === 'victorian' ? (
-      <group position={[0, 4.2, 0]}>
-        <mesh castShadow>
-          <boxGeometry args={[0.4, 0.5, 0.4]} />
-          <meshStandardMaterial color="#1f2937" roughness={0.5} metalness={0.3} />
-        </mesh>
-        <mesh position={[0, -0.1, 0]} material={EXTERIOR_LAMP_LENS_MATERIAL}>
-          <boxGeometry args={[0.3, 0.25, 0.3]} />
-        </mesh>
-      </group>
-    ) : (
-      <group position={[0, 4.1, 0]}>
-        <mesh castShadow>
-          <cylinderGeometry args={[0.2, 0.15, 0.3, 8]} />
-          <meshStandardMaterial color="#4b5563" roughness={0.5} metalness={0.4} />
-        </mesh>
-        <mesh position={[0, -0.1, 0]} material={EXTERIOR_LAMP_LENS_MATERIAL}>
-          <cylinderGeometry args={[0.12, 0.15, 0.15, 8]} />
-        </mesh>
-      </group>
-    )}
+    <GeneratedBoundary
+      fallback={
+        <group>
+          {/* Pole */}
+          <mesh position={[0, 2, 0]} castShadow>
+            <cylinderGeometry args={[0.08, 0.1, 4, 8]} />
+            <meshStandardMaterial
+              color={style === 'victorian' ? '#1f2937' : '#6b7280'}
+              roughness={0.5}
+              metalness={0.4}
+            />
+          </mesh>
+          {/* Lamp head */}
+          {style === 'victorian' ? (
+            <group position={[0, 4.2, 0]}>
+              <mesh castShadow>
+                <boxGeometry args={[0.4, 0.5, 0.4]} />
+                <meshStandardMaterial color="#1f2937" roughness={0.5} metalness={0.3} />
+              </mesh>
+              <mesh position={[0, -0.1, 0]} material={EXTERIOR_LAMP_LENS_MATERIAL}>
+                <boxGeometry args={[0.3, 0.25, 0.3]} />
+              </mesh>
+            </group>
+          ) : (
+            <group position={[0, 4.1, 0]}>
+              <mesh castShadow>
+                <cylinderGeometry args={[0.2, 0.15, 0.3, 8]} />
+                <meshStandardMaterial color="#4b5563" roughness={0.5} metalness={0.4} />
+              </mesh>
+              <mesh position={[0, -0.1, 0]} material={EXTERIOR_LAMP_LENS_MATERIAL}>
+                <cylinderGeometry args={[0.12, 0.15, 0.15, 8]} />
+              </mesh>
+            </group>
+          )}
+        </group>
+      }
+    >
+      <GeneratedLampModel style={style} />
+    </GeneratedBoundary>
   </group>
 ));
 
@@ -3340,20 +3548,29 @@ const InfoSign: React.FC<{
   rotation?: number;
 }> = ({ position, text, rotation = 0 }) => (
   <group position={position} rotation={[0, rotation, 0]}>
-    {/* Post */}
-    <mesh position={[0, 0.6, 0]} castShadow>
-      <boxGeometry args={[0.1, 1.2, 0.1]} />
-      <meshStandardMaterial color="#5d4037" roughness={0.85} />
-    </mesh>
-    {/* Sign board */}
-    <mesh position={[0, 1.3, 0.08]} castShadow>
-      <boxGeometry args={[0.8, 0.5, 0.05]} />
-      <meshStandardMaterial color="#1f2937" roughness={0.7} />
-    </mesh>
+    <GeneratedBoundary
+      fallback={
+        <group>
+          {/* Post */}
+          <mesh position={[0, 0.6, 0]} castShadow>
+            <boxGeometry args={[0.1, 1.2, 0.1]} />
+            <meshStandardMaterial color="#5d4037" roughness={0.85} />
+          </mesh>
+          {/* Sign board */}
+          <mesh position={[0, 1.3, 0.08]} castShadow>
+            <boxGeometry args={[0.8, 0.5, 0.05]} />
+            <meshStandardMaterial color="#1f2937" roughness={0.7} />
+          </mesh>
+        </group>
+      }
+    >
+      <GeneratedModel asset="infoSign" />
+    </GeneratedBoundary>
     {/* Text */}
     <Text
       position={[0, 1.3, 0.12]}
       fontSize={0.12}
+      surface="painted"
       color="#ffffff"
       anchorX="center"
       anchorY="middle"
@@ -3391,37 +3608,45 @@ const PicnicTable: React.FC<{
   rotation?: number;
 }> = ({ position, rotation = 0 }) => (
   <group position={position} rotation={[0, rotation, 0]}>
-    {/* Table top */}
-    <mesh position={[0, 0.75, 0]} castShadow>
-      <boxGeometry args={[1.8, 0.08, 0.8]} />
-      <meshStandardMaterial color="#8b5a2b" roughness={0.85} />
-    </mesh>
-    {/* Bench seats */}
-    {[-0.6, 0.6].map((z, i) => (
-      <mesh key={i} position={[0, 0.45, z]} castShadow>
-        <boxGeometry args={[1.8, 0.06, 0.3]} />
-        <meshStandardMaterial color="#8b5a2b" roughness={0.85} />
-      </mesh>
-    ))}
-    {/* Legs */}
-    {[
-      [-0.7, -0.4],
-      [-0.7, 0.4],
-      [0.7, -0.4],
-      [0.7, 0.4],
-    ].map(([x, z], i) => (
-      <mesh key={i} position={[x, 0.35, z]} castShadow>
-        <boxGeometry args={[0.08, 0.7, 0.08]} />
-        <meshStandardMaterial color="#5d4037" roughness={0.9} />
-      </mesh>
-    ))}
-    {/* Cross braces */}
-    {[-0.7, 0.7].map((x, i) => (
-      <mesh key={i} position={[x, 0.25, 0]} rotation={[0, 0, 0]} castShadow>
-        <boxGeometry args={[0.06, 0.06, 0.9]} />
-        <meshStandardMaterial color="#5d4037" roughness={0.9} />
-      </mesh>
-    ))}
+    <GeneratedBoundary
+      fallback={
+        <group>
+          {/* Table top */}
+          <mesh position={[0, 0.75, 0]} castShadow>
+            <boxGeometry args={[1.8, 0.08, 0.8]} />
+            <meshStandardMaterial color="#8b5a2b" roughness={0.85} />
+          </mesh>
+          {/* Bench seats */}
+          {[-0.6, 0.6].map((z, i) => (
+            <mesh key={i} position={[0, 0.45, z]} castShadow>
+              <boxGeometry args={[1.8, 0.06, 0.3]} />
+              <meshStandardMaterial color="#8b5a2b" roughness={0.85} />
+            </mesh>
+          ))}
+          {/* Legs */}
+          {[
+            [-0.7, -0.4],
+            [-0.7, 0.4],
+            [0.7, -0.4],
+            [0.7, 0.4],
+          ].map(([x, z], i) => (
+            <mesh key={i} position={[x, 0.35, z]} castShadow>
+              <boxGeometry args={[0.08, 0.7, 0.08]} />
+              <meshStandardMaterial color="#5d4037" roughness={0.9} />
+            </mesh>
+          ))}
+          {/* Cross braces */}
+          {[-0.7, 0.7].map((x, i) => (
+            <mesh key={i} position={[x, 0.25, 0]} rotation={[0, 0, 0]} castShadow>
+              <boxGeometry args={[0.06, 0.06, 0.9]} />
+              <meshStandardMaterial color="#5d4037" roughness={0.9} />
+            </mesh>
+          ))}
+        </group>
+      }
+    >
+      <GeneratedModel asset="picnicTable" />
+    </GeneratedBoundary>
   </group>
 );
 
@@ -3430,15 +3655,23 @@ const WasteBin: React.FC<{
   position: [number, number, number];
 }> = ({ position }) => (
   <group position={position}>
-    <mesh position={[0, 0.4, 0]} castShadow>
-      <cylinderGeometry args={[0.25, 0.22, 0.8, 8]} />
-      <meshStandardMaterial color="#374151" roughness={0.6} metalness={0.3} />
-    </mesh>
-    {/* Rim */}
-    <mesh position={[0, 0.82, 0]} castShadow>
-      <torusGeometry args={[0.25, 0.03, 8, 16]} />
-      <meshStandardMaterial color="#1f2937" roughness={0.5} metalness={0.4} />
-    </mesh>
+    <GeneratedBoundary
+      fallback={
+        <group>
+          <mesh position={[0, 0.4, 0]} castShadow>
+            <cylinderGeometry args={[0.25, 0.22, 0.8, 8]} />
+            <meshStandardMaterial color="#374151" roughness={0.6} metalness={0.3} />
+          </mesh>
+          {/* Rim */}
+          <mesh position={[0, 0.82, 0]} castShadow>
+            <torusGeometry args={[0.25, 0.03, 8, 16]} />
+            <meshStandardMaterial color="#1f2937" roughness={0.5} metalness={0.4} />
+          </mesh>
+        </group>
+      }
+    >
+      <GeneratedModel asset="wasteBin" />
+    </GeneratedBoundary>
   </group>
 );
 
@@ -3509,35 +3742,67 @@ const BusStop: React.FC<{
   const shelterWidth = 4;
   const shelterDepth = 1.8;
   const shelterHeight = 2.8;
+  // Measured GLB end faces are at abs(x) 1.959 and 2.002 m.
+  const adPanelCentre = 1.98;
   const adPanelWidth = 1.4;
   const adPanelHeight = 2;
 
   return (
     <group position={position} rotation={[0, rotation, 0]}>
-      {/* Ground platform */}
-      <mesh position={[0, 0.05, 0]} castShadow receiveShadow>
-        <boxGeometry args={[shelterWidth + 0.4, 0.1, shelterDepth + 0.4]} />
-        <meshStandardMaterial color="#6b7280" roughness={0.9} />
-      </mesh>
+      {/* Generated structure only: authored glass, adverts and timetable remain live. */}
+      <GeneratedBoundary
+        fallback={
+          <group>
+            {/* Ground platform */}
+            <mesh position={[0, 0.05, 0]} castShadow receiveShadow>
+              <boxGeometry args={[shelterWidth + 0.4, 0.1, shelterDepth + 0.4]} />
+              <meshStandardMaterial color="#6b7280" roughness={0.9} />
+            </mesh>
 
-      {/* Corner posts - dark green metal */}
-      {[
-        [-shelterWidth / 2, shelterDepth / 2],
-        [shelterWidth / 2, shelterDepth / 2],
-        [-shelterWidth / 2, -shelterDepth / 2],
-        [shelterWidth / 2, -shelterDepth / 2],
-      ].map(([x, z], i) => (
-        <mesh key={i} position={[x, shelterHeight / 2, z]} castShadow>
-          <boxGeometry args={[0.08, shelterHeight, 0.08]} />
-          <meshStandardMaterial color="#1f4e3d" roughness={0.4} metalness={0.6} />
-        </mesh>
-      ))}
+            {/* Corner posts - dark green metal */}
+            {[
+              [-shelterWidth / 2, shelterDepth / 2],
+              [shelterWidth / 2, shelterDepth / 2],
+              [-shelterWidth / 2, -shelterDepth / 2],
+              [shelterWidth / 2, -shelterDepth / 2],
+            ].map(([x, z], i) => (
+              <mesh key={i} position={[x, shelterHeight / 2, z]} castShadow>
+                <boxGeometry args={[0.08, shelterHeight, 0.08]} />
+                <meshStandardMaterial color="#1f4e3d" roughness={0.4} metalness={0.6} />
+              </mesh>
+            ))}
 
-      {/* Roof */}
-      <mesh position={[0, shelterHeight + 0.15, 0]} castShadow>
-        <boxGeometry args={[shelterWidth + 0.3, 0.08, shelterDepth + 0.5]} />
-        <meshStandardMaterial color="#1f4e3d" roughness={0.4} metalness={0.6} />
-      </mesh>
+            {/* Roof */}
+            <mesh position={[0, shelterHeight + 0.15, 0]} castShadow>
+              <boxGeometry args={[shelterWidth + 0.3, 0.08, shelterDepth + 0.5]} />
+              <meshStandardMaterial color="#1f4e3d" roughness={0.4} metalness={0.6} />
+            </mesh>
+            {[-1, 1].map((side) => (
+              <group key={side} position={[side * adPanelCentre, 0, 0]}>
+                <mesh position={[0, shelterHeight / 2, 0]} castShadow>
+                  <boxGeometry args={[0.044, shelterHeight - 0.2, shelterDepth - 0.2]} />
+                  <meshStandardMaterial color="#1f4e3d" roughness={0.4} metalness={0.6} />
+                </mesh>
+              </group>
+            ))}
+            {/* Bench */}
+            <group position={[0, 0, -shelterDepth / 2 + 0.35]}>
+              <mesh position={[0, 0.45, 0]} castShadow>
+                <boxGeometry args={[shelterWidth - 0.5, 0.08, 0.4]} />
+                <meshStandardMaterial color="#8b5a2b" roughness={0.8} />
+              </mesh>
+              {[-1.2, 0, 1.2].map((x, i) => (
+                <mesh key={i} position={[x, 0.22, 0]} castShadow>
+                  <boxGeometry args={[0.08, 0.44, 0.35]} />
+                  <meshStandardMaterial color="#1f4e3d" roughness={0.4} metalness={0.6} />
+                </mesh>
+              ))}
+            </group>
+          </group>
+        }
+      >
+        <GeneratedModel asset="busShelter" />
+      </GeneratedBoundary>
       <mesh position={[0, shelterHeight + 0.06, 0]}>
         <boxGeometry args={[shelterWidth - 0.1, 0.04, shelterDepth + 0.3]} />
         <meshStandardMaterial color="#a7f3d0" transparent opacity={0.3} roughness={0.1} />
@@ -3550,21 +3815,17 @@ const BusStop: React.FC<{
       </mesh>
 
       {/* LEFT AD PANEL - Millos Flour */}
-      <group position={[-shelterWidth / 2 - 0.05, 0, 0]}>
-        <mesh position={[0, shelterHeight / 2, 0]} castShadow>
-          <boxGeometry args={[0.1, shelterHeight - 0.2, shelterDepth - 0.2]} />
-          <meshStandardMaterial color="#1f4e3d" roughness={0.4} metalness={0.6} />
-        </mesh>
-        <mesh position={[-0.06, adPanelHeight / 2 + 0.3, 0]} rotation={[0, -Math.PI / 2, 0]}>
+      <group position={[-adPanelCentre, 0, 0]}>
+        <mesh position={[-0.03, adPanelHeight / 2 + 0.3, 0]} rotation={[0, -Math.PI / 2, 0]}>
           <planeGeometry args={[adPanelWidth, adPanelHeight]} />
           <meshStandardMaterial color="#fff8e1" roughness={0.5} />
         </mesh>
-        <mesh position={[0.06, adPanelHeight / 2 + 0.3, 0]} rotation={[0, Math.PI / 2, 0]}>
+        <mesh position={[0.03, adPanelHeight / 2 + 0.3, 0]} rotation={[0, Math.PI / 2, 0]}>
           <planeGeometry args={[adPanelWidth, adPanelHeight]} />
           <meshStandardMaterial color="#fff8e1" roughness={0.5} />
         </mesh>
         {/* Front ad content */}
-        <group position={[-0.07, adPanelHeight / 2 + 0.3, 0]} rotation={[0, -Math.PI / 2, 0]}>
+        <group position={[-0.04, adPanelHeight / 2 + 0.3, 0]} rotation={[0, -Math.PI / 2, 0]}>
           <mesh position={[0, 0.65, 0.001]}>
             <planeGeometry args={[1.3, 0.35]} />
             <meshBasicMaterial color="#fbbf24" />
@@ -3602,7 +3863,7 @@ const BusStop: React.FC<{
           </group>
         </group>
         {/* Back ad content */}
-        <group position={[0.07, adPanelHeight / 2 + 0.3, 0]} rotation={[0, Math.PI / 2, 0]}>
+        <group position={[0.04, adPanelHeight / 2 + 0.3, 0]} rotation={[0, Math.PI / 2, 0]}>
           <mesh position={[0, 0.65, 0.001]}>
             <planeGeometry args={[1.3, 0.35]} />
             <meshBasicMaterial color="#fbbf24" />
@@ -3642,21 +3903,17 @@ const BusStop: React.FC<{
       </group>
 
       {/* RIGHT AD PANEL - Dead Dino */}
-      <group position={[shelterWidth / 2 + 0.05, 0, 0]}>
-        <mesh position={[0, shelterHeight / 2, 0]} castShadow>
-          <boxGeometry args={[0.1, shelterHeight - 0.2, shelterDepth - 0.2]} />
-          <meshStandardMaterial color="#1f4e3d" roughness={0.4} metalness={0.6} />
-        </mesh>
-        <mesh position={[0.06, adPanelHeight / 2 + 0.3, 0]} rotation={[0, Math.PI / 2, 0]}>
+      <group position={[adPanelCentre, 0, 0]}>
+        <mesh position={[0.03, adPanelHeight / 2 + 0.3, 0]} rotation={[0, Math.PI / 2, 0]}>
           <planeGeometry args={[adPanelWidth, adPanelHeight]} />
           <meshStandardMaterial color="#e8f5e9" roughness={0.5} />
         </mesh>
-        <mesh position={[-0.06, adPanelHeight / 2 + 0.3, 0]} rotation={[0, -Math.PI / 2, 0]}>
+        <mesh position={[-0.03, adPanelHeight / 2 + 0.3, 0]} rotation={[0, -Math.PI / 2, 0]}>
           <planeGeometry args={[adPanelWidth, adPanelHeight]} />
           <meshStandardMaterial color="#e8f5e9" roughness={0.5} />
         </mesh>
         {/* Front ad content */}
-        <group position={[0.07, adPanelHeight / 2 + 0.3, 0]} rotation={[0, Math.PI / 2, 0]}>
+        <group position={[0.04, adPanelHeight / 2 + 0.3, 0]} rotation={[0, Math.PI / 2, 0]}>
           <mesh position={[0, 0.65, 0.001]}>
             <planeGeometry args={[1.3, 0.35]} />
             <meshBasicMaterial color="#e65100" />
@@ -3680,25 +3937,35 @@ const BusStop: React.FC<{
           >
             Fill Up & Smile!
           </Text>
-          <group position={[0, 0, 0.002]} scale={0.45}>
-            <mesh>
-              <sphereGeometry args={[0.5, 12, 10]} />
-              <meshStandardMaterial color="#4caf50" roughness={0.6} />
-            </mesh>
-            <mesh position={[0.35, 0.35, 0]}>
-              <sphereGeometry args={[0.32, 12, 10]} />
-              <meshStandardMaterial color="#4caf50" roughness={0.6} />
-            </mesh>
-            <group position={[0.45, 0.42, 0.22]}>
-              <mesh rotation={[0, 0, Math.PI / 4]}>
-                <boxGeometry args={[0.12, 0.03, 0.02]} />
-                <meshBasicMaterial color="#212121" />
-              </mesh>
-              <mesh rotation={[0, 0, -Math.PI / 4]}>
-                <boxGeometry args={[0.12, 0.03, 0.02]} />
-                <meshBasicMaterial color="#212121" />
-              </mesh>
-            </group>
+          <group position={[0, 0, 0.002]} scale={0.45} name="DeadDinoAdvertRelief">
+            <GeneratedBoundary
+              fallback={
+                <group>
+                  <mesh>
+                    <sphereGeometry args={[0.5, 12, 10]} />
+                    <meshStandardMaterial color="#4caf50" roughness={0.6} />
+                  </mesh>
+                  <mesh position={[0.35, 0.35, 0]}>
+                    <sphereGeometry args={[0.32, 12, 10]} />
+                    <meshStandardMaterial color="#4caf50" roughness={0.6} />
+                  </mesh>
+                  <group position={[0.45, 0.42, 0.22]}>
+                    <mesh rotation={[0, 0, Math.PI / 4]}>
+                      <boxGeometry args={[0.12, 0.03, 0.02]} />
+                      <meshBasicMaterial color="#212121" />
+                    </mesh>
+                    <mesh rotation={[0, 0, -Math.PI / 4]}>
+                      <boxGeometry args={[0.12, 0.03, 0.02]} />
+                      <meshBasicMaterial color="#212121" />
+                    </mesh>
+                  </group>
+                </group>
+              }
+            >
+              <group position={[0, -0.65, 0.07]} scale={[0.7, 0.7, 0.1]}>
+                <GeneratedModel asset="dinoMascot" />
+              </group>
+            </GeneratedBoundary>
           </group>
           <Text
             position={[0, -0.4, 0.002]}
@@ -3712,7 +3979,7 @@ const BusStop: React.FC<{
           </Text>
         </group>
         {/* Back ad content */}
-        <group position={[-0.07, adPanelHeight / 2 + 0.3, 0]} rotation={[0, -Math.PI / 2, 0]}>
+        <group position={[-0.04, adPanelHeight / 2 + 0.3, 0]} rotation={[0, -Math.PI / 2, 0]}>
           <mesh position={[0, 0.65, 0.001]}>
             <planeGeometry args={[1.3, 0.35]} />
             <meshBasicMaterial color="#e65100" />
@@ -3736,25 +4003,35 @@ const BusStop: React.FC<{
           >
             Fill Up & Smile!
           </Text>
-          <group position={[0, 0, 0.002]} scale={0.45}>
-            <mesh>
-              <sphereGeometry args={[0.5, 12, 10]} />
-              <meshStandardMaterial color="#4caf50" roughness={0.6} />
-            </mesh>
-            <mesh position={[0.35, 0.35, 0]}>
-              <sphereGeometry args={[0.32, 12, 10]} />
-              <meshStandardMaterial color="#4caf50" roughness={0.6} />
-            </mesh>
-            <group position={[0.45, 0.42, 0.22]}>
-              <mesh rotation={[0, 0, Math.PI / 4]}>
-                <boxGeometry args={[0.12, 0.03, 0.02]} />
-                <meshBasicMaterial color="#212121" />
-              </mesh>
-              <mesh rotation={[0, 0, -Math.PI / 4]}>
-                <boxGeometry args={[0.12, 0.03, 0.02]} />
-                <meshBasicMaterial color="#212121" />
-              </mesh>
-            </group>
+          <group position={[0, 0, 0.002]} scale={0.45} name="DeadDinoAdvertRelief">
+            <GeneratedBoundary
+              fallback={
+                <group>
+                  <mesh>
+                    <sphereGeometry args={[0.5, 12, 10]} />
+                    <meshStandardMaterial color="#4caf50" roughness={0.6} />
+                  </mesh>
+                  <mesh position={[0.35, 0.35, 0]}>
+                    <sphereGeometry args={[0.32, 12, 10]} />
+                    <meshStandardMaterial color="#4caf50" roughness={0.6} />
+                  </mesh>
+                  <group position={[0.45, 0.42, 0.22]}>
+                    <mesh rotation={[0, 0, Math.PI / 4]}>
+                      <boxGeometry args={[0.12, 0.03, 0.02]} />
+                      <meshBasicMaterial color="#212121" />
+                    </mesh>
+                    <mesh rotation={[0, 0, -Math.PI / 4]}>
+                      <boxGeometry args={[0.12, 0.03, 0.02]} />
+                      <meshBasicMaterial color="#212121" />
+                    </mesh>
+                  </group>
+                </group>
+              }
+            >
+              <group position={[0, -0.65, 0.07]} scale={[0.7, 0.7, 0.1]}>
+                <GeneratedModel asset="dinoMascot" />
+              </group>
+            </GeneratedBoundary>
           </group>
           <Text
             position={[0, -0.4, 0.002]}
@@ -3767,20 +4044,6 @@ const BusStop: React.FC<{
             Just 99p/L
           </Text>
         </group>
-      </group>
-
-      {/* Bench */}
-      <group position={[0, 0, -shelterDepth / 2 + 0.35]}>
-        <mesh position={[0, 0.45, 0]} castShadow>
-          <boxGeometry args={[shelterWidth - 0.5, 0.08, 0.4]} />
-          <meshStandardMaterial color="#8b5a2b" roughness={0.8} />
-        </mesh>
-        {[-1.2, 0, 1.2].map((x, i) => (
-          <mesh key={i} position={[x, 0.22, 0]} castShadow>
-            <boxGeometry args={[0.08, 0.44, 0.35]} />
-            <meshStandardMaterial color="#1f4e3d" roughness={0.4} metalness={0.6} />
-          </mesh>
-        ))}
       </group>
 
       {/* Bus stop pole and sign */}
@@ -4934,8 +5197,8 @@ export const CuteCar: React.FC<{
   const darkColor = '#2d3748';
   const trimColor = '#4a5568';
 
-  return (
-    <group position={position} rotation={[0, rotation, 0]}>
+  const primitiveBody = (
+    <group>
       {/* Main body - single shadow-casting mesh */}
       <mesh position={[0, 0.4, 0]} castShadow>
         <boxGeometry args={[d.bodyLength, d.bodyHeight, d.bodyWidth]} />
@@ -5147,7 +5410,22 @@ export const CuteCar: React.FC<{
           </mesh>
         </group>
       )}
+    </group>
+  );
 
+  return (
+    <group position={position} rotation={[0, rotation, 0]}>
+      <GeneratedBoundary fallback={primitiveBody}>
+        {style === 'sedan' ? (
+          <GeneratedPaintedModel asset="cuteCarSedan" color={color} profile="ochre" />
+        ) : style === 'suv' ? (
+          <GeneratedPaintedModel asset="cuteCarSuv" color={color} profile="green" />
+        ) : style === 'hatchback' ? (
+          <GeneratedPaintedModel asset="cuteCarHatchback" color={color} profile="blue" />
+        ) : (
+          <GeneratedPaintedModel asset="cuteCarPickup" color={color} profile="ochre" />
+        )}
+      </GeneratedBoundary>
       {/* Shadow underneath - soft radial-gradient blob (alpha falloff, no hard edges) */}
       <mesh
         position={[0, 0.01, 0]}
@@ -5419,6 +5697,8 @@ const TunnelEntrance: React.FC<{
 }> = ({ position, rotation = 0, length = 14 }) => {
   const tunnelWidth = 9;
   const tunnelHeight = 6;
+  const sideGeometry = useMemo(() => createVictorianTunnelSideGeometry(length), [length]);
+  useEffect(() => () => sideGeometry.dispose(), [sideGeometry]);
   // Victorian Red Brick. The albedo is now the procedural brick map, whose
   // bytes are sRGB-tagged and already carry the right reflectance, so the tint
   // is white - the old flat `#8d4004` would multiply the same hue twice and
@@ -5459,7 +5739,7 @@ const TunnelEntrance: React.FC<{
 
       {/* Tunnel Lining (Dark Brick) - Tilted away from map center */}
       {/* User Instruction: "90 degrees, away from the center of the map" */}
-      <mesh position={[0, 6, 0]} rotation={[Math.PI / 2, Math.PI / 2, 0]}>
+      <mesh position={[0, 2.5, 0]} rotation={[Math.PI / 2, Math.PI / 2, 0]}>
         {/* args: [topRadius, bottomRadius, height, segments, openEnded, thetaStart, thetaLength] */}
         {/* Rotation X=PI/2 tilts it horizontally, Y=PI/2 orients it away from center */}
         <cylinderGeometry
@@ -5487,27 +5767,20 @@ const TunnelEntrance: React.FC<{
         />
       </mesh>
 
+      {/* Carry the barrel vault down to the ground instead of leaving its
+          lower sides open beneath the spring line. One shared draw, 24 tris. */}
+      <mesh geometry={sideGeometry} castShadow receiveShadow>
+        <meshStandardMaterial {...brickSurface} color="#9a8880" roughness={0.92} />
+      </mesh>
+
       {/* ===== ENTRANCE FACADE (Main visual part) ===== */}
       {/* Rotated 180 degrees so decorative greebles face outward toward factory */}
       <group position={[0, 0, -length / 2 - 0.1]} rotation={[0, Math.PI, 0]}>
-        {/* Main Brick Facade Wall */}
-        <group>
-          {/* Left Column */}
-          <mesh position={[-tunnelWidth / 2 - 1, tunnelHeight / 2, 0]} castShadow>
-            <boxGeometry args={[3, tunnelHeight + 2, 1.2]} />
-            <meshStandardMaterial {...brickSurface} />
-          </mesh>
-          {/* Right Column */}
-          <mesh position={[tunnelWidth / 2 + 1, tunnelHeight / 2, 0]} castShadow>
-            <boxGeometry args={[3, tunnelHeight + 2, 1.2]} />
-            <meshStandardMaterial {...brickSurface} />
-          </mesh>
-          {/* Top Section */}
-          <mesh position={[0, tunnelHeight + 1.5, 0]} castShadow>
-            <boxGeometry args={[tunnelWidth + 5, 3, 1.2]} />
-            <meshStandardMaterial {...brickSurface} />
-          </mesh>
-        </group>
+        {/* A true arch opening, shared with the lining. The former three boxes
+            left a square hole, while the inverted stone trim fell underground. */}
+        <mesh geometry={VICTORIAN_PORTAL_FACE} castShadow receiveShadow>
+          <meshStandardMaterial {...brickSurface} />
+        </mesh>
 
         {/* Rain streaking down the brick columns from under the cornice.
             SURFACE_LAYERS.decal off the 1.2-deep column face (front at z=0.6). */}
@@ -5521,8 +5794,8 @@ const TunnelEntrance: React.FC<{
         ))}
 
         {/* Stone Archway Trim */}
-        <mesh position={[0, tunnelHeight / 2 - 0.5, 0.65]} rotation={[0, 0, Math.PI]}>
-          {/* Custom shape for arch outline could be complex, using torus segment for approximation */}
+        <mesh position={[0, tunnelHeight / 2 - 0.5, 0.65]} castShadow>
+          {/* The half torus opens upwards; its inner radius meets the bore. */}
           <torusGeometry args={[tunnelWidth / 2, 0.6, 8, 16, Math.PI]} />
           <meshStandardMaterial
             color={stoneColor}
@@ -5532,8 +5805,8 @@ const TunnelEntrance: React.FC<{
         </mesh>
 
         {/* Keystone */}
-        <mesh position={[0, tunnelHeight / 2 + tunnelWidth / 2 + 0.5, 0.7]} castShadow>
-          <boxGeometry args={[1.2, 1.5, 1.4]} />
+        <mesh position={[0, 7.35, 0.7]} castShadow>
+          <boxGeometry args={[1.2, 1.1, 1.4]} />
           <meshStandardMaterial
             color={stoneColor}
             roughness={0.78}
@@ -5577,7 +5850,7 @@ const TunnelEntrance: React.FC<{
           </mesh>
           {/* Spikes/Finials */}
           {[-6, -3, 0, 3, 6].map((x) => (
-            <mesh position={[x, 0.8, 0]} key={x}>
+            <mesh position={[x, 0.6, 0]} key={x}>
               <sphereGeometry args={[0.4]} />
               <meshStandardMaterial
                 color={stoneColor}
@@ -5603,9 +5876,9 @@ const TunnelEntrance: React.FC<{
         ))}
 
         {/* Date Plaque */}
-        <group position={[0, tunnelHeight + 2, 0.65]}>
+        <group position={[0, 8.3, 0.66]}>
           <mesh>
-            <boxGeometry args={[3, 1, 0.1]} />
+            <boxGeometry args={[3, 0.7, 0.1]} />
             <meshStandardMaterial
               color={stoneColor}
               roughness={0.84}
@@ -5626,8 +5899,7 @@ const TunnelEntrance: React.FC<{
 
       {/* ===== EXIT FACADE (Simpler version) ===== */}
       <group position={[0, 0, length / 2 + 0.1]}>
-        <mesh position={[0, tunnelHeight / 2, 0]} castShadow>
-          <boxGeometry args={[tunnelWidth + 2, tunnelHeight + 1, 1]} />
+        <mesh geometry={VICTORIAN_PORTAL_EXIT} castShadow receiveShadow>
           <meshStandardMaterial {...brickSurface} />
         </mesh>
         <mesh position={[0, tunnelHeight + 1, 0]} castShadow>
@@ -5891,17 +6163,27 @@ const CheckpointBarrier: React.FC<{
           <meshStandardMaterial color="#4b5563" roughness={0.8} />
         </mesh>
 
-        {/* Main booth structure */}
-        <mesh position={[0, boothHeight / 2 + 0.3, 0]} castShadow receiveShadow>
-          <boxGeometry args={[boothWidth, boothHeight, boothDepth]} />
-          <meshStandardMaterial color="#f5f5f4" roughness={0.6} />
-        </mesh>
+        <GeneratedBoundary
+          fallback={
+            <>
+              {/* Main booth structure */}
+              <mesh position={[0, boothHeight / 2 + 0.3, 0]} castShadow receiveShadow>
+                <boxGeometry args={[boothWidth, boothHeight, boothDepth]} />
+                <meshStandardMaterial color="#f5f5f4" roughness={0.6} />
+              </mesh>
 
-        {/* Booth roof */}
-        <mesh position={[0, boothHeight + 0.5, 0]} castShadow>
-          <boxGeometry args={[boothWidth + 0.8, 0.3, boothDepth + 0.8]} />
-          <meshStandardMaterial color="#1f2937" roughness={0.5} />
-        </mesh>
+              {/* Booth roof */}
+              <mesh position={[0, boothHeight + 0.5, 0]} castShadow>
+                <boxGeometry args={[boothWidth + 0.8, 0.3, boothDepth + 0.8]} />
+                <meshStandardMaterial color="#1f2937" roughness={0.5} />
+              </mesh>
+            </>
+          }
+        >
+          <group position={[0, 0.3, 0]}>
+            <GeneratedModel asset="checkpointBooth" />
+          </group>
+        </GeneratedBoundary>
 
         {/* Windows - front and back */}
         {[boothDepth / 2 + 0.01, -boothDepth / 2 - 0.01].map((z, i) => (
@@ -8133,9 +8415,9 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
       <Bollard position={[-138, 0, 32]} type="metal" />
 
       {/* Information signs */}
-      <InfoSign position={[-150, 0, 85]} text="CANAL" rotation={Math.PI / 4} />
+      <InfoSign position={[-154, 0, 85]} text="CANAL" rotation={Math.PI / 4} />
       <InfoSign position={[95, 0, 115]} text="LAKE" rotation={-Math.PI / 4} />
-      <InfoSign position={[10, 0, -130]} text="RIVER" rotation={0} />
+      <InfoSign position={[10, 0, -110]} text="RIVER" rotation={0} />
       <InfoSign position={[-137, 0, -45]} text="DOCK" rotation={Math.PI / 2} />
 
       {/* Picnic area by the lake */}

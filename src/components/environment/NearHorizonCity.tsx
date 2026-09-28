@@ -59,7 +59,9 @@ const CITY_BODY_MATERIAL = new THREE.MeshStandardMaterial({
   emissiveIntensity: 0.22,
   roughness: 0.88,
   metalness: 0.04,
-  vertexColors: true,
+  // setColorAt supplies instanceColor. UNIT_BOX has no vertex colour attribute;
+  // enabling vertexColors additionally multiplies the authored palette by zero.
+  vertexColors: false,
 });
 const CITY_ROOF_MATERIAL = new THREE.MeshStandardMaterial({
   color: '#666d6c',

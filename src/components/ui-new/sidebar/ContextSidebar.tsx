@@ -105,7 +105,7 @@ export const ContextSidebar: React.FC<ContextSidebarProps> = ({
   } else if (selectedMachine) {
     headerTitle = selectedMachine.name;
     HeaderIcon = Thermometer;
-    content = <MachineInspector machine={selectedMachine} />;
+    content = <MachineInspector machine={selectedMachine} onFocusMachine={onFocusMachine} />;
   } else if (mode === 'ai') {
     headerTitle = 'AI Partner';
     HeaderIcon = Brain;
@@ -152,19 +152,28 @@ export const ContextSidebar: React.FC<ContextSidebarProps> = ({
             animate={{ x: 0, opacity: 1 }}
             exit={{ x: '100%', opacity: 0 }}
             transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-            className="fixed top-4 right-4 bottom-24 w-80 sm:w-96 bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl z-40 overflow-hidden flex flex-col pointer-events-auto"
+            className="fixed top-[max(5rem,96px)] right-4 bottom-24 w-[min(24rem,42vw)] bg-[#071722]/98 backdrop-blur-xl border border-cyan-100/15 rounded-lg shadow-2xl z-40 overflow-hidden flex flex-col pointer-events-auto"
             aria-label={`${headerTitle} sidebar panel`}
             role="complementary"
           >
             {/* Header */}
-            <div className="p-4 border-b border-white/10 flex items-center justify-between bg-white/5">
-              <div className="flex items-center gap-2 text-cyan-400">
-                <HeaderIcon size={18} aria-hidden="true" />
-                <h2 className="font-bold tracking-wide text-sm uppercase">{headerTitle}</h2>
+            <div className="p-4 border-b border-white/10 flex items-start justify-between gap-3">
+              <div className="flex min-w-0 items-start gap-2 text-cyan-300">
+                <HeaderIcon size={18} className="mt-1 shrink-0" aria-hidden="true" />
+                <div className="min-w-0">
+                  <h2 className="text-xl font-semibold leading-tight text-slate-100 break-words">
+                    {headerTitle}
+                  </h2>
+                  {selectedMachine && mode !== 'scada' && (
+                    <p className="mt-1 text-[12px] capitalize text-slate-400">
+                      {selectedMachine.type.toLowerCase().replaceAll('_', ' ')}
+                    </p>
+                  )}
+                </div>
               </div>
               <button
                 onClick={onClose}
-                className="p-1 hover:bg-white/10 rounded-lg transition-colors text-slate-300 hover:text-white"
+                className="-m-2 shrink-0 p-3 hover:bg-white/10 rounded-lg transition-colors text-slate-300 hover:text-white"
                 aria-label="Close sidebar panel"
               >
                 <X size={16} aria-hidden="true" />
@@ -183,8 +192,8 @@ export const ContextSidebar: React.FC<ContextSidebarProps> = ({
             </div>
 
             {/* Footer with branding */}
-            <div className="p-3 border-t border-white/10 bg-slate-900/50">
-              <div className="flex items-center justify-between">
+            <div className="p-3 border-t border-white/10 bg-black/10">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <div
                     className="w-6 h-6 rounded bg-gradient-to-br from-slate-700 to-slate-900 flex items-center justify-center text-sm border border-slate-600"
@@ -194,10 +203,10 @@ export const ContextSidebar: React.FC<ContextSidebarProps> = ({
                   </div>
                   <div>
                     <span className="text-xs font-bold text-white">
-                      Mill<span className="text-orange-500">OS</span>
+                      Mill<span className="text-cyan-300">OS</span>
                     </span>
                     <select
-                      className="text-[9px] ml-1 bg-transparent border-none cursor-pointer text-slate-400 hover:text-orange-400 transition-colors"
+                      className="text-[12px] ml-1 bg-transparent border-none cursor-pointer text-slate-400 hover:text-cyan-300 transition-colors"
                       value={pendingVersion ?? CURRENT_RELEASE_VERSION}
                       onChange={(e) => {
                         const value = e.target.value;
@@ -216,7 +225,7 @@ export const ContextSidebar: React.FC<ContextSidebarProps> = ({
                         onClick={() => {
                           window.location.href = `/${pendingVersion}/`;
                         }}
-                        className="ml-1 inline-flex items-center gap-0.5 text-[9px] px-1 py-0.5 rounded bg-orange-500/20 text-orange-400 hover:bg-orange-500/30 transition-colors"
+                        className="ml-1 inline-flex items-center gap-0.5 text-[12px] px-1 py-0.5 rounded bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30 transition-colors"
                         aria-label={`Switch to MillOS version ${pendingVersion.slice(1)}`}
                       >
                         Go
@@ -225,7 +234,7 @@ export const ContextSidebar: React.FC<ContextSidebarProps> = ({
                     )}
                   </div>
                 </div>
-                <div className="flex items-center gap-2 text-[9px]">
+                <div className="flex items-center gap-2 text-[12px]">
                   <span className="text-cyan-400 italic">Nell Watson</span>
                   <button
                     onClick={() => setShowAbout(true)}

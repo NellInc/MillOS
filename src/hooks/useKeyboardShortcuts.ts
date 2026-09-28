@@ -102,8 +102,15 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig) {
     };
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Ignore shortcuts when typing in input fields
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+      // Native editors and modal controls own their keys. In particular, a
+      // collection select's P search must never pause production underneath it.
+      if (
+        e.defaultPrevented ||
+        (e.target instanceof Element &&
+          e.target.closest(
+            'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="dialog"][aria-modal="true"]'
+          ))
+      ) {
         return;
       }
 
@@ -129,7 +136,7 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig) {
         const isInteractive = (el: unknown): boolean =>
           el instanceof HTMLElement &&
           !!el.closest(
-            'button, select, a[href], input, textarea, [contenteditable="true"], [role="button"], [role="checkbox"], [role="radio"], [tabindex]'
+            'button, summary, select, a[href], input, textarea, [contenteditable="true"], [role="button"], [role="checkbox"], [role="radio"], [tabindex]'
           );
         if (isInteractive(e.target) || isInteractive(document.activeElement)) {
           return;
@@ -405,7 +412,7 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig) {
         return;
       }
 
-      // 1-5 - Camera presets
+      // Number keys select the authored camera presets.
       const presetIndex = parseInt(e.key) - 1;
       if (presetIndex >= 0 && presetIndex < CAMERA_PRESETS.length) {
         e.preventDefault();

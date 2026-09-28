@@ -455,17 +455,17 @@ export const MACHINE_MATERIALS = {
     'vegetation'
   ),
 
-  /** Painted mill housing. Final 0.35-0.85. */
+  /** Petrol enamel housing. Final roughness 0.27-0.66 retains broad highlights. */
   mill: withWear(
     new THREE.MeshStandardMaterial({
       name: 'machine-mill-body',
-      color: '#bbb8ac',
+      color: '#397579',
       roughnessMap: MILL_SKIN_ORM,
       aoMap: MILL_SKIN_ORM,
       aoMapIntensity: 0.85,
       normalMap: MILL_SKIN_NORMAL,
       normalScale: new THREE.Vector2(0.7, 0.7),
-      roughness: 1,
+      roughness: 0.78,
       metalness: 0,
     }),
     { grime: 0.26, dust: 0.2, edge: 0.18, grimeHeight: 1.5 }
@@ -534,17 +534,17 @@ export const MACHINE_MATERIALS = {
     { grime: 0, dust: 0.3, edge: 0.06, grimeHeight: 1 }
   ),
 
-  /** Painted sifter housing. Final 0.35-0.85. */
+  /** Warm champagne enamel distinguishes the elevated sifting stage. Final 0.30-0.73. */
   sifter: withWear(
     new THREE.MeshStandardMaterial({
       name: 'machine-sifter-body',
-      color: '#b0ae9e',
+      color: '#bea876',
       roughnessMap: SIFTER_SKIN_ORM,
       aoMap: SIFTER_SKIN_ORM,
       aoMapIntensity: 0.85,
       normalMap: SIFTER_SKIN_NORMAL,
       normalScale: new THREE.Vector2(0.7, 0.7),
-      roughness: 1,
+      roughness: 0.86,
       metalness: 0,
     }),
     { grime: 0.18, dust: 0.3, edge: 0.18, grimeHeight: 1.4, deck: SIFTER_DECK_Y }

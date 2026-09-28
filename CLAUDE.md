@@ -516,8 +516,9 @@ import { EXTERIOR_LAYERS, POLYGON_OFFSET } from '../constants/renderLayers';
 // Road markings (always on top)
 <mesh position={[0, EXTERIOR_LAYERS.groundOverlay, 0]} rotation={[-Math.PI / 2, 0, 0]}>
   <planeGeometry args={[0.3, 100]} />
-  <meshBasicMaterial
+  <meshStandardMaterial
     color="#ffffff"
+    roughness={0.85}
     depthWrite={false}
     polygonOffset
     polygonOffsetFactor={POLYGON_OFFSET.exteriorOverlay.factor}

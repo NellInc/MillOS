@@ -13,6 +13,21 @@ import {
 import { getSmoothedGameTime } from '../../systems/DisplaySmoothing';
 import { SKY_CLOUD_GLSL, getCloudNoiseTexture } from '../../shaders/skyClouds';
 
+/** Shared sunset tint for the sky and its mountain/terrain inscatter. */
+export function getSkyTwilightWeight(solarElevation: number, twilight: number): number {
+  // Clock-based twilight already reaches 29% at 16h, while the sun is still
+  // 30 degrees high. Reserve the warm horizon for genuinely low solar angles.
+  return (
+    Math.min(0.72, twilight * 0.72) * (1 - THREE.MathUtils.smoothstep(solarElevation, 0.05, 0.35))
+  );
+}
+
+/** Clear air reveals the rock; cloudier weather closes the depth layers. */
+export function getRidgeAerialWeight(clearAerial: number, cloudCoverage: number): number {
+  const cloudiness = THREE.MathUtils.clamp((cloudCoverage - 0.2) / 0.7, 0, 1);
+  return clearAerial + (1 - clearAerial) * cloudiness * 0.68;
+}
+
 const optimizedSkyVertexShader = `
 varying vec3 vDirection;
 
@@ -60,7 +75,7 @@ void main() {
   float height = direction.y;
   vec3 sunDir = normalize(sunDirection);
 
-  float upperBlend = smoothstep(-0.04, 0.72, height);
+  float upperBlend = smoothstep(-0.02, 0.46, height);
   vec3 sky = mix(horizonColor, topColor, upperBlend);
   // Widened from a ~10 degree cut: the old edge read as a hard line wherever
   // the terrain did not reach the bottom of the dome.
@@ -68,10 +83,10 @@ void main() {
 
   float mu = max(dot(direction, sunDir), 0.0);
   float horizonWeight = mix(1.0, 2.4, 1.0 - abs(sunDir.y));
-  float mieBroad = pow(mu, 4.0) * 0.38 * horizonWeight;
+  float mieBroad = pow(mu, 6.0) * 0.20 * horizonWeight;
   float mieTight = pow(mu, 220.0) * 1.35;
   float rayleigh = (1.0 + mu * mu) * 0.045;
-  float haze = exp(-max(height, 0.0) * 5.5) * (0.06 + daylight * 0.11);
+  float haze = exp(-max(height, 0.0) * 5.5) * (0.025 + daylight * 0.055);
   sky += uSunTint * (mieBroad + mieTight) * uSunOpacity;
   sky += topColor * rayleigh * daylight + horizonColor * haze;
 
@@ -151,7 +166,7 @@ void main() {
 
   // Valley haze. Air pools in the valleys, so they sit further back than the
   // peaks that rise out of it - the cue that turns a silhouette into a range.
-  lit = mix(lit, uInscatter, (1.0 - vRidgeHeight) * 0.18);
+  lit = mix(lit, uInscatter, (1.0 - vRidgeHeight) * uAerial * 0.20);
 
   gl_FragColor = vec4(lit, 1.0);
   #include <tonemapping_fragment>
@@ -415,15 +430,19 @@ export function createMountainRidgeGeometry({
     // break each massif into individual peaks, while the very low valley floor
     // lets the terrain hide the ring between ranges instead of exposing a
     // continuous horizontal shelf.
-    const massif = Math.pow(Math.max(0, Math.sin(angle * 3 + seed * 0.7)), 3.6) * 0.66;
+    const massif = Math.pow(Math.max(0, Math.sin(angle * 3 + seed * 0.7)), 3.6) * 0.48;
     const ridge =
-      Math.pow(1 - Math.abs(Math.sin(angle * 7 - seed * 1.2)), 3.2) * 0.24 +
-      Math.pow(1 - Math.abs(Math.sin(angle * 13 + seed * 2.1)), 5) * 0.1;
+      Math.pow(1 - Math.abs(Math.sin(angle * 7 - seed * 1.2)), 3.2) * 0.3 +
+      Math.pow(1 - Math.abs(Math.sin(angle * 13 + seed * 2.1)), 5) * 0.16 +
+      Math.pow(1 - Math.abs(Math.sin(angle * 23 - seed * 0.8)), 4) * 0.06;
     const rolling =
-      valleyFloor +
       (Math.sin(angle * 2 - seed) * 0.5 + 0.5) * 0.045 +
       (Math.sin(angle * 11 + seed * 1.4) * 0.5 + 0.5) * 0.025;
-    const profile = THREE.MathUtils.clamp(rolling + massif + ridge, 0.025, 0.98);
+    // The far ring's raised valley is needed to hide the world seam. Adding
+    // it to a full-amplitude massif then clamping flattened entire summits.
+    // Fit the positive field (maximum 1.07) into the remaining vertical span.
+    const floor = Math.max(0.025, valleyFloor);
+    const profile = floor + ((rolling + massif + ridge) / 1.07) * (0.98 - floor);
     const height = THREE.MathUtils.lerp(minHeight, maxHeight, profile);
     const baseRadius =
       radius + Math.sin(angle * 5 + seed) * 1.5 + Math.sin(angle * 13 - seed) * 0.55;
@@ -433,10 +452,16 @@ export function createMountainRidgeGeometry({
     for (let row = 0; row < rows; row += 1) {
       const heightRatio = heightRatios[row];
       const shoulderRipple =
-        Math.sin(angle * 9 + seed * 1.7 + row * 0.82) * slopeDepth * heightRatio * 0.035;
+        Math.sin(angle * 9 + seed * 1.7 + row * 0.82) * slopeDepth * heightRatio * 0.035 +
+        Math.sin(angle * 19 + seed + row * 0.35) *
+          slopeDepth *
+          Math.sin(heightRatio * Math.PI) *
+          0.12;
       const localRadius = baseRadius + slopeDepth * depthRatios[row] + shoulderRipple;
       const terraceHeight =
-        baseY + height * (heightRatio * 0.16 + Math.pow(heightRatio, 1.24) * 0.84);
+        baseY +
+        height * (heightRatio * 0.16 + Math.pow(heightRatio, 1.24) * 0.84) -
+        (1 - Math.cos(angle * 17 + seed)) * height * 0.028 * Math.sin(heightRatio * Math.PI);
       positions.push(Math.cos(angle) * localRadius, terraceHeight, Math.sin(angle) * localRadius);
       // Combined so the haze pools where the ring is BOTH low on the slope and
       // in a valley of the profile, which is where real air collects.
@@ -525,9 +550,9 @@ const nearHillGeometry = createMountainRidgeGeometry({
   colors: ['#334c3b', '#5c6a5b', '#93a08f'],
 });
 
-const dayTop = new THREE.Color('#79bce6');
+const dayTop = new THREE.Color('#70aed8');
 const nightTop = new THREE.Color('#071426');
-const dayHorizon = new THREE.Color('#b9dce7');
+const dayHorizon = new THREE.Color('#a3cce2');
 const nightHorizon = new THREE.Color('#26364b');
 const dawnHorizon = new THREE.Color('#e8a66d');
 // Ground bounce, not more sky. This band is what the dome shows below the
@@ -612,7 +637,8 @@ function createRidgeMaterial(aerial: number, name: string): THREE.ShaderMaterial
       uAerial: { value: aerial },
     },
   });
-  material.customProgramCacheKey = () => 'millos-ridge-aerial-v1';
+  material.userData.clearAerial = aerial;
+  material.customProgramCacheKey = () => 'millos-ridge-aerial-v2';
   return material;
 }
 
@@ -694,19 +720,16 @@ export function OptimizedSkySystem() {
         sunDirection: { value: new THREE.Vector3(0.5, 0.75, -0.4).normalize() },
       },
     });
-    material.customProgramCacheKey = () => 'millos-optimized-sky-v6';
+    material.customProgramCacheKey = () => 'millos-optimized-sky-v7';
     return material;
   }, []);
 
   const ridgeMaterials = useMemo(() => {
-    // Measured, not guessed. At 0.70 / 0.53 / 0.34 the far ring landed on
-    // sRGB 161,185,177 against a sky of 174,218,225 - the same value, no hue
-    // separation, i.e. fog-white cut-outs again. These put the far ring near
-    // 118,161,181: darker AND bluer than the sky above it, which is what makes
-    // a ridge read as distant rather than as painted.
-    const far = createRidgeMaterial(0.5, 'MillOS Ridge Aerial: Far');
-    const mid = createRidgeMaterial(0.37, 'MillOS Ridge Aerial: Mid');
-    const near = createRidgeMaterial(0.24, 'MillOS Ridge Aerial: Near');
+    // Clear-air separation leaves the slope lighting visible. Overcast and
+    // storm conditions raise extinction from these baselines every frame.
+    const far = createRidgeMaterial(0.32, 'MillOS Ridge Aerial: Far');
+    const mid = createRidgeMaterial(0.2, 'MillOS Ridge Aerial: Mid');
+    const near = createRidgeMaterial(0.1, 'MillOS Ridge Aerial: Near');
     // `all` is materialised here rather than built per frame: iterating a
     // freshly constructed array inside useFrame is an allocation at animation
     // rate, which is what the GC rules in CLAUDE.md exist to prevent.
@@ -808,7 +831,7 @@ export function OptimizedSkySystem() {
     targetHorizonScratch
       .copy(nightHorizon)
       .lerp(dayHorizon, visualDaylight)
-      .lerp(dawnHorizon, Math.min(0.72, atmosphere.twilight * 0.72));
+      .lerp(dawnHorizon, getSkyTwilightWeight(atmosphere.solarElevation, atmosphere.twilight));
     targetGroundScratch.copy(nightGround).lerp(dayGround, visualDaylight);
     targetCloudScratch.copy(nightCloud).lerp(dayCloud, visualDaylight);
     targetCloudShadowScratch.copy(nightCloudShadow).lerp(dayCloudShadow, visualDaylight);
@@ -952,7 +975,8 @@ export function OptimizedSkySystem() {
       .copy(skyMaterial.uniforms.horizonColor.value)
       .lerp(targetSunHaloScratch, inscatterMie);
 
-    const mountainTwilight = Math.min(0.58, atmosphere.twilight * 0.58);
+    const mountainTwilight =
+      getSkyTwilightWeight(atmosphere.solarElevation, atmosphere.twilight) * 0.8;
     ridgeSunScratch
       .copy(ridgeSunNight)
       .lerp(ridgeSunDay, visualDaylight)
@@ -963,6 +987,12 @@ export function OptimizedSkySystem() {
       ridgeMaterial.uniforms.uSunColor.value.lerp(ridgeSunScratch, colourAlpha);
       ridgeMaterial.uniforms.uShadowTint.value.lerp(ridgeShadowScratch, colourAlpha);
       ridgeMaterial.uniforms.uInscatter.value.lerp(inscatterScratch, colourAlpha);
+      ridgeMaterial.uniforms.uAerial.value = THREE.MathUtils.damp(
+        ridgeMaterial.uniforms.uAerial.value,
+        getRidgeAerialWeight(ridgeMaterial.userData.clearAerial, atmosphere.cloudCoverage),
+        response,
+        delta
+      );
     }
 
     const fog = state.scene.fog;

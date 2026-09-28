@@ -719,7 +719,7 @@ const StatCard: React.FC<{
         <span className={colorClasses[color].split(' ')[0]}>{icon}</span>
         {label}
       </div>
-      <div className="flex items-baseline gap-1">
+      <div className="flex flex-wrap items-baseline gap-x-1 gap-y-0.5">
         <span className={`text-lg font-mono font-bold ${colorClasses[color].split(' ')[0]}`}>
           {value}
         </span>

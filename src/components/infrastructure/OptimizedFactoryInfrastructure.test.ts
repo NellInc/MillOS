@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
+import * as THREE from 'three';
 import { SITE_LAYOUT } from '../../constants/siteLayout';
 import {
+  buildFactoryRoofEnvelope,
+  buildFactoryGlazing,
   FACTORY_ENVELOPE_SPEC,
   FLOOR_JOINT_PITCH,
   sampleFloorMacro,
@@ -26,6 +29,30 @@ describe('optimized factory envelope', () => {
     expect(FACTORY_ENVELOPE_SPEC.dockWindowSill).toBeGreaterThanOrEqual(
       SITE_LAYOUT.portals.receiving.height
     );
+  });
+
+  it('reveals the working floor without glazing over any operational entrance', () => {
+    const panes = buildFactoryGlazing();
+    expect(panes.some((pane) => pane.position[1] - pane.scale[1] / 2 < 3)).toBe(true);
+    for (const pane of panes) {
+      expect(pane.scale.every((size) => Number.isFinite(size) && size > 0)).toBe(true);
+      for (const portal of Object.values(SITE_LAYOUT.portals)) {
+        const front = portal.normal[2] !== 0;
+        const axis = front ? 0 : 2;
+        const normalAxis = front ? 2 : 0;
+        if (Math.abs(pane.position[normalAxis] - portal.centre[normalAxis]) > 1) continue;
+        const left = pane.position[axis] - pane.scale[axis] / 2;
+        const right = pane.position[axis] + pane.scale[axis] / 2;
+        const overlapsDoor =
+          right > portal.centre[axis] - portal.halfWidth &&
+          left < portal.centre[axis] + portal.halfWidth;
+        if (overlapsDoor) {
+          expect(pane.position[1] - pane.scale[1] / 2, portal.id).toBeGreaterThanOrEqual(
+            portal.height
+          );
+        }
+      }
+    }
   });
 
   it('uses broad, evenly spaced window bays on every facade', () => {
@@ -96,6 +123,38 @@ describe('interior slab macro surface', () => {
         expect(sample.ao).toBeGreaterThanOrEqual(0);
         expect(sample.ao).toBeLessThanOrEqual(1);
       }
+    }
+  });
+});
+
+describe('factory roof light paths', () => {
+  it('leaves all six skylight centres open through the actual deck and kerbs', () => {
+    const { panels, kerbs } = buildFactoryRoofEnvelope();
+    const geometry = new THREE.BoxGeometry(1, 1, 1);
+    const material = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
+    const meshes = [...panels, ...kerbs].map((box) => {
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.position.set(...box.position);
+      mesh.scale.set(...box.scale);
+      mesh.rotation.set(...(box.rotation ?? [0, 0, 0]));
+      mesh.updateMatrixWorld(true);
+      return mesh;
+    });
+    try {
+      for (const x of [-25, 25]) {
+        for (const z of [-26, 0, 26]) {
+          const ray = new THREE.Raycaster(new THREE.Vector3(x, 60, z), new THREE.Vector3(0, -1, 0));
+          expect(ray.intersectObjects(meshes), `skylight at ${x}, ${z}`).toHaveLength(0);
+        }
+      }
+      const solidDeck = new THREE.Raycaster(
+        new THREE.Vector3(45, 60, 10),
+        new THREE.Vector3(0, -1, 0)
+      );
+      expect(solidDeck.intersectObjects(meshes).length).toBeGreaterThan(0);
+    } finally {
+      geometry.dispose();
+      material.dispose();
     }
   });
 });

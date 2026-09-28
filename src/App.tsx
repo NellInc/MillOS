@@ -584,7 +584,7 @@ const App: React.FC = () => {
       <div role="note" aria-label="3D visualization keyboard controls" className="sr-only">
         The 3D factory visualization is interactive. Use W, A, S, D or the arrow keys to move, Q and
         E to move down and up, and Shift to move faster. Press V to toggle first-person view mode.
-        Press 1-5 to switch camera presets. Keyboard movement pauses while an interface control has
+        Press 1-7 to switch camera presets. Keyboard movement pauses while an interface control has
         focus.
       </div>
 
@@ -636,15 +636,14 @@ const App: React.FC = () => {
             // rendered with nothing casting a shadow anywhere. There is no
             // amount of tonal authoring that substitutes for that.
             //
-            // PCFSoft rather than PCF: it costs four extra shadow-map taps per
-            // shadowed fragment and removes the hard single-texel stair-step,
-            // which matters because `SunShadowRig` fits a single cascade across
-            // a 90 to 220 unit span - texels are large and the stair-step would
-            // be the most visible artefact in the frame.
+            // Three r182 implements PCF but no longer maps PCFSoft to a
+            // filtered shader. The old value silently selected BASIC, exposing
+            // every shadow texel along the glass facade. Keep the existing map
+            // budget and use the renderer's actual filtered path.
             //
             // `low` keeps no shadow pass at all. It also has no composer, so it
             // stays the one tier that is purely forward-rendered.
-            shadows={canvasQuality === 'low' ? false : { type: THREE.PCFSoftShadowMap }}
+            shadows={canvasQuality === 'low' ? false : { type: THREE.PCFShadowMap }}
             camera={{
               position: [35, 25, 20], // Start inside factory so production is immediately readable
               fov: 65,
@@ -799,15 +798,13 @@ const App: React.FC = () => {
                          * damping integrator and any pointer handling, and
                          * because a measurement run has no user input to serve.
                          *
-                         * The polar limits are back to their single player
-                         * values: the `sun`/`moon` widenings only existed so
-                         * those two near-vertical poses could survive `update()`
-                         * at all, and with the distance clamp gone the pose
-                         * RuntimeController writes is the pose that renders.
+                         * Benchmark polar limits must also be relaxed: a sun or
+                         * moon target lies above the camera, beyond the player
+                         * orbit range. A disabled control still clamps on update.
                          */
                         enabled={!runtimeMode.benchmark}
-                        maxPolarAngle={Math.PI / 2 - 0.05}
-                        minPolarAngle={0.2}
+                        maxPolarAngle={runtimeMode.benchmark ? Math.PI : Math.PI / 2 - 0.05}
+                        minPolarAngle={runtimeMode.benchmark ? 0 : 0.2}
                         minDistance={runtimeMode.benchmark ? 0.25 : 15}
                         maxDistance={runtimeMode.benchmark ? 1000 : 220}
                         autoRotate

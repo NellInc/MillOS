@@ -31,8 +31,8 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({
         { key: 'Q', description: 'Move down' },
         { key: 'E', description: 'Move up' },
         { key: 'Drag', description: 'Rotate camera' },
-        { key: 'Scroll', description: 'Zoom in/out' },
-        { key: '1-5', description: 'Camera presets' },
+        { key: 'Scroll / pinch', description: 'Zoom in/out' },
+        { key: '1-7', description: 'Camera presets' },
         { key: '0', description: 'Reset camera view' },
         { key: 'V', description: 'First-person mode' },
         { key: 'Shift', description: 'Move faster / sprint' },
@@ -41,7 +41,7 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({
     {
       category: 'Controls',
       items: [
-        { key: 'P', description: 'Pause/Resume simulation' },
+        { key: 'P', description: 'Pause/resume production' },
         { key: 'I', description: 'Toggle AI Partner' },
         { key: 'O', description: 'Toggle SCADA panel' },
         { key: 'Z', description: 'Toggle safety zones' },
@@ -71,7 +71,10 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({
         { key: 'F4', description: 'Ultra quality' },
       ],
     },
-    { category: 'Safety', items: [{ key: 'SPACE', description: 'Emergency Stop (toggle)' }] },
+    {
+      category: 'Safety',
+      items: [{ key: 'SPACE', description: 'Toggle forklift stop (scene focus)' }],
+    },
   ];
 
   return (
@@ -99,6 +102,12 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({
             : 'bg-slate-900/95 border border-slate-700/50'
         }`}
         onClick={(e) => e.stopPropagation()}
+        onKeyDown={(event) => {
+          if (event.key === '?') {
+            event.preventDefault();
+            onClose();
+          }
+        }}
       >
         {/* Header */}
         <div

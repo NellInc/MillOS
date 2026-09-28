@@ -17,6 +17,38 @@ const makeBox = (x: number, color: string = '#778899'): THREE.Mesh => {
 };
 
 describe('StaticMeshBatch', () => {
+  it('ignores R3F ownership graphs when comparing identical rendered materials', () => {
+    const root = new THREE.Group();
+    const left = makeBox(-2);
+    const right = makeBox(3);
+    for (const [index, mesh] of [left, right].entries()) {
+      // R3F attaches this enumerable metadata to mounted materials. Its parent
+      // and children describe the React scene, not the material's appearance.
+      Object.assign(mesh.material, {
+        __r3f: { type: 'meshStandardMaterial', parent: { key: index }, children: [] },
+      });
+    }
+    root.add(left, right);
+    const candidates = collectStaticBatchCandidates(root);
+    expect(candidates[0]?.materialSignature).toBe(candidates[1]?.materialSignature);
+    expect(candidates[0]?.materialSignature).not.toContain('__r3f');
+    expect(createStaticMeshBatches(root, candidates, 'mounted', 2)).toHaveLength(1);
+  });
+
+  it('never traverses a mounted material ownership graph', () => {
+    const root = new THREE.Group();
+    const mesh = makeBox(0);
+    Object.assign(mesh.material, {
+      __r3f: {
+        get parent() {
+          throw new Error('Material signing traversed the R3F scene graph');
+        },
+      },
+    });
+    root.add(mesh);
+    expect(() => collectStaticBatchCandidates(root)).not.toThrow();
+  });
+
   it('instances transform-stable opaque duplicates without changing their world transforms', () => {
     const root = new THREE.Group();
     const left = makeBox(-2);

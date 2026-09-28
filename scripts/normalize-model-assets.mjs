@@ -116,6 +116,13 @@ function slug(value) {
     .replace(/(^-|-$)/g, '');
 }
 
+// Uniform root scaling includes translation, otherwise offset source nodes drift.
+export function multiplyScale(node, factor) {
+  if (!Number.isFinite(factor) || factor <= 0) throw new Error('Invalid model scale');
+  node.setScale(node.getScale().map((value) => value * factor));
+  node.setTranslation(node.getTranslation().map((value) => value * factor));
+}
+
 function centreSceneBelow(document, scene) {
   const bounds = getBounds(scene);
   const centreX = (bounds.min[0] + bounds.max[0]) / 2;
@@ -413,6 +420,399 @@ const GENERATED_ASSET_ATTRIBUTION = 'Generated with Tripo3D for MillOS under an 
  * would spend memory on detail no camera can see.
  */
 export const GENERATED_ASSETS = [
+  {
+    id: 'world-fuel-pump-shell',
+    slug: 'fuel-pump-shell',
+    area: 'world',
+    target: 1.8,
+    axis: 'y',
+    texture: 256,
+    yaw: Math.PI / 2,
+    preparedSource: 'fuel-pump-shell-authored-colour-normals-tripo-finish.glb',
+    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparationMethod:
+      'Blender one-material authored atlas; exact triangle correspondence restores palette and hard-surface normals, Tripo normal and roughness maps retained.',
+    pipeline: [
+      'Blender authored atlas',
+      'texture v3.0-20250812, pbr:true, bake:false',
+      'Source attribute restoration',
+    ],
+    taskId: '4bdb2403-19c1-4414-a945-beb3b4f8e736',
+    retrievedAt: '2026-09-08',
+  },
+  {
+    id: 'world-station-canopy',
+    slug: 'station-canopy',
+    area: 'world',
+    target: 16.5,
+    axis: 'x',
+    texture: 512,
+    yaw: 0,
+    preparedSource: 'station-canopy-authored-colour-normals-tripo-finish.glb',
+    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparationMethod:
+      'Blender one-material authored atlas; exact triangle correspondence restores palette and hard-surface normals, Tripo normal and roughness maps retained.',
+    pipeline: [
+      'Blender authored atlas',
+      'texture v3.0-20250812, pbr:true, bake:false',
+      'Source attribute restoration',
+    ],
+    taskId: '8a5228aa-86df-4d0f-a787-4afe8d5f19d6',
+    retrievedAt: '2026-09-08',
+  },
+  {
+    id: 'world-checkpoint-booth',
+    slug: 'checkpoint-booth',
+    area: 'world',
+    target: 4.3,
+    axis: 'x',
+    texture: 512,
+    yaw: 0,
+    preparedSource: 'checkpoint-booth-authored-colour-normals-tripo-finish.glb',
+    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparationMethod:
+      'Blender one-material authored atlas; exact triangle correspondence restores palette and hard-surface normals, Tripo normal and roughness maps retained.',
+    pipeline: [
+      'Blender authored atlas',
+      'texture v3.0-20250812, pbr:true, bake:false',
+      'Source attribute restoration',
+    ],
+    taskId: '3131e52d-c089-4c2d-a00e-1ffa098550c4',
+    retrievedAt: '2026-09-08',
+  },
+  {
+    id: 'world-brick-carport',
+    slug: 'brick-carport',
+    area: 'world',
+    target: 10.6,
+    axis: 'x',
+    texture: 1024,
+    yaw: 0,
+    preparedSource: 'brick-carport-roof-repaired.glb',
+    preparationScript: 'scripts/blender/repair_carport_roof.py',
+    preparationMethod:
+      'Replace 5564 folded roof faces with a clean bevelled cap; retain provider brickwork and atlas, one material, non-degenerate UVs.',
+    fitDimensions: [10.6, 3.9, 8.6],
+    pipeline: [
+      'image_to_model v3.1-20260211, smart_low_poly:true, texture:true, pbr:true',
+      'Blender area-weighted normals',
+    ],
+    taskId: 'c0dfd1e4-4c21-4f2b-bbc2-cbcb8d825253',
+    retrievedAt: '2026-09-07',
+  },
+  {
+    id: 'world-path-lamp-victorian',
+    slug: 'path-lamp-victorian',
+    area: 'world',
+    target: 4.45,
+    axis: 'y',
+    texture: 256,
+    yaw: 0,
+    preparedSource: 'path-lamp-victorian-blender-cleanup.glb',
+    pipeline: [
+      'image_to_model v3.1-20260211, smart_low_poly:true, texture:true, pbr:true',
+      'Blender area-weighted normals',
+    ],
+    taskId: 'd0a365e4-851b-496f-9e1b-7343af2b1857',
+    retrievedAt: '2026-09-07',
+  },
+  {
+    id: 'world-path-lamp-modern',
+    slug: 'path-lamp-modern',
+    area: 'world',
+    target: 4.25,
+    axis: 'y',
+    texture: 256,
+    yaw: 0,
+    preparedSource: 'path-lamp-modern-blender-cleanup.glb',
+    pipeline: [
+      'image_to_model v3.1-20260211, smart_low_poly:true, texture:true, pbr:true',
+      'Blender area-weighted normals',
+    ],
+    taskId: '2efe4b42-80b9-4819-993c-83993e9d5236',
+    retrievedAt: '2026-09-07',
+  },
+  {
+    id: 'world-info-sign',
+    slug: 'info-sign',
+    area: 'world',
+    target: 1.55,
+    axis: 'y',
+    texture: 256,
+    yaw: 0,
+    preparedSource: 'info-sign-blender-cleanup.glb',
+    pipeline: [
+      'image_to_model v3.1-20260211, smart_low_poly:true, texture:true, pbr:true',
+      'Blender area-weighted normals',
+    ],
+    taskId: 'f66e1797-0d66-4e74-81cd-119456b357f4',
+    retrievedAt: '2026-09-07',
+  },
+  {
+    id: 'world-cute-car-hatchback',
+    slug: 'cute-car-hatchback',
+    area: 'world',
+    target: 2.92,
+    axis: 'x',
+    texture: 512,
+    yaw: 0,
+    preparedSource: 'cute-car-hatchback-lamps.glb',
+    preparationScript: 'scripts/blender/repair_car_rear_lamps.py',
+    preparationMethod:
+      'Area-weighted normals followed by rear-lamp vertex tint, preserving the atlas, front lamps and one material.',
+    pipeline: [
+      'image_to_model v3.1-20260211, smart_low_poly:true, texture:true, pbr:true',
+      'Blender weighted normals and rear-lamp vertex tint',
+    ],
+    taskId: '9de63797-04ca-4f9a-95c3-5cad2e02bcfa',
+    retrievedAt: '2026-09-07',
+  },
+  {
+    id: 'world-cute-car-pickup',
+    slug: 'cute-car-pickup',
+    area: 'world',
+    target: 4.12,
+    axis: 'x',
+    texture: 512,
+    yaw: 0,
+    preparedSource: 'cute-car-pickup-proportioned.glb',
+    preparationScript: 'scripts/blender/repair_pickup_proportions.py',
+    preparationMethod:
+      'Area-weighted normals, rear-lamp vertex tint, then shorten upper body to authored 1.58 m height while preserving lowest 0.78 m and wheels.',
+    pipeline: [
+      'image_to_model v3.1-20260211, smart_low_poly:true, texture:true, pbr:true',
+      'Blender weighted normals, rear lamps and upper-body proportion correction',
+    ],
+    taskId: '69c7a569-d67b-4cc3-96f4-7cfcc3283a26',
+    retrievedAt: '2026-09-07',
+  },
+
+  {
+    id: 'world-food-truck',
+    slug: 'food-truck',
+    area: 'world',
+    target: 7.975,
+    axis: 'z',
+    texture: 512,
+    yaw: Math.PI,
+    preparedSource: 'food-truck-proportioned.glb',
+    preparationScript: 'scripts/blender/repair_food_truck.py',
+    preparationMethod:
+      'Shorten only the upper body to the authored 2.65 m overall height, leaving the lowest 0.9 m and wheel vertices unchanged; recalculate area-weighted normals.',
+    pipeline: [
+      'image_to_model v3.1-20260211, smart_low_poly:true, texture:true, pbr:true',
+      'Blender upper-body proportion correction and area-weighted normals',
+    ],
+    taskId: 'd1e9b696-7db8-4430-9c2a-7927ec78d428',
+    retrievedAt: '2026-09-07',
+  },
+  {
+    id: 'world-office-apartment-three',
+    slug: 'office-apartment-three',
+    area: 'world',
+    target: 16.5,
+    axis: 'x',
+    texture: 1024,
+    yaw: -Math.PI / 2,
+    fitDimensions: [16.5, 12.6, 15],
+    preparedSource: 'office-apartment-three-blender-cleanup.glb',
+    preparationScript: 'scripts/blender/cut_apartment_floor.py',
+    preparationMethod:
+      'Remove one 3.5 m middle storey at floor bands; preserve roof, entrance and remaining windows at full scale. Recalculate area-weighted normals.',
+    pipeline: [
+      'image_to_model v3.1-20260211, smart_low_poly:true, texture:true, pbr:true',
+      'Blender middle-storey removal and area-weighted normals',
+    ],
+    taskId: 'da878c89-f8e0-4aef-8efa-ad18b47edced',
+    retrievedAt: '2026-09-07',
+  },
+  {
+    id: 'world-canal-boat',
+    slug: 'canal-boat',
+    area: 'world',
+    target: 12.95,
+    axis: 'z',
+    texture: 1024,
+    preparedSource: 'canal-boat-blender-cleanup.glb',
+    pipeline: [
+      'image_to_model v3.1-20260211, smart_low_poly:true, texture:true, pbr:true',
+      'Blender area-weighted normals',
+    ],
+    taskId: 'aa7ac592-5e84-4ab6-8afa-c6c24f317718',
+    retrievedAt: '2026-09-07',
+  },
+  {
+    id: 'world-cute-car-suv',
+    slug: 'cute-car-suv',
+    area: 'world',
+    target: 3.72,
+    axis: 'x',
+    texture: 512,
+    yaw: 0,
+    fitDimensions: [3.72, 1.705, 1.96],
+    preparedSource: 'cute-car-suv-blender-cleanup.glb',
+    pipeline: [
+      'image_to_model v3.1-20260211, smart_low_poly:true, texture:true, pbr:true',
+      'Blender area-weighted normals',
+    ],
+    taskId: 'a2420114-f0df-4cc1-8287-48860f2a61e7',
+    retrievedAt: '2026-09-07',
+  },
+  {
+    id: 'world-kiosk-cafe',
+    slug: 'kiosk-cafe',
+    area: 'world',
+    target: 5.6,
+    axis: 'x',
+    texture: 512,
+    yaw: -Math.PI / 2,
+    preparedSource: 'kiosk-cafe-blender-cleanup.glb',
+    pipeline: [
+      'image_to_model v3.1-20260211, smart_low_poly:true, texture:true, pbr:true',
+      'Blender area-weighted normals',
+    ],
+    taskId: 'af78663e-ae54-446d-b977-bd2e0558951b',
+    retrievedAt: '2026-09-07',
+  },
+  {
+    id: 'world-office-apartment',
+    slug: 'office-apartment',
+    area: 'world',
+    target: 16.5,
+    axis: 'x',
+    texture: 1024,
+    yaw: -Math.PI / 2,
+    fitDimensions: [16.5, 16.1, 15],
+    preparedSource: 'office-apartment-blender-cleanup.glb',
+    pipeline: [
+      'image_to_model v3.1-20260211, smart_low_poly:true, texture:true, pbr:true',
+      'Blender area-weighted normals',
+    ],
+    taskId: 'da878c89-f8e0-4aef-8efa-ad18b47edced',
+    retrievedAt: '2026-09-07',
+  },
+
+  {
+    id: 'world-cute-car-sedan',
+    slug: 'cute-car-sedan',
+    area: 'world',
+    target: 3.52,
+    axis: 'x',
+    texture: 512,
+    preparedSource: 'cute-car-sedan-blender-cleanup.glb',
+    pipeline: [
+      'image_to_model v3.1-20260211, smart_low_poly:true, texture:true, pbr:true',
+      'Blender area-weighted normals',
+    ],
+    taskId: '47b0f068-58d6-4536-be42-ae4e54933379',
+    retrievedAt: '2026-09-07',
+  },
+  {
+    id: 'world-small-office',
+    slug: 'small-office',
+    area: 'world',
+    target: 14.5,
+    axis: 'x',
+    texture: 1024,
+    fitDimensions: [14.5, 8.22, 10.5],
+    preparedSource: 'small-office-blender-cleanup.glb',
+    pipeline: [
+      'image_to_model v3.1-20260211, smart_low_poly:true, texture:true, pbr:true',
+      'Blender area-weighted normals',
+    ],
+    taskId: 'b1feb03a-e73c-41f9-9d87-c700355b9088',
+    retrievedAt: '2026-09-07',
+  },
+  {
+    id: 'world-caravan',
+    slug: 'caravan',
+    area: 'world',
+    target: 6.455,
+    axis: 'z',
+    texture: 512,
+    preparedSource: 'caravan-blender-cleanup.glb',
+    pipeline: [
+      'image_to_model v3.1-20260211, smart_low_poly:true, texture:true, pbr:true',
+      'Blender area-weighted normals',
+    ],
+    taskId: '74dfba72-6a36-4a79-9488-fdf13e062ec6',
+    retrievedAt: '2026-09-07',
+  },
+  {
+    id: 'world-waste-bin',
+    slug: 'waste-bin',
+    area: 'world',
+    target: 0.8,
+    axis: 'y',
+    texture: 256,
+    fitDimensions: [0.56, 0.8, 0.56],
+    pipeline: ['image_to_model v3.1-20260211, smart_low_poly:true, texture:true, pbr:true'],
+    taskId: '1f3a23d9-67d1-4d82-ba7e-ef465f02de42',
+    retrievedAt: '2026-09-07',
+  },
+  {
+    id: 'world-picnic-table',
+    slug: 'picnic-table',
+    area: 'world',
+    target: 1.8,
+    axis: 'x',
+    texture: 512,
+    pipeline: ['image_to_model v3.1-20260211, smart_low_poly:true, texture:true, pbr:true'],
+    taskId: '41922669-dd09-4d8c-9d66-e49c1fcac9f2',
+    retrievedAt: '2026-09-07',
+  },
+  {
+    id: 'world-nissen-hut',
+    slug: 'nissen-hut',
+    area: 'world',
+    target: 5.2,
+    axis: 'x',
+    yaw: Math.PI / 2,
+    texture: 1024,
+    fitDimensions: [5.2, 2.5, 12.4],
+    simplifyRatio: 0.65,
+    pipeline: ['image_to_model v3.1-20260211, smart_low_poly:true, texture:true, pbr:true'],
+    taskId: 'ea5ddd22-5a22-4a02-a124-4d909f669928',
+    retrievedAt: '2026-09-07',
+  },
+  {
+    id: 'world-park-bench',
+    slug: 'park-bench',
+    area: 'world',
+    target: 1.8,
+    axis: 'x',
+    yaw: -Math.PI / 2,
+    texture: 512,
+    pipeline: ['image_to_model v3.1-20260211, smart_low_poly:true, texture:true, pbr:true'],
+    taskId: 'bc6438f9-16aa-452e-80ef-c835629d88c1',
+    retrievedAt: '2026-09-07',
+  },
+  {
+    id: 'world-bus-shelter',
+    slug: 'bus-shelter',
+    area: 'world',
+    target: 4.4,
+    axis: 'x',
+    yaw: -Math.PI / 2,
+    texture: 512,
+    fitDimensions: [4.4, 2.99, 2.3],
+    pipeline: ['image_to_model v3.1-20260211, smart_low_poly:true, texture:true, pbr:true'],
+    taskId: 'ea364612-95ec-42f3-a771-36dbecbd0bb9',
+    retrievedAt: '2026-09-07',
+  },
+  // Reference-guided Tripo v3.1 mascot. Rotate its long +Z axis into the pylon's +X.
+  {
+    id: 'world-dino-mascot',
+    slug: 'dino-mascot',
+    area: 'world',
+    target: 1.9558,
+    axis: 'x',
+    yaw: -Math.PI / 2,
+    texture: 512,
+    pipeline: ['image_to_model v3.1-20260211, smart_low_poly:true, texture:true, pbr:true'],
+    taskId: '09017288-088f-4811-85e4-fefc3660fc71',
+    retrievedAt: '2026-09-07',
+  },
   // Farm animals. Rigged, so the runtime can drive a neck chain; see
   // `src/components/models/RiggedCreatureModel.tsx`.
   { id: 'farm-cow', slug: 'cow', area: 'farm', target: 1.805, axis: 'z', rigged: true },
@@ -449,8 +849,22 @@ export const GENERATED_ASSETS = [
   { id: 'farm-haybale', slug: 'haybale', area: 'farm', target: 1.5, axis: 'max' },
   // Yawed a quarter turn: these two are elongated props with no front, and the
   // generator laid both along Z where the shipped components run along X.
-  { id: 'farm-watertrough', slug: 'watertrough', area: 'farm', target: 1.5, axis: 'max', yaw: Math.PI / 2 },
-  { id: 'farm-gardenbed', slug: 'gardenbed', area: 'farm', target: 3, axis: 'max', yaw: Math.PI / 2 },
+  {
+    id: 'farm-watertrough',
+    slug: 'watertrough',
+    area: 'farm',
+    target: 1.5,
+    axis: 'max',
+    yaw: Math.PI / 2,
+  },
+  {
+    id: 'farm-gardenbed',
+    slug: 'gardenbed',
+    area: 'farm',
+    target: 3,
+    axis: 'max',
+    yaw: Math.PI / 2,
+  },
   // One panel, sized by HEIGHT. The generated panel is 1 x 0.64 x 0.12, so a
   // 3 m width would stand 1.9 m tall - a stockade, against the 1.05 m post-and
   // rail it replaces. `FenceSection` tiles the panel to reach the length it is
@@ -461,12 +875,26 @@ export const GENERATED_ASSETS = [
   { id: 'village-cottage', slug: 'cottage', area: 'village', target: 5, axis: 'max' },
   { id: 'village-shop', slug: 'shop', area: 'village', target: 6, axis: 'max' },
   { id: 'village-church', slug: 'church', area: 'village', target: 12, axis: 'max' },
-  { id: 'village-townhall', slug: 'townhall', area: 'village', target: 12, axis: 'max', texture: 1024 },
+  {
+    id: 'village-townhall',
+    slug: 'townhall',
+    area: 'village',
+    target: 12,
+    axis: 'max',
+    texture: 1024,
+  },
   { id: 'village-pub', slug: 'pub', area: 'village', target: 8, axis: 'max' },
   { id: 'village-school', slug: 'school', area: 'village', target: 10, axis: 'max' },
   { id: 'village-forge', slug: 'forge', area: 'village', target: 7, axis: 'max' },
   { id: 'village-wishingwell', slug: 'wishingwell', area: 'village', target: 2.4, axis: 'max' },
-  { id: 'village-marketstall', slug: 'marketstall', area: 'village', target: 2.8, axis: 'max', texture: 1024 },
+  {
+    id: 'village-marketstall',
+    slug: 'marketstall',
+    area: 'village',
+    target: 2.8,
+    axis: 'max',
+    texture: 1024,
+  },
   { id: 'village-postbox', slug: 'postbox', area: 'village', target: 1.5, axis: 'y' },
   // Sized by HEIGHT. The corrected fountain still came back as tall as it is
   // wide (0.95 x 1.00 x 0.96 in the unit box) where the shipped one is a low
@@ -474,10 +902,24 @@ export const GENERATED_ASSETS = [
   // village square. Height 3.32 m matches the shipped silhouette and gives a
   // 3.1 m pool.
   { id: 'village-fountain', slug: 'fountain', area: 'village', target: 3.32, axis: 'y' },
-  { id: 'village-duckpond', slug: 'duckpond', area: 'village', target: 11, axis: 'max', texture: 1024 },
+  {
+    id: 'village-duckpond',
+    slug: 'duckpond',
+    area: 'village',
+    target: 11,
+    axis: 'max',
+    texture: 1024,
+  },
   // Placed through SITE_LAYOUT at scale 1.5, so the asset carries 1/1.5 of the
   // in-engine footprint.
-  { id: 'village-castle', slug: 'castle', area: 'village', target: 38.7, axis: 'max', texture: 1024 },
+  {
+    id: 'village-castle',
+    slug: 'castle',
+    area: 'village',
+    target: 38.7,
+    axis: 'max',
+    texture: 1024,
+  },
 ];
 
 function generatedAssetPaths(spec) {
@@ -560,10 +1002,28 @@ function titleCase(slug) {
  */
 async function normalizeGeneratedAsset(io, spec) {
   const { source, output } = generatedAssetPaths(spec);
-  const document = await io.read(source);
+  if (spec.preparedSource && path.basename(spec.preparedSource) !== spec.preparedSource)
+    throw new Error('Blender derivative must be a sibling source file');
+  const prepared = spec.preparedSource
+    ? path.join(path.dirname(source), spec.preparedSource)
+    : null;
+  const document = await io.read(prepared ?? source);
   const root = document.getRoot();
   const scene = root.listScenes()[0];
   if (!scene) throw new Error(`${spec.id} source has no scene`);
+  if (spec.simplifyRatio) {
+    // Reuse the wheel pipeline's attribute-aware simplifier, retaining UV seams.
+    await MeshoptSimplifier.ready;
+    for (const mesh of root.listMeshes())
+      for (const primitive of mesh.listPrimitives()) {
+        weldPrimitive(primitive);
+        simplifyPrimitive(primitive, {
+          simplifier: MeshoptSimplifier,
+          ratio: spec.simplifyRatio,
+          error: 0.005,
+        });
+      }
+  }
 
   let facingYaw = 0;
   if (spec.rigged) {
@@ -612,6 +1072,18 @@ async function normalizeGeneratedAsset(io, spec) {
   const measured = spec.axis === 'max' ? Math.max(extent.x, extent.z) : extent[spec.axis];
   const scaleFactor = measured > 0 ? spec.target / measured : 1;
   scene.listChildren().forEach((node) => multiplyScale(node, scaleFactor));
+  if (spec.fitDimensions) {
+    // Architectural overlays still speak the authored metre envelope.
+    const scaledBounds = getBounds(scene);
+    const factors = spec.fitDimensions.map(
+      (target, i) => target / (scaledBounds.max[i] - scaledBounds.min[i])
+    );
+    if (factors.some((factor) => !Number.isFinite(factor) || factor < 0.8 || factor > 1.2))
+      throw new Error(`${spec.id}: envelope fitting exceeds the 20 percent preservation limit`);
+    const pivot = document.createNode('EnvelopeFit').setScale(factors);
+    scene.listChildren().forEach((node) => pivot.addChild(node));
+    scene.addChild(pivot);
+  }
   centreSceneBelow(document, scene);
 
   const surface = root.listMaterials()[0];
@@ -662,6 +1134,16 @@ async function normalizeGeneratedAsset(io, spec) {
     id: spec.id,
     file: path.relative(OUTPUT_ROOT, output),
     bodyNode: bodyName,
+    blenderPreparation: prepared
+      ? {
+          file: path.relative(ROOT, prepared),
+          sha256: await sha256(prepared),
+          script: spec.preparationScript ?? 'scripts/blender/weighted_asset_normals.py',
+          method:
+            spec.preparationMethod ??
+            'Weld coincident vertices at 1e-6 source units, area-weighted normals, weight 75; no added triangles',
+        }
+      : undefined,
     facingYaw: Number(facingYaw.toFixed(4)),
     scaleFactor: Number(scaleFactor.toFixed(5)),
     bounds: {

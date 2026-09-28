@@ -1,40 +1,141 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ListMusic, Music2, Pause, Play, Shuffle, SkipBack, SkipForward, X } from 'lucide-react';
+import {
+  ChevronDown,
+  ChevronUp,
+  ListMusic,
+  Music2,
+  Pause,
+  Play,
+  Shuffle,
+  SkipBack,
+  SkipForward,
+  X,
+} from 'lucide-react';
 import { formatMusicTime } from '../../audio/millosSoundtrackCatalog';
 import {
   findActiveMillosLyricWord,
   getMillosSoundtrackLyrics,
 } from '../../audio/millosSoundtrackLyrics';
 import { useMusicPlayerState } from '../../hooks/useAudioState';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 
-export const MillOSMusicPlayer: React.FC = () => {
+export const MillOSMusicPlayer: React.FC<{
+  distractionFree?: boolean;
+  sidebarVisible?: boolean;
+}> = ({ distractionFree = false, sidebarVisible = false }) => {
   const player = useMusicPlayerState();
+  const [expanded, setExpanded] = useState(false);
   const [lyricsOpen, setLyricsOpen] = useState(false);
+  const expandButtonRef = useRef<HTMLButtonElement>(null);
+  const collapseButtonRef = useRef<HTMLButtonElement>(null);
   const lyricsButtonRef = useRef<HTMLButtonElement>(null);
+  const pendingFocus = useRef<number | null>(null);
+  const cancelPendingFocus = useCallback(() => {
+    if (pendingFocus.current !== null) cancelAnimationFrame(pendingFocus.current);
+    pendingFocus.current = null;
+  }, []);
+  const queueFocus = useCallback(
+    (target: React.RefObject<HTMLButtonElement | null>) => {
+      cancelPendingFocus();
+      pendingFocus.current = requestAnimationFrame(() => {
+        pendingFocus.current = null;
+        target.current?.focus();
+      });
+    },
+    [cancelPendingFocus]
+  );
+  useEffect(() => cancelPendingFocus, [cancelPendingFocus]);
   const lyricsAvailable = player.currentTrack.station === 'original';
   const closeLyrics = useCallback(() => {
     setLyricsOpen(false);
-    requestAnimationFrame(() => lyricsButtonRef.current?.focus());
-  }, []);
+    queueFocus(lyricsButtonRef);
+  }, [queueFocus]);
+  const setPlayerExpanded = (next: boolean) => {
+    setExpanded(next);
+    if (!next) setLyricsOpen(false);
+    queueFocus(next ? collapseButtonRef : expandButtonRef);
+  };
 
   useEffect(() => {
     if (!lyricsAvailable) setLyricsOpen(false);
   }, [lyricsAvailable]);
 
+  useEffect(() => {
+    if (lyricsOpen) cancelPendingFocus();
+  }, [lyricsOpen, cancelPendingFocus]);
+
+  useEffect(() => {
+    if (!distractionFree) return;
+    cancelPendingFocus();
+    setExpanded(false);
+    // Do not restore focus to music when a safety panel or the tour owns it.
+    setLyricsOpen(false);
+  }, [distractionFree, cancelPendingFocus]);
+
+  if (!expanded || distractionFree) {
+    return (
+      <section
+        aria-label="Music player"
+        style={
+          sidebarVisible
+            ? {
+                left: 'calc((100vw - min(24rem, 42vw) - 2rem) / 2)',
+                maxWidth: 'calc(100vw - min(24rem, 42vw) - 4rem)',
+              }
+            : undefined
+        }
+        className="pointer-events-auto fixed bottom-[6.75rem] left-1/2 z-40 flex w-[min(320px,calc(100vw-1.5rem))] -translate-x-1/2 items-center gap-2 rounded-md border border-cyan-100/15 bg-[#071722]/95 px-2 py-1 shadow-lg [&_button]:min-h-[44px] [&_button]:min-w-[44px]"
+      >
+        <Music2 className="h-4 w-4 shrink-0 text-cyan-300" aria-hidden="true" />
+        <div className="min-w-0 flex-1">
+          <p
+            className="truncate text-[12px] font-medium text-white"
+            title={player.currentTrack.name}
+          >
+            {player.currentTrack.name}
+          </p>
+          <p className="text-[12px] text-slate-400">
+            {player.playing ? 'Now playing' : 'Soundtrack'}
+          </p>
+        </div>
+        <PlayerButton
+          label={player.playing ? 'Pause music' : 'Play music'}
+          onClick={player.togglePlayback}
+        >
+          {player.playing ? (
+            <Pause size={18} aria-hidden="true" />
+          ) : (
+            <Play size={18} aria-hidden="true" />
+          )}
+        </PlayerButton>
+        {!distractionFree && (
+          <PlayerButton
+            label="Expand music player"
+            onClick={() => setPlayerExpanded(true)}
+            buttonRef={expandButtonRef}
+            expanded={false}
+          >
+            <ChevronUp size={18} aria-hidden="true" />
+          </PlayerButton>
+        )}
+      </section>
+    );
+  }
+
   return (
     <>
       <section
         aria-label="Music player"
-        className="pointer-events-auto fixed bottom-[6.75rem] left-1/2 z-40 flex w-[min(46rem,calc(100vw-1rem))] -translate-x-1/2 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/90 p-2 shadow-2xl backdrop-blur-xl sm:gap-3 sm:p-2.5"
+        className="pointer-events-auto fixed bottom-[6.75rem] left-1/2 z-40 flex w-[min(46rem,calc(100vw-1rem))] -translate-x-1/2 items-center gap-2 rounded-lg border border-cyan-100/15 bg-[#071722]/95 p-2 pb-11 shadow-2xl backdrop-blur-xl sm:gap-3 sm:p-2.5 sm:pb-11"
       >
         {player.currentTrack.artwork ? (
           <img
             src={player.currentTrack.artwork}
             alt=""
-            className="h-11 w-11 shrink-0 rounded-xl object-cover sm:h-12 sm:w-12"
+            className="hidden h-12 w-12 shrink-0 rounded-xl object-cover sm:block"
           />
         ) : (
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-800 text-cyan-300 sm:h-12 sm:w-12">
+          <div className="hidden h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-slate-800 text-cyan-300 sm:flex">
             <Music2 size={20} aria-hidden="true" />
           </div>
         )}
@@ -57,13 +158,13 @@ export const MillOSMusicPlayer: React.FC = () => {
               value={player.station}
               onChange={(event) => player.setStation(event.target.value as 'original' | 'legacy')}
               aria-label="Music collection"
-              className="max-w-28 rounded-md border border-slate-700 bg-slate-900 px-1 py-0.5 text-[9px] text-slate-300 sm:max-w-none"
+              className="min-w-0 max-w-full rounded-md border border-slate-700 bg-slate-900 px-1 py-0.5 text-[9px] text-slate-300 sm:max-w-none"
             >
               <option value="original">Original soundtrack</option>
               <option value="legacy">Legacy music</option>
             </select>
           </div>
-          <div className="mt-1.5 flex items-center gap-2">
+          <div className="absolute bottom-0 left-3 right-3 flex h-11 items-center gap-2">
             <span className="hidden w-9 text-right font-mono text-[9px] text-slate-400 sm:inline">
               {formatMusicTime(player.positionSeconds)}
             </span>
@@ -76,7 +177,7 @@ export const MillOSMusicPlayer: React.FC = () => {
               onChange={(event) => player.seek(Number(event.target.value))}
               aria-label="Song position"
               aria-valuetext={`${formatMusicTime(player.positionSeconds)} of ${formatMusicTime(player.durationSeconds)}`}
-              className="h-1 min-w-0 flex-1 cursor-pointer appearance-none rounded-full bg-slate-700 accent-cyan-400"
+              className="h-11 min-w-0 flex-1 cursor-pointer appearance-none rounded-full bg-transparent accent-cyan-400"
             />
             <span className="hidden w-9 font-mono text-[9px] text-slate-400 sm:inline">
               {formatMusicTime(player.durationSeconds)}
@@ -131,6 +232,14 @@ export const MillOSMusicPlayer: React.FC = () => {
           >
             <ListMusic size={18} aria-hidden="true" />
           </button>
+          <PlayerButton
+            label="Collapse music player"
+            onClick={() => setPlayerExpanded(false)}
+            buttonRef={collapseButtonRef}
+            expanded
+          >
+            <ChevronDown size={18} aria-hidden="true" />
+          </PlayerButton>
         </div>
       </section>
 
@@ -143,12 +252,16 @@ const PlayerButton: React.FC<{
   label: string;
   onClick: () => void;
   prominent?: boolean;
+  buttonRef?: React.Ref<HTMLButtonElement>;
+  expanded?: boolean;
   children: React.ReactNode;
-}> = ({ label, onClick, prominent = false, children }) => (
+}> = ({ label, onClick, prominent = false, buttonRef, expanded, children }) => (
   <button
+    ref={buttonRef}
     type="button"
     onClick={onClick}
     aria-label={label}
+    aria-expanded={expanded}
     title={label}
     className={`flex min-h-10 min-w-10 items-center justify-center rounded-xl transition-colors ${
       prominent
@@ -162,6 +275,7 @@ const PlayerButton: React.FC<{
 
 const LyricsDialog: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const player = useMusicPlayerState();
+  const reducedMotion = useReducedMotion();
   const dialogRef = useRef<HTMLDivElement>(null);
   const activeLineRef = useRef<HTMLButtonElement>(null);
   const sheet = getMillosSoundtrackLyrics(player.currentTrack.trackNumber ?? 1);
@@ -206,9 +320,9 @@ const LyricsDialog: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   useEffect(() => {
     const activeLine = activeLineRef.current;
     if (activeLine && typeof activeLine.scrollIntoView === 'function') {
-      activeLine.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      activeLine.scrollIntoView({ block: 'center', behavior: reducedMotion ? 'auto' : 'smooth' });
     }
-  }, [activeWord?.lineIndex]);
+  }, [activeWord?.lineIndex, reducedMotion]);
 
   return (
     <div
@@ -361,7 +475,7 @@ const LyricsDialog: React.FC<{ onClose: () => void }> = ({ onClose }) => {
           </div>
         </div>
 
-        <footer className="flex shrink-0 items-center gap-2 border-t border-white/10 p-3 sm:px-5">
+        <footer className="flex shrink-0 flex-wrap items-center gap-2 border-t border-white/10 p-3 sm:flex-nowrap sm:px-5">
           <PlayerButton label="Previous song" onClick={player.prevTrack}>
             <SkipBack size={17} aria-hidden="true" />
           </PlayerButton>
@@ -390,7 +504,7 @@ const LyricsDialog: React.FC<{ onClose: () => void }> = ({ onClose }) => {
             value={Math.min(player.positionSeconds, Math.max(player.durationSeconds, 1))}
             onChange={(event) => player.seek(Number(event.target.value))}
             aria-label="Song position"
-            className="h-1 min-w-0 flex-1 cursor-pointer appearance-none rounded-full bg-slate-700 accent-cyan-400"
+            className="h-11 min-w-0 flex-1 basis-full cursor-pointer appearance-none rounded-full bg-transparent accent-cyan-400 sm:basis-auto"
           />
         </footer>
       </div>

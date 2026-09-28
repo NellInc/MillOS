@@ -393,7 +393,7 @@ function floorMacroInto(
   // real saw cut does.
   const jointX = Math.abs(worldX - Math.round(worldX / FLOOR_JOINT_PITCH) * FLOOR_JOINT_PITCH);
   const jointZ = Math.abs(worldZ - Math.round(worldZ / FLOOR_JOINT_PITCH) * FLOOR_JOINT_PITCH);
-  const joint = Math.max(1 - smoothstep(0.07, 0.21, jointX), 1 - smoothstep(0.07, 0.21, jointZ));
+  const joint = Math.max(1 - smoothstep(0.035, 0.09, jointX), 1 - smoothstep(0.035, 0.09, jointZ));
   tone -= 0.15 * joint;
   roughness = mix(roughness, 0.96, joint);
   ao = mix(ao, 0.5, joint);
@@ -559,10 +559,10 @@ const FLOOR_DETAIL_UNIFORMS = {
   },
   uFloorDetailPivot: { value: estimateLinearLuminance(FLOOR_DETAIL_ALBEDO) },
   uFloorDetailStrength: { value: 0.8 },
-  /** Joint half-width as a fraction of one tile: 0.012 x 10 m = 0.12 m. */
-  uFloorJointHalf: { value: 0.012 },
+  /** Eight-centimetre joint, kept subordinate to the machinery and its shadows. */
+  uFloorJointHalf: { value: 0.004 },
   /** Tangent-space tilt of the groove wall. */
-  uFloorJointRelief: { value: 0.3 },
+  uFloorJointRelief: { value: 0.12 },
 };
 
 /**
@@ -684,7 +684,7 @@ const MATERIALS = {
   }),
   wall: new THREE.MeshStandardMaterial({
     name: 'factory-wall-plinth',
-    color: '#a6aaa9',
+    color: '#8e9998',
     normalMap: band(CLADDING_PANEL_NORMAL, 26, 4, { anisotropy: 4 }),
     normalScale: new THREE.Vector2(0.55, 0.55),
     roughness: 0.68,
@@ -692,7 +692,7 @@ const MATERIALS = {
   }),
   wallCladding: new THREE.MeshStandardMaterial({
     name: 'factory-wall-cladding',
-    color: '#adb2b2',
+    color: '#768486',
     normalMap: band(CLADDING_PANEL_NORMAL, 24, 3, { anisotropy: 4 }),
     normalScale: new THREE.Vector2(0.6, 0.6),
     roughness: 0.6,
@@ -700,7 +700,7 @@ const MATERIALS = {
   }),
   wallParapet: new THREE.MeshStandardMaterial({
     name: 'factory-parapet',
-    color: '#a7acae',
+    color: '#43575d',
     normalMap: band(CLADDING_PANEL_NORMAL, 60, 3, { anisotropy: 4 }),
     normalScale: new THREE.Vector2(0.5, 0.5),
     roughness: 0.58,
@@ -709,7 +709,7 @@ const MATERIALS = {
   /** Painted structural steel: a dielectric, despite the name. */
   steel: new THREE.MeshStandardMaterial({
     name: 'factory-structure',
-    color: '#828a8e',
+    color: '#344a52',
     roughnessMap: band(STRUCTURAL_ORM, 1, 10),
     aoMap: band(STRUCTURAL_ORM, 1, 10),
     aoMapIntensity: 0.6,
@@ -753,13 +753,13 @@ const MATERIALS = {
    */
   steelTrim: new THREE.MeshStandardMaterial({
     name: 'factory-trim',
-    color: '#7b8288',
+    color: '#3d555f',
     roughness: 0.5,
     metalness: 0,
   }),
   roof: new THREE.MeshStandardMaterial({
     name: 'factory-roof-deck',
-    color: '#898f92',
+    color: '#43565f',
     normalMap: band(CLADDING_PANEL_NORMAL, 30, 50, { anisotropy: 4 }),
     normalScale: new THREE.Vector2(0.45, 0.45),
     roughness: 0.52,
@@ -767,7 +767,7 @@ const MATERIALS = {
   }),
   accent: new THREE.MeshStandardMaterial({
     name: 'factory-accent',
-    color: '#3f8f89',
+    color: '#487d7d',
     roughness: 0.45,
     metalness: 0,
   }),
@@ -779,29 +779,27 @@ const MATERIALS = {
   skylight: new THREE.MeshStandardMaterial({
     name: 'factory-skylight',
     color: '#a9d8e4',
-    emissive: '#bfe4f2',
-    emissiveIntensity: 0.55,
     roughness: 0.12,
     metalness: 0,
     transparent: true,
-    opacity: 0.6,
+    opacity: 0.18,
     depthWrite: false,
   }),
   glass: new THREE.MeshStandardMaterial({
     name: 'factory-glazing',
     color: '#c6e2e8',
-    emissive: '#1d3d44',
-    emissiveIntensity: 0.06,
     roughness: 0.08,
     metalness: 0,
     transparent: true,
-    opacity: 0.24,
+    opacity: 0.13,
     depthWrite: false,
   }),
-  /** Floor paint. Unlit on purpose - it reads as a marking, not as an object. */
-  safetyPaint: new THREE.MeshBasicMaterial({
+  /** Floor paint receives the same daylight and night ambient as the slab. */
+  safetyPaint: new THREE.MeshStandardMaterial({
     name: 'factory-floor-paint',
     color: '#f4c84a',
+    roughness: 0.8,
+    metalness: 0,
     depthWrite: false,
     polygonOffset: true,
     polygonOffsetFactor: POLYGON_OFFSET.standard.factor,
@@ -947,7 +945,8 @@ const GALLERY_DECK_TOP = 8.85;
  *   floor          already owns an `onBeforeCompile` (the joint relief)
  *   glass, skylight, walkway, zone* transparent - and a marking or a pane has
  *                  nothing for a weathering term to do
- *   safetyPaint, fixtureGlow  unlit `MeshBasicMaterial`: no roughness or
+ *   safetyPaint    painted decal, deliberately flat; lit by the slab lighting
+ *   fixtureGlow    unlit `MeshBasicMaterial`: no roughness or
  *                  metalness to modulate, and `<normal_fragment_maps>` is not
  *                  in `meshbasic_frag` at all, so the injection would be half a
  *                  shader. `canApplyWorldSurface` refuses them.
@@ -983,11 +982,11 @@ SHELL_SURFACES.forEach(([material, profile, overrides]) => {
 });
 
 export const FACTORY_ENVELOPE_SPEC = {
-  baseHeight: 8,
+  baseHeight: 2,
   dockWindowSill: 14.25,
-  sideWindowSill: 10.25,
-  windowHead: 25.75,
-  topBandBottom: 26,
+  sideWindowSill: 2.25,
+  windowHead: 30.2,
+  topBandBottom: 30.45,
   topBandTop: SITE_LAYOUT.factory.bounds.maxY,
   frontBayCentres: [-50, -30, -10, 10, 30, 50],
   sideBayCentres: [-40, -20, 0, 20, 40],
@@ -1107,49 +1106,133 @@ function roofBatten(side: -1 | 1, localFrom: number, localTo: number, z: number)
   };
 }
 
+/** The actual opaque deck and upstands, also used by aperture ray tests. */
+export function buildFactoryRoofEnvelope(): { panels: BoxInstance[]; kerbs: BoxInstance[] } {
+  const panels: BoxInstance[] = [];
+  const kerbs: BoxInstance[] = [];
+  for (const side of [-1, 1] as const) {
+    const x = skylightLocalX(side);
+    const left = x - SKYLIGHT_SIZE.x / 2;
+    const right = x + SKYLIGHT_SIZE.x / 2;
+    const panel = (x0: number, x1: number, z0: number, z1: number) => {
+      const seat = deckPoint(side, (x0 + x1) / 2);
+      panels.push({
+        position: [seat.x, seat.y - 0.18, (z0 + z1) / 2],
+        scale: [x1 - x0, 0.36, z1 - z0],
+        rotation: [0, 0, roofSlope(side)],
+      });
+    };
+    // Two continuous side strips and four bridges leave six genuine apertures.
+    panel(-30.075, left, -50.2, 50.2);
+    panel(right, 30.075, -50.2, 50.2);
+    let from = -50.2;
+    for (const z of SKYLIGHT_Z) {
+      panel(left, right, from, z - SKYLIGHT_SIZE.z / 2);
+      from = z + SKYLIGHT_SIZE.z / 2;
+      const seat = deckPoint(side, x);
+      // An upstand is a hollow frame, never a solid box underneath the pane.
+      for (const edge of [-1, 1]) {
+        const edgeSeat = deckPoint(side, x + edge * (SKYLIGHT_SIZE.x / 2 + 0.175));
+        kerbs.push({
+          position: [edgeSeat.x, edgeSeat.y, z],
+          scale: [0.35, SKYLIGHT_KERB_HEIGHT, SKYLIGHT_SIZE.z + 0.7],
+          rotation: [0, 0, roofSlope(side)],
+        });
+        kerbs.push({
+          position: [seat.x, seat.y, z + edge * (SKYLIGHT_SIZE.z / 2 + 0.175)],
+          scale: [SKYLIGHT_SIZE.x, SKYLIGHT_KERB_HEIGHT, 0.35],
+          rotation: [0, 0, roofSlope(side)],
+        });
+      }
+    }
+    panel(left, right, from, 50.2);
+  }
+  return { panels, kerbs };
+}
+
+/** Full-height glazing is split around the site's existing operational portals. */
+export function buildFactoryGlazing(): BoxInstance[] {
+  const panes: BoxInstance[] = [];
+  const { sideWindowSill: sill, windowHead: head, dockWindowSill } = FACTORY_ENVELOPE_SPEC;
+  for (const portal of Object.values(SITE_LAYOUT.portals)) {
+    const front = portal.normal[2] !== 0;
+    const centres = front
+      ? FACTORY_ENVELOPE_SPEC.frontBayCentres
+      : FACTORY_ENVELOPE_SPEC.sideBayCentres;
+    const opening = front ? portal.centre[0] : portal.centre[2];
+    const openingLeft = opening - portal.halfWidth;
+    const openingRight = opening + portal.halfWidth;
+    const openingTop = front ? dockWindowSill : portal.height + 0.25;
+    const add = (left: number, right: number, bottom: number, top: number) => {
+      if (right - left < 0.25 || top - bottom < 0.25) return;
+      const along = (left + right) / 2;
+      const y = (bottom + top) / 2;
+      panes.push(
+        front
+          ? {
+              position: [along, y, portal.centre[2] + portal.normal[2] * 0.31],
+              scale: [right - left, top - bottom, 0.08],
+            }
+          : {
+              position: [portal.centre[0] + portal.normal[0] * 0.31, y, along],
+              scale: [0.08, top - bottom, right - left],
+            }
+      );
+    };
+    for (const centre of centres) {
+      // Each structural bay has four slender, five-metre lights.
+      for (let i = 0; i < 4; i++) {
+        let left = centre - 9.55 + i * 4.85;
+        let right = left + 4.55;
+        // Keep the surrounding mullion clear of the operational aperture too.
+        if (Math.abs(right - openingLeft) < 0.2) right = openingLeft - 0.2;
+        if (Math.abs(left - openingRight) < 0.2) left = openingRight + 0.2;
+        const crosses = right > openingLeft && left < openingRight;
+        const bottom = crosses ? openingTop : sill;
+        add(left, right, bottom, 14.3);
+        add(left, right, Math.max(bottom, 14.6), head);
+        if (crosses) {
+          add(left, Math.min(right, openingLeft - 0.2), sill, openingTop);
+          add(Math.max(left, openingRight + 0.2), right, sill, openingTop);
+        }
+      }
+    }
+  }
+  return panes;
+}
+
 function FactoryShell() {
-  const lowerWallSegments = useMemo<readonly BoxInstance[]>(
-    () => [
-      // Eight-metre opaque plinth keeps the exterior credible while the upper
-      // cladding becomes a restrained operational cutaway from overview angles.
-      { position: [-37.5, 4, 50], scale: [45, 8, 0.55] },
-      { position: [37.5, 4, 50], scale: [45, 8, 0.55] },
-      { position: [-34.5, 4, -50], scale: [51, 8, 0.55] },
-      { position: [34.5, 4, -50], scale: [51, 8, 0.55] },
-      // West wall, with an actual service opening at z = -20.
-      { position: [-60, 4, -36], scale: [0.55, 8, 28] },
-      { position: [-60, 4, 16], scale: [0.55, 8, 68] },
-      { position: [-60, 5.5, -20], scale: [0.55, 5, 4] },
-      // East wall, mirrored.
-      { position: [60, 4, -36], scale: [0.55, 8, 28] },
-      { position: [60, 4, 16], scale: [0.55, 8, 68] },
-      { position: [60, 5.5, -20], scale: [0.55, 5, 4] },
-    ],
-    []
-  );
-  const claddingSegments = useMemo<readonly BoxInstance[]>(
-    () => [
-      // Cladding above each dock preserves the full-height portal openings.
-      { position: [-37.5, 11, 50], scale: [45, 6, 0.55] },
-      { position: [37.5, 11, 50], scale: [45, 6, 0.55] },
-      { position: [-34.5, 11, -50], scale: [51, 6, 0.55] },
-      { position: [34.5, 11, -50], scale: [51, 6, 0.55] },
-    ],
-    []
-  );
-  const parapetSegments = useMemo<readonly BoxInstance[]>(
-    () => [
-      // Side-wall sill bands connect the solid base to the glazed upper bays.
-      { position: [-60, 9.1, 0], scale: [0.55, 2.2, 100] },
-      { position: [60, 9.1, 0], scale: [0.55, 2.2, 100] },
-      // Continuous parapet bands make the envelope read as a complete building.
-      { position: [0, 29, 50], scale: [120, 6, 0.55] },
-      { position: [0, 29, -50], scale: [120, 6, 0.55] },
-      { position: [-60, 29, 0], scale: [0.55, 6, 100] },
-      { position: [60, 29, 0], scale: [0.55, 6, 100] },
-    ],
-    []
-  );
+  const lowerWallSegments = useMemo<readonly BoxInstance[]>(() => {
+    const result: BoxInstance[] = [];
+    const height = FACTORY_ENVELOPE_SPEC.baseHeight;
+    for (const portal of Object.values(SITE_LAYOUT.portals)) {
+      const front = portal.normal[2] !== 0;
+      const extent = front ? 60 : 50;
+      const centre = front ? portal.centre[0] : portal.centre[2];
+      for (const [from, to] of [
+        [-extent, centre - portal.halfWidth],
+        [centre + portal.halfWidth, extent],
+      ]) {
+        const along = (from + to) / 2;
+        result.push(
+          front
+            ? { position: [along, height / 2, portal.centre[2]], scale: [to - from, height, 0.55] }
+            : { position: [portal.centre[0], height / 2, along], scale: [0.55, height, to - from] }
+        );
+      }
+    }
+    return result;
+  }, []);
+  const parapetSegments = useMemo<readonly BoxInstance[]>(() => {
+    const height = FACTORY_ENVELOPE_SPEC.topBandTop - FACTORY_ENVELOPE_SPEC.topBandBottom;
+    const y = FACTORY_ENVELOPE_SPEC.topBandBottom + height / 2;
+    return [
+      { position: [0, y, 50], scale: [120, height, 0.55] },
+      { position: [0, y, -50], scale: [120, height, 0.55] },
+      { position: [-60, y, 0], scale: [0.55, height, 100] },
+      { position: [60, y, 0], scale: [0.55, height, 100] },
+    ];
+  }, []);
 
   const columns = useMemo<readonly BoxInstance[]>(() => {
     const result: BoxInstance[] = [];
@@ -1195,21 +1278,8 @@ function FactoryShell() {
     []
   );
 
-  const roofPanels = useMemo<readonly BoxInstance[]>(
-    () => [
-      {
-        position: [-30, 32.45, 0],
-        scale: [60.15, 0.36, 100.4],
-        rotation: [0, 0, 0.05],
-      },
-      {
-        position: [30, 32.45, 0],
-        scale: [60.15, 0.36, 100.4],
-        rotation: [0, 0, -0.05],
-      },
-    ],
-    []
-  );
+  const roofEnvelope = useMemo(buildFactoryRoofEnvelope, []);
+  const roofPanels = roofEnvelope.panels;
 
   const roofDetails = useMemo<readonly BoxInstance[]>(() => {
     const result: BoxInstance[] = [
@@ -1252,15 +1322,9 @@ function FactoryShell() {
       // Upstand kerbs. A roof light sits on a raised frame; without one the
       // glazing is a blue rectangle lying flat on the deck, and from inside
       // there is nothing to read as a light well.
-      const kerb = deckPoint(side, skylightX);
-      for (const z of SKYLIGHT_Z) {
-        result.push({
-          position: [kerb.x, kerb.y, z],
-          scale: [SKYLIGHT_SIZE.x + 0.7, SKYLIGHT_KERB_HEIGHT, SKYLIGHT_SIZE.z + 0.7],
-          rotation: [0, 0, roofSlope(side)],
-        });
-      }
     }
+
+    result.push(...roofEnvelope.kerbs);
 
     // Chamfer the parapet cope. This is the roofline silhouette against the
     // sky from every exterior camera.
@@ -1272,7 +1336,7 @@ function FactoryShell() {
     );
 
     return result;
-  }, []);
+  }, [roofEnvelope]);
 
   const roofSkylights = useMemo<readonly BoxInstance[]>(
     () =>
@@ -1289,54 +1353,34 @@ function FactoryShell() {
     []
   );
 
-  const facadeAccents = useMemo<readonly BoxInstance[]>(
-    () => [
-      // Sills and headers frame the glazing without breaking the large panes.
-      { position: [0, 14.05, 49.72], scale: [120, 0.55, 0.18] },
-      { position: [0, 14.05, -49.72], scale: [120, 0.55, 0.18] },
-      { position: [-59.72, 10.05, 0], scale: [0.18, 0.55, 100] },
-      { position: [59.72, 10.05, 0], scale: [0.18, 0.55, 100] },
-      { position: [0, 26.05, 49.72], scale: [120, 0.55, 0.18] },
-      { position: [0, 26.05, -49.72], scale: [120, 0.55, 0.18] },
-      { position: [-59.72, 26.05, 0], scale: [0.18, 0.55, 100] },
-      { position: [59.72, 26.05, 0], scale: [0.18, 0.55, 100] },
-    ],
-    []
-  );
-
-  const windows = useMemo<readonly BoxInstance[]>(() => {
-    const frontWindowHeight =
-      FACTORY_ENVELOPE_SPEC.windowHead - FACTORY_ENVELOPE_SPEC.dockWindowSill;
-    const frontWindowY =
-      (FACTORY_ENVELOPE_SPEC.windowHead + FACTORY_ENVELOPE_SPEC.dockWindowSill) / 2;
-    const sideWindowHeight =
-      FACTORY_ENVELOPE_SPEC.windowHead - FACTORY_ENVELOPE_SPEC.sideWindowSill;
-    const sideWindowY =
-      (FACTORY_ENVELOPE_SPEC.windowHead + FACTORY_ENVELOPE_SPEC.sideWindowSill) / 2;
-
-    return [
-      ...FACTORY_ENVELOPE_SPEC.frontBayCentres.flatMap((x) => [
-        {
-          position: [x, frontWindowY, -50.31] as const,
-          scale: [19.1, frontWindowHeight, 0.08] as const,
-        },
-        {
-          position: [x, frontWindowY, 50.31] as const,
-          scale: [19.1, frontWindowHeight, 0.08] as const,
-        },
-      ]),
-      ...FACTORY_ENVELOPE_SPEC.sideBayCentres.flatMap((z) => [
-        {
-          position: [-60.31, sideWindowY, z] as const,
-          scale: [0.08, sideWindowHeight, 19.1] as const,
-        },
-        {
-          position: [60.31, sideWindowY, z] as const,
-          scale: [0.08, sideWindowHeight, 19.1] as const,
-        },
-      ]),
-    ];
-  }, []);
+  const windows = useMemo(buildFactoryGlazing, []);
+  const facadeAccents = useMemo<readonly BoxInstance[]>(() => {
+    const frames: BoxInstance[] = [];
+    for (const pane of windows) {
+      const [x, y, z] = pane.position;
+      const [width, height, depth] = pane.scale;
+      const front = width > depth;
+      for (const edge of [-1, 1]) {
+        frames.push(
+          front
+            ? {
+                position: [x + edge * (width / 2 + 0.07), y, z],
+                scale: [0.14, height + 0.28, 0.16],
+              }
+            : {
+                position: [x, y, z + edge * (depth / 2 + 0.07)],
+                scale: [0.16, height + 0.28, 0.14],
+              }
+        );
+        frames.push(
+          front
+            ? { position: [x, y + edge * (height / 2 + 0.07), z], scale: [width, 0.14, 0.16] }
+            : { position: [x, y + edge * (height / 2 + 0.07), z], scale: [0.16, 0.14, depth] }
+        );
+      }
+    }
+    return frames;
+  }, [windows]);
 
   return (
     // SHADOW FLAGS ARE SET HERE, AT SOURCE.
@@ -1351,12 +1395,6 @@ function FactoryShell() {
       <InstancedBoxes
         instances={lowerWallSegments}
         material={MATERIALS.wall}
-        castShadow
-        receiveShadow
-      />
-      <InstancedBoxes
-        instances={claddingSegments}
-        material={MATERIALS.wallCladding}
         castShadow
         receiveShadow
       />
@@ -1383,7 +1421,7 @@ function FactoryShell() {
       <InstancedBoxes instances={roofSkylights} material={MATERIALS.skylight} />
       <InstancedBoxes
         instances={facadeAccents}
-        material={MATERIALS.accent}
+        material={MATERIALS.steelTrim}
         castShadow
         receiveShadow
       />

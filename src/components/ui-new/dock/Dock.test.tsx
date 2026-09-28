@@ -1,6 +1,16 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 import { Dock } from './Dock';
-import { describe, it, expect, vi } from 'vitest';
+import { beforeEach, describe, it, expect, vi } from 'vitest';
+
+const layout = vi.hoisted(() => ({ compact: false, openPanel: vi.fn() }));
+vi.mock('../../../hooks/useMobileDetection', () => ({
+  useMobileDetection: () => ({ isMobile: layout.compact, isCompactLayout: layout.compact }),
+}));
+vi.mock('../../../stores/mobileControlStore', () => ({
+  useMobileControlStore: (
+    selector: (state: { openMobilePanel: typeof layout.openPanel }) => unknown
+  ) => selector({ openMobilePanel: layout.openPanel }),
+}));
 
 // Mock Lucide icons to avoid rendering issues in tests
 vi.mock('lucide-react', () => ({
@@ -20,6 +30,40 @@ vi.mock('lucide-react', () => ({
 }));
 
 describe('Dock Component', () => {
+  beforeEach(() => {
+    layout.compact = false;
+    layout.openPanel.mockClear();
+  });
+
+  it('pairs every desktop mode with a visible label inside its unchanged accessible name', () => {
+    render(<Dock activeMode="overview" onModeChange={() => {}} />);
+    for (const [label, name, mode] of [
+      ['Overview', 'Mill Overview', 'overview'],
+      ['AI Partner', 'AI Partner', 'ai'],
+      ['SCADA', 'Simulated SCADA', 'scada'],
+      ['Autonomy', 'Bilateral Autonomy System (BAS)', 'management'],
+      ['Safety', 'Safety & Emergency', 'safety'],
+      ['Settings', 'Settings', 'settings'],
+    ]) {
+      const button = screen.getByRole('button', { name, exact: true });
+      expect(button).toHaveTextContent(label);
+      expect(button).toHaveAttribute('data-dock-mode', mode);
+    }
+  });
+
+  it('routes compact navigation to real mobile panels and retains Autonomy in More', () => {
+    layout.compact = true;
+    const onModeChange = vi.fn();
+    render(<Dock activeMode="overview" onModeChange={onModeChange} />);
+    fireEvent.click(screen.getByRole('button', { name: 'AI Partner' }));
+    expect(layout.openPanel).toHaveBeenCalledWith('ai');
+    expect(onModeChange).not.toHaveBeenCalled();
+    expect(screen.queryByText('Overview')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'More workspaces and view controls' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Bilateral Autonomy System' }));
+    expect(layout.openPanel).toHaveBeenCalledWith('management');
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+  });
   it('renders the main navigation items', () => {
     render(<Dock activeMode="overview" onModeChange={() => {}} />);
 

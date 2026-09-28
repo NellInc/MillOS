@@ -19,10 +19,20 @@
  *   const lock = await acquireCaptureLock('art-review');
  *   try { ... } finally { await lock.release(); }
  */
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
-import { closeSync, openSync, readFileSync, unlinkSync, writeSync } from 'node:fs';
+import { mkdir, readFile, rm } from 'node:fs/promises';
+import {
+  closeSync,
+  openSync,
+  readFileSync,
+  renameSync,
+  unlinkSync,
+  writeFileSync,
+  writeSync,
+} from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
+import console from 'node:console';
+import { setInterval, clearInterval, setTimeout } from 'node:timers';
 
 const LOCK_FILENAME = '.capture.lock';
 
@@ -82,7 +92,9 @@ async function readLock(lockPath) {
  * something is crashing without cleanup, which is worth seeing.
  */
 function reclaimReason(record) {
-  if (!record || typeof record !== 'object') return 'lock file was unreadable';
+  // A new holder can be between exclusive create and its first write. Older
+  // holders also truncate during heartbeat updates. Neither proves abandonment.
+  if (!record || typeof record !== 'object') return null;
   if (!isProcessAlive(record.pid)) return `owner pid ${String(record.pid)} is no longer running`;
   const beatAt = Date.parse(record.heartbeatAt ?? record.acquiredAt ?? '');
   if (!Number.isFinite(beatAt)) return 'lock file carried no usable timestamp';
@@ -185,12 +197,26 @@ function startHolding(lockPath, record, reclaimed) {
   process.env[LOCK_ENV_VAR] = String(process.pid);
 
   const heartbeat = setInterval(() => {
-    writeFile(
-      lockPath,
-      `${JSON.stringify({ ...record, heartbeatAt: new Date().toISOString() }, null, 2)}\n`
-    ).catch(() => {
-      /* A failed heartbeat only risks an early reclaim; it must never crash the run. */
-    });
+    const temporary = `${lockPath}.${process.pid}.tmp`;
+    try {
+      const current = JSON.parse(readFileSync(lockPath, 'utf8'));
+      if (released || current.pid !== process.pid) return;
+      // Publish atomically: readers must never observe a truncated heartbeat.
+      // Synchronous publication also cannot finish after release() removes it.
+      writeFileSync(
+        temporary,
+        `${JSON.stringify({ ...record, heartbeatAt: new Date().toISOString() }, null, 2)}\n`
+      );
+      renameSync(temporary, lockPath);
+    } catch {
+      // Retain the last complete record if a heartbeat cannot be published.
+    } finally {
+      try {
+        unlinkSync(temporary);
+      } catch {
+        /* Renamed or never created. */
+      }
+    }
   }, HEARTBEAT_INTERVAL_MS);
   heartbeat.unref?.();
 
@@ -207,7 +233,7 @@ function startHolding(lockPath, record, reclaimed) {
       // to somebody else, and deleting it would hand the GPU to two processes.
       if (current.pid !== process.pid) return;
     } catch {
-      /* Unreadable or already gone: fall through to the unlink attempt. */
+      return; // Unreadable or gone: ownership cannot be established.
     }
     try {
       unlinkSync(lockPath);
@@ -240,7 +266,7 @@ function startHolding(lockPath, record, reclaimed) {
       // Only ever remove our own lock. If a reclaim raced us, the file now
       // belongs to somebody else and deleting it would hand the GPU to two
       // processes at once.
-      if (current && current.pid !== process.pid) return;
+      if (!current || current.pid !== process.pid) return;
       await rm(lockPath, { force: true });
     },
   };

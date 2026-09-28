@@ -1,8 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import { SITE_LAYOUT } from '../../constants/siteLayout';
+import { readFileSync } from 'node:fs';
 import { buildNearCitySpecs } from './NearHorizonCity';
 
 describe('near horizon city layout', () => {
+  it('keeps instance colours independent of absent vertex colours', () => {
+    const source = readFileSync('src/components/environment/NearHorizonCity.tsx', 'utf8');
+    const bodyMaterial = source.match(
+      /const CITY_BODY_MATERIAL = new THREE\.MeshStandardMaterial\(\{([\s\S]*?)\}\)/
+    )?.[1];
+    expect(bodyMaterial).toBeDefined();
+    expect(bodyMaterial).not.toMatch(/vertexColors:\s*true/);
+    expect(source).toContain('bodies.setColorAt(');
+  });
+
   it('is deterministic, finite, and outside the operational yard', () => {
     const first = buildNearCitySpecs();
     expect(buildNearCitySpecs()).toEqual(first);

@@ -1,10 +1,12 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { MachineData, MaintenanceRecord, MachineType } from '../../../types';
-import { RotateCcw, FileText, CheckCircle, Loader2, Wrench } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { MachineData } from '../../../types';
+import { RotateCcw, FileText, CheckCircle, Loader2, Wrench, Focus } from 'lucide-react';
 import { useProductionStore } from '../../../stores/productionStore';
 import { useBreakdownStore, PartsInventory } from '../../../stores/breakdownStore';
 import { useUIStore } from '../../../stores/uiStore';
 import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
+import { useMaterialFlowStore } from '../../../stores/materialFlowStore';
+import { getMachineOperationalState } from '../../../simulation/machineMotion';
 
 // Order in which spare parts are consumed by routine maintenance
 const MAINTENANCE_PART_PRIORITY: Array<keyof PartsInventory> = [
@@ -15,134 +17,24 @@ const MAINTENANCE_PART_PRIORITY: Array<keyof PartsInventory> = [
   'motors',
 ];
 
-/**
- * Generates deterministic maintenance logs based on machine data.
- * Uses machine.id as a seed for consistent results across re-renders.
- * Logs are generated relative to the machine's lastMaintenance date.
- */
-function generateMaintenanceLogs(machine: MachineData): MaintenanceRecord[] {
-  // If machine has actual history, use it
-  if (machine.maintenanceHistory && machine.maintenanceHistory.length > 0) {
-    return machine.maintenanceHistory;
-  }
-
-  // Simple hash function for deterministic "randomness" based on machine ID
-  const hashCode = (str: string): number => {
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-      const char = str.charCodeAt(i);
-      hash = (hash << 5) - hash + char;
-      hash = hash & hash; // Convert to 32bit integer
-    }
-    return Math.abs(hash);
-  };
-
-  const seed = hashCode(machine.id);
-  const seededRandom = (index: number): number => {
-    const x = Math.sin(seed + index) * 10000;
-    return x - Math.floor(x);
-  };
-
-  // Autonomous service-unit pool, selected deterministically by machine.
-  const serviceUnits = ['ASU-01', 'ASU-02', 'ASU-03', 'ASU-04', 'ASU-05'];
-
-  // Maintenance types by machine type
-  const maintenanceTasksByType: Record<MachineType, string[]> = {
-    [MachineType.SILO]: [
-      'Level sensor calibration',
-      'Aeration fan inspection',
-      'Discharge valve service',
-      'Moisture probe check',
-      'Structural inspection',
-    ],
-    [MachineType.ROLLER_MILL]: [
-      'Roll gap adjustment',
-      'Bearing lubrication',
-      'Belt tension check',
-      'Vibration analysis',
-      'Feed roller service',
-    ],
-    [MachineType.PLANSIFTER]: [
-      'Sieve inspection',
-      'Drive mechanism service',
-      'Frame alignment check',
-      'Brush replacement',
-      'Gasket inspection',
-    ],
-    [MachineType.PACKER]: [
-      'Bag clamp adjustment',
-      'Weighing system calibration',
-      'Conveyor belt check',
-      'Seal heater service',
-      'Dust extraction clean',
-    ],
-    [MachineType.CONTROL_ROOM]: [
-      'System backup verification',
-      'Sensor calibration',
-      'Network diagnostics',
-      'UPS battery check',
-      'Display panel cleaning',
-    ],
-  };
-
-  const tasks = maintenanceTasksByType[machine.type] || [
-    'General inspection',
-    'Lubrication service',
-    'Safety check',
-    'Cleaning service',
-    'Component check',
-  ];
-
-  // Parse lastMaintenance date or use a default
-  let baseDate: Date;
-  try {
-    baseDate = new Date(machine.lastMaintenance);
-    if (isNaN(baseDate.getTime())) {
-      baseDate = new Date();
-    }
-  } catch {
-    baseDate = new Date();
-  }
-
-  // Generate 4 maintenance records going back in time
-  const logs: MaintenanceRecord[] = [];
-  const maintenanceTypes: Array<'preventive' | 'corrective' | 'emergency'> = [
-    'preventive',
-    'preventive',
-    'corrective',
-    'preventive',
-  ];
-
-  for (let i = 0; i < 4; i++) {
-    // Each log is 5-15 days before the previous
-    const daysBack = i === 0 ? 0 : Math.floor(seededRandom(i * 3) * 10) + 5;
-    const logDate = new Date(baseDate);
-    logDate.setDate(logDate.getDate() - (i * 7 + daysBack));
-
-    const taskIndex = Math.floor(seededRandom(i * 7) * tasks.length);
-    const serviceUnitIndex = Math.floor(seededRandom(i * 11) * serviceUnits.length);
-
-    // Vary maintenance type based on machine status for realism
-    let type = maintenanceTypes[i];
-    if (i === 0 && (machine.status === 'warning' || machine.status === 'critical')) {
-      type = 'corrective';
-    }
-
-    logs.push({
-      id: `${machine.id}-maint-${i}`,
-      date: logDate.toISOString().split('T')[0],
-      type,
-      serviceUnit: serviceUnits[serviceUnitIndex],
-      notes: tasks[taskIndex],
-      duration: Math.floor(seededRandom(i * 13) * 60) + 30, // 30-90 minutes
-    });
-  }
-
-  return logs;
-}
-
-export const MachineInspector: React.FC<{ machine: MachineData }> = ({ machine }) => {
-  const metrics = machine.metrics || { rpm: 0, temperature: 0, vibration: 0, load: 0 };
+export const MachineInspector: React.FC<{
+  machine: MachineData;
+  onFocusMachine?: (machineId: string) => void;
+}> = ({ machine, onFocusMachine }) => {
+  const metrics = machine.metrics;
+  const buffer = useMaterialFlowStore((state) => state.machineBuffers.get(machine.id));
+  const flowState = buffer ? getMachineOperationalState(machine.status, buffer) : null;
+  const flowLabel = !buffer
+    ? 'Flow unavailable'
+    : buffer.machineType === 'silo'
+      ? 'Storage inventory'
+      : flowState === 'starved'
+        ? 'Waiting for material'
+        : flowState === 'blocked'
+          ? 'Waiting for output space'
+          : flowState === 'stopped' || flowState === 'faulted'
+            ? 'Processing stopped'
+            : 'Material ready';
   const [isRestarting, setIsRestarting] = useState(false);
   const [isMaintaining, setIsMaintaining] = useState(false);
   const [showLogs, setShowLogs] = useState(false);
@@ -247,21 +139,17 @@ export const MachineInspector: React.FC<{ machine: MachineData }> = ({ machine }
     });
   };
 
-  // Generate maintenance logs based on machine data
-  // Uses actual maintenanceHistory if available, otherwise generates plausible logs
-  const maintenanceLogs = useMemo(
-    () => generateMaintenanceLogs(machine),
-    [machine.id, machine.lastMaintenance, machine.status, machine.maintenanceHistory]
-  );
+  // An absent history is unknown, never permission to invent service evidence.
+  const maintenanceLogs = machine.maintenanceHistory ?? [];
 
   return (
     <div className="p-4 space-y-4 overflow-y-auto h-full custom-scrollbar">
       {/* Status Card */}
-      <div className="bg-slate-800/50 border border-white/5 rounded-xl p-4">
+      <div className="border-b border-white/10 pb-4">
         <div className="flex justify-between items-start mb-2">
-          <span className="text-xs text-slate-400 font-bold uppercase tracking-wider">Status</span>
+          <span className="text-[12px] text-slate-400 font-medium">Status</span>
           <span
-            className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+            className={`px-2 py-0.5 rounded text-[12px] font-medium capitalize ${
               machine.status === 'running'
                 ? 'bg-green-500/20 text-green-400'
                 : machine.status === 'warning'
@@ -280,37 +168,62 @@ export const MachineInspector: React.FC<{ machine: MachineData }> = ({ machine }
             : machine.status === 'warning'
               ? 'Fault detected. Inspect the metrics and maintenance logs below.'
               : machine.status === 'idle'
-                ? 'Unit is idle. No faults detected in the last 24 hours.'
-                : 'Operating normally. No faults detected in the last 24 hours.'}
+                ? 'Unit is idle.'
+                : 'Running.'}
         </div>
       </div>
 
+      <section aria-label="Material-flow evidence" className="border-b border-white/10 pb-4">
+        <p className="mb-1 text-[12px] font-medium text-slate-300">{flowLabel}</p>
+        {buffer && (
+          <dl className="mt-3 grid grid-cols-2 gap-3 text-xs text-slate-300">
+            <div>
+              <dt>Input buffer</dt>
+              <dd className="mt-1 font-mono text-white">
+                {buffer.inputBuffer
+                  .reduce((sum, material) => sum + material.amount, 0)
+                  .toLocaleString(undefined, { maximumFractionDigits: 1 })}{' '}
+                kg
+              </dd>
+            </div>
+            <div>
+              <dt>Output buffer</dt>
+              <dd className="mt-1 font-mono text-white">
+                {buffer.outputBuffer
+                  .reduce((sum, material) => sum + material.amount, 0)
+                  .toLocaleString(undefined, { maximumFractionDigits: 1 })}{' '}
+                kg
+              </dd>
+            </div>
+          </dl>
+        )}
+      </section>
+
       {/* Metrics Grid */}
-      <div className="grid grid-cols-2 gap-2">
+      <dl className="grid grid-cols-2 gap-x-4 gap-y-2">
         {/* An absent reading shows as a dash, not as a measured zero. */}
-        <MetricCard label="RPM" value={metrics.rpm?.toFixed(0) ?? '--'} unit="r/min" color="blue" />
-        <MetricCard
-          label="Temp"
-          value={metrics.temperature?.toFixed(1) ?? '--'}
-          unit="°C"
-          color="orange"
-        />
-        <MetricCard label="Load" value={metrics.load?.toFixed(1) ?? '--'} unit="%" color="green" />
-        <MetricCard
-          label="Vibration"
-          value={metrics.vibration?.toFixed(2) ?? '--'}
-          unit="mm/s"
-          color="purple"
-        />
-      </div>
+        <MetricCard label="RPM" value={formatReading(metrics?.rpm, 0)} unit="r/min" />
+        <MetricCard label="Temperature" value={formatReading(metrics?.temperature, 1)} unit="°C" />
+        <MetricCard label="Load" value={formatReading(metrics?.load, 1)} unit="%" />
+        <MetricCard label="Vibration" value={formatReading(metrics?.vibration, 2)} unit="mm/s" />
+      </dl>
 
       {/* Actions */}
       <div className="space-y-2 pt-2">
+        {onFocusMachine && (
+          <button
+            onClick={() => onFocusMachine(machine.id)}
+            className="flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-cyan-300/50 bg-cyan-300/10 px-3 text-xs font-medium text-cyan-200 transition-colors hover:bg-cyan-300/20"
+          >
+            <Focus size={16} aria-hidden="true" />
+            Focus machine
+          </button>
+        )}
         <button
           onClick={() => setShowLogs(!showLogs)}
           aria-expanded={showLogs}
           aria-controls="machine-maintenance-logs"
-          className="w-full bg-cyan-600 hover:bg-cyan-500 text-white py-2 rounded-lg font-medium text-xs transition-colors shadow-lg shadow-cyan-900/20 flex items-center justify-center gap-2"
+          className="w-full min-h-11 border border-white/15 bg-white/5 hover:bg-white/10 text-slate-200 py-2 rounded-md font-medium text-xs transition-colors flex items-center justify-center gap-2"
         >
           <FileText size={14} />
           {showLogs ? 'Hide Maintenance Logs' : 'View Maintenance Logs'}
@@ -323,7 +236,7 @@ export const MachineInspector: React.FC<{ machine: MachineData }> = ({ machine }
               ? 'No spare parts in inventory - maintenance requires one part.'
               : `Reduces machine wear (consumes 1 spare part: ${availablePart})`
           }
-          className="w-full bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed text-white py-2 rounded-lg font-medium text-xs transition-colors flex items-center justify-center gap-2"
+          className="w-full min-h-11 border border-white/15 bg-white/5 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed text-white py-2 rounded-lg font-medium text-xs transition-colors flex items-center justify-center gap-2"
         >
           {isMaintaining ? (
             <>
@@ -345,7 +258,7 @@ export const MachineInspector: React.FC<{ machine: MachineData }> = ({ machine }
               ? 'Critical faults must be cleared via Safety controls before this unit can be restarted.'
               : undefined
           }
-          className="w-full bg-slate-800 hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed text-white py-2 rounded-lg font-medium text-xs transition-colors flex items-center justify-center gap-2"
+          className="w-full min-h-11 border border-white/15 bg-white/5 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed text-white py-2 rounded-lg font-medium text-xs transition-colors flex items-center justify-center gap-2"
         >
           {isRestarting ? (
             <>
@@ -370,6 +283,9 @@ export const MachineInspector: React.FC<{ machine: MachineData }> = ({ machine }
           <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
             Recent Maintenance
           </h4>
+          {maintenanceLogs.length === 0 && (
+            <p className="text-sm leading-6 text-slate-300">No maintenance records.</p>
+          )}
           {maintenanceLogs.map((log) => (
             <div
               key={log.id}
@@ -379,10 +295,10 @@ export const MachineInspector: React.FC<{ machine: MachineData }> = ({ machine }
               <div className="flex-1 min-w-0">
                 <div className="flex justify-between items-center">
                   <span className="text-xs text-white font-medium capitalize">{log.type}</span>
-                  <span className="text-[10px] text-slate-500">{log.date}</span>
+                  <span className="text-xs text-slate-400">{log.date}</span>
                 </div>
-                <p className="text-[10px] text-slate-400 truncate">{log.notes}</p>
-                <p className="text-[10px] text-slate-500">Service unit: {log.serviceUnit}</p>
+                <p className="text-xs leading-5 text-slate-300 break-words">{log.notes}</p>
+                <p className="text-xs text-slate-400">Service unit: {log.serviceUnit}</p>
               </div>
             </div>
           ))}
@@ -392,28 +308,20 @@ export const MachineInspector: React.FC<{ machine: MachineData }> = ({ machine }
   );
 };
 
-const MetricCard: React.FC<{ label: string; value: string; unit: string; color: string }> = ({
+function formatReading(value: number | undefined, digits: number): string {
+  return typeof value === 'number' && Number.isFinite(value) ? value.toFixed(digits) : '--';
+}
+
+const MetricCard: React.FC<{ label: string; value: string; unit: string }> = ({
   label,
   value,
   unit,
-  color,
-}) => {
-  const colors: Record<string, string> = {
-    blue: 'text-blue-400 border-blue-500/20',
-    orange: 'text-orange-400 border-orange-500/20',
-    purple: 'text-purple-400 border-purple-500/20',
-    green: 'text-green-400 border-green-500/20',
-  };
-
-  return (
-    <div className={`bg-slate-800/30 border ${colors[color]} rounded-lg p-3`}>
-      <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">{label}</div>
-      <div className="flex items-baseline gap-1">
-        <span className={`text-lg font-mono font-bold ${colors[color].split(' ')[0]}`}>
-          {value}
-        </span>
-        <span className="text-[10px] text-slate-600">{unit}</span>
-      </div>
-    </div>
-  );
-};
+}) => (
+  <div className="min-w-0 border-b border-white/10 py-3">
+    <dt className="mb-2 text-[12px] text-slate-400">{label}</dt>
+    <dd className="flex flex-wrap items-baseline gap-1.5">
+      <span className="text-2xl font-mono font-medium tabular-nums text-slate-100">{value}</span>
+      <span className="text-[12px] text-slate-400">{unit}</span>
+    </dd>
+  </div>
+);
