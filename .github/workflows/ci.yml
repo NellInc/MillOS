@@ -109,7 +109,9 @@ jobs:
 
       - name: Validate Jev personal-key flow in desktop and mobile layouts
         timeout-minutes: 8
-        run: node scripts/validate-jev-browser.mjs
+        # UI acceptance on a software GPU uses the app's explicit recovery path.
+        # This does not claim real-GPU startup or frame-pacing acceptance.
+        run: node scripts/validate-jev-browser.mjs --allow-loading-recovery
 
       - name: Upload Jev browser evidence
         if: always()

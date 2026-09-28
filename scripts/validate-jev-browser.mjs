@@ -10,6 +10,7 @@ import { acquireCaptureLock } from './lib/capture-lock.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const output = path.join(root, 'test-results/jev-browser');
+const allowLoadingRecovery = process.argv.includes('--allow-loading-recovery');
 const endpoint = 'https://openrouter.ai/api/alpha/decisions';
 const key = `sk-or-v1-${'test-only-'.repeat(5)}`;
 const note = 'Synthetic incident: a drive belt has snapped and awaits replacement.';
@@ -21,6 +22,8 @@ const report = {
   consoleErrors: [],
   failedRequests: [],
   csp: [],
+  loadingRecoveryAllowed: allowLoadingRecovery,
+  loadingRecoveryUsed: false,
 };
 const lock = await acquireCaptureLock('jev-browser-acceptance', { root });
 let browser, server, page;
@@ -34,7 +37,7 @@ try {
     base,
     preview: { host: '127.0.0.1', port: 4398, strictPort: true },
   });
-  browser = await chromium.launch({ headless: true });
+  browser = await chromium.launch({ headless: true, args: ['--mute-audio'] });
   const context = await browser.newContext({ serviceWorkers: 'block', reducedMotion: 'reduce' });
   await context.addInitScript(() => {
     localStorage.setItem(
@@ -89,14 +92,39 @@ try {
       waitUntil: 'domcontentloaded',
     }
   );
+  report.phase = 'scene-loading';
+  // CI's software renderer can load the full world without meeting the loader's
+  // smooth-frame threshold. This opt-in exercises the real user recovery button
+  // for UI acceptance only; default runs still require automatic startup.
+  // Working if recovery is recorded, normal asset/error checks still pass, and
+  // neither the production loader nor its readiness state is modified here.
   await page.waitForFunction(
-    () =>
-      window.__MILLOS_RUNTIME__?.ready &&
-      document.documentElement.dataset.millosWorldReady === 'true' &&
-      !document.querySelector('[aria-label="Loading MillOS"]'),
-    null,
-    { timeout: 240_000 }
+    (allowRecovery) => {
+      if (
+        !window.__MILLOS_RUNTIME__?.ready ||
+        document.documentElement.dataset.millosWorldReady !== 'true'
+      )
+        return false;
+      return (
+        !document.querySelector('[aria-label="Loading MillOS"]') ||
+        (allowRecovery &&
+          [...document.querySelectorAll('button')].some(
+            (button) => button.textContent.trim() === 'Continue while preparing'
+          ))
+      );
+    },
+    allowLoadingRecovery,
+    { polling: 400, timeout: 240_000 }
   );
+  const recovery = page.getByRole('button', { name: 'Continue while preparing', exact: true });
+  if (allowLoadingRecovery && (await recovery.isVisible())) {
+    await recovery.click();
+    report.loadingRecoveryUsed = await page.evaluate(
+      () => document.documentElement.dataset.loaderFallback === 'true'
+    );
+    assert.equal(report.loadingRecoveryUsed, true);
+  }
+  await page.getByRole('progressbar', { name: 'Loading MillOS' }).waitFor({ state: 'hidden' });
   // CompleteWorldMarker fires on mount, before incremental static batching.
   // Read the batcher's readiness counter directly. Runtime snapshot() performs
   // geometry raycasts as well as counting objects, so it is unsuitable for polling.
@@ -106,7 +134,7 @@ try {
   await page.waitForFunction(
     () => {
       const now = performance.now();
-      if (Number(document.documentElement.dataset.millosStaticBatchesPending ?? 0) > 0) {
+      if (document.documentElement.dataset.millosStaticBatchesPending !== '0') {
         window.jevSceneStableSince = now;
         return false;
       }
