@@ -79,7 +79,9 @@ try {
     });
   });
   page = await context.newPage();
-  page.setDefaultTimeout(30_000);
+  // Software rendering can block the browser thread beyond 30 seconds even
+  // after a click lands. Keep the assertions, with a CI-specific action budget.
+  page.setDefaultTimeout(allowLoadingRecovery ? 90_000 : 30_000);
   page.on('pageerror', (error) => report.pageErrors.push(error.message));
   page.on('console', (message) => {
     if (message.type() === 'error') report.consoleErrors.push(message.text());
@@ -116,15 +118,6 @@ try {
     allowLoadingRecovery,
     { polling: 400, timeout: 240_000 }
   );
-  const recovery = page.getByRole('button', { name: 'Continue while preparing', exact: true });
-  if (allowLoadingRecovery && (await recovery.isVisible())) {
-    await recovery.click();
-    report.loadingRecoveryUsed = await page.evaluate(
-      () => document.documentElement.dataset.loaderFallback === 'true'
-    );
-    assert.equal(report.loadingRecoveryUsed, true);
-  }
-  await page.getByRole('progressbar', { name: 'Loading MillOS' }).waitFor({ state: 'hidden' });
   // CompleteWorldMarker fires on mount, before incremental static batching.
   // Read the batcher's readiness counter directly. Runtime snapshot() performs
   // geometry raycasts as well as counting objects, so it is unsuitable for polling.
@@ -145,6 +138,17 @@ try {
     { polling: 400, timeout: 240_000 }
   );
   report.settlingMs = Date.now() - settlingStarted;
+
+  report.phase = 'loader-dismissal';
+  const recovery = page.getByRole('button', { name: 'Continue while preparing', exact: true });
+  if (allowLoadingRecovery && (await recovery.isVisible())) {
+    await recovery.click();
+    report.loadingRecoveryUsed = await page.evaluate(
+      () => document.documentElement.dataset.loaderFallback === 'true'
+    );
+    assert.equal(report.loadingRecoveryUsed, true);
+  }
+  await page.getByRole('progressbar', { name: 'Loading MillOS' }).waitFor({ state: 'hidden' });
 
   for (const width of [1440, 390]) {
     report.phase = `layout-${width}`;
