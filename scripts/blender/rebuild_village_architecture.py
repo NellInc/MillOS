@@ -414,8 +414,7 @@ def townhall():
             for i in range(12):
                 a=i*math.pi/6
                 beam('Clock hour index',(.82*math.sin(a),12.08+.82*math.cos(a),side*2.17),(.93*math.sin(a),12.08+.93*math.cos(a),side*2.17),.045,'ink')
-            beam('Clock hour hand',(0,12.08,side*2.19),(side*.44,12.34,side*2.19),.075,'ink')
-            beam('Clock minute hand',(0,12.08,side*2.20),(0,12.89,side*2.20),.05,'ink')
+            # Game-time hands are runtime geometry; the static dial keeps its indices.
             if yaw:rotate_parts(start,yaw)
     lathe('Civic curving ogee cupola',0,0,[(2.7,14.18),(2.72,14.27),(2.35,14.42),(2.12,14.7),(1.94,15.03),(1.65,15.36),(1.25,15.69),(.81,16.07),(.48,16.4),(.37,16.72),(.51,16.79),(.51,17.15),(.58,17.22),(.32,17.5),(.10,17.78),(0,17.89)],'slate',32)
     lathe('Civic gilt finial',0,0,[(.07,17.76),(.16,17.97),(.07,18.13),(0,18.32)],'brass',16)

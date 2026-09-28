@@ -16,12 +16,12 @@ import {
   castleBlocks,
 } from '../../utils/castleNavigation';
 import { getTerrainGridSegments } from '../terrain/terrainTypes';
-import { clampNavigationDelta } from '../../utils/cameraNavigation';
+import { FIRST_PERSON_EYE_HEIGHT, clampNavigationDelta } from '../../utils/cameraNavigation';
 
 // Movement configuration (same as desktop FPS)
 const MOVE_SPEED = 12;
 const SPRINT_SPEED = 24;
-const PLAYER_HEIGHT = 0.48;
+const PLAYER_HEIGHT = FIRST_PERSON_EYE_HEIGHT;
 const PLAYER_RADIUS = 0.4;
 const FPS_FOV = 75; // Reduced FOV for mobile to reduce fish-eye effect
 const LOOK_SENSITIVITY = 0.006; // Fine-tuned for smooth mobile experience

@@ -6,6 +6,7 @@ import {
   inRealmPath,
   inRealmPatch,
 } from '../constants/publicRealmLayout';
+import { communityChimneyLevel } from '../simulation/communityLife';
 import { VillagePublicRealm } from './scenery/WorldPublicRealm';
 import React, { useRef, useEffect, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
@@ -53,8 +54,14 @@ import {
 import { CreatureBody, type CreatureRigHandle } from './models/RiggedCreatureModel';
 import { generateCobblestoneRoughness } from '../textures';
 import { SITE_LAYOUT, landmarkLocalToWorld } from '../constants/siteLayout';
+import { EXTERIOR_LAMP_LEVEL, getExteriorLampLevel } from './exterior/ExteriorLighting';
 import { useReducedMotion } from '../hooks/useReducedMotion';
-import { fountainRippleScale } from '../simulation/creatureMotion';
+import {
+  creatureForageWeight,
+  creaturePerchLook,
+  duckSwimPose,
+  fountainRippleScale,
+} from '../simulation/creatureMotion';
 
 // ============================================================
 // NORTHERN VALLEY VILLAGE
@@ -481,10 +488,11 @@ const _smokeQ = new THREE.Quaternion();
  * smoke at all. Re-enabled behind the shared 1-in-3 frame throttle: at ~20 Hz
  * a drifting puff is indistinguishable from a 60 Hz one.
  */
-const ChimneySmoke: React.FC<{ position: [number, number, number]; offset?: number }> = ({
-  position,
-  offset = 0,
-}) => {
+const ChimneySmoke: React.FC<{
+  position: [number, number, number];
+  offset?: number;
+  kind?: 'home' | 'pub' | 'forge';
+}> = ({ position, offset = 0, kind = 'home' }) => {
   const groupRef = useRef<THREE.Group>(null);
   const smokeRefs = useRef<(THREE.Mesh | null)[]>([]);
   // The world wind direction expressed in this chimney's local frame. Each
@@ -495,7 +503,7 @@ const ChimneySmoke: React.FC<{ position: [number, number, number]; offset?: numb
 
   useEffect(() => () => materials.forEach((m) => m.dispose()), [materials]);
 
-  useFrame((state) => {
+  useFrame(() => {
     if (!shouldRunThisFrame(3)) return;
     if (!driftRef.current && groupRef.current) {
       // getWorldQuaternion updates the ancestor matrices itself, so this is
@@ -505,7 +513,10 @@ const ChimneySmoke: React.FC<{ position: [number, number, number]; offset?: numb
       driftRef.current = new THREE.Vector3(windDir.x, 0, windDir.y).applyQuaternion(_smokeQ);
     }
     const drift = driftRef.current;
-    const time = state.clock.elapsedTime + offset;
+    const game = useGameSimulationStore.getState();
+    const level = communityChimneyLevel(game.gameTime, offset, kind);
+    if (groupRef.current) groupRef.current.visible = level > 0.001;
+    const time = (game.gameDay * 24 + game.gameTime) * 20 + offset;
     for (let i = 0; i < smokeRefs.current.length; i++) {
       const mesh = smokeRefs.current[i];
       if (!mesh) continue;
@@ -516,7 +527,7 @@ const ChimneySmoke: React.FC<{ position: [number, number, number]; offset?: numb
       mesh.position.x = drift ? d * drift.x : d;
       mesh.position.z = drift ? d * drift.z : 0;
       mesh.scale.setScalar(0.3 + phase * 0.45);
-      materials[i].opacity = Math.max(0, 0.42 - phase * 0.21);
+      materials[i].opacity = Math.max(0, 0.42 - phase * 0.21) * level;
     }
   });
 
@@ -819,8 +830,8 @@ TownHallChime.displayName = 'TownHallChime';
 
 // Isolated clock component to prevent full building re-renders. Face and hands
 // only - the chime is `TownHallChime` above, so it survives the asset swap.
-const TownHallClock: React.FC<{ position: [number, number, number] }> = React.memo(
-  ({ position }) => {
+export const TownHallClock: React.FC<{ position: [number, number, number]; face?: boolean }> =
+  React.memo(({ position, face = true }) => {
     const gameTime = useGameSimulationStore((state) => state.gameTime);
 
     // Clock hands: hour hand rotates once per 12 hours, minute hand once per hour
@@ -828,18 +839,26 @@ const TownHallClock: React.FC<{ position: [number, number, number] }> = React.me
     const minuteAngle = (((gameTime % 1) * 60) / 60) * Math.PI * 2;
 
     return (
-      <group position={position} userData={{ dynamic: true }}>
+      <group name="town-hall-clock" position={position} userData={{ dynamic: true }}>
         {/* Clock face */}
-        <mesh position={[0, 0, 0]}>
-          <circleGeometry args={[1.2, 16]} />
-          <primitive object={SM.white} attach="material" />
-        </mesh>
-        <mesh position={[0, 0, 0.01]}>
-          <circleGeometry args={[1.1, 16]} />
-          <primitive object={SM.clockFace} attach="material" />
-        </mesh>
+        {face && (
+          <>
+            <mesh position={[0, 0, 0]}>
+              <circleGeometry args={[1.2, 16]} />
+              <primitive object={SM.white} attach="material" />
+            </mesh>
+            <mesh position={[0, 0, 0.01]}>
+              <circleGeometry args={[1.1, 16]} />
+              <primitive object={SM.clockFace} attach="material" />
+            </mesh>
+          </>
+        )}
         {/* Hour hand - arrow shaped */}
-        <group position={[0, 0, 0.05]} rotation={[0, 0, -hourAngle + Math.PI / 2]}>
+        <group
+          name="town-hall-clock-hour"
+          position={[0, 0, 0.05]}
+          rotation={[0, 0, -hourAngle + Math.PI / 2]}
+        >
           <mesh position={[0.2, 0, 0]}>
             <boxGeometry args={[0.5, 0.1, 0.02]} />
             <primitive object={SM.clockHands} attach="material" />
@@ -850,7 +869,11 @@ const TownHallClock: React.FC<{ position: [number, number, number] }> = React.me
           </mesh>
         </group>
         {/* Minute hand - arrow shaped, longer */}
-        <group position={[0, 0, 0.06]} rotation={[0, 0, -minuteAngle + Math.PI / 2]}>
+        <group
+          name="town-hall-clock-minute"
+          position={[0, 0, 0.06]}
+          rotation={[0, 0, -minuteAngle + Math.PI / 2]}
+        >
           <mesh position={[0.3, 0, 0]}>
             <boxGeometry args={[0.7, 0.08, 0.02]} />
             <primitive object={SM.clockHands} attach="material" />
@@ -867,8 +890,7 @@ const TownHallClock: React.FC<{ position: [number, number, number] }> = React.me
         </mesh>
       </group>
     );
-  }
-);
+  });
 TownHallClock.displayName = 'TownHallClock';
 
 // ===== TOWN HALL =====
@@ -970,7 +992,14 @@ TownHallPrimitiveBody.displayName = 'TownHallPrimitiveBody';
 export const TownHall = React.memo<{ position: [number, number, number]; rotation?: number }>(
   ({ position, rotation = 0 }) => (
     <group position={position} rotation={[0, rotation, 0]}>
-      <GeneratedBody asset="townhall" fallback={<TownHallPrimitiveBody />} />
+      <GeneratedBoundary fallback={<TownHallPrimitiveBody />}>
+        <GeneratedModel asset="townhall" />
+        {[0, Math.PI / 2, Math.PI, -Math.PI / 2].map((yaw) => (
+          <group key={yaw} rotation={[0, yaw, 0]}>
+            <TownHallClock position={[0, 12.08, 2.17]} face={false} />
+          </group>
+        ))}
+      </GeneratedBoundary>
       <group position={[0, 6.03, 5.19]}>
         <VillageNameboard title="TOWN HALL" width={4.9} height={0.66} colour="#354f59" />
       </group>
@@ -1077,7 +1106,7 @@ const Pub = React.memo<{
       <VillageNameboard title="Flour & Barrel" caption="VILLAGE INN" width={3.42} height={0.76} />
     </group>
     <FlourAndBarrelSign />
-    <ChimneySmoke position={[3, 8.23, 0]} offset={5} />
+    <ChimneySmoke position={[3, 8.23, 0]} offset={5} kind="pub" />
   </group>
 ));
 Pub.displayName = 'Pub';
@@ -1422,7 +1451,7 @@ const Duck = React.memo<{
     if (!isTabVisible || (!isExcited && gameSpeed <= 0)) return;
     if (reducedMotion) {
       if (groupRef.current) {
-        groupRef.current.position.y = position[1];
+        groupRef.current.position.set(...position);
         groupRef.current.rotation.y = 0;
       }
       if (shakenRef.current) {
@@ -1436,8 +1465,11 @@ const Duck = React.memo<{
     if (!isExcited && !shouldRunThisFrame(4)) return;
     const time = animationTime.current;
 
+    const swim = duckSwimPose(time, 800 + delay);
     let yOffset = Math.sin(time * 2 + delay) * 0.02;
-    let rotOffset = Math.sin(time * 0.5 + delay) * 0.1;
+    let rotOffset = swim.heading + Math.sin(time * 0.5 + delay) * 0.06;
+    groupRef.current.position.x = position[0] + swim.x;
+    groupRef.current.position.z = position[2] + swim.z;
 
     if (isExcited) {
       yOffset += Math.abs(Math.sin(time * 15)) * 0.1; // Rapid hop
@@ -1453,7 +1485,8 @@ const Duck = React.memo<{
     // dip is suppressed while it is being petted so the bird looks up at you.
     const rig = rigRef.current;
     if (!rig) return;
-    const target = isExcited ? 0 : Math.max(0, Math.sin(time * 0.9 + delay * 1.7)) ** 3;
+    const target =
+      isExcited || swim.swimming ? 0 : Math.max(0, Math.sin(time * 0.9 + delay * 1.7)) ** 3;
     dabbleRef.current = THREE.MathUtils.lerp(dabbleRef.current, target, 0.12);
     // Shake first, graze second: every setter on the handle rebuilds the whole
     // pose from the rest quaternions and calls `updateMatrixWorld`, so writing
@@ -1469,11 +1502,11 @@ const Duck = React.memo<{
     if (isExcited) return;
     if (groupRef.current) {
       groupRef.current.position.y = position[1];
-      groupRef.current.rotation.y = 0;
+      groupRef.current.rotation.y = duckSwimPose(animationTime.current, 800 + delay).heading;
     }
     if (shakenRef.current) rigRef.current?.setHeadShake(0);
     shakenRef.current = false;
-  }, [isExcited, position]);
+  }, [isExcited, position, delay]);
 
   // Reset excitement
   React.useEffect(() => {
@@ -1487,13 +1520,18 @@ const Duck = React.memo<{
     e.stopPropagation();
     setIsExcited(true);
     playCritterSound('duck');
-    onClick(position);
+    onClick(
+      groupRef.current
+        ? [groupRef.current.position.x, groupRef.current.position.y, groupRef.current.position.z]
+        : position
+    );
   };
 
   return (
     <group
       ref={groupRef}
       position={[position[0], position[1], position[2]]}
+      userData={{ dynamic: true }}
       onClick={handleClick}
       onPointerOver={setPointerCursor}
       onPointerOut={resetCursor}
@@ -1667,7 +1705,7 @@ const DuckPond = React.memo<{ position: [number, number, number] }>(({ position 
             key={i}
             position={[x as number, y as number, z as number]}
             delay={i}
-            onClick={() => addHeart([x as number, y as number, z as number])}
+            onClick={addHeart}
           />
         ))}
       </group>
@@ -2193,34 +2231,105 @@ const FountainPrimitiveBody = React.memo(() => {
         <cylinderGeometry args={[0.22, 0.55, 2.2, 12, 1, true]} />
         <primitive object={fountainFallMaterial} attach="material" />
       </mesh>
-      {/* Bird perched on edge */}
-      <group
-        position={[0.7, 3.1, 0]}
-        rotation={[0, -0.5, 0]}
-        onClick={(e) => {
-          e.stopPropagation();
-          playCritterSound('bird');
-        }}
-        onPointerOver={setPointerCursor}
-        onPointerOut={resetCursor}
-      >
-        <mesh position={[0, 0.1, 0]}>
-          <sphereGeometry args={[0.12, 8, 8]} />
-          <meshStandardMaterial color="#4a4a4a" />
-        </mesh>
-        <mesh position={[0, 0, 0.08]}>
-          <sphereGeometry args={[0.08, 8, 8]} />
-          <meshStandardMaterial color="#4a4a4a" />
-        </mesh>
-        <mesh position={[0, 0, 0.15]}>
-          <coneGeometry args={[0.03, 0.08, 4]} />
-          <meshStandardMaterial color="#ffa500" />
-        </mesh>
-      </group>
     </group>
   );
 });
 FountainPrimitiveBody.displayName = 'FountainPrimitiveBody';
+
+/** Raycast against delivered fountain.glb: the coping is flat at these two feet.
+ * Fallback has its own broader coping, so each boundary arm supplies its datum.
+ * Working if exactly one bird stands on stone on either rendering path.
+ */
+export const FOUNTAIN_BIRD_PERCH: [number, number, number] = [1.48, 1.385, 0];
+export const FALLBACK_FOUNTAIN_BIRD_PERCH: [number, number, number] = [3, 0.6, 0];
+export const FountainBird = React.memo<{ position: [number, number, number] }>(({ position }) => {
+  const reducedMotion = useReducedMotion();
+  const clock = useRef(0);
+  const head = useRef<THREE.Group>(null);
+  const body = useRef<THREE.Group>(null);
+  const excitement = useRef(0);
+  useEffect(() => resetCursor, []);
+  useFrame((_, delta) => {
+    const { isTabVisible, gameSpeed } = useGameSimulationStore.getState();
+    if (!isTabVisible) return;
+    if (reducedMotion) {
+      head.current?.rotation.set(0, 0, 0);
+      if (body.current) body.current.position.y = 0;
+      excitement.current = 0;
+      return;
+    }
+    if (gameSpeed <= 0 && excitement.current <= 0) return;
+    const step = Math.min(delta, 0.1);
+    clock.current += step;
+    excitement.current = Math.max(0, excitement.current - step);
+    if (!shouldRunThisFrame(4)) return;
+    if (head.current) {
+      head.current.rotation.y = creaturePerchLook(clock.current, 711);
+      head.current.rotation.x =
+        excitement.current > 0
+          ? -0.15
+          : Math.max(0, Math.sin(clock.current * 1.2)) ** 8 *
+            0.5 *
+            creatureForageWeight(clock.current, 711);
+    }
+    if (body.current)
+      body.current.position.y =
+        excitement.current > 0 ? Math.abs(Math.sin(excitement.current * Math.PI * 3)) * 0.045 : 0;
+  });
+  return (
+    <group
+      name="fountain-bird"
+      position={position}
+      rotation={[0, -Math.PI / 2, 0]}
+      userData={{ dynamic: true }}
+      onClick={(event) => {
+        event.stopPropagation();
+        excitement.current = 0.7;
+        playCritterSound('bird');
+      }}
+      onPointerOver={setPointerCursor}
+      onPointerOut={resetCursor}
+    >
+      <group name="fountain-bird-motion" ref={body}>
+        <mesh position={[0, 0.14, 0]} scale={[0.78, 1, 1.2]}>
+          <sphereGeometry args={[0.12, 12, 10]} />
+          <meshStandardMaterial color="#686759" roughness={0.9} />
+        </mesh>
+        <mesh position={[0, 0.13, 0.06]} scale={[0.8, 1, 0.55]}>
+          <sphereGeometry args={[0.09, 10, 8]} />
+          <meshStandardMaterial color="#c7bb96" roughness={1} />
+        </mesh>
+        <mesh position={[0, 0.1, -0.16]} rotation={[-0.5, 0, 0]} scale={[0.07, 0.025, 0.2]}>
+          <boxGeometry />
+          <meshStandardMaterial color="#454a43" roughness={0.9} />
+        </mesh>
+        <group name="fountain-bird-head" ref={head} position={[0, 0.23, 0.07]}>
+          <mesh>
+            <sphereGeometry args={[0.075, 12, 10]} />
+            <meshStandardMaterial color="#555a50" roughness={0.9} />
+          </mesh>
+          <mesh position={[0, -0.01, 0.085]} rotation={[Math.PI / 2, 0, 0]}>
+            <coneGeometry args={[0.023, 0.075, 6]} />
+            <meshStandardMaterial color="#c39543" roughness={0.8} />
+          </mesh>
+          {[-1, 1].map((side) => (
+            <mesh key={side} position={[side * 0.059, 0.015, 0.033]}>
+              <sphereGeometry args={[0.009, 6, 6]} />
+              <meshStandardMaterial color="#171c19" roughness={0.35} />
+            </mesh>
+          ))}
+        </group>
+        {[-1, 1].map((side) => (
+          <mesh key={side} position={[side * 0.035, 0.045, 0]}>
+            <cylinderGeometry args={[0.008, 0.009, 0.09, 5]} />
+            <meshStandardMaterial color="#8c683e" roughness={0.85} />
+          </mesh>
+        ))}
+      </group>
+    </group>
+  );
+});
+FountainBird.displayName = 'FountainBird';
 
 /**
  * Water plane of the generated basin, in the asset's own metres.
@@ -2228,7 +2337,7 @@ FountainPrimitiveBody.displayName = 'FountainPrimitiveBody';
  * Measured the way the duck pond's `sink` was, by AREA-weighting the asset's
  * up-facing triangles rather than counting vertices: 4.41 m2 of horizontal
  * surface sits at y 1.25 between radius 0.34 and 1.30, which is a flat annulus
- * of water inside a coping whose own top is at 1.45 and whose outer edge is at
+ * of water inside a coping whose own top is at 1.385 and whose outer edge is at
  * 1.57. A vertex histogram would have picked the coping, because the coping is
  * where the triangles are.
  */
@@ -2392,12 +2501,20 @@ GeneratedFountainWater.displayName = 'GeneratedFountainWater';
  * The primitive cone belongs to a different basin and is never reused here.
  * Working if streams originate inside the GLB mouths and land in its annulus.
  */
-const Fountain = React.memo<{ position: [number, number, number] }>(({ position }) => (
+export const Fountain = React.memo<{ position: [number, number, number] }>(({ position }) => (
   <group position={position}>
-    <GeneratedBoundary fallback={<FountainPrimitiveBody />}>
+    <GeneratedBoundary
+      fallback={
+        <>
+          <FountainPrimitiveBody />
+          <FountainBird position={FALLBACK_FOUNTAIN_BIRD_PERCH} />
+        </>
+      }
+    >
       <GeneratedModel asset="fountain" />
       <AuthoredPropTrim kind="fountain" />
       <GeneratedFountainWater />
+      <FountainBird position={FOUNTAIN_BIRD_PERCH} />
     </GeneratedBoundary>
   </group>
 ));
@@ -2653,7 +2770,7 @@ const Forge = React.memo<{ position: [number, number, number]; rotation?: number
       <group position={[0, 2.95, 3.17]}>
         <VillageNameboard title="BLACKSMITH" width={3.34} height={0.49} colour="#333e43" />
       </group>
-      <ChimneySmoke position={[-0.4, 5.72, 1.78]} offset={2} />
+      <ChimneySmoke position={[-0.4, 5.72, 1.78]} offset={2} kind="forge" />
       <Horse position={[-4, 0, 4]} rotation={Math.PI / 4} color="#795548" />
     </group>
   )
@@ -2973,24 +3090,28 @@ const VILLAGE_VERGE: ClutterSpec = {
   cullDistance: 130,
 };
 
+const VILLAGE_DAY_GLASS = new THREE.Color('#93c5fd');
+const VILLAGE_NIGHT_GLASS = new THREE.Color('#fef3c7');
+
 // ===== MAIN VILLAGE COMPONENT =====
 export const VillageArea: React.FC = () => {
   // Selector optimization: Only re-render when night status CHANGES
-  const isNight = useGameSimulationStore((state) => state.gameTime >= 20 || state.gameTime < 6);
+  const isNight = useGameSimulationStore(
+    (state) => getExteriorLampLevel(state.gameTime, state.weather) > 0.1
+  );
 
-  useEffect(() => {
-    SM.windowGlass.color.set(isNight ? '#fef3c7' : '#93c5fd');
-    SM.windowGlass.emissive.set(isNight ? '#f59e0b' : '#000000');
-    SM.windowGlass.emissiveIntensity = isNight ? 1.8 : 0;
-    SM.windowGlass.opacity = isNight ? 0.92 : 0.72;
-    SM.clockFace.color.set(isNight ? '#ffffff' : '#1e293b');
-    SM.clockFace.emissive.set(isNight ? '#ffffff' : '#000000');
-    SM.clockFace.emissiveIntensity = isNight ? 1.5 : 0;
-    SM.clockHands.color.set(isNight ? '#111827' : '#d4af37');
-    // Binary, not a dimmer. '#111827' is F0 0.01 - far too dark to be a
-    // conductor, so the night state is painted iron and the day state is gilt.
-    SM.clockHands.metalness = isNight ? 0 : 1;
-  }, [isNight]);
+  useFrame(() => {
+    const level = EXTERIOR_LAMP_LEVEL.value;
+    SM.windowGlass.color.copy(VILLAGE_DAY_GLASS).lerp(VILLAGE_NIGHT_GLASS, level);
+    SM.windowGlass.emissive.set('#ffc875');
+    SM.windowGlass.emissiveIntensity = level * 0.65;
+    SM.windowGlass.opacity = 0.72 + level * 0.2;
+    SM.clockFace.color.set('#f0e2bf');
+    SM.clockFace.emissive.set('#ffe1a0');
+    SM.clockFace.emissiveIntensity = level * 0.3;
+    SM.clockHands.color.set('#24343b');
+    SM.clockHands.metalness = 0;
+  });
 
   // Clutter budget follows the graphics tier: cut-out cards are fill-rate
   // work, so 'low' drops them entirely rather than shrinking them.

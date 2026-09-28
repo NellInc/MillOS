@@ -116,7 +116,7 @@ describe('atmosphere sampling', () => {
 
   it('keeps night fill low enough for the moon to read', () => {
     const midnight = sampleCelestial(sampleAtmosphere(0, 0, 'clear'));
-    expect(midnight.ambientLightIntensity).toBeLessThan(0.12);
+    expect(midnight.ambientLightIntensity).toBeLessThan(0.2);
     expect(midnight.ambientLightIntensity).toBeGreaterThan(0);
     expect(midnight.moonLightIntensity).toBeGreaterThan(midnight.ambientLightIntensity);
   });
@@ -132,4 +132,15 @@ describe('atmosphere sampling', () => {
     expect(stormNight.starOpacity).toBeLessThan(clearNight.starOpacity);
     expect(stormNight.moonOpacity).toBeLessThan(clearNight.moonOpacity);
   });
+});
+
+it('retains a broad, continuous twilight shoulder instead of losing all fill by 18:30', () => {
+  const at = (hour: number) => sampleAtmosphere(1, hour, 'clear').daylight;
+  expect(at(18)).toBeCloseTo(0.5);
+  expect(at(18.5)).toBeGreaterThan(0.2);
+  expect(at(19)).toBeGreaterThan(0.04);
+  for (let hour = 16; hour < 20; hour += 1 / 60) {
+    expect(at(hour) - at(hour + 1 / 60)).toBeLessThan(0.011);
+    expect(at(hour + 1 / 60)).toBeLessThanOrEqual(at(hour));
+  }
 });

@@ -15,11 +15,9 @@ import { useUIStore } from '../../stores/uiStore';
 import { useGraphicsStore } from '../../stores/graphicsStore';
 import {
   sampleWalkingGroundHeight,
-  nearCastle,
   castleBlocks,
   moveWalkingPosition,
 } from '../../utils/castleNavigation';
-import { nearCanalBridge } from '../../constants/publicRealmLayout';
 import { getTerrainGridSegments } from '../terrain/terrainTypes';
 import {
   PHYSICS_CONFIG,
@@ -113,11 +111,11 @@ export const PhysicsFirstPersonController: React.FC<PhysicsFirstPersonController
         }
       }
     }
-    // Authored castle/bridge stairs are grounded routes; elsewhere preserve the existing
-    // free-inspection spawn height and Rapier collision response.
+    // The rigid-body datum clears the surface by 2 cm; the eye offset removes
+    // that clearance so every spawn is exactly 1.7 m above its walkable floor.
     return [
       spawnX,
-      (nearCastle(spawnX, spawnZ) || nearCanalBridge(spawnX, spawnZ) ? MIN_BODY_HEIGHT : 2) +
+      MIN_BODY_HEIGHT +
         sampleWalkingGroundHeight(
           spawnX,
           spawnZ,
@@ -143,7 +141,7 @@ export const PhysicsFirstPersonController: React.FC<PhysicsFirstPersonController
     // Set camera to look toward center from spawn position
     camera.position.set(
       spawnPosition[0],
-      spawnPosition[1] + PHYSICS_CONFIG.player.height,
+      spawnPosition[1] + PHYSICS_CONFIG.player.height - MIN_BODY_HEIGHT,
       spawnPosition[2]
     );
     camera.lookAt(0, PHYSICS_CONFIG.player.height, 0);
@@ -250,11 +248,18 @@ export const PhysicsFirstPersonController: React.FC<PhysicsFirstPersonController
     // path as well as the default controller. With gravity disabled, zero input
     // deliberately holds the current inspection altitude.
     const currentPosition = rb.translation();
-    const maxBodyHeight = MAX_CAMERA_HEIGHT - PHYSICS_CONFIG.player.height;
+    const maxBodyHeight = MAX_CAMERA_HEIGHT - PHYSICS_CONFIG.player.height + MIN_BODY_HEIGHT;
+    const minBodyHeight =
+      MIN_BODY_HEIGHT +
+      sampleWalkingGroundHeight(
+        currentPosition.x,
+        currentPosition.z,
+        getTerrainGridSegments(useGraphicsStore.getState().graphics.quality)
+      );
     let verticalVelocity =
       keyboardIntent.vertical * VERTICAL_SPEED * (isSprinting ? PHYSICS_SPRINT_MULTIPLIER : 1);
     if (
-      (currentPosition.y <= MIN_BODY_HEIGHT && verticalVelocity < 0) ||
+      (currentPosition.y <= minBodyHeight && verticalVelocity < 0) ||
       (currentPosition.y >= maxBodyHeight && verticalVelocity > 0)
     ) {
       verticalVelocity = 0;
@@ -262,11 +267,11 @@ export const PhysicsFirstPersonController: React.FC<PhysicsFirstPersonController
     const currentVelocity = rb.linvel();
     rb.setLinvel({ x: currentVelocity.x, y: verticalVelocity, z: currentVelocity.z }, true);
 
-    if (currentPosition.y < MIN_BODY_HEIGHT || currentPosition.y > maxBodyHeight) {
+    if (currentPosition.y < minBodyHeight || currentPosition.y > maxBodyHeight) {
       rb.setTranslation(
         {
           x: currentPosition.x,
-          y: THREE.MathUtils.clamp(currentPosition.y, MIN_BODY_HEIGHT, maxBodyHeight),
+          y: THREE.MathUtils.clamp(currentPosition.y, minBodyHeight, maxBodyHeight),
           z: currentPosition.z,
         },
         true
@@ -277,37 +282,30 @@ export const PhysicsFirstPersonController: React.FC<PhysicsFirstPersonController
     // Sweep from the previous frame so a fast body cannot skip risers or walls.
     const incoming = rb.translation();
     const previous = previousPosition.current;
-    if (
-      nearCastle(incoming.x, incoming.z) ||
-      nearCastle(previous.x, previous.z) ||
-      nearCanalBridge(incoming.x, incoming.z) ||
-      nearCanalBridge(previous.x, previous.z)
-    ) {
-      const segments = getTerrainGridSegments(useGraphicsStore.getState().graphics.quality);
-      const oldFloor = sampleWalkingGroundHeight(previous.x, previous.z, segments);
-      const grounded =
-        keyboardIntent.vertical === 0 && previous.y <= oldFloor + MIN_BODY_HEIGHT + 0.05;
-      const resolved = {
-        x: previous.x,
-        y: grounded ? oldFloor + MIN_BODY_HEIGHT : incoming.y,
-        z: previous.z,
-      };
-      moveWalkingPosition(
-        resolved,
-        incoming.x - previous.x,
-        incoming.z - previous.z,
-        segments,
-        grounded,
-        MIN_BODY_HEIGHT,
-        () => false
-      );
-      rb.setTranslation(resolved, true);
-    }
+    const segments = getTerrainGridSegments(useGraphicsStore.getState().graphics.quality);
+    const oldFloor = sampleWalkingGroundHeight(previous.x, previous.z, segments);
+    const grounded =
+      keyboardIntent.vertical === 0 && previous.y <= oldFloor + MIN_BODY_HEIGHT + 0.05;
+    const resolved = {
+      x: previous.x,
+      y: grounded ? oldFloor + MIN_BODY_HEIGHT : incoming.y,
+      z: previous.z,
+    };
+    moveWalkingPosition(
+      resolved,
+      incoming.x - previous.x,
+      incoming.z - previous.z,
+      segments,
+      grounded,
+      MIN_BODY_HEIGHT,
+      () => false
+    );
+    rb.setTranslation(resolved, true);
     previousPosition.current = { ...rb.translation() };
 
     // Sync camera to physics body position
     const pos = rb.translation();
-    camera.position.set(pos.x, pos.y + PHYSICS_CONFIG.player.height, pos.z);
+    camera.position.set(pos.x, pos.y + PHYSICS_CONFIG.player.height - MIN_BODY_HEIGHT, pos.z);
   });
 
   // Handle lock state changes

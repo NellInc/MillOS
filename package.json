@@ -47,7 +47,8 @@
     "validate:reachability": "node scripts/audit-module-reachability.mjs",
     "analyze:materials": "node scripts/analyze-material-sharing.mjs",
     "measure:surfaces": "node scripts/measure-surface-contrast.mjs",
-    "validate:uncrewed": "node scripts/validate-uncrewed-build.mjs",
+    "validate:community": "node scripts/validate-uncrewed-build.mjs",
+    "validate:uncrewed": "npm run validate:community",
     "validate:releases": "node scripts/validate-release-matrix.mjs"
   },
   "dependencies": {

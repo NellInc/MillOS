@@ -65,7 +65,7 @@ export function selectAnnouncementForDisplay(
  *   Check BOTH isMuted hook AND audioManager.muted directly (synchronous).
  *
  * Layer 3 - CAPTION-ONLY DELIVERY (this component):
- *   Announcements remain visual and screen-reader accessible. The uncrewed
+ *   Announcements remain visual and screen-reader accessible. The caption-only
  *   runtime never enters a host voice service.
  *
  * Layer 4 - CLEANUP:

@@ -62,13 +62,13 @@ export const FEATURE_FLAGS = {
   PA_CHAOS_SCALING_ENABLED: true,
 };
 
-/**
- * v0.40 is an uncrewed digital-twin site. These switches are deliberately
- * immutable and are not URL-overridable: no human presence is rendered,
- * voiced, or exposed through the operational interface.
+/** Anonymous, locally rendered people inhabit the site. Autonomous testing was
+ * the original constraint, never an instruction to remove simulated residents.
+ * Vehicles remain autonomous; no real-person portraits, remote avatars or voices.
+ * Working if the presence gate finds the approved crew while these exclusions hold.
  */
 export const HUMAN_PRESENCE_POLICY = Object.freeze({
-  personnelModels: false,
+  personnelModels: true,
   vehicleOperators: false,
   remoteAvatars: false,
   humanVoiceAudio: false,

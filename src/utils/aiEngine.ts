@@ -624,7 +624,7 @@ function strategicPrompt(machines: MachineData[]): string {
     wear: finite(machine.metrics?.wear),
   }));
   return [
-    'You are the strategic controller for an uncrewed grain mill digital twin.',
+    'You are the strategic controller for a staffed grain mill digital twin with autonomous logistics.',
     'Return one JSON object only: {"priorities": 1-3 short imperative strings (under 80 characters each), "reasoning": 1-2 sentences, "insight"?: string, "tradeoff"?: string, "focusMachine"?: one equipment id from the telemetry, "actionPlan"?: [immediate, short-term, preparation] as 3 strings}.',
     'Prioritize safety interlocks, stable material flow, quality, energy, condition maintenance, and autonomous logistics.',
     `Plant period: ${simulation.currentShift}. Weather: ${simulation.weather}.`,

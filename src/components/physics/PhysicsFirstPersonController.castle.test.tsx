@@ -69,11 +69,11 @@ it('resolves Rapier displacement up and down both flights without vertical input
   };
   for (let i = 0; i < 150; i++) move(1);
   expect(castleLocalPosition(h.position.x, h.position.z)[1]).toBeLessThan(8);
-  expect(h.camera.position.y).toBeCloseTo(4.98, 4);
+  expect(h.camera.position.y).toBeCloseTo(6.18, 4);
   for (let i = 0; i < 170; i++) move(-1);
   expect(castleLocalPosition(h.position.x, h.position.z)[1]).toBeGreaterThan(25);
   expect(h.camera.position.y).toBeCloseTo(
-    sampleWalkingGroundHeight(h.position.x, h.position.z, 128) + 0.5,
+    sampleWalkingGroundHeight(h.position.x, h.position.z, 128) + 1.7,
     4
   );
 });
@@ -88,11 +88,20 @@ it('also resolves the real canal bridge flights through the physics controller',
     h.frame({}, 1 / 60);
   }
   expect(h.position.x).toBeCloseTo(-145.4, 4);
-  expect(h.camera.position.y).toBeCloseTo(1.335 + 0.5, 4);
+  expect(h.camera.position.y).toBeCloseTo(1.335 + 1.7, 4);
   for (let i = 0; i < 110; i++) {
     h.position.x += 0.1;
     h.frame({}, 1 / 60);
   }
   expect(h.position.x).toBeGreaterThan(-134.5);
-  expect(h.camera.position.y).toBeCloseTo(0.5, 4);
+  expect(h.camera.position.y).toBeCloseTo(1.7, 4);
+});
+
+it('spawns at 1.7 m above ordinary ground, without the old two-metre lift', () => {
+  h.camera.position.set(60, 12, 60);
+  render(<PhysicsFirstPersonController />);
+  expect(h.camera.position.y).toBeCloseTo(sampleWalkingGroundHeight(60, 60, 128) + 1.7, 6);
+  h.lock();
+  h.frame({}, 1 / 60);
+  expect(h.camera.position.y).toBeCloseTo(sampleWalkingGroundHeight(60, 60, 128) + 1.7, 6);
 });

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import {
   ChevronDown,
   ChevronUp,
@@ -26,6 +26,7 @@ export const MillOSMusicPlayer: React.FC<{
 }> = ({ distractionFree = false, sidebarVisible = false }) => {
   const player = useMusicPlayerState();
   const [expanded, setExpanded] = useState(false);
+  const playlistId = useId();
   const [lyricsOpen, setLyricsOpen] = useState(false);
   const expandButtonRef = useRef<HTMLButtonElement>(null);
   const collapseButtonRef = useRef<HTMLButtonElement>(null);
@@ -78,8 +79,10 @@ export const MillOSMusicPlayer: React.FC<{
     setLyricsOpen(false);
   }, [distractionFree, cancelPendingFocus]);
 
-  if (!expanded || distractionFree) {
-    return (
+  const playlistVisible = expanded && !distractionFree;
+
+  return (
+    <>
       <section
         aria-label="Music player"
         style={
@@ -89,167 +92,167 @@ export const MillOSMusicPlayer: React.FC<{
               : '100vw',
           } as React.CSSProperties
         }
-        className="pointer-events-auto fixed bottom-32 left-[calc(var(--millos-view-width)/2)] z-40 flex w-[min(320px,calc(var(--millos-view-width)-2rem))] -translate-x-1/2 items-center gap-2 rounded-md border border-cyan-100/15 bg-[#071722]/95 px-2 py-1 shadow-lg min-[1536px]:bottom-6 min-[1536px]:left-6 min-[1536px]:translate-x-0 [&_button]:min-h-[44px] [&_button]:min-w-[44px]"
+        onKeyDown={(event) => {
+          if (event.key === 'Escape' && playlistVisible && !lyricsOpen) {
+            event.preventDefault();
+            event.stopPropagation();
+            setPlayerExpanded(false);
+          }
+        }}
+        className={`pointer-events-auto fixed left-[max(0.75rem,env(safe-area-inset-left))] top-[calc(4rem+env(safe-area-inset-top))] ${playlistVisible ? 'z-[60]' : 'z-40'} w-[min(20rem,calc(var(--millos-view-width)-1.5rem))] rounded-lg border border-cyan-100/15 bg-[#071722]/95 shadow-lg backdrop-blur-md [&_button]:min-h-11`}
       >
-        <Music2 className="h-4 w-4 shrink-0 text-cyan-300" aria-hidden="true" />
-        <div className="min-w-0 flex-1">
-          <p
-            className="truncate text-[12px] font-medium text-white"
+        <div className="flex items-center gap-0.5 p-1">
+          <button
+            ref={playlistVisible ? collapseButtonRef : expandButtonRef}
+            type="button"
+            onClick={() => setPlayerExpanded(!playlistVisible)}
+            disabled={distractionFree}
+            aria-label={playlistVisible ? 'Collapse playlist' : 'Expand playlist'}
+            aria-expanded={playlistVisible}
+            aria-controls={playlistId}
             title={player.currentTrack.name}
+            className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 text-left hover:bg-white/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300 disabled:pointer-events-none"
           >
-            {player.currentTrack.name}
-          </p>
-          <p className="text-[12px] text-slate-400">
-            {player.playing ? 'Now playing' : 'Soundtrack'}
-          </p>
-        </div>
-        <PlayerButton
-          label={player.playing ? 'Pause music' : 'Play music'}
-          onClick={player.togglePlayback}
-        >
-          {player.playing ? (
-            <Pause size={18} aria-hidden="true" />
-          ) : (
-            <Play size={18} aria-hidden="true" />
-          )}
-        </PlayerButton>
-        {!distractionFree && (
-          <PlayerButton
-            label="Expand music player"
-            onClick={() => setPlayerExpanded(true)}
-            buttonRef={expandButtonRef}
-            expanded={false}
-          >
-            <ChevronUp size={18} aria-hidden="true" />
-          </PlayerButton>
-        )}
-      </section>
-    );
-  }
-
-  return (
-    <>
-      <section
-        aria-label="Music player"
-        className="pointer-events-auto fixed bottom-32 left-1/2 z-40 flex w-[min(46rem,calc(100vw-1rem))] -translate-x-1/2 items-center gap-2 rounded-lg border border-cyan-100/15 bg-[#071722]/95 p-2 pb-11 shadow-2xl backdrop-blur-xl sm:gap-3 sm:p-2.5 sm:pb-11"
-      >
-        {player.currentTrack.artwork ? (
-          <img
-            src={player.currentTrack.artwork}
-            alt=""
-            className="hidden h-12 w-12 shrink-0 rounded-xl object-cover sm:block"
-          />
-        ) : (
-          <div className="hidden h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-slate-800 text-cyan-300 sm:flex">
-            <Music2 size={20} aria-hidden="true" />
-          </div>
-        )}
-
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <p className="truncate text-xs font-semibold text-white sm:text-sm" aria-live="polite">
-              {player.currentTrack.name}
-            </p>
-            <span className="hidden shrink-0 rounded-full bg-cyan-400/10 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-cyan-200 sm:inline">
-              {player.currentTrack.station === 'original' ? 'Original' : 'Legacy'}
+            <Music2 className="h-4 w-4 shrink-0 text-cyan-300" aria-hidden="true" />
+            <span className="min-w-0 flex-1">
+              <span className="block text-[10px] leading-4 text-slate-400">
+                {player.playing ? 'Now playing' : 'Soundtrack'}
+              </span>
+              <span className="block truncate text-xs font-medium text-white" aria-live="polite">
+                {player.currentTrack.name}
+              </span>
             </span>
-          </div>
-          <div className="flex items-center gap-2">
-            {/* Below sm the station select leaves the artist one letter wide, so hide it. */}
-            <p className="hidden min-w-0 flex-1 truncate text-[10px] text-slate-400 sm:block">
-              {player.currentTrack.artist}
-            </p>
-            <select
-              value={player.station}
-              onChange={(event) => player.setStation(event.target.value as 'original' | 'legacy')}
-              aria-label="Music collection"
-              className="min-w-0 max-w-full rounded-md border border-slate-700 bg-slate-900 px-1 py-0.5 text-[9px] text-slate-300 sm:max-w-none"
-            >
-              <option value="original">Original soundtrack</option>
-              <option value="legacy">Legacy music</option>
-            </select>
-          </div>
-          <div className="absolute bottom-0 left-3 right-3 flex h-11 items-center gap-2">
-            <span className="hidden w-9 text-right font-mono text-[9px] text-slate-400 sm:inline">
-              {formatMusicTime(player.positionSeconds)}
-            </span>
-            <input
-              type="range"
-              min={0}
-              max={Math.max(player.durationSeconds, 1)}
-              step={1}
-              value={Math.min(player.positionSeconds, Math.max(player.durationSeconds, 1))}
-              onChange={(event) => player.seek(Number(event.target.value))}
-              aria-label="Song position"
-              aria-valuetext={`${formatMusicTime(player.positionSeconds)} of ${formatMusicTime(player.durationSeconds)}`}
-              className="h-11 min-w-0 flex-1 cursor-pointer appearance-none rounded-full bg-transparent accent-cyan-400"
-            />
-            <span className="hidden w-9 font-mono text-[9px] text-slate-400 sm:inline">
-              {formatMusicTime(player.durationSeconds)}
-            </span>
-          </div>
-        </div>
-
-        <div className="flex shrink-0 items-center gap-0.5 sm:gap-1">
-          <PlayerButton label="Previous song" onClick={player.prevTrack}>
-            <SkipBack size={17} aria-hidden="true" />
-          </PlayerButton>
+            {!distractionFree &&
+              (playlistVisible ? (
+                <ChevronUp size={14} className="shrink-0 text-slate-400" aria-hidden="true" />
+              ) : (
+                <ChevronDown size={14} className="shrink-0 text-slate-400" aria-hidden="true" />
+              ))}
+          </button>
           <PlayerButton
             label={player.playing ? 'Pause music' : 'Play music'}
             onClick={player.togglePlayback}
-            prominent
           >
             {player.playing ? (
-              <Pause size={18} fill="currentColor" aria-hidden="true" />
+              <Pause size={17} aria-hidden="true" />
             ) : (
-              <Play size={18} fill="currentColor" aria-hidden="true" />
+              <Play size={17} aria-hidden="true" />
             )}
           </PlayerButton>
           <PlayerButton label="Next song" onClick={player.nextTrack}>
             <SkipForward size={17} aria-hidden="true" />
           </PlayerButton>
-          <button
-            type="button"
-            onClick={() => player.setShuffle(!player.shuffle)}
-            aria-label="Shuffle songs"
-            aria-pressed={player.shuffle}
-            title={player.shuffle ? 'Shuffle on' : 'Shuffle off'}
-            className={`hidden min-h-10 min-w-10 items-center justify-center rounded-xl transition-colors sm:flex ${
-              player.shuffle
-                ? 'bg-cyan-400/15 text-cyan-300'
-                : 'text-slate-300 hover:bg-white/10 hover:text-white'
-            }`}
-          >
-            <Shuffle size={17} aria-hidden="true" />
-          </button>
-          <button
-            ref={lyricsButtonRef}
-            type="button"
-            onClick={() => setLyricsOpen(true)}
-            disabled={!lyricsAvailable}
-            aria-haspopup="dialog"
-            title={
-              lyricsAvailable
-                ? 'Open synchronized lyrics'
-                : 'Lyrics are available for the original soundtrack'
-            }
-            aria-label="Open synchronized lyrics"
-            className="ml-0.5 flex min-h-10 min-w-10 items-center justify-center rounded-xl text-slate-300 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-35"
-          >
-            <ListMusic size={18} aria-hidden="true" />
-          </button>
-          <PlayerButton
-            label="Collapse music player"
-            onClick={() => setPlayerExpanded(false)}
-            buttonRef={collapseButtonRef}
-            expanded
-          >
-            <ChevronDown size={18} aria-hidden="true" />
-          </PlayerButton>
         </div>
-      </section>
 
-      {lyricsOpen && <LyricsDialog onClose={closeLyrics} />}
+        {playlistVisible && (
+          <div
+            id={playlistId}
+            role="region"
+            aria-label="Playlist"
+            className="flex max-h-[min(25rem,calc(100dvh-14rem))] flex-col overflow-y-auto overscroll-contain border-t border-white/10 p-2"
+          >
+            <div className="shrink-0 [@media(max-height:500px)]:order-2">
+              <p
+                className="truncate px-1 text-[11px] text-slate-400"
+                title={player.currentTrack.artist}
+              >
+                {player.currentTrack.artist}
+              </p>
+              <div className="flex items-center gap-2">
+                <PlayerButton label="Previous song" onClick={player.prevTrack}>
+                  <SkipBack size={16} aria-hidden="true" />
+                </PlayerButton>
+                <input
+                  type="range"
+                  min={0}
+                  max={Math.max(player.durationSeconds, 1)}
+                  step={1}
+                  value={Math.min(player.positionSeconds, Math.max(player.durationSeconds, 1))}
+                  onChange={(event) => player.seek(Number(event.target.value))}
+                  aria-label="Song position"
+                  aria-valuetext={`${formatMusicTime(player.positionSeconds)} of ${formatMusicTime(player.durationSeconds)}`}
+                  className="h-11 min-w-0 flex-1 cursor-pointer appearance-none rounded-full bg-transparent accent-cyan-400"
+                />
+                <span className="shrink-0 text-[10px] tabular-nums text-slate-400">
+                  {formatMusicTime(player.positionSeconds)} /{' '}
+                  {formatMusicTime(player.durationSeconds)}
+                </span>
+              </div>
+              <div className="mb-2 flex items-center gap-1">
+                <select
+                  value={player.station}
+                  onChange={(event) =>
+                    player.setStation(event.target.value as 'original' | 'legacy')
+                  }
+                  aria-label="Music collection"
+                  className="min-h-11 min-w-0 max-w-full flex-1 rounded-md border border-slate-700 bg-slate-900 px-2 text-xs text-slate-300"
+                >
+                  <option value="original">Original soundtrack</option>
+                  <option value="legacy">Legacy music</option>
+                </select>
+                <button
+                  type="button"
+                  onClick={() => player.setShuffle(!player.shuffle)}
+                  aria-label="Shuffle songs"
+                  aria-pressed={player.shuffle}
+                  title={player.shuffle ? 'Shuffle on' : 'Shuffle off'}
+                  className={`flex min-w-11 shrink-0 items-center justify-center rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300 ${
+                    player.shuffle
+                      ? 'bg-cyan-400/15 text-cyan-300'
+                      : 'text-slate-300 hover:bg-white/10'
+                  }`}
+                >
+                  <Shuffle size={16} aria-hidden="true" />
+                </button>
+                <button
+                  ref={lyricsButtonRef}
+                  type="button"
+                  onClick={() => setLyricsOpen(true)}
+                  disabled={!lyricsAvailable}
+                  aria-haspopup="dialog"
+                  title={
+                    lyricsAvailable
+                      ? 'Open synchronized lyrics'
+                      : 'Lyrics are available for the original soundtrack'
+                  }
+                  aria-label="Open synchronized lyrics"
+                  className="flex min-w-11 shrink-0 items-center justify-center rounded-md text-slate-300 hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300 disabled:cursor-not-allowed disabled:opacity-35"
+                >
+                  <ListMusic size={17} aria-hidden="true" />
+                </button>
+              </div>
+            </div>
+            <ol aria-label="Songs" className="shrink-0 space-y-0.5">
+              {player.availableTracks.map((track, index) => (
+                <li key={track.id}>
+                  <button
+                    type="button"
+                    onClick={() => player.selectTrack(index)}
+                    aria-current={index === player.trackIndex ? 'true' : undefined}
+                    title={track.name}
+                    className={`flex w-full items-center gap-2 rounded-md px-2 text-left text-xs focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300 ${
+                      index === player.trackIndex
+                        ? 'bg-cyan-400/10 text-cyan-100'
+                        : 'text-slate-300 hover:bg-white/5'
+                    }`}
+                  >
+                    <span className="w-5 shrink-0 text-[10px] tabular-nums text-slate-400">
+                      {String(track.trackNumber ?? index + 1).padStart(2, '0')}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate">{track.name}</span>
+                    {track.durationSeconds !== undefined && (
+                      <span className="shrink-0 text-[10px] tabular-nums text-slate-400">
+                        {formatMusicTime(track.durationSeconds)}
+                      </span>
+                    )}
+                  </button>
+                </li>
+              ))}
+            </ol>
+          </div>
+        )}
+      </section>
+      {lyricsOpen && !distractionFree && <LyricsDialog onClose={closeLyrics} />}
     </>
   );
 };
@@ -269,7 +272,7 @@ const PlayerButton: React.FC<{
     aria-label={label}
     aria-expanded={expanded}
     title={label}
-    className={`flex min-h-10 min-w-10 items-center justify-center rounded-xl transition-colors ${
+    className={`flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-md transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300 ${
       prominent
         ? 'bg-cyan-400 text-cyan-950 hover:bg-cyan-300'
         : 'text-slate-300 hover:bg-white/10 hover:text-white'

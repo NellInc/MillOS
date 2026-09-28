@@ -24,8 +24,9 @@ function createCompleteWorld(): THREE.Group {
 }
 
 describe('continuous authored world contract', () => {
-  it('defines an uncrewed world with no personnel layer', () => {
-    expect(CONTINUOUS_WORLD_LAYER_IDS).not.toContain('world-personnel');
+  it('keeps the inhabited world and its activity props present at every quality', () => {
+    expect(CONTINUOUS_WORLD_LAYER_IDS).toContain('world-personnel');
+    expect(CONTINUOUS_WORLD_LAYER_IDS).toContain('world-community-details');
   });
 
   it('passes when every required layer is present and continuous layers are visible', () => {

@@ -41,10 +41,10 @@ it('climbs, stops in the courtyard, then descends using only W and S', () => {
   key('keyup', 'KeyW');
   harness.frame({}, 1 / 60);
   expect(castleLocalPosition(camera.position.x, camera.position.z)[1]).toBeLessThan(8);
-  expect(camera.position.y).toBeCloseTo(4.96, 4);
+  expect(camera.position.y).toBeCloseTo(6.18, 4);
   key('keydown', 'KeyS');
   for (let i = 0; i < 170; i++) harness.frame({}, 1 / 60);
   key('keyup', 'KeyS');
   expect(castleLocalPosition(camera.position.x, camera.position.z)[1]).toBeGreaterThan(25);
-  expect(camera.position.y).toBeLessThan(0.6);
+  expect(camera.position.y).toBeCloseTo(1.7, 3);
 });

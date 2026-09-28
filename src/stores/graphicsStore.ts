@@ -18,6 +18,8 @@ export interface PerfDebugSettings {
   disableMachines: boolean; // Disable Machines (9 useFrame hooks)
   /** Paired cost check: hide only the new guards and fittings, keeping the mill running. */
   disableMachineFinish: boolean;
+  /** Same-scene population cost control. Working if bodies hide without reloading assets. */
+  disableCommunityLife: boolean;
   disableEnvironment: boolean; // Disable FactoryEnvironment
   disableTerrain: boolean; // Disable unified terrain for GPU isolation
   /**
@@ -187,6 +189,7 @@ const DEFAULT_PERF_DEBUG: PerfDebugSettings = {
   disableConveyorSystem: false,
   disableMachines: false,
   disableMachineFinish: false,
+  disableCommunityLife: false,
   disableEnvironment: false,
   disableTerrain: false,
   disablePunctualLights: false,

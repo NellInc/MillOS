@@ -127,7 +127,7 @@ export const HEMISPHERE_INTENSITY = 0.22;
 export function hemisphereFillIntensity(daylight: number): number {
   const t = THREE.MathUtils.clamp(daylight, 0, 1);
   const night = 1 - t * t * (3 - 2 * t);
-  return HEMISPHERE_INTENSITY + 0.88 * night;
+  return HEMISPHERE_INTENSITY + 1.38 * night;
 }
 
 /** Angular radius of the sun disc stamped into the environment, in radians. */

@@ -37,15 +37,15 @@ it('spawns and walks at eye height above the current terrain triangles', () => {
     sampleValleyGroundHeight(harness.camera.position.x, harness.camera.position.z, segments);
   render(<MobileFirstPersonController />);
   expect(floor()).toBeGreaterThan(2);
-  expect(harness.camera.position.y).toBeCloseTo(floor() + 0.48, 6);
+  expect(harness.camera.position.y).toBeCloseTo(floor() + 1.7, 6);
   const before = harness.camera.position.clone();
   useMobileControlStore.getState().setDpadDirection({ x: 0, y: -1 });
   harness.frame({}, 1 / 30);
   expect(harness.camera.position.distanceTo(before)).toBeGreaterThan(0.1);
-  expect(harness.camera.position.y).toBeCloseTo(floor() + 0.48, 6);
+  expect(harness.camera.position.y).toBeCloseTo(floor() + 1.7, 6);
   useMobileControlStore.getState().setDpadDirection(null);
   harness.frame({}, 1 / 30);
-  expect(harness.camera.position.y).toBeCloseTo(floor() + 0.48, 6);
+  expect(harness.camera.position.y).toBeCloseTo(floor() + 1.7, 6);
 });
 
 it('stops at the actual fifth exterior silo rather than the retired indoor row', () => {
@@ -127,11 +127,11 @@ it('walks the castle stairs and returns using the touch-look and D-pad controls'
   expect(castleLocalPosition(harness.camera.position.x, harness.camera.position.z)[1]).toBeLessThan(
     8
   );
-  expect(harness.camera.position.y).toBeCloseTo(4.96, 4);
+  expect(harness.camera.position.y).toBeCloseTo(6.18, 4);
   useMobileControlStore.getState().setDpadDirection({ x: 0, y: 1 });
   for (let i = 0; i < 170; i++) harness.frame({}, 1 / 60);
   expect(
     castleLocalPosition(harness.camera.position.x, harness.camera.position.z)[1]
   ).toBeGreaterThan(25);
-  expect(harness.camera.position.y).toBeLessThan(0.6);
+  expect(harness.camera.position.y).toBeCloseTo(1.7, 3);
 });

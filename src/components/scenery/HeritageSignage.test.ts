@@ -1,6 +1,8 @@
 // @vitest-environment node
 import { readFileSync } from 'node:fs';
 import sharp from 'sharp';
+import * as THREE from 'three';
+import { createSignMaterial } from './HeritageSignage';
 import { describe, expect, it } from 'vitest';
 
 describe('delivered heritage print', () => {
@@ -26,12 +28,15 @@ describe('delivered heritage print', () => {
     });
   }
 
-  it('shares lit, opaque-pass artwork across the pylon, shelter and grain trailers', () => {
+  it('backlights shelter and pylon artwork without changing the trailer print', () => {
     const print = readFileSync('src/components/scenery/HeritageSignage.tsx', 'utf8');
     expect(print).toContain('THREE.SRGBColorSpace');
-    expect(print).toContain('alphaTest={0.5}');
+    expect(print).toContain('alphaTest: map ? 0.5 : 0');
+    expect(print).toContain('EXTERIOR_LAMP_LEVEL.value * 0.85');
+    expect(print.match(/userData=\{\{ noStaticBatch: true \}\}/g)).toHaveLength(2);
+    expect(print).toContain('backlit = false');
+    expect(print).toContain('material.dispose()');
     expect(print).not.toContain('<meshBasicMaterial');
-    expect(print).not.toContain('emissive=');
     expect(print).not.toContain('transparent');
     expect(print.match(/surface="painted"/g)).toHaveLength(5);
     const exterior = readFileSync('src/components/FactoryExterior.tsx', 'utf8');
@@ -70,5 +75,40 @@ describe('delivered heritage print', () => {
       '<GeneratedBody asset="school" fallback={<SchoolPrimitiveBody />} />'
     );
     expect(village).not.toContain('asset="school" sink=');
+  });
+});
+
+describe('sign lightbox materials', () => {
+  it('uses the actual artwork for emission, preserving its colours and alpha mask', () => {
+    const texture = new THREE.Texture();
+    const material = createSignMaterial('#ffffff', texture);
+    expect(material.map).toBe(texture);
+    expect(material.emissiveMap).toBe(texture);
+    expect(material.alphaTest).toBe(0.5);
+    expect(material.transparent).toBe(false);
+    expect(material.emissiveIntensity).toBe(0);
+    material.dispose();
+    texture.dispose();
+  });
+
+  it('keeps dark lettering distinct from cream lightbox backgrounds', () => {
+    const ink = createSignMaterial('#254b3c');
+    const paper = createSignMaterial('#efe3c7');
+    expect(ink.emissive.equals(ink.color)).toBe(true);
+    expect(paper.emissive.equals(paper.color)).toBe(true);
+    expect(paper.emissive.g / ink.emissive.g).toBeGreaterThan(8);
+    expect(paper.alphaTest).toBe(0);
+    expect(paper.emissiveMap).toBe(null);
+    ink.dispose();
+    paper.dispose();
+  });
+
+  it('illuminates both canopy wordmarks and the shop sign through the same dimmer', () => {
+    const station = readFileSync('src/components/GasStationInstanced.tsx', 'utf8');
+    expect(station).toContain('name={`station-canopy-wordmark-${side}`}');
+    expect(station).toContain('name="station-shop-wordmark"');
+    expect(station.match(/<IlluminatedSignText/g)).toHaveLength(2);
+    const print = readFileSync('src/components/scenery/HeritageSignage.tsx', 'utf8');
+    expect(print).not.toMatch(/<(?:pointLight|spotLight|rectAreaLight)/);
   });
 });

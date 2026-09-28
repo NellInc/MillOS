@@ -15,6 +15,7 @@ import { useAnnouncementsStore } from '../stores/announcementsStore';
 import { getRuntimeMode, type BenchmarkScene, type RuntimeMode } from '../runtime/runtimeMode';
 import { SITE_LAYOUT, type Vec3Tuple } from '../constants/siteLayout';
 import { inspectWorldIntegrity, type WorldIntegrityReport } from '../constants/worldContract';
+import { inspectCommunityPresence } from '../simulation/communityLife';
 import { sampleAtmosphere, sampleCelestial } from '../simulation/atmosphere';
 import { audioManager } from '../utils/audioManager';
 import { installMillOSAgentRuntime } from '../agent/adapters/runtime/installAgentRuntime';
@@ -209,11 +210,7 @@ export interface RuntimeTelemetrySnapshot {
    * leaves no trace at all. This is the assembly saying what it did.
    */
   staticBatches: RuntimeStaticBatchReport[];
-  humanPresence: {
-    passed: boolean;
-    workerStoreCount: number;
-    sceneObjects: string[];
-  };
+  humanPresence: ReturnType<typeof inspectCommunityPresence>;
   motion: RuntimeMotionState;
   checkpoints: RuntimeCheckpointState[];
   audio: ReturnType<typeof audioManager.getDiagnostics>;
@@ -1795,7 +1792,6 @@ export const RuntimeController: React.FC<RuntimeControllerProps> = ({
       );
       const geometryIds = new Set<string>();
       const materialIds = new Set<string>();
-      const humanSceneObjects = new Set<string>();
       const sceneGraph: RuntimeSceneGraphStats = {
         objects: 0,
         meshes: 0,
@@ -1807,18 +1803,6 @@ export const RuntimeController: React.FC<RuntimeControllerProps> = ({
       };
       scene.traverse((object) => {
         sceneGraph.objects += 1;
-        const objectName = object.name.toLowerCase();
-        if (
-          objectName.startsWith('worker-') ||
-          objectName.startsWith('remote-player') ||
-          objectName === 'seated-vehicle-operator' ||
-          objectName.startsWith('dock-spotter') ||
-          objectName.startsWith('warehouse-worker') ||
-          typeof object.userData.workerId === 'string' ||
-          typeof object.userData.operatorName === 'string'
-        ) {
-          humanSceneObjects.add(object.name || object.type);
-        }
         if (!(object instanceof THREE.Mesh)) return;
         sceneGraph.meshes += 1;
         if (isVisibleInTree(object)) sceneGraph.visibleMeshes += 1;
@@ -1873,11 +1857,7 @@ export const RuntimeController: React.FC<RuntimeControllerProps> = ({
         if (!stats) return;
         staticBatches.push({ name: object.name || object.type, ...stats });
       });
-      const humanPresence = {
-        passed: humanSceneObjects.size === 0,
-        workerStoreCount: 0,
-        sceneObjects: [...humanSceneObjects].sort(),
-      };
+      const humanPresence = inspectCommunityPresence(scene);
       const diagnosticRays = Object.fromEntries(
         [
           ['centre', 0, 0],

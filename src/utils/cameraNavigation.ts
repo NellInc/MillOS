@@ -1,5 +1,8 @@
 import * as THREE from 'three';
 
+/** Eye height above the sampled walkable surface, shared by every FPS controller. */
+export const FIRST_PERSON_EYE_HEIGHT = 1.7;
+
 /** Allow low production-floor views to look up, with floor clipping handled by navigation. */
 export const ORBIT_POLAR_LIMITS = {
   min: 0.2,

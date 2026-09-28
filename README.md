@@ -235,7 +235,7 @@ All visualizations are **optional** and **default OFF** — toggle via keyboard 
 
 ### Design Lineage
 
-The AI partner's design grew out of three ideas: Ricardo Semler's Semco (trust over control, open books), the Mondragon cooperatives' economic democracy, and bilateral alignment from Creed Space (Christmas 2025), which builds alignment *with* AI rather than doing it *to* AI. Earlier builds explored them as a crewed workplace sandbox through the Bilateral Autonomy System (BAS) panels and the VCP 2.0 Value Coordination Protocol. Both runtime layers were retired in v0.40, when the site became uncrewed.
+The AI partner's design grew out of three ideas: Ricardo Semler's Semco (trust over control, open books), the Mondragon cooperatives' economic democracy, and bilateral alignment from Creed Space (Christmas 2025), which builds alignment *with* AI rather than doing it *to* AI. Earlier builds explored them as a crewed workplace sandbox through the Bilateral Autonomy System (BAS) panels and the VCP 2.0 Value Coordination Protocol. Both runtime layers were retired in v0.40. Anonymous local people now populate the mill and village again, with work and rest routines; the retired BAS/VCP workplace panels remain absent and vehicles remain autonomous.
 
 The design records remain in [docs/BILATERAL_AUTONOMY_SYSTEM_SPEC.md](docs/BILATERAL_AUTONOMY_SYSTEM_SPEC.md) and [docs/VCP_2.0_DESIGN_SESSION_2025-12-26.md](docs/VCP_2.0_DESIGN_SESSION_2025-12-26.md).
 

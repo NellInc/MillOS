@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { applyOfficeWindows, applyApartmentWindows } from './GeneratedOfficeModel';
+import {
+  applyOfficeWindows,
+  applyApartmentWindows,
+  applyVillageWindows,
+} from './GeneratedOfficeModel';
 import { applyBoatPortholes } from './GeneratedBoatModel';
 import { applyLampLens, LAMP_LENS_HEIGHTS } from './GeneratedLampModel';
 import { EXTERIOR_LAMP_LENS_MATERIAL } from '../exterior/ExteriorLighting';
@@ -122,4 +126,12 @@ it('keeps apartment cornices dark beneath the actual window sills', () => {
   const aboveSill = (height: number) => height % 3.5 >= 0.52;
   for (const height of [3.6, 3.8, 10.6, 10.8]) expect(aboveSill(height)).toBe(false);
   for (const height of [4.8, 5.4, 6, 11.8, 12.4, 13]) expect(aboveSill(height)).toBe(true);
+});
+
+it('illuminates only the authored village glass atlas tile, on the shared live dimmer', () => {
+  const shader = compile(applyVillageWindows);
+  expect(shader.uniforms.villageNight.value).toBe(1);
+  expect(shader.vertexShader).toContain('vVillageUV = uv');
+  expect(shader.fragmentShader).toContain('step(0.5, vVillageUV.x)');
+  expect(shader.fragmentShader).toContain('step(0.25, vVillageUV.y)');
 });

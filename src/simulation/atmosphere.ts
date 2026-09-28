@@ -154,7 +154,8 @@ export function sampleAtmosphere(
   const normalizedHour = (simulationMinutes / 60) % 24;
   const solarAngle = ((normalizedHour - 6) / 24) * Math.PI * 2;
   const solarElevation = Math.sin(solarAngle);
-  const daylight = smoothstep(-0.12, 0.28, solarElevation);
+  // A broad civil-twilight shoulder keeps the world readable after sunset.
+  const daylight = smoothstep(-0.35, 0.35, solarElevation);
   const twilight =
     Math.exp(-Math.pow((normalizedHour - 6) / 1.8, 2)) +
     Math.exp(-Math.pow((normalizedHour - 18) / 1.8, 2));
@@ -244,8 +245,8 @@ export function sampleCelestial(
   // not an absolute brightness: `constants/colorGrade.ts` owns the exposure
   // that maps them to the display.
   target.sunLightIntensity = sunVisibility * (0.15 + visualDaylight * 2.95);
-  target.moonLightIntensity = moonVisibility * (1 - atmosphere.daylight) * 0.28 * clearSkyFactor;
+  target.moonLightIntensity = moonVisibility * (1 - atmosphere.daylight) * 0.48 * clearSkyFactor;
   target.ambientLightIntensity =
-    0.06 + visualDaylight * 0.16 + moonVisibility * (1 - atmosphere.daylight) * 0.04;
+    0.1 + visualDaylight * 0.12 + moonVisibility * (1 - atmosphere.daylight) * 0.06;
   return target;
 }

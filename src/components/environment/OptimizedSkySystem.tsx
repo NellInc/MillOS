@@ -651,7 +651,7 @@ export const MOUNTAIN_RIDGE_GEOMETRIES = [
 const dayTop = new THREE.Color('#70aed8');
 const nightTop = new THREE.Color('#071426');
 const dayHorizon = new THREE.Color('#a3cce2');
-const nightHorizon = new THREE.Color('#26364b');
+const nightHorizon = new THREE.Color('#384a64');
 const dawnHorizon = new THREE.Color('#e8a66d');
 // Ground bounce, not more sky. This band is what the dome shows below the
 // horizon, and it was '#a6cbd5' - a paler blue than the sky above it, which

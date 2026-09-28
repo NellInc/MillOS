@@ -197,14 +197,14 @@
       "sha256": "d80aaa1a16622d876e0852412d4ebd514f5fbcf15ec5af7b95799df20b9e32fb",
       "blenderPreparation": {
         "file": "assets/source/models/village/townhall-crafted.glb",
-        "sha256": "6624c35fd2b2a0925364690f8166fe71068614baf2ce929bdb14fb884a0ef540",
+        "sha256": "191cd32bfe12cae1ac3a10ace8b739029b030adf79535e6eb27127fc39493ec3",
         "script": "scripts/blender/rebuild_village_architecture.py",
         "method": "Authored revival of the preserved v0.30 architecture: original nave, rear spire and rose; broad cream civic hall; hipped half-timbered Flour and Barrel; cream open-belfry schoolhouse. Closed layered hips, dressed stone, framed glazing and joinery. New reference-led metre envelopes, original provider source untouched."
       },
       "runtimeDerivative": {
         "file": "public/models/village/townhall.glb",
-        "sha256": "af3d3ad3bcc0e73dcb1940dc456f1ae8f9cb775a1a180c358295ea787cd41259",
-        "bytes": 477704
+        "sha256": "dd5558c58e31a711fe6112824ad6ea9b3f2e208e7a3d86ae182c6c530c574bbe",
+        "bytes": 470984
       },
       "normalization": {
         "sizedBy": "length",
@@ -226,7 +226,7 @@
         "materials": 1,
         "textures": 2,
         "textureBytes": 32109,
-        "renderVertices": 19860
+        "renderVertices": 19572
       }
     },
     {

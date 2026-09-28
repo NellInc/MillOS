@@ -15,6 +15,7 @@ const PERF_SYSTEMS = {
   forklifts: 'disableForkliftSystem',
   conveyors: 'disableConveyorSystem',
   machines: 'disableMachines',
+  community: 'disableCommunityLife',
   environment: 'disableEnvironment',
   terrain: 'disableTerrain',
   lights: 'disablePunctualLights',
@@ -344,7 +345,7 @@ function evaluateBudgets(snapshot, diagnostics) {
     // A subsystem that threw during construction can leave frame pacing looking
     // healthy precisely because the work it should have been doing never ran.
     pageClean: triage.actionable.length === 0,
-    uncrewed: snapshot.humanPresence?.passed === true,
+    communityPresence: snapshot.humanPresence?.passed === true,
     checkpoints: checkpointsValid,
   };
   return {

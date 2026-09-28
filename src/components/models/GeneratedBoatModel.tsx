@@ -1,8 +1,9 @@
 /** Keep the narrowboat's eight night portholes on its generated cabin. */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
 import { useDracoGLTF } from '../../utils/dracoLoader';
 import { GENERATED_ASSET_PATHS } from '../../utils/modelLoader';
+import { EXTERIOR_LAMP_LEVEL } from '../exterior/ExteriorLighting';
 
 /**
  * `night` is a live uniform shared with the component, so a dusk or dawn flip
@@ -33,12 +34,9 @@ export function applyBoatPortholes(material: THREE.MeshStandardMaterial, night: 
   material.customProgramCacheKey = () => 'millos-authored-boat-portholes-v2';
 }
 
-export function GeneratedBoatModel({ isNight }: { isNight: boolean }) {
+export function GeneratedBoatModel() {
   const { scene } = useDracoGLTF(GENERATED_ASSET_PATHS.canalBoat);
-  const [night] = useState(() => ({ value: isNight ? 1 : 0 }));
-  useEffect(() => {
-    night.value = isNight ? 1 : 0;
-  }, [isNight, night]);
+  const night = EXTERIOR_LAMP_LEVEL;
   const { model, materials } = useMemo(() => {
     const model = scene.clone(true);
     const materials: THREE.MeshStandardMaterial[] = [];

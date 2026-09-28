@@ -8,6 +8,8 @@ export const CONTINUOUS_WORLD_LAYER_IDS = [
   'world-conveyors',
   'world-forklifts',
   'world-logistics',
+  'world-personnel',
+  'world-community-details',
   'world-terrain',
   'authored-factory-exterior',
   'authored-castle',

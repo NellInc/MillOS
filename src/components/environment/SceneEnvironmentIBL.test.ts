@@ -298,15 +298,15 @@ describe('night silhouette fill', () => {
   it('preserves daytime fill and caps the night lift', () => {
     expect(hemisphereFillIntensity(1)).toBe(HEMISPHERE_INTENSITY);
     expect(hemisphereFillIntensity(2)).toBe(HEMISPHERE_INTENSITY);
-    expect(hemisphereFillIntensity(0)).toBeCloseTo(1.1);
-    expect(hemisphereFillIntensity(-1)).toBeCloseTo(1.1);
+    expect(hemisphereFillIntensity(0)).toBeCloseTo(1.6);
+    expect(hemisphereFillIntensity(-1)).toBeCloseTo(1.6);
   });
   it('fades continuously and monotonically through twilight', () => {
     for (let n = 0; n < 100; n++) {
       const a = hemisphereFillIntensity(n / 100);
       const b = hemisphereFillIntensity((n + 1) / 100);
       expect(a).toBeGreaterThanOrEqual(b);
-      expect(a - b).toBeLessThan(0.014);
+      expect(a - b).toBeLessThan(0.022);
     }
   });
 });

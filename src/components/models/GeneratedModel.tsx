@@ -9,15 +9,27 @@
  *
  * `Object3D.clone` rather than `SkeletonUtils.clone` is deliberate and safe
  * here: the SkeletonUtils rebinding these assets do not need costs a skeleton
- * walk, and none of them has a skin. Geometry and materials are shared by the
- * clone, so N of a building costs N draw calls and one upload.
+ * walk, and none of them has a skin. Geometry and textures are shared by the
+ * clone. Village glazing clones materials for the shared night-lighting shader;
+ * other assets retain their shared materials.
  */
 
-import React, { useMemo } from 'react';
-import type * as THREE from 'three';
+import React, { useEffect, useMemo } from 'react';
+import * as THREE from 'three';
 import { useDracoGLTF } from '../../utils/dracoLoader';
 import { GENERATED_ASSET_PATHS, type GeneratedAssetId } from '../../utils/modelLoader';
 import ErrorBoundary from '../ErrorBoundary';
+import { applyVillageWindows } from './GeneratedOfficeModel';
+
+const VILLAGE_GLAZING = new Set<GeneratedAssetId>([
+  'cottage',
+  'shop',
+  'church',
+  'townhall',
+  'pub',
+  'school',
+  'forge',
+]);
 
 /**
  * Per-instance variation for a cloned asset, derived from where it stands.
@@ -117,19 +129,27 @@ export const GeneratedModel: React.FC<GeneratedModelProps> = ({
 }) => {
   const { scene } = useDracoGLTF(GENERATED_ASSET_PATHS[asset]);
 
-  const model = useMemo(() => {
+  const { model, materials } = useMemo(() => {
+    const materials: THREE.Material[] = [];
     const clone = scene.clone(true);
     clone.traverse((object) => {
       const mesh = object as THREE.Mesh;
       if (!mesh.isMesh) return;
+      if (VILLAGE_GLAZING.has(asset) && mesh.material instanceof THREE.MeshStandardMaterial) {
+        const material = mesh.material.clone();
+        applyVillageWindows(material);
+        mesh.material = material;
+        materials.push(material);
+      }
       const authoredCast = mesh.userData.authoredCastShadow;
       const authoredReceive = mesh.userData.authoredReceiveShadow;
       mesh.castShadow = castShadow ?? (typeof authoredCast === 'boolean' ? authoredCast : true);
       mesh.receiveShadow =
         receiveShadow ?? (typeof authoredReceive === 'boolean' ? authoredReceive : true);
     });
-    return clone;
-  }, [scene, castShadow, receiveShadow]);
+    return { model: clone, materials };
+  }, [scene, asset, castShadow, receiveShadow]);
+  useEffect(() => () => materials.forEach((material) => material.dispose()), [materials]);
 
   return (
     <primitive

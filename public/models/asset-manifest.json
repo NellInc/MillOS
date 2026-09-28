@@ -3303,6 +3303,112 @@
       },
       "requiredNodes": ["Drainage-pipe-unitBody"],
       "requiredAnimations": []
+    },
+    {
+      "id": "worker-masculine",
+      "file": "worker/worker-masculine.glb",
+      "role": "animated-personnel-character",
+      "source": "https://quaternius.com/packs/ultimatemodularcharacters.html",
+      "license": "CC0-1.0",
+      "attribution": "Ultimate Modular Men Pack by Quaternius",
+      "selfContained": true,
+      "maxFileBytes": 850000,
+      "maxMaterials": 11,
+      "maxTextures": 0,
+      "maxRenderVertices": 16000,
+      "bounds": {
+        "width": [
+          1.53,
+          1.56
+        ],
+        "height": [
+          1.71,
+          1.73
+        ],
+        "length": [
+          0.35,
+          0.37
+        ],
+        "groundTolerance": 0.005,
+        "centreTolerance": 0.01
+      },
+      "requiredNodes": [
+        "Root",
+        "Hips",
+        "Chest",
+        "Head",
+        "Wrist.L",
+        "Wrist.R"
+      ],
+      "requiredSkinCount": 1,
+      "requiredJointCount": 62,
+      "requiredExtensions": [
+        "KHR_draco_mesh_compression"
+      ],
+      "requiredAnimations": [
+        "worker-idle",
+        "worker-walk",
+        "worker-run",
+        "worker-break",
+        "worker-inspect",
+        "worker-repair",
+        "worker-supervise",
+        "worker-radio",
+        "worker-sample"
+      ]
+    },
+    {
+      "id": "worker-feminine",
+      "file": "worker/worker-feminine.glb",
+      "role": "animated-personnel-character",
+      "source": "https://quaternius.com/packs/ultimatemodularwomen.html",
+      "license": "CC0-1.0",
+      "attribution": "Ultimate Modular Women Pack by Quaternius",
+      "selfContained": true,
+      "maxFileBytes": 850000,
+      "maxMaterials": 9,
+      "maxTextures": 0,
+      "maxRenderVertices": 19000,
+      "bounds": {
+        "width": [
+          1.51,
+          1.54
+        ],
+        "height": [
+          1.71,
+          1.73
+        ],
+        "length": [
+          0.32,
+          0.35
+        ],
+        "groundTolerance": 0.005,
+        "centreTolerance": 0.01
+      },
+      "requiredNodes": [
+        "Root",
+        "Hips",
+        "Chest",
+        "Head",
+        "Wrist.L",
+        "Wrist.R"
+      ],
+      "requiredSkinCount": 1,
+      "requiredJointCount": 62,
+      "requiredExtensions": [
+        "KHR_draco_mesh_compression"
+      ],
+      "requiredAnimations": [
+        "worker-idle",
+        "worker-walk",
+        "worker-run",
+        "worker-break",
+        "worker-inspect",
+        "worker-repair",
+        "worker-supervise",
+        "worker-radio",
+        "worker-sample"
+      ]
     }
   ],
   "quarantined": [

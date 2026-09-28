@@ -629,8 +629,10 @@ test('v0.30 village landmarks recover their distinct silhouettes and clear entra
         expect(size.x).toBeGreaterThan(13.8);
         expect(size.y).toBeGreaterThan(18);
         for (const side of [-1, 1]) {
-          const hand = ray([side * 0.44, 12.34, side * 20], [0, 0, -side]);
-          expect(Math.abs(hand.point.z)).toBeGreaterThan(2.2);
+          // Hands now belong to the live game clock. Only the enamel dial remains here.
+          const dial = ray([side * 0.44, 12.34, side * 20], [0, 0, -side]);
+          expect(Math.abs(dial.point.z)).toBeGreaterThan(2.1);
+          expect(Math.abs(dial.point.z)).toBeLessThan(2.18);
         }
         expect(ray([2.6, 2, 20], [0, 0, -1]).point.z).toBeGreaterThan(5.8);
         // Door leaf stays in front of the wall, with no stringcourse across it.
@@ -709,4 +711,28 @@ test('duck pond has level, jointed coping and a flat navigable water basin', asy
   } finally {
     dispose(meshes);
   }
+});
+
+test('delivered town hall glazing UVs exclude timber, and clock dials contain no fixed hands', async () => {
+  const { doc, meshes } = await assembly('village-townhall');
+  const primitives = doc
+    .getRoot()
+    .listNodes()
+    .flatMap((node) => node.getMesh()?.listPrimitives() ?? []);
+  meshes.forEach((mesh, index) =>
+    mesh.geometry.setAttribute(
+      'uv',
+      new THREE.BufferAttribute(primitives[index].getAttribute('TEXCOORD_0').getArray(), 2)
+    )
+  );
+  const ray = (x, y, z = 9) =>
+    new THREE.Raycaster(new THREE.Vector3(x, y, z), new THREE.Vector3(0, 0, -1)).intersectObjects(
+      meshes,
+      false
+    )[0];
+  const glazing = (hit) => hit.uv.x >= 0.5 && hit.uv.x < 0.75 && hit.uv.y >= 0.25 && hit.uv.y < 0.5;
+  expect(glazing(ray(4.65, 3.8))).toBe(true);
+  expect(glazing(ray(0.35, 2))).toBe(false);
+  expect(ray(0.4, 12.32).point.z).toBeLessThan(2.18);
+  dispose(meshes);
 });

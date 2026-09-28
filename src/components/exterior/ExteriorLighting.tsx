@@ -8,10 +8,9 @@ type ExteriorWeather = ReturnType<typeof useGameSimulationStore.getState>['weath
 
 export const getExteriorLampLevel = (gameTime: number, weather: ExteriorWeather): number => {
   const hour = (((Number.isFinite(gameTime) ? gameTime : 12) % 24) + 24) % 24;
-  let darkness = 0;
-  if (hour >= 19 || hour < 5) darkness = 1;
-  else if (hour < 7) darkness = (7 - hour) / 2;
-  else if (hour >= 17) darkness = (hour - 17) / 2;
+  const solarElevation = Math.sin(((hour - 6) / 24) * Math.PI * 2);
+  // Start before the sky loses its daylight; fully on by sunset, symmetric at dawn.
+  const darkness = 1 - THREE.MathUtils.smoothstep(solarElevation, 0.08, 0.42);
 
   const weatherFloor =
     weather === 'storm' ? 0.7 : weather === 'rain' ? 0.42 : weather === 'cloudy' ? 0.14 : 0;
@@ -76,6 +75,9 @@ interface RegisteredPointLight {
 
 const pointLights = new Set<RegisteredPointLight>();
 
+/** Shared dimmer for building windows and lamp glass. No shader recompilation. */
+export const EXTERIOR_LAMP_LEVEL = { value: 0 };
+
 /** One scalar driver for every exterior lens, pool, and real high-quality light. */
 export const ExteriorLampDriver: React.FC = () => {
   const targetRef = useRef(
@@ -102,6 +104,7 @@ export const ExteriorLampDriver: React.FC = () => {
       Math.min(Math.max(delta, 0), 0.1)
     );
     const level = levelRef.current;
+    EXTERIOR_LAMP_LEVEL.value = level;
     EXTERIOR_LAMP_LENS_MATERIAL.emissiveIntensity = 0.06 + level * 3.4;
     // Additive pools are deliberately restrained. At full night they should
     // reveal the road surface and fixture spacing without merging into a flat

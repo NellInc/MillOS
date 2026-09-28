@@ -280,7 +280,7 @@ export const SettingsPanel: React.FC<{
             </p>
           </fieldset>
 
-          {/* The uncrewed v0.40 site exposes text captions and non-vocal signal tones only. */}
+          {/* The v0.40 audio policy exposes text captions and non-vocal signal tones only. */}
           <div className="flex items-center justify-between border-t border-white/5 pt-2">
             <span className="flex items-center gap-2 text-xs text-slate-200">
               <Captions size={12} aria-hidden="true" />

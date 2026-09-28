@@ -17,6 +17,7 @@ import {
 import { WORLD_RADIUS, SITE_LAYOUT, getSiloAssemblyScale } from '../constants/siteLayout';
 import { useUIStore } from '../stores/uiStore';
 import {
+  FIRST_PERSON_EYE_HEIGHT,
   clampNavigationDelta,
   getNavigationIntent,
   shouldHandleNavigationKey,
@@ -26,7 +27,7 @@ import {
 // Movement configuration
 const MOVE_SPEED = 12; // Units per second (walking speed)
 const SPRINT_MULTIPLIER = 3.6; // Speed multiplier when sprinting (doubled for fast gameplay)
-const PLAYER_HEIGHT = 0.48; // Camera height from ground (eye level - reduced by 4ft)
+const PLAYER_HEIGHT = FIRST_PERSON_EYE_HEIGHT;
 const PLAYER_RADIUS = 0.4; // Collision radius
 const FPS_FOV = 105; // Wide FOV for immersive first-person view
 const MOUSE_SENSITIVITY = 1.875; // Mouse look speed multiplier (increased 25%)

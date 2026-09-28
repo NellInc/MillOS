@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   advanceCreatureStride,
   creatureCadence,
+  creatureForageWeight,
+  creaturePerchLook,
+  duckSwimPose,
   creaturePoseBlend,
   creatureTravelDistance,
   fountainRippleScale,
@@ -64,5 +67,59 @@ describe('generated fountain ripple contact', () => {
     }
     expect(fountainRippleScale(0, 1.28, 0.5)).toBe(1);
     expect(fountainRippleScale(1, 1.28, 0.5)).toBe(2.56);
+  });
+});
+
+describe('quiet animal life between purposeful bouts', () => {
+  it('gives every animal both full feeding and head-up rest, on distinct schedules', () => {
+    const schedules = [100, 101, 200, 300, 400, 401, 500].map((seed) => {
+      const values = Array.from({ length: 600 }, (_, i) => creatureForageWeight(i / 5, seed));
+      expect(Math.min(...values)).toBe(0);
+      expect(Math.max(...values)).toBe(1);
+      expect(values).toEqual(
+        Array.from({ length: 600 }, (_, i) => creatureForageWeight(i / 5, seed))
+      );
+      return values.join(',');
+    });
+    expect(new Set(schedules).size).toBe(schedules.length);
+  });
+
+  it('separates brief head turns with still intervals rather than continuous swivelling', () => {
+    const angles = Array.from({ length: 900 }, (_, i) => creaturePerchLook(i / 10, 601));
+    expect(angles.filter((angle) => angle === 0).length).toBeGreaterThan(600);
+    expect(Math.max(...angles.map(Math.abs))).toBeGreaterThan(0.3);
+    expect(Math.max(...angles.map(Math.abs))).toBeLessThanOrEqual(0.4);
+  });
+
+  it('keeps swimmers in their existing pond lanes, with continuous stops for dabbling', () => {
+    const anchors = [
+      [2, 1],
+      [-1, -2],
+      [0, 2],
+      [1.5, -1.5],
+    ];
+    const didSwim = new Set<number>();
+    const didRest = new Set<number>();
+    for (let frame = 0; frame < 7200; frame++) {
+      const poses = anchors.map(([x, z], i) => {
+        const pose = duckSwimPose(frame / 60, 800 + i);
+        expect(Math.hypot(pose.x, pose.z)).toBeLessThanOrEqual(0.400001);
+        // Delivered water has an inner bank at r=4.635; allow 0.4 m for each body.
+        expect(Math.hypot(x + pose.x, z + pose.z) + 0.4).toBeLessThan(4.635);
+        const next = duckSwimPose((frame + 1) / 60, 800 + i);
+        expect(Math.hypot(next.x - pose.x, next.z - pose.z)).toBeLessThan(0.002);
+        if (pose.swimming) didSwim.add(i);
+        else didRest.add(i);
+        return [x + pose.x, z + pose.z];
+      });
+      for (let i = 0; i < poses.length; i++)
+        for (let j = i + 1; j < poses.length; j++)
+          expect(Math.hypot(poses[i][0] - poses[j][0], poses[i][1] - poses[j][1])).toBeGreaterThan(
+            0.8
+          );
+    }
+    expect(didSwim.size).toBe(4);
+    expect(didRest.size).toBe(4);
+    for (let i = 0; i < 4; i++) expect(duckSwimPose(0, 800 + i)).toMatchObject({ x: 0, z: 0 });
   });
 });

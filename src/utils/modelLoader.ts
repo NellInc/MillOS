@@ -1,7 +1,7 @@
 /**
  * Runtime model loader with DRACO support and procedural fallbacks.
  *
- * Only autonomous equipment is eligible for the current v0.40 delivery.
+ * Validated equipment, scenery and anonymous local personnel ship in v0.40.
  * Canonical source assets remain under assets/source/models, while this module
  * exposes only the derivatives that may be mounted by the live simulation.
  */

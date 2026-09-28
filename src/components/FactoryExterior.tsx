@@ -1,3 +1,4 @@
+import { getExteriorLampLevel } from './exterior/ExteriorLighting';
 import { WorldPublicRealm } from './scenery/WorldPublicRealm';
 import { HeritagePoster } from './scenery/HeritageSignage';
 import React, { useMemo, useRef, useEffect, useLayoutEffect, useState } from 'react';
@@ -591,7 +592,7 @@ export const SmallOffice: React.FC<{
   rotation?: number;
 }> = React.memo(({ position, size = [12, 8, 10], rotation = 0 }) => {
   const isNight = useGameSimulationStore(
-    useShallow((state) => state.gameTime >= 20 || state.gameTime < 6)
+    useShallow((state) => getExteriorLampLevel(state.gameTime, state.weather) > 0.1)
   );
 
   return (
@@ -675,7 +676,7 @@ export const SmallOffice: React.FC<{
         }
       >
         <group scale={[size[0] / 14, size[1] / 7, size[2] / 10]}>
-          <GeneratedOfficeModel isNight={isNight} />
+          <GeneratedOfficeModel />
         </group>
       </GeneratedBoundary>
     </group>
@@ -773,7 +774,6 @@ const OfficeApartment: React.FC<{
   floors?: number;
   rotation?: number;
 }> = ({ position, floors = 4, rotation = 0 }) => {
-  const isNight = useGameSimulationStore((state) => state.gameTime >= 20 || state.gameTime < 6);
   const floorHeight = 3.5;
   const buildingHeight = floors * floorHeight;
   const width = 16;
@@ -879,7 +879,6 @@ const OfficeApartment: React.FC<{
         {floors === 4 || floors === 3 ? (
           <group position={[0, 0, 1.25]}>
             <GeneratedOfficeModel
-              isNight={isNight}
               asset={floors === 4 ? 'officeApartment' : 'officeApartmentThree'}
             />
           </group>
@@ -1650,7 +1649,7 @@ export const CanalBoat: React.FC<{
     cabinColor = '#8b2323', // Traditional burgundy red
   }) => {
     const isNight = useGameSimulationStore(
-      useShallow((state) => state.gameTime >= 20 || state.gameTime < 6)
+      useShallow((state) => getExteriorLampLevel(state.gameTime, state.weather) > 0.1)
     );
     useEffect(() => {
       CANAL_PORTHOLE_GLASS_MATERIAL.color.set(isNight ? '#ffaa00' : '#add8e6');
@@ -1856,7 +1855,7 @@ export const CanalBoat: React.FC<{
         >
           {/* Hull-top measurement puts the waterline 0.6 m above its keel. */}
           <group position={[0, -0.6, 0]}>
-            <GeneratedBoatModel isNight={isNight} />
+            <GeneratedBoatModel />
           </group>
           {[-1, 1].map((side) => (
             <Text

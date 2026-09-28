@@ -1,12 +1,13 @@
 /** The small office retains its two illuminated outer windows at night. */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
 import { useDracoGLTF } from '../../utils/dracoLoader';
 import { GENERATED_ASSET_PATHS } from '../../utils/modelLoader';
+import { EXTERIOR_LAMP_LEVEL } from '../exterior/ExteriorLighting';
 
 /**
- * `night` is a live uniform shared with the component, so a dusk or dawn flip
- * writes one float instead of re-cloning the model and all of its materials.
+ * `night` is the live exterior dimmer, so dusk and dawn
+ * write one float instead of re-cloning the model and all of its materials.
  */
 export function applyOfficeWindows(material: THREE.MeshStandardMaterial, night: { value: number }) {
   material.onBeforeCompile = (shader) => {
@@ -77,18 +78,9 @@ export function applyApartmentWindows(
 }
 
 type OfficeAsset = 'smallOffice' | 'officeApartment' | 'officeApartmentThree';
-export function GeneratedOfficeModel({
-  isNight,
-  asset = 'smallOffice',
-}: {
-  isNight: boolean;
-  asset?: OfficeAsset;
-}) {
+export function GeneratedOfficeModel({ asset = 'smallOffice' }: { asset?: OfficeAsset }) {
   const { scene } = useDracoGLTF(GENERATED_ASSET_PATHS[asset]);
-  const [night] = useState(() => ({ value: isNight ? 1 : 0 }));
-  useEffect(() => {
-    night.value = isNight ? 1 : 0;
-  }, [isNight, night]);
+  const night = EXTERIOR_LAMP_LEVEL;
   const { model, materials } = useMemo(() => {
     const model = scene.clone(true);
     const materials: THREE.MeshStandardMaterial[] = [];
@@ -107,4 +99,32 @@ export function GeneratedOfficeModel({
   }, [scene, night, asset]);
   useEffect(() => () => materials.forEach((material) => material.dispose()), [materials]);
   return <primitive object={model} />;
+}
+
+/** The authored village atlas reserves column 2, row 2 for glazing only.
+ * Blender exports flipped V, so its delivered glTF interval is [0.25, 0.5).
+ * UV selection keeps slate roofs and blue paint dark, regardless of texture grain.
+ * Working if only window panes glow at night, with zero extra punctual lights.
+ */
+export function applyVillageWindows(
+  material: THREE.MeshStandardMaterial,
+  night = EXTERIOR_LAMP_LEVEL
+) {
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.villageNight = night;
+    shader.uniforms.villageGlow = { value: new THREE.Color('#ffc875').multiplyScalar(0.65) };
+    shader.vertexShader = `varying vec2 vVillageUV;\n${shader.vertexShader}`.replace(
+      '#include <begin_vertex>',
+      '#include <begin_vertex>\nvVillageUV = uv;'
+    );
+    shader.fragmentShader =
+      `varying vec2 vVillageUV;\nuniform float villageNight;\nuniform vec3 villageGlow;\n${shader.fragmentShader}`.replace(
+        '#include <emissivemap_fragment>',
+        `#include <emissivemap_fragment>
+       float glazing = step(0.5, vVillageUV.x) * (1.0 - step(0.75, vVillageUV.x))
+         * step(0.25, vVillageUV.y) * (1.0 - step(0.5, vVillageUV.y));
+       totalEmissiveRadiance += villageGlow * villageNight * glazing;`
+      );
+  };
+  material.customProgramCacheKey = () => 'millos-authored-village-windows-v1';
 }

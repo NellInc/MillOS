@@ -3,6 +3,7 @@
  *
  * Uses @react-three/rapier for autonomous vehicles and first-person site inspection.
  */
+import { FIRST_PERSON_EYE_HEIGHT } from '../utils/cameraNavigation';
 import { SITE_LAYOUT } from '../constants/siteLayout';
 
 // Physics world configuration
@@ -29,7 +30,7 @@ export const PHYSICS_CONFIG = {
     maxSprintVelocity: 36, // Sprint speed (3x walk)
     moveForce: 1500,
     sprintForce: 4500,
-    height: 0.48, // Eye height
+    height: FIRST_PERSON_EYE_HEIGHT, // Eye height above the walkable surface
     capsuleRadius: 0.4,
     capsuleHalfHeight: 0.5,
   },

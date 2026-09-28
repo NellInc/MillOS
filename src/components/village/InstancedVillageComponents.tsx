@@ -8,7 +8,7 @@
  * 4. No React state for static geometry - pure instancing
  *
  * PERFORMANCE GAINS:
- * - 8 lamps: 8 draw calls → 1 draw call
+ * - 14 lamp fixtures: 42 meshes → 3 instanced draws (ground pools are separate)
  * - 4 benches: 4 draw calls → 1 draw call
  * - etc.
  */
@@ -16,8 +16,8 @@
 import React, { useRef, useEffect, useLayoutEffect, useMemo } from 'react';
 import * as THREE from 'three';
 import { PROCEDURAL_TEXTURES } from '../../utils/sharedMaterials';
-import { useGameSimulationStore } from '../../stores/gameSimulationStore';
-import { ExteriorLampPool, getExteriorLampLevel } from '../exterior/ExteriorLighting';
+import { useFrame } from '@react-three/fiber';
+import { ExteriorLampPool, EXTERIOR_LAMP_LENS_MATERIAL } from '../exterior/ExteriorLighting';
 
 // ============================================================
 // SHARED GEOMETRIES - Created once at module level
@@ -260,22 +260,25 @@ const LAMP_POSITIONS: [number, number][] = [
   [15, -45],
   [-15, 45],
   [15, 50],
+  [-15, 0],
+  [15, 0],
+  [-15, 35],
+  [15, 35],
+  [-15, -60],
+  [15, 65],
 ];
 
 /** Lamp head height is 4.3 m; the pool reaches roughly the next building line. */
 const LAMP_POOL_RADIUS = 5.5;
 
 /**
- * Instanced village lamps - 8 lamps in ~3 draw calls instead of 24, each with
- * a ground light pool. The pools share the site-wide ExteriorLampDriver level
- * (dusk ramp, night, storm/rain floor), and the glass switches on that same
+ * Instanced village lamps: 14 fixtures in 3 draw calls, plus one ground light
+ * pool per lamp. The pools share the site-wide ExteriorLampDriver level
+ * (dusk ramp, night, storm/rain floor), and the glass follows that same
  * level, so a pool never lies under an unlit lamp. No punctual lights: those
  * would change the scene's light count at dusk and recompile every material.
  */
 export const InstancedLamps: React.FC = React.memo(() => {
-  const isLit = useGameSimulationStore(
-    (state) => getExteriorLampLevel(state.gameTime, state.weather) >= 0.5
-  );
   const postsRef = useRef<THREE.InstancedMesh>(null);
   const housingsRef = useRef<THREE.InstancedMesh>(null);
   const glassRef = useRef<THREE.InstancedMesh>(null);
@@ -315,12 +318,11 @@ export const InstancedLamps: React.FC = React.memo(() => {
   // Keep one compiled material across the day/night boundary. Uniform changes
   // are cheap; swapping material objects here used to trigger shader setup in
   // the same frame as the wider atmosphere transition.
-  useEffect(() => {
-    lampGlassMaterial.color.set(isLit ? '#ffaa00' : '#333333');
-    lampGlassMaterial.emissive.set(isLit ? '#ffaa00' : '#000000');
-    lampGlassMaterial.emissiveIntensity = isLit ? 2 : 0;
-    lampGlassMaterial.roughness = isLit ? 0.35 : 0.6;
-  }, [isLit]);
+  useFrame(() => {
+    lampGlassMaterial.color.copy(EXTERIOR_LAMP_LENS_MATERIAL.color);
+    lampGlassMaterial.emissive.copy(EXTERIOR_LAMP_LENS_MATERIAL.emissive);
+    lampGlassMaterial.emissiveIntensity = EXTERIOR_LAMP_LENS_MATERIAL.emissiveIntensity;
+  });
 
   return (
     <group>

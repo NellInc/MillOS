@@ -38,9 +38,12 @@ vi.mock('../../../hooks/useAudioState', () => ({
     musicVolume: 0.3,
     machineVolume: 0.5,
     currentTrack,
-    availableTracks: [currentTrack],
+    availableTracks: [
+      currentTrack,
+      { ...currentTrack, id: 'second', name: 'Grain at the Gate', trackNumber: 2 },
+    ],
     trackIndex: 0,
-    trackCount: 1,
+    trackCount: 2,
     station: 'original',
     shuffle: false,
     playing: false,
@@ -67,7 +70,7 @@ describe('MillOSMusicPlayer', () => {
     });
     try {
       render(<MillOSMusicPlayer />);
-      fireEvent.click(screen.getByRole('button', { name: 'Expand music player' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Expand playlist' }));
       fireEvent.click(screen.getByRole('button', { name: 'Open synchronized lyrics' }));
       expect(scroll).toHaveBeenCalledWith({ block: 'center', behavior: 'auto' });
     } finally {
@@ -92,8 +95,8 @@ describe('MillOSMusicPlayer', () => {
         <MillOSMusicPlayer />
       </>
     );
-    fireEvent.click(screen.getByRole('button', { name: 'Expand music player' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Collapse music player' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Expand playlist' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse playlist' }));
     rerender(
       <>
         <button>Safety controls</button>
@@ -120,7 +123,7 @@ describe('MillOSMusicPlayer', () => {
     expect(screen.getByText('The Mill Wakes')).toBeInTheDocument();
     expect(screen.queryByRole('combobox', { name: 'Music collection' })).not.toBeInTheDocument();
     expect(controls.togglePlayback).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole('button', { name: 'Expand music player' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Expand playlist' }));
     const collection = screen.getByRole('combobox', { name: 'Music collection' });
     expect(collection).toHaveValue('original');
     expect(collection).toHaveClass('min-w-0', 'max-w-full');
@@ -132,10 +135,10 @@ describe('MillOSMusicPlayer', () => {
 
   it('provides a full-height seek target in the player and lyrics without starting audio', () => {
     render(<MillOSMusicPlayer />);
-    fireEvent.click(screen.getByRole('button', { name: 'Expand music player' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Expand playlist' }));
     const seek = screen.getByRole('slider', { name: 'Song position' });
     expect(seek).toHaveClass('h-11');
-    expect(seek.parentElement).toHaveClass('absolute', 'left-3', 'right-3');
+    expect(seek.parentElement).toHaveClass('flex');
     fireEvent.change(seek, { target: { value: '42' } });
     expect(controls.seek).toHaveBeenLastCalledWith(42);
     fireEvent.click(screen.getByRole('button', { name: 'Open synchronized lyrics' }));
@@ -150,7 +153,7 @@ describe('MillOSMusicPlayer', () => {
 
   it('opens synchronized lyrics with the machine-review disclosure', () => {
     render(<MillOSMusicPlayer />);
-    fireEvent.click(screen.getByRole('button', { name: 'Expand music player' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Expand playlist' }));
     fireEvent.click(screen.getByRole('button', { name: 'Open synchronized lyrics' }));
 
     expect(screen.getByRole('dialog', { name: 'The Mill Wakes' })).toBeInTheDocument();
@@ -166,9 +169,9 @@ describe('MillOSMusicPlayer', () => {
     render(<MillOSMusicPlayer />);
     fireEvent.click(screen.getByRole('button', { name: 'Play music' }));
     expect(controls.togglePlayback).toHaveBeenCalledOnce();
-    fireEvent.click(screen.getByRole('button', { name: 'Expand music player' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Expand playlist' }));
     expect(screen.getByRole('slider', { name: 'Song position' })).toHaveValue('15');
-    fireEvent.click(screen.getByRole('button', { name: 'Collapse music player' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse playlist' }));
     expect(screen.queryByRole('slider', { name: 'Song position' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Play music' })).toBeVisible();
     expect(controls.seek).not.toHaveBeenCalled();
@@ -178,16 +181,55 @@ describe('MillOSMusicPlayer', () => {
 
   it('yields expanded controls and lyrics to focused work without changing audio', () => {
     const { rerender } = render(<MillOSMusicPlayer />);
-    fireEvent.click(screen.getByRole('button', { name: 'Expand music player' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Expand playlist' }));
     fireEvent.click(screen.getByRole('button', { name: 'Open synchronized lyrics' }));
     rerender(<MillOSMusicPlayer distractionFree />);
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(screen.queryByRole('combobox', { name: 'Music collection' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Expand music player' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Expand playlist' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Play music' })).toBeVisible();
     expect(controls.togglePlayback).not.toHaveBeenCalled();
     rerender(<MillOSMusicPlayer distractionFree={false} />);
-    expect(screen.getByRole('button', { name: 'Expand music player' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Expand playlist' })).toBeVisible();
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('keeps skip directly accessible while compact, without opening the playlist', () => {
+    render(<MillOSMusicPlayer />);
+    fireEvent.click(screen.getByRole('button', { name: 'Next song' }));
+    expect(controls.nextTrack).toHaveBeenCalledOnce();
+    expect(screen.queryByRole('region', { name: 'Playlist' })).not.toBeInTheDocument();
+    expect(controls.togglePlayback).not.toHaveBeenCalled();
+  });
+
+  it('opens a clickable playlist directly from the song and keeps the current track marked', () => {
+    render(<MillOSMusicPlayer />);
+    const toggle = screen.getByRole('button', { name: 'Expand playlist' });
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    fireEvent.click(toggle);
+    const list = screen.getByRole('region', { name: 'Playlist' });
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    expect(toggle).toHaveAttribute('aria-controls', list.id);
+    expect(within(list).getByRole('button', { name: /The Mill Wakes/ })).toHaveAttribute(
+      'aria-current',
+      'true'
+    );
+    fireEvent.click(within(list).getByRole('button', { name: /Grain at the Gate/ }));
+    expect(controls.selectTrack).toHaveBeenCalledWith(1);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(controls.togglePlayback).not.toHaveBeenCalled();
+  });
+
+  it('closes the playlist with Escape and restores focus without changing playback', async () => {
+    render(<MillOSMusicPlayer />);
+    fireEvent.click(screen.getByRole('button', { name: 'Expand playlist' }));
+    fireEvent.keyDown(screen.getByRole('combobox', { name: 'Music collection' }), {
+      key: 'Escape',
+    });
+    expect(screen.queryByRole('region', { name: 'Playlist' })).not.toBeInTheDocument();
+    await vi.waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Expand playlist' })).toHaveFocus()
+    );
+    expect(controls.togglePlayback).not.toHaveBeenCalled();
   });
 });

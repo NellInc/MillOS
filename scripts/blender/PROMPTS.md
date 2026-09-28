@@ -10,7 +10,7 @@ Two modes, two jobs. Pick by what the output has to survive.
 | "What would this shape look like" | **MCP** |
 | Poking at a `.blend` you already have open | **MCP** |
 
-The deciding fact for this repo: MillOS machines are **procedural instanced geometry in TypeScript**, not GLBs. The forklift is the only current runtime character-scale GLB, and its glTF file order is load-bearing. MillOS v0.40 is permanently uncrewed: do not design, restore, or reference people, operators, drivers, personnel portraits, or character assets. Most Blender work here therefore ends as TS or as a pipeline change, not as a new `.glb`.
+The deciding fact for this repo: MillOS machines are **procedural instanced geometry in TypeScript**, not GLBs. Validated Quaternius CC0 characters supply anonymous local workers and residents. Forklift glTF file order remains load-bearing. The no-human constraint concerns automated testing; it does not prohibit simulated people or the scarecrow. Vehicles remain autonomous, without real-person likenesses or recorded voices. Most Blender work here therefore ends as TS or as a pipeline change, not as a new `.glb`.
 
 ---
 
@@ -36,8 +36,9 @@ Constraints specific to MillOS — treat these as hard:
 
 2. assets/source/models/ is immutable provenance. Read it; never write it.
 
-2a. v0.40 is uncrewed. Do not add people to vehicles or scenery, and do not
-    create operator, driver, worker, avatar, portrait, or character studies.
+2a. Use the approved CC0 local character assets for workers and residents. Keep
+    vehicle operation autonomous and exclude real-person portraits and voices.
+    Working if the community delivery gate admits only the licensed local roster.
 
 3. Blender's world is Z-up; three.js is Y-up. If you build a lathe or profile
    Y-up to match the runtime, an unrotated Blender camera frames it correctly.

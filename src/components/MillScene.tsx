@@ -47,6 +47,9 @@ const AuthoredFarm = recoverableLazy(() =>
 const AuthoredVillage = recoverableLazy(() =>
   import('./VillageArea').then((module) => ({ default: module.VillageArea }))
 );
+const CommunityLife = recoverableLazy(() =>
+  import('./CommunityLife').then((module) => ({ default: module.CommunityLife }))
+);
 const AuthoredTerrain = recoverableLazy(() =>
   import('./terrain').then((module) => ({ default: module.TerrainGround }))
 );
@@ -931,6 +934,7 @@ export const MillScene: React.FC<MillSceneProps> = ({
       </group>
       {authoredSiteReady && (
         <>
+          <CommunityLife />
           <StaticMeshBatch
             name="authored-factory-exterior"
             revision={staticBatchRevision}

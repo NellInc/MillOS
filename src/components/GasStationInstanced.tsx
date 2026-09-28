@@ -1,12 +1,11 @@
 import * as THREE from 'three';
 import { useGraphicsStore } from '../stores/graphicsStore';
-import { DeadDinoPylonFace } from './scenery/HeritageSignage';
+import { DeadDinoPylonFace, IlluminatedSignText } from './scenery/HeritageSignage';
 import { ExteriorDownlight } from './exterior/ExteriorLighting';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { EXTERIOR_LAYERS } from '../constants/renderLayers';
 import { GAS_STATION_SITE } from '../constants/siteLayout';
 import React, { useRef, useMemo, useLayoutEffect } from 'react';
-import { SceneText as Text } from './shared/SceneText';
 import { PROCEDURAL_TEXTURES } from '../utils/sharedMaterials';
 import { GeneratedBoundary, GeneratedModel } from './models/GeneratedModel';
 import { GeneratedBoxSurface, GeneratedSurfaceMesh } from './models/GeneratedGeometrySurface';
@@ -1102,8 +1101,9 @@ export const GasStation = React.memo<GasStationProps>(
           ]}
         />
         {[-1, 1].map((side) => (
-          <Text
+          <IlluminatedSignText
             key={`canopy-wordmark-${side}`}
+            name={`station-canopy-wordmark-${side}`}
             position={[0, 4.64, side * 6.28]}
             rotation={[0, side < 0 ? Math.PI : 0, 0]}
             fontSize={0.28}
@@ -1114,9 +1114,10 @@ export const GasStation = React.memo<GasStationProps>(
             surface="painted"
           >
             DEAD DINO
-          </Text>
+          </IlluminatedSignText>
         ))}
-        <Text
+        <IlluminatedSignText
+          name="station-shop-wordmark"
           position={[-7.91, 3.97, 0]}
           rotation={[0, Math.PI / 2, 0]}
           fontSize={0.38}
@@ -1127,7 +1128,7 @@ export const GasStation = React.memo<GasStationProps>(
           surface="painted"
         >
           SHOP / COFFEE
-        </Text>
+        </IlluminatedSignText>
 
         {/* ========== FUEL PUMPS (back-to-back, line toward shop) ========== */}
         {/* Single island running along X axis toward shop */}
@@ -1211,7 +1212,7 @@ export const GasStation = React.memo<GasStationProps>(
             position={[0, 7.2, 0]}
             castShadow
           />
-          {/* Both printed faces share artwork; no squashed Tripo relief or unlit type. */}
+          {/* Two backlit faces share the printed artwork and the site dusk dimmer. */}
           {[1, -1].map((side) => (
             <group
               key={side}

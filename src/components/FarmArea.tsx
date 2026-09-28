@@ -14,6 +14,8 @@ import { useReducedMotion } from '../hooks/useReducedMotion';
 import {
   advanceCreatureStride,
   creatureCadence,
+  creatureForageWeight,
+  creaturePerchLook,
   creaturePoseBlend,
   creatureTravelDistance,
 } from '../simulation/creatureMotion';
@@ -278,6 +280,32 @@ function createWindmillHubGeometry(): THREE.LatheGeometry {
   );
 }
 
+/** Brimmed straw hat restored from the authored field effigy; crown y=0.168 at r=0.2. */
+function createStrawHatGeometry(): THREE.LatheGeometry {
+  return lathe(
+    [
+      [0.0, -0.148], // underside centre - a shallow dome under the crown
+      [0.21, -0.156],
+      [0.39, -0.176],
+      [0.522, -0.192],
+      [0.6, -0.2], // brim edge - envelope max radius and min y
+      [0.545, -0.163], // brim upper face sweeps back up
+      [0.438, -0.122],
+      [0.356, -0.084],
+      [0.326, -0.058], // brim break into the crown
+      [0.322, 0.006], // hat band
+      [0.31, 0.058],
+      [0.292, 0.098], // crown shoulder rounds over
+      [0.252, 0.14],
+      [0.192, 0.172],
+      [0.116, 0.193],
+      [0.052, 0.2],
+      [0.0, 0.2], // crown top - envelope max y
+    ],
+    16
+  );
+}
+
 /**
  * Round hay bale - replaces `CylinderGeometry(0.5, 0.5, 0.8, 16)`.
  *
@@ -431,6 +459,11 @@ const SG = {
   // Grain Field
   cornStalk: new THREE.CylinderGeometry(0.05, 0.08, 1.8, 4),
   cornLeaf: new THREE.ConeGeometry(0.1, 0.8, 3),
+  scarecrowPole: new THREE.CylinderGeometry(0.08, 0.08, 2.5, 5),
+  scarecrowArm: new THREE.CylinderGeometry(0.06, 0.06, 1.8, 5),
+  pumpkinHead: new THREE.SphereGeometry(0.35, 16, 12),
+  strawHat: createStrawHatGeometry(),
+  scarecrowBox: new THREE.BoxGeometry(1, 1, 1),
   crowBody: new THREE.ConeGeometry(0.1, 0.3, 4),
   crowHead: new THREE.SphereGeometry(0.08, 4, 4),
 };
@@ -567,6 +600,10 @@ const SM = {
     roughness: 0.9,
     side: THREE.DoubleSide,
   }),
+  pumpkinOrange: new THREE.MeshStandardMaterial({ color: '#d87b30', roughness: 0.8 }),
+  strawHat: new THREE.MeshStandardMaterial({ color: '#c4a45c', roughness: 1 }),
+  denimBlue: new THREE.MeshStandardMaterial({ color: '#456780', roughness: 0.9 }),
+  plaidRed: new THREE.MeshStandardMaterial({ color: '#923b36', roughness: 0.9 }),
   crowBlack: new THREE.MeshStandardMaterial({ color: '#212121', roughness: 0.6 }),
 };
 
@@ -1807,6 +1844,7 @@ const Crow = React.memo<{ position: [number, number, number]; rotation?: number 
     const nextHeartId = useRef(0);
     const rigRef = useRef<CreatureRigHandle>(null);
     const shakenRef = useRef(false);
+    const lastLook = useRef(0);
     // Perch phase, seeded off the crow's own position so two birds on two
     // perches would not stab in lockstep. Deterministic, unlike Math.random,
     // which re-rolls on every remount.
@@ -1830,20 +1868,25 @@ const Crow = React.memo<{ position: [number, number, number]; rotation?: number 
         rig.setGraze(0);
         return;
       }
-      // Cleared once rather than every sample: each setter rebuilds the whole
-      // pose and calls `updateMatrixWorld`, so an unconditional write here
-      // would double the bird's rig cost for a value that has not changed.
-      if (shakenRef.current) {
-        rig.setHeadShake(0);
+      // Each setter rebuilds the pose, so don't rewrite a held head angle.
+      const look = creaturePerchLook(time, 601);
+      if (look !== lastLook.current || shakenRef.current) {
+        rig.setHeadShake(look);
+        lastLook.current = look;
         shakenRef.current = false;
       }
       const wave = Math.sin(time * CROW_PECK_RATE + phase);
-      rig.setGraze(THREE.MathUtils.smoothstep(wave, CROW_PECK_DUTY, 1));
+      rig.setGraze(
+        Math.abs(look) > 0.01
+          ? 0
+          : THREE.MathUtils.smoothstep(wave, CROW_PECK_DUTY, 1) * creatureForageWeight(time, 601)
+      );
     });
 
     useEffect(() => {
       if (!isExcited && shakenRef.current) {
         rigRef.current?.setHeadShake(0);
+        lastLook.current = 0;
         shakenRef.current = false;
       }
     }, [isExcited]);
@@ -1869,8 +1912,10 @@ const Crow = React.memo<{ position: [number, number, number]; rotation?: number 
 
     return (
       <group
+        name="scarecrow-crow"
         position={position}
         rotation={[0, rotation, 0]}
+        userData={{ dynamic: true }}
         onClick={handlePet}
         onPointerOver={setPointerCursor}
         onPointerOut={resetCursor}
@@ -1887,6 +1932,109 @@ const Crow = React.memo<{ position: [number, number, number]; rotation?: number 
   }
 );
 Crow.displayName = 'Crow';
+
+export const Scarecrow = React.memo<{ position: [number, number, number]; rotation?: number }>(
+  ({ position, rotation = 0 }) => (
+    <group name="field-scarecrow" position={position} rotation={[0, rotation, 0]}>
+      {/* Pole */}
+      <mesh position={[0, 1.25, 0]} castShadow>
+        <primitive object={SG.scarecrowPole} attach="geometry" />
+        <primitive object={SM.woodBrown} attach="material" />
+      </mesh>
+      {/* Arms */}
+      <mesh position={[0, 1.8, 0]} rotation={[0, 0, 1.57]} castShadow>
+        <primitive object={SG.scarecrowArm} attach="geometry" />
+        <primitive object={SM.woodBrown} attach="material" />
+      </mesh>
+      {/* Shirt */}
+      <mesh position={[0, 1.8, 0]} castShadow>
+        <boxGeometry args={[0.55, 0.9, 0.3]} />
+        <primitive object={SM.plaidRed} attach="material" />
+      </mesh>
+      {/* Sleeves, cuffs and a mended knee preserve the handmade field character. */}
+      {[-1, 1].map((side) => (
+        <group key={side}>
+          <mesh position={[side * 0.55, 1.8, 0]} scale={[0.5, 0.28, 0.29]}>
+            <primitive object={SG.scarecrowBox} attach="geometry" />
+            <primitive object={SM.plaidRed} attach="material" />
+          </mesh>
+          <mesh position={[side * 0.77, 1.8, 0]} scale={[0.07, 0.3, 0.31]}>
+            <primitive object={SG.scarecrowBox} attach="geometry" />
+            <primitive object={SM.hayDark} attach="material" />
+          </mesh>
+          <mesh position={[side * 0.13, 1.8, 0.155]} scale={[0.035, 0.87, 0.012]}>
+            <primitive object={SG.scarecrowBox} attach="geometry" />
+            <primitive object={SM.hayDark} attach="material" />
+          </mesh>
+        </group>
+      ))}
+      {[1.5, 1.72, 1.94, 2.15].map((y) => (
+        <mesh key={y} position={[0, y, 0.155]} scale={[0.55, 0.025, 0.014]}>
+          <primitive object={SG.scarecrowBox} attach="geometry" />
+          <primitive object={SM.hayDark} attach="material" />
+        </mesh>
+      ))}
+      <mesh position={[-0.15, 0.87, 0.115]} rotation={[0, 0, 0.12]} scale={[0.13, 0.19, 0.018]}>
+        <primitive object={SG.scarecrowBox} attach="geometry" />
+        <primitive object={SM.plaidRed} attach="material" />
+      </mesh>
+      {/* Straw hands */}
+      <mesh position={[0.9, 1.8, 0]}>
+        <sphereGeometry args={[0.15, 8, 8]} />
+        <primitive object={SM.hay} attach="material" />
+      </mesh>
+      <mesh position={[-0.9, 1.8, 0]}>
+        <sphereGeometry args={[0.15, 8, 8]} />
+        <primitive object={SM.hay} attach="material" />
+      </mesh>
+      {/* Jeans */}
+      <group position={[0, 1.0, 0]}>
+        <mesh position={[-0.15, 0, 0]}>
+          <boxGeometry args={[0.18, 0.9, 0.22]} />
+          <primitive object={SM.denimBlue} attach="material" />
+        </mesh>
+        <mesh position={[0.15, 0, 0]}>
+          <boxGeometry args={[0.18, 0.9, 0.22]} />
+          <primitive object={SM.denimBlue} attach="material" />
+        </mesh>
+      </group>
+      {/* Scarf */}
+      <mesh position={[0, 2.25, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[0.2, 0.08, 8, 16]} />
+        <meshStandardMaterial color="#d32f2f" />
+      </mesh>
+      {/* Head */}
+      <mesh position={[0, 2.5, 0]} castShadow>
+        <primitive object={SG.pumpkinHead} attach="geometry" />
+        <primitive object={SM.pumpkinOrange} attach="material" />
+      </mesh>
+      {/* Eyes/Mouth */}
+      <mesh position={[0.115, 2.55, 0.35]}>
+        <circleGeometry args={[0.05, 3]} />
+        <meshStandardMaterial color="#3e2723" />
+      </mesh>
+      <mesh position={[-0.115, 2.55, 0.35]}>
+        <circleGeometry args={[0.05, 3]} />
+        <meshStandardMaterial color="#3e2723" />
+      </mesh>
+      <mesh position={[0, 2.44, 0.35]} rotation={[0, 0, Math.PI]}>
+        <torusGeometry args={[0.08, 0.012, 5, 12, Math.PI]} /> {/* Stitched smile */}
+        <meshStandardMaterial color="#3e2723" />
+      </mesh>
+      {/* Hat */}
+      <mesh position={[0, 2.85, 0]} castShadow>
+        <primitive object={SG.strawHat} attach="geometry" />
+        <primitive object={SM.strawHat} attach="material" />
+      </mesh>
+      {/* Crow on Hat. Seated on the crown at radius 0.2, where the new profile's
+          surface sits at hat-local y 0.168. It was at 3.05, the cone's apex
+          height, and so had been perching 0.13 m above the cone's actual
+          surface at that radius. */}
+      <Crow position={[0.2, 3.018, 0]} rotation={0.5} />
+    </group>
+  )
+);
+Scarecrow.displayName = 'Scarecrow';
 
 const InstancedGrainField = React.memo(() => {
   const stalksRef = useRef<THREE.InstancedMesh>(null);
@@ -2485,7 +2633,8 @@ export const FarmArea: React.FC = () => {
     chickenAnimRefs.forEach((ref, i) => {
       const idle = chickenStates.current[i].isIdle;
       const target = idle
-        ? 0.5 + Math.sin(time * 3 * chickenStates.current[i].cadence + chickenOffsets[i]) * 0.5
+        ? (0.5 + Math.sin(time * 3 * chickenStates.current[i].cadence + chickenOffsets[i]) * 0.5) *
+          creatureForageWeight(time, 100 + i)
         : 0;
       chickenPeck.current[i] = THREE.MathUtils.lerp(chickenPeck.current[i], target, blend(0.25));
       chickenStride.current[i] = THREE.MathUtils.lerp(
@@ -2524,7 +2673,8 @@ export const FarmArea: React.FC = () => {
       if (!rig) return;
       const idle = pigStates.current[i].isIdle;
       const target = idle
-        ? 0.75 + Math.sin(time * 1.6 * pigStates.current[i].cadence + pigOffsets[i]) * 0.25
+        ? (0.75 + Math.sin(time * 1.6 * pigStates.current[i].cadence + pigOffsets[i]) * 0.25) *
+          creatureForageWeight(time, 200 + i)
         : 0;
       pigRoot.current[i] = THREE.MathUtils.lerp(pigRoot.current[i], target, blend(0.15));
       pigStride.current[i] = THREE.MathUtils.lerp(
@@ -2536,14 +2686,14 @@ export const FarmArea: React.FC = () => {
       rig.setStride(pigStates.current[i].stridePhase + pigOffsets[i], pigStride.current[i]);
     });
 
-    // Sheep and the horse have no wander state, so their graze is not gated on
-    // idleness - it is a slow, continuous crop with the head coming up between
-    // mouthfuls. The floor of the sine is what stops four sheep and a horse
-    // from standing nose-down for the whole session.
+    // Fixed-place grazers take independently timed head-up rests between bouts.
+    // Their feet remain planted; no new wander route can cross a fence or path.
     sheepRigRefs.forEach((rigRef, i) => {
       const rig = rigRef.current;
       if (!rig) return;
-      const target = 0.6 + Math.sin(time * 0.35 * creatureCadence(400 + i) + sheepOffsets[i]) * 0.4;
+      const target =
+        (0.6 + Math.sin(time * 0.35 * creatureCadence(400 + i) + sheepOffsets[i]) * 0.4) *
+        creatureForageWeight(time, 400 + i);
       sheepGraze.current[i] = THREE.MathUtils.lerp(sheepGraze.current[i], target, blend(0.08));
       rig.setGraze(sheepGraze.current[i]);
     });
@@ -2552,7 +2702,7 @@ export const FarmArea: React.FC = () => {
       // Slower and shallower than the sheep. `reached: 0.44` is a rig limit -
       // that neck curls rather than extends - so driving it to a hard 1.0 buys
       // no more reach and only holds the pose longer.
-      const target = 0.55 + Math.sin(time * 0.28) * 0.35;
+      const target = (0.55 + Math.sin(time * 0.28) * 0.35) * creatureForageWeight(time, 500);
       horseGraze.current = THREE.MathUtils.lerp(horseGraze.current, target, blend(0.06));
       horseRigRef.current.setGraze(horseGraze.current);
     }
@@ -2564,7 +2714,8 @@ export const FarmArea: React.FC = () => {
     cowHeadRefs.forEach((ref, i) => {
       const idle = cowStates.current[i].isIdle;
       const target = idle
-        ? 0.85 + Math.sin(time * 0.5 * cowStates.current[i].cadence + cowOffsets[i]) * 0.15
+        ? (0.85 + Math.sin(time * 0.5 * cowStates.current[i].cadence + cowOffsets[i]) * 0.15) *
+          creatureForageWeight(time, 300 + i)
         : 0;
       cowGraze.current[i] = THREE.MathUtils.lerp(cowGraze.current[i], target, blend(0.1));
       cowStride.current[i] = THREE.MathUtils.lerp(
@@ -2670,14 +2821,6 @@ export const FarmArea: React.FC = () => {
         />
       ))}
       <group position={[-12, 0, -5]}>
-        {/* The crow's only mount was the straw effigy the uncrewed contract
-            removes (`config/humanPresencePolicy.test.ts`). Re-seated on the
-            pen's corner post rather than deleted: `farm/crow.glb` is a rigged
-            asset that was already declared, validated and bundled, and an
-            unmounted one is exactly the silent loss
-            `__tests__/primitiveBodyLeaves.test.ts` exists to catch. The post is
-            a 1 m cylinder centred at y 0.5, so its cap is at 1.0. */}
-        <Crow position={[3, 1, -3]} rotation={-0.6} />
         <FenceSection position={[0, 0, -3]} length={6} />
         <FenceSection position={[0, 0, 3]} length={6} />
         <FenceSection position={[-3, 0, 0]} rotation={Math.PI / 2} length={6} />
@@ -2833,6 +2976,7 @@ export const FarmArea: React.FC = () => {
       <group position={[0, 0, -42]}>
         {/* Simple Grain Field - Instanced Loops */}
         <InstancedGrainField />
+        <Scarecrow position={[0, 0, 0]} rotation={0.2} />
       </group>
 
       {/* Paint Horse next to hay bales */}

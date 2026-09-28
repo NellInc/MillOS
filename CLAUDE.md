@@ -308,8 +308,10 @@ The app uses both React local state (App.tsx) and Zustand global state (store.ts
 
 ## Emergency Egress Verification Drill
 
-The site is uncrewed (see `scripts/validate-uncrewed-build.mjs`), so the drill is an automated
-egress-verification sequence rather than a worker evacuation. It is started from the Safety panel
+The site has anonymous local personnel and autonomous logistics (see `npm run validate:community`).
+The drill remains an automated egress-verification sequence, not a simulated worker evacuation.
+Personnel hold their current safe positions during the stop; the zone results do not certify an
+evacuation. Working if the drill stops movement and reports only verified egress zones. It is started from the Safety panel
 (`src/components/ui-new/panels/SafetyPanel.tsx`, Controls tab) or through the agent command
 `simulation.start-fire-drill`.
 

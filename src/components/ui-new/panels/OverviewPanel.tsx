@@ -612,7 +612,7 @@ export const OverviewPanel: React.FC = React.memo(() => {
         </div>
         <div className="bg-slate-800/50 border border-white/5 rounded-xl p-3">
           <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">Site Mode</div>
-          <div className="text-sm font-bold text-white">Uncrewed</div>
+          <div className="text-sm font-bold text-white">Staffed · Autonomous logistics</div>
         </div>
       </section>
 
