@@ -224,6 +224,7 @@ const rootIndex = `<!DOCTYPE html>
   <title>MillOS | 3D Grain Mill Operations Simulator</title>
   <meta name="description" content="Explore MillOS, a browser-based autonomous 3D grain mill operations simulator with deterministic logistics, production metrics, and a simulated SCADA workspace." />
   <link rel="canonical" href="https://www.millos.net/" />
+  <link rel="describedby" href="/llms.txt" type="text/plain" />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://www.millos.net/" />
   <meta property="og:title" content="MillOS | 3D Grain Mill Operations Simulator" />
@@ -250,7 +251,7 @@ const rootIndex = `<!DOCTYPE html>
 fs.writeFileSync(path.join(outputDirectory, 'index.html'), rootIndex);
 fs.copyFileSync(releaseMatrixPath, path.join(outputDirectory, 'release-matrix.json'));
 
-for (const file of ['robots.txt', 'sitemap.xml', 'og-image.png']) {
+for (const file of ['robots.txt', 'sitemap.xml', 'og-image.png', 'llms.txt']) {
   fs.copyFileSync(path.join(publicDirectory, file), path.join(outputDirectory, file));
 }
 fs.copyFileSync(path.join(projectRoot, 'CNAME'), path.join(outputDirectory, 'CNAME'));

@@ -1,0 +1,9 @@
+# MillOS
+
+> MillOS is a browser-based 3D grain mill operations simulator with deterministic logistics, production metrics, and a simulated SCADA workspace.
+
+## Public resources
+
+- [Home](https://www.millos.net/): Entry point to the current simulator release.
+- [Simulator](https://www.millos.net/v0.40/): The publicly served current simulator.
+- [Release matrix](https://www.millos.net/release-matrix.json): Public release inventory and archive identities.
