@@ -9,6 +9,7 @@ import {
 } from './utils/serviceWorkerRegistration';
 import { logger } from './utils/logger';
 import { isBenchmarkRuntime } from './runtime/runtimeMode';
+import { installPhysicalSession } from './utils/physicalSession';
 
 performance.mark('millos:bootstrap');
 
@@ -43,6 +44,8 @@ window.addEventListener('error', (event: ErrorEvent): void => {
 // StrictMode disabled for 3D app - causes double-renders that tank performance in dev
 // Production builds are unaffected (StrictMode only runs in development)
 const RootComponent = App;
+
+if (!isBenchmarkRuntime()) installPhysicalSession();
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <ErrorBoundary>

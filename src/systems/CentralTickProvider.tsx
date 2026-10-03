@@ -32,6 +32,8 @@
 import { useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
+import { getStartupSnapshot } from '../utils/startupReadiness';
+import { isPhysicalSessionRestoring } from '../utils/physicalSession';
 import { centralTick } from './CentralTickSystem';
 
 export const CentralTickProvider: React.FC = () => {
@@ -39,8 +41,10 @@ export const CentralTickProvider: React.FC = () => {
   useFrame((state) => {
     const { gameTime, gameSpeed, isTabVisible } = useGameSimulationStore.getState();
 
-    // Skip if tab not visible
-    if (!isTabVisible) return;
+    // Render warm-up continues behind the overlay; simulation waits for real
+    // readiness. Working if clocks and deadlines stay frozen through recovery
+    // and obsolete DOM fallback markers cannot start a partially loaded shift.
+    if (!isTabVisible || !getStartupSnapshot().ready || isPhysicalSessionRestoring()) return;
 
     // Run central tick (queues non-critical callbacks for lazy execution)
     centralTick.tick(state.clock.elapsedTime, gameTime, gameSpeed);
