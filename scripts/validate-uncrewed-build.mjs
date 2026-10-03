@@ -85,9 +85,13 @@ export function forbiddenPersonnelRuntime(content) {
 export function validateCommunitySource({ policy, scene, community }) {
   const failures = [];
   if (!/personnelModels\s*:\s*true/.test(policy)) failures.push('personnelModels must be enabled');
-  for (const flag of ['vehicleOperators', 'remoteAvatars', 'humanVoiceAudio', 'workforceUI']) {
+  for (const flag of ['vehicleOperators', 'remoteAvatars', 'humanVoiceAudio']) {
     if (!new RegExp(`${flag}\\s*:\\s*false`).test(policy))
       failures.push(`${flag} must remain disabled`);
+  }
+  for (const flag of ['workforceUI', 'syntheticWorkplaceOnly']) {
+    if (!new RegExp(`${flag}\\s*:\\s*true`).test(policy))
+      failures.push(`${flag} must be enabled for the local synthetic workplace laboratory`);
   }
   if (
     !/import\s+(?:[^;]*?from\s*)?['"][^'"]*CommunityLife['"]|import\(['"][^'"]*CommunityLife['"]\)/.test(

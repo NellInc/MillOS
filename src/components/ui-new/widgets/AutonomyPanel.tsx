@@ -4,6 +4,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { useProductionStore } from '../../../stores/productionStore';
 import { useSafetyStore } from '../../../stores/safetyStore';
 import { AgentCockpit } from './AgentCockpit';
+import { WorkplaceLab } from './WorkplaceLab';
 
 const clampPercent = (value: number): number => Math.min(100, Math.max(0, value));
 
@@ -73,6 +74,7 @@ export const AutonomyPanel: React.FC = () => {
 
   return (
     <div className="space-y-4 p-3" data-testid="autonomy-panel">
+      <WorkplaceLab />
       <section className="overflow-hidden rounded-2xl border border-cyan-400/20 bg-gradient-to-br from-cyan-950/45 via-slate-950/80 to-slate-950/95 p-4">
         <div className="flex items-center gap-3">
           <div className="rounded-xl border border-cyan-400/20 bg-cyan-400/10 p-2.5">

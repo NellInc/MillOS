@@ -4,7 +4,7 @@ import { ContextSidebar } from './sidebar/ContextSidebar';
 import { StatusHUD } from './hud/StatusHUD';
 import { EmergencyOverlay } from '../EmergencyOverlay';
 import { AlertSystem } from '../AlertSystem';
-import { MachineData } from '../../types';
+import { MachineData, MachineType } from '../../types';
 import {
   PAAnnouncementSystem,
   GamificationBar,
@@ -27,14 +27,18 @@ import { KeyboardShortcutsModal } from '../ui/KeyboardShortcutsModal';
 import { OnboardingGuide, type OnboardingStep } from './onboarding/OnboardingGuide';
 import { useCameraStore } from '../CameraController';
 import { getTourCameraPreset } from './onboarding/tourCamera';
+import { FirstDeliveryJourney } from './onboarding/PlayableShift';
+import { useOperationsCampaignStore } from '../../stores/operationsCampaignStore';
 import { MillOSMusicPlayer } from './MillOSMusicPlayer';
+import { WorkplaceCompanion } from './widgets/WorkplaceCompanion';
+import { useWorkplaceStore } from '../../stores/workplaceStore';
 
 const INTRO_STEPS: OnboardingStep[] = [
   {
     title: 'Follow the grain',
     icon: 'factory',
     content:
-      'Grain enters the silos, passes through milling and sifting, and leaves as packed flour. Follow the route to understand how each stage supports the next.',
+      'The tour holds the shift clock while you look around. Grain enters the silos, passes through milling and sifting, and leaves as packed flour. Follow the route to understand how each stage supports the next.',
   },
   {
     title: "Protect the day's flour",
@@ -46,7 +50,7 @@ const INTRO_STEPS: OnboardingStep[] = [
     title: 'Look first, touch second',
     icon: 'controls',
     content:
-      'Select any machine for its status, buffers, and maintenance record. The dock opens production, safety, autonomy, and SCADA workspaces. Press ? for controls.',
+      'Select any machine for its status, buffers, and maintenance record. Start operating begins the guided delivery at relaxed pace, preserving any pace you already chose. Shift pace lets you pause or speed it up. Press ? for controls.',
   },
 ];
 
@@ -104,7 +108,19 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
   // First-load onboarding intro (persisted flag; shown once ever)
   const hasSeenIntro = useUIStore((s) => s.hasSeenIntro);
   const setHasSeenIntro = useUIStore((s) => s.setHasSeenIntro);
+  const journeyVisible = useUIStore((s) => s.journeyVisible);
+  const startDeliveryJourney = useUIStore((s) => s.startDeliveryJourney);
   const [introStep, setIntroStep] = useState<number | null>(null);
+  const introPaceRef = React.useRef<number | null>(null);
+  const releaseTourClock = React.useCallback((guided: boolean) => {
+    const previousPace = introPaceRef.current;
+    introPaceRef.current = null;
+    const simulation = useGameSimulationStore.getState();
+    // Release only our own hold; preserve a newer clock choice from another control.
+    if (previousPace !== null && simulation.gameSpeed === 0) {
+      simulation.setGameSpeed(guided && previousPace === 180 ? 30 : previousPace);
+    }
+  }, []);
 
   useEffect(() => {
     setPAContext({
@@ -121,7 +137,12 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
     if (hasSeenIntro) return;
     let timer: ReturnType<typeof setTimeout> | null = null;
     const showWhenReady = () => {
-      timer = setTimeout(() => setIntroStep(0), 700);
+      timer = setTimeout(() => {
+        const simulation = useGameSimulationStore.getState();
+        introPaceRef.current = simulation.gameSpeed;
+        simulation.setGameSpeed(0);
+        setIntroStep(0);
+      }, 700);
     };
     if (document.documentElement.dataset.sceneReady === 'true') {
       showWhenReady();
@@ -131,21 +152,39 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
     return () => {
       window.removeEventListener('millos:first-frame', showWhenReady);
       if (timer) clearTimeout(timer);
+      releaseTourClock(false);
     };
-  }, [hasSeenIntro]);
+  }, [hasSeenIntro, releaseTourClock]);
 
   useEffect(() => {
     const preset = getTourCameraPreset(introStep);
     if (preset !== null) useCameraStore.getState().setPreset(preset);
   }, [introStep]);
 
+  // Inspection receipts survive compact inspectors hiding the guide itself.
+  useEffect(() => {
+    if (!journeyVisible || !selectedMachine) return;
+    if (
+      [
+        MachineType.SILO,
+        MachineType.ROLLER_MILL,
+        MachineType.PLANSIFTER,
+        MachineType.PACKER,
+      ].includes(selectedMachine.type)
+    ) {
+      useUIStore.getState().recordMachineInspection(selectedMachine.id);
+    }
+  }, [journeyVisible, selectedMachine]);
+
   const handleIntroNext = () => {
     const next = (introStep ?? 0) + 1;
     if (next >= INTRO_STEPS.length) {
+      releaseTourClock(true);
       setHasSeenIntro(true);
       setIntroStep(null);
-      if (isCompactLayout) useMobileControlStore.getState().openMobilePanel('overview');
-      else setSidebarVisible(true);
+      const campaign = useOperationsCampaignStore.getState();
+      startDeliveryJourney(campaign.activeOrderId ?? campaign.orders[0]?.id ?? null);
+      setSidebarVisible(false);
       return;
     }
     setIntroStep(next);
@@ -156,12 +195,14 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
   };
 
   const handleIntroSkip = () => {
+    releaseTourClock(false);
     setHasSeenIntro(true);
     setIntroStep(null);
     useCameraStore.getState().cancelAnimation();
   };
 
   const handleIntroClose = () => {
+    releaseTourClock(false);
     setIntroStep(null);
     useCameraStore.getState().cancelAnimation();
   };
@@ -270,6 +311,25 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
     if (mode !== 'scada') onCloseSelection();
   };
 
+  useEffect(() => {
+    const openWorkspace = (event: Event) => {
+      const requestedMode = (event as CustomEvent<unknown>).detail;
+      if (requestedMode !== 'overview' && requestedMode !== 'scada' && requestedMode !== 'autonomy')
+        return;
+      const mode = requestedMode === 'autonomy' ? 'management' : requestedMode;
+      if (isCompactLayout) useMobileControlStore.getState().openMobilePanel(mode);
+      else {
+        setActiveMode(mode);
+        setSidebarVisible(true);
+        onAIPanelChange?.(false);
+        onSCADAPanelChange?.(mode === 'scada');
+        if (mode !== 'scada') onCloseSelection();
+      }
+    };
+    window.addEventListener('millos:open-operations-workspace', openWorkspace);
+    return () => window.removeEventListener('millos:open-operations-workspace', openWorkspace);
+  }, [isCompactLayout, onAIPanelChange, onCloseSelection, onSCADAPanelChange]);
+
   const handleSidebarClose = () => {
     const closingMode = activeMode;
 
@@ -302,6 +362,19 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
 
   // Determine if Sidebar should be visible
   const isSidebarVisible = sidebarVisible;
+  const hasWorkingAgreement = useWorkplaceStore(
+    (store) => store.workplace.mode === 'game' && store.workplace.phase !== 'idle'
+  );
+  const quietSlotAvailable =
+    introStep === null &&
+    !journeyVisible &&
+    activeMode === 'overview' &&
+    !isSidebarVisible &&
+    !mobilePanelVisible &&
+    !fpsMode &&
+    !hasCriticalAlert &&
+    !safetyStateActive &&
+    !showShortcuts;
 
   return (
     <div
@@ -351,6 +424,7 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
           sidebarVisible={!isCompactLayout && isSidebarVisible}
           distractionFree={
             introStep !== null ||
+            journeyVisible ||
             safetyStateActive ||
             hasCriticalAlert ||
             isSidebarVisible ||
@@ -387,10 +461,23 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
         <Datalinks isOpen={datalinksOpen} onClose={() => setDatalinksOpen(false)} />
       )}
 
+      {hasWorkingAgreement && quietSlotAvailable && (
+        <WorkplaceCompanion
+          onOpen={() =>
+            window.dispatchEvent(
+              new CustomEvent('millos:open-operations-workspace', { detail: 'autonomy' })
+            )
+          }
+        />
+      )}
+
       {/* 9. Quiet AI reflection card. It queues behind focused or safety-critical work. */}
       {FEATURE_FLAGS.AI_NARRATION_ENABLED &&
         currentNarration &&
+        !hasWorkingAgreement &&
+        !showShortcuts &&
         introStep === null &&
+        !journeyVisible &&
         activeMode === 'overview' &&
         !isSidebarVisible &&
         !mobilePanelVisible &&
@@ -417,6 +504,28 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
           onClose={handleIntroClose}
         />
       )}
+
+      {/* Operational guidance remains useful alongside alarm notifications.
+          Historical notifications have no live condition lifecycle; actual safety stops do. */}
+      {journeyVisible &&
+        introStep === null &&
+        !fpsMode &&
+        !safetyStateActive &&
+        !showShortcuts &&
+        (!isCompactLayout || !mobilePanelVisible) && (
+          <FirstDeliveryJourney
+            selectedMachine={selectedMachine}
+            onOpenWorkspace={(mode) => {
+              if (isCompactLayout) useMobileControlStore.getState().openMobilePanel(mode);
+              else {
+                setActiveMode(mode);
+                setSidebarVisible(true);
+                onSCADAPanelChange?.(mode === 'scada');
+                if (mode !== 'scada') onCloseSelection();
+              }
+            }}
+          />
+        )}
 
       {/* 10. Keyboard Shortcuts Help (? key) */}
       <KeyboardShortcutsModal isOpen={showShortcuts} onClose={() => setShowShortcuts(false)} />

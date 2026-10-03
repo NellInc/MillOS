@@ -65,14 +65,16 @@ export const FEATURE_FLAGS = {
 /** Anonymous, locally rendered people inhabit the site. Autonomous testing was
  * the original constraint, never an instruction to remove simulated residents.
  * Vehicles remain autonomous; no real-person portraits, remote avatars or voices.
- * Working if the presence gate finds the approved crew while these exclusions hold.
+ * The workplace laboratory accepts only typed synthetic role inputs. Working if
+ * local agreements are visible while the asset, voice and remote-person gates hold.
  */
 export const HUMAN_PRESENCE_POLICY = Object.freeze({
   personnelModels: true,
   vehicleOperators: false,
   remoteAvatars: false,
   humanVoiceAudio: false,
-  workforceUI: false,
+  workforceUI: true,
+  syntheticWorkplaceOnly: true,
 } as const);
 
 // =============================================================================

@@ -21,7 +21,12 @@ import { useGraphicsStore } from '../../stores/graphicsStore';
 import { createDisplacedGeometry } from '../terrain/TerrainGround';
 import { getTerrainGridSegments, TERRAIN_BOUNDS } from '../terrain/terrainTypes';
 import { VILLAGE_TERRACE } from '../terrain/splatMapGenerator';
-import { RIVER_FOOTBRIDGE_DECK } from '../../constants/siteLayout';
+import {
+  RIVER_FOOTBRIDGE_DECK,
+  RIVER_FOOTBRIDGE_STEPS,
+  RIVER_FOOTBRIDGE_LANDINGS,
+  RIVER_FOOTBRIDGE_ACCESS,
+} from '../../constants/siteLayout';
 
 /**
  * Reuse the rendered terrain assembly. Only raised triangles need another
@@ -129,6 +134,18 @@ export function generateObstacles(): ObstacleData[] {
     minY: bridgeY - bridgeHeight / 2,
     maxY: bridgeY + bridgeHeight / 2,
   });
+
+  for (const [index, step] of [...RIVER_FOOTBRIDGE_STEPS, ...RIVER_FOOTBRIDGE_LANDINGS].entries()) {
+    obstacles.push({
+      id: `river-footbridge-access-${index}`,
+      minX: bridgeX - bridgeWidth / 2,
+      maxX: bridgeX + bridgeWidth / 2,
+      minZ: step.minZ,
+      maxZ: step.maxZ,
+      minY: RIVER_FOOTBRIDGE_ACCESS.baseY,
+      maxY: step.top,
+    });
+  }
 
   // LockGate walkway at [-145, 50], width=10
   // Walkway at y=3, dimensions [11.5, 0.15, 1]

@@ -7,6 +7,7 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useUIStore } from '../uiStore';
+import { sanitizeUIState } from '../persistenceMigrations';
 import { AlertData } from '../../types';
 
 // Helper to create mock alert
@@ -334,5 +335,32 @@ describe('UIStore', () => {
       };
       expect(migrated.showZones).toBe(true);
     });
+  });
+});
+
+describe('guided delivery receipts', () => {
+  it('sanitizes saved guidance without trusting completion claims', () => {
+    expect(
+      sanitizeUIState({
+        journeyVisible: true,
+        journeyOrderId: 'bakery',
+        inspectedMachineIds: ['mill', 4, 'mill'],
+        delivered: true,
+      })
+    ).toEqual({ journeyVisible: true, journeyOrderId: 'bakery', inspectedMachineIds: ['mill'] });
+    expect(
+      sanitizeUIState({ journeyVisible: 'yes', journeyOrderId: 7, inspectedMachineIds: 'mill' })
+    ).toEqual({});
+  });
+  it('replays guidance without modifying campaign or production', () => {
+    useUIStore.getState().startDeliveryJourney('bakery');
+    useUIStore.getState().recordMachineInspection('mill-1');
+    useUIStore.getState().recordMachineInspection('mill-1');
+    expect(useUIStore.getState().inspectedMachineIds).toEqual(['mill-1']);
+    useUIStore.getState().setJourneyVisible(false);
+    expect(useUIStore.getState().journeyOrderId).toBe('bakery');
+    useUIStore.getState().startDeliveryJourney('bakery');
+    expect(useUIStore.getState().inspectedMachineIds).toEqual([]);
+    expect(useUIStore.getState().journeyVisible).toBe(true);
   });
 });

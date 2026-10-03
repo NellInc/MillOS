@@ -1,4 +1,5 @@
 import React, { useState, Suspense, useEffect, useCallback, useRef } from 'react';
+import { registerReplayParticipant } from './simulation/workplaceReplayRuntime';
 import { Canvas } from '@react-three/fiber';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import * as THREE from 'three';
@@ -181,6 +182,19 @@ const App: React.FC = () => {
   }, [deferredUIReady, showOperationalUI]);
 
   const [productionSpeed, setProductionSpeedLocal] = useState(0.8);
+  const replayProductionSpeed = useRef(productionSpeed);
+  replayProductionSpeed.current = productionSpeed;
+  useEffect(
+    () =>
+      registerReplayParticipant('app-controls', {
+        capture: () => replayProductionSpeed.current,
+        restore: (speed) => {
+          replayProductionSpeed.current = speed;
+          setProductionSpeedLocal(speed);
+        },
+      }),
+    []
+  );
   // One source of truth for zone visibility: the desktop Z key, the Settings
   // panel and the mobile Settings switch all read and write the UI store.
   const showZones = useUIStore((state) => state.showZones);
@@ -647,6 +661,11 @@ const App: React.FC = () => {
         <ErrorBoundary fallback={WebGLErrorFallback}>
           <Canvas
             key={`canvas-depth-${enableLogarithmicDepth ? 'log' : 'linear'}`}
+            // R3F routes its first ResizeObserver notification through the
+            // scroll debounce too. This fixed viewport needs no 50 ms delay.
+            // Resize observation stays active; complete-world readiness still
+            // controls the loading cover independently of the core frame.
+            resize={{ debounce: 0 }}
             // SHADOWS SHIP AT THE DEFAULT PRESET.
             //
             // The shipping default is `medium`, so gating the shadow pass on

@@ -341,6 +341,42 @@ describe('applyDeclinedWorldSurface', () => {
 });
 
 describe('profile resolution', () => {
+  it.each([
+    'map',
+    'normalMap',
+    'bumpMap',
+    'roughnessMap',
+    'metalnessMap',
+    'aoMap',
+    'displacementMap',
+  ] as const)('preserves existing %s substrates in both automatic paths', (channel) => {
+    const texture = new THREE.Texture();
+    const material = new THREE.MeshStandardMaterial({ [channel]: texture, roughness: 1 });
+    const target = material.clone();
+    expect(resolveSurfaceProfile(material)).toBeNull();
+    expect(resolveBatchSurfaceProfile(material)).toBeNull();
+    expect(resolveSurfaceProfile(material, true)).toBe('masonry');
+    expect(applyDeclinedWorldSurface(material)).toBeNull();
+    expect(applyBatchWorldSurface(target, material)).toBeNull();
+    expect(material[channel]).toBe(texture);
+    expect(target[channel]).toBe(texture);
+    expect(hasWorldSurface(material)).toBe(false);
+    expect(hasWorldSurface(target)).toBe(false);
+    expect(material.onBeforeCompile).toBe(THREE.Material.prototype.onBeforeCompile);
+  });
+
+  it('retains an explicit textured opt-in through a batch clone', () => {
+    const map = new THREE.Texture();
+    const material = new THREE.MeshStandardMaterial({ map, roughness: 1 });
+    applyWorldSurface(material, 'masonry');
+    const clone = material.clone();
+    expect(hasWorldSurface(clone)).toBe(false); // JSON metadata is not an injection.
+    expect(applyBatchWorldSurface(clone, material)).toBe('masonry');
+    expect(hasWorldSurface(clone)).toBe(true);
+    expect(clone.map).toBe(map);
+    expect(clone.userData.millosWorldSurface.uSurfStrength).toBe(WORLD_SURFACE_STRENGTH);
+  });
+
   it('declines transparent, sub-unit-opacity and emissive surfaces', () => {
     const glass = new THREE.MeshStandardMaterial({ transparent: true, opacity: 0.3 });
     const marking = new THREE.MeshStandardMaterial({ opacity: 0.6 });

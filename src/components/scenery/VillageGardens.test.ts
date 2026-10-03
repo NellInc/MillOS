@@ -33,6 +33,38 @@ const hit = (
   ).intersectObject(mesh(geometry));
 
 describe('authored British/Dutch village plots', () => {
+  it('keeps each real home pane in standalone UV space with the expected upward V axis', () => {
+    for (const { glass } of VILLAGE_HOMES) {
+      const uv = glass.getAttribute('uv'),
+        position = glass.getAttribute('position');
+      const normal = glass.getAttribute('normal');
+      expect(uv.count).toBe(position.count);
+      let top = 0,
+        bottom = 0,
+        topCount = 0,
+        bottomCount = 0;
+      for (let i = 0; i < uv.count; i++) {
+        expect(uv.getX(i)).toBeGreaterThanOrEqual(0);
+        expect(uv.getX(i)).toBeLessThanOrEqual(1);
+        expect(uv.getY(i)).toBeGreaterThanOrEqual(0);
+        expect(uv.getY(i)).toBeLessThanOrEqual(1);
+        if (normal.getZ(i) > 0.99) {
+          if (uv.getY(i) === 1) {
+            top += position.getY(i);
+            topCount++;
+          }
+          if (uv.getY(i) === 0) {
+            bottom += position.getY(i);
+            bottomCount++;
+          }
+        }
+      }
+      expect(topCount).toBeGreaterThan(0);
+      expect(bottomCount).toBeGreaterThan(0);
+      expect(top / topCount).toBeGreaterThan(bottom / bottomCount);
+    }
+  });
+
   it('replaces five repeated bodies with distinct real silhouettes and palettes inside the home footprints', () => {
     expect(VILLAGE_HOMES).toHaveLength(5);
     const signatures = VILLAGE_HOMES.map(({ body }) => {
@@ -65,8 +97,13 @@ describe('authored British/Dutch village plots', () => {
       expect(c.count).toBe(p.count);
       expect([...c.array].every((x) => Number.isFinite(x) && x >= 0 && x <= 1)).toBe(true);
       const n = g.getAttribute('normal');
+      let maximumNormalError = 0;
       for (let i = 0; i < n.count; i++)
-        expect(Math.hypot(n.getX(i), n.getY(i), n.getZ(i))).toBeCloseTo(1, 4);
+        maximumNormalError = Math.max(
+          maximumNormalError,
+          Math.abs(Math.hypot(n.getX(i), n.getY(i), n.getZ(i)) - 1)
+        );
+      expect(maximumNormalError).toBeLessThan(0.00005);
     }
     expect(vertices / 3).toBeLessThan(40000);
     expect(VILLAGE_PLOT_MATERIAL.vertexColors).toBe(true);
@@ -83,6 +120,25 @@ describe('authored British/Dutch village plots', () => {
     }
     for (const x of [-0.82, 0, 0.82])
       expect(hit(VILLAGE_ALLOTMENT_GEOMETRY, [x, 0.6, 6.8], [0, 0, -1], 9.7)).toHaveLength(0);
+  });
+
+  it('grounds both side facades and the rear seat with low tended surfaces inside each plot', () => {
+    VILLAGE_HOMES.forEach(({ body, garden }) => {
+      for (const side of [-1, 1]) {
+        const wall = hit(body, [0, 0.4, -0.45], [side, 0, 0])[0].point.x;
+        const x = wall + side * 0.48;
+        // Read the built geometry, including the gravel between clumps.
+        const ground = hit(garden, [x, 0.1, 1.2], [0, -1, 0], 0.2);
+        expect(ground.length).toBeGreaterThan(0);
+        expect(ground[0].point.y).toBeCloseTo(0.025, 5);
+        const foliage = hit(garden, [x, 0.8, -1.25], [0, 0, 1], 2);
+        expect(foliage).toHaveLength(0);
+        const clump = hit(garden, [x, 0.3, -2], [0, 0, 1], 3.6);
+        expect(clump.length).toBeGreaterThan(0);
+      }
+      const seatPad = hit(garden, [-3.7, 0.2, -1.8], [0, -1, 0], 0.3);
+      expect(seatPad[0].point.y).toBeCloseTo(0.025, 5);
+    });
   });
 
   it('retains closed roofs and seats each smoke source at its actual chimney pots', () => {

@@ -30,11 +30,40 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
+  vi.unstubAllGlobals();
   delete document.documentElement.dataset.sceneReady;
   delete document.documentElement.dataset.millosWorldReady;
 });
 
 describe('LoadingScreen final readiness', () => {
+  it('keeps keyboard focus on the cover before recovery and cycles the live Reload control', async () => {
+    render(
+      <>
+        <LoadingScreen />
+        <button>Covered application control</button>
+      </>
+    );
+    const cover = screen.getByRole('dialog', { name: 'Loading MillOS' });
+    expect(cover).toHaveFocus();
+    expect(fireEvent.keyDown(cover, { key: 'Tab' })).toBe(false);
+    expect(cover).toHaveFocus();
+    expect(fireEvent.keyDown(cover, { key: 'Tab', shiftKey: true })).toBe(false);
+    expect(cover).toHaveFocus();
+
+    await act(async () => vi.advanceTimersByTimeAsync(31000));
+    const reload = screen.getByRole('button', { name: 'Reload' });
+    fireEvent.keyDown(cover, { key: 'Tab' });
+    expect(reload).toHaveFocus();
+    fireEvent.keyDown(reload, { key: 'Tab' });
+    expect(reload).toHaveFocus();
+    fireEvent.keyDown(reload, { key: 'Tab', shiftKey: true });
+    expect(reload).toHaveFocus();
+    fireEvent.keyDown(reload, { key: 'Escape' });
+    expect(cover).toHaveFocus();
+    expect(screen.getByRole('progressbar')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Covered application control' })).not.toHaveFocus();
+  });
+
   it('keeps the overlay through first-frame, asset completion and the old 8-second timeout', async () => {
     render(<LoadingScreen />);
     await act(async () => vi.advanceTimersByTimeAsync(9000));
@@ -49,10 +78,37 @@ describe('LoadingScreen final readiness', () => {
     expect(screen.getByRole('progressbar')).toBeVisible();
     expect(screen.getByRole('button', { name: 'Reload' })).toBeVisible();
     expect(document.documentElement.dataset.loaderFallback).toBeUndefined();
-    fireEvent.click(screen.getByRole('button', { name: 'Continue while preparing' }));
+    expect(screen.queryByRole('button', { name: 'Continue while preparing' })).toBeNull();
+    expect(screen.getAllByRole('button')).toHaveLength(1);
     await act(async () => vi.advanceTimersByTimeAsync(250));
+    expect(screen.getByRole('progressbar')).toBeVisible();
+    expect(state.ready).toBe(false);
+  });
+
+  it('keeps error recovery covered even when an obsolete fallback marker is present', async () => {
+    state.errors = 1;
+    document.documentElement.dataset.loaderFallback = 'true';
+    render(<LoadingScreen />);
+    await act(async () => vi.advanceTimersByTimeAsync(60000));
+    expect(screen.getByText('Some resources could not be loaded.')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Reload' })).toBeVisible();
+    expect(screen.getByRole('progressbar')).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'Continue while preparing' })).toBeNull();
+  });
+
+  it('hands over immediately with reduced motion, only after real readiness', async () => {
+    vi.stubGlobal('matchMedia', () => ({
+      matches: true,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
+    const view = render(<LoadingScreen />);
+    await act(async () => vi.advanceTimersByTimeAsync(60000));
+    expect(screen.getByRole('progressbar')).toBeVisible();
+    state.ready = true;
+    view.rerender(<LoadingScreen />);
+    await act(async () => vi.advanceTimersByTimeAsync(0));
     expect(screen.queryByRole('progressbar')).toBeNull();
-    expect(document.documentElement.dataset.loaderFallback).toBe('true');
   });
 
   it('reveals only when final readiness and the minimum display time are satisfied', async () => {

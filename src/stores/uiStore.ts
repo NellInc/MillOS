@@ -69,6 +69,14 @@ interface UIStore {
   hasSeenIntro: boolean;
   setHasSeenIntro: (seen: boolean) => void;
 
+  // Guided delivery receipts are UI history, never production evidence.
+  journeyVisible: boolean;
+  journeyOrderId: string | null;
+  inspectedMachineIds: string[];
+  startDeliveryJourney: (orderId: string | null) => void;
+  setJourneyVisible: (visible: boolean) => void;
+  recordMachineInspection: (machineId: string) => void;
+
   // Legend position (for draggable legend)
   legendPosition: { x: number; y: number };
   setLegendPosition: (pos: { x: number; y: number }) => void;
@@ -194,6 +202,19 @@ export const useUIStore = create<UIStore>()(
       hasSeenIntro: false,
       setHasSeenIntro: (seen: boolean) => set({ hasSeenIntro: seen }),
 
+      journeyVisible: false,
+      journeyOrderId: null,
+      inspectedMachineIds: [],
+      startDeliveryJourney: (orderId) =>
+        set({ journeyVisible: true, journeyOrderId: orderId, inspectedMachineIds: [] }),
+      setJourneyVisible: (visible) => set({ journeyVisible: visible }),
+      recordMachineInspection: (machineId) => {
+        if (get().inspectedMachineIds.includes(machineId)) return;
+        set((state) => ({
+          inspectedMachineIds: [...state.inspectedMachineIds, machineId].slice(-100),
+        }));
+      },
+
       // Legend position
       legendPosition: { x: -1, y: -1 }, // -1 means use default position
       setLegendPosition: (pos: { x: number; y: number }) => set({ legendPosition: pos }),
@@ -243,6 +264,9 @@ export const useUIStore = create<UIStore>()(
       }),
       partialize: (state) => ({
         hasSeenIntro: state.hasSeenIntro,
+        journeyVisible: state.journeyVisible,
+        journeyOrderId: state.journeyOrderId,
+        inspectedMachineIds: state.inspectedMachineIds,
         showZones: state.showZones,
         showAIPanel: state.showAIPanel,
         panelMinimized: state.panelMinimized,

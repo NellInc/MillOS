@@ -66,6 +66,9 @@ export function sanitizeGameSimulationState(value: unknown): PersistedGameSimula
 
 export interface PersistedUIState {
   hasSeenIntro?: boolean;
+  journeyVisible?: boolean;
+  journeyOrderId?: string | null;
+  inspectedMachineIds?: string[];
   showZones?: boolean;
   showAIPanel?: boolean;
   panelMinimized?: boolean;
@@ -84,6 +87,7 @@ export function sanitizeUIState(value: unknown): PersistedUIState {
   const output: PersistedUIState = {};
   const booleanKeys = [
     'hasSeenIntro',
+    'journeyVisible',
     'showZones',
     'showAIPanel',
     'panelMinimized',
@@ -96,6 +100,10 @@ export function sanitizeUIState(value: unknown): PersistedUIState {
     const candidate = booleanValue(source[key]);
     if (candidate !== undefined) output[key] = candidate;
   });
+  if (source.journeyOrderId === null || typeof source.journeyOrderId === 'string')
+    output.journeyOrderId = source.journeyOrderId;
+  const inspections = stringArray(source.inspectedMachineIds, 100);
+  if (inspections) output.inspectedMachineIds = inspections;
   if (source.theme === 'dark' || source.theme === 'light') output.theme = source.theme;
   const uiScale = finiteNumber(source.uiScale, 0.9, 1.5);
   if (uiScale !== undefined) output.uiScale = uiScale;

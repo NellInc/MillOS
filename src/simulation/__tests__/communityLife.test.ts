@@ -11,12 +11,138 @@ import {
   sampleCommunityDelivery,
   inspectCommunityPresence,
   advanceCommunityBusClock,
+  advanceCommunityPeopleClock,
+  hasCommunityBakerySupply,
+  communityWorkResponse,
+  COMMUNITY_AGREEMENT_MEMBERS,
+  communityAgreementCue,
+  communityAgreementResponse,
+  advanceCommunityAgreementClock,
 } from '../communityLife';
+import { createWorkplace, transitionWorkplace } from '../bilateralWorkplace';
 import {
   createMachineObstacles,
   createConveyorObstacles,
   DOCK_PLATFORM_OBSTACLES,
 } from '../../constants/factoryObstacles';
+
+describe('fictional campaign worker presentation', () => {
+  const workplace = () => {
+    const state = transitionWorkplace(createWorkplace(), {
+      type: 'startCampaign',
+      args: ['cooperative', 1],
+    }).state;
+    state.phase = 'active';
+    return state;
+  };
+  it('binds four existing residents only while the game campaign is engaged', () => {
+    const state = workplace();
+    expect(COMMUNITY_AGREEMENT_MEMBERS).toEqual({
+      'mill-packer': 'packing',
+      'mill-quality': 'quality',
+      'mill-engineer': 'maintenance',
+      'mill-operator-west': 'coordinator',
+    });
+    expect(
+      COMMUNITY_ROSTER.filter((person) => communityAgreementCue(person.id, state)).length
+    ).toBe(4);
+    for (const mode of ['pilot', 'workshop'] as const)
+      expect(communityAgreementCue('mill-packer', { ...state, mode })).toBeNull();
+    for (const phase of ['idle', 'deliberating', 'review'] as const)
+      expect(communityAgreementCue('mill-packer', { ...state, phase })).toBeNull();
+    expect(communityAgreementCue('mill-packer', { ...state, campaign: null })).toBeNull();
+  });
+  it('reflects qualified choices without claiming production or quality release', () => {
+    const state = workplace();
+    const member = state.members.find((m) => m.id === 'quality')!;
+    member.chosenTask = 'Sampling';
+    expect(communityAgreementCue('mill-quality', state)?.label).toContain('Agreed: Sampling');
+    member.chosenTask = 'Quality release';
+    expect(communityAgreementCue('mill-quality', state)?.task).toContain('safe observation post');
+    member.chosenTask = 'Unqualified forklift operation';
+    expect(communityAgreementCue('mill-quality', state)?.label).not.toContain('forklift');
+  });
+  it('bounds consensual cover and shows recovery, including recovery during review', () => {
+    const state = workplace();
+    const member = state.members.find((m) => m.id === 'packing')!;
+    state.activeCoverMemberId = member.id;
+    state.coverRemainingMinutes = 10;
+    member.coverConsent = true;
+    member.recoveryOwedMinutes = 10;
+    expect(communityAgreementCue('mill-packer', state)?.state).toBe('cover');
+    member.coverConsent = false;
+    expect(communityAgreementCue('mill-packer', state)?.state).toBe('recovery');
+    member.coverConsent = true;
+    for (const remaining of [0, -1, 11, NaN, Infinity]) {
+      state.coverRemainingMinutes = remaining;
+      expect(communityAgreementCue('mill-packer', state)?.state).toBe('recovery');
+    }
+    state.phase = 'review';
+    expect(communityAgreementCue('mill-packer', state)?.state).toBe('recovery');
+    member.recoveryOwedMinutes = 0;
+    expect(communityAgreementCue('mill-packer', state)).toBeNull();
+  });
+  it('gives protected rest precedence over duties and never changes the model', () => {
+    const state = workplace();
+    state.minute = 75;
+    const before = structuredClone(state);
+    const person = COMMUNITY_ROSTER.find((p) => p.id === 'mill-packer')!;
+    const pose = sampleCommunityPerson(person, 0);
+    const response = { activity: 'working' as const, task: 'Inspecting a fault' };
+    const cue = communityAgreementCue(person.id, state);
+    expect(cue?.state).toBe('rest');
+    communityAgreementResponse(cue, pose, response);
+    expect(response.activity).toBe('break');
+    expect(response.task).toContain('Protected rest');
+    expect(state).toEqual(before);
+  });
+  it('holds every route phase without teleporting or seating transit, then resumes continuously', () => {
+    const state = workplace();
+    state.minute = 75;
+    for (const person of COMMUNITY_ROSTER.filter((p) => COMMUNITY_AGREEMENT_MEMBERS[p.id])) {
+      const cue = communityAgreementCue(person.id, state);
+      for (let hour = 0; hour < routineDuration(person); hour += 0.05) {
+        const before = sampleCommunityPerson(person, hour);
+        const heldHour = advanceCommunityAgreementClock(hour, 2, cue);
+        const held = sampleCommunityPerson(person, heldHour);
+        expect(held).toEqual(before);
+        const response = { activity: held.activity, task: held.task };
+        communityAgreementResponse(cue, held, response);
+        expect(response.activity).toBe('break');
+        expect(held.seated).toBe(before.seated);
+        if (held.seated)
+          expect(
+            person.stops.some((s) => s.seated && String(s.position) === String(held.position))
+          ).toBe(true);
+        const resumed = sampleCommunityPerson(
+          person,
+          advanceCommunityAgreementClock(heldHour, 0.00001, null)
+        );
+        expect(
+          Math.hypot(resumed.position[0] - held.position[0], resumed.position[2] - held.position[2])
+        ).toBeLessThan(0.001);
+        expect(advanceCommunityAgreementClock(heldHour, 0, null)).toBe(heldHour);
+        const safetyHour = advanceCommunityPeopleClock(hour, hour + 12, 12, true, true);
+        expect(advanceCommunityAgreementClock(hour, safetyHour - hour, null)).toBe(hour);
+      }
+    }
+  });
+  it('preserves route walking and existing tea breaks under a duty agreement', () => {
+    const state = workplace();
+    const person = COMMUNITY_ROSTER.find((p) => p.id === 'mill-packer')!;
+    const cue = communityAgreementCue(person.id, state);
+    const pose = sampleCommunityPerson(person, 0);
+    for (const activity of ['walking', 'break'] as const) {
+      pose.activity = activity;
+      const response = { activity: pose.activity, task: 'Tea break' };
+      communityAgreementResponse(cue, pose, response);
+      expect(response.activity).toBe(activity);
+      expect(response.task).toContain(
+        activity === 'walking' ? 'Walking the safe route' : 'Tea break'
+      );
+    }
+  });
+});
 
 describe('inhabited world routines', () => {
   it('gives every mill role a real, dedicated seated rest and a closed safe route', () => {
@@ -33,17 +159,16 @@ describe('inhabited world routines', () => {
       seats.add(String(seat!.position));
       const period = routineDuration(person);
       const activities = new Set();
+      let collision: string | null = null;
       for (let t = 0; t < period; t += 0.005) {
         const pose = sampleCommunityPerson(person, t);
         activities.add(pose.activity);
         const [x, , z] = pose.position;
-        for (const o of obstacles) {
-          expect(
-            x > o.minX && x < o.maxX && z > o.minZ && z < o.maxZ,
-            `${person.id} hits ${o.id} at ${x},${z}`
-          ).toBe(false);
-        }
+        for (const o of obstacles)
+          if (x > o.minX && x < o.maxX && z > o.minZ && z < o.maxZ)
+            collision ??= `${person.id} hits ${o.id} at ${x},${z}`;
       }
+      expect(collision).toBeNull();
       expect([...activities]).toEqual(expect.arrayContaining(['walking', 'working', 'break']));
     }
   });
@@ -92,36 +217,140 @@ describe('inhabited world routines', () => {
     expect(advanceCommunityBusClock(7.86, 0.1, false)).toBeCloseTo(7.96);
     expect(advanceCommunityBusClock(7.86, 0, true)).toBeCloseTo(7.86);
   });
-  it('delivers stock only after unloading, then returns an empty cart', () => {
-    expect(sampleCommunityDelivery(9.5)).toMatchObject({
-      visible: true,
-      loaded: true,
-      delivered: false,
+  it('never fabricates flour stock from the empty handcart routine', () => {
+    for (let hour = 0; hour < 48; hour += 0.01) {
+      const cart = sampleCommunityDelivery(hour);
+      expect(cart.loaded).toBe(false);
+      expect(cart.delivered).toBe(false);
+      const person = sampleCommunityPerson(
+        COMMUNITY_ROSTER.find((p) => p.id === 'village-courier')!,
+        hour
+      );
+      expect(person.task).not.toMatch(/flour|delivering|unloading/i);
+    }
+    expect(sampleCommunityDelivery(9.5).visible).toBe(true);
+    expect(sampleCommunityDelivery(9.85).moving).toBe(false);
+    expect(sampleCommunityDelivery(10.5).moving).toBe(true);
+  });
+  it('uses fulfilled local flour orders, bounded by real completion time', () => {
+    const order = {
+      customer: "Riverside Bakers' Cooperative",
+      recipe: { finishedMaterial: 'flour' },
+      requiredKg: 6000,
+      shippedKg: 6000,
+      qualityFailureKg: 0,
+      status: 'fulfilled',
+      manifestIds: ['dispatch-real'],
+      completedAtMinute: 100,
+    } as Parameters<typeof hasCommunityBakerySupply>[0][number];
+    expect(hasCommunityBakerySupply([order], 101)).toBe(true);
+    expect(hasCommunityBakerySupply([{ ...order, shippedKg: 5999.999999999998 }], 101)).toBe(true);
+    expect(hasCommunityBakerySupply([order], 99)).toBe(false);
+    expect(hasCommunityBakerySupply([order], 1540)).toBe(false);
+    for (const change of [
+      { status: 'active' },
+      { customer: 'County School Meals' },
+      { manifestIds: [] },
+      { completedAtMinute: null },
+      { shippedKg: 0 },
+      { shippedKg: 5999.99 },
+      { shippedKg: 5999.999998 },
+      { shippedKg: NaN },
+      { qualityFailureKg: 1 },
+      { qualityFailureKg: NaN },
+      { requiredKg: 0 },
+      { recipe: { finishedMaterial: 'semolina' } },
+    ])
+      expect(hasCommunityBakerySupply([{ ...order, ...change } as typeof order], 101)).toBe(false);
+    expect(hasCommunityBakerySupply([], 10)).toBe(false);
+    expect(hasCommunityBakerySupply([order], NaN)).toBe(false);
+  });
+  it('freezes safety stops even across clock jumps and preserves ordinary pause', () => {
+    expect(advanceCommunityPeopleClock(8, 20, 12, false, true)).toBe(8);
+    expect(advanceCommunityPeopleClock(8, 20, 12, true, true)).toBe(8);
+    expect(advanceCommunityPeopleClock(8, 8, 0, false, false)).toBe(8);
+    expect(advanceCommunityPeopleClock(8, 20, 12, false, false)).toBe(20);
+    expect(advanceCommunityPeopleClock(8, 8.1, 0.1, true, false)).toBeCloseTo(8.1);
+    expect(advanceCommunityPeopleClock(8, NaN, NaN, true, false)).toBe(8);
+  });
+  it('reacts at safe posts to work orders and held batches without stealing breaks', () => {
+    const person = COMMUNITY_ROSTER.find((p) => p.id === 'mill-engineer')!;
+    const pose = sampleCommunityPerson(person, 0);
+    pose.activity = 'working';
+    const operations = {
+      machines: [{ id: person.machineId!, status: 'critical' as const }],
+      workOrders: [{ machineId: person.machineId!, phase: 'awaiting_parts' as const }],
+      batches: [{ packerId: 'packer-2', disposition: 'hold' as const, availableKg: 25 }],
+      bakeryStocked: false,
+    };
+    const before = structuredClone(operations);
+    const response = { activity: pose.activity, task: '' };
+    expect(communityWorkResponse(person, pose, operations, response)).toBe(response);
+    expect(response.activity).toBe('idle');
+    pose.activity = 'break';
+    expect(communityWorkResponse(person, pose, operations, response)).toBe(response);
+    expect(response).toEqual({ activity: 'break', task: pose.task });
+    pose.activity = 'working';
+    expect(communityWorkResponse(person, pose, operations)).toEqual({
+      activity: 'idle',
+      task: 'Waiting for maintenance parts',
     });
-    expect(sampleCommunityDelivery(9.85)).toMatchObject({
-      visible: true,
-      moving: false,
-      loaded: true,
-      delivered: false,
+    const quality = COMMUNITY_ROSTER.find((p) => p.role === 'Quality')!;
+    expect(communityWorkResponse(quality, pose, operations).task).toContain(
+      'quality investigation'
+    );
+    for (const activity of ['break', 'walking'] as const) {
+      pose.activity = activity;
+      expect(communityWorkResponse(person, pose, operations)).toEqual({
+        activity,
+        task: pose.task,
+      });
+    }
+    expect(operations).toEqual(before);
+  });
+  it('pauses actual garden work in wet weather and resumes without changing its route or inventory', () => {
+    const gardener = COMMUNITY_ROSTER.find((person) => person.id === 'village-gardener')!;
+    const workingHour = Array.from({ length: 48 }, (_, index) => index / 2).find(
+      (hour) =>
+        sampleCommunityPerson(gardener, hour).activity === 'working' &&
+        sampleCommunityPerson(gardener, hour).visible
+    )!;
+    expect(workingHour).toBeDefined();
+    const pose = sampleCommunityPerson(gardener, workingHour);
+    const operations = { machines: [], workOrders: [], batches: [], bakeryStocked: true };
+    const before = structuredClone({ pose, operations, gardener });
+    const response = { activity: pose.activity, task: pose.task };
+    for (const weather of ['rain', 'storm'] as const) {
+      expect(communityWorkResponse(gardener, pose, { ...operations, weather }, response)).toBe(
+        response
+      );
+      expect(response.activity).toBe('idle');
+      expect(response.task).toBe(
+        weather === 'rain'
+          ? 'Pausing garden work in the rain'
+          : 'Pausing garden work during the storm'
+      );
+    }
+    for (const weather of ['clear', 'cloudy', undefined] as const)
+      expect(communityWorkResponse(gardener, pose, { ...operations, weather }, response)).toEqual({
+        activity: 'working',
+        task: pose.task,
+      });
+    expect({ pose, operations, gardener }).toEqual(before);
+    for (const activity of ['walking', 'break', 'idle'] as const) {
+      const resting = { ...pose, activity, seated: activity === 'break' };
+      expect(communityWorkResponse(gardener, resting, { ...operations, weather: 'storm' })).toEqual(
+        {
+          activity,
+          task: pose.task,
+        }
+      );
+    }
+    const shopkeeper = COMMUNITY_ROSTER.find((person) => person.id === 'village-shopkeeper')!;
+    expect(communityWorkResponse(shopkeeper, pose, { ...operations, weather: 'storm' })).toEqual({
+      activity: 'working',
+      task: pose.task,
     });
-    expect(sampleCommunityDelivery(9.95)).toMatchObject({
-      visible: true,
-      moving: false,
-      loaded: false,
-      delivered: true,
-    });
-    expect(sampleCommunityDelivery(10.5)).toMatchObject({
-      visible: true,
-      moving: true,
-      loaded: false,
-      delivered: true,
-    });
-    expect(sampleCommunityDelivery(11)).toMatchObject({
-      visible: false,
-      loaded: false,
-      delivered: true,
-    });
-    expect(sampleCommunityDelivery(8)).toMatchObject({ visible: false, delivered: false });
   });
   it('uses shop and garden hours instead of residents working throughout the night', () => {
     for (const id of [

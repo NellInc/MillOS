@@ -3,7 +3,13 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import { createValleyCollider, generateObstacles } from './FactoryColliders';
 import { sampleValleyGroundHeight, VILLAGE_TERRACE } from '../terrain/splatMapGenerator';
 import { LANDSCAPE_GROVE_TREES } from '../exterior/ExteriorVegetation';
-import { SITE_LAYOUT, getLandmarkBounds, RIVER_FOOTBRIDGE_DECK } from '../../constants/siteLayout';
+import {
+  SITE_LAYOUT,
+  getLandmarkBounds,
+  RIVER_FOOTBRIDGE_DECK,
+  RIVER_FOOTBRIDGE_STEPS,
+  RIVER_FOOTBRIDGE_LANDINGS,
+} from '../../constants/siteLayout';
 
 beforeAll(async () => {
   await RAPIER.init();
@@ -100,4 +106,33 @@ describe('physical valley relief', () => {
       world.free();
     }
   });
+});
+
+it('carries both complete river stair flights and their at-grade landings', () => {
+  const parts = generateObstacles().filter(({ id }) => id.startsWith('river-footbridge-access-'));
+  const steps = [...RIVER_FOOTBRIDGE_STEPS, ...RIVER_FOOTBRIDGE_LANDINGS];
+  expect(parts).toHaveLength(steps.length);
+  const world = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
+  try {
+    for (const p of parts)
+      world.createCollider(
+        RAPIER.ColliderDesc.cuboid(
+          (p.maxX - p.minX) / 2,
+          (p.maxY! - p.minY!) / 2,
+          (p.maxZ - p.minZ) / 2
+        ).setTranslation((p.maxX + p.minX) / 2, (p.maxY! + p.minY!) / 2, (p.maxZ + p.minZ) / 2)
+      );
+    world.step();
+    for (const step of steps) {
+      const hit = world.castRay(
+        new RAPIER.Ray({ x: 0, y: 8, z: (step.minZ + step.maxZ) / 2 }, { x: 0, y: -1, z: 0 }),
+        10,
+        true
+      );
+      expect(hit).not.toBeNull();
+      expect(8 - hit!.timeOfImpact).toBeCloseTo(step.top, 5);
+    }
+  } finally {
+    world.free();
+  }
 });

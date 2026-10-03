@@ -904,9 +904,12 @@ export const MillScene: React.FC<MillSceneProps> = ({
           <OperationalForklifts showSpeedZones={showZones} onSelectForklift={onSelectForklift} />
         )}
       </group>
-      {/* The authored truck bay includes the garage, service yard, docks, and trucks. */}
+      {/* Truck controllers own physical dispatch and opaque replay checkpoints.
+          Quality changes must keep that owner mounted. Working if low/medium
+          round trips retain its checkpoint and actual shipping continues.
+          Explicit debug isolation may still remove the complete subsystem. */}
       <group name="world-logistics">
-        {authoredSiteReady && !isLowGraphics && !perfDebug?.disableTruckBay && (
+        {authoredSiteReady && !perfDebug?.disableTruckBay && (
           <StaticMeshBatch
             name="authored-truck-yard"
             revision={staticBatchRevision}

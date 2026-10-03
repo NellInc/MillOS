@@ -493,7 +493,9 @@ function summarizeMotion(samples) {
           last: value,
           min: value,
           max: value,
+          travel: 0,
         };
+        metric.travel += Math.abs(value - metric.last);
         metric.last = value;
         metric.min = Math.min(metric.min, value);
         metric.max = Math.max(metric.max, value);
@@ -513,6 +515,7 @@ function summarizeMotion(samples) {
           min: Number(metric.min.toFixed(4)),
           max: Number(metric.max.toFixed(4)),
           delta: Number((metric.last - metric.first).toFixed(4)),
+          travel: Number(metric.travel.toFixed(4)),
         },
       ])
     ),
@@ -551,13 +554,17 @@ function summarizeMotionPacing(samples) {
       maxInferredSpeed = Math.max(maxInferredSpeed, distance / deltaSeconds);
 
       const moving =
-        (current.speed ?? 0) > 0.25 &&
+        Math.abs(current.speed ?? 0) > 0.25 &&
         current.active !== false &&
         current.stopped !== true &&
         (current.stopReason === undefined || current.stopReason === 'none');
       if (moving) {
         movingSamples += 1;
-        if (distance < 0.002) {
+        // Compare the same 2 mm / 60 Hz floor at any display cadence. Working
+        // if smooth 120/240 Hz crawl passes while genuine stationary runs fail.
+        // The separate 1.5 m single-frame bound still uses actual displacement.
+        const nominalFrameDistance = distance * (1 / 60 / deltaSeconds);
+        if (nominalFrameDistance < 0.002) {
           currentPlateau += 1;
           maxMovingPlateauSamples = Math.max(maxMovingPlateauSamples, currentPlateau);
         } else {
@@ -617,8 +624,10 @@ function evaluateMotionAcceptance(samples, summary, pacing) {
   const stationaryStatesExplained = stationaryEntities.every((entity) =>
     entity.stopReasons.some((reason) => reason !== 'none')
   );
+  // Truck wheel travel is signed: driving forwards then backing can have a
+  // zero net delta while both the truck and its wheels genuinely moved.
   const wheelTravelFollowsMotion = movingEntities.every(
-    (entity) => Math.abs(entity.telemetry.wheelTravel?.delta ?? 0) > 0.1
+    (entity) => (entity.telemetry.wheelTravel?.travel ?? 0) > 0.1
   );
   const pacedMovingEntities = pacing.filter((entity) => entity.movingSamples > 0);
   const continuousMotion = pacedMovingEntities.every(
@@ -667,20 +676,31 @@ function evaluateMotionAcceptance(samples, summary, pacing) {
 
 async function collectDisplayCadenceMotion(page, durationMs) {
   return page.evaluate(
-    ({ sampleDurationMs, sampleIntervalMs }) =>
-      new Promise((resolve) => {
+    ({ sampleDurationMs }) =>
+      new Promise((resolve, reject) => {
         const startedAt = performance.now();
-        let lastSampleAt = Number.NEGATIVE_INFINITY;
         const samples = [];
 
+        // Observe every displayed frame. A 50 ms interval conflated several
+        // frames and incorrectly tested their summed movement as one step.
+        // Working if each RAF contributes one sample, including reverse travel.
         const sample = (now) => {
-          if (now - lastSampleAt >= sampleIntervalMs) {
-            const motion = window.__MILLOS_RUNTIME__?.motionSnapshot();
-            if (motion) samples.push({ elapsedMs: Math.round(now - startedAt), ...motion });
-            lastSampleAt = now;
-          }
+          const motion = window.__MILLOS_RUNTIME__?.motionSnapshot();
+          if (motion) samples.push({ elapsedMs: Math.max(0, now - startedAt), ...motion });
           if (now - startedAt >= sampleDurationMs) {
-            resolve(samples);
+            // Yield the completed RAF task so its long-task observation is
+            // included. Latch only cheap timing, before transporting the motion
+            // array or running the full scene inspection. Working if the report
+            // retains separate in-window and post-export timing, without losing
+            // genuine slow frames from the sampled interval.
+            setTimeout(() => {
+              const framePacing = window.__MILLOS_RUNTIME__?.framePacingSnapshot?.();
+              if (!framePacing) {
+                reject(new Error('Runtime frame-window telemetry was unavailable'));
+                return;
+              }
+              resolve({ samples, framePacing });
+            }, 0);
             return;
           }
           requestAnimationFrame(sample);
@@ -688,7 +708,7 @@ async function collectDisplayCadenceMotion(page, durationMs) {
 
         requestAnimationFrame(sample);
       }),
-    { sampleDurationMs: durationMs, sampleIntervalMs: 50 }
+    { sampleDurationMs: durationMs }
   );
 }
 
@@ -904,13 +924,31 @@ async function runScene(context, baseUrl, scene, scadaEnabled = options.scadaEna
   // frame work, so reset telemetry after the capture and before sampling.
   await page.evaluate(() => window.__MILLOS_RUNTIME__?.reset());
   let motionSamples = motionStart ? [{ elapsedMs: 0, ...motionStart }] : [];
+  let framePacing;
   if (options.motionEnabled) {
-    motionSamples = await collectDisplayCadenceMotion(page, options.durationSeconds * 1000);
+    const collection = await collectDisplayCadenceMotion(page, options.durationSeconds * 1000);
+    motionSamples = collection.samples;
+    framePacing = collection.framePacing;
   } else {
-    await page.waitForTimeout(options.durationSeconds * 1000);
+    framePacing = await page.evaluate(
+      (durationMs) =>
+        new Promise((resolve) => {
+          setTimeout(() => resolve(window.__MILLOS_RUNTIME__?.framePacingSnapshot?.()), durationMs);
+        }),
+      options.durationSeconds * 1000
+    );
   }
-  const snapshot = await page.evaluate(() => window.__MILLOS_RUNTIME__?.snapshot());
-  if (!snapshot) throw new Error(`Runtime telemetry was unavailable for scene ${scene}`);
+  if (!framePacing)
+    throw new Error(`Runtime frame-window telemetry was unavailable for scene ${scene}`);
+  const postExportSnapshot = await page.evaluate(() => window.__MILLOS_RUNTIME__?.snapshot());
+  if (!postExportSnapshot) throw new Error(`Runtime telemetry was unavailable for scene ${scene}`);
+  // World, renderer and readiness diagnostics keep their full-inspection time.
+  // Only the explicitly latched timing fields feed the frame-pacing budgets.
+  const { capturedAt: frameWindowCapturedAt, ...frameMetrics } = framePacing;
+  const snapshot = { ...postExportSnapshot, ...frameMetrics };
+  const postExportFramePacing = Object.fromEntries(
+    Object.keys(framePacing).map((key) => [key, postExportSnapshot[key]])
+  );
   const domStacks = await page.evaluate(() => {
     const describe = (element) => {
       const html = element;
@@ -957,6 +995,8 @@ async function runScene(context, baseUrl, scene, scadaEnabled = options.scadaEna
     url: page.url(),
     wallClockMs: Math.round(performance.now() - startedAt),
     snapshot,
+    timingWindow: { capturedAt: frameWindowCapturedAt, ...frameMetrics },
+    postExportFramePacing,
     domStacks,
     budget,
     load,
@@ -995,6 +1035,7 @@ async function main() {
   const baseUrl = options.baseUrl || (await startPreview());
   const browser = await chromium.launch({
     headless: !options.headed,
+    args: ['--mute-audio'],
     channel: options.browserChannel || undefined,
   });
 

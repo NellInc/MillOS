@@ -6,9 +6,14 @@ import {
   FAR_MOUNTAIN_SPEC,
   createMountainRidgeGeometry,
   getSkyTwilightWeight,
+  getSkyBlueHourWeight,
+  getSkyWarmHorizonWeight,
   getRidgeAerialWeight,
   MOUNTAIN_RIDGE_GEOMETRIES,
   CELESTIAL_RADIUS,
+  createRidgeMaterial,
+  RIDGE_GROUND_BLEND,
+  RIDGE_GROUND_BLEND_STRENGTH,
 } from './OptimizedSkySystem';
 import { LANDSCAPE_GROVE_TREES } from '../exterior/ExteriorVegetation';
 import { sampleValleyGroundHeight } from '../terrain/splatMapGenerator';
@@ -16,6 +21,7 @@ import { SITE_LAYOUT } from '../../constants/siteLayout';
 import { CAMERA_DEPTH } from '../../constants/renderLayers';
 
 import { sampleAtmosphere } from '../../simulation/atmosphere';
+import { createRoadTunnelHillGeometry } from '../scenery/Tunnel';
 
 describe('mountain ridge geometry', () => {
   it('fits the whole site, backdrop and celestial silhouettes in the normal depth range', () => {
@@ -249,6 +255,45 @@ describe('sky twilight colour', () => {
     expect(weightAt(0)).toBeLessThan(0.001);
     expect(weightAt(12)).toBeLessThan(0.001);
   });
+
+  it('makes post-sunset cloud fill blue while the warm horizon recedes', () => {
+    const at = (hour: number) => sampleAtmosphere(1, hour, 'cloudy');
+    const sunset = at(18),
+      blueHour = at(18.55),
+      midnight = at(0),
+      noon = at(12);
+    expect(getSkyBlueHourWeight(blueHour.solarElevation, blueHour.twilight)).toBeGreaterThan(0.5);
+    expect(getSkyWarmHorizonWeight(blueHour.solarElevation, blueHour.twilight)).toBeLessThan(0.4);
+    expect(getSkyWarmHorizonWeight(sunset.solarElevation, sunset.twilight)).toBeGreaterThan(0.6);
+    for (const state of [midnight, noon]) {
+      expect(getSkyBlueHourWeight(state.solarElevation, state.twilight)).toBe(0);
+      expect(getSkyWarmHorizonWeight(state.solarElevation, state.twilight)).toBeLessThan(0.001);
+    }
+  });
+
+  it('keeps solar palette transitions finite, bounded and symmetric at dawn', () => {
+    let previousBlue = 0,
+      previousWarm = 0;
+    for (let hour = 0; hour <= 24; hour += 0.01) {
+      const state = sampleAtmosphere(1, hour, 'clear');
+      const blue = getSkyBlueHourWeight(state.solarElevation, state.twilight);
+      const warm = getSkyWarmHorizonWeight(state.solarElevation, state.twilight);
+      expect(blue).toBeGreaterThanOrEqual(0);
+      expect(blue).toBeLessThanOrEqual(1);
+      expect(warm).toBeGreaterThanOrEqual(0);
+      expect(warm).toBeLessThanOrEqual(0.72);
+      expect(Math.abs(blue - previousBlue)).toBeLessThan(0.03);
+      expect(Math.abs(warm - previousWarm)).toBeLessThan(0.03);
+      previousBlue = blue;
+      previousWarm = warm;
+    }
+    const dawn = sampleAtmosphere(1, 5.45, 'clear');
+    const dusk = sampleAtmosphere(1, 18.55, 'clear');
+    expect(getSkyBlueHourWeight(dawn.solarElevation, dawn.twilight)).toBeCloseTo(
+      getSkyBlueHourWeight(dusk.solarElevation, dusk.twilight),
+      6
+    );
+  });
 });
 
 describe('ridge weather extinction', () => {
@@ -262,5 +307,53 @@ describe('ridge weather extinction', () => {
     }
     expect(getRidgeAerialWeight(0.32, 0.2)).toBe(0.32);
     expect(getRidgeAerialWeight(0.32, 0.9)).toBeGreaterThan(0.7);
+  });
+});
+
+describe('fixed foothill ground blend', () => {
+  it('uses the actual existing one-pass fixed ridge materials and shared reversible control', () => {
+    const fixed = createRidgeMaterial(0.08, 'test-fixed', true);
+    const remote = createRidgeMaterial(0.08, 'test-remote');
+    expect(fixed.uniforms.uGroundBlendStrength).toBe(RIDGE_GROUND_BLEND_STRENGTH);
+    expect(remote.uniforms.uGroundBlendStrength).toBe(RIDGE_GROUND_BLEND_STRENGTH);
+    expect(fixed.uniforms.uWorldAnchored.value).toBe(1);
+    expect(remote.uniforms.uWorldAnchored.value).toBe(0);
+    expect(fixed.transparent).toBe(true);
+    expect(fixed.depthWrite).toBe(false);
+    expect(remote.transparent).toBe(false);
+    expect(remote.depthWrite).toBe(true);
+    expect(fixed.fragmentShader).toContain('uWorldAnchored * uGroundBlendStrength');
+    expect(fixed.fragmentShader).not.toContain('sampler');
+    expect(fixed.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v7');
+    fixed.dispose();
+    remote.dispose();
+  });
+
+  it('limits the smooth blend to low metre-height skirts and retains opaque upper slopes', () => {
+    const material = createRidgeMaterial(0.08, 'test-fixed', true);
+    expect(material.fragmentShader).toContain(
+      `${RIDGE_GROUND_BLEND.startY.toFixed(1)}, ${RIDGE_GROUND_BLEND.endY.toFixed(1)}, p.y`
+    );
+    expect(THREE.MathUtils.smoothstep(15, RIDGE_GROUND_BLEND.startY, RIDGE_GROUND_BLEND.endY)).toBe(
+      0
+    );
+    expect(THREE.MathUtils.smoothstep(19, RIDGE_GROUND_BLEND.startY, RIDGE_GROUND_BLEND.endY)).toBe(
+      0.5
+    );
+    expect(THREE.MathUtils.smoothstep(23, RIDGE_GROUND_BLEND.startY, RIDGE_GROUND_BLEND.endY)).toBe(
+      1
+    );
+    expect(THREE.MathUtils.smoothstep(30, RIDGE_GROUND_BLEND.startY, RIDGE_GROUND_BLEND.endY)).toBe(
+      1
+    );
+    material.dispose();
+  });
+
+  it('starts the foot blend above the actual authored tunnel bank crown', () => {
+    const bank = createRoadTunnelHillGeometry();
+    bank.computeBoundingBox();
+    expect(RIDGE_GROUND_BLEND.startY).toBeGreaterThanOrEqual(bank.boundingBox!.max.y);
+    expect(RIDGE_GROUND_BLEND.endY - RIDGE_GROUND_BLEND.startY).toBe(8);
+    bank.dispose();
   });
 });

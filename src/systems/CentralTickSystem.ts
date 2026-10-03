@@ -87,6 +87,7 @@ class CentralTickSystemImpl {
   private tickInterval = DEFAULT_TICK_INTERVAL;
   private tickCount = 0;
   private elapsedTime = 0;
+  private rebaseClock = false;
 
   // State
   private isPaused = false;
@@ -202,6 +203,11 @@ class CentralTickSystemImpl {
     }
 
     // Check if enough time has passed
+    if (this.rebaseClock) {
+      this.lastTickTime = currentTime;
+      this.rebaseClock = false;
+      return false;
+    }
     const deltaTime = currentTime - this.lastTickTime;
     if (deltaTime < this.tickInterval) {
       return false;
@@ -333,6 +339,19 @@ class CentralTickSystemImpl {
     };
   }
 
+  captureClock() {
+    return { tickCount: this.tickCount, tickInterval: this.tickInterval };
+  }
+
+  /** Rewind phase without unregistering the live assembly or replaying queued writes. */
+  restoreClock(state: ReturnType<CentralTickSystemImpl['captureClock']>): void {
+    this.tickCount = state.tickCount;
+    this.tickInterval = state.tickInterval;
+    this.pendingUpdates = [];
+    this.lazyQueue = [];
+    this.rebaseClock = true;
+  }
+
   /**
    * Reset the system (for testing)
    */
@@ -343,6 +362,7 @@ class CentralTickSystemImpl {
     this.lastTickTime = 0;
     this.tickCount = 0;
     this.elapsedTime = 0;
+    this.rebaseClock = false;
     this.pendingUpdates = [];
     this.lazyQueue = [];
     this.tickInterval = DEFAULT_TICK_INTERVAL;

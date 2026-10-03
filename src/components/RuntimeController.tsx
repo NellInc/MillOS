@@ -219,6 +219,12 @@ export interface RuntimeTelemetrySnapshot {
   resolutionScale: number;
 }
 
+export interface RuntimeFramePacingSnapshot extends FramePacingSummary {
+  capturedAt: number;
+  firstFrameAt: number | null;
+  longTasks: RuntimeTelemetrySnapshot['longTasks'];
+}
+
 export interface RuntimeStaticBatchReport {
   name: string;
   totalMeshes: number;
@@ -239,6 +245,7 @@ export interface MillOSRuntimeTelemetry {
   firstFrameAt: number | null;
   reset: () => void;
   snapshot: () => RuntimeTelemetrySnapshot;
+  framePacingSnapshot: () => RuntimeFramePacingSnapshot;
   motionSnapshot: () => RuntimeMotionState;
   checkpointSnapshot: () => RuntimeCheckpointState[];
   namedObjectsSnapshot: (names: string[]) => RuntimeNamedObjectPose[];
@@ -1718,9 +1725,11 @@ export const RuntimeController: React.FC<RuntimeControllerProps> = ({
           id: forkliftId ?? object.name,
           type: forkliftId ? 'forklift' : 'truck',
           position: [
-            rounded(motionPosition.x),
-            rounded(motionPosition.y),
-            rounded(motionPosition.z),
+            // Diagnostic precision must resolve crawl motion at high refresh.
+            // Working if successive smooth steps no longer become 1 cm jumps.
+            rounded(motionPosition.x, 5),
+            rounded(motionPosition.y, 5),
+            rounded(motionPosition.z, 5),
           ],
           rotationY: rounded(motionEuler.y, 4),
           ...(phase ? { phase } : {}),
@@ -1769,6 +1778,16 @@ export const RuntimeController: React.FC<RuntimeControllerProps> = ({
         const telemetry = readRuntimeCheckpointTelemetry(id, object.userData);
         return telemetry ? [telemetry] : [];
       });
+
+    // End a timing window without inspecting geometry or raycasting the world.
+    // Working if frame timing can be latched before the heavy diagnostic export,
+    // with every slow frame and long task inside that window retained.
+    const framePacingSnapshot = (): RuntimeFramePacingSnapshot => ({
+      capturedAt: rounded(performance.now()),
+      firstFrameAt: firstFrameAtRef.current,
+      ...summarizeFramePacing(frameTimesRef.current),
+      longTasks: longTasksRef.current.map((task) => ({ ...task })),
+    });
 
     const snapshot = (): RuntimeTelemetrySnapshot => {
       const values = frameTimesRef.current;
@@ -2025,6 +2044,7 @@ export const RuntimeController: React.FC<RuntimeControllerProps> = ({
       firstFrameAt: firstFrameAtRef.current,
       reset,
       snapshot,
+      framePacingSnapshot,
       motionSnapshot,
       materialAudit: () => auditMaterials(scene),
       lightRig: () => reportLights(scene, gl),

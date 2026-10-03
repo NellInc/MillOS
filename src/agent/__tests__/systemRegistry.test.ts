@@ -45,6 +45,7 @@ describe('MillOS agent system registry', () => {
 
   it('registers every implemented capability with exactly one write owner and a runtime handler', () => {
     const expected = new Map([
+      ['workplace.activate-plan', 'experience'],
       ['operations.activate-order', 'campaign'],
       ['incident.acknowledge', 'campaign'],
       ['incident.mitigate', 'campaign'],

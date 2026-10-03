@@ -308,12 +308,17 @@ export const generateDirtSurface = (size: number = 256): THREE.DataTexture =>
   });
 
 /**
- * Dirt / gravel verge albedo. Warm packed earth with lighter aggregate and
- * damp patches. Authored in sRGB and tagged as such - `createColorDataTexture`
+ * Dirt / gravel verge albedo. Quiet umber earth with embedded aggregate and
+ * damp patches. District controls identified the old pale grain as albedo,
+ * rather than normal relief. Keep the existing feature field and data maps;
+ * reduce its contrast instead of turning every stone into a bright fleck.
+ * Working if road/verge close views retain mineral variation without a pale
+ * gravel carpet, with unchanged splat bounds, relief and sampler budget.
+ * Authored in sRGB and tagged as such, `createColorDataTexture`
  * makes the GPU decode it, so this must NOT be pre-linearised.
  */
 export const generateDirtGravel = (size: number = 256): THREE.DataTexture =>
-  getTexture(`terrain-dirt-gravel-v2-${size}`, () => {
+  getTexture(`terrain-dirt-gravel-v3-${size}`, () => {
     const data = new Uint8Array(size * size * 4);
 
     for (let y = 0; y < size; y++) {
@@ -328,15 +333,16 @@ export const generateDirtGravel = (size: number = 256): THREE.DataTexture =>
         const pebble = tileVoronoi(u, v, 46);
         const stone = clamp01(1 - pebble.dist * 2.1);
 
-        // Warm packed earth base, sRGB.
-        let r = 0.3 + (earth - 0.5) * 0.13 + (grit - 0.5) * 0.06;
-        let g = 0.24 + (earth - 0.5) * 0.11 + (grit - 0.5) * 0.05;
-        let b = 0.17 + (earth - 0.5) * 0.08 + (grit - 0.5) * 0.04;
+        // Packed umber earth, sRGB. Raise the weak channels to avoid orange
+        // saturation, without multiplying a correcting tint in the shader.
+        let r = 0.34 + (earth - 0.5) * 0.09 + (grit - 0.5) * 0.035;
+        let g = 0.3 + (earth - 0.5) * 0.085 + (grit - 0.5) * 0.03;
+        let b = 0.255 + (earth - 0.5) * 0.07 + (grit - 0.5) * 0.025;
 
         // Pebbles: desaturated grey aggregate sitting in the earth.
         if (stone > 0.15) {
           const stoneTone = 0.42 + tileHash(Math.floor(u * 46), Math.floor(v * 46), 46) * 0.16;
-          const blend = (stone - 0.15) * 1.1;
+          const blend = (stone - 0.15) * 0.3;
           r = r * (1 - blend) + stoneTone * blend;
           g = g * (1 - blend) + stoneTone * 0.97 * blend;
           b = b * (1 - blend) + stoneTone * 0.92 * blend;

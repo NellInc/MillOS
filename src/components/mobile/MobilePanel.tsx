@@ -30,6 +30,11 @@ import { useSafetyStore } from '../../stores/safetyStore';
 import { useOperationsCampaignStore } from '../../stores/operationsCampaignStore';
 import { SafetyPanel } from '../ui-new/panels/SafetyPanel';
 import { JevAdvisoryPanel } from '../ui/JevAdvisoryPanel';
+import { WorkplaceLab } from '../ui-new/widgets/WorkplaceLab';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
+
+import { OperationsPlayCard, ShiftDebrief } from '../ui-new/onboarding/PlayableShift';
+import { BatchGenealogySection } from '../ui-new/panels/OverviewPanel';
 
 interface MobilePanelProps {
   isVisible: boolean;
@@ -55,6 +60,14 @@ const panelVariants = {
     y: '50%',
     transition: { duration: 0.2 },
   },
+};
+
+// Working if reduced-motion panels have no translated or scaled first paint,
+// including when the OS preference changes while the app is already open.
+const reducedPanelVariants = {
+  hidden: { opacity: 0, y: 0, scale: 1 },
+  visible: { opacity: 1, y: 0, scale: 1, transition: { duration: 0 } },
+  exit: { opacity: 0, y: 0, scale: 1, transition: { duration: 0 } },
 };
 
 // Get icon for panel header
@@ -151,6 +164,14 @@ const OverviewContent: React.FC = () => {
 
   return (
     <div className="space-y-3">
+      <OperationsPlayCard />
+      <ShiftDebrief />
+      <details className="rounded-xl border border-slate-700 p-3">
+        <summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold text-cyan-200">
+          Batch quality and traceability
+        </summary>
+        <BatchGenealogySection />
+      </details>
       {/* Time & Speed Controls */}
       <div className="bg-slate-800/50 rounded-lg p-2">
         <div className="flex items-center justify-between mb-2">
@@ -635,6 +656,7 @@ const ManagementContent: React.FC = () => {
 
   return (
     <div className="space-y-3">
+      <WorkplaceLab />
       <div className="flex items-center justify-between rounded-lg bg-slate-800/50 p-3">
         <div className="flex items-center gap-2">
           <Heart className="h-5 w-5 text-cyan-400" />
@@ -698,6 +720,7 @@ const getPanelContent = (mode: DockMode | null) => {
 export const MobilePanel: React.FC<MobilePanelProps> = ({ isVisible, content, onClose }) => {
   const panelRef = React.useRef<HTMLElement>(null);
   const closeButtonRef = React.useRef<HTMLButtonElement>(null);
+  const reducedMotion = useReducedMotion();
 
   // Modal behavior: Escape to dismiss, move focus into the panel on open,
   // and restore focus to the previously-focused element on close.
@@ -720,9 +743,21 @@ export const MobilePanel: React.FC<MobilePanelProps> = ({ isVisible, content, on
 
       const focusable = Array.from(
         panelRef.current.querySelectorAll<HTMLElement>(
-          'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+          'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), summary:not([tabindex="-1"]), [tabindex]:not([tabindex="-1"])'
         )
-      ).filter((element) => !element.hidden && element.getClientRects().length > 0);
+      ).filter(
+        (element) =>
+          element.tabIndex >= 0 &&
+          !element.hidden &&
+          element.getClientRects().length > 0 &&
+          // Chromium can retain layout boxes in collapsed details. Only the
+          // summary is a Tab stop until that disclosure is opened.
+          // Working if both Tab directions wrap through the visible summary,
+          // never a control hidden inside a collapsed disclosure.
+          !element.matches(
+            'details:not([open]) > :not(summary), details:not([open]) > :not(summary) *'
+          )
+      );
       const first = focusable[0];
       const last = focusable.at(-1);
       if (!first || !last) {
@@ -763,15 +798,15 @@ export const MobilePanel: React.FC<MobilePanelProps> = ({ isVisible, content, on
           {/* Panel */}
           <motion.aside
             ref={panelRef}
-            variants={panelVariants}
-            initial="hidden"
+            variants={reducedMotion ? reducedPanelVariants : panelVariants}
+            initial={reducedMotion ? false : 'hidden'}
             animate="visible"
             exit="exit"
             className="fixed left-4 right-4 z-50 pointer-events-auto"
             style={{
               bottom: 'max(100px, calc(env(safe-area-inset-bottom) + 90px))',
               maxHeight:
-                content === 'safety'
+                content === 'safety' || content === 'management'
                   ? 'min(70dvh, calc(100dvh - 116px - env(safe-area-inset-bottom)))'
                   : content === 'ai'
                     ? '70vh'
@@ -782,7 +817,7 @@ export const MobilePanel: React.FC<MobilePanelProps> = ({ isVisible, content, on
             aria-modal="true"
           >
             <div
-              className={`flex flex-col ${content === 'safety' ? 'max-h-[min(70dvh,calc(100dvh-116px-env(safe-area-inset-bottom)))]' : content === 'ai' ? 'max-h-[70vh]' : 'max-h-[33vh]'} bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden shadow-2xl`}
+              className={`flex flex-col ${content === 'safety' || content === 'management' ? 'max-h-[min(70dvh,calc(100dvh-116px-env(safe-area-inset-bottom)))]' : content === 'ai' ? 'max-h-[70vh]' : 'max-h-[33vh]'} bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden shadow-2xl`}
             >
               {/* Header */}
               <div className="flex shrink-0 items-center justify-between px-4 py-3 border-b border-slate-700/50">

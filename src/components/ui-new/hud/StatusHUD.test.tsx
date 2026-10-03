@@ -91,6 +91,7 @@ describe('StatusHUD operational controls', () => {
     const bell = screen.getByRole('button', { name: 'Notifications (1 unread)' });
     vi.spyOn(bell, 'getBoundingClientRect').mockReturnValue({ right: 760, bottom: 590 } as DOMRect);
     fireEvent.click(bell);
+    expect(screen.getByRole('banner')).toHaveClass('z-50');
     expect(screen.getByRole('dialog', { name: 'Notifications' })).toHaveStyle({
       left: '432px',
       top: '216px',
@@ -108,6 +109,7 @@ describe('StatusHUD operational controls', () => {
       document.removeEventListener('keydown', sidebarEscape);
     }
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByRole('banner')).toHaveClass('z-30');
     expect(bell).toHaveFocus();
   });
 });

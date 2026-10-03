@@ -28,6 +28,55 @@ export const RIVER_FOOTBRIDGE_DECK = {
   size: [6.375, 0.8, 70] as Vec3Tuple,
 } as const;
 
+/** Twelve 20 cm rises join the existing deck to broad, at-grade landings.
+ * Working if rendered treads, desktop/mobile walking and Rapier agree on every rise.
+ */
+export const RIVER_FOOTBRIDGE_ACCESS = { steps: 12, going: 0.48, landing: 3, baseY: -1.6 } as const;
+export const RIVER_FOOTBRIDGE_STEPS = [-1, 1].flatMap((side) => {
+  const b = RIVER_FOOTBRIDGE_DECK;
+  const edge = b.centre[2] + (side * b.size[2]) / 2;
+  return Array.from({ length: RIVER_FOOTBRIDGE_ACCESS.steps }, (_, index) => {
+    const outer =
+      edge + side * (RIVER_FOOTBRIDGE_ACCESS.steps - index) * RIVER_FOOTBRIDGE_ACCESS.going;
+    const inner = outer - side * RIVER_FOOTBRIDGE_ACCESS.going;
+    return {
+      minZ: Math.min(outer, inner),
+      maxZ: Math.max(outer, inner),
+      top: ((index + 1) / RIVER_FOOTBRIDGE_ACCESS.steps) * (b.centre[1] + b.size[1] / 2),
+    };
+  });
+});
+export const RIVER_FOOTBRIDGE_LANDINGS = [-1, 1].map((side) => {
+  const edge =
+    RIVER_FOOTBRIDGE_DECK.centre[2] +
+    side *
+      (RIVER_FOOTBRIDGE_DECK.size[2] / 2 +
+        RIVER_FOOTBRIDGE_ACCESS.steps * RIVER_FOOTBRIDGE_ACCESS.going);
+  const outer = edge + side * RIVER_FOOTBRIDGE_ACCESS.landing;
+  return { minZ: Math.min(edge, outer), maxZ: Math.max(edge, outer), top: 0 };
+});
+export function nearRiverFootbridge(x: number, z: number): boolean {
+  const b = RIVER_FOOTBRIDGE_DECK;
+  return (
+    Math.abs(x - b.centre[0]) < b.size[0] / 2 + 0.5 &&
+    Math.abs(z - b.centre[2]) <
+      b.size[2] / 2 +
+        RIVER_FOOTBRIDGE_ACCESS.steps * RIVER_FOOTBRIDGE_ACCESS.going +
+        RIVER_FOOTBRIDGE_ACCESS.landing +
+        0.5
+  );
+}
+export function riverFootbridgeWalkingHeight(x: number, z: number): number | null {
+  const b = RIVER_FOOTBRIDGE_DECK;
+  if (Math.abs(x - b.centre[0]) > b.size[0] / 2) return null;
+  if (Math.abs(z - b.centre[2]) <= b.size[2] / 2) return b.centre[1] + b.size[1] / 2;
+  return (
+    RIVER_FOOTBRIDGE_STEPS.find((step) => z >= step.minZ && z <= step.maxZ)?.top ??
+    RIVER_FOOTBRIDGE_LANDINGS.find((step) => z >= step.minZ && z <= step.maxZ)?.top ??
+    null
+  );
+}
+
 export interface SiteBounds {
   readonly minX: number;
   readonly maxX: number;

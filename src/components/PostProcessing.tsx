@@ -13,8 +13,8 @@ import {
   Vignette,
 } from '@react-three/postprocessing';
 import { BlendFunction } from 'postprocessing';
-// `n8ao` ships no type declarations, so the pass is held through the
-// `postprocessing` base class it extends. Only `.enabled` is touched here.
+// `n8ao` ships no type declarations, so hold its ref through the base class.
+// The guarded transparency adapter handles the additional runtime contract.
 import type { Pass, VignetteEffect } from 'postprocessing';
 import { useFrame } from '@react-three/fiber';
 import { useShallow } from 'zustand/react/shallow';
@@ -22,6 +22,7 @@ import { useGraphicsStore, isPostProcessingActive } from '../stores/graphicsStor
 import { useAudioAnalyzerStore } from '../stores/audioAnalyzerStore';
 import { SSAO_PALETTE_COLOR } from '../utils/digitalTwinPalette';
 import { fulfilComposerCapture, setComposerCaptureAvailable } from '../utils/sceneCapture';
+import { reuseBeautyTransforms } from './performance/transparencyTransforms';
 import {
   AMBIENT_OCCLUSION,
   AO_QUALITY_LEVELS,
@@ -140,6 +141,12 @@ export const PostProcessing: React.FC = () => {
   // a ref instead of unmounting it. `postprocessing` skips disabled passes, so
   // an off pass costs nothing per frame.
   const n8aoRef = useRef<Pass | null>(null);
+  const releaseTransparency = useRef<(() => void) | undefined>(undefined);
+  const setN8aoRef = useCallback((pass: Pass | null) => {
+    releaseTransparency.current?.();
+    n8aoRef.current = pass;
+    releaseTransparency.current = pass ? reuseBeautyTransforms(pass) : undefined;
+  }, []);
   const [aoMounted, setAoMounted] = useState(graphics.enableAmbientOcclusion);
   useEffect(() => {
     if (graphics.enableAmbientOcclusion) setAoMounted(true);
@@ -156,9 +163,11 @@ export const PostProcessing: React.FC = () => {
   const children = useMemo(
     () => (
       <>
-        {/* N8AO is a Pass. It needs no NormalPass and no second scene render:
+        {/* N8AO is a Pass. It needs no NormalPass or second opaque beauty render:
             `N8AOPostPass` sets `needsDepthTexture`, and `EffectComposer.addPass`
-            wires the RenderPass depth in response. (Not to be confused with the
+            wires the RenderPass depth in response. Its two transparency renders
+            retain their effects while reusing the beauty pass's transforms.
+            (Not to be confused with the
             standalone `N8AOPass`, which defaults `autoRenderBeauty: true` and
             does re-render the scene.)
             `gammaCorrection` is deliberately never passed: `autosetGamma`
@@ -166,7 +175,7 @@ export const PostProcessing: React.FC = () => {
             disables that. */}
         {aoMounted && (
           <N8AO
-            ref={n8aoRef}
+            ref={setN8aoRef}
             aoRadius={AMBIENT_OCCLUSION.aoRadius}
             distanceFalloff={AMBIENT_OCCLUSION.distanceFalloff}
             intensity={AMBIENT_OCCLUSION.intensity}
@@ -258,6 +267,7 @@ export const PostProcessing: React.FC = () => {
       graphics.enableFilmGrain,
       graphics.enableSMAA,
       setVignetteRef,
+      setN8aoRef,
     ]
   );
 

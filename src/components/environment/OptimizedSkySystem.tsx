@@ -29,6 +29,26 @@ export function getSkyTwilightWeight(solarElevation: number, twilight: number): 
   );
 }
 
+/** After sunset, the upper sky and cloud fill stay blue while the warm band
+ * recedes. Solar angle makes dawn follow the same continuous transition.
+ * Working if blue-hour views retain cool cloud volume without changing noon
+ * or deep night, and the horizon stops tinting the whole valley orange.
+ */
+export function getSkyBlueHourWeight(solarElevation: number, twilight: number): number {
+  return (
+    twilight *
+    (1 - THREE.MathUtils.smoothstep(solarElevation, -0.24, -0.02)) *
+    THREE.MathUtils.smoothstep(solarElevation, -0.52, -0.24)
+  );
+}
+
+export function getSkyWarmHorizonWeight(solarElevation: number, twilight: number): number {
+  return (
+    getSkyTwilightWeight(solarElevation, twilight) *
+    THREE.MathUtils.smoothstep(solarElevation, -0.26, -0.02)
+  );
+}
+
 /** Clear air reveals the rock; cloudier weather closes the depth layers. */
 export function getRidgeAerialWeight(clearAerial: number, cloudCoverage: number): number {
   const cloudiness = THREE.MathUtils.clamp((cloudCoverage - 0.2) / 0.7, 0, 1);
@@ -157,6 +177,13 @@ void main() {
 }
 `;
 
+/** Only the low skirt of fixed backdrop hills blends into the rendered meadow.
+ * Working if the same-page zero-strength arm restores the hard foot, while
+ * upper slopes, geometry, access and the one-pass lighting budget remain intact.
+ */
+export const RIDGE_GROUND_BLEND = { startY: 15, endY: 23 } as const;
+export const RIDGE_GROUND_BLEND_STRENGTH = { value: 1 };
+
 const ridgeFragmentShader = `
 #include <common>
 #include <logdepthbuf_pars_fragment>
@@ -167,6 +194,7 @@ uniform vec3 uInscatter;
 uniform float uAerial;
 uniform float uDetailStrength;
 uniform float uWorldAnchored;
+uniform float uGroundBlendStrength;
 varying vec3 vRidgeColor;
 varying vec3 vRidgeNormal;
 varying vec3 vRidgePosition;
@@ -236,6 +264,14 @@ void main() {
   // An opaque fog-colour fade made near peaks paler than the distant range.
   float opacity = 1.0 - uWorldAnchored * smoothstep(
     ${FOG_HORIZON_START.toFixed(1)}, ${(FOG_HORIZON_END - 32).toFixed(1)}, vRidgeDistance);
+
+  // Existing fixed hills already use alpha for the far-plane blend. Feather
+  // only their low foot over the real opaque meadow, leaving the camera-locked
+  // remote range and every slope above twenty-three metres unchanged. The
+  // start clears the actual15m authored tunnel banks, not only the zero meadow.
+  float groundBlend = smoothstep(
+    ${RIDGE_GROUND_BLEND.startY.toFixed(1)}, ${RIDGE_GROUND_BLEND.endY.toFixed(1)}, p.y);
+  opacity *= mix(1.0, groundBlend, uWorldAnchored * uGroundBlendStrength);
 
   gl_FragColor = vec4(lit, opacity);
   #include <tonemapping_fragment>
@@ -650,9 +686,11 @@ export const MOUNTAIN_RIDGE_GEOMETRIES = [
 
 const dayTop = new THREE.Color('#70aed8');
 const nightTop = new THREE.Color('#071426');
+const blueHourTop = new THREE.Color('#2f5ea0');
 const dayHorizon = new THREE.Color('#a3cce2');
 const nightHorizon = new THREE.Color('#384a64');
 const dawnHorizon = new THREE.Color('#e8a66d');
+const blueHourHorizon = new THREE.Color('#7186ad');
 // Ground bounce, not more sky. This band is what the dome shows below the
 // horizon, and it was '#a6cbd5' - a paler blue than the sky above it, which
 // reads as a second sky rather than as light coming back off the site. The
@@ -662,10 +700,12 @@ const dayGround = new THREE.Color('#8fae9e');
 const nightGround = new THREE.Color('#1e2f42');
 const dayCloud = new THREE.Color('#f4f6f2');
 const nightCloud = new THREE.Color('#4d586a');
+const blueHourCloud = new THREE.Color('#a2b6d3');
 // Unlit cloud bottoms. '#596575' was a night blue applied all day, so overcast
 // cloud read as a bruise rather than as grey volume.
 const dayCloudShadow = new THREE.Color('#93a0ad');
 const nightCloudShadow = new THREE.Color('#28303f');
+const blueHourCloudShadow = new THREE.Color('#455d8b');
 const lightDay = new THREE.Color('#fff1cf');
 const lightGolden = new THREE.Color('#ffb15d');
 const sunCoreNoon = new THREE.Color('#fff8d8');
@@ -706,7 +746,7 @@ const cameraForwardScratch = new THREE.Vector3();
  * One material per range. Broad fixed foothills supply parallax, with aerial
  * extinction separating them from the camera-locked remote horizon.
  */
-function createRidgeMaterial(
+export function createRidgeMaterial(
   aerial: number,
   name: string,
   worldAnchored = false
@@ -734,10 +774,11 @@ function createRidgeMaterial(
       uAerial: { value: aerial },
       uDetailStrength: WORLD_SURFACE_STRENGTH,
       uWorldAnchored: { value: worldAnchored ? 1 : 0 },
+      uGroundBlendStrength: RIDGE_GROUND_BLEND_STRENGTH,
     },
   });
   material.userData.clearAerial = aerial;
-  material.customProgramCacheKey = () => 'millos-ridge-aerial-geology-v6';
+  material.customProgramCacheKey = () => 'millos-ridge-aerial-geology-v7';
   return material;
 }
 
@@ -930,14 +971,22 @@ export function OptimizedSkySystem() {
       response,
       delta
     );
-    targetTopScratch.copy(nightTop).lerp(dayTop, visualDaylight);
+    const blueHour = getSkyBlueHourWeight(atmosphere.solarElevation, atmosphere.twilight);
+    targetTopScratch.copy(nightTop).lerp(dayTop, visualDaylight).lerp(blueHourTop, blueHour);
     targetHorizonScratch
       .copy(nightHorizon)
       .lerp(dayHorizon, visualDaylight)
-      .lerp(dawnHorizon, getSkyTwilightWeight(atmosphere.solarElevation, atmosphere.twilight));
+      .lerp(blueHourHorizon, blueHour)
+      .lerp(dawnHorizon, getSkyWarmHorizonWeight(atmosphere.solarElevation, atmosphere.twilight));
     targetGroundScratch.copy(nightGround).lerp(dayGround, visualDaylight);
-    targetCloudScratch.copy(nightCloud).lerp(dayCloud, visualDaylight);
-    targetCloudShadowScratch.copy(nightCloudShadow).lerp(dayCloudShadow, visualDaylight);
+    targetCloudScratch
+      .copy(nightCloud)
+      .lerp(dayCloud, visualDaylight)
+      .lerp(blueHourCloud, blueHour);
+    targetCloudShadowScratch
+      .copy(nightCloudShadow)
+      .lerp(dayCloudShadow, visualDaylight)
+      .lerp(blueHourCloudShadow, blueHour);
     const colourAlpha = 1 - Math.exp(-response * delta);
     skyMaterial.uniforms.topColor.value.lerp(targetTopScratch, colourAlpha);
     skyMaterial.uniforms.horizonColor.value.lerp(targetHorizonScratch, colourAlpha);

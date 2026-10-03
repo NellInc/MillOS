@@ -1,5 +1,9 @@
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
+import {
+  workplaceSimulationNow,
+  workplaceSimulationRandom,
+} from '../simulation/workplaceReplayRuntime';
 
 // =========================================================================
 // EQUIPMENT BREAKDOWN AND MAINTENANCE CAUSALITY
@@ -231,10 +235,10 @@ export const useBreakdownStore = create<BreakdownStore>()(
       const breakdownType =
         type ??
         (['mechanical', 'electrical', 'overheating', 'vibration_failure'] as BreakdownType[])[
-          Math.floor(Math.random() * 4)
+          Math.floor(workplaceSimulationRandom() * 4)
         ];
       const descriptions = BREAKDOWN_DESCRIPTIONS[breakdownType];
-      const now = Date.now();
+      const now = workplaceSimulationNow();
 
       set((state) => {
         if (state.activeBreakdowns.some((breakdown) => breakdown.machineId === machineId)) {
@@ -299,14 +303,15 @@ export const useBreakdownStore = create<BreakdownStore>()(
 
     triggerRandomBreakdown: (machines) => {
       const state = get();
-      if (Date.now() - state.lastBreakdownTime < 120000) return null;
+      if (workplaceSimulationNow() - state.lastBreakdownTime < 120000) return null;
       const eligibleMachines = machines.filter(
         (machine) =>
           machine.status === 'running' &&
           !state.activeBreakdowns.some((breakdown) => breakdown.machineId === machine.id)
       );
-      if (eligibleMachines.length === 0 || Math.random() > 0.003) return null;
-      const machine = eligibleMachines[Math.floor(Math.random() * eligibleMachines.length)];
+      if (eligibleMachines.length === 0 || workplaceSimulationRandom() > 0.003) return null;
+      const machine =
+        eligibleMachines[Math.floor(workplaceSimulationRandom() * eligibleMachines.length)];
       return get().triggerBreakdown(machine.id, machine.name);
     },
 
@@ -340,7 +345,7 @@ export const useBreakdownStore = create<BreakdownStore>()(
                       ...candidate.audit,
                       {
                         phase: 'awaiting_parts',
-                        timestamp: Date.now(),
+                        timestamp: workplaceSimulationNow(),
                         note: `Repair blocked pending ${unavailable.join(', ')}.`,
                       },
                     ],
@@ -355,7 +360,7 @@ export const useBreakdownStore = create<BreakdownStore>()(
         (Object.entries(counts) as [keyof PartsInventory, number][]).forEach(([part, count]) => {
           partsInventory[part] -= count;
         });
-        const now = Date.now();
+        const now = workplaceSimulationNow();
         result = { started: true, missingParts: [] };
         return {
           partsInventory,
@@ -391,7 +396,7 @@ export const useBreakdownStore = create<BreakdownStore>()(
         if (!workOrder || !breakdown || workOrder.phase !== 'repairing') return {};
         const repairProgress = Math.min(100, Math.max(0, breakdown.repairProgress + progressDelta));
         const completed = repairProgress >= 100;
-        const now = Date.now();
+        const now = workplaceSimulationNow();
         return {
           activeBreakdowns: state.activeBreakdowns.map((candidate) =>
             candidate.id === breakdownId ? { ...candidate, repairProgress } : candidate
@@ -427,7 +432,7 @@ export const useBreakdownStore = create<BreakdownStore>()(
         if (!workOrder || !breakdown || workOrder.phase !== 'verification') return {};
         if (breakdown.repairProgress < 100) return {};
         verified = true;
-        const now = Date.now();
+        const now = workplaceSimulationNow();
         return {
           workOrders: state.workOrders.map((candidate) =>
             candidate.id === workOrder.id
@@ -452,7 +457,7 @@ export const useBreakdownStore = create<BreakdownStore>()(
         );
         if (!workOrder || workOrder.phase !== 'ready_to_restart') return {};
         requested = true;
-        const now = Date.now();
+        const now = workplaceSimulationNow();
         return {
           workOrders: state.workOrders.map((candidate) =>
             candidate.id === workOrder.id
@@ -484,7 +489,7 @@ export const useBreakdownStore = create<BreakdownStore>()(
         const breakdown = state.activeBreakdowns.find((candidate) => candidate.id === breakdownId);
         if (!workOrder || !breakdown || workOrder.phase !== 'restart_requested') return {};
         confirmed = true;
-        const now = Date.now();
+        const now = workplaceSimulationNow();
         const resolvedBreakdown: BreakdownEvent = {
           ...breakdown,
           resolved: true,
@@ -593,7 +598,7 @@ export const useBreakdownStore = create<BreakdownStore>()(
             : Math.max(5, 30 - Math.floor(confidence / 5)),
         basedOnMetrics: metrics,
         acknowledged: false,
-        createdAt: Date.now(),
+        createdAt: workplaceSimulationNow(),
       };
       set((current) => ({
         idSequence: nextSequence,
@@ -610,7 +615,7 @@ export const useBreakdownStore = create<BreakdownStore>()(
 
     clearOldPredictiveAlerts: () =>
       set((state) => {
-        const cutoff = Date.now() - 5 * 60 * 1000;
+        const cutoff = workplaceSimulationNow() - 5 * 60 * 1000;
         return {
           predictiveAlerts: state.predictiveAlerts.filter(
             (alert) => alert.createdAt > cutoff || !alert.acknowledged

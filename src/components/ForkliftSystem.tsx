@@ -1,4 +1,8 @@
 import React, { useRef, useMemo, useState, useEffect, useCallback } from 'react';
+import {
+  registerReplayParticipant,
+  isWorkplaceReplayRestoring,
+} from '../simulation/workplaceReplayRuntime';
 import { useFrame } from '@react-three/fiber';
 import { Billboard, Line } from '@react-three/drei';
 import { SceneText as Text } from './shared/SceneText';
@@ -672,6 +676,26 @@ export const ForkliftSystem: React.FC<ForkliftSystemProps> = ({
     []
   );
 
+  useEffect(
+    () =>
+      registerReplayParticipant('forklift-crossings', {
+        capture: () =>
+          [...crossingReservations.entries()].filter(
+            ([, owner]) => owner === 'forklift-1' || owner === 'forklift-2'
+          ),
+        restore: (entries) => {
+          const ownedIds = new Set(['forklift-1', 'forklift-2']);
+          crossingReservations.forEach((owner, crossingId) => {
+            if (ownedIds.has(owner)) crossingReservations.delete(crossingId);
+          });
+          for (const [crossingId, owner] of entries) {
+            if (ownedIds.has(owner)) crossingReservations.set(crossingId, owner);
+          }
+        },
+      }),
+    []
+  );
+
   return (
     <group name="forklift-system">
       {/* Render crossing zone markers on floor */}
@@ -804,6 +828,9 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
   const simulationPaused = isForkliftSimulationPaused(productionSpeed, gameSpeed);
   const motionStopped = effectiveStopped || simulationPaused;
   const isOperating = currentOperation === 'loading' || currentOperation === 'unloading';
+  const replayOperationRef = useRef<ForkliftOperation | null>(null);
+  const stoppedMirrorRef = useRef(isStopped);
+  stoppedMirrorRef.current = isStopped;
   const effectiveStoppedRef = useRef(effectiveStopped);
   effectiveStoppedRef.current = effectiveStopped;
 
@@ -832,13 +859,16 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
 
   useEffect(() => {
     if (!audioReady) return;
+    if (replayOperationRef.current === currentOperation) return;
+    replayOperationRef.current = null;
+    if (simulationPaused || isWorkplaceReplayRestoring()) return;
     const duration = Math.max(0.6, operationDurationRef.current || 1.5);
     if (currentOperation === 'loading') {
       audioManager.playHydraulicLift(data.id, duration);
     } else if (currentOperation === 'unloading') {
       audioManager.playHydraulicLower(data.id, duration);
     }
-  }, [audioReady, currentOperation, data.id]);
+  }, [audioReady, currentOperation, data.id, simulationPaused]);
 
   // Set initial position only once (not via prop to avoid reset on re-render)
   const initializedRef = useRef(false);
@@ -859,6 +889,126 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
       });
     };
   }, [data.id]);
+
+  const publishMotionTelemetry = (paused = false): void => {
+    const vehicle = ref.current;
+    if (!vehicle) return;
+    const motion = motionStateRef.current;
+    Object.assign(vehicle.userData, {
+      forkliftId: data.id,
+      type: 'forklift',
+      phase: operationRef.current,
+      loadPhase: loadPhaseRef.current,
+      speed: paused ? 0 : motion.speed,
+      acceleration: paused ? 0 : motion.acceleration,
+      steeringAngle: motion.steeringAngle,
+      innerSteeringAngle: motion.innerSteeringAngle,
+      outerSteeringAngle: motion.outerSteeringAngle,
+      wheelTravel: motion.wheelTravel,
+      routeDistance: motion.routeDistance,
+      stopReason: paused ? 'simulation-paused' : motion.stopReason,
+      forkHeight: forkHeightRef.current,
+      mastTilt: mastTiltRef.current,
+      cargo: hasCargoRef.current ? 'pallet' : 'empty',
+      stopped: paused || motion.stopReason !== 'none' || motion.speed <= 0.01,
+    });
+    const telemetry = telemetryRef.current;
+    telemetry.speedMps = paused ? 0 : motion.speed;
+    telemetry.steeringRadians = motion.steeringAngle;
+    telemetry.phase = loadPhaseRef.current;
+    telemetry.stopReason = paused ? 'simulation-paused' : motion.stopReason;
+    vehicleTelemetryRegistry.publish(telemetry);
+  };
+
+  const replayPresentationRef = useRef<() => void>(() => undefined);
+  replayPresentationRef.current = () => publishMotionTelemetry(true);
+  useEffect(
+    () =>
+      registerReplayParticipant(`forklift:${data.id}`, {
+        capture: () => ({
+          motionStateRef: motionStateRef.current,
+          actionMarkerIndexRef: actionMarkerIndexRef.current,
+          hasCargoRef: hasCargoRef.current,
+          operationRef: operationRef.current,
+          loadPhaseRef: loadPhaseRef.current,
+          stopReasonRef: stopReasonRef.current,
+          forkHeightRef: forkHeightRef.current,
+          mastTiltRef: mastTiltRef.current,
+          stateChangeTimerRef: stateChangeTimerRef.current,
+          frameCountRef: frameCountRef.current,
+          lastCollisionCheckRef: lastCollisionCheckRef.current,
+          crossingTimerRef: crossingTimerRef.current,
+          operationTimerRef: operationTimerRef.current,
+          operationDurationRef: operationDurationRef.current,
+          isInCrossingRef: isInCrossingRef.current,
+          currentSpeedRef: currentSpeedRef.current,
+          steeringAngleRef: steeringAngleRef.current,
+          innerSteeringAngleRef: innerSteeringAngleRef.current,
+          outerSteeringAngleRef: outerSteeringAngleRef.current,
+          stoppedMirrorRef: stoppedMirrorRef.current,
+          transform: ref.current
+            ? {
+                position: ref.current.position.toArray(),
+                rotation: [ref.current.rotation.x, ref.current.rotation.y, ref.current.rotation.z],
+              }
+            : null,
+        }),
+        restore: (snapshot) => {
+          motionStateRef.current = snapshot.motionStateRef;
+          actionMarkerIndexRef.current = snapshot.actionMarkerIndexRef;
+          hasCargoRef.current = snapshot.hasCargoRef;
+          operationRef.current = snapshot.operationRef;
+          loadPhaseRef.current = snapshot.loadPhaseRef;
+          stopReasonRef.current = snapshot.stopReasonRef;
+          forkHeightRef.current = snapshot.forkHeightRef;
+          mastTiltRef.current = snapshot.mastTiltRef;
+          stateChangeTimerRef.current = snapshot.stateChangeTimerRef;
+          frameCountRef.current = snapshot.frameCountRef;
+          lastCollisionCheckRef.current = snapshot.lastCollisionCheckRef;
+          crossingTimerRef.current = snapshot.crossingTimerRef;
+          operationTimerRef.current = snapshot.operationTimerRef;
+          operationDurationRef.current = snapshot.operationDurationRef;
+          isInCrossingRef.current = snapshot.isInCrossingRef;
+          currentSpeedRef.current = snapshot.currentSpeedRef;
+          steeringAngleRef.current = snapshot.steeringAngleRef;
+          innerSteeringAngleRef.current = snapshot.innerSteeringAngleRef;
+          outerSteeringAngleRef.current = snapshot.outerSteeringAngleRef;
+          stoppedMirrorRef.current = snapshot.stoppedMirrorRef;
+          setHasCargo(hasCargoRef.current);
+          setCurrentOperation(operationRef.current);
+          setIsStopped(stoppedMirrorRef.current);
+          setIsInCrossing(isInCrossingRef.current);
+          replayOperationRef.current = operationRef.current;
+          if (ref.current) {
+            if (snapshot.transform) {
+              ref.current.position.fromArray(snapshot.transform.position);
+              ref.current.rotation.set(
+                ...(snapshot.transform.rotation as [number, number, number])
+              );
+            } else {
+              ref.current.position.x = motionStateRef.current.x;
+              ref.current.position.z = motionStateRef.current.z;
+              ref.current.rotation.y = motionStateRef.current.heading;
+            }
+            ref.current.updateMatrixWorld(true);
+            const motion = motionStateRef.current;
+            const sample = sampleArcLengthPath(routePlan.path, motion.routeDistance);
+            dirNormalizedRef.current.set(sample.tangentX, 0, sample.tangentZ);
+            positionRegistry.register(
+              data.id,
+              motion.x,
+              motion.z,
+              sample.tangentX,
+              sample.tangentZ,
+              true,
+              ref.current.position.y
+            );
+          }
+          replayPresentationRef.current();
+        },
+      }),
+    [data.id, routePlan]
+  );
 
   useFrame((state, delta) => {
     if (!ref.current || !isTabVisible) return;
@@ -886,43 +1036,11 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
       setDistanceTier('close');
     }
 
-    const publishMotionTelemetry = (): void => {
-      const motion = motionStateRef.current;
-      Object.assign(vehicle.userData, {
-        forkliftId: data.id,
-        type: 'forklift',
-        phase: operationRef.current,
-        loadPhase: loadPhaseRef.current,
-        speed: motion.speed,
-        acceleration: motion.acceleration,
-        steeringAngle: motion.steeringAngle,
-        innerSteeringAngle: motion.innerSteeringAngle,
-        outerSteeringAngle: motion.outerSteeringAngle,
-        wheelTravel: motion.wheelTravel,
-        routeDistance: motion.routeDistance,
-        stopReason: motion.stopReason,
-        forkHeight: forkHeightRef.current,
-        mastTilt: mastTiltRef.current,
-        cargo: hasCargoRef.current ? 'pallet' : 'empty',
-        stopped: motion.stopReason !== 'none' || motion.speed <= 0.01,
-      });
-      const telemetry = telemetryRef.current;
-      telemetry.speedMps = motion.speed;
-      telemetry.steeringRadians = motion.steeringAngle;
-      telemetry.phase = loadPhaseRef.current;
-      telemetry.stopReason = motion.stopReason;
-      vehicleTelemetryRegistry.publish(telemetry);
-    };
-
-    if (simulationPaused) {
-      motionStateRef.current = {
-        ...motionBefore,
-        speed: 0,
-        acceleration: 0,
-        stopReason: 'simulation-paused',
-      };
-      currentSpeedRef.current = 0;
-      stopReasonRef.current = 'simulation-paused';
+    const framePaused = isForkliftSimulationPaused(
+      useProductionStore.getState().productionSpeed,
+      useGameSimulationStore.getState().gameSpeed
+    );
+    if (framePaused || isWorkplaceReplayRestoring()) {
       const sample = sampleArcLengthPath(routePlan.path, motionBefore.routeDistance);
       dirNormalizedRef.current.set(sample.tangentX, 0, sample.tangentZ);
       positionRegistry.register(
@@ -934,7 +1052,7 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
         true,
         vehicle.position.y
       );
-      publishMotionTelemetry();
+      publishMotionTelemetry(true);
       return;
     }
 

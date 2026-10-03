@@ -17,6 +17,24 @@ const makeBox = (x: number, color: string = '#778899'): THREE.Mesh => {
 };
 
 describe('StaticMeshBatch', () => {
+  it('batches mapped bodies without automatically overpainting their atlas', () => {
+    const root = new THREE.Group();
+    const map = new THREE.Texture();
+    const normalMap = new THREE.Texture();
+    const geometry = new THREE.BoxGeometry(1, 2, 3);
+    const material = new THREE.MeshStandardMaterial({ map, normalMap, roughness: 1 });
+    root.add(new THREE.Mesh(geometry, material), new THREE.Mesh(geometry, material.clone()));
+    root.children[1].position.x = 3;
+    const candidates = collectStaticBatchCandidates(root, true);
+    const batches = createStaticMeshBatches(root, candidates, 'atlas', 2, applyBatchWorldSurface);
+    expect(batches).toHaveLength(1);
+    const output = batches[0].mesh.material as THREE.MeshStandardMaterial;
+    expect(output.map).toBe(map);
+    expect(output.normalMap).toBe(normalMap);
+    expect(hasWorldSurface(output)).toBe(false);
+    expect(output.onBeforeCompile).toBe(THREE.Material.prototype.onBeforeCompile);
+  });
+
   it('ignores R3F ownership graphs when comparing identical rendered materials', () => {
     const root = new THREE.Group();
     const left = makeBox(-2);
@@ -138,9 +156,16 @@ describe('StaticMeshBatch', () => {
     const candidates = collectStaticBatchCandidates(root);
     const batches = createStaticMeshBatches(root, candidates, 'attributes', 2);
 
-    expect(batches).toHaveLength(0);
-    expect(first.parent).toBe(root);
-    expect(second.parent).toBe(root);
+    expect(batches).toHaveLength(1);
+    expect(batches[0].mesh).not.toBeInstanceOf(THREE.InstancedMesh);
+    const firstUV = firstGeometry.toNonIndexed();
+    const secondUV = secondGeometry.toNonIndexed();
+    expect(Array.from(batches[0].mesh.geometry.getAttribute('uv').array)).toEqual([
+      ...firstUV.getAttribute('uv').array,
+      ...secondUV.getAttribute('uv').array,
+    ]);
+    firstUV.dispose();
+    secondUV.dispose();
   });
 
   it('does not instance materials with different rendered properties', () => {
@@ -302,7 +327,7 @@ describe('StaticMeshBatch', () => {
     expect(right.visible).toBe(true);
   });
 
-  it('does not merge different geometries at startup', () => {
+  it('merges different rigid geometries at startup only with exact compatible materials', () => {
     const root = new THREE.Group();
     const materialA = new THREE.MeshStandardMaterial({ color: '#445566', roughness: 0.8 });
     const materialB = new THREE.MeshStandardMaterial({ color: '#445566', roughness: 0.8 });
@@ -314,12 +339,15 @@ describe('StaticMeshBatch', () => {
     const candidates = collectStaticBatchCandidates(root);
     const batches = createStaticMeshBatches(root, candidates, 'test', 2);
 
-    expect(batches).toHaveLength(0);
-    expect(box.parent).toBe(root);
-    expect(cylinder.parent).toBe(root);
+    expect(batches).toHaveLength(1);
+    expect(batches[0].mesh).not.toBeInstanceOf(THREE.InstancedMesh);
+    expect(batches[0].originals).toHaveLength(2);
+    expect(batches[0].mesh.geometry.getAttribute('position').count).toBe(
+      box.geometry.index!.count + cylinder.geometry.index!.count
+    );
   });
 
-  it('does not merge colour variants when their geometry differs', () => {
+  it('does not merge colour variants across spatial-cell boundaries', () => {
     const root = new THREE.Group();
     const red = makeBox(-2, '#ff0000');
     const blue = new THREE.Mesh(
@@ -455,6 +483,54 @@ describe('StaticMeshBatch', () => {
       mergedOriginals: 4,
       mergedMeshes: 1,
     });
+  });
+
+  it('merges a nearby rigid pair with exactly compatible materials and retains its triangles', () => {
+    const root = new THREE.Group();
+    const left = makeBox(2, '#d97706');
+    const right = new THREE.Mesh(
+      new THREE.SphereGeometry(0.65, 8, 6),
+      new THREE.MeshStandardMaterial({ color: '#2563eb', roughness: 0.7 })
+    );
+    right.position.x = 5;
+    root.add(left, right);
+    root.updateWorldMatrix(true, true);
+    const before = [left, right].flatMap((mesh) => {
+      const geometry = mesh.geometry.toNonIndexed();
+      geometry.applyMatrix4(mesh.matrixWorld);
+      const positions = Array.from(geometry.getAttribute('position').array);
+      geometry.dispose();
+      return positions;
+    });
+    const batches = createStaticMeshBatches(root, collectStaticBatchCandidates(root), 'pair', 2);
+    expect(batches).toHaveLength(1);
+    expect(batches[0]?.originals).toHaveLength(2);
+    const geometry = batches[0].mesh.geometry;
+    expect(Array.from(geometry.getAttribute('position').array)).toEqual(before);
+    expect(batches[0].mesh.userData.staticBatchSmallRanges).toEqual([
+      { start: 0, count: left.geometry.index!.count },
+      { start: left.geometry.index!.count, count: right.geometry.index!.count },
+    ]);
+    const colors = geometry.getAttribute('color');
+    expect(colors.count).toBe(before.length / 3);
+    expect(colors.getX(0)).toBeCloseTo(new THREE.Color('#d97706').r);
+    expect(colors.getZ(colors.count - 1)).toBeCloseTo(new THREE.Color('#2563eb').b);
+  });
+
+  it('keeps small pairs separate when quantized material properties only approximately match', () => {
+    const root = new THREE.Group();
+    const left = makeBox(2);
+    const right = new THREE.Mesh(
+      new THREE.SphereGeometry(0.65, 8, 6),
+      new THREE.MeshStandardMaterial({ color: '#2563eb', roughness: 0.74 })
+    );
+    right.position.x = 5;
+    root.add(left, right);
+    expect(
+      createStaticMeshBatches(root, collectStaticBatchCandidates(root), 'pair', 2)
+    ).toHaveLength(0);
+    expect(left.parent).toBe(root);
+    expect(right.parent).toBe(root);
   });
 
   it('accumulates diagnostics when candidates are processed in startup slices', () => {

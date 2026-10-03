@@ -25,7 +25,8 @@ describe('inhabited-world and autonomous-vehicle contract', () => {
       vehicleOperators: false,
       remoteAvatars: false,
       humanVoiceAudio: false,
-      workforceUI: false,
+      workforceUI: true,
+      syntheticWorkplaceOnly: true,
     });
     expect(FEATURE_FLAGS).not.toHaveProperty('WORKER_DIALOGUE_ENABLED');
   });
@@ -91,7 +92,7 @@ describe('inhabited-world and autonomous-vehicle contract', () => {
   it('fails positive source requirements when personnel are disabled, unmounted or missing their scene root', () => {
     const valid = {
       policy:
-        'personnelModels:true, vehicleOperators:false, remoteAvatars:false, humanVoiceAudio:false, workforceUI:false',
+        'personnelModels:true, vehicleOperators:false, remoteAvatars:false, humanVoiceAudio:false, workforceUI:true, syntheticWorkplaceOnly:true',
       scene: 'import { CommunityLife } from "./CommunityLife"; <CommunityLife />',
       community:
         'COMMUNITY_ROSTER.map(() => <WorkerModel />); <group name="world-personnel"/><group name="world-community-details"/>',
@@ -107,6 +108,14 @@ describe('inhabited-world and autonomous-vehicle contract', () => {
       'MillScene must import and mount CommunityLife'
     );
     expect(validateCommunitySource({ ...valid, community: '' }).length).toBeGreaterThan(0);
+    expect(
+      validateCommunitySource({
+        ...valid,
+        policy: valid.policy.replace('syntheticWorkplaceOnly:true', 'syntheticWorkplaceOnly:false'),
+      })
+    ).toContain(
+      'syntheticWorkplaceOnly must be enabled for the local synthetic workplace laboratory'
+    );
   });
 
   it('retains canaries for forbidden voices, remote avatars, portraits and vehicle crews', () => {
@@ -187,7 +196,7 @@ it('the delivery gate fails when approved personnel are absent or modified in se
     }
     await writeFile(
       join(root, 'src/config/featureFlags.ts'),
-      'personnelModels:true,vehicleOperators:false,remoteAvatars:false,humanVoiceAudio:false,workforceUI:false'
+      'personnelModels:true,vehicleOperators:false,remoteAvatars:false,humanVoiceAudio:false,workforceUI:true,syntheticWorkplaceOnly:true'
     );
     await writeFile(
       join(root, 'src/components/MillScene.tsx'),

@@ -5,6 +5,10 @@ export const CASTLE_ROCK_SINK = 0.2;
 export const CASTLE_COURT_HEIGHT = 3.2;
 export const CASTLE_STAIR_X = 7.2;
 export const CASTLE_STAIR_WIDTH = 3.3;
+export const CASTLE_ACCESS_LANTERNS = [
+  [9.05, 3.1, 20.65],
+  [5.35, 4.6, 16.15],
+] as const;
 export const CASTLE_STAIR_END = 24.7;
 export const CASTLE_STAIR_RISE = 0.125;
 export const CASTLE_STAIR_TREAD = 0.3;

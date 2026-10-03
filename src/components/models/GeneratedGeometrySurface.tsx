@@ -5,7 +5,11 @@ import type { ThreeElements } from '@react-three/fiber';
 import { GeneratedBoundary } from './GeneratedModel';
 import { useDracoGLTF } from '../../utils/dracoLoader';
 import { GENERATED_ASSET_PATHS, type GeneratedAssetId } from '../../utils/modelLoader';
-import { applyDeclinedWorldSurface, hasWorldSurface } from '../../utils/worldSurface';
+import {
+  applyWorldSurface,
+  hasWorldSurface,
+  resolveSurfaceProfile,
+} from '../../utils/worldSurface';
 
 /** Keep procedural maps on authored UVs; the new normal atlas uses UV channel 1. */
 function retainAuthoredUVs(geometry: THREE.BufferGeometry, original: THREE.BufferGeometry) {
@@ -149,7 +153,13 @@ export function createGeneratedSurfaceMaterial(
 ) {
   // Static fallbacks receive this finish from StaticMeshBatch. Install it before
   // layering so an immediately loaded atlas cannot bypass that same treatment.
-  if (finishStaticSource) applyDeclinedWorldSurface(original);
+  if (finishStaticSource) {
+    // This flag explicitly requests the retained primitive finish, including its
+    // authored normal layer. Working if an early atlas load keeps the same live
+    // fallback uniforms while the automatic building sweep remains map-safe.
+    const profile = resolveSurfaceProfile(original, true);
+    if (profile) applyWorldSurface(original, profile);
+  }
   const live = original.clone();
   if (Object.hasOwn(original, 'onBeforeCompile')) live.onBeforeCompile = original.onBeforeCompile;
   if (Object.hasOwn(original, 'customProgramCacheKey'))

@@ -2,6 +2,7 @@ import React from 'react';
 import * as THREE from 'three';
 import { PlotGeometry } from '../../utils/authoredPlotGeometry';
 import { WORLD_CRAFT_PALETTE } from '../../constants/publicRealmLayout';
+import { applyVillageWindows } from '../models/GeneratedOfficeModel';
 
 import { VILLAGE_HOME_PLOTS, VILLAGE_ALLOTMENT } from '../../constants/siteLayout';
 export {
@@ -342,6 +343,37 @@ function house(index: number) {
 function garden(index: number) {
   const b = new PlotGeometry(),
     d = DESIGNS[index];
+  // Tended footing strips belong to the houses, inside the existing plot
+  // envelopes. Their low herbs leave sashes visible and never enter the gate
+  // lane. Working if rays find gravel on both sides and no foliage above 0.8 m.
+  for (const side of [-1, 1]) {
+    const x = side * (d.width / 2 + 0.48),
+      depth = d.depth - 1.8;
+    b.box([0.76, 0.05, depth], [x, 0, 0.05], '#aea18a');
+    b.box([0.075, 0.09, depth + 0.06], [x + side * 0.39, 0.015, 0.05], '#b99573');
+    // Unequal gaps and heights read as small rosemary/sage clumps, rather
+    // than a second fence or a repeated band of decorative flowers.
+    const count = 2 + ((index + (side > 0 ? 1 : 0)) % 2);
+    for (let i = 0; i < count; i++) {
+      const z = -depth * 0.32 + (i * depth * 0.65) / (count - 1) + 0.05,
+        radius = 0.22 + ((index + i) % 3) * 0.055,
+        height = 0.24 + ((index + i + (side > 0 ? 1 : 0)) % 3) * 0.065;
+      b.round(
+        [x + side * (i % 2 ? 0.06 : -0.035), 0.025 + height, z],
+        [radius, height, radius * 0.82],
+        (index + i) % 2 ? '#71836a' : '#566e54'
+      );
+      b.round(
+        [x - side * 0.09, 0.05 + height * 0.63, z + 0.13],
+        [radius * 0.7, height * 0.62, radius * 0.64],
+        '#879374'
+      );
+    }
+  }
+  // A worn gravel seat pad grounds the existing rear bench, with open ends
+  // instead of another enclosure. No route or collision contract changes.
+  b.box([2.3, 0.05, 1.2], [-3.7, 0, -2.25], '#b5a78d');
+  for (const z of [-2.86, -1.64]) b.box([2.3, 0.075, 0.065], [-3.7, 0.005, z], '#9d8e76');
   // Walking lane remains 1.7 m wide, including between the gate pillars.
   for (let i = 0; i < 9; i++)
     b.box(
@@ -516,6 +548,24 @@ export const VILLAGE_PLOT_MATERIAL = new THREE.MeshStandardMaterial({
 export const VillageHome = React.memo(
   ({ index, windowMaterial }: { index: number; windowMaterial: THREE.Material }) => {
     const model = VILLAGE_HOMES[index];
+    const interiorMaterial = React.useMemo(() => {
+      if (!(windowMaterial instanceof THREE.MeshStandardMaterial)) {
+        throw new Error('Village room glazing requires a standard material');
+      }
+      const material = windowMaterial.clone();
+      material.color.set('#4c6b75');
+      material.emissive.set('#000000');
+      material.emissiveIntensity = 0;
+      // These are opaque virtual rooms over the retained wall, not transparent
+      // sheets onto solid plaster. One existing glazing draw per home remains.
+      material.transparent = false;
+      material.opacity = 1;
+      material.depthWrite = true;
+      material.roughness = 0.3;
+      applyVillageWindows(material, undefined, true, 'pane');
+      return material;
+    }, [windowMaterial]);
+    React.useEffect(() => () => interiorMaterial.dispose(), [interiorMaterial]);
     return (
       <group name={`village-home-${VILLAGE_HOME_PLOTS[index].name}`} dispose={null}>
         <mesh
@@ -535,7 +585,8 @@ export const VillageHome = React.memo(
         <mesh
           name={`village-home-glazing-${index}`}
           geometry={model.glass}
-          material={windowMaterial}
+          material={interiorMaterial}
+          receiveShadow
           userData={{ dynamic: true }}
         />
       </group>

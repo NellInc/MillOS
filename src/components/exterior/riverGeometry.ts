@@ -2,6 +2,14 @@ import * as THREE from 'three';
 import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { sampleTerrainGroundHeight, type RiverChannelConfig } from '../terrain/splatMapGenerator';
 
+import { PlotGeometry } from '../../utils/authoredPlotGeometry';
+import {
+  RIVER_FOOTBRIDGE_ACCESS,
+  RIVER_FOOTBRIDGE_DECK,
+  RIVER_FOOTBRIDGE_STEPS,
+  RIVER_FOOTBRIDGE_LANDINGS,
+} from '../../constants/siteLayout';
+
 type ChannelPoint = readonly [number, number, number];
 
 /** A continuous masonry portal around the finite channel end, in metres.
@@ -275,5 +283,39 @@ export function createRiverSurfaceGeometry(
     terrainVertices: position.count,
     subdivisions: divisions,
   };
+  return geometry;
+}
+
+/** One lit, merged approach assembly. Foundations reach the actual sloped bank;
+ * broad landings meet dry ground, and iron handrails continue the existing deck.
+ */
+export function createRiverFootbridgeAccessGeometry(): THREE.BufferGeometry {
+  const g = new PlotGeometry();
+  const b = RIVER_FOOTBRIDGE_DECK;
+  const a = RIVER_FOOTBRIDGE_ACCESS;
+  for (const step of [...RIVER_FOOTBRIDGE_STEPS, ...RIVER_FOOTBRIDGE_LANDINGS]) {
+    g.box(
+      [b.size[0], step.top - a.baseY, step.maxZ - step.minZ],
+      [b.centre[0], (step.top + a.baseY) / 2, (step.minZ + step.maxZ) / 2],
+      '#b4af9f'
+    );
+  }
+  for (const side of [-1, 1]) {
+    const deckEdge = b.centre[2] + (side * b.size[2]) / 2;
+    const outer = deckEdge + side * a.steps * a.going;
+    const top = b.centre[1] + b.size[1] / 2;
+    for (const edge of [-1, 1]) {
+      const x = b.centre[0] + (edge * b.size[0]) / 2;
+      g.beam([x, 1, outer], [x, top + 1, deckEdge], 0.1, '#394a49');
+      for (let i = 0; i <= 4; i++) {
+        const t = i / 4;
+        const y = top * t;
+        const z = outer + (deckEdge - outer) * t;
+        g.box([0.12, 1.1, 0.12], [x, y + 0.5, z], '#394a49');
+      }
+    }
+  }
+  const geometry = g.finish();
+  geometry.name = 'river-footbridge-ground-access';
   return geometry;
 }

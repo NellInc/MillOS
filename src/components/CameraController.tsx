@@ -13,6 +13,8 @@ import { SITE_LAYOUT, getVisibleSiteCellsForView } from '../constants/siteLayout
 import { resolveCameraCollision } from '../utils/cameraCollision';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { useMobileDetection } from '../hooks/useMobileDetection';
+import { useUIStore } from '../stores/uiStore';
+import { useAnnouncementsStore } from '../stores/announcementsStore';
 import {
   ORBIT_POLAR_LIMITS,
   clampNavigationDelta,
@@ -521,17 +523,23 @@ export const CameraPresetIndicator: React.FC = () => {
   const activePreset = useCameraStore((state) => state.activePreset);
   const isAnimating = useCameraStore((state) => state.isAnimating);
 
-  if (activePreset === null || isCompactLayout) return null;
+  const journeyVisible = useUIStore((state) => state.journeyVisible);
+  const onboarding = useAnnouncementsStore((state) => state.context.onboarding);
+
+  // The camera menu and shortcuts remain available while guidance owns this slot.
+  // Working if tour and delivery text have no camera readout over them.
+  if (activePreset === null || isCompactLayout || journeyVisible || onboarding) return null;
 
   const preset = CAMERA_PRESETS[activePreset];
 
   return (
-    // Keep the view readout below the status header, clear of the sidebar's
-    // playback/footer controls and the bottom dock. Compact layouts own a menu.
+    // The soundtrack owns the first header row; this readout uses the next.
+    // Working if both labels stay readable, with the right sidebar clear.
+    // Compact layouts own a menu.
     <div
       role="status"
       aria-label="Camera view"
-      className="fixed top-16 left-4 z-40 pointer-events-none max-w-[calc(100vw-2rem)]"
+      className="fixed top-32 left-4 z-40 pointer-events-none max-w-[calc(100vw-2rem)]"
     >
       <div
         className={`flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-900/80 backdrop-blur-sm border border-slate-700/50 shadow-lg transition-all duration-300 ${isAnimating ? 'scale-105' : ''}`}

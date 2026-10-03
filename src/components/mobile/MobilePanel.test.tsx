@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MobilePanel } from './MobilePanel';
 import { requestJevAdvice } from '../../utils/jevClient';
+vi.mock('../../hooks/useReducedMotion', () => ({ useReducedMotion: () => false }));
 
 vi.mock('framer-motion', () => ({
   AnimatePresence: ({ children }: { children: React.ReactNode }) => children,

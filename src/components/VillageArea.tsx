@@ -16,6 +16,7 @@ import { SceneText as Text } from './shared/SceneText';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
+import { useGraphicsStore } from '../stores/graphicsStore';
 import Fireflies from './effects/Fireflies';
 import { Cat } from './scenery/Cat';
 import { AuthoredPropTrim, MarketGoods } from './scenery/AuthoredPropTrim';
@@ -54,7 +55,12 @@ import {
 import { CreatureBody, type CreatureRigHandle } from './models/RiggedCreatureModel';
 import { generateCobblestoneRoughness } from '../textures';
 import { SITE_LAYOUT, landmarkLocalToWorld } from '../constants/siteLayout';
-import { EXTERIOR_LAMP_LEVEL, getExteriorLampLevel } from './exterior/ExteriorLighting';
+import {
+  EXTERIOR_LAMP_LEVEL,
+  EXTERIOR_LAMP_LENS_MATERIAL,
+  ExteriorPointLight,
+  getExteriorLampLevel,
+} from './exterior/ExteriorLighting';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import {
   creatureForageWeight,
@@ -989,6 +995,54 @@ const TownHallPrimitiveBody = React.memo(() => {
 });
 TownHallPrimitiveBody.displayName = 'TownHallPrimitiveBody';
 
+// Two doorway fittings, two shared draws, one bounded non-shadow light. The
+// existing lamp driver owns their dusk/weather fade; no separate frame loop.
+// Working if the authored doorway and treads read at night without lighting
+// the roof, replacing the hall, or adding light sources along the whole square.
+const townHallLanternParts: THREE.BufferGeometry[] = [];
+const townHallLensParts: THREE.BufferGeometry[] = [];
+for (const x of [-1.85, 1.85]) {
+  const box = (w: number, h: number, d: number, y: number, z: number, dx = 0) =>
+    townHallLanternParts.push(new THREE.BoxGeometry(w, h, d).translate(x + dx, y, z));
+  box(0.14, 0.44, 0.07, 3.73, 5.09);
+  box(0.06, 0.06, 0.46, 3.87, 5.34);
+  box(0.4, 0.055, 0.4, 3.28, 5.53);
+  box(0.4, 0.055, 0.4, 3.77, 5.53);
+  for (const dx of [-0.17, 0.17]) {
+    box(0.035, 0.49, 0.035, 3.525, 5.36, dx);
+    box(0.035, 0.49, 0.035, 3.525, 5.7, dx);
+  }
+  townHallLanternParts.push(
+    new THREE.ConeGeometry(0.34, 0.2, 4).rotateY(Math.PI / 4).translate(x, 3.9, 5.53)
+  );
+  townHallLensParts.push(new THREE.BoxGeometry(0.3, 0.42, 0.3).translate(x, 3.525, 5.53));
+}
+export const TOWN_HALL_LANTERN_GEOMETRY = mergeGeometries(townHallLanternParts)!;
+export const TOWN_HALL_LENS_GEOMETRY = mergeGeometries(townHallLensParts)!;
+[...townHallLanternParts, ...townHallLensParts].forEach((part) => part.dispose());
+export const TOWN_HALL_ENTRY_LIGHT = {
+  position: [0, 3.65, 6.05] as [number, number, number],
+  intensity: 18,
+  distance: 9,
+};
+
+function TownHallLanterns() {
+  const lighting = useGraphicsStore(
+    (state) => state.graphics.quality !== 'low' && !state.graphics.perfDebug.disableLightingPolish
+  );
+  return (
+    <group name="town-hall-doorway-lanterns">
+      <mesh geometry={TOWN_HALL_LANTERN_GEOMETRY} material={SM.black} receiveShadow />
+      <mesh geometry={TOWN_HALL_LENS_GEOMETRY} material={EXTERIOR_LAMP_LENS_MATERIAL} />
+      {lighting && (
+        <group name="town-hall-entry-light">
+          <ExteriorPointLight {...TOWN_HALL_ENTRY_LIGHT} />
+        </group>
+      )}
+    </group>
+  );
+}
+
 export const TownHall = React.memo<{ position: [number, number, number]; rotation?: number }>(
   ({ position, rotation = 0 }) => (
     <group position={position} rotation={[0, rotation, 0]}>
@@ -1003,6 +1057,7 @@ export const TownHall = React.memo<{ position: [number, number, number]; rotatio
       <group position={[0, 6.03, 5.19]}>
         <VillageNameboard title="TOWN HALL" width={4.9} height={0.66} colour="#354f59" />
       </group>
+      <TownHallLanterns />
       {/* The chime remains independent of the authored clock-face geometry. */}
       <TownHallChime />
     </group>

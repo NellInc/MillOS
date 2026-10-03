@@ -195,3 +195,63 @@
     animation: none !important;
   }
 }
+
+@layer utilities {
+  /* Available workspace, rather than device width, decides whether labels fit.
+     The button's accessible name and tooltip stay intact in the icon-only dock. */
+  #navigation-dock[data-dock-layout='wide'] {
+    container-type: inline-size;
+    container-name: navigation-dock;
+  }
+
+  @container navigation-dock (max-width: 500px) {
+    #navigation-dock [data-dock-label] {
+      display: none;
+    }
+  }
+
+  /* These two quiet overlays share a column on smaller screens. Keep playback
+     above the agreement, including enlarged text, without hiding either task. */
+  @media (max-width: 960px) {
+    [data-testid='game-interface']:has(> [aria-label='Working agreement companion'])
+      [aria-label='Music player'] {
+      top: calc(5rem + env(safe-area-inset-top));
+    }
+
+    [data-testid='game-interface'] > [aria-label='Working agreement companion'] {
+      top: calc(9rem + env(safe-area-inset-top));
+      bottom: auto;
+      max-height: max(0px, calc(100dvh - 16rem - env(safe-area-inset-top)));
+    }
+  }
+
+  @media (max-width: 767px) {
+    [data-testid='game-interface']:has(> [aria-label='Working agreement companion'])
+      [aria-label='Music player'] {
+      top: calc(1rem + env(safe-area-inset-top));
+    }
+
+    [data-testid='game-interface'] > [aria-label='Working agreement companion'] {
+      top: calc(5rem + env(safe-area-inset-top));
+      max-height: max(0px, calc(100dvh - 10.5rem - env(safe-area-inset-top)));
+    }
+  }
+
+  @media (max-height: 500px) {
+    [data-testid='game-interface'] > [aria-label='Working agreement companion'] {
+      padding: 0.5rem;
+    }
+  }
+
+  @media (min-width: 768px) and (max-width: 960px) and (max-height: 500px) {
+    [data-testid='game-interface']:has(> [aria-label='Working agreement companion'])
+      [aria-label='Music player'] {
+      width: 10rem;
+    }
+
+    [data-testid='game-interface'] > [aria-label='Working agreement companion'] {
+      top: calc(5rem + env(safe-area-inset-top));
+      max-height: max(0px, calc(100dvh - 10.5rem - env(safe-area-inset-top)));
+    }
+  }
+}

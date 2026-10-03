@@ -2,68 +2,30 @@
 
 <!-- wiki:type = system -->
 <!-- wiki:scope = millos -->
-<!-- wiki:created = 2026-05-23 -->
-<!-- wiki:updated = 2026-05-23 -->
+<!-- wiki:updated = 2026-09-30 -->
 <!-- wiki:status = active -->
 
-## Summary
+## Clock and authority
 
-`gameSimulationStore.ts` manages the time-based simulation layer: shift scheduling, handover conversations, crisis events, weather, celebration events, and the fire drill emergency evacuation system. It is one of the five core stores aggregated by `useMillStore`.
+`src/stores/gameSimulationStore.ts` owns game time, day, shift, speed, weather and emergency/drill state. `src/systems/UnifiedGameTick.ts` advances the live production, material, truck, quality, maintenance and operations authorities. Personnel routines in `src/components/CommunityLife.tsx` are cosmetic observations; they do not produce stock or certify repairs.
 
-## Shift System
+## Player pacing and reports
 
-`ShiftData` interface (`src/stores/gameSimulationStore.ts`) tracks:
-- `currentShift`: 'morning' | 'afternoon' | 'night'
-- `shiftStartTime`, `previousShiftNotes`, `shiftIncidents` (typed by severity: low/medium/high/critical)
-- `shiftProduction`: target, actual, efficiency percentage
-- `outgoingSupervisor`, `incomingSupervisor`
-- `handoverPhase`: 'idle' | 'briefing' | 'handover' | 'summary'
-- Worker assignments and clock-in/clock-out tracking
-- `handoffConversations` — typed `HandoffConversation` records with duration in seconds
+The default pace is 180 simulated seconds per real second. The guided-delivery and Overview controls offer pause, relaxed 30 and standard 180 without resetting process state (`src/components/ui-new/onboarding/PlayableShift.tsx`, `TeachingPace`).
 
-## Crisis System
+Campaign period keys derive from the game day and visible shift. Period turnover saves a bounded report with dispatch, costs, risks and causal decisions (`src/systems/UnifiedGameTick.ts:846`; `src/stores/operationsCampaignStore.ts`, `tickCampaign`). Overview and compact Overview share the same saved debrief and guarded next-programme controls.
 
-Crisis types: `CrisisType` = 'fire' | 'power_outage' | 'supply_emergency' | 'inspection' | 'weather'
-Severity: `CrisisSeverity` = 'low' | 'medium' | 'high' | 'critical' (`src/stores/gameSimulationStore.ts:65-66`)
+## Safety sequence
 
-## Fire Drill Evacuation
+The drill is a simulated automated egress-verification sequence. It stops production and forklifts while the sequencer marks the existing service-egress zones. Personnel hold their current safe positions, including when the clock is reframed. No worker evacuation is performed or certified (`src/stores/gameSimulationStore.ts:400-493`; `src/components/MillScene.tsx:398-430`; `src/components/CommunityLife.tsx`).
 
-State held in `DrillMetrics` (`src/stores/gameSimulationStore.ts:69-77`):
-```typescript
-interface DrillMetrics {
-  active: boolean;
-  startTime: number;
-  evacuatedWorkerIds: string[];
-  totalWorkers: number;
-  evacuationComplete: boolean;
-  finalTimeSeconds: number | null;
-}
-```
+Ending the drill restores saved pre-emergency machine statuses, clears its interlock and defensively stops any prior alarm. Starting this sequence does not start a siren (`gameSimulationStore.ts:400-474`).
 
-Store functions: `startEmergencyDrill(totalWorkers)`, `endEmergencyDrill()`, `markWorkerEvacuated(workerId)`, `getNearestExit(x, z)`.
+## Current navigation
 
-Exit assignment uses nearest-exit logic (geometry-based); four exits at z=50, z=-50, x=-55, x=55 (`CLAUDE.md:392-403`).
+Desktop and compact walking use the shared 1.7 m eye height and measured ground/stair/bridge surfaces. The physics controller shares the regional bridge/castle sweep (`src/utils/cameraNavigation.ts:4`; `src/utils/castleNavigation.ts`; `src/components/physics/PhysicsFirstPersonController.tsx`). Navigation source tests and actual traversals are distinct proof.
 
-## Celebration Events
-
-`CelebrationEvent` with `CelebrationType`: 'milestone' | 'zero_incident' | 'target_met' | 'shift_complete'. Includes optional 3D position for in-scene effects.
-
-## Tick System
-
-`src/systems/CentralTickSystem.ts`, `UnifiedGameTick.ts`, `CentralTickProvider.tsx` — centralized update loop that drives simulation advancement, AI behavior, and worker behavior engines.
-
-`src/systems/bas/aiBehaviorEngine.ts` — AI decision behavior driven by BAS axis settings.
-`src/systems/bas/workerBehaviorEngine.ts` — worker agent decisions.
-`src/systems/bas/stabilityCalculator.ts` — Wallace stability metrics.
-`src/systems/bas/valueCalculator.ts` — computes derived flourishing values from axis state.
-
-## Provenance
-
-- Sources consulted: `src/stores/gameSimulationStore.ts`, `CLAUDE.md:380-440`, `src/systems/`
-- Last verified against sources: 2026-05-23
-
-## See Also
+## See also
 
 - [[millos:flows/fire-drill-evacuation]]
-- [[millos:domain/bilateral-autonomy-system]]
-- [[millos:systems/store-architecture]]
+- [[millos:systems/scenarios-social-mission]]

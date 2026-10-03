@@ -1,6 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import { Vector3, Raycaster } from 'three';
-import { CASTLE_STEPS } from '../constants/castleAccess';
+import {
+  RIVER_FOOTBRIDGE_DECK,
+  RIVER_FOOTBRIDGE_STEPS,
+  RIVER_FOOTBRIDGE_LANDINGS,
+} from '../constants/siteLayout';
+import { createRiverFootbridgeAccessGeometry } from '../components/exterior/riverGeometry';
+import {
+  CASTLE_STEPS,
+  CASTLE_ACCESS_LANTERNS,
+  CASTLE_STAIR_X,
+  CASTLE_STAIR_WIDTH,
+} from '../constants/castleAccess';
 import {
   castleBlocks,
   castleLocalPosition,
@@ -54,6 +65,13 @@ describe('castle ground access', () => {
       });
     }
   }
+  it('keeps the access lanterns outside the walking width', () => {
+    for (const [x, , z] of CASTLE_ACCESS_LANTERNS) {
+      expect(Math.abs(x - CASTLE_STAIR_X) - 0.225).toBeGreaterThan(CASTLE_STAIR_WIDTH / 2 - 0.1);
+      expect(z).toBeGreaterThan(15.7);
+      expect(z).toBeLessThan(24.7);
+    }
+  });
   it('uses exactly the rendered tread and landing heights', () => {
     const geometry = createCastleStepsGeometry();
     const mesh = new Mesh(geometry, new MeshBasicMaterial());
@@ -103,5 +121,57 @@ describe('castle ground access', () => {
     const y = (p.y = 65);
     moveWalkingPosition(p, 3, 0, 128, false, 0.48, () => false);
     expect(p.y).toBe(y);
+  });
+});
+
+describe('river bridge ground access', () => {
+  it('uses the rendered tread and landing heights with finite merged geometry', () => {
+    const geometry = createRiverFootbridgeAccessGeometry();
+    const mesh = new Mesh(geometry, new MeshBasicMaterial());
+    mesh.updateMatrixWorld();
+    try {
+      expect(Array.from(geometry.getAttribute('position').array).every(Number.isFinite)).toBe(true);
+      expect(geometry.getAttribute('position').count).toBeLessThan(2500);
+      for (const step of [...RIVER_FOOTBRIDGE_STEPS, ...RIVER_FOOTBRIDGE_LANDINGS]) {
+        const z = (step.minZ + step.maxZ) / 2;
+        const hit = new Raycaster(new Vector3(0, 8, z), new Vector3(0, -1, 0)).intersectObject(
+          mesh
+        )[0];
+        expect(hit?.point.y).toBeCloseTo(step.top, 5);
+        for (const segments of [64, 128])
+          expect(sampleWalkingGroundHeight(0, z, segments)).toBeCloseTo(hit.point.y, 5);
+      }
+    } finally {
+      geometry.dispose();
+      mesh.material.dispose();
+    }
+  });
+  it.each([64, 128])(
+    'crosses both flights and the whole deck in either direction at terrain %i',
+    (segments) => {
+      for (const direction of [-1, 1])
+        for (const stride of [0.2, 4.32]) {
+          const p = new Vector3(0, 1.7, RIVER_FOOTBRIDGE_DECK.centre[2] - direction * 45);
+          let highest = p.y;
+          for (let i = 0; i < Math.ceil(90 / stride); i++) {
+            moveWalkingPosition(p, 0, direction * stride, segments, true, 1.7, () => false);
+            highest = Math.max(highest, p.y);
+            expect(p.y - sampleWalkingGroundHeight(p.x, p.z, segments)).toBeCloseTo(1.7, 6);
+          }
+          expect(highest).toBeCloseTo(4.1, 5);
+          expect(direction * (p.z - RIVER_FOOTBRIDGE_DECK.centre[2])).toBeGreaterThan(44);
+          expect(p.y).toBeCloseTo(1.7, 5);
+        }
+    }
+  );
+  it('prevents a grounded side step off the high deck while preserving inspection flight', () => {
+    const p = new Vector3(0, 4.1, -145);
+    moveWalkingPosition(p, 6, 0, 64, true, 1.7, () => false);
+    expect(p.x).toBeLessThanOrEqual(RIVER_FOOTBRIDGE_DECK.size[0] / 2);
+    expect(p.y).toBeCloseTo(4.1, 5);
+    p.y = 8;
+    moveWalkingPosition(p, 6, 0, 64, false, 1.7, () => false);
+    expect(p.x).toBeGreaterThan(RIVER_FOOTBRIDGE_DECK.size[0] / 2);
+    expect(p.y).toBe(8);
   });
 });

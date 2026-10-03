@@ -14,6 +14,7 @@ import { createAgentQueryService } from '../../query/queryService.js';
 import { SYSTEM_REGISTRY_SOURCE } from '../../registry/systemRegistrySource.js';
 import { captureMillOSAgentState } from './runtimeProjection';
 import { createMillOSRuntimeCommandHandlers } from './runtimeCommandHandlers';
+import { useWorkplaceStore } from '../../../stores/workplaceStore';
 
 declare global {
   interface Window {
@@ -171,9 +172,28 @@ function composeMillOSAgentRuntime(): AgentRuntimeApi {
     actors: () => immutable(authority.actors),
     grants: () => immutable(authority.grants),
     policy: () => immutable(authority.policy),
-    revokeGrant: (grantId, reason) => authority.revoke(grantId, reason),
-    object: (capabilityIds, statement, requestedDisposition, modes) =>
-      immutable(authority.object(capabilityIds, statement, requestedDisposition, modes)),
+    revokeGrant: (grantId, reason) => {
+      const revoked = authority.revoke(grantId, reason);
+      if (
+        revoked &&
+        authority.grants
+          .find((grant) => grant.id === grantId)
+          ?.capabilityIds.includes('workplace.activate-plan')
+      ) {
+        useWorkplaceStore.getState().stop();
+      }
+      return revoked;
+    },
+    object: (capabilityIds, statement, requestedDisposition, modes) => {
+      const objection = authority.object(capabilityIds, statement, requestedDisposition, modes);
+      if (
+        capabilityIds.includes('workplace.activate-plan') &&
+        objection.modes.includes('simulation')
+      ) {
+        useWorkplaceStore.getState().stop();
+      }
+      return immutable(objection);
+    },
     resolveObjection: (objectionId, resolution) =>
       authority.resolveObjection(objectionId, resolution),
     evidence: () => immutable(ledger.export()),

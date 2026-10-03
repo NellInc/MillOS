@@ -16,6 +16,8 @@ import { useProductionStore } from '../../../stores/productionStore';
 import { useSafetyStore } from '../../../stores/safetyStore';
 import { useTruckScheduleStore } from '../../../stores/truckScheduleStore';
 import { peekSCADAService } from '../../../scada/SCADAService';
+import { useWorkplaceStore } from '../../../stores/workplaceStore';
+import { projectWorkplace } from '../../../simulation/bilateralWorkplace';
 
 const BUILD_ID = typeof __MILLOS_BUILD_ID__ === 'string' ? __MILLOS_BUILD_ID__ : 'development';
 
@@ -276,6 +278,7 @@ export function captureMillOSAgentState(now = new Date()): AgentDomainCapture {
         : 'local simulation; no external observation claimed',
     }),
     experience: asJson({
+      workplace: projectWorkplace(useWorkplaceStore.getState().workplace),
       operationalProjectionOnly: true,
       cosmeticStateExcludedFromRevision: true,
       frameTelemetryExcludedFromRevision: true,

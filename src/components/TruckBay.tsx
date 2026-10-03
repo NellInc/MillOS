@@ -1,6 +1,7 @@
 import { PalletStaging } from './truckbay/PalletStaging';
 import { GeneratedGeometrySurface } from './models/GeneratedGeometrySurface';
 import { GeneratedBoundary, GeneratedModel } from './models/GeneratedModel';
+import { applyVillageWindows } from './models/GeneratedOfficeModel';
 import React, { useRef, useEffect, useId, useLayoutEffect, useMemo, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { SceneText } from './shared/SceneText';
@@ -46,6 +47,10 @@ import {
 import { positionRegistry } from '../utils/positionRegistry';
 import { OptimizedTruckVisual, TRUCK_WHEEL_RADIUS } from './truckbay/OptimizedTruckBay';
 import { getRuntimeMode } from '../runtime/runtimeMode';
+import {
+  registerReplayParticipant,
+  isWorkplaceReplayRestoring,
+} from '../simulation/workplaceReplayRuntime';
 import { toSimulationMinutes } from '../simulation/simulationClock';
 import { PROCEDURAL_TEXTURES } from '../utils/sharedMaterials';
 import {
@@ -176,6 +181,17 @@ const MAINTENANCE_GARAGE_POSITION = [...SITE_LAYOUT.serviceYard.maintenanceGarag
   number,
   number,
 ];
+
+/** Existing side panes gain shallow workshop depth without domestic curtains.
+ * Working if both outer facades show rooms and the light/shadow budget stays unchanged.
+ */
+export const WORKSHOP_GLAZING = new THREE.MeshStandardMaterial({
+  name: 'maintenance-workshop-glazing',
+  color: '#4f8ca1',
+  roughness: 0.2,
+  metalness: 0.42,
+});
+applyVillageWindows(WORKSHOP_GLAZING, undefined, false, 'pane');
 const TRAILER_DROP_YARD_POSITION = [...SITE_LAYOUT.serviceYard.trailerDropYard.position] as [
   number,
   number,
@@ -2971,6 +2987,47 @@ export const TruckBay: React.FC<TruckBayProps> = ({ productionSpeed }) => {
     }
   }, [audioReady, productionSpeed, safetyHoldActive]);
 
+  const replayPresentationRef = useRef<() => void>(() => undefined);
+  useEffect(
+    () =>
+      registerReplayParticipant('trucks', {
+        capture: () => ({
+          shippingControllerRef: shippingControllerRef.current,
+          receivingControllerRef: receivingControllerRef.current,
+          shippingPreviousControllerRef: shippingPreviousControllerRef.current,
+          receivingPreviousControllerRef: receivingPreviousControllerRef.current,
+          shippingAccumulatorRef: shippingAccumulatorRef.current,
+          receivingAccumulatorRef: receivingAccumulatorRef.current,
+          shippingStateRef: shippingStateRef.current,
+          receivingStateRef: receivingStateRef.current,
+          shippingServicePhaseRef: shippingServicePhaseRef.current,
+          receivingServicePhaseRef: receivingServicePhaseRef.current,
+          lastDockUpdateRef: lastDockUpdateRef.current,
+          lastDockedStateRef: lastDockedStateRef.current,
+          lastTransferReadyRef: lastTransferReadyRef.current,
+          lastLifecycleRef: lastLifecycleRef.current,
+        }),
+        restore: (snapshot) => {
+          shippingControllerRef.current = snapshot.shippingControllerRef;
+          receivingControllerRef.current = snapshot.receivingControllerRef;
+          shippingPreviousControllerRef.current = snapshot.shippingPreviousControllerRef;
+          receivingPreviousControllerRef.current = snapshot.receivingPreviousControllerRef;
+          shippingAccumulatorRef.current = snapshot.shippingAccumulatorRef;
+          receivingAccumulatorRef.current = snapshot.receivingAccumulatorRef;
+          shippingStateRef.current = snapshot.shippingStateRef;
+          receivingStateRef.current = snapshot.receivingStateRef;
+          shippingServicePhaseRef.current = snapshot.shippingServicePhaseRef;
+          receivingServicePhaseRef.current = snapshot.receivingServicePhaseRef;
+          lastDockUpdateRef.current = snapshot.lastDockUpdateRef;
+          lastDockedStateRef.current = snapshot.lastDockedStateRef;
+          lastTransferReadyRef.current = snapshot.lastTransferReadyRef;
+          lastLifecycleRef.current = snapshot.lastLifecycleRef;
+          replayPresentationRef.current();
+        },
+      }),
+    []
+  );
+
   useFrame(({ camera }, delta) => {
     // Signage gate. Runs before the tab-visibility guard so a tab that comes
     // back never spends a frame with 33 labels drawn from 180 m away.
@@ -2988,8 +3045,16 @@ export const TruckBay: React.FC<TruckBayProps> = ({ productionSpeed }) => {
     }
 
     if (!isTabVisible) return;
+    tickTrucks(delta);
+  });
+
+  const tickTrucks = (delta: number, presentationOnly = false): void => {
     const gameSimulation = useGameSimulationStore.getState();
     const gameSpeed = gameSimulation.gameSpeed;
+    const safetyHoldActive = selectSafetyHoldActive(gameSimulation);
+    const productionSpeed = useProductionStore.getState().productionSpeed;
+    const allowAdvance =
+      !presentationOnly && !isWorkplaceReplayRestoring() && gameSpeed > 0 && productionSpeed > 0;
     const campaignProductionMultiplier = useOperationsCampaignStore
       .getState()
       .getProductionMultiplier();
@@ -2997,13 +3062,12 @@ export const TruckBay: React.FC<TruckBayProps> = ({ productionSpeed }) => {
     // made each truck execute roughly 30 fixed steps in one render and then
     // remain still for the next half second. Feed the deterministic controller
     // from render delta instead, while retaining the same production scaling.
-    const controllerDelta =
-      gameSpeed > 0
-        ? Math.min(
-            MAXIMUM_TRUCK_CONTROLLER_DELTA_SECONDS,
-            Math.max(0, delta) * productionSpeed * campaignProductionMultiplier
-          )
-        : 0;
+    const controllerDelta = allowAdvance
+      ? Math.min(
+          MAXIMUM_TRUCK_CONTROLLER_DELTA_SECONDS,
+          Math.max(0, delta) * productionSpeed * campaignProductionMultiplier
+        )
+      : 0;
     const simulationMinutes = toSimulationMinutes({
       day: gameSimulation.gameDay,
       hour: gameSimulation.gameTime,
@@ -3030,7 +3094,7 @@ export const TruckBay: React.FC<TruckBayProps> = ({ productionSpeed }) => {
       let accumulator = accumulatorRef.current + controllerDelta;
       let departedThisFrame = false;
 
-      while (accumulator >= TRUCK_CONTROLLER_STEP_SECONDS) {
+      while (allowAdvance && accumulator >= TRUCK_CONTROLLER_STEP_SECONDS) {
         previousController = controller;
         const result = stepTruckController(controller, {
           deltaSeconds: TRUCK_CONTROLLER_STEP_SECONDS,
@@ -3047,10 +3111,10 @@ export const TruckBay: React.FC<TruckBayProps> = ({ productionSpeed }) => {
       previousControllerRef.current = previousController;
       accumulatorRef.current = accumulator;
 
-      if (scheduleBefore.arrivalReady && controller.active) {
+      if (allowAdvance && scheduleBefore.arrivalReady && controller.active) {
         useTruckScheduleStore.getState().consumeTruckArrival(dock);
       }
-      if (departedThisFrame) {
+      if (allowAdvance && departedThisFrame) {
         useTruckScheduleStore.getState().recordTruckDeparture(dock, simulationMinutes);
       }
 
@@ -3059,7 +3123,11 @@ export const TruckBay: React.FC<TruckBayProps> = ({ productionSpeed }) => {
         controller,
         accumulator / TRUCK_CONTROLLER_STEP_SECONDS
       );
-      const truckState = getTruckControllerPose(displayController, safetyHoldActive);
+      const truckState = getTruckControllerPose(
+        displayController,
+        safetyHoldActive || !allowAdvance
+      );
+      if (!allowAdvance) truckState.speed = 0;
       truckStateRef.current = truckState;
       wheelRotationRef.current = displayController.wheelTravel / TRUCK_WHEEL_RADIUS;
 
@@ -3068,6 +3136,7 @@ export const TruckBay: React.FC<TruckBayProps> = ({ productionSpeed }) => {
         truckRef.current.position.x = truckState.x;
         truckRef.current.position.z = truckState.z;
         truckRef.current.rotation.y = truckState.rotation;
+        truckRef.current.updateMatrixWorld(true);
         Object.assign(truckRef.current.userData, {
           vehicleType: 'autonomous-articulated-truck',
           dock,
@@ -3075,7 +3144,7 @@ export const TruckBay: React.FC<TruckBayProps> = ({ productionSpeed }) => {
           phase: truckState.phase,
           servicePhase: truckState.servicePhase,
           speed: truckState.speed,
-          acceleration: displayController.motion.acceleration,
+          acceleration: allowAdvance ? displayController.motion.acceleration : 0,
           steeringAngle: truckState.steeringAngle,
           wheelRotation: wheelRotationRef.current,
           wheelTravel: displayController.wheelTravel,
@@ -3140,15 +3209,15 @@ export const TruckBay: React.FC<TruckBayProps> = ({ productionSpeed }) => {
       telemetry.transferReady = transferReady;
       vehicleTelemetryRegistry.publish(telemetry);
       const lifecycle = getTruckLifecycle(truckState);
-      if (physicallyDocked !== lastDockedStateRef.current[dock]) {
+      if (allowAdvance && physicallyDocked !== lastDockedStateRef.current[dock]) {
         lastDockedStateRef.current[dock] = physicallyDocked;
         useTruckScheduleStore.getState().setTruckDocked(dock, physicallyDocked);
       }
-      if (transferReady !== lastTransferReadyRef.current[dock]) {
+      if (allowAdvance && transferReady !== lastTransferReadyRef.current[dock]) {
         lastTransferReadyRef.current[dock] = transferReady;
         useTruckScheduleStore.getState().setTruckTransferReady(dock, transferReady);
       }
-      if (lifecycle !== lastLifecycleRef.current[dock]) {
+      if (allowAdvance && lifecycle !== lastLifecycleRef.current[dock]) {
         lastLifecycleRef.current[dock] = lifecycle;
         useTruckScheduleStore.getState().setTruckLifecycle(dock, lifecycle);
       }
@@ -3166,7 +3235,7 @@ export const TruckBay: React.FC<TruckBayProps> = ({ productionSpeed }) => {
         audioManager.updateTruckSpatialVolume(vehicleId);
       }
       const shouldBeep =
-        productionSpeed > 0 && truckState.active && !safetyHoldActive && truckState.reverseLights;
+        allowAdvance && truckState.active && !safetyHoldActive && truckState.reverseLights;
       if (shouldBeep !== backupBeeperRef.current[dock]) {
         backupBeeperRef.current[dock] = shouldBeep;
         if (shouldBeep) audioManager.startBackupBeeper?.(vehicleId);
@@ -3174,16 +3243,13 @@ export const TruckBay: React.FC<TruckBayProps> = ({ productionSpeed }) => {
       }
 
       const engineMoving =
-        productionSpeed > 0 &&
-        truckState.active &&
-        !safetyHoldActive &&
-        Math.abs(truckState.speed) > 0.05;
+        allowAdvance && truckState.active && !safetyHoldActive && Math.abs(truckState.speed) > 0.05;
       if (audioReady && engineMoving !== engineMovingRef.current[dock]) {
         engineMovingRef.current[dock] = engineMoving;
         audioManager.updateTruckEngine(vehicleId, engineMoving);
       }
 
-      if (truckState.phase !== phaseRef.current) {
+      if (allowAdvance && truckState.phase !== phaseRef.current) {
         if (audioReady) {
           if (truckState.phase === 'docked') {
             audioManager.playTruckArrival();
@@ -3203,7 +3269,7 @@ export const TruckBay: React.FC<TruckBayProps> = ({ productionSpeed }) => {
         phaseRef.current = truckState.phase;
       }
 
-      if (truckState.servicePhase !== servicePhaseRef.current) {
+      if (allowAdvance && truckState.servicePhase !== servicePhaseRef.current) {
         if (audioReady) {
           if (truckState.servicePhase === 'leveler-deploying') {
             audioManager.playDockLevelerSound();
@@ -3226,7 +3292,7 @@ export const TruckBay: React.FC<TruckBayProps> = ({ productionSpeed }) => {
             : 'arriving';
       const etaMinutes = truckState.active ? 0 : Math.ceil(latestSchedule.nextArrivalMinutes);
       const statusKey = `${status}-${etaMinutes}-${truckState.servicePhase}`;
-      if (statusKey !== lastDockUpdateRef.current[dock]) {
+      if (allowAdvance && statusKey !== lastDockUpdateRef.current[dock]) {
         lastDockUpdateRef.current[dock] = statusKey;
         updateDockStatus(dock, { status, etaMinutes });
       }
@@ -3258,7 +3324,9 @@ export const TruckBay: React.FC<TruckBayProps> = ({ productionSpeed }) => {
       receivingDockVisualRef,
       setReceivingDockVisual
     );
-  });
+  };
+
+  replayPresentationRef.current = () => tickTrucks(0, true);
 
   return (
     <group>
@@ -5412,17 +5480,12 @@ const MaintenanceBay: React.FC<{ position: [number, number, number]; rotation?: 
     {[-1, 1].map((side) => (
       <mesh
         key={`garage-side-window-${side}`}
+        name={`maintenance-side-pane-${side}`}
         position={[side * 6.01, 3.2, -1.1]}
-        rotation={[0, Math.PI / 2, 0]}
+        rotation={[0, (side * Math.PI) / 2, 0]}
+        material={WORKSHOP_GLAZING}
       >
         <planeGeometry args={[3.4, 1.5]} />
-        <meshStandardMaterial
-          color="#4f8ca1"
-          emissive="#163642"
-          emissiveIntensity={0.2}
-          roughness={0.2}
-          metalness={0.42}
-        />
       </mesh>
     ))}
     <group position={[-6.3, 1.65, 2.6]} rotation={[0, -Math.PI / 2, 0]}>

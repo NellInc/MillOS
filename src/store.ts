@@ -52,6 +52,7 @@ import {
 } from './stores/breakdownStore';
 import { getDispatchQualityStatus, useQCLabStore, type QCLabState } from './stores/qcLabStore';
 import { shallow } from 'zustand/shallow';
+import { isWorkplaceReplayActive } from './simulation/workplaceReplayRuntime';
 
 // Debounced machine state sync to prevent flooding SCADA with updates
 let lastMachineSyncTime = 0;
@@ -327,6 +328,7 @@ export function initializeSCADASync(): () => void {
       // 3. SCADA → STORE: Sync critical alarms to alerts
       // This displays SCADA alarms in the main UI alert system
       const unsubAlarms = service.subscribeToAlarms((alarms) => {
+        if (isWorkplaceReplayActive()) return;
         const uiStore = useUIStore.getState();
 
         // Find new critical/high alarms that aren't already in alerts
@@ -361,6 +363,7 @@ export function initializeSCADASync(): () => void {
       // PERFORMANCE FIX: Use batch updates to prevent multiple re-renders per second
       let lastMachineUpdate = 0;
       const unsubValueSync = service.subscribeToValues((values) => {
+        if (isWorkplaceReplayActive()) return;
         const now = Date.now();
         if (now - lastMachineUpdate < 1000) return;
         lastMachineUpdate = now;

@@ -39,7 +39,7 @@ export const generateGrass = (
     seed = 42,
   } = options;
 
-  const cacheKey = `grass-v6-${size}-${baseColor.join(',')}-${tipColor.join(',')}-${density}-${variation}-${seed}`;
+  const cacheKey = `grass-v7-${size}-${baseColor.join(',')}-${tipColor.join(',')}-${density}-${variation}-${seed}`;
 
   return getTexture(cacheKey, () => {
     const data = new Uint8Array(size * size * 4);
@@ -151,6 +151,48 @@ export const generateGrass = (
         data[i + 1] = Math.floor(Math.max(0, Math.min(1, g)) * 255);
         data[i + 2] = Math.floor(Math.max(0, Math.min(1, b)) * 255);
         data[i + 3] = 255;
+      }
+    }
+
+    // Keep clumps and blades, but remove most tile-sized colour patches.
+    // Those broad patches survive mipmapping and repeat as a wavy checkerboard
+    // even with the terrain's continuous UV warp. The terrain already supplies
+    // non-tile-sized meadow variation. Bake this once; no extra shader tap.
+    // A cyclic separable box filter preserves the mean and avoids edge padding.
+    const radius = Math.max(1, Math.floor(size / 8));
+    const span = radius * 2 + 1;
+    const horizontal = new Float32Array(size * size * 3);
+    const means = [0, 0, 0];
+    for (let i = 0; i < data.length; i += 4) {
+      for (let c = 0; c < 3; c += 1) means[c] += data[i + c] / (size * size);
+    }
+    for (let y = 0; y < size; y += 1) {
+      for (let c = 0; c < 3; c += 1) {
+        let sum = 0;
+        for (let dx = -radius; dx <= radius; dx += 1) {
+          sum += data[(y * size + ((dx + size) % size)) * 4 + c];
+        }
+        for (let x = 0; x < size; x += 1) {
+          horizontal[(y * size + x) * 3 + c] = sum / span;
+          sum -= data[(y * size + ((x - radius + size) % size)) * 4 + c];
+          sum += data[(y * size + ((x + radius + 1) % size)) * 4 + c];
+        }
+      }
+    }
+    for (let x = 0; x < size; x += 1) {
+      for (let c = 0; c < 3; c += 1) {
+        let sum = 0;
+        for (let dy = -radius; dy <= radius; dy += 1) {
+          sum += horizontal[(((dy + size) % size) * size + x) * 3 + c];
+        }
+        for (let y = 0; y < size; y += 1) {
+          const i = (y * size + x) * 4 + c;
+          data[i] = Math.round(
+            THREE.MathUtils.clamp(data[i] + (means[c] - sum / span) * 0.9, 0, 255)
+          );
+          sum -= horizontal[(((y - radius + size) % size) * size + x) * 3 + c];
+          sum += horizontal[(((y + radius + 1) % size) * size + x) * 3 + c];
+        }
       }
     }
 

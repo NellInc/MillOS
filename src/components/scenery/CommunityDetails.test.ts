@@ -90,6 +90,7 @@ describe('authored community details', () => {
   it('keeps live visibility outside the static batch and ties stock to explicit event props', () => {
     const source = readFileSync('src/components/scenery/CommunityDetails.tsx', 'utf8');
     expect(source).toContain('visible={shopsOpen && bakeryStocked}');
+    expect(source).toContain('bakeryStocked = false');
     expect(source).toContain('visible={deliveryVisible}');
     expect(source).toContain('name="community-open-hours" userData={{ noStaticBatch: true }}');
     expect(source).not.toMatch(/<(?:pointLight|spotLight|directionalLight)/);

@@ -1,5 +1,9 @@
 import { canalBridgeWalkingHeight, nearCanalBridge } from '../constants/publicRealmLayout';
-import { SITE_LAYOUT } from '../constants/siteLayout';
+import {
+  SITE_LAYOUT,
+  riverFootbridgeWalkingHeight,
+  nearRiverFootbridge,
+} from '../constants/siteLayout';
 import {
   CASTLE_COURT_HEIGHT,
   CASTLE_ROCK_SINK,
@@ -40,6 +44,8 @@ function stairHeight(x: number, z: number): number | null {
 }
 export function sampleWalkingGroundHeight(x: number, z: number, segments: number): number {
   const terrain = sampleValleyGroundHeight(x, z, segments);
+  const riverBridge = riverFootbridgeWalkingHeight(x, z);
+  if (riverBridge !== null) return Math.max(terrain, riverBridge);
   const bridge = canalBridgeWalkingHeight(x, z);
   if (bridge !== null) return Math.max(terrain, bridge);
   if (!nearCastle(x, z)) return terrain;
@@ -127,7 +133,9 @@ export function moveWalkingPosition(
         (nearCastle(x, z) ||
           nearCastle(position.x, position.z) ||
           nearCanalBridge(x, z) ||
-          nearCanalBridge(position.x, position.z)) &&
+          nearCanalBridge(position.x, position.z) ||
+          nearRiverFootbridge(x, z) ||
+          nearRiverFootbridge(position.x, position.z)) &&
         Math.abs(floor - feet) > 0.23
       )
         continue;

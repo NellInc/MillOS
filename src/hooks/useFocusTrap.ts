@@ -31,26 +31,32 @@ export const useFocusTrap = (ref: RefObject<HTMLElement>, isOpen: boolean, onClo
     // Store the element that had focus before opening modal
     const previouslyFocusedElement = document.activeElement as HTMLElement;
 
-    // Focus first element when modal opens
-    getFocusable()[0]?.focus();
+    // Loading dialogs can start empty and add their recovery control later.
+    // Working if an empty focusable dialog retains Tab, then uses live controls.
+    (getFocusable()[0] ?? modalElement).focus();
 
     const handleTabKey = (e: KeyboardEvent) => {
       if (e.key !== 'Tab') return;
 
       const focusable = getFocusable();
-      if (focusable.length === 0) return;
+      if (focusable.length === 0) {
+        e.preventDefault();
+        modalElement.focus();
+        return;
+      }
       const firstFocusable = focusable[0];
       const lastFocusable = focusable[focusable.length - 1];
+      const focusOnContainer = !focusable.includes(document.activeElement as HTMLElement);
 
       if (e.shiftKey) {
         // Shift + Tab
-        if (document.activeElement === firstFocusable) {
+        if (document.activeElement === firstFocusable || focusOnContainer) {
           e.preventDefault();
           lastFocusable.focus();
         }
       } else {
         // Tab
-        if (document.activeElement === lastFocusable) {
+        if (document.activeElement === lastFocusable || focusOnContainer) {
           e.preventDefault();
           firstFocusable.focus();
         }

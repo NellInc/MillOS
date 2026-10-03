@@ -51,6 +51,7 @@ export interface KnowledgeEntry {
   relatedEntries: string[];
   seeInAction: string[];
   unlockCondition: UnlockCondition;
+  audience?: 'player' | 'developer';
   quote?: KnowledgeQuote;
 }
 
@@ -114,7 +115,7 @@ export const LOADING_QUOTES: KnowledgeQuote[] = [
     author: 'MillOS control principle',
   },
   {
-    text: 'Every sensor tells the truth. The dashboard is where interpretation begins.',
+    text: 'Check the measurement, its context, and the action it supports.',
     author: 'MillOS SCADA principle',
   },
   {
@@ -214,6 +215,45 @@ export const KNOWLEDGE_ENTRIES: KnowledgeEntry[] = [
     unlockCondition: always,
   },
   {
+    id: 'bottlenecks-and-buffers',
+    title: 'Bottlenecks and Buffers',
+    category: 'systems',
+    icon: 'network',
+    tooltip: 'Watch where material waits before increasing the line speed.',
+    brief:
+      'A faster mill helps only when the sifter, packer and loading dock can accept its output. Follow the queue to find the limiting stage.',
+    article: `## Follow the Waiting Material\n\nStart with the active order in Overview. Its blocker and next action identify whether the line needs grain, processing, a quality disposition, loading or departure. The SCADA process workspace shows the material ledger and dispatch state.\n\nA buffer gives the next stage time to catch up. Full storage or a held batch can stop progress even when the machinery is healthy. Increasing speed before clearing that constraint adds work without completing the customer's delivery.\n\nChanging the recipe selects new grain at the silo valves. Grain and grist already inside the line finish under their original product type and traceability records. Let that work clear; a recipe change cannot turn existing flour into semolina.\n\nTry changing one control at a time. Watch the next stage and the released kilograms, then check whether the order's shipped mass actually increases. A moving conveyor alone is insufficient evidence of a completed order.`,
+    relatedEntries: ['autonomous-material-flow', 'batch-quality', 'autonomous-logistics'],
+    seeInAction: ['Overview commitment', 'SCADA Process workspace'],
+    unlockCondition: always,
+  },
+  {
+    id: 'resource-tradeoffs',
+    title: 'Energy, Waste and Useful Output',
+    category: 'case-studies',
+    icon: 'scale',
+    tooltip: 'Compare running costs with released and delivered kilograms.',
+    brief:
+      'Speed has a cost. Compare energy, waste and delay with the useful flour that reaches the customer.',
+    article: `## Make the Tradeoff Visible\n\nThe campaign accounts for energy, automation, waste, maintenance, dock delays and late deliveries. Revenue comes from credited customer shipments. The shift debrief puts these costs beside dispatched kilograms and open risks.\n\nA lower line setpoint can give constrained downstream equipment room to recover. Waiting also risks the order's due time. Compare both effects rather than treating maximum speed as the objective.\n\nUse a recovery challenge to observe a bounded power, packaging or control interruption. Read the response's consequence before choosing it. Quality and unresolved serious incidents limit the shift grade even when the financial margin is positive. These are simulator accounts, not a real mill's tariff or food-safety certificate.`,
+    relatedEntries: ['bottlenecks-and-buffers', 'predictive-maintenance', 'community-commitments'],
+    seeInAction: ['Overview recovery challenges', 'Shift debrief', 'SCADA utilities'],
+    unlockCondition: always,
+  },
+  {
+    id: 'community-commitments',
+    title: 'The Mill and Its Neighbours',
+    category: 'principles',
+    icon: 'users',
+    tooltip: 'A completed cooperative order supplies the village bakery.',
+    brief:
+      'The bakery needs a real flour delivery. Safe, traceable production is a promise to the people who use its output.',
+    article: `## A Delivery Has a Destination\n\nThe Riverside Bakers' Cooperative order links the mill to the village bakery. Its display is stocked only after the campaign records a fulfilled flour order with shipment evidence. The display is a visual response to that delivery; it does not create another quantity of flour in the ledger.\n\nThe school-meals and pasta commitments have their own recipes, deadlines and shipments. Finishing one customer's order does not supply every shop in the world. Read the active customer and the remaining kilograms before changing the recipe.\n\nVillage residents retain ordinary walks, work and tea breaks. Mill tasks respond to equipment, maintenance and quality conditions. A safety stop holds personnel in their current positions while automated egress verification checks the site; it does not certify a worker evacuation.`,
+    relatedEntries: ['autonomous-material-flow', 'batch-quality', 'predictive-maintenance'],
+    seeInAction: ['Overview customer orders', 'Village bakery', 'Safety egress verification'],
+    unlockCondition: always,
+  },
+  {
     id: 'depth-and-material-policy',
     title: 'Depth and Material Policy',
     category: 'principles',
@@ -225,6 +265,7 @@ export const KNOWLEDGE_ENTRIES: KnowledgeEntry[] = [
     relatedEntries: ['environment-cycle', 'autonomous-evidence'],
     seeInAction: ['Factory floor', 'Roads and stream banks'],
     unlockCondition: always,
+    audience: 'developer',
   },
   {
     id: 'autonomous-evidence',
@@ -239,6 +280,11 @@ export const KNOWLEDGE_ENTRIES: KnowledgeEntry[] = [
     unlockCondition: always,
   },
 ];
+
+/** Player explanations remain separate from optional renderer reference notes. */
+export function getKnowledgeEntries(audience: 'player' | 'developer' = 'player'): KnowledgeEntry[] {
+  return KNOWLEDGE_ENTRIES.filter((entry) => (entry.audience ?? 'player') === audience);
+}
 
 export const useKnowledgeStore = create<KnowledgeState>()(
   persist(

@@ -220,7 +220,7 @@ export const StatusHUD: React.FC<{ workspace?: string }> = ({ workspace = 'Overv
     <header
       ref={hudRef}
       style={detached ? { left: position.x, top: position.y } : { left: 0, top: 0 }}
-      className={`fixed flex items-center bg-[#06141e]/98 backdrop-blur-md border-b border-cyan-100/15 pointer-events-auto z-30 ${detached ? 'max-w-[calc(100vw-32px)] rounded-md border shadow-lg' : 'w-full min-h-12'} ${isDragging ? 'cursor-grabbing' : ''}`}
+      className={`fixed flex items-center bg-[#06141e]/98 backdrop-blur-md border-b border-cyan-100/15 pointer-events-auto ${showNotifications ? 'z-50' : 'z-30'} ${detached ? 'max-w-[calc(100vw-32px)] rounded-md border shadow-lg' : 'w-full min-h-12'} ${isDragging ? 'cursor-grabbing' : ''}`}
       role="banner"
       aria-label="System status bar"
     >

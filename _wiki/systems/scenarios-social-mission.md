@@ -1,57 +1,33 @@
-# Scenarios and Social Mission System
+# Operations Challenges and Community Commitments
 
 <!-- wiki:type = system -->
 <!-- wiki:scope = millos -->
-<!-- wiki:created = 2026-05-23 -->
-<!-- wiki:updated = 2026-05-23 -->
+<!-- wiki:updated = 2026-09-30 -->
 <!-- wiki:status = active -->
 
-## Summary
+## Current authority
 
-Two Zustand stores implement BAS-aligned organizational dynamics beyond the core production loop. `scenarioStore.ts` provides scripted simulation scenarios (crisis, democratic transition, growth) with timed events and player choice points. `socialMissionStore.ts` tracks the community/environmental/knowledge-sharing dimension of the Mondragon cooperative model.
+The shipped campaign uses customer orders, recipe execution, incidents, economics and saved shift reports in `src/stores/operationsCampaignStore.ts`. The earlier `scenarioStore.ts` and `socialMissionStore.ts` descriptions referred to removed modules; they are not current functionality. The runtime applies campaign effects through `src/systems/UnifiedGameTick.ts`.
 
-## Scenario Store (`src/stores/scenarioStore.ts`)
+## Player loop
 
-### Scenario Events
+Overview shows a commitment, its blocker and a useful next action. The replayable delivery guide records inspection separately from shipment. Fulfillment requires an evidenced departure, not a packed-bag count. The existing SCADA and QC workspaces remain the operational controls (`src/components/ui-new/onboarding/PlayableShift.tsx`, `deliveryJourney.ts`; `src/components/SCADAPanel.tsx`).
 
-`ScenarioEvent` union (`scenarioStore.ts:22–38`):
+Three optional recovery challenges use the existing power-sag, packaging-shortage and degraded-control incidents. New challenges allow six simulated hours to recover and dispatch up to 1,000 kg of fresh, quality-released goods. This gives two real minutes at standard pace; customer deadlines remain separate, and saved challenges retain their original deadlines. Acknowledgement retains effects; mitigation reduces penalties; guarded manual controller recovery is limited to challenge provenance. Abandonment or expiry remains recorded even after the incident is later recovered (`src/simulation/operationsPlay.ts`; `operationsCampaignStore.ts`, `startChallenge`, `finishChallengeRecovery`, `tickCampaign`).
 
-- General: `friction_spike`, `delay_increase`, `resource_drop`, `mood_shift`, `demand_surge`, `engagement_change`
-- BAS-specific: `vote_called`, `relationship_change`, `solidarity_test`, `federation_request`, `ai_preference`, `choice_point`
+Shift reports expose dispatch, costs, decisions, remaining risks and grade reasons. Quality failures and unresolved serious incidents cap grades. Settled programmes permit three new 3,000 kg commitments without creating material or revenue (`operationsCampaignStore.ts`, `gradePeriod`, `acceptNextProgramme`; `PlayableShift.tsx`, `ShiftDebrief`).
 
-Each event has `time` (seconds), `magnitude` (0–1), and `description`. `choice_point` events carry a `ScenarioChoice[]` array with `effects` on friction, delay, trust, solidarity, `relationshipHealth`, `federationTrust` (`scenarioStore.ts:42–60`).
+## Community relationship
 
-### Scenario Types
+The exact Riverside Bakers' Cooperative flour commitment supplies a bounded cosmetic bakery-stock signal after evidenced fulfillment. Other customers do not implicitly supply the grocer. Clock-driven walks, tea breaks and the empty-cart routine remain independent of production; working cues observe machine, quality and maintenance states. These cues never mutate material inventory (`src/simulation/communityLife.ts`, `hasCommunityBakerySupply`, `communityWorkResponse`; `src/components/CommunityLife.tsx`).
 
-Scenarios simulate Semler/Mondragon-inspired situations: crisis response, democratic transitions, growth periods, experimental configurations. Scenarios teach players about organizational dynamics by making consequences observable.
+No social-investment score, employment simulation or cooperative voting system is asserted here. The guide explains the current customer/community relationship and its material evidence (`src/stores/knowledgeStore.ts`, `community-commitments`).
 
-## Social Mission Store (`src/stores/socialMissionStore.ts`)
+## Acceptance boundary
 
-Implements the social mission pillar of the Bilateral Autonomy System, grounded in Mondragon's principle that cooperatives serve their communities (`socialMissionStore.ts:7–9`).
+Source tests prove rules and state transitions. Rendered journeys, save/reload and eligible-host performance are separate acceptance evidence; this page does not certify completion of those gates.
 
-### Community Impact Metrics (`socialMissionStore.ts:40–50`)
+## See also
 
-- `localEmploymentCreated`, `localSuppliersUsed`, `localSourcingPercentage`
-- `communityInvestments` — `CommunityInvestment[]` with status (`planned|active|completed`) and `impactMetrics`
-- `educationalOutreach` — `OutreachProgram[]` typed `education|employment|environment|community`
-- `communitySpacesProvided`
-
-### Environmental Stewardship (`socialMissionStore.ts:52–59`)
-
-- `carbonFootprint` (tonnes CO2/year), `carbonReductionTarget`, `currentReduction`
-- `wasteReduction`, `renewableEnergyPercentage`, `waterRecyclingRate`
-
-### Knowledge Sharing
-
-Public knowledge sharing tracks the cooperative's contribution to the broader field — open-source outputs, research publications, community training.
-
-## Provenance
-
-- Sources: `src/stores/scenarioStore.ts:1–60`, `src/stores/socialMissionStore.ts:1–60`
-- Last verified: 2026-05-23
-
-## See Also
-
-- [[millos:domain/bilateral-autonomy-system]] — Five Axes; social mission as the fifth axis
-- [[millos:domain/federation]] — federation trust fed by `federation_request` scenario events
-- [[millos:domain/economic-democracy]] — Mondragon ownership model (related store: ownershipStore)
+- [[millos:systems/game-simulation]]
+- [[millos:flows/fire-drill-evacuation]]

@@ -6,6 +6,8 @@ import { useMaterialFlowStore } from '../../../stores/materialFlowStore';
 import { useOperationsCampaignStore } from '../../../stores/operationsCampaignStore';
 import { useProductionStore } from '../../../stores/productionStore';
 import { useTruckScheduleStore } from '../../../stores/truckScheduleStore';
+import { useWorkplaceStore } from '../../../stores/workplaceStore';
+import { workplaceReadiness } from '../../../simulation/bilateralWorkplace';
 import { applyDecisionEffects } from '../../../utils/aiEngine';
 import type {
   AgentCommandEnvelope,
@@ -17,6 +19,7 @@ import type { AgentCommandHandler, AgentCommandInspection } from '../../command/
 
 export function createMillOSRuntimeCommandHandlers(): AgentCommandHandler[] {
   return [
+    workplacePlanHandler(),
     activateOrderHandler(),
     acknowledgeIncidentHandler(),
     mitigateIncidentHandler(),
@@ -31,6 +34,66 @@ export function createMillOSRuntimeCommandHandlers(): AgentCommandHandler[] {
     acknowledgeAlarmHandler(),
     writeSetpointHandler(),
   ];
+}
+
+function workplacePlanHandler(): AgentCommandHandler {
+  return {
+    capabilityId: 'workplace.activate-plan',
+    allowedDomains: ['experience'],
+    inspect: (command, capture) => {
+      const state = useWorkplaceStore.getState().workplace;
+      const readiness = workplaceReadiness(state);
+      return inspection(
+        ['Run the exact agreed plan, with protected rest and funded obligations.'],
+        ['Role inputs are synthetic or facilitated, never authenticated workplace consent.'],
+        [
+          check(
+            'PRE.WORKPLACE.TARGET',
+            command.targetUri === 'millos://simulation/local',
+            'Local simulation only.'
+          ),
+          check(
+            'PRE.WORKPLACE.REVISION',
+            command.parameters.revision === state.revision,
+            'Agreement terms must still be current.'
+          ),
+          check(
+            'PRE.WORKPLACE.READY',
+            readiness.allowed,
+            readiness.reasons.join(' ') || 'Consent, understanding, objections and funding checked.'
+          ),
+          check(
+            'PRE.WORKPLACE.GAME',
+            state.mode === 'game',
+            'Workshop and Pilot preparation have no plant control.'
+          ),
+        ],
+        [
+          check(
+            'INV.SAFETY.EMERGENCY_DOMINANCE',
+            record(capture.domains.simulation).emergencyActive !== true,
+            'No new work during an emergency.'
+          ),
+        ]
+      );
+    },
+    execute: (command) => {
+      // Recheck here: preview is asynchronous and clocks/consent may change.
+      if (useGameSimulationStore.getState().emergencyActive) {
+        throw new Error('The safety stop holds this agreement.');
+      }
+      const result = useWorkplaceStore.getState().activate(Number(command.parameters.revision));
+      if (!result.changed) throw new Error(result.reason || 'Agreement did not activate.');
+      return { ...result };
+    },
+    verify: (_command, _before, after) => [
+      verify(
+        'VERIFY.WORKPLACE.ACTIVE',
+        record(record(after.domains.experience).workplace).phase === 'active',
+        'The agreed local plan is active.'
+      ),
+    ],
+  };
 }
 
 function activateOrderHandler(): AgentCommandHandler {

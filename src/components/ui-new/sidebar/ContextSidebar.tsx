@@ -140,7 +140,7 @@ export const ContextSidebar: React.FC<ContextSidebarProps> = ({
     HeaderIcon = Shield;
     content = <SafetyPanel />;
   } else if (mode === 'management') {
-    headerTitle = 'Autonomy & Optimization';
+    headerTitle = 'Workplace & Autonomy';
     HeaderIcon = Cpu;
     content = <AutonomyPanel />;
   } else {

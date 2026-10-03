@@ -92,6 +92,24 @@ function capability(options) {
 /** @type {AgentCapabilityDescriptor[]} */
 export const COMMAND_CAPABILITY_DESCRIPTORS = [
   capability({
+    id: 'workplace.activate-plan',
+    title: 'Run an agreed workplace plan',
+    ownerDomainId: 'experience',
+    risk: 'high',
+    targetKinds: ['simulation'],
+    required: ['revision'],
+    properties: { revision: { type: 'integer', minimum: 0 } },
+    reads: ['experience.workplace'],
+    writes: ['experience.workplace'],
+    sideEffects: [
+      'Reserves funded compensation and the approved improvement budget.',
+      'The central tick applies the agreed line-capacity envelope in Game mode only.',
+    ],
+    verifier: 'The exact consensual plan enters active state with its obligations funded.',
+    sourcePath: 'src/stores/workplaceStore.ts',
+    sourceSymbol: 'activate',
+  }),
+  capability({
     id: 'ai.respond-to-decision',
     title: 'Respond to an AI decision',
     ownerDomainId: 'production',

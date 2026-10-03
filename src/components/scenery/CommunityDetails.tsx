@@ -211,11 +211,11 @@ function OpeningBoard({
   );
 }
 
-/** deliveryVisible is supplied by the shared handcart unloading event, never a clock-only claim. */
+/** Goods are opt-in signals of verified customer fulfillment, never clock-only claims. */
 export const CommunityDetails = React.memo(
   ({
     deliveryVisible = false,
-    bakeryStocked = true,
+    bakeryStocked = false,
   }: {
     deliveryVisible?: boolean;
     bakeryStocked?: boolean;

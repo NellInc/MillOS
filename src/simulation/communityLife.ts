@@ -1,6 +1,13 @@
 import type { Object3D } from 'three';
+import type { RuntimeWeather } from '../runtime/runtimeMode';
+import type { CustomerOrder } from '../stores/operationsCampaignStore';
+import { CAMPAIGN_MASS_EPSILON_KG } from './operationsPlay';
+import type { MaintenanceWorkOrder } from '../stores/breakdownStore';
+import type { ProductionBatch } from '../stores/materialFlowStore';
+import type { MachineData } from '../types';
 import { COMMUNITY_ANCHORS as A, getCommunityHours } from '../constants/communityLayout';
 import type { Vec3Tuple } from '../constants/siteLayout';
+import type { WorkplaceState } from '../types/workplace';
 
 export type CommunityActivity = 'working' | 'walking' | 'break' | 'idle';
 export interface CommunityStop {
@@ -27,6 +34,213 @@ export interface CommunityPose {
   seated: boolean;
   visible: boolean;
 }
+
+// The west operator represents coordination; the east operator remains unbound.
+export const COMMUNITY_AGREEMENT_MEMBERS: Readonly<Record<string, string>> = {
+  'mill-packer': 'packing',
+  'mill-quality': 'quality',
+  'mill-engineer': 'maintenance',
+  'mill-operator-west': 'coordinator',
+};
+export interface CommunityAgreementCue {
+  memberId: string;
+  state: 'duty' | 'cover' | 'rest' | 'recovery';
+  label: string;
+  task: string;
+  offDuty: boolean;
+}
+
+/** Fictional agreement presentation, never evidence of a repair or QC release.
+ * Working if only four mapped residents respond to an engaged game campaign,
+ * qualified choices remain observational, and review without debt releases them.
+ */
+export function communityAgreementCue(
+  personId: string,
+  workplace: WorkplaceState
+): CommunityAgreementCue | null {
+  if (!workplace.campaign || workplace.mode !== 'game') return null;
+  const member = workplace.members.find((m) => m.id === COMMUNITY_AGREEMENT_MEMBERS[personId]);
+  if (!member || !['active', 'review'].includes(workplace.phase)) return null;
+  const covering =
+    workplace.phase === 'active' &&
+    workplace.activeCoverMemberId === member.id &&
+    member.coverConsent === true &&
+    workplace.coverRemainingMinutes > 0 &&
+    workplace.coverRemainingMinutes <= 10 &&
+    member.eligibleTasks.some((task) => task === 'Packing' || task === 'Pallet checks');
+  const recovering = !covering && member.recoveryOwedMinutes > 0;
+  if (workplace.phase === 'review' && !recovering) return null;
+  const resting = workplace.phase === 'active' && workplace.minute >= 75;
+  const state = recovering ? 'recovery' : resting ? 'rest' : covering ? 'cover' : 'duty';
+  const qualifiedTask = member.eligibleTasks.includes(member.chosenTask)
+    ? member.chosenTask
+    : 'Awaiting a qualified assignment';
+  const label =
+    state === 'recovery'
+      ? 'Protected recovery'
+      : state === 'rest'
+        ? 'Protected rest'
+        : state === 'cover'
+          ? 'Voluntary cover'
+          : `Agreed: ${qualifiedTask}`;
+  return {
+    memberId: member.id,
+    state,
+    label: `${member.role}\n${label}`,
+    task:
+      state === 'duty'
+        ? `Representing the qualified ${qualifiedTask} agreement at a safe observation post`
+        : `${label} under the fictional shift agreement`,
+    offDuty: state === 'rest' || state === 'recovery',
+  };
+}
+
+/** Hold the existing safe pose, rather than teleporting to a distant seat.
+ * Working if rest stops the route clock, keeps seated false in transit, and
+ * resumption advances from that same point without changing the work ledger.
+ */
+export function advanceCommunityAgreementClock(
+  hour: number,
+  elapsed: number,
+  cue: CommunityAgreementCue | null
+): number {
+  return cue?.offDuty || !Number.isFinite(elapsed) ? hour : hour + elapsed;
+}
+
+export function communityAgreementResponse(
+  cue: CommunityAgreementCue | null,
+  pose: CommunityPose,
+  response: Pick<CommunityPose, 'activity' | 'task'>
+): void {
+  if (!cue) return;
+  if (cue.offDuty) {
+    response.activity = 'break';
+    response.task = cue.task;
+  } else if (pose.activity === 'walking') {
+    response.task = `Walking the safe route; ${cue.task}`;
+  } else if (pose.activity === 'working') {
+    response.task = cue.task;
+  }
+}
+/** A cosmetic signal of a verified local customer's completed flour order.
+ * It never allocates flour or marks an order complete. Working if clocks alone
+ * cannot stock the counter, and the signal expires after one campaign day.
+ */
+export function hasCommunityBakerySupply(orders: readonly CustomerOrder[], elapsedMinutes: number) {
+  return (
+    Number.isFinite(elapsedMinutes) &&
+    orders.some((order) => {
+      const completed = order.completedAtMinute;
+      return (
+        order.customer === "Riverside Bakers' Cooperative" &&
+        order.recipe.finishedMaterial === 'flour' &&
+        order.status === 'fulfilled' &&
+        Number.isFinite(order.requiredKg) &&
+        order.requiredKg > 0 &&
+        Number.isFinite(order.shippedKg) &&
+        order.shippedKg + CAMPAIGN_MASS_EPSILON_KG >= order.requiredKg &&
+        order.qualityFailureKg === 0 &&
+        order.manifestIds.length > 0 &&
+        completed !== null &&
+        Number.isFinite(completed) &&
+        completed >= 0 &&
+        elapsedMinutes >= completed &&
+        elapsedMinutes - completed < 1440
+      );
+    })
+  );
+}
+
+/** A safety stop wins over art-directed time jumps; paused clock changes may
+ * intentionally reframe the world, ordinary paused frames retain their pose.
+ */
+export function advanceCommunityPeopleClock(
+  hour: number,
+  worldHour: number,
+  elapsed: number,
+  moving: boolean,
+  emergency: boolean
+) {
+  if (emergency || !Number.isFinite(worldHour) || !Number.isFinite(elapsed)) return hour;
+  if (Math.abs(elapsed) > 0.5 || (!moving && elapsed !== 0)) return worldHour;
+  return moving ? hour + elapsed : hour;
+}
+
+export interface CommunityOperationsSnapshot {
+  machines: readonly Pick<MachineData, 'id' | 'status'>[];
+  workOrders: readonly Pick<MaintenanceWorkOrder, 'machineId' | 'phase'>[];
+  batches: readonly Pick<ProductionBatch, 'packerId' | 'availableKg' | 'disposition'>[];
+  bakeryStocked: boolean;
+  weather?: RuntimeWeather;
+}
+
+const MAINTENANCE_TASKS: Record<MaintenanceWorkOrder['phase'], string> = {
+  diagnosed: 'Reviewing the diagnosed fault from the safe inspection post',
+  awaiting_parts: 'Waiting for maintenance parts',
+  repairing: 'Monitoring maintenance work from the safe inspection post',
+  verification: 'Reviewing post-repair verification',
+  ready_to_restart: 'Waiting for the authorized line restart',
+  restart_requested: 'Monitoring the requested line restart',
+  returned_to_service: 'Checking the restored line',
+};
+
+/** Responses are observations at authored safe posts, never physical repairs.
+ * Working if open work orders and held batches alter work cues without stealing
+ * tea breaks, changing pedestrian routes or consuming production inventory.
+ * Wet weather pauses the existing gardener's work pose at the current post.
+ */
+export function communityWorkResponse(
+  person: CommunityPerson,
+  pose: CommunityPose,
+  operations: CommunityOperationsSnapshot,
+  out: Pick<CommunityPose, 'activity' | 'task'> = { activity: pose.activity, task: pose.task }
+): Pick<CommunityPose, 'activity' | 'task'> {
+  out.activity = pose.activity;
+  out.task = pose.task;
+  if (pose.activity !== 'working') return out;
+  if (
+    person.role === 'Gardener' &&
+    (operations.weather === 'rain' || operations.weather === 'storm')
+  ) {
+    out.activity = 'idle';
+    out.task =
+      operations.weather === 'rain'
+        ? 'Pausing garden work in the rain'
+        : 'Pausing garden work during the storm';
+    return out;
+  }
+  if (person.role === 'Baker' && !operations.bakeryStocked) {
+    out.activity = 'idle';
+    out.task = 'Waiting for the cooperative flour order';
+    return out;
+  }
+  if (
+    person.role === 'Quality' &&
+    operations.batches.some((batch) => batch.availableKg > 0 && batch.disposition === 'hold')
+  ) {
+    out.task = 'Reviewing flour held for quality investigation';
+    return out;
+  }
+  const workOrder = operations.workOrders.find(
+    (order) => order.machineId === person.machineId && order.phase !== 'returned_to_service'
+  );
+  if (workOrder) {
+    out.activity =
+      workOrder.phase === 'awaiting_parts' ||
+      workOrder.phase === 'ready_to_restart' ||
+      workOrder.phase === 'restart_requested'
+        ? 'idle'
+        : 'working';
+    out.task = MAINTENANCE_TASKS[workOrder.phase];
+    return out;
+  }
+  const machine = operations.machines.find((candidate) => candidate.id === person.machineId);
+  if (machine?.status === 'critical' || machine?.status === 'warning')
+    out.task = 'Inspecting a reported equipment fault';
+  else if (machine?.status === 'idle') out.task = 'Checking the idle line';
+  return out;
+}
+
 const stop = (
   position: Vec3Tuple,
   rotation: number,
@@ -316,11 +530,7 @@ export function sampleCommunityPerson(
     out.activity = delivery.moving ? 'walking' : 'working';
     out.seated = false;
     out.visible = delivery.visible;
-    out.task = delivery.delivered
-      ? 'Returning the empty flour cart'
-      : delivery.moving
-        ? 'Delivering mill flour to the grocer'
-        : 'Unloading the flour delivery';
+    out.task = delivery.moving ? 'Moving the empty handcart' : 'Checking the empty return cart';
     return out;
   }
   if (person.district === 'bus') {
@@ -382,6 +592,9 @@ export function inspectCommunityPresence(scene: Pick<Object3D, 'traverse'>) {
     visible: boolean;
     position: number[];
     bodyMeshes: number;
+    agreementMemberId: string | null;
+    agreementState: string | null;
+    agreementPresentation: string | null;
   }> = [];
   const prohibited: string[] = [];
   scene.traverse((object) => {
@@ -403,6 +616,9 @@ export function inspectCommunityPresence(scene: Pick<Object3D, 'traverse'>) {
         task: String(object.userData.task ?? ''),
         visible,
         position: object.position.toArray(),
+        agreementMemberId: object.userData.agreementMemberId ?? null,
+        agreementState: object.userData.agreementState ?? null,
+        agreementPresentation: object.userData.agreementPresentation ?? null,
       });
     }
     if (/^(remote-player|seated-vehicle-operator|dock-spotter)/.test(object.name))
@@ -425,8 +641,9 @@ export function inspectCommunityPresence(scene: Pick<Object3D, 'traverse'>) {
   };
 }
 
-/** The shop's flour handcart comes from the service lane, stops to unload, then
- * returns empty. The stock prop and moving load read this SAME event.
+/** Independent empty-cart routine. No grocer order exists in the campaign, so
+ * a scheduled visit has no authority to create flour or claim a delivery.
+ * Working if every clock sample keeps loaded and delivered false.
  */
 export function sampleCommunityDelivery(hour: number) {
   const h = communityHour(hour);
@@ -438,7 +655,7 @@ export function sampleCommunityDelivery(hour: number) {
   let x = -202.8,
     z = handleZ,
     rotation = returning ? 0 : Math.PI;
-  // Park the cart. The courier steps around its left side to unload it.
+  // Park the empty cart. The courier steps around its left side to inspect it.
   if (h >= 9.65 && h < 10.1) {
     const approach = h < 9.82 ? Math.min(1, (h - 9.65) / 0.17) : h < 10 ? 1 : 1 - (h - 10) / 0.1;
     x -= Math.min(1, approach * 2);
@@ -453,8 +670,8 @@ export function sampleCommunityDelivery(hour: number) {
     cartZ: handleZ - 1.4,
     visible: h >= 9 && h < 10.85,
     moving: (h > 9 && h < 9.82) || (h > 10 && h < 10.85),
-    delivered: h >= 9.9 && h < 23,
-    loaded: h < 9.9,
+    delivered: false,
+    loaded: false,
     cartGrip: h < 9.65 ? ('push' as const) : h >= 10.1 ? ('pull' as const) : undefined,
   };
 }
@@ -478,7 +695,7 @@ export function advanceCommunityBusClock(
 }
 
 /** Both lanes and both turn arcs fit the existing west village cobbled street.
- * The courier's morning unloading window ends before cycling hours begin.
+ * The courier's morning cart stop ends before cycling hours begin.
  */
 export function sampleCommunityCyclist(hour: number) {
   const h = communityHour(hour),

@@ -47,7 +47,7 @@ export const AI_NARRATIONS: NarrationEntry[] = [
     trigger: 'library-opened',
     oneTime: true,
     priority: 80,
-    content: `Datalinks now documents the operating contracts behind this mill: material genealogy, alarm lifecycle, autonomous logistics, controlled maintenance, environment continuity, depth policy, and decision provenance.`,
+    content: `Datalinks explains the mill as you explore: follow waiting grain, investigate a held batch, compare useful output with running costs, and see how a completed order supplies the bakery. Optional developer references sit in a separate section.`,
   },
   {
     id: 'extended-autonomous-session',

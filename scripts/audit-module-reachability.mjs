@@ -202,10 +202,6 @@ const KNOWN_DEAD = new Map([
     'src/utils/typeGuards.ts',
     'Test-only utility collection with no production importer; its geometry helpers are documented as future-facing rather than live.',
   ],
-  [
-    'src/agent/client/executeAgentCommand.ts',
-    'One-shot draft/preview/approve/commit adapter for programmatic callers of window.__MILLOS_AGENT__. AgentCockpit drives preview and commit as two separate user actions and does not import it; no other caller exists yet.',
-  ],
 ]);
 
 // ---------------------------------------------------------------------------

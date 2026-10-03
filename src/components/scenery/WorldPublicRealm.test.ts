@@ -15,6 +15,8 @@ import {
   VILLAGE_REALM_PATHS,
   WORLD_REALM_PATHS,
   FARM_REALM_PATHS,
+  WORLD_REALM_PATCHES,
+  inRealmPatch,
 } from '../../constants/publicRealmLayout';
 import { VILLAGE_STREET_CORRIDORS, villageRealmClear } from '../VillageArea';
 import { VILLAGE_HOMES } from './VillageGardens';
@@ -30,6 +32,28 @@ const ray = (geometry: THREE.BufferGeometry, p: number[], d: number[], far = 100
   );
 
 describe('world public realm', () => {
+  it('joins the café serving frontage and existing seating to the pond approach', () => {
+    const court = WORLD_REALM_PATCHES.find((p) => p.x === -108)!;
+    for (const [x, z] of [
+      [-108, 102.05],
+      [-108, 99],
+      [-108.9, 98.5],
+      [-107.1, 98.5],
+    ])
+      expect(inRealmPatch(x, z, court)).toBe(true);
+    const route = WORLD_REALM_PATHS.find((p) => p.start[0] === -108)!;
+    expect(route.start).toEqual([-108, 98.2]);
+    expect(route.end).toEqual([-108, 101]);
+    const world = createWorldRealm(128);
+    for (const [x, z] of [
+      [-108.2, 98.25],
+      [-108.2, 99.3],
+      [-108.2, 101.4],
+    ])
+      expect(ray(world.paving, [x, 5, z], [0, -1, 0]), `${x},${z}`).toHaveLength(1);
+    world.paving.dispose();
+    world.solid.dispose();
+  });
   it('uses six finite merged meshes, metre-scale detail and no extra light or texture', () => {
     expect(WORLD_REALM_PATHS.every((p) => p.start[0] === p.end[0] || p.start[1] === p.end[1])).toBe(
       true

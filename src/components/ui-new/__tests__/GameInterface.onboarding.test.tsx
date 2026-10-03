@@ -6,6 +6,9 @@ import { useUIStore } from '../../../stores/uiStore';
 import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
 import { useMobileControlStore } from '../../../stores/mobileControlStore';
 import { useAINarrationStore, type NarrationEntry } from '../../../stores/aiNarrationStore';
+import { createWorkplace } from '../../../simulation/bilateralWorkplace';
+import { useWorkplaceStore } from '../../../stores/workplaceStore';
+import { useOperationsCampaignStore } from '../../../stores/operationsCampaignStore';
 
 const runtime = vi.hoisted(() => ({
   compact: false,
@@ -116,8 +119,19 @@ describe('first-use journey wiring', () => {
     runtime.narrate = null;
     useAINarrationStore.setState({ shownNarrations: new Set() });
     document.documentElement.dataset.sceneReady = 'true';
-    useUIStore.setState({ hasSeenIntro: false, alerts: [], fpsMode: false, showShortcuts: false });
+    useUIStore.setState({
+      hasSeenIntro: false,
+      alerts: [],
+      fpsMode: false,
+      showShortcuts: false,
+      journeyVisible: false,
+      journeyOrderId: null,
+      inspectedMachineIds: [],
+    });
+    useOperationsCampaignStore.getState().resetCampaign();
+    useWorkplaceStore.setState({ workplace: createWorkplace() });
     useGameSimulationStore.setState({
+      gameSpeed: 180,
       emergencyActive: false,
       emergencyDrillMode: false,
       crisisState: { ...useGameSimulationStore.getState().crisisState, active: false },
@@ -130,7 +144,75 @@ describe('first-use journey wiring', () => {
     delete document.documentElement.dataset.sceneReady;
   });
 
-  it('keeps music compact through the tour and opens operations when it finishes', () => {
+  it.each([false, true])(
+    'opens current agreement controls through the existing route, compact=%s',
+    (compact) => {
+      runtime.compact = compact;
+      useUIStore.setState({ hasSeenIntro: true });
+      useWorkplaceStore.getState().start('game', 19);
+      const before = useWorkplaceStore.getState().workplace;
+      renderInterface();
+      const open = screen.getByRole('button', { name: 'Open agreement controls' });
+      open.focus();
+      fireEvent.click(open);
+      expect(
+        screen.queryByRole('complementary', { name: 'Working agreement companion' })
+      ).not.toBeInTheDocument();
+      if (compact) expect(useMobileControlStore.getState().mobilePanelContent).toBe('management');
+      else
+        expect(screen.getByTestId('game-interface')).toHaveAttribute(
+          'data-active-mode',
+          'management'
+        );
+      expect(useWorkplaceStore.getState().workplace).toBe(before);
+    }
+  );
+
+  it.each(['tour', 'delivery', 'mobile', 'shortcuts', 'fps', 'critical', 'safety'] as const)(
+    'yields the quiet slot to %s',
+    (reason) => {
+      useWorkplaceStore.getState().start('game', 19);
+      useUIStore.setState({
+        hasSeenIntro: reason !== 'tour',
+        journeyVisible: reason === 'delivery',
+        showShortcuts: reason === 'shortcuts',
+        fpsMode: reason === 'fps',
+        alerts:
+          reason === 'critical'
+            ? [{ id: 'critical', type: 'critical', message: 'Stop', timestamp: Date.now() }]
+            : [],
+      });
+      if (reason === 'mobile') {
+        runtime.compact = true;
+        useMobileControlStore.getState().openMobilePanel('management');
+      }
+      if (reason === 'safety') useGameSimulationStore.setState({ emergencyActive: true });
+      renderInterface();
+      if (reason === 'tour') act(() => vi.advanceTimersByTime(700));
+      expect(
+        screen.queryByRole('complementary', { name: 'Working agreement companion' })
+      ).not.toBeInTheDocument();
+    }
+  );
+
+  it('queues passive narration behind the current working agreement', () => {
+    useUIStore.setState({ hasSeenIntro: true });
+    useWorkplaceStore.getState().start('game', 19);
+    renderInterface();
+    act(() =>
+      runtime.narrate?.({
+        id: 'quiet',
+        content: 'Queued reflection',
+        category: 'observation',
+      } as NarrationEntry)
+    );
+    expect(
+      screen.getByRole('complementary', { name: 'Working agreement companion' })
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('complementary', { name: 'AI reflection' })).not.toBeInTheDocument();
+  });
+
+  it('keeps music compact through the tour and starts a real delivery guide when it finishes', () => {
     renderInterface();
     act(() => vi.advanceTimersByTime(700));
     expect(screen.getByRole('heading', { name: 'Follow the grain' })).toBeVisible();
@@ -140,8 +222,61 @@ describe('first-use journey wiring', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Start operating' }));
     expect(useUIStore.getState().hasSeenIntro).toBe(true);
     expect(screen.queryByRole('region', { name: /Getting started/ })).not.toBeInTheDocument();
-    expect(screen.getByTestId('game-interface')).toHaveAttribute('data-sidebar-visible', 'true');
+    expect(screen.getByTestId('game-interface')).toHaveAttribute('data-sidebar-visible', 'false');
+    expect(screen.getByRole('region', { name: 'Guided delivery' })).toBeVisible();
+    expect(useUIStore.getState().journeyOrderId).toBe(
+      useOperationsCampaignStore.getState().activeOrderId
+    );
+    expect(screen.getByTestId('soundtrack')).toHaveAttribute('data-quiet', 'true');
     expect(runtime.setPreset.mock.calls.map(([preset]) => preset)).toEqual([1, 4, 2]);
+  });
+
+  it('holds the introductory clock and starts the default guided delivery at relaxed pace', () => {
+    renderInterface();
+    act(() => vi.advanceTimersByTime(700));
+    expect(useGameSimulationStore.getState().gameSpeed).toBe(0);
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    expect(useGameSimulationStore.getState().gameSpeed).toBe(0);
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Start operating' }));
+    expect(useGameSimulationStore.getState().gameSpeed).toBe(30);
+    expect(screen.getByLabelText('Shift pace')).toHaveValue('30');
+  });
+
+  it.each([0, 30, 60])('preserves an already chosen %i pace after the tour', (pace) => {
+    useGameSimulationStore.setState({ gameSpeed: pace });
+    renderInterface();
+    act(() => vi.advanceTimersByTime(700));
+    expect(useGameSimulationStore.getState().gameSpeed).toBe(0);
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Start operating' }));
+    expect(useGameSimulationStore.getState().gameSpeed).toBe(pace);
+  });
+
+  it.each(['Skip tour', 'Close getting started for this session'])(
+    'restores the existing clock when using %s',
+    (control) => {
+      renderInterface();
+      act(() => vi.advanceTimersByTime(700));
+      expect(useGameSimulationStore.getState().gameSpeed).toBe(0);
+      fireEvent.click(screen.getByRole('button', { name: control }));
+      expect(useGameSimulationStore.getState().gameSpeed).toBe(180);
+      expect(useUIStore.getState().journeyVisible).toBe(false);
+    }
+  );
+
+  it('releases its clock hold on unmount without replacing a newer clock choice', () => {
+    const first = renderInterface();
+    act(() => vi.advanceTimersByTime(700));
+    expect(useGameSimulationStore.getState().gameSpeed).toBe(0);
+    first.unmount();
+    expect(useGameSimulationStore.getState().gameSpeed).toBe(180);
+    const second = renderInterface();
+    act(() => vi.advanceTimersByTime(700));
+    act(() => useGameSimulationStore.getState().setGameSpeed(60));
+    second.unmount();
+    expect(useGameSimulationStore.getState().gameSpeed).toBe(60);
   });
 
   it('opens production with the actual milling preset and restores the overview pose', () => {
@@ -155,15 +290,41 @@ describe('first-use journey wiring', () => {
     expect(runtime.setPreset).toHaveBeenLastCalledWith(0);
   });
 
-  it('opens the actual mobile overview rather than a hidden desktop sidebar', () => {
+  it('starts the compact delivery guide and opens the actual mobile operations workspace', () => {
     runtime.compact = true;
     renderInterface();
     act(() => vi.advanceTimersByTime(700));
     fireEvent.click(screen.getByRole('button', { name: 'Next' }));
     fireEvent.click(screen.getByRole('button', { name: 'Next' }));
     fireEvent.click(screen.getByRole('button', { name: 'Start operating' }));
+    expect(screen.getByRole('region', { name: 'Guided delivery' })).toBeVisible();
+    expect(useMobileControlStore.getState().mobilePanelVisible).toBe(false);
+    act(() => useUIStore.getState().recordMachineInspection('mill-0'));
+    fireEvent.click(screen.getByRole('button', { name: 'Open operations' }));
     expect(useMobileControlStore.getState().mobilePanelVisible).toBe(true);
-    expect(useMobileControlStore.getState().mobilePanelContent).toBe('overview');
+    expect(useMobileControlStore.getState().mobilePanelContent).toBe('scada');
+  });
+
+  it.each([false, true])('opens the actual autonomy workspace for compact=%s', (compact) => {
+    runtime.compact = compact;
+    useUIStore.setState({ hasSeenIntro: true });
+    renderInterface();
+    act(() =>
+      window.dispatchEvent(
+        new CustomEvent('millos:open-operations-workspace', { detail: 'autonomy' })
+      )
+    );
+    if (compact) {
+      expect(useMobileControlStore.getState().mobilePanelVisible).toBe(true);
+      expect(useMobileControlStore.getState().mobilePanelContent).toBe('management');
+    } else {
+      expect(screen.getByTestId('game-interface')).toHaveAttribute(
+        'data-active-mode',
+        'management'
+      );
+      expect(screen.getByTestId('game-interface')).toHaveAttribute('data-sidebar-visible', 'true');
+      expect(useMobileControlStore.getState().mobilePanelVisible).toBe(false);
+    }
   });
 
   it('lets safety take music priority after the tour has already been seen', () => {
@@ -172,6 +333,32 @@ describe('first-use journey wiring', () => {
     expect(screen.getByTestId('soundtrack')).toHaveAttribute('data-quiet', 'false');
     act(() => useGameSimulationStore.setState({ emergencyActive: true }));
     expect(screen.getByTestId('soundtrack')).toHaveAttribute('data-quiet', 'true');
+  });
+
+  it('keeps operational guidance available with alarm history while real safety stops take priority', () => {
+    useUIStore.setState({
+      hasSeenIntro: true,
+      journeyVisible: true,
+      journeyOrderId: useOperationsCampaignStore.getState().activeOrderId,
+      alerts: [
+        {
+          id: 'scada-TRUCK_SHIPPING.PT001.PV-HIHI',
+          type: 'critical',
+          title: 'SCADA: HIHI',
+          message: 'Shipping Truck Articulation: 40.0 deg, above the 38.0 deg limit',
+          timestamp: new Date(),
+          acknowledged: false,
+        },
+      ],
+    });
+    renderInterface();
+    expect(screen.getByRole('region', { name: 'Guided delivery' })).toBeVisible();
+    expect(screen.getByTestId('soundtrack')).toHaveAttribute('data-quiet', 'true');
+    act(() => useGameSimulationStore.setState({ emergencyActive: true }));
+    expect(screen.queryByRole('region', { name: 'Guided delivery' })).not.toBeInTheDocument();
+    act(() => useGameSimulationStore.setState({ emergencyActive: false }));
+    expect(screen.getByRole('region', { name: 'Guided delivery' })).toBeVisible();
+    expect(useUIStore.getState().alerts).toHaveLength(1);
   });
 
   it('hides music behind a compact sheet without unmounting playback controls', () => {
@@ -196,7 +383,7 @@ describe('first-use journey wiring', () => {
     expect(screen.getByTestId('game-interface')).toHaveAttribute('data-sidebar-visible', 'false');
   });
 
-  it('queues reflection behind the Overview sidebar without dismissing it', () => {
+  it('queues reflection behind delivery guidance and the Overview sidebar without dismissing it', () => {
     const narration: NarrationEntry = {
       id: 'queued-desktop',
       trigger: 'first-play',
@@ -211,9 +398,13 @@ describe('first-use journey wiring', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Next' }));
     fireEvent.click(screen.getByRole('button', { name: 'Start operating' }));
     expect(screen.getByTestId('game-interface')).toHaveAttribute('data-active-mode', 'overview');
-    expect(screen.getByTestId('game-interface')).toHaveAttribute('data-sidebar-visible', 'true');
+    expect(screen.getByTestId('game-interface')).toHaveAttribute('data-sidebar-visible', 'false');
     expect(screen.queryByTestId('reflection-content')).not.toBeInTheDocument();
     expect(useAINarrationStore.getState().hasBeenShown(narration.id)).toBe(false);
+    fireEvent.click(screen.getByRole('button', { name: 'Skip guided delivery' }));
+    expect(screen.getByText(narration.content)).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Overview' }));
+    expect(screen.queryByTestId('reflection-content')).not.toBeInTheDocument();
     act(() => runtime.closeSidebar());
     expect(screen.getByText(narration.content)).toBeVisible();
     fireEvent.click(screen.getByRole('button', { name: 'Dismiss reflection' }));

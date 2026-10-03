@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useBreakdownStore } from '../../stores/breakdownStore';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { useMaterialFlowStore } from '../../stores/materialFlowStore';
@@ -30,6 +30,20 @@ describe('UnifiedGameTick operations campaign consequences', () => {
 
     // Synchronize the module-level dock edge detectors before each assertion.
     unifiedGameTick(context);
+  });
+
+  it('passes the physical material session to campaign shipment credit', () => {
+    const sessionId = useMaterialFlowStore.getState().sessionId;
+    const tick = vi.spyOn(useOperationsCampaignStore.getState(), 'tickCampaign');
+    try {
+      unifiedGameTick({ ...context, tickCount: 2 });
+      expect(tick).toHaveBeenCalledWith(
+        expect.any(Number),
+        expect.objectContaining({ materialSessionId: sessionId })
+      );
+    } finally {
+      tick.mockRestore();
+    }
   });
 
   it('applies a delayed collection to the truck schedule exactly once', () => {

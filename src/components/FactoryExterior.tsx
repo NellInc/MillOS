@@ -4,7 +4,7 @@ import { HeritagePoster } from './scenery/HeritageSignage';
 import React, { useMemo, useRef, useEffect, useLayoutEffect, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { SceneText as Text } from './shared/SceneText';
-import { useFrame, ThreeEvent } from '@react-three/fiber';
+import { useFrame, useThree, ThreeEvent } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import { useGraphicsStore } from '../stores/graphicsStore';
@@ -35,9 +35,11 @@ import {
   getRiverCenterZ,
   getRiverHeightfield,
   MILLOS_RIVER_CONFIG,
+  sampleTerrainGroundHeight,
 } from './terrain/splatMapGenerator';
 import {
   createRiverCulvertGeometries,
+  createRiverFootbridgeAccessGeometry,
   createRiverSurfaceGeometry,
   fitRiverCulvertBank,
 } from './exterior/riverGeometry';
@@ -50,12 +52,16 @@ import {
 } from '../simulation/atmosphere';
 import { positionRegistry } from '../utils/positionRegistry';
 import { PROCEDURAL_TEXTURES, TREE_MATERIALS } from '../utils/sharedMaterials';
+import { CAFE_COURT_LANTERN } from '../constants/publicRealmLayout';
 import { generateMachineORM } from '../textures';
 import { createCheckpointGateState, stepCheckpointGate } from './exterior/checkpointLogic';
 import {
   EXTERIOR_LAMP_LENS_MATERIAL,
   ExteriorLampDriver,
   ExteriorLampPool,
+  WEST_FACTORY_PATH,
+  WEST_FACTORY_PATH_LAMPS,
+  WEST_FACTORY_PATH_POOL_RADIUS,
 } from './exterior/ExteriorLighting';
 // OUTDOOR_MATERIALS removed - grass plane now handled by TerrainGround
 import { GasStation } from './GasStationInstanced';
@@ -114,6 +120,17 @@ interface FactoryExteriorProps {
 
 const PROPANE_COMPOUND_CENTRE = SITE_LAYOUT.serviceYard.propaneCompound.position;
 const UTILITY_TANK_FARM_CENTRE = SITE_LAYOUT.serviceYard.utilityTankFarm.position;
+
+/** Dry west-bank arrival follows the actual pond after its move away from the river.
+ * Working if the route stops at the kerb and stays clear of the apartment block.
+ */
+export const EAST_POND_APPROACH: [number, number, number] = [
+  SITE_LAYOUT.exteriorFeatures.ponds[1].position[0] -
+    SITE_LAYOUT.exteriorFeatures.ponds[1].radius -
+    0.8,
+  0,
+  SITE_LAYOUT.exteriorFeatures.ponds[1].position[2],
+];
 
 const TANK_SUPPORT_MATERIAL = new THREE.MeshStandardMaterial({
   color: '#64707a',
@@ -998,6 +1015,10 @@ const WATER_COLORS = {
 // deleting its own equivalent disc.
 
 const waterMaterials = new Set<THREE.ShaderMaterial>();
+/** Shared same-page control; zero restores the retained broad-wave finish. */
+export const WATER_RIPPLE_FINISH = { value: 1 };
+/** One paired control for the real sky palette and single-count reflection radiance. */
+export const WATER_SKY_RADIANCE = { value: 1 };
 const DEFAULT_WATER_FLOW = [0.25, 1] as const;
 
 // Sky palette for the water's analytic reflection. Two stops plus a twilight
@@ -1019,6 +1040,8 @@ const _waterAtmosphere = createAtmosphereState();
 
 export const WaterAnimationManager: React.FC = () => {
   const reducedMotion = useReducedMotion();
+  const { scene } = useThree();
+  const skyRef = useRef<THREE.Mesh | null>(null);
   const phase = useRef({ time: 0, previous: null as number | null, reduced: reducedMotion });
   useFrame(() => {
     const { gameDay, gameTime, weather, isTabVisible } = useGameSimulationStore.getState();
@@ -1046,6 +1069,23 @@ export const WaterAnimationManager: React.FC = () => {
     _waterZenith.lerp(WATER_OVERCAST, overcast);
     _waterHorizon.lerp(WATER_OVERCAST, overcast);
     _waterSun.copy(WATER_SUN_TINT).multiplyScalar(celestial.sunOpacity * (0.35 + daylight * 0.65));
+
+    // Reuse the sky's settled palette, including its cool blue-hour horizon.
+    // The retained analytic fallback covers staged loading and isolated tests.
+    // No render target, texture lookup, new light or per-frame allocation.
+    // Working if dusk/night water reflects the displayed sky instead of an
+    // independent amber palette, with the existing single-pass material.
+    if (!skyRef.current?.parent) {
+      const dome = scene.getObjectByName('analytic-sky-dome');
+      skyRef.current = dome instanceof THREE.Mesh ? dome : null;
+    }
+    const sky = skyRef.current?.material;
+    if (sky instanceof THREE.ShaderMaterial) {
+      const top = sky.uniforms.topColor?.value;
+      const horizon = sky.uniforms.horizonColor?.value;
+      if (top instanceof THREE.Color) _waterZenith.lerp(top, WATER_SKY_RADIANCE.value);
+      if (horizon instanceof THREE.Color) _waterHorizon.lerp(horizon, WATER_SKY_RADIANCE.value);
+    }
 
     waterMaterials.forEach((material) => {
       const uniforms = material.uniforms;
@@ -1132,6 +1172,12 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
         uRippleA: { value: rippleA },
         uRippleB: { value: rippleB },
         uRippleC: { value: rippleC },
+        uRippleFinish: WATER_RIPPLE_FINISH,
+        uSkyRadiance: WATER_SKY_RADIANCE,
+        // Keep the main train along the flow; counter-cross the weaker trains
+        // so calm water does not become a sheet of parallel reflective bands.
+        uRefinedB: { value: crossFlow.clone().multiplyScalar(-0.85).add(direction).normalize() },
+        uRefinedC: { value: crossFlow.clone().multiplyScalar(1.35).add(direction).normalize() },
         uFlowSpeed: { value: flowSpeed },
         uOpacity: { value: opacity },
         uRadial: { value: radial ? 1 : 0 },
@@ -1197,6 +1243,10 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
         uniform vec2 uRippleA;
         uniform vec2 uRippleB;
         uniform vec2 uRippleC;
+        uniform vec2 uRefinedB;
+        uniform vec2 uRefinedC;
+        uniform float uRippleFinish;
+        uniform float uSkyRadiance;
         uniform float uTime;
         uniform float uFlowSpeed;
         uniform float uOpacity;
@@ -1222,16 +1272,32 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
           // ponds. World-space wavelengths stay physically consistent and
           // continue seamlessly between neighbouring water meshes.
           vec2 waterCoord = vWorldPosition.xz;
-          // Cross-wave phase bending breaks the ruler-straight canal bands.
-          // Reuse the existing third train: no noise texture or additional pass.
-          float phaseC = dot(waterCoord, uRippleC) * 1.35 + uTime * uFlowSpeed * 0.63;
-          float rippleC = cos(phaseC);
-          float phaseA = dot(waterCoord, uRippleA) * 2.05 + uTime * uFlowSpeed * 1.62
-            + rippleC * 1.15;
-          float rippleA = sin(phaseA);
-          float phaseB =
-            dot(waterCoord, uRippleB) * 3.10 - uTime * uFlowSpeed * 1.09 + rippleA * 0.48;
-          float rippleB = sin(phaseB);
+          // Sub-metre chop, rather than the old 2-5 metre ripple trains.
+          // The legacy arm is retained in one uniform for paired native review.
+          // Working if water keeps a quiet sheen without long parallel bands,
+          // and distant crests fade instead of turning into sparkling aliases.
+          vec2 axisB = mix(uRippleB, uRefinedB, uRippleFinish);
+          vec2 axisC = mix(uRippleC, uRefinedC, uRippleFinish);
+          float frequencyA = mix(2.05, 7.30, uRippleFinish);
+          float frequencyB = mix(3.10, 11.70, uRippleFinish);
+          float frequencyC = mix(1.35, 4.90, uRippleFinish);
+          float bendC = mix(1.15, 0.85, uRippleFinish);
+          float bendA = mix(0.48, 0.35, uRippleFinish);
+          float phaseC = dot(waterCoord, axisC) * frequencyC + uTime * uFlowSpeed * 0.63;
+          float rawC = cos(phaseC);
+          float phaseA = dot(waterCoord, uRippleA) * frequencyA + uTime * uFlowSpeed * 1.62
+            + rawC * bendC;
+          float rawA = sin(phaseA);
+          float phaseB = dot(waterCoord, axisB) * frequencyB
+            - uTime * uFlowSpeed * 1.09 + rawA * bendA;
+          // Screen derivatives filter only the finish, never its world phase.
+          // Neighbouring segments keep continuous waves regardless of UV size.
+          vec3 rippleFilter = mix(vec3(1.0),
+            1.0 - smoothstep(vec3(0.70), vec3(2.40),
+              vec3(fwidth(phaseA), fwidth(phaseB), fwidth(phaseC))), uRippleFinish);
+          float rippleA = rawA * rippleFilter.x;
+          float rippleB = sin(phaseB) * rippleFilter.y;
+          float rippleC = rawC * rippleFilter.z;
           vec2 rainTile = fract(vWorldPosition.xz * 0.19) - 0.5;
           float rainDistance = length(rainTile);
           float rainRipple =
@@ -1258,18 +1324,27 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
           float radialEdge = 1.0 - length(centred);
           float edge = max(mix(linearEdge, radialEdge, uRadial), 0.0);
           float depth = clamp(smoothstep(0.0, 0.34, edge) + ripples * 0.045, 0.0, 1.0);
-          vec3 colour = mix(uShallow, uDeep, depth);
+          // Shade the water body once, before adding incident sky radiance.
+          // Previously a final daylight multiplier also darkened the already
+          // night-coloured reflection, making lit sky reflect as a black hole.
+          float illumination = mix(0.08, 1.0,
+            clamp(uDaylight * (1.0 + uWetness * 0.08), 0.0, 1.0));
+          float bodyLight = mix(1.0, illumination, uSkyRadiance);
+          vec3 colour = mix(uShallow, uDeep, depth) * bodyLight;
 
           // Micro-relief from the analytic derivatives of the same three wave
           // trains. The vertex stage carries the long swell; this is the
           // centimetre chop that makes the reflection break up. No texture
           // fetch, no second pass - purely ALU, which is the budget we have.
-          // Chain rule includes both phase bends, so reflection normals follow
-          // the visible crests instead of retaining the old straight striping.
-          vec2 gradientC = -sin(phaseC) * 1.35 * uRippleC;
-          vec2 gradientA = cos(phaseA) * (2.05 * uRippleA + gradientC * 1.15);
-          vec2 gradientB = cos(phaseB) * (3.10 * uRippleB + gradientA * 0.48);
-          vec2 slope = gradientA * 0.0180 + gradientB * 0.0085 + gradientC * 0.0140;
+          // Chain rule follows both phase bends. Heights shrink with the
+          // shorter wavelengths, preserving centimetre-scale relief instead
+          // of turning the same amplitude into steep ridges.
+          vec2 gradientC = -sin(phaseC) * frequencyC * axisC;
+          vec2 gradientA = cos(phaseA) * (frequencyA * uRippleA + gradientC * bendC);
+          vec2 gradientB = cos(phaseB) * (frequencyB * axisB + gradientA * bendA);
+          vec2 slope = gradientA * rippleFilter.x * mix(0.0180, 0.0048, uRippleFinish)
+            + gradientB * rippleFilter.y * mix(0.0085, 0.0015, uRippleFinish)
+            + gradientC * rippleFilter.z * mix(0.0140, 0.0028, uRippleFinish);
           vec3 normal = normalize(
             vWorldNormal + vec3(slope.x + rainRipple * 0.018, 0.0, slope.y - rainRipple * 0.018)
           );
@@ -1297,7 +1372,7 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
 
           float crestSignal = rippleA * 0.7 + rippleB * 0.22 + rippleC * 0.08;
           float crest = smoothstep(0.78, 1.0, crestSignal);
-          colour = mix(colour, uReflection, crest * (0.025 + 0.035 * uDaylight));
+          colour = mix(colour, uReflection * bodyLight, crest * mix(0.025 + 0.035 * uDaylight, 0.010 + 0.015 * uDaylight, uRippleFinish));
 
           // Sheltered water has occasional gathered foam, never a white
           // contour around the whole pond. World-space pockets also keep
@@ -1308,13 +1383,13 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
             sin(waterCoord.x * 0.47 + sin(waterCoord.y * 0.31)) *
             cos(waterCoord.y * 0.63 - waterCoord.x * 0.19));
           float lace = smoothstep(0.45, 1.0, foamBand) * (0.55 + 0.45 * rippleB);
-          vec3 foamColour = mix(vec3(0.36, 0.46, 0.44), uReflection, 0.20);
+          vec3 foamColour = mix(vec3(0.36, 0.46, 0.44), uReflection, 0.20) * bodyLight;
           colour = mix(colour, foamColour, foamPocket * (foamBand * 0.15 + lace * 0.12));
 
           // Damp margin so the bank mesh and the water meet on a wet
           // transition rather than a cut edge.
           float shore = smoothstep(0.0, 0.012, edge);
-          colour = mix(vec3(0.16, 0.26, 0.26), colour, shore);
+          colour = mix(vec3(0.16, 0.26, 0.26) * bodyLight, colour, shore);
 
           // A vertical weir has no useful XZ phase gradient down its face.
           // Thin falling ribbons in XY, with downward-travelling breakup,
@@ -1337,11 +1412,12 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
             colour = mix(uDeep, uShallow, 0.22 + 0.45 * stream);
             colour = mix(colour, uReflection,
               brokenFoam * 0.7 + landing * (0.12 + pulse * 0.12));
+            colour *= bodyLight;
           }
-          colour = mix(uDeep * 0.92, colour, clamp(uOpacity, 0.0, 1.0));
-          // Unlit shader: without this the water stayed full daylight blue at
-          // midnight while every lit surface around it went dark.
-          colour *= mix(0.08, 1.0, clamp(uDaylight * (1.0 + uWetness * 0.08), 0.0, 1.0));
+          colour = mix(uDeep * 0.92 * bodyLight, colour, clamp(uOpacity, 0.0, 1.0));
+          // The zero control restores the old double-attenuated reflection.
+          // In the finish arm, only the body/foam receive this illumination.
+          colour *= mix(illumination, 1.0, uSkyRadiance);
 
           gl_FragColor = vec4(colour, 1.0);
           #include <tonemapping_fragment>
@@ -1364,7 +1440,7 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
     // MANUALLY VERSIONED, never derived from time or randomness - see the
     // documented `Date.now()` cache-key bug. Bump this whenever the shader
     // source above changes or a stale cached program will be reused.
-    value.customProgramCacheKey = () => 'millos-unified-water-v13';
+    value.customProgramCacheKey = () => 'millos-unified-water-v15';
     return value;
   }, [crossOnly, deep, falling, flowSpeed, flowX, flowY, opacity, radial, reflection, shallow]);
 
@@ -2060,6 +2136,8 @@ const RiverTunnel: React.FC<{
   );
 });
 
+const RIVER_FOOTBRIDGE_ACCESS_GEOMETRY = createRiverFootbridgeAccessGeometry();
+
 // The visible river and its shoreline share the actual terrain assembly.
 const River: React.FC = React.memo(() => {
   const config = MILLOS_RIVER_CONFIG;
@@ -2127,6 +2205,16 @@ const River: React.FC = React.memo(() => {
         >
           <boxGeometry args={[...RIVER_FOOTBRIDGE_DECK.size]} />
           <meshStandardMaterial color="#6b7280" roughness={0.8} />
+        </mesh>
+        <mesh
+          name="river-footbridge-ground-access"
+          position={[-riverX, 0, -riverZ]}
+          geometry={RIVER_FOOTBRIDGE_ACCESS_GEOMETRY}
+          castShadow
+          receiveShadow
+          dispose={null}
+        >
+          <meshStandardMaterial vertexColors roughness={0.9} />
         </mesh>
         {/* Bridge railings */}
         {[-1, 1].map((side, i) => (
@@ -2471,12 +2559,17 @@ const Pond: React.FC<{
           48 halves it. The water disc below carries the same count so the
           kerb and the waterline stay concentric; both are flat fans, so this
           is a few dozen vertices for the whole feature. */}
-      <mesh position={[0, 0.08, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+      <mesh
+        name="pond-stone-kerb"
+        position={[0, 0.08, 0]}
+        rotation={[-Math.PI / 2, 0, 0]}
+        receiveShadow
+      >
         <ringGeometry args={[radius - 0.3, radius + 0.5, 48]} />
         <meshStandardMaterial
           color="#7d8590"
           roughness={0.85}
-          depthWrite={false}
+          depthWrite
           polygonOffset
           polygonOffsetFactor={-2}
           polygonOffsetUnits={-2}
@@ -3330,6 +3423,62 @@ const BrickCarport: React.FC<{
   );
 };
 
+/** Fit path vertices to the same rendered ground grid, with metre-scale UVs.
+ * Working if both quality grids keep path edges seated, including canyon dips.
+ */
+export function createGroundPathGeometry(
+  width: number,
+  length: number,
+  originX: number,
+  originZ: number,
+  yaw: number,
+  segments: number
+) {
+  const geometry = new THREE.PlaneGeometry(
+    width,
+    length,
+    Math.max(1, Math.ceil(width)),
+    Math.max(1, Math.ceil(length))
+  );
+  const p = geometry.getAttribute('position');
+  const uv = geometry.getAttribute('uv');
+  const cos = Math.cos(yaw),
+    sin = Math.sin(yaw);
+  for (let i = 0; i < p.count; i++) {
+    // The host mesh lays the plane down, then its group turns it about Y.
+    const x = originX + cos * p.getX(i) - sin * p.getY(i);
+    const z = originZ - sin * p.getX(i) - cos * p.getY(i);
+    p.setZ(i, sampleTerrainGroundHeight(x, z, segments));
+    // Shared samplers repeat four times, giving a consistent 2 m feature size.
+    uv.setXY(i, x / 8, z / 8);
+  }
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+function GroundPathGeometry({
+  width,
+  length,
+  originX,
+  originZ,
+  yaw,
+}: {
+  width: number;
+  length: number;
+  originX: number;
+  originZ: number;
+  yaw: number;
+}) {
+  const quality = useGraphicsStore((s) => s.graphics.quality);
+  const segments = getTerrainGridSegments(quality);
+  const geometry = useMemo(
+    () => createGroundPathGeometry(width, length, originX, originZ, yaw, segments),
+    [width, length, originX, originZ, yaw, segments]
+  );
+  useEffect(() => () => geometry.dispose(), [geometry]);
+  return <primitive object={geometry} attach="geometry" />;
+}
+
 // Gravel/paved path component
 export const GravelPath: React.FC<{
   start: [number, number, number];
@@ -3357,8 +3506,8 @@ export const GravelPath: React.FC<{
     cobble: '#d8cec2',
   };
 
-  // On the site's ground datum, held above the terrain by polygonOffset alone -
-  // the exterior stack CLAUDE.md documents, and what the canal towpath above
+  // On the site's ground datum plus the sampled ground profile, with
+  // polygonOffset retaining the exterior stack and what the canal towpath above
   // already does. The literal 0.08 this replaces was chosen to clear
   // `TerrainGround`'s old 0.05 default; the terrain now renders at
   // `SITE_LAYOUT.datum.terrain` (-0.02), which left the path floating 10 cm over
@@ -3367,34 +3516,45 @@ export const GravelPath: React.FC<{
 
   return (
     <group position={[midX, pathY, midZ]} rotation={[0, angle, 0]}>
-      {/* Path surface. The negative offset is now load-bearing rather than
-          belt-and-braces: it is the whole of the separation from the terrain's
-          `exteriorBase` +6. */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <planeGeometry args={[safeWidth, safeLength]} />
+      {/* Opaque circulation writes depth before the terrain's late draw.
+          Working if the full path remains visible with terrain enabled. */}
+      <mesh name="footpath-surface" rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+        <GroundPathGeometry
+          width={safeWidth}
+          length={safeLength}
+          originX={midX}
+          originZ={midZ}
+          yaw={angle}
+        />
         <meshStandardMaterial
           color={colors[type]}
           roughness={0.95}
           map={TARMAC_PATH_MAP}
           roughnessMap={TARMAC_PATH_ROUGHNESS}
-          depthWrite={false}
+          depthWrite
           polygonOffset
           polygonOffsetFactor={-2}
           polygonOffsetUnits={-2}
         />
       </mesh>
-      {/* Path borders - slightly above path surface */}
+      {/* Edging shares the ground datum, separated only by polygon offset. */}
       {[-1, 1].map((side, i) => (
         <mesh
           key={i}
-          position={[side * (safeWidth / 2 + 0.1), 0.01, 0]}
+          position={[side * (safeWidth / 2 + 0.1), 0, 0]}
           rotation={[-Math.PI / 2, 0, 0]}
         >
-          <planeGeometry args={[0.15, safeLength]} />
+          <GroundPathGeometry
+            width={0.15}
+            length={safeLength}
+            originX={midX + Math.cos(angle) * side * (safeWidth / 2 + 0.1)}
+            originZ={midZ - Math.sin(angle) * side * (safeWidth / 2 + 0.1)}
+            yaw={angle}
+          />
           <meshStandardMaterial
             color="#57534e"
             roughness={0.9}
-            depthWrite={false}
+            depthWrite
             polygonOffset
             polygonOffsetFactor={-3}
             polygonOffsetUnits={-3}
@@ -3453,14 +3613,20 @@ const CurvedPath: React.FC<{
 
         return (
           <group key={i} position={[midX, 0, midZ]} rotation={[0, -segAngle, 0]}>
-            <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-              <planeGeometry args={[safeSegLength + 0.25, safeWidth]} />
+            <mesh name="footpath-curve-surface" rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+              <GroundPathGeometry
+                width={safeSegLength + 0.25}
+                length={safeWidth}
+                originX={position[0] + midX}
+                originZ={position[2] + midZ}
+                yaw={-segAngle}
+              />
               <meshStandardMaterial
                 color={colors[type]}
                 roughness={0.95}
                 map={TARMAC_PATH_MAP}
                 roughnessMap={TARMAC_PATH_ROUGHNESS}
-                depthWrite={false}
+                depthWrite
                 polygonOffset
                 polygonOffsetFactor={-2}
                 polygonOffsetUnits={-2}
@@ -3605,9 +3771,11 @@ const LockGate: React.FC<{
 const PathLamp: React.FC<{
   position: [number, number, number];
   style?: 'modern' | 'victorian';
-}> = React.memo(({ position, style = 'modern' }) => (
-  <group position={position}>
-    <ExteriorLampPool radius={style === 'victorian' ? 5.5 : 4.8} />
+  poolRadius?: number;
+  name?: string;
+}> = React.memo(({ position, style = 'modern', poolRadius, name }) => (
+  <group name={name} position={position}>
+    <ExteriorLampPool radius={poolRadius ?? (style === 'victorian' ? 5.5 : 4.8)} />
     <GeneratedBoundary
       fallback={
         <group>
@@ -8377,6 +8545,10 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
 
       {/* Cute kiosk cafe by the pond - facing toward the water */}
       <KioskCafe position={[-108, 0, 105]} rotation={Math.PI} />
+      {/* Same shared lens/pool as the park paths, with no additional light or shadow map. */}
+      <group name="cafe-court-lantern">
+        <PathLamp position={[...CAFE_COURT_LANTERN]} style="victorian" />
+      </group>
 
       <CanalRiverOutlet />
 
@@ -8418,7 +8590,7 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
       <GravelPath start={[-130, 0, 85]} end={[-130, 0, 50]} width={2.5} type="gravel" />
 
       {/* Path to the lake area */}
-      <GravelPath start={[95, 0, 85]} end={[120, 0, 100]} width={2.5} type="paved" />
+      <GravelPath start={[95, 0, 85]} end={[120, 0, 92]} width={2.5} type="paved" />
       <CurvedPath
         position={[120, 0, 100]}
         radius={8}
@@ -8456,7 +8628,7 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
       />
 
       {/* Factory perimeter path - west side */}
-      <GravelPath start={[-65, 0, 50]} end={[-65, 0, -50]} width={2} type="paved" />
+      <GravelPath {...WEST_FACTORY_PATH} type="paved" />
 
       {/* Factory perimeter path - east side */}
       <GravelPath start={[65, 0, 50]} end={[65, 0, -50]} width={2} type="paved" />
@@ -8465,7 +8637,7 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
       <GravelPath start={[-65, 0, -60]} end={[65, 0, -60]} width={2} type="paved" />
 
       {/* Path to east pond */}
-      <GravelPath start={[100, 0, -85]} end={[115, 0, -110]} width={1.8} type="gravel" />
+      <GravelPath start={[100, 0, -85]} end={EAST_POND_APPROACH} width={1.8} type="gravel" />
 
       {/* ========== PATH AMENITIES & FURNITURE ========== */}
 
@@ -8477,8 +8649,15 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
       <PathLamp position={[-155, 0, -80]} style="victorian" />
 
       {/* Modern lamps along factory paths */}
-      <PathLamp position={[-65, 0, 30]} style="modern" />
-      <PathLamp position={[-65, 0, -30]} style="modern" />
+      {WEST_FACTORY_PATH_LAMPS.map((position) => (
+        <PathLamp
+          key={position[2]}
+          name={`factory-west-path-lamp-${position[2]}`}
+          position={position}
+          style="modern"
+          poolRadius={WEST_FACTORY_PATH_POOL_RADIUS}
+        />
+      ))}
       <PathLamp position={[65, 0, 30]} style="modern" />
       <PathLamp position={[65, 0, -30]} style="modern" />
 

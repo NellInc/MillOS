@@ -1012,16 +1012,35 @@ const luminanceOf = (color: THREE.Color): number =>
  *   - EMISSIVE surfaces. A lamp lens, a screen or a lit sign is emitting, not
  *     reflecting, and weathering its diffuse does nothing visible while
  *     weathering its roughness is meaningless.
+ *   - TEXTURED substrates already carry authored albedo/relief/PBR response.
+ *     Automatic finishing preserves those maps; explicit applyWorldSurface or
+ *     composeWorldSurface opt-ins remain authoritative.
  *   - TRANSPARENT surfaces. Glass and painted floor markings are flat BY
  *     CONSTRUCTION - `world-factory-infrastructure` records this for
  *     `factory-glazing` and `factory-walkway-paint` and it is still right.
  *     They also never reach the merge path at all: `getInstanceColor` returns
  *     null for anything with `transparent` or `opacity < 1`.
  */
-function isOutOfSurfaceScope(material: THREE.Material | null | undefined): boolean {
+function isOutOfSurfaceScope(
+  material: THREE.Material | null | undefined,
+  allowMapped = false
+): boolean {
   if (!canApplyWorldSurface(material)) return true;
   const standard = material as THREE.MeshStandardMaterial;
   if (standard.transparent || standard.opacity < 1) return true;
+  // Atlas/PBR maps already describe the substrate. Automatic masonry relief
+  // over the farmhouse atlas produced metre-wide plaster blobs, even with its
+  // normal map disabled. Working if fresh mapped bodies retain their atlas
+  // without this injection, while explicit opt-ins and plain primitives keep it.
+  const hasSubstrateMaps =
+    standard.map ||
+    standard.normalMap ||
+    standard.bumpMap ||
+    standard.roughnessMap ||
+    standard.metalnessMap ||
+    standard.aoMap ||
+    standard.displacementMap;
+  if (hasSubstrateMaps && !allowMapped && !hasWorldSurface(material)) return true;
   return luminanceOf(standard.emissive) * standard.emissiveIntensity > 0.02;
 }
 
@@ -1032,11 +1051,13 @@ function isOutOfSurfaceScope(material: THREE.Material | null | undefined): boole
  * the colour of the surface: `factory-trim`, the worker fabrics, a named
  * building material. Do NOT use it on a batch output - see
  * `resolveBatchSurfaceProfile` for why the colour is not usable there.
+ * `allowMapped` is an explicit substrate-owner opt-in, never an automatic sweep.
  */
 export function resolveSurfaceProfile(
-  material: THREE.Material | null | undefined
+  material: THREE.Material | null | undefined,
+  allowMapped = false
 ): WorldSurfaceProfileName | null {
-  if (isOutOfSurfaceScope(material)) return null;
+  if (isOutOfSurfaceScope(material, allowMapped)) return null;
   const standard = material as THREE.MeshStandardMaterial;
   if ((standard.metalness ?? 0) >= 0.55) return 'metal';
 

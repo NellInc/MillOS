@@ -48,8 +48,8 @@ describe('Victorian tunnel portal', () => {
   });
 });
 
-describe('blocky road tunnel hill', () => {
-  it('roots every oak on the real hill top, above the road bore', () => {
+describe('rounded road tunnel hill', () => {
+  it('roots every oak on the real bank and keeps trees over the bore above its roof', () => {
     const geometry = createRoadTunnelHillGeometry();
     const hill = new THREE.Mesh(geometry, ROAD_TUNNEL_EARTH_MATERIAL);
     hill.updateMatrixWorld(true);
@@ -62,7 +62,9 @@ describe('blocky road tunnel hill', () => {
         new THREE.Vector3(0, -1, 0)
       ).intersectObject(hill)[0];
       expect(hit.point.y - y).toBeCloseTo(0.015);
-      expect(y).toBeGreaterThan(ROAD_TUNNEL_BORE.height + 2);
+      expect(y).toBeGreaterThan(0);
+      if (Math.abs(x) < ROAD_TUNNEL_BORE.halfWidth + 0.3)
+        expect(y).toBeGreaterThan(ROAD_TUNNEL_BORE.height + 2);
       expect(z).toBeLessThan(-10);
     }
     geometry.dispose();
@@ -122,21 +124,98 @@ describe('blocky road tunnel hill', () => {
     geometry.dispose();
   });
 
-  it('builds a finite, bounded blocky envelope whose face is flush with the portal', () => {
+  it('builds a finite, bounded rounded envelope whose face is flush with the portal', () => {
     const geometry = createRoadTunnelHillGeometry(90);
     const box = geometry.boundingBox!;
     expect(Array.from(geometry.getAttribute('position').array).every(Number.isFinite)).toBe(true);
     expect(box.max.z).toBeCloseTo(0);
     expect(box.min.z).toBeCloseTo(-90 - ROAD_TUNNEL_TAIL.length);
     expect(box.max.y).toBeCloseTo(15);
-    expect(box.max.x).toBeLessThan(22);
-    expect(box.min.x).toBeGreaterThan(-22);
-    // Two skirts, two cores and the top block (five boxes), plus the tail's
-    // seven outline quads and eight-triangle rear cap: one draw.
-    expect(geometry.index!.count / 3).toBe(60 + 14 + 8);
+    expect(box.max.x).toBeLessThan(20.71);
+    expect(box.min.x).toBeGreaterThan(-20.71);
+    // One shared draw, including the buried tail, with a bounded smooth crown.
+    expect(geometry.index!.count / 3).toBeGreaterThan(500);
+    expect(geometry.index!.count / 3).toBeLessThan(1500);
+    expect(Array.from(geometry.getAttribute('normal').array).every(Number.isFinite)).toBe(true);
     // The skirts reach below grade, so the hill never floats.
     expect(box.min.y).toBeLessThan(-0.3);
     geometry.dispose();
+  });
+
+  it('rolls the shoulders down from a non-flat crown and closes the front cutting', () => {
+    const geometry = createRoadTunnelHillGeometry();
+    const material = new THREE.MeshBasicMaterial();
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.updateMatrixWorld(true);
+    const topAt = (x: number, z: number) =>
+      new THREE.Raycaster(new THREE.Vector3(x, 40, z), new THREE.Vector3(0, -1, 0)).intersectObject(
+        mesh
+      )[0]?.point.y;
+    expect(topAt(0, -35)).toBeGreaterThan(14);
+    expect(topAt(18, -35)).toBeLessThan(9);
+    expect(topAt(12, -35)).toBeGreaterThan(topAt(18, -35)! + 3);
+    expect(topAt(0, -35)).not.toBeCloseTo(topAt(0, -60)!, 3);
+    const front = new THREE.Raycaster(
+      new THREE.Vector3(0, 12, 20),
+      new THREE.Vector3(0, 0, -1)
+    ).intersectObject(mesh)[0];
+    expect(front?.point.z).toBeLessThan(-4);
+    expect(front?.point.z).toBeGreaterThan(-12);
+    const shoulder = new THREE.Raycaster(
+      new THREE.Vector3(14, 5, 20),
+      new THREE.Vector3(0, 0, -1)
+    ).intersectObject(mesh)[0];
+    expect(shoulder?.point.z).toBeLessThan(-2);
+    expect(shoulder?.point.z).toBeGreaterThan(-15);
+    geometry.dispose();
+    material.dispose();
+  });
+
+  it('grades both outer toes gently into the existing ground footprint', () => {
+    const geometry = createRoadTunnelHillGeometry();
+    const material = new THREE.MeshBasicMaterial();
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.updateMatrixWorld(true);
+    const ray = new THREE.Raycaster(new THREE.Vector3(), new THREE.Vector3(0, -1, 0));
+    for (const side of [-1, 1]) {
+      for (const z of [-35, -70]) {
+        const height = (x: number) => {
+          ray.ray.origin.set(side * x, 40, z);
+          const hit = ray.intersectObject(mesh)[0];
+          expect(hit).toBeDefined();
+          return hit!.point.y;
+        };
+        const inner = height(19.2);
+        const outer = height(20.4);
+        expect(inner).toBeGreaterThan(outer);
+        expect((inner - outer) / 1.2).toBeLessThan(0.65);
+        expect(inner).toBeLessThan(1);
+        expect(outer).toBeLessThan(0);
+      }
+    }
+    geometry.dispose();
+    material.dispose();
+  });
+
+  it('keeps the grassy contact normals independent of the buried underside', () => {
+    const geometry = createRoadTunnelHillGeometry();
+    const material = new THREE.MeshBasicMaterial();
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.updateMatrixWorld(true);
+    for (const side of [-1, 1]) {
+      for (const z of [-35, -70]) {
+        const hit = new THREE.Raycaster(
+          new THREE.Vector3(side * 19.5, 40, z),
+          new THREE.Vector3(0, -1, 0)
+        ).intersectObject(mesh)[0];
+        expect(hit).toBeDefined();
+        expect(hit!.point.y).toBeGreaterThan(0);
+        expect(hit!.normal!.y).toBeGreaterThan(0.8);
+      }
+    }
+    expect(geometry.index!.count).toBe(3165);
+    geometry.dispose();
+    material.dispose();
   });
 
   it('runs the tail into the foothills instead of ending in open meadow', () => {

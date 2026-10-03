@@ -1,13 +1,16 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
 import * as THREE from 'three';
 import {
   applyOfficeWindows,
   applyApartmentWindows,
   applyVillageWindows,
+  VILLAGE_INTERIOR_STRENGTH,
 } from './GeneratedOfficeModel';
 import { applyBoatPortholes } from './GeneratedBoatModel';
 import { applyLampLens, LAMP_LENS_HEIGHTS } from './GeneratedLampModel';
 import { EXTERIOR_LAMP_LENS_MATERIAL } from '../exterior/ExteriorLighting';
+import { WORKSHOP_GLAZING } from '../TruckBay';
 
 function compile(apply: (material: THREE.MeshStandardMaterial, night: { value: number }) => void) {
   const material = new THREE.MeshStandardMaterial();
@@ -45,6 +48,37 @@ describe('generated architectural night lighting', () => {
     expect(shader.fragmentShader).toContain('step(1.18, abs(vBoatPosition.x))');
     expect(shader.fragmentShader).toContain('step(1.80, vBoatPosition.y)');
   });
+});
+
+it('binds the actual shared workshop glass to pane rooms without domestic curtains', () => {
+  const shader = {
+    uniforms: {},
+    vertexShader: '#include <begin_vertex>',
+    fragmentShader: '#include <emissivemap_fragment>',
+  } as Parameters<typeof WORKSHOP_GLAZING.onBeforeCompile>[0];
+  WORKSHOP_GLAZING.onBeforeCompile(shader, {} as THREE.WebGLRenderer);
+  expect(WORKSHOP_GLAZING.name).toBe('maintenance-workshop-glazing');
+  expect(shader.uniforms.villageCurtains.value).toBe(0);
+  expect(shader.uniforms.villageRooms.value).toBe(1);
+  expect(shader.uniforms.villageAtlas.value).toBe(0);
+  expect(WORKSHOP_GLAZING.customProgramCacheKey()).toBe('millos-authored-village-windows-v4');
+  expect(WORKSHOP_GLAZING.map).toBeNull();
+});
+
+it('faces both existing side panes outward and keeps their dimensions and shared material', () => {
+  const source = readFileSync('src/components/TruckBay.tsx', 'utf8');
+  const start = source.indexOf('key={`garage-side-window-${side}`}');
+  const panes = source.slice(start, source.indexOf('</mesh>', start));
+  expect(panes).toContain('rotation={[0, (side * Math.PI) / 2, 0]}');
+  expect(panes).toContain('material={WORKSHOP_GLAZING}');
+  expect(panes).toContain('args={[3.4, 1.5]}');
+  for (const side of [-1, 1]) {
+    const normal = new THREE.Vector3(0, 0, 1).applyAxisAngle(
+      new THREE.Vector3(0, 1, 0),
+      (side * Math.PI) / 2
+    );
+    expect(normal.x).toBeCloseTo(side, 10);
+  }
 });
 
 it('generated lanterns use the existing live dusk/weather driver without rebuilding materials', () => {
@@ -132,6 +166,149 @@ it('illuminates only the authored village glass atlas tile, on the shared live d
   const shader = compile(applyVillageWindows);
   expect(shader.uniforms.villageNight.value).toBe(1);
   expect(shader.vertexShader).toContain('vVillageUV = uv');
-  expect(shader.fragmentShader).toContain('step(0.5, vVillageUV.x)');
-  expect(shader.fragmentShader).toContain('step(0.25, vVillageUV.y)');
+  expect(shader.fragmentShader).toContain('step(villageTileOrigin.x, vVillageUV.x)');
+  expect(shader.fragmentShader).toContain('step(villageTileOrigin.y, vVillageUV.y)');
+  expect(shader.uniforms.villageTileOrigin.value.toArray()).toEqual([0.5, 0.25]);
+  expect(shader.uniforms.villageAtlas.value).toBe(1);
+  expect(shader.uniforms.villageInteriorStrength).toBe(VILLAGE_INTERIOR_STRENGTH);
+  expect(shader.uniforms.villageCurtains.value).toBe(1);
+  expect(shader.uniforms.villagePaneUV.value.toArray()).toEqual([0.0075, 0.235]);
+  expect(shader.uniforms.villageRooms.value).toBe(1);
+  expect(shader.fragmentShader).toContain('villageTileOrigin - vec2(villagePaneUV.x)');
+  expect(shader.fragmentShader).toContain('pane - viewSlope * 0.22');
+  expect(shader.fragmentShader).toContain('pane - viewSlope * 0.035');
+  expect(shader.fragmentShader.indexOf('dFdx(pane)')).toBeLessThan(
+    shader.fragmentShader.indexOf('if (glazing > 0.5')
+  );
+  expect(shader.fragmentShader).toContain('max(abs(determinant), 0.00000001)');
+  expect(shader.fragmentShader).toContain('max(facing, 0.25)');
+  expect(shader.fragmentShader).toContain('float occupied = step(0.22, seed)');
+});
+
+it('uses the actual standalone home UVs and pub amber tile without treating a lantern as curtains', () => {
+  for (const [glazing, atlas, origin] of [
+    ['pane', 0, [0.5, 0.25]],
+    ['amber', 1, [0.75, 0.25]],
+  ] as const) {
+    const material = new THREE.MeshStandardMaterial();
+    applyVillageWindows(material, { value: 1 }, true, glazing);
+    const shader = {
+      uniforms: {},
+      vertexShader: '#include <begin_vertex>',
+      fragmentShader: '#include <emissivemap_fragment>',
+    } as Parameters<typeof material.onBeforeCompile>[0];
+    material.onBeforeCompile(shader, {} as THREE.WebGLRenderer);
+    expect(shader.uniforms.villageAtlas.value).toBe(atlas);
+    expect(shader.uniforms.villageTileOrigin.value.toArray()).toEqual(origin);
+    expect(shader.fragmentShader).toContain('vec2(vVillageUV.x, 1.0 - vVillageUV.y)');
+    expect(shader.fragmentShader).toContain('step(0.5, min(length(worldU), length(worldV)))');
+    expect(shader.fragmentShader).toContain('foldDetail');
+    material.dispose();
+  }
+});
+
+it('retains forge workrooms without domestic curtains or a new shader variant', () => {
+  const material = new THREE.MeshStandardMaterial();
+  applyVillageWindows(material, { value: 1 }, false);
+  const shader = {
+    uniforms: {},
+    vertexShader: '#include <begin_vertex>',
+    fragmentShader: '#include <emissivemap_fragment>',
+  } as Parameters<typeof material.onBeforeCompile>[0];
+  material.onBeforeCompile(shader, {} as THREE.WebGLRenderer);
+  expect(shader.uniforms.villageCurtains.value).toBe(0);
+  expect(shader.uniforms.villageRooms.value).toBe(1);
+  expect(material.customProgramCacheKey()).toBe('millos-authored-village-windows-v4');
+  material.dispose();
+});
+
+it('keeps church stained glass out of domestic room replacement', () => {
+  const material = new THREE.MeshStandardMaterial();
+  applyVillageWindows(material, { value: 1 }, false, 'stained');
+  const shader = {
+    uniforms: {},
+    vertexShader: '#include <begin_vertex>',
+    fragmentShader: '#include <emissivemap_fragment>',
+  } as Parameters<typeof material.onBeforeCompile>[0];
+  material.onBeforeCompile(shader, {} as THREE.WebGLRenderer);
+  expect(shader.uniforms.villageCurtains.value).toBe(0);
+  expect(shader.uniforms.villageRooms.value).toBe(0);
+  expect(shader.fragmentShader).toContain('&& villageRooms > 0.5');
+  expect(shader.fragmentShader).toContain(
+    'mix(diffuseColor.rgb * 0.85, villageGlow, villageRooms)'
+  );
+  expect(shader.fragmentShader).toContain('glazing = max(stainedRow, roseTile)');
+  expect(material.customProgramCacheKey()).toBe('millos-authored-village-windows-v4');
+  material.dispose();
+});
+
+it('uses the castle glass tile and its delivered padding with the same room shader', () => {
+  const material = new THREE.MeshStandardMaterial();
+  applyVillageWindows(material, { value: 1 }, true, 'castle');
+  const shader = {
+    uniforms: {},
+    vertexShader: '#include <begin_vertex>',
+    fragmentShader: '#include <emissivemap_fragment>',
+  } as Parameters<typeof material.onBeforeCompile>[0];
+  material.onBeforeCompile(shader, {} as THREE.WebGLRenderer);
+  expect(shader.uniforms.villageTileOrigin.value.toArray()).toEqual([0.75, 0.75]);
+  expect(shader.uniforms.villagePaneUV.value.toArray()).toEqual([0.00375, 0.2425]);
+  expect(shader.uniforms.villageRooms.value).toBe(1);
+  expect(shader.uniforms.villageCurtains.value).toBe(1);
+  expect(material.customProgramCacheKey()).toBe('millos-authored-village-windows-v4');
+  material.dispose();
+});
+
+it('pins the pane transform to UVs in the actual delivered castle GLB', () => {
+  const bytes = readFileSync('public/models/village/castle.glb');
+  const jsonLength = bytes.readUInt32LE(12);
+  const asset = JSON.parse(bytes.toString('utf8', 20, 20 + jsonLength));
+  const primitive = asset.meshes[0].primitives[0];
+  const accessor = asset.accessors[primitive.attributes.TEXCOORD_0];
+  const view = asset.bufferViews[accessor.bufferView];
+  expect(accessor.componentType).toBe(5126);
+  expect(accessor.type).toBe('VEC2');
+  const offset = 28 + jsonLength + (view.byteOffset ?? 0) + (accessor.byteOffset ?? 0);
+  const glassUVs: [number, number][] = [];
+  for (let i = 0; i < accessor.count; i++) {
+    const vertex = offset + i * (view.byteStride ?? 8);
+    const uv: [number, number] = [bytes.readFloatLE(vertex), bytes.readFloatLE(vertex + 4)];
+    if (uv[0] > 0.75 && uv[0] < 1 && uv[1] > 0.75 && uv[1] < 1) glassUVs.push(uv);
+  }
+  expect(glassUVs.length).toBeGreaterThan(1000);
+  for (const axis of [0, 1]) {
+    expect(Math.min(...glassUVs.map((uv) => uv[axis]))).toBeCloseTo(0.75375, 6);
+    expect(Math.max(...glassUVs.map((uv) => uv[axis]))).toBeCloseTo(0.99625, 6);
+  }
+});
+
+it('reuses bounded curtains and room depth on apartment facade coordinates, with retained dark floors', () => {
+  const shader = compile(applyApartmentWindows);
+  expect(shader.uniforms.villageInteriorStrength).toBe(VILLAGE_INTERIOR_STRENGTH);
+  expect(shader.uniforms.villageCurtains.value).toBe(1);
+  expect(shader.uniforms.villageRoomLight).toBe(shader.uniforms.officeGlow);
+  expect(shader.fragmentShader).toContain('float occupied = occupiedFloor * step(0.22, seed)');
+  expect(shader.fragmentShader).toContain('* villageNight * occupiedFloor;');
+  expect(shader.fragmentShader).toContain('mix(0.192, 0.200, sideFacade)');
+  expect(shader.fragmentShader).toContain('1.0 - (vOfficePosition.y - floorLow)');
+  expect(shader.fragmentShader).toContain('pane - viewSlope * 0.22');
+  expect(shader.fragmentShader).toContain('vec2 du = dFdx(pane)');
+  expect(shader.fragmentShader).not.toContain('vec2 pane = mix(');
+});
+
+it('keeps the delivered cut upper storey separate from the four-storey pane height', () => {
+  for (const floors of [3, 4] as const) {
+    const material = new THREE.MeshStandardMaterial();
+    applyApartmentWindows(material, { value: 1 }, floors);
+    const shader = {
+      uniforms: {},
+      vertexShader: '#include <begin_vertex>',
+      fragmentShader: '#include <emissivemap_fragment>',
+    } as Parameters<typeof material.onBeforeCompile>[0];
+    material.onBeforeCompile(shader, {} as THREE.WebGLRenderer);
+    expect(shader.uniforms.apartmentFloorLow.value.z).toBe(floors === 3 ? 0.01059 : 0.01663);
+    expect(shader.uniforms.apartmentFloorHigh.value.z).toBe(floors === 3 ? 0.13193 : 0.13014);
+    expect(material.customProgramCacheKey()).toBe('millos-generated-apartment-window-v3');
+    material.dispose();
+  }
 });

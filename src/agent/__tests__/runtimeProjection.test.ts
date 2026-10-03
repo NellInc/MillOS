@@ -17,7 +17,7 @@ describe('MillOS runtime agent projection', () => {
       expect(capture.mode).toMatch(/^(simulation|replay)$/);
       expect(capture.freshness).not.toHaveLength(0);
       expect(capture.domains.production).toMatchObject({ machines: expect.any(Array) });
-      expect(capture.domains.experience).toEqual({
+      expect(capture.domains.experience).toMatchObject({
         operationalProjectionOnly: true,
         cosmeticStateExcludedFromRevision: true,
         frameTelemetryExcludedFromRevision: true,
@@ -61,7 +61,7 @@ describe('MillOS runtime agent projection', () => {
           commandExecution: true,
           externalWrites: false,
           grantCount: expect.any(Number),
-          executableCapabilityCount: 13,
+          executableCapabilityCount: 14,
         },
       });
       expect(byteLength(brief)).toBeLessThanOrEqual(AGENT_LEVEL0_MAXIMUM_BYTES);

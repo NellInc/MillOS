@@ -6,6 +6,17 @@ import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 
 type ExteriorWeather = ReturnType<typeof useGameSimulationStore.getState>['weather'];
 
+/** Working if the west walk has regularly spaced pools and no posts in its paving. */
+export const WEST_FACTORY_PATH = {
+  start: [-65, 0, 50] as [number, number, number],
+  end: [-65, 0, -50] as [number, number, number],
+  width: 2,
+};
+export const WEST_FACTORY_PATH_POOL_RADIUS = 11.5;
+export const WEST_FACTORY_PATH_LAMPS: [number, number, number][] = [
+  -48, -32, -16, 0, 16, 32, 48,
+].map((z) => [-66.6, 0, z]);
+
 export const getExteriorLampLevel = (gameTime: number, weather: ExteriorWeather): number => {
   const hour = (((Number.isFinite(gameTime) ? gameTime : 12) % 24) + 24) % 24;
   const solarElevation = Math.sin(((hour - 6) / 24) * Math.PI * 2);

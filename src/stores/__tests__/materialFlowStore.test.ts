@@ -15,6 +15,17 @@ describe('MaterialFlowStore', () => {
   });
 
   describe('Initial State', () => {
+    it('keeps one physical identity per run and changes it when deterministic counters reset', () => {
+      const first = useMaterialFlowStore.getState().sessionId;
+      expect(typeof first).toBe('string');
+      expect(first.length).toBeGreaterThan(10);
+      useMaterialFlowStore.getState().tickMaterialFlow(0.5, 1);
+      expect(useMaterialFlowStore.getState().sessionId).toBe(first);
+      useMaterialFlowStore.getState().resetMaterialFlow();
+      expect(useMaterialFlowStore.getState().sessionId).not.toBe(first);
+      expect(useMaterialFlowStore.getState().batchSequence).toBe(0);
+    });
+
     it('should initialize silos with 20 tons of grain each', () => {
       const { getTotalOutputBuffer } = useMaterialFlowStore.getState();
       expect(getTotalOutputBuffer('silo-0')).toBe(20000);
@@ -147,9 +158,69 @@ describe('MaterialFlowStore', () => {
       expect(useMaterialFlowStore.getState().wasteKg).toBeCloseTo(12, 5);
     });
 
-    it('should make the active recipe a physical routing instruction', () => {
+    it('admits only the remaining order mass, including typed work already in the line', () => {
+      const plan = {
+        sourceMaterial: 'wheat_grain',
+        finishedMaterial: 'flour',
+        remainingFinishedKg: 6000,
+      } as const;
+      const silosBefore = [...useMaterialFlowStore.getState().machineBuffers.values()]
+        .filter((b) => b.machineType === 'silo')
+        .reduce((sum, b) => sum + b.outputBuffer.reduce((s, m) => s + m.amount, 0), 0);
+      for (let tick = 0; tick < 240; tick++)
+        useMaterialFlowStore.getState().tickMaterialFlow(0.5, 1, plan);
+      const state = useMaterialFlowStore.getState();
+      const packed = state.productionBatches.reduce((sum, b) => sum + b.availableKg, 0);
+      expect(packed).toBeCloseTo(6000, 6);
+      const silosAfter = [...state.machineBuffers.values()]
+        .filter((b) => b.machineType === 'silo')
+        .reduce((sum, b) => sum + b.outputBuffer.reduce((s, m) => s + m.amount, 0), 0);
+      // 2,000 kg opening wheat, 900 kg opening sift feed and 600 kg packer feed
+      // contribute 2,823 kg. New grain yields 72% then 95%, never a 1:1 estimate.
+      expect(silosBefore - silosAfter).toBeCloseTo((6000 - 2823) / (0.72 * 0.95), 6);
+      expect(state.getMaterialBalance().errorKg).toBeCloseTo(0, 6);
+      expect(state.getGenealogyBalance().errorKg).toBeCloseTo(0, 6);
+      const inventory = state.getMaterialBalance();
+      state.tickMaterialFlow(0.5, 1, { ...plan, remainingFinishedKg: 0 });
+      const after = useMaterialFlowStore.getState().getMaterialBalance();
+      for (const key of Object.keys(inventory) as (keyof typeof inventory)[]) {
+        expect(after[key]).toBeCloseTo(inventory[key], 6);
+      }
+    });
+
+    it('budgets the actual conversion loss while draining unrelated opening grist', () => {
+      const flow = useMaterialFlowStore.getState();
+      for (const buffer of flow.machineBuffers.values()) {
+        if (buffer.machineType === 'plansifter') {
+          const conversion = buffer.conversionRatios.find((c) => c.inputType === 'semolina')!;
+          conversion.outputs[0].ratio = 0.8;
+        }
+      }
+      const plan = {
+        sourceMaterial: 'corn_grain',
+        finishedMaterial: 'semolina',
+        remainingFinishedKg: 1000,
+      } as const;
+      const sourceBefore =
+        flow.getTotalOutputBuffer('silo-1') + flow.getTotalOutputBuffer('silo-3');
+      for (let tick = 0; tick < 160; tick++) flow.tickMaterialFlow(0.5, 1, plan);
+      const state = useMaterialFlowStore.getState();
+      const packed = (type: 'flour' | 'semolina') =>
+        state.productionBatches
+          .filter((b) => b.materialType === type)
+          .reduce((sum, b) => sum + b.availableKg, 0);
+      expect(packed('semolina')).toBeCloseTo(1000, 6);
+      expect(packed('flour')).toBeCloseTo(2823, 6);
+      expect(
+        sourceBefore - state.getTotalOutputBuffer('silo-1') - state.getTotalOutputBuffer('silo-3')
+      ).toBeCloseTo(1000 / (0.65 * 0.8), 6);
+      expect(state.getMaterialBalance().errorKg).toBeCloseTo(0, 6);
+      expect(state.getGenealogyBalance().errorKg).toBeCloseTo(0, 6);
+    });
+
+    it('should select recipe feed while finishing already-processed material', () => {
       const plan = { sourceMaterial: 'corn_grain', finishedMaterial: 'semolina' } as const;
-      for (let index = 0; index < 18; index += 1) {
+      for (let index = 0; index < 40; index += 1) {
         useMaterialFlowStore.getState().tickMaterialFlow(1, 1, plan);
       }
 
@@ -163,8 +234,56 @@ describe('MaterialFlowStore', () => {
         state.productionBatches.some(
           (batch) => batch.materialType === 'flour' && batch.producedKg > 0
         )
-      ).toBe(false);
+      ).toBe(true);
+      expect(
+        state.network.segments
+          .filter((segment) => segment.fromOutputType === 'wheat_grain')
+          .every((segment) => segment.currentLoad === 0 && segment.inTransit.length === 0)
+      ).toBe(true);
+      // Grain already admitted to roller hoppers must finish too; retaining it
+      // can fill the entire hopper and prevent the next recipe's feed entering.
+      expect(
+        [...state.machineBuffers.values()]
+          .filter((buffer) => buffer.machineType === 'roller_mill')
+          .reduce(
+            (sum, buffer) =>
+              sum +
+              buffer.inputBuffer
+                .filter((material) => material.type === 'wheat_grain')
+                .reduce((kg, material) => kg + material.amount, 0),
+            0
+          )
+      ).toBeLessThan(0.001);
       expect(Math.abs(state.getMaterialBalance().errorKg)).toBeLessThan(0.001);
+    });
+
+    it('prefers the requested product across every packer before using mixed fallback', () => {
+      const plan = { sourceMaterial: 'corn_grain', finishedMaterial: 'semolina' } as const;
+      const store = useMaterialFlowStore.getState();
+      for (let index = 0; index < 40; index++) store.tickMaterialFlow(1, 1, plan);
+      const state = useMaterialFlowStore.getState();
+      const stock = [...state.machineBuffers.values()]
+        .filter((buffer) => buffer.machineType === 'packer')
+        .map(
+          (buffer) =>
+            buffer.outputBuffer.find((material) => material.type === 'semolina')?.amount ?? 0
+        );
+      expect(stock.filter((amount) => amount > 0).length).toBeGreaterThan(1);
+      const amount = stock.reduce((sum, quantity) => sum + quantity, 0);
+      expect(store.shipFinishedGoods(amount, 'semolina')).toBeCloseTo(amount, 6);
+      expect(useMaterialFlowStore.getState().manifests.at(-1)?.materials).toEqual([
+        { type: 'semolina', amount: expect.closeTo(amount, 6) },
+      ]);
+      expect(store.shipFinishedGoods(100, 'semolina')).toBe(100);
+      expect(useMaterialFlowStore.getState().manifests.at(-1)?.materials).toEqual([
+        { type: 'flour', amount: 100 },
+      ]);
+      expect(Math.abs(useMaterialFlowStore.getState().getMaterialBalance().errorKg)).toBeLessThan(
+        0.001
+      );
+      expect(Math.abs(useMaterialFlowStore.getState().getGenealogyBalance().errorKg)).toBeLessThan(
+        0.001
+      );
     });
 
     it('should move material onto conveyors and deliver it after transit time', () => {
@@ -435,10 +554,17 @@ describe('MaterialFlowStore', () => {
 
     it('should load the active order material before other released product', () => {
       const plan = { sourceMaterial: 'corn_grain', finishedMaterial: 'semolina' } as const;
-      for (let index = 0; index < 24; index += 1) {
+      for (let index = 0; index < 40; index += 1) {
         useMaterialFlowStore.getState().tickMaterialFlow(1, 1, plan);
       }
 
+      expect(
+        useMaterialFlowStore
+          .getState()
+          .productionBatches.some(
+            (batch) => batch.materialType === 'semolina' && batch.availableKg > 0
+          )
+      ).toBe(true);
       const shipped = useMaterialFlowStore.getState().shipFinishedGoods(250, 'semolina');
       const manifest = useMaterialFlowStore.getState().manifests.at(-1);
       expect(shipped).toBeGreaterThan(0);

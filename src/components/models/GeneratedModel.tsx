@@ -29,6 +29,7 @@ const VILLAGE_GLAZING = new Set<GeneratedAssetId>([
   'pub',
   'school',
   'forge',
+  'castle',
 ]);
 
 /**
@@ -137,7 +138,19 @@ export const GeneratedModel: React.FC<GeneratedModelProps> = ({
       if (!mesh.isMesh) return;
       if (VILLAGE_GLAZING.has(asset) && mesh.material instanceof THREE.MeshStandardMaterial) {
         const material = mesh.material.clone();
-        applyVillageWindows(material);
+        // Lancet glazing and forge workrooms keep their architectural character.
+        applyVillageWindows(
+          material,
+          undefined,
+          asset !== 'church' && asset !== 'forge',
+          asset === 'church'
+            ? 'stained'
+            : asset === 'castle'
+              ? 'castle'
+              : asset === 'pub'
+                ? 'amber'
+                : 'glass'
+        );
         mesh.material = material;
         materials.push(material);
       }

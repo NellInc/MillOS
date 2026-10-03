@@ -27,6 +27,33 @@ const WORKER_ASSET_PATHS = {
   feminine: `${import.meta.env.BASE_URL}models/worker/worker-feminine.glb`,
 };
 
+/**
+ * SkeletonUtils clones one Skeleton for each glTF primitive, even when they
+ * use the same skin. Reuse compatible private copies within this one person.
+ * Mesh bind matrices, materials and bones remain unchanged. Working if each
+ * worker uploads one bone palette and independent people keep independent rigs.
+ */
+export function shareWorkerSkin(root: THREE.Object3D): THREE.Skeleton[] {
+  const skins: THREE.Skeleton[] = [];
+  root.traverse((object) => {
+    const mesh = object as THREE.SkinnedMesh;
+    if (!mesh.isSkinnedMesh) return;
+    const skin = mesh.skeleton;
+    const shared = skins.find(
+      (candidate) =>
+        candidate.bones.length === skin.bones.length &&
+        candidate.boneInverses.length === skin.boneInverses.length &&
+        candidate.bones.every((bone, i) => bone === skin.bones[i]) &&
+        candidate.boneInverses.every((inverse, i) => inverse.equals(skin.boneInverses[i]))
+    );
+    if (shared) {
+      mesh.skeleton = shared;
+      if (shared !== skin) skin.dispose();
+    } else skins.push(skin);
+  });
+  return skins;
+}
+
 export interface WorkerModelProps {
   appearance: WorkerAppearance;
   /** Mutable, read each frame after the simulation advances. */
@@ -690,6 +717,7 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
 
   const prepared = useMemo(() => {
     const model = cloneSkeleton(scene) as THREE.Group;
+    const skeletons = shareWorkerSkin(model);
     const materials: THREE.MeshStandardMaterial[] = [];
     const skinned: THREE.Mesh[] = [];
 
@@ -744,7 +772,7 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
     const armatureScale = model.getObjectByName('CharacterArmature')?.scale.x ?? 1;
     const rigScale = Number.isFinite(armatureScale) && armatureScale > 0 ? armatureScale : 1;
 
-    return { model, materials, rigScale };
+    return { model, materials, rigScale, skeletons };
   }, [appearance, scene]);
 
   const accessoryMaterials = useMemo(() => createAccessoryMaterials(appearance), [appearance]);
@@ -796,6 +824,7 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
   useEffect(
     () => () => {
       prepared.materials.forEach((material) => material.dispose());
+      prepared.skeletons.forEach((skeleton) => skeleton.dispose());
       Object.values(accessoryMaterials).forEach((material) => material.dispose());
     },
     [accessoryMaterials, prepared]

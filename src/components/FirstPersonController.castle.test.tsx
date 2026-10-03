@@ -48,3 +48,16 @@ it('climbs, stops in the courtyard, then descends using only W and S', () => {
   expect(castleLocalPosition(camera.position.x, camera.position.z)[1]).toBeGreaterThan(25);
   expect(camera.position.y).toBeCloseTo(1.7, 3);
 });
+
+it('steps onto the actual river deck from ground level with the default walking controller', () => {
+  harness.camera.position.set(0, 8, -102);
+  render(<FirstPersonController />);
+  harness.lock();
+  const camera = harness.camera;
+  camera.lookAt(0, camera.position.y, -190);
+  window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyW' }));
+  for (let i = 0; i < 150; i++) harness.frame({}, 1 / 60);
+  window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyW' }));
+  expect(camera.position.z).toBeLessThan(-125);
+  expect(camera.position.y).toBeCloseTo(4.1, 5);
+});

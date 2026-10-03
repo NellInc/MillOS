@@ -7,6 +7,7 @@ import { getWorkerAppearance, type WorkerMotionState } from './workerTypes';
 const harness = vi.hoisted(() => ({
   frame: null as null | ((state: unknown, delta: number) => void),
   asset: null as unknown,
+  clone: null as null | ((scene: THREE.Group) => THREE.Group),
 }));
 vi.mock('@react-three/fiber', () => ({
   useFrame: (callback: (state: unknown, delta: number) => void) => {
@@ -15,11 +16,14 @@ vi.mock('@react-three/fiber', () => ({
   createPortal: (children: React.ReactNode) => children,
 }));
 vi.mock('../../utils/dracoLoader', () => ({ useDracoGLTF: () => harness.asset }));
-vi.mock('three/addons/utils/SkeletonUtils.js', () => ({ clone: (scene: THREE.Group) => scene }));
-import { WorkerModel } from '../models/WorkerModel';
+vi.mock('three/addons/utils/SkeletonUtils.js', () => ({
+  clone: (scene: THREE.Group) => harness.clone?.(scene) ?? scene,
+}));
+import { WorkerModel, shareWorkerSkin } from '../models/WorkerModel';
 
 afterEach(() => {
   cleanup();
+  harness.clone = null;
   vi.restoreAllMocks();
 });
 describe('paused worker pose transitions', () => {
@@ -158,4 +162,114 @@ describe('animation scheduling and freezing', () => {
     }
     expect(update).toHaveBeenCalledTimes(12);
   });
+});
+
+describe('worker skin sharing', () => {
+  it('keeps one cloned skeleton per compatible skin without sharing between people', async () => {
+    const { clone } = await vi.importActual<typeof import('three/addons/utils/SkeletonUtils.js')>(
+      'three/addons/utils/SkeletonUtils.js'
+    );
+    const source = new THREE.Group();
+    const body = new THREE.Bone();
+    body.name = 'Body';
+    const hips = new THREE.Bone();
+    hips.name = 'Hips';
+    body.add(hips);
+    source.add(body);
+    source.updateMatrixWorld(true);
+    const skin = new THREE.Skeleton([body, hips]);
+    for (let i = 0; i < 2; i++) {
+      const mesh = new THREE.SkinnedMesh(new THREE.BoxGeometry(), new THREE.MeshStandardMaterial());
+      mesh.name = `worker-part-${i}`;
+      mesh.bind(skin);
+      source.add(mesh);
+    }
+    const clones: THREE.Group[] = [];
+    harness.clone = (scene) => {
+      const model = clone(scene);
+      clones.push(model);
+      return model;
+    };
+    harness.asset = { scene: source, animations: [] };
+    const motion: WorkerMotionState = {
+      activity: 'idle',
+      groundSpeed: 0,
+      seated: false,
+      phase: 0,
+      enabled: false,
+    };
+    render(
+      <>
+        <WorkerModel
+          appearance={getWorkerAppearance('Engineer', '', 'engineer-one')}
+          motion={motion}
+        />
+        <WorkerModel
+          appearance={getWorkerAppearance('Engineer', '', 'engineer-two')}
+          motion={motion}
+        />
+      </>
+    );
+    expect(clones).toHaveLength(2);
+    const parts = clones.map((model) =>
+      [0, 1].map((i) => model.getObjectByName(`worker-part-${i}`) as THREE.SkinnedMesh)
+    );
+    for (const [first, second] of parts) {
+      expect(first.skeleton.bones[0]).toBe(second.skeleton.bones[0]);
+      expect(first.skeleton).toBe(second.skeleton);
+      expect(first.bindMatrix.equals(second.bindMatrix)).toBe(true);
+    }
+    expect(parts[0][0].skeleton).not.toBe(parts[1][0].skeleton);
+    expect(parts[0][0].skeleton.bones[0]).not.toBe(parts[1][0].skeleton.bones[0]);
+    expect(parts[0][0].skeleton.bones[0]).not.toBe(body);
+    expect(source.getObjectByName('worker-part-0')).toHaveProperty('skeleton', skin);
+  });
+});
+
+it('preserves distinct bind poses, bone order and independently owned bones', () => {
+  const root = new THREE.Group();
+  const bones = [new THREE.Bone(), new THREE.Bone()];
+  const first = new THREE.Skeleton(bones);
+  const reordered = new THREE.Skeleton([...bones].reverse());
+  const independent = new THREE.Skeleton([new THREE.Bone(), new THREE.Bone()]);
+  const differentBind = first.clone();
+  differentBind.boneInverses = first.boneInverses.map((inverse) => inverse.clone());
+  differentBind.boneInverses[0].makeTranslation(0, 1, 0);
+  const meshes = [first, reordered, independent, differentBind].map((skin) => {
+    const mesh = new THREE.SkinnedMesh(new THREE.BoxGeometry(), new THREE.MeshStandardMaterial());
+    mesh.bind(skin, new THREE.Matrix4());
+    root.add(mesh);
+    return mesh;
+  });
+  expect(shareWorkerSkin(root)).toHaveLength(4);
+  expect(meshes.map((mesh) => mesh.skeleton)).toEqual([
+    first,
+    reordered,
+    independent,
+    differentBind,
+  ]);
+});
+
+it('retains per-mesh bind matrices and disposes only a redundant private palette', () => {
+  const root = new THREE.Group();
+  const bones = [new THREE.Bone()];
+  const first = new THREE.Skeleton(bones);
+  const duplicate = first.clone();
+  const a = new THREE.SkinnedMesh(new THREE.BoxGeometry(), new THREE.MeshStandardMaterial());
+  const b = new THREE.SkinnedMesh(new THREE.BoxGeometry(), new THREE.MeshStandardMaterial());
+  a.bind(first, new THREE.Matrix4());
+  b.bind(duplicate, new THREE.Matrix4().makeTranslation(0, 1, 0));
+  root.add(a, b);
+  const bind = b.bindMatrix.clone(),
+    inverse = b.bindMatrixInverse.clone();
+  const disposeDuplicate = vi.spyOn(duplicate, 'dispose');
+  const disposeFirst = vi.spyOn(first, 'dispose');
+  expect(shareWorkerSkin(root)).toEqual([first]);
+  expect(b.skeleton).toBe(first);
+  expect(b.bindMatrix.equals(bind)).toBe(true);
+  expect(b.bindMatrixInverse.equals(inverse)).toBe(true);
+  expect(disposeDuplicate).toHaveBeenCalledExactlyOnceWith();
+  expect(disposeFirst).not.toHaveBeenCalled();
+  expect(shareWorkerSkin(root)).toEqual([first]);
+  expect(disposeDuplicate).toHaveBeenCalledTimes(1);
 });

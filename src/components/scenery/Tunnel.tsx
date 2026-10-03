@@ -344,10 +344,10 @@ export const ROAD_TUNNEL_BORE = { halfWidth: 6, height: 7 } as const;
 /**
  * The spur that ties the hill back into the foothills.
  *
- * The 90 m block used to end in a vertical face with open meadow behind it:
+ * The 90 m hill used to end in a vertical face with open meadow behind it:
  * both bores sit in valleys of the near foothill ring, which is only 1-4 m
  * tall where the block stopped. The tail lofts the hill's own cross-section
- * back from its rear face, falling from the 15 m top to `ROAD_TUNNEL_TAIL.endTop`
+ * back from its rear face, falling from the 15 m crown to `ROAD_TUNNEL_TAIL.endTop`
  * and narrowing, so it runs down into the rising foothill slope instead of
  * standing clear of it.
  *
@@ -362,18 +362,17 @@ export const ROAD_TUNNEL_TAIL = { length: 75, endTop: 0, endWidth: 0.7 } as cons
 
 /** Outer outline of the hill's cross-section, left bank to right bank. */
 function roadTunnelHillOutline(): THREE.Vector2[] {
-  // The skirt is a 12 x 10 box rotated 0.3 rad about its centre (13.5, 2.5):
-  // these are its outer lower and outer upper corners.
-  const skirtCorner = (x: number, y: number) =>
-    new THREE.Vector2(x, y)
-      .rotateAround(new THREE.Vector2(), 0.3)
-      .add(new THREE.Vector2(13.5, 2.5));
-  const foot = skirtCorner(6, -5);
-  const shoulder = skirtCorner(6, 5);
-  const right = [foot, shoulder, new THREE.Vector2(18, shoulder.y), new THREE.Vector2(18, 15)];
-  // Foot to crest on the left, then crest to foot on the right.
-  const left = right.map((point) => new THREE.Vector2(-point.x, point.y));
-  return [...left, ...[...right].reverse()];
+  // A softened crown inside the existing 44 m envelope. The front is a road
+  // cutting; the shoulders roll down to grade instead of a flat grass box.
+  // An exponent above one gives the toe a horizontal tangent. The old 0.45
+  // made its slope unbounded at grade, leaving a steep faceted outer wall.
+  // Working if the outer strip rises gently, with the same footprint and bore.
+  const halfWidth = 20.7; // Inside the measured old skirt foot, x=20.7096 m.
+  return Array.from({ length: 25 }, (_, index) => {
+    const x = -halfWidth + (index / 24) * halfWidth * 2;
+    const y = -0.5 + 15.5 * Math.pow(Math.max(0, 1 - (x / halfWidth) ** 2), 1.6);
+    return new THREE.Vector2(x, y);
+  });
 }
 
 function createRoadTunnelTailGeometry(start: number): THREE.BufferGeometry {
@@ -443,33 +442,110 @@ function createRoadTunnelTailGeometry(start: number): THREE.BufferGeometry {
 }
 
 /**
- * The v0.30 blocky hill the road disappears into: a flat-topped earth block
- * over the bore, with slanted banks either side. Unlike v0.30 the banks lean
- * so their outer faces fall away from the road as a grounded slope, a solid
- * core fills the front face around the portal, and the face is flush with the
- * portal instead of a 5 m cutting. One merged, metre-UV mesh: the trees on top
- * are rooted by raycast and the whole hill, tail included, is a single draw.
+ * A rounded road cutting, retaining the v0.30 bore, height and footprint.
+ * The crown drifts gently along the hill and joins the same buried tail.
+ * One shared metre-UV mesh, with oaks rooted on its actual surface.
+ * Working if both bores remain open, the village stays clear, and the crown
+ * has a graded silhouette without extra earth draw calls or texture samplers.
  */
 export function createRoadTunnelHillGeometry(depth = 90): THREE.BufferGeometry {
   const coreInner = ROAD_TUNNEL_BORE.halfWidth + 0.3;
-  const parts = [
-    ...[-1, 1].flatMap((side) => [
-      // Sloped skirt; its lower outer edge sits 0.5 m below grade.
-      createMetricBox(12, 10, depth)
-        .rotateZ(side * 0.3)
-        .translate(side * 13.5, 2.5, -depth / 2),
-      // Solid core between the bore lining and the skirt, up to the top block.
-      createMetricBox(18 - coreInner, 9.5, depth).translate(
-        (side * (coreInner + 18)) / 2,
-        4.25,
-        -depth / 2
-      ),
-    ]),
-    createMetricBox(36, 6, depth).translate(0, 12, -depth / 2),
-    createRoadTunnelTailGeometry(depth),
+  const crown = roadTunnelHillOutline();
+  // Clockwise U-shaped section, leaving the full road and lining unobstructed.
+  const section = [
+    ...crown,
+    new THREE.Vector2(coreInner, -0.5),
+    new THREE.Vector2(coreInner, ROAD_TUNNEL_BORE.height + 0.3),
+    new THREE.Vector2(-coreInner, ROAD_TUNNEL_BORE.height + 0.3),
+    new THREE.Vector2(-coreInner, -0.5),
   ];
-  const geometry = mergeGeometries(parts);
-  parts.forEach((part) => part.dispose());
+  const rows = 16;
+  // Retreat the grass-facing entrance into a sloped cutting. The inner lining
+  // stays flush with the stone portal; nothing moves toward the approach road.
+  // Working if the upper and side faces recede while the full bore stays clear.
+  const entranceRetreat = (point: THREE.Vector2) =>
+    Math.max(0, point.y - ROAD_TUNNEL_BORE.height - 0.3) * 1.25 +
+    Math.max(0, Math.abs(point.x) - coreInner) * 0.65;
+  const count = section.length;
+  const positions: number[] = [];
+  const uvs: number[] = [];
+  const indices: number[] = [];
+  const arc = [0];
+  for (let i = 1; i < count; i++) arc.push(arc[i - 1] + section[i].distanceTo(section[i - 1]));
+  for (let row = 0; row <= rows; row++) {
+    const z = (-row / rows) * depth;
+    const envelope = Math.sin((row / rows) * Math.PI) ** 2;
+    const entranceBlend = Math.max(0, 1 - row / 4) ** 2;
+    section.forEach((point, column) => {
+      const top = column < crown.length;
+      const widthDrift = top ? -0.15 * envelope * (1 + Math.sin(z * 0.065)) : 0;
+      const crestDrift = top
+        ? 0.35 * envelope * (0.6 + 0.4 * Math.sin(point.x * 0.23 + z * 0.045))
+        : 0;
+      positions.push(
+        point.x + widthDrift * (point.x / 21),
+        point.y - crestDrift * ((point.y + 0.5) / 15.5),
+        z - (top ? entranceRetreat(point) * entranceBlend : 0)
+      );
+      uvs.push(arc[column], -z);
+    });
+  }
+  // The buried underside must not contribute its downward normal to the
+  // grassy toe. Keep the same triangles, but give each underside seam its
+  // own vertices. Working if the visible toe normals stay upward at grade,
+  // with the same crown, footprint, bore and single earth draw.
+  const underside = positions.length / 3;
+  for (let row = 0; row <= rows; row++) {
+    for (const column of [0, crown.length - 1]) {
+      const vertex = row * count + column;
+      positions.push(...positions.slice(vertex * 3, vertex * 3 + 3));
+      uvs.push(...uvs.slice(vertex * 2, vertex * 2 + 2));
+    }
+  }
+  const vertexAt = (row: number, column: number, edge: number) => {
+    if (column === 0 && edge === count - 1) return underside + row * 2;
+    if (column === crown.length - 1 && edge === crown.length - 1) return underside + row * 2 + 1;
+    return row * count + column;
+  };
+  for (let row = 0; row < rows; row++) {
+    for (let column = 0; column < count; column++) {
+      const next = (column + 1) % count;
+      const a = vertexAt(row, column, column);
+      const b = vertexAt(row + 1, column, column);
+      const c = vertexAt(row + 1, next, column);
+      const d = vertexAt(row, next, column);
+      indices.push(a, d, b, d, c, b);
+    }
+  }
+  // Separate cap vertices retain the portal edge; the grassy cut slopes back.
+  const triangles = THREE.ShapeUtils.triangulateShape(section, []);
+  for (const z of [0, -depth]) {
+    const offset = positions.length / 3;
+    section.forEach((point, column) => {
+      const retreat = z === 0 && column < crown.length ? entranceRetreat(point) : 0;
+      positions.push(point.x, point.y, z - retreat);
+      uvs.push(point.x, point.y);
+    });
+    for (const [a, b, c] of triangles) {
+      const ab = section[b].clone().sub(section[a]);
+      const ac = section[c].clone().sub(section[a]);
+      const forward = ab.cross(ac) > 0;
+      indices.push(
+        offset + a,
+        offset + (forward === (z === 0) ? b : c),
+        offset + (forward === (z === 0) ? c : b)
+      );
+    }
+  }
+  const hill = new THREE.BufferGeometry();
+  hill.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  hill.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+  hill.setIndex(indices);
+  hill.computeVertexNormals();
+  const tail = createRoadTunnelTailGeometry(depth);
+  const geometry = mergeGeometries([hill, tail]);
+  hill.dispose();
+  tail.dispose();
   if (!geometry) throw new Error('Could not assemble the road tunnel hill');
   geometry.computeBoundingBox();
   geometry.computeBoundingSphere();

@@ -855,7 +855,21 @@ export const createStaticMeshBatches = (
     const activeGroup = group.filter(
       (candidate) => candidate.mesh.parent && !optimizedOriginals.has(candidate.mesh)
     );
-    if (activeGroup.length < MINIMUM_MERGE_MESHES) return;
+    if (activeGroup.length < MINIMUM_MERGE_MESHES) {
+      // Small rigid groups still save submissions, but do not extend the
+      // quantized-material compromise used by larger groups. Working if pairs
+      // merge only with exact non-colour state, in the same existing spatial cell.
+      if (
+        activeGroup.length < 2 ||
+        activeGroup.every((candidate) =>
+          geometriesHaveEqualRenderData(candidate.geometry, activeGroup[0].geometry)
+        ) ||
+        !activeGroup.every(
+          (candidate) => candidate.batchMaterialSignature === activeGroup[0].batchMaterialSignature
+        )
+      )
+        return;
+    }
     const representative = activeGroup[0]?.mesh;
     if (!representative || Array.isArray(representative.material)) return;
     const geometry = createMergedGeometry(activeGroup, inverseRoot);
@@ -881,6 +895,17 @@ export const createStaticMeshBatches = (
     mergedMesh.renderOrder = representative.renderOrder;
     mergedMesh.layers.mask = representative.layers.mask;
     mergedMesh.userData.staticBatch = true;
+    if (activeGroup.length < MINIMUM_MERGE_MESHES) {
+      // Numeric ranges enable a same-page draw-submission control without
+      // changing triangles, materials, culling or the shipping scene graph.
+      let start = 0;
+      mergedMesh.userData.staticBatchSmallRanges = activeGroup.map(({ geometry: source }) => {
+        const count = source.index?.count ?? source.getAttribute('position').count;
+        const range = { start, count };
+        start += count;
+        return range;
+      });
+    }
 
     const originals: StaticBatch['originals'] = [];
     activeGroup.forEach((candidate) => {

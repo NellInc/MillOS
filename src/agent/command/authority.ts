@@ -69,6 +69,7 @@ export function createDefaultGrants(now: Date): AgentAuthorityGrant[] {
       actorUri: DEFAULT_AGENT_ACTOR_URI,
       purpose: 'Bounded control of the local MillOS simulation through registered capabilities.',
       capabilityIds: [
+        'workplace.activate-plan',
         'operations.activate-order',
         'incident.acknowledge',
         'incident.mitigate',

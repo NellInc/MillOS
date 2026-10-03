@@ -1,7 +1,8 @@
-import React, { Suspense, useEffect, useState, useSyncExternalStore } from 'react';
+import React, { Suspense, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { getStartupSnapshot, subscribeStartup } from '../utils/startupReadiness';
 import { FEATURE_FLAGS } from '../config/featureFlags';
 import { recoverableLazy } from '../utils/recoverableLazy';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 
 const DeferredLoadingQuote = recoverableLazy(() =>
   import('./knowledge/LoadingQuote').then((module) => ({ default: module.LoadingQuote }))
@@ -19,11 +20,16 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
   const startup = useSyncExternalStore(subscribeStartup, getStartupSnapshot);
   const [showLoading, setShowLoading] = useState(true);
   const [minimumTimePassed, setMinimumTimePassed] = useState(false);
-  const [canContinue, setCanContinue] = useState(false);
-  const [dismissRequested, setDismissRequested] = useState(false);
+  const [showRecovery, setShowRecovery] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(
     () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
+  );
+  const loadingRef = useRef<HTMLDivElement>(null);
+  // Loading owns keyboard focus until readiness; Escape cannot skip preparation.
+  // Working if Tab stays on the cover, then cycles the delayed Reload control.
+  useFocusTrap(loadingRef as React.RefObject<HTMLElement>, showLoading, () =>
+    loadingRef.current?.focus()
   );
 
   useEffect(() => {
@@ -36,7 +42,7 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
 
   useEffect(() => {
     const minimumTimer = window.setTimeout(() => setMinimumTimePassed(true), minimumLoadTimeMs);
-    const recoveryTimer = window.setTimeout(() => setCanContinue(true), recoveryDelayMs);
+    const recoveryTimer = window.setTimeout(() => setShowRecovery(true), recoveryDelayMs);
     return () => {
       window.clearTimeout(minimumTimer);
       window.clearTimeout(recoveryTimer);
@@ -44,11 +50,11 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
   }, [recoveryDelayMs, minimumLoadTimeMs]);
 
   useEffect(() => {
-    if (!dismissRequested && !(minimumTimePassed && startup.ready)) return;
+    if (!(minimumTimePassed && startup.ready)) return;
     setIsExiting(true);
     const hideTimer = window.setTimeout(() => setShowLoading(false), reducedMotion ? 0 : 220);
     return () => window.clearTimeout(hideTimer);
-  }, [dismissRequested, startup.ready, minimumTimePassed, reducedMotion]);
+  }, [startup.ready, minimumTimePassed, reducedMotion]);
 
   const safeProgress = startup.ready
     ? 100
@@ -65,6 +71,11 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
     <>
       {showLoading && (
         <div
+          ref={loadingRef}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Loading MillOS"
+          tabIndex={-1}
           className="fixed inset-0 z-[9999] flex flex-col items-center justify-center px-6"
           style={{
             backgroundColor: '#081015',
@@ -103,7 +114,7 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
             {progressText}
           </div>
 
-          {FEATURE_FLAGS.KNOWLEDGE_LOADING_QUOTES_ENABLED && canContinue && (
+          {FEATURE_FLAGS.KNOWLEDGE_LOADING_QUOTES_ENABLED && showRecovery && (
             <div style={{ marginTop: '22px', maxWidth: '420px', textAlign: 'center' }}>
               <Suspense fallback={null}>
                 <DeferredLoadingQuote rotationInterval={8000} />
@@ -112,7 +123,7 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
           )}
 
           {/* The progressbar role sits on the track alone: its children are
-            presentational, which would hide the live text and Continue while preparing. */}
+            presentational, which would hide the live text and recovery control. */}
           <div
             role="progressbar"
             aria-label="Loading MillOS"
@@ -141,26 +152,16 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
             />
           </div>
 
-          {canContinue && !startup.ready && (
+          {showRecovery && !startup.ready && (
             <div className="mt-6 flex max-w-md flex-col items-center gap-3 text-center text-sm text-slate-300">
               <p>The scene is still preparing. You can keep waiting or reload.</p>
               {startup.errors > 0 && <p>Some resources could not be loaded.</p>}
               <button
                 type="button"
                 onClick={() => window.location.reload()}
-                className="rounded-md border border-slate-500 px-4 py-2 text-slate-100"
+                className="min-h-11 rounded-md border border-slate-500 px-4 py-2 text-slate-100 transition-colors hover:border-amber-400 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-400"
               >
                 Reload
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  document.documentElement.dataset.loaderFallback = 'true';
-                  setDismissRequested(true);
-                }}
-                className="mt-6 rounded-md border border-slate-500 bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-100 transition-colors hover:border-amber-400 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-400"
-              >
-                Continue while preparing
               </button>
             </div>
           )}

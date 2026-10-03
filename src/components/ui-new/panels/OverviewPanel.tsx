@@ -36,6 +36,8 @@ import { TimelinePlayback } from '../../ui/TimelinePlayback';
 import { recoverableLazy } from '../../../utils/recoverableLazy';
 import { RecoverableFeatureBoundary } from '../../ErrorBoundary';
 
+import { OperationsPlayCard, ShiftDebrief } from '../onboarding/PlayableShift';
+
 // Re-homed from ui/ (orphaned after the UIOverlay removal): live breakdown
 // mechanics — active breakdowns, predictive alerts, parts inventory, schedule.
 const PredictiveMaintenancePanel = recoverableLazy(() =>
@@ -234,7 +236,7 @@ const MaterialTraceabilitySection: React.FC = React.memo(() => {
 const readGenealogyErrorKg = () =>
   Math.round(useMaterialFlowStore.getState().getGenealogyBalance().errorKg * 100) / 100;
 
-const BatchGenealogySection: React.FC = React.memo(() => {
+export const BatchGenealogySection: React.FC = React.memo(() => {
   const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
   const productionBatches = useMaterialFlowStore((state) => state.productionBatches);
   const sourceLotCount = useMaterialFlowStore((state) => state.sourceLots.size);
@@ -249,7 +251,22 @@ const BatchGenealogySection: React.FC = React.memo(() => {
   const completeQCTest = useQCLabStore((state) => state.completeQCTest);
   const triggerContaminationAlert = useQCLabStore((state) => state.triggerContaminationAlert);
   const resolveContaminationAlert = useQCLabStore((state) => state.resolveContaminationAlert);
-  const latestBatches = useMemo(() => productionBatches.slice(-4).reverse(), [productionBatches]);
+  const displayedBatches = useMemo(() => {
+    const investigationBatchIds = new Set(
+      qcLab.contaminationAlerts
+        .filter((alert) => !alert.resolved)
+        .flatMap((alert) => alert.batchIds)
+    );
+    const newestFirst = [...productionBatches].reverse();
+    const needsAttention = (batch: (typeof productionBatches)[number]) =>
+      batch.disposition === 'hold' || investigationBatchIds.has(batch.id);
+    // Quality recovery stays reachable as newer production arrives. Final
+    // dispositions keep their existing trace-only controls even during an alert.
+    return [
+      ...newestFirst.filter(needsAttention),
+      ...newestFirst.filter((batch) => !needsAttention(batch)).slice(0, 4),
+    ];
+  }, [productionBatches, qcLab.contaminationAlerts]);
   const selectedTrace = selectedBatchId
     ? useMaterialFlowStore.getState().getBatchTrace(selectedBatchId)
     : null;
@@ -346,13 +363,16 @@ const BatchGenealogySection: React.FC = React.memo(() => {
           {genealogyErrorKg.toFixed(2)} kg
         </div>
       </div>
-      {latestBatches.length === 0 ? (
+      {displayedBatches.length === 0 ? (
         <p className="py-2 text-xs text-slate-500">
           Packing is building the first traceable batch.
         </p>
       ) : (
-        <ol className="space-y-2" aria-label="Latest production batches">
-          {latestBatches.map((batch) => {
+        <ol
+          className="space-y-2"
+          aria-label="Held and investigated batches, then recent production"
+        >
+          {displayedBatches.map((batch) => {
             const unresolvedAlert = qcLab.contaminationAlerts.some(
               (alert) => !alert.resolved && alert.batchIds.includes(batch.id)
             );
@@ -519,6 +539,8 @@ export const OverviewPanel: React.FC = React.memo(() => {
 
   return (
     <div className="p-4 space-y-4 h-full overflow-y-auto custom-scrollbar">
+      <OperationsPlayCard />
+      <ShiftDebrief />
       {/* Production Summary */}
       <section>
         <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">

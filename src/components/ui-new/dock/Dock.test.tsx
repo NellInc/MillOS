@@ -38,6 +38,7 @@ describe('Dock Component', () => {
 
   it('pairs every desktop mode with a visible label inside its unchanged accessible name', () => {
     render(<Dock activeMode="overview" onModeChange={() => {}} />);
+    expect(screen.getByRole('navigation')).toHaveAttribute('data-dock-layout', 'wide');
     for (const [label, name, mode] of [
       ['Overview', 'Mill Overview', 'overview'],
       ['Production', 'Production', 'production'],
@@ -49,6 +50,8 @@ describe('Dock Component', () => {
       const button = screen.getByRole('button', { name });
       expect(button).toHaveTextContent(label);
       expect(button).toHaveAttribute('data-dock-mode', mode);
+      expect(button).toHaveAttribute('title', name);
+      expect(button.querySelector('[data-dock-label]')).toHaveTextContent(label);
     }
   });
 
@@ -56,6 +59,7 @@ describe('Dock Component', () => {
     layout.compact = true;
     const onModeChange = vi.fn();
     render(<Dock activeMode="overview" onModeChange={onModeChange} />);
+    expect(screen.getByRole('navigation')).toHaveAttribute('data-dock-layout', 'compact');
     fireEvent.click(screen.getByRole('button', { name: 'Production' }));
     expect(layout.openPanel).toHaveBeenCalledWith('production');
     expect(onModeChange).not.toHaveBeenCalled();

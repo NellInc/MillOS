@@ -20,6 +20,7 @@ import {
   generateGrassSurface,
   generateTarmacSurface,
   generateDirtSurface,
+  generateDirtGravel,
   generateTerrainMacro,
 } from '../terrainTextures';
 import { generateSplatMap, MILLOS_TERRAIN_REGIONS } from '../splatMapGenerator';
@@ -336,6 +337,44 @@ describe('splat map over SPLAT_BOUNDS', () => {
       expect(shape.z - shape.height / 2).toBeGreaterThan(SPLAT_BOUNDS.minZ + 20);
       expect(shape.x + shape.width / 2).toBeLessThan(SPLAT_BOUNDS.maxX - 20);
       expect(shape.x - shape.width / 2).toBeGreaterThan(SPLAT_BOUNDS.minX + 20);
+    }
+  });
+});
+
+describe('restrained packed-earth verges', () => {
+  it.each([128, 256])(
+    'keeps %i px albedo as umber mineral texture without bright aggregate',
+    (size) => {
+      const texture = generateDirtGravel(size);
+      const data = texture.image.data as Uint8Array;
+      expect(texture.colorSpace).toBe(THREE.SRGBColorSpace);
+      const red = channelStats(data, size, 0);
+      const green = channelStats(data, size, 1);
+      const blue = channelStats(data, size, 2);
+      expect(red.mean).toBeGreaterThan(green.mean);
+      expect(green.mean).toBeGreaterThan(blue.mean);
+      // Retain neutral earth variation, with restrained orange saturation.
+      expect(red.mean - blue.mean).toBeLessThan(0.1);
+      expect(red.stdDev).toBeGreaterThan(0.015);
+      expect(red.stdDev).toBeLessThan(0.04);
+      let brightest = 0;
+      let transparent = 0;
+      for (let i = 0; i < data.length; i += 4) {
+        brightest = Math.max(brightest, data[i], data[i + 1], data[i + 2]);
+        if (data[i + 3] !== 255) transparent++;
+      }
+      expect(brightest).toBeLessThan(120);
+      expect(transparent).toBe(0);
+    }
+  );
+  it('retains seamless mineral variation rather than replacing the terrain by a flat tint', () => {
+    const size = 256;
+    const data = generateDirtGravel(size).image.data as Uint8Array;
+    for (const channel of [0, 1, 2] as Channel[]) {
+      const wrapX = columnDelta(data, size, channel, size - 1, 0);
+      const wrapY = rowDelta(data, size, channel, size - 1, 0);
+      expect(wrapX).toBeLessThan(columnDelta(data, size, channel, 10, 11) * 3 + 2);
+      expect(wrapY).toBeLessThan(rowDelta(data, size, channel, 10, 11) * 3 + 2);
     }
   });
 });

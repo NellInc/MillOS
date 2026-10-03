@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MobilePanel } from './MobilePanel';
+vi.mock('../../hooks/useReducedMotion', () => ({ useReducedMotion: () => false }));
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { useSafetyStore } from '../../stores/safetyStore';
 

@@ -1,5 +1,6 @@
 import React from 'react';
 import { RotateCcw, Factory } from 'lucide-react';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
 
 interface RotateDeviceOverlayProps {
   visible: boolean;
@@ -10,10 +11,16 @@ interface RotateDeviceOverlayProps {
  * Shown on mobile devices in portrait orientation.
  */
 export const RotateDeviceOverlay: React.FC<RotateDeviceOverlayProps> = ({ visible }) => {
+  const overlayRef = React.useRef<HTMLDivElement>(null);
+  // Rotation releases this notice; keyboard input stays inside its empty dialog.
+  // Working if Tab cannot reach the obscured dock and focus returns after rotation.
+  useFocusTrap(overlayRef as React.RefObject<HTMLElement>, visible, () => {});
   if (!visible) return null;
 
   return (
     <div
+      ref={overlayRef}
+      tabIndex={-1}
       role="dialog"
       aria-modal="true"
       aria-labelledby="rotate-device-title"

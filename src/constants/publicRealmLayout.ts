@@ -46,6 +46,8 @@ export const VILLAGE_REALM_PATCHES: readonly RealmPatch[] = [
 // World-space. These connect existing entrances/paths, leaving the station
 // road and delivery sweeps clear. Surface heights are sampled on the live grid.
 export const WORLD_REALM_PATHS: readonly RealmPath[] = [
+  // Café court meets the existing pond approach at x=-108, z=98.2.
+  { start: [-108, 98.2], end: [-108, 101], width: 1.8 },
   { start: [-155.3, -62], end: [-155.3, 82], width: 1.6 },
   { start: [-155.3, -59], end: [-155.3, -50], width: 2.6 },
   { start: [-134, -50], end: [-65, -50], width: 2.6 },
@@ -63,7 +65,18 @@ export const WORLD_REALM_PATHS: readonly RealmPath[] = [
   { start: [-45, 121], end: [-25, 121], width: 2.4 },
   { start: [-25, 121], end: [-25, 117.6], width: 2.4 },
 ];
+// Serving fascia at z=102.05 and existing table/stools at z=99/98.5.
+export const CAFE_COURT: RealmPatch = { x: -108, z: 100.4, halfX: 2.4, halfZ: 2.1 };
+/** One matching lantern beside the court, clear of its diagonal pond approach.
+ * Working if the existing shared pool reveals the seating and route at dusk.
+ */
+export const CAFE_COURT_LANTERN: readonly [number, number, number] = [
+  CAFE_COURT.x + CAFE_COURT.halfX + 0.8,
+  0,
+  CAFE_COURT.z,
+];
 export const WORLD_REALM_PATCHES: readonly RealmPatch[] = [
+  CAFE_COURT,
   { x: -156.8, z: 18.5, halfX: 3.8, halfZ: 4.5 },
   { x: -158.1, z: 60, halfX: 3.5, halfZ: 4.1 },
   { x: -45, z: 116.3, halfX: 7.4, halfZ: 1.2 },

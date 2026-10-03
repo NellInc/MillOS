@@ -37,11 +37,19 @@ import {
 } from '../stores/operationsCampaignStore';
 import { getSiteDemandKw } from '../utils/energyCalculations';
 import { sanitizeGameSpeed } from '../stores/persistenceMigrations';
+import { useWorkplaceStore } from '../stores/workplaceStore';
+import { workplaceTickCapacity } from '../simulation/bilateralWorkplace';
+import {
+  advanceReplayClock,
+  endReplayClock,
+  isWorkplaceReplayActive,
+} from '../simulation/workplaceReplayRuntime';
+import { peekSCADAService } from '../scada/SCADAService';
 
 // Tracks the receiving dock's docked state across ticks so a false->true
 // transition (a grain truck arriving) triggers exactly one silo delivery.
 let _lastReceivingTransferReady = false;
-let _lastShippingTransferReady = false;
+let _lastShippingDepartureCount = 0;
 let _shippingLoad: DispatchLoadSnapshot = {
   cycleId: 'shipping-0',
   status: 'away',
@@ -378,12 +386,43 @@ function unifiedGameTick(ctx: TickContext): void {
   // Cap delta to prevent large time jumps (e.g., from tab being hidden)
   // Must be >= tickInterval (0.5s) to avoid slowing down game time
   // Cap at 1.0s to handle minor frame drops while preventing runaway accumulation
-  const deltaSeconds = Number.isFinite(rawDeltaSeconds)
+  let deltaSeconds = Number.isFinite(rawDeltaSeconds)
     ? Math.max(0, Math.min(rawDeltaSeconds, 1.0))
     : 0;
 
   const safeGameSpeed = sanitizeGameSpeed(gameSpeed);
   if (deltaSeconds === 0 || safeGameSpeed === 0) return;
+  const replayActive = isWorkplaceReplayActive();
+  const workplacePhaseBefore = useWorkplaceStore.getState().workplace.phase;
+  const controlMode = replayActive ? peekSCADAService()?.getState().mode : undefined;
+  if (controlMode !== undefined && controlMode !== 'simulation') {
+    useWorkplaceStore.getState().stop();
+    useGameSimulationStore.getState().setGameSpeed(0);
+    endReplayClock();
+    return;
+  }
+  if (replayActive) {
+    const game = useGameSimulationStore.getState();
+    const agreement = useWorkplaceStore.getState().workplace;
+    // Replay preparation and review navigation grant no plant time. Recovery
+    // after an early stop needs an explicit resume and remains real elapsed
+    // time, bounded by concurrent member debts rather than their sum.
+    const remainingMinutes =
+      agreement.phase === 'active'
+        ? Math.max(0, agreement.durationMinutes - agreement.minute)
+        : agreement.phase === 'review' && !game.emergencyActive
+          ? Math.max(0, ...agreement.members.map((member) => member.recoveryOwedMinutes))
+          : 0;
+    if (game.gameSpeed === 0 || remainingMinutes === 0) {
+      if (game.gameSpeed !== 0) game.setGameSpeed(0);
+      return;
+    }
+    // This one admitted delta drives all plant clocks, material, costs, wear
+    // and logical replay time. Clamping the workplace ledger alone is too late.
+    deltaSeconds = Math.min(deltaSeconds, (remainingMinutes * 60) / safeGameSpeed);
+  }
+  advanceReplayClock(deltaSeconds * safeGameSpeed * 1000);
+  const workplaceShippedBefore = useMaterialFlowStore.getState().shippedKg;
   const celebrateDay = 86400 / safeGameSpeed >= MIN_CELEBRATED_DAY_REAL_SECONDS;
 
   // Clear reusable arrays (no allocation)
@@ -503,7 +542,15 @@ function unifiedGameTick(ctx: TickContext): void {
   const campaignStore = useOperationsCampaignStore.getState();
   const campaignMultiplier = campaignStore.getProductionMultiplier();
   const activeProductionPlan = campaignStore.getActiveProductionPlan();
-  const effectiveProductionSpeed = productionSpeed * campaignMultiplier;
+  // Opt-in negotiated line pacing. It never creates product, releases quality
+  // holds, changes machine safety status, or alters decorative pedestrian routes.
+  const effectiveProductionSpeed =
+    productionSpeed *
+    campaignMultiplier *
+    workplaceTickCapacity(
+      useWorkplaceStore.getState().workplace,
+      (deltaSeconds * safeGameSpeed) / 60
+    );
 
   // Efficiency: percentage of machines running
   _metricsUpdate.efficiency = Math.round((runningCount / totalMachines) * 100 * 10) / 10;
@@ -668,6 +715,9 @@ function unifiedGameTick(ctx: TickContext): void {
   flowStore.syncMachineProcessing(
     anyMachineChanged ? useProductionStore.getState().machines : machines
   );
+  const activeOrderForFeed = campaignStore.orders.find(
+    (order) => order.id === activeProductionPlan?.orderId
+  );
   flowStore.tickMaterialFlow(
     deltaSeconds,
     effectiveProductionSpeed,
@@ -675,6 +725,9 @@ function unifiedGameTick(ctx: TickContext): void {
       ? {
           sourceMaterial: activeProductionPlan.sourceMaterial,
           finishedMaterial: activeProductionPlan.finishedMaterial,
+          remainingFinishedKg: activeOrderForFeed
+            ? Math.max(0, activeOrderForFeed.requiredKg - activeOrderForFeed.shippedKg)
+            : undefined,
         }
       : undefined
   );
@@ -721,9 +774,53 @@ function unifiedGameTick(ctx: TickContext): void {
     batch_quality_hold: 'Available production batches remain on quality hold.',
     batch_recalled: 'Recalled production remains isolated from dispatch.',
   } as const;
-  if (shippingTransferReady && !_lastShippingTransferReady) {
+  if (shippingSchedule.departureCount < _lastShippingDepartureCount) {
     _shippingLoad = {
-      cycleId: `shipping-${shippingSchedule.departureCount + 1}`,
+      cycleId: 'shipping-0',
+      status: 'away',
+      loadedKg: 0,
+      capacityKg: FINISHED_GOODS_SHIPMENT_KG,
+      materialType: 'flour',
+      blockReason: null,
+      lastDispatchKg: 0,
+    };
+  }
+  if (shippingSchedule.departureCount > _lastShippingDepartureCount) {
+    // Transfer readiness falls during door closing, while the truck is still
+    // secured at the dock. Only the controller's completed departure counts.
+    // Final quality release still applies if conditions changed after loading.
+    const departureQuality = getDispatchQualityStatus(
+      useQCLabStore.getState().qcLab,
+      dockFlow.productionBatches
+    );
+    const departureBlockReason = useOperationsCampaignStore.getState().getIncidentEffect()
+      .dispatchBlocked
+      ? 'An active operational incident requires dispatch isolation.'
+      : departureQuality.reason
+        ? reasonByCode[departureQuality.reason]
+        : !departureQuality.released
+          ? 'The quality interlock is not released.'
+          : null;
+    const actualKg = departureBlockReason
+      ? 0
+      : dockFlow.shipFinishedGoods(_shippingLoad.loadedKg, _shippingLoad.materialType);
+    _shippingLoad = {
+      ..._shippingLoad,
+      status: 'departed',
+      loadedKg: actualKg,
+      lastDispatchKg: actualKg,
+      blockReason:
+        actualKg > 0
+          ? null
+          : (departureBlockReason ??
+            _shippingLoad.blockReason ??
+            'Truck departed without a released load.'),
+    };
+  }
+  const shippingCycleId = `shipping-${shippingSchedule.departureCount + 1}`;
+  if (shippingTransferReady && _shippingLoad.cycleId !== shippingCycleId) {
+    _shippingLoad = {
+      cycleId: shippingCycleId,
       status: 'loading',
       loadedKg: 0,
       capacityKg: FINISHED_GOODS_SHIPMENT_KG,
@@ -764,6 +861,7 @@ function unifiedGameTick(ctx: TickContext): void {
       Math.max(_shippingLoad.loadedKg, releasedKg)
     );
     const previousStatus = _shippingLoad.status;
+    const previousBlockReason = _shippingLoad.blockReason;
 
     if (qualityBlockReason) {
       _shippingLoad = { ..._shippingLoad, status: 'held', blockReason: qualityBlockReason };
@@ -792,39 +890,23 @@ function unifiedGameTick(ctx: TickContext): void {
       };
     }
 
-    if (_shippingLoad.status === 'held' && previousStatus !== 'held') {
+    if (
+      _shippingLoad.status === 'held' &&
+      (previousStatus !== 'held' || previousBlockReason !== _shippingLoad.blockReason)
+    ) {
       useUIStore.getState().addAlert({
-        id: `dispatch-quality-hold-${_shippingLoad.cycleId}`,
-        type: 'warning',
-        title: 'Dispatch Quality Hold',
-        message: `${_shippingLoad.blockReason ?? 'Loading is held.'} Clear the condition before release.`,
+        id: `${qualityBlockReason ? 'dispatch-quality-hold' : 'dispatch-supply-wait'}-${_shippingLoad.cycleId}`,
+        type: qualityBlockReason ? 'warning' : 'info',
+        title: qualityBlockReason ? 'Dispatch Quality Hold' : 'Shipping Awaiting Product',
+        message: qualityBlockReason
+          ? `${qualityBlockReason} Clear the condition before release.`
+          : (_shippingLoad.blockReason ?? 'Waiting for released product at the packers.'),
         timestamp: new Date(),
         acknowledged: false,
       });
     }
-  } else if (_lastShippingTransferReady) {
-    const actualKg = dockFlow.shipFinishedGoods(_shippingLoad.loadedKg, _shippingLoad.materialType);
-    _shippingLoad = {
-      ..._shippingLoad,
-      status: 'departed',
-      loadedKg: actualKg,
-      lastDispatchKg: actualKg,
-      blockReason:
-        actualKg > 0
-          ? null
-          : (_shippingLoad.blockReason ?? 'Truck departed without a released load.'),
-    };
-  } else if (shippingSchedule.departureCount === 0 && _shippingLoad.status !== 'away') {
-    _shippingLoad = {
-      ..._shippingLoad,
-      cycleId: 'shipping-0',
-      status: 'away',
-      loadedKg: 0,
-      lastDispatchKg: 0,
-      blockReason: null,
-    };
   }
-  _lastShippingTransferReady = shippingTransferReady;
+  _lastShippingDepartureCount = shippingSchedule.departureCount;
 
   const latestProduction = useProductionStore.getState();
   const latestFlow = useMaterialFlowStore.getState();
@@ -846,6 +928,7 @@ function unifiedGameTick(ctx: TickContext): void {
     shiftKey: `day-${latestGame.gameDay}-${latestGame.currentShift}`,
     shiftLabel: `${latestGame.currentShift[0].toUpperCase()}${latestGame.currentShift.slice(1)}`,
     manifests: latestFlow.manifests,
+    materialSessionId: latestFlow.sessionId,
     productionBatches: latestFlow.productionBatches,
     totalEnergyKw,
     averageQuality: latestProduction.metrics.quality,
@@ -865,6 +948,25 @@ function unifiedGameTick(ctx: TickContext): void {
       .workOrders.filter((workOrder) => workOrder.phase !== 'returned_to_service').length,
     clockMinuteOfDay: latestGame.gameTime * 60,
   });
+  // Workshops advance only through facilitator inputs. They must not acquire a
+  // clock, pay or apparent shipment evidence from unrelated plant activity.
+  if (useWorkplaceStore.getState().workplace.mode === 'game') {
+    useWorkplaceStore
+      .getState()
+      .tick(
+        (deltaSeconds * safeGameSpeed) / 60,
+        Math.max(0, latestFlow.shippedKg - workplaceShippedBefore),
+        latestGame.emergencyActive
+      );
+    const reviewed = useWorkplaceStore.getState().workplace;
+    if (
+      replayActive &&
+      reviewed.phase === 'review' &&
+      (workplacePhaseBefore === 'active' ||
+        reviewed.members.every((member) => member.recoveryOwedMinutes === 0))
+    )
+      useGameSimulationStore.getState().setGameSpeed(0);
+  }
 
   // 5. Handle breakdowns (async, outside main path)
   if (_breakdowns.length > 0) {
@@ -897,7 +999,7 @@ function unifiedGameTick(ctx: TickContext): void {
  */
 export function resetUnifiedTickState(): void {
   _lastReceivingTransferReady = false;
-  _lastShippingTransferReady = false;
+  _lastShippingDepartureCount = 0;
   _shippingLoad = {
     cycleId: 'shipping-0',
     status: 'away',
@@ -911,6 +1013,30 @@ export function resetUnifiedTickState(): void {
   _milestonesReachedMask = 0;
   _wearCarry.clear();
   _pendingShippingDelayMinutes = 0;
+}
+
+export function captureUnifiedTickState() {
+  return structuredClone({
+    receivingReady: _lastReceivingTransferReady,
+    departureCount: _lastShippingDepartureCount,
+    shippingLoad: _shippingLoad,
+    bagCarry: _bagProductionCarry,
+    milestones: _milestonesReachedMask,
+    wearCarry: _wearCarry,
+    shippingDelay: _pendingShippingDelayMinutes,
+  });
+}
+
+export function restoreUnifiedTickState(state: ReturnType<typeof captureUnifiedTickState>) {
+  const saved = structuredClone(state);
+  _lastReceivingTransferReady = saved.receivingReady;
+  _lastShippingDepartureCount = saved.departureCount;
+  _shippingLoad = saved.shippingLoad;
+  _bagProductionCarry = saved.bagCarry;
+  _milestonesReachedMask = saved.milestones;
+  _wearCarry.clear();
+  saved.wearCarry.forEach((value, key) => _wearCarry.set(key, value));
+  _pendingShippingDelayMinutes = saved.shippingDelay;
 }
 
 export function useUnifiedGameTick(): void {

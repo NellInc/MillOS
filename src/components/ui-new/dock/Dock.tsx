@@ -161,6 +161,7 @@ export const Dock: React.FC<DockProps> = ({
   return (
     <nav
       id="navigation-dock"
+      data-dock-layout={isCompactLayout ? 'compact' : 'wide'}
       className={`fixed bottom-6 left-1/2 -translate-x-1/2 bg-[#071722]/95 backdrop-blur-xl border border-cyan-100/15 rounded-md flex items-center shadow-2xl z-50 pointer-events-auto ${
         isCompactLayout
           ? 'p-1 gap-0.5 max-w-[calc(100vw-1rem)]'
@@ -366,7 +367,9 @@ const DockItem: React.FC<{
     >
       <span aria-hidden="true">{icon}</span>
       {!isMobile && (
-        <span className="text-[12px] leading-4 whitespace-nowrap">{DOCK_LABELS[mode]}</span>
+        <span data-dock-label="" className="text-[12px] leading-4 whitespace-nowrap">
+          {DOCK_LABELS[mode]}
+        </span>
       )}
       {isActive && (
         <motion.div

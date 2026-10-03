@@ -26,10 +26,36 @@ import {
   GENERATED_FOUNTAIN_STREAM_PATHS,
   GENERATED_FOUNTAIN_STREAM_GEOMETRY,
   GENERATED_FOUNTAIN_STREAM_MATERIAL,
+  TOWN_HALL_LANTERN_GEOMETRY,
+  TOWN_HALL_LENS_GEOMETRY,
+  TOWN_HALL_ENTRY_LIGHT,
 } from './VillageArea';
 import { SITE_LAYOUT, landmarkLocalToWorld } from '../constants/siteLayout';
 
 vi.mock('../utils/critterAudio', () => ({ playCritterSound: vi.fn() }));
+
+describe('bounded civic doorway lanterns', () => {
+  it('keeps both fittings in two finite shared geometries outside the door and below the cornice', () => {
+    for (const geometry of [TOWN_HALL_LANTERN_GEOMETRY, TOWN_HALL_LENS_GEOMETRY]) {
+      expect(geometry.groups).toHaveLength(0);
+      expect(Array.from(geometry.getAttribute('position').array).every(Number.isFinite)).toBe(true);
+      expect(geometry.getIndex()!.count / 3).toBeLessThan(240);
+      geometry.computeBoundingBox();
+      const bounds = geometry.boundingBox!;
+      expect(bounds.min.y).toBeGreaterThan(3.2);
+      expect(bounds.max.y).toBeLessThan(4.1);
+      expect(bounds.min.z).toBeGreaterThan(5.04);
+      expect(bounds.max.z).toBeLessThan(5.9);
+      const positions = geometry.getAttribute('position');
+      for (let i = 0; i < positions.count; i++) {
+        expect(Math.abs(positions.getX(i))).toBeGreaterThan(1.5);
+        expect(Math.abs(positions.getX(i))).toBeLessThan(2.2);
+      }
+    }
+    expect(TOWN_HALL_ENTRY_LIGHT.distance).toBeLessThanOrEqual(9);
+    expect(TOWN_HALL_ENTRY_LIGHT.position[1]).toBeLessThan(4.4);
+  });
+});
 
 describe('authored fountain gravity streams', () => {
   it('uses four finite gravity arcs that land within the existing water annulus', () => {
