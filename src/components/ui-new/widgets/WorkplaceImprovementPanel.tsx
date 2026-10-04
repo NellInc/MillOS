@@ -1,6 +1,7 @@
+import { WorkplaceSeasonEntry } from './WorkplaceParticipation';
 import { useRef, useState } from 'react';
 import { TeachingPace } from '../onboarding/PlayableShift';
-import { useWorkplaceStore } from '../../../stores/workplaceStore';
+import { useWorkplaceStore, useWorkplaceControls } from '../../../stores/workplaceStore';
 import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
 import { useCameraStore, CAMERA_PRESETS } from '../../CameraController';
 import {
@@ -37,6 +38,7 @@ export function WorkplaceImprovementPanel({
   activate,
   busy,
   report,
+  onSeasonStart,
 }: {
   profile: WorkplaceProfile;
   setProfile?: (value: WorkplaceProfile) => void;
@@ -45,12 +47,15 @@ export function WorkplaceImprovementPanel({
   activate: () => Promise<void>;
   busy: boolean;
   report: (result: WorkplaceTransitionResult) => void;
+  onSeasonStart?: () => void;
 }) {
-  const store = useWorkplaceStore();
+  const store = useWorkplaceControls();
   const s = store.workplace;
   const i = s.improvement;
   const summary = improvementSummary(s);
-  const [actor, setActor] = useState('quality');
+  const [selectedActor, setActor] = useState('quality');
+  const actor =
+    store.participationMode === 'separate-turns' ? (store.turn?.actorId ?? '') : selectedActor;
   const [challenge, setChallenge] = useState<ImprovementChallenge>('forecast');
   const panelRef = useRef<HTMLElement>(null);
   const deliberating = s.phase === 'deliberating';
@@ -116,6 +121,24 @@ export function WorkplaceImprovementPanel({
         >
           Open the handoff experiment
         </button>
+        {(mode ?? s.mode) === 'game' && setProfile && (
+          <WorkplaceSeasonEntry
+            profile={profile}
+            setProfile={setProfile}
+            report={report}
+            onStart={() => {
+              useGameSimulationStore.getState().setGameSpeed(0);
+              perform(
+                {
+                  changed: true,
+                  reason: 'Season opened. Use Shift and Agreement / Voices for current decisions.',
+                },
+                true
+              );
+              onSeasonStart?.();
+            }}
+          />
+        )}
         {s.mode === 'pilot' && (
           <p>
             Pilot preparation remains planning-only. Use Game or Workshop for a local experiment.
@@ -278,7 +301,13 @@ export function WorkplaceImprovementPanel({
             coordinator decides.
           </p>
           {s.members.map((m) => (
-            <fieldset key={m.id} className="space-y-2 border-t border-slate-800 pt-3">
+            <fieldset
+              key={m.id}
+              disabled={
+                store.participationMode === 'separate-turns' && store.turn?.actorId !== m.id
+              }
+              className="space-y-2 border-t border-slate-800 pt-3"
+            >
               <legend className="font-medium text-white">{m.role}</legend>
               <p className="text-xs text-slate-300">{m.publicBoundary}</p>
               <p className="text-cyan-100" aria-live="polite">

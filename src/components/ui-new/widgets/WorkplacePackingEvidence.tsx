@@ -6,7 +6,11 @@ import type {
   ImprovementEpisodeChoice,
 } from '../../../types/workplace';
 import type { PackingAdvice, PackingRehearsals } from '../../../types/workplaceAdvice';
-import { captureCurrentPackingPlant, useWorkplaceStore } from '../../../stores/workplaceStore';
+import {
+  captureCurrentPackingPlant,
+  useWorkplaceStore,
+  useWorkplaceControls,
+} from '../../../stores/workplaceStore';
 import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
 import { useMaterialFlowStore } from '../../../stores/materialFlowStore';
 import { useOperationsCampaignStore } from '../../../stores/operationsCampaignStore';
@@ -33,8 +37,10 @@ export function HandoffEpisodes({
   state: WorkplaceState;
   report: (result: WorkplaceTransitionResult) => void;
 }) {
-  const store = useWorkplaceStore();
-  const [actor, setActor] = useState('quality');
+  const store = useWorkplaceControls();
+  const [selectedActor, setActor] = useState('quality');
+  const actor =
+    store.participationMode === 'separate-turns' ? (store.turn?.actorId ?? '') : selectedActor;
   const selected = HANDOFF_EPISODES.find((e) => e.id === state.improvement?.episode?.id);
   const outcome = improvementEpisodeOutcome(
     state,

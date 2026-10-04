@@ -174,10 +174,11 @@ void main() {
   float sunward = max(dot(direction.xz / max(length(direction.xz), 0.0001),
     sunDir.xz / max(length(sunDir.xz), 0.0001)), 0.0);
   float afterglow = uAfterglow * uSkyAfterglowStrength * pow(sunward, 2.0) *
-    (1.0 - smoothstep(0.08, 0.26, height)) * smoothstep(-0.02, 0.04, height);
-  sky += uAfterglowColor * afterglow * 0.58;
+    (1.0 - smoothstep(0.08, 0.38, height)) * smoothstep(-0.02, 0.04, height);
+  sky = mix(sky, uAfterglowColor * 0.45 + vec3(0.0, 0.03, 0.06), afterglow * 0.55);
+  sky += uAfterglowColor * afterglow * 0.86;
   vec4 clouds = millosSkyClouds(direction, cloudAmount, sunDir, uSunTint);
-  clouds.rgb += uAfterglowColor * afterglow * (1.0 - clouds.a * 0.75) * 0.85;
+  clouds.rgb += uAfterglowColor * afterglow * (1.0 - clouds.a * 0.75) * 1.05;
   float fieldStrength = mix( 1.0, 0.12 + smoothstep( 0.4, 0.85, cloudAmount ) * 0.88, uCloudAtlasReady );
   sky = mix(sky, clouds.rgb, clouds.a * fieldStrength);
   vec4 banks = millosCumulusBanks( direction, cloudAmount, sunDir, uSunTint );
@@ -222,14 +223,17 @@ varying vec3 vRidgeColor;
 varying vec3 vRidgeNormal;
 varying vec3 vRidgePosition;
 varying float vRidgeHeight;
+varying float vRidgeSnow;
 varying float vRidgeDistance;
 attribute float ridgeHeight;
+attribute float ridgeSnow;
 
 void main() {
   vRidgeColor = color;
   vRidgeNormal = normalize(mat3(modelMatrix) * normal);
   vRidgePosition = position;
   vRidgeHeight = ridgeHeight;
+  vRidgeSnow = ridgeSnow;
   vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
   vRidgeDistance = length(mvPosition.xyz);
   gl_Position = projectionMatrix * mvPosition;
@@ -237,12 +241,7 @@ void main() {
 }
 `;
 
-/** Only the low skirt of fixed backdrop hills blends into the rendered meadow.
- * Working if the same-page zero-strength arm restores the hard foot, while
- * upper slopes, geometry, access and the one-pass lighting budget remain intact.
- */
-export const RIDGE_GROUND_BLEND = { startY: 15, endY: 23 } as const;
-export const RIDGE_GROUND_BLEND_STRENGTH = { value: 1 };
+export const RIDGE_SNOW_STRENGTH = { value: 1 };
 
 const ridgeFragmentShader = `
 #include <common>
@@ -253,12 +252,13 @@ uniform vec3 uShadowTint;
 uniform vec3 uInscatter;
 uniform float uAerial;
 uniform float uDetailStrength;
+uniform float uSnowStrength;
 uniform float uWorldAnchored;
-uniform float uGroundBlendStrength;
 varying vec3 vRidgeColor;
 varying vec3 vRidgeNormal;
 varying vec3 vRidgePosition;
 varying float vRidgeHeight;
+varying float vRidgeSnow;
 varying float vRidgeDistance;
 
 float ridgeHash(vec2 p) {
@@ -288,7 +288,7 @@ void main() {
   // collapsed stripes of one oblique planar projection around a whole ring.
   float faceWeight = abs(normal.x) / max(0.001, abs(normal.x) + abs(normal.z));
   float rock = smoothstep(0.48, 0.84,
-    vRidgeHeight + (ridgeNoise(p.xz * 0.055) - 0.5) * 0.22);
+    vRidgeHeight + (ridgeNoise(p.xz * 0.055) - 0.5) * 0.22) * (1.0 - uWorldAnchored);
   float forest = ridgeFbm(p.xz * 0.18 + p.y * 0.045);
   float veins = mix(ridgeFbm(p.xy * vec2(0.11, 0.16)),
     ridgeFbm(p.zy * vec2(0.11, 0.16)), faceWeight);
@@ -301,8 +301,14 @@ void main() {
     vec3(0.21, 0.245, 0.074), meadow);
   float finish = mix(0.5 + forest * 1.15, 0.4 + veins * 0.8 + scree * 0.32, rock);
   vec3 detailedAlbedo = mix(vegetation, vRidgeColor, rock) * finish;
+  // Preserve snow through the mineral finish. Shallow shoulders retain cover,
+  // steep faces expose rock; gullies soften the boundary without more samples.
+  // Working if far caps read white while fixed low foothills remain wooded.
+  float snow = smoothstep(0.35, 0.65, vRidgeSnow + (veins - 0.5) * 0.25)
+    * (0.84 + 0.16 * smoothstep(0.08, 0.70, normal.y)) * uSnowStrength;
+  detailedAlbedo = mix(detailedAlbedo, vec3(0.81, 0.86, 0.91) * (0.92 + scree * 0.08), snow);
   vec3 albedo = mix(vRidgeColor, detailedAlbedo, uDetailStrength);
-  float relief = mix(forest * 0.32, veins * 0.7 + scree * 0.16, rock) * uDetailStrength;
+  float relief = mix(forest * 0.32, veins * 0.7 + scree * 0.16, rock) * uDetailStrength * (1.0 - snow * 0.8);
   vec3 dx = dFdx(p), dy = dFdy(p);
   vec3 rx = cross(dy, normal), ry = cross(normal, dx);
   float determinant = dot(dx, rx);
@@ -320,20 +326,14 @@ void main() {
   // Valley haze. Air pools in the valleys, so they sit further back than the
   // peaks that rise out of it - the cue that turns a silhouette into a range.
   lit = mix(lit, uInscatter, (1.0 - vRidgeHeight) * uAerial * 0.20);
-  // Blend into the actual remote landscape before reaching the far plane.
-  // An opaque fog-colour fade made near peaks paler than the distant range.
-  float opacity = 1.0 - uWorldAnchored * smoothstep(
+  // Solid land always writes depth. A height-based alpha feather exposed sky
+  // through overlapping foothills below 15 m, creating floating ribbons.
+  // Blend distant colour into the atmosphere without cutting holes in terrain.
+  // Working if the lake-camera regression ray meets opaque land at every height.
+  float horizonFade = uWorldAnchored * smoothstep(
     ${FOG_HORIZON_START.toFixed(1)}, ${(FOG_HORIZON_END - 32).toFixed(1)}, vRidgeDistance);
-
-  // Existing fixed hills already use alpha for the far-plane blend. Feather
-  // only their low foot over the real opaque meadow, leaving the camera-locked
-  // remote range and every slope above twenty-three metres unchanged. The
-  // start clears the actual15m authored tunnel banks, not only the zero meadow.
-  float groundBlend = smoothstep(
-    ${RIDGE_GROUND_BLEND.startY.toFixed(1)}, ${RIDGE_GROUND_BLEND.endY.toFixed(1)}, p.y);
-  opacity *= mix(1.0, groundBlend, uWorldAnchored * uGroundBlendStrength);
-
-  gl_FragColor = vec4(lit, opacity);
+  lit = mix(lit, uInscatter, horizonFade);
+  gl_FragColor = vec4(lit, 1.0);
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
 }
@@ -549,6 +549,7 @@ interface MountainRidgeSpec {
   snowLine: number;
   seed: number;
   colors: readonly [string, string, string];
+  rollingHills?: boolean;
 }
 
 /**
@@ -586,12 +587,14 @@ export function createMountainRidgeGeometry({
   snowLine,
   seed,
   colors,
+  rollingHills = false,
 }: MountainRidgeSpec): THREE.BufferGeometry {
   const segments = MOUNTAIN_RIDGE_SEGMENTS;
   const rows = MOUNTAIN_RIDGE_ROWS;
   const positions: number[] = [];
   const vertexColors: number[] = [];
   const ridgeHeights: number[] = [];
+  const ridgeSnow: number[] = [];
   const indices: number[] = [];
   const palette = colors.map((color) => new THREE.Color(color));
 
@@ -614,7 +617,13 @@ export function createMountainRidgeGeometry({
     // it to a full-amplitude massif then clamping flattened entire summits.
     // Fit the positive field (maximum 1.07) into the remaining vertical span.
     const floor = Math.max(0.025, valleyFloor);
-    const profile = floor + ((rolling + massif + ridge) / 1.07) * (0.98 - floor);
+    const hill =
+      0.36 * (0.5 + 0.5 * Math.sin(angle * 3 + seed)) +
+      0.3 * (0.5 + 0.5 * Math.sin(angle * 5 - seed * 1.3)) +
+      0.19 * (0.5 + 0.5 * Math.sin(angle * 9 + seed * 2)) +
+      0.1 * (0.5 + 0.5 * Math.sin(angle * 13 - seed));
+    const profile =
+      floor + (rollingHills ? hill : (rolling + massif + ridge) / 1.07) * (0.98 - floor);
     const height = THREE.MathUtils.lerp(minHeight, maxHeight, profile);
     const baseRadius =
       radius + Math.sin(angle * 5 + seed) * 1.5 + Math.sin(angle * 13 - seed) * 0.55;
@@ -647,13 +656,18 @@ export function createMountainRidgeGeometry({
       ridgeHeights.push(THREE.MathUtils.clamp(heightRatio * 0.55 + profile * 0.45, 0, 1));
 
       const rockBlend = THREE.MathUtils.smoothstep(heightRatio, 0.12, 0.78);
-      const snowAmount =
-        THREE.MathUtils.smoothstep(profile, snowLine - 0.09, snowLine + 0.13) *
-        THREE.MathUtils.smoothstep(heightRatio, 0.7, 0.98);
+      // Altitude forms continuous caps instead of multiplying two dilute
+      // summit masks. The fragment finish adds an irregular narrow snow edge.
+      // Working if high visible peaks have cap interiors and low hills stay bare.
+      const snowAmount = THREE.MathUtils.clamp(
+        (terraceHeight - (baseY + maxHeight * snowLine)) / 12 + 0.5,
+        0,
+        1
+      );
+      ridgeSnow.push(snowAmount);
       const color = palette[0]
         .clone()
         .lerp(palette[1], rockBlend)
-        .lerp(palette[2], snowAmount)
         .multiplyScalar(facetTint * (0.9 + heightRatio * 0.1));
       vertexColors.push(color.r, color.g, color.b);
     }
@@ -680,6 +694,7 @@ export function createMountainRidgeGeometry({
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
   geometry.setAttribute('color', new THREE.Float32BufferAttribute(vertexColors, 3));
   geometry.setAttribute('ridgeHeight', new THREE.Float32BufferAttribute(ridgeHeights, 1));
+  geometry.setAttribute('ridgeSnow', new THREE.Float32BufferAttribute(ridgeSnow, 1));
   geometry.setIndex(indices);
   geometry.computeVertexNormals();
   geometry.computeBoundingSphere();
@@ -698,10 +713,10 @@ export const FAR_MOUNTAIN_SPEC: MountainRidgeSpec = {
   // 20 m while the taller massifs gain their own shoulders and eroded gullies.
   // Working if the closed-ring test holds and overview shows no ground seam.
   minHeight: 10,
-  maxHeight: 155,
+  maxHeight: 205,
   slopeDepth: 55,
-  valleyFloor: 0.17,
-  snowLine: 0.73,
+  valleyFloor: 0.13,
+  snowLine: 0.46,
   seed: 0.37,
   // TRUE ALBEDO. These three arrays used to be pre-hazed blue-greys, i.e. they
   // had aerial perspective painted into them, which is why the far ring read as
@@ -714,12 +729,13 @@ const midMountainGeometry = createMountainRidgeGeometry({
   radius: SITE_LAYOUT.world.radius + 67,
   baseY: -3,
   minHeight: 3,
-  maxHeight: 100,
+  maxHeight: 72,
   slopeDepth: 150,
   valleyFloor: 0.07,
-  snowLine: 0.77,
+  snowLine: 1.1,
+  rollingHills: true,
   seed: 1.83,
-  colors: ['#3f5548', '#6e7873', '#eaf0f2'],
+  colors: ['#465d40', '#647451', '#c5cdbc'],
 });
 const nearHillGeometry = createMountainRidgeGeometry({
   // Real broad foothills begin beyond the playable perimeter. Their fixed
@@ -729,10 +745,11 @@ const nearHillGeometry = createMountainRidgeGeometry({
   minHeight: 2,
   // Lower foothills leave the distant ranges and grain elevator distinct.
   // Working if the overview ridge stays below the gantry instead of forming a cone above it.
-  maxHeight: 45,
+  maxHeight: 40,
   slopeDepth: 112,
   valleyFloor: 0.025,
   snowLine: 1.1,
+  rollingHills: true,
   seed: 3.41,
   colors: ['#435536', '#62704d', '#93a08f'],
 });
@@ -819,10 +836,10 @@ export function createRidgeMaterial(
     fragmentShader: ridgeFragmentShader,
     vertexColors: true,
     side: THREE.FrontSide,
-    // Fixed hills blend with the remote range in the far-distance guard.
-    // The existing opaque site depth keeps every tree and structure in front.
-    transparent: worldAnchored,
-    depthWrite: !worldAnchored,
+    // Occlusion is per fragment, including overlapping low skirts. Sorting
+    // transparent whole rings cannot represent solid intersecting landscapes.
+    transparent: false,
+    depthWrite: true,
     fog: false,
     // Tone mapped, unlike the emissive celestial bodies: these are opaque
     // surfaces sitting directly against the fogged terrain, so they have to
@@ -835,12 +852,12 @@ export function createRidgeMaterial(
       uInscatter: { value: new THREE.Color('#b9dce7') },
       uAerial: { value: aerial },
       uDetailStrength: WORLD_SURFACE_STRENGTH,
+      uSnowStrength: RIDGE_SNOW_STRENGTH,
       uWorldAnchored: { value: worldAnchored ? 1 : 0 },
-      uGroundBlendStrength: RIDGE_GROUND_BLEND_STRENGTH,
     },
   });
   material.userData.clearAerial = aerial;
-  material.customProgramCacheKey = () => 'millos-ridge-aerial-geology-v7';
+  material.customProgramCacheKey = () => 'millos-ridge-aerial-geology-v8';
   return material;
 }
 
@@ -921,7 +938,7 @@ export function OptimizedSkySystem() {
         uCloudAtlasReady: getCumulusAtlas().ready,
         uAfterglow: { value: 0 },
         uSkyAfterglowStrength: SKY_AFTERGLOW_STRENGTH,
-        uAfterglowColor: { value: new THREE.Color('#ff9858') },
+        uAfterglowColor: { value: new THREE.Color('#ffb66f') },
         cloudAmount: { value: 0.2 },
         daylight: { value: 1 },
         sunDirection: { value: new THREE.Vector3(0.5, 0.75, -0.4).normalize() },

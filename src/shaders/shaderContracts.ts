@@ -142,15 +142,14 @@ export const ACTIVE_SHADER_CONTRACTS: readonly ActiveShaderContract[] = [
     colorSpace: 'linear uniforms to Three.js output color space',
     toneMapping: 'three-chunk',
     // Per-ring aerial extinction separates the remote optical horizon from
-    // two world-anchored foothill ranges. The latter fade before the far plane.
+    // two world-anchored foothill ranges. Their colour fades before the far plane.
     fog: 'none',
-    transparency: 'alpha',
-    depthBehavior:
-      'FrontSide, depth test ON; remote ring writes depth, fixed foothills alpha-fade with depth write OFF',
+    transparency: 'opaque',
+    depthBehavior: 'FrontSide, depth test ON and depth write ON for all solid terrain rings',
     qualityVariants: ['low', 'medium'],
     uniformOwner: 'OptimizedSkySystem memoized per-ring materials',
     timeSource: 'simulation',
-    cacheKey: 'millos-ridge-aerial-geology-v7',
+    cacheKey: 'millos-ridge-aerial-geology-v8',
     disposalOwner: 'OptimizedSkySystem cleanup effect',
     fallbackMaterial: 'flat vertex-coloured basic ridge',
   },
@@ -237,7 +236,7 @@ export const ACTIVE_SHADER_CONTRACTS: readonly ActiveShaderContract[] = [
     qualityVariants: ['low', 'medium', 'high', 'ultra'],
     uniformOwner: 'AnimatedWater memoized material, registered in the module `waterMaterials` set',
     timeSource: 'simulation',
-    cacheKey: 'millos-unified-water-v15',
+    cacheKey: 'millos-unified-water-v16',
     disposalOwner: 'AnimatedWater cleanup effect disposes and deregisters',
     fallbackMaterial: 'flat calibrated deep-water colour',
   },
@@ -503,7 +502,7 @@ export const ACTIVE_SHADER_CONTRACTS: readonly ActiveShaderContract[] = [
     uniformOwner:
       'ExteriorLampDriver shared EXTERIOR_LAMP_LEVEL dimmer; shared VILLAGE_INTERIOR_STRENGTH control',
     timeSource: 'simulation',
-    cacheKey: 'millos-authored-village-windows-v4',
+    cacheKey: 'millos-authored-village-windows-v5',
     disposalOwner: 'GeneratedModel and VillageHome effect cleanup dispose cloned materials',
     fallbackMaterial: 'existing primitive village building through GeneratedBoundary',
   },

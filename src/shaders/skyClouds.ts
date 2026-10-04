@@ -285,8 +285,8 @@ vec4 millosCumulusBanks( vec3 dir, float amount, vec3 sunDir, vec3 sunTint ) {
   if ( uCloudAtlasReady < 0.5 || dir.y < -0.02 || dir.y > 0.90 ) return vec4( 0.0 );
   // Integer repeat count and wrapped cell seeds close the azimuth branch cut.
   float longitude = atan( dir.z, dir.x ) / 6.28318530718;
-  vec2 grid = vec2( longitude * 36.0 + uCloudDrift.x * 36.0, dir.y * 8.0 );
-  float column = mod( floor( grid.x ), 36.0 );
+  vec2 grid = vec2( longitude * 28.0 + uCloudDrift.x * 28.0, dir.y * 6.5 );
+  float column = mod( floor( grid.x ), 28.0 );
   float columnSeed = fract( sin( column * 127.1 + 311.7 ) * 43758.5453 );
   grid.y += ( columnSeed - 0.5 ) * 0.5;
   vec2 cell = floor( grid );
@@ -302,7 +302,7 @@ vec4 millosCumulusBanks( vec3 dir, float amount, vec3 sunDir, vec3 sunTint ) {
   float coverageWeight = smoothstep( seed - 0.10, seed + 0.10, 0.12 + amount * 0.9 );
   float alpha = cloud.a * bounds * coverageWeight * smoothstep( -0.02, 0.045, dir.y ) * ( 1.0 - smoothstep( 0.62, 0.90, dir.y ) ) * uCloudAtlasReady;
   alpha *= mix( 0.55, 1.0, smoothstep( 0.04, 0.25, dir.y ) );
-  float light = clamp( ( cloud.r - 0.20 ) / 0.80, 0.0, 1.0 );
+  float light = pow( clamp( ( cloud.r - 0.20 ) / 0.80, 0.0, 1.0 ), 0.78 );
   vec3 colour = mix( uCloudShadow, uCloudLit, light );
   float mu = max( dot( dir, sunDir ), 0.0 );
   colour += sunTint * pow( mu, 9.0 ) * ( 1.0 - cloud.a ) * 0.25;

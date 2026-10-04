@@ -18,7 +18,9 @@ vi.mock('../../stores/uiStore', () => ({
   useUIStore: (selector: (state: unknown) => unknown) =>
     selector({ alerts: [{ title: 'Bearing fault', message: 'Needs inspection.' }] }),
 }));
-vi.mock('../../stores/gameSimulationStore', () => ({ useGameSimulationStore: vi.fn() }));
+vi.mock('../../stores/gameSimulationStore', () => ({
+  useGameSimulationStore: Object.assign(vi.fn(), { subscribe: vi.fn(() => () => {}) }),
+}));
 vi.mock('../../stores/safetyStore', () => ({ useSafetyStore: vi.fn() }));
 vi.mock('../../stores/operationsCampaignStore', () => ({ useOperationsCampaignStore: vi.fn() }));
 vi.mock('../ui-new/panels/SafetyPanel', () => ({ SafetyPanel: () => null }));

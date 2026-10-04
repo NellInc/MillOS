@@ -75,7 +75,7 @@ describe('authored exterior water material and atmosphere driver', () => {
     );
     expect(water.fragmentShader).toContain('gl_FragColor = vec4(colour, 1.0)');
     expect(water.fragmentShader).toContain('#include <fog_fragment>');
-    expect(water.customProgramCacheKey()).toBe('millos-unified-water-v15');
+    expect(water.customProgramCacheKey()).toBe('millos-unified-water-v16');
     const dispose = vi.spyOn(water, 'dispose');
     for (const cleanup of driver.cleanups.splice(0)) cleanup();
     expect(dispose).toHaveBeenCalledOnce();
@@ -224,4 +224,30 @@ it('lights the body before reflection, with no second night attenuation in the f
   const finalScale = (finish: number) => illumination * (1 - finish) + finish;
   expect(illumination * finalScale(0)).toBeCloseTo(0.0064);
   expect(illumination * finalScale(1)).toBe(illumination);
+});
+
+it('reflects the actual settled sky afterglow and its runtime isolation strength', () => {
+  const water = material();
+  const sky = new THREE.ShaderMaterial({
+    uniforms: {
+      uAfterglow: { value: 0.6 },
+      uSkyAfterglowStrength: { value: 1 },
+      uAfterglowColor: { value: new THREE.Color('#ff9858') },
+    },
+  });
+  const dome = new THREE.Mesh(new THREE.SphereGeometry(1, 4, 4), sky);
+  dome.name = 'analytic-sky-dome';
+  driver.scene!.add(dome);
+  WaterAnimationManager({});
+  driver.frame!();
+  expect(water.uniforms.uAfterglow.value).toBe(0.6);
+  expect(water.uniforms.uAfterglowColour.value.equals(sky.uniforms.uAfterglowColor.value)).toBe(
+    true
+  );
+  sky.uniforms.uSkyAfterglowStrength.value = 0;
+  driver.frame!();
+  expect(water.uniforms.uAfterglow.value).toBe(0);
+  expect(water.fragmentShader).toContain('sunwardReflection');
+  dome.geometry.dispose();
+  sky.dispose();
 });

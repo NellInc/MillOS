@@ -30,6 +30,7 @@ import { getTourCameraPreset } from './onboarding/tourCamera';
 import { FirstDeliveryJourney } from './onboarding/PlayableShift';
 import { useOperationsCampaignStore } from '../../stores/operationsCampaignStore';
 import { MillOSMusicPlayer } from './MillOSMusicPlayer';
+import { WorkplaceAutoplayStatus } from './widgets/WorkplaceParticipation';
 import { WorkplaceCompanion } from './widgets/WorkplaceCompanion';
 import { useWorkplaceStore } from '../../stores/workplaceStore';
 
@@ -461,6 +462,7 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
         <Datalinks isOpen={datalinksOpen} onClose={() => setDatalinksOpen(false)} />
       )}
 
+      <WorkplaceAutoplayStatus />
       {hasWorkingAgreement && quietSlotAvailable && (
         <WorkplaceCompanion
           onOpen={() =>

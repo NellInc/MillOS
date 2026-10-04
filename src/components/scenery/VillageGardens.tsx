@@ -540,6 +540,33 @@ export const VILLAGE_HOMES = DESIGNS.map((_, index) => ({
   garden: garden(index),
 }));
 export const VILLAGE_ALLOTMENT_GEOMETRY = allotment();
+// Low clipped privet follows the hall's side gardens, with generous gaps at
+// both actual staircases. Opaque, rigid clusters can share the civic lamp bake.
+// Working if the two 7.2 m entrance gaps stay clear and the planting is grounded.
+export const TOWN_HALL_HEDGE_GEOMETRY = (() => {
+  const b = new PlotGeometry();
+  const leafCluster = (position: Point, scale: Point, colour: string) => {
+    const g = new THREE.IcosahedronGeometry(1, 1).scale(...scale).translate(...position);
+    b.add(g, colour);
+  };
+  const run = (x: number, z: number, length: number, side: boolean) => {
+    b.box(side ? [0.92, 0.065, length + 0.3] : [length + 0.3, 0.065, 0.92], [x, 0.005, z], SOIL);
+    const count = Math.ceil(length / 0.48);
+    for (let i = 0; i <= count; i++) {
+      const along = -length / 2 + (i / count) * length;
+      const xx = x + (side ? 0 : along),
+        zz = z + (side ? along : 0);
+      const h = 0.93 + Math.sin(i * 1.71 + x) * 0.075;
+      leafCluster([xx, h * 0.52, zz], [0.52, h * 0.55, 0.52], i % 3 ? '#405a32' : '#536d3b');
+      leafCluster([xx + 0.11, h * 0.86, zz - 0.09], [0.34, 0.25, 0.34], '#607b43');
+    }
+  };
+  for (const side of [-1, 1]) {
+    run(side * 8, 0, 12, true);
+    for (const end of [-1, 1]) run(side * 5.9, end * 8.2, 3.4, false);
+  }
+  return b.finish();
+})();
 export const VILLAGE_PLOT_MATERIAL = new THREE.MeshStandardMaterial({
   vertexColors: true,
   roughness: 0.84,

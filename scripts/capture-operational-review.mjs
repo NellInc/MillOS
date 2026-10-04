@@ -89,7 +89,10 @@ const observePlant = (page) => page.evaluate(() => {
 });
 async function closeMobilePanel(page) {
   const close = page.getByRole('button', { name: 'Close panel', exact: true });
-  if (await close.isVisible()) await close.click();
+  if (await close.isVisible()) {
+    await close.click();
+    await expect(close).not.toBeVisible();
+  }
 }
 async function openWorkplace(page, mobile = false) {
   if (mobile) {
@@ -1201,6 +1204,143 @@ SCENARIOS['handoff-guidance'] = {
   afterOpen: page => exerciseHandoff(page, false, 'cooperative', 'adopt', true),
 };
 
+
+async function exerciseOwnedTurns(page, mobile) {
+  const lab=workplaceLab(page);
+  await lab.getByText('Decision ownership: solo role-play',{exact:true}).click();
+  await lab.getByLabel('Interaction mode',{exact:true}).selectOption('separate-turns');
+  await beginWorkplace(page,'workshop');
+  await lab.getByRole('radio',{name:/Invite voluntary cover/}).check();
+  await lab.getByRole('button',{name:'Agreement / Voices',exact:true}).click();
+  await lab.evaluate(el=>{for(let p=el;p;p=p.parentElement)p.scrollTop=0;});
+  await page.screenshot({path:path.join(outputDirectory,`owned-${mobile?'mobile':'desktop'}-top.png`),fullPage:true});
+  for(const role of ['Packing','Quality','Maintenance','Coordinator']) {
+    const id=role.toLowerCase();
+    await lab.getByLabel('Hand over to fictional role',{exact:true}).selectOption(id);
+    await lab.getByRole('button',{name:'Begin participant turn',exact:true}).click();
+    if(role==='Packing') {
+      await lab.getByLabel('Turn check: mandate',{exact:true}).selectOption('unlimited');
+      await expect(lab.getByText('This mandate is bounded to current agreed work. Safety, qualification and individual boundaries still apply.',{exact:true})).toBeVisible();
+    }
+    for(const [q,answer] of [['mandate','bounded'],['refusal','retained'],['duty','separate']])await lab.getByLabel(`Turn check: ${q}`,{exact:true}).selectOption(answer);
+    if(role==='Packing') {
+      await lab.getByText('Only Packing may record this turn’s role decisions. Changed terms end the turn.',{exact:true}).evaluate(el=>el.scrollIntoView({block:'start'}));
+      await page.screenshot({path:path.join(outputDirectory,`owned-${mobile?'mobile':'desktop'}-packing-turn.png`),fullPage:true});
+    }
+    const card=lab.locator('details').filter({has:page.locator('summary').filter({hasText:new RegExp(`^${role}:`)})});
+    await card.locator('summary').click();
+    await card.getByRole('button',{name:`Confirm understanding: ${role}`,exact:true}).focus();
+    await page.keyboard.press('Enter');
+    if(role==='Packing') {
+      await card.locator('summary').evaluate(el=>el.scrollIntoView({block:'start'}));
+      await page.screenshot({path:path.join(outputDirectory,`owned-${mobile?'mobile':'desktop'}-packing-controls.png`),fullPage:true});
+    }
+    await card.getByRole('button',{name:`Policy ${role==='Quality'?'no':'yes'}: ${role}`,exact:true}).click();
+    await card.getByRole('button',{name:`${role==='Packing'?'Accept':'Decline'} cover: ${role}`,exact:true}).click();
+    if(role==='Packing') {
+      await card.getByRole('button',{name:'Share preference for shift planning: Packing',exact:true}).click();
+      await card.getByRole('button',{name:'Revoke preference sharing: Packing',exact:true}).click();
+    }
+    await card.locator('summary').click();
+    await lab.getByRole('button',{name:'End participant turn',exact:true}).click();
+  }
+  await assertWorkplaceFits(page);
+  await page.screenshot({path:path.join(outputDirectory,`owned-${mobile?'mobile':'desktop'}-agreement.png`),fullPage:true});
+  await lab.getByRole('button',{name:'Record workshop agreement',exact:true}).click();
+  await lab.getByRole('button',{name:'Shift',exact:true}).click();
+  await lab.getByRole('button',{name:'Advance rehearsal by 5 minutes',exact:true}).click();
+  const earned=await observeWorkplace(page);
+  expect(earned.members.find(m=>m.id==='packing').compensationPaid).toBe(4);
+  await lab.getByRole('button',{name:'Save and safely reload workplace',exact:true}).click();
+  await lab.getByRole('button',{name:'Review',exact:true}).click();
+  await lab.getByText('Individual fairness receipts',{exact:true}).click();
+  await expect(lab.getByRole('region',{name:'Fairness: Packing'})).toContainText('Recovery owed: 10.0 min');
+  for(let n=0;n<2;n++)await lab.getByRole('button',{name:'Deliver modeled recovery (5 minutes)',exact:true}).click();
+  const settled=await observeWorkplace(page);
+  expect(settled.phase).toBe('review');expect(settled.members.every(m=>m.recoveryOwedMinutes===0)).toBe(true);
+  expect(settled.members.find(m=>m.id==='quality').earnedPay).toBe(1.5);
+  await page.reload({waitUntil:'domcontentloaded'});await waitForApp(page,true);await openWorkplace(page,mobile);
+  await expect(lab.getByText('Decision ownership: facilitator handover',{exact:true})).toBeVisible();
+  await lab.getByRole('button',{name:'Review',exact:true}).click();await lab.getByText('Individual fairness receipts',{exact:true}).click();
+  await lab.getByRole('region',{name:'Fairness: Packing'}).scrollIntoViewIfNeeded();await assertWorkplaceFits(page);
+  return {earned,settled,checks:['role-owned-controls','wrong-answer-no-grant','fresh-checks','keyboard-understanding','protected-policy-no','optional-share-and-revoke','earned-pay','reserved-compensation','owed-recovery-retained-and-delivered','real-reload-revokes-turn','360px-no-overflow','reduced-motion']};
+}
+for(const mobile of [false,true]) SCENARIOS[`workplace-owned${mobile?'-mobile':''}`]={
+  title:`Owned decisions and individual recovery${mobile?' at 360px':''}`,
+  liveCamera:true,viewport:mobile?{width:360,height:780}:DESKTOP_VIEWPORT,
+  prepare:page=>openWorkplace(page,mobile),surfaceRole:mobile?'dialog':'complementary',
+  surfaceName:mobile?'Bilateral Autonomy mobile panel':'Workplace & Autonomy sidebar panel',
+  afterOpen:page=>exerciseOwnedTurns(page,mobile),
+};
+SCENARIOS['workplace-auto-season']={
+  title:'Skipped guidance runs a complete physical cooperative season',liveCamera:true,viewport:DESKTOP_VIEWPORT,
+  prepare:page=>openWorkplace(page),surfaceRole:'complementary',surfaceName:'Workplace & Autonomy sidebar panel',
+  afterOpen:async page=>{
+    const lab=workplaceLab(page);
+    await expect(page.getByRole('button',{name:'Take over cooperative season',exact:true})).toBeVisible();
+    await page.waitForFunction(()=>window.__MILLOS_AGENT__.query({view:'domain',domainId:'experience',fields:['workplace.phase','workplace.campaign.shift']}).data?.state?.workplace?.phase==='active',null,{timeout:60000});
+    // Leave the panel: the ephemeral solo runner must keep operating.
+    await page.getByRole('button',{name:'Bilateral Autonomy System (BAS)',exact:true}).click();
+    await page.waitForFunction(()=>{const w=window.__MILLOS_AGENT__.query({view:'domain',domainId:'experience',fields:['workplace.phase','workplace.campaign.shift']}).data?.state?.workplace;return w?.phase==='review' && w.campaign?.shift===2;},null,{timeout:900000});
+    await openWorkplace(page);
+    await expect(lab.getByText('Automatic three-shift season complete. Read the individual receipts and rehearse safe reload.',{exact:true})).toBeVisible();
+    await lab.getByRole('button',{name:'Review',exact:true}).click();await lab.getByText('Individual fairness receipts',{exact:true}).click();
+    const outcome=await observeWorkplace(page);const plant=await observePlant(page);
+    expect(outcome.campaign.history).toHaveLength(2);expect(outcome.members.every(m=>m.recoveryOwedMinutes===0)).toBe(true);
+    const download=page.waitForEvent('download');await lab.getByRole('button',{name:'Download public cooperative receipt',exact:true}).click();await (await download).saveAs(path.join(outputDirectory,'auto-season-public-receipt.json'));
+    await lab.getByRole('region',{name:'Fairness: Packing'}).scrollIntoViewIfNeeded();await assertWorkplaceFits(page);
+    return {outcome,plant,checks:['autonomous-default','labelled-synthetic-autoplay','continues-with-guide-closed','three-physical-shifts','qualified-inspection','fresh-consent','rotation','public-privacy-minimised-receipt','no-artificial-dispatch']};
+  },
+};
+
+for(const mobile of [false,true]) SCENARIOS[`workplace-auto-takeover${mobile?'-mobile':''}`]={
+  title:`Autonomous default, human takeover and influence${mobile?' at 360px':''}`,
+  liveCamera:true,viewport:mobile?{width:360,height:780}:DESKTOP_VIEWPORT,
+  prepare:page=>openWorkplace(page,mobile),surfaceRole:mobile?'dialog':'complementary',
+  surfaceName:mobile?'Bilateral Autonomy mobile panel':'Workplace & Autonomy sidebar panel',
+  afterOpen:async page=>{
+    // Inspect the full selected explanations before a human grants understanding.
+    await page.waitForFunction(()=>window.__MILLOS_AGENT__.query({view:'domain',domainId:'experience',fields:['workplace.phase']}).data?.state?.workplace?.phase==='deliberating',null,{timeout:60000});
+    await workplaceLab(page).getByRole('button',{name:'Pause automatic demo',exact:true}).click();
+    const earlyLab=workplaceLab(page);
+    await earlyLab.getByRole('button',{name:'Agreement / Voices',exact:true}).click();
+    const earlyCard=earlyLab.locator('details').filter({has:page.locator('summary').filter({hasText:/^Maintenance:/})});
+    await earlyCard.locator('summary').click();
+    for(const [prompt,value] of [
+      ["Who can agree to a role's optional extra duty?",'individual'],
+      ['Must a role share a private explanation to retain pay or refuse?','optional'],
+      ['What happens to earned compensation and recovery after withdrawal?','retained'],
+    ])await earlyCard.getByLabel(`Maintenance: ${prompt}`,{exact:true}).selectOption(value);
+    await expect(earlyCard.locator('#check-answer-maintenance-privacy')).toHaveText('No, explanation sharing is optional and revocable');
+    expect((await observeWorkplace(page)).members.find(m=>m.id==='maintenance').understood).toBe(false);
+    await earlyCard.locator('summary').evaluate(el=>el.scrollIntoView({block:'start'}));
+    await assertWorkplaceFits(page);
+    await page.screenshot({path:path.join(outputDirectory,`auto-${mobile?'mobile':'desktop'}-checks.png`),fullPage:true});
+    if(mobile){await earlyCard.locator('#check-answer-maintenance-repayment').scrollIntoViewIfNeeded();await page.screenshot({path:path.join(outputDirectory,'auto-mobile-checks-recovery.png'),fullPage:true});}
+    await earlyLab.getByRole('button',{name:'Skip guide and run fictional demo',exact:true}).click();
+    await page.waitForFunction(()=>window.__MILLOS_AGENT__.query({view:'domain',domainId:'experience',fields:['workplace.phase']}).data?.state?.workplace?.phase==='active',null,{timeout:60000});
+    if(mobile)await closeMobilePanel(page);else await page.getByRole('button',{name:'Close sidebar panel',exact:true}).click();
+    await expect(page.getByRole('button',{name:'Take over cooperative season',exact:true})).toBeVisible();
+    await page.screenshot({path:path.join(outputDirectory,`auto-${mobile?'mobile':'desktop'}-running.png`),fullPage:true});
+    await page.getByRole('button',{name:'Take over cooperative season',exact:true}).click();
+    const held=await observeWorkplace(page);
+    await openWorkplace(page,mobile);const lab=workplaceLab(page);
+    await expect(lab.getByText('Automatic decisions paused. Your choices take priority.',{exact:true})).toBeVisible();
+    await lab.evaluate(el=>{for(let p=el;p;p=p.parentElement)p.scrollTop=0;});
+    await page.screenshot({path:path.join(outputDirectory,`auto-${mobile?'mobile':'desktop'}-human-control.png`),fullPage:true});
+    await lab.getByRole('button',{name:'Agreement / Voices',exact:true}).click();
+    const card=lab.locator('details').filter({has:page.locator('summary').filter({hasText:/^Maintenance:/})});
+    await card.locator('summary').click();
+    await card.getByRole('button',{name:'Withdraw optional cover: Maintenance',exact:true}).click();
+    const influenced=await observeWorkplace(page);
+    expect(influenced.members.find(m=>m.id==='maintenance').coverConsent).toBe(false);
+    expect(influenced.members.find(m=>m.id==='maintenance').earnedPay).toBe(held.members.find(m=>m.id==='maintenance').earnedPay);
+    expect((await observePlant(page)).simulation.gameSpeed).toBe(0);
+    await card.locator('summary').evaluate(el=>el.scrollIntoView({block:'start'}));await assertWorkplaceFits(page);
+    return {held,influenced,checks:['autonomous-default','visible-takeover-with-panel-closed','human-control-labelled','human-withdrawal-retained','earned-pay-retained','clock-paused','no-overflow']};
+  },
+};
+
 const SCENARIO_SETS = {
   quick: ['overview', 'scada-overview', 'fire-drill', 'mobile-fire-drill'],
   desktop: Object.keys(SCENARIOS).filter((name) => SCENARIOS[name].viewport === DESKTOP_VIEWPORT),
@@ -1217,6 +1357,8 @@ const SCENARIO_SETS = {
   'workplace-replay': ['workplace-replay', 'workplace-replay-mobile'],
   'worker-improvement': Object.keys(SCENARIOS).filter(name => name.startsWith('workplace-handoff-')),
   'grounded-cooperation': ['workplace-grounded', 'workplace-grounded-mobile'],
+  'owned-decisions': ['workplace-owned','workplace-owned-mobile','workplace-auto-season','workplace-auto-takeover','workplace-auto-takeover-mobile'],
+  'owned-controls': ['workplace-owned','workplace-owned-mobile','workplace-auto-takeover','workplace-auto-takeover-mobile'],
   'grounded-entry': ['workplace-grounded-entry', 'workplace-grounded-entry-mobile'],
   'workplace-dissent': Object.keys(SCENARIOS).filter(name => name.startsWith('workplace-dissent-')),
   full: Object.keys(SCENARIOS),
@@ -1467,6 +1609,7 @@ async function runScenario(browser, baseUrl, stateName) {
       'millos-audio',
       JSON.stringify({ version: 2, muted: true, volume: 0, musicEnabled: false, musicVolume: 0, machineVolume: 0 })
     );
+    if (skipWelcome !== 'autonomous-default') localStorage.setItem('millos-workplace-demo-preference',JSON.stringify({version:1,state:{manual:true}}));
     localStorage.setItem(
       'millos-ui',
       JSON.stringify({ state: { hasSeenIntro: true }, version: 1 })
@@ -1482,7 +1625,7 @@ async function runScenario(browser, baseUrl, stateName) {
         })
       );
     }
-  }, stateName === 'camera-menu-landscape' || stateName.startsWith('workplace-'));
+  }, stateName.startsWith('workplace-auto-') ? 'autonomous-default' : stateName === 'camera-menu-landscape' || stateName.startsWith('workplace-'));
 
   const page = await context.newPage();
   const diagnostics = { consoleErrors: [], pageErrors: [], failedRequests: [] };

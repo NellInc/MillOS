@@ -372,3 +372,100 @@ normally, mutex clear, no temporary atomic-write files left. Final nineteen
 source/assets and387delivery hashes still match. Canonical local receipt:
 output/dusk-fidelity-20261004/lighting-final-acceptance.json. Gallery shows actual
 frames alongside the pinned reference. Full parent goal remains active.
+
+
+## Consolidated finishing batch, 4 October
+
+Nell approved documenting the finishing workflow alongside the earlier workflow
+and proceeding. The maintained protocol is docs/VISUAL_FIDELITY_LOOP.md,
+Consolidated finishing workflow. This batch covers warmer/stronger civic lamps,
+town-hall interior light and accessible hedges, real fruit surface textures,
+clouds and sun-directed post-sunset glow, water shading, snowy remote mountains
+and rolling intermediate foothills. No audio or music. Preserve the concept's
+architecture and every mapped lamp, one dynamic celestial shadow caster,
+fixed local visibility, original readiness/performance budgets and archives.
+
+Candidate: /private/tmp/millos-dusk-finish-20261004. Its 2,043 baseline inputs
+were individually hash-checked against the preceding integrated candidate.
+Named baseline: 2,666 tests in 243 files pass, no named failures. Concurrent
+workplace edits are excluded. The initial copy accidentally included three
+workplace UI files; only their isolated copies were restored to baseline before
+testing, and primary files remain untouched.
+
+Execute geometry/materials, atmosphere/lighting, one actual-assembly shadow
+bake, one batched visual review and at most one corrective confirmation, then
+affected/final whole gates and unchanged eligible Low/Medium measurements.
+Publication follows the parent task's existing explicit MillOS authority and
+requires CI, actual served gameplay and archive verification. Cleanup is limited
+to demonstrably owned disposable outputs. Working if each requested feature
+has current source-bound evidence and no internal checkpoint is claimed as
+parent completion.
+
+
+### Corrective confirmation custody
+
+Round one identified angular privet and foothills masking the snow. The
+corrective batch rounds the foliage, reserves at least 7.2 m clear at the two
+stair approaches, warms recessed civic rooms, exposes remote snowy massifs
+and expands only the true sunward afterglow band. The unchanged valley and
+stair tests caught two initial geometry errors; both are repaired. Final actual
+rigid bake: 385,491 vertices, 164,121 triangles, all 27 sources have blocked
+and clear rays, pair version 345c4f90178dca328eb87616db253157d6a5fe49cf77a84dc4da0a3050c86219.
+
+The first whole suite passed 2,670 and failed Tunnel.test.ts, runs the tail into
+the foothills instead of ending in open meadow. Lowering the nearest foothill
+crest from 45 to 40 m restores actual terrain contact; the unchanged tunnel/
+ridge tests pass 37/37. Ridge meshes do not cast civic shadows and are absent
+from the actual rigid export, so this correction leaves the bake unchanged.
+Failed receipts remain retained. The first static and build jobs mistakenly
+shared a receipt destination; their distinct terminal results and stage logs
+survive, but the combined JSON is incomplete. Final static/build stages are
+serialised under a fresh source seal, with no ambiguous aggregate verdict.
+Working if the final source stays fixed, all required terminal gates exist in
+one complete receipt, and the failed first suite is never reported green.
+
+
+### User-reported foothill defect, 4 October 18:41 screenshot
+
+The corrective image was rejected: overlapping foothill ribbons expose sky.
+The cause is a 15 to 23 m alpha cutout combined with transparent, non-depth-writing
+fixed hill rings. This is a blocking defect, not a cosmetic review extension.
+Restore opaque per-fragment depth, retaining all three meshes, positions and
+tunnel geometry. Distant colour extinction remains, without terrain alpha holes.
+Keep low hills vegetated and derive remote snow caps from altitude with a narrow
+irregular boundary. Snow is absent from baked vertex colour, making the existing
+shared snow uniform a real control. Working if the reproduced lake ray meets
+opaque land, all hill feet overlap actual terrain, unchanged tunnel bore/tail
+checks pass, and direct lake/noon/blue-hour captures show grounded hills and caps.
+
+Focused result: 36/36 ridge and tunnel tests pass. The repaired source passes
+2,670 tests in 243 files (baseline 2,666, no failures), all eleven static stages
+and all four build/delivery stages. The normal build completes in 19.04 seconds.
+Direct lake, noon and blue-hour renders show solid overlapping land; noon caps
+are readable. These are implementer-reviewed frames, not independent approval.
+The earlier 2,671-test seal remains historical pre-repair evidence.
+
+Source fingerprint: abd89c891b25fdf2c585fc6b51c964149255c33be9dc13b0a378f7e5254ca221.
+Delivery fingerprint: 19cedcad0771acfd7be6b0c7f31033e6863d6dca547807eab17864b3b32928f9.
+The two validation jobs again shared an aggregate destination by mistake.
+Separate terminal results and unique logs survive; the explicit reconciliation
+is test-results/gameplay-polish-20261002/foothill-repair-20261004-reconciled.json.
+This status update is a documentation-only transfer after that source seal.
+
+All eleven original Low day/dusk/night cases pass. Medium noon fails all five
+scenes: p95 17.7 to 21.6 ms exceeds the unchanged 16.7 ms budget; receiving also
+fails average FPS and 1% low, and water fails average FPS. Load is eligible
+(0.85 to 1.25/core), DPR is correct and raw diagnostics are empty. These are
+genuine failed measurements, not a proven foothill regression. Medium dusk and
+night did not run after the failure. No preset, budget or loader was relaxed.
+Receipt: output/dusk-fidelity-20261004/finish/foothill-performance-confirmed.json.
+
+The earlier owned SwiftShader browser timed out and closed normally, without
+any process signal. Its failed receipt remains. A subsequent real-GPU native
+advisory check passes normal startup and both 1440/390 layouts with two explicit
+synthetic requests and no console, page, request or CSP errors. Receipt:
+output/dusk-fidelity-20261004/finish/jev-native-result.json. It does not certify
+software-rendered CI. All owned browsers/previews are closed; other contexts
+remain untouched. Publication status: local only. Wider graphics performance
+acceptance and the parent release remain incomplete. Working if failed gates
+remain visible and the repaired foothills are not called a completed release.

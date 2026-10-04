@@ -133,13 +133,13 @@
         3.525,
         14.47
       ],
-      "intensity": 14,
+      "intensity": 19,
       "distance": 9,
       "reference": [
         0.29,
         0.375
       ],
-      "actualIntensity": 14
+      "actualIntensity": 19
     },
     {
       "id": "hall-east",
@@ -149,13 +149,13 @@
         3.525,
         14.47
       ],
-      "intensity": 14,
+      "intensity": 19,
       "distance": 9,
       "reference": [
         0.407,
         0.375
       ],
-      "actualIntensity": 14
+      "actualIntensity": 19
     },
     {
       "id": "hall-sign",
@@ -181,13 +181,13 @@
         3.3,
         7.08
       ],
-      "intensity": 65,
+      "intensity": 78,
       "distance": 24,
       "reference": [
         0.019,
         0.386
       ],
-      "actualIntensity": 65
+      "actualIntensity": 78
     },
     {
       "id": "post-fountain",
@@ -197,13 +197,13 @@
         3.3,
         12.08
       ],
-      "intensity": 56,
+      "intensity": 70,
       "distance": 24,
       "reference": [
         0.546,
         0.368
       ],
-      "actualIntensity": 56
+      "actualIntensity": 70
     },
     {
       "id": "post-garden",
@@ -213,13 +213,13 @@
         3.3,
         18.08
       ],
-      "intensity": 55,
+      "intensity": 68,
       "distance": 20,
       "reference": [
         0.662,
         0.402
       ],
-      "actualIntensity": 55
+      "actualIntensity": 68
     },
     {
       "id": "post-right",
@@ -229,13 +229,13 @@
         3.3,
         5.08
       ],
-      "intensity": 55,
+      "intensity": 68,
       "distance": 20,
       "reference": [
         0.965,
         0.373
       ],
-      "actualIntensity": 55
+      "actualIntensity": 68
     },
     {
       "id": "shed-wall",
@@ -261,13 +261,13 @@
         0.44,
         15.5
       ],
-      "intensity": 9,
+      "intensity": 12,
       "distance": 9,
       "reference": [
         0.025,
         0.563
       ],
-      "actualIntensity": 9
+      "actualIntensity": 12
     },
     {
       "id": "hall-front-west",
@@ -277,13 +277,13 @@
         0.44,
         13.1
       ],
-      "intensity": 9,
+      "intensity": 12,
       "distance": 9,
       "reference": [
         0.176,
         0.604
       ],
-      "actualIntensity": 9
+      "actualIntensity": 12
     },
     {
       "id": "hall-front-east",
@@ -293,13 +293,13 @@
         0.44,
         13.1
       ],
-      "intensity": 9,
+      "intensity": 12,
       "distance": 9,
       "reference": [
         0.48,
         0.539
       ],
-      "actualIntensity": 9
+      "actualIntensity": 12
     },
     {
       "id": "hall-side-near",
@@ -309,13 +309,13 @@
         0.44,
         20
       ],
-      "intensity": 9,
+      "intensity": 12,
       "distance": 9,
       "reference": [
         0.04,
         0.478
       ],
-      "actualIntensity": 9
+      "actualIntensity": 12
     },
     {
       "id": "hall-side-far",
@@ -325,13 +325,13 @@
         0.44,
         24
       ],
-      "intensity": 9,
+      "intensity": 12,
       "distance": 9,
       "reference": [
         0.074,
         0.472
       ],
-      "actualIntensity": 9
+      "actualIntensity": 12
     },
     {
       "id": "fountain-border",
@@ -341,13 +341,13 @@
         0.44,
         10.5
       ],
-      "intensity": 10,
+      "intensity": 13,
       "distance": 9,
       "reference": [
         0.552,
         0.505
       ],
-      "actualIntensity": 10
+      "actualIntensity": 13
     },
     {
       "id": "tree-inner",
@@ -373,13 +373,13 @@
         0.44,
         10.5
       ],
-      "intensity": 9,
+      "intensity": 12,
       "distance": 9,
       "reference": [
         0.687,
         0.507
       ],
-      "actualIntensity": 9
+      "actualIntensity": 12
     },
     {
       "id": "gate-outer",
@@ -389,13 +389,13 @@
         0.44,
         7.5
       ],
-      "intensity": 9,
+      "intensity": 12,
       "distance": 9,
       "reference": [
         0.737,
         0.532
       ],
-      "actualIntensity": 9
+      "actualIntensity": 12
     },
     {
       "id": "shed-bed-west",
@@ -405,13 +405,13 @@
         0.44,
         13.8
       ],
-      "intensity": 9,
+      "intensity": 12,
       "distance": 9,
       "reference": [
         0.776,
         0.529
       ],
-      "actualIntensity": 9
+      "actualIntensity": 12
     },
     {
       "id": "shed-bed-east",
@@ -421,13 +421,13 @@
         0.44,
         9.2
       ],
-      "intensity": 9,
+      "intensity": 12,
       "distance": 9,
       "reference": [
         0.817,
         0.529
       ],
-      "actualIntensity": 9
+      "actualIntensity": 12
     },
     {
       "id": "tree-middle",
@@ -469,13 +469,13 @@
         0.44,
         -1.2
       ],
-      "intensity": 10,
+      "intensity": 13,
       "distance": 9,
       "reference": [
         0.984,
         0.572
       ],
-      "actualIntensity": 10
+      "actualIntensity": 13
     },
     {
       "id": "hall-front-window--4.3",
@@ -485,13 +485,13 @@
         3.35,
         13.9
       ],
-      "intensity": 1.8,
+      "intensity": 3.3,
       "distance": 7,
       "reference": [
         0.44,
         0.4
       ],
-      "actualIntensity": 1.8
+      "actualIntensity": 3.3
     },
     {
       "id": "hall-front-window-4.3",
@@ -501,13 +501,13 @@
         3.35,
         13.9
       ],
-      "intensity": 1.8,
+      "intensity": 3.3,
       "distance": 7,
       "reference": [
         0.21,
         0.4
       ],
-      "actualIntensity": 1.8
+      "actualIntensity": 3.3
     },
     {
       "id": "hall-side-window-16.8",
@@ -517,13 +517,13 @@
         3.35,
         16.8
       ],
-      "intensity": 1.8,
+      "intensity": 3.3,
       "distance": 7,
       "reference": [
         0.08,
         0.4
       ],
-      "actualIntensity": 1.8
+      "actualIntensity": 3.3
     },
     {
       "id": "hall-side-window-20",
@@ -533,13 +533,13 @@
         3.35,
         20
       ],
-      "intensity": 1.8,
+      "intensity": 3.3,
       "distance": 7,
       "reference": [
         0.08,
         0.4
       ],
-      "actualIntensity": 1.8
+      "actualIntensity": 3.3
     },
     {
       "id": "hall-side-window-23.2",
@@ -549,13 +549,13 @@
         3.35,
         23.2
       ],
-      "intensity": 1.8,
+      "intensity": 3.3,
       "distance": 7,
       "reference": [
         0.08,
         0.4
       ],
-      "actualIntensity": 1.8
+      "actualIntensity": 3.3
     }
   ],
   "objects": [
@@ -691,12 +691,17 @@
     },
     {
       "name": "static-merge:authored-village:0:14",
-      "vertices": 181440,
+      "vertices": 127908,
       "instances": 1
     },
     {
       "name": "static-merge:authored-village:0:15",
       "vertices": 30960,
+      "instances": 1
+    },
+    {
+      "name": "static-merge:authored-village:0:16",
+      "vertices": 95988,
       "instances": 1
     }
   ],
@@ -704,21 +709,21 @@
     "alphaOrMoving": 41
   },
   "dynamicLocalShadows": false,
-  "inputSha256": "4a6f4e8737270ec59193623e374f35376343eb4e0c973d731995d2b1f9c35416",
-  "atlasSha256": "4abea8ba7c4e3926724f3d8da769a4b6f795571eb4cc9231cdb0d1da028a6523",
+  "inputSha256": "8dcc9a4a2fb90c902af04b5a43b5d3e62a1f0bafc6b0e09a445f050d0ece5aed",
+  "atlasSha256": "2e3920abd65a5f8871174747d592e222f6dfdd471b94f87b72e85276b218c92d",
   "bakerSha256": "e4a1187f642e15650def16479000b54b52c562a1e7af3e1894d40db3aabe7973",
-  "vertices": 343035,
-  "triangles": 149969,
-  "elapsedSeconds": 8.0,
+  "vertices": 385491,
+  "triangles": 164121,
+  "elapsedSeconds": 8.35,
   "sourceReceipts": [
     {
       "id": "hall-west",
-      "blockedRays": 78390,
+      "blockedRays": 78847,
       "rays": 98304
     },
     {
       "id": "hall-east",
-      "blockedRays": 78340,
+      "blockedRays": 78796,
       "rays": 98304
     },
     {
@@ -728,17 +733,17 @@
     },
     {
       "id": "post-left",
-      "blockedRays": 61980,
+      "blockedRays": 62317,
       "rays": 98304
     },
     {
       "id": "post-fountain",
-      "blockedRays": 73925,
+      "blockedRays": 75561,
       "rays": 98304
     },
     {
       "id": "post-garden",
-      "blockedRays": 54832,
+      "blockedRays": 55127,
       "rays": 98304
     },
     {
@@ -753,32 +758,32 @@
     },
     {
       "id": "hall-verge",
-      "blockedRays": 50467,
+      "blockedRays": 64161,
       "rays": 98304
     },
     {
       "id": "hall-front-west",
-      "blockedRays": 46118,
+      "blockedRays": 53905,
       "rays": 98304
     },
     {
       "id": "hall-front-east",
-      "blockedRays": 47118,
+      "blockedRays": 54281,
       "rays": 98304
     },
     {
       "id": "hall-side-near",
-      "blockedRays": 53721,
+      "blockedRays": 68540,
       "rays": 98304
     },
     {
       "id": "hall-side-far",
-      "blockedRays": 50822,
+      "blockedRays": 65992,
       "rays": 98304
     },
     {
       "id": "fountain-border",
-      "blockedRays": 38082,
+      "blockedRays": 45043,
       "rays": 98304
     },
     {
@@ -823,27 +828,27 @@
     },
     {
       "id": "hall-front-window--4.3",
-      "blockedRays": 46789,
+      "blockedRays": 49581,
       "rays": 98304
     },
     {
       "id": "hall-front-window-4.3",
-      "blockedRays": 46377,
+      "blockedRays": 49175,
       "rays": 98304
     },
     {
       "id": "hall-side-window-16.8",
-      "blockedRays": 41487,
+      "blockedRays": 46004,
       "rays": 98304
     },
     {
       "id": "hall-side-window-20",
-      "blockedRays": 43720,
+      "blockedRays": 48107,
       "rays": 98304
     },
     {
       "id": "hall-side-window-23.2",
-      "blockedRays": 41293,
+      "blockedRays": 46065,
       "rays": 98304
     }
   ]

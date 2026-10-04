@@ -1096,6 +1096,16 @@ export const WaterAnimationManager: React.FC = () => {
       uniforms.uDaylight.value = daylight;
       uniforms.uSkyZenith.value.copy(_waterZenith);
       uniforms.uSkyHorizon.value.copy(_waterHorizon);
+      uniforms.uAfterglow.value =
+        sky instanceof THREE.ShaderMaterial
+          ? (sky.uniforms.uAfterglow?.value ?? 0) *
+            (sky.uniforms.uSkyAfterglowStrength?.value ?? 1) *
+            WATER_SKY_RADIANCE.value
+          : 0;
+      const afterglowColour =
+        sky instanceof THREE.ShaderMaterial ? sky.uniforms.uAfterglowColor?.value : null;
+      if (afterglowColour instanceof THREE.Color)
+        uniforms.uAfterglowColour.value.copy(afterglowColour);
       uniforms.uSunColour.value.copy(_waterSun);
       uniforms.uSunDirection.value.set(
         celestial.sunDirection[0],
@@ -1189,6 +1199,8 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
         uSkyZenith: { value: WATER_ZENITH_DAY.clone() },
         uSkyHorizon: { value: WATER_HORIZON_DAY.clone() },
         uSunColour: { value: WATER_SUN_TINT.clone() },
+        uAfterglow: { value: 0 },
+        uAfterglowColour: { value: new THREE.Color('#ffb66f') },
         uSunDirection: { value: new THREE.Vector3(0.35, 0.86, 0.37) },
         ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog),
       },
@@ -1258,6 +1270,8 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
         uniform vec3 uSkyZenith;
         uniform vec3 uSkyHorizon;
         uniform vec3 uSunColour;
+        uniform float uAfterglow;
+        uniform vec3 uAfterglowColour;
         uniform vec3 uSunDirection;
         varying vec2 vUv;
         varying float vWave;
@@ -1327,7 +1341,7 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
           // Shade the water body once, before adding incident sky radiance.
           // Previously a final daylight multiplier also darkened the already
           // night-coloured reflection, making lit sky reflect as a black hole.
-          float illumination = mix(0.08, 1.0,
+          float illumination = mix(0.14, 1.0,
             clamp(uDaylight * (1.0 + uWetness * 0.08), 0.0, 1.0));
           float bodyLight = mix(1.0, illumination, uSkyRadiance);
           vec3 colour = mix(uShallow, uDeep, depth) * bodyLight;
@@ -1358,8 +1372,19 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
           // real sky, sun and fog.
           vec3 reflected = reflect(-viewDirection, normal);
           vec3 skyColour = mix(uSkyHorizon, uSkyZenith, sqrt(clamp(reflected.y, 0.0, 1.0)));
+          // The same localized afterglow as the actual sky, reflected only
+          // toward the setting sun. No offscreen camera or render target.
+          // Working if the opposite bank stays cool and noon/night are unchanged.
+          if (uAfterglow > 0.0001) {
+            float sunwardReflection = max(dot(normalize(reflected.xz + vec2(0.0001)),
+              normalize(uSunDirection.xz + vec2(0.0001))), 0.0);
+            float glow = uAfterglow * pow(sunwardReflection, 2.0)
+              * (1.0 - smoothstep(0.08, 0.38, reflected.y)) * smoothstep(-0.02, 0.04, reflected.y);
+            skyColour = mix(skyColour, uAfterglowColour * 0.45 + vec3(0.0, 0.03, 0.06), glow * 0.55);
+            skyColour += uAfterglowColour * glow * 0.86;
+          }
           vec3 reflectionColour = mix(uReflection * mix(0.08, 1.0, uDaylight), skyColour, 0.75);
-          float reflectance = clamp(0.03 + fresnel * 0.72, 0.0, 0.85);
+          float reflectance = clamp(0.045 + fresnel * 0.76, 0.0, 0.85);
           colour = mix(colour, reflectionColour, reflectance);
 
           // Specular sun: a tight glitter lobe plus a broad sheen. Both are
@@ -1440,7 +1465,7 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
     // MANUALLY VERSIONED, never derived from time or randomness - see the
     // documented `Date.now()` cache-key bug. Bump this whenever the shader
     // source above changes or a stale cached program will be reused.
-    value.customProgramCacheKey = () => 'millos-unified-water-v15';
+    value.customProgramCacheKey = () => 'millos-unified-water-v16';
     return value;
   }, [crossOnly, deep, falling, flowSpeed, flowX, flowY, opacity, radial, reflection, shallow]);
 

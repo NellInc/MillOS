@@ -8,6 +8,7 @@ import {
   VILLAGE_ALLOTMENT,
   VILLAGE_ALLOTMENT_GEOMETRY,
   VILLAGE_PLOT_MATERIAL,
+  TOWN_HALL_HEDGE_GEOMETRY,
 } from './VillageGardens';
 import {
   VILLAGE_BUILDING_FOOTPRINTS,
@@ -218,4 +219,29 @@ describe('authored British/Dutch village plots', () => {
         )
       ).toBe(false);
   });
+});
+
+it('grounds the civic privet while leaving both real stair approaches clear', () => {
+  const hedge = mesh(TOWN_HALL_HEDGE_GEOMETRY);
+  TOWN_HALL_HEDGE_GEOMETRY.computeBoundingBox();
+  const box = TOWN_HALL_HEDGE_GEOMETRY.boundingBox!;
+  expect(box.min.y).toBeLessThan(0.04);
+  expect(box.max.y).toBeLessThan(1.25);
+  for (const z of [-8.2, 8.2]) {
+    for (const x of [-3.1, 0, 3.1]) {
+      expect(
+        new THREE.Raycaster(
+          new THREE.Vector3(x, 2, z),
+          new THREE.Vector3(0, -1, 0)
+        ).intersectObject(hedge)
+      ).toHaveLength(0);
+    }
+    for (const x of [-5.3, 5.3])
+      expect(
+        new THREE.Raycaster(
+          new THREE.Vector3(x, 2, z),
+          new THREE.Vector3(0, -1, 0)
+        ).intersectObject(hedge).length
+      ).toBeGreaterThan(0);
+  }
 });

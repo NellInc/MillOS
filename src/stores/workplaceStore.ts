@@ -24,6 +24,16 @@ import { workplaceMission } from '../simulation/workplaceImprovement';
 import { safeJSONStorage } from './storage';
 import { isWorkplaceReplayActive } from '../simulation/workplaceReplayRuntime';
 
+import {
+  ROLE_COMMANDS,
+  interruptAutomaticWorkplace,
+  isRoleCommand,
+  commandActor,
+  turnChecks,
+  type RoleCommand,
+  type TurnCheckId,
+} from '../simulation/workplaceParticipation';
+
 const MAX_COMPLETED_CAMPAIGNS = 6;
 /** Observation only. Freshness is checked against the current physical facts,
  * rather than assuming that a matching order id makes its execution cache fresh. */
@@ -132,7 +142,24 @@ function retainedReviews(input: unknown): WorkplaceState[] {
     .filter((review): review is WorkplaceState => review !== null);
 }
 
-interface WorkplaceStore extends WorkplaceActions {
+export interface WorkplaceStore extends WorkplaceActions {
+  participationMode: 'solo' | 'separate-turns';
+  turn: {
+    token: string;
+    actorId: string;
+    anchor: WorkplaceState;
+    answers: Partial<Record<TurnCheckId, string>>;
+  } | null;
+  setParticipationMode: (mode: 'solo' | 'separate-turns') => WorkplaceTransitionResult;
+  startTurn: (actorId: string) => WorkplaceTransitionResult;
+  endTurn: () => WorkplaceTransitionResult;
+  answerTurnCheck: (
+    token: string,
+    question: TurnCheckId,
+    answer: string
+  ) => WorkplaceTransitionResult;
+  runTurnCommand: (token: string, command: RoleCommand) => WorkplaceTransitionResult;
+  rehearseReload: (revision: number) => WorkplaceTransitionResult;
   workplace: WorkplaceState;
   completedCampaigns: WorkplaceState[];
   startMission: (profile: WorkplaceProfile, seed?: number) => WorkplaceTransitionResult;
@@ -142,7 +169,51 @@ interface WorkplaceStore extends WorkplaceActions {
 export const useWorkplaceStore = create<WorkplaceStore>()(
   persist(
     (set, get) => {
-      const apply = (command: WorkplaceCommand) => {
+      const apply = (command: WorkplaceCommand, token?: string) => {
+        if (command.type !== 'tick') interruptAutomaticWorkplace();
+        const access = get();
+        if (access.participationMode === 'separate-turns') {
+          if (isRoleCommand(command)) {
+            const turn = access.turn;
+            if (
+              isWorkplaceReplayActive() ||
+              !turn ||
+              token !== turn.token ||
+              turn.anchor !== access.workplace ||
+              commandActor(command) !== turn.actorId
+            )
+              return {
+                changed: false,
+                reason:
+                  'Hand over to this role and use its current turn. Facilitators cannot record participant decisions.',
+              };
+            if (command.type === 'respondToPressure' && command.args[1] === 'accept-demand')
+              return {
+                changed: false,
+                reason:
+                  'This authored challenge cannot speak for a participant. Hand over to the affected role to raise its own objection.',
+              };
+            if (
+              ['understand', 'acknowledgeImprovement'].includes(command.type) &&
+              !turnChecks(access.workplace).every((q) => turn.answers[q.id] === q.correct)
+            )
+              return {
+                changed: false,
+                reason:
+                  'Answer the current mandate, refusal and optional-duty checks correctly before confirming understanding.',
+              };
+          } else if (command.type === 'simulateResponses')
+            return {
+              changed: false,
+              reason:
+                'Separate turns require each role decision. Simulated responses are disabled.',
+            };
+          else if (command.type !== 'tick' && command.type !== 'stop' && access.turn)
+            return {
+              changed: false,
+              reason: 'End the participant turn before facilitator setup or settlement.',
+            };
+        }
         if (
           ['beginImprovement', 'continueImprovement'].includes(command.type) &&
           isWorkplaceReplayActive()
@@ -152,7 +223,16 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
             reason: 'Finish or forget the matched replay before continuing workplace obligations.',
           };
         const { state, changed, reason } = transitionWorkplace(get().workplace, command);
-        if (changed) set({ workplace: state });
+        if (changed) {
+          const turn = get().turn;
+          set({
+            workplace: state,
+            turn:
+              turn && state.revision === turn.anchor.revision && state.phase === turn.anchor.phase
+                ? { ...turn, anchor: state }
+                : null,
+          });
+        }
         return { changed, reason };
       };
       const linkedMission = (mode = get().workplace.mode) => {
@@ -195,22 +275,123 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
                 : ('current' as const),
         };
       };
+      const presentAdvice = (token?: string) => {
+        const current = get().workplace;
+        const advice =
+          current.mode === 'game' && current.improvement?.proposalId
+            ? derivePackingAdvice(
+                captureCurrentPackingPlant(current),
+                current.improvement.stopped ? 'steady' : current.improvement.proposalId
+              )
+            : undefined;
+        return apply({ type: 'acknowledgeImprovement', args: advice ? [advice] : [] }, token);
+      };
       return {
+        participationMode: 'solo',
+        turn: null,
+        setParticipationMode: (mode) => {
+          const s = get().workplace;
+          if (
+            !['solo', 'separate-turns'].includes(mode) ||
+            s.phase !== 'idle' ||
+            s.campaign ||
+            s.improvement ||
+            s.events.length ||
+            s.members.some((m) => m.earnedPay || m.recoveryOwedMinutes) ||
+            isWorkplaceReplayActive()
+          )
+            return {
+              changed: false,
+              reason: 'Choose the interaction mode only before opening an untouched scenario.',
+            };
+          set({ participationMode: mode, turn: null });
+          return { changed: true, reason: null };
+        },
+        startTurn: (actorId) => {
+          const s = get().workplace;
+          if (
+            get().participationMode !== 'separate-turns' ||
+            get().turn ||
+            isWorkplaceReplayActive() ||
+            s.phase === 'idle' ||
+            ![...s.members.map((m) => m.id), 'mind'].includes(actorId)
+          )
+            return {
+              changed: false,
+              reason:
+                'End the previous turn and choose a fictional role in an open scenario, outside replay.',
+            };
+          set({ turn: { token: crypto.randomUUID(), actorId, anchor: s, answers: {} } });
+          return { changed: true, reason: null };
+        },
+        endTurn: () => {
+          set({ turn: null });
+          return { changed: true, reason: null };
+        },
+        answerTurnCheck: (token, question, answer) => {
+          const { turn, workplace } = get();
+          const q = turnChecks(workplace).find((q) => q.id === question);
+          if (
+            get().participationMode !== 'separate-turns' ||
+            isWorkplaceReplayActive() ||
+            !turn ||
+            turn.token !== token ||
+            turn.anchor !== workplace ||
+            workplace.phase !== 'deliberating' ||
+            !q ||
+            !q.options.some((o) => o.value === answer)
+          )
+            return {
+              changed: false,
+              reason: 'Use a known answer in the current participant turn.',
+            };
+          if (turn.answers[question] === answer)
+            return { changed: false, reason: 'Answer unchanged.' };
+          const state = structuredClone(workplace);
+          const actor = state.members.find((m) => m.id === turn.actorId);
+          if (actor) {
+            actor.understood = false;
+            actor.ballot = null;
+            actor.coverConsent = null;
+          } else {
+            if (state.improvement) state.improvement.acknowledged = false;
+            if (state.campaign) {
+              state.campaign.adviserAcknowledged = false;
+              state.campaign.checks.mind = {};
+            }
+          }
+          set({
+            workplace: state,
+            turn: { ...turn, anchor: state, answers: { ...turn.answers, [question]: answer } },
+          });
+          return { changed: true, reason: answer === q.correct ? null : q.clarification };
+        },
+        runTurnCommand: (token, command) => {
+          if (!isRoleCommand(command))
+            return { changed: false, reason: 'Participant dispatch accepts role decisions only.' };
+          return command.type === 'acknowledgeImprovement'
+            ? presentAdvice(token)
+            : apply(command, token);
+        },
+        rehearseReload: (revision) => {
+          interruptAutomaticWorkplace();
+          if (revision !== get().workplace.revision || isWorkplaceReplayActive())
+            return {
+              changed: false,
+              reason: 'Read the current workplace outside replay before rehearsing reload.',
+            };
+          set({ workplace: restoreWorkplace(saveWorkplace(get().workplace)), turn: null });
+          return {
+            changed: true,
+            reason:
+              'Local reload rehearsal completed. Future authority expired; earned pay and recovery remain in review.',
+          };
+        },
         beginImprovement: (profile, revision, _mission, mode = get().workplace.mode) =>
           apply({ type: 'beginImprovement', args: [profile, revision, linkedMission(mode), mode] }),
         proposeImprovement: (...args) => apply({ type: 'proposeImprovement', args }),
         challengeImprovement: (...args) => apply({ type: 'challengeImprovement', args }),
-        acknowledgeImprovement: () => {
-          const current = get().workplace;
-          const advice =
-            current.mode === 'game' && current.improvement?.proposalId
-              ? derivePackingAdvice(
-                  captureCurrentPackingPlant(current),
-                  current.improvement.stopped ? 'steady' : current.improvement.proposalId
-                )
-              : undefined;
-          return apply({ type: 'acknowledgeImprovement', args: advice ? [advice] : [] });
-        },
+        acknowledgeImprovement: () => presentAdvice(),
         setImprovementEpisode: (...args) => apply({ type: 'setImprovementEpisode', args }),
         respondImprovementEpisode: (...args) => apply({ type: 'respondImprovementEpisode', args }),
         stopImprovement: (...args) => apply({ type: 'stopImprovement', args }),
@@ -223,6 +404,9 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
         workplace: createWorkplace(),
         completedCampaigns: [],
         archiveCampaign: (expectedRevision) => {
+          interruptAutomaticWorkplace();
+          if (get().participationMode === 'separate-turns' && get().turn)
+            return { changed: false, reason: 'End the participant turn before archiving.' };
           const current = get().workplace;
           if (!Number.isSafeInteger(expectedRevision) || expectedRevision !== current.revision)
             return {
@@ -264,6 +448,7 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
           fresh.revision = current.revision + 1;
           set({
             workplace: fresh,
+            turn: null,
             completedCampaigns: [...get().completedCampaigns, review].slice(
               -MAX_COMPLETED_CAMPAIGNS
             ),
@@ -323,6 +508,22 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
         object: (...args) => apply({ type: 'object', args }),
         resolveObjection: (...args) => apply({ type: 'resolveObjection', args }),
         activate: (...args) => {
+          interruptAutomaticWorkplace();
+          const safety = useGameSimulationStore.getState();
+          if (
+            get().workplace.mode === 'game' &&
+            (safety.emergencyActive || safety.emergencyDrillMode)
+          )
+            return {
+              changed: false,
+              reason:
+                'The safety stop holds this agreement. No new work during an emergency or drill.',
+            };
+          if (get().participationMode === 'separate-turns' && get().turn)
+            return {
+              changed: false,
+              reason: 'End the participant turn before facilitator activation.',
+            };
           const mission = workplaceMission(get().workplace);
           if (mission && mission.materialSessionId !== useMaterialFlowStore.getState().sessionId)
             return {
@@ -351,7 +552,7 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
             ? { ...current, improvement: { ...current.improvement!, mission: refreshed } }
             : current;
           const result = transitionWorkplace(activationInput, { type: 'activate', args });
-          if (result.changed) set({ workplace: result.state });
+          if (result.changed) set({ workplace: result.state, turn: null });
           return { changed: result.changed, reason: result.reason };
         },
         withdraw: (...args) => apply({ type: 'withdraw', args }),
@@ -390,12 +591,15 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
       version: 2,
       storage: safeJSONStorage,
       partialize: (state) => ({
+        participationMode: state.participationMode,
         workplace: saveWorkplace(state.workplace),
         completedCampaigns: state.completedCampaigns.map(saveWorkplace),
       }),
       migrate: (persisted, version) => {
         if (version !== 1 || !persisted || typeof persisted !== 'object') return {};
         return {
+          participationMode:
+            'participationMode' in persisted ? persisted.participationMode : 'solo',
           workplace: 'workplace' in persisted ? persisted.workplace : null,
           completedCampaigns: [],
         };
@@ -404,6 +608,11 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
         const saved = persisted && typeof persisted === 'object' ? persisted : {};
         return {
           ...current,
+          participationMode:
+            !('participationMode' in saved) || saved.participationMode === 'solo'
+              ? 'solo'
+              : 'separate-turns',
+          turn: null,
           workplace: restoreWorkplace('workplace' in saved ? saved.workplace : null),
           completedCampaigns: retainedReviews(
             'completedCampaigns' in saved ? saved.completedCampaigns : null
@@ -413,3 +622,22 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
     }
   )
 );
+
+// External replay replacement (including rollback) cannot retain a participant grant.
+// Working if any out-of-band workplace replacement invalidates its anchored turn.
+useWorkplaceStore.subscribe(({ workplace, turn }) => {
+  if (turn && turn.anchor !== workplace) useWorkplaceStore.setState({ turn: null });
+});
+
+/** Captures a render's token so retained callbacks cannot borrow the next turn. */
+export function useWorkplaceControls() {
+  const store = useWorkplaceStore();
+  if (store.participationMode === 'solo') return store;
+  const controls = { ...store };
+  for (const type of ROLE_COMMANDS) {
+    Reflect.set(controls, type, (...args: unknown[]) =>
+      store.runTurnCommand(store.turn?.token ?? '', { type, args } as RoleCommand)
+    );
+  }
+  return controls;
+}

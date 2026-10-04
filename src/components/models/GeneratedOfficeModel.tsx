@@ -158,7 +158,7 @@ export function applyVillageWindows(
   material: THREE.MeshStandardMaterial,
   night = EXTERIOR_LAMP_LEVEL,
   curtains = true,
-  glazing: 'glass' | 'amber' | 'pane' | 'stained' | 'castle' = 'glass'
+  glazing: 'glass' | 'amber' | 'pane' | 'stained' | 'castle' | 'civic' = 'glass'
 ) {
   material.onBeforeCompile = (shader) => {
     shader.uniforms.villageNight = night;
@@ -166,6 +166,7 @@ export function applyVillageWindows(
     shader.uniforms.villageInteriorStrength = VILLAGE_INTERIOR_STRENGTH;
     shader.uniforms.villageCurtains = { value: curtains ? 1 : 0 };
     shader.uniforms.villageRooms = { value: glazing === 'stained' ? 0 : 1 };
+    shader.uniforms.villageCivic = { value: glazing === 'civic' ? 1 : 0 };
     shader.uniforms.villageLinen = { value: new THREE.Color('#e6d6b9') };
     shader.uniforms.villageRoomLight = { value: new THREE.Color('#ffe0b5').multiplyScalar(0.62) };
     shader.uniforms.villageAtlas = { value: glazing === 'pane' ? 0 : 1 };
@@ -197,6 +198,7 @@ export function applyVillageWindows(
        uniform float villageInteriorStrength;
        uniform float villageCurtains;
        uniform float villageRooms;
+       uniform float villageCivic;
        uniform float villageAtlas;
        uniform vec2 villageTileOrigin;
        uniform vec2 villagePaneUV;
@@ -234,6 +236,7 @@ export function applyVillageWindows(
          vec3 roomId = floor(centre * 2.0 + 0.173);
          float seed = fract(sin(dot(roomId, vec3(12.9898, 37.719, 78.233))) * 43758.5453);
          float occupied = step(0.22, seed);
+         occupied = mix(occupied, 1.0, villageCivic);
          vec3 tangent = (px * dv.y - py * du.y) * inverseDet;
          vec3 bitangent = (py * du.x - px * dv.x) * inverseDet;
          tangent /= max(length(tangent), 0.0001);
@@ -252,7 +255,7 @@ export function applyVillageWindows(
          float floorBand = smoothstep(0.76, 0.90, room.y);
          float wall = (0.68 + 0.22 * room.y) * (1.0 - ceiling * 0.42 - floorBand * 0.28);
          vec3 roomColour = vec3(0.86, 0.72, 0.53) * wall * reveal;
-         float width = 0.16 + 0.10 * seed - 0.06 * sin(clamp(cloth.y, 0.0, 1.0) * 3.14159);
+         float width = mix(0.16, 0.10, villageCivic) + 0.10 * seed - 0.06 * sin(clamp(cloth.y, 0.0, 1.0) * 3.14159);
          float curtain = (1.0 - smoothstep(width, width + 0.014, cloth.x))
            + smoothstep(1.0 - width - 0.014, 1.0 - width, cloth.x);
          // Small lantern glass shares the pub's amber tile, but is not a room.
@@ -261,12 +264,20 @@ export function applyVillageWindows(
          float foldDetail = 1.0 - smoothstep(0.015, 0.055, max(abs(du.x), abs(dv.x)));
          float folds = 0.78 + foldDetail * (0.16 * cos(cloth.x * 145.0) + 0.06 * cos(cloth.x * 71.0));
          vec3 interior = mix(roomColour, villageLinen * folds, clamp(curtain, 0.0, 1.0));
+         // Civic rooms remain visibly open at dusk. A recessed desk silhouettes
+         // against the warm rear wall; only actual atlas glazing is affected.
+         // Working if masonry stays unlit by this term and window depth moves with view.
+         float desk = smoothstep(0.18, 0.21, room.x) * (1.0 - smoothstep(0.78, 0.81, room.x))
+           * smoothstep(0.63, 0.65, room.y) * (1.0 - smoothstep(0.69, 0.71, room.y));
+         interior *= 1.0 - desk * villageCivic * 0.65;
          float brightness = (0.58 + seed * 0.42) * mix(0.09, 1.0, occupied);
          // Linen receives room light, with a softer contribution than the opening.
          vec3 roomEmission = villageRoomLight * interior * brightness
            * mix(1.0, 0.58, clamp(curtain, 0.0, 1.0));
+         roomEmission *= mix(1.0, 2.5, villageCivic);
+         roomEmission *= mix(vec3(1.0), vec3(1.0, 0.82, 0.50), villageCivic);
          float reflection = pow(1.0 - clamp(facing, 0.0, 1.0), 4.0);
-         vec3 daylightRoom = interior * (0.28 + occupied * villageNight * 0.18);
+         vec3 daylightRoom = interior * (mix(0.28, 0.10, villageCivic) + occupied * villageNight * 0.18);
          diffuseColor.rgb = mix(diffuseColor.rgb, daylightRoom,
            villageInteriorStrength * roomScale * (1.0 - reflection * 0.85));
          totalEmissiveRadiance += mix(villageGlow, roomEmission, villageInteriorStrength * roomScale)
@@ -277,5 +288,5 @@ export function applyVillageWindows(
        }`
     );
   };
-  material.customProgramCacheKey = () => 'millos-authored-village-windows-v4';
+  material.customProgramCacheKey = () => 'millos-authored-village-windows-v5';
 }

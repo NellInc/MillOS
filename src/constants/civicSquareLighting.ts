@@ -5,7 +5,7 @@ type Point = [number, number, number];
 // Version both requests together so stale-cache recovery cannot mix revisions.
 export const CIVIC_SHADOW_BAKE_READY = true;
 export const CIVIC_SHADOW_ASSET_VERSION =
-  'ed597ad09d4006aefc7405fd4a450d1789145f20cb28c9c13bb0ef32f0435930';
+  '345c4f90178dca328eb87616db253157d6a5fe49cf77a84dc4da0a3050c86219';
 export type CivicLamp = {
   id: string;
   kind: 'post' | 'garden' | 'wall' | 'window' | 'sign';
@@ -25,7 +25,7 @@ export const CIVIC_LAMPS: readonly CivicLamp[] = [
     id: 'hall-west',
     kind: 'wall',
     position: [1.85, 3.525, 14.47],
-    intensity: 14,
+    intensity: 19,
     distance: 9,
     reference: [0.29, 0.375],
   },
@@ -33,7 +33,7 @@ export const CIVIC_LAMPS: readonly CivicLamp[] = [
     id: 'hall-east',
     kind: 'wall',
     position: [-1.85, 3.525, 14.47],
-    intensity: 14,
+    intensity: 19,
     distance: 9,
     reference: [0.407, 0.375],
   },
@@ -49,7 +49,7 @@ export const CIVIC_LAMPS: readonly CivicLamp[] = [
     id: 'post-left',
     kind: 'post',
     position: [10.2, 3.3, 7.08],
-    intensity: 65,
+    intensity: 78,
     distance: 24,
     reference: [0.019, 0.386],
   },
@@ -57,7 +57,7 @@ export const CIVIC_LAMPS: readonly CivicLamp[] = [
     id: 'post-fountain',
     kind: 'post',
     position: [-4, 3.3, 12.08],
-    intensity: 56,
+    intensity: 70,
     distance: 24,
     reference: [0.546, 0.368],
   },
@@ -65,7 +65,7 @@ export const CIVIC_LAMPS: readonly CivicLamp[] = [
     id: 'post-garden',
     kind: 'post',
     position: [-22, 3.3, 18.08],
-    intensity: 55,
+    intensity: 68,
     distance: 20,
     reference: [0.662, 0.402],
   },
@@ -73,7 +73,7 @@ export const CIVIC_LAMPS: readonly CivicLamp[] = [
     id: 'post-right',
     kind: 'post',
     position: [-29, 3.3, 5.08],
-    intensity: 55,
+    intensity: 68,
     distance: 20,
     reference: [0.965, 0.373],
   },
@@ -89,7 +89,7 @@ export const CIVIC_LAMPS: readonly CivicLamp[] = [
     id: 'hall-verge',
     kind: 'garden',
     position: [6.7, 0.44, 15.5],
-    intensity: 9,
+    intensity: 12,
     distance: 9,
     reference: [0.025, 0.563],
   },
@@ -97,7 +97,7 @@ export const CIVIC_LAMPS: readonly CivicLamp[] = [
     id: 'hall-front-west',
     kind: 'garden',
     position: [4.7, 0.44, 13.1],
-    intensity: 9,
+    intensity: 12,
     distance: 9,
     reference: [0.176, 0.604],
   },
@@ -105,7 +105,7 @@ export const CIVIC_LAMPS: readonly CivicLamp[] = [
     id: 'hall-front-east',
     kind: 'garden',
     position: [-4.7, 0.44, 13.1],
-    intensity: 9,
+    intensity: 12,
     distance: 9,
     reference: [0.48, 0.539],
   },
@@ -113,7 +113,7 @@ export const CIVIC_LAMPS: readonly CivicLamp[] = [
     id: 'hall-side-near',
     kind: 'garden',
     position: [6.8, 0.44, 20],
-    intensity: 9,
+    intensity: 12,
     distance: 9,
     reference: [0.04, 0.478],
   },
@@ -121,7 +121,7 @@ export const CIVIC_LAMPS: readonly CivicLamp[] = [
     id: 'hall-side-far',
     kind: 'garden',
     position: [6.8, 0.44, 24],
-    intensity: 9,
+    intensity: 12,
     distance: 9,
     reference: [0.074, 0.472],
   },
@@ -129,7 +129,7 @@ export const CIVIC_LAMPS: readonly CivicLamp[] = [
     id: 'fountain-border',
     kind: 'garden',
     position: [-5.7, 0.44, 10.5],
-    intensity: 10,
+    intensity: 13,
     distance: 9,
     reference: [0.552, 0.505],
   },
@@ -145,7 +145,7 @@ export const CIVIC_LAMPS: readonly CivicLamp[] = [
     id: 'gate-inner',
     kind: 'garden',
     position: [-19.15, 0.44, 10.5],
-    intensity: 9,
+    intensity: 12,
     distance: 9,
     reference: [0.687, 0.507],
   },
@@ -153,7 +153,7 @@ export const CIVIC_LAMPS: readonly CivicLamp[] = [
     id: 'gate-outer',
     kind: 'garden',
     position: [-19.15, 0.44, 7.5],
-    intensity: 9,
+    intensity: 12,
     distance: 9,
     reference: [0.737, 0.532],
   },
@@ -161,7 +161,7 @@ export const CIVIC_LAMPS: readonly CivicLamp[] = [
     id: 'shed-bed-west',
     kind: 'garden',
     position: [-24.2, 0.44, 13.8],
-    intensity: 9,
+    intensity: 12,
     distance: 9,
     reference: [0.776, 0.529],
   },
@@ -169,7 +169,7 @@ export const CIVIC_LAMPS: readonly CivicLamp[] = [
     id: 'shed-bed-east',
     kind: 'garden',
     position: [-29.8, 0.44, 9.2],
-    intensity: 9,
+    intensity: 12,
     distance: 9,
     reference: [0.817, 0.529],
   },
@@ -193,7 +193,7 @@ export const CIVIC_LAMPS: readonly CivicLamp[] = [
     id: 'verge-near',
     kind: 'garden',
     position: [-28, 0.44, -1.2],
-    intensity: 10,
+    intensity: 13,
     distance: 9,
     reference: [0.984, 0.572],
   },
@@ -201,7 +201,7 @@ export const CIVIC_LAMPS: readonly CivicLamp[] = [
     id: `hall-front-window-${x}`,
     kind: 'window' as const,
     position: [x, 3.35, 13.9] as Point,
-    intensity: 1.8,
+    intensity: 3.3,
     distance: 7,
     reference: [x > 0 ? 0.21 : 0.44, 0.4] as [number, number],
   })),
@@ -209,7 +209,7 @@ export const CIVIC_LAMPS: readonly CivicLamp[] = [
     id: `hall-side-window-${z}`,
     kind: 'window' as const,
     position: [7.1, 3.35, z] as Point,
-    intensity: 1.8,
+    intensity: 3.3,
     distance: 7,
     reference: [0.08, 0.4] as [number, number],
   })),
@@ -222,7 +222,7 @@ export const CIVIC_POST_POSITIONS: Point[] = CIVIC_LAMPS.filter((l) => l.kind ==
 export const CIVIC_POST_HEIGHT_SCALES = CIVIC_LAMPS.filter((l) => l.kind === 'post').map(
   (lamp) => lamp.position[1] / 4.3
 );
-export const CIVIC_LIGHT_COLOR = '#ffd0a1';
+export const CIVIC_LIGHT_COLOR = '#ffcf83';
 export const CIVIC_SHADOW_FACE_SIZE = 128;
 export const CIVIC_SHADOW_ATLAS_SIZE = [1024, 4096] as const;
 export const CIVIC_SHADOW_CONVENTION =

@@ -9,6 +9,8 @@ import {
   AUTHORED_PROP_TRIM,
   AUTHORED_MARKET_GOODS,
   MARKET_TRAY_FLOOR,
+  MARKET_GOODS_MATERIAL,
+  MARKET_FRUIT_TEXTURES,
   AUTHORED_PROP_TRIM_MATERIALS,
   FOUNTAIN_SETT_TOP,
   FOUNTAIN_SETT_DEPTH_LAYER,
@@ -584,4 +586,24 @@ it('keeps the civic benches clear of the restored broad town hall and all villag
       ).toBe(true);
     }
   }
+});
+
+it('maps actual fruit rind in sRGB while preserving non-fruit goods and linear roughness', () => {
+  expect(MARKET_GOODS_MATERIAL.map).toBe(MARKET_FRUIT_TEXTURES.colour);
+  expect(MARKET_GOODS_MATERIAL.bumpMap).toBe(MARKET_FRUIT_TEXTURES.finish);
+  expect(MARKET_FRUIT_TEXTURES.colour.colorSpace).toBe(THREE.SRGBColorSpace);
+  expect(MARKET_FRUIT_TEXTURES.finish.colorSpace).toBe(THREE.NoColorSpace);
+  expect(MARKET_GOODS_MATERIAL.bumpScale).toBeLessThan(0.003);
+  const data = MARKET_FRUIT_TEXTURES.colour.image.data;
+  expect(Array.from(data.slice(0, 4))).toEqual([255, 255, 255, 255]);
+  expect(new Set(Array.from(data)).size).toBeGreaterThan(20);
+  const apples = AUTHORED_MARKET_GOODS[0].getAttribute('uv');
+  let rind = 0,
+    plain = 0;
+  for (let i = 0; i < apples.count; i++) {
+    if (apples.getX(i) >= 0.125) rind++;
+    if (apples.getX(i) === 0.03125 && apples.getY(i) === 0.03125) plain++;
+  }
+  expect(rind).toBeGreaterThan(100);
+  expect(plain).toBeGreaterThan(100);
 });

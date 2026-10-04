@@ -10,7 +10,7 @@ import { acquireCaptureLock } from './lib/capture-lock.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const output = path.join(root, 'test-results/jev-browser');
-const allowLoadingRecovery = process.argv.includes('--allow-loading-recovery');
+const softwareRenderer = process.argv.includes('--software-renderer');
 const endpoint = 'https://openrouter.ai/api/alpha/decisions';
 const key = `sk-or-v1-${'test-only-'.repeat(5)}`;
 const note = 'Synthetic incident: a drive belt has snapped and awaits replacement.';
@@ -22,8 +22,9 @@ const report = {
   consoleErrors: [],
   failedRequests: [],
   csp: [],
-  loadingRecoveryAllowed: allowLoadingRecovery,
-  loadingRecoveryUsed: false,
+  softwareRenderer,
+  camera: softwareRenderer ? 'sun' : 'overview',
+  normalStartupRequired: true,
 };
 const lock = await acquireCaptureLock('jev-browser-acceptance', { root });
 let browser, server, page;
@@ -37,7 +38,14 @@ try {
     base,
     preview: { host: '127.0.0.1', port: 4398, strictPort: true },
   });
-  browser = await chromium.launch({ headless: true, args: ['--mute-audio'] });
+  browser = await chromium.launch({
+    headless: true,
+    chromiumSandbox: true,
+    args: [
+      '--mute-audio',
+      ...(softwareRenderer ? ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] : []),
+    ],
+  });
   const context = await browser.newContext({ serviceWorkers: 'block', reducedMotion: 'reduce' });
   await context.addInitScript(() => {
     localStorage.setItem(
@@ -81,41 +89,34 @@ try {
   page = await context.newPage();
   // Software rendering can block the browser thread beyond 30 seconds even
   // after a click lands. Keep the assertions, with a CI-specific action budget.
-  page.setDefaultTimeout(allowLoadingRecovery ? 90_000 : 30_000);
+  page.setDefaultTimeout(softwareRenderer ? 90_000 : 30_000);
   page.on('pageerror', (error) => report.pageErrors.push(error.message));
   page.on('console', (message) => {
     if (message.type() === 'error') report.consoleErrors.push(message.text());
   });
   page.on('requestfailed', (request) => report.failedRequests.push(request.url()));
-  await page.setViewportSize({ width: 1440, height: 1000 });
+  report.startupViewport = softwareRenderer
+    ? { width: 640, height: 480 }
+    : { width: 1440, height: 1000 };
+  await page.setViewportSize(report.startupViewport);
   await page.goto(
-    `http://127.0.0.1:4398${base}?benchmark=overview&quality=low&operations=on&pa=off`,
+    `http://127.0.0.1:4398${base}?benchmark=${report.camera}&time=12&quality=low&operations=on&pa=off`,
     {
       waitUntil: 'domcontentloaded',
     }
   );
   report.phase = 'scene-loading';
-  // CI's software renderer can load the full world without meeting the loader's
-  // smooth-frame threshold. This opt-in exercises the real user recovery button
-  // for UI acceptance only; default runs still require automatic startup.
-  // Working if recovery is recorded, normal asset/error checks still pass, and
-  // neither the production loader nor its readiness state is modified here.
+  // This gate checks advisory UI. The low-fill sun camera retains the full
+  // world, assets and static batches while making software rendering practical.
+  // Normal startup is mandatory; no loader bypass or production change exists.
+  // Working if software CI exercises both layouts only after actual startup.
   await page.waitForFunction(
-    (allowRecovery) => {
-      if (
-        !window.__MILLOS_RUNTIME__?.ready ||
-        document.documentElement.dataset.millosWorldReady !== 'true'
-      )
-        return false;
-      return (
-        !document.querySelector('[aria-label="Loading MillOS"]') ||
-        (allowRecovery &&
-          [...document.querySelectorAll('button')].some(
-            (button) => button.textContent.trim() === 'Continue while preparing'
-          ))
-      );
-    },
-    allowLoadingRecovery,
+    () =>
+      window.__MILLOS_RUNTIME__?.ready &&
+      document.documentElement.dataset.millosWorldReady === 'true' &&
+      document.documentElement.dataset.millosStartupReady === 'true' &&
+      !document.querySelector('[aria-label="Loading MillOS"]'),
+    null,
     { polling: 400, timeout: 240_000 }
   );
   // CompleteWorldMarker fires on mount, before incremental static batching.
@@ -140,14 +141,6 @@ try {
   report.settlingMs = Date.now() - settlingStarted;
 
   report.phase = 'loader-dismissal';
-  const recovery = page.getByRole('button', { name: 'Continue while preparing', exact: true });
-  if (allowLoadingRecovery && (await recovery.isVisible())) {
-    await recovery.click();
-    report.loadingRecoveryUsed = await page.evaluate(
-      () => document.documentElement.dataset.loaderFallback === 'true'
-    );
-    assert.equal(report.loadingRecoveryUsed, true);
-  }
   await page.getByRole('progressbar', { name: 'Loading MillOS' }).waitFor({ state: 'hidden' });
 
   for (const width of [1440, 390]) {

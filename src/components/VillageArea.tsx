@@ -51,6 +51,8 @@ import {
   VILLAGE_HOMES,
   VILLAGE_GARDEN_FOOTPRINTS,
   VILLAGE_ALLOTMENT,
+  TOWN_HALL_HEDGE_GEOMETRY,
+  VILLAGE_PLOT_MATERIAL,
 } from './scenery/VillageGardens';
 import { CreatureBody, type CreatureRigHandle } from './models/RiggedCreatureModel';
 import { generateCobblestoneRoughness } from '../textures';
@@ -1042,6 +1044,13 @@ export const TownHall = React.memo<{ position: [number, number, number]; rotatio
         <VillageNameboard title="TOWN HALL" width={4.9} height={0.66} colour="#354f59" />
       </group>
       <TownHallLanterns />
+      <mesh
+        name="town-hall-privet-gardens"
+        geometry={TOWN_HALL_HEDGE_GEOMETRY}
+        material={VILLAGE_PLOT_MATERIAL}
+        castShadow
+        receiveShadow
+      />
       {/* The chime remains independent of the authored clock-face geometry. */}
       <TownHallChime />
     </group>

@@ -4,6 +4,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { EXTERIOR_LAYERS, POLYGON_OFFSET } from '../../constants/renderLayers';
 import { SITE_LAYOUT } from '../../constants/siteLayout';
 import { LOCK_GATE_MATERIAL } from './lockGateSurface';
+import { createColorDataTexture, createLinearDataTexture } from '../../utils/textureGenerator';
 
 /**
  * Small construction details measured against the delivered civic GLBs, rather
@@ -228,11 +229,72 @@ AuthoredPropTrim.displayName = 'AuthoredPropTrim';
  * all four stock meshes have distinct geometry while staying under the canvas.
  */
 export const MARKET_TRAY_FLOOR = 0.9422;
+// Shared rind atlas: sRGB albedo, linear height/roughness. The reserved white
+// corner keeps bread, stems, trays and other trades unchanged in the same draw.
+// Working if only fruit UVs reach the mottled patch and all surfaces stay batched.
+export const MARKET_FRUIT_TEXTURES = (() => {
+  const size = 256,
+    colour = new Uint8Array(size * size * 4),
+    finish = new Uint8Array(colour.length);
+  for (let y = 0; y < size; y++)
+    for (let x = 0; x < size; x++) {
+      const i = (y * size + x) * 4,
+        u = (x - 32) / 223,
+        v = (y - 32) / 223;
+      const cellX = Math.floor(u * 17),
+        cellY = Math.floor(v * 13);
+      const seed = Math.sin(cellX * 127.1 + cellY * 311.7) * 43758.5453;
+      const chosen = seed - Math.floor(seed);
+      const spot = chosen > 0.57 && Math.hypot(u * 17 - cellX - 0.5, v * 13 - cellY - 0.5) < 0.14;
+      const blush = 0.5 + 0.5 * Math.sin(u * Math.PI * 6 + Math.sin(v * Math.PI * 4));
+      const grain = Math.sin(u * Math.PI * 78) * Math.sin(v * Math.PI * 66);
+      const reserved = x < 32 || y < 32;
+      colour.set(
+        reserved
+          ? [255, 255, 255, 255]
+          : [
+              Math.round(235 + blush * 20 - (spot ? 22 : 0)),
+              Math.round(224 + blush * 28 - (spot ? 36 : 0)),
+              Math.round(204 + blush * 48 - (spot ? 39 : 0)),
+              255,
+            ],
+        i
+      );
+      const roughness = Math.round(142 + blush * 28 + (spot ? 24 : 0));
+      finish.set(
+        reserved
+          ? [128, 214, 214, 255]
+          : [Math.round(128 + grain * 9 - (spot ? 12 : 0)), roughness, roughness, 255],
+        i
+      );
+    }
+  return {
+    colour: createColorDataTexture(colour, size, size),
+    finish: createLinearDataTexture(finish, size, size),
+  };
+})();
+export const MARKET_GOODS_MATERIAL = new THREE.MeshStandardMaterial({
+  vertexColors: true,
+  map: MARKET_FRUIT_TEXTURES.colour,
+  roughness: 1,
+  roughnessMap: MARKET_FRUIT_TEXTURES.finish,
+  bumpMap: MARKET_FRUIT_TEXTURES.finish,
+  bumpScale: 0.0012,
+  metalness: 0,
+});
 function marketGoods(trade: number) {
   const parts: THREE.BufferGeometry[] = [];
-  const put = (g: THREE.BufferGeometry, color: string, x: number, z: number, lift = 0) => {
+  const put = (
+    g: THREE.BufferGeometry,
+    color: string,
+    x: number,
+    z: number,
+    lift = 0,
+    rind = false
+  ) => {
     g.computeBoundingBox();
     g.translate(x, MARKET_TRAY_FLOOR - g.boundingBox!.min.y + lift, z);
+    g.userData.marketFruit = rind;
     parts.push(colored(g, color));
   };
   const curve = (points: [number, number, number][], width: number, color: string) => {
@@ -268,7 +330,7 @@ function marketGoods(trade: number) {
       );
     }
     g.computeVertexNormals();
-    put(g, color, x, z);
+    put(g, color, x, z, 0, true);
     const y = MARKET_TRAY_FLOOR + 2 * r * (pumpkin ? 0.78 : 0.92) - 0.012;
     curve(
       [
@@ -463,7 +525,9 @@ function marketGoods(trade: number) {
           ]),
           '#a0a154',
           x,
-          z
+          z,
+          0,
+          true
         );
         curve(
           [
@@ -475,6 +539,14 @@ function marketGoods(trade: number) {
         );
       }
   }
+  for (const part of parts) {
+    const uv = part.getAttribute('uv');
+    for (let i = 0; i < uv.count; i++) {
+      if (part.userData.marketFruit)
+        uv.setXY(i, 0.125 + uv.getX(i) * 0.871, 0.125 + uv.getY(i) * 0.871);
+      else uv.setXY(i, 0.03125, 0.03125);
+    }
+  }
   return joined(parts);
 }
 export const AUTHORED_MARKET_GOODS = [0, 1, 2, 3].map(marketGoods);
@@ -482,7 +554,7 @@ export const MarketGoods = React.memo<{ dressing: number }>(({ dressing }) => (
   <mesh
     name={`market-trade-${dressing}`}
     geometry={AUTHORED_MARKET_GOODS[((dressing % 4) + 4) % 4]}
-    material={TRIM_MATERIAL}
+    material={MARKET_GOODS_MATERIAL}
     castShadow
     receiveShadow
   />

@@ -149,7 +149,9 @@ export const GeneratedModel: React.FC<GeneratedModelProps> = ({
               ? 'castle'
               : asset === 'pub'
                 ? 'amber'
-                : 'glass'
+                : asset === 'townhall'
+                  ? 'civic'
+                  : 'glass'
         );
         mesh.material = material;
         materials.push(material);

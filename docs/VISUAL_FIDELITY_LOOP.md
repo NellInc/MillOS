@@ -95,6 +95,55 @@ The scope is the existing village/civic square at dusk, local and silent.
 There is no pixel-identical requirement: a single generated view cannot certify
 hidden faces, physical access, correct normal maps or coherent moving lighting.
 
+## Consolidated finishing workflow
+
+Nell approved documenting and executing this sequence on 4 October 2026. Use
+the approved concept and existing models as the reference. Finish the current
+brief in one coherent batch, followed by final validation and a verified release
+when the task carries publication authority.
+
+1. **Freeze the finite checklist.** Record the source/build, reference views and
+   outstanding defects. The current batch covers warmer, stronger civic lamps
+   and shadows; town-hall interior light and hedges; fruit surface detail;
+   clouds and actual sun-directed post-sunset glow; water shading; snowy distant
+   mountains and intermediate foothills. Preserve paths, architecture, people,
+   gameplay and existing Low/Medium budgets. Working if every requested feature
+   has an explicit disposition and a matching inspection view.
+2. **Complete geometry and materials first.** Reuse authored models, garden
+   primitives, the three-layer mountain rig and existing material treatments.
+   Keep entrances and walking routes clear. Isolate the candidate from concurrent
+   work and record exactly which inputs were included. Working if the final
+   lighting bake consumes the same geometry that ships, and other contexts'
+   files remain untouched.
+3. **Unify atmosphere and illumination.** Drive windows, clouds, mountains and
+   water from the actual sun, time and weather. Retain one dynamic celestial
+   shadow caster, fixed local lamp occlusion and single-pass water. Bake local
+   shadows once after geometry is settled. Working if warm light changes actual
+   receiver pixels, the glow follows the setting sun, and shadows remain aligned
+   while the camera moves.
+4. **Inspect once, correct once.** Batch reference-matched views, a reverse view,
+   ground-level views and daylight/sunset/blue-hour/night/rain controls. Fix the
+   concrete defects together, then take at most one confirmation round. Further
+   work requires a named remaining defect or failed acceptance gate. Working if
+   the review retains its original cameras, brief and stopping condition.
+5. **Validate the finished candidate.** Run affected checks during the batch,
+   then final whole tests, static checks, production build and unchanged eligible
+   Low/Medium performance gates. Transfer unchanged gameplay evidence only
+   through verified input fingerprints. Resolve genuine CI failures without
+   weakening readiness or budgets. Working if each required gate has a terminal
+   result tied to the final candidate, with failed evidence retained.
+6. **Publish, verify, tidy.** Where explicitly authorised, push the scoped
+   release, wait for CI/deployment and verify actual served bytes, live gameplay
+   and preserved archives. Clean only owned disposable outputs after they cease
+   to be useful; retain source, evidence and active/shared work. Working if the
+   final record distinguishes local proof, deployment and verified live behavior,
+   and lists exactly what was removed.
+
+Critical path: geometry > materials > sky/water > lighting > shadow bake >
+visual confirmation > validation > verified release. Use existing capture tools
+and their mutex, one silent owned browser, and no new dependencies or fresh
+concept generation unless a demonstrated requirement calls for them.
+
 ## The loop
 
 ### 0. Baseline

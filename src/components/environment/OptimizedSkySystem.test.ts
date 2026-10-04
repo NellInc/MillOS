@@ -15,8 +15,6 @@ import {
   MOUNTAIN_RIDGE_GEOMETRIES,
   CELESTIAL_RADIUS,
   createRidgeMaterial,
-  RIDGE_GROUND_BLEND,
-  RIDGE_GROUND_BLEND_STRENGTH,
 } from './OptimizedSkySystem';
 import { LANDSCAPE_GROVE_TREES } from '../exterior/ExteriorVegetation';
 import { sampleValleyGroundHeight } from '../terrain/splatMapGenerator';
@@ -24,7 +22,6 @@ import { SITE_LAYOUT } from '../../constants/siteLayout';
 import { CAMERA_DEPTH } from '../../constants/renderLayers';
 
 import { sampleAtmosphere, sampleCelestial } from '../../simulation/atmosphere';
-import { createRoadTunnelHillGeometry } from '../scenery/Tunnel';
 
 describe('rendered horizon ambient handoff', () => {
   it('keeps cloud afterglow bounded, continuous and absent at noon and deep night', () => {
@@ -351,51 +348,48 @@ describe('ridge weather extinction', () => {
   });
 });
 
-describe('fixed foothill ground blend', () => {
-  it('uses the actual existing one-pass fixed ridge materials and shared reversible control', () => {
-    const fixed = createRidgeMaterial(0.08, 'test-fixed', true);
-    const remote = createRidgeMaterial(0.08, 'test-remote');
-    expect(fixed.uniforms.uGroundBlendStrength).toBe(RIDGE_GROUND_BLEND_STRENGTH);
-    expect(remote.uniforms.uGroundBlendStrength).toBe(RIDGE_GROUND_BLEND_STRENGTH);
-    expect(fixed.uniforms.uWorldAnchored.value).toBe(1);
-    expect(remote.uniforms.uWorldAnchored.value).toBe(0);
-    expect(fixed.transparent).toBe(true);
-    expect(fixed.depthWrite).toBe(false);
-    expect(remote.transparent).toBe(false);
-    expect(remote.depthWrite).toBe(true);
-    expect(fixed.fragmentShader).toContain('uWorldAnchored * uGroundBlendStrength');
-    expect(fixed.fragmentShader).not.toContain('sampler');
-    expect(fixed.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v7');
-    fixed.dispose();
-    remote.dispose();
+describe('solid fixed foothills', () => {
+  it('writes opaque terrain depth without a height-based alpha hole', () => {
+    for (const anchored of [false, true]) {
+      const material = createRidgeMaterial(0.08, 'test-ridge', anchored);
+      expect(material.transparent).toBe(false);
+      expect(material.depthWrite).toBe(true);
+      expect(material.fragmentShader).toContain('gl_FragColor = vec4(lit, 1.0)');
+      expect(material.fragmentShader).not.toContain('groundBlend');
+      expect(material.fragmentShader).not.toContain('sampler');
+      expect(material.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v8');
+      material.dispose();
+    }
   });
 
-  it('limits the smooth blend to low metre-height skirts and retains opaque upper slopes', () => {
-    const material = createRidgeMaterial(0.08, 'test-fixed', true);
-    expect(material.fragmentShader).toContain(
-      `${RIDGE_GROUND_BLEND.startY.toFixed(1)}, ${RIDGE_GROUND_BLEND.endY.toFixed(1)}, p.y`
+  it('covers the reproduced lake-camera sky wedge with grounded solid slopes', () => {
+    const eye = new THREE.Vector3(138, 1.7, 102);
+    const bearing = Math.atan2(123 - eye.z, 120 - eye.x) - THREE.MathUtils.degToRad(42.8);
+    const elevation = THREE.MathUtils.degToRad(3.5);
+    const ray = new THREE.Raycaster(
+      eye,
+      new THREE.Vector3(
+        Math.cos(bearing) * Math.cos(elevation),
+        Math.sin(elevation),
+        Math.sin(bearing) * Math.cos(elevation)
+      )
     );
-    expect(THREE.MathUtils.smoothstep(15, RIDGE_GROUND_BLEND.startY, RIDGE_GROUND_BLEND.endY)).toBe(
-      0
-    );
-    expect(THREE.MathUtils.smoothstep(19, RIDGE_GROUND_BLEND.startY, RIDGE_GROUND_BLEND.endY)).toBe(
-      0.5
-    );
-    expect(THREE.MathUtils.smoothstep(23, RIDGE_GROUND_BLEND.startY, RIDGE_GROUND_BLEND.endY)).toBe(
-      1
-    );
-    expect(THREE.MathUtils.smoothstep(30, RIDGE_GROUND_BLEND.startY, RIDGE_GROUND_BLEND.endY)).toBe(
-      1
-    );
-    material.dispose();
-  });
-
-  it('starts the foot blend above the actual authored tunnel bank crown', () => {
-    const bank = createRoadTunnelHillGeometry();
-    bank.computeBoundingBox();
-    expect(RIDGE_GROUND_BLEND.startY).toBeGreaterThanOrEqual(bank.boundingBox!.max.y);
-    expect(RIDGE_GROUND_BLEND.endY - RIDGE_GROUND_BLEND.startY).toBe(8);
-    bank.dispose();
+    for (const geometry of MOUNTAIN_RIDGE_GEOMETRIES.slice(1)) {
+      const material = createRidgeMaterial(0.08, 'test-fixed', true);
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.updateMatrixWorld();
+      const hit = ray.intersectObject(mesh)[0];
+      expect(hit).toBeDefined();
+      expect(hit.point.y).toBeLessThan(23);
+      const positions = geometry.getAttribute('position');
+      for (let column = 0; column < MOUNTAIN_RIDGE_SEGMENTS; column++) {
+        const foot = column * MOUNTAIN_RIDGE_ROWS;
+        const x = positions.getX(foot),
+          z = positions.getZ(foot);
+        expect(positions.getY(foot)).toBeLessThan(sampleValleyGroundHeight(x, z, 128));
+      }
+      material.dispose();
+    }
   });
 });
 
@@ -420,4 +414,22 @@ describe('single sun/moon shadowed key', () => {
         ).toBeLessThan(1e-10);
     }
   });
+});
+
+it('retains explicit finite snow caps on the far range and snow-free rolling foothills', () => {
+  for (const geometry of MOUNTAIN_RIDGE_GEOMETRIES) {
+    const snow = geometry.getAttribute('ridgeSnow');
+    expect(snow.count).toBe(geometry.getAttribute('position').count);
+    for (let i = 0; i < snow.count; i++) {
+      expect(snow.getX(i)).toBeGreaterThanOrEqual(0);
+      expect(snow.getX(i)).toBeLessThanOrEqual(1);
+    }
+  }
+  expect(
+    Array.from(MOUNTAIN_RIDGE_GEOMETRIES[0].getAttribute('ridgeSnow').array).filter((x) => x > 0.2)
+      .length
+  ).toBeGreaterThan(100);
+  expect(
+    Array.from(MOUNTAIN_RIDGE_GEOMETRIES[2].getAttribute('ridgeSnow').array).every((x) => x === 0)
+  ).toBe(true);
 });

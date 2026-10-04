@@ -1,3 +1,9 @@
+import {
+  WorkplaceParticipation,
+  WorkplaceFairness,
+  WorkplaceDemonstration,
+  WorkplaceAutomaticDemo,
+} from './WorkplaceParticipation';
 import React, { useRef, useState } from 'react';
 import { WorkplaceImprovementPanel } from './WorkplaceImprovementPanel';
 import { workplaceMission } from '../../../simulation/workplaceImprovement';
@@ -5,7 +11,7 @@ import { WorkplacePressureChapter } from './WorkplacePressureChapter';
 import { WorkplacePracticeProposal } from './WorkplaceNegotiation';
 import { WorkplaceCampaignArchive } from './WorkplaceCampaignArchive';
 import { WorkplaceReplay, WorkplaceReplayGuide, WorkplaceReplayResume } from './WorkplaceReplay';
-import { useWorkplaceStore } from '../../../stores/workplaceStore';
+import { useWorkplaceStore, useWorkplaceControls } from '../../../stores/workplaceStore';
 import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
 import {
   PRACTICES,
@@ -61,7 +67,7 @@ const destinations: SurplusDestination[] = ['members', 'reserve', 'community'];
 
 export const WorkplaceLab: React.FC = () => {
   const labRef = useRef<HTMLElement>(null);
-  const store = useWorkplaceStore();
+  const store = useWorkplaceControls();
   const state = store.workplace;
   const [section, setSection] = useState<(typeof sections)[number]>(
     state.improvement ? 'Handoff' : 'Shift'
@@ -73,10 +79,14 @@ export const WorkplaceLab: React.FC = () => {
   const [receipt, setReceipt] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
-  const [actor, setActor] = useState(state.members[0]?.id ?? 'mind');
+  const [selectedActor, setActor] = useState(state.members[0]?.id ?? 'mind');
+  const actor =
+    store.participationMode === 'separate-turns' ? (store.turn?.actorId ?? '') : selectedActor;
   const [kind, setKind] = useState<ObjectionKind>('rest');
   const [resolvers, setResolvers] = useState<Record<string, string>>({});
-  const [voter, setVoter] = useState(state.members[0]?.id ?? '');
+  const [selectedVoter, setVoter] = useState(state.members[0]?.id ?? '');
+  const voter =
+    store.participationMode === 'separate-turns' ? (store.turn?.actorId ?? '') : selectedVoter;
   const [candidate, setCandidate] = useState(state.members[0]?.id ?? '');
   const [destination, setDestination] = useState<SurplusDestination>('reserve');
   const [comparison, setComparison] = useState<ReturnType<typeof compareWorkplacePlans> | null>(
@@ -136,7 +146,12 @@ export const WorkplaceLab: React.FC = () => {
     if (result.changed) setSection('Shift');
   };
   const comprehension = (actorId: string, role: string) => (
-    <fieldset className="space-y-2" disabled={!manual}>
+    <fieldset
+      className="space-y-2"
+      disabled={
+        !manual || (store.participationMode === 'separate-turns' && store.turn?.actorId !== actorId)
+      }
+    >
       <legend className="font-semibold text-white">Understanding checks: {role}</legend>
       {WORKPLACE_CHECKS.filter((check) => requiredChecks(actorId).includes(check.id)).map(
         (check) => (
@@ -144,6 +159,11 @@ export const WorkplaceLab: React.FC = () => {
             {check.prompt}
             <select
               aria-label={`${role}: ${check.prompt}`}
+              aria-describedby={
+                campaign?.checks[actorId]?.[check.id]
+                  ? `check-answer-${actorId}-${check.id}`
+                  : undefined
+              }
               className={inputClass}
               value={campaign?.checks[actorId]?.[check.id] ?? ''}
               onChange={(event) =>
@@ -159,6 +179,18 @@ export const WorkplaceLab: React.FC = () => {
                 </option>
               ))}
             </select>
+            {campaign?.checks[actorId]?.[check.id] && (
+              <span
+                id={`check-answer-${actorId}-${check.id}`}
+                className="mt-1 block whitespace-normal break-words text-slate-300"
+              >
+                {
+                  check.options.find(
+                    (option) => option.value === campaign.checks[actorId]?.[check.id]
+                  )?.label
+                }
+              </span>
+            )}
           </label>
         )
       )}
@@ -254,6 +286,9 @@ export const WorkplaceLab: React.FC = () => {
           Synthetic roles only. No real worker data or independently authenticated ballots.
         </p>
       </header>
+      <WorkplaceParticipation report={report} />
+      <WorkplaceAutomaticDemo profile={profile} />
+      <WorkplaceDemonstration navigate={setSection} report={report} />
       <div className="flex flex-wrap gap-1" aria-label="Workplace sections">
         {sections.map((name) => (
           <button
@@ -283,6 +318,7 @@ export const WorkplaceLab: React.FC = () => {
 
       {section === 'Handoff' && (
         <WorkplaceImprovementPanel
+          onSeasonStart={() => setSection('Shift')}
           profile={profile}
           setProfile={setProfile}
           mode={mode}
@@ -777,7 +813,7 @@ export const WorkplaceLab: React.FC = () => {
           {state.mode === 'game' && (
             <button
               className={buttonClass}
-              disabled={!manual}
+              disabled={!manual || store.participationMode === 'separate-turns'}
               onClick={() => report(store.simulateResponses())}
             >
               Hear simulated team responses
@@ -811,9 +847,12 @@ export const WorkplaceLab: React.FC = () => {
                 .
               </p>
               <p>
-                Simulated responses belong to the other synthetic roles. Answer Packing and Adviser
-                checks explicitly. Confirm Packing understanding, cast its policy vote and decide
-                optional cover separately. The helper never fills these Packing decisions.
+                {store.participationMode === 'separate-turns'
+                  ? 'Every role acts in its own turn. '
+                  : 'Simulated responses belong to the other synthetic roles. '}{' '}
+                Answer Packing and Adviser checks explicitly. Confirm Packing understanding, cast
+                its policy vote and decide optional cover separately. The helper never fills these
+                Packing decisions.
               </p>
             </div>
           )}
@@ -827,7 +866,12 @@ export const WorkplaceLab: React.FC = () => {
                     ? 'policy yes'
                     : 'policy no'}
               </summary>
-              <div className="mt-2 space-y-2">
+              <fieldset
+                disabled={
+                  store.participationMode === 'separate-turns' && store.turn?.actorId !== member.id
+                }
+                className="mt-2 space-y-2"
+              >
                 <p>Public boundary: {member.publicBoundary}</p>
                 {campaign && comprehension(member.id, member.role)}
                 <p>Understanding: {member.understood ? 'confirmed' : 'pending'}.</p>
@@ -936,7 +980,7 @@ export const WorkplaceLab: React.FC = () => {
                     Withdraw optional cover: {member.role}
                   </button>
                 )}
-              </div>
+              </fieldset>
             </details>
           ))}
           <div className="space-y-2 border-t border-slate-700 pt-3">
@@ -992,7 +1036,11 @@ export const WorkplaceLab: React.FC = () => {
                       <select
                         aria-label={`Resolving author for ${objection.kind}`}
                         className={inputClass}
-                        value={resolvers[objection.id] ?? ''}
+                        value={
+                          store.participationMode === 'separate-turns'
+                            ? actor
+                            : (resolvers[objection.id] ?? '')
+                        }
                         onChange={(e) =>
                           setResolvers({ ...resolvers, [objection.id]: e.target.value })
                         }
@@ -1006,9 +1054,21 @@ export const WorkplaceLab: React.FC = () => {
                     </label>
                     <button
                       className={buttonClass}
-                      disabled={pilot || resolvers[objection.id] !== objection.actorId}
+                      disabled={
+                        pilot ||
+                        (store.participationMode === 'separate-turns'
+                          ? actor !== objection.actorId
+                          : resolvers[objection.id] !== objection.actorId)
+                      }
                       onClick={() =>
-                        report(store.resolveObjection(objection.id, resolvers[objection.id]))
+                        report(
+                          store.resolveObjection(
+                            objection.id,
+                            store.participationMode === 'separate-turns'
+                              ? actor
+                              : resolvers[objection.id]
+                          )
+                        )
                       }
                     >
                       Author confirms resolution
@@ -1049,6 +1109,7 @@ export const WorkplaceLab: React.FC = () => {
         </div>
       )}
 
+      {section === 'Review' && <WorkplaceFairness />}
       {section === 'Review' && (
         <div className="space-y-4">
           <h4 className="font-semibold text-white">Actual scenario outcomes</h4>
