@@ -1,7 +1,16 @@
 import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { applyDeclinedWorldSurface, ownsOnlyWorldSurface } from '../../utils/worldSurface';
+import {
+  applyDeclinedWorldSurface,
+  ownsOnlyWorldSurface,
+  resolveSurfaceProfile,
+} from '../../utils/worldSurface';
+import {
+  applyCivicLampShadows,
+  civicUnderlyingHooks,
+  CIVIC_SHADOW_ATLAS,
+} from '../../shaders/civicLampShadows';
 
 type R3FObjectState = {
   eventCount?: number;
@@ -547,7 +556,27 @@ const finishDeclined = (
   if (!collection.finishDeclined) return;
   const list = Array.isArray(material) ? material : [material];
   for (const entry of list) {
-    const applied = applyDeclinedWorldSurface(entry);
+    const civic = civicUnderlyingHooks(entry);
+    let applied: string | null;
+    if (
+      civic?.before === THREE.Material.prototype.onBeforeCompile &&
+      civic.key === THREE.Material.prototype.customProgramCacheKey &&
+      resolveSurfaceProfile(entry)
+    ) {
+      // Retain the old automatic finish on permanently unbatched primitives.
+      // Only unwrap identity-proven stock hosts. Own-property checks in the
+      // surface owner must see their original inherited hooks, then both
+      // treatments are recomposed once in the original order.
+      delete (entry as Partial<THREE.Material>).onBeforeCompile;
+      delete (entry as Partial<THREE.Material>).customProgramCacheKey;
+      try {
+        applied = applyDeclinedWorldSurface(entry);
+      } finally {
+        applyCivicLampShadows(entry);
+      }
+    } else {
+      applied = applyDeclinedWorldSurface(entry);
+    }
     if (!applied) continue;
     const key = `declined:${applied}`;
     collection.declinedProfiles[key] = (collection.declinedProfiles[key] ?? 0) + 1;
@@ -563,6 +592,17 @@ const isSupportedMaterial = (material: THREE.Material): boolean => {
     material instanceof THREE.MeshPhysicalMaterial;
   if (!supported) return false;
   if (material.clippingPlanes?.length) return false;
+  const civic = civicUnderlyingHooks(material);
+  if (civic) {
+    // Identity-proven wrapper. Arbitrary host/window/wind hooks still cannot
+    // batch. Every produced clone is rewired below, so Material.copy dropping
+    // hooks cannot silently remove occlusion on the far side of a merge.
+    return (
+      (civic.before === THREE.Material.prototype.onBeforeCompile &&
+        civic.key === THREE.Material.prototype.customProgramCacheKey) ||
+      ownsOnlyWorldSurface(material)
+    );
+  }
   // An own injection normally disqualifies a material: two different injected
   // programs cannot be merged, and there is no general way to tell one from
   // another. The world surface treatment is the one exception this batcher can
@@ -808,9 +848,11 @@ export const createStaticMeshBatches = (
    * into unbatched meshes. Guarded below at the call site.
    */
   const finishMaterial = (target: THREE.Material, source: THREE.Material): void => {
-    if (!surface) return;
-    const applied = surface(target, source) ?? 'untreated';
-    surfaceProfileCounts[applied] = (surfaceProfileCounts[applied] ?? 0) + 1;
+    if (surface) {
+      const applied = surface(target, source) ?? 'untreated';
+      surfaceProfileCounts[applied] = (surfaceProfileCounts[applied] ?? 0) + 1;
+    }
+    if (CIVIC_SHADOW_ATLAS.value) applyCivicLampShadows(target);
   };
 
   const stableCandidates = candidates.filter((candidate) => {

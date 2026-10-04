@@ -28,9 +28,9 @@ import {
   GENERATED_FOUNTAIN_STREAM_MATERIAL,
   TOWN_HALL_LANTERN_GEOMETRY,
   TOWN_HALL_LENS_GEOMETRY,
-  TOWN_HALL_ENTRY_LIGHT,
 } from './VillageArea';
 import { SITE_LAYOUT, landmarkLocalToWorld } from '../constants/siteLayout';
+import { CIVIC_LAMPS, CIVIC_LIGHT_COLOR } from '../constants/civicSquareLighting';
 
 vi.mock('../utils/critterAudio', () => ({ playCritterSound: vi.fn() }));
 
@@ -52,8 +52,32 @@ describe('bounded civic doorway lanterns', () => {
         expect(Math.abs(positions.getX(i))).toBeLessThan(2.2);
       }
     }
-    expect(TOWN_HALL_ENTRY_LIGHT.distance).toBeLessThanOrEqual(9);
-    expect(TOWN_HALL_ENTRY_LIGHT.position[1]).toBeLessThan(4.4);
+    expect(CIVIC_LAMPS.filter((l) => l.kind === 'wall' && l.id.startsWith('hall-'))).toHaveLength(
+      2
+    );
+  });
+
+  it('seats two bounded amber sources inside the clear aperture, away from opaque metal', () => {
+    TOWN_HALL_LENS_GEOMETRY.computeBoundingBox();
+    for (const lamp of CIVIC_LAMPS.filter((l) => l.kind === 'wall' && l.id.startsWith('hall-'))) {
+      const localZ = 20 - lamp.position[2];
+      expect(localZ).toBeGreaterThan(TOWN_HALL_LENS_GEOMETRY.boundingBox!.min.z);
+      expect(localZ).toBeLessThan(TOWN_HALL_LENS_GEOMETRY.boundingBox!.max.z);
+      const fitting = new THREE.Mesh(TOWN_HALL_LANTERN_GEOMETRY, new THREE.MeshStandardMaterial());
+      fitting.updateMatrixWorld(true);
+      const ray = new THREE.Raycaster(
+        new THREE.Vector3(-lamp.position[0], lamp.position[1], localZ),
+        new THREE.Vector3(0, 0, 1),
+        0.015,
+        0.4
+      );
+      expect(ray.intersectObject(fitting)).toHaveLength(0);
+      expect(lamp.intensity).toBeLessThanOrEqual(20);
+      expect(lamp.distance).toBe(9);
+    }
+    const color = new THREE.Color(CIVIC_LIGHT_COLOR);
+    expect(color.r).toBeGreaterThan(color.g);
+    expect(color.g).toBeGreaterThan(color.b);
   });
 });
 

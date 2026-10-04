@@ -49,6 +49,54 @@ export function getSkyWarmHorizonWeight(solarElevation: number, twilight: number
   );
 }
 
+/** Low sun continues lighting high cloud edges after the disc is hidden.
+ * Working if dawn/dusk retain a localized warm rim while noon/night are exact zero.
+ */
+// Paired rendered control, never a time-dependent cache key.
+export const SKY_AFTERGLOW_STRENGTH = { value: 1 };
+
+export function getSkyAfterglowWeight(solarElevation: number, twilight: number): number {
+  return (
+    Math.min(1, Math.max(0, twilight)) *
+    0.72 *
+    THREE.MathUtils.smoothstep(solarElevation, -0.4, -0.12) *
+    (1 - THREE.MathUtils.smoothstep(solarElevation, -0.06, 0.18))
+  );
+}
+
+/** Ambient and IBL reuse the rendered horizon, including its dusk shoulders.
+ * Working if shaded stone follows the visible sky without another light,
+ * changed fill intensity or a separate day/night palette erasing twilight.
+ */
+export function applySkyAmbientPalette(
+  target: THREE.Color,
+  renderedHorizon: THREE.Color
+): THREE.Color {
+  return target.copy(renderedHorizon);
+}
+
+/** Reuse the one fitted shadow map after sunset; no duplicate moon energy.
+ * Above-horizon endpoints retain their original direction. During crossover
+ * the key passes continuously over the sky instead of snapping 180 degrees.
+ * Working if noon is unchanged and night has source-aligned celestial shadows.
+ */
+export function celestialKeyDirection(
+  target: THREE.Vector3,
+  sun: readonly number[],
+  moon: readonly number[],
+  sunIntensity: number,
+  moonIntensity: number
+): THREE.Vector3 {
+  const weight = moonIntensity / Math.max(0.00001, sunIntensity + moonIntensity);
+  return target
+    .set(
+      THREE.MathUtils.lerp(sun[0], moon[0], weight),
+      THREE.MathUtils.lerp(Math.max(0.07, sun[1]), Math.max(0.07, moon[1]), weight),
+      THREE.MathUtils.lerp(sun[2], moon[2], weight)
+    )
+    .normalize();
+}
+
 /** Clear air reveals the rock; cloudier weather closes the depth layers. */
 export function getRidgeAerialWeight(clearAerial: number, cloudCoverage: number): number {
   const cloudiness = THREE.MathUtils.clamp((cloudCoverage - 0.2) / 0.7, 0, 1);
@@ -92,6 +140,9 @@ uniform vec3 uSunTint;
 uniform float cloudAmount;
 uniform float daylight;
 uniform float uSunOpacity;
+uniform float uAfterglow;
+uniform float uSkyAfterglowStrength;
+uniform vec3 uAfterglowColor;
 uniform vec3 sunDirection;
 varying vec3 vDirection;
 
@@ -118,10 +169,19 @@ void main() {
   sky += uSunTint * (mieBroad + mieTight) * uSunOpacity;
   sky += topColor * rayleigh * daylight + horizonColor * haze;
 
+  // The hidden solar disc and the still-lit high atmosphere have separate lifetimes.
+  // Bound this band by elevation and actual solar azimuth, rather than tinting all sky.
+  float sunward = max(dot(direction.xz / max(length(direction.xz), 0.0001),
+    sunDir.xz / max(length(sunDir.xz), 0.0001)), 0.0);
+  float afterglow = uAfterglow * uSkyAfterglowStrength * pow(sunward, 2.0) *
+    (1.0 - smoothstep(0.08, 0.26, height)) * smoothstep(-0.02, 0.04, height);
+  sky += uAfterglowColor * afterglow * 0.58;
   vec4 clouds = millosSkyClouds(direction, cloudAmount, sunDir, uSunTint);
+  clouds.rgb += uAfterglowColor * afterglow * (1.0 - clouds.a * 0.75) * 0.85;
   float fieldStrength = mix( 1.0, 0.12 + smoothstep( 0.4, 0.85, cloudAmount ) * 0.88, uCloudAtlasReady );
   sky = mix(sky, clouds.rgb, clouds.a * fieldStrength);
   vec4 banks = millosCumulusBanks( direction, cloudAmount, sunDir, uSunTint );
+  banks.rgb += uAfterglowColor * afterglow * (1.0 - banks.a * 0.75) * 1.0;
   sky = mix( sky, banks.rgb, banks.a );
 
   gl_FragColor = vec4(sky, 1.0);
@@ -686,7 +746,7 @@ export const MOUNTAIN_RIDGE_GEOMETRIES = [
 
 const dayTop = new THREE.Color('#70aed8');
 const nightTop = new THREE.Color('#071426');
-const blueHourTop = new THREE.Color('#2f5ea0');
+const blueHourTop = new THREE.Color('#294b7b');
 const dayHorizon = new THREE.Color('#a3cce2');
 const nightHorizon = new THREE.Color('#384a64');
 const dawnHorizon = new THREE.Color('#e8a66d');
@@ -700,12 +760,12 @@ const dayGround = new THREE.Color('#8fae9e');
 const nightGround = new THREE.Color('#1e2f42');
 const dayCloud = new THREE.Color('#f4f6f2');
 const nightCloud = new THREE.Color('#4d586a');
-const blueHourCloud = new THREE.Color('#a2b6d3');
+const blueHourCloud = new THREE.Color('#7184a2');
 // Unlit cloud bottoms. '#596575' was a night blue applied all day, so overcast
 // cloud read as a bruise rather than as grey volume.
 const dayCloudShadow = new THREE.Color('#93a0ad');
 const nightCloudShadow = new THREE.Color('#28303f');
-const blueHourCloudShadow = new THREE.Color('#455d8b');
+const blueHourCloudShadow = new THREE.Color('#293b5d');
 const lightDay = new THREE.Color('#fff1cf');
 const lightGolden = new THREE.Color('#ffb15d');
 const sunCoreNoon = new THREE.Color('#fff8d8');
@@ -740,6 +800,8 @@ const ridgeShadowScratch = new THREE.Color();
 const inscatterScratch = new THREE.Color();
 const sunDirectionScratch = new THREE.Vector3();
 const moonDirectionScratch = new THREE.Vector3();
+const keyDirectionScratch = new THREE.Vector3();
+const keyMoonColour = new THREE.Color('#9bbce5');
 const cameraForwardScratch = new THREE.Vector3();
 
 /**
@@ -857,12 +919,15 @@ export function OptimizedSkySystem() {
         uCloudNoise: { value: getCloudNoiseTexture() },
         uCloudAtlas: { value: getCumulusAtlas().texture },
         uCloudAtlasReady: getCumulusAtlas().ready,
+        uAfterglow: { value: 0 },
+        uSkyAfterglowStrength: SKY_AFTERGLOW_STRENGTH,
+        uAfterglowColor: { value: new THREE.Color('#ff9858') },
         cloudAmount: { value: 0.2 },
         daylight: { value: 1 },
         sunDirection: { value: new THREE.Vector3(0.5, 0.75, -0.4).normalize() },
       },
     });
-    material.customProgramCacheKey = () => 'millos-optimized-sky-v8';
+    material.customProgramCacheKey = () => 'millos-optimized-sky-v11';
     return material;
   }, []);
 
@@ -971,6 +1036,13 @@ export function OptimizedSkySystem() {
       response,
       delta
     );
+    skyMaterial.uniforms.uAfterglow.value = THREE.MathUtils.damp(
+      skyMaterial.uniforms.uAfterglow.value,
+      getSkyAfterglowWeight(atmosphere.solarElevation, atmosphere.twilight) *
+        (1 - atmosphere.cloudCoverage * 0.6),
+      response,
+      delta
+    );
     const blueHour = getSkyBlueHourWeight(atmosphere.solarElevation, atmosphere.twilight);
     targetTopScratch.copy(nightTop).lerp(dayTop, visualDaylight).lerp(blueHourTop, blueHour);
     targetHorizonScratch
@@ -1062,18 +1134,27 @@ export function OptimizedSkySystem() {
       moonRef.current.visible = moonMaterial.uniforms.opacity.value > 0.005;
     }
     if (sunLightRef.current) {
+      const totalKey = celestial.sunLightIntensity + celestial.moonLightIntensity;
+      celestialKeyDirection(
+        keyDirectionScratch,
+        celestial.sunDirection,
+        celestial.moonDirection,
+        celestial.sunLightIntensity,
+        celestial.moonLightIntensity
+      );
       sunLightRef.current.position.set(
-        sunDirectionScratch.x * 120,
-        Math.max(8, sunDirectionScratch.y * 120),
-        sunDirectionScratch.z * 120
+        keyDirectionScratch.x * 120,
+        keyDirectionScratch.y * 120,
+        keyDirectionScratch.z * 120
       );
       sunLightRef.current.intensity = THREE.MathUtils.damp(
         sunLightRef.current.intensity,
-        celestial.sunLightIntensity,
+        totalKey,
         response,
         delta
       );
       colorScratch.copy(lightDay).lerp(lightGolden, celestial.goldenHour);
+      colorScratch.lerp(keyMoonColour, celestial.moonLightIntensity / Math.max(0.00001, totalKey));
       sunLightRef.current.color.copy(colorScratch);
     }
     if (moonLightRef.current) {
@@ -1082,12 +1163,8 @@ export function OptimizedSkySystem() {
         Math.max(12, moonDirectionScratch.y * 110),
         moonDirectionScratch.z * 110
       );
-      moonLightRef.current.intensity = THREE.MathUtils.damp(
-        moonLightRef.current.intensity,
-        celestial.moonLightIntensity,
-        response,
-        delta
-      );
+      // Moon energy lives in the single shadowed key, never in both sources.
+      moonLightRef.current.intensity = 0;
     }
     if (ambientLightRef.current) {
       ambientLightRef.current.intensity = THREE.MathUtils.damp(
@@ -1096,8 +1173,10 @@ export function OptimizedSkySystem() {
         response,
         delta
       );
-      colorScratch.copy(nightHorizon).lerp(dayHorizon, visualDaylight);
-      ambientLightRef.current.color.copy(colorScratch);
+      applySkyAmbientPalette(
+        ambientLightRef.current.color,
+        skyMaterial.uniforms.horizonColor.value
+      );
     }
     if (starsMaterialRef.current) {
       starsMaterialRef.current.opacity = THREE.MathUtils.damp(

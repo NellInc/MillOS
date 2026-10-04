@@ -82,6 +82,7 @@ const LAMP_POOL_GEOMETRY = new THREE.CircleGeometry(1, 28);
 interface RegisteredPointLight {
   readonly light: THREE.PointLight | THREE.SpotLight;
   readonly baseIntensity: number;
+  readonly gain?: { value: number };
 }
 
 const pointLights = new Set<RegisteredPointLight>();
@@ -123,8 +124,8 @@ export const ExteriorLampDriver: React.FC = () => {
     LAMP_POOL_MATERIAL.opacity = level * 0.24;
     // Skip the additive draw entirely while it would add nothing (clear days).
     LAMP_POOL_MATERIAL.visible = LAMP_POOL_MATERIAL.opacity > 0.002;
-    pointLights.forEach(({ light, baseIntensity }) => {
-      light.intensity = baseIntensity * level;
+    pointLights.forEach(({ light, baseIntensity, gain }) => {
+      light.intensity = baseIntensity * level * (gain?.value ?? 1);
     });
   });
 
@@ -143,26 +144,29 @@ export const ExteriorLampPool: React.FC<{ radius?: number }> = ({ radius = 5 }) 
 );
 
 export const ExteriorPointLight: React.FC<{
+  name?: string;
+  gain?: { value: number };
   position: [number, number, number];
   intensity: number;
   distance: number;
   color?: THREE.ColorRepresentation;
-}> = ({ position, intensity, distance, color = '#fef3c7' }) => {
+}> = ({ name, gain, position, intensity, distance, color = '#fef3c7' }) => {
   const lightRef = useRef<THREE.PointLight>(null);
 
   useLayoutEffect(() => {
     const light = lightRef.current;
     if (!light) return undefined;
-    const registration = { light, baseIntensity: intensity };
+    const registration = { light, baseIntensity: intensity, gain };
     pointLights.add(registration);
     return () => {
       pointLights.delete(registration);
     };
-  }, [intensity]);
+  }, [intensity, gain]);
 
   return (
     <pointLight
       ref={lightRef}
+      name={name}
       position={position}
       intensity={0}
       distance={distance}

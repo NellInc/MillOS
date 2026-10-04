@@ -301,13 +301,24 @@ describe('night silhouette fill', () => {
     expect(hemisphereFillIntensity(0)).toBeCloseTo(1.6);
     expect(hemisphereFillIntensity(-1)).toBeCloseTo(1.6);
   });
-  it('fades continuously and monotonically through twilight', () => {
+  it('keeps the twilight shoulder continuous and bounded', () => {
     for (let n = 0; n < 100; n++) {
       const a = hemisphereFillIntensity(n / 100);
       const b = hemisphereFillIntensity((n + 1) / 100);
-      expect(a).toBeGreaterThanOrEqual(b);
-      expect(a - b).toBeLessThan(0.022);
+      expect(a).toBeGreaterThanOrEqual(HEMISPHERE_INTENSITY);
+      expect(a).toBeLessThan(2.9);
+      expect(Math.abs(a - b)).toBeLessThan(0.065);
     }
+  });
+  it('supports civil-twilight shade without changing either endpoint', () => {
+    const dusk = sampleAtmosphere(0, 18.5, 'clear').daylight;
+    const previous = HEMISPHERE_INTENSITY + 1.38 * (1 - dusk * dusk * (3 - 2 * dusk));
+    expect(hemisphereFillIntensity(dusk)).toBeGreaterThan(previous * 1.5);
+    expect(hemisphereFillIntensity(dusk)).toBeLessThan(2.9);
+    expect(hemisphereFillIntensity(sampleAtmosphere(0, 12, 'clear').daylight)).toBe(
+      HEMISPHERE_INTENSITY
+    );
+    expect(hemisphereFillIntensity(sampleAtmosphere(0, 22, 'clear').daylight)).toBeCloseTo(1.6);
   });
 });
 

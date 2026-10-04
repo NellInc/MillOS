@@ -48,6 +48,25 @@ export interface ActiveShaderContract {
  */
 export const ACTIVE_SHADER_CONTRACTS: readonly ActiveShaderContract[] = [
   {
+    id: 'civic-lamp-baked-visibility',
+    owner: 'CivicSquareLighting',
+    sources: ['src/shaders/civicLampShadows.ts'],
+    coordinateSpaces: ['draw-camera view to world', 'fixed source radial depth cube faces'],
+    colorSpace: 'RG16 linear depth, unchanged linear punctual incident radiance',
+    toneMapping: 'material-pipeline',
+    fog: 'material-pipeline',
+    transparency: 'opaque',
+    depthBehavior: 'attenuates matching local lights only; no additional runtime shadow pass',
+    qualityVariants: ['low', 'medium', 'high', 'ultra'],
+    uniformOwner: 'shared immutable baked atlas and source manifest, runtime isolation strength',
+    timeSource: 'none',
+    cacheKey: 'millos-civic-lamp-visibility-v4',
+    disposalOwner: 'shared TextureLoader cache and host material owner',
+    fallbackMaterial: 'unmodified host for Basic/non-PBR surfaces',
+    notes:
+      'Rigid static occluders only. Windy alpha crowns and inhabitants receive lamp light but do not cast moving lamp shadows. Existing celestial map remains the dynamic shadow source.',
+  },
+  {
     id: 'exact-zero-punctual-light-culling',
     owner: 'shaders/punctualLightCulling',
     sources: ['src/shaders/punctualLightCulling.ts'],
@@ -106,7 +125,7 @@ export const ACTIVE_SHADER_CONTRACTS: readonly ActiveShaderContract[] = [
     qualityVariants: ['low', 'medium'],
     uniformOwner: 'OptimizedSkySystem memoized material',
     timeSource: 'simulation',
-    cacheKey: 'millos-optimized-sky-v8',
+    cacheKey: 'millos-optimized-sky-v11',
     disposalOwner: 'React scene lifetime',
     fallbackMaterial: 'scene background and fog color',
   },

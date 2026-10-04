@@ -8,7 +8,7 @@
  * 4. No React state for static geometry - pure instancing
  *
  * PERFORMANCE GAINS:
- * - 14 lamp fixtures: 42 meshes → 3 instanced draws (ground pools are separate)
+ * - 18 lamp fixtures: 54 meshes → 3 instanced draws (ground pools are separate)
  * - 4 benches: 4 draw calls → 1 draw call
  * - etc.
  */
@@ -18,6 +18,10 @@ import * as THREE from 'three';
 import { PROCEDURAL_TEXTURES } from '../../utils/sharedMaterials';
 import { useFrame } from '@react-three/fiber';
 import { ExteriorLampPool, EXTERIOR_LAMP_LENS_MATERIAL } from '../exterior/ExteriorLighting';
+import {
+  CIVIC_POST_POSITIONS,
+  CIVIC_POST_HEIGHT_SCALES,
+} from '../../constants/civicSquareLighting';
 
 // ============================================================
 // SHARED GEOMETRIES - Created once at module level
@@ -251,7 +255,7 @@ const lampGlassMaterial = new THREE.MeshStandardMaterial({
 // LAMP INSTANCE DATA
 // ============================================================
 
-const LAMP_POSITIONS: [number, number][] = [
+const LAMP_POSITIONS: [number, number, number?][] = [
   [-15, 20],
   [15, 20],
   [-15, -20],
@@ -266,17 +270,21 @@ const LAMP_POSITIONS: [number, number][] = [
   [15, 35],
   [-15, -60],
   [15, 65],
+  ...CIVIC_POST_POSITIONS.map(
+    ([x, , z], i) => [x, z, CIVIC_POST_HEIGHT_SCALES[i]] as [number, number, number]
+  ),
 ];
 
 /** Lamp head height is 4.3 m; the pool reaches roughly the next building line. */
 const LAMP_POOL_RADIUS = 5.5;
 
 /**
- * Instanced village lamps: 14 fixtures in 3 draw calls, plus one ground light
+ * Instanced village lamps: 18 fixtures in 3 draw calls, plus one ground light
  * pool per lamp. The pools share the site-wide ExteriorLampDriver level
  * (dusk ramp, night, storm/rain floor), and the glass follows that same
- * level, so a pool never lies under an unlit lamp. No punctual lights: those
- * would change the scene's light count at dusk and recompile every material.
+ * level, so a pool never lies under an unlit lamp. The four civic concept posts
+ * have resident punctual sources in CivicSquareLighting, faded without
+ * changing the source count at dusk. Other posts retain their original pools.
  */
 export const InstancedLamps: React.FC = React.memo(() => {
   const postsRef = useRef<THREE.InstancedMesh>(null);
@@ -289,19 +297,20 @@ export const InstancedLamps: React.FC = React.memo(() => {
   // Layout, not passive: a frame rendered before the matrices land would cache
   // an origin-sized bounding sphere and frustum-cull the whole row of lamps.
   useLayoutEffect(() => {
-    LAMP_POSITIONS.forEach(([x, z], i) => {
+    LAMP_POSITIONS.forEach(([x, z, heightScale = 1], i) => {
+      dummy.scale.set(1, heightScale, 1);
       // Post
-      dummy.position.set(x, 2, z);
+      dummy.position.set(x, 2 * heightScale, z);
       dummy.updateMatrix();
       postsRef.current?.setMatrixAt(i, dummy.matrix);
 
       // Housing
-      dummy.position.set(x, 4.3, z);
+      dummy.position.set(x, 4.3 * heightScale, z);
       dummy.updateMatrix();
       housingsRef.current?.setMatrixAt(i, dummy.matrix);
 
       // Glass
-      dummy.position.set(x, 4.3, z);
+      dummy.position.set(x, 4.3 * heightScale, z);
       dummy.updateMatrix();
       glassRef.current?.setMatrixAt(i, dummy.matrix);
     });
@@ -331,7 +340,11 @@ export const InstancedLamps: React.FC = React.memo(() => {
         args={[lampPostGeometry, blackMetalMaterial, count]}
         castShadow
       />
-      <instancedMesh ref={housingsRef} args={[lampHousingGeometry, blackMetalMaterial, count]} />
+      <instancedMesh
+        ref={housingsRef}
+        args={[lampHousingGeometry, blackMetalMaterial, count]}
+        castShadow
+      />
       {/* Material attached as a child primitive, NOT via args: a state-varying
           material in `args` changes the args array identity on every isNight
           flip, making R3F tear down and rebuild the InstancedMesh. The stable

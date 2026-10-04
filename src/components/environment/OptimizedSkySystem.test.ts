@@ -7,7 +7,10 @@ import {
   createMountainRidgeGeometry,
   getSkyTwilightWeight,
   getSkyBlueHourWeight,
+  getSkyAfterglowWeight,
   getSkyWarmHorizonWeight,
+  applySkyAmbientPalette,
+  celestialKeyDirection,
   getRidgeAerialWeight,
   MOUNTAIN_RIDGE_GEOMETRIES,
   CELESTIAL_RADIUS,
@@ -20,8 +23,46 @@ import { sampleValleyGroundHeight } from '../terrain/splatMapGenerator';
 import { SITE_LAYOUT } from '../../constants/siteLayout';
 import { CAMERA_DEPTH } from '../../constants/renderLayers';
 
-import { sampleAtmosphere } from '../../simulation/atmosphere';
+import { sampleAtmosphere, sampleCelestial } from '../../simulation/atmosphere';
 import { createRoadTunnelHillGeometry } from '../scenery/Tunnel';
+
+describe('rendered horizon ambient handoff', () => {
+  it('keeps cloud afterglow bounded, continuous and absent at noon and deep night', () => {
+    expect(getSkyAfterglowWeight(1, 0)).toBe(0);
+    expect(getSkyAfterglowWeight(-1, 0)).toBe(0);
+    expect(getSkyAfterglowWeight(-0.13, 0.93)).toBeGreaterThan(0.6);
+    let previous = getSkyAfterglowWeight(
+      sampleAtmosphere(1, 16, 'clear').solarElevation,
+      sampleAtmosphere(1, 16, 'clear').twilight
+    );
+    for (let minute = 16 * 60 + 1; minute <= 21 * 60; minute++) {
+      const a = sampleAtmosphere(1, minute / 60, 'clear'),
+        value = getSkyAfterglowWeight(a.solarElevation, a.twilight);
+      expect(value).toBeGreaterThanOrEqual(0);
+      expect(value).toBeLessThanOrEqual(0.72);
+      expect(Math.abs(value - previous)).toBeLessThan(0.025);
+      previous = value;
+    }
+  });
+  it('copies daylight, blue-hour, warm twilight and night without mutating the sky', () => {
+    for (const hex of ['#a3cce2', '#7186ad', '#c09984', '#384a64']) {
+      const horizon = new THREE.Color(hex);
+      const original = horizon.clone();
+      const ambient = new THREE.Color('#384a64');
+      expect(applySkyAmbientPalette(ambient, horizon)).toBe(ambient);
+      expect(ambient.equals(original)).toBe(true);
+      expect(horizon.equals(original)).toBe(true);
+    }
+  });
+
+  it('retains twilight colour that a second day/night blend would erase', () => {
+    const oldBlend = new THREE.Color('#384a64').lerp(new THREE.Color('#a3cce2'), 0.23);
+    const renderedHorizon = new THREE.Color('#c09984');
+    const ambient = applySkyAmbientPalette(new THREE.Color(), renderedHorizon);
+    expect(ambient.equals(oldBlend)).toBe(false);
+    expect(ambient.r / ambient.b).toBeGreaterThan(oldBlend.r / oldBlend.b);
+  });
+});
 
 describe('mountain ridge geometry', () => {
   it('fits the whole site, backdrop and celestial silhouettes in the normal depth range', () => {
@@ -355,5 +396,28 @@ describe('fixed foothill ground blend', () => {
     expect(RIDGE_GROUND_BLEND.startY).toBeGreaterThanOrEqual(bank.boundingBox!.max.y);
     expect(RIDGE_GROUND_BLEND.endY - RIDGE_GROUND_BLEND.startY).toBe(8);
     bank.dispose();
+  });
+});
+
+describe('single sun/moon shadowed key', () => {
+  it('retains noon sun and midnight moon directions with finite unit-length crossover', () => {
+    for (let minute = 0; minute <= 1440; minute++) {
+      const hour = minute / 60;
+      const c = sampleCelestial(sampleAtmosphere(0, hour, 'clear'));
+      const target = celestialKeyDirection(
+        new THREE.Vector3(),
+        c.sunDirection,
+        c.moonDirection,
+        c.sunLightIntensity,
+        c.moonLightIntensity
+      );
+      expect(target.toArray().every(Number.isFinite)).toBe(true);
+      expect(target.length()).toBeCloseTo(1, 10);
+      expect(target.y).toBeGreaterThan(0);
+      if (hour === 0 || hour === 12)
+        expect(
+          target.distanceTo(new THREE.Vector3(...(hour === 12 ? c.sunDirection : c.moonDirection)))
+        ).toBeLessThan(1e-10);
+    }
   });
 });

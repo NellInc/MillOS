@@ -16,7 +16,6 @@ import { SceneText as Text } from './shared/SceneText';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
-import { useGraphicsStore } from '../stores/graphicsStore';
 import Fireflies from './effects/Fireflies';
 import { Cat } from './scenery/Cat';
 import { AuthoredPropTrim, MarketGoods } from './scenery/AuthoredPropTrim';
@@ -34,6 +33,7 @@ import { playCritterSound } from '../utils/critterAudio';
 import { audioManager } from '../utils/audioManager';
 import { PROCEDURAL_TEXTURES } from '../utils/sharedMaterials';
 import { InstancedLamps } from './village/InstancedVillageComponents';
+import { CivicSquareLighting } from './scenery/CivicSquareLighting';
 import { EXTERIOR_LAYERS, POLYGON_OFFSET } from '../constants/renderLayers';
 import {
   GeneratedBody,
@@ -58,7 +58,6 @@ import { SITE_LAYOUT, landmarkLocalToWorld } from '../constants/siteLayout';
 import {
   EXTERIOR_LAMP_LEVEL,
   EXTERIOR_LAMP_LENS_MATERIAL,
-  ExteriorPointLight,
   getExteriorLampLevel,
 } from './exterior/ExteriorLighting';
 import { useReducedMotion } from '../hooks/useReducedMotion';
@@ -995,10 +994,8 @@ const TownHallPrimitiveBody = React.memo(() => {
 });
 TownHallPrimitiveBody.displayName = 'TownHallPrimitiveBody';
 
-// Two doorway fittings, two shared draws, one bounded non-shadow light. The
-// existing lamp driver owns their dusk/weather fade; no separate frame loop.
-// Working if the authored doorway and treads read at night without lighting
-// the roof, replacing the hall, or adding light sources along the whole square.
+// Retained doorway fittings. The civic manifest supplies two matching sources,
+// driven by the existing dusk/weather clock and baked local visibility.
 const townHallLanternParts: THREE.BufferGeometry[] = [];
 const townHallLensParts: THREE.BufferGeometry[] = [];
 for (const x of [-1.85, 1.85]) {
@@ -1020,25 +1017,12 @@ for (const x of [-1.85, 1.85]) {
 export const TOWN_HALL_LANTERN_GEOMETRY = mergeGeometries(townHallLanternParts)!;
 export const TOWN_HALL_LENS_GEOMETRY = mergeGeometries(townHallLensParts)!;
 [...townHallLanternParts, ...townHallLensParts].forEach((part) => part.dispose());
-export const TOWN_HALL_ENTRY_LIGHT = {
-  position: [0, 3.65, 6.05] as [number, number, number],
-  intensity: 18,
-  distance: 9,
-};
-
 function TownHallLanterns() {
-  const lighting = useGraphicsStore(
-    (state) => state.graphics.quality !== 'low' && !state.graphics.perfDebug.disableLightingPolish
-  );
   return (
     <group name="town-hall-doorway-lanterns">
-      <mesh geometry={TOWN_HALL_LANTERN_GEOMETRY} material={SM.black} receiveShadow />
+      <mesh geometry={TOWN_HALL_LANTERN_GEOMETRY} material={SM.black} castShadow receiveShadow />
       <mesh geometry={TOWN_HALL_LENS_GEOMETRY} material={EXTERIOR_LAMP_LENS_MATERIAL} />
-      {lighting && (
-        <group name="town-hall-entry-light">
-          <ExteriorPointLight {...TOWN_HALL_ENTRY_LIGHT} />
-        </group>
-      )}
+      {/* Each fitting now has its own source in the civic lighting manifest. */}
     </group>
   );
 }
@@ -3264,6 +3248,7 @@ export const VillageArea: React.FC = () => {
 
       {/* === STREET LAMPS (Instanced for performance) === */}
       <InstancedLamps />
+      <CivicSquareLighting />
 
       {/* === POSTBOX === */}
       <Postbox position={[12, 0, 25]} rotation={-Math.PI / 2} />

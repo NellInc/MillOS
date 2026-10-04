@@ -228,12 +228,19 @@ describe('atomic local physical shift continuation', () => {
     heldShift();
     const previous = encodePhysicalSession(capturePhysicalSession());
     localStorage.setItem(PHYSICAL_SESSION_KEY, previous);
-    dispose = installPhysicalSession();
+    // Spy on the injected storage used by this save, not a host Storage prototype.
+    // Node 26's browser storage can expose methods from a different prototype.
+    const storage = {
+      getItem: (key: string) => localStorage.getItem(key),
+      setItem: vi.fn((key: string, value: string) => localStorage.setItem(key, value)),
+    };
+    dispose = installPhysicalSession(storage);
     ready();
-    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+    storage.setItem.mockImplementation(() => {
       throw new DOMException('Full', 'QuotaExceededError');
     });
     exit();
+    expect(storage.setItem).toHaveBeenCalledWith(PHYSICAL_SESSION_KEY, expect.any(String));
     expect(localStorage.getItem(PHYSICAL_SESSION_KEY)).toBe(previous);
     expect(useUIStore.getState().alerts.at(-1)?.message).toContain('could not be saved');
     expect(useGameSimulationStore.getState().gameSpeed).toBe(0);

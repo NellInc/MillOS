@@ -70,3 +70,25 @@ The initial-write conflict guard now also preserves a save created by another ta
 Ordinary Git fetch verified origin/main630dc6f, a single llms.txt publication commit beyond859c391. Its three clean publication files are applied locally, retaining this checkout's three later CLAUDE-only commits. Normal history integration, final source/size review and all release gates remain required before push. No Git Data API was used.
 
 Working if the final receipt names all2606tests, unchanged limits, exact current source/build fingerprints, remaining external gates, and a later verified served-byte release before claiming completion.
+
+
+## Current lighting integration input, 4 October
+
+The local civic-square lamp expansion has a sealed isolated candidate, separate
+from concurrent workplace handoff/grounded-advice source. All27mapped sources
+illuminate actual receivers. Fixed opaque scene shadows, mature-tree uplights
+and bounded dusk afterglow have actual same-page attribution; reverse/1.7m,
+noon/night/Low controls are retained. All148protected models remain unchanged.
+Current lighting candidate:2628tests/239files pass, required static/normal build/
+delivery gates pass. Original eligible Low/Medium five-scene plus eight lamp-
+active dusk/night budget cases pass, raw diagnostics empty. Nineteen owned file
+hashes and387delivery hashes remain unchanged after final gates.
+
+Receipt:output/dusk-fidelity-20261004/lighting-final-acceptance.json. This resolves
+the lighting pilot's capacity/disk gate, not the parent integrated release. No
+cloud, push or deployment occurred. Next parent work is exact source integration
+with concurrent workplace changes and source-bound applicable runtime/release
+gates. Historical failed/ineligible receipts remain historical. Full goal active,
+with no current repeated external blocker. Working if a later integration names
+its exact source/build and never treats the isolated lighting seal as verification
+of the other context's changes.

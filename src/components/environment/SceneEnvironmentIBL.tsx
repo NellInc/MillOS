@@ -123,11 +123,14 @@ export const HEMISPHERE_INTENSITY = 0.22;
  * Reveal night silhouettes using the existing blue sky fill, with no extra
  * light or shadow pass. Daytime key/fill stays unchanged. Working if paired
  * night captures reveal surfaces while this intensity term is unchanged at noon.
+ * A civil-twilight shoulder keeps shaded stone readable as the direct sun fades.
+ * Working if dusk gains separation while noon and deep-night endpoints stay exact.
  */
 export function hemisphereFillIntensity(daylight: number): number {
   const t = THREE.MathUtils.clamp(daylight, 0, 1);
   const night = 1 - t * t * (3 - 2 * t);
-  return HEMISPHERE_INTENSITY + 1.38 * night;
+  const dusk = 16 * t * t * (1 - t) * (1 - t);
+  return HEMISPHERE_INTENSITY + 1.38 * night + 1.6 * dusk;
 }
 
 /** Angular radius of the sun disc stamped into the environment, in radians. */

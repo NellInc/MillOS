@@ -1,0 +1,850 @@
+{
+  "convention": "world-Y-up radial-RG16; +X,-X,+Y,-Y,+Z,-Z; rows follow face v",
+  "faceBases": [
+    [
+      [
+        1,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        -1
+      ],
+      [
+        0,
+        -1,
+        0
+      ]
+    ],
+    [
+      [
+        -1,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        1
+      ],
+      [
+        0,
+        -1,
+        0
+      ]
+    ],
+    [
+      [
+        0,
+        1,
+        0
+      ],
+      [
+        1,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        1
+      ]
+    ],
+    [
+      [
+        0,
+        -1,
+        0
+      ],
+      [
+        1,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        -1
+      ]
+    ],
+    [
+      [
+        0,
+        0,
+        1
+      ],
+      [
+        1,
+        0,
+        0
+      ],
+      [
+        0,
+        -1,
+        0
+      ]
+    ],
+    [
+      [
+        0,
+        0,
+        -1
+      ],
+      [
+        -1,
+        0,
+        0
+      ],
+      [
+        0,
+        -1,
+        0
+      ]
+    ]
+  ],
+  "sourceLookup": {
+    "quantization": 20,
+    "bias": 0.31,
+    "coefficients": [
+      1,
+      1,
+      2
+    ],
+    "slots": 512,
+    "width": 256,
+    "origin": [
+      768,
+      0
+    ]
+  },
+  "faceSize": 128,
+  "atlasSize": [
+    1024,
+    4096
+  ],
+  "sources": [
+    {
+      "id": "hall-west",
+      "kind": "wall",
+      "position": [
+        -188.15,
+        3.525,
+        14.47
+      ],
+      "intensity": 14,
+      "distance": 9,
+      "reference": [
+        0.29,
+        0.375
+      ],
+      "actualIntensity": 14
+    },
+    {
+      "id": "hall-east",
+      "kind": "wall",
+      "position": [
+        -191.85,
+        3.525,
+        14.47
+      ],
+      "intensity": 14,
+      "distance": 9,
+      "reference": [
+        0.407,
+        0.375
+      ],
+      "actualIntensity": 14
+    },
+    {
+      "id": "hall-sign",
+      "kind": "sign",
+      "position": [
+        -190,
+        6.65,
+        14.3
+      ],
+      "intensity": 3.85,
+      "distance": 4,
+      "reference": [
+        0.338,
+        0.227
+      ],
+      "actualIntensity": 3.85
+    },
+    {
+      "id": "post-left",
+      "kind": "post",
+      "position": [
+        -179.8,
+        3.3,
+        7.08
+      ],
+      "intensity": 65,
+      "distance": 24,
+      "reference": [
+        0.019,
+        0.386
+      ],
+      "actualIntensity": 65
+    },
+    {
+      "id": "post-fountain",
+      "kind": "post",
+      "position": [
+        -194,
+        3.3,
+        12.08
+      ],
+      "intensity": 56,
+      "distance": 24,
+      "reference": [
+        0.546,
+        0.368
+      ],
+      "actualIntensity": 56
+    },
+    {
+      "id": "post-garden",
+      "kind": "post",
+      "position": [
+        -212,
+        3.3,
+        18.08
+      ],
+      "intensity": 55,
+      "distance": 20,
+      "reference": [
+        0.662,
+        0.402
+      ],
+      "actualIntensity": 55
+    },
+    {
+      "id": "post-right",
+      "kind": "post",
+      "position": [
+        -219,
+        3.3,
+        5.08
+      ],
+      "intensity": 55,
+      "distance": 20,
+      "reference": [
+        0.965,
+        0.373
+      ],
+      "actualIntensity": 55
+    },
+    {
+      "id": "shed-wall",
+      "kind": "wall",
+      "position": [
+        -217.65,
+        1.7,
+        5.95
+      ],
+      "intensity": 8,
+      "distance": 7,
+      "reference": [
+        0.804,
+        0.44
+      ],
+      "actualIntensity": 8
+    },
+    {
+      "id": "hall-verge",
+      "kind": "garden",
+      "position": [
+        -183.3,
+        0.44,
+        15.5
+      ],
+      "intensity": 9,
+      "distance": 9,
+      "reference": [
+        0.025,
+        0.563
+      ],
+      "actualIntensity": 9
+    },
+    {
+      "id": "hall-front-west",
+      "kind": "garden",
+      "position": [
+        -185.3,
+        0.44,
+        13.1
+      ],
+      "intensity": 9,
+      "distance": 9,
+      "reference": [
+        0.176,
+        0.604
+      ],
+      "actualIntensity": 9
+    },
+    {
+      "id": "hall-front-east",
+      "kind": "garden",
+      "position": [
+        -194.7,
+        0.44,
+        13.1
+      ],
+      "intensity": 9,
+      "distance": 9,
+      "reference": [
+        0.48,
+        0.539
+      ],
+      "actualIntensity": 9
+    },
+    {
+      "id": "hall-side-near",
+      "kind": "garden",
+      "position": [
+        -183.2,
+        0.44,
+        20
+      ],
+      "intensity": 9,
+      "distance": 9,
+      "reference": [
+        0.04,
+        0.478
+      ],
+      "actualIntensity": 9
+    },
+    {
+      "id": "hall-side-far",
+      "kind": "garden",
+      "position": [
+        -183.2,
+        0.44,
+        24
+      ],
+      "intensity": 9,
+      "distance": 9,
+      "reference": [
+        0.074,
+        0.472
+      ],
+      "actualIntensity": 9
+    },
+    {
+      "id": "fountain-border",
+      "kind": "garden",
+      "position": [
+        -195.7,
+        0.44,
+        10.5
+      ],
+      "intensity": 10,
+      "distance": 9,
+      "reference": [
+        0.552,
+        0.505
+      ],
+      "actualIntensity": 10
+    },
+    {
+      "id": "tree-inner",
+      "kind": "garden",
+      "position": [
+        -233.3,
+        0.44,
+        27.15
+      ],
+      "intensity": 48,
+      "distance": 12,
+      "reference": [
+        0.631,
+        0.45
+      ],
+      "actualIntensity": 48
+    },
+    {
+      "id": "gate-inner",
+      "kind": "garden",
+      "position": [
+        -209.15,
+        0.44,
+        10.5
+      ],
+      "intensity": 9,
+      "distance": 9,
+      "reference": [
+        0.687,
+        0.507
+      ],
+      "actualIntensity": 9
+    },
+    {
+      "id": "gate-outer",
+      "kind": "garden",
+      "position": [
+        -209.15,
+        0.44,
+        7.5
+      ],
+      "intensity": 9,
+      "distance": 9,
+      "reference": [
+        0.737,
+        0.532
+      ],
+      "actualIntensity": 9
+    },
+    {
+      "id": "shed-bed-west",
+      "kind": "garden",
+      "position": [
+        -214.2,
+        0.44,
+        13.8
+      ],
+      "intensity": 9,
+      "distance": 9,
+      "reference": [
+        0.776,
+        0.529
+      ],
+      "actualIntensity": 9
+    },
+    {
+      "id": "shed-bed-east",
+      "kind": "garden",
+      "position": [
+        -219.8,
+        0.44,
+        9.2
+      ],
+      "intensity": 9,
+      "distance": 9,
+      "reference": [
+        0.817,
+        0.529
+      ],
+      "actualIntensity": 9
+    },
+    {
+      "id": "tree-middle",
+      "kind": "garden",
+      "position": [
+        -231.3,
+        0.44,
+        11.4
+      ],
+      "intensity": 50,
+      "distance": 12,
+      "reference": [
+        0.872,
+        0.481
+      ],
+      "actualIntensity": 50
+    },
+    {
+      "id": "tree-near",
+      "kind": "garden",
+      "position": [
+        -233,
+        0.44,
+        5.2
+      ],
+      "intensity": 46,
+      "distance": 12,
+      "reference": [
+        0.928,
+        0.509
+      ],
+      "actualIntensity": 46
+    },
+    {
+      "id": "verge-near",
+      "kind": "garden",
+      "position": [
+        -218,
+        0.44,
+        -1.2
+      ],
+      "intensity": 10,
+      "distance": 9,
+      "reference": [
+        0.984,
+        0.572
+      ],
+      "actualIntensity": 10
+    },
+    {
+      "id": "hall-front-window--4.3",
+      "kind": "window",
+      "position": [
+        -194.3,
+        3.35,
+        13.9
+      ],
+      "intensity": 1.8,
+      "distance": 7,
+      "reference": [
+        0.44,
+        0.4
+      ],
+      "actualIntensity": 1.8
+    },
+    {
+      "id": "hall-front-window-4.3",
+      "kind": "window",
+      "position": [
+        -185.7,
+        3.35,
+        13.9
+      ],
+      "intensity": 1.8,
+      "distance": 7,
+      "reference": [
+        0.21,
+        0.4
+      ],
+      "actualIntensity": 1.8
+    },
+    {
+      "id": "hall-side-window-16.8",
+      "kind": "window",
+      "position": [
+        -182.9,
+        3.35,
+        16.8
+      ],
+      "intensity": 1.8,
+      "distance": 7,
+      "reference": [
+        0.08,
+        0.4
+      ],
+      "actualIntensity": 1.8
+    },
+    {
+      "id": "hall-side-window-20",
+      "kind": "window",
+      "position": [
+        -182.9,
+        3.35,
+        20
+      ],
+      "intensity": 1.8,
+      "distance": 7,
+      "reference": [
+        0.08,
+        0.4
+      ],
+      "actualIntensity": 1.8
+    },
+    {
+      "id": "hall-side-window-23.2",
+      "kind": "window",
+      "position": [
+        -182.9,
+        3.35,
+        23.2
+      ],
+      "intensity": 1.8,
+      "distance": 7,
+      "reference": [
+        0.08,
+        0.4
+      ],
+      "actualIntensity": 1.8
+    }
+  ],
+  "objects": [
+    {
+      "name": "static-merge:community-authored-static:0:0",
+      "vertices": 4884,
+      "instances": 1
+    },
+    {
+      "name": "tree-trunks",
+      "vertices": 648,
+      "instances": 17
+    },
+    {
+      "name": "parkland-scaffold-branches",
+      "vertices": 235,
+      "instances": 17
+    },
+    {
+      "name": "",
+      "vertices": 3674,
+      "instances": 1
+    },
+    {
+      "name": "world-public-realm-joinery",
+      "vertices": 12180,
+      "instances": 1
+    },
+    {
+      "name": "TownhallBody",
+      "vertices": 12438,
+      "instances": 1
+    },
+    {
+      "name": "",
+      "vertices": 422,
+      "instances": 1
+    },
+    {
+      "name": "PubBody",
+      "vertices": 5712,
+      "instances": 1
+    },
+    {
+      "name": "SchoolBody",
+      "vertices": 7552,
+      "instances": 1
+    },
+    {
+      "name": "ShopBody",
+      "vertices": 4908,
+      "instances": 1
+    },
+    {
+      "name": "ShopBody",
+      "vertices": 4908,
+      "instances": 1
+    },
+    {
+      "name": "ShopBody",
+      "vertices": 4908,
+      "instances": 1
+    },
+    {
+      "name": "WishingwellBody",
+      "vertices": 11394,
+      "instances": 1
+    },
+    {
+      "name": "FountainBody",
+      "vertices": 7424,
+      "instances": 1
+    },
+    {
+      "name": "duckpond-natural-water-and-retained-bank",
+      "vertices": 13164,
+      "instances": 1
+    },
+    {
+      "name": "",
+      "vertices": 510,
+      "instances": 10
+    },
+    {
+      "name": "",
+      "vertices": 333,
+      "instances": 10
+    },
+    {
+      "name": "",
+      "vertices": 3143,
+      "instances": 1
+    },
+    {
+      "name": "PostboxBody",
+      "vertices": 7639,
+      "instances": 1
+    },
+    {
+      "name": "tree-trunks",
+      "vertices": 720,
+      "instances": 1
+    },
+    {
+      "name": "tree-trunks",
+      "vertices": 648,
+      "instances": 2
+    },
+    {
+      "name": "static-merge:authored-village:0:3",
+      "vertices": 108,
+      "instances": 1
+    },
+    {
+      "name": "static-merge:authored-village:0:4",
+      "vertices": 144,
+      "instances": 1
+    },
+    {
+      "name": "static-merge:authored-village:0:11",
+      "vertices": 216,
+      "instances": 1
+    },
+    {
+      "name": "static-merge:authored-village:0:12",
+      "vertices": 288,
+      "instances": 1
+    },
+    {
+      "name": "static-merge:authored-village:0:13",
+      "vertices": 72,
+      "instances": 1
+    },
+    {
+      "name": "static-merge:authored-village:0:14",
+      "vertices": 181440,
+      "instances": 1
+    },
+    {
+      "name": "static-merge:authored-village:0:15",
+      "vertices": 30960,
+      "instances": 1
+    }
+  ],
+  "exclusions": {
+    "alphaOrMoving": 41
+  },
+  "dynamicLocalShadows": false,
+  "inputSha256": "4a6f4e8737270ec59193623e374f35376343eb4e0c973d731995d2b1f9c35416",
+  "atlasSha256": "4abea8ba7c4e3926724f3d8da769a4b6f795571eb4cc9231cdb0d1da028a6523",
+  "bakerSha256": "e4a1187f642e15650def16479000b54b52c562a1e7af3e1894d40db3aabe7973",
+  "vertices": 343035,
+  "triangles": 149969,
+  "elapsedSeconds": 8.0,
+  "sourceReceipts": [
+    {
+      "id": "hall-west",
+      "blockedRays": 78390,
+      "rays": 98304
+    },
+    {
+      "id": "hall-east",
+      "blockedRays": 78340,
+      "rays": 98304
+    },
+    {
+      "id": "hall-sign",
+      "blockedRays": 64978,
+      "rays": 98304
+    },
+    {
+      "id": "post-left",
+      "blockedRays": 61980,
+      "rays": 98304
+    },
+    {
+      "id": "post-fountain",
+      "blockedRays": 73925,
+      "rays": 98304
+    },
+    {
+      "id": "post-garden",
+      "blockedRays": 54832,
+      "rays": 98304
+    },
+    {
+      "id": "post-right",
+      "blockedRays": 56981,
+      "rays": 98304
+    },
+    {
+      "id": "shed-wall",
+      "blockedRays": 62703,
+      "rays": 98304
+    },
+    {
+      "id": "hall-verge",
+      "blockedRays": 50467,
+      "rays": 98304
+    },
+    {
+      "id": "hall-front-west",
+      "blockedRays": 46118,
+      "rays": 98304
+    },
+    {
+      "id": "hall-front-east",
+      "blockedRays": 47118,
+      "rays": 98304
+    },
+    {
+      "id": "hall-side-near",
+      "blockedRays": 53721,
+      "rays": 98304
+    },
+    {
+      "id": "hall-side-far",
+      "blockedRays": 50822,
+      "rays": 98304
+    },
+    {
+      "id": "fountain-border",
+      "blockedRays": 38082,
+      "rays": 98304
+    },
+    {
+      "id": "tree-inner",
+      "blockedRays": 31963,
+      "rays": 98304
+    },
+    {
+      "id": "gate-inner",
+      "blockedRays": 39322,
+      "rays": 98304
+    },
+    {
+      "id": "gate-outer",
+      "blockedRays": 39667,
+      "rays": 98304
+    },
+    {
+      "id": "shed-bed-west",
+      "blockedRays": 41598,
+      "rays": 98304
+    },
+    {
+      "id": "shed-bed-east",
+      "blockedRays": 34718,
+      "rays": 98304
+    },
+    {
+      "id": "tree-middle",
+      "blockedRays": 34258,
+      "rays": 98304
+    },
+    {
+      "id": "tree-near",
+      "blockedRays": 32208,
+      "rays": 98304
+    },
+    {
+      "id": "verge-near",
+      "blockedRays": 24236,
+      "rays": 98304
+    },
+    {
+      "id": "hall-front-window--4.3",
+      "blockedRays": 46789,
+      "rays": 98304
+    },
+    {
+      "id": "hall-front-window-4.3",
+      "blockedRays": 46377,
+      "rays": 98304
+    },
+    {
+      "id": "hall-side-window-16.8",
+      "blockedRays": 41487,
+      "rays": 98304
+    },
+    {
+      "id": "hall-side-window-20",
+      "blockedRays": 43720,
+      "rays": 98304
+    },
+    {
+      "id": "hall-side-window-23.2",
+      "blockedRays": 41293,
+      "rays": 98304
+    }
+  ]
+}

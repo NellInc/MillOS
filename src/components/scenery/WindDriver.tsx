@@ -39,6 +39,10 @@ import { useReducedMotion } from '../../hooks/useReducedMotion';
 /** Wrap period. All shader frequencies are multiples of 0.1, so f*PERIOD is a
  *  whole number of cycles and the wrap is invisible. */
 export const WIND_PERIOD = Math.PI * 20;
+const windDeformedMaterials = new WeakSet<THREE.Material>();
+/** Working if fixed-geometry bakers exclude the actual live deformation host. */
+export const isWindDeformedMaterial = (material: THREE.Material): boolean =>
+  windDeformedMaterials.has(material);
 
 /**
  * Shared uniform objects. Injected by reference into every wind material, so
@@ -126,6 +130,7 @@ export const applyWindShader = (
   material: THREE.Material,
   { heightRef, strengthScale, cacheKey }: WindShaderOptions
 ): void => {
+  windDeformedMaterials.add(material);
   const h = heightRef.toFixed(4);
   const s = strengthScale.toFixed(4);
 
