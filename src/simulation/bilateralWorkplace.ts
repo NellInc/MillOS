@@ -30,6 +30,27 @@ import {
   restoreRelationshipEvents,
 } from './workplaceCampaign';
 
+import {
+  HANDOFF_ARRANGEMENTS,
+  IMPROVEMENT_CHALLENGES,
+  IMPROVEMENT_VERDICTS,
+  MAX_IMPROVEMENT_CYCLES,
+  freshImprovementTerms,
+  improvementTerms,
+  improvementArrangement,
+  improvementCost,
+  improvementCapacity,
+  improvementForecast,
+  improvementReviewWinner,
+  improvementObligations,
+  improvementSummary,
+  workplaceMission,
+  HANDOFF_EPISODES,
+  HANDOFF_EPISODE_CHOICES,
+  validImprovementEpisode,
+} from './workplaceImprovement';
+import { validPackingAdvice } from './workplaceAdvice';
+
 export const PRACTICES: { id: PracticeId; title: string; detail: string }[] = [
   {
     id: 'information',
@@ -243,6 +264,17 @@ export function workplaceReadiness(s: WorkplaceState): WorkplaceReadiness {
     reasons.push(
       'Advice-only mode grants no delegated execution; choose bounded authority to activate a Game plan.'
     );
+  if (s.improvement) {
+    if (!s.improvement.proposalId) reasons.push('Choose a worker-authored handoff proposal first.');
+    if (!s.improvement.acknowledged)
+      reasons.push('Hear the adviser response to the current public terms first.');
+    if (workplaceMission(s)?.evidence !== undefined && workplaceMission(s)?.evidence !== 'current')
+      reasons.push('The customer commitment requires current quality-qualified evidence.');
+    if (s.planId !== 'steady')
+      reasons.push(
+        'Handoff trials use ordinary qualified work, without stacking optional-duty plans.'
+      );
+  }
   if (s.phase !== 'deliberating')
     reasons.push('Begin a scenario and deliberate before activation.');
   if (s.minute >= s.durationMinutes) reasons.push('Scenario consent has expired.');
@@ -291,7 +323,7 @@ export function workplaceReadiness(s: WorkplaceState): WorkplaceReadiness {
   const compensation = (p?.optionalCoverMinutes ?? 0) * (p?.compensationPerMinute ?? 0);
   if (
     !finite(s.finance.cash) ||
-    s.finance.cash + 1e-8 < wages + (p?.budgetCost ?? 0) + compensation
+    s.finance.cash + 1e-8 < wages + (p?.budgetCost ?? 0) + compensation + improvementCost(s)
   )
     reasons.push(
       'Funds cannot cover all reserved wages, improvement costs and optional compensation.'
@@ -303,6 +335,8 @@ const eligibleCover = (m: WorkplaceState['members'][number]) =>
 
 export function workplaceCapacity(s: WorkplaceState): number {
   if (s.mode !== 'game' || s.phase !== 'active') return 1;
+  const improvement = improvementCapacity(s);
+  if (improvement !== null) return improvement;
   const p = planOf(s);
   if (!p || p.illegalReason) return 1;
   if (s.campaign?.shift === 1 && s.minute >= 25 && !s.campaign.inspectionComplete) return 0;
@@ -324,7 +358,12 @@ export function workplaceTickCapacity(s: WorkplaceState, deltaMinutes: number): 
   const boundaries = [s.minute, end];
   const coverEnd = s.minute + s.coverRemainingMinutes;
   const inspectionEnd = s.campaign?.inspectionUntilMinute ?? Infinity;
-  for (const point of [coverEnd, 25, inspectionEnd])
+  for (const point of [
+    coverEnd,
+    25,
+    inspectionEnd,
+    improvementArrangement(s)?.briefingMinutes ?? Infinity,
+  ])
     if (point > s.minute && point < end) boundaries.push(point);
   boundaries.sort((a, b) => a - b);
   let pacedMinutes = Math.max(0, s.minute + deltaMinutes - s.durationMinutes);
@@ -337,9 +376,10 @@ export function workplaceTickCapacity(s: WorkplaceState, deltaMinutes: number): 
       time < inspectionEnd;
     if (held) continue;
     const factor =
-      p.id === 'cover' && (!s.activeCoverMemberId || time >= coverEnd)
+      improvementCapacity(s, time) ??
+      (p.id === 'cover' && (!s.activeCoverMemberId || time >= coverEnd)
         ? WORKPLACE_PLANS[0].capacity
-        : p.capacity;
+        : p.capacity);
     pacedMinutes += (boundaries[i + 1] - boundaries[i]) * factor;
   }
   return pacedMinutes / deltaMinutes;
@@ -348,6 +388,7 @@ export function workplaceTickCapacity(s: WorkplaceState, deltaMinutes: number): 
 export function projectWorkplace(s: WorkplaceState) {
   return {
     schemaVersion: s.schemaVersion,
+    improvement: improvementSummary(s),
     synthetic: true,
     mode: s.mode,
     phase: s.phase,
@@ -614,6 +655,10 @@ function invalidate(s: WorkplaceState) {
     m.ballot = null;
     m.coverConsent = null;
   }
+  if (s.improvement) {
+    s.improvement.acknowledged = false;
+    if (s.phase === 'deliberating') delete s.improvement.advice;
+  }
   if (s.campaign) {
     s.campaign.checks = {};
     s.campaign.adviserAcknowledged = false;
@@ -653,6 +698,7 @@ function deliverRecovery(
 }
 function settle(s: WorkplaceState, reason: string) {
   releaseCover(s);
+  if (s.improvement && s.minute < s.durationMinutes) s.improvement.stopped = true;
   s.finance.wageReserve = 0;
   for (const m of s.members) {
     m.sharing = false;
@@ -672,7 +718,7 @@ function settle(s: WorkplaceState, reason: string) {
 
 /** Working if unrelated orders, duplicate receipts and a reset material session earn no mission credit. */
 function observeMission(s: WorkplaceState, observation?: WorkplaceMissionObservation): number {
-  const m = s.campaign?.mission;
+  const m = workplaceMission(s);
   if (!m) return 0;
   if (!observation || observation.orderId !== m.orderId || observation.cancelled) {
     m.evidence = 'missing';
@@ -726,6 +772,333 @@ export function transitionWorkplace(
   const member = (id: string) => s.members.find((m) => m.id === id);
   const deliberating = s.phase === 'deliberating';
   switch (command.type) {
+    case 'beginImprovement': {
+      const [profile, revision, mission, mode = s.mode] = command.args;
+      if (
+        revision !== s.revision ||
+        !Number.isSafeInteger(revision) ||
+        s.improvement ||
+        !['idle', 'review'].includes(s.phase) ||
+        !WORKPLACE_PROFILES.includes(profile) ||
+        !['game', 'workshop'].includes(mode) ||
+        (mode !== s.mode && s.phase !== 'idle') ||
+        improvementObligations(s).length ||
+        (mission && !validWorkplaceMission(mission))
+      )
+        return reject(
+          'Read the current settled review, retain all obligations and choose a known profile before opening a trial.'
+        );
+      const fresh = createWorkplace(mode, s.seed);
+      fresh.phase = 'deliberating';
+      fresh.revision = s.revision + 1;
+      Object.assign(
+        fresh,
+        s.phase === 'idle'
+          ? structuredClone(MANAGEMENT_APPROACHES.find((a) => a.id === profile)!.settings)
+          : {
+              practices: [...s.practices],
+              workerAutonomy: s.workerAutonomy,
+              governance: s.governance,
+              aiAuthority: s.aiAuthority,
+            }
+      );
+      fresh.finance.cash = s.finance.cash;
+      fresh.finance.initialCapital = s.finance.cash;
+      const linked = mission ?? workplaceMission(s);
+      fresh.improvement = {
+        version: 1,
+        origin: saveWorkplace(
+          mode === s.mode ? s : createWorkplace(mode, s.seed)
+        ) as WorkplaceState,
+        history: [],
+        ...freshImprovementTerms(),
+        ...(linked ? { mission: structuredClone(linked) } : {}),
+      };
+      record(
+        fresh,
+        'packing',
+        'improvement-opened',
+        'The team opens a bounded handoff trial. Earlier cash, pay and customer obligations remain in the origin review.'
+      );
+      return { state: fresh, changed: true, reason: null };
+    }
+    case 'proposeImprovement': {
+      const [id, actor] = command.args;
+      const a = HANDOFF_ARRANGEMENTS.find((item) => item.id === id);
+      const i = s.improvement;
+      if (
+        !i ||
+        !deliberating ||
+        i.funded ||
+        !a ||
+        a.author !== actor ||
+        !member(actor) ||
+        (i.proposalId === id && !i.stopped)
+      )
+        return reject(
+          'The qualified proposing role may offer a different canonical arrangement before activation.'
+        );
+      Object.assign(i, freshImprovementTerms(), { proposalId: id, proposerId: actor });
+      invalidate(s);
+      i.forecastKg = improvementForecast(s).kg;
+      record(
+        s,
+        actor,
+        'improvement-proposed',
+        `${id}: a one-shift trial with no extra duty, ordinary wages and immediate steady fallback.`
+      );
+      break;
+    }
+    case 'challengeImprovement': {
+      const [actor, kind] = command.args;
+      const i = s.improvement;
+      if (
+        !i ||
+        !deliberating ||
+        !i.proposalId ||
+        (!member(actor) && actor !== 'mind') ||
+        !IMPROVEMENT_CHALLENGES.includes(kind) ||
+        i.challenges.some((c) => c.actorId === actor && c.kind === kind)
+      )
+        return reject('A current role or adviser may record each public proposal challenge once.');
+      i.challenges.push({ actorId: actor, kind });
+      invalidate(s);
+      record(
+        s,
+        actor,
+        'improvement-challenged',
+        `${kind}: assumptions challenged; existing individual objection rights remain available.`
+      );
+      break;
+    }
+    case 'acknowledgeImprovement': {
+      const i = s.improvement;
+      if (!i || !deliberating || !i.proposalId)
+        return reject('Choose current terms before recording an adviser response.');
+      const advice = command.args[0];
+      const validated = advice === undefined ? undefined : validPackingAdvice(advice);
+      if (
+        advice !== undefined &&
+        (!validated || validated.arrangement !== (i.stopped ? 'steady' : i.proposalId))
+      )
+        return reject('Read valid advice for the current arrangement before recording it.');
+      if (i.acknowledged && (!validated || validated.fingerprint === i.advice?.fingerprint))
+        return reject('The current adviser response is already recorded.');
+      const changedAdvice =
+        !!i.advice && !!validated && i.advice.fingerprint !== validated.fingerprint;
+      invalidate(s);
+      if (validated) i.advice = validated;
+      i.acknowledged = true;
+      if (changedAdvice)
+        record(
+          s,
+          'mind',
+          'improvement-advice-changed',
+          'Plant evidence changed. I refreshed my assumptions and cleared earlier role decisions; fresh understanding and ballots are required.'
+        );
+      record(
+        s,
+        'mind',
+        'improvement-response',
+        validated
+          ? `${validated.reasonToAbstain ? `I abstain: ${validated.reasonToAbstain}` : `Known released stock ${validated.evidence.releasedPackedKg.toFixed(0)} kg; held stock ${validated.evidence.heldPackedKg.toFixed(0)} kg. Conditional departure 0 to ${validated.dispatchUpperKg.toFixed(0)} kg, with no truck departure simulated.`} Cost response: reserve 108 credits for wages first, then ${improvementCost(s)} for this arrangement. Qualification response: whole-line pacing grants no new duty or quality release. Every role may stop the arrangement; only an objection's raiser may close it.`
+          : 'Facilitated terms have no plant forecast. Funding is bounded, work remains qualified and every role may stop the arrangement. I cannot close another role’s objection.'
+      );
+      break;
+    }
+    case 'setImprovementEpisode': {
+      const [id] = command.args;
+      const i = s.improvement;
+      if (
+        !i ||
+        !deliberating ||
+        (id !== null && !HANDOFF_EPISODES.some((e) => e.id === id)) ||
+        (i.episode?.id ?? null) === id
+      )
+        return reject('Choose a different planning episode before activation.');
+      if (id === null) delete i.episode;
+      else i.episode = { id, actorId: null, choice: null };
+      invalidate(s);
+      record(
+        s,
+        'team',
+        'improvement-episode',
+        `${id ?? 'ordinary'}: planning rehearsal only. No plant, cash, stock, release or customer commitment is changed.`
+      );
+      break;
+    }
+    case 'respondImprovementEpisode': {
+      const [actor, choice] = command.args;
+      const i = s.improvement;
+      if (
+        !i?.episode ||
+        !deliberating ||
+        !member(actor) ||
+        !HANDOFF_EPISODE_CHOICES.some((c) => c.id === choice) ||
+        (i.episode.actorId === actor && i.episode.choice === choice)
+      )
+        return reject(
+          'A current synthetic role may choose a different planning response before activation.'
+        );
+      i.episode = { ...i.episode, actorId: actor, choice };
+      invalidate(s);
+      record(
+        s,
+        actor,
+        'improvement-episode-response',
+        `${i.episode.id}: ${choice}. Rehearsed choice only; ordinary pay, rest, private reasons and live decisions are unchanged.`
+      );
+      break;
+    }
+    case 'stopImprovement': {
+      const [actor] = command.args;
+      const i = s.improvement;
+      if (
+        !i ||
+        !['deliberating', 'active'].includes(s.phase) ||
+        i.stopped ||
+        !i.proposalId ||
+        (!member(actor) && actor !== 'mind')
+      )
+        return reject('A current role or adviser may stop an open arrangement.');
+      i.stopped = true;
+      if (deliberating) invalidate(s);
+      record(
+        s,
+        actor,
+        'improvement-stopped',
+        'Arrangement stopped immediately. Steady pacing continues only under the current agreement; earned pay and incurred spending remain.'
+      );
+      break;
+    }
+    case 'acknowledgeImprovementReview': {
+      const i = s.improvement;
+      if (!i || s.phase !== 'review' || i.reviewAcknowledged)
+        return reject('Review a settled trial before recording forecast correction.');
+      i.reviewAcknowledged = true;
+      record(
+        s,
+        'mind',
+        'improvement-forecast-review',
+        i.advice
+          ? i.advice.reasonToAbstain
+            ? `I abstained: ${i.advice.reasonToAbstain} Qualifying shift receipts: ${s.shippedKg} kg. Unknown evidence supplies no prediction.`
+            : `Conditional departure bound 0 to ${i.advice.dispatchUpperKg} kg; qualifying shift receipts ${s.shippedKg} kg. Packing rehearsal and actual dispatch are separate; changed assumptions and truck timing can explain the difference.`
+          : `Historical teaching forecast ${i.forecastKg ?? 0} kg; qualifying shift receipts ${s.shippedKg} kg. This legacy forecast was illustrative and does not establish causality.`
+      );
+      break;
+    }
+    case 'voteImprovementReview': {
+      const [actor, verdict] = command.args;
+      const i = s.improvement;
+      if (
+        !i ||
+        s.phase !== 'review' ||
+        !i.reviewAcknowledged ||
+        i.verdict ||
+        !member(actor) ||
+        !IMPROVEMENT_VERDICTS.includes(verdict) ||
+        i.ballots[actor] === verdict ||
+        (verdict === 'adopt' && (!i.funded || i.stopped || s.minute !== s.durationMinutes))
+      )
+        return reject(
+          'Each member records a current review decision. An unfinished or stopped trial cannot be adopted.'
+        );
+      i.ballots[actor] = verdict;
+      s.revision += 1;
+      record(
+        s,
+        actor,
+        'improvement-review-ballot',
+        `${verdict}: one replaceable member review ballot, without individual-duty permission.`
+      );
+      break;
+    }
+    case 'finishImprovementReview': {
+      const i = s.improvement;
+      const winner = improvementReviewWinner(s);
+      if (
+        !i ||
+        s.phase !== 'review' ||
+        !i.reviewAcknowledged ||
+        i.verdict ||
+        command.args[0] !== s.revision ||
+        !Number.isSafeInteger(command.args[0]) ||
+        !winner ||
+        improvementObligations(s).length ||
+        (winner === 'adopt' && (!i.funded || i.stopped || s.minute !== s.durationMinutes))
+      )
+        return reject(
+          'Settle individual remedies and obtain the current charter’s member review decision first.'
+        );
+      i.verdict = winner;
+      s.revision += 1;
+      record(
+        s,
+        'members',
+        'improvement-reviewed',
+        `${winner}: retain this review and all obligations; future work needs fresh agreement.`
+      );
+      break;
+    }
+    case 'continueImprovement': {
+      const [revision, mission] = command.args;
+      const i = s.improvement;
+      if (
+        !i ||
+        s.phase !== 'review' ||
+        !i.verdict ||
+        revision !== s.revision ||
+        !Number.isSafeInteger(revision) ||
+        improvementObligations(s).length ||
+        i.history.length + 1 >= MAX_IMPROVEMENT_CYCLES ||
+        (mission && !validWorkplaceMission(mission))
+      )
+        return reject(
+          'Finalise this review and settle obligations before continuing. Eight shifts is the retained-record limit; no receipts are discarded.'
+        );
+      const { improvement: _improvement, ...snapshot } = saveWorkplace(s) as WorkplaceState;
+      const history = [...i.history, { ...improvementTerms(s), snapshot }];
+      const fresh = createWorkplace(s.mode, s.seed === 0xffffffff ? 1 : s.seed + 1);
+      Object.assign(fresh, {
+        phase: 'deliberating',
+        revision: s.revision + 1,
+        practices: [...s.practices],
+        workerAutonomy: s.workerAutonomy,
+        governance: s.governance,
+        aiAuthority: s.aiAuthority,
+      });
+      fresh.finance.cash = s.finance.cash;
+      fresh.finance.initialCapital = s.finance.cash;
+      const linked = mission ?? i.mission;
+      fresh.improvement = {
+        version: 1,
+        origin: structuredClone(i.origin),
+        history,
+        ...freshImprovementTerms(),
+        ...(linked ? { mission: structuredClone(linked) } : {}),
+      };
+      const next =
+        i.verdict === 'adopt'
+          ? i.proposalId
+          : i.verdict === 'amend'
+            ? i.proposalId === 'briefing'
+              ? 'buffer'
+              : 'briefing'
+            : null;
+      if (next) {
+        fresh.improvement.proposalId = next;
+        fresh.improvement.proposerId = HANDOFF_ARRANGEMENTS.find((a) => a.id === next)!.author;
+        fresh.improvement.forecastKg = improvementForecast(fresh).kg;
+      }
+      record(
+        fresh,
+        'members',
+        'improvement-continued',
+        'Opening cash equals the previous closing balance. History and customer work remain; prior consent is expired.'
+      );
+      return { state: fresh, changed: true, reason: null };
+    }
     case 'startCampaign': {
       const [profile, seed = 1, mission] = command.args;
       if (
@@ -965,6 +1338,10 @@ export function transitionWorkplace(
       };
     }
     case 'start': {
+      if (s.improvement)
+        return reject(
+          'Retain the handoff receipts. Continue through its member review instead of resetting earned history.'
+        );
       const [mode, seed = 1] = command.args;
       if (!MODES.includes(mode) || !validSeed(seed)) return reject('Invalid mode or seed.');
       if (s.campaign)
@@ -1052,6 +1429,8 @@ export function transitionWorkplace(
     }
     case 'selectPlan': {
       const [id] = command.args;
+      if (s.improvement && id !== 'steady')
+        return reject('Handoff trials cannot stack cover or other improvement costs.');
       if (!deliberating || !WORKPLACE_PLANS.some((p) => p.id === id))
         return reject('Choose a known plan while deliberating.');
       if (s.planId === id) return reject('Plan unchanged.');
@@ -1283,8 +1662,12 @@ export function transitionWorkplace(
       const p = planOf(s);
       s.finance.wageReserve = WAGE * s.durationMinutes * s.members.length;
       s.finance.compensationReserve = p.optionalCoverMinutes * p.compensationPerMinute;
-      s.finance.cash -= p.budgetCost;
-      s.finance.improvementSpend += p.budgetCost;
+      const improvementPurchase = improvementCost(s);
+      s.finance.cash -= p.budgetCost + improvementPurchase;
+      s.finance.improvementSpend += p.budgetCost + improvementPurchase;
+      // A cancelled proposal authorizes paid steady work, without purchasing
+      // the abandoned arrangement. Keep that distinction in its saved receipt.
+      if (s.improvement && !s.improvement.stopped) s.improvement.funded = true;
       if (p.optionalCoverMinutes) {
         const totals = campaignTotals(s);
         const burden = (id: string) => totals.members.find((m) => m.id === id)!.extraMinutes;
@@ -1348,7 +1731,7 @@ export function transitionWorkplace(
       const [delta, shipped, emergency, observation] = command.args;
       if (
         (!['active', 'review'].includes(s.phase) &&
-          !(s.phase === 'deliberating' && s.campaign?.mission)) ||
+          !(s.phase === 'deliberating' && workplaceMission(s))) ||
         s.mode === 'pilot' ||
         !finite(delta) ||
         delta <= 0 ||
@@ -1359,18 +1742,20 @@ export function transitionWorkplace(
         typeof emergency !== 'boolean'
       )
         return reject('No valid active tick.');
-      const beforeMission = JSON.stringify(s.campaign?.mission);
+      const beforeMission = JSON.stringify(workplaceMission(s));
       const missionDelivered =
-        s.phase === 'review' && s.campaign?.shift === 2 ? 0 : observeMission(s, observation);
+        s.phase === 'review' && (s.campaign?.shift === 2 || s.improvement)
+          ? 0
+          : observeMission(s, observation);
       if (s.phase === 'deliberating') {
-        if (JSON.stringify(s.campaign?.mission) === beforeMission)
+        if (JSON.stringify(workplaceMission(s)) === beforeMission)
           return reject('No new mission receipt.');
         break;
       }
       if (
         s.phase === 'active' &&
-        s.campaign?.mission &&
-        s.campaign.mission.evidence !== 'current'
+        workplaceMission(s) &&
+        workplaceMission(s)!.evidence !== 'current'
       ) {
         settle(
           s,
@@ -1380,7 +1765,7 @@ export function transitionWorkplace(
       }
       if (s.phase === 'review') {
         if (emergency || !s.members.some((m) => m.recoveryOwedMinutes > 0)) {
-          if (JSON.stringify(s.campaign?.mission) !== beforeMission) break;
+          if (JSON.stringify(workplaceMission(s)) !== beforeMission) break;
           return reject('No recovery time to deliver.');
         }
         deliverRecovery(s, delta);
@@ -1393,7 +1778,7 @@ export function transitionWorkplace(
       const elapsed = Math.min(delta, s.durationMinutes - s.minute);
       const delivered =
         s.mode === 'game'
-          ? (s.campaign?.mission ? missionDelivered : shipped) * (elapsed / delta)
+          ? (workplaceMission(s) ? missionDelivered : shipped) * (elapsed / delta)
           : 0;
       const ordinaryRest = Math.max(0, Math.min(s.minute + elapsed, 90) - Math.max(s.minute, 75));
       for (const m of s.members) m.restMinutes += ordinaryRest;
@@ -1555,7 +1940,184 @@ export function saveWorkplace(s: WorkplaceState): unknown {
 
 /** Canonical shape validation rejects unknown identity/authority fields and non-finite money. */
 export function restoreWorkplace(input: unknown): WorkplaceState {
+  if (input && typeof input === 'object' && 'improvement' in input)
+    return restoreImprovementSnapshot(input);
   return restoreWorkplaceSnapshot(input);
+}
+
+/** Optional continuation decoder: each monetary anchor is independently checked.
+ * Working if changed canonical cost, nested private data or erased origin rejects
+ * the entire save, while old campaign bytes continue through their old decoder.
+ */
+function restoreImprovementSnapshot(input: object): WorkplaceState {
+  const fallback = createWorkplace();
+  const raw = input as WorkplaceState;
+  const i = raw.improvement;
+  if (
+    !i ||
+    typeof i !== 'object' ||
+    Array.isArray(i) ||
+    i.version !== 1 ||
+    raw.campaign !== null ||
+    !Array.isArray(i.history) ||
+    i.history.length >= MAX_IMPROVEMENT_CYCLES ||
+    !i.origin ||
+    typeof i.origin !== 'object' ||
+    'improvement' in i.origin ||
+    (i.mission !== undefined && !validWorkplaceMission(i.mission))
+  )
+    return fallback;
+  const {
+    origin: _origin,
+    history: _history,
+    mission: _mission,
+    version: _version,
+    ...rawCurrentTerms
+  } = i;
+  // Optional planning evidence has no monetary authority. Quarantine malformed
+  // evidence independently, preserving the valid wage and recovery ledger.
+  // Working if a corrupt optional forecast cannot turn paid work into fresh capital.
+  const cleanTerms = (rawTerms: ReturnType<typeof improvementTerms>) => {
+    const { advice, episode, ...core } = rawTerms;
+    const safeAdvice = validPackingAdvice(advice);
+    const safeEpisode = validImprovementEpisode(episode);
+    return {
+      ...core,
+      ...(safeAdvice ? { advice: safeAdvice } : {}),
+      ...(safeEpisode ? { episode: safeEpisode } : {}),
+    };
+  };
+  const currentTerms = cleanTerms(rawCurrentTerms);
+  const termsKeys = Object.keys(freshImprovementTerms()).sort().join(',');
+  const ids = ['packing', 'quality', 'maintenance', 'coordinator'];
+  const validTerms = (terms: unknown): terms is ReturnType<typeof improvementTerms> => {
+    if (!terms || typeof terms !== 'object' || Array.isArray(terms)) return false;
+    const t = terms as ReturnType<typeof improvementTerms>;
+    const a = HANDOFF_ARRANGEMENTS.find((a) => a.id === t.proposalId);
+    return (
+      Object.keys(t)
+        .filter((k) => k !== 'advice' && k !== 'episode')
+        .sort()
+        .join(',') === termsKeys &&
+      (t.proposalId === null
+        ? t.proposerId === null && t.forecastKg === null && !t.funded
+        : !!a && t.proposerId === a.author && finite(t.forecastKg) && t.forecastKg >= 0) &&
+      ['acknowledged', 'funded', 'stopped', 'reviewAcknowledged'].every(
+        (k) => typeof t[k as keyof typeof t] === 'boolean'
+      ) &&
+      Array.isArray(t.challenges) &&
+      t.challenges.length <= 15 &&
+      t.challenges.every(
+        (c) =>
+          c &&
+          Object.keys(c).sort().join(',') === 'actorId,kind' &&
+          [...ids, 'mind'].includes(c.actorId) &&
+          IMPROVEMENT_CHALLENGES.includes(c.kind)
+      ) &&
+      new Set(t.challenges.map((c) => `${c.actorId}-${c.kind}`)).size === t.challenges.length &&
+      !!t.ballots &&
+      typeof t.ballots === 'object' &&
+      !Array.isArray(t.ballots) &&
+      Object.entries(t.ballots).every(
+        ([id, v]) => ids.includes(id) && IMPROVEMENT_VERDICTS.includes(v)
+      ) &&
+      (t.verdict === null || IMPROVEMENT_VERDICTS.includes(t.verdict)) &&
+      (!t.verdict || t.reviewAcknowledged)
+    );
+  };
+  if (!validTerms(currentTerms)) return fallback;
+  const origin = restoreWorkplaceSnapshot(i.origin);
+  if (
+    origin.mode !== raw.mode ||
+    !['idle', 'review'].includes(origin.phase) ||
+    origin.seed !== i.origin.seed ||
+    origin.phase !== i.origin.phase ||
+    improvementObligations(origin).length ||
+    origin.finance.cash !== i.origin.finance.cash
+  )
+    return fallback;
+  const redactedOrigin = saveWorkplace(origin) as WorkplaceState;
+  redactedOrigin.revision = i.origin.revision;
+  const history: NonNullable<WorkplaceState['improvement']>['history'] = [];
+  let openingCash = origin.finance.cash;
+  let expectedSeed = origin.seed;
+  const decodeShift = (
+    snapshot: Omit<WorkplaceState, 'improvement'>,
+    terms: ReturnType<typeof improvementTerms>
+  ) => {
+    if (
+      !snapshot ||
+      typeof snapshot !== 'object' ||
+      'improvement' in snapshot ||
+      snapshot.campaign !== null ||
+      snapshot.seed !== expectedSeed ||
+      snapshot.mode !== raw.mode ||
+      snapshot.planId !== 'steady'
+    )
+      return null;
+    const restored = restoreWorkplaceSnapshot(snapshot, openingCash);
+    if (
+      restored.phase !== 'review' ||
+      restored.seed !== expectedSeed ||
+      restored.finance.cash !== snapshot.finance.cash
+    )
+      return null;
+    const shaped: WorkplaceState = {
+      ...restored,
+      improvement: { version: 1, origin: redactedOrigin, history, ...terms },
+    };
+    const expectedForecast = improvementForecast({
+      ...shaped,
+      improvement: { ...shaped.improvement!, forecastKg: null, stopped: false },
+    }).kg;
+    if (
+      (terms.proposalId && Math.abs(terms.forecastKg! - expectedForecast) > 1e-6) ||
+      Math.abs(restored.finance.improvementSpend - (terms.funded ? improvementCost(shaped) : 0)) >
+        1e-6 ||
+      (terms.verdict && improvementReviewWinner(shaped) !== terms.verdict) ||
+      (terms.verdict === 'adopt' && (!terms.funded || terms.stopped || restored.minute !== 90)) ||
+      (terms.verdict && improvementObligations(restored).length) ||
+      (!terms.funded && !terms.stopped && (restored.minute !== 0 || restored.shippedKg !== 0)) ||
+      (restored.minute < 90 && !terms.stopped)
+    )
+      return null;
+    return restored;
+  };
+  for (const entry of i.history) {
+    if (!entry || typeof entry !== 'object') return fallback;
+    const { snapshot, ...rawTerms } = entry;
+    const terms = cleanTerms(rawTerms);
+    if (!validTerms(terms) || !terms.verdict) return fallback;
+    const restored = decodeShift(snapshot, terms);
+    if (!restored) return fallback;
+    const redacted = saveWorkplace(restored) as WorkplaceState;
+    redacted.revision = snapshot.revision;
+    history.push({ ...structuredClone(terms), snapshot: redacted });
+    openingCash = restored.finance.cash;
+    expectedSeed = expectedSeed === 0xffffffff ? 1 : expectedSeed + 1;
+  }
+  const { improvement: _improvement, ...snapshot } = raw;
+  const restored = decodeShift(snapshot, currentTerms);
+  if (!restored) return fallback;
+  const originalMission = origin.campaign?.mission;
+  if (
+    originalMission &&
+    (!i.mission ||
+      ['orderId', 'materialSessionId', 'startingShippedKg', 'originalTargetKg', 'targetKg'].some(
+        (key) =>
+          i.mission![key as keyof typeof i.mission] !==
+          originalMission[key as keyof typeof originalMission]
+      ))
+  )
+    return fallback;
+  restored.improvement = {
+    version: 1,
+    origin: redactedOrigin,
+    history,
+    ...structuredClone(currentTerms),
+    ...(i.mission ? { mission: structuredClone(i.mission) } : {}),
+  };
+  return restored;
 }
 
 function restoreWorkplaceSnapshot(

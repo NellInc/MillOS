@@ -100,6 +100,8 @@ function safetyReason() {
   if (useQCLabStore.getState().qcLab.isRunning)
     return 'Finish the current laboratory test before capturing or rewinding.';
   const state = useWorkplaceStore.getState().workplace;
+  if (state.improvement)
+    return 'Retain the handoff trial and its reviews. Replay cannot rewind an improvement cycle.';
   if (state.mode !== 'game') return 'Choose Game mode for an operational replay.';
   if (campaignTotals(state).members.some((m) => m.recoveryOwedMinutes > 1e-8))
     return 'Deliver all earned recovery before rewinding. Repayment cannot be erased.';

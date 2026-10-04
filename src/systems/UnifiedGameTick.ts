@@ -393,15 +393,18 @@ function unifiedGameTick(ctx: TickContext): void {
   const safeGameSpeed = sanitizeGameSpeed(gameSpeed);
   if (deltaSeconds === 0 || safeGameSpeed === 0) return;
   const replayActive = isWorkplaceReplayActive();
-  const workplacePhaseBefore = useWorkplaceStore.getState().workplace.phase;
-  const controlMode = replayActive ? peekSCADAService()?.getState().mode : undefined;
+  const workplaceBefore = useWorkplaceStore.getState().workplace;
+  const workplacePhaseBefore = workplaceBefore.phase;
+  const improvementActive = workplaceBefore.mode === 'game' && !!workplaceBefore.improvement;
+  const controlMode =
+    replayActive || improvementActive ? peekSCADAService()?.getState().mode : undefined;
   if (controlMode !== undefined && controlMode !== 'simulation') {
     useWorkplaceStore.getState().stop();
     useGameSimulationStore.getState().setGameSpeed(0);
     endReplayClock();
     return;
   }
-  if (replayActive) {
+  if (replayActive || improvementActive) {
     const game = useGameSimulationStore.getState();
     const agreement = useWorkplaceStore.getState().workplace;
     // Replay preparation and review navigation grant no plant time. Recovery
@@ -960,7 +963,7 @@ function unifiedGameTick(ctx: TickContext): void {
       );
     const reviewed = useWorkplaceStore.getState().workplace;
     if (
-      replayActive &&
+      (replayActive || reviewed.improvement) &&
       reviewed.phase === 'review' &&
       (workplacePhaseBefore === 'active' ||
         reviewed.members.every((member) => member.recoveryOwedMinutes === 0))

@@ -1018,6 +1018,189 @@ for (const profile of ['toe-dip', 'team', 'cooperative']) {
   }
 }
 
+
+async function exerciseHandoff(page, mobile, profile, verdict, guidanceOnly = false, grounded = false) {
+  const lab = workplaceLab(page);
+  await lab.getByRole('button', { name: 'Handoff', exact: true }).click();
+  const panel = lab.getByRole('region', { name: 'Handoff experiment', exact: true });
+  await panel.getByLabel('Handoff governance', { exact: true }).selectOption(profile);
+  await panel.getByRole('button', { name: 'Open the handoff experiment', exact: true }).click();
+  const read = () => page.evaluate(() => {
+    const q = window.__MILLOS_AGENT__.query({ view: 'domain', domainId: 'experience', fields: ['workplace.improvement', 'workplace.phase', 'workplace.minute', 'workplace.capacityMultiplier', 'workplace.finance', 'workplace.members'] });
+    if (!q.data?.state?.workplace?.improvement) throw new Error('Improvement projection missing.');
+    return structuredClone(q.data.state.workplace);
+  });
+  const pressureReceipts = [];
+  let packingComparison = null;
+  let uiFloor = null;
+  if (grounded) {
+    const plantBefore = await observePlant(page);
+    for (const [episode, choice] of [['late-truck', 'Discuss a smaller delivery'], ['quality-hold', 'Defer this trial'], ['tight-cash', 'Decline extra duty']]) {
+      await panel.getByLabel('Pressure episode', { exact: true }).selectOption(episode);
+      await panel.getByRole('button', { name: choice, exact: true }).click();
+      pressureReceipts.push({ episode, choice, outcome: await panel.getByRole('status').innerText() });
+      expect((await read()).members.every(m => m.ballot === null && m.coverConsent === null && m.preference === null)).toBe(true);
+    }
+    expect(await observePlant(page)).toEqual(plantBefore);
+  }
+  await panel.getByRole('button', { name: 'Maintenance proposes a small packing buffer', exact: true }).click();
+  await panel.getByRole('button', { name: 'Challenge this proposal', exact: true }).focus();
+  await page.keyboard.press('Enter');
+  await panel.getByRole('button', { name: 'Hear the adviser response', exact: true }).click();
+  if (grounded) {
+    const plantBefore = await observePlant(page);
+    const publicBefore = await read();
+    await panel.locator('summary').filter({ hasText: /^Compare matched packing alternatives$/ }).click();
+    await panel.getByRole('button', { name: 'Run matched packing rehearsal', exact: true }).click();
+    await panel.getByLabel('Matched packing results', { exact: true }).waitFor({ timeout: 120000 });
+    packingComparison = await panel.getByLabel('Matched packing results', { exact: true }).innerText();
+    expect(await observePlant(page)).toEqual(plantBefore);
+    expect(await read()).toEqual(publicBefore);
+    expect(publicBefore.improvement.advice).toBeTruthy();
+    await panel.locator('summary').filter({ hasText: /^Known facts, age and assumptions$/ }).click();
+    uiFloor = await panel.evaluate((root) => {
+      const controls = [...root.querySelectorAll('button,select,summary')].filter((e) => !e.closest('details:not([open])') && !e.disabled && e.getBoundingClientRect().width > 0).map((e) => {
+        const box = e.getBoundingClientRect(), style = getComputedStyle(e);
+        return { label: e.textContent.trim().slice(0, 90), height: box.height, color: style.color, background: style.backgroundColor, fontSize: style.fontSize };
+      });
+      const evidence = root.querySelector('[aria-label="Plant-grounded adviser evidence"]');
+      const paragraph = evidence?.querySelector('p');
+      const style = paragraph && getComputedStyle(paragraph);
+      return { reducedMotion: matchMedia('(prefers-reduced-motion: reduce)').matches, controls, bodyColor: style?.color, bodyFontSize: style?.fontSize, padding: getComputedStyle(root.parentElement).padding };
+    });
+    expect(uiFloor.reducedMotion).toBe(true);
+    expect(uiFloor.controls.every(c => c.height >= 43.5)).toBe(true);
+    await assertWorkplaceFits(page);
+    await page.screenshot({ path: path.join(outputDirectory, `grounded-${mobile ? 'mobile' : 'desktop'}-evidence.png`), fullPage: true });
+  }
+  if (guidanceOnly) {
+    const nextAction = panel.getByText('Confirm each role’s understanding and current policy ballot in Fresh role decisions here in Handoff.', { exact: true });
+    await nextAction.scrollIntoViewIfNeeded();
+    await expect(nextAction).toBeVisible();
+    await assertWorkplaceFits(page);
+    return { profile, workplace: await read(), checks: ['rendered-next-action', 'no-overflow'] };
+  }
+  await panel.getByRole('button', { name: 'Maintenance proposes a small packing buffer', exact: true }).scrollIntoViewIfNeeded();
+  await assertWorkplaceFits(page);
+  await page.screenshot({ path: path.join(outputDirectory, `handoff-${profile}${mobile ? '-mobile' : ''}-proposal.png`), fullPage: true });
+  const agree = async () => {
+    for (const role of ['Packing', 'Quality', 'Maintenance', 'Coordinator']) {
+      await panel.getByRole('button', { name: `Confirm handoff understanding: ${role}`, exact: true }).click();
+      await panel.getByRole('button', { name: `${profile !== 'team' && role === 'Quality' ? 'Decline' : 'Approve'} handoff: ${role}`, exact: true }).click();
+    }
+    await panel.locator('fieldset').filter({ has: page.getByText('Quality', { exact: true }) }).scrollIntoViewIfNeeded();
+    await assertWorkplaceFits(page);
+    await page.screenshot({ path: path.join(outputDirectory, `handoff-${profile}${mobile ? '-mobile' : ''}-ballots-${(await read()).improvement.cycle}.png`), fullPage: true });
+    await panel.getByRole('button', { name: 'Approve and run handoff trial', exact: true }).click();
+    await expect(lab.getByText(/Execution: verified/)).toBeVisible();
+    // Match the shipping tutorial's teaching pace. Truck motion and loading
+    // use real controller time; a 30-second fast-clock shift can legitimately
+    // end before the first truck docks and is not a positive-dispatch fixture.
+    await panel.getByLabel('Shift pace', { exact: true }).selectOption('30');
+  };
+  await agree();
+  const active = await read();
+  expect(active.capacityMultiplier).toBe(1.02);
+  expect(active.finance.improvementSpend).toBe(32);
+  expect(active.members.every(m => m.preference === null && m.coverConsent === null)).toBe(true);
+  await panel.getByRole('button', { name: 'Watch the packing handoff', exact: true }).click();
+  if (verdict === 'stop') {
+    await panel.getByRole('button', { name: 'Stop arrangement and keep steady work', exact: true }).click();
+    expect((await read()).capacityMultiplier).toBe(0.78);
+  }
+  await page.waitForFunction(() => window.__MILLOS_AGENT__.query({ view: 'domain', domainId: 'experience', fields: ['workplace.phase'] }).data?.state?.workplace?.phase === 'review', null, { timeout: 600000 });
+  const review = await read();
+  const plantReview = await observePlant(page);
+  expect(review.minute).toBe(90);
+  expect(review.finance.wagesPaid).toBeCloseTo(108);
+  expect(review.members.every(m => Math.abs(m.earnedPay - 27) < 0.000001 && Math.abs(m.restMinutes - 15) < 0.000001 && m.extraMinutes === 0)).toBe(true);
+  expect(review.improvement.mission.evidence).toBe('current');
+  expect(plantReview.material.manifests.some(m => m.kind === 'shipping')).toBe(true);
+  expect(review.improvement.actualKg).toBeGreaterThan(0);
+  await panel.getByRole('button', { name: 'Hear the adviser review its forecast', exact: true }).click();
+  for (const role of ['Packing', 'Quality', 'Maintenance', 'Coordinator']) await panel.getByLabel(`${role} review decision`, { exact: true }).selectOption(verdict);
+  await panel.getByRole('button', { name: 'Finalise handoff review', exact: true }).click();
+  await panel.getByRole('heading', { name: 'What should carry into the next shift?', exact: true }).scrollIntoViewIfNeeded();
+  await assertWorkplaceFits(page);
+  await page.screenshot({ path: path.join(outputDirectory, `handoff-${profile}${mobile ? '-mobile' : ''}-review.png`), fullPage: true });
+  const decided = await read();
+  if (grounded) {
+    await panel.getByRole('heading', { name: 'How did we treat each other?', exact: true }).scrollIntoViewIfNeeded();
+    await assertWorkplaceFits(page);
+    await page.screenshot({ path: path.join(outputDirectory, `grounded-${mobile ? 'mobile' : 'desktop'}-conduct.png`), fullPage: true });
+  }
+  expect(decided.improvement.verdict).toBe(verdict);
+  await panel.getByRole('button', { name: 'Open next handoff shift', exact: true }).click();
+  const next = await read();
+  expect(next.finance.cash).toBe(decided.finance.cash);
+  expect(next.improvement.history[0].shippedKg).toBe(decided.improvement.actualKg);
+  expect(next.improvement.lifetimeWages).toBeCloseTo(108);
+  expect(next.members.every(m => !m.understood && m.ballot === null && m.coverConsent === null)).toBe(true);
+  if (verdict === 'stop') await panel.getByRole('button', { name: 'Packing proposes a paid handoff briefing', exact: true }).click();
+  await panel.getByRole('button', { name: 'Hear the adviser response', exact: true }).click();
+  await agree();
+  const continued = await read();
+  expect(continued.finance.improvementSpend).toBe(verdict === 'adopt' ? 0 : 8);
+  await panel.getByRole('button', { name: 'End handoff shift now', exact: true }).click();
+  const paidBeforeReload = await read();
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await waitForApp(page, true);
+  const reloaded = await read();
+  expect(reloaded.finance.cash).toBeCloseTo(paidBeforeReload.finance.cash);
+  expect(reloaded.capacityMultiplier).toBe(1);
+  expect(reloaded.improvement.history).toEqual(paidBeforeReload.improvement.history);
+  await openWorkplace(page, mobile);
+  await assertWorkplaceFits(page);
+  await lab.getByRole('heading', { name: 'The handoff experiment, shift 2', exact: true }).scrollIntoViewIfNeeded();
+  return { profile, verdict, active, review, plantReview, decided, next, continued, reloaded, pressureReceipts, packingComparison, uiFloor, checks: ['worker-proposal', 'public-challenge', 'adviser-response', 'explicit-role-decisions', 'funded-physical-pacing', 'quality-qualified-actual-dispatch', 'pay-and-rest-protected', 'member-review', 'cash-history-and-customer-continuity', 'new-agreement-required', 'single-purchase', 'safe-reload', 'no-overflow', ...(grounded ? ['three-isolated-planning-episodes', 'matched-packing-no-live-writes', 'frozen-grounded-advice', 'public-conduct-debrief', '44px-enabled-controls', 'reduced-motion', 'keyboard-challenge'] : [])] };
+}
+for (const mobile of [false, true]) SCENARIOS[`workplace-grounded${mobile ? '-mobile' : ''}`] = {
+  title: `Grounded packing advice, pressure rehearsals and conduct${mobile ? ' at 360px' : ''}`,
+  liveCamera: true, viewport: mobile ? { width: 360, height: 780 } : DESKTOP_VIEWPORT,
+  prepare: page => openWorkplace(page, mobile),
+  surfaceRole: mobile ? 'dialog' : 'complementary',
+  surfaceName: mobile ? 'Bilateral Autonomy mobile panel' : 'Workplace & Autonomy sidebar panel',
+  afterOpen: page => exerciseHandoff(page, mobile, 'cooperative', 'adopt', false, true),
+};
+for (const mobile of [false, true]) SCENARIOS[`workplace-grounded-entry${mobile ? '-mobile' : ''}`] = {
+  title: `Initial grounded Handoff decision view${mobile ? ' at 360px' : ''}`,
+  liveCamera: true, viewport: mobile ? { width: 360, height: 780 } : DESKTOP_VIEWPORT,
+  prepare: page => openWorkplace(page, mobile),
+  surfaceRole: mobile ? 'dialog' : 'complementary',
+  surfaceName: mobile ? 'Bilateral Autonomy mobile panel' : 'Workplace & Autonomy sidebar panel',
+  afterOpen: async page => {
+    const lab = workplaceLab(page);
+    await lab.getByRole('button', { name: 'Handoff', exact: true }).click();
+    const panel = lab.getByRole('region', { name: 'Handoff experiment', exact: true });
+    await panel.getByLabel('Handoff governance', { exact: true }).selectOption('cooperative');
+    await panel.getByRole('button', { name: 'Open the handoff experiment', exact: true }).click();
+    const heading = panel.getByRole('heading', { name: 'The handoff experiment, shift 1', exact: true });
+    await heading.scrollIntoViewIfNeeded();
+    await expect(heading).toBeInViewport();
+    await expect(panel.getByLabel('Pressure episode', { exact: true })).toBeInViewport();
+    await assertWorkplaceFits(page);
+    return { checks: ['initial-deliberation-entry', 'heading-and-pressure-selector-in-viewport', 'no-overflow'] };
+  },
+};
+for (const [profile, verdict] of [['toe-dip', 'stop'], ['team', 'amend'], ['cooperative', 'adopt']]) {
+  for (const mobile of [false, true]) SCENARIOS[`workplace-handoff-${profile}${mobile ? '-mobile' : ''}`] = {
+    title: `Worker-led handoff ${verdict}, ${profile}${mobile ? ' at 360px' : ''}`,
+    liveCamera: true, viewport: mobile ? { width: 360, height: 780 } : DESKTOP_VIEWPORT,
+    prepare: page => openWorkplace(page, mobile),
+    surfaceRole: mobile ? 'dialog' : 'complementary',
+    surfaceName: mobile ? 'Bilateral Autonomy mobile panel' : 'Workplace & Autonomy sidebar panel',
+    afterOpen: page => exerciseHandoff(page, mobile, profile, verdict),
+  };
+}
+
+SCENARIOS['handoff-guidance'] = {
+  title: 'Corrected handoff next-action guidance after adviser response',
+  liveCamera: true, viewport: DESKTOP_VIEWPORT,
+  prepare: page => openWorkplace(page, false),
+  surfaceRole: 'complementary', surfaceName: 'Workplace & Autonomy sidebar panel',
+  afterOpen: page => exerciseHandoff(page, false, 'cooperative', 'adopt', true),
+};
+
 const SCENARIO_SETS = {
   quick: ['overview', 'scada-overview', 'fire-drill', 'mobile-fire-drill'],
   desktop: Object.keys(SCENARIOS).filter((name) => SCENARIOS[name].viewport === DESKTOP_VIEWPORT),
@@ -1032,6 +1215,9 @@ const SCENARIO_SETS = {
   'living-cooperative': ['workplace-campaign', 'workplace-campaign-mobile'],
   'linked-cooperative': ['workplace-mission', 'workplace-mission-mobile'],
   'workplace-replay': ['workplace-replay', 'workplace-replay-mobile'],
+  'worker-improvement': Object.keys(SCENARIOS).filter(name => name.startsWith('workplace-handoff-')),
+  'grounded-cooperation': ['workplace-grounded', 'workplace-grounded-mobile'],
+  'grounded-entry': ['workplace-grounded-entry', 'workplace-grounded-entry-mobile'],
   'workplace-dissent': Object.keys(SCENARIOS).filter(name => name.startsWith('workplace-dissent-')),
   full: Object.keys(SCENARIOS),
 };
@@ -1059,7 +1245,7 @@ Usage:
 
 Options:
   --label=<name>        Required. Output under test-results/operational-review
-  --set=<name>          quick, desktop, safety, workplace, living-cooperative, linked-cooperative, workplace-replay, workplace-dissent, or full; default full
+  --set=<name>          quick, desktop, safety, workplace, living-cooperative, linked-cooperative, workplace-replay, workplace-dissent, worker-improvement, or full; default full
   --states=<list>       Explicit comma-separated state names, overrides --set
   --quality=<tier>      low, medium, high, or ultra; default medium
   --port=<number>       Local preview port; default 4174

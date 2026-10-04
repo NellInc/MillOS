@@ -5,6 +5,10 @@ import { useUIStore } from '../../../stores/uiStore';
 import { useMobileControlStore } from '../../../stores/mobileControlStore';
 import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
 import { useWorkplaceStore } from '../../../stores/workplaceStore';
+import {
+  improvementSummary,
+  improvementObligations,
+} from '../../../simulation/workplaceImprovement';
 import { campaignOutcomes, campaignTotals } from '../../../simulation/workplaceCampaign';
 import type { WorkplaceProfile, WorkplaceState } from '../../../types/workplace';
 import { useOperationsCampaignStore } from '../../../stores/operationsCampaignStore';
@@ -130,6 +134,12 @@ export function FirstDeliveryJourney({
 }
 
 function linkedReviewPending(state: WorkplaceState) {
+  if (state.improvement)
+    return (
+      state.phase !== 'review' ||
+      !state.improvement.verdict ||
+      improvementObligations(state).length > 0
+    );
   return (
     !!state.campaign?.mission &&
     (state.campaign.shift !== 2 ||
@@ -140,6 +150,21 @@ function linkedReviewPending(state: WorkplaceState) {
 }
 
 function WorkingAgreementSummary({ state }: { state: WorkplaceState }) {
+  const trial = improvementSummary(state);
+  if (trial)
+    return (
+      <div className="mt-3 space-y-2 border-t border-slate-700 pt-3 text-xs leading-5">
+        <h4 className="font-semibold text-white">Handoff working agreement</h4>
+        <p>{trial.next}</p>
+        <p>
+          Current shift receipts: {trial.actualKg.toFixed(0)} kg; retained earned pay{' '}
+          {trial.lifetimeWages.toFixed(2)} credits.
+        </p>
+        {trial.remainingKg !== null && (
+          <p>Full customer commitment remaining: {trial.remainingKg.toFixed(0)} kg.</p>
+        )}
+      </div>
+    );
   if (!state.campaign?.mission) return null;
   const outcome = campaignOutcomes(state);
   const totals = campaignTotals(state);

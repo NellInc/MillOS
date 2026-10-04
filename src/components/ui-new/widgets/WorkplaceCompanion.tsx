@@ -1,3 +1,4 @@
+import { improvementSummary, workplaceMission } from '../../../simulation/workplaceImprovement';
 import { useWorkplaceStore } from '../../../stores/workplaceStore';
 import { WORKPLACE_PLANS } from '../../../simulation/bilateralWorkplace';
 import { deriveWorkplaceGuidance } from './WorkplacePressureChapter';
@@ -10,6 +11,7 @@ export function WorkplaceCompanion({ onOpen }: { onOpen: () => void }) {
   if (state.mode !== 'game' || state.phase === 'idle') return null;
   const guide = deriveWorkplaceGuidance(state);
   const negotiation = thursdayNegotiation(state);
+  const improvement = improvementSummary(state);
   const plan = WORKPLACE_PLANS.find((item) => item.id === state.planId);
   const paid = guide.totals.members.reduce((sum, member) => sum + member.compensationPaid, 0);
   const recovered = guide.totals.members.reduce((sum, member) => sum + member.recoveryMinutes, 0);
@@ -23,17 +25,28 @@ export function WorkplaceCompanion({ onOpen }: { onOpen: () => void }) {
         remainingKg: Math.max(0, state.targetKg - state.shippedKg),
         status: 'pending',
       };
-  const title = guide.needsRemedy ? 'An objection needs its raiser' : guide.beat;
+  const title = improvement
+    ? `Handoff shift ${improvement.cycle}`
+    : guide.needsRemedy
+      ? 'An objection needs its raiser'
+      : guide.beat;
 
   return (
     <aside
       aria-label="Working agreement companion"
-      className="pointer-events-auto fixed bottom-[11.5rem] left-3 right-3 z-40 max-h-[calc(100dvh-15.5rem)] overflow-y-auto overscroll-contain rounded-xl border border-cyan-400/30 bg-slate-950/95 p-4 text-sm leading-6 text-slate-200 selection:bg-cyan-800 sm:left-auto sm:right-4 sm:w-[360px]"
+      className="pointer-events-auto fixed bottom-[11.5rem] left-3 right-3 z-40 max-h-[calc(100dvh-15.5rem)] overflow-y-auto overscroll-contain rounded-xl border border-cyan-400/30 bg-slate-950/95 p-4 text-sm leading-6 text-slate-200 selection:bg-cyan-800 selection:text-cyan-100 sm:left-auto sm:right-4 sm:w-[360px]"
     >
       <h2 className="font-semibold text-white">Working agreement</h2>
       <p className="mt-1 text-xs text-cyan-200">
         {plan?.title ?? state.planId}, revision {state.revision}
       </p>
+      {state.improvement?.advice && (
+        <p className="mt-2 text-xs text-slate-300">
+          {state.improvement.advice.reasonToAbstain
+            ? 'The adviser abstained. Missing plant evidence remains visible in Handoff.'
+            : `Frozen conditional departure bound: 0 to ${state.improvement.advice.dispatchUpperKg.toFixed(0)} kg. Actual receipts remain separate.`}
+        </p>
+      )}
       <h3 aria-live="polite" className="mt-3 font-semibold text-white">
         {title}
       </h3>
@@ -47,7 +60,11 @@ export function WorkplaceCompanion({ onOpen }: { onOpen: () => void }) {
               : 'These terms still need a fresh agreement.'}
       </p>
       <p className="mt-2 text-xs leading-5 text-cyan-100">
-        {negotiation ? negotiation.next : `Next: ${guide.destination} controls.`}
+        {improvement
+          ? improvement.next
+          : negotiation
+            ? negotiation.next
+            : `Next: ${guide.destination} controls.`}
       </p>
       {guide.needsRemedy && (
         <p className="mt-2 text-amber-100">
@@ -69,14 +86,17 @@ export function WorkplaceCompanion({ onOpen }: { onOpen: () => void }) {
         <div>
           <dt className="inline text-slate-300">Dispatch receipts: </dt>
           <dd className="inline">
-            {delivery.deliveredKg.toFixed(0)} / {delivery.targetKg.toFixed(0)} kg
+            {(improvement?.actualKg ?? delivery.deliveredKg).toFixed(0)} /{' '}
+            {delivery.targetKg.toFixed(0)} kg
             {delivery.status === 'blocked' && '; evidence blocked'}.
           </dd>
         </div>
-        {state.campaign?.mission && (
+        {workplaceMission(state) && (
           <div>
             <dt className="inline text-slate-300">Full customer commitment remaining: </dt>
-            <dd className="inline">{delivery.remainingKg.toFixed(0)} kg.</dd>
+            <dd className="inline">
+              {(improvement?.remainingKg ?? delivery.remainingKg).toFixed(0)} kg.
+            </dd>
           </div>
         )}
         <div>
@@ -97,7 +117,7 @@ export function WorkplaceCompanion({ onOpen }: { onOpen: () => void }) {
       >
         Open agreement controls
       </button>
-      {negotiation && (
+      {(negotiation || improvement) && (
         <button
           type="button"
           onClick={() =>

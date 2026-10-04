@@ -120,6 +120,19 @@ afterEach(() => {
 const step = () =>
   unifiedGameTick({ deltaSeconds: 0.5, gameTime: 0, gameSpeed: 15, elapsedTime: 0, tickCount: 1 });
 
+it('keeps workshop improvement deliberation outside the operational clock authority', () => {
+  useWorkplaceStore.setState({ workplace: createWorkplace('workshop', 17) });
+  const store = useWorkplaceStore.getState();
+  expect(store.beginImprovement('cooperative', store.workplace.revision).changed).toBe(true);
+  useGameSimulationStore.getState().setGameSpeed(1);
+  const before = useOperationsCampaignStore.getState().elapsedMinutes;
+  unifiedGameTick({ deltaSeconds: 0.1, gameTime: 0, gameSpeed: 1, elapsedTime: 0, tickCount: 1 });
+  expect(useGameSimulationStore.getState().gameSpeed).toBe(1);
+  expect(useOperationsCampaignStore.getState().elapsedMinutes).toBeGreaterThan(before);
+  expect(useWorkplaceStore.getState().workplace.minute).toBe(0);
+  expect(useWorkplaceStore.getState().workplace.shippedKg).toBe(0);
+});
+
 it('bounds the actual replay plant horizon at a fractional agreement end and holds review time', () => {
   agree('steady');
   useWorkplaceStore.getState().tick(89.9, 0, false);
@@ -865,4 +878,74 @@ describe('whole operational checkpoint replay', () => {
     expect(centralTick.tick(100.5, 8, 15)).toBe(true);
     expect(centralTick.getStats().tickCount).toBe(before.tickCount + 1);
   });
+});
+
+it('handoff trial pacing changes the real material assembly, stops immediately and preserves qualified dispatch', () => {
+  const results = [];
+  for (const arrangement of ['briefing', 'buffer'] as const) {
+    reset();
+    const w = useWorkplaceStore.getState();
+    expect(w.beginImprovement('cooperative', w.workplace.revision).changed).toBe(true);
+    expect(
+      w.proposeImprovement(arrangement, arrangement === 'briefing' ? 'packing' : 'maintenance')
+        .changed
+    ).toBe(true);
+    w.acknowledgeImprovement();
+    for (const m of useWorkplaceStore.getState().workplace.members) {
+      w.understand(m.id);
+      w.vote(m.id, true);
+    }
+    expect(w.activate(useWorkplaceStore.getState().workplace.revision).changed).toBe(true);
+    useGameSimulationStore.getState().setGameSpeed(15);
+    const flow = useMaterialFlowStore.getState();
+    const pace = vi.spyOn(flow, 'tickMaterialFlow');
+    replayTick = 0;
+    receivingDwell = 0;
+    for (let n = 0; n < 720 && useWorkplaceStore.getState().workplace.phase === 'active'; n++)
+      replayStep();
+    const review = useWorkplaceStore.getState().workplace;
+    const plant = useMaterialFlowStore.getState();
+    const order = useOperationsCampaignStore
+      .getState()
+      .orders.find((o) => o.id === review.improvement?.mission?.orderId)!;
+    expect(review.minute).toBe(90);
+    expect(review.phase).toBe('review');
+    expect(review.shippedKg).toBeGreaterThan(0);
+    expect(review.shippedKg).toBe(order.shippedKg);
+    expect(plant.manifests.filter((m) => m.kind === 'shipping').length).toBeGreaterThan(0);
+    for (const member of review.members) {
+      expect(member.earnedPay).toBeCloseTo(27, 8);
+      expect(member.restMinutes).toBeCloseTo(15, 8);
+      expect(member.extraMinutes).toBe(0);
+    }
+    expect(pace.mock.calls[0]?.[1]).toBe(arrangement === 'briefing' ? 0 : 1.02);
+    const observed = pace.mock.calls.map((call) => call[1]);
+    expect(observed.some((factor) => factor > 0)).toBe(true);
+    expect(useGameSimulationStore.getState().gameSpeed).toBe(0);
+    const settled = structuredClone(review);
+    replayStep();
+    expect(useWorkplaceStore.getState().workplace).toEqual(settled);
+    pace.mockRestore();
+    results.push({
+      arrangement,
+      shippedKg: review.shippedKg,
+      spend: review.finance.improvementSpend,
+      manifestIds: order.manifestIds,
+      paid: review.finance.wagesPaid,
+      closingCash: review.finance.cash,
+    });
+  }
+  mkdirSync('test-results/handoff-experiment-20261004', { recursive: true });
+  writeFileSync(
+    'test-results/handoff-experiment-20261004/real-plant-receipts.json',
+    JSON.stringify(
+      {
+        scope:
+          'Actual UnifiedGameTick and shipped production assembly; lifecycle dock signals supplied by the established test fixture.',
+        results,
+      },
+      null,
+      2
+    )
+  );
 });

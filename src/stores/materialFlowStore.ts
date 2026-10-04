@@ -672,8 +672,23 @@ function createInitialNetwork(): NetworkTopology {
 // STORE IMPLEMENTATION
 // =============================================================================
 
-export const useMaterialFlowStore = create<MaterialFlowState>()(
-  subscribeWithSelector((set, get) => {
+/** Data-only snapshots preserve Maps and genealogy, never live action closures. */
+export type MaterialFlowData = {
+  [K in keyof MaterialFlowState as MaterialFlowState[K] extends (...args: never[]) => unknown
+    ? never
+    : K]: MaterialFlowState[K];
+};
+
+export function cloneMaterialFlowData(
+  state: MaterialFlowState | MaterialFlowData
+): MaterialFlowData {
+  return structuredClone(
+    Object.fromEntries(Object.entries(state).filter(([, value]) => typeof value !== 'function'))
+  ) as MaterialFlowData;
+}
+
+function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
+  return subscribeWithSelector<MaterialFlowState>((set, get) => {
     const initialMachineBuffers = createInitialMachineBuffers();
     return {
       sessionId: newMaterialSessionId(),
@@ -1704,6 +1719,12 @@ export const useMaterialFlowStore = create<MaterialFlowState>()(
           simulationTime: 0,
         });
       },
+      ...(snapshot ? cloneMaterialFlowData(snapshot) : {}),
     };
-  })
-);
+  });
+}
+
+export const createMaterialFlowStore = (snapshot?: MaterialFlowData) =>
+  create<MaterialFlowState>()(createMaterialFlowInitializer(snapshot));
+
+export const useMaterialFlowStore = createMaterialFlowStore();

@@ -1,3 +1,5 @@
+import type { PackingAdvice } from './workplaceAdvice';
+
 /** Local, synthetic workplace laboratory. No identity or health information. */
 export type WorkplaceMode = 'game' | 'workshop' | 'pilot';
 export type WorkplacePhase = 'idle' | 'deliberating' | 'active' | 'review';
@@ -203,6 +205,40 @@ export interface WorkplaceState {
   aiActions: number;
   reviewReason: string | null;
   campaign: WorkplaceCampaign | null;
+  /** Optional continuation. Legacy version-one campaign saves remain valid. */
+  improvement?: WorkplaceImprovement;
+}
+
+export type ImprovementId = 'briefing' | 'buffer';
+export type ImprovementVerdict = 'adopt' | 'amend' | 'stop';
+export type ImprovementChallenge = 'forecast' | 'cost' | 'qualification';
+export type ImprovementEpisodeId = 'late-truck' | 'quality-hold' | 'tight-cash';
+export type ImprovementEpisodeChoice = 'ordinary' | 'smaller-delivery' | 'defer' | 'decline';
+export interface ImprovementEpisode {
+  id: ImprovementEpisodeId;
+  actorId: string | null;
+  choice: ImprovementEpisodeChoice | null;
+}
+export interface ImprovementTerms {
+  proposalId: ImprovementId | null;
+  proposerId: string | null;
+  challenges: { actorId: string; kind: ImprovementChallenge }[];
+  acknowledged: boolean;
+  forecastKg: number | null;
+  funded: boolean;
+  stopped: boolean;
+  reviewAcknowledged: boolean;
+  ballots: Record<string, ImprovementVerdict>;
+  verdict: ImprovementVerdict | null;
+  /** Public evidence only. Optional for historical version-one records. */
+  advice?: PackingAdvice;
+  episode?: ImprovementEpisode;
+}
+export interface WorkplaceImprovement extends ImprovementTerms {
+  version: 1;
+  origin: Omit<WorkplaceState, 'improvement'>;
+  history: (ImprovementTerms & { snapshot: Omit<WorkplaceState, 'improvement'> })[];
+  mission?: WorkplaceMission;
 }
 
 export interface WorkplaceReadiness {
@@ -226,6 +262,31 @@ export interface WorkplaceComparison {
 }
 
 export interface WorkplaceActions {
+  beginImprovement: (
+    profile: WorkplaceProfile,
+    expectedRevision: number,
+    mission?: WorkplaceMission,
+    mode?: WorkplaceMode
+  ) => WorkplaceTransitionResult;
+  proposeImprovement: (id: ImprovementId, actorId: string) => WorkplaceTransitionResult;
+  challengeImprovement: (actorId: string, kind: ImprovementChallenge) => WorkplaceTransitionResult;
+  acknowledgeImprovement: (advice?: PackingAdvice) => WorkplaceTransitionResult;
+  setImprovementEpisode: (id: ImprovementEpisodeId | null) => WorkplaceTransitionResult;
+  respondImprovementEpisode: (
+    actorId: string,
+    choice: ImprovementEpisodeChoice
+  ) => WorkplaceTransitionResult;
+  stopImprovement: (actorId: string) => WorkplaceTransitionResult;
+  acknowledgeImprovementReview: () => WorkplaceTransitionResult;
+  voteImprovementReview: (
+    actorId: string,
+    verdict: ImprovementVerdict
+  ) => WorkplaceTransitionResult;
+  finishImprovementReview: (expectedRevision: number) => WorkplaceTransitionResult;
+  continueImprovement: (
+    expectedRevision: number,
+    mission?: WorkplaceMission
+  ) => WorkplaceTransitionResult;
   startCampaign: (
     profile: WorkplaceProfile,
     seed?: number,

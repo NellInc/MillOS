@@ -1,4 +1,6 @@
 import React, { useRef, useState } from 'react';
+import { WorkplaceImprovementPanel } from './WorkplaceImprovementPanel';
+import { workplaceMission } from '../../../simulation/workplaceImprovement';
 import { WorkplacePressureChapter } from './WorkplacePressureChapter';
 import { WorkplacePracticeProposal } from './WorkplaceNegotiation';
 import { WorkplaceCampaignArchive } from './WorkplaceCampaignArchive';
@@ -41,7 +43,14 @@ const buttonClass =
   'min-h-9 rounded-md border border-cyan-300/25 px-2 py-1.5 text-xs font-medium text-cyan-100 hover:bg-cyan-900/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300 disabled:cursor-not-allowed disabled:opacity-50';
 const inputClass =
   'min-h-9 w-full min-w-0 rounded-md border border-slate-600 bg-slate-950 px-2 py-1.5 text-xs text-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300 disabled:opacity-50';
-const sections = ['Shift', 'Practices', 'Agreement / Voices', 'Review', 'Experiment'] as const;
+const sections = [
+  'Handoff',
+  'Shift',
+  'Practices',
+  'Agreement / Voices',
+  'Review',
+  'Experiment',
+] as const;
 const modes: { value: WorkplaceMode; label: string }[] = [
   { value: 'game', label: 'Game' },
   { value: 'workshop', label: 'Workshop' },
@@ -54,7 +63,9 @@ export const WorkplaceLab: React.FC = () => {
   const labRef = useRef<HTMLElement>(null);
   const store = useWorkplaceStore();
   const state = store.workplace;
-  const [section, setSection] = useState<(typeof sections)[number]>('Shift');
+  const [section, setSection] = useState<(typeof sections)[number]>(
+    state.improvement ? 'Handoff' : 'Shift'
+  );
   const [mode, setMode] = useState<WorkplaceMode>(state.mode);
   const [profile, setProfile] = useState<WorkplaceProfile>('toe-dip');
   const [seed, setSeed] = useState(String(state.seed));
@@ -81,7 +92,7 @@ export const WorkplaceLab: React.FC = () => {
   const relationship = campaign ? campaignRelationship(state) : [];
   const totals = campaign ? campaignTotals(state) : null;
   const outcomes = campaign ? campaignOutcomes(state) : null;
-  const mission = campaign?.mission;
+  const mission = workplaceMission(state);
   const displayTarget = mission?.targetKg ?? state.targetKg;
   const configuring = state.phase === 'idle' || state.phase === 'deliberating';
   const canConfigure = state.phase === 'deliberating';
@@ -231,9 +242,13 @@ export const WorkplaceLab: React.FC = () => {
       <header>
         <h3 className="text-base font-semibold text-white">Workplace laboratory</h3>
         <p className="mt-1">
-          {campaign
-            ? 'Living Cooperative: three shifts, shared obligations and challengeable decisions.'
-            : 'Friday order: meet the shipment while protecting rest and agreed work.'}
+          {section === 'Handoff'
+            ? 'Worker proposals, bounded trials and member review.'
+            : state.improvement
+              ? 'The handoff experiment: member proposals, bounded trials and retained obligations.'
+              : campaign
+                ? 'Living Cooperative: three shifts, shared obligations and challengeable decisions.'
+                : 'Friday order: meet the shipment while protecting rest and agreed work.'}
         </p>
         <p className="mt-2 text-slate-300">
           Synthetic roles only. No real worker data or independently authenticated ballots.
@@ -266,7 +281,29 @@ export const WorkplaceLab: React.FC = () => {
       )}
       {receipt && <p className="break-all text-cyan-100">Causal receipt: {receipt}</p>}
 
-      <WorkplaceReplayGuide section={section} navigate={setSection} />
+      {section === 'Handoff' && (
+        <WorkplaceImprovementPanel
+          profile={profile}
+          setProfile={setProfile}
+          mode={mode}
+          setMode={setMode}
+          activate={activate}
+          busy={busy}
+          report={report}
+        />
+      )}
+      {section === 'Shift' && (
+        <div className="space-y-2 border-b border-slate-700 pb-4">
+          <p>Try a worker-led improvement, then decide what the next shift retains.</p>
+          <button type="button" className={buttonClass} onClick={() => setSection('Handoff')}>
+            Open handoff controls
+          </button>
+        </div>
+      )}
+      <WorkplaceReplayGuide
+        section={section === 'Handoff' ? 'Shift' : section}
+        navigate={setSection}
+      />
       <WorkplaceReplayResume />
       <WorkplacePressureChapter state={state} navigate={setSection} />
       <WorkplaceCampaignArchive

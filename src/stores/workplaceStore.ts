@@ -8,6 +8,11 @@ import type {
 } from '../types/workplace';
 import { useOperationsCampaignStore } from './operationsCampaignStore';
 import { useMaterialFlowStore } from './materialFlowStore';
+import { useProductionStore } from './productionStore';
+import { useGameSimulationStore } from './gameSimulationStore';
+import { useTruckScheduleStore } from './truckScheduleStore';
+import { getDispatchQualityStatus, useQCLabStore } from './qcLabStore';
+import { capturePackingPlant, derivePackingAdvice } from '../simulation/workplaceAdvice';
 import {
   createWorkplace,
   restoreWorkplace,
@@ -15,10 +20,88 @@ import {
   transitionWorkplace,
   type WorkplaceCommand,
 } from '../simulation/bilateralWorkplace';
+import { workplaceMission } from '../simulation/workplaceImprovement';
 import { safeJSONStorage } from './storage';
 import { isWorkplaceReplayActive } from '../simulation/workplaceReplayRuntime';
 
 const MAX_COMPLETED_CAMPAIGNS = 6;
+/** Observation only. Freshness is checked against the current physical facts,
+ * rather than assuming that a matching order id makes its execution cache fresh. */
+export function captureCurrentPackingPlant(state: WorkplaceState) {
+  const material = useMaterialFlowStore.getState();
+  const production = useProductionStore.getState();
+  const operations = useOperationsCampaignStore.getState();
+  const order = operations.orders.find((o) => o.id === operations.activeOrderId) ?? null;
+  const mission = workplaceMission(state);
+  const execution = operations.execution;
+  const qualityRelease =
+    getDispatchQualityStatus(useQCLabStore.getState().qcLab, material.productionBatches).released &&
+    !operations.getIncidentEffect().dispatchBlocked;
+  const packed = material.productionBatches.filter(
+    (b) => b.materialType === order?.recipe.finishedMaterial
+  );
+  const released = packed
+    .filter((b) => b.disposition === 'released')
+    .reduce((n, b) => n + b.availableKg, 0);
+  const available = packed.reduce((n, b) => n + b.availableKg, 0);
+  const inventory = (type: string | undefined) =>
+    [...material.machineBuffers.values()].reduce(
+      (n, b) =>
+        n +
+        [...b.inputBuffer, ...b.outputBuffer].reduce(
+          (v, m) => v + (m.type === type ? m.amount : 0),
+          0
+        ),
+      0
+    ) +
+    material.network.segments.reduce(
+      (n, segment) =>
+        n + segment.inTransit.reduce((v, m) => v + (m.type === type ? m.amount : 0), 0),
+      0
+    );
+  const dock = useTruckScheduleStore.getState().truckSchedule.shipping;
+  const loadPresent = ['loading', 'held', 'ready'].includes(execution.dispatchLoad.status);
+  const close = (a: number, b: number) => Number.isFinite(a) && Math.abs(a - b) <= 0.01;
+  const executionFresh =
+    !!order &&
+    (!mission || mission.orderId === order.id) &&
+    operations.lastMaterialSessionId === material.sessionId &&
+    execution.orderId === order.id &&
+    execution.recipeId === order.recipe.id &&
+    execution.sourceMaterial === order.recipe.sourceMaterial &&
+    execution.finishedMaterial === order.recipe.finishedMaterial &&
+    close(execution.remainingKg, Math.max(0, order.requiredKg - order.shippedKg)) &&
+    close(execution.sourceInventoryKg, inventory(order.recipe.sourceMaterial)) &&
+    close(execution.finishedAvailableKg, available) &&
+    close(execution.releasedFinishedKg, released) &&
+    execution.qualityReleased === qualityRelease &&
+    loadPresent === dock.transferReady;
+  // Reflect machine actions even if the material coupling tick has not yet run.
+  const machines = new Map(production.machines.map((m) => [m.id, m]));
+  const flow = {
+    ...material,
+    machineBuffers: new Map(
+      [...material.machineBuffers].map(([id, b]) => {
+        const m = machines.get(id);
+        return [
+          id,
+          { ...b, isProcessing: !!m && (m.status === 'running' || m.status === 'warning') },
+        ];
+      })
+    ),
+  };
+  const gameSpeed = useGameSimulationStore.getState().gameSpeed;
+  return capturePackingPlant(flow, {
+    order,
+    missionMaterialSessionId: mission?.materialSessionId ?? material.sessionId,
+    productionSpeed: production.productionSpeed,
+    campaignMultiplier: operations.getProductionMultiplier(),
+    gameSpeed: gameSpeed > 0 ? gameSpeed : 30,
+    qualityRelease,
+    dispatchLoad: execution.dispatchLoad,
+    executionFresh,
+  });
+}
 const recoveryOutstanding = (state: WorkplaceState) =>
   state.members.some((member) => member.recoveryOwedMinutes > 0) ||
   state.campaign?.history.some((shift) =>
@@ -60,11 +143,83 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
   persist(
     (set, get) => {
       const apply = (command: WorkplaceCommand) => {
+        if (
+          ['beginImprovement', 'continueImprovement'].includes(command.type) &&
+          isWorkplaceReplayActive()
+        )
+          return {
+            changed: false,
+            reason: 'Finish or forget the matched replay before continuing workplace obligations.',
+          };
         const { state, changed, reason } = transitionWorkplace(get().workplace, command);
         if (changed) set({ workplace: state });
         return { changed, reason };
       };
+      const linkedMission = (mode = get().workplace.mode) => {
+        const state = get().workplace;
+        if (mode !== 'game') return undefined;
+        const retained = workplaceMission(state);
+        const operations = useOperationsCampaignStore.getState();
+        const order = operations.orders.find(
+          (o) => o.id === (retained?.orderId ?? operations.activeOrderId)
+        );
+        if (!order || order.status === 'cancelled')
+          return retained ? { ...retained, evidence: 'missing' as const } : undefined;
+        if (
+          !retained &&
+          (order.status === 'fulfilled' || order.qualityFailureKg > 0 || operations.activeChallenge)
+        )
+          return undefined;
+        const mission = retained ?? {
+          orderId: order.id,
+          customer: order.customer,
+          materialSessionId: useMaterialFlowStore.getState().sessionId,
+          startingShippedKg: order.shippedKg,
+          originalTargetKg: order.requiredKg - order.shippedKg,
+          targetKg: order.requiredKg - order.shippedKg,
+          observedShippedKg: order.shippedKg,
+          creditedKg: 0,
+          manifestIds: [...order.manifestIds],
+          evidence: 'current' as const,
+        };
+        return {
+          ...mission,
+          observedShippedKg: order.shippedKg,
+          creditedKg: order.shippedKg - mission.startingShippedKg,
+          manifestIds: [...order.manifestIds],
+          evidence:
+            mission.materialSessionId !== useMaterialFlowStore.getState().sessionId
+              ? ('stale' as const)
+              : order.qualityFailureKg > 0
+                ? ('quality-failed' as const)
+                : ('current' as const),
+        };
+      };
       return {
+        beginImprovement: (profile, revision, _mission, mode = get().workplace.mode) =>
+          apply({ type: 'beginImprovement', args: [profile, revision, linkedMission(mode), mode] }),
+        proposeImprovement: (...args) => apply({ type: 'proposeImprovement', args }),
+        challengeImprovement: (...args) => apply({ type: 'challengeImprovement', args }),
+        acknowledgeImprovement: () => {
+          const current = get().workplace;
+          const advice =
+            current.mode === 'game' && current.improvement?.proposalId
+              ? derivePackingAdvice(
+                  captureCurrentPackingPlant(current),
+                  current.improvement.stopped ? 'steady' : current.improvement.proposalId
+                )
+              : undefined;
+          return apply({ type: 'acknowledgeImprovement', args: advice ? [advice] : [] });
+        },
+        setImprovementEpisode: (...args) => apply({ type: 'setImprovementEpisode', args }),
+        respondImprovementEpisode: (...args) => apply({ type: 'respondImprovementEpisode', args }),
+        stopImprovement: (...args) => apply({ type: 'stopImprovement', args }),
+        acknowledgeImprovementReview: (...args) =>
+          apply({ type: 'acknowledgeImprovementReview', args }),
+        voteImprovementReview: (...args) => apply({ type: 'voteImprovementReview', args }),
+        finishImprovementReview: (...args) => apply({ type: 'finishImprovementReview', args }),
+        continueImprovement: (revision) =>
+          apply({ type: 'continueImprovement', args: [revision, linkedMission()] }),
         workplace: createWorkplace(),
         completedCampaigns: [],
         archiveCampaign: (expectedRevision) => {
@@ -168,19 +323,41 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
         object: (...args) => apply({ type: 'object', args }),
         resolveObjection: (...args) => apply({ type: 'resolveObjection', args }),
         activate: (...args) => {
-          const mission = get().workplace.campaign?.mission;
+          const mission = workplaceMission(get().workplace);
           if (mission && mission.materialSessionId !== useMaterialFlowStore.getState().sessionId)
             return {
               changed: false,
               reason:
                 'The physical material session changed. Historical receipts cannot authorise a new agreement.',
             };
-          return apply({ type: 'activate', args });
+          const current = get().workplace;
+          if (current.mode === 'game' && current.improvement) {
+            const advice = current.improvement.advice;
+            if (!advice || advice.fingerprint !== captureCurrentPackingPlant(current).fingerprint)
+              return {
+                changed: false,
+                reason:
+                  'Plant evidence or the intended pace changed. Hear a fresh adviser response, then confirm understanding and ballots again.',
+              };
+          }
+          const refreshed = current.improvement && linkedMission();
+          if (refreshed && refreshed.evidence !== 'current')
+            return {
+              changed: false,
+              reason:
+                'Current quality-qualified dispatch evidence is required before funding a trial.',
+            };
+          const activationInput = refreshed
+            ? { ...current, improvement: { ...current.improvement!, mission: refreshed } }
+            : current;
+          const result = transitionWorkplace(activationInput, { type: 'activate', args });
+          if (result.changed) set({ workplace: result.state });
+          return { changed: result.changed, reason: result.reason };
         },
         withdraw: (...args) => apply({ type: 'withdraw', args }),
         stop: (...args) => apply({ type: 'stop', args }),
         tick: (...args) => {
-          const mission = get().workplace.campaign?.mission;
+          const mission = workplaceMission(get().workplace);
           if (mission) {
             const order = useOperationsCampaignStore
               .getState()
