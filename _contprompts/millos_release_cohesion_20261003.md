@@ -92,3 +92,53 @@ gates. Historical failed/ineligible receipts remain historical. Full goal active
 with no current repeated external blocker. Working if a later integration names
 its exact source/build and never treats the isolated lighting seal as verification
 of the other context's changes.
+
+## Integrated release acceptance, 4 October
+
+The integrated source fingerprint is
+`5fa37ec50ba35a251e92ed1d379f21bd746a451888171ce594dcf931225d8dc7`;
+the normal 387-file delivery fingerprint is
+`3a9221941a42b8f31abdfa6bbbffc05c38731a447f24f1b86b8f9c0a4d024f23`.
+All 2,043 primary and candidate inputs and all delivery files were rechecked
+after the runtime and performance checks. The complete suite passes 2,666 tests
+in 243 files, with no named failures, retaining the original budgets. The
+2606/238 baseline therefore increases by 60 tests and five files. All fifteen
+whole/static/build/delivery stages exit zero. Receipts are under
+`test-results/gameplay-polish-20261002/integrated-release-20261004-*`.
+
+Current ordinary UI completes 18 tonnes, three recipes and five actual truck
+departures on time, with no early credit or quality failure. Desktop and touch
+workplace trials preserve actual held stock, QC alerts, earned customer credit,
+wages and rest across reload, while revoking active personal permissions.
+The first truncated-query fixture failure is retained separately. Earlier
+in-flight/repair/restart proofs transfer only through unchanged restore inputs.
+
+Continuous inhabitants, seven moving dusk/night/rain observations, actual
+keyboard/touch/150-percent UI, covered interrupted loading, offline recovery
+and scoped cache cleanup have current source-bound evidence. All six native
+walking round trips pass at an exact 1.7-metre eye height. The combined walk
+fixture missed its final interactive Escape deadline and remains failed;
+a separate actual OS Escape confirmation passes unlock, mode cleanup and
+orbit restoration. This is composite evidence, not a rewritten aggregate.
+
+All 27 mapped civic concept light sources illuminate actual receivers, with
+baked rigid opaque local shadows and one dynamic celestial caster. Moving
+people and alpha/windy foliage are excluded from the fixed local bake. This
+is a measured realization, not a pixel-identical concept-art verdict.
+
+Two initial integrated Medium aggregates failed different pacing checks on
+eligible hosts. Their failed receipts remain intact. A bounded read-only
+second opinion and three consecutive same-page eight-second windows found
+no reproduced sampling-boundary fault; the external-versus-product cause
+remains unverified. Both subsequently predeclared complete original-budget
+five-scene Medium aggregates pass in full. Together with Low and lamp-active
+dusk/night arms, 23 accepted cases pass, with eligible host load and empty raw
+diagnostics. No window, warm-up, DPR, quality or budget was weakened. Receipt:
+`integrated-release-20261004-performance-accepted.json`.
+
+This checkpoint is the sole documentation-only delta after the sealed checks.
+Publication must record that transfer explicitly. Scoped Git size/history,
+versioned build identity, terminal CI/Pages, served-byte/live-gameplay and
+archive verification remain release gates. The native goal remains active
+until those gates finish. Working if the final record distinguishes sealed
+local proof, this documentation transfer and the exact live release commit.
