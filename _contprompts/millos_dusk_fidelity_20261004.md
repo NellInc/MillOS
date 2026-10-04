@@ -469,3 +469,25 @@ software-rendered CI. All owned browsers/previews are closed; other contexts
 remain untouched. Publication status: local only. Wider graphics performance
 acceptance and the parent release remain incomplete. Working if failed gates
 remain visible and the repaired foothills are not called a completed release.
+
+### Publication approval and combined startup repair
+
+Nell explicitly requested "Please commit, push, and get everything live" after
+the Medium performance failure was disclosed. This releases the publication
+hold for the current completed graphics and cooperative gameplay, with failed
+performance evidence retained. It does not turn the original budgets green.
+All 37 current source/config/documentation paths are included; reproducible
+untracked galleries and ignored outputs remain outside Git. The combined source
+passes 2,723 tests, both typechecks, lint, formatting and applicable validators.
+Three stale ignored agent artifacts were regenerated and their check passes.
+Local commit 101607a contains that combined source and is not yet pushed.
+
+The versioned runtime check reproduced an onboarding conflict before push:
+the automatic demo's manual-pace subscription forced the chosen speed back to
+zero. Two new regression cases reproduce loss of 30 and 180 pace; manual zero
+already works. Pause now optionally preserves the already chosen clock while
+stopping automatic decisions. Explicit takeover, refusal and safety paths keep
+the original clock-stopping default. The affected 52-test gate passes. Final
+combined source/build, versioned runtime, CI/Pages and served verification follow.
+Working if Start operating advances on its first click, human pace survives
+takeover, safety/default pause still stops the clock, and failed receipts survive.

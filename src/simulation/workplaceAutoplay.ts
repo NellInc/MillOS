@@ -96,7 +96,7 @@ export const useWorkplaceAutoplay = create<{
   running: boolean;
   message: string | null;
   start: (profile: WorkplaceProfile) => void;
-  pause: () => void;
+  pause: (preserveClock?: boolean) => void;
 }>()(
   persist(
     (set, get) => ({
@@ -122,7 +122,7 @@ export const useWorkplaceAutoplay = create<{
           }
         }, 400);
       },
-      pause: () => {
+      pause: (preserveClock = false) => {
         if (demonstrationInterval !== null) clearInterval(demonstrationInterval);
         demonstrationInterval = null;
         const wasRunning = get().running;
@@ -131,7 +131,7 @@ export const useWorkplaceAutoplay = create<{
           manual: true,
           message: 'Automatic decisions paused. Your choices take priority.',
         });
-        if (wasRunning) useGameSimulationStore.getState().setGameSpeed(0);
+        if (wasRunning && !preserveClock) useGameSimulationStore.getState().setGameSpeed(0);
       },
     }),
     {
@@ -158,5 +158,8 @@ useGameSimulationStore.subscribe((current, previous) => {
     useWorkplaceAutoplay.getState().running &&
     !isAutomaticWorkplaceStep()
   )
-    useWorkplaceAutoplay.getState().pause();
+    // The human has already chosen the new pace. Stop automatic decisions
+    // without replacing that choice, including the onboarding clock release.
+    // Working if manual pace changes stop the runner and retain their speed.
+    useWorkplaceAutoplay.getState().pause(true);
 });

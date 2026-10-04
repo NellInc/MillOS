@@ -90,6 +90,21 @@ it('rechecks emergency and drill before any automated work or clock resume', () 
     useGameSimulationStore.setState({ [field]: false });
   }
 });
+it.each([0, 30, 180])(
+  'manual pace %s takes over without losing the chosen clock speed',
+  (speed) => {
+    vi.useFakeTimers();
+    useGameSimulationStore.getState().setGameSpeed(1);
+    useWorkplaceAutoplay.getState().start('team');
+    const before = useWorkplaceStore.getState().workplace;
+    useGameSimulationStore.getState().setGameSpeed(speed);
+    expect(useWorkplaceAutoplay.getState().running).toBe(false);
+    expect(useGameSimulationStore.getState().gameSpeed).toBe(speed);
+    vi.advanceTimersByTime(2000);
+    expect(useWorkplaceStore.getState().workplace).toBe(before);
+    vi.useRealTimers();
+  }
+);
 it.each(['wrong-answer', 'manual-stop', 'reload'] as const)(
   'manual %s pauses the runner before its next action',
   (action) => {
