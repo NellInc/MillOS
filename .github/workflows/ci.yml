@@ -79,7 +79,7 @@ jobs:
 
   build:
     name: Build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [lint, test]
     steps:
       - name: Checkout
@@ -109,16 +109,11 @@ jobs:
 
       - name: Validate Jev personal-key flow in desktop and mobile layouts
         timeout-minutes: 8
-        env:
-          CHROME_DEVEL_SANDBOX: /opt/google/chrome/chrome-sandbox
         # Advisory UI uses a low-fill camera and still requires normal full-world startup.
         # This does not claim real-GPU startup or frame-pacing acceptance.
-        # Chromium's installed SUID helper keeps its sandbox enabled on Ubuntu.
-        # Working if the helper is root-owned, not group/world writable, and both layouts pass.
-        run: |
-          test -x "$CHROME_DEVEL_SANDBOX"
-          test "$(stat -Lc '%u:%a' "$CHROME_DEVEL_SANDBOX")" = '0:4755'
-          node scripts/validate-jev-browser.mjs --software-renderer
+        # Packaged Chrome has Ubuntu's user-namespace profile; retain browser sandboxing.
+        # Working if it launches sandboxed and both normal-startup layouts pass.
+        run: node scripts/validate-jev-browser.mjs --software-renderer --installed-chrome
 
       - name: Upload Jev browser evidence
         if: always()

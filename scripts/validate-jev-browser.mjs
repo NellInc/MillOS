@@ -11,6 +11,10 @@ import { acquireCaptureLock } from './lib/capture-lock.mjs';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const output = path.join(root, 'test-results/jev-browser');
 const softwareRenderer = process.argv.includes('--software-renderer');
+const installedChrome = process.argv.includes('--installed-chrome');
+if (installedChrome && (process.platform !== 'linux' || process.env.GITHUB_ACTIONS !== 'true')) {
+  throw new Error('Installed Chrome acceptance is limited to the disposable GitHub Linux runner');
+}
 const endpoint = 'https://openrouter.ai/api/alpha/decisions';
 const key = `sk-or-v1-${'test-only-'.repeat(5)}`;
 const note = 'Synthetic incident: a drive belt has snapped and awaits replacement.';
@@ -23,6 +27,8 @@ const report = {
   failedRequests: [],
   csp: [],
   softwareRenderer,
+  browserChannel: installedChrome ? 'chrome' : 'playwright-chromium',
+  requestedChromiumSandbox: true,
   camera: softwareRenderer ? 'sun' : 'overview',
   normalStartupRequired: true,
 };
@@ -39,6 +45,7 @@ try {
     preview: { host: '127.0.0.1', port: 4398, strictPort: true },
   });
   browser = await chromium.launch({
+    ...(installedChrome ? { channel: 'chrome' } : {}),
     headless: true,
     chromiumSandbox: true,
     args: [
@@ -46,6 +53,23 @@ try {
       ...(softwareRenderer ? ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] : []),
     ],
   });
+  report.browserVersion = browser.version();
+  if (installedChrome) {
+    const session = await browser.newBrowserCDPSession();
+    try {
+      report.browserArguments = (await session.send('Browser.getBrowserCommandLine')).arguments;
+      assert.ok(
+        !report.browserArguments.some((argument) =>
+          ['--no-sandbox', '--disable-setuid-sandbox', '--disable-seccomp-filter-sandbox'].includes(
+            argument
+          )
+        ),
+        'CI browser must retain its sandbox layers'
+      );
+    } finally {
+      await session.detach();
+    }
+  }
   const context = await browser.newContext({ serviceWorkers: 'block', reducedMotion: 'reduce' });
   await context.addInitScript(() => {
     localStorage.setItem(
