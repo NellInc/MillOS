@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import { cpus, loadavg } from 'node:os';
+import { cpus, loadavg, release } from 'node:os';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { chromium } from 'playwright';
@@ -65,6 +65,13 @@ const report = {
   normalStartupRequired: true,
   startupTimeoutMs,
   diagnoseStartup,
+  host: {
+    platform: process.platform,
+    architecture: process.arch,
+    release: release(),
+    runnerImage: process.env.ImageOS,
+    runnerImageVersion: process.env.ImageVersion,
+  },
 };
 // Persist each boundary before entering browser work. A runner-level timeout
 // can interrupt Chromium before the catch/finally diagnostic gets to execute.
@@ -134,13 +141,7 @@ try {
         : []),
       // Headless otherwise defaults to SwiftShader. Force the Metal backend,
       // then check both CDP and the application's own context below.
-      // The hosted paravirtual GPU trace stalls in Dawn/IOSurface scheduling.
-      // Select the Ganesh compositor; keep actual scene WebGL on ANGLE Metal.
-      // Working if CDP confirms the compositor change and full UI acceptance
-      // still passes with sandboxed Metal, without any software WebGL fallback.
-      ...(metalRenderer
-        ? ['--enable-gpu', '--use-gl=angle', '--use-angle=metal', '--disable-skia-graphite']
-        : []),
+      ...(metalRenderer ? ['--enable-gpu', '--use-gl=angle', '--use-angle=metal'] : []),
     ],
   });
   report.browserVersion = browser.version();
@@ -170,8 +171,6 @@ try {
           true,
           'Metal GPU process must be sandboxed'
         );
-        assert.match(report.gpu.auxAttributes?.skiaBackendType ?? '', /Ganesh/);
-        assert.equal(report.gpu.featureStatus?.gpu_compositing, 'enabled');
         // Chromium reports a combined WebGL feature status. Prove WebGL2 with
         // the application's actual context, rather than an absent CDP field.
       }
@@ -180,13 +179,16 @@ try {
     }
   }
   await checkpoint('browser-context');
-  if (diagnoseStartup && process.platform === 'darwin') {
+  if (metalRenderer && process.platform === 'darwin') {
     // Query the browser process, not the possibly blocked page. Sample only
     // this disposable browser's GPU and renderers, never desktop applications.
     diagnosticTimer = setTimeout(() => {
       nativeSamples = (async () => {
         const session = await browser.newBrowserCDPSession();
         try {
+          report.hostLoad = { logicalCores: cpus().length, averages: loadavg() };
+          report.stallSampleAt = new Date().toISOString();
+          await checkpoint(report.phase);
           const { processInfo } = await session.send('SystemInfo.getProcessInfo');
           await writeFile(
             path.join(output, 'browser-processes.json'),
