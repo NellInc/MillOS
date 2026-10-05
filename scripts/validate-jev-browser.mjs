@@ -12,6 +12,7 @@ import { acquireCaptureLock } from './lib/capture-lock.mjs';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const output = path.join(root, 'test-results/jev-browser');
 const softwareRenderer = process.argv.includes('--software-renderer');
+const startupTimeoutMs = softwareRenderer ? 300_000 : 240_000;
 const installedChrome = process.argv.includes('--installed-chrome');
 if (installedChrome && (process.platform !== 'linux' || process.env.GITHUB_ACTIONS !== 'true')) {
   throw new Error('Installed Chrome acceptance is limited to the disposable GitHub Linux runner');
@@ -32,6 +33,7 @@ const report = {
   requestedChromiumSandbox: true,
   camera: softwareRenderer ? 'sun' : 'overview',
   normalStartupRequired: true,
+  startupTimeoutMs,
 };
 const lock = await acquireCaptureLock('jev-browser-acceptance', { root });
 let browser, server, page;
@@ -148,7 +150,9 @@ try {
       document.documentElement.dataset.millosStartupReady === 'true' &&
       !document.querySelector('[aria-label="Loading MillOS"]'),
     null,
-    { polling: 400, timeout: 240_000 }
+    // The software trace was still preparing when a task crossed 240 seconds.
+    // Allow one more minute of preparation; retain every readiness condition.
+    { polling: 400, timeout: startupTimeoutMs }
   );
   // CompleteWorldMarker fires on mount, before incremental static batching.
   // Read the batcher's readiness counter directly. Runtime snapshot() performs
