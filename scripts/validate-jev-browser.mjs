@@ -51,7 +51,12 @@ try {
     chromiumSandbox: true,
     args: [
       '--mute-audio',
-      ...(softwareRenderer ? ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] : []),
+      // Keep browser compositing on its software path. SwiftShader supplies
+      // WebGL only, rather than emulating a GPU for the whole browser.
+      // https://chromium.googlesource.com/chromium/src/+/main/docs/gpu/swiftshader.md
+      ...(softwareRenderer
+        ? ['--use-gl=angle', '--use-angle=swiftshader-webgl', '--enable-unsafe-swiftshader']
+        : []),
     ],
   });
   report.browserVersion = browser.version();
