@@ -31,19 +31,15 @@ if (
   (process.platform !== 'darwin' ||
     (!localMetalDist && process.env.GITHUB_ACTIONS !== 'true') ||
     (!!localMetalDist && process.env.GITHUB_ACTIONS === 'true') ||
-    softwareRenderer)
-) {
-  throw new Error('Metal acceptance requires macOS, with local diagnostics kept separate from CI');
-}
-if (
-  installedChrome &&
-  (process.env.GITHUB_ACTIONS !== 'true' ||
-    !!localMetalDist ||
-    (process.platform !== 'linux' && !(process.platform === 'darwin' && metalRenderer)))
+    softwareRenderer ||
+    installedChrome)
 ) {
   throw new Error(
-    'Installed Chrome acceptance is limited to disposable GitHub Linux or Metal runners'
+    'Metal acceptance requires pinned Chromium on macOS, with local diagnostics kept separate from CI'
   );
+}
+if (installedChrome && (process.platform !== 'linux' || process.env.GITHUB_ACTIONS !== 'true')) {
+  throw new Error('Installed Chrome acceptance is limited to the disposable GitHub Linux runner');
 }
 const endpoint = 'https://openrouter.ai/api/alpha/decisions';
 const key = `sk-or-v1-${'test-only-'.repeat(5)}`;
