@@ -121,7 +121,7 @@ try {
   });
   page.on('requestfailed', (request) => report.failedRequests.push(request.url()));
   report.startupViewport = softwareRenderer
-    ? { width: 640, height: 480 }
+    ? { width: 320, height: 240 }
     : { width: 1440, height: 1000 };
   await page.setViewportSize(report.startupViewport);
   await page.goto(
@@ -131,8 +131,9 @@ try {
     }
   );
   report.phase = 'scene-loading';
-  // This gate checks advisory UI. The low-fill sun camera retains the full
-  // world, assets and static batches while making software rendering practical.
+  // This gate checks advisory UI. The low-fill sun camera and startup viewport
+  // retain the full world, assets and static batches with less raster work.
+  // Readiness here applies to this viewport; both real-size UI flows follow.
   // Normal startup is mandatory; no loader bypass or production change exists.
   // Working if software CI exercises both layouts only after actual startup.
   await page.waitForFunction(
