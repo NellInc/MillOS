@@ -11,19 +11,27 @@ import { acquireCaptureLock } from './lib/capture-lock.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const output = path.join(root, 'test-results/jev-browser');
+const localMetalDist = process.argv
+  .find((argument) => argument.startsWith('--local-metal-dist='))
+  ?.split('=')
+  .slice(1)
+  .join('=');
+const builtDirectory = localMetalDist ? path.resolve(localMetalDist) : path.join(root, 'dist');
 const softwareRenderer = process.argv.includes('--software-renderer');
-const metalRenderer = process.argv.includes('--metal-renderer');
+const metalRenderer = process.argv.includes('--metal-renderer') || !!localMetalDist;
+const advisoryStartup = softwareRenderer || metalRenderer;
 const startupTimeoutMs = softwareRenderer ? 300_000 : 240_000;
 const installedChrome = process.argv.includes('--installed-chrome');
 if (
   metalRenderer &&
   (process.platform !== 'darwin' ||
-    process.env.GITHUB_ACTIONS !== 'true' ||
+    (!localMetalDist && process.env.GITHUB_ACTIONS !== 'true') ||
+    (!!localMetalDist && process.env.GITHUB_ACTIONS === 'true') ||
     softwareRenderer ||
     installedChrome)
 ) {
   throw new Error(
-    'Metal acceptance requires the disposable GitHub macOS runner and pinned Chromium'
+    'Metal acceptance requires pinned Chromium on macOS, with local diagnostics kept separate from CI'
   );
 }
 if (installedChrome && (process.platform !== 'linux' || process.env.GITHUB_ACTIONS !== 'true')) {
@@ -42,9 +50,14 @@ const report = {
   csp: [],
   softwareRenderer,
   metalRenderer,
+  executionEnvironment: localMetalDist
+    ? 'local-diagnostic'
+    : process.env.GITHUB_ACTIONS === 'true'
+      ? 'github-actions'
+      : 'local',
   browserChannel: installedChrome ? 'chrome' : metalRenderer ? 'chromium' : 'playwright-chromium',
   requestedChromiumSandbox: true,
-  camera: softwareRenderer ? 'sun' : 'overview',
+  camera: advisoryStartup ? 'sun' : 'overview',
   normalStartupRequired: true,
   startupTimeoutMs,
 };
@@ -59,17 +72,23 @@ const lock = await acquireCaptureLock('jev-browser-acceptance', { root });
 let browser, server, page;
 try {
   await mkdir(output, { recursive: true });
-  const html = await readFile(path.join(root, 'dist/index.html'), 'utf8');
+  const html = await readFile(path.join(builtDirectory, 'index.html'), 'utf8');
   if (metalRenderer) {
-    report.buildInfo = JSON.parse(await readFile(path.join(root, 'dist/build-info.json'), 'utf8'));
+    report.buildInfo = JSON.parse(
+      await readFile(path.join(builtDirectory, 'build-info.json'), 'utf8')
+    );
     report.distSha256 = process.env.MILLOS_CI_DIST_SHA256;
     assert.match(
       report.distSha256 ?? '',
       /^[a-f0-9]{64}$/,
       'CI must verify the built assembly checksum'
     );
+    const sourceSha = localMetalDist
+      ? process.env.MILLOS_ACCEPTANCE_SOURCE_SHA
+      : process.env.GITHUB_SHA;
+    assert.match(sourceSha ?? '', /^[a-f0-9]{40}$/, 'The assembly source commit must be explicit');
     assert.ok(
-      report.buildInfo.buildId.endsWith(`-${process.env.GITHUB_SHA?.slice(0, 12)}`),
+      report.buildInfo.buildId.endsWith(`-${sourceSha.slice(0, 12)}`),
       'Downloaded build must match the workflow commit'
     );
   }
@@ -78,6 +97,7 @@ try {
   server = await preview({
     root,
     base,
+    build: { outDir: builtDirectory },
     preview: { host: '127.0.0.1', port: 4398, strictPort: true },
   });
   await checkpoint('browser-launch');
@@ -183,7 +203,7 @@ try {
     if (message.type() === 'error') report.consoleErrors.push(message.text());
   });
   page.on('requestfailed', (request) => report.failedRequests.push(request.url()));
-  report.startupViewport = softwareRenderer
+  report.startupViewport = advisoryStartup
     ? { width: 320, height: 240 }
     : { width: 1440, height: 1000 };
   await page.setViewportSize(report.startupViewport);
