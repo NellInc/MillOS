@@ -72,6 +72,7 @@ describe('choice-first handoff interface', () => {
     ).toBeInTheDocument();
   });
   it('automatically marks a paused comparison stale after a production setpoint change', async () => {
+    useProductionStore.getState().setProductionSpeed(1);
     const state = createWorkplace();
     render(<MatchedPackingRehearsal state={state} report={report} />);
     click('Run matched packing rehearsal');

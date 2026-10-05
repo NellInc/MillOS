@@ -48,6 +48,13 @@ const report = {
   normalStartupRequired: true,
   startupTimeoutMs,
 };
+// Persist each boundary before entering browser work. A runner-level timeout
+// can interrupt Chromium before the catch/finally diagnostic gets to execute.
+const checkpoint = async (phase) => {
+  report.phase = phase;
+  await writeFile(path.join(output, 'result.json'), `${JSON.stringify(report, null, 2)}\n`);
+  console.log(`Jev acceptance: ${phase}`);
+};
 const lock = await acquireCaptureLock('jev-browser-acceptance', { root });
 let browser, server, page;
 try {
@@ -73,7 +80,7 @@ try {
     base,
     preview: { host: '127.0.0.1', port: 4398, strictPort: true },
   });
-  report.phase = 'browser-renderer';
+  await checkpoint('browser-launch');
   browser = await chromium.launch({
     ...(installedChrome ? { channel: 'chrome' } : metalRenderer ? { channel: 'chromium' } : {}),
     headless: true,
@@ -93,6 +100,7 @@ try {
     ],
   });
   report.browserVersion = browser.version();
+  await checkpoint('browser-renderer');
   if (installedChrome || metalRenderer) {
     const session = await browser.newBrowserCDPSession();
     try {
@@ -125,6 +133,7 @@ try {
       await session.detach();
     }
   }
+  await checkpoint('browser-context');
   const context = await browser.newContext({ serviceWorkers: 'block', reducedMotion: 'reduce' });
   await context.addInitScript(() => {
     localStorage.setItem(
@@ -178,15 +187,16 @@ try {
     ? { width: 320, height: 240 }
     : { width: 1440, height: 1000 };
   await page.setViewportSize(report.startupViewport);
+  await checkpoint('page-navigation');
   await page.goto(
     `http://127.0.0.1:4398${base}?benchmark=${report.camera}&time=12&quality=low&operations=on&pa=off`,
     {
       waitUntil: 'domcontentloaded',
     }
   );
-  report.phase = 'scene-loading';
+  await checkpoint('scene-loading');
   if (metalRenderer) {
-    report.phase = 'metal-context';
+    await checkpoint('metal-context');
     await page.waitForFunction(() => window.__MILLOS_RUNTIME__?.ready, null, {
       timeout: startupTimeoutMs,
     });
@@ -211,7 +221,7 @@ try {
       /swiftshader|llvmpipe|softpipe|\bwarp\b|software/i,
       'Metal acceptance must not fall back to a software WebGL driver'
     );
-    report.phase = 'scene-loading';
+    await checkpoint('scene-loading');
   }
   // This gate checks advisory UI. The low-fill sun camera and startup viewport
   // retain the full world, assets and static batches with less raster work.
