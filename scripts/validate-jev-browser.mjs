@@ -134,7 +134,13 @@ try {
         : []),
       // Headless otherwise defaults to SwiftShader. Force the Metal backend,
       // then check both CDP and the application's own context below.
-      ...(metalRenderer ? ['--enable-gpu', '--use-gl=angle', '--use-angle=metal'] : []),
+      // The hosted paravirtual GPU trace stalls in Dawn/IOSurface scheduling.
+      // Select the Ganesh compositor; keep actual scene WebGL on ANGLE Metal.
+      // Working if CDP confirms the compositor change and full UI acceptance
+      // still passes with sandboxed Metal, without any software WebGL fallback.
+      ...(metalRenderer
+        ? ['--enable-gpu', '--use-gl=angle', '--use-angle=metal', '--disable-skia-graphite']
+        : []),
     ],
   });
   report.browserVersion = browser.version();
@@ -164,6 +170,8 @@ try {
           true,
           'Metal GPU process must be sandboxed'
         );
+        assert.match(report.gpu.auxAttributes?.skiaBackendType ?? '', /Ganesh/);
+        assert.equal(report.gpu.featureStatus?.gpu_compositing, 'enabled');
         // Chromium reports a combined WebGL feature status. Prove WebGL2 with
         // the application's actual context, rather than an absent CDP field.
       }
@@ -427,6 +435,7 @@ try {
   process.exitCode = 1;
 } finally {
   clearTimeout(diagnosticTimer);
+  report.hostLoad ??= { logicalCores: cpus().length, averages: loadavg() };
   await writeFile(path.join(output, 'result.json'), `${JSON.stringify(report, null, 2)}\n`);
   console.log(JSON.stringify(report, null, 2));
   await nativeSamples;

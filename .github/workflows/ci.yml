@@ -182,7 +182,7 @@ jobs:
         # Standard public macOS VM, with no paid runner or desktop registration.
         # Metal availability is tested, not inferred from the runner's CPU label.
         # Working if actual Metal WebGL and both full-world UI flows pass sandboxed.
-        run: node scripts/validate-jev-browser.mjs --metal-renderer --diagnose-startup
+        run: node scripts/validate-jev-browser.mjs --metal-renderer
 
       - name: Upload Jev browser evidence
         if: always()
