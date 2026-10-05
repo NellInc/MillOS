@@ -78,6 +78,7 @@ try {
     ...(installedChrome ? { channel: 'chrome' } : metalRenderer ? { channel: 'chromium' } : {}),
     headless: true,
     chromiumSandbox: true,
+    ...(metalRenderer ? { ignoreDefaultArgs: ['--enable-unsafe-swiftshader'] } : {}),
     args: [
       '--mute-audio',
       // Keep browser compositing on its software path. SwiftShader supplies
@@ -105,10 +106,20 @@ try {
         'CI browser must retain its sandbox layers'
       );
       if (metalRenderer) {
+        assert.ok(
+          !report.browserArguments.includes('--enable-unsafe-swiftshader'),
+          'Metal acceptance must not opt into unsafe SwiftShader fallback'
+        );
         report.gpu = (await session.send('SystemInfo.getInfo')).gpu;
         assert.match(report.gpu.auxAttributes?.glRenderer ?? '', /ANGLE Metal Renderer/i);
         assert.equal(report.gpu.featureStatus?.webgl, 'enabled', 'Metal WebGL must be enabled');
-        assert.equal(report.gpu.featureStatus?.webgl2, 'enabled', 'Metal WebGL2 must be enabled');
+        assert.equal(
+          report.gpu.auxAttributes?.sandboxed,
+          true,
+          'Metal GPU process must be sandboxed'
+        );
+        // Chromium reports a combined WebGL feature status. Prove WebGL2 with
+        // the application's actual context, rather than an absent CDP field.
       }
     } finally {
       await session.detach();
