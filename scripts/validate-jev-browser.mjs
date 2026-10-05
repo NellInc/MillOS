@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { cpus, loadavg } from 'node:os';
 import { chromium } from 'playwright';
 import { preview } from 'vite';
 import { acquireCaptureLock } from './lib/capture-lock.mjs';
@@ -226,7 +227,39 @@ try {
   report.passed = true;
 } catch (error) {
   report.error = error.message;
-  await page?.screenshot({ path: path.join(output, 'failure.png'), timeout: 5000 }).catch(() => {});
+  report.hostLoad = { logicalCores: cpus().length, averages: loadavg() };
+  if (page) {
+    let diagnosticTimer;
+    try {
+      report.startupState = await Promise.race([
+        page.evaluate(() => ({
+          runtimeReady: window.__MILLOS_RUNTIME__?.ready ?? false,
+          worldReady: document.documentElement.dataset.millosWorldReady ?? null,
+          startupReady: document.documentElement.dataset.millosStartupReady ?? null,
+          batchesPending: document.documentElement.dataset.millosStaticBatchesPending ?? null,
+          visibility: document.visibilityState,
+          framePacing: window.__MILLOS_RUNTIME__?.framePacingSnapshot() ?? null,
+          loaderText: document.querySelector('[role="dialog"][aria-label="Loading MillOS"]')
+            ?.textContent,
+        })),
+        new Promise((_, reject) => {
+          diagnosticTimer = setTimeout(
+            () => reject(new Error('Startup diagnostic timed out')),
+            5000
+          );
+        }),
+      ]);
+    } catch (diagnosticError) {
+      report.startupStateError = diagnosticError.message;
+    } finally {
+      clearTimeout(diagnosticTimer);
+    }
+    await page
+      .screenshot({ path: path.join(output, 'failure.png'), timeout: 5000 })
+      .catch((error) => {
+        report.failureScreenshotError = error.message;
+      });
+  }
   process.exitCode = 1;
 } finally {
   await writeFile(path.join(output, 'result.json'), `${JSON.stringify(report, null, 2)}\n`);
