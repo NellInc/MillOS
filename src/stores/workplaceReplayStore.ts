@@ -32,6 +32,7 @@ import { useAchievementsStore } from './achievementsStore';
 import { useAnnouncementsStore } from './announcementsStore';
 import { useUIStore } from './uiStore';
 import { useWorkplaceStore } from './workplaceStore';
+import { captureSavedLogisticsLayout, useLogisticsLayoutStore } from './logisticsLayoutStore';
 import type { WorkplaceProfile, WorkplaceTransitionResult } from '../types/workplace';
 import type { WorkplaceCheckpointInfo, WorkplaceReplayRun } from '../types/workplaceReplay';
 
@@ -45,6 +46,7 @@ function data<S extends object>(state: S): Data<S> {
 }
 function capturePlant() {
   return {
+    logistics: captureSavedLogisticsLayout(),
     production: data(useProductionStore.getState()),
     material: data(useMaterialFlowStore.getState()),
     operations: data(useOperationsCampaignStore.getState()),
@@ -74,6 +76,7 @@ function restorePlant(raw: ReturnType<typeof capturePlant>) {
   useUIStore.setState({ alerts: saved.alerts });
   useProductionStore.setState({ ...saved.production, scadaLive: false });
   useGameSimulationStore.setState({ ...saved.game, gameSpeed: 0 });
+  useLogisticsLayoutStore.getState().restoreSaved(saved.logistics);
   restoreUnifiedTickState(saved.tick);
   centralTick.restoreClock(saved.centralClock);
 }

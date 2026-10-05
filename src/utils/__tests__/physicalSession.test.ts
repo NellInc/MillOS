@@ -31,6 +31,12 @@ import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { useUIStore } from '../../stores/uiStore';
 import { captureUnifiedTickState, resetUnifiedTickState } from '../../systems/UnifiedGameTick';
 import { MachineType } from '../../types';
+import {
+  useLogisticsLayoutStore,
+  defaultSavedLogisticsLayout,
+} from '../../stores/logisticsLayoutStore';
+import { currentLogisticsLayout } from '../../simulation/layoutPlanning';
+import { registerLogisticsVehicle } from '../../simulation/logisticsRuntime';
 
 let dispose: (() => void) | undefined;
 let removeOwners: (() => void)[] = [];
@@ -43,6 +49,7 @@ const resetPlant = () => {
   useQCLabStore.getState().resetQCLab();
   useGameSimulationStore.getState().resetGameState();
   resetUnifiedTickState();
+  useLogisticsLayoutStore.getState().restoreSaved(defaultSavedLogisticsLayout());
 };
 const ready = () => {
   startup.ready = true;
@@ -287,4 +294,46 @@ describe('atomic local physical shift continuation', () => {
     }).not.toThrow();
     expect(useUIStore.getState().alerts.at(-1)?.title).toBe('Shift save needs attention');
   });
+});
+
+it('migrates old shift records and restores layout before owner motion, with comparisons invalidated', () => {
+  heldShift();
+  const old = capturePhysicalSession();
+  delete (old as Partial<typeof old>).logistics;
+  expect(decodePhysicalSession(encodePhysicalSession(old)).logistics).toEqual(
+    defaultSavedLogisticsLayout()
+  );
+  const layout = currentLogisticsLayout();
+  layout.staging.shipping[0] = 18;
+  useLogisticsLayoutStore
+    .getState()
+    .restoreSaved({ layout, previous: currentLogisticsLayout(), revision: 3 });
+  const saved = capturePhysicalSession();
+  localStorage.setItem(PHYSICAL_SESSION_KEY, encodePhysicalSession(saved));
+  resetPlant();
+  let installed: unknown;
+  removeOwners.push(
+    registerLogisticsVehicle('shipping', {
+      prepare: () => () => {},
+      restore: (points) => {
+        installed = points;
+      },
+    })
+  );
+  removeOwners.push(
+    registerReplayParticipant(REQUIRED_REPLAY_PARTICIPANTS[0], {
+      capture: () => ({}),
+      restore: () => {
+        expect(installed).toEqual(layout.routes.shipping);
+        expect(useLogisticsLayoutStore.getState().layout).toEqual(layout);
+      },
+    })
+  );
+  dispose = installPhysicalSession();
+  ready();
+  expect(isPhysicalSessionRestoring()).toBe(false);
+  expect(useLogisticsLayoutStore.getState().revision).toBe(3);
+  expect(useLogisticsLayoutStore.getState().observation.activeSeconds).toBe(0);
+  saved.logistics.layout.staging.shipping = [0, 0, 73];
+  expect(() => decodePhysicalSession(encodePhysicalSession(saved))).toThrow('invalid clearance');
 });

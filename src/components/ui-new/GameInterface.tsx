@@ -1,4 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { Suspense, useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { recoverableLazy } from '../../utils/recoverableLazy';
+import { RecoverableFeatureBoundary } from '../ErrorBoundary';
 import { Dock, DockMode, DOCK_LABELS } from './dock/Dock';
 import { ContextSidebar } from './sidebar/ContextSidebar';
 import { StatusHUD } from './hud/StatusHUD';
@@ -33,6 +36,10 @@ import { MillOSMusicPlayer } from './MillOSMusicPlayer';
 import { WorkplaceAutoplayStatus } from './widgets/WorkplaceParticipation';
 import { WorkplaceCompanion } from './widgets/WorkplaceCompanion';
 import { useWorkplaceStore } from '../../stores/workplaceStore';
+
+const LayoutPlanner = recoverableLazy(() =>
+  import('./widgets/LayoutPlanner').then((module) => ({ default: module.LayoutPlanner }))
+);
 
 const INTRO_STEPS: OnboardingStep[] = [
   {
@@ -94,6 +101,12 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
 
   // Datalinks modal state
   const [datalinksOpen, setDatalinksOpen] = useState(false);
+  const [planningOpen, setPlanningOpen] = useState(false);
+  useEffect(() => {
+    const open = () => setPlanningOpen(true);
+    window.addEventListener('millos:open-layout-planner', open);
+    return () => window.removeEventListener('millos:open-layout-planner', open);
+  }, []);
 
   // Keyboard-shortcuts help modal — driven by the ? key (useKeyboardShortcuts
   // toggles uiStore.showShortcuts; this is the only consumer that renders it).
@@ -458,6 +471,24 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
       )}
 
       {/* 8. Datalinks Modal */}
+      {planningOpen &&
+        createPortal(
+          <RecoverableFeatureBoundary featureName="Logistics planning">
+            <Suspense
+              fallback={
+                <div
+                  role="status"
+                  className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950 text-slate-100"
+                >
+                  Loading logistics planning…
+                </div>
+              }
+            >
+              <LayoutPlanner onClose={() => setPlanningOpen(false)} />
+            </Suspense>
+          </RecoverableFeatureBoundary>,
+          document.body
+        )}
       {FEATURE_FLAGS.KNOWLEDGE_LIBRARY_ENABLED && (
         <Datalinks isOpen={datalinksOpen} onClose={() => setDatalinksOpen(false)} />
       )}

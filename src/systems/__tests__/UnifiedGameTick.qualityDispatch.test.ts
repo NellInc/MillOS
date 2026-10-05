@@ -6,6 +6,12 @@ import { useQCLabStore } from '../../stores/qcLabStore';
 import { useTruckScheduleStore } from '../../stores/truckScheduleStore';
 import { useUIStore } from '../../stores/uiStore';
 import { useOperationsCampaignStore } from '../../stores/operationsCampaignStore';
+import {
+  useLogisticsLayoutStore,
+  defaultSavedLogisticsLayout,
+} from '../../stores/logisticsLayoutStore';
+import { currentLogisticsLayout, logisticsLoadingRate } from '../../simulation/layoutPlanning';
+import { useProductionStore } from '../../stores/productionStore';
 
 const tickContext: TickContext = {
   deltaSeconds: 0.1,
@@ -18,6 +24,7 @@ const tickContext: TickContext = {
 describe('UnifiedGameTick shipping quality interlock', () => {
   beforeEach(() => {
     resetUnifiedTickState();
+    useLogisticsLayoutStore.getState().restoreSaved(defaultSavedLogisticsLayout());
     useMaterialFlowStore.getState().resetMaterialFlow();
     useOperationsCampaignStore.getState().resetCampaign();
     useTruckScheduleStore.getState().resetTruckSchedule();
@@ -174,4 +181,71 @@ describe('UnifiedGameTick shipping quality interlock', () => {
       useUIStore.getState().alerts.filter((a) => a.title === 'Dispatch Quality Hold')
     ).toHaveLength(1);
   });
+});
+
+it('uses applied handling geometry prospectively while preserving load, quality and material caps', () => {
+  resetUnifiedTickState();
+  useMaterialFlowStore.getState().resetMaterialFlow();
+  useMaterialFlowStore.getState().tickMaterialFlow(20, 1);
+  useOperationsCampaignStore.getState().resetCampaign();
+  useTruckScheduleStore.getState().resetTruckSchedule();
+  useQCLabStore.setState((state) => ({
+    qcLab: {
+      ...state.qcLab,
+      isRunning: false,
+      currentTest: null,
+      certificationStatus: 'valid',
+      contaminationAlerts: [],
+    },
+  }));
+  const layout = currentLogisticsLayout();
+  layout.staging.shipping[2] -= 3;
+  useLogisticsLayoutStore
+    .getState()
+    .restoreSaved({ layout, previous: currentLogisticsLayout(), revision: 1 });
+  useTruckScheduleStore.getState().setTruckDocked('shipping', true);
+  useTruckScheduleStore.getState().setTruckTransferReady('shipping', true);
+  unifiedGameTick(tickContext);
+  const first = useOperationsCampaignStore.getState().execution.dispatchLoad.loadedKg;
+  expect(first).toBeCloseTo(logisticsLoadingRate(layout) * 0.1, 5);
+  useLogisticsLayoutStore.getState().restoreSaved(defaultSavedLogisticsLayout());
+  unifiedGameTick(tickContext);
+  expect(useOperationsCampaignStore.getState().execution.dispatchLoad.loadedKg).toBeCloseTo(
+    first + 40,
+    5
+  );
+  useQCLabStore.getState().updateCertificationStatus('expired');
+  unifiedGameTick(tickContext);
+  expect(useOperationsCampaignStore.getState().execution.dispatchLoad.loadedKg).toBeCloseTo(
+    first + 40,
+    5
+  );
+  expect(useMaterialFlowStore.getState().shippedKg).toBe(0);
+  expect(Math.abs(useMaterialFlowStore.getState().getMaterialBalance().errorKg)).toBeLessThan(
+    0.001
+  );
+});
+
+it.each([0.5, 2])('observes packed mass exactly once at production speed %s', (speed) => {
+  resetUnifiedTickState();
+  useLogisticsLayoutStore.getState().restoreSaved(defaultSavedLogisticsLayout());
+  useMaterialFlowStore.getState().resetMaterialFlow();
+  useOperationsCampaignStore.getState().resetCampaign();
+  useTruckScheduleStore.getState().resetTruckSchedule();
+  useProductionStore.setState({ productionSpeed: speed });
+  const before = useMaterialFlowStore
+    .getState()
+    .productionBatches.reduce((sum, batch) => sum + batch.producedKg, 0);
+  unifiedGameTick(tickContext);
+  const packed =
+    useMaterialFlowStore
+      .getState()
+      .productionBatches.reduce((sum, batch) => sum + batch.producedKg, 0) - before;
+  expect(packed).toBeGreaterThan(0);
+  expect(useLogisticsLayoutStore.getState().observation.packedKg).toBeCloseTo(packed, 6);
+  expect(useLogisticsLayoutStore.getState().observation.materialSeconds).toBeCloseTo(
+    speed * tickContext.deltaSeconds,
+    6
+  );
+  useProductionStore.setState({ productionSpeed: 1 });
 });

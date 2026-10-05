@@ -45,6 +45,8 @@ import {
   isWorkplaceReplayActive,
 } from '../simulation/workplaceReplayRuntime';
 import { peekSCADAService } from '../scada/SCADAService';
+import { useLogisticsLayoutStore } from '../stores/logisticsLayoutStore';
+import { logisticsLoadingRate } from '../simulation/layoutPlanning';
 
 // Tracks the receiving dock's docked state across ticks so a false->true
 // transition (a grain truck arriving) triggers exactly one silo delivery.
@@ -426,6 +428,7 @@ function unifiedGameTick(ctx: TickContext): void {
   }
   advanceReplayClock(deltaSeconds * safeGameSpeed * 1000);
   const workplaceShippedBefore = useMaterialFlowStore.getState().shippedKg;
+  const materialTimeBefore = useMaterialFlowStore.getState().simulationTime;
   const celebrateDay = 86400 / safeGameSpeed >= MIN_CELEBRATED_DAY_REAL_SECONDS;
 
   // Clear reusable arrays (no allocation)
@@ -718,6 +721,9 @@ function unifiedGameTick(ctx: TickContext): void {
   flowStore.syncMachineProcessing(
     anyMachineChanged ? useProductionStore.getState().machines : machines
   );
+  flowStore.syncTransportGeometry(
+    anyMachineChanged ? useProductionStore.getState().machines : machines
+  );
   const activeOrderForFeed = campaignStore.orders.find(
     (order) => order.id === activeProductionPlan?.orderId
   );
@@ -880,7 +886,12 @@ function unifiedGameTick(ctx: TickContext): void {
     } else {
       const loadedKg = Math.min(
         loadTargetKg,
-        _shippingLoad.loadedKg + SHIPPING_LOAD_RATE_KG_PER_SECOND * deltaSeconds
+        _shippingLoad.loadedKg +
+          logisticsLoadingRate(
+            useLogisticsLayoutStore.getState().layout,
+            SHIPPING_LOAD_RATE_KG_PER_SECOND
+          ) *
+            deltaSeconds
       );
       _shippingLoad = {
         ..._shippingLoad,
@@ -915,6 +926,23 @@ function unifiedGameTick(ctx: TickContext): void {
   const latestFlow = useMaterialFlowStore.getState();
   const latestGame = useGameSimulationStore.getState();
   const latestTrucks = useTruckScheduleStore.getState().truckSchedule;
+  const materialSeconds = Math.max(0, latestFlow.simulationTime - materialTimeBefore);
+  useLogisticsLayoutStore
+    .getState()
+    .observe(
+      latestFlow.sessionId,
+      deltaSeconds,
+      materialSeconds,
+      latestFlow.currentPackerFlowRate * deltaSeconds,
+      Math.max(0, latestFlow.shippedKg - workplaceShippedBefore),
+      JSON.stringify([
+        latestProduction.productionSpeed,
+        safeGameSpeed,
+        effectiveProductionSpeed,
+        latestProduction.machines.map((m) => [m.id, m.status]),
+        activeProductionPlan?.orderId,
+      ])
+    );
   const dispatchStatus = getDispatchQualityStatus(
     useQCLabStore.getState().qcLab,
     latestFlow.productionBatches

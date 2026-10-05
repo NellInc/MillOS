@@ -18,6 +18,11 @@
 
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
+import { spoutMachineKey, type SpoutMachine } from '../components/flow/spoutRoutes';
+import {
+  canonicalProcessMachines,
+  resolveMaterialTransport,
+} from '../simulation/materialTransport';
 
 // =============================================================================
 // MATERIAL TYPES
@@ -191,6 +196,9 @@ export interface ConveyorSegment {
   flowRate: number; // kg per second at production speed 1.0
   /** Transit time in seconds at production speed 1.0 */
   transitTime: number;
+  /** Missing geometry stops new departures; existing parcels still drain. */
+  routeProvenance?: 'rendered' | 'modeled' | 'unresolved';
+  routeLengthMetres?: number | null;
   /** Material in transit with arrival timestamps */
   inTransit: Array<{
     amount: number;
@@ -270,6 +278,7 @@ export interface MaterialFlowState {
    * processing material. Joined on the live machine ids from the scene.
    */
   syncMachineProcessing: (machines: ReadonlyArray<{ id: string; status: string }>) => void;
+  syncTransportGeometry: (machines: readonly SpoutMachine[]) => void;
   /**
    * A receiving truck delivers grain: tops up the emptiest silo (wheat for
    * even silo indices, corn for odd, matching the initial fill pattern).
@@ -619,7 +628,7 @@ function createInitialNetwork(): NetworkTopology {
       capacity: 500, // 500 kg max on conveyor
       currentLoad: 0,
       flowRate: flowRate, // kg/sec
-      transitTime: 3, // 3 seconds transit time
+      transitTime: 0, // Resolved from the shared service routes below.
       inTransit: [],
     });
 
@@ -665,6 +674,12 @@ function createInitialNetwork(): NetworkTopology {
   addSegment('sifter-b', 'packer-1', 'semolina', 80, '-semolina');
   addSegment('sifter-c', 'packer-2', 'semolina', 80, '-semolina');
 
+  const routes = resolveMaterialTransport(canonicalProcessMachines(), segments);
+  routes.forEach((route, index) => {
+    segments[index].transitTime = route.transitSeconds ?? 0;
+    segments[index].routeLengthMetres = route.lengthMetres;
+    segments[index].routeProvenance = route.provenance;
+  });
   return { segments, downstreamMap, upstreamMap };
 }
 
@@ -690,6 +705,8 @@ export function cloneMaterialFlowData(
 function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
   return subscribeWithSelector<MaterialFlowState>((set, get) => {
     const initialMachineBuffers = createInitialMachineBuffers();
+    let transportKey = '';
+    let transportRoutes: ReturnType<typeof resolveMaterialTransport> = [];
     return {
       sessionId: newMaterialSessionId(),
       machineBuffers: initialMachineBuffers,
@@ -1175,6 +1192,12 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
           const routedMaterial =
             fromBuffer.machineType === 'silo' ? productionPlan?.sourceMaterial : undefined;
           if (routedMaterial && segment.fromOutputType !== routedMaterial) return;
+          if (
+            segment.routeProvenance === 'unresolved' ||
+            !Number.isFinite(segment.transitTime) ||
+            segment.transitTime <= 0
+          )
+            return;
 
           // Move material from source output to conveyor
           const outputMaterial = fromBuffer.outputBuffer.find(
@@ -1277,6 +1300,42 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
           ),
           wasteSourceContributions,
           byproductSourceContributions,
+        });
+      },
+
+      syncTransportGeometry: (machines) => {
+        const state = get();
+        const key =
+          spoutMachineKey(machines) +
+          state.network.segments
+            .map(({ fromMachineId, toMachineId }) => `${fromMachineId}>${toMachineId}`)
+            .join('|');
+        if (key !== transportKey) {
+          transportRoutes = resolveMaterialTransport(machines, state.network.segments);
+          transportKey = key;
+        }
+        const changed = state.network.segments.some((segment, index) => {
+          const route = transportRoutes[index];
+          return (
+            segment.transitTime !== (route.transitSeconds ?? 0) ||
+            segment.routeLengthMetres !== route.lengthMetres ||
+            segment.routeProvenance !== route.provenance
+          );
+        });
+        if (!changed) return;
+        // Keep parcel arrival timestamps and genealogy unchanged. Only future
+        // departures use the new route duration. Working if relocation cannot
+        // teleport material already traveling through the prior layout.
+        set({
+          network: {
+            ...state.network,
+            segments: state.network.segments.map((segment, index) => ({
+              ...segment,
+              transitTime: transportRoutes[index].transitSeconds ?? 0,
+              routeLengthMetres: transportRoutes[index].lengthMetres,
+              routeProvenance: transportRoutes[index].provenance,
+            })),
+          },
         });
       },
 

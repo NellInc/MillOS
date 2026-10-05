@@ -1,4 +1,5 @@
 import { SITE_LAYOUT, CONVEYOR_LAYOUT, conveyorBounds } from './siteLayout';
+import { MachineType, type MachineData } from '../types';
 
 export interface FactoryObstacle {
   readonly id: string;
@@ -34,28 +35,37 @@ const createCentredObstacle = (
  * Returns the collision footprint for every canonical machine anchor.
  * Plansifters are elevated, so only their four suspension columns block the floor.
  */
-export function createMachineObstacles(clearancePadding = 1): FactoryObstacle[] {
+export function createMachineObstacles(
+  clearancePadding = 1,
+  machines?: readonly Pick<MachineData, 'id' | 'type' | 'position' | 'size'>[]
+): FactoryObstacle[] {
   const obstacles: FactoryObstacle[] = [];
+  const anchorsFor = (
+    type: MachineType,
+    anchors: readonly { id: string; position: readonly [number, number, number] }[],
+    size: readonly [number, number, number]
+  ) =>
+    machines
+      ? machines.filter((machine) => machine.type === type)
+      : anchors.map((anchor) => ({ ...anchor, size }));
 
-  SITE_LAYOUT.machines.silos.forEach((anchor) => {
+  anchorsFor(
+    MachineType.SILO,
+    SITE_LAYOUT.machines.silos,
+    SITE_LAYOUT.machineDimensions.silo
+  ).forEach((anchor) => {
     obstacles.push(
-      createCentredObstacle(
-        anchor.id,
-        anchor.position,
-        SITE_LAYOUT.machineDimensions.silo,
-        clearancePadding
-      )
+      createCentredObstacle(anchor.id, anchor.position, anchor.size, clearancePadding)
     );
   });
 
-  SITE_LAYOUT.machines.rollerMills.forEach((anchor) => {
+  anchorsFor(
+    MachineType.ROLLER_MILL,
+    SITE_LAYOUT.machines.rollerMills,
+    SITE_LAYOUT.machineDimensions.rollerMill
+  ).forEach((anchor) => {
     obstacles.push(
-      createCentredObstacle(
-        anchor.id,
-        anchor.position,
-        SITE_LAYOUT.machineDimensions.rollerMill,
-        clearancePadding
-      )
+      createCentredObstacle(anchor.id, anchor.position, anchor.size, clearancePadding)
     );
   });
 
@@ -66,7 +76,11 @@ export function createMachineObstacles(clearancePadding = 1): FactoryObstacle[] 
     [3.2, 3.2],
   ] as const;
 
-  SITE_LAYOUT.machines.sifters.forEach((anchor) => {
+  anchorsFor(
+    MachineType.PLANSIFTER,
+    SITE_LAYOUT.machines.sifters,
+    SITE_LAYOUT.machineDimensions.sifter
+  ).forEach((anchor) => {
     suspensionOffsets.forEach(([dx, dz], index) => {
       obstacles.push({
         id: `${anchor.id}-suspension-${index}`,
@@ -80,14 +94,13 @@ export function createMachineObstacles(clearancePadding = 1): FactoryObstacle[] 
     });
   });
 
-  SITE_LAYOUT.machines.packers.forEach((anchor) => {
+  anchorsFor(
+    MachineType.PACKER,
+    SITE_LAYOUT.machines.packers,
+    SITE_LAYOUT.machineDimensions.packer
+  ).forEach((anchor) => {
     obstacles.push(
-      createCentredObstacle(
-        anchor.id,
-        anchor.position,
-        SITE_LAYOUT.machineDimensions.packer,
-        clearancePadding
-      )
+      createCentredObstacle(anchor.id, anchor.position, anchor.size, clearancePadding)
     );
   });
 

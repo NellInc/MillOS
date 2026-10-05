@@ -53,6 +53,8 @@ export function getSpoutRiserX(machineX: number): number {
 }
 
 export interface SpoutRoute {
+  readonly fromMachineId: string;
+  readonly toMachineId: string;
   readonly family: PipeRouteFamily;
   readonly curve: THREE.CurvePath<THREE.Vector3>;
   /** Conservative bore bounds shared with moving-grain culling. */
@@ -66,7 +68,9 @@ export interface SpoutRoute {
  * Deliberately excludes `status` - status changes every simulation tick and
  * would rebuild every curve and merged geometry with it.
  */
-export const spoutMachineKey = (machines: readonly MachineData[]): string =>
+export type SpoutMachine = Pick<MachineData, 'id' | 'type' | 'position' | 'size'>;
+
+export const spoutMachineKey = (machines: readonly SpoutMachine[]): string =>
   machines
     .filter((m) =>
       [
@@ -76,7 +80,7 @@ export const spoutMachineKey = (machines: readonly MachineData[]): string =>
         MachineType.PACKER,
       ].includes(m.type)
     )
-    .map((m) => `${m.id}:${m.position.join(',')}:${m.size.join(',')}`)
+    .map((m) => `${m.id}:${m.type}:${m.position.join(',')}:${m.size.join(',')}`)
     .join('|');
 
 /** Straight service runs with compact, bounded tangent bends. */
@@ -115,7 +119,7 @@ const createRoute = (
   end: THREE.Vector3,
   family: PipeRouteFamily,
   lane: number
-): SpoutRoute => {
+): Omit<SpoutRoute, 'fromMachineId' | 'toMachineId'> => {
   let points: THREE.Vector3[];
   if (family === 'intake') {
     const y = Math.max(start.y, end.y) + SPOUT_SERVICE_LAYOUT.intakeRise;
@@ -163,6 +167,55 @@ const createRoute = (
 
 // Single-entry cache. Both consumers pass the same machine list on the same
 // tick, so a one-slot cache serves them both without holding stale layouts.
+/** Resolve the same service-rack geometry for a rendered or modeled connection. */
+export function createMachineSpoutRoute(
+  from: SpoutMachine,
+  to: SpoutMachine,
+  lane: number
+): SpoutRoute | null {
+  if (![...from.position, ...to.position].every(Number.isFinite)) return null;
+  let route: Omit<SpoutRoute, 'fromMachineId' | 'toMachineId'>;
+  if (from.type === MachineType.SILO && to.type === MachineType.ROLLER_MILL) {
+    route = createRoute(
+      new THREE.Vector3(from.position[0], from.position[1] + 3, from.position[2]),
+      new THREE.Vector3(
+        to.position[0],
+        to.position[1] + MILL_PROCESS_PORTS.intake[1],
+        to.position[2]
+      ),
+      'intake',
+      lane
+    );
+  } else if (from.type === MachineType.ROLLER_MILL && to.type === MachineType.PLANSIFTER) {
+    route = createRoute(
+      new THREE.Vector3(
+        from.position[0],
+        from.position[1] + MILL_PROCESS_PORTS.pneumatic[1],
+        from.position[2]
+      ),
+      new THREE.Vector3(
+        to.position[0],
+        to.position[1] + SIFTER_LAYOUT.inletCentreY + SIFTER_LAYOUT.inletHeight / 2,
+        to.position[2]
+      ),
+      'pneumatic',
+      lane
+    );
+  } else if (from.type === MachineType.PLANSIFTER && to.type === MachineType.PACKER) {
+    route = createRoute(
+      new THREE.Vector3(from.position[0], from.position[1] - 2, from.position[2]),
+      new THREE.Vector3(
+        to.position[0],
+        to.position[1] + PACKER_HOPPER_LAYOUT.centreY + PACKER_HOPPER_LAYOUT.scale[1] / 2,
+        to.position[2]
+      ),
+      'finished',
+      lane
+    );
+  } else return null;
+  return { ...route, fromMachineId: from.id, toMachineId: to.id };
+}
+
 let cachedKey: string | null = null;
 let cachedRoutes: readonly SpoutRoute[] = [];
 
@@ -173,7 +226,7 @@ let cachedRoutes: readonly SpoutRoute[] = [];
  * silo[i % silos], lifts to sifter[i % sifters]; packer[i] is fed by
  * sifter[i % sifters].
  */
-export const buildSpoutRoutes = (machines: readonly MachineData[]): readonly SpoutRoute[] => {
+export const buildSpoutRoutes = (machines: readonly SpoutMachine[]): readonly SpoutRoute[] => {
   const key = spoutMachineKey(machines);
   if (key === cachedKey) return cachedRoutes;
 
@@ -184,62 +237,26 @@ export const buildSpoutRoutes = (machines: readonly MachineData[]): readonly Spo
 
   const routes: SpoutRoute[] = [];
 
-  // Silos to Mills (enclosed intake supply)
-  mills.forEach((mill, i) => {
-    const silo = silos[i % silos.length];
-    if (!silo) return;
-    routes.push(
-      createRoute(
-        new THREE.Vector3(silo.position[0], 3, silo.position[2]),
-        new THREE.Vector3(
-          mill.position[0],
-          mill.position[1] + MILL_PROCESS_PORTS.intake[1],
-          mill.position[2]
-        ),
-        'intake',
-        i
-      )
-    );
+  mills.forEach((mill, index) => {
+    const silo = silos[index % silos.length];
+    if (silo) {
+      const route = createMachineSpoutRoute(silo, mill, index);
+      if (route) routes.push(route);
+    }
   });
-
-  // Mills to Sifters (pneumatic lift)
-  mills.forEach((mill, i) => {
-    const sifter = sifters[i % sifters.length];
-    if (!sifter) return;
-    routes.push(
-      createRoute(
-        new THREE.Vector3(
-          mill.position[0],
-          mill.position[1] + MILL_PROCESS_PORTS.pneumatic[1],
-          mill.position[2]
-        ),
-        new THREE.Vector3(
-          sifter.position[0],
-          sifter.position[1] + SIFTER_LAYOUT.inletCentreY + SIFTER_LAYOUT.inletHeight / 2,
-          sifter.position[2]
-        ),
-        'pneumatic',
-        i
-      )
-    );
+  mills.forEach((mill, index) => {
+    const sifter = sifters[index % sifters.length];
+    if (sifter) {
+      const route = createMachineSpoutRoute(mill, sifter, index);
+      if (route) routes.push(route);
+    }
   });
-
-  // Sifters to Packers (finished product)
-  packers.forEach((packer, i) => {
-    const sifter = sifters[i % sifters.length];
-    if (!sifter) return;
-    routes.push(
-      createRoute(
-        new THREE.Vector3(sifter.position[0], sifter.position[1] - 2, sifter.position[2]),
-        new THREE.Vector3(
-          packer.position[0],
-          packer.position[1] + PACKER_HOPPER_LAYOUT.centreY + PACKER_HOPPER_LAYOUT.scale[1] / 2,
-          packer.position[2]
-        ),
-        'finished',
-        i
-      )
-    );
+  packers.forEach((packer, index) => {
+    const sifter = sifters[index % sifters.length];
+    if (sifter) {
+      const route = createMachineSpoutRoute(sifter, packer, index);
+      if (route) routes.push(route);
+    }
   });
 
   cachedKey = key;

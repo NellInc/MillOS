@@ -19,6 +19,14 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('compact operating controls', () => {
+  it('opens the shared protected logistics workspace from the mobile overview', () => {
+    const open = vi.fn();
+    window.addEventListener('millos:open-layout-planner', open);
+    render(<MobilePanel isVisible content="overview" onClose={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Plan logistics' }));
+    expect(open).toHaveBeenCalledOnce();
+    window.removeEventListener('millos:open-layout-planner', open);
+  });
   it('activates the actual customer recipe instead of a read-only SCADA summary', () => {
     const order = useOperationsCampaignStore.getState().orders[1];
     render(<MobilePanel isVisible content="overview" onClose={vi.fn()} />);

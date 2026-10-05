@@ -21,6 +21,7 @@ import {
   FastForward,
   Heart,
   Truck,
+  Route,
 } from 'lucide-react';
 import type { DockMode } from '../ui-new/dock/Dock';
 import { useProductionStore } from '../../stores/productionStore';
@@ -166,6 +167,12 @@ const OverviewContent: React.FC = () => {
     <div className="space-y-3">
       <OperationsPlayCard />
       <ShiftDebrief />
+      <button
+        onClick={() => window.dispatchEvent(new Event('millos:open-layout-planner'))}
+        className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-cyan-700 bg-cyan-950 px-3 py-2 text-sm text-cyan-100 hover:bg-cyan-900"
+      >
+        <Route size={18} aria-hidden="true" /> Plan logistics
+      </button>
       <details className="rounded-xl border border-slate-700 p-3">
         <summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold text-cyan-200">
           Batch quality and traceability

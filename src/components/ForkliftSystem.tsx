@@ -22,8 +22,14 @@ import { shouldRunThisFrame } from '../utils/frameThrottle';
 import { ForkliftData } from '../types';
 import { POLYGON_OFFSET } from '../constants/renderLayers';
 import { SITE_LAYOUT } from '../constants/siteLayout';
+import { useLogisticsLayoutStore } from '../stores/logisticsLayoutStore';
 import {
-  createRoundedForkliftRoute,
+  drivenLogisticsRoute,
+  reconcileLogisticsMotion,
+  registerLogisticsVehicle,
+} from '../simulation/logisticsRuntime';
+import { planningRouteActions } from '../simulation/layoutPlanning';
+import {
   canPerformForkliftLogisticsAction,
   isForkliftSimulationPaused,
   resolveForkliftMastTilt,
@@ -448,7 +454,8 @@ interface RoutedForklift extends Forklift {
 }
 
 const withRoundedRoute = (forklift: Forklift): RoutedForklift => {
-  const route = createRoundedForkliftRoute(forklift.path, forklift.pathActions, 2, 8);
+  const dock = forklift.id === 'forklift-1' ? 'shipping' : 'receiving';
+  const route = drivenLogisticsRoute(dock, forklift.path);
   return {
     ...forklift,
     path: route.path,
@@ -625,55 +632,22 @@ export const ForkliftSystem: React.FC<ForkliftSystemProps> = ({
   showSpeedZones = false,
   onSelectForklift,
 }) => {
-  // Both routes use the shared site anchors. Clearance tests cover the whole
-  // swept vehicle corridor against machines, conveyors and dock platforms.
+  const layout = useLogisticsLayoutStore((state) => state.layout);
   const forklifts = useMemo<RoutedForklift[]>(
     () =>
-      (
-        [
-          {
-            id: 'forklift-1',
-            position: [...SITE_LAYOUT.routes.forklifts.shipping.points[0]],
-            rotation: 0,
-            speed: 3.5,
-            // Finished-bag aisle to the shipping platform side approach.
-            path: SITE_LAYOUT.routes.forklifts.shipping.points.map((point) => [...point]),
-            pathActions: [
-              { type: 'pickup', duration: 7.0 }, // Align, engage, lift, tilt, and retract
-              { type: 'none', duration: 0 },
-              { type: 'none', duration: 0 },
-              { type: 'none', duration: 0 },
-              { type: 'dropoff', duration: 6.0 }, // Level, place, disengage, and withdraw
-              { type: 'none', duration: 0 },
-              { type: 'none', duration: 0 },
-              { type: 'none', duration: 0 },
-            ],
-            pathIndex: 0,
-            cargo: 'empty',
-          },
-          {
-            id: 'forklift-2',
-            position: [...SITE_LAYOUT.routes.forklifts.receiving.points[0]],
-            rotation: Math.PI,
-            speed: 3,
-            // Receiving route: Receiving dock (back, z=-50) -> Silo area
-            // IMPORTANT: Dock platform obstacle is x:-10 to 10, z:-54 to -44
-            // Must stay outside - approach from side at x=-15
-            path: SITE_LAYOUT.routes.forklifts.receiving.points.map((point) => [...point]),
-            pathActions: [
-              { type: 'pickup', duration: 7.0 }, // Align, engage, lift, tilt, and retract
-              { type: 'none', duration: 0 },
-              { type: 'none', duration: 0 },
-              { type: 'dropoff', duration: 6.0 }, // Level, place, disengage, and withdraw
-              { type: 'none', duration: 0 },
-              { type: 'none', duration: 0 },
-            ],
-            pathIndex: 0,
-            cargo: 'empty',
-          },
-        ] as Forklift[]
-      ).map(withRoundedRoute),
-    []
+      (['shipping', 'receiving'] as const).map((dock, index) =>
+        withRoundedRoute({
+          id: `forklift-${index + 1}`,
+          position: [...layout.routes[dock][0]],
+          rotation: index === 0 ? 0 : Math.PI,
+          speed: index === 0 ? 3.5 : 3,
+          path: layout.routes[dock].map((point) => [...point]),
+          pathActions: planningRouteActions(dock),
+          pathIndex: 0,
+          cargo: 'empty',
+        })
+      ),
+    [layout]
   );
 
   useEffect(
@@ -726,11 +700,13 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
   onSelect,
 }) => {
   const ref = useRef<THREE.Group>(null);
-  const routePlan = useMemo(
+  const initialRoutePlan = useMemo(
     () => createForkliftRoutePlan(data.path, data.pathActions),
     [data.path, data.pathActions]
   );
-  const motionStateRef = useRef(createInitialForkliftMotion(routePlan, data.position));
+  const routePlanRef = useRef(initialRoutePlan);
+  const motionStateRef = useRef(createInitialForkliftMotion(initialRoutePlan, data.position));
+  const dock = data.id === 'forklift-1' ? 'shipping' : 'receiving';
   const actionMarkerIndexRef = useRef(0);
   const [isStopped, setIsStopped] = useState(false);
   const [distanceTier, setDistanceTier] = useState<'close' | 'far'>('close'); // LOD tier for rendering
@@ -924,6 +900,32 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
   replayPresentationRef.current = () => publishMotionTelemetry(true);
   useEffect(
     () =>
+      registerLogisticsVehicle(dock, {
+        prepare: (points) => {
+          const next = drivenLogisticsRoute(dock, points).plan;
+          const motion = reconcileLogisticsMotion(
+            routePlanRef.current,
+            next,
+            motionStateRef.current,
+            actionMarkerIndexRef.current
+          );
+          if (!motion)
+            return `${data.id} occupies a changed or ambiguous route corner. Run to an unchanged leg, then pause and try again.`;
+          return () => {
+            routePlanRef.current = next;
+            motionStateRef.current = motion;
+            frameCountRef.current = 0;
+          };
+        },
+        restore: (points) => {
+          routePlanRef.current = drivenLogisticsRoute(dock, points).plan;
+        },
+      }),
+    [data.id, dock]
+  );
+
+  useEffect(
+    () =>
       registerReplayParticipant(`forklift:${data.id}`, {
         capture: () => ({
           motionStateRef: motionStateRef.current,
@@ -992,7 +994,7 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
             }
             ref.current.updateMatrixWorld(true);
             const motion = motionStateRef.current;
-            const sample = sampleArcLengthPath(routePlan.path, motion.routeDistance);
+            const sample = sampleArcLengthPath(routePlanRef.current.path, motion.routeDistance);
             dirNormalizedRef.current.set(sample.tangentX, 0, sample.tangentZ);
             positionRegistry.register(
               data.id,
@@ -1007,11 +1009,12 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
           replayPresentationRef.current();
         },
       }),
-    [data.id, routePlan]
+    [data.id]
   );
 
   useFrame((state, delta) => {
     if (!ref.current || !isTabVisible) return;
+    const routePlan = routePlanRef.current;
 
     const wallDelta = Math.min(Math.max(delta, 1 / 240), 0.1);
     const simulationDelta = wallDelta * Math.max(0, productionSpeed);
@@ -1224,6 +1227,7 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
       );
 
       if (loadPose.operationComplete) {
+        if (action === 'dropoff') useLogisticsLayoutStore.getState().recordVehicle(dock, 0, true);
         operationTimerRef.current = 0;
         operationRef.current = 'traveling';
         loadPhaseRef.current = hasCargoRef.current ? 'carrying' : 'idle';
@@ -1311,6 +1315,9 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
       deltaSeconds: simulationDelta,
       maximumTravelDistance: marker && markerRelevant ? distanceToMarker : undefined,
     });
+    useLogisticsLayoutStore
+      .getState()
+      .recordVehicle(dock, Math.max(0, nextMotion.wheelTravel - motionBefore.wheelTravel));
     motionStateRef.current = nextMotion;
     stopReasonRef.current = stopReason;
     currentSpeedRef.current = nextMotion.speed;

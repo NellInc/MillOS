@@ -20,6 +20,7 @@ import {
   Link2,
   ShieldCheck,
   FlaskConical,
+  Route,
 } from 'lucide-react';
 import { useProductionStore } from '../../../stores/productionStore';
 import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
@@ -704,6 +705,13 @@ export const OverviewPanel: React.FC = React.memo(() => {
       </section>
 
       <MaterialTraceabilitySection />
+      <button
+        onClick={() => window.dispatchEvent(new Event('millos:open-layout-planner'))}
+        className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-cyan-700 bg-cyan-950 px-3 py-2 text-sm text-cyan-100 hover:bg-cyan-900"
+      >
+        <Route size={18} aria-hidden="true" />
+        Plan logistics
+      </button>
       <BatchGenealogySection />
 
       {/* Maintenance (breakdowns, predictive alerts, parts, schedule) */}

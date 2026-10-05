@@ -90,6 +90,28 @@ const renderInterface = () =>
   );
 
 describe('first-use journey wiring', () => {
+  it('hosts logistics planning independently of desktop/mobile panel remounts', async () => {
+    vi.useRealTimers();
+    useUIStore.setState({ hasSeenIntro: true });
+    const props = {
+      productionSpeed: 1,
+      setProductionSpeed: vi.fn(),
+      showZones: false,
+      setShowZones: vi.fn(),
+      selectedMachine: null,
+      onCloseSelection: vi.fn(),
+    };
+    const { rerender } = render(<GameInterface {...props} />);
+    act(() => window.dispatchEvent(new Event('millos:open-layout-planner')));
+    const planner = await screen.findByRole('dialog', { name: 'Logistics planning' });
+    fireEvent.change(screen.getByLabelText('shipping staging X (m)'), { target: { value: '18' } });
+    runtime.compact = true;
+    rerender(<GameInterface {...props} />);
+    expect(screen.getByRole('dialog', { name: 'Logistics planning' })).toBe(planner);
+    expect(screen.getByLabelText('shipping staging X (m)')).toHaveValue(18);
+    fireEvent.click(screen.getByRole('button', { name: 'Close logistics planning' }));
+    expect(screen.queryByRole('dialog', { name: 'Logistics planning' })).not.toBeInTheDocument();
+  });
   it('shares the narrower inspector width with its dock and music descendants', () => {
     const props = {
       productionSpeed: 1,

@@ -49,6 +49,7 @@ vi.mock('@react-three/fiber', async (importOriginal) => ({
 }));
 vi.mock('../simulation/workplaceReplayRuntime', () => ({
   isWorkplaceReplayRestoring: () => harness.restoring,
+  isWorkplaceReplayActive: () => false,
   registerReplayParticipant: (
     id: string,
     participant: typeof harness.participants extends Map<string, infer T> ? T : never
@@ -67,6 +68,19 @@ import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import { useTruckScheduleStore } from '../stores/truckScheduleStore';
 import { positionRegistry } from '../utils/positionRegistry';
 import { vehicleTelemetryRegistry } from '../simulation/vehicles/vehicleTelemetryRegistry';
+import {
+  useLogisticsLayoutStore,
+  defaultSavedLogisticsLayout,
+} from '../stores/logisticsLayoutStore';
+import {
+  currentLogisticsLayout,
+  DEFAULT_PLANNING_ASSUMPTIONS,
+  optimizeLogisticsLayout,
+  planningObstacles,
+} from '../simulation/layoutPlanning';
+import { canonicalProcessMachines } from '../simulation/materialTransport';
+import { spoutMachineKey } from './flow/spoutRoutes';
+import type { MachineData } from '../types';
 
 const camera = new THREE.PerspectiveCamera();
 const flushEffects = () => {
@@ -77,6 +91,7 @@ const flushEffects = () => {
 };
 
 beforeEach(() => {
+  useLogisticsLayoutStore.getState().restoreSaved(defaultSavedLogisticsLayout());
   harness.frames.length = 0;
   harness.effects.length = 0;
   harness.participants.clear();
@@ -183,4 +198,39 @@ describe('component-owned vehicle replay', () => {
     harness.frames[0]({ camera }, 0.1);
     expect(participant.capture()).toEqual(checkpoint);
   });
+});
+
+it('applies to mounted controllers while preserving cargo, operation phase, timers and replay owners', () => {
+  useProductionStore.setState({
+    machines: canonicalProcessMachines() as MachineData[],
+    scadaLive: false,
+  });
+  const tree = ForkliftSystem({}) as React.ReactElement<{ children: any[] }>;
+  for (const element of tree.props.children[1]) element.type(element.props);
+  flushEffects();
+  const participant = harness.participants.get('forklift:forklift-1')!;
+  const checkpoint = structuredClone(participant.capture());
+  checkpoint.operationRef = 'loading';
+  checkpoint.hasCargoRef = true;
+  checkpoint.loadPhaseRef = 'lifting';
+  checkpoint.operationTimerRef = 2.3;
+  checkpoint.operationDurationRef = 7;
+  checkpoint.motionStateRef.wheelTravel = 197;
+  participant.restore(structuredClone(checkpoint));
+  const plan = optimizeLogisticsLayout(
+    currentLogisticsLayout(),
+    DEFAULT_PLANNING_ASSUMPTIONS,
+    planningObstacles()
+  ).proposal;
+  const key = spoutMachineKey(useProductionStore.getState().machines);
+  expect(useLogisticsLayoutStore.getState().apply(plan, 0, key)).toEqual({
+    changed: true,
+    reason: null,
+  });
+  expect(harness.participants.get('forklift:forklift-1')).toBe(participant);
+  expect(participant.capture()).toEqual(checkpoint);
+  harness.frames[0]({ camera }, 0.1);
+  expect(participant.capture()).toEqual(checkpoint);
+  expect(useLogisticsLayoutStore.getState().undoApplied(1, key).changed).toBe(true);
+  expect(participant.capture()).toEqual(checkpoint);
 });

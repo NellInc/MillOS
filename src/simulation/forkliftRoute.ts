@@ -13,6 +13,10 @@ export interface RoundedForkliftRoute {
   readonly actions: ForkliftWaypointAction[];
 }
 
+// The planner and the driven fleet must validate exactly the same sampled path.
+export const FORKLIFT_CORNER_SETBACK = 2;
+export const FORKLIFT_CORNER_SAMPLES = 8;
+
 const distance2d = (a: Vec3Tuple, b: Vec3Tuple): number => Math.hypot(b[0] - a[0], b[2] - a[2]);
 
 const normalized2d = (from: Vec3Tuple, to: Vec3Tuple): readonly [number, number] => {

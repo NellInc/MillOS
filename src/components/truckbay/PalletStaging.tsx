@@ -1,6 +1,7 @@
 import React, { useLayoutEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useMaterialFlowStore } from '../../stores/materialFlowStore';
+import { useLogisticsLayoutStore } from '../../stores/logisticsLayoutStore';
 import {
   FLOUR_SACK_PRINT_GEOMETRY,
   FLOUR_STRIPE_MATERIAL,
@@ -39,6 +40,7 @@ INK_MATERIAL.transparent = true;
  * existing low-tier TruckBay omission still applies to this detail.
  */
 export const PalletStaging: React.FC<{ dock: 'shipping' | 'receiving' }> = ({ dock }) => {
+  const origin = useLogisticsLayoutStore((state) => state.layout.staging[dock]);
   const bagCount = useMaterialFlowStore((state) => getStagedFlourBagCount(state.productionBatches));
   const timber = useRef<THREE.InstancedMesh>(null);
   const sacks = useRef<THREE.InstancedMesh>(null);
@@ -97,10 +99,7 @@ export const PalletStaging: React.FC<{ dock: 'shipping' | 'receiving' }> = ({ do
   const centreX = shipping ? ((STAGING_LAYOUT.columns - 1) * STAGING_LAYOUT.pitchX) / 2 : 1.1;
   const centreZ = shipping ? -((STAGING_LAYOUT.rows - 1) * STAGING_LAYOUT.pitchZ) / 2 : 0;
   return (
-    <group
-      name={`${dock}-pallet-staging`}
-      position={shipping ? STAGING_LAYOUT.shippingOrigin : STAGING_LAYOUT.receivingOrigin}
-    >
+    <group name={`${dock}-pallet-staging`} position={origin}>
       <instancedMesh
         ref={timber}
         name={`${dock}-staged-pallets`}

@@ -296,11 +296,13 @@ describe('MaterialFlowStore', () => {
       ).toBeUndefined();
 
       tickMaterialFlow(1, 1);
-      // Silo discharge is on the belt (40 kg/s flow rate, 3s transit)
+      // Silo discharge is traveling at the geometry-derived duration.
       expect(getConveyorLoad('conv-silo-3-rm-101')).toBeGreaterThan(0);
 
-      // Advance past the 3s transit time
-      tickMaterialFlow(3.5, 1);
+      const segment = useMaterialFlowStore
+        .getState()
+        .network.segments.find(({ id }) => id === 'conv-silo-3-rm-101')!;
+      tickMaterialFlow(segment.transitTime + 0.5, 1);
 
       const corn = useMaterialFlowStore
         .getState()

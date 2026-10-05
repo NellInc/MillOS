@@ -24,6 +24,11 @@ import {
 } from '../simulation/workplaceReplayRuntime';
 import { getStartupSnapshot, subscribeStartup } from './startupReadiness';
 import { MachineType } from '../types';
+import {
+  captureSavedLogisticsLayout,
+  useLogisticsLayoutStore,
+  validateSavedLogisticsLayout,
+} from '../stores/logisticsLayoutStore';
 
 export const PHYSICAL_SESSION_KEY = 'millos-physical-session';
 const MAX_SAVE_BYTES = 3_000_000;
@@ -44,6 +49,7 @@ function data<S extends object>(state: S): Data<S> {
 export function capturePhysicalSession() {
   return {
     version: 1 as const,
+    logistics: captureSavedLogisticsLayout(),
     production: data(useProductionStore.getState()),
     material: data(useMaterialFlowStore.getState()),
     operations: data(useOperationsCampaignStore.getState()),
@@ -282,6 +288,7 @@ export function decodePhysicalSession(raw: string): PhysicalSession {
     throw new Error('Invalid continuation');
   if (REQUIRED_REPLAY_PARTICIPANTS.some((id) => !participantIds.includes(id)))
     throw new Error('Incomplete scene continuation');
+  value.logistics = validateSavedLogisticsLayout(value.logistics, value.production.machines);
   return value;
 }
 
@@ -298,6 +305,7 @@ function restoreStores(saved: PhysicalSession) {
   useSafetyStore.setState(saved.safety);
   useAchievementsStore.setState(saved.achievements);
   useProductionStore.setState({ ...saved.production, scadaLive: false });
+  useLogisticsLayoutStore.getState().restoreSaved(saved.logistics);
   // Frame-driven owners also observe gameSpeed; hold them through warm-up,
   // then resume the saved speed together with the central clock.
   useGameSimulationStore.setState({ ...saved.game, gameSpeed: 0, isTabVisible: !document.hidden });
@@ -423,6 +431,9 @@ export function installPhysicalSession(
   // Coalesce a quality or repair action after all its synchronous store writes.
   // Ordinary stock/clock autosaves are paced, with a latest-state flush on exit.
   const qc = useQCLabStore.subscribe(queue);
+  const logistics = useLogisticsLayoutStore.subscribe((now, before) => {
+    if (now.revision !== before.revision) queue();
+  });
   const maintenance = useBreakdownStore.subscribe((now, before) => {
     if (
       now.idSequence !== before.idSequence ||
@@ -445,6 +456,7 @@ export function installPhysicalSession(
     window.clearInterval(timer);
     startup();
     qc();
+    logistics();
     maintenance();
     window.removeEventListener('pagehide', save);
     document.removeEventListener('visibilitychange', visibility);
