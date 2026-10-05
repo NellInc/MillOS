@@ -10,6 +10,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   lint:
     name: Lint
@@ -77,10 +80,12 @@ jobs:
           files: ./coverage/lcov.info
           fail_ci_if_error: false
 
-  build:
-    name: Build
+  build-assembly:
+    name: Build Assembly
     runs-on: ubuntu-24.04
     needs: [lint, test]
+    outputs:
+      dist-sha256: ${{ steps.dist-checksum.outputs.sha256 }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -104,16 +109,80 @@ jobs:
       - name: Validate module reachability
         run: npm run validate:reachability
 
-      - name: Install browser for Jev UI acceptance
-        run: npx playwright install --with-deps chromium
+      - name: Record built assembly checksum
+        id: dist-checksum
+        run: |
+          digest=$(node --input-type=module <<'NODE'
+          import { createHash } from 'node:crypto';
+          import { readdirSync, readFileSync, statSync } from 'node:fs';
+          const files = readdirSync('dist', { recursive: true }).sort()
+            .filter((file) => statSync(`dist/${file}`).isFile());
+          const entries = files.map((file) => [file,
+            createHash('sha256').update(readFileSync(`dist/${file}`)).digest('hex')]);
+          console.log(createHash('sha256').update(JSON.stringify(entries)).digest('hex'));
+          NODE
+          )
+          echo "sha256=$digest" >> "$GITHUB_OUTPUT"
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: dist
+          path: dist/
+          include-hidden-files: true
+          retention-days: 7
+
+  build:
+    # Preserve the Build check identity: it is green only after UI acceptance.
+    name: Build
+    runs-on: macos-15
+    needs: build-assembly
+    timeout-minutes: 15
+    env:
+      MILLOS_CI_DIST_SHA256: ${{ needs.build-assembly.outputs.dist-sha256 }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download the Linux-built assembly from this workflow run
+        uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: dist/
+
+      - name: Verify built assembly checksum
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import { createHash } from 'node:crypto';
+          import { readdirSync, readFileSync, statSync } from 'node:fs';
+          const files = readdirSync('dist', { recursive: true }).sort()
+            .filter((file) => statSync(`dist/${file}`).isFile());
+          const entries = files.map((file) => [file,
+            createHash('sha256').update(readFileSync(`dist/${file}`)).digest('hex')]);
+          const digest = createHash('sha256').update(JSON.stringify(entries)).digest('hex');
+          assert.equal(digest, process.env.MILLOS_CI_DIST_SHA256);
+          console.log(`Verified Linux-built assembly: ${digest}`);
+          NODE
+
+      - name: Install pinned Chromium for Jev UI acceptance
+        run: npx playwright install --no-shell chromium
 
       - name: Validate Jev personal-key flow in desktop and mobile layouts
         timeout-minutes: 8
-        # Advisory UI uses a low-fill camera and still requires normal full-world startup.
-        # This does not claim real-GPU startup or frame-pacing acceptance.
-        # Packaged Chrome has Ubuntu's user-namespace profile; retain browser sandboxing.
-        # Working if it launches sandboxed and both normal-startup layouts pass.
-        run: node scripts/validate-jev-browser.mjs --software-renderer --installed-chrome
+        # Standard public macOS VM, with no paid runner or desktop registration.
+        # Metal availability is tested, not inferred from the runner's CPU label.
+        # Working if actual Metal WebGL and both full-world UI flows pass sandboxed.
+        run: node scripts/validate-jev-browser.mjs --metal-renderer
 
       - name: Upload Jev browser evidence
         if: always()
@@ -122,13 +191,6 @@ jobs:
           name: jev-browser
           path: test-results/jev-browser/
           if-no-files-found: ignore
-          retention-days: 7
-
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v7
-        with:
-          name: dist
-          path: dist/
           retention-days: 7
 
   build-proxy:

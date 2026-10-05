@@ -12,8 +12,20 @@ import { acquireCaptureLock } from './lib/capture-lock.mjs';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const output = path.join(root, 'test-results/jev-browser');
 const softwareRenderer = process.argv.includes('--software-renderer');
+const metalRenderer = process.argv.includes('--metal-renderer');
 const startupTimeoutMs = softwareRenderer ? 300_000 : 240_000;
 const installedChrome = process.argv.includes('--installed-chrome');
+if (
+  metalRenderer &&
+  (process.platform !== 'darwin' ||
+    process.env.GITHUB_ACTIONS !== 'true' ||
+    softwareRenderer ||
+    installedChrome)
+) {
+  throw new Error(
+    'Metal acceptance requires the disposable GitHub macOS runner and pinned Chromium'
+  );
+}
 if (installedChrome && (process.platform !== 'linux' || process.env.GITHUB_ACTIONS !== 'true')) {
   throw new Error('Installed Chrome acceptance is limited to the disposable GitHub Linux runner');
 }
@@ -29,7 +41,8 @@ const report = {
   failedRequests: [],
   csp: [],
   softwareRenderer,
-  browserChannel: installedChrome ? 'chrome' : 'playwright-chromium',
+  metalRenderer,
+  browserChannel: installedChrome ? 'chrome' : metalRenderer ? 'chromium' : 'playwright-chromium',
   requestedChromiumSandbox: true,
   camera: softwareRenderer ? 'sun' : 'overview',
   normalStartupRequired: true,
@@ -40,6 +53,19 @@ let browser, server, page;
 try {
   await mkdir(output, { recursive: true });
   const html = await readFile(path.join(root, 'dist/index.html'), 'utf8');
+  if (metalRenderer) {
+    report.buildInfo = JSON.parse(await readFile(path.join(root, 'dist/build-info.json'), 'utf8'));
+    report.distSha256 = process.env.MILLOS_CI_DIST_SHA256;
+    assert.match(
+      report.distSha256 ?? '',
+      /^[a-f0-9]{64}$/,
+      'CI must verify the built assembly checksum'
+    );
+    assert.ok(
+      report.buildInfo.buildId.endsWith(`-${process.env.GITHUB_SHA?.slice(0, 12)}`),
+      'Downloaded build must match the workflow commit'
+    );
+  }
   const base = html.match(/src="([^"]*\/)assets\/main-[^"]+\.js"/)?.[1];
   assert.ok(base, 'Built application entry must identify its deployment base');
   server = await preview({
@@ -47,8 +73,9 @@ try {
     base,
     preview: { host: '127.0.0.1', port: 4398, strictPort: true },
   });
+  report.phase = 'browser-renderer';
   browser = await chromium.launch({
-    ...(installedChrome ? { channel: 'chrome' } : {}),
+    ...(installedChrome ? { channel: 'chrome' } : metalRenderer ? { channel: 'chromium' } : {}),
     headless: true,
     chromiumSandbox: true,
     args: [
@@ -59,10 +86,13 @@ try {
       ...(softwareRenderer
         ? ['--use-gl=angle', '--use-angle=swiftshader-webgl', '--enable-unsafe-swiftshader']
         : []),
+      // Headless otherwise defaults to SwiftShader. Force the Metal backend,
+      // then check both CDP and the application's own context below.
+      ...(metalRenderer ? ['--enable-gpu', '--use-gl=angle', '--use-angle=metal'] : []),
     ],
   });
   report.browserVersion = browser.version();
-  if (installedChrome) {
+  if (installedChrome || metalRenderer) {
     const session = await browser.newBrowserCDPSession();
     try {
       report.browserArguments = (await session.send('Browser.getBrowserCommandLine')).arguments;
@@ -74,6 +104,12 @@ try {
         ),
         'CI browser must retain its sandbox layers'
       );
+      if (metalRenderer) {
+        report.gpu = (await session.send('SystemInfo.getInfo')).gpu;
+        assert.match(report.gpu.auxAttributes?.glRenderer ?? '', /ANGLE Metal Renderer/i);
+        assert.equal(report.gpu.featureStatus?.webgl, 'enabled', 'Metal WebGL must be enabled');
+        assert.equal(report.gpu.featureStatus?.webgl2, 'enabled', 'Metal WebGL2 must be enabled');
+      }
     } finally {
       await session.detach();
     }
@@ -138,6 +174,34 @@ try {
     }
   );
   report.phase = 'scene-loading';
+  if (metalRenderer) {
+    report.phase = 'metal-context';
+    await page.waitForFunction(() => window.__MILLOS_RUNTIME__?.ready, null, {
+      timeout: startupTimeoutMs,
+    });
+    report.webgl = await page.evaluate(() => {
+      // Reuse the mounted R3F context, never create a substitute probe context.
+      const canvas = document.querySelector('canvas[data-engine^="three.js"]');
+      const gl = canvas?.getContext('webgl2');
+      if (!gl) return null;
+      const debug = gl.getExtension('WEBGL_debug_renderer_info');
+      return {
+        renderer: debug ? gl.getParameter(debug.UNMASKED_RENDERER_WEBGL) : null,
+        vendor: debug ? gl.getParameter(debug.UNMASKED_VENDOR_WEBGL) : null,
+        version: gl.getParameter(gl.VERSION),
+        contextLost: gl.isContextLost(),
+      };
+    });
+    assert.ok(report.webgl, 'The actual mill scene must have a WebGL2 context');
+    assert.equal(report.webgl.contextLost, false);
+    assert.match(report.webgl.renderer ?? '', /ANGLE Metal Renderer/i);
+    assert.doesNotMatch(
+      `${report.webgl.renderer} ${report.gpu.auxAttributes?.glRenderer}`,
+      /swiftshader|llvmpipe|softpipe|\bwarp\b|software/i,
+      'Metal acceptance must not fall back to a software WebGL driver'
+    );
+    report.phase = 'scene-loading';
+  }
   // This gate checks advisory UI. The low-fill sun camera and startup viewport
   // retain the full world, assets and static batches with less raster work.
   // Readiness here applies to this viewport; both real-size UI flows follow.
