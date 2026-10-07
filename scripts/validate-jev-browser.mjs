@@ -10,7 +10,11 @@ import { preview } from 'vite';
 import { acquireCaptureLock } from './lib/capture-lock.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const output = path.join(root, 'test-results/jev-browser');
+const installedChrome = process.argv.includes('--installed-chrome');
+const output = path.join(
+  root,
+  installedChrome ? 'test-results/jev-browser-installed' : 'test-results/jev-browser'
+);
 const localMetalDist = process.argv
   .find((argument) => argument.startsWith('--local-metal-dist='))
   ?.split('=')
@@ -21,21 +25,31 @@ const softwareRenderer = process.argv.includes('--software-renderer');
 const metalRenderer = process.argv.includes('--metal-renderer') || !!localMetalDist;
 const advisoryStartup = softwareRenderer || metalRenderer;
 const startupTimeoutMs = softwareRenderer ? 300_000 : 240_000;
-const installedChrome = process.argv.includes('--installed-chrome');
+const hostedMetalChrome =
+  installedChrome &&
+  metalRenderer &&
+  !localMetalDist &&
+  !softwareRenderer &&
+  process.platform === 'darwin' &&
+  process.env.GITHUB_ACTIONS === 'true';
 if (
   metalRenderer &&
   (process.platform !== 'darwin' ||
     (!localMetalDist && process.env.GITHUB_ACTIONS !== 'true') ||
     (!!localMetalDist && process.env.GITHUB_ACTIONS === 'true') ||
     softwareRenderer ||
-    installedChrome)
+    (installedChrome && !hostedMetalChrome))
 ) {
   throw new Error(
-    'Metal acceptance requires pinned Chromium on macOS, with local diagnostics kept separate from CI'
+    'Metal acceptance requires macOS Chromium or the explicit hosted Chrome contrast, with local diagnostics separate from CI'
   );
 }
-if (installedChrome && (process.platform !== 'linux' || process.env.GITHUB_ACTIONS !== 'true')) {
-  throw new Error('Installed Chrome acceptance is limited to the disposable GitHub Linux runner');
+if (
+  installedChrome &&
+  !hostedMetalChrome &&
+  (process.platform !== 'linux' || process.env.GITHUB_ACTIONS !== 'true')
+) {
+  throw new Error('Installed Chrome acceptance requires a disposable GitHub runner');
 }
 const endpoint = 'https://openrouter.ai/api/alpha/decisions';
 const key = `sk-or-v1-${'test-only-'.repeat(5)}`;
@@ -60,6 +74,12 @@ const report = {
   camera: advisoryStartup ? 'sun' : 'overview',
   normalStartupRequired: true,
   startupTimeoutMs,
+  host: { logicalCores: cpus().length, averages: loadavg() },
+  runnerImage: {
+    os: process.env.ImageOS ?? null,
+    version: process.env.ImageVersion ?? null,
+  },
+  installedChromePreflightVersion: process.env.MILLOS_CHROME_PREFLIGHT_VERSION ?? null,
 };
 // Persist each boundary before entering browser work. A runner-level timeout
 // can interrupt Chromium before the catch/finally diagnostic gets to execute.
@@ -125,6 +145,18 @@ try {
     const session = await browser.newBrowserCDPSession();
     try {
       report.browserArguments = (await session.send('Browser.getBrowserCommandLine')).arguments;
+      if (hostedMetalChrome) {
+        assert.equal(
+          report.browserVersion,
+          report.installedChromePreflightVersion,
+          'Hosted Chrome contrast must retain the preflighted browser version'
+        );
+        assert.equal(
+          report.browserArguments[0],
+          '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+          'Hosted Chrome contrast must launch the preflighted installed browser'
+        );
+      }
       assert.ok(
         !report.browserArguments.some((argument) =>
           ['--no-sandbox', '--disable-setuid-sandbox', '--disable-seccomp-filter-sandbox'].includes(
