@@ -155,6 +155,43 @@ try {
   }
   await checkpoint('browser-context');
   const context = await browser.newContext({ serviceWorkers: 'block', reducedMotion: 'reduce' });
+  // Persist actual work barriers while waiting. A runner timeout can otherwise
+  // leave only "scene-loading", hiding resource, context and frame stalls.
+  // Working if a timed-out run retains its last observed barriers and cadence.
+  report.startupObservations = [];
+  await context.exposeBinding('recordJevStartup', async (_source, value) => {
+    report.startupObservations.push(value);
+    await checkpoint(report.phase);
+  });
+  await context.addInitScript(() => {
+    const intervals = [];
+    let previous;
+    function observe(now) {
+      if (previous !== undefined) {
+        intervals.push(now - previous);
+        if (intervals.length > 45) intervals.shift();
+      }
+      previous = now;
+      requestAnimationFrame(observe);
+    }
+    requestAnimationFrame(observe);
+    setInterval(() => {
+      const data = document.documentElement.dataset;
+      window.recordJevStartup({
+        at: performance.now(),
+        worldReady: data.millosWorldReady,
+        batchesPending: data.millosStaticBatchesPending,
+        startupReady: data.millosStartupReady,
+        visibility: document.visibilityState,
+        progress: document
+          .querySelector('[aria-label="Loading MillOS"] [role="progressbar"]')
+          ?.getAttribute('aria-valuetext'),
+        runtimeReady: window.__MILLOS_RUNTIME__?.ready,
+        intervals: [...intervals],
+      });
+    }, 5000);
+  });
+
   await context.addInitScript(() => {
     localStorage.setItem(
       'millos-ui',

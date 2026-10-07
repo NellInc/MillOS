@@ -1,8 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-const startup = vi.hoisted(() => ({ ready: false, listeners: new Set<() => void>() }));
+const startup = vi.hoisted(() => ({
+  ready: false,
+  opened: false,
+  listeners: new Set<() => void>(),
+}));
 vi.mock('../startupReadiness', async (original) => ({
   ...(await original<typeof import('../startupReadiness')>()),
-  getStartupSnapshot: () => ({ ready: startup.ready }),
+  getStartupSnapshot: () => ({ ready: startup.ready, opened: startup.opened }),
   subscribeStartup: (callback: () => void) => {
     startup.listeners.add(callback);
     return () => startup.listeners.delete(callback);
@@ -60,6 +64,7 @@ beforeEach(() => {
   resetPlant();
   localStorage.clear();
   startup.ready = false;
+  startup.opened = false;
   restored = [];
   useUIStore.setState({ alerts: [] });
   removeOwners = REQUIRED_REPLAY_PARTICIPANTS.map((id) =>
@@ -158,6 +163,27 @@ describe('atomic local physical shift continuation', () => {
     expect(restored).toHaveLength(REQUIRED_REPLAY_PARTICIPANTS.length);
     expect(useGameSimulationStore.getState().gameSpeed).toBe(0);
     expect(useProductionStore.getState().scadaLive).toBe(false);
+  });
+
+  it('restores once and saves actual holds after explicit slow-device access', () => {
+    const id = heldShift();
+    const saved = capturePhysicalSession();
+    saved.tick.wearCarry.set('rm-101', 0.003);
+    localStorage.setItem(PHYSICAL_SESSION_KEY, encodePhysicalSession(saved));
+    resetPlant();
+    dispose = installPhysicalSession();
+    expect(isPhysicalSessionRestoring()).toBe(true);
+    startup.opened = true;
+    startup.listeners.forEach((f) => f());
+    expect(startup.ready).toBe(false);
+    expect(isPhysicalSessionRestoring()).toBe(false);
+    expect(captureUnifiedTickState().wearCarry.get('rm-101')).toBe(0.003);
+    expect(restored).toHaveLength(REQUIRED_REPLAY_PARTICIPANTS.length);
+    ready();
+    expect(restored).toHaveLength(REQUIRED_REPLAY_PARTICIPANTS.length);
+    exit();
+    const resumed = decodePhysicalSession(localStorage.getItem(PHYSICAL_SESSION_KEY)!);
+    expect(resumed.material.productionBatches.find((b) => b.id === id)?.disposition).toBe('hold');
   });
 
   it('flushes the latest held batch on page exit without waiting for autosave', () => {

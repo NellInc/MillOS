@@ -42,9 +42,11 @@ export const CentralTickProvider: React.FC = () => {
     const { gameTime, gameSpeed, isTabVisible } = useGameSimulationStore.getState();
 
     // Render warm-up continues behind the overlay; simulation waits for real
-    // readiness. Working if clocks and deadlines stay frozen through recovery
+    // completion (strict readiness or explicit slow-device access). Working if
+    // clocks and deadlines stay frozen through recovery
     // and obsolete DOM fallback markers cannot start a partially loaded shift.
-    if (!isTabVisible || !getStartupSnapshot().ready || isPhysicalSessionRestoring()) return;
+    const startup = getStartupSnapshot();
+    if (!isTabVisible || !(startup.opened || startup.ready) || isPhysicalSessionRestoring()) return;
 
     // Run central tick (queues non-critical callbacks for lazy execution)
     centralTick.tick(state.clock.elapsedTime, gameTime, gameSpeed);

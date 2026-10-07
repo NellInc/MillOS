@@ -8,12 +8,27 @@ const state = vi.hoisted(() => ({
   totalAssets: 10,
   errors: 0,
   revision: 0,
+  prepared: false,
+  opened: false,
   ready: false,
 }));
 const flags = vi.hoisted(() => ({ KNOWLEDGE_LOADING_QUOTES_ENABLED: false }));
+const openPrepared = vi.hoisted(() =>
+  vi.fn(() => {
+    state.opened = true;
+    return true;
+  })
+);
+const resetPreparation = vi.hoisted(() =>
+  vi.fn(() => {
+    state.prepared = false;
+  })
+);
 vi.mock('../utils/startupReadiness', () => ({
   getStartupSnapshot: () => state,
   subscribeStartup: () => () => undefined,
+  openPreparedStartup: openPrepared,
+  resetStartupPreparation: resetPreparation,
 }));
 vi.mock('../config/featureFlags', () => ({
   FEATURE_FLAGS: flags,
@@ -22,12 +37,18 @@ vi.mock('./knowledge/LoadingQuote', () => {
   throw new Error('Optional feature load exceeded 15000ms');
 });
 import { LoadingScreen } from './LoadingScreen';
+import { useGraphicsStore } from '../stores/graphicsStore';
 
 beforeEach(() => {
   vi.useFakeTimers();
   flags.KNOWLEDGE_LOADING_QUOTES_ENABLED = false;
   state.ready = false;
+  state.prepared = false;
+  state.opened = false;
   state.errors = 0;
+  openPrepared.mockClear();
+  resetPreparation.mockClear();
+  useGraphicsStore.getState().setGraphicsQuality('low');
   delete document.documentElement.dataset.loaderFallback;
   document.documentElement.dataset.sceneReady = 'true';
   document.documentElement.dataset.millosWorldReady = 'true';
@@ -41,6 +62,39 @@ afterEach(() => {
 });
 
 describe('LoadingScreen final readiness', () => {
+  it('offers explicit access only to a prepared slow world and leaves strict readiness false', async () => {
+    state.prepared = true;
+    const view = render(<LoadingScreen recoveryDelayMs={1} minimumLoadTimeMs={0} />);
+    await act(async () => vi.advanceTimersByTimeAsync(2));
+    expect(screen.getByRole('progressbar')).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Open loaded scene (slow)' }));
+    expect(openPrepared).toHaveBeenCalledTimes(1);
+    expect(state.ready).toBe(false);
+    view.rerender(<LoadingScreen recoveryDelayMs={1} minimumLoadTimeMs={0} />);
+    await act(async () => vi.advanceTimersByTimeAsync(250));
+    expect(screen.queryByRole('progressbar')).toBeNull();
+  });
+
+  it('invalidates preparation before switching to low graphics without bypassing the cover', async () => {
+    useGraphicsStore.getState().setGraphicsQuality('medium');
+    state.prepared = true;
+    render(<LoadingScreen recoveryDelayMs={1} minimumLoadTimeMs={0} />);
+    await act(async () => vi.advanceTimersByTimeAsync(2));
+    fireEvent.click(screen.getByRole('button', { name: 'Use low graphics' }));
+    expect(resetPreparation).toHaveBeenCalledTimes(1);
+    expect(useGraphicsStore.getState().graphics.quality).toBe('low');
+    expect(screen.getByRole('progressbar')).toBeVisible();
+    expect(openPrepared).not.toHaveBeenCalled();
+  });
+
+  it('does not offer slow access after a loading error', async () => {
+    state.prepared = true;
+    state.errors = 1;
+    render(<LoadingScreen recoveryDelayMs={1} minimumLoadTimeMs={0} />);
+    await act(async () => vi.advanceTimersByTimeAsync(2));
+    expect(screen.queryByRole('button', { name: 'Open loaded scene (slow)' })).toBeNull();
+    expect(screen.getByRole('progressbar')).toBeVisible();
+  });
   it('keeps the application mounted when the optional quote import fails', async () => {
     flags.KNOWLEDGE_LOADING_QUOTES_ENABLED = true;
     vi.spyOn(console, 'error').mockImplementation(() => undefined);

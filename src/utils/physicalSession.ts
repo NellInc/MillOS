@@ -312,7 +312,8 @@ function restoreStores(saved: PhysicalSession) {
 }
 
 function finishRestore() {
-  if (!pending || !getStartupSnapshot().ready || missingReplayParticipants().length) return;
+  const startup = getStartupSnapshot();
+  if (!pending || !(startup.opened || startup.ready) || missingReplayParticipants().length) return;
   const owners = captureReplayParticipants();
   if (pending.participants.some((p) => !owners.some((o) => o.id === p.id)))
     throw new Error('Scene continuation changed');
@@ -378,11 +379,12 @@ export function installPhysicalSession(
     );
   }
   const save = () => {
+    const startup = getStartupSnapshot();
     if (
       disabled ||
       writing ||
       pending ||
-      !getStartupSnapshot().ready ||
+      !(startup.opened || startup.ready) ||
       missingReplayParticipants().length ||
       isWorkplaceReplayActive() ||
       !localControl()
