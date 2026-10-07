@@ -135,7 +135,7 @@ jobs:
   build:
     # Preserve the Build check identity: it is green only after UI acceptance.
     name: Build
-    runs-on: macos-15
+    runs-on: macos-26
     needs: build-assembly
     timeout-minutes: 15
     env:
@@ -174,15 +174,15 @@ jobs:
           console.log(`Verified Linux-built assembly: ${digest}`);
           NODE
 
-      - name: Install pinned Chromium for Jev UI acceptance
-        run: npx playwright install --no-shell chromium
+      - name: Record runner Chrome version
+        run: '"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --version'
 
       - name: Validate Jev personal-key flow in desktop and mobile layouts
         timeout-minutes: 8
         # Standard public macOS VM, with no paid runner or desktop registration.
         # Metal availability is tested, not inferred from the runner's CPU label.
         # Working if actual Metal WebGL and both full-world UI flows pass sandboxed.
-        run: node scripts/validate-jev-browser.mjs --metal-renderer
+        run: node scripts/validate-jev-browser.mjs --metal-renderer --installed-chrome
 
       - name: Upload Jev browser evidence
         if: always()

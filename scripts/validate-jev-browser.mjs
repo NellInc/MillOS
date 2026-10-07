@@ -4,7 +4,9 @@ import assert from 'node:assert/strict';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import { cpus, loadavg } from 'node:os';
+import { cpus, loadavg, release } from 'node:os';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { chromium } from 'playwright';
 import { preview } from 'vite';
 import { acquireCaptureLock } from './lib/capture-lock.mjs';
@@ -22,20 +24,26 @@ const metalRenderer = process.argv.includes('--metal-renderer') || !!localMetalD
 const advisoryStartup = softwareRenderer || metalRenderer;
 const startupTimeoutMs = softwareRenderer ? 300_000 : 240_000;
 const installedChrome = process.argv.includes('--installed-chrome');
+const diagnoseStartup = process.argv.includes('--diagnose-startup');
+const runFile = promisify(execFile);
 if (
   metalRenderer &&
   (process.platform !== 'darwin' ||
     (!localMetalDist && process.env.GITHUB_ACTIONS !== 'true') ||
     (!!localMetalDist && process.env.GITHUB_ACTIONS === 'true') ||
-    softwareRenderer ||
-    installedChrome)
+    softwareRenderer)
+) {
+  throw new Error('Metal acceptance requires macOS, with local diagnostics kept separate from CI');
+}
+if (
+  installedChrome &&
+  (process.env.GITHUB_ACTIONS !== 'true' ||
+    !!localMetalDist ||
+    (process.platform !== 'linux' && !(process.platform === 'darwin' && metalRenderer)))
 ) {
   throw new Error(
-    'Metal acceptance requires pinned Chromium on macOS, with local diagnostics kept separate from CI'
+    'Installed Chrome acceptance is limited to disposable GitHub Linux or Metal runners'
   );
-}
-if (installedChrome && (process.platform !== 'linux' || process.env.GITHUB_ACTIONS !== 'true')) {
-  throw new Error('Installed Chrome acceptance is limited to the disposable GitHub Linux runner');
 }
 const endpoint = 'https://openrouter.ai/api/alpha/decisions';
 const key = `sk-or-v1-${'test-only-'.repeat(5)}`;
@@ -60,6 +68,14 @@ const report = {
   camera: advisoryStartup ? 'sun' : 'overview',
   normalStartupRequired: true,
   startupTimeoutMs,
+  diagnoseStartup,
+  host: {
+    platform: process.platform,
+    architecture: process.arch,
+    release: release(),
+    runnerImage: process.env.ImageOS,
+    runnerImageVersion: process.env.ImageVersion,
+  },
 };
 // Persist each boundary before entering browser work. A runner-level timeout
 // can interrupt Chromium before the catch/finally diagnostic gets to execute.
@@ -70,6 +86,8 @@ const checkpoint = async (phase) => {
 };
 const lock = await acquireCaptureLock('jev-browser-acceptance', { root });
 let browser, server, page;
+let diagnosticTimer;
+let nativeSamples;
 try {
   await mkdir(output, { recursive: true });
   const html = await readFile(path.join(builtDirectory, 'index.html'), 'utf8');
@@ -108,6 +126,17 @@ try {
     ...(metalRenderer ? { ignoreDefaultArgs: ['--enable-unsafe-swiftshader'] } : {}),
     args: [
       '--mute-audio',
+      // Browser-owned tracing survives an unresponsive renderer. Only this
+      // fresh synthetic test profile is traced; acceptance remains unchanged.
+      // Working if a stalled runner retains GPU/renderer events in its artifact.
+      ...(diagnoseStartup
+        ? [
+            '--trace-startup=gpu,devtools.timeline,v8,disabled-by-default-v8.cpu_profiler',
+            '--trace-startup-duration=90',
+            '--trace-startup-format=json',
+            `--trace-startup-file=${path.join(output, 'startup-trace.json')}`,
+          ]
+        : []),
       // Keep browser compositing on its software path. SwiftShader supplies
       // WebGL only, rather than emulating a GPU for the whole browser.
       // https://chromium.googlesource.com/chromium/src/+/main/docs/gpu/swiftshader.md
@@ -154,6 +183,40 @@ try {
     }
   }
   await checkpoint('browser-context');
+  if (metalRenderer && process.platform === 'darwin') {
+    // Query the browser process, not the possibly blocked page. Sample only
+    // this disposable browser's GPU and renderers, never desktop applications.
+    diagnosticTimer = setTimeout(() => {
+      nativeSamples = (async () => {
+        const session = await browser.newBrowserCDPSession();
+        try {
+          report.hostLoad = { logicalCores: cpus().length, averages: loadavg() };
+          report.stallSampleAt = new Date().toISOString();
+          await checkpoint(report.phase);
+          const { processInfo } = await session.send('SystemInfo.getProcessInfo');
+          await writeFile(
+            path.join(output, 'browser-processes.json'),
+            JSON.stringify({ processInfo, hostLoad: loadavg(), logicalCores: cpus().length })
+          );
+          await Promise.all(
+            processInfo
+              .filter(({ type }) => type === 'GPU' || type === 'renderer')
+              .map(({ type, id }) =>
+                runFile(
+                  'sample',
+                  [String(id), '5', '-file', path.join(output, `native-${type}-${id}.txt`)],
+                  { timeout: 15_000 }
+                )
+              )
+          );
+        } finally {
+          await session.detach();
+        }
+      })().catch(async (error) => {
+        await writeFile(path.join(output, 'native-sample-error.txt'), error.message);
+      });
+    }, 60_000);
+  }
   const context = await browser.newContext({ serviceWorkers: 'block', reducedMotion: 'reduce' });
   await context.addInitScript(() => {
     localStorage.setItem(
@@ -377,8 +440,11 @@ try {
   }
   process.exitCode = 1;
 } finally {
+  clearTimeout(diagnosticTimer);
+  report.hostLoad ??= { logicalCores: cpus().length, averages: loadavg() };
   await writeFile(path.join(output, 'result.json'), `${JSON.stringify(report, null, 2)}\n`);
   console.log(JSON.stringify(report, null, 2));
+  await nativeSamples;
   await browser?.close();
   if (server) await new Promise((resolve) => server.httpServer.close(resolve));
   await lock.release();
