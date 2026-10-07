@@ -237,12 +237,14 @@ export function MatchedPackingRehearsal({
   const pace = useGameSimulationStore((s) => s.gameSpeed);
   // Capture hashes all material data and reads direct order, incident, quality,
   // setpoint and dock facts. Observe each owner while a result is displayed so
-  // paused changes cannot leave a comparison looking current. No model rerun.
-  useMaterialFlowStore((s) => (result ? s : null));
-  useOperationsCampaignStore((s) => (result ? s : null));
-  useProductionStore((s) => (result ? s : null));
-  useQCLabStore((s) => (result ? s : null));
-  useTruckScheduleStore((s) => (result ? s : null));
+  // paused changes cannot leave a comparison looking current. Stable snapshot
+  // getters also catch an owner update before the result's passive effects.
+  // Hashing still short-circuits without a result; the model stays click-only.
+  useMaterialFlowStore();
+  useOperationsCampaignStore();
+  useProductionStore();
+  useQCLabStore();
+  useTruckScheduleStore();
   const outdated =
     stale || (!!result && captureCurrentPackingPlant(state).fingerprint !== result.fingerprint);
   const run = async () => {
