@@ -9,7 +9,7 @@ import { SpatialAudioTracker } from './components/SpatialAudioTracker';
 import { FPSTracker, useFPSStore } from './components/FPSMonitor';
 import { CameraController, useCameraStore } from './components/CameraController';
 import { FirstPersonController } from './components/FirstPersonController';
-import ErrorBoundary from './components/ErrorBoundary';
+import ErrorBoundary, { RecoverableFeatureBoundary } from './components/ErrorBoundary';
 import { LoadingScreen } from './components/LoadingScreen';
 import { StartupReadiness } from './components/StartupReadiness';
 import { beginStartupTask } from './utils/startupReadiness';
@@ -622,7 +622,10 @@ const App: React.FC = () => {
 
       {showOperationalUI && !deferredUIReady && <StartupInterface />}
       {showOperationalUI && deferredUIReady && (
-        <ErrorBoundary>
+        <RecoverableFeatureBoundary
+          featureName="Operations controls"
+          fallbackClassName="fixed left-4 top-4 z-30 max-w-md"
+        >
           <Suspense fallback={<StartupInterface />}>
             <DeferredOperationalUI
               productionSpeed={productionSpeed}
@@ -648,7 +651,7 @@ const App: React.FC = () => {
               enableAudioReactive={enableAudioReactive}
             />
           </Suspense>
-        </ErrorBoundary>
+        </RecoverableFeatureBoundary>
       )}
 
       {/* 3D Canvas with Error Boundary */}

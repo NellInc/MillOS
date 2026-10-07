@@ -185,11 +185,12 @@ describe('ErrorBoundary', () => {
     };
 
     render(
-      <RecoverableFeatureBoundary featureName="SCADA">
+      <RecoverableFeatureBoundary featureName="SCADA" fallbackClassName="fixed z-30">
         <OptionalFeature />
       </RecoverableFeatureBoundary>
     );
 
+    expect(screen.getByRole('alert', { name: 'SCADA unavailable' })).toHaveClass('fixed', 'z-30');
     expect(screen.getByRole('alert', { name: 'SCADA unavailable' })).toHaveTextContent(
       'Optional chunk unavailable'
     );

@@ -92,8 +92,9 @@ export interface StartupFrame {
 
 /**
  * Inter-frame time includes the previous frame's render/compile/upload work.
- * Require 45 settled frames at approximately 30 FPS or better, with no long
- * hitch. A timeout never manufactures success on a slow or broken device.
+ * Require 45 rendered intervals after all work barriers complete, with no
+ * suspended frame or resource revision. Frame rate is a quality signal, not a
+ * reason to keep a complete world inaccessible on a slower device.
  */
 export class StartupFrameWindow {
   private previousTime: number | null = null;
@@ -103,7 +104,7 @@ export class StartupFrameWindow {
   sample({ now, prerequisitesReady, revision }: StartupFrame): boolean {
     const elapsed = this.previousTime === null ? 0 : now - this.previousTime;
     this.previousTime = now;
-    if (!prerequisitesReady || revision !== this.revision || elapsed <= 0 || elapsed > 75) {
+    if (!prerequisitesReady || revision !== this.revision || elapsed <= 0 || elapsed > 1000) {
       this.frames = [];
       this.revision = revision;
       return false;
@@ -111,8 +112,6 @@ export class StartupFrameWindow {
     this.frames.push(elapsed);
     if (this.frames.length > 45) this.frames.shift();
     if (this.frames.length < 45) return false;
-    const ordered = [...this.frames].sort((a, b) => a - b);
-    const mean = this.frames.reduce((sum, value) => sum + value, 0) / this.frames.length;
-    return mean <= 34 && ordered[40] <= 34 && elapsed <= 50;
+    return true;
   }
 }

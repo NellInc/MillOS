@@ -99,6 +99,7 @@ class ErrorBoundary extends Component<Props, State> {
 interface RecoverableFeatureBoundaryProps {
   children: ReactNode;
   featureName: string;
+  fallbackClassName?: string;
   onDismiss?: () => void;
   resetKeys?: readonly unknown[];
 }
@@ -106,6 +107,7 @@ interface RecoverableFeatureBoundaryProps {
 export const RecoverableFeatureBoundary = ({
   children,
   featureName,
+  fallbackClassName = 'm-3',
   onDismiss,
   resetKeys = [],
 }: RecoverableFeatureBoundaryProps) => {
@@ -116,7 +118,7 @@ export const RecoverableFeatureBoundary = ({
         <div
           role="alert"
           aria-label={`${featureName} unavailable`}
-          className="m-3 rounded-lg border border-amber-500/50 bg-amber-950/70 p-4 text-amber-50"
+          className={`${fallbackClassName} rounded-lg border border-amber-500/50 bg-amber-950/70 p-4 text-amber-50`}
         >
           <div className="flex items-start gap-3">
             <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-400" aria-hidden="true" />

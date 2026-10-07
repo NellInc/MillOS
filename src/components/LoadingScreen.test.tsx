@@ -10,17 +10,22 @@ const state = vi.hoisted(() => ({
   revision: 0,
   ready: false,
 }));
+const flags = vi.hoisted(() => ({ KNOWLEDGE_LOADING_QUOTES_ENABLED: false }));
 vi.mock('../utils/startupReadiness', () => ({
   getStartupSnapshot: () => state,
   subscribeStartup: () => () => undefined,
 }));
 vi.mock('../config/featureFlags', () => ({
-  FEATURE_FLAGS: { KNOWLEDGE_LOADING_QUOTES_ENABLED: false },
+  FEATURE_FLAGS: flags,
 }));
+vi.mock('./knowledge/LoadingQuote', () => {
+  throw new Error('Optional feature load exceeded 15000ms');
+});
 import { LoadingScreen } from './LoadingScreen';
 
 beforeEach(() => {
   vi.useFakeTimers();
+  flags.KNOWLEDGE_LOADING_QUOTES_ENABLED = false;
   state.ready = false;
   state.errors = 0;
   delete document.documentElement.dataset.loaderFallback;
@@ -36,6 +41,22 @@ afterEach(() => {
 });
 
 describe('LoadingScreen final readiness', () => {
+  it('keeps the application mounted when the optional quote import fails', async () => {
+    flags.KNOWLEDGE_LOADING_QUOTES_ENABLED = true;
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    render(
+      <>
+        <LoadingScreen recoveryDelayMs={1} />
+        <button>Application control</button>
+      </>
+    );
+
+    await act(async () => vi.advanceTimersByTimeAsync(1000));
+    expect(screen.getByRole('dialog', { name: 'Loading MillOS' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Application control' })).toBeInTheDocument();
+    expect(screen.queryByText('Something went wrong')).not.toBeInTheDocument();
+  });
+
   it('keeps keyboard focus on the cover before recovery and cycles the live Reload control', async () => {
     render(
       <>

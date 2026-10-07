@@ -3,6 +3,7 @@ import { getStartupSnapshot, subscribeStartup } from '../utils/startupReadiness'
 import { FEATURE_FLAGS } from '../config/featureFlags';
 import { recoverableLazy } from '../utils/recoverableLazy';
 import { useFocusTrap } from '../hooks/useFocusTrap';
+import ErrorBoundary from './ErrorBoundary';
 
 const DeferredLoadingQuote = recoverableLazy(() =>
   import('./knowledge/LoadingQuote').then((module) => ({ default: module.LoadingQuote }))
@@ -116,9 +117,11 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
 
           {FEATURE_FLAGS.KNOWLEDGE_LOADING_QUOTES_ENABLED && showRecovery && (
             <div style={{ marginTop: '22px', maxWidth: '420px', textAlign: 'center' }}>
-              <Suspense fallback={null}>
-                <DeferredLoadingQuote rotationInterval={8000} />
-              </Suspense>
+              <ErrorBoundary fallback={null}>
+                <Suspense fallback={null}>
+                  <DeferredLoadingQuote rotationInterval={8000} />
+                </Suspense>
+              </ErrorBoundary>
             </div>
           )}
 
