@@ -190,15 +190,33 @@ try {
   // Persist actual work barriers while waiting. A runner timeout can otherwise
   // leave only "scene-loading", hiding resource, context and frame stalls.
   // Working if a timed-out run retains its last observed barriers and cadence.
+  report.startupObservationVersion = 2;
   report.startupObservations = [];
   await context.exposeBinding('recordJevStartup', async (_source, value) => {
-    report.startupObservations.push(value);
+    report.startupObservations.push({
+      ...value,
+      host: { at: Date.now(), logicalCores: cpus().length, averages: loadavg() },
+    });
     await checkpoint(report.phase);
   });
   await context.addInitScript(() => {
     const intervals = [];
     let previous;
+    let rafCallbacks = 0;
+    const events = [];
+    const recordEvent = (event) => {
+      events.push({
+        at: performance.now(),
+        type: event.type,
+        visibility: document.visibilityState,
+      });
+      if (events.length > 16) events.shift();
+    };
+    document.addEventListener('visibilitychange', recordEvent);
+    document.addEventListener('webglcontextlost', recordEvent, true);
+    document.addEventListener('webglcontextrestored', recordEvent, true);
     function observe(now) {
+      rafCallbacks++;
       if (previous !== undefined) {
         intervals.push(now - previous);
         if (intervals.length > 45) intervals.shift();
@@ -209,6 +227,10 @@ try {
     requestAnimationFrame(observe);
     setInterval(() => {
       const data = document.documentElement.dataset;
+      // Existing timing-only export: no world raycasts, resets or forced frames.
+      // Working if timer progress can be compared with independent RAF/R3F
+      // counts and events without altering any acceptance condition.
+      const pacing = window.__MILLOS_RUNTIME__?.framePacingSnapshot?.();
       window.recordJevStartup({
         at: performance.now(),
         worldReady: data.millosWorldReady,
@@ -220,6 +242,17 @@ try {
           ?.getAttribute('aria-valuetext'),
         runtimeReady: window.__MILLOS_RUNTIME__?.ready,
         intervals: [...intervals],
+        rafCallbacks,
+        lastRafAt: previous ?? null,
+        framePacing: pacing
+          ? {
+              capturedAt: pacing.capturedAt,
+              firstFrameAt: pacing.firstFrameAt,
+              sampleCount: pacing.sampleCount,
+              longTasks: pacing.longTasks.slice(-8),
+            }
+          : null,
+        events: [...events],
       });
     }, 5000);
   });

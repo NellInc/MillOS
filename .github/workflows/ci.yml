@@ -134,26 +134,10 @@ jobs:
 
   build:
     # Preserve the Build check identity: it is green only after UI acceptance.
-    name: ${{ matrix.check_name }}
+    name: Build
     runs-on: macos-15
     needs: build-assembly
     timeout-minutes: 15
-    # One finite compatibility contrast, both arms consume the same assembly.
-    # Separate VMs leave capacity as a confound; neither arm waives the other.
-    # Working if Build keeps its exact identity and both artifacts retain all
-    # original strict readiness, hardware, sandbox and advisory assertions.
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - browser: chromium
-            check_name: Build
-            artifact_name: jev-browser
-            browser_args: ''
-          - browser: chrome
-            check_name: Installed Chrome diagnostic contrast
-            artifact_name: jev-browser-installed
-            browser_args: --installed-chrome
     env:
       MILLOS_CI_DIST_SHA256: ${{ needs.build-assembly.outputs.dist-sha256 }}
     steps:
@@ -191,31 +175,21 @@ jobs:
           NODE
 
       - name: Install pinned Chromium for Jev UI acceptance
-        if: matrix.browser == 'chromium'
         run: npx playwright install --no-shell chromium
-
-      - name: Verify existing installed Chrome for the diagnostic contrast
-        if: matrix.browser == 'chrome'
-        run: |
-          test -x '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
-          version=$(/usr/libexec/PlistBuddy -c 'Print:CFBundleShortVersionString' \
-            '/Applications/Google Chrome.app/Contents/Info.plist')
-          echo "Installed Chrome: $version"
-          echo "MILLOS_CHROME_PREFLIGHT_VERSION=$version" >> "$GITHUB_ENV"
 
       - name: Validate Jev personal-key flow in desktop and mobile layouts
         timeout-minutes: 8
         # Standard public macOS VM, with no paid runner or desktop registration.
         # Metal availability is tested, not inferred from the runner's CPU label.
         # Working if actual Metal WebGL and both full-world UI flows pass sandboxed.
-        run: node scripts/validate-jev-browser.mjs --metal-renderer ${{ matrix.browser_args }}
+        run: node scripts/validate-jev-browser.mjs --metal-renderer
 
       - name: Upload Jev browser evidence
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: ${{ matrix.artifact_name }}
-          path: test-results/${{ matrix.artifact_name }}/
+          name: jev-browser
+          path: test-results/jev-browser/
           if-no-files-found: ignore
           retention-days: 7
 
