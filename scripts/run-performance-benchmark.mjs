@@ -56,6 +56,7 @@ Options:
   --base-url=<url>          Reuse an existing preview instead of starting one
   --port=<number>           Local preview port when --base-url is absent; default 4173
   --channel=<name>          Browser channel, defaults to chrome; use an empty value for bundled Chromium
+  --executable-path=<path>  Use an already-installed browser for an explicit identity contrast
   --quality=<tier>          low, medium, high, or ultra; default medium
   --device-scale-factor=<n> Browser device scale factor, from 1 to 3; default 2
   --scenes=<list>           Comma-separated fixed scene names
@@ -113,6 +114,7 @@ const options = {
   output: path.resolve(readArgument('output', DEFAULT_OUTPUT)),
   headed: hasFlag('headed'),
   browserChannel: readArgument('channel', 'chrome'),
+  browserExecutable: readArgument('executable-path', ''),
   reportOnly: hasFlag('report-only'),
   networkProfile: readArgument('network-profile', 'native'),
   disabledSystems: readArgument('disable-systems', '')
@@ -1043,7 +1045,9 @@ async function main() {
         ? ['--use-gl=angle', '--use-angle=metal']
         : []),
     ],
-    channel: options.browserChannel || undefined,
+    ...(options.browserExecutable
+      ? { executablePath: options.browserExecutable }
+      : { channel: options.browserChannel || undefined }),
   });
 
   const results = [];
@@ -1162,9 +1166,11 @@ async function main() {
       encoding: 'utf8',
     }).trim(),
     baseUrl,
-    browser: options.browserChannel
-      ? `Playwright ${options.browserChannel} channel`
-      : 'Playwright Chromium',
+    browser: options.browserExecutable
+      ? `Explicit installed browser: ${options.browserExecutable}`
+      : options.browserChannel
+        ? `Playwright ${options.browserChannel} channel`
+        : 'Playwright Chromium',
     browserVersion,
     browserArguments,
     gpu,
