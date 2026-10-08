@@ -5,6 +5,7 @@ on:
     branches: [main, develop]
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -15,6 +16,7 @@ permissions:
 
 jobs:
   lint:
+    if: github.event_name != 'workflow_dispatch'
     name: Lint
     runs-on: ubuntu-latest
     steps:
@@ -54,6 +56,7 @@ jobs:
         run: npm run agent:manifest && npm run agent:manifest:check
 
   test:
+    if: github.event_name != 'workflow_dispatch'
     name: Test
     runs-on: ubuntu-latest
     steps:
@@ -84,6 +87,7 @@ jobs:
     name: Build Assembly
     runs-on: ubuntu-24.04
     needs: [lint, test]
+    if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || (needs.lint.result == 'success' && needs.test.result == 'success')) }}
     outputs:
       dist-sha256: ${{ steps.dist-checksum.outputs.sha256 }}
     steps:
@@ -133,6 +137,7 @@ jobs:
           retention-days: 7
 
   build:
+    if: github.event_name != 'workflow_dispatch'
     # Preserve the Build check identity: it is green only after UI acceptance.
     name: Build
     runs-on: macos-15
@@ -193,7 +198,92 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  installed-chrome-contrast:
+    # Diagnostic only. Required Build retains its original browser and assertions.
+    # Working if this dispatch records actual installed Chrome on the same runner
+    # and never supplies a passing required Build check or a deployment.
+    name: Installed Chrome feasibility (diagnostic)
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: macos-15
+    needs: build-assembly
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read
+    env:
+      MILLOS_CI_DIST_SHA256: ${{ needs.build-assembly.outputs.dist-sha256 }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Confirm unchanged application inputs
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import { execFileSync } from 'node:child_process';
+          const base = 'e62830c99a460479beb9755179e3613b0da3a3b5';
+          const changed = execFileSync('git', ['diff', '--name-only', base, 'HEAD'],
+            { encoding: 'utf8' }).trim().split('\n').filter(Boolean);
+          assert.deepEqual(changed, ['.github/workflows/ci.yml']);
+          console.log(`Application inputs unchanged from ${base}; workflow-only contrast`);
+          NODE
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download the Linux-built assembly from this workflow run
+        uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: dist/
+
+      - name: Verify built assembly checksum
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import { createHash } from 'node:crypto';
+          import { readdirSync, readFileSync, statSync } from 'node:fs';
+          const files = readdirSync('dist', { recursive: true }).sort()
+            .filter((file) => statSync(`dist/${file}`).isFile());
+          const entries = files.map((file) => [file,
+            createHash('sha256').update(readFileSync(`dist/${file}`)).digest('hex')]);
+          const digest = createHash('sha256').update(JSON.stringify(entries)).digest('hex');
+          assert.equal(digest, process.env.MILLOS_CI_DIST_SHA256);
+          console.log(`Verified Linux-built assembly: ${digest}`);
+          NODE
+
+      - name: Record installed Chrome identity
+        run: |
+          executable='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+          test -x "$executable"
+          version=$("$executable" --version | grep -Eo '[0-9]+(\.[0-9]+){3}' | head -n 1)
+          test -n "$version"
+          echo "MILLOS_CHROME_PREFLIGHT_VERSION=$version" >> "$GITHUB_ENV"
+          echo "Installed Chrome $version: $executable"
+
+      - name: Validate unchanged Jev flow on installed Chrome
+        timeout-minutes: 8
+        run: node scripts/validate-jev-browser.mjs --installed-chrome --metal-renderer
+
+      - name: Upload installed Chrome diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: jev-browser-installed-diagnostic
+          path: test-results/jev-browser-installed/
+          if-no-files-found: ignore
+          retention-days: 7
+
   build-proxy:
+    if: github.event_name != 'workflow_dispatch'
     name: Build SCADA Proxy
     runs-on: ubuntu-latest
     defaults:
