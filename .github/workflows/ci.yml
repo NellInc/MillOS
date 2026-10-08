@@ -200,11 +200,11 @@ jobs:
 
   installed-chrome-contrast:
     # Diagnostic only. Required Build retains its original browser and assertions.
-    # Working if this dispatch records actual installed Chrome on the same runner
+    # Working if this dispatch records actual installed Chrome on the selected runner
     # and never supplies a passing required Build check or a deployment.
     name: Installed Chrome feasibility (diagnostic)
     if: ${{ !cancelled() && github.event_name == 'workflow_dispatch' }}
-    runs-on: macos-15
+    runs-on: macos-26
     needs: build-assembly
     timeout-minutes: 15
     permissions:
