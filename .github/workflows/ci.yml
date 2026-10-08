@@ -182,7 +182,9 @@ jobs:
         # Standard public macOS VM, with no paid runner or desktop registration.
         # Metal availability is tested, not inferred from the runner's CPU label.
         # Working if actual Metal WebGL and both full-world UI flows pass sandboxed.
-        run: node scripts/validate-jev-browser.mjs --metal-renderer
+        # Browser-only readback presentation avoids the VM's CoreAnimation path.
+        # Scene WebGL2 must still be out-of-process, sandboxed hardware Metal.
+        run: node scripts/validate-jev-browser.mjs --metal-renderer --software-compositor
 
       - name: Upload Jev browser evidence
         if: always()
