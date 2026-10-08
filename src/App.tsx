@@ -691,7 +691,11 @@ const App: React.FC = () => {
               far: CAMERA_DEPTH.far,
             }}
             gl={{
-              antialias: canvasQuality !== 'low',
+              // Context MSAA is immutable. A fresh Medium context retained its
+              // four samples after a Low downgrade, unlike a saved-Low start.
+              // Composer tiers use SMAA; Low deliberately has no AA. Working
+              // if every context stays at zero samples across quality changes.
+              antialias: false,
               alpha: false,
               // Tone mapping and exposure are NOT set here. R3F re-runs
               // `applyProps(gl, glConfig)` whenever a Canvas prop changes,
