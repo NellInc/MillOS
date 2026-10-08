@@ -8,6 +8,7 @@ import { cpus, loadavg } from 'node:os';
 import { chromium } from 'playwright';
 import { preview } from 'vite';
 import { acquireCaptureLock } from './lib/capture-lock.mjs';
+import { assertMetalBrowserAdmission } from './lib/metal-browser-admission.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const installedChrome = process.argv.includes('--installed-chrome');
@@ -23,6 +24,7 @@ const localMetalDist = process.argv
 const builtDirectory = localMetalDist ? path.resolve(localMetalDist) : path.join(root, 'dist');
 const softwareRenderer = process.argv.includes('--software-renderer');
 const metalRenderer = process.argv.includes('--metal-renderer') || !!localMetalDist;
+const softwareCompositor = process.argv.includes('--software-compositor');
 const advisoryStartup = softwareRenderer || metalRenderer;
 const startupTimeoutMs = softwareRenderer ? 300_000 : 240_000;
 const hostedMetalChrome =
@@ -32,6 +34,11 @@ const hostedMetalChrome =
   !softwareRenderer &&
   process.platform === 'darwin' &&
   process.env.GITHUB_ACTIONS === 'true';
+if (softwareCompositor && !hostedMetalChrome) {
+  throw new Error(
+    'Software compositing is restricted to the explicit hosted Metal Chrome diagnostic'
+  );
+}
 if (
   metalRenderer &&
   (process.platform !== 'darwin' ||
@@ -64,6 +71,7 @@ const report = {
   csp: [],
   softwareRenderer,
   metalRenderer,
+  softwareCompositor,
   executionEnvironment: localMetalDist
     ? 'local-diagnostic'
     : process.env.GITHUB_ACTIONS === 'true'
@@ -137,6 +145,7 @@ try {
       // Headless otherwise defaults to SwiftShader. Force the Metal backend,
       // then check both CDP and the application's own context below.
       ...(metalRenderer ? ['--enable-gpu', '--use-gl=angle', '--use-angle=metal'] : []),
+      ...(softwareCompositor ? ['--disable-gpu-compositing'] : []),
     ],
   });
   report.browserVersion = browser.version();
@@ -171,13 +180,7 @@ try {
           'Metal acceptance must not opt into unsafe SwiftShader fallback'
         );
         report.gpu = (await session.send('SystemInfo.getInfo')).gpu;
-        assert.match(report.gpu.auxAttributes?.glRenderer ?? '', /ANGLE Metal Renderer/i);
-        assert.equal(report.gpu.featureStatus?.webgl, 'enabled', 'Metal WebGL must be enabled');
-        assert.equal(
-          report.gpu.auxAttributes?.sandboxed,
-          true,
-          'Metal GPU process must be sandboxed'
-        );
+        assertMetalBrowserAdmission(report.gpu, report.browserArguments, softwareCompositor);
         // Chromium reports a combined WebGL feature status. Prove WebGL2 with
         // the application's actual context, rather than an absent CDP field.
       }

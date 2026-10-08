@@ -226,8 +226,10 @@ jobs:
           const base = 'e62830c99a460479beb9755179e3613b0da3a3b5';
           const changed = execFileSync('git', ['diff', '--name-only', base, 'HEAD'],
             { encoding: 'utf8' }).trim().split('\n').filter(Boolean);
-          assert.deepEqual(changed, ['.github/workflows/ci.yml']);
-          console.log(`Application inputs unchanged from ${base}; workflow-only contrast`);
+          assert.deepEqual(changed, ['.github/workflows/ci.yml',
+            'scripts/lib/metal-browser-admission.mjs', 'scripts/lib/metal-browser-admission.test.mjs',
+            'scripts/validate-jev-browser.mjs']);
+          console.log(`Application inputs unchanged from ${base}; diagnostic harness only`);
           NODE
 
       - name: Setup Node.js
@@ -272,7 +274,7 @@ jobs:
       # Read-only samples of this validator's own descendant processes can
       # distinguish JS work from renderer/driver waits after telemetry stalls.
       # Working if timeout evidence includes owned PID stacks, without changing
-      # application inputs, renderer flags, assertions or the eight-minute cap.
+      # application inputs, Metal rendering, UI assertions or the eight-minute cap.
       - name: Trace unchanged Jev flow on installed Chrome
         timeout-minutes: 8
         run: |
@@ -284,7 +286,7 @@ jobs:
           const output = 'test-results/jev-browser-installed';
           await mkdir(output, { recursive: true });
           const child = spawn(process.execPath,
-            ['scripts/validate-jev-browser.mjs', '--installed-chrome', '--metal-renderer'],
+            ['scripts/validate-jev-browser.mjs', '--installed-chrome', '--metal-renderer', '--software-compositor'],
             { stdio: 'inherit' });
           const records = [];
           let ended = false;
@@ -316,7 +318,7 @@ jobs:
               record.phase = JSON.parse(await readFile(`${output}/result.json`, 'utf8'))?.phase;
               await writeFile(`${output}/process-profile.json`, JSON.stringify(records, null, 2));
               const selected = [record.processes.find(row => row.pid === child.pid),
-                record.processes.find(row => /--type=renderer/.test(row.args)),
+                ...record.processes.filter(row => /--type=renderer/.test(row.args)),
                 record.processes.find(row => /--type=gpu-process/.test(row.args)),
                 record.processes.find(row => /Google Chrome/.test(row.args) && !/--type=/.test(row.args))]
                 .filter(Boolean);
