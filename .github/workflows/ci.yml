@@ -269,9 +269,79 @@ jobs:
           echo "MILLOS_CHROME_PREFLIGHT_VERSION=$version" >> "$GITHUB_ENV"
           echo "Installed Chrome $version: $executable"
 
-      - name: Validate unchanged Jev flow on installed Chrome
+      # Read-only samples of this validator's own descendant processes can
+      # distinguish JS work from renderer/driver waits after telemetry stalls.
+      # Working if timeout evidence includes owned PID stacks, without changing
+      # application inputs, renderer flags, assertions or the eight-minute cap.
+      - name: Trace unchanged Jev flow on installed Chrome
         timeout-minutes: 8
-        run: node scripts/validate-jev-browser.mjs --installed-chrome --metal-renderer
+        run: |
+          node --input-type=module <<'NODE'
+          import { spawn, execFileSync, execFile } from 'node:child_process';
+          import { mkdir, readFile, writeFile, stat } from 'node:fs/promises';
+          import { promisify } from 'node:util';
+          const execute = promisify(execFile);
+          const output = 'test-results/jev-browser-installed';
+          await mkdir(output, { recursive: true });
+          const child = spawn(process.execPath,
+            ['scripts/validate-jev-browser.mjs', '--installed-chrome', '--metal-renderer'],
+            { stdio: 'inherit' });
+          const records = [];
+          let ended = false;
+          const completion = new Promise(resolve => child.once('exit', (code, signal) => {
+            ended = true;
+            resolve({ code, signal });
+          }));
+          const timers = [45, 120, 210].map(seconds => setTimeout(async () => {
+            if (ended) return;
+            const record = { at: new Date().toISOString(), ownerPid: child.pid, samples: [] };
+            records.push(record);
+            try {
+              const rows = execFileSync('ps', ['-axo', 'pid=,ppid=,pcpu=,rss=,args='],
+                { encoding: 'utf8' }).trim().split('\n').map(line => {
+                  const match = line.trim().match(/^(\d+)\s+(\d+)\s+(\S+)\s+(\d+)\s+(.*)$/);
+                  return match ? { pid: +match[1], ppid: +match[2], cpu: +match[3],
+                    rssKiB: +match[4], args: match[5] } : null;
+                }).filter(Boolean);
+              const owned = new Set([child.pid]);
+              for (let changed = true; changed;) {
+                changed = false;
+                for (const row of rows) if (owned.has(row.ppid) && !owned.has(row.pid)) {
+                  owned.add(row.pid); changed = true;
+                }
+              }
+              record.processes = rows.filter(row => owned.has(row.pid));
+              const info = await stat(`${output}/result.json`).catch(() => null);
+              record.observationAgeMs = info ? Date.now() - info.mtimeMs : null;
+              record.phase = JSON.parse(await readFile(`${output}/result.json`, 'utf8'))?.phase;
+              await writeFile(`${output}/process-profile.json`, JSON.stringify(records, null, 2));
+              const selected = [record.processes.find(row => row.pid === child.pid),
+                record.processes.find(row => /--type=renderer/.test(row.args)),
+                record.processes.find(row => /--type=gpu-process/.test(row.args)),
+                record.processes.find(row => /Google Chrome/.test(row.args) && !/--type=/.test(row.args))]
+                .filter(Boolean);
+              for (const row of selected) {
+                if (ended) break;
+                const file = `${output}/sample-${seconds}-${row.pid}.txt`;
+                try {
+                  await execute('/usr/bin/sample', [String(row.pid), '2', '5', '-file', file],
+                    { timeout: 15000, maxBuffer: 1024 * 1024 });
+                  record.samples.push({ pid: row.pid, file });
+                } catch (error) {
+                  record.samples.push({ pid: row.pid, error: error.message });
+                }
+                await writeFile(`${output}/process-profile.json`, JSON.stringify(records, null, 2));
+              }
+            } catch (error) {
+              record.error = error.message;
+              await writeFile(`${output}/process-profile.json`, JSON.stringify(records, null, 2));
+            }
+          }, seconds * 1000));
+          const terminal = await completion;
+          for (const timer of timers) clearTimeout(timer);
+          await writeFile(`${output}/trace-terminal.json`, JSON.stringify(terminal));
+          process.exitCode = terminal.code ?? 1;
+          NODE
 
       - name: Upload installed Chrome diagnostic evidence
         if: always()
