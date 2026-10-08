@@ -203,7 +203,7 @@ jobs:
     # Working if this dispatch records actual installed Chrome on the same runner
     # and never supplies a passing required Build check or a deployment.
     name: Installed Chrome feasibility (diagnostic)
-    if: github.event_name == 'workflow_dispatch'
+    if: ${{ !cancelled() && github.event_name == 'workflow_dispatch' }}
     runs-on: macos-15
     needs: build-assembly
     timeout-minutes: 15
