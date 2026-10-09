@@ -348,3 +348,149 @@ export function observeCompletedWorldFrame(timeoutMs) {
     );
   });
 }
+
+// Diagnostic only, after an immutable failed world image. Never admit its pixels.
+// Working if A/B/A isolates the failed context's default buffer while all touched
+// bindings/resources are restored and no game render or corrective state reset runs.
+export function contrastFailedDefaultBuffer() {
+  const renderer = (window.jevObservedThree ?? []).find((object) => object?.isWebGLRenderer);
+  if (!renderer) return { diagnosticOnly: true, observed: false, reason: 'Actual renderer absent' };
+  const gl = renderer.getContext();
+  const saved = {
+    draw: gl.getParameter(gl.DRAW_FRAMEBUFFER_BINDING),
+    read: gl.getParameter(gl.READ_FRAMEBUFFER_BINDING),
+    renderbuffer: gl.getParameter(gl.RENDERBUFFER_BINDING),
+    clearColor: [...gl.getParameter(gl.COLOR_CLEAR_VALUE)],
+  };
+  if (saved.draw !== null || saved.read !== null || gl.isContextLost()) {
+    return { diagnosticOnly: true, observed: false, reason: 'Default live context unavailable' };
+  }
+  const errors = () => {
+    const codes = [];
+    for (let index = 0; index < 8; index++) {
+      const code = gl.getError();
+      if (code === gl.NO_ERROR) break;
+      codes.push(code);
+    }
+    return { codes, saturated: codes.length === 8 };
+  };
+  const width = gl.drawingBufferWidth;
+  const height = gl.drawingBufferHeight;
+  const mask = gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT | gl.STENCIL_BUFFER_BIT;
+  const report = {
+    diagnosticOnly: true,
+    observed: false,
+    dimensions: [width, height],
+    clearMask: mask,
+    clearColor: saved.clearColor,
+    inheritedState: {
+      colorMask: [...gl.getParameter(gl.COLOR_WRITEMASK)],
+      scissorTest: gl.isEnabled(gl.SCISSOR_TEST),
+      rasterizerDiscard: gl.isEnabled(gl.RASTERIZER_DISCARD),
+      pixelPackBufferBound: gl.getParameter(gl.PIXEL_PACK_BUFFER_BINDING) !== null,
+      packAlignment: gl.getParameter(gl.PACK_ALIGNMENT),
+      packRowLength: gl.getParameter(gl.PACK_ROW_LENGTH),
+      packSkipPixels: gl.getParameter(gl.PACK_SKIP_PIXELS),
+      packSkipRows: gl.getParameter(gl.PACK_SKIP_ROWS),
+    },
+    preExistingErrors: errors(),
+    arms: [],
+  };
+  let framebuffer;
+  let renderbuffer;
+  const arm = (name) => {
+    gl.clear(mask);
+    const clearErrors = errors();
+    const samples = [];
+    for (const fraction of [0.15, 0.5, 0.85]) {
+      const bytes = new Uint8Array([251, 7, 239, 113]);
+      gl.readPixels(
+        Math.floor(fraction * width),
+        Math.floor(fraction * height),
+        1,
+        1,
+        gl.RGBA,
+        gl.UNSIGNED_BYTE,
+        bytes
+      );
+      samples.push({
+        rgba: [...bytes],
+        sentinelOverwritten: bytes.some((value, i) => value !== [251, 7, 239, 113][i]),
+        readErrors: errors(),
+      });
+    }
+    return {
+      name,
+      clearErrors,
+      samples,
+      framebufferComplete:
+        gl.checkFramebufferStatus(gl.READ_FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE,
+      readBuffer: gl.getParameter(gl.READ_BUFFER),
+      drawBuffer: gl.getParameter(gl.DRAW_BUFFER0),
+      queryErrors: errors(),
+    };
+  };
+  try {
+    report.arms.push(arm('default-before'));
+    framebuffer = gl.createFramebuffer();
+    renderbuffer = gl.createRenderbuffer();
+    if (!framebuffer || !renderbuffer) throw Error('Diagnostic buffer allocation failed');
+    gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
+    gl.bindRenderbuffer(gl.RENDERBUFFER, renderbuffer);
+    gl.renderbufferStorage(gl.RENDERBUFFER, gl.RGBA8, width, height);
+    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.RENDERBUFFER, renderbuffer);
+    if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) {
+      throw Error('Diagnostic private framebuffer incomplete');
+    }
+    report.arms.push(arm('private-rgba8'));
+    gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, saved.draw);
+    gl.bindFramebuffer(gl.READ_FRAMEBUFFER, saved.read);
+    report.arms.push(arm('default-after'));
+    report.observed = true;
+  } catch (error) {
+    report.error = String(error);
+    report.failureErrors = errors();
+  } finally {
+    gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, saved.draw);
+    gl.bindFramebuffer(gl.READ_FRAMEBUFFER, saved.read);
+    gl.bindRenderbuffer(gl.RENDERBUFFER, saved.renderbuffer);
+    // No mask/scissor/viewport/program/texture correction. Keep the renderer's
+    // state cache valid by leaving actual values exactly as they were.
+    if (renderbuffer) gl.deleteRenderbuffer(renderbuffer);
+    if (framebuffer) gl.deleteFramebuffer(framebuffer);
+    report.restorationErrors = errors();
+    report.bindingsRestored =
+      gl.getParameter(gl.DRAW_FRAMEBUFFER_BINDING) === saved.draw &&
+      gl.getParameter(gl.READ_FRAMEBUFFER_BINDING) === saved.read &&
+      gl.getParameter(gl.RENDERBUFFER_BINDING) === saved.renderbuffer;
+  }
+  const clean = (value) => value?.codes.length === 0 && !value.saturated;
+  // Validity concerns the read operations, not whether a clear produced colour.
+  // Valid transparent-zero arms are the result this experiment must retain.
+  report.validComparison =
+    report.observed &&
+    report.bindingsRestored &&
+    !gl.isContextLost() &&
+    width > 0 &&
+    height > 0 &&
+    clean(report.preExistingErrors) &&
+    clean(report.restorationErrors) &&
+    report.inheritedState.colorMask.every(Boolean) &&
+    !report.inheritedState.scissorTest &&
+    !report.inheritedState.rasterizerDiscard &&
+    !report.inheritedState.pixelPackBufferBound &&
+    report.inheritedState.packRowLength === 0 &&
+    report.inheritedState.packSkipPixels === 0 &&
+    report.inheritedState.packSkipRows === 0 &&
+    report.arms.length === 3 &&
+    report.arms.every(
+      (value) =>
+        value.framebufferComplete &&
+        clean(value.clearErrors) &&
+        clean(value.queryErrors) &&
+        value.readBuffer === (value.name === 'private-rgba8' ? gl.COLOR_ATTACHMENT0 : gl.BACK) &&
+        value.drawBuffer === (value.name === 'private-rgba8' ? gl.COLOR_ATTACHMENT0 : gl.BACK) &&
+        value.samples.every((sample) => sample.sentinelOverwritten && clean(sample.readErrors))
+    );
+  return report;
+}

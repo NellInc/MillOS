@@ -9,7 +9,11 @@ import { performance } from 'node:perf_hooks';
 import { chromium } from 'playwright';
 import { preview } from 'vite';
 import { acquireCaptureLock } from './lib/capture-lock.mjs';
-import { inspectWorldPresentation, observeCompletedWorldFrame } from './lib/world-presentation.mjs';
+import {
+  contrastFailedDefaultBuffer,
+  inspectWorldPresentation,
+  observeCompletedWorldFrame,
+} from './lib/world-presentation.mjs';
 import {
   assertHostedMetalCompositor,
   assertMetalBrowserAdmission,
@@ -536,6 +540,22 @@ try {
   report.completedFrameDiagnostic = await withinStartupBudget(() =>
     page.evaluate(observeCompletedWorldFrame, Math.min(5000, remainingStartupBudget()))
   );
+  // Once only, in the actual failed context, after the immutable image and
+  // ordinary-frame receipt. Diagnostic clears cannot replace the image verdict.
+  // Working if a failing default/private/default contrast stays a failed Build.
+  if (!report.worldPixels.passed) {
+    try {
+      report.failedDefaultBufferContrast = await withinStartupBudget(() =>
+        page.evaluate(contrastFailedDefaultBuffer)
+      );
+    } catch (error) {
+      report.failedDefaultBufferContrast = {
+        diagnosticOnly: true,
+        observed: false,
+        error: error.message,
+      };
+    }
+  }
   assert.equal(
     report.worldPixels.passed,
     true,
