@@ -1,6 +1,195 @@
 import assert from 'node:assert/strict';
 import { decodeRGB } from '../refine-authored-png.mjs';
 
+// Serialized before renderer construction, only in the hosted diagnostic.
+// Reuse the existing timer-query pattern, without its BRDF treatment. Never
+// render, flush, finish, read pixels, or change camera/material/quality state.
+// Working if cold CPU spans and valid GPU queries identify actual passes,
+// unresolved/disjoint timings stay unassigned, and cleanup retains later owners.
+export function installColdRenderAttribution() {
+  const devtools = (window.__THREE_DEVTOOLS__ ??= new EventTarget());
+  const rows = [];
+  const hooks = [];
+  const errors = [];
+  const limits = { renderers: 4, rows: 512, pendingPerRenderer: 12, queriesPerRenderer: 64 };
+  let stopped = false;
+  let droppedRows = 0;
+  const safely = (operation) => {
+    try {
+      return operation();
+    } catch (error) {
+      if (errors.length < 16) errors.push(String(error?.message ?? error));
+      return undefined;
+    }
+  };
+  const observe = (event) => {
+    const renderer = event.detail;
+    if (
+      stopped ||
+      !renderer?.isWebGLRenderer ||
+      hooks.some((hook) => hook.renderer === renderer) ||
+      hooks.length >= limits.renderers
+    )
+      return;
+    safely(() => {
+      const gl = renderer.getContext();
+      const extension = gl.getExtension('EXT_disjoint_timer_query_webgl2');
+      const original = renderer.render;
+      const pending = [];
+      const seen = new Set();
+      const identity = { index: hooks.length, timerAvailable: !!extension };
+      let passes = 0;
+      let queries = 0;
+      let disjoint = 0;
+      let depth = 0;
+      const poll = () => {
+        if (!pending.length) return;
+        const invalid = gl.getParameter(extension.GPU_DISJOINT_EXT);
+        if (invalid) disjoint++;
+        for (let index = pending.length - 1; index >= 0; index--) {
+          const { query, row } = pending[index];
+          if (!invalid && !gl.getQueryParameter(query, gl.QUERY_RESULT_AVAILABLE)) continue;
+          if (invalid) row.gpuStatus = 'disjoint';
+          else {
+            const nanos = gl.getQueryParameter(query, gl.QUERY_RESULT);
+            row.gpuStatus = Number.isFinite(nanos) && nanos >= 0 ? 'valid' : 'invalid-result';
+            if (row.gpuStatus === 'valid') row.gpuMs = nanos / 1e6;
+          }
+          gl.deleteQuery(query);
+          pending.splice(index, 1);
+        }
+      };
+      function wrapped(scene, camera) {
+        if (stopped) return original.apply(this, arguments);
+        const diagnosticStart = performance.now();
+        let row;
+        let query;
+        safely(() => {
+          poll();
+          passes++;
+          const target = this.getRenderTarget();
+          const key = `${scene?.uuid}:${camera?.uuid}:${target?.uuid ?? 'canvas'}`;
+          const first = !seen.has(key);
+          seen.add(key);
+          row = {
+            renderer: identity.index,
+            pass: passes,
+            depth,
+            first,
+            scene: { uuid: scene?.uuid, name: scene?.name, type: scene?.type },
+            children: scene?.children
+              ?.slice(0, 12)
+              .map((child) => ({ name: child.name, type: child.type })),
+            camera: {
+              uuid: camera?.uuid,
+              type: camera?.type,
+              position: camera?.position?.toArray(),
+            },
+            target: target
+              ? { uuid: target.uuid, width: target.width, height: target.height }
+              : null,
+            gpuStatus: extension ? 'not-sampled' : 'unavailable',
+          };
+          if (
+            extension &&
+            (first || passes % 31 === 0) &&
+            queries < limits.queriesPerRenderer &&
+            pending.length < limits.pendingPerRenderer &&
+            !gl.getQuery(extension.TIME_ELAPSED_EXT, gl.CURRENT_QUERY)
+          ) {
+            query = gl.createQuery();
+            if (query) {
+              queries++;
+              gl.beginQuery(extension.TIME_ELAPSED_EXT, query);
+              row.gpuStatus =
+                gl.getQuery(extension.TIME_ELAPSED_EXT, gl.CURRENT_QUERY) === query
+                  ? 'pending'
+                  : 'not-started';
+            }
+          }
+        });
+        const startedAt = performance.now();
+        depth++;
+        try {
+          return original.apply(this, arguments);
+        } finally {
+          depth--;
+          const endedAt = performance.now();
+          safely(() => {
+            if (!row) return;
+            row.startedAt = startedAt;
+            row.endedAt = endedAt;
+            row.cpuMs = endedAt - startedAt;
+            row.instrumentationBeforeMs = startedAt - diagnosticStart;
+            row.drawCounters = { ...this.info?.render };
+            row.programs = this.info?.programs?.length ?? null;
+            if (query) {
+              if (
+                row.gpuStatus === 'pending' &&
+                gl.getQuery(extension.TIME_ELAPSED_EXT, gl.CURRENT_QUERY) === query
+              ) {
+                gl.endQuery(extension.TIME_ELAPSED_EXT);
+                pending.push({ query, row });
+              } else {
+                row.gpuStatus = 'ownership-lost';
+                gl.deleteQuery(query);
+              }
+            }
+            if (row.first || query || row.cpuMs >= 16) {
+              if (rows.length < limits.rows) rows.push(row);
+              else droppedRows++;
+            }
+          });
+        }
+      }
+      renderer.render = wrapped;
+      hooks.push({
+        renderer,
+        original,
+        wrapped,
+        pending,
+        gl,
+        poll,
+        identity,
+        counts: () => ({ passes, queries, disjoint }),
+      });
+    });
+  };
+  devtools.addEventListener('observe', observe);
+  window.jevColdRenderAttribution = {
+    finish() {
+      stopped = true;
+      devtools.removeEventListener('observe', observe);
+      for (const hook of hooks) {
+        if (hook.renderer.render === hook.wrapped) hook.renderer.render = hook.original;
+        safely(hook.poll);
+        for (const { query, row } of hook.pending) {
+          row.gpuStatus = 'unresolved';
+          safely(() => hook.gl.deleteQuery(query));
+        }
+        hook.pending.length = 0;
+      }
+      return {
+        diagnosticOnly: true,
+        timingScope:
+          'renderer.render inclusive; nested passes and deferred GPU work prevent command-buffer causation claims',
+        timeOrigin: performance.timeOrigin,
+        finishedAt: performance.now(),
+        limits,
+        renderers: hooks.map((hook) => ({
+          ...hook.identity,
+          ...hook.counts(),
+          matchesWorldCanvas:
+            hook.renderer.domElement === document.querySelector('canvas[data-engine^="three.js"]'),
+        })),
+        rows,
+        droppedRows,
+        errors,
+      };
+    },
+  };
+}
+
 // Only the validator's fixed 1440x1000 overview uses this crop. It excludes
 // the header, soundtrack, dock, target control and right-hand Overview panel.
 // Working if a blank canvas with a fully rendered HUD still fails presentation.

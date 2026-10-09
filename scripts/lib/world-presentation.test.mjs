@@ -5,12 +5,133 @@ import { encodeRGB } from '../refine-authored-png.mjs';
 import {
   contrastFailedDefaultBuffer,
   inspectWorldPresentation,
+  installColdRenderAttribution,
   observeCompletedWorldFrame,
 } from './world-presentation.mjs';
 
 afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
+});
+
+function coldRenderFixture() {
+  let clock = 0;
+  let active = null;
+  let disjoint = false;
+  let available = false;
+  const extension = { TIME_ELAPSED_EXT: 1, GPU_DISJOINT_EXT: 2 };
+  const gl = {
+    CURRENT_QUERY: 3,
+    QUERY_RESULT_AVAILABLE: 4,
+    QUERY_RESULT: 5,
+    getExtension: () => extension,
+    getParameter: () => disjoint,
+    getQuery: () => active,
+    getQueryParameter: (_query, property) => (property === 4 ? available : 2_500_000),
+    createQuery: () => ({}),
+    beginQuery: vi.fn((_target, query) => {
+      active = query;
+    }),
+    endQuery: vi.fn(() => {
+      active = null;
+    }),
+    deleteQuery: vi.fn(),
+  };
+  const canvas = {};
+  const devtools = new EventTarget();
+  const window = { __THREE_DEVTOOLS__: devtools };
+  vi.stubGlobal('window', window);
+  vi.stubGlobal('document', { querySelector: () => canvas });
+  vi.stubGlobal('performance', { timeOrigin: 1700, now: () => clock });
+  const renderer = {
+    isWebGLRenderer: true,
+    domElement: canvas,
+    getContext: () => gl,
+    getRenderTarget: () => null,
+    info: { render: { calls: 1 }, programs: [] },
+    render: vi.fn(function () {
+      clock += 20;
+      return this;
+    }),
+  };
+  const original = renderer.render;
+  installColdRenderAttribution();
+  const event = new Event('observe');
+  event.detail = renderer;
+  devtools.dispatchEvent(event);
+  return {
+    renderer,
+    original,
+    gl,
+    window,
+    setDisjoint: () => {
+      disjoint = true;
+    },
+    setAvailable: () => {
+      available = true;
+    },
+  };
+}
+
+test('cold attribution forwards original arguments/receiver and restores only its own render hook', () => {
+  const { renderer, original, window, gl } = coldRenderFixture();
+  const scene = { uuid: 'world', type: 'Scene', children: [] };
+  const camera = { uuid: 'camera' };
+  expect(renderer.render(scene, camera, 'extra')).toBe(renderer);
+  expect(original).toHaveBeenCalledExactlyOnceWith(scene, camera, 'extra');
+  const receipt = window.jevColdRenderAttribution.finish();
+  expect(renderer.render).toBe(original);
+  expect(receipt.rows[0]).toMatchObject({
+    cpuMs: 20,
+    gpuStatus: 'unresolved',
+    scene: { uuid: 'world' },
+  });
+  expect(receipt.rows[0]).not.toHaveProperty('gpuMs');
+  expect(gl.deleteQuery).toHaveBeenCalledTimes(1);
+});
+
+test('cold attribution accepts available GPU results but leaves disjoint queries unassigned', () => {
+  const valid = coldRenderFixture();
+  valid.renderer.render({ uuid: 'first' }, {});
+  valid.setAvailable();
+  expect(valid.window.jevColdRenderAttribution.finish().rows[0]).toMatchObject({
+    gpuStatus: 'valid',
+    gpuMs: 2.5,
+  });
+  const invalid = coldRenderFixture();
+  invalid.renderer.render({ uuid: 'second' }, {});
+  invalid.setDisjoint();
+  const row = invalid.window.jevColdRenderAttribution.finish().rows[0];
+  expect(row.gpuStatus).toBe('disjoint');
+  expect(row).not.toHaveProperty('gpuMs');
+});
+
+test('cold cleanup preserves later render owners and diagnostics cannot mask an original exception', () => {
+  const { renderer, window, gl } = coldRenderFixture();
+  const retainedHook = renderer.render;
+  renderer.render = vi.fn((...args) => retainedHook.apply(renderer, args));
+  const later = renderer.render;
+  gl.getParameter = () => {
+    throw new Error('diagnostic query failed');
+  };
+  renderer.render({}, {});
+  const receipt = window.jevColdRenderAttribution.finish();
+  expect(renderer.render).toBe(later);
+  expect(receipt.errors).toContain('diagnostic query failed');
+  // The renderer's original implementation is captured at observation time.
+  const devtools = window.__THREE_DEVTOOLS__;
+  const throwing = {
+    ...renderer,
+    render: () => {
+      throw new Error('original render failed');
+    },
+  };
+  installColdRenderAttribution();
+  const event = new Event('observe');
+  event.detail = throwing;
+  devtools.dispatchEvent(event);
+  expect(() => throwing.render({}, {})).toThrow('original render failed');
+  window.jevColdRenderAttribution.finish();
 });
 
 function frame(world = false) {

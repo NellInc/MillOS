@@ -12,6 +12,7 @@ import { acquireCaptureLock } from './lib/capture-lock.mjs';
 import {
   contrastFailedDefaultBuffer,
   inspectWorldPresentation,
+  installColdRenderAttribution,
   observeCompletedWorldFrame,
 } from './lib/world-presentation.mjs';
 import {
@@ -35,6 +36,10 @@ const softwareRenderer = process.argv.includes('--software-renderer');
 const metalRenderer = process.argv.includes('--metal-renderer') || !!localMetalDist;
 const softwareCompositor = process.argv.includes('--software-compositor');
 const backendLogging = process.argv.includes('--backend-logging');
+const coldRenderAttribution = process.argv.includes('--cold-render-attribution');
+if (coldRenderAttribution) {
+  assert.ok(backendLogging, 'Cold render attribution requires owned backend logging');
+}
 if (backendLogging) {
   assert.ok(
     metalRenderer && !localMetalDist && process.env.GITHUB_ACTIONS === 'true',
@@ -93,6 +98,7 @@ const report = {
   metalRenderer,
   softwareCompositor,
   backendLogging,
+  coldRenderAttribution,
   executionEnvironment: localMetalDist
     ? 'local-diagnostic'
     : process.env.GITHUB_ACTIONS === 'true'
@@ -232,6 +238,9 @@ try {
     });
     await checkpoint(report.phase);
   });
+  if (coldRenderAttribution) {
+    await context.addInitScript({ content: `(${installColdRenderAttribution.toString()})();` });
+  }
   await context.addInitScript(() => {
     const intervals = [];
     let previous;
@@ -292,8 +301,9 @@ try {
 
   await context.addInitScript(() => {
     // Three's existing devtools event identifies the actual renderer and scenes.
-    // No frame hook/readback runs until after the acceptance screenshot.
-    window.__THREE_DEVTOOLS__ = new EventTarget();
+    // Only the explicit hosted cold-pass diagnostic hooks render before the image.
+    // Init-script ordering is unspecified: retain the installer's event target.
+    window.__THREE_DEVTOOLS__ ??= new EventTarget();
     window.jevObservedThree = [];
     window.__THREE_DEVTOOLS__.addEventListener('observe', (event) => {
       window.jevObservedThree.push(event.detail);
@@ -554,6 +564,11 @@ try {
     timeout: remainingStartupBudget(),
   });
   report.worldPixels = inspectWorldPresentation(worldImage);
+  if (coldRenderAttribution) {
+    report.coldRenderDiagnostic = await withinStartupBudget(() =>
+      page.evaluate(() => window.jevColdRenderAttribution?.finish())
+    );
+  }
   report.completedFrameDiagnostic = await withinStartupBudget(() =>
     page.evaluate(observeCompletedWorldFrame, Math.min(5000, remainingStartupBudget()))
   );
@@ -605,6 +620,7 @@ try {
           framePacing: window.__MILLOS_RUNTIME__?.framePacingSnapshot() ?? null,
           loaderText: document.querySelector('[role="dialog"][aria-label="Loading MillOS"]')
             ?.textContent,
+          coldRenderDiagnostic: window.jevColdRenderAttribution?.finish(),
         })),
         new Promise((_, reject) => {
           diagnosticTimer = setTimeout(
