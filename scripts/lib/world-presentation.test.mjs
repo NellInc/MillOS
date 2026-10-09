@@ -1,8 +1,13 @@
 // @vitest-environment node
 import { Buffer } from 'node:buffer';
-import { expect, test } from 'vitest';
+import { afterEach, expect, test, vi } from 'vitest';
 import { encodeRGB } from '../refine-authored-png.mjs';
-import { inspectWorldPresentation } from './world-presentation.mjs';
+import { inspectWorldPresentation, observeCompletedWorldFrame } from './world-presentation.mjs';
+
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+});
 
 function frame(world = false) {
   const raw = Buffer.alloc(1440 * 1000 * 3);
@@ -39,4 +44,155 @@ test('a different viewport cannot move the HUD into the scene crop', () => {
   expect(() => inspectWorldPresentation(encodeRGB(Buffer.alloc(390 * 844 * 3), 390, 844))).toThrow(
     'World presentation requires its authored viewport'
   );
+});
+
+function completedFrameFixture() {
+  const canvas = {
+    width: 720,
+    height: 500,
+    tagName: 'CANVAS',
+    id: '',
+    isConnected: true,
+    parentElement: null,
+    getAttribute: () => null,
+    getBoundingClientRect: () => ({ x: 0, y: 0, width: 1440, height: 1000 }),
+  };
+  const gl = {
+    FRAMEBUFFER_BINDING: 1,
+    VIEWPORT: 2,
+    RGBA: 3,
+    UNSIGNED_BYTE: 4,
+    getParameter: (key) => (key === 1 ? null : [0, 0, 720, 500]),
+    isContextLost: () => false,
+    readPixels: vi.fn((x, y, _width, _height, _format, _type, bytes) =>
+      bytes.set([x % 256, y % 256, 40, 255])
+    ),
+  };
+  const renderer = {
+    isWebGLRenderer: true,
+    domElement: canvas,
+    getContext: () => gl,
+    getRenderTarget: () => null,
+    render: vi.fn(),
+  };
+  const previous = vi.fn();
+  const scene = { isScene: true, uuid: 'actual-scene', onAfterRender: previous };
+  const camera = {
+    position: { toArray: () => [1, 2, 3] },
+    quaternion: { toArray: () => [0, 0, 0, 1] },
+  };
+  vi.stubGlobal('window', { jevObservedThree: [renderer, scene] });
+  vi.stubGlobal('document', {
+    querySelector: () => canvas,
+    querySelectorAll: (selector) => (selector === '*' ? [] : [canvas]),
+  });
+  vi.stubGlobal('getComputedStyle', () => ({
+    display: 'block',
+    visibility: 'visible',
+    opacity: '1',
+  }));
+  return { canvas, gl, renderer, scene, previous, camera };
+}
+
+test('samples only the ordinary completed frame and restores the previous callback', async () => {
+  const f = completedFrameFixture();
+  const observation = observeCompletedWorldFrame(1000);
+  expect(f.renderer.render).not.toHaveBeenCalled();
+  expect(f.gl.readPixels).not.toHaveBeenCalled();
+  f.scene.onAfterRender(f.renderer, f.scene, f.camera);
+  const result = await observation;
+  expect(f.previous).toHaveBeenCalledWith(f.renderer, f.scene, f.camera);
+  expect(result.identity.rendererMatchesCanvas).toBe(true);
+  expect(result.observed).toBe(true);
+  expect(result.samples).toHaveLength(9);
+  expect(result.samples.every((sample) => sample.rgba[3] === 255)).toBe(true);
+  expect(f.scene.onAfterRender).toBe(f.previous);
+});
+
+test('ignores other renderers and offscreen passes before the canvas completes', async () => {
+  const f = completedFrameFixture();
+  const observation = observeCompletedWorldFrame(1000);
+  f.scene.onAfterRender({}, f.scene, f.camera);
+  f.renderer.getRenderTarget = () => ({});
+  f.scene.onAfterRender(f.renderer, f.scene, f.camera);
+  expect(f.gl.readPixels).not.toHaveBeenCalled();
+  f.renderer.getRenderTarget = () => null;
+  f.scene.onAfterRender(f.renderer, f.scene, f.camera);
+  expect((await observation).observed).toBe(true);
+});
+
+test('a missing completed frame times out and restores its callback without rendering', async () => {
+  vi.useFakeTimers();
+  const f = completedFrameFixture();
+  const observation = observeCompletedWorldFrame(1000);
+  await vi.advanceTimersByTimeAsync(1000);
+  expect((await observation).observed).toBe(false);
+  expect(f.scene.onAfterRender).toBe(f.previous);
+  expect(f.renderer.render).not.toHaveBeenCalled();
+  expect(f.gl.readPixels).not.toHaveBeenCalled();
+});
+
+test('diagnostic cleanup leaves a subsequently installed callback untouched', async () => {
+  vi.useFakeTimers();
+  const f = completedFrameFixture();
+  const observation = observeCompletedWorldFrame(1000);
+  const newer = vi.fn();
+  f.scene.onAfterRender = newer;
+  await vi.advanceTimersByTimeAsync(1000);
+  await observation;
+  expect(f.scene.onAfterRender).toBe(newer);
+});
+
+test('missing renderer observations stay an explicit diagnostic failure', () => {
+  completedFrameFixture();
+  window.jevObservedThree = [];
+  expect(observeCompletedWorldFrame(1000)).toMatchObject({
+    observed: false,
+    reason: 'Actual renderer/scene observation unavailable',
+    identity: { rendererMatchesCanvas: false },
+  });
+});
+
+test('records a painted pointer-events-none cover instead of relying on hit testing', async () => {
+  const f = completedFrameFixture();
+  const cover = {
+    ...f.canvas,
+    tagName: 'DIV',
+    id: 'cover',
+    contains: () => false,
+    getBoundingClientRect: () => ({
+      x: 0,
+      y: 0,
+      width: 1440,
+      height: 1000,
+      left: 0,
+      right: 1440,
+      top: 0,
+      bottom: 1000,
+    }),
+  };
+  document.querySelectorAll = (selector) => (selector === '*' ? [cover] : [f.canvas]);
+  vi.stubGlobal('getComputedStyle', () => ({
+    display: 'block',
+    visibility: 'visible',
+    opacity: '1',
+    backgroundColor: 'rgb(2, 6, 24)',
+    pointerEvents: 'none',
+  }));
+  const observation = observeCompletedWorldFrame(1000);
+  f.scene.onAfterRender(f.renderer, f.scene, f.camera);
+  expect((await observation).identity.covers).toMatchObject([
+    { id: 'cover', paint: { pointerEvents: 'none' } },
+  ]);
+});
+
+test('readback errors restore callbacks and remain diagnostic failures', async () => {
+  const f = completedFrameFixture();
+  f.gl.readPixels.mockImplementation(() => {
+    throw new Error('Readback unavailable');
+  });
+  const observation = observeCompletedWorldFrame(1000);
+  f.scene.onAfterRender(f.renderer, f.scene, f.camera);
+  expect(await observation).toMatchObject({ observed: false, reason: 'Readback unavailable' });
+  expect(f.scene.onAfterRender).toBe(f.previous);
 });

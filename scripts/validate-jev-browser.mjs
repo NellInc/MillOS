@@ -9,7 +9,7 @@ import { performance } from 'node:perf_hooks';
 import { chromium } from 'playwright';
 import { preview } from 'vite';
 import { acquireCaptureLock } from './lib/capture-lock.mjs';
-import { inspectWorldPresentation } from './lib/world-presentation.mjs';
+import { inspectWorldPresentation, observeCompletedWorldFrame } from './lib/world-presentation.mjs';
 import {
   assertHostedMetalCompositor,
   assertMetalBrowserAdmission,
@@ -270,6 +270,13 @@ try {
   });
 
   await context.addInitScript(() => {
+    // Three's existing devtools event identifies the actual renderer and scenes.
+    // No frame hook/readback runs until after the acceptance screenshot.
+    window.__THREE_DEVTOOLS__ = new EventTarget();
+    window.jevObservedThree = [];
+    window.__THREE_DEVTOOLS__.addEventListener('observe', (event) => {
+      window.jevObservedThree.push(event.detail);
+    });
     localStorage.setItem(
       'millos-ui',
       JSON.stringify({ state: { hasSeenIntro: true }, version: 1 })
@@ -526,6 +533,9 @@ try {
     timeout: remainingStartupBudget(),
   });
   report.worldPixels = inspectWorldPresentation(worldImage);
+  report.completedFrameDiagnostic = await withinStartupBudget(() =>
+    page.evaluate(observeCompletedWorldFrame, Math.min(5000, remainingStartupBudget()))
+  );
   assert.equal(
     report.worldPixels.passed,
     true,
