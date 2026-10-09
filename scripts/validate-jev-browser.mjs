@@ -5,6 +5,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { cpus, loadavg } from 'node:os';
+import { performance } from 'node:perf_hooks';
 import { chromium } from 'playwright';
 import { preview } from 'vite';
 import { acquireCaptureLock } from './lib/capture-lock.mjs';
@@ -320,6 +321,8 @@ try {
     : { width: 1440, height: 1000 };
   await page.setViewportSize(report.startupViewport);
   await checkpoint('page-navigation');
+  const navigationStartedAt = performance.now();
+  const startupDeadline = navigationStartedAt + startupTimeoutMs;
   await page.goto(
     `http://127.0.0.1:4398${base}?benchmark=${report.camera}&time=12&quality=low&operations=on&pa=off`,
     {
@@ -458,16 +461,56 @@ try {
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.keyboard.press('Escape');
   await checkpoint('world-presentation');
-  await page.evaluate(({ position, target }) => {
-    window.__MILLOS_RUNTIME__.setCameraPose(position, target);
-    window.__MILLOS_RUNTIME__.reset();
-  }, pose);
-  await page.waitForFunction(
-    () => window.__MILLOS_RUNTIME__.framePacingSnapshot().sampleCount >= 3
+  // A newly visible overview can trigger cold rendering work absent from sun framing.
+  // Spend only the remainder of the existing startup budget, never an extra window.
+  // Working if frames, integrity and the image finish within the navigation deadline.
+  const remainingStartupBudget = () => {
+    const remaining = Math.ceil(startupDeadline - performance.now());
+    assert.ok(remaining > 0, 'Overview must fit the original startup budget');
+    return remaining;
+  };
+  const withinStartupBudget = async (operation) => {
+    const remaining = remainingStartupBudget();
+    let timer;
+    try {
+      return await Promise.race([
+        operation(),
+        new Promise((_, reject) => {
+          timer = setTimeout(
+            () => reject(new Error('Overview exceeded the original startup budget')),
+            remaining
+          );
+        }),
+      ]);
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+  report.worldPresentationBudgetMs = remainingStartupBudget();
+  await withinStartupBudget(() =>
+    page.evaluate(({ position, target }) => {
+      window.__MILLOS_RUNTIME__.setCameraPose(position, target);
+      window.__MILLOS_RUNTIME__.reset();
+    }, pose)
   );
-  report.worldPresentation = await page.evaluate(() => window.__MILLOS_RUNTIME__.snapshot());
+  await page.waitForFunction(
+    () => window.__MILLOS_RUNTIME__.framePacingSnapshot().sampleCount >= 3,
+    null,
+    { polling: 400, timeout: remainingStartupBudget() }
+  );
+  report.worldPresentation = await withinStartupBudget(() =>
+    page.evaluate(() => window.__MILLOS_RUNTIME__.snapshot())
+  );
   assert.equal(report.worldPresentation.worldIntegrity.passed, true);
-  await page.screenshot({ path: path.join(output, 'world-overview.png') });
+  await page.screenshot({
+    path: path.join(output, 'world-overview.png'),
+    timeout: remainingStartupBudget(),
+  });
+  report.worldPresentationElapsedMs = performance.now() - navigationStartedAt;
+  assert.ok(
+    report.worldPresentationElapsedMs <= startupTimeoutMs,
+    'Overview must finish within the original startup budget'
+  );
   report.csp = await page.evaluate(() => window.jevCspViolations);
   assert.equal(report.csp.length, 0);
   assert.equal(report.pageErrors.length, 0);
