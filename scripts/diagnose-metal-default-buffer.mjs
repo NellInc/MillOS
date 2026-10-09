@@ -152,7 +152,7 @@ try {
     if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE)
       throw Error('Bare target incomplete');
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    for (const phase of ['initial', 'resized', 'target-round-trip']) {
+    for (const phase of ['initial', 'resized', 'target-round-trip', 'stencilless-full-mask']) {
       if (phase === 'resized') {
         canvas.width = 720;
         canvas.height = 500;
@@ -170,12 +170,19 @@ try {
           }
           gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
           gl.clearColor(0.44, 0.68, 0.85, 1);
-          gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+          // The actual Three background clears all three buffers on its
+          // stencilless context. Keep that extra bit as one reduced control.
+          const clearMask =
+            gl.COLOR_BUFFER_BIT |
+            gl.DEPTH_BUFFER_BIT |
+            (phase === 'stencilless-full-mask' ? gl.STENCIL_BUFFER_BIT : 0);
+          gl.clear(clearMask);
           const clearSamples = read();
           gl.useProgram(program);
           gl.drawArrays(gl.TRIANGLES, 0, 3);
           frames.push({
             phase,
+            clearMask,
             attributes: gl.getContextAttributes(),
             drawingBuffer: [gl.drawingBufferWidth, gl.drawingBufferHeight],
             defaultRead: gl.getParameter(gl.READ_FRAMEBUFFER_BINDING) === null,
