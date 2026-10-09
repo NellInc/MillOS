@@ -484,9 +484,7 @@ export const ConveyorSystem = React.memo<ConveyorSystemProps>(({ productionSpeed
       />
       <group position={[...CONVEYOR_LAYOUT.main.position]}>
         <SideRails position={[-2, 1.3, 0]} length={CONVEYOR_LAYOUT.main.length - 4} />
-        {SUPPORT_LEG_POSITIONS.map((x) => (
-          <SupportLeg key={x} position={[x, 0, 0]} />
-        ))}
+        <ConveyorSupports positions={SUPPORT_LEG_POSITIONS} />
         <TensionMechanism position={[-30, 0.5, 0]} />
         <TensionMechanism position={[30, 0.5, 0]} />
       </group>
@@ -510,9 +508,9 @@ export const ConveyorSystem = React.memo<ConveyorSystemProps>(({ productionSpeed
             position={[run.id === CONVEYOR_LAYOUT.shipping.id ? 2 : -2, 1.3, 0]}
             length={run.length - 4}
           />
-          {SUPPORT_LEG_POSITIONS.filter((x) => Math.abs(x) < run.length / 2 - 1).map((x) => (
-            <SupportLeg key={x} position={[x, 0, 0]} />
-          ))}
+          <ConveyorSupports
+            positions={SUPPORT_LEG_POSITIONS.filter((x) => Math.abs(x) < run.length / 2 - 1)}
+          />
           {run.id === CONVEYOR_LAYOUT.shipping.id && (
             <InstancedFlourBags bags={bags} productionSpeed={effectiveSpeed} />
           )}
@@ -580,50 +578,103 @@ const SideRails: React.FC<{ position: [number, number, number]; length: number }
   }
 );
 
-// Support leg with cross bracing - using shared materials
-const SupportLeg: React.FC<{ position: [number, number, number] }> = React.memo(({ position }) => {
-  return (
-    <group position={position}>
-      {/* Front leg - only main supports cast shadows */}
-      <GeneratedBoxSurface
-        asset="factorySteelUnit"
-        size={[0.3, 0.5, 0.15]}
-        material={CONVEYOR_MATERIALS.paintedDarkGray}
-        position={[0, 0.25, -0.5]}
-        castShadow
-      />
-      {/* Back leg */}
-      <GeneratedBoxSurface
-        asset="factorySteelUnit"
-        size={[0.3, 0.5, 0.15]}
-        material={CONVEYOR_MATERIALS.paintedDarkGray}
-        position={[0, 0.25, 0.5]}
-        castShadow
-      />
-      {/* Cross brace - no shadow for small part */}
-      <GeneratedBoxSurface
-        asset="factorySteelUnit"
-        size={[0.08, 0.08, 0.9]}
-        material={CONVEYOR_MATERIALS.paintedMediumGray}
-        position={[0, 0.25, 0]}
-        rotation={[0, 0, 0.3]}
-      />
-      {/* Foot pads - no shadow for floor-level parts */}
-      <GeneratedBoxSurface
-        asset="factorySteelUnit"
-        size={[0.4, 0.04, 0.25]}
-        material={CONVEYOR_MATERIALS.paintedBlack}
-        position={[0, 0.02, -0.5]}
-      />
-      <GeneratedBoxSurface
-        asset="factorySteelUnit"
-        size={[0.4, 0.04, 0.25]}
-        material={CONVEYOR_MATERIALS.paintedBlack}
-        position={[0, 0.02, 0.5]}
-      />
-    </group>
+type ConveyorSupportPart = 'legs' | 'brace' | 'feet';
+const SUPPORT_PARTS = {
+  legs: {
+    size: [0.3, 0.5, 0.15],
+    y: 0.25,
+    z: [-0.5, 0.5],
+    rotationZ: 0,
+    material: CONVEYOR_MATERIALS.paintedDarkGray,
+    castShadow: true,
+  },
+  brace: {
+    size: [0.08, 0.08, 0.9],
+    y: 0.25,
+    z: [0],
+    rotationZ: 0.3,
+    material: CONVEYOR_MATERIALS.paintedMediumGray,
+    castShadow: false,
+  },
+  feet: {
+    size: [0.4, 0.04, 0.25],
+    y: 0.02,
+    z: [-0.5, 0.5],
+    rotationZ: 0,
+    material: CONVEYOR_MATERIALS.paintedBlack,
+    castShadow: false,
+  },
+} satisfies Record<
+  ConveyorSupportPart,
+  {
+    size: [number, number, number];
+    y: number;
+    z: number[];
+    rotationZ: number;
+    material: THREE.MeshStandardMaterial;
+    castShadow: boolean;
+  }
+>;
+
+export function getConveyorSupportMatrices(
+  positions: readonly number[],
+  part: ConveyorSupportPart
+) {
+  const spec = SUPPORT_PARTS[part];
+  const rotation = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, spec.rotationZ));
+  const scale = new THREE.Vector3(1, 1, 1);
+  return positions.flatMap((x) =>
+    spec.z.map((z) => new THREE.Matrix4().compose(new THREE.Vector3(x, spec.y, z), rotation, scale))
   );
-});
+}
+
+/** Fixed fittings retain metre-sized geometry, both normal layers and world-space finish.
+ * Working if each run draws its original five-piece supports in three instanced sets,
+ * with unchanged local transforms, palette and leg-only shadow casting.
+ */
+const InstancedSupportPart: React.FC<{
+  positions: readonly number[];
+  part: ConveyorSupportPart;
+}> = ({ positions, part }) => {
+  const spec = SUPPORT_PARTS[part];
+  const meshRef = useRef<THREE.InstancedMesh>(null);
+  const geometry = useMemo(() => new THREE.BoxGeometry(...spec.size), [spec]);
+  const matrices = useMemo(() => getConveyorSupportMatrices(positions, part), [positions, part]);
+  useEffect(() => () => geometry.dispose(), [geometry]);
+  useLayoutEffect(() => {
+    const mesh = meshRef.current;
+    if (!mesh) return;
+    matrices.forEach((matrix, index) => mesh.setMatrixAt(index, matrix));
+    mesh.instanceMatrix.needsUpdate = true;
+    mesh.computeBoundingBox();
+    mesh.computeBoundingSphere();
+  }, [matrices]);
+  return (
+    <instancedMesh
+      name={`conveyor-support-${part}`}
+      ref={meshRef}
+      args={[geometry, spec.material, matrices.length]}
+      castShadow={spec.castShadow}
+    >
+      <GeneratedBoundary fallback={null}>
+        <GeneratedGeometrySurface
+          asset="factorySteelUnit"
+          original={geometry}
+          meshRef={meshRef}
+          fitEnvelope
+        />
+      </GeneratedBoundary>
+    </instancedMesh>
+  );
+};
+
+const ConveyorSupports: React.FC<{ positions: readonly number[] }> = React.memo(({ positions }) => (
+  <group name="conveyor-supports">
+    {(['legs', 'brace', 'feet'] as const).map((part) => (
+      <InstancedSupportPart key={part} positions={positions} part={part} />
+    ))}
+  </group>
+));
 
 /**
  * Head pulley for the tension mechanisms at both ends of the main belt.
