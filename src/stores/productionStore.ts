@@ -15,6 +15,7 @@ import { useAnnouncementsStore, type AnnouncementsStore } from './announcementsS
 import { useIncidentReplayStore, type IncidentReplayStore } from './incidentReplayStore';
 import { useTruckScheduleStore, type TruckScheduleStore } from './truckScheduleStore';
 import { useUIStore } from './uiStore';
+import { useBreakdownStore } from './breakdownStore';
 
 // Re-export from new focused stores for backward compatibility
 export { useQCLabStore } from './qcLabStore';
@@ -383,8 +384,11 @@ export interface ProductionStore
 
   // Machine management
   setMachines: (machines: MachineData[]) => void;
-  /** Reduce a machine's wear (repairs breakdowns); returns the outcome for UI feedback */
-  performMaintenance: (machineId: string) => {
+  /** Routine wear service; an active fault requires its exact queued work-order restart. */
+  performMaintenance: (
+    machineId: string,
+    restartWorkOrderId?: string
+  ) => {
     success: boolean;
     wearReduced: number;
     message: string;
@@ -845,12 +849,35 @@ export const useProductionStore = create<ProductionStore>()(
       }),
 
     // MAINTENANCE SYSTEM - Reduces wear and repairs machines
-    performMaintenance: (machineId: string) => {
+    performMaintenance: (machineId: string, restartWorkOrderId?: string) => {
       const state = get();
       const machine = state.machines.find((m) => m.id === machineId);
 
       if (!machine) {
         return { success: false, wearReduced: 0, message: 'Machine not found' };
+      }
+
+      const maintenance = useBreakdownStore.getState();
+      const fault = maintenance.getBreakdownForMachine(machineId);
+      // Only the central tick applies the far-side restart, after explicit
+      // repair verification/request. A stale ID must never become routine service.
+      const authorizedRestart =
+        restartWorkOrderId !== undefined &&
+        fault &&
+        maintenance.workOrders.some(
+          (order) =>
+            order.id === restartWorkOrderId &&
+            order.id === fault.workOrderId &&
+            order.breakdownId === fault.id &&
+            order.machineId === machineId &&
+            order.phase === 'restart_requested'
+        );
+      if ((fault || restartWorkOrderId !== undefined) && !authorizedRestart) {
+        return {
+          success: false,
+          wearReduced: 0,
+          message: 'Repair lockout: complete and verify the work order, then request restart.',
+        };
       }
 
       const currentWear = machine.metrics.wear ?? 0;

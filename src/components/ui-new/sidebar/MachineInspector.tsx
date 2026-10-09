@@ -75,6 +75,11 @@ export const MachineInspector: React.FC<{
   const updateMachineStatus = useProductionStore((state) => state.updateMachineStatus);
   const updateMachineMetrics = useProductionStore((state) => state.updateMachineMetrics);
   const performMaintenance = useProductionStore((state) => state.performMaintenance);
+  const activeFault = useBreakdownStore((state) =>
+    state.activeBreakdowns.find((fault) => fault.machineId === machine.id)
+  );
+  const repairGuidance =
+    'Active repair work order. Use Mill Overview to dispatch service, complete and verify the repair, then request a controlled restart.';
   const partsInventory = useBreakdownStore((state) => state.partsInventory);
   const consumePart = useBreakdownStore((state) => state.consumePart);
   const addAlert = useUIStore((state) => state.addAlert);
@@ -89,18 +94,23 @@ export const MachineInspector: React.FC<{
     };
   }, []);
 
+  const reportMissingParts = () => {
+    addAlert({
+      id: `maintenance-noparts-${machine.id}-${Date.now()}`,
+      type: 'warning',
+      title: 'No Spare Parts',
+      message: `Cannot perform maintenance on ${machine.name}: parts inventory is empty. Wait for a parts delivery.`,
+      timestamp: new Date(),
+      machineId: machine.id,
+      acknowledged: false,
+    });
+  };
+
   const handleMaintenance = async () => {
+    if (useBreakdownStore.getState().getBreakdownForMachine(machine.id)) return;
     // Maintenance consumes one spare part - block when the store is empty
     if (!availablePart) {
-      addAlert({
-        id: `maintenance-noparts-${machine.id}-${Date.now()}`,
-        type: 'warning',
-        title: 'No Spare Parts',
-        message: `Cannot perform maintenance on ${machine.name}: parts inventory is empty. Wait for a parts delivery.`,
-        timestamp: new Date(),
-        machineId: machine.id,
-        acknowledged: false,
-      });
+      reportMissingParts();
       return;
     }
 
@@ -108,10 +118,20 @@ export const MachineInspector: React.FC<{
     // Brief delay to simulate the maintenance task
     await new Promise((resolve) => setTimeout(resolve, 1200));
 
+    // Another service action may have used the last part during the delay.
+    const currentPart = MAINTENANCE_PART_PRIORITY.find(
+      (part) => (useBreakdownStore.getState().partsInventory[part] ?? 0) > 0
+    );
+    if (!currentPart) {
+      reportMissingParts();
+      if (mountedRef.current) setIsMaintaining(false);
+      return;
+    }
+
     const result = performMaintenance(machine.id);
     if (result.success) {
       // performMaintenance fires its own success alert; consume the part used
-      consumePart(availablePart);
+      consumePart(currentPart);
     } else {
       addAlert({
         id: `maintenance-skip-${machine.id}-${Date.now()}`,
@@ -126,7 +146,14 @@ export const MachineInspector: React.FC<{
     if (mountedRef.current) setIsMaintaining(false);
   };
 
+  const restartBlocked = () =>
+    useGameSimulationStore.getState().emergencyActive ||
+    useProductionStore.getState().machines.find((candidate) => candidate.id === machine.id)
+      ?.status === 'critical' ||
+    Boolean(useBreakdownStore.getState().getBreakdownForMachine(machine.id));
+
   const handleRestart = async () => {
+    if (restartBlocked()) return;
     setIsRestarting(true);
     const previousStatus = machine.status;
 
@@ -135,6 +162,10 @@ export const MachineInspector: React.FC<{
 
     // Simulate restart sequence with staged recovery
     await new Promise((resolve) => setTimeout(resolve, 1000));
+    if (restartBlocked()) {
+      if (mountedRef.current) setIsRestarting(false);
+      return;
+    }
 
     // Reset metrics to healthy baseline values during restart
     // This simulates the machine cooling down and stabilizing
@@ -150,7 +181,7 @@ export const MachineInspector: React.FC<{
     // force a machine back to running after the facility has been stopped,
     // but always finish the restart when only the panel went away: the
     // machine must not be stranded idle because the sidebar closed.
-    if (useGameSimulationStore.getState().emergencyActive) {
+    if (restartBlocked()) {
       if (mountedRef.current) setIsRestarting(false);
       return;
     }
@@ -198,11 +229,13 @@ export const MachineInspector: React.FC<{
           />
           {machine.status}
         </p>
-        {(machine.status === 'critical' || machine.status === 'warning') && (
+        {(activeFault || machine.status === 'critical' || machine.status === 'warning') && (
           <p className="mt-3 text-sm text-slate-300">
-            {machine.status === 'critical'
-              ? CRITICAL_RESTART_GUIDANCE
-              : "Something's off. Check the metrics and maintenance log."}
+            {activeFault
+              ? repairGuidance
+              : machine.status === 'critical'
+                ? CRITICAL_RESTART_GUIDANCE
+                : "Something's off. Check the metrics and maintenance log."}
           </p>
         )}
       </div>
@@ -282,11 +315,13 @@ export const MachineInspector: React.FC<{
             </button>
             <button
               onClick={handleMaintenance}
-              disabled={isMaintaining || isRestarting}
+              disabled={isMaintaining || isRestarting || Boolean(activeFault)}
               title={
-                !availablePart
-                  ? 'Out of spare parts — maintenance needs one to proceed.'
-                  : `Reduces machine wear (consumes 1 spare part: ${availablePart})`
+                activeFault
+                  ? repairGuidance
+                  : !availablePart
+                    ? 'Out of spare parts — maintenance needs one to proceed.'
+                    : `Reduces machine wear (consumes 1 spare part: ${availablePart})`
               }
               className="w-full min-h-11 border border-white/15 bg-white/5 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed text-white py-2 rounded-lg font-medium text-xs transition-colors flex items-center justify-center gap-2"
             >
@@ -304,8 +339,19 @@ export const MachineInspector: React.FC<{
             </button>
             <button
               onClick={handleRestart}
-              disabled={isRestarting || isMaintaining || machine.status === 'critical'}
-              title={machine.status === 'critical' ? CRITICAL_RESTART_GUIDANCE : undefined}
+              disabled={
+                isRestarting ||
+                isMaintaining ||
+                machine.status === 'critical' ||
+                Boolean(activeFault)
+              }
+              title={
+                activeFault
+                  ? repairGuidance
+                  : machine.status === 'critical'
+                    ? CRITICAL_RESTART_GUIDANCE
+                    : undefined
+              }
               className="w-full min-h-11 border border-white/15 bg-white/5 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed text-white py-2 rounded-lg font-medium text-xs transition-colors flex items-center justify-center gap-2"
             >
               {isRestarting ? (

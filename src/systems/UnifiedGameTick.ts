@@ -479,7 +479,9 @@ function unifiedGameTick(ctx: TickContext): void {
   let maintenanceRestarted = false;
   for (const workOrder of maintenanceStore.workOrders) {
     if (workOrder.phase === 'restart_requested') {
-      const result = useProductionStore.getState().performMaintenance(workOrder.machineId);
+      const result = useProductionStore
+        .getState()
+        .performMaintenance(workOrder.machineId, workOrder.id);
       if (result.success) {
         useBreakdownStore.getState().confirmMachineRestart(workOrder.breakdownId);
         maintenanceRestarted = true;
