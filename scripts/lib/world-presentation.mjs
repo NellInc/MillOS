@@ -103,101 +103,184 @@ export function observeCompletedWorldFrame(timeoutMs) {
     let done = false;
     let timer;
     const hooks = [];
+    let submittedOpaque = null;
+    const renderList = (scene) => renderer.renderLists?.get(scene, 0);
+    const capture = (scene, camera) => {
+      const gl = renderer.getContext();
+      // WebGL2 has separate read/draw bindings. Retain consumed error flags;
+      // never correct state or render to make a diagnostic sample look valid.
+      const errors = () => {
+        const codes = [];
+        for (let index = 0; index < 8; index++) {
+          const code = gl.getError();
+          if (code === gl.NO_ERROR) break;
+          codes.push(code);
+        }
+        return { codes, saturated: codes.length === 8 };
+      };
+      const preExistingErrors = errors();
+      const viewport = [...gl.getParameter(gl.VIEWPORT)];
+      const readState = {
+        defaultDrawFramebuffer: gl.getParameter(gl.DRAW_FRAMEBUFFER_BINDING) === null,
+        defaultReadFramebuffer: gl.getParameter(gl.READ_FRAMEBUFFER_BINDING) === null,
+        readBuffer: gl.getParameter(gl.READ_BUFFER),
+        expectedDefaultReadBuffer: gl.BACK,
+        framebufferStatus: gl.checkFramebufferStatus(gl.READ_FRAMEBUFFER),
+        completeStatus: gl.FRAMEBUFFER_COMPLETE,
+        drawingBuffer: [gl.drawingBufferWidth, gl.drawingBufferHeight],
+        pixelPackBufferBound: gl.getParameter(gl.PIXEL_PACK_BUFFER_BINDING) !== null,
+        packAlignment: gl.getParameter(gl.PACK_ALIGNMENT),
+        packRowLength: gl.getParameter(gl.PACK_ROW_LENGTH),
+        packSkipPixels: gl.getParameter(gl.PACK_SKIP_PIXELS),
+        packSkipRows: gl.getParameter(gl.PACK_SKIP_ROWS),
+      };
+      const drawState = {
+        colorMask: [...gl.getParameter(gl.COLOR_WRITEMASK)],
+        clearColor: [...gl.getParameter(gl.COLOR_CLEAR_VALUE)],
+        scissorTest: gl.isEnabled(gl.SCISSOR_TEST),
+        scissorBox: [...gl.getParameter(gl.SCISSOR_BOX)],
+        drawBuffer: gl.getParameter(gl.DRAW_BUFFER0),
+        expectedDefaultDrawBuffer: gl.BACK,
+      };
+      const stateQueryErrors = errors();
+      const rect = canvas.getBoundingClientRect();
+      const samples = [];
+      for (const x of [0.15, 0.5, 0.85]) {
+        for (const y of [0.15, 0.5, 0.85]) {
+          const px = Math.floor(((48 + 902 * x - rect.x) / rect.width) * canvas.width);
+          const py = Math.floor((1 - (140 + 600 * y - rect.y) / rect.height) * canvas.height);
+          if (px < 0 || py < 0 || px >= canvas.width || py >= canvas.height) continue;
+          const rgba = new Uint8Array([251, 7, 239, 113]);
+          gl.readPixels(px, py, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, rgba);
+          samples.push({
+            x: px,
+            y: py,
+            rgba: [...rgba],
+            sentinelOverwritten: rgba.some((value, index) => value !== [251, 7, 239, 113][index]),
+            readErrors: errors(),
+          });
+        }
+      }
+      const list = renderList(scene);
+      return {
+        scene: scene.uuid,
+        camera: {
+          position: camera.position.toArray(),
+          quaternion: camera.quaternion.toArray(),
+          projection: camera.projectionMatrix?.toArray() ?? null,
+          worldInverse: camera.matrixWorldInverse?.toArray() ?? null,
+          near: camera.near,
+          far: camera.far,
+          fov: camera.fov,
+          aspect: camera.aspect,
+          layers: camera.layers?.mask,
+        },
+        sceneState: {
+          background: scene.background?.isColor
+            ? { type: 'Color', rgb: scene.background.toArray() }
+            : { type: scene.background?.type ?? null },
+          overrideMaterial: scene.overrideMaterial?.uuid ?? null,
+          renderListDepth: 0,
+          renderListCounts: list
+            ? Object.fromEntries(
+                ['opaque', 'transmissive', 'transparent'].map((key) => [key, list[key].length])
+              )
+            : null,
+        },
+        rendererState: {
+          clearColor: renderer.getClearColor?.({ copy: (color) => [color.r, color.g, color.b] }),
+          clearAlpha: renderer.getClearAlpha?.(),
+          autoClear: renderer.autoClear,
+          autoClearColor: renderer.autoClearColor,
+          autoClearDepth: renderer.autoClearDepth,
+          autoClearStencil: renderer.autoClearStencil,
+          toneMapping: renderer.toneMapping,
+          outputColorSpace: renderer.outputColorSpace,
+        },
+        defaultFramebuffer: readState.defaultDrawFramebuffer && readState.defaultReadFramebuffer,
+        preExistingErrors,
+        stateQueryErrors,
+        readState,
+        drawState,
+        viewport,
+        contextLost: gl.isContextLost(),
+        samples,
+      };
+    };
     const finish = (result) => {
       if (done) return;
       done = true;
       clearTimeout(timer);
-      for (const { scene, previous, callback } of hooks) {
-        if (scene.onAfterRender === callback) scene.onAfterRender = previous;
+      for (const { object, previous, callback } of [...hooks].reverse()) {
+        if (object.onAfterRender === callback) object.onAfterRender = previous;
       }
       resolve({ ...result, identity });
     };
     for (const scene of scenes) {
+      // Select an actually submitted opaque item from the preceding ordinary
+      // render list, rather than inferring visibility from Object3D.visible.
+      const item = renderList(scene)?.opaque.find(({ object }) => object.isMesh);
+      if (item) {
+        const object = item.object;
+        const previous = object.onAfterRender;
+        const callback = function (...args) {
+          previous.apply(this, args);
+          if (done || submittedOpaque || args[0] !== renderer || args[1] !== scene) return;
+          if (renderer.getRenderTarget() !== null) return;
+          try {
+            submittedOpaque = {
+              object: { uuid: object.uuid, name: object.name, type: object.type },
+              geometry: {
+                uuid: args[3].uuid,
+                vertices: args[3].attributes?.position?.count ?? null,
+                indices: args[3].index?.count ?? null,
+                drawRange: args[3].drawRange ?? null,
+              },
+              material: {
+                uuid: args[4].uuid,
+                type: args[4].type,
+                transparent: args[4].transparent,
+                colorWrite: args[4].colorWrite,
+                depthTest: args[4].depthTest,
+                depthWrite: args[4].depthWrite,
+              },
+              ...capture(scene, args[2]),
+            };
+          } catch (error) {
+            submittedOpaque = { observed: false, reason: error.message };
+          }
+        };
+        hooks.push({ object, previous, callback });
+        object.onAfterRender = callback;
+      }
       const previous = scene.onAfterRender;
       const callback = function (...args) {
         previous.apply(this, args);
         if (done || args[0] !== renderer) return;
         try {
           const gl = renderer.getContext();
-          // WebGL2 has separate read/draw bindings. A zero-filled destination
-          // from an invalid read says nothing about the completed scene pixels.
-          // Error reads consume flags, so retain every observed code separately.
-          const errors = () => {
-            const codes = [];
-            for (let index = 0; index < 8; index++) {
-              const code = gl.getError();
-              if (code === gl.NO_ERROR) break;
-              codes.push(code);
-            }
-            return { codes, saturated: codes.length === 8 };
-          };
-          const preExistingErrors = errors();
           if (renderer.getRenderTarget() !== null || gl.getParameter(gl.FRAMEBUFFER_BINDING))
             return;
-          const viewport = [...gl.getParameter(gl.VIEWPORT)];
-          const readState = {
-            defaultDrawFramebuffer: gl.getParameter(gl.DRAW_FRAMEBUFFER_BINDING) === null,
-            defaultReadFramebuffer: gl.getParameter(gl.READ_FRAMEBUFFER_BINDING) === null,
-            readBuffer: gl.getParameter(gl.READ_BUFFER),
-            expectedDefaultReadBuffer: gl.BACK,
-            framebufferStatus: gl.checkFramebufferStatus(gl.READ_FRAMEBUFFER),
-            completeStatus: gl.FRAMEBUFFER_COMPLETE,
-            drawingBuffer: [gl.drawingBufferWidth, gl.drawingBufferHeight],
-            pixelPackBufferBound: gl.getParameter(gl.PIXEL_PACK_BUFFER_BINDING) !== null,
-            packAlignment: gl.getParameter(gl.PACK_ALIGNMENT),
-            packRowLength: gl.getParameter(gl.PACK_ROW_LENGTH),
-            packSkipPixels: gl.getParameter(gl.PACK_SKIP_PIXELS),
-            packSkipRows: gl.getParameter(gl.PACK_SKIP_ROWS),
-          };
-          const stateQueryErrors = errors();
-          const rect = canvas.getBoundingClientRect();
-          const samples = [];
-          for (const x of [0.15, 0.5, 0.85]) {
-            for (const y of [0.15, 0.5, 0.85]) {
-              const px = Math.floor(((48 + 902 * x - rect.x) / rect.width) * canvas.width);
-              const py = Math.floor((1 - (140 + 600 * y - rect.y) / rect.height) * canvas.height);
-              if (px < 0 || py < 0 || px >= canvas.width || py >= canvas.height) continue;
-              const rgba = new Uint8Array([251, 7, 239, 113]);
-              gl.readPixels(px, py, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, rgba);
-              const readErrors = errors();
-              samples.push({
-                x: px,
-                y: py,
-                rgba: [...rgba],
-                sentinelOverwritten: rgba.some(
-                  (value, index) => value !== [251, 7, 239, 113][index]
-                ),
-                readErrors,
-              });
-            }
-          }
           finish({
             observed: true,
-            scene: scene.uuid,
-            camera: {
-              position: args[2].position.toArray(),
-              quaternion: args[2].quaternion.toArray(),
-            },
-            diagnosticVersion: 2,
-            defaultFramebuffer:
-              readState.defaultDrawFramebuffer && readState.defaultReadFramebuffer,
-            preExistingErrors,
-            stateQueryErrors,
-            readState,
-            viewport,
-            contextLost: gl.isContextLost(),
-            samples,
+            diagnosticVersion: 3,
+            ...capture(scene, args[2]),
+            submittedOpaque,
           });
         } catch (error) {
-          finish({ observed: false, reason: error.message });
+          finish({ observed: false, reason: error.message, submittedOpaque });
         }
       };
-      hooks.push({ scene, previous, callback });
+      hooks.push({ object: scene, previous, callback });
       scene.onAfterRender = callback;
     }
     timer = setTimeout(
       () =>
-        finish({ observed: false, reason: 'No ordinary completed canvas frame before deadline' }),
+        finish({
+          observed: false,
+          reason: 'No ordinary completed canvas frame before deadline',
+          submittedOpaque,
+        }),
       timeoutMs
     );
   });

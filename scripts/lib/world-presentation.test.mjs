@@ -72,6 +72,11 @@ function completedFrameFixture() {
     PACK_ROW_LENGTH: 12,
     PACK_SKIP_PIXELS: 13,
     PACK_SKIP_ROWS: 14,
+    COLOR_WRITEMASK: 15,
+    COLOR_CLEAR_VALUE: 16,
+    SCISSOR_TEST: 17,
+    SCISSOR_BOX: 18,
+    DRAW_BUFFER0: 19,
     BACK: 1029,
     NO_ERROR: 0,
     drawingBufferWidth: 720,
@@ -89,8 +94,13 @@ function completedFrameFixture() {
           12: 0,
           13: 0,
           14: 0,
+          15: [true, true, true, true],
+          16: [0.3, 0.4, 0.5, 1],
+          18: [0, 0, 720, 500],
+          19: 1029,
         })[key]
     ),
+    isEnabled: vi.fn(() => false),
     getError: vi.fn(() => 0),
     checkFramebufferStatus: vi.fn(() => 9),
     isContextLost: () => false,
@@ -104,12 +114,27 @@ function completedFrameFixture() {
     getContext: () => gl,
     getRenderTarget: () => null,
     render: vi.fn(),
+    renderLists: { get: vi.fn(() => ({ opaque: [], transmissive: [], transparent: [] })) },
+    getClearColor: (target) => target.copy({ r: 0.3, g: 0.4, b: 0.5 }),
+    getClearAlpha: () => 1,
+    autoClear: true,
+    autoClearColor: true,
   };
   const previous = vi.fn();
-  const scene = { isScene: true, uuid: 'actual-scene', onAfterRender: previous };
+  const scene = {
+    isScene: true,
+    uuid: 'actual-scene',
+    onAfterRender: previous,
+    background: { isColor: true, toArray: () => [0.3, 0.4, 0.5] },
+  };
   const camera = {
     position: { toArray: () => [1, 2, 3] },
     quaternion: { toArray: () => [0, 0, 0, 1] },
+    projectionMatrix: { toArray: () => [1, 0, 0, 1] },
+    matrixWorldInverse: { toArray: () => [1, 0, 0, 1] },
+    near: 0.5,
+    far: 300,
+    layers: { mask: 1 },
   };
   vi.stubGlobal('window', { jevObservedThree: [renderer, scene] });
   vi.stubGlobal('document', {
@@ -274,4 +299,118 @@ test('read framebuffer and pre-existing GL errors are recorded without resetting
   expect(result.readState.defaultReadFramebuffer).toBe(false);
   expect(result.preExistingErrors.codes).toEqual([1282]);
   expect(f.scene.onAfterRender).toBe(f.previous);
+});
+
+function opaqueFrameFixture() {
+  const f = completedFrameFixture();
+  const previous = vi.fn();
+  const object = {
+    isMesh: true,
+    uuid: 'submitted-mesh',
+    name: 'mill-wall',
+    type: 'Mesh',
+    onAfterRender: previous,
+  };
+  const material = {
+    uuid: 'wall-material',
+    type: 'MeshStandardMaterial',
+    transparent: false,
+    colorWrite: true,
+    depthTest: true,
+    depthWrite: true,
+  };
+  f.renderer.renderLists.get.mockReturnValue({
+    opaque: [{ object, material }],
+    transmissive: [],
+    transparent: [],
+  });
+  return { ...f, object, material, objectPrevious: previous };
+}
+
+test('retains opaque draw pixels separately from a subsequently cleared completed frame', async () => {
+  const f = opaqueFrameFixture();
+  const observation = observeCompletedWorldFrame(1000);
+  f.object.onAfterRender(f.renderer, f.scene, f.camera, {}, f.material);
+  f.gl.readPixels.mockImplementation((_x, _y, _w, _h, _format, _type, bytes) => bytes.fill(0));
+  f.scene.onAfterRender(f.renderer, f.scene, f.camera);
+  const result = await observation;
+  expect(result.submittedOpaque.samples.every((sample) => sample.rgba[3] === 255)).toBe(true);
+  expect(result.samples.every((sample) => sample.rgba[3] === 0)).toBe(true);
+  expect(result.submittedOpaque.object.uuid).toBe('submitted-mesh');
+  expect(result.sceneState.renderListCounts.opaque).toBe(1);
+  expect(f.object.onAfterRender).toBe(f.objectPrevious);
+  expect(f.objectPrevious).toHaveBeenCalledWith(f.renderer, f.scene, f.camera, {}, f.material);
+  expect(f.renderer.render).not.toHaveBeenCalled();
+});
+
+test('preserves draw-time masks and scissor separately from scene-end reset state', async () => {
+  const f = opaqueFrameFixture();
+  const original = f.gl.getParameter.getMockImplementation();
+  f.gl.getParameter.mockImplementation((key) =>
+    key === f.gl.COLOR_WRITEMASK ? [false, false, false, false] : original(key)
+  );
+  f.gl.isEnabled.mockReturnValue(true);
+  const observation = observeCompletedWorldFrame(1000);
+  f.object.onAfterRender(f.renderer, f.scene, f.camera, {}, f.material);
+  f.gl.getParameter.mockImplementation(original);
+  f.gl.isEnabled.mockReturnValue(false);
+  f.scene.onAfterRender(f.renderer, f.scene, f.camera);
+  const result = await observation;
+  expect(result.submittedOpaque.drawState).toMatchObject({
+    colorMask: [false, false, false, false],
+    scissorTest: true,
+  });
+  expect(result.drawState).toMatchObject({
+    colorMask: [true, true, true, true],
+    scissorTest: false,
+    drawBuffer: 1029,
+  });
+  expect(result.rendererState).toMatchObject({
+    clearColor: [0.3, 0.4, 0.5],
+    clearAlpha: 1,
+    autoClear: true,
+  });
+  expect(result.camera).toMatchObject({
+    projection: [1, 0, 0, 1],
+    worldInverse: [1, 0, 0, 1],
+    layers: 1,
+  });
+});
+
+test('empty submission stays explicit instead of treating scene-end counters as opaque proof', async () => {
+  const f = completedFrameFixture();
+  const observation = observeCompletedWorldFrame(1000);
+  f.scene.onAfterRender(f.renderer, f.scene, f.camera);
+  const result = await observation;
+  expect(result.submittedOpaque).toBeNull();
+  expect(result.sceneState.renderListCounts).toEqual({
+    opaque: 0,
+    transmissive: 0,
+    transparent: 0,
+  });
+});
+
+test('an offscreen object cannot provide default-buffer proof and timeout restores both hooks', async () => {
+  vi.useFakeTimers();
+  const f = opaqueFrameFixture();
+  const observation = observeCompletedWorldFrame(1000);
+  f.renderer.getRenderTarget = () => ({});
+  f.object.onAfterRender(f.renderer, f.scene, f.camera, {}, f.material);
+  await vi.advanceTimersByTimeAsync(1000);
+  expect((await observation).submittedOpaque).toBeNull();
+  expect(f.gl.readPixels).not.toHaveBeenCalled();
+  expect(f.object.onAfterRender).toBe(f.objectPrevious);
+  expect(f.scene.onAfterRender).toBe(f.previous);
+});
+
+test('one mesh shared by two observed scenes restores its original callback', async () => {
+  const f = opaqueFrameFixture();
+  const otherScene = { ...f.scene, uuid: 'other-scene', onAfterRender: vi.fn() };
+  window.jevObservedThree.push(otherScene);
+  const observation = observeCompletedWorldFrame(1000);
+  f.object.onAfterRender(f.renderer, f.scene, f.camera, {}, f.material);
+  f.scene.onAfterRender(f.renderer, f.scene, f.camera);
+  await observation;
+  expect(f.object.onAfterRender).toBe(f.objectPrevious);
+  expect(f.objectPrevious).toHaveBeenCalledOnce();
 });
