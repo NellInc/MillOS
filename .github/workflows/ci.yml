@@ -195,7 +195,11 @@ jobs:
         run: |
           set -o pipefail
           mkdir -p test-results/jev-browser
-          node scripts/validate-jev-browser.mjs --metal-renderer --software-compositor --backend-logging --cold-render-attribution \
+          # One PID-scoped Instruments capture. Raw trace/XML/private profiler
+          # logs stay in RUNNER_TEMP, outside the sole uploaded artifact path.
+          # Working if only allowlisted owned-PID numeric rows are uploaded and
+          # original world presentation still decides the Build verdict.
+          node scripts/validate-jev-browser.mjs --metal-renderer --software-compositor --backend-logging --cold-render-attribution --metal-system-trace \
             2>&1 | tee test-results/jev-browser/backend-browser.log
 
       # Run only after the actual world failed, preserving that failed check.

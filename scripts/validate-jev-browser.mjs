@@ -9,6 +9,7 @@ import { performance } from 'node:perf_hooks';
 import { chromium } from 'playwright';
 import { preview } from 'vite';
 import { acquireCaptureLock } from './lib/capture-lock.mjs';
+import { ownedGpuPid, preflightMetalTrace, startMetalTrace } from './lib/metal-system-trace.mjs';
 import {
   contrastFailedDefaultBuffer,
   inspectWorldPresentation,
@@ -21,6 +22,7 @@ import {
 } from './lib/metal-browser-admission.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const validationStartedAt = performance.now();
 const installedChrome = process.argv.includes('--installed-chrome');
 const output = path.join(
   root,
@@ -37,6 +39,9 @@ const metalRenderer = process.argv.includes('--metal-renderer') || !!localMetalD
 const softwareCompositor = process.argv.includes('--software-compositor');
 const backendLogging = process.argv.includes('--backend-logging');
 const coldRenderAttribution = process.argv.includes('--cold-render-attribution');
+const metalSystemTrace = process.argv.includes('--metal-system-trace');
+if (metalSystemTrace)
+  assert.ok(backendLogging, 'Metal system trace requires hosted backend logging');
 if (coldRenderAttribution) {
   assert.ok(backendLogging, 'Cold render attribution requires owned backend logging');
 }
@@ -99,6 +104,7 @@ const report = {
   softwareCompositor,
   backendLogging,
   coldRenderAttribution,
+  metalSystemTrace,
   executionEnvironment: localMetalDist
     ? 'local-diagnostic'
     : process.env.GITHUB_ACTIONS === 'true'
@@ -124,9 +130,24 @@ const checkpoint = async (phase) => {
   console.log(`Jev acceptance: ${phase}`);
 };
 const lock = await acquireCaptureLock('jev-browser-acceptance', { root });
-let browser, server, page;
+let browser, server, page, traceSession;
+const tracePrivateDirectory = path.join(
+  process.env.RUNNER_TEMP ?? root,
+  `millos-metal-trace-${process.pid}`
+);
 try {
   await mkdir(output, { recursive: true });
+  if (metalSystemTrace) {
+    await checkpoint('metal-trace-preflight');
+    assert.ok(process.env.RUNNER_TEMP, 'Hosted trace requires private disposable runner storage');
+    report.metalTracePreflight = await preflightMetalTrace(tracePrivateDirectory);
+    assert.ok(
+      report.metalTracePreflight.templateAvailable &&
+        report.metalTracePreflight.startNotificationAvailable &&
+        report.metalTracePreflight.notificationObserverAvailable,
+      'Hosted Metal tracing capability unavailable'
+    );
+  }
   const html = await readFile(path.join(builtDirectory, 'index.html'), 'utf8');
   if (metalRenderer) {
     report.buildInfo = JSON.parse(
@@ -223,6 +244,14 @@ try {
     } finally {
       await session.detach();
     }
+  }
+  if (metalSystemTrace) {
+    await checkpoint('metal-trace-start');
+    traceSession = await startMetalTrace(
+      ownedGpuPid(report.backendProcesses),
+      tracePrivateDirectory
+    );
+    assert.ok(traceSession.started, 'Owned GPU trace did not confirm recording before navigation');
   }
   await checkpoint('browser-context');
   const context = await browser.newContext({ serviceWorkers: 'block', reducedMotion: 'reduce' });
@@ -642,6 +671,26 @@ try {
   }
   process.exitCode = 1;
 } finally {
+  // Save the original application verdict before potentially slow trace export.
+  // Working if profiler failure/timeout cannot erase or replace visual evidence.
+  await writeFile(path.join(output, 'result.json'), `${JSON.stringify(report, null, 2)}\n`);
+  if (traceSession) {
+    try {
+      const remainingStepMs = Math.max(
+        0,
+        480_000 - (performance.now() - validationStartedAt) - 15_000
+      );
+      report.metalTrace = await traceSession.finish(
+        Date.now() + Math.min(120_000, remainingStepMs)
+      );
+    } catch {
+      report.metalTrace = {
+        diagnosticOnly: true,
+        status: 'export-unavailable',
+        rawUploaded: false,
+      };
+    }
+  }
   await writeFile(path.join(output, 'result.json'), `${JSON.stringify(report, null, 2)}\n`);
   console.log(JSON.stringify(report, null, 2));
   await browser?.close();
