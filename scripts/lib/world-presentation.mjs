@@ -104,8 +104,10 @@ export function observeCompletedWorldFrame(timeoutMs) {
     let timer;
     const hooks = [];
     let submittedOpaque = null;
+    let naturalClear = null;
+    let activeFrame = null;
     const renderList = (scene) => renderer.renderLists?.get(scene, 0);
-    const capture = (scene, camera) => {
+    const capture = (scene, camera, samplePixels = true) => {
       const gl = renderer.getContext();
       // WebGL2 has separate read/draw bindings. Retain consumed error flags;
       // never correct state or render to make a diagnostic sample look valid.
@@ -138,6 +140,7 @@ export function observeCompletedWorldFrame(timeoutMs) {
         colorMask: [...gl.getParameter(gl.COLOR_WRITEMASK)],
         clearColor: [...gl.getParameter(gl.COLOR_CLEAR_VALUE)],
         scissorTest: gl.isEnabled(gl.SCISSOR_TEST),
+        rasterizerDiscard: gl.isEnabled(gl.RASTERIZER_DISCARD),
         scissorBox: [...gl.getParameter(gl.SCISSOR_BOX)],
         drawBuffer: gl.getParameter(gl.DRAW_BUFFER0),
         expectedDefaultDrawBuffer: gl.BACK,
@@ -145,7 +148,7 @@ export function observeCompletedWorldFrame(timeoutMs) {
       const stateQueryErrors = errors();
       const rect = canvas.getBoundingClientRect();
       const samples = [];
-      for (const x of [0.15, 0.5, 0.85]) {
+      for (const x of samplePixels ? [0.15, 0.5, 0.85] : []) {
         for (const y of [0.15, 0.5, 0.85]) {
           const px = Math.floor(((48 + 902 * x - rect.x) / rect.width) * canvas.width);
           const py = Math.floor((1 - (140 + 600 * y - rect.y) / rect.height) * canvas.height);
@@ -211,12 +214,70 @@ export function observeCompletedWorldFrame(timeoutMs) {
       if (done) return;
       done = true;
       clearTimeout(timer);
-      for (const { object, previous, callback } of [...hooks].reverse()) {
-        if (object.onAfterRender === callback) object.onAfterRender = previous;
+      for (const { object, property = 'onAfterRender', previous, callback } of [
+        ...hooks,
+      ].reverse()) {
+        if (object[property] === callback) object[property] = previous;
       }
       resolve({ ...result, identity });
     };
+    if (typeof renderer.clear === 'function') {
+      const previous = renderer.clear;
+      const callback = function (...args) {
+        let frame = null;
+        let before = null;
+        try {
+          if (
+            !done &&
+            !naturalClear &&
+            activeFrame &&
+            (args[0] === undefined || args[0]) &&
+            renderer.getRenderTarget() === null &&
+            renderer.getContext().getParameter(renderer.getContext().DRAW_FRAMEBUFFER_BINDING) ===
+              null
+          ) {
+            frame = activeFrame;
+            // Query state only before forwarding. The extra post-clear read can
+            // synchronise a failing backend; it is diagnostic, never a repair.
+            before = capture(frame.scene, frame.camera, false);
+          }
+        } catch (error) {
+          naturalClear = { observed: false, reason: error.message };
+        }
+        // Exactly the existing receiver/arguments/return value, even if a
+        // diagnostic query failed. Never issue an additional clear or draw.
+        const value = previous.apply(this, args);
+        if (frame) {
+          try {
+            naturalClear = {
+              observed: true,
+              arguments: args.map((arg) => (arg === undefined ? 'undefined' : arg)),
+              receiverMatchesRenderer: this === renderer,
+              before,
+              after: capture(frame.scene, frame.camera),
+            };
+          } catch (error) {
+            naturalClear = { observed: false, reason: error.message, before };
+          }
+        }
+        return value;
+      };
+      hooks.push({ object: renderer, property: 'clear', previous, callback });
+      renderer.clear = callback;
+    }
     for (const scene of scenes) {
+      const beforePrevious = scene.onBeforeRender;
+      const beforeCallback = function (...args) {
+        beforePrevious?.apply(this, args);
+        if (!done && args[0] === renderer) activeFrame = { scene, camera: args[2] };
+      };
+      hooks.push({
+        object: scene,
+        property: 'onBeforeRender',
+        previous: beforePrevious,
+        callback: beforeCallback,
+      });
+      scene.onBeforeRender = beforeCallback;
       // Select an actually submitted opaque item from the preceding ordinary
       // render list, rather than inferring visibility from Object3D.visible.
       const item = renderList(scene)?.opaque.find(({ object }) => object.isMesh);
@@ -263,12 +324,13 @@ export function observeCompletedWorldFrame(timeoutMs) {
             return;
           finish({
             observed: true,
-            diagnosticVersion: 3,
+            diagnosticVersion: 4,
             ...capture(scene, args[2]),
             submittedOpaque,
+            naturalClear,
           });
         } catch (error) {
-          finish({ observed: false, reason: error.message, submittedOpaque });
+          finish({ observed: false, reason: error.message, submittedOpaque, naturalClear });
         }
       };
       hooks.push({ object: scene, previous, callback });
@@ -280,6 +342,7 @@ export function observeCompletedWorldFrame(timeoutMs) {
           observed: false,
           reason: 'No ordinary completed canvas frame before deadline',
           submittedOpaque,
+          naturalClear,
         }),
       timeoutMs
     );

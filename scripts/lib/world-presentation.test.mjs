@@ -77,6 +77,7 @@ function completedFrameFixture() {
     SCISSOR_TEST: 17,
     SCISSOR_BOX: 18,
     DRAW_BUFFER0: 19,
+    RASTERIZER_DISCARD: 20,
     BACK: 1029,
     NO_ERROR: 0,
     drawingBufferWidth: 720,
@@ -114,6 +115,9 @@ function completedFrameFixture() {
     getContext: () => gl,
     getRenderTarget: () => null,
     render: vi.fn(),
+    clear: vi.fn(function () {
+      return this;
+    }),
     renderLists: { get: vi.fn(() => ({ opaque: [], transmissive: [], transparent: [] })) },
     getClearColor: (target) => target.copy({ r: 0.3, g: 0.4, b: 0.5 }),
     getClearAlpha: () => 1,
@@ -125,6 +129,7 @@ function completedFrameFixture() {
     isScene: true,
     uuid: 'actual-scene',
     onAfterRender: previous,
+    onBeforeRender: vi.fn(),
     background: { isColor: true, toArray: () => [0.3, 0.4, 0.5] },
   };
   const camera = {
@@ -413,4 +418,58 @@ test('one mesh shared by two observed scenes restores its original callback', as
   await observation;
   expect(f.object.onAfterRender).toBe(f.objectPrevious);
   expect(f.objectPrevious).toHaveBeenCalledOnce();
+});
+
+test('observes a natural colour clear before a zero opaque draw, forwarding it exactly once', async () => {
+  const f = opaqueFrameFixture();
+  const clear = f.renderer.clear;
+  const before = f.scene.onBeforeRender;
+  const observation = observeCompletedWorldFrame(1000);
+  f.scene.onBeforeRender(f.renderer, f.scene, f.camera);
+  expect(f.renderer.clear(true, false, undefined)).toBe(f.renderer);
+  expect(clear).toHaveBeenCalledExactlyOnceWith(true, false, undefined);
+  expect(f.gl.readPixels).toHaveBeenCalledTimes(9);
+  f.gl.readPixels.mockImplementation((_x, _y, _w, _h, _format, _type, bytes) => bytes.fill(0));
+  f.object.onAfterRender(f.renderer, f.scene, f.camera, {}, f.material);
+  f.scene.onAfterRender(f.renderer, f.scene, f.camera);
+  const result = await observation;
+  expect(result.naturalClear.arguments).toEqual([true, false, 'undefined']);
+  expect(result.naturalClear.before.samples).toEqual([]);
+  expect(result.naturalClear.after.samples.every((sample) => sample.rgba[3] === 255)).toBe(true);
+  expect(result.submittedOpaque.samples.every((sample) => sample.rgba[3] === 0)).toBe(true);
+  expect(result.naturalClear.after.drawState.rasterizerDiscard).toBe(false);
+  expect(result.naturalClear.receiverMatchesRenderer).toBe(true);
+  expect(f.renderer.clear).toBe(clear);
+  expect(f.scene.onBeforeRender).toBe(before);
+  expect(before).toHaveBeenCalledExactlyOnceWith(f.renderer, f.scene, f.camera);
+  expect(f.renderer.render).not.toHaveBeenCalled();
+});
+
+test('ignores offscreen and depth-only clears while preserving each call and return value', async () => {
+  const f = completedFrameFixture();
+  const clear = f.renderer.clear;
+  const observation = observeCompletedWorldFrame(1000);
+  f.scene.onBeforeRender(f.renderer, f.scene, f.camera);
+  f.renderer.getRenderTarget = () => ({});
+  expect(f.renderer.clear()).toBe(f.renderer);
+  f.renderer.getRenderTarget = () => null;
+  expect(f.renderer.clear(false, true, false)).toBe(f.renderer);
+  expect(f.gl.readPixels).not.toHaveBeenCalled();
+  f.scene.onAfterRender(f.renderer, f.scene, f.camera);
+  expect((await observation).naturalClear).toBeNull();
+  expect(clear.mock.calls).toEqual([[], [false, true, false]]);
+});
+
+test('timeout restores the clear and before-frame hooks without replacing later owners', async () => {
+  vi.useFakeTimers();
+  const f = completedFrameFixture();
+  const before = f.scene.onBeforeRender;
+  const newerClear = vi.fn();
+  const observation = observeCompletedWorldFrame(1000);
+  f.renderer.clear = newerClear;
+  await vi.advanceTimersByTimeAsync(1000);
+  expect((await observation).naturalClear).toBeNull();
+  expect(f.renderer.clear).toBe(newerClear);
+  expect(f.scene.onBeforeRender).toBe(before);
+  expect(f.gl.readPixels).not.toHaveBeenCalled();
 });
