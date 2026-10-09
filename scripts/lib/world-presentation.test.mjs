@@ -62,7 +62,37 @@ function completedFrameFixture() {
     VIEWPORT: 2,
     RGBA: 3,
     UNSIGNED_BYTE: 4,
-    getParameter: (key) => (key === 1 ? null : [0, 0, 720, 500]),
+    DRAW_FRAMEBUFFER_BINDING: 5,
+    READ_FRAMEBUFFER_BINDING: 6,
+    READ_BUFFER: 7,
+    READ_FRAMEBUFFER: 8,
+    FRAMEBUFFER_COMPLETE: 9,
+    PIXEL_PACK_BUFFER_BINDING: 10,
+    PACK_ALIGNMENT: 11,
+    PACK_ROW_LENGTH: 12,
+    PACK_SKIP_PIXELS: 13,
+    PACK_SKIP_ROWS: 14,
+    BACK: 1029,
+    NO_ERROR: 0,
+    drawingBufferWidth: 720,
+    drawingBufferHeight: 500,
+    getParameter: vi.fn(
+      (key) =>
+        ({
+          1: null,
+          2: [0, 0, 720, 500],
+          5: null,
+          6: null,
+          7: 1029,
+          10: null,
+          11: 4,
+          12: 0,
+          13: 0,
+          14: 0,
+        })[key]
+    ),
+    getError: vi.fn(() => 0),
+    checkFramebufferStatus: vi.fn(() => 9),
     isContextLost: () => false,
     readPixels: vi.fn((x, y, _width, _height, _format, _type, bytes) =>
       bytes.set([x % 256, y % 256, 40, 255])
@@ -194,5 +224,54 @@ test('readback errors restore callbacks and remain diagnostic failures', async (
   const observation = observeCompletedWorldFrame(1000);
   f.scene.onAfterRender(f.renderer, f.scene, f.camera);
   expect(await observation).toMatchObject({ observed: false, reason: 'Readback unavailable' });
+  expect(f.scene.onAfterRender).toBe(f.previous);
+});
+
+test('untouched sentinel bytes stay distinct from genuine transparent-zero reads', async () => {
+  const f = completedFrameFixture();
+  f.gl.readPixels.mockImplementation(() => {});
+  const observation = observeCompletedWorldFrame(1000);
+  f.scene.onAfterRender(f.renderer, f.scene, f.camera);
+  const result = await observation;
+  expect(result.samples.every((sample) => !sample.sentinelOverwritten)).toBe(true);
+  expect(result.samples[0].rgba).toEqual([251, 7, 239, 113]);
+  expect(result.readState.defaultReadFramebuffer).toBe(true);
+  expect(result.preExistingErrors.codes).toEqual([]);
+});
+
+test('valid transparent-zero samples overwrite the sentinel without GL errors', async () => {
+  const f = completedFrameFixture();
+  f.gl.readPixels.mockImplementation((_x, _y, _w, _h, _format, _type, bytes) => bytes.fill(0));
+  const observation = observeCompletedWorldFrame(1000);
+  f.scene.onAfterRender(f.renderer, f.scene, f.camera);
+  const result = await observation;
+  expect(result.samples.every((sample) => sample.sentinelOverwritten)).toBe(true);
+  expect(result.samples[0]).toMatchObject({ rgba: [0, 0, 0, 0], readErrors: { codes: [] } });
+});
+
+test('invalid reads retain the sentinel and their GL error codes', async () => {
+  const f = completedFrameFixture();
+  f.gl.readPixels.mockImplementation(() => {
+    f.gl.getError.mockReturnValueOnce(1282).mockReturnValueOnce(0);
+  });
+  const observation = observeCompletedWorldFrame(1000);
+  f.scene.onAfterRender(f.renderer, f.scene, f.camera);
+  const result = await observation;
+  expect(result.samples.every((sample) => !sample.sentinelOverwritten)).toBe(true);
+  expect(result.samples.every((sample) => sample.readErrors.codes[0] === 1282)).toBe(true);
+});
+
+test('read framebuffer and pre-existing GL errors are recorded without resetting state', async () => {
+  const f = completedFrameFixture();
+  const getParameter = f.gl.getParameter.getMockImplementation();
+  f.gl.getParameter.mockImplementation((key) => (key === 6 ? {} : getParameter(key)));
+  f.gl.getError.mockReturnValueOnce(1282).mockReturnValueOnce(0);
+  const observation = observeCompletedWorldFrame(1000);
+  f.scene.onAfterRender(f.renderer, f.scene, f.camera);
+  const result = await observation;
+  expect(result.defaultFramebuffer).toBe(false);
+  expect(result.readState.defaultDrawFramebuffer).toBe(true);
+  expect(result.readState.defaultReadFramebuffer).toBe(false);
+  expect(result.preExistingErrors.codes).toEqual([1282]);
   expect(f.scene.onAfterRender).toBe(f.previous);
 });

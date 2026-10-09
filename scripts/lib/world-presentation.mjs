@@ -119,9 +119,37 @@ export function observeCompletedWorldFrame(timeoutMs) {
         if (done || args[0] !== renderer) return;
         try {
           const gl = renderer.getContext();
+          // WebGL2 has separate read/draw bindings. A zero-filled destination
+          // from an invalid read says nothing about the completed scene pixels.
+          // Error reads consume flags, so retain every observed code separately.
+          const errors = () => {
+            const codes = [];
+            for (let index = 0; index < 8; index++) {
+              const code = gl.getError();
+              if (code === gl.NO_ERROR) break;
+              codes.push(code);
+            }
+            return { codes, saturated: codes.length === 8 };
+          };
+          const preExistingErrors = errors();
           if (renderer.getRenderTarget() !== null || gl.getParameter(gl.FRAMEBUFFER_BINDING))
             return;
           const viewport = [...gl.getParameter(gl.VIEWPORT)];
+          const readState = {
+            defaultDrawFramebuffer: gl.getParameter(gl.DRAW_FRAMEBUFFER_BINDING) === null,
+            defaultReadFramebuffer: gl.getParameter(gl.READ_FRAMEBUFFER_BINDING) === null,
+            readBuffer: gl.getParameter(gl.READ_BUFFER),
+            expectedDefaultReadBuffer: gl.BACK,
+            framebufferStatus: gl.checkFramebufferStatus(gl.READ_FRAMEBUFFER),
+            completeStatus: gl.FRAMEBUFFER_COMPLETE,
+            drawingBuffer: [gl.drawingBufferWidth, gl.drawingBufferHeight],
+            pixelPackBufferBound: gl.getParameter(gl.PIXEL_PACK_BUFFER_BINDING) !== null,
+            packAlignment: gl.getParameter(gl.PACK_ALIGNMENT),
+            packRowLength: gl.getParameter(gl.PACK_ROW_LENGTH),
+            packSkipPixels: gl.getParameter(gl.PACK_SKIP_PIXELS),
+            packSkipRows: gl.getParameter(gl.PACK_SKIP_ROWS),
+          };
+          const stateQueryErrors = errors();
           const rect = canvas.getBoundingClientRect();
           const samples = [];
           for (const x of [0.15, 0.5, 0.85]) {
@@ -129,9 +157,18 @@ export function observeCompletedWorldFrame(timeoutMs) {
               const px = Math.floor(((48 + 902 * x - rect.x) / rect.width) * canvas.width);
               const py = Math.floor((1 - (140 + 600 * y - rect.y) / rect.height) * canvas.height);
               if (px < 0 || py < 0 || px >= canvas.width || py >= canvas.height) continue;
-              const rgba = new Uint8Array(4);
+              const rgba = new Uint8Array([251, 7, 239, 113]);
               gl.readPixels(px, py, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, rgba);
-              samples.push({ x: px, y: py, rgba: [...rgba] });
+              const readErrors = errors();
+              samples.push({
+                x: px,
+                y: py,
+                rgba: [...rgba],
+                sentinelOverwritten: rgba.some(
+                  (value, index) => value !== [251, 7, 239, 113][index]
+                ),
+                readErrors,
+              });
             }
           }
           finish({
@@ -141,7 +178,12 @@ export function observeCompletedWorldFrame(timeoutMs) {
               position: args[2].position.toArray(),
               quaternion: args[2].quaternion.toArray(),
             },
-            defaultFramebuffer: true,
+            diagnosticVersion: 2,
+            defaultFramebuffer:
+              readState.defaultDrawFramebuffer && readState.defaultReadFramebuffer,
+            preExistingErrors,
+            stateQueryErrors,
+            readState,
             viewport,
             contextLost: gl.isContextLost(),
             samples,
