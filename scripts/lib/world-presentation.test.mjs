@@ -106,6 +106,20 @@ test('cold attribution accepts available GPU results but leaves disjoint queries
   expect(row).not.toHaveProperty('gpuMs');
 });
 
+test('the same camera in a new cold pose is retained after the initial record limit', () => {
+  const { renderer, window } = coldRenderFixture();
+  let x = 0;
+  const scene = { uuid: 'world' };
+  const camera = { uuid: 'camera', position: { toArray: () => [x, 0, 0] } };
+  for (let index = 0; index < 520; index++) renderer.render(scene, camera);
+  x = 100;
+  renderer.render(scene, camera);
+  const receipt = window.jevColdRenderAttribution.finish();
+  expect(receipt.rows).toHaveLength(512);
+  expect(receipt.droppedRows).toBeGreaterThan(0);
+  expect(receipt.rows.find((row) => row.camera.position[0] === 100)).toMatchObject({ first: true });
+});
+
 test('cold cleanup preserves later render owners and diagnostics cannot mask an original exception', () => {
   const { renderer, window, gl } = coldRenderFixture();
   const retainedHook = renderer.render;

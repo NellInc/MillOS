@@ -68,7 +68,11 @@ export function installColdRenderAttribution() {
           poll();
           passes++;
           const target = this.getRenderTarget();
-          const key = `${scene?.uuid}:${camera?.uuid}:${target?.uuid ?? 'canvas'}`;
+          // The validator reuses one camera for sun and cold overview poses.
+          // UUID alone would miss the first newly visible world pass.
+          const position = camera?.position?.toArray();
+          const size = [gl.drawingBufferWidth, gl.drawingBufferHeight];
+          const key = `${scene?.uuid}:${camera?.uuid}:${position?.join(',')}:${target?.uuid ?? 'canvas'}:${size}`;
           const first = !seen.has(key);
           seen.add(key);
           row = {
@@ -83,8 +87,9 @@ export function installColdRenderAttribution() {
             camera: {
               uuid: camera?.uuid,
               type: camera?.type,
-              position: camera?.position?.toArray(),
+              position,
             },
+            drawingBuffer: size,
             target: target
               ? { uuid: target.uuid, width: target.width, height: target.height }
               : null,
@@ -137,7 +142,16 @@ export function installColdRenderAttribution() {
             }
             if (row.first || query || row.cpuMs >= 16) {
               if (rows.length < limits.rows) rows.push(row);
-              else droppedRows++;
+              else {
+                // Retain new cold poses and the longest spans across the full
+                // startup, rather than exhausting storage before overview.
+                let shortest = 0;
+                for (let index = 1; index < rows.length; index++) {
+                  if (rows[index].cpuMs < rows[shortest].cpuMs) shortest = index;
+                }
+                if (row.first || row.cpuMs > rows[shortest].cpuMs) rows[shortest] = row;
+                droppedRows++;
+              }
             }
           });
         }
