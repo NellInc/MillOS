@@ -9,6 +9,7 @@ import { performance } from 'node:perf_hooks';
 import { chromium } from 'playwright';
 import { preview } from 'vite';
 import { acquireCaptureLock } from './lib/capture-lock.mjs';
+import { inspectWorldPresentation } from './lib/world-presentation.mjs';
 import {
   assertHostedMetalCompositor,
   assertMetalBrowserAdmission,
@@ -451,7 +452,8 @@ try {
   }
   // The sun framing keeps startup/UI admission low-fill. Also present the real
   // assembled factory, using the current authored pose rather than a copied table.
-  // Working if the overview image and integrity report retain all world groups.
+  // Working if all world groups remain present and the unobstructed overview
+  // pixels contain scene detail. Draw counters alone cannot admit a blank image.
   const layoutSource = await readFile(path.join(root, 'src/constants/siteLayout.ts'), 'utf8');
   const overview = layoutSource.match(
     /overview:\s*\{\s*position:\s*(\[[^\]]+\])\s*,\s*target:\s*(\[[^\]]+\])/
@@ -502,10 +504,33 @@ try {
     page.evaluate(() => window.__MILLOS_RUNTIME__.snapshot())
   );
   assert.equal(report.worldPresentation.worldIntegrity.passed, true);
-  await page.screenshot({
+  report.worldCanvas = await withinStartupBudget(() =>
+    page.evaluate(() => {
+      const canvas = document.querySelector('canvas[data-engine^="three.js"]');
+      if (!canvas) return null;
+      const gl = canvas.getContext('webgl2');
+      const rect = canvas.getBoundingClientRect();
+      const css = getComputedStyle(canvas);
+      return {
+        width: canvas.width,
+        height: canvas.height,
+        rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+        css: { display: css.display, visibility: css.visibility, opacity: css.opacity },
+        contextLost: gl?.isContextLost() ?? null,
+        contextAttributes: gl?.getContextAttributes() ?? null,
+      };
+    })
+  );
+  const worldImage = await page.screenshot({
     path: path.join(output, 'world-overview.png'),
     timeout: remainingStartupBudget(),
   });
+  report.worldPixels = inspectWorldPresentation(worldImage);
+  assert.equal(
+    report.worldPixels.passed,
+    true,
+    `Overview must visibly present the world behind the HUD: ${JSON.stringify(report.worldPixels)}`
+  );
   report.worldPresentationElapsedMs = performance.now() - navigationStartedAt;
   assert.ok(
     report.worldPresentationElapsedMs <= startupTimeoutMs,
