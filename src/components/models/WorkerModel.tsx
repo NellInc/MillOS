@@ -14,6 +14,7 @@ import { useDracoGLTF } from '../../utils/dracoLoader';
 import type { WorkerAppearance, WorkerBodyType, WorkerWorkAction } from '../workers/workerTypes';
 import { ToolAccessory } from '../workers/WorkerTools';
 import { SHARED_WORKER_GEOMETRY } from '../workers/SharedWorkerGeometries';
+import { SHARED_WORKER_ACCESSORY_MATERIALS } from '../workers/SharedWorkerMaterials';
 import type { WorkerMotionState } from '../workers/workerTypes';
 import {
   createSeatedWorkerPose,
@@ -149,43 +150,11 @@ interface AccessoryMaterials {
 
 function createAccessoryMaterials(appearance: WorkerAppearance): AccessoryMaterials {
   return {
-    glasses: new THREE.MeshPhysicalMaterial({
-      color: '#c6e6f5',
-      roughness: 0.12,
-      metalness: 0,
-      transparent: true,
-      opacity: 0.28,
-      depthWrite: false,
-    }),
-    dark: new THREE.MeshStandardMaterial({
-      color: '#20272d',
-      roughness: 0.7,
-      metalness: 0.08,
-    }),
+    ...SHARED_WORKER_ACCESSORY_MATERIALS,
     accent: new THREE.MeshStandardMaterial({
       color: appearance.accentColor,
       roughness: 0.62,
       metalness: 0.06,
-    }),
-    badge: new THREE.MeshStandardMaterial({
-      color: '#f4f7f8',
-      roughness: 0.48,
-      metalness: 0.02,
-    }),
-    // Retroreflective banding. The read comes from a very tight sheen lobe plus
-    // an elevated environment contribution, not from an emissive cheat: at
-    // 0.10 this stays below the 1.0 linear threshold that only behaves inside
-    // the composer, so it looks the same on the 'low' tier where none exists.
-    reflective: new THREE.MeshPhysicalMaterial({
-      color: '#f2f7ea',
-      emissive: '#cfe0d4',
-      emissiveIntensity: 0.1,
-      roughness: 0.26,
-      metalness: 0,
-      sheen: 1,
-      sheenColor: new THREE.Color('#ffffff'),
-      sheenRoughness: 0.12,
-      envMapIntensity: 2.4,
     }),
   };
 }
@@ -825,7 +794,8 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
     () => () => {
       prepared.materials.forEach((material) => material.dispose());
       prepared.skeletons.forEach((skeleton) => skeleton.dispose());
-      Object.values(accessoryMaterials).forEach((material) => material.dispose());
+      // Only the individual accent is owned here; fixed fittings are shared.
+      accessoryMaterials.accent.dispose();
     },
     [accessoryMaterials, prepared]
   );

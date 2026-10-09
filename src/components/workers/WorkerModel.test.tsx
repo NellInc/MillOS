@@ -3,6 +3,7 @@ import { render, cleanup } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { getWorkerAppearance, type WorkerMotionState } from './workerTypes';
+import { SHARED_WORKER_ACCESSORY_MATERIALS } from './SharedWorkerMaterials';
 
 const harness = vi.hoisted(() => ({
   frame: null as null | ((state: unknown, delta: number) => void),
@@ -272,4 +273,32 @@ it('retains per-mesh bind matrices and disposes only a redundant private palette
   expect(disposeFirst).not.toHaveBeenCalled();
   expect(shareWorkerSkin(root)).toEqual([first]);
   expect(disposeDuplicate).toHaveBeenCalledTimes(1);
+});
+
+it('keeps shared fittings alive when one worker leaves and disposes individual accents', () => {
+  harness.asset = { scene: new THREE.Group(), animations: [] };
+  harness.clone = () => new THREE.Group();
+  const motion: WorkerMotionState = {
+    activity: 'idle',
+    groundSpeed: 0,
+    seated: false,
+    phase: 0,
+    enabled: false,
+  };
+  const engineer = getWorkerAppearance('Engineer', '', 'shared-fittings-engineer');
+  const operator = getWorkerAppearance('Operator', '', 'shared-fittings-operator');
+  const dispose = vi.spyOn(THREE.Material.prototype, 'dispose');
+  const first = render(<WorkerModel appearance={engineer} motion={{ ...motion }} />);
+  const second = render(<WorkerModel appearance={operator} motion={{ ...motion }} />);
+  first.unmount();
+  expect(dispose).toHaveBeenCalledTimes(1);
+  const firstAccent = dispose.mock.contexts[0] as THREE.MeshStandardMaterial;
+  expect(firstAccent.color.equals(new THREE.Color(engineer.accentColor))).toBe(true);
+  expect(Object.values(SHARED_WORKER_ACCESSORY_MATERIALS)).not.toContain(firstAccent);
+  second.unmount();
+  expect(dispose).toHaveBeenCalledTimes(2);
+  const secondAccent = dispose.mock.contexts[1] as THREE.MeshStandardMaterial;
+  expect(secondAccent).not.toBe(firstAccent);
+  expect(secondAccent.color.equals(new THREE.Color(operator.accentColor))).toBe(true);
+  expect(Object.values(SHARED_WORKER_ACCESSORY_MATERIALS)).not.toContain(secondAccent);
 });
