@@ -178,6 +178,7 @@ jobs:
         run: npx playwright install --no-shell chromium
 
       - name: Validate Jev personal-key flow in desktop and mobile layouts
+        id: jev-acceptance
         timeout-minutes: 8
         # Standard public macOS VM, with no paid runner or desktop registration.
         # Metal availability is tested, not inferred from the runner's CPU label.
@@ -185,6 +186,14 @@ jobs:
         # Browser-only readback presentation avoids the VM's CoreAnimation path.
         # Scene WebGL2 must still be out-of-process, sandboxed hardware Metal.
         run: node scripts/validate-jev-browser.mjs --metal-renderer --software-compositor
+
+      # Run only after the actual world failed, preserving that failed check.
+      # Working if bare resize/target readback distinguishes a backend failure
+      # from an assembly interaction without providing substitute acceptance.
+      - name: Reduce failed Metal presentation to a bare default-buffer diagnostic
+        if: ${{ failure() && steps.jev-acceptance.conclusion == 'failure' }}
+        timeout-minutes: 2
+        run: node scripts/diagnose-metal-default-buffer.mjs --software-compositor
 
       - name: Upload Jev browser evidence
         if: always()
