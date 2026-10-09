@@ -34,6 +34,13 @@ const builtDirectory = localMetalDist ? path.resolve(localMetalDist) : path.join
 const softwareRenderer = process.argv.includes('--software-renderer');
 const metalRenderer = process.argv.includes('--metal-renderer') || !!localMetalDist;
 const softwareCompositor = process.argv.includes('--software-compositor');
+const backendLogging = process.argv.includes('--backend-logging');
+if (backendLogging) {
+  assert.ok(
+    metalRenderer && !localMetalDist && process.env.GITHUB_ACTIONS === 'true',
+    'Backend logging is restricted to the synthetic hosted Metal diagnostic'
+  );
+}
 const advisoryStartup = softwareRenderer || metalRenderer;
 const startupTimeoutMs = softwareRenderer ? 300_000 : 240_000;
 const hostedMetalChrome =
@@ -85,6 +92,7 @@ const report = {
   softwareRenderer,
   metalRenderer,
   softwareCompositor,
+  backendLogging,
   executionEnvironment: localMetalDist
     ? 'local-diagnostic'
     : process.env.GITHUB_ACTIONS === 'true'
@@ -149,6 +157,11 @@ try {
     ...(metalRenderer ? { ignoreDefaultArgs: ['--enable-unsafe-swiftshader'] } : {}),
     args: [
       '--mute-audio',
+      // Chromium143 logging_chrome.cc explicitly supports stderr in release
+      // builds. Service/driver call logging needs a different build; omit it.
+      // Working if the owned GPU process's reset/channel errors survive as
+      // separate evidence, without changing the original world-image verdict.
+      ...(backendLogging ? ['--enable-logging=stderr', '--log-level=0'] : []),
       // Keep browser compositing on its software path. SwiftShader supplies
       // WebGL only, rather than emulating a GPU for the whole browser.
       // https://chromium.googlesource.com/chromium/src/+/main/docs/gpu/swiftshader.md
@@ -167,6 +180,10 @@ try {
     const session = await browser.newBrowserCDPSession();
     try {
       report.browserArguments = (await session.send('Browser.getBrowserCommandLine')).arguments;
+      if (backendLogging) {
+        report.backendProcesses = (await session.send('SystemInfo.getProcessInfo')).processInfo;
+        assert.ok(report.browserArguments.includes('--enable-logging=stderr'));
+      }
       if (hostedMetalChrome) {
         assert.equal(
           report.browserVersion,

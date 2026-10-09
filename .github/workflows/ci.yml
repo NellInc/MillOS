@@ -180,12 +180,22 @@ jobs:
       - name: Validate Jev personal-key flow in desktop and mobile layouts
         id: jev-acceptance
         timeout-minutes: 8
+        env:
+          DEBUG: pw:browser
         # Standard public macOS VM, with no paid runner or desktop registration.
         # Metal availability is tested, not inferred from the runner's CPU label.
         # Working if actual Metal WebGL and both full-world UI flows pass sandboxed.
         # Browser-only readback presentation avoids the VM's CoreAnimation path.
         # Scene WebGL2 must still be out-of-process, sandboxed hardware Metal.
-        run: node scripts/validate-jev-browser.mjs --metal-renderer --software-compositor
+        # One diagnostic: capture release-build GPU reset/channel/ANGLE errors.
+        # Logging can perturb timing; a pass or empty stderr proves no repair.
+        # Working if raw owned-browser stderr and process IDs reach the artifact,
+        # while the existing script's exit status still decides this Build step.
+        run: |
+          set -o pipefail
+          mkdir -p test-results/jev-browser
+          node scripts/validate-jev-browser.mjs --metal-renderer --software-compositor --backend-logging \
+            2>&1 | tee test-results/jev-browser/backend-browser.log
 
       # Run only after the actual world failed, preserving that failed check.
       # Working if bare resize/target readback distinguishes a backend failure
