@@ -5,12 +5,22 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { cpus, loadavg } from 'node:os';
+import { performance } from 'node:perf_hooks';
 import { chromium } from 'playwright';
 import { preview } from 'vite';
 import { acquireCaptureLock } from './lib/capture-lock.mjs';
+import { inspectWorldPresentation, observeCompletedWorldFrame } from './lib/world-presentation.mjs';
+import {
+  assertHostedMetalCompositor,
+  assertMetalBrowserAdmission,
+} from './lib/metal-browser-admission.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const output = path.join(root, 'test-results/jev-browser');
+const installedChrome = process.argv.includes('--installed-chrome');
+const output = path.join(
+  root,
+  installedChrome ? 'test-results/jev-browser-installed' : 'test-results/jev-browser'
+);
 const localMetalDist = process.argv
   .find((argument) => argument.startsWith('--local-metal-dist='))
   ?.split('=')
@@ -19,23 +29,43 @@ const localMetalDist = process.argv
 const builtDirectory = localMetalDist ? path.resolve(localMetalDist) : path.join(root, 'dist');
 const softwareRenderer = process.argv.includes('--software-renderer');
 const metalRenderer = process.argv.includes('--metal-renderer') || !!localMetalDist;
+const softwareCompositor = process.argv.includes('--software-compositor');
 const advisoryStartup = softwareRenderer || metalRenderer;
 const startupTimeoutMs = softwareRenderer ? 300_000 : 240_000;
-const installedChrome = process.argv.includes('--installed-chrome');
+const hostedMetalChrome =
+  installedChrome &&
+  metalRenderer &&
+  !localMetalDist &&
+  !softwareRenderer &&
+  process.platform === 'darwin' &&
+  process.env.GITHUB_ACTIONS === 'true';
+if (softwareCompositor) {
+  assertHostedMetalCompositor({
+    metalRenderer,
+    softwareRenderer,
+    localMetalDist,
+    platform: process.platform,
+    githubActions: process.env.GITHUB_ACTIONS,
+  });
+}
 if (
   metalRenderer &&
   (process.platform !== 'darwin' ||
     (!localMetalDist && process.env.GITHUB_ACTIONS !== 'true') ||
     (!!localMetalDist && process.env.GITHUB_ACTIONS === 'true') ||
     softwareRenderer ||
-    installedChrome)
+    (installedChrome && !hostedMetalChrome))
 ) {
   throw new Error(
-    'Metal acceptance requires pinned Chromium on macOS, with local diagnostics kept separate from CI'
+    'Metal acceptance requires macOS Chromium or the explicit hosted Chrome contrast, with local diagnostics separate from CI'
   );
 }
-if (installedChrome && (process.platform !== 'linux' || process.env.GITHUB_ACTIONS !== 'true')) {
-  throw new Error('Installed Chrome acceptance is limited to the disposable GitHub Linux runner');
+if (
+  installedChrome &&
+  !hostedMetalChrome &&
+  (process.platform !== 'linux' || process.env.GITHUB_ACTIONS !== 'true')
+) {
+  throw new Error('Installed Chrome acceptance requires a disposable GitHub runner');
 }
 const endpoint = 'https://openrouter.ai/api/alpha/decisions';
 const key = `sk-or-v1-${'test-only-'.repeat(5)}`;
@@ -50,6 +80,7 @@ const report = {
   csp: [],
   softwareRenderer,
   metalRenderer,
+  softwareCompositor,
   executionEnvironment: localMetalDist
     ? 'local-diagnostic'
     : process.env.GITHUB_ACTIONS === 'true'
@@ -60,6 +91,12 @@ const report = {
   camera: advisoryStartup ? 'sun' : 'overview',
   normalStartupRequired: true,
   startupTimeoutMs,
+  host: { logicalCores: cpus().length, averages: loadavg() },
+  runnerImage: {
+    os: process.env.ImageOS ?? null,
+    version: process.env.ImageVersion ?? null,
+  },
+  installedChromePreflightVersion: process.env.MILLOS_CHROME_PREFLIGHT_VERSION ?? null,
 };
 // Persist each boundary before entering browser work. A runner-level timeout
 // can interrupt Chromium before the catch/finally diagnostic gets to execute.
@@ -117,6 +154,7 @@ try {
       // Headless otherwise defaults to SwiftShader. Force the Metal backend,
       // then check both CDP and the application's own context below.
       ...(metalRenderer ? ['--enable-gpu', '--use-gl=angle', '--use-angle=metal'] : []),
+      ...(softwareCompositor ? ['--disable-gpu-compositing'] : []),
     ],
   });
   report.browserVersion = browser.version();
@@ -125,6 +163,18 @@ try {
     const session = await browser.newBrowserCDPSession();
     try {
       report.browserArguments = (await session.send('Browser.getBrowserCommandLine')).arguments;
+      if (hostedMetalChrome) {
+        assert.equal(
+          report.browserVersion,
+          report.installedChromePreflightVersion,
+          'Hosted Chrome contrast must retain the preflighted browser version'
+        );
+        assert.equal(
+          report.browserArguments[0],
+          '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+          'Hosted Chrome contrast must launch the preflighted installed browser'
+        );
+      }
       assert.ok(
         !report.browserArguments.some((argument) =>
           ['--no-sandbox', '--disable-setuid-sandbox', '--disable-seccomp-filter-sandbox'].includes(
@@ -139,13 +189,7 @@ try {
           'Metal acceptance must not opt into unsafe SwiftShader fallback'
         );
         report.gpu = (await session.send('SystemInfo.getInfo')).gpu;
-        assert.match(report.gpu.auxAttributes?.glRenderer ?? '', /ANGLE Metal Renderer/i);
-        assert.equal(report.gpu.featureStatus?.webgl, 'enabled', 'Metal WebGL must be enabled');
-        assert.equal(
-          report.gpu.auxAttributes?.sandboxed,
-          true,
-          'Metal GPU process must be sandboxed'
-        );
+        assertMetalBrowserAdmission(report.gpu, report.browserArguments, softwareCompositor);
         // Chromium reports a combined WebGL feature status. Prove WebGL2 with
         // the application's actual context, rather than an absent CDP field.
       }
@@ -155,7 +199,84 @@ try {
   }
   await checkpoint('browser-context');
   const context = await browser.newContext({ serviceWorkers: 'block', reducedMotion: 'reduce' });
+  // Persist actual work barriers while waiting. A runner timeout can otherwise
+  // leave only "scene-loading", hiding resource, context and frame stalls.
+  // Working if a timed-out run retains its last observed barriers and cadence.
+  report.startupObservationVersion = 2;
+  report.startupObservations = [];
+  await context.exposeBinding('recordJevStartup', async (_source, value) => {
+    report.startupObservations.push({
+      ...value,
+      host: { at: Date.now(), logicalCores: cpus().length, averages: loadavg() },
+    });
+    await checkpoint(report.phase);
+  });
   await context.addInitScript(() => {
+    const intervals = [];
+    let previous;
+    let rafCallbacks = 0;
+    const events = [];
+    const recordEvent = (event) => {
+      events.push({
+        at: performance.now(),
+        type: event.type,
+        visibility: document.visibilityState,
+      });
+      if (events.length > 16) events.shift();
+    };
+    document.addEventListener('visibilitychange', recordEvent);
+    document.addEventListener('webglcontextlost', recordEvent, true);
+    document.addEventListener('webglcontextrestored', recordEvent, true);
+    function observe(now) {
+      rafCallbacks++;
+      if (previous !== undefined) {
+        intervals.push(now - previous);
+        if (intervals.length > 45) intervals.shift();
+      }
+      previous = now;
+      requestAnimationFrame(observe);
+    }
+    requestAnimationFrame(observe);
+    setInterval(() => {
+      const data = document.documentElement.dataset;
+      // Existing timing-only export: no world raycasts, resets or forced frames.
+      // Working if timer progress can be compared with independent RAF/R3F
+      // counts and events without altering any acceptance condition.
+      const pacing = window.__MILLOS_RUNTIME__?.framePacingSnapshot?.();
+      window.recordJevStartup({
+        at: performance.now(),
+        worldReady: data.millosWorldReady,
+        batchesPending: data.millosStaticBatchesPending,
+        startupReady: data.millosStartupReady,
+        visibility: document.visibilityState,
+        progress: document
+          .querySelector('[aria-label="Loading MillOS"] [role="progressbar"]')
+          ?.getAttribute('aria-valuetext'),
+        runtimeReady: window.__MILLOS_RUNTIME__?.ready,
+        intervals: [...intervals],
+        rafCallbacks,
+        lastRafAt: previous ?? null,
+        framePacing: pacing
+          ? {
+              capturedAt: pacing.capturedAt,
+              firstFrameAt: pacing.firstFrameAt,
+              sampleCount: pacing.sampleCount,
+              longTasks: pacing.longTasks.slice(-8),
+            }
+          : null,
+        events: [...events],
+      });
+    }, 5000);
+  });
+
+  await context.addInitScript(() => {
+    // Three's existing devtools event identifies the actual renderer and scenes.
+    // No frame hook/readback runs until after the acceptance screenshot.
+    window.__THREE_DEVTOOLS__ = new EventTarget();
+    window.jevObservedThree = [];
+    window.__THREE_DEVTOOLS__.addEventListener('observe', (event) => {
+      window.jevObservedThree.push(event.detail);
+    });
     localStorage.setItem(
       'millos-ui',
       JSON.stringify({ state: { hasSeenIntro: true }, version: 1 })
@@ -208,6 +329,8 @@ try {
     : { width: 1440, height: 1000 };
   await page.setViewportSize(report.startupViewport);
   await checkpoint('page-navigation');
+  const navigationStartedAt = performance.now();
+  const startupDeadline = navigationStartedAt + startupTimeoutMs;
   await page.goto(
     `http://127.0.0.1:4398${base}?benchmark=${report.camera}&time=12&quality=low&operations=on&pa=off`,
     {
@@ -334,6 +457,95 @@ try {
     assert.equal(await consent.isChecked(), false);
     report.layouts.push({ width, passed: true });
   }
+  // The sun framing keeps startup/UI admission low-fill. Also present the real
+  // assembled factory, using the current authored pose rather than a copied table.
+  // Working if all world groups remain present and the unobstructed overview
+  // pixels contain scene detail. Draw counters alone cannot admit a blank image.
+  const layoutSource = await readFile(path.join(root, 'src/constants/siteLayout.ts'), 'utf8');
+  const overview = layoutSource.match(
+    /overview:\s*\{\s*position:\s*(\[[^\]]+\])\s*,\s*target:\s*(\[[^\]]+\])/
+  );
+  assert.ok(overview, 'The authored overview pose must be readable');
+  const pose = { position: JSON.parse(overview[1]), target: JSON.parse(overview[2]) };
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.keyboard.press('Escape');
+  await checkpoint('world-presentation');
+  // A newly visible overview can trigger cold rendering work absent from sun framing.
+  // Spend only the remainder of the existing startup budget, never an extra window.
+  // Working if frames, integrity and the image finish within the navigation deadline.
+  const remainingStartupBudget = () => {
+    const remaining = Math.ceil(startupDeadline - performance.now());
+    assert.ok(remaining > 0, 'Overview must fit the original startup budget');
+    return remaining;
+  };
+  const withinStartupBudget = async (operation) => {
+    const remaining = remainingStartupBudget();
+    let timer;
+    try {
+      return await Promise.race([
+        operation(),
+        new Promise((_, reject) => {
+          timer = setTimeout(
+            () => reject(new Error('Overview exceeded the original startup budget')),
+            remaining
+          );
+        }),
+      ]);
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+  report.worldPresentationBudgetMs = remainingStartupBudget();
+  await withinStartupBudget(() =>
+    page.evaluate(({ position, target }) => {
+      window.__MILLOS_RUNTIME__.setCameraPose(position, target);
+      window.__MILLOS_RUNTIME__.reset();
+    }, pose)
+  );
+  await page.waitForFunction(
+    () => window.__MILLOS_RUNTIME__.framePacingSnapshot().sampleCount >= 3,
+    null,
+    { polling: 400, timeout: remainingStartupBudget() }
+  );
+  report.worldPresentation = await withinStartupBudget(() =>
+    page.evaluate(() => window.__MILLOS_RUNTIME__.snapshot())
+  );
+  assert.equal(report.worldPresentation.worldIntegrity.passed, true);
+  report.worldCanvas = await withinStartupBudget(() =>
+    page.evaluate(() => {
+      const canvas = document.querySelector('canvas[data-engine^="three.js"]');
+      if (!canvas) return null;
+      const gl = canvas.getContext('webgl2');
+      const rect = canvas.getBoundingClientRect();
+      const css = getComputedStyle(canvas);
+      return {
+        width: canvas.width,
+        height: canvas.height,
+        rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+        css: { display: css.display, visibility: css.visibility, opacity: css.opacity },
+        contextLost: gl?.isContextLost() ?? null,
+        contextAttributes: gl?.getContextAttributes() ?? null,
+      };
+    })
+  );
+  const worldImage = await page.screenshot({
+    path: path.join(output, 'world-overview.png'),
+    timeout: remainingStartupBudget(),
+  });
+  report.worldPixels = inspectWorldPresentation(worldImage);
+  report.completedFrameDiagnostic = await withinStartupBudget(() =>
+    page.evaluate(observeCompletedWorldFrame, Math.min(5000, remainingStartupBudget()))
+  );
+  assert.equal(
+    report.worldPixels.passed,
+    true,
+    `Overview must visibly present the world behind the HUD: ${JSON.stringify(report.worldPixels)}`
+  );
+  report.worldPresentationElapsedMs = performance.now() - navigationStartedAt;
+  assert.ok(
+    report.worldPresentationElapsedMs <= startupTimeoutMs,
+    'Overview must finish within the original startup budget'
+  );
   report.csp = await page.evaluate(() => window.jevCspViolations);
   assert.equal(report.csp.length, 0);
   assert.equal(report.pageErrors.length, 0);

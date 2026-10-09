@@ -4596,9 +4596,14 @@ const ELEVATOR_HEAD = new THREE.MeshStandardMaterial({
   metalness: 0,
 });
 
-export const GrainElevator: React.FC<{
+type ElevatorFitting = {
   position: [number, number, number];
-}> = ({ position }) => {
+  rotation?: [number, number, number];
+};
+
+// Group only exact authored dimensions. Instance scale stays one, retaining the
+// metre-sized UVs, generated atlas and analytic finish used by each old box.
+export const GRAIN_ELEVATOR_FITTING_GROUPS = (() => {
   const beams: {
     position: [number, number, number];
     size: [number, number, number];
@@ -4628,16 +4633,89 @@ export const GrainElevator: React.FC<{
       });
     }
   }
+  const groups = new Map<string, { size: [number, number, number]; fittings: ElevatorFitting[] }>();
+  for (const { size, ...fitting } of beams) {
+    const key = size.join(',');
+    if (!groups.has(key)) groups.set(key, { size, fittings: [] });
+    groups.get(key)!.fittings.push(fitting);
+  }
+  return [...groups.values()];
+})();
+
+export const GRAIN_ELEVATOR_HEAD_SLATS: ElevatorFitting[] = Array.from(
+  { length: 15 },
+  (_, index) => ({ position: [-4.25 + index * 0.607, 46.5, 3.55] })
+);
+const ELEVATOR_SLAT_SIZE: [number, number, number] = [0.055, 6.9, 0.1];
+
+export function getElevatorFittingMatrix(fitting: ElevatorFitting) {
+  return new THREE.Matrix4().compose(
+    new THREE.Vector3(...fitting.position),
+    new THREE.Quaternion().setFromEuler(new THREE.Euler(...(fitting.rotation ?? [0, 0, 0]))),
+    new THREE.Vector3(1, 1, 1)
+  );
+}
+
+/** Rigid elevator fittings share draws, with their original geometry and finish.
+ * Working if all 75 beams/slats keep unit-scale transforms and leg/head shadows,
+ * while the five steel sizes and head slats submit six instanced draws.
+ */
+function ElevatorFittingInstances({
+  size,
+  fittings,
+  material,
+  receiveShadow = true,
+}: {
+  size: [number, number, number];
+  fittings: ElevatorFitting[];
+  material: THREE.MeshStandardMaterial;
+  receiveShadow?: boolean;
+}) {
+  const ref = useRef<THREE.InstancedMesh>(null);
+  const geometry = useMemo(() => new THREE.BoxGeometry(...size), [size]);
+  useEffect(() => () => geometry.dispose(), [geometry]);
+  useLayoutEffect(() => {
+    const mesh = ref.current;
+    if (!mesh) return;
+    fittings.forEach((fitting, index) =>
+      mesh.setMatrixAt(index, getElevatorFittingMatrix(fitting))
+    );
+    mesh.instanceMatrix.needsUpdate = true;
+    mesh.computeBoundingBox();
+    mesh.computeBoundingSphere();
+  }, [fittings]);
+  return (
+    <instancedMesh
+      name="grain-elevator-fixed-fittings"
+      ref={ref}
+      args={[geometry, material, fittings.length]}
+      castShadow
+      receiveShadow={receiveShadow}
+    >
+      <GeneratedBoundary fallback={null}>
+        <GeneratedGeometrySurface
+          asset="factorySteelUnit"
+          original={geometry}
+          meshRef={ref}
+          fitEnvelope
+          finishStaticSource
+        />
+      </GeneratedBoundary>
+    </instancedMesh>
+  );
+}
+
+export const GrainElevator: React.FC<{
+  position: [number, number, number];
+}> = ({ position }) => {
   return (
     <group position={position} name="open-grain-elevator">
-      {beams.map((beam, index) => (
-        <GeneratedBoxSurface
-          key={index}
-          asset="factorySteelUnit"
-          {...beam}
+      {GRAIN_ELEVATOR_FITTING_GROUPS.map(({ size, fittings }) => (
+        <ElevatorFittingInstances
+          key={size.join(',')}
+          size={size}
+          fittings={fittings}
           material={ELEVATOR_STEEL}
-          castShadow
-          receiveShadow
         />
       ))}
       {[-1.2, 1.2].map((x) => (
@@ -4659,16 +4737,12 @@ export const GrainElevator: React.FC<{
         castShadow
         receiveShadow
       />
-      {Array.from({ length: 15 }, (_, index) => (
-        <GeneratedBoxSurface
-          key={index}
-          asset="factorySteelUnit"
-          position={[-4.25 + index * 0.607, 46.5, 3.55]}
-          size={[0.055, 6.9, 0.1]}
-          material={ELEVATOR_HEAD}
-          castShadow
-        />
-      ))}
+      <ElevatorFittingInstances
+        size={ELEVATOR_SLAT_SIZE}
+        fittings={GRAIN_ELEVATOR_HEAD_SLATS}
+        material={ELEVATOR_HEAD}
+        receiveShadow={false}
+      />
       <GeneratedBoxSurface
         asset="factorySteelUnit"
         position={[0, 50.2, 0]}

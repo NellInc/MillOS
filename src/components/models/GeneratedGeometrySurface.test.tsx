@@ -247,3 +247,31 @@ it('repairs tiny exported box-envelope drift only when fitting is explicit', () 
   expect(() => restoreGeometryOrigin(f.scene, f.original)).toThrow('authored UV topology');
   expect(() => restoreGeometryOrigin(f.scene, f.original, true)).not.toThrow();
 });
+
+it('retains the static-box finish when identical rigid fittings become an instanced set', () => {
+  const f = fixture();
+  holder.scene = f.scene;
+  const original = new THREE.MeshStandardMaterial({
+    color: '#869795',
+    roughness: 0.52,
+    metalness: 1,
+  });
+  const mesh = new THREE.InstancedMesh(f.original, original, 4);
+  const view = render(
+    <GeneratedGeometrySurface
+      asset="factorySteelUnit"
+      original={f.original}
+      meshRef={{ current: mesh }}
+      finishStaticSource
+    />
+  );
+  expect(hasWorldSurface(original)).toBe(true);
+  expect(hasWorldSurface(mesh.material)).toBe(true);
+  expect(mesh.material.userData.millosWorldSurface).toBe(original.userData.millosWorldSurface);
+  expect(mesh.material.normalMap?.channel).toBe(1);
+  expect(mesh.geometry.getAttribute('uv1')).toBeDefined();
+  expect(mesh.material.color.getHexString()).toBe('869795');
+  view.unmount();
+  expect(mesh.material).toBe(original);
+  expect(mesh.geometry).toBe(f.original);
+});

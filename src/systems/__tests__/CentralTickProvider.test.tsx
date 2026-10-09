@@ -11,6 +11,7 @@ const probe = vi.hoisted(() => ({
     errors: 0,
     revision: 0,
     ready: false,
+    opened: false,
   },
 }));
 vi.mock('@react-three/fiber', () => ({
@@ -47,6 +48,7 @@ beforeEach(() => {
   resetUnifiedTickState();
   probe.callback = null;
   probe.startup.ready = false;
+  probe.startup.opened = false;
   onTick.mockClear();
   lazyTick.mockClear();
   useGameSimulationStore.getState().resetGameState();
@@ -131,6 +133,19 @@ describe('CentralTickProvider player-ready simulation barrier', () => {
     frame(91);
     expect(onTick).toHaveBeenCalledTimes(2);
     expect(useOperationsCampaignStore.getState().elapsedMinutes).toBe(3);
+  });
+
+  it('starts explicit slow-device access with one interval and no loading-time catch-up', () => {
+    frame(90);
+    probe.startup.opened = true;
+    frame(90.5);
+    expect(probe.startup.ready).toBe(false);
+    expect(onTick).toHaveBeenCalledOnce();
+    expect(onTick.mock.calls[0][0]).toMatchObject({ deltaSeconds: 0.5, tickCount: 1 });
+    expect(useOperationsCampaignStore.getState().elapsedMinutes).toBe(1.5);
+    probe.startup.ready = true;
+    frame(90.6);
+    expect(onTick).toHaveBeenCalledOnce();
   });
 
   it('keeps a ready hidden tab frozen and resumes without a catch-up burst', () => {

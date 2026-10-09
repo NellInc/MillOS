@@ -10,8 +10,47 @@ import {
   FLOUR_STRIPE_MATERIAL,
   getFlourBagStartX,
   getFlourSackGeometry,
+  getConveyorSupportMatrices,
 } from './ConveyorSystem';
 import { FLOUR_SACK_PRINT_GEOMETRY, FLOUR_INK_STANDOFF } from '../utils/flourSacks';
+
+describe('instanced conveyor supports', () => {
+  it('keeps both legs and feet at their original centres without rotating the run', () => {
+    for (const [part, y] of [
+      ['legs', 0.25],
+      ['feet', 0.02],
+    ] as const) {
+      const matrices = getConveyorSupportMatrices([-25, 5], part);
+      expect(matrices).toHaveLength(4);
+      expect(matrices.map((m) => new THREE.Vector3().setFromMatrixPosition(m).toArray())).toEqual([
+        [-25, y, -0.5],
+        [-25, y, 0.5],
+        [5, y, -0.5],
+        [5, y, 0.5],
+      ]);
+      expect(matrices.every((m) => m.determinant() === 1)).toBe(true);
+    }
+  });
+
+  it('rotates each brace about its own centre and retains the parent run transform', () => {
+    const run = CONVEYOR_LAYOUT.shipping;
+    const parent = new THREE.Matrix4().makeRotationY(run.rotationY).setPosition(...run.position);
+    for (const [index, matrix] of getConveyorSupportMatrices([-15, 15], 'brace').entries()) {
+      const expected = new THREE.Matrix4()
+        .makeRotationZ(0.3)
+        .setPosition(index ? 15 : -15, 0.25, 0);
+      expect(matrix.elements).toEqual(expected.elements);
+      const actual = parent.clone().multiply(matrix);
+      const point = new THREE.Vector3(0.04, 0.04, 0.45);
+      expect(
+        point
+          .clone()
+          .applyMatrix4(actual)
+          .distanceTo(point.applyMatrix4(parent.clone().multiply(expected)))
+      ).toBeLessThan(1e-12);
+    }
+  });
+});
 
 describe('advanceBagPosition', () => {
   it('moves at belt speed and caps a resumed-frame delta', () => {

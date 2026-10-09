@@ -1,9 +1,15 @@
 import React, { Suspense, useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { getStartupSnapshot, subscribeStartup } from '../utils/startupReadiness';
+import {
+  getStartupSnapshot,
+  openPreparedStartup,
+  resetStartupPreparation,
+  subscribeStartup,
+} from '../utils/startupReadiness';
 import { FEATURE_FLAGS } from '../config/featureFlags';
 import { recoverableLazy } from '../utils/recoverableLazy';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 import ErrorBoundary from './ErrorBoundary';
+import { useGraphicsStore } from '../stores/graphicsStore';
 
 const DeferredLoadingQuote = recoverableLazy(() =>
   import('./knowledge/LoadingQuote').then((module) => ({ default: module.LoadingQuote }))
@@ -19,6 +25,7 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
   recoveryDelayMs = 30000,
 }) => {
   const startup = useSyncExternalStore(subscribeStartup, getStartupSnapshot);
+  const quality = useGraphicsStore((state) => state.graphics.quality);
   const [showLoading, setShowLoading] = useState(true);
   const [minimumTimePassed, setMinimumTimePassed] = useState(false);
   const [showRecovery, setShowRecovery] = useState(false);
@@ -51,11 +58,11 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
   }, [recoveryDelayMs, minimumLoadTimeMs]);
 
   useEffect(() => {
-    if (!(minimumTimePassed && startup.ready)) return;
+    if (!(minimumTimePassed && (startup.ready || startup.opened))) return;
     setIsExiting(true);
     const hideTimer = window.setTimeout(() => setShowLoading(false), reducedMotion ? 0 : 220);
     return () => window.clearTimeout(hideTimer);
-  }, [startup.ready, minimumTimePassed, reducedMotion]);
+  }, [startup.ready, startup.opened, minimumTimePassed, reducedMotion]);
 
   const safeProgress = startup.ready
     ? 100
@@ -157,8 +164,33 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
 
           {showRecovery && !startup.ready && (
             <div className="mt-6 flex max-w-md flex-col items-center gap-3 text-center text-sm text-slate-300">
-              <p>The scene is still preparing. You can keep waiting or reload.</p>
+              <p>
+                {startup.prepared
+                  ? 'The scene is loaded, but animation is still slow on this device.'
+                  : 'The scene is still preparing. You can keep waiting or reload.'}
+              </p>
               {startup.errors > 0 && <p>Some resources could not be loaded.</p>}
+              {quality !== 'low' && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    resetStartupPreparation();
+                    useGraphicsStore.getState().setGraphicsQuality('low');
+                  }}
+                  className="min-h-11 rounded-md border border-slate-500 px-4 py-2 text-slate-100 transition-colors hover:border-amber-400 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-400"
+                >
+                  Use low graphics
+                </button>
+              )}
+              {startup.prepared && startup.errors === 0 && (
+                <button
+                  type="button"
+                  onClick={openPreparedStartup}
+                  className="min-h-11 rounded-md border border-slate-500 px-4 py-2 text-slate-100 transition-colors hover:border-amber-400 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-400"
+                >
+                  Open loaded scene (slow)
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => window.location.reload()}

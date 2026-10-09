@@ -5,6 +5,8 @@ const probe = vi.hoisted(() => ({
   callback: null as null | ((state: unknown) => void),
   startup: { pendingAssets: 0, pendingTasks: 0, revision: 0, ready: false },
   markReady: vi.fn(),
+  markPrepared: vi.fn(),
+  contextLost: false,
 }));
 vi.mock('@react-three/fiber', () => ({
   useFrame: (callback: (state: unknown) => void) => {
@@ -15,13 +17,14 @@ vi.mock('../utils/startupReadiness', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../utils/startupReadiness')>()),
   getStartupSnapshot: () => probe.startup,
   markStartupReady: probe.markReady,
+  markStartupPrepared: probe.markPrepared,
 }));
 import { StartupReadiness } from './StartupReadiness';
 
 let now = 0;
 const gl = {
   info: { programs: [], memory: { geometries: 50, textures: 10 } },
-  getContext: () => ({ isContextLost: () => false }),
+  getContext: () => ({ isContextLost: () => probe.contextLost }),
 };
 function frames(count = 60): void {
   for (let i = 0; i < count; i++) {
@@ -32,6 +35,8 @@ function frames(count = 60): void {
 beforeEach(() => {
   now = 0;
   probe.markReady.mockClear();
+  probe.markPrepared.mockClear();
+  probe.contextLost = false;
   probe.startup = { pendingAssets: 0, pendingTasks: 0, revision: 0, ready: false };
   document.documentElement.dataset.millosWorldReady = 'true';
   document.documentElement.dataset.millosStaticBatchesPending = '0';
@@ -45,6 +50,25 @@ afterEach(() => {
 });
 
 describe('StartupReadiness actual work barriers', () => {
+  it('rechecks the real context and work barriers when a prepared slow scene is opened', () => {
+    render(<StartupReadiness />);
+    for (let i = 0; i < 46; i++) {
+      now += 60;
+      probe.callback?.({ gl });
+    }
+    expect(probe.markReady).not.toHaveBeenCalled();
+    const [prepared, guard] = probe.markPrepared.mock.lastCall!;
+    expect(prepared).toBe(true);
+    expect(guard()).toBe(true);
+    probe.contextLost = true;
+    expect(guard()).toBe(false);
+    probe.contextLost = false;
+    probe.startup.pendingAssets = 1;
+    expect(guard()).toBe(false);
+    probe.startup.pendingAssets = 0;
+    probe.startup.revision++;
+    expect(guard()).toBe(false);
+  });
   it.each(['world', 'assets', 'tasks', 'batches', 'unregistered-batches'])(
     'keeps rendering behind the overlay while %s is incomplete',
     (barrier) => {

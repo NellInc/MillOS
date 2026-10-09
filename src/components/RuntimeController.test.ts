@@ -20,6 +20,14 @@ function dot(left: Vec3Tuple, right: Vec3Tuple): number {
   return left[0] * right[0] + left[1] * right[1] + left[2] * right[2];
 }
 
+describe('immutable renderer allocation', () => {
+  it('leaves antialiasing to SMAA instead of retaining hidden MSAA after a Low downgrade', () => {
+    const source = readFileSync('src/App.tsx', 'utf8');
+    expect(source).toMatch(/gl=\{\{[\s\S]*?antialias: false,/);
+    expect(source).not.toContain("antialias: canvasQuality !== 'low'");
+  });
+});
+
 describe('rendererCounterPerFrame', () => {
   it('normalizes cumulative composer counters to a per-frame value', () => {
     expect(rendererCounterPerFrame(12_160, 10, true)).toBe(1_216);

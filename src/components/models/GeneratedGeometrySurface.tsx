@@ -232,6 +232,8 @@ interface GeneratedGeometrySurfaceProps {
   original: THREE.BufferGeometry;
   meshRef: React.RefObject<THREE.Mesh | null>;
   fitEnvelope?: boolean;
+  /** Match GeneratedBoxSurface's static finish when replacing its fixed fittings. */
+  finishStaticSource?: boolean;
 }
 
 export const GeneratedGeometrySurface: React.FC<GeneratedGeometrySurfaceProps> = ({
@@ -239,6 +241,7 @@ export const GeneratedGeometrySurface: React.FC<GeneratedGeometrySurfaceProps> =
   original,
   meshRef,
   fitEnvelope = false,
+  finishStaticSource = false,
 }) => {
   const { scene } = useDracoGLTF(GENERATED_ASSET_PATHS[asset]);
   const prepared = useMemo(
@@ -271,12 +274,13 @@ export const GeneratedGeometrySurface: React.FC<GeneratedGeometrySurfaceProps> =
     )
       throw new Error('Generated surface requires the existing standard material');
     const originalMaterial = material as THREE.MeshStandardMaterial;
-    // A material can also belong to untreated fittings. Never alter that shared
-    // object, and explicitly retain callbacks which three's clone does not copy.
+    // Clone the atlas layer so other material users retain their normal maps.
+    // Fixed-box replacements explicitly request their existing static finish;
+    // moving rigs keep the default and their owner's shader unchanged.
     const live = createGeneratedSurfaceMaterial(
       originalMaterial,
       prepared.material.normalMap!,
-      false,
+      finishStaticSource,
       prepared.material.normalScale.x
     );
     const normal = live.normalMap!;

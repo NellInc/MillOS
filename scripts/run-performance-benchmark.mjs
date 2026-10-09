@@ -56,6 +56,7 @@ Options:
   --base-url=<url>          Reuse an existing preview instead of starting one
   --port=<number>           Local preview port when --base-url is absent; default 4173
   --channel=<name>          Browser channel, defaults to chrome; use an empty value for bundled Chromium
+  --executable-path=<path>  Use an already-installed browser for an explicit identity contrast
   --quality=<tier>          low, medium, high, or ultra; default medium
   --device-scale-factor=<n> Browser device scale factor, from 1 to 3; default 2
   --scenes=<list>           Comma-separated fixed scene names
@@ -113,6 +114,7 @@ const options = {
   output: path.resolve(readArgument('output', DEFAULT_OUTPUT)),
   headed: hasFlag('headed'),
   browserChannel: readArgument('channel', 'chrome'),
+  browserExecutable: readArgument('executable-path', ''),
   reportOnly: hasFlag('report-only'),
   networkProfile: readArgument('network-profile', 'native'),
   disabledSystems: readArgument('disable-systems', '')
@@ -275,7 +277,7 @@ async function startPreview() {
   });
   try {
     await Promise.race([
-      waitForServer(url),
+      waitForServer(`${url}/`),
       new Promise((_, reject) => {
         previewProcess.once('exit', (code) => {
           reject(
@@ -1035,12 +1037,53 @@ async function main() {
   const baseUrl = options.baseUrl || (await startPreview());
   const browser = await chromium.launch({
     headless: !options.headed,
-    args: ['--mute-audio'],
-    channel: options.browserChannel || undefined,
+    chromiumSandbox: true,
+    ignoreDefaultArgs: ['--enable-unsafe-swiftshader'],
+    args: [
+      '--mute-audio',
+      ...(process.platform === 'darwin' && !options.headed
+        ? ['--use-gl=angle', '--use-angle=metal']
+        : []),
+    ],
+    ...(options.browserExecutable
+      ? { executablePath: options.browserExecutable }
+      : { channel: options.browserChannel || undefined }),
   });
 
   const results = [];
+  let gpu;
+  let browserArguments;
+  const browserVersion = browser.version();
   try {
+    const browserSession = await browser.newBrowserCDPSession();
+    gpu = (await browserSession.send('SystemInfo.getInfo')).gpu;
+    browserArguments = (await browserSession.send('Browser.getBrowserCommandLine')).arguments;
+    await browserSession.detach();
+    const admission = { browserVersion, browserArguments, gpu, requestedChromiumSandbox: true };
+    await writeFile(
+      path.join(options.output, 'gpu-admission.json'),
+      `${JSON.stringify(admission, null, 2)}\n`
+    );
+    // Working if a software fallback or missing sandbox stops the benchmark
+    // before any frame sample can be accepted as native-GPU evidence.
+    if (
+      gpu.auxAttributes?.sandboxed !== true ||
+      gpu.auxAttributes?.inProcessGpu !== false ||
+      !gpu.auxAttributes?.glRenderer ||
+      /swiftshader|llvmpipe|softpipe|software rasterizer/i.test(gpu.auxAttributes.glRenderer) ||
+      !String(gpu.featureStatus?.webgl ?? '').startsWith('enabled') ||
+      browserArguments.some((argument) =>
+        [
+          '--no-sandbox',
+          '--disable-gpu-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-seccomp-filter-sandbox',
+          '--enable-unsafe-swiftshader',
+        ].includes(argument)
+      )
+    ) {
+      throw new Error('Native benchmark requires actual hardware WebGL and an intact GPU sandbox');
+    }
     for (const scene of options.scenes) {
       // A fresh context per fixed scene prevents closed WebGL pages from
       // contaminating later measurements with accumulated renderer and GC
@@ -1056,6 +1099,19 @@ async function main() {
         serviceWorkers: options.networkProfile === 'native' ? 'allow' : 'block',
       });
       try {
+        await context.addInitScript(() => {
+          localStorage.setItem(
+            'millos-audio',
+            JSON.stringify({
+              version: 2,
+              muted: true,
+              volume: 0,
+              musicEnabled: false,
+              musicVolume: 0,
+              machineVolume: 0,
+            })
+          );
+        });
         if (options.compareScada) {
           results.push(await runScene(context, baseUrl, scene, false));
           results.push(await runScene(context, baseUrl, scene, true));
@@ -1110,9 +1166,15 @@ async function main() {
       encoding: 'utf8',
     }).trim(),
     baseUrl,
-    browser: options.browserChannel
-      ? `Playwright ${options.browserChannel} channel`
-      : 'Playwright Chromium',
+    browser: options.browserExecutable
+      ? `Explicit installed browser: ${options.browserExecutable}`
+      : options.browserChannel
+        ? `Playwright ${options.browserChannel} channel`
+        : 'Playwright Chromium',
+    browserVersion,
+    browserArguments,
+    gpu,
+    requestedChromiumSandbox: true,
     options,
     throttle:
       NETWORK_PROFILES[options.networkProfile] === null
