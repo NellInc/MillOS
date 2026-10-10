@@ -170,10 +170,10 @@ MillOS uses a **hierarchical Becoming Mind** where fast heuristic decisions and 
 flowchart TD
     A[AI Partner] --> B{Current Mode?}
     B -->|Heuristic| C[Tactical Only<br/>Every 6s]
-    B -->|Gemini| D[Strategic Only<br/>Every 6s]
+    B -->|Strategic only| D[Strategic Only<br/>Every 45s]
     B -->|Hybrid| E[Both Layers]
     E --> F[Tactical<br/>6s interval<br/>Fast rules]
-    E --> G[Strategic<br/>45s interval<br/>Gemini planning]
+    E --> G[Strategic<br/>45s interval<br/>Selected model]
     F --> H[Apply Effects]
     G --> H
 ```
@@ -183,12 +183,12 @@ flowchart TD
 | Mode | Strategic | Tactical | Best For |
 |------|:---------:|:--------:|----------|
 | **Heuristic** | ❌ | ✅ | Offline, low-cost, deterministic |
-| **Gemini** | ✅ | ❌ | Testing LLM reasoning |
+| **Strategic only** | ✅ | ❌ | Testing model reasoning |
 | **Hybrid** | ✅ | ✅ | **Full autonomy demo** |
 
-**Gemini Value-Add:**
+**Strategic Model Value-Add:**
 
-| Capability | Heuristic | Gemini |
+| Capability | Heuristic | Selected model |
 |------------|:---------:|:------:|
 | "Machine X overheating" → raise a maintenance work order | ✅ Rule-based | Overkill |
 | "Production 15% behind with maintenance due" | ❌ Can't reason | ✅ Trade-off analysis |
@@ -197,13 +197,13 @@ flowchart TD
 
 **Example Strategic Insights:**
 - *Heuristic*: "Alert! Silo Beta overdue maintenance" → dispatch
-- *Gemini*: "Recommend deferring Silo Beta maintenance 30 min to complete current batch, avoiding $2,400 restart cost" (The AI has learned what every factory manager knows: timing is everything, and the budget spreadsheet is always watching.)
+- *Strategic model*: "Recommend deferring Silo Beta maintenance 30 min to complete current batch, avoiding $2,400 restart cost" (an illustrative recommendation; the simulator does not certify this decision for a real mill).
 
 #### Strategic Value Propositions
 
-The heuristic engine excels at **reactive, deterministic decisions**. Gemini focuses on **proactive, contextual reasoning**:
+The heuristic engine excels at **reactive, deterministic decisions**. The selected strategic model focuses on **proactive, contextual reasoning**:
 
-| Scenario | Heuristic Says | Gemini Says |
+| Scenario | Heuristic Says | Strategic Model Says |
 |----------|---------------|-------------|
 | **Production Trade-off** | "Behind schedule → speed up" | "Behind by 1,800 kg/hr with 2 hours left. Quality dropped 3%. Boost Line 3 only (has quality headroom) by 15%." (The difference between "go faster" and understanding why you're behind) |
 | **Cascade Prevention** | Monitors each machine independently | "Silo Delta at 87% → Mill 103 overloading → Sifter A queuing. Reduce Delta output, divert to Epsilon." |
@@ -214,7 +214,7 @@ The heuristic engine excels at **reactive, deterministic decisions**. Gemini foc
 
 **Key Differentiator:**
 - **Heuristic**: *"What is happening? → React."*
-- **Gemini**: *"Why is this happening? What else will happen? What should we prioritize?"* (The questions that distinguish planning from panic.)
+- **Strategic model**: *"Why is this happening? What else will happen? What should we prioritize?"*
 
 #### AI Visualization Tools
 
@@ -228,10 +228,7 @@ All visualizations are **optional** and **default OFF** — toggle via keyboard 
 
 **Strategic Response Enhancements:**
 - **Multi-step Action Plans** — 3-step plans (immediate, short-term, preparation)
-- **Confidence Scoring** — Gemini reports confidence % per decision
 - **Machine Recommendations** — Specific machines named for critical actions
-- **VCL Encoding** — Compact emoji-based context (75% token savings)
-- **Response Caching** — 30s TTL reduces API calls for similar contexts
 
 ### Design Lineage
 
@@ -320,7 +317,7 @@ Time-travel debugging with zero runtime overhead:
 ### Prerequisites
 
 - Node.js 20.19+ or 22.12+ (required by Vite 7)
-- Gemini API key (for AI features)
+- Optional Anthropic or OpenAI API key for cloud strategic reasoning; WebGPU needs no key
 
 ### Installation
 
@@ -341,10 +338,13 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000) to view the simulation.
 
-> **Gemini API key:** there is no build-time key. Open the in-app AI / Gemini
-> settings, paste your key, and it is stored only in your browser's localStorage
-> (it is never embedded in the bundle). Data sent to Gemini goes directly from
-> your browser to Google. Without a key, MillOS runs in local heuristic mode.
+> **Strategic model:** Open the in-app AI settings and choose Haiku 5.5 High,
+> Luna 6 High, or the on-device WebGPU model. Cloud options use your own
+> Anthropic or OpenAI API key, held in page memory until reload and sent directly
+> to that provider with plant telemetry. The browser cannot isolate a BYOK key
+> from page scripts or extensions. Provider charges apply. Without a key, MillOS
+> runs in local heuristic mode. The WebGPU option downloads model weights once
+> and then runs inference locally.
 
 ### Scripts
 
@@ -460,7 +460,7 @@ SCADA service
 
 Dual-speed AI
   -> deterministic tactical engine
-  -> optional Gemini or WebGPU strategic backend
+  -> optional Haiku 5.5 High, Luna 6 High, or WebGPU strategic backend
   -> provenance-bearing decisions and human response
 
 Evidence
@@ -505,7 +505,7 @@ A custom **PositionRegistry** singleton coordinates inter-entity awareness:
 | **Styling** | Tailwind CSS |
 | **Build Tool** | Vite |
 | **Language** | TypeScript |
-| **AI Integration** | Google Gemini API |
+| **AI Integration** | Anthropic Claude API, OpenAI Responses API, local WebGPU |
 | **SCADA Protocols** | OPC-UA (node-opcua), Modbus (jsmodbus) |
 | **Testing** | Vitest, Playwright (E2E) |
 | **Data Storage** | IndexedDB (native) |
@@ -520,7 +520,7 @@ MillOS implements OWASP-aligned frontend security practices:
 | Feature | Implementation | Reference |
 |---------|---------------|-----------|
 | **Input Sanitization** | HTML entity encoding, XSS prevention | OWASP A03:2021 |
-| **CSP Headers** | Content-Security-Policy in index.html with an explicit allowlist of third-party hosts (Gemini, OpenRouter, on-device model CDNs) | XSS mitigation |
+| **CSP Headers** | Content-Security-Policy in index.html with an explicit allowlist of third-party hosts (Anthropic, OpenAI, OpenRouter, on-device model CDNs) | XSS mitigation |
 
 **Key Files:**
 - `src/utils/sanitize.ts` — Input validation and XSS prevention utilities
@@ -553,8 +553,8 @@ MillOS implements OWASP-aligned frontend security practices:
 - [x] Compressed texture support (KTX2/Basis Universal)
 - [x] Service worker for offline caching
 - [x] Shared geometry/material optimization for memory efficiency
-- [x] **Gemini Flash 3 AI integration** with Dual-Brain architecture
-- [x] **Hybrid mode**: Tactical (heuristic 6s) + Strategic (Gemini 45s)
+- [x] **Haiku 5.5 High and Luna 6 High BYOK integration** with Dual-Brain architecture
+- [x] **Hybrid mode**: Tactical (heuristic 6s) + Strategic (selected model 45s)
 - [x] **Live cost tracking** for API usage
 - [x] **Context limit protection** with token estimation and smart truncation
 - [x] Retired in v0.40: multiplayer, BAS panels, VCP runtime

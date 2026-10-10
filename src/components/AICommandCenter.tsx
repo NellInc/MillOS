@@ -17,9 +17,10 @@ import { useProductionStore } from '../stores/productionStore';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import { useUIStore } from '../stores/uiStore';
 import { useAIConfigStore } from '../stores/aiConfigStore';
+import { CLOUD_MODELS } from '../utils/cloudAIClient';
 import { useShallow } from 'zustand/react/shallow';
 import { applyDecisionEffects, reactToAlert } from '../utils/aiEngine';
-import { GeminiSettingsModal } from './GeminiSettingsModal';
+import { AISettingsModal } from './AISettingsModal';
 import { JevAdvisoryPanel } from './ui/JevAdvisoryPanel';
 import { ActionPlanTimeline } from './ui/ActionPlanTimeline';
 import { DecisionHistoryPanel } from './ui/DecisionHistoryPanel';
@@ -100,29 +101,31 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
     }))
   );
 
-  // AI backend configuration (Gemini API or local WebGPU neural core)
-  const { aiMode, isGeminiConnected, llmBackend, webgpuModelReady } = useAIConfigStore(
+  // AI backend configuration (cloud BYOK or local WebGPU neural core)
+  const { aiMode, connectedProviders, llmBackend, webgpuModelReady } = useAIConfigStore(
     useShallow((state) => ({
       aiMode: state.aiMode,
-      isGeminiConnected: state.isGeminiConnected,
+      connectedProviders: state.connectedProviders,
       llmBackend: state.llmBackend,
       webgpuModelReady: state.webgpuModelReady,
     }))
   );
   // The ACTIVE backend's readiness drives the badges — not "either backend".
-  // (Gemini connected while backend=webgpu-not-loaded must NOT read as ready.)
+  // A key for a different cloud backend must not read as ready.
   const isLocalBackend = llmBackend === 'webgpu';
-  const llmReady = isLocalBackend ? webgpuModelReady : isGeminiConnected;
+  const cloudLabel = llmBackend === 'webgpu' ? null : (CLOUD_MODELS[llmBackend]?.label ?? 'Cloud');
+  const llmReady =
+    llmBackend === 'webgpu' ? webgpuModelReady : (connectedProviders?.[llmBackend] ?? false);
   // Mirrors the badge text below so the settings button's name contains it.
   const modeLabel =
     aiMode === 'gemini' && llmReady
       ? isLocalBackend
         ? 'Local'
-        : 'Gemini'
+        : cloudLabel
       : aiMode === 'hybrid' && llmReady
         ? 'Hybrid'
         : 'Heuristic';
-  const [showGeminiSettings, setShowGeminiSettings] = useState(false);
+  const [showAISettings, setShowAISettings] = useState(false);
 
   // React to new alerts
   useEffect(() => {
@@ -202,14 +205,14 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
               >
                 reviewing...
               </span>
-              {/* Gemini Settings Button */}
+              {/* AI Settings Button */}
               <button
-                onClick={() => setShowGeminiSettings(true)}
+                onClick={() => setShowAISettings(true)}
                 aria-label={`AI settings, current mode: ${modeLabel}`}
                 className="ml-auto flex items-center gap-1.5 px-2 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 border border-slate-700 transition-colors"
                 title={
                   aiMode === 'gemini'
-                    ? `${isLocalBackend ? 'Local AI' : 'Gemini AI'} Active - Click to configure`
+                    ? `${isLocalBackend ? 'Local AI' : `${cloudLabel} AI`} Active: configure`
                     : aiMode === 'hybrid'
                       ? 'Hybrid Mode Active - Click to configure'
                       : 'Heuristic Mode - Click to configure AI backend'
@@ -219,7 +222,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
                   <>
                     <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
                     <span className="text-[10px] text-green-400 font-medium">
-                      {isLocalBackend ? 'Local' : 'Gemini'}
+                      {isLocalBackend ? 'Local' : cloudLabel}
                     </span>
                   </>
                 ) : aiMode === 'hybrid' && llmReady ? (
@@ -257,18 +260,14 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
                 </span>
               </div>
               <div className="bg-slate-800/50 rounded px-2 py-1">
-                {(aiMode === 'gemini' || aiMode === 'hybrid') &&
-                !isLocalBackend &&
-                isGeminiConnected ? (
+                {(aiMode === 'gemini' || aiMode === 'hybrid') && !isLocalBackend && llmReady ? (
                   <>
-                    <span className="text-slate-400">$</span>
-                    <span className="text-emerald-400 ml-1">{formattedSessionCost}</span>
+                    <span className="text-emerald-400">{formattedSessionCost} est.</span>
                   </>
                 ) : (
                   <>
-                    <span className="text-slate-400">$</span>
-                    {/* Local WebGPU inference and heuristic mode are both free. */}
-                    <span className="text-emerald-400 ml-1">FREE</span>
+                    {/* Local WebGPU inference and heuristic mode have no API cost. */}
+                    <span className="text-emerald-400">NO API COST</span>
                   </>
                 )}
               </div>
@@ -471,11 +470,8 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
             )}
           </div>
         </div>
-        {/* Gemini Settings Modal - rendered for embedded mode */}
-        <GeminiSettingsModal
-          isOpen={showGeminiSettings}
-          onClose={() => setShowGeminiSettings(false)}
-        />
+        {/* AI Settings Modal */}
+        <AISettingsModal isOpen={showAISettings} onClose={() => setShowAISettings(false)} />
         <DecisionReplay decision={selectedDecision} onClose={() => setSelectedDecision(null)} />
       </>
     );

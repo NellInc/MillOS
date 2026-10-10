@@ -28,7 +28,7 @@ import {
 import { useProductionStore } from '../../stores/productionStore';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { useAIConfigStore } from '../../stores/aiConfigStore';
-import { geminiClient } from '../geminiClient';
+import { cloudAIClient, type CloudResult } from '../cloudAIClient';
 import { webgpuClient } from '../webgpuClient';
 import { MachineType, AIDecision } from '../../types';
 
@@ -62,6 +62,8 @@ vi.mock('../logger', () => ({
     },
   },
 }));
+
+const cloud = (text: string): CloudResult => ({ text, inputTokens: 100, outputTokens: 50 });
 
 describe('aiEngine - Core Functions', () => {
   const singletonCleanups: Array<() => void> = [];
@@ -594,8 +596,8 @@ describe('aiEngine - Core Functions', () => {
     const configureStrategicLayer = (): void => {
       useAIConfigStore.setState((state) => ({
         aiMode: 'hybrid',
-        llmBackend: 'gemini',
-        isGeminiConnected: true,
+        llmBackend: 'haiku',
+        connectedProviders: { haiku: true, luna: false },
         strategic: {
           ...state.strategic,
           legacyPriorities: [],
@@ -608,19 +610,19 @@ describe('aiEngine - Core Functions', () => {
       vi.restoreAllMocks();
       useAIConfigStore.setState((state) => ({
         aiMode: 'heuristic',
-        isGeminiConnected: false,
+        connectedProviders: { haiku: false, luna: false },
         strategic: { ...state.strategic, legacyPriorities: [], isThinking: false },
       }));
     });
 
     it('shares one in-flight strategic request and commits it once', async () => {
       configureStrategicLayer();
-      vi.spyOn(geminiClient, 'isConnected').mockReturnValue(true);
+      vi.spyOn(cloudAIClient, 'hasKey').mockReturnValue(true);
       let resolveResponse!: (response: string) => void;
-      const response = new Promise<string>((resolve) => {
-        resolveResponse = resolve;
+      const response = new Promise<CloudResult>((resolve) => {
+        resolveResponse = (text) => resolve(cloud(text));
       });
-      const generate = vi.spyOn(geminiClient, 'generateContent').mockReturnValue(response);
+      const generate = vi.spyOn(cloudAIClient, 'generateContent').mockReturnValue(response);
       const addDecision = vi.mocked(useProductionStore.getState)().addAIDecision as ReturnType<
         typeof vi.fn
       >;
@@ -652,16 +654,18 @@ describe('aiEngine - Core Functions', () => {
     it('runs in LLM-only mode and records the plan, dropping an unknown focus machine', async () => {
       configureStrategicLayer();
       useAIConfigStore.setState({ aiMode: 'gemini' });
-      vi.spyOn(geminiClient, 'isConnected').mockReturnValue(true);
-      vi.spyOn(geminiClient, 'generateContent').mockResolvedValue(
-        JSON.stringify({
-          priorities: [`  Protect RM-101 ${'x'.repeat(400)}`],
-          reasoning: 'Load is high.',
-          insight: 'Vibration is trending up.',
-          tradeoff: 'Throughput dips briefly.',
-          focusMachine: 'RM-999',
-          actionPlan: ['Trim feed', 'Watch vibration', 'Stage bearings'],
-        })
+      vi.spyOn(cloudAIClient, 'hasKey').mockReturnValue(true);
+      vi.spyOn(cloudAIClient, 'generateContent').mockResolvedValue(
+        cloud(
+          JSON.stringify({
+            priorities: [`  Protect RM-101 ${'x'.repeat(400)}`],
+            reasoning: 'Load is high.',
+            insight: 'Vibration is trending up.',
+            tradeoff: 'Throughput dips briefly.',
+            focusMachine: 'RM-999',
+            actionPlan: ['Trim feed', 'Watch vibration', 'Stage bearings'],
+          })
+        )
       );
 
       const decision = await generateStrategicDecision();
@@ -680,9 +684,11 @@ describe('aiEngine - Core Functions', () => {
 
     it('keeps a focus machine that the plant actually has', async () => {
       configureStrategicLayer();
-      vi.spyOn(geminiClient, 'isConnected').mockReturnValue(true);
-      vi.spyOn(geminiClient, 'generateContent').mockResolvedValue(
-        '{"priorities":["Protect the roller mill"],"reasoning":"Stable","focusMachine":"RM-101"}'
+      vi.spyOn(cloudAIClient, 'hasKey').mockReturnValue(true);
+      vi.spyOn(cloudAIClient, 'generateContent').mockResolvedValue(
+        cloud(
+          '{"priorities":["Protect the roller mill"],"reasoning":"Stable","focusMachine":"RM-101"}'
+        )
       );
 
       const decision = await generateStrategicDecision();
@@ -693,11 +699,11 @@ describe('aiEngine - Core Functions', () => {
 
     it('discards an outstanding response after the last engine lease is released', async () => {
       configureStrategicLayer();
-      vi.spyOn(geminiClient, 'isConnected').mockReturnValue(true);
+      vi.spyOn(cloudAIClient, 'hasKey').mockReturnValue(true);
       let resolveResponse!: (response: string) => void;
-      vi.spyOn(geminiClient, 'generateContent').mockReturnValue(
-        new Promise<string>((resolve) => {
-          resolveResponse = resolve;
+      vi.spyOn(cloudAIClient, 'generateContent').mockReturnValue(
+        new Promise<CloudResult>((resolve) => {
+          resolveResponse = (text) => resolve(cloud(text));
         })
       );
       const addDecision = vi.mocked(useProductionStore.getState)().addAIDecision as ReturnType<
@@ -718,9 +724,9 @@ describe('aiEngine - Core Functions', () => {
 
     it('rejects malformed strategic output without committing state', async () => {
       configureStrategicLayer();
-      vi.spyOn(geminiClient, 'isConnected').mockReturnValue(true);
-      vi.spyOn(geminiClient, 'generateContent').mockResolvedValue(
-        '{"priorities":[42,null],"reasoning":"invalid priority types"}'
+      vi.spyOn(cloudAIClient, 'hasKey').mockReturnValue(true);
+      vi.spyOn(cloudAIClient, 'generateContent').mockResolvedValue(
+        cloud('{"priorities":[42,null],"reasoning":"invalid priority types"}')
       );
       const addDecision = vi.mocked(useProductionStore.getState)().addAIDecision as ReturnType<
         typeof vi.fn
@@ -735,11 +741,11 @@ describe('aiEngine - Core Functions', () => {
 
     it('invalidates an old backend response and starts the newly selected backend', async () => {
       configureStrategicLayer();
-      vi.spyOn(geminiClient, 'isConnected').mockReturnValue(true);
+      vi.spyOn(cloudAIClient, 'hasKey').mockReturnValue(true);
       let resolveGemini!: (response: string) => void;
-      vi.spyOn(geminiClient, 'generateContent').mockReturnValue(
-        new Promise<string>((resolve) => {
-          resolveGemini = resolve;
+      vi.spyOn(cloudAIClient, 'generateContent').mockReturnValue(
+        new Promise<CloudResult>((resolve) => {
+          resolveGemini = (text) => resolve(cloud(text));
         })
       );
       vi.spyOn(webgpuClient, 'isConnected').mockReturnValue(true);
@@ -766,11 +772,31 @@ describe('aiEngine - Core Functions', () => {
       ]);
     });
 
+    it('does not commit a response from a replaced key on the same backend', async () => {
+      configureStrategicLayer();
+      vi.spyOn(cloudAIClient, 'hasKey').mockReturnValue(true);
+      let resolveOld!: (response: CloudResult) => void;
+      vi.spyOn(cloudAIClient, 'generateContent').mockReturnValue(
+        new Promise<CloudResult>((resolve) => {
+          resolveOld = resolve;
+        })
+      );
+      const addDecision = vi.mocked(useProductionStore.getState)().addAIDecision as ReturnType<
+        typeof vi.fn
+      >;
+      const pending = generateStrategicDecision();
+      useAIConfigStore.setState((state) => ({ connectionEpoch: state.connectionEpoch + 1 }));
+      resolveOld(cloud('{"priorities":["Stale key advice"],"reasoning":"Old credential"}'));
+      await expect(pending).resolves.toBeNull();
+      expect(addDecision).not.toHaveBeenCalled();
+      expect(useAIConfigStore.getState().strategic.legacyPriorities).toEqual([]);
+    });
+
     it('leaves strategic state unchanged when decision admission is backpressured', async () => {
       configureStrategicLayer();
-      vi.spyOn(geminiClient, 'isConnected').mockReturnValue(true);
-      vi.spyOn(geminiClient, 'generateContent').mockResolvedValue(
-        '{"priorities":["Unrecorded priority"],"reasoning":"Queue is full"}'
+      vi.spyOn(cloudAIClient, 'hasKey').mockReturnValue(true);
+      vi.spyOn(cloudAIClient, 'generateContent').mockResolvedValue(
+        cloud('{"priorities":["Unrecorded priority"],"reasoning":"Queue is full"}')
       );
       const addDecision = vi.mocked(useProductionStore.getState)().addAIDecision as ReturnType<
         typeof vi.fn

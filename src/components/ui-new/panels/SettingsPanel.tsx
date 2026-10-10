@@ -771,12 +771,12 @@ export const SettingsPanel: React.FC<{
         title="Reset Simulation"
         tone="red"
         confirmLabel="Reset Everything"
-        message="Wipe everything — saved progress, graphics settings, your Gemini API key — and reload from scratch. There is no undo."
+        message="Wipe everything — saved progress, graphics settings, your saved AI preferences — and reload from scratch. There is no undo."
         onCancel={() => setResetConfirm(null)}
         onConfirm={() => {
           // Clear every persisted MillOS store (keys are namespaced "millos-*").
-          // This includes millos-graphics and millos-ai-config (the plaintext
-          // Gemini API key), which a full reset should remove.
+          // This includes millos-graphics and millos-ai-config (AI preferences).
+          // Cloud API keys live in page memory and vanish on the reload below.
           Object.keys(localStorage)
             .filter((key) => key.startsWith('millos-'))
             .forEach((key) => localStorage.removeItem(key));

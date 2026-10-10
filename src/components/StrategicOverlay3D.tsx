@@ -105,7 +105,7 @@ export const StrategicOverlay3D: React.FC = () => {
             anchorX="center"
             anchorY="middle"
           >
-            Gemini thinking...
+            Strategic model thinking...
           </Text>
         )}
       </Billboard>

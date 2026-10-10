@@ -21,7 +21,9 @@ let AICommandCenter: (typeof import('../AICommandCenter'))['AICommandCenter'];
 
 const staticAIConfigState = {
   aiMode: 'heuristic' as const,
-  isGeminiConnected: false,
+  llmBackend: 'haiku' as const,
+  connectedProviders: { haiku: false, luna: false },
+  webgpuModelReady: false,
   getFormattedCost: () => '$0.00',
   costTracking: { requestCount: 0, sessionCost: 0 },
   isTacticalThinking: false,
@@ -102,8 +104,8 @@ vi.mock('../../stores/gameSimulationStore', () => ({
 
 // Mock large UI subcomponents imported by AICommandCenter to avoid pulling the
 // entire UI layer (charts, overlays, etc.) into this unit test.
-vi.mock('../GeminiSettingsModal', () => ({
-  GeminiSettingsModal: () => null,
+vi.mock('../AISettingsModal', () => ({
+  AISettingsModal: () => null,
 }));
 vi.mock('../ui/ActionPlanTimeline', () => ({
   ActionPlanTimeline: () => <div data-testid="action-plan-timeline" />,

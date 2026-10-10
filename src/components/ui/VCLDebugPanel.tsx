@@ -3,7 +3,8 @@
  *
  * Beautiful showcase of the VCP (Value Context Protocol) encoding system.
  * Shows side-by-side comparison of expanded telemetry vs compact glyph encoding.
- * Demonstrates the 95%+ token savings when communicating factory state to Gemini.
+ * Demonstrates a compact context format. The live strategic prompt currently
+ * uses structured telemetry, so this comparison is illustrative.
  */
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
@@ -19,7 +20,7 @@ import {
   Brain,
   AlertTriangle,
 } from 'lucide-react';
-import { getActiveGeminiPricing, useAIConfigStore } from '../../stores/aiConfigStore';
+import { useAIConfigStore } from '../../stores/aiConfigStore';
 import { useProductionStore } from '../../stores/productionStore';
 import { useGameSimulationStore, useUIStore } from '../../stores';
 import { encodeFactoryContextVCL } from '../../utils/vclEncoder';
@@ -76,8 +77,6 @@ export const VCLDebugPanel: React.FC = () => {
   const vclLength = vclEncoding.length;
   const savingsPercent = Math.round((1 - vclLength / verboseLength) * 100);
   const tokensSaved = Math.round((verboseLength - vclLength) / 4); // ~4 chars per token
-  // Input tokens saved across 1,000 requests, at the active model's input rate.
-  const savingsPer1kRequests = ((tokensSaved * 1000) / 1_000_000) * getActiveGeminiPricing().input;
 
   const handleCopy = async () => {
     if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
@@ -166,9 +165,9 @@ export const VCLDebugPanel: React.FC = () => {
                     How It Works
                   </h3>
                   <p className="text-[11px] text-slate-400 mt-1">
-                    VCP compresses factory context into semantic emoji strings, reducing API token
-                    usage by <span className="text-emerald-400 font-bold">{savingsPercent}%</span>{' '}
-                    while preserving full meaning for Gemini AI.
+                    This example compares compact and verbose formats, with a{' '}
+                    <span className="text-emerald-400 font-bold">{savingsPercent}%</span> size
+                    reduction. Live strategic requests use structured telemetry.
                   </p>
                 </div>
                 <button
@@ -236,10 +235,8 @@ export const VCLDebugPanel: React.FC = () => {
                   <div className="text-[8px] text-slate-400 mt-0.5 truncate">Tokens Saved</div>
                 </div>
                 <div className="bg-slate-800/50 rounded-lg p-2 text-center border border-slate-700/50 overflow-hidden">
-                  <div className="text-lg font-bold text-purple-400 truncate">
-                    ${savingsPer1kRequests.toFixed(2)}
-                  </div>
-                  <div className="text-[8px] text-slate-400 mt-0.5 truncate">Per 1K Requests</div>
+                  <div className="text-lg font-bold text-purple-400 truncate">Example</div>
+                  <div className="text-[8px] text-slate-400 mt-0.5 truncate">Not live savings</div>
                 </div>
               </div>
             </div>
