@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CloudAIClient } from './cloudAIClient';
+import { SpendBudget, SpendCapError } from './spendBudget';
 
 const haikuResponse = (text = '{"priorities":["Protect RM-101"]}') => ({
   stop_reason: 'end_turn',
@@ -26,8 +27,16 @@ function ok(data: unknown): Response {
   });
 }
 
+const openRouterResponse = (cost = 0.00042) => ({
+  choices: [{ finish_reason: 'stop', message: { content: '{"priorities":["Protect RM-101"]}' } }],
+  usage: { prompt_tokens: 100, completion_tokens: 60, cost },
+});
+
 describe('CloudAIClient browser BYOK contract', () => {
-  beforeEach(() => vi.unstubAllGlobals());
+  beforeEach(() => {
+    vi.unstubAllGlobals();
+    sessionStorage.clear();
+  });
   afterEach(() => vi.unstubAllGlobals());
 
   it.each([
@@ -59,6 +68,7 @@ describe('CloudAIClient browser BYOK contract', () => {
         });
       } else {
         expect(request.reasoning).toEqual({ effort: 'high' });
+        expect(request.prompt_cache_options).toEqual({ mode: 'explicit' });
         expect(request.store).toBe(false);
         expect(init.headers).toMatchObject({ Authorization: 'Bearer private-key' });
       }
@@ -123,5 +133,91 @@ describe('CloudAIClient browser BYOK contract', () => {
     );
     client.clearKey('haiku');
     expect(client.hasKey('haiku')).toBe(false);
+  });
+
+  it.each([
+    ['openrouter-haiku', 'anthropic/claude-haiku-5.5'],
+    ['openrouter-luna', 'openai/gpt-6-luna'],
+  ] as const)('routes %s with high reasoning and billed cost', async (backend, model) => {
+    const fetchMock = vi.fn().mockResolvedValue(ok(openRouterResponse()));
+    vi.stubGlobal('fetch', fetchMock);
+    const budget = new SpendBudget();
+    const client = new CloudAIClient(budget);
+    client.setKey(backend, 'or-key');
+    await client.generateContent(backend, 'Plant telemetry');
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('https://openrouter.ai/api/v1/chat/completions');
+    expect(init.headers).toMatchObject({ Authorization: 'Bearer or-key' });
+    const payload = JSON.parse(init.body as string);
+    expect(payload).toMatchObject({
+      model,
+      reasoning: { effort: 'high' },
+      provider: { require_parameters: true, max_price: { prompt: 0.1, completion: 0.5 } },
+      messages: [{ role: 'user', content: 'Plant telemetry' }],
+    });
+    if (backend === 'openrouter-luna') {
+      expect(payload.prompt_cache_options).toEqual({ mode: 'explicit' });
+    }
+    expect(budget.getSnapshot().spentUsd).toBe(0.00042);
+  });
+
+  it('counts a billable key test, even before connecting a key', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(ok(haikuResponse())));
+    const budget = new SpendBudget();
+    const client = new CloudAIClient(budget);
+    await client.testKey('haiku', 'candidate-key');
+    expect(client.hasKey('haiku')).toBe(false);
+    expect(budget.getSnapshot().requestCount).toBe(1);
+  });
+
+  it('counts OpenRouter account and upstream BYOK charges together', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        ok({
+          ...openRouterResponse(0.00042),
+          usage: {
+            ...openRouterResponse(0.00042).usage,
+            cost_details: { upstream_inference_cost: 0.00031 },
+          },
+        })
+      )
+    );
+    const budget = new SpendBudget();
+    const client = new CloudAIClient(budget);
+    client.setKey('openrouter-haiku', 'or-key');
+    await client.generateContent('openrouter-haiku', 'Plant telemetry');
+    expect(budget.getSnapshot().spentUsd).toBeCloseTo(0.00073, 10);
+  });
+
+  it('blocks before fetch when the cap cannot reserve another request', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(ok(lunaResponse()));
+    vi.stubGlobal('fetch', fetchMock);
+    const budget = new SpendBudget();
+    budget.setCap(0.01);
+    const holds = Array.from({ length: 4 }, () => budget.reserve('Plant telemetry', 4096));
+    const client = new CloudAIClient(budget);
+    client.setKey('luna', 'key');
+    await expect(client.generateContent('luna', 'Plant telemetry')).rejects.toBeInstanceOf(
+      SpendCapError
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+    holds.forEach((id) => budget.reject(id));
+  });
+
+  it('accounts for incomplete responses and holds uncertain usage', async () => {
+    const budget = new SpendBudget();
+    const client = new CloudAIClient(budget);
+    client.setKey('luna', 'key');
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(ok({ ...lunaResponse(), status: 'incomplete' }))
+    );
+    await expect(client.generateContent('luna', 'Plant telemetry')).rejects.toThrow(/complete/);
+    expect(budget.getSnapshot().requestCount).toBe(1);
+    expect(budget.getSnapshot().spentUsd).toBeGreaterThan(0);
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(ok({ ...lunaResponse(), usage: undefined })));
+    await expect(client.generateContent('luna', 'Plant telemetry')).rejects.toThrow(/usage/);
+    expect(budget.getSnapshot().uncertainUsd).toBeGreaterThan(0);
   });
 });

@@ -12,6 +12,8 @@ import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import { useUIStore } from '../stores/uiStore';
 import { useAIConfigStore } from '../stores/aiConfigStore';
 import { cloudAIClient, type CloudResult } from './cloudAIClient';
+import { chatgptClient } from './chatgptClient';
+import { SpendCapError } from './spendBudget';
 import { webgpuClient } from './webgpuClient';
 import { logger } from './logger';
 
@@ -601,10 +603,18 @@ function getActiveLLM(): {
           return text ? { text, inputTokens: 0, outputTokens: 0 } : null;
         },
       }
-    : {
-        isConnected: () => cloudAIClient.hasKey(backend),
-        generateContent: (prompt) => cloudAIClient.generateContent(backend, prompt),
-      };
+    : backend === 'chatgpt'
+      ? {
+          isConnected: () => chatgptClient.isConnected(),
+          generateContent: async (prompt) => {
+            const text = await chatgptClient.generateContent(prompt);
+            return text ? { text, inputTokens: 0, outputTokens: 0 } : null;
+          },
+        }
+      : {
+          isConnected: () => cloudAIClient.hasKey(backend),
+          generateContent: (prompt) => cloudAIClient.generateContent(backend, prompt),
+        };
 }
 
 export function isLLMModeActive(): boolean {
@@ -620,8 +630,8 @@ export function isStrategicLayerActive(): boolean {
 }
 
 export function isTacticalLayerActive(): boolean {
-  const mode = useAIConfigStore.getState().aiMode;
-  return mode === 'heuristic' || mode === 'hybrid';
+  const state = useAIConfigStore.getState();
+  return state.aiMode === 'heuristic' || state.aiMode === 'hybrid' || !state.isLLMReady();
 }
 
 function strategicPrompt(machines: MachineData[]): string {
@@ -738,9 +748,6 @@ async function runStrategicDecision(
       return null;
     }
     const liveConfig = useAIConfigStore.getState();
-    if (config.llmBackend !== 'webgpu') {
-      liveConfig.recordApiUsage(result.inputTokens, result.outputTokens);
-    }
     const strategic = parseStrategicResponse(result.text);
     if (!strategic) return null;
     // Only keep a focus machine the plant actually has, so neither the decision
@@ -778,6 +785,21 @@ async function runStrategicDecision(
     });
     return recorded;
   } catch (error) {
+    if (error instanceof SpendCapError) {
+      const current = useAIConfigStore.getState();
+      if (
+        current.llmBackend === requestBackend &&
+        current.connectionEpoch === requestConnectionEpoch
+      ) {
+        current.setAIMode('heuristic');
+        useAIConfigStore.setState({ connectionError: error.message });
+      }
+    }
+    if (requestBackend === 'chatgpt') {
+      const current = useAIConfigStore.getState();
+      current.setChatGPTError(error instanceof Error ? error.message : 'ChatGPT request failed.');
+      if (!chatgptClient.isConnected()) void current.refreshChatGPT();
+    }
     logger.ai.error('Strategic decision generation failed', error);
     return null;
   } finally {

@@ -2,7 +2,7 @@
  * AI Settings Modal for MillOS
  *
  * Configure the strategic AI backend:
- * - Claude Haiku 5.5 High or GPT-6 Luna High: direct browser BYOK.
+ * - Claude Haiku 5.5 High or GPT-6 Luna High: direct or OpenRouter browser BYOK.
  * - Local (WebGPU): on-device Qwen3-4B neural core via @mlc-ai/web-llm — no
  *   API key, no cost, no data leaving the device after the one-time weight
  *   download. Mirrors the CABAL workspace WebGPU brain.
@@ -26,6 +26,7 @@ import {
 import { useShallow } from 'zustand/react/shallow';
 import { useAIConfigStore } from '../stores/aiConfigStore';
 import { cloudAIClient, CLOUD_MODELS, type CloudBackend } from '../utils/cloudAIClient';
+import { chatgptClient, type ChatGPTModel } from '../utils/chatgptClient';
 import {
   WebGPUClient,
   checkWebGPUSupport,
@@ -334,6 +335,166 @@ interface AISettingsModalProps {
   onClose: () => void;
 }
 
+function ChatGPTPanel() {
+  const status = useAIConfigStore((s) => s.chatgptStatus);
+  const statusError = useAIConfigStore((s) => s.chatgptError);
+  const refresh = useAIConfigStore((s) => s.refreshChatGPT);
+  const [models, setModels] = useState<ChatGPTModel[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [returningId, setReturningId] = useState('');
+  const local = ['127.0.0.1', 'localhost'].includes(window.location.hostname);
+  const active = status?.accounts.find((account) => account.id === status.activeId);
+
+  useEffect(() => {
+    if (!active?.signedIn) return;
+    void chatgptClient
+      .models()
+      .then(setModels)
+      .catch((cause) => {
+        setError(cause instanceof Error ? cause.message : 'Model catalog unavailable.');
+      });
+  }, [active?.id, active?.signedIn]);
+
+  const run = async (action: () => Promise<void>) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await action();
+      await refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'ChatGPT operation failed.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="p-3 rounded-lg bg-slate-800/50 space-y-3">
+      <p className="text-sm font-medium text-slate-200">ChatGPT plan login</p>
+      <p className="text-xs text-slate-400">
+        Available in the local MillOS companion. Run <code>npm run play:chatgpt</code> and open its
+        127.0.0.1 address. Public-site ChatGPT plan access requires OpenAI approval. This plan route
+        is separate from the dollar cap on BYOK calls.
+      </p>
+      {local && active?.signedIn ? (
+        <>
+          <p className="text-xs text-green-400">Connected as {active.email || 'ChatGPT account'}</p>
+          {status && status.accounts.length > 1 && (
+            <select
+              aria-label="ChatGPT account"
+              value={status.activeId || ''}
+              disabled={busy}
+              onChange={(event) => void run(() => chatgptClient.selectAccount(event.target.value))}
+              className="w-full p-2 bg-slate-900 border border-slate-600 rounded text-white text-xs"
+            >
+              {status.accounts.map((account) => (
+                <option key={account.id} value={account.id}>
+                  {account.email || account.id}
+                </option>
+              ))}
+            </select>
+          )}
+          <select
+            aria-label="ChatGPT plan model"
+            value={active.model || ''}
+            disabled={busy}
+            onChange={(event) => void run(() => chatgptClient.selectModel(event.target.value))}
+            className="w-full p-2 bg-slate-900 border border-slate-600 rounded text-white text-xs"
+          >
+            <option value="">Select a plan model</option>
+            {models.map((model) => (
+              <option key={model.slug} value={model.slug}>
+                {model.name}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() =>
+              void run(async () => {
+                const confirmed = await chatgptClient.signOut();
+                if (!confirmed) {
+                  setError(
+                    'Signed out locally; remote revocation was not confirmed. Disconnect MillOS in ChatGPT Settings.'
+                  );
+                }
+              })
+            }
+            className="text-xs text-slate-300 underline disabled:opacity-50"
+          >
+            Sign out locally
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() =>
+              void run(async () => {
+                window.location.assign(await chatgptClient.start());
+              })
+            }
+            className="text-xs text-slate-300 underline disabled:opacity-50 ml-3"
+          >
+            Add another ChatGPT account
+          </button>
+        </>
+      ) : local ? (
+        <>
+          {status && status.accounts.length > 0 && (
+            <>
+              <select
+                aria-label="Reconnect ChatGPT account"
+                value={returningId || status.accounts[0].id}
+                disabled={busy}
+                onChange={(event) => setReturningId(event.target.value)}
+                className="w-full p-2 bg-slate-900 border border-slate-600 rounded text-white text-xs"
+              >
+                {status.accounts.map((account) => (
+                  <option key={account.id} value={account.id}>
+                    {account.email || account.id}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() =>
+                  void run(async () => {
+                    window.location.assign(
+                      await chatgptClient.start(returningId || status.accounts[0].id)
+                    );
+                  })
+                }
+                className="w-full p-2 bg-cyan-600/20 border border-cyan-500/40 rounded text-cyan-300 text-sm disabled:opacity-50"
+              >
+                Reconnect ChatGPT account
+              </button>
+            </>
+          )}
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() =>
+              void run(async () => {
+                window.location.assign(await chatgptClient.start());
+              })
+            }
+            className="text-xs text-slate-300 underline disabled:opacity-50"
+          >
+            {status?.accounts.length ? 'Add another ChatGPT account' : 'Continue with ChatGPT'}
+          </button>
+        </>
+      ) : null}
+      {(error || (local && statusError)) && (
+        <p role="alert" className="text-xs text-red-400">
+          {error || statusError}
+        </p>
+      )}
+    </div>
+  );
+}
+
 export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
   // Selected, not the whole store: this modal is always mounted, and a bare
   // useAIConfigStore() would re-render it on every status and cost update.
@@ -347,6 +508,11 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
     llmBackend,
     setLLMBackend,
     webgpuModelReady,
+    chatgptStatus,
+    refreshChatGPT,
+    spendCapUsd,
+    setSpendCap,
+    costTracking,
   } = useAIConfigStore(
     useShallow((s) => ({
       aiMode: s.aiMode,
@@ -358,6 +524,11 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
       llmBackend: s.llmBackend,
       setLLMBackend: s.setLLMBackend,
       webgpuModelReady: s.webgpuModelReady,
+      chatgptStatus: s.chatgptStatus,
+      refreshChatGPT: s.refreshChatGPT,
+      spendCapUsd: s.spendCapUsd,
+      setSpendCap: s.setSpendCap,
+      costTracking: s.costTracking,
     }))
   );
 
@@ -365,6 +536,9 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const [showLLMConfirmation, setShowLLMConfirmation] = useState(false);
+  const [capInput, setCapInput] = useState(spendCapUsd?.toString() ?? '');
+  const [capError, setCapError] = useState<string | null>(null);
+  useEffect(() => setCapInput(spendCapUsd?.toString() ?? ''), [spendCapUsd]);
 
   const modalRef = useRef<HTMLDivElement | null>(null);
   const handleClose = useCallback(() => {
@@ -377,11 +551,26 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
 
   // The ACTIVE backend's readiness unlocks the operating-mode controls.
   const isLocal = llmBackend === 'webgpu';
-  const cloudBackend = isLocal ? null : (llmBackend as CloudBackend);
-  const modelLabel = cloudBackend ? CLOUD_MODELS[cloudBackend].label : 'Local';
-  const llmReady = cloudBackend ? connectedProviders[cloudBackend] : webgpuModelReady;
+  const isChatGPT = llmBackend === 'chatgpt';
+  const cloudBackend = !isLocal && !isChatGPT ? (llmBackend as CloudBackend) : null;
+  const modelLabel = cloudBackend
+    ? CLOUD_MODELS[cloudBackend].label
+    : isChatGPT
+      ? 'ChatGPT'
+      : 'Local';
+  const chatgptAccount = chatgptStatus?.accounts.find(
+    (account) => account.id === chatgptStatus.activeId
+  );
+  const llmReady = cloudBackend
+    ? connectedProviders[cloudBackend]
+    : isChatGPT
+      ? Boolean(chatgptAccount?.signedIn && chatgptAccount.model)
+      : webgpuModelReady;
+  useEffect(() => {
+    if (isOpen && isChatGPT) void refreshChatGPT();
+  }, [isOpen, isChatGPT, refreshChatGPT]);
 
-  const selectBackend = (backend: CloudBackend | 'webgpu') => {
+  const selectBackend = (backend: CloudBackend | 'webgpu' | 'chatgpt') => {
     setInputKey('');
     setTestResult(null);
     setLLMBackend(backend);
@@ -481,7 +670,7 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
             {/* Backend Selector */}
             <div className="p-3 rounded-lg bg-slate-800/50 space-y-2">
               <label className="block text-sm font-medium text-slate-300">AI Backend</label>
-              <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="AI Backend">
+              <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="AI Backend">
                 <button
                   role="radio"
                   aria-checked={llmBackend === 'haiku'}
@@ -512,6 +701,49 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
                 </button>
                 <button
                   role="radio"
+                  aria-checked={llmBackend === 'openrouter-haiku'}
+                  onClick={() => selectBackend('openrouter-haiku')}
+                  className={`p-2 rounded-lg border text-center transition-all ${
+                    llmBackend === 'openrouter-haiku'
+                      ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-400'
+                      : 'bg-slate-700/50 border-slate-600 text-slate-400 hover:border-slate-500'
+                  }`}
+                >
+                  <Cloud className="w-4 h-4 mx-auto mb-1" aria-hidden="true" />
+                  <div className="text-xs font-medium">Haiku 5.5 High</div>
+                  <div className="text-[9px] opacity-70">OpenRouter • BYOK</div>
+                </button>
+                <button
+                  role="radio"
+                  aria-checked={llmBackend === 'openrouter-luna'}
+                  onClick={() => selectBackend('openrouter-luna')}
+                  className={`p-2 rounded-lg border text-center transition-all ${
+                    llmBackend === 'openrouter-luna'
+                      ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-400'
+                      : 'bg-slate-700/50 border-slate-600 text-slate-400 hover:border-slate-500'
+                  }`}
+                >
+                  <Cloud className="w-4 h-4 mx-auto mb-1" aria-hidden="true" />
+                  <div className="text-xs font-medium">Luna 6 High</div>
+                  <div className="text-[9px] opacity-70">OpenRouter • BYOK</div>
+                </button>
+                <button
+                  role="radio"
+                  aria-checked={llmBackend === 'chatgpt'}
+                  disabled={!['127.0.0.1', 'localhost'].includes(window.location.hostname)}
+                  onClick={() => selectBackend('chatgpt')}
+                  className={`p-2 rounded-lg border text-center transition-all ${
+                    llmBackend === 'chatgpt'
+                      ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-400'
+                      : 'bg-slate-700/50 border-slate-600 text-slate-400 hover:border-slate-500 disabled:opacity-50'
+                  }`}
+                >
+                  <Cloud className="w-4 h-4 mx-auto mb-1" aria-hidden="true" />
+                  <div className="text-xs font-medium">ChatGPT plan</div>
+                  <div className="text-[9px] opacity-70">Local companion</div>
+                </button>
+                <button
+                  role="radio"
                   aria-checked={llmBackend === 'webgpu'}
                   onClick={() => selectBackend('webgpu')}
                   className={`p-2 rounded-lg border text-center transition-all ${
@@ -526,6 +758,60 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
                 </button>
               </div>
             </div>
+
+            {/* Browser-session BYOK admission limit. No key or cap is stored on a server. */}
+            <form
+              className="p-3 rounded-lg bg-slate-800/50 space-y-2"
+              onSubmit={(event) => {
+                event.preventDefault();
+                try {
+                  setSpendCap(capInput.trim() ? Number(capInput) : null);
+                  setCapError(null);
+                } catch (error) {
+                  setCapError(error instanceof Error ? error.message : 'Invalid cost cap.');
+                }
+              }}
+            >
+              <label htmlFor="ai-cost-cap" className="block text-sm font-medium text-slate-300">
+                BYOK session cost cap (USD)
+              </label>
+              <div className="flex gap-2">
+                <input
+                  id="ai-cost-cap"
+                  type="number"
+                  min="0.01"
+                  max="1000"
+                  step="0.01"
+                  placeholder="Off"
+                  value={capInput}
+                  onChange={(event) => setCapInput(event.target.value)}
+                  className="min-w-0 flex-1 px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white text-sm"
+                />
+                <button
+                  type="submit"
+                  className="px-3 py-2 rounded-lg bg-cyan-600/20 border border-cyan-500/40 text-cyan-300 text-xs"
+                >
+                  Apply
+                </button>
+              </div>
+              <p className="text-xs text-slate-400">
+                Used {`$${costTracking.sessionCost.toFixed(4)}`}; in flight or uncertain{' '}
+                {`$${(costTracking.reservedCost + costTracking.uncertainCost).toFixed(4)}`}.
+                {spendCapUsd === null ? ' No cap set.' : ` Cap: $${spendCapUsd.toFixed(2)}.`}
+              </p>
+              <p className="text-[10px] text-slate-400">
+                This tab blocks new paid requests using a conservative estimate, including key
+                tests. It is not a provider billing limit; actual charges can differ. Set a
+                provider-side limit where available for a stronger guard. OpenRouter upstream BYOK
+                charges are included when OpenRouter reports them; verify charges in your provider
+                account.
+              </p>
+              {capError && (
+                <p role="alert" className="text-xs text-red-400">
+                  {capError}
+                </p>
+              )}
+            </form>
 
             {/* Current Status */}
             <div className="p-3 rounded-lg bg-slate-800/50">
@@ -555,7 +841,7 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
                 </div>
               </div>
 
-              {!isLocal && llmReady && (
+              {cloudBackend && llmReady && (
                 <div className="mt-2 flex items-center gap-2 text-sm text-green-400">
                   <CheckCircle className="w-4 h-4" aria-hidden="true" />
                   <span>Connected • {modelLabel} • key held in memory</span>
@@ -569,7 +855,7 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
                 </div>
               )}
 
-              {!isLocal && connectionError && (
+              {cloudBackend && connectionError && (
                 <div role="alert" className="mt-2 flex items-center gap-2 text-sm text-red-400">
                   <AlertTriangle className="w-4 h-4" aria-hidden="true" />
                   <span>{connectionError}</span>
@@ -578,7 +864,7 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
             </div>
 
             {/* Cloud BYOK key flow */}
-            {!isLocal && (
+            {cloudBackend && (
               <div className="space-y-2">
                 <label htmlFor="cloud-api-key" className="block text-sm font-medium text-slate-300">
                   {CLOUD_MODELS[cloudBackend!].provider} API Key
@@ -607,7 +893,9 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
                     href={
                       cloudBackend === 'haiku'
                         ? 'https://platform.claude.com/settings/keys'
-                        : 'https://platform.openai.com/api-keys'
+                        : cloudBackend === 'luna'
+                          ? 'https://platform.openai.com/api-keys'
+                          : 'https://openrouter.ai/settings/keys'
                     }
                     target="_blank"
                     rel="noopener noreferrer"
@@ -628,9 +916,10 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
 
             {/* Local WebGPU model flow */}
             {isLocal && <WebGPUModelPanel />}
+            {isChatGPT && <ChatGPTPanel />}
 
             {/* BYOK connection result */}
-            {!isLocal && testResult && (
+            {cloudBackend && testResult && (
               <motion.div
                 role="alert"
                 initial={{ opacity: 0, y: -10 }}
@@ -796,7 +1085,7 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
           </div>
 
           {/* Cloud BYOK actions */}
-          {!isLocal && (
+          {cloudBackend && (
             <div className="flex items-center justify-between p-4 border-t border-slate-700 bg-slate-800/50">
               {llmReady ? (
                 <button

@@ -1,9 +1,21 @@
 /** Browser BYOK transport. Keys remain in this module's memory, never in Zustand persistence. */
-export type CloudBackend = 'haiku' | 'luna';
+import { spendBudget, type SpendBudget } from './spendBudget';
+
+export type CloudBackend = 'haiku' | 'luna' | 'openrouter-haiku' | 'openrouter-luna';
 
 export const CLOUD_MODELS: Record<CloudBackend, { id: string; label: string; provider: string }> = {
   haiku: { id: 'claude-haiku-5-5', label: 'Haiku 5.5 High', provider: 'Anthropic' },
   luna: { id: 'gpt-6-luna', label: 'Luna 6 High', provider: 'OpenAI' },
+  'openrouter-haiku': {
+    id: 'anthropic/claude-haiku-5.5',
+    label: 'Haiku 5.5 High',
+    provider: 'OpenRouter',
+  },
+  'openrouter-luna': {
+    id: 'openai/gpt-6-luna',
+    label: 'Luna 6 High',
+    provider: 'OpenRouter',
+  },
 };
 
 export interface CloudResult {
@@ -25,11 +37,58 @@ function tokenCount(value: unknown): number {
 function errorForStatus(status: number): Error {
   if (status === 401 || status === 403)
     return new Error('API key or model access was rejected. Check your provider account.');
+  if (status === 402) return new Error('Provider credit or spending limit reached.');
   if (status === 429) return new Error('Provider rate limit reached. Try again later.');
   return new Error(`Provider request failed (HTTP ${status}).`);
 }
 
+function textFromResponse(backend: CloudBackend, record: Record<string, unknown>): string {
+  if (backend === 'haiku') {
+    if (record.stop_reason !== 'end_turn' || !Array.isArray(record.content))
+      throw new Error('Haiku did not complete a text response. Try again.');
+    return record.content
+      .filter(
+        (block): block is { type: string; text: string } =>
+          !!block &&
+          typeof block === 'object' &&
+          (block as Record<string, unknown>).type === 'text' &&
+          typeof (block as Record<string, unknown>).text === 'string'
+      )
+      .map((block) => block.text)
+      .join('');
+  }
+  if (backend === 'luna') {
+    if (record.status !== 'completed' || !Array.isArray(record.output))
+      throw new Error('Luna did not complete a text response. Try again.');
+    return record.output
+      .filter(
+        (item): item is { type: string; content: unknown[] } =>
+          !!item &&
+          typeof item === 'object' &&
+          (item as Record<string, unknown>).type === 'message' &&
+          Array.isArray((item as Record<string, unknown>).content)
+      )
+      .flatMap((item) => item.content)
+      .filter(
+        (block): block is { type: string; text: string } =>
+          !!block &&
+          typeof block === 'object' &&
+          (block as Record<string, unknown>).type === 'output_text' &&
+          typeof (block as Record<string, unknown>).text === 'string'
+      )
+      .map((block) => block.text)
+      .join('');
+  }
+  const choices = Array.isArray(record.choices) ? record.choices : [];
+  const first = choices[0] as Record<string, unknown> | undefined;
+  if (first?.finish_reason !== 'stop')
+    throw new Error('OpenRouter did not complete a text response. Try again.');
+  const message = first.message as Record<string, unknown> | undefined;
+  return typeof message?.content === 'string' ? message.content : '';
+}
+
 export class CloudAIClient {
+  constructor(private readonly budget: SpendBudget = spendBudget) {}
   private keys: Partial<Record<CloudBackend, string>> = {};
   private epoch = 0;
   private controllers = new Set<AbortController>();
@@ -80,14 +139,20 @@ export class CloudAIClient {
     if (!prompt.trim()) throw new Error('The request is empty.');
     if (prompt.length > MAX_PROMPT_CHARS) throw new Error('The plant context is too large.');
 
+    const reservation = this.budget.reserve(prompt, maxTokens);
     const epoch = this.epoch;
     const controller = new AbortController();
     this.controllers.add(controller);
     const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
     const isHaiku = backend === 'haiku';
+    const isOpenRouter = backend.startsWith('openrouter-');
     try {
       const response = await fetch(
-        isHaiku ? 'https://api.anthropic.com/v1/messages' : 'https://api.openai.com/v1/responses',
+        isHaiku
+          ? 'https://api.anthropic.com/v1/messages'
+          : isOpenRouter
+            ? 'https://openrouter.ai/api/v1/chat/completions'
+            : 'https://api.openai.com/v1/responses',
         {
           method: 'POST',
           credentials: 'omit',
@@ -109,76 +174,72 @@ export class CloudAIClient {
                   output_config: { effort: 'high' },
                   messages: [{ role: 'user', content: prompt }],
                 }
-              : {
-                  model: CLOUD_MODELS.luna.id,
-                  reasoning: { effort: 'high' },
-                  store: false,
-                  max_output_tokens: maxTokens,
-                  input: prompt,
-                }
+              : isOpenRouter
+                ? {
+                    model: CLOUD_MODELS[backend].id,
+                    messages: [{ role: 'user', content: prompt }],
+                    max_completion_tokens: maxTokens,
+                    reasoning: { effort: 'high' },
+                    ...(backend === 'openrouter-luna'
+                      ? { prompt_cache_options: { mode: 'explicit' } }
+                      : {}),
+                    provider: {
+                      require_parameters: true,
+                      max_price: { prompt: 0.1, completion: 0.5 },
+                    },
+                  }
+                : {
+                    model: CLOUD_MODELS.luna.id,
+                    reasoning: { effort: 'high' },
+                    store: false,
+                    max_output_tokens: maxTokens,
+                    prompt_cache_options: { mode: 'explicit' },
+                    input: prompt,
+                  }
           ),
         }
       );
-      if (epoch !== this.epoch || controller.signal.aborted)
-        throw new Error('Request cancelled after configuration changed.');
-      if (!response.ok) throw errorForStatus(response.status);
+      if (!response.ok) {
+        this.budget.reject(reservation);
+        throw errorForStatus(response.status);
+      }
       const data: unknown = await response.json();
-      if (epoch !== this.epoch || controller.signal.aborted)
-        throw new Error('Request cancelled after configuration changed.');
       if (!data || typeof data !== 'object')
         throw new Error('Provider returned an invalid response.');
       const record = data as Record<string, unknown>;
-      let text = '';
-      if (isHaiku) {
-        if (record.stop_reason !== 'end_turn' || !Array.isArray(record.content)) {
-          throw new Error('Haiku did not complete a text response. Try again.');
-        }
-        text = record.content
-          .filter(
-            (block): block is { type: string; text: string } =>
-              !!block &&
-              typeof block === 'object' &&
-              (block as Record<string, unknown>).type === 'text' &&
-              typeof (block as Record<string, unknown>).text === 'string'
-          )
-          .map((block) => block.text)
-          .join('');
-      } else {
-        if (record.status !== 'completed' || !Array.isArray(record.output)) {
-          throw new Error('Luna did not complete a text response. Try again.');
-        }
-        text = record.output
-          .filter(
-            (item): item is { type: string; content: unknown[] } =>
-              !!item &&
-              typeof item === 'object' &&
-              (item as Record<string, unknown>).type === 'message' &&
-              Array.isArray((item as Record<string, unknown>).content)
-          )
-          .flatMap((item) => item.content)
-          .filter(
-            (block): block is { type: string; text: string } =>
-              !!block &&
-              typeof block === 'object' &&
-              (block as Record<string, unknown>).type === 'output_text' &&
-              typeof (block as Record<string, unknown>).text === 'string'
-          )
-          .map((block) => block.text)
-          .join('');
-      }
-      if (!text.trim()) throw new Error('Provider returned no text. Try again.');
       const usage =
         record.usage && typeof record.usage === 'object'
           ? (record.usage as Record<string, unknown>)
           : {};
-      return {
-        text,
-        inputTokens: tokenCount(usage.input_tokens),
-        outputTokens: tokenCount(usage.output_tokens),
-      };
+      const inputTokens = tokenCount(isOpenRouter ? usage.prompt_tokens : usage.input_tokens);
+      const outputTokens = tokenCount(isOpenRouter ? usage.completion_tokens : usage.output_tokens);
+      // OpenRouter's account charge and upstream BYOK inference charge are
+      // separate fields. Count both when the provider reports both.
+      const costDetails =
+        usage.cost_details && typeof usage.cost_details === 'object'
+          ? (usage.cost_details as Record<string, unknown>)
+          : {};
+      const openRouterCost =
+        isOpenRouter && typeof usage.cost === 'number'
+          ? usage.cost +
+            (typeof costDetails.upstream_inference_cost === 'number'
+              ? costDetails.upstream_inference_cost
+              : 0)
+          : undefined;
+      this.budget.settle(reservation, {
+        inputTokens,
+        outputTokens,
+        costUsd: openRouterCost,
+      });
+      if (epoch !== this.epoch || controller.signal.aborted)
+        throw new Error('Request cancelled after configuration changed.');
+      const text = textFromResponse(backend, record);
+      if (!text.trim()) throw new Error('Provider returned no text. Try again.');
+      return { text, inputTokens, outputTokens };
     } catch (error) {
+      this.budget.uncertain(reservation);
       if (controller.signal.aborted && epoch === this.epoch)
-        throw new Error('Provider request timed out. Try again.');
+        throw new Error('Provider request timed out. Check charges before retrying.');
       if (error instanceof TypeError)
         throw new Error(
           'Cannot reach the provider. Check your network or browser privacy settings.'

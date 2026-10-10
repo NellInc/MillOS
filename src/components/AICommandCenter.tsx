@@ -60,7 +60,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
     memory: 35,
     decisions: 0,
   });
-  // Subscribed, not read imperatively, so the readout follows trackAPICost.
+  // Subscribed, not read imperatively, so the readout follows BYOK usage settlement.
   const formattedSessionCost = useAIConfigStore((state) => state.getFormattedCost());
 
   // Alert ids already accounted for. Tracking ids rather than the list length
@@ -102,20 +102,36 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
   );
 
   // AI backend configuration (cloud BYOK or local WebGPU neural core)
-  const { aiMode, connectedProviders, llmBackend, webgpuModelReady } = useAIConfigStore(
-    useShallow((state) => ({
-      aiMode: state.aiMode,
-      connectedProviders: state.connectedProviders,
-      llmBackend: state.llmBackend,
-      webgpuModelReady: state.webgpuModelReady,
-    }))
-  );
+  const { aiMode, connectedProviders, llmBackend, webgpuModelReady, chatgptStatus } =
+    useAIConfigStore(
+      useShallow((state) => ({
+        aiMode: state.aiMode,
+        connectedProviders: state.connectedProviders,
+        llmBackend: state.llmBackend,
+        webgpuModelReady: state.webgpuModelReady,
+        chatgptStatus: state.chatgptStatus,
+      }))
+    );
   // The ACTIVE backend's readiness drives the badges — not "either backend".
   // A key for a different cloud backend must not read as ready.
   const isLocalBackend = llmBackend === 'webgpu';
-  const cloudLabel = llmBackend === 'webgpu' ? null : (CLOUD_MODELS[llmBackend]?.label ?? 'Cloud');
+  const cloudLabel =
+    llmBackend === 'webgpu'
+      ? null
+      : llmBackend === 'chatgpt'
+        ? 'ChatGPT plan'
+        : CLOUD_MODELS[llmBackend].label;
   const llmReady =
-    llmBackend === 'webgpu' ? webgpuModelReady : (connectedProviders?.[llmBackend] ?? false);
+    llmBackend === 'webgpu'
+      ? webgpuModelReady
+      : llmBackend === 'chatgpt'
+        ? Boolean(
+            chatgptStatus?.accounts.some(
+              (account) =>
+                account.id === chatgptStatus.activeId && account.signedIn && account.model
+            )
+          )
+        : (connectedProviders?.[llmBackend] ?? false);
   // Mirrors the badge text below so the settings button's name contains it.
   const modeLabel =
     aiMode === 'gemini' && llmReady
