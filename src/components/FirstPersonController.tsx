@@ -6,6 +6,7 @@ import {
   sampleWalkingGroundHeight,
   moveWalkingPosition,
   castleBlocks,
+  isDryWalkingGround,
 } from '../utils/castleNavigation';
 import { getTerrainGridSegments } from './terrain/terrainTypes';
 import { useGraphicsStore } from '../stores/graphicsStore';
@@ -64,6 +65,11 @@ const collides = (x: number, z: number): boolean => {
 const findFreeSpawn = (x: number, z: number): [number, number] => {
   const free = (a: number, b: number) =>
     !collides(a, b) &&
+    isDryWalkingGround(
+      a,
+      b,
+      getTerrainGridSegments(useGraphicsStore.getState().graphics.quality)
+    ) &&
     !castleBlocks(
       a,
       b,
@@ -74,7 +80,7 @@ const findFreeSpawn = (x: number, z: number): [number, number] => {
       )
     );
   if (free(x, z)) return [x, z];
-  for (let r = 1; r <= 24; r++) {
+  for (let r = 1; r <= 64; r++) {
     for (let i = 0; i < 16; i++) {
       const a = (i / 16) * Math.PI * 2;
       const cx = x + r * Math.cos(a);
@@ -114,6 +120,9 @@ export const FirstPersonController: React.FC<FirstPersonControllerProps> = ({ on
   const forwardRef = useRef(new THREE.Vector3());
   const rightRef = useRef(new THREE.Vector3());
   const isLocked = useRef(false);
+  const previousSegments = useRef(
+    getTerrainGridSegments(useGraphicsStore.getState().graphics.quality)
+  );
 
   // Set initial position and FOV for FPS mode
   useEffect(() => {
@@ -303,8 +312,15 @@ export const FirstPersonController: React.FC<FirstPersonControllerProps> = ({ on
       const terrainSegments = getTerrainGridSegments(useGraphicsStore.getState().graphics.quality);
       const previousFloor =
         PLAYER_HEIGHT +
-        sampleWalkingGroundHeight(camera.position.x, camera.position.z, terrainSegments);
+        sampleWalkingGroundHeight(camera.position.x, camera.position.z, previousSegments.current);
       const walkingOnGround = currentHeight.current <= previousFloor + 0.05;
+      if (walkingOnGround && terrainSegments !== previousSegments.current) {
+        currentHeight.current =
+          PLAYER_HEIGHT +
+          sampleWalkingGroundHeight(camera.position.x, camera.position.z, terrainSegments);
+        camera.position.y = currentHeight.current;
+      }
+      previousSegments.current = terrainSegments;
       velocity.current.addScaledVector(forward, -direction.current.z * speed * movementDelta);
       velocity.current.addScaledVector(right, direction.current.x * speed * movementDelta);
 

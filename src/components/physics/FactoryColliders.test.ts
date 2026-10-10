@@ -1,7 +1,8 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import RAPIER from '@dimforge/rapier3d-compat';
 import { createValleyCollider, generateObstacles } from './FactoryColliders';
-import { sampleValleyGroundHeight, VILLAGE_TERRACE } from '../terrain/splatMapGenerator';
+import { sampleTerrainGroundHeight, VILLAGE_TERRACE } from '../terrain/splatMapGenerator';
+import { CANAL_BRIDGE_STEPS, CANAL_FOOTBRIDGE_ACCESS } from '../../constants/publicRealmLayout';
 import { LANDSCAPE_GROVE_TREES } from '../exterior/ExteriorVegetation';
 import {
   SITE_LAYOUT,
@@ -53,7 +54,7 @@ describe('physical valley relief', () => {
   it.each([64, 128])('matches rendered ground at the %s-segment tier', (segments) => {
     const [vertices, indices] = createValleyCollider(segments);
     expect(indices.length).toBeGreaterThan(0);
-    expect(indices.length / 3).toBeLessThan(1200);
+    expect(indices.length / 3).toBeLessThan(7500);
     const world = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
     try {
       world.createCollider(RAPIER.ColliderDesc.trimesh(vertices, indices));
@@ -62,45 +63,40 @@ describe('physical valley relief', () => {
       for (const {
         position: [x, , z],
       } of LANDSCAPE_GROVE_TREES) {
-        const ground = sampleValleyGroundHeight(x, z, segments);
+        const ground = SITE_LAYOUT.datum.terrain + sampleTerrainGroundHeight(x, z, segments);
         if (ground < 0.1) continue;
-        const hit = world.castRay(new RAPIER.Ray({ x, y: 40, z }, { x: 0, y: -1, z: 0 }), 40, true);
+        const hit = world.castRay(new RAPIER.Ray({ x, y: 40, z }, { x: 0, y: -1, z: 0 }), 60, true);
         expect(hit, `${x}, ${z}`).not.toBeNull();
         expect(40 - hit!.timeOfImpact).toBeCloseTo(ground, 4);
         tested++;
       }
       expect(tested).toBeGreaterThan(30);
       const pad = getLandmarkBounds(SITE_LAYOUT.landmarks.village);
-      if (VILLAGE_TERRACE.height <= 0.001) {
-        // At grade, the flat world floor carries the village; the valley
-        // collider must add nothing under it.
-        for (const x of [pad.minX + 1, (pad.minX + pad.maxX) / 2, pad.maxX - 1])
-          for (const z of [pad.minZ + 1, (pad.minZ + pad.maxZ) / 2, pad.maxZ - 1])
-            expect(
-              world.castRay(new RAPIER.Ray({ x, y: 40, z }, { x: 0, y: -1, z: 0 }), 40, true),
-              `village ${x}, ${z}`
-            ).toBeNull();
-        return;
-      }
       for (const x of [pad.minX, (pad.minX + pad.maxX) / 2, pad.maxX])
         for (const z of [pad.minZ, (pad.minZ + pad.maxZ) / 2, pad.maxZ]) {
           const hit = world.castRay(
             new RAPIER.Ray({ x, y: 40, z }, { x: 0, y: -1, z: 0 }),
-            40,
+            60,
             true
           );
           expect(hit, `village ${x}, ${z}`).not.toBeNull();
-          expect(40 - hit!.timeOfImpact).toBeCloseTo(SITE_LAYOUT.landmarks.village.position[1], 4);
+          expect(40 - hit!.timeOfImpact).toBeCloseTo(
+            SITE_LAYOUT.datum.terrain + VILLAGE_TERRACE.height,
+            4
+          );
         }
       for (let x = VILLAGE_TERRACE.minX - 3; x <= VILLAGE_TERRACE.maxX + 3; x += 3)
         for (let z = VILLAGE_TERRACE.minZ - 3; z <= VILLAGE_TERRACE.maxZ + 3; z += 3) {
           const hit = world.castRay(
             new RAPIER.Ray({ x, y: 40, z }, { x: 0, y: -1, z: 0 }),
-            40,
+            60,
             true
           );
           expect(hit, `plateau join ${x}, ${z}`).not.toBeNull();
-          expect(40 - hit!.timeOfImpact).toBeCloseTo(sampleValleyGroundHeight(x, z, segments), 4);
+          expect(40 - hit!.timeOfImpact).toBeCloseTo(
+            SITE_LAYOUT.datum.terrain + sampleTerrainGroundHeight(x, z, segments),
+            4
+          );
         }
     } finally {
       world.free();
@@ -126,6 +122,109 @@ it('carries both complete river stair flights and their at-grade landings', () =
     for (const step of steps) {
       const hit = world.castRay(
         new RAPIER.Ray({ x: 0, y: 8, z: (step.minZ + step.maxZ) / 2 }, { x: 0, y: -1, z: 0 }),
+        10,
+        true
+      );
+      expect(hit).not.toBeNull();
+      expect(8 - hit!.timeOfImpact).toBeCloseTo(step.top, 5);
+    }
+  } finally {
+    world.free();
+  }
+});
+
+it.each([64, 128])(
+  'keeps real capsule contact below the old phantom floor and preserves occupied pads at tier %i',
+  (segments) => {
+    const world = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
+    try {
+      const [vertices, indices] = createValleyCollider(segments);
+      world.createCollider(RAPIER.ColliderDesc.trimesh(vertices, indices));
+      for (const o of generateObstacles())
+        world.createCollider(
+          RAPIER.ColliderDesc.cuboid(
+            (o.maxX - o.minX) / 2,
+            ((o.maxY ?? 5) - (o.minY ?? 0)) / 2,
+            (o.maxZ - o.minZ) / 2
+          ).setTranslation(
+            (o.minX + o.maxX) / 2,
+            ((o.minY ?? 0) + (o.maxY ?? 5)) / 2,
+            (o.minZ + o.maxZ) / 2
+          )
+        );
+      world.step();
+      for (const [x, z] of [
+        [100, -118],
+        [25, -190],
+        [-80, 100],
+        [100, 0],
+        [20, 0],
+      ]) {
+        const ray = world.castRay(new RAPIER.Ray({ x, y: 40, z }, { x: 0, y: -1, z: 0 }), 60, true);
+        expect(ray).not.toBeNull();
+        const floor =
+          x === 20 && z === 0
+            ? 0
+            : SITE_LAYOUT.datum.terrain + sampleTerrainGroundHeight(x, z, segments);
+        expect(40 - ray!.timeOfImpact, `${x},${z}`).toBeCloseTo(floor, 4);
+      }
+      const x = 100,
+        z = -118,
+        ground = SITE_LAYOUT.datum.terrain + sampleTerrainGroundHeight(x, z, segments);
+      const body = world.createRigidBody(
+        RAPIER.RigidBodyDesc.dynamic()
+          .setTranslation(x, ground + 0.02, z)
+          .setGravityScale(0)
+          .lockRotations()
+      );
+      world.createCollider(RAPIER.ColliderDesc.capsule(0.5, 0.4).setTranslation(0, 0.9, 0), body);
+      for (let i = 0; i < 30; i++) world.step();
+      expect(body.translation().y).toBeLessThan(-0.5);
+      expect(body.translation().y).toBeCloseTo(ground, 0);
+      expect(Math.hypot(body.translation().x - x, body.translation().z - z)).toBeLessThan(0.15);
+    } finally {
+      world.free();
+    }
+  }
+);
+
+it('preserves the real canal deck, all access treads and the actual factory slab dimensions', () => {
+  const obstacles = generateObstacles(),
+    pad = SITE_LAYOUT.factory.bounds;
+  expect(obstacles.find((o) => o.id === 'factory-floor')).toEqual({
+    id: 'factory-floor',
+    minX: pad.minX,
+    maxX: pad.maxX,
+    minZ: pad.minZ,
+    maxZ: pad.maxZ,
+    minY: -1,
+    maxY: 0,
+  });
+  const bridge = CANAL_FOOTBRIDGE_ACCESS,
+    parts = obstacles.filter(
+      (o) => o.id === 'footbridge-canal' || o.id.startsWith('canal-footbridge-access-')
+    );
+  expect(parts).toHaveLength(15);
+  const world = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
+  try {
+    for (const o of parts)
+      world.createCollider(
+        RAPIER.ColliderDesc.cuboid(
+          (o.maxX - o.minX) / 2,
+          (o.maxY! - o.minY!) / 2,
+          (o.maxZ - o.minZ) / 2
+        ).setTranslation((o.minX + o.maxX) / 2, (o.minY! + o.maxY!) / 2, (o.minZ + o.maxZ) / 2)
+      );
+    world.step();
+    for (const step of [
+      ...CANAL_BRIDGE_STEPS,
+      { minX: bridge.minX, maxX: bridge.maxX, top: bridge.deckY },
+    ]) {
+      const hit = world.castRay(
+        new RAPIER.Ray(
+          { x: (step.minX + step.maxX) / 2, y: 8, z: bridge.z },
+          { x: 0, y: -1, z: 0 }
+        ),
         10,
         true
       );

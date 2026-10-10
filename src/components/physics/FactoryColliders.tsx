@@ -7,6 +7,10 @@
 
 import { RigidBody, CuboidCollider, TrimeshCollider } from '@react-three/rapier';
 import { useMemo } from 'react';
+import { BoxGeometry, Matrix4, Quaternion, Euler, Vector3 } from 'three';
+import { createCastleStepsGeometry } from '../scenery/CastleSteps';
+import { CASTLE_ROCK_SINK } from '../../constants/castleAccess';
+import { CANAL_FOOTBRIDGE_ACCESS, CANAL_BRIDGE_STEPS } from '../../constants/publicRealmLayout';
 import {
   COLLISION_FILTERS,
   createCollisionGroups,
@@ -20,63 +24,71 @@ import {
 import { useGraphicsStore } from '../../stores/graphicsStore';
 import { createDisplacedGeometry } from '../terrain/TerrainGround';
 import { getTerrainGridSegments, TERRAIN_BOUNDS } from '../terrain/terrainTypes';
-import { VILLAGE_TERRACE } from '../terrain/splatMapGenerator';
+import { getRiverHeightfield, MILLOS_RIVER_CONFIG } from '../terrain/splatMapGenerator';
 import {
+  SITE_LAYOUT,
   RIVER_FOOTBRIDGE_DECK,
   RIVER_FOOTBRIDGE_STEPS,
   RIVER_FOOTBRIDGE_LANDINGS,
   RIVER_FOOTBRIDGE_ACCESS,
 } from '../../constants/siteLayout';
 
-/**
- * Reuse the rendered terrain assembly. Only raised triangles need another
- * collider; the existing flat world floor remains authoritative elsewhere.
- * Working if physics rays and visible relief agree at every quality tier.
+/** Reuse the real displaced triangles within the navigable world square,
+ * including negative banks. The former world-wide y=0 floor hid every hollow.
+ * Castle steps/approach/court are constructed floors, shared with rendering.
+ * Working if assembled Rapier contact agrees with the visible bank and stairs.
  */
 export function createValleyCollider(segments: number): [Float32Array, Uint32Array] {
-  const geometry = createDisplacedGeometry(1200, 1200, segments, null, 1, 12, TERRAIN_BOUNDS);
+  const field = getRiverHeightfield(MILLOS_RIVER_CONFIG);
+  const geometry = createDisplacedGeometry(
+    1200,
+    1200,
+    segments,
+    field.data,
+    field.resolution,
+    MILLOS_RIVER_CONFIG.depth,
+    TERRAIN_BOUNDS
+  );
   geometry.rotateX(-Math.PI / 2);
-  const positions = geometry.getAttribute('position');
-  const index = geometry.getIndex()!;
-  // The village plateau is one plane. Preserve the rendered slope triangles,
-  // but represent that plane with two faces instead of a grid of coplanar ones.
-  // Working if the real Rapier rays agree across the complete plateau and its
-  // perimeter, while the existing 1,200-triangle collider budget still holds.
-  const insideTerrace = (i: number) =>
-    positions.getX(i) >= VILLAGE_TERRACE.minX &&
-    positions.getX(i) <= VILLAGE_TERRACE.maxX &&
-    positions.getZ(i) >= VILLAGE_TERRACE.minZ &&
-    positions.getZ(i) <= VILLAGE_TERRACE.maxZ;
-  let terraceIsFlat = true;
-  const corners = [-1, -1, -1, -1];
-  for (let i = 0; i < positions.count; i += 1) {
-    if (!insideTerrace(i)) continue;
-    if (Math.abs(positions.getY(i) - VILLAGE_TERRACE.height) > 0.0001) terraceIsFlat = false;
-    const x = positions.getX(i),
-      z = positions.getZ(i);
-    if (x === VILLAGE_TERRACE.minX && z === VILLAGE_TERRACE.minZ) corners[0] = i;
-    if (x === VILLAGE_TERRACE.minX && z === VILLAGE_TERRACE.maxZ) corners[1] = i;
-    if (x === VILLAGE_TERRACE.maxX && z === VILLAGE_TERRACE.minZ) corners[2] = i;
-    if (x === VILLAGE_TERRACE.maxX && z === VILLAGE_TERRACE.maxZ) corners[3] = i;
-  }
-  // An at-grade village (height 0) has no terrace: the flat world floor already
-  // carries it, and its triangles fail the raised filter below anyway.
-  const mergeTerrace =
-    VILLAGE_TERRACE.height > 0.001 && terraceIsFlat && corners.every((i) => i >= 0);
+  geometry.translate(0, SITE_LAYOUT.datum.terrain, 0);
+  const positions = geometry.getAttribute('position'),
+    index = geometry.getIndex()!;
   const triangles: number[] = [];
   for (let i = 0; i < index.count; i += 3) {
     const a = index.getX(i),
       b = index.getX(i + 1),
       c = index.getX(i + 2);
-    if (mergeTerrace && insideTerrace(a) && insideTerrace(b) && insideTerrace(c)) continue;
-    if (Math.max(positions.getY(a), positions.getY(b), positions.getY(c)) > 0.001)
-      triangles.push(a, b, c);
+    if (
+      Math.min(positions.getX(a), positions.getX(b), positions.getX(c)) > WORLD_RADIUS ||
+      Math.max(positions.getX(a), positions.getX(b), positions.getX(c)) < -WORLD_RADIUS ||
+      Math.min(positions.getZ(a), positions.getZ(b), positions.getZ(c)) > WORLD_RADIUS ||
+      Math.max(positions.getZ(a), positions.getZ(b), positions.getZ(c)) < -WORLD_RADIUS
+    )
+      continue;
+    triangles.push(a, b, c);
   }
-  if (mergeTerrace)
-    triangles.push(corners[0], corners[1], corners[2], corners[1], corners[3], corners[2]);
-  const vertices = new Float32Array(positions.array);
+  const vertices = Array.from(positions.array);
   geometry.dispose();
-  return [vertices, new Uint32Array(triangles)];
+  const castle = SITE_LAYOUT.landmarks.castle;
+  const transform = new Matrix4().compose(
+    new Vector3(...castle.position),
+    new Quaternion().setFromEuler(new Euler(...castle.rotation)),
+    new Vector3(castle.scale, castle.scale, castle.scale)
+  );
+  for (const part of [
+    createCastleStepsGeometry(segments),
+    new BoxGeometry(31.85, 0.14, 31.85).translate(0, 3.13, 0),
+  ]) {
+    part.translate(0, -CASTLE_ROCK_SINK, 0).applyMatrix4(transform);
+    const offset = vertices.length / 3,
+      p = part.getAttribute('position'),
+      indices = part.getIndex();
+    vertices.push(...p.array);
+    for (let i = 0; i < (indices?.count ?? p.count); i++)
+      triangles.push(offset + (indices ? indices.getX(i) : i));
+    part.dispose();
+  }
+  return [new Float32Array(vertices), new Uint32Array(triangles)];
 }
 
 // Circular world boundary - matches mountains at radius 260 (WORLD_RADIUS from PhysicsConfig)
@@ -98,7 +110,19 @@ interface ObstacleData {
 
 // Generate obstacle data matching MillScene.tsx definitions
 export function generateObstacles(): ObstacleData[] {
-  const obstacles: ObstacleData[] = [...createMachineObstacles()];
+  const pad = SITE_LAYOUT.factory.bounds;
+  const obstacles: ObstacleData[] = [
+    {
+      id: 'factory-floor',
+      minX: pad.minX,
+      maxX: pad.maxX,
+      minZ: pad.minZ,
+      maxZ: pad.maxZ,
+      minY: -1,
+      maxY: SITE_LAYOUT.datum.interiorFloor,
+    },
+    ...createMachineObstacles(),
+  ];
 
   obstacles.push(...createConveyorObstacles());
 
@@ -106,18 +130,27 @@ export function generateObstacles(): ObstacleData[] {
 
   // ========== BRIDGES (walkable surfaces) ==========
 
-  // FootBridge over canal at [-145, 0, -50] with rotation PI/2
-  // Original: width=2.5, length=14, deck at y=1.2
-  // After PI/2 rotation: X span becomes length (14), Z span becomes width (2.5)
+  // The same measured wooden deck and access treads used by walking/rendering.
+  const canal = CANAL_FOOTBRIDGE_ACCESS;
   obstacles.push({
     id: 'footbridge-canal',
-    minX: -145 - 7, // half of length
-    maxX: -145 + 7,
-    minZ: -50 - 1.25, // half of width
-    maxZ: -50 + 1.25,
-    minY: 1.0, // slightly below deck surface for step-up
-    maxY: 1.4, // deck surface + small buffer
+    minX: canal.minX,
+    maxX: canal.maxX,
+    minZ: canal.z - canal.halfWidth,
+    maxZ: canal.z + canal.halfWidth,
+    minY: canal.deckY - 0.2,
+    maxY: canal.deckY,
   });
+  for (const [index, step] of CANAL_BRIDGE_STEPS.entries())
+    obstacles.push({
+      id: `canal-footbridge-access-${index}`,
+      minX: step.minX,
+      maxX: step.maxX,
+      minZ: canal.z - canal.halfWidth,
+      maxZ: canal.z + canal.halfWidth,
+      minY: SITE_LAYOUT.datum.terrain - 0.2,
+      maxY: step.top,
+    });
 
   // The rendered 70 m deck spans both banks. Its former 24 m collider ended
   // over the river and extended sideways beyond the actual 6.375 m deck.
@@ -228,9 +261,8 @@ export const FactoryColliders: React.FC = () => {
         </RigidBody>
       ))}
 
-      {/* Floor - large circular area up to mountains */}
+      {/* The real terrain plus the actual concrete factory slab. */}
       <RigidBody type="fixed" collisionGroups={staticCollisionGroups}>
-        <CuboidCollider args={[WORLD_RADIUS, 0.5, WORLD_RADIUS]} position={[0, -0.5, 0]} />
         <TrimeshCollider args={valley} />
       </RigidBody>
 

@@ -1,4 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { createDisplacedGeometry } from '../components/terrain/TerrainGround';
+import { getRiverHeightfield, MILLOS_RIVER_CONFIG } from '../components/terrain/splatMapGenerator';
+import { TERRAIN_BOUNDS } from '../components/terrain/terrainTypes';
+import { SITE_LAYOUT } from '../constants/siteLayout';
 import { Vector3, Raycaster } from 'three';
 import {
   RIVER_FOOTBRIDGE_DECK,
@@ -160,7 +164,7 @@ describe('river bridge ground access', () => {
           }
           expect(highest).toBeCloseTo(4.1, 5);
           expect(direction * (p.z - RIVER_FOOTBRIDGE_DECK.centre[2])).toBeGreaterThan(44);
-          expect(p.y).toBeCloseTo(1.7, 5);
+          expect(p.y).toBeCloseTo(1.68, 5);
         }
     }
   );
@@ -175,3 +179,68 @@ describe('river bridge ground access', () => {
     expect(p.y).toBe(8);
   });
 });
+
+describe('rendered river-bank contact', () => {
+  it.each([64, 128])('matches actual displaced terrain at tier %i', (segments) => {
+    const field = getRiverHeightfield(MILLOS_RIVER_CONFIG);
+    const geometry = createDisplacedGeometry(
+      1200,
+      1200,
+      segments,
+      field.data,
+      field.resolution,
+      MILLOS_RIVER_CONFIG.depth,
+      TERRAIN_BOUNDS
+    );
+    geometry.rotateX(-Math.PI / 2);
+    const mesh = new Mesh(geometry, new MeshBasicMaterial());
+    mesh.position.y = SITE_LAYOUT.datum.terrain;
+    mesh.updateMatrixWorld();
+    try {
+      for (const [x, z] of [
+        [100, -118],
+        [25, -190],
+        [-190, -104],
+      ]) {
+        const hit = new Raycaster(new Vector3(x, 40, z), new Vector3(0, -1, 0)).intersectObject(
+          mesh
+        )[0];
+        expect(hit).toBeDefined();
+        expect(sampleWalkingGroundHeight(x, z, segments)).toBeCloseTo(hit.point.y, 5);
+      }
+    } finally {
+      geometry.dispose();
+      mesh.material.dispose();
+    }
+  });
+});
+
+it.each([64, 128])(
+  'matches the real approach and keeps grounded movement out of water at tier %i',
+  (segments) => {
+    const mesh = new Mesh(createCastleStepsGeometry(segments), new MeshBasicMaterial());
+    mesh.updateMatrixWorld();
+    try {
+      for (const x of [5.7, 7.2, 8.7])
+        for (const z of [24.75, 25.35, 26.1, 27.95]) {
+          const hit = new Raycaster(new Vector3(x, 5, z), new Vector3(0, -1, 0)).intersectObject(
+            mesh
+          )[0];
+          expect(hit).toBeDefined();
+          const p = castleWorldPosition(x, hit.point.y, z);
+          expect(sampleWalkingGroundHeight(p[0], p[2], segments)).toBeCloseTo(p[1], 5);
+        }
+      const p = new Vector3(25, sampleWalkingGroundHeight(25, -108, segments) + 1.7, -108);
+      moveWalkingPosition(p, 0, -65, segments, true, 1.7, () => false);
+      expect(p.z).toBeGreaterThan(-140);
+      expect(sampleWalkingGroundHeight(p.x, p.z, segments)).toBeGreaterThanOrEqual(-1.92);
+      p.y = 10;
+      moveWalkingPosition(p, 0, -20, segments, false, 1.7, () => false);
+      expect(p.y).toBe(10);
+      expect(sampleWalkingGroundHeight(p.x, p.z, segments)).toBeLessThan(-2);
+    } finally {
+      mesh.geometry.dispose();
+      mesh.material.dispose();
+    }
+  }
+);

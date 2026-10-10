@@ -10,6 +10,15 @@ export const CASTLE_ACCESS_LANTERNS = [
   [5.35, 4.6, 16.15],
 ] as const;
 export const CASTLE_STAIR_END = 24.7;
+// A supported stone approach joins the sloping bank to the unchanged first
+// tread. Rendering, walking and physics share this small triangulated surface.
+// Working if both terrain tiers meet the outer edge and retain stair access.
+export const CASTLE_APPROACH = {
+  minZ: CASTLE_STAIR_END,
+  maxZ: 28,
+  columns: 8,
+  rows: 12,
+} as const;
 export const CASTLE_STAIR_RISE = 0.125;
 export const CASTLE_STAIR_TREAD = 0.3;
 export const CASTLE_STEPS = [

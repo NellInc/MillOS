@@ -16,6 +16,7 @@ import { useGraphicsStore } from '../../stores/graphicsStore';
 import {
   sampleWalkingGroundHeight,
   castleBlocks,
+  isDryWalkingGround,
   moveWalkingPosition,
 } from '../../utils/castleNavigation';
 import { getTerrainGridSegments } from '../terrain/terrainTypes';
@@ -98,12 +99,19 @@ export const PhysicsFirstPersonController: React.FC<PhysicsFirstPersonController
     }
 
     const segments = getTerrainGridSegments(useGraphicsStore.getState().graphics.quality);
-    if (castleBlocks(spawnX, spawnZ, sampleWalkingGroundHeight(spawnX, spawnZ, segments))) {
-      search: for (let radius = 1; radius <= 24; radius++) {
+    if (
+      !isDryWalkingGround(spawnX, spawnZ, segments) ||
+      castleBlocks(spawnX, spawnZ, sampleWalkingGroundHeight(spawnX, spawnZ, segments))
+    ) {
+      search: for (let radius = 1; radius <= 64; radius++) {
         for (let i = 0; i < 16; i++) {
           const x = spawnX + radius * Math.cos((i * Math.PI) / 8);
           const z = spawnZ + radius * Math.sin((i * Math.PI) / 8);
-          if (!castleBlocks(x, z, sampleWalkingGroundHeight(x, z, segments))) {
+          if (
+            Math.hypot(x, z) < WORLD_RADIUS - PLAYER_RADIUS &&
+            isDryWalkingGround(x, z, segments) &&
+            !castleBlocks(x, z, sampleWalkingGroundHeight(x, z, segments))
+          ) {
             spawnX = x;
             spawnZ = z;
             break search;
@@ -130,6 +138,10 @@ export const PhysicsFirstPersonController: React.FC<PhysicsFirstPersonController
     y: spawnPosition[1],
     z: spawnPosition[2],
   });
+
+  const previousSegments = useRef(
+    getTerrainGridSegments(useGraphicsStore.getState().graphics.quality)
+  );
 
   // Set initial camera FOV and look direction
   useEffect(() => {
@@ -283,12 +295,14 @@ export const PhysicsFirstPersonController: React.FC<PhysicsFirstPersonController
     const incoming = rb.translation();
     const previous = previousPosition.current;
     const segments = getTerrainGridSegments(useGraphicsStore.getState().graphics.quality);
-    const oldFloor = sampleWalkingGroundHeight(previous.x, previous.z, segments);
+    const oldFloor = sampleWalkingGroundHeight(previous.x, previous.z, previousSegments.current);
     const grounded =
       keyboardIntent.vertical === 0 && previous.y <= oldFloor + MIN_BODY_HEIGHT + 0.05;
     const resolved = {
       x: previous.x,
-      y: grounded ? oldFloor + MIN_BODY_HEIGHT : incoming.y,
+      y: grounded
+        ? sampleWalkingGroundHeight(previous.x, previous.z, segments) + MIN_BODY_HEIGHT
+        : incoming.y,
       z: previous.z,
     };
     moveWalkingPosition(
@@ -302,6 +316,7 @@ export const PhysicsFirstPersonController: React.FC<PhysicsFirstPersonController
     );
     rb.setTranslation(resolved, true);
     previousPosition.current = { ...rb.translation() };
+    previousSegments.current = segments;
 
     // Sync camera to physics body position
     const pos = rb.translation();
