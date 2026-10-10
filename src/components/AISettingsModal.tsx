@@ -544,11 +544,13 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
   const [showLLMConfirmation, setShowLLMConfirmation] = useState(false);
   const [capInput, setCapInput] = useState(spendCapUsd?.toString() ?? '');
   const [capError, setCapError] = useState<string | null>(null);
+  const [openRouterConsent, setOpenRouterConsent] = useState(false);
   useEffect(() => setCapInput(spendCapUsd?.toString() ?? ''), [spendCapUsd]);
 
   const modalRef = useRef<HTMLDivElement | null>(null);
   const handleClose = useCallback(() => {
     setInputKey('');
+    setOpenRouterConsent(false);
     setTestResult(null);
     setShowLLMConfirmation(false);
     onClose();
@@ -559,6 +561,7 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
   const isLocal = llmBackend === 'webgpu';
   const isChatGPT = llmBackend === 'chatgpt';
   const cloudBackend = !isLocal && !isChatGPT ? (llmBackend as CloudBackend) : null;
+  const needsOpenRouterConsent = cloudBackend?.startsWith('openrouter-') ?? false;
   const modelLabel = cloudBackend
     ? CLOUD_MODELS[cloudBackend].label
     : isChatGPT
@@ -578,12 +581,13 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
 
   const selectBackend = (backend: CloudBackend | 'webgpu' | 'chatgpt') => {
     setInputKey('');
+    setOpenRouterConsent(false);
     setTestResult(null);
     setLLMBackend(backend);
   };
 
   const handleTestConnection = useCallback(async () => {
-    if (!cloudBackend || !inputKey.trim()) return;
+    if (!cloudBackend || !inputKey.trim() || (needsOpenRouterConsent && !openRouterConsent)) return;
     setIsTesting(true);
     setTestResult(null);
     try {
@@ -606,10 +610,10 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
     } finally {
       setIsTesting(false);
     }
-  }, [cloudBackend, inputKey]);
+  }, [cloudBackend, inputKey, needsOpenRouterConsent, openRouterConsent]);
 
   const handleSave = useCallback(async () => {
-    if (!cloudBackend || !inputKey.trim()) return;
+    if (!cloudBackend || !inputKey.trim() || (needsOpenRouterConsent && !openRouterConsent)) return;
     setIsTesting(true);
     setTestResult(null);
     const success = await setCloudApiKey(cloudBackend, inputKey.trim());
@@ -617,6 +621,7 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
       if (success) {
         setTestResult({ success: true, message: 'Connected for this page session.' });
         setInputKey('');
+        setOpenRouterConsent(false);
       } else {
         setTestResult({
           success: false,
@@ -625,12 +630,13 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
       }
     }
     setIsTesting(false);
-  }, [cloudBackend, inputKey, setCloudApiKey]);
+  }, [cloudBackend, inputKey, needsOpenRouterConsent, openRouterConsent, setCloudApiKey]);
 
   const handleClear = useCallback(() => {
     if (!cloudBackend) return;
     clearCloudApiKey(cloudBackend);
     setInputKey('');
+    setOpenRouterConsent(false);
     setTestResult(null);
   }, [cloudBackend, clearCloudApiKey]);
 
@@ -774,6 +780,7 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
             {/* Browser-session BYOK admission limit. No key or cap is stored on a server. */}
             <form
               className="p-3 rounded-lg bg-slate-800/50 space-y-2"
+              autoComplete="off"
               onSubmit={(event) => {
                 event.preventDefault();
                 try {
@@ -888,6 +895,9 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
                   <input
                     id="cloud-api-key"
                     type="password"
+                    autoComplete="off"
+                    spellCheck={false}
+                    maxLength={512}
                     value={inputKey}
                     onChange={(e) => setInputKey(e.target.value)}
                     placeholder={
@@ -916,11 +926,26 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
                   </a>
                 </p>
                 {cloudBackend.startsWith('openrouter-') && (
-                  <p className="text-xs text-slate-400">
-                    Set a session cap above, then use a lifetime spend-limited OpenRouter inference
-                    key with BYOK usage included in its limit. MillOS checks that limit before every
-                    paid request.
-                  </p>
+                  <>
+                    <p className="text-xs text-slate-400">
+                      Set a session cap above, then use a lifetime spend-limited OpenRouter
+                      inference key with BYOK usage included in its limit. MillOS checks that limit
+                      before every paid request.
+                    </p>
+                    <label className="flex items-start gap-2 text-xs text-slate-300">
+                      <input
+                        type="checkbox"
+                        checked={openRouterConsent}
+                        onChange={(event) => setOpenRouterConsent(event.target.checked)}
+                        className="mt-0.5"
+                      />
+                      <span>
+                        Send simulated plant telemetry to OpenRouter and its model provider. My
+                        account pays for strategic requests. The app cap is an estimate; my provider
+                        bill is authoritative.
+                      </span>
+                    </label>
+                  </>
                 )}
                 <p className="text-[10px] text-slate-400 leading-relaxed">
                   Your key stays in this page&rsquo;s memory and is sent directly to
@@ -1122,14 +1147,18 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
               <div className="flex items-center gap-2">
                 <button
                   onClick={handleTestConnection}
-                  disabled={!inputKey.trim() || isTesting}
+                  disabled={
+                    !inputKey.trim() || isTesting || (needsOpenRouterConsent && !openRouterConsent)
+                  }
                   className="px-4 py-2 text-sm font-medium text-slate-300 bg-slate-700 hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
                 >
                   {isTesting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Test Connection'}
                 </button>
                 <button
                   onClick={handleSave}
-                  disabled={!inputKey.trim() || isTesting}
+                  disabled={
+                    !inputKey.trim() || isTesting || (needsOpenRouterConsent && !openRouterConsent)
+                  }
                   className="px-4 py-2 text-sm font-medium text-white bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
                 >
                   {isTesting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Connect for Session'}
