@@ -334,18 +334,38 @@ export function applyShopWindows(material: THREE.MeshStandardMaterial, trade: Vi
   material.onBeforeCompile = (shader, renderer) => {
     windows.call(material, shader, renderer);
     shader.uniforms.shopJoineryTint = { value: ratio };
-    shader.fragmentShader = `uniform vec3 shopJoineryTint;\n${shader.fragmentShader}`.replace(
-      '#include <map_fragment>',
-      `#include <map_fragment>
+    shader.fragmentShader = `uniform vec3 shopJoineryTint;\n${shader.fragmentShader}`
+      .replace(
+        '#include <map_fragment>',
+        `#include <map_fragment>
        // Green is slot 9: column 1, flipped glTF row 1. The padded
        // swatch never touches glass in column 2 or linen in column 0.
        float shopJoinery = step(0.25, vVillageUV.x) * (1.0 - step(0.5, vVillageUV.x))
          * step(0.25, vVillageUV.y) * (1.0 - step(0.5, vVillageUV.y));
        diffuseColor.rgb *= mix(vec3(1.0), shopJoineryTint, shopJoinery);`
-    );
+      )
+      .replace(
+        '#include <lights_fragment_end>',
+        `#include <lights_fragment_end>
+       // The five opaque display goods sit in front of the virtual glass.
+       // Give them that room's diffuse light, using its existing live dimmer.
+       // Slot 11 belongs only to these goods in the authored shop. Paint,
+       // masonry, glazing and street-facing furnishings keep ordinary lighting.
+       // Working if goods stay readable with the room at night, darken when
+       // its strength is zero, and retain normal-based shaping without lamps.
+       float shopDisplay = step(0.75, vVillageUV.x) * (1.0 - step(1.0, vVillageUV.x))
+         * step(0.25, vVillageUV.y) * (1.0 - step(0.5, vVillageUV.y));
+       if (shopDisplay > 0.5) {
+         vec3 roomUp = normalize((viewMatrix * vec4(0.0, 1.0, 0.0, 0.0)).xyz);
+         float roomDiffuse = 0.55 + 0.45 * max(dot(normal, roomUp), 0.0);
+         reflectedLight.indirectDiffuse += villageRoomLight * 3.0
+           * BRDF_Lambert(diffuseColor.rgb) * roomDiffuse
+           * villageNight * villageInteriorStrength;
+       }`
+      );
   };
   // All three paints share one compiled variant; only linear uniform values
   // differ. Installing again resets the window hook before wrapping it.
   material.customProgramCacheKey = () =>
-    `millos-authored-shop-joinery-v1|${windowKey.call(material)}`;
+    `millos-authored-shop-joinery-v2|${windowKey.call(material)}`;
 }

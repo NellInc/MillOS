@@ -497,7 +497,8 @@ export const ACTIVE_SHADER_CONTRACTS: readonly ActiveShaderContract[] = [
       'view-space shallow room',
       'static world pane centre',
     ],
-    colorSpace: 'linear linen albedo, bounded warm rooms and atlas-coloured stained-glass emission',
+    colorSpace:
+      'linear linen albedo, bounded warm rooms, diffuse room irradiance on shop display goods and atlas-coloured stained-glass emission',
     toneMapping: 'material-pipeline',
     fog: 'material-pipeline',
     transparency: 'opaque',

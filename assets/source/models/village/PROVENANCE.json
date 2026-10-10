@@ -111,14 +111,14 @@
       "sha256": "950c49a07b0111671cd1bed38c92b393105d0abbda59f85a3862b366ad697549",
       "blenderPreparation": {
         "file": "assets/source/models/village/shop-crafted.glb",
-        "sha256": "6c0458d563861a21e7ef6ed0851303542677fb184242d232f8dad9bb09f3b342",
+        "sha256": "e963f0679329cebe5f75708d9eedabc2de9569b7293678564561a189fd961825",
         "script": "scripts/blender/rebuild_village_architecture.py",
         "method": "Completely rebuilt from planar architectural solids, closed layered roofs, recessed framed glazing, measured timber joinery and grounded thresholds. No provider vertices retained. Original silhouette, palette and occupied envelope guide the authored design; the school turf disc is removed."
       },
       "runtimeDerivative": {
         "file": "public/models/village/shop.glb",
-        "sha256": "b941501232ea29a5679a7620d620b2b65b9d6318b48a5dcad143cde24afc1b14",
-        "bytes": 220400
+        "sha256": "9d605c6853f64f592ffd193013c41c65fd2192fe525a9d1db34827bca194df57",
+        "bytes": 230536
       },
       "normalization": {
         "sizedBy": "longest axis",
@@ -139,8 +139,8 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 14207,
-        "renderVertices": 8760
+        "textureBytes": 15023,
+        "renderVertices": 10380
       }
     },
     {

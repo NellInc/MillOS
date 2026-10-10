@@ -45,7 +45,7 @@ KEYS = list(PALETTE)
 VERTS, FACES, UVS, PARTS = [], [], [], []
 
 
-def atlas():
+def atlas(bread_display=False):
     size, tile = 1024, 256
     pixels = np.ones((size, size, 4), dtype=np.float32)
     rough = np.ones_like(pixels)
@@ -69,6 +69,17 @@ def atlas():
             value += .012 * (((xx // 22 + 3 * (yy // 30)) % 5) - 2)
         if key == 'cream':
             value += .006 * np.sin(xx * math.pi / 3)  # Woven linen and painted joinery.
+        if bread_display and key == 'amber':
+            # Crust, flour and three diagonal cuts, colour only. The shallow
+            # loaf itself provides the lighting, rather than painted shadows.
+            u, v = (xx / (tile - 1) - .5) * 2, (yy / (tile - 1) - .5) * 2
+            value += .022 * np.sin(xx / 7 + np.cos(yy / 17))
+            flour = np.maximum(0, np.sin(xx / 19) * np.cos(yy / 23) - .3)
+            value += .09 * flour
+            for cut in (-.43, 0, .43):
+                score = np.exp(-((u - cut - v * .21) / .035) ** 2)
+                score *= np.clip((.68 - np.abs(v)) / .12, 0, 1)
+                value += .14 * score
 
         y, x = (i // 4) * tile, (i % 4) * tile
         pixels[y:y + tile, x:x + tile, :3] = np.clip(rgb + value[..., None], 0, 1)
@@ -125,6 +136,42 @@ def box(name, c, d, key='plaster', yaw=0):
         points.append((x + u * math.cos(yaw) + v * math.sin(yaw), y + j * dy,
                        z - u * math.sin(yaw) + v * math.cos(yaw)))
     solid(name, points, CUBE_FACES, key)
+
+
+def display_loaf(name, centre, dims, yaw):
+    # Closed oval relief entirely inside the old display-block envelope.
+    # Working if front-face delivery rays see a rounded outline and crown,
+    # with one unchanged atlas/material and no new window/shadow silhouette.
+    x, y, z = centre
+    rx, ry, rz = [d / 2 for d in dims]
+    segments, rings = 12, 6
+    local = [(0, ry, 0)]
+    for ring in range(1, rings):
+        theta = math.pi * ring / rings
+        for i in range(segments):
+            phi = math.tau * i / segments
+            local.append((rx * math.sin(theta) * math.cos(phi),
+                          ry * math.cos(theta),
+                          rz * math.sin(theta) * math.sin(phi)))
+    local.append((0, -ry, 0))
+    bottom = len(local) - 1
+    faces = [(0, 1 + i, 1 + (i + 1) % segments) for i in range(segments)]
+    for row in range(rings - 2):
+        for i in range(segments):
+            a, b = 1 + row * segments + i, 1 + row * segments + (i + 1) % segments
+            faces.append((a, a + segments, b + segments, b))
+    faces += [(bottom, bottom - segments + (i + 1) % segments,
+               bottom - segments + i) for i in range(segments)]
+    points = [(x + u * math.cos(yaw) + w * math.sin(yaw), y + v,
+               z - u * math.sin(yaw) + w * math.cos(yaw)) for u, v, w in local]
+    solid(name, points, faces, 'amber')
+    tile = KEYS.index('amber')
+    # A continuous face projection keeps crust cuts joined over the crown.
+    for offset, face in enumerate(faces):
+        UVS[-len(faces) + offset] = [
+            ((tile % 4 + .03 + .94 * (local[n][0] / (2 * rx) + .5)) / 4,
+             (tile // 4 + .03 + .94 * (local[n][1] / (2 * ry) + .5)) / 4)
+            for n in face]
 
 
 def beam(name, p, q, width, key='timber'):
@@ -222,8 +269,11 @@ def frame(name, x, y, z, width=1, height=1.3, yaw=0, trim='cream', glass='glass'
                  (width - .15, .04, .022), 'oak')
             if name == 'Shop display':
                 for i in range(5):
-                    part('display loaf', (i - 2) * width * .15,
-                         -height * .34, .066, (width * .09, .12, .018), 'amber')
+                    u, v, w = (i - 2) * width * .15, -height * .34, .066
+                    display_loaf(name + ' display loaf',
+                                 (x + u * math.cos(yaw) + w * math.sin(yaw), y + v,
+                                  z - u * math.sin(yaw) + w * math.cos(yaw)),
+                                 (width * .09, .12, .018), yaw)
             else:
                 # Two short folds per side; the blue centre stays clear. Keep
                 # every fold behind the existing projecting mullions and jambs.
@@ -631,7 +681,9 @@ for slug, builder in BUILDERS.items():
     PALETTE = BASE_PALETTE.copy()
     if slug == 'canal-boat':
         PALETTE.update(slate=('203c50', .42), brick=('772f32', .48), green=('284c42', .55), cream=('e8dbb5', .52), rose=('b55754', .5), glass=('345b69', .2))
-    mat = atlas()
+    if slug == 'shop':
+        PALETTE['amber'] = ('bc965b', .84)
+    mat = atlas(bread_display=slug == 'shop')
     builder()
     mesh = bpy.data.meshes.new(slug + ' planar architecture')
     mesh.from_pydata(VERTS, [], FACES)
@@ -649,7 +701,7 @@ for slug, builder in BUILDERS.items():
     bm.to_mesh(mesh)
     bm.free()
     for part in PARTS:
-        if part['name'] in ('Civic curving ogee cupola', 'School swept bell cap', 'School open bronze bell', 'Mushroom brass roof vent'):
+        if part['name'] in ('Civic curving ogee cupola', 'School swept bell cap', 'School open bronze bell', 'Mushroom brass roof vent', 'Shop display display loaf'):
             lo, hi = part['firstVertex'], part['firstVertex'] + part['vertexCount']
             for polygon in mesh.polygons:
                 if all(lo <= v < hi for v in polygon.vertices):

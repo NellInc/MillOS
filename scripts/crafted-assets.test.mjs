@@ -372,6 +372,50 @@ test('four fountain scuppers have open channels between their floors and hoods',
   }
 });
 
+test('shop display loaves have rounded crowns inside the retained shallow window recess', async () => {
+  const { doc, meshes } = await assembly('village-shop');
+  try {
+    const primitive = doc.getRoot().listMeshes()[0].listPrimitives()[0];
+    const positions = primitive.getAttribute('POSITION');
+    const uv = primitive.getAttribute('TEXCOORD_0');
+    const loaves = [];
+    for (let i = 0; i < positions.getCount(); i++) {
+      const [u, v] = uv.getElement(i, []);
+      // The amber atlas slot, after the glTF V-axis conversion, belongs only
+      // to these five display loaves in the delivered shop.
+      if (u >= 0.75 && u < 1 && v >= 0.25 && v < 0.5) loaves.push(positions.getElement(i, []));
+    }
+    loaves.sort((a, b) => a[0] - b[0]);
+    const groups = [];
+    for (const point of loaves) {
+      if (!groups.length || point[0] - groups.at(-1).at(-1)[0] > 0.1) groups.push([]);
+      groups.at(-1).push(point);
+    }
+    expect(groups).toHaveLength(5);
+    for (const points of groups) {
+      const bounds = new THREE.Box3().setFromPoints(points.map((p) => new THREE.Vector3(...p)));
+      const size = bounds.getSize(new THREE.Vector3());
+      expect(size.x).toBeLessThan(0.28);
+      expect(size.y).toBeLessThan(0.121);
+      expect(size.z).toBeLessThan(0.019);
+      expect(new Set(points.map((p) => p[2].toFixed(6))).size).toBeGreaterThan(5);
+      const centre = bounds.getCenter(new THREE.Vector3());
+      const crown = points.find(
+        (p) =>
+          Math.abs(p[0] - centre.x) < 0.001 && Math.abs(p[1] - centre.y) < 0.001 && p[2] > centre.z
+      );
+      expect(crown?.[2]).toBeCloseTo(bounds.max.z, 5);
+      expect(
+        points.some(
+          (p) => Math.abs(p[0] - bounds.max.x) < 0.001 && Math.abs(p[1] - bounds.max.y) < 0.001
+        )
+      ).toBe(false);
+    }
+  } finally {
+    dispose(meshes);
+  }
+});
+
 // The earlier Neuchatel draft was superseded by Nell's Neuschwanstein correction.
 // Pin the actual delivered architecture, its silhouette and traversable openings.
 test('Neuschwanstein castle preserves the landmark envelope with matte stone and slate', async () => {

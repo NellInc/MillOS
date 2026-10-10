@@ -334,7 +334,8 @@ it('repaints only the authored shop joinery swatch, retaining grain, linen and r
     const shader = {
       uniforms: {},
       vertexShader: '#include <begin_vertex>',
-      fragmentShader: '#include <map_fragment>\n#include <emissivemap_fragment>',
+      fragmentShader:
+        '#include <map_fragment>\n#include <emissivemap_fragment>\n#include <lights_fragment_end>',
     } as Parameters<typeof material.onBeforeCompile>[0];
     material.onBeforeCompile(shader, {} as THREE.WebGLRenderer);
     const ratio = shader.uniforms.shopJoineryTint.value as THREE.Color;
@@ -356,6 +357,12 @@ it('repaints only the authored shop joinery swatch, retaining grain, linen and r
     expect(shader.uniforms.villageCurtains.value).toBe(1);
     expect(shader.uniforms.villageInteriorStrength).toBe(VILLAGE_INTERIOR_STRENGTH);
     expect(material.color.getHex()).toBe(0xffffff);
+    expect(shader.fragmentShader).toContain('reflectedLight.indirectDiffuse += villageRoomLight');
+    expect(shader.fragmentShader).toContain('BRDF_Lambert(diffuseColor.rgb) * roomDiffuse');
+    expect(shader.fragmentShader).toContain('* villageNight * villageInteriorStrength');
+    expect(shader.fragmentShader).toContain('step(0.75, vVillageUV.x)');
+    expect(shader.fragmentShader).toContain('dot(normal, roomUp)');
+    expect(shader.fragmentShader.match(/float shopDisplay =/g)).toHaveLength(1);
     keys.add(material.customProgramCacheKey());
   }
   expect(keys.size).toBe(1);
