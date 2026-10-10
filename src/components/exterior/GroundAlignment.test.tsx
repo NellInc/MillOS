@@ -1,11 +1,21 @@
 import { describe, expect, it, vi } from 'vitest';
 import { Children, isValidElement, type ReactElement, type ReactNode } from 'react';
-import { Euler, Vector3 } from 'three';
+import {
+  Box3,
+  BoxGeometry,
+  Euler,
+  Group,
+  InstancedMesh,
+  Matrix4,
+  MeshStandardMaterial,
+  Vector3,
+} from 'three';
 import {
   createGroundPathGeometry,
   EAST_POND_APPROACH,
   GravelPath,
   HedgeRow,
+  setFenceRailInstances,
 } from '../FactoryExterior';
 import { SITE_LAYOUT } from '../../constants/siteLayout';
 import { sampleTerrainGroundHeight } from '../terrain/splatMapGenerator';
@@ -232,3 +242,36 @@ it('keeps varied overlapping hedge crowns in the clipped row envelope', () => {
   }
   expect(crowns[2].position[2] - crowns[0].position[2]).toBeLessThan(crowns[0].scale[2]);
 });
+
+it.each([20, 190])(
+  'retains all three authored fence rails and bounds over a %sm section',
+  (length) => {
+    const geometry = new BoxGeometry(0.11, 0.11, length);
+    const material = new MeshStandardMaterial();
+    const mesh = new InstancedMesh(geometry, material, 3);
+    setFenceRailInstances(mesh);
+    expect(mesh.count).toBe(3);
+    for (const [index, height] of [2.2, 1.2, 0.4].entries()) {
+      const matrix = new Matrix4();
+      mesh.getMatrixAt(index, matrix);
+      expect(new Vector3().setFromMatrixPosition(matrix).y).toBeCloseTo(height);
+      expect(matrix.elements.slice(0, 12)).toEqual(new Matrix4().elements.slice(0, 12));
+    }
+    const parent = new Group();
+    parent.position.set(12, 0, -7);
+    parent.rotation.y = Math.PI / 2;
+    parent.add(mesh);
+    parent.updateMatrixWorld(true);
+    const bounds = new Box3().setFromObject(mesh);
+    expect(bounds.min.x).toBeCloseTo(12 - length / 2);
+    expect(bounds.max.x).toBeCloseTo(12 + length / 2);
+    expect(bounds.min.y).toBeCloseTo(0.345);
+    expect(bounds.max.y).toBeCloseTo(2.255);
+    expect(bounds.min.z).toBeCloseTo(-7.055);
+    expect(bounds.max.z).toBeCloseTo(-6.945);
+    expect(mesh.boundingSphere?.radius).toBeGreaterThan(length / 2);
+    mesh.dispose();
+    geometry.dispose();
+    material.dispose();
+  }
+);

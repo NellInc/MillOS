@@ -908,6 +908,47 @@ const OfficeApartment: React.FC<{
   );
 };
 
+/** Three fixed rails share one geometry, material and instance buffer.
+ * Working if the original heights and envelope survive with one draw per section.
+ */
+export function setFenceRailInstances(mesh: THREE.InstancedMesh): void {
+  const matrix = new THREE.Matrix4();
+  [2.2, 1.2, 0.4].forEach((height, index) => {
+    mesh.setMatrixAt(index, matrix.makeTranslation(0, height, 0));
+  });
+  mesh.instanceMatrix.needsUpdate = true;
+  mesh.computeBoundingBox();
+  mesh.computeBoundingSphere();
+}
+
+const FixedFenceRails: React.FC<{ length: number }> = ({ length }) => {
+  const ref = useRef<THREE.InstancedMesh>(null);
+  const geometry = useMemo(() => new THREE.BoxGeometry(0.11, 0.11, length), [length]);
+  useEffect(() => () => geometry.dispose(), [geometry]);
+  useLayoutEffect(() => {
+    if (ref.current) setFenceRailInstances(ref.current);
+  }, [geometry]);
+  return (
+    <instancedMesh
+      name="authored-perimeter-fence-rails"
+      ref={ref}
+      args={[geometry, FENCE_RAIL_MATERIAL, 3]}
+      matrixAutoUpdate={false}
+      castShadow
+    >
+      <GeneratedBoundary fallback={null}>
+        <GeneratedGeometrySurface
+          asset="fenceRailUnit"
+          fitEnvelope
+          original={geometry}
+          meshRef={ref}
+          finishStaticSource
+        />
+      </GeneratedBoundary>
+    </instancedMesh>
+  );
+};
+
 // Perimeter fence section - optimized with InstancedMesh
 const FenceSection: React.FC<{
   start: [number, number, number];
@@ -965,30 +1006,7 @@ const FenceSection: React.FC<{
         {/* Rails thickened 0.08 -> 0.11: at 190 units of run the old section
             was sub-pixel from any exterior camera and the fence read as three
             aliasing hairlines rather than a structure. */}
-        {/* Top rail */}
-        <GeneratedBoxSurface
-          asset="fenceRailUnit"
-          size={[0.11, 0.11, length]}
-          material={FENCE_RAIL_MATERIAL}
-          position={[0, 2.2, 0]}
-          castShadow
-        />
-        {/* Middle rail */}
-        <GeneratedBoxSurface
-          asset="fenceRailUnit"
-          size={[0.11, 0.11, length]}
-          material={FENCE_RAIL_MATERIAL}
-          position={[0, 1.2, 0]}
-          castShadow
-        />
-        {/* Bottom rail */}
-        <GeneratedBoxSurface
-          asset="fenceRailUnit"
-          size={[0.11, 0.11, length]}
-          material={FENCE_RAIL_MATERIAL}
-          position={[0, 0.4, 0]}
-          castShadow
-        />
+        <FixedFenceRails length={length} />
       </group>
     </group>
   );
