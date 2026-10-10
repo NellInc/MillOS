@@ -539,6 +539,7 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
   );
 
   const [inputKey, setInputKey] = useState('');
+  const [keyEntryOpen, setKeyEntryOpen] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const [showLLMConfirmation, setShowLLMConfirmation] = useState(false);
@@ -550,6 +551,7 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
   const modalRef = useRef<HTMLDivElement | null>(null);
   const handleClose = useCallback(() => {
     setInputKey('');
+    setKeyEntryOpen(false);
     setOpenRouterConsent(false);
     setTestResult(null);
     setShowLLMConfirmation(false);
@@ -581,6 +583,7 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
 
   const selectBackend = (backend: CloudBackend | 'webgpu' | 'chatgpt') => {
     setInputKey('');
+    setKeyEntryOpen(false);
     setOpenRouterConsent(false);
     setTestResult(null);
     setLLMBackend(backend);
@@ -621,6 +624,7 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
       if (success) {
         setTestResult({ success: true, message: 'Connected for this page session.' });
         setInputKey('');
+        setKeyEntryOpen(false);
         setOpenRouterConsent(false);
       } else {
         setTestResult({
@@ -636,6 +640,7 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
     if (!cloudBackend) return;
     clearCloudApiKey(cloudBackend);
     setInputKey('');
+    setKeyEntryOpen(false);
     setOpenRouterConsent(false);
     setTestResult(null);
   }, [cloudBackend, clearCloudApiKey]);
@@ -887,27 +892,38 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
                 <label htmlFor="cloud-api-key" className="block text-sm font-medium text-slate-300">
                   {CLOUD_MODELS[cloudBackend!].provider} API Key
                 </label>
-                <div className="relative">
-                  <Key
-                    className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500"
-                    aria-hidden="true"
-                  />
-                  <input
-                    id="cloud-api-key"
-                    type="password"
-                    autoComplete="off"
-                    spellCheck={false}
-                    maxLength={512}
-                    value={inputKey}
-                    onChange={(e) => setInputKey(e.target.value)}
-                    placeholder={
-                      llmReady
-                        ? 'Enter new key to update...'
-                        : `Enter your ${CLOUD_MODELS[cloudBackend!].provider} API key...`
-                    }
-                    className="w-full pl-10 pr-4 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500"
-                  />
-                </div>
+                {/* Keep the password field unmounted until requested: autocomplete=off did not stop browser autofill. */}
+                {keyEntryOpen ? (
+                  <div className="relative">
+                    <Key
+                      className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500"
+                      aria-hidden="true"
+                    />
+                    <input
+                      id="cloud-api-key"
+                      type="password"
+                      autoComplete="off"
+                      spellCheck={false}
+                      maxLength={512}
+                      value={inputKey}
+                      onChange={(e) => setInputKey(e.target.value)}
+                      placeholder={
+                        llmReady
+                          ? 'Enter new key to update...'
+                          : `Enter your ${CLOUD_MODELS[cloudBackend!].provider} API key...`
+                      }
+                      className="w-full pl-10 pr-4 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500"
+                    />
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setKeyEntryOpen(true)}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-600 bg-slate-800 text-left text-sm text-cyan-300 hover:border-cyan-500"
+                  >
+                    {llmReady ? 'Replace' : 'Enter'} {CLOUD_MODELS[cloudBackend].provider} API key
+                  </button>
+                )}
                 <p className="text-xs text-slate-500">
                   Get your API key from{' '}
                   <a
