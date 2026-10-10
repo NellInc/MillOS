@@ -103,6 +103,17 @@ describe('sign lightbox materials', () => {
     paper.dispose();
   });
 
+  it('scopes dimmed backlit lettering to the three shop fascias', () => {
+    const source = readFileSync('src/components/scenery/VillageSignage.tsx', 'utf8');
+    expect(source).toContain('illuminated = false');
+    expect(source).toContain('illuminated ? IlluminatedSignText : SceneText');
+    expect(source).toContain('backlit={illuminated}');
+    expect(source.match(/userData=\{\{ noStaticBatch: illuminated \}\}/g)).toHaveLength(3);
+    expect(source).toMatch(/width=\{5\.24\}\s+illuminated/);
+    expect(source).not.toMatch(/<(?:pointLight|spotLight|rectAreaLight)/);
+    expect(source).not.toContain('meshBasicMaterial');
+  });
+
   it('illuminates both canopy wordmarks and the shop sign through the same dimmer', () => {
     const station = readFileSync('src/components/GasStationInstanced.tsx', 'utf8');
     expect(station).toContain('name={`station-canopy-wordmark-${side}`}');

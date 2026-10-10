@@ -1,4 +1,4 @@
-import { HeritageEmblem } from './HeritageSignage';
+import { HeritageEmblem, IlluminatedSignText } from './HeritageSignage';
 import { SceneText } from '../shared/SceneText';
 
 const LETTERING_FONT = `${import.meta.env.BASE_URL}fonts/MedievalSharp.ttf`;
@@ -14,6 +14,7 @@ export function VillageNameboard({
   height = 0.72,
   colour = '#244d43',
   crest,
+  illuminated = false,
 }: {
   title: string;
   caption?: string;
@@ -21,9 +22,14 @@ export function VillageNameboard({
   height?: number;
   colour?: string;
   crest?: 'wheat' | string;
+  illuminated?: boolean;
 }) {
   const textWidth = width - (crest ? height * 1.5 : 0.42);
   const textX = crest ? height * 0.45 : 0;
+  // Small internally illuminated letters share the established dusk dimmer.
+  // Timber, coloured fascia and keylines remain physically lit. Working if
+  // shop titles are readable at night and civic/pub paint keeps its old finish.
+  const Lettering = illuminated ? IlluminatedSignText : SceneText;
   return (
     <group name={`village-nameboard-${title.toLowerCase().replaceAll(' ', '-')}`}>
       <mesh castShadow>
@@ -62,9 +68,10 @@ export function VillageNameboard({
               width={height * 0.51}
               colour={GOLD}
               position={[0, 0, 0.006]}
+              backlit={illuminated}
             />
           ) : (
-            <SceneText
+            <Lettering
               position={[0, 0, 0.006]}
               font={LETTERING_FONT}
               fontSize={height * 0.4}
@@ -72,14 +79,15 @@ export function VillageNameboard({
               color={GOLD}
               anchorX="center"
               anchorY="middle"
+              userData={{ noStaticBatch: illuminated }}
               surface="painted"
             >
               {crest}
-            </SceneText>
+            </Lettering>
           )}
         </group>
       )}
-      <SceneText
+      <Lettering
         name={`village-lettering-${title}`}
         position={[textX, caption ? height * 0.1 : 0, 0.12]}
         font={LETTERING_FONT}
@@ -92,12 +100,13 @@ export function VillageNameboard({
         outlineColor="#fff2d5"
         anchorX="center"
         anchorY="middle"
+        userData={{ noStaticBatch: illuminated }}
         surface="painted"
       >
         {title}
-      </SceneText>
+      </Lettering>
       {caption && (
-        <SceneText
+        <Lettering
           name={`village-caption-${title}`}
           position={[textX, -height * 0.235, 0.12]}
           fontSize={Math.min(height * 0.14, textWidth / (caption.length * 0.65))}
@@ -107,10 +116,11 @@ export function VillageNameboard({
           color={GOLD}
           anchorX="center"
           anchorY="middle"
+          userData={{ noStaticBatch: illuminated }}
           surface="painted"
         >
           {caption}
-        </SceneText>
+        </Lettering>
       )}
     </group>
   );
@@ -127,6 +137,7 @@ export function VillageShopSign({ trade }: { trade?: string }) {
           bakery ? 'BREAD & PATISSERIE' : butcher ? 'FARMHOUSE MEATS' : 'PROVISIONS & FINE GOODS'
         }
         width={5.24}
+        illuminated
         colour={bakery ? '#75454a' : butcher ? '#365043' : '#263f55'}
         crest={bakery ? 'wheat' : butcher ? 'B' : 'G'}
       />
