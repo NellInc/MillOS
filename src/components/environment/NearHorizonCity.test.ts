@@ -5,9 +5,70 @@ import { getRiverHeightfield, MILLOS_RIVER_CONFIG } from '../terrain/splatMapGen
 import { TERRAIN_BOUNDS } from '../terrain/terrainTypes';
 import { SITE_LAYOUT } from '../../constants/siteLayout';
 import { readFileSync } from 'node:fs';
-import { buildNearCitySpecs } from './NearHorizonCity';
+import {
+  buildNearCitySpecs,
+  buildNearCityWindows,
+  createNearCityPitchedRoof,
+  nearCityRoofRise,
+} from './NearHorizonCity';
 
 describe('near horizon city layout', () => {
+  it('seals the pitched roofs with eight outward-facing triangles', () => {
+    const geometry = createNearCityPitchedRoof();
+    expect(geometry.getAttribute('position').count).toBe(24);
+    expect(geometry.boundingBox!.min.toArray()).toEqual([-0.5, 0, -0.5]);
+    expect(geometry.boundingBox!.max.toArray()).toEqual([0.5, 1, 0.5]);
+    const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial());
+    mesh.updateMatrixWorld(true);
+    const ray = new THREE.Raycaster();
+    for (const x of [-0.4, 0, 0.4]) {
+      ray.set(new THREE.Vector3(x, 3, 0), new THREE.Vector3(0, -1, 0));
+      expect(ray.intersectObject(mesh)[0]?.point.y).toBeCloseTo(1 - 2 * Math.abs(x), 5);
+    }
+    for (const z of [-2, 2]) {
+      ray.set(new THREE.Vector3(0, 0.4, z), new THREE.Vector3(0, 0, -Math.sign(z)));
+      expect(Math.abs(ray.intersectObject(mesh)[0]?.point.z ?? 2)).toBeCloseTo(0.5, 5);
+    }
+    geometry.dispose();
+    (mesh.material as THREE.Material).dispose();
+  });
+
+  it('varies roof pitch while retaining the industrial group', () => {
+    const buildings = buildNearCitySpecs();
+    const pitched = buildings.filter((b) => b.roofStyle !== 2);
+    const flat = buildings.filter((b) => b.roofStyle === 2);
+    expect(pitched.length).toBeGreaterThan(0);
+    expect(flat.length).toBeGreaterThan(0);
+    expect(pitched.length + flat.length).toBe(42);
+    for (const b of pitched) {
+      expect(nearCityRoofRise(b)).toBeGreaterThanOrEqual(1.5);
+      expect(nearCityRoofRise(b)).toBeLessThanOrEqual(3.6);
+    }
+    expect(nearCityRoofRise({ ...buildings[0], width: 8, roofStyle: 0 })).toBeGreaterThan(
+      nearCityRoofRise({ ...buildings[0], width: 8, roofStyle: 1 })
+    );
+  });
+
+  it('seats larger town panes on the actual front and side faces', () => {
+    const buildings = buildNearCitySpecs();
+    const windows = buildNearCityWindows(buildings);
+    expect(buildNearCityWindows(buildings)).toEqual(windows);
+    expect(windows.length).toBeLessThan(900);
+    for (const b of buildings) {
+      const faces = new Set<number>();
+      for (const w of buildNearCityWindows([b])) {
+        const face = Math.round((w.yaw - b.yaw) / (Math.PI / 2));
+        faces.add(face);
+        const projection = (w.x - b.x) * Math.sin(w.yaw) + (w.z - b.z) * Math.cos(w.yaw);
+        expect(projection).toBeCloseTo((face === 0 ? b.depth : b.width) / 2 + 0.05, 6);
+        expect(w.y + w.height / 2).toBeLessThan(b.height - 0.8);
+        expect(w.height).toBe(0.9);
+        expect(w.width).toBeLessThanOrEqual(1.3);
+      }
+      expect([...faces].sort()).toEqual(b.roofStyle === 2 ? [0] : [-1, 0, 1]);
+    }
+  });
+
   it('keeps instance colours independent of absent vertex colours', () => {
     const source = readFileSync('src/components/environment/NearHorizonCity.tsx', 'utf8');
     const bodyMaterial = source.match(
