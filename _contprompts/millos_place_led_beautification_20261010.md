@@ -44,4 +44,61 @@ The plan covers five batches, cross-cutting atmosphere and gameplay clarity. Old
 - Day/dusk review exposed folded foothill terraces and open crest shelves. Regression reproduced: minimum radial step -1.7866 m; outer crest33.6439 m versus ground-2.999 m.
 - Corrected monotonic wooded slope radii and six descending terrace rows, with softer clearing contrast. Original tunnel-tail contact, grove occlusion, summit heights and snow limits retained.41 focused tests pass.
 - Day, dusk, rainy night and Low snapshots have no console/page/request errors and valid motion/world continuity. Original budgets remain unchanged; art-mode timings are indicative only.
-- Final corrected runtime capture, ordinary UI dispatch programme and finite acceptance remain in progress.
+- Corrected runtime captures and the complete ordinary UI dispatch programme pass. Finite visual/source acceptance is complete; performance acceptance remains open.
+
+## Finite acceptance review
+Self-review: the candidate was produced by this session with bounded delegated implementation. Root reviewed the integrated diff and actual rendered frames.
+
+| Batch | New delivered work | Retained contract and proof |
+| --- | --- | --- |
+| Square and bakery | Oak door panels, window reveals/sills, shop loaves, curtains, parallax furnishings and pendants; refined seats/planters | Existing legible signs and delivery-linked supply remain. Source/runtime geometry custody and model/lighting/asset checks pass; actual day/dusk views reviewed. |
+| Homes and civic life | Dormer, differentiated entrance hoods/chimneys, gutters/downpipes; dwelling/rest gestures with dwell | Five house kinds, schedules, safe contact, fountain bird and scarecrow preserved. Existing grounds/worker/community checks pass; village views and motion reviewed. |
+| Canal, farm and landscape | Boat rope fenders, fixed mooring eyes, planter coping, soft cloud reflections, clearing fields/haze, closed outward foothill slopes | Hull bounds, water/navigation/shore contracts, tunnel-tail contact, snowy skyline and farm composition preserved. Asset, grounds, sky/tunnel tests and actual canal/farm/water captures pass. |
+| Castle and arrivals | One merged sheltered court with evergreens, oak seat and drain; public-realm finish | Curvy white/blue palace, gateway/stair axis, road/forecourt/shelter joins and economical night lighting retained. Stair/navigation/grounds tests and day/dusk castle/arrival views pass. |
+| Factory and play | Instanced stand-off mill handles; compact actual-delivery receipt and current programme/incident advice | Recipes, physical dispatch, quality gates, consent/safety and strict first-reveal readiness unchanged. Focused and full-suite checks pass. Ordinary Medium UI confirmation passes, including all three physical deliveries and responsive completion guidance. |
+
+No new shadow caster, reflection camera, texture sampler or local-light fleet was added. Final candidate is 200c6e738ae98bf1692c14cfcb1800dbdcd71ddc, local only. No LFS or file above100MB required.
+
+## Runtime acceptance boundaries
+- Required typecheck, lint, formatting, production build (15.08s) and fresh-build reachability pass. Full suite256 files/2835 tests passed before the bounded final terrain correction; correction41 focused tests pass. No aggregate rerun claimed for the final correction.
+- Production Medium benchmark remains FAIL: water46.9FPS/24.8ms p95, farm41.7/28.7, milling61.2/20.6. CPU load1.4 to1.82/core is below the contention threshold; CPU overload is not an explanation. No GPU-capacity cause is established.
+- Same-page farm diagnostic: initial67.0FPS/17.0ms p95 and26.8FPS low still FAIL. Warmed complete-scene control windows satisfy the frame-time budget, demonstrating variability. Surface toggle changes pixels while retaining shader work; Medium AO is already off. Neither is a cost-saving measurement. Punctual-light first-arm compilation produced a2.99s task; steady light pairs must be distinguished from compilation and cached programme counts.
+- Ordinary Medium UI run reached all three on-time orders and five physical departures,18t total with zero quality failure. Initial/final audio preferences remain muted. The new compact completion heading rendered correctly. Test stopped at an ambiguous disclosure selector, an adapter defect, before final responsive/keyboard and seal assertions. Failed receipt retained; corrected named-summary assertion subsequently passes the complete rerun, detailed below.
+- A finite three-pair interleaved comparison of exact base0378e81 and candidate200c, across the failed farm/water/milling scenes, has completed after ordinary UI, detailed below. Original quality, viewport, timing windows, motion and budgets remain unchanged. No performance conclusion is inferred from source or asset-size changes.
+- Unrelated primary checkout remains at06ff26d3 with the same18 tracked dirty files, untouched. No unrelated cache/process/worktree cleanup, push or deployment performed.
+
+## Ordinary UI terminal result
+Corrected existing adapter exits0, `passed:true`, `unchanged:true`. Actual Medium throughout, no offered Low recovery used. Three orders fulfilled before their deadlines with zero quality failures; five unique credited manifests equal five physical departures and no sample contains early credit.18t shipped; final truck inactive.339 observations retain muted preferences and zero audio volume. Console/page/request errors are empty.
+
+Completed guide fits390x844,768x1024,1440x900 without overflow or soundtrack overlap. Receipt starts collapsed.360px reduced-motion keyboard path retains reverse/forward Tab inside the mobile panel, Escape dismissal and focus restoration. Root viewed the actual completed mobile/desktop frames. Sealed source/build unchanged before and after the full programme.
+Receipt: `test-results/gameplay-polish-20261002/place-led-20261010-guided-physical-departure-hardware-functional.json`.
+
+
+## Matched performance terminal result
+The unchanged production harness ran three alternating exact-base/candidate pairs per scene with one owned native sandboxed Metal browser. Same Medium, camera, DPR1.2, moving simulation,8s sample/5s warmup and original budgets. Every record has clean diagnostics, continuous world and valid motion; load0.93 to2.27/core is below the existing contention threshold.
+
+| Scene | Candidate minus base average frame time, three pairs | Base control spread | Original gate |
+| --- | --- | --- | --- |
+| Farm | -0.49,+0.67,+1.42ms | 0.80ms | All six fail, including unchanged main |
+| Water | -0.63,+3.14,+2.58ms | 1.16ms | Two base and one candidate pass; variable candidate slowdown needs isolation |
+| Milling | -1.08,-1.80,-0.75ms | 2.17ms | All six pass |
+
+No permanent GPU-capacity limit is inferred. Actors progress during sampling, so their phases are recorded rather than claimed identical. Report: `test-results/place-led-20261010/matched-performance/benchmark.json`.
+
+## Water reflection compiled-source isolation
+One unchanged page, three alternating8s pairs. Both source variants were prewarmed; actual linked GL source verified on all seven water materials. Only the newly added cloud block was omitted in the control. Geometry, uniforms, lights, quality and motion remain unchanged; original source and cache functions restore by identity afterward.
+
+Cloud-on minus cloud-off:0.11,0.65,0.68ms; off-control spread0.22ms. Timestamp/coverage agreement is within4ms for every8s arm, without the earlier compilation-window contamination. This isolates a small positive cost, insufficient to explain the prior2.58 to3.14ms regressions. Keep the authored reflection. Initial full production water gate passes74.2FPS/15.5ms p95/59.5FPS low; one subsequent cloud-on diagnostic arm misses the45FPS low narrowly, so this does not establish universal performance acceptance.
+
+Report: `test-results/place-led-20261010/water-cloud-costs/benchmark.json`. Farm frame-by-frame observation cost has completed below, with no production quality changes.
+
+## Temporary output custody
+The exact-main control projection was removed after all matched runs closed normally and all1102 source files were verified against Git blobs. Retained its source-input receipt, benchmark evidence and actual captures. Only this chat's reproducible owned scratch output was removed; shared dependencies, caches, primary work and other worktrees remain untouched.
+
+
+## Remaining performance acceptance
+The observation A/B retains the original moving Medium scene in both arms. Getter work totals21 to23ms per8s window (about0.05ms/read). Observed-minus-control frame deltas are-0.31,+1.60,+0.35ms, with1.10ms control spread, giving no consistent large observation penalty. This run reports load4.52/core, above the existing contention threshold; its absolute timings cannot close production acceptance. Timestamp coverage remains within5ms of all8s arm windows.
+
+A separate bounded8s CPU trace puts85.3% of sampled frames in Three rendering code, led by draw submission, uniform setters/upload and vertex-array work. It does not establish a GPU-capacity ceiling or prove which production optimisation would recover the frame budget. The trace is intact at `test-results/place-led-20261010/farm-bounded-profile/farm-cpu-profile.json`. The adapter omitted its computed render-duration summary from the JSON receipt; no missing duration is inferred and no equivalent rerun was made just to recover it. The ordinary uninstrumented frame gate preceding this trace still fails under below-threshold reported CPU load. Thus busy CPU load alone is not the explanation.
+
+All five source/visual batches and ordinary UI gameplay acceptance are complete. Original performance acceptance remains failed for farm and variable for water. Keep the goal ACTIVE; do not label the whole programme complete or relax graphics budgets. Remaining work is a bounded renderer-submission optimisation and fresh original-budget confirmation, rather than further speculative cosmetic edits. No push/deployment is authorised by this task.
