@@ -2,7 +2,8 @@
  * AI Settings Modal for MillOS
  *
  * Configure the strategic AI backend:
- * - Claude Haiku 5.5 High or GPT-6 Luna High: direct or OpenRouter browser BYOK.
+ * - Public: OpenRouter BYOK for Haiku 5.5 High or Luna 6 High.
+ * - Localhost: direct Anthropic/OpenAI BYOK, plus ChatGPT companion sign-in.
  * - Local (WebGPU): on-device Qwen3-4B neural core via @mlc-ai/web-llm — no
  *   API key, no cost, no data leaving the device after the one-time weight
  *   download. Mirrors the CABAL workspace WebGPU brain.
@@ -25,7 +26,12 @@ import {
 } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import { useAIConfigStore } from '../stores/aiConfigStore';
-import { cloudAIClient, CLOUD_MODELS, type CloudBackend } from '../utils/cloudAIClient';
+import {
+  cloudAIClient,
+  CLOUD_MODELS,
+  isLocalCompanionHost,
+  type CloudBackend,
+} from '../utils/cloudAIClient';
 import { chatgptClient, type ChatGPTModel } from '../utils/chatgptClient';
 import {
   WebGPUClient,
@@ -585,7 +591,9 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
       if (useAIConfigStore.getState().llmBackend === cloudBackend) {
         setTestResult({
           success: true,
-          message: 'Key and model access verified for this session.',
+          message: cloudBackend.startsWith('openrouter-')
+            ? 'OpenRouter key and spending limit verified. Model access is checked on first request.'
+            : 'Key and model access verified for this session.',
         });
       }
     } catch (error) {
@@ -671,34 +679,38 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
             <div className="p-3 rounded-lg bg-slate-800/50 space-y-2">
               <label className="block text-sm font-medium text-slate-300">AI Backend</label>
               <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="AI Backend">
-                <button
-                  role="radio"
-                  aria-checked={llmBackend === 'haiku'}
-                  onClick={() => selectBackend('haiku')}
-                  className={`p-2 rounded-lg border text-center transition-all ${
-                    llmBackend === 'haiku'
-                      ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-400'
-                      : 'bg-slate-700/50 border-slate-600 text-slate-400 hover:border-slate-500'
-                  }`}
-                >
-                  <Cloud className="w-4 h-4 mx-auto mb-1" aria-hidden="true" />
-                  <div className="text-xs font-medium">Haiku 5.5 High</div>
-                  <div className="text-[9px] opacity-70">Anthropic • BYOK</div>
-                </button>
-                <button
-                  role="radio"
-                  aria-checked={llmBackend === 'luna'}
-                  onClick={() => selectBackend('luna')}
-                  className={`p-2 rounded-lg border text-center transition-all ${
-                    llmBackend === 'luna'
-                      ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-400'
-                      : 'bg-slate-700/50 border-slate-600 text-slate-400 hover:border-slate-500'
-                  }`}
-                >
-                  <Cloud className="w-4 h-4 mx-auto mb-1" aria-hidden="true" />
-                  <div className="text-xs font-medium">Luna 6 High</div>
-                  <div className="text-[9px] opacity-70">OpenAI • BYOK</div>
-                </button>
+                {isLocalCompanionHost() && (
+                  <button
+                    role="radio"
+                    aria-checked={llmBackend === 'haiku'}
+                    onClick={() => selectBackend('haiku')}
+                    className={`p-2 rounded-lg border text-center transition-all ${
+                      llmBackend === 'haiku'
+                        ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-400'
+                        : 'bg-slate-700/50 border-slate-600 text-slate-400 hover:border-slate-500'
+                    }`}
+                  >
+                    <Cloud className="w-4 h-4 mx-auto mb-1" aria-hidden="true" />
+                    <div className="text-xs font-medium">Haiku 5.5 High</div>
+                    <div className="text-[9px] opacity-70">Anthropic • BYOK</div>
+                  </button>
+                )}
+                {isLocalCompanionHost() && (
+                  <button
+                    role="radio"
+                    aria-checked={llmBackend === 'luna'}
+                    onClick={() => selectBackend('luna')}
+                    className={`p-2 rounded-lg border text-center transition-all ${
+                      llmBackend === 'luna'
+                        ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-400'
+                        : 'bg-slate-700/50 border-slate-600 text-slate-400 hover:border-slate-500'
+                    }`}
+                  >
+                    <Cloud className="w-4 h-4 mx-auto mb-1" aria-hidden="true" />
+                    <div className="text-xs font-medium">Luna 6 High</div>
+                    <div className="text-[9px] opacity-70">OpenAI • BYOK</div>
+                  </button>
+                )}
                 <button
                   role="radio"
                   aria-checked={llmBackend === 'openrouter-haiku'}
@@ -730,7 +742,7 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
                 <button
                   role="radio"
                   aria-checked={llmBackend === 'chatgpt'}
-                  disabled={!['127.0.0.1', 'localhost'].includes(window.location.hostname)}
+                  disabled={!isLocalCompanionHost()}
                   onClick={() => selectBackend('chatgpt')}
                   className={`p-2 rounded-lg border text-center transition-all ${
                     llmBackend === 'chatgpt'
@@ -800,11 +812,10 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
                 {spendCapUsd === null ? ' No cap set.' : ` Cap: $${spendCapUsd.toFixed(2)}.`}
               </p>
               <p className="text-[10px] text-slate-400">
-                This tab blocks new paid requests using a conservative estimate, including key
-                tests. It is not a provider billing limit; actual charges can differ. Set a
-                provider-side limit where available for a stronger guard. OpenRouter upstream BYOK
-                charges are included when OpenRouter reports them; verify charges in your provider
-                account.
+                OpenRouter needs a cap and a lifetime spend-limited inference key that includes BYOK
+                usage. Its key check is free; direct-provider key tests on localhost are billable.
+                This tab reserves an estimate before paid calls; charges can exceed it. OpenRouter
+                reports its account charge and any upstream BYOK charge. Verify your provider bill.
               </p>
               {capError && (
                 <p role="alert" className="text-xs text-red-400">
@@ -904,12 +915,21 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
                     {CLOUD_MODELS[cloudBackend!].provider} Console
                   </a>
                 </p>
+                {cloudBackend.startsWith('openrouter-') && (
+                  <p className="text-xs text-slate-400">
+                    Set a session cap above, then use a lifetime spend-limited OpenRouter inference
+                    key with BYOK usage included in its limit. MillOS checks that limit before every
+                    paid request.
+                  </p>
+                )}
                 <p className="text-[10px] text-slate-400 leading-relaxed">
                   Your key stays in this page&rsquo;s memory and is sent directly to
                   {` ${CLOUD_MODELS[cloudBackend!].provider}`} with plant telemetry. Reloading
                   clears it. MillOS has no server-side key vault; page scripts and browser
-                  extensions can access a key while this page is open. Tests and strategic requests
-                  are billable by your provider.
+                  extensions can access a key while this page is open.{' '}
+                  {cloudBackend.startsWith('openrouter-')
+                    ? 'The key check is free; strategic requests are billable.'
+                    : 'Key tests and strategic requests are billable.'}
                 </p>
               </div>
             )}

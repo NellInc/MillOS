@@ -8,7 +8,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { safeJSONStorage } from './storage';
-import { cloudAIClient, type CloudBackend } from '../utils/cloudAIClient';
+import { cloudAIClient, isLocalCompanionHost, type CloudBackend } from '../utils/cloudAIClient';
 import { chatgptClient, type ChatGPTStatus } from '../utils/chatgptClient';
 import { spendBudget } from '../utils/spendBudget';
 import {
@@ -234,8 +234,11 @@ export const useAIConfigStore = create<AIConfigState>()(
         }
       },
 
-      llmBackend: 'haiku',
+      llmBackend: isLocalCompanionHost() ? 'haiku' : 'openrouter-haiku',
       setLLMBackend: (backend: LLMBackend) => {
+        if (!isLocalCompanionHost() && (backend === 'haiku' || backend === 'luna')) {
+          backend = backend === 'haiku' ? 'openrouter-haiku' : 'openrouter-luna';
+        }
         cloudKeyAttempt += 1;
         cloudAIClient.cancelRequests();
         set((state) => ({
@@ -620,8 +623,8 @@ export const useAIConfigStore = create<AIConfigState>()(
     {
       name: 'millos-ai-config',
       storage: safeJSONStorage,
-      version: 1,
-      migrate: (persistedState) => {
+      version: 2,
+      migrate: (persistedState, version) => {
         // Version 0 stored the Google key in plaintext. Return a strict
         // whitelist so rehydration rewrites storage without that credential.
         const previous =
@@ -629,8 +632,23 @@ export const useAIConfigStore = create<AIConfigState>()(
             ? (persistedState as Record<string, unknown>)
             : {};
         const local = previous.llmBackend === 'webgpu';
+        const backend: LLMBackend = local
+          ? 'webgpu'
+          : version === 0
+            ? isLocalCompanionHost()
+              ? 'haiku'
+              : 'openrouter-haiku'
+            : previous.llmBackend === 'chatgpt' && isLocalCompanionHost()
+              ? 'chatgpt'
+              : previous.llmBackend === 'openrouter-luna' || previous.llmBackend === 'luna'
+                ? previous.llmBackend === 'luna' && isLocalCompanionHost()
+                  ? 'luna'
+                  : 'openrouter-luna'
+                : previous.llmBackend === 'haiku' && isLocalCompanionHost()
+                  ? 'haiku'
+                  : 'openrouter-haiku';
         return {
-          llmBackend: local ? 'webgpu' : 'haiku',
+          llmBackend: backend,
           aiMode:
             local && (previous.aiMode === 'gemini' || previous.aiMode === 'hybrid')
               ? previous.aiMode

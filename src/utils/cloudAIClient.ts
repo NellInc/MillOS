@@ -26,6 +26,26 @@ export interface CloudResult {
 
 const REQUEST_TIMEOUT_MS = 60000;
 const MAX_PROMPT_CHARS = 24000;
+const OPENROUTER_KEY_URL = 'https://openrouter.ai/api/v1/key';
+
+export function isLocalCompanionHost(): boolean {
+  return (
+    typeof window !== 'undefined' &&
+    (window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost')
+  );
+}
+
+function isOpenRouterBackend(backend: CloudBackend): boolean {
+  return backend === 'openrouter-haiku' || backend === 'openrouter-luna';
+}
+
+function assertPublicProviderBoundary(backend: CloudBackend): void {
+  if (!isOpenRouterBackend(backend) && !isLocalCompanionHost()) {
+    throw new Error(
+      'Direct provider keys are available only on localhost. Use OpenRouter on the public site.'
+    );
+  }
+}
 
 function tokenCount(value: unknown): number {
   if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
@@ -92,16 +112,20 @@ export class CloudAIClient {
   private keys: Partial<Record<CloudBackend, string>> = {};
   private epoch = 0;
   private controllers = new Set<AbortController>();
+  private openRouterQueue: Promise<void> = Promise.resolve();
+  private openRouterBillingUnknown = false;
 
   hasKey(backend: CloudBackend): boolean {
     return Boolean(this.keys[backend]);
   }
 
   setKey(backend: CloudBackend, key: string): void {
+    assertPublicProviderBoundary(backend);
     const trimmed = key.trim();
     if (!trimmed) throw new Error('Enter an API key.');
     this.invalidate();
     this.keys[backend] = trimmed;
+    if (isOpenRouterBackend(backend)) this.openRouterBillingUnknown = false;
   }
 
   clearKey(backend: CloudBackend): void {
@@ -120,13 +144,91 @@ export class CloudAIClient {
   }
 
   async testKey(backend: CloudBackend, key: string): Promise<void> {
+    assertPublicProviderBoundary(backend);
+    if (isOpenRouterBackend(backend)) {
+      await this.verifyOpenRouterKey(key.trim());
+      return;
+    }
     await this.request(backend, key.trim(), 'Reply with OK only.', 4096);
   }
 
   async generateContent(backend: CloudBackend, prompt: string): Promise<CloudResult> {
+    assertPublicProviderBoundary(backend);
     const key = this.keys[backend];
     if (!key) throw new Error('Connect an API key for the selected model.');
-    return this.request(backend, key, prompt, 4096);
+    if (!isOpenRouterBackend(backend)) return this.request(backend, key, prompt, 4096);
+
+    // Match CABAL's one-paid-call-at-a-time browser session. The key limit can
+    // change outside this tab, so recheck it inside the slot before each call.
+    const epoch = this.epoch;
+    const prior = this.openRouterQueue;
+    let release: () => void = () => undefined;
+    this.openRouterQueue = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await prior;
+    try {
+      if (epoch !== this.epoch || this.keys[backend] !== key)
+        throw new Error('Request cancelled after configuration changed.');
+      if (this.openRouterBillingUnknown)
+        throw new Error(
+          'OpenRouter billing is unverified. Check charges and reconnect a limited key.'
+        );
+      await this.verifyOpenRouterKey(key);
+      if (epoch !== this.epoch || this.keys[backend] !== key)
+        throw new Error('Request cancelled after configuration changed.');
+      return await this.request(backend, key, prompt, 4096);
+    } finally {
+      release();
+    }
+  }
+
+  private async verifyOpenRouterKey(key: string): Promise<void> {
+    if (!key || key.length > 512 || /\s/.test(key))
+      throw new Error('Enter a valid OpenRouter API key.');
+    if (this.budget.getSnapshot().capUsd === null)
+      throw new Error('Set a session cost cap before connecting OpenRouter.');
+    let response: Response;
+    try {
+      response = await fetch(OPENROUTER_KEY_URL, {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${key}` },
+        credentials: 'omit',
+        cache: 'no-store',
+        referrerPolicy: 'no-referrer',
+        redirect: 'error',
+      });
+    } catch {
+      throw new Error(
+        'Cannot verify the OpenRouter key limit. Check your network or browser privacy settings.'
+      );
+    }
+    if (!response.ok)
+      throw new Error(`OpenRouter could not verify the key limit (HTTP ${response.status}).`);
+    let payload: unknown;
+    try {
+      payload = await response.json();
+    } catch {
+      throw new Error('OpenRouter returned no verifiable key limit.');
+    }
+    const data = payload && typeof payload === 'object' && 'data' in payload ? payload.data : null;
+    if (!data || typeof data !== 'object')
+      throw new Error('OpenRouter returned no verifiable key limit.');
+    const details = data as Record<string, unknown>;
+    if (
+      typeof details.limit !== 'number' ||
+      !Number.isFinite(details.limit) ||
+      details.limit <= 0 ||
+      typeof details.limit_remaining !== 'number' ||
+      !Number.isFinite(details.limit_remaining) ||
+      details.limit_remaining <= 0 ||
+      details.limit_reset !== null ||
+      details.include_byok_in_limit !== true ||
+      details.is_management_key === true
+    )
+      throw new Error(
+        'Use a lifetime spend-limited OpenRouter inference key with BYOK usage included in its limit.'
+      );
   }
 
   private async request(
@@ -145,7 +247,8 @@ export class CloudAIClient {
     this.controllers.add(controller);
     const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
     const isHaiku = backend === 'haiku';
-    const isOpenRouter = backend.startsWith('openrouter-');
+    const isOpenRouter = isOpenRouterBackend(backend);
+    let billingUnverified = true;
     try {
       const response = await fetch(
         isHaiku
@@ -156,6 +259,9 @@ export class CloudAIClient {
         {
           method: 'POST',
           credentials: 'omit',
+          cache: 'no-store',
+          referrerPolicy: 'no-referrer',
+          redirect: 'error',
           signal: controller.signal,
           headers: isHaiku
             ? {
@@ -200,7 +306,12 @@ export class CloudAIClient {
         }
       );
       if (!response.ok) {
-        this.budget.reject(reservation);
+        // Provider validation, auth and rate-limit rejections are not generated
+        // completions. Server errors and transport failures may have billed.
+        if ([400, 401, 402, 403, 404, 422, 429].includes(response.status)) {
+          this.budget.reject(reservation);
+          billingUnverified = false;
+        }
         throw errorForStatus(response.status);
       }
       const data: unknown = await response.json();
@@ -219,25 +330,42 @@ export class CloudAIClient {
         usage.cost_details && typeof usage.cost_details === 'object'
           ? (usage.cost_details as Record<string, unknown>)
           : {};
-      const openRouterCost =
-        isOpenRouter && typeof usage.cost === 'number'
-          ? usage.cost +
-            (typeof costDetails.upstream_inference_cost === 'number'
-              ? costDetails.upstream_inference_cost
-              : 0)
-          : undefined;
+      if (
+        isOpenRouter &&
+        (!Number.isFinite(usage.cost) ||
+          typeof usage.cost !== 'number' ||
+          usage.cost < 0 ||
+          !Object.hasOwn(costDetails, 'upstream_inference_cost') ||
+          (costDetails.upstream_inference_cost !== null &&
+            (typeof costDetails.upstream_inference_cost !== 'number' ||
+              !Number.isFinite(costDetails.upstream_inference_cost) ||
+              costDetails.upstream_inference_cost < 0)))
+      )
+        throw new Error(
+          'OpenRouter did not report a verifiable USD charge. Paid inference stopped.'
+        );
+      const openRouterCost = isOpenRouter
+        ? (usage.cost as number) +
+          (typeof costDetails.upstream_inference_cost === 'number'
+            ? costDetails.upstream_inference_cost
+            : 0)
+        : undefined;
       this.budget.settle(reservation, {
         inputTokens,
         outputTokens,
         costUsd: openRouterCost,
       });
+      billingUnverified = false;
       if (epoch !== this.epoch || controller.signal.aborted)
         throw new Error('Request cancelled after configuration changed.');
       const text = textFromResponse(backend, record);
       if (!text.trim()) throw new Error('Provider returned no text. Try again.');
       return { text, inputTokens, outputTokens };
     } catch (error) {
-      this.budget.uncertain(reservation);
+      if (billingUnverified) {
+        this.budget.uncertain(reservation);
+        if (isOpenRouter) this.openRouterBillingUnknown = true;
+      }
       if (controller.signal.aborted && epoch === this.epoch)
         throw new Error('Provider request timed out. Check charges before retrying.');
       if (error instanceof TypeError)
