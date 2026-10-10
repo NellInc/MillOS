@@ -496,19 +496,21 @@ export const ACTIVE_SHADER_CONTRACTS: readonly ActiveShaderContract[] = [
       'authored castle atlas UV glass tile',
       'view-space shallow room',
       'static world pane centre',
+      'object-rest shop display variety',
     ],
     colorSpace:
-      'linear linen albedo, bounded warm rooms, diffuse room irradiance on shop display goods and atlas-coloured stained-glass emission',
+      'linear linen albedo, bounded warm rooms, linear trade-specific pigments and diffuse room irradiance on shop display goods and atlas-coloured stained-glass emission',
     toneMapping: 'material-pipeline',
     fog: 'material-pipeline',
     transparency: 'opaque',
     depthBehavior: 'original opaque depth test and write',
     qualityVariants: ['low', 'medium', 'high', 'ultra'],
     uniformOwner:
-      'ExteriorLampDriver shared EXTERIOR_LAMP_LEVEL dimmer; shared VILLAGE_INTERIOR_STRENGTH control',
+      'ExteriorLampDriver shared EXTERIOR_LAMP_LEVEL dimmer; shared VILLAGE_INTERIOR_STRENGTH control; GeneratedModel private per-trade pigments',
     timeSource: 'simulation',
     cacheKey: 'millos-authored-village-windows-v6',
-    disposalOwner: 'GeneratedModel and VillageHome effect cleanup dispose cloned materials',
+    disposalOwner:
+      'GeneratedModel effect cleanup disposes private materials and shop display geometries; VillageHome disposes private materials',
     fallbackMaterial: 'existing primitive village building through GeneratedBoundary',
   },
   {

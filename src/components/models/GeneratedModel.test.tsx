@@ -1,6 +1,9 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import * as THREE from 'three';
+import { readFileSync } from 'node:fs';
+import { NodeIO } from '@gltf-transform/core';
+import { createShopDisplayGeometry, SHOP_DISPLAY_ITEM_GRID } from './GeneratedOfficeModel';
 import { GeneratedBody, GeneratedBoundary, GeneratedModel } from './GeneratedModel';
 
 const holder = vi.hoisted(() => ({ scene: null as THREE.Group | null }));
@@ -117,7 +120,7 @@ it('installs each real shop trade on a private material, keeping shared body and
     expect(mesh.castShadow).toBe(true);
     expect(mesh.receiveShadow).toBe(true);
     expect(paint.color.getHex()).toBe(0xffffff);
-    expect(paint.customProgramCacheKey()).toContain('millos-authored-shop-joinery-v2');
+    expect(paint.customProgramCacheKey()).toContain('millos-authored-shop-joinery-v3');
   }
   view.rerender(<GeneratedModel asset="church" shopTrade="bakery" />);
   expect((clones.at(-1)!.material as THREE.Material).customProgramCacheKey()).toBe(
@@ -127,5 +130,117 @@ it('installs each real shop trade on a private material, keeping shared body and
   view.unmount();
   geometry.dispose();
   material.map!.dispose();
+  material.dispose();
+});
+
+async function deliveredShopGeometry() {
+  const doc = await new NodeIO().readBinary(
+    new Uint8Array(readFileSync('public/models/village/shop.glb'))
+  );
+  const primitive = doc.getRoot().listMeshes()[0].listPrimitives()[0];
+  const geometry = new THREE.BufferGeometry();
+  for (const [attribute, accessor, size] of [
+    ['position', 'POSITION', 3],
+    ['normal', 'NORMAL', 3],
+    ['uv', 'TEXCOORD_0', 2],
+  ] as const) {
+    geometry.setAttribute(
+      attribute,
+      new THREE.BufferAttribute(
+        new Float32Array(primitive.getAttribute(accessor)!.getArray()!),
+        size
+      )
+    );
+  }
+  geometry.setIndex(Array.from(primitive.getIndices()!.getArray()!));
+  return geometry;
+}
+
+it('volumes the delivered five goods while preserving the building, anchors and cached buffers', async () => {
+  const source = await deliveredShopGeometry();
+  const originalPositions = Array.from(source.getAttribute('position').array);
+  const originalNormals = Array.from(source.getAttribute('normal').array);
+  const uv = source.getAttribute('uv');
+  const p = source.getAttribute('position');
+  const goods = new Map<number, number[]>();
+  for (let i = 0; i < uv.count; i++) {
+    if (uv.getX(i) > 0.75 && uv.getX(i) < 1 && uv.getY(i) > 0.25 && uv.getY(i) < 0.5) {
+      const band = Math.floor((p.getX(i) + SHOP_DISPLAY_ITEM_GRID[0]) * SHOP_DISPLAY_ITEM_GRID[1]);
+      goods.set(band, [...(goods.get(band) ?? []), i]);
+    }
+  }
+  expect([...goods.keys()].sort()).toEqual([0, 1, 2, 3, 4]);
+  expect([...goods.values()].map((vertices) => vertices.length)).toEqual([62, 62, 62, 62, 62]);
+  const selected = new Set([...goods.values()].flat());
+  for (const trade of ['bakery', 'butcher', 'general'] as const) {
+    const variant = createShopDisplayGeometry(source, trade);
+    const q = variant.getAttribute('position');
+    const n = variant.getAttribute('normal');
+    const scale =
+      trade === 'general' ? [0.58, 1.2, 8] : trade === 'butcher' ? [1, 0.9, 4] : [1, 1, 4];
+    expect(variant).not.toBe(source);
+    expect(q.array).not.toBe(p.array);
+    expect(variant.index!.array).not.toBe(source.index!.array);
+    expect(variant.index!.array).toEqual(source.index!.array);
+    expect(variant.getAttribute('uv').array).toEqual(uv.array);
+    expect(q.count).toBe(p.count);
+    expect(variant.index!.count).toBe(10380);
+    for (let i = 0; i < q.count; i++) {
+      if (!selected.has(i)) {
+        for (let axis = 0; axis < 3; axis++) {
+          expect(q.getComponent(i, axis)).toBe(p.getComponent(i, axis));
+          expect(n.getComponent(i, axis)).toBe(source.getAttribute('normal').getComponent(i, axis));
+        }
+      } else {
+        expect(Math.hypot(n.getX(i), n.getY(i), n.getZ(i))).toBeCloseTo(1, 5);
+        expect(
+          Math.floor((q.getX(i) + SHOP_DISPLAY_ITEM_GRID[0]) * SHOP_DISPLAY_ITEM_GRID[1])
+        ).toBe(Math.floor((p.getX(i) + SHOP_DISPLAY_ITEM_GRID[0]) * SHOP_DISPLAY_ITEM_GRID[1]));
+      }
+    }
+    for (const vertices of goods.values()) {
+      for (let axis = 0; axis < 3; axis++) {
+        const before = vertices.map((i) => p.getComponent(i, axis));
+        const after = vertices.map((i) => q.getComponent(i, axis));
+        expect(Math.max(...after) - Math.min(...after)).toBeCloseTo(
+          (Math.max(...before) - Math.min(...before)) * scale[axis],
+          5
+        );
+        if (axis > 0) expect(Math.min(...after)).toBe(Math.min(...before));
+      }
+    }
+    expect(Number.isFinite(variant.boundingSphere!.radius)).toBe(true);
+    variant.dispose();
+  }
+  expect(Array.from(p.array)).toEqual(originalPositions);
+  expect(Array.from(source.getAttribute('normal').array)).toEqual(originalNormals);
+  source.dispose();
+});
+
+it('releases owned display variants on trade changes and unmount, leaving cached GLB custody intact', async () => {
+  const geometry = await deliveredShopGeometry();
+  const source = new THREE.Group();
+  const material = new THREE.MeshStandardMaterial();
+  source.add(new THREE.Mesh(geometry, material));
+  holder.scene = source;
+  const cachedDispose = vi.spyOn(geometry, 'dispose');
+  const clones: THREE.Mesh[] = [];
+  const original = source.clone.bind(source);
+  vi.spyOn(source, 'clone').mockImplementation((recursive) => {
+    const clone = original(recursive);
+    clones.push(clone.children[0] as THREE.Mesh);
+    return clone;
+  });
+  const view = render(<GeneratedBody asset="shop" shopTrade="general" fallback={null} />);
+  expect(clones[0].geometry).not.toBe(geometry);
+  const firstDispose = vi.spyOn(clones[0].geometry, 'dispose');
+  view.rerender(<GeneratedBody asset="shop" shopTrade="butcher" fallback={null} />);
+  expect(firstDispose).toHaveBeenCalledOnce();
+  expect(clones[1].geometry).not.toBe(clones[0].geometry);
+  const secondDispose = vi.spyOn(clones[1].geometry, 'dispose');
+  view.unmount();
+  expect(secondDispose).toHaveBeenCalledOnce();
+  expect(cachedDispose).not.toHaveBeenCalled();
+  geometry.dispose();
   material.dispose();
 });

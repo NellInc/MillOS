@@ -338,6 +338,9 @@ it('repaints only the authored shop joinery swatch, retaining grain, linen and r
         '#include <map_fragment>\n#include <emissivemap_fragment>\n#include <lights_fragment_end>',
     } as Parameters<typeof material.onBeforeCompile>[0];
     material.onBeforeCompile(shader, {} as THREE.WebGLRenderer);
+    expect(shader.uniforms.shopDisplayTrade?.value).toBe(
+      { bakery: 0, butcher: 1, general: 2 }[trade]
+    );
     const ratio = shader.uniforms.shopJoineryTint.value as THREE.Color;
     const target = new THREE.Color(SHOP_JOINERY_COLOURS[trade]);
     expect(original.r * ratio.r).toBeCloseTo(target.r, 10);
@@ -363,6 +366,22 @@ it('repaints only the authored shop joinery swatch, retaining grain, linen and r
     expect(shader.fragmentShader).toContain('step(0.75, vVillageUV.x)');
     expect(shader.fragmentShader).toContain('dot(normal, roomUp)');
     expect(shader.fragmentShader.match(/float shopDisplay =/g)).toHaveLength(1);
+    expect(shader.uniforms.shopDisplayItemGrid.value.toArray()).toEqual([0.35, 2.25]);
+    expect(shader.vertexShader).toContain(
+      'floor((position.x + shopDisplayItemGrid.x) * shopDisplayItemGrid.y)'
+    );
+    expect(shader.fragmentShader).toContain('shopDisplay > 0.5 && shopDisplayTrade > 0.5');
+    expect(shader.fragmentShader).toContain('vec2 goodsUV = (vVillageUV - vec2(0.75, 0.25)) * 4.0');
+    expect(shader.fragmentShader).toContain('max(fwidth(veinField), 0.09)');
+    expect(shader.fragmentShader).toContain('diffuseColor.rgb = peel *');
+    expect(shader.fragmentShader.indexOf('vec2 goodsUV')).toBeLessThan(
+      shader.fragmentShader.indexOf('#include <lights_fragment_end>')
+    );
+    expect(shader.fragmentShader).not.toContain('totalEmissiveRadiance += shopDisplay');
+    const expectedWarm = new THREE.Color(
+      { bakery: '#bc965b', butcher: '#a95e57', general: '#be4d3d' }[trade]
+    );
+    expect(shader.uniforms.shopDisplayWarm.value.toArray()).toEqual(expectedWarm.toArray());
     keys.add(material.customProgramCacheKey());
   }
   expect(keys.size).toBe(1);

@@ -309,8 +309,8 @@ export function applyVillageWindows(
 
 export type VillageShopTrade = 'bakery' | 'butcher' | 'general';
 
-// Match the installed nameboards. Only the shop atlas's green joinery and
-// canvas stripe are repainted; cream linen, masonry, roof and glass keep
+// Match the installed nameboards and each trade's goods. The green joinery,
+// canvas stripe and dedicated display slot are treated; cream linen, masonry, roof and glass keep
 // their authored albedo. This is an intentional paint palette, not a global
 // colour-space compensator. Working if three real fronts have distinct paint
 // while their cream stripes and warm rooms remain unchanged.
@@ -319,7 +319,68 @@ export const SHOP_JOINERY_COLOURS = {
   butcher: '#365043',
   general: '#263f55',
 } as const;
+// Shared by display geometry and pigment classification, in object-rest metres.
+export const SHOP_DISPLAY_ITEM_GRID = [0.35, 2.25] as const;
+
+/** Give only the authored display goods physical volume; the cached GLB stays immutable.
+ * Private attributes and indices are intentional: Three disposes GPU buffers without
+ * reference counting. Working if body vertices are unchanged, shelf/rear contact stays
+ * fixed, and each owned variant is released without disposing the cached source.
+ */
+export function createShopDisplayGeometry(
+  source: THREE.BufferGeometry,
+  trade: VillageShopTrade
+): THREE.BufferGeometry {
+  const positions = source.getAttribute('position');
+  const normals = source.getAttribute('normal');
+  const uv = source.getAttribute('uv');
+  if (!positions || !normals || !uv) return source;
+  const items = new Map<number, { vertices: number[]; min: THREE.Vector3; max: THREE.Vector3 }>();
+  const point = new THREE.Vector3();
+  for (let i = 0; i < uv.count; i++) {
+    if (uv.getX(i) <= 0.75 || uv.getX(i) >= 1 || uv.getY(i) <= 0.25 || uv.getY(i) >= 0.5) continue;
+    point.fromBufferAttribute(positions, i);
+    const band = Math.floor((point.x + SHOP_DISPLAY_ITEM_GRID[0]) * SHOP_DISPLAY_ITEM_GRID[1]);
+    let item = items.get(band);
+    if (!item) {
+      item = { vertices: [], min: point.clone(), max: point.clone() };
+      items.set(band, item);
+    }
+    item.vertices.push(i);
+    item.min.min(point);
+    item.max.max(point);
+  }
+  if (!items.size) return source;
+  const geometry = source.clone();
+  const outputPositions = geometry.getAttribute('position');
+  const outputNormals = geometry.getAttribute('normal');
+  const [sx, sy, sz] =
+    trade === 'general' ? [0.58, 1.2, 8] : trade === 'butcher' ? [1, 0.9, 4] : [1, 1, 4];
+  for (const { vertices, min, max } of items.values()) {
+    const centreX = (min.x + max.x) * 0.5;
+    for (const i of vertices) {
+      outputPositions.setXYZ(
+        i,
+        centreX + (positions.getX(i) - centreX) * sx,
+        min.y + (positions.getY(i) - min.y) * sy,
+        min.z + (positions.getZ(i) - min.z) * sz
+      );
+      // Inverse transpose of the affine scale, preserving authored smooth normals.
+      point.set(normals.getX(i) / sx, normals.getY(i) / sy, normals.getZ(i) / sz).normalize();
+      outputNormals.setXYZ(i, point.x, point.y, point.z);
+    }
+  }
+  geometry.computeBoundingBox();
+  geometry.computeBoundingSphere();
+  return geometry;
+}
+
 const AUTHORED_SHOP_GREEN = new THREE.Color('#476454');
+const SHOP_DISPLAY_PALETTES = {
+  bakery: ['#bc965b', '#bc965b', '#bc965b'],
+  butcher: ['#a95e57', '#7b3736', '#e2c4ae'],
+  general: ['#be4d3d', '#718547', '#d1a85a'],
+} as const;
 
 export function applyShopWindows(material: THREE.MeshStandardMaterial, trade: VillageShopTrade) {
   applyVillageWindows(material);
@@ -334,7 +395,27 @@ export function applyShopWindows(material: THREE.MeshStandardMaterial, trade: Vi
   material.onBeforeCompile = (shader, renderer) => {
     windows.call(material, shader, renderer);
     shader.uniforms.shopJoineryTint = { value: ratio };
-    shader.fragmentShader = `uniform vec3 shopJoineryTint;\n${shader.fragmentShader}`
+    shader.uniforms.shopDisplayTrade = { value: { bakery: 0, butcher: 1, general: 2 }[trade] };
+    shader.uniforms.shopDisplayWarm = { value: new THREE.Color(SHOP_DISPLAY_PALETTES[trade][0]) };
+    shader.uniforms.shopDisplayCool = { value: new THREE.Color(SHOP_DISPLAY_PALETTES[trade][1]) };
+    shader.uniforms.shopDisplayPale = { value: new THREE.Color(SHOP_DISPLAY_PALETTES[trade][2]) };
+    // Five delivered goods span separate 0.447m centres in object-rest space.
+    // This grid assigns each whole oval one stable variety, never a world-space swim.
+    shader.uniforms.shopDisplayItemGrid = { value: new THREE.Vector2(...SHOP_DISPLAY_ITEM_GRID) };
+    shader.vertexShader = `varying float vShopDisplayItem;
+uniform vec2 shopDisplayItemGrid;
+${shader.vertexShader}`.replace(
+      '#include <begin_vertex>',
+      `#include <begin_vertex>
+vShopDisplayItem = floor((position.x + shopDisplayItemGrid.x) * shopDisplayItemGrid.y);`
+    );
+    shader.fragmentShader = `uniform vec3 shopJoineryTint;
+      uniform float shopDisplayTrade;
+      uniform vec3 shopDisplayWarm;
+      uniform vec3 shopDisplayCool;
+      uniform vec3 shopDisplayPale;
+      varying float vShopDisplayItem;
+      ${shader.fragmentShader}`
       .replace(
         '#include <map_fragment>',
         `#include <map_fragment>
@@ -342,7 +423,30 @@ export function applyShopWindows(material: THREE.MeshStandardMaterial, trade: Vi
        // swatch never touches glass in column 2 or linen in column 0.
        float shopJoinery = step(0.25, vVillageUV.x) * (1.0 - step(0.5, vVillageUV.x))
          * step(0.25, vVillageUV.y) * (1.0 - step(0.5, vVillageUV.y));
-       diffuseColor.rgb *= mix(vec3(1.0), shopJoineryTint, shopJoinery);`
+       diffuseColor.rgb *= mix(vec3(1.0), shopJoineryTint, shopJoinery);
+       // Slot 11 is only the five actual display goods. Bakery keeps the baked
+       // crust atlas; other trades replace it before PBR lighting, never emission.
+       // Working if meat and produce differ while linen, paint, shadows and
+       // room brightness are unchanged and the same program is shared.
+       float shopDisplay = step(0.75, vVillageUV.x) * (1.0 - step(1.0, vVillageUV.x))
+         * step(0.25, vVillageUV.y) * (1.0 - step(0.5, vVillageUV.y));
+       if (shopDisplay > 0.5 && shopDisplayTrade > 0.5) {
+         vec2 goodsUV = (vVillageUV - vec2(0.75, 0.25)) * 4.0;
+         float variety = mod(vShopDisplayItem, 3.0);
+         if (shopDisplayTrade < 1.5) {
+           float veinField = sin(goodsUV.x * 22.0 + sin(goodsUV.y * 9.0) * 1.6);
+           float veinWidth = max(fwidth(veinField), 0.09);
+           float marbling = 1.0 - smoothstep(0.0, veinWidth, abs(veinField));
+           vec3 meat = mix(shopDisplayWarm, shopDisplayCool, variety * 0.18);
+           diffuseColor.rgb = mix(meat, shopDisplayPale, marbling * 0.38);
+         } else {
+           vec3 peel = variety < 0.5 ? shopDisplayWarm
+             : variety < 1.5 ? shopDisplayCool : shopDisplayPale;
+           float mottling = sin(goodsUV.x * 36.0) * sin(goodsUV.y * 31.0);
+           float blush = sin(goodsUV.x * 7.0 + goodsUV.y * 5.0);
+           diffuseColor.rgb = peel * (0.96 + mottling * 0.035 + blush * 0.045);
+         }
+       }`
       )
       .replace(
         '#include <lights_fragment_end>',
@@ -353,8 +457,6 @@ export function applyShopWindows(material: THREE.MeshStandardMaterial, trade: Vi
        // masonry, glazing and street-facing furnishings keep ordinary lighting.
        // Working if goods stay readable with the room at night, darken when
        // its strength is zero, and retain normal-based shaping without lamps.
-       float shopDisplay = step(0.75, vVillageUV.x) * (1.0 - step(1.0, vVillageUV.x))
-         * step(0.25, vVillageUV.y) * (1.0 - step(0.5, vVillageUV.y));
        if (shopDisplay > 0.5) {
          vec3 roomUp = normalize((viewMatrix * vec4(0.0, 1.0, 0.0, 0.0)).xyz);
          float roomDiffuse = 0.55 + 0.45 * max(dot(normal, roomUp), 0.0);
@@ -367,5 +469,5 @@ export function applyShopWindows(material: THREE.MeshStandardMaterial, trade: Vi
   // All three paints share one compiled variant; only linear uniform values
   // differ. Installing again resets the window hook before wrapping it.
   material.customProgramCacheKey = () =>
-    `millos-authored-shop-joinery-v2|${windowKey.call(material)}`;
+    `millos-authored-shop-joinery-v3|${windowKey.call(material)}`;
 }

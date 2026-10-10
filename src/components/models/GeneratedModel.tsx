@@ -21,6 +21,7 @@ import { GENERATED_ASSET_PATHS, type GeneratedAssetId } from '../../utils/modelL
 import ErrorBoundary from '../ErrorBoundary';
 import {
   applyShopWindows,
+  createShopDisplayGeometry,
   applyVillageWindows,
   type VillageShopTrade,
 } from './GeneratedOfficeModel';
@@ -137,8 +138,9 @@ export const GeneratedModel: React.FC<GeneratedModelProps> = ({
 }) => {
   const { scene } = useDracoGLTF(GENERATED_ASSET_PATHS[asset]);
 
-  const { model, materials } = useMemo(() => {
+  const { model, materials, geometries } = useMemo(() => {
     const materials: THREE.Material[] = [];
+    const geometries: THREE.BufferGeometry[] = [];
     const clone = scene.clone(true);
     clone.traverse((object) => {
       const mesh = object as THREE.Mesh;
@@ -148,6 +150,11 @@ export const GeneratedModel: React.FC<GeneratedModelProps> = ({
         // Lancet glazing and forge workrooms keep their architectural character.
         if (asset === 'shop' && shopTrade) {
           applyShopWindows(material, shopTrade);
+          const geometry = createShopDisplayGeometry(mesh.geometry, shopTrade);
+          if (geometry !== mesh.geometry) {
+            mesh.geometry = geometry;
+            geometries.push(geometry);
+          }
         } else {
           applyVillageWindows(
             material,
@@ -173,9 +180,15 @@ export const GeneratedModel: React.FC<GeneratedModelProps> = ({
       mesh.receiveShadow =
         receiveShadow ?? (typeof authoredReceive === 'boolean' ? authoredReceive : true);
     });
-    return { model: clone, materials };
+    return { model: clone, materials, geometries };
   }, [scene, asset, shopTrade, castShadow, receiveShadow]);
-  useEffect(() => () => materials.forEach((material) => material.dispose()), [materials]);
+  useEffect(
+    () => () => {
+      materials.forEach((material) => material.dispose());
+      geometries.forEach((geometry) => geometry.dispose());
+    },
+    [materials, geometries]
+  );
 
   return (
     <primitive
