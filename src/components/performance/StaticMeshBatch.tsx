@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { applyLampLens, lampLensStyle, type LampStyle } from '../models/GeneratedLampModel';
 import {
   applyDeclinedWorldSurface,
   ownsOnlyWorldSurface,
@@ -28,6 +29,7 @@ type BatchCandidate = {
   batchMaterialSignature: string;
   mergeMaterialSignature: string;
   instanceColor: THREE.Color | null;
+  lampStyle: LampStyle | null;
 };
 
 type StaticBatch = {
@@ -292,6 +294,7 @@ const materialSignature = (
 ): string =>
   [
     material.type,
+    `lamp-lens:${lampLensStyle(material) ?? 'none'}`,
     ...Object.entries(material)
       .filter(([key, value]) => !MATERIAL_IDENTITY_KEYS.has(key) && typeof value !== 'function')
       .sort(([left], [right]) => left.localeCompare(right))
@@ -592,6 +595,8 @@ const isSupportedMaterial = (material: THREE.Material): boolean => {
     material instanceof THREE.MeshPhysicalMaterial;
   if (!supported) return false;
   if (material.clippingPlanes?.length) return false;
+  // Rest-space lens masks are safe only on opaque instances, never baked merges.
+  if (lampLensStyle(material)) return getInstanceColor(material) !== null;
   const civic = civicUnderlyingHooks(material);
   if (civic) {
     // Identity-proven wrapper. Arbitrary host/window/wind hooks still cannot
@@ -706,6 +711,7 @@ const inspectStaticBatchObject = (
       mergeCompatible: true,
     }),
     instanceColor,
+    lampStyle: lampLensStyle(object.material),
   });
 };
 
@@ -848,7 +854,12 @@ export const createStaticMeshBatches = (
    * into unbatched meshes. Guarded below at the call site.
    */
   const finishMaterial = (target: THREE.Material, source: THREE.Material): void => {
-    if (surface) {
+    const lampStyle = lampLensStyle(source);
+    if (lampStyle) {
+      // Material.clone drops hooks. Rebuild only the verified lens contract,
+      // without adding an automatic surface finish the source never carried.
+      applyLampLens(target as THREE.MeshStandardMaterial, lampStyle);
+    } else if (surface) {
       const applied = surface(target, source) ?? 'untreated';
       surfaceProfileCounts[applied] = (surfaceProfileCounts[applied] ?? 0) + 1;
     }
@@ -863,7 +874,9 @@ export const createStaticMeshBatches = (
       !hasExcludedAncestor(mesh, root) &&
       matrixIsStable(candidate.matrixWorld, mesh.matrixWorld) &&
       mesh.geometry === candidate.geometry &&
-      mesh.material === candidate.material
+      mesh.material === candidate.material &&
+      lampLensStyle(mesh.material) === candidate.lampStyle &&
+      (!candidate.lampStyle || isSupportedMaterial(mesh.material))
     );
   });
 
@@ -872,7 +885,7 @@ export const createStaticMeshBatches = (
   const mergeGroups = new Map<string, BatchCandidate[]>();
   stableCandidates.forEach((candidate) => {
     const { mesh } = candidate;
-    if (!candidate.instanceColor || !mesh.parent) return;
+    if (!candidate.instanceColor || !mesh.parent || candidate.lampStyle) return;
 
     relativeMatrix.multiplyMatrices(inverseRoot, mesh.matrixWorld);
     relativePosition.setFromMatrixPosition(relativeMatrix);
@@ -1065,6 +1078,8 @@ export const createStaticMeshBatches = (
       instance.renderOrder = representative.renderOrder;
       instance.layers.mask = representative.layers.mask;
       instance.userData.staticBatch = true;
+      if (activeGroup[0].lampStyle)
+        instance.userData.staticBatchLampStyle = activeGroup[0].lampStyle;
 
       const originals: StaticBatch['originals'] = [];
       activeGroup.forEach((candidate, index) => {
