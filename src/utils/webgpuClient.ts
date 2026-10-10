@@ -2,7 +2,7 @@
  * WebGPU Local LLM Client for MillOS Plant Management
  *
  * Browser-only neural core powered by @mlc-ai/web-llm running Qwen3-4B.
- * Implements the same public surface as {@link geminiClient} (generateContent
+ * Implements the same public surface as {@link cloudAIClient} (generateContent
  * + isConnected) so it is a drop-in backend for the strategic AI layer when
  * the operator wants on-device inference with no API key and zero cost.
  *
@@ -36,11 +36,11 @@ export const DEFAULT_WEBGPU_MODEL_ID = 'Qwen3-4B-q4f16_1-MLC';
 /** Display label for the settings UI. */
 export const DEFAULT_WEBGPU_MODEL_LABEL = 'Qwen3-4B Instruct';
 
-// Context limit protection — mirror geminiClient's budget so prompts that fit
-// Gemini also fit the local model (Qwen3-4B supports a 32k context window).
+// Context limit protection — mirror cloudAIClient's budget so prompts that fit
+// The local model can also fit them (Qwen3-4B supports a 32k context window).
 const MAX_PROMPT_CHARS = 28000;
 
-// Generation config — mirrors geminiClient's Gemini settings for parity.
+// Generation config — mirrors cloudAIClient's cloud settings for parity.
 const GENERATION_CONFIG = {
   temperature: 0.7,
   top_p: 0.9,
@@ -52,7 +52,7 @@ const GENERATION_CONFIG = {
 const CIRCUIT_BREAKER_THRESHOLD = 3;
 const CIRCUIT_BREAKER_RESET_MS = 30000;
 
-// Upper bound on one local generation. geminiClient bounds every provider call;
+// Upper bound on one local generation. cloudAIClient bounds every provider call;
 // without a deadline here a stalled worker (device lost, OOM thrash) leaves the
 // strategic layer's dedupe promise pending and its "analyzing" state stuck on.
 // Deliberately generous: a legitimate 2048-token run on a slow GPU can take well
@@ -155,7 +155,7 @@ export async function checkWebGPUAdapter(): Promise<WebGPUAdapterReport> {
         `This GPU reports a small memory budget (maxBufferSize ` +
         `${(maxBufferSize / 1_048_576).toFixed(0)}MB, maxStorageBuffer ` +
         `${(maxStorage / 1_048_576).toFixed(0)}MB). Qwen3-4B needs ~2.7GB and may ` +
-        `fail to load or stutter the 3D scene. A smaller model or Gemini API is safer here.`;
+        `fail to load or stutter the 3D scene. A smaller model or a cloud BYOK model may work better.`;
     }
 
     return { supported: true, warning, adapterLabel };
@@ -169,7 +169,7 @@ export async function checkWebGPUAdapter(): Promise<WebGPUAdapterReport> {
 }
 
 // ============================================================================
-// WEBGPU CLIENT — drop-in for geminiClient
+// WEBGPU CLIENT — drop-in for cloudAIClient
 // ============================================================================
 
 class WebGPUClient {
@@ -188,7 +188,7 @@ class WebGPUClient {
 
   /** Whether the model is loaded and ready to serve inference. */
   isConnected(): boolean {
-    // Half-open the breaker after its cool-down (see geminiClient.isConnected).
+    // Half-open the breaker after its cool-down (see cloudAIClient.isConnected).
     this.checkCircuitBreaker();
     return this.engine !== null && !this.circuitBreaker.isOpen;
   }
@@ -421,12 +421,12 @@ class WebGPUClient {
   }
 
   // --------------------------------------------------------------------------
-  // INFERENCE — drop-in for geminiClient.generateContent
+  // INFERENCE — drop-in for cloudAIClient.generateContent
   // --------------------------------------------------------------------------
 
   /**
    * Generate content from the local model. Same contract as
-   * geminiClient.generateContent: returns the text, or null on
+   * cloudAIClient.generateContent: returns the text, or null on
    * not-ready / circuit-open / failure so callers fall back to heuristic.
    */
   async generateContent(prompt: string): Promise<string | null> {
@@ -568,7 +568,7 @@ class WebGPUClient {
   }
 }
 
-// Singleton instance — one engine load serves the whole app (matches geminiClient).
+// Singleton instance — one engine load serves the whole app (matches cloudAIClient).
 export const webgpuClient = new WebGPUClient();
 
 export { WebGPUClient };

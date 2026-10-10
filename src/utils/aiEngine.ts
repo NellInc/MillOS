@@ -11,7 +11,7 @@ import { useProductionStore } from '../stores/productionStore';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import { useUIStore } from '../stores/uiStore';
 import { useAIConfigStore } from '../stores/aiConfigStore';
-import { geminiClient } from './geminiClient';
+import { cloudAIClient, type CloudResult } from './cloudAIClient';
 import { webgpuClient } from './webgpuClient';
 import { logger } from './logger';
 
@@ -589,20 +589,32 @@ export function initializeDecisionOutcomeTracking(): () => void {
 }
 
 function getActiveLLM(): {
-  generateContent: (prompt: string) => Promise<string | null>;
+  generateContent: (prompt: string) => Promise<CloudResult | null>;
   isConnected: () => boolean;
 } {
-  return useAIConfigStore.getState().llmBackend === 'webgpu' ? webgpuClient : geminiClient;
+  const backend = useAIConfigStore.getState().llmBackend;
+  return backend === 'webgpu'
+    ? {
+        isConnected: () => webgpuClient.isConnected(),
+        generateContent: async (prompt) => {
+          const text = await webgpuClient.generateContent(prompt);
+          return text ? { text, inputTokens: 0, outputTokens: 0 } : null;
+        },
+      }
+    : {
+        isConnected: () => cloudAIClient.hasKey(backend),
+        generateContent: (prompt) => cloudAIClient.generateContent(backend, prompt),
+      };
 }
 
-export function isGeminiModeActive(): boolean {
+export function isLLMModeActive(): boolean {
   const state = useAIConfigStore.getState();
   return (state.aiMode === 'gemini' || state.aiMode === 'hybrid') && state.isLLMReady();
 }
 
 export function isStrategicLayerActive(): boolean {
   const state = useAIConfigStore.getState();
-  // 'gemini' is the LLM-only mode: the strategic layer runs and the tactical
+  // 'gemini' is the persisted ID for LLM-only mode: the strategic layer runs and the tactical
   // rules layer is paused (see isTacticalLayerActive).
   return (state.aiMode === 'hybrid' || state.aiMode === 'gemini') && state.isLLMReady();
 }
@@ -684,12 +696,14 @@ let strategicDecisionKey: string | null = null;
 async function runStrategicDecision(
   requestEpoch: number,
   requestMode: string,
-  requestBackend: string
+  requestBackend: string,
+  requestConnectionEpoch: number
 ): Promise<AIDecision | null> {
   const config = useAIConfigStore.getState();
   if (
     config.aiMode !== requestMode ||
     config.llmBackend !== requestBackend ||
+    config.connectionEpoch !== requestConnectionEpoch ||
     !isStrategicLayerActive()
   ) {
     return null;
@@ -699,30 +713,35 @@ async function runStrategicDecision(
 
   let configurationChanged = false;
   const unsubscribeConfig = useAIConfigStore.subscribe((state) => {
-    if (state.aiMode !== requestMode || state.llmBackend !== requestBackend) {
+    if (
+      state.aiMode !== requestMode ||
+      state.llmBackend !== requestBackend ||
+      state.connectionEpoch !== requestConnectionEpoch
+    ) {
       configurationChanged = true;
     }
   });
   config.setStrategicThinking(true);
   try {
     const prompt = strategicPrompt(getMachines());
-    const response = await llm.generateContent(prompt);
+    const result = await llm.generateContent(prompt);
     if (
       requestEpoch !== strategicRequestEpoch ||
       configurationChanged ||
-      !response ||
+      !result ||
       !llm.isConnected() ||
       !isStrategicLayerActive() ||
       useAIConfigStore.getState().aiMode !== requestMode ||
-      useAIConfigStore.getState().llmBackend !== requestBackend
+      useAIConfigStore.getState().llmBackend !== requestBackend ||
+      useAIConfigStore.getState().connectionEpoch !== requestConnectionEpoch
     ) {
       return null;
     }
     const liveConfig = useAIConfigStore.getState();
-    if (config.llmBackend === 'gemini') {
-      liveConfig.recordApiUsage(prompt.length, response.length);
+    if (config.llmBackend !== 'webgpu') {
+      liveConfig.recordApiUsage(result.inputTokens, result.outputTokens);
     }
-    const strategic = parseStrategicResponse(response);
+    const strategic = parseStrategicResponse(result.text);
     if (!strategic) return null;
     // Only keep a focus machine the plant actually has, so neither the decision
     // nor the Strategic tab's "Focus" chip points at an asset that isn't there.
@@ -768,7 +787,7 @@ async function runStrategicDecision(
 
 export function generateStrategicDecision(): Promise<AIDecision | null> {
   const config = useAIConfigStore.getState();
-  const requestKey = `${config.aiMode}:${config.llmBackend}`;
+  const requestKey = `${config.aiMode}:${config.llmBackend}:${config.connectionEpoch}`;
   if (strategicDecisionPromise && strategicDecisionKey === requestKey) {
     return strategicDecisionPromise;
   }
@@ -778,7 +797,12 @@ export function generateStrategicDecision(): Promise<AIDecision | null> {
     strategicDecisionKey = null;
   }
   const requestEpoch = strategicRequestEpoch;
-  const promise = runStrategicDecision(requestEpoch, config.aiMode, config.llmBackend);
+  const promise = runStrategicDecision(
+    requestEpoch,
+    config.aiMode,
+    config.llmBackend,
+    config.connectionEpoch
+  );
   strategicDecisionPromise = promise;
   strategicDecisionKey = requestKey;
   void promise.finally(() => {

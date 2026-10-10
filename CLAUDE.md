@@ -220,7 +220,7 @@ npm run build        # Production build
 npm run preview      # Preview production build
 ```
 
-**Environment Setup:** `cp .env.local.example .env.local`. There is no build-time Gemini key: enter it at runtime in the in-app AI/Gemini settings modal, where it is stored only in browser localStorage under `millos-ai-config`.
+**Environment Setup:** `cp .env.local.example .env.local`. There is no build-time cloud key. In AI settings, choose Haiku 5.5 High or Luna 6 High and enter your own provider key. Keys stay in page memory only and clear on reload. The WebGPU model remains available without a key; the persisted `millos-ai-config` entry contains preferences only.
 
 ## Architecture
 

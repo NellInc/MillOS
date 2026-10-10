@@ -1,19 +1,20 @@
 /**
  * CostEstimationOverlay Component
  *
- * Shows estimated Gemini API costs for the current session: token counts are
- * approximated from request and response length and priced at the active
- * model's published per-token rate.
+ * Shows estimated BYOK API cost from provider-reported token usage.
+ * The provider invoice is authoritative.
  */
 
 import React, { useRef } from 'react';
 import { motion } from 'framer-motion';
 import { DollarSign, Zap, Brain, RotateCcw, TrendingUp, GripVertical } from 'lucide-react';
-import { getActiveGeminiPricing, useAIConfigStore } from '../../stores/aiConfigStore';
+import { getActiveCloudPricing, useAIConfigStore } from '../../stores/aiConfigStore';
 
 export const CostEstimationOverlay: React.FC = () => {
   const showCostOverlay = useAIConfigStore((state) => state.showCostOverlay);
-  const isGeminiConnected = useAIConfigStore((state) => state.isGeminiConnected);
+  const llmBackend = useAIConfigStore((state) => state.llmBackend);
+  const connectedProviders = useAIConfigStore((state) => state.connectedProviders);
+  const isConnected = llmBackend !== 'webgpu' && connectedProviders[llmBackend];
   const aiMode = useAIConfigStore((state) => state.aiMode);
   const costTracking = useAIConfigStore((state) => state.costTracking);
   const resetSessionCosts = useAIConfigStore((state) => state.resetSessionCosts);
@@ -22,7 +23,7 @@ export const CostEstimationOverlay: React.FC = () => {
 
   if (!showCostOverlay) return null;
 
-  const pricing = getActiveGeminiPricing();
+  const pricing = getActiveCloudPricing();
 
   const {
     sessionCost,
@@ -72,7 +73,7 @@ export const CostEstimationOverlay: React.FC = () => {
             <div className="p-1 rounded bg-cyan-500/20">
               <DollarSign className="w-4 h-4 text-cyan-400" />
             </div>
-            <span className="text-xs font-bold text-white">Gemini API Costs</span>
+            <span className="text-xs font-bold text-white">BYOK API Usage</span>
           </div>
           <GripVertical className="w-3 h-3 text-slate-500" aria-hidden="true" />
         </div>
@@ -82,10 +83,10 @@ export const CostEstimationOverlay: React.FC = () => {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5">
               <div
-                className={`w-2 h-2 rounded-full ${isGeminiConnected ? 'bg-green-500 animate-pulse' : 'bg-slate-500'}`}
+                className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-slate-500'}`}
               />
               <span className="text-[10px] text-slate-400">
-                {isGeminiConnected ? 'Connected' : 'Disconnected'}
+                {isConnected ? 'Connected' : 'Disconnected'}
               </span>
             </div>
             <div className="flex items-center gap-1">
@@ -100,7 +101,7 @@ export const CostEstimationOverlay: React.FC = () => {
           <div className="text-center mb-3">
             <div className="text-3xl font-bold text-cyan-400">{formatCost(sessionCost)}</div>
             <div className="text-[10px] text-slate-400 mt-0.5">
-              Session Total ({displayDuration})
+              Strategic calls ({displayDuration}); key tests excluded
             </div>
           </div>
 
@@ -152,8 +153,9 @@ export const CostEstimationOverlay: React.FC = () => {
         {/* Pricing Note */}
         <div className="px-3 pb-2">
           <div className="text-[9px] text-slate-400 text-center">
-            {pricing.model}: ${pricing.input.toFixed(2)}/1M in • ${pricing.output.toFixed(2)}/1M out
-            (estimated)
+            {llmBackend === 'webgpu'
+              ? 'On-device inference has no API charge.'
+              : `${pricing.model}: estimated at standard API rates, $${pricing.input.toFixed(2)}/1M in, $${pricing.output.toFixed(2)}/1M out. Provider billing is authoritative.`}
           </div>
         </div>
       </motion.div>

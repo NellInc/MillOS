@@ -2,7 +2,7 @@
  * StrategicPriorityCards Component
  *
  * Displays strategic priorities as dismissible cards in the UI.
- * Shows action plans and recommendations from the strategic layer (Gemini or
+ * Shows action plans and recommendations from the strategic layer (cloud BYOK or
  * the local WebGPU core).
  */
 
@@ -60,7 +60,11 @@ export const StrategicPriorityCards: React.FC<StrategicPriorityCardsProps> = ({
                 className="w-4 h-4 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin"
               />
               <span className="text-sm text-cyan-400">
-                {llmBackend === 'webgpu' ? 'Local core analyzing...' : 'Gemini analyzing...'}
+                {llmBackend === 'webgpu'
+                  ? 'Local core analyzing...'
+                  : llmBackend === 'haiku'
+                    ? 'Haiku analyzing...'
+                    : 'Luna analyzing...'}
               </span>
             </div>
           </motion.div>
