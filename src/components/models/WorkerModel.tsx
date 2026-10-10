@@ -128,6 +128,62 @@ const EAR_DEFENDER_BAND = new THREE.TorusGeometry(0.104, 0.008, 6, 18, Math.PI);
 const SUPERVISOR_CABLE = new THREE.TorusGeometry(0.065, 0.005, 6, 18, Math.PI * 1.25);
 const SUPERVISOR_RADIO_KNOB = new THREE.CylinderGeometry(0.009, 0.009, 0.012, 10);
 
+type WorkerAccessoryPairKind = 'glasses-temples' | 'hearing-cups' | 'vest-strips';
+const ACCESSORY_PAIRS: Record<
+  WorkerAccessoryPairKind,
+  {
+    x: number;
+    z: number;
+    scale: THREE.Vector3Tuple;
+    rotationZ: number;
+  }
+> = {
+  'glasses-temples': { x: 0.084, z: -0.052, scale: [0.008, 0.008, 0.112], rotationZ: 0 },
+  'hearing-cups': { x: 0.104, z: 0, scale: [1, 1, 1], rotationZ: Math.PI / 2 },
+  'vest-strips': { x: 0.078, z: 0, scale: [0.018, 0.135, 0.008], rotationZ: 0 },
+};
+
+/** Fixed pairs remain in their moving bone's local space.
+ * Working if both fittings keep their original rest geometry, bounds and pose in one draw.
+ */
+export function createWorkerAccessoryPair(
+  kind: WorkerAccessoryPairKind,
+  material: THREE.Material
+): THREE.InstancedMesh {
+  const spec = ACCESSORY_PAIRS[kind];
+  const geometry = kind === 'hearing-cups' ? EAR_DEFENDER : UNIT_BOX;
+  const mesh = new THREE.InstancedMesh(geometry, material, 2);
+  mesh.name = `worker-paired-${kind}`;
+  mesh.matrixAutoUpdate = false;
+  const transform = new THREE.Object3D();
+  transform.scale.fromArray(spec.scale);
+  transform.rotation.z = spec.rotationZ;
+  [-spec.x, spec.x].forEach((x, index) => {
+    transform.position.set(x, 0, spec.z);
+    transform.updateMatrix();
+    mesh.setMatrixAt(index, transform.matrix);
+  });
+  mesh.instanceMatrix.needsUpdate = true;
+  mesh.computeBoundingBox();
+  mesh.computeBoundingSphere();
+  return mesh;
+}
+
+const WorkerAccessoryPair: React.FC<{
+  kind: WorkerAccessoryPairKind;
+  material: THREE.Material;
+}> = ({ kind, material }) => {
+  const mesh = useMemo(() => createWorkerAccessoryPair(kind, material), [kind, material]);
+  // The rig borrows shared geometry/materials. Dispose only this pair's instance buffer.
+  useEffect(
+    () => () => {
+      mesh.dispose();
+    },
+    [mesh]
+  );
+  return <primitive object={mesh} dispose={null} />;
+};
+
 /**
  * Conservative pose margin added to the bind-pose bounding volume, in metres.
  * The run clip swings FootL to y 0.560 / z 0.408 against a 1.87 m bind box, so
@@ -461,29 +517,13 @@ const WorkerAccessories: React.FC<{
             geometry={SHARED_WORKER_GEOMETRY.glassesBridge}
             material={materials.dark}
           />
-          {[-0.084, 0.084].map((x) => (
-            <mesh
-              key={`temple-${x}`}
-              position={[x, 0, -0.052]}
-              geometry={UNIT_BOX}
-              material={materials.dark}
-              scale={[0.008, 0.008, 0.112]}
-            />
-          ))}
+          <WorkerAccessoryPair kind="glasses-temples" material={materials.dark} />
         </BoneMount>
       )}
 
       {appearance.hasHearingProtection && (
         <BoneMount bone={head} name="worker-hearing-protection" position={[0, 0.055, 0]}>
-          {[-0.104, 0.104].map((x) => (
-            <mesh
-              key={x}
-              position={[x, 0, 0]}
-              rotation={[0, 0, Math.PI / 2]}
-              geometry={EAR_DEFENDER}
-              material={materials.accent}
-            />
-          ))}
+          <WorkerAccessoryPair kind="hearing-cups" material={materials.accent} />
           <mesh position={[0, 0.002, 0]} geometry={EAR_DEFENDER_BAND} material={materials.dark} />
         </BoneMount>
       )}
@@ -581,15 +621,7 @@ const WorkerAccessories: React.FC<{
       {appearance.hasVest && (
         <>
           <BoneMount bone={chest} name="worker-reflective-vest-chest" position={[0, 0.008, 0.128]}>
-            {[-0.078, 0.078].map((x) => (
-              <mesh
-                key={x}
-                position={[x, 0, 0]}
-                geometry={UNIT_BOX}
-                material={materials.reflective}
-                scale={[0.018, 0.135, 0.008]}
-              />
-            ))}
+            <WorkerAccessoryPair kind="vest-strips" material={materials.reflective} />
           </BoneMount>
           <BoneMount bone={hips} name="worker-reflective-vest-waist" position={[0, 0.12, 0.122]}>
             <mesh

@@ -21,7 +21,7 @@ vi.mock('../../utils/dracoLoader', () => ({ useDracoGLTF: () => harness.asset })
 vi.mock('three/addons/utils/SkeletonUtils.js', () => ({
   clone: (scene: THREE.Group) => harness.clone?.(scene) ?? scene,
 }));
-import { WorkerModel, shareWorkerSkin } from '../models/WorkerModel';
+import { WorkerModel, shareWorkerSkin, createWorkerAccessoryPair } from '../models/WorkerModel';
 
 afterEach(() => {
   cleanup();
@@ -428,4 +428,65 @@ describe('distant worker body draws', () => {
     expect(createWorkerBodyLod(fixture.model)).toBeNull();
     expect(fixture.sources.every((mesh) => mesh.visible)).toBe(true);
   });
+});
+
+it.each([
+  {
+    kind: 'glasses-temples' as const,
+    x: 0.084,
+    z: -0.052,
+    scale: [0.008, 0.008, 0.112],
+    rotationZ: 0,
+  },
+  { kind: 'hearing-cups' as const, x: 0.104, z: 0, scale: [1, 1, 1], rotationZ: Math.PI / 2 },
+  { kind: 'vest-strips' as const, x: 0.078, z: 0, scale: [0.018, 0.135, 0.008], rotationZ: 0 },
+])('retains both $kind through moving bone poses without disposing borrowed resources', (spec) => {
+  const material = new THREE.MeshPhysicalMaterial();
+  const pair = createWorkerAccessoryPair(spec.kind, material);
+  const geometryDispose = vi.spyOn(pair.geometry, 'dispose');
+  const materialDispose = vi.spyOn(material, 'dispose');
+  const bone = new THREE.Bone();
+  const person = new THREE.Group();
+  person.add(bone);
+  bone.add(pair);
+  const originals = [-spec.x, spec.x].map((x) => {
+    const mesh = new THREE.Mesh(pair.geometry, material);
+    mesh.position.set(x, 0, spec.z);
+    mesh.scale.fromArray(spec.scale);
+    mesh.rotation.z = spec.rotationZ;
+    bone.add(mesh);
+    return mesh;
+  });
+  expect(pair.count).toBe(2);
+  expect(pair.matrixAutoUpdate).toBe(false);
+  expect(pair.matrixWorldAutoUpdate).toBe(true);
+  expect(pair.castShadow).toBe(false);
+  expect(pair.receiveShadow).toBe(false);
+  const positions = pair.geometry.getAttribute('position');
+  for (const phase of [0, 0.7, 1.4]) {
+    person.position.set(9 + phase, 1, -6);
+    person.rotation.y = phase;
+    bone.position.set(0, 1 + Math.sin(phase), 0.12);
+    bone.rotation.set(phase * 0.4, 0, phase * 0.2);
+    person.updateMatrixWorld(true);
+    for (const [index, original] of originals.entries()) {
+      const instance = new THREE.Matrix4();
+      pair.getMatrixAt(index, instance);
+      const world = pair.matrixWorld.clone().multiply(instance);
+      for (let vertex = 0; vertex < positions.count; vertex++) {
+        const p = new THREE.Vector3().fromBufferAttribute(positions, vertex);
+        expect(
+          p.clone().applyMatrix4(world).distanceTo(p.applyMatrix4(original.matrixWorld))
+        ).toBeLessThan(1e-7);
+      }
+    }
+    const expected = new THREE.Box3();
+    originals.forEach((mesh) => expected.union(new THREE.Box3().setFromObject(mesh)));
+    const actual = new THREE.Box3().setFromObject(pair);
+    expect(actual.min.distanceTo(expected.min)).toBeLessThan(1e-7);
+    expect(actual.max.distanceTo(expected.max)).toBeLessThan(1e-7);
+  }
+  pair.dispose();
+  expect(geometryDispose).not.toHaveBeenCalled();
+  expect(materialDispose).not.toHaveBeenCalled();
 });
