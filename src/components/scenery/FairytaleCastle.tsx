@@ -1,10 +1,15 @@
-import React from 'react';
+import React, { useMemo } from 'react';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import * as THREE from 'three';
 import { GeneratedBody } from '../models/GeneratedModel';
 import { CastleSteps } from './CastleSteps';
 import { CASTLE_ROCK_SINK, CASTLE_COURT_HEIGHT } from '../../constants/castleAccess';
 import { PlotGeometry } from '../../utils/authoredPlotGeometry';
 import { applyWorldSurface } from '../../utils/worldSurface';
+import { EXTERIOR_LAYERS } from '../../constants/renderLayers';
+import { sampleTerrainGroundHeight } from '../terrain/splatMapGenerator';
+import { getTerrainGridSegments } from '../terrain/terrainTypes';
+import { useGraphicsStore } from '../../stores/graphicsStore';
 export { CASTLE_ROCK_SINK } from '../../constants/castleAccess';
 
 interface FairytaleCastleProps {
@@ -184,6 +189,117 @@ const COURT_MATERIAL = applyWorldSurface(
   'masonry'
 );
 
+// Low clipped borders soften the rock apron, outside both the gate and stair
+// corridor. Their bottoms follow the shipping terrain triangles at every tier.
+export const CASTLE_APPROACH_BEDS = [
+  { x: -12, z: 21.6, width: 4.4, depth: 1.6 },
+  { x: -5, z: 21.6, width: 4, depth: 1.6 },
+  { x: 0.6, z: 21.6, width: 3.1, depth: 1.6 },
+  { x: 13.2, z: 21.6, width: 3.2, depth: 1.6 },
+] as const;
+
+export function createCastleSetting(
+  position: [number, number, number],
+  rotation: [number, number, number],
+  scale: number,
+  segments: number
+) {
+  const transform = new THREE.Matrix4().compose(
+    new THREE.Vector3(...position),
+    new THREE.Quaternion().setFromEuler(new THREE.Euler(...rotation)),
+    new THREE.Vector3(scale, scale, scale)
+  );
+  const inverse = transform.clone().invert();
+  const sample = new THREE.Vector3();
+  const ground = (x: number, z: number) => {
+    sample.set(x, -CASTLE_ROCK_SINK, z).applyMatrix4(transform);
+    sample.y = EXTERIOR_LAYERS.ground + sampleTerrainGroundHeight(sample.x, sample.z, segments);
+    return sample.applyMatrix4(inverse).y + CASTLE_ROCK_SINK;
+  };
+  const b = new PlotGeometry();
+  const conform = (g: THREE.BufferGeometry, colour: string) => {
+    const points = g.getAttribute('position');
+    for (let i = 0; i < points.count; i++)
+      points.setY(i, points.getY(i) + ground(points.getX(i), points.getZ(i)));
+    g.computeVertexNormals();
+    b.add(g, colour);
+  };
+  for (const { x, z, width, depth } of CASTLE_APPROACH_BEDS) {
+    conform(
+      new THREE.PlaneGeometry(width, depth, 8, 3).rotateX(-Math.PI / 2).translate(x, 0.025, z),
+      '#594e40'
+    );
+    for (const side of [-1, 1]) {
+      const count = Math.ceil(width / 0.55);
+      for (let i = 0; i < count; i++)
+        conform(
+          new THREE.BoxGeometry(width / count - 0.014, 0.18, 0.14).translate(
+            x - width / 2 + ((i + 0.5) * width) / count,
+            0.085,
+            z + (side * depth) / 2
+          ),
+          STONE
+        );
+      conform(
+        new THREE.BoxGeometry(0.14, 0.18, depth - 0.14).translate(x + (side * width) / 2, 0.085, z),
+        STONE
+      );
+    }
+    const count = Math.ceil(width / 0.9);
+    for (let i = 0; i < count; i++) {
+      const px = x - width / 2 + ((i + 0.5) * width) / count;
+      const pz = z + (i % 2 ? 0.11 : -0.11);
+      b.add(
+        new THREE.IcosahedronGeometry(1, 1)
+          .scale(0.51, 0.34 + (i % 3) * 0.025, 0.49)
+          .rotateY(i * 0.73)
+          .translate(px, ground(px, pz) + 0.37, pz),
+        i % 2 ? '#587353' : '#45654d'
+      );
+      // Small lavender and ivory clusters stay below the clipped crown.
+      for (const side of [-1, 1]) {
+        const flowerZ = z + side * 0.58;
+        b.round([px, ground(px, flowerZ) + 0.19, flowerZ], [0.23, 0.17, 0.2], '#77826c');
+        for (const dx of [-0.12, 0.08])
+          b.add(
+            new THREE.TetrahedronGeometry(0.075)
+              .scale(1, 1.35, 1)
+              .translate(px + dx, ground(px + dx, flowerZ) + 0.34, flowerZ),
+            side < 0 ? '#b5accb' : '#e1ddbd'
+          );
+      }
+    }
+  }
+  const approach = b.finish();
+  const merged = mergeGeometries([CASTLE_COURT_SETTING, approach]);
+  approach.dispose();
+  if (!merged) throw new Error('Castle setting must retain matching vertex-colour attributes');
+  merged.computeBoundingBox();
+  merged.computeBoundingSphere();
+  return merged;
+}
+
+function CastleSetting({ position, rotation, scale }: Required<FairytaleCastleProps>) {
+  const quality = useGraphicsStore((s) => s.graphics.quality);
+  const segments = getTerrainGridSegments(quality);
+  const geometry = useMemo(
+    () => createCastleSetting(position, rotation, scale, segments),
+    [position, rotation, scale, segments]
+  );
+  React.useEffect(() => () => geometry.dispose(), [geometry]);
+  return (
+    <mesh
+      name="castle-sheltered-court-setting"
+      position={[0, -CASTLE_ROCK_SINK, 0]}
+      geometry={geometry}
+      material={COURT_MATERIAL}
+      receiveShadow
+      castShadow
+      dispose={null}
+    />
+  );
+}
+
 const PalaceFallback: React.FC = React.memo(() => (
   <group name="neuschwanstein-palace-fallback" position={[0, -CASTLE_ROCK_SINK, 0]}>
     <mesh position={[0, 1.6, 0]} receiveShadow>
@@ -235,15 +351,7 @@ export const FairytaleCastle: React.FC<FairytaleCastleProps> = React.memo(
   ({ position = [0, 0, 0], scale = 1, rotation = [0, 0, 0] }: FairytaleCastleProps) => (
     <group name="heritage-castle" position={position} scale={scale} rotation={rotation}>
       <GeneratedBody asset="castle" sink={CASTLE_ROCK_SINK} fallback={<PalaceFallback />} />
-      <mesh
-        name="castle-sheltered-court-setting"
-        position={[0, -CASTLE_ROCK_SINK, 0]}
-        geometry={CASTLE_COURT_SETTING}
-        material={COURT_MATERIAL}
-        receiveShadow
-        castShadow
-        dispose={null}
-      />
+      <CastleSetting position={position} rotation={rotation} scale={scale} />
       <CastleSteps />
     </group>
   )

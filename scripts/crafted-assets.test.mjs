@@ -438,6 +438,27 @@ test('Neuschwanstein castle preserves the landmark envelope with matte stone and
   }
 });
 
+test('Neuschwanstein castle has one exposed paving surface above its supporting masonry', async () => {
+  const { meshes } = await assembly('village-castle');
+  try {
+    for (const mesh of meshes) mesh.material.side = THREE.FrontSide;
+    for (const [x, z] of [
+      [6, 4.5],
+      [3.1, -6.2],
+      [7.2, 11.1],
+    ]) {
+      const hits = new THREE.Raycaster(
+        new THREE.Vector3(x, 50, z),
+        new THREE.Vector3(0, -1, 0)
+      ).intersectObjects(meshes);
+      const court = hits.filter((hit) => Math.abs(hit.point.y - 3.2) < 0.001);
+      expect(court, `exposed court at ${x}, ${z}`).toHaveLength(1);
+    }
+  } finally {
+    dispose(meshes);
+  }
+});
+
 test('Neuschwanstein castle has an open court, through gateway and supported arcade', async () => {
   const { meshes } = await assembly('village-castle');
   try {

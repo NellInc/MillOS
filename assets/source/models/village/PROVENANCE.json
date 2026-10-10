@@ -588,13 +588,13 @@
       "sha256": "a5d0e1cc948788ab9cd75e5b72e4b5f11703658d090c81c9dc17853d6145f498",
       "blenderPreparation": {
         "file": "assets/source/models/village/castle-neuschwanstein-authored.glb",
-        "sha256": "e075ed92bdf148be2855a21c63109f16ce74d59734aa025276cab5fd997e6162",
+        "sha256": "791ef160af74af6b21bad09d60efc10c8b1e3b5670afc19b0e1736d0d93d44dd",
         "script": "scripts/blender/build_neuschwanstein_castle.py",
         "method": "Fully authored Neuschwanstein-inspired palace with the white limestone and blue slate palette of MillOS v0.30: elongated palas, softly curved roofs, dominant round tower, square watchtower, rounded gate turrets and open through gateway/court. Shared runtime stairs preserve first-person ground access. Original provider source preserved separately; no provider geometry or textures used."
       },
       "runtimeDerivative": {
         "file": "public/models/village/castle.glb",
-        "sha256": "f11affbf4a8a14144b6fa78b8d473076baaca9b4806780ce19662bdb83e40249",
+        "sha256": "9e92b0a9dddb3753c05df66b63c3e2949c5efd782417a0c8bf176f7a30530048",
         "bytes": 566608,
         "license": "MillOS project-authored geometry and procedural textures",
         "attribution": "Original MillOS geometry and procedural atlas, inspired by Neuschwanstein Castle; no photographic textures or provider geometry incorporated."

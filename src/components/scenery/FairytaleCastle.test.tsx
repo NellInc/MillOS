@@ -1,7 +1,15 @@
 import { Children, isValidElement, type ReactElement, type ReactNode } from 'react';
 import { expect, it, vi } from 'vitest';
 import * as THREE from 'three';
-import { FairytaleCastle, CASTLE_COURT_SETTING } from './FairytaleCastle';
+import {
+  FairytaleCastle,
+  CASTLE_COURT_SETTING,
+  CASTLE_APPROACH_BEDS,
+  createCastleSetting,
+} from './FairytaleCastle';
+import { SITE_LAYOUT } from '../../constants/siteLayout';
+import { sampleTerrainGroundHeight } from '../terrain/splatMapGenerator';
+import { EXTERIOR_LAYERS } from '../../constants/renderLayers';
 import { CASTLE_COURT_HEIGHT, CASTLE_STAIR_X } from '../../constants/castleAccess';
 
 vi.mock('../models/GeneratedModel', () => ({ GeneratedBody: () => null }));
@@ -75,3 +83,57 @@ it('seats the sheltered court furniture on its delivered datum and clears the ga
     material.dispose();
   }
 });
+
+for (const segments of [64, 128]) {
+  it(`grounds the merged approach at terrain ${segments} and clears every stair`, () => {
+    const { position, rotation, scale } = SITE_LAYOUT.landmarks.castle;
+    const geometry = createCastleSetting([...position], [...rotation], scale, segments);
+    const transform = new THREE.Matrix4().compose(
+      new THREE.Vector3(...position),
+      new THREE.Quaternion().setFromEuler(new THREE.Euler(...rotation)),
+      new THREE.Vector3(scale, scale, scale)
+    );
+    const material = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
+    try {
+      const points = geometry.getAttribute('position'),
+        colours = geometry.getAttribute('color');
+      const soil = new THREE.Color('#594e40');
+      let grounded = 0;
+      for (let i = 0; i < points.count; i++) {
+        expect(Number.isFinite(points.getY(i))).toBe(true);
+        if (
+          Math.abs(colours.getX(i) - soil.r) > 1e-6 ||
+          Math.abs(colours.getY(i) - soil.g) > 1e-6 ||
+          Math.abs(colours.getZ(i) - soil.b) > 1e-6
+        )
+          continue;
+        const world = new THREE.Vector3(
+          points.getX(i),
+          points.getY(i) - 0.2,
+          points.getZ(i)
+        ).applyMatrix4(transform);
+        const floor =
+          EXTERIOR_LAYERS.ground + sampleTerrainGroundHeight(world.x, world.z, segments);
+        expect(world.y - floor).toBeCloseTo(0.025 * scale, 4);
+        grounded++;
+      }
+      expect(grounded).toBe(4 * 8 * 3 * 6);
+      expect(geometry.groups).toHaveLength(0);
+      expect(points.count / 3).toBeLessThan(5200);
+      const mesh = new THREE.Mesh(geometry, material);
+      for (const x of [CASTLE_STAIR_X - 1.9, CASTLE_STAIR_X, CASTLE_STAIR_X + 1.9])
+        for (const z of [16, 20, 21.6, 24.7, 27])
+          expect(
+            new THREE.Raycaster(
+              new THREE.Vector3(x, 7, z),
+              new THREE.Vector3(0, -1, 0)
+            ).intersectObject(mesh),
+            `clear approach ${x}, ${z}`
+          ).toHaveLength(0);
+      for (const bed of CASTLE_APPROACH_BEDS) expect(bed.z - bed.depth / 2).toBeGreaterThan(19.2);
+    } finally {
+      geometry.dispose();
+      material.dispose();
+    }
+  });
+}
