@@ -14,120 +14,176 @@ import { useGraphicsStore } from '../stores/graphicsStore';
 export function StartupReadiness(): null {
   const windowRef = useRef(new StartupFrameWindow());
   const preparationRef = useRef<'idle' | 'pending' | 'ready' | 'failed'>('idle');
+  const preparationGuardRef = useRef<() => boolean>(() => true);
   const { gl: renderer, scene, camera: mainCamera } = useThree();
   useEffect(() => {
     preparationRef.current = 'idle';
     const previous = scene.onBeforeRender;
-    let started = false;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let deadlineTimer: ReturnType<typeof setTimeout> | undefined;
+    let deadline: number | undefined;
     let release: ReturnType<typeof beginStartupTask> | undefined;
+    type PreparedProgram = {
+      program?: WebGLProgram;
+      isReady: () => boolean;
+      getUniforms: () => unknown;
+      getAttributes: () => unknown;
+    };
+    type Configuration = {
+      environment: THREE.Scene['environment'];
+      quality: string;
+      materials: Map<THREE.Material, { version: number; key: string }>;
+      programs: Set<PreparedProgram>;
+    };
+    let configuration: Configuration | undefined;
+    const finishTask = (failed = false) => {
+      release?.(failed);
+      release = undefined;
+    };
+    const fail = (error: unknown) => {
+      if (cancelled || preparationRef.current === 'failed') return;
+      preparationRef.current = 'failed';
+      clearTimeout(timer);
+      clearTimeout(deadlineTimer);
+      release ??= beginStartupTask();
+      finishTask(true);
+      console.error('Truck shader preparation failed', error);
+    };
+    const checkDeadline = () => {
+      if (deadline !== undefined && performance.now() >= deadline)
+        throw new Error('Truck shader preparation timed out');
+    };
+    const configurationValid = (): boolean => {
+      if (!configuration) return false;
+      // Loss/disposal is terminal even when a legitimate finish also changed.
+      if (renderer.getContext().isContextLost())
+        throw new Error('Truck shader context was lost during preparation');
+      for (const program of configuration.programs)
+        if (!program.program) throw new Error('Truck shader was disposed during preparation');
+      if (
+        scene.environment !== configuration.environment ||
+        useGraphicsStore.getState().graphics.quality !== configuration.quality ||
+        [...configuration.materials].some(
+          ([material, config]) =>
+            material.version !== config.version || material.customProgramCacheKey() !== config.key
+        )
+      ) {
+        clearTimeout(timer);
+        configuration = undefined;
+        preparationRef.current = 'idle';
+        // Retain one barrier across retries, including drift in the frame window.
+        release ??= beginStartupTask();
+        checkDeadline();
+        return false;
+      }
+      return true;
+    };
+    preparationGuardRef.current = () => {
+      if (cancelled || preparationRef.current === 'failed') return false;
+      try {
+        if (configuration && !configurationValid()) return false;
+        return preparationRef.current === 'ready';
+      } catch (error) {
+        fail(error);
+        return false;
+      }
+    };
     const prepare: THREE.Scene['onBeforeRender'] = function (this: THREE.Scene, ...args) {
       previous.apply(this, args);
       const [gl, targetScene, camera] = args;
       const data = document.documentElement.dataset;
       const startup = getStartupSnapshot();
-      if (
-        started ||
-        startup.ready ||
-        gl !== renderer ||
-        targetScene !== scene ||
-        camera !== mainCamera ||
-        data.millosWorldReady !== 'true' ||
-        data.millosStaticBatchesPending !== '0' ||
-        startup.pendingAssets !== 0 ||
-        startup.pendingTasks !== 0 ||
-        document.visibilityState === 'hidden' ||
-        gl.getContext().isContextLost()
-      )
+      if (startup.ready || gl !== renderer || targetScene !== scene || camera !== mainCamera)
         return;
-      const trucks = ['shipping-truck', 'receiving-truck'].flatMap((name) => {
-        const full = scene.getObjectByName(name)?.getObjectByName('truck-full-detail');
-        return full ? [full] : [];
-      });
-      if (!trucks.length) return;
-      started = true;
-      preparationRef.current = 'pending';
-      release = beginStartupTask();
-      // This callback sees the actual composer's target, lights and camera.
-      // Hidden, retained truck LODs otherwise compile on their first approach.
-      // Snapshot every variant: compileAsync polls only mutable currentProgram.
-      // Working if approaches do not link new finishes and loading stays up
-      // until preparation completes and the existing stable-frame gate passes.
       try {
-        type PreparedProgram = {
-          program?: WebGLProgram;
-          isReady: () => boolean;
-          getUniforms: () => unknown;
-          getAttributes: () => unknown;
-        };
+        if (configuration) configurationValid();
+        if (
+          preparationRef.current !== 'idle' ||
+          data.millosWorldReady !== 'true' ||
+          data.millosStaticBatchesPending !== '0' ||
+          startup.pendingAssets !== 0 ||
+          getStartupSnapshot().pendingTasks !== (release ? 1 : 0) ||
+          document.visibilityState === 'hidden' ||
+          gl.getContext().isContextLost()
+        )
+          return;
+        const trucks = ['shipping-truck', 'receiving-truck'].flatMap((name) => {
+          const full = scene.getObjectByName(name)?.getObjectByName('truck-full-detail');
+          return full ? [full] : [];
+        });
+        if (!trucks.length) return;
+        if (deadline === undefined) {
+          deadline = performance.now() + 15000;
+          deadlineTimer = setTimeout(() => {
+            if (preparationRef.current !== 'ready')
+              fail(new Error('Truck shader preparation timed out'));
+          }, 15000);
+        }
+        checkDeadline();
+        preparationRef.current = 'pending';
+        release ??= beginStartupTask();
+        // Use the actual main-scene callback, target, lights and camera again
+        // when streamed finishes invalidate preparation. Never certify old
+        // variants or extend the first attempt's deadline. Working if a late
+        // finish re-prepares behind the overlay and still needs 45 stable frames.
         const programs = new Set<PreparedProgram>();
-        const configurations = new Map<THREE.Material, { version: number; key: string }>();
+        const materials = new Map<THREE.Material, { version: number; key: string }>();
         for (const truck of trucks) {
-          const materials = gl.compile(truck, camera, scene);
-          for (const material of materials) {
+          for (const material of gl.compile(truck, camera, scene)) {
             const { programs: variants } = gl.properties.get(material) as {
               programs?: Map<string, PreparedProgram>;
             };
             if (!(variants instanceof Map) || variants.size === 0)
               throw new Error('Compiled truck material has no shader variants');
             for (const program of variants.values()) programs.add(program);
-            configurations.set(material, {
+            materials.set(material, {
               version: material.version,
               key: material.customProgramCacheKey(),
             });
           }
         }
-        const environment = scene.environment;
-        const quality = useGraphicsStore.getState().graphics.quality;
-        const deadline = performance.now() + 15000;
+        const attempt: Configuration = {
+          environment: scene.environment,
+          quality: useGraphicsStore.getState().graphics.quality,
+          materials,
+          programs,
+        };
+        configuration = attempt;
+        const remaining = new Set(programs);
         const poll = () => {
-          if (cancelled) return;
+          if (cancelled || configuration !== attempt) return;
           try {
-            if (
-              gl.getContext().isContextLost() ||
-              scene.environment !== environment ||
-              useGraphicsStore.getState().graphics.quality !== quality ||
-              [...configurations].some(
-                ([material, config]) =>
-                  material.version !== config.version ||
-                  material.customProgramCacheKey() !== config.key
-              )
-            )
-              throw new Error('Truck shader configuration changed during preparation');
-            for (const program of programs) {
-              if (!program.program) throw new Error('Truck shader was disposed during preparation');
+            checkDeadline();
+            if (!configurationValid()) return;
+            for (const program of remaining) {
               if (!program.isReady()) continue;
-              // Installed Three's first-use metadata retains shader error
-              // checks. It is initialized behind the overlay, never disabled.
+              // Keep Three's first-use metadata and shader error checks intact.
               program.getUniforms();
               program.getAttributes();
-              programs.delete(program);
+              remaining.delete(program);
             }
-            if (!programs.size) {
+            if (!remaining.size) {
+              checkDeadline();
               preparationRef.current = 'ready';
-              release?.();
-            } else if (performance.now() >= deadline)
-              throw new Error('Truck shader preparation timed out');
-            else timer = setTimeout(poll, 10);
+              finishTask();
+            } else timer = setTimeout(poll, 10);
           } catch (error) {
-            preparationRef.current = 'failed';
-            release?.(true);
-            console.error('Truck shader preparation failed', error);
+            fail(error);
           }
         };
         timer = setTimeout(poll, 10);
       } catch (error) {
-        preparationRef.current = 'failed';
-        release(true);
-        console.error('Truck shader preparation failed', error);
+        fail(error);
       }
     };
     scene.onBeforeRender = prepare;
     return () => {
       cancelled = true;
       clearTimeout(timer);
-      release?.();
+      clearTimeout(deadlineTimer);
+      finishTask();
+      preparationGuardRef.current = () => false;
       if (scene.onBeforeRender === prepare) scene.onBeforeRender = previous;
     };
   }, [renderer, scene, mainCamera]);
@@ -142,7 +198,7 @@ export function StartupReadiness(): null {
       getStartupSnapshot().pendingTasks === 0 &&
       preparationRef.current !== 'pending' &&
       preparationRef.current !== 'failed' &&
-      (preparationRef.current === 'ready' ||
+      (preparationGuardRef.current() ||
         !['shipping-truck', 'receiving-truck'].some((name) =>
           scene.getObjectByName(name)?.getObjectByName('truck-full-detail')
         )) &&

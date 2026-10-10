@@ -42,11 +42,13 @@ function frames(count = 60): void {
 }
 beforeEach(() => {
   now = 0;
+  probe.beginTask.mockClear();
   probe.markReady.mockClear();
   probe.markPrepared.mockClear();
   probe.contextLost = false;
   probe.startup = { pendingAssets: 0, pendingTasks: 0, revision: 0, ready: false, errors: 0 };
   scene.clear();
+  scene.environment = null;
   scene.onBeforeRender = vi.fn();
   gl.compile.mockReset();
   gl.compile.mockReturnValue(new Set());
@@ -148,24 +150,143 @@ describe('retained truck first-use preparation', () => {
     expect(probe.markReady).not.toHaveBeenCalled();
   });
 
-  it.each(['timeout', 'changed-configuration'])(
-    'surfaces %s and never certifies a failed preparation',
-    (failure) => {
-      const { material } = truckPrograms();
+  it.each(['version', 'key', 'environment'])(
+    're-prepares %s drift under the real callback with one continuous work barrier',
+    (change) => {
+      const { material, programs } = truckPrograms();
       const error = vi.spyOn(console, 'error').mockImplementation(() => {});
       render(<StartupReadiness />);
       draw();
-      if (failure === 'timeout') now = 15001;
-      else material.needsUpdate = true;
+      if (change === 'version') material.needsUpdate = true;
+      else if (change === 'key') material.customProgramCacheKey = () => 'late-finish';
+      else scene.environment = new THREE.Texture();
+      vi.advanceTimersByTime(10);
+      expect(probe.startup.pendingTasks).toBe(1);
+      expect(probe.beginTask).toHaveBeenCalledTimes(1);
+      expect(probe.startup.errors).toBe(0);
+      frames();
+      vi.advanceTimersByTime(100);
+      expect(gl.compile).toHaveBeenCalledTimes(2);
+      expect(probe.markReady).not.toHaveBeenCalled();
+      draw();
+      expect(gl.compile).toHaveBeenCalledTimes(4);
+      programs[1].isReady.mockReturnValue(true);
       vi.advanceTimersByTime(10);
       expect(probe.startup.pendingTasks).toBe(0);
-      expect(probe.startup.errors).toBe(1);
-      expect(error).toHaveBeenCalled();
+      frames(44);
+      expect(probe.markReady).not.toHaveBeenCalled();
       frames();
+      expect(probe.markReady).toHaveBeenCalled();
+      expect(error).not.toHaveBeenCalled();
+    }
+  );
+
+  it('invalidates a ready preparation when its finish changes during the stable-frame window', () => {
+    const { material, programs } = truckPrograms();
+    programs[1].isReady.mockReturnValue(true);
+    render(<StartupReadiness />);
+    draw();
+    vi.advanceTimersByTime(10);
+    frames(30);
+    expect(probe.startup.pendingTasks).toBe(0);
+    material.needsUpdate = true;
+    frames(20);
+    expect(probe.startup.pendingTasks).toBe(1);
+    expect(probe.markReady).not.toHaveBeenCalled();
+    draw();
+    vi.advanceTimersByTime(10);
+    frames(44);
+    expect(probe.markReady).not.toHaveBeenCalled();
+    frames();
+    expect(probe.markReady).toHaveBeenCalled();
+  });
+
+  it.each(['timeout', 'late-ready', 'no-next-callback', 'context-loss', 'disposed', 'metadata'])(
+    'surfaces %s and never certifies a failed preparation',
+    (failure) => {
+      const { material, programs } = truckPrograms();
+      const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+      render(<StartupReadiness />);
+      draw();
+      if (failure === 'timeout' || failure === 'late-ready') {
+        now = 15001;
+        if (failure === 'late-ready') programs[1].isReady.mockReturnValue(true);
+      } else if (failure === 'no-next-callback') {
+        material.needsUpdate = true;
+        vi.advanceTimersByTime(10);
+        expect(probe.startup.pendingTasks).toBe(1);
+        now = 15001;
+      } else if (failure === 'context-loss') {
+        probe.contextLost = true;
+        material.needsUpdate = true;
+      } else if (failure === 'disposed') {
+        Reflect.deleteProperty(programs[0], 'program');
+        material.needsUpdate = true;
+      } else
+        programs[0].getUniforms.mockImplementation(() => {
+          throw new Error('shader metadata');
+        });
+      vi.advanceTimersByTime(failure === 'no-next-callback' ? 15000 : 10);
+      expect(probe.startup.pendingTasks).toBe(0);
+      expect(probe.startup.errors).toBe(1);
+      expect(error).toHaveBeenCalledTimes(1);
+      frames();
+      draw();
+      expect(gl.compile).toHaveBeenCalledTimes(2);
       expect(probe.markReady).not.toHaveBeenCalled();
       expect(probe.markPrepared.mock.lastCall?.[0]).not.toBe(true);
     }
   );
+
+  it('counts a terminal disposal once during the final stable-frame window', () => {
+    const { programs } = truckPrograms();
+    programs[1].isReady.mockReturnValue(true);
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    render(<StartupReadiness />);
+    draw();
+    vi.advanceTimersByTime(10);
+    frames(20);
+    Reflect.deleteProperty(programs[0], 'program');
+    frames();
+    draw();
+    expect(probe.startup.errors).toBe(1);
+    expect(probe.startup.pendingTasks).toBe(0);
+    expect(probe.markReady).not.toHaveBeenCalled();
+  });
+
+  it('rejects metadata initialization that completes beyond the original deadline', () => {
+    const { programs } = truckPrograms();
+    programs[1].isReady.mockReturnValue(true);
+    programs[1].getAttributes.mockImplementation(() => {
+      now = 15001;
+    });
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    render(<StartupReadiness />);
+    draw();
+    vi.advanceTimersByTime(10);
+    frames();
+    expect(probe.startup.errors).toBe(1);
+    expect(probe.startup.pendingTasks).toBe(0);
+    expect(probe.markReady).not.toHaveBeenCalled();
+  });
+
+  it('does not extend the original deadline when a changed finish re-prepares', () => {
+    const { material, programs } = truckPrograms();
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    render(<StartupReadiness />);
+    draw();
+    now = 14990;
+    material.needsUpdate = true;
+    vi.advanceTimersByTime(10);
+    draw();
+    programs[1].isReady.mockReturnValue(true);
+    now = 15001;
+    vi.advanceTimersByTime(10);
+    expect(probe.startup.errors).toBe(1);
+    expect(probe.startup.pendingTasks).toBe(0);
+    frames();
+    expect(probe.markReady).not.toHaveBeenCalled();
+  });
 
   it('cancels borrowed work on unmount and preserves a later callback owner', () => {
     const { programs } = truckPrograms();
