@@ -52,6 +52,9 @@ try {
     chromiumSandbox: true,
     ignoreDefaultArgs: ['--enable-unsafe-swiftshader'],
     args: [
+      // CDP command-line auditing requires this; Playwright no longer supplies it.
+      // Working if the audit still verifies the original sandbox/hardware flags.
+      '--enable-automation',
       '--mute-audio',
       '--enable-gpu',
       '--use-gl=angle',

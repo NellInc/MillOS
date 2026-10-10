@@ -183,6 +183,9 @@ try {
     chromiumSandbox: true,
     ...(metalRenderer ? { ignoreDefaultArgs: ['--enable-unsafe-swiftshader'] } : {}),
     args: [
+      // CDP command-line auditing requires this; Playwright no longer supplies it.
+      // Working if the audit still verifies the original sandbox/hardware flags.
+      '--enable-automation',
       '--mute-audio',
       // Chromium143 logging_chrome.cc explicitly supports stderr in release
       // builds. Service/driver call logging needs a different build; omit it.
