@@ -217,6 +217,26 @@ describe('located concept lighting', () => {
     const data = exportCivicOccluders(new THREE.Scene());
     expect(data.faceBases).toBe(CIVIC_CUBE_FACE_BASES);
   });
+  it('compares reprojected texel-centre rays against unperturbed receiver planes without increasing bias', () => {
+    const s = shader();
+    injectCivicLampShadows(s);
+    const fragment = s.fragmentShader;
+    expect(fragment).toContain('vec3 receiverNormal = civicToWorld(receiverNormalView);');
+    expect(fragment).toContain('float planeDistance = dot(direction, receiverNormal);');
+    expect(fragment).toContain('floor((tapP * 0.5 + 0.5) * 128.0)');
+    expect(fragment).toContain('vec2 sampleP = (cell + 0.5) * (2.0 / 128.0) - 1.0;');
+    expect(fragment).toContain('normalize(civicFaceDirection(tapFace, sampleP))');
+    expect(fragment).toContain('vec2 uv = (origin + cell + 0.5) / size;');
+    expect(fragment).toContain('float tapReceiver = receiver;');
+    expect(fragment).toContain('if (abs(tapCosine) > 0.0001)');
+    expect(fragment).toContain('projected > 0.0 && projected <= civicSources[i].w');
+    expect(fragment).toContain('civicDepthPass(uv, tapReceiver, civicSources[i].w, bias)');
+    expect(fragment).toContain('float bias = 0.035 + receiver * 0.003;');
+    expect(fragment).not.toContain('civicDepthPass(uv, receiver, civicSources[i].w)');
+    expect(fragment.match(/for \(int tap = 0; tap < 5;/g)).toHaveLength(1);
+    // Preserve Three's geometric-normal contract before bump/normal mapping.
+    expect(THREE.ShaderChunk.normal_fragment_begin).toContain('vec3 nonPerturbedNormal = normal;');
+  });
   it('keeps uplighter emitters above opaque metal and post emitters clear of the burner', () => {
     const mesh = new THREE.Mesh(CIVIC_FITTING_GEOMETRY, new THREE.MeshStandardMaterial());
     mesh.updateMatrixWorld(true);
@@ -352,14 +372,16 @@ describe('source-correct static occlusion composition', () => {
     expect(s.uniforms.civicDepthAtlas).toBe(CIVIC_SHADOW_ATLAS);
     expect(s.uniforms.civicShadowStrength).toBe(CIVIC_SHADOW_STRENGTH);
     expect(s.fragmentShader).toContain(
-      'if (directLight.visible) directLight.color *= civicVisibility(pointLight.position, geometryPosition);'
+      'if (directLight.visible) directLight.color *= civicVisibility(pointLight.position, geometryPosition, nonPerturbedNormal);'
     );
-    expect(s.fragmentShader).toContain('civicVisibility(spotLight.position, geometryPosition)');
+    expect(s.fragmentShader).toContain(
+      'civicVisibility(spotLight.position, geometryPosition, nonPerturbedNormal)'
+    );
     expect(s.fragmentShader).toContain('getDirectionalLightInfo(');
     expect(s.vertexShader).toBe(THREE.ShaderLib.standard.vertexShader);
     expect(m.map).toBe(map);
     expect(m.normalMap).toBe(normal);
-    expect(m.customProgramCacheKey()).toBe('retained-host|millos-civic-lamp-visibility-v4');
+    expect(m.customProgramCacheKey()).toBe('retained-host|millos-civic-lamp-visibility-v5');
     m.onBeforeCompile = () => {};
     expect(civicUnderlyingHooks(m)).toBeUndefined();
     expect(applyCivicLampShadows(new THREE.MeshBasicMaterial())).toBe(false);

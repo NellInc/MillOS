@@ -51,7 +51,11 @@ export const ACTIVE_SHADER_CONTRACTS: readonly ActiveShaderContract[] = [
     id: 'civic-lamp-baked-visibility',
     owner: 'CivicSquareLighting',
     sources: ['src/shaders/civicLampShadows.ts'],
-    coordinateSpaces: ['draw-camera view to world', 'fixed source radial depth cube faces'],
+    coordinateSpaces: [
+      'draw-camera view to world',
+      'unperturbed receiver tangent plane',
+      'fixed source radial depth cube-face texel centres',
+    ],
     colorSpace: 'RG16 linear depth, unchanged linear punctual incident radiance',
     toneMapping: 'material-pipeline',
     fog: 'material-pipeline',
@@ -60,11 +64,11 @@ export const ACTIVE_SHADER_CONTRACTS: readonly ActiveShaderContract[] = [
     qualityVariants: ['low', 'medium', 'high', 'ultra'],
     uniformOwner: 'shared immutable baked atlas and source manifest, runtime isolation strength',
     timeSource: 'none',
-    cacheKey: 'millos-civic-lamp-visibility-v4',
+    cacheKey: 'millos-civic-lamp-visibility-v5',
     disposalOwner: 'shared TextureLoader cache and host material owner',
     fallbackMaterial: 'unmodified host for Basic/non-PBR surfaces',
     notes:
-      'Rigid static occluders only. Windy alpha crowns and inhabitants receive lamp light but do not cast moving lamp shadows. Existing celestial map remains the dynamic shadow source.',
+      'Rigid static occluders only. Five reprojected nearest-texel rays use receiver-plane depths with retained fragment bias; grazing/out-of-range planes retain centre-depth comparison. Smooth normals approximate the tangent plane. Windy alpha crowns and inhabitants receive lamp light but do not cast moving lamp shadows. Existing celestial map remains the dynamic shadow source.',
   },
   {
     id: 'exact-zero-punctual-light-culling',
