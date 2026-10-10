@@ -114,32 +114,6 @@ function buildVillageDetails() {
   return b.finish();
 }
 
-/** The existing vessel at (-145,.1,15) is static. Each line terminates at a
- * physical cleat and dedicated bollard; the road's moving vehicles never share it.
- */
-function buildMooring() {
-  const b = new PlotGeometry();
-  // Delivered GLB gunwale raycasts at y .6525 here; cleat base is .655.
-  for (const side of [-1, 1]) {
-    const cleat: Vec3Tuple = [-146.05, 0.705, 15 + side * 4.5];
-    const bollard: Vec3Tuple = [-151.65, 1.35, 15 + side * 7];
-    b.box([0.1, 0.1, 0.3], cleat, IRON);
-    b.add(
-      new THREE.CylinderGeometry(0.13, 0.16, 1.5, 8).translate(bollard[0], 0.75, bollard[2]),
-      OAK
-    );
-    b.box([0.42, 0.08, 0.1], bollard, IRON);
-    for (let i = 0; i < 8; i++) {
-      const point = (t: number): Vec3Tuple => [
-        THREE.MathUtils.lerp(cleat[0], bollard[0], t),
-        THREE.MathUtils.lerp(cleat[1], bollard[1], t) - Math.sin(t * Math.PI) * 0.09,
-        THREE.MathUtils.lerp(cleat[2], bollard[2], t),
-      ];
-      b.beam(point(i / 8), point((i + 1) / 8), 0.035, '#b8a884');
-    }
-  }
-  return b.finish();
-}
 function buildBread() {
   const b = new PlotGeometry();
   at(b, A.bakeryCounter, (g) => {
@@ -170,7 +144,6 @@ function buildDelivery() {
 export const COMMUNITY_GEOMETRY = Object.freeze({
   mill: buildMillDetails(),
   village: buildVillageDetails(),
-  mooring: buildMooring(),
   bread: buildBread(),
   delivery: buildDelivery(),
 });
@@ -229,7 +202,7 @@ export const CommunityDetails = React.memo(
     return (
       <group name="community-daily-life-details" dispose={null}>
         <StaticMeshBatch name="community-authored-static" surface={applyBatchWorldSurface}>
-          {(['mill', 'village', 'mooring'] as const).map((name) => (
+          {(['mill', 'village'] as const).map((name) => (
             <mesh
               key={name}
               name={`community-${name}`}

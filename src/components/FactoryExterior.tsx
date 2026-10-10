@@ -20,6 +20,7 @@ import {
 } from '../constants/renderLayers';
 import {
   BULK_STORAGE_GALLERY,
+  CANAL_BOAT_BERTH,
   GAS_STATION_SITE,
   RIVER_FOOTBRIDGE_DECK,
   SITE_LAYOUT,
@@ -1984,7 +1985,7 @@ export const CanalBoat: React.FC<{
           }
         >
           {/* Hull-top measurement puts the waterline 0.6 m above its keel. */}
-          <group position={[0, -0.6, 0]}>
+          <group position={[0, -CANAL_BOAT_BERTH.keelSink, 0]}>
             <GeneratedBoatModel />
           </group>
           {[-1, 1].map((side) => (
@@ -8377,7 +8378,7 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
       <Canal {...SITE_LAYOUT.exteriorFeatures.canal} />
 
       {/* Cute English narrowboat moored on the canal */}
-      <CanalBoat position={[-145, 0.1, 15]} rotation={0} />
+      <CanalBoat position={[...CANAL_BOAT_BERTH.position]} rotation={0} />
 
       {/* Canal Lock Gate - controls water level for barge access */}
       <LockGate position={[-145, 0, 50]} width={10} rotation={0} />

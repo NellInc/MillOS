@@ -23,7 +23,7 @@ import {
 import { VILLAGE_STREET_CORRIDORS, villageRealmClear } from '../VillageArea';
 import { VILLAGE_HOMES } from './VillageGardens';
 import { landscapeGrassSpec } from '../exterior/LandscapeDressing';
-import { SITE_LAYOUT, landmarkLocalToWorld } from '../../constants/siteLayout';
+import { CANAL_BOAT_BERTH, SITE_LAYOUT, landmarkLocalToWorld } from '../../constants/siteLayout';
 import { sampleTerrainGroundHeight } from '../terrain/splatMapGenerator';
 import { moveWalkingPosition, sampleWalkingGroundHeight } from '../../utils/castleNavigation';
 vi.mock('../../utils/critterAudio', () => ({ playCritterSound: vi.fn() }));
@@ -147,7 +147,7 @@ describe('world public realm', () => {
           }
     }
   );
-  it('ties the actual narrowboat bollards to quay eyes without crossing a walking route', () => {
+  it('ties the alongside hull to its measured fittings with a clear navigation channel', async () => {
     for (const line of CANAL_MOORING_LINES) {
       const curve = canalMooringCurve(line);
       expect(curve.getPoint(0).toArray()).toEqual([...line.cleat]);
@@ -156,14 +156,51 @@ describe('world public realm', () => {
       for (const p of curve.getPoints(36)) {
         expect(p.y).toBeGreaterThan(0.6);
         expect(p.x).toBeGreaterThanOrEqual(-151.1);
-        expect(p.x).toBeLessThan(-145.0);
+        expect(p.x).toBeLessThan(CANAL_BOAT_BERTH.position[0]);
         // Both towpaths are outside the canal coping, never under the rope.
         expect(p.x).toBeGreaterThan(-151.5);
       }
     }
-    expect(readFileSync('src/components/FactoryExterior.tsx', 'utf8')).toContain(
-      '<CanalBoat position={[-145, 0.1, 15]} rotation={0} />'
+    const exterior = readFileSync('src/components/FactoryExterior.tsx', 'utf8');
+    expect(exterior).toContain(
+      '<CanalBoat position={[...CANAL_BOAT_BERTH.position]} rotation={0} />'
     );
+    expect(exterior).toContain('position={[0, -CANAL_BOAT_BERTH.keelSink, 0]}');
+    const document = await new NodeIO().read('public/models/world/canal-boat.glb');
+    const positions = document
+      .getRoot()
+      .listMeshes()[0]
+      .listPrimitives()[0]
+      .getAttribute('POSITION')!
+      .getArray()!;
+    const xs = Array.from(positions).filter((_, index) => index % 3 === 0);
+    const canal = SITE_LAYOUT.exteriorFeatures.canal;
+    const west = canal.position[0] - canal.width / 2;
+    const hullWest = CANAL_BOAT_BERTH.position[0] + Math.min(...xs);
+    const hullEast = CANAL_BOAT_BERTH.position[0] + Math.max(...xs);
+    expect(hullWest - west).toBeCloseTo(0.25, 4);
+    expect(canal.position[0] + canal.width / 2 - hullEast).toBeGreaterThan(9);
+    CANAL_BOAT_BERTH.lines.forEach((line, index) => {
+      const tops = [];
+      for (let i = 0; i < positions.length; i += 3)
+        if (
+          positions[i] < 0 &&
+          Math.abs(positions[i + 1] - line.cleat[1]) < 1e-5 &&
+          Math.abs(positions[i + 2] - line.cleat[2]) < 0.131
+        )
+          tops.push([positions[i], positions[i + 1], positions[i + 2]]);
+      expect(tops).toHaveLength(24);
+      for (const axis of [0, 2]) {
+        const values = tops.map((p) => p[axis]);
+        expect((Math.min(...values) + Math.max(...values)) / 2).toBeCloseTo(line.cleat[axis], 5);
+      }
+      expect(CANAL_MOORING_LINES[index].cleat).toEqual([
+        CANAL_BOAT_BERTH.position[0] + line.cleat[0],
+        CANAL_BOAT_BERTH.position[1] - CANAL_BOAT_BERTH.keelSink + line.cleat[1],
+        CANAL_BOAT_BERTH.position[2] + line.cleat[2],
+      ]);
+      expect(CANAL_MOORING_LINES[index].ring).toEqual(line.eye);
+    });
   });
   it('aligns the canal path with a real gap in the mill perimeter', () => {
     const exterior = readFileSync('src/components/FactoryExterior.tsx', 'utf8');

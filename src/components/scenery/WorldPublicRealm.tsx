@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import * as THREE from 'three';
 import { PlotGeometry } from '../../utils/authoredPlotGeometry';
+import { CANAL_BOAT_BERTH } from '../../constants/siteLayout';
 import {
   WORLD_CRAFT_PALETTE as P,
   VILLAGE_REALM_PATHS,
@@ -247,13 +248,15 @@ function villageRealm() {
 }
 export const VILLAGE_REALM_GEOMETRY = villageRealm();
 
-// The sole moored Flourish is centred at [-145, 0.1, 15], with a 0.6 m
-// keel sink. These endpoints meet its delivered bow/stern bollards and the
-// existing quay eyes. Lines occupy the berth, leaving the east channel open.
-export const CANAL_MOORING_LINES = [
-  { cleat: [-145.307, 0.94, 9.14], ring: [-151.1, 1.07, 9] },
-  { cleat: [-145.307, 0.94, 20.86], ring: [-151.1, 1.07, 21] },
-] as const;
+// One placement datum drives the actual hull and both measured fitting endpoints.
+export const CANAL_MOORING_LINES = CANAL_BOAT_BERTH.lines.map((line) => ({
+  cleat: [
+    CANAL_BOAT_BERTH.position[0] + line.cleat[0],
+    CANAL_BOAT_BERTH.position[1] - CANAL_BOAT_BERTH.keelSink + line.cleat[1],
+    CANAL_BOAT_BERTH.position[2] + line.cleat[2],
+  ] as const,
+  ring: line.eye,
+}));
 
 export function canalMooringCurve(line: (typeof CANAL_MOORING_LINES)[number]) {
   const start = new THREE.Vector3(...line.cleat),

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
+import { NodeIO } from '@gltf-transform/core';
 import * as THREE from 'three';
 import {
   applyOfficeWindows,
@@ -60,7 +61,7 @@ it('gives only physical boat glass filtered curtain and view-dependent cabin dep
   expect(shader.fragmentShader).toContain('glassTile * step(1.18');
   expect(shader.fragmentShader).toContain('inside = pane - clamp(slope');
   expect(shader.fragmentShader.indexOf('fwidth(vBoatPosition.z)')).toBeLessThan(
-    shader.fragmentShader.indexOf('if (porthole > 0.5)')
+    shader.fragmentShader.indexOf('if (glazing > 0.5)')
   );
   expect(shader.fragmentShader).toContain('(1.0 - curtain)');
   expect(shader.fragmentShader).toContain('* boatNight * strength');
@@ -71,6 +72,38 @@ it('gives only physical boat glass filtered curtain and view-dependent cabin dep
   }
   const source = readFileSync('src/components/models/GeneratedBoatModel.tsx', 'utf8');
   expect(source).not.toMatch(/TextureLoader|<(?:pointLight|spotLight)|useFrame/);
+});
+
+it('shades all four measured door panes while excluding wood, paint and brass', async () => {
+  const shader = compile(applyBoatPortholes);
+  expect(shader.fragmentShader).toContain('float endPane = glassTile * step(3.54');
+  expect(shader.fragmentShader).toContain('vec2 pane = mix(sidePane, doorPane, endPane)');
+  expect(shader.fragmentShader).toContain('axisZ * sign(vBoatPosition.z), endPane');
+  expect(shader.fragmentShader.indexOf('fwidth(vBoatPosition.x)')).toBeLessThan(
+    shader.fragmentShader.indexOf('if (glazing > 0.5)')
+  );
+  const document = await new NodeIO().read('public/models/world/canal-boat.glb');
+  const primitive = document.getRoot().listMeshes()[0].listPrimitives()[0];
+  const positions = primitive.getAttribute('POSITION')!.getArray()!;
+  const uv = primitive.getAttribute('TEXCOORD_0')!.getArray()!;
+  const panes = new Set<string>();
+  let selected = 0;
+  for (let i = 0; i < positions.length / 3; i++) {
+    const x = positions[i * 3],
+      y = positions[i * 3 + 1],
+      z = positions[i * 3 + 2];
+    const glass =
+      uv[i * 2] >= 0.5 && uv[i * 2] < 0.75 && uv[i * 2 + 1] >= 0.25 && uv[i * 2 + 1] < 0.5;
+    const inPane =
+      Math.abs(z) >= 3.54 && Math.abs(z) < 4.14 && y >= 1.92 && y < 2.28 && Math.abs(x) < 0.44;
+    if (!glass || !inPane) continue;
+    selected++;
+    panes.add(`${Math.sign(x)},${Math.sign(z)}`);
+    expect(Math.abs((x - Math.sign(x) * 0.298164) / 0.123378)).toBeCloseTo(1, 4);
+    expect(Math.abs((y - 2.1) / 0.17)).toBeCloseTo(1, 4);
+  }
+  expect(selected).toBe(96);
+  expect(panes.size).toBe(4);
 });
 
 it('binds the actual shared workshop glass to pane rooms without domestic curtains', () => {

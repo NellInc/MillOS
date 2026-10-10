@@ -434,7 +434,10 @@ export const ACTIVE_SHADER_CONTRACTS: readonly ActiveShaderContract[] = [
     id: 'generated-boat-portholes',
     owner: 'models/GeneratedBoatModel',
     sources: ['src/components/models/GeneratedBoatModel.tsx'],
-    coordinateSpaces: ['object-rest metres and glass atlas identity', 'view-space cabin parallax'],
+    coordinateSpaces: [
+      'object-rest metres and porthole/door glass atlas identity',
+      'view-space side and end cabin parallax',
+    ],
     colorSpace: 'linear albedo and emissive radiance in the standard material pipeline',
     toneMapping: 'material-pipeline',
     fog: 'material-pipeline',
@@ -444,7 +447,7 @@ export const ACTIVE_SHADER_CONTRACTS: readonly ActiveShaderContract[] = [
     uniformOwner:
       'ExteriorLampDriver dimmer, shared interior isolation strength and private linear cabin colours',
     timeSource: 'simulation',
-    cacheKey: 'millos-authored-boat-portholes-v3',
+    cacheKey: 'millos-authored-boat-portholes-v4',
     disposalOwner: 'GeneratedBoatModel effect cleanup disposes its cloned materials',
     fallbackMaterial: 'the generated boat material before the porthole injection',
   },

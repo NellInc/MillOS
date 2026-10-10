@@ -32,6 +32,9 @@ describe('authored community details', () => {
       expect(Number.isFinite(geometry.boundingSphere?.radius)).toBe(true);
     }
   });
+  it('leaves the measured canal moorings to the public realm, without floating legacy cleats', () => {
+    expect(COMMUNITY_GEOMETRY).not.toHaveProperty('mooring');
+  });
   it('uses the delivered shelter seat top rather than the lower primitive fallback', async () => {
     const io = new NodeIO().registerExtensions(ALL_EXTENSIONS).registerDependencies({
       'draco3d.decoder': await draco.createDecoderModule(),
