@@ -931,6 +931,9 @@ export const createStaticMeshBatches = (
     finishMaterial(material, representative.material);
 
     const mergedMesh = new THREE.Mesh(geometry, material);
+    // Vertices are already baked relative to root. Only this owned output's
+    // identity local transform is fixed; world updates must still follow root.
+    mergedMesh.matrixAutoUpdate = false;
     mergedMesh.name = `static-merge:${name}:${batchIndex}`;
     mergedMesh.castShadow = representative.castShadow;
     mergedMesh.receiveShadow = representative.receiveShadow;
@@ -1053,6 +1056,9 @@ export const createStaticMeshBatches = (
         batchMaterial,
         activeGroup.length
       );
+      // Instance matrices contain the source transforms relative to root.
+      // Keep parent/world updates live without recomposing an identity matrix.
+      instance.matrixAutoUpdate = false;
       instance.name = `static-batch:${name}:${batchIndex}`;
       instance.castShadow = representative.castShadow;
       instance.receiveShadow = representative.receiveShadow;

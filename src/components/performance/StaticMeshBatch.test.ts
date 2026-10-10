@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import {
   collectStaticBatchCandidates,
@@ -92,6 +92,49 @@ describe('StaticMeshBatch', () => {
     batchMesh.getMatrixAt(1, matrix);
     expect(new THREE.Vector3().setFromMatrixPosition(matrix).x).toBeCloseTo(3);
   });
+
+  it.each(['merged', 'instanced'] as const)(
+    'keeps %s outputs fixed locally while following a moving parent',
+    (kind) => {
+      const parent = new THREE.Group();
+      const root = new THREE.Group();
+      parent.add(root);
+      root.position.set(4, 2, -3);
+      const left = makeBox(2);
+      const right = makeBox(7);
+      if (kind === 'merged') right.geometry = new THREE.CylinderGeometry(0.5, 0.5, 2, 8);
+      left.castShadow = right.castShadow = true;
+      left.receiveShadow = right.receiveShadow = true;
+      root.add(left, right);
+      const candidates = collectStaticBatchCandidates(root);
+      const batches = createStaticMeshBatches(root, candidates, 'fixed-local', 2);
+      expect(batches).toHaveLength(1);
+      const output = batches[0].mesh;
+      expect(output instanceof THREE.InstancedMesh).toBe(kind === 'instanced');
+      expect(output.matrixAutoUpdate).toBe(false);
+      expect(output.matrixWorldAutoUpdate).toBe(true);
+      expect(output.matrix.equals(new THREE.Matrix4())).toBe(true);
+      expect(output.castShadow).toBe(true);
+      expect(output.receiveShadow).toBe(true);
+      const localBounds = new THREE.Box3()
+        .setFromObject(output)
+        .applyMatrix4(root.matrixWorld.clone().invert());
+      const updateLocal = vi.spyOn(output, 'updateMatrix');
+
+      parent.position.set(10, 4, -7);
+      parent.rotation.y = Math.PI / 2;
+      root.updateWorldMatrix(true, true);
+      expect(output.matrixWorld.equals(root.matrixWorld)).toBe(true);
+      const expectedBounds = localBounds.clone().applyMatrix4(root.matrixWorld);
+      const actualBounds = new THREE.Box3().setFromObject(output);
+      expect(actualBounds.min.distanceTo(expectedBounds.min)).toBeLessThan(1e-6);
+      expect(actualBounds.max.distanceTo(expectedBounds.max)).toBeLessThan(1e-6);
+      expect(updateLocal).not.toHaveBeenCalled();
+      expect(left.matrixAutoUpdate).toBe(true);
+      expect(right.matrixAutoUpdate).toBe(true);
+      updateLocal.mockRestore();
+    }
+  );
 
   it('keeps interactive and explicitly dynamic meshes out of static batching', () => {
     const root = new THREE.Group();

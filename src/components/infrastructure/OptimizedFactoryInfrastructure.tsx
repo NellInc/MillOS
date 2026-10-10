@@ -1059,6 +1059,8 @@ function InstancedBoxes({
     <instancedMesh
       ref={ref}
       args={[UNIT_BOX, material, instances.length]}
+      // Placement lives in instance matrices; parent/world updates stay live.
+      matrixAutoUpdate={false}
       castShadow={castShadow}
       receiveShadow={receiveShadow}
       renderOrder={renderOrder}
