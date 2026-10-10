@@ -283,6 +283,42 @@ function house(index: number) {
     if (step) window(x, 3.35, front + 0.075, 0.82, 1.04, false);
   }
   window(0, d.height + 0.55, front + (step ? 0.21 : 0.08), 0.55, 0.63, false);
+  // The slate cottage has a real side-facing dormer. Its closed cheeks
+  // penetrate the roof, while the pane keeps the existing room UV contract.
+  if (index === 4) {
+    const x = 1.65,
+      y = d.height + 0.95,
+      z = 0.7;
+    b.box([1.0, 0.96, 1.38], [x - 0.18, y, z], d.wall);
+    const begin = b.parts.length,
+      paneBegin = glass.parts.length;
+    window(0, y, 0, 0.73, 0.69, false);
+    for (const g of [...b.parts.slice(begin), ...glass.parts.slice(paneBegin)])
+      g.rotateY(Math.PI / 2).translate(x + 0.33, 0, z);
+    const roofBegin = b.parts.length;
+    roof(b, 1.68, 1.24, y + 0.48, 0.5, d.roof);
+    for (const g of b.parts.slice(roofBegin)) g.rotateY(Math.PI / 2).translate(x, 0, z);
+  }
+  // A low thatched hood and the red-tile cottage's timber porch are distinct
+  // entrance silhouettes, kept above the existing clear door approach.
+  if (index === 0 || index === 2) {
+    const begin = b.parts.length;
+    roof(b, index === 0 ? 1.55 : 1.85, 1.0, 2.48, index === 0 ? 0.38 : 0.58, d.roof, index === 0);
+    for (const g of b.parts.slice(begin)) g.translate(0, 0, front + 0.39);
+    for (const side of [-1, 1]) {
+      b.beam([side * 0.68, 2.02, front + 0.13], [side * 0.68, 2.43, front + 0.8], 0.075, WOOD);
+    }
+  }
+  // Rainwater belongs at the eaves and returns into each planted footing,
+  // rather than becoming a decorative pipe across the door or windows.
+  if (d.kind !== 'thatch') {
+    for (const side of [-1, 1]) {
+      const x = side * (hw + (step ? 0.04 : 0.27));
+      b.box([0.095, 0.095, d.depth + (step ? 0.04 : 0.55)], [x, d.height - 0.035, 0], IRON);
+      b.box([0.075, d.height - 0.27, 0.075], [x, (d.height - 0.27) / 2 + 0.13, -front + 0.3], IRON);
+      b.beam([x, 0.15, -front + 0.3], [x + side * 0.22, 0.07, -front + 0.3], 0.075, IRON);
+    }
+  }
   // Rear and side sashes are rotated with their frames as a unit.
   for (const side of [-1, 1]) {
     const begin = b.parts.length,
@@ -323,6 +359,14 @@ function house(index: number) {
     [chimney[0], chimney[1] - 0.58, chimney[2]],
     index === 3 ? d.wall : '#946c57'
   );
+  // Stepped Dutch stacks and the limewashed thatch stack have their own
+  // masonry silhouettes, retaining the measured pot and smoke datums.
+  if (step) {
+    for (const dy of [-0.23, -0.1])
+      b.box([0.68, 0.09, 0.76], [chimney[0], chimney[1] + dy, chimney[2]], d.wall);
+  } else if (index === 0) {
+    b.box([0.61, 0.88, 0.69], [chimney[0], chimney[1] - 0.56, chimney[2]], CREAM);
+  }
   b.box([0.73, 0.13, 0.8], [chimney[0], chimney[1] + 0.015, chimney[2]], CREAM);
   for (const z of [-0.2, 0.2])
     b.add(

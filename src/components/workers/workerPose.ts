@@ -31,9 +31,14 @@ export function sampleWorkerGesture(
   const cycle = 0.5 - 0.5 * Math.cos((t * Math.PI * 2) / (kind === 'garden' ? 3.6 : 6.4));
   out.toolY = kind === 'garden' ? cycle * 0.08 : kind === 'bake' ? cycle * 0.04 : 0;
   out.toolZ = kind === 'garden' ? -cycle * 0.035 : kind === 'bake' ? cycle * 0.035 : 0;
-  out.lookYaw = Math.sin(t * 0.63) * (kind === 'garden' ? 0.05 : 0.22);
-  out.lookPitch = Math.sin(t * 1.17) * (kind === 'garden' ? 0.07 : 0.035);
-  out.restReach = kind === 'rest' ? Math.sin(t * 0.87) * 0.12 : 0;
+  // A glance has a quiet dwell and a smooth return, rather than continuous
+  // clockwork nodding. The shared time already carries each person's phase.
+  // Working if head gestures pause and seated/tool contact stays unchanged.
+  const glanceRamp = Math.min(1, Math.max(0, Math.sin(t * 0.31)) * 4);
+  const glance = glanceRamp * glanceRamp * (3 - 2 * glanceRamp);
+  out.lookYaw = Math.sin(t * 0.63) * glance * (kind === 'garden' ? 0.05 : 0.22);
+  out.lookPitch = Math.sin(t * 1.17) * glance * (kind === 'garden' ? 0.07 : 0.035);
+  out.restReach = kind === 'rest' ? Math.sin(t * 0.87) * glance * 0.12 : 0;
   // A small repeated stroke within a slower attention cycle leaves natural pauses.
   const attention = Math.max(0, Math.sin(t * 0.73));
   out.workStroke = Math.sin(t * 3.4) * attention;

@@ -2,7 +2,9 @@ import React from 'react';
 import * as THREE from 'three';
 import { GeneratedBody } from '../models/GeneratedModel';
 import { CastleSteps } from './CastleSteps';
-import { CASTLE_ROCK_SINK } from '../../constants/castleAccess';
+import { CASTLE_ROCK_SINK, CASTLE_COURT_HEIGHT } from '../../constants/castleAccess';
+import { PlotGeometry } from '../../utils/authoredPlotGeometry';
+import { applyWorldSurface } from '../../utils/worldSurface';
 export { CASTLE_ROCK_SINK } from '../../constants/castleAccess';
 
 interface FairytaleCastleProps {
@@ -148,6 +150,40 @@ const TOWER_ROOFS = TOWERS.map(
     )
 );
 
+// The delivered palace already contains its gallery and terrace parapets.
+// This single merged setting occupies only the sheltered palas-side court,
+// leaving the gateway axis and the accessible stair assembly untouched.
+export const CASTLE_COURT_SETTING = (() => {
+  const b = new PlotGeometry(),
+    floor = CASTLE_COURT_HEIGHT;
+  for (const z of [-6.5, 6.5]) {
+    b.box([1.15, 0.43, 1.65], [3.15, floor + 0.215, z], STONE);
+    b.box([1.27, 0.1, 1.77], [3.15, floor + 0.48, z], PLASTER);
+    b.box([0.96, 0.035, 1.45], [3.15, floor + 0.545, z], '#574538');
+    // Low clipped evergreen reads as one architectural mass, with a soft crown.
+    for (const dz of [-0.45, 0, 0.45]) {
+      b.round([3.15, floor + 0.79, z + dz], [0.4, 0.3, 0.36], '#526c56');
+      b.round([3.2, floor + 1.02, z + dz], [0.26, 0.16, 0.27], '#78866b');
+    }
+  }
+  // A stone-supported oak seat faces across the court rather than into the wall.
+  for (const z of [-0.78, 0.78]) {
+    b.box([0.58, 0.45, 0.28], [3.05, floor + 0.225, z], STONE);
+    b.box([0.12, 0.55, 0.1], [2.83, floor + 0.74, z], '#394a49');
+  }
+  for (const x of [2.85, 3.05, 3.25]) b.box([0.16, 0.1, 2.25], [x, floor + 0.49, 0], '#70533a');
+  for (const y of [0.7, 0.9]) b.box([0.1, 0.14, 2.25], [2.83, floor + y, 0], '#70533a');
+  // Flush drainage follows the palas frontage, behind the seating/planting.
+  b.box([0.16, 0.018, 15.2], [2.05, floor + 0.01, 0], '#394a49');
+  for (let i = 0; i < 38; i++)
+    b.box([0.13, 0.012, 0.045], [2.05, floor + 0.024, -7.4 + i * 0.4], '#697780');
+  return b.finish();
+})();
+const COURT_MATERIAL = applyWorldSurface(
+  new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 }),
+  'masonry'
+);
+
 const PalaceFallback: React.FC = React.memo(() => (
   <group name="neuschwanstein-palace-fallback" position={[0, -CASTLE_ROCK_SINK, 0]}>
     <mesh position={[0, 1.6, 0]} receiveShadow>
@@ -199,6 +235,15 @@ export const FairytaleCastle: React.FC<FairytaleCastleProps> = React.memo(
   ({ position = [0, 0, 0], scale = 1, rotation = [0, 0, 0] }: FairytaleCastleProps) => (
     <group name="heritage-castle" position={position} scale={scale} rotation={rotation}>
       <GeneratedBody asset="castle" sink={CASTLE_ROCK_SINK} fallback={<PalaceFallback />} />
+      <mesh
+        name="castle-sheltered-court-setting"
+        position={[0, -CASTLE_ROCK_SINK, 0]}
+        geometry={CASTLE_COURT_SETTING}
+        material={COURT_MATERIAL}
+        receiveShadow
+        castShadow
+        dispose={null}
+      />
       <CastleSteps />
     </group>
   )

@@ -40,6 +40,7 @@ PALETTE = {
     'brass': ('ad8b46', .4), 'iron': ('354043', .65),
     'ink': ('202e32', .9), 'rose': ('bd8580', .8),
 }
+BASE_PALETTE = PALETTE.copy()
 KEYS = list(PALETTE)
 VERTS, FACES, UVS, PARTS = [], [], [], []
 
@@ -63,6 +64,12 @@ def atlas():
             value += .025 * np.sin(xx / 6 + np.sin(yy / 63))
         if key in ('slate', 'tile'):
             value += .016 * np.sin(xx / 13) * np.cos(yy / 11)
+            # Gentle mineral variation belongs to individual lapped pieces,
+            # without painted highlights that would contradict the night rig.
+            value += .012 * (((xx // 22 + 3 * (yy // 30)) % 5) - 2)
+        if key == 'cream':
+            value += .006 * np.sin(xx * math.pi / 3)  # Woven linen and painted joinery.
+
         y, x = (i // 4) * tile, (i % 4) * tile
         pixels[y:y + tile, x:x + tile, :3] = np.clip(rgb + value[..., None], 0, 1)
         rough[y:y + tile, x:x + tile, :3] = r
@@ -192,10 +199,39 @@ def frame(name, x, y, z, width=1, height=1.3, yaw=0, trim='cream', glass='glass'
     if door:
         for side in (-1, 1):
             part('door stile', side * width * .25, -.03, .066, (.035, height - .2, .022), 'timber')
+        # Traditional fielded panels sit inside the retained stile/latch depth.
+        # Broad portals retain their clear centre and existing entry projection.
+        for side in (() if name == 'Cabin glazed doors' else (-1, 1)):
+            for row in (-1, 1):
+                u, v = side * width * .23, row * height * .235
+                pw, ph = width * .34, height * .34
+                part('panel shadow', u, v, .061, (pw, ph, .012), 'timber')
+                part('fielded oak panel', u, v, .069,
+                     (max(.055, pw - .055), max(.09, ph - .055), .012), 'oak')
         part('latch', width * .3, -.06, .088, (.065, .14, .025), 'brass')
     else:
         part('mullion', 0, 0, .076, (.045, height, .04), trim)
         part('transom', 0, .09, .076, (width, .045, .04), trim)
+        # Shallow opaque room layers preserve the atlas glazing mask and the
+        # existing runtime virtual-room shader. No wall openings, translucent
+        # material, external silhouette or lamp occluder is changed.
+        if glass != 'ink' and name != 'Door upper pane':
+            part('upper reveal shadow', 0, height * .43, .063,
+                 (width - .15, .055, .014), 'ink')
+            part('interior sill shelf', 0, -height * .39, .064,
+                 (width - .15, .04, .022), 'oak')
+            if name == 'Shop display':
+                for i in range(5):
+                    part('display loaf', (i - 2) * width * .15,
+                         -height * .34, .066, (width * .09, .12, .018), 'amber')
+            else:
+                # Two short folds per side; the blue centre stays clear. Keep
+                # every fold behind the existing projecting mullions and jambs.
+                for side in (-1, 1):
+                    for fold in range(2):
+                        u = side * width * (.335 + fold * .055)
+                        part('drawn linen fold', u, -.015, .064 + fold * .005,
+                             (width * .058, height - .22, .014), 'cream')
 
 
 def shell(name, width, depth, height, key='plaster', x=0, z=0):
@@ -541,6 +577,16 @@ def canal_boat():
         p=(r*math.cos(a),1.195,4.77+r*math.sin(a))
         if prev:beam('Bow coiled rope',prev,p,.025,'thatch')
         prev=p
+    # Rope fenders are tied at the tapered wells, inside the unchanged maximum
+    # beam. The restrained ochre cord reads as rope rather than black car tyres.
+    for side in (-1, 1):
+        for z in (-5.15, 5.10):
+            x = side * 1.035
+            beam('Fender suspension rope', (side * .88, 1.15, z),
+                 (x, .94, z), .023, 'thatch')
+            lathe('Woven rope fender', x, z,
+                  [(0, .56), (.065, .59), (.087, .67), (.087, .88),
+                   (.062, .96), (0, .98)], 'thatch', 8)
     # Small traditional rose clusters, raised paint on the cabin end panels.
     for side in (-1,1):
         for z in (-3.60,2.84):
@@ -581,6 +627,8 @@ for slug, builder in BUILDERS.items():
     before = hashlib.sha256(original.read_bytes()).hexdigest()
     bpy.ops.wm.read_factory_settings(use_empty=True)
     VERTS, FACES, UVS, PARTS = [], [], [], []
+    # Per-asset state keeps coachwork variants isolated from masonry palettes.
+    PALETTE = BASE_PALETTE.copy()
     if slug == 'canal-boat':
         PALETTE.update(slate=('203c50', .42), brick=('772f32', .48), green=('284c42', .55), cream=('e8dbb5', .52), rose=('b55754', .5), glass=('345b69', .2))
     mat = atlas()

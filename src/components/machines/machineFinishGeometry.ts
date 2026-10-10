@@ -296,6 +296,16 @@ function millHardware(): THREE.BufferGeometry {
       );
     }
   }
+  // Two stand-off handles sit on the solid cast margins beside the slotted
+  // service panel. The same instanced metal draw carries sockets and grips.
+  // Working if grips stand clear of their backing and leave all roll slots open.
+  for (const x of [-1.76, 1.76]) {
+    for (const y of [2.5, 2.88]) {
+      box(parts, [x, y, 2.715], [0.13, 0.1, 0.08]);
+      box(parts, [x, y, 2.79], [0.065, 0.06, 0.16]);
+    }
+    cylinder(parts, [x, 2.69, 2.87], 0.033, 0.44, 'y', 6);
+  }
   return finish(parts, 'mill-machined-fittings');
 }
 

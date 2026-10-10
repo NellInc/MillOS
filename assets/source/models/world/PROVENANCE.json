@@ -4769,14 +4769,14 @@
       "sha256": "29d0b9243ba334b744ee95d8f5b74f1da47026635078e3a315c00033de2ebc10",
       "blenderPreparation": {
         "file": "assets/source/models/world/canal-boat-crafted.glb",
-        "sha256": "0d98166b760bdaccb954810e1a7ddfaf82ca72d81ee77018a89ddf4220f51a98",
+        "sha256": "df4065ec827c41311f691e6f7b8128505d1413735297f123f9beedf2d91a6f1b",
         "script": "scripts/blender/rebuild_village_architecture.py",
         "method": "Fully authored narrowboat: fair tapered navy hull, burgundy coachwork, cambered cream roof, brass portholes, teak wells, tiller, rope coil and floral end panels. Metre-space night glazing and measured waterline; no provider geometry retained."
       },
       "runtimeDerivative": {
         "file": "public/models/world/canal-boat.glb",
-        "sha256": "85f0650a09b0d512b24b6508509bb0c34449984ee3af894af328dbd264ee6b8c",
-        "bytes": 513876,
+        "sha256": "54dd7bbca29df3fe78b93f78fd9cc533364fbf45c0f3dae4f9b3588f1577b82e",
+        "bytes": 538740,
         "license": "MillOS project-authored geometry and textures",
         "attribution": "Authored for MillOS; original Tripo reference retained in source provenance"
       },
@@ -4799,8 +4799,8 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 13380,
-        "renderVertices": 22812
+        "textureBytes": 14527,
+        "renderVertices": 23916
       }
     },
     {

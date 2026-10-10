@@ -178,11 +178,18 @@ void main() {
   sky = mix(sky, uAfterglowColor * 0.45 + vec3(0.0, 0.03, 0.06), afterglow * 0.55);
   sky += uAfterglowColor * afterglow * 0.86;
   vec4 clouds = millosSkyClouds(direction, cloudAmount, sunDir, uSunTint);
-  clouds.rgb += uAfterglowColor * afterglow * (1.0 - clouds.a * 0.75) * 1.05;
+  // High cloud shoulders keep seeing the hidden sun after the low air cools.
+  // Reuse coverage for rim/core separation: no extra cloud texture samples.
+  // Working if warm edges sit above a cool horizon without orange cloud cores.
+  float cloudAfterglow = uAfterglow * uSkyAfterglowStrength * pow(sunward, 2.0) *
+    smoothstep(-0.02, 0.06, height) * (1.0 - smoothstep(0.32, 0.70, height));
+  float cloudRim = 4.0 * clouds.a * (1.0 - clouds.a);
+  clouds.rgb += uAfterglowColor * cloudAfterglow * (0.08 + cloudRim * 0.72);
   float fieldStrength = mix( 1.0, 0.12 + smoothstep( 0.4, 0.85, cloudAmount ) * 0.88, uCloudAtlasReady );
   sky = mix(sky, clouds.rgb, clouds.a * fieldStrength);
   vec4 banks = millosCumulusBanks( direction, cloudAmount, sunDir, uSunTint );
-  banks.rgb += uAfterglowColor * afterglow * (1.0 - banks.a * 0.75) * 1.0;
+  float bankRim = 4.0 * banks.a * (1.0 - banks.a);
+  banks.rgb += uAfterglowColor * cloudAfterglow * (0.06 + bankRim * 0.62);
   sky = mix( sky, banks.rgb, banks.a );
 
   gl_FragColor = vec4(sky, 1.0);
@@ -297,8 +304,11 @@ void main() {
   // Separate broad meadow and woodland patches from the mineral upper slopes.
   // These values are linear albedo, before lighting and atmospheric extinction.
   // Working if the paired surface control removes the patches without changing the silhouette.
-  vec3 vegetation = mix(vec3(0.068, 0.104, 0.032),
-    vec3(0.21, 0.245, 0.074), meadow);
+  // The foothills are wooded, with clearings rather than a bright meadow
+  // blanket. Reuse the two existing scales, so the finish keeps its sample budget.
+  float clearing = meadow * smoothstep(0.42, 0.66, forest);
+  vec3 vegetation = mix(vec3(0.042, 0.078, 0.041),
+    vec3(0.155, 0.195, 0.065), clearing);
   float finish = mix(0.5 + forest * 1.15, 0.4 + veins * 0.8 + scree * 0.32, rock);
   vec3 detailedAlbedo = mix(vegetation, vRidgeColor, rock) * finish;
   // Preserve snow through the mineral finish. Shallow shoulders retain cover,
@@ -325,7 +335,11 @@ void main() {
 
   // Valley haze. Air pools in the valleys, so they sit further back than the
   // peaks that rise out of it - the cue that turns a silhouette into a range.
-  lit = mix(lit, uInscatter, (1.0 - vRidgeHeight) * uAerial * 0.20);
+  // Leave the snow shoulders clear while a cool veil settles between massifs.
+  // Fixed wooded hills keep more contrast than the remote range.
+  float valleyAir = (1.0 - smoothstep(0.18, 0.82, vRidgeHeight)) *
+    uAerial * mix(0.28, 0.16, uWorldAnchored);
+  lit = mix(lit, uInscatter, valleyAir);
   // Solid land always writes depth. A height-based alpha feather exposed sky
   // through overlapping foothills below 15 m, creating floating ribbons.
   // Blend distant colour into the atmosphere without cutting holes in terrain.
@@ -639,8 +653,17 @@ export function createMountainRidgeGeometry({
           Math.sin(heightRatio * Math.PI) *
           0.12;
       const localRadius = baseRadius + slopeDepth * Math.pow(heightRatio, 1.55) + shoulderRipple;
+      // Sub-metre canopy undulation breaks a mathematically smooth wooded
+      // crest. It tapers off before the foot, preserving the terrain join,
+      // and uses the existing segments rather than a ring of extra tree draws.
+      const canopy = rollingHills
+        ? Math.abs(Math.sin(angle * 71 + seed) * Math.sin(angle * 113 - seed)) *
+          0.6 *
+          THREE.MathUtils.smoothstep(heightRatio, 0.72, 1)
+        : 0;
       const terraceHeight =
         baseY +
+        canopy +
         height * (heightRatio * 0.16 + Math.pow(heightRatio, 1.24) * 0.84) -
         ((1 - Math.cos(angle * 17 + seed)) * 0.028 +
           Math.pow(1 - Math.abs(Math.sin(angle * 47 + seed + heightRatio * 0.8)), 5) * 0.055) *
@@ -857,7 +880,7 @@ export function createRidgeMaterial(
     },
   });
   material.userData.clearAerial = aerial;
-  material.customProgramCacheKey = () => 'millos-ridge-aerial-geology-v8';
+  material.customProgramCacheKey = () => 'millos-ridge-aerial-geology-v9';
   return material;
 }
 
@@ -944,7 +967,7 @@ export function OptimizedSkySystem() {
         sunDirection: { value: new THREE.Vector3(0.5, 0.75, -0.4).normalize() },
       },
     });
-    material.customProgramCacheKey = () => 'millos-optimized-sky-v11';
+    material.customProgramCacheKey = () => 'millos-optimized-sky-v12';
     return material;
   }, []);
 

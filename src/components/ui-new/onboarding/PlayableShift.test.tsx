@@ -194,6 +194,32 @@ describe('playable shift UI', () => {
     fireEvent.keyDown(document.body, { key: 'Escape' });
     expect(useUIStore.getState().journeyVisible).toBe(false);
   });
+  it('yields a fulfilled introduction to the live next action without changing receipts', () => {
+    const state = useOperationsCampaignStore.getState();
+    const first = state.orders[0];
+    useUIStore.getState().startDeliveryJourney(first.id);
+    useUIStore.getState().recordMachineInspection('mill-1');
+    useOperationsCampaignStore.setState({
+      orders: state.orders.map((order) => ({
+        ...order,
+        status: 'fulfilled' as const,
+        shippedKg: order.requiredKg,
+      })),
+      execution: { ...state.execution, qualityReleased: true },
+    });
+    const before = useOperationsCampaignStore.getState();
+    const onOpen = vi.fn();
+    render(<FirstDeliveryJourney selectedMachine={null} onOpenWorkspace={onOpen} />);
+    expect(screen.queryByRole('heading', { name: 'Your first delivery' })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Delivery fulfilled' })).toBeInTheDocument();
+    expect(screen.getByText('Programme complete, review your shift')).toBeInTheDocument();
+    expect(
+      screen.getByText('Delivery receipt and learning').closest('details')
+    ).not.toHaveAttribute('open');
+    fireEvent.click(screen.getByRole('button', { name: 'Review shift and next programme' }));
+    expect(onOpen).toHaveBeenCalledWith('overview');
+    expect(useOperationsCampaignStore.getState()).toBe(before);
+  });
   it('switches the real recipe from the shared desktop and compact commitment card', () => {
     const before = useOperationsCampaignStore.getState();
     render(<OperationsPlayCard />);

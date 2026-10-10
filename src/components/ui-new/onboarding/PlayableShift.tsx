@@ -62,7 +62,16 @@ export function FirstDeliveryJourney({
     }))
   );
   const campaign = useOperationsCampaignStore(
-    useShallow((s) => ({ orders: s.orders, execution: s.execution }))
+    useShallow((s) => ({
+      orders: s.orders,
+      execution: s.execution,
+      activeOrderId: s.activeOrderId,
+      constraints: s.constraints,
+      incidents: s.incidents,
+      elapsedMinutes: s.elapsedMinutes,
+      activeChallenge: s.activeChallenge,
+      challengeHistory: s.challengeHistory,
+    }))
   );
   const order = campaign.orders.find((item) => item.id === ui.orderId) ?? null;
   const guide = deriveDeliveryJourney(order, campaign.execution, ui.inspected);
@@ -89,10 +98,65 @@ export function FirstDeliveryJourney({
     document.addEventListener('keydown', onKey, true);
     return () => document.removeEventListener('keydown', onKey, true);
   }, [ui.close]);
+  // Completion keeps its receipt available while yielding the foreground to
+  // the live commitment. This projection never advances an order or a truck.
+  const completed = order?.status === 'fulfilled' && ui.inspected;
+  const play = deriveOperationsPlay(campaign);
+  if (completed)
+    return (
+      <section
+        aria-label="Guided delivery"
+        className="pointer-events-auto fixed bottom-[11.5rem] left-3 right-3 z-40 max-h-[calc(100dvh-20rem)] overflow-y-auto overscroll-contain rounded-xl border border-cyan-400/40 bg-slate-950/95 p-4 shadow-xl sm:left-5 sm:right-auto sm:w-[360px]"
+      >
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="font-semibold text-white">Delivery fulfilled</h2>
+          <button
+            className={BUTTON}
+            aria-label="Close guided delivery"
+            onClick={() => ui.close(false)}
+          >
+            <X className="h-4 w-4" aria-hidden="true" />
+          </button>
+        </div>
+        <p className="mt-2 text-sm leading-6 text-slate-200">
+          {order.customer}: {order.shippedKg.toFixed(0)} kg dispatched.
+        </p>
+        <p className="mt-3 text-sm font-semibold text-cyan-100" aria-live="polite">
+          {play.nextAction.kind === 'programme'
+            ? 'Programme complete, review your shift'
+            : play.nextAction.label}
+        </p>
+        <p className="mt-1 text-xs leading-5 text-slate-300">
+          {play.nextAction.kind === 'programme'
+            ? 'Review delivery, quality and recovery before choosing the next commitments.'
+            : play.nextAction.consequence}
+        </p>
+        <button
+          className={`${BUTTON} mt-3`}
+          onClick={() =>
+            onOpenWorkspace(
+              ['quality', 'programme'].includes(play.nextAction.kind) ? 'overview' : 'scada'
+            )
+          }
+        >
+          {play.nextAction.kind === 'programme'
+            ? 'Review shift and next programme'
+            : 'Open current operations'}
+        </button>
+        <details className="mt-2 text-xs text-slate-300">
+          <summary className="min-h-11 cursor-pointer py-3 text-cyan-200">
+            Delivery receipt and learning
+          </summary>
+          <p className="leading-5">{guide.detail}</p>
+          <TeachingPace />
+          <LearningNote entryId={guide.entryId} />
+        </details>
+      </section>
+    );
   return (
     <section
       aria-label="Guided delivery"
-      className="pointer-events-auto fixed bottom-[11.5rem] left-3 right-3 z-40 max-h-[calc(100dvh-15.5rem)] overflow-y-auto overscroll-contain rounded-xl border border-cyan-400/40 bg-slate-950/95 p-4 shadow-xl sm:left-5 sm:right-auto sm:w-[360px]"
+      className="pointer-events-auto fixed bottom-[11.5rem] left-3 right-3 z-40 max-h-[calc(100dvh-20rem)] overflow-y-auto overscroll-contain rounded-xl border border-cyan-400/40 bg-slate-950/95 p-4 shadow-xl sm:left-5 sm:right-auto sm:w-[360px]"
     >
       <div className="flex items-center justify-between gap-2">
         <h2 className="font-semibold text-white">Your first delivery</h2>

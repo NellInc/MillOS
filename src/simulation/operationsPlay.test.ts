@@ -48,12 +48,41 @@ describe('live operations read model', () => {
       'resolve'
     );
   });
+  it('retains unresolved incident control after completed deliveries', () => {
+    const store = useOperationsCampaignStore.getState();
+    store.triggerIncident('bearing_overheat');
+    const state = useOperationsCampaignStore.getState();
+    const model = deriveOperationsPlay({
+      ...state,
+      orders: state.orders.map((order) => ({ ...order, status: 'fulfilled' as const })),
+    });
+    expect(model.nextAction.kind).toBe('acknowledge');
+    store.acknowledgeIncident(state.incidents[0].id);
+    store.mitigateIncident(state.incidents[0].id);
+    store.markIncidentEffectApplied(state.incidents[0].id);
+    const mitigated = useOperationsCampaignStore.getState();
+    expect(
+      deriveOperationsPlay({
+        ...mitigated,
+        orders: model.activeOrder
+          ? state.orders.map((order) => ({ ...order, status: 'fulfilled' as const }))
+          : [],
+      }).nextAction.kind
+    ).not.toBe('programme');
+  });
+  it('does not call an empty order list a completed programme', () => {
+    expect(
+      deriveOperationsPlay({ ...useOperationsCampaignStore.getState(), orders: [] })
+        .canAcceptNextProgramme
+    ).toBe(false);
+  });
   it('offers explicit new commitments only when the existing programme is settled', () => {
     const state = useOperationsCampaignStore.getState();
     const model = deriveOperationsPlay({
       ...state,
       activeOrderId: null,
       orders: state.orders.map((order) => ({ ...order, status: 'fulfilled' as const })),
+      execution: { ...state.execution, stage: 'quality_hold', qualityReleased: false },
     });
     expect(model.canAcceptNextProgramme).toBe(true);
     expect(model.nextAction.kind).toBe('programme');

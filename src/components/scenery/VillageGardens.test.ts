@@ -142,6 +142,22 @@ describe('authored British/Dutch village plots', () => {
     });
   });
 
+  it('gives the slate cottage a glazed side dormer and keeps both entrance hoods above head height', () => {
+    const cottage = VILLAGE_HOMES[4];
+    const pane = hit(cottage.glass, [3.4, 4.4, 0.7], [-1, 0, 0]);
+    expect(pane[0]?.point.x).toBeGreaterThan(2);
+    const dormerRoof = hit(cottage.body, [1.65, 8, 0.7], [0, -1, 0]);
+    expect(dormerRoof[0]?.point.y).toBeGreaterThan(5.2);
+    for (const [index, front] of [
+      [0, 2.2],
+      [2, 2.1],
+    ]) {
+      const hood = hit(VILLAGE_HOMES[index].body, [0, 8, front + 0.7], [0, -1, 0]);
+      expect(hood[0]?.point.y).toBeGreaterThan(2.6);
+      expect(hit(VILLAGE_HOMES[index].body, [0, 2.1, front + 1], [0, 0, -1], 0.7)).toHaveLength(0);
+    }
+  });
+
   it('retains closed roofs and seats each smoke source at its actual chimney pots', () => {
     for (const { body, chimney } of VILLAGE_HOMES) {
       const roof = hit(body, [-0.7, 9, 0], [0, -1, 0]);

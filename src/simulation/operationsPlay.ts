@@ -105,6 +105,7 @@ export function deriveOperationsPlay(state: OperationsPlaySnapshot) {
   const recovery = getChallengeRecoveryIncident(state);
   const canAcceptNextProgramme =
     !run &&
+    state.orders.length > 0 &&
     state.orders.every((order) => order.status === 'fulfilled' || order.status === 'cancelled');
   let nextAction: OperationsNextAction;
   if (incident?.phase === 'raised') {
@@ -131,6 +132,14 @@ export function deriveOperationsPlay(state: OperationsPlaySnapshot) {
         ? 'Restores this effect-only controller scenario to normal. Complete the challenge by dispatching its target mass through the real quality and shipping gates.'
         : 'Restores the abandoned or expired scenario controller to normal. Its recorded challenge result remains unchanged; a fresh challenge can then be started.',
     };
+  } else if (canAcceptNextProgramme && !incident) {
+    nextAction = {
+      kind: 'programme',
+      targetId: null,
+      label: 'Accept next production programme',
+      consequence:
+        'Creates three new 3,000 kg customer commitments with real recipe, quality and dispatch requirements. Existing stock remains available; no goods or revenue are created.',
+    };
   } else if (!state.execution.qualityReleased || state.execution.stage === 'quality_hold') {
     nextAction = {
       kind: 'quality',
@@ -151,14 +160,6 @@ export function deriveOperationsPlay(state: OperationsPlaySnapshot) {
       targetId: activeOrder.id,
       label: 'Inspect incoming feedstock',
       consequence: `The ${activeOrder.recipe.sourceMaterial.replaceAll('_', ' ')} route is empty. Receiving and releasing the matching source lot permits milling to resume.`,
-    };
-  } else if (canAcceptNextProgramme) {
-    nextAction = {
-      kind: 'programme',
-      targetId: null,
-      label: 'Accept next production programme',
-      consequence:
-        'Creates three new 3,000 kg customer commitments with real recipe, quality and dispatch requirements. Existing stock remains available; no goods or revenue are created.',
     };
   } else if (
     ['ready_to_load', 'loading', 'ready_to_dispatch', 'dispatched'].includes(state.execution.stage)

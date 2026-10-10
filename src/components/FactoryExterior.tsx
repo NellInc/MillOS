@@ -1383,6 +1383,16 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
             skyColour = mix(skyColour, uAfterglowColour * 0.45 + vec3(0.0, 0.03, 0.06), glow * 0.55);
             skyColour += uAfterglowColour * glow * 0.86;
           }
+          // Broad broken cloud reflections give quiet water depth without a
+          // reflection camera. Metre-space phase follows the same slow breeze;
+          // avoid bright painted stripes and fade at the horizon/shore.
+          // Working if a moving ripple bends the soft sky bands, never the bank.
+          float cloudBand = sin(reflected.x * 8.0 + reflected.z * 5.0 + uTime * 0.004)
+            * sin(reflected.z * 13.0 - reflected.x * 3.0 - uTime * 0.003);
+          float cloudReflection = smoothstep(0.22, 0.75, cloudBand)
+            * smoothstep(0.04, 0.24, reflected.y) * (1.0 - smoothstep(0.58, 0.95, reflected.y));
+          skyColour = mix(skyColour, uSkyHorizon * 0.85 + uSkyZenith * 0.15,
+            cloudReflection * 0.2 * (0.3 + 0.7 * uDaylight));
           vec3 reflectionColour = mix(uReflection * mix(0.08, 1.0, uDaylight), skyColour, 0.75);
           float reflectance = clamp(0.045 + fresnel * 0.76, 0.0, 0.85);
           colour = mix(colour, reflectionColour, reflectance);
@@ -1465,7 +1475,7 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
     // MANUALLY VERSIONED, never derived from time or randomness - see the
     // documented `Date.now()` cache-key bug. Bump this whenever the shader
     // source above changes or a stale cached program will be reused.
-    value.customProgramCacheKey = () => 'millos-unified-water-v16';
+    value.customProgramCacheKey = () => 'millos-unified-water-v17';
     return value;
   }, [crossOnly, deep, falling, flowSpeed, flowX, flowY, opacity, radial, reflection, shallow]);
 

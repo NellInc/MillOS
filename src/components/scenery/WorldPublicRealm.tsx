@@ -155,6 +155,9 @@ function planter(
   const y = ground(x, z);
   b.box([width, 0.26, depth], [x, y + 0.13, z], P.brick);
   b.box([width - 0.17, 0.035, depth - 0.17], [x, y + 0.282, z], P.soil);
+  for (const side of [-1, 1]) {
+    b.box([width, 0.06, 0.11], [x, y + 0.29, z + (side * depth) / 2], P.stone);
+  }
   const count = Math.max(2, Math.floor(width / 0.55));
   for (let i = 0; i < count; i++) {
     const px = x - width / 2 + 0.28 + (i * (width - 0.56)) / (count - 1);
@@ -164,8 +167,14 @@ function planter(
 }
 function bench(b: PlotGeometry, x: number, z: number, yaw = 0, ground: Ground = flat) {
   const start = b.parts.length;
-  b.box([1.8, 0.12, 0.5], [0, 0.48, 0], P.oak);
-  b.box([1.8, 0.38, 0.1], [0, 0.77, -0.24], P.oak);
+  // Open timber slats share the same seat/resting datums and iron supports.
+  for (const z of [-0.18, 0, 0.18]) b.box([1.8, 0.1, 0.14], [0, 0.49, z], P.oak);
+  for (const y of [0.64, 0.81, 0.98]) b.box([1.8, 0.12, 0.075], [0, y, -0.24], P.oak);
+  for (const side of [-1, 1]) {
+    b.box([0.075, 0.6, 0.075], [side * 0.66, 0.72, -0.25], P.iron);
+    b.box([0.08, 0.075, 0.5], [side * 0.82, 0.73, 0], P.iron);
+    b.box([0.075, 0.24, 0.075], [side * 0.82, 0.61, 0.16], P.iron);
+  }
   for (const side of [-1, 1]) b.box([0.11, 0.46, 0.44], [side * 0.66, 0.23, 0], P.iron);
   b.parts.slice(start).forEach((g) => g.rotateY(yaw).translate(x, ground(x, z), z));
 }
@@ -179,8 +188,8 @@ function drain(
 ) {
   const start = b.parts.length;
   b.box([0.22, 0.025, length], [0, 0.004, 0], P.iron);
-  for (let i = 0; i < Math.floor(length / 0.3); i++)
-    b.box([0.2, 0.016, 0.045], [0, 0.025, -length / 2 + 0.16 + i * 0.3], P.slate);
+  for (let i = 0; i < Math.floor(length / 0.45); i++)
+    b.box([0.2, 0.016, 0.045], [0, 0.025, -length / 2 + 0.16 + i * 0.45], P.slate);
   b.parts.slice(start).forEach((g) => g.rotateY(yaw).translate(x, ground(x, z), z));
 }
 
@@ -226,6 +235,11 @@ function villageRealm() {
   wall(solid, [29, 32.1], [29, 47.9], 0.44);
   planter(solid, 26.5, 33, 2.1, 0.95);
   planter(solid, 26.5, 47, 2.1, 0.95);
+  // Cross-fall drains finish the entrances, flush with the existing paving;
+  // the centre of each civic approach remains free of raised street furniture.
+  drain(solid, 0, -30.0, 4.0, Math.PI / 2);
+  drain(solid, -17.75, -15, 2.2);
+  drain(solid, 14.4, 40, 2.4);
   // Square planting occupies edges, with no planters in through streets.
   for (const x of [-6.4, 6.4]) planter(solid, x, -9.4, 2.7, 1.1);
   for (const z of [-16, 9.8]) planter(solid, 17.1, z, 1.15, 1.1);
@@ -305,6 +319,10 @@ export function createWorldRealm(segments: number) {
       .rotateX(Math.PI / 2)
       .translate(-151.1, 1.07, z);
     solid.add(g, P.iron);
+    // Iron eyes are fixed to a stone coping plate, with visible anchor bolts.
+    solid.box([0.5, 0.035, 0.48], [-151.1, 1.025, z], P.slate);
+    for (const side of [-1, 1])
+      solid.round([-151.1 + side * 0.19, 1.049, z], [0.035, 0.018, 0.035], P.iron);
   }
   return { paving: paving.finish(), solid: solid.finish() };
 }

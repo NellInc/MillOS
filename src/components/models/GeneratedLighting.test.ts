@@ -61,7 +61,7 @@ it('binds the actual shared workshop glass to pane rooms without domestic curtai
   expect(shader.uniforms.villageCurtains.value).toBe(0);
   expect(shader.uniforms.villageRooms.value).toBe(1);
   expect(shader.uniforms.villageAtlas.value).toBe(0);
-  expect(WORKSHOP_GLAZING.customProgramCacheKey()).toBe('millos-authored-village-windows-v5');
+  expect(WORKSHOP_GLAZING.customProgramCacheKey()).toBe('millos-authored-village-windows-v6');
   expect(WORKSHOP_GLAZING.map).toBeNull();
 });
 
@@ -218,7 +218,7 @@ it('retains forge workrooms without domestic curtains or a new shader variant', 
   material.onBeforeCompile(shader, {} as THREE.WebGLRenderer);
   expect(shader.uniforms.villageCurtains.value).toBe(0);
   expect(shader.uniforms.villageRooms.value).toBe(1);
-  expect(material.customProgramCacheKey()).toBe('millos-authored-village-windows-v5');
+  expect(material.customProgramCacheKey()).toBe('millos-authored-village-windows-v6');
   material.dispose();
 });
 
@@ -238,7 +238,7 @@ it('keeps church stained glass out of domestic room replacement', () => {
     'mix(diffuseColor.rgb * 0.85, villageGlow, villageRooms)'
   );
   expect(shader.fragmentShader).toContain('glazing = max(stainedRow, roseTile)');
-  expect(material.customProgramCacheKey()).toBe('millos-authored-village-windows-v5');
+  expect(material.customProgramCacheKey()).toBe('millos-authored-village-windows-v6');
   material.dispose();
 });
 
@@ -255,7 +255,7 @@ it('uses the castle glass tile and its delivered padding with the same room shad
   expect(shader.uniforms.villagePaneUV.value.toArray()).toEqual([0.00375, 0.2425]);
   expect(shader.uniforms.villageRooms.value).toBe(1);
   expect(shader.uniforms.villageCurtains.value).toBe(1);
-  expect(material.customProgramCacheKey()).toBe('millos-authored-village-windows-v5');
+  expect(material.customProgramCacheKey()).toBe('millos-authored-village-windows-v6');
   material.dispose();
 });
 
@@ -308,7 +308,7 @@ it('keeps the delivered cut upper storey separate from the four-storey pane heig
     material.onBeforeCompile(shader, {} as THREE.WebGLRenderer);
     expect(shader.uniforms.apartmentFloorLow.value.z).toBe(floors === 3 ? 0.01059 : 0.01663);
     expect(shader.uniforms.apartmentFloorHigh.value.z).toBe(floors === 3 ? 0.13193 : 0.13014);
-    expect(material.customProgramCacheKey()).toBe('millos-generated-apartment-window-v3');
+    expect(material.customProgramCacheKey()).toBe('millos-generated-apartment-window-v4');
     material.dispose();
   }
 });

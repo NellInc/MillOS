@@ -357,7 +357,7 @@ describe('solid fixed foothills', () => {
       expect(material.fragmentShader).toContain('gl_FragColor = vec4(lit, 1.0)');
       expect(material.fragmentShader).not.toContain('groundBlend');
       expect(material.fragmentShader).not.toContain('sampler');
-      expect(material.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v8');
+      expect(material.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v9');
       material.dispose();
     }
   });

@@ -114,7 +114,7 @@ export function applyApartmentWindows(
       .replace('* villageNight;', '* villageNight * occupiedFloor;')
       .replace('* villageNight * glazing;', '* villageNight * occupiedFloor * glazing;');
   };
-  material.customProgramCacheKey = () => 'millos-generated-apartment-window-v3';
+  material.customProgramCacheKey = () => 'millos-generated-apartment-window-v4';
 }
 
 type OfficeAsset = 'smallOffice' | 'officeApartment' | 'officeApartmentThree';
@@ -270,6 +270,22 @@ export function applyVillageWindows(
          float desk = smoothstep(0.18, 0.21, room.x) * (1.0 - smoothstep(0.78, 0.81, room.x))
            * smoothstep(0.63, 0.65, room.y) * (1.0 - smoothstep(0.69, 0.71, room.y));
          interior *= 1.0 - desk * villageCivic * 0.65;
+         // Furniture shares the back-wall parallax, while linen remains near
+         // the glass. A bookcase and small shaded pendant give the civic rooms
+         // scale with arithmetic only, no interior meshes or extra lights.
+         // Working if oblique views separate the furnishing from the curtains.
+         float shelfSide = smoothstep(0.68, 0.71, room.x) * (1.0 - smoothstep(0.93, 0.96, room.x));
+         float shelves = (1.0 - smoothstep(0.012, 0.022, abs(room.y - 0.38)))
+           + (1.0 - smoothstep(0.012, 0.022, abs(room.y - 0.55)));
+         float bookRows = smoothstep(0.22, 0.25, room.y) * (1.0 - smoothstep(0.53, 0.55, room.y));
+         float books = smoothstep(0.16, 0.25, fract(room.x * 43.0)) * bookRows;
+         float furnishing = shelfSide * max(clamp(shelves, 0.0, 1.0), books * 0.6)
+           * max(villageCivic, step(0.58, seed)) * roomScale;
+         interior = mix(interior, vec3(0.19, 0.14, 0.10), furnishing * (1.0 - curtain));
+         float pendantX = mix(0.35, 0.58, seed);
+         float pendant = (1.0 - smoothstep(0.055, 0.075, abs(room.x - pendantX)))
+           * (1.0 - smoothstep(0.03, 0.05, abs(room.y - 0.23))) * villageCivic;
+         interior = mix(interior, vec3(1.0, 0.79, 0.43), pendant * (1.0 - curtain));
          float brightness = (0.58 + seed * 0.42) * mix(0.09, 1.0, occupied);
          // Linen receives room light, with a softer contribution than the opening.
          vec3 roomEmission = villageRoomLight * interior * brightness
@@ -288,5 +304,5 @@ export function applyVillageWindows(
        }`
     );
   };
-  material.customProgramCacheKey = () => 'millos-authored-village-windows-v5';
+  material.customProgramCacheKey = () => 'millos-authored-village-windows-v6';
 }

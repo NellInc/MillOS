@@ -53,7 +53,7 @@ export function OnboardingGuide({
   return (
     <section
       aria-label={`Getting started, step ${stepIndex + 1} of ${stepCount}`}
-      className="pointer-events-auto fixed bottom-[11.5rem] left-3 right-3 z-40 max-h-[calc(100dvh-15.5rem)] overflow-y-auto overscroll-contain rounded-xl border border-cyan-400/40 bg-slate-950/95 p-4 shadow-2xl shadow-black/40 backdrop-blur-md sm:left-5 sm:right-auto sm:w-[360px]"
+      className="pointer-events-auto fixed bottom-[11.5rem] left-3 right-3 z-40 max-h-[calc(100dvh-20rem)] overflow-y-auto overscroll-contain rounded-xl border border-cyan-400/40 bg-slate-950/95 p-4 shadow-2xl shadow-black/40 backdrop-blur-md sm:left-5 sm:right-auto sm:w-[360px]"
     >
       <div className="mb-3 flex items-start gap-3">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-cyan-400/30 bg-cyan-400/10">
