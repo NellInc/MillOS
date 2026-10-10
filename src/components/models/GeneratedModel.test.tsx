@@ -117,7 +117,7 @@ it('installs each real shop trade on a private material, keeping shared body and
     expect(mesh.castShadow).toBe(true);
     expect(mesh.receiveShadow).toBe(true);
     expect(paint.color.getHex()).toBe(0xffffff);
-    expect(paint.customProgramCacheKey()).toContain('millos-authored-shop-joinery-v1');
+    expect(paint.customProgramCacheKey()).toContain('millos-authored-shop-joinery-v2');
   }
   view.rerender(<GeneratedModel asset="church" shopTrade="bakery" />);
   expect((clones.at(-1)!.material as THREE.Material).customProgramCacheKey()).toBe(
