@@ -247,6 +247,22 @@ function villageRealm() {
 }
 export const VILLAGE_REALM_GEOMETRY = villageRealm();
 
+// The sole moored Flourish is centred at [-145, 0.1, 15], with a 0.6 m
+// keel sink. These endpoints meet its delivered bow/stern bollards and the
+// existing quay eyes. Lines occupy the berth, leaving the east channel open.
+export const CANAL_MOORING_LINES = [
+  { cleat: [-145.307, 0.94, 9.14], ring: [-151.1, 1.07, 9] },
+  { cleat: [-145.307, 0.94, 20.86], ring: [-151.1, 1.07, 21] },
+] as const;
+
+export function canalMooringCurve(line: (typeof CANAL_MOORING_LINES)[number]) {
+  const start = new THREE.Vector3(...line.cleat),
+    end = new THREE.Vector3(...line.ring);
+  const middle = start.clone().lerp(end, 0.5);
+  middle.y = Math.min(start.y, end.y) - 0.45;
+  return new THREE.QuadraticBezierCurve3(start, middle, end);
+}
+
 export function createWorldRealm(segments: number) {
   const ground: Ground = (x, z) =>
     EXTERIOR_LAYERS.ground + sampleTerrainGroundHeight(x, z, segments);
@@ -323,6 +339,9 @@ export function createWorldRealm(segments: number) {
     solid.box([0.5, 0.035, 0.48], [-151.1, 1.025, z], P.slate);
     for (const side of [-1, 1])
       solid.round([-151.1 + side * 0.19, 1.049, z], [0.035, 0.018, 0.035], P.iron);
+  }
+  for (const line of CANAL_MOORING_LINES) {
+    solid.add(new THREE.TubeGeometry(canalMooringCurve(line), 14, 0.023, 5, false), '#af9970');
   }
   return { paving: paving.finish(), solid: solid.finish() };
 }

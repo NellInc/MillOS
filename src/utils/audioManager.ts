@@ -541,6 +541,22 @@ class AudioManager {
     return () => this.listeners.delete(listener);
   }
 
+  /** Muted navigation leaves audio dormant; a later unmuted gesture still starts it. */
+  onFirstUnmutedGesture(initialize: () => void): () => void {
+    const cleanup = () => {
+      window.removeEventListener('click', handleInteraction);
+      window.removeEventListener('keydown', handleInteraction);
+    };
+    const handleInteraction = () => {
+      if (this._muted) return;
+      cleanup();
+      initialize();
+    };
+    window.addEventListener('click', handleInteraction);
+    window.addEventListener('keydown', handleInteraction);
+    return cleanup;
+  }
+
   private notifyListeners(): void {
     this.listeners.forEach((listener) => listener());
   }

@@ -404,14 +404,9 @@ const App: React.FC = () => {
   }, [audioInitialized, runtimeMode.benchmark]);
 
   useEffect(() => {
-    const handleInteraction = () => initializeAudio();
-    window.addEventListener('click', handleInteraction, { once: true });
-    window.addEventListener('keydown', handleInteraction, { once: true });
-    return () => {
-      window.removeEventListener('click', handleInteraction);
-      window.removeEventListener('keydown', handleInteraction);
-    };
-  }, [initializeAudio]);
+    if (audioInitialized || runtimeMode.benchmark) return undefined;
+    return audioManager.onFirstUnmutedGesture(initializeAudio);
+  }, [audioInitialized, initializeAudio, runtimeMode.benchmark]);
 
   // Cleanup audio on unmount
   useEffect(() => {

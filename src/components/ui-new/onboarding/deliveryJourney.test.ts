@@ -52,4 +52,45 @@ describe('guided delivery evidence', () => {
       ).toContain(`Released ${material}:`);
     }
   );
+  it('distinguishes live cargo from departure and the customer receipt', () => {
+    const { orders, execution } = useOperationsCampaignStore.getState();
+    const order = { ...orders[0], shippedKg: 1000 };
+    const route = {
+      ...execution,
+      orderId: order.id,
+      dispatchLoad: {
+        ...execution.dispatchLoad,
+        loadedKg: 1500,
+        capacityKg: 6000,
+        lastDispatchKg: 3000,
+      },
+    };
+    expect(deriveDeliveryJourney(order, { ...route, stage: 'ready_to_load' }, true).title).toBe(
+      'Ready for the shipping truck'
+    );
+    const loading = deriveDeliveryJourney(order, { ...route, stage: 'loading' }, true);
+    expect(loading.title).toBe('Loading the shipping truck');
+    expect(loading.loading).toEqual({ loadedKg: 1500, capacityKg: 6000 });
+    expect(deriveDeliveryJourney(order, { ...route, stage: 'ready_to_dispatch' }, true).title).toBe(
+      'Ready to depart'
+    );
+    const departed = deriveDeliveryJourney(order, { ...route, stage: 'dispatched' }, true);
+    expect(departed.title).toBe('Truck departed');
+    expect(departed.loading).toBeUndefined();
+    expect(departed.detail).toContain('3000 kg left the shipping bay');
+    expect(departed.detail).toContain(`1000 / ${order.requiredKg} kg for ${order.customer}`);
+    expect(order.shippedKg).toBe(1000);
+    expect(route.dispatchLoad.loadedKg).toBe(1500);
+    const held = deriveDeliveryJourney(
+      order,
+      {
+        ...route,
+        stage: 'loading',
+        dispatchLoad: { ...route.dispatchLoad, blockReason: 'Batch held for inspection' },
+      },
+      true
+    );
+    expect(held.detail).toContain('Batch held for inspection');
+    expect(held.detail).toContain('Only a departed manifest credits this customer');
+  });
 });

@@ -177,6 +177,23 @@ export function FirstDeliveryJourney({
         {guide.title}
       </h3>
       <p className="mt-2 text-sm leading-6 text-slate-200">{guide.detail}</p>
+      {guide.loading && guide.loading.capacityKg > 0 && (
+        <div className="mt-3">
+          <p className="flex flex-wrap justify-between gap-x-3 gap-y-1 text-xs text-cyan-100">
+            <span>Shipping truck load</span>
+            <span className="tabular-nums">
+              {guide.loading.loadedKg.toFixed(0)} / {guide.loading.capacityKg.toFixed(0)} kg
+            </span>
+          </p>
+          <progress
+            aria-label="Shipping truck load"
+            aria-valuetext={`${guide.loading.loadedKg.toFixed(0)} of ${guide.loading.capacityKg.toFixed(0)} kilograms on the truck`}
+            max={guide.loading.capacityKg}
+            value={guide.loading.loadedKg}
+            className="mt-2 h-2 w-full overflow-hidden rounded-full border-0 bg-slate-700/80 [&::-moz-progress-bar]:bg-cyan-400 [&::-webkit-progress-bar]:bg-slate-700/80 [&::-webkit-progress-value]:bg-cyan-400"
+          />
+        </div>
+      )}
       <p className="mt-2 text-xs text-slate-300">
         Inspection: {ui.inspected ? 'recorded' : 'waiting'} · Delivery:{' '}
         {order?.status === 'fulfilled'

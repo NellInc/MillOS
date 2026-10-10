@@ -8,6 +8,8 @@ import {
   FARM_REALM_GEOMETRY,
   createWorldRealm,
   REALM_PAVING_MATERIAL,
+  CANAL_MOORING_LINES,
+  canalMooringCurve,
 } from './WorldPublicRealm';
 import {
   CANAL_FOOTBRIDGE_ACCESS as BRIDGE,
@@ -145,6 +147,24 @@ describe('world public realm', () => {
           }
     }
   );
+  it('ties the actual narrowboat bollards to quay eyes without crossing a walking route', () => {
+    for (const line of CANAL_MOORING_LINES) {
+      const curve = canalMooringCurve(line);
+      expect(curve.getPoint(0).toArray()).toEqual([...line.cleat]);
+      expect(curve.getPoint(1).toArray()).toEqual([...line.ring]);
+      expect(curve.getPoint(0.5).y).toBeLessThan(line.cleat[1]);
+      for (const p of curve.getPoints(36)) {
+        expect(p.y).toBeGreaterThan(0.6);
+        expect(p.x).toBeGreaterThanOrEqual(-151.1);
+        expect(p.x).toBeLessThan(-145.0);
+        // Both towpaths are outside the canal coping, never under the rope.
+        expect(p.x).toBeGreaterThan(-151.5);
+      }
+    }
+    expect(readFileSync('src/components/FactoryExterior.tsx', 'utf8')).toContain(
+      '<CanalBoat position={[-145, 0.1, 15]} rotation={0} />'
+    );
+  });
   it('aligns the canal path with a real gap in the mill perimeter', () => {
     const exterior = readFileSync('src/components/FactoryExterior.tsx', 'utf8');
     expect(exterior).toContain('end={[-95, 0, -51.8]}');

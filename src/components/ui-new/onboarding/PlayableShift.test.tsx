@@ -194,6 +194,40 @@ describe('playable shift UI', () => {
     fireEvent.keyDown(document.body, { key: 'Escape' });
     expect(useUIStore.getState().journeyVisible).toBe(false);
   });
+
+  it('shows the actual truck load separately from dispatched customer credit', () => {
+    const campaign = useOperationsCampaignStore.getState();
+    useUIStore.getState().startDeliveryJourney(campaign.activeOrderId);
+    useUIStore.getState().recordMachineInspection('mill-1');
+    useOperationsCampaignStore.setState({
+      execution: {
+        ...campaign.execution,
+        orderId: campaign.activeOrderId,
+        stage: 'loading',
+        dispatchLoad: { ...campaign.execution.dispatchLoad, loadedKg: 1500, capacityKg: 6000 },
+      },
+    });
+    const before = useOperationsCampaignStore.getState();
+    render(<FirstDeliveryJourney selectedMachine={null} onOpenWorkspace={vi.fn()} />);
+    expect(screen.getByRole('heading', { name: 'Loading the shipping truck' })).toBeInTheDocument();
+    const progress = screen.getByRole('progressbar', { name: 'Shipping truck load' });
+    expect(progress).toHaveAttribute('value', '1500');
+    expect(progress).toHaveAttribute('max', '6000');
+    expect(progress).toHaveAttribute('aria-valuetext', '1500 of 6000 kilograms on the truck');
+    expect(screen.getByText(/Delivery: 0 kg dispatched/)).toBeInTheDocument();
+    expect(useOperationsCampaignStore.getState()).toBe(before);
+    act(() =>
+      useOperationsCampaignStore.setState({
+        execution: {
+          ...before.execution,
+          stage: 'dispatched',
+          dispatchLoad: { ...before.execution.dispatchLoad, lastDispatchKg: 1500 },
+        },
+      })
+    );
+    expect(screen.getByRole('heading', { name: 'Truck departed' })).toBeInTheDocument();
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+  });
   it('yields a fulfilled introduction to the live next action without changing receipts', () => {
     const state = useOperationsCampaignStore.getState();
     const first = state.orders[0];

@@ -1,10 +1,22 @@
-import type { CustomerOrder, OrderExecutionState } from '../../../stores/operationsCampaignStore';
+import type {
+  CustomerOrder,
+  DispatchLoadSnapshot,
+  OrderExecutionState,
+} from '../../../stores/operationsCampaignStore';
+
+interface DeliveryJourney {
+  title: string;
+  detail: string;
+  workspace: 'overview' | 'scada' | null;
+  entryId: string;
+  loading?: Pick<DispatchLoadSnapshot, 'loadedKg' | 'capacityKg'>;
+}
 
 export function deriveDeliveryJourney(
   order: CustomerOrder | null,
   execution: OrderExecutionState,
   inspected: boolean
-) {
+): DeliveryJourney {
   if (!order)
     return {
       title: 'Choose a delivery',
@@ -44,13 +56,30 @@ export function deriveDeliveryJourney(
       workspace: 'overview' as const,
       entryId: 'batch-quality',
     };
-  if (['ready_to_load', 'loading', 'ready_to_dispatch', 'dispatched'].includes(execution.stage))
+  const load = execution.dispatchLoad;
+  const departureRule = `Only a departed manifest credits this customer; packed ${finishedMaterial} alone does not.`;
+  if (execution.stage === 'ready_to_load')
     return {
-      title: 'Follow the truck',
-      detail:
-        execution.dispatchLoad.blockReason ??
-        `Watch the shipping load in operations. Only a departed manifest credits this customer; packed ${finishedMaterial} alone does not.`,
-      workspace: 'scada' as const,
+      title: 'Ready for the shipping truck',
+      detail: `${load.blockReason ?? `${execution.releasedFinishedKg.toFixed(0)} kg of released ${finishedMaterial} is waiting at shipping.`} ${departureRule}`,
+      workspace: 'scada',
+      entryId: 'autonomous-logistics',
+    };
+  if (execution.stage === 'loading' || execution.stage === 'ready_to_dispatch')
+    return {
+      title: execution.stage === 'loading' ? 'Loading the shipping truck' : 'Ready to depart',
+      detail: `${load.blockReason ?? (execution.stage === 'loading' ? 'Follow the pallets from the packing line to the docked truck.' : 'The outbound load is ready. Watch its departure from the shipping bay.')} ${departureRule}`,
+      workspace: 'scada',
+      entryId: 'autonomous-logistics',
+      // Truck capacity is distinct from the customer's full commitment.
+      // This projection never credits cargo, changes the load or dispatches it.
+      loading: { loadedKg: load.loadedKg, capacityKg: load.capacityKg },
+    };
+  if (execution.stage === 'dispatched')
+    return {
+      title: 'Truck departed',
+      detail: `${load.lastDispatchKg.toFixed(0)} kg left the shipping bay. Customer receipt: ${order.shippedKg.toFixed(0)} / ${order.requiredKg.toFixed(0)} kg for ${order.customer}. ${departureRule}`,
+      workspace: 'scada',
       entryId: 'autonomous-logistics',
     };
   return {

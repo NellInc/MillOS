@@ -9,7 +9,7 @@ import {
   SHOP_JOINERY_COLOURS,
   VILLAGE_INTERIOR_STRENGTH,
 } from './GeneratedOfficeModel';
-import { applyBoatPortholes } from './GeneratedBoatModel';
+import { applyBoatPortholes, BOAT_INTERIOR_STRENGTH } from './GeneratedBoatModel';
 import { applyLampLens, LAMP_LENS_HEIGHTS } from './GeneratedLampModel';
 import { EXTERIOR_LAMP_LENS_MATERIAL } from '../exterior/ExteriorLighting';
 import { WORKSHOP_GLAZING } from '../TruckBay';
@@ -50,6 +50,27 @@ describe('generated architectural night lighting', () => {
     expect(shader.fragmentShader).toContain('step(1.18, abs(vBoatPosition.x))');
     expect(shader.fragmentShader).toContain('step(1.80, vBoatPosition.y)');
   });
+});
+
+it('gives only physical boat glass filtered curtain and view-dependent cabin depth', () => {
+  const shader = compile(applyBoatPortholes);
+  expect(shader.uniforms.boatInteriorStrength).toBe(BOAT_INTERIOR_STRENGTH);
+  expect(shader.vertexShader).toContain('vBoatUV = uv');
+  expect(shader.vertexShader).toContain('modelViewMatrix * vec4(1.0, 0.0, 0.0, 0.0)');
+  expect(shader.fragmentShader).toContain('glassTile * step(1.18');
+  expect(shader.fragmentShader).toContain('inside = pane - clamp(slope');
+  expect(shader.fragmentShader.indexOf('fwidth(vBoatPosition.z)')).toBeLessThan(
+    shader.fragmentShader.indexOf('if (porthole > 0.5)')
+  );
+  expect(shader.fragmentShader).toContain('(1.0 - curtain)');
+  expect(shader.fragmentShader).toContain('* boatNight * strength');
+  expect(shader.fragmentShader).not.toContain('diffuseColor.b - diffuseColor.r');
+  for (const z of [-2.8, -1.2, 0.4, 2.0]) {
+    const bay = Math.floor((z + 3.6) / 1.6);
+    expect(-2.8 + bay * 1.6).toBeCloseTo(z, 10);
+  }
+  const source = readFileSync('src/components/models/GeneratedBoatModel.tsx', 'utf8');
+  expect(source).not.toMatch(/TextureLoader|<(?:pointLight|spotLight)|useFrame/);
 });
 
 it('binds the actual shared workshop glass to pane rooms without domestic curtains', () => {
