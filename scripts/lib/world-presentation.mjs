@@ -1,6 +1,209 @@
 import assert from 'node:assert/strict';
 import { decodeRGB } from '../refine-authored-png.mjs';
 
+// Serialized before renderer construction, only in the hosted diagnostic.
+// Reuse the existing timer-query pattern, without its BRDF treatment. Never
+// render, flush, finish, read pixels, or change camera/material/quality state.
+// Working if cold CPU spans and valid GPU queries identify actual passes,
+// unresolved/disjoint timings stay unassigned, and cleanup retains later owners.
+export function installColdRenderAttribution() {
+  const devtools = (window.__THREE_DEVTOOLS__ ??= new EventTarget());
+  const rows = [];
+  const hooks = [];
+  const errors = [];
+  const limits = { renderers: 4, rows: 512, pendingPerRenderer: 12, queriesPerRenderer: 64 };
+  let stopped = false;
+  let droppedRows = 0;
+  const safely = (operation) => {
+    try {
+      return operation();
+    } catch (error) {
+      if (errors.length < 16) errors.push(String(error?.message ?? error));
+      return undefined;
+    }
+  };
+  const observe = (event) => {
+    const renderer = event.detail;
+    if (
+      stopped ||
+      !renderer?.isWebGLRenderer ||
+      hooks.some((hook) => hook.renderer === renderer) ||
+      hooks.length >= limits.renderers
+    )
+      return;
+    safely(() => {
+      const gl = renderer.getContext();
+      const extension = gl.getExtension('EXT_disjoint_timer_query_webgl2');
+      const original = renderer.render;
+      const pending = [];
+      const seen = new Set();
+      const identity = { index: hooks.length, timerAvailable: !!extension };
+      let passes = 0;
+      let queries = 0;
+      let disjoint = 0;
+      let depth = 0;
+      const poll = () => {
+        if (!pending.length) return;
+        const invalid = gl.getParameter(extension.GPU_DISJOINT_EXT);
+        if (invalid) disjoint++;
+        for (let index = pending.length - 1; index >= 0; index--) {
+          const { query, row } = pending[index];
+          if (!invalid && !gl.getQueryParameter(query, gl.QUERY_RESULT_AVAILABLE)) continue;
+          if (invalid) row.gpuStatus = 'disjoint';
+          else {
+            const nanos = gl.getQueryParameter(query, gl.QUERY_RESULT);
+            row.gpuStatus = Number.isFinite(nanos) && nanos >= 0 ? 'valid' : 'invalid-result';
+            if (row.gpuStatus === 'valid') row.gpuMs = nanos / 1e6;
+          }
+          gl.deleteQuery(query);
+          pending.splice(index, 1);
+        }
+      };
+      function wrapped(scene, camera) {
+        if (stopped) return original.apply(this, arguments);
+        const diagnosticStart = performance.now();
+        let row;
+        let query;
+        safely(() => {
+          poll();
+          passes++;
+          const target = this.getRenderTarget();
+          // The validator reuses one camera for sun and cold overview poses.
+          // UUID alone would miss the first newly visible world pass.
+          const position = camera?.position?.toArray();
+          const size = [gl.drawingBufferWidth, gl.drawingBufferHeight];
+          const key = `${scene?.uuid}:${camera?.uuid}:${position?.join(',')}:${target?.uuid ?? 'canvas'}:${size}`;
+          const first = !seen.has(key);
+          seen.add(key);
+          row = {
+            renderer: identity.index,
+            pass: passes,
+            depth,
+            first,
+            scene: { uuid: scene?.uuid, name: scene?.name, type: scene?.type },
+            children: scene?.children
+              ?.slice(0, 12)
+              .map((child) => ({ name: child.name, type: child.type })),
+            camera: {
+              uuid: camera?.uuid,
+              type: camera?.type,
+              position,
+            },
+            drawingBuffer: size,
+            target: target
+              ? { uuid: target.uuid, width: target.width, height: target.height }
+              : null,
+            gpuStatus: extension ? 'not-sampled' : 'unavailable',
+          };
+          if (
+            extension &&
+            (first || passes % 31 === 0) &&
+            queries < limits.queriesPerRenderer &&
+            pending.length < limits.pendingPerRenderer &&
+            !gl.getQuery(extension.TIME_ELAPSED_EXT, gl.CURRENT_QUERY)
+          ) {
+            query = gl.createQuery();
+            if (query) {
+              queries++;
+              gl.beginQuery(extension.TIME_ELAPSED_EXT, query);
+              row.gpuStatus =
+                gl.getQuery(extension.TIME_ELAPSED_EXT, gl.CURRENT_QUERY) === query
+                  ? 'pending'
+                  : 'not-started';
+            }
+          }
+        });
+        const startedAt = performance.now();
+        depth++;
+        try {
+          return original.apply(this, arguments);
+        } finally {
+          depth--;
+          const endedAt = performance.now();
+          safely(() => {
+            if (!row) return;
+            row.startedAt = startedAt;
+            row.endedAt = endedAt;
+            row.cpuMs = endedAt - startedAt;
+            row.instrumentationBeforeMs = startedAt - diagnosticStart;
+            row.drawCounters = { ...this.info?.render };
+            row.programs = this.info?.programs?.length ?? null;
+            if (query) {
+              if (
+                row.gpuStatus === 'pending' &&
+                gl.getQuery(extension.TIME_ELAPSED_EXT, gl.CURRENT_QUERY) === query
+              ) {
+                gl.endQuery(extension.TIME_ELAPSED_EXT);
+                pending.push({ query, row });
+              } else {
+                row.gpuStatus = 'ownership-lost';
+                gl.deleteQuery(query);
+              }
+            }
+            if (row.first || query || row.cpuMs >= 16) {
+              if (rows.length < limits.rows) rows.push(row);
+              else {
+                // Retain new cold poses and the longest spans across the full
+                // startup, rather than exhausting storage before overview.
+                let shortest = 0;
+                for (let index = 1; index < rows.length; index++) {
+                  if (rows[index].cpuMs < rows[shortest].cpuMs) shortest = index;
+                }
+                if (row.first || row.cpuMs > rows[shortest].cpuMs) rows[shortest] = row;
+                droppedRows++;
+              }
+            }
+          });
+        }
+      }
+      renderer.render = wrapped;
+      hooks.push({
+        renderer,
+        original,
+        wrapped,
+        pending,
+        gl,
+        poll,
+        identity,
+        counts: () => ({ passes, queries, disjoint }),
+      });
+    });
+  };
+  devtools.addEventListener('observe', observe);
+  window.jevColdRenderAttribution = {
+    finish() {
+      stopped = true;
+      devtools.removeEventListener('observe', observe);
+      for (const hook of hooks) {
+        if (hook.renderer.render === hook.wrapped) hook.renderer.render = hook.original;
+        safely(hook.poll);
+        for (const { query, row } of hook.pending) {
+          row.gpuStatus = 'unresolved';
+          safely(() => hook.gl.deleteQuery(query));
+        }
+        hook.pending.length = 0;
+      }
+      return {
+        diagnosticOnly: true,
+        timingScope:
+          'renderer.render inclusive; nested passes and deferred GPU work prevent command-buffer causation claims',
+        timeOrigin: performance.timeOrigin,
+        finishedAt: performance.now(),
+        limits,
+        renderers: hooks.map((hook) => ({
+          ...hook.identity,
+          ...hook.counts(),
+          matchesWorldCanvas:
+            hook.renderer.domElement === document.querySelector('canvas[data-engine^="three.js"]'),
+        })),
+        rows,
+        droppedRows,
+        errors,
+      };
+    },
+  };
+}
+
 // Only the validator's fixed 1440x1000 overview uses this crop. It excludes
 // the header, soundtrack, dock, target control and right-hand Overview panel.
 // Working if a blank canvas with a fully rendered HUD still fails presentation.
@@ -347,4 +550,150 @@ export function observeCompletedWorldFrame(timeoutMs) {
       timeoutMs
     );
   });
+}
+
+// Diagnostic only, after an immutable failed world image. Never admit its pixels.
+// Working if A/B/A isolates the failed context's default buffer while all touched
+// bindings/resources are restored and no game render or corrective state reset runs.
+export function contrastFailedDefaultBuffer() {
+  const renderer = (window.jevObservedThree ?? []).find((object) => object?.isWebGLRenderer);
+  if (!renderer) return { diagnosticOnly: true, observed: false, reason: 'Actual renderer absent' };
+  const gl = renderer.getContext();
+  const saved = {
+    draw: gl.getParameter(gl.DRAW_FRAMEBUFFER_BINDING),
+    read: gl.getParameter(gl.READ_FRAMEBUFFER_BINDING),
+    renderbuffer: gl.getParameter(gl.RENDERBUFFER_BINDING),
+    clearColor: [...gl.getParameter(gl.COLOR_CLEAR_VALUE)],
+  };
+  if (saved.draw !== null || saved.read !== null || gl.isContextLost()) {
+    return { diagnosticOnly: true, observed: false, reason: 'Default live context unavailable' };
+  }
+  const errors = () => {
+    const codes = [];
+    for (let index = 0; index < 8; index++) {
+      const code = gl.getError();
+      if (code === gl.NO_ERROR) break;
+      codes.push(code);
+    }
+    return { codes, saturated: codes.length === 8 };
+  };
+  const width = gl.drawingBufferWidth;
+  const height = gl.drawingBufferHeight;
+  const mask = gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT | gl.STENCIL_BUFFER_BIT;
+  const report = {
+    diagnosticOnly: true,
+    observed: false,
+    dimensions: [width, height],
+    clearMask: mask,
+    clearColor: saved.clearColor,
+    inheritedState: {
+      colorMask: [...gl.getParameter(gl.COLOR_WRITEMASK)],
+      scissorTest: gl.isEnabled(gl.SCISSOR_TEST),
+      rasterizerDiscard: gl.isEnabled(gl.RASTERIZER_DISCARD),
+      pixelPackBufferBound: gl.getParameter(gl.PIXEL_PACK_BUFFER_BINDING) !== null,
+      packAlignment: gl.getParameter(gl.PACK_ALIGNMENT),
+      packRowLength: gl.getParameter(gl.PACK_ROW_LENGTH),
+      packSkipPixels: gl.getParameter(gl.PACK_SKIP_PIXELS),
+      packSkipRows: gl.getParameter(gl.PACK_SKIP_ROWS),
+    },
+    preExistingErrors: errors(),
+    arms: [],
+  };
+  let framebuffer;
+  let renderbuffer;
+  const arm = (name) => {
+    gl.clear(mask);
+    const clearErrors = errors();
+    const samples = [];
+    for (const fraction of [0.15, 0.5, 0.85]) {
+      const bytes = new Uint8Array([251, 7, 239, 113]);
+      gl.readPixels(
+        Math.floor(fraction * width),
+        Math.floor(fraction * height),
+        1,
+        1,
+        gl.RGBA,
+        gl.UNSIGNED_BYTE,
+        bytes
+      );
+      samples.push({
+        rgba: [...bytes],
+        sentinelOverwritten: bytes.some((value, i) => value !== [251, 7, 239, 113][i]),
+        readErrors: errors(),
+      });
+    }
+    return {
+      name,
+      clearErrors,
+      samples,
+      framebufferComplete:
+        gl.checkFramebufferStatus(gl.READ_FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE,
+      readBuffer: gl.getParameter(gl.READ_BUFFER),
+      drawBuffer: gl.getParameter(gl.DRAW_BUFFER0),
+      queryErrors: errors(),
+    };
+  };
+  try {
+    report.arms.push(arm('default-before'));
+    framebuffer = gl.createFramebuffer();
+    renderbuffer = gl.createRenderbuffer();
+    if (!framebuffer || !renderbuffer) throw Error('Diagnostic buffer allocation failed');
+    gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
+    gl.bindRenderbuffer(gl.RENDERBUFFER, renderbuffer);
+    gl.renderbufferStorage(gl.RENDERBUFFER, gl.RGBA8, width, height);
+    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.RENDERBUFFER, renderbuffer);
+    if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) {
+      throw Error('Diagnostic private framebuffer incomplete');
+    }
+    report.arms.push(arm('private-rgba8'));
+    gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, saved.draw);
+    gl.bindFramebuffer(gl.READ_FRAMEBUFFER, saved.read);
+    report.arms.push(arm('default-after'));
+    report.observed = true;
+  } catch (error) {
+    report.error = String(error);
+    report.failureErrors = errors();
+  } finally {
+    gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, saved.draw);
+    gl.bindFramebuffer(gl.READ_FRAMEBUFFER, saved.read);
+    gl.bindRenderbuffer(gl.RENDERBUFFER, saved.renderbuffer);
+    // No mask/scissor/viewport/program/texture correction. Keep the renderer's
+    // state cache valid by leaving actual values exactly as they were.
+    if (renderbuffer) gl.deleteRenderbuffer(renderbuffer);
+    if (framebuffer) gl.deleteFramebuffer(framebuffer);
+    report.restorationErrors = errors();
+    report.bindingsRestored =
+      gl.getParameter(gl.DRAW_FRAMEBUFFER_BINDING) === saved.draw &&
+      gl.getParameter(gl.READ_FRAMEBUFFER_BINDING) === saved.read &&
+      gl.getParameter(gl.RENDERBUFFER_BINDING) === saved.renderbuffer;
+  }
+  const clean = (value) => value?.codes.length === 0 && !value.saturated;
+  // Validity concerns the read operations, not whether a clear produced colour.
+  // Valid transparent-zero arms are the result this experiment must retain.
+  report.validComparison =
+    report.observed &&
+    report.bindingsRestored &&
+    !gl.isContextLost() &&
+    width > 0 &&
+    height > 0 &&
+    clean(report.preExistingErrors) &&
+    clean(report.restorationErrors) &&
+    report.inheritedState.colorMask.every(Boolean) &&
+    !report.inheritedState.scissorTest &&
+    !report.inheritedState.rasterizerDiscard &&
+    !report.inheritedState.pixelPackBufferBound &&
+    report.inheritedState.packRowLength === 0 &&
+    report.inheritedState.packSkipPixels === 0 &&
+    report.inheritedState.packSkipRows === 0 &&
+    report.arms.length === 3 &&
+    report.arms.every(
+      (value) =>
+        value.framebufferComplete &&
+        clean(value.clearErrors) &&
+        clean(value.queryErrors) &&
+        value.readBuffer === (value.name === 'private-rgba8' ? gl.COLOR_ATTACHMENT0 : gl.BACK) &&
+        value.drawBuffer === (value.name === 'private-rgba8' ? gl.COLOR_ATTACHMENT0 : gl.BACK) &&
+        value.samples.every((sample) => sample.sentinelOverwritten && clean(sample.readErrors))
+    );
+  return report;
 }

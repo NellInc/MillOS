@@ -2,11 +2,150 @@
 import { Buffer } from 'node:buffer';
 import { afterEach, expect, test, vi } from 'vitest';
 import { encodeRGB } from '../refine-authored-png.mjs';
-import { inspectWorldPresentation, observeCompletedWorldFrame } from './world-presentation.mjs';
+import {
+  contrastFailedDefaultBuffer,
+  inspectWorldPresentation,
+  installColdRenderAttribution,
+  observeCompletedWorldFrame,
+} from './world-presentation.mjs';
 
 afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
+});
+
+function coldRenderFixture() {
+  let clock = 0;
+  let active = null;
+  let disjoint = false;
+  let available = false;
+  const extension = { TIME_ELAPSED_EXT: 1, GPU_DISJOINT_EXT: 2 };
+  const gl = {
+    CURRENT_QUERY: 3,
+    QUERY_RESULT_AVAILABLE: 4,
+    QUERY_RESULT: 5,
+    getExtension: () => extension,
+    getParameter: () => disjoint,
+    getQuery: () => active,
+    getQueryParameter: (_query, property) => (property === 4 ? available : 2_500_000),
+    createQuery: () => ({}),
+    beginQuery: vi.fn((_target, query) => {
+      active = query;
+    }),
+    endQuery: vi.fn(() => {
+      active = null;
+    }),
+    deleteQuery: vi.fn(),
+  };
+  const canvas = {};
+  const devtools = new EventTarget();
+  const window = { __THREE_DEVTOOLS__: devtools };
+  vi.stubGlobal('window', window);
+  vi.stubGlobal('document', { querySelector: () => canvas });
+  vi.stubGlobal('performance', { timeOrigin: 1700, now: () => clock });
+  const renderer = {
+    isWebGLRenderer: true,
+    domElement: canvas,
+    getContext: () => gl,
+    getRenderTarget: () => null,
+    info: { render: { calls: 1 }, programs: [] },
+    render: vi.fn(function () {
+      clock += 20;
+      return this;
+    }),
+  };
+  const original = renderer.render;
+  installColdRenderAttribution();
+  const event = new Event('observe');
+  event.detail = renderer;
+  devtools.dispatchEvent(event);
+  return {
+    renderer,
+    original,
+    gl,
+    window,
+    setDisjoint: () => {
+      disjoint = true;
+    },
+    setAvailable: () => {
+      available = true;
+    },
+  };
+}
+
+test('cold attribution forwards original arguments/receiver and restores only its own render hook', () => {
+  const { renderer, original, window, gl } = coldRenderFixture();
+  const scene = { uuid: 'world', type: 'Scene', children: [] };
+  const camera = { uuid: 'camera' };
+  expect(renderer.render(scene, camera, 'extra')).toBe(renderer);
+  expect(original).toHaveBeenCalledExactlyOnceWith(scene, camera, 'extra');
+  const receipt = window.jevColdRenderAttribution.finish();
+  expect(renderer.render).toBe(original);
+  expect(receipt.rows[0]).toMatchObject({
+    cpuMs: 20,
+    gpuStatus: 'unresolved',
+    scene: { uuid: 'world' },
+  });
+  expect(receipt.rows[0]).not.toHaveProperty('gpuMs');
+  expect(gl.deleteQuery).toHaveBeenCalledTimes(1);
+});
+
+test('cold attribution accepts available GPU results but leaves disjoint queries unassigned', () => {
+  const valid = coldRenderFixture();
+  valid.renderer.render({ uuid: 'first' }, {});
+  valid.setAvailable();
+  expect(valid.window.jevColdRenderAttribution.finish().rows[0]).toMatchObject({
+    gpuStatus: 'valid',
+    gpuMs: 2.5,
+  });
+  const invalid = coldRenderFixture();
+  invalid.renderer.render({ uuid: 'second' }, {});
+  invalid.setDisjoint();
+  const row = invalid.window.jevColdRenderAttribution.finish().rows[0];
+  expect(row.gpuStatus).toBe('disjoint');
+  expect(row).not.toHaveProperty('gpuMs');
+});
+
+test('the same camera in a new cold pose is retained after the initial record limit', () => {
+  const { renderer, window } = coldRenderFixture();
+  let x = 0;
+  const scene = { uuid: 'world' };
+  const camera = { uuid: 'camera', position: { toArray: () => [x, 0, 0] } };
+  for (let index = 0; index < 520; index++) renderer.render(scene, camera);
+  x = 100;
+  renderer.render(scene, camera);
+  const receipt = window.jevColdRenderAttribution.finish();
+  expect(receipt.rows).toHaveLength(512);
+  expect(receipt.droppedRows).toBeGreaterThan(0);
+  expect(receipt.rows.find((row) => row.camera.position[0] === 100)).toMatchObject({ first: true });
+});
+
+test('cold cleanup preserves later render owners and diagnostics cannot mask an original exception', () => {
+  const { renderer, window, gl } = coldRenderFixture();
+  const retainedHook = renderer.render;
+  renderer.render = vi.fn((...args) => retainedHook.apply(renderer, args));
+  const later = renderer.render;
+  gl.getParameter = () => {
+    throw new Error('diagnostic query failed');
+  };
+  renderer.render({}, {});
+  const receipt = window.jevColdRenderAttribution.finish();
+  expect(renderer.render).toBe(later);
+  expect(receipt.errors).toContain('diagnostic query failed');
+  // The renderer's original implementation is captured at observation time.
+  const devtools = window.__THREE_DEVTOOLS__;
+  const throwing = {
+    ...renderer,
+    render: () => {
+      throw new Error('original render failed');
+    },
+  };
+  installColdRenderAttribution();
+  const event = new Event('observe');
+  event.detail = throwing;
+  devtools.dispatchEvent(event);
+  expect(() => throwing.render({}, {})).toThrow('original render failed');
+  window.jevColdRenderAttribution.finish();
 });
 
 function frame(world = false) {
@@ -472,4 +611,125 @@ test('timeout restores the clear and before-frame hooks without replacing later 
   expect(f.renderer.clear).toBe(newerClear);
   expect(f.scene.onBeforeRender).toBe(before);
   expect(f.gl.readPixels).not.toHaveBeenCalled();
+});
+
+// Exercise the new failure-only GL boundary using the established actual-renderer
+// fixture. These tests protect restoration and read validity, not driver behaviour.
+function bufferContrastFixture() {
+  const f = completedFrameFixture();
+  const gl = f.gl;
+  const original = gl.getParameter.getMockImplementation();
+  const savedRenderbuffer = { name: 'existing-renderbuffer' };
+  const framebuffer = { name: 'private-framebuffer' };
+  const renderbuffer = { name: 'private-renderbuffer' };
+  const state = { draw: null, read: null, renderbuffer: savedRenderbuffer };
+  Object.assign(gl, {
+    DRAW_FRAMEBUFFER: 0x8ca9,
+    FRAMEBUFFER: 0x8d40,
+    RENDERBUFFER: 0x8d41,
+    RENDERBUFFER_BINDING: 0x8ca7,
+    COLOR_ATTACHMENT0: 0x8ce0,
+    RGBA8: 0x8058,
+    COLOR_BUFFER_BIT: 0x4000,
+    DEPTH_BUFFER_BIT: 0x0100,
+    STENCIL_BUFFER_BIT: 0x0400,
+    createFramebuffer: vi.fn(() => framebuffer),
+    createRenderbuffer: vi.fn(() => renderbuffer),
+    deleteFramebuffer: vi.fn(),
+    deleteRenderbuffer: vi.fn(),
+    renderbufferStorage: vi.fn(),
+    framebufferRenderbuffer: vi.fn(),
+    clear: vi.fn(),
+    clearColor: vi.fn(),
+    colorMask: vi.fn(),
+    viewport: vi.fn(),
+    scissor: vi.fn(),
+    finish: vi.fn(),
+    bindFramebuffer: vi.fn((target, buffer) => {
+      if (target === gl.FRAMEBUFFER || target === gl.DRAW_FRAMEBUFFER) state.draw = buffer;
+      if (target === gl.FRAMEBUFFER || target === gl.READ_FRAMEBUFFER) state.read = buffer;
+    }),
+    bindRenderbuffer: vi.fn((_target, buffer) => {
+      state.renderbuffer = buffer;
+    }),
+  });
+  gl.getParameter.mockImplementation((key) => {
+    if (key === gl.DRAW_FRAMEBUFFER_BINDING) return state.draw;
+    if (key === gl.READ_FRAMEBUFFER_BINDING) return state.read;
+    if (key === gl.RENDERBUFFER_BINDING) return state.renderbuffer;
+    if (key === gl.READ_BUFFER) return state.read ? gl.COLOR_ATTACHMENT0 : gl.BACK;
+    if (key === gl.DRAW_BUFFER0) return state.draw ? gl.COLOR_ATTACHMENT0 : gl.BACK;
+    return original(key);
+  });
+  gl.readPixels.mockImplementation((_x, _y, _w, _h, _format, _type, bytes) => {
+    bytes.set(state.read ? [112, 174, 216, 255] : [0, 0, 0, 0]);
+  });
+  return { ...f, state, framebuffer, renderbuffer, savedRenderbuffer };
+}
+
+test('failed-context default/private/default reads retain valid zeros and restore bindings', () => {
+  const f = bufferContrastFixture();
+  const result = contrastFailedDefaultBuffer();
+  expect(result).toMatchObject({
+    diagnosticOnly: true,
+    observed: true,
+    validComparison: true,
+    bindingsRestored: true,
+  });
+  expect(result.arms.map((arm) => arm.name)).toEqual([
+    'default-before',
+    'private-rgba8',
+    'default-after',
+  ]);
+  expect(result.arms.map((arm) => arm.samples[0].rgba)).toEqual([
+    [0, 0, 0, 0],
+    [112, 174, 216, 255],
+    [0, 0, 0, 0],
+  ]);
+  expect(f.gl.clear.mock.calls).toEqual([[17664], [17664], [17664]]);
+  expect(f.state).toEqual({ draw: null, read: null, renderbuffer: f.savedRenderbuffer });
+  expect(f.gl.deleteFramebuffer).toHaveBeenCalledExactlyOnceWith(f.framebuffer);
+  expect(f.gl.deleteRenderbuffer).toHaveBeenCalledExactlyOnceWith(f.renderbuffer);
+  for (const method of ['clearColor', 'colorMask', 'viewport', 'scissor', 'finish'])
+    expect(f.gl[method]).not.toHaveBeenCalled();
+  expect(f.renderer.clear).not.toHaveBeenCalled();
+  expect(f.renderer.render).not.toHaveBeenCalled();
+});
+
+test('private buffer allocation failure deletes only allocated resources and keeps old bindings', () => {
+  const f = bufferContrastFixture();
+  f.gl.createRenderbuffer.mockReturnValue(null);
+  const result = contrastFailedDefaultBuffer();
+  expect(result).toMatchObject({
+    observed: false,
+    validComparison: false,
+    bindingsRestored: true,
+    error: 'Error: Diagnostic buffer allocation failed',
+  });
+  expect(result.arms).toHaveLength(1);
+  expect(f.state).toEqual({ draw: null, read: null, renderbuffer: f.savedRenderbuffer });
+  expect(f.gl.deleteFramebuffer).toHaveBeenCalledExactlyOnceWith(f.framebuffer);
+  expect(f.gl.deleteRenderbuffer).not.toHaveBeenCalled();
+});
+
+test('an untouched read sentinel cannot validate the failed-context contrast', () => {
+  const f = bufferContrastFixture();
+  f.gl.readPixels.mockImplementation(() => {});
+  const result = contrastFailedDefaultBuffer();
+  expect(result).toMatchObject({ observed: true, validComparison: false, bindingsRestored: true });
+  expect(
+    result.arms.every((arm) => arm.samples.every((sample) => !sample.sentinelOverwritten))
+  ).toBe(true);
+});
+
+test('a context already targeting an offscreen buffer is observed without correcting it', () => {
+  const f = bufferContrastFixture();
+  f.state.draw = f.framebuffer;
+  expect(contrastFailedDefaultBuffer()).toMatchObject({
+    observed: false,
+    reason: 'Default live context unavailable',
+  });
+  expect(f.gl.clear).not.toHaveBeenCalled();
+  expect(f.gl.createFramebuffer).not.toHaveBeenCalled();
+  expect(f.state.draw).toBe(f.framebuffer);
 });

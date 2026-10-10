@@ -9,13 +9,20 @@ import { performance } from 'node:perf_hooks';
 import { chromium } from 'playwright';
 import { preview } from 'vite';
 import { acquireCaptureLock } from './lib/capture-lock.mjs';
-import { inspectWorldPresentation, observeCompletedWorldFrame } from './lib/world-presentation.mjs';
+import { ownedGpuPid, preflightMetalTrace, startMetalTrace } from './lib/metal-system-trace.mjs';
+import {
+  contrastFailedDefaultBuffer,
+  inspectWorldPresentation,
+  installColdRenderAttribution,
+  observeCompletedWorldFrame,
+} from './lib/world-presentation.mjs';
 import {
   assertHostedMetalCompositor,
   assertMetalBrowserAdmission,
 } from './lib/metal-browser-admission.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const validationStartedAt = performance.now();
 const installedChrome = process.argv.includes('--installed-chrome');
 const output = path.join(
   root,
@@ -30,6 +37,20 @@ const builtDirectory = localMetalDist ? path.resolve(localMetalDist) : path.join
 const softwareRenderer = process.argv.includes('--software-renderer');
 const metalRenderer = process.argv.includes('--metal-renderer') || !!localMetalDist;
 const softwareCompositor = process.argv.includes('--software-compositor');
+const backendLogging = process.argv.includes('--backend-logging');
+const coldRenderAttribution = process.argv.includes('--cold-render-attribution');
+const metalSystemTrace = process.argv.includes('--metal-system-trace');
+if (metalSystemTrace)
+  assert.ok(backendLogging, 'Metal system trace requires hosted backend logging');
+if (coldRenderAttribution) {
+  assert.ok(backendLogging, 'Cold render attribution requires owned backend logging');
+}
+if (backendLogging) {
+  assert.ok(
+    metalRenderer && !localMetalDist && process.env.GITHUB_ACTIONS === 'true',
+    'Backend logging is restricted to the synthetic hosted Metal diagnostic'
+  );
+}
 const advisoryStartup = softwareRenderer || metalRenderer;
 const startupTimeoutMs = softwareRenderer ? 300_000 : 240_000;
 const hostedMetalChrome =
@@ -81,6 +102,9 @@ const report = {
   softwareRenderer,
   metalRenderer,
   softwareCompositor,
+  backendLogging,
+  coldRenderAttribution,
+  metalSystemTrace,
   executionEnvironment: localMetalDist
     ? 'local-diagnostic'
     : process.env.GITHUB_ACTIONS === 'true'
@@ -106,9 +130,24 @@ const checkpoint = async (phase) => {
   console.log(`Jev acceptance: ${phase}`);
 };
 const lock = await acquireCaptureLock('jev-browser-acceptance', { root });
-let browser, server, page;
+let browser, server, page, traceSession;
+const tracePrivateDirectory = path.join(
+  process.env.RUNNER_TEMP ?? root,
+  `millos-metal-trace-${process.pid}`
+);
 try {
   await mkdir(output, { recursive: true });
+  if (metalSystemTrace) {
+    await checkpoint('metal-trace-preflight');
+    assert.ok(process.env.RUNNER_TEMP, 'Hosted trace requires private disposable runner storage');
+    report.metalTracePreflight = await preflightMetalTrace(tracePrivateDirectory);
+    assert.ok(
+      report.metalTracePreflight.templateAvailable &&
+        report.metalTracePreflight.startNotificationAvailable &&
+        report.metalTracePreflight.notificationObserverAvailable,
+      'Hosted Metal tracing capability unavailable'
+    );
+  }
   const html = await readFile(path.join(builtDirectory, 'index.html'), 'utf8');
   if (metalRenderer) {
     report.buildInfo = JSON.parse(
@@ -144,7 +183,15 @@ try {
     chromiumSandbox: true,
     ...(metalRenderer ? { ignoreDefaultArgs: ['--enable-unsafe-swiftshader'] } : {}),
     args: [
+      // CDP command-line auditing requires this; Playwright no longer supplies it.
+      // Working if the audit still verifies the original sandbox/hardware flags.
+      '--enable-automation',
       '--mute-audio',
+      // Chromium143 logging_chrome.cc explicitly supports stderr in release
+      // builds. Service/driver call logging needs a different build; omit it.
+      // Working if the owned GPU process's reset/channel errors survive as
+      // separate evidence, without changing the original world-image verdict.
+      ...(backendLogging ? ['--enable-logging=stderr', '--log-level=0'] : []),
       // Keep browser compositing on its software path. SwiftShader supplies
       // WebGL only, rather than emulating a GPU for the whole browser.
       // https://chromium.googlesource.com/chromium/src/+/main/docs/gpu/swiftshader.md
@@ -163,6 +210,10 @@ try {
     const session = await browser.newBrowserCDPSession();
     try {
       report.browserArguments = (await session.send('Browser.getBrowserCommandLine')).arguments;
+      if (backendLogging) {
+        report.backendProcesses = (await session.send('SystemInfo.getProcessInfo')).processInfo;
+        assert.ok(report.browserArguments.includes('--enable-logging=stderr'));
+      }
       if (hostedMetalChrome) {
         assert.equal(
           report.browserVersion,
@@ -197,6 +248,14 @@ try {
       await session.detach();
     }
   }
+  if (metalSystemTrace) {
+    await checkpoint('metal-trace-start');
+    traceSession = await startMetalTrace(
+      ownedGpuPid(report.backendProcesses),
+      tracePrivateDirectory
+    );
+    assert.ok(traceSession.started, 'Owned GPU trace did not confirm recording before navigation');
+  }
   await checkpoint('browser-context');
   const context = await browser.newContext({ serviceWorkers: 'block', reducedMotion: 'reduce' });
   // Persist actual work barriers while waiting. A runner timeout can otherwise
@@ -211,6 +270,9 @@ try {
     });
     await checkpoint(report.phase);
   });
+  if (coldRenderAttribution) {
+    await context.addInitScript({ content: `(${installColdRenderAttribution.toString()})();` });
+  }
   await context.addInitScript(() => {
     const intervals = [];
     let previous;
@@ -271,8 +333,9 @@ try {
 
   await context.addInitScript(() => {
     // Three's existing devtools event identifies the actual renderer and scenes.
-    // No frame hook/readback runs until after the acceptance screenshot.
-    window.__THREE_DEVTOOLS__ = new EventTarget();
+    // Only the explicit hosted cold-pass diagnostic hooks render before the image.
+    // Init-script ordering is unspecified: retain the installer's event target.
+    window.__THREE_DEVTOOLS__ ??= new EventTarget();
     window.jevObservedThree = [];
     window.__THREE_DEVTOOLS__.addEventListener('observe', (event) => {
       window.jevObservedThree.push(event.detail);
@@ -533,9 +596,30 @@ try {
     timeout: remainingStartupBudget(),
   });
   report.worldPixels = inspectWorldPresentation(worldImage);
+  if (coldRenderAttribution) {
+    report.coldRenderDiagnostic = await withinStartupBudget(() =>
+      page.evaluate(() => window.jevColdRenderAttribution?.finish())
+    );
+  }
   report.completedFrameDiagnostic = await withinStartupBudget(() =>
     page.evaluate(observeCompletedWorldFrame, Math.min(5000, remainingStartupBudget()))
   );
+  // Once only, in the actual failed context, after the immutable image and
+  // ordinary-frame receipt. Diagnostic clears cannot replace the image verdict.
+  // Working if a failing default/private/default contrast stays a failed Build.
+  if (!report.worldPixels.passed) {
+    try {
+      report.failedDefaultBufferContrast = await withinStartupBudget(() =>
+        page.evaluate(contrastFailedDefaultBuffer)
+      );
+    } catch (error) {
+      report.failedDefaultBufferContrast = {
+        diagnosticOnly: true,
+        observed: false,
+        error: error.message,
+      };
+    }
+  }
   assert.equal(
     report.worldPixels.passed,
     true,
@@ -568,6 +652,7 @@ try {
           framePacing: window.__MILLOS_RUNTIME__?.framePacingSnapshot() ?? null,
           loaderText: document.querySelector('[role="dialog"][aria-label="Loading MillOS"]')
             ?.textContent,
+          coldRenderDiagnostic: window.jevColdRenderAttribution?.finish(),
         })),
         new Promise((_, reject) => {
           diagnosticTimer = setTimeout(
@@ -589,6 +674,26 @@ try {
   }
   process.exitCode = 1;
 } finally {
+  // Save the original application verdict before potentially slow trace export.
+  // Working if profiler failure/timeout cannot erase or replace visual evidence.
+  await writeFile(path.join(output, 'result.json'), `${JSON.stringify(report, null, 2)}\n`);
+  if (traceSession) {
+    try {
+      const remainingStepMs = Math.max(
+        0,
+        480_000 - (performance.now() - validationStartedAt) - 15_000
+      );
+      report.metalTrace = await traceSession.finish(
+        Date.now() + Math.min(120_000, remainingStepMs)
+      );
+    } catch {
+      report.metalTrace = {
+        diagnosticOnly: true,
+        status: 'export-unavailable',
+        rawUploaded: false,
+      };
+    }
+  }
   await writeFile(path.join(output, 'result.json'), `${JSON.stringify(report, null, 2)}\n`);
   console.log(JSON.stringify(report, null, 2));
   await browser?.close();
