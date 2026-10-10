@@ -10,6 +10,7 @@ import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Target, X, Lightbulb, AlertTriangle, Gauge } from 'lucide-react';
 import { useAIConfigStore } from '../../stores/aiConfigStore';
+import { CLOUD_MODELS } from '../../utils/cloudAIClient';
 import { ConfidenceBar } from './ConfidenceBar';
 
 interface StrategicPriorityCardsProps {
@@ -62,9 +63,9 @@ export const StrategicPriorityCards: React.FC<StrategicPriorityCardsProps> = ({
               <span className="text-sm text-cyan-400">
                 {llmBackend === 'webgpu'
                   ? 'Local core analyzing...'
-                  : llmBackend === 'haiku'
-                    ? 'Haiku analyzing...'
-                    : 'Luna analyzing...'}
+                  : llmBackend === 'chatgpt'
+                    ? 'ChatGPT analyzing...'
+                    : `${CLOUD_MODELS[llmBackend].label} analyzing...`}
               </span>
             </div>
           </motion.div>

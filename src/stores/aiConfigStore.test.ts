@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { useAIConfigStore } from './aiConfigStore';
 
 describe('AI preferences migration', () => {
@@ -30,6 +30,24 @@ describe('AI preferences migration', () => {
     expect(JSON.stringify(saved)).not.toMatch(/secret|key|connectedProviders/);
   });
 
+  it('migrates public direct-provider preferences to OpenRouter without credentials', () => {
+    const originalWindow = window;
+    vi.stubGlobal('window', { location: { hostname: 'www.millos.net' } });
+    try {
+      const migrate = useAIConfigStore.persist.getOptions().migrate!;
+      expect(migrate({ llmBackend: 'haiku', aiMode: 'hybrid' }, 1)).toEqual({
+        llmBackend: 'openrouter-haiku',
+        aiMode: 'heuristic',
+      });
+      expect(migrate({ llmBackend: 'luna', aiMode: 'hybrid' }, 1)).toEqual({
+        llmBackend: 'openrouter-luna',
+        aiMode: 'heuristic',
+      });
+    } finally {
+      vi.stubGlobal('window', originalWindow);
+    }
+  });
+
   it('rewrites a real version-zero persisted record without the legacy key', async () => {
     const originalStorage = useAIConfigStore.persist.getOptions().storage;
     let stored = {
@@ -47,7 +65,7 @@ describe('AI preferences migration', () => {
     });
     try {
       await useAIConfigStore.persist.rehydrate();
-      expect(stored.version).toBe(1);
+      expect(stored.version).toBe(2);
       expect(stored.state).toEqual({ aiMode: 'heuristic', llmBackend: 'haiku' });
       expect(JSON.stringify(stored)).not.toContain('legacy-secret');
     } finally {
