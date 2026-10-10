@@ -330,25 +330,22 @@ export class CloudAIClient {
         usage.cost_details && typeof usage.cost_details === 'object'
           ? (usage.cost_details as Record<string, unknown>)
           : {};
+      const upstreamCost = costDetails.upstream_inference_cost;
+      const upstreamValid =
+        (typeof upstreamCost === 'number' && Number.isFinite(upstreamCost) && upstreamCost >= 0) ||
+        ((upstreamCost === undefined || upstreamCost === null) && usage.is_byok === false);
       if (
         isOpenRouter &&
         (!Number.isFinite(usage.cost) ||
           typeof usage.cost !== 'number' ||
           usage.cost < 0 ||
-          !Object.hasOwn(costDetails, 'upstream_inference_cost') ||
-          (costDetails.upstream_inference_cost !== null &&
-            (typeof costDetails.upstream_inference_cost !== 'number' ||
-              !Number.isFinite(costDetails.upstream_inference_cost) ||
-              costDetails.upstream_inference_cost < 0)))
+          !upstreamValid)
       )
         throw new Error(
           'OpenRouter did not report a verifiable USD charge. Paid inference stopped.'
         );
       const openRouterCost = isOpenRouter
-        ? (usage.cost as number) +
-          (typeof costDetails.upstream_inference_cost === 'number'
-            ? costDetails.upstream_inference_cost
-            : 0)
+        ? (usage.cost as number) + (typeof upstreamCost === 'number' ? upstreamCost : 0)
         : undefined;
       this.budget.settle(reservation, {
         inputTokens,

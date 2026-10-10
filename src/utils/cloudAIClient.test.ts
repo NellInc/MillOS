@@ -222,6 +222,24 @@ describe('CloudAIClient browser BYOK contract', () => {
     expect(budget.getSnapshot().spentUsd).toBeCloseTo(0.00073, 10);
   });
 
+  it('accepts an explicit non-BYOK charge without an upstream cost field', async () => {
+    const response = openRouterResponse();
+    vi.stubGlobal(
+      'fetch',
+      openRouterFetch({
+        ...response,
+        usage: { ...response.usage, is_byok: false, cost_details: undefined },
+      })
+    );
+    const budget = new SpendBudget();
+    budget.setCap(0.01);
+    const client = new CloudAIClient(budget);
+    client.setKey('openrouter-haiku', 'or-key');
+    await client.generateContent('openrouter-haiku', 'Plant telemetry');
+    expect(budget.getSnapshot().spentUsd).toBeCloseTo(0.00042, 10);
+    expect(budget.getSnapshot().uncertainUsd).toBe(0);
+  });
+
   it('checks a limited OpenRouter key without a paid inference call', async () => {
     const fetchMock = openRouterFetch();
     vi.stubGlobal('fetch', fetchMock);
@@ -278,7 +296,7 @@ describe('CloudAIClient browser BYOK contract', () => {
     const response = openRouterResponse();
     const fetchMock = openRouterFetch({
       ...response,
-      usage: { ...response.usage, cost_details: {} },
+      usage: { ...response.usage, is_byok: true, cost_details: {} },
     });
     vi.stubGlobal('fetch', fetchMock);
     const budget = new SpendBudget();
