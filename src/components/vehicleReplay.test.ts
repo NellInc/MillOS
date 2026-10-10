@@ -105,6 +105,44 @@ afterEach(() => {
 });
 
 describe('component-owned vehicle replay', () => {
+  it('retains both truck models across distance hysteresis without remounting finishes', () => {
+    const findLod = (node: any): any => {
+      if (!node) return undefined;
+      if (Array.isArray(node)) return node.map(findLod).find(Boolean);
+      if (node.type?.name === 'TruckVisualLOD') return node;
+      return findLod(node.props?.children);
+    };
+    const element = findLod(TruckBay({ productionSpeed: 0 }));
+    expect(element).toBeDefined();
+    const tree = element.type(element.props);
+    const [full, compact] = tree.props.children;
+    expect(full.props.name).toBe('truck-full-detail');
+    expect(compact.props.name).toBe('truck-compact-detail');
+    expect(compact.props.visible).toBe(false);
+    const fullGroup = full.props.ref.current as THREE.Group;
+    const compactGroup = compact.props.ref.current as THREE.Group;
+    compactGroup.visible = false; // Apply the JSX prop in the unmounted harness.
+    const frame = harness.frames.at(-1)!;
+    const state = element.props.stateRef.current;
+    const visit = (distance: number) => {
+      camera.position.set(state.x + distance, 0, state.z);
+      for (let i = 0; i < 15; i++) frame({ camera }, 0.016);
+      expect(Number(fullGroup.visible) + Number(compactGroup.visible)).toBe(1);
+    };
+    const children = [full.props.children, compact.props.children];
+    visit(136);
+    expect(fullGroup.visible).toBe(false);
+    visit(130);
+    expect(fullGroup.visible).toBe(false);
+    visit(119);
+    expect(fullGroup.visible).toBe(true);
+    visit(130);
+    expect(fullGroup.visible).toBe(true);
+    visit(136);
+    visit(119);
+    expect([full.props.children, compact.props.children]).toEqual(children);
+  });
+
   it('restores both truck fixed-step authorities and publishes without lifecycle writes', () => {
     TruckBay({ productionSpeed: 0 });
     flushEffects();

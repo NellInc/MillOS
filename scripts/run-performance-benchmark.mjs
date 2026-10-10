@@ -6,6 +6,10 @@ import process from 'node:process';
 import { chromium } from '@playwright/test';
 import { acquireCaptureLock } from './lib/capture-lock.mjs';
 import { classifyDiagnostics } from './lib/diagnostics.mjs';
+import {
+  assertPreviewBuildIdentity,
+  assertPreviewPortAvailable,
+} from './lib/preview-build-identity.mjs';
 
 const ROOT = process.cwd();
 const DEFAULT_OUTPUT = path.join(ROOT, 'test-results', 'runtime-benchmarks');
@@ -44,6 +48,48 @@ function readArgument(name, fallback) {
 
 function hasFlag(name) {
   return process.argv.includes(`--${name}`);
+}
+
+// Silently ignored switches can change the browser or stop all simulation
+// motion. Working if unsupported switches fail before preview/browser launch.
+const valueArguments = new Set([
+  'base-url',
+  'port',
+  'channel',
+  'executable-path',
+  'quality',
+  'device-scale-factor',
+  'scenes',
+  'duration',
+  'warmup',
+  'settle-timeout',
+  'time',
+  'weather',
+  'scada',
+  'pa',
+  'disable-systems',
+  'network-profile',
+  'output',
+]);
+const flagArguments = new Set([
+  'motion',
+  'art',
+  'compare-scada',
+  'startup-only',
+  'headed',
+  'report-only',
+  'help',
+  'h',
+]);
+for (const argument of process.argv.slice(2)) {
+  const value = /^--([^=]+)=/.exec(argument);
+  if (
+    value
+      ? valueArguments.has(value[1])
+      : flagArguments.has(argument.slice(2)) && argument.startsWith('--')
+  )
+    continue;
+  throw new Error(`Unsupported benchmark argument: ${argument}. Use --help for valid switches.`);
 }
 
 if (hasFlag('help') || hasFlag('h')) {
@@ -235,6 +281,7 @@ async function waitForServer(url, timeoutMs = 30000) {
 }
 
 async function startPreview() {
+  await assertPreviewPortAvailable(options.previewPort);
   const indexPath = path.join(ROOT, 'dist', 'index.html');
   await access(indexPath).catch(() => {
     throw new Error('dist/index.html is missing. Run npm run build before the benchmark.');
@@ -1035,6 +1082,11 @@ async function main() {
   // measures the other process rather than the scene.
   captureLock = await acquireCaptureLock(`benchmark:${options.scenes.join('+')}`, { root: ROOT });
   const baseUrl = options.baseUrl || (await startPreview());
+  const buildIdentity = await assertPreviewBuildIdentity(baseUrl, path.join(ROOT, 'dist'));
+  await writeFile(
+    path.join(options.output, 'preview-build-identity.json'),
+    `${JSON.stringify(buildIdentity, null, 2)}\n`
+  );
   const browser = await chromium.launch({
     headless: !options.headed,
     chromiumSandbox: true,
@@ -1175,6 +1227,7 @@ async function main() {
     browserArguments,
     gpu,
     requestedChromiumSandbox: true,
+    buildIdentity,
     options,
     throttle:
       NETWORK_PROFILES[options.networkProfile] === null

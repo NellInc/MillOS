@@ -655,7 +655,8 @@ const TruckVisualLOD: React.FC<TruckVisualLODProps> = ({
   stateRef,
   grime,
 }) => {
-  const [fullDetail, setFullDetail] = useState(true);
+  const fullGroupRef = useRef<THREE.Group>(null);
+  const compactGroupRef = useRef<THREE.Group>(null);
   const fullDetailRef = useRef(true);
   const frameRef = useRef(0);
 
@@ -672,20 +673,29 @@ const TruckVisualLOD: React.FC<TruckVisualLODProps> = ({
       dx * dx + camera.position.y * camera.position.y + dz * dz <= threshold * threshold;
     if (nextFullDetail === fullDetailRef.current) return;
     fullDetailRef.current = nextFullDetail;
-    setFullDetail(nextFullDetail);
+    if (fullGroupRef.current) fullGroupRef.current.visible = nextFullDetail;
+    if (compactGroupRef.current) compactGroupRef.current.visible = !nextFullDetail;
   });
 
-  return fullDetail ? (
-    <OptimizedTruckVisual
-      colour={colour}
-      company={company}
-      plateNumber={plateNumber}
-      wheelRotationRef={wheelRotationRef}
-      stateRef={stateRef}
-      grime={grime}
-    />
-  ) : (
-    <CompactTruckVisual colour={colour} stateRef={stateRef} />
+  // Remounting full detail disposed its finishes and caused six first-use
+  // shader waits on approach. Keep animation state current in both subtrees.
+  // Working if crossings retain material identity and draw exactly one LOD.
+  return (
+    <>
+      <group ref={fullGroupRef} name="truck-full-detail">
+        <OptimizedTruckVisual
+          colour={colour}
+          company={company}
+          plateNumber={plateNumber}
+          wheelRotationRef={wheelRotationRef}
+          stateRef={stateRef}
+          grime={grime}
+        />
+      </group>
+      <group ref={compactGroupRef} name="truck-compact-detail" visible={false}>
+        <CompactTruckVisual colour={colour} stateRef={stateRef} />
+      </group>
+    </>
   );
 };
 
