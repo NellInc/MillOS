@@ -634,6 +634,15 @@ const ShopBuilding = React.memo<{
   >
     <GeneratedBody
       asset="shop"
+      shopTrade={
+        signText === 'BAKER' || signText === 'BAKERY'
+          ? 'bakery'
+          : signText === 'BUTCHER'
+            ? 'butcher'
+            : signText === 'GENERAL STORE'
+              ? 'general'
+              : undefined
+      }
       fallback={
         <ShopBuildingPrimitiveBody
           wallColor={wallColor}

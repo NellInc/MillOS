@@ -19,7 +19,11 @@ import * as THREE from 'three';
 import { useDracoGLTF } from '../../utils/dracoLoader';
 import { GENERATED_ASSET_PATHS, type GeneratedAssetId } from '../../utils/modelLoader';
 import ErrorBoundary from '../ErrorBoundary';
-import { applyVillageWindows } from './GeneratedOfficeModel';
+import {
+  applyShopWindows,
+  applyVillageWindows,
+  type VillageShopTrade,
+} from './GeneratedOfficeModel';
 
 const VILLAGE_GLAZING = new Set<GeneratedAssetId>([
   'cottage',
@@ -43,11 +47,11 @@ const VILLAGE_GLAZING = new Set<GeneratedAssetId>([
  * arrangement, near-same rotation. No per-instance colour, rotation or scale
  * variation anywhere."
  *
- * NOT A TINT, DELIBERATELY. `Cottage` and `ShopBuilding` still carry
- * `wallColor` props, and wiring them to the generated body would multiply a
- * baked albedo by a colour - the exact symptom-fix pattern CLAUDE.md records
- * for the village cobbles, where a `#9a9a9a` compensator was hiding a decode
- * bug. Geometry variation costs nothing and lies to no one.
+ * Geometry variation preserves the authored whole-building albedo. Shops
+ * additionally select explicit trade paint on their green joinery swatch,
+ * leaving the masonry, linen, roof and glazing unchanged. The old wallColor
+ * prop still belongs only to the primitive fallback; it is never multiplied
+ * into the delivered atlas.
  *
  * DETERMINISTIC, from the call site's own position rather than `Math.random`.
  * A random draw here re-rolls on every remount, which defeats `React.memo`,
@@ -90,6 +94,8 @@ export const instanceScale = (position: readonly [number, number, number]): numb
 
 export interface GeneratedModelProps {
   asset: GeneratedAssetId;
+  /** Explicit authored shop paint; other assets retain their existing palette. */
+  shopTrade?: VillageShopTrade;
   /**
    * Uniform scale. The assets are authored at their shipped size, so this is
    * for the handful of call sites that genuinely want a variant - a smaller
@@ -123,6 +129,7 @@ export interface GeneratedModelProps {
 
 export const GeneratedModel: React.FC<GeneratedModelProps> = ({
   asset,
+  shopTrade,
   scale,
   sink,
   castShadow,
@@ -139,20 +146,24 @@ export const GeneratedModel: React.FC<GeneratedModelProps> = ({
       if (VILLAGE_GLAZING.has(asset) && mesh.material instanceof THREE.MeshStandardMaterial) {
         const material = mesh.material.clone();
         // Lancet glazing and forge workrooms keep their architectural character.
-        applyVillageWindows(
-          material,
-          undefined,
-          asset !== 'church' && asset !== 'forge',
-          asset === 'church'
-            ? 'stained'
-            : asset === 'castle'
-              ? 'castle'
-              : asset === 'pub'
-                ? 'amber'
-                : asset === 'townhall'
-                  ? 'civic'
-                  : 'glass'
-        );
+        if (asset === 'shop' && shopTrade) {
+          applyShopWindows(material, shopTrade);
+        } else {
+          applyVillageWindows(
+            material,
+            undefined,
+            asset !== 'church' && asset !== 'forge',
+            asset === 'church'
+              ? 'stained'
+              : asset === 'castle'
+                ? 'castle'
+                : asset === 'pub'
+                  ? 'amber'
+                  : asset === 'townhall'
+                    ? 'civic'
+                    : 'glass'
+          );
+        }
         mesh.material = material;
         materials.push(material);
       }
@@ -163,7 +174,7 @@ export const GeneratedModel: React.FC<GeneratedModelProps> = ({
         receiveShadow ?? (typeof authoredReceive === 'boolean' ? authoredReceive : true);
     });
     return { model: clone, materials };
-  }, [scene, asset, castShadow, receiveShadow]);
+  }, [scene, asset, shopTrade, castShadow, receiveShadow]);
   useEffect(() => () => materials.forEach((material) => material.dispose()), [materials]);
 
   return (
@@ -212,6 +223,7 @@ GeneratedBoundary.displayName = 'GeneratedBoundary';
 
 export const GeneratedBody: React.FC<GeneratedBodyProps> = ({
   asset,
+  shopTrade,
   scale,
   sink,
   castShadow,
@@ -221,6 +233,7 @@ export const GeneratedBody: React.FC<GeneratedBodyProps> = ({
   <GeneratedBoundary fallback={fallback}>
     <GeneratedModel
       asset={asset}
+      shopTrade={shopTrade}
       scale={scale}
       sink={sink}
       castShadow={castShadow}

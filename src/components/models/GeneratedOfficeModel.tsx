@@ -306,3 +306,46 @@ export function applyVillageWindows(
   };
   material.customProgramCacheKey = () => 'millos-authored-village-windows-v6';
 }
+
+export type VillageShopTrade = 'bakery' | 'butcher' | 'general';
+
+// Match the installed nameboards. Only the shop atlas's green joinery and
+// canvas stripe are repainted; cream linen, masonry, roof and glass keep
+// their authored albedo. This is an intentional paint palette, not a global
+// colour-space compensator. Working if three real fronts have distinct paint
+// while their cream stripes and warm rooms remain unchanged.
+export const SHOP_JOINERY_COLOURS = {
+  bakery: '#75454a',
+  butcher: '#365043',
+  general: '#263f55',
+} as const;
+const AUTHORED_SHOP_GREEN = new THREE.Color('#476454');
+
+export function applyShopWindows(material: THREE.MeshStandardMaterial, trade: VillageShopTrade) {
+  applyVillageWindows(material);
+  const windows = material.onBeforeCompile;
+  const windowKey = material.customProgramCacheKey;
+  const paint = new THREE.Color(SHOP_JOINERY_COLOURS[trade]);
+  const ratio = new THREE.Color().setRGB(
+    paint.r / AUTHORED_SHOP_GREEN.r,
+    paint.g / AUTHORED_SHOP_GREEN.g,
+    paint.b / AUTHORED_SHOP_GREEN.b
+  );
+  material.onBeforeCompile = (shader, renderer) => {
+    windows.call(material, shader, renderer);
+    shader.uniforms.shopJoineryTint = { value: ratio };
+    shader.fragmentShader = `uniform vec3 shopJoineryTint;\n${shader.fragmentShader}`.replace(
+      '#include <map_fragment>',
+      `#include <map_fragment>
+       // Green is slot 9: column 1, flipped glTF row 1. The padded
+       // swatch never touches glass in column 2 or linen in column 0.
+       float shopJoinery = step(0.25, vVillageUV.x) * (1.0 - step(0.5, vVillageUV.x))
+         * step(0.25, vVillageUV.y) * (1.0 - step(0.5, vVillageUV.y));
+       diffuseColor.rgb *= mix(vec3(1.0), shopJoineryTint, shopJoinery);`
+    );
+  };
+  // All three paints share one compiled variant; only linear uniform values
+  // differ. Installing again resets the window hook before wrapping it.
+  material.customProgramCacheKey = () =>
+    `millos-authored-shop-joinery-v1|${windowKey.call(material)}`;
+}

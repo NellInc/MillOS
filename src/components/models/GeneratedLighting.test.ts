@@ -5,6 +5,8 @@ import {
   applyOfficeWindows,
   applyApartmentWindows,
   applyVillageWindows,
+  applyShopWindows,
+  SHOP_JOINERY_COLOURS,
   VILLAGE_INTERIOR_STRENGTH,
 } from './GeneratedOfficeModel';
 import { applyBoatPortholes } from './GeneratedBoatModel';
@@ -321,4 +323,41 @@ it('opens warmer civic rooms only on the town-hall glass atlas contract', () => 
   expect(civic.uniforms.villageTileOrigin.value.toArray()).toEqual([0.5, 0.25]);
   expect(civic.fragmentShader).toContain('mix(1.0, 2.5, villageCivic)');
   expect(civic.fragmentShader).toContain('desk * villageCivic * 0.65');
+});
+
+it('repaints only the authored shop joinery swatch, retaining grain, linen and room lighting', () => {
+  const material = new THREE.MeshStandardMaterial();
+  const original = new THREE.Color('#476454');
+  const keys = new Set<string>();
+  for (const trade of ['bakery', 'butcher', 'general'] as const) {
+    applyShopWindows(material, trade);
+    const shader = {
+      uniforms: {},
+      vertexShader: '#include <begin_vertex>',
+      fragmentShader: '#include <map_fragment>\n#include <emissivemap_fragment>',
+    } as Parameters<typeof material.onBeforeCompile>[0];
+    material.onBeforeCompile(shader, {} as THREE.WebGLRenderer);
+    const ratio = shader.uniforms.shopJoineryTint.value as THREE.Color;
+    const target = new THREE.Color(SHOP_JOINERY_COLOURS[trade]);
+    expect(original.r * ratio.r).toBeCloseTo(target.r, 10);
+    expect(original.g * ratio.g).toBeCloseTo(target.g, 10);
+    expect(original.b * ratio.b).toBeCloseTo(target.b, 10);
+    expect(shader.fragmentShader.match(/uniform vec3 shopJoineryTint;/g)).toHaveLength(1);
+    expect(shader.fragmentShader).toContain(
+      'diffuseColor.rgb *= mix(vec3(1.0), shopJoineryTint, shopJoinery)'
+    );
+    expect(shader.fragmentShader).toContain(
+      'step(0.25, vVillageUV.x) * (1.0 - step(0.5, vVillageUV.x))'
+    );
+    expect(shader.fragmentShader).toContain(
+      'step(0.25, vVillageUV.y) * (1.0 - step(0.5, vVillageUV.y))'
+    );
+    expect(shader.uniforms.villageTileOrigin.value.toArray()).toEqual([0.5, 0.25]);
+    expect(shader.uniforms.villageCurtains.value).toBe(1);
+    expect(shader.uniforms.villageInteriorStrength).toBe(VILLAGE_INTERIOR_STRENGTH);
+    expect(material.color.getHex()).toBe(0xffffff);
+    keys.add(material.customProgramCacheKey());
+  }
+  expect(keys.size).toBe(1);
+  material.dispose();
 });
