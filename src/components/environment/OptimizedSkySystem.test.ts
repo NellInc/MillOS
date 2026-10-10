@@ -136,8 +136,9 @@ describe('mountain ridge geometry', () => {
   it('gives the site-anchored foothills broad slopes rather than a narrow wall', () => {
     for (const geometry of MOUNTAIN_RIDGE_GEOMETRIES.slice(1)) {
       const positions = geometry.getAttribute('position');
+      const rows = positions.count / (MOUNTAIN_RIDGE_SEGMENTS + 1);
       for (let column = 0; column < MOUNTAIN_RIDGE_SEGMENTS; column++) {
-        const foot = column * MOUNTAIN_RIDGE_ROWS;
+        const foot = column * rows;
         const peak = foot + MOUNTAIN_RIDGE_ROWS - 1;
         const run =
           Math.hypot(positions.getX(peak), positions.getZ(peak)) -
@@ -150,8 +151,9 @@ describe('mountain ridge geometry', () => {
 
   it('keeps the nearest foothill summits subordinate to the grain elevator', () => {
     const positions = MOUNTAIN_RIDGE_GEOMETRIES[2].getAttribute('position');
+    const rows = positions.count / (MOUNTAIN_RIDGE_SEGMENTS + 1);
     const summits = Array.from({ length: MOUNTAIN_RIDGE_SEGMENTS }, (_, index) =>
-      positions.getY(index * MOUNTAIN_RIDGE_ROWS + MOUNTAIN_RIDGE_ROWS - 1)
+      positions.getY(index * rows + MOUNTAIN_RIDGE_ROWS - 1)
     );
     expect(Math.max(...summits)).toBeLessThan(40);
     expect(SITE_LAYOUT.bulkStorage.elevator.height).toBeGreaterThan(40);
@@ -349,6 +351,37 @@ describe('ridge weather extinction', () => {
 });
 
 describe('solid fixed foothills', () => {
+  it('keeps every wooded slope advancing outward without folded, back-facing strips', () => {
+    let minimumAdvance = Infinity;
+    for (const geometry of MOUNTAIN_RIDGE_GEOMETRIES.slice(1)) {
+      const positions = geometry.getAttribute('position');
+      const rows = positions.count / (MOUNTAIN_RIDGE_SEGMENTS + 1);
+      for (let column = 0; column < MOUNTAIN_RIDGE_SEGMENTS; column++) {
+        for (let row = 1; row < rows; row++) {
+          const i = column * rows + row;
+          minimumAdvance = Math.min(
+            minimumAdvance,
+            Math.hypot(positions.getX(i), positions.getZ(i)) -
+              Math.hypot(positions.getX(i - 1), positions.getZ(i - 1))
+          );
+        }
+      }
+    }
+    expect(minimumAdvance).toBeGreaterThan(0);
+  });
+
+  it('returns wooded hills to ground behind the crest instead of ending as an open shelf', () => {
+    for (const geometry of MOUNTAIN_RIDGE_GEOMETRIES.slice(1)) {
+      const positions = geometry.getAttribute('position');
+      const rows = positions.count / (MOUNTAIN_RIDGE_SEGMENTS + 1);
+      for (let column = 0; column < MOUNTAIN_RIDGE_SEGMENTS; column++) {
+        const foot = column * rows;
+        const back = foot + rows - 1;
+        expect(positions.getY(back)).toBeLessThanOrEqual(positions.getY(foot) + 0.001);
+      }
+    }
+  });
+
   it('writes opaque terrain depth without a height-based alpha hole', () => {
     for (const anchored of [false, true]) {
       const material = createRidgeMaterial(0.08, 'test-ridge', anchored);
@@ -357,7 +390,7 @@ describe('solid fixed foothills', () => {
       expect(material.fragmentShader).toContain('gl_FragColor = vec4(lit, 1.0)');
       expect(material.fragmentShader).not.toContain('groundBlend');
       expect(material.fragmentShader).not.toContain('sampler');
-      expect(material.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v9');
+      expect(material.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v10');
       material.dispose();
     }
   });
@@ -382,8 +415,9 @@ describe('solid fixed foothills', () => {
       expect(hit).toBeDefined();
       expect(hit.point.y).toBeLessThan(23);
       const positions = geometry.getAttribute('position');
+      const rows = positions.count / (MOUNTAIN_RIDGE_SEGMENTS + 1);
       for (let column = 0; column < MOUNTAIN_RIDGE_SEGMENTS; column++) {
-        const foot = column * MOUNTAIN_RIDGE_ROWS;
+        const foot = column * rows;
         const x = positions.getX(foot),
           z = positions.getZ(foot);
         expect(positions.getY(foot)).toBeLessThan(sampleValleyGroundHeight(x, z, 128));

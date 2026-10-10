@@ -27,7 +27,7 @@ The plan covers five batches, cross-cutting atmosphere and gameplay clarity. Old
 - Goal created, 3486 characters.
 - Source baseline and custody checked. Baseline focused:16 files /125 tests passed, no failing names. Typecheck/build pass (3695 modules,17.94s).
 - Five batches integrated across architectural assets, grounds, atmosphere, interiors, workers, water, machine fittings and completion guidance.
-- Existing asset/delivery tests:33 pass, root model/lighting checks:52 pass, assets148 pass. Final required gates and matched rendering in progress.
+- Existing asset/delivery tests:33 pass, root model/lighting checks:52 pass, assets148 pass. Required typecheck/lint/format/build/reachability gates passed. Full suite:256 files/2835 tests passed before the final bounded landscape correction; correction checks:41 tests/3 files pass.
 - UI detector clear,32 shader families/35 stable keys and depth/community gates pass.
 - Baseline native Metal captures retained. `houses` is an invalid camera name and is excluded from acceptance; its fallback image is not evidence for homes. Valid village camera frames the houses.
 - Original performance budgets retained. Baseline host load was2.55 to4.44/core; art-mode timing failures are observations, not production budget verdicts.
@@ -38,3 +38,10 @@ The plan covers five batches, cross-cutting atmosphere and gameplay clarity. Old
 - Stale all-complete quality advice reproduced by focused test; settled programmes now lead to review while unresolved incidents retain their control path.
 - Initial source detail/motion changes exceeded existing door/boat/geometry/readability gates. Simplified construction and preserved glance amplitude to pass unchanged limits.
 - Reachability initially rejected the stale pre-registry build; final gate follows the fresh coherent build.
+
+## Rendered correction
+- Self-review: implementation was produced by this session, including delegated lanes. Rendered acceptance uses the actual images, never the worker verdict alone.
+- Day/dusk review exposed folded foothill terraces and open crest shelves. Regression reproduced: minimum radial step -1.7866 m; outer crest33.6439 m versus ground-2.999 m.
+- Corrected monotonic wooded slope radii and six descending terrace rows, with softer clearing contrast. Original tunnel-tail contact, grove occlusion, summit heights and snow limits retained.41 focused tests pass.
+- Day, dusk, rainy night and Low snapshots have no console/page/request errors and valid motion/world continuity. Original budgets remain unchanged; art-mode timings are indicative only.
+- Final corrected runtime capture, ordinary UI dispatch programme and finite acceptance remain in progress.

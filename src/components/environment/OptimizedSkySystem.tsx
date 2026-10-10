@@ -307,9 +307,9 @@ void main() {
   // The foothills are wooded, with clearings rather than a bright meadow
   // blanket. Reuse the two existing scales, so the finish keeps its sample budget.
   float clearing = meadow * smoothstep(0.42, 0.66, forest);
-  vec3 vegetation = mix(vec3(0.042, 0.078, 0.041),
-    vec3(0.155, 0.195, 0.065), clearing);
-  float finish = mix(0.5 + forest * 1.15, 0.4 + veins * 0.8 + scree * 0.32, rock);
+  vec3 vegetation = mix(vec3(0.054, 0.084, 0.050),
+    vec3(0.101, 0.139, 0.085), clearing);
+  float finish = mix(0.88 + forest * 0.32, 0.4 + veins * 0.8 + scree * 0.32, rock);
   vec3 detailedAlbedo = mix(vegetation, vRidgeColor, rock) * finish;
   // Preserve snow through the mineral finish. Shallow shoulders retain cover,
   // steep faces expose rock; gullies soften the boundary without more samples.
@@ -604,7 +604,8 @@ export function createMountainRidgeGeometry({
   rollingHills = false,
 }: MountainRidgeSpec): THREE.BufferGeometry {
   const segments = MOUNTAIN_RIDGE_SEGMENTS;
-  const rows = MOUNTAIN_RIDGE_ROWS;
+  const backRows = rollingHills ? 6 : 0;
+  const rows = MOUNTAIN_RIDGE_ROWS + backRows;
   const positions: number[] = [];
   const vertexColors: number[] = [];
   const ridgeHeights: number[] = [];
@@ -645,14 +646,24 @@ export function createMountainRidgeGeometry({
       0.9 + Math.sin(angle * 11 + seed * 2.4) * 0.065 + Math.sin(angle * 23 - seed) * 0.032;
 
     for (let row = 0; row < rows; row += 1) {
-      const heightRatio = row / (rows - 1);
-      const shoulderRipple =
-        Math.sin(angle * 9 + seed * 1.7 + heightRatio * 0.6) * slopeDepth * heightRatio * 0.035 +
-        Math.sin(angle * 19 + seed + heightRatio * 0.4) *
-          slopeDepth *
-          Math.sin(heightRatio * Math.PI) *
-          0.12;
-      const localRadius = baseRadius + slopeDepth * Math.pow(heightRatio, 1.55) + shoulderRipple;
+      const risingRatio = Math.min(row, MOUNTAIN_RIDGE_ROWS - 1) / (MOUNTAIN_RIDGE_ROWS - 1);
+      const descent = Math.max(0, row - MOUNTAIN_RIDGE_ROWS + 1) / Math.max(1, backRows);
+      const heightRatio = risingRatio * (1 - THREE.MathUtils.smoothstep(descent, 0, 1));
+      const radialRatio = rollingHills ? risingRatio : Math.pow(risingRatio, 1.55);
+      // The former sinusoidal radial ripple reversed some lower terraces by
+      // 1.79 m, producing back-facing holes. Keep wooded slopes monotonic and
+      // close them behind the crest. Working if daytime village views have
+      // continuous banks and every radial step advances toward the outer foot.
+      const shoulderRipple = rollingHills
+        ? slopeDepth *
+          radialRatio *
+          (Math.sin(angle * 9 + seed * 1.7) * 0.035 + Math.sin(angle * 19 + seed) * 0.055)
+        : Math.sin(angle * 9 + seed * 1.7 + heightRatio * 0.6) * slopeDepth * heightRatio * 0.035 +
+          Math.sin(angle * 19 + seed + heightRatio * 0.4) *
+            slopeDepth *
+            Math.sin(heightRatio * Math.PI) *
+            0.12;
+      const localRadius = baseRadius + slopeDepth * (radialRatio + descent * 0.72) + shoulderRipple;
       // Sub-metre canopy undulation breaks a mathematically smooth wooded
       // crest. It tapers off before the foot, preserving the terrain join,
       // and uses the existing segments rather than a ring of extra tree draws.
@@ -880,7 +891,7 @@ export function createRidgeMaterial(
     },
   });
   material.userData.clearAerial = aerial;
-  material.customProgramCacheKey = () => 'millos-ridge-aerial-geology-v9';
+  material.customProgramCacheKey = () => 'millos-ridge-aerial-geology-v10';
   return material;
 }
 

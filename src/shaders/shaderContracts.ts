@@ -149,7 +149,7 @@ export const ACTIVE_SHADER_CONTRACTS: readonly ActiveShaderContract[] = [
     qualityVariants: ['low', 'medium'],
     uniformOwner: 'OptimizedSkySystem memoized per-ring materials',
     timeSource: 'simulation',
-    cacheKey: 'millos-ridge-aerial-geology-v9',
+    cacheKey: 'millos-ridge-aerial-geology-v10',
     disposalOwner: 'OptimizedSkySystem cleanup effect',
     fallbackMaterial: 'flat vertex-coloured basic ridge',
   },
