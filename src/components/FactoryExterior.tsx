@@ -55,6 +55,7 @@ import { PROCEDURAL_TEXTURES, TREE_MATERIALS } from '../utils/sharedMaterials';
 import { CAFE_COURT_LANTERN } from '../constants/publicRealmLayout';
 import { generateMachineORM } from '../textures';
 import { createCheckpointGateState, stepCheckpointGate } from './exterior/checkpointLogic';
+import { PlotGeometry } from '../utils/authoredPlotGeometry';
 import {
   EXTERIOR_LAMP_LENS_MATERIAL,
   ExteriorLampDriver,
@@ -6498,6 +6499,25 @@ const CheckpointBarrier: React.FC<{
 
   // Arms span half the road from each side
   const armLength = roadWidth / 2 + 1;
+  const armGeometry = useMemo(() => {
+    const geometry = new PlotGeometry();
+    geometry.box([armLength, 0.2, 0.2], [armLength / 2, 0, 0], '#ffffff');
+    for (let i = 0; i < Math.floor(armLength / 1.2); i++)
+      geometry.box([0.5, 0.21, 0.02], [0.6 + i * 1.2, 0, 0.11], '#dc2626');
+    geometry.box([0.3, 0.3, 0.3], [armLength + 0.15, 0, 0], '#dc2626');
+    return geometry.finish();
+  }, [armLength]);
+  const armMaterial = useMemo(
+    () => new THREE.MeshStandardMaterial({ color: '#ffffff', vertexColors: true, roughness: 0.5 }),
+    []
+  );
+  useEffect(
+    () => () => {
+      armGeometry.dispose();
+      armMaterial.dispose();
+    },
+    [armGeometry, armMaterial]
+  );
   const boothWidth = 3.5;
   const boothDepth = 3;
   const boothHeight = 3.5;
@@ -6511,8 +6531,6 @@ const CheckpointBarrier: React.FC<{
       position={position}
       rotation={[0, rotation, 0]}
       userData={{
-        noStaticBatch: true,
-        dynamic: true,
         gateOpen: false,
         gatePhase: 'closed',
         clearanceSecondsRemaining: 0,
@@ -6623,7 +6641,7 @@ const CheckpointBarrier: React.FC<{
           <boxGeometry args={[0.5, 0.4, 0.5]} />
           <meshStandardMaterial color="#1f2937" roughness={0.5} />
         </mesh>
-        <mesh position={[0.26, 3.2, 0]}>
+        <mesh position={[0.26, 3.2, 0]} userData={{ noStaticBatch: true, dynamic: true }}>
           <circleGeometry args={[0.15, 12]} />
           <meshBasicMaterial ref={lightRef} color="#ff0000" />
         </mesh>
@@ -6635,26 +6653,15 @@ const CheckpointBarrier: React.FC<{
           position={[0, 2.9, 0]}
           userData={{ noStaticBatch: true, dynamic: true }}
         >
-          <mesh position={[armLength / 2, 0, 0]} castShadow>
-            <boxGeometry args={[armLength, 0.2, 0.2]} />
-            <meshStandardMaterial color="#ffffff" roughness={0.5} />
-          </mesh>
-          {/* Red stripes */}
-          {Array.from({ length: Math.floor(armLength / 1.2) }).map((_, i) => (
-            <mesh key={`stripe1-${i}`} position={[0.6 + i * 1.2, 0, 0.11]} castShadow>
-              <boxGeometry args={[0.5, 0.21, 0.02]} />
-              <meshStandardMaterial color="#dc2626" roughness={0.5} />
-            </mesh>
-          ))}
+          {/* Same arm, stripes and reflector, one draw rotating with the pivot.
+              Only pivots/signals are dynamic; fixed booth/bollards may batch.
+              Working if live arms and signals still respond to trucks while
+              fixed geometry and each striped beam require fewer submissions. */}
+          <mesh geometry={armGeometry} material={armMaterial} dispose={null} castShadow />
           {/* Counterweight */}
           <mesh position={[-0.4, 0, 0]} castShadow>
             <boxGeometry args={[0.6, 0.3, 0.3]} />
             <meshStandardMaterial color="#374151" roughness={0.6} />
-          </mesh>
-          {/* End reflector */}
-          <mesh position={[armLength + 0.15, 0, 0]} castShadow>
-            <boxGeometry args={[0.3, 0.3, 0.3]} />
-            <meshStandardMaterial color="#dc2626" roughness={0.5} />
           </mesh>
         </group>
       </group>
@@ -6671,7 +6678,7 @@ const CheckpointBarrier: React.FC<{
           <boxGeometry args={[0.5, 0.4, 0.5]} />
           <meshStandardMaterial color="#1f2937" roughness={0.5} />
         </mesh>
-        <mesh position={[-0.26, 3.2, 0]}>
+        <mesh position={[-0.26, 3.2, 0]} userData={{ noStaticBatch: true, dynamic: true }}>
           <circleGeometry args={[0.15, 12]} />
           <meshBasicMaterial ref={light2Ref} color="#ff0000" />
         </mesh>
@@ -6684,26 +6691,11 @@ const CheckpointBarrier: React.FC<{
           rotation={[0, Math.PI, 0]}
           userData={{ noStaticBatch: true, dynamic: true }}
         >
-          <mesh position={[armLength / 2, 0, 0]} castShadow>
-            <boxGeometry args={[armLength, 0.2, 0.2]} />
-            <meshStandardMaterial color="#ffffff" roughness={0.5} />
-          </mesh>
-          {/* Red stripes */}
-          {Array.from({ length: Math.floor(armLength / 1.2) }).map((_, i) => (
-            <mesh key={`stripe2-${i}`} position={[0.6 + i * 1.2, 0, 0.11]} castShadow>
-              <boxGeometry args={[0.5, 0.21, 0.02]} />
-              <meshStandardMaterial color="#dc2626" roughness={0.5} />
-            </mesh>
-          ))}
+          <mesh geometry={armGeometry} material={armMaterial} dispose={null} castShadow />
           {/* Counterweight */}
           <mesh position={[-0.4, 0, 0]} castShadow>
             <boxGeometry args={[0.6, 0.3, 0.3]} />
             <meshStandardMaterial color="#374151" roughness={0.6} />
-          </mesh>
-          {/* End reflector */}
-          <mesh position={[armLength + 0.15, 0, 0]} castShadow>
-            <boxGeometry args={[0.3, 0.3, 0.3]} />
-            <meshStandardMaterial color="#dc2626" roughness={0.5} />
           </mesh>
         </group>
       </group>

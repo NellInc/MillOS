@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { getWorkerAppearance, type WorkerMotionState } from './workerTypes';
 import { SHARED_WORKER_ACCESSORY_MATERIALS } from './SharedWorkerMaterials';
+import { createWorkerBodyLod, WORKER_BODY_LOD } from './workerBodyLod';
 
 const harness = vi.hoisted(() => ({
   frame: null as null | ((state: unknown, delta: number) => void),
@@ -301,4 +302,130 @@ it('keeps shared fittings alive when one worker leaves and disposes individual a
   expect(secondAccent).not.toBe(firstAccent);
   expect(secondAccent.color.equals(new THREE.Color(operator.accentColor))).toBe(true);
   expect(Object.values(SHARED_WORKER_ACCESSORY_MATERIALS)).not.toContain(secondAccent);
+});
+
+function bodyFixture() {
+  const model = new THREE.Group();
+  const bone = new THREE.Bone();
+  model.add(bone);
+  const skin = new THREE.Skeleton([bone]);
+  const sources = Array.from({ length: 5 }, (_, i) => {
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute(
+      'position',
+      new THREE.Float32BufferAttribute([i, 0, 0, i, 1, 0, i, 0, 1], 3)
+    );
+    geometry.setAttribute(
+      'normal',
+      new THREE.Float32BufferAttribute([1, 0, 0, 1, 0, 0, 1, 0, 0], 3)
+    );
+    geometry.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(new Uint16Array(12), 4));
+    geometry.setAttribute(
+      'skinWeight',
+      new THREE.Float32BufferAttribute([1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0], 4)
+    );
+    geometry.setIndex([0, 1, 2]);
+    const material = new THREE.MeshStandardMaterial({
+      color: i % 2 ? '#193a83' : '#e6bf84',
+      side: THREE.DoubleSide,
+    });
+    material.visible = i !== 4; // A person whose authored hat is hidden.
+    const mesh = new THREE.SkinnedMesh(geometry, material);
+    mesh.castShadow = i !== 3;
+    mesh.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 6);
+    mesh.bind(skin, new THREE.Matrix4());
+    model.add(mesh);
+    return mesh;
+  });
+  return { model, bone, skin, sources };
+}
+
+describe('distant worker body draws', () => {
+  it('retains vertices, skin, linear role colours and the feet shadow contract', () => {
+    const { model, bone, skin, sources } = bodyFixture();
+    const inverses = skin.boneInverses.map((matrix) => matrix.clone());
+    const lod = createWorkerBodyLod(model)!;
+    expect(lod.meshes).toHaveLength(2);
+    expect(lod.sources).toEqual(sources.slice(0, 4));
+    const camera = new THREE.PerspectiveCamera();
+    camera.position.set(0, 0, 100);
+    lod.update(camera);
+    expect(sources.map((mesh) => mesh.visible)).toEqual([false, false, false, false, true]);
+    expect(sources[4].material).toHaveProperty('visible', false);
+    expect(lod.meshes.map((mesh) => [mesh.visible, mesh.castShadow])).toEqual([
+      [true, true],
+      [true, false],
+    ]);
+    bone.position.y = 2;
+    model.updateMatrixWorld(true);
+    skin.update();
+    let offset = 0;
+    for (const source of sources.slice(0, 3)) {
+      const merged = lod.meshes[0];
+      for (let i = 0; i < 3; i++) {
+        expect(merged.getVertexPosition(offset + i, new THREE.Vector3()).toArray()).toEqual(
+          source.getVertexPosition(i, new THREE.Vector3()).toArray()
+        );
+        expect(merged.geometry.getAttribute('color').getX(offset + i)).toBeCloseTo(
+          (source.material as THREE.MeshStandardMaterial).color.r
+        );
+      }
+      offset += 3;
+    }
+    expect(lod.meshes[0].geometry.getAttribute('position').count).toBe(9);
+    expect(lod.meshes[1].geometry.getAttribute('position').count).toBe(3);
+    expect(lod.meshes.every((mesh) => mesh.skeleton === skin)).toBe(true);
+    expect(skin.boneInverses.every((matrix, i) => matrix.equals(inverses[i]))).toBe(true);
+    const disposeSkin = vi.spyOn(skin, 'dispose');
+    const disposeSource = vi.spyOn(sources[0].geometry, 'dispose');
+    const disposeFar = vi.spyOn(lod.meshes[0].geometry, 'dispose');
+    lod.dispose();
+    expect(disposeFar).toHaveBeenCalledTimes(1);
+    expect(disposeSource).not.toHaveBeenCalled();
+    expect(disposeSkin).not.toHaveBeenCalled();
+  });
+
+  it('switches paused workers with hysteresis and camera zoom, without affecting another rig', () => {
+    const first = bodyFixture();
+    const second = bodyFixture();
+    const other = createWorkerBodyLod(second.model)!;
+    harness.asset = { scene: first.model, animations: [] };
+    const motion: WorkerMotionState = {
+      activity: 'idle',
+      groundSpeed: 0,
+      seated: false,
+      phase: 0,
+      enabled: false,
+    };
+    render(
+      <WorkerModel appearance={getWorkerAppearance('Engineer', '', 'lod-paused')} motion={motion} />
+    );
+    const camera = new THREE.PerspectiveCamera();
+    const sample = (distance: number, zoom = 1) => {
+      camera.position.z = distance;
+      camera.zoom = zoom;
+      for (let i = 0; i < WORKER_BODY_LOD.sampleEveryFrames; i++) harness.frame?.({ camera }, 0);
+    };
+    sample(100);
+    expect(first.sources[0].visible).toBe(false);
+    sample(75);
+    expect(first.sources[0].visible).toBe(false);
+    sample(100, 2);
+    expect(first.sources[0].visible).toBe(true);
+    sample(75);
+    expect(first.sources[0].visible).toBe(true);
+    expect(second.sources[0].visible).toBe(true);
+    expect(other.meshes[0].visible).toBe(false);
+    other.dispose();
+  });
+
+  it('keeps the full renderer for incompatible binds or mapped surfaces', () => {
+    const fixture = bodyFixture();
+    fixture.sources[0].bindMatrix.makeTranslation(1, 0, 0);
+    expect(createWorkerBodyLod(fixture.model)).toBeNull();
+    fixture.sources[0].bindMatrix.identity();
+    (fixture.sources[0].material as THREE.MeshStandardMaterial).map = new THREE.Texture();
+    expect(createWorkerBodyLod(fixture.model)).toBeNull();
+    expect(fixture.sources.every((mesh) => mesh.visible)).toBe(true);
+  });
 });

@@ -15,6 +15,7 @@ import type { WorkerAppearance, WorkerBodyType, WorkerWorkAction } from '../work
 import { ToolAccessory } from '../workers/WorkerTools';
 import { SHARED_WORKER_GEOMETRY } from '../workers/SharedWorkerGeometries';
 import { SHARED_WORKER_ACCESSORY_MATERIALS } from '../workers/SharedWorkerMaterials';
+import { createWorkerBodyLod } from '../workers/workerBodyLod';
 import type { WorkerMotionState } from '../workers/workerTypes';
 import {
   createSeatedWorkerPose,
@@ -741,7 +742,8 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
     const armatureScale = model.getObjectByName('CharacterArmature')?.scale.x ?? 1;
     const rigScale = Number.isFinite(armatureScale) && armatureScale > 0 ? armatureScale : 1;
 
-    return { model, materials, rigScale, skeletons };
+    const bodyLod = createWorkerBodyLod(model);
+    return { model, materials, rigScale, skeletons, bodyLod };
   }, [appearance, scene]);
 
   const accessoryMaterials = useMemo(() => createAccessoryMaterials(appearance), [appearance]);
@@ -792,6 +794,7 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
 
   useEffect(
     () => () => {
+      prepared.bodyLod?.dispose();
       prepared.materials.forEach((material) => material.dispose());
       prepared.skeletons.forEach((skeleton) => skeleton.dispose());
       // Only the individual accent is owned here; fixed fittings are shared.
@@ -800,7 +803,10 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
     [accessoryMaterials, prepared]
   );
 
-  useFrame((_, delta) => {
+  useFrame((state, delta) => {
+    // Camera changes must update the body draw LOD even while the simulation
+    // is paused or a distant animation sample is being throttled.
+    if (state.camera) prepared.bodyLod?.update(state.camera);
     let safeDelta =
       motion.enabled && Number.isFinite(delta) ? THREE.MathUtils.clamp(delta, 0, 0.075) : 0;
     const speed = Number.isFinite(motion.groundSpeed) ? Math.max(0, motion.groundSpeed) : 0;
