@@ -175,6 +175,9 @@ jobs:
           NODE
 
       - name: Install pinned Chromium for Jev UI acceptance
+        # Playwright 1.62.1 pins full Chromium151. Compare the newer backend on
+        # this same hosted Metal path, retaining the original image/deadline.
+        # Working if the artifact records151 and the unchanged hardware gate passes.
         run: npx playwright install --no-shell chromium
 
       - name: Validate Jev personal-key flow in desktop and mobile layouts
@@ -195,11 +198,9 @@ jobs:
         run: |
           set -o pipefail
           mkdir -p test-results/jev-browser
-          # One PID-scoped Instruments capture. Raw trace/XML/private profiler
-          # logs stay in RUNNER_TEMP, outside the sole uploaded artifact path.
-          # Working if only allowlisted owned-PID numeric rows are uploaded and
-          # original world presentation still decides the Build verdict.
-          node scripts/validate-jev-browser.mjs --metal-renderer --software-compositor --backend-logging --cold-render-attribution --metal-system-trace \
+          # Native trace startup failed before navigation on the hosted VM.
+          # Keep that retained failure separate; it is not an application gate.
+          node scripts/validate-jev-browser.mjs --metal-renderer --software-compositor --backend-logging --cold-render-attribution \
             2>&1 | tee test-results/jev-browser/backend-browser.log
 
       # Run only after the actual world failed, preserving that failed check.
