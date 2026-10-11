@@ -378,6 +378,9 @@ export const PhysicsFirstPersonController: React.FC<PhysicsFirstPersonController
       <PointerLockControls
         ref={controlsRef}
         domElement={gl.domElement}
+        // The instructions own handled native admission. Keep Drei's mouse
+        // and lock listeners, with no automatic document/canvas requests.
+        selector=":not(*)"
         pointerSpeed={MOUSE_SENSITIVITY}
         onLock={handleLock}
         onUnlock={handleUnlock}

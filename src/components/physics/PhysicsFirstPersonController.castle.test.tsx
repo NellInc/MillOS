@@ -13,6 +13,7 @@ const h = vi.hoisted(() => ({
   camera: null as unknown as THREE.PerspectiveCamera,
   frame: (_: unknown, _dt: number) => {},
   lock: () => {},
+  selector: '',
   position: { x: 0, y: 0, z: 0 },
   velocity: { x: 0, y: 0, z: 0 },
 }));
@@ -23,8 +24,9 @@ vi.mock('@react-three/fiber', () => ({
   },
 }));
 vi.mock('@react-three/drei', () => ({
-  PointerLockControls: ({ onLock }: { onLock: () => void }) => {
+  PointerLockControls: ({ onLock, selector }: { onLock: () => void; selector: string }) => {
     h.lock = onLock;
+    h.selector = selector;
     return null;
   },
 }));
@@ -141,4 +143,9 @@ it('relocates the optional physics spawn out of the bench and sweeps upward disp
   window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyE' }));
   expect(h.camera.position.y).toBeCloseTo(2.68, 6);
   expect(h.velocity.y).toBe(0);
+});
+
+it('uses the same handled admission path for optional physics walking', () => {
+  render(<PhysicsFirstPersonController />);
+  expect(h.selector).toBe(':not(*)');
 });

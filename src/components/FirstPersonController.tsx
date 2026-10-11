@@ -384,6 +384,9 @@ export const FirstPersonController: React.FC<FirstPersonControllerProps> = ({ on
     <PointerLockControls
       ref={controlsRef}
       domElement={gl.domElement}
+      // The instructions own handled native admission. Keep Drei's mouse
+      // and lock listeners, with no automatic document/canvas requests.
+      selector=":not(*)"
       pointerSpeed={MOUSE_SENSITIVITY}
       onLock={handleLock}
       onUnlock={handleUnlock}
@@ -407,13 +410,88 @@ export const FPSCrosshair: React.FC = () => {
 
 // FPS mode instructions overlay
 export const FPSInstructions: React.FC<{ visible: boolean }> = ({ visible }) => {
+  const [captureFailed, setCaptureFailed] = React.useState(false);
+  const surfaceRef = useRef<HTMLDivElement>(null);
+  const pending = useRef(false);
+  const attempt = useRef(0);
+
+  useEffect(() => {
+    attempt.current += 1;
+    pending.current = false;
+    setCaptureFailed(false);
+    if (!visible) return;
+    const onError = () => {
+      if (!pending.current || !surfaceRef.current?.isConnected) return;
+      pending.current = false;
+      setCaptureFailed(true);
+    };
+    const onChange = () => {
+      pending.current = false;
+    };
+    document.addEventListener('pointerlockerror', onError);
+    document.addEventListener('pointerlockchange', onChange);
+    return () => {
+      attempt.current += 1;
+      pending.current = false;
+      document.removeEventListener('pointerlockerror', onError);
+      document.removeEventListener('pointerlockchange', onChange);
+    };
+  }, [visible]);
+
+  const requestCapture = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (event.target instanceof Element && event.target.closest('button')) return;
+    if (pending.current) return;
+    const canvas = document.querySelector<HTMLCanvasElement>(
+      'canvas[data-millos-fps-entry="true"]'
+    );
+    const surface = surfaceRef.current;
+    const id = ++attempt.current;
+    setCaptureFailed(false);
+    if (!canvas?.requestPointerLock || !surface) {
+      setCaptureFailed(true);
+      return;
+    }
+    const reportFailure = () => {
+      if (id === attempt.current && surfaceRef.current === surface && surface.isConnected)
+        setCaptureFailed(true);
+    };
+    pending.current = true;
+    try {
+      const request: Promise<void> | void = canvas.requestPointerLock();
+      // Native change/error ends the pending request. Keeping that ownership
+      // until the event prevents a late native error racing a second click.
+      if (request)
+        void request
+          .then(() => {
+            if (!useUIStore.getState().fpsMode && document.pointerLockElement === canvas)
+              document.exitPointerLock();
+          })
+          .catch(reportFailure);
+    } catch {
+      pending.current = false;
+      reportFailure();
+    }
+  };
+
   if (!visible) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center pointer-events-auto">
+    <div
+      ref={surfaceRef}
+      onClick={requestCapture}
+      className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center pointer-events-auto"
+    >
       <div className="bg-slate-900/95 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-8 max-w-md text-center shadow-2xl">
         <h2 className="text-2xl font-bold text-white mb-4">First-Person Mode</h2>
-        <p className="text-slate-300 mb-6">Click anywhere to enter first-person exploration mode</p>
+        {captureFailed ? (
+          <p role="alert" className="text-amber-200 mb-6">
+            Mouse capture unavailable. Click to retry or press V to leave.
+          </p>
+        ) : (
+          <p className="text-slate-300 mb-6">
+            Click anywhere to enter first-person exploration mode
+          </p>
+        )}
 
         <div className="grid grid-cols-2 gap-4 mb-6 text-left">
           <div className="bg-slate-800/50 rounded-lg p-3">
@@ -458,7 +536,17 @@ export const FPSInstructions: React.FC<{ visible: boolean }> = ({ visible }) => 
           </div>
         </div>
 
-        <p className="text-slate-500 text-sm">Press ESC anytime to return to orbit camera</p>
+        {captureFailed ? (
+          <button
+            type="button"
+            onClick={() => useUIStore.getState().setFpsMode(false)}
+            className="rounded-lg border border-slate-600 px-4 py-2 text-sm text-slate-200 hover:bg-slate-800 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-cyan-300"
+          >
+            Return to overview
+          </button>
+        ) : (
+          <p className="text-slate-500 text-sm">Press ESC anytime to return to orbit camera</p>
+        )}
       </div>
     </div>
   );

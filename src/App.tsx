@@ -710,6 +710,7 @@ const App: React.FC = () => {
             )}
             onCreated={({ gl }) => {
               glRef.current = gl;
+              gl.domElement.dataset.millosFpsEntry = 'true';
 
               // ONE TONE CURVE ON BOTH PATHS.
               //
