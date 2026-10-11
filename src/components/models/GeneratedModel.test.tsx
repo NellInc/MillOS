@@ -181,11 +181,17 @@ it('volumes the delivered five goods while preserving the building, anchors and 
     expect(variant).not.toBe(source);
     expect(q.array).not.toBe(p.array);
     expect(variant.index!.array).not.toBe(source.index!.array);
-    expect(variant.index!.array).toEqual(source.index!.array);
-    expect(variant.getAttribute('uv').array).toEqual(uv.array);
-    expect(q.count).toBe(p.count);
-    expect(variant.index!.count).toBe(10380);
-    for (let i = 0; i < q.count; i++) {
+    expect(Array.from(variant.index!.array).slice(0, source.index!.count)).toEqual(
+      Array.from(source.index!.array)
+    );
+    expect(Array.from(variant.getAttribute('uv').array).slice(0, uv.array.length)).toEqual(
+      Array.from(uv.array)
+    );
+    if (trade !== 'general') {
+      expect(q.count).toBe(p.count);
+      expect(variant.index!.count).toBe(10380);
+    }
+    for (let i = 0; i < p.count; i++) {
       if (!selected.has(i)) {
         for (let axis = 0; axis < 3; axis++) {
           expect(q.getComponent(i, axis)).toBe(p.getComponent(i, axis));
@@ -208,6 +214,44 @@ it('volumes the delivered five goods while preserving the building, anchors and 
         );
         if (axis > 0) expect(Math.min(...after)).toBe(Math.min(...before));
       }
+    }
+    if (trade === 'general') {
+      const atlas = variant.getAttribute('uv');
+      const extra = new Map<number, number[]>();
+      let stems = 0;
+      for (let i = p.count; i < q.count; i++) {
+        expect(Math.hypot(n.getX(i), n.getY(i), n.getZ(i))).toBeCloseTo(1, 5);
+        for (let a = 0; a < 3; a++) expect(Number.isFinite(q.getComponent(i, a))).toBe(true);
+        if (atlas.getX(i) === 0.625 && atlas.getY(i) === 0.625) {
+          stems++;
+          continue;
+        }
+        expect(atlas.getX(i)).toBeGreaterThan(0.75);
+        expect(atlas.getY(i)).toBeGreaterThan(0.25);
+        expect(atlas.getY(i)).toBeLessThan(0.5);
+        const band = Math.floor(
+          (q.getX(i) + SHOP_DISPLAY_ITEM_GRID[0]) * SHOP_DISPLAY_ITEM_GRID[1]
+        );
+        extra.set(band, [...(extra.get(band) ?? []), i]);
+        expect(q.getY(i)).toBeGreaterThanOrEqual(0.82475);
+        expect(q.getY(i)).toBeLessThan(1.15);
+        expect(q.getZ(i)).toBeGreaterThan(2.38);
+        expect(q.getZ(i)).toBeLessThan(2.53);
+      }
+      expect([...extra.keys()].sort()).toEqual([0, 1, 2, 3, 4]);
+      expect([...extra.values()].map((v) => v.length)).toEqual([124, 124, 124, 124, 124]);
+      expect(stems).toBe(
+        15 * new THREE.CylinderGeometry(0.0035, 0.005, 0.027, 4).getAttribute('position').count
+      );
+      expect(variant.index!.count).toBe(14700);
+      expect(Math.max(...variant.index!.array)).toBeLessThan(q.count);
+      // The green middle-layer fruit is a taller, tapered pear. The upper fruit stays round.
+      const pear = extra
+        .get(1)!
+        .slice(0, 62)
+        .map((i) => q.getY(i));
+      expect(Math.max(...pear) - Math.min(...pear)).toBeCloseTo(0.119674 * 1.2 * 1.22, 5);
+      expect(variant.groups).toEqual(source.groups);
     }
     expect(Number.isFinite(variant.boundingSphere!.radius)).toBe(true);
     variant.dispose();
@@ -243,4 +287,36 @@ it('releases owned display variants on trade changes and unmount, leaving cached
   expect(cachedDispose).not.toHaveBeenCalled();
   geometry.dispose();
   material.dispose();
+});
+
+it('keeps real loader-style interleaved produce attributes aligned in the owned expansion', async () => {
+  const source = await deliveredShopGeometry();
+  const count = source.getAttribute('position').count;
+  const packed = new THREE.InterleavedBuffer(new Float32Array(count * 8), 8);
+  for (let i = 0; i < count; i++) {
+    let offset = 0;
+    for (const name of ['position', 'normal', 'uv']) {
+      const a = source.getAttribute(name);
+      for (let c = 0; c < a.itemSize; c++) packed.array[i * 8 + offset++] = a.getComponent(i, c);
+    }
+  }
+  source.setAttribute('position', new THREE.InterleavedBufferAttribute(packed, 3, 0));
+  source.setAttribute('normal', new THREE.InterleavedBufferAttribute(packed, 3, 3));
+  source.setAttribute('uv', new THREE.InterleavedBufferAttribute(packed, 2, 6));
+  const before = packed.array.slice();
+  const variant = createShopDisplayGeometry(source, 'general');
+  try {
+    const p = variant.getAttribute('position'),
+      n = variant.getAttribute('normal'),
+      u = variant.getAttribute('uv');
+    expect(p.count).toBe(7074); // 6034 retained, 620 fruit vertices, 420 stalk vertices.
+    expect(n.count).toBe(p.count);
+    expect(u.count).toBe(p.count);
+    expect(Array.from(p.array).every(Number.isFinite)).toBe(true);
+    expect(Math.max(...variant.index!.array)).toBeLessThan(p.count);
+    expect(packed.array).toEqual(before);
+  } finally {
+    variant.dispose();
+    source.dispose();
+  }
 });

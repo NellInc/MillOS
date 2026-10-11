@@ -370,6 +370,95 @@ export function createShopDisplayGeometry(
       outputNormals.setXYZ(i, point.x, point.y, point.z);
     }
   }
+  if (trade === 'general' && geometry.index) {
+    // Fifteen pieces in five small supported piles, within the real window.
+    // Reuse the same body, atlas and draw; private buffers retain cached GLB custody.
+    // Working if the grocer reads as stocked, while other trades and the building stay exact.
+    // GLTFLoader may interleave position, normal and UV in one backing array.
+    // Read logical components so packed stride never becomes a vertex count.
+    const p: number[] = [],
+      n: number[] = [],
+      u: number[] = [];
+    const outputUV = geometry.getAttribute('uv');
+    for (let i = 0; i < outputPositions.count; i++) {
+      p.push(outputPositions.getX(i), outputPositions.getY(i), outputPositions.getZ(i));
+      n.push(outputNormals.getX(i), outputNormals.getY(i), outputNormals.getZ(i));
+      u.push(outputUV.getX(i), outputUV.getY(i));
+    }
+    const indices = Array.from(geometry.index.array);
+    const originalIndices = [...indices];
+    const stem = new THREE.CylinderGeometry(0.0035, 0.005, 0.027, 4);
+    for (const [band, { vertices }] of items) {
+      const min = new THREE.Vector3(Infinity, Infinity, Infinity);
+      const max = new THREE.Vector3(-Infinity, -Infinity, -Infinity);
+      for (const i of vertices) {
+        point.fromBufferAttribute(outputPositions, i);
+        min.min(point);
+        max.max(point);
+      }
+      const cx = (min.x + max.x) * 0.5,
+        cz = (min.z + max.z) * 0.5;
+      const height = max.y - min.y;
+      for (const [copy, dx, dy, scale] of [
+        [0, 0, 0, 1],
+        [1, 0.145, 0, 1],
+        [2, 0.0725, height * 0.88, 0.88],
+      ]) {
+        const pear = band % 3 === 1 && copy === 1;
+        const yScale = pear ? 1.22 : 1;
+        if (copy > 0) {
+          const remap = new Map<number, number>();
+          for (const i of vertices) {
+            const x = outputPositions.getX(i) - cx,
+              z = outputPositions.getZ(i) - cz;
+            const t = (outputPositions.getY(i) - min.y) / height;
+            const profile = pear ? 1 - 0.36 * t * t : 1;
+            const slope = pear ? (-0.72 * t) / height : 0;
+            remap.set(i, p.length / 3);
+            p.push(
+              cx + dx + x * scale * profile,
+              min.y + dy + t * height * scale * yScale,
+              cz + z * scale * profile
+            );
+            const nx = outputNormals.getX(i),
+              ny = outputNormals.getY(i),
+              nz = outputNormals.getZ(i);
+            // Inverse transpose of the tapered pear's Jacobian, not sphere normals.
+            point
+              .set(
+                nx / profile,
+                (ny - (slope * (x * nx + z * nz)) / profile) / yScale,
+                nz / profile
+              )
+              .normalize();
+            n.push(point.x, point.y, point.z);
+            u.push(uv.getX(i), uv.getY(i));
+          }
+          for (let j = 0; j < originalIndices.length; j += 3) {
+            const a = remap.get(originalIndices[j]),
+              b = remap.get(originalIndices[j + 1]),
+              c = remap.get(originalIndices[j + 2]);
+            if (a !== undefined && b !== undefined && c !== undefined) indices.push(a, b, c);
+          }
+        }
+        const offset = p.length / 3;
+        const sp = stem.getAttribute('position'),
+          sn = stem.getAttribute('normal');
+        const top = min.y + dy + height * scale * yScale;
+        for (let i = 0; i < sp.count; i++) {
+          p.push(cx + dx + sp.getX(i), top + 0.008 + sp.getY(i), cz + sp.getZ(i));
+          n.push(sn.getX(i), sn.getY(i), sn.getZ(i));
+          u.push(0.625, 0.625); // Existing oak atlas, ordinary lit matter, never fruit/glass.
+        }
+        for (const index of stem.index!.array) indices.push(offset + index);
+      }
+    }
+    stem.dispose();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(p, 3));
+    geometry.setAttribute('normal', new THREE.Float32BufferAttribute(n, 3));
+    geometry.setAttribute('uv', new THREE.Float32BufferAttribute(u, 2));
+    geometry.setIndex(indices);
+  }
   geometry.computeBoundingBox();
   geometry.computeBoundingSphere();
   return geometry;
