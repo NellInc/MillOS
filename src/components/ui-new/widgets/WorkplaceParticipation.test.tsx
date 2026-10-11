@@ -195,3 +195,38 @@ it('does not claim automatic decisions are running after human takeover', () => 
     vi.useRealTimers();
   }
 });
+
+it('reserves touch movement space in landscape and portrait while retaining takeover', () => {
+  const width = window.innerWidth;
+  const height = window.innerHeight;
+  const resize = (w: number, h: number) => {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: w });
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: h });
+    fireEvent(window, new Event('resize'));
+  };
+  resize(960, 540);
+  document.documentElement.dataset.millosStartupReady = 'true';
+  useOperationsCampaignStore.setState(useOperationsCampaignStore.getInitialState(), true);
+  useOperationsCampaignStore.getState().initializeCampaign();
+  const view = render(<WorkplaceAutoplayStatus />);
+  try {
+    const status = screen.getByRole('complementary', { name: 'Fictional demo running' });
+    const takeover = screen.getByRole('button', { name: 'Take over cooperative season' });
+    expect(status.className).toContain('top-4');
+    expect(status.className).not.toContain('bottom-');
+    expect(takeover.textContent).toBe('Autonomous season: take over');
+    expect(screen.getByText('Autonomous cooperative season').className).toBe('sr-only');
+    resize(375, 812);
+    expect(status.className).toContain('top-4');
+    resize(1440, 900);
+    expect(status.className).toContain('bottom-[8rem]');
+    expect(takeover.textContent).toBe('Take over cooperative season');
+    fireEvent.click(takeover);
+    expect(useWorkplaceAutoplay.getState().running).toBe(false);
+    expect(useWorkplaceAutoplay.getState().manual).toBe(true);
+  } finally {
+    view.unmount();
+    resize(width, height);
+    delete document.documentElement.dataset.millosStartupReady;
+  }
+});
