@@ -509,7 +509,26 @@ def townhall():
 def pub():
     shell('V030 Flour and Barrel',8,6,5)
     hip_roof('Rounded hipped thatch',9.1,8.4,5.09,7.91,'thatch',9)
-    chimney(3,0,5.5,8.18,.74)
+    # Replace the hidden dark top patch with a real flue, seated in an open cap.
+    # Keep the original 8.18 m roofline and all other pub geometry unchanged.
+    # Working if delivery rays see the recessed shaft and inward-facing pot wall.
+    box('Pub dressed chimney shaft', (3, 6.6, 0), (.74, 2.2, .74), 'stone')
+    for side in (-1, 1):
+        box('Pub open chimney cap front', (3, 7.74, side * .33), (.87, .16, .21), 'cream')
+        box('Pub open chimney cap side', (3 + side * .33, 7.74, 0), (.21, .16, .45), 'cream')
+    # The pot's circular foot covers the diagonal seats, sealing the square cap.
+    # These closed wedges stop daylight/weather gaps without filling the flue.
+    for sx in (-1, 1):
+        for sz in (-1, 1):
+            corner = [(3 + sx * u, y, sz * v) for y in (7.66, 7.82)
+                      for u, v in ((.225, .225), (.225, .09), (.09, .225))]
+            solid('Pub sealed cap corner seat', corner,
+                  [(0, 2, 1), (3, 4, 5), (0, 1, 4, 3),
+                   (1, 2, 5, 4), (2, 0, 3, 5)], 'cream')
+    lathe('Pub hollow rolled flue pot', 3, 0,
+          [(.17, 7.78), (.25, 7.78), (.25, 7.84), (.22, 7.87),
+           (.22, 8.09), (.25, 8.12), (.25, 8.16), (.22, 8.18),
+           (.17, 8.18), (.16, 8.14), (.17, 7.78)], 'stone', 24)
     for side in (-1,1):
         for x in (-3.77,-1.2,1.2,3.77):
             box('Pub pegged upright',(x,2.6,side*3.04),(.20,4.75,.18),'timber')
@@ -721,7 +740,7 @@ for slug, builder in BUILDERS.items():
     bm.to_mesh(mesh)
     bm.free()
     for part in PARTS:
-        if part['name'] in ('Civic curving ogee cupola', 'School swept bell cap', 'School open bronze bell', 'Bell clapper ball', 'Mushroom brass roof vent', 'Shop display display loaf'):
+        if part['name'] in ('Civic curving ogee cupola', 'School swept bell cap', 'School open bronze bell', 'Bell clapper ball', 'Pub hollow rolled flue pot', 'Mushroom brass roof vent', 'Shop display display loaf'):
             lo, hi = part['firstVertex'], part['firstVertex'] + part['vertexCount']
             for polygon in mesh.polygons:
                 if all(lo <= v < hi for v in polygon.vertices):

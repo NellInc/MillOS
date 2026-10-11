@@ -240,14 +240,14 @@
       "sha256": "81102a0d0173109cdff805239f0435b4e6468364b2ee76b915e9c755e9e466ec",
       "blenderPreparation": {
         "file": "assets/source/models/village/pub-crafted.glb",
-        "sha256": "29844d6bcdc770850cd07807b6725c7e58fc6622437c2f4f5968f28db2f8523d",
+        "sha256": "6ae1e7cf547a1f442c769c0f1345e556fe549b8886075d3e19425b9f085550dd",
         "script": "scripts/blender/rebuild_village_architecture.py",
         "method": "Authored revival of the preserved v0.30 architecture: original nave, rear spire and rose; broad cream civic hall; hipped half-timbered Flour and Barrel; cream open-belfry schoolhouse. Closed layered hips, dressed stone, framed glazing and joinery. New reference-led metre envelopes, original provider source untouched."
       },
       "runtimeDerivative": {
         "file": "public/models/village/pub.glb",
-        "sha256": "96ce80c3228f6286e8e2a236c9e4cfb2850a91bb6663358ad60707d7d1ac3abc",
-        "bytes": 289736
+        "sha256": "d3288ef46d5f9e21a35c5966ff5e85ecd135d408e73df81bc1a02d269e1f91c4",
+        "bytes": 325720
       },
       "normalization": {
         "sizedBy": "width",
@@ -269,7 +269,7 @@
         "materials": 1,
         "textures": 2,
         "textureBytes": 14207,
-        "renderVertices": 11736
+        "renderVertices": 13344
       }
     },
     {

@@ -845,3 +845,51 @@ test('delivered town hall glazing UVs exclude timber, and clock dials contain no
   expect(ray(0.4, 12.32).point.z).toBeLessThan(2.18);
   dispose(meshes);
 });
+
+test('pub chimney has a recessed open flue and inward-facing pot walls', async () => {
+  const { doc, meshes } = await assembly('village-pub');
+  try {
+    expect(doc.getRoot().listMeshes()).toHaveLength(1);
+    expect(doc.getRoot().listMaterials()).toHaveLength(1);
+    for (const mesh of meshes) mesh.material.side = THREE.FrontSide;
+    const x = 3; // Actual pub flue and mounted smoke origin, unchanged metre envelope.
+    const down = new THREE.Raycaster(
+      new THREE.Vector3(x, 9, 0),
+      new THREE.Vector3(0, -1, 0)
+    ).intersectObjects(meshes, false)[0];
+    expect(down, 'recessed flue floor').toBeDefined();
+    expect(down.point.y).toBeLessThan(7.8);
+    expect(down.point.y).toBeGreaterThan(7.6);
+    for (const direction of [
+      [1, 0, 0],
+      [-1, 0, 0],
+      [0, 0, 1],
+      [0, 0, -1],
+    ]) {
+      const hit = new THREE.Raycaster(
+        new THREE.Vector3(x, 8.02, 0),
+        new THREE.Vector3(...direction),
+        0,
+        0.4
+      ).intersectObjects(meshes, false)[0];
+      expect(hit, 'visible inward-facing pot casting').toBeDefined();
+      expect(hit.distance).toBeGreaterThan(0.14);
+      expect(hit.distance).toBeLessThan(0.24);
+    }
+    // The rounded foot must seal the square cap's diagonal corners.
+    for (const sx of [-1, 1])
+      for (const sz of [-1, 1]) {
+        const seat = new THREE.Raycaster(
+          new THREE.Vector3(x + sx * 0.205, 9, sz * 0.205),
+          new THREE.Vector3(0, -1, 0)
+        ).intersectObjects(meshes, false)[0];
+        expect(seat, 'closed cap corner beneath the pot foot').toBeDefined();
+        expect(seat.point.y).toBeGreaterThan(7.8);
+        expect(seat.point.y).toBeLessThan(7.85);
+      }
+    const bounds = new THREE.Box3().setFromObject(new THREE.Group().add(...meshes));
+    expect(bounds.max.y).toBeCloseTo(8.18, 5);
+  } finally {
+    dispose(meshes);
+  }
+});
