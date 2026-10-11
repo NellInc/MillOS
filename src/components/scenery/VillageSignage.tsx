@@ -190,10 +190,38 @@ export const PUB_SIGN_LAMPS = [
   { id: 'hanging-back', position: [4.95, 4.35, 0.72], intensity: 3.2, distance: 1.65, width: 0.65 },
 ] as const;
 
+/** The retained pub wall lanterns sit beside the doorway, not above the sign.
+ * Working if these short warm cones reveal the threshold at dusk, stay off at
+ * clear noon and on Low, and allocate no additional shadow map or fitting.
+ */
+export const PUB_DOOR_LAMPS = [-1, 1].map((side) => ({
+  id: side < 0 ? 'left' : 'right',
+  position: [side * 0.98, 2.62, 3.48] as [number, number, number],
+  intensity: 16,
+  distance: 4.1,
+}));
+
 export function PubSignLighting() {
   const disabled = useGraphicsStore((s) => s.graphics.perfDebug.disableLightingPolish);
+  const doorwayLight = useGraphicsStore(
+    (s) =>
+      s.graphics.quality !== 'low' &&
+      !s.graphics.perfDebug.disablePunctualLights &&
+      !s.graphics.perfDebug.disableLightingPolish
+  );
   return (
     <group name="pub-painted-sign-lighting">
+      {doorwayLight &&
+        PUB_DOOR_LAMPS.map((lamp) => (
+          <ExteriorDownlight
+            key={lamp.id}
+            name={`pub-door-lamp:${lamp.id}`}
+            position={lamp.position}
+            intensity={lamp.intensity}
+            distance={lamp.distance}
+            color="#ffe0a0"
+          />
+        ))}
       {PUB_SIGN_LAMPS.map((lamp) => (
         <group key={lamp.id} position={[...lamp.position]}>
           <mesh position={[0, 0.06, 0]} castShadow receiveShadow>

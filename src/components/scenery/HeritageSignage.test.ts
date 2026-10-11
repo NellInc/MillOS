@@ -3,7 +3,8 @@ import { readFileSync } from 'node:fs';
 import sharp from 'sharp';
 import * as THREE from 'three';
 import { createSignMaterial } from './HeritageSignage';
-import { PUB_SIGN_LAMPS } from './VillageSignage';
+import { PUB_SIGN_LAMPS, PUB_DOOR_LAMPS } from './VillageSignage';
+import { NodeIO } from '@gltf-transform/core';
 import { describe, expect, it } from 'vitest';
 
 describe('delivered heritage print', () => {
@@ -146,4 +147,46 @@ it('seats three bounded pub sign lamps above paint, without backlighting civic l
   expect(helper).toContain('pointLights.delete(registration)');
   const village = readFileSync('src/components/VillageArea.tsx', 'utf8');
   expect(village.match(/<PubSignLighting/g)).toHaveLength(1);
+});
+
+it('lights the retained pub door optics and threshold without adding a fixture or caster', async () => {
+  const primitive = (await new NodeIO().read('public/models/village/pub.glb'))
+    .getRoot()
+    .listMeshes()[0]
+    .listPrimitives()[0];
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute(
+    'position',
+    new THREE.BufferAttribute(primitive.getAttribute('POSITION')!.getArray() as Float32Array, 3)
+  );
+  geometry.setIndex(
+    new THREE.BufferAttribute(primitive.getIndices()!.getArray() as Uint16Array, 1)
+  );
+  const material = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }),
+    mesh = new THREE.Mesh(geometry, material);
+  for (const lamp of PUB_DOOR_LAMPS) {
+    const source = new THREE.Vector3(...lamp.position);
+    const optic = new THREE.Raycaster(source, new THREE.Vector3(0, 0, -1), 0, 0.05).intersectObject(
+      mesh
+    )[0];
+    expect(optic?.point.z).toBeCloseTo(3.4635, 4);
+    const threshold = new THREE.Vector3(Math.sign(source.x) * 0.65, 0.14, 3.4);
+    const direction = threshold.clone().sub(source);
+    expect(direction.length()).toBeLessThan(lamp.distance);
+    const seat = new THREE.Raycaster(
+      source,
+      direction.normalize(),
+      0,
+      lamp.distance
+    ).intersectObject(mesh)[0];
+    expect(seat?.point.y).toBeCloseTo(0.15960975, 5);
+    expect(seat?.point.distanceTo(threshold)).toBeLessThan(0.021);
+  }
+  const source = readFileSync('src/components/scenery/VillageSignage.tsx', 'utf8');
+  expect(source).toContain("s.graphics.quality !== 'low'");
+  expect(source).toContain('!s.graphics.perfDebug.disablePunctualLights');
+  expect(source).toContain('!s.graphics.perfDebug.disableLightingPolish');
+  expect(source).toContain('name={`pub-door-lamp:${lamp.id}`}');
+  geometry.dispose();
+  material.dispose();
 });

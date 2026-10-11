@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import * as THREE from 'three';
 import { PlotGeometry } from '../../utils/authoredPlotGeometry';
+import { addVillageFlower } from './VillageGardens';
 import { CANAL_BOAT_BERTH } from '../../constants/siteLayout';
 import {
   WORLD_CRAFT_PALETTE as P,
@@ -132,11 +133,25 @@ function wall(
     length = Math.hypot(dx, dz),
     yaw = Math.atan2(dx, dz);
   const count = Math.ceil(length / 2);
+  const levels = Array.from({ length: count }, (_, i) =>
+    ground(a[0] + (dx * (i + 0.5)) / count, a[1] + (dz * (i + 0.5)) / count)
+  );
+  const level = levels.every((y) => y === levels[0]);
+  // Adjacent level brick boxes overlap by 4 mm. Their union is one identical
+  // solid; remove those buried ends, retaining every segmented coping gap.
+  // Working if exterior rays keep the old outline while detail fits the cap.
+  if (level)
+    b.box(
+      [0.36, height, length + 0.004],
+      [(a[0] + c[0]) / 2, levels[0] + height / 2, (a[1] + c[1]) / 2],
+      P.brick,
+      yaw
+    );
   for (let i = 0; i < count; i++) {
     const x = a[0] + (dx * (i + 0.5)) / count,
       z = a[1] + (dz * (i + 0.5)) / count;
     const y = ground(x, z);
-    b.box([0.36, height, length / count + 0.004], [x, y + height / 2, z], P.brick, yaw);
+    if (!level) b.box([0.36, height, length / count + 0.004], [x, y + height / 2, z], P.brick, yaw);
     b.box([0.48, 0.11, length / count - 0.014], [x, y + height + 0.055, z], P.stone, yaw);
   }
   for (const [x, z] of [a, c]) {
@@ -159,11 +174,56 @@ function planter(
   for (const side of [-1, 1]) {
     b.box([width, 0.06, 0.11], [x, y + 0.29, z + (side * depth) / 2], P.stone);
   }
+  // Finish all four sides, keeping the original footprint and soil datum.
+  // Working if the end coping closes the bed and real stems rise from its soil.
+  for (const side of [-1, 1])
+    b.box([0.11, 0.06, depth - 0.11], [x + (side * (width - 0.11)) / 2, y + 0.29, z], P.stone);
   const count = Math.max(2, Math.floor(width / 0.55));
+  const blooms = ['#d77589', '#dfae4d', '#b694c7'];
+  const palette = Math.abs(Math.floor(x * 3 + z * 7)) % blooms.length;
   for (let i = 0; i < count; i++) {
-    const px = x - width / 2 + 0.28 + (i * (width - 0.56)) / (count - 1);
-    b.round([px, y + 0.47, z], [0.35, 0.25, depth * 0.4], P.leaf);
-    if (i % 2 === 0) b.round([px, y + 0.67, z], [0.15, 0.11, 0.15], '#b49cbd');
+    const px = x - width / 2 + 0.35 + (i * (width - 0.7)) / (count - 1);
+    const pz = z + Math.sin(x + z + i) * Math.min(depth * 0.12, 0.24);
+    // Three closed, ridged leaves use 18 faces, replacing the old 20-face mound.
+    // Their soil-seated tips stay inside the rim even on the narrow farm beds.
+    for (let leaf = 0; leaf < 3; leaf++) {
+      const reach = Math.min(depth * 0.23, 0.31) * (0.82 + leaf * 0.08);
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute(
+        'position',
+        new THREE.Float32BufferAttribute(
+          [
+            0,
+            0,
+            0,
+            -0.09,
+            0.14,
+            reach * 0.52,
+            0,
+            0.18,
+            reach * 0.52,
+            0.09,
+            0.14,
+            reach * 0.52,
+            0,
+            0.27,
+            reach,
+          ],
+          3
+        )
+      );
+      geometry.setAttribute(
+        'uv',
+        new THREE.Float32BufferAttribute([0.5, 0, 0, 0.52, 0.5, 0.52, 1, 0.52, 0.5, 1], 2)
+      );
+      geometry.setIndex([0, 1, 2, 0, 2, 3, 1, 4, 2, 2, 4, 3, 0, 4, 1, 0, 3, 4]);
+      geometry.computeVertexNormals();
+      geometry.rotateY((leaf * Math.PI * 2) / 3 + x + z + i).translate(px, y + 0.2995, pz);
+      b.add(geometry, P.leaf);
+    }
+    if (i % 2 === 0) {
+      addVillageFlower(b, px, y + 0.2995, pz, blooms[(palette + i / 2) % blooms.length], 0.16);
+    }
   }
 }
 function bench(b: PlotGeometry, x: number, z: number, yaw = 0, ground: Ground = flat) {

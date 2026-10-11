@@ -18,6 +18,7 @@ import {
   WORLD_REALM_PATHS,
   FARM_REALM_PATHS,
   WORLD_REALM_PATCHES,
+  WORLD_CRAFT_PALETTE,
   inRealmPatch,
 } from '../../constants/publicRealmLayout';
 import { VILLAGE_STREET_CORRIDORS, villageRealmClear } from '../VillageArea';
@@ -90,6 +91,92 @@ describe('world public realm', () => {
     expect(source).not.toMatch(/<(?:pointLight|spotLight|directionalLight)|TextureLoader|useFrame/);
     world.paving.dispose();
     world.solid.dispose();
+  });
+  it('retains level wall outlines and every coping joint after removing buried brick ends', () => {
+    const geometry = VILLAGE_REALM_GEOMETRY.solid;
+    // Original 21.6 m churchyard run, eleven overlapping boxes and eleven separate caps.
+    const length = 21.6,
+      count = Math.ceil(length / 2);
+    for (let i = 0; i < count; i++) {
+      const z = -50.6 + (length * (i + 0.5)) / count;
+      const side = ray(geometry, [-9, 0.31, z], [-1, 0, 0], 0.5);
+      expect(side[0]?.point.x).toBeCloseTo(-9.22, 4);
+      if (i === 0 || i === count - 1) continue; // Retained end piers.
+      expect(ray(geometry, [-9.4, 1.2, z], [0, -1, 0])[0]?.point.y).toBeCloseTo(0.77, 4);
+      const joint = -50.6 + (length * i) / count;
+      expect(ray(geometry, [-9.4, 1.2, joint], [0, -1, 0])[0]?.point.y).toBeCloseTo(0.66, 4);
+    }
+  });
+  it('finishes civic planter ends and seats varied stemmed flowers in the retained soil', () => {
+    const geometry = VILLAGE_REALM_GEOMETRY.solid;
+    const position = geometry.getAttribute('position'),
+      colour = geometry.getAttribute('color');
+    const palette = ['#d77589', '#dfae4d', '#b694c7'].map((c) => new THREE.Color(c));
+    const oldBlob = new THREE.Color('#b49cbd');
+    let bloomVertices = 0;
+    for (const [x, z, width, depth] of [
+      [-7.65, -32.2, 1.8, 2.3],
+      [-19.1, -20.5, 2, 1],
+      [26.5, 33, 2.1, 0.95],
+      [6.4, -9.4, 2.7, 1.1],
+    ]) {
+      for (const side of [-1, 1]) {
+        const hits = ray(geometry, [x + (side * (width - 0.11)) / 2, 1, z], [0, -1, 0]);
+        expect(hits[0]?.point.y).toBeCloseTo(0.3, 5);
+      }
+      const blooms = [];
+      for (let i = 0; i < position.count; i++) {
+        if (
+          Math.abs(position.getX(i) - x) > width / 2 ||
+          Math.abs(position.getZ(i) - z) > depth / 2
+        )
+          continue;
+        const c = new THREE.Color().fromBufferAttribute(colour, i);
+        expect(Math.hypot(c.r - oldBlob.r, c.g - oldBlob.g, c.b - oldBlob.b)).toBeGreaterThan(
+          0.001
+        );
+        if (palette.some((p) => Math.hypot(c.r - p.r, c.g - p.g, c.b - p.b) < 0.000001))
+          blooms.push(position.getY(i));
+      }
+      expect(blooms.length).toBeGreaterThan(100);
+      expect(Math.min(...blooms)).toBeGreaterThan(0.49);
+      expect(Math.max(...blooms)).toBeLessThan(0.82);
+      bloomVertices += blooms.length;
+      // Each actual closed stem has a bottom vertex at the soil's top (0.2795).
+      const soilRoots = Array.from({ length: position.count }, (_, i) => i).filter(
+        (i) =>
+          Math.abs(position.getX(i) - x) < width / 2 - 0.08 &&
+          Math.abs(position.getZ(i) - z) < depth / 2 - 0.08 &&
+          Math.abs(position.getY(i) - 0.2795) < 0.000001 &&
+          Math.abs(colour.getX(i) - new THREE.Color(WORLD_CRAFT_PALETTE.leaf).r) < 0.000001
+      );
+      expect(soilRoots.length).toBeGreaterThan(0);
+      // These actual merged closed leaves must face outward, not disappear
+      // through backface culling. Sum their signed volumes about the soil root.
+      const origin = new THREE.Vector3(x, 0.2795, z);
+      const leafColour = new THREE.Color(WORLD_CRAFT_PALETTE.leaf);
+      let volume = 0;
+      for (let i = 0; i < position.count; i += 3) {
+        const vertices = [i, i + 1, i + 2];
+        if (
+          !vertices.every(
+            (v) =>
+              Math.abs(position.getX(v) - x) < width / 2 &&
+              Math.abs(position.getZ(v) - z) < depth / 2 &&
+              Math.abs(colour.getX(v) - leafColour.r) < 0.000001 &&
+              Math.abs(colour.getY(v) - leafColour.g) < 0.000001 &&
+              Math.abs(colour.getZ(v) - leafColour.b) < 0.000001
+          )
+        )
+          continue;
+        const [a, b, c] = vertices.map((v) =>
+          new THREE.Vector3().fromBufferAttribute(position, v).sub(origin)
+        );
+        volume += a.dot(b.cross(c)) / 6;
+      }
+      expect(volume).toBeGreaterThan(0.0001);
+    }
+    expect(bloomVertices).toBeGreaterThan(500);
   });
   it.each([64, 128])('seats every world paving vertex on the real %i terrain grid', (segments) => {
     const world = createWorldRealm(segments),
