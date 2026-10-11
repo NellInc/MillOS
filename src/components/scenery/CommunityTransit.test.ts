@@ -6,6 +6,7 @@ import {
   COMMUNITY_BUS_LAYOUT as L,
   COMMUNITY_TRANSIT_GEOMETRY as G,
   communityDoorPositions,
+  setCommunityBusLampLevel,
   COMMUNITY_BICYCLE_LAYOUT as B,
   COMMUNITY_BICYCLE_GEOMETRY as BG,
   communityBicyclePedals,
@@ -54,6 +55,32 @@ describe('authored village transit geometry', () => {
         expect(panes.every((h) => h.point.x >= 0)).toBe(true);
       }
     }
+  });
+  it('seats front and rear optics proud of their casings without enlarging the bus envelope', () => {
+    for (const x of [-0.7, 0.7]) {
+      const lens = ray(G.headlamps, [x, 0.97, 5], [0, 0, -1])[0].point.z;
+      const casing = ray(G.bus, [x, 0.97, 5], [0, 0, -1])[0].point.z;
+      expect(lens).toBeGreaterThan(casing + 0.005);
+      expect(lens).toBeLessThan(4.02);
+    }
+    for (const x of [-0.85, 0.85]) {
+      const lens = ray(G.rearLamps, [x, 1.07, -5], [0, 0, 1])[0].point.z;
+      const casing = ray(G.bus, [x, 1.07, -5], [0, 0, 1])[0].point.z;
+      expect(lens).toBeLessThan(casing - 0.005);
+      expect(lens).toBeGreaterThan(-4.02);
+    }
+    for (const z of [-2.6, -1.3, 0, 1.2]) {
+      for (const x of [-0.65, 0.65])
+        expect(ray(G.bus, [x, 2.3, z], [0, -1, 0])[0].point.y).toBeGreaterThan(1.05);
+      expect(ray(G.bus, [0, 2, z], [0, -1, 0])[0].point.y).toBeCloseTo(0.58, 5);
+    }
+    const source = readFileSync('src/components/scenery/CommunityTransit.tsx', 'utf8');
+    expect(source).toContain('setCommunityBusLampLevel(EXTERIOR_LAMP_LEVEL.value)');
+    expect(source).toContain('depthWrite: false');
+    expect(source).toContain('roof.quadraticCurveTo');
+    for (const level of [0, 0.42, 1, -1, 2, NaN])
+      expect(() => setCommunityBusLampLevel(level)).not.toThrow();
+    setCommunityBusLampLevel(0);
   });
   it('the physical sliding leaves close at the seam and clear the opening when open', () => {
     expect(communityDoorPositions(0)).toEqual([2.1, 2.7]);

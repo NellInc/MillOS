@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { PlotGeometry } from '../../utils/authoredPlotGeometry';
 import { applyVehicleSurface } from '../../utils/vehicleSurface';
 import { SceneText } from '../shared/SceneText';
+import { EXTERIOR_LAMP_LEVEL } from '../exterior/ExteriorLighting';
 
 export interface CommunityBusPose {
   x: number;
@@ -36,9 +37,12 @@ const PAINT = applyVehicleSurface(
 );
 const RUBBER = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.92 });
 const GLASS = new THREE.MeshStandardMaterial({
-  color: '#536d70',
-  roughness: 0.22,
-  metalness: 0.15,
+  color: '#8ca2a0',
+  roughness: 0.24,
+  metalness: 0,
+  transparent: true,
+  opacity: 0.36,
+  depthWrite: false,
 });
 const SIGN = new THREE.MeshStandardMaterial({
   color: '#ffe3a4',
@@ -46,10 +50,61 @@ const SIGN = new THREE.MeshStandardMaterial({
   emissiveIntensity: 0.5,
 });
 
+const HEADLAMP = new THREE.MeshStandardMaterial({
+  name: 'community-bus-headlamp-optics',
+  color: '#fff2bd',
+  emissive: '#ffd37a',
+  emissiveIntensity: 0.04,
+  roughness: 0.28,
+});
+const REAR_LAMP = new THREE.MeshStandardMaterial({
+  name: 'community-bus-rear-lamp-optics',
+  color: '#a93228',
+  emissive: '#ff4934',
+  emissiveIntensity: 0.025,
+  roughness: 0.3,
+});
+
+/** Share the existing smooth weather/dusk dimmer; these are optics, not extra sources.
+ * Working if daytime lenses remain coloured and evening front/rear faces are visible.
+ */
+export function setCommunityBusLampLevel(level: number) {
+  const night = Number.isFinite(level) ? THREE.MathUtils.clamp(level, 0, 1) : 0;
+  HEADLAMP.emissiveIntensity = 0.04 + night * 2.1;
+  REAR_LAMP.emissiveIntensity = 0.025 + night * 1.2;
+}
+
+function busOptics(front: boolean) {
+  const b = new PlotGeometry();
+  for (const side of [-1, 1])
+    b.box(
+      front ? [0.23, 0.09, 0.008] : [0.115, 0.185, 0.008],
+      front ? [side * 0.7, 0.97, 4.0135] : [side * 0.85, 1.07, -4.0135],
+      '#ffffff'
+    );
+  return b.finish();
+}
+
 function busBody() {
   const b = new PlotGeometry();
   b.box([2.12, 0.14, 7.86], [0, 0.51, 0], IRON);
-  b.box([2.2, 0.2, 7.98], [0, 2.9, 0], CREAM);
+  // Small rolled roof corners, retaining the existing three-metre crown.
+  const roof = new THREE.Shape();
+  roof.moveTo(-1.1, 2.8);
+  roof.lineTo(1.1, 2.8);
+  roof.lineTo(1.1, 2.89);
+  roof.quadraticCurveTo(1.1, 3, 0.99, 3);
+  roof.lineTo(-0.99, 3);
+  roof.quadraticCurveTo(-1.1, 3, -1.1, 2.89);
+  roof.closePath();
+  b.add(
+    new THREE.ExtrudeGeometry(roof, {
+      depth: 7.98,
+      bevelEnabled: false,
+      curveSegments: 4,
+    }).translate(0, 0, -3.99),
+    CREAM
+  );
   b.box([1.95, 0.1, 7.6], [0, 2.75, 0], GREEN);
   // The nearside wall has a real 1.2m entrance gap. No solid box behind the doors.
   for (const [side, centre, length] of [
@@ -77,9 +132,17 @@ function busBody() {
   b.box([0.34, 0.12, 1.16], [-0.93, 0.26, 2.4], IRON);
   b.box([0.13, 0.04, 1.16], [-1.025, 0.34, 2.4], CREAM);
   for (const side of [-1, 1]) {
-    b.box([0.25, 0.11, 0.025], [side * 0.7, 0.97, 4], '#e8d9a7');
-    b.box([0.14, 0.2, 0.025], [side * 0.85, 1.07, -4], '#913d32');
+    b.box([0.29, 0.15, 0.06], [side * 0.7, 0.97, 3.98], IRON);
+    b.box([0.16, 0.23, 0.04], [side * 0.85, 1.07, -3.99], IRON);
   }
+  // Empty paired seats, visible through the glazing. The aisle and boarding portal stay clear.
+  for (const z of [-2.6, -1.3, 0, 1.2])
+    for (const side of [-1, 1]) {
+      b.box([0.62, 0.14, 0.8], [side * 0.65, 1.03, z], GREEN);
+      b.box([0.64, 0.65, 0.12], [side * 0.65, 1.43, z - 0.32], CREAM);
+      b.box([0.52, 0.45, 0.13], [side * 0.65, 1.43, z - 0.31], GREEN);
+      b.box([0.055, 0.46, 0.055], [side * 0.65, 0.77, z], IRON);
+    }
   return b.finish();
 }
 function busWindows() {
@@ -152,6 +215,8 @@ function flourSacks() {
 }
 export const COMMUNITY_TRANSIT_GEOMETRY = Object.freeze({
   bus: busBody(),
+  headlamps: busOptics(true),
+  rearLamps: busOptics(false),
   windows: busWindows(),
   door: door(),
   busWheel: wheel(0.42, 0.19),
@@ -242,6 +307,7 @@ export function CommunityBus({ pose }: { pose: CommunityBusPose }) {
     state.current.visible = true;
     root.current.position.set(pose.x, 0, pose.z);
     root.current.rotation.y = pose.rotation;
+    setCommunityBusLampLevel(EXTERIOR_LAMP_LEVEL.value);
     const target =
       typeof pose.doorsOpen === 'boolean'
         ? Number(pose.doorsOpen)
@@ -263,6 +329,18 @@ export function CommunityBus({ pose }: { pose: CommunityBusPose }) {
     >
       <mesh geometry={COMMUNITY_TRANSIT_GEOMETRY.bus} material={PAINT} castShadow receiveShadow />
       <mesh geometry={COMMUNITY_TRANSIT_GEOMETRY.windows} material={GLASS} />
+      <mesh
+        name="community-bus-headlamps"
+        geometry={COMMUNITY_TRANSIT_GEOMETRY.headlamps}
+        material={HEADLAMP}
+        receiveShadow
+      />
+      <mesh
+        name="community-bus-rear-lamps"
+        geometry={COMMUNITY_TRANSIT_GEOMETRY.rearLamps}
+        material={REAR_LAMP}
+        receiveShadow
+      />
       <RollingWheels
         radius={0.42}
         geometry={COMMUNITY_TRANSIT_GEOMETRY.busWheel}
