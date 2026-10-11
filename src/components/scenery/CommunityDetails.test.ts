@@ -8,6 +8,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { COMMUNITY_GEOMETRY } from './CommunityDetails';
 import { COMMUNITY_ANCHORS as A } from '../../constants/communityLayout';
+import { BUS_SHELTER_LIGHT } from '../../constants/publicRealmLayout';
 
 function heightAt(geometry: THREE.BufferGeometry, x: number, z: number) {
   const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }));
@@ -35,7 +36,7 @@ describe('authored community details', () => {
   it('leaves the measured canal moorings to the public realm, without floating legacy cleats', () => {
     expect(COMMUNITY_GEOMETRY).not.toHaveProperty('mooring');
   });
-  it('uses the delivered shelter seat top rather than the lower primitive fallback', async () => {
+  it('uses the delivered shelter seat top and seats its roof luminaire', async () => {
     const io = new NodeIO().registerExtensions(ALL_EXTENSIONS).registerDependencies({
       'draco3d.decoder': await draco.createDecoderModule(),
     });
@@ -62,6 +63,24 @@ describe('authored community details', () => {
       new THREE.Vector3(0, -1, 0)
     ).intersectObject(group, true);
     expect(hits[0]?.point.y).toBeCloseTo(A.busSeat.seatHeight!, 5);
+    const fixture = BUS_SHELTER_LIGHT;
+    const top = fixture.housing.position[1] + fixture.housing.size[1] / 2;
+    for (const x of [-fixture.housing.size[0] * 0.46, 0, fixture.housing.size[0] * 0.46]) {
+      const roof = new THREE.Raycaster(
+        new THREE.Vector3(x, 2.2, fixture.housing.position[2]),
+        new THREE.Vector3(0, 1, 0)
+      ).intersectObject(group, true)[0];
+      expect(roof).toBeDefined();
+      expect(top).toBeGreaterThan(roof.point.y);
+      expect(top - roof.point.y).toBeLessThan(0.04);
+    }
+    const housingBottom = fixture.housing.position[1] - fixture.housing.size[1] / 2;
+    expect(fixture.lens.position[1] + fixture.lens.size[1] / 2).toBeGreaterThan(housingBottom);
+    expect(fixture.lens.position[1] - fixture.lens.size[1] / 2).toBeLessThan(housingBottom - 0.01);
+    expect(fixture.downlight.position[1]).toBeLessThan(
+      fixture.lens.position[1] - fixture.lens.size[1] / 2
+    );
+
     group.children.forEach((object) => {
       const mesh = object as THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial>;
       mesh.geometry.dispose();

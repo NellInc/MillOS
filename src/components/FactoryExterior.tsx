@@ -53,13 +53,14 @@ import {
 } from '../simulation/atmosphere';
 import { positionRegistry } from '../utils/positionRegistry';
 import { PROCEDURAL_TEXTURES, TREE_MATERIALS } from '../utils/sharedMaterials';
-import { CAFE_COURT_LANTERN } from '../constants/publicRealmLayout';
+import { BUS_SHELTER_LIGHT, CAFE_COURT_LANTERN } from '../constants/publicRealmLayout';
 import { generateMachineORM } from '../textures';
 import { createCheckpointGateState, stepCheckpointGate } from './exterior/checkpointLogic';
 import { PlotGeometry } from '../utils/authoredPlotGeometry';
 import {
   EXTERIOR_LAMP_LENS_MATERIAL,
   ExteriorLampDriver,
+  ExteriorDownlight,
   ExteriorLampPool,
   WEST_FACTORY_PATH,
   WEST_FACTORY_PATH_LAMPS,
@@ -4101,11 +4102,26 @@ const CurvedText: React.FC<{
 };
 
 // Industrial grain silo - typical flour mill storage
+// Matte printed ink has no glossy white highlight under the nearby roof lamp.
+// Working if the night timetable keeps dark, legible lettering on its lit paper.
+const BUS_TIMETABLE_INK_MATERIAL = new THREE.MeshLambertMaterial({
+  color: '#ffffff',
+  side: THREE.DoubleSide,
+  transparent: true,
+  depthWrite: false,
+});
+
 // European-style covered bus stop with advertisements
 const BusStop: React.FC<{
   position: [number, number, number];
   rotation?: number;
 }> = ({ position, rotation = 0 }) => {
+  const realRoofLight = useGraphicsStore(
+    (state) =>
+      state.graphics.quality !== 'low' &&
+      !state.graphics.perfDebug.disablePunctualLights &&
+      !state.graphics.perfDebug.disableLightingPolish
+  );
   const shelterWidth = 4;
   const shelterDepth = 1.8;
   const shelterHeight = 2.8;
@@ -4175,6 +4191,34 @@ const BusStop: React.FC<{
         <meshStandardMaterial color="#a7f3d0" transparent opacity={0.3} roughness={0.1} />
       </mesh>
 
+      {/* Waterproof roof light shares the existing lens/pool dimmer. The
+          short-range real light never casts another shadow map. */}
+      <group name="bus-shelter-roof-light" userData={{ noStaticBatch: true }}>
+        <mesh name="bus-shelter-light-housing" position={[...BUS_SHELTER_LIGHT.housing.position]}>
+          <boxGeometry args={[...BUS_SHELTER_LIGHT.housing.size]} />
+          <meshStandardMaterial color="#274b3a" roughness={0.58} metalness={0.25} />
+        </mesh>
+        <mesh name="bus-shelter-light-lens" position={[...BUS_SHELTER_LIGHT.lens.position]}>
+          <boxGeometry args={[...BUS_SHELTER_LIGHT.lens.size]} />
+          <primitive object={EXTERIOR_LAMP_LENS_MATERIAL} attach="material" />
+        </mesh>
+        <group
+          position={[...BUS_SHELTER_LIGHT.pool.position]}
+          scale={[1, 1, BUS_SHELTER_LIGHT.pool.depthScale]}
+        >
+          <ExteriorLampPool radius={BUS_SHELTER_LIGHT.pool.radius} />
+        </group>
+        {realRoofLight && (
+          <ExteriorDownlight
+            name="bus-shelter-downlight"
+            position={[...BUS_SHELTER_LIGHT.downlight.position]}
+            intensity={BUS_SHELTER_LIGHT.downlight.intensity}
+            distance={BUS_SHELTER_LIGHT.downlight.distance}
+            color={BUS_SHELTER_LIGHT.downlight.color}
+          />
+        )}
+      </group>
+
       {/* Back panel - glass */}
       <mesh position={[0, shelterHeight / 2, -shelterDepth / 2 - 0.02]}>
         <boxGeometry args={[shelterWidth - 0.1, shelterHeight - 0.3, 0.04]} />
@@ -4211,22 +4255,30 @@ const BusStop: React.FC<{
       </mesh>
       <Text
         position={[0, 1.85, -shelterDepth / 2 + 0.06]}
-        fontSize={0.06}
-        color="#1f2937"
-        fontWeight="bold"
+        fontSize={0.075}
+        color="#050d10"
         anchorX="center"
         anchorY="middle"
+        surface="painted"
+        material={BUS_TIMETABLE_INK_MATERIAL}
+        outlineWidth="2%"
+        outlineColor="#050d10"
       >
         TIMETABLE
       </Text>
       <Text
         position={[0, 1.65, -shelterDepth / 2 + 0.06]}
-        fontSize={0.04}
-        color="#4b5563"
+        fontSize={0.045}
+        lineHeight={1.4}
+        color="#050d10"
         anchorX="center"
         anchorY="middle"
+        surface="painted"
+        material={BUS_TIMETABLE_INK_MATERIAL}
+        outlineWidth="2%"
+        outlineColor="#050d10"
       >
-        Route 42 to Town Centre
+        {'Route 42\nTown Centre'}
       </Text>
     </group>
   );

@@ -12,6 +12,16 @@ export const WORLD_CRAFT_PALETTE = {
   oak: '#70533a',
   iron: '#394a49',
 } as const;
+/** Shelter-local waterproof luminaire, measured against the delivered roof.
+ * Working if its housing reaches the 2.847-2.860 m soffit and the lens stays below it.
+ */
+export const BUS_SHELTER_LIGHT = {
+  housing: { position: [0, 2.83, 0.12], size: [1.3, 0.084, 0.14] },
+  lens: { position: [0, 2.779, 0.12], size: [1.14, 0.02, 0.075] },
+  downlight: { position: [0, 2.753, 0.12], intensity: 26, distance: 5, color: '#ffe3a6' },
+  pool: { position: [0, 0.1, 0], radius: 1.75, depthScale: 0.5 },
+} as const;
+
 export type RealmPoint = readonly [number, number];
 export interface RealmPath {
   start: RealmPoint;
