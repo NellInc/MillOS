@@ -68,14 +68,14 @@
       "sha256": "a88fc25fde338805657ace7391134f1fbe2fde38f6b3121f06f2809be81e29cc",
       "blenderPreparation": {
         "file": "assets/source/models/village/cottage-crafted.glb",
-        "sha256": "b14446ba0bad68a10c42fe1236701fd3586d73b079264f4770351519980ba101",
+        "sha256": "40b92b41c385969e9f909df7d14e01806ec4f3c57214ad79fe579338080cc1fb",
         "script": "scripts/blender/rebuild_village_architecture.py",
         "method": "Completely rebuilt from planar architectural solids, closed layered roofs, recessed framed glazing, measured timber joinery and grounded thresholds. No provider vertices retained. Original silhouette, palette and occupied envelope guide the authored design; the school turf disc is removed."
       },
       "runtimeDerivative": {
         "file": "public/models/village/cottage.glb",
-        "sha256": "b7bd171eb256da47da7e17d4204bcd6c536673672140307aa806e2da85e16413",
-        "bytes": 260044
+        "sha256": "b355478846f053723ae03d364a167f29308417049e861830f0541c8db5f83366",
+        "bytes": 296028
       },
       "normalization": {
         "sizedBy": "longest axis",
@@ -97,7 +97,7 @@
         "materials": 1,
         "textures": 2,
         "textureBytes": 14207,
-        "renderVertices": 10524
+        "renderVertices": 12132
       }
     },
     {
@@ -326,14 +326,14 @@
       "sha256": "225b6809469b20cd71b6e12579afe637e070ccd9ebb2f088f3c83bdc64fe3f1b",
       "blenderPreparation": {
         "file": "assets/source/models/village/forge-crafted.glb",
-        "sha256": "b846645c0ca8591db90603f854d7deaf1200a9c5487800d29f12d51b0a0fa709",
+        "sha256": "a26ce10f2720a1547d87b9c91a2bbc7c06c391a57cf227b91a78e8807cb972cd",
         "script": "scripts/blender/rebuild_village_architecture.py",
         "method": "Completely rebuilt from planar architectural solids, closed layered roofs, recessed framed glazing, measured timber joinery and grounded thresholds. No provider vertices retained. Original silhouette, palette and occupied envelope guide the authored design; the school turf disc is removed."
       },
       "runtimeDerivative": {
         "file": "public/models/village/forge.glb",
-        "sha256": "ba84fca88b012b02a74641d1ca83b48afcb6e146f4dbbcc99f6ce2c17453609e",
-        "bytes": 189952
+        "sha256": "02e531c60890257dd7a9ea74ba669f8b5d38e3418cd5d84c823d094952c01f52",
+        "bytes": 225936
       },
       "normalization": {
         "sizedBy": "longest axis",
@@ -355,7 +355,7 @@
         "materials": 1,
         "textures": 2,
         "textureBytes": 14207,
-        "renderVertices": 7452
+        "renderVertices": 9060
       }
     },
     {

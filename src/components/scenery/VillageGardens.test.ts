@@ -165,7 +165,8 @@ describe('authored British/Dutch village plots', () => {
       const roof = hit(body, [-0.7, 9, 0], [0, -1, 0]);
       expect(roof.length).toBeGreaterThan(1);
       expect(roof[0].point.y).toBeGreaterThan(4);
-      const pot = hit(body, [chimney[0], chimney[1] + 0.3, chimney[2] + 0.2], [0, -1, 0]);
+      // Measure the retained rim datum; the centre is now the actual open throat.
+      const pot = hit(body, [chimney[0] + 0.105, chimney[1] + 0.3, chimney[2] + 0.2], [0, -1, 0]);
       expect(pot[0].distance).toBeLessThan(0.36);
       expect(pot[0].distance).toBeGreaterThan(0.3);
     }
@@ -282,4 +283,41 @@ it('builds closed stemmed five-petal blooms with repeatable, location-specific h
   expect(first.getAttribute('position').array).toEqual(repeated.getAttribute('position').array);
   expect(first.boundingBox!.max.y).not.toBe(neighbour.boundingBox!.max.y);
   [first, repeated, neighbour].forEach((g) => g.dispose());
+});
+
+it('gives both smoke-aligned pots on every live home a recessed throat and front-facing inner walls', () => {
+  const front = new THREE.MeshBasicMaterial({ side: THREE.FrontSide });
+  try {
+    for (const { body, chimney } of VILLAGE_HOMES) {
+      const building = new THREE.Mesh(body, front);
+      for (const offset of [-0.2, 0.2]) {
+        const centre = new THREE.Vector3(chimney[0], chimney[1] - 0.12, chimney[2] + offset);
+        const floor = new THREE.Raycaster(
+          centre.clone().setY(chimney[1] + 0.1),
+          new THREE.Vector3(0, -1, 0)
+        ).intersectObject(building)[0];
+        expect(floor).toBeDefined();
+        expect(floor.point.y).toBeLessThan(chimney[1] - 0.15);
+        for (const direction of [
+          [1, 0, 0],
+          [-1, 0, 0],
+          [0, 0, 1],
+          [0, 0, -1],
+        ]) {
+          const wall = new THREE.Raycaster(
+            centre,
+            new THREE.Vector3(...direction),
+            0,
+            0.2
+          ).intersectObject(building)[0];
+          expect(wall).toBeDefined();
+          // The closed casting narrows towards its bed; this samples the inward wall.
+          expect(wall.distance).toBeGreaterThan(0.04);
+          expect(wall.distance).toBeLessThan(0.13);
+        }
+      }
+    }
+  } finally {
+    front.dispose();
+  }
 });

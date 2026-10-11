@@ -220,6 +220,56 @@ function roof(
   b.box([0.19, 0.12, depth + 0.1], [0, y + rise + 0.015, 0], thatch ? '#b49864' : colour);
 }
 
+/** A closed pot keeps the eight-sided outer silhouette with a real cavity.
+ * Dutch stacks have square throats; the other homes use six-sided throats.
+ * Working if every mouth is recessed and the original 40k plot budget holds.
+ */
+function homeChimneyPot(squareThroat: boolean) {
+  const ring = (count: number, radius: number) =>
+    Array.from({ length: count }, (_, i) => {
+      const angle = (i * Math.PI * 2) / count;
+      return new THREE.Vector2(Math.sin(angle) * radius, Math.cos(angle) * radius);
+    });
+  const outer = ring(8, 0.12),
+    inner = ring(squareThroat ? 4 : 6, 0.085);
+  const positions = [
+    ...ring(8, 0.15).flatMap((p) => [p.x, 0.04, p.y]),
+    ...outer.flatMap((p) => [p.x, 0.36, p.y]),
+    ...inner.flatMap((p) => [p.x, 0.36, p.y]),
+    0,
+    0.04,
+    0,
+    0,
+    0.07,
+    0,
+  ];
+  const bottom = 16 + inner.length,
+    floor = bottom + 1,
+    indices: number[] = [];
+  for (let i = 0; i < 8; i++) {
+    const j = (i + 1) % 8;
+    indices.push(i, j, i + 8, j, j + 8, i + 8, bottom, j, i);
+  }
+  // The unequal rings form a softened lip without hidden duplicate faces.
+  for (const face of THREE.ShapeUtils.triangulateShape(outer, [inner])) {
+    const [a, b, c] = face.map((i) => i + 8);
+    const normalY =
+      (positions[b * 3 + 2] - positions[a * 3 + 2]) * (positions[c * 3] - positions[a * 3]) -
+      (positions[b * 3] - positions[a * 3]) * (positions[c * 3 + 2] - positions[a * 3 + 2]);
+    indices.push(a, normalY > 0 ? b : c, normalY > 0 ? c : b);
+  }
+  for (let i = 0; i < inner.length; i++) indices.push(16 + i, 16 + ((i + 1) % inner.length), floor);
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  g.setAttribute(
+    'uv',
+    new THREE.Float32BufferAttribute(new Float32Array((positions.length * 2) / 3), 2)
+  );
+  g.setIndex(indices);
+  g.computeVertexNormals();
+  return g;
+}
+
 function house(index: number) {
   const d = DESIGNS[index],
     b = new PlotGeometry(),
@@ -414,14 +464,7 @@ function house(index: number) {
   }
   b.box([0.73, 0.13, 0.8], [chimney[0], chimney[1] + 0.015, chimney[2]], CREAM);
   for (const z of [-0.2, 0.2])
-    b.add(
-      new THREE.CylinderGeometry(0.12, 0.15, 0.32, 8).translate(
-        chimney[0],
-        chimney[1] + 0.2,
-        chimney[2] + z
-      ),
-      '#aa704f'
-    );
+    b.add(homeChimneyPot(step).translate(chimney[0], chimney[1], chimney[2] + z), '#aa704f');
   return {
     body: b.finish(),
     glass: glass.finish(),

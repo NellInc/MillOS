@@ -291,9 +291,31 @@ def shell(name, width, depth, height, key='plaster', x=0, z=0):
 
 
 def chimney(x, z, bottom, top, width=.48):
-    box('Chimney shaft', (x, (bottom + top) / 2, z), (width, top - bottom, width), 'stone')
-    box('Chimney cap', (x, top - .12, z), (width + .13, .12, width + .13), 'cream')
-    box('Chimney open flue', (x, top - .051, z), (width * .61, .014, width * .61), 'ink')
+    # A scaled closed casting replaces the dark patch hidden by the solid shaft.
+    # Working if every caller keeps its old top/envelope and has a recessed throat.
+    shaft_top, cap_bottom, cap_top = top - width * .65, top - width * .70, top - width * .49
+    if shaft_top <= bottom:
+        raise RuntimeError('Chimney shaft is too short for its retained flue')
+    box('Chimney shaft', (x, (bottom + shaft_top) / 2, z), (width, shaft_top - bottom, width), 'stone')
+    outer, inner = width + .13, width * .61
+    thick, centre = (outer - inner) / 2, (outer + inner) / 4
+    for side in (-1, 1):
+        box('Open chimney cap front', (x, (cap_bottom + cap_top) / 2, z + side * centre),
+            (outer, cap_top - cap_bottom, thick), 'cream')
+        box('Open chimney cap side', (x + side * centre, (cap_bottom + cap_top) / 2, z),
+            (thick, cap_top - cap_bottom, inner), 'cream')
+    for sx in (-1, 1):
+        for sz in (-1, 1):
+            corner = [(x + sx * u, y, z + sz * v) for y in (cap_bottom, cap_top)
+                      for u, v in ((inner / 2, inner / 2), (inner / 2, width * .12),
+                                   (width * .12, inner / 2))]
+            solid('Sealed chimney cap corner', corner,
+                  [(0, 2, 1), (3, 4, 5), (0, 1, 4, 3), (1, 2, 5, 4), (2, 0, 3, 5)], 'cream')
+    lathe('Hollow village chimney pot', x, z,
+          [(r * width, top - h * width) for r, h in
+           [(.23, .54), (.34, .54), (.34, .46), (.30, .42),
+            (.30, .12), (.34, .08), (.34, .03), (.30, 0),
+            (.23, 0), (.22, .05), (.23, .54)]], 'stone', 24)
 
 
 def arch(name, x, y, z, width, height, key='cream'):
@@ -740,7 +762,7 @@ for slug, builder in BUILDERS.items():
     bm.to_mesh(mesh)
     bm.free()
     for part in PARTS:
-        if part['name'] in ('Civic curving ogee cupola', 'School swept bell cap', 'School open bronze bell', 'Bell clapper ball', 'Pub hollow rolled flue pot', 'Mushroom brass roof vent', 'Shop display display loaf'):
+        if part['name'] in ('Civic curving ogee cupola', 'School swept bell cap', 'School open bronze bell', 'Bell clapper ball', 'Pub hollow rolled flue pot', 'Hollow village chimney pot', 'Mushroom brass roof vent', 'Shop display display loaf'):
             lo, hi = part['firstVertex'], part['firstVertex'] + part['vertexCount']
             for polygon in mesh.polygons:
                 if all(lo <= v < hi for v in polygon.vertices):

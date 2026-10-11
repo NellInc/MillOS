@@ -893,3 +893,48 @@ test('pub chimney has a recessed open flue and inward-facing pot walls', async (
     dispose(meshes);
   }
 });
+
+test('cottage and forge highest flues are actually recessed and have inward-facing walls', async () => {
+  for (const id of ['village-cottage', 'village-forge']) {
+    const { meshes } = await assembly(id);
+    try {
+      for (const mesh of meshes) mesh.material.side = THREE.FrontSide;
+      const points = meshes.flatMap((mesh) => {
+        const p = mesh.geometry.getAttribute('position');
+        return Array.from({ length: p.count }, (_, i) =>
+          new THREE.Vector3().fromBufferAttribute(p, i)
+        );
+      });
+      // Both retained silhouettes have the flue as their highest component.
+      // Derive its real delivered centre and scale, never copy normalizer ratios.
+      const top = Math.max(...points.map((p) => p.y));
+      const rim = new THREE.Box3().setFromPoints(points.filter((p) => p.y > top - 0.0001));
+      const centre = rim.getCenter(new THREE.Vector3());
+      const span = rim.max.x - rim.min.x;
+      const floor = new THREE.Raycaster(
+        new THREE.Vector3(centre.x, top + 0.1, centre.z),
+        new THREE.Vector3(0, -1, 0)
+      ).intersectObjects(meshes, false)[0];
+      expect(floor, id + ' recessed floor').toBeDefined();
+      expect(floor.point.y).toBeLessThan(top - 0.1);
+      for (const direction of [
+        [1, 0, 0],
+        [-1, 0, 0],
+        [0, 0, 1],
+        [0, 0, -1],
+      ]) {
+        const inner = new THREE.Raycaster(
+          new THREE.Vector3(centre.x, top - span * 0.3, centre.z),
+          new THREE.Vector3(...direction),
+          0,
+          span
+        ).intersectObjects(meshes, false)[0];
+        expect(inner, id + ' inward-facing flue wall').toBeDefined();
+        expect(inner.distance).toBeGreaterThan(span * 0.25);
+        expect(inner.distance).toBeLessThan(span * 0.5);
+      }
+    } finally {
+      dispose(meshes);
+    }
+  }
+});
