@@ -1,4 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react';
+import { useFrame } from '@react-three/fiber';
+import { useGameSimulationStore } from '../../stores/gameSimulationStore';
+import { createAtmosphereState, sampleAtmosphere } from '../../simulation/atmosphere';
 import * as THREE from 'three';
 import { FLOOR_LAYERS, POLYGON_OFFSET, RENDER_ORDER } from '../../constants/renderLayers';
 import { SITE_LAYOUT } from '../../constants/siteLayout';
@@ -48,6 +51,16 @@ export const ZONE_LIGHT_HEIGHT = SITE_LAYOUT.factory.bounds.maxY - 4.5;
  * times the 0.22 ambient term, which is a readable pool rather than a hotspot.
  */
 export const ZONE_LIGHT_INTENSITY = 380;
+
+/** Existing work lamps compensate gradually as daylight fades.
+ * Working if night machinery gains warm modelling with the same two/four lamps,
+ * while clear noon, source positions and all shadow budgets remain unchanged.
+ */
+export function zoneWorkLightIntensity(daylight: number): number {
+  const t = Number.isFinite(daylight) ? THREE.MathUtils.clamp(daylight, 0, 1) : 1;
+  const darkness = 1 - t * t * (3 - 2 * t);
+  return ZONE_LIGHT_INTENSITY * (1 + 0.65 * darkness);
+}
 
 /** Cutoff radius. Beyond it the light contributes exactly zero. */
 export const ZONE_LIGHT_DISTANCE = 44;
@@ -191,6 +204,17 @@ export function InteriorLightRig() {
   );
   const zoneLights = zoneLightPositions(quality);
   const poolsRef = useRef<THREE.InstancedMesh>(null);
+  const rigRef = useRef<THREE.Group>(null);
+  const atmosphere = useMemo(() => createAtmosphereState(), []);
+  useFrame(() => {
+    const { gameDay, gameTime, weather } = useGameSimulationStore.getState();
+    const intensity = referenceLighting
+      ? ZONE_LIGHT_INTENSITY
+      : zoneWorkLightIntensity(sampleAtmosphere(gameDay, gameTime, weather, atmosphere).daylight);
+    for (const child of rigRef.current?.children ?? []) {
+      if (child instanceof THREE.PointLight) child.intensity = intensity;
+    }
+  });
   const positions = useMemo(() => floorPoolPositions(), []);
   const poolTexture = useMemo(() => createLightPoolTexture(), []);
   const poolGeometry = useMemo(() => new THREE.PlaneGeometry(1, 1), []);
@@ -237,7 +261,7 @@ export function InteriorLightRig() {
   }, [positions]);
 
   return (
-    <group name="interior-light-rig">
+    <group ref={rigRef} name="interior-light-rig">
       {zoneLights.map((position) => (
         <pointLight
           key={`zone-light-${position[0]}-${position[2]}`}

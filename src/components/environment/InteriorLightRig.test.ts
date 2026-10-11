@@ -12,6 +12,7 @@ import {
   createLightPoolTexture,
   floorPoolPositions,
   zoneLightPositions,
+  zoneWorkLightIntensity,
 } from './InteriorLightRig';
 import { SITE_LAYOUT } from '../../constants/siteLayout';
 import { sampleAtmosphere, sampleCelestial } from '../../simulation/atmosphere';
@@ -26,6 +27,23 @@ function pointLightIrradiance(intensity: number, distance: number, cutoff: numbe
 }
 
 describe('zone lights', () => {
+  it('adds bounded warm night power without changing noon or introducing a switch', () => {
+    expect(zoneWorkLightIntensity(1)).toBe(ZONE_LIGHT_INTENSITY);
+    expect(zoneWorkLightIntensity(0)).toBeCloseTo(ZONE_LIGHT_INTENSITY * 1.65, 10);
+    expect(zoneWorkLightIntensity(NaN)).toBe(ZONE_LIGHT_INTENSITY);
+    expect(zoneWorkLightIntensity(-1)).toBe(zoneWorkLightIntensity(0));
+    expect(zoneWorkLightIntensity(2)).toBe(ZONE_LIGHT_INTENSITY);
+    let previous = zoneWorkLightIntensity(0);
+    for (let i = 1; i <= 100; i++) {
+      const intensity = zoneWorkLightIntensity(i / 100);
+      expect(intensity).toBeLessThanOrEqual(previous);
+      expect(previous - intensity).toBeLessThan(4);
+      previous = intensity;
+    }
+    expect(zoneWorkLightIntensity(sampleAtmosphere(0, 12, 'clear').daylight)).toBe(380);
+    expect(zoneWorkLightIntensity(sampleAtmosphere(0, 22, 'clear').daylight)).toBeCloseTo(627);
+  });
+
   it('places four lights below real ceiling fixtures and no more', () => {
     // Four is a hard ceiling, not a starting point: three's forward renderer
     // puts every point light in every lit material's uniform block with no
