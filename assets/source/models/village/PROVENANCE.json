@@ -283,14 +283,14 @@
       "sha256": "3be8efe21c58758b60cec5483bb8a85850d497914aed169d603b7d5a095e021e",
       "blenderPreparation": {
         "file": "assets/source/models/village/school-crafted.glb",
-        "sha256": "8dc238ad3af36cb7ba893c1ca4f8a113cd3b5e5cb81464fc384a270bee7f5240",
+        "sha256": "cc2e34805f0323abe6fdf1679788aea2703e9191f2bfe04288fd6d691e2ae90e",
         "script": "scripts/blender/rebuild_village_architecture.py",
-        "method": "Authored revival of the preserved v0.30 architecture: original nave, rear spire and rose; broad cream civic hall; hipped half-timbered Flour and Barrel; cream open-belfry schoolhouse. Closed layered hips, dressed stone, framed glazing and joinery. New reference-led metre envelopes, original provider source untouched."
+        "method": "Authored revival of the preserved v0.30 cream schoolhouse and open belfry, with closed layered hips, dressed stone, recessed sash glazing and grounded thresholds. A hollow closed bronze bell casting has a rolled sound bow, attached oak-yoke ironwork and rounded clapper. Retained metre envelope and silhouette; original provider source untouched."
       },
       "runtimeDerivative": {
         "file": "public/models/village/school.glb",
-        "sha256": "af8a4a0db1d91e3906921341ff14297652008fa263ef839324c9e3bbd1f1e786",
-        "bytes": 354656
+        "sha256": "1bc59eb7fe020baed7886b2b564803702765647bf37a10581c036be66465df4c",
+        "bytes": 406876
       },
       "normalization": {
         "sizedBy": "width",
@@ -312,7 +312,7 @@
         "materials": 1,
         "textures": 2,
         "textureBytes": 14207,
-        "renderVertices": 14748
+        "renderVertices": 17304
       }
     },
     {

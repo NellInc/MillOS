@@ -3302,7 +3302,7 @@ export const GENERATED_ASSETS = [
   {
     yaw: 0,
     preparationMethod:
-      'Authored revival of the preserved v0.30 architecture: original nave, rear spire and rose; broad cream civic hall; hipped half-timbered Flour and Barrel; cream open-belfry schoolhouse. Closed layered hips, dressed stone, framed glazing and joinery. New reference-led metre envelopes, original provider source untouched.',
+      'Authored revival of the preserved v0.30 cream schoolhouse and open belfry, with closed layered hips, dressed stone, recessed sash glazing and grounded thresholds. A hollow closed bronze bell casting has a rolled sound bow, attached oak-yoke ironwork and rounded clapper. Retained metre envelope and silhouette; original provider source untouched.',
     preparationScript: 'scripts/blender/rebuild_village_architecture.py',
     preparedSource: 'school-crafted.glb',
     id: 'village-school',

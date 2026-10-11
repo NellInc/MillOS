@@ -726,6 +726,50 @@ test('v0.30 village landmarks recover their distinct silhouettes and clear entra
   }
 });
 
+test('school bell has a front-facing inner casting and a closed crown above its open mouth', async () => {
+  const { doc, meshes } = await assembly('village-school');
+  try {
+    expect(doc.getRoot().listMeshes()).toHaveLength(1);
+    expect(doc.getRoot().listMaterials()).toHaveLength(1);
+    for (const mesh of meshes) mesh.material.side = THREE.FrontSide;
+    // Rays originate inside the real hollow, off the central clapper. The old
+    // outer-only bell has no front-facing inner wall, so these must fail there.
+    for (const [x, z, dx, dz] of [
+      [0.2, 0.1, 1, 0],
+      [-0.2, 0.1, -1, 0],
+      [0.1, 0.2, 0, 1],
+      [0.1, -0.2, 0, -1],
+    ]) {
+      const hit = new THREE.Raycaster(
+        new THREE.Vector3(x, 9.72, z),
+        new THREE.Vector3(dx, 0, dz),
+        0,
+        0.4
+      ).intersectObjects(meshes, false)[0];
+      expect(hit, 'visible inward-facing bronze casting').toBeDefined();
+      expect(hit.distance).toBeGreaterThan(0.1);
+    }
+    const up = new THREE.Raycaster(
+      new THREE.Vector3(0.1, 9.74, 0.08),
+      new THREE.Vector3(0, 1, 0),
+      0,
+      0.6
+    ).intersectObjects(meshes, false)[0];
+    expect(up, 'closed inner crown').toBeDefined();
+    expect(up.point.y).toBeGreaterThan(10.2);
+    expect(up.point.y).toBeLessThan(10.3);
+    const down = new THREE.Raycaster(
+      new THREE.Vector3(0.2, 9.72, 0.1),
+      new THREE.Vector3(0, -1, 0),
+      0,
+      0.5
+    ).intersectObjects(meshes, false);
+    expect(down, 'open mouth below the inner casting').toHaveLength(0);
+  } finally {
+    dispose(meshes);
+  }
+});
+
 test('authored narrowboat has a tapered closed hull, cambered roof and eight seated glazing discs', async () => {
   const { doc, meshes } = await assembly('world-canal-boat');
   try {

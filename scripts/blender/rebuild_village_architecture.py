@@ -552,9 +552,29 @@ def school():
             box('Belfry post capital',(x,10.57,z),(.32,.15,.32),'cream')
     box('Belfry crown',(0,10.75,0),(2.3,.23,2.3),'cream')
     beam('Bell oak yoke',(-.75,10.38,0),(.75,10.38,0),.16,'timber')
-    lathe('School open bronze bell',0,0,[(.51,9.46),(.60,9.5),(.60,9.59),(.49,9.66),(.36,9.86),(.27,10.17),(.15,10.33),(.04,10.33)],'brass',28)
-    beam('Bell clapper',(0,9.43,0),(0,9.97,0),.055,'iron')
-    lathe('Bell clapper ball',0,0,[(0,9.36),(.1,9.43),(0,9.5)],'iron',12)
+    # A cast shell folds over its rolled sound bow and returns up the inside.
+    # The crown closes above the clapper; the mouth remains open. No two-sided
+    # material or separate runtime mesh hides missing bronze.
+    # Working if front-face delivery rays see the inner wall and crown from
+    # the hollow, while a downward off-centre ray clears the open mouth.
+    lathe('School open bronze bell',0,0,[
+        (.515,9.46),(.60,9.48),(.62,9.53),(.61,9.59),(.55,9.625),
+        (.48,9.69),(.38,9.84),(.295,10.1),(.24,10.24),(.16,10.32),
+        (.08,10.34),(0,10.34),(0,10.255),(.14,10.255),(.19,10.205),
+        (.245,10.08),(.335,9.82),(.425,9.66),(.515,9.54),(.515,9.46)
+    ],'brass',28)
+    # Hung iron bearings connect the old oak yoke to the crown overhead.
+    # Their supports enter both pieces rather than floating beside the bell.
+    for side in (-1,1):
+        box('Bell crown hanger',(side*.64,10.55,0),(.075,.23,.14),'iron')
+        box('Bell yoke bearing',(side*.64,10.39,0),(.14,.15,.24),'iron')
+        box('Bell yoke strap',(side*.18,10.38,0),(.065,.19,.195),'iron')
+    beam('Bell crown mounting bolt',(0,10.32,0),(0,10.43,0),.08,'iron')
+    beam('Bell clapper',(0,9.43,0),(0,10.255,0),.055,'iron')
+    lathe('Bell clapper ball',0,0,[
+        (0,9.34),(.047,9.35),(.081,9.385),(.096,9.43),
+        (.081,9.475),(.047,9.51),(0,9.52)
+    ],'iron',12)
     lathe('School swept bell cap',0,0,[(1.6,10.90),(1.56,11.0),(1.22,11.14),(.94,11.38),(.71,11.67),(.48,11.98),(.27,12.28),(.07,12.55),(0,12.63)],'slate',24)
     lathe('Belfry gilt finial',0,0,[(.035,12.5),(.1,12.65),(0,12.83)],'brass',12)
 
@@ -701,7 +721,7 @@ for slug, builder in BUILDERS.items():
     bm.to_mesh(mesh)
     bm.free()
     for part in PARTS:
-        if part['name'] in ('Civic curving ogee cupola', 'School swept bell cap', 'School open bronze bell', 'Mushroom brass roof vent', 'Shop display display loaf'):
+        if part['name'] in ('Civic curving ogee cupola', 'School swept bell cap', 'School open bronze bell', 'Bell clapper ball', 'Mushroom brass roof vent', 'Shop display display loaf'):
             lo, hi = part['firstVertex'], part['firstVertex'] + part['vertexCount']
             for polygon in mesh.polygons:
                 if all(lo <= v < hi for v in polygon.vertices):
