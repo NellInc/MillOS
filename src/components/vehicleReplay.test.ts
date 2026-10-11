@@ -62,6 +62,7 @@ vi.mock('../simulation/workplaceReplayRuntime', () => ({
 }));
 
 import { TruckBay } from './TruckBay';
+import { TRUCK_WHEEL_RADIUS } from './truckbay/OptimizedTruckBay';
 import { ForkliftSystem } from './ForkliftSystem';
 import { useProductionStore } from '../stores/productionStore';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
@@ -105,6 +106,54 @@ afterEach(() => {
 });
 
 describe('component-owned vehicle replay', () => {
+  it.each([1, 2])('bounds real truck display steps after a stall at %sx production', (speed) => {
+    useProductionStore.setState({ productionSpeed: speed });
+    useGameSimulationStore.setState({ gameSpeed: 1 });
+    const models: any[] = [];
+    const collect = (node: any): void => {
+      if (!node) return;
+      if (Array.isArray(node)) node.forEach(collect);
+      else if (node.type?.name === 'TruckVisualLOD') models.push(node);
+      else collect(node.props?.children);
+    };
+    collect(TruckBay({ productionSpeed: speed }));
+    flushEffects();
+    expect(models).toHaveLength(2);
+    const frame = harness.frames[0];
+    // Reach incoming road speed through the live fixed-step authority.
+    for (let i = 0; i < 900 && models[0].props.stateRef.current.speed < 16.5; i++)
+      frame({ camera }, 1 / 60);
+    expect(models[0].props.stateRef.current).toMatchObject({ phase: 'entering' });
+    expect(models[0].props.stateRef.current.speed).toBeGreaterThanOrEqual(16.5);
+    frame({ camera }, 0.007);
+    const participant = harness.participants.get('trucks')!;
+    expect(participant.capture().shippingAccumulatorRef).toBeGreaterThan(0);
+    const before = models.map((model) => ({
+      ...model.props.stateRef.current,
+      wheelRotation: model.props.wheelRotationRef.current,
+    }));
+    const depart = vi.spyOn(useTruckScheduleStore.getState(), 'recordTruckDeparture');
+    const consume = vi.spyOn(useTruckScheduleStore.getState(), 'consumeTruckArrival');
+    frame({ camera }, 2);
+    for (const [i, model] of models.entries()) {
+      const pose = model.props.stateRef.current;
+      const distance = Math.hypot(pose.x - before[i].x, pose.z - before[i].z);
+      const wheelTravel =
+        (model.props.wheelRotationRef.current - before[i].wheelRotation) * TRUCK_WHEEL_RADIUS;
+      expect(distance).toBeGreaterThan(0);
+      expect(distance).toBeLessThanOrEqual(1.5);
+      expect(wheelTravel).toBeCloseTo(distance, 5);
+      expect(pose.phase).toBe('entering');
+    }
+    expect(depart).not.toHaveBeenCalled();
+    expect(consume).not.toHaveBeenCalled();
+    const elapsed = participant.capture().shippingControllerRef.phaseElapsed;
+    frame({ camera }, 1 / 30);
+    expect(participant.capture().shippingControllerRef.phaseElapsed - elapsed).toBeCloseTo(
+      speed / 30,
+      6
+    );
+  });
   it('retains both truck models across distance hysteresis without remounting finishes', () => {
     const findLod = (node: any): any => {
       if (!node) return undefined;

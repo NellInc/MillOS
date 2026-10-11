@@ -2804,7 +2804,11 @@ const TRUCK_TELEMETRY_SNAPSHOTS = {
   shipping: createTruckTelemetrySnapshot('shipping'),
   receiving: createTruckTelemetrySnapshot('receiving'),
 } as const;
-const MAXIMUM_TRUCK_CONTROLLER_DELTA_SECONDS = 0.1;
+// At the controller's 18 m/s ceiling, 80 ms permits at most 1.44 m per
+// displayed update. Larger scaled frames slow travel and service together;
+// the same authority still owns pose, wheels, interlocks and departure events.
+// Working if the real frame callback stays below the 1.5 m motion gate after stalls.
+const MAXIMUM_TRUCK_CONTROLLER_DELTA_SECONDS = 0.08;
 
 // Only the flags the dock render actually reads: each change re-renders the
 // whole TruckBay tree, so nothing is tracked here that nothing consumes.
