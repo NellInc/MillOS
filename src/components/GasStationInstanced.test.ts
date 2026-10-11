@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import {
   STATION_DETAIL_LAYOUT,
   STATION_CANOPY_LIGHTS,
+  STATION_DOOR_LIGHT,
   STATION_DETAIL_GEOMETRY,
   STATION_RETAIL,
   writeStationDetailInstances,
@@ -78,8 +79,8 @@ describe('instanced station finish', () => {
   }
 
   it('uses two finite shared-cube batches inside the existing station envelope', () => {
-    expect(STATION_DETAIL_LAYOUT.opaque).toHaveLength(130);
-    expect(STATION_DETAIL_LAYOUT.emitters).toHaveLength(158);
+    expect(STATION_DETAIL_LAYOUT.opaque).toHaveLength(188);
+    expect(STATION_DETAIL_LAYOUT.emitters).toHaveLength(159);
     for (const layout of [STATION_DETAIL_LAYOUT.opaque, STATION_DETAIL_LAYOUT.emitters]) {
       const mesh = instances(layout);
       expect(Array.from(mesh.instanceMatrix.array).every(Number.isFinite)).toBe(true);
@@ -97,6 +98,155 @@ describe('instanced station finish', () => {
       });
       dispose(mesh);
     }
+  });
+
+  it('keeps open gutters attached to the roof edge and both downpipes clear of entrances', () => {
+    const mesh = instances(STATION_DETAIL_LAYOUT.opaque);
+    const parts = (part: string) =>
+      STATION_DETAIL_LAYOUT.opaque.flatMap((detail, index) =>
+        detail.part === part ? [instanceBounds(mesh, index)] : []
+      );
+    const pipes = parts('roof-downpipe');
+    expect(pipes).toHaveLength(2);
+    for (const [i, pipe] of pipes.entries()) {
+      const side = i === 0 ? -1 : 1;
+      const floor = parts('roof-gutter-bottom')[i];
+      expect(pipe.intersectsBox(floor)).toBe(true);
+      expect(floor.min.y).toBeLessThan(5.31); // Existing cap's lower edge.
+      expect(Math.min(Math.abs(floor.min.z), Math.abs(floor.max.z))).toBeLessThan(5.5);
+      const ray = new THREE.Raycaster(
+        new THREE.Vector3(-12, 6, side * 5.56),
+        new THREE.Vector3(0, -1, 0)
+      );
+      const hit = ray.intersectObject(mesh, false)[0];
+      expect(STATION_DETAIL_LAYOUT.opaque[hit.instanceId!].part).toBe('roof-gutter-bottom');
+      expect(hit.point.y).toBeCloseTo(5.24, 5);
+      expect(pipe.intersectsBox(parts('roof-pipe-shoe')[i])).toBe(true);
+      expect(parts('roof-pipe-shoe')[i].intersectsBox(parts('roof-pipe-outlet')[i])).toBe(true);
+      expect(pipe.max.x).toBeLessThan(-15.7); // Rear corner, far from the -12m door.
+    }
+    dispose(mesh);
+  });
+
+  it('seats both rain outlets above real open drain bars within the original apron', () => {
+    const mesh = instances(STATION_DETAIL_LAYOUT.opaque);
+    const drains = STATION_DETAIL_LAYOUT.opaque.flatMap((detail, index) =>
+      detail.part.startsWith('ground-drain-') ? [instanceBounds(mesh, index)] : []
+    );
+    expect(drains).toHaveLength(18);
+    for (const drain of drains) {
+      expect(drain.min.y).toBeCloseTo(0, 6);
+      expect(drain.max.y).toBeCloseTo(0.008, 6);
+      expect(drain.max.x).toBeLessThan(-15.6);
+      expect(Math.max(Math.abs(drain.min.z), Math.abs(drain.max.z))).toBeLessThanOrEqual(6.001);
+    }
+    for (const side of [-1, 1]) {
+      const ray = new THREE.Raycaster(
+        new THREE.Vector3(-15.86, 0.02, side * 5.65),
+        new THREE.Vector3(0, -1, 0)
+      );
+      const hit = ray.intersectObject(mesh, false)[0];
+      expect(STATION_DETAIL_LAYOUT.opaque[hit.instanceId!].part).toBe('ground-drain-bar');
+      ray.set(new THREE.Vector3(-15.86, 0.02, side * 5.6875), new THREE.Vector3(0, -1, 0));
+      expect(ray.intersectObject(mesh, false)).toHaveLength(0);
+    }
+    dispose(mesh);
+  });
+
+  it('closes the rendered wall around the existing door frame without filling the leaf', () => {
+    const source = readFileSync(resolve('src/components/GasStationInstanced.tsx'), 'utf8');
+    const region = source.match(/Right side wall \(with door opening\)([\s\S]*?)Front wall/)![1];
+    const material = new THREE.MeshBasicMaterial();
+    // Read the actual mounted dimensions, so the old oversized aperture fails
+    // here rather than a hand-copied "correct" wall layout passing in isolation.
+    const walls = [...region.matchAll(/<GeneratedBoxSurface[\s\S]*?\/>/g)].map(([jsx]) => {
+      const prop = (name: string) =>
+        jsx
+          .match(new RegExp(`${name}=\\{\\[([^\\]]+)\\]\\}`))![1]
+          .split(',')
+          .map(Number);
+      const size = prop('size');
+      const wall = new THREE.Mesh(new THREE.BoxGeometry(size[0], size[1], size[2]), material);
+      wall.position.fromArray(prop('position'));
+      wall.updateMatrixWorld(true);
+      return wall;
+    });
+    expect(walls).toHaveLength(3);
+    for (const [x, y] of [
+      [-0.9, 1.2],
+      [0.9, 1.2],
+      [0, 2.7],
+      [-0.66, 1.2],
+      [0.66, 1.2],
+    ]) {
+      const ray = new THREE.Raycaster(new THREE.Vector3(x, y, 6), new THREE.Vector3(0, 0, -1));
+      expect(ray.intersectObjects(walls)).toHaveLength(1);
+    }
+    const leaf = new THREE.Box3(
+      new THREE.Vector3(-0.6, 0.125, 4.8),
+      new THREE.Vector3(0.6, 2.4, 5)
+    );
+    walls.forEach((wall) => {
+      expect(new THREE.Box3().setFromObject(wall).intersectsBox(leaf)).toBe(false);
+      wall.geometry.dispose();
+    });
+    material.dispose();
+  });
+
+  it('seats the pull on the retained door and shelters its head without blocking the leaf', () => {
+    const mesh = instances(STATION_DETAIL_LAYOUT.opaque);
+    const leaf = new THREE.Box3(
+      new THREE.Vector3(-12.6, 0, 4.99),
+      new THREE.Vector3(-11.4, 2.4, 5.001)
+    );
+    STATION_DETAIL_LAYOUT.opaque.forEach((detail, index) => {
+      if (detail.part.startsWith('door-hood') || detail.part === 'door-rain-hood') {
+        expect(instanceBounds(mesh, index).intersectsBox(leaf)).toBe(false);
+      }
+      if (detail.part === 'door-pull-mount')
+        expect(instanceBounds(mesh, index).min.z).toBeCloseTo(5, 5);
+    });
+    const ray = new THREE.Raycaster(
+      new THREE.Vector3(-11.58, 1.13, 6),
+      new THREE.Vector3(0, 0, -1)
+    );
+    const hit = ray.intersectObject(mesh, false)[0];
+    expect(STATION_DETAIL_LAYOUT.opaque[hit.instanceId!].part).toBe('door-pull');
+    // The leaf ends at 2.4m. Seal the old 60mm opening below the header too.
+    for (const y of [2.4, 2.43, 2.48]) {
+      ray.set(new THREE.Vector3(-12, y, 6), new THREE.Vector3(0, 0, -1));
+      const head = ray.intersectObject(mesh, false)[0];
+      expect(STATION_DETAIL_LAYOUT.opaque[head.instanceId!].part).toBe('door-head');
+    }
+    dispose(mesh);
+  });
+
+  it('seats the shielded porch lens under its hood and limits the actual downlight reach', () => {
+    const trims = instances(STATION_DETAIL_LAYOUT.opaque);
+    const lenses = instances(STATION_DETAIL_LAYOUT.emitters);
+    const index = STATION_DETAIL_LAYOUT.emitters.findIndex(
+      (detail) => detail.part === 'door-lamp-lens'
+    );
+    const housing = instanceBounds(
+      trims,
+      STATION_DETAIL_LAYOUT.opaque.findIndex((detail) => detail.part === 'door-lamp-housing')
+    );
+    const lens = instanceBounds(lenses, index);
+    expect(lens.intersectsBox(housing)).toBe(true);
+    expect(lens.min.y).toBeGreaterThan(2.52); // Above the fully sealed door head.
+    expect(housing.max.y).toBeCloseTo(2.64, 5); // Actual rain-hood underside.
+    expect(STATION_DOOR_LIGHT.position[1]).toBeLessThan(lens.min.y);
+    expect(STATION_DOOR_LIGHT.distance).toBe(3.5);
+    const ray = new THREE.Raycaster(new THREE.Vector3(-12, 2.5, 5.31), new THREE.Vector3(0, 1, 0));
+    const hit = ray.intersectObjects([trims, lenses], false)[0];
+    expect(hit.object).toBe(lenses);
+    expect(hit.instanceId).toBe(index);
+    const source = readFileSync(resolve('src/components/GasStationInstanced.tsx'), 'utf8');
+    expect(source).toContain(
+      '<ExteriorDownlight name="station-door-light" {...STATION_DOOR_LIGHT} />'
+    );
+    dispose(trims);
+    dispose(lenses);
   });
 
   it('seats all six lamp lenses in housings and exposes their downward faces', () => {

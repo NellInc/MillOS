@@ -447,6 +447,71 @@ export function createStationDetailLayout() {
     );
   }
 
+  // Folded open rain channels follow the actual red cap's z=+/-5.50 drip
+  // edge. Square section pipes sit at the rear corners, away from the side
+  // door, glass frontage and fuel lanes. All pieces use the existing cube batch.
+  // Working if the trough stays open and each outlet meets a grounded grate.
+  for (const side of [-1, 1]) {
+    add('roof-gutter-bottom', [-12, 5.23, side * 5.56], [9, 0.02, 0.24], charcoal);
+    for (const z of [5.445, 5.675]) {
+      add('roof-gutter-lip', [-12, 5.285, side * z], [9, 0.13, 0.02], charcoal);
+    }
+    for (const x of [-16.49, -7.51]) {
+      add('roof-gutter-end', [x, 5.285, side * 5.56], [0.02, 0.13, 0.24], charcoal);
+    }
+    add('roof-downpipe', [-15.86, 2.7, side * 5.61], [0.11, 5.08, 0.11], charcoal);
+    for (const y of [0.5, 1.95, 3.4, 4.85]) {
+      add('roof-pipe-collar', [-15.86, y, side * 5.61], [0.135, 0.045, 0.135], '#63716f');
+    }
+    add('roof-pipe-shoe', [-15.86, 0.18, side * 5.67], [0.11, 0.18, 0.22], charcoal);
+    add('roof-pipe-outlet', [-15.86, 0.075, side * 5.76], [0.11, 0.13, 0.11], charcoal);
+    for (const dx of [-0.18, 0.18]) {
+      add('ground-drain-frame', [-15.86 + dx, 0.004, side * 5.8], [0.025, 0.008, 0.4], charcoal);
+    }
+    for (const dz of [-0.1875, 0.1875]) {
+      add(
+        'ground-drain-frame',
+        [-15.86, 0.004, side * (5.8 + dz)],
+        [0.335, 0.008, 0.025],
+        charcoal
+      );
+    }
+    for (let slat = 0; slat < 5; slat++) {
+      add(
+        'ground-drain-bar',
+        [-15.86, 0.004, side * (5.65 + slat * 0.075)],
+        [0.335, 0.008, 0.025],
+        '#63716f'
+      );
+    }
+  }
+
+  // The closed side door retains its original size and collision contract.
+  // Its small folded hood clears the existing head; supports sit outside the
+  // 1.20 m leaf, and a seated pull gives the dark panel a recognisable scale.
+  add('door-rain-hood', [-12, 2.68, 5.285], [1.8, 0.08, 0.65], '#a6382b');
+  add('door-hood-edge', [-12, 2.625, 5.6], [1.8, 0.09, 0.035], charcoal);
+  for (const side of [-1, 1]) {
+    add('door-hood-edge', [-12 + side * 0.8825, 2.625, 5.285], [0.035, 0.09, 0.63], charcoal);
+    add('door-hood-bracket', [-12 + side * 0.76, 2.5, 5.075], [0.045, 0.3, 0.08], charcoal);
+    add('door-hood-bracket', [-12 + side * 0.76, 2.625, 5.25], [0.045, 0.05, 0.4], charcoal);
+    add('door-leaf-stile', [-12 + side * 0.505, 1.22, 5.018], [0.055, 2.28, 0.03], '#63716f');
+  }
+  for (const y of [0.11, 2.335]) {
+    add('door-leaf-rail', [-12, y, 5.018], [1.01, 0.055, 0.03], '#63716f');
+  }
+  for (const y of [1.0, 1.26]) {
+    add('door-pull-mount', [-11.58, y, 5.055], [0.07, 0.045, 0.11], '#bca36f');
+  }
+  add('door-pull', [-11.58, 1.13, 5.11], [0.035, 0.31, 0.035], '#bca36f');
+  add('door-lamp-housing', [-12, 2.605, 5.31], [0.46, 0.07, 0.18], charcoal);
+  emitters.push({
+    part: 'door-lamp-lens',
+    position: [-12, 2.568, 5.31],
+    size: [0.38, 0.015, 0.12],
+    color: '#fff0cc',
+  });
+
   // The generated fascia underside is y=4.40. Rails enter it by 20 mm;
   // lens trays sit below the rails, with their tops inside their housings.
   for (const x of [-6, -4, -2, 0, 2, 4, 6]) {
@@ -531,7 +596,7 @@ export function createStationDetailLayout() {
   for (const x of [-12.66, -11.34]) {
     add('door-jamb', [x, 1.23, 5.015], [0.1, 2.46, 0.13], charcoal);
   }
-  add('door-head', [-12, 2.505, 5.015], [1.42, 0.09, 0.13], charcoal);
+  add('door-head', [-12, 2.45, 5.015], [1.42, 0.14, 0.13], charcoal);
   add('door-threshold', [-12, 0.075, 5.025], [1.42, 0.1, 0.35], cream);
   // Shop-local parts, expressed in the same station-local coordinate system
   // as the forecourt. Working if all contents clear their opaque enclosures.
@@ -567,6 +632,15 @@ export const STATION_CANOPY_LIGHTS = [-2.8, 2.8].map((z) => ({
   distance: 11.5,
   color: '#ffe4c4',
 }));
+// One shielded porch fitting makes the side entrance readable without lighting
+// the surrounding meadow. The existing driver owns clear-noon zero and dusk.
+// Working if its seated lens washes the door/threshold and casts no shadow map.
+export const STATION_DOOR_LIGHT = {
+  position: [-12, 2.55, 5.31] as [number, number, number],
+  intensity: 28,
+  distance: 3.5,
+  color: '#ffe1a8',
+};
 export const STATION_DETAIL_GEOMETRY = new THREE.BoxGeometry(1, 1, 1);
 const STATION_DETAIL_MATERIAL = new THREE.MeshStandardMaterial({
   color: '#ffffff',
@@ -794,30 +868,31 @@ export const GasStation = React.memo<GasStationProps>(
             castShadow
             receiveShadow
           />
-          {/* Right side wall (with door opening) - top section */}
+          {/* Right side wall (with door opening) - header and piers meet the
+              existing 1.2m leaf and 1.42m frame, rather than leaving a 2.8m hole. */}
           <GeneratedBoxSurface
             asset="stationWallUnit"
-            size={[8, 2, 0.2]}
+            size={[8, 2.5, 0.2]}
             material={STATION_WALL_MATERIAL}
-            position={[0, 4, 4.9]}
+            position={[0, 3.75, 4.9]}
             castShadow
             receiveShadow
           />
           {/* Right side wall - left of door */}
           <GeneratedBoxSurface
             asset="stationWallUnit"
-            size={[2.5, 3, 0.2]}
+            size={[3.36, 2.5, 0.2]}
             material={STATION_WALL_MATERIAL}
-            position={[-2.65, 1.5, 4.9]}
+            position={[-2.32, 1.25, 4.9]}
             castShadow
             receiveShadow
           />
           {/* Right side wall - right of door */}
           <GeneratedBoxSurface
             asset="stationWallUnit"
-            size={[2.5, 3, 0.2]}
+            size={[3.36, 2.5, 0.2]}
             material={STATION_WALL_MATERIAL}
-            position={[2.65, 1.5, 4.9]}
+            position={[2.32, 1.25, 4.9]}
             castShadow
             receiveShadow
           />
@@ -1045,6 +1120,7 @@ export const GasStation = React.memo<GasStationProps>(
 
         <StationRetailDetails />
         <group name="station-canopy-light-banks" visible={!referenceLighting}>
+          <ExteriorDownlight name="station-door-light" {...STATION_DOOR_LIGHT} />
           {STATION_CANOPY_LIGHTS.map((light, index) => (
             <ExteriorDownlight key={index} name={`station-canopy-light-${index}`} {...light} />
           ))}
