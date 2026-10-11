@@ -2,10 +2,11 @@ import React, { useRef, useEffect, useCallback } from 'react';
 import { useThree, useFrame } from '@react-three/fiber';
 import { PointerLockControls } from '@react-three/drei';
 import * as THREE from 'three';
+import { clampShelterVerticalMovement } from '../constants/publicRealmLayout';
 import {
   sampleWalkingGroundHeight,
   moveWalkingPosition,
-  castleBlocks,
+  walkingBlocks,
   isDryWalkingGround,
 } from '../utils/castleNavigation';
 import { getTerrainGridSegments } from './terrain/terrainTypes';
@@ -70,7 +71,7 @@ const findFreeSpawn = (x: number, z: number): [number, number] => {
       b,
       getTerrainGridSegments(useGraphicsStore.getState().graphics.quality)
     ) &&
-    !castleBlocks(
+    !walkingBlocks(
       a,
       b,
       sampleWalkingGroundHeight(
@@ -342,11 +343,19 @@ export const FirstPersonController: React.FC<FirstPersonControllerProps> = ({ on
       // this the next line would snap the camera straight back down, which is
       // why an unconditional ground-snap and a fly control cannot coexist.
       if (verticalInput !== 0) {
-        currentHeight.current = THREE.MathUtils.clamp(
+        const nextHeight = THREE.MathUtils.clamp(
           currentHeight.current + verticalInput * VERTICAL_SPEED * speedScale * movementDelta,
           floorHeight,
           MAX_FREE_HEIGHT
         );
+        currentHeight.current =
+          PLAYER_HEIGHT +
+          clampShelterVerticalMovement(
+            camera.position.x,
+            camera.position.z,
+            currentHeight.current - PLAYER_HEIGHT,
+            nextHeight - PLAYER_HEIGHT
+          );
       }
 
       // Walking follows the actual mesh; free flight keeps its chosen altitude.

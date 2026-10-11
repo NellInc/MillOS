@@ -13,6 +13,8 @@ import { createCastleStepsGeometry } from '../scenery/CastleSteps';
 import { CASTLE_ROCK_SINK } from '../../constants/castleAccess';
 import {
   BUS_SHELTER_SITE,
+  BUS_SHELTER_SOLIDS,
+  busShelterWorldBounds,
   CANAL_FOOTBRIDGE_ACCESS,
   CANAL_BRIDGE_STEPS,
 } from '../../constants/publicRealmLayout';
@@ -150,6 +152,7 @@ export function generateObstacles(): ObstacleData[] {
       maxY: SITE_LAYOUT.datum.interiorFloor,
     },
     ...createMachineObstacles(),
+    ...BUS_SHELTER_SOLIDS.map(busShelterWorldBounds),
   ];
 
   obstacles.push(...createConveyorObstacles());

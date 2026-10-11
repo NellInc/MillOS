@@ -3,6 +3,7 @@ import { useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import { useMobileControlStore } from '../../stores/mobileControlStore';
+import { useCameraStore } from '../CameraController';
 import { ORBIT_POLAR_LIMITS } from '../../utils/cameraNavigation';
 
 // Reusable offset so a drag does not allocate a Vector3 per touchmove.
@@ -75,6 +76,9 @@ export const TouchLookHandler: React.FC<TouchLookHandlerProps> = ({
       // Apply rotation by manipulating camera position around target
       const controls = orbitControlsRef.current;
       if (controls) {
+        // This single-finger path bypasses OrbitControls.onStart on phones.
+        // Working if a real drag releases the preset flight without cancelling taps.
+        if (deltaX !== 0 || deltaY !== 0) useCameraStore.getState().cancelAnimation();
         const target = controls.target;
         const offset = _offset.copy(camera.position).sub(target);
 

@@ -4154,20 +4154,20 @@ const BusStop: React.FC<{
 
             {/* Corner posts - dark green metal */}
             {[
-              [-shelterWidth / 2, shelterDepth / 2],
-              [shelterWidth / 2, shelterDepth / 2],
-              [-shelterWidth / 2, -shelterDepth / 2],
-              [shelterWidth / 2, -shelterDepth / 2],
+              [-adPanelCentre, shelterDepth / 2],
+              [adPanelCentre, shelterDepth / 2],
+              [-adPanelCentre, -shelterDepth / 2],
+              [adPanelCentre, -shelterDepth / 2],
             ].map(([x, z], i) => (
-              <mesh key={i} position={[x, shelterHeight / 2, z]} castShadow>
-                <boxGeometry args={[0.08, shelterHeight, 0.08]} />
+              <mesh key={i} position={[x, 1.49, z]} castShadow>
+                <boxGeometry args={[0.08, 2.75, 0.08]} />
                 <meshStandardMaterial color="#1f4e3d" roughness={0.4} metalness={0.6} />
               </mesh>
             ))}
 
             {/* Roof */}
-            <mesh position={[0, shelterHeight + 0.15, 0]} castShadow>
-              <boxGeometry args={[shelterWidth + 0.3, 0.08, shelterDepth + 0.5]} />
+            <mesh position={[0, 2.9, 0]} castShadow>
+              <boxGeometry args={[4.28, 0.08, 2.26]} />
               <meshStandardMaterial color="#1f4e3d" roughness={0.4} metalness={0.6} />
             </mesh>
             {[-1, 1].map((side) => (
@@ -4180,10 +4180,16 @@ const BusStop: React.FC<{
             ))}
             {/* Bench */}
             <group position={[0, 0, -shelterDepth / 2 + 0.35]}>
-              <mesh position={[0, 0.45, 0]} castShadow>
-                <boxGeometry args={[shelterWidth - 0.5, 0.08, 0.4]} />
+              <mesh position={[0, 0.49, 0]} castShadow>
+                <boxGeometry args={[shelterWidth - 0.5, 0.064, 0.372]} />
                 <meshStandardMaterial color="#8b5a2b" roughness={0.8} />
               </mesh>
+              {[0.72, 0.91].map((y, i) => (
+                <mesh key={`back-${i}`} position={[0, y, i === 0 ? -0.225 : -0.25]} castShadow>
+                  <boxGeometry args={[3.5, 0.155, 0.055]} />
+                  <meshStandardMaterial color="#8b5a2b" roughness={0.8} />
+                </mesh>
+              ))}
               {[-1.2, 0, 1.2].map((x, i) => (
                 <mesh key={i} position={[x, 0.22, 0]} castShadow>
                   <boxGeometry args={[0.08, 0.44, 0.35]} />

@@ -12,6 +12,7 @@ import {
   SITE_LAYOUT,
   getLandmarkBounds,
   RIVER_FOOTBRIDGE_DECK,
+  routeIntersectsBoundsXZ,
   RIVER_FOOTBRIDGE_STEPS,
   RIVER_FOOTBRIDGE_LANDINGS,
 } from '../../constants/siteLayout';
@@ -263,6 +264,46 @@ it('preserves the real canal deck, all access treads and the actual factory slab
       expect(hit).not.toBeNull();
       expect(8 - hit!.timeOfImpact).toBeCloseTo(step.top, 5);
     }
+  } finally {
+    world.free();
+  }
+});
+
+it('uses uninflated shelter solids for real Rapier capsule contact without entering forklift routes', () => {
+  const solids = generateObstacles().filter((o) => o.id.startsWith('bus-shelter-'));
+  expect(solids).toHaveLength(10);
+  const bench = solids.find((o) => o.id === 'bus-shelter-bench')!;
+  expect(bench.minX).toBeCloseTo(29.356, 6);
+  expect(bench.maxZ - bench.minZ).toBeCloseTo(3.5, 6);
+  for (const solid of solids)
+    for (const route of Object.values(SITE_LAYOUT.routes.forklifts))
+      expect(routeIntersectsBoundsXZ(route, solid), `${solid.id} versus ${route.id}`).toBe(false);
+  const world = new RAPIER.World({ x: 0, y: 0, z: 0 });
+  try {
+    for (const o of solids)
+      world.createCollider(
+        RAPIER.ColliderDesc.cuboid(
+          (o.maxX - o.minX) / 2,
+          (o.maxY! - o.minY!) / 2,
+          (o.maxZ - o.minZ) / 2
+        ).setTranslation((o.minX + o.maxX) / 2, (o.minY! + o.maxY!) / 2, (o.minZ + o.maxZ) / 2)
+      );
+    const body = world.createRigidBody(
+      RAPIER.RigidBodyDesc.dynamic()
+        .lockRotations()
+        .setCcdEnabled(true)
+        .setTranslation(27.65, 0.13, 140.4)
+    );
+    world.createCollider(RAPIER.ColliderDesc.capsule(0.5, 0.4).setTranslation(0, 0.9, 0), body);
+    body.setLinvel({ x: 12, y: 0, z: 0 }, true);
+    for (let i = 0; i < 40; i++) world.step();
+    expect(body.translation().x).toBeGreaterThan(28.5);
+    expect(body.translation().x + 0.4).toBeLessThanOrEqual(bench.minX + 0.01);
+    body.setTranslation({ x: 28.5, y: 0.13, z: 140 }, true);
+    body.setLinvel({ x: 0, y: 12, z: 0 }, true);
+    for (let i = 0; i < 40; i++) world.step();
+    expect(body.translation().y).toBeGreaterThan(0.9);
+    expect(body.translation().y + 1.8).toBeLessThanOrEqual(2.8 + 0.01);
   } finally {
     world.free();
   }

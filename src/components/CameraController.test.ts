@@ -1,4 +1,7 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { createElement } from 'react';
+import { render, cleanup } from '@testing-library/react';
+import { TouchLookHandler } from './mobile/TouchLookHandler';
 import * as THREE from 'three';
 import { OrbitControls } from 'three-stdlib';
 import { ORBIT_POLAR_LIMITS } from '../utils/cameraNavigation';
@@ -8,8 +11,17 @@ import {
   useCameraStore,
 } from './CameraController';
 
+const touchHarness = vi.hoisted(() => ({
+  camera: null as unknown as THREE.PerspectiveCamera,
+  canvas: null as unknown as HTMLCanvasElement,
+}));
+vi.mock('@react-three/fiber', () => ({
+  useThree: () => ({ camera: touchHarness.camera, gl: { domElement: touchHarness.canvas } }),
+}));
+
 describe('camera animation ownership', () => {
   afterEach(() => {
+    cleanup();
     useCameraStore.setState({
       activePreset: null,
       targetPosition: null,
@@ -83,5 +95,32 @@ describe('camera animation ownership', () => {
     expect(shouldResolveCameraCollisionForFrame(true, false)).toBe(false);
     expect(shouldResolveCameraCollisionForFrame(true, true)).toBe(true);
     expect(shouldResolveCameraCollisionForFrame(false, false)).toBe(true);
+  });
+  it('hands preset ownership to a real single-finger orbit drag, while taps leave it intact', () => {
+    const camera = (touchHarness.camera = new THREE.PerspectiveCamera());
+    const canvas = (touchHarness.canvas = document.createElement('canvas'));
+    camera.position.set(20, 8, 30);
+    const controls = new OrbitControls(camera, canvas);
+    controls.enableRotate = false;
+    controls.target.set(0, 2, 0);
+    const initial = camera.position.clone();
+    render(createElement(TouchLookHandler, { orbitControlsRef: { current: controls } }));
+    useCameraStore.getState().setPreset(2);
+    const touch = (type: string, x: number) => {
+      const e = new Event(type, { cancelable: true });
+      Object.defineProperty(e, 'targetTouches', { value: [{ clientX: x, clientY: 10 }] });
+      canvas.dispatchEvent(e);
+    };
+    touch('touchstart', 10);
+    expect(useCameraStore.getState().isAnimating).toBe(true);
+    touch('touchmove', 40);
+    expect(camera.position.distanceTo(initial)).toBeGreaterThan(0.1);
+    expect(useCameraStore.getState()).toMatchObject({
+      isAnimating: false,
+      activePreset: null,
+      targetPosition: null,
+      targetLookAt: null,
+    });
+    controls.dispose();
   });
 });

@@ -3,6 +3,7 @@ import { cleanup, render } from '@testing-library/react';
 import * as THREE from 'three';
 import {
   sampleWalkingGroundHeight,
+  walkingBlocks,
   castleWorldPosition,
   castleLocalPosition,
 } from '../utils/castleNavigation';
@@ -93,4 +94,35 @@ it('relocates a submerged first-person spawn to the dry bank', () => {
   const floor = sampleWalkingGroundHeight(harness.camera.position.x, harness.camera.position.z, 64);
   expect(floor).toBeGreaterThanOrEqual(-1.92);
   expect(harness.camera.position.y).toBeCloseTo(floor + 1.7, 6);
+});
+
+it('relocates a bench spawn and stops held sprint at furniture', () => {
+  harness.camera.position.set(29.55, 12, 140.4);
+  const { unmount } = render(<FirstPersonController />);
+  let c = harness.camera;
+  expect(walkingBlocks(c.position.x, c.position.z, c.position.y - 1.7)).toBe(false);
+  expect(Math.hypot(c.position.x - 29.55, c.position.z - 140.4)).toBeGreaterThanOrEqual(1);
+  unmount();
+  harness.camera.position.set(27.65, 12, 140.4);
+  render(<FirstPersonController />);
+  c = harness.camera;
+  harness.lock();
+  c.lookAt(40, c.position.y, c.position.z);
+  window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyW' }));
+  window.dispatchEvent(new KeyboardEvent('keydown', { code: 'ShiftLeft' }));
+  for (let i = 0; i < 30; i++) harness.frame({}, 0.1);
+  window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyW' }));
+  window.dispatchEvent(new KeyboardEvent('keyup', { code: 'ShiftLeft' }));
+  expect(walkingBlocks(c.position.x, c.position.z, c.position.y - 1.7)).toBe(false);
+  expect(c.position.x).toBeGreaterThan(28.3);
+  expect(c.position.x + 0.4).toBeLessThanOrEqual(29.356 + 1e-6);
+});
+it('holds Q/E below the shelter roof instead of lifting through it', () => {
+  harness.camera.position.set(28.3, 12, 140);
+  render(<FirstPersonController />);
+  harness.lock();
+  window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyE' }));
+  for (let i = 0; i < 30; i++) harness.frame({}, 0.1);
+  window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyE' }));
+  expect(harness.camera.position.y).toBeCloseTo(2.7, 6);
 });

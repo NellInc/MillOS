@@ -13,7 +13,7 @@ import { useGraphicsStore } from '../../stores/graphicsStore';
 import {
   sampleWalkingGroundHeight,
   moveWalkingPosition,
-  castleBlocks,
+  walkingBlocks,
   isDryWalkingGround,
 } from '../../utils/castleNavigation';
 import { getTerrainGridSegments } from '../terrain/terrainTypes';
@@ -67,7 +67,7 @@ const findFreeSpawn = (x: number, z: number): [number, number] => {
       b,
       getTerrainGridSegments(useGraphicsStore.getState().graphics.quality)
     ) &&
-    !castleBlocks(
+    !walkingBlocks(
       a,
       b,
       sampleWalkingGroundHeight(

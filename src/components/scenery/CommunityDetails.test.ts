@@ -10,6 +10,7 @@ import { COMMUNITY_GEOMETRY } from './CommunityDetails';
 import { COMMUNITY_ANCHORS as A } from '../../constants/communityLayout';
 import {
   BUS_SHELTER_SITE,
+  BUS_SHELTER_SOLIDS,
   BUS_SHELTER_LIGHT,
   busShelterWalkingHeight,
 } from '../../constants/publicRealmLayout';
@@ -68,6 +69,29 @@ describe('authored community details', () => {
       new THREE.Vector3(0, -1, 0)
     ).intersectObject(group, true);
     expect(hits[0]?.point.y).toBeCloseTo(A.busSeat.seatHeight!, 5);
+    // These rays inspect the retained delivered mesh, not a copied box table.
+    for (const [id, origin, direction, axis, edge] of [
+      ['bench', [0, 0.49, 0.6], [0, 0, -1], 'z', 'maxZ'],
+      ['bench', [0, 0.972, -1.2], [0, 0, 1], 'z', 'minZ'],
+      ['cabinet-1', [0, 1.4, 0], [1, 0, 0], 'x', 'minX'],
+      ['post-1-1', [1.98, 1.49, 2], [0, 0, -1], 'z', 'maxZ'],
+      ['roof', [0, 2.2, 0], [0, 1, 0], 'y', 'minY'],
+    ] as const) {
+      const hit = new THREE.Raycaster(
+        new THREE.Vector3(...origin),
+        new THREE.Vector3(...direction)
+      ).intersectObject(group, true)[0];
+      const solid = BUS_SHELTER_SOLIDS.find((b) => b.id === `bus-shelter-${id}`)!;
+      expect(hit, id).toBeDefined();
+      expect(Math.abs(hit.point[axis] - solid[edge]), id).toBeLessThan(
+        id === 'roof' ? 0.06 : 0.015
+      );
+    }
+    const lamp = BUS_SHELTER_SOLIDS.find((b) => b.id === 'bus-shelter-luminaire')!;
+    for (const part of [BUS_SHELTER_LIGHT.housing, BUS_SHELTER_LIGHT.lens]) {
+      expect(part.position[1] - part.size[1] / 2).toBeGreaterThanOrEqual(lamp.minY - 1e-8);
+      expect(part.position[1] + part.size[1] / 2).toBeLessThanOrEqual(lamp.maxY + 1e-8);
+    }
     const site = BUS_SHELTER_SITE;
     group.rotation.y = site.rotation;
     group.position.set(...site.position);

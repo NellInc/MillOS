@@ -1,5 +1,6 @@
 import {
   busShelterWalkingHeight,
+  busShelterBlocks,
   canalBridgeWalkingHeight,
   nearCanalBridge,
 } from '../constants/publicRealmLayout';
@@ -159,6 +160,17 @@ export function castleBlocks(x: number, z: number, feet: number, radius = 0.4): 
   return y < CASTLE_COURT_HEIGHT - 0.15 && stair === null && insideRock(lx, lz);
 }
 
+/** Shared camera obstruction policy; seated personnel keep their own schedules. */
+export function walkingBlocks(
+  x: number,
+  z: number,
+  feet: number,
+  radius = 0.4,
+  bodyHeight = 1.8
+): boolean {
+  return castleBlocks(x, z, feet, radius) || busShelterBlocks(x, z, feet, radius, bodyHeight);
+}
+
 /** Substeps are shorter than half a tread even during a sprint/tab hitch.
  * This also keeps the unchanged factory collision callback from tunnelling.
  */
@@ -169,7 +181,8 @@ export function moveWalkingPosition(
   segments: number,
   grounded: boolean,
   eyeHeight: number,
-  blocked: (x: number, z: number) => boolean
+  blocked: (x: number, z: number) => boolean,
+  bodyHeight = 1.8
 ): void {
   const count = Math.max(1, Math.ceil(Math.hypot(dx, dz) / 0.12));
   let feet = position.y - eyeHeight;
@@ -179,7 +192,11 @@ export function moveWalkingPosition(
       const z = position.z + (axis === 'z' ? dz / count : 0);
       const floor = sampleWalkingGroundHeight(x, z, segments);
       if (grounded && floor < MILLOS_RIVER_CONFIG.waterLevel + 0.08) continue;
-      if (blocked(x, z) || castleBlocks(x, z, Math.max(feet, grounded ? floor : feet))) continue;
+      if (
+        blocked(x, z) ||
+        walkingBlocks(x, z, Math.max(feet, grounded ? floor : feet), 0.4, bodyHeight)
+      )
+        continue;
       if (
         grounded &&
         (nearCastle(x, z) ||

@@ -1,3 +1,4 @@
+import { clampShelterVerticalMovement } from '../constants/publicRealmLayout';
 import { describe, expect, it } from 'vitest';
 import { createDisplacedGeometry } from '../components/terrain/TerrainGround';
 import { getRiverHeightfield, MILLOS_RIVER_CONFIG } from '../components/terrain/splatMapGenerator';
@@ -18,6 +19,7 @@ import {
 } from '../constants/castleAccess';
 import {
   castleBlocks,
+  walkingBlocks,
   castleLocalPosition,
   castleWorldPosition,
   moveWalkingPosition,
@@ -244,3 +246,34 @@ it.each([64, 128])(
     }
   }
 );
+
+// Observed native touch movement entered the delivered bench at x=29.2424.
+it('keeps a sprinting inspection camera in front of the shelter bench and lets it return', () => {
+  const p = new Vector3(27.65, 1.68, 140.4);
+  moveWalkingPosition(p, 4.32, 0, 64, true, 1.7, () => false);
+  expect(p.x).toBeGreaterThan(28.3);
+  expect(p.x + 0.4).toBeLessThanOrEqual(29.364 + 1e-6);
+  expect(p.y).toBeCloseTo(1.81, 6);
+  moveWalkingPosition(p, -4.32, 0, 64, true, 1.7, () => false);
+  expect(p.x).toBeLessThan(27.65);
+  expect(p.y).toBeCloseTo(1.68, 6);
+});
+
+it('keeps the shelter end panels and rear glass solid, with an open front and free space above', () => {
+  expect(walkingBlocks(28.5, 140, 0.11)).toBe(false);
+  expect(walkingBlocks(28.5, 142, 0.11)).toBe(true);
+  expect(walkingBlocks(30.05, 140, 1.0)).toBe(true);
+  expect(walkingBlocks(29.55, 140, 3.1)).toBe(false);
+  const p = new Vector3(28.5, 1.81, 140);
+  moveWalkingPosition(p, 0, 4.32, 64, true, 1.7, () => false);
+  expect(p.z).toBeGreaterThan(141.4);
+  expect(p.z + 0.4).toBeLessThanOrEqual(141.958 + 1e-6);
+});
+it('sweeps Q/E roof clearance in both directions without blocking inspection above it', () => {
+  expect(clampShelterVerticalMovement(28.3, 140, 0.11, 10)).toBeCloseTo(1.0, 6);
+  expect(clampShelterVerticalMovement(29, 140, 4, -1)).toBeCloseTo(2.99, 6);
+  expect(clampShelterVerticalMovement(29, 140, 4, 8)).toBe(8);
+  expect(clampShelterVerticalMovement(25, 140, 0, 10)).toBe(10);
+  // Real luminaire lens hangs below the housing, not through the inspection head.
+  expect(clampShelterVerticalMovement(28.88, 140, 0.11, 10)).toBeCloseTo(2.769 - 1.8, 6);
+});

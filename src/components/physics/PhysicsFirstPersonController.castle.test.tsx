@@ -5,6 +5,7 @@ import {
   castleWorldPosition,
   castleLocalPosition,
   sampleWalkingGroundHeight,
+  walkingBlocks,
 } from '../../utils/castleNavigation';
 import { useGraphicsStore } from '../../stores/graphicsStore';
 import { PhysicsFirstPersonController } from './PhysicsFirstPersonController';
@@ -122,4 +123,22 @@ it('keeps the physics camera grounded across terrain tiers and rejects a wet spa
   const floor = sampleWalkingGroundHeight(h.position.x, h.position.z, 128);
   expect(floor).toBeGreaterThanOrEqual(-1.92);
   expect(h.camera.position.y).toBeCloseTo(floor + 1.7, 6);
+});
+
+it('relocates the optional physics spawn out of the bench and sweeps upward displacement below the roof', () => {
+  h.camera.position.set(29.55, 12, 140.4);
+  const { unmount } = render(<PhysicsFirstPersonController />);
+  expect(walkingBlocks(h.position.x, h.position.z, h.position.y - 0.02)).toBe(false);
+  expect(Math.hypot(h.position.x - 29.55, h.position.z - 140.4)).toBeGreaterThanOrEqual(1);
+  unmount();
+  h.camera.position.set(28.3, 12, 140);
+  render(<PhysicsFirstPersonController />);
+  h.lock();
+  h.frame({}, 1 / 60);
+  window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyE' }));
+  h.position.y = 10;
+  h.frame({}, 0.1);
+  window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyE' }));
+  expect(h.camera.position.y).toBeCloseTo(2.68, 6);
+  expect(h.velocity.y).toBe(0);
 });
