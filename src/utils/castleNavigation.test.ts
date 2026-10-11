@@ -14,6 +14,7 @@ import { createRiverFootbridgeAccessGeometry } from '../components/exterior/rive
 import {
   CASTLE_STEPS,
   CASTLE_ACCESS_LANTERNS,
+  CASTLE_ACCESS_LIGHT,
   CASTLE_STAIR_X,
   CASTLE_STAIR_WIDTH,
 } from '../constants/castleAccess';
@@ -276,4 +277,20 @@ it('sweeps Q/E roof clearance in both directions without blocking inspection abo
   expect(clampShelterVerticalMovement(25, 140, 0, 10)).toBe(10);
   // Real luminaire lens hangs below the housing, not through the inspection head.
   expect(clampShelterVerticalMovement(28.88, 140, 0.11, 10)).toBeCloseTo(2.769 - 1.8, 6);
+});
+
+it('keeps the single access light inside the upper optic and within range of both flights and gateway paving', () => {
+  expect(CASTLE_ACCESS_LIGHT.position).toBe(CASTLE_ACCESS_LANTERNS[1]);
+  expect(CASTLE_ACCESS_LIGHT.intensity).toBe(96);
+  expect(CASTLE_ACCESS_LIGHT.distance).toBe(24);
+  const at = new Vector3(...castleWorldPosition(...CASTLE_ACCESS_LIGHT.position));
+  for (const [x, y, z] of [
+    [7.2, 0.2, 28],
+    [7.2, 1.7, 20.65],
+    [7.2, 3.2, 16.15],
+    [7.2, 3.2, 8],
+  ]) {
+    const target = new Vector3(...castleWorldPosition(x, y, z));
+    expect(at.distanceTo(target)).toBeLessThan(CASTLE_ACCESS_LIGHT.distance);
+  }
 });

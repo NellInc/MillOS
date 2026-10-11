@@ -9,6 +9,7 @@ import {
   CASTLE_STEPS,
   CASTLE_APPROACH,
   CASTLE_ACCESS_LANTERNS,
+  CASTLE_ACCESS_LIGHT,
   CASTLE_STAIR_X,
   CASTLE_STAIR_WIDTH,
   CASTLE_ROCK_SINK,
@@ -149,7 +150,10 @@ export function CastleSteps() {
   const geometry = useMemo(() => createCastleStepsGeometry(segments), [segments]);
   useEffect(() => () => geometry.dispose(), [geometry]);
   const realLight = useGraphicsStore(
-    (s) => s.graphics.quality !== 'low' && !s.graphics.perfDebug.disableLightingPolish
+    (s) =>
+      s.graphics.quality !== 'low' &&
+      !s.graphics.perfDebug.disableLightingPolish &&
+      !s.graphics.perfDebug.disablePunctualLights
   );
   return (
     <group position={[0, -CASTLE_ROCK_SINK, 0]}>
@@ -184,13 +188,14 @@ export function CastleSteps() {
         <group position={[CASTLE_STAIR_X, 3.2, 16.15]} scale={[1, 1, 0.28]}>
           <ExteriorLampPool radius={1.4} />
         </group>
-        {/* One clock-dimmed, non-shadow light covers both flights. Low keeps the
-            inexpensive lens/pool cues; the existing isolation switch is retained. */}
+        {/* The same single source, mounted at the upper optic, reaches both flights
+            and the gateway paving. Low keeps lens/pools; both isolation flags work. */}
         {realLight && (
           <ExteriorPointLight
-            position={[...CASTLE_ACCESS_LANTERNS[0]]}
-            intensity={32}
-            distance={18}
+            name="castle-access-light"
+            position={[...CASTLE_ACCESS_LIGHT.position]}
+            intensity={CASTLE_ACCESS_LIGHT.intensity}
+            distance={CASTLE_ACCESS_LIGHT.distance}
           />
         )}
       </group>
