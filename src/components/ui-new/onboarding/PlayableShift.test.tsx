@@ -254,6 +254,36 @@ describe('playable shift UI', () => {
     expect(onOpen).toHaveBeenCalledWith('overview');
     expect(useOperationsCampaignStore.getState()).toBe(before);
   });
+  it('shows one read-only deadline on both guidance surfaces, pauses with the clock and drops completed countdowns', () => {
+    const campaign = useOperationsCampaignStore.getState();
+    const order = campaign.orders.find((item) => item.id === campaign.activeOrderId)!;
+    useUIStore.getState().startDeliveryJourney(order.id);
+    useOperationsCampaignStore.setState({ elapsedMinutes: order.dueAtMinute - 65 });
+    const before = useOperationsCampaignStore.getState();
+    render(
+      <>
+        <FirstDeliveryJourney selectedMachine={null} onOpenWorkspace={vi.fn()} />
+        <OperationsPlayCard />
+      </>
+    );
+    expect(screen.getAllByLabelText('Delivery deadline')).toHaveLength(2);
+    expect(screen.getAllByText('Due in 1h 5m (simulated)')).toHaveLength(2);
+    expect(useOperationsCampaignStore.getState()).toBe(before);
+    fireEvent.change(screen.getAllByLabelText('Shift pace')[0], { target: { value: '0' } });
+    expect(screen.getAllByText('Due in 1h 5m (simulated)')).toHaveLength(2);
+    act(() => useOperationsCampaignStore.setState({ elapsedMinutes: order.dueAtMinute + 0.1 }));
+    expect(screen.getAllByText('Overdue by 1m (simulated)')).toHaveLength(2);
+    act(() =>
+      useOperationsCampaignStore.setState({
+        orders: before.orders.map((item) =>
+          item.id === order.id
+            ? { ...item, status: 'fulfilled' as const, shippedKg: item.requiredKg }
+            : item
+        ),
+      })
+    );
+    expect(screen.queryByLabelText('Delivery deadline')).not.toBeInTheDocument();
+  });
   it('switches the real recipe from the shared desktop and compact commitment card', () => {
     const before = useOperationsCampaignStore.getState();
     render(<OperationsPlayCard />);

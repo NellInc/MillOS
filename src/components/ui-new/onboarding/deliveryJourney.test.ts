@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { useOperationsCampaignStore } from '../../../stores/operationsCampaignStore';
-import { deriveDeliveryJourney } from './deliveryJourney';
+import { deriveDeliveryDeadline, deriveDeliveryJourney } from './deliveryJourney';
 
 describe('guided delivery evidence', () => {
   beforeEach(() => {
@@ -92,5 +92,31 @@ describe('guided delivery evidence', () => {
     );
     expect(held.detail).toContain('Batch held for inspection');
     expect(held.detail).toContain('Only a departed manifest credits this customer');
+  });
+});
+
+describe('customer deadline projection', () => {
+  it.each([
+    [0, 'Due in 4h 0m (simulated)', false],
+    [180.1, 'Due in 1h 0m (simulated)', false],
+    [239.99, 'Due in 1m (simulated)', false],
+    [240, 'Due now (simulated)', false],
+    [240.01, 'Overdue by 1m (simulated)', true],
+    [305, 'Overdue by 1h 5m (simulated)', true],
+  ] as const)('reads the real campaign minute %s', (elapsed, label, overdue) => {
+    const state = useOperationsCampaignStore.getState();
+    const order = { ...state.orders[0], dueAtMinute: 240 };
+    expect(deriveDeliveryDeadline(order, elapsed)).toEqual({ label, overdue });
+    expect(useOperationsCampaignStore.getState()).toBe(state);
+  });
+  it('keeps the replayed order deadline and hides closed or unreadable deadlines', () => {
+    const state = useOperationsCampaignStore.getState();
+    const order = { ...state.orders[1], dueAtMinute: 360 };
+    expect(deriveDeliveryDeadline(order, 240)?.label).toBe('Due in 2h 0m (simulated)');
+    expect(deriveDeliveryDeadline({ ...order, status: 'fulfilled' }, 400)).toBeNull();
+    expect(deriveDeliveryDeadline({ ...order, status: 'cancelled' }, 400)).toBeNull();
+    expect(deriveDeliveryDeadline(null, 0)).toBeNull();
+    expect(deriveDeliveryDeadline(order, NaN)).toBeNull();
+    expect(deriveDeliveryDeadline({ ...order, dueAtMinute: NaN }, 0)).toBeNull();
   });
 });

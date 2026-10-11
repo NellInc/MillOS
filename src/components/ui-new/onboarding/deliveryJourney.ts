@@ -12,6 +12,30 @@ interface DeliveryJourney {
   loading?: Pick<DispatchLoadSnapshot, 'loadedKg' | 'capacityKg'>;
 }
 
+/** Read-only customer deadline, in the same minutes as the campaign clock.
+ * Working if replayed customers retain their own due time and finished orders
+ * lose their countdown without changing order, stock or dispatch state.
+ */
+export function deriveDeliveryDeadline(order: CustomerOrder | null, elapsedMinutes: number) {
+  if (
+    !order ||
+    order.status === 'fulfilled' ||
+    order.status === 'cancelled' ||
+    !Number.isFinite(order.dueAtMinute) ||
+    !Number.isFinite(elapsedMinutes)
+  )
+    return null;
+  const remaining = order.dueAtMinute - elapsedMinutes;
+  if (remaining === 0) return { label: 'Due now (simulated)', overdue: false };
+  const minutes = Math.ceil(Math.abs(remaining));
+  const hours = Math.floor(minutes / 60);
+  const duration = hours ? `${hours}h ${minutes % 60}m` : `${minutes}m`;
+  return {
+    label: `${remaining < 0 ? 'Overdue by' : 'Due in'} ${duration} (simulated)`,
+    overdue: remaining < 0,
+  };
+}
+
 export function deriveDeliveryJourney(
   order: CustomerOrder | null,
   execution: OrderExecutionState,

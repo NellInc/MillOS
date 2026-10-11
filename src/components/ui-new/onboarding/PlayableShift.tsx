@@ -18,12 +18,32 @@ import {
   RECOVERY_CHALLENGE_WINDOW_MINUTES,
 } from '../../../simulation/operationsPlay';
 import { LearningNote } from '../../knowledge/LearningNote';
-import { deriveDeliveryJourney } from './deliveryJourney';
+import { deriveDeliveryDeadline, deriveDeliveryJourney } from './deliveryJourney';
 import { MachineType, type MachineData } from '../../../types';
+import type { CustomerOrder } from '../../../stores/operationsCampaignStore';
 
 const BUTTON =
   'min-h-11 rounded-lg border border-cyan-400/30 px-3 py-2 text-xs font-semibold text-cyan-100 hover:bg-cyan-400/10 disabled:opacity-40';
 const CARD = 'rounded-xl border border-cyan-400/20 bg-slate-900/90 p-3 text-sm text-slate-200';
+
+function DeliveryDeadline({
+  order,
+  elapsedMinutes,
+}: {
+  order: CustomerOrder | null;
+  elapsedMinutes: number;
+}) {
+  const deadline = deriveDeliveryDeadline(order, elapsedMinutes);
+  if (!deadline) return null;
+  return (
+    <p
+      aria-label="Delivery deadline"
+      className={`mt-1 text-xs tabular-nums ${deadline.overdue ? 'text-amber-200' : 'text-slate-300'}`}
+    >
+      {deadline.label}
+    </p>
+  );
+}
 
 export function TeachingPace() {
   const speed = useGameSimulationStore((s) => s.gameSpeed);
@@ -173,6 +193,7 @@ export function FirstDeliveryJourney({
           ? `${order.customer}: ${order.requiredKg.toFixed(0)} kg ${order.recipe.label}`
           : 'Awaiting an order'}
       </p>
+      <DeliveryDeadline order={order} elapsedMinutes={campaign.elapsedMinutes} />
       <h3 aria-live="polite" className="mt-3 font-semibold text-white">
         {guide.title}
       </h3>
@@ -396,6 +417,7 @@ export function OperationsPlayCard() {
           ? `${play.activeOrder.customer}: ${play.activeOrder.shippedKg.toFixed(0)} / ${play.activeOrder.requiredKg.toFixed(0)} kg dispatched`
           : 'Current programme complete'}
       </p>
+      <DeliveryDeadline order={play.activeOrder} elapsedMinutes={snapshot.elapsedMinutes} />
       {play.blockers[0] && (
         <p className="mt-2 text-amber-200">
           Blocked: {play.blockers[0].label}. {play.blockers[0].detail}
