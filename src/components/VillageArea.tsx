@@ -42,7 +42,12 @@ import {
   instanceScale,
   instanceYaw,
 } from './models/GeneratedModel';
-import { VillageNameboard, VillageShopSign, FlourAndBarrelSign } from './scenery/VillageSignage';
+import {
+  VillageNameboard,
+  VillageShopSign,
+  FlourAndBarrelSign,
+  PubSignLighting,
+} from './scenery/VillageSignage';
 import { NaturalDuckPond } from './scenery/NaturalDuckPond';
 import {
   VillageHome,
@@ -1163,6 +1168,7 @@ const Pub = React.memo<{
       <VillageNameboard title="Flour & Barrel" caption="VILLAGE INN" width={3.42} height={0.76} />
     </group>
     <FlourAndBarrelSign />
+    <PubSignLighting />
     <ChimneySmoke position={[3, 8.23, 0]} offset={5} kind="pub" />
   </group>
 ));

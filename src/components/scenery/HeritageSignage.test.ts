@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import sharp from 'sharp';
 import * as THREE from 'three';
 import { createSignMaterial } from './HeritageSignage';
+import { PUB_SIGN_LAMPS } from './VillageSignage';
 import { describe, expect, it } from 'vitest';
 
 describe('delivered heritage print', () => {
@@ -122,4 +123,27 @@ describe('sign lightbox materials', () => {
     const print = readFileSync('src/components/scenery/HeritageSignage.tsx', 'utf8');
     expect(print).not.toMatch(/<(?:pointLight|spotLight|rectAreaLight)/);
   });
+});
+
+it('seats three bounded pub sign lamps above paint, without backlighting civic lettering', () => {
+  expect(PUB_SIGN_LAMPS.map((lamp) => lamp.id)).toEqual([
+    'fascia',
+    'hanging-front',
+    'hanging-back',
+  ]);
+  for (const lamp of PUB_SIGN_LAMPS) {
+    expect(lamp.position.every(Number.isFinite)).toBe(true);
+    expect(lamp.position[1]).toBeGreaterThan(lamp.id === 'fascia' ? 4.15 : 4.175);
+    expect(lamp.distance).toBeLessThanOrEqual(3.2);
+  }
+  const source = readFileSync('src/components/scenery/VillageSignage.tsx', 'utf8');
+  expect(source).toContain('intensity={disabled ? 0 : lamp.intensity}');
+  expect(source).toContain('material={EXTERIOR_LAMP_LENS_MATERIAL}');
+  const helper = readFileSync('src/components/exterior/ExteriorLighting.tsx', 'utf8').split(
+    'export const ExteriorDownlight:'
+  )[1];
+  expect(helper).toContain('castShadow={false}');
+  expect(helper).toContain('pointLights.delete(registration)');
+  const village = readFileSync('src/components/VillageArea.tsx', 'utf8');
+  expect(village.match(/<PubSignLighting/g)).toHaveLength(1);
 });

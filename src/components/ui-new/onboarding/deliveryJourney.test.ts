@@ -120,3 +120,19 @@ describe('customer deadline projection', () => {
     expect(deriveDeliveryDeadline({ ...order, dueAtMinute: NaN }, 0)).toBeNull();
   });
 });
+
+it('locates live milling, QC and shipping stages without moving a missing or different commitment', () => {
+  const { orders, execution } = useOperationsCampaignStore.getState();
+  const order = orders[0],
+    current = { ...execution, orderId: order.id };
+  expect(deriveDeliveryJourney(order, current, false).view).toBe('Milling');
+  expect(deriveDeliveryJourney(order, { ...current, stage: 'quality_hold' }, true).view).toBe(
+    'Packing'
+  );
+  for (const stage of ['ready_to_load', 'loading', 'ready_to_dispatch', 'dispatched'] as const)
+    expect(deriveDeliveryJourney(order, { ...current, stage }, true).view).toBe('Shipping');
+  expect(
+    deriveDeliveryJourney(order, { ...current, orderId: 'different' }, true).view
+  ).toBeUndefined();
+  expect(deriveDeliveryJourney(null, current, true).view).toBeUndefined();
+});

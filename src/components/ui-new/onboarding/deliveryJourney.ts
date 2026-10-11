@@ -9,6 +9,7 @@ interface DeliveryJourney {
   detail: string;
   workspace: 'overview' | 'scada' | null;
   entryId: string;
+  view?: 'Milling' | 'Packing' | 'Shipping';
   loading?: Pick<DispatchLoadSnapshot, 'loadedKg' | 'capacityKg'>;
 }
 
@@ -52,6 +53,7 @@ export function deriveDeliveryJourney(
   if (!inspected)
     return {
       title: 'Inspect the line',
+      view: 'Milling',
       detail:
         'Select a silo, roller mill, plansifter or packer in the scene. Read its status and buffers before changing the line.',
       workspace: null,
@@ -75,6 +77,7 @@ export function deriveDeliveryJourney(
   if (execution.stage === 'quality_hold')
     return {
       title: `Check the ${finishedMaterial}`,
+      view: 'Packing',
       detail:
         'Review the QC batch hold in Overview. Test the affected batch and release conforming output before loading.',
       workspace: 'overview' as const,
@@ -85,6 +88,7 @@ export function deriveDeliveryJourney(
   if (execution.stage === 'ready_to_load')
     return {
       title: 'Ready for the shipping truck',
+      view: 'Shipping',
       detail: `${load.blockReason ?? `${execution.releasedFinishedKg.toFixed(0)} kg of released ${finishedMaterial} is waiting at shipping.`} ${departureRule}`,
       workspace: 'scada',
       entryId: 'autonomous-logistics',
@@ -92,6 +96,7 @@ export function deriveDeliveryJourney(
   if (execution.stage === 'loading' || execution.stage === 'ready_to_dispatch')
     return {
       title: execution.stage === 'loading' ? 'Loading the shipping truck' : 'Ready to depart',
+      view: 'Shipping',
       detail: `${load.blockReason ?? (execution.stage === 'loading' ? 'Follow the pallets from the packing line to the docked truck.' : 'The outbound load is ready. Watch its departure from the shipping bay.')} ${departureRule}`,
       workspace: 'scada',
       entryId: 'autonomous-logistics',
@@ -102,12 +107,14 @@ export function deriveDeliveryJourney(
   if (execution.stage === 'dispatched')
     return {
       title: 'Truck departed',
+      view: 'Shipping',
       detail: `${load.lastDispatchKg.toFixed(0)} kg left the shipping bay. Customer receipt: ${order.shippedKg.toFixed(0)} / ${order.requiredKg.toFixed(0)} kg for ${order.customer}. ${departureRule}`,
       workspace: 'scada',
       entryId: 'autonomous-logistics',
     };
   return {
     title: 'Follow the grain',
+    view: 'Milling',
     detail: `Source inventory: ${execution.sourceInventoryKg.toFixed(0)} kg. Released ${finishedMaterial}: ${execution.releasedFinishedKg.toFixed(0)} kg. Open operations to check the line setpoint and any shortage.`,
     workspace: 'scada' as const,
     entryId: 'autonomous-material-flow',

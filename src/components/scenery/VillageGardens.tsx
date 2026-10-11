@@ -71,12 +71,57 @@ const DESIGNS = [
 const { cream: CREAM, soil: SOIL, leaf: LEAF, oak: WOOD, iron: IRON } = WORLD_CRAFT_PALETTE;
 type Point = readonly [number, number, number];
 
-function flower(b: PlotGeometry, x: number, y: number, z: number, colour: string, size = 0.14) {
-  b.round([x, y + size * 0.3, z], [size * 1.2, size * 0.65, size], LEAF);
-  b.round([x, y + size * 1.1, z], [size * 0.86, size * 0.55, size * 0.86], colour);
-  b.round(
-    [x + size * 0.55, y + size * 0.9, z + size * 0.25],
-    [size * 0.55, size * 0.4, size * 0.55],
+/** Closed, stemmed five-petal flowers, premerged into the existing plot draw.
+ * Working if boxes and pots have varied blooms above their soil, finite normals
+ * and no new draw, texture, animation or material allocation at frame time.
+ */
+export function addVillageFlower(
+  b: PlotGeometry,
+  x: number,
+  y: number,
+  z: number,
+  colour: string,
+  size = 0.14
+) {
+  const phase = x * 7.13 + z * 11.31 + y * 3.7;
+  const lean = Math.sin(phase) * size * 0.32;
+  const top = y + size * (2.35 + Math.cos(phase) * 0.35);
+  // Eight closed tapered faces replace a twelve-face box stem. Together with
+  // the leaves, petals and centre this retains the old 60 triangles per plant.
+  b.add(
+    new THREE.OctahedronGeometry(1)
+      .scale(size * 0.05, Math.hypot(lean, top - y) / 2, size * 0.05)
+      .rotateZ(-Math.atan2(lean, top - y))
+      .translate(x + lean / 2, (y + top) / 2, z),
+    LEAF
+  );
+  for (const side of [-1, 1])
+    b.add(
+      new THREE.TetrahedronGeometry(1)
+        .scale(size * 0.55, size * 0.14, size * 0.24)
+        .rotateZ(side * 0.45)
+        .translate(x + side * size * 0.35, y + size * 0.9, z),
+      LEAF
+    );
+  const tilt = 0.68;
+  for (let i = 0; i < 5; i++) {
+    const angle = (i * Math.PI * 2) / 5 + phase;
+    b.add(
+      new THREE.OctahedronGeometry(1)
+        .scale(size * 0.3, size * 0.13, size * 0.48)
+        .translate(0, 0, size * 0.43)
+        .rotateY(angle)
+        .rotateX(tilt)
+        .translate(x + lean, top, z),
+      colour
+    );
+  }
+  b.add(
+    new THREE.TetrahedronGeometry(1)
+      .scale(size * 0.23, size * 0.14, size * 0.23)
+      .translate(0, size * 0.05, 0)
+      .rotateX(tilt)
+      .translate(x + lean, top, z),
     '#f0ce71'
   );
 }
@@ -86,7 +131,7 @@ function windowBox(b: PlotGeometry, x: number, y: number, z: number, colour: str
   b.box([1.3, 0.27, 0.065], [x, y + 0.08, z + 0.21], CREAM);
   for (const side of [-1, 1]) b.box([0.07, 0.27, 0.43], [x + side * 0.63, y + 0.08, z], CREAM);
   b.box([1.14, 0.035, 0.31], [x, y + 0.13, z], SOIL);
-  for (let i = 0; i < 6; i++) flower(b, x - 0.49 + i * 0.19, y + 0.16, z, colour, 0.12);
+  for (let i = 0; i < 6; i++) addVillageFlower(b, x - 0.49 + i * 0.19, y + 0.16, z, colour, 0.12);
   for (const side of [-1, 1])
     b.beam(
       [x + side * 0.42, y - 0.3, z - 0.14],
@@ -114,7 +159,7 @@ function pot(b: PlotGeometry, x: number, z: number, colour: string, scale = 1) {
   );
   for (let i = 0; i < 5; i++) {
     const angle = (i * Math.PI * 2) / 5;
-    flower(
+    addVillageFlower(
       b,
       x + Math.cos(angle) * radius * 0.55,
       h,
@@ -459,7 +504,14 @@ function garden(index: number) {
       // A small mown lawn, with a single flowering shrub at its far corner.
       b.round([3.95, 0.54, 5.55], [0.58, 0.6, 0.52], LEAF);
       for (let i = 0; i < 4; i++)
-        flower(b, 3.65 + (i % 2) * 0.48, 0.9, 5.35 + Math.floor(i / 2) * 0.4, d.flowers, 0.12);
+        addVillageFlower(
+          b,
+          3.65 + (i % 2) * 0.48,
+          0.9,
+          5.35 + Math.floor(i / 2) * 0.4,
+          d.flowers,
+          0.12
+        );
     } else {
       const narrow = index === 2 || (index === 0 && side === 1);
       const width = narrow ? 1.0 : index === 4 ? 1.65 : 2.55;
@@ -480,7 +532,8 @@ function garden(index: number) {
           if (index === 3) {
             b.round([px, 0.32, pz], [0.22, 0.2, 0.22], side < 0 ? '#829565' : '#657e49');
             if (side > 0) b.beam([px, 0.2, pz], [px + 0.08, 0.65, pz + 0.07], 0.05, LEAF);
-          } else flower(b, px, 0.1, pz, (row + col + index) % 3 ? d.flowers : '#e2c36b', 0.2);
+          } else
+            addVillageFlower(b, px, 0.1, pz, (row + col + index) % 3 ? d.flowers : '#e2c36b', 0.2);
         }
       if (index === 3 && side === 1) {
         for (const dz of [-0.7, 0.7])
@@ -502,7 +555,7 @@ function garden(index: number) {
     b.add(arch, '#739075');
     for (let i = 0; i < 7; i++) {
       const a = (Math.PI * i) / 6;
-      flower(b, Math.cos(a) * 1.14, 2.23 + Math.sin(a) * 1.14, 6.95, d.flowers, 0.18);
+      addVillageFlower(b, Math.cos(a) * 1.14, 2.23 + Math.sin(a) * 1.14, 6.95, d.flowers, 0.18);
     }
   }
   // Small rear bench and a terracotta pot, visible over the low side walls.

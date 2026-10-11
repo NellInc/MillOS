@@ -1,5 +1,7 @@
 import { HeritageEmblem, IlluminatedSignText } from './HeritageSignage';
 import { SceneText } from '../shared/SceneText';
+import { ExteriorDownlight, EXTERIOR_LAMP_LENS_MATERIAL } from '../exterior/ExteriorLighting';
+import { useGraphicsStore } from '../../stores/graphicsStore';
 
 const LETTERING_FONT = `${import.meta.env.BASE_URL}fonts/MedievalSharp.ttf`;
 const GOLD = '#e4c680';
@@ -165,6 +167,59 @@ export function FlourAndBarrelSign() {
             caption="VILLAGE INN"
             width={1.78}
             height={0.91}
+          />
+        </group>
+      ))}
+    </group>
+  );
+}
+
+/** Small shielded fittings illuminate paint rather than making it emissive.
+ * Working if all three nameboard faces read at night, the sources fade to zero
+ * at clear noon and the existing celestial shadow-map count stays unchanged.
+ */
+export const PUB_SIGN_LAMPS = [
+  { id: 'fascia', position: [0, 4.65, 3.68], intensity: 12, distance: 3.2, width: 1.3 },
+  {
+    id: 'hanging-front',
+    position: [4.95, 4.35, 1.68],
+    intensity: 3.2,
+    distance: 1.65,
+    width: 0.65,
+  },
+  { id: 'hanging-back', position: [4.95, 4.35, 0.72], intensity: 3.2, distance: 1.65, width: 0.65 },
+] as const;
+
+export function PubSignLighting() {
+  const disabled = useGraphicsStore((s) => s.graphics.perfDebug.disableLightingPolish);
+  return (
+    <group name="pub-painted-sign-lighting">
+      {PUB_SIGN_LAMPS.map((lamp) => (
+        <group key={lamp.id} position={[...lamp.position]}>
+          <mesh position={[0, 0.06, 0]} castShadow receiveShadow>
+            <boxGeometry args={[lamp.width, 0.085, 0.22]} />
+            <meshStandardMaterial color="#34453e" roughness={0.56} metalness={0.4} />
+          </mesh>
+          <mesh position={[0, 0.008, 0]} material={EXTERIOR_LAMP_LENS_MATERIAL}>
+            <boxGeometry args={[lamp.width * 0.85, 0.012, 0.12]} />
+          </mesh>
+          <mesh
+            position={[
+              0,
+              0.11,
+              lamp.id === 'hanging-back' ? 0.25 : lamp.id === 'fascia' ? -0.35 : -0.25,
+            ]}
+            castShadow
+          >
+            <boxGeometry args={[0.055, 0.07, lamp.id === 'fascia' ? 0.7 : 0.5]} />
+            <meshStandardMaterial color="#34453e" roughness={0.56} metalness={0.4} />
+          </mesh>
+          <ExteriorDownlight
+            name={`pub-sign-lamp:${lamp.id}`}
+            position={[0, 0, 0]}
+            intensity={disabled ? 0 : lamp.intensity}
+            distance={lamp.distance}
+            color="#ffe0a0"
           />
         </group>
       ))}

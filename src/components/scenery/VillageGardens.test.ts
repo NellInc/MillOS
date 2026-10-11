@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { createHash } from 'node:crypto';
 import {
+  addVillageFlower,
   VILLAGE_HOME_PLOTS,
   VILLAGE_HOMES,
   VILLAGE_GARDEN_FOOTPRINTS,
@@ -16,6 +17,7 @@ import {
   VILLAGE_STREET_CORRIDORS,
 } from '../VillageArea';
 import { SITE_LAYOUT, landmarkLocalToWorld } from '../../constants/siteLayout';
+import { PlotGeometry } from '../../utils/authoredPlotGeometry';
 import { COTTAGE_GARDENS, landscapeGrassSpec } from '../exterior/LandscapeDressing';
 vi.mock('../../utils/critterAudio', () => ({ playCritterSound: vi.fn() }));
 const material = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
@@ -260,4 +262,24 @@ it('grounds the civic privet while leaving both real stair approaches clear', ()
         ).intersectObject(hedge).length
       ).toBeGreaterThan(0);
   }
+});
+
+it('builds closed stemmed five-petal blooms with repeatable, location-specific height and lean', () => {
+  const bloom = (x: number) => {
+    const b = new PlotGeometry();
+    addVillageFlower(b, x, 0.5, 0.2, '#d586ab', 0.12);
+    expect(b.parts).toHaveLength(9); // stem, two leaves, five petals, centre
+    const g = b.finish();
+    expect([...g.getAttribute('position').array].every(Number.isFinite)).toBe(true);
+    expect(g.getAttribute('position').count / 3).toBe(60);
+    expect(g.boundingBox!.min.y).toBeGreaterThanOrEqual(0.49);
+    expect(g.boundingBox!.max.y).toBeLessThan(0.9);
+    return g;
+  };
+  const first = bloom(0),
+    repeated = bloom(0),
+    neighbour = bloom(0.19);
+  expect(first.getAttribute('position').array).toEqual(repeated.getAttribute('position').array);
+  expect(first.boundingBox!.max.y).not.toBe(neighbour.boundingBox!.max.y);
+  [first, repeated, neighbour].forEach((g) => g.dispose());
 });

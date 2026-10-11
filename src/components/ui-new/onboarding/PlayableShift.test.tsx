@@ -6,6 +6,7 @@ import {
   ShiftDebrief,
   TeachingPace,
 } from './PlayableShift';
+import { CAMERA_PRESETS, useCameraStore } from '../../CameraController';
 import { useUIStore } from '../../../stores/uiStore';
 import { useOperationsCampaignStore } from '../../../stores/operationsCampaignStore';
 import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
@@ -18,6 +19,7 @@ import type { MachineData } from '../../../types';
 vi.mock('../../knowledge/LearningNote', () => ({ LearningNote: () => null }));
 
 beforeEach(() => {
+  useCameraStore.setState(useCameraStore.getInitialState(), true);
   useWorkplaceStore.setState({ workplace: createWorkplace() });
   useMaterialFlowStore.setState(useMaterialFlowStore.getInitialState(), true);
   useUIStore.setState(useUIStore.getInitialState(), true);
@@ -376,4 +378,63 @@ describe('playable shift UI', () => {
     expect(screen.getByText('Operator mitigated a power sag')).toBeVisible();
     expect(screen.getByRole('button', { name: 'Accept next delivery programme' })).toBeDisabled();
   });
+});
+
+it('shows the actual line or shipping camera without changing production or awarding an inspection', () => {
+  const campaign = useOperationsCampaignStore.getState();
+  useUIStore.getState().startDeliveryJourney(campaign.activeOrderId);
+  render(<FirstDeliveryJourney selectedMachine={null} onOpenWorkspace={vi.fn()} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Show milling line' }));
+  const milling = CAMERA_PRESETS.findIndex((preset) => preset.name === 'Milling');
+  expect(useCameraStore.getState().activePreset).toBe(milling);
+  expect(useCameraStore.getState().targetPosition?.toArray()).toEqual(
+    CAMERA_PRESETS[milling].position
+  );
+  expect(useUIStore.getState().inspectedMachineIds).toEqual([]);
+  expect(useOperationsCampaignStore.getState()).toBe(campaign);
+  act(() => {
+    useUIStore.getState().recordMachineInspection('mill-1');
+    useOperationsCampaignStore.setState({
+      execution: { ...campaign.execution, orderId: campaign.activeOrderId, stage: 'loading' },
+    });
+  });
+  const loading = useOperationsCampaignStore.getState();
+  fireEvent.click(screen.getByRole('button', { name: 'Expand delivery guide' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Show shipping bay' }));
+  expect(useCameraStore.getState().activePreset).toBe(
+    CAMERA_PRESETS.findIndex((preset) => preset.name === 'Shipping')
+  );
+  expect(useOperationsCampaignStore.getState()).toBe(loading);
+  fireEvent.click(screen.getByRole('button', { name: 'Expand delivery guide' }));
+  act(() => useUIStore.setState({ fpsMode: true }));
+  useCameraStore.getState().cancelAnimation();
+  const walking = useCameraStore.getState();
+  fireEvent.click(screen.getByRole('button', { name: 'Show shipping bay' }));
+  expect(useCameraStore.getState()).toBe(walking);
+});
+
+it('keeps real inspection tracking mounted in the compact scene guide and restores its lesson', () => {
+  const campaign = useOperationsCampaignStore.getState();
+  useUIStore.getState().startDeliveryJourney(campaign.activeOrderId);
+  const onOpen = vi.fn();
+  const { rerender } = render(
+    <FirstDeliveryJourney selectedMachine={null} onOpenWorkspace={onOpen} />
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Show milling line' }));
+  expect(screen.getByRole('button', { name: 'Expand delivery guide' })).toBeInTheDocument();
+  expect(screen.queryByRole('combobox', { name: 'Shift pace' })).not.toBeInTheDocument();
+  expect(screen.getByText('Select a machine to record your inspection.')).toBeInTheDocument();
+  expect(useUIStore.getState().journeyVisible).toBe(true);
+  rerender(
+    <FirstDeliveryJourney
+      selectedMachine={{ id: 'mill-1', type: MachineType.ROLLER_MILL } as MachineData}
+      onOpenWorkspace={onOpen}
+    />
+  );
+  expect(useUIStore.getState().inspectedMachineIds).toEqual(['mill-1']);
+  expect(screen.getByText(/Inspection: recorded/)).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Expand delivery guide' }));
+  expect(screen.getByRole('combobox', { name: 'Shift pace' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Open operations' })).toBeInTheDocument();
+  expect(useOperationsCampaignStore.getState()).toBe(campaign);
 });

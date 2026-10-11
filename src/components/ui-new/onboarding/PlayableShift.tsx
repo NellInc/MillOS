@@ -18,6 +18,7 @@ import {
   RECOVERY_CHALLENGE_WINDOW_MINUTES,
 } from '../../../simulation/operationsPlay';
 import { LearningNote } from '../../knowledge/LearningNote';
+import { CAMERA_PRESETS, useCameraStore } from '../../CameraController';
 import { deriveDeliveryDeadline, deriveDeliveryJourney } from './deliveryJourney';
 import { MachineType, type MachineData } from '../../../types';
 import type { CustomerOrder } from '../../../stores/operationsCampaignStore';
@@ -95,6 +96,8 @@ export function FirstDeliveryJourney({
   );
   const order = campaign.orders.find((item) => item.id === ui.orderId) ?? null;
   const guide = deriveDeliveryJourney(order, campaign.execution, ui.inspected);
+  const [sceneFocused, setSceneFocused] = useState(false);
+  useEffect(() => setSceneFocused(false), [ui.orderId]);
   useEffect(() => {
     if (
       selectedMachine &&
@@ -173,6 +176,38 @@ export function FirstDeliveryJourney({
         </details>
       </section>
     );
+  // Keep the live inspection effects mounted while making room for the scene.
+  // Working if a scene shortcut reveals the machinery on a phone, selecting it
+  // still records the real inspection, and Guide restores the full lesson.
+  if (sceneFocused)
+    return (
+      <section
+        aria-label="Guided delivery"
+        className="pointer-events-auto fixed bottom-[11.5rem] left-3 right-3 z-40 rounded-xl border border-cyan-400/40 bg-slate-950/95 p-3 shadow-xl sm:left-5 sm:right-auto sm:w-[360px]"
+      >
+        <div className="flex items-center justify-between gap-3">
+          <h2 aria-live="polite" className="font-semibold text-white">
+            {guide.title}
+          </h2>
+          <button
+            className={`${BUTTON} shrink-0`}
+            aria-label="Expand delivery guide"
+            onClick={() => setSceneFocused(false)}
+          >
+            Guide
+          </button>
+        </div>
+        <p className="mt-1 text-xs leading-5 text-slate-300">
+          Inspection: {ui.inspected ? 'recorded' : 'waiting'} · Delivery:{' '}
+          {order?.shippedKg.toFixed(0) ?? 0} kg dispatched
+        </p>
+        {!ui.inspected && (
+          <p className="text-xs leading-5 text-cyan-200">
+            Select a machine to record your inspection.
+          </p>
+        )}
+      </section>
+    );
   return (
     <section
       aria-label="Guided delivery"
@@ -221,6 +256,28 @@ export function FirstDeliveryJourney({
           ? 'fulfilled'
           : `${order?.shippedKg.toFixed(0) ?? 0} kg dispatched`}
       </p>
+      {guide.view && (
+        <button
+          className={`${BUTTON} mt-3`}
+          onClick={() => {
+            // Reuse the actual site camera, without granting an inspection receipt.
+            // The host hides this guide during first-person walking.
+            if (useUIStore.getState().fpsMode) return;
+            const index = CAMERA_PRESETS.findIndex((preset) => preset.name === guide.view);
+            if (index >= 0) {
+              useCameraStore.getState().setPreset(index);
+              setSceneFocused(true);
+            }
+          }}
+        >
+          Show{' '}
+          {guide.view === 'Milling'
+            ? 'milling line'
+            : guide.view === 'Packing'
+              ? 'packing line'
+              : 'shipping bay'}
+        </button>
+      )}
       {guide.workspace && (
         <button className={`${BUTTON} mt-3`} onClick={() => onOpenWorkspace(guide.workspace!)}>
           Open {guide.workspace === 'scada' ? 'operations' : 'Overview and QC'}
