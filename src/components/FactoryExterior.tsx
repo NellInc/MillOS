@@ -110,7 +110,7 @@ import {
 import { createTreeMatrix } from './scenery/treeForms';
 import { HedgeFoliage } from './exterior/HedgeFoliage';
 import { LandscapeDressing } from './exterior/LandscapeDressing';
-import { LockGateJoinery } from './scenery/AuthoredPropTrim';
+import { LockGateJoinery, LockGateLighting } from './scenery/AuthoredPropTrim';
 import {
   CANAL_OUTLET,
   canalEastBankSections,
@@ -3826,7 +3826,12 @@ const LockGate: React.FC<{
         <GeneratedModel asset="lockGateStructure" receiveShadow={false} />
       </group>
     </GeneratedBoundary>
-    {width === 10 && <LockGateJoinery />}
+    {width === 10 && (
+      <>
+        <LockGateJoinery />
+        <LockGateLighting />
+      </>
+    )}
   </group>
 );
 

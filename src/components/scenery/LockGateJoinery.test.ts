@@ -1,6 +1,12 @@
 import { expect, it } from 'vitest';
 import * as THREE from 'three';
-import { LOCK_GATE_JOINERY } from './AuthoredPropTrim';
+import {
+  LOCK_GATE_JOINERY,
+  LOCK_GATE_LAMPS,
+  LOCK_GATE_LIGHT,
+  LOCK_LAMP_HOUSING,
+} from './AuthoredPropTrim';
+import { readFileSync } from 'node:fs';
 import { LOCK_GATE_MATERIAL } from './lockGateSurface';
 
 it('resolves vertical oak grain, a damp waterline and a separate iron atlas tile', () => {
@@ -57,4 +63,36 @@ it('retains the lock seam and walkway clearance with one finite merged detail me
     expect(hits[0].point.z).toBeCloseTo(0.175, 3);
   }
   mesh.material.dispose();
+});
+
+it('mounts two shielded shared-clock lights on the real uprights outside the crossing', () => {
+  expect(LOCK_GATE_LAMPS.map((lamp) => lamp.id)).toEqual(['west', 'east']);
+  expect(LOCK_GATE_LIGHT.distance).toBeLessThanOrEqual(8.5);
+  const b = LOCK_LAMP_HOUSING.boundingBox!;
+  const vertices = LOCK_LAMP_HOUSING.getAttribute('position');
+  for (let i = 0; i < vertices.count; i++)
+    if (vertices.getY(i) + 3 > 3.075) expect(vertices.getZ(i)).toBeGreaterThan(0.5); // clear the actual entire deck
+
+  expect(LOCK_LAMP_HOUSING.getAttribute('position').count / 3).toBe(72);
+  for (const name of ['position', 'normal', 'color'])
+    expect(Array.from(LOCK_LAMP_HOUSING.getAttribute(name).array).every(Number.isFinite)).toBe(
+      true
+    );
+  for (const lamp of LOCK_GATE_LAMPS) {
+    expect(Math.abs(lamp.post[0])).toBe(5.3);
+    expect(b.min.z).toBeCloseTo(0.25, 5); // actual post face
+    expect(lamp.source[1]).toBeGreaterThan(3.075); // actual deck top
+    expect(lamp.source[2] - 0.12).toBeGreaterThan(0.5); // lens clear of deck
+    expect(Math.abs(lamp.post[0]) - Math.max(Math.abs(b.min.x), Math.abs(b.max.x))).toBeGreaterThan(
+      5
+    );
+  }
+  const source = readFileSync('src/components/scenery/AuthoredPropTrim.tsx', 'utf8');
+  expect(source).toContain('intensity={disabled ? 0 : LOCK_GATE_LIGHT.intensity}');
+  expect(source).toContain('material={EXTERIOR_LAMP_LENS_MATERIAL}');
+  const world = readFileSync('src/components/FactoryExterior.tsx', 'utf8');
+  expect(world.match(/<LockGateLighting/g)).toHaveLength(1);
+  // The existing helper is the authority for direction, dimmer registration,
+  // cleanup and absence of local shadow maps, already exercised by its suite.
+  expect(source).toContain('<ExteriorDownlight');
 });

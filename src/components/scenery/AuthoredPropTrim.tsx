@@ -4,6 +4,8 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { EXTERIOR_LAYERS, POLYGON_OFFSET } from '../../constants/renderLayers';
 import { SITE_LAYOUT } from '../../constants/siteLayout';
 import { LOCK_GATE_MATERIAL } from './lockGateSurface';
+import { ExteriorDownlight, EXTERIOR_LAMP_LENS_MATERIAL } from '../exterior/ExteriorLighting';
+import { useGraphicsStore } from '../../stores/graphicsStore';
 import { createColorDataTexture, createLinearDataTexture } from '../../utils/textureGenerator';
 
 /**
@@ -651,3 +653,69 @@ export const LockGateJoinery = React.memo(() => (
   />
 ));
 LockGateJoinery.displayName = 'LockGateJoinery';
+
+/** Lock-upright fittings light the real oak leaves and paddle wheels.
+ * Working if the clear-noon sources are off, both leaves read at night, and
+ * the crossing and single celestial shadow-map budget remain unchanged.
+ */
+export const LOCK_GATE_LAMPS = [-1, 1].map((side) => ({
+  id: side < 0 ? 'west' : 'east',
+  post: [side * 5.3, 3, 0] as [number, number, number],
+  source: [side * 5.3, 3.8, 0.74] as [number, number, number],
+}));
+export const LOCK_GATE_LIGHT = { intensity: 72, distance: 8.5, color: '#ffe0a0' } as const;
+
+export function createLockLampHousing() {
+  const parts: THREE.BufferGeometry[] = [];
+  const add = (size: [number, number, number], at: [number, number, number], color: string) =>
+    parts.push(colored(new THREE.BoxGeometry(...size).translate(...at), color));
+  // Plate and stand-off seat below the deck on the actual post face. The stalk and hood sit
+  // outside the deck's +/-0.5 m strip, leaving the central crossing clear.
+  add([0.18, 0.16, 0.065], [0, -0.18, 0.2825], '#46514b');
+  add([0.058, 0.058, 0.4], [0, -0.14, 0.5], '#46514b');
+  add([0.058, 0.94, 0.058], [0, 0.33, 0.7], '#46514b');
+  add([0.058, 0.058, 0.1], [0, 0.83, 0.7], '#46514b');
+  add([0.48, 0.11, 0.38], [0, 0.875, 0.74], '#34443d');
+  add([0.5, 0.035, 0.4], [0, 0.935, 0.74], '#8a795f');
+  return joined(parts);
+}
+export const LOCK_LAMP_HOUSING = createLockLampHousing();
+const LOCK_LAMP_FRAME = new THREE.MeshStandardMaterial({
+  name: 'lock-shielded-lamp-housing',
+  vertexColors: true,
+  roughness: 0.64,
+  metalness: 0.32,
+});
+const LOCK_LAMP_LENS = new THREE.BoxGeometry(0.38, 0.012, 0.24);
+
+export const LockGateLighting = React.memo(() => {
+  const disabled = useGraphicsStore((s) => s.graphics.perfDebug.disableLightingPolish);
+  return (
+    <group name="lock-gate-shielded-lighting">
+      {LOCK_GATE_LAMPS.map((lamp) => (
+        <React.Fragment key={lamp.id}>
+          <mesh
+            position={lamp.post}
+            geometry={LOCK_LAMP_HOUSING}
+            material={LOCK_LAMP_FRAME}
+            castShadow
+            receiveShadow
+          />
+          <mesh
+            position={lamp.source}
+            geometry={LOCK_LAMP_LENS}
+            material={EXTERIOR_LAMP_LENS_MATERIAL}
+          />
+          <ExteriorDownlight
+            name={`lock-gate-task-lamp:${lamp.id}`}
+            position={lamp.source}
+            intensity={disabled ? 0 : LOCK_GATE_LIGHT.intensity}
+            distance={LOCK_GATE_LIGHT.distance}
+            color={LOCK_GATE_LIGHT.color}
+          />
+        </React.Fragment>
+      ))}
+    </group>
+  );
+});
+LockGateLighting.displayName = 'LockGateLighting';

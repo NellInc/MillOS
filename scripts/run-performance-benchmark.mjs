@@ -880,7 +880,11 @@ async function runScene(context, baseUrl, scene, scadaEnabled = options.scadaEna
     () =>
       document.documentElement.dataset.millosStartupReady === 'true' &&
       document.querySelector('[aria-label="Loading MillOS"]') === null,
-    120000,
+    // The first reveal includes the same static batching as the later settle
+    // check. Honour a longer existing --settle-timeout here as well. Working
+    // if a busy capture can wait for all batches while the default observation
+    // window and every frame/startup acceptance budget remain unchanged.
+    Math.max(120000, options.settleTimeoutSeconds * 1000),
     { consoleErrors, pageErrors, failedRequests }
   );
   if (options.startupOnly) {
