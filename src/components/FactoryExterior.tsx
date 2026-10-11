@@ -69,6 +69,7 @@ import {
   ExteriorLampPool,
   CANAL_CROSSING_LAMPS,
   CANAL_CROSSING_LIGHT,
+  CANAL_BOAT_LANTERN,
   WEST_FACTORY_PATH,
   WEST_FACTORY_PATH_LAMPS,
   WEST_FACTORY_PATH_POOL_RADIUS,
@@ -1790,6 +1791,12 @@ export const CanalBoat: React.FC<{
     const isNight = useGameSimulationStore(
       useShallow((state) => getExteriorLampLevel(state.gameTime, state.weather) > 0.1)
     );
+    const realDeckLight = useGraphicsStore(
+      (state) =>
+        state.graphics.quality !== 'low' &&
+        !state.graphics.perfDebug.disablePunctualLights &&
+        !state.graphics.perfDebug.disableLightingPolish
+    );
     useEffect(() => {
       CANAL_PORTHOLE_GLASS_MATERIAL.color.set(isNight ? '#ffaa00' : '#add8e6');
       CANAL_PORTHOLE_GLASS_MATERIAL.emissive.set(isNight ? '#ffaa00' : '#000000');
@@ -2013,14 +2020,32 @@ export const CanalBoat: React.FC<{
               FLOURISH
             </Text>
           ))}
-          <group position={[0, 2.32, 3.08]}>
-            <mesh castShadow>
+          <group name="canal-boat-bow-lantern" position={[...CANAL_BOAT_LANTERN.mount]}>
+            <mesh position={[...CANAL_BOAT_LANTERN.bracket]} castShadow receiveShadow>
+              <boxGeometry args={[0.06, 0.06, 0.36]} />
+              <meshStandardMaterial color="#222222" metalness={0.6} />
+            </mesh>
+            <mesh castShadow receiveShadow>
               <boxGeometry args={[0.2, 0.3, 0.2]} />
               <meshStandardMaterial color="#222222" metalness={0.6} />
             </mesh>
             <mesh material={EXTERIOR_LAMP_LENS_MATERIAL}>
               <boxGeometry args={[0.15, 0.25, 0.21]} />
             </mesh>
+            {realDeckLight && (
+              <group
+                position={[...CANAL_BOAT_LANTERN.source]}
+                rotation={[CANAL_BOAT_LANTERN.tilt, 0, 0]}
+              >
+                <ExteriorDownlight
+                  name="canal-boat-deck-light"
+                  position={[0, 0, 0]}
+                  intensity={CANAL_BOAT_LANTERN.intensity}
+                  distance={CANAL_BOAT_LANTERN.distance}
+                  color={CANAL_BOAT_LANTERN.color}
+                />
+              </group>
+            )}
           </group>
         </GeneratedBoundary>
       </group>

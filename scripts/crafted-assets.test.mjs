@@ -770,6 +770,32 @@ test('school bell has a front-facing inner casting and a closed crown above its 
   }
 });
 
+test('narrowboat chimney has an open outlet below its supported rain hood', async () => {
+  const { meshes } = await assembly('world-canal-boat');
+  for (const mesh of meshes) mesh.material.side = THREE.FrontSide;
+  try {
+    const gap = new THREE.Raycaster(new THREE.Vector3(-0.63, 3.27, -3), new THREE.Vector3(0, 0, 1));
+    expect(gap.intersectObjects(meshes)).toHaveLength(0);
+    const pipe = new THREE.Raycaster(
+      new THREE.Vector3(-0.63, 3.19, -3),
+      new THREE.Vector3(0, 0, 1)
+    );
+    expect(pipe.intersectObjects(meshes)[0]?.point.z).toBeCloseTo(-2.11, 2);
+    // The authoring envelope widens X by 1.028..., so probe the delivered
+    // hood's actual peak rather than the unscaled builder coordinate.
+    const crest = new THREE.Vector3();
+    for (const mesh of meshes) {
+      const positions = mesh.geometry.getAttribute('position');
+      for (let i = 0; i < positions.count; i++)
+        if (positions.getY(i) > crest.y) crest.fromBufferAttribute(positions, i);
+    }
+    expect(crest.y).toBeCloseTo(3.39, 3);
+    expect(heightAt(meshes, crest.x + 0.001, crest.z)).toBeGreaterThan(3.38);
+  } finally {
+    dispose(meshes);
+  }
+});
+
 test('authored narrowboat has a tapered closed hull, cambered roof and eight seated glazing discs', async () => {
   const { doc, meshes } = await assembly('world-canal-boat');
   try {

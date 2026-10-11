@@ -668,7 +668,20 @@ def canal_boat():
             frame('Door upper pane',x,2.1,z+(.095 if yaw==0 else -.095),.33,.43,yaw,'oak')
     for z in (-2.7,-.4,1.9):
         lathe('Mushroom brass roof vent',0,z,[(.10,2.76),(.10,2.84),(.23,2.87),(.23,2.91),(.10,3.01),(0,3.03)],'brass',16)
-    lathe('Black stove chimney',-.63,-2.0,[(.11,2.72),(.11,3.25),(.19,3.27),(.19,3.34),(0,3.39)],'iron',20)
+    # An actual open flue under a supported rain hood, within the original
+    # roof/chimney envelope. Working if the delivery ray crosses the outlet
+    # gap at y3.27, the pipe stays closed-sided and the hood still tops at3.39.
+    lathe('Boat recessed stove pipe',-.63,-2.0,
+          [(.11,2.72),(.11,3.24),(.083,3.24),(.083,2.72),
+           (.11,2.72)],'iron',12)
+    lathe('Boat stove rain hood',-.63,-2.0,
+          [(0,3.31),(.19,3.31),(.19,3.34),(0,3.39)],'iron',10)
+    for i in range(2):
+        a = i * math.pi
+        beam('Stove hood support',
+             (-.63 + .11 * math.cos(a),3.20,-2.0 + .11 * math.sin(a)),
+             (-.63 + .15 * math.cos(a),3.315,-2.0 + .15 * math.sin(a)),
+             .018,'iron')
     box('Roof timber storage locker',(.44,2.87,.55),(.72,.28,1.23),'green')
     for z in (.03,1.07): box('Locker brass strap',(.44,3.017,z),(.74,.014,.037),'brass')
     for side in (-1,1):
@@ -762,7 +775,7 @@ for slug, builder in BUILDERS.items():
     bm.to_mesh(mesh)
     bm.free()
     for part in PARTS:
-        if part['name'] in ('Civic curving ogee cupola', 'School swept bell cap', 'School open bronze bell', 'Bell clapper ball', 'Pub hollow rolled flue pot', 'Hollow village chimney pot', 'Mushroom brass roof vent', 'Shop display display loaf'):
+        if part['name'] in ('Civic curving ogee cupola', 'School swept bell cap', 'School open bronze bell', 'Bell clapper ball', 'Pub hollow rolled flue pot', 'Hollow village chimney pot', 'Mushroom brass roof vent', 'Boat recessed stove pipe', 'Boat stove rain hood', 'Shop display display loaf'):
             lo, hi = part['firstVertex'], part['firstVertex'] + part['vertexCount']
             for polygon in mesh.polygons:
                 if all(lo <= v < hi for v in polygon.vertices):

@@ -197,6 +197,7 @@ export function FirstDeliveryJourney({
             Guide
           </button>
         </div>
+        <DeliveryDeadline order={order} elapsedMinutes={campaign.elapsedMinutes} />
         <p className="mt-1 text-xs leading-5 text-slate-300">
           Inspection: {ui.inspected ? 'recorded' : 'waiting'} · Delivery:{' '}
           {order?.shippedKg.toFixed(0) ?? 0} kg dispatched

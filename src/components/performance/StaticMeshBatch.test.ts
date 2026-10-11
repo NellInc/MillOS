@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
+import { beginStartupTask, getStartupSnapshot } from '../../utils/startupReadiness';
 import * as THREE from 'three';
 import {
+  beginStaticBatch,
+  finishStaticBatch,
   collectStaticBatchCandidates,
   createStaticMeshBatches,
   orderStaticBatchCandidatesForChunking,
@@ -20,6 +23,29 @@ const makeBox = (x: number, color: string = '#778899'): THREE.Mesh => {
 };
 
 describe('StaticMeshBatch', () => {
+  it('reports batching as startup work and releases only its own task once', () => {
+    const baseline = getStartupSnapshot().pendingTasks;
+    const finishOther = beginStartupTask();
+    const first = beginStaticBatch();
+    const second = beginStaticBatch();
+    try {
+      expect(getStartupSnapshot().pendingTasks).toBe(baseline + 3);
+      expect(document.documentElement.dataset.millosStaticBatchesPending).toBe('2');
+      finishStaticBatch(first);
+      finishStaticBatch(first);
+      expect(getStartupSnapshot().pendingTasks).toBe(baseline + 2);
+      expect(document.documentElement.dataset.millosStaticBatchesPending).toBe('1');
+      finishStaticBatch(second);
+      expect(getStartupSnapshot().pendingTasks).toBe(baseline + 1);
+      expect(document.documentElement.dataset.millosStaticBatchesPending).toBe('0');
+    } finally {
+      finishStaticBatch(first);
+      finishStaticBatch(second);
+      finishOther();
+    }
+    expect(getStartupSnapshot().pendingTasks).toBe(baseline);
+  });
+
   it('batches mapped bodies without automatically overpainting their atlas', () => {
     const root = new THREE.Group();
     const map = new THREE.Texture();

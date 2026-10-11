@@ -42,6 +42,19 @@ export const CANAL_CROSSING_LIGHT = {
   poolRadius: 3.7,
 } as const;
 
+/** A cabin-face lantern lights the bow well, clear of the cambered roof.
+ * Working if its centre ray reaches teak, clear noon is dark and no shadow map is added.
+ */
+export const CANAL_BOAT_LANTERN = {
+  mount: [0, 2.06, 3.72] as [number, number, number],
+  bracket: [0, -0.13, -0.175] as [number, number, number],
+  source: [0, -0.05, 0.12] as [number, number, number],
+  tilt: (-35 * Math.PI) / 180,
+  intensity: 24,
+  distance: 3.4,
+  color: '#ffdb9b',
+} as const;
+
 export const getExteriorLampLevel = (gameTime: number, weather: ExteriorWeather): number => {
   const hour = (((Number.isFinite(gameTime) ? gameTime : 12) % 24) + 24) % 24;
   const solarElevation = Math.sin(((hour - 6) / 24) * Math.PI * 2);

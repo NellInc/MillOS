@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
+import { beginStartupTask } from '../../utils/startupReadiness';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { applyLampLens, lampLensStyle, type LampStyle } from '../models/GeneratedLampModel';
 import {
@@ -103,22 +104,28 @@ const MERGE_CELL_SIZE_METRES = 80;
 // runtime regression observed when the collection task was widened further.
 const MAX_BATCH_CANDIDATES_PER_TASK = 512;
 const MAX_CANDIDATE_SCAN_PER_TASK = 96;
-const pendingStaticBatches = new Set<symbol>();
+const pendingStaticBatches = new Map<symbol, ReturnType<typeof beginStartupTask>>();
 
 const publishPendingStaticBatchCount = (): void => {
   if (typeof document === 'undefined') return;
   document.documentElement.dataset.millosStaticBatchesPending = String(pendingStaticBatches.size);
 };
 
-const beginStaticBatch = (): symbol => {
+export const beginStaticBatch = (): symbol => {
   const token = Symbol('static-batch');
-  pendingStaticBatches.add(token);
+  // Share the existing progress barrier with imports and shader preparation.
+  // Working if batching keeps the loader in its building phase and cleanup
+  // releases only this root's task, including interrupted quality changes.
+  pendingStaticBatches.set(token, beginStartupTask());
   publishPendingStaticBatchCount();
   return token;
 };
 
-const finishStaticBatch = (token: symbol): void => {
+export const finishStaticBatch = (token: symbol): void => {
+  const finishStartupTask = pendingStaticBatches.get(token);
+  if (!finishStartupTask) return;
   pendingStaticBatches.delete(token);
+  finishStartupTask();
   publishPendingStaticBatchCount();
 };
 

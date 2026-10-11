@@ -24,6 +24,7 @@ import { VILLAGE_STREET_CORRIDORS, villageRealmClear } from '../VillageArea';
 import { VILLAGE_HOMES } from './VillageGardens';
 import { landscapeGrassSpec } from '../exterior/LandscapeDressing';
 import { CANAL_BOAT_BERTH, SITE_LAYOUT, landmarkLocalToWorld } from '../../constants/siteLayout';
+import { CANAL_BOAT_LANTERN } from '../exterior/ExteriorLighting';
 import { sampleTerrainGroundHeight } from '../terrain/splatMapGenerator';
 import { moveWalkingPosition, sampleWalkingGroundHeight } from '../../utils/castleNavigation';
 vi.mock('../../utils/critterAudio', () => ({ playCritterSound: vi.fn() }));
@@ -348,4 +349,57 @@ describe('world public realm', () => {
       expect(Math.abs(p.z + 50)).toBeLessThan(1.1);
     }
   );
+});
+
+it('seats the bow lantern on the cabin and aims its bounded beam onto the delivered teak well', async () => {
+  const doc = await new NodeIO().read('public/models/world/canal-boat.glb');
+  const node = doc
+    .getRoot()
+    .listNodes()
+    .find((n) => n.getMesh())!;
+  const primitive = node.getMesh()!.listPrimitives()[0];
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute(
+    'position',
+    new THREE.BufferAttribute(primitive.getAttribute('POSITION')!.getArray()!, 3)
+  );
+  geometry.setIndex(new THREE.BufferAttribute(primitive.getIndices()!.getArray()!, 1));
+  geometry.applyMatrix4(new THREE.Matrix4().fromArray(node.getWorldMatrix()));
+  const mesh = new THREE.Mesh(geometry, material);
+  try {
+    const lamp = CANAL_BOAT_LANTERN;
+    const source = new THREE.Vector3(...lamp.mount).add(new THREE.Vector3(...lamp.source));
+    source.y += CANAL_BOAT_BERTH.keelSink;
+    const direction = new THREE.Vector3(0, -1, 0).applyAxisAngle(
+      new THREE.Vector3(1, 0, 0),
+      lamp.tilt
+    );
+    const hit = new THREE.Raycaster(source, direction, 0, lamp.distance).intersectObject(mesh)[0];
+    expect(hit?.point.y).toBeCloseTo(1.1525, 3);
+    expect(hit?.point.z).toBeGreaterThan(4.4);
+    expect(hit?.point.z).toBeLessThan(5.03);
+    const bracketFace = new THREE.Vector3(...lamp.mount).add(new THREE.Vector3(...lamp.bracket));
+    bracketFace.y += CANAL_BOAT_BERTH.keelSink;
+    bracketFace.z += 0.18;
+    const bracketContact = new THREE.Raycaster(
+      bracketFace,
+      new THREE.Vector3(0, 0, -1),
+      0,
+      0.36
+    ).intersectObject(mesh)[0];
+    expect(bracketContact?.point.z).toBeCloseTo(3.4, 3);
+    expect(bracketContact!.distance).toBeLessThan(0.36);
+    expect(lamp.distance).toBeLessThanOrEqual(3.4);
+    const sourceCode = readFileSync('src/components/FactoryExterior.tsx', 'utf8');
+    const start = sourceCode.indexOf('name="canal-boat-bow-lantern"');
+    const lantern = sourceCode.slice(start, sourceCode.indexOf('</GeneratedBoundary>', start));
+    expect(lantern).toContain('position={[...CANAL_BOAT_LANTERN.mount]}');
+    expect(lantern).toContain('{realDeckLight &&');
+    expect(lantern).toContain('name="canal-boat-deck-light"');
+    expect(lantern).toContain('CANAL_BOAT_LANTERN.source');
+    expect(lantern).toContain('CANAL_BOAT_LANTERN.bracket');
+    expect(lantern).toContain('CANAL_BOAT_LANTERN.tilt');
+  } finally {
+    geometry.dispose();
+  }
 });

@@ -420,7 +420,9 @@ it('keeps real inspection tracking mounted in the compact scene guide and restor
   const { rerender } = render(
     <FirstDeliveryJourney selectedMachine={null} onOpenWorkspace={onOpen} />
   );
+  const deadline = screen.getByLabelText('Delivery deadline').textContent;
   fireEvent.click(screen.getByRole('button', { name: 'Show milling line' }));
+  expect(screen.getByLabelText('Delivery deadline')).toHaveTextContent(deadline!);
   expect(screen.getByRole('button', { name: 'Expand delivery guide' })).toBeInTheDocument();
   expect(screen.queryByRole('combobox', { name: 'Shift pace' })).not.toBeInTheDocument();
   expect(screen.getByText('Select a machine to record your inspection.')).toBeInTheDocument();
