@@ -9,10 +9,13 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { PALETTE } from '../utils/digitalTwinPalette';
 import { useMaterialFlowStore } from '../stores/materialFlowStore';
+import { createSpoutTubeGeometry, SPOUT_PIPE_RADIUS } from './flow/spoutRoutes';
 
 interface DataFlowLineProps {
   start: [number, number, number];
   end: [number, number, number];
+  /** Optional physical spouting path; legacy point-to-point callers retain their arc. */
+  path?: THREE.CurvePath<THREE.Vector3>;
   /** Whether flow is active */
   active?: boolean;
   /** Custom flow color */
@@ -27,6 +30,7 @@ interface DataFlowLineProps {
 export const FLOW_TUBE_RADIUS = 0.035;
 const FLOW_TUBE_RADIAL_SEGMENTS = 6;
 export const FLOW_DASH_PERIOD_METRES = 3.5;
+export const PROCESS_FLOW_SLEEVE_RADIUS = SPOUT_PIPE_RADIUS + 0.012;
 
 /**
  * Create the data flow line shader material
@@ -101,12 +105,56 @@ export function updateDataFlowUniforms(
   material.uniforms.flowActive.value = active ? 1 : 0.3;
 }
 
+/** Working if signals fit the real bore and retain metre-spaced dashes at elbows. */
+export function createDataFlowGeometry(
+  start: [number, number, number],
+  end: [number, number, number],
+  segments: number,
+  path?: THREE.CurvePath<THREE.Vector3>
+): THREE.TubeGeometry {
+  if (!path) {
+    const from = new THREE.Vector3(...start),
+      to = new THREE.Vector3(...end);
+    const middle = from.clone().add(to).multiplyScalar(0.5);
+    middle.y += from.distanceTo(to) * 0.15;
+    return new THREE.TubeGeometry(
+      new THREE.QuadraticBezierCurve3(from, middle, to),
+      segments,
+      FLOW_TUBE_RADIUS,
+      FLOW_TUBE_RADIAL_SEGMENTS,
+      false
+    );
+  }
+  // Use the exact physical sweep stations. Its bounded elbow tessellation
+  // avoids adding redundant rings along long straight service runs.
+  const geometry = createSpoutTubeGeometry(path, 12, PROCESS_FLOW_SLEEVE_RADIUS);
+  const { tubularSegments, radialSegments, path: sampling } = geometry.parameters;
+  const lengths = new Float64Array(tubularSegments + 1);
+  const previous = sampling.getPointAt(0),
+    current = new THREE.Vector3();
+  for (let ring = 1; ring <= tubularSegments; ring++) {
+    sampling.getPointAt(ring / tubularSegments, current);
+    lengths[ring] = lengths[ring - 1] + previous.distanceTo(current);
+    previous.copy(current);
+  }
+  // TubeGeometry's default UV spreads an equal phase over every sweep ring,
+  // making dashes slow and bunch at elbows. Restore distance-based phase.
+  const uv = geometry.getAttribute('uv');
+  for (let ring = 0; ring <= tubularSegments; ring++) {
+    const progress = lengths[ring] / lengths[tubularSegments];
+    for (let segment = 0; segment <= radialSegments; segment++)
+      uv.setX(ring * (radialSegments + 1) + segment, progress);
+  }
+  return geometry;
+}
+
 export const DataFlowLine: React.FC<DataFlowLineProps> = ({
   start,
   end,
   active = true,
   color = PALETTE.data.primary,
   segments = 32,
+  path,
 }) => {
   const materialRef = useRef<THREE.ShaderMaterial | null>(null);
 
@@ -124,31 +172,10 @@ export const DataFlowLine: React.FC<DataFlowLineProps> = ({
   const [startX, startY, startZ] = start;
   const [endX, endY, endZ] = end;
 
-  // Create tube geometry along the flow arc
-  const geometry = useMemo(() => {
-    // Create curved path between start and end
-    const startVec = new THREE.Vector3(startX, startY, startZ);
-    const endVec = new THREE.Vector3(endX, endY, endZ);
-    const midPoint = new THREE.Vector3().addVectors(startVec, endVec).multiplyScalar(0.5);
-
-    // Add height to midpoint for arc
-    const distance = startVec.distanceTo(endVec);
-    midPoint.y += distance * 0.15;
-
-    // Create quadratic bezier curve
-    const curve = new THREE.QuadraticBezierCurve3(startVec, midPoint, endVec);
-
-    // ~290 triangles per connection at segments=24. Ten connections is under
-    // 3k triangles against a 60k-245k scene: geometry is not the constraint,
-    // and this replaces an unfilterable 1-pixel GL line primitive.
-    return new THREE.TubeGeometry(
-      curve,
-      segments,
-      FLOW_TUBE_RADIUS,
-      FLOW_TUBE_RADIAL_SEGMENTS,
-      false
-    );
-  }, [startX, startY, startZ, endX, endY, endZ, segments]);
+  const geometry = useMemo(
+    () => createDataFlowGeometry([startX, startY, startZ], [endX, endY, endZ], segments, path),
+    [startX, startY, startZ, endX, endY, endZ, segments, path]
+  );
 
   // Stable Mesh identity + disposal. Building the object inline in the JSX
   // allocated a fresh one every render (forcing R3F to detach and reattach it),

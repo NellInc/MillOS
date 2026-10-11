@@ -4,12 +4,13 @@
  * WHY THIS MODULE EXISTS: the pipe curves used to be built inside
  * `SpoutingSystem`'s `useMemo` and thrown away as soon as `TubeGeometry` had
  * consumed them. `GrainFlow` therefore had no idea where the pipes were and
- * dropped its particles down a hardcoded slab of empty air beside them. Both
+ * dropped its particles down a hardcoded slab of empty air beside them. All
  * consumers now read the same curves from here:
  *
  *   - `SpoutingSystem` extrudes them into tube geometry (and owns disposal of
  *     that geometry - this module never creates or holds GPU resources).
  *   - `GrainFlow` samples `curve.getPointAt(t)` to keep product inside the bore.
+ *   - `ProductionFlowVisualization` seats its signals on the same pipe sweep.
  *
  * The result is cached on the same machine key `SpoutingSystem` already used,
  * so a machine STATUS change (which ticks constantly) does not rebuild curves
@@ -27,6 +28,66 @@ import { MachineData, MachineType } from '../../types';
 
 /** Outer radius of a spouting run, in world units. */
 export const SPOUT_PIPE_RADIUS = 0.17;
+
+/** Spend sweep rings on elbows, leaving every straight run as one segment. */
+class SpoutSweepCurve extends THREE.Curve<THREE.Vector3> {
+  readonly stations: readonly number[];
+
+  constructor(
+    private readonly route: THREE.CurvePath<THREE.Vector3>,
+    bendSegments: number
+  ) {
+    super();
+    const lengths = route.getCurveLengths();
+    const total = lengths[lengths.length - 1];
+    const stations = [0];
+    route.curves.forEach((curve, index) => {
+      const start = index === 0 ? 0 : lengths[index - 1];
+      const steps = curve instanceof THREE.LineCurve3 ? 1 : bendSegments;
+      for (let step = 1; step <= steps; step++) {
+        stations.push((start + ((lengths[index] - start) * step) / steps) / total);
+      }
+    });
+    this.stations = stations;
+  }
+
+  private routeProgress(progress: number): number {
+    const index = THREE.MathUtils.clamp(progress, 0, 1) * (this.stations.length - 1);
+    const lower = Math.min(Math.floor(index), this.stations.length - 2);
+    return THREE.MathUtils.lerp(this.stations[lower], this.stations[lower + 1], index - lower);
+  }
+
+  override getPoint(progress: number, target = new THREE.Vector3()): THREE.Vector3 {
+    return this.route.getPointAt(this.routeProgress(progress), target);
+  }
+
+  override getPointAt(progress: number, target = new THREE.Vector3()): THREE.Vector3 {
+    return this.getPoint(progress, target);
+  }
+
+  override getTangentAt(progress: number, target = new THREE.Vector3()): THREE.Vector3 {
+    return this.route.getTangentAt(this.routeProgress(progress), target);
+  }
+}
+
+/** Same bore as the grain-flow curve, with bounded close-up elbow resolution.
+ * Working if the tube follows every route endpoint and curved branch while
+ * long straight spans do not add hundreds of redundant sweep rings.
+ */
+export function createSpoutTubeGeometry(
+  curve: THREE.CurvePath<THREE.Vector3>,
+  radialSegments: number,
+  radius = SPOUT_PIPE_RADIUS
+): THREE.TubeGeometry {
+  const sampling = new SpoutSweepCurve(curve, radialSegments >= 12 ? 6 : 4);
+  return new THREE.TubeGeometry(
+    sampling,
+    sampling.stations.length - 1,
+    radius,
+    radialSegments,
+    false
+  );
+}
 
 export type PipeRouteFamily = 'intake' | 'pneumatic' | 'finished';
 
@@ -222,7 +283,7 @@ let cachedRoutes: readonly SpoutRoute[] = [];
 /**
  * Build (or return the cached) spouting routes for a machine layout.
  *
- * Pairing mirrors `ProductionFlowVisualization`: mill[i] is fed by
+ * Canonical pairing for steel, grain and process signals: mill[i] is fed by
  * silo[i % silos], lifts to sifter[i % sifters]; packer[i] is fed by
  * sifter[i % sifters].
  */

@@ -17,6 +17,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { generateProceduralNormal } from '../textures/normalGenerator';
 import {
   buildSpoutRoutes,
+  createSpoutTubeGeometry,
   getSpoutRiserX,
   spoutMachineKey,
   SPOUT_PIPE_RADIUS,
@@ -24,64 +25,7 @@ import {
   type PipeRouteFamily,
 } from './flow/spoutRoutes';
 
-/** Spend sweep rings on elbows, leaving every straight run as one segment. */
-class SpoutSweepCurve extends THREE.Curve<THREE.Vector3> {
-  readonly stations: readonly number[];
-
-  constructor(
-    private readonly route: THREE.CurvePath<THREE.Vector3>,
-    bendSegments: number
-  ) {
-    super();
-    const lengths = route.getCurveLengths();
-    const total = lengths[lengths.length - 1];
-    const stations = [0];
-    route.curves.forEach((curve, index) => {
-      const start = index === 0 ? 0 : lengths[index - 1];
-      const steps = curve instanceof THREE.LineCurve3 ? 1 : bendSegments;
-      for (let step = 1; step <= steps; step++) {
-        stations.push((start + ((lengths[index] - start) * step) / steps) / total);
-      }
-    });
-    this.stations = stations;
-  }
-
-  private routeProgress(progress: number): number {
-    const index = THREE.MathUtils.clamp(progress, 0, 1) * (this.stations.length - 1);
-    const lower = Math.min(Math.floor(index), this.stations.length - 2);
-    return THREE.MathUtils.lerp(this.stations[lower], this.stations[lower + 1], index - lower);
-  }
-
-  override getPoint(progress: number, target = new THREE.Vector3()): THREE.Vector3 {
-    return this.route.getPointAt(this.routeProgress(progress), target);
-  }
-
-  override getPointAt(progress: number, target = new THREE.Vector3()): THREE.Vector3 {
-    return this.getPoint(progress, target);
-  }
-
-  override getTangentAt(progress: number, target = new THREE.Vector3()): THREE.Vector3 {
-    return this.route.getTangentAt(this.routeProgress(progress), target);
-  }
-}
-
-/** Same bore as the grain-flow curve, with bounded close-up elbow resolution.
- * Working if the tube follows every route endpoint and curved branch while
- * long straight spans do not add hundreds of redundant sweep rings.
- */
-export function createSpoutTubeGeometry(
-  curve: THREE.CurvePath<THREE.Vector3>,
-  radialSegments: number
-): THREE.TubeGeometry {
-  const sampling = new SpoutSweepCurve(curve, radialSegments >= 12 ? 6 : 4);
-  return new THREE.TubeGeometry(
-    sampling,
-    sampling.stations.length - 1,
-    SPOUT_PIPE_RADIUS,
-    radialSegments,
-    false
-  );
-}
+export { createSpoutTubeGeometry };
 
 /**
  * Bolted spout joint, instanced every 3-4 m along every route.
