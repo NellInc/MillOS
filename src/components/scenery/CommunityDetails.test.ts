@@ -8,7 +8,12 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { COMMUNITY_GEOMETRY } from './CommunityDetails';
 import { COMMUNITY_ANCHORS as A } from '../../constants/communityLayout';
-import { BUS_SHELTER_LIGHT } from '../../constants/publicRealmLayout';
+import {
+  BUS_SHELTER_SITE,
+  BUS_SHELTER_LIGHT,
+  busShelterWalkingHeight,
+} from '../../constants/publicRealmLayout';
+import { sampleWalkingGroundHeight } from '../../utils/castleNavigation';
 
 function heightAt(geometry: THREE.BufferGeometry, x: number, z: number) {
   const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }));
@@ -36,7 +41,7 @@ describe('authored community details', () => {
   it('leaves the measured canal moorings to the public realm, without floating legacy cleats', () => {
     expect(COMMUNITY_GEOMETRY).not.toHaveProperty('mooring');
   });
-  it('uses the delivered shelter seat top and seats its roof luminaire', async () => {
+  it('uses the delivered shelter floor, seat top and roof luminaire', async () => {
     const io = new NodeIO().registerExtensions(ALL_EXTENSIONS).registerDependencies({
       'draco3d.decoder': await draco.createDecoderModule(),
     });
@@ -63,6 +68,44 @@ describe('authored community details', () => {
       new THREE.Vector3(0, -1, 0)
     ).intersectObject(group, true);
     expect(hits[0]?.point.y).toBeCloseTo(A.busSeat.seatHeight!, 5);
+    const site = BUS_SHELTER_SITE;
+    group.rotation.y = site.rotation;
+    group.position.set(...site.position);
+    group.updateMatrixWorld(true);
+    for (const [x, z] of [
+      [0.4, 0.55],
+      [-2.19, 0],
+      [2.19, 0],
+      [0, -1.14],
+      [0, 1.14],
+      [2.18, 1.13],
+    ]) {
+      const origin = group.localToWorld(new THREE.Vector3(x, 0.35, z));
+      const floor = new THREE.Raycaster(origin, new THREE.Vector3(0, -1, 0)).intersectObject(
+        group,
+        true
+      )[0];
+      expect(floor).toBeDefined();
+      for (const segments of [64, 128])
+        expect(sampleWalkingGroundHeight(origin.x, origin.z, segments)).toBeCloseTo(
+          floor.point.y,
+          5
+        );
+    }
+    for (const [x, z] of [
+      [2.21, 0],
+      [0, 1.16],
+      [2.19, 1.14],
+    ]) {
+      const origin = group.localToWorld(new THREE.Vector3(x, 0.35, z));
+      expect(
+        new THREE.Raycaster(origin, new THREE.Vector3(0, -1, 0)).intersectObject(group, true)
+      ).toHaveLength(0);
+      expect(busShelterWalkingHeight(origin.x, origin.z)).toBeNull();
+    }
+    group.position.set(0, 0, 0);
+    group.rotation.y = 0;
+    group.updateMatrixWorld(true);
     const fixture = BUS_SHELTER_LIGHT;
     const top = fixture.housing.position[1] + fixture.housing.size[1] / 2;
     for (const x of [-fixture.housing.size[0] * 0.46, 0, fixture.housing.size[0] * 0.46]) {

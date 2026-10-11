@@ -1,4 +1,8 @@
-import { canalBridgeWalkingHeight, nearCanalBridge } from '../constants/publicRealmLayout';
+import {
+  busShelterWalkingHeight,
+  canalBridgeWalkingHeight,
+  nearCanalBridge,
+} from '../constants/publicRealmLayout';
 import {
   SITE_LAYOUT,
   riverFootbridgeWalkingHeight,
@@ -83,6 +87,8 @@ export function sampleWalkingGroundHeight(x: number, z: number, segments: number
   const pad = SITE_LAYOUT.factory.bounds;
   if (x >= pad.minX && x <= pad.maxX && z >= pad.minZ && z <= pad.maxZ)
     return Math.max(terrain, SITE_LAYOUT.datum.interiorFloor);
+  const shelter = busShelterWalkingHeight(x, z);
+  if (shelter !== null) return Math.max(terrain, shelter);
   const riverBridge = riverFootbridgeWalkingHeight(x, z);
   if (riverBridge !== null) return Math.max(terrain, riverBridge);
   const bridge = canalBridgeWalkingHeight(x, z);

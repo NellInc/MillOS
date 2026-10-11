@@ -12,6 +12,27 @@ export const WORLD_CRAFT_PALETTE = {
   oak: '#70533a',
   iron: '#394a49',
 } as const;
+/** Delivered landing: 11 cm slab with a 25 mm manufactured arris.
+ * Working if walking and physics hit its real top and stop at its bevelled footprint.
+ */
+export const BUS_SHELTER_SITE = {
+  position: [29, 0, 140],
+  rotation: -Math.PI / 2,
+  platform: { halfX: 2.2, halfZ: 1.15, top: 0.11, bevel: 0.025 },
+} as const;
+export function busShelterWalkingHeight(x: number, z: number): number | null {
+  const site = BUS_SHELTER_SITE,
+    p = site.platform,
+    dx = x - site.position[0],
+    dz = z - site.position[2],
+    c = Math.cos(site.rotation),
+    s = Math.sin(site.rotation);
+  const edgeX = p.halfX - Math.abs(dx * c - dz * s),
+    edgeZ = p.halfZ - Math.abs(dx * s + dz * c);
+  if (edgeX < 0 || edgeZ < 0 || edgeX + edgeZ < p.bevel) return null;
+  return site.position[1] + p.top - Math.max(0, p.bevel - edgeX) - Math.max(0, p.bevel - edgeZ);
+}
+
 /** Shelter-local waterproof luminaire, measured against the delivered roof.
  * Working if its housing reaches the 2.847-2.860 m soffit and the lens stays below it.
  */

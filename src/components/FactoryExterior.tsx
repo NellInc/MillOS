@@ -53,7 +53,11 @@ import {
 } from '../simulation/atmosphere';
 import { positionRegistry } from '../utils/positionRegistry';
 import { PROCEDURAL_TEXTURES, TREE_MATERIALS } from '../utils/sharedMaterials';
-import { BUS_SHELTER_LIGHT, CAFE_COURT_LANTERN } from '../constants/publicRealmLayout';
+import {
+  BUS_SHELTER_SITE,
+  BUS_SHELTER_LIGHT,
+  CAFE_COURT_LANTERN,
+} from '../constants/publicRealmLayout';
 import { generateMachineORM } from '../textures';
 import { createCheckpointGateState, stepCheckpointGate } from './exterior/checkpointLogic';
 import { PlotGeometry } from '../utils/authoredPlotGeometry';
@@ -4137,8 +4141,14 @@ const BusStop: React.FC<{
         fallback={
           <group>
             {/* Ground platform */}
-            <mesh position={[0, 0.05, 0]} castShadow receiveShadow>
-              <boxGeometry args={[shelterWidth + 0.4, 0.1, shelterDepth + 0.4]} />
+            <mesh position={[0, BUS_SHELTER_SITE.platform.top / 2, 0]} castShadow receiveShadow>
+              <boxGeometry
+                args={[
+                  BUS_SHELTER_SITE.platform.halfX * 2,
+                  BUS_SHELTER_SITE.platform.top,
+                  BUS_SHELTER_SITE.platform.halfZ * 2,
+                ]}
+              />
               <meshStandardMaterial color="#6b7280" roughness={0.9} />
             </mesh>
 
@@ -8277,7 +8287,7 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
 
       {/* ========== BUS STOP ========== */}
       {/* European-style bus shelter on shipping road, past checkpoint, near farm */}
-      <BusStop position={[29, 0, 140]} rotation={-Math.PI / 2} />
+      <BusStop position={[...BUS_SHELTER_SITE.position]} rotation={BUS_SHELTER_SITE.rotation} />
 
       {/* ========== VISITOR PARKING LOT WITH CUTE CARS ========== */}
       {/* Parking lot positioned outside east fence (fence is at x=95) */}

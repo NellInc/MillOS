@@ -8,9 +8,14 @@
 import { RigidBody, CuboidCollider, TrimeshCollider } from '@react-three/rapier';
 import { useMemo } from 'react';
 import { BoxGeometry, Matrix4, Quaternion, Euler, Vector3 } from 'three';
+import { ConvexGeometry } from 'three/examples/jsm/geometries/ConvexGeometry.js';
 import { createCastleStepsGeometry } from '../scenery/CastleSteps';
 import { CASTLE_ROCK_SINK } from '../../constants/castleAccess';
-import { CANAL_FOOTBRIDGE_ACCESS, CANAL_BRIDGE_STEPS } from '../../constants/publicRealmLayout';
+import {
+  BUS_SHELTER_SITE,
+  CANAL_FOOTBRIDGE_ACCESS,
+  CANAL_BRIDGE_STEPS,
+} from '../../constants/publicRealmLayout';
 import {
   COLLISION_FILTERS,
   createCollisionGroups,
@@ -88,6 +93,29 @@ export function createValleyCollider(segments: number): [Float32Array, Uint32Arr
       triangles.push(offset + (indices ? indices.getX(i) : i));
     part.dispose();
   }
+  // Same flat faces, chamfered edges and clipped corners as the delivered slab.
+  // It joins the existing terrain collider, with no new rigid body or draw.
+  const shelter = BUS_SHELTER_SITE,
+    p = shelter.platform,
+    halfY = p.top / 2,
+    points: Vector3[] = [];
+  for (const x of [-1, 1])
+    for (const y of [-1, 1])
+      for (const z of [-1, 1])
+        points.push(
+          new Vector3(x * (p.halfX - p.bevel), y * halfY, z * (p.halfZ - p.bevel)),
+          new Vector3(x * p.halfX, y * (halfY - p.bevel), z * (p.halfZ - p.bevel)),
+          new Vector3(x * (p.halfX - p.bevel), y * (halfY - p.bevel), z * p.halfZ)
+        );
+  const landing = new ConvexGeometry(points)
+    .translate(0, halfY, 0)
+    .rotateY(shelter.rotation)
+    .translate(...shelter.position);
+  const offset = vertices.length / 3,
+    landingPositions = landing.getAttribute('position');
+  vertices.push(...landingPositions.array);
+  for (let i = 0; i < landingPositions.count; i++) triangles.push(offset + i);
+  landing.dispose();
   return [new Float32Array(vertices), new Uint32Array(triangles)];
 }
 

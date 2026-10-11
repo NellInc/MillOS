@@ -2,7 +2,11 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import RAPIER from '@dimforge/rapier3d-compat';
 import { createValleyCollider, generateObstacles } from './FactoryColliders';
 import { sampleTerrainGroundHeight, VILLAGE_TERRACE } from '../terrain/splatMapGenerator';
-import { CANAL_BRIDGE_STEPS, CANAL_FOOTBRIDGE_ACCESS } from '../../constants/publicRealmLayout';
+import {
+  CANAL_BRIDGE_STEPS,
+  CANAL_FOOTBRIDGE_ACCESS,
+  busShelterWalkingHeight,
+} from '../../constants/publicRealmLayout';
 import { LANDSCAPE_GROVE_TREES } from '../exterior/ExteriorVegetation';
 import {
   SITE_LAYOUT,
@@ -167,6 +171,34 @@ it.each([64, 128])(
             ? 0
             : SITE_LAYOUT.datum.terrain + sampleTerrainGroundHeight(x, z, segments);
         expect(40 - ray!.timeOfImpact, `${x},${z}`).toBeCloseTo(floor, 4);
+      }
+      for (const [x, z] of [
+        [28.45, 140.4],
+        [29, 142.19],
+        [27.86, 140],
+        [27.87, 142.18],
+      ]) {
+        const ray = world.castRay(
+          new RAPIER.Ray({ x, y: 0.35, z }, { x: 0, y: -1, z: 0 }),
+          1,
+          true
+        );
+        expect(ray).not.toBeNull();
+        // World-space Float32 vertices quantise this 25 mm bevel by about 10 micrometres.
+        expect(0.35 - ray!.timeOfImpact).toBeCloseTo(busShelterWalkingHeight(x, z)!, 4);
+      }
+      for (const [x, z] of [
+        [27.84, 140],
+        [29, 142.21],
+        [27.86, 142.19],
+      ]) {
+        const ray = world.castRay(
+          new RAPIER.Ray({ x, y: 0.35, z }, { x: 0, y: -1, z: 0 }),
+          1,
+          true
+        );
+        expect(ray).not.toBeNull();
+        expect(0.35 - ray!.timeOfImpact).toBeCloseTo(SITE_LAYOUT.datum.terrain, 5);
       }
       const x = 100,
         z = -118,
