@@ -65,7 +65,10 @@ import {
   EXTERIOR_LAMP_LENS_MATERIAL,
   ExteriorLampDriver,
   ExteriorDownlight,
+  ExteriorPointLight,
   ExteriorLampPool,
+  CANAL_CROSSING_LAMPS,
+  CANAL_CROSSING_LIGHT,
   WEST_FACTORY_PATH,
   WEST_FACTORY_PATH_LAMPS,
   WEST_FACTORY_PATH_POOL_RADIUS,
@@ -6840,6 +6843,12 @@ const CheckpointBarrier: React.FC<{
 
 // Factory exterior walls with large signs - positioned OUTSIDE the existing factory elements
 export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShell = true }) => {
+  const realCrossingLights = useGraphicsStore(
+    (state) =>
+      state.graphics.quality !== 'low' &&
+      !state.graphics.perfDebug.disablePunctualLights &&
+      !state.graphics.perfDebug.disableLightingPolish
+  );
   // Wall dimensions - positioned outside the factory floor
   const wallHeight = 20; // Same height for ALL walls
   const wallThickness = 0.4;
@@ -8833,8 +8842,32 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
       <PathLamp position={[-155, 0, 80]} style="victorian" />
       <PathLamp position={[-155, 0, 40]} style="victorian" />
       <PathLamp position={[-155, 0, 0]} style="victorian" />
-      <PathLamp position={[-155, 0, -40]} style="victorian" />
       <PathLamp position={[-155, 0, -80]} style="victorian" />
+      {/* Real light reaches the raised timber; Low keeps the shared glass and ground pools.
+          Working if the two dry-bank fixtures leave both approach flights clear. */}
+      {CANAL_CROSSING_LAMPS.map((lamp) => (
+        <group key={lamp.id} name={`canal-crossing-${lamp.id}`}>
+          <PathLamp
+            name={`canal-crossing-${lamp.id}-fixture`}
+            position={lamp.position}
+            style="victorian"
+            poolRadius={CANAL_CROSSING_LIGHT.poolRadius}
+          />
+          {realCrossingLights && (
+            <ExteriorPointLight
+              name={`canal-crossing-${lamp.id}-light`}
+              position={[
+                lamp.position[0],
+                lamp.position[1] + CANAL_CROSSING_LIGHT.height,
+                lamp.position[2],
+              ]}
+              intensity={CANAL_CROSSING_LIGHT.intensity}
+              distance={CANAL_CROSSING_LIGHT.distance}
+              color={CANAL_CROSSING_LIGHT.color}
+            />
+          )}
+        </group>
+      ))}
 
       {/* Modern lamps along factory paths */}
       {WEST_FACTORY_PATH_LAMPS.map((position) => (

@@ -1,7 +1,8 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { POLYGON_OFFSET, RENDER_ORDER } from '../../constants/renderLayers';
+import { EXTERIOR_LAYERS, POLYGON_OFFSET, RENDER_ORDER } from '../../constants/renderLayers';
+import { CANAL_FOOTBRIDGE_ACCESS } from '../../constants/publicRealmLayout';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 
 type ExteriorWeather = ReturnType<typeof useGameSimulationStore.getState>['weather'];
@@ -16,6 +17,30 @@ export const WEST_FACTORY_PATH_POOL_RADIUS = 11.5;
 export const WEST_FACTORY_PATH_LAMPS: [number, number, number][] = [
   -48, -32, -16, 0, 16, 32, 48,
 ].map((z) => [-66.6, 0, z]);
+
+/** Bank-mounted lanterns beside the real bridge approaches, clear of the walking strip.
+ * Working if both feet touch dry ground and the pools stop before the canal water.
+ */
+export const CANAL_CROSSING_LAMPS = [-1, 1].map((side) => {
+  const bridge = CANAL_FOOTBRIDGE_ACCESS;
+  const edge = side < 0 ? bridge.minX : bridge.maxX;
+  return {
+    id: side < 0 ? 'west' : 'east',
+    position: [
+      edge + side * (bridge.steps * bridge.going + 1.5),
+      EXTERIOR_LAYERS.ground,
+      bridge.z + bridge.halfWidth + 0.75,
+    ] as [number, number, number],
+  };
+});
+export const CANAL_CROSSING_LIGHT = {
+  // Midpoint of the delivered Victorian optic's 3.935-4.245 m aperture.
+  height: 4.09,
+  intensity: 110,
+  distance: 20,
+  color: '#ffe1a6',
+  poolRadius: 3.7,
+} as const;
 
 export const getExteriorLampLevel = (gameTime: number, weather: ExteriorWeather): number => {
   const hour = (((Number.isFinite(gameTime) ? gameTime : 12) % 24) + 24) % 24;
