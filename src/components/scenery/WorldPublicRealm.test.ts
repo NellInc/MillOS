@@ -79,7 +79,9 @@ describe('world public realm', () => {
       for (let i = 0; i < n.count; i++)
         expect(Math.hypot(n.getX(i), n.getY(i), n.getZ(i))).toBeCloseTo(1, 4);
     }
-    expect(triangles).toBeLessThan(15000);
+    // The authored bridge adds 1,232 triangles to the same six merged meshes.
+    // Keep the preceding realm allowance, plus only this measured static detail.
+    expect(triangles).toBeLessThan(15000 + 1232);
     expect(REALM_PAVING_MATERIAL.depthWrite).toBe(true);
     expect(REALM_PAVING_MATERIAL.transparent).toBe(false);
     expect(REALM_PAVING_MATERIAL.polygonOffsetFactor).toBe(-4);
@@ -292,6 +294,29 @@ describe('world public realm', () => {
       expect(hit?.point.y).toBeCloseTo(BRIDGE.deckY, 5);
     }
     const world = createWorldRealm(128);
+    // These stations belong to the actual delivered brown posts, not copied paint geometry.
+    for (const side of [-1, 1])
+      for (let i = 0; i < 10; i++) {
+        const x = -145 + 0.02 - 6.5 + i * 1.5,
+          z = BRIDGE.z + side * 1.4;
+        const original = new THREE.Raycaster(
+          new THREE.Vector3(x, 3, z),
+          new THREE.Vector3(0, -1, 0)
+        ).intersectObjects(meshes)[0];
+        expect(original?.point.y).toBeCloseTo(2.05, 5);
+        const painted = ray(world.solid, [x, 3, z], [0, -1, 0])[0];
+        expect(painted?.point.y).toBeCloseTo(BRIDGE.deckY + 1.12, 5);
+        // Each sleeve intersects its real post above the deck, with no floating toe.
+        const sleeve = ray(world.solid, [x, 1.36, z - side * 0.3], [0, 0, side], 0.6)[0];
+        expect(sleeve).toBeDefined();
+        expect(Math.abs(sleeve!.point.z - z)).toBeCloseTo(0.065, 5);
+      }
+    for (let i = 0; i <= 28; i++)
+      for (const z of [-1.07, 0, 1.07])
+        expect(
+          ray(world.solid, [BRIDGE.minX + i * 0.5, BRIDGE.deckY + 0.01, BRIDGE.z + z], [0, 1, 0], 2)
+        ).toHaveLength(0);
+    expect(world.solid.groups).toHaveLength(0);
     for (const step of CANAL_BRIDGE_STEPS) {
       const x = (step.minX + step.maxX) / 2;
       expect(ray(world.solid, [x, 5, BRIDGE.z], [0, -1, 0])[0]?.point.y).toBeCloseTo(step.top, 5);

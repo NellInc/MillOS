@@ -285,6 +285,54 @@ export function createWorldRealm(segments: number) {
   for (const r of WORLD_REALM_PATCHES)
     patch(paving, r.x, r.z, r.halfX * 2, r.halfZ * 2, P.paving, ground);
   const bridge = CANAL_FOOTBRIDGE_ACCESS;
+  // Painted timber joinery follows the delivered GLB's ten post stations,
+  // including its 20 mm local offset. The old brown rail becomes a middle rail.
+  // Working if real-model rays seat every sleeve and the 2.14 m walking strip stays open.
+  const centre = (bridge.minX + bridge.maxX) / 2;
+  const posts = [
+    bridge.minX + 0.02,
+    ...Array.from({ length: 10 }, (_, i) => centre - 6.5 + i * 1.5),
+  ];
+  const paint = '#dedbc8';
+  for (const side of [-1, 1]) {
+    const z = bridge.z + side * 1.4;
+    for (const x of posts) {
+      solid.box([0.13, 1, 0.13], [x, bridge.deckY + 0.5, z], paint);
+      solid.box([0.2, 0.05, 0.2], [x, bridge.deckY + 1.025, z], P.oak);
+      solid.add(
+        new THREE.CylinderGeometry(0, 0.14, 0.07, 4)
+          .rotateY(Math.PI / 4)
+          .translate(x, bridge.deckY + 1.085, z),
+        P.oak
+      );
+    }
+    solid.box(
+      [posts.at(-1)! - posts[0] + 0.13, 0.11, 0.13],
+      [(posts[0] + posts.at(-1)!) / 2, bridge.deckY + 0.945, z],
+      paint
+    );
+    solid.box(
+      [posts.at(-1)! - posts[0], 0.065, 0.08],
+      [(posts[0] + posts.at(-1)!) / 2, bridge.deckY + 0.105, z],
+      paint
+    );
+    for (let i = 0; i < posts.length - 1; i++) {
+      const a = posts[i] + 0.035,
+        b = posts[i + 1] - 0.035;
+      solid.beam(
+        [a, bridge.deckY + 0.13, z - side * 0.034],
+        [b, bridge.deckY + 0.86, z - side * 0.034],
+        0.06,
+        paint
+      );
+      solid.beam(
+        [a, bridge.deckY + 0.86, z + side * 0.034],
+        [b, bridge.deckY + 0.13, z + side * 0.034],
+        0.06,
+        paint
+      );
+    }
+  }
   for (const step of CANAL_BRIDGE_STEPS) {
     const x = (step.minX + step.maxX) / 2;
     solid.box(
