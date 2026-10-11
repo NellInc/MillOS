@@ -307,6 +307,66 @@ export function applyVillageWindows(
   material.customProgramCacheKey = () => 'millos-authored-village-windows-v6';
 }
 
+/** The delivered castle paving is one 31.85m slab, atlas slot 6.
+ * Keep its real height/mesh and add metre-scaled joints only to its upper face.
+ * Working if first-person stone joints remain fine, walls/glass stay unchanged,
+ * and the shared strength control restores the original surface exactly.
+ */
+export const CASTLE_PAVING_STRENGTH = { value: 1 };
+export const CASTLE_PAVING_TILE = [0.5, 0.5, 0.75, 0.75] as const;
+export function applyCastlePaving(material: THREE.MeshStandardMaterial) {
+  const windows = material.onBeforeCompile;
+  const windowKey = material.customProgramCacheKey.bind(material);
+  material.onBeforeCompile = (shader, renderer) => {
+    windows(shader, renderer);
+    shader.uniforms.castlePavingStrength = CASTLE_PAVING_STRENGTH;
+    shader.uniforms.castlePavingTile = { value: new THREE.Vector4(...CASTLE_PAVING_TILE) };
+    shader.vertexShader = `varying vec2 vCastlePavingLocal;
+      varying float vCastlePavingTop;
+      ${shader.vertexShader}`.replace(
+      '#include <begin_vertex>',
+      `#include <begin_vertex>
+       vCastlePavingLocal = position.xz;
+       vCastlePavingTop = step(0.99, normal.y) * step(3.18, position.y);`
+    );
+    shader.fragmentShader = `varying vec2 vCastlePavingLocal;
+      varying float vCastlePavingTop;
+      uniform float castlePavingStrength;
+      uniform vec4 castlePavingTile;
+      ${shader.fragmentShader}`.replace(
+      '#include <emissivemap_fragment>',
+      `#include <emissivemap_fragment>
+       float castlePaving = step(castlePavingTile.x, vVillageUV.x) * (1.0 - step(castlePavingTile.z, vVillageUV.x))
+         * step(castlePavingTile.y, vVillageUV.y) * (1.0 - step(castlePavingTile.w, vVillageUV.y)) * vCastlePavingTop;
+       // Rest metres align the running bond with the castle, including its yaw.
+       // At the shipping 1.5 scale these flags measure 1.17 x 0.78 world metres.
+       vec2 flag = vCastlePavingLocal / vec2(0.78, 0.52);
+       flag.x += mod(floor(flag.y), 2.0) * 0.5;
+       vec2 seamDistance = min(fract(flag), 1.0 - fract(flag)) * vec2(0.78, 0.52);
+       vec2 seamAA = max(fwidth(vCastlePavingLocal), vec2(0.001));
+       vec2 stoneEdge = smoothstep(vec2(0.003), vec2(0.006) + seamAA, seamDistance);
+       float joint = 1.0 - stoneEdge.x * stoneEdge.y;
+       float stone = fract(sin(dot(floor(flag), vec2(127.1, 311.7))) * 43758.5453);
+       // Derivatives run outside the non-uniform atlas branch. Relief is 0.45mm
+       // in view metres, a shallow bevel rather than a displaced walking floor.
+       float flagHeight = (1.0 - joint) * 0.00045 * castlePavingStrength;
+       vec2 heightGradient = vec2(dFdx(flagHeight), dFdy(flagHeight));
+       vec3 flagSigmaX = dFdx(-vViewPosition), flagSigmaY = dFdy(-vViewPosition);
+       vec3 flagR1 = cross(flagSigmaY, normal), flagR2 = cross(normal, flagSigmaX);
+       float flagDet = dot(flagSigmaX, flagR1) * (gl_FrontFacing ? 1.0 : -1.0);
+       if (castlePaving > 0.5 && castlePavingStrength > 0.0) {
+         diffuseColor.rgb *= mix(1.0, (0.976 + 0.048 * stone) * (1.0 - joint * 0.20), castlePavingStrength);
+         roughnessFactor = mix(roughnessFactor, 0.90 + 0.06 * stone, castlePavingStrength);
+         if (abs(flagDet) > 0.00000001) {
+           vec3 flagGradient = sign(flagDet) * (heightGradient.x * flagR1 + heightGradient.y * flagR2);
+           normal = normalize(abs(flagDet) * normal - flagGradient);
+         }
+       }`
+    );
+  };
+  material.customProgramCacheKey = () => `millos-castle-paving-v1:${windowKey()}`;
+}
+
 export type VillageShopTrade = 'bakery' | 'butcher' | 'general';
 
 // Match the installed nameboards and each trade's goods. The green joinery,

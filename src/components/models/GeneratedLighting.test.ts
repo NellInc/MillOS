@@ -6,6 +6,9 @@ import {
   applyOfficeWindows,
   applyApartmentWindows,
   applyVillageWindows,
+  applyCastlePaving,
+  CASTLE_PAVING_STRENGTH,
+  CASTLE_PAVING_TILE,
   applyShopWindows,
   SHOP_JOINERY_COLOURS,
   VILLAGE_INTERIOR_STRENGTH,
@@ -440,4 +443,53 @@ it('repaints only the authored shop joinery swatch, retaining grain, linen and r
   }
   expect(keys.size).toBe(1);
   material.dispose();
+});
+
+it('composes the castle-only paving finish with the existing shared room dimmer and stable key', () => {
+  const material = new THREE.MeshStandardMaterial();
+  const night = { value: 0.6 };
+  applyVillageWindows(material, night, true, 'castle');
+  applyCastlePaving(material);
+  const shader = {
+    uniforms: {},
+    vertexShader: '#include <begin_vertex>',
+    fragmentShader: '#include <emissivemap_fragment>',
+  } as Parameters<typeof material.onBeforeCompile>[0];
+  material.onBeforeCompile(shader, {} as THREE.WebGLRenderer);
+  expect(shader.uniforms.villageNight).toBe(night);
+  expect(shader.uniforms.castlePavingStrength).toBe(CASTLE_PAVING_STRENGTH);
+  expect(shader.uniforms.castlePavingTile.value.toArray()).toEqual([...CASTLE_PAVING_TILE]);
+  expect(shader.vertexShader).toContain('step(0.99, normal.y) * step(3.18, position.y)');
+  expect(shader.fragmentShader).toContain('castlePaving > 0.5 && castlePavingStrength > 0.0');
+  expect(shader.fragmentShader).toContain('0.00045 * castlePavingStrength');
+  expect(material.customProgramCacheKey()).toBe(
+    'millos-castle-paving-v1:millos-authored-village-windows-v6'
+  );
+  night.value = 0;
+  expect(material.customProgramCacheKey()).toBe(
+    'millos-castle-paving-v1:millos-authored-village-windows-v6'
+  );
+  material.dispose();
+});
+
+it('pins the paving selector to the actual delivered slab, excluding its walls and underside', async () => {
+  const doc = await new NodeIO().readBinary(
+    new Uint8Array(readFileSync('public/models/village/castle.glb'))
+  );
+  const p = doc.getRoot().listMeshes()[0].listPrimitives()[0];
+  const uv = p.getAttribute('TEXCOORD_0')!.getArray()!,
+    positions = p.getAttribute('POSITION')!.getArray()!,
+    normals = p.getAttribute('NORMAL')!.getArray()!;
+  const [u0, v0, u1, v1] = CASTLE_PAVING_TILE;
+  const top: number[] = [];
+  for (let i = 0; i < uv.length / 2; i++) {
+    if (uv[i * 2] <= u0 || uv[i * 2] >= u1 || uv[i * 2 + 1] <= v0 || uv[i * 2 + 1] >= v1) continue;
+    if (normals[i * 3 + 1] >= 0.99 && positions[i * 3 + 1] >= 3.18) top.push(i);
+  }
+  expect(top).toHaveLength(4);
+  for (const i of top) expect(positions[i * 3 + 1]).toBeCloseTo(3.2, 6);
+  for (const axis of [0, 2]) {
+    expect(Math.min(...top.map((i) => positions[i * 3 + axis]))).toBeCloseTo(-15.925, 5);
+    expect(Math.max(...top.map((i) => positions[i * 3 + axis]))).toBeCloseTo(15.925, 5);
+  }
 });

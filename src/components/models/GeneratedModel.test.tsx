@@ -320,3 +320,41 @@ it('keeps real loader-style interleaved produce attributes aligned in the owned 
     source.dispose();
   }
 });
+
+it('finishes only the cloned castle paving material, retaining geometry, atlas, shadow flags and disposal', () => {
+  const source = new THREE.Group(),
+    geometry = new THREE.BoxGeometry();
+  const material = new THREE.MeshStandardMaterial({ map: new THREE.Texture() });
+  source.add(new THREE.Mesh(geometry, material));
+  holder.scene = source;
+  const clones: THREE.Mesh[] = [],
+    original = source.clone.bind(source);
+  vi.spyOn(source, 'clone').mockImplementation((recursive) => {
+    const clone = original(recursive);
+    clones.push(clone.children[0] as THREE.Mesh);
+    return clone;
+  });
+  const view = render(<GeneratedModel asset="castle" />);
+  const castle = clones[0].material as THREE.Material;
+  expect(castle.customProgramCacheKey()).toBe(
+    'millos-castle-paving-v1:millos-authored-village-windows-v6'
+  );
+  const dispose = vi.spyOn(castle, 'dispose');
+  view.rerender(<GeneratedModel asset="cottage" />);
+  expect(dispose).toHaveBeenCalledTimes(1);
+  expect((clones[1].material as THREE.Material).customProgramCacheKey()).toBe(
+    'millos-authored-village-windows-v6'
+  );
+  for (const clone of clones) {
+    expect(clone.geometry).toBe(geometry);
+    expect((clone.material as THREE.MeshStandardMaterial).map).toBe(material.map);
+    expect(clone.material).not.toBe(material);
+    expect(clone.castShadow).toBe(true);
+    expect(clone.receiveShadow).toBe(true);
+  }
+  expect(material.customProgramCacheKey()).not.toContain('castle-paving');
+  view.unmount();
+  geometry.dispose();
+  material.map!.dispose();
+  material.dispose();
+});

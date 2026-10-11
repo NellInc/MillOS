@@ -491,6 +491,28 @@ export const ACTIVE_SHADER_CONTRACTS: readonly ActiveShaderContract[] = [
     fallbackMaterial: 'procedural DuckPondBasin through the existing GeneratedBoundary',
   },
   {
+    id: 'generated-castle-paving',
+    owner: 'GeneratedModel castle-only private material, composed after the existing room shader',
+    sources: ['src/components/models/GeneratedOfficeModel.tsx'],
+    coordinateSpaces: [
+      'authored castle atlas slot 6 and up-facing slab',
+      'object-rest flagstones',
+      'view-metre shallow normal relief',
+    ],
+    colorSpace: 'retained linear atlas albedo with bounded stone/joint modulation; no emission',
+    toneMapping: 'material-pipeline',
+    fog: 'material-pipeline',
+    transparency: 'opaque',
+    depthBehavior: 'original opaque depth test/write; geometry and walking datum unchanged',
+    qualityVariants: ['low', 'medium', 'high', 'ultra'],
+    uniformOwner: 'shared CASTLE_PAVING_STRENGTH exact same-page isolation control',
+    timeSource: 'none',
+    cacheKey: 'millos-castle-paving-v1',
+    disposalOwner:
+      'GeneratedModel effect disposes the private material; loader retains shared geometry/maps',
+    fallbackMaterial: 'existing primitive PalaceFallback without the atlas-specific finish',
+  },
+  {
     id: 'generated-village-windows',
     owner: 'models/GeneratedModel village and castle architecture and scenery/VillageGardens homes',
     sources: ['src/components/models/GeneratedOfficeModel.tsx'],

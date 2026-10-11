@@ -20,6 +20,7 @@ import { useDracoGLTF } from '../../utils/dracoLoader';
 import { GENERATED_ASSET_PATHS, type GeneratedAssetId } from '../../utils/modelLoader';
 import ErrorBoundary from '../ErrorBoundary';
 import {
+  applyCastlePaving,
   applyShopWindows,
   createShopDisplayGeometry,
   applyVillageWindows,
@@ -170,6 +171,7 @@ export const GeneratedModel: React.FC<GeneratedModelProps> = ({
                     ? 'civic'
                     : 'glass'
           );
+          if (asset === 'castle') applyCastlePaving(material);
         }
         mesh.material = material;
         materials.push(material);
