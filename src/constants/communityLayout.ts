@@ -96,3 +96,10 @@ export function getCommunityHours(hour: number) {
     gardeningActive: h >= 8 && h < 17,
   };
 }
+
+/** Read-only explanation of the bakery's existing flour-delivery signal.
+ * Working if opening the shop alone never claims bread or a fulfilled delivery.
+ */
+export function getBakeryBoardDetail(open: boolean, stocked: boolean): string | undefined {
+  return open ? (stocked ? 'Fresh bread' : 'Awaiting flour') : undefined;
+}

@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import {
   COMMUNITY_ANCHORS as A,
   getCommunityHours,
+  getBakeryBoardDetail,
   type CommunityAnchor,
 } from '../../constants/communityLayout';
 import { SITE_LAYOUT, landmarkLocalToWorld, type Vec3Tuple } from '../../constants/siteLayout';
@@ -117,14 +118,47 @@ function buildVillageDetails() {
 function buildBread() {
   const b = new PlotGeometry();
   at(b, A.bakeryCounter, (g) => {
-    for (let row = 0; row < 2; row++)
-      for (let col = 0; col < 4; col++) {
-        const x = -0.42 + col * 0.28;
-        const z = -0.1 + row * 0.22;
-        g.round([x, 0.9, z], [0.12, 0.075, 0.085], '#b87e43');
-        for (const offset of [-0.035, 0.035])
-          g.box([0.018, 0.01, 0.08], [x + offset, 0.968, z], '#dfb875', -0.3);
+    // Soft baked contours with a closed flat base, seated on the existing .825m
+    // table. A single merged stock mesh keeps the delivery visibility contract.
+    // Working if all five pieces touch the counter and stay inside its rails.
+    const base = Math.cos(Math.PI * 0.7);
+    for (const [x, z, rx, height, rz, baguette, colour] of [
+      [-0.27, -0.12, 0.24, 0.1, 0.075, true, '#bb874e'],
+      [0.27, -0.12, 0.24, 0.1, 0.075, true, '#ad733d'],
+      [-0.36, 0.13, 0.14, 0.15, 0.095, false, '#b87e43'],
+      [0, 0.13, 0.13, 0.14, 0.1, false, '#a96c3c'],
+      [0.36, 0.13, 0.14, 0.15, 0.095, false, '#c29258'],
+    ] as const) {
+      g.add(
+        new THREE.SphereGeometry(1, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.7)
+          .translate(0, -base, 0)
+          .scale(rx, height / (1 - base), rz)
+          .translate(x, 0.825, z),
+        colour
+      );
+      g.add(
+        new THREE.CircleGeometry(Math.sqrt(1 - base * base), 12)
+          .rotateX(Math.PI / 2)
+          .scale(rx, 1, rz)
+          .translate(x, 0.825, z),
+        colour
+      );
+      // Shallow scored arcs follow the actual ellipsoid rather than floating
+      // boxes. Their pale cut faces and crust retain ordinary scene lighting.
+      for (const cut of baguette ? [-0.12, 0, 0.12] : [-0.035, 0.035]) {
+        const points = Array.from({ length: 5 }, (_, i) => {
+          const dz = (i / 4 - 0.5) * rz * 1.15;
+          const dx = cut + dz * 0.45;
+          const dy =
+            ((Math.sqrt(1 - (dx / rx) ** 2 - (dz / rz) ** 2) - base) * height) / (1 - base);
+          return new THREE.Vector3(x + dx, 0.825 + dy + 0.0006, z + dz);
+        });
+        g.add(
+          new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points), 5, 0.003, 3, false),
+          '#e1bd80'
+        );
       }
+    }
   });
   return b.finish();
 }
@@ -153,24 +187,28 @@ function OpeningBoard({
   rotation,
   open,
   label,
+  detail,
 }: {
   position: Vec3Tuple;
   rotation: number;
   open: boolean;
   label: string;
+  detail?: string;
 }) {
   return (
     <group position={position} rotation={[0, rotation, 0]} userData={{ noStaticBatch: true }}>
       <SceneText
         position={[0, 0.8, 0.035]}
-        fontSize={0.1}
+        fontSize={detail ? 0.075 : 0.1}
+        maxWidth={0.54}
+        lineHeight={1.18}
         color={open ? '#e5dfbe' : '#b9c0b3'}
         surface="painted"
         anchorX="center"
         anchorY="middle"
         textAlign="center"
       >
-        {`${label}\n${open ? 'OPEN' : 'CLOSED'}`}
+        {`${label}\n${open ? 'OPEN' : 'CLOSED'}${detail ? `\n${detail}` : ''}`}
       </SceneText>
       {/* A modest fixture face, no new light/shadow source. */}
       <mesh position={[0, 1.08, 0]} geometry={UNIT_BOX} scale={[0.12, 0.035, 0.09]}>
@@ -244,6 +282,7 @@ export const CommunityDetails = React.memo(
             rotation={-Math.PI / 2}
             open={shopsOpen}
             label="BAKER"
+            detail={getBakeryBoardDetail(shopsOpen, bakeryStocked)}
           />
           <OpeningBoard
             position={villagePosition([-16.2, 0, 28.2])}

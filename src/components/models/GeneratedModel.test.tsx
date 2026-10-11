@@ -120,7 +120,7 @@ it('installs each real shop trade on a private material, keeping shared body and
     expect(mesh.castShadow).toBe(true);
     expect(mesh.receiveShadow).toBe(true);
     expect(paint.color.getHex()).toBe(0xffffff);
-    expect(paint.customProgramCacheKey()).toContain('millos-authored-shop-joinery-v3');
+    expect(paint.customProgramCacheKey()).toContain('millos-authored-shop-joinery-v4');
   }
   view.rerender(<GeneratedModel asset="church" shopTrade="bakery" />);
   expect((clones.at(-1)!.material as THREE.Material).customProgramCacheKey()).toBe(
@@ -176,8 +176,6 @@ it('volumes the delivered five goods while preserving the building, anchors and 
     const variant = createShopDisplayGeometry(source, trade);
     const q = variant.getAttribute('position');
     const n = variant.getAttribute('normal');
-    const scale =
-      trade === 'general' ? [0.58, 1.2, 8] : trade === 'butcher' ? [1, 0.9, 4] : [1, 1, 4];
     expect(variant).not.toBe(source);
     expect(q.array).not.toBe(p.array);
     expect(variant.index!.array).not.toBe(source.index!.array);
@@ -204,7 +202,17 @@ it('volumes the delivered five goods while preserving the building, anchors and 
         ).toBe(Math.floor((p.getX(i) + SHOP_DISPLAY_ITEM_GRID[0]) * SHOP_DISPLAY_ITEM_GRID[1]));
       }
     }
-    for (const vertices of goods.values()) {
+    for (const [band, vertices] of goods) {
+      const scale =
+        trade === 'general'
+          ? [0.58, 1.2, 8]
+          : trade === 'butcher'
+            ? [1, 0.9, 4]
+            : band % 3 === 0
+              ? [0.76, 1.38, 8]
+              : band % 3 === 1
+                ? [1, 1.12, 7]
+                : [1.4, 0.8, 5];
       for (let axis = 0; axis < 3; axis++) {
         const before = vertices.map((i) => p.getComponent(i, axis));
         const after = vertices.map((i) => q.getComponent(i, axis));
@@ -213,6 +221,21 @@ it('volumes the delivered five goods while preserving the building, anchors and 
           5
         );
         if (axis > 0) expect(Math.min(...after)).toBe(Math.min(...before));
+      }
+    }
+    if (trade === 'bakery') {
+      const silhouettes = [...goods.values()].map((vertices) =>
+        [0, 1, 2]
+          .map((axis) => {
+            const values = vertices.map((i) => q.getComponent(i, axis));
+            return (Math.max(...values) - Math.min(...values)).toFixed(4);
+          })
+          .join(',')
+      );
+      expect(new Set(silhouettes).size).toBe(3);
+      for (const i of selected) {
+        expect(q.getY(i)).toBeLessThan(1);
+        expect(q.getZ(i)).toBeLessThan(2.53);
       }
     }
     if (trade === 'general') {

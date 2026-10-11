@@ -476,9 +476,20 @@ export function createShopDisplayGeometry(
   const geometry = source.clone();
   const outputPositions = geometry.getAttribute('position');
   const outputNormals = geometry.getAttribute('normal');
-  const [sx, sy, sz] =
-    trade === 'general' ? [0.58, 1.2, 8] : trade === 'butcher' ? [1, 0.9, 4] : [1, 1, 4];
-  for (const { vertices, min, max } of items.values()) {
+  for (const [band, { vertices, min, max }] of items) {
+    // Five supported loaves, three real silhouettes. Rear/shelf contact and
+    // the original indices stay fixed, with no extra geometry or draw.
+    // Working if round loaves, batards and baguettes differ inside the window.
+    const [sx, sy, sz] =
+      trade === 'general'
+        ? [0.58, 1.2, 8]
+        : trade === 'butcher'
+          ? [1, 0.9, 4]
+          : band % 3 === 0
+            ? [0.76, 1.38, 8]
+            : band % 3 === 1
+              ? [1, 1.12, 7]
+              : [1.4, 0.8, 5];
     const centreX = (min.x + max.x) * 0.5;
     for (const i of vertices) {
       outputPositions.setXYZ(
@@ -588,7 +599,7 @@ export function createShopDisplayGeometry(
 
 const AUTHORED_SHOP_GREEN = new THREE.Color('#476454');
 const SHOP_DISPLAY_PALETTES = {
-  bakery: ['#bc965b', '#bc965b', '#bc965b'],
+  bakery: ['#bc965b', '#96572d', '#e9c99a'],
   butcher: ['#a95e57', '#7b3736', '#e2c4ae'],
   general: ['#be4d3d', '#718547', '#d1a85a'],
 } as const;
@@ -635,16 +646,26 @@ vShopDisplayItem = floor((position.x + shopDisplayItemGrid.x) * shopDisplayItemG
        float shopJoinery = step(0.25, vVillageUV.x) * (1.0 - step(0.5, vVillageUV.x))
          * step(0.25, vVillageUV.y) * (1.0 - step(0.5, vVillageUV.y));
        diffuseColor.rgb *= mix(vec3(1.0), shopJoineryTint, shopJoinery);
-       // Slot 11 is only the five actual display goods. Bakery keeps the baked
-       // crust atlas; other trades replace it before PBR lighting, never emission.
+       // Slot 11 is only the five actual display goods. Bakery retains the baked
+       // crust atlas under its finish; trades remain PBR matter, never emission.
        // Working if meat and produce differ while linen, paint, shadows and
        // room brightness are unchanged and the same program is shared.
        float shopDisplay = step(0.75, vVillageUV.x) * (1.0 - step(1.0, vVillageUV.x))
          * step(0.25, vVillageUV.y) * (1.0 - step(0.5, vVillageUV.y));
-       if (shopDisplay > 0.5 && shopDisplayTrade > 0.5) {
+       if (shopDisplay > 0.5) {
          vec2 goodsUV = (vVillageUV - vec2(0.75, 0.25)) * 4.0;
          float variety = mod(vShopDisplayItem, 3.0);
-         if (shopDisplayTrade < 1.5) {
+         if (shopDisplayTrade < 0.5) {
+           // Bread's own padded UVs keep crust and shallow scoring on the loaf.
+           // Derivative-filtered cuts cannot shimmer into stripes at distance.
+           vec3 crust = variety < 0.5 ? shopDisplayWarm : shopDisplayCool;
+           float scoreField = sin(goodsUV.x * 18.0 + goodsUV.y * 5.0);
+           float scoreWidth = max(fwidth(scoreField), 0.10);
+           float score = 1.0 - smoothstep(0.0, scoreWidth, abs(scoreField));
+           score *= smoothstep(0.42, 0.62, goodsUV.y);
+           diffuseColor.rgb *= mix(vec3(1.0), crust / shopDisplayWarm, 0.5);
+           diffuseColor.rgb = mix(diffuseColor.rgb, shopDisplayPale, score * 0.58);
+         } else if (shopDisplayTrade < 1.5) {
            float veinField = sin(goodsUV.x * 22.0 + sin(goodsUV.y * 9.0) * 1.6);
            float veinWidth = max(fwidth(veinField), 0.09);
            float marbling = 1.0 - smoothstep(0.0, veinWidth, abs(veinField));
@@ -680,5 +701,5 @@ vShopDisplayItem = floor((position.x + shopDisplayItemGrid.x) * shopDisplayItemG
   // All three paints share one compiled variant; only linear uniform values
   // differ. Installing again resets the window hook before wrapping it.
   material.customProgramCacheKey = () =>
-    `millos-authored-shop-joinery-v3|${windowKey.call(material)}`;
+    `millos-authored-shop-joinery-v4|${windowKey.call(material)}`;
 }

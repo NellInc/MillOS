@@ -7,7 +7,7 @@ import draco from 'draco3dgltf';
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { COMMUNITY_GEOMETRY } from './CommunityDetails';
-import { COMMUNITY_ANCHORS as A } from '../../constants/communityLayout';
+import { getBakeryBoardDetail, COMMUNITY_ANCHORS as A } from '../../constants/communityLayout';
 import {
   BUS_SHELTER_SITE,
   BUS_SHELTER_SOLIDS,
@@ -174,12 +174,44 @@ describe('authored community details', () => {
   it('has the bread above the physical display, not a floating storefront', () => {
     const [x, , z] = A.bakeryCounter.position;
     expect(heightAt(COMMUNITY_GEOMETRY.village, x, z)).toBeCloseTo(0.825, 5);
-    expect(COMMUNITY_GEOMETRY.bread.boundingBox!.min.y).toBeGreaterThanOrEqual(0.825 - 1e-6);
+    expect(COMMUNITY_GEOMETRY.bread.boundingBox!.min.y).toBeCloseTo(0.825, 5);
+    const local = COMMUNITY_GEOMETRY.bread
+      .clone()
+      .translate(-A.bakeryCounter.position[0], 0, -A.bakeryCounter.position[2])
+      .rotateY(-A.bakeryCounter.rotation);
+    local.computeBoundingBox();
+    expect(local.boundingBox!.min.x).toBeGreaterThan(-0.525);
+    expect(local.boundingBox!.max.x).toBeLessThan(0.525);
+    expect(local.boundingBox!.min.z).toBeGreaterThan(-0.225);
+    expect(local.boundingBox!.max.z).toBeLessThan(0.25);
+    const dough = new THREE.Mesh(local, new THREE.MeshBasicMaterial());
+    for (const [x, z] of [
+      [-0.27, -0.12],
+      [0.27, -0.12],
+      [-0.36, 0.13],
+      [0, 0.13],
+      [0.36, 0.13],
+    ]) {
+      const base = new THREE.Raycaster(
+        new THREE.Vector3(x, 0.8, z),
+        new THREE.Vector3(0, 1, 0)
+      ).intersectObject(dough)[0];
+      expect(base?.point.y).toBeCloseTo(0.825, 5);
+    }
+    dough.material.dispose();
+    local.dispose();
+  });
+  it('explains empty and stocked counters without overriding real opening hours', () => {
+    expect(getBakeryBoardDetail(true, false)).toBe('Awaiting flour');
+    expect(getBakeryBoardDetail(true, true)).toBe('Fresh bread');
+    expect(getBakeryBoardDetail(false, false)).toBeUndefined();
+    expect(getBakeryBoardDetail(false, true)).toBeUndefined();
   });
   it('keeps live visibility outside the static batch and ties stock to explicit event props', () => {
     const source = readFileSync('src/components/scenery/CommunityDetails.tsx', 'utf8');
     expect(source).toContain('visible={shopsOpen && bakeryStocked}');
     expect(source).toContain('bakeryStocked = false');
+    expect(source).toContain('detail={getBakeryBoardDetail(shopsOpen, bakeryStocked)}');
     expect(source).toContain('visible={deliveryVisible}');
     expect(source).toContain('name="community-open-hours" userData={{ noStaticBatch: true }}');
     expect(source).not.toMatch(/<(?:pointLight|spotLight|directionalLight)/);

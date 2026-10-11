@@ -430,10 +430,13 @@ it('repaints only the authored shop joinery swatch, retaining grain, linen and r
     expect(shader.vertexShader).toContain(
       'floor((position.x + shopDisplayItemGrid.x) * shopDisplayItemGrid.y)'
     );
-    expect(shader.fragmentShader).toContain('shopDisplay > 0.5 && shopDisplayTrade > 0.5');
+    expect(shader.fragmentShader).toContain('shopDisplay > 0.5');
     expect(shader.fragmentShader).toContain('vec2 goodsUV = (vVillageUV - vec2(0.75, 0.25)) * 4.0');
     expect(shader.fragmentShader).toContain('max(fwidth(veinField), 0.09)');
     expect(shader.fragmentShader).toContain('diffuseColor.rgb = peel *');
+    expect(shader.fragmentShader).toContain('max(fwidth(scoreField), 0.10)');
+    expect(shader.fragmentShader).toContain('score *= smoothstep(0.42, 0.62, goodsUV.y)');
+    expect(shader.fragmentShader).toContain('mix(diffuseColor.rgb, shopDisplayPale, score * 0.58)');
     expect(shader.fragmentShader.indexOf('vec2 goodsUV')).toBeLessThan(
       shader.fragmentShader.indexOf('#include <lights_fragment_end>')
     );
