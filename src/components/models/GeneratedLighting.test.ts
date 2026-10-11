@@ -4,6 +4,9 @@ import { NodeIO } from '@gltf-transform/core';
 import * as THREE from 'three';
 import {
   applyOfficeWindows,
+  applyForgeWindows,
+  FORGE_HEAT_LEVEL,
+  FORGE_HEAT_STRENGTH,
   applyApartmentWindows,
   applyVillageWindows,
   applyCastlePaving,
@@ -492,4 +495,48 @@ it('pins the paving selector to the actual delivered slab, excluding its walls a
     expect(Math.min(...top.map((i) => positions[i * 3 + axis]))).toBeCloseTo(-15.925, 5);
     expect(Math.max(...top.map((i) => positions[i * 3 + axis]))).toBeCloseTo(15.925, 5);
   }
+});
+
+it('shares the forge schedule and confines coal emission to the delivered firebox', async () => {
+  const material = new THREE.MeshStandardMaterial();
+  applyForgeWindows(material);
+  const shader = {
+    uniforms: {},
+    vertexShader: '#include <begin_vertex>',
+    fragmentShader: '#include <emissivemap_fragment>',
+  } as Parameters<typeof material.onBeforeCompile>[0];
+  material.onBeforeCompile(shader, {} as THREE.WebGLRenderer);
+  expect(material.customProgramCacheKey()).toContain('millos-authored-village-windows-v6');
+  expect(shader.uniforms.villageCurtains.value).toBe(0);
+  material.dispose();
+  expect(shader.uniforms.forgeHeat).toBe(FORGE_HEAT_LEVEL);
+  expect(shader.uniforms.forgeHeatStrength).toBe(FORGE_HEAT_STRENGTH);
+  expect(shader.fragmentShader).toContain('forgeHeat * forgeHeatStrength');
+  expect(shader.vertexShader).toContain('vForgePosition = position');
+  const doc = await new NodeIO().read('public/models/village/forge.glb');
+  const primitive = doc.getRoot().listMeshes()[0].listPrimitives()[0];
+  const positions = primitive.getAttribute('POSITION')!.getArray()!;
+  const uv = primitive.getAttribute('TEXCOORD_0')!.getArray()!;
+  const selected = [];
+  for (let i = 0; i < positions.length / 3; i++) {
+    const x = positions[i * 3],
+      y = positions[i * 3 + 1],
+      z = positions[i * 3 + 2];
+    if (
+      x >= -0.89 &&
+      x < 0.09 &&
+      y >= 0.817 &&
+      y < 1.376 &&
+      z >= 2.425 &&
+      z < 2.435 &&
+      uv[i * 2] >= 0.5 &&
+      uv[i * 2] < 0.75 &&
+      uv[i * 2 + 1] < 0.25
+    )
+      selected.push(i);
+  }
+  expect(selected.length).toBeGreaterThan(0);
+  for (const i of selected) expect(positions[i * 3 + 2]).toBeCloseTo(2.429119, 5);
+  const source = readFileSync('src/components/VillageArea.tsx', 'utf8');
+  expect(source).toContain("if (kind === 'forge') FORGE_HEAT_LEVEL.value = level");
 });

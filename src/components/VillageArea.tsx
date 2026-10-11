@@ -7,6 +7,7 @@ import {
   inRealmPatch,
 } from '../constants/publicRealmLayout';
 import { communityChimneyLevel } from '../simulation/communityLife';
+import { FORGE_HEAT_LEVEL } from './models/GeneratedOfficeModel';
 import { VillagePublicRealm } from './scenery/WorldPublicRealm';
 import React, { useRef, useEffect, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
@@ -527,6 +528,7 @@ const ChimneySmoke: React.FC<{
     const drift = driftRef.current;
     const game = useGameSimulationStore.getState();
     const level = communityChimneyLevel(game.gameTime, offset, kind);
+    if (kind === 'forge') FORGE_HEAT_LEVEL.value = level;
     if (groupRef.current) groupRef.current.visible = level > 0.001;
     const time = (game.gameDay * 24 + game.gameTime) * 20 + offset;
     for (let i = 0; i < smokeRefs.current.length; i++) {

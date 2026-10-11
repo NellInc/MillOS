@@ -142,6 +142,68 @@ export function GeneratedOfficeModel({ asset = 'smallOffice' }: { asset?: Office
   return <primitive object={model} />;
 }
 
+/** Shared with the existing chimney schedule, no additional frame subscription.
+ * Working if the hearth warms only during forge hours and the rest of the atlas stays unchanged.
+ */
+export const FORGE_HEAT_LEVEL = { value: 0 };
+export const FORGE_HEAT_STRENGTH = { value: 1 };
+
+export function applyForgeWindows(material: THREE.MeshStandardMaterial) {
+  applyVillageWindows(material, undefined, false, 'glass');
+  const windows = material.onBeforeCompile;
+  const windowKey = material.customProgramCacheKey.bind(material);
+  material.onBeforeCompile = (shader, renderer) => {
+    windows.call(material, shader, renderer);
+    shader.uniforms.forgeHeat = FORGE_HEAT_LEVEL;
+    shader.uniforms.forgeHeatStrength = FORGE_HEAT_STRENGTH;
+    shader.vertexShader = `varying vec3 vForgePosition;\n${shader.vertexShader}`.replace(
+      '#include <begin_vertex>',
+      '#include <begin_vertex>\nvForgePosition = position;'
+    );
+    shader.fragmentShader = `varying vec3 vForgePosition;
+      uniform float forgeHeat;
+      uniform float forgeHeatStrength;
+      ${shader.fragmentShader}`.replace(
+      '#include <emissivemap_fragment>',
+      `#include <emissivemap_fragment>
+      // Measured delivered firebox face, in object-rest metres. Ink atlas only.
+      float hearth = step(-0.89, vForgePosition.x) * (1.0 - step(0.09, vForgePosition.x))
+        * step(0.817, vForgePosition.y) * (1.0 - step(1.376, vForgePosition.y))
+        * step(2.425, vForgePosition.z) * (1.0 - step(2.435, vForgePosition.z))
+        * step(0.5, vVillageUV.x) * (1.0 - step(0.75, vVillageUV.x))
+        * (1.0 - step(0.25, vVillageUV.y));
+      if (hearth > 0.5) {
+        // Irregular packed coal, rather than a repeated grate or rows of dots.
+        vec2 coal = (vForgePosition.xy - vec2(-0.89, 0.817)) * vec2(9.0, 14.0);
+        vec2 cell = floor(coal), local = fract(coal);
+        float nearest = 8.0, second = 8.0, seed = 0.0;
+        for (int y = -1; y <= 1; y++) {
+          for (int x = -1; x <= 1; x++) {
+            vec2 neighbour = vec2(float(x), float(y));
+            vec2 id = cell + neighbour;
+            vec2 hash = fract(sin(vec2(dot(id, vec2(127.1, 311.7)),
+              dot(id, vec2(269.5, 183.3)))) * 43758.5453);
+            vec2 delta = neighbour + 0.08 + hash * 0.84 - local;
+            float distanceSq = dot(delta, delta);
+            if (distanceSq < nearest) {
+              second = nearest;
+              nearest = distanceSq;
+              seed = hash.x;
+            } else second = min(second, distanceSq);
+          }
+        }
+        float seam = smoothstep(0.018, 0.13, second - nearest);
+        float bed = smoothstep(0.0, 0.035, vForgePosition.y - 0.817)
+          * (1.0 - smoothstep(0.12, 0.29, vForgePosition.y - 0.817));
+        vec3 ember = mix(vec3(0.18, 0.009, 0.001), vec3(0.78, 0.14, 0.012),
+          seed * (0.45 + seam * 0.55));
+        totalEmissiveRadiance += ember * seam * bed * forgeHeat * forgeHeatStrength;
+      }`
+    );
+  };
+  material.customProgramCacheKey = () => `millos-forge-hearth-v3:${windowKey()}`;
+}
+
 /** Runtime paired-control strength; changing it does not rebuild a material. */
 export const VILLAGE_INTERIOR_STRENGTH = { value: 1 };
 

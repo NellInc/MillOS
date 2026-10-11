@@ -24,6 +24,7 @@ import {
   applyShopWindows,
   createShopDisplayGeometry,
   applyVillageWindows,
+  applyForgeWindows,
   type VillageShopTrade,
 } from './GeneratedOfficeModel';
 
@@ -156,11 +157,13 @@ export const GeneratedModel: React.FC<GeneratedModelProps> = ({
             mesh.geometry = geometry;
             geometries.push(geometry);
           }
+        } else if (asset === 'forge') {
+          applyForgeWindows(material);
         } else {
           applyVillageWindows(
             material,
             undefined,
-            asset !== 'church' && asset !== 'forge',
+            asset !== 'church',
             asset === 'church'
               ? 'stained'
               : asset === 'castle'
