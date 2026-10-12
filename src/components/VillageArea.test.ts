@@ -8,6 +8,9 @@ import { MeshoptDecoder } from 'meshoptimizer';
 import {
   AUTHORED_PROP_TRIM,
   AUTHORED_MARKET_GOODS,
+  AUTHORED_MARKET_TRIM_VARIANTS,
+  MARKET_CANVAS_COLOURS,
+  createMarketCanopyGeometry,
   MARKET_TRAY_FLOOR,
   MARKET_GOODS_MATERIAL,
   MARKET_FRUIT_TEXTURES,
@@ -475,7 +478,7 @@ describe('measured village and farm construction trim', () => {
     const village = readFileSync('src/components/VillageArea.tsx', 'utf8');
     const farm = readFileSync('src/components/FarmArea.tsx', 'utf8');
     expect(village).toMatch(
-      /<GeneratedModel asset="marketstall" \/>\s*<AuthoredPropTrim kind="market" \/>/
+      /<GeneratedModel asset="marketstall" marketDressing=\{dressing\} \/>\s*<AuthoredPropTrim kind="market" dressing=\{dressing\} \/>/
     );
     expect(village).toMatch(
       /<GeneratedModel asset="fountain" \/>\s*<AuthoredPropTrim kind="fountain" \/>/
@@ -606,4 +609,66 @@ it('maps actual fruit rind in sRGB while preserving non-fruit goods and linear r
   }
   expect(rind).toBeGreaterThan(100);
   expect(plain).toBeGreaterThan(100);
+});
+
+it('varies only the real market red-cloth tile and its matching scallops, retaining atlas and geometry', async () => {
+  const primitive = (await new NodeIO().read('public/models/village/marketstall.glb'))
+    .getRoot()
+    .listMeshes()[0]
+    .listPrimitives()[0];
+  const source = new THREE.BufferGeometry();
+  for (const [name, semantic, size] of [
+    ['position', 'POSITION', 3],
+    ['normal', 'NORMAL', 3],
+    ['uv', 'TEXCOORD_0', 2],
+  ] as const)
+    source.setAttribute(
+      name,
+      new THREE.BufferAttribute(primitive.getAttribute(semantic)!.getArray() as Float32Array, size)
+    );
+  source.setIndex(new THREE.BufferAttribute(primitive.getIndices()!.getArray() as Uint16Array, 1));
+  const base = new THREE.Color('#912d26'),
+    uv = source.getAttribute('uv'),
+    baseChannels = base.toArray();
+  expect(new Set(MARKET_CANVAS_COLOURS).size).toBe(4);
+  for (let trade = 0; trade < 4; trade++) {
+    const variant = createMarketCanopyGeometry(source, trade);
+    for (const name of ['position', 'normal', 'uv'])
+      expect(variant.getAttribute(name).array).toEqual(source.getAttribute(name).array);
+    expect(variant.index!.array).toEqual(source.index!.array);
+    const colour = variant.getAttribute('color'),
+      target = new THREE.Color(MARKET_CANVAS_COLOURS[trade]),
+      targetChannels = target.toArray();
+    let cloth = 0;
+    for (let i = 0; i < uv.count; i++) {
+      const selected = Math.floor(uv.getX(i) * 6) === 4 && Math.floor(uv.getY(i) * 6) === 2;
+      if (selected) cloth++;
+      for (let channel = 0; channel < 3; channel++)
+        expect(colour.getComponent(i, channel)).toBeCloseTo(
+          selected ? targetChannels[channel] / baseChannels[channel] : 1,
+          5
+        );
+    }
+    expect(cloth).toBe(900);
+    const trim = AUTHORED_MARKET_TRIM_VARIANTS[trade],
+      original = AUTHORED_PROP_TRIM.market;
+    expect(trim.getAttribute('position').array).toEqual(original.getAttribute('position').array);
+    expect(trim.getAttribute('normal').array).toEqual(original.getAttribute('normal').array);
+    // Both scallop assemblies are deliberately non-indexed premerged draws.
+    expect(trim.index).toBeNull();
+    expect(original.index).toBeNull();
+    const trimColour = trim.getAttribute('color'),
+      originalColour = original.getAttribute('color');
+    for (let i = 0; i < trimColour.count; i++) {
+      const selected = Math.abs(originalColour.getX(i) - base.r) < 1e-6;
+      for (let channel = 0; channel < 3; channel++)
+        expect(trimColour.getComponent(i, channel)).toBeCloseTo(
+          selected ? targetChannels[channel] : originalColour.getComponent(i, channel),
+          6
+        );
+    }
+    variant.dispose();
+  }
+  expect(source.hasAttribute('color')).toBe(false);
+  source.dispose();
 });

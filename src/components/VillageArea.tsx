@@ -1908,11 +1908,8 @@ const MarketStallPrimitiveBody = React.memo<{ color1?: string; color2?: string }
 );
 MarketStallPrimitiveBody.displayName = 'MarketStallPrimitiveBody';
 
-/**
- * `color1` / `color2` chose the awning stripes. There is one generated stall, so
- * every pitch in the market now wears the same dyed canvas - which is what the
- * standing art verdict asked for ("saturated primaries... plastic toys"), but
- * it is also one stall repeated. Kept as props for the fallback.
+/** Four explicit trade cloths retain the delivered weave and cream stripes.
+ * Primitive fallback colours remain separate from the authored atlas.
  */
 const MarketStall = React.memo<{
   position: [number, number, number];
@@ -1926,17 +1923,15 @@ const MarketStall = React.memo<{
    */
   dressing?: number;
 }>(({ position, rotation = 0, color1, color2, dressing = 0 }) => (
-  // The four stalls stand in two rows 8 m apart and were the clearest case
-  // either reviewer named - "same awning, same crate arrangement, near-same
-  // rotation". Yaw is what a market stall actually varies in.
   <group
+    name={`village-market-stall-${dressing}`}
     position={position}
     rotation={[0, rotation + instanceYaw(position), 0]}
     scale={instanceScale(position)}
   >
     <GeneratedBoundary fallback={<MarketStallPrimitiveBody color1={color1} color2={color2} />}>
-      <GeneratedModel asset="marketstall" />
-      <AuthoredPropTrim kind="market" />
+      <GeneratedModel asset="marketstall" marketDressing={dressing} />
+      <AuthoredPropTrim kind="market" dressing={dressing} />
     </GeneratedBoundary>
     {/* INSIDE the yawed group, so the goods turn with the counter they stand
         on. Outside it they would slide off the table by up to 0.1 m at the

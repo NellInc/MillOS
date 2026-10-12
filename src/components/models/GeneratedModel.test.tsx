@@ -381,3 +381,46 @@ it('finishes only the cloned castle paving material, retaining geometry, atlas, 
   material.map!.dispose();
   material.dispose();
 });
+
+it('owns market paint variants while retaining shared atlas, shadow flags and cleanup', () => {
+  const geometry = new THREE.BoxGeometry();
+  geometry.getAttribute('uv').setXY(0, 0.75, 0.42);
+  const material = new THREE.MeshStandardMaterial({
+    map: new THREE.Texture(),
+    roughnessMap: new THREE.Texture(),
+  });
+  const source = new THREE.Group();
+  source.add(new THREE.Mesh(geometry, material));
+  holder.scene = source;
+  let clone: THREE.Group;
+  const original = source.clone.bind(source);
+  vi.spyOn(source, 'clone').mockImplementation((recursive) => (clone = original(recursive)));
+  const view = render(<GeneratedBody asset="marketstall" marketDressing={0} fallback={null} />);
+  const painted = clone!.children[0] as THREE.Mesh;
+  const paint = painted.material as THREE.MeshStandardMaterial;
+  expect(painted.geometry).not.toBe(geometry);
+  expect(paint).not.toBe(material);
+  expect(paint.vertexColors).toBe(true);
+  expect(paint.map).toBe(material.map);
+  expect(paint.roughnessMap).toBe(material.roughnessMap);
+  expect(painted.castShadow && painted.receiveShadow).toBe(true);
+  const disposeGeometry = vi.spyOn(painted.geometry, 'dispose'),
+    disposePaint = vi.spyOn(paint, 'dispose');
+  const disposeAtlas = vi.spyOn(material.map!, 'dispose'),
+    disposeSource = vi.spyOn(geometry, 'dispose');
+  view.rerender(<GeneratedModel asset="marketstall" marketDressing={1} />);
+  expect(disposeGeometry).toHaveBeenCalledTimes(1);
+  expect(disposePaint).toHaveBeenCalledTimes(1);
+  view.rerender(<GeneratedModel asset="marketstall" />);
+  expect((clone!.children[0] as THREE.Mesh).geometry).toBe(geometry);
+  expect((clone!.children[0] as THREE.Mesh).material).toBe(material);
+  view.unmount();
+  expect(disposeAtlas).not.toHaveBeenCalled();
+  expect(disposeSource).not.toHaveBeenCalled();
+  expect(geometry.hasAttribute('color')).toBe(false);
+  expect(material.vertexColors).toBe(false);
+  geometry.dispose();
+  material.map!.dispose();
+  material.roughnessMap!.dispose();
+  material.dispose();
+});

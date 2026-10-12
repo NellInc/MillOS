@@ -11,7 +11,8 @@
  * here: the SkeletonUtils rebinding these assets do not need costs a skeleton
  * walk, and none of them has a skin. Geometry and textures are shared by the
  * clone. Village glazing clones materials for the shared night-lighting shader;
- * other assets retain their shared materials.
+ * explicit market cloth clones only colour attributes and its material; all atlas
+ * textures remain shared. Other assets retain their shared materials.
  */
 
 import React, { useEffect, useMemo } from 'react';
@@ -19,6 +20,7 @@ import * as THREE from 'three';
 import { useDracoGLTF } from '../../utils/dracoLoader';
 import { GENERATED_ASSET_PATHS, type GeneratedAssetId } from '../../utils/modelLoader';
 import ErrorBoundary from '../ErrorBoundary';
+import { createMarketCanopyGeometry } from '../scenery/AuthoredPropTrim';
 import {
   applyCastlePaving,
   applyShopWindows,
@@ -52,7 +54,9 @@ const VILLAGE_GLAZING = new Set<GeneratedAssetId>([
  *
  * Geometry variation preserves the authored whole-building albedo. Shops
  * additionally select explicit trade paint on their green joinery swatch,
- * leaving the masonry, linen, roof and glazing unchanged. The old wallColor
+ * leaving the masonry, linen, roof and glazing unchanged. Market cloth uses
+ * explicit trade colours while retaining its shared atlas weave and cream
+ * stripes. The old wallColor
  * prop still belongs only to the primitive fallback; it is never multiplied
  * into the delivered atlas.
  *
@@ -99,6 +103,8 @@ export interface GeneratedModelProps {
   asset: GeneratedAssetId;
   /** Explicit authored shop paint; other assets retain their existing palette. */
   shopTrade?: VillageShopTrade;
+  /** Explicit market cloth trade; all non-canvas asset pixels remain authored. */
+  marketDressing?: number;
   /**
    * Uniform scale. The assets are authored at their shipped size, so this is
    * for the handful of call sites that genuinely want a variant - a smaller
@@ -133,6 +139,7 @@ export interface GeneratedModelProps {
 export const GeneratedModel: React.FC<GeneratedModelProps> = ({
   asset,
   shopTrade,
+  marketDressing,
   scale,
   sink,
   castShadow,
@@ -147,6 +154,21 @@ export const GeneratedModel: React.FC<GeneratedModelProps> = ({
     clone.traverse((object) => {
       const mesh = object as THREE.Mesh;
       if (!mesh.isMesh) return;
+      if (
+        asset === 'marketstall' &&
+        marketDressing !== undefined &&
+        mesh.material instanceof THREE.MeshStandardMaterial
+      ) {
+        const geometry = createMarketCanopyGeometry(mesh.geometry, marketDressing);
+        if (geometry !== mesh.geometry) {
+          const material = mesh.material.clone();
+          material.vertexColors = true;
+          mesh.geometry = geometry;
+          mesh.material = material;
+          geometries.push(geometry);
+          materials.push(material);
+        }
+      }
       if (VILLAGE_GLAZING.has(asset) && mesh.material instanceof THREE.MeshStandardMaterial) {
         const material = mesh.material.clone();
         // Lancet glazing and forge workrooms keep their architectural character.
@@ -186,7 +208,7 @@ export const GeneratedModel: React.FC<GeneratedModelProps> = ({
         receiveShadow ?? (typeof authoredReceive === 'boolean' ? authoredReceive : true);
     });
     return { model: clone, materials, geometries };
-  }, [scene, asset, shopTrade, castShadow, receiveShadow]);
+  }, [scene, asset, shopTrade, marketDressing, castShadow, receiveShadow]);
   useEffect(
     () => () => {
       materials.forEach((material) => material.dispose());
@@ -242,6 +264,7 @@ GeneratedBoundary.displayName = 'GeneratedBoundary';
 export const GeneratedBody: React.FC<GeneratedBodyProps> = ({
   asset,
   shopTrade,
+  marketDressing,
   scale,
   sink,
   castShadow,
@@ -252,6 +275,7 @@ export const GeneratedBody: React.FC<GeneratedBodyProps> = ({
     <GeneratedModel
       asset={asset}
       shopTrade={shopTrade}
+      marketDressing={marketDressing}
       scale={scale}
       sink={sink}
       castShadow={castShadow}

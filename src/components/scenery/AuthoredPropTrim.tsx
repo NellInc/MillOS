@@ -44,7 +44,38 @@ function beam(a: THREE.Vector3, b: THREE.Vector3, width: number, round = false) 
   return geometry.translate(...a.clone().add(b).multiplyScalar(0.5).toArray());
 }
 
-function marketTrim() {
+// Explicit trade cloth, coordinated with the village's painted timber and slate.
+// Produce, dairy, bakery and harvest share cream stripes and the original weave.
+export const MARKET_CANVAS_COLOURS = ['#637b59', '#476975', '#912d26', '#9a703d'] as const;
+const ORIGINAL_MARKET_RED = new THREE.Color('#912d26');
+
+/** Recolour only the delivered red-cloth tile using linear vertex multipliers.
+ * Working if every trade differs, the original weave/ORM remain visible, and
+ * timber, cream stripes, positions, normals, indices and UVs stay unchanged.
+ */
+export function createMarketCanopyGeometry(source: THREE.BufferGeometry, dressing: number) {
+  const uv = source.getAttribute('uv');
+  if (!uv) return source;
+  const geometry = source.clone();
+  const colour =
+    geometry.getAttribute('color')?.clone() ??
+    new THREE.BufferAttribute(new Float32Array(uv.count * 3).fill(1), 3);
+  const target = new THREE.Color(MARKET_CANVAS_COLOURS[dressing] ?? MARKET_CANVAS_COLOURS[2]);
+  for (let i = 0; i < uv.count; i++) {
+    // Actual six-column source atlas: red cloth is column 4, glTF row 2.
+    if (Math.floor(uv.getX(i) * 6) !== 4 || Math.floor(uv.getY(i) * 6) !== 2) continue;
+    colour.setXYZ(
+      i,
+      target.r / ORIGINAL_MARKET_RED.r,
+      target.g / ORIGINAL_MARKET_RED.g,
+      target.b / ORIGINAL_MARKET_RED.b
+    );
+  }
+  geometry.setAttribute('color', colour);
+  return geometry;
+}
+
+function marketTrim(canvas: string = MARKET_CANVAS_COLOURS[2]) {
   const parts: THREE.BufferGeometry[] = [];
   // The delivered straight hem spans y=1.8528..1.958. Extend below it by only
   // 58 mm, with 6 mm of buried overlap, and retain its ten baked stripe widths.
@@ -66,7 +97,7 @@ function marketTrim() {
         curveSegments: 1,
       });
       g.rotateY(Math.PI / 2).translate(side > 0 ? 0.762 : -0.778, 0, 0);
-      parts.push(colored(g, i % 2 ? '#dac99d' : '#912d26'));
+      parts.push(colored(g, i % 2 ? '#dac99d' : canvas));
     }
   }
   // Actual posts x=+/-0.533, z=+/-1.17, counter underside y=0.8215.
@@ -190,6 +221,9 @@ export const AUTHORED_PROP_TRIM = {
   fence: fenceStraps(),
   trough: troughRim(),
 };
+export const AUTHORED_MARKET_TRIM_VARIANTS = MARKET_CANVAS_COLOURS.map((colour, trade) =>
+  trade === 2 ? AUTHORED_PROP_TRIM.market : marketTrim(colour)
+);
 const TRIM_MATERIAL = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.82 });
 
 // The cobbles draw in the transparent pass with a -2 depth bias. Physical
@@ -213,16 +247,21 @@ export const AUTHORED_PROP_TRIM_MATERIALS = {
   }),
 };
 
-export const AuthoredPropTrim = React.memo<{ kind: keyof typeof AUTHORED_PROP_TRIM }>(
-  ({ kind }) => (
-    <mesh
-      geometry={AUTHORED_PROP_TRIM[kind]}
-      material={AUTHORED_PROP_TRIM_MATERIALS[kind]}
-      receiveShadow
-      castShadow={kind !== 'fountain'}
-    />
-  )
-);
+export const AuthoredPropTrim = React.memo<{
+  kind: keyof typeof AUTHORED_PROP_TRIM;
+  dressing?: number;
+}>(({ kind, dressing }) => (
+  <mesh
+    geometry={
+      kind === 'market' && dressing !== undefined
+        ? (AUTHORED_MARKET_TRIM_VARIANTS[dressing] ?? AUTHORED_PROP_TRIM.market)
+        : AUTHORED_PROP_TRIM[kind]
+    }
+    material={AUTHORED_PROP_TRIM_MATERIALS[kind]}
+    receiveShadow
+    castShadow={kind !== 'fountain'}
+  />
+));
 AuthoredPropTrim.displayName = 'AuthoredPropTrim';
 
 /** Three tray floors on the delivered structural stall. Each trade owns its
