@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { createHash } from 'node:crypto';
 import {
   addVillageFlower,
+  addVillageFoliage,
   VILLAGE_HOME_PLOTS,
   VILLAGE_HOMES,
   VILLAGE_GARDEN_FOOTPRINTS,
@@ -319,5 +320,33 @@ it('gives both smoke-aligned pots on every live home a recessed throat and front
     }
   } finally {
     front.dispose();
+  }
+});
+
+it('varies only foliage colours, retaining exact original clusters and repeatable leaf-age tones', () => {
+  for (const detail of [0, 1] as const) {
+    const at = [3.95, 0.54, 5.55] as const,
+      scale = [0.58, 0.6, 0.52] as const;
+    const original = new PlotGeometry();
+    original.add(
+      new THREE.IcosahedronGeometry(1, detail).scale(...scale).translate(...at),
+      '#607b43'
+    );
+    const a = new PlotGeometry(),
+      b = new PlotGeometry();
+    addVillageFoliage(a, at, scale, '#607b43', detail);
+    addVillageFoliage(b, at, scale, '#607b43', detail);
+    for (const attribute of ['position', 'normal', 'uv'])
+      expect(a.parts[0].getAttribute(attribute).array).toEqual(
+        original.parts[0].getAttribute(attribute).array
+      );
+    expect(a.parts[0].index).toEqual(original.parts[0].index);
+    const colours = a.parts[0].getAttribute('color');
+    expect(colours.array).toEqual(b.parts[0].getAttribute('color').array);
+    expect(colours.array).not.toEqual(original.parts[0].getAttribute('color').array);
+    const green = Array.from({ length: colours.count }, (_, i) => colours.getY(i));
+    expect(Math.max(...green) - Math.min(...green)).toBeGreaterThan(0.02);
+    expect([...colours.array].every((v) => Number.isFinite(v) && v >= 0 && v <= 1)).toBe(true);
+    for (const plot of [original, a, b]) for (const geometry of plot.parts) geometry.dispose();
   }
 });

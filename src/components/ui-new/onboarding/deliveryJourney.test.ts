@@ -40,7 +40,13 @@ describe('guided delivery evidence', () => {
     (material) => {
       const campaign = useOperationsCampaignStore.getState();
       const order = campaign.orders.find((item) => item.recipe.finishedMaterial === material)!;
-      const execution = { ...campaign.execution, orderId: order.id };
+      const execution = {
+        ...campaign.execution,
+        orderId: order.id,
+        sourceInventoryKg: 12345.6,
+        lineSetpointPercent: 62,
+        releasedFinishedKg: 456.2,
+      };
       expect(
         deriveDeliveryJourney(order, { ...execution, stage: 'quality_hold' }, true).title
       ).toBe(`Check the ${material}`);
@@ -49,9 +55,37 @@ describe('guided delivery evidence', () => {
       ).toContain(`packed ${material}`);
       expect(
         deriveDeliveryJourney(order, { ...execution, stage: 'milling' }, true).detail
-      ).toContain(`Released ${material}:`);
+      ).toContain(`Released ${material}: 456 kg`);
+      const before = useOperationsCampaignStore.getState();
+      const milling = deriveDeliveryJourney(order, { ...execution, stage: 'milling' }, true);
+      expect(milling.detail).toContain(
+        `12346 kg of ${order.recipe.sourceMaterial.replace('_', ' ')}`
+      );
+      expect(milling.detail).toContain('Line setpoint: 62%');
+      expect(deriveDeliveryJourney(order, { ...execution, stage: 'planning' }, true).title).toBe(
+        `Prepare ${order.recipe.label}`
+      );
+      expect(useOperationsCampaignStore.getState()).toBe(before);
+      expect(execution.releasedFinishedKg).toBe(456.2);
     }
   );
+  it('keeps preparation free of the previous customer stock snapshot', () => {
+    const campaign = useOperationsCampaignStore.getState();
+    useOperationsCampaignStore.setState({
+      execution: { ...campaign.execution, sourceInventoryKg: 9876, releasedFinishedKg: 5432 },
+    });
+    const next = campaign.orders.find((order) => order.recipe.finishedMaterial === 'semolina')!;
+    useOperationsCampaignStore.getState().activateOrder(next.id);
+    const selected = useOperationsCampaignStore.getState();
+    expect(selected.execution.stage).toBe('planning');
+    expect(selected.execution.sourceInventoryKg).toBe(9876);
+    const guide = deriveDeliveryJourney(next, selected.execution, true);
+    expect(guide.detail).toContain(next.recipe.sourceMaterial.replace('_', ' '));
+    expect(guide.detail).not.toContain('9876');
+    expect(guide.detail).not.toContain('5432');
+    expect(guide.detail).not.toContain('Line setpoint:');
+    expect(useOperationsCampaignStore.getState()).toBe(selected);
+  });
   it('distinguishes live cargo from departure and the customer receipt', () => {
     const { orders, execution } = useOperationsCampaignStore.getState();
     const order = { ...orders[0], shippedKg: 1000 };

@@ -71,6 +71,34 @@ const DESIGNS = [
 const { cream: CREAM, soil: SOIL, leaf: LEAF, oak: WOOD, iron: IRON } = WORLD_CRAFT_PALETTE;
 type Point = readonly [number, number, number];
 
+/** Leaf age varies across the existing closed cluster, without changing its
+ * caster geometry. Working if repeat builds match, tips differ from lower leaves
+ * and every plant retains its original positions, normals, UVs and indices.
+ */
+export function addVillageFoliage(
+  b: PlotGeometry,
+  at: Point,
+  scale: Point,
+  colour: string,
+  detail: 0 | 1 = 0
+) {
+  const g = new THREE.IcosahedronGeometry(1, detail).scale(...scale).translate(...at);
+  b.add(g, colour);
+  const p = g.getAttribute('position'),
+    colours = g.getAttribute('color');
+  const base = new THREE.Color(colour),
+    fresh = new THREE.Color('#96a67a'),
+    shade = base.clone();
+  for (let i = 0; i < p.count; i++) {
+    const height = THREE.MathUtils.clamp((p.getY(i) - at[1]) / scale[1], -1, 1);
+    const patch =
+      Math.sin(p.getX(i) * 2.7 + p.getZ(i) * 3.1) * Math.sin(p.getZ(i) * 1.7 - p.getX(i) * 0.9);
+    shade.copy(base).multiplyScalar(0.95 + height * 0.07 + patch * 0.04);
+    shade.lerp(fresh, Math.max(0, height) * 0.08);
+    colours.setXYZ(i, shade.r, shade.g, shade.b);
+  }
+}
+
 /** Closed, stemmed five-petal flowers, premerged into the existing plot draw.
  * Working if boxes and pots have varied blooms above their soil, finite normals
  * and no new draw, texture, animation or material allocation at frame time.
@@ -490,12 +518,14 @@ function garden(index: number) {
       const z = -depth * 0.32 + (i * depth * 0.65) / (count - 1) + 0.05,
         radius = 0.22 + ((index + i) % 3) * 0.055,
         height = 0.24 + ((index + i + (side > 0 ? 1 : 0)) % 3) * 0.065;
-      b.round(
+      addVillageFoliage(
+        b,
         [x + side * (i % 2 ? 0.06 : -0.035), 0.025 + height, z],
         [radius, height, radius * 0.82],
         (index + i) % 2 ? '#71836a' : '#566e54'
       );
-      b.round(
+      addVillageFoliage(
+        b,
         [x - side * 0.09, 0.05 + height * 0.63, z + 0.13],
         [radius * 0.7, height * 0.62, radius * 0.64],
         '#879374'
@@ -545,7 +575,7 @@ function garden(index: number) {
       for (const z of [3.4, 5.9]) pot(b, side * 4.3, z, d.flowers, 0.9);
     } else if (index === 2 && side === 1) {
       // A small mown lawn, with a single flowering shrub at its far corner.
-      b.round([3.95, 0.54, 5.55], [0.58, 0.6, 0.52], LEAF);
+      addVillageFoliage(b, [3.95, 0.54, 5.55], [0.58, 0.6, 0.52], LEAF);
       for (let i = 0; i < 4; i++)
         addVillageFlower(
           b,
@@ -573,7 +603,12 @@ function garden(index: number) {
           const px = bx - width * 0.36 + (col * width * 0.72) / (cols - 1),
             pz = z - depth * 0.35 + (row * depth * 0.7) / (rows - 1);
           if (index === 3) {
-            b.round([px, 0.32, pz], [0.22, 0.2, 0.22], side < 0 ? '#829565' : '#657e49');
+            addVillageFoliage(
+              b,
+              [px, 0.32, pz],
+              [0.22, 0.2, 0.22],
+              side < 0 ? '#829565' : '#657e49'
+            );
             if (side > 0) b.beam([px, 0.2, pz], [px + 0.08, 0.65, pz + 0.07], 0.05, LEAF);
           } else
             addVillageFlower(b, px, 0.1, pz, (row + col + index) % 3 ? d.flowers : '#e2c36b', 0.2);
@@ -582,7 +617,8 @@ function garden(index: number) {
         for (const dz of [-0.7, 0.7])
           b.beam([bx + 0.9, 0, z + dz], [bx + 0.9, 1.65, z + dz], 0.055, WOOD);
         b.box([0.06, 0.06, 1.5], [bx + 0.9, 1.6, z], WOOD);
-        for (let i = 0; i < 5; i++) b.round([bx + 0.9, 0.4 + i * 0.24, z], [0.2, 0.18, 0.2], LEAF);
+        for (let i = 0; i < 5; i++)
+          addVillageFoliage(b, [bx + 0.9, 0.4 + i * 0.24, z], [0.2, 0.18, 0.2], LEAF);
       }
     }
     pot(b, side * 1.2, d.depth / 2 + 0.95, d.flowers, 0.82);
@@ -638,8 +674,13 @@ function allotment() {
           const px = x - 1.05 + col * 0.69,
             pz = z - 1.02 + row * 0.68;
           if (x < 0) {
-            b.round([px, 0.42, pz], [0.28, 0.22, 0.28], (row + col) % 2 ? '#6a8b54' : '#849b63');
-            b.round([px, 0.49, pz], [0.16, 0.15, 0.17], '#a2ad75');
+            addVillageFoliage(
+              b,
+              [px, 0.42, pz],
+              [0.28, 0.22, 0.28],
+              (row + col) % 2 ? '#6a8b54' : '#849b63'
+            );
+            addVillageFoliage(b, [px, 0.49, pz], [0.16, 0.15, 0.17], '#a2ad75');
           } else {
             for (const side of [-1, 1])
               b.beam([px, 0.22, pz], [px + side * 0.17, 0.69, pz + 0.12], 0.058, '#5c8247');
@@ -665,7 +706,8 @@ function allotment() {
   for (const x of [1.8, 3.1, 4.4]) {
     for (const side of [-1, 1])
       b.beam([x, 0, -4.3 + side * 0.6], [x, 1.85, -4.3], 0.055, '#a08a61');
-    for (let i = 0; i < 5; i++) b.round([x + 0.08, 0.4 + i * 0.29, -4.3], [0.23, 0.2, 0.17], LEAF);
+    for (let i = 0; i < 5; i++)
+      addVillageFoliage(b, [x + 0.08, 0.4 + i * 0.29, -4.3], [0.23, 0.2, 0.17], LEAF);
   }
   b.box([2.95, 0.06, 0.06], [3.1, 1.85, -4.3], WOOD);
   b.box([1.8, 0.38, 0.9], [2.9, 0.19, -2.45], WOOD);
@@ -686,8 +728,7 @@ export const VILLAGE_ALLOTMENT_GEOMETRY = allotment();
 export const TOWN_HALL_HEDGE_GEOMETRY = (() => {
   const b = new PlotGeometry();
   const leafCluster = (position: Point, scale: Point, colour: string) => {
-    const g = new THREE.IcosahedronGeometry(1, 1).scale(...scale).translate(...position);
-    b.add(g, colour);
+    addVillageFoliage(b, position, scale, colour, 1);
   };
   const run = (x: number, z: number, length: number, side: boolean) => {
     b.box(side ? [0.92, 0.065, length + 0.3] : [length + 0.3, 0.065, 0.92], [x, 0.005, z], SOIL);

@@ -341,6 +341,31 @@ function marketGoods(trade: number) {
     g.userData.marketFruit = rind;
     parts.push(colored(g, color));
   };
+  // Finish the existing food surface through its shared colour attribute.
+  // Working if crust, leaves and rind vary while neutral UVs, stock shapes and
+  // all baked caster triangles stay exact; no texture or draw is added.
+  const foodFinish = (g: THREE.BufferGeometry, lower: string, upper: string) => {
+    g.computeBoundingBox();
+    const p = g.getAttribute('position'),
+      colours = g.getAttribute('color');
+    const low = new THREE.Color(lower),
+      high = new THREE.Color(upper),
+      shade = low.clone();
+    const box = g.boundingBox!,
+      span = Math.max(0.001, box.max.y - box.min.y);
+    for (let i = 0; i < p.count; i++) {
+      const height = (p.getY(i) - box.min.y) / span;
+      const grain =
+        Math.sin(p.getX(i) * 29 + p.getZ(i) * 41) * Math.cos(p.getZ(i) * 31 - p.getX(i) * 13);
+      const mix = THREE.MathUtils.clamp(
+        0.12 + THREE.MathUtils.smoothstep(height, 0.1, 0.95) * 0.8 + grain * 0.045,
+        0,
+        1
+      );
+      shade.copy(low).lerp(high, mix);
+      colours.setXYZ(i, shade.r, shade.g, shade.b);
+    }
+  };
   const curve = (points: [number, number, number][], width: number, color: string) => {
     parts.push(
       colored(
@@ -412,12 +437,15 @@ function marketGoods(trade: number) {
     }
   };
   const cabbage = (x: number, z: number, r: number) => {
-    put(new THREE.SphereGeometry(r, 14, 10), '#879752', x, z);
+    const core = new THREE.SphereGeometry(r, 14, 10);
+    put(core, '#879752', x, z);
+    foodFinish(core, '#5b7149', '#a2b079');
     for (let i = 0; i < 5; i++) {
       const angle = (i * Math.PI * 2) / 5;
       const g = new THREE.SphereGeometry(r * 1.03, 10, 7, -0.52, 1.04, 0.65, 1.65);
       g.rotateY(angle).translate(x, MARKET_TRAY_FLOOR + r, z);
       parts.push(colored(g, i % 2 ? '#738449' : '#9ca66b'));
+      foodFinish(g, i % 2 ? '#516342' : '#657c4a', '#a3b17c');
       const pts: [number, number, number][] = [];
       for (let j = 0; j <= 6; j++) {
         const t = 0.69 + j * 0.21;
@@ -431,20 +459,16 @@ function marketGoods(trade: number) {
     }
   };
   const wheel = (x: number, z: number, r: number, lift = 0) => {
-    put(
-      profile([
-        [0, 0],
-        [r * 0.94, 0],
-        [r, 0.01],
-        [r, 0.102],
-        [r * 0.94, 0.115],
-        [0, 0.115],
-      ]),
-      '#c49a48',
-      x,
-      z,
-      lift
-    );
+    const body = profile([
+      [0, 0],
+      [r * 0.94, 0],
+      [r, 0.01],
+      [r, 0.102],
+      [r * 0.94, 0.115],
+      [0, 0.115],
+    ]);
+    put(body, '#c49a48', x, z, lift);
+    foodFinish(body, '#ac7d39', '#dfc78a');
     const band = new THREE.CylinderGeometry(r * 1.005, r * 1.005, 0.044, 16, 1, true);
     band.translate(x, MARKET_TRAY_FLOOR + lift + 0.056, z);
     parts.push(colored(band, '#debf77'));
@@ -456,6 +480,7 @@ function marketGoods(trade: number) {
       : new THREE.CapsuleGeometry(r, 0.096, 5, 12).rotateX(Math.PI / 2);
     g.scale(1, 0.78, 1);
     put(g, round ? '#b98851' : '#ae7640', x, z);
+    foodFinish(g, round ? '#996334' : '#88532c', round ? '#d1ac74' : '#c79c64');
     const top = MARKET_TRAY_FLOOR + r * 1.56;
     for (const dz of round ? [0] : [-0.065, 0.025, 0.1]) {
       const pts: [number, number, number][] = [];
@@ -511,6 +536,7 @@ function marketGoods(trade: number) {
       });
       wedge.rotateX(-Math.PI / 2);
       put(wedge, '#dfbd69', x, z);
+      foodFinish(wedge, '#c6a054', '#ead197');
       for (let j = 0; j < 3; j++) {
         const dot = new THREE.CircleGeometry(0.009 + j * 0.002, 8)
           .rotateX(-Math.PI / 2)
