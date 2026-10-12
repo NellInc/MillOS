@@ -251,7 +251,7 @@ const rootIndex = `<!DOCTYPE html>
 fs.writeFileSync(path.join(outputDirectory, 'index.html'), rootIndex);
 fs.copyFileSync(releaseMatrixPath, path.join(outputDirectory, 'release-matrix.json'));
 
-for (const file of ['robots.txt', 'sitemap.xml', 'og-image.png', 'llms.txt', 'indexnow-key.txt']) {
+for (const file of ['robots.txt', 'sitemap.xml', 'og-image.png', 'llms.txt', 'indexnow-key.txt', 'BingSiteAuth.xml']) {
   fs.copyFileSync(path.join(publicDirectory, file), path.join(outputDirectory, file));
 }
 fs.copyFileSync(path.join(projectRoot, 'CNAME'), path.join(outputDirectory, 'CNAME'));
