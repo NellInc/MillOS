@@ -750,7 +750,11 @@ export const FAR_MOUNTAIN_SPEC: MountainRidgeSpec = {
   maxHeight: 205,
   slopeDepth: 55,
   valleyFloor: 0.13,
-  snowLine: 0.46,
+  // Cover the upper shoulders visible from the village, not just the tips.
+  // The former 86 m datum left most of the visible range bare. This 62 m
+  // line retains exposed lower rock and snow-free wooded intermediate hills.
+  // Working if the village's high peaks have continuous irregular white caps.
+  snowLine: 0.34,
   seed: 0.37,
   // TRUE ALBEDO. These three arrays used to be pre-hazed blue-greys, i.e. they
   // had aerial perspective painted into them, which is why the far ring read as

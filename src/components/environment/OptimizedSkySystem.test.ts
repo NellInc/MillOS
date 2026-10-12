@@ -463,7 +463,44 @@ it('retains explicit finite snow caps on the far range and snow-free rolling foo
     Array.from(MOUNTAIN_RIDGE_GEOMETRIES[0].getAttribute('ridgeSnow').array).filter((x) => x > 0.2)
       .length
   ).toBeGreaterThan(100);
-  expect(
-    Array.from(MOUNTAIN_RIDGE_GEOMETRIES[2].getAttribute('ridgeSnow').array).every((x) => x === 0)
-  ).toBe(true);
+  for (const geometry of MOUNTAIN_RIDGE_GEOMETRIES.slice(1)) {
+    expect(Array.from(geometry.getAttribute('ridgeSnow').array).every((x) => x === 0)).toBe(true);
+  }
+
+  // The previous altitude mask passed the count check above while the actual
+  // village view showed tiny summit tips. Its high peaks need covered upper
+  // shoulders as well. Keep the lower range and every foothill snow-free.
+  const far = MOUNTAIN_RIDGE_GEOMETRIES[0];
+  const positions = far.getAttribute('position');
+  const snow = far.getAttribute('ridgeSnow');
+  const previous = createMountainRidgeGeometry({ ...FAR_MOUNTAIN_SPEC, snowLine: 0.46 });
+  try {
+    for (const attribute of ['position', 'color', 'normal', 'ridgeHeight']) {
+      expect(far.getAttribute(attribute).array).toEqual(previous.getAttribute(attribute).array);
+    }
+    expect(far.index?.array).toEqual(previous.index?.array);
+    for (let i = 0; i < positions.count; i++) {
+      if (positions.getY(i) <= 55) expect(snow.getX(i)).toBe(0);
+    }
+  } finally {
+    previous.dispose();
+  }
+  const camera = SITE_LAYOUT.cameras.village;
+  const bearing = new THREE.Vector3(...camera.target)
+    .sub(new THREE.Vector3(...camera.position))
+    .setY(0)
+    .normalize();
+  let reviewedPeaks = 0;
+  for (let column = 0; column < MOUNTAIN_RIDGE_SEGMENTS; column++) {
+    const crest = column * MOUNTAIN_RIDGE_ROWS + MOUNTAIN_RIDGE_ROWS - 1;
+    const direction = new THREE.Vector3(
+      positions.getX(crest),
+      0,
+      positions.getZ(crest)
+    ).normalize();
+    if (positions.getY(crest) <= 90 || direction.dot(bearing) < Math.cos(Math.PI / 6)) continue;
+    reviewedPeaks++;
+    expect(snow.getX(column * MOUNTAIN_RIDGE_ROWS + 13)).toBeGreaterThan(0.7);
+  }
+  expect(reviewedPeaks).toBeGreaterThan(0);
 });
