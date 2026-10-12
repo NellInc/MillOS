@@ -1,3 +1,5 @@
+import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { HeritageEmblem, IlluminatedSignText } from './HeritageSignage';
 import { SceneText } from '../shared/SceneText';
 import { ExteriorDownlight, EXTERIOR_LAMP_LENS_MATERIAL } from '../exterior/ExteriorLighting';
@@ -249,6 +251,81 @@ export function PubSignLighting() {
             distance={lamp.distance}
             color="#ffe0a0"
           />
+        </group>
+      ))}
+    </group>
+  );
+}
+
+/** Doorway light belongs to a mounted fitting, clear of windows and walking routes.
+ * Working if the delivered thresholds receive warm dusk light, every wall plate
+ * meets masonry, Low has no additional source and the sole sun caster is retained.
+ */
+export const CIVIC_ENTRY_LAMPS = {
+  church: [-1, 1].map((side) => ({
+    id: side < 0 ? 'left' : 'right',
+    mount: [side * 1.45, 2.75, 6.075] as [number, number, number],
+    intensity: 18,
+    distance: 4.1,
+  })),
+  school: [
+    {
+      id: 'door',
+      mount: [0, 3.35, 3.5] as [number, number, number],
+      intensity: 24,
+      distance: 4.4,
+    },
+  ],
+};
+// The source is 10 mm below the closed iron floor, rather than buried in it.
+export const CIVIC_ENTRY_SOURCE: [number, number, number] = [0, -0.28, 0.385];
+const civicLanternParts: THREE.BufferGeometry[] = [];
+const lanternBox = (w: number, h: number, d: number, x: number, y: number, z: number) =>
+  civicLanternParts.push(new THREE.BoxGeometry(w, h, d).translate(x, y, z));
+lanternBox(0.13, 0.4, 0.065, 0, 0.07, 0.015);
+lanternBox(0.045, 0.045, 0.37, 0, 0.2, 0.195);
+for (const y of [-0.25, 0.25]) lanternBox(0.32, 0.04, 0.32, 0, y, 0.385);
+for (const x of [-0.135, 0.135])
+  for (const z of [0.25, 0.52]) lanternBox(0.025, 0.5, 0.025, x, 0, z);
+civicLanternParts.push(
+  new THREE.ConeGeometry(0.24, 0.16, 4).rotateY(Math.PI / 4).translate(0, 0.34, 0.385)
+);
+export const CIVIC_ENTRY_LANTERN_GEOMETRY = mergeGeometries(civicLanternParts)!;
+civicLanternParts.forEach((part) => part.dispose());
+const CIVIC_ENTRY_GLASS_GEOMETRY = new THREE.BoxGeometry(0.24, 0.42, 0.24).translate(0, 0, 0.385);
+const CIVIC_ENTRY_IRON = new THREE.MeshStandardMaterial({
+  color: '#293c38',
+  roughness: 0.64,
+  metalness: 0.35,
+});
+
+export function CivicEntryLighting({ building }: { building: keyof typeof CIVIC_ENTRY_LAMPS }) {
+  const lit = useGraphicsStore(
+    (s) =>
+      s.graphics.quality !== 'low' &&
+      !s.graphics.perfDebug.disablePunctualLights &&
+      !s.graphics.perfDebug.disableLightingPolish
+  );
+  return (
+    <group name={`${building}-entry-lanterns`}>
+      {CIVIC_ENTRY_LAMPS[building].map((lamp) => (
+        <group key={lamp.id} position={lamp.mount}>
+          <mesh
+            geometry={CIVIC_ENTRY_LANTERN_GEOMETRY}
+            material={CIVIC_ENTRY_IRON}
+            castShadow
+            receiveShadow
+          />
+          <mesh geometry={CIVIC_ENTRY_GLASS_GEOMETRY} material={EXTERIOR_LAMP_LENS_MATERIAL} />
+          {lit && (
+            <ExteriorDownlight
+              name={`${building}-entry-light:${lamp.id}`}
+              position={CIVIC_ENTRY_SOURCE}
+              intensity={lamp.intensity}
+              distance={lamp.distance}
+              color="#ffe0a0"
+            />
+          )}
         </group>
       ))}
     </group>

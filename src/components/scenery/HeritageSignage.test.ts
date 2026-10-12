@@ -3,7 +3,13 @@ import { readFileSync } from 'node:fs';
 import sharp from 'sharp';
 import * as THREE from 'three';
 import { createSignMaterial } from './HeritageSignage';
-import { PUB_SIGN_LAMPS, PUB_DOOR_LAMPS } from './VillageSignage';
+import {
+  PUB_SIGN_LAMPS,
+  PUB_DOOR_LAMPS,
+  CIVIC_ENTRY_LAMPS,
+  CIVIC_ENTRY_SOURCE,
+  CIVIC_ENTRY_LANTERN_GEOMETRY,
+} from './VillageSignage';
 import { NodeIO } from '@gltf-transform/core';
 import { describe, expect, it } from 'vitest';
 
@@ -188,5 +194,63 @@ it('lights the retained pub door optics and threshold without adding a fixture o
   expect(source).toContain('!s.graphics.perfDebug.disableLightingPolish');
   expect(source).toContain('name={`pub-door-lamp:${lamp.id}`}');
   geometry.dispose();
+  material.dispose();
+});
+
+it('seats civic lanterns on delivered masonry and leaves their threshold beams unobstructed', async () => {
+  const material = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
+  const fixture = new THREE.Mesh(CIVIC_ENTRY_LANTERN_GEOMETRY, material);
+  const source = new THREE.Vector3(...CIVIC_ENTRY_SOURCE);
+  expect(
+    new THREE.Raycaster(source, new THREE.Vector3(0, -1, 0), 0, 4.4).intersectObject(fixture)
+  ).toHaveLength(0);
+  for (const building of ['church', 'school'] as const) {
+    const primitive = (await new NodeIO().read(`public/models/village/${building}.glb`))
+      .getRoot()
+      .listMeshes()[0]
+      .listPrimitives()[0];
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute(
+      'position',
+      new THREE.BufferAttribute(primitive.getAttribute('POSITION')!.getArray() as Float32Array, 3)
+    );
+    geometry.setIndex(
+      new THREE.BufferAttribute(primitive.getIndices()!.getArray() as Uint16Array, 1)
+    );
+    const mesh = new THREE.Mesh(geometry, material);
+    for (const lamp of CIVIC_ENTRY_LAMPS[building]) {
+      const mount = new THREE.Vector3(...lamp.mount);
+      const wall = new THREE.Raycaster(
+        mount.clone().add(new THREE.Vector3(0, 0, 0.08)),
+        new THREE.Vector3(0, 0, -1),
+        0,
+        0.14
+      ).intersectObject(mesh)[0];
+      expect(wall).toBeDefined();
+      expect(Math.abs(wall.point.z - mount.z)).toBeLessThan(0.0325);
+      const origin = mount.clone().add(source);
+      const threshold = new THREE.Vector3(
+        0,
+        building === 'church' ? 0.188 : 0.14988,
+        building === 'church' ? 6.25 : 3.8
+      );
+      const direction = threshold.clone().sub(origin);
+      expect(direction.length()).toBeLessThan(lamp.distance);
+      const hit = new THREE.Raycaster(
+        origin,
+        direction.normalize(),
+        0,
+        lamp.distance
+      ).intersectObject(mesh)[0];
+      expect(hit).toBeDefined();
+      expect(hit.point.distanceTo(threshold)).toBeLessThan(0.025);
+      fixture.position.copy(mount);
+      fixture.updateMatrixWorld();
+      expect(
+        new THREE.Raycaster(origin, direction, 0, lamp.distance).intersectObject(fixture)
+      ).toHaveLength(0);
+    }
+    geometry.dispose();
+  }
   material.dispose();
 });

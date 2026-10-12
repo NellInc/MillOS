@@ -48,6 +48,7 @@ import {
   VillageShopSign,
   FlourAndBarrelSign,
   PubSignLighting,
+  CivicEntryLighting,
 } from './scenery/VillageSignage';
 import { NaturalDuckPond } from './scenery/NaturalDuckPond';
 import {
@@ -814,6 +815,7 @@ const ChurchBuilding = React.memo<{
 }>(({ position, rotation = 0, isNight = false }) => (
   <group position={position} rotation={[0, rotation, 0]}>
     <GeneratedBody asset="church" fallback={<ChurchBuildingPrimitiveBody isNight={isNight} />} />
+    <CivicEntryLighting building="church" />
   </group>
 ));
 ChurchBuilding.displayName = 'ChurchBuilding';
@@ -1302,6 +1304,7 @@ const School = React.memo<{
   <group position={position} rotation={[0, rotation, 0]}>
     {/* Authored walls now meet the real ground datum; no buried turf disc. */}
     <GeneratedBody asset="school" fallback={<SchoolPrimitiveBody />} />
+    <CivicEntryLighting building="school" />
     <group position={[0, 5.23, 3.7]}>
       <VillageNameboard title="VILLAGE SCHOOL" width={4.4} height={0.68} colour="#354f59" />
     </group>
