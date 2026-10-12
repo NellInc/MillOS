@@ -282,11 +282,14 @@ export const MARKET_FRUIT_TEXTURES = (() => {
       const i = (y * size + x) * 4,
         u = (x - 32) / 223,
         v = (y - 32) / 223;
-      const cellX = Math.floor(u * 17),
-        cellY = Math.floor(v * 13);
+      const cellX = Math.floor(u * 8),
+        cellY = Math.floor(v * 6);
       const seed = Math.sin(cellX * 127.1 + cellY * 311.7) * 43758.5453;
       const chosen = seed - Math.floor(seed);
-      const spot = chosen > 0.57 && Math.hypot(u * 17 - cellX - 0.5, v * 13 - cellY - 0.5) < 0.14;
+      // Broad irregular russet patches survive the close-view mip instead of
+      // disappearing as sub-pixel pinpricks. Fine pores stay in the height map.
+      // Working if close fruit has visible peel detail and the white corner stays exact.
+      const spot = chosen > 0.67 && Math.hypot(u * 8 - cellX - 0.5, v * 6 - cellY - 0.5) < 0.22;
       const blush = 0.5 + 0.5 * Math.sin(u * Math.PI * 6 + Math.sin(v * Math.PI * 4));
       const grain = Math.sin(u * Math.PI * 78) * Math.sin(v * Math.PI * 66);
       const reserved = x < 32 || y < 32;
@@ -294,9 +297,9 @@ export const MARKET_FRUIT_TEXTURES = (() => {
         reserved
           ? [255, 255, 255, 255]
           : [
-              Math.round(235 + blush * 20 - (spot ? 22 : 0)),
-              Math.round(224 + blush * 28 - (spot ? 36 : 0)),
-              Math.round(204 + blush * 48 - (spot ? 39 : 0)),
+              Math.round(226 + blush * 29 - (spot ? 42 : 0)),
+              Math.round(220 + blush * 32 - (spot ? 47 : 0)),
+              Math.round(204 + blush * 48 - (spot ? 46 : 0)),
               255,
             ],
         i
@@ -372,6 +375,23 @@ function marketGoods(trade: number) {
     }
     g.computeVertexNormals();
     put(g, color, x, z, 0, true);
+    if (!pumpkin) {
+      // Ripening belongs to each apple, rather than a whole-stall tint. The
+      // existing colour attribute carries a seeded sun-side blush with no new
+      // geometry, texture, shader or shadow caster. All tray contacts stay exact.
+      // Working if green, russet and red apples retain individual peel variation.
+      const uv = g.getAttribute('uv');
+      const colours = g.getAttribute('color');
+      const base = new THREE.Color(color);
+      const blush = new THREE.Color(x === 0 ? '#c27a43' : '#ce7d50');
+      const shade = base.clone();
+      for (let i = 0; i < uv.count; i++) {
+        const side = Math.max(0, Math.cos(uv.getX(i) * Math.PI * 2 + x * 11.1 + z * 7.3));
+        const ripeness = side ** 3 * THREE.MathUtils.smoothstep(uv.getY(i), 0.18, 0.92) * 0.35;
+        shade.copy(base).lerp(blush, ripeness);
+        colours.setXYZ(i, shade.r, shade.g, shade.b);
+      }
+    }
     const y = MARKET_TRAY_FLOOR + 2 * r * (pumpkin ? 0.78 : 0.92) - 0.012;
     curve(
       [
@@ -449,7 +469,21 @@ function marketGoods(trade: number) {
   };
   if (trade === 0) {
     for (const x of [-0.3, 0, 0.3])
-      for (const dz of [-0.135, 0.135]) fruit(x, -0.83 + dz, 0.116, x < 0 ? '#b44f35' : '#b2813e');
+      for (const dz of [-0.135, 0.135]) {
+        const colour =
+          x < 0
+            ? dz < 0
+              ? '#aa432f'
+              : '#b9563a'
+            : x === 0
+              ? dz < 0
+                ? '#8e9e4b'
+                : '#a4ab61'
+              : dz < 0
+                ? '#a98946'
+                : '#ba9954';
+        fruit(x, -0.83 + dz, 0.116, colour);
+      }
     for (const z of [0, 0.83])
       for (const x of [-0.29, 0, 0.29]) for (const dz of [-0.14, 0.14]) cabbage(x, z + dz, 0.116);
   } else if (trade === 1) {

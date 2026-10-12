@@ -609,6 +609,21 @@ it('maps actual fruit rind in sRGB while preserving non-fruit goods and linear r
   }
   expect(rind).toBeGreaterThan(100);
   expect(plain).toBeGreaterThan(100);
+  const colours = AUTHORED_MARKET_GOODS[0].getAttribute('color');
+  const peelColours = new Set<string>();
+  for (let i = 0; i < apples.count; i++) {
+    if (apples.getX(i) >= 0.125) {
+      peelColours.add(
+        [colours.getX(i), colours.getY(i), colours.getZ(i)].map((v) => v.toFixed(4)).join(',')
+      );
+    }
+  }
+  expect(peelColours.size).toBeGreaterThan(30);
+  const patch = [];
+  for (let y = 32; y < 256; y++) for (let x = 32; x < 256; x++) patch.push(data[(y * 256 + x) * 4]);
+  expect(Math.min(...patch)).toBeLessThan(200);
+  expect(MARKET_FRUIT_TEXTURES.colour.image.width).toBe(256);
+  expect(MARKET_FRUIT_TEXTURES.finish.image.width).toBe(256);
 });
 
 it('varies only the real market red-cloth tile and its matching scallops, retaining atlas and geometry', async () => {
