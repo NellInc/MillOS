@@ -49,7 +49,8 @@ export function deriveDeliveryJourney(
       workspace: 'overview' as const,
       entryId: 'community-commitments',
     };
-  const finishedMaterial = order.recipe.finishedMaterial;
+  const product = order.recipe.label;
+  const qualityTarget = `Recipe quality target: ${order.recipe.minimumQuality}/100.`;
   if (!inspected)
     return {
       title: 'Inspect the line',
@@ -62,7 +63,7 @@ export function deriveDeliveryJourney(
   if (order.status === 'fulfilled')
     return {
       title: 'Delivery fulfilled',
-      detail: `${order.shippedKg.toFixed(0)} kg dispatched for ${order.customer} in recorded manifests. Your inspection and the delivery are separate receipts.`,
+      detail: `${order.shippedKg.toFixed(0)} kg of ${product} dispatched for ${order.customer} in recorded manifests. Your inspection and the delivery are separate receipts.`,
       workspace: 'overview' as const,
       entryId: 'community-commitments',
     };
@@ -76,20 +77,19 @@ export function deriveDeliveryJourney(
     };
   if (execution.stage === 'quality_hold')
     return {
-      title: `Check the ${finishedMaterial}`,
+      title: `Check ${product}`,
       view: 'Packing',
-      detail:
-        'Review the QC batch hold in Overview. Test the affected batch and release conforming output before loading.',
+      detail: `${qualityTarget} Review the QC batch hold in Overview. Test the affected batch and release conforming output before loading.`,
       workspace: 'overview' as const,
       entryId: 'batch-quality',
     };
   const load = execution.dispatchLoad;
-  const departureRule = `Only a departed manifest credits this customer; packed ${finishedMaterial} alone does not.`;
+  const departureRule = `Only a departed manifest credits this customer; packed ${product} alone does not.`;
   if (execution.stage === 'ready_to_load')
     return {
       title: 'Ready for the shipping truck',
       view: 'Shipping',
-      detail: `${load.blockReason ?? `${execution.releasedFinishedKg.toFixed(0)} kg of released ${finishedMaterial} is waiting at shipping.`} ${departureRule}`,
+      detail: `${load.blockReason ?? `${execution.releasedFinishedKg.toFixed(0)} kg of released ${product} is waiting at shipping.`} ${qualityTarget} ${departureRule}`,
       workspace: 'scada',
       entryId: 'autonomous-logistics',
     };
@@ -97,7 +97,7 @@ export function deriveDeliveryJourney(
     return {
       title: execution.stage === 'loading' ? 'Loading the shipping truck' : 'Ready to depart',
       view: 'Shipping',
-      detail: `${load.blockReason ?? (execution.stage === 'loading' ? 'Follow the pallets from the packing line to the docked truck.' : 'The outbound load is ready. Watch its departure from the shipping bay.')} ${departureRule}`,
+      detail: `${load.blockReason ?? (execution.stage === 'loading' ? 'Follow the pallets from the packing line to the docked truck.' : 'The outbound load is ready. Watch its departure from the shipping bay.')} ${qualityTarget} ${departureRule}`,
       workspace: 'scada',
       entryId: 'autonomous-logistics',
       // Truck capacity is distinct from the customer's full commitment.
@@ -108,7 +108,7 @@ export function deriveDeliveryJourney(
     return {
       title: 'Truck departed',
       view: 'Shipping',
-      detail: `${load.lastDispatchKg.toFixed(0)} kg left the shipping bay. Customer receipt: ${order.shippedKg.toFixed(0)} / ${order.requiredKg.toFixed(0)} kg for ${order.customer}. ${departureRule}`,
+      detail: `${load.lastDispatchKg.toFixed(0)} kg left the shipping bay. Customer receipt: ${order.shippedKg.toFixed(0)} / ${order.requiredKg.toFixed(0)} kg for ${order.customer}. ${qualityTarget} ${departureRule}`,
       workspace: 'scada',
       entryId: 'autonomous-logistics',
     };
@@ -118,7 +118,7 @@ export function deriveDeliveryJourney(
   const grain = order.recipe.sourceMaterial.replace('_', ' ');
   // This is the campaign recipe's quality score, never a physical assay or yield.
   // Working if each selected recipe names its own release threshold read-only.
-  const quality = `Recipe quality target: ${order.recipe.minimumQuality}/100. Conforming output must pass QC before loading.`;
+  const quality = `${qualityTarget} Conforming output must pass QC before loading.`;
   // Customer switching retains the previous execution snapshot until a tick.
   // Working if paused preparation names the recipe without claiming stale stock.
   if (execution.stage === 'planning')
@@ -132,7 +132,7 @@ export function deriveDeliveryJourney(
   return {
     title: 'Follow the grain',
     view: 'Milling',
-    detail: `Source inventory: ${execution.sourceInventoryKg.toFixed(0)} kg of ${grain}. Line setpoint: ${execution.lineSetpointPercent.toFixed(0)}%. Released ${finishedMaterial}: ${execution.releasedFinishedKg.toFixed(0)} kg. ${quality} Open operations to review the recipe, buffers and any shortage.`,
+    detail: `Source inventory: ${execution.sourceInventoryKg.toFixed(0)} kg of ${grain}. Line setpoint: ${execution.lineSetpointPercent.toFixed(0)}%. Released ${product}: ${execution.releasedFinishedKg.toFixed(0)} kg. ${quality} Open operations to review the recipe, buffers and any shortage.`,
     workspace: 'scada' as const,
     entryId: 'autonomous-material-flow',
   };

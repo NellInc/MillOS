@@ -19,7 +19,12 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import Fireflies from './effects/Fireflies';
 import { Cat } from './scenery/Cat';
-import { AuthoredPropTrim, MarketGoods } from './scenery/AuthoredPropTrim';
+import {
+  AuthoredPropTrim,
+  MarketGoods,
+  MARKET_TRADE_NAMES,
+  MARKET_TRADE_PAINT,
+} from './scenery/AuthoredPropTrim';
 import {
   InstancedTreeField,
   InstancedGrassClutter,
@@ -1932,6 +1937,17 @@ const MarketStall = React.memo<{
     <GeneratedBoundary fallback={<MarketStallPrimitiveBody color1={color1} color2={color2} />}>
       <GeneratedModel asset="marketstall" marketDressing={dressing} />
       <AuthoredPropTrim kind="market" dressing={dressing} />
+      <Text
+        name={`market-trade-label-${dressing}`}
+        {...MARKET_TRADE_PAINT}
+        surface="painted"
+        anchorX="center"
+        anchorY="middle"
+        castShadow={false}
+        receiveShadow
+      >
+        {MARKET_TRADE_NAMES[dressing] ?? 'Market'}
+      </Text>
     </GeneratedBoundary>
     {/* INSIDE the yawed group, so the goods turn with the counter they stand
         on. Outside it they would slide off the table by up to 0.1 m at the

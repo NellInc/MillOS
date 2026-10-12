@@ -326,6 +326,28 @@ export function canalMooringCurve(line: (typeof CANAL_MOORING_LINES)[number]) {
   return new THREE.QuadraticBezierCurve3(start, middle, end);
 }
 
+/** A restrained cord lay in the retained tube's albedo, sampled along metres.
+ * Working if the seam closes, actual colour varies and every shape/normal/UV/
+ * index stays exact. No map, shader, extra draw or animation is introduced.
+ */
+export function canalMooringGeometry(line: (typeof CANAL_MOORING_LINES)[number]) {
+  const curve = canalMooringCurve(line);
+  const geometry = new THREE.TubeGeometry(curve, 14, 0.023, 5, false);
+  const uv = geometry.getAttribute('uv'),
+    base = new THREE.Color('#af9970'),
+    values = new Float32Array(uv.count * 3),
+    length = curve.getLength();
+  for (let i = 0; i < uv.count; i++) {
+    const phase = Math.PI * 2 * (uv.getY(i) + (uv.getX(i) * length) / 0.6);
+    const tone = 0.96 + Math.cos(phase) * 0.12;
+    values[i * 3] = base.r * tone;
+    values[i * 3 + 1] = base.g * tone;
+    values[i * 3 + 2] = base.b * tone;
+  }
+  geometry.setAttribute('color', new THREE.BufferAttribute(values, 3));
+  return geometry;
+}
+
 export function createWorldRealm(segments: number) {
   const ground: Ground = (x, z) =>
     EXTERIOR_LAYERS.ground + sampleTerrainGroundHeight(x, z, segments);
@@ -452,7 +474,7 @@ export function createWorldRealm(segments: number) {
       solid.round([-151.1 + side * 0.19, 1.049, z], [0.035, 0.018, 0.035], P.iron);
   }
   for (const line of CANAL_MOORING_LINES) {
-    solid.add(new THREE.TubeGeometry(canalMooringCurve(line), 14, 0.023, 5, false), '#af9970');
+    solid.parts.push(canalMooringGeometry(line));
   }
   return { paving: paving.finish(), solid: solid.finish() };
 }

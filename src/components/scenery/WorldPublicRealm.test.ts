@@ -10,6 +10,7 @@ import {
   REALM_PAVING_MATERIAL,
   CANAL_MOORING_LINES,
   canalMooringCurve,
+  canalMooringGeometry,
 } from './WorldPublicRealm';
 import {
   CANAL_FOOTBRIDGE_ACCESS as BRIDGE,
@@ -36,6 +37,31 @@ const ray = (geometry: THREE.BufferGeometry, p: number[], d: number[], far = 100
   );
 
 describe('world public realm', () => {
+  it('adds continuous cord lay while preserving exact mooring tube buffers', () => {
+    for (const line of CANAL_MOORING_LINES) {
+      const original = new THREE.TubeGeometry(canalMooringCurve(line), 14, 0.023, 5, false);
+      const finished = canalMooringGeometry(line);
+      for (const name of ['position', 'normal', 'uv'])
+        expect(finished.getAttribute(name).array).toEqual(original.getAttribute(name).array);
+      expect(finished.index!.array).toEqual(original.index!.array);
+      expect(finished.groups).toEqual(original.groups);
+      const colour = finished.getAttribute('color');
+      expect(colour.count).toBe(90);
+      expect(
+        new Set(Array.from(colour.array).map((v) => Math.round(v * 1e5))).size
+      ).toBeGreaterThan(12);
+      expect(Array.from(colour.array).every((v) => v > 0 && v < 1)).toBe(true);
+      for (let row = 0; row <= 14; row++)
+        for (let channel = 0; channel < 3; channel++)
+          expect(colour.array[row * 6 * 3 + channel]).toBeCloseTo(
+            colour.array[(row * 6 + 5) * 3 + channel],
+            6
+          );
+      original.dispose();
+      finished.dispose();
+    }
+  });
+
   it('joins the café serving frontage and existing seating to the pond approach', () => {
     const court = WORLD_REALM_PATCHES.find((p) => p.x === -108)!;
     for (const [x, z] of [

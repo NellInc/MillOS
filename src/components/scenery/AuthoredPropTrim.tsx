@@ -264,6 +264,21 @@ export const AuthoredPropTrim = React.memo<{
 ));
 AuthoredPropTrim.displayName = 'AuthoredPropTrim';
 
+/** Literal identities of the four authored stock dressings, never prices or
+ * earned inventory. Working if each actual pitch keeps its own trade name.
+ */
+export const MARKET_TRADE_NAMES = ['Greengrocer', 'Cheesemonger', 'Bread & Rolls', 'Farm Harvest'];
+// Measured delivered central tray, front +X: x=.5134, y=.9297..1.104, z=+/- .322.
+// One millimetre of paint stand-off and clear margins retain the source board.
+export const MARKET_TRADE_PAINT = {
+  position: [0.5144, 1.016, 0] as [number, number, number],
+  rotation: [0, Math.PI / 2, 0] as [number, number, number],
+  fontSize: 0.061,
+  maxWidth: 0.59,
+  color: '#243e37',
+  outlineWidth: 0.0012,
+};
+
 /** Three tray floors on the delivered structural stall. Each trade owns its
  * complete stock, instead of overlaying different goods on baked green spheres.
  * Working if every visible product is seated above this measured surface and

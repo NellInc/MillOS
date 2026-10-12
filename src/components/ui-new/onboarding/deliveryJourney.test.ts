@@ -49,14 +49,30 @@ describe('guided delivery evidence', () => {
       };
       expect(
         deriveDeliveryJourney(order, { ...execution, stage: 'quality_hold' }, true).title
-      ).toBe(`Check the ${material}`);
+      ).toBe(`Check ${order.recipe.label}`);
       expect(
         deriveDeliveryJourney(order, { ...execution, stage: 'loading' }, true).detail
-      ).toContain(`packed ${material}`);
+      ).toContain(`packed ${order.recipe.label}`);
       expect(
         deriveDeliveryJourney(order, { ...execution, stage: 'milling' }, true).detail
-      ).toContain(`Released ${material}: 456 kg`);
+      ).toContain(`Released ${order.recipe.label}: 456 kg`);
       const before = useOperationsCampaignStore.getState();
+      for (const stage of [
+        'quality_hold',
+        'ready_to_load',
+        'loading',
+        'ready_to_dispatch',
+        'dispatched',
+      ] as const) {
+        const step = deriveDeliveryJourney(order, { ...execution, stage }, true);
+        expect(step.detail).toContain(`Recipe quality target: ${order.recipe.minimumQuality}/100`);
+        if (stage !== 'quality_hold')
+          expect(step.detail).toContain('Only a departed manifest credits this customer');
+      }
+      expect(
+        deriveDeliveryJourney(order, { ...execution, stage: 'quality_hold' }, true).detail
+      ).toContain('Test the affected batch and release conforming output before loading.');
+
       const milling = deriveDeliveryJourney(order, { ...execution, stage: 'milling' }, true);
       expect(milling.detail).toContain(
         `12346 kg of ${order.recipe.sourceMaterial.replace('_', ' ')}`

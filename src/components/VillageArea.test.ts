@@ -11,6 +11,8 @@ import {
   AUTHORED_MARKET_GOODS,
   AUTHORED_MARKET_TRIM_VARIANTS,
   MARKET_CANVAS_COLOURS,
+  MARKET_TRADE_NAMES,
+  MARKET_TRADE_PAINT,
   createMarketCanopyGeometry,
   MARKET_TRAY_FLOOR,
   MARKET_GOODS_MATERIAL,
@@ -264,6 +266,45 @@ describe('measured village and farm construction trim', () => {
       0,
       far
     ).intersectObjects(objects)[0];
+
+  it('fits four literal trade names on the delivered central tray face', async () => {
+    expect(new Set(MARKET_TRADE_NAMES).size).toBe(4);
+    expect(MARKET_TRADE_NAMES).toEqual([
+      'Greengrocer',
+      'Cheesemonger',
+      'Bread & Rolls',
+      'Farm Harvest',
+    ]);
+    const doc = await new NodeIO().read('public/models/village/marketstall.glb');
+    const primitive = doc.getRoot().listMeshes()[0].listPrimitives()[0];
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute(
+      'position',
+      new THREE.BufferAttribute(primitive.getAttribute('POSITION')!.getArray()!, 3)
+    );
+    geometry.setIndex(new THREE.BufferAttribute(primitive.getIndices()!.getArray()!, 1));
+    for (const z of [-MARKET_TRADE_PAINT.maxWidth / 2, 0, MARKET_TRADE_PAINT.maxWidth / 2]) {
+      const point = hit(
+        [mesh(geometry)],
+        [1.2, MARKET_TRADE_PAINT.position[1], z],
+        [-1, 0, 0]
+      ).point;
+      expect(point.x).toBeCloseTo(0.5134, 4);
+      expect(MARKET_TRADE_PAINT.position[0] - point.x).toBeGreaterThan(0.0008);
+      expect(MARKET_TRADE_PAINT.position[0] - point.x).toBeLessThan(0.0012);
+    }
+    expect(MARKET_TRADE_PAINT.rotation).toEqual([0, Math.PI / 2, 0]);
+    expect(MARKET_TRADE_PAINT.fontSize).toBeLessThan(0.08);
+    const source = readFileSync('src/components/VillageArea.tsx', 'utf8');
+    const stall = source.slice(
+      source.indexOf('const MarketStall ='),
+      source.indexOf('MarketStall.displayName =')
+    );
+    expect(stall).toContain('surface="painted"');
+    expect(stall).toContain('castShadow={false}');
+    expect(stall).toContain('MARKET_TRADE_NAMES[dressing]');
+    geometry.dispose();
+  });
 
   it('uses four finite, closed, single-draw geometries within the detail budget', () => {
     const limits = { market: 1000, fountain: 900, fence: 600, trough: 300 };
