@@ -16,7 +16,11 @@ import {
   SHOP_JOINERY_COLOURS,
   VILLAGE_INTERIOR_STRENGTH,
 } from './GeneratedOfficeModel';
-import { applyBoatPortholes, BOAT_INTERIOR_STRENGTH } from './GeneratedBoatModel';
+import {
+  applyBoatPortholes,
+  BOAT_INTERIOR_STRENGTH,
+  BOAT_PAINT_STRENGTH,
+} from './GeneratedBoatModel';
 import { applyLampLens, LAMP_LENS_HEIGHTS } from './GeneratedLampModel';
 import { EXTERIOR_LAMP_LENS_MATERIAL } from '../exterior/ExteriorLighting';
 import { WORKSHOP_GLAZING } from '../TruckBay';
@@ -28,7 +32,8 @@ function compile(apply: (material: THREE.MeshStandardMaterial, night: { value: n
   const shader = {
     uniforms: {},
     vertexShader: '#include <begin_vertex>',
-    fragmentShader: '#include <emissivemap_fragment>',
+    fragmentShader:
+      '#include <color_fragment>\n#include <roughnessmap_fragment>\n#include <emissivemap_fragment>',
   } as Parameters<typeof material.onBeforeCompile>[0];
   material.onBeforeCompile(shader, {} as THREE.WebGLRenderer);
   // The night flag is bound by reference, so a day/night flip needs no rebuild.
@@ -116,7 +121,8 @@ it('binds the actual shared workshop glass to pane rooms without domestic curtai
   const shader = {
     uniforms: {},
     vertexShader: '#include <begin_vertex>',
-    fragmentShader: '#include <emissivemap_fragment>',
+    fragmentShader:
+      '#include <color_fragment>\n#include <roughnessmap_fragment>\n#include <emissivemap_fragment>',
   } as Parameters<typeof WORKSHOP_GLAZING.onBeforeCompile>[0];
   WORKSHOP_GLAZING.onBeforeCompile(shader, {} as THREE.WebGLRenderer);
   expect(WORKSHOP_GLAZING.name).toBe('maintenance-workshop-glazing');
@@ -151,7 +157,8 @@ it('generated lanterns use the existing live dusk/weather driver without rebuild
     const shader = {
       uniforms: {},
       vertexShader: '#include <begin_vertex>',
-      fragmentShader: '#include <emissivemap_fragment>',
+      fragmentShader:
+        '#include <color_fragment>\n#include <roughnessmap_fragment>\n#include <emissivemap_fragment>',
     } as Parameters<typeof material.onBeforeCompile>[0];
     material.onBeforeCompile(shader, {} as THREE.WebGLRenderer);
     EXTERIOR_LAMP_LENS_MATERIAL.emissiveIntensity = 0.25;
@@ -181,7 +188,8 @@ for (const style of ['modern', 'victorian'] as const) {
     const shader = {
       uniforms: {},
       vertexShader: '#include <begin_vertex>',
-      fragmentShader: '#include <emissivemap_fragment>',
+      fragmentShader:
+        '#include <color_fragment>\n#include <roughnessmap_fragment>\n#include <emissivemap_fragment>',
     } as Parameters<typeof material.onBeforeCompile>[0];
     material.onBeforeCompile(shader, {} as THREE.WebGLRenderer);
     expect(shader.uniforms.lampLensHeights.value.toArray()).toEqual([low, high]);
@@ -257,7 +265,8 @@ it('uses the actual standalone home UVs and pub amber tile without treating a la
     const shader = {
       uniforms: {},
       vertexShader: '#include <begin_vertex>',
-      fragmentShader: '#include <emissivemap_fragment>',
+      fragmentShader:
+        '#include <color_fragment>\n#include <roughnessmap_fragment>\n#include <emissivemap_fragment>',
     } as Parameters<typeof material.onBeforeCompile>[0];
     material.onBeforeCompile(shader, {} as THREE.WebGLRenderer);
     expect(shader.uniforms.villageAtlas.value).toBe(atlas);
@@ -275,7 +284,8 @@ it('retains forge workrooms without domestic curtains or a new shader variant', 
   const shader = {
     uniforms: {},
     vertexShader: '#include <begin_vertex>',
-    fragmentShader: '#include <emissivemap_fragment>',
+    fragmentShader:
+      '#include <color_fragment>\n#include <roughnessmap_fragment>\n#include <emissivemap_fragment>',
   } as Parameters<typeof material.onBeforeCompile>[0];
   material.onBeforeCompile(shader, {} as THREE.WebGLRenderer);
   expect(shader.uniforms.villageCurtains.value).toBe(0);
@@ -290,7 +300,8 @@ it('keeps church stained glass out of domestic room replacement', () => {
   const shader = {
     uniforms: {},
     vertexShader: '#include <begin_vertex>',
-    fragmentShader: '#include <emissivemap_fragment>',
+    fragmentShader:
+      '#include <color_fragment>\n#include <roughnessmap_fragment>\n#include <emissivemap_fragment>',
   } as Parameters<typeof material.onBeforeCompile>[0];
   material.onBeforeCompile(shader, {} as THREE.WebGLRenderer);
   expect(shader.uniforms.villageCurtains.value).toBe(0);
@@ -310,7 +321,8 @@ it('uses the castle glass tile and its delivered padding with the same room shad
   const shader = {
     uniforms: {},
     vertexShader: '#include <begin_vertex>',
-    fragmentShader: '#include <emissivemap_fragment>',
+    fragmentShader:
+      '#include <color_fragment>\n#include <roughnessmap_fragment>\n#include <emissivemap_fragment>',
   } as Parameters<typeof material.onBeforeCompile>[0];
   material.onBeforeCompile(shader, {} as THREE.WebGLRenderer);
   expect(shader.uniforms.villageTileOrigin.value.toArray()).toEqual([0.75, 0.75]);
@@ -365,7 +377,8 @@ it('keeps the delivered cut upper storey separate from the four-storey pane heig
     const shader = {
       uniforms: {},
       vertexShader: '#include <begin_vertex>',
-      fragmentShader: '#include <emissivemap_fragment>',
+      fragmentShader:
+        '#include <color_fragment>\n#include <roughnessmap_fragment>\n#include <emissivemap_fragment>',
     } as Parameters<typeof material.onBeforeCompile>[0];
     material.onBeforeCompile(shader, {} as THREE.WebGLRenderer);
     expect(shader.uniforms.apartmentFloorLow.value.z).toBe(floors === 3 ? 0.01059 : 0.01663);
@@ -459,7 +472,8 @@ it('composes the castle-only paving finish with the existing shared room dimmer 
   const shader = {
     uniforms: {},
     vertexShader: '#include <begin_vertex>',
-    fragmentShader: '#include <emissivemap_fragment>',
+    fragmentShader:
+      '#include <color_fragment>\n#include <roughnessmap_fragment>\n#include <emissivemap_fragment>',
   } as Parameters<typeof material.onBeforeCompile>[0];
   material.onBeforeCompile(shader, {} as THREE.WebGLRenderer);
   expect(shader.uniforms.villageNight).toBe(night);
@@ -506,7 +520,8 @@ it('shares the forge schedule and confines coal emission to the delivered firebo
   const shader = {
     uniforms: {},
     vertexShader: '#include <begin_vertex>',
-    fragmentShader: '#include <emissivemap_fragment>',
+    fragmentShader:
+      '#include <color_fragment>\n#include <roughnessmap_fragment>\n#include <emissivemap_fragment>',
   } as Parameters<typeof material.onBeforeCompile>[0];
   material.onBeforeCompile(shader, {} as THREE.WebGLRenderer);
   expect(material.customProgramCacheKey()).toContain('millos-authored-village-windows-v6');
@@ -542,4 +557,31 @@ it('shares the forge schedule and confines coal emission to the delivered firebo
   for (const i of selected) expect(positions[i * 3 + 2]).toBeCloseTo(2.429119, 5);
   const source = readFileSync('src/components/VillageArea.tsx', 'utf8');
   expect(source).toContain("if (kind === 'forge') FORGE_HEAT_LEVEL.value = level");
+});
+
+it('finishes only the actual boat paint slots, filtering detail without changing cabin lighting', async () => {
+  const shader = compile(applyBoatPortholes);
+  expect(shader.uniforms.boatPaintStrength).toBe(BOAT_PAINT_STRENGTH);
+  expect(shader.fragmentShader).toContain('paintMetres.x * 33.07');
+  expect(shader.fragmentShader).toContain('fwidth(paintMetres.x)');
+  expect(shader.fragmentShader).toContain(
+    'roughnessFactor + (0.035 + brushLay * 0.018) * paintStrength'
+  );
+  const doc = await new NodeIO().read('public/models/world/canal-boat.glb');
+  const uv = doc.getRoot().listMeshes()[0].listPrimitives()[0].getAttribute('TEXCOORD_0')!;
+  const selected = new Set([4, 5, 14, 15]);
+  let paint = 0,
+    excluded = 0;
+  for (let i = 0; i < uv.getCount(); i++) {
+    const [u, v] = uv.getElement(i, []);
+    const slot = Math.floor(u * 4) + Math.floor(v * 4) * 4;
+    if (selected.has(slot)) paint++;
+    else excluded++;
+  }
+  expect(paint).toBe(932);
+  expect(excluded).toBeGreaterThan(10000);
+  for (const protectedSlot of [0, 3, 6, 10]) expect(selected.has(protectedSlot)).toBe(false);
+  const source = readFileSync('src/components/models/GeneratedBoatModel.tsx', 'utf8');
+  expect(source).not.toMatch(/TextureLoader|<(?:pointLight|spotLight)|useFrame/);
+  expect(source).toContain("'millos-authored-boat-portholes-v5'");
 });

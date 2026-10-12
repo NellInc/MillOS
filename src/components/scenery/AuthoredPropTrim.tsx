@@ -273,6 +273,14 @@ export const MARKET_TRAY_FLOOR = 0.9422;
 // Shared rind atlas: sRGB albedo, linear height/roughness. The reserved white
 // corner keeps bread, stems, trays and other trades unchanged in the same draw.
 // Working if only fruit UVs reach the mottled patch and all surfaces stay batched.
+// Three 68 x 24 px finish islands in the formerly unused top strip. Four-pixel
+// gutters retain the exact white corner; the original fruit rectangle is untouched.
+// Working if food UVs remain inside their island and fruit bytes remain exact.
+export const MARKET_FOOD_TILES = {
+  crust: [36, 104],
+  leaf: [110, 178],
+  rind: [184, 252],
+} as const;
 export const MARKET_FRUIT_TEXTURES = (() => {
   const size = 256,
     colour = new Uint8Array(size * size * 4),
@@ -312,6 +320,36 @@ export const MARKET_FRUIT_TEXTURES = (() => {
         i
       );
     }
+  for (const [kind, [left, right]] of Object.entries(MARKET_FOOD_TILES)) {
+    for (let y = 0; y < 32; y++)
+      for (let x = left - 3; x < Math.min(size, right + 3); x++) {
+        // Extend edge texels into each gutter, avoiding dark atlas seams.
+        const u = (THREE.MathUtils.clamp(x, left, right - 1) - left) / (right - left - 1);
+        const v = (THREE.MathUtils.clamp(y, 4, 27) - 4) / 23;
+        const patch = 0.5 + 0.5 * Math.sin(u * 18 + Math.sin(v * 9)) * Math.cos(v * 13);
+        const vein = Math.exp(-Math.abs(Math.sin(u * 9 + Math.sin(v * 6) * 0.45)) * 5);
+        const crust = kind === 'crust',
+          leaf = kind === 'leaf';
+        const tone = leaf ? 229 + vein * 26 : crust ? 231 + patch * 24 : 239 + patch * 16;
+        const i = (y * size + x) * 4;
+        colour.set(
+          [
+            Math.round(tone),
+            Math.round(tone - (crust ? 9 : 0)),
+            Math.round(tone - (crust ? 18 : leaf ? 3 : 8)),
+            255,
+          ],
+          i
+        );
+        const roughness = Math.round(
+          leaf ? 213 - vein * 15 : crust ? 240 - patch * 10 : 188 - patch * 12
+        );
+        finish.set(
+          [Math.round(128 + (leaf ? vein * 5 : (patch - 0.5) * 9)), roughness, roughness, 255],
+          i
+        );
+      }
+  }
   return {
     colour: createColorDataTexture(colour, size, size),
     finish: createLinearDataTexture(finish, size, size),
@@ -344,7 +382,13 @@ function marketGoods(trade: number) {
   // Finish the existing food surface through its shared colour attribute.
   // Working if crust, leaves and rind vary while neutral UVs, stock shapes and
   // all baked caster triangles stay exact; no texture or draw is added.
-  const foodFinish = (g: THREE.BufferGeometry, lower: string, upper: string) => {
+  const foodFinish = (
+    g: THREE.BufferGeometry,
+    lower: string,
+    upper: string,
+    finish: keyof typeof MARKET_FOOD_TILES
+  ) => {
+    g.userData.marketFood = finish;
     g.computeBoundingBox();
     const p = g.getAttribute('position'),
       colours = g.getAttribute('color');
@@ -439,13 +483,13 @@ function marketGoods(trade: number) {
   const cabbage = (x: number, z: number, r: number) => {
     const core = new THREE.SphereGeometry(r, 14, 10);
     put(core, '#879752', x, z);
-    foodFinish(core, '#5b7149', '#a2b079');
+    foodFinish(core, '#5b7149', '#a2b079', 'leaf');
     for (let i = 0; i < 5; i++) {
       const angle = (i * Math.PI * 2) / 5;
       const g = new THREE.SphereGeometry(r * 1.03, 10, 7, -0.52, 1.04, 0.65, 1.65);
       g.rotateY(angle).translate(x, MARKET_TRAY_FLOOR + r, z);
       parts.push(colored(g, i % 2 ? '#738449' : '#9ca66b'));
-      foodFinish(g, i % 2 ? '#516342' : '#657c4a', '#a3b17c');
+      foodFinish(g, i % 2 ? '#516342' : '#657c4a', '#a3b17c', 'leaf');
       const pts: [number, number, number][] = [];
       for (let j = 0; j <= 6; j++) {
         const t = 0.69 + j * 0.21;
@@ -468,10 +512,11 @@ function marketGoods(trade: number) {
       [0, 0.115],
     ]);
     put(body, '#c49a48', x, z, lift);
-    foodFinish(body, '#ac7d39', '#dfc78a');
+    foodFinish(body, '#ac7d39', '#dfc78a', 'rind');
     const band = new THREE.CylinderGeometry(r * 1.005, r * 1.005, 0.044, 16, 1, true);
     band.translate(x, MARKET_TRAY_FLOOR + lift + 0.056, z);
     parts.push(colored(band, '#debf77'));
+    band.userData.marketFood = 'rind';
   };
   const loaf = (x: number, z: number, round = false) => {
     const r = round ? 0.084 : 0.092;
@@ -480,7 +525,7 @@ function marketGoods(trade: number) {
       : new THREE.CapsuleGeometry(r, 0.096, 5, 12).rotateX(Math.PI / 2);
     g.scale(1, 0.78, 1);
     put(g, round ? '#b98851' : '#ae7640', x, z);
-    foodFinish(g, round ? '#996334' : '#88532c', round ? '#d1ac74' : '#c79c64');
+    foodFinish(g, round ? '#996334' : '#88532c', round ? '#d1ac74' : '#c79c64', 'crust');
     const top = MARKET_TRAY_FLOOR + r * 1.56;
     for (const dz of round ? [0] : [-0.065, 0.025, 0.1]) {
       const pts: [number, number, number][] = [];
@@ -536,7 +581,7 @@ function marketGoods(trade: number) {
       });
       wedge.rotateX(-Math.PI / 2);
       put(wedge, '#dfbd69', x, z);
-      foodFinish(wedge, '#c6a054', '#ead197');
+      foodFinish(wedge, '#c6a054', '#ead197', 'rind');
       for (let j = 0; j < 3; j++) {
         const dot = new THREE.CircleGeometry(0.009 + j * 0.002, 8)
           .rotateX(-Math.PI / 2)
@@ -645,7 +690,15 @@ function marketGoods(trade: number) {
     for (let i = 0; i < uv.count; i++) {
       if (part.userData.marketFruit)
         uv.setXY(i, 0.125 + uv.getX(i) * 0.871, 0.125 + uv.getY(i) * 0.871);
-      else uv.setXY(i, 0.03125, 0.03125);
+      else if (part.userData.marketFood) {
+        const [left, right] =
+          MARKET_FOOD_TILES[part.userData.marketFood as keyof typeof MARKET_FOOD_TILES];
+        uv.setXY(
+          i,
+          (left + 0.5 + THREE.MathUtils.clamp(uv.getX(i), 0, 1) * (right - left - 1)) / 256,
+          (4.5 + THREE.MathUtils.clamp(uv.getY(i), 0, 1) * 23) / 256
+        );
+      } else uv.setXY(i, 0.03125, 0.03125);
     }
   }
   return joined(parts);

@@ -7,6 +7,9 @@ import { EXTERIOR_LAMP_LEVEL } from '../exterior/ExteriorLighting';
 
 /** One live dimmer and one diagnostic strength, with no extra texture or light. */
 export const BOAT_INTERIOR_STRENGTH = { value: 1 };
+// Existing hook, rest-space metres, no map, geometry or light added.
+// Working if finish follows the hull and brass, roses, teak and glass stay exact.
+export const BOAT_PAINT_STRENGTH = { value: 1 };
 
 /**
  * Cabin glass occupies atlas slot 10. The eight portholes, four door panes, brass
@@ -17,6 +20,7 @@ export function applyBoatPortholes(material: THREE.MeshStandardMaterial, night: 
   material.onBeforeCompile = (shader) => {
     shader.uniforms.boatNight = night;
     shader.uniforms.boatInteriorStrength = BOAT_INTERIOR_STRENGTH;
+    shader.uniforms.boatPaintStrength = BOAT_PAINT_STRENGTH;
     shader.uniforms.boatLinen = { value: new THREE.Color('#e8dbc0') };
     shader.uniforms.boatWall = { value: new THREE.Color('#ba946b') };
     shader.uniforms.boatTimber = { value: new THREE.Color('#62432f') };
@@ -39,13 +43,41 @@ export function applyBoatPortholes(material: THREE.MeshStandardMaterial, night: 
       varying vec3 vBoatAxisZ;
       uniform float boatNight;
       uniform float boatInteriorStrength;
+      uniform float boatPaintStrength;
       uniform vec3 boatLinen;
       uniform vec3 boatWall;
       uniform vec3 boatTimber;
       uniform vec3 boatRoomLight;
-      ${shader.fragmentShader}`.replace(
-      '#include <emissivemap_fragment>',
-      `#include <emissivemap_fragment>
+      ${shader.fragmentShader}`
+      .replace(
+        '#include <color_fragment>',
+        `#include <color_fragment>
+       // Actual glTF UV slots: cream 4, green 5, burgundy 14, navy hull 15.
+       // Explicit identity prevents finish on the portholes, brass and roses.
+       vec2 paintTile = floor(vBoatUV * 4.0);
+       float paintSlot = paintTile.x + paintTile.y * 4.0;
+       float boatPaint = (1.0 - step(0.5, abs(paintSlot - 4.0)))
+         + (1.0 - step(0.5, abs(paintSlot - 5.0)))
+         + (1.0 - step(0.5, abs(paintSlot - 14.0)))
+         + (1.0 - step(0.5, abs(paintSlot - 15.0)));
+       float roofPaint = 1.0 - step(0.5, abs(paintSlot - 4.0));
+       vec2 paintMetres = vec2(mix(vBoatPosition.y, vBoatPosition.x, roofPaint), vBoatPosition.z);
+       // A 19 cm brush lay, with no pixel-scale stipple. Derivatives fade the
+       // term before its period becomes smaller than a few screen pixels.
+       float paintFilter = 1.0 - smoothstep(0.025, 0.065, max(fwidth(paintMetres.x), fwidth(paintMetres.y)));
+       float brushLay = sin(paintMetres.x * 33.07 + sin(paintMetres.y * 2.7) * 0.6);
+       float paintDrift = sin(paintMetres.y * 3.1 + paintMetres.x * 1.7);
+       float paintStrength = clamp(boatPaintStrength, 0.0, 1.0) * boatPaint * paintFilter;
+       diffuseColor.rgb *= 1.0 + (brushLay * 0.027 + paintDrift * 0.019) * paintStrength;`
+      )
+      .replace(
+        '#include <roughnessmap_fragment>',
+        `#include <roughnessmap_fragment>
+       roughnessFactor = clamp(roughnessFactor + (0.035 + brushLay * 0.018) * paintStrength, 0.0, 1.0);`
+      )
+      .replace(
+        '#include <emissivemap_fragment>',
+        `#include <emissivemap_fragment>
        // Atlas identity excludes hull, roof, roses and brass regardless of
        // albedo or illumination. The four end panes share the same occupied cabin.
        float glassTile = step(0.50, vBoatUV.x) * (1.0 - step(0.75, vBoatUV.x))
@@ -101,9 +133,9 @@ export function applyBoatPortholes(material: THREE.MeshStandardMaterial, night: 
          totalEmissiveRadiance += boatRoomLight * (room * 0.75 + vec3(lamp * 0.55))
            * boatNight * strength;
        }`
-    );
+      );
   };
-  material.customProgramCacheKey = () => 'millos-authored-boat-portholes-v4';
+  material.customProgramCacheKey = () => 'millos-authored-boat-portholes-v5';
 }
 
 export function GeneratedBoatModel() {

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { NodeIO } from '@gltf-transform/core';
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
@@ -14,6 +15,7 @@ import {
   MARKET_TRAY_FLOOR,
   MARKET_GOODS_MATERIAL,
   MARKET_FRUIT_TEXTURES,
+  MARKET_FOOD_TILES,
   AUTHORED_PROP_TRIM_MATERIALS,
   FOUNTAIN_SETT_TOP,
   FOUNTAIN_SETT_DEPTH_LAYER,
@@ -591,7 +593,7 @@ it('keeps the civic benches clear of the restored broad town hall and all villag
   }
 });
 
-it('maps actual fruit rind in sRGB while preserving non-fruit goods and linear roughness', () => {
+it('maps actual fruit and food finishes in sRGB with neutral furnishings and linear roughness', () => {
   expect(MARKET_GOODS_MATERIAL.map).toBe(MARKET_FRUIT_TEXTURES.colour);
   expect(MARKET_GOODS_MATERIAL.bumpMap).toBe(MARKET_FRUIT_TEXTURES.finish);
   expect(MARKET_FRUIT_TEXTURES.colour.colorSpace).toBe(THREE.SRGBColorSpace);
@@ -604,7 +606,7 @@ it('maps actual fruit rind in sRGB while preserving non-fruit goods and linear r
   let rind = 0,
     plain = 0;
   for (let i = 0; i < apples.count; i++) {
-    if (apples.getX(i) >= 0.125) rind++;
+    if (apples.getX(i) >= 0.125 && apples.getY(i) >= 0.125) rind++;
     if (apples.getX(i) === 0.03125 && apples.getY(i) === 0.03125) plain++;
   }
   expect(rind).toBeGreaterThan(100);
@@ -612,7 +614,7 @@ it('maps actual fruit rind in sRGB while preserving non-fruit goods and linear r
   const colours = AUTHORED_MARKET_GOODS[0].getAttribute('color');
   const peelColours = new Set<string>();
   for (let i = 0; i < apples.count; i++) {
-    if (apples.getX(i) >= 0.125) {
+    if (apples.getX(i) >= 0.125 && apples.getY(i) >= 0.125) {
       peelColours.add(
         [colours.getX(i), colours.getY(i), colours.getZ(i)].map((v) => v.toFixed(4)).join(',')
       );
@@ -629,14 +631,55 @@ it('maps actual fruit rind in sRGB while preserving non-fruit goods and linear r
       uv = goods.getAttribute('uv'),
       colour = goods.getAttribute('color');
     const finishes = new Set<string>();
+    const [left, right] = trade === 1 ? MARKET_FOOD_TILES.rind : MARKET_FOOD_TILES.crust;
+    let food = 0,
+      neutral = 0;
     for (let i = 0; i < uv.count; i++) {
-      expect(uv.getX(i)).toBe(0.03125);
-      expect(uv.getY(i)).toBe(0.03125);
+      if (uv.getX(i) === 0.03125 && uv.getY(i) === 0.03125) neutral++;
+      else {
+        food++;
+        expect(uv.getX(i)).toBeGreaterThanOrEqual((left + 0.5) / 256);
+        expect(uv.getX(i)).toBeLessThanOrEqual((right - 0.5) / 256);
+        expect(uv.getY(i)).toBeGreaterThanOrEqual(4.5 / 256);
+        expect(uv.getY(i)).toBeLessThanOrEqual(27.5 / 256);
+      }
       finishes.add(
         [colour.getX(i), colour.getY(i), colour.getZ(i)].map((v) => v.toFixed(4)).join(',')
       );
     }
     expect(finishes.size).toBeGreaterThan(30);
+    expect(food).toBeGreaterThan(100);
+    expect(neutral).toBeGreaterThan(100);
+  }
+});
+
+it('retains exact old fruit texels while food islands have broad finish and safe neutral gutters', () => {
+  for (const [kind, expected] of [
+    ['colour', 'bffdc1531363cddd7e95a95c7b0510591b7012bca13925a9b753e40ec96c4248'],
+    ['finish', '4fc8ab5fa20014d2b92b642fbb1ee29cf0f458ec7f96a95d9f9de554aa09da93'],
+  ] as const) {
+    const data = MARKET_FRUIT_TEXTURES[kind].image.data;
+    const fruit = [];
+    for (let y = 32; y < 256; y++)
+      for (let x = 32; x < 256; x++) {
+        const i = (y * 256 + x) * 4;
+        fruit.push(...data.slice(i, i + 4));
+      }
+    expect(createHash('sha256').update(new Uint8Array(fruit)).digest('hex')).toBe(expected);
+    for (const [left, right] of Object.values(MARKET_FOOD_TILES)) {
+      const values = new Set<number>();
+      for (let y = 4; y < 28; y++)
+        for (let x = left; x < right; x++) {
+          const i = (y * 256 + x) * 4;
+          expect(data[i + 3]).toBe(255);
+          values.add(data[i]);
+          if (kind === 'finish') {
+            expect(data[i + 1]).toBe(data[i + 2]);
+            expect(data[i + 1]).toBeGreaterThan(170);
+          }
+        }
+      expect(values.size).toBeGreaterThan(4);
+    }
   }
 });
 

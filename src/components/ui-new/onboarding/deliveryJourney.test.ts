@@ -62,6 +62,12 @@ describe('guided delivery evidence', () => {
         `12346 kg of ${order.recipe.sourceMaterial.replace('_', ' ')}`
       );
       expect(milling.detail).toContain('Line setpoint: 62%');
+      expect(milling.detail).toContain(`Recipe quality target: ${order.recipe.minimumQuality}/100`);
+      const preparation = deriveDeliveryJourney(order, { ...execution, stage: 'planning' }, true);
+      expect(preparation.detail).toContain(
+        `Recipe quality target: ${order.recipe.minimumQuality}/100`
+      );
+      expect(preparation.detail).toContain('Conforming output must pass QC before loading.');
       expect(deriveDeliveryJourney(order, { ...execution, stage: 'planning' }, true).title).toBe(
         `Prepare ${order.recipe.label}`
       );

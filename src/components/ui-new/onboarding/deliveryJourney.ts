@@ -116,20 +116,23 @@ export function deriveDeliveryJourney(
   // setpoint with measured output. Working if both recipes show their own grain,
   // target and released stock without advancing production or customer credit.
   const grain = order.recipe.sourceMaterial.replace('_', ' ');
+  // This is the campaign recipe's quality score, never a physical assay or yield.
+  // Working if each selected recipe names its own release threshold read-only.
+  const quality = `Recipe quality target: ${order.recipe.minimumQuality}/100. Conforming output must pass QC before loading.`;
   // Customer switching retains the previous execution snapshot until a tick.
   // Working if paused preparation names the recipe without claiming stale stock.
   if (execution.stage === 'planning')
     return {
       title: `Prepare ${order.recipe.label}`,
       view: 'Milling',
-      detail: `Scheduled grain: ${grain}. Open operations to review the recipe and buffers. Resume the shift to refresh this customer's stock and line setpoint.`,
+      detail: `Scheduled grain: ${grain}. ${quality} Resume the shift to refresh this customer's stock and line setpoint.`,
       workspace: 'scada' as const,
       entryId: 'autonomous-material-flow',
     };
   return {
     title: 'Follow the grain',
     view: 'Milling',
-    detail: `Source inventory: ${execution.sourceInventoryKg.toFixed(0)} kg of ${grain}. Line setpoint: ${execution.lineSetpointPercent.toFixed(0)}%. Released ${finishedMaterial}: ${execution.releasedFinishedKg.toFixed(0)} kg. Open operations to review the recipe, buffers and any shortage.`,
+    detail: `Source inventory: ${execution.sourceInventoryKg.toFixed(0)} kg of ${grain}. Line setpoint: ${execution.lineSetpointPercent.toFixed(0)}%. Released ${finishedMaterial}: ${execution.releasedFinishedKg.toFixed(0)} kg. ${quality} Open operations to review the recipe, buffers and any shortage.`,
     workspace: 'scada' as const,
     entryId: 'autonomous-material-flow',
   };
