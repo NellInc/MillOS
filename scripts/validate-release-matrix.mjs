@@ -111,6 +111,8 @@ for (const release of releaseMatrix.releases) {
 }
 
 if (stagingDirectory) {
+  const currentCanonicalUrl = `https://www.millos.net/${releaseMatrix.currentVersion}/`;
+  const currentCanonicalTag = `<link rel="canonical" href="${currentCanonicalUrl}" />`;
   const rootIndexPath = path.join(stagingDirectory, 'index.html');
   const deploymentManifestPath = path.join(stagingDirectory, 'deployment-manifest.json');
   const stagedMatrixPath = path.join(stagingDirectory, 'release-matrix.json');
@@ -123,6 +125,22 @@ if (stagingDirectory) {
     const rootIndex = fs.readFileSync(rootIndexPath, 'utf8');
     if (!rootIndex.includes(`url=/${releaseMatrix.currentVersion}/`)) {
       failures.push('Staging root does not redirect to the current release.');
+    }
+    if (!rootIndex.includes(currentCanonicalTag)) {
+      failures.push('Staging root canonical does not identify the current release.');
+    }
+  }
+
+  for (const directory of [stagingDirectory, path.join(stagingDirectory, releaseMatrix.currentVersion)]) {
+    const sitemapPath = path.join(directory, 'sitemap.xml');
+    if (!fs.existsSync(sitemapPath)) {
+      failures.push(`Staging is missing ${path.relative(stagingDirectory, sitemapPath)}.`);
+      continue;
+    }
+    const locations = [...fs.readFileSync(sitemapPath, 'utf8').matchAll(/<loc>([^<]+)<\/loc>/g)]
+      .map((match) => match[1]);
+    if (locations.length !== 1 || locations[0] !== currentCanonicalUrl) {
+      failures.push('Staged sitemap must identify only the indexable current release.');
     }
   }
 
@@ -157,6 +175,9 @@ if (stagingDirectory) {
       continue;
     }
     const index = fs.readFileSync(indexPath, 'utf8');
+    if (release.version === releaseMatrix.currentVersion && !index.includes(currentCanonicalTag)) {
+      failures.push('Current release canonical must not point back to the root redirect.');
+    }
     if (!index.includes(`/${release.version}/assets/`)) {
       failures.push(`${release.version} index does not reference its own asset base.`);
     }
