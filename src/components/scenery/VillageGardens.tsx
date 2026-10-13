@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { PlotGeometry } from '../../utils/authoredPlotGeometry';
 import { WORLD_CRAFT_PALETTE } from '../../constants/publicRealmLayout';
 import { applyVillageWindows } from '../models/GeneratedOfficeModel';
+import { VillageHomeEntryLighting } from './VillageSignage';
 
 import { VILLAGE_HOME_PLOTS, VILLAGE_ALLOTMENT } from '../../constants/siteLayout';
 export {
@@ -374,7 +375,11 @@ function house(index: number) {
   b.box([1.16, 2.23, 0.15], [0, 1.135, front + 0.07], CREAM);
   b.box([0.94, 2.02, 0.1], [0, 1.055, front + 0.16], d.door);
   for (const y of [0.53, 1.45]) b.box([0.72, 0.68, 0.034], [0, y, front + 0.223], d.door);
-  b.round([0.33, 1.01, front + 0.28], [0.046, 0.046, 0.046], '#c0a260');
+  b.add(new THREE.SphereGeometry(0.046, 4, 2).translate(0.33, 1.01, front + 0.28), '#c0a260');
+  // Smooth-normal eight-face brass knobs fund the closed letterplates inside
+  // the original body budget. The dark slot is paint, supported by the metal.
+  b.box([0.22, 0.043, 0.027], [0, 0.97, front + 0.222], '#b59a60');
+  b.add(new THREE.PlaneGeometry(0.164, 0.008).translate(0, 0.97, front + 0.2365), IRON);
   b.box([1.28, 0.09, 0.5], [0, 0.045, front + 0.22], '#b2aaa0');
   const window = (
     x: number,
@@ -497,6 +502,10 @@ function house(index: number) {
     body: b.finish(),
     glass: glass.finish(),
     chimney: [chimney[0], chimney[1] + 0.38, chimney[2]] as Point,
+    // A compact lantern sits over the lintel, below the actual porch ridges.
+    // Its longer wall bracket clears door panels without moving the optic.
+    // The plate enters the planar wall by 1 mm; the approach remains free.
+    entry: [0, 2.6, front + 0.01125] as Point,
   };
 }
 
@@ -790,6 +799,7 @@ export const VillageHome = React.memo(
           castShadow
           receiveShadow
         />
+        <VillageHomeEntryLighting index={index} mount={model.entry} />
         <mesh
           name={`village-home-glazing-${index}`}
           geometry={model.glass}

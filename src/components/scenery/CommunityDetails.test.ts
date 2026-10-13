@@ -204,8 +204,8 @@ describe('authored community details', () => {
   it('explains empty and stocked counters without overriding real opening hours', () => {
     expect(getBakeryBoardDetail(true, false)).toBe('Awaiting flour');
     expect(getBakeryBoardDetail(true, true)).toBe('Fresh bread');
-    expect(getBakeryBoardDetail(false, false)).toBeUndefined();
-    expect(getBakeryBoardDetail(false, true)).toBeUndefined();
+    expect(getBakeryBoardDetail(false, false)).toBe('Opens 07:00');
+    expect(getBakeryBoardDetail(false, true)).toBe('Opens 07:00');
   });
   it('keeps live visibility outside the static batch and ties stock to explicit event props', () => {
     const source = readFileSync('src/components/scenery/CommunityDetails.tsx', 'utf8');

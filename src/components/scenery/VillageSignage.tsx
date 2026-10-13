@@ -331,3 +331,48 @@ export function CivicEntryLighting({ building }: { building: keyof typeof CIVIC_
     </group>
   );
 }
+
+/** Compact domestic fittings share the civic iron/glass and existing dusk driver.
+ * Working if five door approaches receive bounded warm light at Medium+, clear
+ * noon sources are off, Low has no extra source and no shadow map is added.
+ */
+export const HOME_ENTRY_SCALE: [number, number, number] = [0.42, 0.42, 0.7];
+export const HOME_ENTRY_SOURCE = CIVIC_ENTRY_SOURCE.map(
+  (value, axis) => value * HOME_ENTRY_SCALE[axis]
+) as [number, number, number];
+export function VillageHomeEntryLighting({
+  index,
+  mount,
+}: {
+  index: number;
+  mount: readonly [number, number, number];
+}) {
+  const lit = useGraphicsStore(
+    (s) =>
+      s.graphics.quality !== 'low' &&
+      !s.graphics.perfDebug.disablePunctualLights &&
+      !s.graphics.perfDebug.disableLightingPolish
+  );
+  return (
+    <group name={`village-home-entry-${index}`} position={[...mount]} dispose={null}>
+      <group scale={HOME_ENTRY_SCALE}>
+        <mesh
+          geometry={CIVIC_ENTRY_LANTERN_GEOMETRY}
+          material={CIVIC_ENTRY_IRON}
+          castShadow
+          receiveShadow
+        />
+        <mesh geometry={CIVIC_ENTRY_GLASS_GEOMETRY} material={EXTERIOR_LAMP_LENS_MATERIAL} />
+      </group>
+      {lit && (
+        <ExteriorDownlight
+          name={`village-home-entry-light:${index}`}
+          position={HOME_ENTRY_SOURCE}
+          intensity={16}
+          distance={3.6}
+          color="#ffe0a0"
+        />
+      )}
+    </group>
+  );
+}

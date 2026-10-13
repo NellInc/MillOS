@@ -19,6 +19,12 @@ import {
 } from '../VillageArea';
 import { SITE_LAYOUT, landmarkLocalToWorld } from '../../constants/siteLayout';
 import { PlotGeometry } from '../../utils/authoredPlotGeometry';
+import {
+  HOME_ENTRY_SCALE,
+  HOME_ENTRY_SOURCE,
+  CIVIC_ENTRY_LANTERN_GEOMETRY,
+} from './VillageSignage';
+import { readFileSync } from 'node:fs';
 import { COTTAGE_GARDENS, landscapeGrassSpec } from '../exterior/LandscapeDressing';
 vi.mock('../../utils/critterAudio', () => ({ playCritterSound: vi.fn() }));
 const material = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
@@ -37,6 +43,45 @@ const hit = (
   ).intersectObject(mesh(geometry));
 
 describe('authored British/Dutch village plots', () => {
+  it('seats all compact porch fittings on real walls with clear downward source rays', () => {
+    for (const { body, entry, glass } of VILLAGE_HOMES) {
+      const wall = hit(
+        body,
+        [entry[0], entry[1] + 0.07 * HOME_ENTRY_SCALE[1], entry[2] + 1],
+        [0, 0, -1]
+      )[0];
+      expect(wall).toBeDefined();
+      const plateBack = entry[2] - 0.0175 * HOME_ENTRY_SCALE[2];
+      expect(plateBack - wall.point.z).toBeCloseTo(-0.001, 5);
+      const fixture = CIVIC_ENTRY_LANTERN_GEOMETRY.clone()
+        .scale(...HOME_ENTRY_SCALE)
+        .translate(...entry);
+      fixture.computeBoundingBox();
+      expect(fixture.boundingBox!.min.x).toBeGreaterThan(-0.073);
+      expect(fixture.boundingBox!.max.x).toBeLessThan(0.073);
+      expect(fixture.boundingBox!.min.y).toBeGreaterThan(2.48);
+      expect(fixture.boundingBox!.max.y).toBeLessThan(2.79);
+      const fixtureTriangles = CIVIC_ENTRY_LANTERN_GEOMETRY.getIndex()!.count / 3 + 12;
+      expect(fixtureTriangles * VILLAGE_HOMES.length).toBeLessThanOrEqual(600);
+      expect(hit(glass, [entry[0], entry[1], entry[2] + 1], [0, 0, -1], 1.2)).toHaveLength(0);
+      const source = entry.map((v, axis) => v + HOME_ENTRY_SOURCE[axis]) as [
+        number,
+        number,
+        number,
+      ];
+      expect(hit(body, source, [0, -1, 0], source[1] - 0.1)).toHaveLength(0);
+      expect(hit(fixture, source, [0, -1, 0], 0.4)).toHaveLength(0);
+      fixture.dispose();
+    }
+    const source = readFileSync('src/components/scenery/VillageSignage.tsx', 'utf8');
+    const fitting = source.slice(source.indexOf('export function VillageHomeEntryLighting'));
+    expect(fitting).toContain("s.graphics.quality !== 'low'");
+    expect(fitting).toContain('intensity={16}');
+    expect(fitting).toContain('distance={3.6}');
+    expect(fitting).toContain('EXTERIOR_LAMP_LENS_MATERIAL');
+    expect(fitting).not.toContain('useFrame');
+  });
+
   it('keeps each real home pane in standalone UV space with the expected upward V axis', () => {
     for (const { glass } of VILLAGE_HOMES) {
       const uv = glass.getAttribute('uv'),

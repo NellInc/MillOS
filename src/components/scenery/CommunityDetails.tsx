@@ -4,6 +4,7 @@ import {
   COMMUNITY_ANCHORS as A,
   getCommunityHours,
   getBakeryBoardDetail,
+  getCommunityReopeningDetail,
   type CommunityAnchor,
 } from '../../constants/communityLayout';
 import { SITE_LAYOUT, landmarkLocalToWorld, type Vec3Tuple } from '../../constants/siteLayout';
@@ -289,12 +290,14 @@ export const CommunityDetails = React.memo(
             rotation={Math.PI / 2}
             open={shopsOpen}
             label="GROCER"
+            detail={getCommunityReopeningDetail('shops', shopsOpen)}
           />
           <OpeningBoard
             position={villagePosition([-18.8, 0, -12])}
             rotation={Math.PI / 2}
             open={pubOpen}
             label="PUB"
+            detail={getCommunityReopeningDetail('pub', pubOpen)}
           />
         </group>
       </group>
