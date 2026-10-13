@@ -192,3 +192,11 @@ it('locates live milling, QC and shipping stages without moving a missing or dif
   ).toBeUndefined();
   expect(deriveDeliveryJourney(null, current, true).view).toBeUndefined();
 });
+
+it('explains buffer inspection without changing the live order or production', () => {
+  const campaign = useOperationsCampaignStore.getState();
+  const before = structuredClone({ orders: campaign.orders, execution: campaign.execution });
+  const guide = deriveDeliveryJourney(campaign.orders[0], campaign.execution, false);
+  expect(guide.detail).toContain('Full output buffers can reveal a downstream bottleneck');
+  expect({ orders: campaign.orders, execution: campaign.execution }).toEqual(before);
+});

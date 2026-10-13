@@ -2,7 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { createMachineObstacles } from '../constants/factoryObstacles';
 import { SITE_LAYOUT } from '../constants/siteLayout';
 import { INCIDENT_DEFINITIONS } from '../stores/operationsCampaignStore';
-import { OPERATIONAL_INCIDENT_PLACEMENTS } from './OperationalWorldSignals';
+import {
+  OPERATIONAL_INCIDENT_PLACEMENTS,
+  getOperationalSignalLabel,
+  shouldLabelOperationalSignals,
+} from './OperationalWorldSignals';
 
 describe('operational world signal placement', () => {
   it('maps every operational incident into the canonical unified site', () => {
@@ -61,4 +65,28 @@ describe('operational world signal placement', () => {
       SITE_LAYOUT.factory.zones.packing
     );
   });
+});
+
+it('labels all eight real incident kinds and phases without relying on colour', () => {
+  for (const kind of Object.keys(INCIDENT_DEFINITIONS) as (keyof typeof INCIDENT_DEFINITIONS)[]) {
+    for (const phase of ['raised', 'acknowledged', 'mitigated', 'resolved'] as const) {
+      const lines = getOperationalSignalLabel(kind, phase).split('\n');
+      expect(lines).toHaveLength(2);
+      expect(lines.every((line) => line.length > 0 && line.length <= 22)).toBe(true);
+    }
+  }
+  expect(getOperationalSignalLabel('dust_filter_pressure', 'raised')).toBe(
+    'FILTER PRESSURE HIGH\nNEEDS ATTENTION'
+  );
+  expect(getOperationalSignalLabel('supplier_contamination', 'mitigated')).toContain(
+    'RESPONSE APPLIED'
+  );
+  expect(INCIDENT_DEFINITIONS.power_sag.affectedMachineId).toBeNull();
+  expect(getOperationalSignalLabel('power_sag', 'raised')).toBe('SITE POWER DIP\nNEEDS ATTENTION');
+  expect(getOperationalSignalLabel('supplier_contamination', 'raised')).toBe(
+    'GRAIN LOT HOLD\nNEEDS ATTENTION'
+  );
+  expect(shouldLabelOperationalSignals('low')).toBe(false);
+  for (const quality of ['medium', 'high', 'ultra'] as const)
+    expect(shouldLabelOperationalSignals(quality)).toBe(true);
 });

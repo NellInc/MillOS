@@ -1205,6 +1205,13 @@ export const StaticMeshBatch: React.FC<StaticMeshBatchProps> = ({
 
     const pendingToken = beginStaticBatch();
     root.userData.staticBatchReady = false;
+    // Named phases distinguish a starved callback from an unstable scene tree.
+    // Working if timeout evidence names unfinished roots without changing work.
+    const phase = (value: string): void => {
+      root.userData.staticBatchPhase = value;
+      root.userData.staticBatchPhaseAt = performance.now();
+    };
+    phase('waiting-for-stable-tree');
     let batchFinished = false;
     let cancelled = false;
     let pollTimer = 0;
@@ -1217,6 +1224,7 @@ export const StaticMeshBatch: React.FC<StaticMeshBatchProps> = ({
       if (batchFinished) return;
       batchFinished = true;
       root.userData.staticBatchReady = true;
+      phase(cancelled ? 'cancelled' : 'ready');
       finishStaticBatch(pendingToken);
     };
 
@@ -1228,6 +1236,7 @@ export const StaticMeshBatch: React.FC<StaticMeshBatchProps> = ({
       previousCount = candidateCount;
 
       if (stablePolls >= 2) {
+        phase('scanning');
         const schedule = (callback: () => void): void => {
           batchTimers.push(window.setTimeout(callback, 0));
         };
@@ -1236,6 +1245,7 @@ export const StaticMeshBatch: React.FC<StaticMeshBatchProps> = ({
           schedule,
           () => cancelled,
           (candidates) => {
+            phase('sampling-transforms');
             sampleTimer = window.setTimeout(() => {
               if (cancelled) return;
               const orderedCandidates = orderStaticBatchCandidatesForChunking(root, candidates);
@@ -1256,6 +1266,7 @@ export const StaticMeshBatch: React.FC<StaticMeshBatchProps> = ({
                   markFinished();
                   return;
                 }
+                phase(`batching:${index + 1}/${candidateChunks.length}`);
                 const chunk = candidateChunks[index];
                 if (chunk) {
                   batches.push(

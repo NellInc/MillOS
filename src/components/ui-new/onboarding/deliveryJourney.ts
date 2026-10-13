@@ -56,14 +56,14 @@ export function deriveDeliveryJourney(
       title: 'Inspect the line',
       view: 'Milling',
       detail:
-        'Select a silo, roller mill, plansifter or packer in the scene. Read its status and buffers before changing the line.',
+        'Select a silo, roller mill, plansifter or packer in the scene. Read its status and buffers before changing the line. Full output buffers can reveal a downstream bottleneck.',
       workspace: null,
       entryId: 'bottlenecks-and-buffers',
     };
   if (order.status === 'fulfilled')
     return {
       title: 'Delivery fulfilled',
-      detail: `${order.shippedKg.toFixed(0)} kg of ${product} dispatched for ${order.customer} in recorded manifests. Your inspection and the delivery are separate receipts.`,
+      detail: `${order.shippedKg.toFixed(0)} kg of ${product} dispatched for ${order.customer} in recorded manifests. Departed manifests credit this customer. Inspection is a separate milestone.`,
       workspace: 'overview' as const,
       entryId: 'community-commitments',
     };
