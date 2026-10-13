@@ -1,4 +1,4 @@
-import React, { useState, Suspense, useEffect, useCallback, useRef } from 'react';
+import React, { useState, Suspense, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
 import { registerReplayParticipant } from './simulation/workplaceReplayRuntime';
 import { Canvas } from '@react-three/fiber';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
@@ -141,7 +141,9 @@ const StartupInterface: React.FC = () => (
 );
 
 const CompleteWorldMarker: React.FC = () => {
-  useEffect(() => {
+  // Publish the committed Suspense subtree before its first draw. This marker
+  // submits warmup work only; assets, batching and settled frames still gate access.
+  useLayoutEffect(() => {
     document.documentElement.dataset.millosWorldReady = 'true';
     performance.mark('millos:world-ready');
     window.dispatchEvent(new Event('millos:world-ready'));

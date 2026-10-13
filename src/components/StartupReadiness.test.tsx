@@ -107,6 +107,58 @@ describe('retained truck first-use preparation', () => {
   const draw = () =>
     scene.onBeforeRender(gl as unknown as THREE.WebGLRenderer, scene, camera, null);
 
+  it('submits the committed world once before pending work, without granting readiness or querying metadata', () => {
+    const { programs } = truckPrograms();
+    probe.startup.pendingAssets = 1;
+    document.documentElement.dataset.millosStaticBatchesPending = '7';
+    render(<StartupReadiness />);
+    draw();
+    draw();
+    expect(gl.compile).toHaveBeenCalledExactlyOnceWith(scene, camera);
+    expect(probe.beginTask).not.toHaveBeenCalled();
+    for (const program of programs) {
+      expect(program.getUniforms).not.toHaveBeenCalled();
+      expect(program.getAttributes).not.toHaveBeenCalled();
+    }
+    frames();
+    expect(probe.markReady).not.toHaveBeenCalled();
+    expect(probe.markPrepared.mock.lastCall?.[0]).toBe(false);
+  });
+
+  it.each(['world', 'renderer', 'scene', 'camera', 'context'])(
+    'does not prewarm a different or unavailable %s',
+    (condition) => {
+      truckPrograms();
+      if (condition === 'world') delete document.documentElement.dataset.millosWorldReady;
+      if (condition === 'context') probe.contextLost = true;
+      render(<StartupReadiness />);
+      scene.onBeforeRender(
+        (condition === 'renderer' ? {} : gl) as unknown as THREE.WebGLRenderer,
+        condition === 'scene' ? new THREE.Scene() : scene,
+        condition === 'camera' ? new THREE.PerspectiveCamera() : camera,
+        null
+      );
+      expect(gl.compile).not.toHaveBeenCalled();
+    }
+  );
+
+  it('surfaces a prewarm submission failure without retry or readiness certification', () => {
+    truckPrograms();
+    gl.compile.mockImplementation(() => {
+      throw new Error('submission failed');
+    });
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    render(<StartupReadiness />);
+    draw();
+    draw();
+    frames();
+    expect(gl.compile).toHaveBeenCalledTimes(1);
+    expect(probe.startup.errors).toBe(1);
+    expect(probe.startup.pendingTasks).toBe(0);
+    expect(error).toHaveBeenCalledTimes(1);
+    expect(probe.markReady).not.toHaveBeenCalled();
+  });
+
   it('waits for every exact variant under the real scene callback before stable frames', () => {
     const { programs } = truckPrograms();
     const previous = scene.onBeforeRender;
@@ -115,8 +167,9 @@ describe('retained truck first-use preparation', () => {
     expect(probe.markReady).not.toHaveBeenCalled();
     draw();
     expect(previous).toHaveBeenCalledWith(gl, scene, camera, null);
-    expect(gl.compile.mock.calls).toHaveLength(2);
-    for (const args of gl.compile.mock.calls)
+    expect(gl.compile.mock.calls).toHaveLength(3);
+    expect(gl.compile.mock.calls[0]).toEqual([scene, camera]);
+    for (const args of gl.compile.mock.calls.slice(1))
       expect(args).toEqual([expect.any(THREE.Group), camera, scene]);
     expect(probe.startup.pendingTasks).toBe(1);
     vi.advanceTimersByTime(10);
@@ -133,7 +186,7 @@ describe('retained truck first-use preparation', () => {
     frames();
     expect(probe.markReady).toHaveBeenCalled();
     draw();
-    expect(gl.compile).toHaveBeenCalledTimes(2);
+    expect(gl.compile).toHaveBeenCalledTimes(3);
   });
 
   it.each(['missing', 'empty'])('rejects a %s compiled-program map', (shape) => {
@@ -166,10 +219,10 @@ describe('retained truck first-use preparation', () => {
       expect(probe.startup.errors).toBe(0);
       frames();
       vi.advanceTimersByTime(100);
-      expect(gl.compile).toHaveBeenCalledTimes(2);
+      expect(gl.compile).toHaveBeenCalledTimes(3);
       expect(probe.markReady).not.toHaveBeenCalled();
       draw();
-      expect(gl.compile).toHaveBeenCalledTimes(4);
+      expect(gl.compile).toHaveBeenCalledTimes(5);
       programs[1].isReady.mockReturnValue(true);
       vi.advanceTimersByTime(10);
       expect(probe.startup.pendingTasks).toBe(0);
@@ -232,7 +285,7 @@ describe('retained truck first-use preparation', () => {
       expect(error).toHaveBeenCalledTimes(1);
       frames();
       draw();
-      expect(gl.compile).toHaveBeenCalledTimes(2);
+      expect(gl.compile).toHaveBeenCalledTimes(3);
       expect(probe.markReady).not.toHaveBeenCalled();
       expect(probe.markPrepared.mock.lastCall?.[0]).not.toBe(true);
     }

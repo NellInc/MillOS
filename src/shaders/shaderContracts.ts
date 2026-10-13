@@ -87,7 +87,7 @@ export const ACTIVE_SHADER_CONTRACTS: readonly ActiveShaderContract[] = [
     disposalOwner: 'process lifetime, installed before compilation in App.tsx',
     fallbackMaterial: 'stock equations for every non-Standard/Physical material',
     notes:
-      'Skips only point/spot RE_Direct calls whose attenuated color is exactly zero. No light removal, intensity threshold, material hook, extra draw or camera-dependent shader variant.',
+      'Skips only exact-zero point/spot BRDF contributions. Compact ascending Standard/Physical loops for unshadowed/unmapped punctual lights; other materials and shadow/map branches retain stock unrolling. No light removal, intensity threshold, material hook, extra draw or camera-dependent variant.',
   },
   {
     id: 'generated-geometry-normal-layer',

@@ -4,6 +4,10 @@ import { createHash } from 'node:crypto';
 import * as THREE from 'three';
 import { createDerivedMaterial } from 'troika-three-utils';
 import {
+  compactUnshadowedPunctualLoops,
+  cullZeroPunctualContributions,
+} from '../punctualLightCulling';
+import {
   CIVIC_LAMPS,
   CIVIC_WORLD_LIGHTS,
   CIVIC_SHADOW_ATLAS_SIZE,
@@ -350,6 +354,44 @@ describe('source-correct static occlusion composition', () => {
       expect(collectStaticBatchCandidates(scene)).toHaveLength(0);
     }
   });
+  it.each(['Standard', 'Physical'])(
+    'keeps %s civic incident terms inside compact-loop macros through Troika composition',
+    (type) => {
+      const original = THREE.ShaderChunk.lights_fragment_begin;
+      try {
+        THREE.ShaderChunk.lights_fragment_begin = compactUnshadowedPunctualLoops(
+          cullZeroPunctualContributions(original)
+        );
+        const material =
+          type === 'Physical'
+            ? new THREE.MeshPhysicalMaterial({ clearcoat: 0.3, sheen: 0.4 })
+            : new THREE.MeshStandardMaterial();
+        applyCivicLampShadows(material);
+        const derived = createDerivedMaterial(material, {});
+        const compiled = shader();
+        compiled.fragmentShader =
+          type === 'Physical' ? THREE.ShaderLib.physical.fragmentShader : compiled.fragmentShader;
+        derived.onBeforeCompile(compiled, {} as THREE.WebGLRenderer);
+        if (type === 'Physical') {
+          expect(derived).toBeInstanceOf(THREE.MeshPhysicalMaterial);
+          expect((derived as THREE.MeshPhysicalMaterial).clearcoat).toBe(0.3);
+          expect((derived as THREE.MeshPhysicalMaterial).sheen).toBe(0.4);
+        }
+        for (const type of ['POINT', 'SPOT']) {
+          const macro = compiled.fragmentShader
+            .split('\n')
+            .find((line) => line.trimStart().startsWith(`#define MILLOS_${type}_INCIDENT()`));
+          expect(macro).toContain('if (directLight.visible) directLight.color *= civicVisibility(');
+        }
+        const before = compiled.fragmentShader;
+        injectCivicLampShadows(compiled);
+        expect(compiled.fragmentShader).toBe(before);
+        expect(compiled.uniforms.civicDepthAtlas).toBe(CIVIC_SHADOW_ATLAS);
+      } finally {
+        THREE.ShaderChunk.lights_fragment_begin = original;
+      }
+    }
+  );
   it('composes once preserving host, normals, albedo and UVs', () => {
     const m = new THREE.MeshStandardMaterial({
       map: new THREE.Texture(),

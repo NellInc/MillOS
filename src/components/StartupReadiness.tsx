@@ -20,6 +20,7 @@ export function StartupReadiness(): null {
     preparationRef.current = 'idle';
     const previous = scene.onBeforeRender;
     let cancelled = false;
+    let submittedWorld = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let deadlineTimer: ReturnType<typeof setTimeout> | undefined;
     let deadline: number | undefined;
@@ -48,7 +49,7 @@ export function StartupReadiness(): null {
       clearTimeout(deadlineTimer);
       release ??= beginStartupTask();
       finishTask(true);
-      console.error('Truck shader preparation failed', error);
+      console.error('Startup shader preparation failed', error);
     };
     const checkDeadline = () => {
       if (deadline !== undefined && performance.now() >= deadline)
@@ -97,6 +98,18 @@ export function StartupReadiness(): null {
       if (startup.ready || gl !== renderer || targetScene !== scene || camera !== mainCamera)
         return;
       try {
+        if (
+          !submittedWorld &&
+          data.millosWorldReady === 'true' &&
+          !gl.getContext().isContextLost()
+        ) {
+          // Submit the real assembly together before first-use queries serialize
+          // its programs. Never certify completion here or replace final-variant
+          // validation. Working if batching/assets still block access, while
+          // ordinary rendering retains every source, shader diagnostic and frame.
+          submittedWorld = true;
+          gl.compile(scene, camera);
+        }
         if (configuration) configurationValid();
         if (
           preparationRef.current !== 'idle' ||

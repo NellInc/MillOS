@@ -181,7 +181,7 @@ export function injectCivicLampShadows(shader: THREE.WebGLProgramParametersWithU
       throw new Error('Three civic shadow incident-light contract changed');
     chunk = chunk.replace(
       call,
-      `${call}\nif (directLight.visible) directLight.color *= civicVisibility(${variable}.position, geometryPosition, nonPerturbedNormal);`
+      `${call} if (directLight.visible) directLight.color *= civicVisibility(${variable}.position, geometryPosition, nonPerturbedNormal);`
     );
   }
   if (!shader.fragmentShader.includes('#include <lights_fragment_begin>'))

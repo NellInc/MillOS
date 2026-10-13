@@ -5,7 +5,6 @@ import {
   BrightnessContrast,
   ChromaticAberration,
   DepthOfField,
-  HueSaturation,
   N8AO,
   Noise,
   SMAA,
@@ -13,6 +12,7 @@ import {
   Vignette,
 } from '@react-three/postprocessing';
 import { BlendFunction } from 'postprocessing';
+import { DisplayHueSaturation } from './environment/DisplayHueSaturation';
 // `n8ao` ships no type declarations, so hold its ref through the base class.
 // The guarded transparency adapter handles the additional runtime contract.
 import type { Pass, VignetteEffect } from 'postprocessing';
@@ -223,7 +223,7 @@ export const PostProcessing: React.FC = () => {
           <BrightnessContrast brightness={COLOR_GRADE.brightness} contrast={COLOR_GRADE.contrast} />
         )}
         {graphics.enableColorGrade && (
-          <HueSaturation hue={COLOR_GRADE.hue} saturation={COLOR_GRADE.saturation} />
+          <DisplayHueSaturation hue={COLOR_GRADE.hue} saturation={COLOR_GRADE.saturation} />
         )}
 
         {/* `darkness` is the mount-time value only; the audio response writes
