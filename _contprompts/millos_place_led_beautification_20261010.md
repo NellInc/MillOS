@@ -1418,3 +1418,90 @@ Root self-review of root/input-produced images inspects all five actual dusk hom
 Single saturation terminal-clamp control reproduces13367bright pixels in stock versus2183in guarded and2183after exact restoration; no effect removal, colour setting, preset, light, shadow, texture, model or budget relaxation. Single actual doorway source changes218117stable pixels and restores exact. All other pinned shader equations stay unchanged. Primary authored checkout and untracked output remain untouched. Current build is promoted only into this isolated checkout's ordinary dist after388-file exact copy verification; prior root c0ffe5eb dist is preserved under remote-egl/root-dist-prior-c0ffe5eb. accepted-local-scope.json pins current source/assets, both terminal receipts and all24PNG hashes. No main integration, push or deployment.
 
 Cleanup removes only own pre-gamut compiled copy after388 archive matches (177079176logical bytes) and1219 disposable build-input copies after exact retained live-source/pin matches (173177151logical bytes). Active final build, prior root dist, all source/public assets, failed/final receipts/logs/archives/images and shared dependencies/foreign jobs remain intact. Measured free-space deltas retain the concurrent APFS caveat. Both Modal apps normally close, no persistent service or local render lock/CPU request is held. Original pacing issue stays separately open under unchanged budgets; no GPU-idle wait, new benchmark or causal performance claim. Native NVIDIA acceptance does not claim Mac Metal or human mouse-capture acceptance.
+
+
+## Full fifty-task cohesion refinement, 2026-10-13
+Nell explicitly requests a very long detailed task list and full execution after readiness recovery. Starting checkout: isolated codex/place-led-beautification-20261010 at4d222cb7475ffed9333471a0ec3839f4cee4ec96; only protected untracked output. Primary06ff26d3 remains dirty and untouched. Prior current129-test/native-five-condition acceptance is verified against actual source/compiled hashes, no new timeout job is active. No new goal is inferred. Local source/commits/build/art delivery only; no main integration/push/deployment. Remote CPU/A10 tasks stay inside existing240s/210s CPU and480s/450s GPU bounds, minimal source/public assets only, no credentials/history/private files/persistent service. Audio muted, no native input or foreign-browser takeover. Original pacing remains separately open.
+
+Pre-check: changing flower positions would invalidate retained static civic shadows. Therefore this pass changes only flower normals/colours and preserves exact positions/UVs/triangles. Alpha foliage was already excluded from the civic bake; its actual directional depth uses the same updated atlas. Pond/boat finishes retain authored geometry/atlas identities and standard lighting. These reversible choices meet the requested material/charm goal without extra lights, geometry, texture resolution, draw calls or render takeover. Working if all fifty checklist items have their stated source/runtime evidence, all required gates terminate, actual art improves and no protected contract or quality budget changes.
+
+- [x] T01: Verify own checkout, branch and commit.
+- [x] T02: Preserve unrelated primary edits.
+- [x] T03: Verify accepted source and compiled hashes.
+- [x] T04: Reconcile failed and passing readiness receipts.
+- [x] T05: Retain committed-world, shader submission and settled-frame barriers.
+- [x] T06: Retain failure, context-loss, drift and cleanup safeguards.
+- [x] T07: Record the named five-file affected baseline.
+- [x] T08: Use scoped remote build/render, protecting the foreign browser.
+- [x] T09: Soften closed flower shading.
+- [x] T10: Vary petal tones subtly.
+- [x] T11: Distinguish non-emissive bloom centres.
+- [x] T12: Apply the shared finish to boxes, pots and allotments.
+- [x] T13: Preserve per-home palettes.
+- [x] T14: Retain flowers above soil within containers.
+- [x] T15: Keep exact home/garden geometry positions and baked-shadow compatibility.
+- [x] T16: Retain the original40000-triangle whole-village plot budget.
+- [x] T17: Retain gate/door/window/walking clearances.
+- [x] T18: Protect the flower finish with a focused regression check.
+- [x] T19: Improve broadleaf density at distance.
+- [x] T20: Retain leaf scale, crown form and instance variation.
+- [x] T21: Align deterministic albedo/normal leaf populations.
+- [x] T22: Retain transparent-texel colour bleed.
+- [x] T23: Retain alpha halos and mip coverage.
+- [x] T24: Retain texture colour-space and channel contracts.
+- [x] T25: Retain card geometry, instancing, wind and shared materials.
+- [x] T26: Check close/whole-village/Low foliage with full grade/SMAA.
+- [x] T27: Refine calm crossing pond ripples.
+- [x] T28: Bound the pond clock with exact periodicity.
+- [x] T29: Retain reduced-motion and cloned-material cleanup.
+- [x] T30: Retain pond banks/reeds/pads/level and surroundings.
+- [x] T31: Give actual boat glass glazing roughness with warm interiors.
+- [x] T32: Exclude hull/brass/roses/teak from the glass finish.
+- [x] T33: Update existing shader contracts and inspect pond/boat day/dusk.
+- [x] T34: Retain every lamp and its source/dimmer/range.
+- [x] T35: Retain single directional caster and civic atlas.
+- [x] T36: Confirm five cosy home thresholds without facade washout.
+- [x] T37: Confirm curtains and cabin interiors.
+- [x] T38: Check day/dusk/rain/night material cohesion and clipping.
+- [x] T39: Retain presets/exposure/grade/performance budgets.
+- [x] T40: Make the bakery wait caption identify mill flour.
+- [x] T41: Keep bread tied to verified deliveries.
+- [x] T42: Keep reopening captions on actual schedules.
+- [x] T43: Check actual rendered board bounds and wrapping.
+- [x] T44: Retain people/work/rest/routes/weather/emergency behaviour.
+- [x] T45: Avoid production/inventory/fulfillment/campaign-credit mutation.
+- [x] T46: Run affected and required whole-project gates.
+- [x] T47: Capture changed models/sign/scenery silently after full readiness.
+- [x] T48: Use exact-restored water/glazing/foliage controls where needed.
+- [x] T49: Inspect actual results, repair demonstrated defects and accept/commit locally.
+- [x] T50: Remove only verified disposable own files; retain failures and separate pacing.
+
+
+### Cohesion pass current evidence and justified correction
+Named baseline app ap-p7SoLGle1TJMoGq0FcVgOC:49passed/5files/0failing names,16.70s. Small source-only baseline probe records16real home/body/glass/garden/allotment position/UV hashes and old384px albedo/normal bytes. Existing broadleaf coverage measured.3621/.3944/.4200/.4666 for1/2/4/8px blocks, already adequate, so density is artistic refinement rather than a claimed mip repair. No browser/GPU is used by this baseline probe.
+
+First coherent source candidate CPU ap-dEbgLmXZE02JS2aSXcUJMN passes176tests/14files plus all required type/lint/format/shader/build/reachability gates, build17.67s. Native ap-6dusNyfAZvoyVHVv5Fve0n returns1 with exact normal browser/preview/lock cleanup. Day and dusk original ready gates pass66.52/62.51s; all fourteen model/sign/scene views and controls retained. BakeryNeeds mill flour fits actual.54x.354m bounds. Flowers read smoother; geometry positions/UVs remain byte-exact. Pond cross-wave control changes only8stable pixels, mean11.25, so raise the small crossing amplitudes.009/.007to.014/.010 and use a lower actual viewing angle, still no displacement, source, colour, map or geometry change.
+
+Independent actual GLB inspection catches a stale boat atlas comment: logicalglass10 is delivered UVslot6 dueVflip. First glazing candidate incorrectly targetsUV10 and is rejected even though its visual control changes486pixels, illustrating that contribution alone cannot establish correct targeting. Correction uses actualUV6, with a new small real-asset test:1152side/96end glass vertices remain within measured closed pane volumes (side absX1.15153..1.18752, including hidden backing; y1.825..2.235), excluding all hull/brass/teak/rose slots. Root apologises and reports the mistake, no silent green.
+
+The old/new foliage checker produces a texSubImage2D TypeError when constructing texture Source metadata. This is a real failed checker receipt, not benign noise; no errors are filtered. Change strategy to the actual DataTexture constructor with typed RGBA bytes and exact copied public sampler/transform properties, type/length guards and original reference restoration. First trial, all images, logs, receipt and immutable build archive remain under first-candidate-retained names. Corrected build and one justified native confirmation await actual results; no same-failure blind rerun or threshold relaxation. Pacing remains separately open.
+
+
+### Fifty-task local completion and evidence, 2026-10-13
+All fifty tasks are complete for this finite cohesion pass. Source/test commit:ea2393f930088c9856864015ddd33fca6d1083e6 on the isolated branch. Primary06ff26d3 and protected untracked output remain untouched. Local delivery only; no integration, push or deployment. Self-review: this chat produced the refinements and directly inspected every retained primary model/sign/scenery frame and the exact-restored foliage controls.
+
+- T01..T08: actual source and compiled identities reconciled, original world, static pending, shader submission and settled-frame barriers retained. Named five-file baseline49passed/0failure names; those same five files now51passed. Two new actual narrowboat tests are added. The expanded final affected set is177passed/14files/0failing names. All scoped Modal apps close normally; no local browser/GPU/process/queue takeover.
+- T09..T18: softer radial bloom normals, bounded per-petal tones and ochre centres are shared by flower boxes, pots, beds and allotment. Actual16body/glass/garden/allotment position and UV hashes remain byte-exact. Existing1.64m approaches, finite surfaces, palettes, placement checks and40000-triangle whole-village detail budget pass. Two focused guards cover the measured topology and finished60-triangle bloom.
+- T19..T26: shared deterministic broadleaf population520 at unchanged384px size. Existing leaf scale, card/instance/wind geometry, alpha halos, transparent colour bleed, sRGB albedo, linear normals and mip coverage remain. The full-grade/SMAA reference is now an actual same-page procedural-layer control:17materials,2unique replacement textures,9authored-normal uniforms and16generated UV1 normal atlases kept exact.21233stable pixels change, mean changed-channel delta13.3133; all1296000pixels are stable between the current/restored arms. Exact albedo/normal/uniform/depth references and both renderer/light shadow refreshes are restored. No performance inference.
+- T27..T33: calm pond crossing waves and exact200pi clock periodicity preserve the bank/reed/pad geometry, blue mask and no-displacement water. Existing reduced-motion/cloned-material ownership checks pass. Pane-only boat roughness uses measured delivered UV6 and retains the warm cabins, brass, hull, roses and teak. Actual day controls change54pond/167glazing stable pixels and restore exact. Day/dusk/late-night boat and day/dusk pond images were directly inspected. Shader contracts34families/38stablekeys/26sites pass.
+- T34..T39: every prior lamp source/dimmer/range, five porch sources, warm curtains/cabin interiors, single Medium directional caster, zero Low casters and original civic bake retained. Civic PNG hash8de356b6e912c8ea42a7342988b1679a454ba2e4ee6f205b8513a629bda8fd71 and strength1 remain exact. Same presets/DPR/grade/exposure/effects/budgets. Twenty primary views cover five conditions and four dusk home close-ups plus whole-village/five-source contract; no facade or material defect requiring another production change was observed.
+- T40..T45: actual open empty bakery now readsNeeds mill flour within.54x.354m text bounds. Verified flour supply still determinesFresh bread. Closed boards retainOpens07:00/11:00 from actual schedules. Existing22community tests retain work/rest/routes/weather/emergency/campaign behaviour. Actual14-person roster and activities are recorded. No production, inventory, fulfillment or campaign-credit mutation is added.
+- T46..T50: final CPU appap-2uYWm4KXS1O0vzbhZCAU4V reports177tests and all seven required command exits0; build17.64s. Typecheck, lint, format, shader and reachability whole-project gates pass. Native remaining appap-X7Y6CU2RHjm5Bw9q3b2m0c and corrected foliage appap-zDikhyrOHp2fB8SXDbBhFu terminate0 with normal browser/preview/lock cleanup. All five original90s readiness checks pass: medium 12:00 clear 83.03s, medium 12:00 rain 85.53s, low 19:00 clear 54.02s, medium 23:00 clear 78.52s, medium 19:00 clear 63.52s. Clean diagnostics, nineteen required world roots, exact hooks and audio0/not-created retained.
+
+The checker failures remain failed in their own receipts. Root source review identified generated normal atlas UV1 versus procedural map/authored normal UV0. The next guarded trial exposed my own enum mistake: Three'sUnsignedByteType is1009, while5121 is the raw WebGL enum. Sorry for that wasted check. Actual source constants and runtime metadata justified the corrected guard. No production conversion, readiness defect, page error or texture-upload error was hidden. Baseline atlas/image references, rejected first build and all failed/final logs/receipts are retained. The completed clean day condition in the failed-checker run is explicitly scoped; its failed aggregate is never relabelled. Independent successful dusk/remaining receipts close acceptance on identical served bytes.
+
+Current served main:main-DWBJEcdD.js SHA25658c6418c2261a19c8285450aa0e1bcbe8d3f04a3fa9d596a1f07c037d144531d. All1220source/public inputs and388compiled files match. Accepted build is promoted only to this isolated checkout's ordinarydist after exact copy verification. The superseded4d root copy is retired only after matching the388retained archive pins; its source remains in Git. Earlierc0 root remains preserved.
+
+`test-results/village-doorways-hours-20261013/remote-egl/accepted-cohesion-local-scope.json` pins the aggregate's exact scoped receipts, sources, compiled bytes and images. `cohesion-gallery.html` provides all twenty inspected primary views. `cohesion-cleanup-receipt.json` proves removal of two archive-recoverable compiled duplicates,1220exact disposable input copies and the own530kBprobe, about503.4MiB logical. Filesystem free space rises531640320B during that cleanup, with concurrentAPFS attribution caveat. All active final builds, real source/public assets, archives, images, receipts, shared dependencies, foreign jobs and protected output stay intact.
+
+Pacing remains separately open under the unchanged original budgets. This closure makes no speedup, universal pacing, Mac Metal or desktop input acceptance claim. No GPU-idle wait or performance-budget relaxation was added.
