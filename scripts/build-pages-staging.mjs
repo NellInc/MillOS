@@ -154,6 +154,16 @@ const copyReleaseBuild = (sourceDirectory, destinationDirectory) => {
 
 copyReleaseBuild(distDirectory, path.join(outputDirectory, currentVersion));
 
+const currentCanonicalUrl = `https://www.millos.net/${currentVersion}/`;
+const canonicalLinks = builtIndex.match(/<link\b[^>]*\brel=(["'])canonical\1[^>]*>/gi) ?? [];
+if (canonicalLinks.length !== 1) {
+  throw new Error('Current release must have exactly one canonical link.');
+}
+fs.writeFileSync(
+  path.join(outputDirectory, currentVersion, 'index.html'),
+  builtIndex.replace(canonicalLinks[0], `<link rel="canonical" href="${currentCanonicalUrl}" />`)
+);
+
 const archiveSources = new Map();
 const archives = archiveReleases.map((release) => release.version);
 
@@ -223,7 +233,7 @@ const rootIndex = `<!DOCTYPE html>
   <meta http-equiv="refresh" content="0;url=/${currentVersion}/">
   <title>MillOS | 3D Grain Mill Operations Simulator</title>
   <meta name="description" content="Explore MillOS, a browser-based autonomous 3D grain mill operations simulator with deterministic logistics, production metrics, and a simulated SCADA workspace." />
-  <link rel="canonical" href="https://www.millos.net/" />
+  <link rel="canonical" href="${currentCanonicalUrl}" />
   <link rel="describedby" href="/llms.txt" type="text/plain" />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://www.millos.net/" />
@@ -251,8 +261,16 @@ const rootIndex = `<!DOCTYPE html>
 fs.writeFileSync(path.join(outputDirectory, 'index.html'), rootIndex);
 fs.copyFileSync(releaseMatrixPath, path.join(outputDirectory, 'release-matrix.json'));
 
-for (const file of ['robots.txt', 'sitemap.xml', 'og-image.png', 'llms.txt', 'indexnow-key.txt', 'BingSiteAuth.xml']) {
+for (const file of ['robots.txt', 'og-image.png', 'llms.txt', 'indexnow-key.txt', 'BingSiteAuth.xml']) {
   fs.copyFileSync(path.join(publicDirectory, file), path.join(outputDirectory, file));
+}
+const sitemap = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>${currentCanonicalUrl}</loc></url>
+</urlset>
+`;
+for (const directory of [outputDirectory, path.join(outputDirectory, currentVersion)]) {
+  fs.writeFileSync(path.join(directory, 'sitemap.xml'), sitemap);
 }
 fs.copyFileSync(path.join(projectRoot, 'CNAME'), path.join(outputDirectory, 'CNAME'));
 fs.writeFileSync(path.join(outputDirectory, '.nojekyll'), '');
