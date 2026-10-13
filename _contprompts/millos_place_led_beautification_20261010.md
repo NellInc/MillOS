@@ -1820,3 +1820,92 @@ CPU app: **ap-LpTaLqhvqEjcEHLyceCjfz**. All apps completed, with no render overl
 Retained preflight failure: the installed Modal SDK initially lacked authentication, before remote app creation. The failed log remains. Existing `modal` Keychain accounts `token_id` and `token_secret` were read transiently at invocation; no credential was printed, copied into an upload, saved in a dotfile or changed. No runtime or source failure was masked.
 
 Limits remain explicit: Mac pacing is independently **OPEN**; historical cloud-card causal uncertainty is still unreproduced; native submission gaps and timing variation preclude a universal device-startup claim. No new performance acceptance, native FPS castle walk or full-repository suite claim. Garden reference review uses separate captures and makes no isolated numeric A/B claim. Responsive status images include a deliberate subsequent scroll after primary focus was verified. The abandoned frame demonstrates removal of running progress; it does not claim the debrief text is in that frame. These limits did not block the completed polish pass.
+
+
+### Village materials and player-owned recovery programme, 2026-10-13
+
+Nell requested a detailed long task list and full implementation. Base a335528a249b4345780e422cbcbf68ba1a739b23, same isolated checkout and local-only delivery boundary. Primary dirty work/protected output preserved. Existing audio silence, 4GiB floor, 90s readiness, separate truck15s stage, 45 returned-frame window, quality/DPR/adaptation/light/shadow/budget policy remain. Graphics pacing stays independently OPEN. The proposed explicit resume is simulated shift pace, unrelated to that graphics pacing issue. Baseline source equals the preceding accepted117/9 candidate; this pass adds four relevant existing test files to its baseline before edits.
+
+- [x] C01: Trace live window shader and inherited wrappers.
+- [x] C02: Refine linen weave, hem shading and soft fold contrast.
+- [x] C03: Filter fabric details at distance.
+- [x] C04: Preserve curtain shape, room depth and occupancy variation.
+- [x] C05: Confine finish to actual curtain fabric.
+- [x] C06: Preserve warm lights, reflections and civic rooms.
+- [x] C07: Update actual cache-key consumers.
+- [x] C08: Review all affected architecture day/dusk.
+- [x] C09: Finish terracotta bases and worn rims.
+- [x] C10: Deterministic pot variation.
+- [x] C11: Preserve clay palette, soil, flowers and silhouettes.
+- [x] C12: Preserve gates, doorsteps and walking lanes.
+- [x] C13: Preserve geometry, batching and civic bake.
+- [x] C14: Review close and distant gardens.
+- [x] C15: Remove obvious three-slab colour cycle.
+- [x] C16: Restrained neighbouring slab tones.
+- [x] C17: Retain village/yard material distinction.
+- [x] C18: Preserve terrain, cutouts and depth layering.
+- [x] C19: Review connected approaches/canal/courts/station.
+- [x] C20: Preserve walls, planting, waterways and sightlines.
+- [x] C21: Correct paused pending-response shipping prompt.
+- [x] C22: Explicit player-operated resume action.
+- [x] C23: Existing relaxed pace, no inspection auto-resume.
+- [x] C24: Show running state and actual restore action.
+- [x] C25: Accurate recovery instruction at every stage.
+- [x] C26: Progress before primary next-action controls.
+- [x] C27: Abandon in secondary challenge settings.
+- [x] C28: Guide incident-response links to real workspace.
+- [x] C29: Preserve stock/quality/credit/deadlines/rewards.
+- [x] C30: Actual responsive full response path.
+- [x] C31: Named affected baseline.
+- [x] C32: Focused and required project gates.
+- [x] C33: Exact source/compiled identity.
+- [x] C34: Bounded silent native and same-page controls.
+- [x] C35: Direct image review and owned-only cleanup.
+- [x] C36: Gallery, completed dispositions and local check-in.
+
+Working if the village's fabric, clay and paths read naturally without geometry/light/atlas drift, and a paused recovery presents an explicit next simulation step while inspection remains non-mutating. No automatic resume, free supplies, relaxed rendering gate or publication.
+
+
+Pre-edit expanded baseline: **182 passed, 2 failed, 184 total / 13 files**, app ap-nqwURMx9F8q5wb4VBoo4jq, preserved raw receipt/log in `test-results/village-materials-flow-20261013/remote-egl/built-baseline/receipts/`. Failing names: GeneratedLighting `finishes only the actual boat paint slots, filtering detail without changing cabin lighting` (stale v5 key versus actual v7), WorldPublicRealm `finishes civic planter ends and seats varied stemmed flowers in the retained soil` (exact-RGB identification excludes existing deterministic shaded petals). Both checks repaired, original geometry and identity assertions retained.
+
+## Deviations for village materials and player-owned recovery
+
+The bounded read-only Astra adviser identified the far-side whole-plant clock contract. Source reinspection confirms an admitted UnifiedGameTick processes queued consequences and advances production/deadlines. Therefore the explicit action is named **Resume shift for controller response**, explains whole-shift advancement and continued running until paused, and preserves ordinary replay/review holds. It does not promise an isolated diagnostic step or automatic pause. A running/custom speed stays unchanged and shows **Awaiting simulation update** until a real consequence update permits restoration. Progress is tied to the actual challenge incident. The actual apartment wrapper was v4, so its inherited-shader version becomes v5, alongside village v7. Added the existing GeneratedModel and UnifiedGameTick campaign test files to final verification because they are real far-side consumers; baseline denominator remains the recorded 13 files. No new test framework or persisted schema.
+
+First candidate verification, app ap-ZOaarHSJQUnouYGq1NRVDe: **211 passed, 2 failed / 213 tests, 15 files**. Named failures were newly authored UI fixtures `does not resume through an outstanding linked review` (startMission correctly rejects an already-active challenge) and `routes completed-delivery response guidance to Overview without advancing the simulation` (required inspection absent). Fixed by establishing the agreement first and recording the real guide inspection in the fixture. Raw failure receipts and outgoing pins retained in `failed-candidate-1/`. Existing real UnifiedGameTick bridge and all material contracts passed. The running state now describes continued chosen pace in both Next and progress copy, rather than asking to resume an already-running shift.
+
+Second candidate verification, app ap-4dcpPM5Ak5CMjWDoilcBaX: **212 passed, 1 failed / 213 tests, 15 files**. The remaining completed-guide fixture reached the correct Delivery fulfilled surface but expected a resume-action button there. Source and rendered test DOM show its existing **Open current operations** navigation button; the guide does not execute recovery directly. Corrected that precise selector and retained the load-bearing Overview-route and no-clock/campaign mutation assertions. This is new discriminating evidence, not a blind third equivalent attempt. Preserved `failed-candidate-2/` raw logs and pins. No production edit required.
+
+First native day app ap-niWFHtEVg0kR3tui3Qwd2v reached the original startup gate in 41.4367 seconds, clean raw page/console/request arrays, 22 retained images, normal browser/preview/lock cleanup. Home fabric control changed 169 stable pixels above the original threshold. Wide civic control failed that same threshold; exact image difference bounds (9,272,743,451) show a faint real contribution, so the blanket “inert” wording was an instrument interpretation error. Kept that failed receipt and all images in `failed-native-day-wide-control/`. A closer near-frontal civic window camera, grounded in TownHall's real village position (0,0,20) and PI rotation, tests the changed fabric at useful resolution. Production source/build and threshold unchanged, no light boost, no repeated CPU build.
+
+Acceptance audit found a real newly introduced resume guard defect. `linkedReviewPending` is a customer/programme eligibility predicate, stricter than clock eligibility: it can prevent the time needed for active work or owed recovery. Root source review and bounded adviser challenge agreed; the earlier adviser and root had failed to inspect that distinction sufficiently. The native checkpoint above had passed ordinary unlinked UI but did not cover this far-side case. Preserved that build, all passing logs and 51 native dusk/Low/UI images in `pre-acceptance-guard/`. Removed only the inappropriate resume predicate and explanation, retaining it for programme/customer changes. Resume now exactly follows the existing explicit TeachingPace setter, with paused-only/custom-speed guards; unchanged UnifiedGameTick remains authoritative for real replay/improvement/control-mode/remaining-time holds. Replaced the misleading deliberating-mission “review hold” test with actual deliberating/consensually-active/finished-review linked states, no agreement/campaign/stock mutation before tick. Four relevant existing real tick hold/recovery/control-mode tests are added as a separate focused command under the original CPU bounds. No duplicated clock-policy helper, broad bypass or tick/store change.
+
+Civic daylight disposition: two unchanged threshold failures remain red, with exact on/on repeat equality and combined fabric contributions below >3. Root directly checked the close pair: 9,961 nonzero pixels, max channel delta3, confined to the window. The shared control proves combined fold/weave/hem composition, not each term independently. The stronger evening controls and direct views confirmed readable calm linen; daylight remains intentionally quiet. This appearance heuristic is not an agreed brightness requirement, so no production-light amplification, threshold reduction or third equivalent day render. Final day invariant proof comes from the exact final responsive native UI run; the earlier day landmark pictures are labelled material references, not a passed aggregate day-control job.
+
+The guard-repair fixture run ap-6Qp7CfUyjsyqpqU0h82Sdt passed 213 and failed two newly authored active/review setup cases (215 total). Their activation was correctly denied because peer simulation never supplies the playable Packing ballot or adviser checks. Reused the existing real checkpoint-test approval sequence, including coordinator choice, explicit authored check answers and Packing ballot, rather than forcing phase or relaxing consent. Both red names/raw receipts remain in `failed-linked-fixture/`; no production repair was needed for this fixture correction.
+
+Correct consent-complete linked states now pass: **215/215 tests in 15 files**, app ap-vgwvEqomHcjYtkM0KCawHV. The added clock-holds command failed before collecting tests because the existing adapter assigned NODE_ENV=test only to the command literally named affected-tests; clock-holds consequently ran under production and Vite externalized its node:fs/crypto/path inputs (`No such built-in module: node:`). Preserved raw suite error and pins in `clock-environment-failure/`. Corrected only the adapter's test-environment dispatch for both test commands. No production/source change, no skipped clock test or environment budget relaxation.
+
+
+### Village materials and player-owned recovery closure, 2026-10-14
+
+**All C01-C36 completed for this finite pass.** Source/test commit **e5b969569fa0439f0b5b01f306fb3a9c8f82b279**, local isolated branch only. No primary integration, push or deployment. Primary HEAD remains 06ff26d393bebd3c34f99b02c9e22aaad58e07ee with 18 unrelated tracked dirty entries; protected untracked output remains. This chat authored the pass and directly reviewed its own final51 native screenshots and22 earlier day material references.
+
+- **C01-C08, architectural linen:** derivative-filtered weave, restrained folds and a hem compose only the existing curtain colour. Uniform strength0 restores the previous composition, with no room shape, occupancy, reflection, geometry, map, light or per-frame writer change. Base village key is v7, actual apartment wrapper v5; inherited shop/forge/castle keys retain their real base. Source consumers, shader registry and generated-body tests pass. Day/civic appearance is deliberately quiet, with the two preserved >3 contrast failures explicitly classified above; evening and midnight controls show a real combined contribution and calm readable panes. No unsupported claim of independently visible weave or hem.
+- **C09-C14, garden clay:** the existing cylinders carry deterministic kiln tones, a darker base and warmer worn lip. Exact cylinder positions/normals/UVs/indices and original clay chroma are protected by the new small test. Soil, flower placement/palette, silhouettes, roofs, gate/door lanes, whole-village detail cap, static batching and civic caster geometry are retained. Native close/distant references reviewed alongside the unchanged foliage/bird.
+- **C15-C20, public-realm cohesion:** replaced the three-row slab colour repetition with coordinate-seeded restrained tones between the original palette endpoints. Village and yard remain distinguishable. Routes, slab geometry, terrain tessellation/cutouts, courts, depth layering, walls, planting, water and sightlines are unchanged. Existing path/ground/ray/triangle checks and native connected approaches/canal/civic/station views pass.
+- **C21-C30, player-owned recovery:** queued challenge consequences precede shipping advice. The explicit resume sets only paused game speed to30, announces whole-shift production/deadline advancement and continued running until paused, and leaves custom/running pace alone. Actual tick admission remains authoritative, without the mistakenly reused customer/programme gate. Deliberating, consensually-active and finished-review linked UI fixtures now prove that distinction. Stage instructions follow the actual challenge incident; progress precedes Next, abandonment is secondary, completed-guide response links open Overview. Native 1440/768/390 beacons navigate/focus real controls, paused inspection preserves actual15 source lots plus batch/manifest/totals and selected order/incident/deadline fields, and the actual resume→ordinary tick→pause→restore sequence leaves delivery unfinished. Abandon changes its own history/run and grants no goods or delivery credit. Status screenshots follow a deliberate extra scroll, with focus bounds separately measured before it.
+- **C31-C33, source proof:** named pre-edit baseline182 passed/2 failed/184 total in13 files. Both real legacy assertion defects repaired without discarding identity/geometry checks. Final corresponding13 files contain197 tests, zero failures, +13 added cases; the extra real GeneratedModel/UnifiedGameTick campaign files add18 cases, for **215 passed /15 files**. Four selected existing workplace clock/control-boundary tests pass separately (19 unrelated cases intentionally unselected), preserving real review debt, preparation/exhaustion and control-mode holds. Typecheck/lint/format/shader/build/reachability all exit0. Final CPU app **ap-Q5KAriRhBYN1zKCNkJ0ERP**, aggregate193.03s under210s, production build19.02s. 34 shader families/38 stable keys/26 definition sites pass. Detector JSON[] retained, no installation or broad advisory cleanup. All1219 source/public and388 compiled pins rechecked after native validation; no full-repository suite claim.
+- **C34-C35, native proof and cleanup:** final exact candidate renders have **51 images**, 36 dusk/Low/midnight and15 real UI/day, reviewed directly. Final roots/people/bird, raw console/page/request arrays, original90s readiness, separate truck15s stage,45-frame window,4GiB floor, MediumDPR1.2/single Sun caster, LowDPR.8/zero, civic atlas/strength1, leaf relief.28, quality/adaptation/budgets and audio0/not-created all hold. Native apps close browser, preview and lock normally. No local desktop/foreign browser, queue, PID, cache or profile was touched. Deleted only this pass's superseded `pre-acceptance-guard/built/dist` after verifying all388 recovery bytes against its retained compressed archive.177,090,605 logical bytes removed; shared-filesystem free space observed9,785,225,216→9,964,093,440 bytes (net178,868,224). All source, compressed recovery, images, raw red receipts and logs remain.
+- **C36, delivery:** saved `cohesion-gallery.html` and `accepted-village-materials-flow-local-scope.json` in `test-results/village-materials-flow-20261013/remote-egl/`, with all36 dispositions and exact custody. The gallery labels22 day references from unchanged material/scene/public sources, rather than pretending those earlier red aggregate control jobs passed. Ordinary root dist remains its earlier accepted artifact; final build lives only in this pass's built/dist. Only the13 owned source/test files and this completion record are checked in locally.
+
+| Final native app | Scope | Original90s readiness | Images |
+| --- | --- | --- | --- |
+| ap-DmfrJtpCTUxtB6pjGnZcXR | Medium19, Low19, Medium00 |42.126 /34.352 /40.792 s |23 /6 /7 |
+| ap-TVp3ISt6cOtwC0DZ0obwlH | Actual day guide/beacons/resume/tick/restore |42.661 s |15 |
+
+Both final native jobs use sandboxed out-of-process NVIDIA A10, driver610.57.04, with exact served main identity. Dusk paired controls change5,454 home and4,249 civic stable pixels above3 (mean max-channel deltas5.611/5.980); midnight4,344/5,024 (5.419/5.785). All shared controls restore strength1 and asset/material/shader identity. Appearance measurements are not timing or performance claims.
+
+**Mac graphics pacing remains independently OPEN.** Historical cloud-card causal uncertainty remains unreproduced. No universal device/startup claim, new FPS acceptance or native castle-walk proof. No third equivalent civic-daylight render, light amplification, threshold reduction, skipped release check or publication. These limits do not hold this completed scoped polish pass.
+
+Exact final main: **assets/main-qp14GLeU.js**, SHA256 **ab4c643ddd24db16f6f130dea76d156992c14f493d8bf9b9c12f1073dffb055d**.
