@@ -1773,3 +1773,50 @@ Retained red checkpoints and corrections:
 4. The768px response screenshot was captured during the intended sidebar entrance opacity transition. Its functional focus/visible bounds passed; the gallery labels it as an opening frame and makes no settled-frame claim.
 
 Independently open: Mac pacing, historical cloud-card causal uncertainty, remaining native startup blocking submission gaps/timing variation. None is relabelled green or used to stop the completed cohesion pass. No universal device-startup guarantee, GPU-vendor conclusion, new physical-device walk or live-release claim.
+
+
+### Village, cabin depth and visible recovery pass, 2026-10-13
+
+Assigned by Nell's next proceed: continue polishing village, models, scenes, lighting and gameplay; keep pacing separate. Baseadc4dcb4ecd8dc211152213391ea7c6ec55ade52, same isolated/local-only branch, primary dirty work preserved, audio silent. Current exact-source baseline115passed/9files/zero failing names from preceding accepted receipt, whose1219source hashes match this starting candidate. No repeated passing baseline job needed.
+
+- [x] B01: Soften actual clipped garden foliage normals, preserving every caster position/UV/index and deterministic leaf-age colours.
+- [x] B02: Add bounded shallow-reveal shading to the existing narrowboat porthole/end-pane cabin, preserving brass/paint/atlas/glazing and no new light/draw/texture.
+- [x] B03: Keep active challenge mass, remaining time and recovery step visible outside collapsed setup. Preserve actual buttons, rules, stock, clock, deadlines and persistence.
+- [x] B04: Update real shader cache-key consumer and affected concrete regression guards; retain earlier geometry hash contracts.
+- [x] B05: Required affected checks, typecheck/lint/format/shaders/build/reachability and applicable design detector.
+- [x] B06: Freeze exact source/compiled identity; original disk/readiness/truck/frame/quality/adaptation/shadow/budget guards.
+- [x] B07: Same-page boat reveal on/off/on with original references restored; verify garden normal/geometry contracts and compare retained close references, then inspect day/dusk and civic/boat/village continuity.
+- [x] B08: Native actual challenge progress/phase/buttons at desktop/compact layouts with silent audio and clean diagnostics; no supplies/rewards granted by inspection.
+- [x] B09: Save exact gallery, failed receipts if any and residual limits; remove only task-owned disposable cache after recoverability checks.
+- [x] B10: Accept only justified refinements and commit owned source/tests/completed record locally. Mac pacing and historical cloud uncertainty remain independently open.
+
+Working if shrub highlights are softer with identical baked geometry, boat apertures have visible recess depth without new lighting cost, and a running challenge's real target/recovery step remains visible after panel remount without automatic action.
+
+
+Refinement of B07 proof: use the existing live boat uniform for the paired control. Garden sources are hidden after merging into shared outputs; changing their own normals would be an inert control, while flattening every merged neighbour would confound flowers and buildings. Preserve and run the existing exact position/UV hashes plus ellipsoid-normal contract, inspect the new real close garden images against the retained pre-change references, and make no isolated performance/numeric A/B claim for gardens. This avoids new reverse-mapping machinery or changing batching solely for a test.
+
+
+### Village/cabin/recovery pass closure
+
+Accepted source and tests: **a22683aa982978e371e664da8ae191c6a84524cf**. This chat authored the refinements and directly reviewed its own rendered images. **Local only**, no primary integration, push or deployment. Primary commit 06ff26d393bebd3c34f99b02c9e22aaad58e07ee and its 18 unrelated tracked modifications remain untouched, along with the isolated checkout's protected untracked output.
+
+- **B01, garden model finish:** the existing closed low-detail foliage clusters now use ellipsoid-gradient normals, calculated before nonuniform scale. Direct day/dusk reference review shows gentler highlights on the small garden shrubs. Original positions, UVs, indices, deterministic leaf-age colours, triangle count, batching and civic shadow geometry remain exact. Existing measured position/UV hashes and the analytic normal contract pass. No new draw, texture, material or per-frame allocation.
+- **B02, narrowboat lighting depth:** a restrained inner-reveal term shades the existing circular portholes and rectangular door panes. It occludes the virtual room and reading light together, retaining the original cabin colours, curtain/parallax, paint, brass, atlas and glass sheen. No extra geometry, texture, draw or light. Same-page on/off/on controls restore the exact shared uniform and preserve map/material/shader identity. Day changed 206 stable pixels (mean max-channel RGB delta 4.51), dusk 962 (12.22), midnight 958 (12.00), with 1,296,000 same-arm stable pixels each. These are appearance measurements, not timing or cost claims.
+- **B03, useful gameplay feedback:** the real running challenge's dispatched/target mass, remaining simulation time and recovery instruction are outside collapsed setup. The two states explain the controller-response sequence and the fresh quality-released shipping requirement. Existing action handlers, pause rules, stock, deadlines, rewards and persistence are unchanged. Native 1440/768/390 routes show the actual group inside the viewport and outside any disclosure. Actual acknowledgment, mitigation, ordinary simulation tick, controller restoration and abandonment work. Paused inspection and abandonment leave actual source lots, production batches, manifests, material totals, orders and incident/deadline state unchanged; no stock or delivery credit is granted.
+- **B04-B06, source proof:** updated the real boat shader cache-key consumer to v7 and kept its uniform ownership explicit. Baseline was the exact prior 115 passing tests across 9 files, zero failing names; final is **117 across 9**, delta +2. Typecheck, lint, formatting, shader validation, production build and reachability all exit 0. Build 16.98 seconds, full scoped CPU sequence 119.00 seconds under the unchanged 210-second aggregate and 240-second function bounds. Shader validation reports 34 families, 38 stable keys and 26 sites. Detector text mode completed with exit 0, no primary findings or emitted advisories; raw empty stdout and a labelled wrapper record are retained. No installation, duplicate scan or broad gate rerun.
+- **B07-B08, native proof:** **63 exact-candidate images** reviewed directly: 19 day, 29 dusk/Low/midnight, 15 real guide/incident/response/recovery UI. Close boat control crops and prior/current garden references were also reviewed. All final entries are native, sandboxed, out-of-process NVIDIA hardware with clean raw console/page/request arrays, all 19 world roots, 14 anonymous personnel objects, one visible-in-tree fountain bird and the retained broadleaf relief. Audio stayed 0/not-created. Medium DPR 1.2 and one directional caster, Low DPR 0.8 and zero casters, original civic atlas/strength 1, quality/adaptation/shadow/light policy and original loading bounds are preserved. Normal browser, preview and capture-lock cleanup is true for every job.
+- **B09-B10, recovery and delivery:** saved `cohesion-gallery.html` and `accepted-village-cabin-local-scope.json` in this pass's retained evidence directory. No disposable Python bytecode cache was created, so no cache deletion was needed. All sources, accepted builds, recovery archives, screenshots and receipts remain; no foreign cleanup. Only the seven owned source/test files and this completed task record were committed locally.
+
+Evidence directory: `test-results/village-cabin-recovery-20261013/remote-egl/`. All **1,219 whitelisted source/public files** and **388 compiled files** were rechecked against their pins after native validation. Exact served main: **main-D20dcNy0.js**, SHA256 **2aa1410ac202984afc03ad7188cbbe2cd18782123d18be6cabbfbb43729f39fe**. The accepted artifact remains in this pass's `built/dist/`; ordinary root `dist/` still contains its earlier accepted build. No shared artifact replacement.
+
+| Native job | Scope | Original 90-second readiness | Images | Driver |
+| --- | --- | --- | --- | --- |
+| ap-RAggVPel6SP1BbUFlY3orF | Medium 12:00, focused models and boat control | 48.70 s | 19 | 610.57.04 |
+| ap-FZPIU0ejserC8benhnhSXb | Medium 19:00, Low 19:00, Medium 00:00 | 41.41 / 35.11 / 43.01 s | 19 / 6 / 4 | 580.95.05 |
+| ap-XM05ANxA4Atx5rurKwpPS3 | Actual guide, beacon, challenge and responsive recovery controls | 54.10 s | 15 | 610.57.04 |
+
+CPU app: **ap-LpTaLqhvqEjcEHLyceCjfz**. All apps completed, with no render overlap or quality/deadline/budget relaxation.
+
+Retained preflight failure: the installed Modal SDK initially lacked authentication, before remote app creation. The failed log remains. Existing `modal` Keychain accounts `token_id` and `token_secret` were read transiently at invocation; no credential was printed, copied into an upload, saved in a dotfile or changed. No runtime or source failure was masked.
+
+Limits remain explicit: Mac pacing is independently **OPEN**; historical cloud-card causal uncertainty is still unreproduced; native submission gaps and timing variation preclude a universal device-startup claim. No new performance acceptance, native FPS castle walk or full-repository suite claim. Garden reference review uses separate captures and makes no isolated numeric A/B claim. Responsive status images include a deliberate subsequent scroll after primary focus was verified. The abandoned frame demonstrates removal of running progress; it does not claim the debrief text is in that frame. These limits did not block the completed polish pass.
