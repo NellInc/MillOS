@@ -1683,3 +1683,93 @@ Accepted source/test commit: a9ca974ed17289ec6c6b3ec525a06981c6e105ad. This chat
 Final CPU app:ap-Y18HoGfIgZmrbXEh2h8asm. All apps completed. There was no repeated equivalent failure, native render overlap, browser-profile intervention or budget relaxation.
 
 Independently open boundaries: original Mac pacing remains OPEN and is no blocker for this polish pass. The historical cloud-card observation remains unreproduced in exact controls, despite the corrected source contract and clean native cutouts. Native timing variation and remaining blocking submission gaps preclude a universal startup guarantee. These limits are explicit in the acceptance receipt; no failed historical result is relabelled green.
+
+
+### Cohesion, foliage and response-navigation pass, 2026-10-13
+
+User request: make a very detailed task list, then execute it in full. Base d48badcce21aec04bc7de613d76d1e822b211d3d, same isolated branch. Audio silent, primary dirty work/protected output preserved, local-only delivery, original4GiB/90s/15s/45-frame/preset/shadow/adaptation/budget limits. Mac pacing and historical-card uncertainty remain separate.
+
+- [x] P01: Record commit/source/build identity.
+- [x] P02: Preserve primary concurrent work and protected output.
+- [x] P03: Retain truthful historical failures.
+- [x] P04: Check disk before expensive jobs.
+- [x] P05: Reuse bounded Modal/capture-lock/cleanup.
+- [x] P06: Trace real generated tree materials and normal layers.
+- [x] P07: Examine speckled leaf shading.
+- [x] P08: Same-page current/restrained/current relief trial.
+- [x] P09: Judge close/crown/distant readability.
+- [x] P10: Check dusk relief and silhouette.
+- [x] P11: Preserve alpha/holes/wind/species/geometry/shadows.
+- [x] P12: Preserve colour space/UVs/stable keys.
+- [x] P13: Retain only supported material adjustment.
+- [x] P14: Run foliage/generated-material contracts.
+- [x] P15: Review castle planting and landmark.
+- [x] P16: Check grounding and navigable stairs.
+- [x] P17: Review cottage gardens/walls/boxes/allotments.
+- [x] P18: Review church/hall/school/pub/shop readability.
+- [x] P19: Inspect boat paint/brass/glass/curtains/cabin.
+- [x] P20: Check fountain bird/pond/people/work-rest presence.
+- [x] P21: Repair concrete scoped findings; retain working assets.
+- [x] P22: Review connected river/canal/bridges/banks.
+- [x] P23: Review mountains/foothills/dusk horizon.
+- [x] P24: Check cloud cutouts/horizon seams.
+- [x] P25: Review village lamps/rooms/civic depth.
+- [x] P26: Check station/shelter/road lighting and access.
+- [x] P27: Preserve shadow/preset/adaptation/budget policy.
+- [x] P28: Keep historical cards and Mac pacing separate.
+- [x] P29: Bring actual response controls into view after beacon navigation.
+- [x] P30: Reuse Overview workspace.
+- [x] P31: Preserve inspection/acknowledge/mitigate distinction.
+- [x] P32: Handle stale/resolved markers safely.
+- [x] P33: Preserve FPS input/capture.
+- [x] P34: Check desktop/compact response routes.
+- [x] P35: Prove inspection does not mutate campaign/stock/deadlines.
+- [x] P36: Check guide/challenges at desktop/tablet/phone.
+- [x] P37: Named affected-test baseline.
+- [x] P38: Focused concrete regression checks.
+- [x] P39: Required whole-project gates.
+- [x] P40: Freeze final source/compiled pins.
+- [x] P41: Bounded native day/dusk/Low/gameplay checks.
+- [x] P42: Direct image review; one justified confirmation round if needed.
+- [x] P43: Triage available detector.
+- [x] P44: Verify recoverability before own disposable cleanup.
+- [x] P45: Save gallery/evidence/trials/limits.
+- [x] P46: Commit owned source/tests/completed task record locally.
+
+Working if the retained tree finish improves observed readability without alpha/geometry/shadow drift, a scene beacon reveals the real controls without acting on an incident, and every retained change has exact-source runtime proof while pacing remains independently open.
+
+
+### Cohesion-pass completed dispositions and local closure
+
+Accepted source/test commit: **2c448dbf251a3e722a7255f34ebc26f428b853c4**. This chat authored these changes and directly reviewed its own actual rendered images. Delivery is **local only**, on the existing isolated branch. Primary06ff26d393bebd3c34f99b02c9e22aaad58e07ee, its18unrelated tracked modifications and this checkout's protected untracked output remain untouched. No primary integration, push or deployment.
+
+| Tasks | Executed outcome and confirming evidence |
+| --- | --- |
+| P01-P05 | Source/compiled identity recorded; primary dirty work and protected output preserved. Disk remained above the unchanged4GiB guard before expensive work. Existing bounded Modal CPU/native adapters, capture locking, separate ownership and normal browser/preview/lock cleanup reused. All failures remain red and recoverable. |
+| P06-P14 | Traced all12actual generated broadleaf materials and four shared authored normal-scale vectors. Same-page current/restrained/current controls at12:00and19:00, on the prior accepted build, changed only authored normal relief0.6to0.28. Close and village controls restored every original reference and value. Direct close-image review supports a gentler finish; alpha holes, wind, species, geometry, shadow depth, maps, UVs, colour-space and stable keys are unchanged. Needle relief remains0.6. Existing foliage, atlas and generated-layer contracts pass. |
+| P15-P21 | Reviewed castle approach/closed bloom planting/stairs, village cottages/gardens/walls/boxes/allotments, church/hall/school/pub/shop fronts, boat paint/brass/glass/curtains/cabin, pond and fountain detail. Final native presence includes all14anonymous personnel objects, existing work/rest activities, and exactly one visible-in-tree fountain bird. Existing castle grounding/stair-clearance and boat contracts pass. Retained working assets rather than making speculative replacements. No new native FPS pointer-lock castle-walk claim. |
+| P22-P28 | Reviewed river/canal/bridge/bank connections, mountains/intermediate foothills, dusk horizon/cloud cutouts, warm lamps/room windows/curtains/civic depth, station/shelter signs and forecourt-road access. Preserved original presets, adaptation, DPR, lighting/shadow policy, civic bake and budgets. These are reviewed unchanged assets, not newly rebuilt models. Mac pacing stays independentlyOPEN; historical cloud-card cause stays unreproduced. |
+| P29-P35 | A live beacon requests one-shot navigation in existing UI state, then the mounted Overview control scrolls into view and receives focus. The request is transient and excluded from persistence. Deferred focus lets the compact modal capture its return target first. Stale/resolved and FPS requests are ignored/cleared. Inspection executes no response and changes no stock, campaign state or clock. Focused tests verify these contracts, and real native pointer hover/click at1440/768/390confirms visible controls with unchanged paused campaign. |
+| P36-P38 | Real intro and delivery guide exercised at1440x900,768x1024,390x844, without overflow. Actual challenge and acknowledgment/mitigation actions exercised on desktop; all three responsive response routes rendered and clicked, compact Tab/ShiftTab stayed within the existing modal trap and actual Close worked. Named baseline109passed/9files/zero failing names; final115passed/9files, delta+6. Existing simulation, stock and deadline actions were preserved. This is the affected suite, not a full-repository suite claim. |
+| P39-P43 | Final typecheck, lint, format-check, shader validation, production build and reachability all exit0. Build21.95s; full scoped CPU sequence159.04s under unchanged210saggregate/240sfunction bound. Shader34families/38stable keys/26sites, no new reachability defect. Detector returned[]; no skill/hook/dependency install. All1219whitelisted source files and388compiled files matched their exact hashes again at closure. Five final fresh native entries passed original90sreadiness with clean raw diagnostics. All125final images reviewed directly, plus controlled close foliage arms. |
+| P44-P46 | Removed only20593logical bytes of this task's reproducible two Python bytecode caches after recording their retained source hashes. Every build, asset, image, archive and failing receipt remains. Saved gallery and exact acceptance receipt; committed only nine owned source/test files and this completed task record locally. No foreign cache/profile/process deletion. |
+
+Final artifact: `test-results/cohesion-response-foliage-20261013/remote-egl/built/dist/`,388files. Served main **main-UaF9IqWa.js**, SHA256 **f858045f1e591884bdedaa96670a34c42f1ee4647fb6c9643b5b0507bfc9f724**. Ordinary root `dist/` remains the prior accepted build; no shared replacement. Source and compiled pin manifests, build logs, images and raw receipts are retained beside `accepted-cohesion-response-local-scope.json` and `cohesion-gallery.html`.
+
+| Final native job | Exact condition | Ready under original90s | Images | Observed driver |
+| --- | --- | --- | --- | --- |
+| ap-UsDIurDFdQkv9pq6OLjdl8 | Medium12:00, canonical world and model details |60.75s |41 |610.57.04 |
+| ap-DZP4EAQ4GBcZHg2mXhYYKF | Medium19:00, Low19:00, Medium00:00 |42.26s/33.14s/40.77s |40/34/1 |610.57.04 |
+| ap-tnJljIwLLsuPwhTXLvLY4c | Medium12:00, real guide/challenge/response routes |42.86s |9 |580.95.05 |
+
+Final CPU app: **ap-INkg1YMaN16dduVORvUswu**. Native Chromium143 was sandboxed, GPU out-of-process, NVIDIAA10/A10G hardware. Every final entry reports19required roots, audio0/not-created, restored observer hook, exact civic atlas8de356b6e912c8ea42a7342988b1679a454ba2e4ee6f205b8513a629bda8fd71at strength1, MediumDPR1.2with one directional caster or LowDPR0.8with zero casters. Presence verification does not imply all14people are simultaneously visible in one camera; existing duty visibility is respected.
+
+Earlier foliage control app **ap-fPsOY6sK9PgczOI0hf4tPU**,26images on prior accepted main-DsKpZXO8.js, is labelled separately in the gallery. Same-arm stable mask1296000pixels. Restrained relief changed106961day-close pixels (mean6.3268RGB delta),1219day-village (7.0213),13164dusk-close (4.8652),79dusk-village (6.9747). These are visual differences, not performance results or universal aesthetic measurements. Geometry/draw/light policy is unchanged by the source adjustment.
+
+Retained red checkpoints and corrections:
+1. First UI capture reached desktop response, then timed out hovering the768px beacon. The initial resize/camera hypothesis was unconfirmed; original timeout stayed red.
+2. Real canvas-size and camera-frame barriers did not cure the second hover timeout. Its captured screenshot proved the ordinary queued welcome reflection covered the target. The corrected check used the actual reflection Close button, preserving its intended policy, then the three real beacon routes passed. No store flag, forced click or deadline/quality override.
+3. One task-owned controller had a parser typo and failed before launching a browser, preview or game. This was acknowledged and fixed with a checked fail-fast syntax preflight. The failed raw output and45-byte empty archive remain, and are not counted as runtime evidence.
+4. The768px response screenshot was captured during the intended sidebar entrance opacity transition. Its functional focus/visible bounds passed; the gallery labels it as an opening frame and makes no settled-frame claim.
+
+Independently open: Mac pacing, historical cloud-card causal uncertainty, remaining native startup blocking submission gaps/timing variation. None is relabelled green or used to stop the completed cohesion pass. No universal device-startup guarantee, GPU-vendor conclusion, new physical-device walk or live-release claim.
