@@ -495,3 +495,44 @@ it.each(['mounted', 'lazy-mount', 'resolved', 'fps'] as const)(
     }
   }
 );
+
+it.each(['responding', 'recovering'] as const)(
+  'keeps %s challenge progress outside collapsed setup without advancing it',
+  (phase) => {
+    const state = useOperationsCampaignStore.getState();
+    useOperationsCampaignStore.setState({
+      execution: {
+        ...state.execution,
+        stage: 'milling',
+        sourceInventoryKg: 10000,
+        qualityReleased: true,
+      },
+    });
+    expect(useOperationsCampaignStore.getState().startChallenge('power_recovery')).toBe(true);
+    if (phase === 'recovering') {
+      const campaign = useOperationsCampaignStore.getState();
+      useOperationsCampaignStore.setState({
+        incidents: campaign.incidents.map((incident) => ({
+          ...incident,
+          phase: 'resolved' as const,
+        })),
+      });
+    }
+    const before = useOperationsCampaignStore.getState(),
+      stock = useMaterialFlowStore.getState(),
+      clock = useGameSimulationStore.getState();
+    render(<OperationsPlayCard />);
+    const progress = screen.getByRole('group', { name: 'Recovery challenge progress' });
+    expect(progress.closest('details')).toBeNull();
+    expect(progress).toHaveTextContent('0 / 1000 kg');
+    expect(progress).toHaveTextContent('360 simulation minutes left');
+    expect(progress).toHaveTextContent(
+      phase === 'responding'
+        ? 'Acknowledge the incident, apply mitigation, then restore its controller.'
+        : 'Controller restored. Dispatch fresh, quality-released goods through the shipping bay.'
+    );
+    expect(useOperationsCampaignStore.getState()).toBe(before);
+    expect(useMaterialFlowStore.getState()).toBe(stock);
+    expect(useGameSimulationStore.getState()).toBe(clock);
+  }
+);

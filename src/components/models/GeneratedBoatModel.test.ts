@@ -3,7 +3,11 @@ import * as THREE from 'three';
 import { NodeIO } from '@gltf-transform/core';
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
 import draco from 'draco3dgltf';
-import { applyBoatPortholes, BOAT_GLAZING_STRENGTH } from './GeneratedBoatModel';
+import {
+  applyBoatPortholes,
+  BOAT_GLAZING_STRENGTH,
+  BOAT_REVEAL_STRENGTH,
+} from './GeneratedBoatModel';
 
 describe('retained narrowboat glazing', () => {
   it('adds pane-only roughness to the real standard shader without changing its atlas', () => {
@@ -21,12 +25,16 @@ describe('retained narrowboat glazing', () => {
     expect(material.map).toBe(map);
     expect(shader.uniforms.boatNight).toBe(night);
     expect(shader.uniforms.boatGlazingStrength).toBe(BOAT_GLAZING_STRENGTH);
+    expect(shader.uniforms.boatRevealStrength).toBe(BOAT_REVEAL_STRENGTH);
+    expect(shader.fragmentShader).toContain('room * revealShade');
+    expect(shader.fragmentShader).toContain('* boatNight * strength * revealShade');
+    expect(shader.fragmentShader).toContain('max(abs(pane.x), abs(pane.y)), endPane');
     expect(shader.fragmentShader).toContain('abs(paintSlot - 6.0)');
     expect(shader.fragmentShader).toContain(
       'roughnessFactor, 0.18, boatGlass * clamp(boatGlazingStrength, 0.0, 1.0)'
     );
     expect(shader.fragmentShader).toContain('totalEmissiveRadiance += boatRoomLight');
-    expect(material.customProgramCacheKey()).toBe('millos-authored-boat-portholes-v6');
+    expect(material.customProgramCacheKey()).toBe('millos-authored-boat-portholes-v7');
     material.dispose();
     map.dispose();
   });

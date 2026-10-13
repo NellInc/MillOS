@@ -72,9 +72,9 @@ const DESIGNS = [
 const { cream: CREAM, soil: SOIL, leaf: LEAF, oak: WOOD, iron: IRON } = WORLD_CRAFT_PALETTE;
 type Point = readonly [number, number, number];
 
-/** Leaf age varies across the existing closed cluster, without changing its
- * caster geometry. Working if repeat builds match, tips differ from lower leaves
- * and every plant retains its original positions, normals, UVs and indices.
+/** Soft clipped foliage and leaf-age tones on the existing closed cluster.
+ * Working if normals follow the ellipsoid, tips differ from lower leaves and
+ * positions, UVs and indices remain exact for the original civic shadow bake.
  */
 export function addVillageFoliage(
   b: PlotGeometry,
@@ -83,7 +83,11 @@ export function addVillageFoliage(
   colour: string,
   detail: 0 | 1 = 0
 ) {
-  const g = new THREE.IcosahedronGeometry(1, detail).scale(...scale).translate(...at);
+  const g = new THREE.IcosahedronGeometry(1, detail);
+  // Smooth the low-detail cluster before its nonuniform scale, so normals use
+  // the same inverse-transpose as the ellipsoid rather than a spherical guess.
+  g.setAttribute('normal', g.getAttribute('position').clone());
+  g.scale(...scale).translate(...at);
   b.add(g, colour);
   const p = g.getAttribute('position'),
     colours = g.getAttribute('color');

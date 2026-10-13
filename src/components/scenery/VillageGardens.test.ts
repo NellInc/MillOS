@@ -368,7 +368,7 @@ it('gives both smoke-aligned pots on every live home a recessed throat and front
   }
 });
 
-it('varies only foliage colours, retaining exact original clusters and repeatable leaf-age tones', () => {
+it('softens foliage normals and leaf-age tones while retaining exact civic-baked clusters', () => {
   for (const detail of [0, 1] as const) {
     const at = [3.95, 0.54, 5.55] as const,
       scale = [0.58, 0.6, 0.52] as const;
@@ -381,11 +381,26 @@ it('varies only foliage colours, retaining exact original clusters and repeatabl
       b = new PlotGeometry();
     addVillageFoliage(a, at, scale, '#607b43', detail);
     addVillageFoliage(b, at, scale, '#607b43', detail);
-    for (const attribute of ['position', 'normal', 'uv'])
+    for (const attribute of ['position', 'uv'])
       expect(a.parts[0].getAttribute(attribute).array).toEqual(
         original.parts[0].getAttribute(attribute).array
       );
     expect(a.parts[0].index).toEqual(original.parts[0].index);
+    const normals = a.parts[0].getAttribute('normal'),
+      positions = a.parts[0].getAttribute('position');
+    expect(normals.array).toEqual(b.parts[0].getAttribute('normal').array);
+    if (detail === 0)
+      expect(normals.array).not.toEqual(original.parts[0].getAttribute('normal').array);
+    for (let i = 0; i < normals.count; i++) {
+      const expected = new THREE.Vector3(
+        (positions.getX(i) - at[0]) / (scale[0] * scale[0]),
+        (positions.getY(i) - at[1]) / (scale[1] * scale[1]),
+        (positions.getZ(i) - at[2]) / (scale[2] * scale[2])
+      ).normalize();
+      expect(new THREE.Vector3().fromBufferAttribute(normals, i).distanceTo(expected)).toBeLessThan(
+        0.000002
+      );
+    }
     const colours = a.parts[0].getAttribute('color');
     expect(colours.array).toEqual(b.parts[0].getAttribute('color').array);
     expect(colours.array).not.toEqual(original.parts[0].getAttribute('color').array);

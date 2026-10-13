@@ -9,6 +9,8 @@ import { EXTERIOR_LAMP_LEVEL } from '../exterior/ExteriorLighting';
 export const BOAT_INTERIOR_STRENGTH = { value: 1 };
 /** Glazing-only finish/control, shared with no frame writer or extra source. */
 export const BOAT_GLAZING_STRENGTH = { value: 1 };
+/** Recess shading on existing glazing, with a same-page isolation control. */
+export const BOAT_REVEAL_STRENGTH = { value: 1 };
 // Existing hook, rest-space metres, no map, geometry or light added.
 // Working if finish follows the hull and brass, roses, teak and glass stay exact.
 export const BOAT_PAINT_STRENGTH = { value: 1 };
@@ -22,6 +24,7 @@ export function applyBoatPortholes(material: THREE.MeshStandardMaterial, night: 
   material.onBeforeCompile = (shader) => {
     shader.uniforms.boatNight = night;
     shader.uniforms.boatGlazingStrength = BOAT_GLAZING_STRENGTH;
+    shader.uniforms.boatRevealStrength = BOAT_REVEAL_STRENGTH;
     shader.uniforms.boatInteriorStrength = BOAT_INTERIOR_STRENGTH;
     shader.uniforms.boatPaintStrength = BOAT_PAINT_STRENGTH;
     shader.uniforms.boatLinen = { value: new THREE.Color('#e8dbc0') };
@@ -46,6 +49,7 @@ export function applyBoatPortholes(material: THREE.MeshStandardMaterial, night: 
       varying vec3 vBoatAxisZ;
       uniform float boatNight;
       uniform float boatGlazingStrength;
+      uniform float boatRevealStrength;
       uniform float boatInteriorStrength;
       uniform float boatPaintStrength;
       uniform vec3 boatLinen;
@@ -137,14 +141,23 @@ export function applyBoatPortholes(material: THREE.MeshStandardMaterial, night: 
          vec2 lampAt = vec2(mix(-0.32, 0.32, mod(bay, 2.0)), 0.06);
          float lamp = (1.0 - smoothstep(0.10, 0.22, length(inside - lampAt)))
            * (1.0 - curtain);
+         // The round portholes and rectangular door panes retain their measured
+         // apertures. A shallow inner reveal shades the room and reading light
+         // together; brass, glass sheen and the atlas remain untouched.
+         // Working if the recess reads at dusk with no additional light or draw.
+         float paneEdge = mix(length(pane), max(abs(pane.x), abs(pane.y)), endPane);
+         float reveal = smoothstep(0.72, 1.02, paneEdge);
+         float revealShade = 1.0 - reveal * (0.30 + 0.08 * smoothstep(-0.25, 0.85, pane.y))
+           * clamp(boatRevealStrength, 0.0, 1.0);
          float strength = clamp(boatInteriorStrength, 0.0, 1.0);
-         diffuseColor.rgb = mix(diffuseColor.rgb, room, strength * mix(0.32, 0.72, boatNight));
+         diffuseColor.rgb = mix(diffuseColor.rgb, room * revealShade,
+           strength * mix(0.32, 0.72, boatNight));
          totalEmissiveRadiance += boatRoomLight * (room * 0.75 + vec3(lamp * 0.55))
-           * boatNight * strength;
+           * boatNight * strength * revealShade;
        }`
       );
   };
-  material.customProgramCacheKey = () => 'millos-authored-boat-portholes-v6';
+  material.customProgramCacheKey = () => 'millos-authored-boat-portholes-v7';
 }
 
 export function GeneratedBoatModel() {

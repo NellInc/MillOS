@@ -445,9 +445,9 @@ export const ACTIVE_SHADER_CONTRACTS: readonly ActiveShaderContract[] = [
     depthBehavior: 'inherited opaque generated mesh, depth test and write enabled',
     qualityVariants: ['low', 'medium', 'high', 'ultra'],
     uniformOwner:
-      'ExteriorLampDriver dimmer, shared interior, glazing and paint isolation strengths and private linear cabin colours',
+      'ExteriorLampDriver dimmer, shared interior, glazing, reveal and paint isolation strengths and private linear cabin colours',
     timeSource: 'simulation',
-    cacheKey: 'millos-authored-boat-portholes-v6',
+    cacheKey: 'millos-authored-boat-portholes-v7',
     disposalOwner: 'GeneratedBoatModel effect cleanup disposes its cloned materials',
     fallbackMaterial: 'the generated boat material before the porthole injection',
   },

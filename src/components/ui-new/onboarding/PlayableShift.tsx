@@ -572,6 +572,31 @@ export function OperationsPlayCard() {
           {missionFeedback}
         </p>
       )}
+      {play.challengeProgress && (
+        <div
+          role="group"
+          aria-label="Recovery challenge progress"
+          className="mt-3 border-t border-slate-700 pt-3"
+        >
+          <p className="text-xs leading-5">
+            {play.challengeProgress.label}: {play.challengeProgress.dispatchedKg.toFixed(0)} /{' '}
+            {play.challengeProgress.targetKg.toFixed(0)} kg,{' '}
+            {Math.max(0, play.challengeProgress.remainingMinutes).toFixed(0)} simulation minutes
+            left
+          </p>
+          <p className="mt-1 text-xs leading-5 text-slate-300">
+            {play.challengeProgress.phase === 'recovering'
+              ? 'Controller restored. Dispatch fresh, quality-released goods through the shipping bay.'
+              : 'Acknowledge the incident, apply mitigation, then restore its controller.'}
+          </p>
+          <button
+            className={`${BUTTON} mt-2`}
+            onClick={() => useOperationsCampaignStore.getState().abandonChallenge()}
+          >
+            Abandon challenge
+          </button>
+        </div>
+      )}
       <TeachingPace />
       <details className="mt-3">
         <summary className="min-h-11 cursor-pointer py-3 text-xs font-semibold text-cyan-200">
@@ -597,22 +622,6 @@ export function OperationsPlayCard() {
             )}
           </div>
         ))}
-        {play.challengeProgress && (
-          <div>
-            <p className="text-xs">
-              {play.challengeProgress.label}: {play.challengeProgress.dispatchedKg.toFixed(0)} /{' '}
-              {play.challengeProgress.targetKg.toFixed(0)} kg,{' '}
-              {Math.max(0, play.challengeProgress.remainingMinutes).toFixed(0)} simulation minutes
-              left
-            </p>
-            <button
-              className={`${BUTTON} mt-2`}
-              onClick={() => useOperationsCampaignStore.getState().abandonChallenge()}
-            >
-              Abandon challenge
-            </button>
-          </div>
-        )}
       </details>
       <LearningNote entryId="resource-tradeoffs" />
     </section>
