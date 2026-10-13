@@ -1505,3 +1505,131 @@ Current served main:main-DWBJEcdD.js SHA25658c6418c2261a19c8285450aa0e1bcbe8d3f0
 `test-results/village-doorways-hours-20261013/remote-egl/accepted-cohesion-local-scope.json` pins the aggregate's exact scoped receipts, sources, compiled bytes and images. `cohesion-gallery.html` provides all twenty inspected primary views. `cohesion-cleanup-receipt.json` proves removal of two archive-recoverable compiled duplicates,1220exact disposable input copies and the own530kBprobe, about503.4MiB logical. Filesystem free space rises531640320B during that cleanup, with concurrentAPFS attribution caveat. All active final builds, real source/public assets, archives, images, receipts, shared dependencies, foreign jobs and protected output stay intact.
 
 Pacing remains separately open under the unchanged original budgets. This closure makes no speedup, universal pacing, Mac Metal or desktop input acceptance claim. No GPU-idle wait or performance-budget relaxation was added.
+
+
+## Next cross-world sixty-four-task pass, 2026-10-13
+Starting isolated checkout5a60fd157aaea1d122e4607293c2a131178e84fa. Primary dirty work/protected output remain untouched. The prior fifty-task pass is complete; no new failing readiness job exists in its actual receipts. This continuation covers every canonical site camera and a shared hardware finish, clearer incident phase/labels and a gently educational live delivery guide. Geometry, generated UV/normal layers, real lighting, shadows, quality and pacing budgets are preserved. Pacing stays in its existing separate open section. Local source/commit/art delivery only; no primary integration/push/deployment.
+
+Pre-check: narrower metal edge wear could weaken thin hardware silhouettes, affect several material families through batching, or be visually inert. Trial only the existing metal profile uniform, preserve the stable shader/source, compare the actual prior edge value on the same page, restore exact and retain only after rendered review. Incident wording must match canonical raised/acknowledged/mitigated/resolved phases; Medium labels remain absent on Low and resolved incidents stay removed. Guided learning is read-only and cannot fulfill an order or release QC. Working if all64task proofs below close, all required gates terminate, visible improvements preserve the established world and no data/quality/resource guard changes.
+
+- [x] N01: Verify isolated checkout/branch/current commit.
+- [x] N02: Preserve unrelated primary changes.
+- [x] N03: Verify previous accepted source/compiled fingerprints.
+- [x] N04: Reconcile retained readiness failures with later passes.
+- [x] N05: Identify any new timeout/unfinished visual job.
+- [x] N06: Retain committed-world barrier.
+- [x] N07: Retain static-batch/real shader-submission checks.
+- [x] N08: Retain settled-frame/failure/context-loss safeguards.
+- [x] N09: Keep original local build/render disk floor.
+- [x] N10: Coordinate cleanup with owning chats.
+- [x] N11: Remove only verified own disposable files.
+- [x] N12: Retain recoverable sources/assets/screenshots/failures.
+- [x] N13: Use approved ephemeral remote CPU when needed.
+- [x] N14: Keep native rendering isolated/silent/bounded.
+- [x] N15: Avoid desktop input/foreign browser/process interference.
+- [x] N16: Keep pacing separate under original budgets.
+- [x] N17: Review shared surface consumers.
+- [x] N18: Record named pre-change baseline.
+- [x] N19: Trial quieter worn-metal rim.
+- [x] N20: Preserve metal relief/roughness/grime/dust scales.
+- [x] N21: Preserve masonry/paint palettes.
+- [x] N22: Preserve moving rest-space sampling.
+- [x] N23: Preserve generated/procedural UV/normal layers.
+- [x] N24: Exact-restored same-page surface control.
+- [x] N25: Inspect overall factory.
+- [x] N26: Inspect silos and discharge fittings.
+- [x] N27: Inspect milling/state.
+- [x] N28: Inspect elevated sifting/filter cue.
+- [x] N29: Inspect packing/shortage cue.
+- [x] N30: Inspect receiving/held lots/access.
+- [x] N31: Inspect shipping/lighting/departure.
+- [x] N32: Inspect forklifts/cargo/metal details.
+- [x] N33: Inspect farm/crops/work areas.
+- [x] N34: Inspect paddock/animals/fencing/rest.
+- [x] N35: Inspect village/gardens/allotments.
+- [x] N36: Inspect square/fountain/pond.
+- [x] N37: Inspect castle stone/blue roof/access.
+- [x] N38: Inspect canal/river/lake cohesion.
+- [x] N39: Inspect boat/quay/bridge/reflections.
+- [x] N40: Inspect mountains/foothills/sky.
+- [x] N41: Inspect station/pumps/sign/access.
+- [x] N42: Inspect shelter/grain brand/waiting.
+- [x] N43: Inspect roads/markings/parking/tunnels.
+- [x] N44: Inspect huts/offices/garage/kiosk.
+- [x] N45: Preserve lamps/readable pools.
+- [x] N46: Preserve curtains/interior depth.
+- [x] N47: Preserve directional caster/civic bake.
+- [x] N48: Day/dusk and Low-tier coverage.
+- [x] N49: Plain incident abbreviations.
+- [x] N50: Clear bearing/filter labels.
+- [x] N51: Distinct power/shipment/packaging cues.
+- [x] N52: Accurate held grain/river/network cues.
+- [x] N53: Read phase without colour alone.
+- [x] N54: Medium labels, lightweight Low.
+- [x] N55: Explain buffer/bottleneck inspection.
+- [x] N56: Preserve real stock/QC/manifests.
+- [x] N57: Affected test delta.
+- [x] N58: Required type/lint/format/shader/build gates.
+- [x] N59: Shipped module reachability.
+- [x] N60: All canonical cameras without per-camera reloads.
+- [x] N61: Root image review/one coherent repair batch.
+- [x] N62: Exact diagnostic restoration/normal cleanup.
+- [x] N63: Commit accepted source/task list locally.
+- [x] N64: Deliver gallery/receipts and genuine blockers.
+
+
+### Cross-world execution evidence and deviations, 2026-10-13
+
+This review includes source changes and tests authored in this chat. The isolated branch remains `codex/place-led-beautification-20261010`, starting at5a60fd15. Primary06ff26d3 and its unrelated dirty work, protected untracked output, foreign desktop/browser/controller processes and shared dependencies remain untouched. Local source/art/commit only. The active goal was created at3467characters, with no token budget.
+
+Evidence root: `test-results/cross-world-polish-20261013/remote-egl/`.
+
+- Named source baseline:65tests across the metal surface, incident labels and delivery journey, no failing names. Retained `built-baseline-cohesion/receipts/affected-tests.log`. Label/journey changes add two concrete contract tests.
+- Accepted behavior: plain names for all eight actual incident kinds; raised/acknowledged/mitigated phase text; Medium labels and lightweight Low; resolved markers still removed; bottom-anchored text clears the beacon. The real guide explains full output buffers/downstream bottlenecks and manifest-only customer credit. Real recipes, inventory, QC, dispatch and fulfillment remain unchanged.
+- Diagnostic addition: unfinished static roots publish their current phase and timestamp. This identifies the stage; it does not measure CPU slice duration or prove starvation. Poll/scan/chunk sizes,650ms transform sample, startup token ownership and cleanup remain unchanged.
+- Whole-source validation:312tests/20files after the prewarm trial rollback;345tests/22files in the sky experiment included the same accepted production surfaces, plus24existing sky-system tests and9cloud tests. The experimental ninth cloud test was later removed with the rejected shader. The final original cloud/registry rerun has11tests/2files. Final applicable unique denominator is347tests/23files; this is affected-surface evidence, not the full repository test suite. Final whole-project typecheck, lint, formatting, shader, production build and reachability commands all exit0. Pre-copy build18.22s; CPU job103.07s. Final scope-corrected build19.99s and CPU job117.86s, original210s aggregate cap retained.
+- Source authority:1219whitelisted source/script/config/public-asset files, no Git history, credentials, `.env`, logs or unrelated private material. Direct scoped mounts avoided another173MB input copy. Source manifests and388-file compiled manifests are retained. Original local4GiB floor held; remote4CPU/8GiB/240s function,210s child aggregate and nativeA10/4CPU/8GiB/480s function/450s child caps retained. No repeat permission requests under the supplied standing policy.
+- Cold-overview readiness remains FAILED. The exact older accepted `main-DWBJEcdD.js` also timed out at90s. Non-instrumented GL/compiler checks reproduce the failure, excluding diagnostic wrappers as its sole cause. Instrumented first-use metadata waits total67.96s with an11.72s depth-program wait; unmodified runs retain roughly40s and25s heartbeat gaps. A revision-prewarm trial made11submissions without eliminating the first stall, so it was fully reverted. Pending roots included truck-yard sampling and factory-exterior scanning. Substantial blocking is observed; an underlying driver defect or precise scheduler cause is not established.
+- Accepted render scope is **village-start readiness plus warmed canonical-camera coverage**, never cold-overview acceptance. The same original90s criterion, committed-world/assets/static-batch guards, real truck programs/15s deadline,45settled frames, context/failure guards and overlay retention remain intact. All34actual camera definitions are parsed from live source; day33, dusk32, Low32 and night moon1 are swept without per-camera reloads. No Mac pacing claim or graphics-budget relaxation.
+- Metal rim .18/.24 trial: exact-restored controls changed97stable pixels in receiving and1in forecourt. This was too weak to justify retention. `worldSurface.ts` is byte-identical to HEAD; existing .24, relief, grime, dust, rest-space sampling and mapped-material behavior remain intact.
+- Cloud cards were visible in one retained daylight run. The PNG contains genuine transparent pixels. Two imperfect controls, then an exact HEAD cloud-chunk original/candidate/original control did not reproduce the cards in their original arms. Original visits were pixel-identical; candidate changes stayed below3RGB units. The unsupported gradient/cache-key workaround was rejected. Sky shader, sky-system module, shader registry and tests are byte-identical to HEAD. The final fresh original-source daylight run is clean on NVIDIA580.95.05. The historical intermittent card defect remains unproven as fixed, with all failed receipts/images retained; no GPU vendor defect is claimed.
+- An initial shader gate failed because its experimental v13 cache key had an unchanged v12 registry consumer. The actual consumer was corrected, checked, and ultimately restored with the rejected experiment. Its red receipt remains `built-cloud-contract-stale/receipts/shaders.log`; it was never relabelled green.
+- Preliminary UI runtime check used real tour/guide controls at1440x900,768x1024 and390x844, with no horizontal overflow or paused-campaign mutation. Real challenge/acknowledge/mitigate actions produced the three actual Medium text layouts. The final camera approaches the marker from outside the silo bank, improving evidence readability without moving its real placement. Final exact-candidate UI proof is recorded in the closure below.
+- Own cleanup: six superseded compiled `dist` folders removed only after every live file matched both its388-file pin manifest and retained complete archive.1,062,492,166logical bytes removed. Filesystem free increased812,224,512bytes during the operation; concurrent activity may affect the net. `own-disposable-cleanup.json` records exact targets and archives. Sources, assets, all screenshots/failure receipts, active candidate and prior accepted build remain.
+- Pre-copy day proof:33canonical views, readiness68.87s,19required world roots complete, Medium DPR1.2, one directional caster, exact civic atlas/strength, audio0/not-created, clean diagnostics and normal browser/preview/lock cleanup. The later exact scope-corrected day/dusk/Low/moon/UI jobs close their scoped aggregate below. This earlier receipt does not certify the later build.
+
+The original Mac pacing issue stays separately OPEN under its original budgets. Cold-overview startup and the intermittent cloud-card observation have separate findings; none holds unrelated model/gameplay polish hostage, and none is described as solved.
+
+
+### Sixty-four-task local closure and exact-candidate evidence, 2026-10-13
+
+The finite64-task pass is complete. Accepted source/test commit:67c73da8db7551c4fe3de55737d68ce8eeccdbfe. This chat authored the retained changes and directly reviewed the rendered results. Primary06ff26d393bebd3c34f99b02c9e22aaad58e07ee, unrelated primary changes, protected untracked output and foreign processes remain untouched. **Local only**: no primary integration, push or deployment.
+
+| Tasks | Verified disposition |
+| --- | --- |
+| N01..N03 | Isolated branch/source identity and prior accepted main reconciled.1219current outgoing source/public/config/script files and388final compiled files match exact SHA256 pins. The accepted artifact lives in `test-results/cross-world-polish-20261013/remote-egl/built/dist/`; ordinary root `dist/` deliberately remains the recoverable prior accepted50-task candidate. |
+| N04..N08 | Previous failures remain red; previous successful receipts retain their actual scope. Cold overview fails on older accepted bytes too. The latest UI timeout reached worldReady/staticpending0 at85.55s and remained in animation warm-up at90s, with36.86s and17.55s earlier heartbeat gaps. All loading barriers, actual truck programs/15s deadline,45settled frames, failure/context guards and ownership remain unchanged. A single justified unchanged confirmation passed on another native instance. No universal first-use readiness fix is claimed. |
+| N09..N16 | Original4GiB admission floor retained. Resource coordination continues through the established isolated remote lane; no local GPU/CPU slot, desktop focus/input or foreign automation slot was taken. CPU4cores/8GiB/240s function/210s aggregate; GPUA10/4cores/8GiB/480s function/450s child, no retries or overlap. All apps completed and all browser/preview/capture-lock closures are true. Six verified own archive-recoverable compiled copies removed,1.062GB logical; measured concurrent filesystem net+812224512B. No profile/dependency/foreign-cache deletion. Pacing remains separately open. |
+| N17..N24 | Actual shared metal/material consumers and normal/UV/rest-space contracts reviewed. The .18/.24 metal comparison restored every field/reference and affected97receiving/1forecourt stable pixels. That weak contribution did not justify retention. `worldSurface.ts` and all rejected startup/sky/registry source/test trial surfaces remain byte-identical to their starting versions. Original relief/roughness/grime/dust and masonry/paint identity retained. Named baseline65passed/3files/0failing names becomes67passed on those same three files, two retained new tests. |
+| N25..N32 | Actual overview/interior/silos/milling/sifting/packing/process-floor/tank-farm/logistics-close/forklift/shipping/receiving/yard views inspected at day/dusk/Low. Original machines, equipment, moving workers, cargo, real buffers, access, ground paint and industrial lighting retained. The fixed canonical forklift camera can have the moving vehicle outside its crop; actual forklifts remain visible in interior/process-floor views. No staged scene fixture or supply grants. |
+| N33..N39 | Actual farm/paddock/village/square/castle/water/river/canal/lake views inspected across the same three conditions. Existing gardens/flower boxes/allotments, people and work/rest, pond/fountain bird, narrowboat cabins, civic architecture, castle blue roofs/ground steps, bridge/quay/banks and water reflections retained. No model/geometry/asset change in this pass. Existing prior access/animation contracts remain unchanged; this pass adds camera review rather than a new native pointer-lock walk claim. |
+| N40..N44 | Actual mountains/foothills/sky, forecourt/station, bus shelter/grain brand, road/tunnel/markings/carpark and huts/offices/garage/kiosk views inspected. All34canonical names parsed from the actual runtime table are covered. The original cloud source is clean in the final day/dusk views. Historical rectangular-card imagery and three rejected controls remain retained; no cloud repair or vendor-cause claim. |
+| N45..N48 | Warm lamp pools, station/shelter signs, curtains, illuminated rooms, blue-hour mountain glow, original shade/civic-bake depth and tier behavior inspected. MediumDPR1.2/singleDirectionalLight, LowDPR.8/zero casters. Actual civic atlas8de356b6e912c8ea42a7342988b1679a454ba2e4ee6f205b8513a629bda8fd71 and strength1 verified in all five final page conditions. No exposure/effect/quality/pacing-budget changes. |
+| N49..N54 | All eight incident types have plain, accurate labels and phase words. Final semantic audit corrected site-wide power toSITE POWER DIP and lot/downstream holds toGRAIN LOT HOLD. Existing placement/state/resolved removal retained. Medium actual rendered power label observed throughNEEDS ATTENTION,ACKNOWLEDGED,RESPONSE APPLIED after real challenge/acknowledge/mitigate UI actions.32kind/phase combinations and Low/Medium/High/Ultra policy pass the focused contract. |
+| N55..N56 | Real first-delivery guide explains full output buffers/downstream bottlenecks and separates inspection from departed-manifest customer credit. At1440x900,768x1024,390x844 the guide lies within the viewport and has no horizontal overflow; the phone card deliberately scrolls vertically. Public campaign query returns an actual object with three orders, elapsed0 and unchanged paused state during responsive captures. Real stock/QC/customer switching/dispatch/manifests preserved. |
+| N57..N59 |347unique applicable affected tests across23files have passing focused evidence; this is not a full-repository suite claim. Final copy rerun5passed/1file. The exact final source passes whole-project typecheck/lint/format/shaders/build/reachability, all seven command exits0. Build19.99s; CPU117.86s. Shader34families/38stablekeys/26sites; reachability reports no new dead modules, stale allowlist or graph misses. Experimental tests and failed shader gate retain their earlier red/inapplicable scope. |
+| N60..N62 |104exact final images:33day,32dusk,32Low,1midnight moon,3responsive guide and3real incident phases. No per-camera reload. All98world images reviewed directly in12contact sheets plus full moon; six UI images viewed full-resolution. Every final page has clean raw console/page/request diagnostics,19required world roots, exact served main, audio0/not-created, nondegraded readiness, actual sandboxed out-of-process native hardware and restored observer hooks. Normal browser/server/lock cleanup verified. |
+| N63..N64 | Five accepted source/test files committed locally as67c73da8. This existing task list is checked and committed as the closure record. `cohesion-gallery.html` and `accepted-cross-world-local-scope.json` provide the complete images, exact receipts, source/test provenance, rejected experiments and residual boundaries. Codex open request queued; browser automation refusesfile:URLs by policy. No workaround or alternate browser was used; the saved gallery is delivered directly as a file link. |
+
+Final served main:`main-CAl36ffo.js`, SHA256`d09dcc180307568de9c871eb6b6782bde75cf186e8030b6f8d0b3d73fa781ac8`.
+
+| Exact final native job | Conditions / images | Original readiness | Result |
+| --- | --- | --- | --- |
+| ap-XrlArG3fl0fUeULEnjQp0G | Medium12:00,33 |89.80s | PASS, NVIDIA610.57.04 |
+| ap-ejJvIIYB2C8xbLE2jkoCD7 | Medium19:00,32; Low19:00,32; Medium00:00,1 |64.37s;44.92s;59.63s | PASS, NVIDIA580.95.05 |
+| ap-2mNieuHs5vO45TXl0UZ6YT | Medium12:00 UI,0 |90s timeout | FAILED, retained under `native-world-ui-final-readiness-timeout/`; normal cleanup, no diagnostics hidden |
+| ap-Rvu62xAq74clN4y1gSEWcd | Same unchanged Medium12:00 UI,6 |69.72s | PASS, NVIDIA580.95.05 |
+
+Final CPU app:ap-dx2tPh8VWjg9QduFwea64l. Instance-to-instance timing variation justifies the single unchanged UI confirmation; it does not establish a driver defect or a startup correction. Original90s readiness and all failure barriers remain in force.
+
+Remaining findings are independently OPEN: intermittent first-use readiness, including cold overview and this failed UI entry; historical cloud-card observation not reproduced in accepted original-source frames; original Mac pacing under unchanged budgets. They are preserved as genuine residual work rather than disguised as a universal green, and they do not block this finite unaffected refinement and exact-candidate review pass.
