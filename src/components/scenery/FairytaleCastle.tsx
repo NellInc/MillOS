@@ -198,6 +198,39 @@ export const CASTLE_APPROACH_BEDS = [
   { x: 13.2, z: 21.6, width: 3.2, depth: 1.6 },
 ] as const;
 
+/** Closed three-petal blooms replace the old isolated tetrahedral spikes.
+ * Working if planting reads as flowers, uses32triangles per cluster and keeps
+ * the existing merged draw, grounded bed and original5200-triangle cap.
+ */
+export function addCastleApproachBloom(
+  b: PlotGeometry,
+  x: number,
+  y: number,
+  z: number,
+  colour: string
+) {
+  const phase = x * 0.73 + z * 0.41;
+  b.add(
+    new THREE.TetrahedronGeometry(1).scale(0.018, 0.13, 0.018).translate(x, y - 0.11, z),
+    '#718367'
+  );
+  for (let petal = 0; petal < 3; petal++) {
+    const geometry = new THREE.OctahedronGeometry(1);
+    geometry.setAttribute('normal', geometry.getAttribute('position').clone());
+    geometry
+      .scale(0.105, 0.045, 0.14)
+      .translate(0, 0, 0.115)
+      .rotateY(phase + (petal * Math.PI * 2) / 3)
+      .rotateX(0.24)
+      .translate(x, y, z);
+    b.add(geometry, colour);
+  }
+  b.add(
+    new THREE.TetrahedronGeometry(1).scale(0.055, 0.04, 0.055).translate(x, y + 0.035, z),
+    '#e4c580'
+  );
+}
+
 export function createCastleSetting(
   position: [number, number, number],
   rotation: [number, number, number],
@@ -260,13 +293,14 @@ export function createCastleSetting(
       for (const side of [-1, 1]) {
         const flowerZ = z + side * 0.58;
         b.round([px, ground(px, flowerZ) + 0.19, flowerZ], [0.23, 0.17, 0.2], '#77826c');
-        for (const dx of [-0.12, 0.08])
-          b.add(
-            new THREE.TetrahedronGeometry(0.075)
-              .scale(1, 1.35, 1)
-              .translate(px + dx, ground(px + dx, flowerZ) + 0.34, flowerZ),
-            side < 0 ? '#b5accb' : '#e1ddbd'
-          );
+        const flowerX = px + Math.sin(px * 1.7) * 0.055;
+        addCastleApproachBloom(
+          b,
+          flowerX,
+          ground(flowerX, flowerZ) + 0.38,
+          flowerZ,
+          side < 0 ? '#b5accb' : '#e1ddbd'
+        );
       }
     }
   }

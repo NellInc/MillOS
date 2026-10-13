@@ -1,4 +1,4 @@
-import React, { useCallback, useRef } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import { Billboard } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
@@ -13,6 +13,7 @@ import {
 } from '../stores/operationsCampaignStore';
 import { useGraphicsStore, type GraphicsQuality } from '../stores/graphicsStore';
 import { useReducedMotion } from '../hooks/useReducedMotion';
+import { useUIStore } from '../stores/uiStore';
 import { SceneText } from './shared/SceneText';
 
 type SignalPlacement = {
@@ -92,6 +93,21 @@ export function getOperationalSignalLabel(kind: IncidentKind, phase: IncidentPha
     resolved: 'RESOLVED',
   };
   return `${OPERATIONAL_INCIDENT_PLACEMENTS[kind].shortLabel}\n${phases[phase]}`;
+}
+
+/** Scene inspection opens the existing response workspace, without acting on an incident.
+ * Working if a live beacon opens controls while FPS clicks and stale markers do nothing.
+ */
+export function openOperationalSignalWorkspace(incidentId: string): boolean {
+  if (
+    useUIStore.getState().fpsMode ||
+    !useOperationsCampaignStore
+      .getState()
+      .incidents.some((incident) => incident.id === incidentId && incident.phase !== 'resolved')
+  )
+    return false;
+  window.dispatchEvent(new CustomEvent('millos:open-operations-workspace', { detail: 'overview' }));
+  return true;
 }
 
 const POST_GEOMETRY = new THREE.CylinderGeometry(0.1, 0.14, 1.35, 10);
@@ -314,6 +330,8 @@ const OperationalSignalMarker: React.FC<{
   labelled: boolean;
   registerAnimated: (id: string, group: THREE.Group | null) => void;
 }> = ({ incident, detailed, labelled, registerAnimated }) => {
+  const [hovered, setHovered] = useState(false);
+  const fpsMode = useUIStore((state) => state.fpsMode);
   if (incident.phase === 'resolved') return null;
 
   const placement = OPERATIONAL_INCIDENT_PLACEMENTS[incident.kind];
@@ -332,6 +350,13 @@ const OperationalSignalMarker: React.FC<{
         label,
       }}
       dispose={null}
+      onClick={(event) => {
+        if (openOperationalSignalWorkspace(incident.id)) event.stopPropagation();
+      }}
+      onPointerOver={() => {
+        if (!useUIStore.getState().fpsMode) setHovered(true);
+      }}
+      onPointerOut={() => setHovered(false)}
     >
       <mesh
         geometry={RING_GEOMETRY}
@@ -359,7 +384,7 @@ const OperationalSignalMarker: React.FC<{
             outlineColor="#020617"
             maxWidth={6}
           >
-            {label}
+            {hovered && !fpsMode ? `${label}\nOPEN RESPONSE` : label}
           </SceneText>
         </Billboard>
       )}

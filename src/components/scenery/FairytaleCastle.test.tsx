@@ -6,11 +6,13 @@ import {
   CASTLE_COURT_SETTING,
   CASTLE_APPROACH_BEDS,
   createCastleSetting,
+  addCastleApproachBloom,
 } from './FairytaleCastle';
 import { SITE_LAYOUT } from '../../constants/siteLayout';
 import { sampleTerrainGroundHeight } from '../terrain/splatMapGenerator';
 import { EXTERIOR_LAYERS } from '../../constants/renderLayers';
 import { CASTLE_COURT_HEIGHT, CASTLE_STAIR_X } from '../../constants/castleAccess';
+import { PlotGeometry } from '../../utils/authoredPlotGeometry';
 
 vi.mock('../models/GeneratedModel', () => ({ GeneratedBody: () => null }));
 
@@ -137,3 +139,37 @@ for (const segments of [64, 128]) {
     }
   });
 }
+
+it('builds a closed stemmed bloom inside the existing bed and triangle budget', () => {
+  const build = () => {
+    const b = new PlotGeometry();
+    addCastleApproachBloom(b, 0, 0.38, 0, '#b5accb');
+    return b.finish();
+  };
+  const geometry = build(),
+    repeated = build();
+  try {
+    expect(geometry.getAttribute('position').count / 3).toBe(32);
+    expect(geometry.groups).toHaveLength(0);
+    const bounds = geometry.boundingBox!;
+    expect(bounds.min.y).toBeGreaterThan(0.14);
+    expect(bounds.max.y).toBeLessThan(0.46);
+    expect(
+      Math.max(
+        Math.abs(bounds.min.x),
+        Math.abs(bounds.max.x),
+        Math.abs(bounds.min.z),
+        Math.abs(bounds.max.z)
+      )
+    ).toBeLessThan(0.26);
+    expect([...geometry.getAttribute('position').array]).toEqual([
+      ...repeated.getAttribute('position').array,
+    ]);
+    const normal = geometry.getAttribute('normal');
+    for (let i = 0; i < normal.count; i++)
+      expect(Math.hypot(normal.getX(i), normal.getY(i), normal.getZ(i))).toBeCloseTo(1, 5);
+  } finally {
+    geometry.dispose();
+    repeated.dispose();
+  }
+});

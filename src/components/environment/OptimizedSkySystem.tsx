@@ -982,7 +982,7 @@ export function OptimizedSkySystem() {
         sunDirection: { value: new THREE.Vector3(0.5, 0.75, -0.4).normalize() },
       },
     });
-    material.customProgramCacheKey = () => 'millos-optimized-sky-v12';
+    material.customProgramCacheKey = () => 'millos-optimized-sky-v13';
     return material;
   }, []);
 
