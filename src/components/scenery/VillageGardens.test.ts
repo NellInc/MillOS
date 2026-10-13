@@ -395,3 +395,102 @@ it('varies only foliage colours, retaining exact original clusters and repeatabl
     for (const plot of [original, a, b]) for (const geometry of plot.parts) geometry.dispose();
   }
 });
+
+it('retains the measured pre-finish positions and UVs for every civic-baked plot', () => {
+  const expected = [
+    [
+      '604178057aa960d09ac3d99235742abae3e7f37841f77fef3ce7b7d07bf27759',
+      '63c5c2da6ac3bcd00794cb9652f1a8791dd4a5edb9bc27b840e299cc9b618c1c',
+    ],
+    [
+      '58878f3dbe581bc21eefe9f8176f21b6352b7abcb3d35fde50c083fc48c318f6',
+      'd46b61cfe0e50a2d4039e9c7f9b2bd75def0a0955e52a758f8a95d137545d9cf',
+    ],
+    [
+      '7f26c10b8ea447596985d6929a27f3d2b288ec84e4fee68b3eb4ef8e3b988452',
+      '972555e5069ac18ea49efe1c030111a161058b8bf5d754b7f1bb24b73a9062d2',
+    ],
+    [
+      '4b6c7742e504c977a01b3901332ed1b2e6d3d044d599700024a98ad2f394743c',
+      '6c11d8c67c40a491f1a5cd31200399ef9f5ee061f8bd6a6045acfbaf3858c5b2',
+    ],
+    [
+      '32c990fd18097bb1d80eb7c4306ae2e14aaf7f387c8178fe686298adcf132870',
+      '6455719f5952f307a0a0d7a1692d99413267045e76e00bfe6aa5dd8375379d67',
+    ],
+    [
+      '75de2857d9a07959e9b13f5703f9896088fb646d8658f39fb04fbb142d5387fe',
+      '472e41218a61a6accdecfbf3e85d7b0e9d5e9c73126592557d1697cf54f667ed',
+    ],
+    [
+      '5508c7565b869648c968fc5c0aa398c375d1ac4fbb814ddf3ed0e545e39acae4',
+      '1b9f06929a62a34610c3a8ab4ce14c732fcadca86b49054feb887db6352b5784',
+    ],
+    [
+      '0e3b36611bb21694e2937379c8e732e2e66e39e141ab598c3c38a966b7f95464',
+      'd46b61cfe0e50a2d4039e9c7f9b2bd75def0a0955e52a758f8a95d137545d9cf',
+    ],
+    [
+      'd4f61a5728db394977dcd372f72c70a575c56a80ef52cc3186d02895908838e3',
+      '4e5d08838f809aab4a508e427d54526c6470743040cfb501317711794f35b433',
+    ],
+    [
+      'd9eded83198e2a058aa5f9c35bcc0b3987dc1f37c8c193623b8ed747fbcbf040',
+      '48bc407053b849ac99ea1bad4cdce062a2ffb9972314f37025ef58074b4b6453',
+    ],
+    [
+      '3a3cda642438e77b89ba59ef0987d54b2a38addcd790cedeaea68540459954c7',
+      '6455719f5952f307a0a0d7a1692d99413267045e76e00bfe6aa5dd8375379d67',
+    ],
+    [
+      'b4722921d446482973fb0bde550045802f64705082997fe7de1d6c7b926dbf96',
+      '81ba8a9a1451c7dbf9a154feecad9c377c5b0065f0fe983eeb39191eda28b194',
+    ],
+    [
+      '24ceabf9c095f14616ba17baaecc6be6f34984c24b54b4a7457716627924d842',
+      '64320250e380394f1b6af18d08609e9c33b8adc97cb0b225eb226d7a76bec07b',
+    ],
+    [
+      '5ade559333214fe102d81f90fe82dfef11824c3545aea0765960062ff1911664',
+      'fd07c976a3b0b02d8768c6fba203cf1c2f4d1eb3e350eac0a5043b7e3116ebb6',
+    ],
+    [
+      '1a3aeca4ea534d9436aef11c753d2ea6040aa3350195f461ae80eb92dec8ea7a',
+      'c686f6d3c5e336699244c247c9fdeeeafd1e3e912567a275424229246df61d93',
+    ],
+    [
+      '78f31121990a871fd53d029f92a758864a5499afb6711232eb745a1a896e30d4',
+      '67fc67fb9f3c0fb5e0f13c8d6a60daf29cefd731d9549e49696cbe5748f85c96',
+    ],
+  ];
+  const actual = [
+    ...VILLAGE_HOMES.flatMap((home) => [home.body, home.glass, home.garden]),
+    VILLAGE_ALLOTMENT_GEOMETRY,
+  ].map((geometry) =>
+    ['position', 'uv'].map((name) => {
+      const data = geometry.getAttribute(name).array;
+      return createHash('sha256')
+        .update(Buffer.from(data.buffer, data.byteOffset, data.byteLength))
+        .digest('hex');
+    })
+  );
+  expect(actual).toEqual(expected);
+});
+
+it('softens petal normals and varies tone while retaining the closed sixty-triangle flower', () => {
+  const plot = new PlotGeometry();
+  addVillageFlower(plot, 0.19, 0.16, 0.4, '#d77589');
+  for (const petal of plot.parts.slice(3, 8)) {
+    const normals = petal.getAttribute('normal'),
+      colours = petal.getAttribute('color');
+    const tones = new Set(
+      Array.from({ length: colours.count }, (_, i) => colours.getX(i).toFixed(5))
+    );
+    expect(tones.size).toBeGreaterThan(1);
+    for (let i = 0; i < normals.count; i++)
+      expect(Math.hypot(normals.getX(i), normals.getY(i), normals.getZ(i))).toBeCloseTo(1, 5);
+  }
+  const geometry = plot.finish();
+  expect(geometry.getAttribute('position').count / 3).toBe(60);
+  geometry.dispose();
+});

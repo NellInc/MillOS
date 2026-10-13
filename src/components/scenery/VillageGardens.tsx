@@ -135,15 +135,26 @@ export function addVillageFlower(
   const tilt = 0.68;
   for (let i = 0; i < 5; i++) {
     const angle = (i * Math.PI * 2) / 5 + phase;
-    b.add(
-      new THREE.OctahedronGeometry(1)
-        .scale(size * 0.3, size * 0.13, size * 0.48)
-        .translate(0, 0, size * 0.43)
-        .rotateY(angle)
-        .rotateX(tilt)
-        .translate(x + lean, top, z),
-      colour
-    );
+    const petal = new THREE.OctahedronGeometry(1);
+    // Radial normals soften the closed petal without changing a single caster
+    // vertex. Working if the original civic bake and 60-triangle bloom hold.
+    petal.setAttribute('normal', petal.getAttribute('position').clone());
+    b.add(petal, colour);
+    const colours = petal.getAttribute('color'),
+      positions = petal.getAttribute('position'),
+      base = new THREE.Color(colour),
+      shade = base.clone();
+    for (let vertex = 0; vertex < positions.count; vertex++) {
+      const tip = (positions.getZ(vertex) + 1) * 0.5;
+      shade.copy(base).multiplyScalar(0.94 + tip * 0.09 + Math.sin(phase + i * 1.7) * 0.025);
+      colours.setXYZ(vertex, shade.r, shade.g, shade.b);
+    }
+    petal
+      .scale(size * 0.3, size * 0.13, size * 0.48)
+      .translate(0, 0, size * 0.43)
+      .rotateY(angle)
+      .rotateX(tilt)
+      .translate(x + lean, top, z);
   }
   b.add(
     new THREE.TetrahedronGeometry(1)
@@ -151,7 +162,7 @@ export function addVillageFlower(
       .translate(0, size * 0.05, 0)
       .rotateX(tilt)
       .translate(x + lean, top, z),
-    '#f0ce71'
+    '#e6b85e'
   );
 }
 

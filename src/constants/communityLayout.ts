@@ -122,6 +122,6 @@ export function getBakeryBoardDetail(open: boolean, stocked: boolean): string | 
   return open
     ? stocked
       ? 'Fresh bread'
-      : 'Awaiting flour'
+      : 'Needs mill flour'
     : getCommunityReopeningDetail('shops', open);
 }

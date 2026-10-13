@@ -99,7 +99,8 @@ describe('foliage atlases', () => {
       return visible / (size / block) ** 2;
     };
     const base = coverage(1);
-    expect(base).toBeGreaterThan(0.2);
+    // The retained 420-leaf baseline measured .3621 at this actual size.
+    expect(base).toBeGreaterThan(0.39);
     expect(base).toBeLessThan(0.65);
     expect(coverage(4) / base).toBeGreaterThan(0.65);
   });

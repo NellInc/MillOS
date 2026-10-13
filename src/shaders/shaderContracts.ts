@@ -445,9 +445,9 @@ export const ACTIVE_SHADER_CONTRACTS: readonly ActiveShaderContract[] = [
     depthBehavior: 'inherited opaque generated mesh, depth test and write enabled',
     qualityVariants: ['low', 'medium', 'high', 'ultra'],
     uniformOwner:
-      'ExteriorLampDriver dimmer, shared interior and paint isolation strengths and private linear cabin colours',
+      'ExteriorLampDriver dimmer, shared interior, glazing and paint isolation strengths and private linear cabin colours',
     timeSource: 'simulation',
-    cacheKey: 'millos-authored-boat-portholes-v5',
+    cacheKey: 'millos-authored-boat-portholes-v6',
     disposalOwner: 'GeneratedBoatModel effect cleanup disposes its cloned materials',
     fallbackMaterial: 'the generated boat material before the porthole injection',
   },
@@ -483,9 +483,10 @@ export const ACTIVE_SHADER_CONTRACTS: readonly ActiveShaderContract[] = [
     transparency: 'opaque',
     depthBehavior: 'authored opaque mesh, depth test/write retained; no duplicate water plane',
     qualityVariants: ['low', 'medium', 'high', 'ultra'],
-    uniformOwner: 'NaturalDuckPond memoized time uniform, frozen by reduced motion',
+    uniformOwner:
+      'NaturalDuckPond bounded memoized time, frozen by reduced motion, and shared crossing-wave strength',
     timeSource: 'render-visual-only',
-    cacheKey: 'millos-retained-pond-water-v1',
+    cacheKey: 'millos-retained-pond-water-v2',
     disposalOwner:
       'NaturalDuckPond effect disposes cloned materials; loader owns shared geometry/maps',
     fallbackMaterial: 'procedural DuckPondBasin through the existing GeneratedBoundary',

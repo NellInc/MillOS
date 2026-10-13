@@ -1,7 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ReactElement } from 'react';
 import * as THREE from 'three';
-import { applyPondWater, NaturalDuckPond } from './NaturalDuckPond';
+import {
+  applyPondWater,
+  NaturalDuckPond,
+  POND_VISUAL_PERIOD,
+  POND_CROSS_RIPPLE_STRENGTH,
+} from './NaturalDuckPond';
 
 const driver = vi.hoisted(() => ({
   scene: null as THREE.Scene | null,
@@ -70,6 +75,13 @@ describe('authored pond water finish', () => {
     } as Parameters<typeof material.onBeforeCompile>[0];
     material.onBeforeCompile(shader, {} as THREE.WebGLRenderer);
     expect(shader.uniforms.pondTime).toBe(time);
+    expect(shader.uniforms.pondCrossRippleStrength).toBe(POND_CROSS_RIPPLE_STRENGTH);
+    const frequencies = [...shader.fragmentShader.matchAll(/pondTime \* (0\.\d+)/g)].map((match) =>
+      Number(match[1])
+    );
+    expect(frequencies.length).toBeGreaterThanOrEqual(5);
+    for (const f of frequencies)
+      expect(Math.cos(f * (POND_VISUAL_PERIOD + 2))).toBeCloseTo(Math.cos(f * 2), 10);
     expect(material.map).toBe(map);
     expect(shader.fragmentShader).toContain('roughnessFactor, 0.24, pondWater');
     expect(shader.fragmentShader).toContain(
@@ -117,6 +129,20 @@ it('freezes and resumes pond ripples, while owning only the cloned material', ()
   driver.frame!({}, 2);
   expect(shader.uniforms.pondTime.value).toBeCloseTo(0.116);
   const sharedDispose = vi.spyOn(material, 'dispose');
+  const uniforms = {
+    uniforms: {},
+    vertexShader: '#include <begin_vertex>',
+    fragmentShader: '#include <map_fragment>',
+  } as Parameters<typeof clone.material.onBeforeCompile>[0];
+  clone.material.onBeforeCompile(uniforms, {} as THREE.WebGLRenderer);
+  const clock = uniforms.uniforms.pondTime;
+  clock.value = POND_VISUAL_PERIOD - 0.04;
+  driver.frame?.({}, 0.1);
+  expect(clock.value).toBeCloseTo(0.06, 10);
+  driver.reduced = true;
+  NaturalDuckPond();
+  driver.frame?.({}, 0.1);
+  expect(clock.value).toBeCloseTo(0.06, 10);
   const ownDispose = vi.spyOn(clone.material, 'dispose');
   driver.cleanup!();
   driver.cleanup = null;

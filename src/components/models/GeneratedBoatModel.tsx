@@ -7,18 +7,21 @@ import { EXTERIOR_LAMP_LEVEL } from '../exterior/ExteriorLighting';
 
 /** One live dimmer and one diagnostic strength, with no extra texture or light. */
 export const BOAT_INTERIOR_STRENGTH = { value: 1 };
+/** Glazing-only finish/control, shared with no frame writer or extra source. */
+export const BOAT_GLAZING_STRENGTH = { value: 1 };
 // Existing hook, rest-space metres, no map, geometry or light added.
 // Working if finish follows the hull and brass, roses, teak and glass stay exact.
 export const BOAT_PAINT_STRENGTH = { value: 1 };
 
 /**
- * Cabin glass occupies atlas slot 10. The eight portholes, four door panes, brass
+ * Cabin glass occupies logical atlas slot 10, delivered as UV slot 6 after the atlas V flip. The eight portholes, four door panes, brass
  * rims and closed hull remain unchanged. Shallow cabin shading sits behind
  * that glass in object-rest metres, so it follows the boat and the viewer.
  */
 export function applyBoatPortholes(material: THREE.MeshStandardMaterial, night: { value: number }) {
   material.onBeforeCompile = (shader) => {
     shader.uniforms.boatNight = night;
+    shader.uniforms.boatGlazingStrength = BOAT_GLAZING_STRENGTH;
     shader.uniforms.boatInteriorStrength = BOAT_INTERIOR_STRENGTH;
     shader.uniforms.boatPaintStrength = BOAT_PAINT_STRENGTH;
     shader.uniforms.boatLinen = { value: new THREE.Color('#e8dbc0') };
@@ -42,6 +45,7 @@ export function applyBoatPortholes(material: THREE.MeshStandardMaterial, night: 
       varying vec3 vBoatAxisX;
       varying vec3 vBoatAxisZ;
       uniform float boatNight;
+      uniform float boatGlazingStrength;
       uniform float boatInteriorStrength;
       uniform float boatPaintStrength;
       uniform vec3 boatLinen;
@@ -73,7 +77,12 @@ export function applyBoatPortholes(material: THREE.MeshStandardMaterial, night: 
       .replace(
         '#include <roughnessmap_fragment>',
         `#include <roughnessmap_fragment>
-       roughnessFactor = clamp(roughnessFactor + (0.035 + brushLay * 0.018) * paintStrength, 0.0, 1.0);`
+       roughnessFactor = clamp(roughnessFactor + (0.035 + brushLay * 0.018) * paintStrength, 0.0, 1.0);
+       // Delivered glass UV slot 6 (logical atlas 10, V-flipped by the authoring exporter).
+       // Keep brass, roses, paint and teak unchanged.
+       // Working if panes catch a restrained sheen above the retained cabin.
+       float boatGlass = 1.0 - step(0.5, abs(paintSlot - 6.0));
+       roughnessFactor = mix(roughnessFactor, 0.18, boatGlass * clamp(boatGlazingStrength, 0.0, 1.0));`
       )
       .replace(
         '#include <emissivemap_fragment>',
@@ -135,7 +144,7 @@ export function applyBoatPortholes(material: THREE.MeshStandardMaterial, night: 
        }`
       );
   };
-  material.customProgramCacheKey = () => 'millos-authored-boat-portholes-v5';
+  material.customProgramCacheKey = () => 'millos-authored-boat-portholes-v6';
 }
 
 export function GeneratedBoatModel() {

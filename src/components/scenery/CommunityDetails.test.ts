@@ -202,7 +202,7 @@ describe('authored community details', () => {
     local.dispose();
   });
   it('explains empty and stocked counters without overriding real opening hours', () => {
-    expect(getBakeryBoardDetail(true, false)).toBe('Awaiting flour');
+    expect(getBakeryBoardDetail(true, false)).toBe('Needs mill flour');
     expect(getBakeryBoardDetail(true, true)).toBe('Fresh bread');
     expect(getBakeryBoardDetail(false, false)).toBe('Opens 07:00');
     expect(getBakeryBoardDetail(false, true)).toBe('Opens 07:00');

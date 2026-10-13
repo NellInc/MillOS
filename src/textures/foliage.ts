@@ -32,6 +32,10 @@ import {
 
 export type FoliageKind = 'broadleaf' | 'needle';
 
+// A modest density lift keeps crowns coherent while retaining leaf-scale holes.
+// Working if albedo/normal alignment and mip coverage hold at the existing size.
+const LEAF_POPULATION: Record<FoliageKind, number> = { broadleaf: 520, needle: 120 };
+
 /** One rasterised leaf blob, shared by the albedo and the height pass so the
  *  normal map lines up with the cut-out exactly. */
 interface Leaflet {
@@ -319,10 +323,10 @@ export const generateLeafAtlas = (
   size: number = 512,
   kind: FoliageKind = 'broadleaf'
 ): THREE.DataTexture => {
-  return getTexture(`foliage-leaf-v2-${size}-${kind}`, () => {
+  return getTexture(`foliage-leaf-v3-${size}-${kind}`, () => {
     const data = new Uint8Array(size * size * 4);
     const cell = size >> 1;
-    const count = kind === 'needle' ? 120 : 420;
+    const count = LEAF_POPULATION[kind];
     // Margin keeps bilinear taps from pulling a neighbouring cell across the
     // seam; the bleed pass fills it with the adjacent leaf colour.
     const margin = Math.max(3, Math.round(size * 0.012));
@@ -382,10 +386,10 @@ export const generateLeafNormal = (
   size: number = 512,
   kind: FoliageKind = 'broadleaf'
 ): THREE.DataTexture => {
-  return getTexture(`foliage-leaf-normal-v2-${size}-${kind}`, () => {
+  return getTexture(`foliage-leaf-normal-v3-${size}-${kind}`, () => {
     const height = new Float32Array(size * size);
     const cell = size >> 1;
-    const count = kind === 'needle' ? 120 : 420;
+    const count = LEAF_POPULATION[kind];
     const margin = Math.max(3, Math.round(size * 0.012));
 
     for (let c = 0; c < 4; c++) {
