@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   OperationsPlayCard,
@@ -16,6 +16,7 @@ import { createWorkplace } from '../../../simulation/bilateralWorkplace';
 import { campaignRecord } from '../../../simulation/workplaceCampaign';
 import { MachineType } from '../../../types';
 import type { MachineData } from '../../../types';
+import type { OperationalIncident } from '../../../stores/operationsCampaignStore';
 vi.mock('../../knowledge/LearningNote', () => ({ LearningNote: () => null }));
 
 beforeEach(() => {
@@ -440,3 +441,57 @@ it('keeps real inspection tracking mounted in the compact scene guide and restor
   expect(screen.getByRole('button', { name: 'Open operations' })).toBeInTheDocument();
   expect(useOperationsCampaignStore.getState()).toBe(campaign);
 });
+
+it.each(['mounted', 'lazy-mount', 'resolved', 'fps'] as const)(
+  'reveals the existing response control for %s without performing it',
+  async (mode) => {
+    const incident: OperationalIncident = {
+      id: 'response-navigation',
+      kind: 'power_sag',
+      title: 'Site power dip',
+      description: 'A voltage dip reduces throughput.',
+      phase: mode === 'resolved' ? 'resolved' : 'raised',
+      severity: 'high',
+      startedAtMinute: 0,
+      acknowledgedAtMinute: null,
+      resolvedAtMinute: mode === 'resolved' ? 0 : null,
+      affectedMachineId: null,
+      effectApplied: false,
+    };
+    useOperationsCampaignStore.setState({ incidents: [incident] });
+    useUIStore.setState({ fpsMode: mode === 'fps' });
+    const before = useOperationsCampaignStore.getState(),
+      stock = useMaterialFlowStore.getState(),
+      clock = useGameSimulationStore.getState();
+    const scrollDescriptor = Object.getOwnPropertyDescriptor(
+      HTMLElement.prototype,
+      'scrollIntoView'
+    );
+    const scroll = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      value: scroll,
+    });
+    try {
+      if (mode === 'lazy-mount') useUIStore.getState().setOperationalFocusId(incident.id);
+      render(<OperationsPlayCard />);
+      if (mode !== 'lazy-mount')
+        act(() => useUIStore.getState().setOperationalFocusId(incident.id));
+      await waitFor(() => expect(useUIStore.getState().operationalFocusId).toBeNull());
+      if (mode === 'mounted' || mode === 'lazy-mount') {
+        expect(scroll).toHaveBeenCalledWith({ block: 'center', behavior: 'instant' });
+        expect(
+          screen.getByRole('button', { name: 'Acknowledge incident', exact: true })
+        ).toHaveFocus();
+      } else expect(scroll).not.toHaveBeenCalled();
+      expect(useUIStore.getState().operationalFocusId).toBeNull();
+      expect(useOperationsCampaignStore.getState()).toBe(before);
+      expect(useMaterialFlowStore.getState()).toBe(stock);
+      expect(useGameSimulationStore.getState()).toBe(clock);
+    } finally {
+      if (scrollDescriptor)
+        Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', scrollDescriptor);
+      else delete (HTMLElement.prototype as Partial<HTMLElement>).scrollIntoView;
+    }
+  }
+);

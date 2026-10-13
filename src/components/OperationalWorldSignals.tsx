@@ -106,6 +106,7 @@ export function openOperationalSignalWorkspace(incidentId: string): boolean {
       .incidents.some((incident) => incident.id === incidentId && incident.phase !== 'resolved')
   )
     return false;
+  useUIStore.getState().setOperationalFocusId(incidentId);
   window.dispatchEvent(new CustomEvent('millos:open-operations-workspace', { detail: 'overview' }));
   return true;
 }

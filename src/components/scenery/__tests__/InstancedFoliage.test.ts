@@ -193,3 +193,12 @@ describe('species growth habit', () => {
     }
   });
 });
+
+it('retains leaf alpha and wind-synced depth while restraining broadleaf relief only', () => {
+  expect(BROADLEAF_MATERIAL.normalScale.toArray()).toEqual([0.28, 0.28]);
+  expect(NEEDLE_MATERIAL.normalScale.toArray()).toEqual([0.6, 0.6]);
+  expect(BROADLEAF_MATERIAL.alphaTest).toBe(0.4);
+  expect(BROADLEAF_DEPTH.map).toBe(BROADLEAF_MATERIAL.map);
+  expect(BROADLEAF_DEPTH.alphaTest).toBe(BROADLEAF_MATERIAL.alphaTest);
+  expect(BROADLEAF_DEPTH.side).toBe(BROADLEAF_MATERIAL.side);
+});

@@ -98,7 +98,7 @@ it('labels all eight real incident kinds and phases without relying on colour', 
 
 it('opens existing controls for a live beacon without applying a response or capturing FPS clicks', () => {
   const campaign = useOperationsCampaignStore.getState();
-  const fpsMode = useUIStore.getState().fpsMode;
+  const { fpsMode, operationalFocusId } = useUIStore.getState();
   const event = vi.fn();
   window.addEventListener('millos:open-operations-workspace', event);
   try {
@@ -115,6 +115,7 @@ it('opens existing controls for a live beacon without applying a response or cap
     expect(openOperationalSignalWorkspace(incident.id)).toBe(true);
     expect(event).toHaveBeenCalledOnce();
     expect(event.mock.calls[0][0].detail).toBe('overview');
+    expect(useUIStore.getState().operationalFocusId).toBe(incident.id);
     expect(useOperationsCampaignStore.getState()).toBe(before);
     useUIStore.setState({ fpsMode: true });
     expect(openOperationalSignalWorkspace(incident.id)).toBe(false);
@@ -128,6 +129,6 @@ it('opens existing controls for a live beacon without applying a response or cap
   } finally {
     window.removeEventListener('millos:open-operations-workspace', event);
     useOperationsCampaignStore.setState(campaign, true);
-    useUIStore.setState({ fpsMode });
+    useUIStore.setState({ fpsMode, operationalFocusId });
   }
 });

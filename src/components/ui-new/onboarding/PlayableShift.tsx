@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { X } from 'lucide-react';
 import { useUIStore } from '../../../stores/uiStore';
@@ -24,7 +24,7 @@ import { MachineType, type MachineData } from '../../../types';
 import type { CustomerOrder } from '../../../stores/operationsCampaignStore';
 
 const BUTTON =
-  'min-h-11 rounded-lg border border-cyan-400/30 px-3 py-2 text-xs font-semibold text-cyan-100 hover:bg-cyan-400/10 disabled:opacity-40';
+  'min-h-11 rounded-lg border border-cyan-400/30 px-3 py-2 text-xs font-semibold text-cyan-100 hover:bg-cyan-400/10 disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300';
 const CARD = 'rounded-xl border border-cyan-400/20 bg-slate-900/90 p-3 text-sm text-slate-200';
 
 function DeliveryDeadline({
@@ -400,6 +400,29 @@ export function OperationsPlayCard() {
       challengeHistory: s.challengeHistory,
     }))
   );
+  const focusId = useUIStore((s) => s.operationalFocusId);
+  const nextActionRef = useRef<HTMLButtonElement>(null);
+  // Consume navigation only after the real control mounts, including lazy and
+  // compact panels. Inspection never executes its action or advances the clock.
+  // Working if the response is in view/focus and a stale/FPS request is discarded.
+  useEffect(() => {
+    if (!focusId) return;
+    // Let the panel's own modal focus trap capture its return target first.
+    const frame = requestAnimationFrame(() => {
+      if (useUIStore.getState().operationalFocusId !== focusId) return;
+      if (
+        !useUIStore.getState().fpsMode &&
+        useOperationsCampaignStore
+          .getState()
+          .incidents.some((incident) => incident.id === focusId && incident.phase !== 'resolved')
+      ) {
+        nextActionRef.current?.scrollIntoView?.({ block: 'center', behavior: 'instant' });
+        nextActionRef.current?.focus({ preventScroll: true });
+      }
+      useUIStore.getState().setOperationalFocusId(null);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [focusId]);
   const workplace = useWorkplaceStore((s) => s.workplace);
   const [profile, setProfile] = useState<WorkplaceProfile>('toe-dip');
   const [missionFeedback, setMissionFeedback] = useState<string | null>(null);
@@ -484,6 +507,7 @@ export function OperationsPlayCard() {
       <p className="mt-2 text-cyan-200">Next: {play.nextAction.label}</p>
       <p className="mt-1 text-xs leading-5 text-slate-300">{play.nextAction.consequence}</p>
       <button
+        ref={nextActionRef}
         className={`${BUTTON} mt-2`}
         disabled={play.nextAction.kind === 'programme' && reviewPending}
         onClick={performNext}

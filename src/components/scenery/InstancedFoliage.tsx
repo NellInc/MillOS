@@ -427,11 +427,14 @@ export const createFoliageMaterial = (
   tint: string = '#ffffff'
 ): THREE.MeshStandardMaterial => {
   const atlasSize = kind === 'needle' ? 256 : BROADLEAF_ATLAS_SIZE;
+  // Preserve leaf-scale veins while avoiding the harsh speckled broadleaf finish.
+  // Working if generated and fallback leaves share this relief, with alpha intact.
+  const leafRelief = kind === 'broadleaf' ? 0.28 : 0.6;
   const material = new THREE.MeshStandardMaterial({
     color: tint,
     map: generateLeafAtlas(atlasSize, kind),
     normalMap: generateLeafNormal(atlasSize, kind),
-    normalScale: new THREE.Vector2(0.6, 0.6),
+    normalScale: new THREE.Vector2(leafRelief, leafRelief),
     roughnessMap: leafRoughness,
     roughness: 1.0,
     metalness: 0,

@@ -77,6 +77,10 @@ interface UIStore {
   setJourneyVisible: (visible: boolean) => void;
   recordMachineInspection: (machineId: string) => void;
 
+  // One-shot scene-to-workspace navigation, never persisted.
+  operationalFocusId: string | null;
+  setOperationalFocusId: (id: string | null) => void;
+
   // Legend position (for draggable legend)
   legendPosition: { x: number; y: number };
   setLegendPosition: (pos: { x: number; y: number }) => void;
@@ -214,6 +218,9 @@ export const useUIStore = create<UIStore>()(
           inspectedMachineIds: [...state.inspectedMachineIds, machineId].slice(-100),
         }));
       },
+
+      operationalFocusId: null,
+      setOperationalFocusId: (id) => set({ operationalFocusId: id }),
 
       // Legend position
       legendPosition: { x: -1, y: -1 }, // -1 means use default position

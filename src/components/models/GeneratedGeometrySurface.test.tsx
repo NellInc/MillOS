@@ -35,6 +35,12 @@ it('keeps the static fallback finish and its live uniforms underneath an early a
   );
   expect(shader.uniforms.uSurfStrength).toBe(original.userData.millosWorldSurface.uSurfStrength);
   expect(shader.uniforms.millosAuthoredNormal.value).toBe(original.normalMap);
+  expect(shader.uniforms.millosAuthoredNormalScale.value).toBe(original.normalScale);
+  original.normalScale.setScalar(0.28);
+  expect((shader.uniforms.millosAuthoredNormalScale.value as THREE.Vector2).toArray()).toEqual([
+    0.28, 0.28,
+  ]);
+  expect(live.normalScale.toArray()).toEqual([0.2, 0.2]);
   live.normalMap?.dispose();
   live.dispose();
 });
