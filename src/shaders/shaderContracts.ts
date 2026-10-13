@@ -533,9 +533,9 @@ export const ACTIVE_SHADER_CONTRACTS: readonly ActiveShaderContract[] = [
     depthBehavior: 'original opaque depth test and write',
     qualityVariants: ['low', 'medium', 'high', 'ultra'],
     uniformOwner:
-      'ExteriorLampDriver shared EXTERIOR_LAMP_LEVEL dimmer; shared VILLAGE_INTERIOR_STRENGTH control; GeneratedModel private per-trade pigments',
+      'ExteriorLampDriver shared EXTERIOR_LAMP_LEVEL dimmer; shared VILLAGE_INTERIOR_STRENGTH and fabric-only VILLAGE_FABRIC_STRENGTH controls; GeneratedModel private per-trade pigments',
     timeSource: 'simulation',
-    cacheKey: 'millos-authored-village-windows-v6',
+    cacheKey: 'millos-authored-village-windows-v7',
     disposalOwner:
       'GeneratedModel effect cleanup disposes private materials and shop display geometries; VillageHome disposes private materials',
     fallbackMaterial: 'existing primitive village building through GeneratedBoundary',
@@ -569,9 +569,10 @@ export const ACTIVE_SHADER_CONTRACTS: readonly ActiveShaderContract[] = [
     transparency: 'opaque',
     depthBehavior: 'original opaque mesh, depth test and write unchanged',
     qualityVariants: ['low', 'medium', 'high', 'ultra'],
-    uniformOwner: 'ExteriorLampDriver shared EXTERIOR_LAMP_LEVEL dimmer',
+    uniformOwner:
+      'ExteriorLampDriver shared EXTERIOR_LAMP_LEVEL dimmer; inherited VILLAGE_INTERIOR_STRENGTH and fabric-only VILLAGE_FABRIC_STRENGTH',
     timeSource: 'simulation',
-    cacheKey: 'millos-generated-apartment-window-v4',
+    cacheKey: 'millos-generated-apartment-window-v5',
     disposalOwner: 'GeneratedOfficeModel effect cleanup disposes cloned materials',
     fallbackMaterial: 'the existing procedural apartment through GeneratedBoundary',
   },

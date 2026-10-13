@@ -114,7 +114,7 @@ export function applyApartmentWindows(
       .replace('* villageNight;', '* villageNight * occupiedFloor;')
       .replace('* villageNight * glazing;', '* villageNight * occupiedFloor * glazing;');
   };
-  material.customProgramCacheKey = () => 'millos-generated-apartment-window-v4';
+  material.customProgramCacheKey = () => 'millos-generated-apartment-window-v5';
 }
 
 type OfficeAsset = 'smallOffice' | 'officeApartment' | 'officeApartmentThree';
@@ -206,6 +206,8 @@ export function applyForgeWindows(material: THREE.MeshStandardMaterial) {
 
 /** Runtime paired-control strength; changing it does not rebuild a material. */
 export const VILLAGE_INTERIOR_STRENGTH = { value: 1 };
+/** Fabric-only paired control; no geometry, occupancy or lamp changes. */
+export const VILLAGE_FABRIC_STRENGTH = { value: 1 };
 
 /** The authored village atlas reserves column 2, row 2 for glazing only.
  * Blender exports flipped V, so its delivered glTF interval is [0.25, 0.5).
@@ -226,6 +228,7 @@ export function applyVillageWindows(
     shader.uniforms.villageNight = night;
     shader.uniforms.villageGlow = { value: new THREE.Color('#ffc875').multiplyScalar(0.65) };
     shader.uniforms.villageInteriorStrength = VILLAGE_INTERIOR_STRENGTH;
+    shader.uniforms.villageFabricStrength = VILLAGE_FABRIC_STRENGTH;
     shader.uniforms.villageCurtains = { value: curtains ? 1 : 0 };
     shader.uniforms.villageRooms = { value: glazing === 'stained' ? 0 : 1 };
     shader.uniforms.villageCivic = { value: glazing === 'civic' ? 1 : 0 };
@@ -258,6 +261,7 @@ export function applyVillageWindows(
        uniform vec3 villageLinen;
        uniform vec3 villageRoomLight;
        uniform float villageInteriorStrength;
+       uniform float villageFabricStrength;
        uniform float villageCurtains;
        uniform float villageRooms;
        uniform float villageCivic;
@@ -287,6 +291,7 @@ export function applyVillageWindows(
        vec2 pane = mix(vec2(vVillageUV.x, 1.0 - vVillageUV.y),
          (vVillageUV - villageTileOrigin - vec2(villagePaneUV.x)) / villagePaneUV.y, villageAtlas);
        vec2 du = dFdx(pane), dv = dFdy(pane);
+       float weaveDetail = 1.0 - smoothstep(0.006, 0.010, max(abs(du.y), abs(dv.y)));
        vec3 wx = dFdx(vVillageWorld), wy = dFdy(vVillageWorld);
        vec3 px = dFdx(-vViewPosition), py = dFdy(-vViewPosition);
        float determinant = du.x * dv.y - du.y * dv.x;
@@ -324,8 +329,16 @@ export function applyVillageWindows(
          float roomScale = step(0.5, min(length(worldU), length(worldV)));
          curtain = max(curtain, 1.0 - smoothstep(0.06, 0.095, cloth.y)) * villageCurtains * roomScale;
          float foldDetail = 1.0 - smoothstep(0.015, 0.055, max(abs(du.x), abs(dv.x)));
-         float folds = 0.78 + foldDetail * (0.16 * cos(cloth.x * 145.0) + 0.06 * cos(cloth.x * 71.0));
-         vec3 interior = mix(roomColour, villageLinen * folds, clamp(curtain, 0.0, 1.0));
+         // Restrained woven linen and a stitched hem, filtered before four pixels
+         // per thread. Working if distant panes stay calm and strength zero
+         // restores the previous folds without changing rooms or occupancy.
+         float fabric = clamp(villageFabricStrength, 0.0, 1.0);
+         float folds = 0.78 + foldDetail * (mix(0.16, 0.12, fabric) * cos(cloth.x * 145.0)
+           + mix(0.06, 0.04, fabric) * cos(cloth.x * 71.0));
+         float weave = weaveDetail * 0.012 * cos(cloth.y * 157.0796 + seed * 6.28318);
+         float hem = smoothstep(0.82, 0.85, cloth.y) * (1.0 - smoothstep(0.89, 0.92, cloth.y));
+         vec3 linen = villageLinen * folds * (1.0 + fabric * (weave - 0.13 * hem));
+         vec3 interior = mix(roomColour, linen, clamp(curtain, 0.0, 1.0));
          // Civic rooms remain visibly open at dusk. A recessed desk silhouettes
          // against the warm rear wall; only actual atlas glazing is affected.
          // Working if masonry stays unlit by this term and window depth moves with view.
@@ -366,7 +379,7 @@ export function applyVillageWindows(
        }`
     );
   };
-  material.customProgramCacheKey = () => 'millos-authored-village-windows-v6';
+  material.customProgramCacheKey = () => 'millos-authored-village-windows-v7';
 }
 
 /** The delivered castle paving is one 31.85m slab, atlas slot 6.

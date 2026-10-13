@@ -158,7 +158,11 @@ export function FirstDeliveryJourney({
           className={`${BUTTON} mt-3`}
           onClick={() =>
             onOpenWorkspace(
-              ['quality', 'programme'].includes(play.nextAction.kind) ? 'overview' : 'scada'
+              ['quality', 'programme', 'acknowledge', 'mitigate', 'resume', 'resolve'].includes(
+                play.nextAction.kind
+              )
+                ? 'overview'
+                : 'scada'
             )
           }
         >
@@ -427,7 +431,10 @@ export function OperationsPlayCard() {
   const [profile, setProfile] = useState<WorkplaceProfile>('toe-dip');
   const [missionFeedback, setMissionFeedback] = useState<string | null>(null);
   const reviewPending = linkedReviewPending(workplace);
+  const gameSpeed = useGameSimulationStore((s) => s.gameSpeed);
   const play = deriveOperationsPlay(snapshot);
+  const awaitingResponse = play.nextAction.kind === 'resume' && gameSpeed > 0;
+  const nextLabel = awaitingResponse ? 'Awaiting simulation update' : play.nextAction.label;
   const canStartMission =
     workplace.phase === 'idle' &&
     !!play.activeOrder &&
@@ -441,6 +448,14 @@ export function OperationsPlayCard() {
     if (action.kind === 'acknowledge' && action.targetId)
       state.acknowledgeIncident(action.targetId);
     if (action.kind === 'mitigate' && action.targetId) state.mitigateIncident(action.targetId);
+    // The live action is rechecked at click time; the ordinary tick owns clock holds. Inspection never
+    // resumes, and a running/custom pace is retained. Working if this explicit
+    // choice changes only a paused shift's speed, with consequences processed
+    // by the ordinary game tick before controller restoration becomes available.
+    if (action.kind === 'resume') {
+      const simulation = useGameSimulationStore.getState();
+      if (simulation.gameSpeed === 0) simulation.setGameSpeed(30);
+    }
     if (action.kind === 'resolve') state.finishChallengeRecovery();
     if (action.kind === 'programme' && !linkedReviewPending(useWorkplaceStore.getState().workplace))
       state.acceptNextProgramme();
@@ -504,15 +519,38 @@ export function OperationsPlayCard() {
           Blocked: {play.blockers[0].label}. {play.blockers[0].detail}
         </p>
       )}
-      <p className="mt-2 text-cyan-200">Next: {play.nextAction.label}</p>
-      <p className="mt-1 text-xs leading-5 text-slate-300">{play.nextAction.consequence}</p>
+      {play.challengeProgress && (
+        <div
+          role="group"
+          aria-label="Recovery challenge progress"
+          className="mt-3 border-t border-slate-700 pt-3"
+        >
+          <p className="text-xs leading-5">
+            {play.challengeProgress.label}: {play.challengeProgress.dispatchedKg.toFixed(0)} /{' '}
+            {play.challengeProgress.targetKg.toFixed(0)} kg,{' '}
+            {Math.max(0, play.challengeProgress.remainingMinutes).toFixed(0)} simulation minutes
+            left
+          </p>
+          <p className="mt-1 text-xs leading-5 text-slate-300">
+            {awaitingResponse
+              ? 'The response is queued. Await the next simulation update before restoring the controller.'
+              : play.challengeProgress.instruction}
+          </p>
+        </div>
+      )}
+      <p className="mt-2 text-cyan-200">Next: {nextLabel}</p>
+      <p className="mt-1 text-xs leading-5 text-slate-300">
+        {awaitingResponse
+          ? 'The shift is running at your chosen pace. Production and customer deadlines continue; pause with Shift pace when needed.'
+          : play.nextAction.consequence}
+      </p>
       <button
         ref={nextActionRef}
         className={`${BUTTON} mt-2`}
-        disabled={play.nextAction.kind === 'programme' && reviewPending}
+        disabled={awaitingResponse || (play.nextAction.kind === 'programme' && reviewPending)}
         onClick={performNext}
       >
-        {play.nextAction.label}
+        {nextLabel}
       </button>
       <button
         className={`${BUTTON} mt-2`}
@@ -572,31 +610,6 @@ export function OperationsPlayCard() {
           {missionFeedback}
         </p>
       )}
-      {play.challengeProgress && (
-        <div
-          role="group"
-          aria-label="Recovery challenge progress"
-          className="mt-3 border-t border-slate-700 pt-3"
-        >
-          <p className="text-xs leading-5">
-            {play.challengeProgress.label}: {play.challengeProgress.dispatchedKg.toFixed(0)} /{' '}
-            {play.challengeProgress.targetKg.toFixed(0)} kg,{' '}
-            {Math.max(0, play.challengeProgress.remainingMinutes).toFixed(0)} simulation minutes
-            left
-          </p>
-          <p className="mt-1 text-xs leading-5 text-slate-300">
-            {play.challengeProgress.phase === 'recovering'
-              ? 'Controller restored. Dispatch fresh, quality-released goods through the shipping bay.'
-              : 'Acknowledge the incident, apply mitigation, then restore its controller.'}
-          </p>
-          <button
-            className={`${BUTTON} mt-2`}
-            onClick={() => useOperationsCampaignStore.getState().abandonChallenge()}
-          >
-            Abandon challenge
-          </button>
-        </div>
-      )}
       <TeachingPace />
       <details className="mt-3">
         <summary className="min-h-11 cursor-pointer py-3 text-xs font-semibold text-cyan-200">
@@ -622,6 +635,14 @@ export function OperationsPlayCard() {
             )}
           </div>
         ))}
+        {play.challengeProgress && (
+          <button
+            className={`${BUTTON} mt-2`}
+            onClick={() => useOperationsCampaignStore.getState().abandonChallenge()}
+          >
+            Abandon challenge
+          </button>
+        )}
       </details>
       <LearningNote entryId="resource-tradeoffs" />
     </section>

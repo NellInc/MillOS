@@ -31,6 +31,20 @@ export const REALM_PAVING_MATERIAL = new THREE.MeshStandardMaterial({
   polygonOffsetUnits: POLYGON_OFFSET.strong.units,
 });
 
+/** Coordinate-seeded tones within the original palettes. Working if adjacent
+ * slabs vary gently without a three-row cycle, with no layout or buffer change.
+ */
+export function realmPavingColour(x: number, z: number, yard = false): string {
+  const mix =
+    0.38 + 0.28 * (0.5 + 0.5 * Math.sin(x * 1.73 + z * 2.19 + Math.sin(x * 0.17 - z * 0.11)));
+  return (
+    '#' +
+    new THREE.Color(yard ? '#9a8b71' : '#a39e8d')
+      .lerp(new THREE.Color(yard ? '#a4967a' : P.paving), mix)
+      .getHexString()
+  );
+}
+
 // Finite, metre-sized paving. Each surface is tessellated against the same
 // rendered terrain grid, rather than hovering over a hill or cutting through it.
 function patch(
@@ -102,6 +116,9 @@ function route(
     for (let side = -1; side <= 1; side++) {
       const along = (i + 0.5) * pitch,
         across = (side * path.width) / 3;
+      const x = path.start[0] + Math.sin(angle) * along + Math.cos(angle) * across,
+        z = path.start[1] + Math.cos(angle) * along - Math.sin(angle) * across;
+      const colour = realmPavingColour(x, z, yard);
       const g = new THREE.PlaneGeometry(path.width / 3 - 0.014, pitch - 0.014, 1, 1)
         .rotateX(-Math.PI / 2)
         .rotateY(angle)
@@ -114,10 +131,7 @@ function route(
         const p = tile.getAttribute('position');
         for (let j = 0; j < p.count; j++) p.setY(j, ground(p.getX(j), p.getZ(j)));
         tile.computeVertexNormals();
-        b.add(
-          tile,
-          yard ? (i % 3 === 0 ? '#a4967a' : '#9a8b71') : i % 3 === 0 ? '#a39e8d' : P.paving
-        );
+        b.add(tile, colour);
       }
     }
 }

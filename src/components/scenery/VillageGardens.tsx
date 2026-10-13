@@ -185,17 +185,55 @@ function windowBox(b: PlotGeometry, x: number, y: number, z: number, colour: str
     );
 }
 
+/** Kiln tones on the existing clay buffers, darker near the base and worn at
+ * the lip. Working if only vertex colours change and a repeated seed is exact.
+ */
+export function addVillageClay(
+  b: PlotGeometry,
+  geometry: THREE.BufferGeometry,
+  colour: string,
+  seed: number
+) {
+  b.add(geometry, colour);
+  geometry.computeBoundingBox();
+  const bounds = geometry.boundingBox!;
+  const position = geometry.getAttribute('position'),
+    uv = geometry.getAttribute('uv');
+  const colours = geometry.getAttribute('color');
+  const base = new THREE.Color(colour),
+    shade = new THREE.Color();
+  const height = Math.max(0.001, bounds.max.y - bounds.min.y);
+  for (let i = 0; i < position.count; i++) {
+    const level = (position.getY(i) - bounds.min.y) / height;
+    const tone =
+      0.9 +
+      0.13 * level +
+      0.025 * Math.cos(uv.getX(i) * Math.PI * 6 + seed) +
+      0.01 * Math.sin(seed * 1.37);
+    shade.copy(base).multiplyScalar(tone);
+    colours.setXYZ(i, shade.r, shade.g, shade.b);
+  }
+}
+
 function pot(b: PlotGeometry, x: number, z: number, colour: string, scale = 1) {
   const radius = 0.36 * scale,
     h = 0.51 * scale;
-  b.add(new THREE.CylinderGeometry(radius, radius * 0.68, h, 10).translate(x, h / 2, z), '#b97859');
-  b.add(
+  const seed = x * 2.71 + z * 1.97;
+  addVillageClay(
+    b,
+    new THREE.CylinderGeometry(radius, radius * 0.68, h, 10).translate(x, h / 2, z),
+    '#b97859',
+    seed
+  );
+  addVillageClay(
+    b,
     new THREE.CylinderGeometry(radius * 1.12, radius * 1.12, h * 0.13, 10).translate(
       x,
       h * 0.92,
       z
     ),
-    '#ce9470'
+    '#ce9470',
+    seed
   );
   b.add(
     new THREE.CylinderGeometry(radius * 0.87, radius * 0.87, 0.025, 10).translate(x, h, z),

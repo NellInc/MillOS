@@ -50,6 +50,7 @@ export interface OperationsNextAction {
   kind:
     | 'acknowledge'
     | 'mitigate'
+    | 'resume'
     | 'resolve'
     | 'quality'
     | 'receiving'
@@ -123,6 +124,14 @@ export function deriveOperationsPlay(state: OperationsPlaySnapshot) {
       consequence:
         'Halves the incident’s throughput and quality penalties. Existing equipment failures and quality holds still require their own recovery.',
     };
+  } else if (recovery?.phase === 'mitigated' && !recovery.effectApplied) {
+    nextAction = {
+      kind: 'resume',
+      targetId: recovery.id,
+      label: 'Resume shift for controller response',
+      consequence:
+        'Resumes the whole shift at relaxed pace. Production and customer deadlines advance; the shift stays running until you pause it.',
+    };
   } else if (recovery?.phase === 'mitigated' && recovery.effectApplied) {
     nextAction = {
       kind: 'resolve',
@@ -183,6 +192,19 @@ export function deriveOperationsPlay(state: OperationsPlaySnapshot) {
   }
   const blockedReason = challengeBlockReason(state);
   const challengeOrder = run && state.orders.find((order) => order.id === run.orderId);
+  const challengeIncident =
+    run && state.incidents.find((incident) => incident.id === run.incidentId);
+  const instruction = !challengeIncident
+    ? 'Inspect the incident in the operations workspace.'
+    : challengeIncident.phase === 'raised'
+      ? 'Acknowledge the incident, then apply mitigation.'
+      : challengeIncident.phase === 'acknowledged'
+        ? "Apply mitigation to reduce the controller's penalties."
+        : challengeIncident.phase === 'resolved'
+          ? 'Controller restored. Dispatch fresh, quality-released goods through the shipping bay.'
+          : challengeIncident.effectApplied
+            ? 'Restore the challenge controller, then dispatch fresh, quality-released goods.'
+            : 'The response is queued. Resume the shift to process it before restoring the controller.';
   return {
     activeOrder,
     blockers,
@@ -205,8 +227,9 @@ export function deriveOperationsPlay(state: OperationsPlaySnapshot) {
           ),
           targetKg: run.targetKg,
           remainingMinutes: Math.max(0, run.deadlineMinute - state.elapsedMinutes),
+          instruction,
           phase:
-            state.incidents.find((incident) => incident.id === run.incidentId)?.phase === 'resolved'
+            challengeIncident?.phase === 'resolved'
               ? ('recovering' as const)
               : ('responding' as const),
         }

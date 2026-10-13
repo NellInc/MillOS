@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { createHash } from 'node:crypto';
 import {
   addVillageFlower,
+  addVillageClay,
   addVillageFoliage,
   VILLAGE_HOME_PLOTS,
   VILLAGE_HOMES,
@@ -508,4 +509,33 @@ it('softens petal normals and varies tone while retaining the closed sixty-trian
   const geometry = plot.finish();
   expect(geometry.getAttribute('position').count / 3).toBe(60);
   geometry.dispose();
+});
+
+it('gives clay only deterministic kiln tones, retaining exact cylinder geometry and palette', () => {
+  const original = new THREE.CylinderGeometry(0.36, 0.36 * 0.68, 0.51, 10).translate(2, 0.255, -4);
+  const b = new PlotGeometry(),
+    c = new PlotGeometry();
+  addVillageClay(b, original.clone(), '#b97859', 1.3);
+  addVillageClay(c, original.clone(), '#b97859', 1.3);
+  const finished = b.parts[0];
+  for (const attribute of ['position', 'normal', 'uv'])
+    expect(finished.getAttribute(attribute).array).toEqual(original.getAttribute(attribute).array);
+  expect(finished.index!.array).toEqual(original.index!.array);
+  expect(finished.getAttribute('color').array).toEqual(c.parts[0].getAttribute('color').array);
+  const colour = finished.getAttribute('color'),
+    base = new THREE.Color('#b97859');
+  const tones = [];
+  for (let i = 0; i < colour.count; i++) {
+    const tone = colour.getX(i) / base.r;
+    tones.push(tone);
+    expect(tone).toBeGreaterThan(0.86);
+    expect(tone).toBeLessThan(1.07);
+    expect(colour.getY(i) / base.g).toBeCloseTo(tone, 6);
+    expect(colour.getZ(i) / base.b).toBeCloseTo(tone, 6);
+  }
+  expect(Math.max(...tones) - Math.min(...tones)).toBeGreaterThan(0.12);
+  const other = new PlotGeometry();
+  addVillageClay(other, original.clone(), '#b97859', 2.3);
+  expect(other.parts[0].getAttribute('color').array).not.toEqual(colour.array);
+  for (const geometry of [original, ...b.parts, ...c.parts, ...other.parts]) geometry.dispose();
 });

@@ -7,6 +7,7 @@ import {
   VILLAGE_REALM_GEOMETRY,
   FARM_REALM_GEOMETRY,
   createWorldRealm,
+  realmPavingColour,
   REALM_PAVING_MATERIAL,
   CANAL_MOORING_LINES,
   canalMooringCurve,
@@ -161,7 +162,17 @@ describe('world public realm', () => {
         expect(Math.hypot(c.r - oldBlob.r, c.g - oldBlob.g, c.b - oldBlob.b)).toBeGreaterThan(
           0.001
         );
-        if (palette.some((p) => Math.hypot(c.r - p.r, c.g - p.g, c.b - p.b) < 0.000001))
+        if (
+          palette.some((p) => {
+            // Petals retain chroma but receive the authored 0.915..1.055 tone.
+            const tone = (c.r * p.r + c.g * p.g + c.b * p.b) / (p.r * p.r + p.g * p.g + p.b * p.b);
+            return (
+              tone >= 0.914 &&
+              tone <= 1.056 &&
+              Math.hypot(c.r - p.r * tone, c.g - p.g * tone, c.b - p.b * tone) < 0.000001
+            );
+          })
+        )
           blooms.push(position.getY(i));
       }
       expect(blooms.length).toBeGreaterThan(100);
@@ -515,4 +526,25 @@ it('seats the bow lantern on the cabin and aims its bounded beam onto the delive
   } finally {
     geometry.dispose();
   }
+});
+
+it('keeps coordinate-seeded paving within the original palettes without a three-slab cycle', () => {
+  for (const yard of [false, true]) {
+    const colours = Array.from({ length: 24 }, (_, i) => realmPavingColour(2, i * 1.2, yard));
+    expect(new Set(colours).size).toBeGreaterThan(3);
+    expect(colours).toEqual(
+      Array.from({ length: 24 }, (_, i) => realmPavingColour(2, i * 1.2, yard))
+    );
+    expect(colours.some((c, i) => i >= 3 && c !== colours[i - 3])).toBe(true);
+    const low = new THREE.Color(yard ? '#9a8b71' : '#a39e8d');
+    const high = new THREE.Color(yard ? '#a4967a' : WORLD_CRAFT_PALETTE.paving);
+    for (const c of colours) {
+      const value = new THREE.Color(c);
+      for (const channel of ['r', 'g', 'b'] as const) {
+        expect(value[channel]).toBeGreaterThanOrEqual(low[channel] - 0.003);
+        expect(value[channel]).toBeLessThanOrEqual(high[channel] + 0.003);
+      }
+    }
+  }
+  expect(realmPavingColour(2, 4)).not.toBe(realmPavingColour(2, 4, true));
 });

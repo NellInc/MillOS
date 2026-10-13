@@ -15,6 +15,7 @@ import {
   applyShopWindows,
   SHOP_JOINERY_COLOURS,
   VILLAGE_INTERIOR_STRENGTH,
+  VILLAGE_FABRIC_STRENGTH,
 } from './GeneratedOfficeModel';
 import {
   applyBoatPortholes,
@@ -129,7 +130,7 @@ it('binds the actual shared workshop glass to pane rooms without domestic curtai
   expect(shader.uniforms.villageCurtains.value).toBe(0);
   expect(shader.uniforms.villageRooms.value).toBe(1);
   expect(shader.uniforms.villageAtlas.value).toBe(0);
-  expect(WORKSHOP_GLAZING.customProgramCacheKey()).toBe('millos-authored-village-windows-v6');
+  expect(WORKSHOP_GLAZING.customProgramCacheKey()).toBe('millos-authored-village-windows-v7');
   expect(WORKSHOP_GLAZING.map).toBeNull();
 });
 
@@ -290,7 +291,7 @@ it('retains forge workrooms without domestic curtains or a new shader variant', 
   material.onBeforeCompile(shader, {} as THREE.WebGLRenderer);
   expect(shader.uniforms.villageCurtains.value).toBe(0);
   expect(shader.uniforms.villageRooms.value).toBe(1);
-  expect(material.customProgramCacheKey()).toBe('millos-authored-village-windows-v6');
+  expect(material.customProgramCacheKey()).toBe('millos-authored-village-windows-v7');
   material.dispose();
 });
 
@@ -311,7 +312,7 @@ it('keeps church stained glass out of domestic room replacement', () => {
     'mix(diffuseColor.rgb * 0.85, villageGlow, villageRooms)'
   );
   expect(shader.fragmentShader).toContain('glazing = max(stainedRow, roseTile)');
-  expect(material.customProgramCacheKey()).toBe('millos-authored-village-windows-v6');
+  expect(material.customProgramCacheKey()).toBe('millos-authored-village-windows-v7');
   material.dispose();
 });
 
@@ -329,7 +330,7 @@ it('uses the castle glass tile and its delivered padding with the same room shad
   expect(shader.uniforms.villagePaneUV.value.toArray()).toEqual([0.00375, 0.2425]);
   expect(shader.uniforms.villageRooms.value).toBe(1);
   expect(shader.uniforms.villageCurtains.value).toBe(1);
-  expect(material.customProgramCacheKey()).toBe('millos-authored-village-windows-v6');
+  expect(material.customProgramCacheKey()).toBe('millos-authored-village-windows-v7');
   material.dispose();
 });
 
@@ -383,7 +384,7 @@ it('keeps the delivered cut upper storey separate from the four-storey pane heig
     material.onBeforeCompile(shader, {} as THREE.WebGLRenderer);
     expect(shader.uniforms.apartmentFloorLow.value.z).toBe(floors === 3 ? 0.01059 : 0.01663);
     expect(shader.uniforms.apartmentFloorHigh.value.z).toBe(floors === 3 ? 0.13193 : 0.13014);
-    expect(material.customProgramCacheKey()).toBe('millos-generated-apartment-window-v4');
+    expect(material.customProgramCacheKey()).toBe('millos-generated-apartment-window-v5');
     material.dispose();
   }
 });
@@ -483,11 +484,11 @@ it('composes the castle-only paving finish with the existing shared room dimmer 
   expect(shader.fragmentShader).toContain('castlePaving > 0.5 && castlePavingStrength > 0.0');
   expect(shader.fragmentShader).toContain('0.00045 * castlePavingStrength');
   expect(material.customProgramCacheKey()).toBe(
-    'millos-castle-paving-v1:millos-authored-village-windows-v6'
+    'millos-castle-paving-v1:millos-authored-village-windows-v7'
   );
   night.value = 0;
   expect(material.customProgramCacheKey()).toBe(
-    'millos-castle-paving-v1:millos-authored-village-windows-v6'
+    'millos-castle-paving-v1:millos-authored-village-windows-v7'
   );
   material.dispose();
 });
@@ -524,7 +525,7 @@ it('shares the forge schedule and confines coal emission to the delivered firebo
       '#include <color_fragment>\n#include <roughnessmap_fragment>\n#include <emissivemap_fragment>',
   } as Parameters<typeof material.onBeforeCompile>[0];
   material.onBeforeCompile(shader, {} as THREE.WebGLRenderer);
-  expect(material.customProgramCacheKey()).toContain('millos-authored-village-windows-v6');
+  expect(material.customProgramCacheKey()).toContain('millos-authored-village-windows-v7');
   expect(shader.uniforms.villageCurtains.value).toBe(0);
   material.dispose();
   expect(shader.uniforms.forgeHeat).toBe(FORGE_HEAT_LEVEL);
@@ -583,5 +584,21 @@ it('finishes only the actual boat paint slots, filtering detail without changing
   for (const protectedSlot of [0, 3, 6, 10]) expect(selected.has(protectedSlot)).toBe(false);
   const source = readFileSync('src/components/models/GeneratedBoatModel.tsx', 'utf8');
   expect(source).not.toMatch(/TextureLoader|<(?:pointLight|spotLight)|useFrame/);
-  expect(source).toContain("'millos-authored-boat-portholes-v5'");
+  expect(source).toContain("'millos-authored-boat-portholes-v7'");
+});
+
+it('binds fabric-only filtered linen by reference, retaining room, glazing and light contracts', () => {
+  const shader = compile(applyVillageWindows);
+  expect(shader.uniforms.villageFabricStrength).toBe(VILLAGE_FABRIC_STRENGTH);
+  expect(VILLAGE_FABRIC_STRENGTH.value).toBe(1);
+  expect(shader.uniforms.villageInteriorStrength).toBe(VILLAGE_INTERIOR_STRENGTH);
+  const source = shader.fragmentShader;
+  expect(source.indexOf('float weaveDetail')).toBeLessThan(source.indexOf('if (glazing >'));
+  expect(source).toContain('mix(0.16, 0.12, fabric)');
+  expect(source).toContain('mix(0.06, 0.04, fabric)');
+  expect(source).toContain('fabric * (weave - 0.13 * hem)');
+  expect(source).toContain('mix(roomColour, linen, clamp(curtain, 0.0, 1.0))');
+  expect(source).toContain('float occupied = step(0.22, seed)');
+  expect(source).toContain('float roomScale = step(0.5, min(length(worldU), length(worldV)))');
+  expect(source).toContain('roomEmission *= mix(1.0, 2.5, villageCivic)');
 });

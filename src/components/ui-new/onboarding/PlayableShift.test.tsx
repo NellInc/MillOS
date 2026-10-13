@@ -13,7 +13,11 @@ import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
 import { useWorkplaceStore } from '../../../stores/workplaceStore';
 import { useMaterialFlowStore } from '../../../stores/materialFlowStore';
 import { createWorkplace } from '../../../simulation/bilateralWorkplace';
-import { campaignRecord } from '../../../simulation/workplaceCampaign';
+import {
+  campaignRecord,
+  requiredChecks,
+  WORKPLACE_CHECKS,
+} from '../../../simulation/workplaceCampaign';
 import { MachineType } from '../../../types';
 import type { MachineData } from '../../../types';
 import type { OperationalIncident } from '../../../stores/operationsCampaignStore';
@@ -528,7 +532,7 @@ it.each(['responding', 'recovering'] as const)(
     expect(progress).toHaveTextContent('360 simulation minutes left');
     expect(progress).toHaveTextContent(
       phase === 'responding'
-        ? 'Acknowledge the incident, apply mitigation, then restore its controller.'
+        ? 'Acknowledge the incident, then apply mitigation.'
         : 'Controller restored. Dispatch fresh, quality-released goods through the shipping bay.'
     );
     expect(useOperationsCampaignStore.getState()).toBe(before);
@@ -536,3 +540,111 @@ it.each(['responding', 'recovering'] as const)(
     expect(useGameSimulationStore.getState()).toBe(clock);
   }
 );
+
+function queueControllerResponse() {
+  const state = useOperationsCampaignStore.getState();
+  useOperationsCampaignStore.setState({
+    execution: {
+      ...state.execution,
+      stage: 'milling',
+      sourceInventoryKg: 10000,
+      qualityReleased: true,
+    },
+  });
+  expect(useOperationsCampaignStore.getState().startChallenge('power_recovery')).toBe(true);
+  const run = useOperationsCampaignStore.getState().activeChallenge!;
+  useOperationsCampaignStore.getState().acknowledgeIncident(run.incidentId);
+  useOperationsCampaignStore.getState().mitigateIncident(run.incidentId);
+  return useOperationsCampaignStore.getState();
+}
+it.each([0, 30, 180])(
+  'resumes the whole paused shift only on explicit choice, retaining a running %s pace',
+  (speed) => {
+    const campaign = queueControllerResponse(),
+      stock = useMaterialFlowStore.getState();
+    useGameSimulationStore.setState({ gameSpeed: speed });
+    const clock = useGameSimulationStore.getState();
+    render(<OperationsPlayCard />);
+    const action = screen.getByRole('button', {
+      name: speed === 0 ? 'Resume shift for controller response' : 'Awaiting simulation update',
+    });
+    expect(useGameSimulationStore.getState()).toBe(clock);
+    expect(
+      screen.getByText(
+        speed === 0
+          ? /Resumes the whole shift at relaxed pace/
+          : /The shift is running at your chosen pace/
+      )
+    ).toBeInTheDocument();
+    expect(
+      screen
+        .getByRole('group', { name: 'Recovery challenge progress' })
+        .compareDocumentPosition(action) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    expect(
+      screen.getByRole('button', { name: 'Abandon challenge' }).closest('details')
+    ).not.toHaveAttribute('open');
+    if (speed) expect(action).toBeDisabled();
+    fireEvent.click(action);
+    expect(useGameSimulationStore.getState().gameSpeed).toBe(speed || 30);
+    expect(useOperationsCampaignStore.getState()).toBe(campaign);
+    expect(useMaterialFlowStore.getState()).toBe(stock);
+    expect(
+      screen.queryByRole('button', { name: 'Restore challenge controller' })
+    ).not.toBeInTheDocument();
+  }
+);
+it.each(['deliberating', 'active', 'review'] as const)(
+  'keeps explicit resume separate from programme eligibility during linked %s',
+  (phase) => {
+    const w = useWorkplaceStore.getState();
+    expect(w.startMission('team').changed).toBe(true);
+    if (phase !== 'deliberating') {
+      w.campaignDecision('keep-target', 'coordinator');
+      w.selectPlan('steady');
+      for (const actor of ['packing', 'mind'])
+        for (const id of requiredChecks(actor))
+          w.answerCheck(actor, id, WORKPLACE_CHECKS.find((q) => q.id === id)!.correct);
+      w.understand('packing');
+      w.vote('packing', true);
+      w.simulateResponses();
+      expect(w.activate(useWorkplaceStore.getState().workplace.revision).changed).toBe(true);
+      if (phase === 'review') w.tick(90, 0, false);
+    }
+    expect(useWorkplaceStore.getState().workplace.phase).toBe(phase);
+    const campaign = queueControllerResponse(),
+      agreement = useWorkplaceStore.getState().workplace,
+      stock = useMaterialFlowStore.getState();
+    useGameSimulationStore.setState({ gameSpeed: 0 });
+    render(<OperationsPlayCard />);
+    const action = screen.getByRole('button', { name: 'Resume shift for controller response' });
+    expect(action).not.toBeDisabled();
+    expect(screen.getByLabelText('Active customer commitment', { exact: false })).toBeDisabled();
+    fireEvent.click(action);
+    expect(useGameSimulationStore.getState().gameSpeed).toBe(30);
+    expect(useOperationsCampaignStore.getState()).toBe(campaign);
+    expect(useWorkplaceStore.getState().workplace).toBe(agreement);
+    expect(useMaterialFlowStore.getState()).toBe(stock);
+  }
+);
+it('routes completed-delivery response guidance to Overview without advancing the simulation', () => {
+  const state = queueControllerResponse(),
+    run = state.activeChallenge!;
+  useUIStore.getState().startDeliveryJourney(run.orderId);
+  useUIStore.getState().recordMachineInspection('mill-1');
+  useOperationsCampaignStore.setState({
+    orders: state.orders.map((order) => ({
+      ...order,
+      status: 'fulfilled',
+      shippedKg: order.requiredKg,
+    })),
+  });
+  const before = useOperationsCampaignStore.getState(),
+    clock = useGameSimulationStore.getState(),
+    onOpen = vi.fn();
+  render(<FirstDeliveryJourney selectedMachine={null} onOpenWorkspace={onOpen} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Open current operations' }));
+  expect(onOpen).toHaveBeenCalledWith('overview');
+  expect(useOperationsCampaignStore.getState()).toBe(before);
+  expect(useGameSimulationStore.getState()).toBe(clock);
+});

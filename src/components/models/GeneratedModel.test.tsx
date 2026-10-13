@@ -124,7 +124,7 @@ it('installs each real shop trade on a private material, keeping shared body and
   }
   view.rerender(<GeneratedModel asset="church" shopTrade="bakery" />);
   expect((clones.at(-1)!.material as THREE.Material).customProgramCacheKey()).toBe(
-    'millos-authored-village-windows-v6'
+    'millos-authored-village-windows-v7'
   );
   expect(material.customProgramCacheKey()).not.toContain('shop-joinery');
   view.unmount();
@@ -360,13 +360,13 @@ it('finishes only the cloned castle paving material, retaining geometry, atlas, 
   const view = render(<GeneratedModel asset="castle" />);
   const castle = clones[0].material as THREE.Material;
   expect(castle.customProgramCacheKey()).toBe(
-    'millos-castle-paving-v1:millos-authored-village-windows-v6'
+    'millos-castle-paving-v1:millos-authored-village-windows-v7'
   );
   const dispose = vi.spyOn(castle, 'dispose');
   view.rerender(<GeneratedModel asset="cottage" />);
   expect(dispose).toHaveBeenCalledTimes(1);
   expect((clones[1].material as THREE.Material).customProgramCacheKey()).toBe(
-    'millos-authored-village-windows-v6'
+    'millos-authored-village-windows-v7'
   );
   for (const clone of clones) {
     expect(clone.geometry).toBe(geometry);
