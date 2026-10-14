@@ -1,5 +1,6 @@
 import React from 'react';
 import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import {
   COMMUNITY_ANCHORS as A,
   getCommunityHours,
@@ -33,30 +34,57 @@ function at(b: PlotGeometry, anchor: CommunityAnchor, build: (local: PlotGeometr
 function villagePosition(p: Vec3Tuple): Vec3Tuple {
   return landmarkLocalToWorld(SITE_LAYOUT.landmarks.village, p);
 }
+/** Small eased timber edges inside the original board envelope. Colour varies
+ * by board and face, without a texture, extra draw or per-frame work. Working if
+ * seat tops remain at .46m and all supports/approaches keep their original bounds.
+ */
+export function addCommunityTimber(
+  b: PlotGeometry,
+  size: Vec3Tuple,
+  position: Vec3Tuple,
+  eased = false
+) {
+  const geometry = eased
+    ? new RoundedBoxGeometry(...size, 1, Math.min(...size) * 0.075)
+    : new THREE.BoxGeometry(...size);
+  b.add(geometry, OAK);
+  const colors = geometry.getAttribute('color'),
+    normals = geometry.getAttribute('normal');
+  const base = new THREE.Color(OAK),
+    shade = base.clone();
+  const boardTone =
+    0.96 + 0.04 * Math.sin(position[0] * 2.1 + position[1] * 4.3 + position[2] * 7.7);
+  for (let i = 0; i < colors.count; i++) {
+    shade.copy(base).multiplyScalar(boardTone + normals.getY(i) * 0.025 + normals.getZ(i) * 0.012);
+    colors.setXYZ(i, shade.r, shade.g, shade.b);
+  }
+  geometry.translate(...position);
+}
+
 function seat(b: PlotGeometry, width: number) {
   // Seat top exactly .46; a seated root at ground needs no compensating lift.
-  for (const z of [-0.18, 0, 0.18]) b.box([width, 0.08, 0.15], [0, 0.42, z], OAK);
-  for (const y of [0.66, 0.86]) b.box([width, 0.14, 0.07], [0, y, -0.24], OAK);
+  for (const z of [-0.18, 0, 0.18]) addCommunityTimber(b, [width, 0.08, 0.15], [0, 0.42, z], true);
+  for (const y of [0.66, 0.86]) addCommunityTimber(b, [width, 0.14, 0.07], [0, y, -0.24], true);
   for (const x of [-width * 0.36, width * 0.36]) {
     b.box([0.065, 0.9, 0.07], [x, 0.45, -0.25], IRON);
     b.box([0.065, 0.39, 0.07], [x, 0.195, 0.2], IRON);
   }
 }
 function table(b: PlotGeometry, width: number, depth: number) {
-  b.box([width, 0.09, depth], [0, 0.78, 0], OAK);
+  addCommunityTimber(b, [width, 0.09, depth], [0, 0.78, 0]);
   for (const x of [-width * 0.4, width * 0.4])
     for (const z of [-depth * 0.35, depth * 0.35])
       b.box([0.055, 0.735, 0.055], [x, 0.368, z], IRON);
 }
 function crate(b: PlotGeometry, x: number, y: number, z: number) {
-  b.box([0.64, 0.04, 0.46], [x, y + 0.02, z], OAK);
+  addCommunityTimber(b, [0.64, 0.04, 0.46], [x, y + 0.02, z]);
   for (const side of [-1, 1]) {
     for (const h of [0.13, 0.29]) {
-      b.box([0.64, 0.09, 0.04], [x, y + h, z + side * 0.22], OAK);
-      b.box([0.04, 0.09, 0.46], [x + side * 0.3, y + h, z], OAK);
+      addCommunityTimber(b, [0.64, 0.09, 0.04], [x, y + h, z + side * 0.22]);
+      addCommunityTimber(b, [0.04, 0.09, 0.46], [x + side * 0.3, y + h, z]);
     }
     for (const end of [-1, 1])
-      b.box([0.045, 0.36, 0.045], [x + side * 0.29, y + 0.18, z + end * 0.21], OAK);
+      addCommunityTimber(b, [0.045, 0.36, 0.045], [x + side * 0.29, y + 0.18, z + end * 0.21]);
   }
 }
 function board(b: PlotGeometry) {

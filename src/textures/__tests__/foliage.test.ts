@@ -9,8 +9,10 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import * as THREE from 'three';
 import {
   generateLeafAtlas,
+  createLeafMipmaps,
   generateLeafNormal,
   generateLeafRoughness,
   generateGrassBladeAtlas,
@@ -103,6 +105,116 @@ describe('foliage atlases', () => {
     expect(base).toBeGreaterThan(0.39);
     expect(base).toBeLessThan(0.65);
     expect(coverage(4) / base).toBeGreaterThan(0.65);
+  });
+
+  it.each([
+    [384, 'broadleaf'],
+    [256, 'needle'],
+  ] as const)('emits a complete coverage-preserving %i px %s mip chain', (size, kind) => {
+    const texture = generateLeafAtlas(size, kind);
+    const data = texture.image.data as Uint8Array;
+    const coverage = (bytes: Uint8Array) => {
+      let visible = 0;
+      for (let i = 3; i < bytes.length; i += 4) if (bytes[i] >= 102) visible++;
+      return visible / (bytes.length / 4);
+    };
+    const legacy = [1, 2, 4, 8, 16].map((block) => {
+      let visible = 0;
+      for (let y = 0; y < size; y += block)
+        for (let x = 0; x < size; x += block) {
+          let alpha = 0;
+          for (let dy = 0; dy < block; dy++)
+            for (let dx = 0; dx < block; dx++) alpha += data[((y + dy) * size + x + dx) * 4 + 3];
+          if (alpha / (block * block * 255) >= 0.4) visible++;
+        }
+      return visible / (size / block) ** 2;
+    });
+    console.info('Leaf legacy coverage', kind, JSON.stringify(legacy));
+    const mips = texture.mipmaps as { data: Uint8Array; width: number; height: number }[];
+    const sizes = [];
+    for (let width = size; width >= 1; width = Math.floor(width / 2)) sizes.push(width);
+    expect(mips.map((mip) => mip.width)).toEqual(sizes);
+    expect(mips[0].data).toBe(data);
+    expect(texture.generateMipmaps).toBe(false);
+    expect(texture.colorSpace).toBe(THREE.SRGBColorSpace);
+    expect(texture.minFilter).toBe(THREE.LinearMipmapLinearFilter);
+    expect(texture.anisotropy).toBe(8);
+    let raw = data,
+      width = size,
+      improved = false;
+    const cellCoverage = (bytes: Uint8Array, width: number, cell: number) => {
+      const half = width / 2;
+      let count = 0;
+      for (let y = (cell >> 1) * half; y < ((cell >> 1) + 1) * half; y++)
+        for (let x = (cell % 2) * half; x < ((cell % 2) + 1) * half; x++)
+          if (bytes[(y * width + x) * 4 + 3] >= 102) count++;
+      return count / (half * half);
+    };
+    for (const mip of mips.slice(1)) {
+      const next = new Uint8Array(mip.width * mip.width * 4);
+      for (let y = 0; y < mip.width; y++)
+        for (let x = 0; x < mip.width; x++) {
+          let sum = 0,
+            count = 0;
+          for (
+            let yy = Math.floor((y * width) / mip.width);
+            yy < Math.floor(((y + 1) * width) / mip.width);
+            yy++
+          )
+            for (
+              let xx = Math.floor((x * width) / mip.width);
+              xx < Math.floor(((x + 1) * width) / mip.width);
+              xx++
+            ) {
+              sum += raw[(yy * width + xx) * 4 + 3];
+              count++;
+            }
+          next[(y * mip.width + x) * 4 + 3] = Math.round(sum / count);
+        }
+      for (let i = 3; i < next.length; i += 4) {
+        expect(mip.data[i]).toBeGreaterThanOrEqual(Math.round(next[i] * 0.6));
+        expect(mip.data[i]).toBeLessThanOrEqual(Math.min(255, Math.round(next[i] * 1.6)));
+        if (next[i] === 0 || mip.width < 8) expect(mip.data[i]).toBe(next[i]);
+      }
+      if (mip.width >= 8)
+        for (let cell = 0; cell < 4; cell++) {
+          const target = cellCoverage(data, size, cell);
+          const before = Math.abs(cellCoverage(next, mip.width, cell) - target);
+          const after = Math.abs(cellCoverage(mip.data, mip.width, cell) - target);
+          expect(after).toBeLessThanOrEqual(before + 1e-12);
+          improved ||= after < before - 0.01;
+        }
+      raw = next;
+      width = mip.width;
+    }
+    expect(improved).toBe(true);
+    console.info(
+      'Leaf emitted coverage',
+      kind,
+      JSON.stringify(mips.map((mip) => [mip.width, coverage(mip.data)]))
+    );
+    for (const mip of mips) {
+      expect(mip.height).toBe(mip.width);
+      expect(mip.data.length).toBe(mip.width * mip.height * 4);
+      if (mip.width >= 16) {
+        expect(coverage(mip.data) / coverage(data)).toBeGreaterThan(0.85);
+        expect(coverage(mip.data) / coverage(data)).toBeLessThan(1.15);
+      }
+    }
+  });
+
+  it('filters colour in linear light, leaves alpha arithmetic and includes all nine NPOT tail texels', () => {
+    const square = Uint8Array.from([
+      0, 0, 0, 0, 255, 255, 255, 255, 0, 0, 0, 0, 255, 255, 255, 255,
+    ]);
+    const before = square.slice();
+    const mip = createLeafMipmaps(square, 2)[1];
+    expect(Array.from(mip.data)).toEqual([188, 188, 188, 128]);
+    expect(square).toEqual(before);
+    const odd = new Uint8Array(3 * 3 * 4);
+    odd.fill(255, 8 * 4);
+    expect(Array.from(createLeafMipmaps(odd, 3)[1].data)).toEqual([94, 94, 94, 28]);
+    expect(() => createLeafMipmaps(square, 3)).toThrow('complete square RGBA');
   });
 
   it('needle atlas is generated and fully written', () => {

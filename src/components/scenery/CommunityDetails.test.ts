@@ -6,7 +6,8 @@ import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
 import draco from 'draco3dgltf';
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { COMMUNITY_GEOMETRY } from './CommunityDetails';
+import { COMMUNITY_GEOMETRY, addCommunityTimber } from './CommunityDetails';
+import { PlotGeometry } from '../../utils/authoredPlotGeometry';
 import { getBakeryBoardDetail, COMMUNITY_ANCHORS as A } from '../../constants/communityLayout';
 import {
   BUS_SHELTER_SITE,
@@ -39,6 +40,41 @@ describe('authored community details', () => {
       expect(Number.isFinite(geometry.boundingSphere?.radius)).toBe(true);
     }
   });
+  it('eases real timber edges inside the old board envelope with deterministic lit colour', () => {
+    const a = new PlotGeometry(),
+      b = new PlotGeometry();
+    for (const builder of [a, b])
+      addCommunityTimber(builder, [1.8, 0.08, 0.15], [0, 0.42, 0], true);
+    const one = a.finish(),
+      two = b.finish();
+    expect(one.getAttribute('position').array).toEqual(two.getAttribute('position').array);
+    expect(one.getAttribute('color').array).toEqual(two.getAttribute('color').array);
+    expect(one.boundingBox!.min.toArray()).toEqual([
+      expect.closeTo(-0.9, 5),
+      expect.closeTo(0.38, 5),
+      expect.closeTo(-0.075, 5),
+    ]);
+    expect(one.boundingBox!.max.y).toBeCloseTo(0.46, 6);
+    expect(heightAt(one, 0, 0)).toBeCloseTo(0.46, 6);
+    // A side-edge ray stays inside the eased footprint; the old box top was .46.
+    expect(heightAt(one, 0.899, 0)).toBeCloseTo(0.456414, 5);
+    expect(new Set(Array.from(one.getAttribute('color').array)).size).toBeGreaterThan(6);
+    one.dispose();
+    two.dispose();
+  });
+
+  it('retains the actual occupied mill and pub seat heights after the timber finish', () => {
+    for (const [geometry, anchors] of [
+      [COMMUNITY_GEOMETRY.mill, [A.millRestNorth, A.millRestSouth]],
+      [COMMUNITY_GEOMETRY.village, [A.pubSeatNorth, A.pubSeatSouth]],
+    ] as const)
+      for (const anchor of anchors)
+        expect(heightAt(geometry, anchor.position[0], anchor.position[2])).toBeCloseTo(
+          anchor.seatHeight!,
+          6
+        );
+  });
+
   it('leaves the measured canal moorings to the public realm, without floating legacy cleats', () => {
     expect(COMMUNITY_GEOMETRY).not.toHaveProperty('mooring');
   });

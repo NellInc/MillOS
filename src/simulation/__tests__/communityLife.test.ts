@@ -313,6 +313,68 @@ describe('inhabited world routines', () => {
     }
     expect(operations).toEqual(before);
   });
+  it('waits for actual sample stock and distinguishes recalled batches without changing the ledger', () => {
+    const person = COMMUNITY_ROSTER.find((p) => p.role === 'Quality')!;
+    const pose = { ...sampleCommunityPerson(person, 12), activity: 'working' as const };
+    const operations = { machines: [], workOrders: [], batches: [], bakeryStocked: false };
+    expect(communityWorkResponse(person, pose, operations)).toEqual({
+      activity: 'idle',
+      task: 'Waiting for a production batch to sample',
+    });
+    const recalled = {
+      ...operations,
+      batches: [{ packerId: 'packer-2', disposition: 'recalled' as const, availableKg: 25 }],
+    };
+    const before = structuredClone(recalled);
+    expect(communityWorkResponse(person, pose, recalled)).toEqual({
+      activity: 'working',
+      task: 'Reviewing recalled stock from the quality inspection post',
+    });
+    expect(recalled).toEqual(before);
+  });
+
+  it('keeps quality maintenance, fault, released-stock and protected-break priorities', () => {
+    const person = COMMUNITY_ROSTER.find((p) => p.role === 'Quality')!;
+    const pose = { ...sampleCommunityPerson(person, 12), activity: 'working' as const };
+    const empty = { machines: [], workOrders: [], batches: [], bakeryStocked: false };
+    for (const activity of ['walking', 'break', 'idle'] as const)
+      expect(communityWorkResponse(person, { ...pose, activity }, empty)).toEqual({
+        activity,
+        task: pose.task,
+      });
+    expect(
+      communityWorkResponse(person, pose, {
+        ...empty,
+        workOrders: [{ machineId: person.machineId!, phase: 'awaiting_parts' }],
+      }).task
+    ).toBe('Waiting for maintenance parts');
+    expect(
+      communityWorkResponse(person, pose, {
+        ...empty,
+        machines: [{ id: person.machineId!, status: 'critical' }],
+      }).task
+    ).toBe('Inspecting a reported equipment fault');
+    expect(
+      communityWorkResponse(person, pose, {
+        ...empty,
+        batches: [{ packerId: 'packer-2', availableKg: 25, disposition: 'released' }],
+      })
+    ).toEqual({ activity: pose.activity, task: pose.task });
+    for (const stock of [0, Number.NaN, Number.POSITIVE_INFINITY])
+      expect(
+        communityWorkResponse(person, pose, {
+          ...empty,
+          batches: [{ packerId: 'packer-2', availableKg: stock, disposition: 'recalled' }],
+        }).activity
+      ).toBe('idle');
+    expect(
+      communityWorkResponse(person, pose, {
+        ...empty,
+        batches: [{ packerId: 'packer-2', availableKg: 25, disposition: 'shipped' }],
+      }).activity
+    ).toBe('idle');
+  });
+
   it('pauses actual garden work in wet weather and resumes without changing its route or inventory', () => {
     const gardener = COMMUNITY_ROSTER.find((person) => person.id === 'village-gardener')!;
     const workingHour = Array.from({ length: 48 }, (_, index) => index / 2).find(

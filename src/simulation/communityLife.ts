@@ -290,6 +290,9 @@ const MAINTENANCE_TASKS: Record<MaintenanceWorkOrder['phase'], string> = {
   returned_to_service: 'Checking the restored line',
 };
 
+const sampleStock = (batch: CommunityOperationsSnapshot['batches'][number]) =>
+  Number.isFinite(batch.availableKg) && batch.availableKg > 0;
+
 /** Responses are observations at authored safe posts, never physical repairs.
  * Working if open work orders and held batches alter work cues without stealing
  * tea breaks, changing pedestrian routes or consuming production inventory.
@@ -322,7 +325,14 @@ export function communityWorkResponse(
   }
   if (
     person.role === 'Quality' &&
-    operations.batches.some((batch) => batch.availableKg > 0 && batch.disposition === 'hold')
+    operations.batches.some((batch) => sampleStock(batch) && batch.disposition === 'recalled')
+  ) {
+    out.task = 'Reviewing recalled stock from the quality inspection post';
+    return out;
+  }
+  if (
+    person.role === 'Quality' &&
+    operations.batches.some((batch) => sampleStock(batch) && batch.disposition === 'hold')
   ) {
     out.task = 'Reviewing flour held for quality investigation';
     return out;
@@ -343,7 +353,13 @@ export function communityWorkResponse(
   const machine = operations.machines.find((candidate) => candidate.id === person.machineId);
   if (machine?.status === 'critical' || machine?.status === 'warning')
     out.task = 'Inspecting a reported equipment fault';
-  else if (machine?.status === 'idle') out.task = 'Checking the idle line';
+  else if (
+    person.role === 'Quality' &&
+    !operations.batches.some((batch) => sampleStock(batch) && batch.disposition === 'released')
+  ) {
+    out.activity = 'idle';
+    out.task = 'Waiting for a production batch to sample';
+  } else if (machine?.status === 'idle') out.task = 'Checking the idle line';
   return out;
 }
 
