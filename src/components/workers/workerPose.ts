@@ -148,6 +148,7 @@ export const createWorkerGesture = () => ({
   breath: 0,
   greetingLift: 0,
   greetingWave: 0,
+  idleSettle: 0,
 });
 export type WorkerGesture = ReturnType<typeof createWorkerGesture>;
 
@@ -177,6 +178,18 @@ export function sampleWorkerGesture(
   out.greetingLift = 0;
   out.greetingWave = 0;
   if (kind === 'greet') sampleWorkerGreeting(t, out);
+  // Two small changes of standing posture, each with a held position and quiet
+  // dwell. Work and seated poses keep their own incoming posture.
+  // Working if waiting people gently settle, with stationary boots and no accumulated lean.
+  const idleTime = ((t % 19.7) + 19.7) % 19.7;
+  const settleLeft =
+    THREE.MathUtils.smoothstep(idleTime, 1.4, 3.1) *
+    (1 - THREE.MathUtils.smoothstep(idleTime, 5.5, 7.2));
+  const settleRight =
+    THREE.MathUtils.smoothstep(idleTime, 10.5, 12.2) *
+    (1 - THREE.MathUtils.smoothstep(idleTime, 14.3, 15.7));
+  out.idleSettle =
+    kind === 'idle' || kind === 'greet' ? 0.018 * (settleLeft - settleRight * 0.65) : 0;
   // Three small gardening strokes, then hands/tool settle together for a dwell.
   const gardenTime = ((t % 11.5) + 11.5) % 11.5;
   const gardenWork =
@@ -522,7 +535,8 @@ export function createSeatedWorkerPose(model: THREE.Object3D, heightScale = 1, b
       look(gesture);
       const abdomen = bones.get('Abdomen');
       if (abdomen) {
-        abdomen.rotateZ(gesture.lookPitch * 0.25);
+        abdomen.rotateZ(gesture.lookPitch * 0.25 + gesture.idleSettle);
+        abdomen.userData.workerIdleSettle = gesture.idleSettle;
         abdomen.scale.z *= 1 + gesture.breath * 0.012;
       }
       const upper = bones.get('UpperArmR'),
@@ -543,6 +557,8 @@ export function createSeatedWorkerPose(model: THREE.Object3D, heightScale = 1, b
     },
     restore() {
       if (!applied) return;
+      const abdomen = bones.get('Abdomen');
+      if (abdomen) abdomen.userData.workerIdleSettle = 0;
       for (const entry of saved) {
         entry.bone.position.copy(entry.position);
         entry.bone.quaternion.copy(entry.quaternion);

@@ -872,3 +872,66 @@ it.each(['masculine', 'feminine'])(
     finished.dispose();
   }
 );
+
+it('standing posture settles include quiet dwells and never leak into work or seated rest', () => {
+  const gesture = createWorkerGesture();
+  expect(sampleWorkerGesture('idle', 4, gesture).idleSettle).toBeCloseTo(0.018);
+  expect(sampleWorkerGesture('idle', 13, gesture).idleSettle).toBeCloseTo(-0.0117);
+  for (const t of [0, 1, 8, 9, 16, 19.7])
+    expect(sampleWorkerGesture('idle', t, gesture).idleSettle).toBeCloseTo(0);
+  for (const kind of [
+    'rest',
+    'operate',
+    'inspect',
+    'sample',
+    'supervise',
+    'repair',
+    'radio',
+    'garden',
+    'bake',
+  ] as const)
+    expect(sampleWorkerGesture(kind, 4, gesture).idleSettle).toBe(0);
+  expect(sampleWorkerGesture('greet', 4, gesture).idleSettle).toBeCloseTo(0.018);
+});
+
+it.each(['masculine', 'feminine'])(
+  '%s standing settles retain boots and restore the incoming rig',
+  (body) => {
+    const gltf = bodies.get(body)!,
+      scene = clone(gltf.scene),
+      mixer = new THREE.AnimationMixer(scene);
+    mixer.clipAction(gltf.animations.find((c) => c.name === 'worker-idle')!).play();
+    const pose = createSeatedWorkerPose(scene),
+      gesture = createWorkerGesture();
+    const abdomen = scene.getObjectByName('Abdomen')!,
+      point = new THREE.Vector3();
+    let largest = 0;
+    for (let frame = 0; frame < 480; frame++) {
+      mixer.update(1 / 24);
+      scene.updateMatrixWorld(true);
+      sampleWorkerGesture('idle', frame / 24, gesture);
+      const feet = ['FootL', 'FootR'].map((n) =>
+        scene.getObjectByName(n)!.getWorldPosition(point).clone()
+      );
+      const incoming = abdomen.quaternion.clone(),
+        settle = gesture.idleSettle;
+      gesture.idleSettle = 0;
+      pose.applyIdle(gesture);
+      const control = abdomen.quaternion.clone();
+      pose.restore();
+      gesture.idleSettle = settle;
+      pose.applyIdle(gesture);
+      largest = Math.max(largest, control.angleTo(abdomen.quaternion));
+      expect(abdomen.userData.workerIdleSettle).toBe(settle);
+      ['FootL', 'FootR'].forEach((n, i) =>
+        expect(scene.getObjectByName(n)!.getWorldPosition(point).distanceTo(feet[i])).toBeLessThan(
+          0.000001
+        )
+      );
+      pose.restore();
+      expect(abdomen.quaternion.angleTo(incoming)).toBeLessThan(0.000001);
+    }
+    expect(largest).toBeGreaterThan(0.015);
+    expect(largest).toBeLessThan(0.019);
+  }
+);
