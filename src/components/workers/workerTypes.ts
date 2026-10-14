@@ -12,6 +12,9 @@ export interface WorkerMotionState {
   cycling?: boolean;
   /** Brief empty-hand greeting at an authored social stop; never a plant action. */
   greeting?: boolean;
+  /** Actual anonymous recipient and bounded relative bearing, retained through holds. */
+  greetingTargetId?: string | null;
+  greetingYaw?: number;
   cartGrip?: 'push' | 'pull';
   seatFloorOffset?: number;
   /** Parent-owned crank angle in radians; no independent pedalling clock. */

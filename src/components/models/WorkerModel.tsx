@@ -27,6 +27,7 @@ import {
   createWorkerEyeBlink,
   sampleWorkerBlink,
   sampleWorkerGesture,
+  sampleWorkerGreeting,
 } from '../workers/workerPose';
 export type { WorkerAppearance, WorkerMotionState } from '../workers/workerTypes';
 
@@ -60,6 +61,55 @@ export function shareWorkerSkin(root: THREE.Object3D): THREE.Skeleton[] {
     } else skins.push(skin);
   });
   return skins;
+}
+
+/** Soften split face normals without welding the skinned topology. Skin-compatible
+ * coincident vertices share a finish only across gentle (under 45 degree) edges.
+ * Working if faces lose harsh shading seams while sharp ridges and deformation stay exact.
+ */
+export function softenWorkerFaceNormals(source: THREE.BufferGeometry) {
+  const position = source.getAttribute('position'),
+    normal = source.getAttribute('normal');
+  if (!position || !normal) return null;
+  const joints = source.getAttribute('skinIndex'),
+    weights = source.getAttribute('skinWeight');
+  const groups = new Map<string, number[]>();
+  for (let i = 0; i < position.count; i++) {
+    const key =
+      [position.getX(i), position.getY(i), position.getZ(i)]
+        .map((v) => Math.round(v * 100000))
+        .join(',') +
+      (joints && weights
+        ? Array.from(
+            { length: 4 },
+            (_, c) => `${joints.getComponent(i, c)}:${weights.getComponent(i, c)}`
+          ).join(',')
+        : '');
+    const group = groups.get(key);
+    if (group) group.push(i);
+    else groups.set(key, [i]);
+  }
+  const values = new Float32Array(normal.count * 3);
+  const original = new THREE.Vector3(),
+    candidate = new THREE.Vector3(),
+    sum = new THREE.Vector3();
+  for (const group of groups.values())
+    for (const i of group) {
+      original.fromBufferAttribute(normal, i).normalize();
+      sum.set(0, 0, 0);
+      for (const j of group) {
+        candidate.fromBufferAttribute(normal, j).normalize();
+        if (original.dot(candidate) >= Math.SQRT1_2) sum.add(candidate);
+      }
+      sum.normalize();
+      original
+        .lerp(sum, 0.65)
+        .normalize()
+        .toArray(values, i * 3);
+    }
+  const geometry = source.clone();
+  geometry.setAttribute('normal', new THREE.Float32BufferAttribute(values, 3));
+  return geometry;
 }
 
 /** Dress the authored hands using their actual wrist/finger skin weights.
@@ -795,11 +845,14 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
   const gesture = useMemo(createWorkerGesture, []);
   const gestureTime = useRef(Number.isFinite(motion.phase) ? motion.phase : 0);
   const pendingDelta = useRef(0);
+  const greetingElapsed = useRef(0);
+  const greetingYaw = useRef(0);
   const lastPose = useRef<{
     clip?: WorkerClipName;
     seated?: boolean;
     cycling?: boolean;
     greeting?: boolean;
+    greetingTargetId?: string | null;
     cyclePhase?: number;
     cartGrip?: 'push' | 'pull';
     seatFloorOffset?: number;
@@ -849,6 +902,14 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
         return material;
       });
       mesh.material = Array.isArray(mesh.material) ? built : built[0];
+      if (nodeName.includes('Worker_Head') && sources.length === 1 && sources[0].name === 'Skin') {
+        const softened = softenWorkerFaceNormals(mesh.geometry);
+        if (softened) {
+          mesh.geometry = softened;
+          mesh.userData.workerSoftFace = true;
+          ownedGeometry.push(softened);
+        }
+      }
       if (
         appearance.hasGloves &&
         (mesh as THREE.SkinnedMesh).isSkinnedMesh &&
@@ -999,6 +1060,7 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
       lastPose.current.seated !== motion.seated ||
       lastPose.current.cycling !== motion.cycling ||
       lastPose.current.greeting !== motion.greeting ||
+      lastPose.current.greetingTargetId !== motion.greetingTargetId ||
       lastPose.current.cartGrip !== motion.cartGrip ||
       lastPose.current.seatFloorOffset !== motion.seatFloorOffset ||
       lastPose.current.activity !== motion.activity;
@@ -1020,16 +1082,26 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
     pendingDelta.current = 0;
     gestureTime.current += safeDelta;
     sampleWorkerGesture(
-      motion.seated
-        ? 'rest'
-        : motion.greeting && motion.activity === 'idle' && motion.enabled
-          ? 'greet'
-          : motion.activity === 'working'
-            ? appearance.workAction
-            : 'idle',
+      motion.seated ? 'rest' : motion.activity === 'working' ? appearance.workAction : 'idle',
       gestureTime.current,
       gesture
     );
+    if (lastPose.current.greetingTargetId !== motion.greetingTargetId) greetingElapsed.current = 0;
+    const greetingActive = motion.greeting && motion.activity === 'idle' && !motion.seated;
+    if (greetingActive) {
+      greetingElapsed.current += safeDelta;
+      sampleWorkerGreeting(greetingElapsed.current, gesture);
+    }
+    greetingYaw.current = THREE.MathUtils.damp(
+      greetingYaw.current,
+      greetingActive ? (motion.greetingYaw ?? 0) : 0,
+      7,
+      safeDelta
+    );
+    if (motion.activity === 'idle')
+      gesture.lookYaw = greetingActive
+        ? greetingYaw.current
+        : gesture.lookYaw + greetingYaw.current;
     // Facial detail is omitted at the existing near-face cutoff. Far body LOD
     // retains the open-eye bind shape; it never needs a third body draw.
     const blink = faceRef.current?.visible === false ? 0 : sampleWorkerBlink(gestureTime.current);
@@ -1040,6 +1112,7 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
       seated: motion.seated,
       cycling: motion.cycling,
       greeting: motion.greeting,
+      greetingTargetId: motion.greetingTargetId,
       cyclePhase: motion.cyclePhase,
       cartGrip: motion.cartGrip,
       seatFloorOffset: motion.seatFloorOffset,

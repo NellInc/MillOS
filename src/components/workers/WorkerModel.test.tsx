@@ -26,6 +26,7 @@ import {
   shareWorkerSkin,
   createWorkerAccessoryPair,
   setWorkerPupilBlink,
+  softenWorkerFaceNormals,
 } from '../models/WorkerModel';
 
 afterEach(() => {
@@ -694,4 +695,59 @@ it('closes the existing pupil instances without moving their centres or scaling 
   }
   expect(Array.from(pair.instanceMatrix.array)).toEqual(before);
   pair.dispose();
+});
+
+it('face normals retain sharp corners and incompatible skin seams', () => {
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(12), 3));
+  geometry.setAttribute(
+    'normal',
+    new THREE.Float32BufferAttribute([0, 1, 0, 0.3, 0.954, 0, 1, 0, 0, -0.3, 0.954, 0], 3)
+  );
+  geometry.setAttribute(
+    'skinIndex',
+    new THREE.Uint16BufferAttribute([1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0], 4)
+  );
+  geometry.setAttribute(
+    'skinWeight',
+    new THREE.Float32BufferAttribute([1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0], 4)
+  );
+  const result = softenWorkerFaceNormals(geometry)!;
+  const v = (g: THREE.BufferGeometry, i: number) =>
+    new THREE.Vector3().fromBufferAttribute(g.getAttribute('normal'), i).normalize();
+  expect(v(result, 0).x).toBeGreaterThan(0.05);
+  expect(v(result, 2).distanceTo(v(geometry, 2))).toBe(0);
+  expect(v(result, 3).distanceTo(v(geometry, 3))).toBeLessThan(0.000001);
+  const sourceDispose = vi.spyOn(geometry, 'dispose');
+  result.dispose();
+  expect(sourceDispose).not.toHaveBeenCalled();
+});
+
+it('mounted face finish disposes only its private geometry', () => {
+  const source = new THREE.BoxGeometry(),
+    scene = new THREE.Group(),
+    head = new THREE.Group();
+  head.name = 'Worker_Head';
+  const material = new THREE.MeshStandardMaterial();
+  material.name = 'Skin';
+  const mesh = new THREE.Mesh(source, material);
+  head.add(mesh);
+  scene.add(head);
+  harness.asset = { scene, animations: [] };
+  const sourceDispose = vi.spyOn(source, 'dispose'),
+    materialDispose = vi.spyOn(material, 'dispose');
+  const { unmount } = render(
+    <WorkerModel
+      appearance={getWorkerAppearance('Shopkeeper', '', 'village-shopkeeper')}
+      motion={{ activity: 'idle', groundSpeed: 0, seated: false, phase: 0, enabled: false }}
+    />
+  );
+  const privateGeometry = mesh.geometry,
+    ownedDispose = vi.spyOn(privateGeometry, 'dispose');
+  expect(privateGeometry).not.toBe(source);
+  expect(mesh.userData.workerSoftFace).toBe(true);
+  unmount();
+  expect(ownedDispose).toHaveBeenCalledOnce();
+  expect(sourceDispose).not.toHaveBeenCalled();
+  expect(materialDispose).not.toHaveBeenCalled();
 });

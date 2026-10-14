@@ -2126,3 +2126,73 @@ Working if both actual iris meshes visibly close and reopen with pupils aligned,
 - Limits: Some fixed factory views remain machine-occluded, especially midnight, and do not prove whole bodies. Baker appropriately waits for real cooperative flour in the native fixture; its matched tray motion is covered on both actual rigs. Other locations are regression-reviewed, not rebuilt wholesale. Mac pacing independently OPEN; historical cloud-card causal uncertainty remains unreproduced. No Mac FPS/universal loading/new first-person castle walk/full campaign claim. These separate limitations do not hold this completed finite pass.
 
 Final main assets/main-CtLFlAXW.js, SHA256 baebfc0fd9e965e66a0991bc90238f7bd56ed589dad21254dfe02c08adee1446.
+
+
+## I: Soft face finish and contextual social life, 2026-10-14
+
+Nell approved continued all-area polishing with people/models/animations prioritised. Owned checkout at5ab64290a568b64bdb72c4e58c474690cca2efd2, tracked clean; primary06ff26d3 and18 tracked dirty entries preserved. Protected output remains untracked. Audio silent; local-only delivery, no integration/push/deployment. Baseline242 affected tests/12files, zero failures, exact preceding pins/gates retained.
+
+- [ ] I01: Soften harsh head-skin normals on both original bodies, preserve sharp ridges/silhouette/positions/triangles/weights/UVs and cloth/PPE, no new asset/map/shader/draw.
+- [ ] I02: Private geometry ownership/cleanup and far-body LOD remain compatible; centred blink contract remains exact.
+- [ ] I03: Same-page face finish on/off/on review on both rigs under identical light, plus dusk/Low context.
+- [ ] I04: At its authored social stop the shopkeeper greets a real visible nearby passer-by, looks toward them, and uses one brief empty-hand hello per arrival.
+- [ ] I05: Preserve work/seat/walk/cycle/cart contacts, rest/agreements and pause/hidden/reduced/safety holds; captions reflect actual company or quiet waiting.
+- [ ] I06: Keep the14 anonymous identities and genuine schedules/operations; no real-person data, remote avatars, new actors or voices.
+- [ ] I07: Review village/market/square/allotment/canal and factory/farm/forecourt/shelter/castle, daylight/dusk/Low/night; retain practical/window light, single Sun shadow, sky/water/grounds.
+- [ ] I08: Real silent shift/safety controls and focused changed-contract tests plus required type/lint/format/shader/build/reachability gates; exact source/compiled custody.
+- [ ] I09: One bounded native review and at most one evidence-led correction, unchanged90s/truck15s/returned-frame45/4GiB/presets/adaptation/caps. No reassuring broad reruns.
+- [ ] I10: Saved24-task dispositions/gallery and selective validated local commit; own disposable cleanup only. Mac pacing independently OPEN.
+
+Working if both faces shade more softly while their silhouettes/skins/eyes remain exact, the shopkeeper acknowledges actual passing company once rather than waving into empty space, and all old contacts/control/light/audio guards survive. Pre-mortem: normal averaging could cross animated skin or sharp ridges; target detection could use half-updated poses or greet behind the body; a greeting clock could reset on pause or loop while a neighbour stays. Skin-compatible normal groups, a second-pass proximity resolver, one-shot timing and actual-rig/controller/native checks answer these questions. This24-item finite pass refines people and reviews all areas, without claiming every unrelated asset is rebuilt.
+
+**I implementation/checkpoint, not visual closure:** CPU app ap-ygqGcBDvNZhioh857KWFdR passes248/248 affected tests in12files (+6), typecheck/lint/format/shader/build/reachability exit0. Aggregate163.121s under210s, production build18.90s. Exact1219 source inputs and388 returned compiled files verified. Main assets/main-c3cM4dlv.js, SHA2565f38765759075b75ecc06c3f59f7de302efa6e523123d17459796698263f3ad3. Native review has NOT launched: shared APFS dropped below the unchanged4GiB admission floor, related disk owner notified, preservation/recovery holds retained. This is a disk-capacity boundary, never a Mac pacing rejection. The prepared adapter adds original-source position-bound on/off/on face normals and a source-derived14.55h real cyclist encounter, retaining original budgets/quality/guards/audio. The initial forward-orientation hypothesis was corrected after a nearest-actor schedule diagnostic: the social stop now faces+Z, preserving its position/route/period. The broad exploratory npx tsc --noEmit includes test-typing failures; its log is retained separately, and the actual required npm run typecheck passes. No claim of whole-repository test-suite success or native acceptance.
+
+### I detailed24-task execution list
+
+1. **Soften harsh facial shading on both original bodies.** Coincident skin-compatible normals blend65percent across gentle edges; both real rigs retain exact deformed positions. Native on/off/on pending.
+
+2. **Preserve face ridges, silhouette, ears, nose and brows.** No position/index/UV/weight change; synthetic sharp-edge and incompatible-skin checks pass.
+
+3. **Keep topology and authored animation assets unchanged.** Both actual GLBs pass topology/deformation checks; no asset/clip/map/shader or body draw added.
+
+4. **Retain centred blinks.** Existing fresh-clone eye centroid/XZ/closure tests pass in the248-test gate; native regression prepared.
+
+5. **Preserve clothes, PPE, tools and palettes.** No appearance policy or wardrobe asset changed; current ownership/role tests pass.
+
+6. **Dispose only private face buffers.** Mounted geometry cleanup and borrowed source/material retention check passes.
+
+7. **Review face finish on/off/on under identical lighting.** Prepared exact source-position-bound normal control on the same page for both rigs atday/dusk; pending disk admission.
+
+8. **Greet actual nearby passers-by.** Pure second-pass resolver requires visible recipient within6m and forward0.9rad cone; actual source schedule contains courier/cyclist encounters.
+
+9. **Look toward the real recipient.** WorkerMotionState carries clamped0.3rad bearing; existing idle Head solver eases to target. Native recipient trace pending.
+
+10. **Use one short hello per arrival.** Greeting envelope ends2.1s, no modulo repeat; target-id clock retained across holds. Long-dwell sampler and real-rig hand/boot checks pass.
+
+11. **Keep waving hand free of tools.** Greeting only at authored idle social stop; working tools remain hidden there, existing original-rig free hand checks pass.
+
+12. **Preserve walking, cycling, carts and work.** All affected existing motion/contact/replay tests pass; actual shift controls prepared.
+
+13. **Keep feet planted during social motion.** Both actual-rig idle/greeting checks preserve boots; native drift check pending.
+
+14. **Freeze under pause, hidden tab, reduced motion and safety.** Existing controller/clock tests pass, motion uses safeDelta; actual-control confirmation pending.
+
+15. **Make captions match company.** Second pass says Greeting a passing neighbour only with target, otherwise A moment outside the shop; replay/controller and resolver checks pass.
+
+16. **Retain anonymous cast and genuine work/rest schedules.** Same14 ids/routes/periods/operational supply; only social-stop heading changes to face the observed street approach.
+
+17. **Review faces in daylight, dusk and Low.** Native camera/face conditions prepared, original lights/shadows retained; not captured yet.
+
+18. **Review village, market, square, allotments and canal.** Native location sweep prepared with source-derived camera table; not reviewed on this candidate yet.
+
+19. **Review factory, farm, forecourt, shelter and castle.** Native sweep prepared; no claim these assets were rebuilt in this people-priority pass.
+
+20. **Retain warm rooms, practicals, shadows, water and sky.** No world-light/material subsystem edited; exact original civic bake/leaf relief/single Sun/Low tier guards retained in adapter.
+
+21. **Exercise real silent shift and safety controls.** Existing actual-UI adapter retained; audio muted/music disabled/zero context enforced. Native controls pending.
+
+22. **Run focused regressions and required build gates.** 248/248 in12files, +6 from242 baseline; every required whole-project gate exit0,163.121s aggregate,18.90s build.
+
+23. **Save gallery and local check-in.** Exact1219 source and388 compiled pins match. Gallery/visual acceptance and final local check-in pending.
+
+24. **Clean own disposable files only.** No foreign process/cache/output or held evidence touched. Only own generated bytecode/adapter-edit scratch disposable; large evidence/recovery holds retained.

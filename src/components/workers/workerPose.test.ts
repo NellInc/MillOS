@@ -18,7 +18,7 @@ import {
 } from './workerPose';
 import { COMMUNITY_ANCHORS } from '../../constants/communityLayout';
 import { getWorkerAppearance } from './workerTypes';
-import { dressWorkerHands } from '../models/WorkerModel';
+import { dressWorkerHands, softenWorkerFaceNormals } from '../models/WorkerModel';
 
 const bodies = new Map<string, GLTF>();
 beforeAll(async () => {
@@ -566,7 +566,8 @@ it('greeting has a quiet dwell and resets fully when another activity takes over
   expect(sampleWorkerGesture('greet', 1, gesture).greetingLift).toBe(1);
   for (const t of [0, 2.1, 4, 8.99, 9])
     expect(sampleWorkerGesture('greet', t, gesture).greetingLift).toBe(0);
-  expect(sampleWorkerGesture('greet', 9.2, gesture).greetingLift).toBeGreaterThan(0);
+  for (const t of [9.2, 18.2, 27.2, 100])
+    expect(sampleWorkerGesture('greet', t, gesture).greetingLift).toBe(0);
   for (const activity of ['bake', 'garden', 'rest', 'idle'] as const) {
     sampleWorkerGesture(activity, 1, gesture);
     expect(gesture.greetingLift).toBe(0);
@@ -818,3 +819,56 @@ describe('actual private eye closure and task attention', () => {
     expect(getWorkerAppearance('Operator', '', 'w3').pantsColor).toBe('#1e3a5f');
   });
 });
+
+it.each(['masculine', 'feminine'])(
+  '%s soft face finish preserves real topology and skin deformation',
+  (body) => {
+    const scene = clone(bodies.get(body)!.scene);
+    let mesh: THREE.SkinnedMesh | undefined;
+    scene.traverse((o) => {
+      const m = o as THREE.SkinnedMesh;
+      if (
+        m.isSkinnedMesh &&
+        m.parent?.name.includes('Worker_Head') &&
+        !Array.isArray(m.material) &&
+        m.material.name === 'Skin'
+      )
+        mesh = m;
+    });
+    const source = mesh!.geometry,
+      normal = source.getAttribute('normal');
+    const finished = softenWorkerFaceNormals(source)!;
+    expect(finished).not.toBe(source);
+    expect(finished.index!.array).toEqual(source.index!.array);
+    for (const name of Object.keys(source.attributes).filter((name) => name !== 'normal'))
+      expect(finished.getAttribute(name).array).toEqual(source.getAttribute(name).array);
+    const a = new THREE.Vector3(),
+      b = new THREE.Vector3();
+    let changed = 0;
+    for (let i = 0; i < normal.count; i++) {
+      a.fromBufferAttribute(normal, i).normalize();
+      b.fromBufferAttribute(finished.getAttribute('normal'), i);
+      expect(b.length()).toBeCloseTo(1, 5);
+      expect(a.angleTo(b)).toBeLessThan(Math.PI / 4);
+      if (a.distanceTo(b) > 0.001) changed++;
+    }
+    expect(changed).toBeGreaterThan(20);
+    const before = normal.array.slice();
+    mesh!.geometry = finished;
+    const mixer = new THREE.AnimationMixer(scene);
+    mixer.clipAction(bodies.get(body)!.animations.find((c) => c.name === 'worker-inspect')!).play();
+    for (let frame = 0; frame < 20; frame++) {
+      mixer.update(0.05);
+      scene.updateMatrixWorld(true);
+      for (let i = 0; i < source.getAttribute('position').count; i++) {
+        mesh!.geometry = source;
+        mesh!.getVertexPosition(i, a);
+        mesh!.geometry = finished;
+        mesh!.getVertexPosition(i, b);
+        expect(a.distanceTo(b)).toBe(0);
+      }
+    }
+    expect(normal.array).toEqual(before);
+    finished.dispose();
+  }
+);

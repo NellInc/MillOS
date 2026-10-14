@@ -35,6 +35,44 @@ export interface CommunityPose {
   visible: boolean;
 }
 
+export const createCommunityGreeting = () => ({ targetId: null as string | null, yaw: 0 });
+
+/** Resolve actual company after every resident has its current pose. No camera
+ * impersonation or periodic waves into empty space. Working if only visible,
+ * nearby people in the shopkeeper's forward view can receive the authored hello.
+ */
+export function sampleCommunityGreeting(
+  person: CommunityPerson,
+  pose: CommunityPose,
+  actors: readonly { person: CommunityPerson; pose: CommunityPose }[],
+  out: ReturnType<typeof createCommunityGreeting>
+) {
+  out.targetId = null;
+  out.yaw = 0;
+  if (
+    person.role !== 'Shopkeeper' ||
+    !pose.visible ||
+    pose.seated ||
+    pose.activity !== 'idle' ||
+    pose.task !== 'Greeting a neighbour'
+  )
+    return out;
+  let closest = 36;
+  for (const actor of actors) {
+    if (actor.person.id === person.id || !actor.pose.visible) continue;
+    const dx = actor.pose.position[0] - pose.position[0],
+      dz = actor.pose.position[2] - pose.position[2];
+    const distance = dx * dx + dz * dz;
+    const bearing = Math.atan2(dx, dz) - pose.rotation;
+    const yaw = Math.atan2(Math.sin(bearing), Math.cos(bearing));
+    if (distance < 0.16 || distance >= closest || Math.abs(yaw) > 0.9) continue;
+    closest = distance;
+    out.targetId = actor.person.id;
+    out.yaw = Math.max(-0.3, Math.min(0.3, yaw));
+  }
+  return out;
+}
+
 // The west operator represents coordination; the east operator remains unbound.
 export const COMMUNITY_AGREEMENT_MEMBERS: Readonly<Record<string, string>> = {
   'mill-packer': 'packing',
@@ -395,7 +433,7 @@ export const COMMUNITY_ROSTER: readonly CommunityPerson[] = [
     stops: [
       stop(A.shopCustomer.position, -PI / 2, 1.4, 'Tending the village shop'),
       stop([-204.4, 0, 31.6], -PI / 2, 0.6, 'Checking the delivery crates'),
-      stop([-202.7, 0, 31.6], PI, 0.4, 'Greeting a neighbour', 'idle'),
+      stop([-202.7, 0, 31.6], 0, 0.4, 'Greeting a neighbour', 'idle'),
       via([-202.7, 0, 30]),
     ],
   },

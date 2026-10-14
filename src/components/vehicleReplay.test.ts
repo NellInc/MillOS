@@ -379,8 +379,15 @@ it('interpolates live personnel safely and restores the captured presentation cu
   expect(checkpoint.clocks.presentation).toBe(36);
   useGameSimulationStore.setState({ gameDay: 0, gameTime: 12, gameSpeed: 0 });
   frame({ camera, scene }, 1 / 60);
-  expect(shopkeeper.userData.greeting).toBe(true); // The actual day0 social dwell.
-  expect(roots.filter((root: THREE.Group) => root.userData.greeting)).toEqual([shopkeeper]);
+  // A social stop is eligible, but an empty street must never generate a wave.
+  const social = participant
+    .capture()
+    .residents.find((r: any) => r.pose.task === 'Greeting a neighbour');
+  expect(social).toBeDefined();
+  expect(shopkeeper.userData.greeting).toBe(!!shopkeeper.userData.greetingTargetId);
+  expect(shopkeeper.userData.task).toBe(
+    shopkeeper.userData.greeting ? 'Greeting a passing neighbour' : 'A moment outside the shop'
+  );
 });
 
 it('locks a turning rider to the actual bicycle heading, preserving pedal and hand contacts', () => {

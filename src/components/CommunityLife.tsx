@@ -18,6 +18,8 @@ import { SceneText } from './shared/SceneText';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import {
   COMMUNITY_ROSTER,
+  createCommunityGreeting,
+  sampleCommunityGreeting,
   createCommunityPose,
   sampleCommunityPerson,
   sampleCommunityCyclist,
@@ -105,6 +107,7 @@ export function CommunityLife() {
           pose,
           motion,
           response: { activity: pose.activity, task: pose.task },
+          greeting: createCommunityGreeting(),
           appearance: getWorkerAppearance(person.role, COLOURS[i % COLOURS.length], person.id),
         };
       }),
@@ -273,20 +276,32 @@ export function CommunityLife() {
       communityAgreementResponse(agreement, pose, response);
       const task = emergency ? 'Holding safely for the site safety stop' : response.task;
       if (!emergency) motion.activity = response.activity;
-      // Only the shopkeeper's authored social dwell uses the free right hand.
-      // Working if walking, tools, off-duty rest and safety holds never wave.
-      motion.greeting =
-        !emergency && actor.person.role === 'Shopkeeper' && motion.activity === 'idle';
       Object.assign(root.userData, {
         activity: motion.activity,
         task,
         seated: pose.seated,
-        greeting: motion.greeting,
+        greeting: false,
         groundSpeed: motion.groundSpeed,
         agreementMemberId: agreement?.memberId ?? null,
         agreementState: agreement?.state ?? null,
         agreementPresentation: agreement ? 'representative' : null,
       });
+    }
+    // Second pass: all recipients now have this frame's pose, not a mixture of frames.
+    for (let i = 0; i < residents.length; i++) {
+      const actor = residents[i],
+        root = roots.current[i];
+      if (!root) continue;
+      const greeting = sampleCommunityGreeting(actor.person, actor.pose, residents, actor.greeting);
+      actor.motion.greetingTargetId = greeting.targetId;
+      actor.motion.greetingYaw = greeting.yaw;
+      actor.motion.greeting = !emergency && actor.motion.activity === 'idle' && !!greeting.targetId;
+      root.userData.greeting = actor.motion.greeting;
+      root.userData.greetingTargetId = greeting.targetId;
+      if (!emergency && actor.pose.task === 'Greeting a neighbour')
+        root.userData.task = greeting.targetId
+          ? 'Greeting a passing neighbour'
+          : 'A moment outside the shop';
     }
     cart.visible = drop.visible;
     cart.rotation = Math.PI;

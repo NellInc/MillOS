@@ -151,6 +151,17 @@ export const createWorkerGesture = () => ({
 });
 export type WorkerGesture = ReturnType<typeof createWorkerGesture>;
 
+/** One hello per arrival, with a quiet hand-down dwell while the neighbour stays.
+ * Working if the wave ends after 2.1 seconds and never repeats on its own clock.
+ */
+export function sampleWorkerGreeting(seconds: number, out: WorkerGesture) {
+  const t = Number.isFinite(seconds) ? Math.max(0, seconds) : 0;
+  out.greetingLift =
+    THREE.MathUtils.smoothstep(t, 0, 0.45) * (1 - THREE.MathUtils.smoothstep(t, 1.65, 2.1));
+  out.greetingWave = Math.sin(t * 8) * 0.18 * out.greetingLift;
+  return out;
+}
+
 /** Bounded, staggered gestures, with no world-clock or per-frame allocations.
  * Working if tools follow the same sampled offset as palms and feet stay planted.
  */
@@ -163,15 +174,9 @@ export function sampleWorkerGesture(
   const tempo = t + Math.sin(t * 0.41) * 0.18;
   const cycle = 0.5 - 0.5 * Math.cos((tempo * Math.PI * 2) / (kind === 'garden' ? 3.6 : 6.4));
   out.breath = Math.sin(t * 1.45) * 0.5 + 0.5;
-  // A brief hello followed by a long hand-down dwell, offset per inhabitant.
-  // Working if the free hand rises smoothly and settles without a clockwork loop.
-  const greetingTime = ((t % 9) + 9) % 9;
-  out.greetingLift =
-    kind === 'greet'
-      ? THREE.MathUtils.smoothstep(greetingTime, 0, 0.45) *
-        (1 - THREE.MathUtils.smoothstep(greetingTime, 1.65, 2.1))
-      : 0;
-  out.greetingWave = Math.sin(t * 8) * 0.18 * out.greetingLift;
+  out.greetingLift = 0;
+  out.greetingWave = 0;
+  if (kind === 'greet') sampleWorkerGreeting(t, out);
   // Three small gardening strokes, then hands/tool settle together for a dwell.
   const gardenTime = ((t % 11.5) + 11.5) % 11.5;
   const gardenWork =

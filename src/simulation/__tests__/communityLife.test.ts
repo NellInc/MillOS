@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { Group, SkinnedMesh } from 'three';
 import {
   COMMUNITY_ROSTER,
+  createCommunityGreeting,
+  sampleCommunityGreeting,
   sampleCommunityPerson,
   routineDuration,
   WALK_HOURS_PER_METRE,
@@ -507,5 +509,59 @@ describe('bounded personnel presentation between actual simulation ticks', () =>
     }
     expect(step(12, 12.1, 0, NaN, 180, true, false)).toBe(12);
     expect(step(12, 12.1, 0, 100, 180, true, false) - 12).toBeCloseTo((180 * 0.075) / 3600, 9);
+  });
+});
+
+describe('greetings acknowledge actual passing company', () => {
+  const shop = COMMUNITY_ROSTER.find((p) => p.id === 'village-shopkeeper')!;
+  const neighbour = COMMUNITY_ROSTER.find((p) => p.id === 'village-neighbour')!;
+  const pose = {
+    position: [0, 0, 0] as [number, number, number],
+    rotation: 0,
+    activity: 'idle' as const,
+    task: 'Greeting a neighbour',
+    seated: false,
+    visible: true,
+  };
+  it('selects only a visible nearby forward recipient and bounds the head turn', () => {
+    const target = { ...pose, position: [1, 0, 2] as [number, number, number] };
+    const actors = [
+      { person: shop, pose },
+      { person: neighbour, pose: target },
+    ];
+    const out = createCommunityGreeting();
+    expect(sampleCommunityGreeting(shop, pose, actors, out)).toBe(out);
+    expect(out).toEqual({ targetId: neighbour.id, yaw: 0.3 });
+    for (const position of [
+      [0, 0, -2],
+      [7, 0, 0],
+      [0, 0, 0.1],
+    ] as [number, number, number][]) {
+      target.position = position;
+      sampleCommunityGreeting(shop, pose, actors, out);
+      expect(out.targetId).toBe(null);
+      expect(out.yaw).toBe(0);
+    }
+    target.position = [0, 0, 2];
+    target.visible = false;
+    expect(sampleCommunityGreeting(shop, pose, actors, out).targetId).toBe(null);
+  });
+  it('never greets during a work, seat or non-authored idle stop', () => {
+    const actors = [
+      { person: neighbour, pose: { ...pose, position: [0, 0, 2] as [number, number, number] } },
+    ];
+    for (const changed of [
+      { activity: 'working' as const },
+      { seated: true },
+      { task: 'Checking a delivery' },
+      { visible: false },
+    ])
+      expect(
+        sampleCommunityGreeting(shop, { ...pose, ...changed }, actors, createCommunityGreeting())
+          .targetId
+      ).toBe(null);
+    expect(
+      sampleCommunityGreeting(neighbour, pose, actors, createCommunityGreeting()).targetId
+    ).toBe(null);
   });
 });
