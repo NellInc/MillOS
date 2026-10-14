@@ -1,11 +1,11 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { HeritageEmblem, IlluminatedSignText } from './HeritageSignage';
+import { HeritageEmblem, IlluminatedSignText, HERITAGE_LETTERING_FONT } from './HeritageSignage';
 import { SceneText } from '../shared/SceneText';
 import { ExteriorDownlight, EXTERIOR_LAMP_LENS_MATERIAL } from '../exterior/ExteriorLighting';
 import { useGraphicsStore } from '../../stores/graphicsStore';
 
-const LETTERING_FONT = `${import.meta.env.BASE_URL}fonts/MedievalSharp.ttf`;
+const LETTERING_FONT = HERITAGE_LETTERING_FONT;
 const GOLD = '#e4c680';
 
 /** Measured joinery and print, shared by the village shopfronts and civic signs.

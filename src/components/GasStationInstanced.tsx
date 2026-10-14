@@ -1,6 +1,10 @@
 import * as THREE from 'three';
 import { useGraphicsStore } from '../stores/graphicsStore';
-import { DeadDinoPylonFace, IlluminatedSignText } from './scenery/HeritageSignage';
+import {
+  DeadDinoPylonFace,
+  IlluminatedSignText,
+  HERITAGE_LETTERING_FONT,
+} from './scenery/HeritageSignage';
 import { ExteriorDownlight } from './exterior/ExteriorLighting';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { EXTERIOR_LAYERS } from '../constants/renderLayers';
@@ -1180,10 +1184,12 @@ export const GasStation = React.memo<GasStationProps>(
           <IlluminatedSignText
             key={`canopy-wordmark-${side}`}
             name={`station-canopy-wordmark-${side}`}
+            font={HERITAGE_LETTERING_FONT}
+            maxWidth={4.4}
             position={[0, 4.64, side * 6.28]}
             rotation={[0, side < 0 ? Math.PI : 0, 0]}
-            fontSize={0.28}
-            letterSpacing={0.1}
+            fontSize={0.32}
+            letterSpacing={0.065}
             color="#fff0d2"
             anchorX="center"
             anchorY="middle"

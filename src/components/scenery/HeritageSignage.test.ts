@@ -2,7 +2,11 @@
 import { readFileSync } from 'node:fs';
 import sharp from 'sharp';
 import * as THREE from 'three';
-import { createSignMaterial } from './HeritageSignage';
+import {
+  createSignMaterial,
+  createEnamelGeometry,
+  HERITAGE_LETTERING_FONT,
+} from './HeritageSignage';
 import {
   PUB_SIGN_LAMPS,
   PUB_DOOR_LAMPS,
@@ -267,4 +271,38 @@ it('uses a bounded warm route board and the actual mounted transit controller', 
   const exterior = readFileSync('src/components/FactoryExterior.tsx', 'utf8');
   expect(exterior).toContain('<TransitServiceBoard />');
   expect(exterior).not.toContain('BUS_TIMETABLE_INK_MATERIAL');
+});
+
+it('gives enamel keylines real rounded holes without covering the measured print', () => {
+  const geometry = createEnamelGeometry(0.73, 0.96, 0.055, 0.009);
+  geometry.computeBoundingBox();
+  expect(geometry.boundingBox!.min.x).toBeCloseTo(-0.365, 5);
+  expect(geometry.boundingBox!.max.y).toBeCloseTo(0.48, 5);
+  const material = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }),
+    mesh = new THREE.Mesh(geometry, material);
+  const hits = (x: number, y: number) =>
+    new THREE.Raycaster(new THREE.Vector3(x, y, 1), new THREE.Vector3(0, 0, -1)).intersectObject(
+      mesh
+    );
+  expect(hits(0, 0)).toHaveLength(0);
+  expect(hits(0.362, 0)).toHaveLength(1);
+  expect(hits(0.364, 0.479)).toHaveLength(0);
+  geometry.dispose();
+  material.dispose();
+});
+
+it('coordinates existing illustrated identities while retaining plain service text', () => {
+  expect(HERITAGE_LETTERING_FONT).toContain('fonts/MedievalSharp.ttf');
+  const print = readFileSync('src/components/scenery/HeritageSignage.tsx', 'utf8');
+  expect(print).toContain('name="bus-route-crest-field"');
+  expect(print).toContain('name="heritage-flour-seal"');
+  expect(print).toContain('name="dead-dino-pylon-keyline"');
+  expect(print).toMatch(/kind="wheat"\s+width=\{0\.24\}/);
+  expect(
+    print.split('name="bus-service-notice"')[1].split('</IlluminatedSignText>')[0]
+  ).not.toContain('font=');
+  expect(print).toContain('geometry.dispose()');
+  const station = readFileSync('src/components/GasStationInstanced.tsx', 'utf8');
+  expect(station).toContain('maxWidth={4.4}');
+  expect(station).toContain('font={HERITAGE_LETTERING_FONT}');
 });

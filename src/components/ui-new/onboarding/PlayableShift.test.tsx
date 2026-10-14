@@ -696,3 +696,26 @@ it('keeps fulfilled receipts reachable after compacting without granting new cus
   expect(screen.getByText('Delivery receipt and learning')).toBeInTheDocument();
   expect(useOperationsCampaignStore.getState()).toBe(state);
 });
+
+it.each([
+  ['planning', 'Open line controls', 'scada'],
+  ['quality_hold', 'Review delivery and QC', 'overview'],
+] as const)(
+  'opens the actual %s workspace from compact guidance without producing credit',
+  (stage, label, workspace) => {
+    const initial = useOperationsCampaignStore.getState();
+    useOperationsCampaignStore.setState({ execution: { ...initial.execution, stage } });
+    useUIStore.getState().startDeliveryJourney(initial.activeOrderId);
+    useUIStore.getState().recordMachineInspection('rm-101');
+    const before = useOperationsCampaignStore.getState(),
+      camera = useCameraStore.getState(),
+      open = vi.fn();
+    render(<FirstDeliveryJourney selectedMachine={null} onOpenWorkspace={open} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Compact delivery guide' }));
+    fireEvent.click(screen.getByRole('button', { name: label }));
+    expect(open).toHaveBeenCalledWith(workspace);
+    expect(useOperationsCampaignStore.getState()).toBe(before);
+    expect(useCameraStore.getState()).toBe(camera);
+    expect(screen.getByRole('combobox', { name: 'Shift pace' })).toBeInTheDocument();
+  }
+);

@@ -6,6 +6,58 @@ import { EXTERIOR_LAMP_LEVEL } from '../exterior/ExteriorLighting';
 import * as THREE from 'three';
 import { SceneText } from '../shared/SceneText';
 
+// The village's existing display face. Operating notices retain local Inter.
+export const HERITAGE_LETTERING_FONT = `${import.meta.env.BASE_URL}fonts/MedievalSharp.ttf`;
+
+/** Painted enamel contours, not another texture or transparency layer.
+ * Working if rounded edges and inset holes stay inside their measured seats.
+ */
+export function createEnamelGeometry(width: number, height: number, radius: number, stroke = 0) {
+  const contour = (path: THREE.Path, w: number, h: number, r: number) => {
+    const x = w / 2,
+      y = h / 2;
+    r = Math.max(0, Math.min(r, x, y));
+    path.moveTo(-x + r, -y);
+    path.lineTo(x - r, -y);
+    path.quadraticCurveTo(x, -y, x, -y + r);
+    path.lineTo(x, y - r);
+    path.quadraticCurveTo(x, y, x - r, y);
+    path.lineTo(-x + r, y);
+    path.quadraticCurveTo(-x, y, -x, y - r);
+    path.lineTo(-x, -y + r);
+    path.quadraticCurveTo(-x, -y, -x + r, -y);
+    path.closePath();
+  };
+  const shape = new THREE.Shape();
+  contour(shape, width, height, radius);
+  if (stroke > 0) {
+    const hole = new THREE.Path();
+    contour(hole, width - stroke * 2, height - stroke * 2, radius - stroke);
+    shape.holes.push(hole);
+  }
+  return new THREE.ShapeGeometry(shape, 8);
+}
+
+function EnamelPanel({
+  width,
+  height,
+  radius,
+  stroke = 0,
+  ...props
+}: {
+  width: number;
+  height: number;
+  radius: number;
+  stroke?: number;
+} & Pick<ComponentProps<'mesh'>, 'name' | 'position' | 'material'>) {
+  const geometry = useMemo(
+    () => createEnamelGeometry(width, height, radius, stroke),
+    [width, height, radius, stroke]
+  );
+  useEffect(() => () => geometry.dispose(), [geometry]);
+  return <mesh {...props} geometry={geometry} />;
+}
+
 export const HERITAGE_ART = {
   dino: `${import.meta.env.BASE_URL}textures/signage/dead-dino.webp`,
   wheat: `${import.meta.env.BASE_URL}textures/signage/wheat-sheaf.webp`,
@@ -97,21 +149,36 @@ export function HeritagePoster({
   const accent = dino ? '#bb582b' : '#a27733';
   const paperMaterial = useSignMaterial('#efe3c7');
   const accentMaterial = useSignMaterial(accent);
+  const sealMaterial = useSignMaterial('#294b3c');
   return (
     <group name={`heritage-${brand}-poster`} userData={{ noStaticBatch: true }}>
       <mesh material={paperMaterial}>
         <planeGeometry args={[width, height]} />
       </mesh>
-      {[-1, 1].map((side) => (
-        <mesh key={side} position={[0, side * height * 0.452, 0.006]} material={accentMaterial}>
-          <planeGeometry args={[width * 0.88, height * 0.009]} />
+      <EnamelPanel
+        name={`heritage-${brand}-keyline`}
+        width={width * 0.91}
+        height={height * 0.93}
+        radius={width * 0.055}
+        stroke={width * 0.008}
+        position={[0, 0, 0.006]}
+        material={accentMaterial}
+      />
+      {!dino && (
+        <mesh
+          name="heritage-flour-seal"
+          position={[0, height * 0.045, 0.008]}
+          material={sealMaterial}
+        >
+          <circleGeometry args={[width * 0.325, 48]} />
         </mesh>
-      ))}
+      )}
       <IlluminatedSignText
         name={`heritage-${brand}-heading`}
+        font={HERITAGE_LETTERING_FONT}
         position={[0, height * 0.33, 0.01]}
-        fontSize={width * 0.112}
-        letterSpacing={0.025}
+        fontSize={width * 0.126}
+        letterSpacing={0.035}
         maxWidth={width * 0.84}
         textAlign="center"
         outlineWidth={width * 0.0008}
@@ -127,7 +194,7 @@ export function HeritagePoster({
         kind={dino ? 'dino' : 'wheat'}
         width={width * (dino ? 0.91 : 0.61)}
         position={[0, height * 0.045, 0.013]}
-        colour={dino ? '#ffffff' : accent}
+        colour={dino ? '#ffffff' : '#e4c680'}
         backlit
       />
       <IlluminatedSignText
@@ -171,13 +238,28 @@ export function DeadDinoPylonFace() {
       <mesh material={fieldMaterial}>
         <planeGeometry args={[3.7, 4.7]} />
       </mesh>
-      <mesh position={[0, 0.72, 0.008]} material={panelMaterial}>
-        <planeGeometry args={[3.36, 2.58]} />
-      </mesh>
+      <EnamelPanel
+        name="dead-dino-illustration-seat"
+        width={3.36}
+        height={2.58}
+        radius={0.16}
+        position={[0, 0.72, 0.008]}
+        material={panelMaterial}
+      />
+      <EnamelPanel
+        name="dead-dino-pylon-keyline"
+        width={3.5}
+        height={4.5}
+        radius={0.15}
+        stroke={0.028}
+        position={[0, 0, 0.012]}
+        material={panelMaterial}
+      />
       <HeritageEmblem kind="dino" width={3.22} position={[0, 0.81, 0.018]} backlit />
       {(['DEAD', 'DINO'] as const).map((word, index) => (
         <IlluminatedSignText
           key={word}
+          font={HERITAGE_LETTERING_FONT}
           position={[0, -0.87 - index * 0.66, 0.022]}
           fontSize={0.67}
           letterSpacing={0.11}
@@ -215,6 +297,9 @@ export function DeadDinoPylonFace() {
  */
 export function TransitServiceBoard() {
   const paper = useSignMaterial('#efe3c7');
+  const enamel = useSignMaterial('#294b3c');
+  const brass = useSignMaterial('#a27733');
+  const noticePaper = useSignMaterial('#eadbb4');
   const bus = useRef<THREE.Object3D | null>(null);
   const [notice, setNotice] = useState('ROUTE INFORMATION');
   const last = useRef(notice);
@@ -251,29 +336,55 @@ export function TransitServiceBoard() {
       <mesh material={paper}>
         <planeGeometry args={[0.78, 1.02]} />
       </mesh>
-      {[-1, 1].map((side) => (
-        <mesh key={side} position={[0, side * 0.485, 0.006]}>
-          <planeGeometry args={[0.71, 0.012]} />
-          <meshStandardMaterial color="#a27733" roughness={0.7} />
-        </mesh>
-      ))}
+      <EnamelPanel
+        name="bus-route-keyline"
+        width={0.73}
+        height={0.96}
+        radius={0.055}
+        stroke={0.009}
+        position={[0, 0, 0.006]}
+        material={brass}
+      />
+      <mesh name="bus-route-crest-field" position={[0, 0.285, 0.008]} material={enamel}>
+        <circleGeometry args={[0.15, 48]} />
+      </mesh>
+      <mesh name="bus-route-crest-keyline" position={[0, 0.285, 0.009]} material={brass}>
+        <ringGeometry args={[0.137, 0.142, 48]} />
+      </mesh>
+      <HeritageEmblem
+        kind="wheat"
+        width={0.24}
+        position={[0, 0.285, 0.01]}
+        colour="#e4c680"
+        backlit
+      />
+      <EnamelPanel
+        name="bus-service-paper"
+        width={0.65}
+        height={0.225}
+        radius={0.028}
+        position={[0, -0.325, 0.007]}
+        material={noticePaper}
+      />
       <IlluminatedSignText
         name="bus-route-heading"
-        position={[0, 0.35, 0.009]}
-        fontSize={0.125}
-        maxWidth={0.7}
-        letterSpacing={0.02}
+        font={HERITAGE_LETTERING_FONT}
+        position={[0, 0.035, 0.011]}
+        fontSize={0.133}
+        maxWidth={0.66}
+        letterSpacing={0.015}
         color="#283f49"
         anchorX="center"
         anchorY="middle"
         surface="painted"
       >
-        ROUTE 42
+        Route 42
       </IlluminatedSignText>
       <IlluminatedSignText
-        position={[0, 0.15, 0.009]}
-        fontSize={0.073}
-        maxWidth={0.7}
+        name="bus-route-destination"
+        position={[0, -0.105, 0.011]}
+        fontSize={0.065}
+        maxWidth={0.62}
         color="#283f49"
         anchorX="center"
         anchorY="middle"
@@ -283,9 +394,9 @@ export function TransitServiceBoard() {
       </IlluminatedSignText>
       <IlluminatedSignText
         name="bus-service-notice"
-        position={[0, -0.19, 0.009]}
-        fontSize={0.063}
-        maxWidth={0.7}
+        position={[0, -0.325, 0.012]}
+        fontSize={0.058}
+        maxWidth={0.59}
         lineHeight={1.45}
         textAlign="center"
         color="#283f49"

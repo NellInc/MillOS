@@ -139,6 +139,13 @@ export function FirstDeliveryJourney({
   // the live commitment. This projection never advances an order or a truck.
   const completed = order?.status === 'fulfilled' && ui.inspected;
   const play = deriveOperationsPlay(campaign);
+  const compactWorkspace: 'overview' | 'scada' | null = completed
+    ? ['quality', 'programme', 'acknowledge', 'mitigate', 'resume', 'resolve'].includes(
+        play.nextAction.kind
+      )
+      ? 'overview'
+      : 'scada'
+    : guide.workspace;
   if (completed && !sceneFocused)
     return (
       <section aria-label="Guided delivery" className={`${JOURNEY_FRAME} p-4`}>
@@ -233,6 +240,18 @@ export function FirstDeliveryJourney({
           {order?.shippedKg.toFixed(0) ?? 0} kg dispatched
         </p>
         <TeachingPace />
+        {compactWorkspace && (
+          <button
+            className={`${BUTTON} mt-2 w-full`}
+            onClick={() => onOpenWorkspace(compactWorkspace)}
+          >
+            {completed
+              ? 'Review current operations'
+              : compactWorkspace === 'overview'
+                ? 'Review delivery and QC'
+                : 'Open line controls'}
+          </button>
+        )}
         {!ui.inspected && (
           <p className="text-xs leading-5 text-cyan-200">
             Select a machine to record your inspection.
