@@ -2240,7 +2240,7 @@ Nell asks for the next detailed all-aspect task list and full execution. This fi
 - [x] K05: Existing actual inspection/camera/operations game flow, phone/desktop layout and state checks; QC/stock/manifests/customer credit authoritative and unchanged.
 - [x] K06: Broad all-area day/dusk/Low/night review, exact compiled readiness/font/resource/audio/world guards and original4GiB/truck15/returned-frame45/caps; one capped native pass plus at most one evidence-led correction.
 - [x] K07:347 baseline to named final affected suite, required type/lint/format/shader/build/reachability; exact source/build custody, optional detector if available, no unrelated bulk fixes.
-- [ ] K08:29-task gallery/dispositions, selective validated local check-in, own disposable cleanup only. Preserve source/assets/acceptance/screenshots/logs/recovery and foreign processes/browser/cache.
+- [x] K08:29-task gallery/dispositions, selective validated local check-in, own disposable cleanup only. Preserve source/assets/acceptance/screenshots/logs/recovery and foreign processes/browser/cache.
 
 Working if passengers attend to a real shuttle without changing travel/contact, the lit route board reflects actual service/stop state, compact controls give scene space while preserving real gameplay progress and keyboard access, and all tested regions retain their authored finish. Pre-mortem: bus visibility has a short active-service gap, so it cannot itself mean closed; a global shared bus ref would break replay/world ownership; guide minimising could unmount inspection or lose pace/focus. A distinct serviceOpen sampler field, actual attached scene-controller metadata and a still-mounted compact guide address these risks. Prior completed I/J evidence remains separately attributed, never substituted for this new candidate. The detailed commentary list has29 tasks, including scoped inspection of already-correct lighting rather than needless new emitters.
 
@@ -2273,7 +2273,7 @@ Working if passengers attend to a real shuttle without changing travel/contact, 
 25. **Bounded native review.** One capped54-frame corrected window after original timed-out22-frame check; all raw evidence retained.
 26. **Original runtime guards.** 90s startup limit,4GiB floor,15s truck/45s returned-frame preparation, unchanged caps and silent native OOP GPU.
 27. **Gallery and dispositions.** 46 curated frames,54 originals, source/build/native receipts and this29-row execution record.
-28. **Owned cleanup/check-in.** 388 superseded compiled files matched recovery tar,177104004 logical bytes removed; scratch14646 bytes, final build and receipts retained. Selective local check-in pending.
+28. **Owned cleanup/check-in.** 388 superseded compiled files matched recovery tar,177104004 logical bytes removed; scratch14646 bytes, final build and receipts retained. Selective local source check-in d0f9142f.
 29. **Separate pacing.** Mac pacing independently OPEN; no threshold relaxation, timing claim, push or deployment.
 
 ### K validation and deviations
@@ -2287,3 +2287,7 @@ Corrected exact-source CPU app: ap-snWsfrZwCvzxhMqVDlvGva,352/17; all required t
 Self-review: this chat authored the changes and reviewed the actual native images. Full-size route boards, passenger/front view and phone/desktop/landscape guides are readable and framed; noon/dusk/night sheets retain connected grounds, canal, warm civic/window/forecourt/shelter lighting and authored castle access.46 curated frames exclude the eight supplementary arrival-run region captures with an actual overview sidebar; all54 remain. Source/build/runtime/artistic review are distinct evidence. Existing distant foliage can still be grainy and rural night regions remain dark; those are future artistic candidates, not claimed resolved here. Existing framework tests, not a newly completed native campaign or Mac FPS walk, cover fulfilled receipts and unchanged domain contracts. Optional Impeccable detector absent; no dependency installed.
 
 All K receipts, gallery, logs and recoverable-cleanup proof: test-results/transit-gameplay-cohesion-20261014/remote-egl/. Only this task's superseded first-built/dist was removed after all388 file hashes matched its retained recovery archive and lsof returned no owner, plus owned disposable edit scratch.177104004+14646 logical bytes removed; shared APFS before/after movement is observed, not solely attributed. Sources/assets/current compiled build/archives/first failures/images/logs and protected output remain. Primary06ff26d3/18 tracked dirty untouched. Local only, no primary integration/push/deployment; pacing independently OPEN.
+
+### K local check-in closure
+
+Source commit d0f9142f5c7317a0f1d3ef2d3b7a35ff9a5bf040 records exactly the12 owned files after the required gates, exact-source/build pin audit and actual native acceptance review. K01 through K08 and all29 dispositions complete for this finite pass. This closure changes task records only, with all compiled/source pins still matching. Primary06ff26d3/18 tracked dirty and protected output remain untouched. No push/deployment/primary integration. Pacing independently OPEN and nonblocking.
