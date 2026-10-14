@@ -49,7 +49,7 @@ export const HERITAGE_ART = {
  */
 export const HERITAGE_PRINT_ART = {
   flour: `${import.meta.env.BASE_URL}textures/signage/flour-painted-v1.webp`,
-  dino: `${import.meta.env.BASE_URL}textures/signage/dino-painted-v2.webp`,
+  dino: `${import.meta.env.BASE_URL}textures/signage/dino-painted-v3.webp`,
   route: `${import.meta.env.BASE_URL}textures/signage/route-painted-v1.webp`,
   bakery: `${import.meta.env.BASE_URL}textures/signage/bakery-painted-v1.webp`,
   butcher: `${import.meta.env.BASE_URL}textures/signage/butcher-painted-v1.webp`,
@@ -64,9 +64,9 @@ export const BUSINESS_BRANDS = {
   dino: {
     name: 'DEAD DINO',
     field: '#143c36',
-    primary: `${import.meta.env.BASE_URL}textures/signage/brand-dead-dino-v2.webp`,
-    fascia: `${import.meta.env.BASE_URL}textures/signage/brand-dead-dino-fascia-v2.webp`,
-    pylon: `${import.meta.env.BASE_URL}textures/signage/brand-dead-dino-pylon-v2.webp`,
+    primary: `${import.meta.env.BASE_URL}textures/signage/brand-dead-dino-v3.webp`,
+    fascia: `${import.meta.env.BASE_URL}textures/signage/brand-dead-dino-fascia-v3.webp`,
+    pylon: `${import.meta.env.BASE_URL}textures/signage/brand-dead-dino-pylon-v3.webp`,
   },
   bakery: {
     name: 'Riverside Bakers',

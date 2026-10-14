@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { STATION_POSTER_PALETTE, STATION_POSTER_PLANTERS } from './scenery/AuthoredPropTrim';
 import { useGraphicsStore } from '../stores/graphicsStore';
 import {
   DeadDinoPylonFace,
@@ -45,10 +46,13 @@ const SHOP_WALL_SURFACE = {
 // ============================================================================
 // Source palette and procedural maps remain authoritative.
 const STATION_WALL_MATERIAL = new THREE.MeshStandardMaterial({
-  color: '#e0e0e0',
+  color: STATION_POSTER_PALETTE.stone,
   ...SHOP_WALL_SURFACE,
 });
-const STATION_ROOF_MATERIAL = new THREE.MeshStandardMaterial({ color: '#b71c1c', roughness: 0.5 });
+const STATION_ROOF_MATERIAL = new THREE.MeshStandardMaterial({
+  color: STATION_POSTER_PALETTE.terracotta,
+  roughness: 0.5,
+});
 const STATION_POLE_MATERIAL = new THREE.MeshStandardMaterial({
   color: '#757575',
   roughness: 0.5,
@@ -301,7 +305,7 @@ const GEOMETRIES = {
 // ============================================================================
 const MATERIALS = {
   canopyColumn: new THREE.MeshStandardMaterial({
-    color: '#9e9e9e',
+    color: STATION_POSTER_PALETTE.column,
     roughness: 0.4,
     metalness: 0.3,
   }),
@@ -364,9 +368,9 @@ export function createStationDetailLayout() {
     size: StationDetailBox['size'],
     color: string
   ) => opaque.push({ part, position, size, color });
-  const charcoal = '#303b3d';
-  const cream = '#fff0d2';
-  const orange = '#ef7624';
+  const charcoal = STATION_POSTER_PALETTE.column;
+  const cream = STATION_POSTER_PALETTE.cream;
+  const orange = STATION_POSTER_PALETTE.terracotta;
 
   // Folded edge caps keep the existing top heights. Panel gaps expose a
   // recessed backing strip, so seams are real joints rather than coplanar decals.
@@ -402,30 +406,6 @@ export function createStationDetailLayout() {
   };
   for (const side of [-1, 1]) {
     cappedEdge(
-      'canopy-cap',
-      'x',
-      [0, 5.12, side * 6.06],
-      16.24,
-      0.16,
-      0.12,
-      4,
-      '#e6dfcc',
-      '#968d78',
-      side
-    );
-    cappedEdge(
-      'canopy-cap',
-      'z',
-      [side * 8.06, 5.12, 0],
-      12,
-      0.16,
-      0.12,
-      3,
-      '#e6dfcc',
-      '#968d78',
-      side
-    );
-    cappedEdge(
       'shop-cap',
       'x',
       [-12, 5.43, side * 5.47],
@@ -433,7 +413,7 @@ export function createStationDetailLayout() {
       0.24,
       0.06,
       3,
-      '#a6382b',
+      STATION_POSTER_PALETTE.terracotta,
       '#602b25',
       side
     );
@@ -445,7 +425,7 @@ export function createStationDetailLayout() {
       0.24,
       0.06,
       4,
-      '#a6382b',
+      STATION_POSTER_PALETTE.terracotta,
       '#602b25',
       side
     );
@@ -545,10 +525,10 @@ export function createStationDetailLayout() {
     for (const x of [-3, 3]) {
       const faceZ = side * 1.215;
       for (const dx of [-0.17, 0.17]) {
-        add('pump-bezel', [x + dx, 1.1, faceZ], [0.035, 0.46, 0.06], charcoal);
+        add('pump-bezel', [x + dx, 1.1, faceZ], [0.035, 0.46, 0.06], cream);
       }
       for (const y of [0.885, 1.315]) {
-        add('pump-bezel', [x, y, faceZ], [0.305, 0.035, 0.06], charcoal);
+        add('pump-bezel', [x, y, faceZ], [0.305, 0.035, 0.06], cream);
       }
       add('pump-grade', [x, 1.57, side * 1.205], [0.31, 0.075, 0.03], x < 0 ? '#35935e' : orange);
       add('pump-card-reader', [x, 1.415, side * 1.213], [0.2, 0.085, 0.05], charcoal);
@@ -588,7 +568,7 @@ export function createStationDetailLayout() {
   for (const y of [0.18, 2.45]) {
     add('shop-transom', [-7.968, y, 0], [0.11, 0.1, 9.58], charcoal);
   }
-  add('shop-header', [-7.98, 3.97, 0], [0.12, 0.5, 9.62], orange);
+  add('shop-header', [-7.98, 3.97, 0], [0.12, 0.5, 9.62], STATION_POSTER_PALETTE.green);
   // A grounded vertical kickplate, not a new forecourt slab. It covers the
   // exposed lower glazing edge while staying clear of the separate side door.
   add('shop-kickplate', [-7.972, 0.16, 0], [0.136, 0.32, 9.62], charcoal);
@@ -687,10 +667,10 @@ const FuelPumpShell = () => (
     fallback={
       <>
         <mesh position={[0, 0.9, 0]} geometry={GEOMETRIES.pumpBody} castShadow>
-          <meshStandardMaterial color="#ffffff" roughness={0.5} />
+          <meshStandardMaterial color={STATION_POSTER_PALETTE.terracotta} roughness={0.5} />
         </mesh>
         <mesh position={[0, 1.8, 0]} geometry={GEOMETRIES.pumpCap} castShadow>
-          <meshStandardMaterial color="#e65100" roughness={0.5} />
+          <meshStandardMaterial color={STATION_POSTER_PALETTE.terracotta} roughness={0.5} />
         </mesh>
       </>
     }
@@ -1123,6 +1103,9 @@ export const GasStation = React.memo<GasStationProps>(
         </group>
 
         <StationRetailDetails />
+        <mesh name="station-poster-flower-pots" geometry={STATION_POSTER_PLANTERS} receiveShadow>
+          <meshStandardMaterial vertexColors roughness={0.86} />
+        </mesh>
         <group name="station-canopy-light-banks" visible={!referenceLighting}>
           <ExteriorDownlight name="station-door-light" {...STATION_DOOR_LIGHT} />
           {STATION_CANOPY_LIGHTS.map((light, index) => (
@@ -1137,12 +1120,12 @@ export const GasStation = React.memo<GasStationProps>(
               {/* Canopy roof */}
               <mesh position={[0, 5, 0]} castShadow>
                 <boxGeometry args={[16, 0.4, 12]} />
-                <meshStandardMaterial color="#f5f5f5" roughness={0.4} />
+                <meshStandardMaterial color={STATION_POSTER_PALETTE.cream} roughness={0.4} />
               </mesh>
-              {/* Canopy fascia with Dead Dino orange brand color */}
+              {/* Canopy fascia in the poster’s forest green */}
               <mesh position={[0, 4.6, 0]}>
                 <boxGeometry args={[16.5, 0.4, 12.5]} />
-                <meshStandardMaterial color="#e65100" roughness={0.5} />
+                <meshStandardMaterial color={STATION_POSTER_PALETTE.green} roughness={0.5} />
               </mesh>
               <instancedMesh
                 args={[GEOMETRIES.canopyColumn, MATERIALS.canopyColumn, 4]}

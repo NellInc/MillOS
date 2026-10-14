@@ -443,5 +443,117 @@
         "textReview": "Exact brand/service text and logo reviewed on generated master, scene review deferred"
       }
     ]
+  },
+  "stationPosterAndAppBrand": {
+    "date": "2026-10-14",
+    "assets": [
+      {
+        "id": "dino-eye",
+        "file": "brand-dead-dino-v3.webp",
+        "prompt": "Edit this exact supplied raster artwork. Make ONLY this colour correction: change the small WHITE/IVORY X-shaped eye of the stylised jade dinosaur logo to DARK FOREST GREEN #0b342b. Preserve the X shape, size and position. If this is the illustrated poster, also keep the large illustrated dinosaur's X eye dark forest green, and change the white X in the little HEADER LOGO to the same dark green. All lettering, typography, dinosaur silhouette, coral fuel drop, cream plates, palette, backgrounds, composition, crop, borders and fine painting remain identical. Do not redraw or redesign the logo or poster. No additional text, no different font, no other new details. Return the complete artwork, all original margins, fully opaque.",
+        "sourceCopy": "tmp/custom-icons/station-poster-and-app-brand-20261014/brand-dead-dino-v2-master.png",
+        "sourceWidth": 2172,
+        "sourceHeight": 724,
+        "crop": {
+          "left": 0,
+          "top": 139,
+          "width": 2172,
+          "height": 446
+        },
+        "width": 1536,
+        "height": 315,
+        "bytes": 38150,
+        "sha256": "55cda1a3dec850911283453b7d67777763d41a2e5fa90ab55dd29fc51dc58056",
+        "method": "Built-in image_gen targeted reference edit; mechanical blank-padding trim and aspect-preserving WebP preparation",
+        "review": "Saved raster eye/logo/spelling and complete margins inspected; in-scene review deferred"
+      },
+      {
+        "id": "dino-eye",
+        "file": "brand-dead-dino-fascia-v3.webp",
+        "prompt": "Edit this exact supplied raster artwork. Make ONLY this colour correction: change the small WHITE/IVORY X-shaped eye of the stylised jade dinosaur logo to DARK FOREST GREEN #0b342b. Preserve the X shape, size and position. If this is the illustrated poster, also keep the large illustrated dinosaur's X eye dark forest green, and change the white X in the little HEADER LOGO to the same dark green. All lettering, typography, dinosaur silhouette, coral fuel drop, cream plates, palette, backgrounds, composition, crop, borders and fine painting remain identical. Do not redraw or redesign the logo or poster. No additional text, no different font, no other new details. Return the complete artwork, all original margins, fully opaque.",
+        "sourceCopy": "tmp/custom-icons/station-poster-and-app-brand-20261014/brand-dead-dino-fascia-v2-master.png",
+        "sourceWidth": 2172,
+        "sourceHeight": 724,
+        "crop": {
+          "left": 0,
+          "top": 142,
+          "width": 2172,
+          "height": 440
+        },
+        "width": 2048,
+        "height": 415,
+        "bytes": 57370,
+        "sha256": "71ddaea41fb4e096242b4987afa9645a264a0a4a32149ecf00171e2c8237b668",
+        "method": "Built-in image_gen targeted reference edit; mechanical blank-padding trim and aspect-preserving WebP preparation",
+        "review": "Saved raster eye/logo/spelling and complete margins inspected; in-scene review deferred"
+      },
+      {
+        "id": "dino-eye",
+        "file": "brand-dead-dino-pylon-v3.webp",
+        "prompt": "Edit this exact supplied raster artwork. Make ONLY this colour correction: change the small WHITE/IVORY X-shaped eye of the stylised jade dinosaur logo to DARK FOREST GREEN #0b342b. Preserve the X shape, size and position. If this is the illustrated poster, also keep the large illustrated dinosaur's X eye dark forest green, and change the white X in the little HEADER LOGO to the same dark green. All lettering, typography, dinosaur silhouette, coral fuel drop, cream plates, palette, backgrounds, composition, crop, borders and fine painting remain identical. Do not redraw or redesign the logo or poster. No additional text, no different font, no other new details. Return the complete artwork, all original margins, fully opaque.",
+        "sourceCopy": "tmp/custom-icons/station-poster-and-app-brand-20261014/brand-dead-dino-pylon-v2-master.png",
+        "sourceWidth": 1114,
+        "sourceHeight": 1412,
+        "crop": null,
+        "width": 1114,
+        "height": 1412,
+        "bytes": 94618,
+        "sha256": "cd4244c551c827d3638ab52a5f3fb4ddbb3212f73690c834c3a16d1da791d71b",
+        "method": "Built-in image_gen targeted reference edit; mechanical blank-padding trim and aspect-preserving WebP preparation",
+        "review": "Saved raster eye/logo/spelling and complete margins inspected; in-scene review deferred"
+      },
+      {
+        "id": "dino-eye",
+        "file": "dino-painted-v3.webp",
+        "prompt": "Edit this exact supplied raster artwork. Make ONLY this colour correction: change the small WHITE/IVORY X-shaped eye of the stylised jade dinosaur logo to DARK FOREST GREEN #0b342b. Preserve the X shape, size and position. If this is the illustrated poster, also keep the large illustrated dinosaur's X eye dark forest green, and change the white X in the little HEADER LOGO to the same dark green. All lettering, typography, dinosaur silhouette, coral fuel drop, cream plates, palette, backgrounds, composition, crop, borders and fine painting remain identical. Do not redraw or redesign the logo or poster. No additional text, no different font, no other new details. Return the complete artwork, all original margins, fully opaque.",
+        "sourceCopy": "tmp/custom-icons/station-poster-and-app-brand-20261014/dino-painted-v2-master.png",
+        "sourceWidth": 1049,
+        "sourceHeight": 1500,
+        "crop": null,
+        "width": 1049,
+        "height": 1500,
+        "bytes": 463984,
+        "sha256": "fa5b21bc421c64cd4b14b605da74967acf638688c8ffe1267e2431cd35788e61",
+        "method": "Built-in image_gen targeted reference edit; mechanical blank-padding trim and aspect-preserving WebP preparation",
+        "review": "Saved raster eye/logo/spelling and complete margins inspected; in-scene review deferred"
+      },
+      {
+        "id": "mill-icon",
+        "file": "millos-mark-v1.webp",
+        "prompt": "Create a square MillOS application-brand ICON using the supplied approved brand image as the exact visual reference. Isolate ONLY the existing left symbol, the turquoise waterwheel forming an M with its gold grain kernel and two turquoise water waves. Match its recognisable geometry, proportions, colours and restrained dimensional finish exactly; preserve this specific identity, do not invent a different M or wheel. Remove ALL wordmark letters, no text anywhere, no factory emoji, no additional emblem, no frame, no mockup. The complete original symbol centred in a 1:1 square, generous safe padding of about8 percent all sides, suitable for a56-pixel splash icon and20-pixel sidebar brand inset. Perfectly clean opaque solid dark background #081015, same as the existing splash screen. The symbol is bright teal and warm gold; no white fringe, no stray pixels, no drop shadow outside the symbol. Crisp professional final bitmap application artwork.",
+        "sourceCopy": "tmp/custom-icons/station-poster-and-app-brand-20261014/millos-mark-v1-master.png",
+        "sourceWidth": 1254,
+        "sourceHeight": 1254,
+        "crop": null,
+        "width": 256,
+        "height": 256,
+        "bytes": 7878,
+        "sha256": "61349b91823369b614504f4b250933208ca126f1b6ef38b04e08446e6a70fda3",
+        "method": "Built-in image_gen targeted reference edit; mechanical blank-padding trim and aspect-preserving WebP preparation",
+        "review": "Saved raster eye/logo/spelling and complete margins inspected; in-scene review deferred"
+      }
+    ],
+    "brief": "Dark-green dinosaur X eye; retained approved brand; isolated MillOS application mark",
+    "favicon": {
+      "file": "millos-mark-v1.png",
+      "width": 64,
+      "height": 64,
+      "bytes": 5116,
+      "sha256": "9920d8be0a0a05d3e9136a7c769d5431747fa5aac64d967a3440fc33d03e11ed"
+    },
+    "stationSceneFinish": {
+      "reference": "textures/signage/dino-painted-v3.webp",
+      "implementation": [
+        "src/components/scenery/AuthoredPropTrim.tsx",
+        "src/components/models/GeneratedModel.tsx",
+        "src/components/GasStationInstanced.tsx"
+      ],
+      "bodySources": {
+        "public/models/world/station-canopy.glb": "9d0a930d9c9196413a879aaf6409c50da4fb5aaa7e883f98d89915c138a5798e",
+        "public/models/world/fuel-pump-shell.glb": "e24d2734238f1da551134e6338c4a0028f29228dd328cecdb6868aead69eefd6"
+      },
+      "method": "Owned runtime derivatives of actual loaded GLBs: rounded three-layer canopy with UVs projected onto original cube charts, original support triangles retained, terracotta pump palette. Shared source maps retained; original assets unchanged. Cream bezels, stone-tinted shop shell and two merged flower pots complete the poster palette.",
+      "lighting": "No additional light or shadow map, original existing station fixture layout retained."
+    }
   }
 }

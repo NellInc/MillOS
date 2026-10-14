@@ -4,6 +4,11 @@ import * as THREE from 'three';
 import { NodeIO } from '@gltf-transform/core';
 import { describe, expect, it } from 'vitest';
 import {
+  createPosterStationGeometry,
+  STATION_POSTER_PALETTE,
+  STATION_POSTER_PLANTERS,
+} from './scenery/AuthoredPropTrim';
+import {
   STATION_DETAIL_LAYOUT,
   STATION_CANOPY_LIGHTS,
   STATION_DOOR_LIGHT,
@@ -79,7 +84,7 @@ describe('instanced station finish', () => {
   }
 
   it('uses two finite shared-cube batches inside the existing station envelope', () => {
-    expect(STATION_DETAIL_LAYOUT.opaque).toHaveLength(188);
+    expect(STATION_DETAIL_LAYOUT.opaque).toHaveLength(170);
     expect(STATION_DETAIL_LAYOUT.emitters).toHaveLength(159);
     for (const layout of [STATION_DETAIL_LAYOUT.opaque, STATION_DETAIL_LAYOUT.emitters]) {
       const mesh = instances(layout);
@@ -376,10 +381,7 @@ describe('instanced station finish', () => {
         expect(bounds.max.z).toBeLessThanOrEqual(5.50001);
       }
     });
-    for (const [x, y, outsideZ, part] of [
-      [0, 5.12, 7, 'canopy-cap'],
-      [-13.5, 5.43, 6, 'shop-cap'],
-    ] as const) {
+    for (const [x, y, outsideZ, part] of [[-13.5, 5.43, 6, 'shop-cap']] as const) {
       const ray = new THREE.Raycaster(
         new THREE.Vector3(x, y, outsideZ),
         new THREE.Vector3(0, 0, -1)
@@ -626,5 +628,137 @@ describe('bounded forecourt lighting', () => {
       expect(light.intensity).toBeLessThanOrEqual(80);
       expect(light.distance).toBeLessThanOrEqual(11.5);
     }
+  });
+});
+
+describe('poster-matched live station bodies', () => {
+  it('rounds the actual loaded canopy corners, retaining envelope, soffit, maps and supports', async () => {
+    const document = await new NodeIO().read('public/models/world/station-canopy.glb');
+    const node = document.getRoot().listNodes()[0],
+      primitive = node.getMesh()!.listPrimitives()[0];
+    const source = new THREE.BufferGeometry();
+    for (const [attribute, semantic] of [
+      ['position', 'POSITION'],
+      ['normal', 'NORMAL'],
+      ['uv', 'TEXCOORD_0'],
+      ['color', 'COLOR_0'],
+    ] as const) {
+      const accessor = primitive.getAttribute(semantic)!;
+      source.setAttribute(
+        attribute,
+        new THREE.Float32BufferAttribute(accessor.getArray()!, accessor.getElementSize())
+      );
+    }
+    source.setIndex(Array.from(primitive.getIndices()!.getArray()!));
+    const sourcePositions = Array.from(source.getAttribute('position').array);
+    const result = createPosterStationGeometry(source, 'stationCanopy');
+    expect(result).not.toBe(source);
+    expect(Array.from(source.getAttribute('position').array)).toEqual(sourcePositions);
+    for (const attribute of Object.values(result.attributes))
+      expect(Array.from(attribute.array).every(Number.isFinite)).toBe(true);
+    expect(result.getAttribute('position').count).toBeLessThan(5600);
+    const matrix = new THREE.Matrix4().fromArray(node.getWorldMatrix());
+    const oldMesh = new THREE.Mesh(
+      source.clone().applyMatrix4(matrix),
+      new THREE.MeshBasicMaterial({ side: THREE.DoubleSide })
+    );
+    const newMesh = new THREE.Mesh(result.clone().applyMatrix4(matrix), oldMesh.material);
+    const oldBounds = new THREE.Box3().setFromObject(oldMesh),
+      newBounds = new THREE.Box3().setFromObject(newMesh);
+    expect(oldBounds.min.distanceTo(newBounds.min)).toBeLessThan(1e-5);
+    expect(oldBounds.max.distanceTo(newBounds.max)).toBeLessThan(1e-5);
+    const corner = new THREE.Raycaster(
+      new THREE.Vector3(8.12, 7, 6.12),
+      new THREE.Vector3(0, -1, 0)
+    );
+    expect(corner.intersectObject(oldMesh)).not.toHaveLength(0);
+    expect(corner.intersectObject(newMesh)).toHaveLength(0);
+    const underside = new THREE.Raycaster(
+      new THREE.Vector3(0, 4, 0),
+      new THREE.Vector3(0, 1, 0)
+    ).intersectObject(newMesh)[0];
+    expect(underside.point.y).toBeCloseTo(4.4, 4);
+    const c = result.getAttribute('color');
+    for (const hex of [
+      STATION_POSTER_PALETTE.cream,
+      STATION_POSTER_PALETTE.terracotta,
+      STATION_POSTER_PALETTE.green,
+      STATION_POSTER_PALETTE.column,
+    ]) {
+      const colour = new THREE.Color(hex);
+      let found = false;
+      for (let i = 0; i < c.count; i++)
+        if (
+          Math.abs(c.getX(i) - colour.r) +
+            Math.abs(c.getY(i) - colour.g) +
+            Math.abs(c.getZ(i) - colour.b) <
+          1e-6
+        ) {
+          found = true;
+          break;
+        }
+      expect(found).toBe(true);
+    }
+    expect(STATION_DETAIL_LAYOUT.opaque.some((d) => d.part.startsWith('canopy-cap'))).toBe(false);
+    const model = readFileSync('src/components/models/GeneratedModel.tsx', 'utf8');
+    expect(model).toContain('createPosterStationGeometry(mesh.geometry, asset)');
+    expect(model).toContain('geometries.push(geometry)');
+    expect(model).toContain('materials.push(material)');
+    source.dispose();
+    result.dispose();
+    oldMesh.geometry.dispose();
+    newMesh.geometry.dispose();
+    (oldMesh.material as THREE.Material).dispose();
+  });
+
+  it('paints actual pump geometry terracotta without changing any hose/body geometry or UV', async () => {
+    const p = (await new NodeIO().read('public/models/world/fuel-pump-shell.glb'))
+      .getRoot()
+      .listMeshes()[0]
+      .listPrimitives()[0];
+    const source = new THREE.BufferGeometry();
+    for (const [name, semantic] of [
+      ['position', 'POSITION'],
+      ['normal', 'NORMAL'],
+      ['uv', 'TEXCOORD_0'],
+      ['color', 'COLOR_0'],
+    ] as const) {
+      const a = p.getAttribute(semantic)!;
+      source.setAttribute(
+        name,
+        new THREE.Float32BufferAttribute(a.getArray()!, a.getElementSize())
+      );
+    }
+    const result = createPosterStationGeometry(source, 'fuelPumpShell');
+    for (const name of ['position', 'normal', 'uv'])
+      expect(Array.from(result.getAttribute(name).array)).toEqual(
+        Array.from(source.getAttribute(name).array)
+      );
+    const c = result.getAttribute('color'),
+      target = new THREE.Color(STATION_POSTER_PALETTE.terracotta);
+    for (let i = 0; i < c.count; i++)
+      expect(
+        Math.abs(c.getX(i) - target.r) +
+          Math.abs(c.getY(i) - target.g) +
+          Math.abs(c.getZ(i) - target.b)
+      ).toBeLessThan(1e-6);
+    source.dispose();
+    result.dispose();
+  });
+
+  it('grounds the two flowering pots beside the glass, outside columns and the fuel lane', () => {
+    STATION_POSTER_PLANTERS.computeBoundingBox();
+    const bounds = STATION_POSTER_PLANTERS.boundingBox!;
+    expect(bounds.min.y).toBeCloseTo(0.02, 5);
+    expect(bounds.max.y).toBeLessThan(1.2);
+    expect(bounds.min.x).toBeGreaterThan(-7.9);
+    expect(bounds.max.x).toBeLessThan(-6.5);
+    expect(bounds.min.z).toBeGreaterThan(-4.6);
+    expect(bounds.max.z).toBeLessThan(4.6);
+    for (const a of Object.values(STATION_POSTER_PLANTERS.attributes))
+      expect(Array.from(a.array).every(Number.isFinite)).toBe(true);
+    const source = readFileSync('src/components/GasStationInstanced.tsx', 'utf8');
+    expect(source).toContain('name="station-poster-flower-pots"');
+    expect(source).toContain('geometry={STATION_POSTER_PLANTERS}');
   });
 });

@@ -44,6 +44,209 @@ function beam(a: THREE.Vector3, b: THREE.Vector3, width: number, round = false) 
   return geometry.translate(...a.clone().add(b).multiplyScalar(0.5).toArray());
 }
 
+/** Poster palette is shared by live GLB derivatives and primitive fallbacks. */
+export const STATION_POSTER_PALETTE = {
+  green: '#1b4b3e',
+  column: '#183d36',
+  cream: '#efdfbe',
+  terracotta: '#b95037',
+  stone: '#cbb99a',
+  brass: '#bca36f',
+} as const;
+
+/** One opaque canopy body: rounded plan corners, cream soffit and red top lip.
+ * Working if roof/pump paint matches the poster, all fixture/body bounds stay
+ * fixed, original UV charts/maps remain sampled and no extra body draw is added.
+ */
+export function createPosterStationGeometry(
+  source: THREE.BufferGeometry,
+  asset: 'stationCanopy' | 'fuelPumpShell'
+) {
+  if (!source.getAttribute('color')) return source;
+  const original = source.index ? source.toNonIndexed() : source.clone();
+  const colours = original.getAttribute('color');
+  if (asset === 'fuelPumpShell') {
+    const paint = new THREE.Color(STATION_POSTER_PALETTE.terracotta);
+    for (let i = 0; i < colours.count; i++) colours.setXYZ(i, paint.r, paint.g, paint.b);
+    return original;
+  }
+  const pos = original.getAttribute('position'),
+    uv = original.getAttribute('uv');
+  const groups = { roof: [] as number[], fascia: [] as number[], column: [] as number[] };
+  for (let i = 0; i < colours.count; i++) {
+    const kind =
+      colours.getX(i) - colours.getY(i) > 0.3
+        ? 'fascia'
+        : colours.getX(i) > 0.8
+          ? 'roof'
+          : 'column';
+    groups[kind].push(i);
+  }
+  const columns = new THREE.BufferGeometry();
+  for (const name of ['position', 'normal', 'uv', 'color']) {
+    const attr = original.getAttribute(name);
+    const values: number[] = [];
+    for (const i of groups.column)
+      for (let c = 0; c < attr.itemSize; c++) values.push(attr.getComponent(i, c));
+    columns.setAttribute(name, new THREE.Float32BufferAttribute(values, attr.itemSize));
+  }
+  colored(columns, STATION_POSTER_PALETTE.column);
+  const slabs: THREE.BufferGeometry[] = [columns];
+  for (const kind of ['roof', 'fascia'] as const) {
+    const bounds = new THREE.Box3();
+    for (const i of groups[kind])
+      bounds.expandByPoint(new THREE.Vector3().fromBufferAttribute(pos, i));
+    const size = bounds.getSize(new THREE.Vector3()),
+      center = bounds.getCenter(new THREE.Vector3());
+    const layers =
+      kind === 'roof'
+        ? [
+            { bottom: bounds.min.y, height: size.y * 0.7, paint: STATION_POSTER_PALETTE.cream },
+            {
+              bottom: bounds.min.y + size.y * 0.7,
+              height: size.y * 0.3,
+              paint: STATION_POSTER_PALETTE.terracotta,
+            },
+          ]
+        : [{ bottom: bounds.min.y, height: size.y, paint: STATION_POSTER_PALETTE.green }];
+    const x = size.x / 2,
+      z = size.z / 2,
+      radius = Math.min(size.x, size.z) * 0.05;
+    const outline = new THREE.Shape();
+    outline.moveTo(-x + radius, -z);
+    outline.lineTo(x - radius, -z);
+    outline.quadraticCurveTo(x, -z, x, -z + radius);
+    outline.lineTo(x, z - radius);
+    outline.quadraticCurveTo(x, z, x - radius, z);
+    outline.lineTo(-x + radius, z);
+    outline.quadraticCurveTo(-x, z, -x, z - radius);
+    outline.lineTo(-x, -z + radius);
+    outline.quadraticCurveTo(-x, -z, -x + radius, -z);
+    for (const layer of layers) {
+      const slab = new THREE.ExtrudeGeometry(outline, {
+        depth: layer.height,
+        steps: 1,
+        bevelEnabled: false,
+        curveSegments: 4,
+      });
+      slab.rotateX(-Math.PI / 2).translate(center.x, layer.bottom, center.z);
+      // Project onto the actual old cube triangles, retaining their atlas chart.
+      const target = slab.getAttribute('position'),
+        targetUV = slab.getAttribute('uv');
+      const point = new THREE.Vector3(),
+        closest = new THREE.Vector3(),
+        best = new THREE.Vector3(),
+        bary = new THREE.Vector3(),
+        triangle = new THREE.Triangle();
+      for (let i = 0; i < target.count; i++) {
+        point.fromBufferAttribute(target, i);
+        let distance = Infinity,
+          chosen = 0;
+        for (let t = 0; t < groups[kind].length; t += 3) {
+          triangle.setFromAttributeAndIndices(
+            pos,
+            groups[kind][t],
+            groups[kind][t + 1],
+            groups[kind][t + 2]
+          );
+          triangle.closestPointToPoint(point, closest);
+          const d = closest.distanceToSquared(point);
+          if (d < distance) {
+            distance = d;
+            chosen = t;
+            best.copy(closest);
+          }
+        }
+        const indices = groups[kind].slice(chosen, chosen + 3);
+        triangle.setFromAttributeAndIndices(pos, indices[0], indices[1], indices[2]);
+        triangle.getBarycoord(best, bary);
+        targetUV.setXY(
+          i,
+          indices.reduce((v, j, k) => v + uv.getX(j) * bary.getComponent(k), 0),
+          indices.reduce((v, j, k) => v + uv.getY(j) * bary.getComponent(k), 0)
+        );
+      }
+      slabs.push(colored(slab, layer.paint));
+    }
+  }
+  original.dispose();
+  const result = joined(slabs);
+  result.userData.stationPoster = true;
+  return result;
+}
+
+/** Two grounded terracotta pots and flowering greenery, one static merged draw. */
+export function createStationPosterPlanters() {
+  const parts: THREE.BufferGeometry[] = [];
+  for (const z of [-4.2, 4.2]) {
+    const x = -7.2;
+    parts.push(
+      colored(
+        new THREE.LatheGeometry(
+          [
+            [0, 0.02],
+            [0.2, 0.02],
+            [0.24, 0.1],
+            [0.31, 0.62],
+            [0.33, 0.63],
+            [0.33, 0.7],
+            [0.29, 0.7],
+            [0.28, 0.63],
+          ].map((p) => new THREE.Vector2(...p)),
+          16
+        ).translate(x, 0, z),
+        STATION_POSTER_PALETTE.terracotta
+      )
+    );
+    parts.push(
+      colored(new THREE.CylinderGeometry(0.28, 0.28, 0.025, 16).translate(x, 0.637, z), '#463826')
+    );
+    for (let i = 0; i < 5; i++) {
+      const angle = i * 2.4,
+        px = x + Math.cos(angle) * 0.16,
+        pz = z + Math.sin(angle) * 0.16,
+        top = 0.95 + (i % 3) * 0.065;
+      parts.push(
+        colored(
+          new THREE.CylinderGeometry(0.008, 0.012, top - 0.65, 5).translate(
+            px,
+            (top + 0.65) / 2,
+            pz
+          ),
+          '#426548'
+        )
+      );
+      parts.push(
+        colored(
+          new THREE.SphereGeometry(1, 6, 4)
+            .scale(0.13, 0.035, 0.07)
+            .rotateZ(0.5)
+            .rotateY(angle)
+            .translate(px, top - 0.13, pz),
+          '#4d7851'
+        )
+      );
+      for (let petal = 0; petal < 5; petal++) {
+        const a = petal * Math.PI * 0.4;
+        parts.push(
+          colored(
+            new THREE.SphereGeometry(1, 6, 4)
+              .scale(0.035, 0.018, 0.025)
+              .rotateY(a)
+              .translate(px + Math.cos(a) * 0.035, top, pz + Math.sin(a) * 0.035),
+            i % 2 ? '#edaa56' : '#db7247'
+          )
+        );
+      }
+      parts.push(
+        colored(new THREE.SphereGeometry(0.024, 6, 4).translate(px, top + 0.008, pz), '#e4bd6e')
+      );
+    }
+  }
+  return joined(parts);
+}
+export const STATION_POSTER_PLANTERS = createStationPosterPlanters();
+
 // Explicit trade cloth, coordinated with the village's painted timber and slate.
 // Produce, dairy, bakery and harvest share cream stripes and the original weave.
 export const MARKET_CANVAS_COLOURS = ['#637b59', '#476975', '#912d26', '#9a703d'] as const;

@@ -324,9 +324,11 @@ describe('painted raster sign family', () => {
     for (const [kind, path] of Object.entries(HERITAGE_PRINT_ART)) {
       const bytes = readFileSync(`public/${path}`);
       const current = JSON.parse(readFileSync('public/textures/signage/PROVENANCE.json', 'utf8'));
-      const asset = [...provenance.assets, ...current.businessBrands.assets].find(
-        (a: { file: string }) => path.endsWith(`/${a.file}`)
-      );
+      const asset = [
+        ...provenance.assets,
+        ...current.businessBrands.assets,
+        ...current.stationPosterAndAppBrand.assets,
+      ].find((a: { file: string }) => path.endsWith(`/${a.file}`));
       expect(createHash('sha256').update(bytes).digest('hex')).toBe(asset.sha256);
       const { data, info } = await sharp(bytes)
         .ensureAlpha()
@@ -412,8 +414,9 @@ describe('distinct world business brands', () => {
   });
 
   it('ships opaque, compact brand/sign variants and the revised poster with matching provenance', async () => {
-    const assets = JSON.parse(readFileSync('public/textures/signage/PROVENANCE.json', 'utf8'))
-      .businessBrands.assets;
+    const provenance = JSON.parse(readFileSync('public/textures/signage/PROVENANCE.json', 'utf8'));
+    const assets = provenance.businessBrands.assets;
+    const currentAssets = [...assets, ...provenance.stationPosterAndAppBrand.assets];
     expect(assets).toHaveLength(13);
     let total = 0;
     for (const asset of assets) {
@@ -434,10 +437,10 @@ describe('distinct world business brands', () => {
     expect(total).toBeLessThan(1500000);
     for (const brand of Object.values(BUSINESS_BRANDS)) {
       for (const url of [brand.primary, brand.fascia])
-        expect(assets.some((a: { file: string }) => url.endsWith(`/${a.file}`))).toBe(true);
+        expect(currentAssets.some((a: { file: string }) => url.endsWith(`/${a.file}`))).toBe(true);
     }
-    expect(BUSINESS_BRANDS.dino.pylon).toContain('pylon-v2.webp');
-    expect(HERITAGE_PRINT_ART.dino).toContain('dino-painted-v2.webp');
+    expect(BUSINESS_BRANDS.dino.pylon).toContain('pylon-v3.webp');
+    expect(HERITAGE_PRINT_ART.dino).toContain('dino-painted-v3.webp');
   });
 
   it('fits the new portrait and narrow raster signs without clipping or stretching', async () => {
@@ -493,4 +496,28 @@ describe('distinct world business brands', () => {
     expect(signs).toContain('size[0] / surfaceRadius');
     expect(signs).toContain('-angle / 2,');
   });
+});
+
+it('delivers the corrected dark-eye artwork and square MillOS application mark', async () => {
+  const assets = JSON.parse(readFileSync('public/textures/signage/PROVENANCE.json', 'utf8'))
+    .stationPosterAndAppBrand.assets;
+  expect(assets).toHaveLength(5);
+  for (const asset of assets) {
+    const bytes = readFileSync(`public/textures/signage/${asset.file}`);
+    expect(createHash('sha256').update(bytes).digest('hex')).toBe(asset.sha256);
+    const { data, info } = await sharp(bytes)
+      .ensureAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    expect([info.width, info.height]).toEqual([asset.width, asset.height]);
+    let nonOpaque = 0;
+    for (let i = 3; i < data.length; i += 4) if (data[i] !== 255) nonOpaque++;
+    expect(nonOpaque).toBe(0);
+  }
+  const icon = await sharp(readFileSync('public/textures/signage/millos-mark-v1.webp')).metadata();
+  expect([icon.width, icon.height]).toEqual([256, 256]);
+  const favicon = await sharp(
+    readFileSync('public/textures/signage/millos-mark-v1.png')
+  ).metadata();
+  expect([favicon.width, favicon.height]).toEqual([64, 64]);
 });

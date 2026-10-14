@@ -12,7 +12,7 @@
  * walk, and none of them has a skin. Geometry and textures are shared by the
  * clone. Village glazing clones materials for the shared night-lighting shader;
  * explicit market cloth clones only colour attributes and its material; all atlas
- * textures remain shared. Other assets retain their shared materials.
+ * textures remain shared. Station bodies clone owned palette/rounded-canopy geometry; other assets retain shared materials.
  */
 
 import React, { useEffect, useMemo } from 'react';
@@ -20,7 +20,10 @@ import * as THREE from 'three';
 import { useDracoGLTF } from '../../utils/dracoLoader';
 import { GENERATED_ASSET_PATHS, type GeneratedAssetId } from '../../utils/modelLoader';
 import ErrorBoundary from '../ErrorBoundary';
-import { createMarketCanopyGeometry } from '../scenery/AuthoredPropTrim';
+import {
+  createMarketCanopyGeometry,
+  createPosterStationGeometry,
+} from '../scenery/AuthoredPropTrim';
 import {
   applyCastlePaving,
   applyShopWindows,
@@ -160,6 +163,20 @@ export const GeneratedModel: React.FC<GeneratedModelProps> = ({
         mesh.material instanceof THREE.MeshStandardMaterial
       ) {
         const geometry = createMarketCanopyGeometry(mesh.geometry, marketDressing);
+        if (geometry !== mesh.geometry) {
+          const material = mesh.material.clone();
+          material.vertexColors = true;
+          mesh.geometry = geometry;
+          mesh.material = material;
+          geometries.push(geometry);
+          materials.push(material);
+        }
+      }
+      if (
+        (asset === 'stationCanopy' || asset === 'fuelPumpShell') &&
+        mesh.material instanceof THREE.MeshStandardMaterial
+      ) {
+        const geometry = createPosterStationGeometry(mesh.geometry, asset);
         if (geometry !== mesh.geometry) {
           const material = mesh.material.clone();
           material.vertexColors = true;
