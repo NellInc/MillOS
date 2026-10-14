@@ -12,6 +12,8 @@ export interface CommunityBusPose {
   rotation: number;
   doorsOpen: boolean | number;
   visible: boolean;
+  /** Separate service hours from the short hidden turnaround gap. */
+  serviceOpen?: boolean;
 }
 export interface DeliveryHandcartPose {
   visible: boolean;
@@ -295,6 +297,8 @@ export function CommunityBus({ pose }: { pose: CommunityBusPose }) {
   useFrame((_, delta) => {
     if (!root.current) return;
     const valid = [pose.x, pose.z, pose.rotation].every(Number.isFinite);
+    root.current.userData.communityServiceOpen = pose.serviceOpen ?? pose.visible;
+    root.current.userData.communityDoorsOpen = pose.doorsOpen;
     root.current.visible = pose.visible && valid;
     if (!root.current.visible) {
       state.current.visible = false;

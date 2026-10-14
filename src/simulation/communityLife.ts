@@ -73,6 +73,45 @@ export function sampleCommunityGreeting(
   return out;
 }
 
+/** A waiting passenger acknowledges the actual approaching shuttle, with a
+ * bounded head turn only. Working if distant/hidden buses, walking/boarding,
+ * seats and non-passenger work never receive this cosmetic attention.
+ */
+export function communityPassengerAttention(
+  person: CommunityPerson,
+  pose: CommunityPose,
+  bus: { x: number; z: number; phase: number; visible: boolean }
+) {
+  if (
+    person.district !== 'bus' ||
+    person.role !== 'Passenger' ||
+    !pose.visible ||
+    pose.seated ||
+    pose.activity !== 'idle' ||
+    !bus.visible ||
+    bus.phase >= 1.9
+  )
+    return 0;
+  const dx = bus.x - pose.position[0],
+    dz = bus.z - pose.position[2];
+  if (Math.hypot(dx, dz) > 22) return 0;
+  const angle = Math.atan2(dx, dz) - pose.rotation;
+  const yaw = Math.atan2(Math.sin(angle), Math.cos(angle));
+  return Math.abs(yaw) <= 1.4 ? Math.max(-0.26, Math.min(0.26, yaw)) : 0;
+}
+
+/** Describe the mounted service, never predict an arrival from a different clock.
+ * Working if a held bus keeps the same notice and the quiet phase between runs
+ * is still an operating service rather than a false closed sign.
+ */
+export function communityBusNotice(
+  pose: { serviceOpen?: boolean; doorsOpen?: boolean | number } | null
+) {
+  if (pose?.serviceOpen === undefined) return 'ROUTE INFORMATION';
+  if (!pose.serviceOpen) return 'SERVICE HOURS\n06:00 TO 22:00';
+  return pose.doorsOpen ? 'BUS AT THE STOP' : 'BUS ON ROUTE';
+}
+
 // The west operator represents coordination; the east operator remains unbound.
 export const COMMUNITY_AGREEMENT_MEMBERS: Readonly<Record<string, string>> = {
   'mill-packer': 'packing',
@@ -536,6 +575,7 @@ export function sampleCommunityBus(hour: number) {
     rotation,
     phase,
     doorsOpen: phase >= 1.1 && phase < 1.9,
+    serviceOpen: h >= 6 && h < 22,
     visible: h >= 6 && h < 22 && phase < 3.8,
   };
 }

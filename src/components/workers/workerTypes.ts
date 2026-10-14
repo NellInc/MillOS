@@ -15,6 +15,8 @@ export interface WorkerMotionState {
   /** Actual anonymous recipient and bounded relative bearing, retained through holds. */
   greetingTargetId?: string | null;
   greetingYaw?: number;
+  /** Optional live attention cue; older motion/replay shapes remain neutral. */
+  attentionYaw?: number;
   cartGrip?: 'push' | 'pull';
   seatFloorOffset?: number;
   /** Parent-owned crank angle in radians; no independent pedalling clock. */

@@ -41,12 +41,12 @@ describe('delivered heritage print', () => {
     expect(print).toContain('THREE.SRGBColorSpace');
     expect(print).toContain('alphaTest: map ? 0.5 : 0');
     expect(print).toContain('EXTERIOR_LAMP_LEVEL.value * 0.85');
-    expect(print.match(/userData=\{\{ noStaticBatch: true \}\}/g)).toHaveLength(2);
+    expect(print.match(/userData=\{\{ noStaticBatch: true \}\}/g)).toHaveLength(3);
     expect(print).toContain('backlit = false');
     expect(print).toContain('material.dispose()');
     expect(print).not.toContain('<meshBasicMaterial');
     expect(print).not.toContain('transparent');
-    expect(print.match(/surface="painted"/g)).toHaveLength(5);
+    expect(print.match(/surface="painted"/g)).toHaveLength(8);
     const exterior = readFileSync('src/components/FactoryExterior.tsx', 'utf8');
     expect(exterior).toContain('side * 0.04');
     expect(exterior).toContain("brand={end === -1 ? 'flour' : 'dino'}");
@@ -253,4 +253,18 @@ it('seats civic lanterns on delivered masonry and leaves their threshold beams u
     geometry.dispose();
   }
   material.dispose();
+});
+
+it('uses a bounded warm route board and the actual mounted transit controller', () => {
+  const source = readFileSync('src/components/scenery/HeritageSignage.tsx', 'utf8');
+  expect(source).toContain('name="bus-service-board"');
+  expect(source).toContain('community-autonomous-village-bus');
+  expect(source).toContain('source.userData.communityServiceOpen');
+  expect(source).toContain('source.userData.communityDoorsOpen');
+  expect(source).toContain('if (value !== last.current)');
+  expect(source).toContain('boxGeometry args={[0.88, 1.12, 0.055]}');
+  expect(source).toContain("useSignMaterial('#efe3c7')");
+  const exterior = readFileSync('src/components/FactoryExterior.tsx', 'utf8');
+  expect(exterior).toContain('<TransitServiceBoard />');
+  expect(exterior).not.toContain('BUS_TIMETABLE_INK_MATERIAL');
 });

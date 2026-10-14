@@ -19,6 +19,7 @@ import { useReducedMotion } from '../hooks/useReducedMotion';
 import {
   COMMUNITY_ROSTER,
   createCommunityGreeting,
+  communityPassengerAttention,
   sampleCommunityGreeting,
   createCommunityPose,
   sampleCommunityPerson,
@@ -145,6 +146,7 @@ export function CommunityLife() {
             if (!resident) return;
             resident.hour = actor.hour;
             Object.assign(resident.pose, actor.pose);
+            resident.motion.attentionYaw = actor.motion.attentionYaw ?? 0;
             Object.assign(resident.motion, actor.motion);
             Object.assign(resident.response, actor.response);
           });
@@ -295,6 +297,8 @@ export function CommunityLife() {
       const greeting = sampleCommunityGreeting(actor.person, actor.pose, residents, actor.greeting);
       actor.motion.greetingTargetId = greeting.targetId;
       actor.motion.greetingYaw = greeting.yaw;
+      actor.motion.attentionYaw = communityPassengerAttention(actor.person, actor.pose, bus);
+      root.userData.attentionYaw = actor.motion.attentionYaw;
       actor.motion.greeting = !emergency && actor.motion.activity === 'idle' && !!greeting.targetId;
       root.userData.greeting = actor.motion.greeting;
       root.userData.greetingTargetId = greeting.targetId;

@@ -1,6 +1,6 @@
 import { getExteriorLampLevel } from './exterior/ExteriorLighting';
 import { WorldPublicRealm } from './scenery/WorldPublicRealm';
-import { HeritagePoster } from './scenery/HeritageSignage';
+import { HeritagePoster, TransitServiceBoard } from './scenery/HeritageSignage';
 import React, { useMemo, useRef, useEffect, useLayoutEffect, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { SceneText as Text } from './shared/SceneText';
@@ -4141,13 +4141,6 @@ const CurvedText: React.FC<{
 // Industrial grain silo - typical flour mill storage
 // Matte printed ink has no glossy white highlight under the nearby roof lamp.
 // Working if the night timetable keeps dark, legible lettering on its lit paper.
-const BUS_TIMETABLE_INK_MATERIAL = new THREE.MeshLambertMaterial({
-  color: '#ffffff',
-  side: THREE.DoubleSide,
-  transparent: true,
-  depthWrite: false,
-});
-
 // European-style covered bus stop with advertisements
 const BusStop: React.FC<{
   position: [number, number, number];
@@ -4293,42 +4286,7 @@ const BusStop: React.FC<{
         </group>
       ))}
 
-      {/* Timetable */}
-      <mesh position={[0, 1.6, -shelterDepth / 2 + 0.02]} castShadow>
-        <boxGeometry args={[0.6, 0.8, 0.04]} />
-        <meshStandardMaterial color="#1f2937" roughness={0.6} />
-      </mesh>
-      <mesh position={[0, 1.6, -shelterDepth / 2 + 0.05]}>
-        <planeGeometry args={[0.5, 0.7]} />
-        <meshStandardMaterial color="#f5f5f5" roughness={0.85} />
-      </mesh>
-      <Text
-        position={[0, 1.85, -shelterDepth / 2 + 0.06]}
-        fontSize={0.075}
-        color="#050d10"
-        anchorX="center"
-        anchorY="middle"
-        surface="painted"
-        material={BUS_TIMETABLE_INK_MATERIAL}
-        outlineWidth="2%"
-        outlineColor="#050d10"
-      >
-        TIMETABLE
-      </Text>
-      <Text
-        position={[0, 1.65, -shelterDepth / 2 + 0.06]}
-        fontSize={0.045}
-        lineHeight={1.4}
-        color="#050d10"
-        anchorX="center"
-        anchorY="middle"
-        surface="painted"
-        material={BUS_TIMETABLE_INK_MATERIAL}
-        outlineWidth="2%"
-        outlineColor="#050d10"
-      >
-        {'Route 42\nTown Centre'}
-      </Text>
+      <TransitServiceBoard />
     </group>
   );
 };

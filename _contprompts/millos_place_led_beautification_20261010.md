@@ -2227,3 +2227,63 @@ Single native app ap-aEkYfzvDLKxNDkoHjgjDCJ,10 images directly reviewed, no fail
 J gallery links the accepted97-image I all-area/day/dusk/Low/night gallery, explicitly from its prior sealed main; no redundant full world campaign for this isolated idle-torso finish. Baker bench partly occludes the waist, shoulders/boots visible; rig tests/native trace preserve contact. Mac pacing remains independently OPEN, no Mac FPS/universal loading/new FPS castle walk/full campaign/live claim. No extra broad checks needed. Removed only this pass's now-applied mechanical edit scratch; I already removed531,281,973 logical bytes of exact-archive-recoverable old compiled output. Every source/current/accepted build, recovery archive, image/log/pin/receipt/acceptance held intact; no foreign cache/job/browser/primary work touched. Local-only check-in follows.
 
 Final J main assets/main-7RiIP1Q2.js, SHA256ea894903fa0f0f91abdb986b6ee8fb610926ff630bfa9975c5154ce218b016c0.
+
+
+## K: Transit, people, public realm and guided play, 2026-10-14
+
+Nell asks for the next detailed all-aspect task list and full execution. This finite29-task pass continues at14f3b6d34f9bf03128d23a2c31afcf8e03dd5a7b, clean owned branch except protected output. Primary06ff26d3/18 tracked dirty untouched. Baseline251/12 preceding exact candidate plus96/5 additional pre-edit gameplay/UI/signage/lighting tests:347/17, no failures. Audio silent, local-only no primary integration/push/deployment. Mac pacing independently OPEN. Existing bus roof light is already enabled on Medium, so no extra light or budget change is justified. Eight production files are needed for the bus sampler/controller/sign/view bridge, passenger optional motion cue, and existing guide UI; no new global store, dependency or schema.
+
+- [x] K01: Waiting passengers acknowledge the actual nearby visible approaching bus with smooth bounded.26rad attention; preserve boarding/seats/boots/blinks, default old motion/replay cue neutral and all holds.
+- [x] K02: Replace cramped timetable with framed heritage cream/green/brass Route42 board above bench, measured bounds; live service/stop notice uses actual mounted bus pose, including held trips and inter-run gaps, no invented forecast.
+- [x] K03: Shared dusk/weather dimmer makes print/paper readable, retain original roof light and Low/preset/single-Sun budgets; no new light/shadow/map/custom shader.
+- [x] K04: Direct guide compact control without camera movement; compact keeps real pace/deadline/inspection/credit, accessible focus/expand/close, fulfilled receipts and operations/learning reachable; no campaign cancellation or false progress.
+- [x] K05: Existing actual inspection/camera/operations game flow, phone/desktop layout and state checks; QC/stock/manifests/customer credit authoritative and unchanged.
+- [x] K06: Broad all-area day/dusk/Low/night review, exact compiled readiness/font/resource/audio/world guards and original4GiB/truck15/returned-frame45/caps; one capped native pass plus at most one evidence-led correction.
+- [x] K07:347 baseline to named final affected suite, required type/lint/format/shader/build/reachability; exact source/build custody, optional detector if available, no unrelated bulk fixes.
+- [ ] K08:29-task gallery/dispositions, selective validated local check-in, own disposable cleanup only. Preserve source/assets/acceptance/screenshots/logs/recovery and foreign processes/browser/cache.
+
+Working if passengers attend to a real shuttle without changing travel/contact, the lit route board reflects actual service/stop state, compact controls give scene space while preserving real gameplay progress and keyboard access, and all tested regions retain their authored finish. Pre-mortem: bus visibility has a short active-service gap, so it cannot itself mean closed; a global shared bus ref would break replay/world ownership; guide minimising could unmount inspection or lose pace/focus. A distinct serviceOpen sampler field, actual attached scene-controller metadata and a still-mounted compact guide address these risks. Prior completed I/J evidence remains separately attributed, never substituted for this new candidate. The detailed commentary list has29 tasks, including scoped inspection of already-correct lighting rather than needless new emitters.
+
+### K detailed execution dispositions
+
+1. **Actual passenger attention.** Live nearby visible bus, standing idle passenger only, bounded.26rad bearing;145 native samples and source cases.
+2. **Respect physical activity.** Walking, boarding, seats, non-passenger work and distant/hidden buses receive0; real contact/rig checks retained.
+3. **Smooth return.** Private motion damping7, optional cue neutral by default; existing Head solver and gait branches retained.
+4. **Preserve authored people.** Original body/face/blink/workwear rigs, bus doors and seats retained; all14 actual assemblies inspected.
+5. **Respect holds and replay.** Actual pause/reduced/safety head holds pass; explicit old replay missing-cue default0 and replay tests retained.
+6. **Framed route board.** Replace cramped timetable with.88x1.12m enamel frame above bench, cream paper and brass rule lines.
+7. **Shared heritage palette.** Cream#efe3c7, green#294b3c, brass#a27733, ink#283f49, reusing existing heritage material/print.
+8. **Truthful transit notice.** Actual mounted bus metadata changes on-route to at-stop when doors open, night06:00 to22:00 hours.
+9. **No invented arrival.** No ETA or occupant promise; short active-service gap, held trip and unknown controller covered by sampler tests.
+10. **Assess roof lamp first.** Existing Medium roof source already correct; actual noon0/dusk26 intensity, warmffe3a6 and no shadow caster.
+11. **Night print legibility.** Shared paper/ink dimmer0 at noon,.85 at dusk/night; Medium and Low route text inside measured.7m bounds.
+12. **Preserve Low and Sun.** Low keeps no real shelter roof light/no caster/DPR.8; Medium retains exactly Sun/DPR1.2, adaptation unchanged.
+13. **Cohesive region review.** Actual village, square, factory, farm, canal, forecourt, shelter and castle views at noon/dusk/night.
+14. **Direct compact action.** New header control uses existing local view state; camera and plant observations identical before/after.
+15. **Keep pace accessible.** Paused/relaxed/standard controls remain in compact guide, all driven through actual UI.
+16. **Keep truthful progress.** Deadline, inspection and dispatched quantities persist; native inspection changes waiting to recorded.
+17. **Keyboard and focus.** Enter expands, focus transfers to corresponding control, explicit compact close and expansion remain available.
+18. **Fulfilled receipt.** Focused fixture confirms completed receipt/learning/operations remain reachable without adding customer credit.
+19. **Responsive layout.** 1440x900,390x844,768x1024 and844x390 checks; evidence-led short-wide repair removes70px squeezed frame.
+20. **Actual inspection flow.** Shipping SCADA Locate rm-101, workspace close, O and Focus machine record inspection without a store fixture.
+21. **Authoritative gameplay.** QC, stock, material manifests and customer credit unchanged; native observation equality and existing domain tests.
+22. **Preserve learning.** Original Bottlenecks and Buffers lesson and meaningful deadline/quality/dispatch explanations kept.
+23. **Named baseline.** 347/17 selected baseline, no failures; corrected final352/17, no failures.
+24. **Required whole-source gates.** Actual typecheck/lint/format/shader/build/reachability terminal exits0; production build19.65s.
+25. **Bounded native review.** One capped54-frame corrected window after original timed-out22-frame check; all raw evidence retained.
+26. **Original runtime guards.** 90s startup limit,4GiB floor,15s truck/45s returned-frame preparation, unchanged caps and silent native OOP GPU.
+27. **Gallery and dispositions.** 46 curated frames,54 originals, source/build/native receipts and this29-row execution record.
+28. **Owned cleanup/check-in.** 388 superseded compiled files matched recovery tar,177104004 logical bytes removed; scratch14646 bytes, final build and receipts retained. Selective local check-in pending.
+29. **Separate pacing.** Mac pacing independently OPEN; no threshold relaxation, timing claim, push or deployment.
+
+### K validation and deviations
+
+First source check exposed two obsolete assertions: signage material/group counts and the old hidden compact pace expectation. Named failure log retained, corrected focused100/5 passed. The additional landscape-only rerun69/4 passed (the extra supplied GameInterface path was unmatched); final required CPU suite uses the correct real17 files and passed352/17.
+
+Initial native app ap-Pt3EjedFVKGIhIUnNkDmbi retained22 captures. Its at-stop6s wait failed because the check initially used the wrong30x hour conversion;30/3600 requires8.4 real seconds for.07h.145 corrected live passenger samples and the actual Standard pace transition close the check without changing clocks, motion limits or its6s wait. The same first window reproduced the70px landscape card; the one correction moves the guide beside soundtrack/above dock on640px+ wide,500px-or-shorter screens. Corrected native app ap-jP1NA9DhlU0CjWWotPEeLZ passed54 captures, original90s ready54.056/35.357/31.051/42.268/51.878s (Medium12/7.03/19,Low19,Medium23). Real at-stop notice/doors,145 live samples,.26rad maximum cue, boot drift2.78e-17m; actual pause/reduced/safety holds true. Direct compact camera/plant equality, focus, keyboard, real rm-101 inspection and all four responsive sizes pass. Full/compact landscape heights214/195px.
+
+Corrected exact-source CPU app: ap-snWsfrZwCvzxhMqVDlvGva,352/17; all required type/lint/format/shader/build/reachability exits0, build19.65s. Sealed main-Cv-PvQ6a.js SHA256 dcf8cae568c22dc4df152b8a29717eb922f5fef8947b6b2c85d310344ab0b5f0.1219 source pins and388 compiled file pins independently checked. Native sandboxed out-of-process Chromium143.0.7499.4/NVIDIA A10G610.57.04; all five raw diagnostic arrays empty and normal browser/preview/lock closures. Original MediumDPR1.2/one Sun,LowDPR.8/zero, civic atlas8de356b6…/strength1, leaf relief.28,19 world roots,14 anonymous personnel and fountain bird retained. Audio0/context not-created. No new light, map, shader, store or dependency. Board adds a few draw submissions; no isolated cost claim.
+
+Self-review: this chat authored the changes and reviewed the actual native images. Full-size route boards, passenger/front view and phone/desktop/landscape guides are readable and framed; noon/dusk/night sheets retain connected grounds, canal, warm civic/window/forecourt/shelter lighting and authored castle access.46 curated frames exclude the eight supplementary arrival-run region captures with an actual overview sidebar; all54 remain. Source/build/runtime/artistic review are distinct evidence. Existing distant foliage can still be grainy and rural night regions remain dark; those are future artistic candidates, not claimed resolved here. Existing framework tests, not a newly completed native campaign or Mac FPS walk, cover fulfilled receipts and unchanged domain contracts. Optional Impeccable detector absent; no dependency installed.
+
+All K receipts, gallery, logs and recoverable-cleanup proof: test-results/transit-gameplay-cohesion-20261014/remote-egl/. Only this task's superseded first-built/dist was removed after all388 file hashes matched its retained recovery archive and lsof returned no owner, plus owned disposable edit scratch.177104004+14646 logical bytes removed; shared APFS before/after movement is observed, not solely attributed. Sources/assets/current compiled build/archives/first failures/images/logs and protected output remain. Primary06ff26d3/18 tracked dirty untouched. Local only, no primary integration/push/deployment; pacing independently OPEN.

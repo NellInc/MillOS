@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
-import { X } from 'lucide-react';
+import { Minimize2, X } from 'lucide-react';
 import { useUIStore } from '../../../stores/uiStore';
 import { useMobileControlStore } from '../../../stores/mobileControlStore';
 import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
@@ -26,6 +26,10 @@ import type { CustomerOrder } from '../../../stores/operationsCampaignStore';
 const BUTTON =
   'min-h-11 rounded-lg border border-cyan-400/30 px-3 py-2 text-xs font-semibold text-cyan-100 hover:bg-cyan-400/10 disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300';
 const CARD = 'rounded-xl border border-cyan-400/20 bg-slate-900/90 p-3 text-sm text-slate-200';
+// Short, wide screens put the lesson beside the soundtrack and above the dock.
+// Working if compact pace remains visible at844x390 without covering either.
+const JOURNEY_FRAME =
+  'pointer-events-auto fixed bottom-[11.5rem] left-3 right-3 z-40 max-h-[calc(100dvh-20rem)] overflow-y-auto overscroll-contain rounded-xl border border-cyan-400/40 bg-slate-950/95 shadow-xl sm:left-5 sm:right-auto sm:w-[360px] [@media(min-width:640px)_and_(max-height:500px)]:left-auto [@media(min-width:640px)_and_(max-height:500px)]:right-5 [@media(min-width:640px)_and_(max-height:500px)]:bottom-28 [@media(min-width:640px)_and_(max-height:500px)]:max-h-[calc(100dvh-11rem)]';
 
 function DeliveryDeadline({
   order,
@@ -97,6 +101,16 @@ export function FirstDeliveryJourney({
   const order = campaign.orders.find((item) => item.id === ui.orderId) ?? null;
   const guide = deriveDeliveryJourney(order, campaign.execution, ui.inspected);
   const [sceneFocused, setSceneFocused] = useState(false);
+  const expandButton = useRef<HTMLButtonElement>(null);
+  const collapseButton = useRef<HTMLButtonElement>(null);
+  const firstFocus = useRef(true);
+  useEffect(() => {
+    if (firstFocus.current) {
+      firstFocus.current = false;
+      return;
+    }
+    (sceneFocused ? expandButton : collapseButton).current?.focus();
+  }, [sceneFocused]);
   useEffect(() => setSceneFocused(false), [ui.orderId]);
   useEffect(() => {
     if (
@@ -125,14 +139,20 @@ export function FirstDeliveryJourney({
   // the live commitment. This projection never advances an order or a truck.
   const completed = order?.status === 'fulfilled' && ui.inspected;
   const play = deriveOperationsPlay(campaign);
-  if (completed)
+  if (completed && !sceneFocused)
     return (
-      <section
-        aria-label="Guided delivery"
-        className="pointer-events-auto fixed bottom-[11.5rem] left-3 right-3 z-40 max-h-[calc(100dvh-20rem)] overflow-y-auto overscroll-contain rounded-xl border border-cyan-400/40 bg-slate-950/95 p-4 shadow-xl sm:left-5 sm:right-auto sm:w-[360px]"
-      >
+      <section aria-label="Guided delivery" className={`${JOURNEY_FRAME} p-4`}>
         <div className="flex items-center justify-between gap-2">
           <h2 className="font-semibold text-white">Delivery fulfilled</h2>
+          <button
+            ref={collapseButton}
+            className={BUTTON}
+            aria-label="Compact delivery guide"
+            aria-expanded={true}
+            onClick={() => setSceneFocused(true)}
+          >
+            <Minimize2 className="h-4 w-4" aria-hidden="true" />
+          </button>
           <button
             className={BUTTON}
             aria-label="Close guided delivery"
@@ -185,20 +205,26 @@ export function FirstDeliveryJourney({
   // still records the real inspection, and Guide restores the full lesson.
   if (sceneFocused)
     return (
-      <section
-        aria-label="Guided delivery"
-        className="pointer-events-auto fixed bottom-[11.5rem] left-3 right-3 z-40 rounded-xl border border-cyan-400/40 bg-slate-950/95 p-3 shadow-xl sm:left-5 sm:right-auto sm:w-[360px]"
-      >
+      <section aria-label="Guided delivery" className={`${JOURNEY_FRAME} p-3`}>
         <div className="flex items-center justify-between gap-3">
-          <h2 aria-live="polite" className="font-semibold text-white">
+          <h2 aria-live="polite" className="min-w-0 flex-1 font-semibold text-white">
             {guide.title}
           </h2>
           <button
             className={`${BUTTON} shrink-0`}
+            ref={expandButton}
+            aria-expanded={false}
             aria-label="Expand delivery guide"
             onClick={() => setSceneFocused(false)}
           >
             Guide
+          </button>
+          <button
+            className={`${BUTTON} shrink-0`}
+            aria-label="Close guided delivery"
+            onClick={() => ui.close(false)}
+          >
+            <X className="h-4 w-4" aria-hidden="true" />
           </button>
         </div>
         <DeliveryDeadline order={order} elapsedMinutes={campaign.elapsedMinutes} />
@@ -206,6 +232,7 @@ export function FirstDeliveryJourney({
           Inspection: {ui.inspected ? 'recorded' : 'waiting'} · Delivery:{' '}
           {order?.shippedKg.toFixed(0) ?? 0} kg dispatched
         </p>
+        <TeachingPace />
         {!ui.inspected && (
           <p className="text-xs leading-5 text-cyan-200">
             Select a machine to record your inspection.
@@ -214,12 +241,18 @@ export function FirstDeliveryJourney({
       </section>
     );
   return (
-    <section
-      aria-label="Guided delivery"
-      className="pointer-events-auto fixed bottom-[11.5rem] left-3 right-3 z-40 max-h-[calc(100dvh-20rem)] overflow-y-auto overscroll-contain rounded-xl border border-cyan-400/40 bg-slate-950/95 p-4 shadow-xl sm:left-5 sm:right-auto sm:w-[360px]"
-    >
+    <section aria-label="Guided delivery" className={`${JOURNEY_FRAME} p-4`}>
       <div className="flex items-center justify-between gap-2">
         <h2 className="font-semibold text-white">Your first delivery</h2>
+        <button
+          ref={collapseButton}
+          className={BUTTON}
+          aria-label="Compact delivery guide"
+          aria-expanded={true}
+          onClick={() => setSceneFocused(true)}
+        >
+          <Minimize2 className="h-4 w-4" aria-hidden="true" />
+        </button>
         <button
           className={BUTTON}
           aria-label="Close guided delivery"

@@ -847,6 +847,7 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
   const pendingDelta = useRef(0);
   const greetingElapsed = useRef(0);
   const greetingYaw = useRef(0);
+  const attentionYaw = useRef(0);
   const lastPose = useRef<{
     clip?: WorkerClipName;
     seated?: boolean;
@@ -1102,6 +1103,16 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
       gesture.lookYaw = greetingActive
         ? greetingYaw.current
         : gesture.lookYaw + greetingYaw.current;
+    attentionYaw.current = THREE.MathUtils.damp(
+      attentionYaw.current,
+      Number.isFinite(motion.attentionYaw)
+        ? THREE.MathUtils.clamp(motion.attentionYaw ?? 0, -0.26, 0.26)
+        : 0,
+      7,
+      safeDelta
+    );
+    if (motion.activity === 'idle' && !motion.seated && !greetingActive)
+      gesture.lookYaw += attentionYaw.current;
     // Facial detail is omitted at the existing near-face cutoff. Far body LOD
     // retains the open-eye bind shape; it never needs a third body draw.
     const blink = faceRef.current?.visible === false ? 0 : sampleWorkerBlink(gestureTime.current);

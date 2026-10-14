@@ -3,6 +3,8 @@ import { Group, SkinnedMesh } from 'three';
 import {
   COMMUNITY_ROSTER,
   createCommunityGreeting,
+  communityPassengerAttention,
+  communityBusNotice,
   sampleCommunityGreeting,
   sampleCommunityPerson,
   routineDuration,
@@ -563,5 +565,35 @@ describe('greetings acknowledge actual passing company', () => {
     expect(
       sampleCommunityGreeting(neighbour, pose, actors, createCommunityGreeting()).targetId
     ).toBe(null);
+  });
+});
+
+describe('actual transit attention and service notice', () => {
+  const passenger = COMMUNITY_ROSTER.find((p) => p.id === 'bus-departing')!;
+  it('acknowledges only a nearby visible shuttle while waiting, with bounded attention', () => {
+    const pose = sampleCommunityPerson(passenger, 7.03),
+      bus = sampleCommunityBus(7.03);
+    expect(pose.activity).toBe('idle');
+    expect(pose.seated).toBe(false);
+    expect(communityPassengerAttention(passenger, pose, bus)).toBeCloseTo(0.26);
+    for (const changed of [{ visible: false }, { x: 1000 }, { phase: 2 }])
+      expect(communityPassengerAttention(passenger, pose, { ...bus, ...changed })).toBe(0);
+    for (const changed of [{ visible: false }, { seated: true }, { activity: 'walking' as const }])
+      expect(communityPassengerAttention(passenger, { ...pose, ...changed }, bus)).toBe(0);
+    expect(communityPassengerAttention(COMMUNITY_ROSTER[0], pose, bus)).toBe(0);
+    expect(communityPassengerAttention(passenger, pose, { ...bus, x: NaN })).toBe(0);
+  });
+  it('follows real service hours and stop state without inventing an arrival', () => {
+    expect(communityBusNotice(sampleCommunityBus(7.03))).toBe('BUS ON ROUTE');
+    expect(communityBusNotice(sampleCommunityBus(7.3))).toBe('BUS AT THE STOP');
+    const between = sampleCommunityBus(9.9);
+    expect(between.visible).toBe(false);
+    expect(communityBusNotice(between)).toBe('BUS ON ROUTE');
+    for (const hour of [0, 5.9, 22, 23])
+      expect(communityBusNotice(sampleCommunityBus(hour))).toBe('SERVICE HOURS\n06:00 TO 22:00');
+    const held = sampleCommunityBus(advanceCommunityBusClock(7.85, 0.1, true));
+    expect(communityBusNotice(held)).toBe('BUS AT THE STOP');
+    expect(communityBusNotice(null)).toBe('ROUTE INFORMATION');
+    expect(communityBusNotice({})).toBe('ROUTE INFORMATION');
   });
 });

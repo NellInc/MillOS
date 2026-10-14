@@ -1,6 +1,7 @@
 import { useTexture } from '@react-three/drei';
-import { useEffect, useLayoutEffect, useMemo, type ComponentProps } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentProps } from 'react';
 import { useFrame } from '@react-three/fiber';
+import { communityBusNotice } from '../../simulation/communityLife';
 import { EXTERIOR_LAMP_LEVEL } from '../exterior/ExteriorLighting';
 import * as THREE from 'three';
 import { SceneText } from '../shared/SceneText';
@@ -203,6 +204,97 @@ export function DeadDinoPylonFace() {
         surface="painted"
       >
         PREMIUM FOSSIL FUEL
+      </IlluminatedSignText>
+    </group>
+  );
+}
+
+/** Enamel route board seated above the bench. The notice reads the actual bus
+ * controller, including delay holds. Working if day/dusk print stays in its
+ * measured frame, service notices agree with the bus, and no light/map is added.
+ */
+export function TransitServiceBoard() {
+  const paper = useSignMaterial('#efe3c7');
+  const bus = useRef<THREE.Object3D | null>(null);
+  const [notice, setNotice] = useState('ROUTE INFORMATION');
+  const last = useRef(notice);
+  useFrame(({ scene }) => {
+    if (!bus.current?.parent)
+      bus.current = scene.getObjectByName('community-autonomous-village-bus') ?? null;
+    let source: THREE.Object3D | null = bus.current,
+      attached = false,
+      visible = true;
+    for (let node = source?.parent; node; node = node.parent) {
+      visible = visible && node.visible;
+      attached = attached || node === scene;
+    }
+    if (!attached || !visible) source = null;
+    const value = communityBusNotice(
+      source
+        ? {
+            serviceOpen: source.userData.communityServiceOpen,
+            doorsOpen: source.userData.communityDoorsOpen,
+          }
+        : null
+    );
+    if (value !== last.current) {
+      last.current = value;
+      setNotice(value);
+    }
+  });
+  return (
+    <group name="bus-service-board" position={[0, 1.65, -0.84]} userData={{ noStaticBatch: true }}>
+      <mesh position={[0, 0, -0.04]}>
+        <boxGeometry args={[0.88, 1.12, 0.055]} />
+        <meshStandardMaterial color="#294b3c" roughness={0.6} metalness={0.15} />
+      </mesh>
+      <mesh material={paper}>
+        <planeGeometry args={[0.78, 1.02]} />
+      </mesh>
+      {[-1, 1].map((side) => (
+        <mesh key={side} position={[0, side * 0.485, 0.006]}>
+          <planeGeometry args={[0.71, 0.012]} />
+          <meshStandardMaterial color="#a27733" roughness={0.7} />
+        </mesh>
+      ))}
+      <IlluminatedSignText
+        name="bus-route-heading"
+        position={[0, 0.35, 0.009]}
+        fontSize={0.125}
+        maxWidth={0.7}
+        letterSpacing={0.02}
+        color="#283f49"
+        anchorX="center"
+        anchorY="middle"
+        surface="painted"
+      >
+        ROUTE 42
+      </IlluminatedSignText>
+      <IlluminatedSignText
+        position={[0, 0.15, 0.009]}
+        fontSize={0.073}
+        maxWidth={0.7}
+        color="#283f49"
+        anchorX="center"
+        anchorY="middle"
+        surface="painted"
+      >
+        Town Centre
+      </IlluminatedSignText>
+      <IlluminatedSignText
+        name="bus-service-notice"
+        position={[0, -0.19, 0.009]}
+        fontSize={0.063}
+        maxWidth={0.7}
+        lineHeight={1.45}
+        textAlign="center"
+        color="#283f49"
+        anchorX="center"
+        anchorY="middle"
+        surface="painted"
+        characters="ROUTE INFORMATIONBUS AT THE STOPSERVICE HOURS06:00 TO 22:00"
+      >
+        {notice}
       </IlluminatedSignText>
     </group>
   );

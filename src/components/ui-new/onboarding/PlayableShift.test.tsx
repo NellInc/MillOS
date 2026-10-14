@@ -429,7 +429,7 @@ it('keeps real inspection tracking mounted in the compact scene guide and restor
   fireEvent.click(screen.getByRole('button', { name: 'Show milling line' }));
   expect(screen.getByLabelText('Delivery deadline')).toHaveTextContent(deadline!);
   expect(screen.getByRole('button', { name: 'Expand delivery guide' })).toBeInTheDocument();
-  expect(screen.queryByRole('combobox', { name: 'Shift pace' })).not.toBeInTheDocument();
+  expect(screen.getByRole('combobox', { name: 'Shift pace' })).toBeInTheDocument();
   expect(screen.getByText('Select a machine to record your inspection.')).toBeInTheDocument();
   expect(useUIStore.getState().journeyVisible).toBe(true);
   rerender(
@@ -647,4 +647,52 @@ it('routes completed-delivery response guidance to Overview without advancing th
   expect(onOpen).toHaveBeenCalledWith('overview');
   expect(useOperationsCampaignStore.getState()).toBe(before);
   expect(useGameSimulationStore.getState()).toBe(clock);
+});
+
+it('compacts directly without moving the camera or changing customer/inspection credit', () => {
+  const campaign = useOperationsCampaignStore.getState();
+  useUIStore.getState().startDeliveryJourney(campaign.activeOrderId);
+  render(<FirstDeliveryJourney selectedMachine={null} onOpenWorkspace={vi.fn()} />);
+  const camera = useCameraStore.getState(),
+    deadline = screen.getByLabelText('Delivery deadline').textContent;
+  fireEvent.click(screen.getByRole('button', { name: 'Compact delivery guide' }));
+  expect(screen.getByRole('button', { name: 'Expand delivery guide' })).toHaveFocus();
+  expect(screen.getByRole('button', { name: 'Expand delivery guide' })).toHaveAttribute(
+    'aria-expanded',
+    'false'
+  );
+  expect(screen.getByLabelText('Delivery deadline')).toHaveTextContent(deadline!);
+  expect(useCameraStore.getState()).toBe(camera);
+  expect(useOperationsCampaignStore.getState()).toBe(campaign);
+  expect(useUIStore.getState().inspectedMachineIds).toEqual([]);
+  fireEvent.change(screen.getByRole('combobox', { name: 'Shift pace' }), {
+    target: { value: '0' },
+  });
+  expect(useGameSimulationStore.getState().gameSpeed).toBe(0);
+  fireEvent.click(screen.getByRole('button', { name: 'Expand delivery guide' }));
+  expect(screen.getByRole('button', { name: 'Compact delivery guide' })).toHaveFocus();
+  fireEvent.click(screen.getByRole('button', { name: 'Compact delivery guide' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Close guided delivery' }));
+  expect(useUIStore.getState().journeyVisible).toBe(false);
+  expect(useOperationsCampaignStore.getState()).toBe(campaign);
+});
+
+it('keeps fulfilled receipts reachable after compacting without granting new customer credit', () => {
+  const before = useOperationsCampaignStore.getState(),
+    order = before.orders[0];
+  useOperationsCampaignStore.setState({
+    orders: before.orders.map((o) =>
+      o.id === order.id ? { ...o, status: 'fulfilled', shippedKg: o.requiredKg } : o
+    ),
+  });
+  useUIStore.getState().startDeliveryJourney(order.id);
+  useUIStore.getState().recordMachineInspection('mill-1');
+  const state = useOperationsCampaignStore.getState();
+  render(<FirstDeliveryJourney selectedMachine={null} onOpenWorkspace={vi.fn()} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Compact delivery guide' }));
+  expect(screen.getByRole('heading', { name: 'Delivery fulfilled' })).toBeInTheDocument();
+  expect(screen.getByRole('combobox', { name: 'Shift pace' })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Expand delivery guide' }));
+  expect(screen.getByText('Delivery receipt and learning')).toBeInTheDocument();
+  expect(useOperationsCampaignStore.getState()).toBe(state);
 });
