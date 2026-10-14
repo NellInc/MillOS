@@ -6,6 +6,7 @@ import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
 import draco3d from 'draco3dgltf';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { WORKER_EYE_CENTRES } from './SharedWorkerGeometries';
 import type { GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import { clone } from 'three/addons/utils/SkeletonUtils.js';
 import { createSeatedWorkerPose, createWorkerGesture, sampleWorkerGesture } from './workerPose';
@@ -477,4 +478,42 @@ describe('living gestures on actual authored bodies', () => {
     expect(a).not.toEqual(b);
     expect(sampleWorkerGesture('garden', 1, out)).toEqual(a);
   });
+});
+
+it('places facial details on actual deformed eye fronts through both authored head rigs', () => {
+  for (const body of ['masculine', 'feminine'] as const) {
+    const gltf = bodies.get(body)!;
+    const scene = clone(gltf.scene),
+      mixer = new THREE.AnimationMixer(scene);
+    const action = mixer.clipAction(gltf.animations.find((c) => c.name === 'worker-idle')!);
+    action.play();
+    for (const time of [0, 0.4, 1.2]) {
+      mixer.setTime(time);
+      scene.updateMatrixWorld(true);
+      const head = scene.getObjectByName('Head')!,
+        inverse = head.matrixWorld.clone().invert(),
+        box = new THREE.Box3();
+      scene.traverse((o) => {
+        const mesh = o as THREE.SkinnedMesh;
+        if (
+          !mesh.isSkinnedMesh ||
+          (mesh.material as THREE.Material).name !== (body === 'masculine' ? 'Eye' : 'Brown')
+        )
+          return;
+        for (let i = 0; i < mesh.geometry.attributes.position.count; i++)
+          box.expandByPoint(
+            mesh
+              .getVertexPosition(i, new THREE.Vector3())
+              .applyMatrix4(mesh.matrixWorld)
+              .applyMatrix4(inverse)
+          );
+      });
+      const [x, y, z] = WORKER_EYE_CENTRES[body];
+      expect(Math.abs(x - (box.min.x + box.max.x) / 2)).toBeLessThan(0.002);
+      expect(y).toBeGreaterThan(box.min.y + 0.005);
+      expect(y).toBeLessThan(box.max.y - 0.005);
+      expect(z).toBeGreaterThan((box.min.z + box.max.z) / 2 + 0.006);
+      expect(z).toBeLessThan(box.max.z + 0.004);
+    }
+  }
 });

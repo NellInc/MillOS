@@ -13,8 +13,11 @@ import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
 import { useDracoGLTF } from '../../utils/dracoLoader';
 import type { WorkerAppearance, WorkerBodyType, WorkerWorkAction } from '../workers/workerTypes';
 import { ToolAccessory } from '../workers/WorkerTools';
-import { SHARED_WORKER_GEOMETRY } from '../workers/SharedWorkerGeometries';
-import { SHARED_WORKER_ACCESSORY_MATERIALS } from '../workers/SharedWorkerMaterials';
+import { SHARED_WORKER_GEOMETRY, WORKER_EYE_CENTRES } from '../workers/SharedWorkerGeometries';
+import {
+  SHARED_WORKER_ACCESSORY_MATERIALS,
+  SHARED_WORKER_MATERIALS,
+} from '../workers/SharedWorkerMaterials';
 import { createWorkerBodyLod } from '../workers/workerBodyLod';
 import type { WorkerMotionState } from '../workers/workerTypes';
 import {
@@ -128,7 +131,7 @@ const EAR_DEFENDER_BAND = new THREE.TorusGeometry(0.104, 0.008, 6, 18, Math.PI);
 const SUPERVISOR_CABLE = new THREE.TorusGeometry(0.065, 0.005, 6, 18, Math.PI * 1.25);
 const SUPERVISOR_RADIO_KNOB = new THREE.CylinderGeometry(0.009, 0.009, 0.012, 10);
 
-type WorkerAccessoryPairKind = 'glasses-temples' | 'hearing-cups' | 'vest-strips';
+type WorkerAccessoryPairKind = 'glasses-temples' | 'hearing-cups' | 'vest-strips' | 'eye-pupils';
 const ACCESSORY_PAIRS: Record<
   WorkerAccessoryPairKind,
   {
@@ -140,6 +143,7 @@ const ACCESSORY_PAIRS: Record<
 > = {
   'glasses-temples': { x: 0.084, z: -0.052, scale: [0.008, 0.008, 0.112], rotationZ: 0 },
   'hearing-cups': { x: 0.104, z: 0, scale: [1, 1, 1], rotationZ: Math.PI / 2 },
+  'eye-pupils': { x: 0.047, z: 0, scale: [0.005, 0.008, 0.0025], rotationZ: 0 },
   'vest-strips': { x: 0.078, z: 0, scale: [0.018, 0.135, 0.008], rotationZ: 0 },
 };
 
@@ -151,7 +155,12 @@ export function createWorkerAccessoryPair(
   material: THREE.Material
 ): THREE.InstancedMesh {
   const spec = ACCESSORY_PAIRS[kind];
-  const geometry = kind === 'hearing-cups' ? EAR_DEFENDER : UNIT_BOX;
+  const geometry =
+    kind === 'hearing-cups'
+      ? EAR_DEFENDER
+      : kind === 'eye-pupils'
+        ? SHARED_WORKER_GEOMETRY.eyePupil
+        : UNIT_BOX;
   const mesh = new THREE.InstancedMesh(geometry, material, 2);
   mesh.name = `worker-paired-${kind}`;
   mesh.matrixAutoUpdate = false;
@@ -417,8 +426,11 @@ function surfaceColor(surface: WorkerSurface, appearance: WorkerAppearance): THR
     case 'skin':
       return new THREE.Color(appearance.skinTone);
     case 'hardHat':
-    case 'hiVisStrap':
       return new THREE.Color(appearance.hatColor);
+    case 'hiVisStrap':
+      return appearance.hasVest
+        ? new THREE.Color(appearance.hatColor)
+        : shade(appearance.uniformColor, 0.88);
     case 'hiVis':
       return new THREE.Color(appearance.hasVest ? appearance.accentColor : appearance.uniformColor);
     case 'shirt':
@@ -456,7 +468,10 @@ function createSurfaceMaterial(
   surface: WorkerSurface,
   appearance: WorkerAppearance
 ): THREE.MeshStandardMaterial {
-  const profile = SURFACE_PROFILES[surface];
+  const profile =
+    SURFACE_PROFILES[
+      !appearance.hasVest && (surface === 'hiVis' || surface === 'hiVisStrap') ? 'shirt' : surface
+    ];
   const base = {
     color: surfaceColor(surface, appearance),
     roughness: profile.roughness,
@@ -493,16 +508,27 @@ const WorkerAccessories: React.FC<{
   model: THREE.Group;
   materials: AccessoryMaterials;
   toolRef: React.RefObject<THREE.Group | null>;
-}> = ({ appearance, model, materials, toolRef }) => {
+  faceRef: React.RefObject<THREE.Group | null>;
+}> = ({ appearance, model, materials, toolRef, faceRef }) => {
   const head = model.getObjectByName('Head') ?? null;
   const chest = model.getObjectByName('Chest') ?? null;
   const hips = model.getObjectByName('Hips') ?? null;
   const wrist = model.getObjectByName('WristL') ?? null;
   const isSupervisor = appearance.workAction === 'supervise';
+  const eyeCentre = WORKER_EYE_CENTRES[appearance.bodyType];
   return (
     <>
+      <BoneMount bone={head} name="worker-eye-detail" position={[...eyeCentre]}>
+        <group ref={faceRef}>
+          <WorkerAccessoryPair kind="eye-pupils" material={SHARED_WORKER_MATERIALS.pupil} />
+        </group>
+      </BoneMount>
       {appearance.hasSafetyGlasses && (
-        <BoneMount bone={head} name="worker-safety-glasses" position={[0, 0.055, 0.12]}>
+        <BoneMount
+          bone={head}
+          name="worker-safety-glasses"
+          position={[eyeCentre[0], eyeCentre[1], eyeCentre[2] + 0.018]}
+        >
           {[-0.047, 0.047].map((x) => (
             <mesh
               key={x}
@@ -522,49 +548,51 @@ const WorkerAccessories: React.FC<{
       )}
 
       {appearance.hasHearingProtection && (
-        <BoneMount bone={head} name="worker-hearing-protection" position={[0, 0.055, 0]}>
+        <BoneMount bone={head} name="worker-hearing-protection" position={[eyeCentre[0], 0.14, 0]}>
           <WorkerAccessoryPair kind="hearing-cups" material={materials.accent} />
           <mesh position={[0, 0.002, 0]} geometry={EAR_DEFENDER_BAND} material={materials.dark} />
         </BoneMount>
       )}
 
-      <BoneMount bone={chest} name="worker-identity-badge" position={[0.105, 0.018, 0.142]}>
-        <mesh geometry={UNIT_BOX} material={materials.badge} scale={[0.062, 0.082, 0.009]} />
-        <mesh
-          position={[0, 0.033, 0.006]}
-          geometry={UNIT_BOX}
-          material={materials.accent}
-          scale={[0.052, 0.009, 0.004]}
-        />
-        <mesh
-          position={[-0.017, -0.009, 0.006]}
-          geometry={UNIT_BOX}
-          material={materials.dark}
-          scale={[0.018, 0.027, 0.004]}
-        />
-        {isSupervisor && (
-          <>
-            <mesh
-              position={[0.015, 0.006, 0.006]}
-              geometry={UNIT_BOX}
-              material={materials.dark}
-              scale={[0.021, 0.004, 0.004]}
-            />
-            <mesh
-              position={[0.015, -0.008, 0.006]}
-              geometry={UNIT_BOX}
-              material={materials.dark}
-              scale={[0.021, 0.004, 0.004]}
-            />
-            <mesh
-              position={[0.015, -0.022, 0.006]}
-              geometry={UNIT_BOX}
-              material={materials.accent}
-              scale={[0.021, 0.004, 0.004]}
-            />
-          </>
-        )}
-      </BoneMount>
+      {(appearance.hasHardHat || appearance.hasVest || appearance.hasLabCoat) && (
+        <BoneMount bone={chest} name="worker-identity-badge" position={[0.105, 0.018, 0.142]}>
+          <mesh geometry={UNIT_BOX} material={materials.badge} scale={[0.062, 0.082, 0.009]} />
+          <mesh
+            position={[0, 0.033, 0.006]}
+            geometry={UNIT_BOX}
+            material={materials.accent}
+            scale={[0.052, 0.009, 0.004]}
+          />
+          <mesh
+            position={[-0.017, -0.009, 0.006]}
+            geometry={UNIT_BOX}
+            material={materials.dark}
+            scale={[0.018, 0.027, 0.004]}
+          />
+          {isSupervisor && (
+            <>
+              <mesh
+                position={[0.015, 0.006, 0.006]}
+                geometry={UNIT_BOX}
+                material={materials.dark}
+                scale={[0.021, 0.004, 0.004]}
+              />
+              <mesh
+                position={[0.015, -0.008, 0.006]}
+                geometry={UNIT_BOX}
+                material={materials.dark}
+                scale={[0.021, 0.004, 0.004]}
+              />
+              <mesh
+                position={[0.015, -0.022, 0.006]}
+                geometry={UNIT_BOX}
+                material={materials.accent}
+                scale={[0.021, 0.004, 0.004]}
+              />
+            </>
+          )}
+        </BoneMount>
+      )}
 
       {isSupervisor && (
         <>
@@ -699,6 +727,7 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
   const { scene, animations } = useDracoGLTF(modelPath);
   const actionsRef = useRef<Partial<Record<WorkerClipName, THREE.AnimationAction>>>({});
   const toolRef = useRef<THREE.Group>(null);
+  const faceRef = useRef<THREE.Group>(null);
   const gesture = useMemo(createWorkerGesture, []);
   const gestureTime = useRef(Number.isFinite(motion.phase) ? motion.phase : 0);
   const pendingDelta = useRef(0);
@@ -838,7 +867,13 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
   useFrame((state, delta) => {
     // Camera changes must update the body draw LOD even while the simulation
     // is paused or a distant animation sample is being throttled.
-    if (state.camera) prepared.bodyLod?.update(state.camera);
+    if (state.camera) {
+      prepared.bodyLod?.update(state.camera);
+      if (faceRef.current) {
+        prepared.model.getWorldPosition(_center);
+        faceRef.current.visible = state.camera.position.distanceToSquared(_center) < 18 * 18;
+      }
+    }
     let safeDelta =
       motion.enabled && Number.isFinite(delta) ? THREE.MathUtils.clamp(delta, 0, 0.075) : 0;
     const speed = Number.isFinite(motion.groundSpeed) ? Math.max(0, motion.groundSpeed) : 0;
@@ -925,8 +960,8 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
     }
     const walk = actionsRef.current['worker-walk'];
     const run = actionsRef.current['worker-run'];
-    if (walk) walk.timeScale = THREE.MathUtils.clamp(speed / (clipSpeed.walk * scale), 0.55, 1.9);
-    if (run) run.timeScale = THREE.MathUtils.clamp(speed / (clipSpeed.run * scale), 0.7, 2.4);
+    if (walk) walk.timeScale = THREE.MathUtils.clamp(speed / (clipSpeed.walk * scale), 0, 1.9);
+    if (run) run.timeScale = THREE.MathUtils.clamp(speed / (clipSpeed.run * scale), 0, 2.4);
     mixer.update(safeDelta);
     if (motion.cycling) seatedPose.applyCycling(motion.cyclePhase ?? 0);
     else if (motion.seated) seatedPose.apply(motion.seatFloorOffset ?? 0, gesture);
@@ -961,6 +996,7 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
         model={prepared.model}
         materials={accessoryMaterials}
         toolRef={toolRef}
+        faceRef={faceRef}
       />
     </group>
   );

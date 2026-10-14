@@ -25,6 +25,7 @@ import {
   sampleCommunityDelivery,
   advanceCommunityBusClock,
   advanceCommunityPeopleClock,
+  advanceCommunityPresentationClock,
   hasCommunityBakerySupply,
   communityWorkResponse,
   communityAgreementCue,
@@ -75,7 +76,12 @@ export function CommunityLife() {
   const initialHour = useRef(
     useGameSimulationStore.getState().gameDay * 24 + useGameSimulationStore.getState().gameTime
   ).current;
-  const clocks = useRef({ world: initialHour, people: initialHour, bus: initialHour });
+  const clocks = useRef({
+    world: initialHour,
+    presentation: initialHour,
+    people: initialHour,
+    bus: initialHour,
+  });
   const operations = useRef<CommunityOperationsSnapshot>({
     machines: [],
     workOrders: [],
@@ -157,32 +163,44 @@ export function CommunityLife() {
     const game = useGameSimulationStore.getState();
     const worldHour = game.gameDay * 24 + game.gameTime;
     const elapsed = worldHour - clocks.current.world;
-    const jump = Math.abs(elapsed) > 0.5;
+    const jump = elapsed < 0 || Math.abs(elapsed) > 0.5;
     const emergency = game.emergencyActive || game.emergencyDrillMode;
-    const moving = game.isTabVisible && game.gameSpeed > 0 && !emergency;
+    const held = emergency || !game.isTabVisible;
+    const moving = !held && game.gameSpeed > 0;
+    const previousPresentation = clocks.current.presentation;
+    clocks.current.presentation = advanceCommunityPresentationClock(
+      previousPresentation,
+      worldHour,
+      elapsed,
+      delta,
+      game.gameSpeed,
+      game.isTabVisible,
+      emergency
+    );
+    const presentedElapsed = held ? 0 : clocks.current.presentation - previousPresentation;
+    const reframe = !held && (jump || (!moving && elapsed !== 0));
     const previousPeopleHour = clocks.current.people;
     clocks.current.people = advanceCommunityPeopleClock(
       clocks.current.people,
-      worldHour,
-      elapsed,
+      clocks.current.presentation,
+      presentedElapsed,
       moving,
-      emergency
+      held
     );
-    if (jump && !emergency) clocks.current.bus = worldHour;
+    if (reframe) clocks.current.bus = worldHour;
     let trafficBlocked = false;
     const truck = scene.getObjectByName('shipping-truck');
     if (truck?.visible) {
       truck.getWorldPosition(_truckPosition);
       trafficBlocked = _truckPosition.z > 75 && _truckPosition.z < 260;
     }
-    if (!emergency)
+    if (!held)
       clocks.current.bus = advanceCommunityBusClock(
         clocks.current.bus,
-        jump ? 0 : moving ? elapsed : 0,
+        reframe ? 0 : moving ? presentedElapsed : 0,
         trafficBlocked
       );
-    if (!moving && !emergency && elapsed !== 0)
-      clocks.current.bus = advanceCommunityBusClock(worldHour, 0, trafficBlocked);
+    if (reframe) clocks.current.bus = advanceCommunityBusClock(worldHour, 0, trafficBlocked);
     clocks.current.world = worldHour;
     Object.assign(bus, sampleCommunityBus(clocks.current.bus));
     Object.assign(bicycle, sampleCommunityCyclist(clocks.current.people));
@@ -217,8 +235,16 @@ export function CommunityLife() {
         Math.sin(pose.rotation - root.rotation.y),
         Math.cos(pose.rotation - root.rotation.y)
       );
+      // Riders and held cart grips share their prop's exact heading. Easing only
+      // the body breaks the hand/foot contacts during turns.
+      // Working if rider and bicycle transforms agree on every moving frame.
+      const coupled =
+        actor.person.role === 'Cyclist' ||
+        (actor.person.id === 'village-courier' && !!drop.cartGrip);
       root.rotation.y =
-        moving && !jump ? root.rotation.y + turn * (1 - Math.exp(-delta * 8)) : pose.rotation;
+        moving && !jump && !coupled
+          ? root.rotation.y + turn * (1 - Math.exp(-delta * 8))
+          : pose.rotation;
       root.visible = pose.visible;
       motion.activity = emergency && !pose.seated ? 'idle' : pose.activity;
       motion.seated = pose.seated;
@@ -237,7 +263,12 @@ export function CommunityLife() {
       if (label) label.visible = distanceSquared < 50 * 50;
       motion.animationInterval =
         distanceSquared < 18 * 18 ? 1 / 60 : distanceSquared < 50 * 50 ? 1 / 30 : 1 / 15;
-      motion.enabled = moving && !reducedMotion && pose.visible && distanceSquared < 150 * 150;
+      motion.enabled =
+        moving &&
+        presentedElapsed > 0 &&
+        !reducedMotion &&
+        pose.visible &&
+        distanceSquared < 150 * 150;
       const response = communityWorkResponse(actor.person, pose, operations, actor.response);
       communityAgreementResponse(agreement, pose, response);
       const task = emergency ? 'Holding safely for the site safety stop' : response.task;

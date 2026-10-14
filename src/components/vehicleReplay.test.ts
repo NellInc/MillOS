@@ -42,6 +42,7 @@ vi.mock('zustand', async (importOriginal) => {
       initializer ? build(initializer) : build,
   };
 });
+vi.mock('../hooks/useReducedMotion', () => ({ useReducedMotion: () => false }));
 vi.mock('zustand/react/shallow', () => ({ useShallow: (selector: unknown) => selector }));
 vi.mock('@react-three/fiber', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@react-three/fiber')>()),
@@ -61,6 +62,7 @@ vi.mock('../simulation/workplaceReplayRuntime', () => ({
   },
 }));
 
+import { CommunityLife } from './CommunityLife';
 import { TruckBay } from './TruckBay';
 import { TRUCK_WHEEL_RADIUS } from './truckbay/OptimizedTruckBay';
 import { ForkliftSystem } from './ForkliftSystem';
@@ -320,4 +322,97 @@ it('applies to mounted controllers while preserving cargo, operation phase, time
   expect(participant.capture()).toEqual(checkpoint);
   expect(useLogisticsLayoutStore.getState().undoApplied(1, key).changed).toBe(true);
   expect(participant.capture()).toEqual(checkpoint);
+});
+
+it('interpolates live personnel safely and restores the captured presentation cursor repeatedly', () => {
+  useGameSimulationStore.setState({
+    gameTime: 12,
+    gameDay: 1,
+    gameSpeed: 180,
+    isTabVisible: true,
+    emergencyActive: false,
+    emergencyDrillMode: false,
+  });
+  const tree = CommunityLife();
+  const nodes = tree.props.children[0].props.children;
+  const roots = nodes.map((node: any) => {
+    const root = new THREE.Group();
+    root.name = node.props.name;
+    root.position.fromArray(node.props.position);
+    root.rotation.y = node.props.rotation[1];
+    node.props.ref(root);
+    return root;
+  });
+  flushEffects();
+  const scene = new THREE.Scene();
+  roots.forEach((root: THREE.Group) => scene.add(root));
+  const frame = harness.frames[0] as (state: any, delta: number) => void;
+  frame({ camera, scene }, 1 / 60);
+  const participant = harness.participants.get('personnel')!;
+  const checkpoint = structuredClone(participant.capture());
+  useGameSimulationStore.setState({ gameTime: 12.025 });
+  const at = roots[0].position.clone();
+  frame({ camera, scene }, 1 / 60);
+  expect(roots[0].position.distanceTo(at)).toBeCloseTo(1.1 / 60, 6);
+  useGameSimulationStore.setState({ gameSpeed: 0 });
+  const paused = roots[0].position.clone();
+  frame({ camera, scene }, 1 / 60);
+  expect(roots[0].position.equals(paused)).toBe(true);
+  useGameSimulationStore.setState({ gameTime: 20, emergencyDrillMode: true });
+  frame({ camera, scene }, 1 / 60);
+  expect(roots[0].position.equals(paused)).toBe(true);
+  const held = participant.capture();
+  expect(held.clocks.presentation).toBe(44);
+  expect(held.clocks.people).toBeLessThan(36.025);
+  useGameSimulationStore.setState({ gameTime: 12, emergencyDrillMode: false, gameSpeed: 180 });
+  participant.restore(structuredClone(checkpoint));
+  frame({ camera, scene }, 1 / 60);
+  expect(roots[0].position.equals(at)).toBe(true);
+  useGameSimulationStore.setState({ gameTime: 12.025 });
+  frame({ camera, scene }, 1 / 60);
+  participant.restore(structuredClone(checkpoint));
+  expect(participant.capture().clocks).toEqual(checkpoint.clocks);
+  expect(checkpoint.clocks.presentation).toBe(36);
+});
+
+it('locks a turning rider to the actual bicycle heading, preserving pedal and hand contacts', () => {
+  useGameSimulationStore.setState({
+    gameTime: 11.76,
+    gameDay: 0,
+    gameSpeed: 180,
+    isTabVisible: true,
+    emergencyActive: false,
+    emergencyDrillMode: false,
+  });
+  const tree = CommunityLife(),
+    nodes = tree.props.children[0].props.children;
+  const roots = nodes.map((node: any) => {
+    const root = new THREE.Group();
+    root.name = node.props.name;
+    root.position.fromArray(node.props.position);
+    root.rotation.y = node.props.rotation[1];
+    node.props.ref(root);
+    return root;
+  });
+  flushEffects();
+  const scene = new THREE.Scene();
+  roots.forEach((root: THREE.Group) => scene.add(root));
+  const frame = harness.frames[0] as (state: any, delta: number) => void;
+  useGameSimulationStore.setState({ gameTime: 11.785 });
+  const initialHeading = harness.participants.get('personnel')!.capture().bicycle.rotation;
+  let finalHeading = initialHeading;
+  for (let i = 0; i < 30; i++) {
+    frame({ camera, scene }, 1 / 60);
+    const bike = harness.participants.get('personnel')!.capture().bicycle;
+    finalHeading = bike.rotation;
+    const rider = roots.find((root: THREE.Group) => root.name === 'village-cyclist')!;
+    const angle = Math.atan2(
+      Math.sin(rider.rotation.y - bike.rotation),
+      Math.cos(rider.rotation.y - bike.rotation)
+    );
+    expect(Math.abs(angle)).toBeLessThan(1e-8);
+    expect(rider.position.x).toBeCloseTo(bike.x, 9);
+    expect(rider.position.z).toBeCloseTo(bike.z, 9);
+  }
+  expect(Math.abs(finalHeading - initialHeading)).toBeGreaterThan(0.1);
 });

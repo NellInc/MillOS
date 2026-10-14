@@ -16,6 +16,7 @@ export const createWorkerGesture = () => ({
   restReach: 0,
   workStroke: 0,
   workCheck: 0,
+  breath: 0,
 });
 export type WorkerGesture = ReturnType<typeof createWorkerGesture>;
 
@@ -28,7 +29,9 @@ export function sampleWorkerGesture(
   out: WorkerGesture
 ) {
   const t = Number.isFinite(seconds) ? seconds : 0;
-  const cycle = 0.5 - 0.5 * Math.cos((t * Math.PI * 2) / (kind === 'garden' ? 3.6 : 6.4));
+  const tempo = t + Math.sin(t * 0.41) * 0.18;
+  const cycle = 0.5 - 0.5 * Math.cos((tempo * Math.PI * 2) / (kind === 'garden' ? 3.6 : 6.4));
+  out.breath = Math.sin(t * 1.45) * 0.5 + 0.5;
   out.toolY = kind === 'garden' ? cycle * 0.08 : kind === 'bake' ? cycle * 0.04 : 0;
   out.toolZ = kind === 'garden' ? -cycle * 0.035 : kind === 'bake' ? cycle * 0.035 : 0;
   // A glance has a quiet dwell and a smooth return, rather than continuous
@@ -306,6 +309,8 @@ export function createSeatedWorkerPose(model: THREE.Object3D, heightScale = 1, b
     applyWork(action: WorkerWorkAction, gesture: WorkerGesture) {
       capture();
       look(gesture);
+      const abdomen = bones.get('Abdomen');
+      if (abdomen) abdomen.scale.z *= 1 + gesture.breath * 0.009;
       const left = bones.get('LowerArmL');
       const right = bones.get('LowerArmR');
       const wrist = bones.get('WristL');
@@ -333,7 +338,10 @@ export function createSeatedWorkerPose(model: THREE.Object3D, heightScale = 1, b
       capture();
       look(gesture);
       const abdomen = bones.get('Abdomen');
-      if (abdomen) abdomen.rotateZ(gesture.lookPitch * 0.25);
+      if (abdomen) {
+        abdomen.rotateZ(gesture.lookPitch * 0.25);
+        abdomen.scale.z *= 1 + gesture.breath * 0.012;
+      }
       applied = true;
       model.updateWorldMatrix(false, true);
     },

@@ -129,6 +129,15 @@ function mountAnimatedWorker(activity: WorkerMotionState['activity'] = 'idle', s
 }
 
 describe('animation scheduling and freezing', () => {
+  it('matches relaxed walking cadence to actual metres travelled, without a minimum-speed floor', () => {
+    const action = vi.spyOn(THREE.AnimationAction.prototype, 'play');
+    mountAnimatedWorker('walking', 1.1 / 6);
+    harness.frame?.({}, 1 / 30);
+    const walk = action.mock.contexts.find((a) => a.getClip().name === 'worker-walk')!;
+    expect(walk.timeScale).toBeLessThan(0.2);
+    expect(walk.timeScale).toBeGreaterThan(0);
+  });
+
   it('samples distant skeletons at 30 Hz while preserving elapsed animation time', () => {
     const { motion } = mountAnimatedWorker();
     const update = vi.spyOn(THREE.AnimationMixer.prototype, 'update');
@@ -489,4 +498,47 @@ it.each([
   pair.dispose();
   expect(geometryDispose).not.toHaveBeenCalled();
   expect(materialDispose).not.toHaveBeenCalled();
+});
+
+it('dresses residents in matte cloth without an industrial badge, while retaining worker PPE', () => {
+  for (const role of ['Resident', 'Operator']) {
+    const scene = new THREE.Group();
+    const body = new THREE.Group();
+    body.name = 'Worker_Body';
+    scene.add(body);
+    for (const name of ['Head', 'Chest']) {
+      const bone = new THREE.Group();
+      bone.name = name;
+      scene.add(bone);
+    }
+    const vest = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshStandardMaterial());
+    vest.material.name = 'Worker_Vest';
+    body.add(vest);
+    const strap = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshStandardMaterial());
+    strap.material.name = 'Worker_Yellow';
+    body.add(strap);
+    harness.asset = { scene, animations: [] };
+    const appearance = getWorkerAppearance(role, '#596e72', 'wardrobe-' + role);
+    const motion: WorkerMotionState = {
+      activity: 'idle',
+      groundSpeed: 0,
+      seated: false,
+      phase: 0,
+      enabled: false,
+    };
+    const view = render(<WorkerModel appearance={appearance} motion={motion} />);
+    expect(!!view.container.querySelector('[name="worker-identity-badge"]')).toBe(
+      role === 'Operator'
+    );
+    expect(vest.material.roughness).toBe(role === 'Operator' ? 0.6 : 0.86);
+    expect(strap.material.roughness).toBe(role === 'Operator' ? 0.48 : 0.86);
+    expect(strap.material.color.equals(new THREE.Color(appearance.hatColor))).toBe(
+      role === 'Operator'
+    );
+    const glasses = view.container.querySelector('[name="worker-safety-glasses"]');
+    expect(!!glasses).toBe(appearance.hasSafetyGlasses);
+    if (glasses)
+      expect(Number(glasses.getAttribute('position')?.split(',')[1])).toBeGreaterThan(0.09);
+    view.unmount();
+  }
 });

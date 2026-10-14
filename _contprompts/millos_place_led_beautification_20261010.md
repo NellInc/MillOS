@@ -1909,3 +1909,84 @@ Both final native jobs use sandboxed out-of-process NVIDIA A10, driver610.57.04,
 **Mac graphics pacing remains independently OPEN.** Historical cloud-card causal uncertainty remains unreproduced. No universal device/startup claim, new FPS acceptance or native castle-walk proof. No third equivalent civic-daylight render, light amplification, threshold reduction, skipped release check or publication. These limits do not hold this completed scoped polish pass.
 
 Exact final main: **assets/main-qp14GLeU.js**, SHA256 **ab4c643ddd24db16f6f130dea76d156992c14f493d8bf9b9c12f1073dffb055d**.
+
+
+### People-first character and animation programme, 2026-10-14
+
+Base a75fb3bc16a181af06073a1267afa4699bc3645f. Same isolated checkout/local-only boundary. Nell explicitly requested all-area polish with particular focus on people models and animations. Original budgets, loading90s, truck15s, returned-frame45, audio silence, 4GiB floor, quality/DPR/adaptation/shadows stay exact. Primary edits and protected output remain untouched. Working if people read as individual, appropriately dressed inhabitants and their actual rendered movement is continuous, cadence-correct, grounded and safely paused without mutating production truth.
+
+- [x] D01: Review both licensed bodies close in day and dusk.
+- [x] D02: Retain anonymous local CC0 identities.
+- [x] D03: Everyday cotton instead of industrial vest sheen.
+- [x] D04: Remove unnecessary industrial resident fittings.
+- [x] D05: Preserve role-appropriate PPE.
+- [x] D06: Refine face/hair/eyes/hands only where rendered evidence warrants.
+- [x] D07: Retain coherent role colours and body variation.
+- [x] D08: Preserve shared fittings, private skeletons and distance LOD.
+- [x] D09: Measure movement at normal/relaxed speed.
+- [x] D10: Correct travel-to-stride cadence.
+- [x] D11: Correct reproduced tick jumps and gait flicker.
+- [x] D12: Keep authored safe routes.
+- [x] D13: Smooth walking/work/wait transitions.
+- [x] D14: Keep tools wrist mounted.
+- [x] D15: Refine baking and gardening gestures.
+- [x] D16: Refine inspection/maintenance/supervision.
+- [x] D17: Restrained breathing, weight shifts and glances.
+- [x] D18: Comfortable supported seated rest.
+- [x] D19: Bicycle/handcart contact alignment.
+- [x] D20: Individual animation phase.
+- [x] D21: Pause and safety-stop freeze.
+- [x] D22: Reduced motion and distant sampling.
+- [x] D23: Protected rest and replay preservation.
+- [x] D24: Workers at actual machines.
+- [x] D25: Baker/shopkeeper/gardener in context.
+- [x] D26: Residents/passengers/courier/cyclist in context.
+- [x] D27: Evening face/clothing light contrast.
+- [x] D28: Grounding/shadows/prop intersections.
+- [x] D29: Truthful activity cues.
+- [x] D30: Hours/weather/stock/quality preservation.
+- [x] D31: All-area regression review.
+- [x] D32: Keep independent graphics pacing OPEN.
+- [x] D33: Named pre-edit baseline.
+- [x] D34: Small reproduced-defect regression tests.
+- [x] D35: Required final project gates.
+- [x] D36: Exact-candidate silent temporal/native checks.
+- [x] D37: Direct image review and observed-defect repair.
+- [x] D38: Saved gallery/receipts/completed dispositions.
+- [x] D39: Verified own-only disposable cleanup.
+- [x] D40: Validated local check-in.
+
+Pre-edit affected baseline: **168 passed / 7 files**, no failing names. Raw log and terminal exit retained at `test-results/people-character-polish-20261014/remote-egl/affected-baseline.log`. Mac graphics pacing remains independently OPEN.
+
+D-pass implementation checkpoint: everyday cloth/straps and badge semantics, measured facial/PPE placement with near-only paired pupils, cadence without a minimum-speed floor, shared route-preserving presentation interpolation, breathing and varied gardening/baking rhythms are implemented. First native old-build motion evidence reproduces 378 zero-speed frames plus13 capped jumps in391 walking frames. First native adapter failed before guide opening; corrected baseline retained12 usable model frames/raw motion, then failed its immediate pre-render pause comparison. Candidate waits for actual pause renders before its frozen control. These red receipts remain. The original build identity and raw baseline motion are retained, not labelled accepted final evidence.
+
+Required final CPU gates pass:181 tests/8files, typecheck, lint, format, shaders, build and reachability all exit0. App ap-E6z8DeYo6lplifd4fNCP13, aggregate148.97s under210s, build23.25s. All1219source/public inputs and388compiled outputs rechecked. Native day check in progress. Optional design detector exits1 for three pre-existing untouched DOM gray-on-colour advisories; retained and triaged, no bulk UI changes. Root discarded the adviser checkpoint-alias concern after checking that restoreReplayParticipants already structured-clones saved values. Existing replay harness confirms repeated presentation cursor restore.
+
+D-pass observed-defect correction: the first close images and actual skinned-vertex read showed that raw bind vertices were an invalid facial-anchor reference. Corrected Head-local eye fronts are masculine(.0004,.108,.112), feminine(.00035,.103,.114); glasses follow these deformed-eye heights and sit18mm forward. A real two-rig deformation test now protects the contract. The native adapter's explicit reduced-motion arm had accidentally been set to no-preference; restored the actual reduce arm. First candidate/receipts/images retained under `pre-skinned-anchor/`, never called accepted final evidence. Final corrected CPU app ap-ubCJJzIE9cT3nYhABnsl38 passes182tests/8files and all required gates, aggregate140.06s, build21.07s. Final native checks include same-page pupil on/off/on pixels, not object visibility flags alone.
+
+### People-first character and animation closure, 2026-10-14
+
+**All D01-D40 completed for this finite pass.** The local commit carrying this record contains only the nine owned source/test files and this contprompt. Exact resulting commit is recorded in `test-results/people-character-polish-20261014/remote-egl/accepted-people-character-local-scope.json`. No primary integration, push or deployment. Root authored this pass and directly reviewed all110 final frames on nine labelled contact sheets, plus seven full-resolution frames. The preceding181/182-test build checkpoints and partial native receipts are superseded, retained as diagnostic evidence.
+
+- **D01-D08, model appearance:** both original locally licensed anonymous CC0 bodies, deterministic role/body/hair/complexion variation and proportions remain. Everyday vest/strap body slots now use matte cotton and lose their industrial badge; industrial roles retain vest, hard hat, badge, safety glasses and hearing protection. Lenses are centred on the actual deformed eyes and sit18mm forward. Two near-only pupils use one shared instanced pair, with the existing shared pupil material and no new light, map or imported asset. Their18m gate complements unchanged body LOD. Shared fittings remain immutable; each worker's skeleton/material ownership and cleanup are preserved. Both actual skin rigs pass head-space eye-front checks through three idle phases. Original hair and hands were reviewed and retained.
+- **D09-D14, movement and tools:** the presentation cursor consumes only already-admitted simulation time, at a bounded render delta, without extrapolation or a second plant clock. Actual old-baseline walking traces contained378 stationary frames and13 capped jumps in391 frames at both tested paces. Final Standard180 travel is median1.100m/s, Relaxed30 median.183333m/s; maxima equal those rates, with no tick jump. Walking timeScale no longer has the incorrect.55 minimum, nor running the.7 minimum. Existing crossfades, safe authored routes, ground datum, wrist mounts and exact hand/tool targets remain. The seven existing replay tests plus two added mounted-personnel tests include repeated cursor restoration and a real turning rider.
+- **D15-D23, living poses and safe holds:** restrained abdomen breathing and a bounded nonuniform baking/gardening tempo complement existing inspection/maintenance/supervision, individual phases, glances, weight shifts and supported seated rest. Pose application still restores the captured absolute transforms before every application. Existing both-rig1000-frame hand, foot, bench, tool, pedal and grip checks remain green. Native evidence exposed an11.826-degree rider/body heading lag; bicycle and held-cart yaw now couple exactly to their prop, while ordinary pedestrians retain eased turns. Final native rider heading error is0 at both paces. Actual pause, the real UI START/END DRILL and explicit reduced-motion checks pass. Hidden/safety holds rebase the display anchor without moving people or adding later catch-up. Protected rest, distance sampling and replay ownership are retained.
+- **D24-D30, inhabitants in context:** machine operators, engineer, quality/packing/supervision, baker, shopkeeper, gardener, neighbour, courier, cyclist and shelter passengers were reviewed across actual schedule phases. Role colours, supported breaks, operational task cues and shared bus/traffic clocks remain. Morning/day/dusk samples retain shop/garden/transport context and bodily contact; existing hours/weather/stock/quality predicates pass. No material, batch, manifest, production, credit or deadline mutation is introduced by the presentation work. Midnight faces away from light stay physically dark; no emissive pupils or lighting boost. Some fixed cameras are obscured by unchanged machinery, especially operator east at noon and quality in morning/midnight. Those frames alone do not prove whole-body appearance; other conditions and actual rig/motion checks cover those workers.
+- **D31-D32, world continuity:** the final exact candidate's village, factory, farm, square, canal, forecourt, shelter and castle are reviewed in daylight, morning, dusk and midnight, with an additional Low dusk condition. These other assets are retained and regression-reviewed, not all rebuilt in this people pass. Town hall/window warmth, paths, planting, canal, castle access, signs and fountain bird remain coherent with their earlier authored sources. Mac graphics pacing remains independently **OPEN**. No FPS acceptance, quality/DPR/adaptation/shadow/budget change or new desktop first-person castle-walk claim.
+- **D33-D35, source gates:** pre-edit168 tests/7files, zero failing names. Final **184 passed /8files**, comprising nine new regression cases plus seven pre-existing tests brought into scope with the existing vehicle replay file. Typecheck, lint, format, shader, build and reachability all exit0. CPU app **ap-WlCpTJNQc7I7SG5Hx8GH4k**, aggregate187.668s under210s, production build **30.58s**. Shader contracts cover34families/38stablekeys/26definition sites, reachability reports no new dead/stale/graph-miss entries. Optional design detector's three pre-existing untouched DOM gray-on-colour advisories remain triaged; no bulk layout/style cleanup. This is scoped-test acceptance plus required project gates, not a full-repository test-suite claim.
+- **D36-D38, exact native proof:** final native app **ap-LrDqZ2Nl8nUusjkfAvc2rA** passes all five conditions with110 frames, clean raw console/page/request arrays and normal browser/preview/lock cleanup. Sandboxed out-of-process Chromium143.0.7499.4 on NVIDIA A10, driver580.95.05. All1219 source/public input pins and388 compiled pins are rechecked against the final artifacts. Every condition retains19 world roots,14 anonymous personnel objects, one visible fountain bird, leaf relief.28, exact civic atlas8de356b6…/strength1, MediumDPR1.2/single Sun caster or LowDPR.8/zero, and audio0/context not-created. Original90s readiness, separate truck15s stage, returned-frame45 window and4GiB floor remain. Same-page eye on/off/on controls change152 stable pixels at noon,144 in morning and146 at dusk (mean max-channel deltas12.632/9.111/9.356); fixed actual eye ROI600,445,230,85, thresholds unchanged. No midnight brightness or per-draw cost assertion. Saved `cohesion-gallery.html`, CPU/native receipts, `visual-review-sheets.json` and all40 individual dispositions.
+- **D39-D40, safe cleanup and delivery:** removed only three superseded compiled folders under this pass's `pre-skinned-anchor/`, `pre-coupling/` and `pre-final-clock/`, each after all388 local bytes matched its retained recovery archive pins. Removed531,274,943 logical bytes; observed shared-filesystem free space43,249,557,504→45,078,974,464 bytes. The larger net free delta is not attributed exclusively to this cleanup because other APFS activity was concurrent. Own4,380-byte temporary probe was snapshotted and hash-verified before unlink. Final compiled build, all compressed recovery/source pins, every red/passing receipt, logs, images, ordinary root dist and protected untracked output remain. `owned-cleanup.json` records exact targets and hashes. Primary HEAD06ff26d393bebd3c34f99b02c9e22aaad58e07ee and its18 unrelated tracked edits remain untouched. Local check-in only.
+
+| Final native condition | Original90s readiness | Images |
+| --- | --- | --- |
+| Medium12 |43.115s |37 |
+| Medium9.2 |28.391s |25 |
+| Medium19 |27.773s |21 |
+| Low19 |33.231s |11 |
+| Medium00 |39.194s |16 |
+
+Actual walking traces contain391 frames per pace. Standard's zero-speed fraction.0230 reflects9 held frames; Relaxed's is0. Both lift the feet about.1753m. Native reduced-motion bone comparison permits semantic activity transitions; it certifies frozen decorative head motion, not a ban on necessary pose changes.
+
+**Residual limits remain explicit:** Mac pacing independentlyOPEN; historical cloud-card causal uncertainty unreproduced; native NVIDIA checks do not certify every device's startup or desktop FPS. The existing explicit art reframe heuristic uses abs observed clock delta>.5hour; extreme10800x admitted ticks can still qualify, so universal-speed continuous motion is not claimed. These separate limits do not reopen this completed finite people-first pass. No primary integration, push or deployment.
+
+Exact final main: **assets/main-V3RDm2lP.js**, SHA256 **6823a2d206aba18125cc90d4e78578ad6726c15614a5db2bd3f7708f15bdd143**.

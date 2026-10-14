@@ -166,6 +166,35 @@ export function advanceCommunityPeopleClock(
   return moving ? hour + elapsed : hour;
 }
 
+/** Consume only time already admitted by the simulation, on the authored routes.
+ * The cursor is a display anchor, not a second plant clock. Holds rebase its anchor
+ * without advancing people; pause preserves an unfinished segment. Working if
+ * half-second ticks become continuous motion without extrapolation or catch-up.
+ */
+export function advanceCommunityPresentationClock(
+  hour: number,
+  worldHour: number,
+  observedElapsed: number,
+  deltaSeconds: number,
+  speed: number,
+  tabVisible: boolean,
+  emergency: boolean
+) {
+  if (!Number.isFinite(worldHour) || !Number.isFinite(observedElapsed)) return hour;
+  if (emergency || !tabVisible) return worldHour;
+  // Preserve the existing explicit art-time reframe contract.
+  if (
+    observedElapsed < 0 ||
+    Math.abs(observedElapsed) > 0.5 ||
+    (speed <= 0 && observedElapsed !== 0)
+  )
+    return worldHour;
+  if (!Number.isFinite(deltaSeconds) || !Number.isFinite(speed) || deltaSeconds <= 0 || speed <= 0)
+    return hour;
+  const authorizedGap = Math.max(0, worldHour - hour);
+  return hour + Math.min(authorizedGap, (speed * Math.min(deltaSeconds, 0.075)) / 3600);
+}
+
 export interface CommunityOperationsSnapshot {
   machines: readonly Pick<MachineData, 'id' | 'status'>[];
   workOrders: readonly Pick<MaintenanceWorkOrder, 'machineId' | 'phase'>[];

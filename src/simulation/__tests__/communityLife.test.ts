@@ -12,6 +12,7 @@ import {
   inspectCommunityPresence,
   advanceCommunityBusClock,
   advanceCommunityPeopleClock,
+  advanceCommunityPresentationClock,
   hasCommunityBakerySupply,
   communityWorkResponse,
   COMMUNITY_AGREEMENT_MEMBERS,
@@ -432,5 +433,79 @@ describe('village daily details', () => {
     expect(communityChimneyLevel(12, 0, 'forge')).toBe(1);
     expect(communityChimneyLevel(20, 0, 'forge')).toBe(0);
     expect(communityChimneyLevel(22, 0, 'pub')).toBe(1);
+  });
+});
+
+describe('bounded personnel presentation between actual simulation ticks', () => {
+  const step = advanceCommunityPresentationClock;
+  it('consumes a stepped target evenly without overshooting or inventing time', () => {
+    for (const speed of [30, 180]) {
+      const start = 12,
+        target = start + (speed * 0.5) / 3600;
+      let hour = start;
+      for (let i = 0; i < 30; i++) {
+        const next = step(hour, target, i ? 0 : target - start, 1 / 60, speed, true, false);
+        expect(next - hour).toBeCloseTo(speed / 3600 / 60, 9);
+        expect(next).toBeLessThanOrEqual(target);
+        hour = next;
+      }
+      expect(hour).toBeCloseTo(target, 9);
+      expect(step(hour, target, 0, 1 / 60, speed, true, false)).toBeCloseTo(target, 9);
+    }
+  });
+  it('keeps interpolated routes grounded and their rider, courier and prop schedules aligned', () => {
+    let hour = 12;
+    const target = hour + 0.025;
+    const previous = COMMUNITY_ROSTER.map((p) => sampleCommunityPerson(p, hour));
+    for (let i = 0; i < 30; i++) {
+      const next = step(hour, target, i ? 0 : 0.025, 1 / 60, 180, true, false);
+      COMMUNITY_ROSTER.forEach((person, index) => {
+        const pose = sampleCommunityPerson(person, next);
+        if (
+          pose.activity === 'walking' &&
+          previous[index].activity === 'walking' &&
+          person.role !== 'Cyclist'
+        ) {
+          expect(
+            Math.hypot(
+              pose.position[0] - previous[index].position[0],
+              pose.position[2] - previous[index].position[2]
+            )
+          ).toBeLessThanOrEqual(1.1 / 60 + 1e-8);
+        }
+        previous[index] = pose;
+      });
+      const courier = sampleCommunityPerson(
+        COMMUNITY_ROSTER.find((p) => p.id === 'village-courier')!,
+        next
+      );
+      const cart = sampleCommunityDelivery(next);
+      expect(courier.position).toEqual([cart.x, 0, cart.z]);
+      const cyclist = sampleCommunityPerson(
+        COMMUNITY_ROSTER.find((p) => p.id === 'village-cyclist')!,
+        next
+      );
+      const cycle = sampleCommunityCyclist(next);
+      expect(cyclist.position).toEqual([cycle.x, 0, cycle.z]);
+      hour = next;
+    }
+  });
+  it('reframes a small live rewind rather than freezing until the plant clock catches up', () => {
+    expect(step(12, 11.9, -0.1, 1 / 60, 180, true, false)).toBe(11.9);
+  });
+  it('freezes partial pause, respects deliberate time reframes, and rebases hidden/safety holds', () => {
+    expect(step(12, 12.025, 0, 1 / 60, 0, true, false)).toBe(12);
+    expect(step(12, 8, -4, 1 / 60, 0, true, false)).toBe(8);
+    for (const [visible, emergency] of [
+      [false, false],
+      [true, true],
+    ]) {
+      const cursor = step(12, 20, 8, 1 / 60, 180, visible, emergency);
+      expect(cursor).toBe(20);
+      expect(advanceCommunityPeopleClock(12, cursor, 0, false, true)).toBe(12);
+      expect(step(cursor, 20, 0, 1 / 60, 180, true, false)).toBe(20);
+    }
+    expect(step(12, 12.1, 0, NaN, 180, true, false)).toBe(12);
+    expect(step(12, 12.1, 0, 100, 180, true, false) - 12).toBeCloseTo((180 * 0.075) / 3600, 9);
   });
 });
