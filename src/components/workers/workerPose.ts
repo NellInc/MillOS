@@ -17,6 +17,8 @@ export const createWorkerGesture = () => ({
   workStroke: 0,
   workCheck: 0,
   breath: 0,
+  greetingLift: 0,
+  greetingWave: 0,
 });
 export type WorkerGesture = ReturnType<typeof createWorkerGesture>;
 
@@ -24,7 +26,7 @@ export type WorkerGesture = ReturnType<typeof createWorkerGesture>;
  * Working if tools follow the same sampled offset as palms and feet stay planted.
  */
 export function sampleWorkerGesture(
-  kind: 'bake' | 'garden' | 'rest' | 'idle',
+  kind: 'bake' | 'garden' | 'rest' | 'idle' | 'greet',
   seconds: number,
   out: WorkerGesture
 ) {
@@ -32,6 +34,15 @@ export function sampleWorkerGesture(
   const tempo = t + Math.sin(t * 0.41) * 0.18;
   const cycle = 0.5 - 0.5 * Math.cos((tempo * Math.PI * 2) / (kind === 'garden' ? 3.6 : 6.4));
   out.breath = Math.sin(t * 1.45) * 0.5 + 0.5;
+  // A brief hello followed by a long hand-down dwell, offset per inhabitant.
+  // Working if the free hand rises smoothly and settles without a clockwork loop.
+  const greetingTime = ((t % 9) + 9) % 9;
+  out.greetingLift =
+    kind === 'greet'
+      ? THREE.MathUtils.smoothstep(greetingTime, 0, 0.45) *
+        (1 - THREE.MathUtils.smoothstep(greetingTime, 1.65, 2.1))
+      : 0;
+  out.greetingWave = Math.sin(t * 8) * 0.18 * out.greetingLift;
   out.toolY = kind === 'garden' ? cycle * 0.08 : kind === 'bake' ? cycle * 0.04 : 0;
   out.toolZ = kind === 'garden' ? -cycle * 0.035 : kind === 'bake' ? cycle * 0.035 : 0;
   // A glance has a quiet dwell and a smooth return, rather than continuous
@@ -341,6 +352,19 @@ export function createSeatedWorkerPose(model: THREE.Object3D, heightScale = 1, b
       if (abdomen) {
         abdomen.rotateZ(gesture.lookPitch * 0.25);
         abdomen.scale.z *= 1 + gesture.breath * 0.012;
+      }
+      const upper = bones.get('UpperArmR'),
+        lower = bones.get('LowerArmR'),
+        wrist = bones.get('WristR');
+      if (gesture.greetingLift > 0 && upper && lower && wrist) {
+        chainLengths(upper, lower, wrist, lengths.armR);
+        modelPosition(upper, p);
+        target.set(p.x - 0.15 / widthScale, p.y + 0.12 / scale, p.z + 0.12 / widthScale);
+        modelPosition(wrist, q);
+        target.lerpVectors(q, target, gesture.greetingLift);
+        solveChain(upper, lower, wrist, target, lengths.armR, pole.set(-1, -0.2, 0), false);
+        aim(wrist, undefined, direction.set(0, 1, 0));
+        wrist.rotateZ(gesture.greetingWave);
       }
       applied = true;
       model.updateWorldMatrix(false, true);

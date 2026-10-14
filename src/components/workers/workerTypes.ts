@@ -10,6 +10,8 @@ export interface WorkerMotionState {
   /** Skeletal sampling budget; root movement still updates every display frame. */
   animationInterval?: number;
   cycling?: boolean;
+  /** Brief empty-hand greeting at an authored social stop; never a plant action. */
+  greeting?: boolean;
   cartGrip?: 'push' | 'pull';
   seatFloorOffset?: number;
   /** Parent-owned crank angle in radians; no independent pedalling clock. */
@@ -68,13 +70,13 @@ export interface WorkerAppearance {
 
 export const SKIN_TONES = [
   '#f5d0c5',
-  '#d4a574',
-  '#8d5524',
-  '#c68642',
-  '#e0ac69',
-  '#ffdbac',
-  '#f1c27d',
-  '#cd8c52',
+  '#c99e85',
+  '#80523d',
+  '#b77d60',
+  '#d3a080',
+  '#f2cbb5',
+  '#e4b399',
+  '#bc876d',
 ] as const;
 
 export const HAIR_COLORS = [
@@ -93,7 +95,7 @@ const ROLE_DEFAULTS: Record<string, WorkerAppearance> = {
   Supervisor: {
     bodyType: 'masculine',
     uniformColor: '#1d4ed8',
-    skinTone: '#d4a574',
+    skinTone: '#c99e85',
     hatColor: '#2563eb',
     hasVest: true,
     pantsColor: '#172033',
@@ -117,7 +119,7 @@ const ROLE_DEFAULTS: Record<string, WorkerAppearance> = {
   Engineer: {
     bodyType: 'feminine',
     uniformColor: '#334155',
-    skinTone: '#f1c27d',
+    skinTone: '#e4b399',
     hatColor: '#f8fafc',
     hasVest: false,
     pantsColor: '#1e293b',
@@ -141,7 +143,7 @@ const ROLE_DEFAULTS: Record<string, WorkerAppearance> = {
   Operator: {
     bodyType: 'masculine',
     uniformColor: '#475569',
-    skinTone: '#c68642',
+    skinTone: '#b77d60',
     hatColor: '#eab308',
     hasVest: true,
     pantsColor: '#1e3a5f',
@@ -165,7 +167,7 @@ const ROLE_DEFAULTS: Record<string, WorkerAppearance> = {
   'Safety Officer': {
     bodyType: 'feminine',
     uniformColor: '#166534',
-    skinTone: '#d4a574',
+    skinTone: '#c99e85',
     hatColor: '#22c55e',
     hasVest: true,
     pantsColor: '#173b2b',
@@ -213,7 +215,7 @@ const ROLE_DEFAULTS: Record<string, WorkerAppearance> = {
   Maintenance: {
     bodyType: 'masculine',
     uniformColor: '#9a3412',
-    skinTone: '#e0ac69',
+    skinTone: '#d3a080',
     hatColor: '#f97316',
     hasVest: true,
     pantsColor: '#3f2a22',
@@ -239,7 +241,7 @@ const ROLE_DEFAULTS: Record<string, WorkerAppearance> = {
 const NAMED_PERSONNEL_PROFILES: Record<string, Partial<WorkerAppearance>> = {
   w1: {
     bodyType: 'masculine',
-    skinTone: '#d4a574',
+    skinTone: '#c99e85',
     hairColor: '#151312',
     hairStyle: 'short',
     eyeColor: '#33251f',
@@ -248,7 +250,7 @@ const NAMED_PERSONNEL_PROFILES: Record<string, Partial<WorkerAppearance>> = {
   },
   w2: {
     bodyType: 'feminine',
-    skinTone: '#f1c27d',
+    skinTone: '#e4b399',
     hairColor: '#6b4423',
     hairStyle: 'ponytail',
     eyeColor: '#44677d',
@@ -257,7 +259,7 @@ const NAMED_PERSONNEL_PROFILES: Record<string, Partial<WorkerAppearance>> = {
   },
   w3: {
     bodyType: 'masculine',
-    skinTone: '#c68642',
+    skinTone: '#b77d60',
     hairColor: '#151312',
     hairStyle: 'curly',
     eyeColor: '#35231b',
@@ -275,7 +277,7 @@ const NAMED_PERSONNEL_PROFILES: Record<string, Partial<WorkerAppearance>> = {
   },
   w5: {
     bodyType: 'masculine',
-    skinTone: '#e0ac69',
+    skinTone: '#d3a080',
     hairColor: '#151312',
     hairStyle: 'short',
     eyeColor: '#2e2923',
@@ -284,7 +286,7 @@ const NAMED_PERSONNEL_PROFILES: Record<string, Partial<WorkerAppearance>> = {
   },
   w6: {
     bodyType: 'feminine',
-    skinTone: '#d4a574',
+    skinTone: '#c99e85',
     hairColor: '#4a2b1a',
     hairStyle: 'ponytail',
     eyeColor: '#385445',
@@ -293,7 +295,7 @@ const NAMED_PERSONNEL_PROFILES: Record<string, Partial<WorkerAppearance>> = {
   },
   w7: {
     bodyType: 'masculine',
-    skinTone: '#8d5524',
+    skinTone: '#80523d',
     hairColor: '#151312',
     hairStyle: 'curly',
     eyeColor: '#2c211b',
@@ -311,7 +313,7 @@ const NAMED_PERSONNEL_PROFILES: Record<string, Partial<WorkerAppearance>> = {
   },
   w9: {
     bodyType: 'masculine',
-    skinTone: '#d4a574',
+    skinTone: '#c99e85',
     hairColor: '#2d1810',
     hairStyle: 'bald',
     eyeColor: '#3d3026',
@@ -320,7 +322,7 @@ const NAMED_PERSONNEL_PROFILES: Record<string, Partial<WorkerAppearance>> = {
   },
   w10: {
     bodyType: 'feminine',
-    skinTone: '#e0ac69',
+    skinTone: '#d3a080',
     hairColor: '#151312',
     hairStyle: 'medium',
     eyeColor: '#3c3029',

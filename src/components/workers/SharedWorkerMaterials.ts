@@ -90,12 +90,14 @@ export const SHARED_WORKER_MATERIALS = {
 // Colour variants and rigs remain private to each person. Working if removing
 // one worker leaves the other workers' glasses, badges and banding intact.
 export const SHARED_WORKER_ACCESSORY_MATERIALS = {
+  // Clear polycarbonate keeps the frame readable without veiling the eyes.
+  // Working if near faces remain legible in day/dusk and the lenses stay lit.
   glasses: new THREE.MeshPhysicalMaterial({
-    color: '#c6e6f5',
-    roughness: 0.12,
+    color: '#e6f2f6',
+    roughness: 0.09,
     metalness: 0,
     transparent: true,
-    opacity: 0.28,
+    opacity: 0.16,
     depthWrite: false,
   }),
   dark: new THREE.MeshStandardMaterial({

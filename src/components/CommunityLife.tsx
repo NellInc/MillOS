@@ -273,10 +273,15 @@ export function CommunityLife() {
       communityAgreementResponse(agreement, pose, response);
       const task = emergency ? 'Holding safely for the site safety stop' : response.task;
       if (!emergency) motion.activity = response.activity;
+      // Only the shopkeeper's authored social dwell uses the free right hand.
+      // Working if walking, tools, off-duty rest and safety holds never wave.
+      motion.greeting =
+        !emergency && actor.person.role === 'Shopkeeper' && motion.activity === 'idle';
       Object.assign(root.userData, {
         activity: motion.activity,
         task,
         seated: pose.seated,
+        greeting: motion.greeting,
         groundSpeed: motion.groundSpeed,
         agreementMemberId: agreement?.memberId ?? null,
         agreementState: agreement?.state ?? null,

@@ -349,6 +349,9 @@ it('interpolates live personnel safely and restores the captured presentation cu
   const frame = harness.frames[0] as (state: any, delta: number) => void;
   frame({ camera, scene }, 1 / 60);
   const participant = harness.participants.get('personnel')!;
+  const shopkeeper = roots.find((root: THREE.Group) => root.name === 'village-shopkeeper')!;
+  expect(shopkeeper.userData.greeting).toBe(false); // Day1 noon is a working stop.
+  expect(roots.filter((root: THREE.Group) => root.userData.greeting)).toEqual([]);
   const checkpoint = structuredClone(participant.capture());
   useGameSimulationStore.setState({ gameTime: 12.025 });
   const at = roots[0].position.clone();
@@ -361,6 +364,7 @@ it('interpolates live personnel safely and restores the captured presentation cu
   useGameSimulationStore.setState({ gameTime: 20, emergencyDrillMode: true });
   frame({ camera, scene }, 1 / 60);
   expect(roots[0].position.equals(paused)).toBe(true);
+  expect(shopkeeper.userData.greeting).toBe(false);
   const held = participant.capture();
   expect(held.clocks.presentation).toBe(44);
   expect(held.clocks.people).toBeLessThan(36.025);
@@ -373,6 +377,10 @@ it('interpolates live personnel safely and restores the captured presentation cu
   participant.restore(structuredClone(checkpoint));
   expect(participant.capture().clocks).toEqual(checkpoint.clocks);
   expect(checkpoint.clocks.presentation).toBe(36);
+  useGameSimulationStore.setState({ gameDay: 0, gameTime: 12, gameSpeed: 0 });
+  frame({ camera, scene }, 1 / 60);
+  expect(shopkeeper.userData.greeting).toBe(true); // The actual day0 social dwell.
+  expect(roots.filter((root: THREE.Group) => root.userData.greeting)).toEqual([shopkeeper]);
 });
 
 it('locks a turning rider to the actual bicycle heading, preserving pedal and hand contacts', () => {

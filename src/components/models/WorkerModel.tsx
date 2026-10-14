@@ -735,6 +735,7 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
     clip?: WorkerClipName;
     seated?: boolean;
     cycling?: boolean;
+    greeting?: boolean;
     cyclePhase?: number;
     cartGrip?: 'push' | 'pull';
     seatFloorOffset?: number;
@@ -901,6 +902,7 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
       lastPose.current.clip !== activeClip ||
       lastPose.current.seated !== motion.seated ||
       lastPose.current.cycling !== motion.cycling ||
+      lastPose.current.greeting !== motion.greeting ||
       lastPose.current.cartGrip !== motion.cartGrip ||
       lastPose.current.seatFloorOffset !== motion.seatFloorOffset ||
       lastPose.current.activity !== motion.activity;
@@ -924,9 +926,11 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
     sampleWorkerGesture(
       motion.seated
         ? 'rest'
-        : appearance.workAction === 'bake' || appearance.workAction === 'garden'
-          ? appearance.workAction
-          : 'idle',
+        : motion.greeting && motion.activity === 'idle' && motion.enabled
+          ? 'greet'
+          : appearance.workAction === 'bake' || appearance.workAction === 'garden'
+            ? appearance.workAction
+            : 'idle',
       gestureTime.current,
       gesture
     );
@@ -934,6 +938,7 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
       clip: activeClip,
       seated: motion.seated,
       cycling: motion.cycling,
+      greeting: motion.greeting,
       cyclePhase: motion.cyclePhase,
       cartGrip: motion.cartGrip,
       seatFloorOffset: motion.seatFloorOffset,

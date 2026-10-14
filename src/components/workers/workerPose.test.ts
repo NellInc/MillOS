@@ -517,3 +517,52 @@ it('places facial details on actual deformed eye fronts through both authored he
     }
   }
 });
+
+it.each(['masculine', 'feminine'])(
+  '%s greets with a free hand without stretching or moving its held hand and feet',
+  (body) => {
+    const gltf = bodies.get(body)!;
+    const scene = clone(gltf.scene);
+    const mixer = new THREE.AnimationMixer(scene);
+    mixer.clipAction(gltf.animations.find((c) => c.name === 'worker-idle')!).play();
+    mixer.update(0);
+    const pose = createSeatedWorkerPose(scene);
+    const gesture = createWorkerGesture();
+    const position = (name: string) =>
+      scene.getObjectByName(name)!.getWorldPosition(new THREE.Vector3());
+    let min = Infinity,
+      max = -Infinity;
+    for (let frame = 0; frame < 240; frame++) {
+      const t = frame / 20;
+      sampleWorkerGesture('idle', t, gesture);
+      pose.applyIdle(gesture);
+      const fixed = ['WristL', 'FootL', 'FootR'].map(position);
+      pose.restore();
+      sampleWorkerGesture('greet', t, gesture);
+      pose.applyIdle(gesture);
+      ['WristL', 'FootL', 'FootR'].forEach((name, index) => {
+        expect(position(name).distanceTo(fixed[index])).toBeLessThan(0.000001);
+      });
+      expect(scene.getObjectByName('LowerArmR')!.scale.y).toBeLessThan(1.05);
+      const y = position('WristR').y;
+      min = Math.min(min, y);
+      max = Math.max(max, y);
+      pose.restore();
+      expect(scene.getObjectByName('LowerArmR')!.scale.y).toBeCloseTo(1, 6);
+    }
+    expect(max - min).toBeGreaterThan(0.25);
+  }
+);
+
+it('greeting has a quiet dwell and resets fully when another activity takes over', () => {
+  const gesture = createWorkerGesture();
+  expect(sampleWorkerGesture('greet', 1, gesture).greetingLift).toBe(1);
+  for (const t of [0, 2.1, 4, 8.99, 9])
+    expect(sampleWorkerGesture('greet', t, gesture).greetingLift).toBe(0);
+  expect(sampleWorkerGesture('greet', 9.2, gesture).greetingLift).toBeGreaterThan(0);
+  for (const activity of ['bake', 'garden', 'rest', 'idle'] as const) {
+    sampleWorkerGesture(activity, 1, gesture);
+    expect(gesture.greetingLift).toBe(0);
+    expect(gesture.greetingWave).toBe(0);
+  }
+});
