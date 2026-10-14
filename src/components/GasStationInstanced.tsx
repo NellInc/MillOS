@@ -15,6 +15,7 @@ import { PROCEDURAL_TEXTURES } from '../utils/sharedMaterials';
 import { GeneratedBoundary, GeneratedModel } from './models/GeneratedModel';
 import { GeneratedBoxSurface, GeneratedSurfaceMesh } from './models/GeneratedGeometrySurface';
 import { StationRetailDetails, SHOP_FLOOR_MATERIAL } from './scenery/StationRetailDetails';
+import { StationSouvenirs } from './scenery/StationSouvenirs';
 
 // ============================================================================
 // Shared surface textures
@@ -1103,6 +1104,7 @@ export const GasStation = React.memo<GasStationProps>(
         </group>
 
         <StationRetailDetails />
+        <StationSouvenirs />
         <mesh name="station-poster-flower-pots" geometry={STATION_POSTER_PLANTERS} receiveShadow>
           <meshStandardMaterial vertexColors roughness={0.86} />
         </mesh>

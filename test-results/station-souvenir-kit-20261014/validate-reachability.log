@@ -1,0 +1,138 @@
+
+> grain-mill-simulator@0.40.0 validate:reachability
+> node scripts/audit-module-reachability.mjs
+
+MODULE REACHABILITY
+==============================================================================
+444 production modules under src/  (252 test files excluded)
+alive 367   tooling 4   types-only 5   dead 53   tree-shaken 15   graph-miss 0
+179 modules have no distinctive string; the graph alone decides those.
+
+UNREACHABLE (53)
+  known src/components/breakdown/BreakdownEffects.tsx
+         Breakdown VFX, authored and never mounted.
+  known src/components/conveyors/CompactConveyorSystem.tsx
+         Superseded conveyors. MillScene lazily imports ConveyorSystem.tsx, which is the live owner of every belt in the mill.
+  known src/components/exterior/OptimizedExterior.tsx
+         Superseded exterior. The live authored exterior is FactoryExterior.tsx with TruckBay.tsx.
+  known src/components/FactoryInfrastructure.tsx
+         Superseded factory shell. The live one is infrastructure/OptimizedFactoryInfrastructure.tsx. Pass 4 converted 129 materials in FactoryWalls.tsx before discovering this.
+  known src/components/infrastructure/DockForklift.tsx
+         Superseded factory shell. The live one is infrastructure/OptimizedFactoryInfrastructure.tsx. Pass 4 converted 129 materials in FactoryWalls.tsx before discovering this.
+  known src/components/infrastructure/FactoryFloor.tsx
+         Superseded factory shell. The live one is infrastructure/OptimizedFactoryInfrastructure.tsx. Pass 4 converted 129 materials in FactoryWalls.tsx before discovering this.
+  known src/components/infrastructure/FactoryLighting.tsx
+         Superseded factory shell. The live one is infrastructure/OptimizedFactoryInfrastructure.tsx. Pass 4 converted 129 materials in FactoryWalls.tsx before discovering this.
+  known src/components/infrastructure/FactoryRoof.tsx
+         Superseded factory shell. The live one is infrastructure/OptimizedFactoryInfrastructure.tsx. Pass 4 converted 129 materials in FactoryWalls.tsx before discovering this.
+  known src/components/infrastructure/FactoryWalls.tsx
+         Superseded factory shell. The live one is infrastructure/OptimizedFactoryInfrastructure.tsx. Pass 4 converted 129 materials in FactoryWalls.tsx before discovering this.
+  known src/components/infrastructure/index.ts
+         Superseded factory shell. The live one is infrastructure/OptimizedFactoryInfrastructure.tsx. Pass 4 converted 129 materials in FactoryWalls.tsx before discovering this.
+  known src/components/infrastructure/ReflectiveFloor.tsx
+         Superseded factory shell. The live one is infrastructure/OptimizedFactoryInfrastructure.tsx. Pass 4 converted 129 materials in FactoryWalls.tsx before discovering this.
+  known src/components/infrastructure/SafetyEquipment.tsx
+         Superseded factory shell. The live one is infrastructure/OptimizedFactoryInfrastructure.tsx. Pass 4 converted 129 materials in FactoryWalls.tsx before discovering this.
+  known src/components/infrastructure/UtilityConduits.tsx
+         Superseded factory shell. The live one is infrastructure/OptimizedFactoryInfrastructure.tsx. Pass 4 converted 129 materials in FactoryWalls.tsx before discovering this.
+  known src/components/Machines.tsx
+         Superseded machine renderer. The live one is machines/CompactMachines.tsx, as machineSurfaces.ts records at its top.
+  known src/components/machines/HoloLabel.tsx
+         Superseded machine renderer. The live one is machines/CompactMachines.tsx, as machineSurfaces.ts records at its top.
+  known src/components/machines/index.tsx
+         Superseded machine renderer. The live one is machines/CompactMachines.tsx, as machineSurfaces.ts records at its top.
+  known src/components/machines/InstancedPackers.tsx
+         Superseded machine renderer. The live one is machines/CompactMachines.tsx, as machineSurfaces.ts records at its top.
+  known src/components/machines/InstancedPlansifters.tsx
+         Superseded machine renderer. The live one is machines/CompactMachines.tsx, as machineSurfaces.ts records at its top.
+  known src/components/machines/InstancedRollerMills.tsx
+         Superseded machine renderer. The live one is machines/CompactMachines.tsx, as machineSurfaces.ts records at its top.
+  known src/components/machines/InstancedSilos.tsx
+         Superseded machine renderer. The live one is machines/CompactMachines.tsx, as machineSurfaces.ts records at its top.
+  known src/components/machines/MachineAnimationManager.tsx
+         Superseded machine renderer. The live one is machines/CompactMachines.tsx, as machineSurfaces.ts records at its top.
+  known src/components/machines/MachineLOD.ts
+         Superseded machine renderer. The live one is machines/CompactMachines.tsx, as machineSurfaces.ts records at its top.
+  known src/components/machines/shared.ts
+         Superseded machine renderer. The live one is machines/CompactMachines.tsx, as machineSurfaces.ts records at its top.
+  known src/components/machines/SiloComponents.tsx
+         Superseded machine renderer. The live one is machines/CompactMachines.tsx, as machineSurfaces.ts records at its top.
+  known src/components/machines/StatusRing.tsx
+         Superseded machine renderer. The live one is machines/CompactMachines.tsx, as machineSurfaces.ts records at its top.
+  known src/components/machines/TexturesAndMaterials.tsx
+         Superseded machine renderer. The live one is machines/CompactMachines.tsx, as machineSurfaces.ts records at its top.
+  known src/components/machines/UIComponents.tsx
+         Superseded machine renderer. The live one is machines/CompactMachines.tsx, as machineSurfaces.ts records at its top.
+  known src/components/machines/UtilityComponents.tsx
+         Superseded machine renderer. The live one is machines/CompactMachines.tsx, as machineSurfaces.ts records at its top.
+  known src/components/machines/VisualEffects.tsx
+         Superseded machine renderer. The live one is machines/CompactMachines.tsx, as machineSurfaces.ts records at its top.
+  known src/components/physics/index.ts
+         Physics barrel and worker shim. PhysicsScene.tsx imports what it needs directly.
+  known src/components/ProductionMetrics.tsx
+         Test-only: its suite is green and it renders nowhere. The live metrics UI is under ui-new/.
+  known src/components/scenery/Tree.tsx
+         Superseded by scenery/InstancedFoliage.tsx, which FarmArea and VillageArea mount.
+  known src/components/SkySystem.tsx
+         Superseded environment and sky. The live ones are environment/OptimizedFactoryEnvironment.tsx and environment/OptimizedSkySystem.tsx; environmentRegistry has no importer but Environment.tsx.
+  known src/components/village/index.ts
+         Village barrel. VillageArea.tsx imports its parts directly.
+  known src/components/ZoneAccentLights.tsx
+         Zone accent lighting, authored and never mounted.
+  known src/hooks/index.ts
+         Hooks barrel and its unimported members. useKeyboardShortcuts is imported directly, so the barrel itself is dead.
+  known src/hooks/useDisposable.ts
+         Hooks barrel and its unimported members. useKeyboardShortcuts is imported directly, so the barrel itself is dead.
+  known src/hooks/useGPUResource.ts
+         Hooks barrel and its unimported members. useKeyboardShortcuts is imported directly, so the barrel itself is dead.
+  known src/hooks/useProceduralTextures.ts
+         Hooks barrel and its unimported members. useKeyboardShortcuts is imported directly, so the barrel itself is dead.
+  known src/hooks/useSafetySimulation.ts
+         Uncrewed safety simulation hook with no importer; the current simulation does not mount random personnel-era incident generation.
+  known src/materials/generativeMaterials.ts
+         Materials barrel with no importer.
+  known src/materials/index.ts
+         Materials barrel with no importer.
+  known src/shaders/edgeHighlight.ts
+         Standalone shader modules with no importer. The live shader work is injected from the components and machineSurfaces/worldSurface; shaderContracts.ts is the spec the validator reads.
+  known src/shaders/fresnelRim.ts
+         Standalone shader modules with no importer. The live shader work is injected from the components and machineSurfaces/worldSurface; shaderContracts.ts is the spec the validator reads.
+  known src/shaders/groundPlane.ts
+         Standalone shader modules with no importer. The live shader work is injected from the components and machineSurfaces/worldSurface; shaderContracts.ts is the spec the validator reads.
+  known src/shaders/index.ts
+         Standalone shader modules with no importer. The live shader work is injected from the components and machineSurfaces/worldSurface; shaderContracts.ts is the spec the validator reads.
+  known src/shaders/panelGrid.ts
+         Standalone shader modules with no importer. The live shader work is injected from the components and machineSurfaces/worldSurface; shaderContracts.ts is the spec the validator reads.
+  known src/shaders/proceduralSurface.ts
+         Standalone shader modules with no importer. The live shader work is injected from the components and machineSurfaces/worldSurface; shaderContracts.ts is the spec the validator reads.
+  known src/shaders/statusPulse.ts
+         Standalone shader modules with no importer. The live shader work is injected from the components and machineSurfaces/worldSurface; shaderContracts.ts is the spec the validator reads.
+  known src/utils/depthMaterials.ts
+         Material factory with no importer, though CLAUDE.md instructs future work to use it. Either wire it up or correct the doc.
+  known src/utils/environmentRegistry.ts
+         Superseded environment and sky. The live ones are environment/OptimizedFactoryEnvironment.tsx and environment/OptimizedSkySystem.tsx; environmentRegistry has no importer but Environment.tsx.
+  known src/utils/sanitize.ts
+         Legacy multiplayer sanitizers with no production or test importer after the uncrewed release.
+  known src/utils/typeGuards.ts
+         Test-only utility collection with no production importer; its geometry helpers are documented as future-facing rather than live.
+
+REACHABLE BUT NOT IN THE BUILD (15)
+  Imported somewhere, but no distinctive string survived. Either the
+  bundler pruned the export, or the strings are only in dead branches.
+  src/agent/contracts/registryValidation.js   (8 markers tested)
+  src/components/FPSMonitor.tsx   (8 markers tested)
+  src/components/knowledge/KnowledgeTooltip.tsx   (8 markers tested)
+  src/components/knowledge/UnlockNotification.tsx   (8 markers tested)
+  src/components/SafeGeometry.tsx   (7 markers tested)
+  src/components/ui/EmergencyStopButton.tsx   (6 markers tested)
+  src/constants/renderLayers.ts   (2 markers tested)
+  src/scada/adapters/PIAdapter.ts   (6 markers tested)
+  src/scada/adapters/WonderwareAdapter.ts   (8 markers tested)
+  src/scada/HistorianRouter.ts   (4 markers tested)
+  src/scada/SCADABridge.ts   (1 markers tested)
+  src/scada/types.ts   (1 markers tested)
+  src/utils/dracoLoader.ts   (2 markers tested)
+  src/utils/perfMonitor.ts   (6 markers tested)
+  src/utils/renderProfiler.ts   (1 markers tested)
+
+PASS - no new dead modules, no stale allow-list entries, no graph misses.

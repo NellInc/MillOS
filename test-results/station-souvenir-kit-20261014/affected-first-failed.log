@@ -1,0 +1,34 @@
+(node:36820) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+ RUN  v4.1.10 /Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS
+
+(node:37136) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:42008) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ❯ src/components/scenery/StationSouvenirs.test.ts (10 tests | 1 failed) 584ms
+     × keeps seven finite merged material batches inside the three shop seats 163ms
+(node:43570) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/scenery/StationSouvenirs.test.ts > Dead Dino plush and stationary shop kit > keeps seven finite merged material batches inside the three shop seats
+AssertionError: expected 45708 to be less than 45000
+ ❯ src/components/scenery/StationSouvenirs.test.ts:149:23
+    147|       triangles += g.getAttribute('position').count / 3;
+    148|     }
+    149|     expect(triangles).toBeLessThan(45000);
+       |                       ^
+    150|   });
+    151|   it('retains the door, checkout terminal, coffee recess and slush-tap…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 2 passed (3)
+      Tests  1 failed | 43 passed (44)
+   Start at  21:56:44
+   Duration  24.64s (transform 1.73s, setup 696ms, import 16.21s, tests 1.63s, environment 4.08s)
+

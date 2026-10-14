@@ -555,5 +555,42 @@
       "method": "Owned runtime derivatives of actual loaded GLBs: rounded three-layer canopy with UVs projected onto original cube charts, original support triangles retained, terracotta pump palette. Shared source maps retained; original assets unchanged. Cream bezels, stone-tinted shop shell and two merged flower pots complete the poster palette.",
       "lighting": "No additional light or shadow map, original existing station fixture layout retained."
     }
+  },
+  "stationSouvenirKit": {
+    "date": "2026-10-14",
+    "method": "Built-in image_gen with approved Dead Dino v3 brand reference; no tracing or hand-authored vector substitutes",
+    "reference": "textures/signage/brand-dead-dino-v3.webp",
+    "workDirectory": "tmp/custom-icons/station-souvenir-kit-20261014",
+    "artwork": [
+      {
+        "source": "tmp/custom-icons/station-souvenir-kit-20261014/dead-dino-shop-kit-v1-master.png",
+        "file": "dead-dino-shop-kit-v1.webp",
+        "sourceWidth": 1254,
+        "sourceHeight": 1254,
+        "width": 1024,
+        "height": 1024,
+        "bytes": 282702,
+        "sha256": "0386be1c32801d6e8c5eca90d05e0541e878583616a6a258b83c0319f579ff2b",
+        "method": "Built-in image_gen reference-derived raster; entire square atlas resized proportionately and WebP encoded with Sharp",
+        "tiles": [
+          "Take a Dino home souvenir print",
+          "Coffee menu",
+          "Dead Dino merchandise badge",
+          "A little stop postcard"
+        ],
+        "review": "Complete generated atlas inspected: exact spelling, dark-green X, approved identity and paper/art texture. In-scene appearance deferred.",
+        "prompt": "Create one production raster print atlas for a charming British/Dutch village petrol-station shop, DEAD DINO. Reference image is the APPROVED brand identity: keep its jade resting stegosaurus, cream padded dorsal plates, curled tail, friendly sleepy face, dark-green embroidered X eye, cream forward italic DEAD DINO wordmark and terracotta accent. NO white X. This is FLAT printed artwork, NOT a shop mockup, no photograph of frames, no lighting, no perspective. EXACT square canvas divided into an edge-to-edge 2 by 2 grid of four equal square tiles, no gutters outside tiles. Every tile has its own 8% safe padding and a warm cream paper background with subtle luxurious raster paper grain. TOP LEFT: souvenir nameplate artwork, plushy illustrated version of that mascot occupying middle, large exact title 'TAKE A DINO HOME', small exact footer 'DEAD DINO'. TOP RIGHT: gorgeous small cafe menu with terracotta cup illustration and confident dark-green lettering, exact title 'COFFEE', exactly three lines 'Espresso', 'Flat white', 'Tea', footer 'A little pause for the road'. BOTTOM LEFT: a classic small merchandise badge, jade mascot above the exact DEAD DINO wordmark with terracotta accent, no other text. BOTTOM RIGHT: lush warmly painted postcard of the existing red-and-cream rounded petrol canopy on two dark-green columns beside a British/Dutch village and canal at sunset; exact title 'A LITTLE STOP', small footer 'DEAD DINO'. All four tiles flat, high quality authored raster illustration, beautiful typography, strong legibility, no SVG look, no drop shadows behind cards, no price or fabricated claims, no other writing."
+      }
+    ],
+    "scene": {
+      "module": "src/components/scenery/StationSouvenirs.tsx",
+      "method": "Authored real 3D plushies, ceramic mugs, supported timber shop furniture, coffee and food props. Seven static material batches with one shared raster print atlas. Cached sRGB cloth/wood albedo and linear signed-normal/RGB-roughness maps. Source fixtures unchanged.",
+      "sourceSupports": {
+        "public/models/world/station-counter.glb": "f16c774a4afcb2e391a9ece96a70a1d6eaa51d056df3581f3a39cbb57340ecc5",
+        "public/models/world/station-magazine-rack.glb": "dae8e02ba271b1cccf1c128642c32b5ec43ba630423f2fe15882e71547ebeb01"
+      },
+      "lighting": "Existing station lights only, no new light or shadow map",
+      "review": "Actual raster pixels, geometry and contacts reviewed; native/player/device appearance deferred; no frame-performance claim"
+    }
   }
 }
