@@ -542,3 +542,82 @@ it('dresses residents in matte cloth without an industrial badge, while retainin
     view.unmount();
   }
 });
+
+it('uses the declared glove flag, zero extra hand draws and two-draw far LOD, then disposes only owned geometry', () => {
+  for (const role of ['Operator', 'Engineer', 'Quality Control', 'Resident']) {
+    const f = bodyFixture();
+    f.bone.name = 'WristL';
+    const torso = new THREE.Bone();
+    torso.name = 'Chest';
+    f.model.add(torso);
+    const skin = new THREE.Skeleton([f.bone, torso]);
+    const body = new THREE.Group();
+    body.name = 'Worker_Body';
+    f.model.add(body);
+    const source = f.sources[0];
+    body.add(source);
+    const feet = new THREE.Group();
+    feet.name = 'Worker_Feet';
+    f.model.add(feet);
+    feet.add(f.sources[3]);
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute(
+      'position',
+      new THREE.Float32BufferAttribute([0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 1, 0, 1, 1], 3)
+    );
+    geometry.setAttribute(
+      'normal',
+      new THREE.Float32BufferAttribute(Array(6).fill([0, 0, 1]).flat(), 3)
+    );
+    geometry.setAttribute(
+      'skinIndex',
+      new THREE.Uint16BufferAttribute(
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0],
+        4
+      )
+    );
+    geometry.setAttribute(
+      'skinWeight',
+      new THREE.Float32BufferAttribute(Array(6).fill([1, 0, 0, 0]).flat(), 4)
+    );
+    geometry.setIndex([0, 1, 2, 3, 4, 5]);
+    source.geometry = geometry;
+    for (const m of f.sources) m.bind(skin, new THREE.Matrix4());
+    (source.material as THREE.Material).name = 'Skin';
+    const borrowed = vi.spyOn(geometry, 'dispose');
+    harness.asset = { scene: f.model, animations: [] };
+    const appearance = {
+      ...getWorkerAppearance(role, '', 'gloves-' + role),
+      tool: 'none' as const,
+    };
+    const view = render(
+      <WorkerModel
+        appearance={appearance}
+        motion={{ activity: 'idle', groundSpeed: 0, seated: false, phase: 0, enabled: false }}
+      />
+    );
+    expect(!!source.userData.workerGloves).toBe(appearance.hasGloves);
+    expect(f.model.getObjectByName('worker-skinned-gloves')).toBeUndefined();
+    expect(source.geometry.index!.count).toBe(6);
+    if (appearance.hasGloves) {
+      expect((source.material as THREE.MeshStandardMaterial).vertexColors).toBe(true);
+      const bodyDispose = vi.spyOn(source.geometry, 'dispose');
+      const camera = new THREE.PerspectiveCamera();
+      camera.position.z = 100;
+      for (let i = 0; i < 12; i++) harness.frame?.({ camera }, 0);
+      expect(source.visible).toBe(false);
+      const far: THREE.Mesh[] = [];
+      f.model.traverse((o) => {
+        if (['worker-distant-body', 'worker-distant-feet'].includes(o.name))
+          far.push(o as THREE.Mesh);
+      });
+      expect(far.filter((m) => m.visible)).toHaveLength(2);
+      camera.position.z = 5;
+      for (let i = 0; i < 12; i++) harness.frame?.({ camera }, 0);
+      expect(source.visible).toBe(true);
+      view.unmount();
+      expect(bodyDispose).toHaveBeenCalledOnce();
+    } else view.unmount();
+    expect(borrowed).not.toHaveBeenCalled();
+  }
+});

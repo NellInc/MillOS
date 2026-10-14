@@ -12,6 +12,7 @@ import { clone } from 'three/addons/utils/SkeletonUtils.js';
 import { createSeatedWorkerPose, createWorkerGesture, sampleWorkerGesture } from './workerPose';
 import { COMMUNITY_ANCHORS } from '../../constants/communityLayout';
 import { getWorkerAppearance } from './workerTypes';
+import { dressWorkerHands } from '../models/WorkerModel';
 
 const bodies = new Map<string, GLTF>();
 beforeAll(async () => {
@@ -565,4 +566,88 @@ it('greeting has a quiet dwell and resets fully when another activity takes over
     expect(gesture.greetingLift).toBe(0);
     expect(gesture.greetingWave).toBe(0);
   }
+});
+
+describe('declared gloves on the original skinned hands', () => {
+  for (const body of ['masculine', 'feminine']) {
+    it(`${body} retains every original triangle and deformation with smooth cuff colour`, () => {
+      const scene = clone(bodies.get(body)!.scene);
+      let source: THREE.SkinnedMesh | undefined;
+      scene.traverse((o) => {
+        const m = o as THREE.SkinnedMesh;
+        if (
+          m.isSkinnedMesh &&
+          m.parent?.name.includes('Worker_Body') &&
+          !Array.isArray(m.material) &&
+          m.material.name === 'Skin'
+        )
+          source = m;
+      });
+      expect(source).toBeDefined();
+      const original = source!.geometry,
+        skin = new THREE.Color('#b77d60'),
+        glove = new THREE.Color('#435365');
+      const dressed = dressWorkerHands(original, source!.skeleton, skin, glove)!;
+      expect(dressed).not.toBeNull();
+      expect(Array.from(dressed.index!.array)).toEqual(Array.from(original.index!.array));
+      for (const name of Object.keys(original.attributes)) {
+        expect(Array.from(dressed.getAttribute(name).array)).toEqual(
+          Array.from(original.getAttribute(name).array)
+        );
+        expect(dressed.getAttribute(name)).not.toBe(original.getAttribute(name));
+      }
+      expect(original.hasAttribute('color')).toBe(false);
+      const colours = dressed.getAttribute('color'),
+        tint = new THREE.Color(glove.r / skin.r, glove.g / skin.g, glove.b / skin.b);
+      let bare = 0,
+        full = 0,
+        blended = 0;
+      for (let i = 0; i < colours.count; i++) {
+        const c = colours.getX(i);
+        if (Math.abs(c - 1) < 1e-6) bare++;
+        else if (Math.abs(c - tint.r) < 1e-6) full++;
+        else blended++;
+        for (let j = 0; j < 3; j++) expect(Number.isFinite(colours.getComponent(i, j))).toBe(true);
+      }
+      expect(bare).toBeGreaterThan(200);
+      expect(full).toBeGreaterThan(500);
+      expect(blended).toBeGreaterThan(20);
+      const hand = new THREE.SkinnedMesh(dressed, new THREE.MeshStandardMaterial());
+      hand.bindMode = source!.bindMode;
+      hand.bind(source!.skeleton, source!.bindMatrix);
+      hand.bindMatrixInverse.copy(source!.bindMatrixInverse);
+      source!.parent!.add(hand);
+      const mixer = new THREE.AnimationMixer(scene);
+      mixer
+        .clipAction(bodies.get(body)!.animations.find((c) => c.name === 'worker-repair')!)
+        .play();
+      const actual = new THREE.Vector3(),
+        expected = new THREE.Vector3();
+      for (const dt of [0, 0.2, 0.4]) {
+        mixer.update(dt);
+        scene.updateMatrixWorld(true);
+        source!.skeleton.update();
+        for (let i = 0; i < dressed.index!.count; i += 19) {
+          const vertex = dressed.index!.getX(i);
+          expect(
+            hand
+              .getVertexPosition(vertex, actual)
+              .distanceTo(source!.getVertexPosition(vertex, expected))
+          ).toBeLessThan(1e-9);
+        }
+      }
+      dressed.dispose();
+      (hand.material as THREE.Material).dispose();
+    });
+  }
+  it('leaves unknown or unskinned exports complete rather than guessing', () => {
+    expect(
+      dressWorkerHands(
+        new THREE.BoxGeometry(),
+        new THREE.Skeleton(),
+        new THREE.Color('#b77d60'),
+        new THREE.Color('#435365')
+      )
+    ).toBeNull();
+  });
 });

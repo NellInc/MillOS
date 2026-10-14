@@ -3,7 +3,8 @@
  *
  * The two CC0 Quaternius worker bodies arrive with complete industrial
  * workwear, compatible rigs, and a curated semantic animation set. Runtime
- * material variants carry identity and role cues without duplicating geometry.
+ * material variants carry identity and role cues. Declared gloves colour the
+ * original skin vertices without altering the cached asset or animation rig.
  */
 
 import React, { useEffect, useMemo, useRef } from 'react';
@@ -57,6 +58,45 @@ export function shareWorkerSkin(root: THREE.Object3D): THREE.Skeleton[] {
     } else skins.push(skin);
   });
   return skins;
+}
+
+/** Dress the authored hands using their actual wrist/finger skin weights.
+ * Working if cuffs blend continuously across shared triangles, no draw is added,
+ * and all original positions, normals, joint weights and indices remain exact.
+ */
+export function dressWorkerHands(
+  geometry: THREE.BufferGeometry,
+  skeleton: THREE.Skeleton,
+  skinColour: THREE.Color,
+  gloveColour: THREE.Color
+) {
+  const joints = geometry.getAttribute('skinIndex'),
+    weights = geometry.getAttribute('skinWeight'),
+    positions = geometry.getAttribute('position');
+  if (!joints || !weights || !positions || skinColour.toArray().some((c) => c <= 0)) return null;
+  const handBones = new Set<number>();
+  skeleton.bones.forEach((bone, index) => {
+    if (/^(Wrist|Index|Middle|Ring|Pinky|Thumb)\d*[LR]$/.test(bone.name.replace(/[._]/g, '')))
+      handBones.add(index);
+  });
+  if (!handBones.size) return null;
+  const colours = new Float32Array(positions.count * 3);
+  const tint = [
+    gloveColour.r / skinColour.r,
+    gloveColour.g / skinColour.g,
+    gloveColour.b / skinColour.b,
+  ];
+  for (let i = 0; i < positions.count; i++) {
+    let influence = 0;
+    for (let c = 0; c < 4; c++) {
+      if (handBones.has(joints.getComponent(i, c))) influence += weights.getComponent(i, c);
+    }
+    const glove = THREE.MathUtils.smoothstep(influence, 0.2, 0.95);
+    for (let c = 0; c < 3; c++) colours[i * 3 + c] = THREE.MathUtils.lerp(1, tint[c], glove);
+  }
+  const dressed = geometry.clone();
+  dressed.setAttribute('color', new THREE.BufferAttribute(colours, 3));
+  return dressed;
 }
 
 export interface WorkerModelProps {
@@ -752,6 +792,8 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
     const skeletons = shareWorkerSkin(model);
     const materials: THREE.MeshStandardMaterial[] = [];
     const skinned: THREE.Mesh[] = [];
+    const gloveSources: THREE.SkinnedMesh[] = [];
+    const ownedGeometry: THREE.BufferGeometry[] = [];
 
     _bindBox.makeEmpty();
 
@@ -783,7 +825,34 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
         return material;
       });
       mesh.material = Array.isArray(mesh.material) ? built : built[0];
+      if (
+        appearance.hasGloves &&
+        (mesh as THREE.SkinnedMesh).isSkinnedMesh &&
+        nodeName.includes('Worker_Body') &&
+        sources.length === 1 &&
+        sources[0].name === 'Skin'
+      )
+        gloveSources.push(mesh as THREE.SkinnedMesh);
     });
+
+    // Colour the original skin rather than splitting triangles into jagged
+    // material islands. This expresses the existing flag, with no extra draw,
+    // separate skeleton, mesh, surface shader or safety-policy change.
+    for (const source of gloveSources) {
+      const material = source.material as THREE.MeshStandardMaterial;
+      const dressed = dressWorkerHands(
+        source.geometry,
+        source.skeleton,
+        material.color,
+        new THREE.Color(appearance.hasLabCoat ? '#e6e8df' : '#435365')
+      );
+      if (!dressed) continue;
+      source.geometry = dressed;
+      source.userData.workerGloves = true;
+      ownedGeometry.push(dressed);
+      material.vertexColors = true;
+      material.needsUpdate = true;
+    }
 
     // One conservative bind-pose volume shared by every primitive: all meshes
     // live in the same armature space, so a single character-sized sphere is
@@ -805,7 +874,7 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
     const rigScale = Number.isFinite(armatureScale) && armatureScale > 0 ? armatureScale : 1;
 
     const bodyLod = createWorkerBodyLod(model);
-    return { model, materials, rigScale, skeletons, bodyLod };
+    return { model, materials, ownedGeometry, rigScale, skeletons, bodyLod };
   }, [appearance, scene]);
 
   const accessoryMaterials = useMemo(() => createAccessoryMaterials(appearance), [appearance]);
@@ -857,6 +926,7 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
   useEffect(
     () => () => {
       prepared.bodyLod?.dispose();
+      prepared.ownedGeometry.forEach((geometry) => geometry.dispose());
       prepared.materials.forEach((material) => material.dispose());
       prepared.skeletons.forEach((skeleton) => skeleton.dispose());
       // Only the individual accent is owned here; fixed fittings are shared.

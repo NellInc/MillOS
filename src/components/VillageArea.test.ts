@@ -785,3 +785,71 @@ it('varies only the real market red-cloth tile and its matching scallops, retain
   expect(source.hasAttribute('color')).toBe(false);
   source.dispose();
 });
+
+it('flours only bread crowns while retaining exact market geometry and other trades', () => {
+  const baseline = [
+    {
+      attributes: {
+        position: '14add3f02a718481282ce09c15b175887df5f5d1e0f0a293a0a912f72405ab83',
+        normal: 'd5d65e399bc2ebb244d5a624d913a3094e1d20d3646c0384a2c87060f832bf64',
+        uv: '60b0aa3a28657c984145afddf6865af4fb8ad573ad69e0ab89c48c41066c0dc5',
+        color: '490b52dcb33393533fbbb8e2b7e32dd99ecc93a2ce8d5539a0c3abf358c5f52a',
+      },
+      index: null,
+    },
+    {
+      attributes: {
+        position: '36438102c685c62607031e413e0a1976ef866ec47d6d27109ad6672a0391ad08',
+        uv: '707216b57570e3996a595c4e7fa6f5e54a4e58a12d6206b6fe0f973e92100cff',
+        normal: '20e8282621eb3d9fd9cd03795593929bd0f37f691d4a13ac9ba7f3fe2e41e24b',
+        color: '65de8dab09b88be56537224d6ee133136810e2b43b5d0b4a904278f3ec5ee82e',
+      },
+      index: null,
+    },
+    {
+      attributes: {
+        position: '9024b0f67c1dbb52ed4bd4154d33a274ce0d8735f122b192112e786194718a96',
+        normal: '55efd269a4e3cea334876ee1805bea616b46b785b37f9b679d0836b0979c3ceb',
+        uv: '1d6f3b484fa0d890ddb577610d044fc002fa829b35afbd7c11a24a5e7b8cf22a',
+        color: '0c3818254d9d6b636fcb3d054499f6d653163ae64c42dc66ed201a33854f1f52',
+      },
+      index: null,
+    },
+    {
+      attributes: {
+        position: 'fa3863a8dad70ac619609ff8e2cdf0c6ba022a09c734d844621f9baa881be859',
+        normal: '462381ea8775fde9b73731b1a16689567b31a582707033439069de9217372916',
+        uv: '916f1a2b130e9a62f47885dbd6b46b6d50196e56822bb04685893b7092e67d30',
+        color: '1c3fb983563a02b95a287641e3737a7ae5ff457f45ecfcd749abc38b2e3fc647',
+      },
+      index: null,
+    },
+  ];
+  const hash = (a: THREE.BufferAttribute) =>
+    createHash('sha256')
+      .update(Buffer.from(a.array.buffer, a.array.byteOffset, a.array.byteLength))
+      .digest('hex');
+  AUTHORED_MARKET_GOODS.forEach((g, trade) => {
+    for (const [name, expected] of Object.entries(baseline[trade].attributes)) {
+      if (name === 'color' && trade === 2) continue;
+      expect(hash(g.getAttribute(name) as THREE.BufferAttribute), `trade${trade}:${name}`).toBe(
+        expected
+      );
+    }
+    expect(g.index ? hash(g.index) : null).toBe(baseline[trade].index);
+  });
+  const bread = AUTHORED_MARKET_GOODS[2],
+    uv = bread.getAttribute('uv'),
+    colour = bread.getAttribute('color');
+  let pale = 0,
+    toasted = 0;
+  for (let i = 0; i < uv.count; i++) {
+    const x = uv.getX(i) * 256;
+    if (x < MARKET_FOOD_TILES.crust[0] || x > MARKET_FOOD_TILES.crust[1] || uv.getY(i) > 0.125)
+      continue;
+    if (colour.getZ(i) > 0.32) pale++;
+    if (colour.getZ(i) < 0.1) toasted++;
+  }
+  expect(pale).toBeGreaterThan(50);
+  expect(toasted).toBeGreaterThan(50);
+});

@@ -345,19 +345,29 @@ export const MARKET_FRUIT_TEXTURES = (() => {
         const vein = Math.exp(-Math.abs(Math.sin(u * 9 + Math.sin(v * 6) * 0.45)) * 5);
         const crust = kind === 'crust',
           leaf = kind === 'leaf';
+        // Broad flouring and toasted seams read at the real 68x24px island size.
+        // Working if close bread has warm crust and dry flour patches without
+        // touching the fruit rectangle, neutral corner or atlas/geometry budget.
+        const flour = crust
+          ? THREE.MathUtils.smoothstep(
+              Math.sin(u * 12 + Math.sin(v * 5) * 0.9) * Math.cos(v * 7),
+              0.12,
+              0.72
+            ) * 0.52
+          : 0;
         const tone = leaf ? 229 + vein * 26 : crust ? 231 + patch * 24 : 239 + patch * 16;
         const i = (y * size + x) * 4;
         colour.set(
           [
             Math.round(tone),
-            Math.round(tone - (crust ? 9 : 0)),
-            Math.round(tone - (crust ? 18 : leaf ? 3 : 8)),
+            Math.round(tone - (crust ? 9 * (1 - flour) : 0)),
+            Math.round(tone - (crust ? 18 * (1 - flour) : leaf ? 3 : 8)),
             255,
           ],
           i
         );
         const roughness = Math.round(
-          leaf ? 213 - vein * 15 : crust ? 240 - patch * 10 : 188 - patch * 12
+          leaf ? 213 - vein * 15 : crust ? 240 - patch * 10 + flour * 10 : 188 - patch * 12
         );
         finish.set(
           [Math.round(128 + (leaf ? vein * 5 : (patch - 0.5) * 9)), roughness, roughness, 255],
@@ -406,7 +416,9 @@ function marketGoods(trade: number) {
     g.userData.marketFood = finish;
     g.computeBoundingBox();
     const p = g.getAttribute('position'),
-      colours = g.getAttribute('color');
+      colours = g.getAttribute('color'),
+      normals = g.getAttribute('normal');
+    const flourColour = new THREE.Color('#e4d5b5');
     const low = new THREE.Color(lower),
       high = new THREE.Color(upper),
       shade = low.clone();
@@ -422,6 +434,19 @@ function marketGoods(trade: number) {
         1
       );
       shade.copy(low).lerp(high, mix);
+      if (finish === 'crust') {
+        // Flour settles on the crown in irregular patches, leaving toasted
+        // flanks and scoring readable. Existing linear vertex colour carries it.
+        // Working if bread has pale broad patches with unchanged tray contact.
+        const patch =
+          Math.sin(p.getX(i) * 38 + p.getZ(i) * 21) * Math.cos(p.getZ(i) * 35 - p.getX(i) * 17);
+        const flour =
+          THREE.MathUtils.smoothstep(patch, -0.1, 0.7) *
+          THREE.MathUtils.smoothstep(normals.getY(i), 0.1, 0.8) *
+          THREE.MathUtils.smoothstep(height, 0.45, 0.8) *
+          0.65;
+        shade.lerp(flourColour, flour);
+      }
       colours.setXYZ(i, shade.r, shade.g, shade.b);
     }
   };
