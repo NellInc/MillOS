@@ -24,6 +24,8 @@ import type { WorkerMotionState } from '../workers/workerTypes';
 import {
   createSeatedWorkerPose,
   createWorkerGesture,
+  createWorkerEyeBlink,
+  sampleWorkerBlink,
   sampleWorkerGesture,
 } from '../workers/workerPose';
 export type { WorkerAppearance, WorkerMotionState } from '../workers/workerTypes';
@@ -218,10 +220,26 @@ export function createWorkerAccessoryPair(
   return mesh;
 }
 
+/** Closure changes the two pupil instances themselves, never their bone mount.
+ * The lid occludes pupils as the real inset eye narrows. Working if the pupil
+ * centres stay fixed and no floating pupil highlights remain over closed eyes.
+ */
+export function setWorkerPupilBlink(mesh: THREE.InstancedMesh, amount: number) {
+  const closure = Number.isFinite(amount) ? THREE.MathUtils.clamp(amount, 0, 1) : 0;
+  if ((mesh.userData.workerBlinkClosure ?? 0) === closure) return;
+  mesh.userData.workerBlinkClosure = closure;
+  const scale = ACCESSORY_PAIRS['eye-pupils'].scale[1] * (1 - closure * 0.92);
+  for (let instance = 0; instance < 2; instance++)
+    mesh.instanceMatrix.array[instance * 16 + 5] = scale;
+  mesh.instanceMatrix.needsUpdate = true;
+  mesh.visible = closure < 0.5;
+}
+
 const WorkerAccessoryPair: React.FC<{
   kind: WorkerAccessoryPairKind;
   material: THREE.Material;
-}> = ({ kind, material }) => {
+  meshRef?: React.RefObject<THREE.InstancedMesh | null>;
+}> = ({ kind, material, meshRef }) => {
   const mesh = useMemo(() => createWorkerAccessoryPair(kind, material), [kind, material]);
   // The rig borrows shared geometry/materials. Dispose only this pair's instance buffer.
   useEffect(
@@ -230,7 +248,7 @@ const WorkerAccessoryPair: React.FC<{
     },
     [mesh]
   );
-  return <primitive object={mesh} dispose={null} />;
+  return <primitive object={mesh} ref={meshRef} dispose={null} />;
 };
 
 /**
@@ -549,7 +567,8 @@ const WorkerAccessories: React.FC<{
   materials: AccessoryMaterials;
   toolRef: React.RefObject<THREE.Group | null>;
   faceRef: React.RefObject<THREE.Group | null>;
-}> = ({ appearance, model, materials, toolRef, faceRef }) => {
+  pupilRef: React.RefObject<THREE.InstancedMesh | null>;
+}> = ({ appearance, model, materials, toolRef, faceRef, pupilRef }) => {
   const head = model.getObjectByName('Head') ?? null;
   const chest = model.getObjectByName('Chest') ?? null;
   const hips = model.getObjectByName('Hips') ?? null;
@@ -560,7 +579,11 @@ const WorkerAccessories: React.FC<{
     <>
       <BoneMount bone={head} name="worker-eye-detail" position={[...eyeCentre]}>
         <group ref={faceRef}>
-          <WorkerAccessoryPair kind="eye-pupils" material={SHARED_WORKER_MATERIALS.pupil} />
+          <WorkerAccessoryPair
+            kind="eye-pupils"
+            material={SHARED_WORKER_MATERIALS.pupil}
+            meshRef={pupilRef}
+          />
         </group>
       </BoneMount>
       {appearance.hasSafetyGlasses && (
@@ -768,6 +791,7 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
   const actionsRef = useRef<Partial<Record<WorkerClipName, THREE.AnimationAction>>>({});
   const toolRef = useRef<THREE.Group>(null);
   const faceRef = useRef<THREE.Group>(null);
+  const pupilRef = useRef<THREE.InstancedMesh>(null);
   const gesture = useMemo(createWorkerGesture, []);
   const gestureTime = useRef(Number.isFinite(motion.phase) ? motion.phase : 0);
   const pendingDelta = useRef(0);
@@ -873,8 +897,9 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
     const armatureScale = model.getObjectByName('CharacterArmature')?.scale.x ?? 1;
     const rigScale = Number.isFinite(armatureScale) && armatureScale > 0 ? armatureScale : 1;
 
+    const eyeBlink = createWorkerEyeBlink(model, appearance.bodyType);
     const bodyLod = createWorkerBodyLod(model);
-    return { model, materials, ownedGeometry, rigScale, skeletons, bodyLod };
+    return { model, materials, ownedGeometry, rigScale, skeletons, bodyLod, eyeBlink };
   }, [appearance, scene]);
 
   const accessoryMaterials = useMemo(() => createAccessoryMaterials(appearance), [appearance]);
@@ -926,6 +951,7 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
   useEffect(
     () => () => {
       prepared.bodyLod?.dispose();
+      prepared.eyeBlink.dispose();
       prepared.ownedGeometry.forEach((geometry) => geometry.dispose());
       prepared.materials.forEach((material) => material.dispose());
       prepared.skeletons.forEach((skeleton) => skeleton.dispose());
@@ -998,12 +1024,17 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
         ? 'rest'
         : motion.greeting && motion.activity === 'idle' && motion.enabled
           ? 'greet'
-          : appearance.workAction === 'bake' || appearance.workAction === 'garden'
+          : motion.activity === 'working'
             ? appearance.workAction
             : 'idle',
       gestureTime.current,
       gesture
     );
+    // Facial detail is omitted at the existing near-face cutoff. Far body LOD
+    // retains the open-eye bind shape; it never needs a third body draw.
+    const blink = faceRef.current?.visible === false ? 0 : sampleWorkerBlink(gestureTime.current);
+    prepared.eyeBlink.apply(blink);
+    if (pupilRef.current?.isInstancedMesh) setWorkerPupilBlink(pupilRef.current, blink);
     lastPose.current = {
       clip: activeClip,
       seated: motion.seated,
@@ -1073,6 +1104,7 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
         materials={accessoryMaterials}
         toolRef={toolRef}
         faceRef={faceRef}
+        pupilRef={pupilRef}
       />
     </group>
   );

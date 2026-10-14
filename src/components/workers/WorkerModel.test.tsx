@@ -21,7 +21,12 @@ vi.mock('../../utils/dracoLoader', () => ({ useDracoGLTF: () => harness.asset })
 vi.mock('three/addons/utils/SkeletonUtils.js', () => ({
   clone: (scene: THREE.Group) => harness.clone?.(scene) ?? scene,
 }));
-import { WorkerModel, shareWorkerSkin, createWorkerAccessoryPair } from '../models/WorkerModel';
+import {
+  WorkerModel,
+  shareWorkerSkin,
+  createWorkerAccessoryPair,
+  setWorkerPupilBlink,
+} from '../models/WorkerModel';
 
 afterEach(() => {
   cleanup();
@@ -620,4 +625,73 @@ it('uses the declared glove flag, zero extra hand draws and two-draw far LOD, th
     } else view.unmount();
     expect(borrowed).not.toHaveBeenCalled();
   }
+});
+
+it('animates the renamed actual eye surface and freezes its closure through disabled semantic changes', () => {
+  const scene = new THREE.Group();
+  const head = new THREE.Group();
+  head.name = 'Head';
+  scene.add(head);
+  const eyeRoot = new THREE.Group();
+  eyeRoot.name = 'Worker_Head';
+  scene.add(eyeRoot);
+  const source = new THREE.BoxGeometry(0.11, 0.025, 0.009);
+  source.translate(0, 0.103, 0.112);
+  const eye = new THREE.Mesh(source, new THREE.MeshStandardMaterial());
+  eye.material.name = 'Brown';
+  eyeRoot.add(eye);
+  harness.asset = { scene, animations: [] };
+  const motion: WorkerMotionState = {
+    activity: 'working',
+    groundSpeed: 0,
+    seated: false,
+    phase: 1.72,
+    enabled: true,
+  };
+  const view = render(
+    <WorkerModel
+      appearance={{ ...getWorkerAppearance('Engineer', '', 'w2'), tool: 'none' }}
+      motion={motion}
+    />
+  );
+  expect(eye.userData.workerBlink).toBe(true);
+  expect(eye.geometry).not.toBe(source);
+  harness.frame?.({}, 0.03);
+  const closed = Array.from(eye.geometry.attributes.position.array);
+  expect(closed).not.toEqual(Array.from(source.attributes.position.array));
+  motion.enabled = false;
+  harness.frame?.({}, 100);
+  expect(Array.from(eye.geometry.attributes.position.array)).toEqual(closed);
+  motion.activity = 'idle';
+  harness.frame?.({}, 100);
+  expect(Array.from(eye.geometry.attributes.position.array)).toEqual(closed);
+  motion.enabled = true;
+  for (let i = 0; i < 4; i++) harness.frame?.({}, 0.075);
+  expect(Array.from(eye.geometry.attributes.position.array)).toEqual(
+    Array.from(source.attributes.position.array)
+  );
+  view.unmount();
+  expect(eye.geometry).toBe(source);
+});
+
+it('closes the existing pupil instances without moving their centres or scaling the bone mount', () => {
+  const pair = createWorkerAccessoryPair('eye-pupils', SHARED_WORKER_ACCESSORY_MATERIALS.dark);
+  const before = Array.from(pair.instanceMatrix.array);
+  for (const closure of [0.3, 1, 0]) {
+    setWorkerPupilBlink(pair, closure);
+    for (let instance = 0; instance < 2; instance++) {
+      expect(pair.instanceMatrix.array[instance * 16 + 5]).toBeCloseTo(
+        0.008 * (1 - closure * 0.92),
+        8
+      );
+      for (const element of [0, 10, 12, 13, 14])
+        expect(pair.instanceMatrix.array[instance * 16 + element]).toBe(
+          before[instance * 16 + element]
+        );
+    }
+    expect(pair.visible).toBe(closure < 0.5);
+    expect(pair.scale.toArray()).toEqual([1, 1, 1]);
+  }
+  expect(Array.from(pair.instanceMatrix.array)).toEqual(before);
+  pair.dispose();
 });

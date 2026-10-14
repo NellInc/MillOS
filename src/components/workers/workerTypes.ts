@@ -331,6 +331,9 @@ const NAMED_PERSONNEL_PROFILES: Record<string, Partial<WorkerAppearance>> = {
   },
 };
 
+// Civilian workwear shares the authored body but has individual cloth colours.
+// Working if village/bus identities stay stable and industrial PPE is untouched.
+const CIVILIAN_TROUSERS = ['#353e35', '#384558', '#51483e', '#3e384b', '#4e574d'] as const;
 const COMMUNITY_ROLES = new Set([
   'Baker',
   'Gardener',
@@ -370,7 +373,8 @@ export function getWorkerAppearance(role: string, color: string, id: string): Wo
       hasRadio: false,
       tool: 'none',
       workAction: 'none',
-      pantsColor: role === 'Baker' ? '#3e4658' : '#353e35',
+      pantsColor:
+        role === 'Baker' ? '#3e4658' : CIVILIAN_TROUSERS[(hash >>> 7) % CIVILIAN_TROUSERS.length],
       hatColor: color || '#726a4b',
     });
     if (role === 'Gardener') Object.assign(appearance, { tool: 'trowel', workAction: 'garden' });

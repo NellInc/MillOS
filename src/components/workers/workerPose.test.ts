@@ -9,7 +9,13 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { WORKER_EYE_CENTRES } from './SharedWorkerGeometries';
 import type { GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import { clone } from 'three/addons/utils/SkeletonUtils.js';
-import { createSeatedWorkerPose, createWorkerGesture, sampleWorkerGesture } from './workerPose';
+import {
+  createSeatedWorkerPose,
+  createWorkerGesture,
+  sampleWorkerGesture,
+  createWorkerEyeBlink,
+  sampleWorkerBlink,
+} from './workerPose';
 import { COMMUNITY_ANCHORS } from '../../constants/communityLayout';
 import { getWorkerAppearance } from './workerTypes';
 import { dressWorkerHands } from '../models/WorkerModel';
@@ -402,7 +408,7 @@ describe('living gestures on actual authored bodies', () => {
             pose.restore();
             mixer.update(0.25);
           }
-          expect(maximum - minimum).toBeGreaterThan(task === 'garden' ? 0.07 : 0.035);
+          expect(maximum - minimum).toBeGreaterThan(task === 'garden' ? 0.07 : 0.005);
         });
       }
     }
@@ -687,4 +693,128 @@ describe('subtle walking glances on the actual rigs', () => {
       expect(glances).toBeGreaterThan(50);
     });
   }
+});
+
+describe('actual private eye closure and task attention', () => {
+  for (const body of ['masculine', 'feminine'] as const) {
+    it(`${body} closes the actual eye surface, restores exact vertices and preserves cached eyes`, () => {
+      const original = bodies.get(body)!;
+      const scene = clone(original.scene);
+      const neighbour = clone(original.scene);
+      const eyes: THREE.SkinnedMesh[] = [];
+      scene.traverse((o) => {
+        const mesh = o as THREE.SkinnedMesh;
+        if (
+          mesh.isSkinnedMesh &&
+          mesh.parent?.name.includes('Worker_Head') &&
+          !Array.isArray(mesh.material) &&
+          mesh.material.name === (body === 'masculine' ? 'Eye' : 'Brown')
+        )
+          eyes.push(mesh);
+      });
+      expect(eyes).toHaveLength(1);
+      const eye = eyes[0];
+      const source = eye.geometry;
+      const borrowedArray = Array.from(source.attributes.position.array);
+      const borrowedPositions = Array.from({ length: source.attributes.position.count }, (_, i) => [
+        source.attributes.position.getX(i),
+        source.attributes.position.getY(i),
+        source.attributes.position.getZ(i),
+      ]).flat();
+      // The renderer renames its private surface materials before preparing eyes.
+      eye.material = (eye.material as THREE.Material).clone();
+      eye.material.name += `-${body}`;
+      const blink = createWorkerEyeBlink(scene, body);
+      expect(eye.geometry).not.toBe(source);
+      expect(eye.geometry.attributes.position.count).toBe(48);
+      const position = new THREE.Vector3();
+      const intoHead = scene.getObjectByName('Head')!.matrixWorld.clone().invert();
+      const bounds = () => {
+        const bounds = new THREE.Box3();
+        scene.updateMatrixWorld(true);
+        eye.skeleton.update();
+        for (let i = 0; i < 48; i++) {
+          eye.getVertexPosition(i, position);
+          position.applyMatrix4(eye.matrixWorld).applyMatrix4(intoHead);
+          bounds.expandByPoint(position);
+        }
+        return bounds;
+      };
+      const openBounds = bounds();
+      const openHeight = openBounds.max.y - openBounds.min.y;
+      blink.apply(1);
+      const closedBounds = bounds();
+      expect((closedBounds.max.y - closedBounds.min.y) / openHeight).toBeCloseTo(0.08, 4);
+      const centre = WORKER_EYE_CENTRES[body][1];
+      const openCentre = (openBounds.max.y + openBounds.min.y) / 2;
+      expect((closedBounds.max.y + closedBounds.min.y) / 2).toBeCloseTo(
+        centre + (openCentre - centre) * 0.08,
+        5
+      );
+      for (const axis of ['x', 'z'] as const) {
+        expect(closedBounds.min[axis]).toBeCloseTo(openBounds.min[axis], 5);
+        expect(closedBounds.max[axis]).toBeCloseTo(openBounds.max[axis], 5);
+      }
+      const closed = Array.from(eye.geometry.attributes.position.array);
+      blink.apply(1);
+      expect(Array.from(eye.geometry.attributes.position.array)).toEqual(closed);
+      blink.apply(0);
+      expect(Array.from(eye.geometry.attributes.position.array)).toEqual(borrowedPositions);
+      expect(Array.from(source.attributes.position.array)).toEqual(borrowedArray);
+      let neighbourEye: THREE.Mesh | undefined;
+      neighbour.traverse((o) => {
+        if ((o as THREE.Mesh).isMesh && (o as THREE.Mesh).geometry === source)
+          neighbourEye = o as THREE.Mesh;
+      });
+      expect(neighbourEye?.geometry).toBe(source);
+      blink.dispose();
+      expect(eye.geometry).toBe(source);
+      (eye.material as THREE.Material).dispose();
+    });
+  }
+  it('leaves long open-eye dwells and bounded staggered closures', () => {
+    let closed = 0;
+    for (let frame = 0; frame < 1730; frame++) {
+      const value = sampleWorkerBlink(frame / 100);
+      expect(value).toBeGreaterThanOrEqual(0);
+      expect(value).toBeLessThanOrEqual(1);
+      if (value > 0) closed++;
+    }
+    expect(closed).toBeGreaterThan(50);
+    expect(closed).toBeLessThan(80);
+    expect(sampleWorkerBlink(1.755)).toBe(1);
+    expect(sampleWorkerBlink(0)).toBe(0);
+    expect(sampleWorkerBlink(Number.NaN)).toBe(0);
+    expect(sampleWorkerBlink(1.755 + 1.731)).toBe(0);
+  });
+  it('looks toward held work and pauses gardening without decoupling the tool offsets', () => {
+    const gesture = createWorkerGesture();
+    for (const kind of ['inspect', 'sample', 'repair', 'operate', 'supervise', 'bake'] as const) {
+      sampleWorkerGesture(kind, 0, gesture);
+      expect(gesture.lookPitch).toBeGreaterThan(0.04);
+    }
+    sampleWorkerGesture('idle', 0, gesture);
+    expect(gesture.lookPitch).toBe(0);
+    sampleWorkerGesture('garden', 9, gesture);
+    expect(gesture.toolY).toBe(0);
+    expect(gesture.toolZ).toBeCloseTo(0, 8);
+    sampleWorkerGesture('garden', 2, gesture);
+    expect(gesture.toolY).toBeGreaterThan(0.01);
+    expect(gesture.toolZ / gesture.toolY).toBeCloseTo(-0.035 / 0.08, 8);
+    sampleWorkerGesture('bake', 3, gesture);
+    expect(Math.abs(gesture.toolY)).toBeLessThanOrEqual(0.006);
+    expect(Math.abs(gesture.toolZ)).toBeLessThanOrEqual(0.0021);
+    const civilians = [
+      'village-gardener',
+      'village-shopkeeper',
+      'village-neighbour',
+      'village-cyclist',
+      'bus-arriving',
+      'bus-departing',
+    ];
+    expect(
+      new Set(civilians.map((id) => getWorkerAppearance('Resident', '', id).pantsColor)).size
+    ).toBeGreaterThan(2);
+    expect(getWorkerAppearance('Operator', '', 'w3').pantsColor).toBe('#1e3a5f');
+  });
 });

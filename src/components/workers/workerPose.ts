@@ -1,11 +1,140 @@
 import * as THREE from 'three';
-import type { WorkerWorkAction } from './workerTypes';
+import type { WorkerBodyType, WorkerWorkAction } from './workerTypes';
+import { WORKER_EYE_CENTRES } from './SharedWorkerGeometries';
 
 /** Seat top and pelvis joint are different anchors: the fleshy underside is 9 cm below the joint. */
 export const WORKER_SEAT_HEIGHT = 0.46;
 export const WORKER_SEAT_PELVIS_OFFSET = 0.09;
 /** Tread top .0245 m plus the measured .022-.027 m ankle-to-sole depth. */
 export const BICYCLE_FOOT_TARGET_CLEARANCE = 0.052;
+
+const WORKER_BLINK_STARTS = [1.7, 6.4, 12.8, 13.13] as const;
+
+/** Brief asymmetric closure, long open-eye dwells, and an occasional double blink.
+ * Working if independently phased people close both real eye surfaces and pupils.
+ */
+export function sampleWorkerBlink(seconds: number): number {
+  const t = Number.isFinite(seconds) ? ((seconds % 17.3) + 17.3) % 17.3 : 0;
+  for (const start of WORKER_BLINK_STARTS) {
+    const elapsed = t - start;
+    if (elapsed >= 0 && elapsed < 0.18)
+      return (
+        THREE.MathUtils.smoothstep(elapsed, 0, 0.045) *
+        (1 - THREE.MathUtils.smoothstep(elapsed, 0.07, 0.18))
+      );
+  }
+  return 0;
+}
+
+/** The authored eyes are dark inset surfaces, with no separate white sclera.
+ * Close those vertices in Head rest space, together with the pupil fittings.
+ * No morph shader or added draw: 48 private vertices update only while blinking.
+ * Working if a blink narrows the entire eye and cached/other people's eyes stay intact.
+ */
+export function createWorkerEyeBlink(model: THREE.Object3D, bodyType: WorkerBodyType) {
+  // This method refreshes SkinnedMesh.bindMatrixInverse; updateWorldMatrix
+  // only refreshes transforms and can lift closing eyes 13 cm on a fresh clone.
+  model.updateMatrixWorld(true);
+  const head = model.getObjectByName('Head');
+  const entries: Array<{
+    mesh: THREE.Mesh;
+    source: THREE.BufferGeometry;
+    geometry: THREE.BufferGeometry;
+    open: Float32Array;
+    closed: Float32Array;
+  }> = [];
+  if (head) {
+    const intoHead = new THREE.Matrix4();
+    const fromHead = new THREE.Matrix4();
+    const point = new THREE.Vector3();
+    model.traverse((object) => {
+      const mesh = object as THREE.Mesh;
+      if (
+        !mesh.isMesh ||
+        !mesh.parent?.name.includes('Worker_Head') ||
+        Array.isArray(mesh.material) ||
+        ![
+          bodyType === 'masculine' ? 'Eye' : 'Brown',
+          `${bodyType === 'masculine' ? 'Eye' : 'Brown'}-${bodyType}`,
+        ].includes(mesh.material.name)
+      )
+        return;
+      const source = mesh.geometry;
+      const geometry = source.clone();
+      const position = geometry.getAttribute('position');
+      const open = new Float32Array(position.count * 3);
+      const closed = new Float32Array(position.count * 3);
+      intoHead.copy(head.matrixWorld).invert().multiply(mesh.matrixWorld);
+      const skin = mesh as THREE.SkinnedMesh;
+      if (skin.isSkinnedMesh) {
+        const joint = skin.skeleton.bones.indexOf(head as THREE.Bone);
+        if (joint < 0) {
+          geometry.dispose();
+          return;
+        }
+        // Normalised exports retain nonidentity bind matrices. Include the
+        // actual Head skin transform, not just the mesh's object transform.
+        // Both authored eyes are entirely Head-weighted; unfamiliar weights
+        // retain their open shape rather than guessing a deformation.
+        const indices = source.getAttribute('skinIndex');
+        const weights = source.getAttribute('skinWeight');
+        for (let vertex = 0; vertex < position.count; vertex++) {
+          for (let component = 0; component < 4; component++) {
+            if (
+              weights.getComponent(vertex, component) > 0.0001 &&
+              indices.getComponent(vertex, component) !== joint
+            ) {
+              geometry.dispose();
+              return;
+            }
+          }
+        }
+        intoHead
+          .multiply(skin.bindMatrixInverse)
+          .multiply(head.matrixWorld)
+          .multiply(skin.skeleton.boneInverses[joint])
+          .multiply(skin.bindMatrix);
+      }
+      fromHead.copy(intoHead).invert();
+      for (let index = 0; index < position.count; index++) {
+        point.fromBufferAttribute(position, index).toArray(open, index * 3);
+        point.applyMatrix4(intoHead);
+        const centre = WORKER_EYE_CENTRES[bodyType][1];
+        point.y = centre + (point.y - centre) * 0.08;
+        point.applyMatrix4(fromHead).toArray(closed, index * 3);
+      }
+      geometry.setAttribute(
+        'position',
+        new THREE.BufferAttribute(open.slice(), 3).setUsage(THREE.DynamicDrawUsage)
+      );
+      mesh.geometry = geometry;
+      mesh.userData.workerBlink = true;
+      entries.push({ mesh, source, geometry, open, closed });
+    });
+  }
+  let previous = 0;
+  return {
+    apply(amount: number) {
+      const closure = Number.isFinite(amount) ? THREE.MathUtils.clamp(amount, 0, 1) : 0;
+      if (closure === previous) return;
+      previous = closure;
+      for (const { geometry, open, closed } of entries) {
+        const position = geometry.getAttribute('position') as THREE.BufferAttribute;
+        const array = position.array;
+        for (let index = 0; index < open.length; index++)
+          array[index] =
+            closure === 0 ? open[index] : open[index] + (closed[index] - open[index]) * closure;
+        position.needsUpdate = true;
+      }
+    },
+    dispose() {
+      for (const { mesh, source, geometry } of entries) {
+        if (mesh.geometry === geometry) mesh.geometry = source;
+        geometry.dispose();
+      }
+    },
+  };
+}
 
 /** Shared metre-space targets keep hands and held props on the same motion. */
 export const createWorkerGesture = () => ({
@@ -26,7 +155,7 @@ export type WorkerGesture = ReturnType<typeof createWorkerGesture>;
  * Working if tools follow the same sampled offset as palms and feet stay planted.
  */
 export function sampleWorkerGesture(
-  kind: 'bake' | 'garden' | 'rest' | 'idle' | 'greet',
+  kind: WorkerWorkAction | 'rest' | 'idle' | 'greet',
   seconds: number,
   out: WorkerGesture
 ) {
@@ -43,8 +172,14 @@ export function sampleWorkerGesture(
         (1 - THREE.MathUtils.smoothstep(greetingTime, 1.65, 2.1))
       : 0;
   out.greetingWave = Math.sin(t * 8) * 0.18 * out.greetingLift;
-  out.toolY = kind === 'garden' ? cycle * 0.08 : kind === 'bake' ? cycle * 0.04 : 0;
-  out.toolZ = kind === 'garden' ? -cycle * 0.035 : kind === 'bake' ? cycle * 0.035 : 0;
+  // Three small gardening strokes, then hands/tool settle together for a dwell.
+  const gardenTime = ((t % 11.5) + 11.5) % 11.5;
+  const gardenWork =
+    THREE.MathUtils.smoothstep(gardenTime, 0, 0.45) *
+    (1 - THREE.MathUtils.smoothstep(gardenTime, 7.2, 8.1));
+  const settle = kind === 'bake' ? out.breath * 0.006 : 0;
+  out.toolY = kind === 'garden' ? cycle * gardenWork * 0.08 : settle;
+  out.toolZ = kind === 'garden' ? -cycle * gardenWork * 0.035 : settle * 0.35;
   // A glance has a quiet dwell and a smooth return, rather than continuous
   // clockwork nodding. The shared time already carries each person's phase.
   // Working if head gestures pause and seated/tool contact stays unchanged.
@@ -52,6 +187,29 @@ export function sampleWorkerGesture(
   const glance = glanceRamp * glanceRamp * (3 - 2 * glanceRamp);
   out.lookYaw = Math.sin(t * 0.63) * glance * (kind === 'garden' ? 0.05 : 0.22);
   out.lookPitch = Math.sin(t * 1.17) * glance * (kind === 'garden' ? 0.07 : 0.035);
+  // Work attention has its own direction; walking/rest use the unmodified glance.
+  // Working if inspectors read their held work, gardeners look into the bed,
+  // and radio users remain forward-facing without changing hand/boot targets.
+  const attentionPitch =
+    kind === 'inspect' || kind === 'sample'
+      ? 0.16
+      : kind === 'repair'
+        ? 0.12
+        : kind === 'garden'
+          ? 0.12 * gardenWork
+          : kind === 'bake'
+            ? 0.1
+            : kind === 'operate' || kind === 'supervise'
+              ? 0.06
+              : 0;
+  if (attentionPitch > 0) {
+    out.lookYaw *= 0.35;
+    out.lookPitch = attentionPitch * (1 - glance * 0.45) + out.lookPitch * 0.4;
+  }
+  if (kind === 'radio') {
+    out.lookYaw *= 0.3;
+    out.lookPitch *= 0.4;
+  }
   out.restReach = kind === 'rest' ? Math.sin(t * 0.87) * glance * 0.12 : 0;
   // A small repeated stroke within a slower attention cycle leaves natural pauses.
   const attention = Math.max(0, Math.sin(t * 0.73));
