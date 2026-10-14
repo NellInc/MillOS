@@ -6,7 +6,7 @@ import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
 import draco from 'draco3dgltf';
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { COMMUNITY_GEOMETRY, addCommunityTimber } from './CommunityDetails';
+import { COMMUNITY_GEOMETRY, addCommunityTimber, communityDetailsFlags } from './CommunityDetails';
 import { PlotGeometry } from '../../utils/authoredPlotGeometry';
 import { getBakeryBoardDetail, COMMUNITY_ANCHORS as A } from '../../constants/communityLayout';
 import {
@@ -253,4 +253,17 @@ describe('authored community details', () => {
     expect(source).not.toMatch(/<(?:pointLight|spotLight|directionalLight)/);
     expect(source).toContain('surface="painted"');
   });
+});
+
+it('shows garden soil moisture from actual rain/storm, never opening hours alone', () => {
+  for (const hour of [0, 8, 12, 20, 23]) {
+    for (const weather of ['clear', 'cloudy'] as const)
+      expect(communityDetailsFlags(hour, weather) & 4).toBe(0);
+    for (const weather of ['rain', 'storm'] as const)
+      expect(communityDetailsFlags(hour, weather) & 4).toBe(4);
+    expect(communityDetailsFlags(hour, 'clear') & 3).toBe(communityDetailsFlags(hour, 'rain') & 3);
+  }
+  const source = readFileSync('src/components/scenery/CommunityDetails.tsx', 'utf8');
+  expect(source).toContain('communityDetailsFlags(s.gameTime, s.weather)');
+  expect(source).toContain('name="allotment-weather-moist-bed"');
 });

@@ -5,6 +5,11 @@ import * as THREE from 'three';
 import { getWorkerAppearance, type WorkerMotionState } from './workerTypes';
 import { SHARED_WORKER_ACCESSORY_MATERIALS } from './SharedWorkerMaterials';
 import { createWorkerBodyLod, WORKER_BODY_LOD } from './workerBodyLod';
+import {
+  createWorkerWrenchHead,
+  createWorkerTrowelBlade,
+  createWorkerLoafGeometry,
+} from './WorkerTools';
 
 const harness = vi.hoisted(() => ({
   frame: null as null | ((state: unknown, delta: number) => void),
@@ -750,4 +755,57 @@ it('mounted face finish disposes only its private geometry', () => {
   expect(ownedDispose).toHaveBeenCalledOnce();
   expect(sourceDispose).not.toHaveBeenCalled();
   expect(materialDispose).not.toHaveBeenCalled();
+});
+
+describe('authored held work props', () => {
+  const ray = (g: THREE.BufferGeometry, x: number, y: number) => {
+    const material = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
+    const hits = new THREE.Raycaster(
+      new THREE.Vector3(x, y, 1),
+      new THREE.Vector3(0, 0, -1)
+    ).intersectObject(new THREE.Mesh(g, material));
+    material.dispose();
+    return hits;
+  };
+  it('opens the engineer jaw while retaining both arms and its bridge inside the old envelope', () => {
+    const g = createWorkerWrenchHead();
+    g.computeBoundingBox();
+    expect(ray(g, 0, 0.01)).toHaveLength(0);
+    expect(ray(g, -0.02, 0.01).length).toBeGreaterThan(0);
+    expect(ray(g, 0.02, 0.01).length).toBeGreaterThan(0);
+    expect(ray(g, 0, -0.01).length).toBeGreaterThan(0);
+    expect(g.boundingBox!.min.x).toBeCloseTo(-0.025, 6);
+    expect(g.boundingBox!.max.y).toBeCloseTo(0.015, 6);
+    g.dispose();
+  });
+  it('gives the gardener a tapered blade with the original shaft/tip contact range', () => {
+    const g = createWorkerTrowelBlade();
+    g.computeBoundingBox();
+    expect(g.boundingBox!.min.y).toBeCloseTo(0.0575, 6);
+    expect(g.boundingBox!.max.y).toBeCloseTo(0.1325, 6);
+    expect(ray(g, 0, 0.11).length).toBeGreaterThan(0);
+    expect(ray(g, 0.022, 0.13)).toHaveLength(0);
+    g.dispose();
+  });
+  it('closes scored loaves on the real tray top with finite shared geometry and no extra product draw', () => {
+    const g = createWorkerLoafGeometry();
+    expect(g.boundingBox!.min.y).toBeCloseTo(0, 8);
+    expect(g.boundingBox!.max.y).toBeLessThanOrEqual(0.040001);
+    expect(g.boundingBox!.max.x + 0.07).toBeLessThan(0.19);
+    expect(g.boundingBox!.max.z).toBeLessThan(0.12);
+    const material = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
+    const mesh = new THREE.Mesh(g, material);
+    expect(
+      new THREE.Raycaster(
+        new THREE.Vector3(0, -0.03, 0),
+        new THREE.Vector3(0, 1, 0)
+      ).intersectObject(mesh)[0].point.y
+    ).toBeCloseTo(0, 8);
+    expect(new Set(g.getAttribute('color').array).size).toBeGreaterThan(30);
+    expect(g.index!.count / 3).toBeLessThan(700);
+    for (const a of Object.values(g.attributes))
+      expect(Array.from(a.array).every(Number.isFinite)).toBe(true);
+    g.dispose();
+    material.dispose();
+  });
 });

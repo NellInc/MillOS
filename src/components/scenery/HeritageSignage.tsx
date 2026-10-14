@@ -38,30 +38,73 @@ export function createEnamelGeometry(width: number, height: number, radius: numb
   return new THREE.ShapeGeometry(shape, 8);
 }
 
-function EnamelPanel({
-  width,
-  height,
-  radius,
-  stroke = 0,
-  ...props
-}: {
-  width: number;
-  height: number;
-  radius: number;
-  stroke?: number;
-} & Pick<ComponentProps<'mesh'>, 'name' | 'position' | 'material'>) {
-  const geometry = useMemo(
-    () => createEnamelGeometry(width, height, radius, stroke),
-    [width, height, radius, stroke]
-  );
-  useEffect(() => () => geometry.dispose(), [geometry]);
-  return <mesh {...props} geometry={geometry} />;
-}
-
 export const HERITAGE_ART = {
   dino: `${import.meta.env.BASE_URL}textures/signage/dead-dino.webp`,
   wheat: `${import.meta.env.BASE_URL}textures/signage/wheat-sheaf.webp`,
 } as const;
+
+/** Complete raster prints retain painted lettering, illustration and paper together.
+ * Working if each fitted print stays in the old seat, loads through useTexture,
+ * and its actual colour texture also drives the existing dimmed emission.
+ */
+export const HERITAGE_PRINT_ART = {
+  flour: `${import.meta.env.BASE_URL}textures/signage/flour-painted-v1.webp`,
+  dino: `${import.meta.env.BASE_URL}textures/signage/dino-painted-v1.webp`,
+  route: `${import.meta.env.BASE_URL}textures/signage/route-painted-v1.webp`,
+  bakery: `${import.meta.env.BASE_URL}textures/signage/bakery-painted-v1.webp`,
+  butcher: `${import.meta.env.BASE_URL}textures/signage/butcher-painted-v1.webp`,
+  grocer: `${import.meta.env.BASE_URL}textures/signage/grocer-painted-v1.webp`,
+} as const;
+export type HeritagePrintKind = keyof typeof HERITAGE_PRINT_ART;
+
+/** Contain the print without stretching letters or clipping its perimeter. */
+export function heritagePrintSize(
+  width: number,
+  height: number,
+  imageWidth: number,
+  imageHeight: number
+) {
+  const aspect = imageWidth / imageHeight;
+  const w = Math.min(width, height * aspect);
+  return [w, w / aspect] as [number, number];
+}
+
+export function HeritageRasterPrint({
+  art,
+  width,
+  height,
+  name,
+  position = [0, 0, 0],
+  backlit = true,
+}: {
+  art: HeritagePrintKind;
+  width: number;
+  height: number;
+  name?: string;
+  position?: [number, number, number];
+  backlit?: boolean;
+}) {
+  const texture = useTexture(HERITAGE_PRINT_ART[art]);
+  const material = useSignMaterial('#ffffff', texture, backlit);
+  useLayoutEffect(() => {
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.anisotropy = 4;
+    texture.needsUpdate = true;
+  }, [texture]);
+  // useTexture resolves this URL to a loaded image before the component mounts.
+  const image = texture.image as { width: number; height: number };
+  const size = heritagePrintSize(width, height, image.width, image.height);
+  return (
+    <mesh
+      name={name ?? `heritage-${art}-raster-print`}
+      position={position}
+      material={material}
+      userData={{ noStaticBatch: backlit, heritagePrint: art }}
+    >
+      <planeGeometry args={size} />
+    </mesh>
+  );
+}
 
 /** Backlighting follows the shared dusk/weather dimmer. Keep these materials
  * outside static batching: its cloned output would freeze the initial value.
@@ -144,162 +187,30 @@ export function HeritagePoster({
   width?: number;
   height?: number;
 }) {
-  const dino = brand === 'dino';
-  const ink = dino ? '#254b3c' : '#283f49';
-  const accent = dino ? '#bb582b' : '#a27733';
-  const paperMaterial = useSignMaterial('#efe3c7');
-  const accentMaterial = useSignMaterial(accent);
-  const sealMaterial = useSignMaterial('#294b3c');
   return (
     <group name={`heritage-${brand}-poster`} userData={{ noStaticBatch: true }}>
-      <mesh material={paperMaterial}>
-        <planeGeometry args={[width, height]} />
-      </mesh>
-      <EnamelPanel
-        name={`heritage-${brand}-keyline`}
-        width={width * 0.91}
-        height={height * 0.93}
-        radius={width * 0.055}
-        stroke={width * 0.008}
-        position={[0, 0, 0.006]}
-        material={accentMaterial}
-      />
-      {!dino && (
-        <mesh
-          name="heritage-flour-seal"
-          position={[0, height * 0.045, 0.008]}
-          material={sealMaterial}
-        >
-          <circleGeometry args={[width * 0.325, 48]} />
-        </mesh>
-      )}
-      <IlluminatedSignText
-        name={`heritage-${brand}-heading`}
-        font={HERITAGE_LETTERING_FONT}
-        position={[0, height * 0.33, 0.01]}
-        fontSize={width * 0.126}
-        letterSpacing={0.035}
-        maxWidth={width * 0.84}
-        textAlign="center"
-        outlineWidth={width * 0.0008}
-        outlineColor={ink}
-        color={ink}
-        anchorX="center"
-        anchorY="middle"
-        surface="painted"
-      >
-        {dino ? 'DEAD DINO' : 'MillOS FLOUR'}
-      </IlluminatedSignText>
-      <HeritageEmblem
-        kind={dino ? 'dino' : 'wheat'}
-        width={width * (dino ? 0.91 : 0.61)}
-        position={[0, height * 0.045, 0.013]}
-        colour={dino ? '#ffffff' : '#e4c680'}
-        backlit
-      />
-      <IlluminatedSignText
-        name={`heritage-${brand}-tagline`}
-        position={[0, -height * 0.235, 0.016]}
-        fontSize={width * 0.068}
-        maxWidth={width * 0.82}
-        lineHeight={1.35}
-        textAlign="center"
-        color={ink}
-        anchorX="center"
-        anchorY="middle"
-        surface="painted"
-      >
-        {dino ? 'PREMIUM\nFOSSIL FUEL' : 'MILLED HERE.\nBAKED WITH LOVE.'}
-      </IlluminatedSignText>
-      <IlluminatedSignText
-        name={`heritage-${brand}-footer`}
-        position={[0, -height * 0.36, 0.016]}
-        fontSize={width * 0.053}
-        letterSpacing={0.025}
-        maxWidth={width * 0.82}
-        lineHeight={1.3}
-        textAlign="center"
-        color={accent}
-        anchorX="center"
-        anchorY="middle"
-        surface="painted"
-      >
-        {dino ? 'COFFEE & PROVISIONS' : 'FINE FLOUR SINCE 1952'}
-      </IlluminatedSignText>
+      <HeritageRasterPrint art={brand} width={width} height={height} />
     </group>
   );
 }
 
 export function DeadDinoPylonFace() {
   const fieldMaterial = useSignMaterial('#c46535');
-  const panelMaterial = useSignMaterial('#efe3c7');
   return (
     <group name="dead-dino-enamel-pylon-face" userData={{ noStaticBatch: true }}>
       <mesh material={fieldMaterial}>
         <planeGeometry args={[3.7, 4.7]} />
       </mesh>
-      <EnamelPanel
-        name="dead-dino-illustration-seat"
-        width={3.36}
-        height={2.58}
-        radius={0.16}
-        position={[0, 0.72, 0.008]}
-        material={panelMaterial}
-      />
-      <EnamelPanel
-        name="dead-dino-pylon-keyline"
-        width={3.5}
-        height={4.5}
-        radius={0.15}
-        stroke={0.028}
-        position={[0, 0, 0.012]}
-        material={panelMaterial}
-      />
-      <HeritageEmblem kind="dino" width={3.22} position={[0, 0.81, 0.018]} backlit />
-      {(['DEAD', 'DINO'] as const).map((word, index) => (
-        <IlluminatedSignText
-          key={word}
-          font={HERITAGE_LETTERING_FONT}
-          position={[0, -0.87 - index * 0.66, 0.022]}
-          fontSize={0.67}
-          letterSpacing={0.11}
-          maxWidth={3.15}
-          textAlign="center"
-          outlineWidth={0.008}
-          outlineColor="#fff0cd"
-          color="#fff0cd"
-          anchorX="center"
-          anchorY="middle"
-          surface="painted"
-        >
-          {word}
-        </IlluminatedSignText>
-      ))}
-      <IlluminatedSignText
-        position={[0, -2.06, 0.023]}
-        fontSize={0.2}
-        maxWidth={3.15}
-        textAlign="center"
-        color="#fff0cd"
-        anchorX="center"
-        anchorY="middle"
-        surface="painted"
-      >
-        PREMIUM FOSSIL FUEL
-      </IlluminatedSignText>
+      <HeritageRasterPrint art="dino" width={3.7} height={4.7} position={[0, 0, 0.01]} />
     </group>
   );
 }
 
 /** Enamel route board seated above the bench. The notice reads the actual bus
  * controller, including delay holds. Working if day/dusk print stays in its
- * measured frame, service notices agree with the bus, and no light/map is added.
+ * measured frame, service notices agree with the bus, and no light is added.
  */
 export function TransitServiceBoard() {
-  const paper = useSignMaterial('#efe3c7');
-  const enamel = useSignMaterial('#294b3c');
-  const brass = useSignMaterial('#a27733');
-  const noticePaper = useSignMaterial('#eadbb4');
   const bus = useRef<THREE.Object3D | null>(null);
   const [notice, setNotice] = useState('ROUTE INFORMATION');
   const last = useRef(notice);
@@ -333,71 +244,13 @@ export function TransitServiceBoard() {
         <boxGeometry args={[0.88, 1.12, 0.055]} />
         <meshStandardMaterial color="#294b3c" roughness={0.6} metalness={0.15} />
       </mesh>
-      <mesh material={paper}>
-        <planeGeometry args={[0.78, 1.02]} />
-      </mesh>
-      <EnamelPanel
-        name="bus-route-keyline"
-        width={0.73}
-        height={0.96}
-        radius={0.055}
-        stroke={0.009}
-        position={[0, 0, 0.006]}
-        material={brass}
-      />
-      <mesh name="bus-route-crest-field" position={[0, 0.285, 0.008]} material={enamel}>
-        <circleGeometry args={[0.15, 48]} />
-      </mesh>
-      <mesh name="bus-route-crest-keyline" position={[0, 0.285, 0.009]} material={brass}>
-        <ringGeometry args={[0.137, 0.142, 48]} />
-      </mesh>
-      <HeritageEmblem
-        kind="wheat"
-        width={0.24}
-        position={[0, 0.285, 0.01]}
-        colour="#e4c680"
-        backlit
-      />
-      <EnamelPanel
-        name="bus-service-paper"
-        width={0.65}
-        height={0.225}
-        radius={0.028}
-        position={[0, -0.325, 0.007]}
-        material={noticePaper}
-      />
-      <IlluminatedSignText
-        name="bus-route-heading"
-        font={HERITAGE_LETTERING_FONT}
-        position={[0, 0.035, 0.011]}
-        fontSize={0.133}
-        maxWidth={0.66}
-        letterSpacing={0.015}
-        color="#283f49"
-        anchorX="center"
-        anchorY="middle"
-        surface="painted"
-      >
-        Route 42
-      </IlluminatedSignText>
-      <IlluminatedSignText
-        name="bus-route-destination"
-        position={[0, -0.105, 0.011]}
-        fontSize={0.065}
-        maxWidth={0.62}
-        color="#283f49"
-        anchorX="center"
-        anchorY="middle"
-        surface="painted"
-      >
-        Town Centre
-      </IlluminatedSignText>
+      <HeritageRasterPrint art="route" name="bus-route-raster-print" width={0.78} height={1.02} />
       <IlluminatedSignText
         name="bus-service-notice"
-        position={[0, -0.325, 0.012]}
-        fontSize={0.058}
+        position={[0, -0.35, 0.012]}
+        fontSize={0.055}
         maxWidth={0.59}
-        lineHeight={1.45}
+        lineHeight={1.3}
         textAlign="center"
         color="#283f49"
         anchorX="center"

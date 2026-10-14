@@ -4,8 +4,84 @@
 
 import React from 'react';
 import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { SHARED_WORKER_MATERIALS } from './SharedWorkerMaterials';
 import type { ToolType } from './workerTypes';
+
+/** Authored, cached tool silhouettes. Working if the jaw is physically open,
+ * the spade tapers to its old tip, and loaves sit on the existing tray surface.
+ * No new draw, texture, material family or per-frame work is introduced.
+ */
+export function createWorkerWrenchHead() {
+  const s = new THREE.Shape();
+  s.moveTo(-0.02, -0.015);
+  s.quadraticCurveTo(-0.025, -0.015, -0.025, -0.01);
+  s.lineTo(-0.025, 0.015);
+  s.lineTo(-0.014, 0.015);
+  s.lineTo(-0.012, -0.003);
+  s.lineTo(0.012, -0.003);
+  s.lineTo(0.014, 0.015);
+  s.lineTo(0.025, 0.015);
+  s.lineTo(0.025, -0.01);
+  s.quadraticCurveTo(0.025, -0.015, 0.02, -0.015);
+  s.closePath();
+  return new THREE.ExtrudeGeometry(s, {
+    depth: 0.012,
+    bevelEnabled: false,
+    curveSegments: 3,
+  }).translate(0, 0, -0.006);
+}
+export function createWorkerTrowelBlade() {
+  const s = new THREE.Shape();
+  s.moveTo(-0.008, 0.0575);
+  s.quadraticCurveTo(-0.025, 0.07, -0.023, 0.09);
+  s.quadraticCurveTo(-0.017, 0.119, 0, 0.1325);
+  s.quadraticCurveTo(0.017, 0.119, 0.023, 0.09);
+  s.quadraticCurveTo(0.025, 0.07, 0.008, 0.0575);
+  s.closePath();
+  return new THREE.ExtrudeGeometry(s, {
+    depth: 0.0072,
+    bevelEnabled: false,
+    curveSegments: 4,
+  }).translate(0, 0, -0.0036);
+}
+export function createWorkerLoafGeometry() {
+  const base = Math.cos(Math.PI * 0.7);
+  const dome = new THREE.SphereGeometry(1, 24, 12, 0, Math.PI * 2, 0, Math.PI * 0.7)
+    .translate(0, -base, 0)
+    .scale(0.024, 0.04 / (1 - base), 0.065);
+  const bottom = new THREE.CircleGeometry(Math.sqrt(1 - base * base), 24)
+    .rotateX(Math.PI / 2)
+    .scale(0.024, 1, 0.065);
+  const g = mergeGeometries([dome, bottom]);
+  dome.dispose();
+  bottom.dispose();
+  if (!g) throw new Error('Worker loaf requires matching closed surfaces');
+  const p = g.getAttribute('position'),
+    colors = new Float32Array(p.count * 3);
+  const crust = new THREE.Color('#bd8547'),
+    score = new THREE.Color('#e8c797'),
+    c = crust.clone();
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i),
+      y = p.getY(i),
+      z = p.getZ(i);
+    const cut =
+      Math.max(...[-0.029, 0, 0.029].map((at) => Math.exp(-(((z - at - x * 0.4) / 0.005) ** 2)))) *
+      THREE.MathUtils.smoothstep(y, 0.019, 0.034);
+    p.setY(i, Math.max(0, y - cut * 0.0012));
+    c.copy(crust)
+      .multiplyScalar(0.88 + y * 4)
+      .lerp(score, cut * 0.65)
+      .toArray(colors, i * 3);
+  }
+  g.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+  g.computeVertexNormals();
+  g.computeBoundingBox();
+  g.computeBoundingSphere();
+  return g;
+}
 
 // === SHARED TOOL GEOMETRIES (module-level cache) ===
 // These geometries are created once and shared across all workers to reduce memory and creation overhead
@@ -27,10 +103,12 @@ const sharedToolGeometries = {
     led: new THREE.SphereGeometry(0.004, 8, 8),
   },
   wrench: {
-    handle: new THREE.BoxGeometry(0.025, 0.14, 0.012),
-    head: new THREE.BoxGeometry(0.05, 0.03, 0.012),
+    handle: new RoundedBoxGeometry(0.025, 0.14, 0.012, 1, 0.001),
+    head: createWorkerWrenchHead(),
     grip: new THREE.BoxGeometry(0.027, 0.05, 0.004),
   },
+  trowel: { blade: createWorkerTrowelBlade() },
+  bread: { loaf: createWorkerLoafGeometry() },
   magnifier: {
     handle: new THREE.CylinderGeometry(0.012, 0.015, 0.08, 12),
     ring: new THREE.TorusGeometry(0.035, 0.006, 8, 24),
@@ -184,15 +262,10 @@ const Trowel: React.FC = () => (
       geometry={sharedToolGeometries.wrench.handle}
       material={SHARED_WORKER_MATERIALS.clipboardBrown}
     />
-    <mesh
-      position={[0, 0.095, 0]}
-      geometry={sharedToolGeometries.wrench.head}
-      material={SHARED_WORKER_MATERIALS.chrome}
-      scale={[1, 2.5, 0.6]}
-    />
+    <mesh geometry={sharedToolGeometries.trowel.blade} material={SHARED_WORKER_MATERIALS.chrome} />
   </group>
 );
-const breadMaterial = new THREE.MeshStandardMaterial({ color: '#c99548', roughness: 0.9 });
+const breadMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 });
 const BreadTray: React.FC = () => (
   <group>
     <mesh
@@ -203,11 +276,9 @@ const BreadTray: React.FC = () => (
     {[-0.07, 0, 0.07].map((x) => (
       <mesh
         key={x}
-        position={[x, 0.03, 0]}
-        rotation={[Math.PI / 2, 0, 0]}
-        geometry={sharedToolGeometries.sampleKit.vial}
+        position={[x, 0.0125, 0]}
+        geometry={sharedToolGeometries.bread.loaf}
         material={breadMaterial}
-        scale={[2, 1.6, 2]}
       />
     ))}
   </group>

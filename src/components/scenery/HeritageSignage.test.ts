@@ -1,11 +1,14 @@
 // @vitest-environment node
 import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import sharp from 'sharp';
 import * as THREE from 'three';
 import {
   createSignMaterial,
   createEnamelGeometry,
   HERITAGE_LETTERING_FONT,
+  HERITAGE_PRINT_ART,
+  heritagePrintSize,
 } from './HeritageSignage';
 import {
   PUB_SIGN_LAMPS,
@@ -50,7 +53,7 @@ describe('delivered heritage print', () => {
     expect(print).toContain('material.dispose()');
     expect(print).not.toContain('<meshBasicMaterial');
     expect(print).not.toContain('transparent');
-    expect(print.match(/surface="painted"/g)).toHaveLength(8);
+    expect(print.match(/surface="painted"/g)).toHaveLength(1);
     const exterior = readFileSync('src/components/FactoryExterior.tsx', 'utf8');
     expect(exterior).toContain('side * 0.04');
     expect(exterior).toContain("brand={end === -1 ? 'flour' : 'dino'}");
@@ -267,7 +270,7 @@ it('uses a bounded warm route board and the actual mounted transit controller', 
   expect(source).toContain('source.userData.communityDoorsOpen');
   expect(source).toContain('if (value !== last.current)');
   expect(source).toContain('boxGeometry args={[0.88, 1.12, 0.055]}');
-  expect(source).toContain("useSignMaterial('#efe3c7')");
+  expect(source).toContain('art="route"');
   const exterior = readFileSync('src/components/FactoryExterior.tsx', 'utf8');
   expect(exterior).toContain('<TransitServiceBoard />');
   expect(exterior).not.toContain('BUS_TIMETABLE_INK_MATERIAL');
@@ -294,15 +297,88 @@ it('gives enamel keylines real rounded holes without covering the measured print
 it('coordinates existing illustrated identities while retaining plain service text', () => {
   expect(HERITAGE_LETTERING_FONT).toContain('fonts/MedievalSharp.ttf');
   const print = readFileSync('src/components/scenery/HeritageSignage.tsx', 'utf8');
-  expect(print).toContain('name="bus-route-crest-field"');
-  expect(print).toContain('name="heritage-flour-seal"');
-  expect(print).toContain('name="dead-dino-pylon-keyline"');
-  expect(print).toMatch(/kind="wheat"\s+width=\{0\.24\}/);
+  expect(print).toContain('name="bus-route-raster-print"');
+  expect(print).toContain('art={brand}');
+  expect(print).toContain('art="dino" width={3.7} height={4.7}');
   expect(
     print.split('name="bus-service-notice"')[1].split('</IlluminatedSignText>')[0]
   ).not.toContain('font=');
-  expect(print).toContain('geometry.dispose()');
+  expect(print).toContain('material.dispose()');
   const station = readFileSync('src/components/GasStationInstanced.tsx', 'utf8');
   expect(station).toContain('maxWidth={4.4}');
   expect(station).toContain('font={HERITAGE_LETTERING_FONT}');
+});
+
+describe('painted raster sign family', () => {
+  it('ships all six reviewed compact raster prints with matching provenance and no lost padding', async () => {
+    const provenance = JSON.parse(
+      readFileSync('public/textures/signage/PROVENANCE.json', 'utf8')
+    ).rasterPrints;
+    expect(provenance.assets).toHaveLength(6);
+    let total = 0;
+    for (const [kind, path] of Object.entries(HERITAGE_PRINT_ART)) {
+      const bytes = readFileSync(`public/${path}`);
+      const asset = provenance.assets.find((a: { id: string }) => a.id === kind);
+      expect(createHash('sha256').update(bytes).digest('hex')).toBe(asset.sha256);
+      const { data, info } = await sharp(bytes)
+        .ensureAlpha()
+        .raw()
+        .toBuffer({ resolveWithObject: true });
+      expect([info.width, info.height]).toEqual([asset.width, asset.height]);
+      expect(info.width).toBeLessThanOrEqual(2048);
+      expect(info.height).toBeLessThanOrEqual(1536);
+      expect(bytes.byteLength).toBeLessThan(
+        kind === 'flour' || kind === 'dino' || kind === 'route' ? 700000 : 200000
+      );
+      let nonOpaque = 0;
+      for (let i = 3; i < data.length; i += 4) if (data[i] !== 255) nonOpaque++;
+      expect(nonOpaque).toBe(0);
+      if (['bakery', 'butcher', 'grocer'].includes(kind)) {
+        expect(info.width / info.height).toBeGreaterThan(7.4);
+        expect(info.width / info.height).toBeLessThan(9.5);
+        for (const y of [0, info.height - 1]) {
+          let light = 0;
+          for (let x = 0; x < info.width; x++) {
+            const i = (y * info.width + x) * 4;
+            if (Math.min(data[i], data[i + 1], data[i + 2]) > 245) light++;
+          }
+          expect(light / info.width).toBeLessThan(0.05);
+        }
+      }
+      total += bytes.byteLength;
+    }
+    expect(total).toBeLessThan(2200000);
+  });
+  it('contains every image in its existing seat without stretching its aspect', () => {
+    for (const [w, h, iw, ih] of [
+      [1.4, 2, 1049, 1499],
+      [3.7, 4.7, 1049, 1499],
+      [0.78, 1.02, 1097, 1434],
+      [5.04, 0.56, 2027, 267],
+      [5.04, 0.56, 2021, 247],
+      [5.04, 0.56, 2048, 221],
+    ]) {
+      const [width, height] = heritagePrintSize(w, h, iw, ih);
+      expect(width).toBeLessThanOrEqual(w);
+      expect(height).toBeLessThanOrEqual(h + 1e-12);
+      expect(width / height).toBeCloseTo(iw / ih, 10);
+    }
+  });
+  it('uses one complete print on ads/fascias, with only live transit text remaining separate', () => {
+    const source = readFileSync('src/components/scenery/HeritageSignage.tsx', 'utf8');
+    const posters = source.slice(
+      source.indexOf('export function HeritagePoster'),
+      source.indexOf('export function TransitServiceBoard')
+    );
+    expect(posters).not.toContain('IlluminatedSignText');
+    expect(posters).not.toContain('HeritageEmblem');
+    expect(source).toContain('useTexture(HERITAGE_PRINT_ART[art])');
+    expect(source).toContain("useSignMaterial('#ffffff', texture, backlit)");
+    expect(source).toContain('userData={{ noStaticBatch: backlit, heritagePrint: art }}');
+    const shops = readFileSync('src/components/scenery/VillageSignage.tsx', 'utf8');
+    expect(shops).toContain('art ? (');
+    expect(shops).toContain('<HeritageRasterPrint');
+    expect(shops).toContain("trade === 'GENERAL STORE'");
+    for (const path of Object.values(HERITAGE_PRINT_ART)) expect(path).toMatch(/\.webp$/);
+  });
 });

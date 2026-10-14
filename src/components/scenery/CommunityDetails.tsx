@@ -251,6 +251,21 @@ function OpeningBoard({
   );
 }
 
+/** Wet soil reflects actual weather, never a fictitious clock-only watering event.
+ * Working if rain/storm wet the bed at any hour while clear/cloudy stay dry.
+ */
+export function communityDetailsFlags(
+  hour: number,
+  weather: 'clear' | 'cloudy' | 'rain' | 'storm'
+) {
+  const hours = getCommunityHours(hour);
+  return (
+    Number(hours.shopsOpen) |
+    (Number(hours.pubOpen) << 1) |
+    (Number(weather === 'rain' || weather === 'storm') << 2)
+  );
+}
+
 /** Goods are opt-in signals of verified customer fulfillment, never clock-only claims. */
 export const CommunityDetails = React.memo(
   ({
@@ -260,10 +275,7 @@ export const CommunityDetails = React.memo(
     deliveryVisible?: boolean;
     bakeryStocked?: boolean;
   }) => {
-    const state = useGameSimulationStore((s) => {
-      const h = getCommunityHours(s.gameTime);
-      return Number(h.shopsOpen) | (Number(h.pubOpen) << 1) | (Number(h.gardeningActive) << 2);
-    });
+    const state = useGameSimulationStore((s) => communityDetailsFlags(s.gameTime, s.weather));
     const shopsOpen = Boolean(state & 1);
     const pubOpen = Boolean(state & 2);
     return (
@@ -298,7 +310,7 @@ export const CommunityDetails = React.memo(
             receiveShadow
           />
           <mesh
-            name="allotment-watered-bed"
+            name="allotment-weather-moist-bed"
             visible={Boolean(state & 4)}
             position={villagePosition([-25.35, 0.207, 11.9])}
             geometry={UNIT_BOX}

@@ -17,5 +17,128 @@
       "brief": "Three heritage wheat ears with alternating almond kernels, bowed side stalks and tied ribbon; black on white, then traced to white alpha mask for gold printing.",
       "sha256": "aa8cf0938173d794a1156c50fefc69bd2c184c533d7166590b31b314ce31db22"
     }
-  ]
+  ],
+  "rasterPrints": {
+    "date": "2026-10-14",
+    "method": "Built-in image generation and targeted image edits; selected raster art, original graphics retained",
+    "assets": [
+      {
+        "id": "flour",
+        "source": "output/raster-heritage-20261014/source/flour.png",
+        "prompt": "Use case: ads-marketing. Create a finished, gorgeous raster advertising POSTER for the existing MillOS game world, a charming British/Dutch miniature village. Portrait 7:10, full bleed flat artwork, no photographed frame or perspective. This must look like a lovingly painted mid-century gouache/lithograph, visibly raster painterly texture, rich tonal shading, soft fine paper grain, tactile ink, coherent ivory, deep forest green, muted gold, terracotta and dusk blue. Large beautifully hand-painted serif headline at top, EXACT text 'MillOS FLOUR'. Centre an inviting still-life of golden wheat ears, a cream flour sack and warm scored bread, with a small charming white Dutch windmill with dark blue roof/red cap and red barn beside a canal in the painted background. The mill/bread/wheat are the subject, no people. Artisan quality, depth and glow painted into the illustration without glossy 3D or flat vector blocks. Preserve generous readable text margins. Bottom EXACT two lines: 'MILLED HERE.' then 'BAKED WITH LOVE.' Footer EXACT: 'FINE FLOUR SINCE 1952'. No other words, numbers or fake tiny text. A restrained painted green/gold perimeter integrated into paper. Artwork takes roughly central 50 percent, type has breathing room. All exact text must remain readable when the poster is small in a 3D scene. Do not mimic an SVG icon or typography mockup. This is the final printable image, opaque background.",
+        "correctionPrompt": null,
+        "file": "flour-painted-v1.webp",
+        "sourceCopy": "output/raster-heritage-20261014/source/flour.png",
+        "sourceWidth": 1049,
+        "sourceHeight": 1499,
+        "crop": null,
+        "width": 1049,
+        "height": 1499,
+        "bytes": 592140,
+        "sha256": "564f94a96ab92ca5d17acf97f1b76bdf1c25482a5d094aa4e3008568a78f7378",
+        "method": "Built-in image_gen; mechanical blank-padding trim and aspect-preserving WebP preparation with existing sharp; no vector conversion",
+        "textReview": "Exact intended title and caption inspected on the generated image"
+      },
+      {
+        "id": "dino",
+        "source": "output/raster-heritage-20261014/source/dino.png",
+        "prompt": "Use case: ads-marketing. Create a gorgeous finished raster advertising POSTER for the fictional Dead Dino gas station in MillOS's charming British/Dutch miniature village. Portrait 7:10, flat full-bleed print, no scene mockup, no camera perspective or frame. Painterly mid-century illustrated enamel/lithograph, visible gouache brushwork and subtle aged ivory paper, rich warm light and soft shading, no flat vector icon. EXACT large hand-painted headline 'DEAD DINO'. Main illustration is the EXISTING mascot: adorable green collapsed/sleeping stegosaurus lying horizontally, curled tail at LEFT, head at RIGHT, cream belly, small pale back plates, bold X eye and a little coral tongue, friendly comic fossil-fuel joke, no gore, no bones. Keep its recognisable silhouette but give it dimensional painted skin texture and soft natural shading. An amber/terracotta sun and restrained retro landscape provide depth behind it without clutter. Palette ivory, forest/sage green, amber, terracotta, coral, muted navy. Bottom clear EXACT text on two lines 'PREMIUM' then 'FOSSIL FUEL'. Footer EXACT 'COFFEE & PROVISIONS'. All words integrated as beautiful painted advertising lettering with readable generous margins, no other words or pseudo-text. Rich illustration should dominate central half of print, heading and footer occupy their own quiet fields. No external real-world logos, no extra mascots. No SVG/vector-style thick black outlines; softly painted edges. Opaque background.",
+        "correctionPrompt": null,
+        "file": "dino-painted-v1.webp",
+        "sourceCopy": "output/raster-heritage-20261014/source/dino.png",
+        "sourceWidth": 1049,
+        "sourceHeight": 1499,
+        "crop": null,
+        "width": 1049,
+        "height": 1499,
+        "bytes": 459710,
+        "sha256": "f108f5847f1dd4c6eea9bd26575143ffb890a2c06ec8c68ea43f214a1c1e5561",
+        "method": "Built-in image_gen; mechanical blank-padding trim and aspect-preserving WebP preparation with existing sharp; no vector conversion",
+        "textReview": "Exact intended title and caption inspected on the generated image"
+      },
+      {
+        "id": "route",
+        "source": "output/raster-heritage-20261014/source/route.png",
+        "prompt": "Use case: ads-marketing. Create final production raster artwork for a beautiful village bus route board in MillOS. Portrait 13:17, full-bleed, no photographed housing, no mockup or perspective. An elegant painted British/Dutch mid-century travel poster, exquisite raster gouache texture, soft ivory paper grain, deep forest green, warm gold, canal blue and red-brown brick. EXACT heading 'Route 42', large expressive readable hand-painted lettering, with EXACT destination 'Town Centre' below it. Small heritage golden wheat sprigs frame the upper lettering. The central illustration shows the existing village's cream-and-forest-green short single-decker bus, rounded cream roof, ordinary rubber wheels, beside a tranquil canal, compact gabled brick houses and a small windmill. No people, no trains, no port, no mountains crossing transport. Hand-painted light, dimensional bus and charming town, no flat icon vector look. IMPORTANT reserve the bottom 25 percent, starting at vertical 75 percent from TOP, as a completely EMPTY light-ivory inset field, with no ornament or illustration crossing it; its edges may have a faint painted gold keyline. This empty field will receive real live service text in game. Do NOT print any service times, BUS ON ROUTE, BUS AT STOP, or other words in that field. Only words anywhere are 'Route 42' and 'Town Centre'. Fine painted border at perimeter, generous safe margins, visual readability at small scale. Opaque.",
+        "correctionPrompt": null,
+        "file": "route-painted-v1.webp",
+        "sourceCopy": "output/raster-heritage-20261014/source/route.png",
+        "sourceWidth": 1097,
+        "sourceHeight": 1434,
+        "crop": null,
+        "width": 1097,
+        "height": 1434,
+        "bytes": 525424,
+        "sha256": "12d486049941b8b79fc3741065bf25e84b2db475c3eb5d355a3fc6dd8e8a9998",
+        "method": "Built-in image_gen; mechanical blank-padding trim and aspect-preserving WebP preparation with existing sharp; no vector conversion",
+        "textReview": "Exact intended title and caption inspected on the generated image"
+      },
+      {
+        "id": "bakery",
+        "source": "output/raster-heritage-20261014/source/bakery.png",
+        "prompt": "Use case: ads-marketing. Create final production RASTER artwork for a wide shop fascia in MillOS's charming British/Dutch miniature village. Extremely wide landscape ratio 8.25:1, flat full-bleed image, no shop mockup, no frame, no perspective. Rich, gorgeously hand-painted traditional signwriter lettering on painted timber/enamel, subtle fine gouache brushwork and aged ink, painterly dimensional still-life accents, warm cream and restrained gold letters, premium artisan quality. This must not look like SVG, vector clip art, a computer font pasted on flat colour or a logo template. Crisp readable beautiful serif title dominates central area, quiet small caption under it. Generous safe margins on every side, all lettering inside the artwork. Large title occupies about 55 percent of height, caption about 16 percent. Small painted ingredients/provisions at both far edges, no people, no large emblem stealing title width. All words must be exact and no extra words or pseudo-lettering. Burgundy/rose-brown field matching existing bakery fascia (#75454a), warm cream letters with muted gold highlights. Exact title 'BAKERY'. Exact caption 'BREAD & PATISSERIE'. Paint golden wheat, a scored loaf, croissant and a small fruit pastry at the edges, with tactile crust and soft natural shading. Restrained painted gold inner pinstripe.",
+        "correctionPrompt": "Edit this painted shop fascia artwork. Keep the same gorgeous painterly raster medium, colour palette, exact words 'BAKERY' and 'BREAD & PATISSERIE', and recognisable ingredient paintings. REQUIRED composition correction: the real fascia is an EXTREMELY THIN horizontal strip, 8.25 times wider than it is tall. Re-layout everything, including BOTH complete text lines, decorative ingredients and gold border, INSIDE ONE SHORT BAND that spans the whole image width but occupies only the central 32 percent of the canvas height. Blank solid white above and below this band; all art ends at its boundary. For example if canvas is 2100x800, the complete fascia band is 2100x255 centred vertically, with blank padding above/below. The band itself must be 8.25:1 and all lettering must fit in its short height without clipping. Main letters now have a wider, less vertically stretched signwriter proportion; compact caption below. Ingredients are small at extreme edges, no extra words. This is a mechanical re-layout for a narrow existing sign, not a new design. Do not leave the caption or any gold border outside the short band. Do not draw a thick/tall 3:1 sign. Keep full opacity.",
+        "file": "bakery-painted-v1.webp",
+        "sourceCopy": "output/raster-heritage-20261014/source/bakery.png",
+        "sourceWidth": 2027,
+        "sourceHeight": 776,
+        "crop": {
+          "left": 0,
+          "top": 257,
+          "width": 2027,
+          "height": 267
+        },
+        "width": 2027,
+        "height": 267,
+        "bytes": 145774,
+        "sha256": "bfd1d5b579670e8fde1c7312d40280e9336296b159e50a76cac7b315853c9564",
+        "method": "Built-in image_gen; mechanical blank-padding trim and aspect-preserving WebP preparation with existing sharp; no vector conversion",
+        "textReview": "Exact intended title and caption inspected on the generated image"
+      },
+      {
+        "id": "butcher",
+        "source": "output/raster-heritage-20261014/source/butcher.png",
+        "prompt": "Use case: ads-marketing. Create final production RASTER artwork for a wide shop fascia in MillOS's charming British/Dutch miniature village. Extremely wide landscape ratio 8.25:1, flat full-bleed image, no shop mockup, no frame, no perspective. Rich, gorgeously hand-painted traditional signwriter lettering on painted timber/enamel, subtle fine gouache brushwork and aged ink, painterly dimensional still-life accents, warm cream and restrained gold letters, premium artisan quality. This must not look like SVG, vector clip art, a computer font pasted on flat colour or a logo template. Crisp readable beautiful serif title dominates central area, quiet small caption under it. Generous safe margins on every side, all lettering inside the artwork. Large title occupies about 55 percent of height, caption about 16 percent. Small painted ingredients/provisions at both far edges, no people, no large emblem stealing title width. All words must be exact and no extra words or pseudo-lettering. Deep forest-green field matching existing butcher fascia (#365043). Exact title 'BUTCHER'. Exact caption 'FARMHOUSE MEATS'. Paint rustic wrapped provisions, a thyme sprig and a neat piece of farmhouse cured meat on a small wood board at the edges, appetising and subtle, no butcher knife, blood, gore or slaughter imagery. Restrained painted gold inner pinstripe.",
+        "correctionPrompt": "Edit this painted shop fascia artwork. Keep the same gorgeous painterly raster medium, colour palette, exact words 'BUTCHER' and 'FARMHOUSE MEATS', and recognisable ingredient paintings. REQUIRED composition correction: the real fascia is an EXTREMELY THIN horizontal strip, 8.25 times wider than it is tall. Re-layout everything, including BOTH complete text lines, decorative ingredients and gold border, INSIDE ONE SHORT BAND that spans the whole image width but occupies only the central 32 percent of the canvas height. Blank solid white above and below this band; all art ends at its boundary. For example if canvas is 2100x800, the complete fascia band is 2100x255 centred vertically, with blank padding above/below. The band itself must be 8.25:1 and all lettering must fit in its short height without clipping. Main letters now have a wider, less vertically stretched signwriter proportion; compact caption below. Ingredients are small at extreme edges, no extra words. This is a mechanical re-layout for a narrow existing sign, not a new design. Do not leave the caption or any gold border outside the short band. Do not draw a thick/tall 3:1 sign. Keep full opacity.",
+        "file": "butcher-painted-v1.webp",
+        "sourceCopy": "output/raster-heritage-20261014/source/butcher.png",
+        "sourceWidth": 2021,
+        "sourceHeight": 778,
+        "crop": {
+          "left": 0,
+          "top": 257,
+          "width": 2021,
+          "height": 247
+        },
+        "width": 2021,
+        "height": 247,
+        "bytes": 124350,
+        "sha256": "450bde32bd13ba7f8c6aea2a1483aab2229a73031ac1ea2fe2e6a38940749309",
+        "method": "Built-in image_gen; mechanical blank-padding trim and aspect-preserving WebP preparation with existing sharp; no vector conversion",
+        "textReview": "Exact intended title and caption inspected on the generated image"
+      },
+      {
+        "id": "grocer",
+        "source": "output/raster-heritage-20261014/source/grocer.png",
+        "prompt": "Use case: ads-marketing. Create final production RASTER artwork for a wide shop fascia in MillOS's charming British/Dutch miniature village. Extremely wide landscape ratio 8.25:1, flat full-bleed image, no shop mockup, no frame, no perspective. Rich, gorgeously hand-painted traditional signwriter lettering on painted timber/enamel, subtle fine gouache brushwork and aged ink, painterly dimensional still-life accents, warm cream and restrained gold letters, premium artisan quality. This must not look like SVG, vector clip art, a computer font pasted on flat colour or a logo template. Crisp readable beautiful serif title dominates central area, quiet small caption under it. Generous safe margins on every side, all lettering inside the artwork. Large title occupies about 55 percent of height, caption about 16 percent. Small painted ingredients/provisions at both far edges, no people, no large emblem stealing title width. All words must be exact and no extra words or pseudo-lettering. Deep slate/navy field matching existing general-store fascia (#263f55). Exact title 'GENERAL STORE'. Exact caption 'PROVISIONS & FINE GOODS'. Paint a small grain sack, apples, a copper-brown provisions jar and a folded cloth at the edges, hand-painted texture and soft shading. Restrained painted gold inner pinstripe.",
+        "correctionPrompt": "Edit this painted shop fascia artwork. Keep the same gorgeous painterly raster medium, colour palette, exact words 'GENERAL STORE' and 'PROVISIONS & FINE GOODS', and recognisable ingredient paintings. REQUIRED composition correction: the real fascia is an EXTREMELY THIN horizontal strip, 8.25 times wider than it is tall. Re-layout everything, including BOTH complete text lines, decorative ingredients and gold border, INSIDE ONE SHORT BAND that spans the whole image width but occupies only the central 32 percent of the canvas height. Blank solid white above and below this band; all art ends at its boundary. For example if canvas is 2100x800, the complete fascia band is 2100x255 centred vertically, with blank padding above/below. The band itself must be 8.25:1 and all lettering must fit in its short height without clipping. Main letters now have a wider, less vertically stretched signwriter proportion; compact caption below. Ingredients are small at extreme edges, no extra words. This is a mechanical re-layout for a narrow existing sign, not a new design. Do not leave the caption or any gold border outside the short band. Do not draw a thick/tall 3:1 sign. Keep full opacity.",
+        "file": "grocer-painted-v1.webp",
+        "sourceCopy": "output/raster-heritage-20261014/source/grocer.png",
+        "sourceWidth": 2105,
+        "sourceHeight": 747,
+        "crop": {
+          "left": 0,
+          "top": 261,
+          "width": 2105,
+          "height": 227
+        },
+        "width": 2048,
+        "height": 221,
+        "bytes": 142052,
+        "sha256": "bcbf5b31349965e83555fc6f1b611e14b3480ad7c00a3af075f2e953675724b5",
+        "method": "Built-in image_gen; mechanical blank-padding trim and aspect-preserving WebP preparation with existing sharp; no vector conversion",
+        "textReview": "Exact intended title and caption inspected on the generated image"
+      }
+    ]
+  }
 }

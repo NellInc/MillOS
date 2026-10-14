@@ -1,6 +1,12 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { HeritageEmblem, IlluminatedSignText, HERITAGE_LETTERING_FONT } from './HeritageSignage';
+import {
+  HeritageEmblem,
+  HeritageRasterPrint,
+  IlluminatedSignText,
+  HERITAGE_LETTERING_FONT,
+  type HeritagePrintKind,
+} from './HeritageSignage';
 import { SceneText } from '../shared/SceneText';
 import { ExteriorDownlight, EXTERIOR_LAMP_LENS_MATERIAL } from '../exterior/ExteriorLighting';
 import { useGraphicsStore } from '../../stores/graphicsStore';
@@ -19,6 +25,7 @@ export function VillageNameboard({
   colour = '#244d43',
   crest,
   illuminated = false,
+  art,
 }: {
   title: string;
   caption?: string;
@@ -27,6 +34,7 @@ export function VillageNameboard({
   colour?: string;
   crest?: 'wheat' | string;
   illuminated?: boolean;
+  art?: HeritagePrintKind;
 }) {
   const textWidth = width - (crest ? height * 1.5 : 0.42);
   const textX = crest ? height * 0.45 : 0;
@@ -60,71 +68,84 @@ export function VillageNameboard({
           </mesh>
         </group>
       ))}
-      {crest && (
-        <group position={[-width / 2 + height * 0.63, 0, 0.115]}>
-          <mesh>
-            <ringGeometry args={[height * 0.27, height * 0.28, 32]} />
-            <meshStandardMaterial color={GOLD} roughness={0.7} />
-          </mesh>
-          {crest === 'wheat' ? (
-            <HeritageEmblem
-              kind="wheat"
-              width={height * 0.51}
-              colour={GOLD}
-              position={[0, 0, 0.006]}
-              backlit={illuminated}
-            />
-          ) : (
+      {art ? (
+        <HeritageRasterPrint
+          art={art}
+          width={width - 0.2}
+          height={height - 0.16}
+          name={`village-lettering-${title}`}
+          position={[0, 0, 0.12]}
+          backlit={illuminated}
+        />
+      ) : (
+        <>
+          {crest && (
+            <group position={[-width / 2 + height * 0.63, 0, 0.115]}>
+              <mesh>
+                <ringGeometry args={[height * 0.27, height * 0.28, 32]} />
+                <meshStandardMaterial color={GOLD} roughness={0.7} />
+              </mesh>
+              {crest === 'wheat' ? (
+                <HeritageEmblem
+                  kind="wheat"
+                  width={height * 0.51}
+                  colour={GOLD}
+                  position={[0, 0, 0.006]}
+                  backlit={illuminated}
+                />
+              ) : (
+                <Lettering
+                  position={[0, 0, 0.006]}
+                  font={LETTERING_FONT}
+                  fontSize={height * 0.4}
+                  maxWidth={height * 0.45}
+                  color={GOLD}
+                  anchorX="center"
+                  anchorY="middle"
+                  userData={{ noStaticBatch: illuminated }}
+                  surface="painted"
+                >
+                  {crest}
+                </Lettering>
+              )}
+            </group>
+          )}
+          <Lettering
+            name={`village-lettering-${title}`}
+            position={[textX, caption ? height * 0.1 : 0, 0.12]}
+            font={LETTERING_FONT}
+            fontSize={Math.min(height * (caption ? 0.47 : 0.52), textWidth / (title.length * 0.71))}
+            maxWidth={textWidth}
+            letterSpacing={0.035}
+            textAlign="center"
+            color="#fff2d5"
+            outlineWidth={0.003}
+            outlineColor="#fff2d5"
+            anchorX="center"
+            anchorY="middle"
+            userData={{ noStaticBatch: illuminated }}
+            surface="painted"
+          >
+            {title}
+          </Lettering>
+          {caption && (
             <Lettering
-              position={[0, 0, 0.006]}
-              font={LETTERING_FONT}
-              fontSize={height * 0.4}
-              maxWidth={height * 0.45}
+              name={`village-caption-${title}`}
+              position={[textX, -height * 0.235, 0.12]}
+              fontSize={Math.min(height * 0.14, textWidth / (caption.length * 0.65))}
+              maxWidth={textWidth}
+              letterSpacing={0.09}
+              textAlign="center"
               color={GOLD}
               anchorX="center"
               anchorY="middle"
               userData={{ noStaticBatch: illuminated }}
               surface="painted"
             >
-              {crest}
+              {caption}
             </Lettering>
           )}
-        </group>
-      )}
-      <Lettering
-        name={`village-lettering-${title}`}
-        position={[textX, caption ? height * 0.1 : 0, 0.12]}
-        font={LETTERING_FONT}
-        fontSize={Math.min(height * (caption ? 0.47 : 0.52), textWidth / (title.length * 0.71))}
-        maxWidth={textWidth}
-        letterSpacing={0.035}
-        textAlign="center"
-        color="#fff2d5"
-        outlineWidth={0.003}
-        outlineColor="#fff2d5"
-        anchorX="center"
-        anchorY="middle"
-        userData={{ noStaticBatch: illuminated }}
-        surface="painted"
-      >
-        {title}
-      </Lettering>
-      {caption && (
-        <Lettering
-          name={`village-caption-${title}`}
-          position={[textX, -height * 0.235, 0.12]}
-          fontSize={Math.min(height * 0.14, textWidth / (caption.length * 0.65))}
-          maxWidth={textWidth}
-          letterSpacing={0.09}
-          textAlign="center"
-          color={GOLD}
-          anchorX="center"
-          anchorY="middle"
-          userData={{ noStaticBatch: illuminated }}
-          surface="painted"
-        >
-          {caption}
-        </Lettering>
+        </>
       )}
     </group>
   );
@@ -137,6 +158,9 @@ export function VillageShopSign({ trade }: { trade?: string }) {
     <group position={[0, 3.23, 2.52]}>
       <VillageNameboard
         title={bakery ? 'BAKERY' : (trade ?? 'VILLAGE SHOP')}
+        art={
+          bakery ? 'bakery' : butcher ? 'butcher' : trade === 'GENERAL STORE' ? 'grocer' : undefined
+        }
         caption={
           bakery ? 'BREAD & PATISSERIE' : butcher ? 'FARMHOUSE MEATS' : 'PROVISIONS & FINE GOODS'
         }
