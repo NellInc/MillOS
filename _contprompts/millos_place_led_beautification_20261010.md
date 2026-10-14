@@ -2619,3 +2619,66 @@ Timing is still red: before first-frame/p95; final day first-frame/p95/one-perce
 Required build wrapper93.149s, Vite1m29s, all final source/reachability gates exit0. Public art/prior sources preserved. Current detailed source/build/art custody and meaningful failures: test-results/station-travel-stop-20261014/acceptance.json. Local cleanup/check-in follows, no primary integration or publication.
 
 R custody/check-in closure: source/compiled pins,123 protected files and primary HEAD/tracked-status/diff remain exact after all art jobs. Verified375 borrowed dependency links and removed the links themselves, not their shared targets; empty task .vite-temp and named R npm cache removed after immediate lsof ownership checks. Original node_modules symlink restored. Current build, native images/crops/timing failures, raw/final artwork, source GLBs, previous souvenirs, primary/shared directories and protected unrelated output retained. Only this pass is staged for local check-in; no push/deploy or release of player/device/performance holds.
+
+## S: Rounded poster pumps and everyday world polish, 2026-10-15
+
+Assigned by Nell: round the pumps like the poster and execute the next long detailed improvement list. Local only, muted; preserve interface, loading/readiness, railway/port/mountain clearance and navigation. Player/device checks deferred. Pacing remains independently OPEN. Base d0b532e024f82fbb57e6cdf0ad16edf59eeb5dfa, owned finishing-recovery checkout, sole unrelated untracked output/playwright/place-led-20261010 protected. Primary HEAD/status/diff recorded. No new goal requested.
+
+Working if actual live/fallback cabinets are visibly rounded with attached controls and original atlas, everyday detail is grounded, sampled people animation has real dwells, stopped-line operators wait without altering production, final required gates pass and native art is distinguished from timing/player proof. Six production files, existing affected tests and this task record; no new dependency, shader family, light or framework. The multi-surface scope follows the requested next world pass.
+
+### Finite task list and confirming checks
+
+1. Replace the actual generated pump cabinet, not just fallback JSX or colour.
+2. Broad 16cm shoulder curvature across the front, shallow depth-edge roll.
+3. Rounded lower edges and a low skirting base.
+4. Preserve flat control seating; a uniform large bevel would expose gaps.
+5. Keep original terracotta/cream/green branding and source art exact.
+6. Clone the live material for .36-roughness/.12-metalness enamel response to existing lighting.
+7. Project the original atlas onto owned replacement geometry; retain shared maps.
+8. Respect the delivered normalized node rotation/scale, top1.9m and base.1m.
+9. Preserve overall footprint, island/root and all transport/world coordinates.
+10. Keep all four numbered mast bases attached to the new top.
+11. Keep all old display/reader/grade/holder positions and hose/nozzle geometry.
+12. Use the same cabinet for the primitive fallback, without its old box cap.
+13. Ease the two lunch tins and add separate light-coloured lids.
+14. Add two hollow break-area cups with handles and recessed drink surfaces.
+15. Add restrained pub-table crockery beyond knee space.
+16. Preserve actual .825m table tops and .46m occupied benches.
+17. Toast the five bakery loaves using their actual height; lighter flour patches.
+18. Preserve pale scored cuts, base seating, normals and ordinary lit materials.
+19. Replace delivery-cylinder shoulders with capped lathed bottle profiles.
+20. Keep bottle bases in their existing crate and preserve stock visibility.
+21. Keep details in existing merged geometry, no new lighting/shadow draw system.
+22. Sample discrete glance/hold/return cycles with long neutral dwells.
+23. Retain each actor's phase, deterministic output and bounded rotations.
+24. Give task strokes and checks a quiet interval, without changing tool offsets.
+25. Preserve actual rigs, planted boots, seated/cycle/cart contact and cleanup.
+26. Idle-line ordinary operators wait and hide their operating tool pose.
+27. Preserve maintenance/fault/quality priorities, protected breaks and routes.
+28. Never mutate production inventory, authority or fulfilled-order state from scenery.
+29. Named baseline:150 tests/5 files pass, no failing names, before source changes.
+30. Final affected suites, typecheck/lint/format/shaders/build/reachability.
+31. Local silent art review at day/dusk plus relevant people/village detail; sealed served bytes.
+32. Frozen source and primary custody checks, local-only selective check-in; pacing and player/device boundaries recorded separately.
+
+### Implementation notes and deviations
+
+Early edit script stopped at an incorrect single-line-import assumption after writing AuthoredPropTrim only. Corrected the targeted import and continued; no shared or unrelated files changed. Pump rounding is anisotropic: the deep front's shallow roll retains bezel contacts while the face silhouette has the broad shoulder requested. Actual source GLB remains unchanged. Quality personnel retain sampling/investigation when a line is idle; only ordinary Operator roles rest on that signal.
+
+Evidence: test-results/rounded-pumps-world-polish-20261015/. This chat authored the changes and is performing its own acceptance review. No generated concept is presented as a game render.
+
+First affected run153pass/1fail: the new front-depth ray measured .290344m against an assumed <.29m, while lateral shoulder loss, control contact and all other suites passed. The deliberate shallow depth roll should be inset from the old flat face, so the assertion now checks <.3m; the separate lateral/top/support checks retain the broad-shoulder contract. Found and corrected incumbent delivery bottles'1cm floor gap, .43m down to the actual .42m crate deck; lids follow. First build passed but is superseded by this seating correction, final build required before capture. Failed log retained.
+
+Native day capture completes for forecourt/square/interior: zero console/page/request/screenshot errors; actual served index/main match the sealed build; sandboxed out-of-process native Metal, audio zero/not-created. Images inspected. Timing remains red (forecourt firstFrame/p95; square and interior averageFps/p95) under39.39/37.84/38.33 load per core, budgets unchanged. No causal performance verdict.
+
+Final source review caught a real new skirt problem: its top.2m was exactly coplanar with the unchanged island top.2m. Expose4cm by increasing only skirt height.1 to.14m, retaining bottom.1m, total body height/top/footprint and every fitting. Add the actual-ray regression. This concrete depth issue justifies a final fresh build and forecourt-only replacement renders; do not repeat unaffected village/mill captures. Earlier frames/logs retained and labelled superseded for pump skirting.
+
+S acceptance closure: all32 finite items implemented and checked within their evidence boundaries.150/5 baseline,155/5 affected pass (+5), then final48/3 pump/travel-stop/community contact checks pass after skirt-only correction; unchanged people/gesture/simulation source retains its155-run hashes. Targeted14/1 seating check also passed. All final typecheck/lint/whole-source format/shader/build/reachability gates exit0. Final Vite2m38s, wrapper163.114s. Final compiled415 files/181682341 bytes, source-bound seal exact. Source GLBs, approved rasters/branding, all124 protected pins and primary HEAD/status/diff exact. No new light, shadow map, shader family, frame loop, dependency or interface change. Optional Impeccable executable absent; no interface styling/layout changed and no installation attempted.
+
+Actual final forecourt day/dusk on sandboxed out-of-process Metal have exact served index/main hashes, zero console/page/request/screenshot errors, continuous world, valid motion, community presence and zero audio nodes/context not-created. Wide pixels inspected. In-app-browser close art confirms the real rounded silhouettes/highlights, attached controls/hoses/masts, raised skirt, hollow cups, rounded tins, pub approach and a real nearby worker. Three close screenshots exist in conversation only; raw wide PNGs remain under test-results/art-review/S-rounded-pumps-final-{day,dusk}-20261015/. Earlier village/interior day images remain valid for those unchanged details, before the skirt-only correction. Bakery bread remains conditional on genuine delivered flour; its shaped/coloured geometry is machine-checked, never forced visible by fake inventory.
+
+One blank preparation tab was opened before native capture ended, then immediately closed without loading a game or starting audio. Final close-review tab was created only after native job completion and ran under the capture lock. Initial close framing happened while the cover was still loading despite world-ready=true; observed the real cover clear, then reframed and inspected actual pixels. No loading logic changed and no weak flag was substituted for visible readiness. Final temporary art tab and task-owned4289 preview closed normally through their own tools/stdin, lock released.
+
+Final timing remains OPEN: day firstFrame/p95; dusk firstFrame/averageFps/p95. Load42.90/41.85 runnable per core. These art samples are not a non-art performance gate or causal comparison. Budgets, adaptation and graphics presets exact; no quiet-GPU condition imposed, no remote upload/publication. Player/device flow checks remain deferred. Source/build/art custody is saved in test-results/rounded-pumps-world-polish-20261015/acceptance.json, including failures and superseded build logs. Local cleanup/check-in follows.
+
+S check-in custody: all source/build/protected and primary pins rechecked exact. Verified375 borrowed dependency links, no active handles in the exact owned cache paths and an empty own.vite-temp; removed only those links/the empty directory and named S npm scratch. Original node_modules symlink restored. Current build, source/history, raw/approved art, failed logs, native captures and unrelated output preserved. No disk-space or performance improvement inferred. Selective local check-in only, no push/deployment.

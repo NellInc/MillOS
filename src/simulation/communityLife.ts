@@ -359,6 +359,12 @@ export function communityWorkResponse(
   ) {
     out.activity = 'idle';
     out.task = 'Waiting for a production batch to sample';
+  } else if (machine?.status === 'idle' && person.role === 'Operator') {
+    // A stopped line is observed, never operated by cosmetic personnel.
+    // Working if ordinary operators wait, while fault/quality/maintenance and
+    // breaks above retain priority, and no production state is written here.
+    out.activity = 'idle';
+    out.task = 'Line stopped: waiting for production to resume';
   } else if (machine?.status === 'idle') out.task = 'Checking the idle line';
   return out;
 }

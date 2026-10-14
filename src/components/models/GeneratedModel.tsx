@@ -180,6 +180,12 @@ export const GeneratedModel: React.FC<GeneratedModelProps> = ({
         if (geometry !== mesh.geometry) {
           const material = mesh.material.clone();
           material.vertexColors = true;
+          // Enamel catches existing sky/forecourt lamps on this owned clone.
+          // Working if cached maps stay shared and no light/shader is added.
+          if (asset === 'fuelPumpShell') {
+            material.roughness = 0.36;
+            material.metalness = 0.12;
+          }
           mesh.geometry = geometry;
           mesh.material = material;
           geometries.push(geometry);

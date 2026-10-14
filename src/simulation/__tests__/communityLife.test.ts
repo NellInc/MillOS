@@ -659,3 +659,50 @@ describe('actual transit attention and service notice', () => {
     expect(communityBusNotice({})).toBe('ROUTE INFORMATION');
   });
 });
+
+it('rests ordinary operators on stopped lines without overriding fault, maintenance or quality duties', () => {
+  const person = COMMUNITY_ROSTER.find((p) => p.id === 'mill-operator-west')!;
+  const pose = { ...sampleCommunityPerson(person, 12), activity: 'working' as const };
+  const operations = {
+    machines: [{ id: person.machineId!, status: 'idle' as const }],
+    workOrders: [],
+    batches: [],
+    bakeryStocked: false,
+  };
+  const before = structuredClone({ pose, operations });
+  expect(communityWorkResponse(person, pose, operations)).toEqual({
+    activity: 'idle',
+    task: 'Line stopped: waiting for production to resume',
+  });
+  expect(
+    communityWorkResponse(person, pose, {
+      ...operations,
+      machines: [{ id: person.machineId!, status: 'running' }],
+    })
+  ).toEqual({ activity: 'working', task: pose.task });
+  expect(
+    communityWorkResponse(person, pose, {
+      ...operations,
+      machines: [{ id: person.machineId!, status: 'warning' }],
+    }).activity
+  ).toBe('working');
+  expect(
+    communityWorkResponse(person, pose, {
+      ...operations,
+      workOrders: [{ machineId: person.machineId!, phase: 'verification' }],
+    }).task
+  ).toBe('Reviewing post-repair verification');
+  const quality = COMMUNITY_ROSTER.find((p) => p.role === 'Quality')!;
+  expect(
+    communityWorkResponse(quality, pose, {
+      ...operations,
+      machines: [{ id: quality.machineId!, status: 'idle' }],
+      batches: [{ packerId: 'packer-2', disposition: 'hold', availableKg: 20 }],
+    }).activity
+  ).toBe('working');
+  for (const activity of ['break', 'walking'] as const)
+    expect(communityWorkResponse(person, { ...pose, activity }, operations).activity).toBe(
+      activity
+    );
+  expect({ pose, operations }).toEqual(before);
+});

@@ -1,0 +1,14 @@
+{
+  "index": {
+    "url": "http://127.0.0.1:4288/",
+    "sha256": "b00b6c665f41defab8500c2d2b4824be8a229cf58f9732b420ed3a5c3cf0ca62",
+    "bytes": 9887
+  },
+  "entries": [
+    {
+      "url": "http://127.0.0.1:4288/assets/main-BohF_n50.js",
+      "sha256": "d72b4ef01d8b8b38ff6ddd76f3c37d844180a990f437a2758b2293d7c5b09dc7",
+      "bytes": 823495
+    }
+  ]
+}

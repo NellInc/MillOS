@@ -1,5 +1,9 @@
 import * as THREE from 'three';
-import { STATION_POSTER_PALETTE, STATION_POSTER_PLANTERS } from './scenery/AuthoredPropTrim';
+import {
+  STATION_POSTER_PALETTE,
+  STATION_POSTER_PLANTERS,
+  createPosterPumpCabinet,
+} from './scenery/AuthoredPropTrim';
 import { useGraphicsStore } from '../stores/graphicsStore';
 import { DeadDinoPylonFace, BusinessBrandMark } from './scenery/HeritageSignage';
 import { ExteriorDownlight } from './exterior/ExteriorLighting';
@@ -277,8 +281,7 @@ const SWIVEL_Z_OFFSET = 0.42;
 
 // Small edge radii catch the light without changing pump clearance or layout.
 // These shared meshes replace boxes, adding no objects or material instances.
-export const createFuelPumpBodyGeometry = (): RoundedBoxGeometry =>
-  new RoundedBoxGeometry(0.6, 1.6, 0.5, 1, 0.035);
+export const createFuelPumpBodyGeometry = (): THREE.BufferGeometry => createPosterPumpCabinet();
 export const createPumpIslandGeometry = (): RoundedBoxGeometry =>
   new RoundedBoxGeometry(10, 0.2, 3, 1, 0.08);
 
@@ -288,7 +291,6 @@ export const createPumpIslandGeometry = (): RoundedBoxGeometry =>
 const GEOMETRIES = {
   pumpBody: createFuelPumpBodyGeometry(),
   pumpIsland: createPumpIslandGeometry(),
-  pumpCap: new RoundedBoxGeometry(0.7, 0.2, 0.6, 1, 0.035),
   canopyColumn: createCanopyColumnGeometry(),
   signPole: createSignPoleGeometry(),
   // Pump hose/handle geometries
@@ -659,18 +661,17 @@ interface GasStationProps {
   rotation?: number;
 }
 
-// The GLB retains the exact shell. Screens, holders, hoses and nozzles stay live.
+// Live and fallback shells share the poster cabinet. Controls and hoses stay live.
 const FuelPumpShell = () => (
   <GeneratedBoundary
     fallback={
-      <>
-        <mesh position={[0, 0.9, 0]} geometry={GEOMETRIES.pumpBody} castShadow>
-          <meshStandardMaterial color={STATION_POSTER_PALETTE.terracotta} roughness={0.5} />
-        </mesh>
-        <mesh position={[0, 1.8, 0]} geometry={GEOMETRIES.pumpCap} castShadow>
-          <meshStandardMaterial color={STATION_POSTER_PALETTE.terracotta} roughness={0.5} />
-        </mesh>
-      </>
+      <mesh position={[0, 1, 0]} geometry={GEOMETRIES.pumpBody} castShadow>
+        <meshStandardMaterial
+          color={STATION_POSTER_PALETTE.terracotta}
+          roughness={0.36}
+          metalness={0.12}
+        />
+      </mesh>
     }
   >
     <group position={[0, 0.1, 0]}>

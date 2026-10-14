@@ -201,10 +201,16 @@ export function sampleWorkerGesture(
   // A glance has a quiet dwell and a smooth return, rather than continuous
   // clockwork nodding. The shared time already carries each person's phase.
   // Working if head gestures pause and seated/tool contact stays unchanged.
-  const glanceRamp = Math.min(1, Math.max(0, Math.sin(t * 0.31)) * 4);
-  const glance = glanceRamp * glanceRamp * (3 - 2 * glanceRamp);
-  out.lookYaw = Math.sin(t * 0.63) * glance * (kind === 'garden' ? 0.05 : 0.22);
-  out.lookPitch = Math.sin(t * 1.17) * glance * (kind === 'garden' ? 0.07 : 0.035);
+  const glanceTime = ((t % 16.9) + 16.9) % 16.9;
+  const left =
+    THREE.MathUtils.smoothstep(glanceTime, 1.1, 1.9) *
+    (1 - THREE.MathUtils.smoothstep(glanceTime, 3.2, 4.15));
+  const right =
+    THREE.MathUtils.smoothstep(glanceTime, 8.8, 9.6) *
+    (1 - THREE.MathUtils.smoothstep(glanceTime, 11.4, 12.5));
+  const glance = left + right;
+  out.lookYaw = (left - right * 0.82) * (kind === 'garden' ? 0.05 : 0.22);
+  out.lookPitch = (left * 0.7 - right) * (kind === 'garden' ? 0.07 : 0.035);
   // Work attention has its own direction; walking/rest use the unmodified glance.
   // Working if inspectors read their held work, gardeners look into the bed,
   // and radio users remain forward-facing without changing hand/boot targets.
@@ -230,9 +236,12 @@ export function sampleWorkerGesture(
   }
   out.restReach = kind === 'rest' ? Math.sin(t * 0.87) * glance * 0.12 : 0;
   // A small repeated stroke within a slower attention cycle leaves natural pauses.
-  const attention = Math.max(0, Math.sin(t * 0.73));
+  const workTime = ((t % 9.8) + 9.8) % 9.8;
+  const attention =
+    THREE.MathUtils.smoothstep(workTime, 0.3, 0.9) *
+    (1 - THREE.MathUtils.smoothstep(workTime, 5.2, 6));
   out.workStroke = Math.sin(t * 3.4) * attention;
-  out.workCheck = Math.sin(t * 1.15);
+  out.workCheck = Math.sin(t * 1.15) * attention;
   return out;
 }
 

@@ -6,7 +6,12 @@ import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
 import draco from 'draco3dgltf';
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { COMMUNITY_GEOMETRY, addCommunityTimber, communityDetailsFlags } from './CommunityDetails';
+import {
+  COMMUNITY_GEOMETRY,
+  addCommunityTimber,
+  addCommunityCup,
+  communityDetailsFlags,
+} from './CommunityDetails';
 import { PlotGeometry } from '../../utils/authoredPlotGeometry';
 import { getBakeryBoardDetail, COMMUNITY_ANCHORS as A } from '../../constants/communityLayout';
 import {
@@ -266,4 +271,57 @@ it('shows garden soil moisture from actual rain/storm, never opening hours alone
   const source = readFileSync('src/components/scenery/CommunityDetails.tsx', 'utf8');
   expect(source).toContain('communityDetailsFlags(s.gameTime, s.weather)');
   expect(source).toContain('name="allotment-weather-moist-bed"');
+});
+
+it('seats hollow table cups with a recessed drink, rather than a solid cylinder top', () => {
+  const b = new PlotGeometry();
+  addCommunityCup(b, 0, 0, '#e0d5b9');
+  const g = b.finish();
+  expect(g.boundingBox!.min.y).toBeCloseTo(0.825, 6);
+  expect(heightAt(g, 0, 0)).toBeCloseTo(0.903, 6);
+  expect(heightAt(g, 0.05, 0)).toBeGreaterThan(0.93);
+  expect(g.boundingBox!.max.x).toBeLessThan(0.1);
+  g.dispose();
+});
+it('gives actual bread a toasted crown and varied flour while preserving all five seated bases', () => {
+  const bread = COMMUNITY_GEOMETRY.bread;
+  const colours = bread.getAttribute('color');
+  expect(new Set(Array.from(colours.array).map((x) => x.toFixed(5))).size).toBeGreaterThan(100);
+  const anchor = A.bakeryCounter;
+  const at = (x: number, z: number) =>
+    new THREE.Vector3(x, 0, z)
+      .applyAxisAngle(new THREE.Vector3(0, 1, 0), anchor.rotation)
+      .add(new THREE.Vector3(...anchor.position));
+  for (const [x, z] of [
+    [-0.27, -0.12],
+    [0.27, -0.12],
+    [-0.36, 0.13],
+    [0, 0.13],
+    [0.36, 0.13],
+  ]) {
+    const p = at(x, z);
+    expect(heightAt(bread, p.x, p.z)).toBeGreaterThan(0.92);
+  }
+});
+
+it('seats all delivery bottles directly on the crate floor at .42m', () => {
+  const anchor = A.shopDelivery;
+  const mesh = new THREE.Mesh(
+    COMMUNITY_GEOMETRY.delivery,
+    new THREE.MeshBasicMaterial({ side: THREE.DoubleSide })
+  );
+  const rotation = new THREE.Quaternion().setFromAxisAngle(
+    new THREE.Vector3(0, 1, 0),
+    anchor.rotation
+  );
+  for (const x of [-0.17, 0, 0.17]) {
+    const origin = new THREE.Vector3(x, 0.44, 0)
+      .applyQuaternion(rotation)
+      .add(new THREE.Vector3(...anchor.position));
+    const hit = new THREE.Raycaster(origin, new THREE.Vector3(0, -1, 0), 0, 0.03).intersectObject(
+      mesh
+    )[0];
+    expect(hit.point.y).toBeCloseTo(0.42, 6);
+  }
+  mesh.material.dispose();
 });

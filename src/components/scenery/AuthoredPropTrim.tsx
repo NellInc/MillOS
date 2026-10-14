@@ -1,5 +1,6 @@
 import React from 'react';
 import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { EXTERIOR_LAYERS, POLYGON_OFFSET } from '../../constants/renderLayers';
 import { SITE_LAYOUT } from '../../constants/siteLayout';
@@ -54,6 +55,80 @@ export const STATION_POSTER_PALETTE = {
   brass: '#bca36f',
 } as const;
 
+/** A pillowy vintage cabinet, centred at zero in station metres. The low
+ * skirting retains the old cap's footprint; the front stays flat behind the
+ * live controls. Working if shoulders curve over 16cm, the top stays at .9m,
+ * and the .3m control face is never pushed forward through its fittings.
+ */
+export function createPosterPumpCabinet() {
+  const body = new RoundedBoxGeometry(0.6, 1.8, 0.5, 4, 0.16);
+  // Broad shoulders across the face, shallow edge roll in depth. A uniformly
+  // large radius would leave the existing cream bezel hovering off the shell.
+  const p = body.getAttribute('position'),
+    n = body.getAttribute('normal');
+  const normal = new THREE.Vector3();
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i),
+      core = 0.14,
+      faceCore = 0.265;
+    const edge = Math.abs(x) > core + 1e-6;
+    const stretch = edge ? 0.035 / 0.16 : faceCore / core;
+    p.setX(
+      i,
+      Math.sign(x) * (edge ? faceCore + (Math.abs(x) - core) * stretch : Math.abs(x) * stretch)
+    );
+    normal.fromBufferAttribute(n, i);
+    normal.x /= stretch;
+    normal.normalize();
+    n.setXYZ(i, normal.x, normal.y, normal.z);
+  }
+  return joined([
+    colored(body, STATION_POSTER_PALETTE.terracotta),
+    colored(
+      // The island top is .2m: expose 4cm of the skirt, never a coplanar red cap.
+      new RoundedBoxGeometry(0.7, 0.14, 0.6, 2, 0.035).translate(0, -0.83, 0),
+      STATION_POSTER_PALETTE.terracotta
+    ),
+  ]);
+}
+
+/** Sample the nearest original triangle's atlas chart. Only the owned
+ * replacement receives UVs; the cached GLB and its shared maps remain exact.
+ */
+function projectStationUV(source: THREE.BufferGeometry, target: THREE.BufferGeometry) {
+  const pos = source.getAttribute('position'),
+    uv = source.getAttribute('uv');
+  const positions = target.getAttribute('position'),
+    out = target.getAttribute('uv');
+  const point = new THREE.Vector3(),
+    closest = new THREE.Vector3(),
+    best = new THREE.Vector3();
+  const bary = new THREE.Vector3(),
+    triangle = new THREE.Triangle();
+  for (let i = 0; i < positions.count; i++) {
+    point.fromBufferAttribute(positions, i);
+    let distance = Infinity,
+      chosen = 0;
+    for (let t = 0; t < pos.count; t += 3) {
+      triangle.setFromAttributeAndIndices(pos, t, t + 1, t + 2);
+      triangle.closestPointToPoint(point, closest);
+      const d = closest.distanceToSquared(point);
+      if (d < distance) {
+        distance = d;
+        chosen = t;
+        best.copy(closest);
+      }
+    }
+    triangle.setFromAttributeAndIndices(pos, chosen, chosen + 1, chosen + 2);
+    triangle.getBarycoord(best, bary);
+    out.setXY(
+      i,
+      uv.getX(chosen) * bary.x + uv.getX(chosen + 1) * bary.y + uv.getX(chosen + 2) * bary.z,
+      uv.getY(chosen) * bary.x + uv.getY(chosen + 1) * bary.y + uv.getY(chosen + 2) * bary.z
+    );
+  }
+}
+
 /** One opaque canopy body: rounded plan corners, cream soffit and red top lip.
  * Working if roof/pump paint matches the poster, all fixture/body bounds stay
  * fixed, original UV charts/maps remain sampled and no extra body draw is added.
@@ -66,9 +141,22 @@ export function createPosterStationGeometry(
   const original = source.index ? source.toNonIndexed() : source.clone();
   const colours = original.getAttribute('color');
   if (asset === 'fuelPumpShell') {
-    const paint = new THREE.Color(STATION_POSTER_PALETTE.terracotta);
-    for (let i = 0; i < colours.count; i++) colours.setXYZ(i, paint.r, paint.g, paint.b);
-    return original;
+    original.computeBoundingBox();
+    const bounds = original.boundingBox!;
+    const scale = (bounds.max.y - bounds.min.y) / 1.8;
+    const centre = bounds.getCenter(new THREE.Vector3());
+    // The delivered node rotates Y by 90 degrees and scales uniformly. Return
+    // the cabinet in that node's own frame, not incorrectly in world metres.
+    const cabinet = createPosterPumpCabinet()
+      .rotateY(-Math.PI / 2)
+      .scale(scale, scale, scale)
+      .translate(...centre.toArray());
+    projectStationUV(original, cabinet);
+    original.dispose();
+    cabinet.computeBoundingBox();
+    cabinet.computeBoundingSphere();
+    cabinet.userData.stationPoster = true;
+    return cabinet;
   }
   const pos = original.getAttribute('position'),
     uv = original.getAttribute('uv');

@@ -35,11 +35,11 @@ describe('Dead Dino authored signage', () => {
 describe('forecourt detail envelope', () => {
   it('rounds shared pump and island edges without growing their envelopes', () => {
     for (const [geometry, halfSize] of [
-      [createFuelPumpBodyGeometry(), [0.3, 0.8, 0.25]],
+      [createFuelPumpBodyGeometry(), [0.35, 0.9, 0.3]],
       [createPumpIslandGeometry(), [5, 0.1, 1.5]],
     ] as const) {
       geometry.computeBoundingBox();
-      expect(geometry.getAttribute('position').count / 3).toBe(108);
+      expect(geometry.getAttribute('position').count / 3).toBeLessThan(1400);
       for (const [index, axis] of (['x', 'y', 'z'] as const).entries()) {
         expect(geometry.boundingBox!.max[axis]).toBeCloseTo(halfSize[index], 5);
         expect(geometry.boundingBox!.min[axis]).toBeCloseTo(-halfSize[index], 5);
@@ -711,7 +711,7 @@ describe('poster-matched live station bodies', () => {
     (oldMesh.material as THREE.Material).dispose();
   });
 
-  it('paints actual pump geometry terracotta without changing any hose/body geometry or UV', async () => {
+  it('rounds the delivered pump shoulders with seated controls, intact source and projected atlas', async () => {
     const p = (await new NodeIO().read('public/models/world/fuel-pump-shell.glb'))
       .getRoot()
       .listMeshes()[0]
@@ -730,10 +730,50 @@ describe('poster-matched live station bodies', () => {
       );
     }
     const result = createPosterStationGeometry(source, 'fuelPumpShell');
-    for (const name of ['position', 'normal', 'uv'])
-      expect(Array.from(result.getAttribute(name).array)).toEqual(
-        Array.from(source.getAttribute(name).array)
-      );
+    const node = (await new NodeIO().read('public/models/world/fuel-pump-shell.glb'))
+      .getRoot()
+      .listNodes()[0];
+    const matrix = new THREE.Matrix4().fromArray(node.getWorldMatrix());
+    const material = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
+    const mesh = new THREE.Mesh(result.clone().applyMatrix4(matrix).translate(0, 0.1, 0), material);
+    mesh.updateMatrixWorld(true);
+    const hit = (x: number, y: number, z: number) =>
+      new THREE.Raycaster(new THREE.Vector3(x, y, z), new THREE.Vector3(-1, 0, 0)).intersectObject(
+        mesh
+      )[0];
+    expect(hit(1, 1.1, 0).point.x).toBeCloseTo(0.3, 5);
+    // Cream stiles' inner faces are .285m, the body must enter them.
+    expect(hit(1, 1.1, 0.17).point.x).toBeGreaterThan(0.285);
+    // This is the shallow depth roll, with the broad shoulder tested across Z below.
+    expect(hit(1, 1.85, 0).point.x).toBeLessThan(0.3);
+    expect(hit(1, 1.85, 0.24)).toBeUndefined();
+    const bounds = new THREE.Box3().setFromObject(mesh);
+    expect(bounds.min.y).toBeCloseTo(0.1, 5);
+    expect(bounds.max.y).toBeCloseTo(1.9, 5);
+    expect(bounds.max.x).toBeCloseTo(0.35, 5);
+    expect(bounds.max.z).toBeCloseTo(0.3, 5);
+    // The new red skirt must rise above, rather than z-fight with, the .2m island.
+    const skirt = new THREE.Raycaster(
+      new THREE.Vector3(0.31, 1, 0),
+      new THREE.Vector3(0, -1, 0)
+    ).intersectObject(mesh)[0];
+    expect(skirt.point.y).toBeCloseTo(0.24, 5);
+    for (const name of ['position', 'normal', 'uv', 'color'])
+      expect(Array.from(result.getAttribute(name).array).every(Number.isFinite)).toBe(true);
+    const uv = result.getAttribute('uv');
+    for (const value of uv.array) {
+      expect(value).toBeGreaterThanOrEqual(0);
+      expect(value).toBeLessThanOrEqual(1);
+    }
+    expect(new Set(uv.array).size).toBeGreaterThan(30);
+    expect(result.getAttribute('position').count / 3).toBeLessThan(1400);
+    expect(source.getAttribute('position').array).toEqual(p.getAttribute('POSITION')!.getArray());
+    expect(source.getAttribute('uv').array).toEqual(p.getAttribute('TEXCOORD_0')!.getArray());
+    expect(createFuelPumpBodyGeometry().getAttribute('position').count).toBe(
+      result.getAttribute('position').count
+    );
+    mesh.geometry.dispose();
+    material.dispose();
     const c = result.getAttribute('color'),
       target = new THREE.Color(STATION_POSTER_PALETTE.terracotta);
     for (let i = 0; i < c.count; i++)

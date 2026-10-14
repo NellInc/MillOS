@@ -93,6 +93,57 @@ function board(b: PlotGeometry) {
   b.box([0.71, 0.05, 0.075], [0, 1.05, 0], CREAM);
 }
 
+/** Open stoneware, including an inside wall, lip and a real recessed drink.
+ * Working if the base touches the .825m table and the mouth is visibly hollow,
+ * all in the incumbent static batch with ordinary lit material.
+ */
+export function addCommunityCup(b: PlotGeometry, x: number, z: number, colour: string) {
+  const y = 0.825;
+  b.add(
+    new THREE.LatheGeometry(
+      [
+        [0, 0],
+        [0.045, 0],
+        [0.052, 0.015],
+        [0.057, 0.1],
+        [0.055, 0.112],
+        [0.045, 0.112],
+        [0.043, 0.018],
+        [0, 0.018],
+      ].map((p) => new THREE.Vector2(...p)),
+      12
+    ).translate(x, y, z),
+    colour
+  );
+  b.add(
+    new THREE.TorusGeometry(0.032, 0.009, 5, 10).scale(0.8, 1, 1).translate(x + 0.064, y + 0.06, z),
+    colour
+  );
+  b.add(
+    new THREE.CircleGeometry(0.045, 12).rotateX(-Math.PI / 2).translate(x, y + 0.078, z),
+    '#453024'
+  );
+}
+
+/** Toasting follows each loaf's actual height, plus sparse flour patches.
+ * Working if crust has deterministic tonal separation without changing bounds,
+ * UVs, normals, stock counts, ordinary lighting or delivery visibility.
+ */
+function toastBread(g: THREE.BufferGeometry, colour: string, bottom: number, height: number) {
+  const p = g.getAttribute('position'),
+    c = g.getAttribute('color');
+  const base = new THREE.Color(colour),
+    flour = new THREE.Color('#dfcca5'),
+    shade = base.clone();
+  for (let i = 0; i < p.count; i++) {
+    const crown = THREE.MathUtils.clamp((p.getY(i) - bottom) / height, 0, 1);
+    const patch = Math.sin(p.getX(i) * 23 + p.getZ(i) * 37) * Math.cos(p.getZ(i) * 21);
+    shade.copy(base).multiplyScalar(1.07 - crown * 0.23 + patch * 0.035);
+    shade.lerp(flour, Math.max(0, patch - 0.32) * 0.3 * crown);
+    c.setXYZ(i, shade.r, shade.g, shade.b);
+  }
+}
+
 function buildMillDetails() {
   const b = new PlotGeometry();
   for (const anchor of [
@@ -104,8 +155,18 @@ function buildMillDetails() {
   // End table and two closed lunch tins, outside both occupied seat rectangles.
   at(b, { position: [-34, 0, -10], rotation: 0 }, (g) => {
     table(g, 0.62, 0.62);
-    g.box([0.23, 0.12, 0.16], [-0.12, 0.885, 0], '#66796a');
-    g.box([0.19, 0.12, 0.15], [0.13, 0.885, 0.06], '#98735e');
+    for (const [x, z, width, depth, paint] of [
+      [-0.12, 0, 0.23, 0.16, '#66796a'],
+      [0.13, 0.06, 0.19, 0.15, '#98735e'],
+    ] as const) {
+      g.add(new RoundedBoxGeometry(width, 0.1, depth, 2, 0.018).translate(x, 0.875, z), paint);
+      g.add(
+        new RoundedBoxGeometry(width + 0.006, 0.02, depth + 0.006, 2, 0.006).translate(x, 0.935, z),
+        CREAM
+      );
+    }
+    addCommunityCup(g, -0.09, -0.21, CREAM);
+    addCommunityCup(g, 0.17, -0.19, '#6a847a');
   });
   return b.finish();
 }
@@ -128,6 +189,7 @@ function buildVillageDetails() {
       const start = g.parts.length;
       table(g, 0.55, 0.55);
       g.parts.slice(start).forEach((part) => part.translate(0, 0, 1.1));
+      addCommunityCup(g, 0.12, 1.17, CREAM);
     });
   }
   at(b, { position: villagePosition([15.1, 0, 3.2]), rotation: -Math.PI / 2 }, board);
@@ -172,6 +234,7 @@ function buildBread() {
           .translate(x, 0.825, z),
         colour
       );
+      for (const part of g.parts.slice(-2)) toastBread(part, colour, 0.825, height);
       // Shallow scored arcs follow the actual ellipsoid rather than floating
       // boxes. Their pale cut faces and crust retain ordinary scene lighting.
       for (const cut of baguette ? [-0.12, 0, 0.12] : [-0.035, 0.035]) {
@@ -196,8 +259,23 @@ function buildDelivery() {
   at(b, A.shopDelivery, (g) => {
     crate(g, 0, 0.38, 0);
     for (const x of [-0.17, 0, 0.17]) {
-      g.add(new THREE.CylinderGeometry(0.045, 0.055, 0.24, 8).translate(x, 0.55, 0), '#ede5ce');
-      g.add(new THREE.CylinderGeometry(0.029, 0.029, 0.07, 8).translate(x, 0.705, 0), '#a1bcb3');
+      g.add(
+        new THREE.LatheGeometry(
+          [
+            [0, 0],
+            [0.048, 0],
+            [0.055, 0.015],
+            [0.055, 0.18],
+            [0.05, 0.213],
+            [0.028, 0.24],
+            [0.028, 0.3],
+            [0, 0.3],
+          ].map((p) => new THREE.Vector2(...p)),
+          10
+        ).translate(x, 0.42, 0),
+        '#ede5ce'
+      );
+      g.add(new THREE.CylinderGeometry(0.03, 0.03, 0.025, 10).translate(x, 0.7225, 0), '#a1bcb3');
     }
     g.round([0, 0.22, 0.64], [0.25, 0.28, 0.2], CREAM);
   });

@@ -935,3 +935,24 @@ it.each(['masculine', 'feminine'])(
     expect(largest).toBeLessThan(0.019);
   }
 );
+
+it('holds discrete glances, returns to neutral and leaves a real quiet work interval', () => {
+  const g = createWorkerGesture();
+  const a = { ...sampleWorkerGesture('idle', 2.2, g) },
+    b = { ...sampleWorkerGesture('idle', 2.8, g) };
+  expect(a.lookYaw).toBe(0.22);
+  expect(b.lookYaw).toBe(a.lookYaw);
+  expect(b.lookPitch).toBe(a.lookPitch);
+  for (const time of [0, 5, 7, 14, 16.899]) {
+    sampleWorkerGesture('idle', time, g);
+    expect(g.lookYaw).toBeCloseTo(0, 8);
+    expect(g.lookPitch).toBeCloseTo(0, 8);
+  }
+  expect(sampleWorkerGesture('idle', 10, g).lookYaw).toBeLessThan(-0.15);
+  for (const time of [6.1, 7, 8, 9.7]) {
+    sampleWorkerGesture('inspect', time, g);
+    expect(g.workStroke).toBeCloseTo(0, 8);
+    expect(g.workCheck).toBeCloseTo(0, 8);
+  }
+  expect(Math.abs(sampleWorkerGesture('inspect', 2, g).workStroke)).toBeGreaterThan(0.1);
+});

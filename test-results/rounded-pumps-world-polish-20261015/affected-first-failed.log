@@ -1,0 +1,26 @@
+
+ RUN  v4.1.10 /Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS
+
+ ❯ src/components/GasStationInstanced.test.ts (26 tests | 1 failed) 2048ms
+     × rounds the delivered pump shoulders with seated controls, intact source and projected atlas 905ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/GasStationInstanced.test.ts > poster-matched live station bodies > rounds the delivered pump shoulders with seated controls, intact source and projected atlas
+AssertionError: expected 0.29034391351624855 to be less than 0.29
+ ❯ src/components/GasStationInstanced.test.ts:747:37
+    745|     // Cream stiles' inner faces are .285m, the body must enter them.
+    746|     expect(hit(1, 1.1, 0.17).point.x).toBeGreaterThan(0.285);
+    747|     expect(hit(1, 1.85, 0).point.x).toBeLessThan(0.29);
+       |                                     ^
+    748|     expect(hit(1, 1.85, 0.24)).toBeUndefined();
+    749|     const bounds = new THREE.Box3().setFromObject(mesh);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 4 passed (5)
+      Tests  1 failed | 153 passed (154)
+   Start at  00:25:13
+   Duration  165.15s (transform 14.64s, setup 3.25s, import 109.50s, tests 34.35s, environment 12.87s)
+
