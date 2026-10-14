@@ -651,3 +651,40 @@ describe('declared gloves on the original skinned hands', () => {
     ).toBeNull();
   });
 });
+
+describe('subtle walking glances on the actual rigs', () => {
+  for (const body of ['masculine', 'feminine']) {
+    it(`${body} glances without touching stride/boots/palms and restores the incoming pose`, () => {
+      const gltf = bodies.get(body)!,
+        scene = clone(gltf.scene),
+        mixer = new THREE.AnimationMixer(scene);
+      const action = mixer.clipAction(gltf.animations.find((c) => c.name === 'worker-walk')!);
+      action.play();
+      const pose = createSeatedWorkerPose(scene, 1),
+        gesture = createWorkerGesture(),
+        head = scene.getObjectByName('Head')!;
+      let glances = 0;
+      for (let frame = 0; frame < 240; frame++) {
+        pose.restore();
+        mixer.update(1 / 30);
+        scene.updateMatrixWorld(true);
+        const before = head.quaternion.clone();
+        const contacts = ['FootL', 'FootR', 'WristL', 'WristR'].map((n) =>
+          scene.getObjectByName(n)!.getWorldPosition(new THREE.Vector3())
+        );
+        sampleWorkerGesture('idle', frame / 30, gesture);
+        pose.applyWalkingLook(gesture);
+        if (head.quaternion.angleTo(before) > 0.01) glances++;
+        ['FootL', 'FootR', 'WristL', 'WristR'].forEach((n, i) =>
+          expect(
+            scene.getObjectByName(n)!.getWorldPosition(new THREE.Vector3()).distanceTo(contacts[i])
+          ).toBeLessThan(1e-9)
+        );
+        expect(head.quaternion.angleTo(before)).toBeLessThan(0.09);
+        pose.restore();
+        expect(head.quaternion.angleTo(before)).toBeLessThan(1e-7);
+      }
+      expect(glances).toBeGreaterThan(50);
+    });
+  }
+});

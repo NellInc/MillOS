@@ -63,7 +63,7 @@
  * against that camera's px-per-metre would be the answer.
  */
 
-import React, { useImperativeHandle, useMemo } from 'react';
+import React, { useEffect, useImperativeHandle, useMemo } from 'react';
 import * as THREE from 'three';
 import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
 import { useDracoGLTF } from '../../utils/dracoLoader';
@@ -266,8 +266,12 @@ export const RiggedCreatureModel = React.forwardRef<CreatureRigHandle, RiggedCre
         mesh.frustumCulled = true;
       }
 
-      return { model, bones, rest };
+      return { model, bones, rest, skeletons: [...new Set(skinned.map((mesh) => mesh.skeleton))] };
     }, [scene, creature]);
+
+    // SkeletonUtils owns these palettes; geometry, materials and maps remain
+    // borrowed. Working if unmounting one horse leaves every other copy intact.
+    useEffect(() => () => prepared.skeletons.forEach((skeleton) => skeleton.dispose()), [prepared]);
 
     useImperativeHandle(ref, () => {
       const { model, bones, rest } = prepared;
@@ -328,7 +332,7 @@ export const RiggedCreatureModel = React.forwardRef<CreatureRigHandle, RiggedCre
       };
     }, [prepared, creature]);
 
-    return <primitive object={prepared.model} />;
+    return <primitive object={prepared.model} dispose={null} />;
   }
 );
 

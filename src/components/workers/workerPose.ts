@@ -197,11 +197,11 @@ export function createSeatedWorkerPose(model: THREE.Object3D, heightScale = 1, b
     if (independentFoot) setPosition(end, p.copy(endpoint));
   }
 
-  function look(gesture?: WorkerGesture) {
+  function look(gesture?: WorkerGesture, strength = 1) {
     const head = bones.get('Head');
     if (!head || !gesture) return;
-    head.rotateY(gesture.lookYaw);
-    head.rotateX(gesture.lookPitch);
+    head.rotateY(gesture.lookYaw * strength);
+    head.rotateX(gesture.lookPitch * strength);
   }
 
   function applyTask(task: 'push' | 'pull' | 'bake' | 'garden', gesture?: WorkerGesture) {
@@ -342,6 +342,15 @@ export function createSeatedWorkerPose(model: THREE.Object3D, heightScale = 1, b
         right?.rotateZ(gesture.workStroke * 0.12);
       }
       // Radio already has an authored speaking gesture; only add the head glance.
+      applied = true;
+      model.updateWorldMatrix(false, true);
+    },
+    applyWalkingLook(gesture: WorkerGesture) {
+      capture();
+      // A small occasional look complements the walking clip. No torso/limb
+      // edits: working if both real rigs retain exact gait/boot transforms and
+      // restore the incoming mixer pose without rotational accumulation.
+      look(gesture, 0.35);
       applied = true;
       model.updateWorldMatrix(false, true);
     },

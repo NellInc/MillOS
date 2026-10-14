@@ -2599,205 +2599,222 @@ export const Fountain = React.memo<{ position: [number, number, number] }>(({ po
 ));
 Fountain.displayName = 'Fountain';
 
-// ===== HORSE =====
-// Redesigned v3: Detailed segmented model, clearer proportions
-const Horse = React.memo<{ position: [number, number, number]; rotation?: number; color?: string }>(
-  ({ position, rotation = 0, color = '#8d6e63' }) => {
-    const [isExcited, setIsExcited] = React.useState(false);
-    const [hearts, setHearts] = React.useState<{ id: number; pos: [number, number, number] }[]>([]);
-    const groupRef = React.useRef<THREE.Group>(null);
-    // Monotonic id avoids React key collisions on rapid pets (as Cat and Crow).
-    const nextHeartId = React.useRef(0);
+// ===== BLACKSMITH'S HORSE =====
+// Geometry-only fallback; its lowest hoof is -.175 before the retained .6 scale.
+const HorsePrimitiveBody = React.memo<{ color?: string }>(({ color = '#795548' }) => (
+  <group position={[0, 0.105, 0]} scale={0.6}>
+    {/* Main Body Group */}
+    <group position={[0, 1.4, 0]}>
+      {/* Torso */}
+      <mesh castShadow rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.55, 0.6, 1.2, 12]} />
+        <meshStandardMaterial color={color} />
+      </mesh>
+      {/* Shoulders */}
+      <mesh position={[0, 0.1, 0.7]} castShadow>
+        <sphereGeometry args={[0.62, 12, 12]} />
+        <meshStandardMaterial color={color} />
+      </mesh>
+      {/* Hindquarters */}
+      <mesh position={[0, 0.15, -0.7]} castShadow>
+        <sphereGeometry args={[0.65, 12, 12]} />
+        <meshStandardMaterial color={color} />
+      </mesh>
+    </group>
 
-    // A horse unmounted while hovered must not leave the pointer cursor stuck.
-    React.useEffect(() => resetCursor, []);
+    {/* Neck - Max upright/proud */}
+    <group position={[0, 2.1, 0.9]} rotation={[0.4, 0, 0]}>
+      <mesh position={[0, 0.5, 0]} castShadow>
+        <cylinderGeometry args={[0.25, 0.45, 1.2, 12]} />
+        <meshStandardMaterial color={color} />
+      </mesh>
+      {/* Mane */}
+      <mesh position={[0, 0.4, -0.3]} rotation={[0, 0, 0]}>
+        <boxGeometry args={[0.1, 1.3, 0.2]} />
+        <meshStandardMaterial color="#3e2723" />
+      </mesh>
+    </group>
 
-    const handlePet = (e: ThreeEvent<MouseEvent>) => {
-      e.stopPropagation();
-      setIsExcited(true);
-      playCritterSound('horse');
-      const id = nextHeartId.current++;
-      setHearts((prev) => [...prev, { id, pos: [0, 2.5, 0] }]);
-    };
+    {/* Head */}
+    <group position={[0, 3.1, 1.6]} rotation={[0.3, 0, 0]}>
+      <mesh castShadow>
+        <boxGeometry args={[0.35, 0.35, 0.7]} />
+        <meshStandardMaterial color={color} />
+      </mesh>
+      <mesh position={[0, -0.05, 0.35]} castShadow>
+        <boxGeometry args={[0.25, 0.25, 0.4]} />
+        <meshStandardMaterial color="#5d4037" />
+      </mesh>
+      {/* Ears - Larger and more prominent */}
+      {[-0.12, 0.12].map((x, i) => (
+        <mesh key={i} position={[x, 0.35, -0.2]} rotation={[0.2, 0, x > 0 ? -0.3 : 0.3]}>
+          <coneGeometry args={[0.08, 0.2, 4]} />
+          <meshStandardMaterial color={color} />
+        </mesh>
+      ))}
+      {/* Eyes - Moved to side of head */}
+      {[-0.16, 0.16].map((x, i) => (
+        <mesh key={i} position={[x, 0.1, 0.1]}>
+          <sphereGeometry args={[0.065, 8, 8]} />
+          <meshStandardMaterial color="black" />
+        </mesh>
+      ))}
+      {/* Forelock */}
+      <mesh position={[0, 0.2, 0.2]} rotation={[0.2, 0, 0]}>
+        <boxGeometry args={[0.05, 0.2, 0.3]} />
+        <meshStandardMaterial color="#3e2723" />
+      </mesh>
+    </group>
 
-    const removeHeart = (id: number) => {
-      setHearts((prev) => prev.filter((h) => h.id !== id));
-    };
+    {/* Legs */}
+    {/* Front Left */}
+    <group position={[-0.35, 1.4, 0.7]}>
+      <mesh position={[0, -0.4, 0]}>
+        <cylinderGeometry args={[0.12, 0.15, 0.8, 8]} />
+        <meshStandardMaterial color={color} />
+      </mesh>
+      <mesh position={[0, -1.1, 0]}>
+        <cylinderGeometry args={[0.1, 0.11, 0.7, 8]} />
+        <meshStandardMaterial color={color} />
+      </mesh>
+      <mesh position={[0, -1.5, 0]}>
+        <cylinderGeometry args={[0.12, 0.15, 0.15, 8]} />
+        <meshStandardMaterial color="#1a1110" />
+      </mesh>
+    </group>
+    {/* Front Right */}
+    <group position={[0.35, 1.4, 0.7]}>
+      <mesh position={[0, -0.4, 0]}>
+        <cylinderGeometry args={[0.12, 0.15, 0.8, 8]} />
+        <meshStandardMaterial color={color} />
+      </mesh>
+      <mesh position={[0, -1.1, 0]}>
+        <cylinderGeometry args={[0.1, 0.11, 0.7, 8]} />
+        <meshStandardMaterial color={color} />
+      </mesh>
+      <mesh position={[0, -1.5, 0]}>
+        <cylinderGeometry args={[0.12, 0.15, 0.15, 8]} />
+        <meshStandardMaterial color="#1a1110" />
+      </mesh>
+    </group>
+    {/* Back Left */}
+    <group position={[-0.35, 1.4, -0.7]}>
+      <mesh position={[0, -0.3, 0]}>
+        <cylinderGeometry args={[0.14, 0.18, 0.8, 8]} />
+        <meshStandardMaterial color={color} />
+      </mesh>
+      <mesh position={[0, -1.0, 0]}>
+        <cylinderGeometry args={[0.1, 0.12, 0.8, 8]} />
+        <meshStandardMaterial color={color} />
+      </mesh>
+      <mesh position={[0, -1.5, 0]}>
+        <cylinderGeometry args={[0.12, 0.15, 0.15, 8]} />
+        <meshStandardMaterial color="#1a1110" />
+      </mesh>
+    </group>
+    {/* Back Right */}
+    <group position={[0.35, 1.4, -0.7]}>
+      <mesh position={[0, -0.3, 0]}>
+        <cylinderGeometry args={[0.14, 0.18, 0.8, 8]} />
+        <meshStandardMaterial color={color} />
+      </mesh>
+      <mesh position={[0, -1.0, 0]}>
+        <cylinderGeometry args={[0.1, 0.12, 0.8, 8]} />
+        <meshStandardMaterial color={color} />
+      </mesh>
+      <mesh position={[0, -1.5, 0]}>
+        <cylinderGeometry args={[0.12, 0.15, 0.15, 8]} />
+        <meshStandardMaterial color="#1a1110" />
+      </mesh>
+    </group>
 
-    // Restored. Only does work while the animal is actually excited, so the
-    // steady-state cost is one ref check per frame.
-    useFrame((state) => {
-      const group = groupRef.current;
-      if (!group) return;
-      if (isExcited) {
-        const t = state.clock.elapsedTime * 15;
-        group.rotation.z = Math.sin(t) * 0.05; // Shake
-        group.position.y = Math.abs(Math.sin(t * 0.5)) * 0.1; // Rear up slightly
-      } else if (group.position.y !== 0 || group.rotation.z !== 0) {
-        group.rotation.z = 0;
-        group.position.y = 0;
+    {/* Tail */}
+    <group position={[0, 1.7, -1.0]} rotation={[0.2, 0, 0]}>
+      <mesh position={[0, -0.4, -0.2]} rotation={[-0.2, 0, 0]}>
+        <cylinderGeometry args={[0.08, 0.15, 1.2, 8]} />
+        <meshStandardMaterial color="#3e2723" />
+      </mesh>
+    </group>
+  </group>
+));
+HorsePrimitiveBody.displayName = 'HorsePrimitiveBody';
+
+/** Reuse the refined farm asset and its existing rig, preserving its baked coat.
+ * Working if the forge has one textured horse, with no extra asset/maps, and its
+ * quiet head looks/pet response keep every hoof and the root planted.
+ */
+export const BlacksmithHorse = React.memo<{
+  position: [number, number, number];
+  rotation?: number;
+}>(({ position, rotation = 0 }) => {
+  const reducedMotion = useReducedMotion();
+  const rig = useRef<CreatureRigHandle>(null);
+  const clock = useRef(0),
+    pet = useRef(0),
+    pending = useRef(0),
+    reset = useRef(false);
+  const nextHeartId = useRef(0);
+  const [hearts, setHearts] = React.useState<{ id: number; pos: [number, number, number] }[]>([]);
+  useEffect(() => resetCursor, []);
+  useFrame((_state, delta) => {
+    const { isTabVisible, gameSpeed, emergencyActive, emergencyDrillMode } =
+      useGameSimulationStore.getState();
+    if (!isTabVisible || emergencyActive || emergencyDrillMode) return;
+    if (reducedMotion) {
+      if (!reset.current) {
+        rig.current?.setHeadShake(0);
+        reset.current = true;
       }
-    });
-
-    React.useEffect(() => {
-      if (isExcited) {
-        const t = setTimeout(() => setIsExcited(false), 800);
-        return () => clearTimeout(t);
-      }
-    }, [isExcited]);
-
-    return (
-      <group
-        position={position}
-        rotation={[0, rotation, 0]}
-        scale={0.6}
-        onClick={handlePet}
-        onPointerOver={setPointerCursor}
-        onPointerOut={resetCursor}
-      >
-        <group ref={groupRef}>
-          {/* Main Body Group */}
-          <group position={[0, 1.4, 0]}>
-            {/* Torso */}
-            <mesh castShadow rotation={[Math.PI / 2, 0, 0]}>
-              <cylinderGeometry args={[0.55, 0.6, 1.2, 12]} />
-              <meshStandardMaterial color={color} />
-            </mesh>
-            {/* Shoulders */}
-            <mesh position={[0, 0.1, 0.7]} castShadow>
-              <sphereGeometry args={[0.62, 12, 12]} />
-              <meshStandardMaterial color={color} />
-            </mesh>
-            {/* Hindquarters */}
-            <mesh position={[0, 0.15, -0.7]} castShadow>
-              <sphereGeometry args={[0.65, 12, 12]} />
-              <meshStandardMaterial color={color} />
-            </mesh>
-          </group>
-
-          {/* Neck - Max upright/proud */}
-          <group position={[0, 2.1, 0.9]} rotation={[0.4, 0, 0]}>
-            <mesh position={[0, 0.5, 0]} castShadow>
-              <cylinderGeometry args={[0.25, 0.45, 1.2, 12]} />
-              <meshStandardMaterial color={color} />
-            </mesh>
-            {/* Mane */}
-            <mesh position={[0, 0.4, -0.3]} rotation={[0, 0, 0]}>
-              <boxGeometry args={[0.1, 1.3, 0.2]} />
-              <meshStandardMaterial color="#3e2723" />
-            </mesh>
-          </group>
-
-          {/* Head */}
-          <group position={[0, 3.1, 1.6]} rotation={[0.3, 0, 0]}>
-            <mesh castShadow>
-              <boxGeometry args={[0.35, 0.35, 0.7]} />
-              <meshStandardMaterial color={color} />
-            </mesh>
-            <mesh position={[0, -0.05, 0.35]} castShadow>
-              <boxGeometry args={[0.25, 0.25, 0.4]} />
-              <meshStandardMaterial color="#5d4037" />
-            </mesh>
-            {/* Ears - Larger and more prominent */}
-            {[-0.12, 0.12].map((x, i) => (
-              <mesh key={i} position={[x, 0.35, -0.2]} rotation={[0.2, 0, x > 0 ? -0.3 : 0.3]}>
-                <coneGeometry args={[0.08, 0.2, 4]} />
-                <meshStandardMaterial color={color} />
-              </mesh>
-            ))}
-            {/* Eyes - Moved to side of head */}
-            {[-0.16, 0.16].map((x, i) => (
-              <mesh key={i} position={[x, 0.1, 0.1]}>
-                <sphereGeometry args={[0.065, 8, 8]} />
-                <meshStandardMaterial color="black" />
-              </mesh>
-            ))}
-            {/* Forelock */}
-            <mesh position={[0, 0.2, 0.2]} rotation={[0.2, 0, 0]}>
-              <boxGeometry args={[0.05, 0.2, 0.3]} />
-              <meshStandardMaterial color="#3e2723" />
-            </mesh>
-          </group>
-
-          {/* Legs */}
-          {/* Front Left */}
-          <group position={[-0.35, 1.4, 0.7]}>
-            <mesh position={[0, -0.4, 0]}>
-              <cylinderGeometry args={[0.12, 0.15, 0.8, 8]} />
-              <meshStandardMaterial color={color} />
-            </mesh>
-            <mesh position={[0, -1.1, 0]}>
-              <cylinderGeometry args={[0.1, 0.11, 0.7, 8]} />
-              <meshStandardMaterial color={color} />
-            </mesh>
-            <mesh position={[0, -1.5, 0]}>
-              <cylinderGeometry args={[0.12, 0.15, 0.15, 8]} />
-              <meshStandardMaterial color="#1a1110" />
-            </mesh>
-          </group>
-          {/* Front Right */}
-          <group position={[0.35, 1.4, 0.7]}>
-            <mesh position={[0, -0.4, 0]}>
-              <cylinderGeometry args={[0.12, 0.15, 0.8, 8]} />
-              <meshStandardMaterial color={color} />
-            </mesh>
-            <mesh position={[0, -1.1, 0]}>
-              <cylinderGeometry args={[0.1, 0.11, 0.7, 8]} />
-              <meshStandardMaterial color={color} />
-            </mesh>
-            <mesh position={[0, -1.5, 0]}>
-              <cylinderGeometry args={[0.12, 0.15, 0.15, 8]} />
-              <meshStandardMaterial color="#1a1110" />
-            </mesh>
-          </group>
-          {/* Back Left */}
-          <group position={[-0.35, 1.4, -0.7]}>
-            <mesh position={[0, -0.3, 0]}>
-              <cylinderGeometry args={[0.14, 0.18, 0.8, 8]} />
-              <meshStandardMaterial color={color} />
-            </mesh>
-            <mesh position={[0, -1.0, 0]}>
-              <cylinderGeometry args={[0.1, 0.12, 0.8, 8]} />
-              <meshStandardMaterial color={color} />
-            </mesh>
-            <mesh position={[0, -1.5, 0]}>
-              <cylinderGeometry args={[0.12, 0.15, 0.15, 8]} />
-              <meshStandardMaterial color="#1a1110" />
-            </mesh>
-          </group>
-          {/* Back Right */}
-          <group position={[0.35, 1.4, -0.7]}>
-            <mesh position={[0, -0.3, 0]}>
-              <cylinderGeometry args={[0.14, 0.18, 0.8, 8]} />
-              <meshStandardMaterial color={color} />
-            </mesh>
-            <mesh position={[0, -1.0, 0]}>
-              <cylinderGeometry args={[0.1, 0.12, 0.8, 8]} />
-              <meshStandardMaterial color={color} />
-            </mesh>
-            <mesh position={[0, -1.5, 0]}>
-              <cylinderGeometry args={[0.12, 0.15, 0.15, 8]} />
-              <meshStandardMaterial color="#1a1110" />
-            </mesh>
-          </group>
-
-          {/* Tail */}
-          <group position={[0, 1.7, -1.0]} rotation={[0.2, 0, 0]}>
-            <mesh position={[0, -0.4, -0.2]} rotation={[-0.2, 0, 0]}>
-              <cylinderGeometry args={[0.08, 0.15, 1.2, 8]} />
-              <meshStandardMaterial color="#3e2723" />
-            </mesh>
-          </group>
-        </group>
-        {/* Local Hearts */}
-        {hearts.map((h) => (
-          <HeartParticle key={h.id} position={h.pos} onComplete={() => removeHeart(h.id)} />
-        ))}
-      </group>
+      pet.current = 0;
+      pending.current = 0;
+      return;
+    }
+    reset.current = false;
+    if (gameSpeed <= 0 && pet.current <= 0) return;
+    const step = Math.min(Math.max(0, delta), 0.1);
+    clock.current += step;
+    pending.current += step;
+    if (pet.current <= 0 && !shouldRunThisFrame(4)) return;
+    pet.current = Math.max(0, pet.current - pending.current);
+    pending.current = 0;
+    const look = creaturePerchLook(clock.current, 733) * 0.16;
+    // Head-only motion replaces the old whole-body rocking/rearing. No wall timer
+    // expires while hidden, and repeated pets restart one bounded response.
+    rig.current?.setHeadShake(
+      pet.current > 0 ? (Math.sin((0.8 - pet.current) * 12) * 0.11 * pet.current) / 0.8 : look
     );
-  }
-);
-Horse.displayName = 'Horse';
+  });
+  const handlePet = (e: ThreeEvent<MouseEvent>) => {
+    e.stopPropagation();
+    const state = useGameSimulationStore.getState();
+    if (state.emergencyActive || state.emergencyDrillMode) return;
+    if (!reducedMotion) pet.current = 0.8;
+    playCritterSound('horse');
+    const id = nextHeartId.current++;
+    setHearts((previous) => [...previous, { id, pos: [0, 2.05, 0] }]);
+  };
+  return (
+    <group
+      name="blacksmith-horse"
+      position={position}
+      rotation={[0, rotation, 0]}
+      userData={{ noStaticBatch: true }}
+      onClick={handlePet}
+      onPointerOver={setPointerCursor}
+      onPointerOut={resetCursor}
+    >
+      <CreatureBody creature="horse" ref={rig} fallback={<HorsePrimitiveBody />} />
+      {hearts.map((h) => (
+        <HeartParticle
+          key={h.id}
+          position={h.pos}
+          onComplete={() => setHearts((previous) => previous.filter((heart) => heart.id !== h.id))}
+        />
+      ))}
+    </group>
+  );
+});
+BlacksmithHorse.displayName = 'BlacksmithHorse';
 
 // ===== BLACKSMITH / FORGE =====
 const ForgePrimitiveBody = React.memo(() => (
@@ -2850,7 +2867,44 @@ const Forge = React.memo<{ position: [number, number, number]; rotation?: number
         <VillageNameboard title="BLACKSMITH" width={3.34} height={0.49} colour="#333e43" />
       </group>
       <ChimneySmoke position={[-0.4, 5.72, 1.78]} offset={2} kind="forge" />
-      <Horse position={[-4, 0, 4]} rotation={Math.PI / 4} color="#795548" />
+      <BlacksmithHorse position={[-4.35, 0, 4.6]} rotation={Math.PI / 4} />
+      {/* A rail and drinking bucket situate the companion outside the doorway.
+          All contacts are at ground level, clear of its 45-degree body envelope. */}
+      <group name="forge-hitching-rail" position={[-3.36, 0, 5.59]} rotation={[0, Math.PI / 4, 0]}>
+        {[-0.65, 0.65].map((x) => (
+          <mesh key={x} position={[x, 0.5, 0]} castShadow receiveShadow>
+            <boxGeometry args={[0.095, 1, 0.095]} />
+            <primitive object={SM.timber} attach="material" />
+          </mesh>
+        ))}
+        <mesh position={[0, 0.93, 0]} castShadow receiveShadow>
+          <boxGeometry args={[1.45, 0.09, 0.09]} />
+          <primitive object={SM.timber} attach="material" />
+        </mesh>
+      </group>
+      <group name="forge-water-bucket" position={[-5.55, 0, 6]}>
+        <mesh position={[0, 0.17, 0]} castShadow receiveShadow>
+          <cylinderGeometry args={[0.23, 0.17, 0.34, 16, 1, true]} />
+          <meshStandardMaterial
+            color="#676e70"
+            roughness={0.66}
+            metalness={0.45}
+            side={THREE.DoubleSide}
+          />
+        </mesh>
+        <mesh position={[0, 0.014, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+          <circleGeometry args={[0.17, 16]} />
+          <meshStandardMaterial color="#454e50" roughness={0.7} metalness={0.4} />
+        </mesh>
+        <mesh position={[0, 0.265, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+          <circleGeometry args={[0.216, 20]} />
+          <meshStandardMaterial color="#435f69" roughness={0.27} metalness={0.1} />
+        </mesh>
+        <mesh position={[0, 0.34, 0]} rotation={[Math.PI / 2, 0, 0]} castShadow>
+          <torusGeometry args={[0.23, 0.012, 5, 16]} />
+          <meshStandardMaterial color="#8b9392" roughness={0.5} metalness={0.5} />
+        </mesh>
+      </group>
     </group>
   )
 );

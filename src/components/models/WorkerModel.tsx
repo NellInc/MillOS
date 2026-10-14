@@ -1047,6 +1047,7 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
     )
       seatedPose.applyTask(appearance.workAction, gesture);
     else if (motion.activity === 'working') seatedPose.applyWork(appearance.workAction, gesture);
+    else if (motion.activity === 'walking') seatedPose.applyWalkingLook(gesture);
     else if (motion.activity === 'idle' || motion.activity === 'break')
       seatedPose.applyIdle(gesture);
     if (toolRef.current) {
