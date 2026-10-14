@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import sharp from 'sharp';
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import {
@@ -119,7 +120,7 @@ describe('authored convenience-store dressing', () => {
 });
 
 describe('visible retail printing', () => {
-  it('puts the complete bottle label outside the body, with its emblem facing the aisle', () => {
+  it('puts the upright raster bottle label outside the body, with its fruit facing the aisle', async () => {
     const mesh = new THREE.Mesh(RETAIL_GEOMETRY.goods, new THREE.MeshBasicMaterial());
     const ray = new THREE.Raycaster(
       new THREE.Vector3(-13.2, 0.599, -3.3),
@@ -128,14 +129,21 @@ describe('visible retail printing', () => {
     const hit = ray.intersectObject(mesh)[0];
     expect(hit.point.z).toBeGreaterThan(-3.7961);
     expect(Math.floor(hit.uv!.x * 4)).toBe(1);
-    const texture = createRetailAtlas();
-    const index = (Math.floor(hit.uv!.y * 512) * 512 + Math.floor(hit.uv!.x * 512)) * 4;
-    // Centre of the front-facing red emblem, not the cream stripe or bottle paint.
-    expect(texture.image.data[index]).toBe(167);
-    texture.dispose();
+    const { data, info } = await sharp('public/textures/signage/station-retail-raster-v1.webp')
+      .ensureAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    const index =
+      (Math.floor((1 - hit.uv!.y) * info.height) * info.width +
+        Math.floor(hit.uv!.x * info.width)) *
+      4;
+    // The actual new berry label's red fruit, using ImageTexture's top-down rows.
+    expect(data[index]).toBeGreaterThan(data[index + 1] * 1.5);
+    expect(data[index + 3]).toBe(255);
+    expect(Math.floor(hit.uv!.x * 4) + 4 * (3 - Math.floor(hit.uv!.y * 4))).toBe(1);
     (mesh.material as THREE.Material).dispose();
   });
-  it('keeps price cards in front of their physical shelf rails', () => {
+  it('keeps aspect-fitted unpriced brand cards in front of their physical shelf rails', () => {
     const goods = new THREE.Mesh(RETAIL_GEOMETRY.goods, new THREE.MeshBasicMaterial());
     goods.name = 'print';
     const hardware = new THREE.Mesh(RETAIL_GEOMETRY.hardware, new THREE.MeshBasicMaterial());
@@ -155,7 +163,7 @@ describe('visible retail printing', () => {
         new THREE.Vector3(...direction)
       ).intersectObjects([goods, hardware])[0];
       expect(hit.object.name).toBe('print');
-      expect(Math.floor(hit.uv!.x * 4) + Math.floor(hit.uv!.y * 4) * 4).toBe(13);
+      expect(Math.floor(hit.uv!.x * 4) + (3 - Math.floor(hit.uv!.y * 4)) * 4).toBe(13);
     }
     (goods.material as THREE.Material).dispose();
     (hardware.material as THREE.Material).dispose();

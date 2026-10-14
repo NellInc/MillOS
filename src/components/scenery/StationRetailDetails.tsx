@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useEffect, useLayoutEffect, useMemo } from 'react';
+import { useTexture } from '@react-three/drei';
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
@@ -12,6 +13,7 @@ import { createColorDataTexture } from '../../utils/textureGenerator';
 const DRINK_COLORS = ['#a74336', '#538145', '#ca8638', '#437c94'];
 const PACK_COLORS = ['#b54b3a', '#b68b36', '#4f7850', '#466b83', '#8e625a'];
 const TILE_SIZE = 128;
+export const STATION_RETAIL_ART = `${import.meta.env.BASE_URL}textures/signage/station-retail-raster-v1.webp`;
 export const RETAIL_LIGHT = {
   position: [-10.6, 4.15, -1.2] as [number, number, number],
   intensity: 48,
@@ -296,16 +298,16 @@ function createPrintGeometry() {
   }
   for (const y of [0.84, 1.64, 2.44, 3.24])
     for (const z of [-1.8, -0.9, 0, 0.9, 1.8]) {
-      parts.push(label(0.145, 0.057, [-14.477, y - 0.045, z], 13, Math.PI / 2));
+      parts.push(label(0.052, 0.052, [-14.477, y - 0.045, z], 13, Math.PI / 2));
     }
   for (const y of [0.375, 1.275, 2.175])
     for (const x of [-13.2, -12.4, -11.6, -10.8]) {
-      parts.push(label(0.22, 0.075, [x, y, -3.623], 13));
+      parts.push(label(0.067, 0.067, [x, y, -3.623], 13));
     }
   for (let i = 0; i < 3; i++) {
     const y = 0.27 + i * 0.34;
     parts.push(box([0.62, 0.29, 0.027], [-10.5, y, 3.228], '#e9debf'));
-    parts.push(label(0.59, 0.268, [-10.5, y, 3.244], 10 + i));
+    parts.push(label(0.248, 0.248, [-10.5, y, 3.244], 10 + i));
   }
   // Register operator key bank and the three-colour payment terminal.
   for (let col = 0; col < 3; col++)
@@ -370,7 +372,16 @@ function createPrintGeometry() {
       )
     );
   }
-  return joined(parts);
+  const geometry = joined(parts);
+  // ImageTexture rows run top to bottom; the original DataTexture helper runs
+  // bottom to top. Reverse tile rows, preserve each label's upright local V.
+  const uv = geometry.getAttribute('uv');
+  for (let i = 0; i < uv.count; i++) {
+    const v = uv.getY(i) * 4,
+      row = Math.floor(v);
+    uv.setY(i, (3 - row + (v - row)) / 4);
+  }
+  return geometry;
 }
 
 function createHardwareGeometry() {
@@ -557,40 +568,58 @@ export const RETAIL_GEOMETRY = {
   ]),
 };
 
-export const StationRetailDetails = React.memo(() => (
-  <group name="station-authored-retail">
-    <mesh
-      name="station-retail-goods"
-      geometry={RETAIL_GEOMETRY.goods}
-      material={PRINT_MATERIAL}
-      castShadow
-      receiveShadow
-    />
-    <mesh
-      name="station-retail-hardware"
-      geometry={RETAIL_GEOMETRY.hardware}
-      material={HARDWARE_MATERIAL}
-      castShadow
-      receiveShadow
-    />
-    <mesh
-      name="station-retail-slush"
-      geometry={RETAIL_GEOMETRY.slush}
-      material={HARDWARE_MATERIAL}
-      receiveShadow
-    />
-    <mesh name="station-retail-glass" geometry={RETAIL_GEOMETRY.glass} material={GLASS_MATERIAL} />
-    <mesh
-      name="station-retail-displays"
-      geometry={RETAIL_GEOMETRY.displays}
-      material={DISPLAY_MATERIAL}
-    />
-    <pointLight
-      name="station-interior-fixture-light"
-      {...RETAIL_LIGHT}
-      decay={2}
-      castShadow={false}
-    />
-  </group>
-));
+export const StationRetailDetails = React.memo(() => {
+  const texture = useTexture(STATION_RETAIL_ART);
+  useLayoutEffect(() => {
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.anisotropy = 4;
+    texture.needsUpdate = true;
+  }, [texture]);
+  const print = useMemo(() => {
+    const m = PRINT_MATERIAL.clone();
+    m.map = texture;
+    return m;
+  }, [texture]);
+  useEffect(() => () => print.dispose(), [print]);
+  return (
+    <group name="station-authored-retail">
+      <mesh
+        name="station-retail-goods"
+        geometry={RETAIL_GEOMETRY.goods}
+        material={print}
+        castShadow
+        receiveShadow
+      />
+      <mesh
+        name="station-retail-hardware"
+        geometry={RETAIL_GEOMETRY.hardware}
+        material={HARDWARE_MATERIAL}
+        castShadow
+        receiveShadow
+      />
+      <mesh
+        name="station-retail-slush"
+        geometry={RETAIL_GEOMETRY.slush}
+        material={HARDWARE_MATERIAL}
+        receiveShadow
+      />
+      <mesh
+        name="station-retail-glass"
+        geometry={RETAIL_GEOMETRY.glass}
+        material={GLASS_MATERIAL}
+      />
+      <mesh
+        name="station-retail-displays"
+        geometry={RETAIL_GEOMETRY.displays}
+        material={DISPLAY_MATERIAL}
+      />
+      <pointLight
+        name="station-interior-fixture-light"
+        {...RETAIL_LIGHT}
+        decay={2}
+        castShadow={false}
+      />
+    </group>
+  );
+});
 StationRetailDetails.displayName = 'StationRetailDetails';

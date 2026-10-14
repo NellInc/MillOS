@@ -1,11 +1,7 @@
 import * as THREE from 'three';
 import { STATION_POSTER_PALETTE, STATION_POSTER_PLANTERS } from './scenery/AuthoredPropTrim';
 import { useGraphicsStore } from '../stores/graphicsStore';
-import {
-  DeadDinoPylonFace,
-  IlluminatedSignText,
-  BusinessBrandMark,
-} from './scenery/HeritageSignage';
+import { DeadDinoPylonFace, BusinessBrandMark } from './scenery/HeritageSignage';
 import { ExteriorDownlight } from './exterior/ExteriorLighting';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { EXTERIOR_LAYERS } from '../constants/renderLayers';
@@ -16,6 +12,7 @@ import { GeneratedBoundary, GeneratedModel } from './models/GeneratedModel';
 import { GeneratedBoxSurface, GeneratedSurfaceMesh } from './models/GeneratedGeometrySurface';
 import { StationRetailDetails, SHOP_FLOOR_MATERIAL } from './scenery/StationRetailDetails';
 import { StationSouvenirs } from './scenery/StationSouvenirs';
+import { StationTravelStop } from './scenery/StationTravelStop';
 
 // ============================================================================
 // Shared surface textures
@@ -1105,6 +1102,7 @@ export const GasStation = React.memo<GasStationProps>(
 
         <StationRetailDetails />
         <StationSouvenirs />
+        <StationTravelStop />
         <mesh name="station-poster-flower-pots" geometry={STATION_POSTER_PLANTERS} receiveShadow>
           <meshStandardMaterial vertexColors roughness={0.86} />
         </mesh>
@@ -1175,19 +1173,13 @@ export const GasStation = React.memo<GasStationProps>(
             <BusinessBrandMark brand="dino" variant="fascia" width={4.4} height={0.28} />
           </group>
         ))}
-        <IlluminatedSignText
+        <group
           name="station-shop-wordmark"
           position={[-7.91, 3.97, 0]}
           rotation={[0, Math.PI / 2, 0]}
-          fontSize={0.38}
-          letterSpacing={0.08}
-          color="#fff0d2"
-          anchorX="center"
-          anchorY="middle"
-          surface="painted"
         >
-          SHOP / COFFEE
-        </IlluminatedSignText>
+          <BusinessBrandMark brand="dino" variant="fascia" width={7.8} height={0.42} />
+        </group>
 
         {/* ========== FUEL PUMPS (back-to-back, line toward shop) ========== */}
         {/* Single island running along X axis toward shop */}

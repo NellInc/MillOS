@@ -1,0 +1,32 @@
+{
+  "removedBorrowedLinks": 375,
+  "originalSymlinkRestored": "/Users/nellwatson/Documents/GitHub/MillOS/node_modules",
+  "removedEmptyOwnedCache": "node_modules/.vite-temp",
+  "removedDisposableNpmCache": "/private/tmp/millos-R-npm-cache",
+  "immediateOwnershipChecks": [
+    {
+      "path": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/node_modules/.vite-temp",
+      "lsofExit": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "path": "/private/tmp/millos-R-npm-cache",
+      "lsofExit": 1,
+      "stdout": "",
+      "stderr": ""
+    }
+  ],
+  "previewPort4289": "gracefully closed through its existing session stdin, no signals",
+  "temporaryBrowserTab": "closed through its owning tool",
+  "primaryExact": true,
+  "protectedPinsExact": 123,
+  "retained": [
+    "current415-file build",
+    "raw/final art and prompts",
+    "full native PNGs, technical crops and original timing failures",
+    "source GLBs and previous souvenirs",
+    "protected unrelated output",
+    "primary/shared dependency and cache directories"
+  ]
+}
