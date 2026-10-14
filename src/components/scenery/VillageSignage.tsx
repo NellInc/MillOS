@@ -1,6 +1,9 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import {
+  BUSINESS_BRANDS,
+  BusinessBrandMark,
+  type BusinessBrandKind,
   HeritageEmblem,
   HeritageRasterPrint,
   IlluminatedSignText,
@@ -26,6 +29,7 @@ export function VillageNameboard({
   crest,
   illuminated = false,
   art,
+  brand,
 }: {
   title: string;
   caption?: string;
@@ -35,6 +39,7 @@ export function VillageNameboard({
   crest?: 'wheat' | string;
   illuminated?: boolean;
   art?: HeritagePrintKind;
+  brand?: BusinessBrandKind;
 }) {
   const textWidth = width - (crest ? height * 1.5 : 0.42);
   const textX = crest ? height * 0.45 : 0;
@@ -68,7 +73,36 @@ export function VillageNameboard({
           </mesh>
         </group>
       ))}
-      {art ? (
+      {brand ? (
+        <>
+          <BusinessBrandMark
+            brand={brand}
+            variant="fascia"
+            width={width - 0.2}
+            height={height * 0.51}
+            name={`village-lettering-${title}`}
+            position={[0, height * 0.085, 0.12]}
+            backlit={illuminated}
+          />
+          {caption && (
+            <Lettering
+              name={`village-caption-${title}`}
+              position={[0, -height * 0.235, 0.12]}
+              fontSize={height * 0.12}
+              maxWidth={width - 0.42}
+              letterSpacing={0.07}
+              textAlign="center"
+              color={GOLD}
+              anchorX="center"
+              anchorY="middle"
+              userData={{ noStaticBatch: illuminated }}
+              surface="painted"
+            >
+              {caption}
+            </Lettering>
+          )}
+        </>
+      ) : art ? (
         <HeritageRasterPrint
           art={art}
           width={width - 0.2}
@@ -154,19 +188,24 @@ export function VillageNameboard({
 export function VillageShopSign({ trade }: { trade?: string }) {
   const bakery = trade === 'BAKER' || trade === 'BAKERY';
   const butcher = trade === 'BUTCHER';
+  const brand = bakery
+    ? 'bakery'
+    : butcher
+      ? 'butcher'
+      : trade === 'GENERAL STORE'
+        ? 'grocer'
+        : undefined;
   return (
     <group position={[0, 3.23, 2.52]}>
       <VillageNameboard
         title={bakery ? 'BAKERY' : (trade ?? 'VILLAGE SHOP')}
-        art={
-          bakery ? 'bakery' : butcher ? 'butcher' : trade === 'GENERAL STORE' ? 'grocer' : undefined
-        }
+        brand={brand}
         caption={
           bakery ? 'BREAD & PATISSERIE' : butcher ? 'FARMHOUSE MEATS' : 'PROVISIONS & FINE GOODS'
         }
         width={5.24}
         illuminated
-        colour={bakery ? '#75454a' : butcher ? '#365043' : '#263f55'}
+        colour={brand ? BUSINESS_BRANDS[brand].field : '#263f55'}
         crest={bakery ? 'wheat' : butcher ? 'B' : 'G'}
       />
     </group>

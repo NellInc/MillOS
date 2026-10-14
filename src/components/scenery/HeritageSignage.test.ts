@@ -8,6 +8,8 @@ import {
   createEnamelGeometry,
   HERITAGE_LETTERING_FONT,
   HERITAGE_PRINT_ART,
+  BUSINESS_BRANDS,
+  transportBrandForCompany,
   heritagePrintSize,
 } from './HeritageSignage';
 import {
@@ -59,9 +61,9 @@ describe('delivered heritage print', () => {
     expect(exterior).toContain("brand={end === -1 ? 'flour' : 'dino'}");
     expect(exterior).not.toContain('DeadDinoAdvertRelief');
     const trucks = readFileSync('src/components/truckbay/OptimizedTruckBay.tsx', 'utf8');
-    expect(trucks).toContain('useTexture(HERITAGE_ART.wheat)');
-    expect(trucks).toContain('context.drawImage(badge, 790, 14)');
-    expect(trucks).toContain("company === 'GRAIN CO'");
+    expect(trucks).toContain("useTexture(BUSINESS_BRANDS[brand ?? 'mill'].primary)");
+    expect(trucks).toContain('artwork.image as CanvasImageSource');
+    expect(trucks).toContain('transportBrandForCompany(company)');
   });
 
   it('seats both trailer panels outside the accent strip that previously obscured them', () => {
@@ -123,7 +125,7 @@ describe('sign lightbox materials', () => {
     expect(source).toContain('illuminated = false');
     expect(source).toContain('illuminated ? IlluminatedSignText : SceneText');
     expect(source).toContain('backlit={illuminated}');
-    expect(source.match(/userData=\{\{ noStaticBatch: illuminated \}\}/g)).toHaveLength(3);
+    expect(source.match(/userData=\{\{ noStaticBatch: illuminated \}\}/g)).toHaveLength(4);
     expect(source).toMatch(/width=\{5\.24\}\s+illuminated/);
     expect(source).not.toMatch(/<(?:pointLight|spotLight|rectAreaLight)/);
     expect(source).not.toContain('meshBasicMaterial');
@@ -133,7 +135,8 @@ describe('sign lightbox materials', () => {
     const station = readFileSync('src/components/GasStationInstanced.tsx', 'utf8');
     expect(station).toContain('name={`station-canopy-wordmark-${side}`}');
     expect(station).toContain('name="station-shop-wordmark"');
-    expect(station.match(/<IlluminatedSignText/g)).toHaveLength(2);
+    expect(station.match(/<IlluminatedSignText/g)).toHaveLength(1);
+    expect(station).toContain('<BusinessBrandMark brand="dino" variant="fascia"');
     const print = readFileSync('src/components/scenery/HeritageSignage.tsx', 'utf8');
     expect(print).not.toMatch(/<(?:pointLight|spotLight|rectAreaLight)/);
   });
@@ -299,14 +302,16 @@ it('coordinates existing illustrated identities while retaining plain service te
   const print = readFileSync('src/components/scenery/HeritageSignage.tsx', 'utf8');
   expect(print).toContain('name="bus-route-raster-print"');
   expect(print).toContain('art={brand}');
-  expect(print).toContain('art="dino" width={3.7} height={4.7}');
+  expect(print).toContain('variant="pylon"');
+  expect(print).toContain('width={3.7}');
+  expect(print).toContain('height={4.7}');
   expect(
     print.split('name="bus-service-notice"')[1].split('</IlluminatedSignText>')[0]
   ).not.toContain('font=');
   expect(print).toContain('material.dispose()');
   const station = readFileSync('src/components/GasStationInstanced.tsx', 'utf8');
-  expect(station).toContain('maxWidth={4.4}');
-  expect(station).toContain('font={HERITAGE_LETTERING_FONT}');
+  expect(station).toContain('width={4.4} height={0.28}');
+  expect(station).toContain('position={[0, 4.64, side * 6.28]}');
 });
 
 describe('painted raster sign family', () => {
@@ -318,7 +323,10 @@ describe('painted raster sign family', () => {
     let total = 0;
     for (const [kind, path] of Object.entries(HERITAGE_PRINT_ART)) {
       const bytes = readFileSync(`public/${path}`);
-      const asset = provenance.assets.find((a: { id: string }) => a.id === kind);
+      const current = JSON.parse(readFileSync('public/textures/signage/PROVENANCE.json', 'utf8'));
+      const asset = [...provenance.assets, ...current.businessBrands.assets].find(
+        (a: { file: string }) => path.endsWith(`/${a.file}`)
+      );
       expect(createHash('sha256').update(bytes).digest('hex')).toBe(asset.sha256);
       const { data, info } = await sharp(bytes)
         .ensureAlpha()
@@ -368,17 +376,121 @@ describe('painted raster sign family', () => {
     const source = readFileSync('src/components/scenery/HeritageSignage.tsx', 'utf8');
     const posters = source.slice(
       source.indexOf('export function HeritagePoster'),
-      source.indexOf('export function TransitServiceBoard')
+      source.indexOf('export function DeadDinoPylonFace')
     );
     expect(posters).not.toContain('IlluminatedSignText');
     expect(posters).not.toContain('HeritageEmblem');
-    expect(source).toContain('useTexture(HERITAGE_PRINT_ART[art])');
+    expect(source).toContain('url={HERITAGE_PRINT_ART[art]}');
+    expect(source).toContain('const texture = useTexture(url)');
     expect(source).toContain("useSignMaterial('#ffffff', texture, backlit)");
-    expect(source).toContain('userData={{ noStaticBatch: backlit, heritagePrint: art }}');
+    expect(source).toContain('userData={{ noStaticBatch: backlit, heritagePrint: printId }}');
     const shops = readFileSync('src/components/scenery/VillageSignage.tsx', 'utf8');
     expect(shops).toContain('art ? (');
     expect(shops).toContain('<HeritageRasterPrint');
     expect(shops).toContain("trade === 'GENERAL STORE'");
     for (const path of Object.values(HERITAGE_PRINT_ART)) expect(path).toMatch(/\.webp$/);
+  });
+});
+
+describe('distinct world business brands', () => {
+  it('keeps seven unique identities and binds only the actual transport companies', () => {
+    const names = Object.values(BUSINESS_BRANDS).map((brand) => brand.name);
+    expect(names).toEqual([
+      'DEAD DINO',
+      'Riverside Bakers',
+      'Fieldgate Butchers',
+      'Canalside Provisions',
+      'MillOS',
+      'FLOUR EXPRESS',
+      'GRAIN CO',
+    ]);
+    expect(new Set(Object.values(BUSINESS_BRANDS).map((brand) => brand.primary)).size).toBe(7);
+    expect(transportBrandForCompany('FLOUR EXPRESS')).toBe('flourExpress');
+    expect(transportBrandForCompany('GRAIN CO')).toBe('grainCo');
+    for (const name of ['', 'OTHER CARRIER', 'MillOS', 'Grain Co'])
+      expect(transportBrandForCompany(name)).toBeNull();
+  });
+
+  it('ships opaque, compact brand/sign variants and the revised poster with matching provenance', async () => {
+    const assets = JSON.parse(readFileSync('public/textures/signage/PROVENANCE.json', 'utf8'))
+      .businessBrands.assets;
+    expect(assets).toHaveLength(13);
+    let total = 0;
+    for (const asset of assets) {
+      const bytes = readFileSync(`public/textures/signage/${asset.file}`);
+      expect(createHash('sha256').update(bytes).digest('hex')).toBe(asset.sha256);
+      const { data, info } = await sharp(bytes)
+        .ensureAlpha()
+        .raw()
+        .toBuffer({ resolveWithObject: true });
+      expect([info.width, info.height]).toEqual([asset.width, asset.height]);
+      expect(info.width).toBeLessThanOrEqual(2048);
+      expect(info.height).toBeLessThanOrEqual(1536);
+      let nonOpaque = 0;
+      for (let i = 3; i < data.length; i += 4) if (data[i] !== 255) nonOpaque++;
+      expect(nonOpaque).toBe(0);
+      total += bytes.byteLength;
+    }
+    expect(total).toBeLessThan(1500000);
+    for (const brand of Object.values(BUSINESS_BRANDS)) {
+      for (const url of [brand.primary, brand.fascia])
+        expect(assets.some((a: { file: string }) => url.endsWith(`/${a.file}`))).toBe(true);
+    }
+    expect(BUSINESS_BRANDS.dino.pylon).toContain('pylon-v2.webp');
+    expect(HERITAGE_PRINT_ART.dino).toContain('dino-painted-v2.webp');
+  });
+
+  it('fits the new portrait and narrow raster signs without clipping or stretching', async () => {
+    for (const [url, w, h] of [
+      [BUSINESS_BRANDS.dino.pylon, 3.7, 4.7],
+      [BUSINESS_BRANDS.dino.fascia, 4.4, 0.28],
+      [BUSINESS_BRANDS.bakery.fascia, 5.04, 0.72 * 0.51],
+      [BUSINESS_BRANDS.butcher.fascia, 5.04, 0.72 * 0.51],
+      [BUSINESS_BRANDS.grocer.fascia, 5.04, 0.72 * 0.51],
+    ] as const) {
+      const image = await sharp(readFileSync(`public/${url}`)).metadata();
+      const [width, height] = heritagePrintSize(w, h, image.width!, image.height!);
+      expect(width).toBeLessThanOrEqual(w);
+      expect(height).toBeLessThanOrEqual(h + 1e-12);
+      expect(width / height).toBeCloseTo(image.width! / image.height!, 10);
+    }
+    expect(4.64 + 0.28 / 2).toBeLessThan(4.8);
+    expect(4.64 - 0.28 / 2).toBeGreaterThan(4.43 + 0.045 / 2);
+    expect(0.72 * 0.085 - (0.72 * 0.51) / 2).toBeGreaterThan(-0.72 * 0.235 + (0.72 * 0.12) / 2);
+  });
+
+  it('wraps the MillOS bitmap outward around the silo and retains trailer plate ownership', () => {
+    const radius = 14.1,
+      width = 6,
+      height = (width * 379) / 1536;
+    const geometry = new THREE.CylinderGeometry(
+      radius,
+      radius,
+      height,
+      32,
+      1,
+      true,
+      -width / radius / 2,
+      width / radius
+    );
+    const positions = geometry.getAttribute('position'),
+      normals = geometry.getAttribute('normal');
+    for (let i = 0; i < positions.count; i++) {
+      expect(Math.hypot(positions.getX(i), positions.getZ(i))).toBeCloseTo(radius, 5);
+      expect(
+        positions.getX(i) * normals.getX(i) + positions.getZ(i) * normals.getZ(i)
+      ).toBeGreaterThan(14);
+    }
+    geometry.dispose();
+    const trucks = readFileSync('src/components/truckbay/OptimizedTruckBay.tsx', 'utf8');
+    expect(trucks).toContain('heritagePrintSize(910, 162, image.width, image.height)');
+    expect(trucks).toContain('MILL LOGISTICS  •  ${plateNumber}');
+    expect(trucks).toContain('context.fillText(company, 78, 112)');
+    expect(trucks).toContain('material.dispose()');
+    expect(trucks).toContain('texture.dispose()');
+    expect(trucks).not.toContain('emissiveMap');
+    const signs = readFileSync('src/components/scenery/HeritageSignage.tsx', 'utf8');
+    expect(signs).toContain('size[0] / surfaceRadius');
+    expect(signs).toContain('-angle / 2,');
   });
 });

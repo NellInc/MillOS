@@ -49,13 +49,67 @@ export const HERITAGE_ART = {
  */
 export const HERITAGE_PRINT_ART = {
   flour: `${import.meta.env.BASE_URL}textures/signage/flour-painted-v1.webp`,
-  dino: `${import.meta.env.BASE_URL}textures/signage/dino-painted-v1.webp`,
+  dino: `${import.meta.env.BASE_URL}textures/signage/dino-painted-v2.webp`,
   route: `${import.meta.env.BASE_URL}textures/signage/route-painted-v1.webp`,
   bakery: `${import.meta.env.BASE_URL}textures/signage/bakery-painted-v1.webp`,
   butcher: `${import.meta.env.BASE_URL}textures/signage/butcher-painted-v1.webp`,
   grocer: `${import.meta.env.BASE_URL}textures/signage/grocer-painted-v1.webp`,
 } as const;
 export type HeritagePrintKind = keyof typeof HERITAGE_PRINT_ART;
+
+/** Each world business owns its name, symbol and application field.
+ * Working if all seven names keep distinct raster identities on their old seats.
+ */
+export const BUSINESS_BRANDS = {
+  dino: {
+    name: 'DEAD DINO',
+    field: '#143c36',
+    primary: `${import.meta.env.BASE_URL}textures/signage/brand-dead-dino-v2.webp`,
+    fascia: `${import.meta.env.BASE_URL}textures/signage/brand-dead-dino-fascia-v2.webp`,
+    pylon: `${import.meta.env.BASE_URL}textures/signage/brand-dead-dino-pylon-v2.webp`,
+  },
+  bakery: {
+    name: 'Riverside Bakers',
+    field: '#2d2530',
+    primary: `${import.meta.env.BASE_URL}textures/signage/brand-riverside-bakers-v1.webp`,
+    fascia: `${import.meta.env.BASE_URL}textures/signage/brand-riverside-bakers-fascia-v1.webp`,
+  },
+  butcher: {
+    name: 'Fieldgate Butchers',
+    field: '#183b30',
+    primary: `${import.meta.env.BASE_URL}textures/signage/brand-fieldgate-butchers-v1.webp`,
+    fascia: `${import.meta.env.BASE_URL}textures/signage/brand-fieldgate-butchers-fascia-v1.webp`,
+  },
+  grocer: {
+    name: 'Canalside Provisions',
+    field: '#1c354b',
+    primary: `${import.meta.env.BASE_URL}textures/signage/brand-canalside-provisions-v1.webp`,
+    fascia: `${import.meta.env.BASE_URL}textures/signage/brand-canalside-provisions-fascia-v1.webp`,
+  },
+  mill: {
+    name: 'MillOS',
+    field: '#173c45',
+    primary: `${import.meta.env.BASE_URL}textures/signage/brand-millos-v1.webp`,
+    fascia: `${import.meta.env.BASE_URL}textures/signage/brand-millos-v1.webp`,
+  },
+  flourExpress: {
+    name: 'FLOUR EXPRESS',
+    field: '#703828',
+    primary: `${import.meta.env.BASE_URL}textures/signage/brand-flour-express-v1.webp`,
+    fascia: `${import.meta.env.BASE_URL}textures/signage/brand-flour-express-v1.webp`,
+  },
+  grainCo: {
+    name: 'GRAIN CO',
+    field: '#183d35',
+    primary: `${import.meta.env.BASE_URL}textures/signage/brand-grain-co-v1.webp`,
+    fascia: `${import.meta.env.BASE_URL}textures/signage/brand-grain-co-v1.webp`,
+  },
+} as const;
+export type BusinessBrandKind = keyof typeof BUSINESS_BRANDS;
+
+export function transportBrandForCompany(company: string): 'flourExpress' | 'grainCo' | null {
+  return company === 'FLOUR EXPRESS' ? 'flourExpress' : company === 'GRAIN CO' ? 'grainCo' : null;
+}
 
 /** Contain the print without stretching letters or clipping its perimeter. */
 export function heritagePrintSize(
@@ -69,39 +123,72 @@ export function heritagePrintSize(
   return [w, w / aspect] as [number, number];
 }
 
-export function HeritageRasterPrint({
-  art,
-  width,
-  height,
-  name,
-  position = [0, 0, 0],
-  backlit = true,
-}: {
-  art: HeritagePrintKind;
+type RasterSignProps = {
   width: number;
   height: number;
   name?: string;
   position?: [number, number, number];
   backlit?: boolean;
-}) {
-  const texture = useTexture(HERITAGE_PRINT_ART[art]);
+  surfaceRadius?: number;
+};
+
+export function HeritageRasterPrint({
+  art,
+  ...props
+}: RasterSignProps & { art: HeritagePrintKind }) {
+  return <RasterSignPrint {...props} url={HERITAGE_PRINT_ART[art]} printId={art} />;
+}
+
+export function BusinessBrandMark({
+  brand,
+  variant = 'primary',
+  ...props
+}: RasterSignProps & { brand: BusinessBrandKind; variant?: 'primary' | 'fascia' | 'pylon' }) {
+  const identity = BUSINESS_BRANDS[brand];
+  const url =
+    variant === 'pylon' && brand === 'dino'
+      ? BUSINESS_BRANDS.dino.pylon
+      : variant === 'fascia'
+        ? identity.fascia
+        : identity.primary;
+  return <RasterSignPrint {...props} url={url} printId={`brand-${brand}-${variant}`} />;
+}
+
+function RasterSignPrint({
+  url,
+  printId,
+  width,
+  height,
+  name,
+  position = [0, 0, 0],
+  backlit = true,
+  surfaceRadius,
+}: RasterSignProps & { url: string; printId: string }) {
+  const texture = useTexture(url);
   const material = useSignMaterial('#ffffff', texture, backlit);
   useLayoutEffect(() => {
     texture.colorSpace = THREE.SRGBColorSpace;
     texture.anisotropy = 4;
     texture.needsUpdate = true;
   }, [texture]);
-  // useTexture resolves this URL to a loaded image before the component mounts.
+  // useTexture resolves the actual image before this component mounts.
   const image = texture.image as { width: number; height: number };
   const size = heritagePrintSize(width, height, image.width, image.height);
+  const angle = surfaceRadius ? size[0] / surfaceRadius : 0;
   return (
     <mesh
-      name={name ?? `heritage-${art}-raster-print`}
+      name={name ?? `heritage-${printId}-raster-print`}
       position={position}
       material={material}
-      userData={{ noStaticBatch: backlit, heritagePrint: art }}
+      userData={{ noStaticBatch: backlit, heritagePrint: printId }}
     >
-      <planeGeometry args={size} />
+      {surfaceRadius ? (
+        <cylinderGeometry
+          args={[surfaceRadius, surfaceRadius, size[1], 32, 1, true, -angle / 2, angle]}
+        />
+      ) : (
+        <planeGeometry args={size} />
+      )}
     </mesh>
   );
 }
@@ -195,13 +282,19 @@ export function HeritagePoster({
 }
 
 export function DeadDinoPylonFace() {
-  const fieldMaterial = useSignMaterial('#c46535');
+  const fieldMaterial = useSignMaterial(BUSINESS_BRANDS.dino.field);
   return (
     <group name="dead-dino-enamel-pylon-face" userData={{ noStaticBatch: true }}>
       <mesh material={fieldMaterial}>
         <planeGeometry args={[3.7, 4.7]} />
       </mesh>
-      <HeritageRasterPrint art="dino" width={3.7} height={4.7} position={[0, 0, 0.01]} />
+      <BusinessBrandMark
+        brand="dino"
+        variant="pylon"
+        width={3.7}
+        height={4.7}
+        position={[0, 0, 0.01]}
+      />
     </group>
   );
 }

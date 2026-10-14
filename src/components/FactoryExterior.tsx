@@ -1,6 +1,6 @@
 import { getExteriorLampLevel } from './exterior/ExteriorLighting';
 import { WorldPublicRealm } from './scenery/WorldPublicRealm';
-import { HeritagePoster, TransitServiceBoard } from './scenery/HeritageSignage';
+import { BusinessBrandMark, HeritagePoster, TransitServiceBoard } from './scenery/HeritageSignage';
 import React, { useMemo, useRef, useEffect, useLayoutEffect, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { SceneText as Text } from './shared/SceneText';
@@ -4080,64 +4080,6 @@ const WasteBin: React.FC<{
   </group>
 );
 
-// Curved text that wraps around a cylinder surface
-const CurvedText: React.FC<{
-  text: string;
-  radius: number;
-  height: number;
-  fontSize?: number;
-  color?: string;
-  arcAngle?: number; // Total arc angle in radians (default: auto-calculate based on text)
-  startAngle?: number; // Starting angle in radians (default: 0, facing +Z)
-}> = ({ text, radius, height, fontSize = 2, color = '#1e293b', arcAngle, startAngle = 0 }) => {
-  const chars = text.split('');
-  const charCount = chars.length;
-
-  // Estimate character width (approximately 0.6 * fontSize for most fonts)
-  const charWidth = fontSize * 0.6;
-  const totalTextWidth = charWidth * charCount;
-
-  // Calculate arc angle needed to fit text, or use provided arcAngle
-  // Arc length = radius * angle, so angle = arcLength / radius
-  const calculatedArcAngle = arcAngle ?? totalTextWidth / radius;
-
-  // Calculate angle step between characters
-  const angleStep = calculatedArcAngle / Math.max(charCount - 1, 1);
-
-  // Start angle offset to center the text
-  const centerOffset = calculatedArcAngle / 2;
-
-  return (
-    <group position={[0, height, 0]}>
-      {chars.map((char, i) => {
-        // Calculate angle for this character (centered around startAngle)
-        const angle = startAngle - centerOffset + i * angleStep;
-
-        // Position on cylinder surface (slightly offset outward for visibility)
-        const x = (radius + 0.1) * Math.sin(angle);
-        const z = (radius + 0.1) * Math.cos(angle);
-
-        // Rotation to face outward (perpendicular to cylinder surface)
-        const rotationY = angle;
-
-        return (
-          <Text
-            key={i}
-            position={[x, 0, z]}
-            rotation={[0, rotationY, 0]}
-            fontSize={fontSize}
-            color={color}
-            anchorX="center"
-            anchorY="middle"
-          >
-            {char}
-          </Text>
-        );
-      })}
-    </group>
-  );
-};
-
 // Industrial grain silo - typical flour mill storage
 // Matte printed ink has no glossy white highlight under the nearby roof lamp.
 // Working if the night timetable keeps dark, legible lettering on its lit paper.
@@ -4666,7 +4608,15 @@ export const GrainSilo: React.FC<{
         0.55 above the ground. */}
     <GroundBlob position={[0, 0]} scale={radius * 3.1} />
     {/* Company marking on silo - curved to wrap around cylinder */}
-    <CurvedText text="MillOS" radius={radius} height={height * 0.6} fontSize={2} color="#1e293b" />
+    <BusinessBrandMark
+      brand="mill"
+      name="silo-millos-brand"
+      width={6}
+      height={2}
+      surfaceRadius={radius + 0.1}
+      position={[0, height * 0.6, 0]}
+      backlit={false}
+    />
   </group>
 );
 
@@ -4856,17 +4806,14 @@ export const GrainElevator: React.FC<{
         castShadow
         receiveShadow
       />
-      <Text
+      <BusinessBrandMark
+        brand="mill"
+        name="elevator-millos-brand"
+        width={4.5}
+        height={1.1}
         position={[0, 47.1, 3.63]}
-        fontSize={1.1}
-        color="#e8eeeb"
-        anchorX="center"
-        anchorY="middle"
-        fontWeight="bold"
-        surface="painted"
-      >
-        MillOS
-      </Text>
+        backlit={false}
+      />
     </group>
   );
 };
@@ -7184,41 +7131,48 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
             </mesh>
           </group>
 
-          {/* ========== FRONT SIGN - Large Red Sign (similar to truck signage) ========== */}
+          {/* ========== FRONT SIGN - Branded grain-mill sign ========== */}
           <group position={[0, wallHeight / 2 + 2, buildingFrontZ + 1.5]}>
-            {/* Main sign background - Red like the truck signs */}
+            {/* Physically lit enamel field */}
             <mesh frustumCulled={false}>
               <boxGeometry args={[80, 10, 0.5]} />
-              <meshBasicMaterial color="#dc2626" />
+              <meshStandardMaterial color="#173c45" roughness={0.7} />
             </mesh>
             {/* Gold trim border */}
             <mesh position={[0, 0, 0.3]} frustumCulled={false}>
               <boxGeometry args={[82, 10.6, 0.15]} />
-              <meshBasicMaterial color="#fbbf24" />
+              <meshStandardMaterial color="#d1aa60" roughness={0.55} metalness={0.05} />
             </mesh>
-            {/* Inner red panel */}
+            {/* Inner brand panel */}
             <mesh position={[0, 0, 0.4]} frustumCulled={false}>
               <boxGeometry args={[79, 9.5, 0.1]} />
-              <meshBasicMaterial color="#b91c1c" />
+              <meshStandardMaterial color="#173c45" roughness={0.7} />
             </mesh>
-            {/* Company name */}
-            <Text
+            {/* MillOS GRAIN MILL retains its business identity and old mounting. */}
+            <BusinessBrandMark
+              brand="mill"
+              width={72}
+              height={5.4}
               position={[0, 1.5, 0.6]}
-              fontSize={5}
-              color="#ffffff"
+              backlit={false}
+            />
+            <Text
+              position={[0, -1.9, 0.6]}
+              fontSize={1.3}
+              letterSpacing={0.14}
+              color="#fef3c7"
               anchorX="center"
               anchorY="middle"
-              fontWeight="bold"
-              outlineWidth={0.1}
-              outlineColor="#7f1d1d"
+              surface="painted"
             >
-              MillOS GRAIN MILL
+              GRAIN MILL
             </Text>
             {/* Tagline */}
             <Text
-              position={[0, -2.5, 0.6]}
-              fontSize={1.8}
+              position={[0, -3.45, 0.6]}
+              fontSize={1.1}
               color="#fef3c7"
+              surface="painted"
               anchorX="center"
               anchorY="middle"
             >
@@ -7480,41 +7434,48 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
             </mesh>
           </group>
 
-          {/* ========== BACK SIGN - Large Red Sign (matching front sign) ========== */}
+          {/* ========== BACK SIGN - Matching branded grain-mill sign ========== */}
           <group position={[0, wallHeight / 2 + 2, buildingBackZ - 1.5]} rotation={[0, Math.PI, 0]}>
-            {/* Main sign background - Red like the truck signs */}
+            {/* Physically lit enamel field */}
             <mesh frustumCulled={false}>
               <boxGeometry args={[80, 10, 0.5]} />
-              <meshBasicMaterial color="#dc2626" />
+              <meshStandardMaterial color="#173c45" roughness={0.7} />
             </mesh>
             {/* Gold trim border */}
             <mesh position={[0, 0, 0.3]} frustumCulled={false}>
               <boxGeometry args={[82, 10.6, 0.15]} />
-              <meshBasicMaterial color="#fbbf24" />
+              <meshStandardMaterial color="#d1aa60" roughness={0.55} metalness={0.05} />
             </mesh>
-            {/* Inner red panel */}
+            {/* Inner brand panel */}
             <mesh position={[0, 0, 0.4]} frustumCulled={false}>
               <boxGeometry args={[79, 9.5, 0.1]} />
-              <meshBasicMaterial color="#b91c1c" />
+              <meshStandardMaterial color="#173c45" roughness={0.7} />
             </mesh>
-            {/* Company name */}
-            <Text
+            {/* MillOS GRAIN MILL retains its business identity and old mounting. */}
+            <BusinessBrandMark
+              brand="mill"
+              width={72}
+              height={5.4}
               position={[0, 1.5, 0.6]}
-              fontSize={5}
-              color="#ffffff"
+              backlit={false}
+            />
+            <Text
+              position={[0, -1.9, 0.6]}
+              fontSize={1.3}
+              letterSpacing={0.14}
+              color="#fef3c7"
               anchorX="center"
               anchorY="middle"
-              fontWeight="bold"
-              outlineWidth={0.1}
-              outlineColor="#7f1d1d"
+              surface="painted"
             >
-              MillOS GRAIN MILL
+              GRAIN MILL
             </Text>
             {/* Tagline */}
             <Text
-              position={[0, -2.5, 0.6]}
-              fontSize={1.8}
+              position={[0, -3.45, 0.6]}
+              fontSize={1.1}
               color="#fef3c7"
+              surface="painted"
               anchorX="center"
               anchorY="middle"
             >

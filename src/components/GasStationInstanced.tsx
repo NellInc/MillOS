@@ -3,7 +3,7 @@ import { useGraphicsStore } from '../stores/graphicsStore';
 import {
   DeadDinoPylonFace,
   IlluminatedSignText,
-  HERITAGE_LETTERING_FONT,
+  BusinessBrandMark,
 } from './scenery/HeritageSignage';
 import { ExteriorDownlight } from './exterior/ExteriorLighting';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
@@ -1181,22 +1181,14 @@ export const GasStation = React.memo<GasStationProps>(
           ]}
         />
         {[-1, 1].map((side) => (
-          <IlluminatedSignText
+          <group
             key={`canopy-wordmark-${side}`}
             name={`station-canopy-wordmark-${side}`}
-            font={HERITAGE_LETTERING_FONT}
-            maxWidth={4.4}
             position={[0, 4.64, side * 6.28]}
             rotation={[0, side < 0 ? Math.PI : 0, 0]}
-            fontSize={0.32}
-            letterSpacing={0.065}
-            color="#fff0d2"
-            anchorX="center"
-            anchorY="middle"
-            surface="painted"
           >
-            DEAD DINO
-          </IlluminatedSignText>
+            <BusinessBrandMark brand="dino" variant="fascia" width={4.4} height={0.28} />
+          </group>
         ))}
         <IlluminatedSignText
           name="station-shop-wordmark"
