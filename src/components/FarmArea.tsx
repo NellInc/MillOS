@@ -38,6 +38,7 @@ import {
 } from './scenery/InstancedFoliage';
 import { WindDriver, applyWindShader } from './scenery/WindDriver';
 import { composeWorldSurface } from '../utils/worldSurface';
+import { PlotGeometry } from '../utils/authoredPlotGeometry';
 import { DrainageCulvert } from './scenery/Tunnel';
 import { PROCEDURAL_TEXTURES } from '../utils/sharedMaterials';
 import { EXTERIOR_LAYERS, RENDER_ORDER } from '../constants/renderLayers';
@@ -389,6 +390,122 @@ const _animDir = new THREE.Vector3();
 // ============================================================
 
 // Shared Geometries - created once at module load
+type GrainPoint = [number, number, number];
+
+/** A whole cereal stool in shared ground-root metres, never separate leaf origins.
+ * Working if leaf anchors are actual culm vertices and every tip shares the
+ * unchanged wind/shadow field. Three instanced surfaces, no texture or CPU sway.
+ */
+export function createGrainPlantGeometries() {
+  const stems = new PlotGeometry(),
+    leaves = new PlotGeometry(),
+    ears = new PlotGeometry();
+  const shoots = [
+    [0, 0, 1.5, 0.035, 0.02],
+    [-0.08, 0.06, 1.36, -0.03, 0.025],
+    [0.09, -0.06, 1.25, 0.04, -0.025],
+  ];
+  function leaf(anchor: GrainPoint, theta: number, length: number) {
+    const dx = Math.sin(theta),
+      dz = Math.cos(theta),
+      sx = Math.cos(theta),
+      sz = -Math.sin(theta);
+    const at = (distance: number, lift: number, width: number): GrainPoint => [
+      anchor[0] + dx * distance + sx * width,
+      anchor[1] + lift,
+      anchor[2] + dz * distance + sz * width,
+    ];
+    const points = [
+      anchor,
+      at(length * 0.32, 0.07, -0.035),
+      at(length * 0.32, 0.07, 0.035),
+      at(length * 0.72, 0.035, -0.022),
+      at(length * 0.72, 0.035, 0.022),
+      at(length, -0.06, 0),
+    ];
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(points.flat(), 3));
+    g.setAttribute(
+      'uv',
+      new THREE.Float32BufferAttribute([0.5, 0, 0, 0.32, 1, 0.32, 0, 0.72, 1, 0.72, 0.5, 1], 2)
+    );
+    g.setIndex([0, 2, 1, 1, 2, 4, 1, 4, 3, 3, 4, 5]);
+    g.computeVertexNormals();
+    return g;
+  }
+  function awn(a: GrainPoint, b: GrainPoint, acrossZ = true) {
+    const w = 0.0017,
+      offset = acrossZ ? [0, 0, w] : [w, 0, 0];
+    const points = [
+      a.map((v, i) => v - offset[i]),
+      a.map((v, i) => v + offset[i]),
+      b.map((v, i) => v + offset[i] * 0.2),
+      b.map((v, i) => v - offset[i] * 0.2),
+    ];
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(points.flat(), 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, 1, 0, 1, 1, 0, 1], 2));
+    g.setIndex([0, 1, 2, 0, 2, 3]);
+    g.computeVertexNormals();
+    return g;
+  }
+  shoots.forEach(([x, z, height, leanX, leanZ], shoot) => {
+    const stem = new THREE.CylinderGeometry(0.0115, 0.021, height, 5, 4).translate(
+      0,
+      height / 2,
+      0
+    );
+    const p = stem.getAttribute('position');
+    for (let i = 0; i < p.count; i++) {
+      const t = p.getY(i) / height;
+      p.setX(i, p.getX(i) + x + leanX * t * t);
+      p.setZ(i, p.getZ(i) + z + leanZ * t * t);
+    }
+    stem.computeVertexNormals();
+    stems.add(stem, ['#84935a', '#909e63', '#7b8f57'][shoot]);
+    for (let i = 0; i < 3; i++) {
+      const t = (i + 1) / 4,
+        theta = ((i * 2 + shoot) * Math.PI * 2) / 5,
+        radius = 0.021 + (0.0115 - 0.021) * t;
+      const anchor: GrainPoint = [
+        x + leanX * t * t + Math.sin(theta) * radius,
+        height * t,
+        z + leanZ * t * t + Math.cos(theta) * radius,
+      ];
+      leaves.add(leaf(anchor, theta, 0.3 - i * 0.02), ['#97a76c', '#a6b175', '#8fa365'][i]);
+    }
+    const tipX = x + leanX,
+      tipZ = z + leanZ;
+    ears.add(
+      new THREE.CylinderGeometry(0.004, 0.008, 0.22, 3).translate(tipX, height + 0.11, tipZ),
+      '#bea468'
+    );
+    for (let row = 0; row < 4; row++)
+      for (const side of [-1, 1]) {
+        const y = height + 0.032 + row * 0.045;
+        ears.add(
+          new THREE.OctahedronGeometry(1, 0)
+            .scale(0.024, 0.03, 0.012)
+            .rotateZ(-side * 0.42)
+            .translate(tipX + side * 0.018, y, tipZ),
+          row % 2 ? '#dfc287' : '#d3b476'
+        );
+        ears.add(
+          awn([tipX + side * 0.03, y + 0.026, tipZ], [tipX + side * 0.06, y + 0.091, tipZ]),
+          '#dcca92'
+        );
+      }
+    ears.add(
+      awn([tipX, height + 0.22, tipZ], [tipX + 0.015, height + 0.295, tipZ], false),
+      '#dcca92'
+    );
+  });
+  const result = { stems: stems.finish(), leaves: leaves.finish(), ears: ears.finish() };
+  for (const [name, g] of Object.entries(result)) g.name = `rooted-cereal-${name}`;
+  return result;
+}
+export const GRAIN_PLANT_GEOMETRY = createGrainPlantGeometries();
+
 const SG = {
   fencePost: new THREE.CylinderGeometry(0.08, 0.1, 1, 6),
   hayBale: createHayBaleGeometry(),
@@ -457,8 +574,9 @@ const SG = {
   // 60-70 mm proud along its whole height instead.
   windmillDoor: new THREE.BoxGeometry(0.6, 1.6, 0.18),
   // Grain Field
-  cornStalk: new THREE.CylinderGeometry(0.05, 0.08, 1.8, 4),
-  cornLeaf: new THREE.ConeGeometry(0.1, 0.8, 3),
+  cornStalk: GRAIN_PLANT_GEOMETRY.stems,
+  cornLeaf: GRAIN_PLANT_GEOMETRY.leaves,
+  cornEar: GRAIN_PLANT_GEOMETRY.ears,
   scarecrowPole: new THREE.CylinderGeometry(0.08, 0.08, 2.5, 5),
   scarecrowArm: new THREE.CylinderGeometry(0.06, 0.06, 1.8, 5),
   pumpkinHead: new THREE.SphereGeometry(0.35, 16, 12),
@@ -592,11 +710,11 @@ const SM = {
     roughness: 0.7,
     side: THREE.DoubleSide,
   }),
-  // Grain field. White base: the old flat '#8bc34a' is now
-  // supplied per stalk through `instanceColor` (see InstancedGrainField), so
-  // keeping the tint here would multiply the crop colour twice.
+  // Every rooted part has linear vertex colours; a restrained instance tint
+  // carries broad ripening patches across the shared three-surface plant.
   cornGreen: new THREE.MeshStandardMaterial({
     color: '#ffffff',
+    vertexColors: true,
     roughness: 0.9,
     side: THREE.DoubleSide,
   }),
@@ -2036,115 +2154,97 @@ export const Scarecrow = React.memo<{ position: [number, number, number]; rotati
 );
 Scarecrow.displayName = 'Scarecrow';
 
+export const GRAIN_FIELD_MATERIAL = SM.cornGreen;
+export const GRAIN_FIELD_DEPTH_MATERIAL = cornDepthMaterial;
+export const GRAIN_FIELD_COUNT = 15 * 20;
+export const GRAIN_WIND_PADDING = 0.5; // maximum world sway < .16*(.7+1.5)*1.4
+
+/** Original planting roots, yaw and uniform scale, shared by every plant part.
+ * Working if all three matrix/colour buffers agree and bounds cover storm sway.
+ */
+export function populateGrainField(
+  meshes: readonly [THREE.InstancedMesh, THREE.InstancedMesh, THREE.InstancedMesh]
+) {
+  const parent = new THREE.Object3D(),
+    tint = new THREE.Color();
+  const young = new THREE.Color('#edf0d8'),
+    mature = new THREE.Color('#fff1d1');
+  let index = 0;
+  for (let r = 0; r < 15; r++)
+    for (let c = 0; c < 20; c++) {
+      const rnd = Math.sin(r * 20 + c) * 1000,
+        scale = 0.8 + (Math.abs(rnd) % 0.4);
+      const x = (c - 10) * 1.5 + Math.sin(rnd) * 0.5,
+        z = (r - 7) * 1.5 + Math.cos(rnd) * 0.5;
+      parent.position.set(x, 0, z);
+      parent.rotation.set(0, Math.abs(rnd) % Math.PI, 0);
+      parent.scale.setScalar(scale);
+      parent.updateMatrix();
+      const ripeness = THREE.MathUtils.clamp(
+        0.5 +
+          Math.sin(x * 0.14 + z * 0.11) * 0.25 +
+          Math.sin(z * 0.28 - x * 0.06) * 0.15 +
+          Math.sin(rnd) * 0.1,
+        0,
+        1
+      );
+      tint.copy(young).lerp(mature, ripeness);
+      for (const mesh of meshes) {
+        mesh.setMatrixAt(index, parent.matrix);
+        mesh.setColorAt(index, tint);
+      }
+      index++;
+    }
+  for (const mesh of meshes) {
+    mesh.customDepthMaterial = GRAIN_FIELD_DEPTH_MATERIAL;
+    mesh.instanceMatrix.needsUpdate = true;
+    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+    mesh.computeBoundingBox();
+    mesh.boundingBox?.expandByScalar(GRAIN_WIND_PADDING);
+    mesh.computeBoundingSphere();
+    if (mesh.boundingSphere) mesh.boundingSphere.radius += GRAIN_WIND_PADDING;
+  }
+}
+
 const InstancedGrainField = React.memo(() => {
   const stalksRef = useRef<THREE.InstancedMesh>(null);
-  const leaves1Ref = useRef<THREE.InstancedMesh>(null);
-  const leaves2Ref = useRef<THREE.InstancedMesh>(null);
-  const count = 15 * 20;
-
-  // The custom depth material carries the same wind injection, or the crop's
-  // shadow stays rigid while the crop itself sways - which reads as a bug in
-  // the lighting rather than as weather.
-  useEffect(() => {
-    [stalksRef.current, leaves1Ref.current, leaves2Ref.current].forEach((mesh) => {
-      if (mesh) mesh.customDepthMaterial = cornDepthMaterial;
-    });
-  }, []);
-
-  // Layout, not passive: a frame rendered before the matrices land would cache
-  // an origin-sized bounding sphere and cull the whole 30 x 21 m crop.
+  const leavesRef = useRef<THREE.InstancedMesh>(null);
+  const earsRef = useRef<THREE.InstancedMesh>(null);
   useLayoutEffect(() => {
-    if (!stalksRef.current || !leaves1Ref.current || !leaves2Ref.current) return;
-
-    // Temp objects for matrix calculations
-    const parent = new THREE.Object3D();
-    const leaf = new THREE.Object3D();
-    const tint = new THREE.Color();
-    let idx = 0;
-
-    for (let r = 0; r < 15; r++) {
-      for (let c = 0; c < 20; c++) {
-        // Stable randomness based on grid position
-        const rnd = Math.sin(r * 20 + c) * 1000;
-        const rndScale = 0.8 + (Math.abs(rnd) % 0.4);
-        const rndRot = Math.abs(rnd) % Math.PI;
-        const rndOffsetX = Math.sin(rnd) * 0.5;
-        const rndOffsetZ = Math.cos(rnd) * 0.5;
-
-        const x = (c - 10) * 1.5 + rndOffsetX;
-        const z = (r - 7) * 1.5 + rndOffsetZ;
-
-        // Set parent transform (Stalk base)
-        parent.position.set(x, 0, z);
-        parent.rotation.set(0, rndRot, 0);
-        parent.scale.set(rndScale, rndScale, rndScale);
-        parent.updateMatrix();
-
-        // Stalk mesh (offset locally by 0.9y)
-        leaf.position.set(0, 0.9, 0);
-        leaf.rotation.set(0, 0, 0);
-        leaf.scale.set(1, 1, 1);
-        leaf.updateMatrix();
-        leaf.matrix.premultiply(parent.matrix);
-        stalksRef.current.setMatrixAt(idx, leaf.matrix);
-
-        // Leaf 1
-        leaf.position.set(0, 1.2, 0.2);
-        leaf.rotation.set(0.5, 0, 0);
-        leaf.scale.set(1, 1, 1);
-        leaf.updateMatrix();
-        leaf.matrix.premultiply(parent.matrix);
-        leaves1Ref.current.setMatrixAt(idx, leaf.matrix);
-
-        // Leaf 2
-        leaf.position.set(0, 1.0, -0.2);
-        leaf.rotation.set(-0.5, 0, 0);
-        leaf.scale.set(1, 1, 1);
-        leaf.updateMatrix();
-        leaf.matrix.premultiply(parent.matrix);
-        leaves2Ref.current.setMatrixAt(idx, leaf.matrix);
-
-        // Per-stalk tint: a 300-stalk field on one flat green reads as a
-        // printed texture. Rides `instanceColor`, NOT `vertexColors` - the
-        // geometry has no `color` attribute and USE_COLOR in the vertex stage
-        // would multiply by an absent attribute (0,0,0,1) and blacken the crop.
-        // Brackets the old flat '#8bc34a' (HSL ~0.244/0.50/0.53): green where
-        // the crop is still young, golden where it has ripened.
-        const ripeness = Math.abs(Math.sin(r * 3.7 + c * 1.9)) % 1;
-        tint.setHSL(0.26 - ripeness * 0.11, 0.46 + ripeness * 0.16, 0.46 + ripeness * 0.12);
-        stalksRef.current.setColorAt(idx, tint);
-        leaves1Ref.current.setColorAt(idx, tint);
-        leaves2Ref.current.setColorAt(idx, tint);
-
-        idx++;
-      }
-    }
-
-    stalksRef.current.instanceMatrix.needsUpdate = true;
-    leaves1Ref.current.instanceMatrix.needsUpdate = true;
-    leaves2Ref.current.instanceMatrix.needsUpdate = true;
-    if (stalksRef.current.instanceColor) stalksRef.current.instanceColor.needsUpdate = true;
-    if (leaves1Ref.current.instanceColor) leaves1Ref.current.instanceColor.needsUpdate = true;
-    if (leaves2Ref.current.instanceColor) leaves2Ref.current.instanceColor.needsUpdate = true;
-    // setMatrixAt never invalidates InstancedMesh.boundingSphere.
-    stalksRef.current.computeBoundingSphere();
-    leaves1Ref.current.computeBoundingSphere();
-    leaves2Ref.current.computeBoundingSphere();
+    if (stalksRef.current && leavesRef.current && earsRef.current)
+      populateGrainField([stalksRef.current, leavesRef.current, earsRef.current]);
   }, []);
-
   return (
-    <group>
-      <instancedMesh ref={stalksRef} args={[undefined, undefined, count]} castShadow>
+    <group name="rooted-cereal-field">
+      <instancedMesh
+        name="grain-field-stems"
+        ref={stalksRef}
+        args={[undefined, undefined, GRAIN_FIELD_COUNT]}
+        castShadow
+        receiveShadow
+      >
         <primitive object={SG.cornStalk} attach="geometry" />
-        <primitive object={SM.cornGreen} attach="material" />
+        <primitive object={GRAIN_FIELD_MATERIAL} attach="material" />
       </instancedMesh>
-      <instancedMesh ref={leaves1Ref} args={[undefined, undefined, count]} castShadow>
+      <instancedMesh
+        name="grain-field-leaves"
+        ref={leavesRef}
+        args={[undefined, undefined, GRAIN_FIELD_COUNT]}
+        castShadow
+        receiveShadow
+      >
         <primitive object={SG.cornLeaf} attach="geometry" />
-        <primitive object={SM.cornGreen} attach="material" />
+        <primitive object={GRAIN_FIELD_MATERIAL} attach="material" />
       </instancedMesh>
-      <instancedMesh ref={leaves2Ref} args={[undefined, undefined, count]} castShadow>
-        <primitive object={SG.cornLeaf} attach="geometry" />
-        <primitive object={SM.cornGreen} attach="material" />
+      <instancedMesh
+        name="grain-field-ears"
+        ref={earsRef}
+        args={[undefined, undefined, GRAIN_FIELD_COUNT]}
+        castShadow
+        receiveShadow
+      >
+        <primitive object={SG.cornEar} attach="geometry" />
+        <primitive object={GRAIN_FIELD_MATERIAL} attach="material" />
       </instancedMesh>
     </group>
   );
@@ -2974,7 +3074,7 @@ export const FarmArea: React.FC = () => {
 
       {/* Grain Field Background */}
       <group position={[0, 0, -42]}>
-        {/* Simple Grain Field - Instanced Loops */}
+        {/* Root-coherent cereal stools, one shared wind field and three draws. */}
         <InstancedGrainField />
         <Scarecrow position={[0, 0, 0]} rotation={0.2} />
       </group>

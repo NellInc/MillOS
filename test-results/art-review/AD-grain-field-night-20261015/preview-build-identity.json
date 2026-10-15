@@ -1,0 +1,14 @@
+{
+  "index": {
+    "url": "http://127.0.0.1:4288/",
+    "sha256": "40b654fc4f5b3d31764ae086fc2a6fe39e6af3cac3a53f3c28977460bda738f4",
+    "bytes": 9887
+  },
+  "entries": [
+    {
+      "url": "http://127.0.0.1:4288/assets/main-CATzSNDj.js",
+      "sha256": "d61c6485b35a8738cf0c62cd355a19485a777c8af2471679fcf228df9a7f4abc",
+      "bytes": 823695
+    }
+  ]
+}

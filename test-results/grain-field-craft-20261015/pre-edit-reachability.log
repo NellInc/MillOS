@@ -1,0 +1,6 @@
+
+> grain-mill-simulator@0.40.0 validate:reachability
+> node scripts/audit-module-reachability.mjs --why=src/components/FarmArea.tsx
+
+src/components/LivingWorldCreatures.test.tsx
+  -> src/components/FarmArea.tsx

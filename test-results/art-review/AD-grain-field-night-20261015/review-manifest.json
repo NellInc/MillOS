@@ -1,0 +1,48 @@
+{
+  "label": "AD-grain-field-night-20261015",
+  "capturedAt": "2026-10-15T05:47:00.958Z",
+  "git": {
+    "commit": "5c0ae1838220372fa04346f00a990c610084f12a",
+    "branch": "codex/place-led-beautification-20261010",
+    "dirty": true,
+    "dirtyFileCount": 4,
+    "dirtyFiles": [
+      "_contprompts/millos_place_led_beautification_20261010.md",
+      "src/components/FarmArea.tsx",
+      "src/components/LivingWorldCreatures.test.tsx",
+      "output/playwright/place-led-20261010/"
+    ]
+  },
+  "options": {
+    "label": "AD-grain-field-night-20261015",
+    "scenes": [
+      "farm"
+    ],
+    "sceneSet": "explicit",
+    "quality": "medium",
+    "port": "4288",
+    "time": "22",
+    "weather": "clear",
+    "duration": "1",
+    "warmup": "1",
+    "settleTimeout": "240",
+    "perfGate": false,
+    "skipBuild": true,
+    "headed": false
+  },
+  "diagnostics": [],
+  "scenes": [
+    {
+      "scene": "farm",
+      "image": "farm.png",
+      "indicativeFps": 33.29
+    }
+  ],
+  "contactSheet": "contact-sheet.png",
+  "perfGate": null,
+  "caveats": [
+    "Working tree was dirty (4 files). These frames show uncommitted work, not commit 5c0ae18. Do not use as a baseline for a later comparison.",
+    "Captured with --skip-build; dist/ may predate the tree.",
+    "No performance gate was run. Art mode unpins reduced motion and restores full fidelity, so its frame samples are indicative only. A visual verdict from this capture is not shippable until a non-art budget run passes on the same commit."
+  ]
+}

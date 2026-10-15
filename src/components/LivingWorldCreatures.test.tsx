@@ -17,7 +17,15 @@ import {
   FOUNTAIN_BIRD_PERCH,
   FALLBACK_FOUNTAIN_BIRD_PERCH,
 } from './VillageArea';
-import { Scarecrow } from './FarmArea';
+import {
+  Scarecrow,
+  GRAIN_PLANT_GEOMETRY,
+  GRAIN_FIELD_MATERIAL,
+  GRAIN_FIELD_DEPTH_MATERIAL,
+  GRAIN_FIELD_COUNT,
+  GRAIN_WIND_PADDING,
+  populateGrainField,
+} from './FarmArea';
 import { playCritterSound } from '../utils/critterAudio';
 
 const boundary = vi.hoisted(() => ({
@@ -369,4 +377,125 @@ it('uses elapsed active time for actual duck dabbling across display rates and c
       isTabVisible: original.isTabVisible,
     });
   }
+});
+
+it('authors the live crop geometry from a common ground-root datum for the wind shader', () => {
+  for (const g of Object.values(GRAIN_PLANT_GEOMETRY)) {
+    g.computeBoundingBox();
+    expect(g.boundingBox!.min.y).toBeGreaterThanOrEqual(-1e-6);
+  }
+  const top = Math.max(...Object.values(GRAIN_PLANT_GEOMETRY).map((g) => g.boundingBox!.max.y));
+  expect(top).toBeGreaterThan(1.7);
+  expect(top).toBeLessThanOrEqual(1.8);
+});
+
+it('keeps coloured cereal geometry finite, bounded and attached at its actual vertices', () => {
+  const parts = Object.values(GRAIN_PLANT_GEOMETRY);
+  let triangles = 0;
+  for (const g of parts) {
+    expect(g.groups).toHaveLength(0);
+    for (const name of ['position', 'normal', 'uv', 'color']) {
+      const a = g.getAttribute(name);
+      expect(a.count).toBe(g.getAttribute('position').count);
+      expect(Array.from(a.array).every(Number.isFinite)).toBe(true);
+    }
+    expect(Array.from(g.getAttribute('color').array).every((x) => x > 0 && x <= 1)).toBe(true);
+    triangles += (g.index?.count ?? g.getAttribute('position').count) / 3;
+    const p = g.getAttribute('position');
+    for (let i = 0; i < p.count; i++) expect(Math.hypot(p.getX(i), p.getZ(i))).toBeLessThan(0.5);
+  }
+  expect(triangles).toBeLessThan(500);
+  const stems = GRAIN_PLANT_GEOMETRY.stems.getAttribute('position'),
+    leaves = GRAIN_PLANT_GEOMETRY.leaves.getAttribute('position'),
+    ears = GRAIN_PLANT_GEOMETRY.ears.getAttribute('position');
+  const closest = (x: number, y: number, z: number) => {
+    let distance = Infinity;
+    for (let i = 0; i < stems.count; i++)
+      distance = Math.min(
+        distance,
+        Math.hypot(stems.getX(i) - x, stems.getY(i) - y, stems.getZ(i) - z)
+      );
+    return distance;
+  };
+  // Each four-triangle leaf starts at the actual culm ring vertex it grows from.
+  expect(leaves.count / 12).toBe(9);
+  for (let i = 0; i < leaves.count; i += 12)
+    expect(closest(leaves.getX(i), leaves.getY(i), leaves.getZ(i))).toBeLessThan(1e-6);
+  const common = new Set<string>();
+  for (let i = 0; i < ears.count; i++)
+    if (closest(ears.getX(i), ears.getY(i), ears.getZ(i)) < 1e-6)
+      common.add([ears.getX(i), ears.getY(i), ears.getZ(i)].map((v) => v.toFixed(5)).join(','));
+  expect(common.size).toBeGreaterThanOrEqual(3);
+  expect(GRAIN_FIELD_MATERIAL.vertexColors).toBe(true);
+  expect(GRAIN_FIELD_MATERIAL.emissive.getHex()).toBe(0);
+  expect(GRAIN_FIELD_MATERIAL.map).toBeNull();
+});
+
+it('retains all planting roots with identical transforms and conservative wind bounds for every part', () => {
+  const meshes = Object.values(GRAIN_PLANT_GEOMETRY).map(
+    (g) => new THREE.InstancedMesh(g, GRAIN_FIELD_MATERIAL, GRAIN_FIELD_COUNT)
+  ) as [THREE.InstancedMesh, THREE.InstancedMesh, THREE.InstancedMesh];
+  try {
+    populateGrainField(meshes);
+    expect(GRAIN_FIELD_COUNT).toBe(300);
+    expect(meshes[0].instanceMatrix.array).toEqual(meshes[1].instanceMatrix.array);
+    expect(meshes[0].instanceMatrix.array).toEqual(meshes[2].instanceMatrix.array);
+    expect(meshes[0].instanceColor!.array).toEqual(meshes[1].instanceColor!.array);
+    expect(meshes[0].instanceColor!.array).toEqual(meshes[2].instanceColor!.array);
+    const matrix = new THREE.Matrix4();
+    for (let r = 0; r < 15; r++)
+      for (let c = 0; c < 20; c++) {
+        meshes[0].getMatrixAt(r * 20 + c, matrix);
+        const rnd = Math.sin(r * 20 + c) * 1000;
+        expect(matrix.elements[12]).toBeCloseTo((c - 10) * 1.5 + Math.sin(rnd) * 0.5, 5);
+        expect(matrix.elements[13]).toBe(0);
+        expect(matrix.elements[14]).toBeCloseTo((r - 7) * 1.5 + Math.cos(rnd) * 0.5, 5);
+        expect(
+          new THREE.Vector3()
+            .setFromMatrixScale(matrix)
+            .toArray()
+            .every((s) => s >= 0.79999 && s <= 1.20001)
+        ).toBe(true);
+      }
+    const spheres = meshes.map((m) => m.boundingSphere!.radius);
+    for (const m of meshes) {
+      expect(m.customDepthMaterial).toBe(GRAIN_FIELD_DEPTH_MATERIAL);
+      expect(m.boundingBox!.min.x).toBeGreaterThan(-18);
+      expect(m.boundingBox!.max.x).toBeLessThan(18);
+      expect(m.boundingBox!.min.z).toBeGreaterThan(-14);
+      expect(m.boundingBox!.max.z).toBeLessThan(14);
+      expect(m.boundingBox!.max.y).toBeLessThan(2.16 + GRAIN_WIND_PADDING);
+    }
+    expect(GRAIN_WIND_PADDING).toBeGreaterThan(0.16 * (0.7 + 1.5) * 1.4);
+    populateGrainField(meshes);
+    meshes.forEach((m, i) => expect(m.boundingSphere!.radius).toBeCloseTo(spheres[i], 8));
+  } finally {
+    meshes.forEach((m) => m.dispose());
+  }
+});
+
+it('compiles the actual crop colour/depth hosts with the same root-height wind field and clock', () => {
+  const compile = (material: THREE.Material, lib: typeof THREE.ShaderLib.standard) => {
+    const shader = {
+      uniforms: {} as Record<string, THREE.IUniform>,
+      vertexShader: lib.vertexShader,
+      fragmentShader: lib.fragmentShader,
+    };
+    (material.onBeforeCompile as (s: typeof shader) => void)(shader);
+    return shader;
+  };
+  const colour = compile(GRAIN_FIELD_MATERIAL, THREE.ShaderLib.standard),
+    depth = compile(GRAIN_FIELD_DEPTH_MATERIAL, THREE.ShaderLib.depth);
+  const wind = (s: string) =>
+    s.slice(
+      s.indexOf('  vec4 millosWindLocal'),
+      s.indexOf('  transformed += millosOffset;') + '  transformed += millosOffset;'.length
+    );
+  expect(wind(colour.vertexShader)).toBe(wind(depth.vertexShader));
+  expect(wind(colour.vertexShader)).toContain('position.y / 1.8000');
+  for (const u of ['uWindTime', 'uWindDir', 'uWindStrength'])
+    expect(colour.uniforms[u]).toBe(depth.uniforms[u]);
+  expect(colour.vertexShader).toContain('vec4( position, 1.0 )');
+  expect(GRAIN_FIELD_MATERIAL.customProgramCacheKey()).toContain('millos_corn_v1');
+  expect(GRAIN_FIELD_DEPTH_MATERIAL.customProgramCacheKey()).toBe('millos_corn_v1_depth');
 });

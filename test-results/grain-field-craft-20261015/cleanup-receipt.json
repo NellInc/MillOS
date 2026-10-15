@@ -1,0 +1,9 @@
+{
+  "borrowedLinksVerifiedRemoved": 375,
+  "ownViteAndNpmCacheRemoved": true,
+  "preEditLogPreservedTemporaryCopyRemoved": true,
+  "noOpenHandles": true,
+  "originalDependencySymlinkRestored": true,
+  "sourceDistImagesFailureLogsHistoryPreserved": true,
+  "physicalSpaceRecoveryClaim": false
+}
