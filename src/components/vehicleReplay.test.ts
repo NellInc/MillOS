@@ -63,6 +63,8 @@ vi.mock('../simulation/workplaceReplayRuntime', () => ({
 }));
 
 import { CommunityLife } from './CommunityLife';
+import { useOperationsCampaignStore } from '../stores/operationsCampaignStore';
+import { COMMUNITY_ROSTER, sampleCommunityPerson } from '../simulation/communityLife';
 import { TruckBay } from './TruckBay';
 import { TRUCK_WHEEL_RADIUS } from './truckbay/OptimizedTruckBay';
 import { ForkliftSystem } from './ForkliftSystem';
@@ -486,3 +488,125 @@ it('transports seat frames after root turning, freezes holds and clears old repl
   participant.restore(snapshot);
   expect(motion.seat).toEqual(snapshot.residents[index].motion.seat);
 });
+
+it('initializes an unstocked baker as waiting before the first presentation frame', () => {
+  const saved = useOperationsCampaignStore.getState();
+  try {
+    useOperationsCampaignStore.setState({ orders: [], elapsedMinutes: 0 });
+    const baker = COMMUNITY_ROSTER.find((person) => person.role === 'Baker')!;
+    let hour = 0;
+    while (
+      (!sampleCommunityPerson(baker, hour).visible ||
+        sampleCommunityPerson(baker, hour).activity !== 'working') &&
+      hour < 24
+    )
+      hour += 0.01;
+    expect(hour).toBeLessThan(24);
+    expect(sampleCommunityPerson(baker, hour).visible).toBe(true);
+    useGameSimulationStore.setState({
+      gameDay: 0,
+      gameTime: hour,
+      gameSpeed: 0,
+      emergencyActive: false,
+      emergencyDrillMode: false,
+      weather: 'clear',
+    });
+    const tree = CommunityLife();
+    const node = tree.props.children[0].props.children.find((n: any) => n.props.name === baker.id);
+    expect(node.props.children[0].props.motion.activity).toBe('idle');
+    expect(node.props.userData).toMatchObject({
+      activity: 'idle',
+      task: 'Waiting for the cooperative flour order',
+    });
+    expect(useOperationsCampaignStore.getState().orders).toEqual([]);
+  } finally {
+    useOperationsCampaignStore.setState(saved);
+  }
+});
+
+it.each(['stocked', 'rain', 'storm', 'safety'] as const)(
+  'resolves initial%s duties from current operations and retains the same live metadata',
+  (kind) => {
+    const campaign = useOperationsCampaignStore.getState(),
+      game = useGameSimulationStore.getState();
+    try {
+      const orders =
+        kind === 'stocked'
+          ? ([
+              {
+                customer: "Riverside Bakers' Cooperative",
+                recipe: { finishedMaterial: 'flour' },
+                requiredKg: 6000,
+                shippedKg: 6000,
+                qualityFailureKg: 0,
+                status: 'fulfilled',
+                manifestIds: ['verified-test-dispatch'],
+                completedAtMinute: 100,
+              },
+            ] as typeof campaign.orders)
+          : [];
+      useOperationsCampaignStore.setState({ orders, elapsedMinutes: 101 });
+      const role = kind === 'rain' || kind === 'storm' ? 'Gardener' : 'Baker';
+      const person = COMMUNITY_ROSTER.find((p) => p.role === role)!;
+      let hour = 0;
+      while (
+        (!sampleCommunityPerson(person, hour).visible ||
+          sampleCommunityPerson(person, hour).activity !== 'working') &&
+        hour < 24
+      )
+        hour += 0.01;
+      expect(hour).toBeLessThan(24);
+      useGameSimulationStore.setState({
+        gameDay: 0,
+        gameTime: hour,
+        gameSpeed: 0,
+        isTabVisible: true,
+        emergencyActive: kind === 'safety',
+        emergencyDrillMode: false,
+        weather: kind === 'rain' || kind === 'storm' ? kind : 'clear',
+      });
+      const tree = CommunityLife(),
+        nodes = tree.props.children[0].props.children;
+      const node = nodes.find((n: any) => n.props.name === person.id),
+        metadata = node.props.userData,
+        motion = node.props.children[0].props.motion;
+      expect(motion.activity).toBe(kind === 'stocked' ? 'working' : 'idle');
+      expect(metadata.task).toBe(
+        kind === 'safety'
+          ? 'Holding safely for the site safety stop'
+          : kind === 'rain'
+            ? 'Pausing garden work in the rain'
+            : kind === 'storm'
+              ? 'Pausing garden work during the storm'
+              : sampleCommunityPerson(person, hour).task
+      );
+      const roots = nodes.map((n: any) => {
+        const root = new THREE.Group();
+        root.name = n.props.name;
+        root.position.fromArray(n.props.position);
+        root.rotation.y = n.props.rotation[1];
+        root.userData = n.props.userData;
+        n.props.ref(root);
+        return root;
+      });
+      const scene = new THREE.Scene();
+      roots.forEach((root: THREE.Group) => scene.add(root));
+      const root = scene.getObjectByName(person.id)!;
+      harness.frames[0]({ camera, scene } as never, 1 / 60);
+      expect(root.userData).toBe(metadata);
+      expect(root.userData.activity).toBe(motion.activity);
+      expect(motion.enabled).toBe(false);
+      if (kind === 'stocked') {
+        useOperationsCampaignStore.setState({ elapsedMinutes: 1540 });
+        harness.frames[0]({ camera, scene } as never, 1 / 60);
+        expect(root.userData).toBe(metadata);
+        expect(motion.activity).toBe('idle');
+        expect(metadata.task).toBe('Waiting for the cooperative flour order');
+      }
+      expect(useOperationsCampaignStore.getState().orders).toBe(orders);
+    } finally {
+      useOperationsCampaignStore.setState(campaign);
+      useGameSimulationStore.setState(game);
+    }
+  }
+);

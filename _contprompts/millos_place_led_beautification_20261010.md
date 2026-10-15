@@ -3912,3 +3912,71 @@ AO corrected pacing remains separately OPEN: overall budget=false in all4 final 
 AO cleanup/custody: verified all375 borrowed links and empty lsof results on each real own cache, then removed12 disposable files/11948logicalbytes from only AO-shadow's local Vite/npm caches. Restored original node_modules symlink exactly; source, active sealed dist, useful images, measurements, adapter and all raw failures retained. Observed APFS free-space movement+3117056bytes includes other writers and is not an attributable-recovery claim. Earlier pre-shadow cache cleanup is separately retained. Current4source/415compiled/1459frozen hashes match, protected primary HEAD/fullstatus/binarydiff exact, unrelated10file output/playwright ownership preserved. No push/upload/deploy/publication. All required gates terminal,36-item acceptance reconciled, exact5tracked-file local check-in follows; the repeating wider goal remains active.
 
 Next grounded candidate, not an AO defect claim: follow natural baker work feedback through real stock/order state, including paused presentation and React rerender. CommunityLife.tsx:116..136 initializes raw scheduled activity/task, while302..316 derives the guarded operational response and350..362 exposes raw JSX metadata. The close run's brief Setting out fresh bread label was not paired with a stock/order snapshot, so inconsistency is unverified. Reproduce the actual assembly/state before changing it; reject this hypothesis if stock explains the label. Then select a visually worthwhile nonfacial village/animal/grounds gap from close native evidence, rotating beyond two completed face passes. Existing fountain live streams are already lit; do not mistake its old fallback-only additive waterfall for live geometry. Player/device checks remain deferred and pacing remains separate.
+
+
+## AP: truthful resident duties and living fountain water, 2026-10-15
+
+Previous turn is verified PROGRESS:80696259 added actual-rig facial detail and a natural hello,157affected tests and exact-build native proof. Rotate from two face passes to everyday village life. Current candidate gaps: CommunityLife initializes scheduled work before stock/weather/workplace guards and supplies a fresh raw userData object on React renders; the fountain still paints eight identical waves into a64px canvas. Reproduce the former in the actual mounted component and inspect a silent native fountain close before changing either. Allowed CommunityLife.tsx/existing vehicleReplay.test.ts, VillageArea.tsx and its existing VillageArea.test.ts/LivingWorldCreatures.test.tsx, plus this programme. All other source/assets frozen. No UI/routes/actors/inventory/clock override, new dependencies, shader injection/light/draw or asset replacement. Local/muted only, player/device deferred, pacing separately OPEN.
+
+Detailed finite task list:
+1. Reconcile80696259, previous acceptance, exact dirty ownership and active goal.
+2. Pin protected primary HEAD/full status/binary diff and untouched source/assets.
+3. Isolate only this pass's dependency/cache writes; borrow dependencies without changing their target.
+4. Record the named existing community/village/creature baseline and any failing cases.
+5. Verify actual compiled reachability of CommunityLife and VillageArea before edits.
+6. Trace initial resident pose, operational response, work agreement and JSX metadata.
+7. Reproduce unstocked baker initial work through the established live-component/real-Three-root harness, without a fake domain resolver.
+8. Check weather and safety precedence on the same initial presentation path.
+9. Reject the defect hypothesis if the actual guard already applies before presentation.
+10. Read actual shop-stock semantics: fulfilled/manifest-backed/recent verified flour, not a schedule or inferred stock.
+11. Preserve existing work-order, quality-hold/recalled, workplace agreement and safe-stop priorities.
+12. Initialize resident activity and task through the same actual operational resolver used by frames.
+13. Keep a stable resident metadata object so React rerenders cannot replace guarded duties with raw scheduled work.
+14. Preserve existing motion identity, skeletons, tools, handovers, seated cues and facial/greeting system.
+15. Preserve all route positions/headings, people/bus/cart clocks, domain stores and replay schema.
+16. Prove initial unstocked waiting, verified-stock work and rain/safety holds using the established live-component/Vitest harness.
+17. Prove rerender retains resolved metadata, without constructing a generalized renderer harness.
+18. Preserve pure community resolver tests and their no-domain-mutation guarantees.
+19. Inspect baseline fountain close using current sealed bytes, real scuppers/basin and ordinary native lighting.
+20. Reuse existing procedural colour/linear DataTexture factories rather than add another texture service.
+21. Replace repeated64px stripe painting with deterministic seamless crossing water detail at128px.
+22. Use low-amplitude signed normal slopes, preserving a continuous dielectric basin surface.
+23. Keep colour bytes sRGB and normals linear; no normal gamma decode or emissive/glowing water.
+24. Give falling streams restrained longitudinal filaments, without opaque bright ropes or additive light.
+25. Retain the real four scupper paths, all landing points, basin annulus and existing geometry/bird/perch.
+26. Retain old texture ownership as module-shared single-instance resources and existing material draw count.
+27. Use ordinary lit materials/shadow reception, no new light/caster/post-processing/custom shader.
+28. Sync normal/detail scroll through the existing admitted fountain clock, adding no frame hook.
+29. Prove pause/hidden/reduced holds and bounded resume, including throttled admission.
+30. Prove deterministic finite texels, exact tile seams, actual map wiring and legal channel ranges.
+31. Preserve fallback/generated separation and all existing gravity/perch/masonry tests.
+32. Run the coherent affected tests and report delta from the named baseline.
+33. Run required typecheck, lint, whole-source format and shader gates without widening scope.
+34. Build once under the existing capture lock, seal actual source/compiled bytes, refresh reachability.
+35. Inspect exact-build silent native fountain close and natural resident duty presentation.
+36. Inspect village day/dusk/night and mill integration at unchanged medium/adaptation/DPR.
+37. Retain all actual pacing/startup misses separately; no quality/readiness/budget change or green-seeking repeats.
+38. Restore dependency setup and remove only inactive owned disposable caches, preserving useful evidence.
+39. Verify protected primary/untouched sources/compiled bytes/unrelated dirty work; reconcile every acceptance item.
+40. Selectively check in the local complete pass, retain the repeating goal and choose the following evidence-led gap.
+
+Pre-mortem: initialization fixes can accidentally change replay/clock or agreement priority; normal fields can create a tiled comb or wrong colour-space sheen; generated/fallback water can double-render or escape its basin. Keep the actual resolver/metadata object, existing clocks and geometry; use crossing periodic fields with small signed slopes and correct colour spaces. Working if initial/rerendered duties respect real operations, the actual fountain reads as moving lit water without new draws or altered scuppers, exact-build world checks remain clean/muted, and pacing/human-device evidence remains separate. This authoring chat reviews its own art; no independent-review claim.
+
+
+AP baseline/proof:79existing community/village/creature tests passed in29.87s, plus10existing live-controller/replay tests in9.14s,0failures. Reused vehicleReplay.test.ts's established live-component-function/real-Three-root harness instead of creating a new DOM/R3F harness (allowed list reconciled after verifying its frozen hash,1458other source/assets remain pinned). Its new first-presentation test reproduced expectedidle/receivedworking with no fulfilled order, before any frame. This proves the actual initialization defect; it does not establish every historically observed transient label had that cause. Native baseline close uses prior exact main-TvLuza-c.js,64px water/fall maps, no normal map, no shadow reception on the overlays, and exactly one existing bird. Baseline PNG inspected: broad uniform ring and repeated thin painted-wave detail, no actor/inventory override. Source proof changes initialize through the same operation/agreement guard and preserve one stable metadata object; native reduced-motion rerender will check its real R3F ownership.
+
+AP diagnostic correction: formatting caught an authored unary-exponent syntax typo, corrected before building. First coherent93test run:90passed,3failed,285.92s. Two unchanged actual-market GLB checks timed out at the existing10000ms limit (`maps actual fruit and food finishes in sRGB with neutral furnishings and linear roughness`; `varies only the real market red-cloth tile and its matching scallops, retaining atlas and geometry`). The new ripple-mask check found alpha3at the outer texel instead of0; add a true smooth outer fade, preserving the seam/normal/contact limits. Retain raw failure/load logs; no timeout/budget relaxation. The corrected coherent gate follows completed source edits.
+
+
+AP corrected source proof: coherent gate97/4files passed,145.98s. Root then strengthened all initial-duty fixtures to actual visible working stops and corrected the hold-test oracle to select the newly registered water callback, rather than assume the memoized bird also rerenders. A real reduced hold and resume now use the current callback at each transition. The complete strengthened gate again passed97/4files,0failures,30.27s (+8 versus89baseline). New coverage: unstocked waiting before frame0, verified fulfilled stock work, expiry while paused, rain/storm and safety precedence, stable live metadata references, exact deterministic128px maps/seams, signed small unit normals, feathered ripple alpha, and admitted/paused/hidden/reduced/bounded-resume water detail. Pure domain/replay/seat/rider/actual GLB gravity/perch/masonry/market tests retain their assertions; no timeout was raised. Typecheck/lint/whole-source format/shaders34families38keys terminal0. Optional Impeccable absent, no install/interface edit. The two production surfaces stay bounded: current operation truth on initialization, and four module-shared water maps/material wiring with no new mesh/light/clock/custom shader. Exact build/native acceptance follows.
+
+
+AP final build/runtime/art: locked build terminal0, Vite18.46s/wrapper22.704s,415files/181744245bytes,5source/1458frozen pins stable. Fresh reachability terminal0, no new dead/stale/graph misses. Native close serves exact main-Cc3wjANH.js/index hashes from this seal,128px colour/flow maps in sRGB and signed normals in linear, actual surface/stream shadow reception true, emissive0, original single bird/perch/scuppers retained. Natural baker12samples all correctly waiting for the cooperative order. An actual reduced-motion media change rerenders CommunityLife while retaining all14 live metadata objects and R3F instance.props ownership; colour/normal offsets hold exactly together. Preference restored afterward. No actor, inventory, clock, quality or readiness override. The task-only adapter uses the installed R3F instance.props contract, not an assumed memoizedProps/children shape. It closes only its own native sandboxed browser/preview/lock. Final fountain PNG inspected by this authoring chat: quieter translucent streams, a feathered broken crest replacing the broad pale band, restrained surface movement and the existing stone/bird intact. No large geometry makeover is claimed.
+
+AP integration: inspected all4 exact-build village day/dusk/night and daytime mill PNGs. Sandboxed out-of-process Apple Metal, medium/adaptation unchanged,1.2effectiveDPR. All worldIntegrity/pageClean/communityPresence/checkpoints/effectiveDpr and ordinary vehicle-motion checks pass; console/page/request/texture diagnostics empty, screenshot errors null, audio0/contextnot-created. UI/buildings/routes/rail clearance/lighting rigs unchanged. These are this chat's own art checks, not independent or player/device review.
+
+AP pacing separately OPEN: all4 art overallbudgets=false. Village day/dusk/night p95=29.8/17.5/17.0ms, average52.63/60/60FPS; mill p95=17.5ms,average60FPS. Village day also fails average/p99/onePercentLow; mill/dusk firstFrame misses. Load/core8.82/13.34/13.62(village),15.48(mill), all>3, so no regression/non-regression attribution. World-ready19.090..33.359s,startup-ready24.278..38.594s. No non-art performance pass, budget/adaptation/quality/readiness relaxation or green-seeking retry. Player/device checks deferred.
+
+AP cleanup/acceptance: verified375 exact borrowed links, no symlinks/users in real own caches, then removed13 disposable files/12250logicalbytes and restored original node_modules symlink. APFS movement-15269888bytes reflects shared writers; no physical recovery claimed. Useful source/active build/maps-in-source/baseline/final images/raw failures/adapter/receipts retained.5source/415compiled/1458untouched hashes stable; protected primary HEAD/fullstatus/binarydiff exact; capture lock released and unrelated10file output/playwright custody preserved.40-item finite acceptance reconciled, exact6tracked-file local check-in follows. Local/muted only, no upload/push/deploy/publication; wider repeating goal remains active.
+
+Following inspection target: rotate from the village square to the lower milling floor's close-range machine surfaces and worker/handling context. The AP interior overview still reads broad teal panel faces at this distance; inspect actual live close-ups before deciding whether there is a worthwhile material/model gap, and reject changes if the detail already resolves nearby. Keep truthful operations, personnel identities/animation and all existing routes/clearance intact; no performance or human/device gate is silently closed by this next art candidate.

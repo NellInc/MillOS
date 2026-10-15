@@ -13,6 +13,7 @@ import React, { useRef, useEffect, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import type { ThreeEvent } from '@react-three/fiber';
 import { shouldRunThisFrame } from '../utils/frameThrottle';
+import { createColorDataTexture, createLinearDataTexture } from '../utils/textureGenerator';
 import { SceneText as Text } from './shared/SceneText';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
@@ -2014,58 +2015,109 @@ const Postbox = React.memo<{ position: [number, number, number]; rotation?: numb
 Postbox.displayName = 'Postbox';
 
 // ===== FOUNTAIN =====
-// Animated water assets - module level, shared by the single fountain instance.
-// Deterministic canvas texture (no Math.random) with wavy highlight streaks.
-const createFountainWaterTexture = (
-  base = '#5c8a6a',
-  lines = 'rgba(220, 240, 255, 0.35)'
-): THREE.CanvasTexture => {
-  const canvas = document.createElement('canvas');
-  canvas.width = 64;
-  canvas.height = 64;
-  const ctx = canvas.getContext('2d');
-  if (ctx) {
-    ctx.fillStyle = base;
-    ctx.fillRect(0, 0, 64, 64);
-    ctx.strokeStyle = lines;
-    ctx.lineWidth = 2;
-    for (let i = 0; i < 8; i++) {
-      ctx.beginPath();
-      const y = i * 8 + 4;
-      for (let x = 0; x <= 64; x += 4) {
-        const yy = y + Math.sin((x / 64) * Math.PI * 2 + i * 1.7) * 3;
-        if (x === 0) ctx.moveTo(x, yy);
-        else ctx.lineTo(x, yy);
-      }
-      ctx.stroke();
+/** Crossing periodic wave trains, in metres, instead of a repeated painted
+ * comb. Four small shared maps, no shader injection or added draw. Working if
+ * colour is sRGB, signed normals are linear, seams meet, and ripples stay lit.
+ */
+export function createFountainWaterTextures() {
+  const size = 128,
+    tau = Math.PI * 2;
+  const deep = [91, 135, 139],
+    highlight = [157, 187, 178];
+  const water = new Uint8Array(size * size * 4),
+    normal = water.slice(),
+    fall = water.slice(),
+    ripple = water.slice();
+  for (let y = 0; y < size; y++)
+    for (let x = 0; x < size; x++) {
+      const u = x / (size - 1),
+        v = y / (size - 1),
+        i = (y * size + x) * 4;
+      const a = tau * (3 * u + 2 * v) + 0.55 * Math.sin(tau * v);
+      const b = tau * (-2 * u + 5 * v) + 0.4 * Math.sin(tau * u);
+      const crest = Math.max(0, 1 - Math.abs(Math.sin(a)) / 0.35) ** 2;
+      const tint = 0.16 + 0.2 * (0.5 + 0.5 * Math.cos(b)) + 0.2 * crest;
+      for (let c = 0; c < 3; c++)
+        water[i + c] = Math.round(deep[c] + (highlight[c] - deep[c]) * tint);
+      water[i + 3] = 255;
+      const du =
+        0.006 * Math.cos(a) * tau * 3 + 0.0035 * Math.cos(b) * tau * (-2 + 0.4 * Math.cos(tau * u));
+      const dv =
+        0.006 * Math.cos(a) * tau * (2 + 0.55 * Math.cos(tau * v)) + 0.0035 * Math.cos(b) * tau * 5;
+      // One UV tile spans the generated basin's2.56m diameter. Heights above
+      // are millimetres of relief, so normal slopes stay small and signed.
+      const nx = -du / 2.56,
+        ny = -dv / 2.56,
+        length = Math.hypot(nx, ny, 1);
+      normal.set(
+        [
+          Math.round(((nx / length) * 0.5 + 0.5) * 255),
+          Math.round(((ny / length) * 0.5 + 0.5) * 255),
+          Math.round((0.5 / length + 0.5) * 255),
+          255,
+        ],
+        i
+      );
+      const filament = (0.5 + 0.5 * Math.cos(tau * (6 * v) + 0.65 * Math.sin(tau * 2 * u))) ** 3;
+      const flow = 0.5 + 0.5 * Math.sin(tau * (3 * u + v) + 0.35 * Math.sin(tau * v));
+      fall.set(
+        [
+          172 + 38 * filament,
+          199 + 25 * filament,
+          202 + 24 * filament,
+          100 + 105 * filament + 32 * flow,
+        ],
+        i
+      );
+      const rx = u * 2 - 1,
+        ry = v * 2 - 1,
+        radius = Math.hypot(rx, ry),
+        angle = Math.atan2(ry, rx);
+      const feather =
+        Math.exp(-(((radius - 0.87) / 0.065) ** 2)) *
+        THREE.MathUtils.clamp((1 - radius) / 0.04, 0, 1);
+      const broken = 0.4 + 0.6 * (0.5 + 0.5 * Math.sin(7 * angle + 0.7 * Math.sin(3 * angle)));
+      ripple.set([215, 232, 225, Math.round(210 * feather * broken)], i);
     }
+  // Duplicate the periodic edge texels exactly, including quantization, so
+  // bilinear filtering never introduces a colour/normal step at the wrap.
+  for (const data of [water, normal, fall, ripple]) {
+    for (let y = 0; y < size; y++)
+      for (let c = 0; c < 4; c++) data[(y * size + size - 1) * 4 + c] = data[y * size * 4 + c];
+    for (let x = 0; x < size; x++)
+      for (let c = 0; c < 4; c++) data[((size - 1) * size + x) * 4 + c] = data[x * 4 + c];
   }
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
-};
-
-// Separate texture instances: surface and falling water scroll at different rates
-const fountainWaterTexture = createFountainWaterTexture();
-const fountainFallTexture = createFountainWaterTexture('#c6dfe8', 'rgba(255, 255, 255, 0.85)');
+  return {
+    water: createColorDataTexture(water, size, size),
+    normal: createLinearDataTexture(normal, size, size),
+    fall: createColorDataTexture(fall, size, size),
+    ripple: createColorDataTexture(ripple, size, size),
+  };
+}
+export const FOUNTAIN_WATER_TEXTURES = createFountainWaterTextures();
+const fountainWaterTexture = FOUNTAIN_WATER_TEXTURES.water;
+const fountainFallTexture = FOUNTAIN_WATER_TEXTURES.fall;
 
 const fountainWaterMaterial = new THREE.MeshStandardMaterial({
-  color: '#7fb2d8',
+  color: '#ffffff',
   map: fountainWaterTexture,
+  normalMap: FOUNTAIN_WATER_TEXTURES.normal,
+  normalScale: new THREE.Vector2(0.8, 0.8),
+  depthWrite: false,
   transparent: true,
   opacity: 0.85,
   roughness: 0.15,
   metalness: 0, // dielectric - see the pond material
 });
 
-// Narrow additive falling-water sheath (transparent overlay - depthWrite off is correct)
-const fountainFallMaterial = new THREE.MeshBasicMaterial({
-  color: '#cfe8ff',
+// The fallback sheath represents water too; its highlights follow scene light.
+const fountainFallMaterial = new THREE.MeshStandardMaterial({
+  color: '#ffffff',
   map: fountainFallTexture,
   transparent: true,
-  opacity: 0.3,
-  blending: THREE.AdditiveBlending,
+  opacity: 0.45,
+  roughness: 0.17,
+  metalness: 0,
   depthWrite: false,
   side: THREE.DoubleSide,
 });
@@ -2268,6 +2320,7 @@ const FountainPrimitiveBody = React.memo(() => {
     // Scroll water surface slowly; falling water streams downward fast
     fountainWaterTexture.offset.x += cappedDelta * 0.02;
     fountainWaterTexture.offset.y += cappedDelta * 0.035;
+    FOUNTAIN_WATER_TEXTURES.normal.offset.copy(fountainWaterTexture.offset);
     fountainFallTexture.offset.y -= cappedDelta * 0.9;
 
     // Faint ripple ring expanding from the column
@@ -2288,13 +2341,14 @@ const FountainPrimitiveBody = React.memo(() => {
       </mesh>
       {/* Lower water - animated scrolling surface, drawn as a feathered sheet
           that dies into the coping rather than a slab standing on it. */}
-      <mesh position={[0, 0.65, 0]}>
+      <mesh position={[0, 0.65, 0]} receiveShadow>
         <primitive object={FOUNTAIN_WATER} attach="geometry" />
         <primitive object={fountainWaterMaterial} attach="material" />
       </mesh>
       {/* Ripple ring - faint, expands outward from the column */}
       <mesh
         name="fountain-ripple-primitive"
+        receiveShadow
         ref={rippleRef}
         position={[0, 0.72, 0]}
         rotation={[-Math.PI / 2, 0, 0]}
@@ -2303,7 +2357,8 @@ const FountainPrimitiveBody = React.memo(() => {
         {/* Lit: a ripple is water, not a light source, so it must not glow at night. */}
         <meshStandardMaterial
           ref={rippleMaterialRef}
-          color="#dbeafe"
+          color="#ffffff"
+          map={FOUNTAIN_WATER_TEXTURES.ripple}
           roughness={0.2}
           metalness={0}
           transparent
@@ -2599,7 +2654,7 @@ const landingParts = GENERATED_FOUNTAIN_STREAM_PATHS.map((curve) => {
 const GENERATED_FOUNTAIN_LANDING_GEOMETRY = mergeGeometries(landingParts)!;
 landingParts.forEach((geometry) => geometry.dispose());
 export const GENERATED_FOUNTAIN_STREAM_MATERIAL = new THREE.MeshStandardMaterial({
-  color: '#d0e5e9',
+  color: '#ffffff',
   map: fountainFallTexture,
   transparent: true,
   opacity: 0.52,
@@ -2608,7 +2663,8 @@ export const GENERATED_FOUNTAIN_STREAM_MATERIAL = new THREE.MeshStandardMaterial
   depthWrite: false,
 });
 const generatedFountainLandingMaterial = new THREE.MeshStandardMaterial({
-  color: '#c4dce5',
+  color: '#ffffff',
+  map: FOUNTAIN_WATER_TEXTURES.ripple,
   transparent: true,
   opacity: 0.32,
   roughness: 0.25,
@@ -2624,8 +2680,10 @@ const generatedFountainLandingMaterial = new THREE.MeshStandardMaterial({
  * water with a canvas texture, which is the swap running backwards.
  */
 const generatedFountainWaterMaterial = new THREE.MeshStandardMaterial({
-  color: '#9ecbe8',
+  color: '#ffffff',
   map: fountainWaterTexture,
+  normalMap: FOUNTAIN_WATER_TEXTURES.normal,
+  normalScale: new THREE.Vector2(0.8, 0.8),
   transparent: true,
   opacity: 0.3,
   roughness: 0.15,
@@ -2666,6 +2724,7 @@ const GeneratedFountainWater: React.FC = () => {
     animationTime.current += cappedDelta;
     fountainWaterTexture.offset.x += cappedDelta * 0.02;
     fountainWaterTexture.offset.y += cappedDelta * 0.035;
+    FOUNTAIN_WATER_TEXTURES.normal.offset.copy(fountainWaterTexture.offset);
     fountainFallTexture.offset.x -= cappedDelta * 0.65;
     generatedFountainLandingMaterial.opacity = 0.27 + Math.sin(animationTime.current * 3) * 0.06;
 
@@ -2685,23 +2744,37 @@ const GeneratedFountainWater: React.FC = () => {
 
   return (
     <group>
-      <mesh name="fountain-scupper-streams" geometry={GENERATED_FOUNTAIN_STREAM_GEOMETRY}>
+      <mesh
+        name="fountain-scupper-streams"
+        receiveShadow
+        geometry={GENERATED_FOUNTAIN_STREAM_GEOMETRY}
+      >
         <primitive object={GENERATED_FOUNTAIN_STREAM_MATERIAL} attach="material" />
       </mesh>
-      <mesh name="fountain-scupper-landings" geometry={GENERATED_FOUNTAIN_LANDING_GEOMETRY}>
+      <mesh
+        name="fountain-scupper-landings"
+        receiveShadow
+        geometry={GENERATED_FOUNTAIN_LANDING_GEOMETRY}
+      >
         <primitive object={generatedFountainLandingMaterial} attach="material" />
       </mesh>
       {/* Sheet over the asset's own water. 8 mm proud: enough to win the depth
           test at every angle this square is read from, far too little to read
           as a step at the coping. `depthWrite` is off, as for every transparent
           overlay in this file. */}
-      <mesh position={[0, GENERATED_FOUNTAIN_WATER_Y + 0.008, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+      <mesh
+        name="fountain-water-surface"
+        receiveShadow
+        position={[0, GENERATED_FOUNTAIN_WATER_Y + 0.008, 0]}
+        rotation={[-Math.PI / 2, 0, 0]}
+      >
         <ringGeometry args={[GENERATED_FOUNTAIN_WATER_INNER, GENERATED_FOUNTAIN_WATER_OUTER, 48]} />
         <primitive object={generatedFountainWaterMaterial} attach="material" />
       </mesh>
       {/* Ripple ring, expanding from the column. */}
       <mesh
         name="fountain-ripple-generated"
+        receiveShadow
         ref={rippleRef}
         position={[0, GENERATED_FOUNTAIN_WATER_Y + 0.014, 0]}
         rotation={[-Math.PI / 2, 0, 0]}
@@ -2710,7 +2783,8 @@ const GeneratedFountainWater: React.FC = () => {
         {/* Lit: a ripple is water, not a light source, so it must not glow at night. */}
         <meshStandardMaterial
           ref={rippleMaterialRef}
-          color="#dbeafe"
+          color="#ffffff"
+          map={FOUNTAIN_WATER_TEXTURES.ripple}
           roughness={0.2}
           metalness={0}
           transparent

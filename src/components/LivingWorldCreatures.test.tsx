@@ -14,6 +14,7 @@ import {
   BlacksmithHorse,
   Fountain,
   FountainBird,
+  FOUNTAIN_WATER_TEXTURES,
   Duck,
   FOUNTAIN_BIRD_GEOMETRIES,
   FOUNTAIN_BIRD_MATERIAL,
@@ -852,5 +853,63 @@ it('uses admitted forge time across throttle rates, with a paused pet independen
       emergencyActive: original.emergencyActive,
       emergencyDrillMode: original.emergencyDrillMode,
     });
+  }
+});
+
+it('admits shared fountain normals with its water clock and freezes pause/hidden/reduced holds', () => {
+  const saved = useGameSimulationStore.getState();
+  const offsets = Object.fromEntries(
+    Object.entries(FOUNTAIN_WATER_TEXTURES).map(([key, t]) => [key, t.offset.clone()])
+  );
+  try {
+    useGameSimulationStore.setState({ gameSpeed: 1, isTabVisible: true });
+    boundary.fallback = false;
+    boundary.throttle = 3;
+    boundary.frame = 0;
+    const view = render(<Fountain position={[0, 0, 0]} />);
+    const ring = view.container.querySelector('[name="fountain-ripple-generated"]')!;
+    Object.assign(ring, { scale: new THREE.Vector3(1, 1, 1) });
+    const material = ring.querySelector('meshStandardMaterial')!;
+    Object.assign(material, { opacity: 0.26 });
+    const frame = vi.mocked(useFrame).mock.calls[0][0];
+    const step = () => frame({} as never, 1 / 60, undefined as never);
+    const before = FOUNTAIN_WATER_TEXTURES.water.offset.x;
+    step();
+    step();
+    expect(FOUNTAIN_WATER_TEXTURES.water.offset.x).toBe(before);
+    step();
+    expect(FOUNTAIN_WATER_TEXTURES.water.offset.x - before).toBeCloseTo(0.001, 7);
+    expect(FOUNTAIN_WATER_TEXTURES.normal.offset.equals(FOUNTAIN_WATER_TEXTURES.water.offset)).toBe(
+      true
+    );
+    const held = FOUNTAIN_WATER_TEXTURES.water.offset.clone();
+    useGameSimulationStore.setState({ gameSpeed: 0 });
+    step();
+    step();
+    step();
+    useGameSimulationStore.setState({ gameSpeed: 1, isTabVisible: false });
+    step();
+    step();
+    step();
+    useGameSimulationStore.setState({ isTabVisible: true });
+    boundary.reducedMotion = true;
+    const reducedIndex = vi.mocked(useFrame).mock.calls.length;
+    view.rerender(<Fountain position={[0, 0, 0]} />);
+    const reduced = vi.mocked(useFrame).mock.calls[reducedIndex][0];
+    reduced({} as never, 10, undefined as never);
+    expect(FOUNTAIN_WATER_TEXTURES.water.offset.equals(held)).toBe(true);
+    expect(FOUNTAIN_WATER_TEXTURES.normal.offset.equals(held)).toBe(true);
+    boundary.reducedMotion = false;
+    const resumeIndex = vi.mocked(useFrame).mock.calls.length;
+    view.rerender(<Fountain position={[0, 0, 0]} />);
+    const resume = vi.mocked(useFrame).mock.calls[resumeIndex][0];
+    for (let i = 0; i < 3; i++) resume({} as never, 10, undefined as never);
+    expect(FOUNTAIN_WATER_TEXTURES.water.offset.x - held.x).toBeLessThanOrEqual(0.006001);
+    expect(FOUNTAIN_WATER_TEXTURES.normal.offset.equals(FOUNTAIN_WATER_TEXTURES.water.offset)).toBe(
+      true
+    );
+  } finally {
+    useGameSimulationStore.setState(saved);
+    for (const [key, t] of Object.entries(FOUNTAIN_WATER_TEXTURES)) t.offset.copy(offsets[key]);
   }
 });

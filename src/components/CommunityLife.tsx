@@ -85,6 +85,18 @@ function AgreementLabel({ personId }: { personId: string }) {
   );
 }
 
+/** Initial presentation and admitted frames read the same domain truth.
+ * Working if an unstocked shop or rain hold cannot briefly render as work.
+ */
+function readCommunityOperations(out: CommunityOperationsSnapshot) {
+  const campaign = useOperationsCampaignStore.getState();
+  out.machines = useProductionStore.getState().machines;
+  out.workOrders = useBreakdownStore.getState().workOrders;
+  out.batches = useMaterialFlowStore.getState().productionBatches;
+  out.bakeryStocked = hasCommunityBakerySupply(campaign.orders, campaign.elapsedMinutes);
+  out.weather = useGameSimulationStore.getState().weather;
+}
+
 /** One schedule update feeds bodies, vehicles and the props they use. It never
  * changes production inventory or reintroduces the retired worker-voice system.
  * Working if pausing freezes movement, bodies keep their pose, and unload props
@@ -113,30 +125,43 @@ export function CommunityLife() {
     batches: [],
     bakeryStocked: false,
   }).current;
-  const residents = useMemo(
-    () =>
-      COMMUNITY_ROSTER.map((person, i) => {
-        const pose = sampleCommunityPerson(person, initialHour, createCommunityPose());
-        const motion: WorkerMotionState = {
-          activity: pose.activity,
-          groundSpeed: pose.activity === 'walking' ? 1.1 : 0,
-          seated: pose.seated,
-          enabled: false,
-          phase: i * 1.731,
-        };
-        updateSeatCue(motion, pose, pose.rotation);
-        return {
-          person,
-          hour: initialHour,
-          pose,
-          motion,
-          response: { activity: pose.activity, task: pose.task },
-          greeting: createCommunityGreeting(),
-          appearance: getWorkerAppearance(person.role, COLOURS[i % COLOURS.length], person.id),
-        };
-      }),
-    [initialHour]
-  );
+  const residents = useMemo(() => {
+    readCommunityOperations(operations);
+    const game = useGameSimulationStore.getState();
+    const emergency = game.emergencyActive || game.emergencyDrillMode;
+    const workplace = useWorkplaceStore.getState().workplace;
+    return COMMUNITY_ROSTER.map((person, i) => {
+      const pose = sampleCommunityPerson(person, initialHour, createCommunityPose());
+      const response = communityWorkResponse(person, pose, operations);
+      const agreement = communityAgreementCue(person.id, workplace);
+      communityAgreementResponse(agreement, pose, response);
+      const activity = emergency && !pose.seated ? 'idle' : response.activity;
+      const motion: WorkerMotionState = {
+        activity,
+        groundSpeed: !emergency && pose.activity === 'walking' ? 1.1 : 0,
+        seated: pose.seated,
+        enabled: false,
+        phase: i * 1.731,
+      };
+      updateSeatCue(motion, pose, pose.rotation);
+      return {
+        person,
+        hour: initialHour,
+        pose,
+        motion,
+        response,
+        // R3F retains this object. React must not replace frame-resolved duties
+        // with a new object containing the unguarded scheduled task.
+        userData: {
+          communityId: person.id,
+          activity,
+          task: emergency ? 'Holding safely for the site safety stop' : response.task,
+        },
+        greeting: createCommunityGreeting(),
+        appearance: getWorkerAppearance(person.role, COLOURS[i % COLOURS.length], person.id),
+      };
+    });
+  }, [initialHour, operations]);
   const bus = useRef(sampleCommunityBus(initialHour)).current;
   const bicycle = useRef(sampleCommunityCyclist(initialHour)).current;
   const delivery = sampleCommunityDelivery(initialHour);
@@ -235,13 +260,8 @@ export function CommunityLife() {
     Object.assign(bus, sampleCommunityBus(clocks.current.bus));
     Object.assign(bicycle, sampleCommunityCyclist(clocks.current.people));
     const drop = sampleCommunityDelivery(clocks.current.people);
-    const campaign = useOperationsCampaignStore.getState();
     const workplace = useWorkplaceStore.getState().workplace;
-    operations.machines = useProductionStore.getState().machines;
-    operations.workOrders = useBreakdownStore.getState().workOrders;
-    operations.batches = useMaterialFlowStore.getState().productionBatches;
-    operations.bakeryStocked = hasCommunityBakerySupply(campaign.orders, campaign.elapsedMinutes);
-    operations.weather = game.weather;
+    readCommunityOperations(operations);
     for (let i = 0; i < residents.length; i++) {
       const actor = residents[i],
         root = roots.current[i];
@@ -348,7 +368,7 @@ export function CommunityLife() {
   return (
     <>
       <group name="world-personnel" visible={enabled} userData={{ noStaticBatch: true }}>
-        {residents.map(({ person, appearance, motion, pose }, index) => (
+        {residents.map(({ person, appearance, motion, pose, userData }, index) => (
           <group
             key={person.id}
             name={person.id}
@@ -358,7 +378,7 @@ export function CommunityLife() {
             position={pose.position}
             rotation={[0, pose.rotation, 0]}
             visible={pose.visible}
-            userData={{ communityId: person.id, activity: pose.activity, task: pose.task }}
+            userData={userData}
           >
             <WorkerModel appearance={appearance} motion={motion} />
             <group

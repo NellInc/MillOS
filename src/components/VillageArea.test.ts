@@ -25,6 +25,8 @@ import {
 import { EXTERIOR_LAYERS } from '../constants/renderLayers';
 import {
   DUCK_SWIM_DRAFT,
+  createFountainWaterTextures,
+  FOUNTAIN_WATER_TEXTURES,
   FOUNTAIN_BIRD_GEOMETRIES,
   FOUNTAIN_BIRD_MATERIAL,
   FOUNTAIN_BIRD_TOE_CONTACTS,
@@ -914,5 +916,54 @@ describe('authored miniature fountain bird', () => {
       expect(hits.some((h) => h.point.z < 0.08)).toBe(true);
     }
     material.dispose();
+  });
+});
+
+describe('seamless lit fountain water detail', () => {
+  it('makes deterministic128px colour/normal/flow/ripple maps with exact wrapped borders', () => {
+    const other = createFountainWaterTextures();
+    for (const key of ['water', 'normal', 'fall', 'ripple'] as const) {
+      const a = FOUNTAIN_WATER_TEXTURES[key],
+        b = other[key],
+        data = a.image.data;
+      expect(a.image.width).toBe(128);
+      expect(a.image.height).toBe(128);
+      expect(data).toEqual(b.image.data);
+      expect(a.colorSpace).toBe(key === 'normal' ? THREE.NoColorSpace : THREE.SRGBColorSpace);
+      expect(a.wrapS).toBe(THREE.RepeatWrapping);
+      expect(a.wrapT).toBe(THREE.RepeatWrapping);
+      for (let y = 0; y < 128; y++)
+        for (let c = 0; c < 4; c++)
+          expect(data[(y * 128 + 127) * 4 + c]).toBe(data[y * 128 * 4 + c]);
+      for (let x = 0; x < 128; x++)
+        for (let c = 0; c < 4; c++) expect(data[(127 * 128 + x) * 4 + c]).toBe(data[x * 4 + c]);
+      b.dispose();
+    }
+  });
+  it('uses small signed slopes and feathered broken crests instead of bright painted rings', () => {
+    const n = FOUNTAIN_WATER_TEXTURES.normal.image.data,
+      r = FOUNTAIN_WATER_TEXTURES.ripple.image.data;
+    let low = 255,
+      high = 0,
+      alpha = 0;
+    for (let i = 0; i < n.length; i += 4) {
+      const x = (n[i] / 255) * 2 - 1,
+        y = (n[i + 1] / 255) * 2 - 1,
+        z = (n[i + 2] / 255) * 2 - 1;
+      expect(Math.hypot(x, y)).toBeLessThan(0.15);
+      expect(Math.hypot(x, y, z)).toBeCloseTo(1, 2);
+      low = Math.min(low, n[i], n[i + 1]);
+      high = Math.max(high, n[i], n[i + 1]);
+      expect(n[i + 3]).toBe(255);
+      alpha = Math.max(alpha, r[i + 3]);
+    }
+    expect(low).toBeLessThan(125);
+    expect(high).toBeGreaterThan(130);
+    expect(alpha).toBeGreaterThan(190);
+    expect(alpha).toBeLessThanOrEqual(210);
+    expect(r[(64 * 128 + 64) * 4 + 3]).toBe(0);
+    expect(r[(64 * 128 + 127) * 4 + 3]).toBe(0);
+    expect(GENERATED_FOUNTAIN_STREAM_MATERIAL.map).toBe(FOUNTAIN_WATER_TEXTURES.fall);
+    expect(GENERATED_FOUNTAIN_STREAM_MATERIAL.emissive.getHex()).toBe(0);
   });
 });
