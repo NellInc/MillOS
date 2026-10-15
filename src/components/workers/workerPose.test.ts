@@ -16,6 +16,7 @@ import {
   easeWorkerGesture,
   sampleWorkerGesture,
   createWorkerEyeBlink,
+  createWorkerFaceExpression,
   sampleWorkerBlink,
   createWorkerGaze,
   sampleWorkerGaze,
@@ -2298,5 +2299,288 @@ describe('fitted pupil contact and quiet directional attention', () => {
     target.lookPitch = Infinity;
     sampleWorkerGaze(target, head, NaN, out);
     expect(Object.values(out).every(Number.isFinite)).toBe(true);
+  });
+});
+
+describe('authored closed mouth and greeting brow contact', () => {
+  for (const body of ['masculine', 'feminine'] as const) {
+    for (const preserveScalp of [false, true]) {
+      it(`${body} fits the full expression sweep and preserves ${preserveScalp ? 'helmet scalp' : 'civilian brows'} across real clips`, () => {
+        const scene = clone(bodies.get(body)!.scene),
+          parent = new THREE.Group();
+        parent.position.set(-7, 0.3, 13);
+        parent.rotation.y = 1.1;
+        parent.scale.set(
+          preserveScalp ? 1.06 : 0.96,
+          preserveScalp ? 0.95 : 1.08,
+          preserveScalp ? 1.06 : 0.96
+        );
+        parent.add(scene);
+        parent.updateMatrixWorld(true);
+        const head = scene.getObjectByName('Head')!;
+        let skin: THREE.SkinnedMesh | undefined, brow: THREE.SkinnedMesh | undefined;
+        scene.traverse((o) => {
+          const m = o as THREE.SkinnedMesh;
+          if (
+            !m.isSkinnedMesh ||
+            !m.parent?.name.includes('Worker_Head') ||
+            Array.isArray(m.material)
+          )
+            return;
+          if (m.material.name === 'Skin') skin = m;
+          if (m.material.name === (body === 'masculine' ? 'Eyebrows' : 'DarkBrown')) brow = m;
+        });
+        expect(skin).toBeDefined();
+        expect(brow).toBeDefined();
+        const cached = brow!.geometry,
+          cachedPositions = Array.from(cached.attributes.position.array);
+        const fitted = retainWorkerBrows(brow!, head, preserveScalp)!;
+        expect(fitted).not.toBeNull();
+        brow!.geometry = fitted;
+        const sourceStorage = Array.from(fitted.attributes.position.array);
+        const source = Array.from({ length: fitted.attributes.position.count * 3 }, (_, i) =>
+          fitted.attributes.position.getComponent(Math.floor(i / 3), i % 3)
+        );
+        const sourceIndices = Array.from(fitted.index!.array);
+        const islands = fitted.userData.workerBrowIslands as number[][];
+        expect(islands).toHaveLength(2);
+        if (preserveScalp)
+          expect(Array.from(fitted.index!.array)).toEqual(Array.from(cached.index!.array));
+        const selected = new Set(islands.flat());
+        const skinSource = skin!.geometry,
+          skinPositions = Array.from(skinSource.attributes.position.array);
+        const helper = createWorkerFaceExpression(scene, body, '#b08b6f');
+        expect(helper.mouth).not.toBeNull();
+        const neighbour = createWorkerFaceExpression(
+          clone(bodies.get(body)!.scene),
+          body,
+          '#e0bba4'
+        );
+        const neighbourPositions = Array.from(neighbour.mouth!.geometry.attributes.position.array);
+        expect(neighbour.mouth!.geometry).not.toBe(helper.mouth!.geometry);
+        expect(neighbour.mouth!.material).not.toBe(helper.mouth!.material);
+        expect(brow!.geometry).not.toBe(fitted);
+        expect(Array.from(brow!.geometry.index!.array)).toEqual(sourceIndices);
+        for (const name of ['normal', 'uv', 'skinIndex', 'skinWeight'])
+          expect(Array.from(brow!.geometry.attributes[name].array)).toEqual(
+            Array.from(fitted.attributes[name].array)
+          );
+        const mouth = new THREE.Mesh(helper.mouth!.geometry, helper.mouth!.material);
+        head.add(mouth);
+        expect(mouth.geometry.attributes.position.count).toBe(39);
+        expect(mouth.material.vertexColors).toBe(true);
+        expect(mouth.material.emissive.getHex()).toBe(0);
+        const originalMouth = Array.from(mouth.geometry.attributes.position.array);
+        const ray = new THREE.Ray(new THREE.Vector3(), new THREE.Vector3(0, 0, -1)),
+          hit = new THREE.Vector3();
+        const inverse = new THREE.Matrix4(),
+          point = new THREE.Vector3();
+        const headPoint = (mesh: THREE.Mesh, index: number) =>
+          mesh
+            .getVertexPosition(index, new THREE.Vector3())
+            .applyMatrix4(mesh.matrixWorld)
+            .applyMatrix4(inverse);
+        const faces: THREE.Triangle[] = [];
+        const refresh = () => {
+          parent.updateMatrixWorld(true);
+          inverse.copy(head.matrixWorld).invert();
+          faces.length = 0;
+          const g = skin!.geometry;
+          for (let i = 0; i < g.index!.count; i += 3) {
+            const f = new THREE.Triangle(
+              ...([0, 1, 2].map((c) => headPoint(skin!, g.index!.getX(i + c))) as [
+                THREE.Vector3,
+                THREE.Vector3,
+                THREE.Vector3,
+              ])
+            );
+            if (f.getNormal(point).z > 0.5) faces.push(f);
+          }
+        };
+        const depth = (x: number, y: number) => {
+          ray.origin.set(x, y, 0.4);
+          let z = -Infinity;
+          for (const f of faces)
+            if (ray.intersectTriangle(f.a, f.b, f.c, false, hit)) z = Math.max(z, hit.z);
+          return z;
+        };
+        refresh();
+        const browNeutral = new Map([...selected].map((i) => [i, headPoint(brow!, i)]));
+        let minimum = Infinity,
+          maximum = -Infinity,
+          maxBrowClearanceChange = 0,
+          maxScalpDelta = 0,
+          maxLift = 0,
+          supportedBrowPoints = 0,
+          unsupportedBrowPoints = 0,
+          minArea = Infinity;
+        const samples = [
+          [1, 0, 0],
+          [0, 1, 0],
+          [0, 0, 1],
+          [0.5, 0.5, 0],
+          [0, 0.5, 0.5],
+          [0.5, 0, 0.5],
+          [1 / 3, 1 / 3, 1 / 3],
+        ];
+        for (let step = 0; step <= 20; step++) {
+          helper.apply(step / 20);
+          parent.updateMatrixWorld(true);
+          const g = mouth.geometry,
+            p = g.attributes.position;
+          for (let t = 0; t < g.index!.count; t += 3) {
+            const vertices = [0, 1, 2].map((c) =>
+              new THREE.Vector3().fromBufferAttribute(p, g.index!.getX(t + c))
+            );
+            minArea = Math.min(
+              minArea,
+              new THREE.Triangle(
+                ...(vertices as [THREE.Vector3, THREE.Vector3, THREE.Vector3])
+              ).getArea()
+            );
+            for (const weights of samples) {
+              point.set(0, 0, 0);
+              vertices.forEach((v, c) => point.addScaledVector(v, weights[c]));
+              const z = depth(point.x, point.y);
+              minimum = Math.min(minimum, point.z - z);
+              maximum = Math.max(maximum, point.z - z);
+            }
+          }
+          for (let i = 0; i < brow!.geometry.attributes.position.count; i++) {
+            const attr = brow!.geometry.attributes.position;
+            if (!selected.has(i))
+              for (let axis = 0; axis < 3; axis++)
+                maxScalpDelta = Math.max(
+                  maxScalpDelta,
+                  Math.abs(attr.getComponent(i, axis) - source[i * 3 + axis])
+                );
+            else {
+              const before = browNeutral.get(i)!,
+                after = headPoint(brow!, i);
+              maxLift = Math.max(maxLift, after.y - before.y);
+              const beforeDepth = depth(before.x, before.y),
+                afterDepth = depth(after.x, after.y);
+              if (Number.isFinite(beforeDepth)) {
+                expect(Number.isFinite(afterDepth)).toBe(true);
+                supportedBrowPoints++;
+                maxBrowClearanceChange = Math.max(
+                  maxBrowClearanceChange,
+                  Math.abs(after.z - afterDepth - (before.z - beforeDepth))
+                );
+              } else unsupportedBrowPoints++;
+              const shift = after.clone().sub(before);
+              expect(Math.abs(shift.x)).toBeLessThan(0.000001);
+              expect(shift.length()).toBeLessThan(0.004);
+            }
+          }
+          for (let i = 0; i < p.count; i++) {
+            point.fromBufferAttribute(p, i);
+            expect(g.boundingBox!.containsPoint(point)).toBe(true);
+            expect(
+              g.boundingSphere!.containsPoint(point),
+              JSON.stringify({
+                step,
+                i,
+                distanceSquared: g.boundingSphere!.center.distanceToSquared(point),
+                radius: g.boundingSphere!.radius,
+              })
+            ).toBe(true);
+          }
+        }
+        expect(minimum).toBeGreaterThan(0.00015);
+        expect(maximum).toBeLessThan(0.0015);
+        expect(minArea).toBeGreaterThan(1e-10);
+        expect(maxLift).toBeCloseTo(0.0025, 5);
+        expect(supportedBrowPoints).toBeGreaterThan(20);
+        expect(maxBrowClearanceChange).toBeLessThan(0.0015);
+        expect(maxScalpDelta).toBe(0);
+        const mixer = new THREE.AnimationMixer(scene);
+        for (const name of ['worker-idle', 'worker-walk', 'worker-inspect']) {
+          mixer.stopAllAction();
+          mixer.clipAction(bodies.get(body)!.animations.find((c) => c.name === name)!).play();
+          for (const phase of [0.2, 0.7]) {
+            mixer.setTime(phase);
+            refresh();
+            for (const amount of [0, 0.5, 1]) {
+              helper.apply(amount);
+              parent.updateMatrixWorld(true);
+              for (let i = 0; i < mouth.geometry.attributes.position.count; i++) {
+                point.copy(headPoint(mouth, i));
+                expect(point.z - depth(point.x, point.y)).toBeGreaterThan(0.00015);
+                expect(point.z - depth(point.x, point.y)).toBeLessThan(0.0015);
+              }
+            }
+          }
+        }
+        // Constant expression must follow a changed Head/Neck pose too.
+        mixer.stopAllAction();
+        parent.updateMatrixWorld(true);
+        helper.apply(0.5);
+        const attachedBefore = Array.from(mouth.geometry.attributes.position.array);
+        const headRotation = head.quaternion.clone(),
+          neckRotation = scene.getObjectByName('Neck')!.quaternion.clone();
+        head.rotation.x += 0.16;
+        head.rotation.y += 0.22;
+        scene.getObjectByName('Neck')!.rotation.x -= 0.2;
+        refresh();
+        helper.apply(0.5);
+        const attachedAfter = Array.from(mouth.geometry.attributes.position.array);
+        expect(
+          Math.max(...attachedAfter.map((v, i) => Math.abs(v - attachedBefore[i])))
+        ).toBeGreaterThan(0.00001);
+        for (let t = 0; t < mouth.geometry.index!.count; t += 3) {
+          const corners = [0, 1, 2].map((c) =>
+            new THREE.Vector3().fromBufferAttribute(
+              mouth.geometry.attributes.position,
+              mouth.geometry.index!.getX(t + c)
+            )
+          );
+          for (const weights of samples) {
+            point.set(0, 0, 0);
+            corners.forEach((v, c) => point.addScaledVector(v, weights[c]));
+            expect(point.z - depth(point.x, point.y)).toBeGreaterThan(0.00015);
+            expect(point.z - depth(point.x, point.y)).toBeLessThan(0.0015);
+          }
+        }
+        head.quaternion.copy(headRotation);
+        scene.getObjectByName('Neck')!.quaternion.copy(neckRotation);
+        parent.updateMatrixWorld(true);
+        helper.apply(0);
+        expect(Array.from(mouth.geometry.attributes.position.array)).toEqual(originalMouth);
+        expect(Array.from(brow!.geometry.attributes.position.array)).toEqual(source);
+        const version = mouth.geometry.attributes.position.version;
+        helper.apply(NaN);
+        helper.apply(-1);
+        expect(mouth.geometry.attributes.position.version).toBe(version);
+        expect(Array.from(cached.attributes.position.array)).toEqual(cachedPositions);
+        expect(Array.from(skinSource.attributes.position.array)).toEqual(skinPositions);
+        expect(skin!.geometry).toBe(skinSource);
+        let disposals = 0;
+        mouth.geometry.addEventListener('dispose', () => disposals++);
+        helper.dispose();
+        expect(Array.from(neighbour.mouth!.geometry.attributes.position.array)).toEqual(
+          neighbourPositions
+        );
+        neighbour.dispose();
+        expect(disposals).toBe(1);
+        expect(brow!.geometry).toBe(fitted);
+        expect(Array.from(fitted.attributes.position.array)).toEqual(sourceStorage);
+        fitted.dispose();
+        mixer.stopAllAction();
+        mixer.uncacheRoot(scene);
+      });
+    }
+  }
+  it('retains unknown and missing faces without creating guessed fittings', () => {
+    const scene = new THREE.Group(),
+      head = new THREE.Bone();
+    head.name = 'Head';
+    scene.add(head);
+    const helper = createWorkerFaceExpression(scene, 'feminine', '#8f604c');
+    expect(helper.mouth).toBeNull();
+    helper.apply(1);
+    helper.apply(Infinity);
+    helper.dispose();
+    expect(scene.children).toEqual([head]);
   });
 });

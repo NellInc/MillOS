@@ -264,6 +264,371 @@ export function createWorkerEyeBlink(model: THREE.Object3D, bodyType: WorkerBody
   };
 }
 
+/** A closed, skin-fitted crease and a restrained brow lift share the existing
+ * greeting envelope. No speaking, new clock or body/eye deformation is implied.
+ * Working if the actual facial surface supports every expression, scalp stays
+ * exact, far LOD stays neutral and disposal touches only private resources.
+ */
+export function createWorkerFaceExpression(
+  model: THREE.Object3D,
+  bodyType: WorkerBodyType,
+  skinTone: string
+) {
+  model.updateMatrixWorld(true);
+  const head = model.getObjectByName('Head');
+  type Vertex = {
+    mesh: THREE.SkinnedMesh;
+    index: number;
+    rest: THREE.Vector3;
+    posed: THREE.Vector3;
+    stamp: number;
+  };
+  type Face = { triangle: THREE.Triangle; vertices: [Vertex, Vertex, Vertex] };
+  const faces: Face[] = [],
+    activeVertices: Vertex[] = [];
+  const bindings: Array<{ face: Face; weights: THREE.Vector3 }> = [];
+  const headInverse = new THREE.Matrix4();
+  if (head) headInverse.copy(head.matrixWorld).invert();
+  let epoch = 0;
+  const brows: Array<{
+    mesh: THREE.Mesh;
+    source: THREE.BufferGeometry;
+    geometry: THREE.BufferGeometry;
+    base: Float32Array;
+    intoLocal: THREE.Matrix3;
+    islands: Array<{ indices: number[]; x: number; y: number; z: number }>;
+  }> = [];
+  const intoHead = (mesh: THREE.SkinnedMesh) => {
+    const joint = mesh.skeleton.bones.indexOf(head as THREE.Bone);
+    const matrix = new THREE.Matrix4()
+      .copy(head!.matrixWorld)
+      .invert()
+      .multiply(mesh.matrixWorld)
+      .multiply(mesh.bindMatrixInverse)
+      .multiply(head!.matrixWorld)
+      .multiply(mesh.skeleton.boneInverses[joint])
+      .multiply(mesh.bindMatrix);
+    return { matrix, joint };
+  };
+  const headWeighted = (mesh: THREE.SkinnedMesh, vertex: number, joint: number) => {
+    const weights = mesh.geometry.getAttribute('skinWeight');
+    const indices = mesh.geometry.getAttribute('skinIndex');
+    if (!weights || !indices || joint < 0) return false;
+    let sum = 0;
+    for (let component = 0; component < 4; component++) {
+      const weight = weights.getComponent(vertex, component);
+      if (
+        !Number.isFinite(weight) ||
+        weight < 0 ||
+        (weight > 0.0001 && indices.getComponent(vertex, component) !== joint)
+      )
+        return false;
+      sum += weight;
+    }
+    return Math.abs(sum - 1) < 0.0001;
+  };
+  if (head)
+    model.traverse((object) => {
+      const mesh = object as THREE.SkinnedMesh;
+      if (
+        !mesh.isSkinnedMesh ||
+        !mesh.parent?.name.includes('Worker_Head') ||
+        Array.isArray(mesh.material) ||
+        !['Skin', `Skin-${bodyType}`].includes(mesh.material.name)
+      )
+        return;
+      const geometry = mesh.geometry,
+        position = geometry.getAttribute('position');
+      const weights = geometry.getAttribute('skinWeight'),
+        indices = geometry.getAttribute('skinIndex');
+      if (!position || !weights || !indices) return;
+      const compatible = (i: number) => {
+        let sum = 0;
+        for (let c = 0; c < 4; c++) {
+          const w = weights.getComponent(i, c),
+            joint = indices.getComponent(i, c);
+          if (!Number.isFinite(w) || w < 0 || (w > 0 && !mesh.skeleton.bones[joint])) return false;
+          sum += w;
+        }
+        return Math.abs(sum - 1) < 0.0001;
+      };
+      const cache = new Map<number, Vertex>();
+      const vertex = (i: number) => {
+        let value = cache.get(i);
+        if (!value) {
+          const rest = mesh
+            .getVertexPosition(i, new THREE.Vector3())
+            .applyMatrix4(mesh.matrixWorld)
+            .applyMatrix4(headInverse);
+          value = { mesh, index: i, rest, posed: new THREE.Vector3(), stamp: 0 };
+          cache.set(i, value);
+        }
+        return value;
+      };
+      const at = (i: number) => geometry.index?.getX(i) ?? i;
+      for (let i = 0; i < (geometry.index?.count ?? position.count); i += 3) {
+        const ids = [at(i), at(i + 1), at(i + 2)];
+        if (!ids.every(compatible)) continue;
+        const points = ids.map(vertex) as [Vertex, Vertex, Vertex];
+        const triangle = new THREE.Triangle(points[0].rest, points[1].rest, points[2].rest);
+        if (triangle.getNormal(new THREE.Vector3()).z > 0.5)
+          faces.push({ triangle, vertices: points });
+      }
+    });
+  const ray = new THREE.Ray(new THREE.Vector3(), new THREE.Vector3(0, 0, -1));
+  const hit = new THREE.Vector3(),
+    selectedHit = new THREE.Vector3(),
+    normal = new THREE.Vector3();
+  let selectedFace: Face | undefined;
+  const surface = (x: number, y: number) => {
+    ray.origin.set(x, y, 0.4);
+    let z = -Infinity;
+    selectedFace = undefined;
+    for (const face of faces)
+      if (
+        ray.intersectTriangle(face.triangle.a, face.triangle.b, face.triangle.c, false, hit) &&
+        hit.z > z
+      ) {
+        z = hit.z;
+        selectedFace = face;
+        selectedHit.copy(hit);
+        face.triangle.getNormal(normal);
+      }
+    return z;
+  };
+  let mouth: { geometry: THREE.BufferGeometry; material: THREE.MeshStandardMaterial } | null = null;
+  const columns = 13,
+    positions = new Float32Array(columns * 9),
+    normals = new Float32Array(columns * 9);
+  const fitMouth = (amount: number) => {
+    for (let column = 0; column < columns; column++) {
+      const u = (column / (columns - 1)) * 2 - 1;
+      const x = WORKER_EYE_CENTRES[bodyType][0] + u * (bodyType === 'masculine' ? 0.022 : 0.02);
+      const centre =
+        (bodyType === 'masculine' ? 0.018 : 0.024) + (0.0006 + amount * 0.0036) * u * u;
+      for (let row = 0; row < 3; row++) {
+        const y = centre + (row - 1) * (0.00018 + 0.0012 * (1 - u * u));
+        const z = surface(x, y);
+        if (!Number.isFinite(z) || z < 0.075 || z > 0.145) return false;
+        const index = column * 3 + row;
+        if (!selectedFace) return false;
+        const binding = (bindings[index] ??= { face: selectedFace, weights: new THREE.Vector3() });
+        binding.face = selectedFace;
+        if (!selectedFace.triangle.getBarycoord(selectedHit, binding.weights)) return false;
+      }
+    }
+    activeVertices.length = 0;
+    epoch++;
+    for (const binding of bindings)
+      for (const v of binding.face.vertices)
+        if (v.stamp !== epoch) {
+          v.stamp = epoch;
+          activeVertices.push(v);
+        }
+    return true;
+  };
+  const nextPositions = new Float32Array(positions.length),
+    nextNormals = new Float32Array(normals.length);
+  const posedPoint = new THREE.Vector3(),
+    edge = new THREE.Vector3();
+  const sampleAttachment = () => {
+    if (!head || bindings.length !== columns * 3) return false;
+    model.updateMatrixWorld(true);
+    headInverse.copy(head.matrixWorld).invert();
+    for (const v of activeVertices)
+      v.mesh
+        .getVertexPosition(v.index, v.posed)
+        .applyMatrix4(v.mesh.matrixWorld)
+        .applyMatrix4(headInverse);
+    for (let i = 0; i < bindings.length; i++) {
+      const binding = bindings[i],
+        a = binding.face.vertices[0].posed,
+        b = binding.face.vertices[1].posed,
+        c = binding.face.vertices[2].posed;
+      normal.copy(b).sub(a).cross(edge.copy(c).sub(a));
+      if (!Number.isFinite(normal.lengthSq()) || normal.lengthSq() < 1e-14) return false;
+      normal.normalize();
+      posedPoint
+        .copy(a)
+        .multiplyScalar(binding.weights.x)
+        .addScaledVector(b, binding.weights.y)
+        .addScaledVector(c, binding.weights.z)
+        .addScaledVector(normal, 0.00065);
+      if (!Number.isFinite(posedPoint.lengthSq())) return false;
+      posedPoint.toArray(nextPositions, i * 3);
+      normal.toArray(nextNormals, i * 3);
+    }
+    return true;
+  };
+  const refreshAttachment = () => {
+    if (!mouth) return;
+    if (!sampleAttachment()) {
+      mouth.geometry.setDrawRange(0, 0);
+      return;
+    }
+    let changed = false;
+    for (let i = 0; i < positions.length; i++)
+      if (positions[i] !== nextPositions[i] || normals[i] !== nextNormals[i]) {
+        changed = true;
+        break;
+      }
+    if (changed) {
+      positions.set(nextPositions);
+      normals.set(nextNormals);
+      mouth.geometry.attributes.position.needsUpdate = true;
+      mouth.geometry.attributes.normal.needsUpdate = true;
+      mouth.geometry.computeBoundingBox();
+      mouth.geometry.computeBoundingSphere();
+      // A one-micron culling margin avoids sqrt/square endpoint roundoff.
+      mouth.geometry.boundingSphere!.radius += 0.000001;
+    }
+    mouth.geometry.setDrawRange(0, mouth.geometry.index!.count);
+  };
+  // Dynamic depth fitting follows the actual facets, including intermediate
+  // smiles. Endpoints alone cannot prove contact on a piecewise-planar face.
+  if (faces.length && fitMouth(1) && fitMouth(0) && sampleAttachment()) {
+    positions.set(nextPositions);
+    normals.set(nextNormals);
+    {
+      const geometry = new THREE.BufferGeometry(),
+        colours = new Float32Array(positions.length),
+        indices: number[] = [];
+      const skin = new THREE.Color(skinTone);
+      const lip = skin.clone().lerp(new THREE.Color('#925e54'), 0.22).multiplyScalar(0.86);
+      const crease = skin.clone().multiplyScalar(0.28).lerp(new THREE.Color('#502b2c'), 0.3);
+      for (let column = 0; column < columns; column++)
+        for (let row = 0; row < 3; row++) {
+          (row === 1 ? crease : lip).toArray(colours, (column * 3 + row) * 3);
+          if (column < columns - 1 && row < 2) {
+            const i = column * 3 + row;
+            indices.push(i, i + 3, i + 1, i + 1, i + 3, i + 4);
+          }
+        }
+      geometry.setAttribute(
+        'position',
+        new THREE.BufferAttribute(positions, 3).setUsage(THREE.DynamicDrawUsage)
+      );
+      geometry.setAttribute(
+        'normal',
+        new THREE.BufferAttribute(normals, 3).setUsage(THREE.DynamicDrawUsage)
+      );
+      geometry.setAttribute('color', new THREE.BufferAttribute(colours, 3));
+      geometry.setIndex(indices);
+      geometry.computeBoundingBox();
+      geometry.computeBoundingSphere();
+      geometry.boundingSphere!.radius += 0.000001;
+      mouth = {
+        geometry,
+        material: new THREE.MeshStandardMaterial({
+          color: '#ffffff',
+          vertexColors: true,
+          roughness: 0.8,
+          metalness: 0,
+        }),
+      };
+    }
+  }
+  if (head && faces.length)
+    model.traverse((object) => {
+      const mesh = object as THREE.SkinnedMesh;
+      const islands = mesh.geometry?.userData.workerBrowIslands as number[][] | undefined;
+      if (!mesh.isSkinnedMesh || islands?.length !== 2) return;
+      const joint = mesh.skeleton.bones.indexOf(head as THREE.Bone);
+      if (
+        joint < 0 ||
+        !islands.every(
+          (island) =>
+            island.length >= 12 &&
+            island.length <= 80 &&
+            island.every(
+              (i) =>
+                Number.isInteger(i) &&
+                i >= 0 &&
+                i < mesh.geometry.attributes.position.count &&
+                headWeighted(mesh, i, joint)
+            )
+        )
+      )
+        return;
+      const { matrix } = intoHead(mesh),
+        source = mesh.geometry;
+      const position = source.getAttribute('position'),
+        point = new THREE.Vector3();
+      const measured = islands.map((indices) => {
+        const centre = new THREE.Vector3();
+        for (const i of indices)
+          centre.add(point.fromBufferAttribute(position, i).applyMatrix4(matrix));
+        centre.multiplyScalar(1 / indices.length);
+        return { indices, x: centre.x, y: centre.y, z: surface(centre.x, centre.y) };
+      });
+      if (
+        !measured.every(
+          (island) =>
+            Number.isFinite(island.z) && Number.isFinite(surface(island.x, island.y + 0.0025))
+        )
+      )
+        return;
+      const base = new Float32Array(position.count * 3);
+      for (let i = 0; i < position.count; i++)
+        point.fromBufferAttribute(position, i).toArray(base, i * 3);
+      const geometry = source.clone();
+      geometry.setAttribute(
+        'position',
+        new THREE.BufferAttribute(base.slice(), 3).setUsage(THREE.DynamicDrawUsage)
+      );
+      mesh.geometry = geometry;
+      brows.push({
+        mesh,
+        source,
+        geometry,
+        base,
+        intoLocal: new THREE.Matrix3().setFromMatrix4(matrix.clone().invert()),
+        islands: measured,
+      });
+    });
+  const offset = new THREE.Vector3();
+  let previous = 0;
+  return {
+    mouth,
+    refreshAttachment,
+    apply(value: number, near = true) {
+      const amount = Number.isFinite(value) ? THREE.MathUtils.clamp(value, 0, 1) : 0;
+      if (amount === previous) {
+        if (near) refreshAttachment();
+        return;
+      }
+      previous = amount;
+      if (mouth && !fitMouth(amount)) fitMouth(0);
+      for (const entry of brows) {
+        const position = entry.geometry.attributes.position as THREE.BufferAttribute;
+        position.array.set(entry.base);
+        if (amount)
+          for (const island of entry.islands) {
+            const lift = amount * 0.0025,
+              z = surface(island.x, island.y + lift);
+            if (!Number.isFinite(z)) continue;
+            offset.set(0, lift, z - island.z).applyMatrix3(entry.intoLocal);
+            for (const i of island.indices) {
+              position.array[i * 3] += offset.x;
+              position.array[i * 3 + 1] += offset.y;
+              position.array[i * 3 + 2] += offset.z;
+            }
+          }
+        position.needsUpdate = true;
+      }
+      if (near) refreshAttachment();
+    },
+    dispose() {
+      for (const { mesh, source, geometry } of brows) {
+        if (mesh.geometry === geometry) mesh.geometry = source;
+        geometry.dispose();
+      }
+      mouth?.geometry.dispose();
+      mouth?.material.dispose();
+    },
+  };
+}
+
 /** Finger-only overlay sampled from this body's authored closed hand. Palm
  * bases and wrists never move, preserving the existing prop/IK attachment.
  * Working if shapes differ by task, locomotion stays exact, and restore removes

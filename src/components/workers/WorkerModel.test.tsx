@@ -1655,3 +1655,52 @@ it('retains the legacy neutral pair atomically for incomplete or nonfinite eye p
     pair.dispose();
   }
 });
+
+it('shares the admitted greeting envelope with facial detail and resets the far face without advancing a paused hello', () => {
+  const scene = new THREE.Group(),
+    head = new THREE.Bone();
+  head.name = 'Head';
+  scene.add(head);
+  harness.asset = { scene, animations: [] };
+  const expression = { mouth: null, apply: vi.fn(), refreshAttachment: vi.fn(), dispose: vi.fn() };
+  vi.spyOn(workerPoses, 'createWorkerFaceExpression').mockReturnValue(expression);
+  const motion: WorkerMotionState = {
+    activity: 'idle',
+    groundSpeed: 0,
+    seated: false,
+    phase: 0,
+    enabled: true,
+    greeting: true,
+    greetingTargetId: 'neighbour',
+  };
+  const view = render(
+    <WorkerModel appearance={getWorkerAppearance('Shopkeeper', '', 'face')} motion={motion} />
+  );
+  harness.frame?.({}, 1 / 60);
+  expect(expression.apply).toHaveBeenCalledOnce();
+  expect(expression.apply.mock.calls[0][0]).toBeGreaterThan(0);
+  motion.enabled = false;
+  harness.frame?.({}, 100);
+  expect(expression.apply).toHaveBeenCalledOnce();
+  motion.greeting = false;
+  harness.frame?.({}, 100);
+  expect(expression.apply).toHaveBeenCalledTimes(2);
+  expect(expression.apply.mock.calls.at(-1)![0]).toBe(0);
+  motion.enabled = true;
+  motion.greeting = true;
+  const camera = new THREE.PerspectiveCamera();
+  camera.position.z = 50;
+  harness.frame?.({ camera }, 1 / 60);
+  expect(expression.apply.mock.calls.at(-1)![0]).toBe(0);
+  const callsBeforeReveal = expression.apply.mock.calls.length;
+  motion.enabled = false;
+  camera.position.z = 2;
+  harness.frame?.({ camera }, 1 / 60);
+  expect(expression.refreshAttachment).toHaveBeenCalledOnce();
+  expect(expression.apply.mock.calls.length).toBe(callsBeforeReveal);
+  motion.enabled = true;
+  harness.frame?.({ camera }, 1 / 60);
+  expect(expression.apply.mock.calls.at(-1)![0]).toBeGreaterThan(0);
+  view.unmount();
+  expect(expression.dispose).toHaveBeenCalledOnce();
+});

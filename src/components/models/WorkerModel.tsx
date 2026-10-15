@@ -34,6 +34,7 @@ import {
   createWorkerGesture,
   easeWorkerGesture,
   createWorkerEyeBlink,
+  createWorkerFaceExpression,
   sampleWorkerBlink,
   sampleWorkerGesture,
   sampleWorkerGreeting,
@@ -766,7 +767,7 @@ function createSurfaceMaterial(
  * Working if civilian cuts replace scalp silhouettes without erasing eyebrows,
  * while original exports, unknown materials and helmeted workers remain intact.
  */
-export function retainWorkerBrows(mesh: THREE.Mesh, head: THREE.Object3D) {
+export function retainWorkerBrows(mesh: THREE.Mesh, head: THREE.Object3D, preserveScalp = false) {
   const source = mesh.geometry;
   const position = source.getAttribute('position');
   if (!position || Array.isArray(mesh.material)) return null;
@@ -842,7 +843,10 @@ export function retainWorkerBrows(mesh: THREE.Mesh, head: THREE.Object3D) {
       indices.push(indexAt(triangle), indexAt(triangle + 1), indexAt(triangle + 2));
   }
   const geometry = source.clone();
-  geometry.setIndex(indices);
+  if (!preserveScalp) geometry.setIndex(indices);
+  geometry.userData.workerBrowIslands = [...brows].map((id) =>
+    [...new Set(indices)].filter((vertex) => root(vertex) === id)
+  );
   return geometry;
 }
 
@@ -872,7 +876,8 @@ const WorkerAccessories: React.FC<{
   faceRef: React.RefObject<THREE.Group | null>;
   pupilRef: React.RefObject<THREE.InstancedMesh | null>;
   eyeSurfaces: readonly WorkerEyeSurface[];
-}> = ({ appearance, model, materials, toolRef, faceRef, pupilRef, hair, eyeSurfaces }) => {
+  mouth: ReturnType<typeof createWorkerFaceExpression>['mouth'];
+}> = ({ appearance, model, materials, toolRef, faceRef, pupilRef, hair, eyeSurfaces, mouth }) => {
   const head = model.getObjectByName('Head') ?? null;
   const chest = model.getObjectByName('Chest') ?? null;
   const hips = model.getObjectByName('Hips') ?? null;
@@ -896,6 +901,16 @@ const WorkerAccessories: React.FC<{
       )}
       <BoneMount bone={head} name="worker-eye-detail" position={[...eyeCentre]}>
         <group ref={faceRef}>
+          {mouth && (
+            <mesh
+              name="worker-authored-mouth"
+              receiveShadow
+              geometry={mouth.geometry}
+              material={mouth.material}
+              position={[-eyeCentre[0], -eyeCentre[1], -eyeCentre[2]]}
+              dispose={null}
+            />
+          )}
           <WorkerAccessoryPair
             kind="eye-pupils"
             material={SHARED_WORKER_MATERIALS.pupil}
@@ -1217,13 +1232,12 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
           ? resolveSurface(appearance.bodyType, sources[0].name, nodeName)
           : null;
       if (
-        !appearance.hasHardHat &&
         region === 'hair' &&
         nodeName.includes('Worker_Head') &&
         (sources[0].name === 'Eyebrows' || sources[0].name === 'DarkBrown')
       ) {
         const head = model.getObjectByName('Head');
-        const brows = head ? retainWorkerBrows(mesh, head) : null;
+        const brows = head ? retainWorkerBrows(mesh, head, appearance.hasHardHat) : null;
         if (brows) {
           mesh.geometry = brows;
           ownedGeometry.push(brows);
@@ -1305,6 +1319,11 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
     const rigScale = Number.isFinite(armatureScale) && armatureScale > 0 ? armatureScale : 1;
 
     const eyeBlink = createWorkerEyeBlink(model, appearance.bodyType);
+    const faceExpression = createWorkerFaceExpression(
+      model,
+      appearance.bodyType,
+      appearance.skinTone
+    );
     const bodyLod = createWorkerBodyLod(model);
     const style = !appearance.hasHardHat ? WORKER_HAIR_GEOMETRIES[appearance.hairStyle] : null;
     const hair = style
@@ -1316,7 +1335,17 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
     if (hair) {
       materials.push(hair.material);
     }
-    return { model, materials, ownedGeometry, rigScale, skeletons, bodyLod, eyeBlink, hair };
+    return {
+      model,
+      materials,
+      ownedGeometry,
+      rigScale,
+      skeletons,
+      bodyLod,
+      eyeBlink,
+      faceExpression,
+      hair,
+    };
   }, [appearance, scene]);
 
   const accessoryMaterials = useMemo(() => createAccessoryMaterials(appearance), [appearance]);
@@ -1424,6 +1453,7 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
     () => () => {
       prepared.bodyLod?.dispose();
       prepared.eyeBlink.dispose();
+      prepared.faceExpression.dispose();
       prepared.hair?.motion.dispose();
       prepared.ownedGeometry.forEach((geometry) => geometry.dispose());
       prepared.materials.forEach((material) => material.dispose());
@@ -1441,7 +1471,11 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
       prepared.bodyLod?.update(state.camera);
       if (faceRef.current) {
         prepared.model.getWorldPosition(_center);
+        const wasVisible = faceRef.current.visible;
         faceRef.current.visible = state.camera.position.distanceToSquared(_center) < 18 * 18;
+        // A paused hidden worker may have resolved a new semantic pose. Reveal
+        // its real skin attachment without advancing any expression clock.
+        if (!wasVisible && faceRef.current.visible) prepared.faceExpression.refreshAttachment();
       }
     }
     let safeDelta =
@@ -1629,6 +1663,12 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
     else if (motion.activity === 'idle' || motion.activity === 'break')
       seatedPose.applyIdle(gesture);
     handPose.apply(motion, appearance.tool, gesture, safeDelta);
+    // Mixed Head/Neck weights require the final admitted pose, even when the
+    // expression envelope is unchanged. Never sample the previous mixer frame.
+    prepared.faceExpression.apply(
+      faceRef.current?.visible === false ? 0 : gesture.greetingLift,
+      faceRef.current?.visible !== false
+    );
     if (toolRef.current) {
       const heldTask =
         motion.activity === 'working' &&
@@ -1660,6 +1700,7 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
         faceRef={faceRef}
         pupilRef={pupilRef}
         eyeSurfaces={prepared.eyeBlink.surfaces}
+        mouth={prepared.faceExpression.mouth}
       />
     </group>
   );
