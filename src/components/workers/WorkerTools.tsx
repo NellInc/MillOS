@@ -83,22 +83,93 @@ export function createWorkerLoafGeometry() {
   return g;
 }
 
+/** Closed, eased fittings built once, in the existing tool-local metres.
+ * Working if the paper clamp meets the sheet and no new accessory draw is needed.
+ */
+export function createWorkerClipboardClip() {
+  const parts = [
+    new RoundedBoxGeometry(0.04, 0.006, 0.02, 1, 0.002).translate(0, 0.007, 0),
+    new RoundedBoxGeometry(0.036, 0.026, 0.004, 1, 0.001).translate(0, -0.011, 0.0015),
+    new RoundedBoxGeometry(0.036, 0.01, 0.004, 1, 0.001).translate(0, 0.003, -0.006),
+  ];
+  const plain = parts.map((part) => (part.index ? part.toNonIndexed() : part));
+  const geometry = mergeGeometries(plain);
+  new Set([...parts, ...plain]).forEach((part) => part.dispose());
+  if (!geometry) throw new Error('Clipboard clip requires matching attributes');
+  return geometry;
+}
+export function createWorkerRadioBody() {
+  const parts: THREE.BufferGeometry[] = [new RoundedBoxGeometry(0.04, 0.1, 0.025, 1, 0.006)];
+  for (const y of [-0.02, -0.012, -0.004])
+    parts.push(new THREE.BoxGeometry(0.024, 0.0025, 0.003).translate(0, y, 0.013));
+  parts.push(new THREE.CylinderGeometry(0.004, 0.004, 0.012, 8).translate(-0.009, 0.053, 0));
+  const plain = parts.map((part) => (part.index ? part.toNonIndexed() : part));
+  const geometry = mergeGeometries(plain);
+  new Set([...parts, ...plain]).forEach((part) => part.dispose());
+  if (!geometry) throw new Error('Radio fittings require matching attributes');
+  return geometry;
+}
+/** Real inner wall/base, with the unchanged .07m height and .012m outer radius.
+ * Working if the centre ray reaches the recessed base and caps still meet the lip.
+ */
+export function createWorkerSampleVial() {
+  return new THREE.LatheGeometry(
+    [
+      [0, -0.035],
+      [0.01, -0.035],
+      [0.012, -0.032],
+      [0.012, 0.033],
+      [0.011, 0.035],
+      [0.009, 0.035],
+      [0.009, -0.028],
+      [0, -0.028],
+    ].map((p) => new THREE.Vector2(...p)),
+    12
+  );
+}
+export function createWorkerSampleScoop() {
+  const section = new THREE.Shape();
+  section.moveTo(-0.0125, 0.005);
+  section.lineTo(-0.0125, -0.001);
+  section.quadraticCurveTo(-0.0125, -0.005, -0.007, -0.005);
+  section.lineTo(0.007, -0.005);
+  section.quadraticCurveTo(0.0125, -0.005, 0.0125, -0.001);
+  section.lineTo(0.0125, 0.005);
+  section.lineTo(0.009, 0.005);
+  section.lineTo(0.009, -0.001);
+  section.lineTo(-0.009, -0.001);
+  section.lineTo(-0.009, 0.005);
+  section.closePath();
+  const parts = [
+    new THREE.ExtrudeGeometry(section, { depth: 0.04, bevelEnabled: false, curveSegments: 3 })
+      .rotateX(Math.PI / 2)
+      .translate(0, 0.045, 0),
+    new RoundedBoxGeometry(0.009, 0.052, 0.006, 1, 0.002).translate(0, -0.019, -0.001),
+    new THREE.BoxGeometry(0.025, 0.004, 0.01).translate(0, 0.005, 0),
+  ];
+  const plain = parts.map((part) => (part.index ? part.toNonIndexed() : part));
+  const geometry = mergeGeometries(plain);
+  new Set([...parts, ...plain]).forEach((part) => part.dispose());
+  if (!geometry) throw new Error('Sample scoop requires matching attributes');
+  return geometry;
+}
+
 // === SHARED TOOL GEOMETRIES (module-level cache) ===
 // These geometries are created once and shared across all workers to reduce memory and creation overhead
-const sharedToolGeometries = {
+export const WORKER_TOOL_GEOMETRIES = {
   clipboard: {
-    board: new THREE.BoxGeometry(0.12, 0.16, 0.015),
-    clip: new THREE.BoxGeometry(0.04, 0.02, 0.02),
+    board: new RoundedBoxGeometry(0.12, 0.16, 0.015, 1, 0.003),
+    clip: createWorkerClipboardClip(),
     paper: new THREE.BoxGeometry(0.1, 0.12, 0.002),
     line: new THREE.BoxGeometry(0.07, 0.008, 0.001),
   },
   tablet: {
-    body: new THREE.BoxGeometry(0.1, 0.14, 0.01),
-    screen: new THREE.BoxGeometry(0.085, 0.12, 0.002),
+    body: new RoundedBoxGeometry(0.1, 0.14, 0.01, 1, 0.004),
+    screen: new RoundedBoxGeometry(0.085, 0.12, 0.002, 1, 0.0008),
     indicator: new THREE.BoxGeometry(0.06, 0.002, 0.001),
   },
   radio: {
-    body: new THREE.BoxGeometry(0.04, 0.1, 0.025),
+    body: createWorkerRadioBody(),
     antenna: new THREE.CylinderGeometry(0.004, 0.003, 0.06, 8),
     led: new THREE.SphereGeometry(0.004, 8, 8),
   },
@@ -115,34 +186,44 @@ const sharedToolGeometries = {
     lens: new THREE.CircleGeometry(0.032, 24),
   },
   sampleKit: {
-    tray: new THREE.BoxGeometry(0.16, 0.025, 0.1),
-    vial: new THREE.CylinderGeometry(0.012, 0.012, 0.07, 10),
-    cap: new THREE.CylinderGeometry(0.014, 0.014, 0.012, 10),
-    scoop: new THREE.BoxGeometry(0.025, 0.09, 0.01),
+    tray: new RoundedBoxGeometry(0.16, 0.025, 0.1, 1, 0.004),
+    vial: createWorkerSampleVial(),
+    cap: new THREE.LatheGeometry(
+      [
+        [0, -0.006],
+        [0.012, -0.006],
+        [0.014, -0.003],
+        [0.014, 0.004],
+        [0.012, 0.006],
+        [0, 0.006],
+      ].map((p) => new THREE.Vector2(...p)),
+      10
+    ),
+    scoop: createWorkerSampleScoop(),
   },
 };
 
 const Clipboard: React.FC = React.memo(() => (
   <group position={[0.08, -0.02, 0.04]} rotation={[0.3, 0, 0.1]}>
     <mesh
-      geometry={sharedToolGeometries.clipboard.board}
+      geometry={WORKER_TOOL_GEOMETRIES.clipboard.board}
       material={SHARED_WORKER_MATERIALS.clipboardBrown}
     />
     <mesh
       position={[0, 0.07, 0.01]}
-      geometry={sharedToolGeometries.clipboard.clip}
+      geometry={WORKER_TOOL_GEOMETRIES.clipboard.clip}
       material={SHARED_WORKER_MATERIALS.chrome}
     />
     <mesh
-      position={[0, -0.01, 0.01]}
-      geometry={sharedToolGeometries.clipboard.paper}
+      position={[0, -0.01, 0.0085]}
+      geometry={WORKER_TOOL_GEOMETRIES.clipboard.paper}
       material={SHARED_WORKER_MATERIALS.white}
     />
     {[-0.03, 0, 0.03].map((y, i) => (
       <mesh
         key={i}
-        position={[0, y, 0.012]}
-        geometry={sharedToolGeometries.clipboard.line}
+        position={[0, y, 0.01]}
+        geometry={WORKER_TOOL_GEOMETRIES.clipboard.line}
         material={SHARED_WORKER_MATERIALS.mediumGray}
       />
     ))}
@@ -152,15 +233,18 @@ Clipboard.displayName = 'Clipboard';
 
 const Tablet: React.FC = React.memo(() => (
   <group position={[0.06, -0.02, 0.04]} rotation={[0.4, 0, 0.15]}>
-    <mesh geometry={sharedToolGeometries.tablet.body} material={SHARED_WORKER_MATERIALS.darkGray} />
+    <mesh
+      geometry={WORKER_TOOL_GEOMETRIES.tablet.body}
+      material={SHARED_WORKER_MATERIALS.darkGray}
+    />
     <mesh
       position={[0, 0, 0.006]}
-      geometry={sharedToolGeometries.tablet.screen}
+      geometry={WORKER_TOOL_GEOMETRIES.tablet.screen}
       material={SHARED_WORKER_MATERIALS.screenBlue}
     />
     <mesh
       position={[0, 0.02, 0.008]}
-      geometry={sharedToolGeometries.tablet.indicator}
+      geometry={WORKER_TOOL_GEOMETRIES.tablet.indicator}
       material={SHARED_WORKER_MATERIALS.safetyGreen}
     />
   </group>
@@ -169,15 +253,18 @@ Tablet.displayName = 'Tablet';
 
 const RadioWalkieTalkie: React.FC = React.memo(() => (
   <group position={[0.04, 0, 0.03]} rotation={[0.2, 0.3, 0]}>
-    <mesh geometry={sharedToolGeometries.radio.body} material={SHARED_WORKER_MATERIALS.darkGray} />
+    <mesh
+      geometry={WORKER_TOOL_GEOMETRIES.radio.body}
+      material={SHARED_WORKER_MATERIALS.darkGray}
+    />
     <mesh
       position={[0.01, 0.07, 0]}
-      geometry={sharedToolGeometries.radio.antenna}
+      geometry={WORKER_TOOL_GEOMETRIES.radio.antenna}
       material={SHARED_WORKER_MATERIALS.mediumGray}
     />
     <mesh
       position={[0, 0.04, 0.014]}
-      geometry={sharedToolGeometries.radio.led}
+      geometry={WORKER_TOOL_GEOMETRIES.radio.led}
       material={SHARED_WORKER_MATERIALS.safetyGreenBright}
     />
   </group>
@@ -187,17 +274,17 @@ RadioWalkieTalkie.displayName = 'RadioWalkieTalkie';
 const Wrench: React.FC = React.memo(() => (
   <group position={[0.02, -0.04, 0.02]} rotation={[0, 0.5, -0.3]}>
     <mesh
-      geometry={sharedToolGeometries.wrench.handle}
+      geometry={WORKER_TOOL_GEOMETRIES.wrench.handle}
       material={SHARED_WORKER_MATERIALS.chromeShiny}
     />
     <mesh
       position={[0, 0.08, 0]}
-      geometry={sharedToolGeometries.wrench.head}
+      geometry={WORKER_TOOL_GEOMETRIES.wrench.head}
       material={SHARED_WORKER_MATERIALS.chromeShiny}
     />
     <mesh
       position={[0, -0.03, 0.007]}
-      geometry={sharedToolGeometries.wrench.grip}
+      geometry={WORKER_TOOL_GEOMETRIES.wrench.grip}
       material={SHARED_WORKER_MATERIALS.handleRed}
     />
   </group>
@@ -207,20 +294,20 @@ Wrench.displayName = 'Wrench';
 const Magnifier: React.FC = React.memo(() => (
   <group position={[0.05, 0, 0.04]} rotation={[0.3, 0.2, 0]}>
     <mesh
-      geometry={sharedToolGeometries.magnifier.handle}
+      geometry={WORKER_TOOL_GEOMETRIES.magnifier.handle}
       material={SHARED_WORKER_MATERIALS.darkGray}
     />
     <mesh
       castShadow
       position={[0, 0.06, 0]}
       rotation={[Math.PI / 2, 0, 0]}
-      geometry={sharedToolGeometries.magnifier.ring}
+      geometry={WORKER_TOOL_GEOMETRIES.magnifier.ring}
       material={SHARED_WORKER_MATERIALS.chrome}
     />
     <mesh
       position={[0, 0.06, 0]}
       rotation={[Math.PI / 2, 0, 0]}
-      geometry={sharedToolGeometries.magnifier.lens}
+      geometry={WORKER_TOOL_GEOMETRIES.magnifier.lens}
       material={SHARED_WORKER_MATERIALS.lensBlue}
     />
   </group>
@@ -230,18 +317,18 @@ Magnifier.displayName = 'Magnifier';
 const SampleKit: React.FC = React.memo(() => (
   <group position={[0.07, -0.02, 0.05]} rotation={[0.22, 0.1, 0.08]}>
     <mesh
-      geometry={sharedToolGeometries.sampleKit.tray}
+      geometry={WORKER_TOOL_GEOMETRIES.sampleKit.tray}
       material={SHARED_WORKER_MATERIALS.offWhite}
     />
     {[-0.045, 0, 0.045].map((x) => (
       <group key={x} position={[x, 0.045, 0]}>
         <mesh
-          geometry={sharedToolGeometries.sampleKit.vial}
+          geometry={WORKER_TOOL_GEOMETRIES.sampleKit.vial}
           material={SHARED_WORKER_MATERIALS.sampleGlass}
         />
         <mesh
           position={[0, 0.041, 0]}
-          geometry={sharedToolGeometries.sampleKit.cap}
+          geometry={WORKER_TOOL_GEOMETRIES.sampleKit.cap}
           material={SHARED_WORKER_MATERIALS.sampleCap}
         />
       </group>
@@ -249,7 +336,7 @@ const SampleKit: React.FC = React.memo(() => (
     <mesh
       position={[0.07, 0.04, 0]}
       rotation={[0, 0, -0.35]}
-      geometry={sharedToolGeometries.sampleKit.scoop}
+      geometry={WORKER_TOOL_GEOMETRIES.sampleKit.scoop}
       material={SHARED_WORKER_MATERIALS.chrome}
     />
   </group>
@@ -259,17 +346,20 @@ SampleKit.displayName = 'SampleKit';
 const Trowel: React.FC = () => (
   <group rotation={[Math.atan2(0.6, -0.8), 0, 0]}>
     <mesh
-      geometry={sharedToolGeometries.wrench.handle}
+      geometry={WORKER_TOOL_GEOMETRIES.wrench.handle}
       material={SHARED_WORKER_MATERIALS.clipboardBrown}
     />
-    <mesh geometry={sharedToolGeometries.trowel.blade} material={SHARED_WORKER_MATERIALS.chrome} />
+    <mesh
+      geometry={WORKER_TOOL_GEOMETRIES.trowel.blade}
+      material={SHARED_WORKER_MATERIALS.chrome}
+    />
   </group>
 );
 const breadMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 });
 const BreadTray: React.FC = () => (
   <group>
     <mesh
-      geometry={sharedToolGeometries.sampleKit.tray}
+      geometry={WORKER_TOOL_GEOMETRIES.sampleKit.tray}
       material={SHARED_WORKER_MATERIALS.clipboardBrown}
       scale={[2.375, 1, 2.4]}
     />
@@ -277,7 +367,7 @@ const BreadTray: React.FC = () => (
       <mesh
         key={x}
         position={[x, 0.0125, 0]}
-        geometry={sharedToolGeometries.bread.loaf}
+        geometry={WORKER_TOOL_GEOMETRIES.bread.loaf}
         material={breadMaterial}
       />
     ))}

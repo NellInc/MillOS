@@ -2802,3 +2802,75 @@ In-app-browser close art verifies upholstery/grab rails, clear closed door glass
 Actual loading cover and world-ready flag cleared before close review. No keyboard/mouse/player/device/viewport override. Audio remained0/not-created, close-tab console errors empty. Temporary tab closed and owned4289 preview closed through stdin; capture lock released. Interface/railway/port/mountain source untouched, no remote upload/publication. Ordinary Node/Vite warnings remain in raw logs, independent native diagnostics clean. Optional Impeccable executable absent; interface unchanged, no installation. Canonical acceptance in test-results/transit-landscape-craft-20261015/acceptance.json.
 
 U cleanup/check-in closure: all jobs terminal, temporary art tab/server closed, capture lock absent. Verified375 exact borrowed dependency links, empty own.vite-temp and no open handles in either exact owned scratch path. Removed only borrowed links/the empty directory/named U npm cache, restored original shared dependency symlink. No source/build/raw-image/log/history/foreign-output deletion and no inferred disk or performance recovery. Selective local check-in only.
+
+
+## V: Workshop tools, role cadence and allotment craft, 2026-10-15
+
+Nell requested the next long detailed improvement list and execution. Local only, muted, interface/world layout including railway/port/mountains preserved, player/device checks deferred, pacing separately OPEN. Base94eca19061be88b8a98b5b97b91bc7604f2b60bb. Seven allowed source/test files recorded in test-results/workshop-garden-craft-20261015/custody.json; primary dirty state and unrelated output protected. This chat authors and reviews the pass.
+
+Working if held equipment has authored edges and real openings/concavity without losing hand/support contacts, work roles have different bounded rhythms with quiet dwells, and the actual allotment can has an open vessel, curved spout and attached rose inside its original plot. Existing material/draw/animation systems stay in use; no inventory, production, release, navigation or interface contract changes.
+
+### Finite42-item list
+
+1. Rounded clipboard board.
+2. Shaped metal clip.
+3. Paper/lines seated.
+4. Rounded tablet body.
+5. Screen fitted within bezel.
+6. Existing screen illumination retained.
+7. Rounded radio body.
+8. Speaker ribs merged into body draw.
+9. Tactile top control.
+10. Existing antenna/indicator/hand mount.
+11. Shaped quality tray edges.
+12. Hollow sample vials.
+13. Bevelled vial caps.
+14. Vial/tray contact.
+15. Concave sampling scoop/attached handle.
+16. Kit wrist mount/scale retained.
+17. Transparent magnifier depth-write corrected.
+18. Shared geometry/material lifetime safe.
+19. Slower repair cadence.
+20. Measured sampling cadence.
+21. Quieter inspection.
+22. Restrained supervision.
+23. Existing work/rest pauses.
+24. Deterministic independent phase.
+25. Planted boots/attached tools.
+26. Pause/reduced-motion/restore retained.
+27. No production/inventory/repair/quality authority changes.
+28. Shaped hollow watering can.
+29. Rolled mouth/real interior.
+30. Curved tubular spout.
+31. Attached watering rose.
+32. Small lit perforation details.
+33. Refined handle/body contact.
+34. Original location/compact footprint.
+35. Existing static draw, no new texture/light/frame loop.
+36. Garden paths/beds/worker contacts preserved.
+37. Named affected baseline.
+38. Actual aperture/shape/contact/gesture checks.
+39. Required typecheck/lint/format/shader/build/reachability.
+40. Silent local day/dusk art and relevant close inspection.
+41. Unrelated work preserved, owned dependency/cache setup restored.
+42. Selective local commit, no push/deployment.
+
+Pre-check risks: shared sample tray also supports bread, so its .0125m top cannot move; vial caps and paper must remain against their real support surfaces; can geometry must stay out of walking space and retained lighting occlusion contracts. Preserve actual GLBs, approved rasters, previous rounded pumps/transit and all frozen source. Evidence: test-results/workshop-garden-craft-20261015/.
+
+V baseline112/3 pass, no failing names. First affected run fails two suites at module import (radio mixed indexed and non-indexed geometry) and one can mouth check (its full handle loop crossed into the hollow interior). Failed log retained. Normalize assembly indices using the established premerge pattern and replace the handle with an exterior half-loop attached at the vessel wall. Clipboard paper-contact check corrected to use actual .07m clip Y and back-face ray. No failed build/render shipped.
+
+Scope reconciliation: the actual can is inside post-garden/post-right/shed-wall source ranges, so the existing baked civic depth asset must be refreshed rather than left with the old solid can. Add only the existing civic atlas PNG/JSON and its paired version constant to allowed scope, preserving all sources, bounds, gains, shader keys and shadow budgets. Export actual settled runtime triangles through the existing instrument, use the existing Blender baker, and make one final production build after the refreshed atlas. A local dev assembly export avoids a throwaway production build. Working if final served atlas hash matches the paired version/metadata and the native night scene remains clean with the existing source/shadow counts.
+
+V corrected affected116/3 pass (+4 vs112/3). Expanded shadow baseline19/1 pass, total baseline131/4. Source gates: lint/format/shaders pass; TypeScript catches one inference error, radio parts array inferred as RoundedBoxGeometry[] before adding a cylinder. Annotated THREE.BufferGeometry[], no emitted geometry change; removing that exact annotation reproduces the exported source hash. Actual local dev assembly export is clean, complete, silent, native Metal;420710 vertices/180416 triangles/27 existing sources. Existing Blender baker completes56.86s, atlas2329699 bytes. Source list/convention/face bases/atlas dimensions/lookup/shadow budgets exact. Canonical atlas and JSON refreshed; cache revision corrected to existing SHA256(PNG+JSON) convention, not PNG alone. Original failed TypeScript log retained. Final tests/typecheck and one final production build follow.
+
+V final source/build checkpoint:135/4 affected pass, +4 from expanded131/4 baseline. Final TypeScript, whole-source lint/format, touched final lint/format, shader34-family/38-key, build and reachability exit0. No new graph misses/dead modules. One production build only,105.559s wrapper, Vite1m42s;415 files/181688599 bytes. All139 frozen files, exact sealed source and primary HEAD/status/diff retained. The only canonical bake changes are existing PNG/JSON and paired version; original lamp source list and limits unchanged. No interface/device/production/inventory contract edits. Native art follows.
+
+V finite-pass acceptance: all42 source/build/art tasks completed within the stated boundaries.135/4 tests pass, +4 from expanded131/4 baseline; final required source/build/reachability gates exit0. Actual can mouth/footprint/spout/rose and vial/scoop/clipboard/support contacts are checked; role profiles differ within old gesture bounds and quiet dwells. Existing real-rig/pause/restoration suites remain green. Cached tool parts stay under the incumbent dispose=null owned-worker parent, with no new draws or update loop.
+
+Native milling/square day and village dusk use exact sealed index/main bytes, sandboxed out-of-process Metal, complete world, community presence, motion acceptance and audio0/context not-created. Zero console/page/request/screenshot errors. Whole frames inspected. Existing civic atlas source list/convention/face bases/lookup/dimensions and shadow budget exact; final browser actually loads PNG+JSON at the combined revision and verifies both hash/pair. Atlas active,27 sources,0 unlinked programs,12 largest-program samplers against16 available. Input export and existing Blender baker hashes retained. No substitute atlas or light/quality override.
+
+Close watering-can pixels confirm the hollow mouth, rolled lip, curved spout, attached exterior handle and rose, seated at the retained plot. Actual quality worker and other personnel continue normal routines. Wrist-target framing did not expose the whole kit; the quality worker then walked away and hid its tool appropriately. Full held-tool microviews are not claimed; geometry/contact/cadence have135-test proof and normal native assembly proof. One further daytime IAB reload remained behind the existing slow-animation cover, world-ready=true/startup-ready unset; the CDP wait timed out. Retained cover was observed directly and never bypassed or counted as successful readiness. This is recorded with the independently OPEN pacing/startup boundary, no source/UI readiness edit or quiet-GPU prerequisite.
+
+Timing remains OPEN: milling firstFrame/p95, square p95, village dusk p95 under38.96/37.58/35.19 load per core. Art samples are indicative, no non-art performance pass or causal verdict claimed. No player/device input or viewport override, stock fabrication, remote upload or publication. Close screenshots are conversation-only; saved native PNGs/contact sheets/receipts under test-results/art-review/V-workshop-garden-day-20261015/ and V-village-shadows-dusk-20261015/. Both temporary browsers (dev exporter and IAB close tab) closed normally, owned dev/preview servers closed and lock released. Optional interface linter absent; no installation. All139 frozen pins, primary state and final source/compiled seals exact. Canonical acceptance: test-results/workshop-garden-craft-20261015/acceptance.json.
+
+V cleanup/check-in custody: verified375 exact borrowed links and no open handles in the exact owned Vite/npm scratch paths. Removed only those task-created caches/links and restored the original dependency symlink. Current build, source/history, raw27MB actual-geometry bake input, atlas pair, native images and failed logs preserved; foreign output/primary untouched. No disk-recovery or frame-performance improvement inferred. Selective local check-in, no publication.

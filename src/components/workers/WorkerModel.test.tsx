@@ -3,12 +3,18 @@ import { render, cleanup } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { getWorkerAppearance, type WorkerMotionState } from './workerTypes';
-import { SHARED_WORKER_ACCESSORY_MATERIALS } from './SharedWorkerMaterials';
+import {
+  SHARED_WORKER_ACCESSORY_MATERIALS,
+  SHARED_WORKER_MATERIALS,
+} from './SharedWorkerMaterials';
 import { createWorkerBodyLod, WORKER_BODY_LOD } from './workerBodyLod';
 import {
   createWorkerWrenchHead,
   createWorkerTrowelBlade,
   createWorkerLoafGeometry,
+  WORKER_TOOL_GEOMETRIES,
+  createWorkerSampleVial,
+  createWorkerSampleScoop,
 } from './WorkerTools';
 
 const harness = vi.hoisted(() => ({
@@ -767,6 +773,60 @@ describe('authored held work props', () => {
     material.dispose();
     return hits;
   };
+  it('keeps cached fittings finite and seats paper, screen, vials and bread on their real supports', () => {
+    const g = WORKER_TOOL_GEOMETRIES;
+    for (const family of Object.values(g))
+      for (const part of Object.values(family)) {
+        for (const a of Object.values(part.attributes))
+          expect(Array.from(a.array).every(Number.isFinite)).toBe(true);
+        part.computeBoundingBox();
+      }
+    expect(g.clipboard.board.boundingBox!.max.z).toBeCloseTo(0.0075, 6);
+    expect(0.0085 + g.clipboard.paper.boundingBox!.min.z).toBeCloseTo(0.0075, 6);
+    expect(0.01 + g.clipboard.line.boundingBox!.min.z).toBeCloseTo(
+      0.0085 + g.clipboard.paper.boundingBox!.max.z,
+      6
+    );
+    expect(0.07 + g.clipboard.clip.boundingBox!.min.y).toBeLessThan(0.05); // clip extends onto paper
+    const jaw = ray(g.clipboard.clip, 0, -0.022);
+    expect(jaw[jaw.length - 1].point.z + 0.01).toBeCloseTo(
+      0.0085 + g.clipboard.paper.boundingBox!.max.z,
+      6
+    );
+    expect(0.006 + g.tablet.screen.boundingBox!.min.z).toBeCloseTo(
+      g.tablet.body.boundingBox!.max.z,
+      6
+    );
+    expect(g.sampleKit.tray.boundingBox!.max.y).toBeCloseTo(0.0125, 6); // shared bread support
+    expect(0.045 + g.sampleKit.vial.boundingBox!.min.y).toBeLessThanOrEqual(
+      g.sampleKit.tray.boundingBox!.max.y
+    );
+    expect(0.045 + g.sampleKit.vial.boundingBox!.min.y).toBeGreaterThan(0.009);
+    expect(0.041 + g.sampleKit.cap.boundingBox!.min.y).toBeCloseTo(
+      g.sampleKit.vial.boundingBox!.max.y,
+      6
+    );
+    expect(SHARED_WORKER_MATERIALS.lensBlue.depthWrite).toBe(false);
+  });
+  it('models actual vial interiors and concave scoop surfaces rather than solid blocks', () => {
+    const vial = createWorkerSampleVial(),
+      scoop = createWorkerSampleScoop();
+    const material = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
+    const base = new THREE.Raycaster(
+      new THREE.Vector3(0, 0.1, 0),
+      new THREE.Vector3(0, -1, 0)
+    ).intersectObject(new THREE.Mesh(vial, material))[0];
+    expect(base.point.y).toBeCloseTo(-0.028, 6);
+    expect(ray(scoop, 0, 0.025)[0].point.z).toBeCloseTo(-0.001, 6);
+    expect(ray(scoop, 0.011, 0.025)[0].point.z).toBeCloseTo(0.005, 6);
+    expect(ray(scoop, 0, -0.035).length).toBeGreaterThan(0);
+    scoop.computeBoundingBox();
+    expect(scoop.boundingBox!.max.y).toBeCloseTo(0.045, 6);
+    expect(scoop.boundingBox!.min.y).toBeCloseTo(-0.045, 6);
+    vial.dispose();
+    scoop.dispose();
+    material.dispose();
+  });
   it('opens the engineer jaw while retaining both arms and its bridge inside the old envelope', () => {
     const g = createWorkerWrenchHead();
     g.computeBoundingBox();

@@ -240,8 +240,24 @@ export function sampleWorkerGesture(
   const attention =
     THREE.MathUtils.smoothstep(workTime, 0.3, 0.9) *
     (1 - THREE.MathUtils.smoothstep(workTime, 5.2, 6));
-  out.workStroke = Math.sin(t * 3.4) * attention;
-  out.workCheck = Math.sin(t * 1.15) * attention;
+  // Roles share the established quiet dwell, with different measured rhythms.
+  // Working if reading/supervision stay restrained and sampling never looks like wrench turning.
+  const strokeRate =
+    kind === 'repair'
+      ? 2.3
+      : kind === 'sample'
+        ? 1.65
+        : kind === 'inspect'
+          ? 1.1
+          : kind === 'supervise'
+            ? 0.9
+            : 2;
+  const strokeRange =
+    kind === 'inspect' ? 0.45 : kind === 'supervise' ? 0.4 : kind === 'operate' ? 0.7 : 1;
+  const checkRate =
+    kind === 'sample' ? 0.75 : kind === 'supervise' ? 0.65 : kind === 'repair' ? 0.9 : 1.15;
+  out.workStroke = Math.sin(t * strokeRate) * attention * strokeRange;
+  out.workCheck = Math.sin(t * checkRate) * attention;
   return out;
 }
 

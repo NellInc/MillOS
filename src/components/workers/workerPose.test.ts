@@ -956,3 +956,29 @@ it('holds discrete glances, returns to neutral and leaves a real quiet work inte
   }
   expect(Math.abs(sampleWorkerGesture('inspect', 2, g).workStroke)).toBeGreaterThan(0.1);
 });
+
+it('gives actual work roles distinct bounded cadences and retains their shared quiet dwell', () => {
+  const g = createWorkerGesture();
+  const profiles = new Map<string, number[]>();
+  for (const kind of ['repair', 'sample', 'inspect', 'supervise', 'operate'] as const) {
+    const points: number[] = [];
+    for (let i = 0; i <= 196; i++) {
+      const t = i * 0.05;
+      sampleWorkerGesture(kind, t, g);
+      const limit =
+        kind === 'inspect' ? 0.45 : kind === 'supervise' ? 0.4 : kind === 'operate' ? 0.7 : 1;
+      expect(Math.abs(g.workStroke)).toBeLessThanOrEqual(limit);
+      expect(Math.abs(g.workCheck)).toBeLessThanOrEqual(1);
+      if (t > 6 && t < 9.8) {
+        expect(g.workStroke).toBeCloseTo(0, 8);
+        expect(g.workCheck).toBeCloseTo(0, 8);
+      }
+      points.push(g.workStroke);
+    }
+    expect(sampleWorkerGesture(kind, 2.75, g)).toEqual(
+      sampleWorkerGesture(kind, 2.75, createWorkerGesture())
+    );
+    profiles.set(kind, points);
+  }
+  expect(new Set([...profiles.values()].map((p) => JSON.stringify(p))).size).toBe(5);
+});

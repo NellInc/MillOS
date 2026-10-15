@@ -170,6 +170,93 @@ function buildMillDetails() {
   });
   return b.finish();
 }
+/** Hollow enamel vessel, curved spout and attached rose, all in the existing
+ * static colour batch. Working if its mouth is open, fittings meet the body
+ * and the original allotment footprint/ground contact remain intact.
+ */
+export function addCommunityWateringCan(b: PlotGeometry) {
+  const enamel = '#6a847a';
+  b.add(
+    new THREE.LatheGeometry(
+      [
+        [0, 0.02],
+        [0.15, 0.02],
+        [0.18, 0.045],
+        [0.185, 0.07],
+        [0.16, 0.31],
+        [0.145, 0.35],
+        [0.125, 0.35],
+        [0.135, 0.3],
+        [0.155, 0.075],
+        [0.13, 0.05],
+        [0, 0.05],
+      ].map((p) => new THREE.Vector2(...p)),
+      12
+    ),
+    enamel
+  );
+  b.add(
+    new THREE.TorusGeometry(0.136, 0.009, 4, 12).rotateX(Math.PI / 2).translate(0, 0.35, 0),
+    enamel
+  );
+  b.add(
+    new THREE.TorusGeometry(0.14, 0.021, 4, 12, Math.PI)
+      .rotateZ(Math.PI / 2)
+      .scale(1, 0.115 / 0.14, 1)
+      .translate(-0.16, 0.225, 0),
+    IRON
+  );
+  const points = [
+    [0.13, 0.15, 0],
+    [0.22, 0.19, 0],
+    [0.32, 0.29, 0],
+    [0.402, 0.385, 0],
+  ].map((p) => new THREE.Vector3(...p));
+  b.add(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points), 8, 0.026, 6, false), enamel);
+  const centre = points[3],
+    direction = new THREE.Vector3(0.65, 0.76, 0).normalize();
+  const faceRotation = new THREE.Quaternion().setFromUnitVectors(
+    new THREE.Vector3(0, 0, 1),
+    direction
+  );
+  const collarRotation = new THREE.Quaternion().setFromUnitVectors(
+    THREE.Object3D.DEFAULT_UP,
+    direction
+  );
+  b.add(
+    new THREE.CylinderGeometry(0.047, 0.029, 0.016, 12)
+      .applyQuaternion(collarRotation)
+      .translate(...centre.toArray()),
+    enamel
+  );
+  const face = centre.clone().addScaledVector(direction, 0.0085);
+  b.add(
+    new THREE.CircleGeometry(0.043, 12).applyQuaternion(faceRotation).translate(...face.toArray()),
+    '#9eaa8b'
+  );
+  b.add(
+    new THREE.TorusGeometry(0.044, 0.004, 3, 12)
+      .applyQuaternion(faceRotation)
+      .translate(...face.toArray()),
+    IRON
+  );
+  // Small dark rose perforation details are printed matter, so remain lit.
+  for (let i = 0; i < 7; i++) {
+    const angle = (i * Math.PI) / 3;
+    const point =
+      i === 6
+        ? new THREE.Vector3()
+        : new THREE.Vector3(Math.cos(angle) * 0.024, Math.sin(angle) * 0.024, 0);
+    point.applyQuaternion(faceRotation).add(face).addScaledVector(direction, 0.0005);
+    b.add(
+      new THREE.CircleGeometry(0.0035, 5)
+        .applyQuaternion(faceRotation)
+        .translate(...point.toArray()),
+      IRON
+    );
+  }
+}
+
 function buildVillageDetails() {
   const b = new PlotGeometry();
   at(b, A.bakeryCounter, (g) => {
@@ -197,12 +284,7 @@ function buildVillageDetails() {
   at(b, { position: villagePosition([-18.8, 0, -12]), rotation: Math.PI / 2 }, board);
   // Watering can on the allotment's central aisle beside its existing beds.
   const can = villagePosition([-24.65, 0, 9.7]);
-  b.add(
-    new THREE.CylinderGeometry(0.15, 0.19, 0.34, 10).translate(can[0], 0.19, can[2]),
-    '#6a847a'
-  );
-  b.beam([can[0], 0.15, can[2]], [can[0] + 0.43, 0.42, can[2]], 0.055, '#6a847a');
-  b.add(new THREE.TorusGeometry(0.14, 0.025, 5, 12).translate(can[0] - 0.16, 0.26, can[2]), IRON);
+  at(b, { position: can, rotation: 0 }, addCommunityWateringCan);
   return b.finish();
 }
 

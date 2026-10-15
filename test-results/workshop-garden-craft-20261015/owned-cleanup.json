@@ -1,0 +1,12 @@
+{
+  "borrowedLinksVerifiedAndRemoved": 375,
+  "verifiedNoOpenHandles": [
+    "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/node_modules/.vite",
+    "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/node_modules/.vite-temp",
+    "/private/tmp/millos-V-npm-cache"
+  ],
+  "originalDependencyTargetRestored": "/Users/nellwatson/Documents/GitHub/MillOS/node_modules",
+  "removedOnly": "Task-created own Vite scratch/dependency links and named V npm cache",
+  "preserved": "Current build, source, raw bake input/output, native images, failures/logs/history and foreign output",
+  "spaceRecoveryClaim": null
+}

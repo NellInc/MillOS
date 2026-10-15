@@ -1,0 +1,7 @@
+
+> grain-mill-simulator@0.40.0 typecheck
+> tsc --noEmit -p tsconfig.typecheck.json
+
+src/components/workers/WorkerTools.tsx(105,14): error TS2345: Argument of type 'CylinderGeometry' is not assignable to parameter of type 'RoundedBoxGeometry'.
+  Types of property 'parameters' are incompatible.
+    Type '{ readonly radiusTop: number; readonly radiusBottom: number; readonly height: number; readonly radialSegments: number; readonly heightSegments: number; readonly openEnded: boolean; readonly thetaStart: number; readonly thetaLength: number; }' is missing the following properties from type '{ readonly width: number; readonly height: number; readonly depth: number; readonly widthSegments: number; readonly heightSegments: number; readonly depthSegments: number; }': width, depth, widthSegments, depthSegments

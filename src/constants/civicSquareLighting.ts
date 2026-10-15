@@ -5,7 +5,7 @@ type Point = [number, number, number];
 // Version both requests together so stale-cache recovery cannot mix revisions.
 export const CIVIC_SHADOW_BAKE_READY = true;
 export const CIVIC_SHADOW_ASSET_VERSION =
-  '5c21f71a3f353ccc37b51dc22b72f5c3e557bbacc008c0b7304e7c90b8927991';
+  '8d53724f5c14cc9f46d691767bab39628a40b9755aa0f1c717ce345051b106e4';
 export type CivicLamp = {
   id: string;
   kind: 'post' | 'garden' | 'wall' | 'window' | 'sign';

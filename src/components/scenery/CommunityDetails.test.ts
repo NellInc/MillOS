@@ -10,6 +10,7 @@ import {
   COMMUNITY_GEOMETRY,
   addCommunityTimber,
   addCommunityCup,
+  addCommunityWateringCan,
   communityDetailsFlags,
 } from './CommunityDetails';
 import { PlotGeometry } from '../../utils/authoredPlotGeometry';
@@ -44,6 +45,22 @@ describe('authored community details', () => {
       }
       expect(Number.isFinite(geometry.boundingSphere?.radius)).toBe(true);
     }
+  });
+  it('gives the actual allotment can an open vessel, curved spout and attached rose inside the old plot', () => {
+    const b = new PlotGeometry();
+    addCommunityWateringCan(b);
+    const g = b.finish();
+    expect(heightAt(g, 0, 0)).toBeCloseTo(0.05, 6); // inside floor, not a capped mouth
+    expect(heightAt(g, 0.136, 0)).toBeGreaterThan(0.35); // rolled lip
+    expect(g.boundingBox!.min.y).toBeCloseTo(0.02, 6);
+    expect(g.boundingBox!.min.x).toBeGreaterThanOrEqual(-0.325001);
+    expect(g.boundingBox!.max.x).toBeLessThan(0.445);
+    expect(g.boundingBox!.max.z).toBeLessThanOrEqual(0.190001);
+    expect(g.boundingBox!.max.y).toBeLessThan(0.445);
+    expect(g.getAttribute('position').count / 3).toBeLessThan(800);
+    expect(heightAt(g, 0.25, 0)).toBeGreaterThan(0.2); // curved connected spout
+    expect(heightAt(g, 0.402, 0)).toBeGreaterThan(0.38); // rose on its end
+    g.dispose();
   });
   it('eases real timber edges inside the old board envelope with deterministic lit colour', () => {
     const a = new PlotGeometry(),

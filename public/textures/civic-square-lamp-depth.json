@@ -561,7 +561,7 @@
   "objects": [
     {
       "name": "static-merge:community-authored-static:0:0",
-      "vertices": 3972,
+      "vertices": 19629,
       "instances": 1
     },
     {
@@ -666,7 +666,7 @@
     },
     {
       "name": "static-merge:authored-village:0:2",
-      "vertices": 108,
+      "vertices": 588,
       "instances": 1
     },
     {
@@ -675,46 +675,46 @@
       "instances": 1
     },
     {
-      "name": "static-merge:authored-village:0:4",
+      "name": "static-merge:authored-village:0:5",
       "vertices": 108,
       "instances": 1
     },
     {
-      "name": "static-merge:authored-village:0:9",
+      "name": "static-merge:authored-village:0:11",
       "vertices": 216,
       "instances": 1
     },
     {
-      "name": "static-merge:authored-village:0:10",
+      "name": "static-merge:authored-village:0:12",
       "vertices": 360,
       "instances": 1
     },
     {
-      "name": "static-merge:authored-village:0:11",
-      "vertices": 130464,
+      "name": "static-merge:authored-village:0:13",
+      "vertices": 130476,
       "instances": 1
     },
     {
-      "name": "static-merge:authored-village:0:12",
+      "name": "static-merge:authored-village:0:14",
       "vertices": 30960,
       "instances": 1
     },
     {
-      "name": "static-merge:authored-village:0:13",
+      "name": "static-merge:authored-village:0:15",
       "vertices": 95988,
       "instances": 1
     }
   ],
   "exclusions": {
-    "alphaOrMoving": 41
+    "alphaOrMoving": 42
   },
   "dynamicLocalShadows": false,
-  "inputSha256": "7cc711fa6623ae05c69b71198b1f72073726fea2130ba69a293f77b901d00e2f",
-  "atlasSha256": "8de356b6e912c8ea42a7342988b1679a454ba2e4ee6f205b8513a629bda8fd71",
+  "inputSha256": "cb3e1cd12ce8d441c3582995ae26a45dbdf8220b952231728c18d9753a6ce392",
+  "atlasSha256": "55c34a972028fbf2de4c428c57e48a93fcf7e04f375ba595b7d3efc2e504b137",
   "bakerSha256": "e4a1187f642e15650def16479000b54b52c562a1e7af3e1894d40db3aabe7973",
-  "vertices": 404561,
-  "triangles": 175033,
-  "elapsedSeconds": 11.5,
+  "vertices": 420710,
+  "triangles": 180416,
+  "elapsedSeconds": 56.86,
   "sourceReceipts": [
     {
       "id": "hall-west",
@@ -748,12 +748,12 @@
     },
     {
       "id": "post-right",
-      "blockedRays": 56978,
+      "blockedRays": 56975,
       "rays": 98304
     },
     {
       "id": "shed-wall",
-      "blockedRays": 62703,
+      "blockedRays": 62704,
       "rays": 98304
     },
     {
@@ -793,12 +793,12 @@
     },
     {
       "id": "gate-inner",
-      "blockedRays": 39295,
+      "blockedRays": 39297,
       "rays": 98304
     },
     {
       "id": "gate-outer",
-      "blockedRays": 39639,
+      "blockedRays": 39638,
       "rays": 98304
     },
     {

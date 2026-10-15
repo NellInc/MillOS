@@ -82,6 +82,7 @@ export const SHARED_WORKER_MATERIALS = {
     color: '#a0d8ef',
     transparent: true,
     opacity: 0.4,
+    depthWrite: false,
   }),
   handleRed: new THREE.MeshStandardMaterial({ color: '#ef4444', roughness: 0.8 }),
 };
