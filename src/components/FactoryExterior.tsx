@@ -41,6 +41,9 @@ import {
 import {
   createRiverCulvertGeometries,
   createRiverFootbridgeAccessGeometry,
+  createRiverFootbridgeDeckGeometry,
+  createRiverFootbridgeFrameGeometry,
+  createRoadRiverBridgeFrameGeometry,
   createRiverSurfaceGeometry,
   fitRiverCulvertBank,
 } from './exterior/riverGeometry';
@@ -2229,6 +2232,44 @@ const RiverTunnel: React.FC<{
   );
 });
 
+const ROAD_RIVER_BRIDGE_FRAME_GEOMETRY = createRoadRiverBridgeFrameGeometry();
+const RIVER_FOOTBRIDGE_DECK_GEOMETRY = createRiverFootbridgeDeckGeometry();
+const RIVER_FOOTBRIDGE_FRAME_GEOMETRY = createRiverFootbridgeFrameGeometry();
+
+export const RoadRiverBridge: React.FC = () => (
+  <group name="road-river-bridge" position={[-20, 0, -145]}>
+    {/* Road deck - spans the canyon */}
+    <mesh name="road-river-bridge-deck" position={[0, 0.3, 0]} castShadow receiveShadow>
+      <boxGeometry args={[18, 0.6, 70]} />
+      <meshStandardMaterial color="#4b5563" roughness={0.85} />
+    </mesh>
+    {/* Carriageway wearing course on top of the structural deck */}
+    <mesh
+      name="road-river-bridge-wearing-course"
+      position={[0, 0.61, 0]}
+      rotation={[-Math.PI / 2, 0, 0]}
+      receiveShadow
+    >
+      <planeGeometry args={[16, 68]} />
+      <meshStandardMaterial
+        color="#ffffff"
+        roughness={0.9}
+        map={TARMAC_ROAD_MAP}
+        roughnessMap={TARMAC_ROAD_ROUGHNESS}
+      />
+    </mesh>
+    <mesh
+      name="road-river-bridge-frame"
+      geometry={ROAD_RIVER_BRIDGE_FRAME_GEOMETRY}
+      castShadow
+      receiveShadow
+      dispose={null}
+    >
+      <meshStandardMaterial vertexColors roughness={0.74} metalness={0} />
+    </mesh>
+  </group>
+);
+
 const RIVER_FOOTBRIDGE_ACCESS_GEOMETRY = createRiverFootbridgeAccessGeometry();
 
 // The visible river and its shoreline share the actual terrain assembly.
@@ -2293,11 +2334,12 @@ const River: React.FC = React.memo(() => {
             RIVER_FOOTBRIDGE_DECK.centre[1],
             RIVER_FOOTBRIDGE_DECK.centre[2] - riverZ,
           ]}
+          geometry={RIVER_FOOTBRIDGE_DECK_GEOMETRY}
+          dispose={null}
           castShadow
           receiveShadow
         >
-          <boxGeometry args={[...RIVER_FOOTBRIDGE_DECK.size]} />
-          <meshStandardMaterial color="#6b7280" roughness={0.8} />
+          <meshStandardMaterial vertexColors roughness={0.9} />
         </mesh>
         <mesh
           name="river-footbridge-ground-access"
@@ -2309,64 +2351,20 @@ const River: React.FC = React.memo(() => {
         >
           <meshStandardMaterial vertexColors roughness={0.9} />
         </mesh>
-        {/* Bridge railings */}
-        {[-1, 1].map((side, i) => (
-          <mesh key={`railing-${i}`} position={[side * 3.1875, 2.7, 0]} castShadow>
-            <boxGeometry args={[0.3, 1, width * 2 + 30]} />
-            <meshStandardMaterial color="#4b5563" roughness={0.7} />
-          </mesh>
-        ))}
-        {/* Bridge support structure - extends down into canyon */}
-        {/* Main longitudinal beams under the deck */}
-        {[-2, 0, 2].map((xOff, i) => (
-          <mesh key={`main-beam-${i}`} position={[xOff, 1.2, 0]} castShadow>
-            <boxGeometry args={[0.4, 1.2, width * 2 + 28]} />
-            <meshStandardMaterial color="#374151" roughness={0.6} metalness={0.3} />
-          </mesh>
-        ))}
-        {/* Cross beams connecting the main beams */}
-        {Array.from({ length: 9 }, (_, i) => {
-          const zPos = -32 + i * 8;
-          return (
-            <mesh key={`cross-beam-${i}`} position={[0, 1.2, zPos]} castShadow>
-              <boxGeometry args={[5.5, 0.3, 0.4]} />
-              <meshStandardMaterial color="#374151" roughness={0.6} metalness={0.3} />
-            </mesh>
-          );
-        })}
-        {/* Vertical pier columns extending down to canyon floor */}
-        {/* Foundations extend below the river bed. */}
-        {Array.from({ length: 5 }, (_, i) => {
-          const zPos = -28 + i * 14; // 5 piers spread across the span
-          return (
-            <group key={`pier-${i}`}>
-              {/* Left pier */}
-              <mesh position={[-2.2, -4, zPos]} castShadow>
-                <boxGeometry args={[0.8, 12, 0.8]} />
-                <meshStandardMaterial color="#4b5563" roughness={0.7} metalness={0.2} />
-              </mesh>
-              {/* Right pier */}
-              <mesh position={[2.2, -4, zPos]} castShadow>
-                <boxGeometry args={[0.8, 12, 0.8]} />
-                <meshStandardMaterial color="#4b5563" roughness={0.7} metalness={0.2} />
-              </mesh>
-              {/* Cross brace between piers */}
-              <mesh position={[0, -2, zPos]} castShadow>
-                <boxGeometry args={[4, 0.4, 0.4]} />
-                <meshStandardMaterial color="#374151" roughness={0.6} metalness={0.3} />
-              </mesh>
-              {/* Diagonal bracing */}
-              <mesh position={[-1, -5, zPos]} rotation={[0, 0, Math.PI / 4]} castShadow>
-                <boxGeometry args={[0.2, 6, 0.2]} />
-                <meshStandardMaterial color="#374151" roughness={0.6} metalness={0.3} />
-              </mesh>
-              <mesh position={[1, -5, zPos]} rotation={[0, 0, -Math.PI / 4]} castShadow>
-                <boxGeometry args={[0.2, 6, 0.2]} />
-                <meshStandardMaterial color="#374151" roughness={0.6} metalness={0.3} />
-              </mesh>
-            </group>
-          );
-        })}
+        <mesh
+          name="river-footbridge-open-ironwork"
+          position={[
+            RIVER_FOOTBRIDGE_DECK.centre[0] - riverX,
+            0,
+            RIVER_FOOTBRIDGE_DECK.centre[2] - riverZ,
+          ]}
+          geometry={RIVER_FOOTBRIDGE_FRAME_GEOMETRY}
+          castShadow
+          receiveShadow
+          dispose={null}
+        >
+          <meshStandardMaterial vertexColors roughness={0.76} metalness={0} />
+        </mesh>
       </group>
       {/* Both five-metre foundations extend below the four-metre channel bed. */}
       <RiverTunnel
@@ -8027,62 +8025,7 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
 
       {/* ========== ROAD BRIDGE OVER RIVER CANYON ========== */}
       {/* Back road crosses river at z=-145, road centered at x=-20 */}
-      <group position={[-20, 0, -145]}>
-        {/* Road deck - spans the canyon */}
-        <mesh position={[0, 0.3, 0]} castShadow receiveShadow>
-          <boxGeometry args={[18, 0.6, 70]} />
-          <meshStandardMaterial color="#4b5563" roughness={0.85} />
-        </mesh>
-        {/* Carriageway wearing course on top of the structural deck */}
-        <mesh position={[0, 0.61, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-          <planeGeometry args={[16, 68]} />
-          <meshStandardMaterial
-            color="#ffffff"
-            roughness={0.9}
-            map={TARMAC_ROAD_MAP}
-            roughnessMap={TARMAC_ROAD_ROUGHNESS}
-          />
-        </mesh>
-        {/* Guard rails */}
-        {[-1, 1].map((side, i) => (
-          <mesh key={`road-rail-${i}`} position={[side * 8.5, 1.2, 0]} castShadow>
-            <boxGeometry args={[0.3, 1.5, 70]} />
-            <meshStandardMaterial color="#6b7280" roughness={0.7} metalness={0.2} />
-          </mesh>
-        ))}
-        {/* Vertical pier columns - similar to footbridge */}
-        {Array.from({ length: 5 }, (_, i) => {
-          const zPos = -28 + i * 14;
-          return (
-            <group key={`road-pier-${i}`}>
-              {/* Left pier */}
-              <mesh position={[-6, -5, zPos]} castShadow>
-                <boxGeometry args={[1.2, 12, 1.2]} />
-                <meshStandardMaterial color="#4b5563" roughness={0.7} metalness={0.2} />
-              </mesh>
-              {/* Right pier */}
-              <mesh position={[6, -5, zPos]} castShadow>
-                <boxGeometry args={[1.2, 12, 1.2]} />
-                <meshStandardMaterial color="#4b5563" roughness={0.7} metalness={0.2} />
-              </mesh>
-              {/* Cross brace */}
-              <mesh position={[0, -3, zPos]} castShadow>
-                <boxGeometry args={[11, 0.6, 0.6]} />
-                <meshStandardMaterial color="#374151" roughness={0.6} metalness={0.3} />
-              </mesh>
-              {/* Diagonal bracing */}
-              <mesh position={[-3, -6, zPos]} rotation={[0, 0, Math.PI / 4]} castShadow>
-                <boxGeometry args={[0.3, 7, 0.3]} />
-                <meshStandardMaterial color="#374151" roughness={0.6} metalness={0.3} />
-              </mesh>
-              <mesh position={[3, -6, zPos]} rotation={[0, 0, -Math.PI / 4]} castShadow>
-                <boxGeometry args={[0.3, 7, 0.3]} />
-                <meshStandardMaterial color="#374151" roughness={0.6} metalness={0.3} />
-              </mesh>
-            </group>
-          );
-        })}
-      </group>
+      <RoadRiverBridge />
 
       {/* ========== CHECKPOINT BARRIERS AT TRUCK BAY ENTRANCES ========== */}
       {/* Front checkpoint - shipping dock entrance (on the road at z=110) */}

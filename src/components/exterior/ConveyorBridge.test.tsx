@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { Children, isValidElement, type ReactElement, type ReactNode } from 'react';
 import * as THREE from 'three';
-import { ConveyorBridge } from '../FactoryExterior';
+import { ConveyorBridge, RoadRiverBridge } from '../FactoryExterior';
 import { BULK_STORAGE_GALLERY } from '../../constants/siteLayout';
 
 vi.mock('../../utils/critterAudio', () => ({ playCritterSound: vi.fn() }));
@@ -57,6 +57,58 @@ describe('elevator conveyor alignment', () => {
           .add(new THREE.Vector3(...group.props.position));
         expect(actual.distanceTo(new THREE.Vector3(...expected))).toBeLessThan(1e-8);
       }
+    }
+  });
+});
+
+// Realise the actual pure JSX assembly, so a merged support still has to keep
+// the same clear carriageway as its original separate source meshes.
+function roadAssembly() {
+  const root = new THREE.Group();
+  const owned: THREE.BufferGeometry[] = [];
+  const visit = (node: ReactNode, parent: THREE.Object3D) =>
+    Children.forEach(node, (child) => {
+      if (!isValidElement<Record<string, unknown>>(child)) return;
+      const p = child.props;
+      if (child.type === 'boxGeometry' || child.type === 'planeGeometry') {
+        const a = p.args as [number, number, number];
+        const g =
+          child.type === 'boxGeometry'
+            ? new THREE.BoxGeometry(...a)
+            : new THREE.PlaneGeometry(a[0], a[1]);
+        (parent as THREE.Mesh).geometry = g;
+        owned.push(g);
+        return;
+      }
+      if (child.type !== 'group' && child.type !== 'mesh') return;
+      const object =
+        child.type === 'mesh'
+          ? new THREE.Mesh(p.geometry as THREE.BufferGeometry)
+          : new THREE.Group();
+      if (p.position) object.position.fromArray(p.position as number[]);
+      if (p.rotation) object.rotation.fromArray(p.rotation as [number, number, number]);
+      parent.add(object);
+      visit(p.children as ReactNode, object);
+    });
+  visit(RoadRiverBridge({}) as ReactNode, root);
+  root.updateMatrixWorld(true);
+  return { root, dispose: () => owned.forEach((g) => g.dispose()) };
+}
+
+describe('actual road river bridge', () => {
+  it('keeps every pier and bearing below the unchanged wearing course', () => {
+    const { root, dispose } = roadAssembly();
+    try {
+      for (const x of [-26, -20, -14])
+        for (const z of [-173, -159, -145, -131, -117]) {
+          const hit = new THREE.Raycaster(
+            new THREE.Vector3(x, 3, z),
+            new THREE.Vector3(0, -1, 0)
+          ).intersectObject(root, true)[0];
+          expect(hit?.point.y, `carriageway at ${x},${z}`).toBeCloseTo(0.61, 5);
+        }
+    } finally {
+      dispose();
     }
   });
 });

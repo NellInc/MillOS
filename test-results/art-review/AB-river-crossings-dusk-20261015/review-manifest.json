@@ -1,0 +1,50 @@
+{
+  "label": "AB-river-crossings-dusk-20261015",
+  "capturedAt": "2026-10-15T04:32:17.706Z",
+  "git": {
+    "commit": "a443fe9219d6e2cc9ca11b8039c12f59fbc281aa",
+    "branch": "codex/place-led-beautification-20261010",
+    "dirty": true,
+    "dirtyFileCount": 6,
+    "dirtyFiles": [
+      "_contprompts/millos_place_led_beautification_20261010.md",
+      "src/components/FactoryExterior.tsx",
+      "src/components/exterior/ConveyorBridge.test.tsx",
+      "src/components/exterior/riverGeometry.test.ts",
+      "src/components/exterior/riverGeometry.ts",
+      "output/playwright/place-led-20261010/"
+    ]
+  },
+  "options": {
+    "label": "AB-river-crossings-dusk-20261015",
+    "scenes": [
+      "castle"
+    ],
+    "sceneSet": "explicit",
+    "quality": "medium",
+    "port": "4288",
+    "time": "17.2",
+    "weather": "clear",
+    "duration": "1",
+    "warmup": "1",
+    "settleTimeout": "240",
+    "perfGate": false,
+    "skipBuild": true,
+    "headed": false
+  },
+  "diagnostics": [],
+  "scenes": [
+    {
+      "scene": "castle",
+      "image": "castle.png",
+      "indicativeFps": 59.96
+    }
+  ],
+  "contactSheet": "contact-sheet.png",
+  "perfGate": null,
+  "caveats": [
+    "Working tree was dirty (6 files). These frames show uncommitted work, not commit a443fe9. Do not use as a baseline for a later comparison.",
+    "Captured with --skip-build; dist/ may predate the tree.",
+    "No performance gate was run. Art mode unpins reduced motion and restores full fidelity, so its frame samples are indicative only. A visual verdict from this capture is not shippable until a non-art budget run passes on the same commit."
+  ]
+}

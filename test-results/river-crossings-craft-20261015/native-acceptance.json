@@ -1,0 +1,78 @@
+[
+  {
+    "label": "day",
+    "servedBuildMatches": true,
+    "sandboxedMetal": true,
+    "cleanDiagnostics": true,
+    "worldCommunityCheckpoints": true,
+    "generalVehicleMotion": true,
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "timingMisses": [
+      "firstFrame",
+      "p95Frame"
+    ],
+    "loadPerCore": 3.66,
+    "p95FrameMs": 17,
+    "startupMarks": {
+      "millos:bootstrap": 400.8,
+      "millos:first-frame": 552,
+      "millos:world-ready": 52577.8,
+      "millos:startup-ready": 61499.1
+    },
+    "screenshot": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/AB-river-crossings-day-20261015/castle.png"
+  },
+  {
+    "label": "dusk",
+    "servedBuildMatches": true,
+    "sandboxedMetal": true,
+    "cleanDiagnostics": true,
+    "worldCommunityCheckpoints": true,
+    "generalVehicleMotion": true,
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "timingMisses": [
+      "firstFrame",
+      "averageFps",
+      "p95Frame"
+    ],
+    "loadPerCore": 3.79,
+    "p95FrameMs": 18.3,
+    "startupMarks": {
+      "millos:bootstrap": 334.4,
+      "millos:first-frame": 449.2,
+      "millos:world-ready": 43150.6,
+      "millos:startup-ready": 52414.2
+    },
+    "screenshot": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/AB-river-crossings-dusk-20261015/castle.png"
+  },
+  {
+    "label": "night",
+    "servedBuildMatches": true,
+    "sandboxedMetal": true,
+    "cleanDiagnostics": true,
+    "worldCommunityCheckpoints": true,
+    "generalVehicleMotion": true,
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "timingMisses": [
+      "firstFrame",
+      "p95Frame"
+    ],
+    "loadPerCore": 4.24,
+    "p95FrameMs": 18.1,
+    "startupMarks": {
+      "millos:bootstrap": 412.4,
+      "millos:first-frame": 525.7,
+      "millos:world-ready": 44396.8,
+      "millos:startup-ready": 53576
+    },
+    "screenshot": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/AB-river-crossings-night-20261015/castle.png"
+  }
+]
