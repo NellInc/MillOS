@@ -247,6 +247,24 @@ const BRICK_ARCH = createBrickArchGeometry();
 const _culvertAtmosphere = createAtmosphereState();
 const CULVERT_BORE = new THREE.CylinderGeometry(0.89, 0.89, 1, 32, 1, true);
 const CULVERT_WATER = new THREE.PlaneGeometry(1, 1);
+/** Inscribed chord of the actual 32-sided .89-radius liner. The 0.5% inset
+ * stays behind every facet at all rain heights instead of leaving dry side strips.
+ * Working if water widens with rain and its edges remain inside the bore.
+ */
+export function getCulvertWaterWidth(radius: number, height: number): number {
+  const bore = radius * 0.89 * Math.cos(Math.PI / 32);
+  return 2 * Math.sqrt(Math.max(0, bore * bore - height * height));
+}
+export function updateCulvertWater(
+  mesh: THREE.Mesh,
+  radius: number,
+  target: number,
+  delta: number
+) {
+  mesh.position.y = THREE.MathUtils.damp(mesh.position.y, target, 3, Math.min(delta, 0.1));
+  mesh.scale.y = getCulvertWaterWidth(radius, mesh.position.y);
+}
+
 const CULVERT_RIPRAP = new THREE.IcosahedronGeometry(1, 1);
 const CULVERT_BORE_MATERIAL = new THREE.MeshStandardMaterial({
   color: '#222724',
@@ -707,12 +725,7 @@ export const DrainageCulvert: React.FC<TunnelProps> = React.memo(
     useFrame((_, delta) => {
       if (!waterRef.current) return;
       if (!useGameSimulationStore.getState().isTabVisible) return;
-      waterRef.current.position.y = THREE.MathUtils.damp(
-        waterRef.current.position.y,
-        targetWaterHeightRef.current,
-        3,
-        Math.min(delta, 0.1)
-      );
+      updateCulvertWater(waterRef.current, radius, targetWaterHeightRef.current, delta);
     });
 
     return (
@@ -803,7 +816,7 @@ export const DrainageCulvert: React.FC<TunnelProps> = React.memo(
           geometry={CULVERT_WATER}
           position={[0, -radius * 0.52, 0]}
           rotation={[-Math.PI / 2, 0, 0]}
-          scale={[length, radius * 1.2, 1]}
+          scale={[length, getCulvertWaterWidth(radius, -radius * 0.52), 1]}
           userData={{ noStaticBatch: true, dynamic: true }}
         >
           <primitive object={TUNNEL_MATERIALS.water} attach="material" />

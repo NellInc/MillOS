@@ -7,6 +7,7 @@ import {
   SHARED_WORKER_ACCESSORY_MATERIALS,
   SHARED_WORKER_MATERIALS,
 } from './SharedWorkerMaterials';
+import { SHARED_WORKER_GEOMETRY } from './SharedWorkerGeometries';
 import { createWorkerBodyLod, WORKER_BODY_LOD } from './workerBodyLod';
 import {
   createWorkerWrenchHead,
@@ -461,7 +462,7 @@ it.each([
     kind: 'glasses-temples' as const,
     x: 0.084,
     z: -0.052,
-    scale: [0.008, 0.008, 0.112],
+    scale: [1, 1, 1],
     rotationZ: 0,
   },
   { kind: 'hearing-cups' as const, x: 0.104, z: 0, scale: [1, 1, 1], rotationZ: Math.PI / 2 },
@@ -868,4 +869,55 @@ describe('authored held work props', () => {
     g.dispose();
     material.dispose();
   });
+});
+
+it('shapes PPE shells, cushions and band inside the original head-fitting envelope', () => {
+  const cup = SHARED_WORKER_GEOMETRY.hearingCup;
+  const p = cup.getAttribute('position'),
+    colours = cup.getAttribute('color');
+  expect(colours.count).toBe(p.count);
+  expect(new Set(Array.from(colours.array))).toEqual(new Set([1, Math.fround(0.22)]));
+  const b = cup.boundingBox!;
+  expect(b.min.y).toBeCloseTo(-0.0125);
+  expect(b.max.y).toBeCloseTo(0.0125);
+  expect(Math.max(-b.min.x, b.max.x, -b.min.z, b.max.z)).toBeLessThanOrEqual(0.038001);
+  expect(SHARED_WORKER_GEOMETRY.hearingBand.boundingBox!.max.x).toBeLessThanOrEqual(0.112001);
+  const band = new THREE.Mesh(SHARED_WORKER_GEOMETRY.hearingBand, new THREE.MeshBasicMaterial());
+  band.updateMatrixWorld();
+  // Adjustment rails physically enter the headband and both existing cup mounts.
+  for (const side of [-1, 1]) {
+    const hit = new THREE.Raycaster(
+      new THREE.Vector3(side * 0.104, 0.005, 0.04),
+      new THREE.Vector3(0, 0, -1)
+    ).intersectObject(band)[0];
+    expect(hit).toBeDefined();
+    expect(hit.point.z).toBeCloseTo(0.007);
+  }
+  (band.material as THREE.Material).dispose();
+  expect(p.count / 3).toBeLessThan(700);
+});
+it('keeps curved glasses attached to the lenses, and badge print against a rounded holder', () => {
+  const temple = SHARED_WORKER_GEOMETRY.glassesTemple;
+  temple.computeBoundingBox();
+  expect(temple.boundingBox!.max.z - 0.052).toBeGreaterThanOrEqual(0.0039);
+  expect(temple.boundingBox!.min.y).toBeLessThan(-0.01);
+  expect(temple.boundingBox!.max.x).toBeLessThanOrEqual(0.00401);
+  expect(temple.boundingBox!.min.x).toBeGreaterThanOrEqual(-0.00401);
+  const badge = new THREE.Mesh(SHARED_WORKER_GEOMETRY.identityBadge, new THREE.MeshBasicMaterial());
+  badge.updateMatrixWorld();
+  for (const [x, y] of [
+    [0, 0.033],
+    [-0.017, -0.009],
+    [0.015, -0.022],
+  ]) {
+    const hit = new THREE.Raycaster(
+      new THREE.Vector3(x, y, 0.1),
+      new THREE.Vector3(0, 0, -1)
+    ).intersectObject(badge)[0];
+    expect(hit.point.z).toBeCloseTo(0.0045);
+  }
+  (badge.material as THREE.Material).dispose();
+  const radio = SHARED_WORKER_GEOMETRY.chestRadio;
+  expect(radio.boundingBox!.max.z).toBeCloseTo(0.0145);
+  expect(radio.getAttribute('position').count / 3).toBeLessThan(1000);
 });

@@ -218,8 +218,6 @@ const CLIP_GROUND_SPEED: Record<WorkerBodyType, { walk: number; run: number }> =
 const RUN_CROSSOVER = 1.45;
 
 const UNIT_BOX = new THREE.BoxGeometry(1, 1, 1);
-const EAR_DEFENDER = new THREE.CylinderGeometry(0.038, 0.038, 0.025, 14);
-const EAR_DEFENDER_BAND = new THREE.TorusGeometry(0.104, 0.008, 6, 18, Math.PI);
 const SUPERVISOR_CABLE = new THREE.TorusGeometry(0.065, 0.005, 6, 18, Math.PI * 1.25);
 const SUPERVISOR_RADIO_KNOB = new THREE.CylinderGeometry(0.009, 0.009, 0.012, 10);
 
@@ -233,7 +231,7 @@ const ACCESSORY_PAIRS: Record<
     rotationZ: number;
   }
 > = {
-  'glasses-temples': { x: 0.084, z: -0.052, scale: [0.008, 0.008, 0.112], rotationZ: 0 },
+  'glasses-temples': { x: 0.084, z: -0.052, scale: [1, 1, 1], rotationZ: 0 },
   'hearing-cups': { x: 0.104, z: 0, scale: [1, 1, 1], rotationZ: Math.PI / 2 },
   'eye-pupils': { x: 0.047, z: 0, scale: [0.005, 0.008, 0.0025], rotationZ: 0 },
   'vest-strips': { x: 0.078, z: 0, scale: [0.018, 0.135, 0.008], rotationZ: 0 },
@@ -249,10 +247,12 @@ export function createWorkerAccessoryPair(
   const spec = ACCESSORY_PAIRS[kind];
   const geometry =
     kind === 'hearing-cups'
-      ? EAR_DEFENDER
+      ? SHARED_WORKER_GEOMETRY.hearingCup
       : kind === 'eye-pupils'
         ? SHARED_WORKER_GEOMETRY.eyePupil
-        : UNIT_BOX;
+        : kind === 'glasses-temples'
+          ? SHARED_WORKER_GEOMETRY.glassesTemple
+          : UNIT_BOX;
   const mesh = new THREE.InstancedMesh(geometry, material, 2);
   mesh.name = `worker-paired-${kind}`;
   mesh.matrixAutoUpdate = false;
@@ -327,6 +327,7 @@ function createAccessoryMaterials(appearance: WorkerAppearance): AccessoryMateri
     ...SHARED_WORKER_ACCESSORY_MATERIALS,
     accent: new THREE.MeshStandardMaterial({
       color: appearance.accentColor,
+      vertexColors: true,
       roughness: 0.62,
       metalness: 0.06,
     }),
@@ -663,13 +664,17 @@ const WorkerAccessories: React.FC<{
       {appearance.hasHearingProtection && (
         <BoneMount bone={head} name="worker-hearing-protection" position={[eyeCentre[0], 0.14, 0]}>
           <WorkerAccessoryPair kind="hearing-cups" material={materials.accent} />
-          <mesh position={[0, 0.002, 0]} geometry={EAR_DEFENDER_BAND} material={materials.dark} />
+          <mesh
+            position={[0, 0.002, 0]}
+            geometry={SHARED_WORKER_GEOMETRY.hearingBand}
+            material={materials.dark}
+          />
         </BoneMount>
       )}
 
       {(appearance.hasHardHat || appearance.hasVest || appearance.hasLabCoat) && (
         <BoneMount bone={chest} name="worker-identity-badge" position={[0.105, 0.018, 0.142]}>
-          <mesh geometry={UNIT_BOX} material={materials.badge} scale={[0.062, 0.082, 0.009]} />
+          <mesh geometry={SHARED_WORKER_GEOMETRY.identityBadge} material={materials.badge} />
           <mesh
             position={[0, 0.033, 0.006]}
             geometry={UNIT_BOX}
@@ -728,7 +733,7 @@ const WorkerAccessories: React.FC<{
             name="supervisor-radio-and-lanyard"
             position={[-0.13, 0.055, 0.14]}
           >
-            <mesh geometry={UNIT_BOX} material={materials.dark} scale={[0.052, 0.082, 0.026]} />
+            <mesh geometry={SHARED_WORKER_GEOMETRY.chestRadio} material={materials.dark} />
             <mesh
               position={[0.018, 0.048, 0]}
               rotation={[0, 0, Math.PI / 2]}

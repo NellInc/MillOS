@@ -1,0 +1,158 @@
+{
+  "scope": "W finite36-item people/shore pass",
+  "selfReview": "Authored and reviewed by this chat",
+  "baseline": {
+    "passed": 128,
+    "files": 6,
+    "failures": []
+  },
+  "finalAffected": {
+    "passed": 134,
+    "files": 6,
+    "failed": 0,
+    "delta": 6
+  },
+  "sourceGates": {
+    "typecheck": 0,
+    "lint": 0,
+    "format": 0,
+    "shaders": 0,
+    "build": 0,
+    "reachability": 0
+  },
+  "build": {
+    "files": 415,
+    "bytes": 181691435,
+    "seconds": 27.771,
+    "exitCode": 0
+  },
+  "nativeArt": [
+    {
+      "capture": "W-people-shore-day-20261015",
+      "scene": "milling",
+      "exactServedBuild": true,
+      "nativeMetal": true,
+      "sandboxed": true,
+      "worldIntegrity": true,
+      "pageClean": true,
+      "communityPresence": true,
+      "motionValid": true,
+      "audio": {
+        "activeNodes": 0,
+        "contextState": "not-created"
+      },
+      "pacingMisses": [
+        "firstFrame",
+        "p95Frame"
+      ],
+      "loadPerCore": 29.95,
+      "image": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/W-people-shore-day-20261015/milling.png"
+    },
+    {
+      "capture": "W-people-shore-day-20261015",
+      "scene": "lake",
+      "exactServedBuild": true,
+      "nativeMetal": true,
+      "sandboxed": true,
+      "worldIntegrity": true,
+      "pageClean": true,
+      "communityPresence": true,
+      "motionValid": true,
+      "audio": {
+        "activeNodes": 0,
+        "contextState": "not-created"
+      },
+      "pacingMisses": [
+        "p95Frame"
+      ],
+      "loadPerCore": 29.14,
+      "image": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/W-people-shore-day-20261015/lake.png"
+    },
+    {
+      "capture": "W-people-shore-day-20261015",
+      "scene": "farm",
+      "exactServedBuild": true,
+      "nativeMetal": true,
+      "sandboxed": true,
+      "worldIntegrity": true,
+      "pageClean": true,
+      "communityPresence": true,
+      "motionValid": true,
+      "audio": {
+        "activeNodes": 0,
+        "contextState": "not-created"
+      },
+      "pacingMisses": [
+        "averageFps",
+        "p95Frame",
+        "onePercentLow"
+      ],
+      "loadPerCore": 35.47,
+      "image": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/W-people-shore-day-20261015/farm.png"
+    },
+    {
+      "capture": "W-lakeside-dusk-20261015",
+      "scene": "lake",
+      "exactServedBuild": true,
+      "nativeMetal": true,
+      "sandboxed": true,
+      "worldIntegrity": true,
+      "pageClean": true,
+      "communityPresence": true,
+      "motionValid": true,
+      "audio": {
+        "activeNodes": 0,
+        "contextState": "not-created"
+      },
+      "pacingMisses": [
+        "averageFps",
+        "p95Frame"
+      ],
+      "loadPerCore": 45.89,
+      "image": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/W-lakeside-dusk-20261015/lake.png"
+    }
+  ],
+  "closeArt": {
+    "savedImages": false,
+    "conversationEvidence": true,
+    "operator": "Actual rounded cup/cushion/headband visible alongside retained hard hat and fitted badge during normal walking",
+    "supervisor": "Rounded chest radio and seated badge details shown while walking normally",
+    "quality": "Glasses and fitted temples shown on the actual feminine rig; foreground flour sack occluded lower torso, so no full quality-badge microview claim",
+    "shore": "Folded blades, rounded leaning attached seed heads, asymmetric shaded stones seated against bank shown at eye-height camera",
+    "culvert": "Section/liner/rain-height contact proved by focused geometry tests; native farm image is context, no close water microview claim",
+    "ready": {
+      "worldReady": true,
+      "startupReady": true,
+      "loadingCover": false
+    },
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "consoleErrors": [],
+    "playerInput": false,
+    "viewportOverride": false,
+    "qualityOverride": false,
+    "temporaryTabClosed": true,
+    "previewClosed": true,
+    "previewCorrection": "Initial stdin heredoc server PID91970 verified through exact start identity and own port/lock, then closed through owning tool SIGINT130; lock handler released it. Corrected -e server closed normally via stdin."
+  },
+  "geometry": {
+    "vegetationTriangles": 4416,
+    "stoneTriangles": 512,
+    "shoreDraws": 2,
+    "newTextures": 0,
+    "newLights": 0,
+    "newAnimationLoops": 0
+  },
+  "frozenFiles": 148,
+  "primaryUnchanged": true,
+  "pacing": "OPEN separately; indicative art samples only, no relaxed budget, new performance verdict or quiet-GPU prerequisite",
+  "playerDeviceChecks": "DEFERRED",
+  "publication": "local only; no upload/push/deployment",
+  "optionalDesignLint": "Impeccable executable absent; UI unchanged; no dependency installation",
+  "retainedFailures": [
+    "affected-tests-first-failed.log: zero unused pole normals and mis-aimed rail ray"
+  ],
+  "completion": "36-item pass complete within stated source, native-art and close-view evidence boundaries"
+}

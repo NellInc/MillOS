@@ -1,0 +1,86 @@
+[
+  {
+    "capture": "W-people-shore-day-20261015",
+    "scene": "milling",
+    "exactServedBuild": true,
+    "nativeMetal": true,
+    "sandboxed": true,
+    "worldIntegrity": true,
+    "pageClean": true,
+    "communityPresence": true,
+    "motionValid": true,
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "pacingMisses": [
+      "firstFrame",
+      "p95Frame"
+    ],
+    "loadPerCore": 29.95,
+    "image": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/W-people-shore-day-20261015/milling.png"
+  },
+  {
+    "capture": "W-people-shore-day-20261015",
+    "scene": "lake",
+    "exactServedBuild": true,
+    "nativeMetal": true,
+    "sandboxed": true,
+    "worldIntegrity": true,
+    "pageClean": true,
+    "communityPresence": true,
+    "motionValid": true,
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "pacingMisses": [
+      "p95Frame"
+    ],
+    "loadPerCore": 29.14,
+    "image": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/W-people-shore-day-20261015/lake.png"
+  },
+  {
+    "capture": "W-people-shore-day-20261015",
+    "scene": "farm",
+    "exactServedBuild": true,
+    "nativeMetal": true,
+    "sandboxed": true,
+    "worldIntegrity": true,
+    "pageClean": true,
+    "communityPresence": true,
+    "motionValid": true,
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "pacingMisses": [
+      "averageFps",
+      "p95Frame",
+      "onePercentLow"
+    ],
+    "loadPerCore": 35.47,
+    "image": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/W-people-shore-day-20261015/farm.png"
+  },
+  {
+    "capture": "W-lakeside-dusk-20261015",
+    "scene": "lake",
+    "exactServedBuild": true,
+    "nativeMetal": true,
+    "sandboxed": true,
+    "worldIntegrity": true,
+    "pageClean": true,
+    "communityPresence": true,
+    "motionValid": true,
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "pacingMisses": [
+      "averageFps",
+      "p95Frame"
+    ],
+    "loadPerCore": 45.89,
+    "image": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/W-lakeside-dusk-20261015/lake.png"
+  }
+]

@@ -5,6 +5,8 @@ import { PROCEDURAL_TEXTURES } from '../../utils/sharedMaterials';
 import { MOUNTAIN_RIDGE_GEOMETRIES } from '../environment/OptimizedSkySystem';
 import * as THREE from 'three';
 import {
+  getCulvertWaterWidth,
+  updateCulvertWater,
   createRoadTunnelHillGeometry,
   ROAD_TUNNEL_BORE,
   ROAD_TUNNEL_EARTH_MATERIAL,
@@ -303,4 +305,50 @@ it('carries the Victorian vault to ground while keeping the road passage clear',
   expect(geometry.index!.count / 3).toBe(24);
   geometry.dispose();
   material.dispose();
+});
+
+describe('rain-responsive culvert water section', () => {
+  it('widens continuously while remaining inside every facet of the real liner', () => {
+    const radius = 0.6;
+    const liner = new THREE.Mesh(
+      new THREE.CylinderGeometry(radius * 0.89, radius * 0.89, 6, 32, 1, true),
+      new THREE.MeshBasicMaterial({ side: THREE.DoubleSide })
+    );
+    liner.rotation.z = Math.PI / 2;
+    liner.updateMatrixWorld();
+    let previous = 0;
+    for (let sample = 0; sample <= 100; sample++) {
+      const height = -radius * (0.52 - (sample / 100) * 0.34);
+      const half = getCulvertWaterWidth(radius, height) / 2;
+      expect(half).toBeGreaterThanOrEqual(previous);
+      previous = half;
+      const hit = new THREE.Raycaster(
+        new THREE.Vector3(0, height, 0),
+        new THREE.Vector3(0, 0, 1)
+      ).intersectObject(liner)[0];
+      expect(half).toBeLessThanOrEqual(hit.distance + 1e-7);
+      expect(hit.distance - half).toBeLessThan(0.004);
+    }
+    expect(getCulvertWaterWidth(radius, -radius * 0.52)).toBeGreaterThan(radius * 1.4);
+    liner.geometry.dispose();
+    (liner.material as THREE.Material).dispose();
+  });
+  it('updates width from the current eased height without snapping or allocating a new surface', () => {
+    const water = new THREE.Mesh(new THREE.PlaneGeometry(), new THREE.MeshStandardMaterial());
+    water.position.y = -0.312;
+    water.scale.set(6, 0.72, 1);
+    const geometry = water.geometry,
+      material = water.material;
+    updateCulvertWater(water, 0.6, -0.108, 1 / 60);
+    expect(water.position.y).toBeGreaterThan(-0.312);
+    expect(water.position.y).toBeLessThan(-0.3);
+    expect(water.scale.y).toBe(getCulvertWaterWidth(0.6, water.position.y));
+    expect(water.scale.x).toBe(6);
+    expect(water.scale.z).toBe(1);
+    updateCulvertWater(water, 0.6, -0.108, 0);
+    expect(water.geometry).toBe(geometry);
+    expect(water.material).toBe(material);
+    geometry.dispose();
+    material.dispose();
+  });
 });

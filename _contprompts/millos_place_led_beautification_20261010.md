@@ -2874,3 +2874,65 @@ Close watering-can pixels confirm the hollow mouth, rolled lip, curved spout, at
 Timing remains OPEN: milling firstFrame/p95, square p95, village dusk p95 under38.96/37.58/35.19 load per core. Art samples are indicative, no non-art performance pass or causal verdict claimed. No player/device input or viewport override, stock fabrication, remote upload or publication. Close screenshots are conversation-only; saved native PNGs/contact sheets/receipts under test-results/art-review/V-workshop-garden-day-20261015/ and V-village-shadows-dusk-20261015/. Both temporary browsers (dev exporter and IAB close tab) closed normally, owned dev/preview servers closed and lock released. Optional interface linter absent; no installation. All139 frozen pins, primary state and final source/compiled seals exact. Canonical acceptance: test-results/workshop-garden-craft-20261015/acceptance.json.
 
 V cleanup/check-in custody: verified375 exact borrowed links and no open handles in the exact owned Vite/npm scratch paths. Removed only those task-created caches/links and restored the original dependency symlink. Current build, source/history, raw27MB actual-geometry bake input, atlas pair, native images and failed logs preserved; foreign output/primary untouched. No disk-recovery or frame-performance improvement inferred. Selective local check-in, no publication.
+
+
+## W: People fittings and waterside natural detail, 2026-10-15
+
+Nell requests the next long detailed improvement list and execution. Local only, muted, interface/loading and world layout preserved; railway/port/mountains unchanged. Player/device checks deferred; pacing independently OPEN. Base b59f22013975b75d1df74099e52446d8f66595f3. Allowed files and primary custody recorded in test-results/people-shore-craft-20261015/custody.json. This chat authors and reviews the pass.
+
+Working if PPE has shaped shells/cushions and attachments following both rigs, shore reeds have folded blades/rounded attached heads and stones meet actual bank triangles, and culvert water follows its bore at changing rain heights. Existing draw/material/light/animation systems, production/inventory/navigation and interface contracts remain. No remote service, publication, new framework or quality override.
+
+### Finite36-item list
+
+1. Rounded hearing shells.
+2. Cushion rims within paired draw.
+3. Shaped headband/cup connections.
+4. Attachments through head/work poses.
+5. Both body/hard-hat clearance.
+6. Shaped safety-glasses temples.
+7. Lens/eye alignment retained.
+8. Rounded badge and seated print.
+9. Refined supervisor chest radio.
+10. Wardrobe flags/tool visibility/blinks/gestures/walk retained.
+11. Safe shared geometry lifetime.
+12. Bounded geometry, no new light/frame loop.
+13. Folded reed cross-section.
+14. Leaf width/curvature/maturity variation.
+15. Root-to-tip colour variation.
+16. Rounded cattail heads.
+17. Leaning stems with attached heads.
+18. Four reaches/grounded roots retained.
+19. Open majority shoreline.
+20. Asymmetric mineral stones.
+21. Restrained face/weathering colour.
+22. Actual bank-triangle seating.
+23. Shore dimensions/water level/paths retained.
+24. Existing two merged shore surfaces.
+25. Bore-following culvert water width.
+26. Continuous widening with rain height.
+27. Liner contact without concrete penetration.
+28. Culvert location/aperture/height response retained.
+29. Existing water material/light budgets.
+30. Production/inventory/transport/navigation unchanged.
+31. Named affected baseline before edits.
+32. Shape/attachment/grounding/water section checks.
+33. Required typecheck/lint/format/shader/build gates.
+34. Fresh module reachability.
+35. Silent exact-build day/dusk native art inspection.
+36. Custody, owned setup restoration and selective local check-in.
+
+Pre-check: risks are PPE/head or hard-hat intersections, floating stones on sloping banks, and water crossing the bore wall. Check actual geometry/rig mounts/triangle support and circle chord. No static civic-region casting geometry changes: workers are dynamic, lake/farm outside civic sources. Retain canonical civic atlas and all source positions. Detailed visual boundaries remain distinct from source checks and pacing.
+
+W named baseline:128 tests/6 files pass, no failing names. People fittings reuse existing mounts and paired draws. Lake leaves gain a shallow fold, so the existing combined detail triangle cap will be deliberately revised from3000 to5200 while retaining two meshes and no new material/texture/light/update loop. Water chord uses the actual32-sided liner apothem, not the outer concrete radius.
+
+W first affected result132pass/2fail. Native source inspection shows4416 vegetation triangles and512 stone triangles (4928total), zero bad vegetation normals and16 zero stone normals at unreferenced sphere pole/seam duplicates. Retain their original radial normals after deform/recalculation. The headband ray hit its arch at.04098m before the rail; use a front-face ray at the actual rail centre instead. Neither change relaxes shape/contact budgets. Original failed log retained. Four source gates pass; final settled checks follow.
+
+W source/build checkpoint:134/6 affected pass (+6 vs128/6). Final typecheck, whole-source lint/format, shader34-family/38-key, one production build and fresh reachability exit0. Vite26.04s/wrapper27.771s;415 files/181691435 bytes sealed. Native day milling/lake/farm served index/main hashes match the seal, sandboxed out-of-process Metal, complete world/community and valid motion, zero console/page/request/screenshot errors, audio0/context not-created. Whole frames inspected; wide framing alone does not prove tiny PPE details, so close art follows. No new civic-region casting input or canonical atlas edit. Pacing remains independently OPEN.
+
+W native/close acceptance: exact sealed index/main served in milling/lake/farm day and lake dusk. All world/community/motion checks pass, sandboxed out-of-process Metal, zero console/page/request/screenshot errors, audio0/context not-created. Full saved frames inspected. In-app-browser actual operator cup/cushion/headband and badge, supervisor chest radio/badge and feminine quality glasses/temples inspected during normal motion, then folded/toned reeds with rounded attached cattail heads and asymmetric seated stones. Quality flour sack occluded lower torso; no full quality-badge microview claim. Culvert water section/contact proved in geometry tests, farm wide shot is context only. Close shots remain conversation evidence; native PNGs retained. Actual world/startup-ready true and loading cover absent, no override, player input or viewport/device test. Console errors empty. Tab closed and corrected preview closed normally through stdin. Initial incorrectly attached heredoc preview verified as own PID91970/start/port/lock and closed using owning tool SIGINT130; no foreign process signalled.
+
+All36 finite items implemented within these evidence boundaries. Four production modules, three test files and task record only;148 frozen pins plus source/compiled seals and primary HEAD/status/diff exact. Existing models/rasters/civic atlas/light positions/materials/water height/paths/railway/port/mountains/interface and gameplay state retained. Shore detail4928 triangles in two merged surfaces, no extra texture/light/frame loop. Same lens geometry/eye mount, hat flags and people rig/clip/gesture contracts. Optional Impeccable executable absent, interface unchanged.
+
+Pacing independently OPEN: day milling firstFrame/p95 (load29.95/core), day lake p95 (29.14), farm averageFps/p95/onePercentLow (35.47), dusk lake averageFps/p95 (45.89). No performance gate/relaxation or quiet-GPU prerequisite. Player/device checks deferred. No upload/push/deployment. Raw failed logs and Node/Vite notices retained; runtime diagnostic cleanliness checked separately. Canonical receipt: test-results/people-shore-craft-20261015/acceptance.json. Owned setup restoration and selective local check-in follow.
+
+W cleanup/check-in closure: verified375 exact borrowed dependency links, empty own.vite-temp and no open handles in exact scratch paths. Removed only borrowed links/empty own temp directory/named W npm cache, restored original shared symlink. Current source/build/raw images/failure logs/history and unrelated output preserved. No disk recovery or performance claim. All jobs terminal, game tab and preview closed, capture lock absent. Selective local check-in only.
