@@ -2741,3 +2741,64 @@ All32 finite items are implemented with the stated machine/native boundaries.130
 Pacing remains separately OPEN. Day canal firstFrame/p95, village firstFrame/averageFps/p95, farm firstFrame/averageFps/p95/p99/onePercentLow, dusk canal firstFrame/p95. Load42.99/40.77/37.76/50.25 runnable per core. No budget relaxation, new performance claim or quiet-machine prerequisite; actual samples/logs retained. Player/device checks deferred. No remote upload, push or deployment. Existing jsdom canvas and Node/Vite notices retained as diagnostics, never passed off as browser-clean evidence; browser diagnostics independently verified clean. Evidence/receipts: test-results/waterfront-everyday-craft-20261015/acceptance.json. Optional interface design lint not installed or invoked because the interface was unchanged. Local cleanup/check-in follows.
 
 T custody/check-in closure: source/compiled/protected/primary pins exact. Verified375 borrowed links and no open handles in the exact owned cache paths. Removed only the borrowed links themselves, empty task.vite-temp and named T npm cache; restored original shared-dependency symlink. Preserved current compiled candidate, all source/assets/history, raw native frames and failed logs, primary work and unrelated output. No disk/performance improvement inferred. Selective local check-in only, no push/deployment.
+
+
+## U: Village transit and natural-edge craft, 2026-10-15
+
+Nell requested the next very long detailed improvement list, fully executed. Local only and muted, preserve interface/loading, railway/port/mountains; player/device checks deferred and pacing independently OPEN. Base ebe4cef524f34ede471c4ac16ff72695000978aa. Six allowed source/test files in test-results/transit-landscape-craft-20261015/custody.json.137 protected pins, primary dirty state preserved. This chat authors and reviews the work.
+
+Working if bus leaves show genuine glazing and retain their open doorway, upholstery/rails/lamps remain within the original envelope and aisle, passenger walks arrive gently at the same anchors and schedule, cart details preserve palm/deck contact, and naturally coloured stones sit into real slopes without moving routes or raising instance/shader/light budgets. Required final whole-source gates and native silent exact-build art remain distinct from pacing/player acceptance.
+
+### Finite35-item list
+
+1. Real door glazing replacing painted opaque window blocks.
+2. Door stiles/top rails frame the panes.
+3. Existing two sliding leaves/travel retained.
+4. Full boarding portal clear.
+5. Rounded seat cushions.
+6. Shaped upholstered backrests.
+7. Existing central aisle and seat positions.
+8. Brass seat-back grab rails.
+9. Handrails outside boarding path.
+10. Windscreen wipers against glass.
+11. Recessed rear ventilation grille.
+12. Subtle lower-body panel joints.
+13. Warm ceiling faces share existing lamp material/dusk dimmer.
+14. Bus footprint, destination, wheels, route and hours retained.
+15. Passenger boarding walks ease in/out.
+16. Exact paths/endpoints/boarding order retained.
+17. Boarding tied to stopped bus/open doors.
+18. Shelter seating/platform/step heights retained.
+19. Deterministic poses under restored time.
+20. Rounded timber cart grips.
+21. Restrained board-tone variation.
+22. Sack seams/tied necks in existing conditional load model.
+23. Existing palms/wheels/load bounds/real load visibility.
+24. Restrained asymmetric authored stone profile.
+25. Mineral variation/upward weathering.
+26. Lit material, no new texture/shader.
+27. Stone seating follows surrounding slope.
+28. Meadow locations/exclusions/instance counts retained.
+29. Paths/gates/water/rail/hardstands clear.
+30. Named affected baseline before editing.
+31. Actual geometry/door/contact/motion/terrain checks.
+32. Required typecheck/lint/format/shader/build/reachability.
+33. Silent local bus/landscape day/dusk pixels from exact candidate.
+34. Runtime cleanliness and frame-pacing separate.
+35. Preserve unrelated work, selective local check-in, no publication.
+
+No new UI/framework/dependency or generic validation machinery. Risks addressed before implementation: opaque geometry must truly leave the glass aperture; added trim must avoid the aisle/door envelope and remain under the existing triangle budget; slope sampling must preserve sites/counts and never spread stones onto routes. Evidence: test-results/transit-landscape-craft-20261015/.
+
+U named baseline:60 tests/3 files pass before production edits, no failing names. Existing native-worker consumer derives clip groundSpeed from actual pose displacement, so easing the passenger path also eases the walking clip without changing the rig or interface. Door refs become groups containing solid/glass, both retain exact parent travel. Two extra glass draws only; ceiling optics enter the existing headlamp draw/material/dimmer, no new lights/shadows/frame loop. Sack load remains conditional and the courier stays genuinely empty; no fabricated inventory.
+
+U source/build checkpoint: baseline60/3, final67/3 pass (+7); complete TypeScript, whole-source lint/format, shader34-family/38-key and fresh production build exit0. Stitch-contact refinement was made after the initial source gates, so final full TypeScript plus touched-file lint/format and all67 affected tests were rerun on settled source. Actual cloth ray checks confirm thread is seated, no floating ellipse assumption. Exactly three production files changed; two door-glass draws added, remaining details premerged. One build only, Vite1m13s, wrapper78.591s,415 files/181685824 bytes, exact source/compiled seal. Local art checks follow.
+
+U acceptance: all35 finite items implemented with their stated evidence boundaries.67/3 affected tests pass, +7 from60/3 baseline. Actual apertures, leaf travel, body/aisle/envelope/triangle limits, rounded seats, rails, ceiling lenses, palm contacts, sack thread contact and both terrain grids pass. No player/device claim. Source, compiled candidate,137 protected pins and primary HEAD/status/diff exact. Final required reachability exit0, no new dead modules/graph misses.
+
+Native busstop/village day and busstop dusk: served index/main hashes match the fresh seal, sandboxed out-of-process Metal, complete world, community presence and motion acceptance. Zero console/page/request/screenshot errors, audio0/context not-created. Actual full frames inspected. Art samples remain indicative: day busstop firstFrame/p95, day village averageFps/p95/onePercentLow, dusk busstop firstFrame/p95 miss unchanged limits. Load48.38/46.55/42.29 per core. Pacing remains separately OPEN, no quiet-GPU prerequisite or performance claim.
+
+In-app-browser close art verifies upholstery/grab rails, clear closed door glass, front wipers and warm ceiling faces in the running scene, then mineral-toned seated stones among the north village scrub. First bus fixed camera lost the normally moving bus; framing corrected using public namedObjectsSnapshot and camera APIs, without freezing actors or altering inventory/state. First west meadow framing showed only scrub; north meadow view exposed the actual stones.49 live stone instances, ordinary vertex-coloured rough material, no added texture or shader family. Close screenshots remain conversation-only evidence. Native PNGs/contact sheets remain saved under test-results/art-review/U-transit-{landscape-day,dusk}-20261015/.
+
+Actual loading cover and world-ready flag cleared before close review. No keyboard/mouse/player/device/viewport override. Audio remained0/not-created, close-tab console errors empty. Temporary tab closed and owned4289 preview closed through stdin; capture lock released. Interface/railway/port/mountain source untouched, no remote upload/publication. Ordinary Node/Vite warnings remain in raw logs, independent native diagnostics clean. Optional Impeccable executable absent; interface unchanged, no installation. Canonical acceptance in test-results/transit-landscape-craft-20261015/acceptance.json.
+
+U cleanup/check-in closure: all jobs terminal, temporary art tab/server closed, capture lock absent. Verified375 exact borrowed dependency links, empty own.vite-temp and no open handles in either exact owned scratch path. Removed only borrowed links/the empty directory/named U npm cache, restored original shared dependency symlink. No source/build/raw-image/log/history/foreign-output deletion and no inferred disk or performance recovery. Selective local check-in only.

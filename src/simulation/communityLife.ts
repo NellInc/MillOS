@@ -630,7 +630,16 @@ function samplePassenger(id: string, hour: number, out: CommunityPose) {
     : Math.max(0, Math.min(1, (p - 1.52) / 0.3));
   const from = arriving ? door : wait,
     to = arriving ? wait : door;
-  for (let i = 0; i < 3; i++) out.position[i] = from[i] + (to[i] - from[i]) * t;
+  // Short acceleration/braking ramps preserve the path and timing with a bounded steady walk.
+  // Working if endpoints have zero velocity and the middle remains a steady walk.
+  const ramp = 0.12;
+  const eased =
+    t < ramp
+      ? (t * t) / (2 * ramp * (1 - ramp))
+      : t > 1 - ramp
+        ? 1 - ((1 - t) * (1 - t)) / (2 * ramp * (1 - ramp))
+        : (t - ramp / 2) / (1 - ramp);
+  for (let i = 0; i < 3; i++) out.position[i] = from[i] + (to[i] - from[i]) * eased;
   out.visible = bus.visible && (arriving ? p >= 1.16 && p < 3.4 : p < 1.82);
   out.seated = arriving && t === 1;
   const x = out.position[0];

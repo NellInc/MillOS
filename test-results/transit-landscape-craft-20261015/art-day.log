@@ -1,0 +1,18 @@
+
+> grain-mill-simulator@0.40.0 capture:art
+> node scripts/capture-art-review.mjs --label=U-transit-landscape-day-20261015 --scenes=busstop,village --quality=medium --time=15.3 --duration=1 --warmup=1 --settle-timeout=240 --port=4288 --skip-build
+
+WARNING: --skip-build. Frames may show a bundle older than the working tree.
+Capturing 2 scenes at medium...
+busstop: 60.0 FPS, 1% low 59.0 FPS, p95 16.8 ms, p99 16.9 ms, 233 calls, DPR 1.20, world continuous, motion valid, FAIL
+  busstop: machine load 483.82 across 10 cores (48.38 per core). Frame timings from this run measure contention as much as the scene; re-run on a quiet machine before treating them as a verdict.
+village: 59.7 FPS, 1% low 43.2 FPS, p95 18.4 ms, p99 22.8 ms, 320 calls, DPR 1.20, world continuous, motion valid, FAIL
+  village: machine load 465.48 across 10 cores (46.55 per core). Frame timings from this run measure contention as much as the scene; re-run on a quiet machine before treating them as a verdict.
+Report: /Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/U-transit-landscape-day-20261015/benchmark.json
+
+Frames:        test-results/art-review/U-transit-landscape-day-20261015
+Contact sheet: test-results/art-review/U-transit-landscape-day-20261015/contact-sheet.png
+Manifest:      test-results/art-review/U-transit-landscape-day-20261015/review-manifest.json
+CAVEAT: Working tree was dirty (8 files). These frames show uncommitted work, not commit ebe4cef. Do not use as a baseline for a later comparison.
+CAVEAT: Captured with --skip-build; dist/ may predate the tree.
+CAVEAT: No performance gate was run. Art mode unpins reduced motion and restores full fidelity, so its frame samples are indicative only. A visual verdict from this capture is not shippable until a non-art budget run passes on the same commit.

@@ -215,6 +215,33 @@ describe('inhabited world routines', () => {
     }
     expect(sampleCommunityBus(23).visible).toBe(false);
   });
+  it('eases passenger starts and arrivals without moving anchors, times or the path', () => {
+    for (const [id, start] of [
+      ['bus-arriving', 7.16],
+      ['bus-departing', 7.52],
+    ] as const) {
+      const person = COMMUNITY_ROSTER.find((p) => p.id === id)!;
+      const from = sampleCommunityPerson(person, start),
+        to = sampleCommunityPerson(person, start + 0.3);
+      const early = sampleCommunityPerson(person, start + 0.003);
+      const late = sampleCommunityPerson(person, start + 0.297);
+      const distance = (a: typeof from, b: typeof from) =>
+        Math.hypot(a.position[0] - b.position[0], a.position[2] - b.position[2]);
+      const total = distance(from, to);
+      expect(distance(from, early) / total).toBeLessThan(0.001);
+      expect(distance(late, to) / total).toBeLessThan(0.001);
+      expect(distance(from, sampleCommunityPerson(person, start + 0.15)) / total).toBeCloseTo(
+        0.5,
+        6
+      );
+      for (let step = 0; step <= 30; step++) {
+        const hour = start + step * 0.01,
+          pose = sampleCommunityPerson(person, hour);
+        expect(distance(from, pose) + distance(pose, to)).toBeCloseTo(total, 6);
+        expect(sampleCommunityPerson(person, hour)).toEqual(pose);
+      }
+    }
+  });
   it('holds the bus and its passenger clock while a truck uses the turnaround', () => {
     expect(advanceCommunityBusClock(7.85, 0.1, true)).toBeCloseTo(7.86);
     expect(advanceCommunityBusClock(8.2, 0, true)).toBeCloseTo(8.2);

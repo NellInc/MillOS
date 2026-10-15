@@ -82,6 +82,44 @@ describe('authored village transit geometry', () => {
       expect(() => setCommunityBusLampLevel(level)).not.toThrow();
     setCommunityBusLampLevel(0);
   });
+  it('frames genuinely clear door glass and keeps both surfaces inside each leaf', () => {
+    for (const y of [1.65, 2.05, 2.5]) {
+      expect(ray(G.door, [-1, y, 0], [1, 0, 0])).toHaveLength(0);
+      expect(ray(G.doorGlass, [-1, y, 0], [1, 0, 0]).length).toBeGreaterThan(0);
+    }
+    expect(ray(G.door, [-1, 2.05, 0.265], [1, 0, 0]).length).toBeGreaterThan(0);
+    expect(ray(G.door, [-1, 1.02, 0], [1, 0, 0]).length).toBeGreaterThan(0);
+    for (const axis of ['y', 'z'] as const) {
+      expect(G.doorGlass.boundingBox!.min[axis]).toBeGreaterThanOrEqual(
+        G.door.boundingBox!.min[axis]
+      );
+      expect(G.doorGlass.boundingBox!.max[axis]).toBeLessThanOrEqual(G.door.boundingBox!.max[axis]);
+    }
+  });
+  it('has rounded upholstery, accessible grab rails and ceiling optics above the aisle', () => {
+    const p = G.bus.getAttribute('position'),
+      n = G.bus.getAttribute('normal');
+    let curved = 0;
+    for (let i = 0; i < p.count; i++)
+      if (
+        p.getY(i) > 0.96 &&
+        p.getY(i) < 1.1 &&
+        Math.abs(n.getY(i)) > 0.05 &&
+        Math.abs(n.getY(i)) < 0.95
+      )
+        curved++;
+    expect(curved).toBeGreaterThan(100);
+    for (const z of [-2.6, -1.3, 0, 1.2]) {
+      for (const x of [-0.65, 0.65])
+        expect(ray(G.bus, [x, 2.5, z - 0.4], [0, -1, 0])[0].point.y).toBeCloseTo(1.8075, 5);
+      expect(ray(G.bus, [0, 2.5, z], [0, -1, 0])[0].point.y).toBeCloseTo(0.58, 5);
+    }
+    for (const z of [-2.4, -0.7, 1]) {
+      const ceiling = ray(G.headlamps, [0, 1.8, z], [0, 1, 0])[0].point.y;
+      expect(ceiling).toBeCloseTo(2.6775, 5);
+      expect(ceiling).toBeLessThan(ray(G.bus, [0, 1.8, z], [0, 1, 0])[0].point.y);
+    }
+  });
   it('the physical sliding leaves close at the seam and clear the opening when open', () => {
     expect(communityDoorPositions(0)).toEqual([2.1, 2.7]);
     const [rear, front] = communityDoorPositions(1);
@@ -104,6 +142,19 @@ describe('authored village transit geometry', () => {
     expect(G.sacks.boundingBox!.min.y).toBeGreaterThan(0.46);
     expect(G.sacks.boundingBox!.max.x).toBeLessThan(0.4);
     expect(G.sacks.boundingBox!.min.x).toBeGreaterThan(-0.4);
+  });
+  it('seats each visible stitch into the actual faceted sack surface', () => {
+    const cloth = new THREE.IcosahedronGeometry(1, 0)
+      .scale(0.18, 0.25, 0.19)
+      .translate(0.19, 0.68, 0.2);
+    for (const y of [0.59, 0.64, 0.69, 0.74]) {
+      const origin = [0.295, y, 0.6] as const;
+      const base = ray(cloth, origin, [0, 0, -1])[0].point.z;
+      const thread = ray(G.sacks, origin, [0, 0, -1])[0].point.z;
+      expect(thread - base).toBeGreaterThan(0.002);
+      expect(thread - base).toBeLessThan(0.01);
+    }
+    cloth.dispose();
   });
   it('raises the cart grips to the standing courier palms', () => {
     for (const x of [-0.32, 0.32])

@@ -84,6 +84,41 @@ describe('authored landscape cohesion', () => {
       expect(meadowTransforms(segments)).toEqual(shrubs);
     }
   );
+  it('authors one bounded, asymmetric mineral-coloured outcrop', () => {
+    const g = MEADOW_STONE_GEOMETRY;
+    const old = new THREE.DodecahedronGeometry(0.6, 0);
+    expect(g.getAttribute('position').count).toBe(old.getAttribute('position').count);
+    expect(Array.from(g.getAttribute('position').array)).not.toEqual(
+      Array.from(old.getAttribute('position').array)
+    );
+    const colours = g.getAttribute('color');
+    expect(colours.count).toBe(g.getAttribute('position').count);
+    expect([...colours.array, ...g.getAttribute('normal').array].every(Number.isFinite)).toBe(true);
+    expect(Math.max(...colours.array) - Math.min(...colours.array)).toBeGreaterThan(0.05);
+    expect(g.boundingSphere!.radius).toBeLessThan(0.61);
+    old.dispose();
+  });
+  it.each([64, 128])(
+    'buries stone centres beneath the surrounding slope on the %i grid',
+    (segments) => {
+      for (const item of meadowTransforms(segments, true)) {
+        const radius =
+          MEADOW_STONE_GEOMETRY.boundingSphere!.radius * Math.max(item.scale[0], item.scale[2]);
+        for (let j = 0; j < 8; j++) {
+          const a = (j * Math.PI) / 4;
+          expect(item.position[1] + item.scale[1] * 0.16).toBeLessThanOrEqual(
+            SITE_LAYOUT.datum.terrain +
+              sampleTerrainGroundHeight(
+                item.position[0] + Math.cos(a) * radius,
+                item.position[2] + Math.sin(a) * radius,
+                segments
+              ) +
+              1e-6
+          );
+        }
+      }
+    }
+  );
   it.each([64, 128])(
     'grounds every crown on the real %i grid with a bounded instance budget',
     (segments) => {

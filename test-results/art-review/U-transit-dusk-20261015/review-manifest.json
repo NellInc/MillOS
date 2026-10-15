@@ -1,0 +1,52 @@
+{
+  "label": "U-transit-dusk-20261015",
+  "capturedAt": "2026-10-15T00:52:05.230Z",
+  "git": {
+    "commit": "ebe4cef524f34ede471c4ac16ff72695000978aa",
+    "branch": "codex/place-led-beautification-20261010",
+    "dirty": true,
+    "dirtyFileCount": 8,
+    "dirtyFiles": [
+      "_contprompts/millos_place_led_beautification_20261010.md",
+      "src/components/exterior/LandscapeDressing.test.ts",
+      "src/components/exterior/LandscapeDressing.tsx",
+      "src/components/scenery/CommunityTransit.test.ts",
+      "src/components/scenery/CommunityTransit.tsx",
+      "src/simulation/__tests__/communityLife.test.ts",
+      "src/simulation/communityLife.ts",
+      "output/playwright/place-led-20261010/"
+    ]
+  },
+  "options": {
+    "label": "U-transit-dusk-20261015",
+    "scenes": [
+      "busstop"
+    ],
+    "sceneSet": "explicit",
+    "quality": "medium",
+    "port": "4288",
+    "time": "19.3",
+    "weather": "clear",
+    "duration": "1",
+    "warmup": "1",
+    "settleTimeout": "240",
+    "perfGate": false,
+    "skipBuild": true,
+    "headed": false
+  },
+  "diagnostics": [],
+  "scenes": [
+    {
+      "scene": "busstop",
+      "image": "busstop.png",
+      "indicativeFps": 60
+    }
+  ],
+  "contactSheet": "contact-sheet.png",
+  "perfGate": null,
+  "caveats": [
+    "Working tree was dirty (8 files). These frames show uncommitted work, not commit ebe4cef. Do not use as a baseline for a later comparison.",
+    "Captured with --skip-build; dist/ may predate the tree.",
+    "No performance gate was run. Art mode unpins reduced motion and restores full fidelity, so its frame samples are indicative only. A visual verdict from this capture is not shippable until a non-art budget run passes on the same commit."
+  ]
+}
