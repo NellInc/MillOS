@@ -559,6 +559,46 @@ export function createWorkerGlassesTemple() {
   ]);
   return new THREE.TubeGeometry(path, 9, 0.004, 6, false);
 }
+/** Fitted protective rims, in the unchanged lens mount's metres. The bridge
+ * owns this one shared draw; optical centres stay open and temples stay separate.
+ * Working if both clear lenses meet continuous bevelled rims and their bridge.
+ */
+export function createWorkerGlassesFrame() {
+  const parts: THREE.BufferGeometry[] = [
+    new THREE.CapsuleGeometry(0.005, 0.024, 2, 6).rotateZ(Math.PI / 2),
+  ];
+  function rounded(path: THREE.Path, w: number, h: number, r: number) {
+    path.moveTo(-w + r, -h);
+    path.lineTo(w - r, -h);
+    path.quadraticCurveTo(w, -h, w, -h + r);
+    path.lineTo(w, h - r);
+    path.quadraticCurveTo(w, h, w - r, h);
+    path.lineTo(-w + r, h);
+    path.quadraticCurveTo(-w, h, -w, h - r);
+    path.lineTo(-w, -h + r);
+    path.quadraticCurveTo(-w, -h, -w + r, -h);
+    path.closePath();
+  }
+  for (const x of [-0.047, 0.047]) {
+    const rim = new THREE.Shape(),
+      opening = new THREE.Path();
+    rounded(rim, 0.0359, 0.0204, 0.0074);
+    rounded(opening, 0.0332, 0.0177, 0.0047);
+    rim.holes.push(opening);
+    parts.push(
+      new THREE.ExtrudeGeometry(rim, {
+        depth: 0.006,
+        bevelEnabled: true,
+        bevelSize: 0.0006,
+        bevelThickness: 0.0006,
+        bevelSegments: 1,
+        steps: 1,
+        curveSegments: 4,
+      }).translate(x, 0, -0.003)
+    );
+  }
+  return assembleWorkerFitting(parts);
+}
 export function createWorkerChestRadio() {
   const parts: THREE.BufferGeometry[] = [new RoundedBoxGeometry(0.052, 0.082, 0.026, 2, 0.006)];
   for (let row = 0; row < 4; row++)
@@ -614,7 +654,7 @@ export const SHARED_WORKER_GEOMETRY = {
   chestRadio: createWorkerChestRadio(),
   eyePupil: new THREE.SphereGeometry(1, 10, 6),
   glassesLens: new RoundedBoxGeometry(0.073, 0.042, 0.01, 2, 0.008),
-  glassesBridge: new THREE.CapsuleGeometry(0.005, 0.024, 2, 6),
+  glassesBridge: createWorkerGlassesFrame(),
 };
 
 /** Actual skinned eye-front centres in Head local space, not raw bind vertices.

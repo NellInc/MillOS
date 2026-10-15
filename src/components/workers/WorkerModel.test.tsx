@@ -1704,3 +1704,107 @@ it('shares the admitted greeting envelope with facial detail and resets the far 
   view.unmount();
   expect(expression.dispose).toHaveBeenCalledOnce();
 });
+
+it('fits continuous protective rims to the real clear lenses, bridge and temple fronts', () => {
+  const frame = SHARED_WORKER_GEOMETRY.glassesBridge,
+    material = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }),
+    mesh = new THREE.Mesh(frame, material),
+    lens = new THREE.Mesh(SHARED_WORKER_GEOMETRY.glassesLens, material),
+    temple = new THREE.Mesh(SHARED_WORKER_GEOMETRY.glassesTemple, material);
+  const hit = (object: THREE.Mesh, x: number, y: number) => {
+    object.updateMatrixWorld(true);
+    return new THREE.Raycaster(
+      new THREE.Vector3(x, y, 0.2),
+      new THREE.Vector3(0, 0, -1)
+    ).intersectObject(object)[0];
+  };
+  expect(frame.boundingBox!.min.x).toBeCloseTo(-0.0835, 6);
+  expect(frame.boundingBox!.max.x).toBeCloseTo(0.0835, 6);
+  expect(frame.boundingBox!.max.y).toBeCloseTo(0.021, 6);
+  expect(frame.getAttribute('position').count / 3).toBeLessThan(1500);
+  for (const a of Object.values(frame.attributes))
+    expect(Array.from(a.array).every(Number.isFinite)).toBe(true);
+  for (const side of [-1, 1]) {
+    lens.position.x = side * 0.047;
+    temple.position.set(side * 0.084, 0, -0.052);
+    expect(hit(mesh, side * 0.047, 0)).toBeUndefined();
+    expect(hit(lens, side * 0.047, 0).point.z).toBeCloseTo(0.005, 6);
+    // Sample all four straight rim sides, including the bridge and temple joints.
+    for (const [x, y] of [
+      [side * 0.082, 0],
+      [side * 0.012, 0],
+      [side * 0.047, 0.0195],
+      [side * 0.047, -0.0195],
+    ]) {
+      const rim = hit(mesh, x, y),
+        clear = hit(lens, x, y);
+      expect(rim).toBeDefined();
+      expect(clear).toBeDefined();
+      const back = (object: THREE.Mesh) =>
+        new THREE.Raycaster(
+          new THREE.Vector3(x, y, -0.2),
+          new THREE.Vector3(0, 0, 1)
+        ).intersectObject(object)[0].point.z;
+      // Curved lens and bevelled rim fronts need not be coplanar. Their solid
+      // intervals must overlap, rather than float next to each other.
+      expect(
+        Math.min(rim.point.z, clear.point.z) - Math.max(back(mesh), back(lens))
+      ).toBeGreaterThan(0.0005);
+    }
+    // The curved temple is an open-ended tube. Cross its closed section at the
+    // joint, rather than casting down its empty bore toward the far ear hook.
+    const across = new THREE.Raycaster(
+      new THREE.Vector3(side * 0.2, 0, 0.002),
+      new THREE.Vector3(-side, 0, 0)
+    );
+    temple.updateMatrixWorld(true);
+    const joint = across.intersectObject(mesh)[0].point.x * side;
+    const walls = across.intersectObject(temple).map((h) => h.point.x * side);
+    expect(walls[0]).toBeGreaterThan(joint);
+    expect(walls.at(-1)).toBeLessThan(joint);
+  }
+  // Preserve the original six-sided capsule bridge's actual face, not an
+  // ideal analytic cylinder that the retained geometry never represented.
+  expect(hit(mesh, 0, 0).point.z).toBeCloseTo(0.005 * Math.cos(Math.PI / 6), 6);
+  material.dispose();
+});
+
+it('admits bounded walking attention, holds it exactly when paused and releases it without steering the body', () => {
+  const scene = new THREE.Group(),
+    head = new THREE.Bone(),
+    body = new THREE.Bone();
+  head.name = 'Head';
+  body.name = 'Body';
+  body.add(head);
+  scene.add(body);
+  harness.asset = { scene, animations: [] };
+  const motion: WorkerMotionState = {
+    activity: 'walking',
+    groundSpeed: 1,
+    seated: false,
+    phase: 0,
+    enabled: true,
+    attentionYaw: 5,
+  };
+  render(
+    <WorkerModel
+      appearance={{ ...getWorkerAppearance('Resident', '', 'route-test'), tool: 'none' }}
+      motion={motion}
+    />
+  );
+  for (let i = 0; i < 60; i++) harness.frame?.({}, 1 / 60);
+  expect(head.rotation.y).toBeGreaterThan(0.18);
+  expect(head.rotation.y).toBeLessThan(0.3);
+  expect(body.quaternion.toArray()).toEqual([0, 0, 0, 1]);
+  const held = head.quaternion.clone();
+  motion.enabled = false;
+  motion.attentionYaw = 0;
+  for (let i = 0; i < 5; i++) harness.frame?.({}, 100);
+  expect(head.quaternion.equals(held)).toBe(true);
+  motion.enabled = true;
+  for (let i = 0; i < 120; i++) harness.frame?.({}, 1 / 60);
+  expect(Math.abs(head.rotation.y)).toBeLessThan(0.09);
+  motion.attentionYaw = NaN;
+  harness.frame?.({}, 1 / 60);
+  expect(head.quaternion.toArray().every(Number.isFinite)).toBe(true);
+});

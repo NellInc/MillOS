@@ -347,7 +347,21 @@ export function CommunityLife() {
       const greeting = sampleCommunityGreeting(actor.person, actor.pose, residents, actor.greeting);
       actor.motion.greetingTargetId = greeting.targetId;
       actor.motion.greetingYaw = greeting.yaw;
-      actor.motion.attentionYaw = communityPassengerAttention(actor.person, actor.pose, bus);
+      const motion = actor.motion;
+      // The route already owns the desired direction. Look into its real turn,
+      // relative to the eased root, without sampling a future simulation state.
+      // Working if the head acknowledges turns while routes/prop contacts stay exact.
+      const routeTurn = actor.pose.rotation - root.rotation.y;
+      motion.attentionYaw =
+        motion.activity === 'walking' &&
+        motion.enabled &&
+        !jump &&
+        !motion.seated &&
+        !motion.seat &&
+        !motion.cycling &&
+        !motion.cartGrip
+          ? THREE.MathUtils.clamp(Math.atan2(Math.sin(routeTurn), Math.cos(routeTurn)), -0.6, 0.6)
+          : communityPassengerAttention(actor.person, actor.pose, bus);
       root.userData.attentionYaw = actor.motion.attentionYaw;
       actor.motion.greeting = !emergency && actor.motion.activity === 'idle' && !!greeting.targetId;
       root.userData.greeting = actor.motion.greeting;

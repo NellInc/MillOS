@@ -423,6 +423,7 @@ it('locks a turning rider to the actual bicycle heading, preserving pedal and ha
     const bike = harness.participants.get('personnel')!.capture().bicycle;
     finalHeading = bike.rotation;
     const rider = roots.find((root: THREE.Group) => root.name === 'village-cyclist')!;
+    expect(rider.userData.attentionYaw).toBe(0);
     const angle = Math.atan2(
       Math.sin(rider.rotation.y - bike.rotation),
       Math.cos(rider.rotation.y - bike.rotation)
@@ -473,6 +474,7 @@ it('transports seat frames after root turning, freezes holds and clears old repl
   expect(mapped.x).toBeCloseTo(anchor.position[0], 6);
   expect(mapped.z).toBeCloseTo(anchor.position[2], 6);
   expect(root.rotation.y + cue.yaw).toBeCloseTo(anchor.rotation, 6);
+  expect(motion.attentionYaw).toBe(0);
   const held = structuredClone(cue);
   useGameSimulationStore.setState({ gameSpeed: 0 });
   frame({ camera, scene }, 1 / 60);
@@ -610,3 +612,82 @@ it.each(['stocked', 'rain', 'storm', 'safety'] as const)(
     }
   }
 );
+
+it('reads walking attention from the actual eased route, wraps headings and preserves holds and replay', () => {
+  const person = COMMUNITY_ROSTER.find((p) => p.id === 'village-neighbour')!;
+  let hour = 0;
+  while (
+    hour < 24 &&
+    (sampleCommunityPerson(person, hour).activity !== 'walking' ||
+      !sampleCommunityPerson(person, hour).visible ||
+      sampleCommunityPerson(person, hour).seat)
+  )
+    hour += 0.001;
+  expect(hour).toBeLessThan(24);
+  useGameSimulationStore.setState({
+    gameTime: hour,
+    gameDay: 0,
+    gameSpeed: 180,
+    isTabVisible: true,
+    emergencyActive: false,
+    emergencyDrillMode: false,
+    weather: 'clear',
+  });
+  const tree = CommunityLife(),
+    nodes = tree.props.children[0].props.children;
+  const roots = nodes.map((n: any) => {
+    const r = new THREE.Group();
+    r.name = n.props.name;
+    r.position.fromArray(n.props.position);
+    r.rotation.y = n.props.rotation[1];
+    n.props.ref(r);
+    return r;
+  });
+  flushEffects();
+  const scene = new THREE.Scene();
+  roots.forEach((r: THREE.Group) => scene.add(r));
+  const index = nodes.findIndex((n: any) => n.props.name === person.id),
+    root = roots[index],
+    motion = nodes[index].props.children[0].props.motion;
+  const previousCamera = camera.position.clone();
+  camera.position.copy(root.position).add(new THREE.Vector3(0, 2, 8));
+  const frame = harness.frames[0] as (state: any, dt: number) => void,
+    participant = harness.participants.get('personnel')!;
+  try {
+    for (const offset of [-1.1, 1.1, Math.PI * 2 + 0.3]) {
+      root.rotation.y = sampleCommunityPerson(person, hour).rotation + offset;
+      hour += 0.0001;
+      useGameSimulationStore.setState({ gameTime: hour });
+      frame({ camera, scene }, 1 / 60);
+      const actor = participant.capture().residents[index],
+        difference = actor.pose.rotation - root.rotation.y;
+      const expected = THREE.MathUtils.clamp(
+        Math.atan2(Math.sin(difference), Math.cos(difference)),
+        -0.6,
+        0.6
+      );
+      expect(motion.enabled).toBe(true);
+      expect(motion.activity).toBe('walking');
+      expect(motion.attentionYaw).toBeCloseTo(expected, 8);
+      expect(Math.abs(expected)).toBeGreaterThan(0.2);
+      expect(root.userData.attentionYaw).toBe(motion.attentionYaw);
+      const saved = structuredClone(participant.capture());
+      participant.restore(saved);
+      expect(motion.attentionYaw).toBe(saved.residents[index].motion.attentionYaw);
+    }
+    useGameSimulationStore.setState({ gameSpeed: 0 });
+    frame({ camera, scene }, 1 / 60);
+    expect(motion.attentionYaw).toBe(0);
+    useGameSimulationStore.setState({ gameSpeed: 180, gameTime: hour + 1 });
+    frame({ camera, scene }, 1 / 60);
+    expect(motion.attentionYaw).toBe(0);
+    const old = structuredClone(participant.capture());
+    old.residents.forEach((a: any) => {
+      delete a.motion.attentionYaw;
+    });
+    participant.restore(old);
+    expect(motion.attentionYaw).toBe(0); // Existing old-replay neutral default.
+  } finally {
+    camera.position.copy(previousCamera);
+  }
+});

@@ -2584,3 +2584,70 @@ describe('authored closed mouth and greeting brow contact', () => {
     expect(scene.children).toEqual([head]);
   });
 });
+
+it.each(['masculine', 'feminine'])(
+  '%s route attention changes only the actual Head through walking and running',
+  (body) => {
+    const gltf = bodies.get(body)!,
+      scene = clone(gltf.scene),
+      mixer = new THREE.AnimationMixer(scene),
+      pose = createSeatedWorkerPose(scene, 1);
+    for (const clip of ['worker-walk', 'worker-run']) {
+      mixer.stopAllAction();
+      mixer.clipAction(gltf.animations.find((c) => c.name === clip)!).play();
+      for (let frame = 0; frame < 24; frame++) {
+        pose.restore();
+        mixer.update(1 / 24);
+        scene.updateMatrixWorld(true);
+        const bones: THREE.Bone[] = [];
+        scene.traverse((o) => {
+          if ((o as THREE.Bone).isBone) bones.push(o as THREE.Bone);
+        });
+        const before = bones.map((b) => [
+          ...b.position.toArray(),
+          ...b.quaternion.toArray(),
+          ...b.scale.toArray(),
+        ]);
+        const contacts = ['FootL', 'FootR', 'WristL', 'WristR'].map((n) =>
+          scene.getObjectByName(n)!.getWorldPosition(new THREE.Vector3())
+        );
+        const gesture = createWorkerGesture();
+        gesture.lookYaw = frame % 2 ? 0.6 : -0.6;
+        pose.applyWalkingLook(gesture);
+        bones.forEach((b, i) => {
+          if (b.name === 'Head')
+            expect(b.quaternion.toArray()).toEqual(
+              new THREE.Quaternion()
+                .fromArray(before[i], 3)
+                .multiply(
+                  new THREE.Quaternion().setFromAxisAngle(
+                    new THREE.Vector3(0, 1, 0),
+                    gesture.lookYaw * 0.35
+                  )
+                )
+                .toArray()
+            );
+          else
+            expect([
+              ...b.position.toArray(),
+              ...b.quaternion.toArray(),
+              ...b.scale.toArray(),
+            ]).toEqual(before[i]);
+        });
+        ['FootL', 'FootR', 'WristL', 'WristR'].forEach((n, i) =>
+          expect(
+            scene.getObjectByName(n)!.getWorldPosition(new THREE.Vector3()).distanceTo(contacts[i])
+          ).toBeLessThan(1e-9)
+        );
+        pose.restore();
+        bones.forEach((b, i) =>
+          expect([
+            ...b.position.toArray(),
+            ...b.quaternion.toArray(),
+            ...b.scale.toArray(),
+          ]).toEqual(before[i])
+        );
+      }
+    }
+  }
+);

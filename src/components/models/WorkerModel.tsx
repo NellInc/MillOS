@@ -936,7 +936,7 @@ const WorkerAccessories: React.FC<{
             />
           ))}
           <mesh
-            rotation={[0, 0, Math.PI / 2]}
+            name="worker-fitted-glasses-frame"
             geometry={SHARED_WORKER_GEOMETRY.glassesBridge}
             material={materials.dark}
           />
@@ -1569,13 +1569,21 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
     attentionYaw.current = THREE.MathUtils.damp(
       attentionYaw.current,
       Number.isFinite(motion.attentionYaw)
-        ? THREE.MathUtils.clamp(motion.attentionYaw ?? 0, -0.26, 0.26)
+        ? THREE.MathUtils.clamp(
+            motion.attentionYaw ?? 0,
+            moving ? -0.6 : -0.26,
+            moving ? 0.6 : 0.26
+          )
         : 0,
       7,
       safeDelta
     );
     if (motion.activity === 'idle' && !motion.seated && !greetingActive)
       sampledGesture.lookYaw += attentionYaw.current;
+    // Walking uses the same admitted attention channel. Only the existing head
+    // overlay consumes it; authored torso, limbs, cadence and foot contacts stay exact.
+    // Working if people acknowledge their route turn without steering their gait.
+    if (moving && !motion.cartGrip && !seat) sampledGesture.lookYaw += attentionYaw.current;
     easeWorkerGesture(gesture, sampledGesture, safeDelta, !motion.enabled);
     // Facial detail is omitted at the existing near-face cutoff. Far body LOD
     // retains the open-eye bind shape; it never needs a third body draw.
