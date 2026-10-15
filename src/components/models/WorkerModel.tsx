@@ -79,9 +79,13 @@ export function shareWorkerSkin(root: THREE.Object3D): THREE.Skeleton[] {
 
 /** Soften split face normals without welding the skinned topology. Skin-compatible
  * coincident vertices share a finish only across gentle (under 45 degree) edges.
- * Working if faces lose harsh shading seams while sharp ridges and deformation stay exact.
+ * Optional real arm joints receive a corner-angle weighted tube finish.
+ * Working if faces/arms lose harsh shading seams while sharp ridges, hands and deformation stay exact.
  */
-export function softenWorkerFaceNormals(source: THREE.BufferGeometry) {
+export function softenWorkerFaceNormals(
+  source: THREE.BufferGeometry,
+  armJoints: readonly number[] = []
+) {
   const position = source.getAttribute('position'),
     normal = source.getAttribute('normal');
   if (!position || !normal) return null;
@@ -103,10 +107,36 @@ export function softenWorkerFaceNormals(source: THREE.BufferGeometry) {
     if (group) group.push(i);
     else groups.set(key, [i]);
   }
+  // A rounded arm needs its exported 45..65 degree tube edges to meet. Keep
+  // that finish local to actual arm influences: hands, face and cloth retain
+  // the existing crease profile. Triangle corner angles avoid weighting a
+  // corner twice merely because its flat quad was triangulated differently.
+  // Finger vertices carry up to0.222 incidental arm weight in these exports;
+  // begin above0.25 so fingers/knuckles keep the original finish exactly.
+  const cornerAngles = new Float32Array(position.count);
+  if (armJoints.length && joints && weights) {
+    const points = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()],
+      edgeA = new THREE.Vector3(),
+      edgeB = new THREE.Vector3(),
+      cross = new THREE.Vector3(),
+      count = source.index?.count ?? position.count;
+    for (let triangle = 0; triangle + 2 < count; triangle += 3) {
+      const ids = [0, 1, 2].map((c) => source.index?.getX(triangle + c) ?? triangle + c);
+      ids.forEach((id, c) => points[c].fromBufferAttribute(position, id));
+      for (let c = 0; c < 3; c++) {
+        edgeA.subVectors(points[(c + 1) % 3], points[c]);
+        edgeB.subVectors(points[(c + 2) % 3], points[c]);
+        cross.crossVectors(edgeA, edgeB);
+        if (edgeA.lengthSq() > 1e-16 && edgeB.lengthSq() > 1e-16)
+          cornerAngles[ids[c]] += Math.atan2(cross.length(), edgeA.dot(edgeB));
+      }
+    }
+  }
   const values = new Float32Array(normal.count * 3);
   const original = new THREE.Vector3(),
     candidate = new THREE.Vector3(),
-    sum = new THREE.Vector3();
+    sum = new THREE.Vector3(),
+    rounded = new THREE.Vector3();
   for (const group of groups.values())
     for (const i of group) {
       original.fromBufferAttribute(normal, i).normalize();
@@ -116,10 +146,24 @@ export function softenWorkerFaceNormals(source: THREE.BufferGeometry) {
         if (original.dot(candidate) >= Math.SQRT1_2) sum.add(candidate);
       }
       sum.normalize();
-      original
-        .lerp(sum, 0.65)
-        .normalize()
-        .toArray(values, i * 3);
+      let armWeight = 0;
+      if (armJoints.length && joints && weights)
+        for (let c = 0; c < 4; c++)
+          if (armJoints.includes(joints.getComponent(i, c)))
+            armWeight += weights.getComponent(i, c);
+      rounded.set(0, 0, 0);
+      if (armWeight > 0.25)
+        for (const j of group) {
+          candidate.fromBufferAttribute(normal, j).normalize();
+          if (original.dot(candidate) >= Math.cos((68 * Math.PI) / 180))
+            rounded.addScaledVector(candidate, cornerAngles[j]);
+        }
+      original.lerp(sum, 0.65).normalize();
+      if (rounded.lengthSq() > 1e-12)
+        original
+          .lerp(rounded.normalize(), THREE.MathUtils.smoothstep(armWeight, 0.25, 0.85))
+          .normalize();
+      original.toArray(values, i * 3);
     }
   const geometry = source.clone();
   geometry.setAttribute('normal', new THREE.Float32BufferAttribute(values, 3));
@@ -1255,10 +1299,20 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
         region &&
         ['skin', 'shirt', 'hiVis', 'hiVisStrap', 'denim', 'denimDark'].includes(region)
       ) {
-        const softened = softenWorkerFaceNormals(mesh.geometry);
+        const armJoints: number[] = [];
+        if (
+          region === 'skin' &&
+          nodeName === 'Worker_Body' &&
+          (mesh as THREE.SkinnedMesh).isSkinnedMesh
+        )
+          (mesh as THREE.SkinnedMesh).skeleton.bones.forEach((bone, index) => {
+            if (/^(UpperArm|LowerArm)[LR]$/.test(bone.name)) armJoints.push(index);
+          });
+        const softened = softenWorkerFaceNormals(mesh.geometry, armJoints);
         if (softened) {
           mesh.geometry = softened;
           ownedGeometry.push(softened);
+          if (armJoints.length) mesh.userData.workerSoftArms = true;
           if (nodeName.includes('Worker_Head') && region === 'skin') {
             mesh.userData.workerSoftFace = true;
             const head = model.getObjectByName('Head');

@@ -2942,3 +2942,188 @@ it('keeps genuinely incompatible explicit integer/float skin uploads on their co
     geometry.forEach((g) => g.dispose());
   }
 });
+
+it.each(['masculine', 'feminine'])(
+  '%s actual arm finish reduces tube seams while retaining hands, skin, poses and distant normals',
+  (body) => {
+    const scene = clone(bodies.get(body)!.scene),
+      skeletons = shareWorkerSkin(scene),
+      wrapper = new THREE.Group();
+    wrapper.position.set(5, 0.3, -4);
+    wrapper.rotation.y = 0.7;
+    wrapper.scale.set(0.96, 1.07, 1.02);
+    wrapper.add(scene);
+    wrapper.updateMatrixWorld(true);
+    let skin: THREE.SkinnedMesh | undefined;
+    scene.traverse((o) => {
+      const m = o as THREE.SkinnedMesh;
+      if (
+        m.isSkinnedMesh &&
+        m.parent?.name === 'Worker_Body' &&
+        !Array.isArray(m.material) &&
+        m.material.name === 'Skin'
+      )
+        skin = m;
+    });
+    const mesh = skin!,
+      source = mesh.geometry,
+      sourceNormals = source.attributes.normal.array.slice(),
+      joints = source.attributes.skinIndex,
+      weights = source.attributes.skinWeight,
+      armJoints = mesh.skeleton.bones.flatMap((b, i) =>
+        /^(UpperArm|LowerArm)[LR]$/.test(b.name) ? [i] : []
+      ),
+      old = softenWorkerFaceNormals(source)!,
+      finished = softenWorkerFaceNormals(source, armJoints)!;
+    expect(armJoints).toHaveLength(4);
+    for (const name of Object.keys(source.attributes).filter((n) => n !== 'normal'))
+      expect(finished.attributes[name].array).toEqual(source.attributes[name].array);
+    expect(finished.index!.array).toEqual(source.index!.array);
+    const armWeight = (i: number) =>
+        [0, 1, 2, 3].reduce(
+          (sum, c) =>
+            sum + (armJoints.includes(joints.getComponent(i, c)) ? weights.getComponent(i, c) : 0),
+          0
+        ),
+      groups = new Map<string, number[]>(),
+      a = new THREE.Vector3(),
+      b = new THREE.Vector3();
+    let changed = 0,
+      hands = 0,
+      fingers = 0,
+      before = 0,
+      after = 0,
+      edges = 0;
+    for (let i = 0; i < source.attributes.position.count; i++) {
+      const n = new THREE.Vector3().fromBufferAttribute(finished.attributes.normal, i);
+      expect(n.length()).toBeCloseTo(1, 5);
+      const delta = n.distanceTo(a.fromBufferAttribute(old.attributes.normal, i));
+      if (armWeight(i) <= 0.25) {
+        expect(delta).toBeLessThan(1e-7);
+        hands++;
+      }
+      const fingerWeight = [0, 1, 2, 3].reduce(
+        (sum, c) =>
+          sum +
+          (/Thumb|Index|Middle|Ring|Pinky/.test(
+            mesh.skeleton.bones[joints.getComponent(i, c)]?.name ?? ''
+          )
+            ? weights.getComponent(i, c)
+            : 0),
+        0
+      );
+      if (fingerWeight > 0.1) {
+        expect(delta).toBeLessThan(1e-7);
+        fingers++;
+      }
+      if (delta > 1e-4) changed++;
+      if (armWeight(i) < 0.85) continue;
+      const key = [0, 1, 2]
+        .map((c) => Math.round(source.attributes.position.getComponent(i, c) * 1e5))
+        .join(',');
+      const group = groups.get(key);
+      if (group) group.push(i);
+      else groups.set(key, [i]);
+    }
+    for (const group of groups.values())
+      for (const i of group)
+        for (const j of group) {
+          if (i >= j) continue;
+          const dot = a
+            .fromBufferAttribute(source.attributes.normal, i)
+            .dot(b.fromBufferAttribute(source.attributes.normal, j));
+          if (dot < Math.cos((68 * Math.PI) / 180) || dot > 0.999) continue;
+          before += a
+            .fromBufferAttribute(old.attributes.normal, i)
+            .angleTo(b.fromBufferAttribute(old.attributes.normal, j));
+          after += a
+            .fromBufferAttribute(finished.attributes.normal, i)
+            .angleTo(b.fromBufferAttribute(finished.attributes.normal, j));
+          edges++;
+        }
+    expect(changed).toBeGreaterThan(200);
+    expect(hands).toBeGreaterThan(3000);
+    expect(fingers).toBeGreaterThan(3500);
+    expect(edges).toBeGreaterThan(100);
+    expect(after, JSON.stringify({ body, before, after, edges, changed, hands })).toBeLessThan(
+      before * 0.55
+    );
+    mesh.geometry = finished;
+    scene.traverse((o) => {
+      const m = o as THREE.SkinnedMesh;
+      if (m.isSkinnedMesh) m.castShadow = !m.parent?.name.includes('Worker_Feet');
+    });
+    const lod = createWorkerBodyLod(scene);
+    expect(lod).not.toBeNull();
+    expect(lod!.meshes).toHaveLength(2);
+    const far = lod!.meshes.find((m) => m.castShadow)!;
+    let offset = 0;
+    for (const m of lod!.sources.filter((m) => m.castShadow)) {
+      if (m === mesh) break;
+      offset += m.geometry.attributes.position.count;
+    }
+    for (let i = 0; i < finished.attributes.normal.count; i++)
+      for (let c = 0; c < 3; c++)
+        expect(far.geometry.attributes.normal.getComponent(offset + i, c)).toBe(
+          finished.attributes.normal.getComponent(i, c)
+        );
+    const control = new THREE.SkinnedMesh(source, mesh.material);
+    control.position.copy(mesh.position);
+    control.quaternion.copy(mesh.quaternion);
+    control.scale.copy(mesh.scale);
+    control.bindMode = mesh.bindMode;
+    control.bind(mesh.skeleton, mesh.bindMatrix);
+    control.bindMatrixInverse.copy(mesh.bindMatrixInverse);
+    mesh.parent!.add(control);
+    const mixer = new THREE.AnimationMixer(scene),
+      pose = createSeatedWorkerPose(scene, 1.07),
+      gesture = createWorkerGesture();
+    let samples = 0,
+      movement = 0;
+    const first = new THREE.Vector3();
+    for (const mode of ['walk', 'run', 'idle', 'break', 'bake', 'garden']) {
+      mixer.stopAllAction();
+      const clip = bodies
+        .get(body)!
+        .animations.find(
+          (c) => c.name === 'worker-' + (['bake', 'garden'].includes(mode) ? 'break' : mode)
+        )!;
+      mixer.clipAction(clip).play();
+      for (let frame = 0; frame < 6; frame++) {
+        pose.restore();
+        mixer.setTime(((frame + 0.2) / 6) * clip.duration);
+        wrapper.updateMatrixWorld(true);
+        if (mode === 'bake')
+          pose.applyTask('bake', sampleWorkerGesture('bake', frame * 0.6, gesture));
+        if (mode === 'garden')
+          pose.applyGarden(true, sampleWorkerGesture('garden', frame * 0.6, gesture), 1 / 30, true);
+        wrapper.updateMatrixWorld(true);
+        for (let i = 0; i < finished.attributes.position.count; i += 11) {
+          mesh.getVertexPosition(i, a).applyMatrix4(mesh.matrixWorld);
+          control.getVertexPosition(i, b).applyMatrix4(control.matrixWorld);
+          expect(a.distanceTo(b)).toBeLessThan(1e-9);
+          far.getVertexPosition(offset + i, b).applyMatrix4(far.matrixWorld);
+          expect(a.distanceTo(b)).toBeLessThan(1e-6);
+          samples++;
+          if (i === 0) {
+            if (!movement && samples === 1) first.copy(a);
+            else movement = Math.max(movement, a.distanceTo(first));
+          }
+        }
+      }
+    }
+    expect(samples).toBeGreaterThan(10000);
+    expect(movement).toBeGreaterThan(0.01);
+    expect(mesh.geometry).toBe(finished);
+    expect(source.attributes.normal).not.toBe(finished.attributes.normal);
+    expect(source.attributes.normal.array).toEqual(sourceNormals);
+    pose.restore();
+    mixer.stopAllAction();
+    mixer.uncacheRoot(scene);
+    control.removeFromParent();
+    lod!.dispose();
+    old.dispose();
+    finished.dispose();
+    skeletons.forEach((s) => s.dispose());
+  }
+);

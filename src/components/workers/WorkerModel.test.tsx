@@ -1902,3 +1902,110 @@ it('leaves unsupported clothing complete rather than adding partial fittings', (
   expect(mesh.geometry).toBe(source);
   expect(dispose).not.toHaveBeenCalled();
 });
+
+it('rounds arm tube seams with corner-angle weights while preserving sharp and incompatible corners', () => {
+  function fan(split: boolean) {
+    const positions: number[] = [],
+      normals: number[] = [],
+      ids: number[] = [];
+    const add = (tilt: number, start: number, end: number, joint = 1) => {
+      const origin = new THREE.Vector3(),
+        u = new THREE.Vector3(1, 0, 0),
+        v = new THREE.Vector3(0, Math.cos(tilt), Math.sin(tilt)),
+        n = u.clone().cross(v);
+      for (const p of [
+        origin,
+        u.clone().multiplyScalar(Math.cos(start)).addScaledVector(v, Math.sin(start)),
+        u.clone().multiplyScalar(Math.cos(end)).addScaledVector(v, Math.sin(end)),
+      ]) {
+        positions.push(...p.toArray());
+        normals.push(...n.toArray());
+        ids.push(joint, 0, 0, 0);
+      }
+    };
+    if (split) {
+      add(0, 0, Math.PI / 4);
+      add(0, Math.PI / 4, Math.PI / 2);
+    } else add(0, 0, Math.PI / 2);
+    add((55 * Math.PI) / 180, 0, Math.PI / 6);
+    // An opposing surface is sharp against both tube faces. A 90-degree
+    // face here would also be only35degrees from the second face.
+    add(Math.PI, 0, Math.PI / 3);
+    add((-55 * Math.PI) / 180, 0, Math.PI / 6, 2);
+    const g = new THREE.BufferGeometry(),
+      weights = new Float32Array(ids.length);
+    for (let i = 0; i < weights.length; i += 4) weights[i] = 1;
+    g.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    g.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+    g.setAttribute('skinIndex', new THREE.Uint8BufferAttribute(ids, 4));
+    g.setAttribute('skinWeight', new THREE.Float32BufferAttribute(weights, 4));
+    g.setIndex(Array.from({ length: positions.length / 3 }, (_, i) => i));
+    return g;
+  }
+  const a = fan(false),
+    b = fan(true),
+    aa = softenWorkerFaceNormals(a, [1])!,
+    bb = softenWorkerFaceNormals(b, [1])!,
+    n = (g: THREE.BufferGeometry, i: number) =>
+      new THREE.Vector3().fromBufferAttribute(g.attributes.normal, i),
+    expected = new THREE.Vector3(0, 0, Math.PI / 2)
+      .addScaledVector(
+        new THREE.Vector3(0, -Math.sin((55 * Math.PI) / 180), Math.cos((55 * Math.PI) / 180)),
+        Math.PI / 6
+      )
+      .normalize();
+  expect(n(aa, 0).distanceTo(expected)).toBeLessThan(1e-6);
+  expect(n(bb, 0).distanceTo(expected)).toBeLessThan(1e-6);
+  expect(n(aa, 3).distanceTo(expected)).toBeLessThan(1e-6);
+  expect(n(aa, 9).distanceTo(n(a, 9))).toBeLessThan(1e-6);
+  const legacy = softenWorkerFaceNormals(a)!;
+  expect(n(aa, 6).distanceTo(n(legacy, 6))).toBeLessThan(1e-6);
+  for (const key of ['position', 'skinIndex', 'skinWeight'])
+    expect(aa.attributes[key].array).toEqual(a.attributes[key].array);
+  expect(aa.index!.array).toEqual(a.index!.array);
+  for (const g of [a, b, aa, bb, legacy]) g.dispose();
+});
+
+it('mounts the real-joint arm profile on body skin only and disposes private geometry', () => {
+  const scene = new THREE.Group(),
+    body = new THREE.Group(),
+    head = new THREE.Group(),
+    source = new THREE.BoxGeometry(0.2, 0.3, 0.1),
+    skin = new THREE.MeshStandardMaterial();
+  body.name = 'Worker_Body';
+  head.name = 'Worker_Head';
+  skin.name = 'Skin';
+  const bones = ['UpperArmL', 'LowerArmL', 'UpperArmR', 'LowerArmR', 'WristL'].map((name) => {
+    const b = new THREE.Bone();
+    b.name = name;
+    return b;
+  });
+  const count = source.attributes.position.count,
+    weights = new Float32Array(count * 4);
+  for (let i = 0; i < count; i++) weights[i * 4] = 1;
+  source.setAttribute('skinIndex', new THREE.Uint8BufferAttribute(new Uint8Array(count * 4), 4));
+  source.setAttribute('skinWeight', new THREE.Float32BufferAttribute(weights, 4));
+  scene.add(body, head, ...bones);
+  const m = new THREE.SkinnedMesh(source, skin);
+  body.add(m);
+  m.bind(new THREE.Skeleton(bones));
+  const face = new THREE.Mesh(source, skin);
+  head.add(face);
+  harness.asset = { scene, animations: [] };
+  const borrowed = vi.spyOn(source, 'dispose'),
+    material = vi.spyOn(skin, 'dispose');
+  const view = render(
+    <WorkerModel
+      appearance={getWorkerAppearance('Engineer', '', 'arm-wiring')}
+      motion={{ activity: 'idle', groundSpeed: 0, seated: false, phase: 0, enabled: false }}
+    />
+  );
+  expect(m.userData.workerSoftArms).toBe(true);
+  expect(face.userData.workerSoftArms).toBeUndefined();
+  expect(face.userData.workerSoftFace).toBe(true);
+  const owned = vi.spyOn(m.geometry, 'dispose');
+  view.unmount();
+  expect(owned).toHaveBeenCalledOnce();
+  expect(borrowed).not.toHaveBeenCalled();
+  expect(material).not.toHaveBeenCalled();
+});
