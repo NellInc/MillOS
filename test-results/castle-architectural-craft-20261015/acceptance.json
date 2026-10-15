@@ -1,0 +1,48 @@
+{
+  "scope": "AA finite36-item castle architectural craft pass",
+  "status": "local pass accepted within recorded boundaries",
+  "authorReview": "Authored and reviewed by this chat",
+  "baseline": {
+    "tests": 62,
+    "files": 4,
+    "failingNames": []
+  },
+  "affected": {
+    "tests": 65,
+    "files": 4,
+    "failed": 0,
+    "delta": 3
+  },
+  "sourceGates": {
+    "typecheck": 0,
+    "lint": 0,
+    "format:check": 0,
+    "validate:shaders": 0,
+    "build": 0,
+    "validate:reachability": 0
+  },
+  "visual": {
+    "nativeReceipt": "native-acceptance.json",
+    "closeReceipt": "close-acceptance.json",
+    "savedFramesInspected": [
+      "castle day",
+      "castle dusk",
+      "castle night"
+    ],
+    "hardwareMeshCount": 1,
+    "hardwareTriangles": 2308,
+    "addedTextures": 0,
+    "addedLights": 0,
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    }
+  },
+  "shaderContract": "Existing village-window family v7->v8,34 families/38keys unchanged. Castle-only flag, retained atlas, reference-bound dimmer and cleanup.",
+  "pacing": "OPEN separately, exact misses in native receipt",
+  "playerDeviceChecks": "DEFERRED",
+  "delivery": "local only",
+  "ongoingGoal": "ACTIVE; full rotating improvement programme remains open",
+  "cleanupReceipt": "cleanup.json",
+  "custodyReceipt": "final-custody-check.json"
+}

@@ -3123,3 +3123,62 @@ Z close art: actual ready/startup-ready true, cover absent, no bypass. IAB inspe
 All36 finite items implemented within these boundaries. Four production files and three existing test files plus task record; no new framework, model file, draw, texture, light, shader family/cache key, timer or render loop.160 frozen pins, seven source pins,415 compiled pins and primary HEAD/status/binary diff exact. Existing domain classifier, production quantities/quality/replay authority, screens/decals/beacons, other machine surfaces, village/people/creatures, canonical civic atlas, lighting positions/budgets, interface/loading/presets and railway/port/mountains preserved. Optional Impeccable executable absent, no installation/interface change. Original reproduction and fixture failures retained. Canonical acceptance test-results/packing-motion-craft-20261015/acceptance.json.
 
 Z owned cleanup:375 exact borrowed dependency links verified and removed, empty own.vite-temp and exact named Z npm cache verified without open handles, original shared dependency symlink restored. Source/final dist/raw images/logs/history and unrelated output preserved. No physical-space recovery claim or foreign process action. All jobs terminal, own game tab/preview closed, lock absent. Selective local check-in follows. No upload/push/deployment, player/device checks remain deferred and pacing independently OPEN. Broad rotating goal remains active; this completed36-item pass is an internal milestone.
+
+## AA: Castle architectural craft, 2026-10-15
+
+Previous goal turn is progress: local Z commit8fe181bf,79/4 tests plus exact sealed native day/night acceptance. Current owned base8fe181bfcb0b3244e0f74bae36c90d654010581d, only unrelated output remains. Broad repeating goal active. Local only/muted, interface/loading/quality/layout preserved, player/device checks deferred, pacing separately OPEN. Six allowed files in test-results/castle-architectural-craft-20261015/custody.json. This chat authors and reviews.
+
+Working if the delivered palas gains roof-seated drainage hardware in one merged surface, with attached clips and outlets clear of access, while castle-only glass has filtered lead divisions and warm panelled rooms using the existing virtual-room shader. Actual GLB/white-blue massing/roof datums/court/stairs and all source lights stay unchanged. No new texture, shader family, interior mesh, timer or render loop.
+
+### Finite36-item list
+
+1. Palas eave gutters.
+2. Open U channel sections.
+3. Roof-seated support straps.
+4. Collector heads.
+5. Bent downpipes.
+6. Plaster/window clearance.
+7. Attached wall clips.
+8. Turned-out lower outlets.
+9. Court-side connection to existing drain.
+10. Outer receiving grate.
+11. Gate/stair corridor clear.
+12. Closed hardware profiles/finite normals.
+13. One merged hardware surface.
+14. Existing lighting only.
+15. Retain white-blue silhouette.
+16. Slender castle glazing mullions.
+17. Matching transoms.
+18. Derivative-filtered fine lines.
+19. Restrained timber room panelling.
+20. Recessed cornice.
+21. Bounded warm room light.
+22. Existing curtain/back-wall depth retained.
+23. Other buildings' treatment unchanged.
+24. Actual glass UV mask only.
+25. Cloned-material cleanup retained.
+26. Stable shader cache-contract migration.
+27. Shared live day/night uniforms.
+28. Named affected baseline.
+29. Hardware seating against real delivered castle.
+30. Glass/castle-only shader checks.
+31. Existing automatic castle navigation checks.
+32. Required source/build gates.
+33. Fresh shipped reachability.
+34. Silent exact-build castle day/night art.
+35. Relevant close architectural inspection.
+36. Separate pacing, own setup restoration/local commit.
+
+Pre-check: existing castle already has rooms and access lanterns, do not duplicate them. Read actual model generator and delivered accessor bounds [-19.35,0,-19.17395]..[19.35,41.9,19.17395]. Long palas walls atx-11.5/1.5, roof eavesx-11.9/1.9,y25; turret returns aroundz8 limit gutter ends. Downpipes between window rows atz-6.5, one feeds existing court drainx2.05. Risks are floating supports, window/roof intersection or glow, and access obstruction. Reuse PlotGeometry/shared room shader, no new harness. Castle sits outside canonical civic bake region; leave its atlas/source lights unchanged. Key bump belongs to existing window family, all actual source/test consumers migrate together. New hardware is visual drainage detail, no water-flow/stock/safety claim.
+
+AA named baseline62/4 pass, no failing names. Final affected65/4 pass (+3) after authored hardware/window checks. Source review shortened the east gutter to start after the dominant tower's actual cylinder, rather than burying a channel through it. Real delivered-GLB rays prove roof/strap overlap, wall-clip embedding and paving datum. Tests keep the approach/gateway clear and existing automatic castle navigation green. A direct end-cap ray reproduced the new cap-position typo (undefined near the start); fixed its capZ placement and retained the red log. Final test also rejects remote opposite-wall hits as clip attachment proof. Hardware stays below3000triangles in one merged vertex-colour surface, no map/new light. Pane uniform is1 only for castle; other models retain their exact linen/room-light settings. Actual delivered castle glass UV bounds and original clone/disposal tests pass. Existing window-family key moved v7->v8 consistently across source, contract and tests, still34families/38keys. New divisions are derivative-filtered and fully suppress emitted light on solid leads; room controls/dimmer stay shared. Final typecheck, whole-source lint/format and shader gates exit0. One final locked build and fresh reachability follows.
+
+AA final build/native: one locked npm run build exits0, Vite26.00s/wrapper27.446s,415 files/181700002 bytes sealed. Fresh reachability passes, no stale allow-list/new dead modules/graph misses.65/4 affected pass (+3 vs62/4 named baseline), final whole-source typecheck/lint/format and shader34-family38-key gates exit0. Added dusk17.2h capture specifically to check the stronger castle-room treatment during the shared dimmer's partial-on interval, alongside noon/22h. All three exact served index/main hashes match seal, sandboxed out-of-process Metal, complete world/community and valid general vehicle motion, zero console/page/request/screenshot errors and audio0/context not-created. Actual full saved PNGs inspected. Pacing independently OPEN: all three p95 misses; load/core5.21day,10.11dusk,9.58night. No performance-green inference from art exit0, relaxed limits or quiet-GPU prerequisite.
+
+AA close art: both night and daylight preview reach actual world/startup-ready true with cover absent, no override. Two night angles visibly show slender lead mullions/transoms, near-glass linen and the recessed room's panelling/cornice/furniture parallax. Blue roof/white stone retain their material boundaries. Daylight roof view shows gutter below slate, collector and bent pipe joined, attached clips and retained windows. The lower outlet turns towards the old channel behind the planter; its mouth is occluded by that planter in the selected close view. Actual-geometry/contact tests, rather than that image, prove its alignment. Actual live hardware visibleInTree true,6924vertices/2308triangles in one shared MeshStandardMaterial mesh, no texture. No added interior geometry/light/shadow map or animation loop; existing hardware shadow flags retained. Console errors empty; audio0/context not-created. Close screenshots remain conversation evidence, saved native PNGs are the delivered scene context. Public art-camera poses/local preview mute only, no player/viewport/actor/inventory/quality/readiness override. Temporary tab and preview closed normally, lock released. A long preview-output wait overlapped useful close work; final owning-session exit0 is authoritative, not its earlier live snapshot.
+
+All36 finite items implemented within these stated boundaries. Three production-source files (castle, shared window shader, shader contract) and three existing test files plus task record.169 frozen pins, six source pins,415 compiled pins and primary HEAD/status/binary diff exact. Actual GLB/atlas, white-blue massing/curved roofs, court/stairs/navigation, light positions/budgets/civic atlas, interface/loading/presets, people/animals/domain authority and railway/port/mountains retained. Shared window-family version changed consistently, other asset flags/palettes/dimmers/cleanup preserved. New hardware's end-cap defect was reproduced and repaired, raw red log retained. Canonical acceptance test-results/castle-architectural-craft-20261015/acceptance.json. Optional Impeccable executable remains absent, no install/interface change.
+
+AA owned cleanup:375 exact borrowed dependency links verified and removed, empty own.vite-temp and exact named AA npm cache verified without open handles, original shared dependency symlink restored. Source/final dist/raw frames/logs/history and unrelated output preserved. No physical-space recovery claim or foreign process action. All jobs terminal, own game tab/preview closed, lock absent. Selective local check-in follows. No upload/push/deployment. Player/device checks deferred, pacing separately OPEN, broad repeating goal remains active.
+
+AA exact timing exceptions, in addition to all three p95 misses: day firstFrame; night firstFrame and averageFps. Dusk has p95 only. These remain startup/frame-pacing evidence, separate from clean world/render acceptance; no extra attempt to seek a green timing sample.

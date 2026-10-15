@@ -7,12 +7,16 @@ import {
   CASTLE_APPROACH_BEDS,
   createCastleSetting,
   addCastleApproachBloom,
+  CASTLE_DRAIN_RUNS,
+  CASTLE_DRAINAGE_GEOMETRY,
+  CASTLE_DRAINAGE_MATERIAL,
 } from './FairytaleCastle';
 import { SITE_LAYOUT } from '../../constants/siteLayout';
 import { sampleTerrainGroundHeight } from '../terrain/splatMapGenerator';
 import { EXTERIOR_LAYERS } from '../../constants/renderLayers';
 import { CASTLE_COURT_HEIGHT, CASTLE_STAIR_X } from '../../constants/castleAccess';
 import { PlotGeometry } from '../../utils/authoredPlotGeometry';
+import { NodeIO } from '@gltf-transform/core';
 
 vi.mock('../models/GeneratedModel', () => ({ GeneratedBody: () => null }));
 
@@ -171,5 +175,119 @@ it('builds a closed stemmed bloom inside the existing bed and triangle budget', 
   } finally {
     geometry.dispose();
     repeated.dispose();
+  }
+});
+
+it('keeps the palas drainage finite, compact and clear of towers and the accessible route', () => {
+  const g = CASTLE_DRAINAGE_GEOMETRY,
+    p = g.getAttribute('position'),
+    n = g.getAttribute('normal');
+  expect(p.count / 3).toBeLessThan(3000);
+  expect(g.groups).toHaveLength(0);
+  expect(g.getAttribute('color').count).toBe(p.count);
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i),
+      y = p.getY(i),
+      z = p.getZ(i);
+    expect([x, y, z].every(Number.isFinite)).toBe(true);
+    expect(Math.hypot(n.getX(i), n.getY(i), n.getZ(i))).toBeCloseTo(1, 5);
+    if (y > 3.5) expect(Math.hypot(x - 2.05, z + 14)).toBeGreaterThan(1.85);
+  }
+  expect(g.boundingBox!.min.x).toBeGreaterThan(-12.3);
+  expect(g.boundingBox!.max.x).toBeLessThan(2.3);
+  expect(g.boundingBox!.max.y).toBeLessThan(25.12);
+  expect(g.boundingBox!.max.z).toBeLessThan(7);
+  expect(CASTLE_DRAINAGE_MATERIAL.map).toBeNull();
+  expect(CASTLE_DRAINAGE_MATERIAL.metalness).toBe(0);
+  const mesh = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }));
+  for (const x of [CASTLE_STAIR_X - 1.6, CASTLE_STAIR_X, CASTLE_STAIR_X + 1.6])
+    expect(
+      new THREE.Raycaster(
+        new THREE.Vector3(x, 7, 28),
+        new THREE.Vector3(0, 0, -1),
+        0,
+        40
+      ).intersectObject(mesh)
+    ).toHaveLength(0);
+  (mesh.material as THREE.Material).dispose();
+});
+it('seats the drainage straps, wall clips and outlets against the actual delivered castle', async () => {
+  const doc = await new NodeIO().read('public/models/village/castle.glb');
+  const primitive = doc.getRoot().listMeshes()[0].listPrimitives()[0];
+  const g = new THREE.BufferGeometry();
+  g.setAttribute(
+    'position',
+    new THREE.Float32BufferAttribute(primitive.getAttribute('POSITION')!.getArray()!, 3)
+  );
+  g.setIndex(Array.from(primitive.getIndices()!.getArray()!));
+  const material = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
+  const body = new THREE.Mesh(g, material),
+    fittings = new THREE.Mesh(CASTLE_DRAINAGE_GEOMETRY, material);
+  try {
+    for (const r of CASTLE_DRAIN_RUNS) {
+      for (const [z, direction] of [
+        [r.startZ - 0.1, 1],
+        [r.endZ + 0.1, -1],
+      ]) {
+        const cap = new THREE.Raycaster(
+          new THREE.Vector3(r.gutterX, 24.95, z),
+          new THREE.Vector3(0, 0, direction),
+          0,
+          0.2
+        ).intersectObject(fittings)[0];
+        expect(cap, 'closed gutter end').toBeDefined();
+      }
+      const strapCount = Math.ceil((r.endZ - r.startZ) / 4);
+      for (let i = 0; i <= strapCount; i++) {
+        const z = r.startZ + 0.3 + (i / strapCount) * (r.endZ - r.startZ - 0.6);
+        const ray = new THREE.Raycaster(
+          new THREE.Vector3(r.gutterX - r.side * 0.05, 26, z),
+          new THREE.Vector3(0, -1, 0),
+          0,
+          2
+        );
+        const roof = ray.intersectObject(body)[0],
+          strap = ray.intersectObject(fittings)[0];
+        expect(strap.point.y).toBeGreaterThan(roof.point.y);
+        expect(strap.point.y - roof.point.y).toBeLessThan(0.1);
+      }
+      for (const z of [r.startZ + 0.5, (r.startZ + r.endZ) / 2, r.endZ - 0.5]) {
+        const ray = new THREE.Raycaster(
+          new THREE.Vector3(r.gutterX - r.side * 0.05, 26, z),
+          new THREE.Vector3(0, -1, 0),
+          0,
+          2
+        );
+        const roof = ray.intersectObject(body)[0],
+          strap = ray.intersectObject(fittings)[0];
+        expect(roof).toBeDefined();
+        expect(strap).toBeDefined();
+        expect(roof.point.y).toBeGreaterThan(24.99);
+        expect(roof.point.y).toBeLessThan(25.12);
+      }
+      for (const y of [5.2, 10, 14.8, 19.6, 23.7]) {
+        const ray = new THREE.Raycaster(
+          new THREE.Vector3(r.wallX + r.side, y, r.z),
+          new THREE.Vector3(-r.side, 0, 0)
+        );
+        const wall = ray.intersectObject(body)[0],
+          plate = ray.intersectObject(fittings);
+        expect(wall.point.x).toBeCloseTo(r.wallX, 4);
+        expect(plate[0].distance).toBeLessThan(wall.distance);
+        expect(
+          plate.some((hit) => hit.distance > wall.distance && hit.distance < wall.distance + 0.1)
+        ).toBe(true);
+      }
+      const floor = new THREE.Raycaster(
+        new THREE.Vector3(r.drainX, 3.3, r.z),
+        new THREE.Vector3(0, -1, 0)
+      ).intersectObject(body)[0];
+      expect(floor.point.y).toBeCloseTo(3.2, 4);
+      expect(Math.abs(r.drainX - r.pipeX)).toBeCloseTo(0.28, 5);
+    }
+    expect(CASTLE_DRAIN_RUNS[1].drainX).toBeCloseTo(2.05, 5);
+  } finally {
+    g.dispose();
+    material.dispose();
   }
 });

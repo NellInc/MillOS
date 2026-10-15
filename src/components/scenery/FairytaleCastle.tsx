@@ -184,6 +184,123 @@ export const CASTLE_COURT_SETTING = (() => {
     b.box([0.13, 0.012, 0.045], [2.05, floor + 0.024, -7.4 + i * 0.4], '#697780');
   return b.finish();
 })();
+/** Palas eaves and downpipes, in the delivered castle's local metres.
+ * The turret returns end the gutter run; clips sit between the actual windows.
+ * Working if straps touch slate, wall plates overlap plaster and outlets meet
+ * the court drain/grate without entering the gateway or stair corridor.
+ */
+export const CASTLE_DRAIN_RUNS = [-1, 1].map((side) => ({
+  side,
+  wallX: -5 + side * 6.5,
+  gutterX: -5 + side * 6.9,
+  pipeX: -5 + side * 6.77,
+  drainX: -5 + side * 7.05,
+  z: -6.5,
+  startZ: side > 0 ? -12.05 : -17.35,
+  endZ: 6.65,
+}));
+export const CASTLE_DRAINAGE_GEOMETRY = (() => {
+  const b = new PlotGeometry(),
+    colour = '#6c7b80';
+  const profile = new THREE.Shape();
+  for (let i = 0; i <= 8; i++) {
+    const a = (i / 8) * Math.PI;
+    const x = Math.cos(a) * 0.105,
+      y = -Math.sin(a) * 0.105;
+    if (i === 0) profile.moveTo(x, y);
+    else profile.lineTo(x, y);
+  }
+  for (let i = 8; i >= 0; i--) {
+    const a = (i / 8) * Math.PI;
+    profile.lineTo(Math.cos(a) * 0.085, -Math.sin(a) * 0.085);
+  }
+  profile.closePath();
+  const end = new THREE.Shape();
+  end.moveTo(0.105, 0);
+  for (let i = 1; i <= 8; i++)
+    end.lineTo(Math.cos((i / 8) * Math.PI) * 0.105, -Math.sin((i / 8) * Math.PI) * 0.105);
+  end.closePath();
+  for (const run of CASTLE_DRAIN_RUNS) {
+    const { side, wallX, gutterX, pipeX, drainX, z, startZ, endZ } = run;
+    b.add(
+      new THREE.ExtrudeGeometry(profile, {
+        depth: endZ - startZ,
+        steps: 1,
+        bevelEnabled: false,
+      }).translate(gutterX, 24.99, startZ),
+      colour
+    );
+    for (const capZ of [startZ, endZ - 0.025])
+      b.add(
+        new THREE.ExtrudeGeometry(end, { depth: 0.025, steps: 1, bevelEnabled: false }).translate(
+          gutterX,
+          24.99,
+          capZ
+        ),
+        colour
+      );
+    const straps = Math.ceil((endZ - startZ) / 4);
+    for (let i = 0; i <= straps; i++)
+      b.box(
+        [0.05, 0.24, 0.08],
+        [gutterX - side * 0.05, 24.99, startZ + 0.3 + (i / straps) * (endZ - startZ - 0.6)],
+        colour
+      );
+    const cup = new THREE.LatheGeometry(
+      [
+        [0.075, 0],
+        [0.075, 0.04],
+        [0.13, 0.2],
+        [0.115, 0.2],
+        [0.06, 0.04],
+        [0.06, 0],
+        [0.075, 0],
+      ].map(([x, y]) => new THREE.Vector2(x, y)),
+      8
+    );
+    b.add(cup.translate(gutterX, 24.69, z), colour);
+    const point = (x: number, y: number) => new THREE.Vector3(x, y, z);
+    const top = new THREE.CubicBezierCurve3(
+      point(gutterX, 24.72),
+      point(gutterX, 24.3),
+      point(pipeX, 24.3),
+      point(pipeX, 24.0)
+    );
+    const straight = new THREE.LineCurve3(point(pipeX, 24.0), point(pipeX, 3.9));
+    const bottom = new THREE.CubicBezierCurve3(
+      point(pipeX, 3.9),
+      point(pipeX, 3.5),
+      point(drainX, 3.7),
+      point(drainX, 3.26)
+    );
+    for (const [curve, segments] of [
+      [top, 8],
+      [straight, 1],
+      [bottom, 8],
+    ] as const)
+      b.add(new THREE.TubeGeometry(curve, segments, 0.075, 8, false), colour);
+    for (const y of [5.2, 10, 14.8, 19.6, 23.7]) {
+      b.box([0.23, 0.13, 0.13], [wallX + side * 0.09, y, z], colour);
+      b.add(
+        new THREE.TorusGeometry(0.085, 0.012, 4, 12).rotateX(Math.PI / 2).translate(pipeX, y, z),
+        colour
+      );
+    }
+    if (side < 0) {
+      // The sheltered side meets the existing long court channel; this outer
+      // outlet receives a small grate on the same delivered paving datum.
+      b.box([0.34, 0.018, 0.36], [drainX, 3.211, z], '#263330');
+      for (let i = 0; i < 5; i++)
+        b.box([0.028, 0.018, 0.34], [drainX - 0.12 + i * 0.06, 3.235, z], colour);
+    }
+  }
+  return b.finish();
+})();
+export const CASTLE_DRAINAGE_MATERIAL = applyWorldSurface(
+  new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.61, metalness: 0 }),
+  'painted'
+);
+
 const COURT_MATERIAL = applyWorldSurface(
   new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 }),
   'masonry'
@@ -386,6 +503,15 @@ export const FairytaleCastle: React.FC<FairytaleCastleProps> = React.memo(
     <group name="heritage-castle" position={position} scale={scale} rotation={rotation}>
       <GeneratedBody asset="castle" sink={CASTLE_ROCK_SINK} fallback={<PalaceFallback />} />
       <CastleSetting position={position} rotation={rotation} scale={scale} />
+      <mesh
+        name="castle-rainwater-hardware"
+        position={[0, -CASTLE_ROCK_SINK, 0]}
+        geometry={CASTLE_DRAINAGE_GEOMETRY}
+        material={CASTLE_DRAINAGE_MATERIAL}
+        castShadow
+        receiveShadow
+        dispose={null}
+      />
       <CastleSteps />
     </group>
   )

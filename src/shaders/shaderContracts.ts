@@ -535,7 +535,7 @@ export const ACTIVE_SHADER_CONTRACTS: readonly ActiveShaderContract[] = [
     uniformOwner:
       'ExteriorLampDriver shared EXTERIOR_LAMP_LEVEL dimmer; shared VILLAGE_INTERIOR_STRENGTH and fabric-only VILLAGE_FABRIC_STRENGTH controls; GeneratedModel private per-trade pigments',
     timeSource: 'simulation',
-    cacheKey: 'millos-authored-village-windows-v7',
+    cacheKey: 'millos-authored-village-windows-v8',
     disposalOwner:
       'GeneratedModel effect cleanup disposes private materials and shop display geometries; VillageHome disposes private materials',
     fallbackMaterial: 'existing primitive village building through GeneratedBoundary',

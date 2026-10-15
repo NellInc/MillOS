@@ -130,7 +130,7 @@ it('binds the actual shared workshop glass to pane rooms without domestic curtai
   expect(shader.uniforms.villageCurtains.value).toBe(0);
   expect(shader.uniforms.villageRooms.value).toBe(1);
   expect(shader.uniforms.villageAtlas.value).toBe(0);
-  expect(WORKSHOP_GLAZING.customProgramCacheKey()).toBe('millos-authored-village-windows-v7');
+  expect(WORKSHOP_GLAZING.customProgramCacheKey()).toBe('millos-authored-village-windows-v8');
   expect(WORKSHOP_GLAZING.map).toBeNull();
 });
 
@@ -291,7 +291,7 @@ it('retains forge workrooms without domestic curtains or a new shader variant', 
   material.onBeforeCompile(shader, {} as THREE.WebGLRenderer);
   expect(shader.uniforms.villageCurtains.value).toBe(0);
   expect(shader.uniforms.villageRooms.value).toBe(1);
-  expect(material.customProgramCacheKey()).toBe('millos-authored-village-windows-v7');
+  expect(material.customProgramCacheKey()).toBe('millos-authored-village-windows-v8');
   material.dispose();
 });
 
@@ -312,7 +312,7 @@ it('keeps church stained glass out of domestic room replacement', () => {
     'mix(diffuseColor.rgb * 0.85, villageGlow, villageRooms)'
   );
   expect(shader.fragmentShader).toContain('glazing = max(stainedRow, roseTile)');
-  expect(material.customProgramCacheKey()).toBe('millos-authored-village-windows-v7');
+  expect(material.customProgramCacheKey()).toBe('millos-authored-village-windows-v8');
   material.dispose();
 });
 
@@ -328,9 +328,10 @@ it('uses the castle glass tile and its delivered padding with the same room shad
   material.onBeforeCompile(shader, {} as THREE.WebGLRenderer);
   expect(shader.uniforms.villageTileOrigin.value.toArray()).toEqual([0.75, 0.75]);
   expect(shader.uniforms.villagePaneUV.value.toArray()).toEqual([0.00375, 0.2425]);
+  expect(shader.uniforms.villagePalace.value).toBe(1);
   expect(shader.uniforms.villageRooms.value).toBe(1);
   expect(shader.uniforms.villageCurtains.value).toBe(1);
-  expect(material.customProgramCacheKey()).toBe('millos-authored-village-windows-v7');
+  expect(material.customProgramCacheKey()).toBe('millos-authored-village-windows-v8');
   material.dispose();
 });
 
@@ -484,11 +485,11 @@ it('composes the castle-only paving finish with the existing shared room dimmer 
   expect(shader.fragmentShader).toContain('castlePaving > 0.5 && castlePavingStrength > 0.0');
   expect(shader.fragmentShader).toContain('0.00045 * castlePavingStrength');
   expect(material.customProgramCacheKey()).toBe(
-    'millos-castle-paving-v1:millos-authored-village-windows-v7'
+    'millos-castle-paving-v1:millos-authored-village-windows-v8'
   );
   night.value = 0;
   expect(material.customProgramCacheKey()).toBe(
-    'millos-castle-paving-v1:millos-authored-village-windows-v7'
+    'millos-castle-paving-v1:millos-authored-village-windows-v8'
   );
   material.dispose();
 });
@@ -525,7 +526,7 @@ it('shares the forge schedule and confines coal emission to the delivered firebo
       '#include <color_fragment>\n#include <roughnessmap_fragment>\n#include <emissivemap_fragment>',
   } as Parameters<typeof material.onBeforeCompile>[0];
   material.onBeforeCompile(shader, {} as THREE.WebGLRenderer);
-  expect(material.customProgramCacheKey()).toContain('millos-authored-village-windows-v7');
+  expect(material.customProgramCacheKey()).toContain('millos-authored-village-windows-v8');
   expect(shader.uniforms.villageCurtains.value).toBe(0);
   material.dispose();
   expect(shader.uniforms.forgeHeat).toBe(FORGE_HEAT_LEVEL);
@@ -601,4 +602,34 @@ it('binds fabric-only filtered linen by reference, retaining room, glazing and l
   expect(source).toContain('float occupied = step(0.22, seed)');
   expect(source).toContain('float roomScale = step(0.5, min(length(worldU), length(worldV)))');
   expect(source).toContain('roomEmission *= mix(1.0, 2.5, villageCivic)');
+});
+
+it('confines leaded palace framing and panelled rooms to castle glass, with retained dimmer and depth', () => {
+  for (const glazing of ['glass', 'amber', 'pane', 'stained', 'civic', 'castle'] as const) {
+    const material = new THREE.MeshStandardMaterial(),
+      night = { value: 0 };
+    applyVillageWindows(material, night, true, glazing);
+    const shader = {
+      uniforms: {},
+      vertexShader: THREE.ShaderLib.standard.vertexShader,
+      fragmentShader: THREE.ShaderLib.standard.fragmentShader,
+    } as Parameters<typeof material.onBeforeCompile>[0];
+    material.onBeforeCompile(shader, {} as THREE.WebGLRenderer);
+    expect(shader.uniforms.villageNight).toBe(night);
+    expect(shader.uniforms.villagePalace.value).toBe(glazing === 'castle' ? 1 : 0);
+    expect(shader.uniforms.villageInteriorStrength).toBe(VILLAGE_INTERIOR_STRENGTH);
+    expect(shader.fragmentShader).toContain('if (villagePalace > 0.5)');
+    expect(shader.fragmentShader).toContain('smoothstep(0.025, 0.065, palacePixel)');
+    expect(shader.fragmentShader).toContain('villageInteriorStrength * roomScale');
+    expect(shader.fragmentShader).toContain('pane - viewSlope * 0.22');
+    expect(shader.fragmentShader).toContain('pane - viewSlope * 0.035');
+    if (glazing !== 'castle') {
+      expect(shader.uniforms.villageLinen.value.getHexString()).toBe('e6d6b9');
+      expect(shader.uniforms.villageRoomLight.value.r).toBeCloseTo(
+        new THREE.Color('#ffe0b5').r * 0.62,
+        8
+      );
+    }
+    material.dispose();
+  }
 });

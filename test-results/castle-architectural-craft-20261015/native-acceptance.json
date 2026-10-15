@@ -1,0 +1,65 @@
+[
+  {
+    "label": "AA-castle-architecture-day-20261015",
+    "scene": "castle",
+    "time": 12,
+    "p95": 17.2,
+    "loadPerCore": 5.21,
+    "failedBudgetChecks": [
+      "firstFrame",
+      "p95Frame"
+    ],
+    "servedSealMatches": true,
+    "nativeSandboxedMetal": true,
+    "pageClean": true,
+    "worldCommunity": true,
+    "generalMotion": true,
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "image": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/AA-castle-architecture-day-20261015/castle.png"
+  },
+  {
+    "label": "AA-castle-architecture-dusk-20261015",
+    "scene": "castle",
+    "time": 17.2,
+    "p95": 17.5,
+    "loadPerCore": 10.11,
+    "failedBudgetChecks": [
+      "p95Frame"
+    ],
+    "servedSealMatches": true,
+    "nativeSandboxedMetal": true,
+    "pageClean": true,
+    "worldCommunity": true,
+    "generalMotion": true,
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "image": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/AA-castle-architecture-dusk-20261015/castle.png"
+  },
+  {
+    "label": "AA-castle-architecture-night-20261015",
+    "scene": "castle",
+    "time": 22,
+    "p95": 17.5,
+    "loadPerCore": 9.58,
+    "failedBudgetChecks": [
+      "firstFrame",
+      "averageFps",
+      "p95Frame"
+    ],
+    "servedSealMatches": true,
+    "nativeSandboxedMetal": true,
+    "pageClean": true,
+    "worldCommunity": true,
+    "generalMotion": true,
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "image": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/AA-castle-architecture-night-20261015/castle.png"
+  }
+]

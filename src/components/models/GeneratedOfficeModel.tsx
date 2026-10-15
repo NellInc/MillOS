@@ -232,8 +232,15 @@ export function applyVillageWindows(
     shader.uniforms.villageCurtains = { value: curtains ? 1 : 0 };
     shader.uniforms.villageRooms = { value: glazing === 'stained' ? 0 : 1 };
     shader.uniforms.villageCivic = { value: glazing === 'civic' ? 1 : 0 };
-    shader.uniforms.villageLinen = { value: new THREE.Color('#e6d6b9') };
-    shader.uniforms.villageRoomLight = { value: new THREE.Color('#ffe0b5').multiplyScalar(0.62) };
+    shader.uniforms.villagePalace = { value: glazing === 'castle' ? 1 : 0 };
+    shader.uniforms.villageLinen = {
+      value: new THREE.Color(glazing === 'castle' ? '#e7dcc3' : '#e6d6b9'),
+    };
+    shader.uniforms.villageRoomLight = {
+      value: new THREE.Color(glazing === 'castle' ? '#ffe2ac' : '#ffe0b5').multiplyScalar(
+        glazing === 'castle' ? 0.7 : 0.62
+      ),
+    };
     shader.uniforms.villageAtlas = { value: glazing === 'pane' ? 0 : 1 };
     shader.uniforms.villageTileOrigin = {
       value: new THREE.Vector2(
@@ -265,6 +272,7 @@ export function applyVillageWindows(
        uniform float villageCurtains;
        uniform float villageRooms;
        uniform float villageCivic;
+       uniform float villagePalace;
        uniform float villageAtlas;
        uniform vec2 villageTileOrigin;
        uniform vec2 villagePaneUV;
@@ -322,6 +330,15 @@ export function applyVillageWindows(
          float floorBand = smoothstep(0.76, 0.90, room.y);
          float wall = (0.68 + 0.22 * room.y) * (1.0 - ceiling * 0.42 - floorBand * 0.28);
          vec3 roomColour = vec3(0.86, 0.72, 0.53) * wall * reveal;
+         if (villagePalace > 0.5) {
+           // Recessed timber dado and cornice belong to the back-wall depth,
+           // behind the retained near-glass linen. No room mesh/light added.
+           float dado = smoothstep(0.69, 0.73, room.y);
+           float panel = 0.82 + 0.18 * smoothstep(0.025, 0.065, abs(fract(room.x * 4.0) - 0.5));
+           roomColour = mix(roomColour, vec3(0.26, 0.18, 0.11) * panel * reveal, dado);
+           float cornice = 1.0 - smoothstep(0.012, 0.027, abs(room.y - 0.20));
+           roomColour *= 1.0 - cornice * 0.22;
+         }
          float width = mix(0.16, 0.10, villageCivic) + 0.10 * seed - 0.06 * sin(clamp(cloth.y, 0.0, 1.0) * 3.14159);
          float curtain = (1.0 - smoothstep(width, width + 0.014, cloth.x))
            + smoothstep(1.0 - width - 0.014, 1.0 - width, cloth.x);
@@ -373,13 +390,27 @@ export function applyVillageWindows(
            villageInteriorStrength * roomScale * (1.0 - reflection * 0.85));
          totalEmissiveRadiance += mix(villageGlow, roomEmission, villageInteriorStrength * roomScale)
            * villageNight;
+         if (villagePalace > 0.5) {
+           // Castle glazing has slender lead divisions. Derivative filtering
+           // removes them below useful resolution instead of distant moire.
+           // Working if only delivered glass gains divisions, roofs stay dark,
+           // and strength zero restores the pre-finish glazing response.
+           float palacePixel = max(max(abs(du.x), abs(dv.x)), max(abs(du.y), abs(dv.y)));
+           float palaceAA = max(0.001, palacePixel * 0.8);
+           float mullion = 1.0 - smoothstep(0.011, 0.011 + palaceAA, abs(pane.x - 0.5));
+           float transom = 1.0 - smoothstep(0.009, 0.009 + palaceAA, abs(pane.y - 0.62));
+           float lead = max(mullion, transom) * (1.0 - smoothstep(0.025, 0.065, palacePixel))
+             * villageInteriorStrength * roomScale;
+           diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.065, 0.085, 0.088), lead);
+           totalEmissiveRadiance *= 1.0 - lead;
+         }
        } else {
          totalEmissiveRadiance += mix(diffuseColor.rgb * 0.85, villageGlow, villageRooms)
            * villageNight * glazing;
        }`
     );
   };
-  material.customProgramCacheKey = () => 'millos-authored-village-windows-v7';
+  material.customProgramCacheKey = () => 'millos-authored-village-windows-v8';
 }
 
 /** The delivered castle paving is one 31.85m slab, atlas slot 6.

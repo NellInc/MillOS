@@ -1,0 +1,52 @@
+{
+  "label": "AA-castle-architecture-day-20261015",
+  "capturedAt": "2026-10-15T03:48:02.607Z",
+  "git": {
+    "commit": "8fe181bfcb0b3244e0f74bae36c90d654010581d",
+    "branch": "codex/place-led-beautification-20261010",
+    "dirty": true,
+    "dirtyFileCount": 8,
+    "dirtyFiles": [
+      "_contprompts/millos_place_led_beautification_20261010.md",
+      "src/components/models/GeneratedLighting.test.ts",
+      "src/components/models/GeneratedModel.test.tsx",
+      "src/components/models/GeneratedOfficeModel.tsx",
+      "src/components/scenery/FairytaleCastle.test.tsx",
+      "src/components/scenery/FairytaleCastle.tsx",
+      "src/shaders/shaderContracts.ts",
+      "output/playwright/place-led-20261010/"
+    ]
+  },
+  "options": {
+    "label": "AA-castle-architecture-day-20261015",
+    "scenes": [
+      "castle"
+    ],
+    "sceneSet": "explicit",
+    "quality": "medium",
+    "port": "4288",
+    "time": "12",
+    "weather": "clear",
+    "duration": "1",
+    "warmup": "1",
+    "settleTimeout": "240",
+    "perfGate": false,
+    "skipBuild": true,
+    "headed": false
+  },
+  "diagnostics": [],
+  "scenes": [
+    {
+      "scene": "castle",
+      "image": "castle.png",
+      "indicativeFps": 60
+    }
+  ],
+  "contactSheet": "contact-sheet.png",
+  "perfGate": null,
+  "caveats": [
+    "Working tree was dirty (8 files). These frames show uncommitted work, not commit 8fe181b. Do not use as a baseline for a later comparison.",
+    "Captured with --skip-build; dist/ may predate the tree.",
+    "No performance gate was run. Art mode unpins reduced motion and restores full fidelity, so its frame samples are indicative only. A visual verdict from this capture is not shippable until a non-art budget run passes on the same commit."
+  ]
+}
