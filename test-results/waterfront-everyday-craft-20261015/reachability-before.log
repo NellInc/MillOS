@@ -1,0 +1,10 @@
+src/components/scenery/WorldPublicRealm.test.ts
+  -> src/components/scenery/WorldPublicRealm.tsx
+src/components/GasStationInstanced.test.ts
+  -> src/components/scenery/AuthoredPropTrim.tsx
+src/components/FactoryExterior.elevator.test.ts
+  -> src/components/FactoryExterior.tsx
+src/simulation/__tests__/ambientWorld.test.ts
+  -> src/simulation/ambientWorld.ts
+src/simulation/__tests__/communityLife.test.ts
+  -> src/simulation/communityLife.ts

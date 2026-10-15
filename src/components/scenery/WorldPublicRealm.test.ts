@@ -8,6 +8,7 @@ import {
   FARM_REALM_GEOMETRY,
   createWorldRealm,
   realmPavingColour,
+  finishRealmSurface,
   REALM_PAVING_MATERIAL,
   CANAL_MOORING_LINES,
   canalMooringCurve,
@@ -28,6 +29,9 @@ import { VILLAGE_HOMES } from './VillageGardens';
 import { landscapeGrassSpec } from '../exterior/LandscapeDressing';
 import { CANAL_BOAT_BERTH, SITE_LAYOUT, landmarkLocalToWorld } from '../../constants/siteLayout';
 import { CANAL_BOAT_LANTERN } from '../exterior/ExteriorLighting';
+import { CANAL_BOAT_LANTERN_HOUSING } from './AuthoredPropTrim';
+import { CIVIC_WORLD_LIGHTS } from '../../constants/civicSquareLighting';
+import { PlotGeometry } from '../../utils/authoredPlotGeometry';
 import { sampleTerrainGroundHeight } from '../terrain/splatMapGenerator';
 import { moveWalkingPosition, sampleWalkingGroundHeight } from '../../utils/castleNavigation';
 vi.mock('../../utils/critterAudio', () => ({ playCritterSound: vi.fn() }));
@@ -521,7 +525,10 @@ it('seats the bow lantern on the cabin and aims its bounded beam onto the delive
     expect(lantern).toContain('{realDeckLight &&');
     expect(lantern).toContain('name="canal-boat-deck-light"');
     expect(lantern).toContain('CANAL_BOAT_LANTERN.source');
-    expect(lantern).toContain('CANAL_BOAT_LANTERN.bracket');
+    expect(lantern).toContain('geometry={CANAL_BOAT_LANTERN_HOUSING}');
+    expect(readFileSync('src/components/scenery/AuthoredPropTrim.tsx', 'utf8')).toContain(
+      '...CANAL_BOAT_LANTERN.bracket'
+    );
     expect(lantern).toContain('CANAL_BOAT_LANTERN.tilt');
   } finally {
     geometry.dispose();
@@ -547,4 +554,66 @@ it('keeps coordinate-seeded paving within the original palettes without a three-
     }
   }
   expect(realmPavingColour(2, 4)).not.toBe(realmPavingColour(2, 4, true));
+});
+
+it('opens the actual bow-lantern frame, seats both glazing ends and clears the unchanged beam', () => {
+  const housing = CANAL_BOAT_LANTERN_HOUSING;
+  expect(ray(housing, [0, 0, 0.5], [0, 0, -1], 1)).toHaveLength(0);
+  expect(ray(housing, [0.09, 0, 0.5], [0, 0, -1], 1).length).toBeGreaterThan(0);
+  const top = ray(housing, [0, 0, 0.05], [0, 1, 0], 0.2)[0],
+    bottom = ray(housing, [0, 0, 0.05], [0, -1, 0], 0.2)[0];
+  expect(top.point.y).toBeCloseTo(0.105, 5);
+  expect(bottom.point.y).toBeCloseTo(-0.125, 5);
+  expect(-0.01 + 0.235 / 2).toBeGreaterThan(top.point.y);
+  expect(-0.01 - 0.235 / 2).toBeLessThan(bottom.point.y);
+  const lamp = CANAL_BOAT_LANTERN;
+  const direction = new THREE.Vector3(0, -1, 0).applyAxisAngle(
+    new THREE.Vector3(1, 0, 0),
+    lamp.tilt
+  );
+  expect(ray(housing, [...lamp.source], direction.toArray(), lamp.distance)).toHaveLength(0);
+  const rear = ray(housing, [0, -0.13, -0.5], [0, 0, 1], 0.5)[0];
+  expect(rear.point.z).toBeCloseTo(lamp.bracket[2] - 0.18, 5);
+  expect(housing.getAttribute('position').count / 3).toBeLessThan(900);
+  for (const a of Object.values(housing.attributes))
+    expect(Array.from(a.array).every(Number.isFinite)).toBe(true);
+  // This changed tiny caster sits outside every existing baked civic light's reach.
+  const centre = new THREE.Vector3(...CANAL_BOAT_BERTH.position).add(
+    new THREE.Vector3(...lamp.mount)
+  );
+  for (const light of CIVIC_WORLD_LIGHTS)
+    expect(centre.distanceTo(new THREE.Vector3(...light.position)) - 0.5).toBeGreaterThan(
+      light.distance
+    );
+});
+it('changes only construction-family colours, preserving exact shadow/collision buffers and plants', () => {
+  const b = new PlotGeometry();
+  for (const [i, colour] of [
+    WORLD_CRAFT_PALETTE.oak,
+    WORLD_CRAFT_PALETTE.stone,
+    WORLD_CRAFT_PALETTE.brick,
+    WORLD_CRAFT_PALETTE.iron,
+    WORLD_CRAFT_PALETTE.leaf,
+    WORLD_CRAFT_PALETTE.soil,
+    '#d77589',
+  ].entries())
+    b.box([1, 0.2, 0.5], [i * 1.5, 0.5, 0], colour);
+  const g = b.finish(),
+    original = g.clone(),
+    oldColour = original.getAttribute('color');
+  expect(finishRealmSurface(g)).toBe(g);
+  for (const key of ['position', 'normal', 'uv'])
+    expect(g.getAttribute(key).array).toEqual(original.getAttribute(key).array);
+  expect(g.index).toEqual(original.index);
+  const colour = g.getAttribute('color');
+  expect(colour.array).not.toEqual(oldColour.array);
+  // Each BoxGeometry becomes36 nonindexed vertices; planting begins at box4.
+  expect(Array.from(colour.array).slice(4 * 36 * 3)).toEqual(
+    Array.from(oldColour.array).slice(4 * 36 * 3)
+  );
+  const once = Array.from(colour.array);
+  finishRealmSurface(g);
+  expect(Array.from(colour.array)).toEqual(once);
+  g.dispose();
+  original.dispose();
 });

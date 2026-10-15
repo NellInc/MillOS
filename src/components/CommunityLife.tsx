@@ -294,6 +294,10 @@ export function CommunityLife() {
       const actor = residents[i],
         root = roots.current[i];
       if (!root) continue;
+      // The replay already captures motion.greetingTargetId. Seed hysteresis
+      // from that authoritative state, never an uncaptured future recipient.
+      // Working if restoring old/null motion discards the stale scratch target.
+      actor.greeting.targetId = actor.motion.greetingTargetId ?? null;
       const greeting = sampleCommunityGreeting(actor.person, actor.pose, residents, actor.greeting);
       actor.motion.greetingTargetId = greeting.targetId;
       actor.motion.greetingYaw = greeting.yaw;

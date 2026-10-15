@@ -2682,3 +2682,62 @@ One blank preparation tab was opened before native capture ended, then immediate
 Final timing remains OPEN: day firstFrame/p95; dusk firstFrame/averageFps/p95. Load42.90/41.85 runnable per core. These art samples are not a non-art performance gate or causal comparison. Budgets, adaptation and graphics presets exact; no quiet-GPU condition imposed, no remote upload/publication. Player/device flow checks remain deferred. Source/build/art custody is saved in test-results/rounded-pumps-world-polish-20261015/acceptance.json, including failures and superseded build logs. Local cleanup/check-in follows.
 
 S check-in custody: all source/build/protected and primary pins rechecked exact. Verified375 borrowed dependency links, no active handles in the exact owned cache paths and an empty own.vite-temp; removed only those links/the empty directory and named S npm scratch. Original node_modules symlink restored. Current build, source/history, raw/approved art, failed logs, native captures and unrelated output preserved. No disk-space or performance improvement inferred. Selective local check-in only, no push/deployment.
+
+## T: Waterfront craft and everyday environmental coherence, 2026-10-15
+
+Nell requested the next long detailed improvement list and full execution. Local and muted; preserve interface, loading/readiness, railway/port/mountains, player/navigation checks deferred; pacing independently OPEN. Owned finishing-recovery branch, base76b03a5fab96d21a606a8657868fd30031c5b5a2. Primary dirty tree and protected untracked output remain untouched.130 frozen files,375 isolated borrowed dependency links. Named baseline89 tests/5 files pass, no failing names.
+
+Working if actual boat lantern has open glazing and attached rounded metalwork, original beam stays clear, public realm colours improve without any caster/collision buffer changes, greeting recipients remain stable under small distance jitter, animal activity changes continuously and calm wind stops the windmill, while final required gates and silent exact-build art checks pass independently of pacing/player acceptance. Six production files and existing test files; no UI, dependency, framework, new shader/light or route change.
+
+### Finite32-item list
+
+1. Replace actual bow lantern opaque box with open frame.
+2. Rounded bronze caps.
+3. Slender measured uprights.
+4. Glass inside the frame.
+5. Exact bracket/cabin contact.
+6. Unchanged light origin/aim/range/dusk schedule.
+7. Clear optical aperture and useful downlight path.
+8. One merged metal mesh replacing two opaque meshes, shared lifetime safe.
+9. Boat/hull/berth/ropes/towpath/navigation untouched.
+10. Timber board-tone variation.
+11. Exposed/sheltered face variation.
+12. Subtle coping mineral tones.
+13. Gentle brick variability within original palette.
+14. Restrained iron finish.
+15. Consistent village/farm/towpath application.
+16. Flowers/soil/leaf colours exact.
+17. Every vertex/normal/index/UV/joint/seat/path unchanged.
+18. Existing civic shadow inputs preserved, lantern outside all civic light ranges.
+19. No new finish texture/draw/update loop.
+20. Reproduce greeting recipient flip from2.00m to1.99m.
+21. Keep current eligible recipient under small distance changes.
+22. Switch for a meaningful distance advantage.
+23. Release hidden/out-of-range/behind recipients immediately.
+24. Existing authored stops and bounded yaw remain.
+25. Smooth livestock dawn/dusk activity.
+26. Preserve rain/storm/night reduced activity and paddock targets.
+27. Stop windmill at calm, bounded continuous wind response.
+28. Simulation input guards remain finite; no inventory/order/production mutation.
+29. Existing baseline and red greeting reproduction, affected final checks.
+30. Lantern actual geometry/contact/beam and colour-only geometry regressions.
+31. Required typecheck/lint/format/shader/build/reachability gates, local silent canal/village/farm day/dusk art.
+32. Exact frozen/primary/build custody, local-only selective check-in, pacing and player/device status separate.
+
+Existing tools and pure samplers are extended, no new generic machinery. This chat authors the work and performs its own acceptance review. Evidence under test-results/waterfront-everyday-craft-20261015/.
+
+T implementation notes: greeting jitter reproduced against prior production (one expected red test,1.99m neighbour stole the target). Added distance hysteresis. Its previous recipient is reseeded from the already-captured motion.greetingTargetId in CommunityLife, so restoring replay state cannot reuse an uncaptured future recipient; no save/schema field added. This necessary sixth production file is inside the same cosmetic contract. Existing farm driver already integrates angle+=elapsed*speed, verified directly, so calm holds the sail angle rather than resetting it; FarmArea unchanged.
+
+All four required source gates pass. First affected run93pass/1fail: the centre downward lantern ray hit the retained bracket top-.1m before the bottom cap-.125m. Probe the front glazing plane z.05, beyond the bracket nose. Production geometry unchanged; this resolves an incorrect test origin rather than relaxing a tolerance. Existing jsdom canvas-context warnings retained; no canvas package/mock added and native pixels remain a separate check.
+
+T final source acceptance:94/5 affected tests pass, +5 from89/5 baseline. Current complete TypeScript, lint, whole-source format, shader34-family/38-key, production build and reachability checks exit0. No new dead modules/graph misses. One fresh build only. Read-only narrow-scope comparison initially used an overbroad import pattern and failed to locate the lantern; restricted it to import identifiers and verified actual FactoryExterior outside the lantern/import byte-exact. Prior AuthoredPropTrim code, including all poster pumps, also exact outside the one import and additive lantern helper. No foreign code was reverted.
+
+The ordinary material finish updates colour/userData only, retaining every caster/collision/UV/normal/index buffer and flower/leaf/soil colour. New lantern caster is outside every civic light's measured range, so no new baked occlusion input inside that region. Shared module geometry/material use dispose=null, without allocation on remount. Glass enters top/bottom caps and the actual forward-down source clears all metal. The original bracket is retained inside the combined metalwork.
+
+T art/acceptance closure: final sealed415-file/181683481-byte build, wrapper79.264s, Vite1m10s. Actual native Medium canal/village/farm daylight and canal dusk frames use exact served index/main hashes, sandboxed out-of-process Metal, continuous world, valid motion, community presence, zero console/page/request/screenshot errors and audio0/context not-created. Whole frames/contact sheet inspected. In-app-browser current-build close views confirm open bronze lantern, glass entering caps, bracket, warm source on teak, retained ropes/hull and subtle construction-family colour variation. Initial churchyard camera was inside the church; corrected to the exterior, without moving any scene geometry. Daylight was used to judge the finish. Close screenshots remain conversation evidence only. The actual loading cover and world-ready flag both cleared before close framing; no player input, viewport/device override, fabricated inventory or source editing in-page. Tab closed, owned4289 preview closed through stdin, capture lock released.
+
+All32 finite items are implemented with the stated machine/native boundaries.130 protected files and primary HEAD/status/diff exact. Prior pump/branding code exact. Existing civic shadow inputs/positions remain, new lantern is outside every civic source range. The bicycle visible in the canal is deliberate British-waterway dressing (FactoryExterior.tsx abandoned-bicycle comment), retained rather than mistaken for a new navigation defect. Source still respects quiet nights and weather; no claim that every churchyard corner is now illuminated.
+
+Pacing remains separately OPEN. Day canal firstFrame/p95, village firstFrame/averageFps/p95, farm firstFrame/averageFps/p95/p99/onePercentLow, dusk canal firstFrame/p95. Load42.99/40.77/37.76/50.25 runnable per core. No budget relaxation, new performance claim or quiet-machine prerequisite; actual samples/logs retained. Player/device checks deferred. No remote upload, push or deployment. Existing jsdom canvas and Node/Vite notices retained as diagnostics, never passed off as browser-clean evidence; browser diagnostics independently verified clean. Evidence/receipts: test-results/waterfront-everyday-craft-20261015/acceptance.json. Optional interface design lint not installed or invoked because the interface was unchanged. Local cleanup/check-in follows.
+
+T custody/check-in closure: source/compiled/protected/primary pins exact. Verified375 borrowed links and no open handles in the exact owned cache paths. Removed only the borrowed links themselves, empty task.vite-temp and named T npm cache; restored original shared-dependency symlink. Preserved current compiled candidate, all source/assets/history, raw native frames and failed logs, primary work and unrelated output. No disk/performance improvement inferred. Selective local check-in only, no push/deployment.

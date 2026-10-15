@@ -706,3 +706,41 @@ it('rests ordinary operators on stopped lines without overriding fault, maintena
     );
   expect({ pose, operations }).toEqual(before);
 });
+
+it('holds a greeting through centimetre-scale nearest-neighbour jitter and releases absent recipients', () => {
+  const shop = COMMUNITY_ROSTER.find((p) => p.id === 'village-shopkeeper')!;
+  const a = COMMUNITY_ROSTER.find((p) => p.id === 'village-neighbour')!;
+  const b = { ...a, id: 'second-neighbour' };
+  const pose = {
+    position: [0, 0, 0] as [number, number, number],
+    rotation: 0,
+    activity: 'idle' as const,
+    task: 'Greeting a neighbour',
+    seated: false,
+    visible: true,
+  };
+  const first = { ...pose, position: [-0.05, 0, 2] as [number, number, number] };
+  const second = { ...pose, position: [0.05, 0, 2.01] as [number, number, number] };
+  const actors = [
+    { person: a, pose: first },
+    { person: b, pose: second },
+  ];
+  const out = createCommunityGreeting();
+  expect(sampleCommunityGreeting(shop, pose, actors, out).targetId).toBe(a.id);
+  for (const z of [1.99, 2.01, 1.98, 2.02]) {
+    second.position[2] = z;
+    expect(sampleCommunityGreeting(shop, pose, actors, out).targetId).toBe(a.id);
+  }
+  second.position[2] = 1.2;
+  expect(sampleCommunityGreeting(shop, pose, actors, out).targetId).toBe(b.id);
+  second.visible = false;
+  expect(sampleCommunityGreeting(shop, pose, actors, out).targetId).toBe(a.id);
+  // CommunityLife re-seeds this scratch object from the replayed motion field.
+  second.visible = true;
+  second.position[2] = 1.99;
+  out.targetId = null;
+  expect(sampleCommunityGreeting(shop, pose, actors, out).targetId).toBe(b.id);
+  second.visible = false;
+  first.position[2] = -2;
+  expect(sampleCommunityGreeting(shop, pose, actors, out)).toEqual({ targetId: null, yaw: 0 });
+});

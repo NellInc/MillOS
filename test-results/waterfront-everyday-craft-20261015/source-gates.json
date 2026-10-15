@@ -1,0 +1,11 @@
+{
+  "typecheck": 0,
+  "lint": 0,
+  "format:check": 0,
+  "validate:shaders": 0,
+  "build": 0,
+  "validate:reachability": 0,
+  "affected": "94/5 pass",
+  "baseline": "89/5 pass",
+  "greetingReproduction": "expected red on prior source, green after fix"
+}

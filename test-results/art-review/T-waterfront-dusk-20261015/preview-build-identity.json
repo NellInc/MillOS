@@ -1,0 +1,14 @@
+{
+  "index": {
+    "url": "http://127.0.0.1:4288/",
+    "sha256": "fbf29bf45e3dd3ea477d23e1d00489fc797cad2e73a35f9f6f5ce8dbc7eb58f5",
+    "bytes": 9887
+  },
+  "entries": [
+    {
+      "url": "http://127.0.0.1:4288/assets/main-DnJQZTvL.js",
+      "sha256": "cc0e37293f54385064dc03a0486d4c53d4fd3b2b618fcc6bc20d621c012ebc42",
+      "bytes": 823623
+    }
+  ]
+}

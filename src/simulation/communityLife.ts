@@ -47,6 +47,7 @@ export function sampleCommunityGreeting(
   actors: readonly { person: CommunityPerson; pose: CommunityPose }[],
   out: ReturnType<typeof createCommunityGreeting>
 ) {
+  const previousTarget = out.targetId;
   out.targetId = null;
   out.yaw = 0;
   if (
@@ -57,7 +58,9 @@ export function sampleCommunityGreeting(
     pose.task !== 'Greeting a neighbour'
   )
     return out;
-  let closest = 36;
+  let closest = 36,
+    heldDistance = Infinity,
+    heldYaw = 0;
   for (const actor of actors) {
     if (actor.person.id === person.id || !actor.pose.visible) continue;
     const dx = actor.pose.position[0] - pose.position[0],
@@ -65,10 +68,23 @@ export function sampleCommunityGreeting(
     const distance = dx * dx + dz * dz;
     const bearing = Math.atan2(dx, dz) - pose.rotation;
     const yaw = Math.atan2(Math.sin(bearing), Math.cos(bearing));
-    if (distance < 0.16 || distance >= closest || Math.abs(yaw) > 0.9) continue;
-    closest = distance;
-    out.targetId = actor.person.id;
-    out.yaw = Math.max(-0.3, Math.min(0.3, yaw));
+    if (distance < 0.16 || distance >= 36 || Math.abs(yaw) > 0.9) continue;
+    if (actor.person.id === previousTarget) {
+      heldDistance = distance;
+      heldYaw = yaw;
+    }
+    if (distance < closest) {
+      closest = distance;
+      out.targetId = actor.person.id;
+      out.yaw = Math.max(-0.3, Math.min(0.3, yaw));
+    }
+  }
+  // A meaningful distance advantage can change the recipient; centimetre
+  // jitter cannot repeatedly restart the existing one-shot wave.
+  // Working if current eligible company survives a1.2 distance-ratio tie.
+  if (previousTarget && heldDistance <= closest * 1.44) {
+    out.targetId = previousTarget;
+    out.yaw = Math.max(-0.3, Math.min(0.3, heldYaw));
   }
   return out;
 }

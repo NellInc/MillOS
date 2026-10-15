@@ -5,7 +5,11 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { EXTERIOR_LAYERS, POLYGON_OFFSET } from '../../constants/renderLayers';
 import { SITE_LAYOUT } from '../../constants/siteLayout';
 import { LOCK_GATE_MATERIAL } from './lockGateSurface';
-import { ExteriorDownlight, EXTERIOR_LAMP_LENS_MATERIAL } from '../exterior/ExteriorLighting';
+import {
+  ExteriorDownlight,
+  EXTERIOR_LAMP_LENS_MATERIAL,
+  CANAL_BOAT_LANTERN,
+} from '../exterior/ExteriorLighting';
 import { useGraphicsStore } from '../../stores/graphicsStore';
 import { createColorDataTexture, createLinearDataTexture } from '../../utils/textureGenerator';
 
@@ -1202,3 +1206,29 @@ export const LockGateLighting = React.memo(() => {
   );
 });
 LockGateLighting.displayName = 'LockGateLighting';
+
+/** Open bronze frame in bow-lantern local metres. Existing bracket/contact and
+ * light are retained. Working if the central window has no metal hit, corner
+ * uprights enter both caps, and the forward/down beam clears the whole frame.
+ */
+export function createCanalBoatLanternHousing() {
+  const bronze = '#907344',
+    iron = '#354443';
+  const parts: THREE.BufferGeometry[] = [
+    colored(new RoundedBoxGeometry(0.2, 0.025, 0.2, 2, 0.009).translate(0, -0.1375, 0), bronze),
+    colored(new RoundedBoxGeometry(0.2, 0.045, 0.2, 2, 0.018).translate(0, 0.1275, 0), bronze),
+    colored(new THREE.BoxGeometry(0.06, 0.06, 0.36).translate(...CANAL_BOAT_LANTERN.bracket), iron),
+  ];
+  for (const x of [-0.09, 0.09])
+    for (const z of [-0.09, 0.09])
+      parts.push(
+        colored(new THREE.CylinderGeometry(0.009, 0.011, 0.24, 8).translate(x, -0.005, z), bronze)
+      );
+  return joined(parts);
+}
+export const CANAL_BOAT_LANTERN_HOUSING = createCanalBoatLanternHousing();
+export const CANAL_BOAT_LANTERN_METAL = new THREE.MeshStandardMaterial({
+  vertexColors: true,
+  roughness: 0.48,
+  metalness: 0.55,
+});

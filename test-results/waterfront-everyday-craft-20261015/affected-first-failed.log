@@ -1,0 +1,28 @@
+
+ RUN  v4.1.10 /Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS
+
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+ ❯ src/components/scenery/WorldPublicRealm.test.ts (22 tests | 1 failed) 5300ms
+   × opens the actual bow-lantern frame, seats both glazing ends and clears the unchanged beam 16ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/scenery/WorldPublicRealm.test.ts > opens the actual bow-lantern frame, seats both glazing ends and clears the unchanged beam
+AssertionError: expected -0.10000000149011612 to be close to -0.125, received difference is 0.02499999850988388, but expected 0.000005
+ ❯ src/components/scenery/WorldPublicRealm.test.ts:566:26
+    564|     bottom = ray(housing, [0, 0, 0], [0, -1, 0], 0.2)[0];
+    565|   expect(top.point.y).toBeCloseTo(0.105, 5);
+    566|   expect(bottom.point.y).toBeCloseTo(-0.125, 5);
+       |                          ^
+    567|   expect(-0.01 + 0.235 / 2).toBeGreaterThan(top.point.y);
+    568|   expect(-0.01 - 0.235 / 2).toBeLessThan(bottom.point.y);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 4 passed (5)
+      Tests  1 failed | 93 passed (94)
+   Start at  01:08:05
+   Duration  79.30s (transform 7.03s, setup 1.15s, import 57.69s, tests 8.44s, environment 9.00s)
+

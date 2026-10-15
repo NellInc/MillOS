@@ -45,6 +45,42 @@ export function realmPavingColour(x: number, z: number, yard = false): string {
   );
 }
 
+/** Restrained construction-family ageing in existing vertex colours only.
+ * Working if brick/stone/timber/iron vary deterministically, planting is exact,
+ * and every collision/shadow position, normal, UV and index buffer stays exact.
+ */
+export function finishRealmSurface(geometry: THREE.BufferGeometry) {
+  if (geometry.userData.realmFinish) return geometry;
+  const colours = geometry.getAttribute('color'),
+    p = geometry.getAttribute('position'),
+    n = geometry.getAttribute('normal');
+  const families = [
+    [P.oak, 0.07],
+    [P.stone, 0.045],
+    [P.brick, 0.05],
+    [P.iron, 0.035],
+  ] as const;
+  const palette = families.map(([hex, variation]) => ({ base: new THREE.Color(hex), variation }));
+  const shade = new THREE.Color();
+  for (let i = 0; i < colours.count; i++) {
+    const family = palette.find(
+      ({ base }) =>
+        Math.abs(colours.getX(i) - base.r) +
+          Math.abs(colours.getY(i) - base.g) +
+          Math.abs(colours.getZ(i) - base.b) <
+        1e-6
+    );
+    if (!family) continue;
+    const patch = Math.sin(p.getX(i) * 0.87 + p.getZ(i) * 0.61 + Math.sin(p.getY(i) * 2.1));
+    shade
+      .copy(family.base)
+      .multiplyScalar(0.97 + patch * family.variation * 0.6 + n.getY(i) * 0.02);
+    colours.setXYZ(i, shade.r, shade.g, shade.b);
+  }
+  geometry.userData.realmFinish = true;
+  return geometry;
+}
+
 // Finite, metre-sized paving. Each surface is tessellated against the same
 // rendered terrain grid, rather than hovering over a hill or cutting through it.
 function patch(
@@ -318,7 +354,7 @@ function villageRealm() {
   // Square planting occupies edges, with no planters in through streets.
   for (const x of [-6.4, 6.4]) planter(solid, x, -9.4, 2.7, 1.1);
   for (const z of [-16, 9.8]) planter(solid, 17.1, z, 1.15, 1.1);
-  return { paving: paving.finish(), solid: solid.finish() };
+  return { paving: paving.finish(), solid: finishRealmSurface(solid.finish()) };
 }
 export const VILLAGE_REALM_GEOMETRY = villageRealm();
 
@@ -490,7 +526,7 @@ export function createWorldRealm(segments: number) {
   for (const line of CANAL_MOORING_LINES) {
     solid.parts.push(canalMooringGeometry(line));
   }
-  return { paving: paving.finish(), solid: solid.finish() };
+  return { paving: paving.finish(), solid: finishRealmSurface(solid.finish()) };
 }
 function farmRealm() {
   const paving = new PlotGeometry(),
@@ -505,7 +541,7 @@ function farmRealm() {
   planter(solid, -19.9, 12, 1.1, 3.6);
   planter(solid, -19.9, 18, 1.1, 3.6);
   drain(solid, 8, -27.3, 3.4, Math.PI / 2);
-  return { paving: paving.finish(), solid: solid.finish() };
+  return { paving: paving.finish(), solid: finishRealmSurface(solid.finish()) };
 }
 export const FARM_REALM_GEOMETRY = farmRealm();
 function Realm({

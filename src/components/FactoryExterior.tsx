@@ -111,7 +111,12 @@ import {
 import { createTreeMatrix } from './scenery/treeForms';
 import { HedgeFoliage } from './exterior/HedgeFoliage';
 import { LandscapeDressing } from './exterior/LandscapeDressing';
-import { LockGateJoinery, LockGateLighting } from './scenery/AuthoredPropTrim';
+import {
+  LockGateJoinery,
+  LockGateLighting,
+  CANAL_BOAT_LANTERN_HOUSING,
+  CANAL_BOAT_LANTERN_METAL,
+} from './scenery/AuthoredPropTrim';
 import {
   CANAL_OUTLET,
   canalEastBankSections,
@@ -2021,16 +2026,16 @@ export const CanalBoat: React.FC<{
             </Text>
           ))}
           <group name="canal-boat-bow-lantern" position={[...CANAL_BOAT_LANTERN.mount]}>
-            <mesh position={[...CANAL_BOAT_LANTERN.bracket]} castShadow receiveShadow>
-              <boxGeometry args={[0.06, 0.06, 0.36]} />
-              <meshStandardMaterial color="#222222" metalness={0.6} />
-            </mesh>
-            <mesh castShadow receiveShadow>
-              <boxGeometry args={[0.2, 0.3, 0.2]} />
-              <meshStandardMaterial color="#222222" metalness={0.6} />
-            </mesh>
-            <mesh material={EXTERIOR_LAMP_LENS_MATERIAL}>
-              <boxGeometry args={[0.15, 0.25, 0.21]} />
+            <mesh
+              name="canal-boat-lantern-bronze-frame"
+              geometry={CANAL_BOAT_LANTERN_HOUSING}
+              material={CANAL_BOAT_LANTERN_METAL}
+              dispose={null}
+              castShadow
+              receiveShadow
+            />
+            <mesh position={[0, -0.01, 0]} material={EXTERIOR_LAMP_LENS_MATERIAL}>
+              <boxGeometry args={[0.16, 0.235, 0.16]} />
             </mesh>
             {realDeckLight && (
               <group
