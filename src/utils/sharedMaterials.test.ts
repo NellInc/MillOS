@@ -19,6 +19,11 @@
  */
 
 import { describe, expect, it } from 'vitest';
+import {
+  generateCobblestone,
+  generateCobblestoneNormal,
+  generateCobblestoneRoughness,
+} from '../textures/cobblestone';
 import * as THREE from 'three';
 import {
   MACHINE_MATERIALS,
@@ -189,4 +194,28 @@ describe('roughness re-authored against a map that actually multiplies', () => {
       expect(material.roughness, `${name} base roughness`).toBeGreaterThan(0.4);
     }
   });
+});
+
+it('shares a registered fine-scale sett family within the existing map-size budget', () => {
+  const maps = [
+    PROCEDURAL_TEXTURES.cobblestoneColor,
+    PROCEDURAL_TEXTURES.cobblestoneNormal,
+    PROCEDURAL_TEXTURES.cobblestoneRoughness,
+  ];
+  expect(maps[0]).toBe(generateCobblestone(512, { stoneSize: 8 }));
+  expect(maps[1]).toBe(generateCobblestoneNormal(512, 8));
+  expect(maps[2]).toBe(generateCobblestoneRoughness(256, 4));
+  expect(maps.map((t) => t.image.width)).toEqual([512, 512, 256]);
+  expect(maps.map((t) => t.colorSpace)).toEqual([
+    THREE.SRGBColorSpace,
+    THREE.NoColorSpace,
+    THREE.NoColorSpace,
+  ]);
+  expect(
+    maps.every((t) => t.wrapS === THREE.RepeatWrapping && t.wrapT === THREE.RepeatWrapping)
+  ).toBe(true);
+  const clone = maps[2].clone();
+  expect(clone.source).toBe(maps[2].source);
+  expect(clone.image.data).toBe(maps[2].image.data);
+  clone.dispose();
 });

@@ -3280,3 +3280,57 @@ All34 finite AE items implemented with stated proof boundaries. Bounded pass com
 Next observed craft gap: the close barnyard view shows very large, high-contrast oval cobbles. A later material-scale pass should inspect actual farm-yard texture clones and nearby paths, rather than guessing from the source or altering the completed crop/bank work again.
 
 AE check-in note: aggregate staged whitespace check reports only verbatim tool logs (trailing blank lines and Vite's reporter whitespace). Raw evidence bytes are retained unchanged. Production/test/task-record staged whitespace check is clean; this does not relax source formatting or runtime gates.
+
+## AF: Laid sett paving and registered matte stone maps, 2026-10-15
+
+AE is progress, committed9e3f08bebd757ecee5ab9757e2021bea5cb85366 and post-commit source/custody verified. Repeating goal ACTIVE. This pass addresses the actual close-view barnyard's disconnected pale oval spots over a dominant dark matrix, then checks the same live texture family in the village and shelter floor. Allowed cobblestone.ts, sharedMaterials.ts and its existing test, cacheIdentity.test.ts, FarmArea.tsx and VillageArea.tsx, this record and exact sett-paving evidence. Four production files are warranted because colour/normal density and both roughness consumers must change together. Keep their geometry, UVs, transforms, normals' material strengths, feathering and every non-cobble material unchanged. Do not edit unused farmPathCobble variables as a substitute for live work.
+
+Working if paving reads as close-laid, gently tumbled setts with narrow joints and restrained weathering, all three maps describe the same laid courses, shared512/512/256px sizes and existing material hosts remain, farm/village roots and public-realm overlays stay exact, and no new texture slot/light/geometry/frame loop/dependency appears. No interface/loading/preset/budget/railway/port/mountain/actor/schedule/route/terrain/navigation changes. Local and muted, player/device DEFERRED, timing/pacing OPEN.
+
+### Finite32-item implementation and acceptance list
+1. Reconcile owned HEAD, primary custody, dependency target and capture lock.
+2. Inspect the actual previous farm close/context images and live generator.
+3. Map all colour/normal/roughness consumers, distinguishing unused clones.
+4. Verify fresh built reachability before editing unfamiliar texture source.
+5. Record the existing named affected baseline with all failure names.
+6. Measure old mortar dominance using the generator's custom-colour control.
+7. Preserve the three public generator signatures and colour-option identity.
+8. Replace isolated ellipse islands with continuous laid courses.
+9. Stagger alternate courses while making the tile's row count even.
+10. Seed shared joint boundaries so adjoining stones meet rather than overlap.
+11. Introduce restrained width/height variation and tumbled corners.
+12. Keep narrow visible joints and a quiet, warm-grey mortar palette.
+13. Raise the live family density from37 to64cells per tile for finer stone scale.
+14. Retain existing farm10m and village6m UV tile coordinates exactly.
+15. Derive colour, relief and roughness from the same rounded stone boundary.
+16. Derive bounded signed normal slopes and normalize encoded tangent normals.
+17. Preserve sRGB colour and linear data-map declarations.
+18. Replace mirror-like old0.35 crowns with worn matte stone and rough joints.
+19. Write roughness to every RGB sampled channel, keep opaque alpha.
+20. Add low-amplitude, periodic mineral grain and weathering with no new map.
+21. Make wrap joins periodic in layout, colour, normal and roughness.
+22. Version only stable procedural cache names and preserve option sensitivity.
+23. Publish one shared registered roughness source and wire both actual consumers.
+24. Retain512/512/256px maps, existing material strengths, lights and mesh counts.
+25. Verify exact-candidate pixels, map registration, seam behaviour and cache tests.
+26. Run existing material/realm checks and all required final source gates.
+27. Build once under capture lock and seal actual source/compiled bytes.
+28. Inspect exact-build farm and village at day/dusk/night, silently and serially.
+29. Inspect close paving/grounding using only the public art camera.
+30. Record every timing miss separately without retrying for a green.
+31. Verify protected primary/frozen pins and restore only owned temp/cache setup.
+32. Commit only the owned source/evidence locally, retain failure logs, select next genuine gap.
+
+Pre-check risks: a changed density without roughness registration would put wear between stones; odd staggered row counts would produce a wrap seam; stronger normal relief would retain the harsh oval lighting. Change all real consumers together, snap to even periodic courses, derive actual bounded analytic slopes from one shared shape and retain material normal strengths. Tile scale/512px budget are established contracts, so use a64cell live tile (about156mm farm cells and94mm village cells) and inspect real close rendering rather than claiming that more density alone proves beauty. No benchmark claim is inferred from fewer baking calculations. Old albedo/normal/roughness custom signatures remain callable; custom colour variation still participates in identity.
+
+AF baseline54/3 pass, no failures. Actual old custom-mortar control measures0.6345977783joint fraction (63.46%), expected-red against the narrow-joint requirement. After implementation the same256px/7px control is0.1092681885 (10.93%); the live512px/8px family is0.1213912964 (12.14%). Exact CPU-generated albedo/normal/roughness PNGs exported from the sealed source and inspected; sourceSHA and measurements retained. Texture storage remains1048576/1048576/262144bytes, sRGB/linear/linear. New source has one shared rounded-course boundary, even periodic row count, seeded adjoining joints, signed normalized bevel slopes, quiet periodic grain and matte0.68+ stone crowns instead of old0.35. Both live roughness clones now use the same shared64-cell source; original geometry/UVs/material strengths stay exact. No unused clone was substituted for live implementation.
+
+AF affected58/3 pass (+4), including old joint-dominance regression, every-map opposite-edge agreement within one byte, normalized signed relief and registered flat-joint/matte-face samples, all roughness RGB channels/alpha, stable caches/options, actual shared512/512/256px family and unchanged realm source. Final whole-source typecheck/lint/format/shader34-family38-key gates exit0. One locked npm run build exits0, Vite26.57s/wrapper28.003s,415files/181705889bytes sealed, fresh reachability exit0.184frozen/6source/415compiled pins exact. Optional Impeccable executable absent, no install or interface change.
+
+AF native review: this authoring chat inspected all six actual full farm/village day/dusk/night PNGs. Exact served index/main bytes match final seal, sandboxed out-of-process Metal, no console/page/request/screenshot errors, world/community/checkpoints and general vehicle motion clean; audio0/context not-created. Cultivated field/banked culverts, buildings/people/animals and existing warm lights remain; paving reads as a quieter laid surface. Timing independently OPEN: farm day/dusk/night misses averageFps/p95Frame/p99Frame/onePercentLow,load/core2.74/3.31/2.26,p95 38.6/35.3/35.8ms. Village day misses averageFps/p95Frame,load/core2.58,p95 17.1ms; dusk p95Frame,2.56,18.3ms; night p95Frame,1.60,18ms. Some misses occur below the contention threshold, so they are not all attributed to contention. No non-art performance pass, isolated timing improvement or free-cost claim. No budget relaxation, timing retries or quiet-GPU prerequisite. Exact native acceptance in test-results/sett-paving-craft-20261015/native-acceptance.json. Close inspection follows.
+
+AF close acceptance: actual square-camera runtime/world/startup-ready true and cover absent, startup-ready37.5296s/first-frame470.8ms. Public art camera inspects real farm barnyard, village fountain/market square and brick picnic-shelter floor. Farm host remains one4-vertex visible finite plane at[75,-0.02,120], village host100vertices at[-190,-0.02,0], each with actual bound512pxsRGB colour/512pxlinear normal/256pxlinear roughness. Their unchanged white, nonmetal, lit materials retain original roughness1, surface injections, transparency/feathering and depth order. Close views show packed gently rounded setts, restrained tonal variation and natural shadow/light response, replacing the old disconnected high-contrast ovals. Picnic shelter inherits the new colour/normal family through its unchanged shared-map host, inspected in its dark night context. All audio0/context not-created; errors empty. Only localhost mute/public art camera changes, no actor/inventory/viewport/player/device/readiness/quality override. Own tab and stdin-wired preview close normally, owning exit0, lock released. Close images are conversation evidence, six native context PNGs and exact texture previews retained.
+
+AF owned cleanup:375 exact borrowed dependency entries verified, own Vitest/Vite caches and named AF npm cache checked with lsof exit1/empty stdout+stderr, removed and original dependency symlink restored.184frozen/6source/415compiled pins and protected primary exact. All jobs terminal, own tab/preview closed, lock absent. Source/final dist/raw images/texture previews/original regression/history/unrelated output retained, no physical recovery claim or foreign process action. All32 finite items complete within stated proof boundaries.58/3 affected (+4), source/build/fresh reachability gates0. Four production files are the one shared paving family and its coupled consumers; no geometry/light/frame loop/dependency/interface or quality/budget change. Timing/pacing OPEN, player/device DEFERRED, local only, repeating goal ACTIVE. Acceptance test-results/sett-paving-craft-20261015/acceptance.json. Verbatim tool-log whitespace retained; source/test/task-record staged whitespace gate remains clean.
+
+Next observed gaps, not silently included or claimed fixed: close barnyard shows grass blades on the swept paving and intersecting the wooden water trough; the brick picnic shelter is very dark in its night view. Inspect the actual clutter exclusion assembly and shelter fixture coverage before choosing the following bounded grounding/lighting pass. These are visual observations, not yet a reproduced source diagnosis.

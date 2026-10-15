@@ -1,0 +1,14 @@
+{
+  "index": {
+    "url": "http://127.0.0.1:4288/",
+    "sha256": "046f7fc738104903f977af1bc9bc8c028a765eba75fd110e9bc8bf29f94a0e9a",
+    "bytes": 9887
+  },
+  "entries": [
+    {
+      "url": "http://127.0.0.1:4288/assets/main-DpJAh4SS.js",
+      "sha256": "f900aad51ebce5e4d5fdffce292ecb310c3e6cc7df160f12d76e2904c6a13658",
+      "bytes": 823695
+    }
+  ]
+}

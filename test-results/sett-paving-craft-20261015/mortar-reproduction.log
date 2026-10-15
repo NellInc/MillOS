@@ -1,0 +1,34 @@
+
+> grain-mill-simulator@0.40.0 test
+> vitest run src/textures/cacheIdentity.test.ts
+
+(node:84237) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+ RUN  v4.1.10 /Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS
+
+(node:84241) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ❯ src/textures/cacheIdentity.test.ts (18 tests | 1 failed) 216ms
+     × keeps the joint network narrow instead of isolating stone islands in dominant mortar 75ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/textures/cacheIdentity.test.ts > laid cobblestone craft > keeps the joint network narrow instead of isolating stone islands in dominant mortar
+AssertionError: expected 0.6345977783203125 to be less than 0.25
+ ❯ src/textures/cacheIdentity.test.ts:156:22
+    154|     const fraction = mortar / (data.length / 4);
+    155|     console.log('ACTUAL_COBBLE_MORTAR_FRACTION', fraction);
+    156|     expect(fraction).toBeLessThan(0.25);
+       |                      ^
+    157|     expect(fraction).toBeGreaterThan(0.03);
+    158|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 17 passed (18)
+   Start at  07:32:54
+   Duration  1.17s (transform 139ms, setup 94ms, import 139ms, tests 216ms, environment 427ms)
+

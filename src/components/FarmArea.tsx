@@ -43,7 +43,6 @@ import { DrainageCulvert } from './scenery/Tunnel';
 import { PROCEDURAL_TEXTURES } from '../utils/sharedMaterials';
 import { EXTERIOR_LAYERS, RENDER_ORDER } from '../constants/renderLayers';
 import { SITE_LAYOUT } from '../constants/siteLayout';
-import { generateCobblestoneRoughness } from '../textures';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import { createAtmosphereState, sampleAtmosphere } from '../simulation/atmosphere';
 import {
@@ -352,9 +351,8 @@ function createHayBaleGeometry(): THREE.LatheGeometry {
 // Barnyard is 20x15 units, path is 3x14 units - tile every 10 units
 const farmBarnyardCobbleColor = PROCEDURAL_TEXTURES.cobblestoneColor.clone();
 const farmBarnyardCobbleNormal = PROCEDURAL_TEXTURES.cobblestoneNormal.clone();
-// 256/7 matches the cell count of the 512/14 albedo, so polished crowns sit on
-// the stones rather than drifting across them.
-const farmBarnyardCobbleRoughness = generateCobblestoneRoughness(256, 7).clone();
+// Share the same64-cell source as colour and relief, at the existing256px.
+const farmBarnyardCobbleRoughness = PROCEDURAL_TEXTURES.cobblestoneRoughness.clone();
 farmBarnyardCobbleColor.wrapS = farmBarnyardCobbleColor.wrapT = THREE.RepeatWrapping;
 farmBarnyardCobbleNormal.wrapS = farmBarnyardCobbleNormal.wrapT = THREE.RepeatWrapping;
 farmBarnyardCobbleRoughness.wrapS = farmBarnyardCobbleRoughness.wrapT = THREE.RepeatWrapping;

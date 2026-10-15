@@ -67,7 +67,6 @@ import {
   VILLAGE_PLOT_MATERIAL,
 } from './scenery/VillageGardens';
 import { CreatureBody, type CreatureRigHandle } from './models/RiggedCreatureModel';
-import { generateCobblestoneRoughness } from '../textures';
 import { SITE_LAYOUT, landmarkLocalToWorld } from '../constants/siteLayout';
 import {
   EXTERIOR_LAMP_LEVEL,
@@ -131,9 +130,8 @@ import { OUTDOOR_MATERIALS } from '../utils/sharedMaterials';
 // Clone shared textures (same as farmyard), repeat (1,1) - UV divisor controls stone size
 const villageCobbleColor = PROCEDURAL_TEXTURES.cobblestoneColor.clone();
 const villageCobbleNormal = PROCEDURAL_TEXTURES.cobblestoneNormal.clone();
-// Roughness at 256/7 has the same cell count as the 512/14 albedo, so the
-// polished crowns line up with the stones instead of drifting across them.
-const villageCobbleRoughness = generateCobblestoneRoughness(256, 7).clone();
+// Share the same64-cell source as colour and relief, at the existing256px.
+const villageCobbleRoughness = PROCEDURAL_TEXTURES.cobblestoneRoughness.clone();
 villageCobbleColor.wrapS = villageCobbleColor.wrapT = THREE.RepeatWrapping;
 villageCobbleNormal.wrapS = villageCobbleNormal.wrapT = THREE.RepeatWrapping;
 villageCobbleRoughness.wrapS = villageCobbleRoughness.wrapT = THREE.RepeatWrapping;
