@@ -23,6 +23,7 @@ import { createWorkerBodyLod } from '../workers/workerBodyLod';
 import type { WorkerMotionState } from '../workers/workerTypes';
 import {
   createSeatedWorkerPose,
+  createWorkerHandPose,
   createWorkerGesture,
   easeWorkerGesture,
   createWorkerEyeBlink,
@@ -839,20 +840,10 @@ const WorkerAccessories: React.FC<{
       {appearance.hasToolBelt && (
         <BoneMount bone={hips} name="worker-tool-belt" position={[0, 0.045, 0.075]}>
           <mesh
-            position={[0, 0.012, -0.035]}
-            geometry={UNIT_BOX}
+            name="worker-utility-belt"
+            geometry={SHARED_WORKER_GEOMETRY.toolBelt}
             material={materials.dark}
-            scale={[0.32, 0.026, 0.032]}
           />
-          {[-0.14, 0.14].map((x) => (
-            <mesh
-              key={x}
-              position={[x, 0, 0]}
-              geometry={UNIT_BOX}
-              material={materials.dark}
-              scale={[0.075, 0.105, 0.045]}
-            />
-          ))}
         </BoneMount>
       )}
 
@@ -1045,6 +1036,10 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
 
   const accessoryMaterials = useMemo(() => createAccessoryMaterials(appearance), [appearance]);
   const mixer = useMemo(() => new THREE.AnimationMixer(prepared.model), [prepared.model]);
+  const handPose = useMemo(
+    () => createWorkerHandPose(prepared.model, animations),
+    [prepared.model, animations]
+  );
   const seatedPose = useMemo(
     () => createSeatedWorkerPose(prepared.model, appearance.heightScale, appearance.bodyScale),
     [prepared.model, appearance.heightScale, appearance.bodyScale]
@@ -1078,16 +1073,28 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
       (appearance.workAction === 'bake' || appearance.workAction === 'garden')
     )
       seatedPose.applyTask(appearance.workAction);
+    handPose.apply(motion, appearance.tool, gesture);
     if (toolRef.current)
       toolRef.current.visible = !motion.seated && !motion.cycling && motion.activity === 'working';
 
     return () => {
+      handPose.restore();
       seatedPose.restore();
       actionsRef.current = {};
       mixer.stopAllAction();
       mixer.uncacheRoot(prepared.model);
     };
-  }, [animations, mixer, prepared.model, motion, seatedPose, appearance.workAction]);
+  }, [
+    animations,
+    mixer,
+    prepared.model,
+    motion,
+    seatedPose,
+    handPose,
+    gesture,
+    appearance.workAction,
+    appearance.tool,
+  ]);
 
   useEffect(
     () => () => {
@@ -1208,7 +1215,8 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
       activity: motion.activity,
     };
 
-    // Undo last frame's absolute seated pose before the mixer restores its tracks.
+    // Restore overlays before the mixer samples its authored joints.
+    handPose.restore();
     seatedPose.restore();
     for (const clipName of WORKER_CLIPS) {
       const action = actionsRef.current[clipName];
@@ -1243,6 +1251,7 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
     else if (motion.activity === 'walking') seatedPose.applyWalkingLook(gesture);
     else if (motion.activity === 'idle' || motion.activity === 'break')
       seatedPose.applyIdle(gesture);
+    handPose.apply(motion, appearance.tool, gesture, safeDelta);
     if (toolRef.current) {
       const heldTask =
         motion.activity === 'working' &&

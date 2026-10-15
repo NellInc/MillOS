@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { WorkerBodyType, WorkerWorkAction } from './workerTypes';
+import type { WorkerBodyType, WorkerWorkAction, WorkerMotionState, ToolType } from './workerTypes';
 import { WORKER_EYE_CENTRES } from './SharedWorkerGeometries';
 
 /** Seat top and pelvis joint are different anchors: the fleshy underside is 9 cm below the joint. */
@@ -132,6 +132,93 @@ export function createWorkerEyeBlink(model: THREE.Object3D, bodyType: WorkerBody
         if (mesh.geometry === geometry) mesh.geometry = source;
         geometry.dispose();
       }
+    },
+  };
+}
+
+/** Finger-only overlay sampled from this body's authored closed hand. Palm
+ * bases and wrists never move, preserving the existing prop/IK attachment.
+ * Working if shapes differ by task, locomotion stays exact, and restore removes
+ * every overlay before the next mixer sample. No per-frame allocation or clock.
+ */
+export function createWorkerHandPose(model: THREE.Object3D, clips: THREE.AnimationClip[]) {
+  const reference = clips.find((clip) => clip.name === 'worker-run');
+  const entries: Array<{
+    bone: THREE.Object3D;
+    closed: THREE.Quaternion;
+    saved: THREE.Quaternion;
+    side: string;
+    finger: string;
+    weight: number;
+  }> = [];
+  for (const track of reference?.tracks ?? []) {
+    const match = /^(Index[23]|Middle[23]|Ring[23]|Pinky[23]|Thumb[12])([LR])\.quaternion$/.exec(
+      track.name
+    );
+    if (!match || track.getValueSize() !== 4 || !Array.from(track.values).every(Number.isFinite))
+      continue;
+    const bone = model.getObjectByName(match[1] + match[2]);
+    if (!bone) continue;
+    const sample = new THREE.QuaternionLinearInterpolant(track.times, track.values, 4).evaluate(
+      reference!.duration * 0.35
+    );
+    const closed = new THREE.Quaternion().fromArray(sample).normalize();
+    entries.push({
+      bone,
+      closed,
+      saved: bone.quaternion.clone(),
+      side: match[2],
+      finger: match[1],
+      weight: 0,
+    });
+  }
+  let applied = false,
+    initialised = false;
+  return {
+    jointCount: entries.length,
+    restore() {
+      if (!applied) return;
+      for (const entry of entries) entry.bone.quaternion.copy(entry.saved);
+      applied = false;
+    },
+    apply(motion: WorkerMotionState, tool: ToolType, gesture: WorkerGesture, delta = 0) {
+      const walking = motion.activity === 'walking' && !motion.cycling && !motion.cartGrip;
+      let left = 0.14 + gesture.breath * 0.02,
+        right = left;
+      if (motion.cycling || motion.cartGrip) left = right = 0.52;
+      else if (motion.seated || motion.activity === 'break')
+        left = right = 0.1 + gesture.breath * 0.02;
+      else if (motion.activity === 'working') {
+        left =
+          tool === 'none'
+            ? 0.14
+            : tool === 'bread-tray' || tool === 'sample-kit'
+              ? 0.2
+              : tool === 'clipboard' || tool === 'tablet'
+                ? 0.3
+                : 0.58;
+        right = tool === 'bread-tray' ? 0.18 : 0.12;
+      }
+      const dt = Number.isFinite(delta) ? THREE.MathUtils.clamp(delta, 0, 0.15) : 0;
+      for (const entry of entries) {
+        entry.saved.copy(entry.bone.quaternion);
+        const factor = entry.finger.startsWith('Thumb')
+          ? 0.85
+          : entry.finger.startsWith('Index')
+            ? 0.8
+            : entry.finger.startsWith('Pinky')
+              ? 1.08
+              : 1;
+        const wave = entry.side === 'R' ? 1 - THREE.MathUtils.clamp(gesture.greetingLift, 0, 1) : 1;
+        const target = walking ? 0 : (entry.side === 'L' ? left : right) * factor * wave;
+        entry.weight =
+          walking || !initialised || !motion.enabled
+            ? target
+            : THREE.MathUtils.damp(entry.weight, target, 8, dt);
+        entry.bone.quaternion.slerp(entry.closed, entry.weight);
+      }
+      applied = true;
+      initialised = true;
     },
   };
 }

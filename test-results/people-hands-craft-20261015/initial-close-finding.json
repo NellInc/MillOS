@@ -1,0 +1,11 @@
+{
+  "source": "public runtime inspectObjects and actual role defaults",
+  "startup": false,
+  "cover": true,
+  "elapsedMs": 176068.1,
+  "documentVisibility": "visible",
+  "runtimeSamples": 10933,
+  "pouchMeshesObserved": 0,
+  "cause": "Only Maintenance enables the belt; no Maintenance person in community roster",
+  "disposition": "Equip live Engineer; merge existing belt into one mesh; preserve original candidate evidence"
+}

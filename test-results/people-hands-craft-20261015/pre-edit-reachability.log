@@ -1,0 +1,6 @@
+
+> grain-mill-simulator@0.40.0 validate:reachability
+> node scripts/audit-module-reachability.mjs --why=src/components/models/WorkerModel.tsx
+
+src/components/workers/WorkerModel.test.tsx
+  -> src/components/models/WorkerModel.tsx

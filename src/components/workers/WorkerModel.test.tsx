@@ -965,3 +965,102 @@ it('retains anatomical vertex colours in the existing two-draw distant body', ()
   expect(source.geometry.getAttribute('color')).toBe(colours);
   lod.dispose();
 });
+
+it('uses the shared rounded pouch inside the original fitting envelope with an open rear belt channel', () => {
+  const g = SHARED_WORKER_GEOMETRY.toolPouch;
+  expect(g.groups).toHaveLength(0);
+  expect(g.getAttribute('position').count / 3).toBeLessThan(1200);
+  for (const a of Object.values(g.attributes))
+    expect(Array.from(a.array).every(Number.isFinite)).toBe(true);
+  const b = g.boundingBox!;
+  [0.075, 0.105, 0.045].forEach((v, i) =>
+    expect(b.getSize(new THREE.Vector3()).getComponent(i)).toBeCloseTo(v, 6)
+  );
+  const material = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }),
+    mesh = new THREE.Mesh(g, material);
+  try {
+    const hits = new THREE.Raycaster(
+      new THREE.Vector3(-0.05, 0.02, -0.019),
+      new THREE.Vector3(1, 0, 0)
+    ).intersectObject(mesh);
+    expect(hits.some((h) => h.point.x < -0.02)).toBe(true);
+    expect(hits.some((h) => h.point.x > 0.02)).toBe(true);
+    expect(hits.every((h) => Math.abs(h.point.x) > 0.02)).toBe(true);
+    // The seam lies into the body front, and the fastener enters the layered flap.
+    expect(0.0194 - 0.001).toBeLessThan(0.0185);
+    expect(0.021 - 0.0015).toBeLessThan(0.0185 + 0.0056 / 2);
+  } finally {
+    material.dispose();
+  }
+});
+
+it('runs hand articulation through the real frame callback and freezes/restores it on paused semantic changes', () => {
+  const scene = new THREE.Group(),
+    body = new THREE.Group(),
+    hips = new THREE.Group(),
+    finger = new THREE.Bone();
+  body.name = 'Body';
+  hips.name = 'Hips';
+  finger.name = 'Index2L';
+  scene.add(body);
+  body.add(hips);
+  hips.add(finger);
+  const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -1);
+  const clips = ['idle', 'walk', 'run', 'repair'].map(
+    (name) =>
+      new THREE.AnimationClip(`worker-${name}`, 2, [
+        new THREE.QuaternionKeyframeTrack(
+          'Index2L.quaternion',
+          [0, 2],
+          name === 'run' ? [...q.toArray(), ...q.toArray()] : [0, 0, 0, 1, 0, 0, 0, 1]
+        ),
+      ])
+  );
+  harness.asset = { scene, animations: clips };
+  const motion: WorkerMotionState = {
+    activity: 'working',
+    enabled: false,
+    seated: false,
+    groundSpeed: 0,
+    phase: 0,
+  };
+  const { unmount } = render(
+    <WorkerModel
+      appearance={{
+        ...getWorkerAppearance('Engineer', '', 'hand-regression'),
+        tool: 'wrench',
+        workAction: 'repair',
+      }}
+      motion={motion}
+    />
+  );
+  harness.frame?.({}, 1 / 60);
+  expect(finger.quaternion.angleTo(new THREE.Quaternion())).toBeGreaterThan(0.3);
+  const held = finger.quaternion.toArray();
+  harness.frame?.({}, 100);
+  expect(finger.quaternion.toArray()).toEqual(held);
+  motion.activity = 'walking';
+  harness.frame?.({}, 1 / 60);
+  expect(finger.quaternion.toArray()).toEqual([0, 0, 0, 1]);
+  unmount();
+});
+
+it('equips the live inspection engineer with one shared belt surface and preserves other role cues', () => {
+  const engineer = getWorkerAppearance('Engineer', '', 'mill-engineer');
+  expect(engineer.hasToolBelt).toBe(true);
+  expect(engineer.tool).toBe('tablet');
+  expect(engineer.workAction).toBe('inspect');
+  expect(getWorkerAppearance('Operator', '', 'mill-operator-east').hasToolBelt).toBe(false);
+  const g = SHARED_WORKER_GEOMETRY.toolBelt,
+    b = g.boundingBox!;
+  expect(g.groups).toHaveLength(0);
+  expect(g.getAttribute('position').count / 3).toBeLessThan(2200);
+  expect(b.min.x).toBeCloseTo(-0.1775, 6);
+  expect(b.max.x).toBeCloseTo(0.1775, 6);
+  expect(b.min.y).toBeCloseTo(-0.0525, 6);
+  expect(b.max.y).toBeCloseTo(0.0525, 6);
+  expect(b.min.z).toBeCloseTo(-0.051, 6);
+  expect(b.max.z).toBeCloseTo(0.0225, 6);
+  for (const a of Object.values(g.attributes))
+    expect(Array.from(a.array).every(Number.isFinite)).toBe(true);
+});

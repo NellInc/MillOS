@@ -67,8 +67,41 @@ export function createWorkerChestRadio() {
   return assembleWorkerFitting(parts);
 }
 
+/** Rounded pouch, flap, rear belt loop and closed seam/fastener fittings.
+ * Working if all details attach inside the original 75 x 105 x 45 mm envelope.
+ */
+export function createWorkerToolPouch() {
+  const parts: THREE.BufferGeometry[] = [
+    new RoundedBoxGeometry(0.075, 0.105, 0.036, 2, 0.006).translate(0, 0, 0.0005),
+    new RoundedBoxGeometry(0.072, 0.039, 0.0056, 2, 0.0025).translate(0, 0.031, 0.0185),
+    new RoundedBoxGeometry(0.055, 0.045, 0.002, 1, 0.0008).translate(0, 0.024, -0.0215),
+    new RoundedBoxGeometry(0.012, 0.014, 0.003, 1, 0.001).translate(0, 0.025, 0.021),
+    new THREE.BoxGeometry(0.055, 0.0015, 0.002).translate(0, -0.04, 0.0194),
+  ];
+  for (const side of [-1, 1]) {
+    parts.push(
+      new RoundedBoxGeometry(0.004, 0.045, 0.005, 1, 0.001).translate(side * 0.0255, 0.024, -0.0195)
+    );
+    parts.push(
+      new THREE.BoxGeometry(0.0015, 0.058, 0.002).translate(side * 0.0275, -0.011, 0.0194)
+    );
+  }
+  return assembleWorkerFitting(parts);
+}
+
+function createWorkerToolBelt(pouch: THREE.BufferGeometry) {
+  return assembleWorkerFitting([
+    new THREE.BoxGeometry(0.32, 0.026, 0.032).translate(0, 0.012, -0.035),
+    pouch.clone().translate(-0.14, 0, 0),
+    pouch.clone().translate(0.14, 0, 0),
+  ]);
+}
+const TOOL_POUCH = createWorkerToolPouch();
+
 // Immutable shared accessories. Instance disposal must never dispose these.
 export const SHARED_WORKER_GEOMETRY = {
+  toolPouch: TOOL_POUCH,
+  toolBelt: createWorkerToolBelt(TOOL_POUCH),
   hearingCup: createWorkerHearingCup(),
   hearingBand: createWorkerHearingBand(),
   glassesTemple: createWorkerGlassesTemple(),

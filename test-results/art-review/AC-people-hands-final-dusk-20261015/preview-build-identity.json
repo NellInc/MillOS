@@ -1,0 +1,14 @@
+{
+  "index": {
+    "url": "http://127.0.0.1:4288/",
+    "sha256": "59ed82e1d89cb3c580afba7844cb6b948fd93d2072d706821580828da9dd51c1",
+    "bytes": 9887
+  },
+  "entries": [
+    {
+      "url": "http://127.0.0.1:4288/assets/main-B16n7aYg.js",
+      "sha256": "50a3277da28ac86c89d30f3a25d539a09397c276f102a0a5dc9607dd67ecb7b8",
+      "bytes": 823695
+    }
+  ]
+}

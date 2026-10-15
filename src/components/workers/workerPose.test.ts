@@ -11,6 +11,7 @@ import type { GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import { clone } from 'three/addons/utils/SkeletonUtils.js';
 import {
   createSeatedWorkerPose,
+  createWorkerHandPose,
   createWorkerGesture,
   easeWorkerGesture,
   sampleWorkerGesture,
@@ -1098,3 +1099,149 @@ for (const body of ['masculine', 'feminine'] as const) {
     expect(changed).toBeGreaterThan(20);
   });
 }
+
+describe('authored finger articulation', () => {
+  for (const body of ['masculine', 'feminine']) {
+    it(`${body} curls distal joints while preserving palm, wrist, feet and original assets`, () => {
+      const asset = bodies.get(body)!,
+        scene = clone(asset.scene);
+      const mixer = new THREE.AnimationMixer(scene);
+      mixer.clipAction(asset.animations.find((c) => c.name === 'worker-inspect')!).play();
+      mixer.setTime(0.3);
+      scene.updateMatrixWorld(true);
+      const pose = createWorkerHandPose(scene, asset.animations);
+      expect(pose.jointCount).toBe(20);
+      const stableNames = ['WristL', 'WristR', 'Middle1L', 'Middle2L', 'Index1L', 'FootL', 'FootR'];
+      const stable = stableNames.map((n) =>
+        scene.getObjectByName(n)!.getWorldPosition(new THREE.Vector3())
+      );
+      const finger = scene.getObjectByName('Middle4L')!,
+        wrist = scene.getObjectByName('WristL')!;
+      const distance = () =>
+        finger
+          .getWorldPosition(new THREE.Vector3())
+          .distanceTo(wrist.getWorldPosition(new THREE.Vector3()));
+      const beforeDistance = distance();
+      const before = scene.getObjectByName('Index2L')!.quaternion.clone();
+      const source = asset.scene.getObjectByName('Index2L')!.quaternion.clone();
+      const motion = {
+        activity: 'working' as const,
+        enabled: false,
+        seated: false,
+        groundSpeed: 0,
+        phase: 0,
+      };
+      const gesture = sampleWorkerGesture('repair', 2, createWorkerGesture());
+      pose.apply(motion, 'wrench', gesture);
+      scene.updateMatrixWorld(true);
+      expect(distance()).toBeLessThan(beforeDistance - 0.003);
+      expect(scene.getObjectByName('Index2L')!.quaternion.angleTo(before)).toBeGreaterThan(0.25);
+      stableNames.forEach((n, i) =>
+        expect(
+          scene.getObjectByName(n)!.getWorldPosition(new THREE.Vector3()).distanceTo(stable[i])
+        ).toBeLessThan(1e-7)
+      );
+      expect(asset.scene.getObjectByName('Index2L')!.quaternion.toArray()).toEqual(
+        source.toArray()
+      );
+      const other = clone(asset.scene);
+      expect(other.getObjectByName('Index2L')!.quaternion.toArray()).toEqual(source.toArray());
+      const held = scene.getObjectByName('Index2L')!.quaternion.clone();
+      for (let i = 0; i < 12; i++) {
+        pose.restore();
+        pose.apply(motion, 'wrench', gesture, 100);
+        expect(scene.getObjectByName('Index2L')!.quaternion.toArray()).toEqual(held.toArray());
+      }
+      pose.restore();
+      expect(scene.getObjectByName('Index2L')!.quaternion.toArray()).toEqual(before.toArray());
+      mixer.stopAllAction();
+      mixer.uncacheRoot(scene);
+    });
+
+    it(`${body} distinguishes holds, releases greetings and leaves both locomotion clips exact`, () => {
+      const asset = bodies.get(body)!,
+        scene = clone(asset.scene),
+        pose = createWorkerHandPose(scene, asset.animations);
+      const motion = {
+        activity: 'working' as 'working' | 'idle' | 'walking',
+        enabled: false,
+        seated: false,
+        groundSpeed: 0,
+        phase: 0,
+        cycling: false,
+      };
+      const gesture = createWorkerGesture(),
+        finger = scene.getObjectByName('Index2L')!,
+        original = finger.quaternion.clone();
+      const angle = (tool: 'wrench' | 'clipboard' | 'bread-tray') => {
+        pose.restore();
+        pose.apply(motion, tool, gesture);
+        return finger.quaternion.angleTo(original);
+      };
+      const wrench = angle('wrench'),
+        clipboard = angle('clipboard'),
+        bread = angle('bread-tray');
+      expect(wrench).toBeGreaterThan(clipboard);
+      expect(clipboard).toBeGreaterThan(bread);
+      pose.restore();
+      motion.activity = 'idle';
+      gesture.greetingLift = 1;
+      const right = scene.getObjectByName('Index2R')!,
+        rightBefore = right.quaternion.clone();
+      pose.apply(motion, 'none', gesture);
+      expect(right.quaternion.toArray()).toEqual(rightBefore.toArray());
+      pose.restore();
+      gesture.greetingLift = 0;
+      motion.cycling = true;
+      pose.apply(motion, 'none', gesture);
+      expect(finger.quaternion.angleTo(original)).toBeGreaterThan(clipboard);
+      pose.restore();
+      motion.cycling = false;
+      motion.activity = 'walking';
+      const mixer = new THREE.AnimationMixer(scene);
+      for (const name of ['worker-walk', 'worker-run']) {
+        mixer.stopAllAction();
+        mixer.clipAction(asset.animations.find((c) => c.name === name)!).play();
+        mixer.setTime(0.35);
+        scene.updateMatrixWorld(true);
+        const before = new Map<string, number[]>();
+        scene.traverse((o) => before.set(o.name, o.quaternion.toArray()));
+        pose.apply(motion, 'none', gesture, 1 / 60);
+        scene.traverse((o) => expect(o.quaternion.toArray()).toEqual(before.get(o.name)));
+        pose.restore();
+      }
+      mixer.stopAllAction();
+      mixer.uncacheRoot(scene);
+      const cadence = (hz: number) => {
+        const root = clone(asset.scene),
+          p = createWorkerHandPose(root, asset.animations);
+        motion.activity = 'idle';
+        motion.enabled = true;
+        p.apply(motion, 'none', gesture);
+        p.restore();
+        motion.activity = 'working';
+        for (let i = 0; i < hz; i++) {
+          p.restore();
+          p.apply(motion, 'wrench', gesture, 1 / hz);
+        }
+        const q = root.getObjectByName('Index2L')!.quaternion.clone();
+        p.restore();
+        return q;
+      };
+      expect(cadence(24).angleTo(cadence(60))).toBeLessThan(1e-7);
+    });
+  }
+  it('leaves incomplete or clip-less rigs unchanged', () => {
+    const root = new THREE.Group();
+    const pose = createWorkerHandPose(root, []);
+    expect(pose.jointCount).toBe(0);
+    pose.apply(
+      { activity: 'idle', enabled: true, seated: false, groundSpeed: 0, phase: 0 },
+      'none',
+      createWorkerGesture(),
+      1 / 60
+    );
+    pose.restore();
+    expect(root.quaternion.toArray()).toEqual([0, 0, 0, 1]);
+  });
+});

@@ -141,7 +141,7 @@ const ROLE_DEFAULTS: Record<string, WorkerAppearance> = {
     hasHearingProtection: false,
     hasGloves: false,
     hasLabCoat: false,
-    hasToolBelt: false,
+    hasToolBelt: true,
     hasRadio: false,
     workAction: 'inspect',
   },
