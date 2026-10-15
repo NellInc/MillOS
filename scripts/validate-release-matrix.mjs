@@ -113,6 +113,16 @@ for (const release of releaseMatrix.releases) {
 if (stagingDirectory) {
   const currentCanonicalUrl = `https://www.millos.net/${releaseMatrix.currentVersion}/`;
   const currentCanonicalTag = `<link rel="canonical" href="${currentCanonicalUrl}" />`;
+  const expectedRobots = [
+    'User-agent: *',
+    'Allow: /',
+    ...releaseMatrix.releases
+      .filter((release) => release.version !== releaseMatrix.currentVersion)
+      .map((release) => `Disallow: /${release.version}/`),
+    '',
+    'Sitemap: https://www.millos.net/sitemap.xml',
+    '',
+  ].join('\n');
   const rootIndexPath = path.join(stagingDirectory, 'index.html');
   const deploymentManifestPath = path.join(stagingDirectory, 'deployment-manifest.json');
   const stagedMatrixPath = path.join(stagingDirectory, 'release-matrix.json');
@@ -132,6 +142,10 @@ if (stagingDirectory) {
   }
 
   for (const directory of [stagingDirectory, path.join(stagingDirectory, releaseMatrix.currentVersion)]) {
+    const robotsPath = path.join(directory, 'robots.txt');
+    if (!fs.existsSync(robotsPath) || fs.readFileSync(robotsPath, 'utf8') !== expectedRobots) {
+      failures.push('Staged robots must allow the current release and exclude only archived releases.');
+    }
     const sitemapPath = path.join(directory, 'sitemap.xml');
     if (!fs.existsSync(sitemapPath)) {
       failures.push(`Staging is missing ${path.relative(stagingDirectory, sitemapPath)}.`);

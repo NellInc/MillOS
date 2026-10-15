@@ -261,15 +261,24 @@ const rootIndex = `<!DOCTYPE html>
 fs.writeFileSync(path.join(outputDirectory, 'index.html'), rootIndex);
 fs.copyFileSync(releaseMatrixPath, path.join(outputDirectory, 'release-matrix.json'));
 
-for (const file of ['robots.txt', 'og-image.png', 'llms.txt', 'indexnow-key.txt', 'BingSiteAuth.xml']) {
+for (const file of ['og-image.png', 'llms.txt', 'indexnow-key.txt', 'BingSiteAuth.xml']) {
   fs.copyFileSync(path.join(publicDirectory, file), path.join(outputDirectory, file));
 }
+const robots = [
+  'User-agent: *',
+  'Allow: /',
+  ...archives.map((version) => `Disallow: /${version}/`),
+  '',
+  'Sitemap: https://www.millos.net/sitemap.xml',
+  '',
+].join('\n');
 const sitemap = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url><loc>${currentCanonicalUrl}</loc></url>
 </urlset>
 `;
 for (const directory of [outputDirectory, path.join(outputDirectory, currentVersion)]) {
+  fs.writeFileSync(path.join(directory, 'robots.txt'), robots);
   fs.writeFileSync(path.join(directory, 'sitemap.xml'), sitemap);
 }
 fs.copyFileSync(path.join(projectRoot, 'CNAME'), path.join(outputDirectory, 'CNAME'));
