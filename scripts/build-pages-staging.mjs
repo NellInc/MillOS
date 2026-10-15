@@ -267,7 +267,7 @@ for (const file of ['og-image.png', 'llms.txt', 'indexnow-key.txt', 'BingSiteAut
 const robots = [
   'User-agent: *',
   'Allow: /',
-  ...archives.map((version) => `Disallow: /${version}/`),
+  ...archiveReleases.map((release) => `Disallow: /${release.version}/`),
   '',
   'Sitemap: https://www.millos.net/sitemap.xml',
   '',
