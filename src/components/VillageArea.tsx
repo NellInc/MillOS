@@ -77,6 +77,7 @@ import {
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import {
   creatureForageWeight,
+  creaturePoseBlend,
   creaturePerchLook,
   duckSwimPose,
   fountainRippleScale,
@@ -1503,7 +1504,7 @@ const DuckPrimitiveBody = React.memo(() => (
 ));
 DuckPrimitiveBody.displayName = 'DuckPrimitiveBody';
 
-const Duck = React.memo<{
+export const Duck = React.memo<{
   position: [number, number, number];
   delay: number;
   onClick: (pos: [number, number, number]) => void;
@@ -1513,16 +1514,24 @@ const Duck = React.memo<{
   const groupRef = useRef<THREE.Group>(null);
   const rigRef = useRef<CreatureRigHandle>(null);
   const dabbleRef = useRef(0);
+  const poseElapsed = useRef(0);
   const shakenRef = useRef(false);
   const [isExcited, setIsExcited] = React.useState(false);
 
+  // Elapsed active time keeps the existing .12-at-15Hz blend across display
+  // rates. Holds discard unsampled time, so no catch-up nudge on resume.
+  // Working if throttled 30/60/120Hz birds settle in the same wall-clock time.
   // Restored: a pond of perfectly still ducks beside animated water reads as
   // broken. Runs on the shared 1-in-4 throttle (~15 Hz), which is plenty for a
   // 2 cm bob - and it drops to every frame's worth of work only when petted.
   useFrame((_state, delta) => {
     const { isTabVisible, gameSpeed } = useGameSimulationStore.getState();
-    if (!isTabVisible || (!isExcited && gameSpeed <= 0)) return;
+    if (!isTabVisible) {
+      poseElapsed.current = 0;
+      return;
+    }
     if (reducedMotion) {
+      poseElapsed.current = 0;
       if (groupRef.current) {
         groupRef.current.position.set(...position);
         groupRef.current.rotation.y = 0;
@@ -1533,10 +1542,18 @@ const Duck = React.memo<{
       }
       return;
     }
-    animationTime.current += Math.min(delta, 0.1);
+    if (!isExcited && gameSpeed <= 0) {
+      poseElapsed.current = 0;
+      return;
+    }
+    const step = Math.min(delta, 0.1);
+    animationTime.current += step;
+    poseElapsed.current += step;
     if (!groupRef.current) return;
     if (!isExcited && !shouldRunThisFrame(4)) return;
     const time = animationTime.current;
+    const elapsed = poseElapsed.current;
+    poseElapsed.current = 0;
 
     const swim = duckSwimPose(time, 800 + delay);
     let yOffset = Math.sin(time * 2 + delay) * 0.02;
@@ -1560,7 +1577,11 @@ const Duck = React.memo<{
     if (!rig) return;
     const target =
       isExcited || swim.swimming ? 0 : Math.max(0, Math.sin(time * 0.9 + delay * 1.7)) ** 3;
-    dabbleRef.current = THREE.MathUtils.lerp(dabbleRef.current, target, 0.12);
+    dabbleRef.current = THREE.MathUtils.lerp(
+      dabbleRef.current,
+      target,
+      creaturePoseBlend(0.12, elapsed)
+    );
     // Shake first, graze second: every setter on the handle rebuilds the whole
     // pose from the rest quaternions and calls `updateMatrixWorld`, so writing
     // both unconditionally would double this bird's rig cost to no effect.
@@ -1603,6 +1624,7 @@ const Duck = React.memo<{
   return (
     <group
       ref={groupRef}
+      name={`village-duck-${delay}`}
       position={[position[0], position[1], position[2]]}
       userData={{ dynamic: true }}
       onClick={handleClick}
@@ -2321,6 +2343,154 @@ FountainPrimitiveBody.displayName = 'FountainPrimitiveBody';
  */
 export const FOUNTAIN_BIRD_PERCH: [number, number, number] = [1.48, 1.385, 0];
 export const FALLBACK_FOUNTAIN_BIRD_PERCH: [number, number, number] = [3, 0.6, 0];
+
+/** Shared, lit miniature bird, authored in the retained perch-local metres.
+ * Working if wings/tail/beak/eyes/toes attach in two surfaces, with no new draw
+ * per feather, texture, shadow or independent animation loop.
+ */
+function birdColour(geometry: THREE.BufferGeometry, hex: string, variation = 0) {
+  const p = geometry.getAttribute('position'),
+    colour = new THREE.Color(hex);
+  const colours = new Float32Array(p.count * 3);
+  for (let i = 0; i < p.count; i++) {
+    const shade = 1 + variation * Math.sin(p.getY(i) * 31 + p.getZ(i) * 23);
+    colours.set([colour.r * shade, colour.g * shade, colour.b * shade], i * 3);
+  }
+  geometry.setAttribute('color', new THREE.BufferAttribute(colours, 3));
+  return geometry;
+}
+function birdAssembly(parts: THREE.BufferGeometry[], name: string) {
+  const plain = parts.map((g) => (g.index ? g.toNonIndexed() : g));
+  const geometry = mergeGeometries(plain);
+  new Set([...parts, ...plain]).forEach((g) => g.dispose());
+  if (!geometry) throw new Error('Bird fittings require matching attributes');
+  geometry.name = name;
+  geometry.computeBoundingBox();
+  geometry.computeBoundingSphere();
+  return geometry;
+}
+function birdToe(a: THREE.Vector3, b: THREE.Vector3) {
+  const geometry = new THREE.CylinderGeometry(0.0035, 0.004, a.distanceTo(b), 5);
+  geometry.applyQuaternion(
+    new THREE.Quaternion().setFromUnitVectors(
+      new THREE.Vector3(0, 1, 0),
+      b.clone().sub(a).normalize()
+    )
+  );
+  return geometry.translate(...a.clone().add(b).multiplyScalar(0.5).toArray());
+}
+export const FOUNTAIN_BIRD_TOE_CONTACTS = [-1, 1].flatMap((side) =>
+  [
+    [-0.018, 0.034],
+    [0, 0.044],
+    [0.018, 0.034],
+    [0, -0.027],
+  ].map(([spread, z]) => [side * 0.035 + spread, 0.004, z] as THREE.Vector3Tuple)
+);
+export function createFountainBirdGeometries() {
+  const body: THREE.BufferGeometry[] = [
+    birdColour(
+      new THREE.SphereGeometry(1, 12, 10).scale(0.0936, 0.12, 0.144).translate(0, 0.14, 0),
+      '#726c59',
+      0.045
+    ),
+    birdColour(
+      new THREE.SphereGeometry(1, 10, 8).scale(0.072, 0.09, 0.0495).translate(0, 0.13, 0.06),
+      '#cbbf9b',
+      0.035
+    ),
+  ];
+  for (const side of [-1, 1]) {
+    body.push(
+      birdColour(
+        new THREE.SphereGeometry(1, 10, 7)
+          .scale(0.029, 0.069, 0.103)
+          .rotateX(-0.23)
+          .rotateZ(side * 0.13)
+          .translate(side * 0.075, 0.151, -0.013),
+        '#655c48',
+        0.055
+      )
+    );
+    for (let feather = 0; feather < 3; feather++)
+      body.push(
+        birdColour(
+          new THREE.SphereGeometry(1, 8, 5)
+            .scale(0.007, 0.016, 0.059)
+            .rotateX(-0.31)
+            .translate(side * (0.091 - feather * 0.004), 0.137 + feather * 0.015, -0.037),
+          feather % 2 ? '#a29470' : '#827458'
+        )
+      );
+    body.push(
+      birdColour(
+        new THREE.CylinderGeometry(0.008, 0.009, 0.082, 5).translate(side * 0.035, 0.049, 0),
+        '#8c683e'
+      )
+    );
+  }
+  for (let feather = -1; feather <= 1; feather++)
+    body.push(
+      birdColour(
+        new THREE.SphereGeometry(1, 8, 5)
+          .scale(0.021, 0.009, 0.105)
+          .rotateX(-0.23)
+          .rotateY(feather * 0.08)
+          .translate(feather * 0.016, 0.095, -0.15),
+        feather === 0 ? '#454a43' : '#585744',
+        0.04
+      )
+    );
+  FOUNTAIN_BIRD_TOE_CONTACTS.forEach((contact, index) => {
+    const start = new THREE.Vector3(index < 4 ? -0.035 : 0.035, 0.01, 0);
+    body.push(birdColour(birdToe(start, new THREE.Vector3(...contact)), '#9c764c'));
+  });
+  const head: THREE.BufferGeometry[] = [
+    birdColour(new THREE.SphereGeometry(0.075, 12, 10), '#625f50', 0.04),
+    birdColour(
+      new THREE.SphereGeometry(1, 10, 6).scale(0.061, 0.027, 0.037).translate(0, 0.04, 0.028),
+      '#79715a'
+    ),
+  ];
+  const beak = new THREE.ConeGeometry(0.023, 0.075, 6)
+    .rotateX(Math.PI / 2)
+    .translate(0, -0.01, 0.085);
+  birdColour(beak, '#c39543');
+  const c = beak.getAttribute('color'),
+    p = beak.getAttribute('position');
+  for (let i = 0; i < p.count; i++)
+    if (p.getY(i) < -0.01) c.setXYZ(i, c.getX(i) * 0.76, c.getY(i) * 0.76, c.getZ(i) * 0.76);
+  head.push(beak);
+  for (const side of [-1, 1]) {
+    head.push(
+      birdColour(
+        new THREE.SphereGeometry(1, 8, 6)
+          .scale(0.007, 0.014, 0.016)
+          .translate(side * 0.062, 0.015, 0.032),
+        '#b9ad8d'
+      )
+    );
+    head.push(
+      birdColour(
+        new THREE.SphereGeometry(1, 8, 6)
+          .scale(0.006, 0.009, 0.01)
+          .translate(side * 0.067, 0.015, 0.035),
+        '#171c19'
+      )
+    );
+  }
+  return {
+    body: birdAssembly(body, 'fountain-bird-folded-plumage'),
+    head: birdAssembly(head, 'fountain-bird-face-and-beak'),
+  };
+}
+export const FOUNTAIN_BIRD_GEOMETRIES = createFountainBirdGeometries();
+export const FOUNTAIN_BIRD_MATERIAL = new THREE.MeshStandardMaterial({
+  vertexColors: true,
+  roughness: 0.84,
+  metalness: 0,
+});
+
 export const FountainBird = React.memo<{ position: [number, number, number] }>(({ position }) => {
   const reducedMotion = useReducedMotion();
   const clock = useRef(0);
@@ -2370,40 +2540,20 @@ export const FountainBird = React.memo<{ position: [number, number, number] }>((
       onPointerOut={resetCursor}
     >
       <group name="fountain-bird-motion" ref={body}>
-        <mesh position={[0, 0.14, 0]} scale={[0.78, 1, 1.2]}>
-          <sphereGeometry args={[0.12, 12, 10]} />
-          <meshStandardMaterial color="#686759" roughness={0.9} />
-        </mesh>
-        <mesh position={[0, 0.13, 0.06]} scale={[0.8, 1, 0.55]}>
-          <sphereGeometry args={[0.09, 10, 8]} />
-          <meshStandardMaterial color="#c7bb96" roughness={1} />
-        </mesh>
-        <mesh position={[0, 0.1, -0.16]} rotation={[-0.5, 0, 0]} scale={[0.07, 0.025, 0.2]}>
-          <boxGeometry />
-          <meshStandardMaterial color="#454a43" roughness={0.9} />
-        </mesh>
+        <mesh
+          name="fountain-bird-plumage"
+          geometry={FOUNTAIN_BIRD_GEOMETRIES.body}
+          material={FOUNTAIN_BIRD_MATERIAL}
+          dispose={null}
+        />
         <group name="fountain-bird-head" ref={head} position={[0, 0.23, 0.07]}>
-          <mesh>
-            <sphereGeometry args={[0.075, 12, 10]} />
-            <meshStandardMaterial color="#555a50" roughness={0.9} />
-          </mesh>
-          <mesh position={[0, -0.01, 0.085]} rotation={[Math.PI / 2, 0, 0]}>
-            <coneGeometry args={[0.023, 0.075, 6]} />
-            <meshStandardMaterial color="#c39543" roughness={0.8} />
-          </mesh>
-          {[-1, 1].map((side) => (
-            <mesh key={side} position={[side * 0.059, 0.015, 0.033]}>
-              <sphereGeometry args={[0.009, 6, 6]} />
-              <meshStandardMaterial color="#171c19" roughness={0.35} />
-            </mesh>
-          ))}
+          <mesh
+            name="fountain-bird-face"
+            geometry={FOUNTAIN_BIRD_GEOMETRIES.head}
+            material={FOUNTAIN_BIRD_MATERIAL}
+            dispose={null}
+          />
         </group>
-        {[-1, 1].map((side) => (
-          <mesh key={side} position={[side * 0.035, 0.045, 0]}>
-            <cylinderGeometry args={[0.008, 0.009, 0.09, 5]} />
-            <meshStandardMaterial color="#8c683e" roughness={0.85} />
-          </mesh>
-        ))}
       </group>
     </group>
   );

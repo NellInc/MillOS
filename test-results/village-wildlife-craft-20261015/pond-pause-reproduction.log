@@ -1,0 +1,37 @@
+(node:44795) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+ RUN  v4.1.10 /Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS
+
+(node:44873) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ❯ src/components/scenery/NaturalDuckPond.test.ts (4 tests | 1 failed | 3 skipped) 12ms
+   × holds pond ripples on pause and hidden tabs, then resumes from the held phase 11ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/scenery/NaturalDuckPond.test.ts > holds pond ripples on pause and hidden tabs, then resumes from the held phase
+AssertionError: expected 0.12000000000000001 to be 0.02 // Object.is equality
+
+- Expected
++ Received
+
+- 0.02
++ 0.12000000000000001
+
+ ❯ src/components/scenery/NaturalDuckPond.test.ts:169:91
+    167|   const phase=shader.uniforms.pondTime;
+    168|   driver.frame!({},.02);expect(phase.value).toBe(.02);
+    169|   useGameSimulationStore.setState({gameSpeed:0});driver.frame!({},.1);…
+       |                                                                                           ^
+    170|   useGameSimulationStore.setState({gameSpeed:1,isTabVisible:false});dr…
+    171|   useGameSimulationStore.setState({isTabVisible:true});driver.frame!({…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 3 skipped (4)
+   Start at  03:44:55
+   Duration  4.80s (transform 1.23s, setup 611ms, import 1.78s, tests 12ms, environment 1.58s)
+

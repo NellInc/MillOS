@@ -3,6 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { useDracoGLTF } from '../../utils/dracoLoader';
+import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { GENERATED_ASSET_PATHS } from '../../utils/modelLoader';
 
 /** All visual time frequencies are multiples of .01, giving a seamless wrap. */
@@ -91,7 +92,12 @@ export function NaturalDuckPond() {
     return { model, materials, time };
   }, [scene]);
   useFrame((_, delta) => {
-    if (!reducedMotion) time.value = (time.value + Math.min(delta, 0.1)) % POND_VISUAL_PERIOD;
+    const { gameSpeed, isTabVisible } = useGameSimulationStore.getState();
+    // The pond belongs to the same paused/hidden world as its ducks. Holding
+    // this accumulated phase avoids catching up skipped wall time on resume.
+    // Working if pause/hidden/reduced holds all retain the exact water phase.
+    if (!reducedMotion && isTabVisible && gameSpeed > 0)
+      time.value = (time.value + Math.min(delta, 0.1)) % POND_VISUAL_PERIOD;
   });
   useEffect(() => () => materials.forEach((material) => material.dispose()), [materials]);
   return <primitive object={model} position={[0, -0.45, 0]} />;

@@ -2998,3 +2998,67 @@ Close IAB inspection shows normal walking operator, feminine Engineer and civili
 All36 finite items implemented within these stated boundaries. Two production files, two test files and task record only.151 frozen pins, sealed source/compiled files and primary HEAD/status/binary diff exact. Cached GLBs/vertex positions/weights/indices/rigs, existing two-draw distant body, eye/PPE mounts, lights/civic atlas and interface/layout/domain state unchanged. No new texture/light/timer/frame loop or person draw. Optional Impeccable executable absent, no install. Pacing remains independently OPEN: all three art scenes miss p95; load22.76/26/21.73 per core, indicative art samples only, no relaxed limits or quiet-GPU prerequisite. Player/device checks deferred. No upload/push/deployment. Raw failure/notice logs retained. Canonical receipt test-results/people-expression-motion-20261015/acceptance.json. Owned setup restoration/selective local check-in follows.
 
 X cleanup/check-in closure:375 exact borrowed dependency links, empty owned.vite-temp and exact named npm cache verified with no open handles; removed only those links/empty directory/task cache and restored original dependency symlink. Current source/compiled candidate/raw images/failure logs/history and unrelated output retained. No inferred disk recovery or performance claim. All jobs terminal, temporary game tab/preview closed and capture lock absent. Selective local check-in only.
+
+
+## Y: Village wildlife, fountain bird and pause consistency, 2026-10-15
+
+Nell requests long detailed repeated improvement passes under an active goal. Goal saved through create_goal,3192 characters, full repeating scope retained. Previous goal turn classified as progress: authoritative goal created and live gaps located, no implementation claimed. This turn executes the next finite pass. Base064af5ca4faaba68a1773730eb919dcd8bd2f7a3. Local only, muted, preserve interface/loading/world layout/people/domain state, player/device checks deferred, pacing separately OPEN. Five allowed files and primary custody in test-results/village-wildlife-craft-20261015/custody.json. This chat authors and reviews.
+
+Working if a small authored bird has attached wings/tail/eyes/beak/toes grounded at its retained stone perch in two shared surfaces, pond ripples hold during pause/hidden/reduced motion and resume without catch-up, and duck dabble easing uses accumulated active time while retaining swim lanes/draft and throttle. Existing lights/material systems/geometry budgets/scene contracts stay; no texture/light/timer/frame loop or remote service added.
+
+### Finite38-item list
+
+1. Shaped small-bird silhouette.
+2. Folded overlapping wings.
+3. Tapered tail feathers.
+4. Breast/back/wing palette.
+5. Restrained feather-tone variation.
+6. Joined upper/lower beak.
+7. Seated eyes.
+8. Small eye surrounds.
+9. Forward toes/rear grips.
+10. Feet at retained stone support.
+11. Scale/location retained.
+12. Two shared merged surfaces.
+13. Independent head turn.
+14. Peck/rest/pet response retained.
+15. Lit material, no new light/texture.
+16. Shared geometry lifetime safe.
+17. Reproduce paused pond ripples.
+18. Freeze paused ripples.
+19. Freeze hidden-tab ripples.
+20. Resume without catch-up.
+21. Retain reduced motion.
+22. Elapsed-time duck dabble easing.
+23. Existing throttle.
+24. Existing swim lanes/spacing.
+25. Draft/body-water clearance.
+26. Clear pose accumulator on holds.
+27. Distinct pet/swim behaviour.
+28. Pond masonry/water finish/light preserved.
+29. Named affected baseline.
+30. Bird shape/contact/cost checks.
+31. Pause/hidden/resume/reduced checks.
+32. Duck blend across frame rates.
+33. Required source/build gates.
+34. Fresh shipped reachability.
+35. Silent exact-build day/dusk village art.
+36. Relevant close bird/pond art.
+37. People/domain/interface/layout preservation.
+38. Owned setup restoration/selective local commit.
+
+Pre-check risks: detached details, toes penetrating coping and resumed phase jumps. Reuse current species samplers/creaturePoseBlend and capture pipeline, no new harness/framework. The bird remains dynamic and non-shadow-casting, so no static civic atlas input changes. Keep canonical atlas and all lamp positions/intensities/budgets. Exact measured fountain perch remains[1.48,1.385,0], fallback[3,.6,0]. Reachability checked before edits. Evidence boundaries: geometry/source checks, actual rendered pixels, general runtime motion, pacing and device acceptance are separate.
+
+Y scope reconciliation: existing LivingWorldCreatures.test.tsx already renders the live bird and real coping, so extend it instead of creating VillageWildlife.test.tsx. Five allowed files retained, no new harness. Add its existing tests to the named baseline before production edits.
+
+Y named baseline35/3 plus7/1 living-world tests, total42/4 pass with no failing names. Existing jsdom canvas warnings retained, no canvas dependency added. Bird geometry stays in existing VillageArea and two shared lit meshes replace nine tiny meshes. Existing perch/head pivot, sampler, throttle and pet code retained. Duck elapsed blend reuses creaturePoseBlend; inactive intervals discard pose time. Pond now checks the same paused/hidden state as ducks without reading wall-time.
+
+Y affected result47/4 pass (+5 vs42/4):38 tests in three component suites and9 in the actual sampler suite. Initial rerun accidentally named the old/nonexistent sampler path, so Vitest ran only38/3; the real src/simulation/__tests__/creatureMotion.test.ts then passed9/1 separately. No aggregate claim from the partial run. Two initial failures were test-fixture defects: DOM groups needed Three transforms before passive effects, and a toe ray started inside the breast instead of immediately above the foot. Corrected the fixture with the existing layout phase and a near-foot ray; no production tolerance relaxed. Paused pond defect reproduced before fix (.02 expected/.12 actual), original red log retained. Existing reduced/pet/head/coping checks plus all eight support points pass. Final typecheck, whole-source lint/format exit0; shader34-family/38-key gate already exit0 on the unchanged final production source. One final locked build/fresh reachability follows.
+
+Y build/native checkpoint: one locked npm run build exits0, Vite25.08s/wrapper26.193s,415 files/181694489 bytes sealed. Fresh reachability passes with no graph misses/new dead modules. Final typecheck/lint/format and shader gate pass,47 affected tests pass across four suites (+5). Served index/main hashes match final seal in square/village noon and square19.5 dusk; sandboxed out-of-process Metal, complete world/community and valid general motion, zero console/page/request/screenshot errors, audio0/context not-created. Actual whole PNGs inspected. Raw pacing failures stay OPEN: noon square p95 (load11.64/core), noon village p95 (8.95), dusk square averageFps/p95 (5.83). Rounded60.0FPS does not hide the dusk averageFps red. Art timing is indicative, no performance-green claim or limit relaxation.
+
+Y close acceptance: actual IAB game loaded world/startup-ready true with cover absent, no readiness/quality/state/viewport/player override. Inspected new bird from front and side during normal head movement: lit breast/back/cap, seated eyes/beak, folded wing/tail and feet on original coping. Runtime shows exactly two live shared-material meshes, finite4116+1944vertices (2020triangles), no texture/shadow added. Existing world-surface injection retained. Pond close view shows four floating ducks with intact body-water clearance, unchanged brick/lip/reeds/lily pads, with successive normal-motion poses. No audio nodes/context; console errors empty. Component tests prove exact held/resumed ripple phase and frame-rate dabble contract; general vehicle-motion acceptance is separate. Close screenshots are conversation evidence, saved native PNGs remain the delivered context. Temporary tab and preview closed normally, capture lock released. Browser work changed only local preview audio settings to muted and public art-camera poses; no UI/player/device checks.
+
+Y all38 finite items implemented within these boundaries. Two production modules, three existing test files and task record only.154 frozen pins, all five source pins and415 compiled pins exact; primary HEAD/status/binary diff preserved. Existing people rigs/skins, static civic atlas, lamp budgets/positions, models/rasters, pond geometry/material finish, village routes/domain state, interface/loading/presets and railway/port/mountains retained. Optional Impeccable executable absent, no installation/interface change. Original failure logs retained, including the first fixture failures and reproduced pre-fix pause defect. An initial un-escalated custody-receipt write was denied before writing; repeated with supported worktree permission, checks passed.
+
+Y owned cleanup:375 exact borrowed dependency links verified, owned.vite-temp empty, exact named npm cache and no open handles checked. Removed only those borrowed links/empty directory/named cache and restored original shared dependency symlink. Source, final dist, raw images/logs/history and unrelated output preserved. No inferred physical-space recovery. Selective local check-in follows; no push/upload/deployment. The broad repeating goal remains active, this pass is an internal milestone rather than completion of the whole programme. Player/device checks deferred and pacing independently OPEN.

@@ -10,6 +10,10 @@ import {
   BlacksmithHorse,
   Fountain,
   FountainBird,
+  Duck,
+  FOUNTAIN_BIRD_GEOMETRIES,
+  FOUNTAIN_BIRD_MATERIAL,
+  FOUNTAIN_BIRD_TOE_CONTACTS,
   FOUNTAIN_BIRD_PERCH,
   FALLBACK_FOUNTAIN_BIRD_PERCH,
 } from './VillageArea';
@@ -18,12 +22,17 @@ import { playCritterSound } from '../utils/critterAudio';
 
 const boundary = vi.hoisted(() => ({
   fallback: false,
+  throttle: 1,
+  frame: 0,
+  graze: [] as number[],
   reducedMotion: false,
   rigAngles: [] as number[],
   asset: null as unknown,
 }));
 vi.mock('../hooks/useReducedMotion', () => ({ useReducedMotion: () => boundary.reducedMotion }));
-vi.mock('../utils/frameThrottle', () => ({ shouldRunThisFrame: () => true }));
+vi.mock('../utils/frameThrottle', () => ({
+  shouldRunThisFrame: () => ++boundary.frame % boundary.throttle === 0,
+}));
 vi.mock('@react-three/fiber', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@react-three/fiber')>()),
   useFrame: vi.fn(),
@@ -44,7 +53,7 @@ vi.mock('./models/RiggedCreatureModel', async () => {
   return {
     CreatureBody: React.forwardRef(({ creature }: { creature: string }, ref) => {
       React.useImperativeHandle(ref, () => ({
-        setGraze: vi.fn(),
+        setGraze: (amount: number) => boundary.graze.push(amount),
         setStride: vi.fn(),
         setHeadShake: (angle: number) => boundary.rigAngles.push(angle),
       }));
@@ -63,6 +72,9 @@ vi.mock('../utils/critterAudio', () => ({ playCritterSound: vi.fn() }));
 afterEach(() => {
   cleanup();
   boundary.fallback = false;
+  boundary.throttle = 1;
+  boundary.frame = 0;
+  boundary.graze.length = 0;
   boundary.reducedMotion = false;
   boundary.rigAngles.length = 0;
   boundary.asset = null;
@@ -111,10 +123,10 @@ it('seats both bird feet on the actual delivered fountain coping', async () => {
           new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }))
         );
       }
-    for (const foot of [-0.035, 0.035]) {
+    for (const [toeX, , toeZ] of FOUNTAIN_BIRD_TOE_CONTACTS) {
       const [x, y, z] = FOUNTAIN_BIRD_PERCH;
       const ray = new THREE.Raycaster(
-        new THREE.Vector3(x, 4, z + foot),
+        new THREE.Vector3(x - toeZ, 4, z + toeX),
         new THREE.Vector3(0, -1, 0)
       );
       const hit = ray.intersectObjects(meshes, false)[0];
@@ -266,4 +278,95 @@ it('disposes only a private creature skeleton and preserves the cached rig, geom
   expect(materialDispose).not.toHaveBeenCalled();
   expect(mapDispose).not.toHaveBeenCalled();
   vi.restoreAllMocks();
+});
+
+it('borrows two shared bird surfaces without disposing them on remount', () => {
+  const bodyDispose = vi.spyOn(FOUNTAIN_BIRD_GEOMETRIES.body, 'dispose'),
+    headDispose = vi.spyOn(FOUNTAIN_BIRD_GEOMETRIES.head, 'dispose'),
+    materialDispose = vi.spyOn(FOUNTAIN_BIRD_MATERIAL, 'dispose');
+  const view = render(<FountainBird position={FOUNTAIN_BIRD_PERCH} />);
+  expect(view.container.querySelectorAll('mesh')).toHaveLength(2);
+  expect(
+    view.container.querySelector('[name="fountain-bird-head"]')?.getAttribute('position')
+  ).toBe('0,0.23,0.07');
+  view.unmount();
+  expect(bodyDispose).not.toHaveBeenCalled();
+  expect(headDispose).not.toHaveBeenCalled();
+  expect(materialDispose).not.toHaveBeenCalled();
+  vi.restoreAllMocks();
+});
+it('uses elapsed active time for actual duck dabbling across display rates and clears holds', () => {
+  const original = useGameSimulationStore.getState();
+  useGameSimulationStore.setState({ gameSpeed: 1, isTabVisible: true });
+  const sample = (fps: number) => {
+    boundary.throttle = fps / 15;
+    boundary.frame = 0;
+    boundary.graze.length = 0;
+    // React DOM supplies elements rather than R3F Object3Ds. Attach the existing
+    // Three transform surface during layout, before the duck's passive effect.
+    function DuckFixture() {
+      const host = React.useRef<HTMLDivElement>(null);
+      React.useLayoutEffect(() => {
+        Object.assign(host.current!.querySelector('[name="village-duck-0"]')!, {
+          position: new THREE.Vector3(2, 1.08, 1),
+          rotation: new THREE.Euler(),
+        });
+      }, []);
+      return (
+        <div ref={host}>
+          <Duck position={[2, 1.08, 1]} delay={0} onClick={() => {}} />
+        </div>
+      );
+    }
+    const view = render(<DuckFixture />);
+    const root = view.container.querySelector('[name="village-duck-0"]')! as unknown as THREE.Group;
+    const tick = (delta: number) => {
+      const callback = vi.mocked(useFrame).mock.calls.at(-1)![0];
+      callback({} as Parameters<typeof callback>[0], delta);
+    };
+    for (let i = 0; i < fps * 60; i++) tick(1 / fps);
+    const result = { graze: boundary.graze.at(-1)!, position: root.position.clone() };
+    expect(boundary.graze.length).toBe(900);
+    expect(Math.hypot(root.position.x - 2, root.position.z - 1)).toBeLessThanOrEqual(0.400001);
+    // Half an unsampled interval must be discarded when paused/hidden.
+    tick(1 / fps);
+    useGameSimulationStore.setState({ gameSpeed: 0 });
+    tick(0.1);
+    const held = root.position.clone(),
+      count = boundary.graze.length;
+    for (let i = 0; i < 20; i++) tick(0.1);
+    expect(root.position.equals(held)).toBe(true);
+    expect(boundary.graze).toHaveLength(count);
+    useGameSimulationStore.setState({ gameSpeed: 1, isTabVisible: false });
+    tick(10);
+    expect(boundary.graze).toHaveLength(count);
+    useGameSimulationStore.setState({ isTabVisible: true });
+    boundary.throttle = 1;
+    tick(0.02);
+    expect(root.position.distanceTo(held)).toBeLessThan(0.03);
+    boundary.reducedMotion = true;
+    useGameSimulationStore.setState({ gameSpeed: 0 });
+    view.rerender(<DuckFixture />);
+    tick(0.1);
+    expect(root.position.toArray()).toEqual([2, 1.08, 1]);
+    boundary.reducedMotion = false;
+    useGameSimulationStore.setState({ gameSpeed: 1 });
+    view.unmount();
+    return result;
+  };
+  try {
+    const a = sample(30),
+      b = sample(60),
+      c = sample(120);
+    expect(a.graze).toBeCloseTo(b.graze, 8);
+    expect(a.graze).toBeCloseTo(c.graze, 8);
+    expect(a.position.distanceTo(b.position)).toBeLessThan(1e-8);
+    expect(a.position.distanceTo(c.position)).toBeLessThan(1e-8);
+    expect(playCritterSound).not.toHaveBeenCalled();
+  } finally {
+    useGameSimulationStore.setState({
+      gameSpeed: original.gameSpeed,
+      isTabVisible: original.isTabVisible,
+    });
+  }
 });

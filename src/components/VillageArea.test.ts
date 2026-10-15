@@ -25,6 +25,9 @@ import {
 import { EXTERIOR_LAYERS } from '../constants/renderLayers';
 import {
   DUCK_SWIM_DRAFT,
+  FOUNTAIN_BIRD_GEOMETRIES,
+  FOUNTAIN_BIRD_MATERIAL,
+  FOUNTAIN_BIRD_TOE_CONTACTS,
   VILLAGE_GROUND_MATERIAL,
   VILLAGE_GROUND_GEOMETRY,
   VILLAGE_COBBLE_TILE_METRES,
@@ -852,4 +855,64 @@ it('flours only bread crowns while retaining exact market geometry and other tra
   }
   expect(pale).toBeGreaterThan(50);
   expect(toasted).toBeGreaterThan(50);
+});
+
+describe('authored miniature fountain bird', () => {
+  it('keeps folded plumage and face in two finite, bounded shared lit surfaces', () => {
+    let triangles = 0;
+    for (const geometry of Object.values(FOUNTAIN_BIRD_GEOMETRIES)) {
+      const p = geometry.getAttribute('position'),
+        n = geometry.getAttribute('normal');
+      expect(geometry.getAttribute('color').count).toBe(p.count);
+      expect(geometry.groups).toHaveLength(0);
+      expect(Array.from(p.array).every(Number.isFinite)).toBe(true);
+      for (let i = 0; i < n.count; i++)
+        expect(Math.hypot(n.getX(i), n.getY(i), n.getZ(i))).toBeCloseTo(1, 5);
+      triangles += (geometry.index?.count ?? p.count) / 3;
+    }
+    const b = FOUNTAIN_BIRD_GEOMETRIES.body.boundingBox!;
+    expect(b.min.y).toBeGreaterThanOrEqual(-0.000001);
+    expect(b.min.y).toBeLessThan(0.004);
+    expect(b.min.z).toBeGreaterThan(-0.27);
+    expect(b.max.z).toBeLessThan(0.15);
+    expect(Math.max(-b.min.x, b.max.x)).toBeLessThan(0.11);
+    expect(triangles).toBeLessThan(3000);
+    expect(FOUNTAIN_BIRD_MATERIAL.vertexColors).toBe(true);
+    expect(FOUNTAIN_BIRD_MATERIAL.emissive.getHex()).toBe(0);
+    expect(FOUNTAIN_BIRD_MATERIAL.map).toBeNull();
+  });
+  it('seats eyes and both beak sections against the head, with eight supported toes', () => {
+    const material = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
+    const body = new THREE.Mesh(FOUNTAIN_BIRD_GEOMETRIES.body, material),
+      head = new THREE.Mesh(FOUNTAIN_BIRD_GEOMETRIES.head, material);
+    body.updateMatrixWorld();
+    head.updateMatrixWorld();
+    expect(FOUNTAIN_BIRD_TOE_CONTACTS).toHaveLength(8);
+    for (const [x, , z] of FOUNTAIN_BIRD_TOE_CONTACTS) {
+      const hit = new THREE.Raycaster(
+        new THREE.Vector3(x, 0.015, z),
+        new THREE.Vector3(0, -1, 0)
+      ).intersectObject(body)[0];
+      expect(hit).toBeDefined();
+      expect(hit.point.y).toBeLessThan(0.012);
+    }
+    for (const side of [-1, 1]) {
+      const hits = new THREE.Raycaster(
+        new THREE.Vector3(side * 0.15, 0.015, 0.035),
+        new THREE.Vector3(-side, 0, 0)
+      ).intersectObject(head);
+      expect(hits[0].point.x * side).toBeGreaterThan(0.069);
+      // Eye sphere starts inside the .075m head; no detached highlight bead.
+      expect(hits.some((h) => Math.abs(h.point.x) < 0.065)).toBe(true);
+    }
+    for (const y of [-0.016, -0.004]) {
+      const hits = new THREE.Raycaster(
+        new THREE.Vector3(0, y, 0.2),
+        new THREE.Vector3(0, 0, -1)
+      ).intersectObject(head);
+      expect(hits[0].point.z).toBeGreaterThan(0.09);
+      expect(hits.some((h) => h.point.z < 0.08)).toBe(true);
+    }
+    material.dispose();
+  });
 });

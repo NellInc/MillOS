@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ReactElement } from 'react';
 import * as THREE from 'three';
+import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import {
   applyPondWater,
   NaturalDuckPond,
@@ -29,12 +30,17 @@ vi.mock('@react-three/fiber', () => ({
 }));
 vi.mock('../../hooks/useReducedMotion', () => ({ useReducedMotion: () => driver.reduced }));
 vi.mock('../../utils/dracoLoader', () => ({ useDracoGLTF: () => ({ scene: driver.scene }) }));
+const originalSimulation = useGameSimulationStore.getState();
 beforeEach(() => {
+  useGameSimulationStore.setState({ gameSpeed: 1, isTabVisible: true });
   driver.memo = undefined;
   driver.reduced = false;
   driver.cleanup = null;
 });
-afterEach(() => driver.cleanup?.());
+afterEach(() => {
+  driver.cleanup?.();
+  useGameSimulationStore.setState(originalSimulation);
+});
 
 describe('authored pond water finish', () => {
   it('changes only blue atlas texels, keeping reeds, mud and lily pads', () => {
@@ -151,4 +157,36 @@ it('freezes and resumes pond ripples, while owning only the cloned material', ()
   material.dispose();
   map.dispose();
   geometry.dispose();
+});
+
+it('holds pond ripples on pause and hidden tabs, then resumes from the held phase', () => {
+  const geometry = new THREE.PlaneGeometry(),
+    material = new THREE.MeshStandardMaterial();
+  driver.scene = new THREE.Scene();
+  driver.scene.add(new THREE.Mesh(geometry, material));
+  const element = NaturalDuckPond() as ReactElement<{ object: THREE.Scene }>;
+  const clone = element.props.object.children[0] as THREE.Mesh<
+    THREE.BufferGeometry,
+    THREE.MeshStandardMaterial
+  >;
+  const shader = {
+    uniforms: {},
+    vertexShader: '#include <begin_vertex>',
+    fragmentShader: '',
+  } as Parameters<typeof material.onBeforeCompile>[0];
+  clone.material.onBeforeCompile(shader, {} as THREE.WebGLRenderer);
+  const phase = shader.uniforms.pondTime;
+  driver.frame!({}, 0.02);
+  expect(phase.value).toBe(0.02);
+  useGameSimulationStore.setState({ gameSpeed: 0 });
+  driver.frame!({}, 0.1);
+  expect(phase.value).toBe(0.02);
+  useGameSimulationStore.setState({ gameSpeed: 1, isTabVisible: false });
+  driver.frame!({}, 10);
+  expect(phase.value).toBe(0.02);
+  useGameSimulationStore.setState({ isTabVisible: true });
+  driver.frame!({}, 0.03);
+  expect(phase.value).toBeCloseTo(0.05);
+  geometry.dispose();
+  material.dispose();
 });
