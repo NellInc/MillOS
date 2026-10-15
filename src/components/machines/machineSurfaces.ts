@@ -671,9 +671,9 @@ export const MACHINE_MATERIALS = {
    *
    * No map, but a `fabric` finish: that profile exists for exactly this, and a
    * 1.25 m sack is comfortably above the aliasing floor at the packing camera.
-   * WORLD space rather than the profile's authored object space, because these
-   * sacks do not move and the point is that a stack of them stops reading as
-   * one sack drawn six times.
+   * The output sack moves on the filling cycle. Rest-space sampling keeps the
+   * weave welded to the cloth rather than sliding through a world-space field.
+   * Working if bag travel changes the transform, never the cloth's field point.
    */
   bag: applyWorldSurface(
     new THREE.MeshStandardMaterial({
@@ -683,7 +683,7 @@ export const MACHINE_MATERIALS = {
       metalness: 0,
     }),
     'fabric',
-    { objectSpace: 0 }
+    { objectSpace: 1 }
   ),
 
   /** Painted drive motors. Final 0.33-0.81. */

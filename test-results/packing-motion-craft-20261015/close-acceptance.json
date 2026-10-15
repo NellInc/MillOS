@@ -1,0 +1,44 @@
+{
+  "ready": {
+    "world": true,
+    "startup": true,
+    "cover": false
+  },
+  "consoleErrors": [],
+  "audio": {
+    "activeNodes": 0,
+    "contextState": "not-created"
+  },
+  "inspected": [
+    "sack front/oblique/closure/foot/guide clearance",
+    "mill enclosure/hinges/dial/screen",
+    "sifter tray/fascia/clamps/screen"
+  ],
+  "sackLive": {
+    "instances": 3,
+    "vertices": 329,
+    "triangles": 464,
+    "textures": 0,
+    "material": "machine-bag"
+  },
+  "packerObserved": {
+    "simulationTime": [
+      33.2,
+      64.8
+    ],
+    "sackChecksum": [
+      56.3500018119812,
+      56.3500018119812
+    ],
+    "headChecksum": [
+      53.87999910116196,
+      53.87999910116196
+    ],
+    "boundary": "Packers remained held in native preview; active stop/resume contract proven by actual sampler tests, not this unchanged checksum"
+  },
+  "evidence": "CUA conversation screenshots, not saved close-frame files",
+  "playerDeviceChecks": "deferred",
+  "actorInventoryQualityReadinessOverride": false,
+  "temporaryTabClosed": true,
+  "previewClosed": true
+}

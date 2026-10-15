@@ -503,3 +503,106 @@ export const MACHINE_FINISH_GEOMETRY = {
   packerCovers: packerCovers(),
   packerHardware: packerHardware(),
 } as const;
+
+/** A closed filled cloth sack in the existing unit envelope.
+ * Rounded rectangular rings form the belly, shoulder and pinched neck. The
+ * rolled seal intersects the closed neck, with no floating strip or extra draw.
+ * Working if the complete unit bounds remain +/- .5, and the existing cloth
+ * material reads as a bag with a flat foot and folded closure at close range.
+ */
+function createPackerSackGeometry(): THREE.BufferGeometry {
+  const rings = [
+    [-0.5, 0.38, 0.31],
+    [-0.46, 0.44, 0.4],
+    [-0.32, 0.485, 0.47],
+    [-0.08, 0.5, 0.5],
+    [0.14, 0.49, 0.48],
+    [0.3, 0.46, 0.39],
+    [0.4, 0.43, 0.2],
+    [0.445, 0.415, 0.08],
+    [0.47, 0.41, 0.045],
+  ];
+  const segments = 24,
+    stride = segments + 1;
+  const positions: number[] = [],
+    uvs: number[] = [],
+    indices: number[] = [];
+  rings.forEach(([y, width, depth], row) => {
+    for (let segment = 0; segment <= segments; segment++) {
+      const angle = (segment / segments) * Math.PI * 2;
+      const c = Math.cos(angle),
+        s = Math.sin(angle);
+      // Two restrained vertical gusset folds, strongest through the full body.
+      const fold =
+        1 -
+        0.065 *
+          Math.exp(-(((Math.abs(c) - 0.82) / 0.12) ** 2)) *
+          Math.sin((Math.PI * (y + 0.5)) / 0.97);
+      positions.push(
+        width * Math.sign(c) * Math.abs(c) ** 0.6,
+        y,
+        depth * Math.sign(s) * Math.abs(s) ** 0.6 * fold
+      );
+      uvs.push(segment / segments, y + 0.5);
+      if (row < rings.length - 1 && segment < segments) {
+        const a = row * stride + segment,
+          b = a + stride;
+        indices.push(a, b, a + 1, a + 1, b, b + 1);
+      }
+    }
+  });
+  // Separate cap vertices keep a genuinely flat foot rather than rounding it
+  // into the wall normals. Both caps are closed and wound outwards.
+  for (const row of [0, rings.length - 1]) {
+    const start = positions.length / 3,
+      y = rings[row][0];
+    positions.push(0, y, 0);
+    uvs.push(0.5, 0.5);
+    for (let segment = 0; segment <= segments; segment++) {
+      const i = (row * stride + segment) * 3;
+      positions.push(positions[i], positions[i + 1], positions[i + 2]);
+      uvs.push(0.5 + positions[i], 0.5 + positions[i + 2]);
+      if (segment < segments) {
+        const a = start + segment + 1;
+        indices.push(...(row === 0 ? [start, a, a + 1] : [start, a + 1, a]));
+      }
+    }
+  }
+  const body = new THREE.BufferGeometry();
+  body.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  body.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+  body.setIndex(indices);
+  body.computeVertexNormals();
+  const normals = body.getAttribute('normal'),
+    seamNormal = new THREE.Vector3();
+  for (let row = 0; row < rings.length; row++) {
+    const a = row * stride,
+      b = a + segments;
+    seamNormal
+      .fromBufferAttribute(normals, a)
+      .add(new THREE.Vector3().fromBufferAttribute(normals, b))
+      .normalize();
+    normals.setXYZ(a, seamNormal.x, seamNormal.y, seamNormal.z);
+    normals.setXYZ(b, seamNormal.x, seamNormal.y, seamNormal.z);
+  }
+  const seal = new THREE.CylinderGeometry(0.025, 0.025, 0.82, 8)
+    .rotateZ(Math.PI / 2)
+    .translate(0, 0.475, 0);
+  return finish([body, seal], 'packer-filled-cloth-sack');
+}
+export const PACKER_SACK_GEOMETRY = createPackerSackGeometry();
+export const PACKER_SACK_LAYOUT = {
+  scale: [1.25, 1.45, 0.72] as const,
+  centreY: 1.45 / 2 + 0.002,
+  z: 2.75,
+  travel: 0.52,
+} as const;
+
+/** Shared by initial layout and every moving frame, keeping the foot seated. */
+export function getPackerSackPosition(origin: Vec3, cycle = 0): [number, number, number] {
+  return [
+    origin[0],
+    origin[1] + PACKER_SACK_LAYOUT.centreY,
+    origin[2] + PACKER_SACK_LAYOUT.z + cycle * PACKER_SACK_LAYOUT.travel,
+  ];
+}

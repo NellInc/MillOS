@@ -1,0 +1,14 @@
+{
+  "index": {
+    "url": "http://127.0.0.1:4288/",
+    "sha256": "5a39962b6ebaa9702ca97c01990ae920b6715d09991974d03c1237099b15ea85",
+    "bytes": 9887
+  },
+  "entries": [
+    {
+      "url": "http://127.0.0.1:4288/assets/main-CccrhsZW.js",
+      "sha256": "83c3832f8d0328f420409a1d24caeca73eff96af5218a3a4a197f0f3bf498a22",
+      "bytes": 823697
+    }
+  ]
+}

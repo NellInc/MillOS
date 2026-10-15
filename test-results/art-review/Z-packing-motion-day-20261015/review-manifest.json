@@ -1,0 +1,65 @@
+{
+  "label": "Z-packing-motion-day-20261015",
+  "capturedAt": "2026-10-15T03:18:13.946Z",
+  "git": {
+    "commit": "3eac1d8b5241629b3d8bd069bd95ae076254ba70",
+    "branch": "codex/place-led-beautification-20261010",
+    "dirty": true,
+    "dirtyFileCount": 9,
+    "dirtyFiles": [
+      "_contprompts/millos_place_led_beautification_20261010.md",
+      "src/components/machines/CompactMachines.tsx",
+      "src/components/machines/machineFinishGeometry.ts",
+      "src/components/machines/machinePartGeometry.test.ts",
+      "src/components/machines/machineSurfaces.test.ts",
+      "src/components/machines/machineSurfaces.ts",
+      "src/simulation/__tests__/machineMotion.test.ts",
+      "src/simulation/machineMotion.ts",
+      "output/playwright/place-led-20261010/"
+    ]
+  },
+  "options": {
+    "label": "Z-packing-motion-day-20261015",
+    "scenes": [
+      "milling",
+      "sifting",
+      "packing"
+    ],
+    "sceneSet": "explicit",
+    "quality": "medium",
+    "port": "4288",
+    "time": "12",
+    "weather": "clear",
+    "duration": "1",
+    "warmup": "1",
+    "settleTimeout": "240",
+    "perfGate": false,
+    "skipBuild": true,
+    "headed": false
+  },
+  "diagnostics": [],
+  "scenes": [
+    {
+      "scene": "milling",
+      "image": "milling.png",
+      "indicativeFps": 60.29
+    },
+    {
+      "scene": "sifting",
+      "image": "sifting.png",
+      "indicativeFps": 57.95
+    },
+    {
+      "scene": "packing",
+      "image": "packing.png",
+      "indicativeFps": 60.33
+    }
+  ],
+  "contactSheet": "contact-sheet.png",
+  "perfGate": null,
+  "caveats": [
+    "Working tree was dirty (9 files). These frames show uncommitted work, not commit 3eac1d8. Do not use as a baseline for a later comparison.",
+    "Captured with --skip-build; dist/ may predate the tree.",
+    "No performance gate was run. Art mode unpins reduced motion and restores full fidelity, so its frame samples are indicative only. A visual verdict from this capture is not shippable until a non-art budget run passes on the same commit."
+  ]
+}

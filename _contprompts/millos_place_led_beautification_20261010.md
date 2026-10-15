@@ -3062,3 +3062,64 @@ Y close acceptance: actual IAB game loaded world/startup-ready true with cover a
 Y all38 finite items implemented within these boundaries. Two production modules, three existing test files and task record only.154 frozen pins, all five source pins and415 compiled pins exact; primary HEAD/status/binary diff preserved. Existing people rigs/skins, static civic atlas, lamp budgets/positions, models/rasters, pond geometry/material finish, village routes/domain state, interface/loading/presets and railway/port/mountains retained. Optional Impeccable executable absent, no installation/interface change. Original failure logs retained, including the first fixture failures and reproduced pre-fix pause defect. An initial un-escalated custody-receipt write was denied before writing; repeated with supported worktree permission, checks passed.
 
 Y owned cleanup:375 exact borrowed dependency links verified, owned.vite-temp empty, exact named npm cache and no open handles checked. Removed only those borrowed links/empty directory/named cache and restored original shared dependency symlink. Source, final dist, raw images/logs/history and unrelated output preserved. No inferred physical-space recovery. Selective local check-in follows; no push/upload/deployment. The broad repeating goal remains active, this pass is an internal milestone rather than completion of the whole programme. Player/device checks deferred and pacing independently OPEN.
+
+## Z: Packing craft and continuous mechanical motion, 2026-10-15
+
+Previous goal turn is progress: local Y commit3eac1d8b,47/4 tests and exact sealed native day/dusk acceptance. Repeating goal remains active. Current live owned base3eac1d8b5241629b3d8bd069bd95ae076254ba70, sole unrelated output preserved. Primary dirty checkout untouched. Local only/muted, interface/quality/loading/world layout preserved, player/device checks deferred, pacing independently OPEN. This chat authors and reviews. Five allowed files in test-results/packing-motion-craft-20261015/custody.json.
+
+Working if the packer output sack reads as a filled cloth bag with soft shoulders, folded neck and attached closure in the same shared instanced draw, and stopped/starved/blocked/faulted equipment retains its last mechanical phase and resumes continuously. No quantity/recipe/inventory/controller authority change. Existing finite machine state classifier remains authoritative.
+
+### Finite36-item list
+
+1. Shaped cloth sack instead of rounded box.
+2. Full lower body/soft shoulders.
+3. Pinched folded neck.
+4. Attached rolled closure.
+5. Flat grounded base.
+6. Retained installed width/height/depth.
+7. Existing guide clearance.
+8. Existing bag travel lane.
+9. Reuse cloth material.
+10. Rest-space surface finish retained.
+11. No texture/material/light added.
+12. One shared instanced bag draw.
+13. Bounded triangle cost.
+14. Reproduce stopped-machine pose snap.
+15. Hold roller angle.
+16. Hold sifter position.
+17. Hold filling-head position.
+18. Output bag follows its held cycle.
+19. Resume held phases.
+20. Independent per-machine phase.
+21. Existing speeds/counter-rotation.
+22. Starvation/blockage/fault holds.
+23. Paused simulation-time hold.
+24. Hidden interval discarded.
+25. Simulation-clock reset handling.
+26. Screens/labels/trays/fittings stay attached.
+27. Existing beacons/live dial authority.
+28. Quantities/inventory authority unchanged.
+29. Picking/quality/interface unchanged.
+30. Named affected baseline.
+31. Geometry/clearance/phase checks.
+32. Required source/build gates.
+33. Fresh shipped reachability.
+34. Silent exact-build milling/packing and close craft art.
+35. Separate pacing/deferred devices.
+36. Owned setup restoration and selective local commit.
+
+Pre-check: read live renderer and state classifier; MillScene directly imports CompactMachinesContainer, existing reachability and built bundle confirm delivery. Existing geometry/check harness reused. Risks: detached closure, bag-guide intersection, phase jumps on stop/reset. Bag remains a representative output, not a new stock counter or weight/batch claim. Current render explicitly writes roller rotation0, sifter offsets0 and packer cycle0 on a stopped frame; regression checks will cover the extracted live motion sampler. Individual local visual clocks do not mutate/replay domain state. Clock rewinds reset visual phase, hidden samples update only the cursor. No canonical civic-region static input changes, all factory machinery stays outside civic bake sources.
+
+Z baseline38/3 pass, no failing names. Extracted the renderer's existing phase-reset expression into its actual shared sampler before fixing it; the new consumer test reproduces null instead of retained2.3s, original red log retained. Final accumulated active simulation time holds per-machine phase and consumes stopped/hidden cursors; rewind starts a new visual cycle.43/3 affected pass (+5), including new464-triangle sack, exact unit envelope, closure/foot/guide/lane tests and phase hold/resume/reset/cadence. No render-time/domain authority moved.
+
+Z scope reconciliation: source review found the existing bag fabric explicitly objectSpace0 despite the moving bag. The list's assumed rest-space finish was wrong. Correct this related defect to objectSpace1 in existing machineSurfaces.ts and extend its existing tests after recording their baseline. Seven allowed files now (four production/three tests), all other surfaces/material properties frozen. Also reconcile both initial-layout and frame-loop sack placement; initial layout-only grounding is insufficient. No new shader family/key/material/map or extra draw.
+
+Z additional surface baseline35/1 pass before its material change, full named baseline73/4 with no failing names. Final affected79/4 pass (+6). Original failed fixture log retained: a missing test import and over-broad replacement inserted the same placement loop into an unrelated crown test. Corrected import and removed that duplicate; final actual diff preserves the original crown test. Live sampler holds all classified non-operating states, resumes without stopped-time catch-up, and handles hidden/paused/reset/cadence. Initial and frame bag positions now use one actual shared position function, with2mm foot clearance through its original0.52m travel;464 triangles versus prior588, same1.25x1.45x.72 envelope, one existing bag draw/material. Closed neck/rolled seam and guide/body/base clearances checked. Surface test compiles the actual material injection and confirms uSurfSpan.w=1, no map/colour/roughness/metalness change. All other machine surfaces and decal/beacon authorities retained. Final typecheck, whole-source lint/format and shader34-family38-key gates exit0. One final locked build/fresh reachability follows.
+
+Z build/native acceptance: one locked npm run build exits0, Vite16.74s/wrapper17.506s,415 files/181696437 bytes sealed. Fresh reachability passes, no new dead modules/stale allow-list/graph misses.79/4 affected pass (+6 vs73/4 baseline), final whole-source typecheck/lint/format and shader34-family38-key gates pass. Served index/main hashes match seal for native milling/sifting/packing noon and packing22h. All sandboxed out-of-process Metal, world/community intact, valid general vehicle motion, zero console/page/request/screenshot errors, audio0/context not-created. Four actual full saved PNGs inspected. No performance-green inference from exit0/art mode: all four miss p95; sifting also averageFps. Load/core5.43,6.58,6.54,5.50 respectively. Pacing stays separately OPEN with unchanged budgets, no quiet-GPU prerequisite.
+
+Z close art: actual ready/startup-ready true, cover absent, no bypass. IAB inspected sack from front/oblique: filled lower body, rounded shoulders, pinched neck/attached rolled closure, flat seated foot, clear guides and unchanged travel lane. Actual live mesh has329vertices, three instances, one shared lit material with zero textures, retained shadow flags and surface injection. Unit geometry464triangles versus old588. Mill enclosure, hinges, gauges/HMI and sifter service fascia/clamps/trays inspected during normal world operation, still attached. Public camera only, no player/viewport/actor/inventory/quality/readiness override. Source guard confirms hidden central tick does not advance material time. Native preview packer head/sack checksums stayed identical from simulation33.2s to64.8s, so this is held-pose evidence, not a native active stop/resume demonstration. Active continuity is covered by the actual sampler's state/cadence tests; general vehicle motion is separate. Close screenshots are conversation evidence only. Console errors empty and audio0/context not-created. Temporary game tab and preview closed normally; capture lock released. Browser changes were limited to local preview mute settings/public art-camera poses.
+
+All36 finite items implemented within these boundaries. Four production files and three existing test files plus task record; no new framework, model file, draw, texture, light, shader family/cache key, timer or render loop.160 frozen pins, seven source pins,415 compiled pins and primary HEAD/status/binary diff exact. Existing domain classifier, production quantities/quality/replay authority, screens/decals/beacons, other machine surfaces, village/people/creatures, canonical civic atlas, lighting positions/budgets, interface/loading/presets and railway/port/mountains preserved. Optional Impeccable executable absent, no installation/interface change. Original reproduction and fixture failures retained. Canonical acceptance test-results/packing-motion-craft-20261015/acceptance.json.
+
+Z owned cleanup:375 exact borrowed dependency links verified and removed, empty own.vite-temp and exact named Z npm cache verified without open handles, original shared dependency symlink restored. Source/final dist/raw images/logs/history and unrelated output preserved. No physical-space recovery claim or foreign process action. All jobs terminal, own game tab/preview closed, lock absent. Selective local check-in follows. No upload/push/deployment, player/device checks remain deferred and pacing independently OPEN. Broad rotating goal remains active; this completed36-item pass is an internal milestone.

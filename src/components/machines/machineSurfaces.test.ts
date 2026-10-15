@@ -788,3 +788,22 @@ describe('machine decals', () => {
     expect(MACHINE_DECAL_MATERIAL.isMeshStandardMaterial).toBe(true);
   });
 });
+
+it('welds the moving output sack weave to its rest geometry without maps or a new shader variant', () => {
+  const material = MACHINE_MATERIALS.bag;
+  const shader = {
+    uniforms: THREE.UniformsUtils.clone(THREE.ShaderLib.standard.uniforms),
+    vertexShader: THREE.ShaderLib.standard.vertexShader,
+    fragmentShader: THREE.ShaderLib.standard.fragmentShader,
+  };
+  material.onBeforeCompile(
+    shader as unknown as THREE.WebGLProgramParametersWithUniforms,
+    null as unknown as THREE.WebGLRenderer
+  );
+  expect(shader.uniforms.uSurfSpan.value.w).toBe(1);
+  expect(shader.vertexShader).toContain('surf');
+  expect(material.map).toBeNull();
+  expect(material.metalness).toBe(0);
+  expect(material.roughness).toBe(0.92);
+  expect(material.color.getHexString()).toBe('ded0aa');
+});

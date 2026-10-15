@@ -9,7 +9,11 @@ import {
   getSiloAssemblyScale,
 } from '../../constants/siteLayout';
 import { MachineType } from '../../types';
-import { MILL_FEEDER_FASTENERS } from './machineFinishGeometry';
+import {
+  MILL_FEEDER_FASTENERS,
+  PACKER_SACK_LAYOUT,
+  getPackerSackPosition,
+} from './machineFinishGeometry';
 import {
   MACHINE_PART_GEOMETRY,
   SILO_HARDWARE,
@@ -52,6 +56,7 @@ const EXPECTED_HALF_EXTENTS: Record<
   beacon: [1, 1, 1],
   // Cage rings lie in XY before the retained sideways motor-end mount.
   fanGrille: [1.1, 1.1, 0.1],
+  packerSack: [0.5, 0.5, 0.5],
 };
 
 const halfExtents = (geometry: THREE.BufferGeometry): [number, number, number] => {
@@ -423,4 +428,32 @@ describe('shared machine part geometry', () => {
     expect(distinctAngles(MACHINE_PART_GEOMETRY.siloOutlet)).toBe(shell);
     expect(distinctAngles(MACHINE_PART_GEOMETRY.siloRing)).toBe(shell);
   });
+});
+
+it('closes the packer sack neck onto its rolled seam and seats its foot within the existing guides', () => {
+  const geometry = MACHINE_PART_GEOMETRY.packerSack;
+  expect((geometry.index?.count ?? geometry.attributes.position.count) / 3).toBeLessThan(588);
+  const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }));
+  for (const x of [-0.25, 0, 0.25]) {
+    const hits = new THREE.Raycaster(
+      new THREE.Vector3(x, 0.6, 0),
+      new THREE.Vector3(0, -1, 0)
+    ).intersectObject(mesh);
+    expect(hits[0].point.y).toBeCloseTo(0.5, 6);
+    expect(hits.some((hit) => Math.abs(hit.point.y - 0.47) < 1e-6)).toBe(true);
+  }
+  expect(PACKER_SACK_LAYOUT.centreY - PACKER_SACK_LAYOUT.scale[1] / 2).toBeCloseTo(0.002, 8);
+  expect(PACKER_SACK_LAYOUT.scale[0] / 2).toBeLessThan(0.92 - 0.09 / 2);
+  // The full bag travels in the original output lane, clear of the body/base.
+  expect(PACKER_SACK_LAYOUT.z - PACKER_SACK_LAYOUT.scale[2] / 2).toBeGreaterThan(4.25 / 2);
+  for (const cycle of [0, 0.35, 1]) {
+    const p = getPackerSackPosition([3, 0.2, -5], cycle);
+    expect(p[0]).toBe(3);
+    expect(p[1] - PACKER_SACK_LAYOUT.scale[1] / 2).toBeCloseTo(0.202, 8);
+    expect(p[2]).toBeCloseTo(-5 + 2.75 + cycle * 0.52, 8);
+  }
+  const n = geometry.getAttribute('normal');
+  for (let i = 0; i < n.count; i++)
+    expect(Math.hypot(n.getX(i), n.getY(i), n.getZ(i))).toBeCloseTo(1, 5);
+  (mesh.material as THREE.Material).dispose();
 });

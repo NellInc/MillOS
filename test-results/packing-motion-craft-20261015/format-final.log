@@ -1,0 +1,5 @@
+src/components/machines/CompactMachines.tsx 242ms (unchanged)
+src/components/machines/machineFinishGeometry.ts 59ms
+src/components/machines/machineSurfaces.ts 36ms (unchanged)
+src/components/machines/machineSurfaces.test.ts 133ms
+src/components/machines/machinePartGeometry.test.ts 73ms
