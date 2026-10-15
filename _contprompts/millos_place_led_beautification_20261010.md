@@ -3334,3 +3334,63 @@ AF close acceptance: actual square-camera runtime/world/startup-ready true and c
 AF owned cleanup:375 exact borrowed dependency entries verified, own Vitest/Vite caches and named AF npm cache checked with lsof exit1/empty stdout+stderr, removed and original dependency symlink restored.184frozen/6source/415compiled pins and protected primary exact. All jobs terminal, own tab/preview closed, lock absent. Source/final dist/raw images/texture previews/original regression/history/unrelated output retained, no physical recovery claim or foreign process action. All32 finite items complete within stated proof boundaries.58/3 affected (+4), source/build/fresh reachability gates0. Four production files are the one shared paving family and its coupled consumers; no geometry/light/frame loop/dependency/interface or quality/budget change. Timing/pacing OPEN, player/device DEFERRED, local only, repeating goal ACTIVE. Acceptance test-results/sett-paving-craft-20261015/acceptance.json. Verbatim tool-log whitespace retained; source/test/task-record staged whitespace gate remains clean.
 
 Next observed gaps, not silently included or claimed fixed: close barnyard shows grass blades on the swept paving and intersecting the wooden water trough; the brick picnic shelter is very dark in its night view. Inspect the actual clutter exclusion assembly and shelter fixture coverage before choosing the following bounded grounding/lighting pass. These are visual observations, not yet a reproduced source diagnosis.
+
+## AG: Swept farm ground and warm picnic-shelter craft, 2026-10-15
+
+AF is verified progress at6b8a7ba30fecbb170fd9c29306896881bbc11a95. Repeating goal ACTIVE. This pass owns FarmArea.tsx, LivingWorldCreatures.test.tsx, FactoryExterior.tsx, exterior/ExteriorLighting.tsx and its existing test, this record and exact swept-yard-shelter-light evidence. Local and muted, interface/loading/presets/routes/railway/port/mountains/terrain/navigation/people/animal rigs and schedules preserved. Existing budgets stay unchanged. Player/device DEFERRED, pacing/startup OPEN.
+
+Diagnosis: farm openExclude deliberately allows attractor tufts on paving, so using it as a swept-yard guarantee was wrong. The shared sampler's semantics are intentional for wall crevices elsewhere, so correct only the farm's unconditional exclusion assembly. Actual yard is20x15m, trough at[-6.5,-2] inside it. Prior image shows vegetation piercing the trough/paving. BrickCarport has no luminaire; actual delivered roof underside at its centre is3.686446551m, picnic tabletop peaks0.810000002m. A roof-mounted pendant must attach to these real surfaces, not a guessed3.5m soffit.
+
+Working if the real farm tuft matrices clear the actual yard and trough even with a conservative0.7m wind/card envelope, natural margins remain outside, and the retained picnic tables acquire readable warm dusk/night light from a visibly attached fitting. One bounded non-shadowing downlight on non-low tiers, shared lens/dimmer/pool and existing debug gates; explicit added light/draw cost, no free-performance claim. No global clutter rewrite, new shadow map, texture, frame loop, clock or quality setting.
+
+### Finite34-item implementation and acceptance list
+1. Verify owned checkout, primary custody, dependencies and lock.
+2. Inspect actual prior close frames and both live assemblies.
+3. Trace farm hard versus open exclusion semantics and every caller.
+4. Preserve the shared sampler and all other sites' wall-crevice behaviour.
+5. Record named affected baseline and no hidden failing tests.
+6. Reproduce actual swept-yard intrusions with the real farm spec.
+7. Bind the unchanged20x15m yard geometry and clearance metadata together.
+8. Make farm swept yard/crop exclusions unconditional.
+9. Preserve paths, barns, animals, trough and crop positions.
+10. Retain natural attractor/verge planting outside hard surfaces.
+11. Allow conservative card/storm-sway clearance at paving edges.
+12. Check actual low/medium/high density results, finiteness and determinism.
+13. Measure real delivered carport roof and picnic-table geometry.
+14. Retain their current transforms, scales and furniture layout.
+15. Craft one compact rounded painted-steel pendant housing.
+16. Add a ceiling cap and short suspension stem with real roof contact.
+17. Seat a warm opal lens beneath the housing.
+18. Reuse the existing exterior lens material and dusk/weather dimmer.
+19. Add one short-range downward non-shadowing source for both tables.
+20. Respect low-tier and both existing punctual/lighting-polish debug gates.
+21. Give low tiers the existing inexpensive lens/pool treatment.
+22. Fit an elliptical floor spill within the actual paved shelter footprint.
+23. Preserve all existing lamp positions, clock, civic atlas and solar shadow.
+24. Introduce no new texture, frame loop, timer, setting or shadow map.
+25. Ray-check ceiling attachment and source-to-table clearance on actual GLBs.
+26. Keep fixture below fallback roof too, with its upper suspension concealed.
+27. Run changed-contract tests plus existing landscape checks.
+28. Run all required final whole-source gates.
+29. Build under capture lock, seal exact source and compiled bytes.
+30. Inspect native farm/carpark day/dusk/night context, silently and serially.
+31. Inspect actual barnyard/trough and lit shelter close views with public art camera.
+32. Record every actual timing miss separately, no budget relaxation or green-seeking retries.
+33. Verify primary/frozen custody and safely restore own dependency/cache setup.
+34. Commit only this local pass, retain failure evidence and select next live gap.
+
+Pre-check risks: globally hardening openExclude would sterilise intentional verge planting; an unmeasured roof fixture would float; unbounded lights would leak or create extra shadow cost. Use the farm spec's unconditional exclusions only, measured roof contact and one downward9m source with no shadows and unchanged quality/debug controls. A new spotlight has a real global shading cost even when short-range; retain native diagnostics/timing and do not pretend the art pass proves an isolated cost or a performance pass. No civic shadow atlas rebake or release work is in scope.
+
+AG implementation tests38/3 pass (+3 from35/3), exact old intrusion reproduced and fixed, measured pendant contacts real roof and rays reach both tabletops. Initial source/build/reachability gates0, first build retained as pre-camera evidence. Framing pre-check finds carpark's near-plan camera[120,30,51] targets parking bays at[120,0,50], not the shelter at[145,0,33]. No capture is accepted from that mis-framed view. Necessary deviation: add one internal benchmark-only picnic-shelter pose in RuntimeController's separate BENCHMARK_CAMERAS map, the existing runtime scene union/set and exhaustive round-trip test. These3 files are additionally allowed and initial hashes saved; all player presets, site layout and interface remain frozen. Native item30 now farm/picnic-shelter, not farm/carpark. This is an additive review camera using the existing harness, not a new QA framework or a new player control. Preserve the successful pre-camera build/log rather than claiming it contains the correction. One corrected build follows.
+
+AG final source tests:38/3 affected (+3 vs35/3) and46/1 exhaustive runtime-camera tests (+1 vs45/1 named camera baseline), all terminal exits0. Combined focused evidence84cases across4files, not claimed as one full-suite run. Corrected typecheck/lint/format/shader34-family38-key gates0. Corrected locked build0, Vite34.62s/wrapper36.306s,415files/181707838bytes,8source pins and190frozen pins; fresh reachability0. Initial passing pre-camera build/log retained; no images accepted from the old carpark framing. No new player preset, UI element, loading bypass or default-visit behaviour.
+
+AG native: actual full six farm/picnic-shelter PNGs inspected by this authoring chat. Correct new review pose contains the attached pendant, both tables and paved footprint at all three times. Clear noon source is off, dusk/night show warm lens plus real table lighting and restrained floor spill. Existing roof/furniture/buildings/actors remain. Farm context has a swept yard with natural outer margins retained. Every served index/main hash matches the corrected seal; sandboxed out-of-process Metal; clean console/page/request/screenshot diagnostics, world/community/checkpoints and general vehicle motion; audio0/context not-created. One real extra non-shadowing spotlight at medium+,3static fitting meshes plus dynamic lens/shared pool, no extra shadow map/texture/frame loop. Not a free-cost claim or a non-art performance pass.
+
+AG actual timing separately OPEN: farm day misses firstFrame/averageFps/p95Frame/p99Frame/onePercentLow,load/core12.40,p95 23.7ms; farm dusk averageFps/p95Frame/p99Frame/onePercentLow,12.58,23.7ms; farm night averageFps/p95Frame/onePercentLow,12.41,20.7ms. Picnic day/dusk/night each miss p95Frame,load/core11.51/12.37/12.40,p95 17.5/17.4/17.6ms. All current samples contended; no attribution of a measured cost change to this implementation, no quieter-GPU retry or limit relaxation. Exact native-acceptance.json retained. Optional Impeccable executable absent, no install. Close yard/trough and live fitting check follows.
+
+AG close acceptance: actual runtime/world/startup-ready true, cover absent; startup-ready41.4092s/first-frame297.4ms. Public art camera repeats the same close trough/yard view used to observe the defect. Initial immediate query saw count0 from the previous distant camera's normal cull; after the existing cull update244finite visible medium-tier farm instances resume, checksum-129450.8112325333. A fresh image then confirms the paving and trough stay clear with those instances active; natural margins were not globally disabled. Actual named SpotLight exists at[145,3.2,33], finite visible lens at[145,3.235,33] with night emissiveIntensity3.46. Close fitting view and native day/dusk/night frames show real warm table lighting, not merely a glowing lens. Console errors empty, audio0/context not-created. Only localhost mute and public art-camera poses used, no actor/inventory/viewport/player/device/readiness/quality override. Own tab and preview close normally, owning exit0 and lock released. Close images are conversation evidence; six exact native images retained.
+
+AG cleanup:375 exact borrowed dependency links verified; named own Vitest/Vite/npm caches checked with lsof exit1/empty stdout+stderr, removed and original dependency symlink restored.190frozen/8source/415compiled pins and protected primary exact. Source/final dist/pre-camera build receipt/raw native frames/original intrusion regression/history/unrelated output retained. All jobs terminal, own tab/preview closed, no foreign process action, no physical recovery claim. All34 finite items complete with the documented internal-camera deviation. Focused evidence38/3 plus46/1 passing (+4 total against both named baselines), all final required source/build/reachability gates0. Three production lighting/placement files plus two internal benchmark files and three existing tests; no player UI, presets, routes, schedules, texture, frame loop, civic atlas or shadow-map addition. Added one bounded medium+ spotlight is an explicit cost, not performance acceptance. Pacing/startup OPEN, player/device DEFERRED, local only, repeating goal ACTIVE. Canonical acceptance test-results/swept-yard-shelter-light-20261015/acceptance.json. Raw tool logs retained verbatim; staged source/task-record whitespace must remain clean.
+
+Next rotation returns to people models/animations after the grounding/material sequence. Begin with actual close inspection of task/prop contact, face/gaze and rest transitions rather than treating the community-presence gate as animation acceptance. Working if any resulting change is grounded in the current rigs and visible behaviour, with existing schedules/routes and player/device deferral retained.

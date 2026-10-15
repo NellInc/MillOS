@@ -70,6 +70,8 @@ import {
   ExteriorDownlight,
   ExteriorPointLight,
   ExteriorLampPool,
+  PICNIC_SHELTER_LIGHT,
+  picnicShelterLightLayout,
   CANAL_CROSSING_LAMPS,
   CANAL_CROSSING_LIGHT,
   CANAL_BOAT_LANTERN,
@@ -3406,12 +3408,42 @@ const FoodTruck: React.FC<{
 };
 
 // Brick carport/shelter structure - outdoor seating area with brick pillars
+// Shared rounded pendant buffers; no per-frame or per-render geometry work.
+const PICNIC_LAMP_GEOMETRY = {
+  housing: new THREE.CylinderGeometry(
+    PICNIC_SHELTER_LIGHT.housing.topRadius,
+    PICNIC_SHELTER_LIGHT.housing.bottomRadius,
+    PICNIC_SHELTER_LIGHT.housing.height,
+    24
+  ),
+  lens: new THREE.CylinderGeometry(
+    PICNIC_SHELTER_LIGHT.lens.topRadius,
+    PICNIC_SHELTER_LIGHT.lens.bottomRadius,
+    PICNIC_SHELTER_LIGHT.lens.height,
+    24
+  ),
+  cap: new THREE.CylinderGeometry(0.12, 0.12, 0.06, 16),
+  stem: new THREE.CylinderGeometry(0.022, 0.022, 1, 8),
+};
+const PICNIC_LAMP_PAINT = new THREE.MeshStandardMaterial({
+  color: '#29463c',
+  roughness: 0.68,
+  metalness: 0,
+});
+
 const BrickCarport: React.FC<{
   position: [number, number, number];
   rotation?: number;
   size?: [number, number, number]; // width, height, depth
 }> = ({ position, rotation = 0, size = [8, 3.5, 6] }) => {
   const [width, height, depth] = size;
+  const light = picnicShelterLightLayout(width, height, depth);
+  const realRoofLight = useGraphicsStore(
+    (state) =>
+      state.graphics.quality !== 'low' &&
+      !state.graphics.perfDebug.disablePunctualLights &&
+      !state.graphics.perfDebug.disableLightingPolish
+  );
 
   return (
     <group position={position} rotation={[0, rotation, 0]}>
@@ -3477,6 +3509,53 @@ const BrickCarport: React.FC<{
           normalMap={PROCEDURAL_TEXTURES.cobblestoneNormal}
         />
       </mesh>
+
+      <group name="picnic-shelter-pendant">
+        <mesh
+          name="picnic-shelter-ceiling-cap"
+          geometry={PICNIC_LAMP_GEOMETRY.cap}
+          material={PICNIC_LAMP_PAINT}
+          position={light.cap}
+          castShadow
+          receiveShadow
+        />
+        <mesh
+          name="picnic-shelter-hanger"
+          geometry={PICNIC_LAMP_GEOMETRY.stem}
+          material={PICNIC_LAMP_PAINT}
+          position={light.stem}
+          scale={[1, light.stemLength, 1]}
+          castShadow
+          receiveShadow
+        />
+        <mesh
+          name="picnic-shelter-housing"
+          geometry={PICNIC_LAMP_GEOMETRY.housing}
+          material={PICNIC_LAMP_PAINT}
+          position={light.housing}
+          castShadow
+          receiveShadow
+        />
+        <mesh
+          name="picnic-shelter-opal-lens"
+          geometry={PICNIC_LAMP_GEOMETRY.lens}
+          material={EXTERIOR_LAMP_LENS_MATERIAL}
+          position={light.lens}
+          userData={{ noStaticBatch: true }}
+        />
+        <group position={light.pool} scale={[PICNIC_SHELTER_LIGHT.poolWidthScale, 1, 1]}>
+          <ExteriorLampPool radius={light.poolRadius} />
+        </group>
+        {realRoofLight && (
+          <ExteriorDownlight
+            name="picnic-shelter-downlight"
+            position={light.source}
+            intensity={PICNIC_SHELTER_LIGHT.intensity}
+            distance={PICNIC_SHELTER_LIGHT.distance}
+            color={PICNIC_SHELTER_LIGHT.color}
+          />
+        )}
+      </group>
 
       {/* Picnic tables under the shelter */}
       {[-2, 2].map((x, i) => (

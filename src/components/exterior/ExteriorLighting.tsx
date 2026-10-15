@@ -55,6 +55,47 @@ export const CANAL_BOAT_LANTERN = {
   color: '#ffdb9b',
 } as const;
 
+/** One warm pendant for the retained pair of picnic tables. The actual
+ * carport's central soffit is3.686446551m in its delivered3.9m envelope.
+ * Working if its cap touches that roof, both tables have a clear downward ray,
+ * low tiers keep the shared lens/pool, and no extra shadow map is allocated.
+ */
+export const PICNIC_SHELTER_LIGHT = {
+  measuredSoffit: 3.686446551176657,
+  measuredRoofHeight: 3.9,
+  intensity: 76,
+  distance: 9,
+  color: '#ffe1ac',
+  poolRadius: 3.6,
+  poolWidthScale: 1.3,
+  housing: { topRadius: 0.48, bottomRadius: 0.52, height: 0.12 },
+  lens: { topRadius: 0.42, bottomRadius: 0.4, height: 0.04 },
+} as const;
+export function picnicShelterLightLayout(width: number, height: number, depth: number) {
+  const sourceY = height - 0.3,
+    z = -depth / 4;
+  const soffit =
+    (PICNIC_SHELTER_LIGHT.measuredSoffit * (height + 0.4)) /
+    PICNIC_SHELTER_LIGHT.measuredRoofHeight;
+  const housingY = sourceY + 0.11;
+  const housingTop = housingY + PICNIC_SHELTER_LIGHT.housing.height / 2;
+  const stemTop = soffit - 0.015;
+  return {
+    source: [0, sourceY, z] as [number, number, number],
+    housing: [0, housingY, z] as [number, number, number],
+    lens: [0, sourceY + 0.035, z] as [number, number, number],
+    cap: [0, stemTop, z] as [number, number, number],
+    stem: [0, (stemTop + housingTop) / 2, z] as [number, number, number],
+    stemLength: stemTop - housingTop,
+    pool: [0, 0, z] as [number, number, number],
+    poolRadius: Math.min(
+      PICNIC_SHELTER_LIGHT.poolRadius,
+      width / (2 * PICNIC_SHELTER_LIGHT.poolWidthScale) - 0.15,
+      depth / 2 - 0.2
+    ),
+  };
+}
+
 export const getExteriorLampLevel = (gameTime: number, weather: ExteriorWeather): number => {
   const hour = (((Number.isFinite(gameTime) ? gameTime : 12) % 24) + 24) % 24;
   const solarElevation = Math.sin(((hour - 6) / 24) * Math.PI * 2);

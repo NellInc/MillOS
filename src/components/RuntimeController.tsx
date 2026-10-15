@@ -613,6 +613,9 @@ const BENCHMARK_CAMERAS: Record<BenchmarkScene, BenchmarkCameraPose> = {
   markings: SITE_LAYOUT.cameras.markings,
   forecourt: SITE_LAYOUT.cameras.forecourt,
   carpark: SITE_LAYOUT.cameras.carpark,
+  // Review-only close view: the parking-bay camera cannot see this roof light.
+  // Working if both retained tables and the attached pendant fill the frame.
+  'picnic-shelter': { position: [150.7, 2.3, 39.6], target: [145, 1.45, 33], fov: 50 },
   river: SITE_LAYOUT.cameras.river,
   tunnel: SITE_LAYOUT.cameras.tunnel,
   huts: SITE_LAYOUT.cameras.huts,

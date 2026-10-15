@@ -19,6 +19,8 @@ import {
 } from './VillageArea';
 import {
   Scarecrow,
+  FARM_CLUTTER,
+  FARM_YARD_SIZE,
   GRAIN_PLANT_GEOMETRY,
   GRAIN_FIELD_MATERIAL,
   GRAIN_FIELD_DEPTH_MATERIAL,
@@ -27,6 +29,7 @@ import {
   populateGrainField,
 } from './FarmArea';
 import { playCritterSound } from '../utils/critterAudio';
+import { clutterPlacements } from './scenery/InstancedFoliage';
 
 const boundary = vi.hoisted(() => ({
   fallback: false,
@@ -498,4 +501,24 @@ it('compiles the actual crop colour/depth hosts with the same root-height wind f
   expect(colour.vertexShader).toContain('vec4( position, 1.0 )');
   expect(GRAIN_FIELD_MATERIAL.customProgramCacheKey()).toContain('millos_corn_v1');
   expect(GRAIN_FIELD_DEPTH_MATERIAL.customProgramCacheKey()).toBe('millos_corn_v1_depth');
+});
+
+it('keeps actual farm tuft cards and storm sway clear of the swept yard and trough', () => {
+  for (const density of [0, 0.35, 1]) {
+    const placements = clutterPlacements({ ...FARM_CLUTTER, density });
+    const intruders = placements.filter(
+      (p) =>
+        Math.abs(p.x) < FARM_YARD_SIZE[0] / 2 + 0.7 && Math.abs(p.z) < FARM_YARD_SIZE[1] / 2 + 0.7
+    );
+    expect(placements.length).toBeLessThanOrEqual(Math.floor(FARM_CLUTTER.count * density));
+    expect(clutterPlacements({ ...FARM_CLUTTER, density })).toEqual(placements);
+    if (density === 0) expect(placements).toHaveLength(0);
+    else expect(placements.length).toBeGreaterThan(density === 1 ? 200 : 50);
+    for (const p of placements) {
+      expect(Object.values(p).every(Number.isFinite)).toBe(true);
+      expect(p.y).toBeCloseTo(-0.025);
+      expect(FARM_CLUTTER.accepts!(p.x, p.z)).toBe(true);
+    }
+    expect(intruders.map((p) => [p.x, p.z])).toEqual([]);
+  }
 });

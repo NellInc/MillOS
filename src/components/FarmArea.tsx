@@ -2271,6 +2271,7 @@ const FARM_TREE_SPOTS: readonly (readonly [number, number])[] = FARM_TREES.map(
  *  open terrain, so the mulch takes the overlay layer 1 cm above it -
  *  InstancedMulch's own default. */
 const FARM_DECAL_Y = EXTERIOR_LAYERS.groundOverlay;
+export const FARM_YARD_SIZE = [20, 15] as const;
 
 const FARM_BLOCKERS = [
   { x: 0, z: 0, halfX: 6, halfZ: 5 }, // barn
@@ -2285,9 +2286,12 @@ const FARM_BLOCKERS = [
   { x: 6.3, z: -1, halfX: 1.8, halfZ: 2.6 }, // hay bale stack
 ] as const;
 
-/** Swept yard and ploughed crop rows: no wild grass in either. */
-const FARM_OPEN_BLOCKERS = [
-  { x: 0, z: 0, halfX: 11, halfZ: 9 }, // barnyard cobble
+/** Hard surfaces stay swept even beside attractors. The old openExclude
+ * exempted attracted tufts and let them pierce the yard and water trough.
+ * Working if every real tuft clears the paving plus its card/storm envelope.
+ */
+const FARM_SWEPT_GROUND = [
+  { x: 0, z: 0, halfX: FARM_YARD_SIZE[0] / 2 + 1, halfZ: FARM_YARD_SIZE[1] / 2 + 1.5 },
   { x: 0, z: -42, halfX: 18, halfZ: 14 }, // grain field
 ] as const;
 
@@ -2342,12 +2346,11 @@ const FARM_ATTRACTORS: readonly (readonly [number, number])[] = [
   [-28, -25],
 ];
 
-const FARM_CLUTTER: ClutterSpec = {
+export const FARM_CLUTTER: ClutterSpec = {
   accepts: (x, z) => !FARM_REALM_PATHS.some((p) => inRealmPath(x, z, p, 0.45)),
   count: 700,
   bounds: { minX: -38, maxX: 36, minZ: -30, maxZ: 32 },
-  exclude: FARM_BLOCKERS,
-  openExclude: FARM_OPEN_BLOCKERS,
+  exclude: [...FARM_BLOCKERS, ...FARM_SWEPT_GROUND],
   attractors: FARM_ATTRACTORS,
   // 5 mm under the ground datum: sinking a card base is invisible, floating
   // one is not.
@@ -2883,7 +2886,7 @@ export const FarmArea: React.FC = () => {
           Coplanar with the terrain; its -2/-2 offset against the terrain's
           exteriorBase holds the depth order. */}
       <mesh position={[0, EXTERIOR_LAYERS.ground, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <planeGeometry args={[20, 15]} />
+        <planeGeometry args={[...FARM_YARD_SIZE]} />
         {/* Untinted: the cobble albedo now decodes as sRGB, so the old
             '#9a9a9a' compensator would darken the yard twice. */}
         <meshStandardMaterial

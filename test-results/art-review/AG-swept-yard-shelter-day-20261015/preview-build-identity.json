@@ -1,0 +1,14 @@
+{
+  "index": {
+    "url": "http://127.0.0.1:4288/",
+    "sha256": "2d42f1c45b72f18a884bc7ba7468b324f82512476f6a38a057cc9ea341bbd186",
+    "bytes": 9887
+  },
+  "entries": [
+    {
+      "url": "http://127.0.0.1:4288/assets/main-DmtHQSxp.js",
+      "sha256": "9f5df2b457edf8eed82efc9ef904dbc625280e77e1ca9478b7ac493265eb30ae",
+      "bytes": 823785
+    }
+  ]
+}

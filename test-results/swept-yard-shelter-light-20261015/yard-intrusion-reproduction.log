@@ -1,0 +1,196 @@
+
+> grain-mill-simulator@0.40.0 test
+> vitest run src/components/LivingWorldCreatures.test.tsx
+
+
+ RUN  v4.1.10 /Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS
+
+(node:39397) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:39437) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+ ❯ src/components/LivingWorldCreatures.test.tsx (14 tests | 1 failed) 217ms
+   × keeps actual farm tuft cards and storm sway clear of the swept yard and trough 10ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/LivingWorldCreatures.test.tsx > keeps actual farm tuft cards and storm sway clear of the swept yard and trough
+AssertionError: expected [ [ -6.08699915744637, …(1) ], …(37) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   [
++     -6.08699915744637,
++     2.417986754782956,
++   ],
++   [
++     -4.502346308125146,
++     5.137801872500647,
++   ],
++   [
++     -6.40051867604957,
++     -0.7808124384159065,
++   ],
++   [
++     -6.936237829468586,
++     1.1485576327916482,
++   ],
++   [
++     -6.903304054032896,
++     0.22299409142537083,
++   ],
++   [
++     -6.719807699130075,
++     3.0754319056500936,
++   ],
++   [
++     -1.1054424765296946,
++     -5.204466357313578,
++   ],
++   [
++     -0.12028275930661798,
++     -5.210880497057549,
++   ],
++   [
++     0.3388406631870714,
++     -5.216799778439234,
++   ],
++   [
++     -6.601188721986247,
++     -2.247266036561734,
++   ],
++   [
++     0.26912974590336736,
++     -5.421095318807033,
++   ],
++   [
++     -6.19865104045932,
++     -3.580768729080553,
++   ],
++   [
++     -4.121488698022421,
++     -5.478511301977579,
++   ],
++   [
++     6.159853935486436,
++     3.3743832864056342,
++   ],
++   [
++     -8.480286957735082,
++     -0.12325504595600023,
++   ],
++   [
++     -0.8270608741689014,
++     -6.607776591050679,
++   ],
++   [
++     -8.467790262528618,
++     -0.8297388844269806,
++   ],
++   [
++     -5.331428931342923,
++     -5.580272725836456,
++   ],
++   [
++     1.8191389478903857,
++     -6.460388644804149,
++   ],
++   [
++     0.8711804263178108,
++     -6.869799658856611,
++   ],
++   [
++     3.424646267571026,
++     -6.042114488184246,
++   ],
++   [
++     -9.32752729020448,
++     2.0592313435132494,
++   ],
++   [
++     -8.2915460016511,
++     -3.3307856102609454,
++   ],
++   [
++     4.725560625351955,
++     -5.314027308156325,
++   ],
++   [
++     -9.701032770969743,
++     -1.094926267454669,
++   ],
++   [
++     6.557998713616239,
++     -3.893404344624778,
++   ],
++   [
++     6.14900855030423,
++     -4.608129408783121,
++   ],
++   [
++     -7.207865790825631,
++     -5.7149697059795574,
++   ],
++   [
++     -8.16051127782749,
++     -4.697544359832652,
++   ],
++   [
++     -6.85156750938615,
++     -6.4083255486668795,
++   ],
++   [
++     -6.651138164259665,
++     -6.7883555821772825,
++   ],
++   [
++     8.524620403131227,
++     -0.7994954118027582,
++   ],
++   [
++     8.326375136150098,
++     -2.5352621149858683,
++   ],
++   [
++     8.97957365453298,
++     1.5114839532149622,
++   ],
++   [
++     9.098455164218713,
++     0.6337372895097821,
++   ],
++   [
++     -7.162439270346496,
++     -7.141018298561191,
++   ],
++   [
++     8.157199700336154,
++     -4.153844410659413,
++   ],
++   [
++     10.231466658214654,
++     -0.4527035911976944,
++   ],
++ ]
+
+ ❯ src/components/LivingWorldCreatures.test.tsx:510:44
+    508|     const placements = clutterPlacements({ ...FARM_CLUTTER, density });
+    509|     const intruders = placements.filter(p => Math.abs(p.x) < 10.7 && M…
+    510|     expect(intruders.map(p => [p.x, p.z])).toEqual([]);
+       |                                            ^
+    511|   }
+    512| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 13 passed (14)
+   Start at  08:03:54
+   Duration  12.21s (transform 1.52s, setup 100ms, import 10.99s, tests 217ms, environment 504ms)
+

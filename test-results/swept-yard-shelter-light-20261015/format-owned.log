@@ -1,0 +1,9 @@
+src/components/FarmArea.tsx 470ms (unchanged)
+src/components/FactoryExterior.tsx 708ms
+src/components/exterior/ExteriorLighting.tsx 47ms
+src/components/LivingWorldCreatures.test.tsx 63ms
+src/components/LivingWorldCreatures.test.tsx 209ms
+src/components/exterior/ExteriorLighting.test.ts 52ms
+src/runtime/runtimeMode.ts 116ms (unchanged)
+src/runtime/__tests__/runtimeMode.test.ts 35ms (unchanged)
+src/components/RuntimeController.tsx 239ms (unchanged)
