@@ -1,0 +1,14 @@
+{
+  "index": {
+    "url": "http://127.0.0.1:4288/",
+    "sha256": "60fa8a60edfe8ebf653bee1c0786e4db099598babbe04059b688c64b3c6c4a3a",
+    "bytes": 9887
+  },
+  "entries": [
+    {
+      "url": "http://127.0.0.1:4288/assets/main-Uud1v1Am.js",
+      "sha256": "7d0a4748d4a3e66af9284ba01acc71b6d6fcb8c1301e05b5274b2afb7f5a2101",
+      "bytes": 823785
+    }
+  ]
+}

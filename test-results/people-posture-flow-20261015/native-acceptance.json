@@ -1,0 +1,109 @@
+{
+  "entries": [
+    {
+      "phase": "day",
+      "report": "test-results/art-review/AI-garden-flow-day-20261015/benchmark.json",
+      "image": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/AI-garden-flow-day-20261015/village.png",
+      "servedSealMatches": true,
+      "sandboxedOutOfProcessMetal": true,
+      "diagnostics": {
+        "consoleErrors": [],
+        "pageErrors": [],
+        "failedRequests": [],
+        "screenshotError": null
+      },
+      "audio": {
+        "activeNodes": 0,
+        "contextState": "not-created"
+      },
+      "personCount": 14,
+      "functionalChecks": {
+        "pageClean": true,
+        "worldIntegrity": true,
+        "communityPresence": true,
+        "checkpoints": true,
+        "effectiveDpr": true
+      },
+      "generalVehicleMotion": true,
+      "peopleMotionProof": "separate close observations and real-rig/mounted source tests, not this vehicle instrument",
+      "pacingFalse": [
+        "p95Frame"
+      ],
+      "loadPerCore": 2.09,
+      "p95FrameMs": 17.5,
+      "wholeBudgetPassed": false,
+      "imageInspectedByAuthoringChat": true
+    },
+    {
+      "phase": "dusk",
+      "report": "test-results/art-review/AI-garden-flow-dusk-20261015/benchmark.json",
+      "image": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/AI-garden-flow-dusk-20261015/village.png",
+      "servedSealMatches": true,
+      "sandboxedOutOfProcessMetal": true,
+      "diagnostics": {
+        "consoleErrors": [],
+        "pageErrors": [],
+        "failedRequests": [],
+        "screenshotError": null
+      },
+      "audio": {
+        "activeNodes": 0,
+        "contextState": "not-created"
+      },
+      "personCount": 14,
+      "functionalChecks": {
+        "pageClean": true,
+        "worldIntegrity": true,
+        "communityPresence": true,
+        "checkpoints": true,
+        "effectiveDpr": true
+      },
+      "generalVehicleMotion": true,
+      "peopleMotionProof": "separate close observations and real-rig/mounted source tests, not this vehicle instrument",
+      "pacingFalse": [
+        "firstFrame",
+        "p95Frame"
+      ],
+      "loadPerCore": 2.21,
+      "p95FrameMs": 17.5,
+      "wholeBudgetPassed": false,
+      "imageInspectedByAuthoringChat": true
+    },
+    {
+      "phase": "night",
+      "report": "test-results/art-review/AI-garden-flow-night-20261015/benchmark.json",
+      "image": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/AI-garden-flow-night-20261015/village.png",
+      "servedSealMatches": true,
+      "sandboxedOutOfProcessMetal": true,
+      "diagnostics": {
+        "consoleErrors": [],
+        "pageErrors": [],
+        "failedRequests": [],
+        "screenshotError": null
+      },
+      "audio": {
+        "activeNodes": 0,
+        "contextState": "not-created"
+      },
+      "personCount": 14,
+      "functionalChecks": {
+        "pageClean": true,
+        "worldIntegrity": true,
+        "communityPresence": true,
+        "checkpoints": true,
+        "effectiveDpr": true
+      },
+      "generalVehicleMotion": true,
+      "peopleMotionProof": "separate close observations and real-rig/mounted source tests, not this vehicle instrument",
+      "pacingFalse": [
+        "p95Frame"
+      ],
+      "loadPerCore": 2.38,
+      "p95FrameMs": 17.4,
+      "wholeBudgetPassed": false,
+      "imageInspectedByAuthoringChat": true
+    }
+  ],
+  "pacing": "OPEN, day/dusk/night p95 and dusk first frame misses, all below load/core3, no contention excuse or timing-only retry; no non-art performance pass claimed",
+  "publication": "local only"
+}

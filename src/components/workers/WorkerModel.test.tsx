@@ -1262,3 +1262,70 @@ it('assigns stable civilian cut variation without changing industrial PPE or nam
   expect(getWorkerAppearance('Engineer', '', 'w2').hairStyle).toBe('ponytail');
   expect(getWorkerAppearance('Operator', '', 'mill-operator-west').hasHardHat).toBe(true);
 });
+
+it('mounts garden rise/return, freezes mid-rise and releases stance for walking', () => {
+  const scene = new THREE.Group();
+  const body = new THREE.Group();
+  body.name = 'Body';
+  scene.add(body);
+  const hips = new THREE.Group();
+  hips.name = 'Hips';
+  hips.position.y = 0.82;
+  body.add(hips);
+  const clips = ['idle', 'break', 'walk', 'run'].map(
+    (name) =>
+      new THREE.AnimationClip(`worker-${name}`, 2, [
+        new THREE.NumberKeyframeTrack('Body.position[y]', [0, 2], [0, 0]),
+      ])
+  );
+  harness.asset = { scene, animations: clips };
+  const motion: WorkerMotionState = {
+    activity: 'working',
+    groundSpeed: 0,
+    seated: false,
+    phase: 0,
+    enabled: true,
+    animationInterval: 1 / 60,
+  };
+  const appearance = getWorkerAppearance('Gardener', '', 'village-gardener');
+  const { container } = render(<WorkerModel appearance={appearance} motion={motion} />);
+  const tool = container.querySelector('[name="worker-held-tool"]') as unknown as THREE.Group;
+  // DOM portal mock has no Three position; supply only the ref field used here.
+  tool.position = new THREE.Vector3();
+  const y = () => hips.getWorldPosition(new THREE.Vector3()).y;
+  const crouched = y();
+  expect(tool.visible).toBe(true);
+  motion.activity = 'idle';
+  harness.frame?.({}, 1 / 60);
+  expect(y()).toBeGreaterThan(crouched);
+  expect(y() - crouched).toBeLessThan(0.045 / appearance.heightScale);
+  expect(tool.visible).toBe(false);
+  const held = y();
+  motion.enabled = false;
+  for (let i = 0; i < 10; i++) harness.frame?.({}, 1);
+  expect(y()).toBe(held);
+  motion.enabled = true;
+  for (let i = 0; i < 120; i++) harness.frame?.({}, 1 / 60);
+  expect(y()).toBeGreaterThan(0.75);
+  motion.activity = 'working';
+  harness.frame?.({}, 1 / 60);
+  expect(tool.visible).toBe(false);
+  for (let i = 0; i < 120; i++) harness.frame?.({}, 1 / 60);
+  expect(tool.visible).toBe(true);
+  expect(y()).toBeCloseTo(crouched, 5);
+  motion.activity = 'walking';
+  motion.groundSpeed = 0.2;
+  harness.frame?.({}, 1 / 60);
+  expect(y()).toBeGreaterThan(0.75);
+  expect(tool.visible).toBe(false);
+  motion.activity = 'working';
+  motion.groundSpeed = 0;
+  motion.enabled = false;
+  harness.frame?.({}, 1 / 60);
+  expect(y()).toBeCloseTo(crouched, 5);
+  expect(tool.visible).toBe(true);
+  motion.activity = 'idle';
+  harness.frame?.({}, 1 / 60);
+  expect(y()).toBeGreaterThan(0.75);
+  expect(tool.visible).toBe(false);
+});

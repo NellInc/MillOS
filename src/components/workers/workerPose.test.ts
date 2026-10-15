@@ -1306,3 +1306,156 @@ for (const body of ['masculine', 'feminine']) {
     expect(checked).toBe(true);
   });
 }
+
+it('eases the stationary garden-to-idle pelvis without an upward snap', () => {
+  for (const body of ['masculine', 'feminine']) {
+    const gltf = bodies.get(body)!;
+    const scene = clone(gltf.scene);
+    const mixer = new THREE.AnimationMixer(scene);
+    const work = mixer.clipAction(gltf.animations.find((c) => c.name === 'worker-break')!).play();
+    const idle = mixer.clipAction(gltf.animations.find((c) => c.name === 'worker-idle')!).play();
+    work.setEffectiveWeight(1);
+    idle.setEffectiveWeight(0);
+    mixer.update(0);
+    const pose = createSeatedWorkerPose(scene);
+    const gesture = createWorkerGesture();
+    pose.applyGarden(true, gesture, 0, true);
+    const hips = scene.getObjectByName('Hips')!;
+    const before = hips.getWorldPosition(new THREE.Vector3()).y;
+    pose.restore();
+    work.setEffectiveWeight(Math.exp(-11 / 60));
+    idle.setEffectiveWeight(1 - Math.exp(-11 / 60));
+    mixer.update(1 / 60);
+    pose.applyGarden(false, gesture, 1 / 60);
+    const step = hips.getWorldPosition(new THREE.Vector3()).y - before;
+    console.info('garden exit first-frame pelvis metres', body, step);
+    expect(step).toBeGreaterThan(0);
+    expect(step).toBeLessThan(0.045);
+  }
+});
+
+it('keeps real garden feet planted and chains unstretched through rise, pause and return', () => {
+  for (const body of ['masculine', 'feminine'])
+    for (const height of [0.95, 1.08]) {
+      const gltf = bodies.get(body)!;
+      const scene = clone(gltf.scene);
+      const wrapper = new THREE.Group();
+      const width = height === 0.95 ? 0.96 : 1.06;
+      wrapper.scale.set(width, height, width);
+      wrapper.add(scene);
+      const mixer = new THREE.AnimationMixer(scene);
+      const work = mixer.clipAction(gltf.animations.find((c) => c.name === 'worker-break')!).play();
+      const idle = mixer.clipAction(gltf.animations.find((c) => c.name === 'worker-idle')!).play();
+      work.setEffectiveWeight(1);
+      idle.setEffectiveWeight(0);
+      mixer.update(0);
+      const pose = createSeatedWorkerPose(scene, height, width);
+      const gesture = createWorkerGesture();
+      pose.applyGarden(true, gesture, 0, true);
+      const pos = (name: string) =>
+        scene.getObjectByName(name)!.getWorldPosition(new THREE.Vector3());
+      let previousY = pos('Hips').y;
+      let worstChain = '';
+      let weight = 1,
+        maxStep = 0,
+        maxStretch = 0,
+        maxFootError = 0,
+        minSole = Infinity;
+      let furthestLow = -Infinity,
+        maxGripError = 0;
+      const vertex = new THREE.Vector3();
+      for (let frame = 0; frame < 240; frame++) {
+        const working = frame >= 120;
+        pose.restore();
+        weight = THREE.MathUtils.damp(weight, working ? 1 : 0, 11, 1 / 60);
+        work.setEffectiveWeight(weight);
+        idle.setEffectiveWeight(1 - weight);
+        mixer.update(1 / 60);
+        pose.applyGarden(working, gesture, 1 / 60);
+        const y = pos('Hips').y;
+        maxStep = Math.max(maxStep, Math.abs(y - previousY));
+        previousY = y;
+        for (const side of ['L', 'R']) {
+          const sign = side === 'L' ? 1 : -1;
+          maxFootError = Math.max(
+            maxFootError,
+            pos(`Foot${side}`).distanceTo(new THREE.Vector3(sign * 0.15, 0.028, -0.1))
+          );
+          for (const kind of ['LowerLeg', 'LowerArm']) {
+            const stretch = scene.getObjectByName(`${kind}${side}`)!.scale.y;
+            if (stretch > maxStretch) {
+              maxStretch = stretch;
+              worstChain = `${kind}${side}/frame${frame}/hips${y}`;
+            }
+          }
+          if (pose.gardenGripReady()) {
+            const palm = pos(`Middle1${side}`).lerp(pos(`Middle2${side}`), 0.5);
+            maxGripError = Math.max(
+              maxGripError,
+              palm.distanceTo(
+                new THREE.Vector3(
+                  side === 'L' ? 0.12 : -0.12,
+                  side === 'L' ? 0.326 : 0.4,
+                  side === 'L' ? 0.5205 : 0.26
+                )
+              )
+            );
+          }
+        }
+        if (frame % 20 === 0) {
+          scene.traverse((object) => {
+            const mesh = object as THREE.SkinnedMesh;
+            if (!mesh.isSkinnedMesh) return;
+            mesh.skeleton.update();
+            if (!/Worker_(?:Feet|Legs)/.test(mesh.parent?.name ?? '')) return;
+            for (let i = 0; i < mesh.geometry.attributes.position.count; i++) {
+              mesh.getVertexPosition(i, vertex).applyMatrix4(mesh.matrixWorld);
+              minSole = Math.min(minSole, vertex.y);
+              if (vertex.y < 0.255) furthestLow = Math.max(furthestLow, vertex.z);
+            }
+          });
+        }
+        if (frame === 20) {
+          const heldY = pos('Hips').y;
+          pose.restore();
+          mixer.update(0);
+          pose.applyGarden(false, gesture, 0);
+          expect(pos('Hips').y).toBe(heldY);
+        }
+        if (frame === 119) {
+          expect(y).toBeGreaterThan(0.75);
+          expect(pose.gardenGripReady()).toBe(false);
+        }
+      }
+      console.info('garden flow metrics', {
+        worstChain,
+        body,
+        height,
+        maxStep,
+        maxStretch,
+        maxFootError,
+        minSole,
+        furthestLow,
+        maxGripError,
+      });
+      expect(maxStep).toBeLessThan(0.045);
+      expect(maxStretch).toBeLessThan(1.05);
+      expect(maxFootError).toBeLessThan(0.00001);
+      expect(minSole).toBeGreaterThan(-0.015);
+      expect(furthestLow + COMMUNITY_ANCHORS.allotmentGardener.position[2]).toBeLessThan(10.395);
+      expect(maxGripError).toBeLessThan(0.012);
+      expect(pose.gardenGripReady()).toBe(true);
+      pose.restore();
+      mixer.update(0);
+      pose.releaseGarden();
+      expect(pose.applyGarden(false, gesture, 1 / 60)).toBe(false);
+      pose.applyGarden(true, gesture, 0, true);
+      expect(pos('Hips').y).toBeCloseTo(0.44, 4);
+      pose.restore();
+      mixer.update(0);
+      pose.applyGarden(false, gesture, 0, true);
+      expect(pose.gardenGripReady()).toBe(false);
+      expect(pos('Hips').y).toBeGreaterThan(0.75);
+      pose.restore();
+    }
+});

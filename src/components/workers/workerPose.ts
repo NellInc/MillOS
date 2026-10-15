@@ -404,6 +404,10 @@ export function createSeatedWorkerPose(model: THREE.Object3D, heightScale = 1, b
       scale: bone.scale.clone(),
     }));
   let applied = false;
+  let gardenStance = false;
+  let gardenAmount = 0;
+  const restingWrist = new THREE.Vector3();
+  const restingWristRotation = new THREE.Quaternion();
   const inverse = new THREE.Matrix4();
   const p = new THREE.Vector3();
   const q = new THREE.Vector3();
@@ -513,7 +517,11 @@ export function createSeatedWorkerPose(model: THREE.Object3D, heightScale = 1, b
     head.rotateX(gesture.lookPitch * strength);
   }
 
-  function applyTask(task: 'push' | 'pull' | 'bake' | 'garden', gesture?: WorkerGesture) {
+  function applyTask(
+    task: 'push' | 'pull' | 'bake' | 'garden',
+    gesture?: WorkerGesture,
+    gardenWeight = 1
+  ) {
     capture();
     const body = bones.get('Body'),
       hips = bones.get('Hips'),
@@ -546,7 +554,8 @@ export function createSeatedWorkerPose(model: THREE.Object3D, heightScale = 1, b
     modelPosition(hips, p);
     // Keep the natural standing pelvis for carry/push poses; props meet the
     // hands, rather than forcing every task into a permanent squat.
-    const hipTarget = task === 'garden' ? 0.44 : p.y * scale;
+    const hipTarget =
+      task === 'garden' ? THREE.MathUtils.lerp(p.y * scale, 0.44, gardenWeight) : p.y * scale;
     const lift = hipTarget / scale - p.y;
     modelPosition(body, p);
     p.y += lift;
@@ -557,12 +566,13 @@ export function createSeatedWorkerPose(model: THREE.Object3D, heightScale = 1, b
         abdomen,
         direction.set(
           0,
-          task === 'garden' ? 0.68 : 1,
-          task === 'garden' ? 0.73 : task === 'pull' ? -0.05 : 0.15
+          task === 'garden' ? THREE.MathUtils.lerp(1, 0.68, gardenWeight) : 1,
+          task === 'garden' ? 0.73 * gardenWeight : task === 'pull' ? -0.05 : 0.15
         )
       );
     const head = bones.get('Head');
-    if (head) aim(head, undefined, direction.set(0, 1, task === 'garden' ? 0.35 : 0));
+    if (head)
+      aim(head, undefined, direction.set(0, 1, task === 'garden' ? 0.35 * gardenWeight : 0));
     look(gesture);
     for (let index = 0; index < sides.length; index++) {
       const side = sides[index],
@@ -588,6 +598,11 @@ export function createSeatedWorkerPose(model: THREE.Object3D, heightScale = 1, b
         lower = bones.get(`LowerArm${side}`),
         wrist = bones.get(`Wrist${side}`);
       if (upper && lower && wrist) {
+        if (task === 'garden' && gardenWeight === 0) continue;
+        if (task === 'garden' && gardenWeight < 1) {
+          modelPosition(wrist, restingWrist);
+          restingWristRotation.copy(wrist.quaternion);
+        }
         if (task === 'garden')
           target.set(
             (side === 'L' ? 0.12 : -0.12) / widthScale,
@@ -608,6 +623,17 @@ export function createSeatedWorkerPose(model: THREE.Object3D, heightScale = 1, b
         }
         // Grip denotes the centre of the palm, not the wrist joint above it.
         target.y += palmLengths[index];
+        if (task === 'garden' && gardenWeight < 1) {
+          target.lerp(restingWrist, 1 - gardenWeight);
+          modelPosition(upper, p);
+          direction.copy(target).sub(p);
+          const armLengths = lengths[side === 'L' ? 'armL' : 'armR'];
+          const reach = armLengths[0] + armLengths[1] - 0.004;
+          // Intermediate reaches carry no tool. Keep them anatomically reachable
+          // rather than stretching a forearm to a linear blend of two endpoints.
+          if (direction.length() > reach)
+            target.copy(p).addScaledVector(direction.normalize(), reach);
+        }
         solveChain(
           upper,
           lower,
@@ -618,6 +644,8 @@ export function createSeatedWorkerPose(model: THREE.Object3D, heightScale = 1, b
           false
         );
         aim(wrist, undefined, direction.set(0, -1, 0));
+        if (task === 'garden' && gardenWeight < 1)
+          wrist.quaternion.slerp(restingWristRotation, 1 - gardenWeight);
       }
     }
     applied = true;
@@ -626,6 +654,23 @@ export function createSeatedWorkerPose(model: THREE.Object3D, heightScale = 1, b
 
   return {
     applyTask,
+    applyGarden(working: boolean, gesture?: WorkerGesture, delta = 0, immediate = false) {
+      if (!working && !gardenStance) return false;
+      gardenStance = true;
+      const target = working ? 1 : 0;
+      const dt = Number.isFinite(delta) ? THREE.MathUtils.clamp(delta, 0, 0.075) : 0;
+      gardenAmount = immediate ? target : THREE.MathUtils.damp(gardenAmount, target, 4.5, dt);
+      if (Math.abs(gardenAmount - target) < 0.001) gardenAmount = target;
+      // Retain this stationary stance during the pause. Working if rising never
+      // drags the boots, and the trowel is shown only at the exact original grip.
+      applyTask('garden', gesture, gardenAmount);
+      return true;
+    },
+    gardenGripReady: () => gardenStance && gardenAmount === 1,
+    releaseGarden() {
+      gardenStance = false;
+      gardenAmount = 0;
+    },
     applyWork(action: WorkerWorkAction, gesture: WorkerGesture) {
       capture();
       look(gesture);

@@ -3477,3 +3477,54 @@ Final timing independently OPEN: village day misses p95Frame (load/core3.34,p95 
 AH cleanup/closure:375 exact borrowed dependency links verified, own Vitest/Vite/npm caches checked with lsof exit1/empty stdout+stderr and removed, original dependency symlink restored.779 frozen source/model pins,5source pins,415compiled pins and protected primary HEAD/status/binary-diff hash exact. Own tabs/previews closed normally, all jobs terminal, capture lock absent. Final source/assets/dist, useful raw frames, superseded candidate seals, regression/timeout/error logs and unrelated output retained. No disk-recovery attribution, foreign process action, upload/push/deploy or publication. Canonical acceptance test-results/people-hair-character-20261015/acceptance.json. Local selective check-in only. This pass is a finite32-item completion under the broader repeating goal, not completion of the whole beautification programme.
 
 Next people-animation inspection should target body-level transitions into/out of working and resting, preserving actual palms/props, feet/seat contacts and normal schedules. A gardener close view crossed from work into idle with a forward bend; investigate current real transition behaviour before diagnosing a new defect. Do not repeat finished hair edits merely to produce another pass. Pacing remains a distinct open issue; player/device checks stay deferred.
+
+
+## AI: contact-aware garden posture flow, 2026-10-15
+
+Local, muted, interface preserved. Base28da291f in the owned recovery worktree. Baseline125/2 focused worker tests pass, no named failures. Sole unrelated owned-checkout output and protected primary retained. Existing repeating goal remains active; this finite pass prioritises the newly observed people-transition gap. Allowed production/test surfaces: WorkerModel.tsx, workerPose.ts and their two existing tests. Frozen other source/model assets. No route, timing, domain, UI, quality, loading, railway, lighting budget or player/device change. No upload/push/deploy/publication.
+
+Detailed execution list:
+1. Record current HEAD, status, protected primary and exact dependency-link custody.
+2. Isolate task-owned Vite/Vitest/npm caches without changing shared dependencies.
+3. Run existing focused worker baseline and retain the actual terminal result.
+4. Read current mixer, overlay, restore, tool and pause ordering.
+5. Inspect the existing stationary rain/storm work-response condition.
+6. Obtain bounded read-only advice on contact and route contracts before deciding the coupled change.
+7. Reproduce a real-rig garden-to-idle first-frame pelvis discontinuity.
+8. Retain the failing assertion and measured displacement as regression evidence.
+9. Keep ordinary walking, seated, bicycle and cart choreography outside this small renderer pass.
+10. Reuse the existing per-instance pose helper and existing safe animation delta.
+11. Retain the garden stance while a stationary gardener rises into an idle pause.
+12. Ease pelvis height instead of dropping the crouch overlay in one frame.
+13. Ease the torso from its gardening lean toward an upright orientation.
+14. Keep both foot targets planted beside the existing raised-bed boundary.
+15. Blend arm endpoints toward the incoming authored resting reach while the torso rises.
+16. Hide the root-held trowel immediately when work stops.
+17. Lower back into the crouch when stationary work resumes.
+18. Reveal the trowel only once the existing exact grip has been re-established.
+19. Preserve exact initial/static pose resolution and disabled semantic changes.
+20. Freeze a transition exactly when paused, without consuming discarded time.
+21. Release the stationary stance on locomotion, cycling, seating or cart takeover.
+22. Restore the incoming mixer pose before each new overlay; avoid accumulated bone deformation.
+23. Test both original GLBs and the existing height/width extremes.
+24. Check pelvis steps, soles, bed clearance, arm/leg stretch and visible palm contact.
+25. Exercise work/idle/work interruption and the real mounted frame callback.
+26. Keep existing hair, fingers, task props, semantic clips and sampling intervals intact.
+27. Run focused tests plus required typecheck, lint, format and shader gates.
+28. Build under the existing capture lock and seal the exact compiled/source bytes.
+29. Run fresh built reachability and silent day/dusk/night village art.
+30. Inspect the actual local gardener and stationary weather transition without actor/readiness/quality overrides.
+31. Record pacing separately OPEN, including misses under low contention; defer device/player acceptance.
+32. Restore owned dependency/cache setup, verify protected custody, retain useful evidence and selectively commit locally.
+
+Pre-check: independent bone crossfades can detach root-held props; full seated-to-walk choreography needs route anticipation; a paused actor must not slowly settle. Therefore retain existing coupled motion contracts, limit the new stance to stationary gardening, hide/reveal the tool at exact contact, and use existing semantic/pause logic. Working if actual rigs show a bounded rise/lower, planted soles, finite unstretched chains and exact visible grip; mounted callbacks freeze and relinquish the stance correctly. Existing wide world captures prove integration rather than isolated close motion. Full seated arrival/departure choreography stays an explicitly separate future design, not silently claimed complete.
+
+AI source result: actual old garden-to-idle pipeline jumps the masculine pelvis0.375321327m in one60Hz frame, expected-red reproduced. Stationary stance now eases height/torso through the existing sampled clock, feet retain the measured garden marks, tool hides immediately and reappears only at exact full grip. Disabled semantics resolve immediately and a held pose freezes exactly. Locomotion/seat/cycle/cart relinquish the stance without route changes. Initial linear arm endpoint blending overstretched the left forearm1.4244 at an intermediate crouch; named-chain diagnosis retained. Interim empty-handed reaches now stay within the real upper+lower chain length, wrist orientation settles toward authored rest. A stale variable typo in that correction failed two tests and was removed; failure logs retained. No threshold relaxation.128/2 focused pass (+3 vs125 baseline), typecheck/lint/format/shader34family38key all0. Locked final build0, Vite25.59s,415files/181714558bytes sealed. Fresh reachability and native/close checks follow. Only two production files and their two existing tests change; this is sufficient extra scope for the coupled renderer/helper contact contract.
+
+AI close runtime: final compiled local page genuinely reaches world/startup-ready (first17.3451s/21.9072s; fresh midday replay28.7839s/43.679s), cover disappears, audio0/context not-created and console errors empty. Normal gardener crouch and upright rain pause inspected.35 real mounted samples show pelvis0.44→0.773766m, exact zero root/foot displacement, tool hides at the first rising sample, visible palm-to-tool error <=0.003514m. This diagnostic traversal visibly burdens the IAB, so it is no pacing sample. Existing weather controls only, public art camera only; no actor/time/readiness/quality/device/viewport override. The first return view arrived after normal evening hiding and proves no animation. A fresh ordinary midday replay retained the accepted rise; two focus/input command timeouts during per-frame traversal prevented a trustworthy stationary return capture. Inspected actual UI state after each, stopped the sampler and restored Clear successfully, no blind low-level click retry. A later return trace includes route movement and is rejected as stationary proof. Return is supported by actual GLB/contact and mounted callback tests, not claimed separately visually observed. Full seat-to-walk choreography remains future work. This proportionate limit does not block the delivered rise/contact fix or the separate world integration checks. Own tab25 closes normally; preview closes through its own stdin.
+
+AI final native art: authoring chat inspected its own three final village day/dusk/night PNGs. All served index/main hashes match the415-file final seal, sandboxed out-of-process Apple Metal; world/community14/checkpoints/DPR/page cleanliness/general vehicle-motion pass, diagnostic arrays empty, audio0/context not-created. Wide images show coherent existing village integration; they do not prove close people motion. Accepted close35-sample rain rise and actual-rig/mounted128/2 tests provide the changed people-contract evidence. Clear-weather return remains explicitly unverified as a distinct visual sequence after the documented UI/focus timeouts and normal route/night visibility, rather than being passed off as observed. No further visual retries are required for this bounded source/rise delivery.
+
+Pacing independently OPEN: day p95Frame17.5ms atload/core2.09; dusk firstFrame+p95Frame17.5ms at2.21; night p95Frame17.4ms at2.38. These are below the contention threshold and remain failures; no busy-machine dismissal, relaxed budget or green-seeking rerun. No non-art performance pass or efficiency win claimed. The new stationary garden idle stance entails two leg/arm IK chains for one actor; no added meshes/textures/lights/frame loops. Player/device checks DEFERRED; routes, railway clearance, quality, loading and interface frozen.
+
+AI closure: focused128/2 (+3), all required source/build/reachability terminal0, exact source4/compiled415/frozen1459 pins, protected primary HEAD/status/binary diff exact.375 borrowed links verified, own Vite/Vitest/npm caches removed after empty lsof checks, original dependency link restored. Own tab25/preview close normally, capture lock absent and jobs terminal. Useful source/final build/native frames and honest failed regression/diagnosis logs retained, unrelated output untouched, no APFS recovery attribution. Local selective check-in only. This32-item bounded pass is progress under the active repeating goal, not completion of every model/world feature. Next independent people pass should inspect the baker's empty-handed waiting/rest cues and work posture at the actual counter, preserving flour-stock truth and tray contacts; do not rework the finished garden rise for a timing green. Full seated arrival/departure anticipation needs its own carefully scoped route contract and stays open.

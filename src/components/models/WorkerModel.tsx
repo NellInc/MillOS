@@ -1212,11 +1212,10 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
     if (motion.cycling) seatedPose.applyCycling(motion.cyclePhase ?? 0);
     else if (motion.seated) seatedPose.apply(motion.seatFloorOffset ?? 0);
     else if (motion.cartGrip) seatedPose.applyTask(motion.cartGrip);
-    else if (
-      motion.activity === 'working' &&
-      (appearance.workAction === 'bake' || appearance.workAction === 'garden')
-    )
-      seatedPose.applyTask(appearance.workAction);
+    else if (motion.activity === 'working' && appearance.workAction === 'garden')
+      seatedPose.applyGarden(true, undefined, 0, true);
+    else if (motion.activity === 'working' && appearance.workAction === 'bake')
+      seatedPose.applyTask('bake');
     handPose.apply(motion, appearance.tool, gesture);
     if (toolRef.current)
       toolRef.current.visible = !motion.seated && !motion.cycling && motion.activity === 'working';
@@ -1390,14 +1389,24 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
     if (walk) walk.timeScale = THREE.MathUtils.clamp(speed / (clipSpeed.walk * scale), 0, 1.9);
     if (run) run.timeScale = THREE.MathUtils.clamp(speed / (clipSpeed.run * scale), 0, 2.4);
     mixer.update(safeDelta);
+    const stationaryGarden =
+      appearance.workAction === 'garden' &&
+      !moving &&
+      !motion.seated &&
+      !motion.cycling &&
+      !motion.cartGrip &&
+      (motion.activity === 'working' || motion.activity === 'idle');
+    if (!stationaryGarden) seatedPose.releaseGarden();
     if (motion.cycling) seatedPose.applyCycling(motion.cyclePhase ?? 0);
     else if (motion.seated) seatedPose.apply(motion.seatFloorOffset ?? 0, gesture);
     else if (motion.cartGrip) seatedPose.applyTask(motion.cartGrip);
     else if (
-      motion.activity === 'working' &&
-      (appearance.workAction === 'bake' || appearance.workAction === 'garden')
-    )
-      seatedPose.applyTask(appearance.workAction, gesture);
+      stationaryGarden &&
+      seatedPose.applyGarden(motion.activity === 'working', gesture, safeDelta, !motion.enabled)
+    ) {
+      // Contact-aware garden overlay already applied; fingers follow below.
+    } else if (motion.activity === 'working' && appearance.workAction === 'bake')
+      seatedPose.applyTask('bake', gesture);
     else if (motion.activity === 'working') seatedPose.applyWork(appearance.workAction, gesture);
     else if (motion.activity === 'walking') seatedPose.applyWalkingLook(gesture);
     else if (motion.activity === 'idle' || motion.activity === 'break')
@@ -1410,7 +1419,11 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
       toolRef.current.position.set(0, heldTask ? gesture.toolY : 0, heldTask ? gesture.toolZ : 0);
     }
     if (toolRef.current)
-      toolRef.current.visible = !motion.seated && !motion.cycling && motion.activity === 'working';
+      toolRef.current.visible =
+        !motion.seated &&
+        !motion.cycling &&
+        motion.activity === 'working' &&
+        (appearance.workAction !== 'garden' || seatedPose.gardenGripReady());
   });
 
   return (

@@ -1,0 +1,45 @@
+
+> grain-mill-simulator@0.40.0 test
+> vitest run src/components/workers/workerPose.test.ts -t keeps real garden feet
+
+(node:29442) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+ RUN  v4.1.10 /Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS
+
+stdout | src/components/workers/workerPose.test.ts > keeps real garden feet planted and chains unstretched through rise, pause and return
+garden flow metrics {
+  worstChain: 'LowerArmL/frame128/hips0.6099289913255656',
+  body: 'masculine',
+  height: 0.95,
+  maxStep: 0.024173796770646405,
+  maxStretch: 1.4244261490459975,
+  maxFootError: 2.8609792490763984e-17,
+  minSole: 0.006078386875313323,
+  furthestLow: 0.17088249088800161,
+  maxGripError: 0.003372861178022562
+}
+
+ ❯ src/components/workers/workerPose.test.ts (89 tests | 1 failed | 88 skipped) 313ms
+   × keeps real garden feet planted and chains unstretched through rise, pause and return 125ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/workers/workerPose.test.ts > keeps real garden feet planted and chains unstretched through rise, pause and return
+AssertionError: expected 1.4244261490459975 to be less than 1.05
+ ❯ src/components/workers/workerPose.test.ts:1439:26
+    1437|       });
+    1438|       expect(maxStep).toBeLessThan(0.045);
+    1439|       expect(maxStretch).toBeLessThan(1.05);
+       |                          ^
+    1440|       expect(maxFootError).toBeLessThan(0.00001);
+    1441|       expect(minSole).toBeGreaterThan(-0.015);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 88 skipped (89)
+   Start at  12:16:48
+   Duration  2.10s (transform 455ms, setup 370ms, import 1.03s, tests 313ms, environment 0ms)
+
