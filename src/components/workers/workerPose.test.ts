@@ -1,12 +1,12 @@
 // @vitest-environment node
-import { beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { NodeIO } from '@gltf-transform/core';
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
 import draco3d from 'draco3dgltf';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { WORKER_EYE_CENTRES } from './SharedWorkerGeometries';
+import { WORKER_EYE_CENTRES, createWorkerShirtTrim } from './SharedWorkerGeometries';
 import type { GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import { clone } from 'three/addons/utils/SkeletonUtils.js';
 import {
@@ -2651,3 +2651,294 @@ it.each(['masculine', 'feminine'])(
     }
   }
 );
+
+function civilianClothRig(body: string) {
+  const scene = clone(bodies.get(body)!.scene),
+    skeletons = shareWorkerSkin(scene),
+    surfaces: THREE.SkinnedMesh[] = [];
+  scene.updateMatrixWorld(true);
+  scene.traverse((o) => {
+    const m = o as THREE.SkinnedMesh;
+    if (
+      m.isSkinnedMesh &&
+      m.parent?.name === 'Worker_Body' &&
+      !Array.isArray(m.material) &&
+      m.material.name !== 'Skin'
+    ) {
+      m.geometry = softenWorkerFaceNormals(m.geometry)!;
+      surfaces.push(m);
+    }
+  });
+  return { scene, skeletons, surfaces };
+}
+it.each(['masculine', 'feminine'])(
+  '%s civilian tailoring keeps original buffers and skin while adding supported detail in the same draw',
+  (body) => {
+    const { scene, surfaces } = civilianClothRig(body),
+      owned: THREE.BufferGeometry[] = [];
+    for (const [material, kind] of [
+      ['Worker_Vest', 'collar'],
+      [body === 'masculine' ? 'LightBrown' : 'White', 'shirt'],
+    ] as const) {
+      const mesh = surfaces.find((m) => (m.material as THREE.Material).name === material)!,
+        source = mesh.geometry;
+      const g = createWorkerShirtTrim(mesh, kind);
+      expect(g).not.toBeNull();
+      if (!g) throw Error('No fitted ' + kind);
+      owned.push(g);
+      const d = g.userData.workerTailoring;
+      expect(d.addedTriangles).toBeGreaterThan(3);
+      expect(d.addedTriangles).toBeLessThan(400);
+      expect(d.maxDiscardedWeight).toBe(0);
+      expect(d.attachment).toBe('source-vertex');
+      expect(g.index!.array.slice(0, source.index!.count)).toEqual(source.index!.array);
+      for (const [name, attribute] of Object.entries(source.attributes)) {
+        const actual = g.attributes[name];
+        expect(actual.array.constructor).toBe(attribute.array.constructor);
+        expect(actual.itemSize).toBe(attribute.itemSize);
+        expect(actual.normalized).toBe(attribute.normalized);
+        expect((actual as THREE.BufferAttribute).gpuType).toBe(
+          attribute instanceof THREE.InterleavedBufferAttribute
+            ? THREE.FloatType
+            : attribute.gpuType
+        );
+        // The GLB interleaves position/UV data. mergeGeometries deinterleaves;
+        // every logical component, rather than unrelated backing-buffer fields,
+        // must survive in the original vertex range.
+        for (let vertex = 0; vertex < attribute.count; vertex++)
+          for (let component = 0; component < attribute.itemSize; component++)
+            expect(actual.getComponent(vertex, component)).toBe(
+              attribute.getComponent(vertex, component)
+            );
+      }
+      expect(
+        Array.from(g.attributes.color.array.slice(0, d.baseVertices * 3)).every((v) => v === 1)
+      ).toBe(true);
+      for (const a of Object.values(g.attributes))
+        expect(Array.from(a.array).every(Number.isFinite)).toBe(true);
+      const weight = g.attributes.skinWeight;
+      for (let i = d.baseVertices; i < weight.count; i++)
+        expect([0, 1, 2, 3].reduce((sum, c) => sum + weight.getComponent(i, c), 0)).toBeCloseTo(
+          1,
+          6
+        );
+      const normal = g.attributes.normal;
+      for (let i = d.baseVertices; i < normal.count; i++)
+        expect(new THREE.Vector3().fromBufferAttribute(normal, i).length()).toBeCloseTo(1, 5);
+      expect(mesh.geometry).toBe(source);
+      mesh.material = (mesh.material as THREE.MeshStandardMaterial).clone();
+      (mesh.material as THREE.MeshStandardMaterial).vertexColors = true;
+      mesh.geometry = g;
+      mesh.castShadow = true;
+    }
+    scene.traverse((o) => {
+      const m = o as THREE.SkinnedMesh;
+      if (m.isSkinnedMesh) m.castShadow = !m.parent?.name.includes('Worker_Feet');
+    });
+    const lod = createWorkerBodyLod(scene);
+    expect(lod).not.toBeNull();
+    expect(lod!.meshes).toHaveLength(2);
+    for (const mesh of lod!.meshes)
+      for (const key of ['position', 'normal', 'skinIndex', 'skinWeight'])
+        expect((mesh.geometry.attributes[key] as THREE.BufferAttribute).gpuType).toBe(
+          THREE.FloatType
+        );
+    expect(lod!.meshes.reduce((sum, m) => sum + m.geometry.attributes.position.count, 0)).toBe(
+      lod!.sources.reduce((sum, m) => sum + m.geometry.attributes.position.count, 0)
+    );
+    lod!.dispose();
+    owned.forEach((g) => g.dispose());
+  }
+);
+
+for (const body of ['masculine', 'feminine'])
+  for (const mode of ['walk', 'run', 'idle', 'break', 'bake', 'garden'])
+    it(`${body} civilian tailoring stays against independently posed source surfaces during ${mode}`, () => {
+      const { scene, surfaces } = civilianClothRig(body),
+        wrapper = new THREE.Group(),
+        height = body === 'masculine' ? 1.08 : 0.95;
+      wrapper.position.set(4, 0.4, -6);
+      wrapper.rotation.y = 0.9;
+      wrapper.scale.set(0.96, height, 1.06);
+      wrapper.add(scene);
+      wrapper.updateMatrixWorld(true);
+      const pairs = ['Worker_Vest', body === 'masculine' ? 'LightBrown' : 'White'].map(
+        (name, i) => {
+          const source = surfaces.find((m) => (m.material as THREE.Material).name === name)!,
+            geometry = createWorkerShirtTrim(source, i === 0 ? 'collar' : 'shirt');
+          expect(geometry).not.toBeNull();
+          if (!geometry) throw Error('Missing real trim');
+          const trim = new THREE.SkinnedMesh(geometry, source.material);
+          trim.position.copy(source.position);
+          trim.quaternion.copy(source.quaternion);
+          trim.scale.copy(source.scale);
+          trim.bindMode = source.bindMode;
+          trim.bind(source.skeleton, source.bindMatrix);
+          trim.bindMatrixInverse.copy(source.bindMatrixInverse);
+          source.parent!.add(trim);
+          return { source, trim };
+        }
+      );
+      const mixer = new THREE.AnimationMixer(scene),
+        clip = bodies
+          .get(body)!
+          .animations.find(
+            (c) => c.name === 'worker-' + (mode === 'bake' || mode === 'garden' ? 'break' : mode)
+          )!;
+      mixer.clipAction(clip).play();
+      const pose = createSeatedWorkerPose(scene, height),
+        gesture = createWorkerGesture(),
+        point = new THREE.Vector3(),
+        closest = new THREE.Vector3(),
+        candidate = new THREE.Vector3(),
+        normal = new THREE.Vector3();
+      const samples = [
+        [1 / 3, 1 / 3, 1 / 3],
+        [0.6, 0.2, 0.2],
+        [0.2, 0.6, 0.2],
+        [0.2, 0.2, 0.6],
+        [0, 0.5, 0.5],
+        [0.5, 0, 0.5],
+        [0.5, 0.5, 0],
+      ];
+      let minimum = Infinity,
+        maximum = 0,
+        count = 0,
+        worst = '';
+      for (let frame = 0; frame < 8; frame++) {
+        pose.restore();
+        mixer.setTime(((frame + 0.23) / 8) * clip.duration);
+        wrapper.updateMatrixWorld(true);
+        if (mode === 'bake')
+          pose.applyTask('bake', sampleWorkerGesture('bake', frame * 0.8, gesture));
+        if (mode === 'garden')
+          pose.applyGarden(true, sampleWorkerGesture('garden', frame * 0.8, gesture), 1 / 30, true);
+        wrapper.updateMatrixWorld(true);
+        for (const { source, trim } of pairs) {
+          const g = source.geometry,
+            vertices = Array.from({ length: g.attributes.position.count }, (_, i) =>
+              source.getVertexPosition(i, new THREE.Vector3()).applyMatrix4(source.matrixWorld)
+            ),
+            donors: THREE.Triangle[] = [];
+          for (let i = 0; i < g.index!.count; i += 3) {
+            const ids = [0, 1, 2].map((c) => g.index!.getX(i + c));
+            donors.push(new THREE.Triangle(vertices[ids[0]], vertices[ids[1]], vertices[ids[2]]));
+          }
+          const boxes = donors.map((t) => new THREE.Box3().setFromPoints([t.a, t.b, t.c]));
+          const detail = trim.geometry,
+            d = detail.userData.workerTailoring,
+            posed = new Map<number, THREE.Vector3>();
+          for (let i = d.baseIndices; i < detail.index!.count; i += 3) {
+            const ids = [0, 1, 2].map((c) => detail.index!.getX(i + c));
+            for (const id of ids)
+              if (!posed.has(id))
+                posed.set(
+                  id,
+                  trim.getVertexPosition(id, new THREE.Vector3()).applyMatrix4(trim.matrixWorld)
+                );
+            const triangle = ids.map((id) => posed.get(id)!);
+            for (const weights of samples) {
+              point.set(0, 0, 0);
+              triangle.forEach((p, i) => point.addScaledVector(p, weights[i]));
+              let distance = Infinity,
+                nearest = -1;
+              for (let i = 0; i < donors.length; i++) {
+                if (boxes[i].distanceToPoint(point) > distance) continue;
+                donors[i].closestPointToPoint(point, candidate);
+                const next = candidate.distanceTo(point);
+                if (next < distance) {
+                  distance = next;
+                  nearest = i;
+                  closest.copy(candidate);
+                }
+              }
+              expect(nearest).toBeGreaterThanOrEqual(0);
+              donors[nearest].getNormal(normal);
+              const signed = point.clone().sub(closest).dot(normal);
+              count++;
+              maximum = Math.max(maximum, distance);
+              if (signed < minimum) {
+                minimum = signed;
+                worst = `${body}/${mode}/frame${frame}/${d.kind}/face${(i - d.baseIndices) / 3}`;
+              }
+            }
+          }
+        }
+      }
+      expect(count).toBeGreaterThan(400);
+      expect(minimum, `${worst}, max distance ${maximum}`).toBeGreaterThan(-0.0001);
+      expect(maximum, `${body}/${mode}`).toBeLessThan(0.012);
+      pose.restore();
+      pairs.forEach((p) => p.trim.geometry.dispose());
+    });
+
+it.each([undefined, THREE.FloatType, THREE.IntType])(
+  'distant clothing preserves mixed-layout skin values and explicit GPU type %s',
+  (gpuType) => {
+    const { scene } = civilianClothRig('masculine'),
+      sources: THREE.SkinnedMesh[] = [];
+    scene.traverse((o) => {
+      const m = o as THREE.SkinnedMesh;
+      if (!m.isSkinnedMesh) return;
+      m.geometry = m.geometry.clone();
+      const original = m.geometry.attributes.skinIndex;
+      if (sources.length % 2 === 0) {
+        const data = new Uint8Array(original.count * 6);
+        for (let i = 0; i < original.count; i++)
+          for (let c = 0; c < 4; c++) data[i * 6 + 1 + c] = original.getComponent(i, c);
+        m.geometry.setAttribute(
+          'skinIndex',
+          new THREE.InterleavedBufferAttribute(
+            new THREE.InterleavedBuffer(data, 6),
+            4,
+            1,
+            original.normalized
+          )
+        );
+      }
+      Object.assign(m.geometry.attributes.skinIndex, { gpuType });
+      m.castShadow = true;
+      sources.push(m);
+    });
+    const before = sources.map((m) => m.geometry.attributes.skinIndex),
+      values = before.flatMap((a) =>
+        Array.from({ length: a.count * 4 }, (_, i) => a.getComponent(Math.floor(i / 4), i % 4))
+      ),
+      lod = createWorkerBodyLod(scene);
+    expect(lod).not.toBeNull();
+    expect(lod!.meshes).toHaveLength(1);
+    const result = lod!.meshes[0].geometry.attributes.skinIndex as THREE.BufferAttribute;
+    expect(result.gpuType).toBe(gpuType ?? THREE.FloatType);
+    expect(Array.from(result.array)).toEqual(values);
+    sources.forEach((m, i) => {
+      expect(m.geometry.attributes.skinIndex).toBe(before[i]);
+      expect((before[i] as THREE.BufferAttribute).gpuType).toBe(gpuType);
+    });
+    lod!.dispose();
+    sources.forEach((m) => m.geometry.dispose());
+  }
+);
+
+it('keeps genuinely incompatible explicit integer/float skin uploads on their complete near bodies', () => {
+  const { scene } = civilianClothRig('masculine'),
+    geometry: THREE.BufferGeometry[] = [];
+  scene.traverse((o) => {
+    const m = o as THREE.SkinnedMesh;
+    if (!m.isSkinnedMesh) return;
+    m.geometry = m.geometry.clone();
+    Object.assign(m.geometry.attributes.skinIndex, {
+      gpuType: geometry.length === 0 ? THREE.IntType : THREE.FloatType,
+    });
+    geometry.push(m.geometry);
+    m.castShadow = true;
+  });
+  const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+  try {
+    expect(createWorkerBodyLod(scene)).toBeNull();
+    expect(error.mock.calls.flat().join(' ')).toContain('gpuType must be consistent');
+    expect(scene.getObjectByName('worker-distant-body')).toBeUndefined();
+  } finally {
+    error.mockRestore();
+    geometry.forEach((g) => g.dispose());
+  }
+});

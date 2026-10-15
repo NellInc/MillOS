@@ -20,6 +20,7 @@ import {
   WORKER_HAIR_GEOMETRIES,
   createWorkerHairMotion,
   createWorkerApronGeometry,
+  createWorkerShirtTrim,
 } from '../workers/SharedWorkerGeometries';
 import {
   SHARED_WORKER_ACCESSORY_MATERIALS,
@@ -1195,6 +1196,7 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
     const materials: THREE.MeshStandardMaterial[] = [];
     const skinned: THREE.Mesh[] = [];
     const gloveSources: THREE.SkinnedMesh[] = [];
+    const clothSources: { mesh: THREE.SkinnedMesh; region: WorkerSurface }[] = [];
     const ownedGeometry: THREE.BufferGeometry[] = [];
 
     _bindBox.makeEmpty();
@@ -1245,6 +1247,12 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
       }
       if (
         region &&
+        ['shirt', 'hiVis', 'hiVisStrap'].includes(region) &&
+        (mesh as THREE.SkinnedMesh).isSkinnedMesh
+      )
+        clothSources.push({ mesh: mesh as THREE.SkinnedMesh, region });
+      if (
+        region &&
         ['skin', 'shirt', 'hiVis', 'hiVisStrap', 'denim', 'denimDark'].includes(region)
       ) {
         const softened = softenWorkerFaceNormals(mesh.geometry);
@@ -1289,6 +1297,33 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
       ownedGeometry.push(dressed);
       material.vertexColors = true;
       material.needsUpdate = true;
+    }
+
+    // Tailor only the existing civilian clothes. PPE keeps its original shape.
+    // Build the complete fitting before assigning either private garment buffer.
+    // Working if the original body buffers/skin and near/far draw counts survive.
+    if (!appearance.hasHardHat && !appearance.hasVest && !appearance.hasLabCoat) {
+      const tailored = clothSources
+        .filter(({ region }) => region === 'hiVis' || region === 'shirt')
+        .map(({ mesh, region }) => ({
+          mesh,
+          geometry: createWorkerShirtTrim(mesh, region === 'hiVis' ? 'collar' : 'shirt'),
+        }));
+      const complete = tailored.length === 2 && tailored.every(({ geometry }) => geometry);
+      for (const { mesh, geometry } of tailored) {
+        if (!geometry) continue;
+        if (!complete) {
+          geometry.dispose();
+          continue;
+        }
+        mesh.geometry = geometry;
+        mesh.userData.workerTailoredCloth = geometry.userData.workerTailoring;
+        ownedGeometry.push(geometry);
+        const material = mesh.material as THREE.MeshStandardMaterial;
+        material.vertexColors = true;
+        material.needsUpdate = true;
+        _bindBox.union(geometry.boundingBox!);
+      }
     }
 
     const apron = appearance.workAction === 'bake' ? createBakerApron(model) : null;

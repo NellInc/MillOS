@@ -1,6 +1,226 @@
 import * as THREE from 'three';
-import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import {
+  deinterleaveGeometry,
+  mergeGeometries,
+} from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+
+/** Private civilian tailoring in the existing opaque body draw. All fittings
+ * retain exact source-vertex skin weights, including the placket's centre seam.
+ * Working if folds/fasteners remain seated through clips and the far merge,
+ * without modifying cached bodies or adding a draw, texture or frame callback.
+ */
+export function createWorkerShirtTrim(source: THREE.SkinnedMesh, kind: 'collar' | 'shirt') {
+  const original = source.geometry,
+    names = ['position', 'normal', 'uv', 'skinIndex', 'skinWeight'];
+  if (
+    !original.index ||
+    names.some((n) => !original.hasAttribute(n)) ||
+    !(original.attributes.skinIndex.array instanceof Uint8Array)
+  )
+    return null;
+  const neckIndex = source.skeleton.bones.findIndex((b) => b.name === 'Neck');
+  if (neckIndex < 0) return null;
+  const neck = new THREE.Vector3().setFromMatrixPosition(
+    source.skeleton.boneInverses[neckIndex].clone().invert()
+  );
+  const a = original.attributes,
+    positions: number[] = [],
+    colours: number[] = [],
+    uv: number[] = [],
+    joints: number[] = [],
+    weights: number[] = [],
+    indices: number[] = [];
+  const point = new THREE.Vector3(),
+    normal = new THREE.Vector3(),
+    triangle = new THREE.Triangle();
+  const palette = (
+    Array.isArray(source.material) ? source.material[0] : source.material
+  ) as THREE.MeshStandardMaterial;
+  const button = new THREE.Color('#bec1b1');
+  button.setRGB(
+    button.r / Math.max(0.001, palette.color.r),
+    button.g / Math.max(0.001, palette.color.g),
+    button.b / Math.max(0.001, palette.color.b)
+  );
+  function emit(id: number, delta: THREE.Vector3, tone: number | THREE.Color) {
+    const index = positions.length / 3;
+    point.fromBufferAttribute(a.position, id).add(delta);
+    positions.push(...point.toArray());
+    uv.push(a.uv.getX(id), a.uv.getY(id));
+    for (let c = 0; c < 4; c++) {
+      joints.push(a.skinIndex.getComponent(id, c));
+      weights.push(a.skinWeight.getComponent(id, c));
+    }
+    colours.push(...(typeof tone === 'number' ? [tone, tone, tone] : tone.toArray()));
+    return index;
+  }
+  function face(i: number, j: number, k: number, outward?: THREE.Vector3) {
+    triangle.setFromPointsAndIndices(
+      [i, j, k].map((n) => new THREE.Vector3().fromArray(positions, n * 3)),
+      0,
+      1,
+      2
+    );
+    if (triangle.getArea() < 1e-12) return;
+    if (outward && triangle.getNormal(new THREE.Vector3()).dot(outward) < 0) [j, k] = [k, j];
+    indices.push(i, j, k);
+  }
+  const bounds = new THREE.Box3();
+  for (let i = 0; i < a.position.count; i++)
+    bounds.expandByPoint(point.fromBufferAttribute(a.position, i));
+  const extent = Math.max(Math.abs(bounds.min.x), bounds.max.x),
+    cache = new Map<number, number>();
+  for (let i = 0; i < original.index.count; i += 3) {
+    const ids = [0, 1, 2].map((c) => original.index!.getX(i + c)),
+      points = ids.map((id) => new THREE.Vector3().fromBufferAttribute(a.position, id));
+    triangle.set(points[0], points[1], points[2]);
+    const centre = triangle.getMidpoint(new THREE.Vector3()),
+      outward = triangle.getNormal(new THREE.Vector3());
+    const collar =
+      kind === 'collar' &&
+      outward.z > 0.15 &&
+      Math.abs(centre.x - neck.x) > 0.018 &&
+      Math.abs(centre.x - neck.x) < 0.105 &&
+      centre.y > neck.y - 0.062 &&
+      centre.y < neck.y + 0.015 &&
+      points.every((p) => p.y > neck.y - 0.09 && p.z > neck.z + 0.035);
+    const side = Math.sign(centre.x),
+      sleeve =
+        kind === 'shirt' &&
+        side !== 0 &&
+        points.every((p) => p.x * side > extent - 0.05) &&
+        centre.x * side > extent - 0.027;
+    if (!collar && !sleeve) continue;
+    const copy = ids.map((id) => {
+      if (cache.has(id)) return cache.get(id)!;
+      const x = a.position.getX(id),
+        y = a.position.getY(id),
+        t = THREE.MathUtils.clamp((Math.abs(x) - extent + 0.05) / 0.05, 0, 1);
+      const fold = collar
+        ? Math.exp(
+            -(((Math.abs(x - neck.x) - 0.045) / 0.035) ** 2 + ((y - neck.y + 0.027) / 0.045) ** 2)
+          )
+        : Math.sin(t * Math.PI) ** 2;
+      normal.fromBufferAttribute(a.normal, id).normalize();
+      const index = emit(
+        id,
+        normal.clone().multiplyScalar(0.0008 + fold * (collar ? 0.004 : 0.002)),
+        collar ? 1.04 + fold * 0.13 : 0.9 + fold * 0.14
+      );
+      cache.set(id, index);
+      return index;
+    });
+    face(copy[0], copy[1], copy[2], outward);
+  }
+  const foldedTriangles = indices.length / 3;
+  if (kind === 'shirt') {
+    // Follow the actual central shirt seam. Moving an arbitrary interpolated
+    // position with interpolated weights is a different deformation contract.
+    const candidates = Array.from({ length: a.position.count }, (_, i) => i)
+      .filter(
+        (i) =>
+          Math.abs(a.position.getX(i) - neck.x) < 0.003 &&
+          a.position.getY(i) < neck.y - 0.009 &&
+          a.position.getY(i) > neck.y - 0.12 &&
+          a.position.getZ(i) > neck.z + 0.05
+      )
+      .sort((i, j) => a.position.getY(j) - a.position.getY(i));
+    const rows: number[] = [];
+    for (const id of candidates)
+      if (!rows.some((other) => Math.abs(a.position.getY(other) - a.position.getY(id)) < 0.005))
+        rows.push(id);
+    if (rows.length < 3) return null;
+    const strip = rows.map((id) =>
+      [-1, 1].map((side) => {
+        normal.fromBufferAttribute(a.normal, id).normalize();
+        return emit(
+          id,
+          normal
+            .clone()
+            .multiplyScalar(0.0022)
+            .add(new THREE.Vector3(side * 0.006, 0, 0)),
+          side < 0 ? 0.87 : 1.04
+        );
+      })
+    );
+    const forward = new THREE.Vector3(0, 0, 1);
+    for (let r = 0; r < rows.length - 1; r++) {
+      face(strip[r][0], strip[r + 1][0], strip[r][1], forward);
+      face(strip[r][1], strip[r + 1][0], strip[r + 1][1], forward);
+    }
+    const buttons = [rows[0], rows[Math.floor((rows.length - 1) / 2)], rows.at(-1)!];
+    for (const id of buttons) {
+      normal.fromBufferAttribute(a.normal, id).normalize();
+      const right = new THREE.Vector3(0, 1, 0).cross(normal).normalize(),
+        up = normal.clone().cross(right).normalize();
+      const centre = emit(id, normal.clone().multiplyScalar(0.0044), button),
+        ring = [];
+      for (let i = 0; i < 6; i++) {
+        const angle = (i / 6) * Math.PI * 2;
+        ring.push(
+          emit(
+            id,
+            normal
+              .clone()
+              .multiplyScalar(0.0024)
+              .addScaledVector(right, Math.cos(angle) * 0.0028)
+              .addScaledVector(up, Math.sin(angle) * 0.0028),
+            button
+          )
+        );
+      }
+      for (let i = 0; i < 6; i++) face(centre, ring[i], ring[(i + 1) % 6], normal);
+    }
+  }
+  if (!foldedTriangles) return null;
+  const detail = new THREE.BufferGeometry();
+  detail.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  detail.setAttribute(
+    'normal',
+    new THREE.Float32BufferAttribute(new Float32Array(positions.length), 3)
+  );
+  detail.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  detail.setAttribute('skinIndex', new THREE.Uint8BufferAttribute(joints, 4));
+  detail.setAttribute('skinWeight', new THREE.Float32BufferAttribute(weights, 4));
+  detail.setAttribute('color', new THREE.Float32BufferAttribute(colours, 3));
+  detail.setIndex(indices);
+  detail.computeVertexNormals();
+  const base = original.clone();
+  deinterleaveGeometry(base);
+  for (const name of names) {
+    const attribute = a[name];
+    // Deinterleaving preserves logical components and the effective float GPU
+    // contract. Interleaved attributes have no gpuType field; copying that
+    // absence onto a plain attribute breaks the existing distant-body merge.
+    (detail.attributes[name] as THREE.BufferAttribute).gpuType = (
+      base.attributes[name] as THREE.BufferAttribute
+    ).gpuType;
+    detail.attributes[name].normalized = attribute.normalized;
+  }
+  if (!base.hasAttribute('color'))
+    base.setAttribute(
+      'color',
+      new THREE.Float32BufferAttribute(new Float32Array(a.position.count * 3).fill(1), 3)
+    );
+  const result = mergeGeometries([base, detail]);
+  base.dispose();
+  detail.dispose();
+  if (!result) return null;
+  result.name = `worker-tailored-${kind}`;
+  result.userData.workerTailoring = {
+    kind,
+    baseVertices: a.position.count,
+    baseIndices: original.index.count,
+    addedTriangles: indices.length / 3,
+    foldedTriangles,
+    attachment: 'source-vertex',
+    maxDiscardedWeight: 0,
+  };
+  result.computeBoundingBox();
+  result.computeBoundingSphere();
+  return result;
+}
 
 /** A short linen work apron in the source skin's bind coordinates. It shares
  * the existing palette and indexed Uint8 joints, including the distant merge.

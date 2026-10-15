@@ -1808,3 +1808,97 @@ it('admits bounded walking attention, holds it exactly when paused and releases 
   harness.frame?.({}, 1 / 60);
   expect(head.quaternion.toArray().every(Number.isFinite)).toBe(true);
 });
+
+it('mounts civilian tailoring in existing body draws, preserves PPE and disposes only private trim', () => {
+  const shared = new THREE.BoxGeometry(0.2, 0.3, 0.1).translate(0, 1.35, 0),
+    count = shared.attributes.position.count;
+  shared.setAttribute('skinIndex', new THREE.Uint8BufferAttribute(new Uint8Array(count * 4), 4));
+  const weights = new Float32Array(count * 4);
+  for (let i = 0; i < count; i++) weights[i * 4] = 1;
+  shared.setAttribute('skinWeight', new THREE.Float32BufferAttribute(weights, 4));
+  const borrowed = vi.spyOn(shared, 'dispose'),
+    owned: THREE.BufferGeometry[] = [],
+    dispose: Array<ReturnType<typeof vi.spyOn>> = [];
+  const builder = vi.spyOn(hairShapes, 'createWorkerShirtTrim').mockImplementation((mesh, kind) => {
+    const g = mesh.geometry.clone();
+    g.name = 'worker-tailored-' + kind;
+    g.userData.workerTailoring = { kind };
+    owned.push(g);
+    dispose.push(vi.spyOn(g, 'dispose'));
+    return g;
+  });
+  function asset() {
+    const scene = new THREE.Group(),
+      node = new THREE.Group(),
+      neck = new THREE.Bone();
+    node.name = 'Worker_Body';
+    neck.name = 'Neck';
+    scene.add(node, neck);
+    const skin = new THREE.Skeleton([neck]);
+    for (const name of ['Worker_Vest', 'LightBrown']) {
+      const material = new THREE.MeshStandardMaterial();
+      material.name = name;
+      const m = new THREE.SkinnedMesh(shared, material);
+      node.add(m);
+      m.bind(skin);
+    }
+    return { scene, animations: [] };
+  }
+  const motion: WorkerMotionState = {
+    activity: 'idle',
+    groundSpeed: 0,
+    seated: false,
+    phase: 0,
+    enabled: false,
+  };
+  harness.asset = asset();
+  const appearance = {
+    ...getWorkerAppearance('Shopkeeper', '', 'tailoring-owner'),
+    bodyType: 'masculine' as const,
+  };
+  const view = render(<WorkerModel appearance={appearance} motion={motion} />);
+  expect(builder).toHaveBeenCalledTimes(2);
+  expect(builder.mock.calls.map((c) => c[1])).toEqual(['collar', 'shirt']);
+  view.unmount();
+  dispose.forEach((d) => expect(d).toHaveBeenCalledOnce());
+  expect(borrowed).not.toHaveBeenCalled();
+  builder.mockClear();
+  harness.asset = asset();
+  const ppe = render(
+    <WorkerModel
+      appearance={{
+        ...getWorkerAppearance('Engineer', '', 'tailoring-ppe'),
+        bodyType: 'masculine',
+      }}
+      motion={motion}
+    />
+  );
+  expect(builder).not.toHaveBeenCalled();
+  ppe.unmount();
+  expect(borrowed).not.toHaveBeenCalled();
+  expect(owned).toHaveLength(2);
+  builder.mockClear();
+  builder
+    .mockImplementationOnce((mesh) => {
+      const g = mesh.geometry.clone();
+      dispose.push(vi.spyOn(g, 'dispose'));
+      return g;
+    })
+    .mockImplementationOnce(() => null);
+  harness.asset = asset();
+  const unsupported = render(<WorkerModel appearance={appearance} motion={motion} />);
+  expect(builder).toHaveBeenCalledTimes(2);
+  expect(dispose.at(-1)).toHaveBeenCalledOnce();
+  unsupported.unmount();
+  expect(dispose.at(-1)).toHaveBeenCalledOnce();
+  expect(borrowed).not.toHaveBeenCalled();
+});
+
+it('leaves unsupported clothing complete rather than adding partial fittings', () => {
+  const mesh = new THREE.SkinnedMesh(new THREE.BoxGeometry(), new THREE.MeshStandardMaterial()),
+    source = mesh.geometry,
+    dispose = vi.spyOn(source, 'dispose');
+  expect(hairShapes.createWorkerShirtTrim(mesh, 'collar')).toBeNull();
+  expect(mesh.geometry).toBe(source);
+  expect(dispose).not.toHaveBeenCalled();
+});

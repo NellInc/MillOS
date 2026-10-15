@@ -70,12 +70,19 @@ export function createWorkerBodyLod(model: THREE.Object3D) {
       const geometry = new THREE.BufferGeometry();
       for (const key of ['position', 'normal', 'skinIndex', 'skinWeight']) {
         const attribute = mesh.geometry.getAttribute(key);
-        geometry.setAttribute(
-          key,
+        const copy =
           attribute instanceof THREE.InterleavedBufferAttribute
             ? attribute.clone({})
-            : attribute.clone()
-        );
+            : attribute.clone();
+        // Interleaved exports and some generated fittings omit gpuType. They
+        // still upload as floats. Normalize only this private copy, reading the
+        // original because an interleaved clone drops custom upload metadata.
+        // Working if mixed fitted/exported parts merge without changing source
+        // buffers or losing an explicitly requested integer attribute.
+        Object.assign(copy, {
+          gpuType: (attribute as THREE.BufferAttribute).gpuType ?? THREE.FloatType,
+        });
+        geometry.setAttribute(key, copy);
       }
       if (mesh.geometry.index) geometry.setIndex(mesh.geometry.index.clone());
       const colour = (mesh.material as THREE.MeshStandardMaterial).color;
