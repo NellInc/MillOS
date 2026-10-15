@@ -242,9 +242,12 @@ export function createWorkerApronGeometry(source: THREE.SkinnedMesh) {
     chest = rest[2];
   const waist = abdomen.y,
     top = chest.y + 0.015,
-    hem = hip.y - 0.17;
+    hem = hip.y - 0.15;
   const cloud: THREE.Vector3[] = [];
-  const trouserFaces: { triangle: THREE.Triangle; ids: number[]; mesh: THREE.SkinnedMesh }[] = [];
+  type Face = { triangle: THREE.Triangle; ids: number[]; mesh: THREE.SkinnedMesh };
+  const trouserFaces: Face[] = [],
+    torsoFaces: Face[] = [];
+  let maxDiscardedWeight = 0;
   source.parent?.parent?.traverse((object) => {
     const mesh = object as THREE.SkinnedMesh;
     if (!mesh.isSkinnedMesh || !/Worker_(Body|Legs)/.test(mesh.parent?.name ?? '')) return;
@@ -253,7 +256,18 @@ export function createWorkerApronGeometry(source: THREE.SkinnedMesh) {
       const point = new THREE.Vector3().fromBufferAttribute(attribute, i);
       if (Math.abs(point.x - hip.x) < 0.26) cloud.push(point);
     }
-    if (mesh.parent?.name !== 'Worker_Legs') return;
+    // Donors must describe this same rest/bind frame. Never borrow a nearby
+    // mesh's palette merely because its joint names happen to match.
+    if (
+      !mesh.bindMatrix.equals(source.bindMatrix) ||
+      !mesh.bindMatrixInverse.equals(source.bindMatrixInverse) ||
+      !mesh.skeleton.bones.every(
+        (bone, i) =>
+          bone === source.skeleton.bones[i] &&
+          mesh.skeleton.boneInverses[i].equals(source.skeleton.boneInverses[i])
+      )
+    )
+      return;
     const index = mesh.geometry.index;
     const normal = new THREE.Vector3();
     for (let i = 0; i < (index?.count ?? attribute.count); i += 3) {
@@ -261,16 +275,121 @@ export function createWorkerApronGeometry(source: THREE.SkinnedMesh) {
       const points = ids.map((id) => new THREE.Vector3().fromBufferAttribute(attribute, id));
       const triangle = new THREE.Triangle(points[0], points[1], points[2]);
       const centre = triangle.getMidpoint(new THREE.Vector3());
-      // Transfer only from the front hip/thigh surface, never the back or arms.
-      if (centre.y < hem - 0.08 || centre.y > hip.y + 0.13 || centre.z < hip.z) continue;
-      if (triangle.getNormal(normal).z > 0.1) trouserFaces.push({ triangle, ids, mesh });
+      if (mesh.parent?.name === 'Worker_Legs') {
+        // Transfer only from the front hip/thigh surface, never the back.
+        if (
+          centre.y >= hem - 0.08 &&
+          centre.y <= hip.y + 0.13 &&
+          centre.z >= hip.z &&
+          triangle.getNormal(normal).z > 0.1
+        )
+          trouserFaces.push({ triangle, ids, mesh });
+      }
+      if (centre.y > hip.y - 0.08 && centre.y < top + 0.08 && Math.abs(centre.x - hip.x) < 0.26) {
+        const arm = ids.some((id) => {
+          let weight = 0;
+          for (let k = 0; k < 4; k++) {
+            const bone =
+              mesh.skeleton.bones[mesh.geometry.attributes.skinIndex.getComponent(id, k)];
+            if (/UpperArm|LowerArm|Wrist|Finger/.test(bone.name))
+              weight += mesh.geometry.attributes.skinWeight.getComponent(id, k);
+          }
+          return weight > 0.15;
+        });
+        if (!arm) torsoFaces.push({ triangle, ids, mesh });
+      }
     }
   });
   if (!cloud.length) return null;
-  function frontAt(y: number) {
+  function frontSample(y: number) {
     let front = -Infinity;
     for (const point of cloud) if (Math.abs(point.y - y) < 0.065) front = Math.max(front, point.z);
     return Number.isFinite(front) ? front : hip.z + 0.15;
+  }
+  // The old sliding maximum jumped whenever a source vertex entered its band.
+  // Fit a continuous front through the actual hem/hip/waist/bib envelope instead.
+  // Working if cloth rows stay smooth while the existing posed clearance holds.
+  const profile = [hem, hip.y, waist, top].map((y) => ({ y, z: frontSample(y) }));
+  function frontAt(y: number) {
+    for (let i = 1; i < profile.length; i++) {
+      const a = profile[i - 1],
+        b = profile[i];
+      if (y <= b.y) return THREE.MathUtils.lerp(a.z, b.z, THREE.MathUtils.smoothstep(y, a.y, b.y));
+    }
+    return profile.at(-1)!.z;
+  }
+  // Front cloth and its sewn details share one (x,y) attachment field. Sampling
+  // again from an offset pocket would choose different weights and tear its seam.
+  const frontRay = new THREE.Ray(),
+    samplePoint = new THREE.Vector3();
+  function torsoAt(x: number, y: number, radial = false, z = hip.z + 1) {
+    const origin = new THREE.Vector3(x, y, radial ? z : hip.z + 1);
+    frontRay.set(origin, new THREE.Vector3(0, 0, -1));
+    if (radial) {
+      frontRay.origin.set(hip.x, y, hip.z);
+      frontRay.direction.copy(origin).sub(frontRay.origin).normalize();
+    }
+    let face: Face | undefined,
+      distance = radial ? -Infinity : Infinity;
+    const point = new THREE.Vector3(),
+      barycentric = new THREE.Vector3();
+    for (const candidate of torsoFaces) {
+      if (!radial && candidate.triangle.getNormal(samplePoint).z < 0.1) continue;
+      const hit = frontRay.intersectTriangle(
+        candidate.triangle.a,
+        candidate.triangle.b,
+        candidate.triangle.c,
+        false,
+        samplePoint
+      );
+      if (!hit) continue;
+      const d = hit.distanceToSquared(frontRay.origin);
+      if (radial ? d > distance : d < distance) {
+        face = candidate;
+        distance = d;
+        point.copy(hit);
+      }
+    }
+    if (!face && !radial) {
+      origin.set(x, y, frontAt(y));
+      for (const candidate of torsoFaces) {
+        if (candidate.triangle.getNormal(samplePoint).z < 0.1) continue;
+        candidate.triangle.closestPointToPoint(origin, samplePoint);
+        const d = (samplePoint.x - x) ** 2 + (samplePoint.y - y) ** 2;
+        if (d < distance) {
+          face = candidate;
+          distance = d;
+          point.copy(samplePoint);
+        }
+      }
+    }
+    if (!face) return null;
+    face.triangle.getBarycoord(point, barycentric);
+    return { face, point, barycentric };
+  }
+  // Fit the waist width to the actual trunk cross-section rather than a fixed
+  // wide ellipse. Working if the webbing hugs both bodies during real clips.
+  let waistRadius = 0;
+  for (const { triangle } of torsoFaces)
+    for (const [a, b] of [
+      [triangle.a, triangle.b],
+      [triangle.b, triangle.c],
+      [triangle.c, triangle.a],
+    ])
+      if ((a.y - waist) * (b.y - waist) <= 0 && a.y !== b.y) {
+        const x = THREE.MathUtils.lerp(a.x, b.x, (waist - a.y) / (b.y - a.y));
+        waistRadius = Math.max(waistRadius, Math.abs(x - hip.x));
+      }
+  const waistWidth = THREE.MathUtils.clamp(waistRadius * 0.94, 0.15, 0.205);
+  const torsoBlend = (y: number) => THREE.MathUtils.smoothstep(y, hip.y - 0.02, waist + 0.03);
+  function widthAt(y: number) {
+    const bib = THREE.MathUtils.smoothstep(y, waist, top),
+      skirt = 1 - THREE.MathUtils.smoothstep(y, hem, waist);
+    return THREE.MathUtils.lerp(
+      0.215 - 0.035 * skirt * skirt,
+      THREE.MathUtils.lerp(waistWidth, 0.112, bib),
+      torsoBlend(y)
+    );
   }
   const positions: number[] = [],
     colours: number[] = [],
@@ -281,13 +400,15 @@ export function createWorkerApronGeometry(source: THREE.SkinnedMesh) {
     stitch = new THREE.Color('#526e69');
   const pocket = new THREE.Color('#eee3c9'),
     strap = new THREE.Color('#46635f');
-  function vertex(x: number, y: number, z: number, colour: THREE.Color, tone = 1) {
+  function vertex(x: number, y: number, z: number, colour: THREE.Color, tone = 1, belt = false) {
     positions.push(x, y, z);
     colours.push(colour.r * tone, colour.g * tone, colour.b * tone);
     // Around the hip, the exported trousers already blend into the thighs
     // above the Hips joint. A guessed height ramp leaves cloth behind in runs.
     // Use same-side front triangles' barycentric weights in that fitted region.
     const transferred = new Map<number, number>();
+    const torso = torsoAt(x, y, belt, z);
+    const upperBlend = torso ? (belt ? 1 : z > hip.z ? torsoBlend(y) : 0) : 0;
     const blend = z > hip.z ? 1 - THREE.MathUtils.smoothstep(y, hip.y + 0.075, hip.y + 0.12) : 0;
     let nearest = Infinity;
     let face: (typeof trouserFaces)[number] | undefined;
@@ -323,28 +444,34 @@ export function createWorkerApronGeometry(source: THREE.SkinnedMesh) {
       skinIndices.push(joints[upper ? 1 : 0], joints[upper ? 2 : 1], 0, 0);
       weights.push(1 - amount, amount, 0, 0);
     }
-    if (face) {
-      for (let corner = 0; corner < 3; corner++) {
-        const id = face.ids[corner];
-        for (let influence = 0; influence < 4; influence++) {
-          const sourceIndex = face.mesh.geometry.attributes.skinIndex.getComponent(id, influence);
-          const joint = source.skeleton.bones.indexOf(face.mesh.skeleton.bones[sourceIndex]);
+    function transfer(donor: Face, bary: THREE.Vector3, amount: number) {
+      for (const [joint, weight] of transferred) transferred.set(joint, weight * (1 - amount));
+      for (let corner = 0; corner < 3; corner++)
+        for (let k = 0; k < 4; k++) {
+          const id = donor.ids[corner];
+          const sourceIndex = donor.mesh.geometry.attributes.skinIndex.getComponent(id, k);
+          const joint = source.skeleton.bones.indexOf(donor.mesh.skeleton.bones[sourceIndex]);
           const weight =
-            face.mesh.geometry.attributes.skinWeight.getComponent(id, influence) *
-            barycentric.getComponent(corner) *
-            blend;
+            donor.mesh.geometry.attributes.skinWeight.getComponent(id, k) *
+            bary.getComponent(corner) *
+            amount;
           if (joint >= 0 && joint <= 255 && weight > 0)
             transferred.set(joint, (transferred.get(joint) ?? 0) + weight);
         }
+    }
+    if (face || upperBlend > 0) {
+      for (let k = 0; k < 4; k++) {
+        const joint = skinIndices[offset + k];
+        transferred.set(joint, (transferred.get(joint) ?? 0) + weights[offset + k]);
       }
-      for (let influence = 0; influence < 4; influence++) {
-        const joint = skinIndices[offset + influence];
-        transferred.set(
-          joint,
-          (transferred.get(joint) ?? 0) + weights[offset + influence] * (1 - blend)
-        );
-      }
-      const sorted = [...transferred].sort((a, b) => b[1] - a[1]).slice(0, 4);
+      if (face) transfer(face, barycentric, blend);
+      if (torso && upperBlend > 0) transfer(torso.face, torso.barycentric, upperBlend);
+      const ranked = [...transferred].sort((a, b) => b[1] - a[1]);
+      maxDiscardedWeight = Math.max(
+        maxDiscardedWeight,
+        ranked.slice(4).reduce((sum, entry) => sum + entry[1], 0)
+      );
+      const sorted = ranked.slice(0, 4);
       const total = sorted.reduce((sum, entry) => sum + entry[1], 0);
       if (total > 0)
         for (let influence = 0; influence < 4; influence++) {
@@ -359,7 +486,8 @@ export function createWorkerApronGeometry(source: THREE.SkinnedMesh) {
     point: (u: number, v: number) => [number, number, number],
     colour: THREE.Color,
     shade = false,
-    vent = false
+    vent = false,
+    belt = false
   ) {
     const start = positions.length / 3;
     for (let row = 0; row <= rows; row++)
@@ -367,7 +495,7 @@ export function createWorkerApronGeometry(source: THREE.SkinnedMesh) {
         const u = column / columns,
           v = row / rows,
           p = point(u, v);
-        vertex(...p, colour, shade ? 0.95 + 0.05 * Math.cos(u * Math.PI * 10 + v * 4) : 1);
+        vertex(...p, colour, shade ? 0.95 + 0.05 * Math.cos(u * Math.PI * 10 + v * 4) : 1, belt);
         if (row < rows && column < columns) {
           // A real centre vent lets the two lower flaps follow opposite thighs.
           // Blending both legs through one sheet pulls the hem into the trousers.
@@ -381,17 +509,46 @@ export function createWorkerApronGeometry(source: THREE.SkinnedMesh) {
   function shape(u: number, v: number): [number, number, number] {
     const y = THREE.MathUtils.lerp(top, hem, v);
     const aboveWaist = THREE.MathUtils.smoothstep(y, waist, top);
-    const width = THREE.MathUtils.lerp(0.235, 0.112, aboveWaist);
+    const width = widthAt(y);
     const across = u * 2 - 1;
-    const fold = 0.006 * Math.sin(across * Math.PI * 3 + v * 0.8) * (1 - aboveWaist);
-    return [
-      hip.x + across * width,
-      y - (1 - across * across) * 0.008 * (1 - v),
+    const fold = 0.004 * Math.sin(across * Math.PI * 3 + v * 0.8) * (1 - aboveWaist);
+    const x = hip.x + across * width;
+    const clothY = y - (1 - across * across) * 0.008 * (1 - v);
+    // Bridge source shirt/trouser hems with a draped profile, rather than
+    // reproducing the hard geometric step of one garment underneath another.
+    const fitBase = waist + 0.06;
+    const span = (top - fitBase) / 4;
+    const band = Math.min(3, Math.max(0, Math.floor((clothY - fitBase) / span)));
+    const lowY = fitBase + band * span,
+      highY = lowY + span;
+    const low = torsoAt(x, lowY),
+      high = torsoAt(x, highY);
+    const fittedZ =
+      low && high
+        ? THREE.MathUtils.lerp(
+            low.point.z,
+            high.point.z,
+            THREE.MathUtils.smoothstep(clothY, lowY, highY)
+          )
+        : undefined;
+    const looseZ =
       frontAt(y) +
-        0.032 +
-        0.018 * (1 - aboveWaist) +
-        across * across * THREE.MathUtils.lerp(0.005, -0.02, aboveWaist) +
-        fold,
+      0.032 +
+      0.018 * (1 - aboveWaist) +
+      // Wrap the sides toward the hips instead of projecting a wide flat
+      // shield into the resting/swinging hands. The split hem stays free.
+      across * across * THREE.MathUtils.lerp(-0.03, -0.02, aboveWaist) +
+      fold;
+    return [
+      x,
+      clothY,
+      fittedZ !== undefined
+        ? THREE.MathUtils.lerp(
+            looseZ,
+            fittedZ + 0.018 + 0.006 * aboveWaist + fold * 0.35,
+            torsoBlend(clothY)
+          )
+        : looseZ,
     ];
   }
   panel(20, 24, shape, linen, true, true);
@@ -421,7 +578,7 @@ export function createWorkerApronGeometry(source: THREE.SkinnedMesh) {
       edge === 1
     );
   function clothAt(x: number, y: number) {
-    const width = THREE.MathUtils.lerp(0.235, 0.112, THREE.MathUtils.smoothstep(y, waist, top));
+    const width = widthAt(y);
     return shape(0.5 + x / (2 * width), (top - y) / (top - hem));
   }
   const pocketTop = waist + 0.075,
@@ -451,21 +608,25 @@ export function createWorkerApronGeometry(source: THREE.SkinnedMesh) {
   let back = Infinity;
   for (const p of cloud) if (Math.abs(p.y - waist) < 0.06) back = Math.min(back, p.z);
   if (!Number.isFinite(back)) back = hip.z - 0.12;
-  const front = frontAt(waist),
-    centreZ = (front + 0.055 + back - 0.018) / 2,
-    radiusZ = (front + 0.055 - back + 0.018) / 2;
+  const backFit = torsoAt(hip.x, waist, true, hip.z - 1);
+  if (backFit) back = backFit.point.z;
   panel(
     32,
     1,
     (u, v) => {
-      const angle = u * Math.PI * 2;
-      return [
-        hip.x + Math.sin(angle) * 0.242,
-        waist + (v - 0.5) * 0.025,
-        centreZ + Math.cos(angle) * radiusZ,
-      ];
+      const angle = u * Math.PI * 2,
+        y = waist + (v - 0.5) * 0.025;
+      const dx = Math.sin(angle),
+        dz = Math.cos(angle);
+      const fit = torsoAt(hip.x + dx, y, true, hip.z + dz);
+      return fit
+        ? [fit.point.x + dx * 0.008, y, fit.point.z + dz * 0.008]
+        : [hip.x + dx * waistWidth, y, hip.z + dz * 0.12];
     },
-    strap
+    strap,
+    false,
+    false,
+    true
   );
   for (const side of [-1, 1]) {
     panel(
@@ -484,7 +645,7 @@ export function createWorkerApronGeometry(source: THREE.SkinnedMesh) {
       (u, v) => [
         hip.x + side * (0.075 + u * 0.014 + (v - 0.5) * 0.018),
         top + Math.sin(u * Math.PI) * 0.1,
-        THREE.MathUtils.lerp(frontAt(top) + 0.03, back - 0.008, u),
+        THREE.MathUtils.lerp(clothAt(side * 0.075, top)[2], back - 0.008, u),
       ],
       strap
     );
@@ -510,6 +671,7 @@ export function createWorkerApronGeometry(source: THREE.SkinnedMesh) {
   geometry.setAttribute('skinIndex', new THREE.Uint8BufferAttribute(skinIndices, 4));
   geometry.setAttribute('skinWeight', new THREE.Float32BufferAttribute(weights, 4));
   geometry.setIndex(indices);
+  geometry.userData.apronFit = { maxDiscardedWeight };
   geometry.computeVertexNormals();
   // These generated and decoded worker attributes are non-interleaved buffers.
   // Preserve the source upload metadata as well as its array layout for merging.

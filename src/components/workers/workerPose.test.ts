@@ -1505,6 +1505,22 @@ describe('actual-rig baker linen skinning and distant preservation', () => {
         const geometry = apron.geometry;
         expect(geometry.index).not.toBeNull();
         expect(geometry.index!.count / 3).toBeLessThan(2200);
+        // The old sliding front maximum made 23 mm depth kinks between rows,
+        // and its full-width flat hem projected into the swinging hands.
+        const surface = geometry.attributes.position;
+        const widths = Array.from(
+          { length: 25 },
+          (_, row) => (surface.getX(row * 21 + 20) - surface.getX(row * 21)) / 2
+        );
+        expect(Math.max(...widths)).toBeLessThan(0.22);
+        expect(widths[24]).toBeLessThan(Math.max(...widths) * 0.9);
+        const centreDepths = widths.map((_, row) => surface.getZ(row * 21 + 10));
+        for (let row = 1; row < 24; row++)
+          expect(
+            Math.abs(centreDepths[row + 1] - 2 * centreDepths[row] + centreDepths[row - 1])
+          ).toBeLessThan(0.0075);
+        for (const column of [0, 20])
+          expect(centreDepths[24] - surface.getZ(24 * 21 + column)).toBeGreaterThan(0.02);
         expect(geometry.attributes.skinIndex.array).toBeInstanceOf(Uint8Array);
         let weightError = 0;
         for (let i = 0; i < geometry.attributes.skinWeight.count; i++) {
@@ -1537,6 +1553,30 @@ describe('actual-rig baker linen skinning and distant preservation', () => {
         const ray = new THREE.Raycaster(),
           rayOrigin = new THREE.Vector3();
         const trousers = scene.getObjectByName('Worker_Legs')!;
+        const torsoSurfaces: THREE.SkinnedMesh[] = [];
+        scene.traverse((object) => {
+          const mesh = object as THREE.SkinnedMesh;
+          if (
+            mesh.isSkinnedMesh &&
+            original.has(mesh.geometry) &&
+            /Worker_(Body|Legs)/.test(mesh.parent?.name ?? '')
+          )
+            torsoSurfaces.push(mesh);
+        });
+        let maxBibDistance = 0,
+          maxBibIntrusion = 0,
+          maxUpperBibIntrusion = 0,
+          worstBib = '',
+          worstIntrusion = '';
+        const bodyTriangles: number[][] = [];
+        const trunkMeshes = torsoSurfaces;
+        trunkMeshes.forEach((mesh, meshIndex) => {
+          for (let i = 0; i < mesh.geometry.index!.count; i += 3)
+            bodyTriangles.push([
+              meshIndex,
+              ...[0, 1, 2].map((k) => mesh.geometry.index!.getX(i + k)),
+            ]);
+        });
         let maxPokeThrough = 0,
           rayHits = 0,
           worstFit = '';
@@ -1567,6 +1607,62 @@ describe('actual-rig baker linen skinning and distant preservation', () => {
               }
             }
             {
+              const posedTrunk = trunkMeshes.map((mesh) =>
+                Array.from({ length: mesh.geometry.attributes.position.count }, (_, i) =>
+                  mesh.getVertexPosition(i, new THREE.Vector3()).applyMatrix4(mesh.matrixWorld)
+                )
+              );
+              const triangle = new THREE.Triangle(),
+                closest = new THREE.Vector3();
+              function checkBib(point: THREE.Vector3, location: string, upper = false) {
+                let nearest = Infinity,
+                  signed = 0;
+                for (const [m, a, b, c] of bodyTriangles) {
+                  triangle.set(posedTrunk[m][a], posedTrunk[m][b], posedTrunk[m][c]);
+                  triangle.closestPointToPoint(point, closest);
+                  const distance = closest.distanceTo(point);
+                  if (distance < nearest) {
+                    nearest = distance;
+                    signed = triangle.getNormal(part).dot(raw.copy(point).sub(closest));
+                  }
+                }
+                if (upper) maxUpperBibIntrusion = Math.max(maxUpperBibIntrusion, -signed);
+                if (nearest > maxBibDistance) {
+                  maxBibDistance = nearest;
+                  worstBib = `${name}/${phase}/${location}`;
+                }
+                if (-signed > maxBibIntrusion) {
+                  maxBibIntrusion = -signed;
+                  worstIntrusion = `${name}/${phase}/${location}`;
+                }
+              }
+              // Include the trousers supporting the waist transition. The shorter
+              // feminine shirt ends above row14; the distant replica is excluded.
+              for (const row of [1, 2, 5, 8, 11, 14])
+                for (const column of row < 3 ? [1, 7, 10, 13, 19] : [7, 10, 13]) {
+                  apron
+                    .getVertexPosition(row * 21 + column, actual)
+                    .applyMatrix4(apron.matrixWorld);
+                  checkBib(actual, `row${row}/column${column}`, row < 3);
+                }
+              for (const row of [5, 11, 13]) {
+                const a = row * 21 + 10,
+                  b = a + 21;
+                for (const ids of [
+                  [a, b + 1, b],
+                  [a, a + 1, b + 1],
+                ]) {
+                  apron.getVertexPosition(ids[0], triangleA).applyMatrix4(apron.matrixWorld);
+                  apron.getVertexPosition(ids[1], triangleB).applyMatrix4(apron.matrixWorld);
+                  apron.getVertexPosition(ids[2], triangleC).applyMatrix4(apron.matrixWorld);
+                  actual
+                    .copy(triangleA)
+                    .add(triangleB)
+                    .add(triangleC)
+                    .multiplyScalar(1 / 3);
+                  checkBib(actual, `triangle${ids.join('/')}`);
+                }
+              }
               for (const row of [16, 20, 22, 24])
                 for (const column of [1, 3, 5, 8, 10, 12, 15, 17, 19]) {
                   apron
@@ -1625,6 +1721,16 @@ describe('actual-rig baker linen skinning and distant preservation', () => {
           }
         }
         expect(rayHits).toBeGreaterThan(100);
+        expect(maxBibDistance, `bib stands away at ${worstBib}`).toBeLessThan(0.04);
+        expect(maxUpperBibIntrusion).toBeLessThan(0.0005);
+        expect(maxBibIntrusion, `bib penetrates at ${worstIntrusion}`).toBeLessThan(0.008);
+        expect(geometry.userData.apronFit.maxDiscardedWeight).toBeLessThan(0.1);
+        const torsoJoint = apron.skeleton.bones.findIndex((bone) => bone.name === 'Torso');
+        expect(
+          Array.from(geometry.attributes.skinIndex.array).some(
+            (joint, i) => joint === torsoJoint && geometry.attributes.skinWeight.array[i] > 0
+          )
+        ).toBe(true);
         expect(maxPokeThrough, `trousers cover apron at ${worstFit}`).toBeLessThan(0.008);
         expect(maxError).toBeLessThan(1e-6);
         expect(maxFarError).toBeLessThan(1e-6);
