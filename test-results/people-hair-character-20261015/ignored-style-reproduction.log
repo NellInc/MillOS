@@ -1,0 +1,45 @@
+
+> grain-mill-simulator@0.40.0 test
+> vitest run src/components/workers/WorkerModel.test.tsx -t resolves civilian hairstyles
+
+
+ RUN  v4.1.10 /Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS
+
+(node:68011) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:68074) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+stderr | src/components/workers/WorkerModel.test.tsx > resolves civilian hairstyles while retaining the original helmeted worker
+The tag <primitive> is unrecognized in this browser. If you meant to render a React component, start its name with an uppercase letter.
+The tag <group> is unrecognized in this browser. If you meant to render a React component, start its name with an uppercase letter.
+
+ ❯ src/components/workers/WorkerModel.test.tsx (34 tests | 1 failed | 33 skipped) 27ms
+   × resolves civilian hairstyles while retaining the original helmeted worker 26ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/workers/WorkerModel.test.tsx > resolves civilian hairstyles while retaining the original helmeted worker
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ src/components/workers/WorkerModel.test.tsx:1088:20
+    1086|     const view = render(<WorkerModel appearance={appearance} motion={m…
+    1087|     const hair = view.container.querySelector('[name="worker-authored-…
+    1088|     expect(!!hair).toBe(role === 'Resident' && style !== 'bald');
+       |                    ^
+    1089|     if (hair) expect(hair.getAttribute('data-style')).toBe(style);
+    1090|     view.unmount();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 33 skipped (34)
+   Start at  11:03:23
+   Duration  2.69s (transform 413ms, setup 325ms, import 576ms, tests 27ms, environment 1.31s)
+

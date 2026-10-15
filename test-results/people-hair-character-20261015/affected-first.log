@@ -1,0 +1,40 @@
+
+> grain-mill-simulator@0.40.0 test
+> vitest run src/components/workers/WorkerModel.test.tsx src/components/workers/workerPose.test.ts
+
+(node:77565) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+ RUN  v4.1.10 /Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS
+
+(node:77585) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ❯ src/components/workers/workerPose.test.ts (87 tests | 1 failed) 11492ms
+   × feminine replaces only scalp triangles while keeping real brow vertices and skin bindings 654ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/workers/workerPose.test.ts > feminine replaces only scalp triangles while keeping real brow vertices and skin bindings
+AssertionError: expected 0.06746011079575287 to be greater than 0.07
+ ❯ src/components/workers/workerPose.test.ts:1283:21
+    1281|         mesh.applyBoneTransform(id, p).applyMatrix4(mesh.matrixWorld).…
+    1282|         expect(p.y).toBeLessThan(0.16);
+    1283|         expect(p.z).toBeGreaterThan(0.07);
+       |                     ^
+    1284|       }
+    1285|       brows.dispose();
+ ❯ SkinnedMesh.traverse ../../../../Documents/GitHub/MillOS/node_modules/three/build/three.core.js:14340:3
+ ❯ Group.traverse ../../../../Documents/GitHub/MillOS/node_modules/three/build/three.core.js:14346:18
+ ❯ Object3D.traverse ../../../../Documents/GitHub/MillOS/node_modules/three/build/three.core.js:14346:18
+ ❯ Object3D.traverse ../../../../Documents/GitHub/MillOS/node_modules/three/build/three.core.js:14346:18
+ ❯ Group.traverse ../../../../Documents/GitHub/MillOS/node_modules/three/build/three.core.js:14346:18
+ ❯ src/components/workers/workerPose.test.ts:1256:11
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 1 passed (2)
+      Tests  1 failed | 124 passed (125)
+   Start at  11:07:50
+   Duration  24.52s (transform 764ms, setup 403ms, import 2.23s, tests 20.10s, environment 634ms)
+

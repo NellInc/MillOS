@@ -339,6 +339,18 @@ const NAMED_PERSONNEL_PROFILES: Record<string, Partial<WorkerAppearance>> = {
 // Civilian workwear shares the authored body but has individual cloth colours.
 // Working if village/bus identities stay stable and industrial PPE is untouched.
 const CIVILIAN_TROUSERS = ['#353e35', '#384558', '#51483e', '#3e384b', '#4e574d'] as const;
+// Deliberate silhouettes for the actual roster, with stable fallback variation.
+// Working if all five cuts occur in-world and tied hair is worn by active residents.
+const CIVILIAN_HAIR: Readonly<Record<string, HairStyle>> = {
+  'village-baker': 'ponytail',
+  'village-shopkeeper': 'short',
+  'village-gardener': 'curly',
+  'village-neighbour': 'medium',
+  'village-cyclist': 'ponytail',
+  'bus-arriving': 'short',
+  'bus-departing': 'bald',
+};
+
 const COMMUNITY_ROLES = new Set([
   'Baker',
   'Gardener',
@@ -368,6 +380,10 @@ export function getWorkerAppearance(role: string, color: string, id: string): Wo
   };
   if (COMMUNITY_ROLES.has(role)) {
     Object.assign(appearance, {
+      hairStyle:
+        NAMED_PERSONNEL_PROFILES[id]?.hairStyle ??
+        CIVILIAN_HAIR[id] ??
+        HAIR_STYLES[(hash >>> 13) % HAIR_STYLES.length],
       hasHardHat: false,
       hasVest: false,
       hasSafetyGlasses: false,

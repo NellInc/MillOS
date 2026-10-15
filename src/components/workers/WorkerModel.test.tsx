@@ -7,7 +7,13 @@ import {
   SHARED_WORKER_ACCESSORY_MATERIALS,
   SHARED_WORKER_MATERIALS,
 } from './SharedWorkerMaterials';
-import { SHARED_WORKER_GEOMETRY } from './SharedWorkerGeometries';
+import {
+  SHARED_WORKER_GEOMETRY,
+  WORKER_HAIR_GEOMETRIES,
+  createWorkerHairMotion,
+} from './SharedWorkerGeometries';
+import * as hairShapes from './SharedWorkerGeometries';
+import { COMMUNITY_ROSTER } from '../../simulation/communityLife';
 import { createWorkerBodyLod, WORKER_BODY_LOD } from './workerBodyLod';
 import {
   createWorkerWrenchHead,
@@ -37,6 +43,7 @@ import {
   WorkerModel,
   shareWorkerSkin,
   createWorkerAccessoryPair,
+  createWorkerHairMaterial,
   setWorkerPupilBlink,
   softenWorkerFaceNormals,
 } from '../models/WorkerModel';
@@ -1063,4 +1070,195 @@ it('equips the live inspection engineer with one shared belt surface and preserv
   expect(b.max.z).toBeCloseTo(0.0225, 6);
   for (const a of Object.values(g.attributes))
     expect(Array.from(a.array).every(Number.isFinite)).toBe(true);
+});
+
+it('resolves civilian hairstyles while retaining the original helmeted worker', () => {
+  for (const [role, style] of [
+    ['Resident', 'short'],
+    ['Resident', 'medium'],
+    ['Resident', 'curly'],
+    ['Resident', 'ponytail'],
+    ['Resident', 'bald'],
+    ['Operator', 'curly'],
+  ] as const) {
+    const scene = new THREE.Group();
+    const head = new THREE.Bone();
+    head.name = 'Head';
+    scene.add(head);
+    harness.asset = { scene, animations: [] };
+    const appearance = { ...getWorkerAppearance(role, '#596e72', 'hair-review'), hairStyle: style };
+    const motion: WorkerMotionState = {
+      activity: 'idle',
+      groundSpeed: 0,
+      seated: false,
+      phase: 0,
+      enabled: false,
+    };
+    const view = render(<WorkerModel appearance={appearance} motion={motion} />);
+    const hair = view.container.querySelector('[name="worker-authored-hair"]');
+    expect(!!hair).toBe(role === 'Resident' && style !== 'bald');
+    view.unmount();
+  }
+});
+
+it('shares bounded distinct civilian cuts with finite lit colour, normals and fixed scalp roots', () => {
+  const signatures = new Set<string>();
+  for (const [style, geometry] of Object.entries(WORKER_HAIR_GEOMETRIES)) {
+    if (style === 'bald') {
+      expect(geometry).toBeNull();
+      continue;
+    }
+    const g = geometry!;
+    const position = g.getAttribute('position');
+    for (const name of ['position', 'normal', 'uv', 'color', 'hairFlex']) {
+      const attribute = g.getAttribute(name);
+      expect(attribute.count).toBe(position.count);
+      expect(Array.from(attribute.array).every(Number.isFinite)).toBe(true);
+    }
+    expect(position.count / 3).toBeLessThan(1800);
+    expect(g.boundingBox!.max.y).toBeGreaterThan(0.2);
+    expect(g.boundingBox!.max.y).toBeLessThan(0.24);
+    expect(g.boundingBox!.min.x).toBeGreaterThan(-0.13);
+    expect(g.boundingBox!.max.x).toBeLessThan(0.13);
+    expect(g.boundingBox!.max.z).toBeLessThan(0.13);
+    const normals = g.getAttribute('normal');
+    const n = new THREE.Vector3();
+    for (let i = 0; i < normals.count; i++)
+      expect(n.fromBufferAttribute(normals, i).length()).toBeCloseTo(1, 4);
+    signatures.add(position.count + ':' + g.boundingBox!.min.toArray().join(','));
+  }
+  expect(signatures.size).toBe(4);
+  const material = createWorkerHairMaterial('#c59a5b');
+  expect(material.vertexColors).toBe(true);
+  expect(material.roughness).toBe(0.84);
+  expect(material.metalness).toBe(0);
+  expect(material.type).toBe('MeshStandardMaterial');
+  expect(material.color.equals(new THREE.Color('#c59a5b'))).toBe(true);
+  material.dispose();
+  const tied = WORKER_HAIR_GEOMETRIES.ponytail;
+  const colour = tied.getAttribute('color'),
+    flex = tied.getAttribute('hairFlex');
+  let rootTie = 0,
+    flexibleHair = 0;
+  for (let i = 0; i < colour.count; i++) {
+    if (flex.getX(i) === 0 && colour.getX(i) < 0.2) rootTie++;
+    if (flex.getX(i) > 0 && colour.getX(i) > 0.6) flexibleHair++;
+  }
+  expect(rootTie).toBeGreaterThan(10);
+  expect(flexibleHair).toBeGreaterThan(100);
+});
+
+it('moves only a privately owned tail, settles at rest and freezes at zero elapsed time', () => {
+  const source = WORKER_HAIR_GEOMETRIES.ponytail;
+  const original = source.attributes.position.array.slice();
+  const hair = createWorkerHairMotion(source),
+    other = createWorkerHairMotion(source);
+  const p = hair.geometry.attributes.position,
+    n = hair.geometry.attributes.normal;
+  const weights = source.attributes.hairFlex;
+  let walking = 0,
+    resting = 0;
+  const vec = new THREE.Vector3(),
+    restPoint = new THREE.Vector3();
+  let rootDrift = 0;
+  for (let frame = 0; frame < 240; frame++) {
+    hair.apply(frame / 60, 1 / 60, 2, false);
+    for (let i = 0; i < p.count; i++) {
+      if (weights.getX(i) === 0) {
+        rootDrift = Math.max(
+          rootDrift,
+          Math.abs(p.getX(i) - source.attributes.position.getX(i)),
+          Math.abs(p.getY(i) - source.attributes.position.getY(i)),
+          Math.abs(p.getZ(i) - source.attributes.position.getZ(i))
+        );
+      } else
+        walking = Math.max(
+          walking,
+          vec
+            .fromBufferAttribute(p, i)
+            .distanceTo(restPoint.fromBufferAttribute(source.attributes.position, i))
+        );
+    }
+  }
+  const frozen = p.array.slice();
+  hair.apply(100, 0, 0, true);
+  expect(p.array).toEqual(frozen);
+  for (let frame = 240; frame < 720; frame++) {
+    hair.apply(frame / 60, 1 / 60, 0, true);
+    if (frame > 600)
+      for (let i = 0; i < p.count; i++)
+        resting = Math.max(
+          resting,
+          vec
+            .fromBufferAttribute(p, i)
+            .distanceTo(restPoint.fromBufferAttribute(source.attributes.position, i))
+        );
+  }
+  expect(rootDrift).toBe(0);
+  expect(walking).toBeGreaterThan(0.008);
+  expect(walking).toBeLessThan(0.025);
+  expect(resting).toBeLessThan(0.004);
+  for (let i = 0; i < n.count; i++)
+    expect(vec.fromBufferAttribute(n, i).length()).toBeCloseTo(1, 4);
+  expect(source.attributes.position.array).toEqual(original);
+  expect(other.geometry.attributes.position.array).toEqual(original);
+  const sharedDispose = vi.spyOn(source, 'dispose'),
+    ownedDispose = vi.spyOn(hair.geometry, 'dispose');
+  hair.dispose();
+  other.dispose();
+  expect(ownedDispose).toHaveBeenCalledOnce();
+  expect(sharedDispose).not.toHaveBeenCalled();
+  const short = createWorkerHairMotion(WORKER_HAIR_GEOMETRIES.short);
+  expect(short.geometry).toBe(WORKER_HAIR_GEOMETRIES.short);
+  short.dispose();
+});
+
+it('runs hair motion on the existing worker frame, freezes pause, and cleans only the private tail', () => {
+  const scene = new THREE.Group(),
+    head = new THREE.Bone();
+  head.name = 'Head';
+  scene.add(head);
+  harness.asset = { scene, animations: [] };
+  const factory = vi.spyOn(hairShapes, 'createWorkerHairMotion');
+  const motion: WorkerMotionState = {
+    activity: 'walking',
+    groundSpeed: 1.2,
+    seated: false,
+    phase: 0,
+    enabled: true,
+  };
+  const appearance = {
+    ...getWorkerAppearance('Resident', '#596e72', 'tail-motion'),
+    hairStyle: 'ponytail' as const,
+  };
+  const view = render(<WorkerModel appearance={appearance} motion={motion} />);
+  const hair = factory.mock.results[0].value as ReturnType<typeof createWorkerHairMotion>;
+  const dispose = vi.spyOn(hair.geometry, 'dispose');
+  const before = hair.geometry.attributes.position.array.slice();
+  for (let frame = 0; frame < 30; frame++) harness.frame?.({}, 1 / 60);
+  expect(hair.geometry.attributes.position.array).not.toEqual(before);
+  motion.enabled = false;
+  harness.frame?.({}, 1 / 60);
+  const paused = hair.geometry.attributes.position.array.slice();
+  harness.frame?.({}, 10);
+  expect(hair.geometry.attributes.position.array).toEqual(paused);
+  view.unmount();
+  expect(dispose).toHaveBeenCalledOnce();
+});
+
+it('assigns stable civilian cut variation without changing industrial PPE or named profiles', () => {
+  const styles = new Set<string>();
+  for (let id = 0; id < 32; id++) {
+    const a = getWorkerAppearance('Resident', '#596e72', 'civilian-' + id);
+    expect(a).toEqual(getWorkerAppearance('Resident', '#596e72', 'civilian-' + id));
+    styles.add(a.hairStyle);
+    expect(a.hasHardHat).toBe(false);
+  }
+  expect(styles.size).toBe(5);
+  const roster = COMMUNITY_ROSTER.map((person) => getWorkerAppearance(person.role, '', person.id));
+  expect(new Set(roster.filter((a) => !a.hasHardHat).map((a) => a.hairStyle)).size).toBe(5);
+  expect(getWorkerAppearance('Baker', '', 'village-baker').hairStyle).toBe('ponytail');
+  expect(getWorkerAppearance('Cyclist', '', 'village-cyclist').hairStyle).toBe('ponytail');
+  expect(getWorkerAppearance('Engineer', '', 'w2').hairStyle).toBe('ponytail');
+  expect(getWorkerAppearance('Operator', '', 'mill-operator-west').hasHardHat).toBe(true);
 });

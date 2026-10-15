@@ -24,6 +24,7 @@ import {
   createWorkerFaceColours,
   dressWorkerHands,
   softenWorkerFaceNormals,
+  retainWorkerBrows,
 } from '../models/WorkerModel';
 
 const bodies = new Map<string, GLTF>();
@@ -1245,3 +1246,63 @@ describe('authored finger articulation', () => {
     expect(root.quaternion.toArray()).toEqual([0, 0, 0, 1]);
   });
 });
+
+for (const body of ['masculine', 'feminine']) {
+  it(`${body} replaces only scalp triangles while keeping real brow vertices and skin bindings`, () => {
+    const scene = clone(bodies.get(body)!.scene);
+    scene.updateMatrixWorld(true);
+    const head = scene.getObjectByName('Head')!;
+    let checked = false;
+    scene.traverse((object) => {
+      const mesh = object as THREE.SkinnedMesh;
+      if (
+        !mesh.isSkinnedMesh ||
+        Array.isArray(mesh.material) ||
+        mesh.material.name !== (body === 'masculine' ? 'Eyebrows' : 'DarkBrown')
+      )
+        return;
+      const source = mesh.geometry,
+        oldIndex = source.index?.array.slice();
+      const brows = retainWorkerBrows(mesh, head)!;
+      expect(brows).toBeTruthy();
+      expect(brows.index!.count).toBeGreaterThan(12);
+      expect(brows.index!.count).toBeLessThan(
+        (source.index?.count ?? source.attributes.position.count) / 2
+      );
+      for (const name of ['position', 'normal', 'skinIndex', 'skinWeight']) {
+        expect(brows.getAttribute(name).array).toEqual(source.getAttribute(name).array);
+      }
+      expect(source.index?.array).toEqual(oldIndex);
+      const inverse = head.matrixWorld.clone().invert(),
+        p = new THREE.Vector3();
+      const ids = new Set(Array.from(brows.index!.array));
+      expect(ids.size).toBe(body === 'masculine' ? 48 : 80);
+      for (const id of ids) {
+        p.fromBufferAttribute(brows.attributes.position, id);
+        mesh.applyBoneTransform(id, p).applyMatrix4(mesh.matrixWorld).applyMatrix4(inverse);
+        expect(p.y).toBeLessThan(0.16);
+        expect(p.z).toBeGreaterThan(0.05);
+      }
+      // Selection is a whole-triangle centroid contract; an edge vertex may
+      // extend behind the front threshold while preserving the original brow.
+      const centre = new THREE.Vector3();
+      for (let i = 0; i < brows.index!.count; i += 3) {
+        centre.set(0, 0, 0);
+        for (let c = 0; c < 3; c++) {
+          p.fromBufferAttribute(brows.attributes.position, brows.index!.getX(i + c));
+          mesh
+            .applyBoneTransform(brows.index!.getX(i + c), p)
+            .applyMatrix4(mesh.matrixWorld)
+            .applyMatrix4(inverse);
+          centre.add(p);
+        }
+        centre.divideScalar(3);
+        expect(centre.y).toBeLessThan(0.142);
+        expect(centre.z).toBeGreaterThan(0.08);
+      }
+      brows.dispose();
+      checked = true;
+    });
+    expect(checked).toBe(true);
+  });
+}

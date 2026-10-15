@@ -14,7 +14,12 @@ import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
 import { useDracoGLTF } from '../../utils/dracoLoader';
 import type { WorkerAppearance, WorkerBodyType, WorkerWorkAction } from '../workers/workerTypes';
 import { ToolAccessory } from '../workers/WorkerTools';
-import { SHARED_WORKER_GEOMETRY, WORKER_EYE_CENTRES } from '../workers/SharedWorkerGeometries';
+import {
+  SHARED_WORKER_GEOMETRY,
+  WORKER_EYE_CENTRES,
+  WORKER_HAIR_GEOMETRIES,
+  createWorkerHairMotion,
+} from '../workers/SharedWorkerGeometries';
 import {
   SHARED_WORKER_ACCESSORY_MATERIALS,
   SHARED_WORKER_MATERIALS,
@@ -670,14 +675,117 @@ function createSurfaceMaterial(
   return physical;
 }
 
+/** The original hair primitive also carries eyebrows. Keep its measured
+ * two whole front brow islands and all skin attributes; only the private index changes.
+ * Working if civilian cuts replace scalp silhouettes without erasing eyebrows,
+ * while original exports, unknown materials and helmeted workers remain intact.
+ */
+export function retainWorkerBrows(mesh: THREE.Mesh, head: THREE.Object3D) {
+  const source = mesh.geometry;
+  const position = source.getAttribute('position');
+  if (!position || Array.isArray(mesh.material)) return null;
+  mesh.updateWorldMatrix(true, false);
+  const inverse = head.matrixWorld.clone().invert();
+  const point = new THREE.Vector3();
+  const centres = new Float32Array(position.count * 3);
+  for (let vertex = 0; vertex < position.count; vertex++) {
+    point.fromBufferAttribute(position, vertex);
+    if ((mesh as THREE.SkinnedMesh).isSkinnedMesh)
+      (mesh as THREE.SkinnedMesh).applyBoneTransform(vertex, point);
+    point
+      .applyMatrix4(mesh.matrixWorld)
+      .applyMatrix4(inverse)
+      .toArray(centres, vertex * 3);
+  }
+  // The actual exports contain two disconnected brow islands (24/40 vertices
+  // each). Weld coincident corners, then classify complete islands so clipping
+  // never leaves sharp triangles from the old fringe beside a new haircut.
+  const parents = Uint32Array.from({ length: position.count }, (_, index) => index);
+  const root = (vertex: number): number => {
+    let index = vertex;
+    while (parents[index] !== index) index = parents[index];
+    while (parents[vertex] !== vertex) {
+      const next = parents[vertex];
+      parents[vertex] = index;
+      vertex = next;
+    }
+    return index;
+  };
+  const join = (a: number, b: number) => {
+    parents[root(a)] = root(b);
+  };
+  const welded = new Map<string, number>();
+  for (let vertex = 0; vertex < position.count; vertex++) {
+    const key = [0, 1, 2].map((c) => Math.round(centres[vertex * 3 + c] * 100000)).join(',');
+    const other = welded.get(key);
+    if (other === undefined) welded.set(key, vertex);
+    else join(vertex, other);
+  }
+  const count = source.index?.count ?? position.count;
+  const indexAt = (index: number) => source.index?.getX(index) ?? index;
+  for (let triangle = 0; triangle < count; triangle += 3) {
+    join(indexAt(triangle), indexAt(triangle + 1));
+    join(indexAt(triangle), indexAt(triangle + 2));
+  }
+  const islands = new Map<number, THREE.Box3>();
+  for (let vertex = 0; vertex < position.count; vertex++) {
+    const id = root(vertex);
+    let box = islands.get(id);
+    if (!box) {
+      box = new THREE.Box3();
+      islands.set(id, box);
+    }
+    box.expandByPoint(point.fromArray(centres, vertex * 3));
+  }
+  const brows = new Set(
+    [...islands]
+      .filter(
+        ([, box]) =>
+          box.min.y > 0.105 &&
+          box.max.y < 0.135 &&
+          box.min.z > 0.095 &&
+          box.max.z < 0.135 &&
+          box.max.x - box.min.x < 0.07
+      )
+      .map(([id]) => id)
+  );
+  if (brows.size !== 2) return null;
+  const indices: number[] = [];
+  for (let triangle = 0; triangle < count; triangle += 3) {
+    if (brows.has(root(indexAt(triangle))))
+      indices.push(indexAt(triangle), indexAt(triangle + 1), indexAt(triangle + 2));
+  }
+  const geometry = source.clone();
+  geometry.setIndex(indices);
+  return geometry;
+}
+
+/** Quiet civilian fibre finish, independent of the original glossy PPE export.
+ * Working if cut vertices are coloured, nonmetallic and softly lit, not polished.
+ */
+export function createWorkerHairMaterial(hairColor: string) {
+  return new THREE.MeshStandardMaterial({
+    name: 'worker-authored-hair-material',
+    color: hairColor,
+    vertexColors: true,
+    roughness: 0.84,
+    metalness: 0,
+    envMapIntensity: 0.8,
+  });
+}
+
 const WorkerAccessories: React.FC<{
   appearance: WorkerAppearance;
   model: THREE.Group;
   materials: AccessoryMaterials;
   toolRef: React.RefObject<THREE.Group | null>;
+  hair: {
+    motion: ReturnType<typeof createWorkerHairMotion>;
+    material: THREE.MeshStandardMaterial;
+  } | null;
   faceRef: React.RefObject<THREE.Group | null>;
   pupilRef: React.RefObject<THREE.InstancedMesh | null>;
-}> = ({ appearance, model, materials, toolRef, faceRef, pupilRef }) => {
+}> = ({ appearance, model, materials, toolRef, faceRef, pupilRef, hair }) => {
   const head = model.getObjectByName('Head') ?? null;
   const chest = model.getObjectByName('Chest') ?? null;
   const hips = model.getObjectByName('Hips') ?? null;
@@ -686,6 +794,19 @@ const WorkerAccessories: React.FC<{
   const eyeCentre = WORKER_EYE_CENTRES[appearance.bodyType];
   return (
     <>
+      {hair && (
+        <BoneMount bone={head} name="worker-hair-mount">
+          <mesh
+            name="worker-authored-hair"
+            geometry={hair.motion.geometry}
+            material={hair.material}
+            scale={[appearance.bodyType === 'feminine' ? 0.92 : 1, 1, 1]}
+            castShadow
+            receiveShadow
+            dispose={null}
+          />
+        </BoneMount>
+      )}
       <BoneMount bone={head} name="worker-eye-detail" position={[...eyeCentre]}>
         <group ref={faceRef}>
           <WorkerAccessoryPair
@@ -963,6 +1084,19 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
           ? resolveSurface(appearance.bodyType, sources[0].name, nodeName)
           : null;
       if (
+        !appearance.hasHardHat &&
+        region === 'hair' &&
+        nodeName.includes('Worker_Head') &&
+        (sources[0].name === 'Eyebrows' || sources[0].name === 'DarkBrown')
+      ) {
+        const head = model.getObjectByName('Head');
+        const brows = head ? retainWorkerBrows(mesh, head) : null;
+        if (brows) {
+          mesh.geometry = brows;
+          ownedGeometry.push(brows);
+        }
+      }
+      if (
         region &&
         ['skin', 'shirt', 'hiVis', 'hiVisStrap', 'denim', 'denimDark'].includes(region)
       ) {
@@ -1031,7 +1165,17 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
 
     const eyeBlink = createWorkerEyeBlink(model, appearance.bodyType);
     const bodyLod = createWorkerBodyLod(model);
-    return { model, materials, ownedGeometry, rigScale, skeletons, bodyLod, eyeBlink };
+    const style = !appearance.hasHardHat ? WORKER_HAIR_GEOMETRIES[appearance.hairStyle] : null;
+    const hair = style
+      ? {
+          motion: createWorkerHairMotion(style),
+          material: createWorkerHairMaterial(appearance.hairColor),
+        }
+      : null;
+    if (hair) {
+      materials.push(hair.material);
+    }
+    return { model, materials, ownedGeometry, rigScale, skeletons, bodyLod, eyeBlink, hair };
   }, [appearance, scene]);
 
   const accessoryMaterials = useMemo(() => createAccessoryMaterials(appearance), [appearance]);
@@ -1100,6 +1244,7 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
     () => () => {
       prepared.bodyLod?.dispose();
       prepared.eyeBlink.dispose();
+      prepared.hair?.motion.dispose();
       prepared.ownedGeometry.forEach((geometry) => geometry.dispose());
       prepared.materials.forEach((material) => material.dispose());
       prepared.skeletons.forEach((skeleton) => skeleton.dispose());
@@ -1166,6 +1311,12 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
     }
     pendingDelta.current = 0;
     gestureTime.current += safeDelta;
+    prepared.hair?.motion.apply(
+      gestureTime.current,
+      safeDelta,
+      speed,
+      motion.seated || motion.activity === 'break'
+    );
     sampleWorkerGesture(
       motion.seated ? 'rest' : motion.activity === 'working' ? appearance.workAction : 'idle',
       gestureTime.current,
@@ -1270,6 +1421,7 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
     >
       <primitive object={prepared.model} />
       <WorkerAccessories
+        hair={prepared.hair}
         appearance={appearance}
         model={prepared.model}
         materials={accessoryMaterials}
