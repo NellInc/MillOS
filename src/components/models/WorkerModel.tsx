@@ -37,6 +37,9 @@ import {
   sampleWorkerBlink,
   sampleWorkerGesture,
   sampleWorkerGreeting,
+  createWorkerGaze,
+  sampleWorkerGaze,
+  type WorkerEyeSurface,
 } from '../workers/workerPose';
 export type { WorkerAppearance, WorkerMotionState } from '../workers/workerTypes';
 
@@ -307,7 +310,9 @@ const ACCESSORY_PAIRS: Record<
  */
 export function createWorkerAccessoryPair(
   kind: WorkerAccessoryPairKind,
-  material: THREE.Material
+  material: THREE.Material,
+  eyeSurfaces?: readonly WorkerEyeSurface[],
+  bodyType?: WorkerBodyType
 ): THREE.InstancedMesh {
   const spec = ACCESSORY_PAIRS[kind];
   const geometry =
@@ -329,33 +334,112 @@ export function createWorkerAccessoryPair(
     transform.updateMatrix();
     mesh.setMatrixAt(index, transform.matrix);
   });
+  if (kind === 'eye-pupils') {
+    if (
+      eyeSurfaces?.length === 2 &&
+      bodyType &&
+      eyeSurfaces.every(
+        (s) =>
+          [...s.centre, ...s.right, ...s.up, ...s.normal, s.halfWidth, s.halfHeight].every(
+            Number.isFinite
+          ) &&
+          s.halfWidth >= 0.009 &&
+          s.halfWidth <= 0.015 &&
+          s.halfHeight >= 0.009 &&
+          s.halfHeight <= 0.015
+      )
+    ) {
+      const centre = new THREE.Vector3().fromArray(WORKER_EYE_CENTRES[bodyType]);
+      const right = new THREE.Vector3(),
+        up = new THREE.Vector3(),
+        normal = new THREE.Vector3();
+      const matrix = new THREE.Matrix4(),
+        point = new THREE.Vector3();
+      eyeSurfaces.forEach((surface, index) => {
+        right.fromArray(surface.right);
+        up.fromArray(surface.up);
+        normal.fromArray(surface.normal);
+        point.fromArray(surface.centre).sub(centre).addScaledVector(normal, 0.0012);
+        matrix.makeBasis(right, up, normal).scale(transform.scale).setPosition(point);
+        mesh.setMatrixAt(index, matrix);
+      });
+      mesh.userData.workerEyeSurfaces = eyeSurfaces;
+    }
+    mesh.userData.workerPupilBase = new Float32Array(mesh.instanceMatrix.array);
+  }
   mesh.instanceMatrix.needsUpdate = true;
   mesh.computeBoundingBox();
   mesh.computeBoundingSphere();
+  if (kind === 'eye-pupils') {
+    mesh.boundingBox?.expandByScalar(0.006);
+    if (mesh.boundingSphere) mesh.boundingSphere.radius += 0.006;
+  }
   return mesh;
 }
 
-/** Closure changes the two pupil instances themselves, never their bone mount.
- * The lid occludes pupils as the real inset eye narrows. Working if the pupil
- * centres stay fixed and no floating pupil highlights remain over closed eyes.
+/** One writer composes plane-constrained gaze and the eye's Head-Y closure.
+ * Working if no transform accumulates, both eyes stay inside their inset quads,
+ * and a full blink hides pupils without scaling or moving their bone mount.
  */
-export function setWorkerPupilBlink(mesh: THREE.InstancedMesh, amount: number) {
+export function setWorkerPupilPose(
+  mesh: THREE.InstancedMesh,
+  amount: number,
+  horizontal = 0,
+  vertical = 0
+) {
   const closure = Number.isFinite(amount) ? THREE.MathUtils.clamp(amount, 0, 1) : 0;
-  if ((mesh.userData.workerBlinkClosure ?? 0) === closure) return;
+  const surfaces = mesh.userData.workerEyeSurfaces as readonly WorkerEyeSurface[] | undefined;
+  const x = surfaces && Number.isFinite(horizontal) ? THREE.MathUtils.clamp(horizontal, -1, 1) : 0;
+  const y = surfaces && Number.isFinite(vertical) ? THREE.MathUtils.clamp(vertical, -1, 1) : 0;
+  if (
+    (mesh.userData.workerBlinkClosure ?? 0) === closure &&
+    (mesh.userData.workerGazeX ?? 0) === x &&
+    (mesh.userData.workerGazeY ?? 0) === y
+  )
+    return;
   mesh.userData.workerBlinkClosure = closure;
-  const scale = ACCESSORY_PAIRS['eye-pupils'].scale[1] * (1 - closure * 0.92);
-  for (let instance = 0; instance < 2; instance++)
-    mesh.instanceMatrix.array[instance * 16 + 5] = scale;
+  mesh.userData.workerGazeX = x;
+  mesh.userData.workerGazeY = y;
+  const array = mesh.instanceMatrix.array;
+  const base = (mesh.userData.workerPupilBase ??= new Float32Array(array)) as Float32Array;
+  array.set(base);
+  const scale = 1 - closure * 0.92;
+  for (let instance = 0; instance < 2; instance++) {
+    const offset = instance * 16,
+      surface = surfaces?.[instance];
+    if (surface) {
+      const horizontalMetres = x * Math.max(0, Math.min(0.004, surface.halfWidth - 0.005 - 0.0006));
+      const verticalMetres = y * Math.max(0, Math.min(0.0013, surface.halfHeight - 0.008 - 0.0006));
+      for (let axis = 0; axis < 3; axis++)
+        array[offset + 12 + axis] +=
+          surface.right[axis] * horizontalMetres + surface.up[axis] * verticalMetres;
+    }
+    // Blink deforms the actual eye in Head Y, not along the fitted quad's up.
+    array[offset + 1] *= scale;
+    array[offset + 5] *= scale;
+    array[offset + 9] *= scale;
+    array[offset + 13] *= scale;
+  }
   mesh.instanceMatrix.needsUpdate = true;
   mesh.visible = closure < 0.5;
+}
+
+/** Old blink-only callers preserve their current gaze; neutral pairs stay exact. */
+export function setWorkerPupilBlink(mesh: THREE.InstancedMesh, amount: number) {
+  setWorkerPupilPose(mesh, amount, mesh.userData.workerGazeX ?? 0, mesh.userData.workerGazeY ?? 0);
 }
 
 const WorkerAccessoryPair: React.FC<{
   kind: WorkerAccessoryPairKind;
   material: THREE.Material;
   meshRef?: React.RefObject<THREE.InstancedMesh | null>;
-}> = ({ kind, material, meshRef }) => {
-  const mesh = useMemo(() => createWorkerAccessoryPair(kind, material), [kind, material]);
+  eyeSurfaces?: readonly WorkerEyeSurface[];
+  bodyType?: WorkerBodyType;
+}> = ({ kind, material, meshRef, eyeSurfaces, bodyType }) => {
+  const mesh = useMemo(
+    () => createWorkerAccessoryPair(kind, material, eyeSurfaces, bodyType),
+    [kind, material, eyeSurfaces, bodyType]
+  );
   // The rig borrows shared geometry/materials. Dispose only this pair's instance buffer.
   useEffect(
     () => () => {
@@ -787,7 +871,8 @@ const WorkerAccessories: React.FC<{
   } | null;
   faceRef: React.RefObject<THREE.Group | null>;
   pupilRef: React.RefObject<THREE.InstancedMesh | null>;
-}> = ({ appearance, model, materials, toolRef, faceRef, pupilRef, hair }) => {
+  eyeSurfaces: readonly WorkerEyeSurface[];
+}> = ({ appearance, model, materials, toolRef, faceRef, pupilRef, hair, eyeSurfaces }) => {
   const head = model.getObjectByName('Head') ?? null;
   const chest = model.getObjectByName('Chest') ?? null;
   const hips = model.getObjectByName('Hips') ?? null;
@@ -815,6 +900,8 @@ const WorkerAccessories: React.FC<{
             kind="eye-pupils"
             material={SHARED_WORKER_MATERIALS.pupil}
             meshRef={pupilRef}
+            eyeSurfaces={eyeSurfaces}
+            bodyType={appearance.bodyType}
           />
         </group>
       </BoneMount>
@@ -1055,6 +1142,7 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
   const pupilRef = useRef<THREE.InstancedMesh>(null);
   const gesture = useMemo(createWorkerGesture, []);
   const sampledGesture = useMemo(createWorkerGesture, []);
+  const gaze = useMemo(createWorkerGaze, []);
   const gestureTime = useRef(Number.isFinite(motion.phase) ? motion.phase : 0);
   const pendingDelta = useRef(0);
   const greetingElapsed = useRef(0);
@@ -1459,7 +1547,10 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
     // retains the open-eye bind shape; it never needs a third body draw.
     const blink = faceRef.current?.visible === false ? 0 : sampleWorkerBlink(gestureTime.current);
     prepared.eyeBlink.apply(blink);
-    if (pupilRef.current?.isInstancedMesh) setWorkerPupilBlink(pupilRef.current, blink);
+    if (faceRef.current?.visible === false) gaze.horizontal = gaze.vertical = 0;
+    else if (motion.enabled) sampleWorkerGaze(sampledGesture, gesture, safeDelta, gaze);
+    if (pupilRef.current?.isInstancedMesh)
+      setWorkerPupilPose(pupilRef.current, blink, gaze.horizontal, gaze.vertical);
     lastPose.current = {
       clip: activeClip,
       seated: motion.seated,
@@ -1568,6 +1659,7 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
         toolRef={toolRef}
         faceRef={faceRef}
         pupilRef={pupilRef}
+        eyeSurfaces={prepared.eyeBlink.surfaces}
       />
     </group>
   );

@@ -17,6 +17,8 @@ import {
   sampleWorkerGesture,
   createWorkerEyeBlink,
   sampleWorkerBlink,
+  createWorkerGaze,
+  sampleWorkerGaze,
 } from './workerPose';
 import { COMMUNITY_ANCHORS } from '../../constants/communityLayout';
 import { getWorkerAppearance } from './workerTypes';
@@ -28,6 +30,9 @@ import {
   retainWorkerBrows,
   shareWorkerSkin,
   createBakerApron,
+  createWorkerAccessoryPair,
+  setWorkerPupilPose,
+  setWorkerPupilBlink,
 } from '../models/WorkerModel';
 
 const bodies = new Map<string, GLTF>();
@@ -2074,4 +2079,224 @@ describe('duty handover continuity', () => {
       }
       mixer.stopAllAction();
     });
+});
+
+describe('fitted pupil contact and quiet directional attention', () => {
+  for (const body of ['masculine', 'feminine'] as const) {
+    it(`${body} keeps pupils within actual animated eye fronts through gaze and affine blinks`, () => {
+      const scene = clone(bodies.get(body)!.scene),
+        parent = new THREE.Group();
+      parent.position.set(9, 0.4, -11);
+      parent.rotation.y = 1.2;
+      parent.scale.set(0.96, 1.08, 0.96);
+      parent.add(scene);
+      parent.updateMatrixWorld(true);
+      const head = scene.getObjectByName('Head')!;
+      let eye: THREE.SkinnedMesh | undefined;
+      scene.traverse((o) => {
+        if (
+          (o as THREE.SkinnedMesh).isSkinnedMesh &&
+          o.parent?.name.includes('Worker_Head') &&
+          !Array.isArray((o as THREE.Mesh).material) &&
+          ((o as THREE.Mesh).material as THREE.Material).name ===
+            (body === 'masculine' ? 'Eye' : 'Brown')
+        )
+          eye = o as THREE.SkinnedMesh;
+      });
+      expect(eye).toBeDefined();
+      const source = eye!.geometry,
+        borrowed = Array.from(source.attributes.position.array);
+      const headPoint = (index: number) =>
+        eye!
+          .getVertexPosition(index, new THREE.Vector3())
+          .applyMatrix4(eye!.matrixWorld)
+          .applyMatrix4(head.matrixWorld.clone().invert());
+      const frontIndices = [new Set<number>(), new Set<number>()];
+      for (let i = 0; i < source.index!.count; i += 3) {
+        const ids = [source.index!.getX(i), source.index!.getX(i + 1), source.index!.getX(i + 2)];
+        const [a, b, c] = ids.map(headPoint),
+          n = b.clone().sub(a).cross(c.clone().sub(a)).normalize();
+        if (n.z > 0.8) for (const j of ids) frontIndices[headPoint(j).x < 0 ? 0 : 1].add(j);
+      }
+      expect(frontIndices.map((s) => s.size)).toEqual([4, 4]);
+      const corners = frontIndices.map((set) => {
+        const ids = [...set],
+          origin = headPoint(ids[0]);
+        const right = ids.slice(1).find((j) => {
+          const p = headPoint(j).sub(origin);
+          return Math.abs(p.x) > Math.abs(p.y) * 2;
+        })!;
+        const up = ids.slice(1).find((j) => {
+          const p = headPoint(j).sub(origin);
+          return Math.abs(p.y) > Math.abs(p.x) * 2;
+        })!;
+        return [ids[0], right, up];
+      });
+      const blink = createWorkerEyeBlink(scene, body);
+      expect(blink.surfaces).toHaveLength(2);
+      const material = new THREE.MeshStandardMaterial();
+      const pair = createWorkerAccessoryPair('eye-pupils', material, blink.surfaces, body);
+      const neighbour = createWorkerAccessoryPair('eye-pupils', material, blink.surfaces, body);
+      const original = Array.from(pair.instanceMatrix.array),
+        other = Array.from(neighbour.instanceMatrix.array);
+      const mount = new THREE.Group();
+      mount.position.fromArray(WORKER_EYE_CENTRES[body]);
+      head.add(mount);
+      mount.add(pair);
+      const mixer = new THREE.AnimationMixer(scene),
+        matrix = new THREE.Matrix4(),
+        point = new THREE.Vector3();
+      const closureBounds: Record<string, { minV: number; maxV: number }> = {};
+      let minimumU = 1,
+        maximumU = 0,
+        minimumV = 1,
+        maximumV = 0,
+        minBack = 0,
+        maxFront = 0,
+        contained = true,
+        maxAffineError = 0;
+      for (const clipName of ['worker-idle', 'worker-walk', 'worker-sample']) {
+        const clip = bodies.get(body)!.animations.find((c) => c.name === clipName)!;
+        expect(clip).toBeDefined();
+        mixer.stopAllAction();
+        mixer.clipAction(clip).play();
+        for (const phase of [0.2, 0.7]) {
+          mixer.setTime(phase);
+          parent.updateMatrixWorld(true);
+          for (const closure of [0, 0.35, 0.499, 0.75, 1]) {
+            blink.apply(closure);
+            for (const [x, y] of [
+              [0, 0],
+              [-1, -1],
+              [-1, 1],
+              [1, -1],
+              [1, 1],
+            ]) {
+              setWorkerPupilPose(pair, 0, x, y);
+              const openMatrix = Array.from(pair.instanceMatrix.array);
+              setWorkerPupilPose(pair, closure, x, y);
+              pair.instanceMatrix.array.forEach((value, i) => {
+                const row = i % 16,
+                  scale = [1, 5, 9, 13].includes(row) ? 1 - closure * 0.92 : 1;
+                maxAffineError = Math.max(maxAffineError, Math.abs(value - openMatrix[i] * scale));
+              });
+              parent.updateMatrixWorld(true);
+              expect(pair.visible).toBe(closure < 0.5);
+              for (let instance = 0; instance < 2; instance++) {
+                const [a, b, c] = corners[instance].map(headPoint),
+                  h = b.sub(a),
+                  v = c.sub(a);
+                const n = h.clone().cross(v).normalize();
+                if (n.z < 0) n.negate();
+                const hh = h.dot(h),
+                  vv = v.dot(v),
+                  hv = h.dot(v),
+                  det = hh * vv - hv * hv;
+                pair.getMatrixAt(instance, matrix);
+                const intoHead = head.matrixWorld
+                  .clone()
+                  .invert()
+                  .multiply(pair.matrixWorld)
+                  .multiply(matrix);
+                let back = Infinity,
+                  front = -Infinity;
+                for (let j = 0; j < pair.geometry.attributes.position.count; j++) {
+                  point
+                    .fromBufferAttribute(pair.geometry.attributes.position, j)
+                    .applyMatrix4(matrix);
+                  contained &&=
+                    pair.boundingBox!.containsPoint(point) &&
+                    pair.boundingSphere!.containsPoint(point);
+                  point
+                    .fromBufferAttribute(pair.geometry.attributes.position, j)
+                    .applyMatrix4(intoHead)
+                    .sub(a);
+                  const ph = point.dot(h),
+                    pv = point.dot(v),
+                    u = (ph * vv - pv * hv) / det,
+                    w = (pv * hh - ph * hv) / det;
+                  if (closure < 0.5) {
+                    minimumU = Math.min(minimumU, u);
+                    maximumU = Math.max(maximumU, u);
+                    const cb = (closureBounds[closure] ??= { minV: 1, maxV: 0 });
+                    cb.minV = Math.min(cb.minV, w);
+                    cb.maxV = Math.max(cb.maxV, w);
+                    minimumV = Math.min(minimumV, w);
+                    maximumV = Math.max(maximumV, w);
+                  }
+                  back = Math.min(back, point.dot(n));
+                  front = Math.max(front, point.dot(n));
+                }
+                expect(back).toBeLessThan(0);
+                expect(front).toBeGreaterThan(0);
+                minBack = Math.min(minBack, back);
+                maxFront = Math.max(maxFront, front);
+              }
+            }
+          }
+        }
+      }
+      expect(maxAffineError).toBeLessThan(1e-8);
+      expect(minimumU).toBeGreaterThan(-0.0001);
+      expect(maximumU).toBeLessThan(1.0001);
+      expect(minimumV, JSON.stringify(closureBounds)).toBeGreaterThan(-0.0001);
+      expect(maximumV).toBeLessThan(1.0001);
+      expect(minBack).toBeGreaterThan(-0.002);
+      expect(maxFront).toBeLessThan(0.0041);
+      expect(contained).toBe(true);
+      setWorkerPupilPose(pair, 0, 1, -1);
+      const looking = Array.from(pair.instanceMatrix.array);
+      setWorkerPupilBlink(pair, 0.35);
+      setWorkerPupilBlink(pair, 0);
+      expect(Array.from(pair.instanceMatrix.array)).toEqual(looking);
+      setWorkerPupilPose(pair, 0, 0, 0);
+      expect(Array.from(pair.instanceMatrix.array)).toEqual(original);
+      expect(Array.from(neighbour.instanceMatrix.array)).toEqual(other);
+      const version = pair.instanceMatrix.version;
+      setWorkerPupilPose(pair, NaN, NaN, Infinity);
+      expect(pair.instanceMatrix.version).toBe(version);
+      expect(Array.from(source.attributes.position.array)).toEqual(borrowed);
+      blink.dispose();
+      expect(eye!.geometry).toBe(source);
+      pair.dispose();
+      neighbour.dispose();
+      material.dispose();
+      mixer.stopAllAction();
+      mixer.uncacheRoot(scene);
+    });
+  }
+
+  it('leads the eased head, retains downward work attention and settles without an independent clock', () => {
+    const target = createWorkerGesture(),
+      head = createWorkerGesture(),
+      out = createWorkerGaze();
+    target.lookYaw = 0.22;
+    target.lookPitch = 0.16;
+    sampleWorkerGaze(target, head, 1 / 60, out);
+    expect(out.horizontal).toBeGreaterThan(0);
+    expect(out.vertical).toBeLessThan(0);
+    const held = { ...out };
+    sampleWorkerGaze(target, head, 0, out);
+    expect(out).toEqual(held);
+    head.lookYaw = target.lookYaw;
+    head.lookPitch = target.lookPitch;
+    for (let i = 0; i < 120; i++) sampleWorkerGaze(target, head, 1 / 60, out);
+    expect(out.horizontal).toBeCloseTo(0.3, 6);
+    expect(out.vertical).toBeCloseTo(-0.65, 6);
+    target.lookYaw = head.lookYaw = 0;
+    target.lookPitch = head.lookPitch = 0;
+    for (let i = 0; i < 120; i++) sampleWorkerGaze(target, head, 1 / 60, out);
+    expect(out).toEqual(createWorkerGaze());
+    const samples = [15, 30, 60, 120].map((fps) => {
+      const gaze = createWorkerGaze();
+      target.lookYaw = 0.22;
+      for (let i = 0; i < fps; i++) sampleWorkerGaze(target, head, 1 / fps, gaze);
+      return gaze;
+    });
+    samples.forEach((g) => expect(g.horizontal).toBeCloseTo(samples[0].horizontal, 8));
+    target.lookYaw = NaN;
+    target.lookPitch = Infinity;
+    sampleWorkerGaze(target, head, NaN, out);
+    expect(Object.values(out).every(Number.isFinite)).toBe(true);
+  });
 });

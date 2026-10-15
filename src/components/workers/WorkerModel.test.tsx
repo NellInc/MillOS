@@ -47,6 +47,7 @@ import {
   createWorkerHairMaterial,
   createBakerApron,
   setWorkerPupilBlink,
+  setWorkerPupilPose,
   softenWorkerFaceNormals,
 } from '../models/WorkerModel';
 
@@ -1575,4 +1576,82 @@ describe('owned duty preparation and release', () => {
       expect(vi.mocked(controller!.applyDuty).mock.calls.length).toBe(count);
       expect(tool.visible).toBe(false);
     });
+});
+
+it('admits face attention only with the existing pose delta and near-face visibility, preserving disabled semantic holds', () => {
+  const scene = new THREE.Group(),
+    head = new THREE.Bone();
+  head.name = 'Head';
+  scene.add(head);
+  harness.asset = { scene, animations: [] };
+  const gaze = vi.spyOn(workerPoses, 'sampleWorkerGaze');
+  const motion: WorkerMotionState = {
+    activity: 'idle',
+    groundSpeed: 0,
+    seated: false,
+    phase: 0,
+    enabled: true,
+    animationInterval: 1 / 15,
+    attentionYaw: 0.26,
+  };
+  const view = render(
+    <WorkerModel
+      appearance={{ ...getWorkerAppearance('Engineer', '', 'attention'), tool: 'none' }}
+      motion={motion}
+    />
+  );
+  harness.frame?.({}, 0.01); // The existing first semantic pose is admitted immediately.
+  expect(gaze).toHaveBeenCalledOnce();
+  gaze.mockClear();
+  for (let i = 0; i < 6; i++) harness.frame?.({}, 0.01);
+  expect(gaze).not.toHaveBeenCalled();
+  harness.frame?.({}, 0.01);
+  expect(gaze).toHaveBeenCalledOnce();
+  expect(gaze.mock.calls[0][2]).toBeCloseTo(0.07);
+  expect(gaze.mock.calls[0][3].horizontal).toBeGreaterThan(0);
+  motion.enabled = false;
+  harness.frame?.({}, 100);
+  motion.activity = 'working';
+  harness.frame?.({}, 100);
+  expect(gaze).toHaveBeenCalledOnce();
+  motion.enabled = true;
+  motion.animationInterval = 0;
+  const camera = new THREE.PerspectiveCamera();
+  camera.position.z = 50;
+  harness.frame?.({ camera }, 1 / 60);
+  expect(gaze).toHaveBeenCalledOnce();
+  camera.position.z = 2;
+  harness.frame?.({ camera }, 1 / 60);
+  expect(gaze).toHaveBeenCalledTimes(2);
+  expect(gaze.mock.calls.at(-1)![0].lookPitch).toBeGreaterThan(0);
+  expect(gaze.mock.calls.at(-1)![3].vertical).toBeLessThan(0);
+  view.unmount();
+});
+
+it('retains the legacy neutral pair atomically for incomplete or nonfinite eye profiles', () => {
+  const surface: workerPoses.WorkerEyeSurface = {
+    centre: [-0.047, 0.108, 0.112],
+    right: [1, 0, 0],
+    up: [0, 1, 0],
+    normal: [0, 0, 1],
+    halfWidth: 0.01,
+    halfHeight: 0.01,
+  };
+  for (const profiles of [[surface], [surface, { ...surface, halfWidth: NaN }]]) {
+    const pair = createWorkerAccessoryPair(
+      'eye-pupils',
+      SHARED_WORKER_ACCESSORY_MATERIALS.dark,
+      profiles,
+      'masculine'
+    );
+    const original = Array.from(pair.instanceMatrix.array);
+    setWorkerPupilPose(pair, 0, 1, 1);
+    expect(Array.from(pair.instanceMatrix.array)).toEqual(original);
+    expect(pair.userData.workerEyeSurfaces).toBeUndefined();
+    setWorkerPupilBlink(pair, 1);
+    expect(pair.visible).toBe(false);
+    setWorkerPupilBlink(pair, 0);
+    expect(Array.from(pair.instanceMatrix.array)).toEqual(original);
+    pair.dispose();
+  }
 });

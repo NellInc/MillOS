@@ -43,6 +43,100 @@ export function sampleWorkerBlink(seconds: number): number {
   return 0;
 }
 
+export interface WorkerEyeSurface {
+  centre: THREE.Vector3Tuple;
+  right: THREE.Vector3Tuple;
+  up: THREE.Vector3Tuple;
+  normal: THREE.Vector3Tuple;
+  halfWidth: number;
+  halfHeight: number;
+}
+
+/** Measure the real front quad, in the same Head-rest frame as eye closure.
+ * Working if fitted pupils follow the tilted inset instead of floating off it.
+ */
+function workerEyeSurface(points: THREE.Vector3[]): WorkerEyeSurface | null {
+  if (points.length !== 4) return null;
+  const centre = new THREE.Vector3();
+  points.forEach((p) => centre.add(p));
+  centre.multiplyScalar(0.25);
+  const edges = points.slice(1).map((p) => p.clone().sub(points[0]));
+  const right = edges.find((v) => Math.abs(v.x) > Math.abs(v.y) * 2)?.clone();
+  const up = edges.find((v) => Math.abs(v.y) > Math.abs(v.x) * 2)?.clone();
+  if (!right || !up) return null;
+  if (right.x < 0) right.negate();
+  if (up.y < 0) up.negate();
+  const halfWidth = right.length() / 2,
+    halfHeight = up.length() / 2;
+  right.normalize();
+  up.normalize();
+  const normal = right.clone().cross(up).normalize();
+  if (
+    normal.z < 0.8 ||
+    Math.abs(right.dot(up)) > 0.005 ||
+    halfWidth < 0.009 ||
+    halfWidth > 0.015 ||
+    halfHeight < 0.009 ||
+    halfHeight > 0.015
+  )
+    return null;
+  // Exported quad corners carry up to tens of microns of skew, well inside
+  // the pupil footprint's 0.6mm clearance. Retain that measured tiny shear.
+  const difference = new THREE.Vector3();
+  if (
+    points.some((p) => {
+      difference.copy(p).sub(centre);
+      return (
+        Math.abs(difference.dot(normal)) > 0.00005 ||
+        Math.abs(Math.abs(difference.dot(right)) - halfWidth) > 0.00005 ||
+        Math.abs(Math.abs(difference.dot(up)) - halfHeight) > 0.00005
+      );
+    })
+  )
+    return null;
+  return {
+    centre: centre.toArray(),
+    right: right.toArray(),
+    up: up.toArray(),
+    normal: normal.toArray(),
+    halfWidth,
+    halfHeight,
+  };
+}
+
+export const createWorkerGaze = () => ({ horizontal: 0, vertical: 0 });
+/** Fast eyes lead the existing eased head cue, then share its quiet dwell.
+ * No new clock/recipient: targets are the already resolved work/social gesture.
+ * Working if eyes turn conjugately, settle, and admitted delta alone advances them.
+ */
+export function sampleWorkerGaze(
+  target: WorkerGesture,
+  head: WorkerGesture,
+  delta: number,
+  out: ReturnType<typeof createWorkerGaze>
+) {
+  const yaw = Number.isFinite(target.lookYaw) ? target.lookYaw : 0;
+  const pitch = Number.isFinite(target.lookPitch) ? target.lookPitch : 0;
+  const headYaw = Number.isFinite(head.lookYaw) ? head.lookYaw : 0;
+  const headPitch = Number.isFinite(head.lookPitch) ? head.lookPitch : 0;
+  const amount = 1 - Math.exp(-28 * (Number.isFinite(delta) ? Math.max(0, delta) : 0));
+  const horizontal = THREE.MathUtils.clamp((yaw - headYaw + yaw * 0.3) / 0.22, -1, 1);
+  const vertical = THREE.MathUtils.clamp(-(pitch - headPitch + pitch * 0.65) / 0.16, -1, 1);
+  out.horizontal = THREE.MathUtils.lerp(
+    Number.isFinite(out.horizontal) ? out.horizontal : 0,
+    horizontal,
+    amount
+  );
+  out.vertical = THREE.MathUtils.lerp(
+    Number.isFinite(out.vertical) ? out.vertical : 0,
+    vertical,
+    amount
+  );
+  if (Math.abs(out.horizontal) < 1e-6) out.horizontal = 0;
+  if (Math.abs(out.vertical) < 1e-6) out.vertical = 0;
+  return out;
+}
+
 /** The authored eyes are dark inset surfaces, with no separate white sclera.
  * Close those vertices in Head rest space, together with the pupil fittings.
  * No morph shader or added draw: 48 private vertices update only while blinking.
@@ -53,6 +147,7 @@ export function createWorkerEyeBlink(model: THREE.Object3D, bodyType: WorkerBody
   // only refreshes transforms and can lift closing eyes 13 cm on a fresh clone.
   model.updateMatrixWorld(true);
   const head = model.getObjectByName('Head');
+  const surfaces: WorkerEyeSurface[] = [];
   const entries: Array<{
     mesh: THREE.Mesh;
     source: THREE.BufferGeometry;
@@ -113,12 +208,27 @@ export function createWorkerEyeBlink(model: THREE.Object3D, bodyType: WorkerBody
           .multiply(skin.bindMatrix);
       }
       fromHead.copy(intoHead).invert();
+      const front = [new Map<string, THREE.Vector3>(), new Map<string, THREE.Vector3>()];
+      const normal = new THREE.Vector3();
+      const normalMatrix = new THREE.Matrix3().getNormalMatrix(intoHead);
+      const normals = source.getAttribute('normal');
       for (let index = 0; index < position.count; index++) {
         point.fromBufferAttribute(position, index).toArray(open, index * 3);
         point.applyMatrix4(intoHead);
+        if (normals) {
+          normal.fromBufferAttribute(normals, index).applyMatrix3(normalMatrix).normalize();
+          if (normal.z > 0.8) {
+            const key = `${point.x.toFixed(6)},${point.y.toFixed(6)},${point.z.toFixed(6)}`;
+            front[point.x < 0 ? 0 : 1].set(key, point.clone());
+          }
+        }
         const centre = WORKER_EYE_CENTRES[bodyType][1];
         point.y = centre + (point.y - centre) * 0.08;
         point.applyMatrix4(fromHead).toArray(closed, index * 3);
+      }
+      for (const vertices of front) {
+        const surface = workerEyeSurface([...vertices.values()]);
+        if (surface) surfaces.push(surface);
       }
       geometry.setAttribute(
         'position',
@@ -131,6 +241,7 @@ export function createWorkerEyeBlink(model: THREE.Object3D, bodyType: WorkerBody
   }
   let previous = 0;
   return {
+    surfaces: surfaces.length === 2 ? surfaces.sort((a, b) => a.centre[0] - b.centre[0]) : [],
     apply(amount: number) {
       const closure = Number.isFinite(amount) ? THREE.MathUtils.clamp(amount, 0, 1) : 0;
       if (closure === previous) return;
