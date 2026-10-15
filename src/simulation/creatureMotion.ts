@@ -55,6 +55,43 @@ export function creaturePerchLook(time: number, seed: number): number {
     : 0;
 }
 
+export interface HorseRestPose {
+  breath: number;
+  leftEar: number;
+  rightEar: number;
+  tail: number;
+}
+
+export const createHorseRestPose = (): HorseRestPose => ({
+  breath: 0,
+  leftEar: 0,
+  rightEar: 0,
+  tail: 0,
+});
+
+/** Existing owner time only: brief attention, long still dwells, no wall clock. */
+export function sampleHorseRest(time: number, seed: number, out: HorseRestPose): HorseRestPose {
+  out.breath = out.leftEar = out.rightEar = out.tail = 0;
+  if (!Number.isFinite(time) || time <= 0) return out;
+  const identity = Number.isFinite(seed) ? seed : 0;
+  const cadence = creatureCadence(identity);
+  const pulse = (period: number, delay: number, duration: number) => {
+    const phase = (time * cadence) % period;
+    return phase > delay && phase < delay + duration
+      ? Math.sin(((phase - delay) / duration) * Math.PI) ** 2
+      : 0;
+  };
+  out.breath = Math.sin((time * cadence * Math.PI * 2) / 4.7);
+  out.leftEar = pulse(12.5, 2.5 + sampleAmbientSequence(identity, 61) * 2, 0.9);
+  out.rightEar = pulse(16.5, 6.5 + sampleAmbientSequence(identity, 62) * 2, 1.2);
+  const tailPhase = (time * cadence) % 21;
+  const tailDelay = 10 + sampleAmbientSequence(identity, 63) * 2;
+  const tailProgress = (tailPhase - tailDelay) / 2.6;
+  if (tailProgress > 0 && tailProgress < 1)
+    out.tail = Math.sin(tailProgress * Math.PI) ** 2 * Math.sin(tailProgress * Math.PI * 2);
+  return out;
+}
+
 /** Short swims and long dabbling stops, always within 0.4 m of the authored anchor. */
 export function duckSwimPose(time: number, seed: number) {
   const period = 44 + sampleAmbientSequence(seed, 51) * 18;

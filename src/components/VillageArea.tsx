@@ -2900,7 +2900,7 @@ export const BlacksmithHorse = React.memo<{
   const clock = useRef(0),
     pet = useRef(0),
     pending = useRef(0),
-    reset = useRef(false);
+    reset = useRef<CreatureRigHandle | null>(null);
   const nextHeartId = useRef(0);
   const [hearts, setHearts] = React.useState<{ id: number; pos: [number, number, number] }[]>([]);
   useEffect(() => resetCursor, []);
@@ -2909,22 +2909,24 @@ export const BlacksmithHorse = React.memo<{
       useGameSimulationStore.getState();
     if (!isTabVisible || emergencyActive || emergencyDrillMode) return;
     if (reducedMotion) {
-      if (!reset.current) {
-        rig.current?.setHeadShake(0);
-        reset.current = true;
+      if (rig.current && reset.current !== rig.current) {
+        rig.current.setHeadShake(0);
+        rig.current.setResting?.(0, 733);
+        reset.current = rig.current;
       }
       pet.current = 0;
       pending.current = 0;
       return;
     }
-    reset.current = false;
+    reset.current = null;
     if (gameSpeed <= 0 && pet.current <= 0) return;
-    const step = Math.min(Math.max(0, delta), 0.1);
-    clock.current += step;
+    const step = Number.isFinite(delta) ? Math.min(Math.max(0, delta), 0.1) : 0;
+    if (gameSpeed > 0) clock.current += step;
     pending.current += step;
     if (pet.current <= 0 && !shouldRunThisFrame(4)) return;
     pet.current = Math.max(0, pet.current - pending.current);
     pending.current = 0;
+    if (gameSpeed > 0) rig.current?.setResting?.(clock.current, 733);
     const look = creaturePerchLook(clock.current, 733) * 0.16;
     // Head-only motion replaces the old whole-body rocking/rearing. No wall timer
     // expires while hidden, and repeated pets restart one bounded response.

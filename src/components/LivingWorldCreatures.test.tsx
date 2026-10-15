@@ -6,6 +6,10 @@ import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import { NodeIO } from '@gltf-transform/core';
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
 import * as THREE from 'three';
+import draco3d from 'draco3dgltf';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
+import { createHorseRestPose, sampleHorseRest } from '../simulation/creatureMotion';
 import {
   BlacksmithHorse,
   Fountain,
@@ -33,11 +37,13 @@ import { clutterPlacements } from './scenery/InstancedFoliage';
 
 const boundary = vi.hoisted(() => ({
   fallback: false,
+  rigReady: true,
   throttle: 1,
   frame: 0,
   graze: [] as number[],
   reducedMotion: false,
   rigAngles: [] as number[],
+  resting: [] as [number, number][],
   asset: null as unknown,
 }));
 vi.mock('../hooks/useReducedMotion', () => ({ useReducedMotion: () => boundary.reducedMotion }));
@@ -63,11 +69,16 @@ vi.mock('./models/RiggedCreatureModel', async () => {
   const React = (await import('react')).default;
   return {
     CreatureBody: React.forwardRef(({ creature }: { creature: string }, ref) => {
-      React.useImperativeHandle(ref, () => ({
-        setGraze: (amount: number) => boundary.graze.push(amount),
-        setStride: vi.fn(),
-        setHeadShake: (angle: number) => boundary.rigAngles.push(angle),
-      }));
+      React.useImperativeHandle(ref, () =>
+        boundary.rigReady
+          ? {
+              setGraze: (amount: number) => boundary.graze.push(amount),
+              setStride: vi.fn(),
+              setResting: (time: number, seed: number) => boundary.resting.push([time, seed]),
+              setHeadShake: (angle: number) => boundary.rigAngles.push(angle),
+            }
+          : null
+      );
       return <group name={`rigged-${creature}`} />;
     }),
   };
@@ -83,11 +94,13 @@ vi.mock('../utils/critterAudio', () => ({ playCritterSound: vi.fn() }));
 afterEach(() => {
   cleanup();
   boundary.fallback = false;
+  boundary.rigReady = true;
   boundary.throttle = 1;
   boundary.frame = 0;
   boundary.graze.length = 0;
   boundary.reducedMotion = false;
   boundary.rigAngles.length = 0;
+  boundary.resting.length = 0;
   boundary.asset = null;
   vi.clearAllMocks();
 });
@@ -211,10 +224,15 @@ it('drives one forge horse through its rig handle, keeps the root grounded and o
     for (let i = 0; i < 600; i++) tick();
     expect(new Set(boundary.rigAngles).size).toBeGreaterThan(20);
     expect(Math.max(...boundary.rigAngles.map(Math.abs))).toBeLessThanOrEqual(0.064);
+    expect(boundary.resting.length).toBe(600);
+    expect(boundary.resting.at(-1)![0]).toBeCloseTo(40);
+    expect(boundary.resting.every(([, seed]) => seed === 733)).toBe(true);
     const freeze = () => {
       const count = boundary.rigAngles.length;
+      const restCount = boundary.resting.length;
       for (let i = 0; i < 30; i++) tick();
       expect(boundary.rigAngles).toHaveLength(count);
+      expect(boundary.resting).toHaveLength(restCount);
     };
     useGameSimulationStore.setState({ gameSpeed: 0 });
     freeze();
@@ -234,6 +252,7 @@ it('drives one forge horse through its rig handle, keeps the root grounded and o
     view.rerender(<BlacksmithHorse position={[-4.35, 0, 4.6]} rotation={Math.PI / 4} />);
     tick();
     expect(boundary.rigAngles.at(-1)).toBe(0);
+    expect(boundary.resting.at(-1)).toEqual([0, 733]);
     freeze();
   } finally {
     useGameSimulationStore.setState({
@@ -520,5 +539,318 @@ it('keeps actual farm tuft cards and storm sway clear of the swept yard and trou
       expect(FARM_CLUTTER.accepts!(p.x, p.z)).toBe(true);
     }
     expect(intruders.map((p) => [p.x, p.z])).toEqual([]);
+  }
+});
+
+let horseAsset: Promise<THREE.Group> | undefined;
+function actualHorse() {
+  return (horseAsset ??= (async () => {
+    const io = new NodeIO()
+      .registerExtensions(ALL_EXTENSIONS)
+      .registerDependencies({ 'draco3d.decoder': await draco3d.createDecoderModule() });
+    const document = await io.read('public/models/farm/horse.glb');
+    // Keep the real geometry/skin; jsdom need not decode the borrowed coat image.
+    for (const m of document.getRoot().listMaterials())
+      m.setBaseColorTexture(null)
+        .setNormalTexture(null)
+        .setMetallicRoughnessTexture(null)
+        .setOcclusionTexture(null)
+        .setEmissiveTexture(null);
+    for (const extension of document.getRoot().listExtensionsUsed()) extension.dispose();
+    const bytes = await io.writeBinary(document);
+    return (await new GLTFLoader().parseAsync(bytes.buffer as ArrayBuffer, '')).scene;
+  })());
+}
+function attributeValues(attribute: THREE.BufferAttribute | THREE.InterleavedBufferAttribute) {
+  return Array.from({ length: attribute.count * attribute.itemSize }, (_, i) =>
+    attribute.getComponent(Math.floor(i / attribute.itemSize), i % attribute.itemSize)
+  );
+}
+function horsePoints(model: THREE.Object3D) {
+  model.updateWorldMatrix(true, false);
+  model.updateMatrixWorld(true);
+  const mesh = model.getObjectByName('HorseBody') as THREE.SkinnedMesh;
+  mesh.skeleton.update();
+  const toModel = new THREE.Matrix4().copy(model.matrixWorld).invert().multiply(mesh.matrixWorld);
+  return Array.from({ length: mesh.geometry.attributes.position.count }, (_, i) =>
+    mesh.getVertexPosition(i, new THREE.Vector3()).applyMatrix4(toModel)
+  );
+}
+
+function tailFaceIntegrity(
+  before: THREE.Vector3[],
+  after: THREE.Vector3[],
+  rest: THREE.Vector3[],
+  index: THREE.BufferAttribute
+) {
+  let minimumDot = 1,
+    minimumAreaRatio = 1,
+    checked = 0;
+  const a = new THREE.Vector3(),
+    b = new THREE.Vector3(),
+    n = new THREE.Vector3(),
+    m = new THREE.Vector3();
+  for (let i = 0; i < index.count; i += 3) {
+    const ids = [index.getX(i), index.getX(i + 1), index.getX(i + 2)];
+    // Covers the whole rear component AND every attachment-crossing triangle.
+    if (!ids.some((j) => rest[j].z < -1.02 && rest[j].y > 0.35)) continue;
+    a.subVectors(before[ids[1]], before[ids[0]]);
+    b.subVectors(before[ids[2]], before[ids[0]]);
+    n.crossVectors(a, b);
+    const area = n.length();
+    if (area < 1e-6) continue;
+    a.subVectors(after[ids[1]], after[ids[0]]);
+    b.subVectors(after[ids[2]], after[ids[0]]);
+    m.crossVectors(a, b);
+    minimumAreaRatio = Math.min(minimumAreaRatio, m.length() / area);
+    minimumDot = Math.min(minimumDot, n.normalize().dot(m.normalize()));
+    checked++;
+  }
+  expect(checked).toBeGreaterThan(100);
+  expect(minimumDot).toBeGreaterThan(0.75);
+  expect(minimumAreaRatio).toBeGreaterThan(0.3);
+}
+
+it('gives the actual skinned horse private ear/tail/rib life, exact anchors and byte-exact neutral restoration', async () => {
+  const { createHorseRestMotion } = await vi.importActual<
+    typeof import('./models/RiggedCreatureModel')
+  >('./models/RiggedCreatureModel');
+  const source = await actualHorse();
+  const a = cloneSkeleton(source),
+    b = cloneSkeleton(source);
+  const mesh = a.getObjectByName('HorseBody') as THREE.SkinnedMesh;
+  const borrowed = mesh.geometry;
+  const attributes = Object.fromEntries(
+    Object.entries(borrowed.attributes).map(([key, value]) => [key, attributeValues(value)])
+  );
+  const index = Array.from(borrowed.index!.array);
+  const original = horsePoints(a),
+    other = horsePoints(b);
+  const motion = createHorseRestMotion(a)!;
+  expect(motion).not.toBeNull();
+  expect(mesh.geometry).not.toBe(borrowed);
+  expect(mesh.material).toBe((b.getObjectByName('HorseBody') as THREE.SkinnedMesh).material);
+  const changed = { leftEar: 0, rightEar: 0, tail: 0, breath: 0 };
+  let maxDisplacement = 0;
+  let minimumTailOrientation = 1,
+    maxAnchorDelta = 0,
+    maxInactiveEarDelta = 0,
+    minNormal = 1,
+    maxNormal = 1;
+  const ab = new THREE.Vector3(),
+    ac = new THREE.Vector3(),
+    cross = new THREE.Vector3();
+  const tailTriangles: { indices: number[]; normal: THREE.Vector3 }[] = [];
+  for (let i = 0; i < index.length; i += 3) {
+    const indices = index.slice(i, i + 3);
+    if (!indices.every((j) => original[j].z < -0.91 && original[j].y > 0.35 && original[j].y < 1.1))
+      continue;
+    ab.subVectors(original[indices[1]], original[indices[0]]);
+    ac.subVectors(original[indices[2]], original[indices[0]]);
+    const normal = ab.clone().cross(ac);
+    if (normal.lengthSq() > 1e-12) tailTriangles.push({ indices, normal: normal.normalize() });
+  }
+  expect(tailTriangles.length).toBeGreaterThan(20);
+  // Actual-skin extrema protect geometry; the pure sampler covers every frame.
+  // Avoid hundreds of thousands of matcher calls under this suite's 10s limit.
+  const times = new Set([0.25, 21]);
+  for (const channel of ['breath', 'leftEar', 'rightEar', 'tail'] as const) {
+    let lo = Infinity,
+      hi = -Infinity,
+      loTime = 0,
+      hiTime = 0;
+    const out = createHorseRestPose();
+    for (let i = 1; i <= 600; i++) {
+      const value = sampleHorseRest(i / 20, 733, out)[channel];
+      if (value < lo) {
+        lo = value;
+        loTime = i / 20;
+      }
+      if (value > hi) {
+        hi = value;
+        hiTime = i / 20;
+      }
+    }
+    times.add(loTime);
+    times.add(hiTime);
+  }
+  for (const time of times) {
+    motion.apply(time, 733);
+    const points = horsePoints(a);
+    tailFaceIntegrity(original, points, original, mesh.geometry.index!);
+    const pose = sampleHorseRest(time, 733, createHorseRestPose());
+    for (const {
+      indices: [a, b, c],
+      normal,
+    } of tailTriangles) {
+      ab.subVectors(points[b], points[a]);
+      ac.subVectors(points[c], points[a]);
+      cross.crossVectors(ab, ac).normalize();
+      minimumTailOrientation = Math.min(minimumTailOrientation, normal.dot(cross));
+    }
+    for (let i = 0; i < points.length; i++) {
+      const p = original[i],
+        distance = p.distanceTo(points[i]);
+      maxDisplacement = Math.max(maxDisplacement, distance);
+      if (
+        p.y < 0.3 ||
+        (Math.abs(p.x) > 0.2 && p.y < 0.8 && p.z > -1.05 && p.z < -0.8) ||
+        (p.z > 1.02 && p.y < 1.55) ||
+        (Math.abs(p.x) < 0.02 && p.z > 0.4)
+      )
+        maxAnchorDelta = Math.max(maxAnchorDelta, distance);
+      if (p.y > 1.65 && p.z > 0.6 && p.z < 0.9 && Math.abs(p.x) > 0.055) {
+        const side = p.x > 0 ? 'leftEar' : 'rightEar';
+        if (pose[side] === 0) maxInactiveEarDelta = Math.max(maxInactiveEarDelta, distance);
+        else changed[side] = Math.max(changed[side], distance);
+      }
+      if (p.z < -1.04 && p.y < 0.9) changed.tail = Math.max(changed.tail, distance);
+      if (Math.abs(p.x) > 0.25 && p.y > 0.95 && p.y < 1.15 && p.z > -0.5 && p.z < 0)
+        changed.breath = Math.max(changed.breath, distance);
+    }
+    const normals = mesh.geometry.attributes.normal;
+    for (let i = 0; i < normals.count; i++) {
+      const length = Math.hypot(normals.getX(i), normals.getY(i), normals.getZ(i));
+      minNormal = Math.min(minNormal, length);
+      maxNormal = Math.max(maxNormal, length);
+    }
+  }
+  expect(maxAnchorDelta).toBe(0);
+  expect(maxInactiveEarDelta).toBe(0);
+  expect(minNormal).toBeCloseTo(1, 4);
+  expect(maxNormal).toBeCloseTo(1, 4);
+  expect(changed.leftEar).toBeGreaterThan(0.015);
+  expect(changed.rightEar).toBeGreaterThan(0.015);
+  expect(changed.tail).toBeGreaterThan(0.065);
+  expect(changed.breath).toBeGreaterThan(0.0025);
+  expect(changed.breath).toBeLessThan(0.0031);
+  expect(maxDisplacement).toBeLessThan(0.15);
+  expect(minimumTailOrientation).toBeGreaterThan(0.9);
+  expect(horsePoints(b)).toEqual(other);
+  for (const [key, values] of Object.entries(attributes)) {
+    expect(attributeValues(borrowed.attributes[key])).toEqual(values);
+    if (key !== 'position' && key !== 'normal')
+      expect(attributeValues(mesh.geometry.attributes[key])).toEqual(values);
+  }
+  expect(Array.from(mesh.geometry.index!.array)).toEqual(index);
+  for (const seed of [500, 733]) {
+    motion.apply(5, seed);
+    motion.apply(0, seed);
+    expect(attributeValues(mesh.geometry.attributes.position)).toEqual(attributes.position);
+    expect(attributeValues(mesh.geometry.attributes.normal)).toEqual(attributes.normal);
+  }
+  const ownDispose = vi.spyOn(mesh.geometry, 'dispose'),
+    sourceDispose = vi.spyOn(borrowed, 'dispose');
+  motion.dispose();
+  motion.dispose();
+  expect(ownDispose).toHaveBeenCalledOnce();
+  expect(sourceDispose).not.toHaveBeenCalled();
+  expect(mesh.geometry).toBe(borrowed);
+  vi.restoreAllMocks();
+});
+
+it('composes resting geometry with the actual neck/stride/pet pose under a transformed parent and preserves culling', async () => {
+  const { RiggedCreatureModel } = await vi.importActual<
+    typeof import('./models/RiggedCreatureModel')
+  >('./models/RiggedCreatureModel');
+  const source = await actualHorse();
+  boundary.asset = { scene: source };
+  const cloned = vi.spyOn(source, 'clone');
+  const ref = React.createRef<import('./models/RiggedCreatureModel').CreatureRigHandle>();
+  const view = render(<RiggedCreatureModel creature="horse" ref={ref} />);
+  const model = cloned.mock.results[0].value as THREE.Group;
+  const parent = new THREE.Group();
+  parent.position.set(12, 0.3, -7);
+  parent.rotation.y = 1.8;
+  parent.scale.setScalar(1.08);
+  parent.add(model);
+  const mesh = model.getObjectByName('HorseBody') as THREE.SkinnedMesh;
+  const restPoints = horsePoints(model);
+  for (const graze of [0, 0.55, 1]) {
+    ref.current!.setGraze(graze);
+    ref.current!.setStride(0.4, 0.2);
+    ref.current!.setHeadShake(0.1);
+    ref.current!.setResting!(0, 733);
+    const before = horsePoints(model);
+    ref.current!.setResting!(13, 733);
+    const posed = horsePoints(model);
+    for (const tailTime of [12.5, 13, 14, 15]) {
+      ref.current!.setResting!(tailTime, 733);
+      tailFaceIntegrity(before, horsePoints(model), restPoints, mesh.geometry.index!);
+    }
+    ref.current!.setResting!(13, 733);
+    ref.current!.setHeadShake(0.1);
+    ref.current!.setStride(0.4, 0.2);
+    ref.current!.setGraze(graze);
+    expect(horsePoints(model)).toEqual(posed);
+    const rest = source.getObjectByName('HorseBody') as THREE.SkinnedMesh;
+    const restToRoot = new THREE.Matrix4()
+      .copy(source.matrixWorld)
+      .invert()
+      .multiply(rest.matrixWorld);
+    for (let i = 0; i < before.length; i++) {
+      const sourcePoint = new THREE.Vector3()
+        .fromBufferAttribute(rest.geometry.attributes.position, i)
+        .applyMatrix4(restToRoot);
+      if (sourcePoint.y < 0.3 || (sourcePoint.z > 1.02 && sourcePoint.y < 1.55))
+        expect(posed[i]).toEqual(before[i]);
+      const local = mesh.getVertexPosition(i, new THREE.Vector3());
+      expect(mesh.boundingSphere!.containsPoint(local)).toBe(true);
+      expect(Number.isFinite(local.length())).toBe(true);
+    }
+    ref.current!.setResting!(0, 500);
+    expect(horsePoints(model)).toEqual(before);
+  }
+  view.unmount();
+  expect(mesh.geometry).toBe((source.getObjectByName('HorseBody') as THREE.SkinnedMesh).geometry);
+  cloned.mockRestore();
+});
+
+it('uses admitted forge time across throttle rates, with a paused pet independent of ambient motion and late reduced handles neutral', () => {
+  const original = useGameSimulationStore.getState();
+  useGameSimulationStore.setState({
+    gameSpeed: 1,
+    isTabVisible: true,
+    emergencyActive: false,
+    emergencyDrillMode: false,
+  });
+  const tick = (delta: number) =>
+    vi
+      .mocked(useFrame)
+      .mock.calls.at(-1)![0]({} as Parameters<Parameters<typeof useFrame>[0]>[0], delta);
+  try {
+    for (const fps of [30, 60, 120]) {
+      boundary.throttle = fps / 15;
+      boundary.frame = 0;
+      const view = render(<BlacksmithHorse position={[0, 0, 0]} />);
+      for (let i = 0; i < fps * 12; i++) tick(1 / fps);
+      expect(boundary.resting.at(-1)![0]).toBeCloseTo(12);
+      useGameSimulationStore.setState({ gameSpeed: 0 });
+      const count = boundary.resting.length;
+      fireEvent.click(view.container.querySelector('[name="blacksmith-horse"]')!);
+      for (let i = 0; i < fps; i++) tick(1 / fps);
+      expect(boundary.resting).toHaveLength(count);
+      useGameSimulationStore.setState({ gameSpeed: 1 });
+      for (let i = 0; i < fps; i++) tick(1 / fps);
+      expect(boundary.resting.at(-1)![0]).toBeCloseTo(13);
+      view.unmount();
+    }
+    boundary.reducedMotion = true;
+    boundary.rigReady = false;
+    const view = render(<BlacksmithHorse position={[0, 0, 0]} />);
+    const count = boundary.resting.length;
+    tick(0.1);
+    expect(boundary.resting).toHaveLength(count);
+    boundary.rigReady = true;
+    view.rerender(<BlacksmithHorse position={[0, 0, 0]} />);
+    tick(0.1);
+    expect(boundary.resting.at(-1)).toEqual([0, 733]);
+  } finally {
+    useGameSimulationStore.setState({
+      gameSpeed: original.gameSpeed,
+      isTabVisible: original.isTabVisible,
+      emergencyActive: original.emergencyActive,
+      emergencyDrillMode: original.emergencyDrillMode,
+    });
   }
 });

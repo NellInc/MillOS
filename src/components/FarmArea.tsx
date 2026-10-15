@@ -2451,6 +2451,7 @@ export const FarmArea: React.FC = () => {
   // an array, and grazes without a stride for the same reason the sheep do.
   const horseRigRef = useRef<CreatureRigHandle>(null);
   const horseGraze = useRef(0);
+  const horseRestReset = useRef<CreatureRigHandle | null>(null);
   const horseShakeState = useRef(0);
 
   const windmillBladesRef = useRef<THREE.Group>(null);
@@ -2530,6 +2531,8 @@ export const FarmArea: React.FC = () => {
     cowJumpStates.current.fill(0);
     sheepJumpStates.current.fill(0);
     horseShakeState.current = 0;
+    horseRigRef.current?.setResting?.(0, 500);
+    horseRestReset.current = horseRigRef.current;
   }, [
     reducedMotion,
     chickenRefs,
@@ -2609,10 +2612,19 @@ export const FarmArea: React.FC = () => {
   useFrame((_state, delta) => {
     const { gameDay, gameTime, gameSpeed, weather, isTabVisible } =
       useGameSimulationStore.getState();
-    if (!isTabVisible || gameSpeed <= 0 || reducedMotion) return;
+    if (reducedMotion) {
+      // Suspense may fill the horse handle after the preference effect ran.
+      if (horseRigRef.current && horseRestReset.current !== horseRigRef.current) {
+        horseRigRef.current.setResting?.(0, 500);
+        horseRestReset.current = horseRigRef.current;
+      }
+      return;
+    }
+    horseRestReset.current = null;
+    if (!isTabVisible || gameSpeed <= 0) return;
 
     // Cap delta for tab-switch recovery (prevents large jumps after tab is inactive)
-    const cappedDelta = Math.min(delta, 0.1);
+    const cappedDelta = Number.isFinite(delta) ? Math.min(Math.max(0, delta), 0.1) : 0;
     frameCountRef.current++;
     animationTime.current += cappedDelta;
     movementElapsed.current += cappedDelta;
@@ -2806,6 +2818,7 @@ export const FarmArea: React.FC = () => {
       const target = (0.55 + Math.sin(time * 0.28) * 0.35) * creatureForageWeight(time, 500);
       horseGraze.current = THREE.MathUtils.lerp(horseGraze.current, target, blend(0.06));
       horseRigRef.current.setGraze(horseGraze.current);
+      horseRigRef.current.setResting?.(time, 500);
     }
 
     // Grazing, expressed as an amount rather than an angle so the same driver

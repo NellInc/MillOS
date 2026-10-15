@@ -69,6 +69,7 @@ import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
 import { useDracoGLTF } from '../../utils/dracoLoader';
 import { CREATURE_ASSET_PATHS, type CreatureId } from '../../utils/modelLoader';
 import ErrorBoundary from '../ErrorBoundary';
+import { createHorseRestPose, sampleHorseRest } from '../../simulation/creatureMotion';
 
 export type { CreatureId };
 
@@ -83,6 +84,243 @@ export interface CreatureRigHandle {
    * snapping to its rest pose.
    */
   setStride(phase: number, amount: number): void;
+  /** Optional for older handles/fallbacks; the owner retains clock/hold control. */
+  setResting?(seconds: number, seed: number): void;
+}
+
+const smooth = THREE.MathUtils.smoothstep;
+type HorseRegion = 'leftEar' | 'rightEar' | 'tail' | 'breath';
+function horseRegionWeight(region: HorseRegion, x: number, y: number, z: number): number {
+  if (region === 'breath')
+    return (
+      smooth(y, 0.78, 0.94) *
+      (1 - smooth(y, 1.22, 1.3)) *
+      smooth(z, -0.78, -0.62) *
+      (1 - smooth(z, 0.15, 0.28)) *
+      smooth(Math.abs(x), 0.12, 0.22)
+    );
+  if (region === 'tail') return 1 - smooth(y, 1.1, 1.2);
+  if ((region === 'leftEar' && x <= 0) || (region === 'rightEar' && x >= 0)) return 0;
+  return (
+    smooth(y, 1.56, 1.65) *
+    smooth(z, 0.48, 0.62) *
+    (1 - smooth(z, 0.93, 1.02)) *
+    smooth(Math.abs(x), 0.025, 0.055)
+  );
+}
+
+/**
+ * The shipped horse has no ear/tail joints. Finish those regions in fixed model
+ * rest space BEFORE skinning, using private geometry, never a shared material or
+ * shader. These metre masks belong to HorseBody's measured 4,224-vertex asset;
+ * an incompatible replacement keeps its original geometry. Working if only the
+ * measured ears/tail/ribs move, neutral is byte-exact, and other copies survive.
+ */
+export function createHorseRestMotion(model: THREE.Object3D) {
+  const mesh = model.getObjectByName('HorseBody') as THREE.SkinnedMesh | undefined;
+  const source = mesh?.geometry;
+  if (
+    !mesh?.isSkinnedMesh ||
+    !source ||
+    source.attributes.position?.count !== 4224 ||
+    !source.attributes.normal ||
+    !source.attributes.skinWeight
+  )
+    return null;
+  model.updateWorldMatrix(true, false);
+  model.updateMatrixWorld(true);
+  const toModel = new THREE.Matrix4().copy(model.matrixWorld).invert().multiply(mesh.matrixWorld);
+  const toMesh = toModel.clone().invert();
+  const normalToModel = new THREE.Matrix3().getNormalMatrix(toModel);
+  const normalToMesh = new THREE.Matrix3().getNormalMatrix(toMesh);
+  const points = Array.from({ length: source.attributes.position.count }, (_, i) =>
+    new THREE.Vector3().fromBufferAttribute(source.attributes.position, i).applyMatrix4(toModel)
+  );
+  // The tail curves left to x=-.296m, overlapping the hind legs in X. Its
+  // connected surface BELOW the attachment is distinct, even though the whole
+  // horse is one mesh. Weld only this analysis graph, preserving every UV seam.
+  const links = points.map(() => [] as number[]);
+  const welded = new Map<string, number[]>();
+  const keys = points.map((p) => `${p.x.toFixed(5)},${p.y.toFixed(5)},${p.z.toFixed(5)}`);
+  points.forEach((_, i) => {
+    const group = welded.get(keys[i]);
+    if (group) group.push(i);
+    else welded.set(keys[i], [i]);
+  });
+  if (!source.index) return null;
+  for (let i = 0; i < source.index.count; i += 3) {
+    const a = source.index.getX(i),
+      b = source.index.getX(i + 1),
+      c = source.index.getX(i + 2);
+    links[a].push(b, c);
+    links[b].push(a, c);
+    links[c].push(a, b);
+  }
+  let seed = -1;
+  points.forEach((p, i) => {
+    if (p.y < 0.6 && (seed < 0 || p.z < points[seed].z)) seed = i;
+  });
+  if (seed < 0) return null;
+  const tail = new Set<number>([seed]),
+    pending = [seed];
+  while (pending.length) {
+    const i = pending.pop()!;
+    for (const j of [...links[i], ...welded.get(keys[i])!]) {
+      if (tail.has(j) || points[j].y >= 1.2) continue;
+      tail.add(j);
+      pending.push(j);
+    }
+  }
+  // Fail closed for another asset/topology: never attach a tail field to a leg.
+  if (
+    tail.size !== 257 ||
+    [...tail].some((i) => {
+      const p = points[i];
+      return p.y < 0.35 || p.z > -1.02 || Math.abs(p.x) > 0.31;
+    })
+  )
+    return null;
+  const regions: HorseRegion[] = ['leftEar', 'rightEar', 'tail', 'breath'];
+  const counts = [0, 0, 0, 0];
+  const entries: {
+    index: number;
+    region: HorseRegion;
+    point: THREE.Vector3;
+    normal: THREE.Vector3;
+    weight: number;
+    gradient: THREE.Vector3;
+  }[] = [];
+  const epsilon = 0.0001;
+  for (let index = 0; index < source.attributes.position.count; index++) {
+    const point = points[index];
+    const { x, y, z } = point;
+    for (let r = 0; r < regions.length; r++) {
+      const region = regions[r];
+      if (region === 'tail' && !tail.has(index)) continue;
+      const weight = horseRegionWeight(region, x, y, z);
+      if (weight <= 0) continue;
+      counts[r]++;
+      const gradient = new THREE.Vector3(
+        horseRegionWeight(region, x + epsilon, y, z) - horseRegionWeight(region, x - epsilon, y, z),
+        horseRegionWeight(region, x, y + epsilon, z) - horseRegionWeight(region, x, y - epsilon, z),
+        horseRegionWeight(region, x, y, z + epsilon) - horseRegionWeight(region, x, y, z - epsilon)
+      ).multiplyScalar(1 / (2 * epsilon));
+      if (region === 'tail') {
+        const t = THREE.MathUtils.clamp((y - 1.1) / 0.1, 0, 1);
+        gradient.set(0, (-6 * t * (1 - t)) / 0.1, 0);
+      }
+      entries.push({
+        index,
+        region,
+        point,
+        weight,
+        gradient,
+        normal: new THREE.Vector3()
+          .fromBufferAttribute(source.attributes.normal, index)
+          .applyMatrix3(normalToModel)
+          .normalize(),
+      });
+    }
+  }
+  if (counts.some((count) => count < 20)) return null;
+  const geometry = source.clone();
+  // GLTFLoader may interleave position/normal/UV in one borrowed buffer.
+  // Give ONLY the two written channels independent contiguous owned storage.
+  const copyChannel = (attribute: THREE.BufferAttribute | THREE.InterleavedBufferAttribute) => {
+    const values = new Float32Array(attribute.count * 3);
+    for (let i = 0; i < attribute.count; i++) {
+      values[i * 3] = attribute.getX(i);
+      values[i * 3 + 1] = attribute.getY(i);
+      values[i * 3 + 2] = attribute.getZ(i);
+    }
+    return new THREE.BufferAttribute(values, 3);
+  };
+  const positions = copyChannel(source.attributes.position);
+  const normals = copyChannel(source.attributes.normal);
+  geometry.setAttribute('position', positions);
+  geometry.setAttribute('normal', normals);
+  positions.setUsage(THREE.DynamicDrawUsage);
+  normals.setUsage(THREE.DynamicDrawUsage);
+  mesh.geometry = geometry;
+  const pose = createHorseRestPose();
+  const p = new THREE.Vector3(),
+    n = new THREE.Vector3(),
+    u = new THREE.Vector3(),
+    g = new THREE.Vector3(),
+    pivot = new THREE.Vector3();
+  let lastTime = 0,
+    lastSeed = 0,
+    disposed = false;
+  return {
+    apply(seconds: number, seed: number) {
+      if (disposed) return;
+      const time = Number.isFinite(seconds) && seconds > 0 ? seconds : 0;
+      const identity = Number.isFinite(seed) ? seed : 0;
+      if (time === lastTime && identity === lastSeed) return;
+      lastTime = time;
+      lastSeed = identity;
+      sampleHorseRest(time, identity, pose);
+      for (const entry of entries) {
+        const { index, region, point, normal, weight, gradient } = entry;
+        const amount = pose[region];
+        if (amount === 0) {
+          positions.setXYZ(
+            index,
+            source.attributes.position.getX(index),
+            source.attributes.position.getY(index),
+            source.attributes.position.getZ(index)
+          );
+          normals.setXYZ(
+            index,
+            source.attributes.normal.getX(index),
+            source.attributes.normal.getY(index),
+            source.attributes.normal.getZ(index)
+          );
+          continue;
+        }
+        p.copy(point);
+        n.copy(normal);
+        g.copy(gradient);
+        let angle = 0;
+        if (region === 'breath') {
+          u.set(Math.sign(point.x) * 0.003 * amount, 0, 0);
+          p.addScaledVector(u, weight);
+        } else {
+          const side = region === 'leftEar' ? 1 : -1;
+          pivot.set(
+            region === 'tail' ? 0 : side * 0.1,
+            region === 'tail' ? 1.22 : 1.56,
+            region === 'tail' ? -1.02 : 0.68
+          );
+          const theta = amount * (region === 'tail' ? 0.24 : -side * 0.2);
+          angle = theta * weight;
+          p.sub(pivot);
+          u.set(-p.y, p.x, 0);
+          g.multiplyScalar(theta);
+        }
+        // Inverse-transpose of the tapered field, including mask derivatives.
+        // Rotating normals by just angle*weight leaves false seams at its edge.
+        n.addScaledVector(g, -u.dot(n) / (1 + g.dot(u)));
+        if (region !== 'breath') {
+          const c = Math.cos(angle),
+            s = Math.sin(angle);
+          p.set(p.x * c - p.y * s, p.x * s + p.y * c, p.z).add(pivot);
+          n.set(n.x * c - n.y * s, n.x * s + n.y * c, n.z);
+        }
+        p.applyMatrix4(toMesh);
+        n.applyMatrix3(normalToMesh).normalize();
+        positions.setXYZ(index, p.x, p.y, p.z);
+        normals.setXYZ(index, n.x, n.y, n.z);
+      }
+      positions.needsUpdate = normals.needsUpdate = true;
+    },
+    dispose() {
+      if (disposed) return;
+      disposed = true;
+      if (mesh.geometry === geometry) mesh.geometry = source;
+      geometry.dispose();
+    },
+  };
 }
 
 /**
@@ -266,12 +504,24 @@ export const RiggedCreatureModel = React.forwardRef<CreatureRigHandle, RiggedCre
         mesh.frustumCulled = true;
       }
 
-      return { model, bones, rest, skeletons: [...new Set(skinned.map((mesh) => mesh.skeleton))] };
+      const resting = creature === 'horse' ? createHorseRestMotion(model) : null;
+      return {
+        model,
+        bones,
+        rest,
+        resting,
+        skeletons: [...new Set(skinned.map((mesh) => mesh.skeleton))],
+      };
     }, [scene, creature]);
 
-    // SkeletonUtils owns these palettes; geometry, materials and maps remain
-    // borrowed. Working if unmounting one horse leaves every other copy intact.
-    useEffect(() => () => prepared.skeletons.forEach((skeleton) => skeleton.dispose()), [prepared]);
+    // Only palettes and the horse's private deformation geometry are owned here.
+    useEffect(
+      () => () => {
+        prepared.resting?.dispose();
+        prepared.skeletons.forEach((skeleton) => skeleton.dispose());
+      },
+      [prepared]
+    );
 
     useImperativeHandle(ref, () => {
       const { model, bones, rest } = prepared;
@@ -316,6 +566,9 @@ export const RiggedCreatureModel = React.forwardRef<CreatureRigHandle, RiggedCre
         model.updateMatrixWorld(true);
       };
       return {
+        setResting(seconds: number, seed: number) {
+          prepared.resting?.apply(seconds, seed);
+        },
         setGraze(amount: number) {
           graze = THREE.MathUtils.clamp(amount, 0, 1);
           apply();

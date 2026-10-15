@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   advanceCreatureStride,
   creatureCadence,
+  createHorseRestPose,
+  sampleHorseRest,
   creatureForageWeight,
   creaturePerchLook,
   duckSwimPose,
@@ -121,5 +123,46 @@ describe('quiet animal life between purposeful bouts', () => {
     expect(didSwim.size).toBe(4);
     expect(didRest.size).toBe(4);
     for (let i = 0; i < 4; i++) expect(duckSwimPose(0, 800 + i)).toMatchObject({ x: 0, z: 0 });
+  });
+});
+
+describe('quiet horse rest channels', () => {
+  it('has an exact neutral reset, finite inputs and reusable output', () => {
+    const out = createHorseRestPose();
+    for (const time of [0, -1, NaN, Infinity]) {
+      sampleHorseRest(4, 733, out);
+      expect(sampleHorseRest(time, 733, out)).toBe(out);
+      expect(out).toEqual(createHorseRestPose());
+    }
+    expect(Object.values(sampleHorseRest(4, NaN, out)).every(Number.isFinite)).toBe(true);
+  });
+
+  it('separates ears and tail with quiet dwells, bounded smooth motion and individual cadence', () => {
+    const sequences = [500, 733].map((seed) => {
+      const values = Array.from({ length: 3601 }, (_, i) => ({
+        ...sampleHorseRest(i / 60, seed, createHorseRestPose()),
+      }));
+      for (const key of ['leftEar', 'rightEar', 'tail'] as const) {
+        expect(values.filter((v) => v[key] === 0).length).toBeGreaterThan(3000);
+        expect(Math.max(...values.map((v) => Math.abs(v[key])))).toBeGreaterThan(0.6);
+      }
+      expect(values.some((v) => v.leftEar > 0.8 && v.rightEar === 0)).toBe(true);
+      expect(values.some((v) => v.rightEar > 0.8 && v.leftEar === 0)).toBe(true);
+      for (let i = 1; i < values.length; i++)
+        for (const key of ['breath', 'leftEar', 'rightEar', 'tail'] as const) {
+          expect(Math.abs(values[i][key])).toBeLessThanOrEqual(1);
+          expect(Math.abs(values[i][key] - values[i - 1][key])).toBeLessThan(0.075);
+        }
+      return values;
+    });
+    expect(sequences[0]).not.toEqual(sequences[1]);
+  });
+
+  it('samples the same pose regardless of display or owner throttle', () => {
+    for (const fps of [15, 30, 60, 120]) {
+      const out = createHorseRestPose();
+      for (let i = 0; i <= 18 * fps; i++) sampleHorseRest(i / fps, 500, out);
+      expect(out).toEqual(sampleHorseRest(18, 500, createHorseRestPose()));
+    }
   });
 });
