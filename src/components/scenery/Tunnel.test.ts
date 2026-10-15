@@ -5,6 +5,9 @@ import { PROCEDURAL_TEXTURES } from '../../utils/sharedMaterials';
 import { MOUNTAIN_RIDGE_GEOMETRIES } from '../environment/OptimizedSkySystem';
 import * as THREE from 'three';
 import {
+  CULVERT_HEADWALL,
+  CULVERT_BANK,
+  CULVERT_BANK_MATERIAL,
   getCulvertWaterWidth,
   updateCulvertWater,
   createRoadTunnelHillGeometry,
@@ -351,4 +354,78 @@ describe('rain-responsive culvert water section', () => {
     geometry.dispose();
     material.dispose();
   });
+});
+
+it('leaves the culvert headwall crown opening clear from either mouth', () => {
+  const mesh = new THREE.Mesh(
+    CULVERT_HEADWALL,
+    new THREE.MeshBasicMaterial({ side: THREE.DoubleSide })
+  );
+  mesh.updateMatrixWorld(true);
+  for (const end of [-1, 1]) {
+    const hits = new THREE.Raycaster(
+      new THREE.Vector3(end * 3, 0.7, 0),
+      new THREE.Vector3(-end, 0, 0)
+    ).intersectObject(mesh);
+    expect(hits).toHaveLength(0);
+  }
+});
+
+it('covers the real pipe crown while both open bank ends retain their bore', () => {
+  const bank = new THREE.Mesh(CULVERT_BANK, CULVERT_BANK_MATERIAL);
+  bank.scale.set(6, 0.6, 0.6);
+  bank.position.y = -0.3;
+  bank.updateMatrixWorld(true);
+  const ray = new THREE.Raycaster(new THREE.Vector3(), new THREE.Vector3(0, -1, 0));
+  for (const x of [-2.9, -1.5, 0.11, 1.5, 2.9])
+    for (const z of [-0.5, -0.25, 0.01, 0.25, 0.5]) {
+      ray.ray.origin.set(x, 3, z);
+      const roof = ray.intersectObject(bank)[0];
+      expect(roof).toBeDefined();
+      expect(roof.point.y).toBeGreaterThan(-0.3 + Math.sqrt(0.6 ** 2 - z ** 2) + 0.04);
+    }
+  for (const side of [-1, 1]) {
+    ray.set(new THREE.Vector3(side * 4, 0.1, 0), new THREE.Vector3(-side, 0, 0));
+    expect(ray.intersectObject(bank)).toHaveLength(0);
+  }
+  expect(CULVERT_BANK.boundingBox!.min.y * 0.6 - 0.3).toBeLessThan(-0.02);
+  expect(CULVERT_BANK.index!.count / 3).toBe(160);
+  for (const name of ['position', 'normal', 'uv', 'color']) {
+    const attribute = CULVERT_BANK.getAttribute(name);
+    expect(attribute.count).toBe(99);
+    expect(Array.from(attribute.array).every(Number.isFinite)).toBe(true);
+  }
+  expect(CULVERT_BANK_MATERIAL.vertexColors).toBe(true);
+  expect(CULVERT_BANK_MATERIAL.map).toBeNull();
+  expect(CULVERT_BANK_MATERIAL.emissive.getHex()).toBe(0);
+});
+
+it('surrounds the culvert mouth with bounded chamfered concrete rather than an obstructing bar', () => {
+  const mesh = new THREE.Mesh(
+    CULVERT_HEADWALL,
+    new THREE.MeshBasicMaterial({ side: THREE.DoubleSide })
+  );
+  mesh.updateMatrixWorld(true);
+  const hit = (y: number, z: number) =>
+    new THREE.Raycaster(new THREE.Vector3(2, y, z), new THREE.Vector3(-1, 0, 0)).intersectObject(
+      mesh
+    );
+  for (const [y, z] of [
+    [0.05, 0],
+    [0.5, 0.6],
+    [0.9, 0],
+    [0.7, -0.5],
+  ])
+    expect(hit(y, z)).toHaveLength(0);
+  for (const [y, z] of [
+    [1.4, 0],
+    [0.6, 1.4],
+    [0.6, -1.4],
+  ])
+    expect(hit(y, z).length).toBeGreaterThan(0);
+  expect(CULVERT_HEADWALL.getAttribute('position').count / 3).toBeLessThan(700);
+  expect(Array.from(CULVERT_HEADWALL.getAttribute('position').array).every(Number.isFinite)).toBe(
+    true
+  );
+  mesh.material.dispose();
 });

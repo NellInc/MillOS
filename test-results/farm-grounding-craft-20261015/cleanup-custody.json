@@ -1,0 +1,34 @@
+{
+  "restoredDependencyTarget": "/Users/nellwatson/Documents/GitHub/MillOS/node_modules",
+  "borrowedEntriesVerified": 375,
+  "generatedRemoved": [
+    ".vite",
+    ".vite/vitest",
+    ".vite/vitest/da39a3ee5e6b4b0d3255bfef95601890afd80709",
+    ".vite/vitest/da39a3ee5e6b4b0d3255bfef95601890afd80709/results.json",
+    ".vite-temp"
+  ],
+  "noOpenHandles": [
+    {
+      "dir": "node_modules",
+      "exitCode": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "dir": "/private/tmp/millos-AE-npm-cache",
+      "exitCode": 1,
+      "stdout": "",
+      "stderr": ""
+    }
+  ],
+  "ownedNpmCacheRemoved": "/private/tmp/millos-AE-npm-cache",
+  "sourcePinsExact": 5,
+  "protectedPinsExact": 180,
+  "compiledPinsExact": 415,
+  "previewExit": 143,
+  "previewDeviation": "Exact owned Node stopped after heredoc shutdown wiring error; normal capture-lock utility reclaimed its proven dead lock and released it.",
+  "captureLockAbsent": true,
+  "physicalSpaceRecovery": "not claimed",
+  "retained": "source, final dist, raw images, failure logs, history and unrelated output"
+}

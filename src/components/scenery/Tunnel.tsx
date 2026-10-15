@@ -242,6 +242,98 @@ function createBrickArchGeometry(): THREE.BufferGeometry {
 
 const DRAINAGE_PIPE = createDrainagePipeGeometry();
 const CULVERT_END_RING = createCulvertEndRingGeometry();
+/** Open precast headwall, in pipe-radius units, with its axis along X.
+ * Working if the real crown aperture remains open and concrete surrounds it.
+ */
+function createCulvertHeadwallGeometry(): THREE.BufferGeometry {
+  const face = new THREE.Shape();
+  const bore = 1.02,
+    bottom = -0.4;
+  const angle = Math.asin(-bottom / bore);
+  face.moveTo(-2, bottom);
+  face.lineTo(-2, 1.62);
+  face.lineTo(2, 1.62);
+  face.lineTo(2, bottom);
+  face.lineTo(Math.sqrt(bore * bore - bottom * bottom), bottom);
+  face.absarc(0, 0, bore, -angle, Math.PI + angle, false);
+  face.closePath();
+  const geometry = new THREE.ExtrudeGeometry(face, {
+    depth: 0.22,
+    steps: 1,
+    curveSegments: 16,
+    bevelEnabled: true,
+    bevelSize: 0.025,
+    bevelThickness: 0.025,
+    bevelSegments: 1,
+  });
+  geometry.translate(0, 0, -0.11).rotateY(Math.PI / 2);
+  geometry.computeBoundingBox();
+  geometry.computeBoundingSphere();
+  return geometry;
+}
+export const CULVERT_HEADWALL = createCulvertHeadwallGeometry();
+
+/** One shared open-ended roof, scaled by [length, radius, radius].
+ * The old pipe stood bare above grade. This profile covers its actual circle,
+ * then rolls down into the retained flat ground, without a solid end cap that
+ * could plug the bore. Working if all barrel crown rays meet earth above it,
+ * both mouth rays stay clear, and the skirts finish below the ground datum.
+ */
+function createCulvertBankGeometry(): THREE.BufferGeometry {
+  const profile = [
+    [-2.6, 0.45],
+    [-2.1, 0.59],
+    [-1.55, 0.88],
+    [-1.1, 1.2],
+    [-0.65, 1.48],
+    [0, 1.57],
+    [0.65, 1.48],
+    [1.1, 1.2],
+    [1.55, 0.88],
+    [2.1, 0.59],
+    [2.6, 0.45],
+  ];
+  const positions: number[] = [],
+    colours: number[] = [],
+    uv: number[] = [],
+    indices: number[] = [];
+  const grass = new THREE.Color('#66734b'),
+    earth = new THREE.Color('#78634a');
+  for (let row = 0; row <= 8; row++) {
+    const x = row / 8 - 0.5;
+    for (const [z, y] of profile) {
+      const crown = Math.max(0, 1 - Math.abs(z) / 2.6);
+      const shoulder = Math.sin(row * 0.9) * Math.sin((row / 8) * Math.PI) * crown * 0.035;
+      positions.push(x, y + shoulder, z);
+      uv.push(x + 0.5, (z + 2.6) / 5.2);
+      const endSoil = Math.pow(Math.abs(x) * 2, 6) * 0.8;
+      const tone = 0.97 + 0.035 * Math.sin(z * 2.7 + row * 0.81);
+      grass.clone().lerp(earth, endSoil).multiplyScalar(tone).toArray(colours, colours.length);
+    }
+  }
+  const width = profile.length;
+  for (let row = 0; row < 8; row++)
+    for (let col = 0; col < width - 1; col++) {
+      const a = row * width + col,
+        b = a + width;
+      indices.push(a, a + 1, b, a + 1, b + 1, b);
+    }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  geometry.setAttribute('color', new THREE.Float32BufferAttribute(colours, 3));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  geometry.computeBoundingBox();
+  geometry.computeBoundingSphere();
+  return geometry;
+}
+export const CULVERT_BANK = createCulvertBankGeometry();
+export const CULVERT_BANK_MATERIAL = new THREE.MeshStandardMaterial({
+  vertexColors: true,
+  roughness: 1,
+  metalness: 0,
+});
 const CORRUGATED_CULVERT = createCorrugatedCulvertGeometry();
 const BRICK_ARCH = createBrickArchGeometry();
 const _culvertAtmosphere = createAtmosphereState();
@@ -690,11 +782,9 @@ const ROAD_TUNNEL_LENS_GEOMETRY = new THREE.BoxGeometry(1.1, 0.22, 0.18);
  *
  * The two farm culverts are placed at radius 0.6 inside a root group of scale
  * 1, so this is a 1.2 m pipe standing at walking distance, and both are buried
- * to their axis (y = -0.3): the crown stands 0.3 m proud of the farm ground and
- * exposes a 120-degree arc 1.04 m wide. That outer arc is the whole of what is
- * ever drawn - `TUNNEL_MATERIALS.concrete` carries no `side`, so it is
- * FrontSide, and the shell is a lathe with no caps, so the inside of the bore
- * is backface-culled.
+ * to their axis (y = -0.3). A low earth roof covers the formerly exposed
+ * 120-degree crown arc. Open headwalls frame the retained rings and back-facing
+ * liner, leaving the passage clear without cutting new terrain or routes.
  *
  * The barrel's local +y end lands at world -x once rotated, so the two end
  * rings are mirrored about Z to face their own mouths.
@@ -734,7 +824,15 @@ export const DrainageCulvert: React.FC<TunnelProps> = React.memo(
         position={position}
         rotation={[0, rotation, 0]}
       >
-        {/* Jointed precast barrel */}
+        <mesh
+          name="culvert-earth-cover"
+          geometry={CULVERT_BANK}
+          material={CULVERT_BANK_MATERIAL}
+          scale={[length, radius, radius]}
+          castShadow
+          receiveShadow
+        />
+        {/* Jointed precast barrel, now seated beneath the earth roof */}
         <GeneratedSurfaceMesh
           asset="drainagePipeUnit"
           material={TUNNEL_MATERIALS.concrete}
@@ -776,8 +874,12 @@ export const DrainageCulvert: React.FC<TunnelProps> = React.memo(
             a believable load path into the embankment. */}
         {[-1, 1].map((end) => (
           <group key={`headwall-${end}`} position={[end * (length / 2 + radius * 0.13), 0, 0]}>
-            <mesh position={[0, radius * 0.62, 0]} castShadow receiveShadow>
-              <boxGeometry args={[radius * 0.28, radius * 0.42, radius * 2.7]} />
+            <mesh
+              geometry={CULVERT_HEADWALL}
+              scale={[radius, radius, radius]}
+              castShadow
+              receiveShadow
+            >
               <primitive object={TUNNEL_MATERIALS.concrete} attach="material" />
             </mesh>
             {[-1, 1].map((side) => (

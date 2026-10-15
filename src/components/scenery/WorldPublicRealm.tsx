@@ -528,10 +528,50 @@ export function createWorldRealm(segments: number) {
   }
   return { paving: paving.finish(), solid: finishRealmSurface(solid.finish()) };
 }
+/** A cultivated sheet at the existing ground datum, inside the reserved field.
+ * Metre-scale drill bands share vertices with the headland, so there are no
+ * stacked coplanar strips or raised ridges burying the unchanged cereal roots.
+ * Working if the actual 300 planting roots ray-hit soil, rounded corners stay
+ * inside the crop reserve, and a single finite merged surface supplies the bed.
+ */
+export function createFarmCultivationGeometry(): THREE.BufferGeometry {
+  const columns = 80,
+    rows = 2;
+  const geometry = new THREE.PlaneGeometry(33.5, 24, columns, rows);
+  geometry.rotateX(-Math.PI / 2).translate(-0.75, EXTERIOR_LAYERS.ground, -42.4);
+  const position = geometry.getAttribute('position');
+  const colours = new Float32Array(position.count * 3);
+  const soil = new THREE.Color('#79634a'),
+    dry = new THREE.Color('#968064');
+  for (let i = 0; i < position.count; i++) {
+    const x = position.getX(i),
+      z = position.getZ(i);
+    // Ease only the outer corners. The entire planting envelope remains inside.
+    const corner = Math.max(0, Math.abs(z + 42.4) - 10.4) / 1.6;
+    const u = (x + 0.75) / 16.75;
+    position.setX(i, x - u * Math.pow(Math.abs(u), 7) * corner * corner * 0.85);
+    const edge = Math.min(1, Math.max(Math.abs(u), Math.abs(z + 42.4) / 12));
+    const drill = 0.5 + 0.5 * Math.cos((x / 1.5) * Math.PI * 2);
+    const headland = THREE.MathUtils.smoothstep(edge, 0.82, 1);
+    const variation = 0.5 + 0.5 * Math.sin(x * 0.49 + z * 0.57 + Math.sin(z * 0.21));
+    const mix = (0.15 + drill * 0.3) * (1 - headland) + headland * 0.51;
+    soil
+      .clone()
+      .lerp(dry, mix)
+      .multiplyScalar(0.96 + variation * 0.07)
+      .toArray(colours, i * 3);
+  }
+  geometry.setAttribute('color', new THREE.BufferAttribute(colours, 3));
+  geometry.computeVertexNormals();
+  geometry.computeBoundingBox();
+  geometry.computeBoundingSphere();
+  return geometry;
+}
 function farmRealm() {
   const paving = new PlotGeometry(),
     solid = new PlotGeometry();
   FARM_REALM_PATHS.forEach((p) => route(paving, p, flat, true));
+  paving.parts.push(createFarmCultivationGeometry());
   // A gravel shoulder joins the barn court to the working track and windmill.
   patch(paving, 5.3, -8.4, 8.7, 1.8, '#9a8b71');
   wall(solid, [5.7, -10.5], [5.7, -26.4], 0.28);

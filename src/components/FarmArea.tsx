@@ -2282,8 +2282,8 @@ const FARM_BLOCKERS = [
   { x: -15, z: 19, halfX: 2.2, halfZ: 1.6 }, // garden bed
   { x: 15, z: -15, halfX: 2.6, halfZ: 2.6 }, // windmill
   { x: -12, z: -5, halfX: 3.4, halfZ: 3.4 }, // pig pen + mud puddle
-  { x: 8, z: 8, halfX: 4, halfZ: 2 }, // culvert crossing
-  { x: 0, z: -30, halfX: 4, halfZ: 2 }, // culvert crossing
+  { x: 8, z: 8, halfX: 4.2, halfZ: 1.8 }, // banked culvert, axis across X
+  { x: 0, z: -28.5, halfX: 4.2, halfZ: 1.8 }, // clear crop headland
   { x: 6.3, z: -1, halfX: 1.8, halfZ: 2.6 }, // hay bale stack
 ] as const;
 
@@ -2908,7 +2908,7 @@ export const FarmArea: React.FC = () => {
       <GardenBed position={[-15, 0, 19]} />
 
       {/* Drainage culvert under the farm road - provides water drainage from fields */}
-      <DrainageCulvert position={[8, -0.3, 8]} rotation={Math.PI / 2} length={6} radius={0.6} />
+      <DrainageCulvert position={[8, -0.3, 8]} length={6} radius={0.6} />
       {chickenData.map((c, i) => (
         <Chicken
           key={`chicken-${i}`}
@@ -3069,8 +3069,9 @@ export const FarmArea: React.FC = () => {
       {/* Shared wind clock (idempotent - the village mounts one too) */}
       <WindDriver />
 
-      {/* Drainage Culvert under the farm path */}
-      <DrainageCulvert position={[0, -0.3, -30]} rotation={Math.PI / 2} length={6} radius={0.6} />
+      {/* Across the clear headland: the earth bank must not bury the first
+          cereal rows or cross the retained windmill track at x 8. */}
+      <DrainageCulvert position={[0, -0.3, -28.5]} length={6} radius={0.6} />
 
       {/* Grain Field Background */}
       <group position={[0, 0, -42]}>

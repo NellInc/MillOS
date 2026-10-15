@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs';
 import {
   VILLAGE_REALM_GEOMETRY,
   FARM_REALM_GEOMETRY,
+  createFarmCultivationGeometry,
   createWorldRealm,
   realmPavingColour,
   finishRealmSurface,
@@ -25,6 +26,8 @@ import {
   inRealmPatch,
 } from '../../constants/publicRealmLayout';
 import { VILLAGE_STREET_CORRIDORS, villageRealmClear } from '../VillageArea';
+import { GRAIN_FIELD_COUNT, GRAIN_PLANT_GEOMETRY, populateGrainField } from '../FarmArea';
+import { CULVERT_BANK, CULVERT_BANK_MATERIAL } from './Tunnel';
 import { VILLAGE_HOMES } from './VillageGardens';
 import { landscapeGrassSpec } from '../exterior/LandscapeDressing';
 import { CANAL_BOAT_BERTH, SITE_LAYOUT, landmarkLocalToWorld } from '../../constants/siteLayout';
@@ -616,4 +619,64 @@ it('changes only construction-family colours, preserving exact shadow/collision 
   expect(Array.from(colour.array)).toEqual(once);
   g.dispose();
   original.dispose();
+});
+
+it('seats the cereal roots in cultivated soil at the unchanged ground datum', () => {
+  const hits = ray(FARM_REALM_GEOMETRY.paving, [0.173, 2, -42.123], [0, -1, 0]);
+  expect(hits).toHaveLength(1);
+  expect(hits[0].point.y).toBeCloseTo(-0.02, 6);
+});
+
+it('grounds every actual retained crop matrix in one soil sheet clear of the headland bank', () => {
+  const material = new THREE.MeshBasicMaterial();
+  const meshes = Object.values(GRAIN_PLANT_GEOMETRY).map(
+    (g) => new THREE.InstancedMesh(g, material, GRAIN_FIELD_COUNT)
+  ) as [THREE.InstancedMesh, THREE.InstancedMesh, THREE.InstancedMesh];
+  populateGrainField(meshes);
+  const bank = new THREE.Box3().setFromObject(new THREE.Mesh(CULVERT_BANK, CULVERT_BANK_MATERIAL));
+  bank.min.multiply(new THREE.Vector3(6, 0.6, 0.6)).add(new THREE.Vector3(0, -0.3, -28.5));
+  bank.max.multiply(new THREE.Vector3(6, 0.6, 0.6)).add(new THREE.Vector3(0, -0.3, -28.5));
+  const matrix = new THREE.Matrix4(),
+    root = new THREE.Vector3();
+  for (let i = 0; i < GRAIN_FIELD_COUNT; i++) {
+    meshes[0].getMatrixAt(i, matrix);
+    root.setFromMatrixPosition(matrix).add(new THREE.Vector3(0, 0, -42));
+    const hits = ray(FARM_REALM_GEOMETRY.paving, [root.x, 2, root.z], [0, -1, 0]);
+    expect(hits.length).toBeGreaterThan(0);
+    expect(hits.every((hit) => Math.abs(hit.point.y + 0.02) < 1e-6)).toBe(true);
+    expect(bank.distanceToPoint(root)).toBeGreaterThan(0.95);
+  }
+  const track = FARM_REALM_PATHS[0];
+  expect(track.start[0] - track.width / 2 - bank.max.x).toBeGreaterThan(3);
+  // Nearest resting sheep home is z5; the transverse yard bank begins at6.44.
+  expect(8 - CULVERT_BANK.boundingBox!.max.z * 0.6 - 5).toBeGreaterThan(1.4);
+  const source = readFileSync('src/components/FarmArea.tsx', 'utf8');
+  expect(source).toContain(
+    '<DrainageCulvert position={[0, -0.3, -28.5]} length={6} radius={0.6} />'
+  );
+  expect(source).toContain('<DrainageCulvert position={[8, -0.3, 8]} length={6} radius={0.6} />');
+  material.dispose();
+});
+
+it('uses softened, metre-scale drill bands without new textures or raised crop roots', () => {
+  const g = createFarmCultivationGeometry();
+  expect(g.index!.count / 3).toBe(320);
+  expect(g.boundingBox!.min.x).toBeGreaterThanOrEqual(-17.5);
+  expect(g.boundingBox!.max.x).toBeLessThanOrEqual(16);
+  expect(g.boundingBox!.min.z).toBeGreaterThanOrEqual(-54.40001);
+  expect(g.boundingBox!.max.z).toBeLessThanOrEqual(-30.39999);
+  const p = g.getAttribute('position'),
+    c = g.getAttribute('color'),
+    n = g.getAttribute('normal');
+  expect(c.count).toBe(p.count);
+  for (let i = 0; i < p.count; i++) {
+    expect(p.getY(i)).toBeCloseTo(-0.02, 6);
+    expect(n.getY(i)).toBeCloseTo(1, 6);
+  }
+  expect(new Set(Array.from(c.array).map((v) => Math.round(v * 1e5))).size).toBeGreaterThan(100);
+  expect(Array.from(c.array).every((v) => Number.isFinite(v) && v > 0 && v < 1)).toBe(true);
+  // Top edge corner is eased inwards, while the middle still keeps the full span.
+  expect(p.getX(0)).toBeGreaterThan(-17);
+  expect(p.getX(81)).toBeCloseTo(-17.5, 5);
+  g.dispose();
 });
