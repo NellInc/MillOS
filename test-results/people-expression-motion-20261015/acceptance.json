@@ -1,0 +1,140 @@
+{
+  "scope": "X finite36-item people shading and animation-transition pass",
+  "selfReview": "Authored and reviewed by this chat",
+  "baseline": {
+    "passed": 103,
+    "files": 2,
+    "failures": []
+  },
+  "finalAffected": {
+    "passed": 110,
+    "files": 2,
+    "failed": 0,
+    "delta": 7
+  },
+  "observedDefect": "Before fix, speed alternation at1.449/1.451 times natural walk speed left run weight0.4093467; corrected renderer test now passes genuine acceleration and deceleration too.",
+  "sourceGates": {
+    "typecheck": 0,
+    "lint": 0,
+    "format": 0,
+    "shaders": 0,
+    "build": 0,
+    "reachability": 0
+  },
+  "build": {
+    "files": 415,
+    "bytes": 181692817,
+    "seconds": 22.798,
+    "exitCode": 0
+  },
+  "nativeArt": [
+    {
+      "capture": "X-people-day-20261015",
+      "scene": "milling",
+      "exactServedBuild": true,
+      "sandboxedNativeMetal": true,
+      "worldIntegrity": true,
+      "pageClean": true,
+      "communityPresence": true,
+      "generalMotionValid": true,
+      "audio": {
+        "activeNodes": 0,
+        "contextState": "not-created"
+      },
+      "pacingMisses": [
+        "p95Frame"
+      ],
+      "loadPerCore": 22.76,
+      "image": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/X-people-day-20261015/milling.png"
+    },
+    {
+      "capture": "X-people-day-20261015",
+      "scene": "square",
+      "exactServedBuild": true,
+      "sandboxedNativeMetal": true,
+      "worldIntegrity": true,
+      "pageClean": true,
+      "communityPresence": true,
+      "generalMotionValid": true,
+      "audio": {
+        "activeNodes": 0,
+        "contextState": "not-created"
+      },
+      "pacingMisses": [
+        "p95Frame"
+      ],
+      "loadPerCore": 26,
+      "image": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/X-people-day-20261015/square.png"
+    },
+    {
+      "capture": "X-people-dusk-20261015",
+      "scene": "busstop",
+      "exactServedBuild": true,
+      "sandboxedNativeMetal": true,
+      "worldIntegrity": true,
+      "pageClean": true,
+      "communityPresence": true,
+      "generalMotionValid": true,
+      "audio": {
+        "activeNodes": 0,
+        "contextState": "not-created"
+      },
+      "pacingMisses": [
+        "p95Frame"
+      ],
+      "loadPerCore": 21.73,
+      "image": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/X-people-dusk-20261015/busstop.png"
+    }
+  ],
+  "closeArt": {
+    "savedImages": false,
+    "conversationEvidence": true,
+    "views": [
+      "Normal walking operator, softened arms/workwear/face and retained PPE",
+      "Normal walking feminine Engineer, lit face/sleeves/glasses/badge",
+      "Normal walking civilian neighbour, face/hair/cloth in village context"
+    ],
+    "limitedView": "Gardener work pose expired between inspection and camera capture. Close screenshot shows walking and hidden trowel, not proof of eased digging. Actual-rig tests cover the coupled eased palm/tool contract.",
+    "liveFaceFinish": {
+      "people": 14,
+      "bothBodyTypes": true,
+      "vertexColoursEnabled": true,
+      "colourAttributePresent": true,
+      "nonFiniteGeometry": false
+    },
+    "readiness": {
+      "worldReady": true,
+      "startupReady": true,
+      "loadingCover": false,
+      "override": false
+    },
+    "audio": {
+      "activeNodes": 0,
+      "contextState": "not-created"
+    },
+    "consoleErrors": [],
+    "playerInput": false,
+    "viewportOverride": false,
+    "temporaryTabClosed": true,
+    "previewClosed": true
+  },
+  "preservation": {
+    "cachedAssetsAndRigPositionsWeightsIndices": true,
+    "distantBodyDraws": 2,
+    "newTextures": 0,
+    "newLights": 0,
+    "newAnimationLoops": 0,
+    "frozenFiles": 151,
+    "primaryExact": true
+  },
+  "retainedFailures": [
+    "locomotion-fixture-first-failed.log: assumed wrong body profile, corrected before diagnosis",
+    "locomotion-reproduction.log: real pre-fix threshold churn",
+    "format-edit.log: unary/exponent syntax corrected before gates"
+  ],
+  "pacing": "OPEN separately; indicative art samples only, no non-art performance acceptance, budget relaxation or quiet-machine prerequisite",
+  "playerDeviceChecks": "DEFERRED",
+  "publication": "local only; no upload/push/deployment",
+  "optionalDesignLint": "Impeccable executable absent; interface unchanged; no install",
+  "completion": "36-item pass complete within stated source/native/close evidence boundaries"
+}

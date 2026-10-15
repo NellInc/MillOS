@@ -2936,3 +2936,65 @@ All36 finite items implemented within these evidence boundaries. Four production
 Pacing independently OPEN: day milling firstFrame/p95 (load29.95/core), day lake p95 (29.14), farm averageFps/p95/onePercentLow (35.47), dusk lake averageFps/p95 (45.89). No performance gate/relaxation or quiet-GPU prerequisite. Player/device checks deferred. No upload/push/deployment. Raw failed logs and Node/Vite notices retained; runtime diagnostic cleanliness checked separately. Canonical receipt: test-results/people-shore-craft-20261015/acceptance.json. Owned setup restoration and selective local check-in follow.
 
 W cleanup/check-in closure: verified375 exact borrowed dependency links, empty own.vite-temp and no open handles in exact scratch paths. Removed only borrowed links/empty own temp directory/named W npm cache, restored original shared symlink. Current source/build/raw images/failure logs/history and unrelated output preserved. No disk recovery or performance claim. All jobs terminal, game tab and preview closed, capture lock absent. Selective local check-in only.
+
+
+## X: People shading and natural animation transitions, 2026-10-15
+
+Nell requests the next long detailed pass, especially people models/animations. Local only, muted, preserve interface/world layout, defer player/device checks and keep pacing separately OPEN. Base261768f192a84250800ab6947b8b90cfab932baa. Four allowed files and primary custody in test-results/people-expression-motion-20261015/custody.json. This chat authors and reviews the pass.
+
+Working if harsh split-normal seams soften on skin/workwear without changing geometry or skinning, subtle anatomical face colours follow both real Head bind transforms and distant colours, and walk/run selection resists threshold jitter while secondary gestures ease together with attached tools. No new draw, texture, light, timer, animation loop, rig, route, state authority or interface contract.
+
+### Finite36-item list
+
+1. Soften arm/hand split shading.
+2. Preserve sharp edges/knuckles/silhouettes.
+3. Refine shirt/trouser/workwear shading.
+4. Exact positions/weights/rigs.
+5. Restrained cheek/ear warmth.
+6. Subtle lit face tonal depth.
+7. Skin-tone/facial-feature identity retained.
+8. Both real body types checked.
+9. Eye/PPE mounts exact.
+10. Face finish retained by distant renderer.
+11. Existing two-draw distant budget.
+12. Private geometry lifetime/cached sources safe.
+13. Reproduce walk/run threshold jitter.
+14. Bounded locomotion hysteresis.
+15. Speed-matched cadence retained.
+16. Exact paused stride.
+17. Ease work attention.
+18. Ease secondary task arms.
+19. Ease greeting lift/return.
+20. Retain quiet work dwells.
+21. Same gesture for hands and tools.
+22. Planted stationary boots.
+23. Cycling saddle/pedal/bar contact.
+24. Gardening/bread-tray contact.
+25. Paused semantic changes deterministic/immediate.
+26. Independent per-person phases.
+27. Existing animation callback, no new loop.
+28. Routes/schedules/production/inventory unchanged.
+29. Named affected baseline.
+30. Actual-rig colour/normal/transition checks.
+31. Required typecheck/lint/format/shader gates.
+32. One final production build/fresh reachability.
+33. Silent exact-build people day/dusk context.
+34. Close inspection during normal activity.
+35. Interface/layout/unrelated work preserved.
+36. Separate pacing/deferred devices, owned setup restoration/local check-in only.
+
+Pre-check risks: hard cloth creases must remain; anatomy masks must use actual Head rest/bind coordinates; hands and held props must share eased offsets. Live worker renderer confirmed reachable before edits. Actual Head-space skin bounds measured: masculine x[-.10677,.10750],y[-.13252,.17683],z[-.08179,.13196],606vertices; feminine x[-.09678,.09747],y[-.04888,.17362],z[-.07226,.13426],594vertices. Existing distant LOD already multiplies source vertex colours. No new schema or third-party asset. Dynamic workers are excluded from civic static occlusion; canonical atlas/source manifest retained.
+
+X baseline103/2 pass, no failing names. First reproduction fixture incorrectly assumed the hashed Engineer body was feminine; corrected to the actual profile, retained original failed log. Corrected pre-fix renderer test reproduces crossover churn: run weight.4093467 for alternating1.449/1.451x natural walk speed. Add +/-0.08 hysteresis about existing1.45 threshold, retaining initial selection and actual cadence. Secondary gestures share one eased target sample across pose and prop; paused semantic updates copy it immediately. Skin/workwear normals use the existing skin-compatible under45-degree normal blend, positions/weights/indices unchanged. Face colour masks use measured Head bind coordinates and the existing distant colour consumer.
+
+X affected110/2 pass (+7 vs103/2), including both actual rigs, eased garden/bread contacts, stationary boots, original topology/deformation, body-colour LOD, paused targets and crossover regression. Typecheck/whole-source lint/format/shader34-family38-key gates exit0. First format pass caught unary-minus/exponent syntax, corrected before gates; original log retained. No extra texture/light/draw/animation loop; exact published GLBs, face/PPE mounts and domain state remain. One final local production build follows.
+
+X build/reachability: one production build exits0 (Vite21.71s, wrapper22.798s),415 files/181692817 bytes sealed; fresh reachability exits0 with no graph misses/new dead modules. Exact served index/main hashes, sandboxed out-of-process Metal, complete world/community and valid general motion, zero console/page/request/screenshot errors and audio0/context not-created verified for day milling/square. Full frames inspected, tiny facial/cloth details require close views and are not claimed proved by wide scenes. Dusk and close art follow.
+
+X acceptance:110/2 affected pass (+7), all required source/build/reachability gates exit0. Exact sealed served bytes and sandboxed out-of-process Metal for milling/square noon and busstop dusk, complete world/community, valid general motion, zero console/page/request/screenshot errors, audio0/context not-created. Actual full PNGs inspected. These general-motion checks do not substitute for person-rig tests.
+
+Close IAB inspection shows normal walking operator, feminine Engineer and civilian neighbour: softer arm/workwear split shading, subtle face finish and retained PPE/glasses/badges/hair. Actual live instrument confirms all14 faces have finite geometry, enabled vertex colours and the real colour attribute, both body types. World/startup-ready true, cover absent, no override. No actor/state/quality/viewport/player override or keyboard/mouse/device input. The gardener left the working stop before its close frame; the frame shows walking/hidden tool, not eased digging. Existing actual-rig tests now exercise the coupled eased garden/bread sample and palm/boot contacts. Close images are conversation evidence only. Tab and preview closed normally, lock released.
+
+All36 finite items implemented within these stated boundaries. Two production files, two test files and task record only.151 frozen pins, sealed source/compiled files and primary HEAD/status/binary diff exact. Cached GLBs/vertex positions/weights/indices/rigs, existing two-draw distant body, eye/PPE mounts, lights/civic atlas and interface/layout/domain state unchanged. No new texture/light/timer/frame loop or person draw. Optional Impeccable executable absent, no install. Pacing remains independently OPEN: all three art scenes miss p95; load22.76/26/21.73 per core, indicative art samples only, no relaxed limits or quiet-GPU prerequisite. Player/device checks deferred. No upload/push/deployment. Raw failure/notice logs retained. Canonical receipt test-results/people-expression-motion-20261015/acceptance.json. Owned setup restoration/selective local check-in follows.
+
+X cleanup/check-in closure:375 exact borrowed dependency links, empty owned.vite-temp and exact named npm cache verified with no open handles; removed only those links/empty directory/task cache and restored original dependency symlink. Current source/compiled candidate/raw images/failure logs/history and unrelated output retained. No inferred disk recovery or performance claim. All jobs terminal, temporary game tab/preview closed and capture lock absent. Selective local check-in only.

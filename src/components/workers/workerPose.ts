@@ -152,6 +152,27 @@ export const createWorkerGesture = () => ({
 });
 export type WorkerGesture = ReturnType<typeof createWorkerGesture>;
 
+const GESTURE_CHANNELS = Object.keys(createWorkerGesture()) as Array<keyof WorkerGesture>;
+/** One eased sample drives both the pose and held prop. Paused semantic changes
+ * snap to their deterministic target without advancing an animation clock.
+ * Working if task/greeting transitions soften while palms and props stay coupled.
+ */
+export function easeWorkerGesture(
+  out: WorkerGesture,
+  target: WorkerGesture,
+  delta: number,
+  immediate = false
+) {
+  const amount = immediate
+    ? 1
+    : 1 - Math.exp(-12 * (Number.isFinite(delta) ? Math.max(0, delta) : 0));
+  for (const key of GESTURE_CHANNELS) {
+    const value = Number.isFinite(target[key]) ? target[key] : 0;
+    out[key] = THREE.MathUtils.lerp(out[key], value, amount);
+  }
+  return out;
+}
+
 /** One hello per arrival, with a quiet hand-down dwell while the neighbour stays.
  * Working if the wave ends after 2.1 seconds and never repeats on its own clock.
  */

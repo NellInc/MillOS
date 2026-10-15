@@ -24,6 +24,7 @@ import type { WorkerMotionState } from '../workers/workerTypes';
 import {
   createSeatedWorkerPose,
   createWorkerGesture,
+  easeWorkerGesture,
   createWorkerEyeBlink,
   sampleWorkerBlink,
   sampleWorkerGesture,
@@ -110,6 +111,54 @@ export function softenWorkerFaceNormals(source: THREE.BufferGeometry) {
   const geometry = source.clone();
   geometry.setAttribute('normal', new THREE.Float32BufferAttribute(values, 3));
   return geometry;
+}
+
+/** Subtle lit skin undertones in Head bind space, never a baked light/shadow.
+ * Working if cheeks/ears warm on both bodies without changing vertices, skinning,
+ * cached assets, mesh count or the existing per-person skin colour.
+ */
+export function createWorkerFaceColours(
+  mesh: THREE.Mesh,
+  head: THREE.Object3D,
+  bodyType: WorkerBodyType
+): THREE.BufferAttribute | null {
+  const position = mesh.geometry.getAttribute('position');
+  if (!position) return null;
+  const intoHead = head.matrixWorld.clone().invert().multiply(mesh.matrixWorld);
+  const skin = mesh as THREE.SkinnedMesh;
+  if (skin.isSkinnedMesh) {
+    const joint = skin.skeleton.bones.indexOf(head as THREE.Bone);
+    if (joint < 0) return null;
+    intoHead
+      .multiply(skin.bindMatrixInverse)
+      .multiply(head.matrixWorld)
+      .multiply(skin.skeleton.boneInverses[joint])
+      .multiply(skin.bindMatrix);
+  }
+  const colours = new Float32Array(position.count * 3),
+    point = new THREE.Vector3();
+  const cheekY = WORKER_EYE_CENTRES[bodyType][1] - 0.045;
+  for (let i = 0; i < position.count; i++) {
+    point.fromBufferAttribute(position, i).applyMatrix4(intoHead);
+    const front = THREE.MathUtils.smoothstep(point.z, 0.035, 0.09);
+    const cheek =
+      Math.exp(-(((Math.abs(point.x) - 0.055) / 0.034) ** 2 + ((point.y - cheekY) / 0.045) ** 2)) *
+      front;
+    const ear = Math.exp(
+      -(
+        ((Math.abs(point.x) - 0.095) / 0.025) ** 2 +
+        ((point.y - 0.055) / 0.05) ** 2 +
+        ((point.z - 0.005) / 0.045) ** 2
+      )
+    );
+    const warmth = Math.min(1, cheek + ear * 0.6);
+    const jaw = Math.exp(-(((point.y + 0.015) / 0.055) ** 2)) * front * 0.025;
+    colours.set(
+      [1 + warmth * 0.045 - jaw, 1 - warmth * 0.05 - jaw, 1 - warmth * 0.065 - jaw],
+      i * 3
+    );
+  }
+  return new THREE.BufferAttribute(colours, 3);
 }
 
 /** Dress the authored hands using their actual wrist/finger skin weights.
@@ -216,6 +265,14 @@ const CLIP_GROUND_SPEED: Record<WorkerBodyType, { walk: number; run: number }> =
 
 /** Multiple of natural walk speed at which the run clip takes over. */
 const RUN_CROSSOVER = 1.45;
+/** A narrow speed band prevents alternating clip choices near the crossover.
+ * Working if a real acceleration changes gait while small speed noise does not.
+ */
+export function selectWorkerLocomotion(speed: number, walkSpeed: number, previous?: string) {
+  const threshold =
+    RUN_CROSSOVER + (previous === 'worker-run' ? -0.08 : previous === 'worker-walk' ? 0.08 : 0);
+  return speed > walkSpeed * threshold ? 'worker-run' : 'worker-walk';
+}
 
 const UNIT_BOX = new THREE.BoxGeometry(1, 1, 1);
 const SUPERVISOR_CABLE = new THREE.TorusGeometry(0.065, 0.005, 6, 18, Math.PI * 1.25);
@@ -848,6 +905,7 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
   const faceRef = useRef<THREE.Group>(null);
   const pupilRef = useRef<THREE.InstancedMesh>(null);
   const gesture = useMemo(createWorkerGesture, []);
+  const sampledGesture = useMemo(createWorkerGesture, []);
   const gestureTime = useRef(Number.isFinite(motion.phase) ? motion.phase : 0);
   const pendingDelta = useRef(0);
   const greetingElapsed = useRef(0);
@@ -873,6 +931,7 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
   const prepared = useMemo(() => {
     const model = cloneSkeleton(scene) as THREE.Group;
     const skeletons = shareWorkerSkin(model);
+    model.updateMatrixWorld(true);
     const materials: THREE.MeshStandardMaterial[] = [];
     const skinned: THREE.Mesh[] = [];
     const gloveSources: THREE.SkinnedMesh[] = [];
@@ -908,12 +967,27 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
         return material;
       });
       mesh.material = Array.isArray(mesh.material) ? built : built[0];
-      if (nodeName.includes('Worker_Head') && sources.length === 1 && sources[0].name === 'Skin') {
+      const region =
+        sources.length === 1
+          ? resolveSurface(appearance.bodyType, sources[0].name, nodeName)
+          : null;
+      if (
+        region &&
+        ['skin', 'shirt', 'hiVis', 'hiVisStrap', 'denim', 'denimDark'].includes(region)
+      ) {
         const softened = softenWorkerFaceNormals(mesh.geometry);
         if (softened) {
           mesh.geometry = softened;
-          mesh.userData.workerSoftFace = true;
           ownedGeometry.push(softened);
+          if (nodeName.includes('Worker_Head') && region === 'skin') {
+            mesh.userData.workerSoftFace = true;
+            const head = model.getObjectByName('Head');
+            const colours = head ? createWorkerFaceColours(mesh, head, appearance.bodyType) : null;
+            if (colours) {
+              softened.setAttribute('color', colours);
+              (mesh.material as THREE.MeshStandardMaterial).vertexColors = true;
+            }
+          }
         }
       }
       if (
@@ -1052,9 +1126,7 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
     const activeClip: WorkerClipName = moving
       ? !motion.enabled && previousLocomotion
         ? previousLocomotion
-        : speed > clipSpeed.walk * scale * RUN_CROSSOVER
-          ? 'worker-run'
-          : 'worker-walk'
+        : selectWorkerLocomotion(speed, clipSpeed.walk * scale, previousLocomotion)
       : motion.seated || motion.cycling || motion.activity === 'break'
         ? 'worker-break'
         : motion.activity === 'working'
@@ -1090,13 +1162,13 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
     sampleWorkerGesture(
       motion.seated ? 'rest' : motion.activity === 'working' ? appearance.workAction : 'idle',
       gestureTime.current,
-      gesture
+      sampledGesture
     );
     if (lastPose.current.greetingTargetId !== motion.greetingTargetId) greetingElapsed.current = 0;
     const greetingActive = motion.greeting && motion.activity === 'idle' && !motion.seated;
     if (greetingActive) {
       greetingElapsed.current += safeDelta;
-      sampleWorkerGreeting(greetingElapsed.current, gesture);
+      sampleWorkerGreeting(greetingElapsed.current, sampledGesture);
     }
     greetingYaw.current = THREE.MathUtils.damp(
       greetingYaw.current,
@@ -1105,9 +1177,9 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
       safeDelta
     );
     if (motion.activity === 'idle')
-      gesture.lookYaw = greetingActive
+      sampledGesture.lookYaw = greetingActive
         ? greetingYaw.current
-        : gesture.lookYaw + greetingYaw.current;
+        : sampledGesture.lookYaw + greetingYaw.current;
     attentionYaw.current = THREE.MathUtils.damp(
       attentionYaw.current,
       Number.isFinite(motion.attentionYaw)
@@ -1117,7 +1189,8 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
       safeDelta
     );
     if (motion.activity === 'idle' && !motion.seated && !greetingActive)
-      gesture.lookYaw += attentionYaw.current;
+      sampledGesture.lookYaw += attentionYaw.current;
+    easeWorkerGesture(gesture, sampledGesture, safeDelta, !motion.enabled);
     // Facial detail is omitted at the existing near-face cutoff. Far body LOD
     // retains the open-eye bind shape; it never needs a third body draw.
     const blink = faceRef.current?.visible === false ? 0 : sampleWorkerBlink(gestureTime.current);

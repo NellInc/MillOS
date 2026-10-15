@@ -921,3 +921,47 @@ it('keeps curved glasses attached to the lenses, and badge print against a round
   expect(radio.boundingBox!.max.z).toBeCloseTo(0.0145);
   expect(radio.getAttribute('position').count / 3).toBeLessThan(1000);
 });
+
+it('holds a walking clip through small speed fluctuations around the run crossover', () => {
+  const play = vi.spyOn(THREE.AnimationAction.prototype, 'play');
+  const appearance = getWorkerAppearance('Engineer', '', 'crew-engineer');
+  const walkSpeed = (appearance.bodyType === 'masculine' ? 1.352 : 1.082) * appearance.bodyScale;
+  const { motion } = mountAnimatedWorker('walking', walkSpeed * 1.44);
+  for (let i = 0; i < 60; i++) harness.frame?.({}, 1 / 30);
+  const run = play.mock.contexts.find((a) => a.getClip().name === 'worker-run')!;
+  for (let i = 0; i < 60; i++) {
+    motion.groundSpeed = walkSpeed * (i % 2 ? 1.449 : 1.451);
+    harness.frame?.({}, 1 / 30);
+  }
+  expect(run.getEffectiveWeight()).toBeLessThan(0.01);
+  motion.groundSpeed = walkSpeed * 1.65;
+  for (let i = 0; i < 40; i++) harness.frame?.({}, 1 / 30);
+  expect(run.getEffectiveWeight()).toBeGreaterThan(0.99);
+  motion.groundSpeed = walkSpeed * 1.3;
+  for (let i = 0; i < 40; i++) harness.frame?.({}, 1 / 30);
+  expect(run.getEffectiveWeight()).toBeLessThan(0.01);
+});
+
+it('retains anatomical vertex colours in the existing two-draw distant body', () => {
+  const { model, sources } = bodyFixture();
+  const source = sources[0];
+  const colours = new THREE.Float32BufferAttribute(
+    [1.03, 0.96, 0.94, 1, 1, 1, 0.98, 0.97, 0.96],
+    3
+  );
+  source.geometry.setAttribute('color', colours);
+  (source.material as THREE.MeshStandardMaterial).vertexColors = true;
+  const lod = createWorkerBodyLod(model)!;
+  expect(lod.meshes).toHaveLength(2);
+  const merged = lod.meshes[0].geometry.getAttribute('color');
+  expect(merged.getX(0)).toBeCloseTo(
+    (source.material as THREE.MeshStandardMaterial).color.r * 1.03,
+    6
+  );
+  expect(merged.getY(0)).toBeCloseTo(
+    (source.material as THREE.MeshStandardMaterial).color.g * 0.96,
+    6
+  );
+  expect(source.geometry.getAttribute('color')).toBe(colours);
+  lod.dispose();
+});

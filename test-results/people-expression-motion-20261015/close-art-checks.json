@@ -1,0 +1,32 @@
+{
+  "savedImages": false,
+  "conversationEvidence": true,
+  "views": [
+    "Normal walking operator, softened arms/workwear/face and retained PPE",
+    "Normal walking feminine Engineer, lit face/sleeves/glasses/badge",
+    "Normal walking civilian neighbour, face/hair/cloth in village context"
+  ],
+  "limitedView": "Gardener work pose expired between inspection and camera capture. Close screenshot shows walking and hidden trowel, not proof of eased digging. Actual-rig tests cover the coupled eased palm/tool contract.",
+  "liveFaceFinish": {
+    "people": 14,
+    "bothBodyTypes": true,
+    "vertexColoursEnabled": true,
+    "colourAttributePresent": true,
+    "nonFiniteGeometry": false
+  },
+  "readiness": {
+    "worldReady": true,
+    "startupReady": true,
+    "loadingCover": false,
+    "override": false
+  },
+  "audio": {
+    "activeNodes": 0,
+    "contextState": "not-created"
+  },
+  "consoleErrors": [],
+  "playerInput": false,
+  "viewportOverride": false,
+  "temporaryTabClosed": true,
+  "previewClosed": true
+}

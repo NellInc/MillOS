@@ -1,0 +1,10 @@
+{
+  "borrowedLinksVerifiedAndRemoved": 375,
+  "emptyOwnedViteTempRemoved": true,
+  "ownNpmCacheRemoved": "/private/tmp/millos-X-npm-cache",
+  "immediateLsofExit": 1,
+  "originalDependencySymlinkRestored": "/Users/nellwatson/Documents/GitHub/MillOS/node_modules",
+  "sourceBuildImagesLogsHistoryPreserved": true,
+  "foreignOutputPreserved": true,
+  "spaceRecoveryClaim": null
+}
