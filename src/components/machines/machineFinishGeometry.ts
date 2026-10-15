@@ -110,6 +110,79 @@ function frontFrame(
   }
 }
 
+/** Folded terminal enclosure with four clipped vertical corners. Its compact
+ * polygon keeps the seated lid/body legible inside the existing machine budget.
+ */
+function motorTerminalPart(parts: THREE.BufferGeometry[], centre: Vec3, size: Vec3) {
+  const [width, height, depth] = size,
+    x = width / 2,
+    z = depth / 2,
+    c = 0.025;
+  const shape = new THREE.Shape(
+    [
+      [-x + c, -z],
+      [x - c, -z],
+      [x, -z + c],
+      [x, z - c],
+      [x - c, z],
+      [-x + c, z],
+      [-x, z - c],
+      [-x, -z + c],
+    ].map((p) => new THREE.Vector2(...p))
+  );
+  const raw = new THREE.ExtrudeGeometry(shape, { depth: height, steps: 1, bevelEnabled: false });
+  raw.clearGroups();
+  raw.rotateX(-Math.PI / 2).translate(centre[0], centre[1] - height / 2, centre[2]);
+  parts.push(mergeVertices(raw));
+  raw.dispose();
+}
+
+/** Small axial fins, chamfered at their ends and rooted inside the retained
+ * .68m motor core. The lower mounting relief clears both original support feet.
+ * Working if every rib stays inside the old .73m radius and cooling gaps remain
+ * open throughout the existing12mm casing vibration, within the incumbent draw.
+ */
+export function createMillMotorFins(): THREE.BufferGeometry {
+  const parts: THREE.BufferGeometry[] = [];
+  const profile = new THREE.Shape(
+    [
+      [2.51, 0.65],
+      [3.51, 0.65],
+      [3.51, 0.695],
+      [3.475, 0.7298],
+      [2.545, 0.7298],
+      [2.51, 0.695],
+    ].map((p) => new THREE.Vector2(...p))
+  );
+  const raw = new THREE.ExtrudeGeometry(profile, { depth: 0.028, steps: 1, bevelEnabled: false });
+  raw.clearGroups();
+  const rib = mergeVertices(raw);
+  raw.dispose();
+  for (let i = 0; i < 12; i++) {
+    if (i === 6) continue;
+    parts.push(
+      rib
+        .clone()
+        .translate(0, 0, -0.014)
+        .rotateX((i * Math.PI) / 6)
+        .translate(0, 1.65, MILL_DRIVE_Z)
+    );
+  }
+  rib.dispose();
+  return finish(parts, 'mill-axial-cooling-ribs');
+}
+
+/** Both ends enter glands whose backs overlap the existing cast faces.
+ * Working if the short service lead meets the terminal and drive backplate
+ * throughout their shared vibration, clear of the fan and access panel.
+ */
+export const MILL_MOTOR_CONDUIT = new THREE.CubicBezierCurve3(
+  new THREE.Vector3(2.545, 2.39, MILL_DRIVE_Z),
+  new THREE.Vector3(2.6, 2.39, MILL_DRIVE_Z),
+  new THREE.Vector3(2.645, 2.43, MILL_DRIVE_Z),
+  new THREE.Vector3(2.7, 2.43, MILL_DRIVE_Z)
+);
+
 /**
  * The Blender study's four-slot casting, kept in the existing procedural batch.
  * Its 10 mm bevel surrounds real openings; the upper and lower slots retain
@@ -168,6 +241,8 @@ function millRecess(): THREE.BufferGeometry {
   const parts: THREE.BufferGeometry[] = [];
   box(parts, [0, 2.82, 1.93], [3.65, 2.7, 0.1]);
   frontFrame(parts, [0, 2.64, 2.66], 4.13, 2.5, 0.045, 0.09);
+  motorTerminalPart(parts, [2.95, 2.534, MILL_DRIVE_Z], [0.455, 0.012, 0.505]);
+  parts.push(new THREE.TubeGeometry(MILL_MOTOR_CONDUIT, 6, 0.024, 6, false));
   return finish(parts, 'mill-panel-gasket-and-recess');
 }
 
@@ -227,6 +302,10 @@ function millGuard(): THREE.BufferGeometry {
   box(parts, [3.02, 0.08, MILL_DRIVE_Z], [1.5, 0.16, 1.55]);
   for (const x of [2.65, 3.35]) box(parts, [x, 0.58, MILL_DRIVE_Z], [0.22, 0.84, 1.12]);
   for (const centre of MILL_INSPECTION_COVERS) cylinder(parts, centre, 0.31, 0.12, 'x', 16);
+  // The terminal base overlaps the fixed motor by20mm at rest, retaining
+  // 8..32mm of contact through the existing vibration sweep.
+  motorTerminalPart(parts, [2.95, 2.42, MILL_DRIVE_Z], [0.45, 0.22, 0.5]);
+  motorTerminalPart(parts, [2.95, 2.5525, MILL_DRIVE_Z], [0.47, 0.035, 0.52]);
   return finish(parts, 'mill-cast-inspection-guard');
 }
 
@@ -253,10 +332,12 @@ function millHardware(): THREE.BufferGeometry {
   for (const centre of MILL_FEEDER_FASTENERS) {
     cylinder(parts, centre, 0.05, 0.075, 'y', 6);
   }
-  // Ribbed aluminium motor casing. The seven fins share this one draw call.
-  for (let fin = 0; fin < 7; fin += 1) {
-    cylinder(parts, [2.53 + fin * 0.16, 1.65, MILL_DRIVE_Z], 0.73, 0.045, 'x', 20);
-  }
+  parts.push(createMillMotorFins());
+  for (const x of [2.79, 3.11])
+    for (const z of [MILL_DRIVE_Z - 0.18, MILL_DRIVE_Z + 0.18])
+      cylinder(parts, [x, 2.579, z], 0.026, 0.024, 'y', 6);
+  cylinder(parts, [2.52, 2.39, MILL_DRIVE_Z], 0.047, 0.065, 'x', 12);
+  cylinder(parts, [2.705, 2.43, MILL_DRIVE_Z], 0.047, 0.065, 'x', 12);
   for (const angle of [0, Math.PI / 2, Math.PI, Math.PI * 1.5]) {
     cylinder(
       parts,

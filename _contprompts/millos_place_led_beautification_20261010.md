@@ -3980,3 +3980,73 @@ AP pacing separately OPEN: all4 art overallbudgets=false. Village day/dusk/night
 AP cleanup/acceptance: verified375 exact borrowed links, no symlinks/users in real own caches, then removed13 disposable files/12250logicalbytes and restored original node_modules symlink. APFS movement-15269888bytes reflects shared writers; no physical recovery claimed. Useful source/active build/maps-in-source/baseline/final images/raw failures/adapter/receipts retained.5source/415compiled/1458untouched hashes stable; protected primary HEAD/fullstatus/binarydiff exact; capture lock released and unrelated10file output/playwright custody preserved.40-item finite acceptance reconciled, exact6tracked-file local check-in follows. Local/muted only, no upload/push/deploy/publication; wider repeating goal remains active.
 
 Following inspection target: rotate from the village square to the lower milling floor's close-range machine surfaces and worker/handling context. The AP interior overview still reads broad teal panel faces at this distance; inspect actual live close-ups before deciding whether there is a worthwhile material/model gap, and reject changes if the detail already resolves nearby. Keep truthful operations, personnel identities/animation and all existing routes/clearance intact; no performance or human/device gate is silently closed by this next art candidate.
+
+
+## AQ: mill drive, seated cooling ribs and connected service detail, 2026-10-15
+
+Previous turn is verified PROGRESS:d73f2567,97affected tests and exact native village/duty/water proof. Live three-angle milling close now rejects the broad material-retune hypothesis: existing casing/grille/instruments are authored and maps are wired. Preserve the external-machine-texture hold and the current paint/metal look. The visible gap is the drive's seven large silver transverse discs, block supports and absent terminal connection. Replace the discs with seated axial cooling ribs, and add a compact painted terminal box/lid, dark gasket, captive bolts, glands and a short housed conduit. All share existing guard/hardware/recess draws. Only machineFinishGeometry.ts and its existing test may change, plus this programme;1461other source/assets frozen, including renderer/materials and every person/route/domain/UI module. Current exact native baseline and71/3test baseline pass,0failures. No new light/mesh/material/map/clock, stock/actor/quality/readiness override, route or budget change. Local/muted, player/device deferred, pacing separately OPEN.
+
+Detailed finite task list:
+1. Reconcile actual d73f2567, full dirty ownership and prior pass evidence.
+2. Pin protected primary HEAD/fullstatus/binarydiff and all untouched source/assets.
+3. Isolate only AQ-owned dependency/npm caches, borrowing exact dependency links.
+4. Record named baseline:71existing machine geometry/surface tests across3files,0failures,7.00s.
+5. Refresh live reachability before unfamiliar machine edits, no new dead/stale/graph misses.
+6. Inspect native front/service/drive close images from actual previous sealed bytes.
+7. Check real maps, material identities, instance counts, operative positions and medium settings.
+8. Reject unnecessary broad enamel/lighting changes and preserve enableMachineTextures=false hold.
+9. Trace real motor axis, core radius/length, fan cage, support feet and existing hardware envelope.
+10. Trace shared guard/hardware/recess vibration and ensure new attachments fit its12mm sweep.
+11. Use one indexed axial-rib assembly inside the existing hardware geometry, without a new mesh.
+12. Shape restrained bevelled rib ends rather than flat large transverse hoops.
+13. Seat rib roots within the retained motor core through every existing vibration phase.
+14. Keep original radial/longitudinal service envelope and clear the fan-end guard.
+15. Leave a lower mounting relief so ribs do not cut through the two support feet.
+16. Preserve open cooling gaps, finite unit normals and ordinary conductor lighting.
+17. Add a compact painted terminal body seated on the real motor crown.
+18. Add a separate lid and narrow dark gasket, with overlap rather than hovering surfaces.
+19. Seat four small captive lid fasteners in the existing machined-hardware draw.
+20. Add visible cable glands with buried backs at both real connection faces.
+21. Fit one short curved conduit between casing and terminal box, with no unsupported endpoints.
+22. Carry conduit/gasket in the current dark recess batch, no transparent cord/light/emission.
+23. Preserve all HMI, live dial, service-cover/serial-label, grille and moving-roll clearances.
+24. Preserve whole machine instances, material ownership, shadows, picking and all animation/state logic.
+25. Keep old geometry/triangle/service bounds without changing acceptance thresholds.
+26. Reuse established geometry/raycast tests, avoiding a new test framework or generalized harness.
+27. Prove finite/indexed ribs, bounds, seated roots, open channels and mounting relief.
+28. Prove terminal/gasket/lid/bolt contacts and cable/gland containment at both ends.
+29. Exercise the existing vibration sweep against retained core/casing/support geometry.
+30. Run coherent71baseline plus new affected tests and report the named delta/failures honestly.
+31. Run required typecheck/lint/whole-source format/shaders with existing limits.
+32. Build under the capture lock, pin actual source/compiled bytes, refresh reachability.
+33. Inspect exact native front/service/drive close views and all4 ordinary mill instances.
+34. Inspect unchanged-medium mill day/dusk/night and daytime village integration, muted and clean.
+35. Record pacing/startup misses separately; no quiet-GPU requirement or green-seeking repeats.
+36. Restore original dependencies, delete only inactive owned disposable caches, preserve all useful evidence.
+37. Verify untouched-source/primary/unrelated-dirty/compiled custody and every finite acceptance item.
+38. Selectively check in the local pass, keep the wider goal active and choose the next real gap.
+
+Pre-mortem: ribs can float off the fixed motor while shared fittings vibrate; added box/cord geometry can exceed the accepted budget; glands can be buried behind the existing right service cover. Use measured core overlap across±.012m, retire the old disc triangles to fund detail, and place each gland through its actual face. Working if the drive reads as a coherent finned motor with a supported service connection, real clearances and original budgets pass, and silent exact-build views retain the surrounding world/people/UI and separate pacing evidence. This authoring chat reviews its own art, no independent or human/device approval is claimed.
+
+
+AQ first bounded gate:70passed/1failure, existing mill geometry budget measured3064triangles against its unchanged<3000limit. Retain raw log; no threshold relaxed. Replace the tiny terminal body's108triangle rounded cuboid with a28triangle clipped-corner enclosure, use the same seated silhouette on its lid, and resolve the short17cm lead with6smooth tube sections instead of8. These are manufactured shapes at the same bounds; the eleven axial ribs and all connections remain. Four focused geometric/contact contracts exercise the real retained20-sided motor,21vibration states, cooling/mounting gaps, full terminal stack and both actual gland faces. Final affected gate follows.
+
+
+AQ pre-gasket source proof:75/3files passed (+4versus71baseline),0failures,6.41s. Original strict<3000mill/5688overall triangle gates and service bounds remain unchanged. Eleven220triangle axial ribs have chamfered ends, open channels, buried roots through21sampled±.012m vibration states against the actual retained20-sided .68m motor, and>10mm relief above the real shared support feet. A clipped-corner painted enclosure/lid seats its dark gasket and four captive hex bolts; both real gland backs intersect their supporting cast faces and house the short smooth conduit endpoints. Original HMI/dial/serial/grille/roll/picking/material/animation tests retain their assertions. No renderer, material, texture, actor, route, domain, UI or quality module changed. Typecheck/lint/whole-source format/shaders34families38keys terminal0. Optional Impeccable unavailable, no install. Locked exact build/native acceptance follows.
+
+
+AQ finishing correction: the first locked build passed (Vite20.52s/wrapper23.244s,415files/181745293bytes), but root's subsequent geometric review found the box-shaped gasket protruded at the clipped lid corners. A new full961point footprint test reproduced a missing lid above occupied rubber, before changing the fitting. Match the gasket's own corners to the enclosure, adding16triangles while preserving the same strict<3000mill limit. Its broad supporting area must remain>800sampled points, preventing a vacuous empty-mask pass. Retire the preceding seal/logs explicitly as pre-gasket evidence; no render used that candidate. Final affected/source/build/native acceptance follows the corrected fitting.
+
+
+AQ final source acceptance: corrected full76/3files passed (+5versus71baseline),0failures,6.66s. Dense gasket footprint now remains housed beneath the clipped lid while retaining>800occupied/support samples. Existing contact,21state vibration and cooling/service-clearance assertions pass, with strict2992<3000mill geometry budget observed later in the live assembly. Typecheck/lint/whole-source format/shaders terminal0. Root corrected a comment to distinguish nominal20mm core overlap from the actual8..32mm vibration range; a fresh build confirms all415compiled files byte-identical after that comment-only clarification, and targeted formatting passes. Tests/source gates are not rerun for reassurance when only the non-shipping comment changes.
+
+AQ corrected build/close: final locked build terminal0, Vite23.60s/wrapper26.355s,415files/181745293bytes. Fresh reachability passed on these byte-identical compiled files. Exact served index/main-CwoLgujR.js identity matches the final seal. Native assembly reports4mill instances and2992fitting triangles per mill; all guard/hardware/recess instance matrices agree throughout the captured ordinary frame. Front/service/drive and dedicated rear-side connection PNGs inspected by this author: axial ribs replace the disc stack; top enclosure/gasket/captive bolts and contained gland/lead read together, cooling gaps and original cage/support/controls remain. Same compiled bytes bind all4 images despite the source-comment clarification. Ordinary medium, world integrity true, no console/page/request/texture diagnostics, audio0/contextnot-created. All task native browsers/preview/locks close normally; no actor/inventory/quality/readiness override. Day/dusk/night integration follows.
+
+
+AQ final integration/art: all4 actual milling day/dusk/night and daytime village PNGs inspected by this author. Native sandboxed out-of-process Apple Metal; unchanged medium/adaptation and1.2effectiveDPR. Every served index/entry SHA matches the415-file final seal despite generic skip-build/dirty-tree warnings. WorldIntegrity/pageClean/communityPresence/checkpoints/effectiveDpr and ordinary vehicle-motion checks pass, diagnostics empty, screenshot errors null, audio0/contextnot-created. Four close views retain actual4-instance/2992triangle-per-mill alignment proof. Existing machinery layout, workers, village, grounds, sky, windows, lighting rig, material palette, UI and railway/port/mountain clearance remain intact; this pass claims the drive craft only. Qualitative iteration is not a paired pixel or performance comparison.
+
+AQ pacing remains separately OPEN: all4 indicative art overallbudgets=false. Milling day/dusk/night p95=18.0/17.5/17.5ms,average60.00/60.00/60.19FPS; daytime village p95=18.1ms,average59.96FPS (also misses average check). Load/core4.10/3.90/3.01(milling),4.41(village), all above3, so no regression/non-regression attribution. World-ready16.639..20.972s,startup-ready21.250..25.731s. No non-art performance gate or player/device acceptance claimed; no quality/readiness/budget override, quiet-capacity requirement or green-seeking retry.
+
+AQ cleanup/custody/acceptance: verified375 exact borrowed links and unused/no-symlink own cache trees; removed13 disposable files/11857logicalbytes and restored the original node_modules symlink. APFS free-space movement-8470528bytes includes other writers and is not attributable recovery. Useful source/active build/baseline and final images/all raw failures/native adapter/seals/receipts retained.2source/415compiled/1461untouched hashes stable; protected primary HEAD/fullstatus/binarydiff exact, capture lock released, unrelated10file output/playwright custody preserved.38-item finite acceptance reconciled, exact3tracked-file local check-in follows. No remote compute/upload/push/deploy/publication. Wider repeating goal remains active, interface preserved, player/device checks deferred, pacing separately OPEN.
+
+Next evidenced target: milling-at22 shows a bright aisle and ceiling fixtures while the foreground workface/dial and nearby people remain much darker than the upper sifter faces. Inspect the incumbent interior-light positions/occlusion and their emitted/pool/readability relationship before editing. Prefer improving their bounded distribution within existing lighting/shadow/quality budgets; preserve night contrast and the authored palette. Working if actual controls and people at the work post read under plausible fixtures without globally washing out the night or silently increasing budgets. This is a following-pass candidate, not a lighting improvement claimed by AQ.
