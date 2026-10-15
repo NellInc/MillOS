@@ -431,3 +431,58 @@ it('locks a turning rider to the actual bicycle heading, preserving pedal and ha
   }
   expect(Math.abs(finalHeading - initialHeading)).toBeGreaterThan(0.1);
 });
+
+it('transports seat frames after root turning, freezes holds and clears old replay cues', () => {
+  useGameSimulationStore.setState({
+    gameDay: 0,
+    gameTime: 0.015,
+    gameSpeed: 180,
+    isTabVisible: true,
+    emergencyActive: false,
+    emergencyDrillMode: false,
+  });
+  const tree = CommunityLife(),
+    nodes = tree.props.children[0].props.children;
+  const roots = nodes.map((node: any) => {
+    const root = new THREE.Group();
+    root.name = node.props.name;
+    root.position.fromArray(node.props.position);
+    root.rotation.y = node.props.rotation[1];
+    node.props.ref(root);
+    return root;
+  });
+  flushEffects();
+  const scene = new THREE.Scene();
+  roots.forEach((root: THREE.Group) => scene.add(root));
+  const frame = harness.frames[0] as (state: any, delta: number) => void,
+    participant = harness.participants.get('personnel')!;
+  const snapshot = structuredClone(participant.capture());
+  const index = snapshot.residents.findIndex((r: any) => r.pose.seated && r.pose.seat);
+  expect(index).toBeGreaterThanOrEqual(0);
+  const root = roots[index],
+    motion = nodes[index].props.children[0].props.motion;
+  root.rotation.y += 1.3;
+  frame({ camera, scene }, 1 / 60);
+  const cue = motion.seat!,
+    anchor = participant.capture().residents[index].pose.seat;
+  const mapped = new THREE.Vector3(cue.x, 0, cue.z)
+    .applyAxisAngle(new THREE.Vector3(0, 1, 0), root.rotation.y)
+    .add(root.position);
+  expect(mapped.x).toBeCloseTo(anchor.position[0], 6);
+  expect(mapped.z).toBeCloseTo(anchor.position[2], 6);
+  expect(root.rotation.y + cue.yaw).toBeCloseTo(anchor.rotation, 6);
+  const held = structuredClone(cue);
+  useGameSimulationStore.setState({ gameSpeed: 0 });
+  frame({ camera, scene }, 1 / 60);
+  expect(motion.seat.amount).toBe(held.amount);
+  const old = structuredClone(participant.capture());
+  for (const actor of old.residents) {
+    delete actor.pose.seat;
+    delete actor.motion.seat;
+  }
+  participant.restore(old);
+  expect(motion.seat).toBeUndefined();
+  expect(participant.capture().residents[index].pose.seat).toBeUndefined();
+  participant.restore(snapshot);
+  expect(motion.seat).toEqual(snapshot.residents[index].motion.seat);
+});

@@ -771,3 +771,93 @@ it('holds a greeting through centimetre-scale nearest-neighbour jitter and relea
   first.position[2] = -2;
   expect(sampleCommunityGreeting(shop, pose, actors, out)).toEqual({ targetId: null, yaw: 0 });
 });
+
+describe('analytic seat arrival and departure support', () => {
+  it('places, lowers, rises and releases on every unchanged authored seat route', () => {
+    for (const person of COMMUNITY_ROSTER) {
+      let start = -person.phase;
+      for (let i = 0; i < person.stops.length; i++) {
+        const node = person.stops[i],
+          next = person.stops[(i + 1) % person.stops.length];
+        if (node.seated) {
+          const sample = (at: number) => sampleCommunityPerson(person, start + at);
+          const beginning = sample(1e-7),
+            settled = sample(node.hours * 0.5),
+            standing = sample(node.hours - 0.005),
+            outgoing = sample(node.hours + 0.00001),
+            incoming = sample(-0.00001);
+          expect(beginning.seat?.amount, person.id).toBeLessThan(0.001);
+          expect(settled.seat).toMatchObject({
+            amount: 1,
+            support: 1,
+            position: node.position,
+            rotation: node.rotation,
+          });
+          expect(standing.seated).toBe(true);
+          expect(standing.seat?.amount).toBe(0);
+          expect(standing.position).toEqual(node.position);
+          expect(outgoing.seated).toBe(false);
+          expect(outgoing.seat).toMatchObject({ amount: 0, support: 1 });
+          expect(incoming.seat).toMatchObject({ amount: 0, support: 1 });
+          for (let j = 0; j <= 60; j++) {
+            const at = (node.hours * j) / 60,
+              p = sample(Math.min(node.hours - 1e-7, at + 1e-7));
+            expect(p.position).toEqual(node.position);
+            expect(p.seat!.amount).toBeGreaterThanOrEqual(0);
+            expect(p.seat!.amount).toBeLessThanOrEqual(1);
+            expect(p.seat!.support).toBe(1);
+          }
+        }
+        start +=
+          node.hours +
+          Math.hypot(node.position[0] - next.position[0], node.position[2] - next.position[2]) *
+            WALK_HOURS_PER_METRE;
+      }
+    }
+  });
+  it('resets reused cue output on special branches and bounds short route windows', () => {
+    const person = {
+      id: 'short-seat',
+      role: 'Resident',
+      district: 'mill' as const,
+      phase: 0,
+      stops: [
+        {
+          position: [0, 0, 0] as [number, number, number],
+          rotation: 0,
+          hours: 0.03,
+          activity: 'break' as const,
+          task: 'Rest',
+          seated: true,
+        },
+        {
+          position: [0.1, 0, 0] as [number, number, number],
+          rotation: 0,
+          hours: 0.02,
+          activity: 'idle' as const,
+          task: 'Stand',
+        },
+      ],
+    };
+    const out = sampleCommunityPerson(person, 0.015);
+    for (let t = 0; t < routineDuration(person); t += 0.0002) {
+      sampleCommunityPerson(person, t, out);
+      if (out.seat) {
+        expect(
+          Object.values({ amount: out.seat.amount, support: out.seat.support }).every(
+            (v) => Number.isFinite(v) && v >= 0 && v <= 1
+          )
+        ).toBe(true);
+        if (out.seat.amount > 0) expect(out.seat.support).toBe(1);
+      }
+    }
+    for (const id of ['village-cyclist', 'village-courier', 'bus-arriving', 'bus-departing']) {
+      sampleCommunityPerson(person, 0.015, out);
+      expect(out.seat).toBeDefined();
+      sampleCommunityPerson(COMMUNITY_ROSTER.find((p) => p.id === id)!, 12, out);
+      expect(out.seat).toBeUndefined();
+    }
+    sampleCommunityPerson(person, NaN, out);
+    expect(out.seat?.amount ?? 0).not.toBeNaN();
+  });
+});

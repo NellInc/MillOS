@@ -1,5 +1,16 @@
 /** Role cues and stable per-person variation for the shared authored bodies. */
 
+/** Analytic route-owned seat support, in current actor-root metres/radians.
+ * Working if a turning/moving root leaves fully supported boots at the seat.
+ */
+export interface WorkerSeatCue {
+  amount: number;
+  support: number;
+  x: number;
+  z: number;
+  yaw: number;
+}
+
 /** Root advances this object before the renderer's frame callback. */
 export interface WorkerMotionState {
   activity: 'working' | 'break' | 'idle' | 'walking';
@@ -19,6 +30,8 @@ export interface WorkerMotionState {
   attentionYaw?: number;
   cartGrip?: 'push' | 'pull';
   seatFloorOffset?: number;
+  /** Missing old motion/replay shapes retain the original seated pose. */
+  seat?: WorkerSeatCue;
   /** Parent-owned crank angle in radians; no independent pedalling clock. */
   cyclePhase?: number;
 }

@@ -41,6 +41,28 @@ import { EXTERIOR_LAYERS, POLYGON_OFFSET } from '../constants/renderLayers';
 const COLOURS = ['#596e72', '#53637c', '#9a7654', '#6b8568', '#bdad82', '#6b5871'];
 const _truckPosition = new THREE.Vector3();
 
+/** Convert after the actor's real eased heading, not the route's target yaw.
+ * Working if fully supported feet survive the existing incoming half-turn.
+ */
+function updateSeatCue(
+  motion: WorkerMotionState,
+  pose: ReturnType<typeof createCommunityPose>,
+  yaw: number
+) {
+  if (!pose.seat) {
+    motion.seat = undefined;
+    return;
+  }
+  const cue = motion.seat ?? (motion.seat = { amount: 0, support: 0, x: 0, z: 0, yaw: 0 });
+  const dx = pose.seat.position[0] - pose.position[0],
+    dz = pose.seat.position[2] - pose.position[2];
+  cue.amount = pose.seat.amount;
+  cue.support = pose.seat.support;
+  cue.x = dx * Math.cos(yaw) - dz * Math.sin(yaw);
+  cue.z = dx * Math.sin(yaw) + dz * Math.cos(yaw);
+  cue.yaw = Math.atan2(Math.sin(pose.seat.rotation - yaw), Math.cos(pose.seat.rotation - yaw));
+}
+
 function AgreementLabel({ personId }: { personId: string }) {
   const label = useWorkplaceStore((s) => communityAgreementCue(personId, s.workplace)?.label);
   const emergency = useGameSimulationStore((s) => s.emergencyActive || s.emergencyDrillMode);
@@ -102,6 +124,7 @@ export function CommunityLife() {
           enabled: false,
           phase: i * 1.731,
         };
+        updateSeatCue(motion, pose, pose.rotation);
         return {
           person,
           hour: initialHour,
@@ -145,6 +168,8 @@ export function CommunityLife() {
             const resident = residents[index];
             if (!resident) return;
             resident.hour = actor.hour;
+            resident.pose.seat = undefined;
+            resident.motion.seat = undefined;
             Object.assign(resident.pose, actor.pose);
             resident.motion.attentionYaw = actor.motion.attentionYaw ?? 0;
             Object.assign(resident.motion, actor.motion);
@@ -253,6 +278,7 @@ export function CommunityLife() {
       root.visible = pose.visible;
       motion.activity = emergency && !pose.seated ? 'idle' : pose.activity;
       motion.seated = pose.seated;
+      updateSeatCue(motion, pose, root.rotation.y);
       motion.seatFloorOffset = actor.person.district === 'bus' ? 0.048 : 0;
       motion.cycling = actor.person.role === 'Cyclist';
       motion.cyclePhase = bicycle.pedalPhase;

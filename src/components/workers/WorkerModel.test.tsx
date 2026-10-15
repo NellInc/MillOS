@@ -1398,3 +1398,66 @@ it('adds owned baker cloth to the cloned rig and disposes only its private resou
   expect(disposeSource).not.toHaveBeenCalled();
   expect(createBakerApron(new THREE.Group())).toBeNull();
 });
+
+it('samples seat cue numbers without throttle or pause lag, and keeps legacy seating', () => {
+  const scene = new THREE.Group(),
+    body = new THREE.Group(),
+    hips = new THREE.Group();
+  body.name = 'Body';
+  hips.name = 'Hips';
+  body.position.y = 0.9;
+  body.add(hips);
+  scene.add(body);
+  const clips = ['idle', 'walk', 'break'].map(
+    (n) =>
+      new THREE.AnimationClip('worker-' + n, 2, [
+        new THREE.NumberKeyframeTrack('Body.position[y]', [0, 2], [0.9, 0.9]),
+      ])
+  );
+  harness.asset = { scene, animations: clips };
+  const motion: WorkerMotionState = {
+    activity: 'break',
+    seated: true,
+    enabled: false,
+    phase: 0,
+    groundSpeed: 0,
+    animationInterval: 1 / 15,
+    seat: { amount: 1, support: 1, x: 0, z: 0, yaw: 0 },
+  };
+  render(
+    <WorkerModel
+      appearance={{
+        ...getWorkerAppearance('Resident', '', 'seated-neighbour'),
+        heightScale: 1,
+        bodyScale: 1,
+      }}
+      motion={motion}
+    />
+  );
+  const y = () => {
+    scene.updateWorldMatrix(true, true);
+    return hips.getWorldPosition(new THREE.Vector3()).y;
+  };
+  expect(y()).toBeCloseTo(0.55, 5);
+  motion.seat!.amount = 0.5;
+  harness.frame?.({}, 1 / 120);
+  const half = y();
+  expect(half).toBeGreaterThan(0.6);
+  expect(half).toBeLessThan(0.85);
+  harness.frame?.({}, 100);
+  expect(y()).toBe(half);
+  motion.seat!.amount = 0;
+  harness.frame?.({}, 1 / 120);
+  expect(y()).toBeCloseTo(0.9, 5);
+  motion.enabled = true;
+  motion.seat!.x = 0.1;
+  harness.frame?.({}, 1 / 120);
+  const before = hips.getWorldPosition(new THREE.Vector3()).x;
+  motion.seat!.x = 0.2;
+  harness.frame?.({}, 1 / 120);
+  expect(hips.getWorldPosition(new THREE.Vector3()).x - before).toBeCloseTo(0.1, 5);
+  motion.enabled = false;
+  motion.seat = undefined;
+  harness.frame?.({}, 0);
+  expect(y()).toBeCloseTo(0.55, 5);
+});

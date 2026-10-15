@@ -1,5 +1,22 @@
 import * as THREE from 'three';
-import type { WorkerBodyType, WorkerWorkAction, WorkerMotionState, ToolType } from './workerTypes';
+import type {
+  WorkerBodyType,
+  WorkerWorkAction,
+  WorkerMotionState,
+  WorkerSeatCue,
+  ToolType,
+} from './workerTypes';
+
+export function validWorkerSeatCue(cue: WorkerSeatCue | undefined): cue is WorkerSeatCue {
+  return (
+    !!cue &&
+    Number.isFinite(cue.amount) &&
+    Number.isFinite(cue.support) &&
+    Number.isFinite(cue.x) &&
+    Number.isFinite(cue.z) &&
+    Number.isFinite(cue.yaw)
+  );
+}
 import { WORKER_EYE_CENTRES } from './SharedWorkerGeometries';
 
 /** Seat top and pelvis joint are different anchors: the fleshy underside is 9 cm below the joint. */
@@ -375,7 +392,12 @@ export function sampleWorkerGesture(
  * in model coordinates, so a parent rotation still makes the person face +Z.
  * All temporary vectors are per instance and reused; shared geometry is untouched.
  */
-export function createSeatedWorkerPose(model: THREE.Object3D, heightScale = 1, bodyScale = 1) {
+export function createSeatedWorkerPose(
+  model: THREE.Object3D,
+  heightScale = 1,
+  bodyScale = 1,
+  referenceClip?: THREE.AnimationClip
+) {
   const names = [
     'Body',
     'Hips',
@@ -456,6 +478,77 @@ export function createSeatedWorkerPose(model: THREE.Object3D, heightScale = 1, b
   const feet = [new THREE.Vector3(), new THREE.Vector3()];
   const palmLengths = [0.09, 0.09];
   const lengths = { legL: [0, 0], legR: [0, 0], armL: [0, 0], armR: [0, 0] };
+
+  const incomingFeet = [new THREE.Vector3(), new THREE.Vector3()];
+  const seatedFeet = [new THREE.Vector3(), new THREE.Vector3()];
+  const referenceFeet = [new THREE.Vector3(), new THREE.Vector3()];
+  const referenceFootRotation = [new THREE.Quaternion(), new THREE.Quaternion()];
+  const referenceFootScale = [new THREE.Vector3(), new THREE.Vector3()];
+  const incomingFootRotation = [new THREE.Quaternion(), new THREE.Quaternion()];
+  const seatedFootRotation = [new THREE.Quaternion(), new THREE.Quaternion()];
+  const incomingFootScale = [new THREE.Vector3(), new THREE.Vector3()];
+  const seatedFootScale = [new THREE.Vector3(), new THREE.Vector3()];
+  const incomingPoles = [new THREE.Vector3(), new THREE.Vector3()];
+  const footMatrix = new THREE.Matrix4(),
+    footLocal = new THREE.Matrix4();
+  const poseQuaternion = new THREE.Quaternion(),
+    footQuaternion = new THREE.Quaternion();
+  const footScale = new THREE.Vector3(),
+    seatHips = new THREE.Vector3();
+  model.updateWorldMatrix(true, true);
+  inverse.copy(model.matrixWorld).invert();
+  let standingHeight = bones.get('Hips') ? modelPosition(bones.get('Hips')!, p).y : 0.9 / scale;
+  // Bound each real boot in its Foot bind frame once. A tilted toe can be
+  // below the floor even when its ankle clears the planned lift arc.
+  const soleBoxes = [new THREE.Box3(), new THREE.Box3()];
+  model.traverse((object) => {
+    const mesh = object as THREE.SkinnedMesh;
+    if (!mesh.isSkinnedMesh || !mesh.parent?.name.includes('Worker_Feet')) return;
+    const position = mesh.geometry.attributes.position,
+      indices = mesh.geometry.attributes.skinIndex,
+      weights = mesh.geometry.attributes.skinWeight;
+    if (!indices || !weights) return;
+    for (let side = 0; side < 2; side++) {
+      const foot = bones.get(`Foot${sides[side]}`),
+        joint = mesh.skeleton.bones.indexOf(foot as THREE.Bone);
+      if (joint < 0) continue;
+      for (let vertex = 0; vertex < position.count; vertex++) {
+        let belongs = false;
+        for (let influence = 0; influence < 4; influence++)
+          if (
+            indices.getComponent(vertex, influence) === joint &&
+            weights.getComponent(vertex, influence) > 0.001
+          )
+            belongs = true;
+        if (belongs)
+          soleBoxes[side].expandByPoint(
+            p
+              .fromBufferAttribute(position, vertex)
+              .applyMatrix4(mesh.bindMatrix)
+              .applyMatrix4(mesh.skeleton.boneInverses[joint])
+          );
+      }
+    }
+  });
+  const soleCorners = soleBoxes.map((box) => {
+    const points: THREE.Vector3[] = [];
+    if (!box.isEmpty())
+      for (const x of [box.min.x, box.max.x])
+        for (const y of [box.min.y, box.max.y])
+          for (const z of [box.min.z, box.max.z]) points.push(new THREE.Vector3(x, y, z));
+    return points;
+  });
+
+  function seatPoint(point: THREE.Vector3, cue: WorkerSeatCue, cosine: number, sine: number) {
+    const x = point.x;
+    point.x = cosine * x + sine * point.z + cue.x / widthScale;
+    point.z = -sine * x + cosine * point.z + cue.z / widthScale;
+    return point;
+  }
+  const seatCalves = sides.map((side) =>
+    saved.find((entry) => entry.bone === bones.get(`LowerLeg${side}`))
+  );
+  const seatArms = saved.filter((entry) => /^(UpperArm|LowerArm|Wrist)/.test(entry.bone.name));
 
   function capture() {
     for (const entry of saved) {
@@ -652,7 +745,7 @@ export function createSeatedWorkerPose(model: THREE.Object3D, heightScale = 1, b
     model.updateWorldMatrix(false, true);
   }
 
-  return {
+  const controller = {
     applyTask,
     applyGarden(working: boolean, gesture?: WorkerGesture, delta = 0, immediate = false) {
       if (!working && !gardenStance) return false;
@@ -815,6 +908,121 @@ export function createSeatedWorkerPose(model: THREE.Object3D, heightScale = 1, b
       applied = true;
       model.updateWorldMatrix(false, true);
     },
+    /** Route-owned support and seat amount are sampled directly, with no lag.
+     * Working if support endpoints are exact and intermediate soles step clear.
+     */
+    applySeat(cue: WorkerSeatCue, floorOffset = 0, gesture?: WorkerGesture) {
+      if (!validWorkerSeatCue(cue)) {
+        this.apply(floorOffset, gesture);
+        return;
+      }
+      const support = THREE.MathUtils.clamp(cue.support, 0, 1);
+      const amount = THREE.MathUtils.clamp(cue.amount, 0, 1);
+      if (support === 0) return;
+      capture();
+      for (let i = 0; i < sides.length; i++) {
+        const thigh = bones.get(`UpperLeg${sides[i]}`),
+          calf = bones.get(`LowerLeg${sides[i]}`),
+          foot = bones.get(`Foot${sides[i]}`);
+        if (!thigh || !calf || !foot) continue;
+        chainLengths(thigh, calf, foot, lengths[i === 0 ? 'legL' : 'legR']);
+        modelPosition(calf, incomingPoles[i]).sub(modelPosition(thigh, p));
+        footMatrix
+          .copy(inverse)
+          .multiply(foot.matrixWorld)
+          .decompose(incomingFeet[i], incomingFootRotation[i], incomingFootScale[i]);
+      }
+      this.apply(floorOffset, gesture);
+      const body = bones.get('Body'),
+        hips = bones.get('Hips'),
+        abdomen = bones.get('Abdomen');
+      if (!body || !hips) return;
+      const cosine = Math.cos(cue.yaw),
+        sine = Math.sin(cue.yaw);
+      deltaRotation.setFromAxisAngle(axis.set(0, 1, 0), cue.yaw);
+      for (let i = 0; i < sides.length; i++) {
+        const foot = bones.get(`Foot${sides[i]}`);
+        if (!foot) continue;
+        seatedFeet[i].copy(referenceFeet[i]);
+        seatedFeet[i].y += Math.max(0, floorOffset) / scale;
+        seatedFootRotation[i].copy(referenceFootRotation[i]);
+        seatedFootScale[i].copy(referenceFootScale[i]);
+        seatPoint(seatedFeet[i], cue, cosine, sine);
+        seatedFootRotation[i].premultiply(deltaRotation);
+      }
+      modelPosition(hips, seatHips);
+      // Rotate the complete target pose through the same authored seat frame.
+      to.set(0, 1, 0).transformDirection(model.matrixWorld);
+      if (body.parent) to.transformDirection(parentInverse.copy(body.parent.matrixWorld).invert());
+      deltaRotation.setFromAxisAngle(to, cue.yaw);
+      body.quaternion.premultiply(deltaRotation);
+      body.updateWorldMatrix(false, true);
+      modelPosition(hips, q);
+      target.set(
+        seatHips.x,
+        THREE.MathUtils.lerp(standingHeight + Math.max(0, floorOffset) / scale, seatHips.y, amount),
+        seatHips.z + (0.27 * (1 - amount)) / widthScale
+      );
+      seatPoint(target, cue, cosine, sine);
+      modelPosition(body, p).add(target.sub(q));
+      setPosition(body, p);
+      if (abdomen && amount < 1)
+        aim(
+          hips,
+          abdomen,
+          direction.set(
+            sine * Math.sin(amount * Math.PI) * 0.22,
+            1,
+            cosine * Math.sin(amount * Math.PI) * 0.22
+          )
+        );
+      // Arms leave the lap before departure; only supported leg contacts are IK.
+      for (const entry of seatArms) {
+        poseQuaternion.copy(entry.bone.quaternion);
+        entry.bone.quaternion.slerpQuaternions(entry.quaternion, poseQuaternion, amount);
+      }
+      for (const entry of saved) {
+        poseQuaternion.copy(entry.bone.quaternion);
+        entry.bone.position.lerpVectors(entry.position, entry.bone.position, support);
+        entry.bone.quaternion.slerpQuaternions(entry.quaternion, poseQuaternion, support);
+        entry.bone.scale.lerpVectors(entry.scale, entry.bone.scale, support);
+      }
+      model.updateWorldMatrix(false, true);
+      for (let i = 0; i < sides.length; i++) {
+        const thigh = bones.get(`UpperLeg${sides[i]}`),
+          calf = bones.get(`LowerLeg${sides[i]}`),
+          foot = bones.get(`Foot${sides[i]}`);
+        if (!thigh || !calf || !foot) continue;
+        // Reverse the same stagger on departure. Every moving endpoint lifts.
+        const step = THREE.MathUtils.smoothstep(support, i === 0 ? 0 : 0.3, i === 0 ? 0.7 : 1);
+        target.lerpVectors(incomingFeet[i], seatedFeet[i], step);
+        target.y += (Math.sin(step * Math.PI) * 0.055) / scale;
+        footQuaternion.slerpQuaternions(incomingFootRotation[i], seatedFootRotation[i], step);
+        footScale.lerpVectors(incomingFootScale[i], seatedFootScale[i], step);
+        let soleOffset = Infinity;
+        for (const corner of soleCorners[i])
+          soleOffset = Math.min(
+            soleOffset,
+            p.copy(corner).multiply(footScale).applyQuaternion(footQuaternion).y
+          );
+        if (support < 1 && Number.isFinite(soleOffset))
+          target.y = Math.max(target.y, (Math.max(0, floorOffset) + 0.008) / scale - soleOffset);
+        const originalCalf = seatCalves[i];
+        if (originalCalf) calf.scale.copy(originalCalf.scale);
+        pole.copy(incomingPoles[i]).lerp(direction.set(sine, 0, cosine), support);
+        solveChain(thigh, calf, foot, target, lengths[i === 0 ? 'legL' : 'legR'], pole, true);
+        footMatrix.compose(target, footQuaternion, footScale);
+        footLocal
+          .copy(foot.parent!.matrixWorld)
+          .invert()
+          .multiply(model.matrixWorld)
+          .multiply(footMatrix);
+        footLocal.decompose(foot.position, foot.quaternion, foot.scale);
+        foot.updateWorldMatrix(false, true);
+      }
+      applied = true;
+      model.updateWorldMatrix(false, true);
+    },
     apply(floorOffset = 0, gesture?: WorkerGesture) {
       const footHeight =
         (0.03 + Math.max(0, Number.isFinite(floorOffset) ? floorOffset : 0)) / scale;
@@ -872,4 +1080,51 @@ export function createSeatedWorkerPose(model: THREE.Object3D, heightScale = 1, b
       model.updateWorldMatrix(false, true);
     },
   };
+  // Probe only this private rig, before its live mixer owns the frame. No action,
+  // clock or per-episode state survives; replay derives the same authored stance.
+  const originalPose = saved.map((entry) => ({
+    bone: entry.bone,
+    position: entry.bone.position.clone(),
+    quaternion: entry.bone.quaternion.clone(),
+    scale: entry.bone.scale.clone(),
+  }));
+  try {
+    for (const track of referenceClip?.tracks ?? []) {
+      const match = /^([^.]+)\.(position|quaternion|scale)(?:\[([xyz])\])?$/.exec(track.name);
+      const bone = match && bones.get(match[1]);
+      if (!match || !bone || !Array.from(track.values).every(Number.isFinite)) continue;
+      const size = track.getValueSize();
+      const sample =
+        match[2] === 'quaternion' && size === 4
+          ? new THREE.QuaternionLinearInterpolant(track.times, track.values, size).evaluate(0)
+          : new THREE.LinearInterpolant(track.times, track.values, size).evaluate(0);
+      if (match[2] === 'quaternion' && size === 4) bone.quaternion.fromArray(sample).normalize();
+      else if (match[2] === 'position' || match[2] === 'scale') {
+        const value = bone[match[2]];
+        if (match[3] && size === 1) value[match[3] as 'x' | 'y' | 'z'] = sample[0];
+        else if (size === 3) value.fromArray(sample);
+      }
+    }
+    model.updateWorldMatrix(true, true);
+    inverse.copy(model.matrixWorld).invert();
+    if (bones.get('Hips')) standingHeight = modelPosition(bones.get('Hips')!, p).y;
+    controller.apply();
+    for (let i = 0; i < sides.length; i++) {
+      const foot = bones.get(`Foot${sides[i]}`);
+      if (foot)
+        footMatrix
+          .copy(inverse)
+          .multiply(foot.matrixWorld)
+          .decompose(referenceFeet[i], referenceFootRotation[i], referenceFootScale[i]);
+    }
+  } finally {
+    controller.restore();
+    for (const entry of originalPose) {
+      entry.bone.position.copy(entry.position);
+      entry.bone.quaternion.copy(entry.quaternion);
+      entry.bone.scale.copy(entry.scale);
+    }
+    model.updateWorldMatrix(false, true);
+  }
+  return controller;
 }

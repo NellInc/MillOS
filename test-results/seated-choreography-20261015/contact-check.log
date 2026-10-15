@@ -1,0 +1,71 @@
+
+> grain-mill-simulator@0.40.0 test
+> vitest run src/components/workers/workerPose.test.ts -t route-supported
+
+(node:13594) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+ RUN  v4.1.10 /Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS
+
+ ❯ src/components/workers/workerPose.test.ts (97 tests | 4 failed | 93 skipped) 121ms
+     × masculine/0.95 lowers and rises on supported soles, preserving legacy endpoints 11ms
+     × masculine/1.08 lowers and rises on supported soles, preserving legacy endpoints 3ms
+     × feminine/0.95 lowers and rises on supported soles, preserving legacy endpoints 2ms
+     × feminine/1.08 lowers and rises on supported soles, preserving legacy endpoints 2ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/workers/workerPose.test.ts > route-supported seat choreography on the actual rigs > masculine/0.95 lowers and rises on supported soles, preserving legacy endpoints
+AssertionError: expected 0.0002102004713842163 to be less than 0.000001
+ ❯ src/components/workers/workerPose.test.ts:1691:53
+    1689|         pose.applySeat({ amount: 1, support: 1, x: 0, z: 0, yaw: 0 });
+    1690|         for (const [o, b] of legacy) {
+    1691|           expect(o.position.distanceTo(b.position)).toBeLessThan(1e-6);
+       |                                                     ^
+    1692|           expect(o.quaternion.angleTo(b.quaternion)).toBeLessThan(1e-6…
+    1693|           expect(o.scale.distanceTo(b.scale)).toBeLessThan(1e-6);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL  src/components/workers/workerPose.test.ts > route-supported seat choreography on the actual rigs > masculine/1.08 lowers and rises on supported soles, preserving legacy endpoints
+AssertionError: expected 0.0002102004713842164 to be less than 0.000001
+ ❯ src/components/workers/workerPose.test.ts:1691:53
+    1689|         pose.applySeat({ amount: 1, support: 1, x: 0, z: 0, yaw: 0 });
+    1690|         for (const [o, b] of legacy) {
+    1691|           expect(o.position.distanceTo(b.position)).toBeLessThan(1e-6);
+       |                                                     ^
+    1692|           expect(o.quaternion.angleTo(b.quaternion)).toBeLessThan(1e-6…
+    1693|           expect(o.scale.distanceTo(b.scale)).toBeLessThan(1e-6);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+ FAIL  src/components/workers/workerPose.test.ts > route-supported seat choreography on the actual rigs > feminine/0.95 lowers and rises on supported soles, preserving legacy endpoints
+AssertionError: expected 0.00021649031764849665 to be less than 0.000001
+ ❯ src/components/workers/workerPose.test.ts:1691:53
+    1689|         pose.applySeat({ amount: 1, support: 1, x: 0, z: 0, yaw: 0 });
+    1690|         for (const [o, b] of legacy) {
+    1691|           expect(o.position.distanceTo(b.position)).toBeLessThan(1e-6);
+       |                                                     ^
+    1692|           expect(o.quaternion.angleTo(b.quaternion)).toBeLessThan(1e-6…
+    1693|           expect(o.scale.distanceTo(b.scale)).toBeLessThan(1e-6);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯
+
+ FAIL  src/components/workers/workerPose.test.ts > route-supported seat choreography on the actual rigs > feminine/1.08 lowers and rises on supported soles, preserving legacy endpoints
+AssertionError: expected 0.00021649031764849655 to be less than 0.000001
+ ❯ src/components/workers/workerPose.test.ts:1691:53
+    1689|         pose.applySeat({ amount: 1, support: 1, x: 0, z: 0, yaw: 0 });
+    1690|         for (const [o, b] of legacy) {
+    1691|           expect(o.position.distanceTo(b.position)).toBeLessThan(1e-6);
+       |                                                     ^
+    1692|           expect(o.quaternion.angleTo(b.quaternion)).toBeLessThan(1e-6…
+    1693|           expect(o.scale.distanceTo(b.scale)).toBeLessThan(1e-6);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/4]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  4 failed | 93 skipped (97)
+   Start at  13:45:15
+   Duration  1.40s (transform 459ms, setup 99ms, import 984ms, tests 121ms, environment 0ms)
+

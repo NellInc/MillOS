@@ -1640,3 +1640,259 @@ describe('actual-rig baker linen skinning and distant preservation', () => {
       });
     }
 });
+
+describe('route-supported seat choreography on the actual rigs', () => {
+  for (const body of ['masculine', 'feminine'])
+    it(`${body} keeps canonical contacts across mixer phases and restores a private probe exactly`, () => {
+      const gltf = bodies.get(body)!;
+      const clip = gltf.animations.find((c) => c.name === 'worker-break')!;
+      const walk = gltf.animations.find((c) => c.name === 'worker-walk')!;
+      const buffers: Uint8Array[] = [];
+      gltf.scene.traverse((o) => {
+        const mesh = o as THREE.SkinnedMesh;
+        if (!mesh.isSkinnedMesh) return;
+        for (const attribute of Object.values(mesh.geometry.attributes))
+          buffers.push(
+            new Uint8Array(
+              attribute.array.buffer,
+              attribute.array.byteOffset,
+              attribute.array.byteLength
+            )
+          );
+      });
+      for (const track of [...clip.tracks, ...walk.tracks])
+        for (const values of [track.times, track.values])
+          buffers.push(new Uint8Array(values.buffer, values.byteOffset, values.byteLength));
+      const beforeBuffers = buffers.map((buffer) => Buffer.from(buffer));
+      const inverseBinds: number[][] = [];
+      gltf.scene.traverse((o) => {
+        if ((o as THREE.SkinnedMesh).isSkinnedMesh)
+          inverseBinds.push(
+            ...(o as THREE.SkinnedMesh).skeleton.boneInverses.map((m) => m.toArray())
+          );
+      });
+      const inverseBefore = JSON.stringify(inverseBinds);
+      const contacts = new Map<number, number[]>();
+      for (const phase of [0.07, 0.39, 0.83]) {
+        const scene = clone(gltf.scene);
+        const mixer = new THREE.AnimationMixer(scene);
+        mixer.clipAction(walk).play().setEffectiveWeight(phase);
+        mixer
+          .clipAction(clip)
+          .play()
+          .setEffectiveWeight(1 - phase);
+        mixer.setTime(walk.duration * phase);
+        scene.updateMatrixWorld(true);
+        const snapshot = () => {
+          const values: number[] = [];
+          scene.traverse((o) =>
+            values.push(...o.position.toArray(), ...o.quaternion.toArray(), ...o.scale.toArray())
+          );
+          return values;
+        };
+        const before = snapshot();
+        let pose = createSeatedWorkerPose(scene, 1, 1, clip);
+        expect(snapshot()).toEqual(before);
+        // A rebuilt controller after a restored overlay sees the same source.
+        pose.applySeat({ amount: 0.6, support: 1, x: 0, z: 0, yaw: 0 });
+        pose.restore();
+        expect(snapshot()).toEqual(before);
+        pose = createSeatedWorkerPose(scene, 1, 1, clip);
+        expect(snapshot()).toEqual(before);
+        for (const amount of [0, 0.5, 1]) {
+          mixer.setTime(walk.duration * (phase + amount * 0.11));
+          pose.applySeat({ amount, support: 1, x: 0, z: 0, yaw: 0 });
+          const values = ['FootL', 'FootR'].flatMap((name) => {
+            const foot = scene.getObjectByName(name)!;
+            return [
+              ...foot.getWorldPosition(new THREE.Vector3()).toArray(),
+              ...foot.getWorldQuaternion(new THREE.Quaternion()).toArray(),
+            ];
+          });
+          const reference = contacts.get(amount);
+          if (reference)
+            values.forEach((v, i) => expect(Math.abs(v - reference[i])).toBeLessThan(1e-6));
+          else contacts.set(amount, values);
+          pose.restore();
+        }
+        mixer.stopAllAction();
+        mixer.uncacheRoot(scene);
+      }
+      buffers.forEach((buffer, i) =>
+        expect(Buffer.from(buffer).equals(beforeBuffers[i])).toBe(true)
+      );
+      const inverses: number[][] = [];
+      gltf.scene.traverse((o) => {
+        if ((o as THREE.SkinnedMesh).isSkinnedMesh)
+          inverses.push(...(o as THREE.SkinnedMesh).skeleton.boneInverses.map((m) => m.toArray()));
+      });
+      expect(JSON.stringify(inverses)).toBe(inverseBefore);
+    });
+  for (const body of ['masculine', 'feminine'])
+    for (const height of [0.95, 1.08]) {
+      it(`${body}/${height} lowers and rises on canonical soles, preserving upper-body seat anchors`, () => {
+        const gltf = bodies.get(body)!,
+          scene = clone(gltf.scene),
+          actor = new THREE.Group(),
+          wrapper = new THREE.Group();
+        const width = height === 0.95 ? 0.96 : 1.06;
+        wrapper.scale.set(width, height, width);
+        wrapper.add(scene);
+        actor.add(wrapper);
+        const mixer = new THREE.AnimationMixer(scene),
+          clip = gltf.animations.find((c) => c.name === 'worker-break')!;
+        mixer.clipAction(clip).play();
+        mixer.setTime(clip.duration * 0.23);
+        actor.updateMatrixWorld(true);
+        const pose = createSeatedWorkerPose(scene, height, width, clip);
+        const pos = (name: string) =>
+          scene.getObjectByName(name)!.getWorldPosition(new THREE.Vector3());
+        const footGroup = scene.getObjectByName('Worker_Feet')!;
+        const originals = new Map<
+          THREE.Object3D,
+          { position: THREE.Vector3; quaternion: THREE.Quaternion; scale: THREE.Vector3 }
+        >();
+        scene.traverse((o) =>
+          originals.set(o, {
+            position: o.position.clone(),
+            quaternion: o.quaternion.clone(),
+            scale: o.scale.clone(),
+          })
+        );
+        pose.apply();
+        const legacy = new Map<
+          THREE.Object3D,
+          { position: THREE.Vector3; quaternion: THREE.Quaternion; scale: THREE.Vector3 }
+        >();
+        scene.traverse((o) =>
+          legacy.set(o, {
+            position: o.position.clone(),
+            quaternion: o.quaternion.clone(),
+            scale: o.scale.clone(),
+          })
+        );
+        pose.restore();
+        pose.applySeat({ amount: 1, support: 1, x: 0, z: 0, yaw: 0 });
+        for (const [o, b] of legacy) {
+          // The new cue holds a canonical boot stance; legacy upper-body/seat
+          // anchors stay exact, while legs are solved to fixed contacts.
+          if (/^(UpperLeg|LowerLeg|Foot)/.test(o.name)) continue;
+          expect(o.position.distanceTo(b.position)).toBeLessThan(1e-6);
+          // GLB quaternions carry float32 norm error; compare actual components.
+          expect(
+            o.quaternion
+              .toArray()
+              .map((v, i) => Math.abs(v - b.quaternion.toArray()[i]))
+              .every((v) => v < 1e-7),
+            o.name
+          ).toBe(true);
+          expect(o.scale.distanceTo(b.scale)).toBeLessThan(1e-6);
+        }
+        pose.restore();
+        let maxStep = 0,
+          maxFootDrift = 0,
+          maxStretch = 0,
+          minSole = Infinity;
+        for (const floor of [0, 0.048])
+          for (const rising of [false, true]) {
+            let previous: THREE.Vector3 | undefined, planted: THREE.Vector3[] | undefined;
+            for (let frame = 0; frame <= 54; frame++) {
+              const t = frame / 54,
+                smooth = t * t * (3 - 2 * t),
+                amount = rising ? 1 - smooth : smooth;
+              pose.restore();
+              mixer.setTime(clip.duration * 0.23);
+              actor.updateMatrixWorld(true);
+              pose.applySeat({ amount, support: 1, x: 0, z: 0, yaw: 0 }, floor);
+              const pelvis = pos('Hips');
+              if (previous) maxStep = Math.max(maxStep, pelvis.distanceTo(previous));
+              previous = pelvis;
+              const feet = [pos('FootL'), pos('FootR')];
+              if (planted)
+                for (let i = 0; i < 2; i++)
+                  maxFootDrift = Math.max(maxFootDrift, feet[i].distanceTo(planted[i]));
+              else planted = feet;
+              for (const side of ['L', 'R'])
+                maxStretch = Math.max(
+                  maxStretch,
+                  scene.getObjectByName('LowerLeg' + side)!.scale.y /
+                    originals.get(scene.getObjectByName('LowerLeg' + side)!)!.scale.y
+                );
+              scene.traverse((o) => {
+                if ((o as THREE.SkinnedMesh).isSkinnedMesh)
+                  (o as THREE.SkinnedMesh).skeleton.update();
+              });
+              minSole = Math.min(
+                minSole,
+                new THREE.Box3().setFromObject(footGroup, true).min.y - floor
+              );
+              expect(
+                [...pelvis.toArray(), ...feet.flatMap((f) => f.toArray())].every(Number.isFinite)
+              ).toBe(true);
+            }
+          }
+        expect(maxStep).toBeLessThan(0.025);
+        expect(maxFootDrift).toBeLessThan(1e-5);
+        expect(maxStretch).toBeLessThan(1.18);
+        expect(minSole).toBeGreaterThan(-0.012);
+        pose.restore();
+        // Full support cancels the actual actor's moving position and eased yaw.
+        let reference: THREE.Vector3[] | undefined, rotations: THREE.Quaternion[] | undefined;
+        for (let frame = 0; frame <= 25; frame++) {
+          const yaw = -1.4 + frame * 0.11;
+          actor.position.set(frame * 0.006, 0, -frame * 0.004);
+          actor.rotation.y = yaw;
+          pose.restore();
+          mixer.setTime(clip.duration * 0.23);
+          actor.updateMatrixWorld(true);
+          const dx = -actor.position.x,
+            dz = -actor.position.z;
+          pose.applySeat({
+            amount: 0.5,
+            support: 1,
+            x: dx * Math.cos(yaw) - dz * Math.sin(yaw),
+            z: dx * Math.sin(yaw) + dz * Math.cos(yaw),
+            yaw: -yaw,
+          });
+          const points = [pos('Hips'), pos('FootL'), pos('FootR')],
+            quats = ['FootL', 'FootR'].map((n) =>
+              scene.getObjectByName(n)!.getWorldQuaternion(new THREE.Quaternion())
+            );
+          if (reference) {
+            for (let i = 0; i < 3; i++)
+              expect(points[i].distanceTo(reference[i])).toBeLessThan(1e-5);
+            for (let i = 0; i < 2; i++) expect(quats[i].angleTo(rotations![i])).toBeLessThan(0.002);
+          } else {
+            reference = points;
+            rotations = quats;
+          }
+        }
+        pose.restore();
+        actor.position.set(0, 0, 0);
+        actor.rotation.y = 0;
+        actor.updateMatrixWorld(true);
+        // Placement/release steps clear both soles while either endpoint moves.
+        for (const phase of Array.from({ length: 8 }, (_, i) => i / 8))
+          for (const support of [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]) {
+            mixer.stopAllAction();
+            const walk = gltf.animations.find((c) => c.name === 'worker-walk')!;
+            mixer.clipAction(walk).play();
+            mixer.setTime(walk.duration * phase);
+            actor.updateMatrixWorld(true);
+            pose.applySeat({ amount: 0, support, x: 0, z: 0, yaw: 0 });
+            scene.traverse((o) => {
+              if ((o as THREE.SkinnedMesh).isSkinnedMesh)
+                (o as THREE.SkinnedMesh).skeleton.update();
+            });
+            expect(new THREE.Box3().setFromObject(footGroup, true).min.y).toBeGreaterThan(0.001);
+            for (const side of ['L', 'R'])
+              expect(
+                scene.getObjectByName('LowerLeg' + side)!.scale.y /
+                  originals.get(scene.getObjectByName('LowerLeg' + side)!)!.scale.y
+              ).toBeLessThan(1.18);
+            pose.restore();
+          }
+        pose.restore();
+      });
+    }
+});

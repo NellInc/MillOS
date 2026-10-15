@@ -1,0 +1,71 @@
+
+> grain-mill-simulator@0.40.0 test
+> vitest run src/components/workers/workerPose.test.ts -t route-supported
+
+(node:18349) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+ RUN  v4.1.10 /Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS
+
+ ❯ src/components/workers/workerPose.test.ts (97 tests | 4 failed | 93 skipped) 340ms
+     × masculine/0.95 lowers and rises on supported soles, preserving legacy endpoints 75ms
+     × masculine/1.08 lowers and rises on supported soles, preserving legacy endpoints 56ms
+     × feminine/0.95 lowers and rises on supported soles, preserving legacy endpoints 57ms
+     × feminine/1.08 lowers and rises on supported soles, preserving legacy endpoints 56ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/workers/workerPose.test.ts > route-supported seat choreography on the actual rigs > masculine/0.95 lowers and rises on supported soles, preserving legacy endpoints
+AssertionError: expected -0.047559892185437484 to be greater than -0.012
+ ❯ src/components/workers/workerPose.test.ts:1792:75
+    1790|                 (o as THREE.SkinnedMesh).skeleton.update();
+    1791|             });
+    1792|             expect(new THREE.Box3().setFromObject(footGroup, true).min…
+       |                                                                           ^
+    1793|             for (const side of ['L', 'R'])
+    1794|               expect(
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL  src/components/workers/workerPose.test.ts > route-supported seat choreography on the actual rigs > masculine/1.08 lowers and rises on supported soles, preserving legacy endpoints
+AssertionError: expected -0.012598860987013627 to be greater than -0.012
+ ❯ src/components/workers/workerPose.test.ts:1792:75
+    1790|                 (o as THREE.SkinnedMesh).skeleton.update();
+    1791|             });
+    1792|             expect(new THREE.Box3().setFromObject(footGroup, true).min…
+       |                                                                           ^
+    1793|             for (const side of ['L', 'R'])
+    1794|               expect(
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+ FAIL  src/components/workers/workerPose.test.ts > route-supported seat choreography on the actual rigs > feminine/0.95 lowers and rises on supported soles, preserving legacy endpoints
+AssertionError: expected -0.039369399004543615 to be greater than -0.012
+ ❯ src/components/workers/workerPose.test.ts:1792:75
+    1790|                 (o as THREE.SkinnedMesh).skeleton.update();
+    1791|             });
+    1792|             expect(new THREE.Box3().setFromObject(footGroup, true).min…
+       |                                                                           ^
+    1793|             for (const side of ['L', 'R'])
+    1794|               expect(
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯
+
+ FAIL  src/components/workers/workerPose.test.ts > route-supported seat choreography on the actual rigs > feminine/1.08 lowers and rises on supported soles, preserving legacy endpoints
+AssertionError: expected -0.052438511355008925 to be greater than -0.012
+ ❯ src/components/workers/workerPose.test.ts:1792:75
+    1790|                 (o as THREE.SkinnedMesh).skeleton.update();
+    1791|             });
+    1792|             expect(new THREE.Box3().setFromObject(footGroup, true).min…
+       |                                                                           ^
+    1793|             for (const side of ['L', 'R'])
+    1794|               expect(
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/4]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  4 failed | 93 skipped (97)
+   Start at  13:47:07
+   Duration  1.09s (transform 205ms, setup 94ms, import 487ms, tests 340ms, environment 0ms)
+

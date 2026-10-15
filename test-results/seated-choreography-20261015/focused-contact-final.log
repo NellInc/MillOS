@@ -1,0 +1,52 @@
+
+> grain-mill-simulator@0.40.0 test
+> vitest run src/components/workers/workerPose.test.ts src/components/workers/WorkerModel.test.tsx src/simulation/__tests__/communityLife.test.ts src/components/vehicleReplay.test.ts
+
+(node:23961) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+ RUN  v4.1.10 /Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS
+
+ ❯ src/components/workers/workerPose.test.ts (97 tests | 1 failed) 7532ms
+     × masculine/1.08 lowers and rises on supported soles, preserving legacy endpoints 64ms
+(node:24253) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ❯ src/components/workers/WorkerModel.test.tsx (41 tests | 1 failed) 309ms
+   × samples seat cue numbers without throttle or pause lag, and keeps legacy seating 4ms
+(node:24260) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:24317) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/workers/WorkerModel.test.tsx > samples seat cue numbers without throttle or pause lag, and keeps legacy seating
+AssertionError: expected 0.5729166666666667 to be close to 0.55, received difference is 0.022916666666666696, but expected 0.000005
+ ❯ src/components/workers/WorkerModel.test.tsx:1437:15
+    1435|     return hips.getWorldPosition(new THREE.Vector3()).y;
+    1436|   };
+    1437|   expect(y()).toBeCloseTo(0.55, 5);
+       |               ^
+    1438|   motion.seat!.amount = 0.5;
+    1439|   harness.frame?.({}, 1 / 120);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/components/workers/workerPose.test.ts > route-supported seat choreography on the actual rigs > masculine/1.08 lowers and rises on supported soles, preserving legacy endpoints
+AssertionError: expected 0.001314090684661151 to be less than 0.00001
+ ❯ src/components/workers/workerPose.test.ts:1746:30
+    1744|           }
+    1745|         expect(maxStep).toBeLessThan(0.025);
+    1746|         expect(maxFootDrift).toBeLessThan(1e-5);
+       |                              ^
+    1747|         expect(maxStretch).toBeLessThan(1.18);
+    1748|         expect(minSole).toBeGreaterThan(-0.012);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  2 failed | 2 passed (4)
+      Tests  2 failed | 183 passed (185)
+   Start at  13:49:28
+   Duration  16.49s (transform 1.12s, setup 175ms, import 6.57s, tests 8.26s, environment 826ms)
+

@@ -1,0 +1,45 @@
+
+> grain-mill-simulator@0.40.0 test
+> vitest run src/components/workers/workerPose.test.ts -t route-supported
+
+(node:29667) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+ RUN  v4.1.10 /Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS
+
+ ❯ src/components/workers/workerPose.test.ts (97 tests | 2 failed | 93 skipped) 373ms
+     × masculine/1.08 lowers and rises on supported soles, preserving legacy endpoints 61ms
+     × feminine/1.08 lowers and rises on supported soles, preserving legacy endpoints 61ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/workers/workerPose.test.ts > route-supported seat choreography on the actual rigs > masculine/1.08 lowers and rises on supported soles, preserving legacy endpoints
+AssertionError: expected -0.0009634701167350454 to be greater than 0.001
+ ❯ src/components/workers/workerPose.test.ts:1798:75
+    1796|                 (o as THREE.SkinnedMesh).skeleton.update();
+    1797|             });
+    1798|             expect(new THREE.Box3().setFromObject(footGroup, true).min…
+       |                                                                           ^
+    1799|             for (const side of ['L', 'R'])
+    1800|               expect(
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/components/workers/workerPose.test.ts > route-supported seat choreography on the actual rigs > feminine/1.08 lowers and rises on supported soles, preserving legacy endpoints
+AssertionError: expected -0.0000482980143140068 to be greater than 0.001
+ ❯ src/components/workers/workerPose.test.ts:1798:75
+    1796|                 (o as THREE.SkinnedMesh).skeleton.update();
+    1797|             });
+    1798|             expect(new THREE.Box3().setFromObject(footGroup, true).min…
+       |                                                                           ^
+    1799|             for (const side of ['L', 'R'])
+    1800|               expect(
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 2 passed | 93 skipped (97)
+   Start at  13:52:18
+   Duration  1.24s (transform 239ms, setup 119ms, import 559ms, tests 373ms, environment 0ms)
+

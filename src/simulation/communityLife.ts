@@ -33,6 +33,8 @@ export interface CommunityPose {
   task: string;
   seated: boolean;
   visible: boolean;
+  /** Cosmetic support cue; route positions and dwell times are unchanged. */
+  seat?: { amount: number; support: number; position: Vec3Tuple; rotation: number };
 }
 
 export const createCommunityGreeting = () => ({ targetId: null as string | null, yaw: 0 });
@@ -658,11 +660,37 @@ function samplePassenger(id: string, hour: number, out: CommunityPose) {
         : 'Waiting for Route 42';
 }
 
+function smoothSeat(value: number) {
+  const x = Math.max(0, Math.min(1, value));
+  return x * x * (3 - 2 * x);
+}
+function setSeatCue(
+  out: CommunityPose,
+  previous: CommunityPose['seat'],
+  anchor: CommunityStop,
+  amount: number,
+  support: number
+) {
+  const cue = previous ?? {
+    amount: 0,
+    support: 0,
+    position: anchor.position,
+    rotation: anchor.rotation,
+  };
+  cue.amount = amount;
+  cue.support = support;
+  cue.position = anchor.position;
+  cue.rotation = anchor.rotation;
+  out.seat = cue;
+}
+
 export function sampleCommunityPerson(
   person: CommunityPerson,
   hour: number,
   out = createCommunityPose()
 ): CommunityPose {
+  const previousSeat = out.seat;
+  out.seat = undefined;
   if (person.role === 'Cyclist') {
     const cycle = sampleCommunityCyclist(hour);
     out.position[0] = cycle.x;
@@ -715,6 +743,21 @@ export function sampleCommunityPerson(
       out.activity = node.activity;
       out.task = node.task;
       out.seated = node.seated ?? false;
+      if (node.seated) {
+        // At180x these are0.7s down,0.9s up and0.2s standing before departure.
+        // Short authored dwells reserve the same proportions without overlap.
+        const down = Math.min(0.035, node.hours * 0.3);
+        const up = Math.min(0.045, node.hours * 0.35);
+        const margin = Math.min(0.01, node.hours * 0.1);
+        setSeatCue(
+          out,
+          previousSeat,
+          node,
+          smoothSeat(elapsed / down) *
+            (1 - smoothSeat((elapsed - (node.hours - up - margin)) / up)),
+          1
+        );
+      }
       return out;
     }
     elapsed -= node.hours;
@@ -730,6 +773,32 @@ export function sampleCommunityPerson(
       out.activity = 'walking';
       out.task = next.task;
       out.seated = false;
+      // Keep the original centreline and clock. Support is acquired/released
+      // through visible steps around the seat, never a delayed seated slide.
+      const segment = distance(node.position, next.position);
+      if (next.seated && !node.seated) {
+        const window = Math.min(0.6, segment * 0.45);
+        const remaining = segment * (1 - t);
+        if (remaining < window)
+          setSeatCue(
+            out,
+            previousSeat,
+            next,
+            0,
+            smoothSeat((window - remaining) / (window * 0.75))
+          );
+      } else if (node.seated && !next.seated) {
+        const window = Math.min(0.55, segment * 0.45);
+        const travelled = segment * t;
+        if (travelled < window)
+          setSeatCue(
+            out,
+            previousSeat,
+            node,
+            0,
+            1 - smoothSeat((travelled - window * 0.4) / (window * 0.6))
+          );
+      }
       return out;
     }
     elapsed -= travel;

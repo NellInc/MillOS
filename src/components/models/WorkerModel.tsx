@@ -29,6 +29,7 @@ import { createWorkerBodyLod } from '../workers/workerBodyLod';
 import type { WorkerMotionState } from '../workers/workerTypes';
 import {
   createSeatedWorkerPose,
+  validWorkerSeatCue,
   createWorkerHandPose,
   createWorkerGesture,
   easeWorkerGesture,
@@ -1068,6 +1069,11 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
     cyclePhase?: number;
     cartGrip?: 'push' | 'pull';
     seatFloorOffset?: number;
+    seatAmount?: number;
+    seatSupport?: number;
+    seatX?: number;
+    seatZ?: number;
+    seatYaw?: number;
     activity?: WorkerMotionState['activity'];
   }>({});
   const actionWeights = useRef<Record<WorkerClipName, number>>(
@@ -1229,8 +1235,14 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
     [prepared.model, animations]
   );
   const seatedPose = useMemo(
-    () => createSeatedWorkerPose(prepared.model, appearance.heightScale, appearance.bodyScale),
-    [prepared.model, appearance.heightScale, appearance.bodyScale]
+    () =>
+      createSeatedWorkerPose(
+        prepared.model,
+        appearance.heightScale,
+        appearance.bodyScale,
+        animations.find((clip) => clip.name === 'worker-break')
+      ),
+    [prepared.model, appearance.heightScale, appearance.bodyScale, animations]
   );
 
   useEffect(() => {
@@ -1254,6 +1266,12 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
     lastPose.current = {};
     mixer.update(0);
     if (motion.cycling) seatedPose.applyCycling(motion.cyclePhase ?? 0);
+    else if (
+      validWorkerSeatCue(motion.seat) &&
+      !motion.cartGrip &&
+      (motion.seated || motion.activity === 'walking')
+    )
+      seatedPose.applySeat(motion.seat, motion.seatFloorOffset ?? 0);
     else if (motion.seated) seatedPose.apply(motion.seatFloorOffset ?? 0);
     else if (motion.cartGrip) seatedPose.applyTask(motion.cartGrip);
     else if (motion.activity === 'working' && appearance.workAction === 'garden')
@@ -1328,7 +1346,21 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
           ? TASK_CLIPS[appearance.workAction]
           : 'worker-idle';
 
+    const seat =
+      validWorkerSeatCue(motion.seat) &&
+      !motion.cycling &&
+      !motion.cartGrip &&
+      (motion.seated || motion.activity === 'walking')
+        ? motion.seat
+        : undefined;
+    const seatChanged =
+      lastPose.current.seatAmount !== seat?.amount ||
+      lastPose.current.seatSupport !== seat?.support ||
+      lastPose.current.seatX !== seat?.x ||
+      lastPose.current.seatZ !== seat?.z ||
+      lastPose.current.seatYaw !== seat?.yaw;
     const semanticChanged =
+      seatChanged ||
       lastPose.current.clip !== activeClip ||
       lastPose.current.seated !== motion.seated ||
       lastPose.current.cycling !== motion.cycling ||
@@ -1406,6 +1438,11 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
       cyclePhase: motion.cyclePhase,
       cartGrip: motion.cartGrip,
       seatFloorOffset: motion.seatFloorOffset,
+      seatAmount: seat?.amount,
+      seatSupport: seat?.support,
+      seatX: seat?.x,
+      seatZ: seat?.z,
+      seatYaw: seat?.yaw,
       activity: motion.activity,
     };
 
@@ -1442,6 +1479,7 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
       (motion.activity === 'working' || motion.activity === 'idle');
     if (!stationaryGarden) seatedPose.releaseGarden();
     if (motion.cycling) seatedPose.applyCycling(motion.cyclePhase ?? 0);
+    else if (seat) seatedPose.applySeat(seat, motion.seatFloorOffset ?? 0, gesture);
     else if (motion.seated) seatedPose.apply(motion.seatFloorOffset ?? 0, gesture);
     else if (motion.cartGrip) seatedPose.applyTask(motion.cartGrip);
     else if (

@@ -1,0 +1,212 @@
+{
+  "reviewer": "authoring chat, own work; actual three PNGs inspected",
+  "sourceRuntimeVisualAccepted": true,
+  "pacing": "separately OPEN; indicative art budgets fail; no non-art gate",
+  "playerDevice": "DEFERRED",
+  "results": [
+    {
+      "time": "day",
+      "sourceCommit": "18d2a068298e93d54f469fb3514a36bbaff9eaa1",
+      "buildIdentity": {
+        "index": {
+          "url": "http://127.0.0.1:4288/",
+          "sha256": "1e209945c84e862f22645a8330ea1444f0e84051558fc66c37e52cf1df3c43e9",
+          "bytes": 9887
+        },
+        "entries": [
+          {
+            "url": "http://127.0.0.1:4288/assets/main-BlHO4hDl.js",
+            "sha256": "7a5577285787714e5cdd37402053465918a714c8330f3188d8a216635a6230e7",
+            "bytes": 824437
+          }
+        ]
+      },
+      "quality": "medium",
+      "audio": {
+        "activeNodes": 0,
+        "contextState": "not-created"
+      },
+      "checks": {
+        "firstFrame": true,
+        "averageFps": true,
+        "p95Frame": false,
+        "p99Frame": true,
+        "onePercentLow": true,
+        "effectiveDpr": true,
+        "longTasks": true,
+        "framesOver50Ms": true,
+        "worldIntegrity": true,
+        "pageClean": true,
+        "communityPresence": true,
+        "checkpoints": true
+      },
+      "diagnostics": {
+        "consoleErrors": [],
+        "pageErrors": [],
+        "failedRequests": [],
+        "screenshotError": null
+      },
+      "sandboxed": true,
+      "inProcessGpu": false,
+      "artMode": true,
+      "nonArtGateRun": false,
+      "overallBudgetPassed": false,
+      "averageFps": 60.45,
+      "p95FrameMs": 17.3,
+      "p99FrameMs": 17.5,
+      "load": {
+        "cores": 10,
+        "loadAverage1m": 9.34,
+        "loadAverage5m": 18.56,
+        "loadPerCore": 0.93,
+        "contendedThreshold": 3,
+        "contended": false
+      },
+      "startupMarks": {
+        "millos:bootstrap": 134.7,
+        "millos:first-frame": 205.3,
+        "millos:world-ready": 16603.4,
+        "millos:startup-ready": 21236.1
+      },
+      "vehicleMotionAcceptance": true,
+      "screenshotPath": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/AK-seat-choreography-day-20261015/village.png",
+      "screenshotSha256": "073be43aa6558faca2fa9a44ae9446eae986189fc2ff46bfd4edc06da3c99bc7"
+    },
+    {
+      "time": "dusk",
+      "sourceCommit": "18d2a068298e93d54f469fb3514a36bbaff9eaa1",
+      "buildIdentity": {
+        "index": {
+          "url": "http://127.0.0.1:4288/",
+          "sha256": "1e209945c84e862f22645a8330ea1444f0e84051558fc66c37e52cf1df3c43e9",
+          "bytes": 9887
+        },
+        "entries": [
+          {
+            "url": "http://127.0.0.1:4288/assets/main-BlHO4hDl.js",
+            "sha256": "7a5577285787714e5cdd37402053465918a714c8330f3188d8a216635a6230e7",
+            "bytes": 824437
+          }
+        ]
+      },
+      "quality": "medium",
+      "audio": {
+        "activeNodes": 0,
+        "contextState": "not-created"
+      },
+      "checks": {
+        "firstFrame": false,
+        "averageFps": true,
+        "p95Frame": false,
+        "p99Frame": true,
+        "onePercentLow": true,
+        "effectiveDpr": true,
+        "longTasks": true,
+        "framesOver50Ms": true,
+        "worldIntegrity": true,
+        "pageClean": true,
+        "communityPresence": true,
+        "checkpoints": true
+      },
+      "diagnostics": {
+        "consoleErrors": [],
+        "pageErrors": [],
+        "failedRequests": [],
+        "screenshotError": null
+      },
+      "sandboxed": true,
+      "inProcessGpu": false,
+      "artMode": true,
+      "nonArtGateRun": false,
+      "overallBudgetPassed": false,
+      "averageFps": 60.01,
+      "p95FrameMs": 17.4,
+      "p99FrameMs": 17.5,
+      "load": {
+        "cores": 10,
+        "loadAverage1m": 13.85,
+        "loadAverage5m": 18.16,
+        "loadPerCore": 1.39,
+        "contendedThreshold": 3,
+        "contended": false
+      },
+      "startupMarks": {
+        "millos:bootstrap": 492.2,
+        "millos:first-frame": 550.3,
+        "millos:world-ready": 16815.9,
+        "millos:startup-ready": 21529.8
+      },
+      "vehicleMotionAcceptance": true,
+      "screenshotPath": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/AK-seat-choreography-dusk-20261015/village.png",
+      "screenshotSha256": "9378ab6d953f4e41da4a04af9d51f265f1e018ba46853167c7e7ccaccc933e9d"
+    },
+    {
+      "time": "night",
+      "sourceCommit": "18d2a068298e93d54f469fb3514a36bbaff9eaa1",
+      "buildIdentity": {
+        "index": {
+          "url": "http://127.0.0.1:4288/",
+          "sha256": "1e209945c84e862f22645a8330ea1444f0e84051558fc66c37e52cf1df3c43e9",
+          "bytes": 9887
+        },
+        "entries": [
+          {
+            "url": "http://127.0.0.1:4288/assets/main-BlHO4hDl.js",
+            "sha256": "7a5577285787714e5cdd37402053465918a714c8330f3188d8a216635a6230e7",
+            "bytes": 824437
+          }
+        ]
+      },
+      "quality": "medium",
+      "audio": {
+        "activeNodes": 0,
+        "contextState": "not-created"
+      },
+      "checks": {
+        "firstFrame": true,
+        "averageFps": false,
+        "p95Frame": false,
+        "p99Frame": true,
+        "onePercentLow": true,
+        "effectiveDpr": true,
+        "longTasks": true,
+        "framesOver50Ms": true,
+        "worldIntegrity": true,
+        "pageClean": true,
+        "communityPresence": true,
+        "checkpoints": true
+      },
+      "diagnostics": {
+        "consoleErrors": [],
+        "pageErrors": [],
+        "failedRequests": [],
+        "screenshotError": null
+      },
+      "sandboxed": true,
+      "inProcessGpu": false,
+      "artMode": true,
+      "nonArtGateRun": false,
+      "overallBudgetPassed": false,
+      "averageFps": 59.99,
+      "p95FrameMs": 17.2,
+      "p99FrameMs": 17.6,
+      "load": {
+        "cores": 10,
+        "loadAverage1m": 17.77,
+        "loadAverage5m": 18.76,
+        "loadPerCore": 1.78,
+        "contendedThreshold": 3,
+        "contended": false
+      },
+      "startupMarks": {
+        "millos:bootstrap": 186.8,
+        "millos:first-frame": 250.6,
+        "millos:world-ready": 20556.8,
+        "millos:startup-ready": 25612.5
+      },
+      "vehicleMotionAcceptance": true,
+      "screenshotPath": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/AK-seat-choreography-night-20261015/village.png",
+      "screenshotSha256": "e7ee8f19754b630bcebe2e470a97d8e7622ee72804b836d30aa336202b53a2e7"
+    }
+  ]
+}
