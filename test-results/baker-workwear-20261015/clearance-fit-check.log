@@ -1,0 +1,45 @@
+
+> grain-mill-simulator@0.40.0 test
+> vitest run src/components/workers/workerPose.test.ts -t binds cloth
+
+(node:98374) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+ RUN  v4.1.10 /Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS
+
+ ❯ src/components/workers/workerPose.test.ts (93 tests | 2 failed | 89 skipped) 3873ms
+     × masculine/0.95 binds cloth to the actual palette through work and locomotion 880ms
+     × masculine/1.08 binds cloth to the actual palette through work and locomotion 556ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/workers/workerPose.test.ts > actual-rig baker linen skinning and distant preservation > masculine/0.95 binds cloth to the actual palette through work and locomotion
+AssertionError: trousers cover apron at worker-run/phase0.23/row16/column15: expected 0.024833041771285203 to be less than 0.008
+ ❯ src/components/workers/workerPose.test.ts:1596:71
+    1594|         }
+    1595|         expect(rayHits).toBeGreaterThan(100);
+    1596|         expect(maxPokeThrough, `trousers cover apron at ${worstFit}`).…
+       |                                                                       ^
+    1597|         expect(maxError).toBeLessThan(1e-6);
+    1598|         expect(maxFarError).toBeLessThan(1e-6);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/components/workers/workerPose.test.ts > actual-rig baker linen skinning and distant preservation > masculine/1.08 binds cloth to the actual palette through work and locomotion
+AssertionError: trousers cover apron at worker-run/phase0.23/row16/column15: expected 0.024833045907543316 to be less than 0.008
+ ❯ src/components/workers/workerPose.test.ts:1596:71
+    1594|         }
+    1595|         expect(rayHits).toBeGreaterThan(100);
+    1596|         expect(maxPokeThrough, `trousers cover apron at ${worstFit}`).…
+       |                                                                       ^
+    1597|         expect(maxError).toBeLessThan(1e-6);
+    1598|         expect(maxFarError).toBeLessThan(1e-6);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 2 passed | 89 skipped (93)
+   Start at  13:12:53
+   Duration  6.59s (transform 776ms, setup 308ms, import 1.85s, tests 3.87s, environment 0ms)
+

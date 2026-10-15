@@ -2,6 +2,307 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 
+/** A short linen work apron in the source skin's bind coordinates. It shares
+ * the existing palette and indexed Uint8 joints, including the distant merge.
+ * Working if the bib follows torso flexion and the hem follows the two thighs
+ * without a separate animation loop or a seam between rigid panels.
+ */
+export function createWorkerApronGeometry(source: THREE.SkinnedMesh) {
+  const joints = ['Hips', 'Abdomen', 'Chest', 'UpperLegL', 'UpperLegR'].map((name) =>
+    source.skeleton.bones.findIndex((bone) => bone.name === name)
+  );
+  if (joints.some((index) => index < 0 || index > 255)) return null;
+  const rest = joints.map((index) =>
+    new THREE.Vector3().setFromMatrixPosition(
+      new THREE.Matrix4().copy(source.skeleton.boneInverses[index]).invert()
+    )
+  );
+  const hip = rest[0],
+    abdomen = rest[1],
+    chest = rest[2];
+  const waist = abdomen.y,
+    top = chest.y + 0.015,
+    hem = hip.y - 0.17;
+  const cloud: THREE.Vector3[] = [];
+  const trouserFaces: { triangle: THREE.Triangle; ids: number[]; mesh: THREE.SkinnedMesh }[] = [];
+  source.parent?.parent?.traverse((object) => {
+    const mesh = object as THREE.SkinnedMesh;
+    if (!mesh.isSkinnedMesh || !/Worker_(Body|Legs)/.test(mesh.parent?.name ?? '')) return;
+    const attribute = mesh.geometry.getAttribute('position');
+    for (let i = 0; i < attribute.count; i++) {
+      const point = new THREE.Vector3().fromBufferAttribute(attribute, i);
+      if (Math.abs(point.x - hip.x) < 0.26) cloud.push(point);
+    }
+    if (mesh.parent?.name !== 'Worker_Legs') return;
+    const index = mesh.geometry.index;
+    const normal = new THREE.Vector3();
+    for (let i = 0; i < (index?.count ?? attribute.count); i += 3) {
+      const ids = [0, 1, 2].map((offset) => index?.getX(i + offset) ?? i + offset);
+      const points = ids.map((id) => new THREE.Vector3().fromBufferAttribute(attribute, id));
+      const triangle = new THREE.Triangle(points[0], points[1], points[2]);
+      const centre = triangle.getMidpoint(new THREE.Vector3());
+      // Transfer only from the front hip/thigh surface, never the back or arms.
+      if (centre.y < hem - 0.08 || centre.y > hip.y + 0.13 || centre.z < hip.z) continue;
+      if (triangle.getNormal(normal).z > 0.1) trouserFaces.push({ triangle, ids, mesh });
+    }
+  });
+  if (!cloud.length) return null;
+  function frontAt(y: number) {
+    let front = -Infinity;
+    for (const point of cloud) if (Math.abs(point.y - y) < 0.065) front = Math.max(front, point.z);
+    return Number.isFinite(front) ? front : hip.z + 0.15;
+  }
+  const positions: number[] = [],
+    colours: number[] = [],
+    indices: number[] = [];
+  const skinIndices: number[] = [],
+    weights: number[] = [];
+  const linen = new THREE.Color('#ded6bc'),
+    stitch = new THREE.Color('#526e69');
+  const pocket = new THREE.Color('#eee3c9'),
+    strap = new THREE.Color('#46635f');
+  function vertex(x: number, y: number, z: number, colour: THREE.Color, tone = 1) {
+    positions.push(x, y, z);
+    colours.push(colour.r * tone, colour.g * tone, colour.b * tone);
+    // Around the hip, the exported trousers already blend into the thighs
+    // above the Hips joint. A guessed height ramp leaves cloth behind in runs.
+    // Use same-side front triangles' barycentric weights in that fitted region.
+    const transferred = new Map<number, number>();
+    const blend = z > hip.z ? 1 - THREE.MathUtils.smoothstep(y, hip.y + 0.075, hip.y + 0.12) : 0;
+    let nearest = Infinity;
+    let face: (typeof trouserFaces)[number] | undefined;
+    const point = new THREE.Vector3(x, y, z),
+      closest = new THREE.Vector3();
+    const barycentric = new THREE.Vector3();
+    if (blend > 0) {
+      for (const candidate of trouserFaces) {
+        const centre = candidate.triangle.getMidpoint(closest);
+        if ((centre.x - hip.x) * (x - hip.x) < 0) continue;
+        candidate.triangle.closestPointToPoint(point, closest);
+        const distance = closest.distanceToSquared(point);
+        if (distance < nearest) {
+          nearest = distance;
+          face = candidate;
+          candidate.triangle.getBarycoord(closest, barycentric);
+        }
+      }
+    }
+    const offset = weights.length;
+    if (y < hip.y) {
+      const leg = THREE.MathUtils.smoothstep(hip.y - y, 0, 0.07);
+      const side = x >= hip.x ? 1 : 0;
+      skinIndices.push(joints[0], joints[3], joints[4], 0);
+      weights.push(1 - leg, leg * side, leg * (1 - side), 0);
+    } else {
+      const upper = y >= abdomen.y;
+      const amount = THREE.MathUtils.clamp(
+        upper ? (y - abdomen.y) / (chest.y - abdomen.y) : (y - hip.y) / (abdomen.y - hip.y),
+        0,
+        1
+      );
+      skinIndices.push(joints[upper ? 1 : 0], joints[upper ? 2 : 1], 0, 0);
+      weights.push(1 - amount, amount, 0, 0);
+    }
+    if (face) {
+      for (let corner = 0; corner < 3; corner++) {
+        const id = face.ids[corner];
+        for (let influence = 0; influence < 4; influence++) {
+          const sourceIndex = face.mesh.geometry.attributes.skinIndex.getComponent(id, influence);
+          const joint = source.skeleton.bones.indexOf(face.mesh.skeleton.bones[sourceIndex]);
+          const weight =
+            face.mesh.geometry.attributes.skinWeight.getComponent(id, influence) *
+            barycentric.getComponent(corner) *
+            blend;
+          if (joint >= 0 && joint <= 255 && weight > 0)
+            transferred.set(joint, (transferred.get(joint) ?? 0) + weight);
+        }
+      }
+      for (let influence = 0; influence < 4; influence++) {
+        const joint = skinIndices[offset + influence];
+        transferred.set(
+          joint,
+          (transferred.get(joint) ?? 0) + weights[offset + influence] * (1 - blend)
+        );
+      }
+      const sorted = [...transferred].sort((a, b) => b[1] - a[1]).slice(0, 4);
+      const total = sorted.reduce((sum, entry) => sum + entry[1], 0);
+      if (total > 0)
+        for (let influence = 0; influence < 4; influence++) {
+          skinIndices[offset + influence] = sorted[influence]?.[0] ?? 0;
+          weights[offset + influence] = (sorted[influence]?.[1] ?? 0) / total;
+        }
+    }
+  }
+  function panel(
+    columns: number,
+    rows: number,
+    point: (u: number, v: number) => [number, number, number],
+    colour: THREE.Color,
+    shade = false,
+    vent = false
+  ) {
+    const start = positions.length / 3;
+    for (let row = 0; row <= rows; row++)
+      for (let column = 0; column <= columns; column++) {
+        const u = column / columns,
+          v = row / rows,
+          p = point(u, v);
+        vertex(...p, colour, shade ? 0.95 + 0.05 * Math.cos(u * Math.PI * 10 + v * 4) : 1);
+        if (row < rows && column < columns) {
+          // A real centre vent lets the two lower flaps follow opposite thighs.
+          // Blending both legs through one sheet pulls the hem into the trousers.
+          if (vent && p[1] < hip.y && column === 9) continue;
+          const a = start + row * (columns + 1) + column,
+            b = a + columns + 1;
+          indices.push(a, b + 1, b, a, a + 1, b + 1);
+        }
+      }
+  }
+  function shape(u: number, v: number): [number, number, number] {
+    const y = THREE.MathUtils.lerp(top, hem, v);
+    const aboveWaist = THREE.MathUtils.smoothstep(y, waist, top);
+    const width = THREE.MathUtils.lerp(0.235, 0.112, aboveWaist);
+    const across = u * 2 - 1;
+    const fold = 0.006 * Math.sin(across * Math.PI * 3 + v * 0.8) * (1 - aboveWaist);
+    return [
+      hip.x + across * width,
+      y - (1 - across * across) * 0.008 * (1 - v),
+      frontAt(y) +
+        0.032 +
+        0.018 * (1 - aboveWaist) +
+        across * across * THREE.MathUtils.lerp(0.005, -0.02, aboveWaist) +
+        fold,
+    ];
+  }
+  panel(20, 24, shape, linen, true, true);
+  // Sewn edges sit on the same folded cloth rather than floating straight lines.
+  for (const edge of [0, 1])
+    panel(
+      1,
+      24,
+      (u, v) => {
+        const p = shape(edge === 0 ? u * 0.012 : 1 - u * 0.012, v);
+        p[2] += 0.0015;
+        return p;
+      },
+      stitch
+    );
+  for (const edge of [0, 1])
+    panel(
+      20,
+      1,
+      (u, v) => {
+        const p = shape(u, edge === 0 ? v * 0.009 : 1 - v * 0.009);
+        p[2] += 0.0015;
+        return p;
+      },
+      stitch,
+      false,
+      edge === 1
+    );
+  function clothAt(x: number, y: number) {
+    const width = THREE.MathUtils.lerp(0.235, 0.112, THREE.MathUtils.smoothstep(y, waist, top));
+    return shape(0.5 + x / (2 * width), (top - y) / (top - hem));
+  }
+  const pocketTop = waist + 0.075,
+    pocketBottom = waist - 0.065;
+  panel(
+    10,
+    6,
+    (u, v) => {
+      const p = clothAt((u * 2 - 1) * 0.105, THREE.MathUtils.lerp(pocketTop, pocketBottom, v));
+      p[2] += 0.008 + 0.022 * Math.sin(u * Math.PI) * Math.sin(((1 - v) * Math.PI) / 2);
+      return p;
+    },
+    pocket,
+    true
+  );
+  panel(
+    10,
+    1,
+    (u, v) => {
+      const p = clothAt((u * 2 - 1) * 0.105, pocketTop - v * 0.006);
+      p[2] += 0.01 + 0.022 * Math.sin(u * Math.PI);
+      return p;
+    },
+    stitch
+  );
+  // Soft waist webbing and a small tied bow retain the back silhouette too.
+  let back = Infinity;
+  for (const p of cloud) if (Math.abs(p.y - waist) < 0.06) back = Math.min(back, p.z);
+  if (!Number.isFinite(back)) back = hip.z - 0.12;
+  const front = frontAt(waist),
+    centreZ = (front + 0.055 + back - 0.018) / 2,
+    radiusZ = (front + 0.055 - back + 0.018) / 2;
+  panel(
+    32,
+    1,
+    (u, v) => {
+      const angle = u * Math.PI * 2;
+      return [
+        hip.x + Math.sin(angle) * 0.242,
+        waist + (v - 0.5) * 0.025,
+        centreZ + Math.cos(angle) * radiusZ,
+      ];
+    },
+    strap
+  );
+  for (const side of [-1, 1]) {
+    panel(
+      12,
+      1,
+      (u, v) => [
+        hip.x + side * Math.sin(u * Math.PI) * 0.065,
+        waist - Math.sin(u * Math.PI * 2) * 0.022 + (v - 0.5) * 0.015,
+        back - 0.025 - Math.sin(u * Math.PI) * 0.015,
+      ],
+      strap
+    );
+    panel(
+      12,
+      1,
+      (u, v) => [
+        hip.x + side * (0.075 + u * 0.014 + (v - 0.5) * 0.018),
+        top + Math.sin(u * Math.PI) * 0.1,
+        THREE.MathUtils.lerp(frontAt(top) + 0.03, back - 0.008, u),
+      ],
+      strap
+    );
+  }
+  // A few teal stitches form a small grain sprig, no text or extra decal draw.
+  const markY = top - 0.105;
+  for (let i = 0; i < 5; i++)
+    for (const side of [-1, 1])
+      panel(
+        1,
+        1,
+        (u, v) => {
+          const y = markY + i * 0.014 + u * 0.012;
+          const p = clothAt(side * (u * 0.022 + (v - 0.5) * 0.003), y);
+          p[2] += 0.002;
+          return p;
+        },
+        stitch
+      );
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute('color', new THREE.Float32BufferAttribute(colours, 3));
+  geometry.setAttribute('skinIndex', new THREE.Uint8BufferAttribute(skinIndices, 4));
+  geometry.setAttribute('skinWeight', new THREE.Float32BufferAttribute(weights, 4));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  // These generated and decoded worker attributes are non-interleaved buffers.
+  // Preserve the source upload metadata as well as its array layout for merging.
+  for (const name of ['position', 'normal', 'skinIndex', 'skinWeight']) {
+    (geometry.getAttribute(name) as THREE.BufferAttribute).gpuType = (
+      source.geometry.getAttribute(name) as THREE.BufferAttribute
+    ).gpuType;
+  }
+  geometry.computeBoundingBox();
+  geometry.computeBoundingSphere();
+  return geometry;
+}
+
 /** Metre-space civilian cuts, seated on the measured Head-space scalp.
  * Each style is one shared lit surface. Industrial exports keep their own hair.
  * Working if front hairlines clear the eyes and the five styles resolve distinctly.

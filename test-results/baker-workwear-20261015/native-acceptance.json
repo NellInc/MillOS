@@ -1,0 +1,122 @@
+{
+  "candidateIndexSha256": "9d512baecb0ad75e32c5855d43a22d7bf8f2956a9146b150b7586d7b7dd04aa7",
+  "nativeSandboxedMetal": true,
+  "sourceAndServedBytesTied": true,
+  "authorReview": "Authoring chat inspected all three actual village PNGs. Buildings, day/dusk/night lighting, ground, mountain layers, canal and residents remain coherent in these integration views. They do not resolve apron fit at distance; final close review and actual-rig tests provide that evidence.",
+  "results": [
+    {
+      "timeOfDay": "day",
+      "report": "test-results/art-review/AJ-baker-linen-day-20261015/benchmark.json",
+      "image": "test-results/art-review/AJ-baker-linen-day-20261015/village.png",
+      "exactServedBuild": true,
+      "functionalChecks": {
+        "pageClean": true,
+        "worldIntegrity": true,
+        "communityPresence": true,
+        "checkpoints": true,
+        "effectiveDpr": true
+      },
+      "diagnostics": {
+        "consoleErrors": [],
+        "pageErrors": [],
+        "failedRequests": [],
+        "screenshotError": null
+      },
+      "audio": {
+        "activeNodes": 0,
+        "contextState": "not-created"
+      },
+      "nativeVehicleMotion": true,
+      "performanceOverall": false,
+      "performanceFailedChecks": [
+        "averageFps",
+        "p95Frame"
+      ],
+      "loadPerCore": 1.94,
+      "p95FrameMs": 18.2,
+      "averageFps": 59.99,
+      "postExportP95FrameMs": 18.2,
+      "readyMarksMs": {
+        "millos:world-ready": 16321.6,
+        "millos:startup-ready": 20814.3
+      }
+    },
+    {
+      "timeOfDay": "dusk",
+      "report": "test-results/art-review/AJ-baker-linen-dusk-20261015/benchmark.json",
+      "image": "test-results/art-review/AJ-baker-linen-dusk-20261015/village.png",
+      "exactServedBuild": true,
+      "functionalChecks": {
+        "pageClean": true,
+        "worldIntegrity": true,
+        "communityPresence": true,
+        "checkpoints": true,
+        "effectiveDpr": true
+      },
+      "diagnostics": {
+        "consoleErrors": [],
+        "pageErrors": [],
+        "failedRequests": [],
+        "screenshotError": null
+      },
+      "audio": {
+        "activeNodes": 0,
+        "contextState": "not-created"
+      },
+      "nativeVehicleMotion": true,
+      "performanceOverall": false,
+      "performanceFailedChecks": [
+        "p95Frame"
+      ],
+      "loadPerCore": 1.93,
+      "p95FrameMs": 18.3,
+      "averageFps": 60,
+      "postExportP95FrameMs": 18.3,
+      "readyMarksMs": {
+        "millos:world-ready": 16257.1,
+        "millos:startup-ready": 20676
+      }
+    },
+    {
+      "timeOfDay": "night",
+      "report": "test-results/art-review/AJ-baker-linen-night-20261015/benchmark.json",
+      "image": "test-results/art-review/AJ-baker-linen-night-20261015/village.png",
+      "exactServedBuild": true,
+      "functionalChecks": {
+        "pageClean": true,
+        "worldIntegrity": true,
+        "communityPresence": true,
+        "checkpoints": true,
+        "effectiveDpr": true
+      },
+      "diagnostics": {
+        "consoleErrors": [],
+        "pageErrors": [],
+        "failedRequests": [],
+        "screenshotError": null
+      },
+      "audio": {
+        "activeNodes": 0,
+        "contextState": "not-created"
+      },
+      "nativeVehicleMotion": true,
+      "performanceOverall": false,
+      "performanceFailedChecks": [
+        "p95Frame"
+      ],
+      "loadPerCore": 1.95,
+      "p95FrameMs": 18.4,
+      "averageFps": 60.02,
+      "postExportP95FrameMs": 18.5,
+      "readyMarksMs": {
+        "millos:world-ready": 16607.2,
+        "millos:startup-ready": 21189.5
+      }
+    }
+  ],
+  "pacing": "OPEN separately. Art samples are indicative, no non-art performance gate was run, no overall budget pass claimed. Failed pacing persists even below load/core3. No budgets, quality, adaptation or readiness were changed, and no green-seeking rerun.",
+  "deferred": [
+    "player/device checks",
+    "stocked bakery tray runtime observation"
+  ]
+}

@@ -44,6 +44,7 @@ import {
   shareWorkerSkin,
   createWorkerAccessoryPair,
   createWorkerHairMaterial,
+  createBakerApron,
   setWorkerPupilBlink,
   softenWorkerFaceNormals,
 } from '../models/WorkerModel';
@@ -1328,4 +1329,72 @@ it('mounts garden rise/return, freezes mid-rise and releases stance for walking'
   harness.frame?.({}, 1 / 60);
   expect(y()).toBeGreaterThan(0.75);
   expect(tool.visible).toBe(false);
+});
+
+it('adds owned baker cloth to the cloned rig and disposes only its private resources', async () => {
+  const { clone } = await vi.importActual<typeof import('three/addons/utils/SkeletonUtils.js')>(
+    'three/addons/utils/SkeletonUtils.js'
+  );
+  const scene = new THREE.Group(),
+    bones = ['Hips', 'Abdomen', 'Chest', 'UpperLegL', 'UpperLegR'].map((name) => {
+      const b = new THREE.Bone();
+      b.name = name;
+      return b;
+    });
+  bones[0].position.y = 0.9;
+  bones[1].position.y = 1;
+  bones[2].position.y = 1.38;
+  bones[3].position.set(0.1, 0.9, 0);
+  bones[4].position.set(-0.1, 0.9, 0);
+  scene.add(...bones);
+  scene.updateMatrixWorld(true);
+  const geometry = new THREE.BoxGeometry(0.4, 0.5, 0.25);
+  geometry.translate(0, 1.15, 0);
+  geometry.setAttribute(
+    'skinIndex',
+    new THREE.Uint8BufferAttribute(new Uint8Array(geometry.attributes.position.count * 4), 4)
+  );
+  const weights = new Float32Array(geometry.attributes.position.count * 4);
+  for (let i = 0; i < weights.length; i += 4) weights[i] = 1;
+  geometry.setAttribute('skinWeight', new THREE.Float32BufferAttribute(weights, 4));
+  const source = new THREE.SkinnedMesh(
+    geometry,
+    new THREE.MeshStandardMaterial({ side: THREE.DoubleSide })
+  );
+  source.bind(new THREE.Skeleton(bones));
+  const group = new THREE.Group();
+  group.name = 'Worker_Body';
+  group.add(source);
+  scene.add(group);
+  const clones: THREE.Group[] = [];
+  harness.clone = (s) => {
+    const m = clone(s);
+    clones.push(m);
+    return m;
+  };
+  harness.asset = { scene, animations: [] };
+  const motion: WorkerMotionState = {
+    activity: 'idle',
+    groundSpeed: 0,
+    seated: false,
+    phase: 0,
+    enabled: false,
+  };
+  const { unmount } = render(
+    <WorkerModel appearance={getWorkerAppearance('Baker', '', 'village-baker')} motion={motion} />
+  );
+  const apron = clones[0].getObjectByName('baker-authored-apron') as THREE.SkinnedMesh<
+    THREE.BufferGeometry,
+    THREE.MeshStandardMaterial
+  >;
+  expect(apron).toBeDefined();
+  const disposeCloth = vi.spyOn(apron.geometry, 'dispose'),
+    disposeMaterial = vi.spyOn(apron.material, 'dispose'),
+    disposeSource = vi.spyOn(geometry, 'dispose');
+  expect(scene.getObjectByName('baker-authored-apron')).toBeUndefined();
+  unmount();
+  expect(disposeCloth).toHaveBeenCalledTimes(1);
+  expect(disposeMaterial).toHaveBeenCalledTimes(1);
+  expect(disposeSource).not.toHaveBeenCalled();
+  expect(createBakerApron(new THREE.Group())).toBeNull();
 });

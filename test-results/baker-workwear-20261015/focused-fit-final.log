@@ -1,0 +1,37 @@
+
+> grain-mill-simulator@0.40.0 test
+> vitest run src/components/workers/workerPose.test.ts src/components/workers/WorkerModel.test.tsx
+
+(node:39792) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+ RUN  v4.1.10 /Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS
+
+ ❯ src/components/workers/workerPose.test.ts (93 tests | 2 failed) 99294ms
+   × masculine workwear finish keeps original topology, creases and cached normals 13406ms
+   × feminine workwear finish keeps original topology, creases and cached normals 17171ms
+(node:46165) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/workers/workerPose.test.ts > masculine workwear finish keeps original topology, creases and cached normals
+ FAIL  src/components/workers/workerPose.test.ts > feminine workwear finish keeps original topology, creases and cached normals
+Error: Test timed out in 10000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/components/workers/workerPose.test.ts:1059:3
+    1057|     expect(geometry.getAttribute('position').array).toEqual(originalPo…
+    1058|   });
+    1059|   it(`${body} workwear finish keeps original topology, creases and cac…
+       |   ^
+    1060|     const scene = clone(bodies.get(body)!.scene);
+    1061|     let changed = 0,
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+
+ Test Files  1 failed | 1 passed (2)
+      Tests  2 failed | 131 passed (133)
+   Start at  12:58:42
+   Duration  128.43s (transform 5.22s, setup 2.45s, import 12.83s, tests 102.83s, environment 5.35s)
+

@@ -1,0 +1,12 @@
+
+> grain-mill-simulator@0.40.0 typecheck
+> tsc --noEmit -p tsconfig.typecheck.json
+
+src/components/workers/SharedWorkerGeometries.ts(216,33): error TS2339: Property 'gpuType' does not exist on type 'BufferAttribute | InterleavedBufferAttribute'.
+  Property 'gpuType' does not exist on type 'InterleavedBufferAttribute'.
+src/components/workers/SharedWorkerGeometries.ts(216,78): error TS2339: Property 'gpuType' does not exist on type 'BufferAttribute | InterleavedBufferAttribute'.
+  Property 'gpuType' does not exist on type 'InterleavedBufferAttribute'.
+src/components/workers/SharedWorkerGeometries.ts(220,35): error TS2339: Property 'gpuType' does not exist on type 'BufferAttribute | InterleavedBufferAttribute'.
+  Property 'gpuType' does not exist on type 'InterleavedBufferAttribute'.
+src/components/workers/SharedWorkerGeometries.ts(220,84): error TS2339: Property 'gpuType' does not exist on type 'BufferAttribute | InterleavedBufferAttribute'.
+  Property 'gpuType' does not exist on type 'InterleavedBufferAttribute'.

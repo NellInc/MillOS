@@ -19,6 +19,7 @@ import {
   WORKER_EYE_CENTRES,
   WORKER_HAIR_GEOMETRIES,
   createWorkerHairMotion,
+  createWorkerApronGeometry,
 } from '../workers/SharedWorkerGeometries';
 import {
   SHARED_WORKER_ACCESSORY_MATERIALS,
@@ -1005,6 +1006,41 @@ const WorkerAccessories: React.FC<{
   );
 };
 
+/** One private garment, same bind frame and palette as the existing body.
+ * Working if near cloth deforms and its colours survive the two-draw far body.
+ */
+export function createBakerApron(model: THREE.Object3D) {
+  let source: THREE.SkinnedMesh | undefined;
+  model.traverse((object) => {
+    const mesh = object as THREE.SkinnedMesh;
+    if (!source && mesh.isSkinnedMesh && mesh.parent?.name === 'Worker_Body') source = mesh;
+  });
+  if (!source) return null;
+  const geometry = createWorkerApronGeometry(source);
+  if (!geometry) return null;
+  const material = new THREE.MeshStandardMaterial({
+    name: 'baker-linen-apron',
+    color: '#ffffff',
+    vertexColors: true,
+    roughness: 0.94,
+    metalness: 0,
+    envMapIntensity: 0.8,
+    side: (Array.isArray(source.material) ? source.material[0] : source.material).side,
+  });
+  const mesh = new THREE.SkinnedMesh(geometry, material);
+  mesh.name = 'baker-authored-apron';
+  mesh.position.copy(source.position);
+  mesh.quaternion.copy(source.quaternion);
+  mesh.scale.copy(source.scale);
+  mesh.bindMode = source.bindMode;
+  mesh.bind(source.skeleton, source.bindMatrix);
+  mesh.bindMatrixInverse.copy(source.bindMatrixInverse);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  source.parent?.add(mesh);
+  return mesh;
+}
+
 export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) => {
   const modelPath =
     appearance.bodyType === 'feminine' ? WORKER_ASSET_PATHS.feminine : WORKER_ASSET_PATHS.masculine;
@@ -1142,6 +1178,14 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
       ownedGeometry.push(dressed);
       material.vertexColors = true;
       material.needsUpdate = true;
+    }
+
+    const apron = appearance.workAction === 'bake' ? createBakerApron(model) : null;
+    if (apron) {
+      ownedGeometry.push(apron.geometry);
+      materials.push(apron.material);
+      skinned.push(apron);
+      if (apron.geometry.boundingBox) _bindBox.union(apron.geometry.boundingBox);
     }
 
     // One conservative bind-pose volume shared by every primitive: all meshes

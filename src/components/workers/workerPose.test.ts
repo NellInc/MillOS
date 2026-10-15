@@ -20,11 +20,14 @@ import {
 } from './workerPose';
 import { COMMUNITY_ANCHORS } from '../../constants/communityLayout';
 import { getWorkerAppearance } from './workerTypes';
+import { createWorkerBodyLod } from './workerBodyLod';
 import {
   createWorkerFaceColours,
   dressWorkerHands,
   softenWorkerFaceNormals,
   retainWorkerBrows,
+  shareWorkerSkin,
+  createBakerApron,
 } from '../models/WorkerModel';
 
 const bodies = new Map<string, GLTF>();
@@ -1457,5 +1460,183 @@ it('keeps real garden feet planted and chains unstretched through rise, pause an
       expect(pose.gardenGripReady()).toBe(false);
       expect(pos('Hips').y).toBeGreaterThan(0.75);
       pose.restore();
+    }
+});
+
+describe('actual-rig baker linen skinning and distant preservation', () => {
+  for (const body of ['masculine', 'feminine'])
+    for (const height of [0.95, 1.08]) {
+      it(`${body}/${height} binds cloth to the actual palette through work and locomotion`, () => {
+        const gltf = bodies.get(body)!;
+        const scene = clone(gltf.scene),
+          wrapper = new THREE.Group();
+        wrapper.position.set(4, 0.4, -6);
+        wrapper.rotation.y = 0.9;
+        wrapper.scale.set(0.96, height, 1.06);
+        wrapper.add(scene);
+        const skeletons = shareWorkerSkin(scene);
+        const inverses = skeletons[0].boneInverses.map((x) => x.elements.slice());
+        const original = new Map<THREE.BufferGeometry, number[]>();
+        scene.traverse((o) => {
+          const m = o as THREE.SkinnedMesh;
+          if (m.isSkinnedMesh) {
+            original.set(m.geometry, Array.from(m.geometry.attributes.position.array));
+            m.castShadow = !(m.parent?.name ?? '').includes('Worker_Feet');
+          }
+        });
+        scene.updateWorldMatrix(true, true);
+        const apron = createBakerApron(scene)!;
+        expect(apron).not.toBeNull();
+        scene.updateWorldMatrix(true, true);
+        expect(apron.skeleton).toBe(skeletons[0]);
+        expect(apron.material).toMatchObject({
+          vertexColors: true,
+          roughness: 0.94,
+          metalness: 0,
+          map: null,
+          transparent: false,
+        });
+        const geometry = apron.geometry;
+        expect(geometry.index).not.toBeNull();
+        expect(geometry.index!.count / 3).toBeLessThan(2200);
+        expect(geometry.attributes.skinIndex.array).toBeInstanceOf(Uint8Array);
+        let weightError = 0;
+        for (let i = 0; i < geometry.attributes.skinWeight.count; i++) {
+          let total = 0;
+          for (let j = 0; j < 4; j++) total += geometry.attributes.skinWeight.getComponent(i, j);
+          weightError = Math.max(weightError, Math.abs(total - 1));
+        }
+        expect(weightError).toBeLessThan(1e-7);
+        for (const key of ['position', 'normal', 'color', 'skinIndex', 'skinWeight'])
+          expect(Array.from(geometry.attributes[key].array).every(Number.isFinite)).toBe(true);
+        const lod = createWorkerBodyLod(scene)!;
+        expect(lod).not.toBeNull();
+        expect(lod.meshes).toHaveLength(2);
+        const cast = lod.sources.filter((m) => m.castShadow === apron.castShadow);
+        const offset = cast
+          .slice(0, cast.indexOf(apron))
+          .reduce((n, m) => n + m.geometry.attributes.position.count, 0);
+        const far = lod.meshes.find((m) => m.castShadow === apron.castShadow)!;
+        const mixer = new THREE.AnimationMixer(scene),
+          pose = createSeatedWorkerPose(scene, height, 0.96);
+        const actual = new THREE.Vector3(),
+          expected = new THREE.Vector3(),
+          raw = new THREE.Vector3(),
+          part = new THREE.Vector3();
+        const triangleA = new THREE.Vector3(),
+          triangleB = new THREE.Vector3(),
+          triangleC = new THREE.Vector3();
+        const first = new THREE.Vector3();
+        const forward = new THREE.Vector3(0, 0, 1).transformDirection(scene.matrixWorld);
+        const ray = new THREE.Raycaster(),
+          rayOrigin = new THREE.Vector3();
+        const trousers = scene.getObjectByName('Worker_Legs')!;
+        let maxPokeThrough = 0,
+          rayHits = 0,
+          worstFit = '';
+        let movement = 0,
+          maxError = 0,
+          maxFarError = 0;
+        let sample = 0;
+        for (const name of ['worker-idle', 'worker-walk', 'worker-run', 'worker-break']) {
+          mixer.stopAllAction();
+          const clip = gltf.animations.find((c) => c.name === name)!;
+          mixer.clipAction(clip).reset().play();
+          for (const phase of [0, 0.23, 0.58, 0.87]) {
+            pose.restore();
+            mixer.setTime(clip.duration * phase);
+            if (name === 'worker-break') pose.applyTask('bake');
+            scene.updateWorldMatrix(true, true);
+            apron.skeleton.update();
+            function checkFit(point: THREE.Vector3, location: string) {
+              rayOrigin.copy(point).add(forward);
+              ray.set(rayOrigin, part.copy(forward).negate());
+              const hit = ray.intersectObject(trousers, true)[0];
+              if (hit) {
+                rayHits++;
+                if (1 - hit.distance > maxPokeThrough) {
+                  maxPokeThrough = 1 - hit.distance;
+                  worstFit = `${name}/phase${phase}/${location}`;
+                }
+              }
+            }
+            {
+              for (const row of [16, 20, 22, 24])
+                for (const column of [1, 3, 5, 8, 10, 12, 15, 17, 19]) {
+                  apron
+                    .getVertexPosition(row * 21 + column, actual)
+                    .applyMatrix4(apron.matrixWorld);
+                  checkFit(actual, `row${row}/column${column}`);
+                }
+              // Rasterised triangle interiors can intersect even when corners clear.
+              for (const row of [16, 20, 22, 23])
+                for (const column of [1, 3, 5, 8, 10, 12, 15, 17, 18]) {
+                  const a = row * 21 + column,
+                    b = a + 21;
+                  for (const ids of [
+                    [a, b + 1, b],
+                    [a, a + 1, b + 1],
+                  ]) {
+                    apron.getVertexPosition(ids[0], triangleA).applyMatrix4(apron.matrixWorld);
+                    apron.getVertexPosition(ids[1], triangleB).applyMatrix4(apron.matrixWorld);
+                    apron.getVertexPosition(ids[2], triangleC).applyMatrix4(apron.matrixWorld);
+                    actual
+                      .copy(triangleA)
+                      .add(triangleB)
+                      .add(triangleC)
+                      .multiplyScalar(1 / 3);
+                    checkFit(actual, `triangle${ids.join('/')}`);
+                  }
+                }
+            }
+            for (let i = 0; i < geometry.attributes.position.count; i += 23) {
+              raw
+                .fromBufferAttribute(geometry.attributes.position, i)
+                .applyMatrix4(apron.bindMatrix);
+              expected.set(0, 0, 0);
+              for (let j = 0; j < 4; j++) {
+                const index = geometry.attributes.skinIndex.getComponent(i, j),
+                  weight = geometry.attributes.skinWeight.getComponent(i, j);
+                if (!weight) continue;
+                part
+                  .copy(raw)
+                  .applyMatrix4(apron.skeleton.boneInverses[index])
+                  .applyMatrix4(apron.skeleton.bones[index].matrixWorld);
+                expected.addScaledVector(part, weight);
+              }
+              expected.applyMatrix4(apron.bindMatrixInverse).applyMatrix4(apron.matrixWorld);
+              apron.getVertexPosition(i, actual).applyMatrix4(apron.matrixWorld);
+              expect(actual.toArray().every(Number.isFinite)).toBe(true);
+              maxError = Math.max(maxError, actual.distanceTo(expected));
+              far.getVertexPosition(offset + i, part).applyMatrix4(far.matrixWorld);
+              maxFarError = Math.max(maxFarError, actual.distanceTo(part));
+              if (i === 0) {
+                if (!sample) first.copy(actual);
+                else movement = Math.max(movement, actual.distanceTo(first));
+              }
+            }
+            sample++;
+          }
+        }
+        expect(rayHits).toBeGreaterThan(100);
+        expect(maxPokeThrough, `trousers cover apron at ${worstFit}`).toBeLessThan(0.008);
+        expect(maxError).toBeLessThan(1e-6);
+        expect(maxFarError).toBeLessThan(1e-6);
+        expect(movement).toBeGreaterThan(0.05);
+        expect(apron.skeleton.boneInverses.map((x) => x.elements)).toEqual(inverses);
+        for (const [g, p] of original) expect(Array.from(g.attributes.position.array)).toEqual(p);
+        const camera = new THREE.PerspectiveCamera();
+        camera.position.set(4, 0.4, 110);
+        lod.update(camera);
+        expect(apron.visible).toBe(false);
+        expect(lod.meshes.every((m) => m.visible)).toBe(true);
+        camera.position.copy(wrapper.position);
+        for (let i = 0; i < 12; i++) lod.update(camera);
+        expect(apron.visible).toBe(true);
+        pose.restore();
+        lod.dispose();
+        apron.geometry.dispose();
+        apron.material.dispose();
+      });
     }
 });
