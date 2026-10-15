@@ -1,0 +1,14 @@
+{
+  "index": {
+    "url": "http://127.0.0.1:4288/",
+    "sha256": "c9782f3c9c7c072b6906f8d1ea8e14e2464bb11febe60ee30934e9473791d009",
+    "bytes": 9887
+  },
+  "entries": [
+    {
+      "url": "http://127.0.0.1:4288/assets/main-Dlyp7qdu.js",
+      "sha256": "62bfeac46663d97a5436bac68cbd3ee162b25ac352a0459cbd6cb90f9a3b8b39",
+      "bytes": 824437
+    }
+  ]
+}

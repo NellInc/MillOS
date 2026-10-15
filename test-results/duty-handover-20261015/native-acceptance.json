@@ -1,0 +1,298 @@
+{
+  "reviewer": "authoring chat, own work; four actual PNGs inspected",
+  "sourceRuntimeVisualAccepted": true,
+  "pacing": "separately OPEN; all indicative art budgets fail, contended; no non-art gate",
+  "playerDevice": "DEFERRED",
+  "sandboxed": true,
+  "inProcessGpu": false,
+  "results": [
+    {
+      "time": "day",
+      "scene": "village",
+      "buildIdentity": {
+        "index": {
+          "url": "http://127.0.0.1:4288/",
+          "sha256": "c9782f3c9c7c072b6906f8d1ea8e14e2464bb11febe60ee30934e9473791d009",
+          "bytes": 9887
+        },
+        "entries": [
+          {
+            "url": "http://127.0.0.1:4288/assets/main-Dlyp7qdu.js",
+            "sha256": "62bfeac46663d97a5436bac68cbd3ee162b25ac352a0459cbd6cb90f9a3b8b39",
+            "bytes": 824437
+          }
+        ]
+      },
+      "checks": {
+        "firstFrame": true,
+        "averageFps": true,
+        "p95Frame": false,
+        "p99Frame": true,
+        "onePercentLow": true,
+        "effectiveDpr": true,
+        "longTasks": true,
+        "framesOver50Ms": true,
+        "worldIntegrity": true,
+        "pageClean": true,
+        "communityPresence": true,
+        "checkpoints": true
+      },
+      "diagnostics": {
+        "consoleErrors": [],
+        "pageErrors": [],
+        "failedRequests": [],
+        "screenshotError": null
+      },
+      "audio": {
+        "activeNodes": 0,
+        "contextState": "not-created"
+      },
+      "quality": "medium",
+      "effectiveDpr": {
+        "passed": true,
+        "expected": 1.2,
+        "measured": 1.2,
+        "delta": 0
+      },
+      "overallBudgetPassed": false,
+      "averageFps": 60,
+      "p95FrameMs": 17.5,
+      "p99FrameMs": 17.7,
+      "load": {
+        "cores": 10,
+        "loadAverage1m": 57.73,
+        "loadAverage5m": 61.85,
+        "loadPerCore": 5.77,
+        "contendedThreshold": 3,
+        "contended": true
+      },
+      "startupMarks": {
+        "millos:bootstrap": 239.5,
+        "millos:first-frame": 308.5,
+        "millos:world-ready": 22464,
+        "millos:startup-ready": 27888.1
+      },
+      "artMode": true,
+      "nonArtGateRun": false,
+      "vehicleMotionAcceptance": true,
+      "screenshotPath": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/AL-duty-handover-day-20261015/village.png",
+      "screenshotSha256": "19bf8aa50037696a71672e5cd26b20a3f370948def1d658b88f38f5dd58eaa5e"
+    },
+    {
+      "time": "day",
+      "scene": "interior",
+      "buildIdentity": {
+        "index": {
+          "url": "http://127.0.0.1:4288/",
+          "sha256": "c9782f3c9c7c072b6906f8d1ea8e14e2464bb11febe60ee30934e9473791d009",
+          "bytes": 9887
+        },
+        "entries": [
+          {
+            "url": "http://127.0.0.1:4288/assets/main-Dlyp7qdu.js",
+            "sha256": "62bfeac46663d97a5436bac68cbd3ee162b25ac352a0459cbd6cb90f9a3b8b39",
+            "bytes": 824437
+          }
+        ]
+      },
+      "checks": {
+        "firstFrame": true,
+        "averageFps": false,
+        "p95Frame": false,
+        "p99Frame": true,
+        "onePercentLow": true,
+        "effectiveDpr": true,
+        "longTasks": true,
+        "framesOver50Ms": true,
+        "worldIntegrity": true,
+        "pageClean": true,
+        "communityPresence": true,
+        "checkpoints": true
+      },
+      "diagnostics": {
+        "consoleErrors": [],
+        "pageErrors": [],
+        "failedRequests": [],
+        "screenshotError": null
+      },
+      "audio": {
+        "activeNodes": 0,
+        "contextState": "not-created"
+      },
+      "quality": "medium",
+      "effectiveDpr": {
+        "passed": true,
+        "expected": 1.2,
+        "measured": 1.2,
+        "delta": 0
+      },
+      "overallBudgetPassed": false,
+      "averageFps": 58.98,
+      "p95FrameMs": 20.3,
+      "p99FrameMs": 20.8,
+      "load": {
+        "cores": 10,
+        "loadAverage1m": 53.38,
+        "loadAverage5m": 60.38,
+        "loadPerCore": 5.34,
+        "contendedThreshold": 3,
+        "contended": true
+      },
+      "startupMarks": {
+        "millos:bootstrap": 145.9,
+        "millos:first-frame": 204.3,
+        "millos:world-ready": 22149.9,
+        "millos:startup-ready": 27715.1
+      },
+      "artMode": true,
+      "nonArtGateRun": false,
+      "vehicleMotionAcceptance": true,
+      "screenshotPath": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/AL-duty-handover-day-20261015/interior.png",
+      "screenshotSha256": "5759a5922ab6c701a75d6cae3d74f2f6c64acf94c6faa4d37a8c7d218504dd06"
+    },
+    {
+      "time": "dusk",
+      "scene": "village",
+      "buildIdentity": {
+        "index": {
+          "url": "http://127.0.0.1:4288/",
+          "sha256": "c9782f3c9c7c072b6906f8d1ea8e14e2464bb11febe60ee30934e9473791d009",
+          "bytes": 9887
+        },
+        "entries": [
+          {
+            "url": "http://127.0.0.1:4288/assets/main-Dlyp7qdu.js",
+            "sha256": "62bfeac46663d97a5436bac68cbd3ee162b25ac352a0459cbd6cb90f9a3b8b39",
+            "bytes": 824437
+          }
+        ]
+      },
+      "checks": {
+        "firstFrame": true,
+        "averageFps": true,
+        "p95Frame": false,
+        "p99Frame": true,
+        "onePercentLow": true,
+        "effectiveDpr": true,
+        "longTasks": true,
+        "framesOver50Ms": true,
+        "worldIntegrity": true,
+        "pageClean": true,
+        "communityPresence": true,
+        "checkpoints": true
+      },
+      "diagnostics": {
+        "consoleErrors": [],
+        "pageErrors": [],
+        "failedRequests": [],
+        "screenshotError": null
+      },
+      "audio": {
+        "activeNodes": 0,
+        "contextState": "not-created"
+      },
+      "quality": "medium",
+      "effectiveDpr": {
+        "passed": true,
+        "expected": 1.2,
+        "measured": 1.2,
+        "delta": 0
+      },
+      "overallBudgetPassed": false,
+      "averageFps": 60.01,
+      "p95FrameMs": 17.4,
+      "p99FrameMs": 17.6,
+      "load": {
+        "cores": 10,
+        "loadAverage1m": 51.67,
+        "loadAverage5m": 58.75,
+        "loadPerCore": 5.17,
+        "contendedThreshold": 3,
+        "contended": true
+      },
+      "startupMarks": {
+        "millos:bootstrap": 244,
+        "millos:first-frame": 311.5,
+        "millos:world-ready": 21377.1,
+        "millos:startup-ready": 26527.5
+      },
+      "artMode": true,
+      "nonArtGateRun": false,
+      "vehicleMotionAcceptance": true,
+      "screenshotPath": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/AL-duty-handover-dusk-20261015/village.png",
+      "screenshotSha256": "d2f28f53123487b83744b4b457210511b989f80d94e5927dae9cc36e0fd94764"
+    },
+    {
+      "time": "night",
+      "scene": "village",
+      "buildIdentity": {
+        "index": {
+          "url": "http://127.0.0.1:4288/",
+          "sha256": "c9782f3c9c7c072b6906f8d1ea8e14e2464bb11febe60ee30934e9473791d009",
+          "bytes": 9887
+        },
+        "entries": [
+          {
+            "url": "http://127.0.0.1:4288/assets/main-Dlyp7qdu.js",
+            "sha256": "62bfeac46663d97a5436bac68cbd3ee162b25ac352a0459cbd6cb90f9a3b8b39",
+            "bytes": 824437
+          }
+        ]
+      },
+      "checks": {
+        "firstFrame": false,
+        "averageFps": false,
+        "p95Frame": false,
+        "p99Frame": true,
+        "onePercentLow": true,
+        "effectiveDpr": true,
+        "longTasks": true,
+        "framesOver50Ms": true,
+        "worldIntegrity": true,
+        "pageClean": true,
+        "communityPresence": true,
+        "checkpoints": true
+      },
+      "diagnostics": {
+        "consoleErrors": [],
+        "pageErrors": [],
+        "failedRequests": [],
+        "screenshotError": null
+      },
+      "audio": {
+        "activeNodes": 0,
+        "contextState": "not-created"
+      },
+      "quality": "medium",
+      "effectiveDpr": {
+        "passed": true,
+        "expected": 1.2,
+        "measured": 1.2,
+        "delta": 0
+      },
+      "overallBudgetPassed": false,
+      "averageFps": 59.99,
+      "p95FrameMs": 17.4,
+      "p99FrameMs": 17.5,
+      "load": {
+        "cores": 10,
+        "loadAverage1m": 82.23,
+        "loadAverage5m": 65.75,
+        "loadPerCore": 8.22,
+        "contendedThreshold": 3,
+        "contended": true
+      },
+      "startupMarks": {
+        "millos:bootstrap": 348.1,
+        "millos:first-frame": 468.1,
+        "millos:world-ready": 21926.3,
+        "millos:startup-ready": 27362.7
+      },
+      "artMode": true,
+      "nonArtGateRun": false,
+      "vehicleMotionAcceptance": true,
+      "screenshotPath": "/Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS/test-results/art-review/AL-duty-handover-night-20261015/village.png",
+      "screenshotSha256": "13a142c7f09621667252feb2226bec2089f865979824643c4c3216e376c9bdb6"
+    }
+  ]
+}

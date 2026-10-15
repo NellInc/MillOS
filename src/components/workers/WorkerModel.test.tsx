@@ -13,6 +13,7 @@ import {
   createWorkerHairMotion,
 } from './SharedWorkerGeometries';
 import * as hairShapes from './SharedWorkerGeometries';
+import * as workerPoses from './workerPose';
 import { COMMUNITY_ROSTER } from '../../simulation/communityLife';
 import { createWorkerBodyLod, WORKER_BODY_LOD } from './workerBodyLod';
 import {
@@ -1460,4 +1461,118 @@ it('samples seat cue numbers without throttle or pause lag, and keeps legacy sea
   motion.seat = undefined;
   harness.frame?.({}, 0);
   expect(y()).toBeCloseTo(0.55, 5);
+});
+
+describe('owned duty preparation and release', () => {
+  for (const role of ['Baker', 'Engineer'])
+    it(`${role} mounts the correct work clip, owns its fade and gates truthful tool visibility`, () => {
+      const original = workerPoses.createSeatedWorkerPose;
+      let controller: ReturnType<typeof original> | undefined;
+      vi.spyOn(workerPoses, 'createSeatedWorkerPose').mockImplementation((...args) => {
+        controller = original(...args);
+        vi.spyOn(controller, 'applyDuty');
+        return controller;
+      });
+      const scene = new THREE.Group(),
+        body = new THREE.Group(),
+        hips = new THREE.Group();
+      body.name = 'Body';
+      hips.name = 'Hips';
+      hips.position.y = 0.82;
+      body.add(hips);
+      scene.add(body);
+      const wrist = new THREE.Group();
+      wrist.name = 'WristL';
+      body.add(wrist);
+      const clips = [
+        'idle',
+        'walk',
+        'run',
+        'break',
+        'inspect',
+        'repair',
+        'supervise',
+        'radio',
+        'sample',
+      ].map(
+        (name) =>
+          new THREE.AnimationClip('worker-' + name, 2, [
+            new THREE.NumberKeyframeTrack('Body.position[y]', [0, 2], [0, 0]),
+          ])
+      );
+      harness.asset = { scene, animations: clips };
+      const play = vi.spyOn(THREE.AnimationAction.prototype, 'play');
+      const motion: WorkerMotionState = {
+        activity: 'working',
+        groundSpeed: 0,
+        seated: false,
+        phase: 0,
+        enabled: true,
+        animationInterval: 1 / 60,
+      };
+      const appearance = getWorkerAppearance(role, '', 'handover-' + role);
+      const view = render(<WorkerModel appearance={appearance} motion={motion} />);
+      const tool = view.container.querySelector(
+        '[name="worker-held-tool"]'
+      ) as unknown as THREE.Group;
+      tool.position = new THREE.Vector3();
+      const name = role === 'Baker' ? 'worker-break' : 'worker-inspect';
+      expect(play.mock.contexts.find((a) => a.getClip().name === name)!.getEffectiveWeight()).toBe(
+        1
+      );
+      expect(tool.visible).toBe(true);
+      expect(controller!.applyDuty).toHaveBeenLastCalledWith(
+        appearance.workAction,
+        expect.anything(),
+        1
+      );
+      harness.frame?.({}, 1 / 60);
+      // A shared worker-break clip must not keep a baker's duty fully active.
+      motion.activity = 'break';
+      harness.frame?.({}, 1 / 60);
+      expect(tool.visible).toBe(false);
+      const amount = vi.mocked(controller!.applyDuty).mock.lastCall![2];
+      expect(amount).toBeLessThan(1);
+      expect(amount).toBeGreaterThan(0);
+      motion.enabled = false;
+      const calls = vi.mocked(controller!.applyDuty).mock.calls.length;
+      for (let i = 0; i < 10; i++) harness.frame?.({}, 1);
+      expect(vi.mocked(controller!.applyDuty).mock.calls.length).toBe(calls);
+      motion.enabled = true;
+      for (let i = 0; i < 100; i++) harness.frame?.({}, 1 / 60);
+      const afterRelease = vi.mocked(controller!.applyDuty).mock.calls.length;
+      motion.activity = 'walking';
+      motion.groundSpeed = 0.4;
+      for (let i = 0; i < 20; i++) harness.frame?.({}, 1 / 60);
+      expect(vi.mocked(controller!.applyDuty).mock.calls.length).toBe(afterRelease);
+      expect(tool.visible).toBe(false);
+      motion.activity = 'working';
+      motion.groundSpeed = 0;
+      motion.animationInterval = 1 / 15;
+      harness.frame?.({}, 1 / 60);
+      expect(tool.visible).toBe(false);
+      expect(vi.mocked(controller!.applyDuty).mock.lastCall![2]).toBeLessThan(0.1);
+      for (let i = 0; i < 120; i++) harness.frame?.({}, 1 / 60);
+      expect(tool.visible).toBe(true);
+      // A disabled semantic change resolves immediately without clip-time advance.
+      motion.enabled = false;
+      motion.activity = 'idle';
+      harness.frame?.({}, 1 / 60);
+      expect(tool.visible).toBe(false);
+      motion.activity = 'working';
+      harness.frame?.({}, 1 / 60);
+      expect(tool.visible).toBe(true);
+      // Constraint ownership clears a residual duty before a seated break.
+      motion.activity = 'break';
+      motion.seated = true;
+      harness.frame?.({}, 1 / 60);
+      const count = vi.mocked(controller!.applyDuty).mock.calls.length;
+      motion.seated = false;
+      motion.activity = 'walking';
+      motion.groundSpeed = 0.5;
+      motion.enabled = true;
+      harness.frame?.({}, 1 / 60);
+      expect(vi.mocked(controller!.applyDuty).mock.calls.length).toBe(count);
+      expect(tool.visible).toBe(false);
+    });
 });

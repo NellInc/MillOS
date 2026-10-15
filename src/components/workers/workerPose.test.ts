@@ -1896,3 +1896,182 @@ describe('route-supported seat choreography on the actual rigs', () => {
       });
     }
 });
+
+describe('duty handover continuity', () => {
+  for (const body of ['masculine', 'feminine'])
+    it(`${body} releases a tray posture without a semantic wrist jump`, () => {
+      const asset = bodies.get(body)!;
+      for (const height of [0.95, 1.08]) {
+        const scene = clone(asset.scene),
+          actor = new THREE.Group();
+        const width = height === 0.95 ? 0.96 : 1.06;
+        actor.scale.set(width, height, width);
+        actor.position.set(3, 0, -4);
+        actor.rotation.y = 0.7;
+        actor.add(scene);
+        const mixer = new THREE.AnimationMixer(scene);
+        const pose = createSeatedWorkerPose(scene, height, width);
+        const gesture = sampleWorkerGesture('bake', 2.2, createWorkerGesture());
+        const objects: THREE.Object3D[] = [];
+        scene.traverse((o) => objects.push(o));
+        const snapshot = () =>
+          objects.flatMap((o) => [
+            ...o.position.toArray(),
+            ...o.quaternion.toArray(),
+            ...o.scale.toArray(),
+          ]);
+        const pos = (name: string) =>
+          scene.getObjectByName(name)!.getWorldPosition(new THREE.Vector3());
+        const clip = asset.animations.find((c) => c.name === 'worker-break')!;
+        mixer.clipAction(clip).play();
+        mixer.setTime(0.3);
+        actor.updateMatrixWorld(true);
+        const source = snapshot();
+        pose.applyTask('bake', gesture);
+        const endpoint = snapshot();
+        pose.restore();
+        pose.applyDuty('bake', gesture, 1);
+        expect(snapshot()).toEqual(endpoint);
+        pose.restore();
+        expect(snapshot()).toEqual(source);
+        pose.applyIdle(gesture);
+        const base = snapshot();
+        pose.restore();
+        pose.applyDuty('bake', gesture, 0);
+        expect(snapshot()).toEqual(base);
+        pose.restore();
+        let previous: THREE.Vector3 | undefined, previousKnees: THREE.Vector3[] | undefined;
+        let maxStep = 0,
+          maxStretch = 0,
+          maxKneeStep = 0;
+        const footGroup = scene.getObjectByName('Worker_Feet')!;
+        scene.traverse((o) => {
+          if ((o as THREE.SkinnedMesh).isSkinnedMesh) (o as THREE.SkinnedMesh).skeleton.update();
+        });
+        const sourceSole = new THREE.Box3().setFromObject(footGroup, true).min.y;
+        const calfScales = ['L', 'R'].map(
+          (side) => scene.getObjectByName('LowerLeg' + side)!.scale.y
+        );
+        for (const target of [1, 0, 1, 0]) {
+          let weight = target === 1 ? 0 : 1;
+          for (let frame = 0; frame < 48; frame++) {
+            weight = THREE.MathUtils.damp(weight, target, 4.5, 1 / 60);
+            const amount = THREE.MathUtils.smoothstep(weight, 0.002, 0.98);
+            const feet = [pos('FootL'), pos('FootR')];
+            pose.applyDuty('bake', gesture, amount);
+            const wrist = pos('WristL');
+            if (previous) maxStep = Math.max(maxStep, wrist.distanceTo(previous));
+            previous = wrist;
+            const knees = ['LowerLegL', 'LowerLegR'].map(pos);
+            if (previousKnees)
+              knees.forEach((p, i) => {
+                maxKneeStep = Math.max(maxKneeStep, p.distanceTo(previousKnees![i]));
+              });
+            previousKnees = knees;
+            if (frame % 6 === 0) {
+              scene.traverse((o) => {
+                if ((o as THREE.SkinnedMesh).isSkinnedMesh)
+                  (o as THREE.SkinnedMesh).skeleton.update();
+              });
+              expect(new THREE.Box3().setFromObject(footGroup, true).min.y).toBeGreaterThan(
+                sourceSole - 0.008
+              );
+            }
+            for (let i = 0; i < 2; i++) {
+              expect(pos('Foot' + ['L', 'R'][i]).distanceTo(feet[i])).toBeLessThan(1e-6);
+              maxStretch = Math.max(
+                maxStretch,
+                scene.getObjectByName('LowerLeg' + ['L', 'R'][i])!.scale.y / calfScales[i]
+              );
+            }
+            expect(snapshot().every(Number.isFinite)).toBe(true);
+            pose.restore();
+            expect(snapshot()).toEqual(source);
+          }
+          previous = undefined;
+          previousKnees = undefined;
+        }
+        expect(maxStep).toBeLessThan(0.04);
+        expect(maxStretch).toBeLessThan(1.18);
+        expect(maxKneeStep).toBeLessThan(0.04);
+        // Incoming gait contacts belong to this sample, never a frozen duty episode.
+        mixer.stopAllAction();
+        const walk = asset.animations.find((c) => c.name === 'worker-walk')!;
+        mixer.clipAction(walk).play();
+        for (const phase of [0.1, 0.35, 0.7])
+          for (const amount of [0.15, 0.5, 0.85]) {
+            mixer.setTime(walk.duration * phase);
+            actor.updateMatrixWorld(true);
+            const feet = ['FootL', 'FootR'].map((n) => pos(n));
+            const source = snapshot();
+            pose.applyDuty('bake', gesture, amount, true);
+            feet.forEach((p, i) =>
+              expect(pos(['FootL', 'FootR'][i]).distanceTo(p)).toBeLessThan(1e-6)
+            );
+            pose.restore();
+            expect(snapshot()).toEqual(source);
+          }
+        mixer.stopAllAction();
+        mixer.uncacheRoot(scene);
+      }
+    });
+  for (const body of ['masculine', 'feminine'])
+    it(`${body} blends ordinary duties over the same source without changing gait or restore`, () => {
+      const asset = bodies.get(body)!,
+        scene = clone(asset.scene);
+      const mixer = new THREE.AnimationMixer(scene);
+      const pose = createSeatedWorkerPose(scene);
+      const objects: THREE.Object3D[] = [];
+      scene.traverse((o) => objects.push(o));
+      const snapshot = () =>
+        objects.flatMap((o) => [
+          ...o.position.toArray(),
+          ...o.quaternion.toArray(),
+          ...o.scale.toArray(),
+        ]);
+      for (const action of [
+        'inspect',
+        'operate',
+        'sample',
+        'repair',
+        'supervise',
+        'radio',
+      ] as const) {
+        mixer.stopAllAction();
+        mixer
+          .clipAction(
+            asset.animations.find(
+              (c) => c.name === 'worker-' + (action === 'operate' ? 'inspect' : action)
+            )!
+          )
+          .play();
+        mixer.setTime(0.38);
+        scene.updateMatrixWorld(true);
+        const source = snapshot();
+        const gesture = sampleWorkerGesture(action, 2.1, createWorkerGesture());
+        pose.applyWork(action, gesture);
+        const full = snapshot();
+        pose.restore();
+        pose.applyDuty(action, gesture, 1);
+        expect(snapshot()).toEqual(full);
+        pose.restore();
+        const feet = ['FootL', 'FootR'].map((n) =>
+          scene.getObjectByName(n)!.getWorldPosition(new THREE.Vector3())
+        );
+        for (const amount of [0, 0.15, 0.5, 0.85, 1]) {
+          pose.applyDuty(action, gesture, amount, true);
+          feet.forEach((p, i) =>
+            expect(
+              scene
+                .getObjectByName(['FootL', 'FootR'][i])!
+                .getWorldPosition(new THREE.Vector3())
+                .distanceTo(p)
+            ).toBeLessThan(1e-7)
+          );
+          pose.restore();
+          expect(snapshot()).toEqual(source);
+        }
+      }
+      mixer.stopAllAction();
+    });
+});

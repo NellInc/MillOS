@@ -425,6 +425,12 @@ export function createSeatedWorkerPose(
       quaternion: bone.quaternion.clone(),
       scale: bone.scale.clone(),
     }));
+  const dutyRest = saved.map((entry) => ({
+    bone: entry.bone,
+    position: entry.position.clone(),
+    quaternion: entry.quaternion.clone(),
+    scale: entry.scale.clone(),
+  }));
   let applied = false;
   let gardenStance = false;
   let gardenAmount = 0;
@@ -763,6 +769,84 @@ export function createSeatedWorkerPose(
     releaseGarden() {
       gardenStance = false;
       gardenAmount = 0;
+    },
+    /** Fade a duty overlay over the same restored mixer sample. No clock or
+     * retained pose history: working if source/full endpoints and restore stay exact.
+     */
+    applyDuty(action: WorkerWorkAction, gesture: WorkerGesture, amount: number, walking = false) {
+      const weight = Number.isFinite(amount) ? THREE.MathUtils.clamp(amount, 0, 1) : 0;
+      if (weight === 0) {
+        if (walking) this.applyWalkingLook(gesture);
+        else this.applyIdle(gesture);
+        return;
+      }
+      if (weight === 1) {
+        if (action === 'bake') this.applyTask('bake', gesture);
+        else this.applyWork(action, gesture);
+        return;
+      }
+      // Keep a separate base buffer: each endpoint's capture owns `saved`.
+      if (walking) this.applyWalkingLook(gesture);
+      else this.applyIdle(gesture);
+      for (const entry of dutyRest) {
+        entry.position.copy(entry.bone.position);
+        entry.quaternion.copy(entry.bone.quaternion);
+        entry.scale.copy(entry.bone.scale);
+      }
+      this.restore();
+      if (action === 'bake') {
+        capture();
+        for (let i = 0; i < sides.length; i++) {
+          const foot = bones.get(`Foot${sides[i]}`),
+            thigh = bones.get(`UpperLeg${sides[i]}`),
+            calf = bones.get(`LowerLeg${sides[i]}`);
+          if (!foot || !thigh || !calf) continue;
+          footMatrix
+            .copy(inverse)
+            .multiply(foot.matrixWorld)
+            .decompose(incomingFeet[i], incomingFootRotation[i], incomingFootScale[i]);
+          modelPosition(calf, incomingPoles[i]).sub(modelPosition(thigh, p));
+        }
+        this.applyTask('bake', gesture);
+      } else this.applyWork(action, gesture);
+      for (const entry of dutyRest) {
+        poseQuaternion.copy(entry.bone.quaternion);
+        entry.bone.position.lerpVectors(entry.position, entry.bone.position, weight);
+        entry.bone.quaternion.slerpQuaternions(entry.quaternion, poseQuaternion, weight);
+        entry.bone.scale.lerpVectors(entry.scale, entry.bone.scale, weight);
+      }
+      model.updateWorldMatrix(false, true);
+      if (action === 'bake')
+        for (let i = 0; i < sides.length; i++) {
+          const foot = bones.get(`Foot${sides[i]}`),
+            thigh = bones.get(`UpperLeg${sides[i]}`),
+            calf = bones.get(`LowerLeg${sides[i]}`);
+          if (!foot || !thigh || !calf) continue;
+          const original = seatCalves[i];
+          if (original) calf.scale.copy(original.scale);
+          pole.copy(incomingPoles[i]).lerp(direction.set(0, 0, 1), weight);
+          solveChain(
+            thigh,
+            calf,
+            foot,
+            incomingFeet[i],
+            lengths[i === 0 ? 'legL' : 'legR'],
+            pole,
+            true
+          );
+          footMatrix.compose(incomingFeet[i], incomingFootRotation[i], incomingFootScale[i]);
+          footLocal
+            .copy(foot.parent!.matrixWorld)
+            .invert()
+            .multiply(model.matrixWorld)
+            .multiply(footMatrix);
+          footLocal.decompose(foot.position, foot.quaternion, foot.scale);
+          foot.updateWorldMatrix(false, true);
+        }
+      const abdomen = bones.get('Abdomen');
+      if (abdomen)
+        abdomen.userData.workerIdleSettle = walking ? 0 : gesture.idleSettle * (1 - weight);
+      model.updateWorldMatrix(false, true);
     },
     applyWork(action: WorkerWorkAction, gesture: WorkerGesture) {
       capture();

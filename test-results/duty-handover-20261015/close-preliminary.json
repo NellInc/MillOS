@@ -1,0 +1,48 @@
+{
+  "candidate": "final-build-seal.json",
+  "initialHour": 12,
+  "first": {
+    "status": "done",
+    "durationMs": 55055,
+    "samples": 475,
+    "workSamples": 386,
+    "states": [
+      "idle: A moment outside the shop",
+      "walking: Walking between duties",
+      "walking: Tending the village shop",
+      "working: Tending the village shop"
+    ],
+    "relativeWristRanges": [
+      [
+        -0.06629181629728009,
+        0.055106501430799426
+      ],
+      [
+        0.9045884762949892,
+        0.9248688546472164
+      ],
+      [
+        0.2099905854266133,
+        0.24464141206861711
+      ]
+    ],
+    "finding": "Actual visible daytime work/arrival motion recorded, but no end-of-duty transition within this window."
+  },
+  "lateRelease": {
+    "status": "done",
+    "durationMs": 11090,
+    "samples": 75,
+    "finding": "Ordinary working-to-walking route transition was observed after store closing; hidden actors intentionally freeze skeletal sampling. Not accepted as visible animation proof."
+  },
+  "mediaReducedMotion": false,
+  "documentHidden": false,
+  "worldReadyMs": 23875.1,
+  "startupReadyMs": 29029.4,
+  "audio": {
+    "activeNodes": 0,
+    "contextState": "not-created"
+  },
+  "actualHeldItemInspection": "During a genuine visible Checking the delivery crates duty, all six clipboard accessory meshes visibleInTree=true. Later walking screenshot shows empty hands.",
+  "images": "Inline tool screenshots only; no saved close PNG claimed.",
+  "next": "One bounded follow-up at initial art hour8 keeps the observed routine inside existing shop opening hours, with no actor/clock/stock override and no source change."
+}

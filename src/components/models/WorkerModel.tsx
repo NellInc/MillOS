@@ -1060,6 +1060,9 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
   const greetingElapsed = useRef(0);
   const greetingYaw = useRef(0);
   const attentionYaw = useRef(0);
+  // Break/idle clips are shared by duties and rest. A cosmetic duty blend must
+  // have separate ownership, using admitted delta and the garden fade pattern.
+  const dutyWeight = useRef(0);
   const lastPose = useRef<{
     clip?: WorkerClipName;
     seated?: boolean;
@@ -1247,6 +1250,27 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
 
   useEffect(() => {
     const actions: Partial<Record<WorkerClipName, THREE.AnimationAction>> = {};
+    const speed = Number.isFinite(motion.groundSpeed) ? Math.max(0, motion.groundSpeed) : 0;
+    const moving =
+      (speed > 0.05 || motion.activity === 'walking') && !motion.seated && !motion.cycling;
+    const initialClip: WorkerClipName = moving
+      ? selectWorkerLocomotion(
+          speed,
+          CLIP_GROUND_SPEED[appearance.bodyType].walk * prepared.rigScale * appearance.bodyScale
+        )
+      : motion.seated || motion.cycling || motion.activity === 'break'
+        ? 'worker-break'
+        : motion.activity === 'working'
+          ? TASK_CLIPS[appearance.workAction]
+          : 'worker-idle';
+    dutyWeight.current =
+      motion.activity === 'working' &&
+      !moving &&
+      !motion.seated &&
+      !motion.cycling &&
+      !motion.cartGrip
+        ? 1
+        : 0;
     for (const clipName of WORKER_CLIPS) {
       const clip = animations.find((candidate) => candidate.name === clipName);
       if (!clip) continue;
@@ -1255,12 +1279,9 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
       const phase = Number.isFinite(motion.phase) ? motion.phase : 0;
       const normalizedPhase = ((phase % (Math.PI * 2)) / (Math.PI * 2) + 1) % 1;
       action.time = clip.duration * normalizedPhase;
-      action.setEffectiveWeight(
-        clipName === (motion.seated || motion.cycling ? 'worker-break' : 'worker-idle') ? 1 : 0
-      );
+      action.setEffectiveWeight(clipName === initialClip ? 1 : 0);
       actions[clipName] = action;
-      actionWeights.current[clipName] =
-        clipName === (motion.seated || motion.cycling ? 'worker-break' : 'worker-idle') ? 1 : 0;
+      actionWeights.current[clipName] = clipName === initialClip ? 1 : 0;
     }
     actionsRef.current = actions;
     lastPose.current = {};
@@ -1274,13 +1295,20 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
       seatedPose.applySeat(motion.seat, motion.seatFloorOffset ?? 0);
     else if (motion.seated) seatedPose.apply(motion.seatFloorOffset ?? 0);
     else if (motion.cartGrip) seatedPose.applyTask(motion.cartGrip);
-    else if (motion.activity === 'working' && appearance.workAction === 'garden')
+    else if (motion.activity === 'working' && !moving && appearance.workAction === 'garden')
       seatedPose.applyGarden(true, undefined, 0, true);
-    else if (motion.activity === 'working' && appearance.workAction === 'bake')
-      seatedPose.applyTask('bake');
+    else if (motion.activity === 'working' && !moving)
+      seatedPose.applyDuty(appearance.workAction, gesture, 1);
+    else if (moving) seatedPose.applyWalkingLook(gesture);
+    else seatedPose.applyIdle(gesture);
     handPose.apply(motion, appearance.tool, gesture);
     if (toolRef.current)
-      toolRef.current.visible = !motion.seated && !motion.cycling && motion.activity === 'working';
+      toolRef.current.visible =
+        !moving &&
+        !motion.cartGrip &&
+        !motion.seated &&
+        !motion.cycling &&
+        motion.activity === 'working';
 
     return () => {
       handPose.restore();
@@ -1299,6 +1327,9 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
     gesture,
     appearance.workAction,
     appearance.tool,
+    appearance.bodyType,
+    appearance.bodyScale,
+    prepared.rigScale,
   ]);
 
   useEffect(
@@ -1470,6 +1501,20 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
     if (walk) walk.timeScale = THREE.MathUtils.clamp(speed / (clipSpeed.walk * scale), 0, 1.9);
     if (run) run.timeScale = THREE.MathUtils.clamp(speed / (clipSpeed.run * scale), 0, 2.4);
     mixer.update(safeDelta);
+    const ordinaryDuty =
+      !motion.seated &&
+      !motion.cycling &&
+      !motion.cartGrip &&
+      !seat &&
+      appearance.workAction !== 'garden' &&
+      appearance.workAction !== 'none';
+    const dutyTarget = ordinaryDuty && motion.activity === 'working' && !moving ? 1 : 0;
+    dutyWeight.current = !ordinaryDuty
+      ? 0
+      : motion.enabled
+        ? THREE.MathUtils.damp(dutyWeight.current, dutyTarget, 4.5, safeDelta)
+        : dutyTarget;
+    const dutyAmount = THREE.MathUtils.smoothstep(dutyWeight.current, 0.002, 0.98);
     const stationaryGarden =
       appearance.workAction === 'garden' &&
       !moving &&
@@ -1487,9 +1532,8 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
       seatedPose.applyGarden(motion.activity === 'working', gesture, safeDelta, !motion.enabled)
     ) {
       // Contact-aware garden overlay already applied; fingers follow below.
-    } else if (motion.activity === 'working' && appearance.workAction === 'bake')
-      seatedPose.applyTask('bake', gesture);
-    else if (motion.activity === 'working') seatedPose.applyWork(appearance.workAction, gesture);
+    } else if (ordinaryDuty && (motion.activity === 'working' || dutyAmount > 0))
+      seatedPose.applyDuty(appearance.workAction, gesture, dutyAmount, moving);
     else if (motion.activity === 'walking') seatedPose.applyWalkingLook(gesture);
     else if (motion.activity === 'idle' || motion.activity === 'break')
       seatedPose.applyIdle(gesture);
@@ -1505,7 +1549,8 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
         !motion.seated &&
         !motion.cycling &&
         motion.activity === 'working' &&
-        (appearance.workAction !== 'garden' || seatedPose.gardenGripReady());
+        !moving &&
+        (appearance.workAction === 'garden' ? seatedPose.gardenGripReady() : dutyAmount === 1);
   });
 
   return (

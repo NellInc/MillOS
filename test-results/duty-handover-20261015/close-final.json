@@ -1,0 +1,134 @@
+{
+  "candidate": "final-build-seal.json",
+  "reviewer": "authoring chat, own work",
+  "initialHour": 8,
+  "readOnlyNaturalRoute": true,
+  "camera": "fixed shop side view only",
+  "status": "done",
+  "error": null,
+  "samples": 111,
+  "durationMs": 10932.5,
+  "worldReadyMs": 20220.59999999404,
+  "startupReadyMs": 24926,
+  "releaseAt": 33511.2,
+  "transitionSamples": 31,
+  "maxSampledLocalWristSpeedMps": 1.3324725185966286,
+  "maxTransitionSampleGapMs": 241.70000000000437,
+  "reducedMotion": false,
+  "audio": {
+    "activeNodes": 0,
+    "contextState": "not-created"
+  },
+  "consoleErrors": [],
+  "scripts": [
+    "http://127.0.0.1:4289/assets/main-Dlyp7qdu.js"
+  ],
+  "states": [
+    {
+      "t": 24919.5,
+      "activity": "working",
+      "task": "Tending the village shop",
+      "visible": true,
+      "position": [
+        -204.4,
+        0,
+        30
+      ]
+    },
+    {
+      "t": 33511.2,
+      "activity": "walking",
+      "task": "Checking the delivery crates",
+      "visible": true,
+      "position": [
+        -204.4,
+        0,
+        30.094929999947617
+      ]
+    },
+    {
+      "t": 35552.9,
+      "activity": "working",
+      "task": "Checking the delivery crates",
+      "visible": true,
+      "position": [
+        -204.4,
+        0,
+        31.6
+      ]
+    }
+  ],
+  "landmarks": [
+    {
+      "t": 33302.9,
+      "root": [
+        -204.4,
+        0,
+        30
+      ],
+      "localLeft": [
+        0.22753373308479752,
+        0.9211585872613366,
+        -0.05434564138229801
+      ],
+      "leftFoot": [
+        -204.20942205546356,
+        0.02362066848019229,
+        30.111130524147686
+      ],
+      "rightFoot": [
+        -204.54183543631305,
+        0.02362066848019229,
+        29.936867595021244
+      ]
+    },
+    {
+      "t": 33886.2,
+      "root": [
+        -204.4,
+        0,
+        30.327799999934463
+      ],
+      "localLeft": [
+        0.1779538669280852,
+        0.8881369424569866,
+        -0.19742542045818776
+      ],
+      "leftFoot": [
+        -204.32338396890069,
+        0.02350881979080189,
+        30.52171580250929
+      ],
+      "rightFoot": [
+        -204.48741744428855,
+        0.1924524604961232,
+        29.851591595713767
+      ]
+    },
+    {
+      "t": 35027.9,
+      "root": [
+        -204.4,
+        0,
+        31.231999999934462
+      ],
+      "localLeft": [
+        0.15540880633854837,
+        0.9834711963535846,
+        0.2281903120675579
+      ],
+      "leftFoot": [
+        -204.2963886197384,
+        0.19506210381950648,
+        30.73265158290731
+      ],
+      "rightFoot": [
+        -204.4827918520661,
+        0.03298591020269871,
+        31.49588469675251
+      ]
+    }
+  ],
+  "finding": "Visible ordinary work-to-walk-to-work sequence captured on exact build, with changing actual wrists, head and alternating gait feet. Source tests supply finer continuity and endpoint proof. Busy diagnostic sampling is not a frame-pacing pass.",
+  "limits": "Baker remains truthfully unstocked; no stocked-baking runtime observation or override. Full111 rows/close PNG not saved; six transition landmarks and screenshots are in tool conversation."
+}

@@ -1,0 +1,49 @@
+
+> grain-mill-simulator@0.40.0 test
+> vitest run src/components/workers/workerPose.test.ts src/components/workers/WorkerModel.test.tsx
+
+(node:66345) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+ RUN  v4.1.10 /Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS
+
+(node:66665) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ❯ src/components/workers/workerPose.test.ts (103 tests | 2 failed) 82554ms
+   × feminine replaces only scalp triangles while keeping real brow vertices and skin bindings 10651ms
+     × masculine/0.95 binds cloth to the actual palette through work and locomotion 10373ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/workers/workerPose.test.ts > feminine replaces only scalp triangles while keeping real brow vertices and skin bindings
+Error: Test timed out in 10000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/components/workers/workerPose.test.ts:1254:3
+    1252|
+    1253| for (const body of ['masculine', 'feminine']) {
+    1254|   it(`${body} replaces only scalp triangles while keeping real brow ve…
+       |   ^
+    1255|     const scene = clone(bodies.get(body)!.scene);
+    1256|     scene.updateMatrixWorld(true);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/components/workers/workerPose.test.ts > actual-rig baker linen skinning and distant preservation > masculine/0.95 binds cloth to the actual palette through work and locomotion
+Error: Test timed out in 10000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/components/workers/workerPose.test.ts:1469:7
+    1467|   for (const body of ['masculine', 'feminine'])
+    1468|     for (const height of [0.95, 1.08]) {
+    1469|       it(`${body}/${height} binds cloth to the actual palette through …
+       |       ^
+    1470|         const gltf = bodies.get(body)!;
+    1471|         const scene = clone(gltf.scene),
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed | 1 passed (2)
+      Tests  2 failed | 144 passed (146)
+   Start at  14:37:35
+   Duration  99.17s (transform 2.42s, setup 2.72s, import 6.20s, tests 84.46s, environment 3.19s)
+

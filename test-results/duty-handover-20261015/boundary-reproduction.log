@@ -1,0 +1,45 @@
+
+> grain-mill-simulator@0.40.0 test
+> vitest run src/components/workers/workerPose.test.ts -t without a semantic wrist jump
+
+(node:45383) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+ RUN  v4.1.10 /Users/nellwatson/.codex/worktrees/millos-finishing-recovery/MillOS
+
+ ❯ src/components/workers/workerPose.test.ts (101 tests | 2 failed | 99 skipped) 112ms
+     × masculine releases a tray posture without a semantic wrist jump 11ms
+     × feminine releases a tray posture without a semantic wrist jump 3ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/workers/workerPose.test.ts > duty handover continuity > masculine releases a tray posture without a semantic wrist jump
+AssertionError: expected 0.3805749470558988 to be less than 0.04
+ ❯ src/components/workers/workerPose.test.ts:1917:20
+    1915|       const jump = before.distanceTo(wrist.getWorldPosition(new THREE.…
+    1916|       console.log(`${body} old semantic wrist jump: ${(jump * 1000).to…
+    1917|       expect(jump).toBeLessThan(0.04);
+       |                    ^
+    1918|       pose.restore();
+    1919|       mixer.stopAllAction();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/components/workers/workerPose.test.ts > duty handover continuity > feminine releases a tray posture without a semantic wrist jump
+AssertionError: expected 0.39397974620181225 to be less than 0.04
+ ❯ src/components/workers/workerPose.test.ts:1917:20
+    1915|       const jump = before.distanceTo(wrist.getWorldPosition(new THREE.…
+    1916|       console.log(`${body} old semantic wrist jump: ${(jump * 1000).to…
+    1917|       expect(jump).toBeLessThan(0.04);
+       |                    ^
+    1918|       pose.restore();
+    1919|       mixer.stopAllAction();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 99 skipped (101)
+   Start at  14:29:48
+   Duration  941ms (transform 217ms, setup 105ms, import 537ms, tests 112ms, environment 0ms)
+

@@ -1,0 +1,50 @@
+{
+  "label": "AL-duty-handover-night-20261015",
+  "capturedAt": "2026-10-15T14:00:03.825Z",
+  "git": {
+    "commit": "bd2e4438133feaff7d3262785b0d3b9fe7848ca1",
+    "branch": "codex/place-led-beautification-20261010",
+    "dirty": true,
+    "dirtyFileCount": 6,
+    "dirtyFiles": [
+      "_contprompts/millos_place_led_beautification_20261010.md",
+      "src/components/models/WorkerModel.tsx",
+      "src/components/workers/WorkerModel.test.tsx",
+      "src/components/workers/workerPose.test.ts",
+      "src/components/workers/workerPose.ts",
+      "output/playwright/place-led-20261010/"
+    ]
+  },
+  "options": {
+    "label": "AL-duty-handover-night-20261015",
+    "scenes": [
+      "village"
+    ],
+    "sceneSet": "explicit",
+    "quality": "medium",
+    "port": "4288",
+    "time": "22",
+    "weather": "clear",
+    "duration": "1",
+    "warmup": "1",
+    "settleTimeout": "240",
+    "perfGate": false,
+    "skipBuild": true,
+    "headed": false
+  },
+  "diagnostics": [],
+  "scenes": [
+    {
+      "scene": "village",
+      "image": "village.png",
+      "indicativeFps": 59.99
+    }
+  ],
+  "contactSheet": "contact-sheet.png",
+  "perfGate": null,
+  "caveats": [
+    "Working tree was dirty (6 files). These frames show uncommitted work, not commit bd2e443. Do not use as a baseline for a later comparison.",
+    "Captured with --skip-build; dist/ may predate the tree.",
+    "No performance gate was run. Art mode unpins reduced motion and restores full fidelity, so its frame samples are indicative only. A visual verdict from this capture is not shippable until a non-art budget run passes on the same commit."
+  ]
+}
