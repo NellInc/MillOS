@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { readFileSync } from 'node:fs';
 import { NodeIO } from '@gltf-transform/core';
 import { createShopDisplayGeometry, SHOP_DISPLAY_ITEM_GRID } from './GeneratedOfficeModel';
+import { createBarnJoineryGeometry } from '../scenery/AuthoredPropTrim';
 import { GeneratedBody, GeneratedBoundary, GeneratedModel } from './GeneratedModel';
 
 const holder = vi.hoisted(() => ({ scene: null as THREE.Group | null }));
@@ -466,4 +467,166 @@ it('owns farm glazing materials only, preserving loader geometry, textures and o
     material.dispose();
     map.dispose();
   }
+});
+
+async function deliveredBarnGeometry() {
+  const { ALL_EXTENSIONS } = await import('@gltf-transform/extensions');
+  const { default: draco } = await import('draco3dgltf');
+  const doc = await new NodeIO()
+    .registerExtensions(ALL_EXTENSIONS)
+    .registerDependencies({ 'draco3d.decoder': await draco.createDecoderModule() })
+    .read('public/models/farm/barn.glb');
+  const primitive = doc.getRoot().listMeshes()[0].listPrimitives()[0],
+    geometry = new THREE.BufferGeometry();
+  for (const [name, semantic, size] of [
+    ['position', 'POSITION', 3],
+    ['normal', 'NORMAL', 3],
+    ['uv', 'TEXCOORD_0', 2],
+  ] as const)
+    geometry.setAttribute(
+      name,
+      new THREE.Float32BufferAttribute(primitive.getAttribute(semantic)!.getArray()!, size)
+    );
+  geometry.setIndex(Array.from(primitive.getIndices()!.getArray()!));
+  return geometry;
+}
+
+it('builds the real barn within its original cost/envelope with retained roof/floor and a clean recessed loft', async () => {
+  const source = await deliveredBarnGeometry();
+  const before = Object.fromEntries(
+    Object.entries(source.attributes).map(([k, a]) => [k, Array.from(a.array)])
+  );
+  const variant = createBarnJoineryGeometry(source);
+  expect(variant).not.toBe(source);
+  source.computeBoundingBox();
+  variant.computeBoundingBox();
+  const p = variant.getAttribute('position'),
+    n = variant.getAttribute('normal'),
+    uv = variant.getAttribute('uv'),
+    c = variant.getAttribute('color');
+  expect(p.count / 3).toBeLessThanOrEqual(source.index!.count / 3);
+  const kept = variant.userData.barnJoinery.retainedSourceFaces as number[];
+  for (const face of [5307, 6071, 6081]) expect(kept).not.toContain(face);
+  let roof = 0,
+    floor = 0;
+  for (let face = 0; face < source.index!.count / 3; face++) {
+    const ids = [0, 1, 2].map((i) => source.index!.getX(face * 3 + i));
+    const ys = ids.map((i) => source.getAttribute('position').getY(i));
+    if (Math.min(...ys) > 0.32) {
+      expect(kept).toContain(face);
+      roof++;
+    }
+    if (Math.max(...ys) < -0.49) {
+      expect(kept).toContain(face);
+      floor++;
+    }
+  }
+  expect(roof).toBeGreaterThan(200);
+  expect(floor).toBeGreaterThan(100);
+  for (let i = 0; i < kept.length; i++)
+    for (let corner = 0; corner < 3; corner++) {
+      const original = source.index!.getX(kept[i] * 3 + corner),
+        target = i * 3 + corner;
+      for (const name of ['position', 'normal', 'uv'])
+        for (let axis = 0; axis < source.getAttribute(name).itemSize; axis++)
+          expect(variant.getAttribute(name).getComponent(target, axis)).toBe(
+            source.getAttribute(name).getComponent(original, axis)
+          );
+      expect([c.getX(target), c.getY(target), c.getZ(target)]).toEqual([1, 1, 1]);
+    }
+  for (let i = 0; i < p.count; i++) {
+    expect([p.getX(i), p.getY(i), p.getZ(i), uv.getX(i), uv.getY(i)].every(Number.isFinite)).toBe(
+      true
+    );
+    expect(Math.hypot(n.getX(i), n.getY(i), n.getZ(i))).toBeCloseTo(1, 4);
+    for (let axis = 0; axis < 3; axis++) {
+      expect(p.getComponent(i, axis)).toBeGreaterThanOrEqual(
+        source.boundingBox!.min.getComponent(axis) - 1e-6
+      );
+      expect(p.getComponent(i, axis)).toBeLessThanOrEqual(
+        source.boundingBox!.max.getComponent(axis) + 1e-6
+      );
+    }
+  }
+  const material = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }),
+    mesh = new THREE.Mesh(variant, material),
+    old = new THREE.Mesh(source, material);
+  mesh.updateMatrixWorld(true);
+  old.updateMatrixWorld(true);
+  const hit = (object: THREE.Mesh, origin: number[], direction: number[]) =>
+    new THREE.Raycaster(
+      new THREE.Vector3(...origin),
+      new THREE.Vector3(...direction)
+    ).intersectObject(object)[0].point;
+  expect(hit(mesh, [0, 0.05, 1], [0, 0, -1]).z).toBeCloseTo(0.374, 6);
+  expect(hit(mesh, [0, 0, 1], [0, 0, -1]).z).toBeGreaterThan(0.375);
+  for (const x of [-0.09, -0.06, -0.03, 0, 0.03, 0.06, 0.09])
+    for (const y of [-0.05, -0.03, -0.01, 0.01, 0.03, 0.05, 0.065])
+      expect(hit(mesh, [x, y, 0.38], [0, 0, -1]).z).toBeCloseTo(0.374, 6);
+  // Below the real frame/braces, even oblique rays must land on the inset,
+  // including its hidden overlap beneath all four sides of the surround.
+  for (const x of [-0.123, 0, 0.123])
+    for (const y of [-0.079, 0.005, 0.089])
+      for (const side of [-1, 1])
+        expect(hit(mesh, [x - side * 0.003, y, 0.38], [side * 0.5, 0, -1]).z).toBeCloseTo(0.374, 6);
+  for (const z of [-0.426, 0, 0.426])
+    for (const x of [-0.3, -0.15, 0.15, 0.3])
+      expect(hit(mesh, [x, 1, z], [0, -1, 0]).y).toBeCloseTo(hit(old, [x, 1, z], [0, -1, 0]).y, 6);
+  expect(hit(mesh, [0, 0.16, 1], [0, 0, -1]).z).toBeCloseTo(0.405, 4);
+  expect(hit(mesh, [1, -0.3, 0], [-1, 0, 0]).x).toBeCloseTo(0.4205, 4);
+  expect(hit(mesh, [0.3, -0.3, 1], [0, 0, -1]).z).toBeCloseTo(0.419, 3);
+  expect(hit(mesh, [1, -0.3, 0.2], [-1, 0, 0]).x).toBeCloseTo(0.438, 3);
+  for (const [name, values] of Object.entries(before))
+    expect(Array.from(source.getAttribute(name).array)).toEqual(values);
+  console.log(
+    'BARN_JOINERY_COST',
+    JSON.stringify({
+      triangles: p.count / 3,
+      source: source.index!.count / 3,
+      retained: kept.length,
+      roof,
+      floor,
+      bounds: variant.boundingBox,
+    })
+  );
+  variant.dispose();
+  source.dispose();
+  material.dispose();
+});
+
+it('cleans up real barn replacement geometry and paint while leaving cached asset resources intact', async () => {
+  const geometry = await deliveredBarnGeometry(),
+    material = new THREE.MeshStandardMaterial({ map: new THREE.Texture() }),
+    source = new THREE.Group();
+  const body = new THREE.Mesh(geometry, material);
+  body.name = 'BarnBody';
+  body.scale.setScalar(10.007632);
+  source.add(body);
+  holder.scene = source;
+  let clone: THREE.Group;
+  const original = source.clone.bind(source);
+  vi.spyOn(source, 'clone').mockImplementation((recursive) => (clone = original(recursive)));
+  const cached = vi.spyOn(geometry, 'dispose'),
+    cachedMaterial = vi.spyOn(material, 'dispose'),
+    cachedMap = vi.spyOn(material.map!, 'dispose');
+  const view = render(<GeneratedModel asset="barn" />),
+    copy = clone!.getObjectByName('BarnBody') as THREE.Mesh;
+  expect(copy.geometry).not.toBe(geometry);
+  expect(copy.scale).toEqual(body.scale);
+  expect(copy.children).toHaveLength(0);
+  const paint = copy.material as THREE.MeshStandardMaterial;
+  expect(paint.vertexColors).toBe(true);
+  expect(paint.map).toBe(material.map);
+  expect(paint.customProgramCacheKey()).toBe('millos-farm-window-barn-v1');
+  const ownedGeometry = vi.spyOn(copy.geometry, 'dispose'),
+    ownedPaint = vi.spyOn(paint, 'dispose');
+  view.unmount();
+  expect(ownedGeometry).toHaveBeenCalledOnce();
+  expect(ownedPaint).toHaveBeenCalledOnce();
+  expect(cached).not.toHaveBeenCalled();
+  expect(cachedMaterial).not.toHaveBeenCalled();
+  expect(cachedMap).not.toHaveBeenCalled();
+  geometry.dispose();
+  material.map!.dispose();
+  material.dispose();
 });

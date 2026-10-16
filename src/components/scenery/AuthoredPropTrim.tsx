@@ -1232,3 +1232,281 @@ export const CANAL_BOAT_LANTERN_METAL = new THREE.MeshStandardMaterial({
   roughness: 0.48,
   metalness: 0.55,
 });
+
+/** Measured gambrel profile in the delivered barn's rest coordinates. */
+const BARN_ROOF_PROFILE = [
+  [0, 0.303],
+  [0.213, 0.232],
+  [0.338, 0.004],
+  [0.463, -0.115],
+];
+const barnRoofHeight = (position: number) => {
+  const x = Math.abs(position),
+    profile = BARN_ROOF_PROFILE;
+  for (let i = 1; i < profile.length; i++) {
+    const [a, y] = profile[i - 1],
+      [b, top] = profile[i];
+    if (x <= b) return y + ((top - y) * (x - a)) / (b - a);
+  }
+  return -0.115;
+};
+
+/** Rebuild only the old barn walls/joinery, below the retained crafted roof.
+ * Source dimensions precede the existing 10.0076m node scale. Replace the
+ * nonplanar old loft faces with a clean inset behind the new timber braces.
+ * Working if this remains one owned draw below the old triangle count, with
+ * source roof/cupola/floor triangles and all loader maps unchanged.
+ */
+export function createBarnJoineryGeometry(source: THREE.BufferGeometry) {
+  const position = source.getAttribute('position'),
+    normal = source.getAttribute('normal'),
+    uv = source.getAttribute('uv');
+  if (!position || !normal || !uv) return source;
+  const indices = source.index;
+  const retained: number[] = [],
+    sourceFaces: number[] = [];
+  let loftFaces = 0;
+  const count = indices ? indices.count : position.count;
+  for (let face = 0; face < count / 3; face++) {
+    const ids = [0, 1, 2].map((c) => (indices ? indices.getX(face * 3 + c) : face * 3 + c));
+    const centre = [0, 1, 2].map(
+      (c) => ids.reduce((v, i) => v + position.getComponent(i, c), 0) / 3
+    );
+    const [x, y, z] = centre;
+    const loft = Math.abs(x) < 0.12 && y > -0.08 && y < 0.09 && z > 0.36 && z < 0.375;
+    if (loft) loftFaces++;
+    if (y < -0.482 || y >= barnRoofHeight(x) - 0.016) {
+      retained.push(...ids);
+      sourceFaces.push(face);
+    }
+  }
+  // A fallback fixture or future different asset has no matching source loft.
+  // Leave it alone rather than attaching a construction kit to the wrong body.
+  if (loftFaces < 2 || sourceFaces.length < 100 || count / 3 - sourceFaces.length < 1000)
+    return source;
+  const kept = new THREE.BufferGeometry();
+  for (const name of ['position', 'normal', 'uv']) {
+    const a = source.getAttribute(name),
+      values: number[] = [];
+    for (const i of retained)
+      for (let c = 0; c < a.itemSize; c++) values.push(a.getComponent(i, c));
+    kept.setAttribute(name, new THREE.Float32BufferAttribute(values, a.itemSize));
+  }
+  colored(kept, '#ffffff');
+  const parts = [kept];
+  // Delivered atlas pixels724..740,260..276 are neutral paint, with near-flat
+  // normals. Linear multipliers retain that restrained grain on the new wood.
+  const swatch = new THREE.Color().setRGB(0.80292586, 0.80602022, 0.8029565, THREE.SRGBColorSpace);
+  const paint = (g: THREE.BufferGeometry, hex: string) => {
+    colored(g, hex);
+    const colour = g.getAttribute('color'),
+      tex = g.getAttribute('uv');
+    const bounds = new THREE.Box2();
+    for (let i = 0; i < tex.count; i++)
+      bounds.expandByPoint(new THREE.Vector2(tex.getX(i), tex.getY(i)));
+    const size = bounds.getSize(new THREE.Vector2());
+    for (let i = 0; i < colour.count; i++) {
+      colour.setXYZ(
+        i,
+        colour.getX(i) / swatch.r,
+        colour.getY(i) / swatch.g,
+        colour.getZ(i) / swatch.b
+      );
+      tex.setXY(
+        i,
+        (724.5 + ((tex.getX(i) - bounds.min.x) / Math.max(size.x, 1e-6)) * 15) / 1024,
+        (260.5 + ((tex.getY(i) - bounds.min.y) / Math.max(size.y, 1e-6)) * 15) / 1024
+      );
+    }
+    parts.push(g);
+  };
+  const timber = (centre: number[], size: number[], bevel = 0.0012) => {
+    const shape = new THREE.Shape(),
+      x = size[0] / 2 - bevel,
+      y = size[1] / 2 - bevel;
+    shape.moveTo(-x, -y);
+    shape.lineTo(x, -y);
+    shape.lineTo(x, y);
+    shape.lineTo(-x, y);
+    shape.closePath();
+    const g = new THREE.ExtrudeGeometry(shape, {
+      depth: size[2] - 2 * bevel,
+      steps: 1,
+      bevelEnabled: true,
+      bevelSegments: 1,
+      bevelSize: bevel,
+      bevelThickness: bevel,
+      curveSegments: 1,
+    });
+    return g.translate(centre[0], centre[1], centre[2] - size[2] / 2 + bevel);
+  };
+  const box = (centre: number[], size: number[], hex: string, bevel = 0.0012) =>
+    paint(timber(centre, size, bevel), hex);
+  const stick = (a: number[], b: number[], width: number, depth: number, hex: string) => {
+    const start = new THREE.Vector3(...a),
+      finish = new THREE.Vector3(...b),
+      direction = finish.clone().sub(start);
+    const g = timber([0, 0, 0], [width, direction.length(), depth], Math.min(width * 0.16, 0.0015));
+    g.applyQuaternion(
+      new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.normalize())
+    ).translate(...start.add(finish).multiplyScalar(0.5).toArray());
+    paint(g, hex);
+  };
+  // One planar inset replaces all old glazing/joinery fragments. Its hidden
+  // overlap beneath the surround closes oblique gaps; the room mask is unchanged.
+  paint(new THREE.PlaneGeometry(0.25, 0.172).translate(0, 0.005, 0.374), '#111313');
+  const cream = '#e4dfcb',
+    oak = '#765231',
+    iron = '#303b39';
+  const reds = ['#982e35', '#9c3138', '#952c33', '#9a2f36'];
+  const plank = (
+    lo: number,
+    hi: number,
+    bottom: number,
+    top: number,
+    side: number,
+    shade: string
+  ) => {
+    const a = Math.min(top, barnRoofHeight(lo) - 0.012),
+      b = Math.min(top, barnRoofHeight(hi) - 0.012);
+    if (Math.min(a, b) <= bottom) return;
+    const shape = new THREE.Shape();
+    shape.moveTo(lo, bottom);
+    shape.lineTo(hi, bottom);
+    shape.lineTo(hi, b);
+    shape.lineTo(lo, a);
+    shape.closePath();
+    const g = new THREE.ExtrudeGeometry(shape, {
+      depth: 0.012,
+      steps: 1,
+      bevelEnabled: false,
+      curveSegments: 1,
+    });
+    g.translate(0, 0, 0.407);
+    if (side < 0) g.rotateY(Math.PI);
+    paint(g, shade);
+  };
+  // Continuous dark backers close the construction joints without filling the loft.
+  for (const side of [-1, 1]) {
+    const outline = new THREE.Shape();
+    outline.moveTo(-0.438, -0.482);
+    outline.lineTo(0.438, -0.482);
+    for (const x of [0.438, 0.338, 0.213, 0, -0.213, -0.338, -0.438])
+      outline.lineTo(x, barnRoofHeight(x) - 0.012);
+    outline.closePath();
+    if (side > 0) {
+      const hole = new THREE.Path();
+      hole.moveTo(-0.125, -0.081);
+      hole.lineTo(-0.125, 0.091);
+      hole.lineTo(0.125, 0.091);
+      hole.lineTo(0.125, -0.081);
+      hole.closePath();
+      outline.holes.push(hole);
+    }
+    const backing = new THREE.ExtrudeGeometry(outline, {
+      depth: 0.002,
+      steps: 1,
+      bevelEnabled: false,
+      curveSegments: 1,
+    });
+    backing.translate(0, 0, 0.403);
+    if (side < 0) backing.rotateY(Math.PI);
+    paint(backing, '#70272c');
+    const top = barnRoofHeight(0.438) - 0.008;
+    paint(
+      new THREE.BoxGeometry(0.003, top + 0.482, 0.832).translate(
+        side * 0.419,
+        (top - 0.482) / 2,
+        0
+      ),
+      '#70272c'
+    );
+  }
+  for (const side of [-1, 1]) {
+    for (let i = 0; i < 24; i++) {
+      const lo = -0.438 + (i * 0.876) / 24 + 0.0005,
+        hi = -0.438 + ((i + 1) * 0.876) / 24 - 0.0005;
+      // Source loft opening exists on +Z only. Keep its full framed aperture.
+      const breaks =
+        side > 0 ? [lo, ...[-0.125, 0.125].filter((x) => x > lo && x < hi), hi] : [lo, hi];
+      for (let j = 1; j < breaks.length; j++) {
+        const x0 = breaks[j - 1],
+          x1 = breaks[j];
+        if (side > 0 && (x0 + x1) / 2 > -0.125 && (x0 + x1) / 2 < 0.125) {
+          plank(x0, x1, -0.482, -0.081, side, reds[i % 4]);
+          plank(x0, x1, 0.091, 1, side, reds[i % 4]);
+        } else plank(x0, x1, -0.482, 1, side, reds[i % 4]);
+      }
+    }
+    const top = barnRoofHeight(0.438) - 0.008;
+    for (let i = 0; i < 24; i++) {
+      const z = -0.416 + ((i + 0.5) * 0.832) / 24;
+      paint(
+        new THREE.BoxGeometry(0.014, top + 0.482, 0.832 / 24 - 0.001).translate(
+          side * 0.431,
+          (top - 0.482) / 2,
+          z
+        ),
+        reds[(i + 1) % 4]
+      );
+    }
+    box([side * 0.438, barnRoofHeight(0.449) - 0.018, 0], [0.022, 0.018, 0.866], cream);
+    box([side * 0.438, -0.478, 0], [0.024, 0.018, 0.866], cream);
+    for (const end of [-1, 1])
+      box([side * 0.43, (top - 0.469) / 2, end * 0.419], [0.025, top + 0.469, 0.03], cream, 0.002);
+    for (const end of [-1, 1]) {
+      const profile = [
+        [0, 0.303],
+        [0.213, 0.232],
+        [0.338, 0.004],
+        [0.438, barnRoofHeight(0.438)],
+      ];
+      for (let i = 1; i < profile.length; i++)
+        stick(
+          [side * profile[i - 1][0], profile[i - 1][1] - 0.032, end * 0.426],
+          [side * profile[i][0], profile[i][1] - 0.032, end * 0.426],
+          0.016,
+          0.024,
+          cream
+        );
+    }
+  }
+  for (const end of [-1, 1]) {
+    box([0, -0.478, end * 0.419], [0.885, 0.018, 0.03], cream);
+    box([0, -0.115, end * 0.42], [0.835, 0.023, 0.028], cream);
+    box([0, 0.106, end * 0.42], [0.45, 0.021, 0.028], cream);
+  }
+  for (const x of [-0.115, 0.115]) box([x, 0.005, 0.401], [0.02, 0.132, 0.036], cream, 0.0015);
+  for (const y of [-0.071, 0.081]) box([0, y, 0.401], [0.25, 0.02, 0.036], cream, 0.0015);
+  for (const sign of [-1, 1])
+    stick(
+      [-0.103, sign < 0 ? 0.071 : -0.061, 0.391 + (sign < 0 ? 0.0015 : 0)],
+      [0.103, sign < 0 ? -0.061 : 0.071, 0.391 + (sign < 0 ? 0.0015 : 0)],
+      0.014,
+      0.018,
+      oak
+    );
+  for (let i = 0; i < 12; i++) {
+    const x = -0.195 + ((i + 0.5) * 0.39) / 12;
+    box([x, -0.305, 0.428], [0.39 / 12 - 0.0009, 0.33, 0.018], i % 3 ? oak : '#715030', 0.0007);
+  }
+  for (const x of [-0.208, 0.208]) box([x, -0.306, 0.43], [0.024, 0.353, 0.028], cream, 0.002);
+  box([0, -0.129, 0.43], [0.441, 0.026, 0.03], cream, 0.002);
+  for (const side of [-1, 1]) {
+    for (const y of [-0.186, -0.42]) {
+      box([side * 0.165, y, 0.444], [0.082, 0.009, 0.006], iron, 0.0007);
+      box([side * 0.202, y, 0.445], [0.009, 0.028, 0.009], iron, 0.0007);
+    }
+    box([side * 0.014, -0.302, 0.445], [0.007, 0.033, 0.009], iron, 0.0007);
+  }
+  box([0, -0.13, -0.458], [0.027, 0.026, 0.08], '#42382b');
+  stick([0, -0.167, -0.418], [0, -0.143, -0.482], 0.013, 0.013, oak);
+  const result = joined(parts);
+  result.userData.barnJoinery = {
+    retainedSourceFaces: sourceFaces,
+    loftFaces,
+    sourceTriangles: count / 3,
+    triangles: result.getAttribute('position').count / 3,
+  };
+  return result;
+}

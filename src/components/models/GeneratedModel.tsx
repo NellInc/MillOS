@@ -12,7 +12,8 @@
  * walk, and none of them has a skin. Geometry and textures are shared by the
  * clone. Village glazing clones materials for the shared night-lighting shader;
  * explicit market cloth clones only colour attributes and its material; all atlas
- * textures remain shared. Station bodies clone owned palette/rounded-canopy geometry; other assets retain shared materials.
+ * textures remain shared. Station bodies clone owned palette/rounded-canopy geometry. Barn joinery uses
+ * one owned merged geometry, retaining its source roof, cupola and floor.
  */
 
 import React, { useEffect, useMemo } from 'react';
@@ -22,6 +23,7 @@ import { GENERATED_ASSET_PATHS, type GeneratedAssetId } from '../../utils/modelL
 import ErrorBoundary from '../ErrorBoundary';
 import {
   createMarketCanopyGeometry,
+  createBarnJoineryGeometry,
   createPosterStationGeometry,
 } from '../scenery/AuthoredPropTrim';
 import {
@@ -200,6 +202,14 @@ export const GeneratedModel: React.FC<GeneratedModelProps> = ({
         const material = mesh.material.clone();
         // Lancet glazing and forge workrooms keep their architectural character.
         if (asset === 'farmhouse' || asset === 'barn') {
+          if (asset === 'barn') {
+            const geometry = createBarnJoineryGeometry(mesh.geometry);
+            if (geometry !== mesh.geometry) {
+              mesh.geometry = geometry;
+              geometries.push(geometry);
+              material.vertexColors = true;
+            }
+          }
           applyFarmWindows(material, asset);
         } else if (asset === 'shop' && shopTrade) {
           applyShopWindows(material, shopTrade);
