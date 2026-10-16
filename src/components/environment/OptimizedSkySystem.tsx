@@ -223,6 +223,17 @@ void main() {
  * instead of air. `uInscatter` is the SAME colour the fog is using this frame,
  * so the backdrop and the atmosphere in front of it cannot disagree.
  */
+/** Compact support fits the existing 3x3 seed stencil at every fragment.
+ * Working if maximum radius times largest axis stays below 1 + seedInset,
+ * and overlapping crowns have no discontinuous nearest-owner boundary.
+ */
+export const RIDGE_CANOPY_PROFILE = {
+  seedInset: 0.1,
+  radius: [0.6, 0.95],
+  axis: [0.8, 1.1],
+  amplitude: [0.55, 0.95],
+} as const;
+
 const ridgeVertexShader = `
 #include <common>
 #include <logdepthbuf_pars_vertex>
@@ -261,6 +272,7 @@ uniform float uAerial;
 uniform float uDetailStrength;
 uniform float uSnowStrength;
 uniform float uWorldAnchored;
+uniform float uWoodlandStrength;
 varying vec3 vRidgeColor;
 varying vec3 vRidgeNormal;
 varying vec3 vRidgePosition;
@@ -284,6 +296,37 @@ float ridgeFbm(vec2 p) {
   return ridgeNoise(p) * 0.54 + ridgeNoise(p * 2.03 + 7.2) * 0.28 +
     ridgeNoise(p * 4.11 - 3.8) * 0.18;
 }
+// Overlapping compact crowns have continuous shoulders and no nearest-owner
+// crease network. Kernel-weighted species remain continuous between stands.
+vec2 ridgeCanopy(vec2 p) {
+  vec2 base = floor(p), local = fract(p);
+  float uncovered = 1.0, weightSum = 0.0, speciesSum = 0.0;
+  for (int x = -1; x <= 1; x++) {
+    for (int z = -1; z <= 1; z++) {
+      vec2 offset = vec2(float(x), float(z));
+      float a = ridgeHash(base + offset);
+      float b = ridgeHash(base + offset + vec2(53.1, 7.7));
+      float c = ridgeHash(base + offset + vec2(17.7, 39.2));
+      float d = ridgeHash(base + offset + vec2(71.9, 5.3));
+      vec2 delta = offset + ${RIDGE_CANOPY_PROFILE.seedInset.toFixed(2)}
+        + vec2(a, b) * ${(1 - RIDGE_CANOPY_PROFILE.seedInset * 2).toFixed(2)} - local;
+      vec2 rotation = vec2(cos(d * 6.2831853), sin(d * 6.2831853));
+      vec2 rotated = vec2(dot(delta, rotation), dot(delta, vec2(-rotation.y, rotation.x)));
+      vec2 axes = mix(vec2(${RIDGE_CANOPY_PROFILE.axis[0].toFixed(2)}),
+        vec2(${RIDGE_CANOPY_PROFILE.axis[1].toFixed(2)}), vec2(b, a));
+      float radius = mix(${RIDGE_CANOPY_PROFILE.radius[0].toFixed(2)},
+        ${RIDGE_CANOPY_PROFILE.radius[1].toFixed(2)}, c);
+      vec2 shaped = rotated / (axes * radius);
+      float shoulder = max(0.0, 1.0 - dot(shaped, shaped));
+      float weight = mix(${RIDGE_CANOPY_PROFILE.amplitude[0].toFixed(2)},
+        ${RIDGE_CANOPY_PROFILE.amplitude[1].toFixed(2)}, fract(a + d)) * shoulder * shoulder;
+      uncovered *= 1.0 - weight;
+      weightSum += weight;
+      speciesSum += weight * a;
+    }
+  }
+  return vec2(1.0 - uncovered, speciesSum / max(weightSum, 0.0001));
+}
 
 void main() {
   #include <logdepthbuf_fragment>
@@ -294,31 +337,64 @@ void main() {
   // Two continuous vertical projections avoid both an angular seam and the
   // collapsed stripes of one oblique planar projection around a whole ring.
   float faceWeight = abs(normal.x) / max(0.001, abs(normal.x) + abs(normal.z));
-  float rock = smoothstep(0.48, 0.84,
-    vRidgeHeight + (ridgeNoise(p.xz * 0.055) - 0.5) * 0.22) * (1.0 - uWorldAnchored);
-  float forest = ridgeFbm(p.xz * 0.18 + p.y * 0.045);
-  float veins = mix(ridgeFbm(p.xy * vec2(0.11, 0.16)),
-    ridgeFbm(p.zy * vec2(0.11, 0.16)), faceWeight);
-  float scree = ridgeFbm(p.xz * 0.48 + p.y * 0.62 + veins * 3.0);
-  float meadow = smoothstep(0.42, 0.68, ridgeFbm(p.xz * 0.043));
-  // Separate broad meadow and woodland patches from the mineral upper slopes.
-  // These values are linear albedo, before lighting and atmospheric extinction.
-  // Working if the paired surface control removes the patches without changing the silhouette.
-  // The foothills are wooded, with clearings rather than a bright meadow
-  // blanket. Reuse the two existing scales, so the finish keeps its sample budget.
-  float clearing = meadow * smoothstep(0.42, 0.66, forest);
-  vec3 vegetation = mix(vec3(0.054, 0.084, 0.050),
-    vec3(0.101, 0.139, 0.085), clearing);
-  float finish = mix(0.88 + forest * 0.32, 0.4 + veins * 0.8 + scree * 0.32, rock);
-  vec3 detailedAlbedo = mix(vegetation, vRidgeColor, rock) * finish;
-  // Preserve snow through the mineral finish. Shallow shoulders retain cover,
-  // steep faces expose rock; gullies soften the boundary without more samples.
-  // Working if far caps read white while fixed low foothills remain wooded.
-  float snow = smoothstep(0.35, 0.65, vRidgeSnow + (veins - 0.5) * 0.25)
-    * (0.84 + 0.16 * smoothstep(0.08, 0.70, normal.y)) * uSnowStrength;
-  detailedAlbedo = mix(detailedAlbedo, vec3(0.81, 0.86, 0.91) * (0.92 + scree * 0.08), snow);
+  vec3 detailedAlbedo;
+  float relief;
+  if (uWorldAnchored > 0.5 && uWoodlandStrength > 0.5) {
+    // Continuous stands carry quieter variation than the former thresholded
+    // meadow/forest product. Bounded noise fields and nine crown candidates
+    // remain fixed in metres on the real slopes, without extra tree draws.
+    vec2 drift = vec2(ridgeNoise(p.xz * 0.012 + vec2(2.0, 9.0)),
+      ridgeNoise(p.xz * 0.012 + vec2(23.0, 1.0))) - 0.5;
+    vec2 grove = p.xz + drift * 9.0;
+    float stand = ridgeFbm(grove * 0.027 + vec2(17.2, 3.4));
+    vec2 canopy = ridgeCanopy(grove * 0.27);
+    float needles = ridgeNoise(grove * 0.71 + p.y * 0.07);
+    float footprint = max(length(dFdx(p.xz)), length(dFdy(p.xz)));
+    float crownVisibility = 1.0 - smoothstep(0.45, 1.8, footprint);
+    float crown = mix(0.5, canopy.x * (0.75 + needles * 0.5),
+      crownVisibility);
+    float gentleSlope = smoothstep(0.70, 0.97, abs(normal.y));
+    float glade = smoothstep(0.69, 0.90, stand) * gentleSlope * gentleSlope;
+    vec3 woodland = mix(vec3(0.047, 0.074, 0.046), vec3(0.067, 0.092, 0.052), stand);
+    woodland = mix(woodland, vec3(0.079, 0.110, 0.060), glade * 0.6);
+    float speciesTone = mix(1.0, 0.96 + canopy.y * 0.08, crownVisibility * min(crown, 1.0));
+    detailedAlbedo = woodland * (0.91 + crown * 0.22) * speciesTone;
+    float ledge = (1.0 - smoothstep(0.58, 0.84, abs(normal.y)))
+      * smoothstep(0.36, 0.68, stand);
+    detailedAlbedo = mix(detailedAlbedo, vec3(0.085, 0.092, 0.077)
+      * (0.92 + needles * 0.12), ledge * 0.38);
+    // Sub-metre canopy relief across roughly 3.7m crowns, below the existing
+    // crest undulation. Sub-pixel relief fades out with the same field.
+    relief = crown * 0.24 * crownVisibility * uDetailStrength;
+  } else {
+    // Retain the far range's geology/snow exactly. The private woodland control
+    // also admits the previous wooded finish for a same-page paired comparison.
+    float rock = smoothstep(0.48, 0.84,
+      vRidgeHeight + (ridgeNoise(p.xz * 0.055) - 0.5) * 0.22) * (1.0 - uWorldAnchored);
+    float forest = ridgeFbm(p.xz * 0.18 + p.y * 0.045);
+    float veins = mix(ridgeFbm(p.xy * vec2(0.11, 0.16)),
+      ridgeFbm(p.zy * vec2(0.11, 0.16)), faceWeight);
+    float scree = ridgeFbm(p.xz * 0.48 + p.y * 0.62 + veins * 3.0);
+    float meadow = smoothstep(0.42, 0.68, ridgeFbm(p.xz * 0.043));
+    // Separate broad meadow and woodland patches from the mineral upper slopes.
+    // These values are linear albedo, before lighting and atmospheric extinction.
+    // Working if the paired surface control removes the patches without changing the silhouette.
+    // The foothills are wooded, with clearings rather than a bright meadow
+    // blanket. Reuse the two existing scales, so the finish keeps its sample budget.
+    float clearing = meadow * smoothstep(0.42, 0.66, forest);
+    vec3 vegetation = mix(vec3(0.054, 0.084, 0.050),
+      vec3(0.101, 0.139, 0.085), clearing);
+    float finish = mix(0.88 + forest * 0.32, 0.4 + veins * 0.8 + scree * 0.32, rock);
+    detailedAlbedo = mix(vegetation, vRidgeColor, rock) * finish;
+    // Preserve snow through the mineral finish. Shallow shoulders retain cover,
+    // steep faces expose rock; gullies soften the boundary without more samples.
+    // Working if far caps read white while fixed low foothills remain wooded.
+    float snow = smoothstep(0.35, 0.65, vRidgeSnow + (veins - 0.5) * 0.25)
+      * (0.84 + 0.16 * smoothstep(0.08, 0.70, normal.y)) * uSnowStrength;
+    detailedAlbedo = mix(detailedAlbedo, vec3(0.81, 0.86, 0.91) * (0.92 + scree * 0.08), snow);
+    relief = mix(forest * 0.32, veins * 0.7 + scree * 0.16, rock) * uDetailStrength * (1.0 - snow * 0.8);
+  }
   vec3 albedo = mix(vRidgeColor, detailedAlbedo, uDetailStrength);
-  float relief = mix(forest * 0.32, veins * 0.7 + scree * 0.16, rock) * uDetailStrength * (1.0 - snow * 0.8);
   vec3 dx = dFdx(p), dy = dFdy(p);
   vec3 rx = cross(dy, normal), ry = cross(normal, dx);
   float determinant = dot(dx, rx);
@@ -892,10 +968,13 @@ export function createRidgeMaterial(
       uDetailStrength: WORLD_SURFACE_STRENGTH,
       uSnowStrength: RIDGE_SNOW_STRENGTH,
       uWorldAnchored: { value: worldAnchored ? 1 : 0 },
+      // Per-material, unlike global surface/snow isolation. Working if a
+      // woodland comparison cannot retint the far range or another surface.
+      uWoodlandStrength: { value: worldAnchored ? 1 : 0 },
     },
   });
   material.userData.clearAerial = aerial;
-  material.customProgramCacheKey = () => 'millos-ridge-aerial-geology-v10';
+  material.customProgramCacheKey = () => 'millos-ridge-aerial-geology-v13';
   return material;
 }
 

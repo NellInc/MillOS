@@ -15,6 +15,7 @@ import {
   MOUNTAIN_RIDGE_GEOMETRIES,
   CELESTIAL_RADIUS,
   createRidgeMaterial,
+  RIDGE_CANOPY_PROFILE,
 } from './OptimizedSkySystem';
 import { LANDSCAPE_GROVE_TREES } from '../exterior/ExteriorVegetation';
 import { sampleValleyGroundHeight } from '../terrain/splatMapGenerator';
@@ -390,7 +391,7 @@ describe('solid fixed foothills', () => {
       expect(material.fragmentShader).toContain('gl_FragColor = vec4(lit, 1.0)');
       expect(material.fragmentShader).not.toContain('groundBlend');
       expect(material.fragmentShader).not.toContain('sampler');
-      expect(material.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v10');
+      expect(material.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v13');
       material.dispose();
     }
   });
@@ -425,6 +426,39 @@ describe('solid fixed foothills', () => {
       material.dispose();
     }
   });
+});
+
+it('isolates the default woodland finish per anchored material without touching the far range or shared surface controls', () => {
+  const near = createRidgeMaterial(0.1, 'near', true),
+    mid = createRidgeMaterial(0.2, 'mid', true),
+    far = createRidgeMaterial(0.32, 'far');
+  expect(near.uniforms.uWoodlandStrength.value).toBe(1);
+  expect(mid.uniforms.uWoodlandStrength.value).toBe(1);
+  expect(far.uniforms.uWoodlandStrength.value).toBe(0);
+  expect(near.uniforms.uWoodlandStrength).not.toBe(mid.uniforms.uWoodlandStrength);
+  expect(near.uniforms.uDetailStrength).toBe(mid.uniforms.uDetailStrength);
+  expect(mid.uniforms.uSnowStrength).toBe(far.uniforms.uSnowStrength);
+  const detail = near.uniforms.uDetailStrength.value,
+    snow = far.uniforms.uSnowStrength.value,
+    key = near.customProgramCacheKey();
+  near.uniforms.uWoodlandStrength.value = 0;
+  expect(mid.uniforms.uWoodlandStrength.value).toBe(1);
+  expect(far.uniforms.uWoodlandStrength.value).toBe(0);
+  expect(near.uniforms.uDetailStrength.value).toBe(detail);
+  expect(far.uniforms.uSnowStrength.value).toBe(snow);
+  expect(near.customProgramCacheKey()).toBe(key);
+  for (const material of [near, mid, far]) material.dispose();
+});
+
+it('keeps every compact crown inside the actual neighboring-seed stencil with bounded overlap weights', () => {
+  const { seedInset, radius, axis, amplitude } = RIDGE_CANOPY_PROFILE;
+  expect(seedInset).toBeGreaterThan(0);
+  expect(seedInset).toBeLessThan(0.5);
+  expect(radius[0]).toBeGreaterThan(0);
+  expect(axis[0]).toBeGreaterThan(0);
+  expect(radius[1] * axis[1]).toBeLessThan(1 + seedInset);
+  expect(amplitude[0]).toBeGreaterThan(0);
+  expect(amplitude[1]).toBeLessThan(1);
 });
 
 describe('single sun/moon shadowed key', () => {
