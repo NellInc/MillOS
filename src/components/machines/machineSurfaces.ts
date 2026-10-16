@@ -667,10 +667,10 @@ export const MACHINE_MATERIALS = {
   ),
 
   /**
-   * Paper sack. Dielectric, no maps - it is 1.25 x 1.45 m of woven paper.
+   * Paper sack. Dielectric, unmapped cloth with a separately fitted raster print.
    *
    * No map, but a `fabric` finish: that profile exists for exactly this, and a
-   * 1.25 m sack is comfortably above the aliasing floor at the packing camera.
+   * human-scale sack retains its restrained weave at the packing camera.
    * The output sack moves on the filling cycle. Rest-space sampling keeps the
    * weave welded to the cloth rather than sliding through a world-space field.
    * Working if bag travel changes the transform, never the cloth's field point.
@@ -792,6 +792,23 @@ export const MACHINE_MATERIALS = {
  */
 export function setMachineScreenGlow(composerActive: boolean): void {
   MACHINE_MATERIALS.screen.emissiveIntensity = composerActive ? 1.35 : 1;
+}
+
+/** Borrow the approved raster, own only this opaque, ordinary lit ink material.
+ * Working if the print follows the bag in one shared instance draw, stays dark
+ * at night without a light and never disposes the shared texture on unmount.
+ */
+export function createPackerPrintMaterial(map: THREE.Texture): THREE.MeshStandardMaterial {
+  return new THREE.MeshStandardMaterial({
+    name: 'packer-millos-raster-ink',
+    color: '#ffffff',
+    map,
+    roughness: 0.95,
+    metalness: 0,
+    polygonOffset: true,
+    polygonOffsetFactor: -1,
+    polygonOffsetUnits: -1,
+  });
 }
 
 /**

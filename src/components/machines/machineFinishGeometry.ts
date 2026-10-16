@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+import { DecalGeometry } from 'three/addons/geometries/DecalGeometry.js';
 
 import { SIFTER_LAYOUT, PACKER_HOPPER_LAYOUT } from '../../constants/siteLayout';
 
@@ -669,14 +670,24 @@ function createPackerSackGeometry(): THREE.BufferGeometry {
   const seal = new THREE.CylinderGeometry(0.025, 0.025, 0.82, 8)
     .rotateZ(Math.PI / 2)
     .translate(0, 0.475, 0);
-  return finish([body, seal], 'packer-filled-cloth-sack');
+  const stitches = Array.from({ length: 8 }, (_, i) =>
+    new THREE.BoxGeometry(0.035, 0.006, 0.008).translate(-0.28 + i * 0.08, 0.481, 0.024)
+  );
+  return finish([body, seal, ...stitches], 'packer-filled-cloth-sack');
 }
 export const PACKER_SACK_GEOMETRY = createPackerSackGeometry();
+/** Representative ordinary bag, never an inventory or weight authority.
+ * Its complete operating sweep stays beyond the base and before the unchanged
+ * QC/packing posts. Working if people remain clear without moving their routes.
+ */
 export const PACKER_SACK_LAYOUT = {
-  scale: [1.25, 1.45, 0.72] as const,
-  centreY: 1.45 / 2 + 0.002,
-  z: 2.75,
-  travel: 0.52,
+  scale: [0.54, 0.84, 0.26] as const,
+  centreY: 0.84 / 2 + 0.002,
+  z: 2.32,
+  travel: 0.24,
+  guideX: 0.38,
+  guidePosition: [0, 0.52, 2.44] as const,
+  guideSize: [0.05, 1, 0.05] as const,
 } as const;
 
 /** Shared by initial layout and every moving frame, keeping the foot seated. */
@@ -686,4 +697,80 @@ export function getPackerSackPosition(origin: Vec3, cycle = 0): [number, number,
     origin[1] + PACKER_SACK_LAYOUT.centreY,
     origin[2] + PACKER_SACK_LAYOUT.z + cycle * PACKER_SACK_LAYOUT.travel,
   ];
+}
+
+/** Same approved raster as the mill signs, fitted onto actual cloth facets.
+ * Working if installed aspect is 1536:379 and every triangle is supported within
+ * 1.1mm, rather than a flat card hovering in front of the gusset.
+ */
+export const PACKER_SACK_PRINT_GEOMETRY = (() => {
+  const [sx, sy] = PACKER_SACK_LAYOUT.scale;
+  const width = 0.7;
+  const material = new THREE.MeshBasicMaterial();
+  const sack = new THREE.Mesh(PACKER_SACK_GEOMETRY, material);
+  const plate = new DecalGeometry(
+    sack,
+    new THREE.Vector3(0, 0.1, 0.43),
+    new THREE.Euler(),
+    new THREE.Vector3(width, (width * sx * 379) / (sy * 1536), 0.3)
+  );
+  const p = plate.attributes.position;
+  for (let i = 0; i < p.count; i++) {
+    p.setZ(i, p.getZ(i) + 0.004);
+  }
+  material.dispose();
+  plate.computeBoundingBox();
+  plate.computeBoundingSphere();
+  plate.name = 'packer-fitted-millos-print';
+  return plate;
+})();
+
+/** Formed outlet replaces the oversized soft block in the same shared draw.
+ * Metre-authored flange meets the actual lower cabinet face. The open lip
+ * stands above the sealed representative bag, then lifts as that bag leaves.
+ * Working if the rim has a real aperture and every operating pose stays clear
+ * of the unchanged observation posts and original housing/hopper/guards.
+ */
+export const PACKER_FILL_HEAD_GEOMETRY = (() => {
+  const path = new THREE.CatmullRomCurve3(
+    [
+      [0, 1.72, 1.49],
+      [0, 1.7, 1.82],
+      [0, 1.4, 2.17],
+      [0, 1.08, 2.3],
+      [0, 0.94, 2.32],
+    ].map((p) => new THREE.Vector3(...p))
+  );
+  const parts: THREE.BufferGeometry[] = [new THREE.TubeGeometry(path, 12, 0.07, 10, false)];
+  cylinder(parts, [0, 1.72, 1.49], 0.15, 0.12, 'z', 16);
+  for (const t of [0.23, 0.63]) {
+    const rotation = new THREE.Quaternion().setFromUnitVectors(
+      new THREE.Vector3(0, 0, 1),
+      path.getTangent(t).normalize()
+    );
+    parts.push(
+      new THREE.TorusGeometry(0.073, 0.009, 4, 12)
+        .applyQuaternion(rotation)
+        .translate(...path.getPoint(t).toArray())
+    );
+  }
+  parts.push(
+    new THREE.LatheGeometry(
+      [
+        [0.071, 0],
+        [0.098, 0],
+        [0.1, 0.012],
+        [0.1, 0.07],
+        [0.071, 0.07],
+        [0.071, 0],
+      ].map((p) => new THREE.Vector2(...p)),
+      12
+    ).translate(0, 0.88, PACKER_SACK_LAYOUT.z)
+  );
+  return finish(parts, 'packer-formed-outlet-and-open-lip');
+})();
+
+/** Same layout and operating transform, driven only by the incumbent clock. */
+export function getPackerHeadPosition(origin: Vec3, cycle = 0): [number, number, number] {
+  return [origin[0], origin[1] + cycle * 0.14, origin[2]];
 }

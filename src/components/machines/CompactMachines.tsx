@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { ThreeEvent, useFrame } from '@react-three/fiber';
+import { useTexture } from '@react-three/drei';
+import { BUSINESS_BRANDS } from '../scenery/HeritageSignage';
 import { GeneratedBoundary } from '../models/GeneratedModel';
 import { GeneratedGeometrySurface } from '../models/GeneratedGeometrySurface';
 import type { GeneratedAssetId } from '../../utils/modelLoader';
@@ -33,12 +35,16 @@ import {
   MILL_DRIVE_Z,
   PACKER_SACK_GEOMETRY,
   PACKER_SACK_LAYOUT,
+  PACKER_SACK_PRINT_GEOMETRY,
+  PACKER_FILL_HEAD_GEOMETRY,
   getPackerSackPosition,
+  getPackerHeadPosition,
 } from './machineFinishGeometry';
 import {
   MACHINE_MATERIALS as MATERIALS,
   machineInstanceTint,
   setMachineScreenGlow,
+  createPackerPrintMaterial,
 } from './machineSurfaces';
 import {
   MACHINE_DECAL_GEOMETRY,
@@ -50,20 +56,17 @@ import {
 } from './machineDecals';
 
 const UNIT_BOX = new THREE.BoxGeometry(1, 1, 1);
-const ROUNDED_BOX = new RoundedBoxGeometry(1, 1, 1, 3, 0.08);
 /**
  * Thin plates, panels and plinths.
  *
- * `ROUNDED_BOX`'s 0.08 fillet is a UNIT radius, so the non-uniform instance
+ * The former rounded box's 0.08 fillet was a UNIT radius, so the non-uniform instance
  * scale stretches it with the part: on the mill panel ([3.5, 0.46, 0.12]) it
  * becomes 0.28 m across X and 0.0096 m across Z, a 29x anisotropy that reads as
  * a soft lozenge on one axis and a hard card on the other. That mismatch is
  * most of the "toy blocks" silhouette. Every plate-shaped part uses this 0.02
  * radius instead, which lands between 0.002 and 0.16 m - a plausible pressed
- * edge at every scale it is used at. `ROUNDED_BOX` is now down to the packer's
- * fill head and its sacks, which are small and near-cubic enough that the soft
- * fillet is right for both; the three machine bodies that used to share it are
- * designed housings, further down.
+ * edge at every scale it is used at. The machine bodies, formed packer outlet
+ * and sacks now have their own authored geometry.
  */
 const THIN_PLATE = new RoundedBoxGeometry(1, 1, 1, 1, 0.02);
 const SILO_BODY = new THREE.CylinderGeometry(1, 1, 1, 16);
@@ -880,6 +883,16 @@ function CompactMachineSet({
   const packerCoversRef = useRef<THREE.InstancedMesh>(null);
   const packerHardwareRef = useRef<THREE.InstancedMesh>(null);
   const bagRef = useRef<THREE.InstancedMesh>(null);
+  const bagPrintRef = useRef<THREE.InstancedMesh>(null);
+  const bagPrint = useTexture(BUSINESS_BRANDS.mill.primary);
+  const bagPrintMaterial = useMemo(() => createPackerPrintMaterial(bagPrint), [bagPrint]);
+  useLayoutEffect(() => {
+    bagPrint.colorSpace = THREE.SRGBColorSpace;
+    bagPrint.anisotropy = 4;
+    bagPrint.needsUpdate = true;
+  }, [bagPrint]);
+  // Texture belongs to useTexture's shared cache, material belongs to this set.
+  useEffect(() => () => bagPrintMaterial.dispose(), [bagPrintMaterial]);
   const beaconRef = useRef<THREE.InstancedMesh>(null);
   const beaconBaseRef = useRef<THREE.InstancedMesh>(null);
   const decalRef = useRef<THREE.InstancedMesh>(null);
@@ -1227,8 +1240,8 @@ function CompactMachineSet({
         packerHeadRef.current,
         index,
         object,
-        [x, y + 1.75, z + 1.72],
-        [0.68, 1.4, 0.68]
+        getPackerHeadPosition(machine.position),
+        [1, 1, 1]
       );
       setInstanceMatrix(
         bagRef.current,
@@ -1237,6 +1250,7 @@ function CompactMachineSet({
         getPackerSackPosition(machine.position),
         PACKER_SACK_LAYOUT.scale
       );
+      bagPrintRef.current?.setMatrixAt(index, object.matrix);
       setInstanceMatrix(
         packerScreenRef.current,
         index,
@@ -1244,13 +1258,17 @@ function CompactMachineSet({
         [x, y + 4.05, z + 1.78],
         [0.72, 0.5, 0.08]
       );
-      [-0.92, 0.92].forEach((offsetX, guideIndex) => {
+      [-PACKER_SACK_LAYOUT.guideX, PACKER_SACK_LAYOUT.guideX].forEach((offsetX, guideIndex) => {
         setInstanceMatrix(
           packerGuideRef.current,
           index * 2 + guideIndex,
           object,
-          [x + offsetX, y + 1.42, z + 2.55],
-          [0.09, 2.5, 0.09]
+          [
+            x + offsetX,
+            y + PACKER_SACK_LAYOUT.guidePosition[1],
+            z + PACKER_SACK_LAYOUT.guidePosition[2],
+          ],
+          PACKER_SACK_LAYOUT.guideSize
         );
       });
       [-1.34, 1.34].forEach((offsetX, guardIndex) => {
@@ -1370,6 +1388,7 @@ function CompactMachineSet({
       packerCoversRef,
       packerHardwareRef,
       bagRef,
+      bagPrintRef,
       beaconRef,
       beaconBaseRef,
     ].forEach((ref) => finishMatrixUpdate(ref.current, true));
@@ -1408,6 +1427,7 @@ function CompactMachineSet({
       decalRef,
       packerHeadRef,
       bagRef,
+      bagPrintRef,
     ],
     []
   );
@@ -1563,15 +1583,14 @@ function CompactMachineSet({
     });
 
     subsets.packers.forEach((machine, index) => {
-      const [x, y, z] = machine.position;
       const phase = machinePhase(machine);
       const cycle = phase === null ? 0 : (Math.sin(phase * 3.2 + index) + 1) * 0.5;
       setInstanceMatrix(
         packerHeadRef.current,
         index,
         object,
-        [x, y + 1.75 - cycle * 0.38, z + 1.72],
-        [0.68, 1.4, 0.68]
+        getPackerHeadPosition(machine.position, cycle),
+        [1, 1, 1]
       );
       setInstanceMatrix(
         bagRef.current,
@@ -1580,6 +1599,7 @@ function CompactMachineSet({
         getPackerSackPosition(machine.position, cycle),
         PACKER_SACK_LAYOUT.scale
       );
+      bagPrintRef.current?.setMatrixAt(index, object.matrix);
     });
 
     flowVisualFrameRef.current += 1;
@@ -1887,7 +1907,13 @@ function CompactMachineSet({
       <instancedMesh
         name="packer-filling-heads"
         ref={packerHeadRef}
-        args={[ROUNDED_BOX, MATERIALS.packerTrim, subsets.packers.length]}
+        args={[PACKER_FILL_HEAD_GEOMETRY, MATERIALS.packerTrim, subsets.packers.length]}
+        receiveShadow
+      />
+      <instancedMesh
+        name="packer-millos-prints"
+        ref={bagPrintRef}
+        args={[PACKER_SACK_PRINT_GEOMETRY, bagPrintMaterial, subsets.packers.length]}
         receiveShadow
       />
       <instancedMesh
